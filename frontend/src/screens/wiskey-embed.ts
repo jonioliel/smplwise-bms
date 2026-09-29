@@ -8,8 +8,9 @@ import '../components/sw-state-panel';
 import '../components/sw-tabs';
 import { can, canNav, isApi } from '../api/session';
 import { parseRoute, pushRoute, replaceRoute } from '../router';
-import { WISKEY_SCREENS, WISKEY_TABS, WISKEY_UI, activeTabOf, isWiskeyHref, setWiskeyEmbedNav, visibleTabs, wiskeyPath, wiskeyRequest, wiskeyRoute, wiskeySegmentOf, type WiskeyScreen } from '../shell/nav';
+import { WISKEY_PHONE_EMBED, WISKEY_SCREENS, WISKEY_TABS, WISKEY_UI, activeTabOf, isWiskeyHref, setWiskeyEmbedNav, visibleTabs, wiskeyPath, wiskeyRequest, wiskeyRoute, wiskeySegmentOf, type WiskeyScreen } from '../shell/nav';
 import { attachWiskey, WISKEY_PANEL_PATH, WISKEY_PANEL_TAG, type WiskeyCatalog, type WiskeyConnector, type WiskeyLocation } from '../wiskey/embed-connector';
+import { attachCompanionBridge, bridgeWindow, type CompanionBridge, type ShimState } from '../wiskey/companion-bridge';
 import './wiskey-overview';
 import './wiskey-events';
 import './wiskey-people';
@@ -56,6 +57,12 @@ import './wiskey-people';
  * (overview, events, people) or a short note, plus "פתח ב-WisKey", which moves the TOP Home Assistant frontend to the
  * panel's deep link (`/hikvision-intercom?tab=…&tool=…`, honoured in normal mode since rc.19) the way its own
  * `navigate()` does (`src/common/navigate.ts`: pushState on the main window, then `location-changed`).
+ *
+ * Experimental (owner request 2026-09-29, הגדרות › בקרות כניסה "הטמעה גם באפליקציית Companion", `access.phone_embed`,
+ * default off): in the app the frame IS opened, with `external_auth=1`, and `wiskey/companion-bridge.ts` relays the app's
+ * sign-in bridge from Home Assistant's top document into it (details and HA source lines there). If the nested
+ * frontend still cannot sign in (a login redirect, or no connection within the panel timeout) the tab falls back to the
+ * screen above, with a note that the phone embed did not work. Off: exactly the behaviour above.
  *
  * On module exit the frame is disposed and removed, so WisKey cleans up its listeners and media; a deliberate refresh
  * (the bar's "רענן", or "נסה שוב") reopens the panel on the last confirmed tab/tool.
@@ -301,6 +308,11 @@ export class WiskeyEmbed extends LitElement {
   private panelEl: PanelEl | null = null;
   private guarded = new WeakSet<Element>();
   private frameWin: Window | null = null;
+  /** Experimental phone embed: framed inside the Companion app through the sign-in relay. */
+  private phoneRelay = false;
+  private bridge: CompanionBridge | null = null;
+  /** Where the relay's proxies went for the frame's current document (reflected on the frame for the evidence specs). */
+  @state() private shim: ShimState = '';
 
   static styles = css`
     :host {
@@ -444,9 +456,13 @@ export class WiskeyEmbed extends LitElement {
       return;
     }
     if (isCompanionApp()) {
-      // the app signs Home Assistant in through its native bridge, which a nested frame cannot use: never frame it
-      this.direct = 'companion';
-      return;
+      // the app signs Home Assistant in through its native bridge, which a nested frame cannot use by itself: frame it
+      // only with the experimental relay switched on and a bridge to relay; otherwise never
+      this.phoneRelay = WISKEY_PHONE_EMBED && !!bridgeWindow() && this.direct !== 'companion';
+      if (!this.phoneRelay) {
+        this.direct = 'companion';
+        return;
+      }
     }
     // v1: a WisKey tab / tool link is sent as a message first; its history entry is written once the panel confirms
     window.addEventListener('click', this.onClick, true);
@@ -498,8 +514,12 @@ export class WiskeyEmbed extends LitElement {
     if (!f) return;
     this.resetFrameState();
     this.opened = this.request();
+    // the relay watches the frame from before its address is assigned (the connector assigns it right away)
+    this.bridge?.dispose();
+    this.bridge = this.phoneRelay ? attachCompanionBridge(f, (s) => (this.shim = s)) : null;
     this.connector = attachWiskey(f, {
       initial: this.opened,
+      extraParams: this.bridge ? { external_auth: '1' } : undefined,
       onReady: (c) => this.onReady(c),
       onLocation: (l) => this.onLocation(l),
       onTitle: (t) => (this.panelTitle = t),
@@ -532,6 +552,9 @@ export class WiskeyEmbed extends LitElement {
     this.stopTimers();
     this.connector?.dispose();
     this.connector = null;
+    this.bridge?.dispose();
+    this.bridge = null;
+    this.shim = '';
     const f = this.frame();
     if (f) {
       try {
@@ -948,15 +971,19 @@ export class WiskeyEmbed extends LitElement {
   /** The tab without a nested Home Assistant: the SMPLWISE screen where one exists, otherwise a short note. */
   private renderDirect() {
     const label = TAB_LABELS[this.tab] ?? this.tab;
-    const phone = this.direct === 'companion';
-    const note = phone
-      ? 'בטלפון WisKey נפתח באפליקציה עצמה'
-      : 'Home Assistant מבקש התחברות בתוך המסגרת, ולכן WisKey נפתח ב־Home Assistant עצמו';
+    // the experimental phone embed that could not sign in counts as the phone case (no new-window link in the app)
+    const phone = this.direct === 'companion' || this.phoneRelay;
+    const note =
+      this.direct === 'companion'
+        ? 'בטלפון WisKey נפתח באפליקציה עצמה'
+        : this.phoneRelay
+          ? 'ההטמעה באפליקציה (ניסיוני) לא הצליחה להתחבר, ולכן WisKey נפתח באפליקציה עצמה'
+          : 'Home Assistant מבקש התחברות בתוך המסגרת, ולכן WisKey נפתח ב־Home Assistant עצמו';
     const screen = SMPLWISE_SCREEN[this.tab];
     const only = wiskeySegmentOf(this.tab);
     return html`
       <div class="bar" data-wiskey-embed-bar>
-        <span class="note ${phone ? '' : 'warn'}" data-wiskey-embed-note=${this.direct}>${note}</span>
+        <span class="note ${this.direct === 'companion' ? '' : 'warn'}" data-wiskey-embed-note=${this.direct} ?data-phone-relay=${this.phoneRelay}>${note}</span>
         <span class="grow"></span>
         ${screen ? this.openInHaButton() : nothing}
         ${phone ? nothing : this.fullLink()}
@@ -972,7 +999,7 @@ export class WiskeyEmbed extends LitElement {
                   <sw-state-panel state="empty" heading=${`WisKey · ${label}`} hint=${`${note}. המסך "${label}" קיים רק בממשק של WisKey.`}></sw-state-panel>
                   <div class="actions">
                     ${this.openInHaButton('primary')}
-                    ${phone ? nothing : html`<sw-button size="sm" icon="refresh" data-wiskey-embed-retry @click=${() => this.reload()}>נסה שוב</sw-button>`}
+                    ${this.direct === 'companion' ? nothing : html`<sw-button size="sm" icon="refresh" data-wiskey-embed-retry @click=${() => this.reload()}>נסה שוב</sw-button>`}
                   </div>
                 </div>
               </div>`}
@@ -1058,6 +1085,7 @@ export class WiskeyEmbed extends LitElement {
             data-tab-applied=${this.tabApplied === null ? '' : String(this.tabApplied)}
             data-confirmed-tab=${confirmed?.tab ?? ''}
             data-confirmed-tool=${confirmed?.tool ?? ''}
+            data-companion-shim=${this.shim}
             title="WisKey"
             ?data-hidden=${failed}
             allow="autoplay; microphone; camera; fullscreen; clipboard-write"

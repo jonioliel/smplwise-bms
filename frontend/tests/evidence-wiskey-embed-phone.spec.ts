@@ -1,5 +1,6 @@
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, request as pwRequest, type Page, type Route } from '@playwright/test';
 import { setAccessUi, type AccessUi } from './wiskey-ui-mode';
+import { stubPanel } from './wiskey-fake-ha';
 
 // Evidence for the WisKey embed on the Home Assistant Companion app and on a sign-in inside the frame (owner's phone
 // report on 0.1.122: "לא ניתן לטעון את WisKey מתוך Home Assistant"). In the app, Home Assistant's frontend signs in
@@ -182,5 +183,171 @@ ${router ? `window.addEventListener('location-changed', () => { window.__routed.
     await expect(embed.locator('[data-wiskey-embed-error="unreachable"]')).toHaveCount(0);
     await expect(page.locator(FRAME)).toHaveCount(0);
     await expect(embed.locator('[data-wiskey-embed-only="sync"] sw-button[data-wiskey-open-ha]')).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Experimental phone embed (owner request 2026-09-29; הגדרות › בקרות כניסה "הטמעה גם באפליקציית Companion (ניסיוני)",
+// `access.phone_embed`): in the app the frame is opened with `external_auth=1` and src/wiskey/companion-bridge.ts
+// relays the app's sign-in bridge from Home Assistant's top document into it. The stand-in top document below carries a
+// fake Android bridge whose answer is evaluated in the TOP document only (as the app's evaluateJavascript does), plus the
+// top frontend's own `externalAuthSetToken`; the panel address answers a fake HA whose entry module (loaded by import(),
+// like HA's core entry) signs in the way HA's external_auth.ts does and starts only with a token. Stubs, not the real
+// app: whether Android / iOS accept the relayed call is the owner's device check (CR-005).
+
+const HA_TOP_RELAY = /\/ha-top-relay$/;
+const AUTH_PAYLOAD = JSON.stringify({ callback: 'externalAuthSetToken' });
+
+function haTopRelay(answers: boolean): string {
+  return `<!doctype html><html><body style="margin:0"><script>
+window.__asked = []; window.__topTokens = []; window.__revoked = 0; window.__bus = [];
+window.externalApp = {
+  getExternalAuth(p) {
+    window.__asked.push(p);
+    const n = window.__asked.length;
+    const cb = JSON.parse(p).callback;
+    ${answers ? `setTimeout(() => (0, eval)(cb + '(true, ' + JSON.stringify({ access_token: 'tok-' + n, expires_in: 1800 }) + ')'), 20);` : ''}
+  },
+  revokeExternalAuth(p) { window.__revoked++; },
+  externalBus(p) { window.__bus.push(p); },
+};
+window.externalAuthSetToken = (ok, data) => window.__topTokens.push(data);
+window.externalApp.getExternalAuth(${JSON.stringify(AUTH_PAYLOAD)});
+</script><iframe id="ingress" src="/?design=a#/wiskey/overview" style="width:100%;height:780px;border:0"></iframe></body></html>`;
+}
+
+type TopRelayState = { asked: string[]; tokens: unknown[]; revoked: number; bus: string[] };
+const topRelayState = (page: Page): Promise<TopRelayState> =>
+  page.evaluate(() => {
+    const w = window as unknown as { __asked: string[]; __topTokens: unknown[]; __revoked: number; __bus: string[] };
+    return { asked: w.__asked, tokens: w.__topTokens, revoked: w.__revoked, bus: w.__bus };
+  });
+const wiskeyFrame = (page: Page) => page.frames().find((f) => PANEL_URL.test(f.url()));
+type FrameAuth = { isExternal: boolean; proxied: boolean; bus: boolean; token: { access_token: string; expires_in: number } | null; error: string | null };
+const frameAuth = async (page: Page): Promise<FrameAuth | null> => (await wiskeyFrame(page)?.evaluate(() => (window as unknown as { __auth?: FrameAuth }).__auth ?? null)) ?? null;
+
+async function setPhoneEmbed(baseURL: string | undefined, value: 'true' | 'false'): Promise<string | null> {
+  const ctx = await pwRequest.newContext({ baseURL });
+  try {
+    const before = ((await (await ctx.get('/api/v1/settings')).json()) as { settings: Record<string, string> }).settings['access.phone_embed'] ?? null;
+    const r = await ctx.patch('/api/v1/settings', { data: { 'access.phone_embed': value } });
+    if (!r.ok()) throw new Error(`PATCH /settings ${r.status()}: ${await r.text()}`);
+    return before;
+  } finally {
+    await ctx.dispose();
+  }
+}
+
+let phoneBefore: string | null = null;
+let relayUiBefore: AccessUi | null = null;
+
+async function phoneEmbedOn(baseURL: string | undefined) {
+  relayUiBefore = await setAccessUi(baseURL, { 'access.ui.overview': 'wiskey', 'access.ui.events': 'wiskey', 'access.ui.people': 'wiskey' });
+  phoneBefore = await setPhoneEmbed(baseURL, 'true');
+}
+async function phoneEmbedBack(baseURL: string | undefined) {
+  await setPhoneEmbed(baseURL, phoneBefore === 'true' ? 'true' : 'false');
+  if (relayUiBefore && Object.keys(relayUiBefore).length) await setAccessUi(baseURL, relayUiBefore);
+}
+
+test.describe('experimental: WisKey embedded inside the Companion app through the sign-in relay', () => {
+  test.skip(process.env.SW_LIVE !== '1' || process.env.SW_WISKEY_FIXTURE === '1', 'set SW_LIVE=1 with a plain backend running (no WisKey fixture)');
+  test.describe.configure({ mode: 'serial' });
+  test.use({ userAgent: ANDROID_APP_UA });
+  test.beforeAll(async ({}, testInfo) => phoneEmbedOn(testInfo.project.use.baseURL));
+  test.afterAll(async ({}, testInfo) => phoneEmbedBack(testInfo.project.use.baseURL));
+
+  test('the frame\'s Home Assistant receives externalAuthSetToken through the top window and WisKey embeds; the top frontend still gets every answer, unchanged', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the Companion app is a phone');
+    await page.route(HA_TOP_RELAY, (route: Route) => route.fulfill({ status: 200, contentType: 'text/html', body: haTopRelay(true) }));
+    const { hits } = await stubPanel(page, { kiosk: true, panels: true, api: 'v1', externalAuth: true });
+    await page.goto('/ha-top-relay');
+    const app = page.frameLocator('#ingress');
+    const frame = app.locator(FRAME);
+    await expect(frame).toHaveAttribute('data-embed-mode', 'v1', { timeout: 30000 });
+    await expect(frame).toHaveAttribute('data-phase', 'ready');
+    await expect(app.locator('wiskey-embed')).toHaveAttribute('data-direct', '');
+    await expect(frame).toHaveAttribute('data-companion-shim', 'early'); // installed while the frame's document was parsing
+    expect(new URL(hits[0]).searchParams.get('external_auth')).toBe('1');
+    expect(new URL(hits[0]).searchParams.get('embed')).toBe('1');
+
+    // the nested frontend took the external sign-in with our proxy (no app bus), asked once and got the app's answer
+    const auth = await frameAuth(page);
+    expect(auth).toMatchObject({ isExternal: true, proxied: true, bus: false, error: null });
+    expect(auth!.token).toEqual({ access_token: 'tok-2', expires_in: 1800 });
+    let top = await topRelayState(page);
+    expect(top.asked).toEqual([AUTH_PAYLOAD, AUTH_PAYLOAD]); // the top's own request, then the frame's - payload unchanged
+    expect(top.tokens).toEqual([{ access_token: 'tok-1', expires_in: 1800 }, { access_token: 'tok-2', expires_in: 1800 }]); // delivered to BOTH
+    expect(top.bus).toEqual([]); // the frame never talks to the app's message bus
+    await page.screenshot({ path: testInfo.outputPath('wiskey-companion-relay.png') });
+
+    // the top frontend replacing its callback later (every token refresh does) is honoured; the frame still gets it
+    await page.evaluate((p) => {
+      const w = window as unknown as { __topTokens2: unknown[]; externalAuthSetToken: unknown; externalApp: { getExternalAuth(p: string): void } };
+      w.__topTokens2 = [];
+      w.externalAuthSetToken = (_ok: boolean, d: unknown) => w.__topTokens2.push(d);
+      w.externalApp.getExternalAuth(p);
+    }, AUTH_PAYLOAD);
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __topTokens2: unknown[] }).__topTokens2)).toEqual([{ access_token: 'tok-3', expires_in: 1800 }]);
+
+    // the frame can never sign the app out: its revoke is answered as failed and never reaches the bridge
+    const revoke = await wiskeyFrame(page)!.evaluate(
+      () =>
+        new Promise<{ ok: boolean }>((res) => {
+          const w = window as unknown as { externalAuthRevokeToken: unknown; externalApp: { revokeExternalAuth(p: string): void } };
+          w.externalAuthRevokeToken = (ok: boolean) => res({ ok });
+          w.externalApp.revokeExternalAuth(JSON.stringify({ callback: 'externalAuthRevokeToken' }));
+        }),
+    );
+    expect(revoke.ok).toBe(false);
+    expect((await topRelayState(page)).revoked).toBe(0);
+
+    // the embed works as in a browser: a tab click is confirmed by WisKey
+    await app.locator('sw-tabs a[href="#/wiskey/sync"]').click();
+    await expect(frame).toHaveAttribute('data-confirmed-tab', 'sync');
+
+    // "רענן": the new document in the frame is caught again and signs in with a fresh answer
+    await app.locator('sw-button[data-wiskey-embed-refresh]').click();
+    await expect.poll(async () => (await frameAuth(page))?.token?.access_token ?? null, { timeout: 20000 }).toBe('tok-4');
+    await expect(frame).toHaveAttribute('data-embed-mode', 'v1', { timeout: 15000 });
+    await expect(frame).toHaveAttribute('data-companion-shim', 'early');
+    top = await topRelayState(page);
+    expect(top.asked).toHaveLength(4);
+    expect(top.revoked).toBe(0);
+  });
+
+  test('when the nested Home Assistant still cannot sign in, the tab falls back to the 0.1.123 screen with a note', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the Companion app is a phone');
+    test.setTimeout(90_000);
+    await page.route(HA_TOP_RELAY, (route: Route) => route.fulfill({ status: 200, contentType: 'text/html', body: haTopRelay(false) }));
+    await stubPanel(page, { kiosk: true, panels: true, api: 'v1', externalAuth: true });
+    await page.goto('/ha-top-relay');
+    const app = page.frameLocator('#ingress');
+    await expect(app.locator(FRAME)).toHaveAttribute('data-companion-shim', 'early', { timeout: 30000 });
+    const embed = app.locator('wiskey-embed');
+    await expect(embed).toHaveAttribute('data-direct', 'login_required', { timeout: 45000 }); // the panel timeout
+    await expect(app.locator(FRAME)).toHaveCount(0);
+    await expect(embed.locator('[data-wiskey-embed-note="login_required"]')).toHaveText('ההטמעה באפליקציה (ניסיוני) לא הצליחה להתחבר, ולכן WisKey נפתח באפליקציה עצמה');
+    await expect(embed.locator('wiskey-overview')).toHaveCount(1);
+    await expect(embed.locator('sw-button[data-wiskey-open-ha]')).toHaveText('פתח ב-WisKey');
+    await expect(embed.locator('a[data-wiskey-embed-full]')).toHaveCount(0); // no new-window link inside the app
+    expect((await topRelayState(page)).revoked).toBe(0);
+  });
+});
+
+test.describe('experimental phone embed switched on, in a mobile browser (no app)', () => {
+  test.skip(process.env.SW_LIVE !== '1' || process.env.SW_WISKEY_FIXTURE === '1', 'set SW_LIVE=1 with a plain backend running (no WisKey fixture)');
+  test.describe.configure({ mode: 'serial' });
+  test.beforeAll(async ({}, testInfo) => phoneEmbedOn(testInfo.project.use.baseURL));
+  test.afterAll(async ({}, testInfo) => phoneEmbedBack(testInfo.project.use.baseURL));
+
+  test('the ordinary embed: no relay, no external_auth', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'a phone browser');
+    const { hits } = await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
+    await open(page, '/wiskey/overview');
+    const frame = page.locator(FRAME);
+    await expect(frame).toHaveAttribute('data-embed-mode', 'v1', { timeout: 15000 });
+    await expect(frame).toHaveAttribute('data-companion-shim', '');
+    expect(new URL(hits[0]).searchParams.get('external_auth')).toBeNull();
   });
 });

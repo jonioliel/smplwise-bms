@@ -72,6 +72,25 @@ def test_access_ui_screen_choice_defaults_to_the_embedded_panel_and_is_audited(s
         assert c.get("/api/v1/settings").json()["settings"]["access.ui.overview"] == "wiskey"
 
 
+def test_access_phone_embed_is_off_by_default_and_audited(settings):
+    """T054 follow-up (experimental): embedding WisKey inside the Companion app is opt-in - "false" keeps the 0.1.123
+    behaviour (no frame in the app) until the owner has tried it on a phone."""
+    app = create_app(settings)
+    with TestClient(app) as c:
+        assert c.get("/api/v1/settings").json()["settings"]["access.phone_embed"] == "false"
+        r = c.patch("/api/v1/settings", json={"access.phone_embed": "true"})
+        assert r.status_code == 200, r.text
+        assert r.json()["settings"]["access.phone_embed"] == "true"
+        for bad in ("yes", "", "TRUE", "1"):
+            assert c.patch("/api/v1/settings", json={"access.phone_embed": bad}).status_code == 422
+        assert c.patch("/api/v1/settings", json={"access.phone_embed": "false"}).json()["settings"]["access.phone_embed"] == "false"
+        with app.state.db.connection() as conn:
+            rows = [json.loads(r[0] or "{}") for r in conn.execute("SELECT details_json FROM audit_log WHERE action = 'settings.update' AND decision = 'allowed' ORDER BY rowid").fetchall()]
+        assert {"access.phone_embed": "true"} in rows and {"access.phone_embed": "false"} in rows
+        bind(c, settings, "ron", "viewer", "installation", "*")
+        assert c.patch("/api/v1/settings", json={"access.phone_embed": "true"}, headers=as_user("ron")).status_code == 403
+
+
 DEVICES_DEFAULTS = {
     "devices.style": "smplwise",
     "devices.theme": "default",

@@ -784,7 +784,7 @@ export class SystemDiagnostics extends LitElement {
    * panel embedded as-is (the default) or the SMPLWISE screen; WisKey's other screens are always embedded. */
   private renderAccessControl() {
     const api = isApi();
-    const dirty = ACCESS_SCREENS.some((a) => `access.ui.${a.screen}` in this.draft) || 'ui.hide_wiskey' in this.draft;
+    const dirty = ACCESS_SCREENS.some((a) => `access.ui.${a.screen}` in this.draft) || 'ui.hide_wiskey' in this.draft || 'access.phone_embed' in this.draft;
     const choice = (s: WiskeyScreen) => (String(this.value(`access.ui.${s}`) ?? 'wiskey') === 'smplwise' ? 'smplwise' : 'wiskey');
     return html`<div class="sections">
       <sw-card heading="בקרות כניסה" subheading="לכל מסך: הממשק המקורי של WisKey מוטמע כמו שהוא, או המסך שנבנה ב־SMPLWISE. הלשונית נשארת באותו מקום ובאותו שם.">
@@ -799,6 +799,10 @@ export class SystemDiagnostics extends LitElement {
               <option value="smplwise" ?selected=${choice(a.screen) === 'smplwise'}>SMPLWISE</option>
             </select></sw-field></div>`,
         )}
+        <div class="row"><span class="lbl">הטמעה גם באפליקציית Companion (ניסיוני)<span class="muted">כבוי: באפליקציית Home Assistant בטלפון WisKey לא מוטמע - מוצג המסך של SMPLWISE או הערה, עם "פתח ב-WisKey". מופעל: SMPLWISE מעביר את ההזדהות של האפליקציה ל־Home Assistant שבתוך המסגרת. אם ההזדהות לא מצליחה, המסך חוזר לבד להתנהגות הרגילה.</span></span>
+          <sw-field class="ctl"><select data-set-phone-embed ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('access.phone_embed', (e.target as HTMLSelectElement).value)}>
+            <option value="false" ?selected=${String(this.value('access.phone_embed') ?? 'false') !== 'true'}>כבוי</option><option value="true" ?selected=${String(this.value('access.phone_embed') ?? 'false') === 'true'}>מופעל</option>
+          </select></sw-field></div>
         <div class="row" data-access-ui-fixed><span class="lbl">שאר מסכי WisKey (עמדות, סנכרון, בריאות, יומן שינויים, ניהול)<span class="muted">קיימים רק ב־WisKey, ולכן תמיד מוטמעים</span></span><sw-field class="ctl"><select disabled><option selected>WisKey (מוטמע) · קבוע</option></select></sw-field></div>
         <div class="muted" style="margin-block-start:8px">במסך מוטמע הדפדפן מריץ את הממשק של WisKey עצמו בתוך Home Assistant, עם החיבור של המשתמש ל־Home Assistant: ההרשאות, האישורים והאודיט שם הם של WisKey, לא של SMPLWISE. "פתח בחלון מלא" פותח את אותו לוח בלשונית נפרדת.</div>
         <div class="muted" data-access-ui-embed-api style="margin-block-start:6px">ההטמעה משתמשת בממשק ההטמעה של WisKey (WisKey 2.0.0-rc.19 ומעלה): הלשוניות נבנות מהמסכים ש־WisKey מתיר למשתמש והמעבר ביניהן נעשה בהודעות; בגרסאות WisKey ישנות יותר ההטמעה עוברת אוטומטית לשיטה הקודמת.</div>

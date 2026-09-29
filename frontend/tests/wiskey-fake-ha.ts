@@ -31,6 +31,8 @@ export interface FakeHa {
   catalog?: FakeCatalog;
   /** v1: post the location (and title) right after ready (default true). */
   announce?: boolean;
+  /** Home Assistant's external (Companion app) sign-in: start only after a token from the app's bridge (FAKE_CORE). */
+  externalAuth?: boolean;
 }
 
 export const PANEL_URL = /\/hikvision-intercom(\?|$)/;
@@ -57,9 +59,10 @@ export const FAKE_CATALOG: FakeCatalog = {
   ],
 };
 
-export function fakeHaPage({ kiosk, panels, api = 'legacy', catalog = FAKE_CATALOG, announce = true }: FakeHa): string {
+export function fakeHaPage({ kiosk, panels, api = 'legacy', catalog = FAKE_CATALOG, announce = true, externalAuth = false }: FakeHa): string {
   const config = JSON.stringify({ api, catalog, announce, marker: api === 'v1' || api === 'marker-only' ? '1' : api.startsWith('v2') ? '2' : null });
   return `<!doctype html><html><body style="margin:0"><home-assistant></home-assistant><script>
+function __boot() {
 const CONFIG = ${config};
 window.__loads = (window.__loads || 0) + 1;
 window.__menuToggles = 0;
@@ -192,12 +195,42 @@ class Ha extends HTMLElement {
   }
 }
 customElements.define('home-assistant', Ha);
+}
+${externalAuth ? `window.__boot = __boot;
+</script><script>import('${FAKE_CORE_PATH}');` : '__boot();'}
 </script></body></html>`;
 }
+
+/** `externalAuth`: the entry module, loaded with import() like Home Assistant's core entry (index.html.template). It
+ * does what home-assistant/frontend `src/data/external.ts` 1-5, `src/entrypoints/core.ts` 69-80 and
+ * `src/external_app/external_auth.ts` 61-65 / 102-126 do at start-up: fix `isExternal` from the bridge names or
+ * `external_auth=1`, throw without a bridge, set `externalAuthSetToken` on its own window and ask the bridge - and only
+ * once a token arrives does Home Assistant (and the fake panel) start. Without `isExternal`: the sign-in redirect. What
+ * it saw is recorded in `window.__auth`. */
+const FAKE_CORE_PATH = '/fake-ha/core.js';
+const FAKE_CORE = `const isExternal = !!(window.externalAppV2 || window.externalApp || (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.getExternalAuth) || location.search.includes('external_auth=1'));
+const A = (window.__auth = { isExternal, proxied: !!(window.externalApp && window.externalApp.__smplwiseBridgeProxy), bus: !!(window.externalAppV2 || (window.externalApp && window.externalApp.externalBus)), readyState: document.readyState, asked: 0, token: null, error: null });
+(async () => {
+  if (!isExternal) { location.replace('/auth/authorize?client_id=x&redirect_uri=y'); return; }
+  if (!window.externalApp && !window.webkit && !window.externalAppV2) { A.error = 'External auth requires either externalApp, externalAppV2, or webkit defined on Window object.'; return; }
+  const p = new Promise((resolve, reject) => { window.externalAuthSetToken = (ok, data) => (ok ? resolve(data) : reject(data)); });
+  await Promise.resolve();
+  const payload = { callback: 'externalAuthSetToken' };
+  A.asked++;
+  if (window.externalAppV2) window.externalAppV2.postMessage(JSON.stringify({ type: 'getExternalAuth', payload }));
+  else if (window.externalApp) window.externalApp.getExternalAuth(JSON.stringify(payload));
+  else window.webkit.messageHandlers.getExternalAuth.postMessage(payload);
+  A.token = await p;
+  window.__boot();
+})();`;
 
 /** Answer the panel address with the fake page (or a 502 when `down`); every load of it is counted in `hits`. */
 export async function stubPanel(page: Page, answer: FakeHa | 'down'): Promise<{ hits: string[] }> {
   const hits: string[] = [];
+  if (answer !== 'down' && answer.externalAuth) {
+    // a network round trip like the real entry module (never answered from the page itself)
+    await page.route(`**${FAKE_CORE_PATH}`, (route: Route) => route.fulfill({ status: 200, contentType: 'text/javascript', body: FAKE_CORE }));
+  }
   await page.route(PANEL_URL, (route: Route) => {
     hits.push(route.request().url());
     return answer === 'down'

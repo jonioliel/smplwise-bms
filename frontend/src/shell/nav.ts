@@ -168,7 +168,12 @@ export const WISKEY_SCREENS: WiskeyScreen[] = ['overview', 'events', 'people'];
  * shell once the settings load and by the settings screen after a save. */
 export const WISKEY_UI: Record<WiskeyScreen, WiskeyUi> = { overview: 'wiskey', events: 'wiskey', people: 'wiskey' };
 
+/** הגדרות › בקרות כניסה, experimental (`access.phone_embed`, default off): embed WisKey inside the Companion app too,
+ * through the sign-in relay of `wiskey/companion-bridge.ts`. Off = the 0.1.123 behaviour (no frame in the app). */
+export let WISKEY_PHONE_EMBED = false;
+
 export function applyWiskeyUi(settings: Record<string, unknown> | null | undefined): void {
+  WISKEY_PHONE_EMBED = String(settings?.['access.phone_embed'] ?? 'false') === 'true';
   for (const s of WISKEY_SCREENS) WISKEY_UI[s] = String(settings?.[`access.ui.${s}`] ?? 'wiskey') === 'smplwise' ? 'smplwise' : 'wiskey';
   rebuildWiskeyTabs(); // a screen switched to SMPLWISE stays in the row whatever the WisKey catalog lists
 }

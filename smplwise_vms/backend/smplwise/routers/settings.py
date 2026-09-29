@@ -71,6 +71,11 @@ DEFAULTS: dict[str, str] = {
     # the same "hidden for everyone" shape as ui.hide_map, but for the WisKey top-level area. The access.ui.* choices
     # above apply only while this is false.
     "ui.hide_wiskey": "false",
+    # T054 follow-up (owner request 2026-09-29, experimental): embed WisKey inside the Home Assistant Companion app too,
+    # by relaying the app's sign-in bridge from Home Assistant's top document into the nested frame
+    # (frontend/src/wiskey/companion-bridge.ts). "false" (the default) keeps the 0.1.123 behaviour: no frame in the app,
+    # the SMPLWISE screen or a note plus "פתח ב-WisKey".
+    "access.phone_embed": "false",
     # CR-007 slice 6a: הגדרות › חשמל והתקנים - how the device-control screens look, per installation (read by every user
     # through GET /settings; changed with system.configure, audited like every product setting). Presentation only: the
     # safety rules of the bulk actions (confirmation, expiry, never locks / alarm / door release) are not settings.
@@ -139,6 +144,7 @@ class SettingsPatch(BaseModel):
     access_ui_events: str | None = Field(default=None, pattern="^(wiskey|smplwise)$", alias="access.ui.events")
     access_ui_people: str | None = Field(default=None, pattern="^(wiskey|smplwise)$", alias="access.ui.people")
     ui_hide_wiskey: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_wiskey")
+    access_phone_embed: str | None = Field(default=None, pattern="^(true|false)$", alias="access.phone_embed")
     devices_style: str | None = Field(default=None, pattern="^(smplwise|glass)$", alias="devices.style")
     devices_theme: str | None = Field(default=None, pattern="^(" + "|".join(DEVICE_THEMES) + ")$", alias="devices.theme")
     devices_default_view: str | None = Field(default=None, pattern="^(cards|tiles)$", alias="devices.default_view")

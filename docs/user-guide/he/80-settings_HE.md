@@ -74,6 +74,7 @@ Assistant, בקרות כניסה, חשמל והתקנים, בריאות, גיב�
 | מרכז הכניסה (`access.ui.overview`) | WisKey (מוטמע) או SMPLWISE | WisKey | מנהל מערכת |
 | פעילות (`access.ui.events`) | WisKey (מוטמע) או SMPLWISE | WisKey | מנהל מערכת |
 | אנשים (`access.ui.people`) | WisKey (מוטמע) או SMPLWISE | WisKey | מנהל מערכת |
+| הטמעה גם באפליקציית Companion (ניסיוני) (`access.phone_embed`) | מופעל: גם באפליקציית Home Assistant בטלפון WisKey מוטמע, ו־SMPLWISE מעביר את ההזדהות של האפליקציה ל־Home Assistant שבתוך המסגרת; אם ההזדהות לא מצליחה, המסך חוזר לבד למסך של SMPLWISE עם "פתח ב-WisKey". כבוי: באפליקציה אין מסגרת | כבוי | מנהל מערכת |
 | שאר מסכי WisKey (עמדות, סנכרון, בריאות, יומן שינויים, ניהול) | תמיד מוטמעים — קבוע, לא ניתן לשינוי | WisKey (קבוע) | — |
 
 ראו `50-wiskey_HE.md` לגבי מה זה אומר בפועל (הרשאות WisKey עצמו חלות בפאנל המוטמע, לא הרשאות
