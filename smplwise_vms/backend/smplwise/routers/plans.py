@@ -174,14 +174,16 @@ def _page_png(settings: Settings, asset: sqlite3.Row, page: int, max_px: int) ->
 # ---------- upload ----------
 
 @router.post("/floors/{floor_id}/plan-assets", status_code=201)
-async def upload_asset(floor_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def upload_asset(floor_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     settings = settings_of(request)
     get_floor(conn, floor_id)
     require(conn, principal, "map.import", ("floor", floor_id))
 
-    # the upload is read, decoded and rendered (a DXF or a large image takes seconds) without the write lock
+    # the upload is read, decoded and rendered (a DXF or a large image takes seconds) without the write lock. A sync
+    # handler on purpose: it runs in the threadpool, so taking the lock back after the render (unlocked()'s exit, which
+    # may queue behind other writers) never blocks the event loop; the multipart body is already spooled to file.file
     with unlocked(conn):
-        head = await file.read(1024)
+        head = file.file.read(1024)
         mime = plan_render.sniff_mime(head)
         if mime == "image/svg+xml":
             raise ApiError(415, "unsupported_format", "SVG אינו נתמך עד שיוטמע sanitization; ייצא PDF או PNG.")
@@ -198,7 +200,7 @@ async def upload_asset(floor_id: str, request: Request, file: UploadFile = File(
                 out.write(head)
                 size = len(head)
                 while True:
-                    chunk = await file.read(1024 * 1024)
+                    chunk = file.file.read(1024 * 1024)
                     if not chunk:
                         break
                     size += len(chunk)

@@ -528,19 +528,33 @@ def unlocked(conn: sqlite3.Connection) -> Iterator[None]:
     """Release the request's write lock around a network-bound phase (NVR search/snapshot, go2rtc, the HA
     bridge): commits what was written so far, runs the block in autocommit mode (reads only, please) and
     starts a fresh IMMEDIATE transaction for the rest of the request. Without this a slow device call
-    holds SQLite's single write lock for seconds and every other worker hits "database is locked"."""
+    holds SQLite's single write lock for seconds and every other worker hits "database is locked".
+    Taking the lock back blocks (queue, busy timeout, retries): never use this on the event loop - an async handler
+    with a write connection puts its slow phase in a sync helper run in the threadpool, or is a sync handler.
+    When the block raised, that error stands: a busy database while taking the lock back is logged, not raised over it
+    (the connection is then left without a transaction; the error path writes nothing more)."""
     if not conn.in_transaction:
         yield
         return
-    conn.execute("COMMIT")
-    _end_hold(conn)
+    commit_now(conn, keep_reading=False)
     try:
         yield
-    finally:
-        if read_mode(conn):
-            conn.execute("BEGIN")
-        else:
-            # the device has acted by now: a busy database is waited out a few times rather than failing the request at
-            # once; callers whose device call must never go unrecorded commit a row before the call (two-phase)
-            label = _MODES.get(id(conn), ("write", None, "unlocked"))[2]
-            retry_locked(lambda: _begin_immediate(conn, label), what=f"{label}: re-lock after the device call")
+    except BaseException:
+        try:
+            _relock(conn)
+        except sqlite3.OperationalError as relock_exc:
+            if not is_busy(relock_exc):
+                raise
+            log.warning("%s: database busy while taking the lock back after a failed block; the block's error stands", _MODES.get(id(conn), ("write", None, "unlocked"))[2])
+        raise
+    _relock(conn)
+
+
+def _relock(conn: sqlite3.Connection) -> None:
+    if read_mode(conn):
+        conn.execute("BEGIN")
+    else:
+        # the device has acted by now: a busy database is waited out a few times rather than failing the request at
+        # once; callers whose device call must never go unrecorded commit a row before the call (two-phase)
+        label = _MODES.get(id(conn), ("write", None, "unlocked"))[2]
+        retry_locked(lambda: _begin_immediate(conn, label), what=f"{label}: re-lock after the device call")

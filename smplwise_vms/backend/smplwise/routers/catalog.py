@@ -3,7 +3,7 @@ children and anchors, visibility filtered by the caller's scoped bindings."""
 from __future__ import annotations
 
 import sqlite3
-from typing import Any
+from typing import Any, Callable
 
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import FileResponse
@@ -55,13 +55,15 @@ def _image_dir(request: Request) -> Any:
     return d
 
 
-async def _store_image(request: Request, kind: str, obj_id: str, file: UploadFile) -> str:
-    """Read the upload (PNG / JPEG only, by content), re-encode as a bounded JPEG, return the relative path."""
+def _store_image(request: Request, kind: str, obj_id: str, file: UploadFile) -> str:
+    """Read the upload (PNG / JPEG only, by content), re-encode as a bounded JPEG, return the relative path. Called by
+    sync handlers inside unlocked(): the decode runs in the threadpool without the write lock, and taking the lock back
+    never blocks the event loop."""
     from io import BytesIO
 
     from PIL import Image, ImageOps
 
-    data = await file.read(IMAGE_MAX_BYTES + 1)
+    data = file.file.read(IMAGE_MAX_BYTES + 1)
     if len(data) > IMAGE_MAX_BYTES:
         raise ApiError(413, "payload_too_large", "התמונה גדולה מ־12 MB.")
     if not (data.startswith(b"\x89PNG") or data.startswith(b"\xff\xd8")):
@@ -78,12 +80,23 @@ async def _store_image(request: Request, kind: str, obj_id: str, file: UploadFil
     return rel
 
 
+def _still_there(request: Request, rel: str, check: Callable[[], Any]) -> None:
+    """The site / building may have been deleted while the picture was decoded without the lock: re-check it in the
+    transaction that stores the path, and remove the written file when it is gone."""
+    try:
+        check()
+    except ApiError:
+        (_image_dir(request) / rel).unlink(missing_ok=True)
+        raise
+
+
 @router.post("/sites/{site_id}/image")
-async def site_image_upload(site_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def site_image_upload(site_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_site(conn, site_id)
     require(conn, principal, P_CONTENT, ("site", site_id))
     with unlocked(conn):  # decoding and re-encoding the image runs without the write lock
-        rel = await _store_image(request, "site", site_id, file)
+        rel = _store_image(request, "site", site_id, file)
+    _still_there(request, rel, lambda: get_site(conn, site_id))
     conn.execute("UPDATE sites SET image_path = ?, updated_at = ? WHERE id = ?", (rel, now_iso(), site_id))
     audit(conn, actor=principal, action="site.update", decision="allowed", resource_type="site", resource_id=site_id, request_id=_rid(request), details={"image": True})
     return site_row(get_site(conn, site_id))
@@ -101,11 +114,12 @@ def site_image_delete(site_id: str, request: Request, principal: Principal = Dep
 
 
 @router.post("/buildings/{building_id}/image")
-async def building_image_upload(building_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def building_image_upload(building_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_building(conn, building_id)
     require(conn, principal, P_CONTENT, ("building", building_id))
     with unlocked(conn):  # decoding and re-encoding the image runs without the write lock
-        rel = await _store_image(request, "building", building_id, file)
+        rel = _store_image(request, "building", building_id, file)
+    _still_there(request, rel, lambda: get_building(conn, building_id))
     conn.execute("UPDATE buildings SET image_path = ?, updated_at = ? WHERE id = ?", (rel, now_iso(), building_id))
     audit(conn, actor=principal, action="building.update", decision="allowed", resource_type="building", resource_id=building_id, request_id=_rid(request), details={"image": True})
     return building_row(get_building(conn, building_id))

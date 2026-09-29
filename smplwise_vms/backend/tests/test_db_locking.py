@@ -11,6 +11,7 @@ import sqlite3
 import threading
 import time
 from dataclasses import replace
+from typing import Any
 
 import httpx
 import pytest
@@ -467,9 +468,9 @@ def test_uploads_are_decoded_and_rendered_without_the_write_lock(client, monkeyp
         seen.append(lock_is_free(db))
         return real_normalize(*a, **kw)
 
-    async def store(*a, **kw):
+    def store(*a, **kw):
         seen.append(lock_is_free(db))
-        return await real_store(*a, **kw)
+        return real_store(*a, **kw)
 
     monkeypatch.setattr(plan_render, "normalize_image", normalize)
     monkeypatch.setattr(catalog_router, "_store_image", store)
@@ -480,3 +481,64 @@ def test_uploads_are_decoded_and_rendered_without_the_write_lock(client, monkeyp
     assert seen == [True, True]
     with db.connection(mode="read") as conn:
         assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action IN ('plan.asset.upload', 'site.update')").fetchone()[0] == 2
+
+
+def test_an_upload_waiting_to_relock_never_blocks_the_event_loop(settings, monkeypatch):
+    """Review B2: the uploads' re-lock after the render queues behind other writers; it must wait in the threadpool,
+    not on the event loop (an async handler froze every stream and WebSocket until the holder let go)."""
+    from smplwise.services import plan_render
+
+    app = create_app(settings)
+    db: Database = app.state.db
+    real_normalize = plan_render.normalize_image
+    holding, release_holder = threading.Event(), threading.Event()
+
+    def hold() -> None:
+        with db.connection(label="long writer"):
+            holding.set()
+            release_holder.wait(10)
+
+    def normalize(*a, **kw):
+        threading.Thread(target=hold, daemon=True).start()  # another writer takes the lock while the render runs
+        holding.wait(5)
+        return real_normalize(*a, **kw)
+
+    monkeypatch.setattr(plan_render, "normalize_image", normalize)
+    with TestClient(app) as c:  # one portal: every request below runs on the same event loop
+        ids = seed_tree(c)
+        c.get("/healthz")  # warm-up: FastAPI builds its route table lazily on the first requests (seconds of loop CPU)
+        result: dict[str, Any] = {}
+
+        def upload() -> None:
+            result["r"] = c.post(f"/api/v1/floors/{ids['floor2']}/plan-assets", files={"file": ("p.png", png_bytes(), "image/png")})
+
+        t = threading.Thread(target=upload)
+        t.start()
+        assert holding.wait(10)
+        time.sleep(0.3)  # the upload is now waiting to take the lock back
+        started = time.monotonic()
+        assert c.get("/healthz").status_code == 200
+        assert time.monotonic() - started < 1.0
+        release_holder.set()
+        t.join(20)
+    assert result["r"].status_code == 201, result["r"].text
+
+
+def test_a_site_deleted_while_its_picture_decodes_leaves_no_file(client, monkeypatch):
+    from smplwise.routers import catalog as catalog_router
+
+    ids = seed_tree(client)
+    real_store = catalog_router._store_image
+    written: list[str] = []
+
+    def store(request, kind, obj_id, file):
+        rel = real_store(request, kind, obj_id, file)
+        written.append(rel)
+        with client.app.state.db.connection() as w:  # deleted meanwhile (the lock is free during the decode)
+            w.execute("UPDATE sites SET deleted_at = ? WHERE id = ?", (db_mod.now_iso(), obj_id))
+        return rel
+
+    monkeypatch.setattr(catalog_router, "_store_image", store)
+    r = client.post(f"/api/v1/sites/{ids['site']}/image", files={"file": ("s.png", png_bytes(), "image/png")})
+    assert r.status_code == 404, r.text
+    assert written and not (client.app.state.settings.data_dir / "catalog_images" / written[0]).exists()
