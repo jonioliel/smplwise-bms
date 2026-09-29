@@ -1,15 +1,58 @@
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import './sw-button';
 import { t } from '../i18n/he';
 
-// Context drawer: a side panel on desktop/tablet (start side, i.e. right in RTL) and a bottom sheet on
-// phones. It never covers the whole map, so spatial context stays visible.
+const FOCUSABLE = 'button, a[href], input, select, textarea, [tabindex]';
+
+/** The focusable elements under `root` in composed (visual) order: into shadow roots and through slots. */
+export function deepFocusables(root: Node): HTMLElement[] {
+  const out: HTMLElement[] = [];
+  const visit = (n: Node) => {
+    if (!(n instanceof HTMLElement) && !(n instanceof ShadowRoot) && !(n instanceof DocumentFragment)) return;
+    if (n instanceof HTMLElement) {
+      if (n.hasAttribute('inert') || n.getAttribute('aria-hidden') === 'true' || n.hidden) return;
+      if (n instanceof HTMLSlotElement) {
+        for (const a of n.assignedElements({ flatten: true })) visit(a);
+        return;
+      }
+      if (n.matches(FOCUSABLE) && n.getAttribute('tabindex') !== '-1' && !(n as HTMLButtonElement).disabled && n.getClientRects().length) out.push(n);
+      if (n.shadowRoot) {
+        visit(n.shadowRoot);
+        return;
+      }
+    }
+    for (const c of Array.from(n.childNodes)) visit(c);
+  };
+  visit(root);
+  return out;
+}
+
+/** The element that really holds focus (through shadow roots). */
+function deepActive(): HTMLElement | null {
+  let a: Element | null = document.activeElement;
+  while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;
+  return a as HTMLElement | null;
+}
+
+/**
+ * Context drawer: a side panel on desktop/tablet (start side, i.e. right in RTL) and a bottom sheet on phones. It never
+ * covers the whole map, so spatial context stays visible.
+ *
+ * `modal` (owner 2026-09-29, the overview tiles' panel): the same side panel / bottom sheet as a MODAL dialog in the top
+ * layer (`<dialog>.showModal()`): the page behind is inert, focus moves in and is trapped (Tab / Shift+Tab wrap inside
+ * the panel, through shadow roots and slots), Escape and a press on the dimmed backdrop close it, and focus returns to
+ * the control that opened it. Content that opens its own dialog (a confirmation) must render it inside the drawer,
+ * since everything outside the top layer is inert. No transform on the open panel (a transform would become the
+ * containing block of a nested fixed confirmation dialog).
+ */
 @customElement('sw-drawer')
 export class SwDrawer extends LitElement {
   @property({ type: Boolean, reflect: true }) open = false;
   @property() heading = '';
   @property() subheading = '';
+  @property({ type: Boolean, reflect: true }) modal = false;
+  private opener: HTMLElement | null = null;
 
   static styles = css`
     :host {
@@ -59,6 +102,7 @@ export class SwDrawer extends LitElement {
     .sub {
       color: var(--sw-text-2);
       font-size: var(--sw-fs-sm);
+      font-variant-numeric: tabular-nums;
     }
     .body {
       flex: 1;
@@ -106,6 +150,58 @@ export class SwDrawer extends LitElement {
         margin: var(--sw-s-2) auto 0;
       }
     }
+
+    /* ---- modal: a <dialog> in the top layer ---- */
+    dialog.panel {
+      position: fixed;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-inline-end: 1px solid var(--sw-border);
+      max-inline-size: none;
+      max-block-size: none;
+      inset-block: 0;
+      inset-inline-start: 0;
+      inset-inline-end: auto;
+      block-size: 100dvh;
+      inline-size: min(var(--sw-drawer-modal-w, 480px), 100vw);
+      box-sizing: border-box;
+      color: var(--sw-text);
+      /* a panel over the page must stay readable: a glass palette's solid surface when there is one */
+      background: var(--dv-surface-solid, var(--sw-surface));
+      transform: none;
+      transition: none;
+      visibility: visible;
+      overflow: hidden;
+    }
+    dialog.panel:not([open]) {
+      display: none;
+    }
+    dialog.panel::backdrop {
+      background: rgba(15, 23, 42, 0.38);
+    }
+    .trap {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+    @media (max-width: 767px) {
+      dialog.panel {
+        inset-block: auto 0;
+        inset-inline: 0;
+        inline-size: 100%;
+        block-size: auto;
+        max-block-size: 88dvh;
+        border-inline-end: 0;
+        border-block-start: 1px solid var(--sw-border);
+        border-start-start-radius: var(--sw-r-lg);
+        border-start-end-radius: var(--sw-r-lg);
+        transform: none;
+        padding-block-end: env(safe-area-inset-bottom, 0px);
+      }
+    }
   `;
 
   private close() {
@@ -113,19 +209,81 @@ export class SwDrawer extends LitElement {
     this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
   }
 
+  private get dialog(): HTMLDialogElement | null {
+    return this.renderRoot.querySelector('dialog');
+  }
+
+  protected updated(changed: PropertyValues<this>) {
+    if (!this.modal || !changed.has('open')) return;
+    const dlg = this.dialog;
+    if (!dlg) return;
+    if (this.open && !dlg.open) {
+      this.opener = deepActive();
+      try {
+        dlg.showModal();
+      } catch {
+        dlg.setAttribute('open', '');
+      }
+      requestAnimationFrame(() => this.focusEdge('start'));
+    } else if (!this.open && dlg.open) {
+      dlg.close();
+      const back = this.opener;
+      this.opener = null;
+      if (back?.isConnected) back.focus({ preventScroll: true });
+    }
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    if (this.dialog?.open) this.dialog.close();
+  }
+
+  /** Focus the first (or last) focusable inside the panel - the Tab trap's two ends. */
+  private focusEdge(edge: 'start' | 'end') {
+    const dlg = this.dialog;
+    if (!dlg) return;
+    const all = deepFocusables(dlg).filter((el) => !el.classList.contains('trap'));
+    const el = edge === 'start' ? all[0] : all[all.length - 1];
+    (el ?? dlg).focus({ preventScroll: true });
+  }
+
+  private onCancel = (e: Event) => {
+    e.preventDefault(); // the dialog closes through `open`, so the opener gets its focus back and `close` is raised
+    this.close();
+  };
+
+  /** A press on the dimmed backdrop (outside the panel's box) closes it. */
+  private onDialogClick = (e: MouseEvent) => {
+    const dlg = this.dialog;
+    if (!dlg || e.target !== dlg) return;
+    const r = dlg.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) this.close();
+  };
+
+  private renderInner() {
+    return html`<div class="grip" aria-hidden="true"></div>
+      <header>
+        <div class="titles">
+          <h3 id="dh">${this.heading}</h3>
+          ${this.subheading ? html`<div class="sub">${this.subheading}</div>` : ''}
+        </div>
+        <sw-button variant="ghost" size="sm" iconOnly icon="close" label=${t('actions.close')} data-drawer-close @click=${this.close}></sw-button>
+      </header>
+      <div class="body"><slot></slot></div>
+      <footer><slot name="footer"></slot></footer>`;
+  }
+
   render() {
+    if (this.modal) {
+      return html`<dialog class="panel" aria-labelledby="dh" @cancel=${this.onCancel} @click=${this.onDialogClick}>
+        <span class="trap" tabindex="0" aria-hidden="true" @focus=${() => this.focusEdge('end')}></span>
+        ${this.renderInner()}
+        <span class="trap" tabindex="0" aria-hidden="true" @focus=${() => this.focusEdge('start')}></span>
+      </dialog>${nothing}`;
+    }
     return html`
       <aside class="panel" role="dialog" aria-modal="false" aria-label=${this.heading} ?hidden=${!this.open}>
-        <div class="grip" aria-hidden="true"></div>
-        <header>
-          <div class="titles">
-            <h3>${this.heading}</h3>
-            ${this.subheading ? html`<div class="sub">${this.subheading}</div>` : ''}
-          </div>
-          <sw-button variant="ghost" size="sm" iconOnly icon="close" label=${t('actions.close')} @click=${this.close}></sw-button>
-        </header>
-        <div class="body"><slot></slot></div>
-        <footer><slot name="footer"></slot></footer>
+        ${this.renderInner()}
       </aside>
     `;
   }
