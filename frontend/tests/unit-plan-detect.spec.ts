@@ -165,7 +165,9 @@ test('the candidates layer draws object candidates dashed, faded while left out'
     }, { doc: sample(), set, states });
   await draw({});
   await expect(canvas.locator('[data-candidates] [data-kind="object"]')).toHaveCount(3);
-  await expect(canvas.locator('[data-candidates] [data-candidate="auto-r-x002"] title')).toHaveText('עמוד');
+  const col = canvas.locator('[data-candidates] [data-candidate="auto-r-x002"]');
+  await expect(col).toHaveAttribute('aria-label', 'עמוד');
+  await expect(col.locator('title')).toHaveCount(0); // the layer takes no pointer: a tooltip would never show (review L5)
   const dash = await canvas.locator('[data-candidates] [data-candidate="auto-r-x001"] .cobj').evaluate((el) => getComputedStyle(el).strokeDasharray);
   expect(dash).not.toBe('none');
   await draw({ 'auto-r-x001': 'rejected', 'auto-r-x002': 'rejected', 'auto-r-x003': 'rejected' });

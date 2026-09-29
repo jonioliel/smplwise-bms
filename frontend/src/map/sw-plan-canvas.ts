@@ -2142,8 +2142,9 @@ export class SwPlanCanvas extends LitElement {
             return svg`<g class=${cls(p.id)} data-candidate=${p.id} data-kind="passage" data-state=${a.state} data-score=${a.score}><line class="cgap" x1=${p.gap[0][0]} y1=${p.gap[0][1]} x2=${p.gap[1][0]} y2=${p.gap[1][1]} stroke-width=${inv} /></g>`;
           case 'object':
             // an object candidate (detector 1.4 tribune / column, a DXF block): its outline and a tribune's rows; not
-            // clickable - the objects go with the accept together (the panel's checkbox sets their state)
-            return svg`<g class=${cls(p.id)} data-candidate=${p.id} data-kind="object" data-item=${p.item_id} data-state=${a.state} data-score=${a.score}><title>${objectCandidateLabel(p.item_id)}</title>
+            // clickable or hovered (the layer takes no pointer: no <title>, which would never show) - the objects go
+            // with the accept together, the panel's checkbox names them and sets their state; aria-label for readers
+            return svg`<g class=${cls(p.id)} data-candidate=${p.id} data-kind="object" data-item=${p.item_id} data-state=${a.state} data-score=${a.score} aria-label=${objectCandidateLabel(p.item_id)}>
               <polygon class="cobj" points=${ptsAttr(p.corners)} stroke-width=${1.6 * inv} />
               ${p.steps.map(([x, y]) => svg`<line class="crow" x1=${x[0]} y1=${x[1]} x2=${y[0]} y2=${y[1]} stroke-width=${inv} />`)}
             </g>`;
