@@ -63,6 +63,27 @@ def get_state(settings: Settings, entity_id: str) -> dict[str, Any] | None:
     return r.json() if r.status_code == 200 else None
 
 
+def get_config(settings: Settings) -> tuple[dict[str, Any], str | None]:
+    """GET /api/config (read-only): Home Assistant's version and time zone, plus the response's `Date` header - HA's own
+    clock at one-second resolution, which the setup wizard compares with the add-on's (T071)."""
+    if not configured(settings):
+        raise ApiError(503, "ha_not_configured", "אין גישה ל־Home Assistant (SUPERVISOR_TOKEN חסר).")
+    try:
+        with httpx.Client(timeout=8) as c:
+            r = c.get(_rest_base(settings) + "/config", headers=_headers(settings))
+    except httpx.HTTPError as exc:
+        raise ApiError(503, "ha_unavailable", "Home Assistant אינו זמין כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+    if r.status_code in (401, 403):
+        raise ApiError(503, "ha_forbidden", "Home Assistant דחה את הגישה של ה־Add-on.", details={"status": r.status_code})
+    if r.status_code != 200:
+        raise ApiError(503, "ha_error", "Home Assistant החזיר שגיאה.", retryable=True, details={"status": r.status_code})
+    try:
+        body = r.json()
+    except ValueError as exc:
+        raise ApiError(503, "ha_error", "Home Assistant החזיר תשובה שאינה JSON.", retryable=True) from exc
+    return (body if isinstance(body, dict) else {}), r.headers.get("date")
+
+
 def call_bridge_execute(settings: Settings, payload: dict[str, Any], timeout: float = 15.0) -> dict[str, Any]:
     """POST /api/services/smplwise_bridge/execute?return_response — the only write path to HA."""
     if not configured(settings):
