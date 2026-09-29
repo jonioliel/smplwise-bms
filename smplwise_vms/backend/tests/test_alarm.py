@@ -631,8 +631,8 @@ def _settle(app) -> None:
 
 def test_pass_through_counts_only_failures(alarm_app, caplog):
     """No stored code: the typed panel code is passed through. Each typed attempt counts as a failure when sent and is
-    forgiven when the panel confirms it (review M-A); the panel's refusal (invalid_code) stays counted; a generic
-    ServiceValidationError is not a wrong code (review L3)."""
+    forgiven when the panel confirms it (review M-A), or when it failed before the panel (an allow-list, final review
+    item 2); the panel's refusal and any other failure (a generic ServiceValidationError included) stay counted."""
     app, s, c, calls, answer = alarm_app
     caplog.set_level(logging.DEBUG)
     _no_code(c)
@@ -644,13 +644,17 @@ def test_pass_through_counts_only_failures(alarm_app, caplog):
         assert r.status_code == 202, r.text
         _report(app, "alarm_control_panel.risco_house", "disarmed")
         _settle(app)  # what the next typed attempt does first: the panel confirmed, the provisional failure is forgiven
-    answer.update(ok=False, error="ServiceValidationError")
-    for _ in range(5):
-        assert _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE).json()["code"] == "code_rejected"
+    # final review item 2: failures that happen before the panel are forgiven (an allow-list) ...
+    for err in ("service_not_allowed", "bridge_not_paired", "bad_signature", "unauthorized", "stale", "entity_required"):
+        answer.update(ok=False, error=err)
+        assert _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE).status_code in (202, 403)
     answer.update(ok=False, error="invalid_code")
-    for _ in range(5):
+    for _ in range(4):
         r = _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE)
         assert r.status_code == 422 and r.json()["code"] == "code_rejected" and CODE not in r.text
+    # ... anything else stays counted: a generic error may be how an integration reports a wrong code
+    answer.update(ok=False, error="ServiceValidationError")
+    assert _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE).json()["code"] == "code_rejected"
     r = _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE)
     assert r.status_code == 429 and r.json()["code"] == "code_locked"
     _assert_code_nowhere(app, s, caplog, [r.text])
@@ -698,6 +702,28 @@ def test_pass_through_one_attempt_at_a_time_and_unconfirmed_counts(alarm_app, mo
     _report(app, "alarm_control_panel.risco_house", "disarmed")
     for _ in range(7):
         assert _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE).status_code == 202
+
+def test_a_failure_inside_send_never_leaves_the_typed_slot_stuck(alarm_app, monkeypatch):
+    """Final review item 1: an error that is not an ApiError inside the send (here a database error on the ha_actions
+    row) releases the one-typed-attempt slot, so the next typed attempt is not refused with attempt_pending."""
+    app, s, c, calls, _ = alarm_app
+    import sqlite3 as _sqlite3
+
+    from smplwise.routers import alarm as alarm_router
+
+    _no_code(c)
+    real = alarm_router.ha_actions.action_row
+
+    def broken(conn, aid):
+        raise _sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(alarm_router.ha_actions, "action_row", broken)
+    with pytest.raises(_sqlite3.OperationalError):
+        _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE)
+    assert alarm_router._PASS_THROUGH == {}
+    monkeypatch.setattr(alarm_router.ha_actions, "action_row", real)
+    r = _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE)
+    assert r.status_code == 202, r.text
 
 def test_bridge_failure_text_never_carries_the_code(alarm_app, monkeypatch, caplog):
     app, s, c, calls, _ = alarm_app
@@ -789,6 +815,35 @@ def test_floor_map_marks_alarm_entities_read_only_with_one_discovery(alarm_app, 
     assert ents["alarm_control_panel.risco_house"]["alarm_managed"] is True and ents["alarm_control_panel.risco_house"]["actions"] == []
     assert ents["binary_sensor.back_door"]["alarm_managed"] is False
     assert n["calls"] == 1
+
+def test_fallback_only_without_config_entry_and_not_alarm_mark(alarm_app):
+    """Final review item 3: the platform-wide fail-closed fallback holds only bypass-like controls WITHOUT a config entry;
+    one with another config entry of the same integration (a boiler bypass valve on the same MQTT broker) is not
+    owned; an administrator's "not an alarm control" mark releases a false positive (audited) and can be taken back."""
+    app, s, c, calls, _ = alarm_app
+    from smplwise.services import alarm as alarm_svc
+
+    with app.state.db.connection() as conn:
+        ha_sync.upsert_state(conn, {"entity_id": "switch.boiler_bypass", "state": "off", "attributes": {"friendly_name": "Boiler bypass valve"}})
+        conn.execute("UPDATE ha_entities SET platform = 'mqtt', config_entry_id = 'ce-mqtt-other' WHERE entity_id = 'switch.boiler_bypass'")
+        assert not alarm_svc.is_managed_control(conn, "switch.boiler_bypass")  # another config entry: not the alarm's
+        conn.execute("UPDATE ha_entities SET config_entry_id = NULL WHERE entity_id = 'switch.boiler_bypass'")
+        assert alarm_svc.is_managed_control(conn, "switch.boiler_bypass")  # no entry known: fail closed
+    assert "switch.boiler_bypass" in c.get("/api/v1/alarm/config").json()["fallback_controls"]
+    r = c.put("/api/v1/alarm/controls/switch.boiler_bypass/not-alarm", json={"not_alarm": True})
+    assert r.status_code == 200 and r.json()["alarm_managed"] is False
+    body = {"allowed_action_id": "switch.turn_on", "arguments": {}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": _rid(), "expires_at": "2099-01-01T00:00:00Z"}
+    assert c.post("/api/v1/ha/entities/switch.boiler_bypass/actions", json=body).status_code == 202
+    # an unpaired control of the alarm's own group is released the same way
+    assert c.put("/api/v1/alarm/controls/switch.paradox_zone_shed_bypassed/not-alarm", json={"not_alarm": True}).status_code == 200
+    pai = _panel(_panels(c), "alarm_control_panel.paradox_partition_area_1")
+    assert pai["unpaired_controls"] == []
+    assert c.put("/api/v1/alarm/controls/switch.paradox_zone_shed_bypassed/not-alarm", json={"not_alarm": False}).status_code == 200
+    assert [u["entity_id"] for u in _panel(_panels(c), "alarm_control_panel.paradox_partition_area_1")["unpaired_controls"]] == ["switch.paradox_zone_shed_bypassed"]
+    bind(c, s, "omer", "operator", "installation", "*")
+    assert c.put("/api/v1/alarm/controls/switch.boiler_bypass/not-alarm", json={"not_alarm": False}, headers=as_user("omer")).status_code == 403
+    with app.state.db.connection() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'alarm.mapping' AND decision = 'allowed' AND details_json LIKE '%not_alarm%'").fetchone()[0] == 3
 
 def test_bulk_never_reaches_a_bypass_switch_even_marked_bulk_safe(alarm_app):
     app, s, c, calls, _ = alarm_app

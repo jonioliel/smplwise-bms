@@ -484,7 +484,7 @@ def discover(conn: sqlite3.Connection, entities: list[dict[str, Any]] | None = N
                     manual_panel.setdefault(z, p["entity_id"])
         zones, attached = _attach_aux(sensors)
         zones += extra
-        controls = [c for c in g.controls if c["entity_id"] not in manually_paired_ctl]
+        controls = [c for c in g.controls if c["entity_id"] not in manually_paired_ctl and c["entity_id"] not in excluded]
         auto_zones = [z for z in zones if z["entity_id"] not in manual_ctl]
         pairs = _pair(auto_zones, controls, g.platform)
         for z, cid in manual_ctl.items():
@@ -531,8 +531,7 @@ def managed_controls(conn: sqlite3.Connection, disc: dict[str, Any] | None = Non
     # re-review M-B, fail closed: every bypass-like switch / select of a panel's integration, whatever its config
     # entry - one without an entry (before the first registry refresh after the upgrade, a new entity, a failed registry
     # fetch) joins no group (L5) yet must never become operable from the other paths
-    platforms = {e.get("platform") for e in ents if e["domain"] == "alarm_control_panel" and e.get("platform")}
-    out.update(e["entity_id"] for e in ents if e["domain"] in ("switch", "select") and e.get("platform") in platforms and is_bypass_control(e))
+    out.update(fallback_controls(conn, ents))
     for p in d["panels"]:
         out.add(p["entity_id"])
         for z in p["zones"]:
@@ -545,6 +544,27 @@ def managed_controls(conn: sqlite3.Connection, disc: dict[str, Any] | None = Non
     except sqlite3.OperationalError:
         pass
     return out
+
+
+def not_alarm_marks(conn: sqlite3.Connection) -> set[str]:
+    """Controls an administrator marked "אינו רכיב אזעקה" (final review item 3): an override row of the control itself
+    with excluded = 1."""
+    try:
+        rows = conn.execute("SELECT zone_entity_id FROM alarm_zone_overrides WHERE excluded = 1").fetchall()
+    except sqlite3.OperationalError:
+        return set()
+    return {r[0] for r in rows if r[0].split(".", 1)[0] in ("switch", "select")}
+
+
+def fallback_controls(conn: sqlite3.Connection, ents: list[dict[str, Any]] | None = None) -> set[str]:
+    """Fail closed (re-review M-B, narrowed by final review item 3): a bypass-like switch / select of a panel's
+    integration whose config entry is NOT known (NULL) - it joins no group yet must not become operable elsewhere -
+    unless an administrator marked it "not an alarm control"."""
+    ents = ents if ents is not None else load(conn)
+    platforms = {e.get("platform") for e in ents if e["domain"] == "alarm_control_panel" and e.get("platform")}
+    released = not_alarm_marks(conn)
+    return {e["entity_id"] for e in ents if e["domain"] in ("switch", "select") and e.get("config_entry_id") is None
+            and e.get("platform") in platforms and is_bypass_control(e) and e["entity_id"] not in released}
 
 
 def is_managed_control(conn: sqlite3.Connection, entity_id: str) -> bool:

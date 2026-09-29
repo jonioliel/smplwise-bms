@@ -253,6 +253,16 @@ class _Act:
 # when the panel confirms it - a panel such as Risco ignores a wrong code silently - and at most ONE typed attempt per
 # user and per panel may be unsettled at a time (429 attempt_pending), so concurrent requests cannot outrun the count.
 _PASS_THROUGH: dict[str, dict[str, Any]] = {}
+# Final review item 2: the ONLY failures that forgive a typed attempt - those that happen before the command can reach the
+# panel (pairing, configuration, the bridge's own refusals, signature / freshness, identity, validation). Everything
+# else - a generic HomeAssistantError, a ServiceValidationError without a code key, ha_unavailable after the timeout when
+# the command may have reached the panel - stays counted, so a panel that reports a wrong code generically still locks.
+PRE_PANEL_FAILURES = frozenset({
+    "bridge_not_paired", "ha_not_configured", "bridge_not_installed", "ha_forbidden", "service_not_allowed", "unauthorized",
+    "ha_unauthorized", "unknown_user", "ha_unknown_user", "entity_required", "bad_signature", "stale", "replay",
+    "bridge_bad_signature", "bridge_stale", "bridge_replay", "identity_unmapped", "action_not_allowed", "action_domain_mismatch",
+    "argument_not_allowed", "validation",
+})
 _PASS_THROUGH_LOCK = threading.Lock()
 
 
@@ -293,8 +303,8 @@ def _settle_pass_through(conn: sqlite3.Connection) -> None:
         if not forgive and a.get("error") != "invalid_code" and a["status"] != "failed":
             cur = conn.execute("SELECT state FROM ha_entities WHERE entity_id = ?", (a["entity_id"],)).fetchone()
             forgive = bool(cur and e["target"] and cur["state"] == e["target"] and a.get("observed_state") == e["target"])
-        if a["status"] == "failed" and a.get("error") not in ("invalid_code", None):
-            forgive = True  # the bridge failed for another reason: not a wrong code
+        if a["status"] == "failed" and a.get("error") in PRE_PANEL_FAILURES:
+            forgive = True  # failed before the command could reach the panel: no code was judged
         if forgive and e["ts"] is not None:
             codes.LOCKOUT.forgive(e["keys"], e["ts"], conn)
 
@@ -433,15 +443,22 @@ def panel_action(entity_id: str, request: Request, principal: Principal = Depend
         codes.LOCKOUT.fail(keys, conn, now=ts)
         with _PASS_THROUGH_LOCK:
             _PASS_THROUGH[token].update(ts=ts, target=svc.TARGET_STATE.get(body.action))
+    sent = False
     try:
         out = _send(act, request, entity_id, svc.ACTIONS[body.action], {}, send_code, body.client_request_id, {"state": panel["state"]})
+        sent = True
     except ApiError as exc:
         if token:
             e = _PASS_THROUGH.get(token) or {}
-            _release_pass_through(token)
-            if e.get("ts") is not None and exc.code not in ("invalid_code",):
-                codes.LOCKOUT.forgive(keys, e["ts"], conn)  # the bridge / platform failed: no code was judged
+            if e.get("ts") is not None and exc.code in PRE_PANEL_FAILURES:
+                codes.LOCKOUT.forgive(keys, e["ts"], conn)  # failed before the panel: no code was judged
         raise
+    finally:
+        # final review item 1: whatever went wrong before an action id existed (a database error included), the slot is
+        # released - otherwise every typed attempt on this panel would get attempt_pending until a restart. The
+        # provisional failure stays counted unless forgiven above.
+        if token and not sent:
+            _release_pass_through(token)
     if token:
         if out["status"] == "pending":
             with _PASS_THROUGH_LOCK:
@@ -449,8 +466,8 @@ def panel_action(entity_id: str, request: Request, principal: Principal = Depend
         else:
             e = _PASS_THROUGH.get(token) or {}
             _release_pass_through(token)
-            if out.get("error") != "invalid_code" and e.get("ts") is not None:
-                # review L3: only the panel's real refusal of a code stays counted (not a generic ServiceValidationError)
+            if out.get("error") in PRE_PANEL_FAILURES and e.get("ts") is not None:
+                # final review item 2: forgiven only when the command cannot have reached the panel
                 codes.LOCKOUT.forgive(keys, e["ts"], conn)
     if out["status"] == "failed" and out.get("error") in CODE_REFUSALS:
         raise ApiError(422, "code_rejected", "הלוח דחה את הקוד או את הפקודה.", details={"action_id": out["id"]})
@@ -627,6 +644,10 @@ def config(request: Request, principal: Principal = Depends(_configurer), conn: 
             "sensors": [_brief(e) for e in ents if e["domain"] == "binary_sensor"][:2000],
         },
         "integrations": {k: {"label": v.label, "note": v.note, "verified": v.verified} for k, v in svc.INTEGRATIONS.items()},
+        # final review item 3: bypass-like controls held by the fail-closed fallback (no config entry), and the ones an
+        # administrator released as "not an alarm control"
+        "fallback_controls": sorted(svc.fallback_controls(conn, ents)),
+        "not_alarm": sorted(svc.not_alarm_marks(conn)),
         "settings": _settings(conn),
     }
 
@@ -669,6 +690,36 @@ def put_override(zone_entity_id: str, request: Request, principal: Principal = D
     )
     act.audit("allowed", None, panel_entity_id=body.panel_entity_id, bypass_entity_id=body.bypass_entity_id, excluded=body.excluded, confirm_not_bypass_like=body.confirm_not_bypass_like)
     return dict(conn.execute("SELECT * FROM alarm_zone_overrides WHERE zone_entity_id = ?", (zone_entity_id,)).fetchone())
+
+
+class NotAlarmBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    not_alarm: bool
+
+
+@router.put("/alarm/controls/{entity_id}/not-alarm")
+def put_not_alarm(entity_id: str, request: Request, principal: Principal = Depends(_configurer), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+    """Final review item 3: release a bypass-like switch / select that is not part of the alarm (e.g. a boiler bypass
+    valve on the same MQTT broker) - it leaves the unpaired list and the fail-closed fallback, and becomes an ordinary
+    entity again for the other screens. system.configure, audited; `not_alarm: false` takes the mark back."""
+    body, _ = _parse(request, raw, NotAlarmBody)
+    act = _Act(request, conn, principal, "alarm.mapping", "ha_entity", entity_id)
+    r = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
+    if not r or r["domain"] not in ("switch", "select"):
+        raise act.refuse(ApiError(404, "not_found", "המתג לא נמצא (נדרש switch או select)."))
+    if body.not_alarm:
+        paired = conn.execute("SELECT 1 FROM alarm_zone_overrides WHERE bypass_entity_id = ?", (entity_id,)).fetchone()
+        if paired:
+            raise act.refuse(ApiError(409, "paired_by_hand", "המתג משויך ידנית לחיישן; בטלו קודם את השיוך."))
+        conn.execute(
+            "INSERT INTO alarm_zone_overrides(zone_entity_id, panel_entity_id, bypass_entity_id, excluded, updated_at, updated_by) VALUES (?, NULL, NULL, 1, ?, ?) "
+            "ON CONFLICT(zone_entity_id) DO UPDATE SET excluded = 1, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
+            (entity_id, now_iso(), principal.username),
+        )
+    else:
+        conn.execute("DELETE FROM alarm_zone_overrides WHERE zone_entity_id = ?", (entity_id,))
+    act.audit("allowed", None, not_alarm=body.not_alarm)
+    return {"entity_id": entity_id, "not_alarm": body.not_alarm, "alarm_managed": svc.is_managed_control(conn, entity_id)}
 
 
 @router.delete("/alarm/overrides/{zone_entity_id}")
