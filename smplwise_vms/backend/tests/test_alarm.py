@@ -538,21 +538,59 @@ def test_bridge_failure_text_never_carries_the_code(alarm_app, monkeypatch, capl
     _assert_code_nowhere(app, s, caplog, [r.text])
 
 
-def test_general_entity_route_follows_the_alarm_rules(alarm_app):
+def test_generic_route_refuses_alarm_owned_entities_whatever_the_permissions(alarm_app):
+    """Security review B1 / M1: a zone's bypass switch (Risco), a bypass select (Visonic shape), an unpaired bypass switch
+    (PAI) and the panel itself are refused on the general entity route (map cards, devices screens) with 409
+    use_alarm_screen, audited - an operator holding ha.entity.control and devices.control included."""
     app, s, c, calls, _ = alarm_app
-    body = {"allowed_action_id": "alarm_control_panel.alarm_arm_away", "arguments": {}, "expected_state_version": None, "confirmation_grant": "confirmed", "client_request_id": _rid(), "expires_at": "2099-01-01T00:00:00Z"}
-    r = c.post("/api/v1/ha/entities/alarm_control_panel.risco_house/actions", json=body)
-    assert r.status_code == 409 and r.json()["code"] == "code_policy"
-    _no_code(c)
-    assert c.post("/api/v1/ha/entities/alarm_control_panel.risco_house/actions", json={**body, "client_request_id": _rid()}).status_code == 202
-    assert c.patch("/api/v1/settings", json={"alarm.remote_control": "false"}).status_code == 200
-    _as_remote(app)
-    try:
-        r = c.post("/api/v1/ha/entities/alarm_control_panel.risco_house/actions", json={**body, "client_request_id": _rid()})
-        assert r.status_code == 403 and r.json()["code"] == "remote_control_disabled"
-    finally:
-        app.dependency_overrides.clear()
+    bind(c, s, "omer", "operator", "installation", "*")
+    with app.state.db.connection() as conn:
+        ha_sync.upsert_state(conn, {"entity_id": "select.back_door_arm_mode", "state": "armed", "attributes": {"options": ["bypass", "armed"], "friendly_name": "x"}})
+        conn.execute("UPDATE ha_entities SET platform = 'risco', config_entry_id = ? WHERE entity_id = 'select.back_door_arm_mode'", (fake_alarm.RISCO_ENTRY,))
+    body = {"arguments": {}, "expected_state_version": None, "confirmation_grant": "confirmed", "expires_at": "2099-01-01T00:00:00Z"}
+    n = len(calls)
+    for eid, action in (("switch.back_door_bypassed", "switch.turn_on"), ("switch.paradox_zone_shed_bypassed", "switch.turn_on"),
+                        ("select.back_door_arm_mode", "select.select_option"), ("alarm_control_panel.risco_house", "alarm_control_panel.alarm_arm_away"),
+                        ("alarm_control_panel.risco_house", "alarm_control_panel.alarm_disarm")):
+        args = {"option": "bypass"} if action == "select.select_option" else {}
+        for who in ("omer", "joni"):
+            r = c.post(f"/api/v1/ha/entities/{eid}/actions", json={**body, "allowed_action_id": action, "arguments": args, "client_request_id": _rid()}, headers=as_user(who))
+            assert r.status_code == 409 and r.json()["code"] == "use_alarm_screen", (eid, who, r.text)
+    assert len(calls) == n  # nothing reached the bridge
+    with app.state.db.connection() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'ha.action' AND reason = 'use_alarm_screen'").fetchone()[0] == 10
+    # the catalogue lists them read-only
+    d = c.get("/api/v1/ha/entities/switch.back_door_bypassed").json()
+    assert d["alarm_managed"] is True and d["actions"] == []
+    rows = {r["entity_id"]: r for r in c.get("/api/v1/ha/entities?domain=switch").json()["entities"]}
+    assert rows["switch.back_door_bypassed"]["alarm_managed"] is True and rows["switch.back_door_bypassed"]["actions"] == []
 
+
+def test_bulk_never_reaches_a_bypass_switch_even_marked_bulk_safe(alarm_app):
+    app, s, c, calls, _ = alarm_app
+    from smplwise.services import device_bulk
+
+    # a PAI bypass switch (no entity category, so the devices area lists it) placed in the kitchen area
+    sw = "switch.paradox_zone_front_door_bypassed"
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE ha_entities SET area_id = 'alarm_kitchen', area_name = 'מטבח', ha_floor_id = 'alarm_ground', ha_floor_name = 'קרקע' WHERE entity_id = ?", (sw,))
+    r = c.put(f"/api/v1/devices/entities/{sw}/bulk-safe", json={"bulk_safe": True})
+    assert r.status_code == 409 and r.json()["code"] == "alarm_managed"
+    with app.state.db.connection() as conn:  # a mark made before this rule existed
+        device_bulk.set_bulk_safe(conn, Principal(user_id="dev-joni", username="joni", display_name="joni", source="dev"), sw, True)
+        conn.execute("UPDATE ha_entities SET state = 'on' WHERE entity_id = ?", (sw,))
+    p = c.get("/api/v1/devices/actions/preview?scope=area&id=alarm_kitchen&kind=all_off").json()
+    assert sw not in [t["entity_id"] for t in p["targets"]]
+    ex = {x["entity_id"]: x for x in p["excluded"]}
+    assert ex[sw]["reason"] == "alarm_managed"
+    with app.state.db.connection() as conn:
+        pol = device_bulk.SwitchPolicy(conn)
+        assert pol.switch_reason(sw) == (False, "alarm_managed")
+        _w, _s, permitted = device_bulk.bulk_scope(conn, Principal(user_id="dev-joni", username="joni", display_name="joni", source="dev"))
+        assert not permitted(sw)
+    area = c.get("/api/v1/devices/areas/alarm_kitchen").json()
+    rows = [r for card in area["cards"].values() for r in card.get("entities", []) if r["entity_id"] == sw]
+    assert rows and rows[0]["alarm_managed"] is True and rows[0]["can_control"] is False
 
 def test_user_policy_admin_api(alarm_app):
     app, s, c, calls, _ = alarm_app

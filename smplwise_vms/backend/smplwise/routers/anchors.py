@@ -170,6 +170,9 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
     ha_hist = None
     if entity_ids:
         can_control = authorize(conn, principal, "ha.entity.control", ("floor", floor_id)).allowed
+        from ..services import alarm as alarm_svc
+
+        managed = alarm_svc.managed_controls(conn)  # CR-010 review B1: the alarm's panel / bypass controls are read-only here
         states_at = ha_history.state_at(conn, entity_ids, at_iso) if at_iso else {}
         if at_iso and str(read_settings(conn).get("history.ha_secondary", "false")) == "true":
             # S2: the Home Assistant recorder fills what the local history does not know (marked as a secondary source)
@@ -183,7 +186,8 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
                 states_at.update(ha_history.recorder_state_at(missing, at_iso))
         for r in conn.execute(f"SELECT * FROM ha_entities WHERE entity_id IN ({','.join('?' * len(entity_ids))})", entity_ids).fetchall():
             e = ha_sync.entity_row(r)
-            e["actions"] = ha_bridge.actions_for(e["domain"]) if (can_control and not at_iso) else []
+            e["alarm_managed"] = e["entity_id"] in managed
+            e["actions"] = ha_bridge.actions_for(e["domain"]) if (can_control and not at_iso and not e["alarm_managed"]) else []
             if at_iso:
                 # historical bundle: the live state is not the answer; state_at is (known only when the history covers t)
                 e["state_at"] = states_at.get(e["entity_id"], {"state": None, "changed_at": None, "known": False, "reason": "אין היסטוריה"})
@@ -210,6 +214,10 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
             eid = c["switch_entity_id"]
             e = rows.get(eid)
             control = bool(not at_iso and e is not None and not e["removed_at"] and not e["disabled"] and _entity_allowed(conn, principal, eid, "ha.entity.control"))
+            if control:
+                from ..services import alarm as alarm_svc
+
+                control = not alarm_svc.is_managed_control(conn, eid)  # CR-010 review B1
             readable = (not is_draft_geometry) or control or _entity_allowed(conn, principal, eid, "entity.state.read")
             past = hist.get(eid, {})
             state = (past.get("state") if at_iso else (e["state"] if e else None)) if readable else None

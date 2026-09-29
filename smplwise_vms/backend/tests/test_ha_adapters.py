@@ -68,8 +68,11 @@ def test_catalogue_carries_risk_and_argument_specs(paired):
     }
     assert by["climate.set_hvac_mode"]["risk"] == "routine" and by["climate.set_hvac_mode"]["argument_specs"][0]["choices"][:3] == ["off", "heat", "cool"]
     assert by["climate.set_temperature"]["argument_specs"] == [{"name": "temperature", "type": "float", "min": 5, "max": 35}]
-    al = {a["id"]: a for a in c.get("/api/v1/ha/entities/alarm_control_panel.home", headers=as_user("omer")).json()["actions"]}
-    assert al["alarm_control_panel.alarm_disarm"]["risk"] == "sensitive" and al["alarm_control_panel.alarm_disarm"]["grant"] == "alarm.disarm" and al["alarm_control_panel.alarm_disarm"]["granted"] is False
+    # CR-010 review M1: the alarm panel is operated only from the alarm section - the catalogue offers no action on it
+    alarm = c.get("/api/v1/ha/entities/alarm_control_panel.home", headers=as_user("omer")).json()
+    assert alarm["actions"] == [] and alarm["alarm_managed"] is True
+    al = {a["id"]: a for a in ha_bridge.actions_for("alarm_control_panel")}
+    assert al["alarm_control_panel.alarm_disarm"]["risk"] == "sensitive" and al["alarm_control_panel.alarm_disarm"]["grant"] == "alarm.disarm"
     assert al["alarm_control_panel.alarm_arm_away"]["risk"] == "attention" and al["alarm_control_panel.alarm_arm_away"]["sensitive"] is True
     assert {a["id"] for a in c.get("/api/v1/ha/entities/input_boolean.night", headers=as_user("omer")).json()["actions"]} == {"input_boolean.turn_on", "input_boolean.turn_off"}
 
@@ -116,22 +119,12 @@ def test_attention_needs_confirmation_and_sensitive_needs_its_grant(paired):
     assert r.status_code == 409 and r.json()["code"] == "confirmation_required"
     r = c.post("/api/v1/ha/entities/siren.yard/actions", json=_body(allowed_action_id="siren.turn_on", confirmation_grant="confirmed", client_request_id="r2"), headers=o)
     assert r.status_code == 202 and calls[-1]["service"] == "turn_on"
-    # CR-010: this general route carries no alarm code, so a caller whose alarm code policy is code_required (the
-    # default) is sent to the alarm screen; with no_code it arms / disarms here as before
-    r = c.post("/api/v1/ha/entities/alarm_control_panel.home/actions", json=_body(allowed_action_id="alarm_control_panel.alarm_arm_home", confirmation_grant="confirmed", client_request_id="r3p"), headers=o)
-    assert r.status_code == 409 and r.json()["code"] == "code_policy"
-    assert c.put("/api/v1/alarm/users/dev-omer/policy", json={"arm_policy": "no_code", "disarm_policy": "no_code"}).status_code == 200
-    # arming is attention, disarming is sensitive: the operator may arm but not disarm
-    r = c.post("/api/v1/ha/entities/alarm_control_panel.home/actions", json=_body(allowed_action_id="alarm_control_panel.alarm_arm_home", confirmation_grant="confirmed", client_request_id="r3"), headers=o)
-    assert r.status_code == 202 and r.json()["expected_state"] == "armed_home"
+    # CR-010 security review M1: an alarm panel is operated only through the alarm section (alarm.* permissions, the code
+    # policy, the lockout, the remote settings); this general route refuses every panel action, audited
     n = len(calls)
-    r = c.post("/api/v1/ha/entities/alarm_control_panel.home/actions", json=_body(allowed_action_id="alarm_control_panel.alarm_disarm", confirmation_grant="confirmed", client_request_id="r4"), headers=o)
-    assert r.status_code == 403 and r.json()["code"] == "grant_required" and r.json()["details"]["grant"] == "alarm.disarm" and len(calls) == n
-    # a custom role with the sensitive grant on that floor allows it, still with a confirmation
-    role = c.post("/api/v1/access/roles", json={"name": "מנטרל אזעקה", "permissions": ["map.read"], "sensitive": ["alarm.disarm"]}).json()
-    assert c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-omer", "role_id": role["id"], "scope_type": "floor", "scope_id": ids["floor2"]}).status_code == 201
-    assert c.post("/api/v1/ha/entities/alarm_control_panel.home/actions", json=_body(allowed_action_id="alarm_control_panel.alarm_disarm", client_request_id="r5"), headers=o).status_code == 409
-    r = c.post("/api/v1/ha/entities/alarm_control_panel.home/actions", json=_body(allowed_action_id="alarm_control_panel.alarm_disarm", confirmation_grant="confirmed", client_request_id="r6"), headers=o)
-    assert r.status_code == 202 and calls[-1]["service"] == "alarm_disarm" and calls[-1]["user_id"] == "dev-omer"
+    for aid in ("alarm_control_panel.alarm_arm_home", "alarm_control_panel.alarm_disarm"):
+        r = c.post("/api/v1/ha/entities/alarm_control_panel.home/actions", json=_body(allowed_action_id=aid, confirmation_grant="confirmed", client_request_id=aid), headers=o)
+        assert r.status_code == 409 and r.json()["code"] == "use_alarm_screen"
+    assert len(calls) == n
     with app.state.db.connection() as conn:
-        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'ha.action' AND decision = 'denied' AND reason = 'grant_required'").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'ha.action' AND decision = 'denied' AND reason = 'use_alarm_screen'").fetchone()[0] == 2

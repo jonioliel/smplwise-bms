@@ -360,10 +360,12 @@ def test_devices_control_permission_registered():
 def test_area_cards_carry_can_control(dev_app):
     app, s = dev_app
     c = TestClient(app)
-    # the default identity (bootstrap system_admin) controls everything it can see
+    # the default identity (bootstrap system_admin) controls everything it can see - except what the alarm section owns
+    # (CR-010 review B1: the alarm panel is read-only here, flagged alarm_managed)
     a = c.get("/api/v1/devices/areas/lobby").json()
     rows = [r for card in a["cards"].values() for r in card["entities"]]
-    assert rows and all(r["can_control"] is True for r in rows)
+    assert rows and all(r["can_control"] is (not r["alarm_managed"]) for r in rows)
+    assert [r["entity_id"] for r in rows if r["alarm_managed"]] == ["alarm_control_panel.house"]
     # a plain viewer (devices.read only) and an editor (devices.read, no control of any kind) read but never control
     bind(c, s, "vi", "viewer", "installation", "*")
     bind(c, s, "ed", "editor", "installation", "*")

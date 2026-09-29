@@ -513,6 +513,38 @@ def discover(conn: sqlite3.Connection, entities: list[dict[str, Any]] | None = N
     return {"panels": out, "excluded": sorted(excluded)}
 
 
+# ---------------------------------------------------------------- controls the alarm owns (security review B1)
+
+def managed_controls(conn: sqlite3.Connection, disc: dict[str, Any] | None = None) -> set[str]:
+    """Every entity the alarm section owns and no other path may operate: each panel, each bypass control discover()
+    pairs with a zone, each unpaired bypass-like control of a panel's integration, and each override target. The
+    general entity route, the bulk actions and the bulk-safe mark refuse them (routers/ha.py, device_bulk.py): bypassing a
+    zone or arming / disarming a panel goes through routers/alarm.py only - alarm.* permissions, the code policy, the
+    lockout, the remote settings, the confirmation and the alarm.* audit rows."""
+    d = disc if disc is not None else discover(conn)
+    out: set[str] = set()
+    for p in d["panels"]:
+        out.add(p["entity_id"])
+        for z in p["zones"]:
+            if z.get("bypass"):
+                out.add(z["bypass"]["entity_id"])
+        out.update(u["entity_id"] for u in p["unpaired_controls"])
+    try:
+        out.update(r[0] for r in conn.execute("SELECT bypass_entity_id FROM alarm_zone_overrides WHERE bypass_entity_id IS NOT NULL AND bypass_entity_id != ''").fetchall())
+        out.update(r[0] for r in conn.execute("SELECT entity_id FROM ha_entities WHERE domain = 'alarm_control_panel'").fetchall())
+    except sqlite3.OperationalError:
+        pass
+    return out
+
+
+def is_managed_control(conn: sqlite3.Connection, entity_id: str) -> bool:
+    if entity_id.split(".", 1)[0] not in ("switch", "select", "alarm_control_panel"):
+        return False
+    return entity_id in managed_controls(conn)
+
+
+MANAGED_LABEL = "נשלט ממסך האזעקה"
+
 def readiness(zones: Iterable[dict[str, Any]]) -> dict[str, Any]:
     """What stands in the way of arming: open doors / windows and faulty zones that are not bypassed."""
     open_ = [z["entity_id"] for z in zones if z["open"] and z["kind"] in ("opening", "zone") and not z["bypassed"]]

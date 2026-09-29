@@ -99,6 +99,9 @@ def list_entities(
     sql += " ORDER BY domain, name, entity_id LIMIT ?"
     args.append(limit)
     rows = [ha_sync.entity_row(r) for r in conn.execute(sql, args).fetchall()]
+    from ..services import alarm as alarm_svc
+
+    managed = alarm_svc.managed_controls(conn)
     out = []
     for r in rows:
         pl = placements.get(r["entity_id"], [])
@@ -109,7 +112,9 @@ def list_entities(
         if placed is False and pl:
             continue
         r["placements"] = pl
-        r["actions"] = ha_bridge.actions_for(r["domain"])
+        # CR-010 review B1: what the alarm section owns is listed read-only here (flag + no actions)
+        r["alarm_managed"] = r["entity_id"] in managed
+        r["actions"] = [] if r["alarm_managed"] else ha_bridge.actions_for(r["domain"])
         out.append(r)
     domains: dict[str, int] = {}
     for r in conn.execute("SELECT domain, COUNT(*) AS n FROM ha_entities WHERE removed_at IS NULL AND disabled = 0 GROUP BY domain").fetchall():
@@ -126,7 +131,10 @@ def get_entity(entity_id: str, principal: Principal = Depends(current_principal)
     e["placements"] = _placements(conn).get(entity_id, [])
     e["can_control"] = _entity_allowed(conn, principal, entity_id, "ha.entity.control")
     # each action says whether this caller holds it: control plus the action's own grant when it has one (T079)
-    e["actions"] = [{**a, "granted": e["can_control"] and (not a["grant"] or _entity_allowed(conn, principal, entity_id, a["grant"]))} for a in ha_bridge.actions_for(e["domain"])]
+    from ..services import alarm as alarm_svc
+
+    e["alarm_managed"] = alarm_svc.is_managed_control(conn, entity_id)  # CR-010 review B1: read-only here
+    e["actions"] = [] if e["alarm_managed"] else [{**a, "granted": e["can_control"] and (not a["grant"] or _entity_allowed(conn, principal, entity_id, a["grant"]))} for a in ha_bridge.actions_for(e["domain"])]
     e["recent_actions"] = [dict(r) for r in conn.execute("SELECT id, action_id, status, requested_at, confirmed_at, principal_username, error FROM ha_actions WHERE entity_id = ? ORDER BY requested_at DESC, rowid DESC LIMIT 5", (entity_id,)).fetchall()]
     return e
 
@@ -159,6 +167,9 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
         # caller asking for lock.lock is denied and audited exactly like a caller holding no control at all.
         require(conn, principal, "ha.entity.control", INSTALLATION)
     note_grant(ha_scope.control_decision(conn, principal, entity_id), "ha.action")  # T055: the action's audit rows name its scope
+    # CR-010 review B1 / M1: after the permission check (a caller holding no control keeps its audited 403), refused
+    # for everyone who does hold it
+    _refuse_alarm_managed(conn, principal, request, entity_id, body.allowed_action_id)
     e = _entity(conn, entity_id)
     if e["removed_at"] or e["disabled"]:
         raise ApiError(409, "entity_unavailable", "ההתקן אינו זמין.")
@@ -180,8 +191,6 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
         raise ApiError(403, "grant_required", f"הפעולה דורשת הרשאה נפרדת ({_grant_label(grant)}); שליטה כללית בישויות אינה כוללת אותה.", details={"action": body.allowed_action_id, "grant": grant})
     if spec["sensitive"] and body.confirmation_grant != "confirmed":
         raise ApiError(409, "confirmation_required", "פעולה רגישה דורשת אישור מפורש.", details={"action": body.allowed_action_id})
-    if spec["domain"] == "alarm_control_panel":
-        _alarm_gate(conn, principal, request, entity_id, body.allowed_action_id)  # CR-010: remote settings + code policy
     if principal.source not in ("ingress", "remote") and not settings.dev_user:  # CR-008: the Arx remote channel is the same HA user
         raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן.")
     secret = ha_bridge.signing_key(conn)
@@ -218,25 +227,19 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
     return out
 
 
-def _alarm_gate(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:
-    """CR-010: an alarm panel reached through this general route follows the alarm section's own rules - the remote
-    settings (alarm.remote_control / alarm.remote_disarm) and the caller's code policy: this route carries no code, so a
-    caller whose policy is code_required arms / disarms only from the alarm screen (POST /alarm/panels/{id}/actions)."""
-    from ..services import alarm_codes
-    from .alarm import REMOTE_MESSAGES, _remote_block, _settings
+def _refuse_alarm_managed(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:
+    """CR-010 security review B1 / M1: an alarm panel and every control the alarm section owns (a zone's bypass switch or
+    select, an unpaired bypass-like control, an override target - services/alarm.managed_controls) are operated ONLY
+    through routers/alarm.py, whatever the caller holds here: there the alarm.* permissions, the code policy, the lockout,
+    the remote settings, the confirmation and the alarm.* audit rows apply. This general route (map cards, the devices
+    screens, the catalogue) refuses them with 409 use_alarm_screen, audited."""
+    from ..services import alarm as alarm_svc
 
-    cfg = _settings(conn)
-    disarm = action_id.endswith("alarm_disarm")
-    reason = _remote_block(principal, cfg, "disarm" if disarm else "arm")
-    pol = alarm_codes.policy(conn, principal.user_id)
-    forced = principal.source == "remote" and not cfg["remote_codeless"]
-    if reason is None and (forced or pol["disarm_policy" if disarm else "arm_policy"] == "code_required"):
-        reason = "code_policy"
-    if reason:
-        audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=reason,
-              request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
-        msg = REMOTE_MESSAGES.get(reason, "פעולות אזעקה שדורשות קוד נעשות ממסך האזעקה (אבטחה › אזעקה).")
-        raise ApiError(409 if reason == "code_policy" else 403, reason, msg, details={"action": action_id})
+    if not alarm_svc.is_managed_control(conn, entity_id):
+        return
+    audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="use_alarm_screen",
+          request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
+    raise ApiError(409, "use_alarm_screen", "הפעולה נעשית ממסך האזעקה (אבטחה › אזעקה).", details={"action": action_id, "route": f"/security/alarm"})
 
 
 @router.get("/ha/actions/{action_id}")

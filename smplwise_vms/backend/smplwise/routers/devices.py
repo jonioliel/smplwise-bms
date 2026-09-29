@@ -103,6 +103,16 @@ def area(area_id: str, principal: Principal = Depends(current_principal_ro), con
     body = svc.build_area(conn, entities, area_id, scoped=scoped, control_of=control_of)
     if body is None:
         raise ApiError(404, "not_found", "האזור לא נמצא.")
+    # CR-010 review B1: what the alarm section owns (the panel, a zone's bypass control) is listed read-only here
+    from ..services import alarm as alarm_svc
+
+    managed = alarm_svc.managed_controls(conn)
+    for card in body["cards"].values():
+        for r in card.get("entities", []):
+            r["alarm_managed"] = r["entity_id"] in managed
+            if r["alarm_managed"]:
+                r["can_control"] = False
+                r["managed_label"] = alarm_svc.MANAGED_LABEL
     flags = _bulk_flags(conn, principal)
     body["can_bulk"] = area_id != svc.UNASSIGNED and (flags["all"] or area_id in flags["areas"])
     # review round 1: whether each switch may enter a bulk action (a lighting circuit's switch, or marked bulk-safe
@@ -162,6 +172,12 @@ def set_bulk_safe(entity_id: str, body: BulkSafeBody, request: Request, principa
         raise ApiError(404, "not_found", "הישות לא נמצאה בקטלוג.")
     if row["domain"] != "switch":
         raise ApiError(422, "validation", "רק מתג (switch) מסומן כבטוח לכיבוי מרוכז; שאר הסוגים נקבעים לפי הכללים.")
+    from ..services import alarm as alarm_svc
+
+    if body.bulk_safe and alarm_svc.is_managed_control(conn, entity_id):  # CR-010 review B1
+        audit(conn, actor=principal, action="devices.bulk_safe", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="alarm_managed",
+              request_id=getattr(request.state, "correlation_id", None), details={"bulk_safe": True})
+        raise ApiError(409, "alarm_managed", "מתג עקיפה של חיישן אזעקה נשלט ממסך האזעקה ולעולם לא נכלל בפעולה מרוכזת.")
     bulk.set_bulk_safe(conn, principal, entity_id, body.bulk_safe)
     audit(conn, actor=principal, action="devices.bulk_safe", decision="allowed", resource_type="ha_entity", resource_id=entity_id,
           request_id=getattr(request.state, "correlation_id", None), details={"bulk_safe": body.bulk_safe})
