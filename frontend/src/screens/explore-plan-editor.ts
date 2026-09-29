@@ -244,6 +244,8 @@ export class ExplorePlanEditor extends LitElement {
   @state() private connMode: ConnectorKind | null = null;
   @state() private connStart: Pt | null = null;
   @state() private tree: CatalogTree | null = null;
+  /** The site tree is being fetched (ensureTree): quick clicks share the one request in flight. */
+  private treeLoading = false;
   @state() private linkFloor = '';
   @state() private linkBusy = false;
   // ---- circuits (T085) ----
@@ -1523,6 +1525,18 @@ export class ExplorePlanEditor extends LitElement {
     return targets;
   }
 
+  /** The site tree for the connector inspector's "link to a floor", fetched once (0.1.87 hotfix item 9): while a request
+   * is in flight another tool switch or connector click does not send a second one; a failed fetch may be retried by the
+   * next click. */
+  private ensureTree() {
+    if (this.tree || this.treeLoading || this.bundle?.source !== 'api') return;
+    this.treeLoading = true;
+    void loadTree()
+      .then((t) => (this.tree = t))
+      .catch(() => {})
+      .finally(() => (this.treeLoading = false));
+  }
+
   private pickTool(tool: Tool) {
     if (this.detectBusy && tool !== this.tool) return;
     this.dropDoorGhost();
@@ -1539,7 +1553,7 @@ export class ExplorePlanEditor extends LitElement {
     this.circuitPlacing = null; // an armed lamp type never survives a tool switch (like linkFloor below)
     this.circuitNew = null;
     this.linkFloor = ''; // a floor picked for a connector link never survives a tool switch (final review item 4)
-    if (tool === 'connectors' && !this.tree && this.bundle?.source === 'api') void loadTree().then((t) => (this.tree = t)).catch(() => {});
+    if (tool === 'connectors') this.ensureTree();
     if (tool === 'structure' && this.phone.matches && this.studioMode === 'wall') this.studioMode = 'select'; // wall drawing is desktop only: a phone opens the tool in select mode
     if (tool !== 'structure') this.geomSel = null;
     this.multi = []; // a multi-selection belongs to the select tool only (T085)
@@ -2481,7 +2495,7 @@ export class ExplorePlanEditor extends LitElement {
     // shows the inspectors itself (0.1.87), so a click there never changes the tool
     if (kind === 'object' && this.tool !== 'library' && this.tool !== 'select') this.pickTool('library');
     if (kind === 'connector' && this.tool !== 'connectors' && this.tool !== 'select') this.pickTool('connectors');
-    if (kind === 'connector' && this.tool === 'select' && !this.tree && this.bundle?.source === 'api') void loadTree().then((t) => (this.tree = t)).catch(() => {});
+    if (kind === 'connector' && this.tool === 'select') this.ensureTree();
     this.zoneVertexSel = null;
     this.geomSel = vertex === undefined ? { id, kind } : { id, kind, vertex };
     this.multi = []; // a plain click (or a drag of an item outside the multi-selection) selects that one item alone
