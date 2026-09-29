@@ -52,5 +52,15 @@ Two patterns that come up often:
   Supervisor errors (surfaced only from the connections tab's save-NVR flow).
 - `frontend/src/pwa/notifications-settings.ts`, routed at `#/system/notifications` alongside diagnostics/access/
   storage - same settings area as `screens/system-*.ts` even though the file lives under `pwa/`.
+- `smplwise_vms/backend/smplwise/auth.py:80,85` (`resolve_principal`'s `untrusted_origin` and `identity_missing`
+  refusals): these fire only when the reverse proxy in front of the add-on is misconfigured - before any session
+  or principal exists, so no screen ever renders them to an ordinary user. They are read by whoever is installing
+  or debugging the proxy, for whom "Home Assistant Ingress" and "Supervisor... X-Remote-User" are the actionable
+  facts; de-branding them would make the installer's job harder for no user-facing benefit.
+
+De-branded per this rule (for contrast, since the two paragraphs above list what stays exact): `mode.py`'s
+`NVR_NOT_CONFIGURED_MESSAGE` (the 409 `ensure_nvr()` raises on `live`/`cases`/`playback`/`media` routes - ordinary
+non-settings screens hit this constantly whenever NVR-less mode is on) says "תשתית המערכת" and points at
+"בהגדרות SmplWise Arx בתשתית המערכת", not at Home Assistant's Add-ons page.
 
 Source: original (owner instruction 2026-09-29, no prior written record).

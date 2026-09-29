@@ -969,10 +969,10 @@ export class WiskeyEmbed extends LitElement {
   }
 
   private renderError() {
-    const common = 'אפשר לנסות שוב, לפתוח את WisKey בחלון נפרד, או לבחור בהגדרות › בקרות כניסה את מסכי SMPLWISE.';
+    const common = 'אפשר לנסות שוב, לעבור למסך WisKey העצמאי או לפתוח אותו בחלון חדש, או לבחור בהגדרות › בקרות כניסה את מסכי SMPLWISE.';
     const map: Record<string, { heading: string; hint: string; state: 'error' | 'stale' | 'empty' }> = {
       not_installed: { heading: 'לוח WisKey לא נמצא', hint: `האינטגרציה hikvision_intercom לא רשמה את הלוח ${WISKEY_PANEL_PATH} (לא מותקנת, לא נטענה, או שהמשתמש לא רואה אותו). ${common}`, state: 'empty' },
-      unreachable: { heading: 'לא ניתן לטעון את WisKey', hint: `הכתובת ${WISKEY_PANEL_PATH} לא נטענה בתוך המסגרת. ייתכן שההזדהות אינה זמינה בתוך מסגרת; או שהממשק פתוח שלא כראוי. ${common}`, state: 'stale' },
+      unreachable: { heading: 'לא ניתן לטעון את WisKey', hint: `הכתובת ${WISKEY_PANEL_PATH} לא נטענה בתוך המסגרת. ייתכן שההזדהות אינה זמינה בתוך מסגרת; או שהממשק נפתח ישירות, לא דרך תשתית המערכת. ${common}`, state: 'stale' },
       blocked: { heading: 'הדפדפן לא מאפשר להטמיע את WisKey כאן', hint: `המסגרת נחסמה (מדיניות מסגרות) או הופנתה לכתובת אחרת. ${common}`, state: 'error' },
       unsupported: { heading: 'גרסת ממשק ההטמעה של WisKey אינה נתמכת', hint: `WisKey המותקן מדבר בגרסת ממשק הטמעה ${this.unsupportedVersion || 'לא ידועה'}, ו־SMPLWISE מכיר את גרסה 1. ${common}`, state: 'error' },
     };
@@ -1006,7 +1006,7 @@ export class WiskeyEmbed extends LitElement {
           ? 'ההטמעה באפליקציה (ניסיוני) לא נתמכת במכשיר הזה, ולכן WisKey נפתח באפליקציה עצמה'
           : this.phoneRelay
           ? 'ההטמעה באפליקציה (ניסיוני) לא הצליחה להתחבר, ולכן WisKey נפתח באפליקציה עצמה'
-          : 'נדרשת התחברות בתוך המסגרת, ולכן WisKey נפתח בחלון נפרד';
+          : 'נדרשת התחברות בתוך המסגרת, ולכן WisKey עובר למסך נפרד';
     const screen = SMPLWISE_SCREEN[this.tab];
     const only = wiskeySegmentOf(this.tab);
     return html`

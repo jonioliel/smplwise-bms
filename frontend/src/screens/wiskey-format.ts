@@ -235,7 +235,7 @@ const HE: Record<string, string> = {
   validity_summary_hint: 'התוקף לפי ההגדרה המרכזית; מצב הסנכרון לציוד מוצג בנפרד.',
   valid_from: 'התחלה',
   valid_until: 'סיום',
-  clock_ha_zone: 'אזור הזמן של המערכת',
+  clock_ha_zone: 'אזור הזמן של תשתית המערכת',
   user_sync_hint: 'מצב הסנכרון לפי גרסת המשתמש האחרונה שאומתה. תקשורת התחנה מוצגת בנפרד; שינויים שטרם הוחלו נשארים בהמתנה.',
   panel_data_stale: 'ייתכן שהנתונים המוצגים אינם עדכניים. הרענון נכשל; ניתן לנסות שוב באמצעות רענון.',
   // person editor (panel.ts editorBody, i18n.ts he) - CR-005 phase 2 slice A1
@@ -329,10 +329,10 @@ const HE: Record<string, string> = {
   capture_state_expired: 'זמן הקריאה (שתי דקות) הסתיים ב־WisKey. לא נשמר כרטיס.',
   capture_state_cancelled: 'הקריאה בוטלה. לא נשמר כרטיס.',
   capture_state_abandoned: 'הקריאה נסגרה כי החלון הפסיק לעקוב אחריה (למשל כרטיסייה מוקפאת או מחשב שנכנס למצב שינה). לא נשמר כרטיס.',
-  capture_state_lost: 'WisKey אינו מכיר עוד את הקריאה (למשל אחרי הפעלה מחדש של המערכת). לא נשמר כרטיס.',
+  capture_state_lost: 'WisKey אינו מכיר עוד את הקריאה (למשל אחרי הפעלה מחדש של תשתית המערכת). לא נשמר כרטיס.',
   capture_state_closed: 'WisKey דחה את הוספת הכרטיס וסגר את הקריאה. לא נשמר כרטיס.',
   capture_state_confirmed: 'הכרטיס נוסף למשתמש ונשלחה בקשה לסנכרון לתחנות.',
-  manager_closed: 'מנהל הגישה של WisKey נסגר (ייתכן שהמערכת נטענה מחדש). נסה שוב בעוד רגע.',
+  manager_closed: 'מנהל הגישה של WisKey נסגר (ייתכן שתשתית המערכת נטענה מחדש). נסה שוב בעוד רגע.',
 };
 
 /** WisKey's `translate`: a known key, else the key itself with underscores as spaces. */

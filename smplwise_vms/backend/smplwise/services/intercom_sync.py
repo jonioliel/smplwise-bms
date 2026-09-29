@@ -575,7 +575,7 @@ WRITE_REFUSALS: dict[str, tuple[int, str, str]] = {
     "identity_migration_required": (409, "intercom_identity_locked", "מזהה העובד כבר נפרס בתחנה ואי אפשר לשנותו כאן."),
     "group_policy_changed": (409, "intercom_policy_changed", "הגדרות הקבוצות ב־WisKey השתנו בזמן העריכה. טענו מחדש ונסו שוב."),
     "user_not_found": (404, "intercom_person_not_found", "האדם לא נמצא ב־WisKey (ייתכן שנמחק בינתיים)."),
-    "unauthorized": (502, "intercom_action_refused", "WisKey דחה את הפקודה: למשתמש המערכת אין הרשאת ניהול אנשים (users:manage) ב־WisKey. הפקודה לא בוצעה."),
+    "unauthorized": (502, "intercom_action_refused", "WisKey דחה את הפקודה: למשתמש תשתית המערכת אין הרשאת ניהול אנשים (users:manage) ב־WisKey. הפקודה לא בוצעה."),
     "storage_stopping": (503, "intercom_unavailable", "תשתית המערכת נכבתה כרגע, ולכן WisKey לא שמר את השינוי. נסו שוב אחרי ההפעלה."),
 }
 # WisKey's refusals of the card-capture commands (lane "capture" for start / cancel; a confirm is a people write in the
@@ -588,7 +588,7 @@ CAPTURE_REFUSALS: dict[str, tuple[int, str, str]] = {
     "station_not_found": (404, "intercom_station_not_found", "העמדה לא נמצאה ב־WisKey."),
     "station_offline": (409, "intercom_station_offline", "העמדה אינה מחוברת ל־WisKey, ולכן הקורא לא הופעל."),
     "station_has_no_managed_lock": (409, "intercom_no_lock", "לעמדה אין מנעול מנוהל ב־WisKey, ולכן אי אפשר לקרוא בה כרטיס."),
-    "manager_closed": (503, "intercom_unavailable", "מנהל הגישה של WisKey נסגר (המערכת נטענה מחדש?), ולכן הקורא לא הופעל."),
+    "manager_closed": (503, "intercom_unavailable", "מנהל הגישה של WisKey נסגר (תשתית המערכת נטענה מחדש?), ולכן הקורא לא הופעל."),
     "capture_applying": (409, "intercom_capture_applying", "הכרטיס נמצא בשמירה ב־WisKey. יש להמתין לתוצאה לפני פעולה נוספת."),
     "capture_not_found": (404, "intercom_capture_not_found", "הקריאה פגה או אינה קיימת עוד ב־WisKey. יש להתחיל קריאה חדשה."),
     "capture_not_ready": (409, "intercom_capture_not_ready", "אין כרטיס שנקרא וממתין לאישור."),
