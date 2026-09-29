@@ -557,9 +557,9 @@ export class WiskeyPersonEditor extends LitElement {
     const ctx = this.ctx;
     const notes = [];
     if (ctx && (ctx.writes_listed === false || ctx.users_manage === false)) {
-      notes.push(html`<div class="note err" role="alert" data-wiskey-editor-note="no_users_manage">WisKey אינו מציע את פקודות ניהול האנשים למשתמש המערכת של SMPLWISE (נדרש אזור users ברמת manage ב־WisKey). שמירה תידחה על ידי WisKey ולא תשנה דבר.</div>`);
+      notes.push(html`<div class="note err" role="alert" data-wiskey-editor-note="no_users_manage">WisKey אינו מציע את פקודות ניהול האנשים למשתמש המערכת של Arx (נדרש אזור users ברמת manage ב־WisKey). שמירה תידחה על ידי WisKey ולא תשנה דבר.</div>`);
     } else if (ctx && ctx.writes_listed === null) {
-      notes.push(html`<div class="note info" role="note" data-wiskey-editor-note="writes_unverified">WisKey לא ציין אילו פקודות זמינות למשתמש של SMPLWISE; אם חסרה לו הרשאת ניהול אנשים (users:manage) השמירה תידחה - ותוצג כאן כדחייה.</div>`);
+      notes.push(html`<div class="note info" role="note" data-wiskey-editor-note="writes_unverified">WisKey לא ציין אילו פקודות זמינות למשתמש של Arx; אם חסרה לו הרשאת ניהול אנשים (users:manage) השמירה תידחה - ותוצג כאן כדחייה.</div>`);
     }
     if (this.ctxNote) notes.push(html`<div class="note warn" role="status" data-wiskey-editor-note="context">${this.ctxNote}</div>`);
     if (this.original?.has_timing) {
@@ -774,7 +774,7 @@ export class WiskeyPersonEditor extends LitElement {
     const count = Object.keys(this.draft?.assignments ?? {}).length;
     return html`<sw-dialog open heading=${t('delete')} subheading=${user.display_name} data-wiskey-editor-delete-dialog @close=${() => (this.confirmDelete = false)}>
       <p>${t('confirm_delete').replace('{count}', String(count))}</p>
-      <p class="muted">האדם ייעלם מרשימת WisKey מיד; ההסרה מכל תחנה מתוזמנת על ידי WisKey ומאושרת תחנה־תחנה (תחנות שממתינות להסרת אמצעי זיהוי קודמים נכללות גם הן). הפעולה נרשמת ביומן הביקורת של SMPLWISE בשמך.</p>
+      <p class="muted">האדם ייעלם מרשימת WisKey מיד; ההסרה מכל תחנה מתוזמנת על ידי WisKey ומאושרת תחנה־תחנה (תחנות שממתינות להסרת אמצעי זיהוי קודמים נכללות גם הן). הפעולה נרשמת ביומן הביקורת של Arx בשמך.</p>
       <div slot="footer">
         <sw-button variant="ghost" @click=${() => (this.confirmDelete = false)}>${t('cancel')}</sw-button>
         <sw-button variant="danger" icon="trash" data-wiskey-editor-delete-confirm ?disabled=${!!this.busy} @click=${() => void this.doDelete()}>${this.busy === 'delete' ? t('wait') : t('delete')}</sw-button>

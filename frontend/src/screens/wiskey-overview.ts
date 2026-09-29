@@ -146,7 +146,7 @@ export const FEED_PANELS: Record<Exclude<IntercomFeedState, 'ready'>, { panel: P
   ha_not_configured: {
     panel: 'stale',
     heading: 'WisKey אינו מחובר בסביבה הזו',
-    hint: 'ל־SMPLWISE אין כאן גישה לתשתית המערכת, ולכן אין נתוני אינטרקום להצגה. במערכת המותקנת המסך מתחבר לאינטגרציית WisKey (hikvision_intercom) מעצמו.',
+    hint: 'ל־Arx אין כאן גישה לתשתית המערכת, ולכן אין נתוני אינטרקום להצגה. במערכת המותקנת המסך מתחבר לאינטגרציית WisKey (hikvision_intercom) מעצמו.',
   },
   connecting: { panel: 'loading', heading: 'מתחבר ל־WisKey…', hint: 'הנתונים יופיעו ברגע שתשתית המערכת תענה.' },
   ha_unavailable: { panel: 'stale', heading: 'תשתית המערכת אינה זמינה כרגע', hint: 'אין חיבור לתשתית המערכת, ולכן אין נתוני אינטרקום עדכניים. החיבור מתחדש אוטומטית.' },
@@ -155,7 +155,7 @@ export const FEED_PANELS: Record<Exclude<IntercomFeedState, 'ready'>, { panel: P
     heading: 'אינטגרציית WisKey אינה מותקנת',
     hint: 'תשתית המערכת לא מכירה את הפקודות של WisKey (hikvision_intercom). אחרי התקנה המסך יתחבר אליה מעצמו תוך כמה דקות.',
   },
-  forbidden: { panel: 'forbidden', heading: 'WisKey דחה את הגישה של SMPLWISE', hint: 'המשתמש של המערכת אינו מורשה בהרשאות של WisKey, ולכן אין נתונים להצגה.' },
+  forbidden: { panel: 'forbidden', heading: 'WisKey דחה את הגישה של Arx', hint: 'המשתמש של המערכת אינו מורשה בהרשאות של WisKey, ולכן אין נתונים להצגה.' },
   error: { panel: 'error', heading: 'WisKey החזיר שגיאה', hint: 'הבקשה ל־WisKey לא הושלמה. הניסיון יחזור אוטומטית.' },
 };
 
@@ -480,7 +480,7 @@ export class WiskeyOverview extends LitElement {
     const busy = this.releasing.has(`${station.id}/${lock.physical_index}`);
     return html`<sw-dialog open heading="שחרור דלת" subheading=${name ? `${station.name} · ${name}` : station.name} data-wiskey-release-dialog @close=${() => (this.confirmRelease = null)}>
       <p>פקודת שחרור תישלח עכשיו לעמדה <b>${station.name}</b>${name ? html` (${name})` : nothing}. המנעול ישתחרר לזמן שמוגדר בעמדה עצמה, וכל מי שנמצא ליד הדלת יוכל להיכנס.</p>
-      <p class="muted">הפעולה נרשמת ביומן הביקורת של SMPLWISE בשמך. תשובת WisKey מאשרת רק שהפקודה התקבלה - לא שהדלת נפתחה בפועל.</p>
+      <p class="muted">הפעולה נרשמת ביומן הביקורת של Arx בשמך. תשובת WisKey מאשרת רק שהפקודה התקבלה - לא שהדלת נפתחה בפועל.</p>
       <div slot="footer">
         <sw-button variant="ghost" data-wiskey-release-cancel @click=${() => (this.confirmRelease = null)}>ביטול</sw-button>
         <sw-button variant="danger" icon="unlock" data-wiskey-release-confirm ?disabled=${busy} @click=${() => void this.doRelease()}>${busy ? 'שולח…' : 'שחרר את הדלת'}</sw-button>

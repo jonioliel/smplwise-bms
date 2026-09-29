@@ -523,7 +523,7 @@ def ha_step(settings: Settings, conn: sqlite3.Connection, *, live: dict[str, Any
         return failed(_problem("bridge_copy_failed", f"העתקת אינטגרציית הגשר ל־Home Assistant נכשלה ({bridge['last_error']}).",
                                f"לחצו \"התקנת הגשר\" ב{link['label']}, או העתיקו את custom_components/smplwise_bridge ידנית.", link))
     if not bridge["paired"]:
-        return failed(_problem("bridge_not_paired", "הגשר (SMPLWISE Bridge) עוד לא צומד ל־VMS.",
+        return failed(_problem("bridge_not_paired", "הגשר (SMPLWISE Bridge) עוד לא צומד ל־Arx.",
                                "ב־Home Assistant › הגדרות › Devices & services אשרו את \"SMPLWISE Bridge\" (קוד הצימוד כבר ממולא); בהתקנה ידנית קוד הצימוד מופיע ב"
                                + link["label"] + ".", link))
     if tc and tc.get("level") == "fail":
@@ -741,7 +741,7 @@ def camera_step(conn: sqlite3.Connection, nvr_status: str) -> dict[str, Any]:
         p = _problem("waiting_for_floor", "אין עדיין קומה עם תוכנית מפורסמת להציב עליה מצלמות.", "השלימו את שלב הקומה, ואז הציבו מצלמה בעורך התוכנית.", _link("sites"))
         return _step("camera", "skipped", p["message"], facts=facts, evidence=evidence, settings_link=editor, problem=p)
     if not placed_known:
-        p = _problem("no_camera_placed", "אף מצלמה עוד לא מוצבת על מפה.", "פתחו את עורך התוכנית, גררו מצלמה מהרשימה אל מקומה וכוונו את קונוס הראייה. ההצבה נשמרת ב־VMS בלבד.", editor)
+        p = _problem("no_camera_placed", "אף מצלמה עוד לא מוצבת על מפה.", "פתחו את עורך התוכנית, גררו מצלמה מהרשימה אל מקומה וכוונו את קונוס הראייה. ההצבה נשמרת ב־Arx בלבד.", editor)
         return _step("camera", "todo", p["message"], facts=facts, evidence=evidence, settings_link=editor, problem=p)
     warnings = []
     if unplaced:
@@ -754,7 +754,7 @@ def camera_step(conn: sqlite3.Connection, nvr_status: str) -> dict[str, Any]:
 # ---------------------------------------------------------------- NVR-less mode (mode.py)
 
 NVR_LESS_SKIP = "דילוג - מצב ללא NVR"
-NVR_LESS_ACTION = ("להוספת NVR בהמשך: מלאו nvr_host, nvr_username ו־nvr_password ב־Home Assistant › Add-ons › SMPLWISE VMS › "
+NVR_LESS_ACTION = ("להוספת NVR בהמשך: מלאו nvr_host, nvr_username ו־nvr_password ב־Home Assistant › Add-ons › SmplWise Arx › "
                    "Configuration והפעילו מחדש את ה־Add-on. הנתונים (מפות, תוכניות, הרשאות) נשארים כמו שהם, בלי הסבה.")
 
 

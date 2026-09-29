@@ -29,7 +29,7 @@ def deliver_ha_notify(service: str, message: str, title: str) -> str:
     from .ha_client import call_service
 
     try:
-        call_service(load_settings(), "notify", service, {"message": message, "title": f"SMPLWISE · {title}"})
+        call_service(load_settings(), "notify", service, {"message": message, "title": f"Arx · {title}"})
         return "sent"
     except ApiError as exc:
         return exc.code

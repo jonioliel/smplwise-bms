@@ -554,11 +554,11 @@ def project_tts_engines(raw: dict[str, Any]) -> dict[str, Any]:
 
 # why a physical action was not sent, in the feed's own words (the read endpoints show the same states as panels)
 NOT_SENT_REASONS = {
-    "ha_not_configured": "ל־SMPLWISE אין גישה לתשתית המערכת בסביבה הזו",
+    "ha_not_configured": "ל־Arx אין גישה לתשתית המערכת בסביבה הזו",
     "connecting": "החיבור ל־WisKey עדיין נפתח",
     "ha_unavailable": "תשתית המערכת אינה זמינה כרגע",
     "not_installed": "אינטגרציית WisKey אינה מותקנת",
-    "forbidden": "WisKey דחה את הגישה של SMPLWISE",
+    "forbidden": "WisKey דחה את הגישה של Arx",
     "error": "WisKey החזיר שגיאה",
 }
 
@@ -582,7 +582,7 @@ WRITE_REFUSALS: dict[str, tuple[int, str, str]] = {
 # config lane and gets WRITE_REFUSALS first): (HTTP status, SMPLWISE code, message)
 CAPTURE_REFUSALS: dict[str, tuple[int, str, str]] = {
     "capture_station_busy": (409, "intercom_capture_station_busy", "בעמדה הזו כבר קיימת ב־WisKey קריאת כרטיס שממתינה לסיום או לאישור (ייתכן שמ־WisKey עצמו). הקורא לא הופעל שוב - המתינו עד שתי דקות ונסו שוב."),
-    "capture_limit": (409, "intercom_capture_limit", "שלוש קריאות כרטיס כבר פעילות ב־WisKey (כולל מחוץ ל־SMPLWISE). הקורא לא הופעל - סיימו או בטלו אחת מהן."),
+    "capture_limit": (409, "intercom_capture_limit", "שלוש קריאות כרטיס כבר פעילות ב־WisKey (כולל מחוץ ל־Arx). הקורא לא הופעל - סיימו או בטלו אחת מהן."),
     "revision_conflict": (409, "intercom_revision_conflict", "האדם השתנה ב־WisKey מאז שנטען, ולכן WisKey לא הפעיל את הקורא. טענו מחדש את הרשומה ונסו שוב."),
     "user_not_found": (404, "intercom_person_not_found", "האדם לא נמצא ב־WisKey (ייתכן שנמחק בינתיים)."),
     "station_not_found": (404, "intercom_station_not_found", "העמדה לא נמצאה ב־WisKey."),

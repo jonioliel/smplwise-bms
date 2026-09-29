@@ -146,7 +146,7 @@ export interface DemoUser {
 }
 
 export const demoUsers: DemoUser[] = [
-  { id: 'u-1', name: 'יוני', haUser: 'joni', active: true, lastSync: 'לפני 20 שנ׳', groups: ['מנהלי מערכת'], bindings: [{ role: 'מנהל מערכת VMS', scope: 'כל ההתקנה' }], haAdmin: true },
+  { id: 'u-1', name: 'יוני', haUser: 'joni', active: true, lastSync: 'לפני 20 שנ׳', groups: ['מנהלי מערכת'], bindings: [{ role: 'מנהל מערכת', scope: 'כל ההתקנה' }], haAdmin: true },
   { id: 'u-2', name: 'דנה', haUser: 'dana', active: true, lastSync: 'לפני 20 שנ׳', groups: ['עורכי קומה 2'], bindings: [{ role: 'עורך מפות', scope: 'מבנה א · קומה 2' }], haAdmin: false },
   { id: 'u-3', name: 'יוסי', haUser: 'yossi', active: true, lastSync: 'לפני 20 שנ׳', groups: ['מנהלי מבנה א'], bindings: [{ role: 'מנהל אתר/מבנה', scope: 'מבנה א' }], haAdmin: false },
   { id: 'u-4', name: 'codex', haUser: 'codex', active: true, lastSync: 'לפני 20 שנ׳', groups: [], bindings: [], haAdmin: false },
@@ -154,7 +154,7 @@ export const demoUsers: DemoUser[] = [
 ];
 
 export const demoGroups = [
-  { id: 'g-1', name: 'מנהלי מערכת', members: 1, bindings: ['מנהל מערכת VMS · כל ההתקנה'] },
+  { id: 'g-1', name: 'מנהלי מערכת', members: 1, bindings: ['מנהל מערכת · כל ההתקנה'] },
   { id: 'g-2', name: 'עורכי קומה 2', members: 1, bindings: ['עורך מפות · מבנה א · קומה 2'] },
   { id: 'g-3', name: 'מנהלי מבנה א', members: 1, bindings: ['מנהל אתר/מבנה · מבנה א'] },
   { id: 'g-4', name: 'צופים', members: 1, bindings: ['צופה · אתר הדגמה'] },
@@ -165,7 +165,7 @@ export const demoRoles = [
   { id: 'operator', name: 'מפעיל', allowed: 'צפייה, Playback, סקירת אירועים וסימון טיפול', denied: 'עריכת מפות, תפקידים, ייצוא, פעולות פיזיות' },
   { id: 'editor', name: 'עורך מפות ותצוגות', allowed: 'צפייה, יבוא/עריכה/פרסום מפות, מיקומים ותצוגות', denied: 'Playback, ייצוא, משתמשים, סודות, שליטה' },
   { id: 'site_admin', name: 'מנהל אתר / מבנה / קומה', allowed: 'מפעיל + עורך, הגדרות תוכן מקומיות', denied: 'הגדרות מערכת, תפקידים, סודות, כתיבה ל־NVR' },
-  { id: 'system_admin', name: 'מנהל מערכת VMS', allowed: 'הגדרות מוצר, מקורות, מדיניות, קבוצות ושיוכים', denied: 'ניהול HA, שליטה פיזית, ייצוא ראיות ללא grant' },
+  { id: 'system_admin', name: 'מנהל מערכת', allowed: 'הגדרות מוצר, מקורות, מדיניות, קבוצות ושיוכים', denied: 'ניהול HA, שליטה פיזית, ייצוא ראיות ללא grant' },
 ];
 
 export const demoAudit = [

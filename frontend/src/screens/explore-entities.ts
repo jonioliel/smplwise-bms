@@ -228,7 +228,7 @@ export class ExploreEntities extends LitElement {
         <dt>במפה</dt><dd>${e.placements?.length ? html`<span class="chips">${e.placements.map((p) => html`<sw-chip @click=${() => navigate(`/explore/floors/${p.floor_id}`)}>${p.floor_name}</sw-chip>`)}</span>` : 'לא מוצב'}</dd>
       </dl>
       ${attrs.length ? html`<div class="attrs">${attrs.map(([k, v]) => html`<span>${k}</span><span>${typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>`)}</div>` : nothing}
-      <div class="note">הקטלוג הוא שיקוף לקריאה בלבד של תשתית המערכת. הפעולות רצות דרך גשר SMPLWISE בזהות המשתמש; שליטה מהמפה דורשת הרשאת ha.entity.control.</div>
+      <div class="note">הקטלוג הוא שיקוף לקריאה בלבד של תשתית המערכת. הפעולות רצות בזהות המשתמש; שליטה מהמפה דורשת הרשאת ha.entity.control.</div>
       <div slot="footer">
         ${e.placements?.length
           ? html`<sw-button variant="primary" icon="map" @click=${() => navigate(`/explore/floors/${e.placements![0].floor_id}`)}>הצג במפה</sw-button>`

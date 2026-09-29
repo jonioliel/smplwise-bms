@@ -32,7 +32,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
-from ..db import Database, get_setting, now_iso, unlocked
+from ..db import Database, commit_now, get_setting, now_iso, rollback_and_restart, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import device_bulk as bulk
@@ -217,7 +217,7 @@ def assign_area(entity_id: str, request: Request, principal: Principal = Depends
         raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן.")
     secret = ha_bridge.signing_key(conn)
     if not secret or not get_setting(conn, "bridge.paired_at"):
-        raise ApiError(503, "bridge_not_paired", "שיוך אזור דורש את גשר SMPLWISE מותקן ומצומד.")
+        raise ApiError(503, "bridge_not_paired", "שיוך אזור דורש את הגשר מותקן ומצומד.")
     bridge_rid = uuid.uuid4().hex[:12]
     payload = ha_bridge.sign(secret, {"user_id": principal.user_id, "entity_id": entity_id, "area_id": body.area_id, "request_id": bridge_rid})
     # two-phase: the attempt row is committed (by unlocked) before Home Assistant is asked, so an area change is never
@@ -395,7 +395,7 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder), con
         raise act.refuse(ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן."))
     secret = ha_bridge.signing_key(conn)
     if not secret or not get_setting(conn, "bridge.paired_at"):
-        raise act.refuse(ApiError(503, "bridge_not_paired", "פעולות אלו דורשות את גשר SMPLWISE מותקן ומצומד."))
+        raise act.refuse(ApiError(503, "bridge_not_paired", "פעולות אלו דורשות את הגשר מותקן ומצומד."))
     bulk_id = uuid.uuid4().hex[:12]
     blocking = bulk.RUNNER.reserve(bulk.scope_key(body.scope, body.id), bulk_id, {t["entity_id"] for t in plan["targets"]})
     if blocking:
@@ -405,14 +405,12 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder), con
         try:
             bulk.record(conn, principal, bulk_id, plan, body.client_request_id, not_after)
         except ApiError as exc:  # never keep half a record: drop what was written, refuse, send nothing
-            conn.execute("ROLLBACK")
-            conn.execute("BEGIN IMMEDIATE")
+            rollback_and_restart(conn)
             raise act.refuse(exc) from None
         audit(conn, actor=principal, action=bulk.AUDIT_ACTION, decision="allowed", resource_type=act.resource_type, resource_id=act.resource_id, request_id=act.rid,
               details={**act.details, "phase": "attempt", "bulk_id": bulk_id, "scope_name": plan["name"], "entity_count": plan["count"], "by_domain": plan["by_domain"],
                        "entity_ids": [t["entity_id"] for t in plan["targets"]], "skipped": plan["skipped"], "excluded": [x["entity_id"] for x in plan["excluded"]]})
-        conn.execute("COMMIT")  # the attempt row and the queued records exist before the first call - or nothing is sent
-        conn.execute("BEGIN")  # deferred: nothing more is written on this connection
+        commit_now(conn)  # the attempt row and the queued records exist before the first call - or nothing is sent; nothing more is written here
         db: Database = request.app.state.db
         targets = plan["targets"]
         bulk.RUNNER.start(bulk_id, lambda: bulk.run(db, settings, principal, bulk_id, targets, secret, not_after, act.rid))
@@ -436,7 +434,6 @@ def bulk_status(bulk_id: str, request: Request, principal: Principal = Depends(c
         # its worker is gone (the add-on restarted mid-bulk): record what was never sent, read the rest once more
         db: Database = request.app.state.db
         bulk.settle_orphan(db, bulk_id)
-        conn.execute("COMMIT")
-        conn.execute("BEGIN")
+        commit_now(conn)  # a fresh read snapshot
         b = bulk.load(conn, bulk_id)
     return b

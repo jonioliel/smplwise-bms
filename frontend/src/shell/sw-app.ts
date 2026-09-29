@@ -1088,7 +1088,7 @@ export class SwApp extends LitElement {
       return html`<div class="gate"><sw-state-panel state="forbidden" heading="נדרשת כניסה למערכת" hint=${s.error ?? ''}></sw-state-panel></div>`;
     }
     if (s.mode === 'no_access') {
-      return html`<div class="gate"><sw-state-panel state="forbidden" heading="אין לך עדיין תפקיד במערכת" hint="המשתמש ${s.me?.user.display_name || s.me?.user.username || ''} מזוהה במערכת, אך מנהל ה־VMS טרם שייך לו תפקיד והיקף. פנה למנהל המערכת."></sw-state-panel></div>${this.renderPermToast()}`;
+      return html`<div class="gate"><sw-state-panel state="forbidden" heading="אין לך עדיין תפקיד במערכת" hint="המשתמש ${s.me?.user.display_name || s.me?.user.username || ''} מזוהה במערכת, אך מנהל המערכת טרם שייך לו תפקיד והיקף. פנה למנהל המערכת."></sw-state-panel></div>${this.renderPermToast()}`;
     }
     return null;
   }
@@ -1201,7 +1201,7 @@ export class SwApp extends LitElement {
   private renderNvrLess() {
     if (this.embedded()) return html`<explore-floor-map .floorId=${'f0'} .screenState=${'ready'}></explore-floor-map>`;
     return html`<sw-page heading="מצב ללא NVR"><sw-state-panel data-nvr-less state="empty" heading="האזור הזה דורש NVR"
-      hint="ההתקנה פועלת במצב ללא NVR (תשתית המערכת בלבד): לייב, מצלמות, אירועים, הקלטות, תיקים וייצוא אינם זמינים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password בהגדרות SMPLWISE VMS בתשתית המערכת והפעילו מחדש - הנתונים נשארים כמו שהם."
+      hint="ההתקנה פועלת במצב ללא NVR (תשתית המערכת בלבד): לייב, מצלמות, אירועים, הקלטות, תיקים וייצוא אינם זמינים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password בהגדרות SmplWise Arx בתשתית המערכת והפעילו מחדש - הנתונים נשארים כמו שהם."
       actionLabel="לחיבורים" @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
   }
 
@@ -1234,7 +1234,7 @@ export class SwApp extends LitElement {
             ? html`<sw-badge kind="neutral" label="נתוני הדגמה"></sw-badge>`
             : nothing}
         <sw-button class="bell" variant="ghost" size="sm" iconOnly icon="bell" label=${t('app.notifications')}></sw-button>${this.renderArxSignOut()}
-        <span class="user-a"><sw-profile-menu .name=${name} .size=${34} .role=${me?.bindings[0]?.role_name ?? ''} .api=${this.session.mode === 'api'}></sw-profile-menu><span class="who-a"><b>${name}</b><span>${me?.bindings[0]?.role_name ?? (this.session.mode === 'demo' ? 'מנהל VMS' : 'ללא שיוך')}</span></span></span>
+        <span class="user-a"><sw-profile-menu .name=${name} .size=${34} .role=${me?.bindings[0]?.role_name ?? ''} .api=${this.session.mode === 'api'}></sw-profile-menu><span class="who-a"><b>${name}</b><span>${me?.bindings[0]?.role_name ?? (this.session.mode === 'demo' ? 'מנהל מערכת' : 'ללא שיוך')}</span></span></span>
         <span class="logo-a"><b>smplwise</b><small>Arx</small></span>
       </header>
       ${this.renderSysBanner()}

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- arx://open to a server that is not in the list: the full address and a warning, before anything is added. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layoutDirection="rtl"
+    android:orientation="vertical"
+    android:paddingHorizontal="24dp"
+    android:paddingTop="8dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/open_unknown_message"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textColor="@color/textPrimary" />
+
+    <TextView
+        android:id="@+id/offerUrl"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@color/backgroundColor"
+        android:padding="8dp"
+        android:textAlignment="viewStart"
+        android:textAppearance="?attr/textAppearanceBodySmall"
+        android:textColor="@color/textPrimary"
+        android:textDirection="ltr"
+        android:textIsSelectable="true"
+        android:typeface="monospace" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="@string/open_unknown_warning"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textColor="@color/warning"
+        android:textStyle="bold" />
+</LinearLayout>

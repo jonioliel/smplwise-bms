@@ -1677,7 +1677,7 @@ export class ExplorePlanEditor extends LitElement {
       await setRenderMode(this.bundle.planVersionId, mode);
       this.stylized = null;
       await this.load();
-      this.info = mode === 'stylized' ? 'המפה מציגה עכשיו את שפת SMPLWISE' : 'המפה מציגה את תוכנית המקור';
+      this.info = mode === 'stylized' ? 'המפה מציגה עכשיו את שפת Arx' : 'המפה מציגה את תוכנית המקור';
       setTimeout(() => (this.info = ''), 3000);
     } catch (err) {
       this.error = describeError(err);
@@ -4572,8 +4572,8 @@ export class ExplorePlanEditor extends LitElement {
     return html`<sw-card heading="גרסת תוכנית" subheading=${b.planStatus === 'draft' ? 'טיוטה: צופים רואים את הגרסה הקודמת' : b.planStatus === 'published' ? 'גרסה מפורסמת' : 'אין תוכנית'}>
       ${b.planStatus === 'none'
         ? nothing
-        : html`<div class="row"><span class="lbl">תצוגת המפה<span class="muted">${b.renderMode === 'stylized' ? 'שפת SMPLWISE (עיבוד אוטומטי של המקור)' : 'תוכנית המקור כפי שהועלתה'}</span></span>${b.renderMode === 'stylized' ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.useRender('source')}>הצג מקור</sw-button>` : b.stylizedAvailable ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.useRender('stylized')}>הצג שפת SMPLWISE</sw-button>` : nothing}</div>
-          <div class="row"><span class="lbl">עיבוד לשפת SMPLWISE<span class="muted">בחר מה להשאיר מהתוכנית; המקור נשמר תמיד</span></span></div>
+        : html`<div class="row"><span class="lbl">תצוגת המפה<span class="muted">${b.renderMode === 'stylized' ? 'שפת Arx (עיבוד אוטומטי של המקור)' : 'תוכנית המקור כפי שהועלתה'}</span></span>${b.renderMode === 'stylized' ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.useRender('source')}>הצג מקור</sw-button>` : b.stylizedAvailable ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.useRender('stylized')}>הצג שפת Arx</sw-button>` : nothing}</div>
+          <div class="row"><span class="lbl">עיבוד לשפת Arx<span class="muted">בחר מה להשאיר מהתוכנית; המקור נשמר תמיד</span></span></div>
           <div class="two" data-stylize-opts>
             <sw-field label="עוצמת ניקוי"><select aria-label="עוצמת ניקוי" @change=${(e: Event) => (this.stylizeOpts = { ...this.stylizeOpts, strength: (e.target as HTMLSelectElement).value as Strength })}><option value="light" ?selected=${this.stylizeOpts.strength === 'light'}>קל · קירות דקים נשמרים</option><option value="medium" ?selected=${this.stylizeOpts.strength === 'medium'}>בינוני · קירות כפולים מאוחדים</option><option value="strong" ?selected=${this.stylizeOpts.strength === 'strong'}>חזק · מדרגות וריהוט לגושים</option></select></sw-field>
             <sw-field label="מילוי חדרים"><select aria-label="מילוי חדרים" @change=${(e: Event) => (this.stylizeOpts = { ...this.stylizeOpts, roomFill: (e.target as HTMLSelectElement).value as RoomFill })}>${(Object.keys(ROOM_FILL_LABEL) as RoomFill[]).map((k) => html`<option value=${k} ?selected=${this.stylizeOpts.roomFill === k}>${ROOM_FILL_LABEL[k]}</option>`)}</select></sw-field>
@@ -4581,7 +4581,7 @@ export class ExplorePlanEditor extends LitElement {
           <label class="chk"><input type="checkbox" .checked=${this.stylizeOpts.keepLines} @change=${(e: Event) => (this.stylizeOpts = { ...this.stylizeOpts, keepLines: (e.target as HTMLInputElement).checked })} /> ריהוט, דלתות וקווים דקים מהתוכנית (בגוון עדין)</label>
           <div class="btns"><sw-button variant="primary" size="sm" icon="image" ?disabled=${this.stylizing || b.source === 'demo'} @click=${() => this.stylize()}>${this.stylizing ? 'מעבד…' : 'עבד תצוגה מקדימה'}</sw-button></div>
           ${st
-            ? html`<div class="compare" style="margin-block-start:8px"><div><div class="note">מקור</div><img src=${st.source_url} alt="תוכנית מקור" /></div><div><div class="note" data-stylize-caption>שפת SMPLWISE · ${st.rooms} חדרים · ${ROOM_FILL_LABEL[st.room_fill] ?? st.room_fill} · ${st.keep_lines ? 'עם קווים דקים' : 'ללא קווים דקים'}</div><img src=${st.stylized_url} alt="שפת SMPLWISE" /></div></div>
+            ? html`<div class="compare" style="margin-block-start:8px"><div><div class="note">מקור</div><img src=${st.source_url} alt="תוכנית מקור" /></div><div><div class="note" data-stylize-caption>שפת Arx · ${st.rooms} חדרים · ${ROOM_FILL_LABEL[st.room_fill] ?? st.room_fill} · ${st.keep_lines ? 'עם קווים דקים' : 'ללא קווים דקים'}</div><img src=${st.stylized_url} alt="שפת Arx" /></div></div>
               <div style="display:flex;gap:8px;margin-block-start:8px"><sw-button variant="primary" size="sm" icon="check" ?disabled=${this.busy} @click=${() => this.useRender('stylized')}>השתמש בתוצאה</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.stylized = null)}>סגור</sw-button></div>
               <div class="note" style="margin-block-start:6px">עיבוד תמונה מקומי (ללא AI וללא שליחה החוצה): קירות וחדרים מזוהים לפי עובי הקווים; חדרים אינם מזוהים בשמם. אפשר לחזור למקור בכל רגע.</div>`
             : nothing}`}

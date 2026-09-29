@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app-lock cover: hides the whole window until the phone confirms the user. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/backgroundColor"
+    android:clickable="true"
+    android:filterTouchesWhenObscured="true"
+    android:focusable="true"
+    android:gravity="center"
+    android:layoutDirection="rtl"
+    android:orientation="vertical"
+    android:padding="32dp"
+    android:textDirection="rtl">
+
+    <ImageView
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:importantForAccessibility="no"
+        android:src="@drawable/ic_lock" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="@string/lock_locked"
+        android:textAppearance="?attr/textAppearanceTitleLarge"
+        android:textColor="@color/textPrimary" />
+
+    <TextView
+        android:id="@+id/lockMessage"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:text="@string/lock_message"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textColor="@color/textSecondary" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/unlock"
+        android:filterTouchesWhenObscured="true"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="@string/lock_unlock" />
+</LinearLayout>
