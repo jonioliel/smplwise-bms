@@ -11,7 +11,7 @@ export interface AccessBinding {
   subject_name: string;
   role_id: string;
   role_name: string;
-  scope_type: 'installation' | 'site' | 'building' | 'floor';
+  scope_type: 'installation' | 'site' | 'building' | 'floor' | 'camera';
   scope_id: string;
   scope_name: string;
   effect: 'allow' | 'deny';
@@ -39,7 +39,8 @@ export interface DirectoryUser {
 }
 
 export interface ScopeRef {
-  type: 'installation' | 'site' | 'building' | 'floor';
+  /** T055: 'camera' = a single camera (the picker lists only cameras wholly inside the caller's reach). */
+  type: 'installation' | 'site' | 'building' | 'floor' | 'camera';
   id: string;
   name: string;
 }

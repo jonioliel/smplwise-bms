@@ -74,10 +74,10 @@ def snapshot(camera_id: str, request: Request, principal: Principal = Depends(cu
     """Fresh JPEG from the NVR (read-only), cached in /data for `snapshots.max_age_s`; a stale copy is
     served with X-Snapshot-Stale when the NVR is unreachable. Same permission as live video."""
     settings = settings_of(request)
+    require_camera(conn, principal, camera_id, "video.live")  # T055: 403 before 404 - an unknown id tells a scoped user nothing
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam:
         raise not_found("המצלמה לא נמצאה.")
-    require_camera(conn, principal, camera_id, "video.live")
     max_age = read_settings(conn)["snapshots.max_age_s"]
     folder = settings.data_dir / "snapshots"
     folder.mkdir(parents=True, exist_ok=True)
@@ -178,10 +178,10 @@ def detection_zones(camera_id: str, request: Request, refresh: bool = False, pri
     line-crossing lines — read-only (ISAPI GET), cached for a minute, same permission as live video. These are
     polygons in the camera image and have nothing to do with rooms on the floor plan; a browser overlay is not
     an NVR mask and protects no recording. Editing needs an explicit approval and a verified write (not in the pilot)."""
+    require_camera(conn, principal, camera_id, "video.live")  # T055: 403 before 404 - an unknown id tells a scoped user nothing
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam:
         raise not_found("המצלמה לא נמצאה.")
-    require_camera(conn, principal, camera_id, "video.live")
     now = time.time()
     hit = _ZONES_CACHE.get(camera_id)
     if hit and not refresh and now - hit[0] < ZONES_TTL_S:
@@ -218,10 +218,10 @@ def camera_capabilities(camera_id: str, request: Request, refresh: bool = False,
     its preset list, two-way audio (available / disabled / unsupported / unknown). Read-only, cached five minutes,
     same permission as live video. Moving the camera, recalling a preset or talking are device writes: not offered
     in the pilot, and never shown as a fake control. Digital zoom is a browser-side enlargement, not a camera move."""
+    require_camera(conn, principal, camera_id, "video.live")  # T055: 403 before 404 - an unknown id tells a scoped user nothing
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam:
         raise not_found("המצלמה לא נמצאה.")
-    require_camera(conn, principal, camera_id, "video.live")
     now = time.time()
     hit = _CAPS_CACHE.get(camera_id)
     cached = bool(hit) and not refresh and now - hit[0] < CAPS_TTL_S

@@ -473,7 +473,9 @@ def _readable(conn: sqlite3.Connection, principal: Principal, v: sqlite3.Row) ->
     if v["status"] == "draft":
         require(conn, principal, "map.edit", ("floor", v["floor_id"]))
     else:
-        require(conn, principal, "map.read", ("floor", v["floor_id"]))
+        from ..services.access import require_floor_read
+
+        require_floor_read(conn, principal, v["floor_id"])  # T055: a camera-scoped reader sees the drawing of its camera's floor
 
 
 @router.get("/plan-versions/{version_id}")

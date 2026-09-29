@@ -23,6 +23,7 @@ from ..services import plan_catalog
 from ..services import plan_detect
 from ..services import plan_geometry as pg
 from ..services import plan_geometry_render as render
+from ..services.access import require_floor_read
 from ..services.timeutil import parse_utc
 from .catalog import get_floor
 from .plans import get_version, version_row
@@ -93,7 +94,11 @@ def get_geometry(version_id: str, request: Request, draft: bool = False, at: str
         if pg.is_empty(doc):
             body["copy_candidates"] = store.copy_candidates(conn, v)
         return body
-    require(conn, principal, "map.edit" if v["status"] == "draft" else "map.read", _floor(v))
+    if v["status"] == "draft":
+        require(conn, principal, "map.edit", _floor(v))
+        reach = "floor"
+    else:
+        reach = require_floor_read(conn, principal, v["floor_id"])  # T055: camera-scoped readers get the drawing only
     if at:
         try:
             iso = parse_utc(at).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -104,10 +109,14 @@ def get_geometry(version_id: str, request: Request, draft: bool = False, at: str
         row = store.published_row(conn, v["id"])
     if row is None:
         raise not_found("אין מבנה מפורסם לגרסה הזו.")
-    etag = f'"{row["doc_hash"]}"'
+    etag = f'"{row["doc_hash"]}"' if reach == "floor" else f'"{row["doc_hash"]}-c"'
     headers = {"ETag": etag, **NO_CACHE}
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers=headers)
+    if reach != "floor":
+        # the walls, rooms and openings locate the camera; the circuits name HA entities the reader holds nothing on
+        doc = {k: v2 for k, v2 in store.load_doc(row).items() if k != "circuits"}
+        return JSONResponse({**_payload(conn, v, row, doc), "issues": [], "reach": reach}, headers=headers)
     return JSONResponse(_payload(conn, v, row, store.load_doc(row)), headers=headers)
 
 
@@ -165,7 +174,7 @@ def geometry_versions(version_id: str, principal: Principal = Depends(current_pr
 def geometry_timeline(version_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """When each published structure of the version was in force - the historical map picks the one of its instant."""
     v = get_version(conn, version_id)
-    require(conn, principal, "map.read", _floor(v))
+    require_floor_read(conn, principal, v["floor_id"])
     return {"timeline": [{"id": r["id"], "doc_hash": r["doc_hash"], "published_at": r["published_at"], "archived_at": r["archived_at"]}
                          for r in reversed(store.history(conn, v["id"]))]}
 

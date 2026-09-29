@@ -169,8 +169,9 @@ def _iso(t: dt.datetime) -> str:
     return t.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def parse(q: str, conn: sqlite3.Connection, tz_name: str, now: dt.datetime | None = None, floor_ok=None) -> Parsed:
-    """Local baseline: lexicon for objects and time, catalogue lookup for places. `floor_ok(floor_id)` scopes places."""
+def parse(q: str, conn: sqlite3.Connection, tz_name: str, now: dt.datetime | None = None, floor_ok=None, camera_ok=None) -> Parsed:
+    """Local baseline: lexicon for objects and time, catalogue lookup for places. `floor_ok(floor_id)` scopes places,
+    `camera_ok(camera_id)` the cameras a name may match (T055: the caller's camera scope)."""
     now = now or dt.datetime.now(dt.timezone.utc)
     tz = ZoneInfo(tz_name)
     text = q.casefold()
@@ -199,7 +200,7 @@ def parse(q: str, conn: sqlite3.Connection, tz_name: str, now: dt.datetime | Non
     candidates = set(toks) | {_strip_prefix(t) for t in toks}
     zones = conn.execute("SELECT id, floor_id, name FROM spatial_zones WHERE deleted_at IS NULL AND searchable = 1").fetchall()
     floors = conn.execute("SELECT id, name FROM floors WHERE deleted_at IS NULL").fetchall()
-    cams = conn.execute("SELECT id, alias, name_source FROM cameras WHERE enabled = 1").fetchall()
+    cams = [c for c in conn.execute("SELECT id, alias, name_source FROM cameras WHERE enabled = 1").fetchall() if camera_ok is None or camera_ok(c["id"])]
     matched_tokens: set[str] = set()
 
     def phrase(name: str | None) -> str | None:
