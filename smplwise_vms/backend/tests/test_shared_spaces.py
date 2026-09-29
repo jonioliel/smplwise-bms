@@ -946,6 +946,24 @@ def test_sharing_widens_reach_so_it_needs_every_floor_and_every_member_camera(se
         assert conn.execute("SELECT COUNT(*) FROM shared_spaces").fetchone()[0] == 0
 
 
+def test_review_l3_the_member_routes_check_the_permission_before_saying_the_room_is_not_shared(settings):
+    """Review L3: a caller without rights on the room's floor learns nothing about whether it is shared - 403, not 404."""
+    w = _world(settings)
+    c = w["c"]
+    for u in ("zed", "dana"):
+        c.get("/api/v1/me", headers=as_user(u))
+    _binding(settings, "dana", "viewer", "floor", w["f2"])  # reads the home floor, cannot manage
+    url = f"/api/v1/zones/{w['hall']}/share/members"
+    body = {"resource_type": "camera", "resource_id": w["cams"]["camA"]}
+    assert c.get(url).status_code == 404 and c.post(url, json=body).status_code == 404, "the administrator: the room is simply not shared"
+    assert c.get(url, headers=as_user("zed")).status_code == 403
+    assert c.post(url, json=body, headers=as_user("zed")).status_code == 403
+    assert c.get(url, headers=as_user("dana")).status_code == 404, "a reader of the home floor may ask"
+    assert c.post(url, json=body, headers=as_user("dana")).status_code == 403, "but not add"
+    _share(w)
+    assert c.get(url, headers=as_user("zed")).status_code == 403
+
+
 def test_the_other_floors_editor_edits_the_room_and_its_members_with_map_edit_there(settings):
     w = _world(settings)
     c, f2 = w["c"], w["f2"]

@@ -357,6 +357,7 @@ def list_members(zone_id: str, principal: Principal = Depends(current_principal_
     z = _get_zone(conn, zone_id)
     group = shared_spaces.group_of_zone(conn, zone_id)
     if group is None:
+        require(conn, principal, "map.read", ("floor", z["floor_id"]))  # review L3: the permission before the 404
         raise not_found("החדר אינו משותף.")
     from ..services.access import camera_scope, floor_reach
     from .ha import _entity_allowed
@@ -407,9 +408,10 @@ def list_members(zone_id: str, principal: Principal = Depends(current_principal_
 def add_member(zone_id: str, body: MemberIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """"הוסף לחלל המשותף": a camera or device of the room reaches every floor that shows it - the share rights on every
     floor of the room and placement reach on the camera. It must be placed on one of those floors."""
-    _get_zone(conn, zone_id)
+    z = _get_zone(conn, zone_id)
     group = shared_spaces.group_of_zone(conn, zone_id)
     if group is None:
+        _share_rights(conn, principal, (z["floor_id"],), apply=True)  # review L3: the permission before the 404
         raise not_found("החדר אינו משותף.")
     _share_rights(conn, principal, group.floors, apply=True, cameras=[body.resource_id] if body.resource_type == "camera" else [])
     if body.resource_type == "ha_entity" and shared_spaces.alarm_owned(conn, [body.resource_id]):  # review M1
