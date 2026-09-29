@@ -926,6 +926,7 @@ class IntercomSync:
         lane: str = "action",
         slot_wait: float = 0.0,
         free: bool = False,
+        on_result: Callable[[dict[str, Any], str], None] | None = None,
     ) -> dict[str, Any]:
         """Run one PHYSICAL WisKey command (release, call signal, TTS start) like `command` - over the feed's own live
         session, never queued, never retried - but in the action lane (its own in-flight slots and rate buckets, so
@@ -940,9 +941,12 @@ class IntercomSync:
         reaches that point later is not sent (`expired`) - a request delayed in transit or in a queue never actuates
         late. `on_settled` is called exactly once, when the command is really over: at once when it was never
         scheduled, else when WisKey answered, the session ended, or ha_client's own call limit expired - which can be
-        well after this method gave up waiting (ACTION_TIMEOUT_S). Returns the `command`-shaped reply on success."""
+        well after this method gave up waiting (ACTION_TIMEOUT_S). `on_result(reply, outcome)`: see `_execute` - the
+        caller's own record of the outcome, made before the lane's slot can go to anyone else. Returns the
+        `command`-shaped reply on success."""
         timeout = {"config": CONFIG_TIMEOUT_S, "capture": CAPTURE_TIMEOUT_S}.get(lane, ACTION_TIMEOUT_S)
-        reply, outcome = self._execute(settings, key, send, project, who, timeout, lane=lane, not_after=not_after, on_settled=on_settled, slot_wait=slot_wait, free=free)
+        reply, outcome = self._execute(settings, key, send, project, who, timeout, lane=lane, not_after=not_after, on_settled=on_settled, slot_wait=slot_wait, free=free,
+                                       on_result=on_result)
         if outcome != "ok":
             raise action_error(reply, outcome, lane)
         return reply
@@ -961,11 +965,18 @@ class IntercomSync:
         slot_wait: float = 0.0,
         free: bool = False,
         bucket: str | None = None,
+        on_result: Callable[[dict[str, Any], str], None] | None = None,
     ) -> tuple[dict[str, Any], str]:
         """`command`'s body. Also returns what is known about the command itself: `not_sent` (nothing reached WisKey),
         `refused` (WisKey answered with an error: a genuine refusal), `unknown` (sent, but no usable answer: timeout,
         the session went away mid-request, or an answer after `success: true` of a shape the projection does not
-        accept) or `ok`."""
+        accept) or `ok`.
+
+        `on_result(reply, outcome)` is called once a scheduled command's outcome is known here (the reply as returned,
+        WisKey's code in `last_error`) and BEFORE the lane's slot is freed: the caller records what the command did (a
+        capture's `cancelled`, a poller read's new state) while no later command of the lane can have been sent yet.
+        It must be quick and must not use the lane itself. Not called when nothing was scheduled (busy, no rate token,
+        no live session): the reply alone says so."""
         settled = on_settled or (lambda: None)
         configured = ha_client.configured(settings)
         state = STATE.state if configured else "ha_not_configured"
@@ -998,14 +1009,43 @@ class IntercomSync:
             settled()
             return reply, "not_sent"
 
-        # the slot is freed - and the caller told the command is over - when the call is really over (answer, session
-        # end, or ha_client's own 60 s limit): a browser-side timeout does not stop WisKey's handler, so it must not
-        # free anything early either
+        # the slot is freed when BOTH are through: the call itself (answer, session end, or ha_client's own 60 s limit -
+        # a browser-side timeout does not stop WisKey's handler, so it must not free anything early either) and this
+        # thread's handling of it, `on_result` included. The call's done-callback runs on the feed's loop, typically
+        # before this thread has even woken up: freeing the slot there let the lane's next command (a capture poller's
+        # status read) reach WisKey - and record its own view - between a cancel's answer and the cancel's record of
+        # it, so a cancelled capture was reported `lost` (T054). `settled` still says when the call itself is over.
+        through = threading.Lock()
+        holders = [2]
+
+        def let_go() -> None:
+            with through:
+                holders[0] -= 1
+                last = holders[0] == 0
+            if last:
+                slot.release()
+
         def done(_f: Any) -> None:
-            slot.release()
+            let_go()
             settled()
 
         future.add_done_callback(done)
+        try:
+            return self._settle(future, reply, key, project, timeout, lane, on_result)
+        finally:
+            let_go()
+
+    def _settle(
+        self,
+        future: Any,
+        reply: dict[str, Any],
+        key: str,
+        project: Callable[[Any], dict[str, Any]],
+        timeout: float,
+        lane: str,
+        on_result: Callable[[dict[str, Any], str], None] | None,
+    ) -> tuple[dict[str, Any], str]:
+        """`_execute`'s wait for a scheduled command and its reading of the result, ending with `on_result`."""
         raw: Any = None
         answered = False
         outcome = "unknown"
@@ -1050,6 +1090,8 @@ class IntercomSync:
                 reply.update(state="error", last_error="invalid_response", fetched_at=None)
                 reply[key] = None
         reply["sync"] = STATE.as_dict()
+        if on_result is not None:
+            on_result(reply, outcome)
         return reply, outcome
 
     def capture_read(
@@ -1058,12 +1100,14 @@ class IntercomSync:
         send: Callable[[intercom_client.Call], Awaitable[Any]],
         project: Callable[[Any], dict[str, Any]],
         who: str,
+        on_result: Callable[[dict[str, Any], str], None] | None = None,
     ) -> tuple[dict[str, Any], str]:
         """The card-capture poller's `cards/capture_status` read (services/intercom_capture.py): the capture lane - so
         a user's start / cancel, not the read lane, is what it competes with - never waiting for the slot (a busy slot
         or an empty bucket just skips a tick) and paid from the poller's own bucket (`capture_poll`), never from a
-        user's. Returns `_execute`'s (reply under `capture`, outcome)."""
-        return self._execute(settings, "capture", send, project, who, CAPTURE_TIMEOUT_S, lane="capture", bucket="capture_poll")
+        user's. `on_result`: the poller's record of what it read, made before the slot is freed (`_execute`). Returns
+        `_execute`'s (reply under `capture`, outcome)."""
+        return self._execute(settings, "capture", send, project, who, CAPTURE_TIMEOUT_S, lane="capture", bucket="capture_poll", on_result=on_result)
 
     def people(self, settings: Settings, who: str, query: str, filters: dict[str, Any], offset: int, limit: int, snapshot: str | None) -> dict[str, Any]:
         """The people directory for `who`: without a text, one WisKey page as it is; with a text, SMPLWISE's own search

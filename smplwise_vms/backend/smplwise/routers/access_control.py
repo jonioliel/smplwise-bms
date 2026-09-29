@@ -599,13 +599,15 @@ def _perform(
     summary: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
     slot_wait: float = 0.0,
     free: bool = False,
+    on_result: Callable[[dict[str, Any], str], None] | None = None,
 ) -> dict[str, Any]:
     """Audit the attempt (committed), send once through IntercomSync.action, audit the outcome. `on_settled` is always
     called exactly once (by IntercomSync once the command was handed over, here when it never got that far);
     `on_unknown` when the outcome is unknown. `summary` turns the projected result into what the outcome row records
     (the physical actions record the result itself; a people write records counts and names only). `slot_wait`: how
     long the lane's slot may be waited for (the capture lane's; the others answer `busy` at once); `free`: no rate
-    token is spent (a capture cancel)."""
+    token is spent (a capture cancel); `on_result(reply, outcome)`: the caller's record of the outcome, made before the
+    lane's slot is freed (IntercomSync._execute)."""
     try:
         act.attempt()
     except BaseException:
@@ -613,7 +615,8 @@ def _perform(
             on_settled()
         raise
     try:
-        reply = intercom_sync.SYNC.action(settings_of(act.request), key, send, project, who=act.principal.user_id, not_after=not_after, on_settled=on_settled, lane=lane, slot_wait=slot_wait, free=free)
+        reply = intercom_sync.SYNC.action(settings_of(act.request), key, send, project, who=act.principal.user_id, not_after=not_after, on_settled=on_settled, lane=lane, slot_wait=slot_wait, free=free,
+                                          on_result=on_result)
     except ApiError as exc:
         outcome = str(exc.details.get("outcome") or "unknown")
         if outcome == "unknown" and on_unknown:
@@ -1188,18 +1191,23 @@ def card_capture_cancel(request: Request, session_id: str, principal: Principal 
     if capture.state not in POLLED:
         raise act.refuse(ApiError(409, "intercom_capture_over", "קריאת הכרטיס הזו כבר הסתיימה; אין מה לבטל.", details={"capture": CAPTURES.view(capture)}))
     not_after = datetime.now(timezone.utc) + timedelta(seconds=SEND_WITHIN_S)
+
+    def record(reply: dict[str, Any], outcome: str) -> None:
+        # recorded while the capture lane's slot is still this cancel's: no poller status read can reach WisKey between
+        # its answer and this record (and find the session it just dropped: `lost`) - T054
+        if outcome == "ok":
+            CAPTURES.set_state(capture, "cancelled", only_from=POLLED)
+        elif outcome == "unknown":
+            CAPTURES.set_state(capture, "cancel_unknown", only_from=POLLED)
+        elif outcome == "refused" and reply.get("last_error") == "capture_not_found":
+            CAPTURES.set_state(capture, "lost", only_from=POLLED)
+
     try:
         reply = _perform(act, "cancelled", lambda call: intercom_client.capture_cancel(call, capture.session_id), intercom_sync.project_cancelled, not_after,
-                         lane="capture", slot_wait=intercom_sync.CAPTURE_SLOT_WAIT_S, free=True)  # never refused by SMPLWISE's own rate budget
+                         lane="capture", slot_wait=intercom_sync.CAPTURE_SLOT_WAIT_S, free=True, on_result=record)  # never refused by SMPLWISE's own rate budget
     except ApiError as exc:
-        outcome, code = exc.details.get("outcome"), exc.details.get("wiskey_code")
-        if outcome == "unknown":
-            CAPTURES.set_state(capture, "cancel_unknown", only_from=POLLED)
-        elif outcome == "refused" and code == "capture_not_found":
-            CAPTURES.set_state(capture, "lost", only_from=POLLED)
         exc.details["capture"] = CAPTURES.view(capture)
         raise
-    CAPTURES.set_state(capture, "cancelled", only_from=POLLED)
     reply["capture"] = CAPTURES.view(capture)
     reply["note"] = "WisKey הפסיק להמתין לכרטיס ושום כרטיס לא נוסף. זמן ההמתנה של הקורא עצמו נקבע בקושחה שלו."
     return reply

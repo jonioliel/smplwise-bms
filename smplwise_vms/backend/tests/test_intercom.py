@@ -3786,14 +3786,9 @@ def test_capture_polling_never_spends_user_tokens_and_a_cancel_is_never_refused_
     "A long while" (60+ status reads) is real background-thread activity on the wall clock, not a fixed timeout, so
     it cannot be driven by a fake clock; instead the wait_for bound is generous by default (scaled further by
     SW_TEST_TIME_FACTOR) so a busy machine has time to reach the count at `fast_capture`'s ordinary cadence. SW_PERF=1
-    keeps the original tight bound (15 s) on a quiet machine.
-
-    Before the cancel below, the poll cadence is stretched right out (an existing seam, not a sleep): the poller
-    releases its lane slot for a read slightly before the read's own thread has applied the result (a real ordering
-    gap between `future.add_done_callback` and the blocked caller resuming), so a same-session read still scheduled
-    at the old fast cadence can slot in between the cancel reaching WisKey and this thread recording `cancelled`,
-    reporting the benign but genuine `lost` instead - not a rate-limit refusal, but not what this assertion is
-    about either. No new read is due at all once the interval is this long, so the cancel is never raced."""
+    keeps the original tight bound (15 s) on a quiet machine. The cancel below is raced by the poller's reads at that
+    same fast cadence: it records `cancelled` before the lane's slot is freed (T054, see
+    test_capture_cancel_is_recorded_before_the_lane_slot_is_freed), so no read can report the session `lost` first."""
     for name in ("CAPTURE_USER_RATE", "CAPTURE_GLOBAL_RATE"):
         monkeypatch.setattr(intercom_sync, name, 0.0)  # no refill: any spend would show
     monkeypatch.setattr(intercom_sync, "CAPTURE_USER_BURST", 3.0)
@@ -3816,12 +3811,49 @@ def test_capture_polling_never_spends_user_tokens_and_a_cancel_is_never_refused_
         assert cap_status(c, sid, who).json()["capture"]["state"] == "waiting"
     assert {who: sync._capture_user_buckets[f"dev-{who}"].tokens for who in ("sam", "sid", "tess")} == buckets, "polling spent no user token"
     assert sync._capture_global_bucket.tokens == 0.0, "nor the lane's shared ones"
-    monkeypatch.setattr(intercom_capture, "POLL_S", 30.0)
-    monkeypatch.setattr(intercom_capture, "POLL_BUSY_S", 30.0)
-    monkeypatch.setattr(intercom_capture, "CAPTURED_POLL_S", 30.0)
     r = cap_cancel(c, third, user="tess")
     assert r.status_code == 200 and r.json()["capture"]["state"] == "cancelled", r.text
     assert [m["session_id"] for m in sent(fakes, "cards/capture_cancel")] == [third]
+
+
+def test_capture_cancel_is_recorded_before_the_lane_slot_is_freed(feed, fast_capture, monkeypatch):
+    """T054 regression: the capture lane's one slot stays the cancel's until the cancel's own outcome is recorded. It
+    used to be freed by the WisKey call's done-callback (on the feed's loop) while the request thread had yet to record
+    `cancelled`; a poller status read due in that gap took the slot, found the session WisKey had just dropped
+    (`capture_not_found`) and recorded `lost` - and the cancel's reply then said `lost`.
+
+    Deterministic, no sleeps: the fake WisKey answers the cancel, and the test holds the request thread right there
+    (inside the projection of that answer, before anything is recorded), lets the feed's loop finish handing the answer
+    over (so every done-callback has run), and drives one poller read that is due right now. The old code sends that
+    read and records `lost`; now the read finds the slot taken and skips its tick."""
+    monkeypatch.setattr(intercom_sync, "CAPTURE_POLL_BURST", 1000.0)  # the poller's own bucket never decides the read below
+    monkeypatch.setattr(intercom_sync, "CAPTURE_POLL_RATE", 1000.0)
+    fake = FakeEnrollment()
+    app, fakes, c = capture_feed(feed, fake)
+    sid = cap_start(c).json()["capture"]["session_id"]
+    wait_state(c, sid, "waiting")  # the background poller keeps reading at `fast_capture`'s cadence throughout
+    capture = intercom_capture.CAPTURES._sessions[sid]
+    sync = intercom_sync.SYNC
+    real = intercom_sync.project_cancelled
+    gap: dict[str, Any] = {}
+
+    def project_cancelled(raw: Any) -> dict[str, Any]:
+        # WisKey answered the cancel (and dropped the session); this request thread has the answer but recorded nothing yet
+        asyncio.run_coroutine_threadsafe(asyncio.sleep(0), sync._event_loop).result(timeout=5)  # the loop's hand-over (and its done-callbacks) is over
+        before = len(sent(fakes, "cards/capture_status"))
+        capture.last_poll = time.monotonic() - 10_000.0  # a poller read is due right now
+        intercom_capture.CAPTURES._tick(capture, time.monotonic())
+        gap.update(reads=len(sent(fakes, "cards/capture_status")) - before, state=capture.state)
+        return real(raw)
+
+    monkeypatch.setattr(intercom_sync, "project_cancelled", project_cancelled)
+    r = cap_cancel(c, sid)
+    assert gap == {"reads": 0, "state": "waiting"}, "a poller read due in the gap finds the slot still the cancel's and skips its tick"
+    assert r.status_code == 200 and r.json()["capture"]["state"] == "cancelled", r.text
+    assert not [row for row in capture_rows(feed[1]) if row["action"] == "intercom.card_capture.result"], "no `lost` result is recorded for a cancelled session"
+    monkeypatch.setattr(intercom_sync, "project_cancelled", real)
+    r = cap_start(c)
+    assert r.status_code == 200, "the slot is free again once the cancel is recorded and WisKey's call is over"
 
 
 def test_capture_poller_backs_off_with_several_sessions():
