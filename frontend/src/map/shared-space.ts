@@ -1,9 +1,10 @@
 /**
- * Shared space (CR-009, T093): one room that belongs to two floors - the owner's double-height sports hall. The room's
- * home floor owns everything in it; every read of the other floor attaches it (walls, openings, objects, labels,
- * connectors and circuits in this plan's coordinates, ids "<home floor>:<id>", each marked `shared`; its zone and
- * anchors in the map bundle) and the server routes an edit of those items back to the home floor's draft. Pure
- * functions, no DOM: the chip, the editor's hint, the room under a point, the namespacing of a new item, the 3D cut.
+ * Shared space (CR-009, T093): one room that belongs to two floors - the owner's double-height sports hall, wider at the
+ * upper level. Two-outline model: each floor keeps its own outline and walls of the room; the room's CONTENT (tribunes,
+ * court markings, objects, lighting circuits) lives on its home floor and every read of the other floor attaches it
+ * (ids "<home floor>:<id>", marked `shared`) - the server routes an edit of it back home. Cameras and devices are shared
+ * by an explicit member list (security review B1). Pure functions, no DOM: the chip, the hint, the room under a point,
+ * the claim of a new item, the deletions a save lists, the 3D volume from the two outlines.
  */
 import { bidi } from '../i18n/bidi';
 import type { GeometryDoc, Pt } from './geometry';
@@ -28,16 +29,23 @@ export interface SharedSpaceEntry {
   /** The room's outline in THIS plan's coordinates (normalized). */
   polygon: { x: number; y: number }[];
   placement: Record<string, unknown>;
+  /** The other floor's outline brought onto this plan: on the court's floor the wider upper level ("מפלס עליון"), on the
+   * upper floor the court ("מפלס תחתון"). [] when the other floor has no outline of its own. */
+  other_polygon?: { x: number; y: number }[];
+  other_label?: string;
+  other_floor_level?: number | null;
+  /** The ceiling of the upper floor's main level (the top of the volume). */
+  upper_ceiling_m?: number | null;
+  /** The two outlines agree (the lower one lies inside the upper one); false = "ודא את יישור הקומות". */
+  aligned?: boolean;
   /** mirror, draft reads: the home draft's revision the attach was read at (a save echoes it; the server answers 409 when
    * the home draft moved and something differs). */
   home_revision?: number | null;
-  home_version_id?: string | null;
-  home_doc_hash?: string | null;
   /** The other floor's datum above this one (metres, negative downwards). */
   datum_m: number | null;
   /** The level the room's surface is on, as this document names it. */
   level_id: string;
-  /** The room's walls rise this high from its surface (the home floor's height + the upper floor's ceiling). */
+  /** On the court's floor: the room's own walls rise this high (up to the upper floor's level). */
   volume_height_m: number | null;
   /** The ids (in this document) of the room's own walls. */
   wall_ids: string[];
@@ -112,18 +120,6 @@ export function sharedHint(doc: Pick<GeometryDoc, 'shared_spaces'> | null | unde
   return other ? `חלל משותף · השינוי יופיע גם ב${bidi(other)}` : 'חלל משותף';
 }
 
-/** A new item drawn inside a shared room on the other floor belongs to the room: its id is namespaced by the home floor
- * and it carries the marker, so the server stores it there (and it shows on both floors); its level becomes the room's.
- * Anything else is returned unchanged. */
-export function claimForRoom<T extends { id: string; level_id?: string; shared?: SharedItemMark }>(doc: Pick<GeometryDoc, 'shared_spaces'> | null | undefined, item: T, at: Pt): T {
-  if (item.shared) return item;
-  const e = roomAt(doc, at, 'mirror');
-  if (!e) return item;
-  const out = { ...item, id: `${e.home_floor_id}:${item.id}`, shared: { zone_id: e.zone_id, home_floor_id: e.home_floor_id } };
-  if ('level_id' in item) (out as { level_id?: string }).level_id = e.level_id;
-  return out;
-}
-
 /** An item of the document by id (walls, openings, objects, labels, connectors, circuits, groups), or null. */
 export function findGeomItem(doc: GeometryDoc, id: string): { id: string; shared?: SharedItemMark; [k: string]: unknown } | null {
   for (const coll of COLLS) {
@@ -150,23 +146,24 @@ export function geomItemPoint(item: { [k: string]: unknown }): Pt | null {
 type Loose = { id: string; shared?: SharedItemMark; [k: string]: unknown };
 type Colls = Record<string, Loose[]>;
 const COLLS = ['walls', 'openings', 'objects', 'labels', 'connectors', 'circuits', 'groups'] as const;
+/** The room's content: what is shared between its floors (walls and openings stay each floor's own). */
+const CONTENT = ['objects', 'labels', 'connectors', 'circuits', 'groups'] as const;
 const listOf = (d: Colls, coll: string): Loose[] => (Array.isArray(d[coll]) ? d[coll] : []);
 const allIn = (pts: unknown, e: SharedSpaceEntry): boolean =>
   Array.isArray(pts) && pts.length > 0 && pts.every((p) => Array.isArray(p) && inside([Number(p[0]), Number(p[1])], e.polygon));
 
 /** Every edit of the editor's document passes here (StudioController.commit, CR-009): the read-only pieces of a shared
- * room (a wall of the home floor crossing the room's outline, the openings on it) stay exactly as they were, and a new
- * item drawn inside a room another floor owns - a wall, an object, a label, a connector, an opening on one of the room's
- * walls, a circuit or group of the room's items - is claimed for that floor (namespaced id, the marker, the room's
- * level), so the server stores it there and it shows on both floors. `claimed` maps each old id to its new one. A new
- * opening on a read-only piece is dropped. A document without shared rooms passes untouched. */
+ * room stay exactly as they were, and a new piece of CONTENT drawn inside a room another floor owns - an object (a
+ * tribune row, a bench), a label, a same-floor connector, a circuit or group of the room's objects - is claimed for that
+ * floor (namespaced id, the marker, the room's level), so the server stores it there and it shows on both floors.
+ * Walls and openings are never claimed: each floor keeps its own outline and walls of the room (two-outline model).
+ * `claimed` maps each old id to its new one. A document without shared rooms passes untouched. */
 export function guardShared(prev: GeometryDoc, next: GeometryDoc): { doc: GeometryDoc; claimed: Map<string, string> } {
   const claimed = new Map<string, string>();
   if (!prev.shared_spaces?.length && !next.shared_spaces?.length) return { doc: next, claimed };
   const was = prev as unknown as Colls;
   const out = { ...next } as unknown as Colls;
-  // 1. read-only pieces: as they were
-  for (const coll of ['walls', 'openings', 'connectors']) {
+  for (const coll of CONTENT) {
     const kept = listOf(was, coll).filter((x) => isReadonlyShared(x));
     if (!kept.length) continue;
     const now = new Map(listOf(out, coll).filter((x) => isReadonlyShared(x)).map((x) => [x.id, JSON.stringify(x)]));
@@ -175,20 +172,15 @@ export function guardShared(prev: GeometryDoc, next: GeometryDoc): { doc: Geomet
   }
   const mirrors = (next.shared_spaces ?? []).filter((e) => e.role === 'mirror' && e.polygon.length >= 3);
   if (!mirrors.length) return { doc: out as unknown as GeometryDoc, claimed };
-  // 2. new items inside a room another floor owns
   const before = new Set(COLLS.flatMap((coll) => listOf(was, coll).map((x) => x.id)));
   const fresh = (x: Loose) => !before.has(x.id) && !x.shared;
   const roomOf = (pts: unknown) => mirrors.find((e) => allIn(pts, e)) ?? null;
   const entry = (mark: SharedItemMark | undefined) => (mark ? mirrors.find((e) => e.zone_id === mark.zone_id && e.home_floor_id === mark.home_floor_id) ?? null : null);
-  const claim = (x: Loose, e: SharedSpaceEntry, extra: Record<string, unknown> = {}): Loose => {
+  const claim = (x: Loose, e: SharedSpaceEntry): Loose => {
     const id = `${e.home_floor_id}:${x.id}`;
     claimed.set(x.id, id);
-    return { ...x, ...extra, id, shared: { zone_id: e.zone_id, home_floor_id: e.home_floor_id }, ...('level_id' in x ? { level_id: e.level_id } : {}) };
+    return { ...x, id, shared: { zone_id: e.zone_id, home_floor_id: e.home_floor_id }, ...('level_id' in x ? { level_id: e.level_id } : {}) };
   };
-  out.walls = listOf(out, 'walls').map((w) => {
-    const e = fresh(w) ? roomOf(w.polyline) : null;
-    return e ? claim(w, e) : w;
-  });
   for (const coll of ['objects', 'labels']) {
     out[coll] = listOf(out, coll).map((o) => {
       const e = fresh(o) ? roomOf([o.position]) : null;
@@ -200,15 +192,6 @@ export function guardShared(prev: GeometryDoc, next: GeometryDoc): { doc: Geomet
     const crossFloor = Array.isArray(c.floor_ids) && c.floor_ids.length > 0;
     const e = fresh(c) && !derived && !crossFloor ? roomOf(c.polyline) : null;
     return e ? claim(c, e) : c;
-  });
-  const walls = new Map(listOf(out, 'walls').map((w) => [w.id, w]));
-  out.openings = listOf(out, 'openings').flatMap((o) => {
-    const wallId = claimed.get(String(o.wall_id)) ?? String(o.wall_id);
-    const host = walls.get(wallId);
-    if (!fresh(o) || !host?.shared) return [wallId === o.wall_id ? o : { ...o, wall_id: wallId }];
-    if (host.shared.readonly) return []; // a read-only piece takes no new opening: edit it on its own floor
-    const e = entry(host.shared);
-    return e ? [claim(o, e, { wall_id: wallId })] : [o];
   });
   const objects = new Map(listOf(out, 'objects').map((o) => [o.id, o]));
   for (const coll of ['circuits', 'groups']) {
@@ -225,14 +208,43 @@ export function guardShared(prev: GeometryDoc, next: GeometryDoc): { doc: Geomet
   if (claimed.size) out.objects = listOf(out, 'objects').map((o) => (o.group_id && claimed.has(String(o.group_id)) ? { ...o, group_id: claimed.get(String(o.group_id)) } : o));
   return { doc: out as unknown as GeometryDoc, claimed };
 }
-/** The doc without the rooms another floor owns (a view that must draw each room once, e.g. several floors stacked). */
-export function withoutMirrors(doc: GeometryDoc): GeometryDoc {
-  if (!doc.shared_spaces?.some((e) => e.role === 'mirror')) return doc;
-  const keep = <T extends { shared?: SharedItemMark }>(xs: T[] | undefined): T[] => (xs ?? []).filter((x) => !x.shared);
-  return { ...doc, walls: keep(doc.walls), openings: keep(doc.openings), objects: keep(doc.objects), labels: keep(doc.labels), connectors: keep(doc.connectors), circuits: keep(doc.circuits),
-    groups: keep(doc.groups), levels: keep(doc.levels) };
+
+/** The shared items a save deletes (security review M1: the server deletes only what the client lists): those of
+ * `base` (the document the edits started from) that `doc` no longer has. */
+export function sharedDeleted(base: GeometryDoc | null, doc: GeometryDoc): string[] {
+  if (!base?.shared_spaces?.length) return [];
+  const now = new Set(CONTENT.flatMap((coll) => listOf(doc as unknown as Colls, coll).map((x) => x.id)));
+  return CONTENT.flatMap((coll) => listOf(base as unknown as Colls, coll).filter((x) => x.shared && !x.shared.readonly && !now.has(x.id)).map((x) => x.id));
 }
 
+/** 3D volume of a shared room from its two outlines (owner 2026-09-29: the hall is wider upstairs), in this plan's
+ * normalized coordinates: the lower outline stands from its floor up to the upper floor's level, the upper outline from
+ * there to the upper ceiling, and between them a slab ring at the upper level (the tribune's top landing) unless a
+ * tribune covers it. `lowerWalls` / `upperWalls`: whether this view must generate that outline's walls (the floor's own
+ * walls already stand along its own outline). */
+export interface SharedVolume {
+  zoneId: string;
+  /** The level (as this document names it) of the room's surface. */
+  levelId: string;
+  lower: { x: number; y: number }[];
+  upper: { x: number; y: number }[];
+  lowerElev: number;
+  upperElev: number;
+  topElev: number;
+  lowerWalls: boolean;
+  upperWalls: boolean;
+}
+export function sharedVolumes(doc: Pick<GeometryDoc, 'shared_spaces'>): SharedVolume[] {
+  const out: SharedVolume[] = [];
+  for (const e of doc.shared_spaces ?? []) {
+    const other = e.other_polygon ?? [];
+    if (other.length < 3 || e.polygon.length < 3 || e.datum_m === null || e.datum_m === undefined || e.datum_m === 0) continue;
+    const ceiling = e.upper_ceiling_m ?? 2.8;
+    if (e.datum_m < 0) out.push({ zoneId: e.zone_id, levelId: e.level_id, lower: other, upper: e.polygon, lowerElev: e.datum_m, upperElev: 0, topElev: ceiling, lowerWalls: true, upperWalls: false });
+    else out.push({ zoneId: e.zone_id, levelId: e.level_id, lower: e.polygon, upper: other, lowerElev: 0, upperElev: e.datum_m, topElev: e.datum_m + ceiling, lowerWalls: false, upperWalls: true });
+  }
+  return out;
+}
 /** 3D: the rooms whose volume passes through this floor's plates (a mirror room: the plate must be open above it),
  * as [x0, z0, x1, z1] boxes in metres. */
 export function plateHoles(doc: Pick<GeometryDoc, 'shared_spaces'>, width: number, height: number, scale: number): [number, number, number, number][] {

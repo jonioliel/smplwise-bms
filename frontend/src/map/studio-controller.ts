@@ -1,8 +1,8 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import { ApiError, describeError } from '../api/client';
-import { getGeometry, saveGeometryDraft, type CopyCandidate, type GeometryIssue, type GeometryResponse } from '../api/geometry';
+import { getGeometry, saveGeometryDraft, type CopyCandidate, type GeometryIssue, type GeometryResponse, type SharedPending } from '../api/geometry';
 import type { GeometryDoc } from './geometry';
-import { guardShared, isShared } from './shared-space';
+import { guardShared, isShared, sharedDeleted } from './shared-space';
 
 export type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
 
@@ -155,6 +155,8 @@ export class StudioController implements ReactiveController {
   error = '';
   /** CR-009: the new items the last commit claimed for a shared room's home floor, old id -> namespaced id. */
   claimed: ReadonlyMap<string, string> = new Map();
+  /** CR-009 (owner answer 1): the shared room's changes a publish of this floor would publish on its home floor too. */
+  sharedPending: SharedPending[] = [];
   /** Called with a message the person should see after a save (the editor shows it for a while). */
   onNotice: ((message: string) => void) | null = null;
   private versionId: string | null = null;
@@ -200,6 +202,7 @@ export class StudioController implements ReactiveController {
   /** The draft differs from what viewers see, and there is something to show. */
   get pendingPublish(): boolean {
     const d = this.doc;
+    if (d && this.sharedPending.some((p) => (p.changes ?? 0) > 0)) return true; // the shared room's changes wait for a publish
     if (!d || !this.hash || this.hash === this.publishedHash) return false;
     // What the server's is_empty counts.
     return this.publishedHash !== null || d.walls.length > 0 || d.openings.length > 0 || d.labels.length > 0 || d.objects.length > 0 || d.connectors.length > 0;
@@ -314,6 +317,7 @@ export class StudioController implements ReactiveController {
     this.hash = r.geometry.doc_hash;
     this.publishedHash = r.published_hash;
     this.issues = r.issues;
+    this.sharedPending = r.shared_pending ?? [];
     const skipped = r.twins_skipped ?? [];
     if (skipped.length) this.onNotice?.(skippedTwinsMessage(skipped));
   }
@@ -356,7 +360,9 @@ export class StudioController implements ReactiveController {
     this.saveState = 'saving';
     this.host.requestUpdate();
     try {
-      const r = await this.api.save(id, doc, this.revision);
+      // review M1: the server deletes a shared item only when the save lists it
+      const gone = sharedDeleted(this.base, doc);
+      const r = await this.api.save(id, gone.length ? ({ ...doc, shared_deleted: gone } as GeometryDoc) : doc, this.revision);
       if (loaded !== this.loaded) return; // a newer load replaced the working state: this answer belongs to the old one
       this.apply(r);
       if (r.doc) this.base = r.doc;

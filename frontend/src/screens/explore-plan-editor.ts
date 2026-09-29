@@ -21,7 +21,7 @@ import { ApiError, describeError, resourceUrl } from '../api/client';
 import type { Anchor, Camera, PlanVersion } from '../api/types';
 import { domainLabel, entityMarkerKind, listEntities, stateLabel, type HaEntity } from '../api/ha';
 import { ROOM_FILL_LABEL, setRenderMode, stylizeVersion, type RoomFill, type StylizeResult } from '../api/plans';
-import { ZONE_KINDS, acceptZones, createZone, deleteZone, detectZones, listZones, pointInPolygon, previewShare, shareZone, unshareZone, updateZone, zoneKindLabel, type SharePreview, type ShareRequest, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
+import { ZONE_KINDS, acceptZones, addShareMember, createZone, deleteZone, detectZones, listZones, pointInPolygon, previewShare, removeShareMember, shareZone, unshareZone, updateZone, zoneKindLabel, type SharePreview, type ShareRequest, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
 import { findGeomItem, geomIds, geomItemPoint, sharedChip, sharedHint } from '../map/shared-space';
 import { bidi } from '../i18n/bidi';
 import { proposeDoor } from '../api/geometry';
@@ -247,6 +247,8 @@ export class ExplorePlanEditor extends LitElement {
   @state() private connStart: Pt | null = null;
   /** The other floors of the building with their levels (the "מחבר אל" picker, T085). */
   @state() private linkTargets: LinkTargetFloor[] = [];
+  /** Setting map.shared_levels (owner 2026-09-29): show the levels of a shared room's home floor in the level bar. */
+  @state() private sharedLevels = true;
   /** CR-009: the "הפוך לחלל משותף" dialog - the room, the other floors, where its surface is, the duplicate room, the preview. */
   @state() private shareDlg: { zone: SpatialZone; floors: LinkTargetFloor[]; floorId: string; homeHere: boolean; otherZones: SpatialZone[]; otherZoneId: string; duplicateId: string | null; preview: SharePreview | null; busy: boolean; error: string } | null = null;
   private linkTargetsFor: string | null = null;
@@ -870,6 +872,7 @@ export class ExplorePlanEditor extends LitElement {
       void this.loadLibraryFor(b);
       void productSettings()
         .then((s) => {
+          this.sharedLevels = s['map.shared_levels'] !== 'hide'; // CR-009: the shared room's home levels in the level bar
           this.showEstimates = s['plan.estimates'] !== 'false'; // undefined until the backend serves the setting (Task 13): estimates shown
           if (isNewFloor && this.bundle === b) this.levelFilter = initialLevel(s['plan.levels'], b); // 0.1.89: plan.levels default level, else every level
         })
@@ -1094,12 +1097,33 @@ export class ExplorePlanEditor extends LitElement {
   /** "בטל שיתוף": the other floor stops showing the room (its readers stop reaching its cameras and devices). */
   private async unshare(z: SpatialZone, floorId: string) {
     const name = z.shared?.role === 'mirror' ? z.shared.home_floor_name : z.shared?.floors?.find((f) => f.floor_id === floorId)?.name ?? '';
-    if (!window.confirm(`לבטל את השיתוף של "${z.name}"? החדר יישאר רק ב${z.shared?.role === 'mirror' ? name : 'קומה הזו'}${z.shared?.role === 'mirror' ? ' ולא יוצג כאן' : ` ולא יוצג ב${name}`}.`)) return;
+    // review L7: an un-share restores nothing the conversion removed (the duplicate content of the other floor)
+    if (!window.confirm(`לבטל את השיתוף של "${z.name}"? התוכן של החדר יישאר רק ב${z.shared?.role === 'mirror' ? name : 'קומה הזו'}${z.shared?.role === 'mirror' ? ' ולא יוצג כאן' : ` ולא יוצג ב${name}`}, והמצלמות וההתקנים שלו יפסיקו להיות משותפים. מה שהוסר בזמן השיתוף (התוכן הכפול) לא יחזור.`)) return;
     this.zoneBusy = true;
     this.error = '';
     try {
       await unshareZone(z.id, floorId);
       this.selectedZoneId = null;
+      await this.reloadShared();
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.zoneBusy = false;
+    }
+  }
+
+  /** "הוסף לחלל המשותף" / "הסר מהחלל המשותף" (security review B1): a camera or device is shown on both floors of a
+   * shared room only when it is a member - where it is anchored never shares it. Anchor edits are saved first (the
+   * bundle is read again after the change). */
+  private async setShareMember(a: Anchor, zoneId: string, add: boolean) {
+    if (this.dirty.size && !(await this.save())) return;
+    this.zoneBusy = true;
+    this.error = '';
+    try {
+      if (add) await addShareMember(zoneId, a.resource_type, a.resource_id);
+      else await removeShareMember(zoneId, a.resource_type, a.resource_id);
+      this.info = add ? 'נוסף לחלל המשותף: מוצג בשתי הקומות' : 'הוסר מהחלל המשותף: מוצג רק בקומה שלו';
+      setTimeout(() => (this.info = ''), 4000);
       await this.reloadShared();
     } catch (err) {
       this.error = describeError(err);
@@ -1142,7 +1166,8 @@ export class ExplorePlanEditor extends LitElement {
     try {
       const zones = (await listZones(floorId)).zones.filter((z) => !z.shared);
       const same = zones.find((z) => z.name.trim() === d.zone.name.trim()) ?? null;
-      this.shareDlg = { ...this.shareDlg!, otherZones: zones, otherZoneId: same?.id ?? zones[0]?.id ?? '', busy: false };
+      // review L7: the other floor's room is always named in the request (the same name when there is one)
+      this.shareDlg = { ...this.shareDlg!, otherZones: zones, otherZoneId: same?.id ?? zones[0]?.id ?? '', duplicateId: same?.id ?? null, busy: false };
       await this.previewShareNow();
     } catch (err) {
       this.shareDlg = { ...this.shareDlg!, busy: false, error: describeError(err) };
@@ -1201,7 +1226,8 @@ export class ExplorePlanEditor extends LitElement {
     const other = d.floors.find((f) => f.floor_id === d.floorId);
     const p = d.preview;
     const count = (n: number, one: string, many: string) => (n ? countLabel(n, one, many) : '');
-    const removed = p ? [count(p.remove.walls, 'קיר אחד', 'קירות'), count(p.remove.openings, 'פתח אחד', 'פתחים'), count(p.remove.objects, 'עצם אחד', 'עצמים'), count(p.remove.labels, 'תווית אחת', 'תוויות'), count(p.remove.connectors, 'מחבר אחד', 'מחברים'), p.remove.zone ? 'החדר הכפול' : ''].filter(Boolean) : [];
+    const removed = p ? [count(p.remove.objects, 'עצם אחד', 'עצמים'), count(p.remove.walls, 'קיר פנימי אחד (ציור כפול של המגרש)', 'קירות פנימיים (ציור כפול של המגרש)'), count(p.remove.openings, 'פתח אחד', 'פתחים'), count(p.remove.labels, 'תווית אחת', 'תוויות'), count(p.remove.connectors, 'מחבר אחד', 'מחברים')].filter(Boolean) : [];
+    const fate: Record<string, string> = { member: 'משותף - נשאר במקומו', drop_duplicate: 'עותק כפול - יוסר', kept: 'מוצב גם במקום אחר בקומה של החדר - נשאר, לא משותף' };
     const removeFloor = p ? p.other_floor.name : '';
     return html`<sw-dialog open heading="הפוך לחלל משותף" subheading=${d.zone.name} data-share-dialog @close=${() => (this.shareDlg = null)}>
       <div class="note">חדר אחד ששייך לשתי קומות (כמו אולם בגובה כפול): הוא נשמר פעם אחת, מוצג שלם בשתי הקומות, ואפשר לערוך אותו משתיהן.</div>
@@ -1215,7 +1241,7 @@ export class ExplorePlanEditor extends LitElement {
           </select></sw-field>
           ${d.homeHere
             ? html`<sw-field label=${`החדר הכפול ב${bidi(other.name)}`}><select data-share-duplicate @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; this.shareDlg = { ...this.shareDlg!, duplicateId: v === '__auto' ? null : v === '__none' ? '' : v }; void this.previewShareNow(); }}>
-                <option value="__auto" ?selected=${d.duplicateId === null}>${p?.duplicate ? `זוהה אוטומטית: ${p.duplicate.name}` : 'זיהוי אוטומטי לפי שם וחפיפה'}</option>
+                <option value="__auto" ?selected=${d.duplicateId === null}>${p?.duplicate ? `זוהה אוטומטית: ${p.duplicate.name}` : 'ללא - המתאר ייבנה מהחדר הזה'}</option>
                 ${d.otherZones.map((z) => html`<option value=${z.id} ?selected=${d.duplicateId === z.id}>${z.name}</option>`)}
               </select></sw-field>`
             : html`<sw-field label=${`החדר ב${bidi(other.name)} שיישאר`}><select data-share-other-zone @change=${(e: Event) => { this.shareDlg = { ...this.shareDlg!, otherZoneId: (e.target as HTMLSelectElement).value }; void this.previewShareNow(); }}>
@@ -1226,12 +1252,13 @@ export class ExplorePlanEditor extends LitElement {
       ${p
         ? html`<div class="share-preview" data-share-preview>
             <div class="kv"><span class="k">הרצפה</span><span>${bidi(`${p.zone.floor_name}`)} · "${p.zone.name}"</span></div>
+            <div class="kv"><span class="k">המתאר ב${bidi(removeFloor)}</span><span data-share-outline>${p.outline.kept ? `"${p.duplicate?.name ?? ''}" נשאר - עם ${countLabel(p.boundary_walls_kept.length, 'הקיר שלאורכו', 'הקירות שלאורכו')}` : 'ייבנה מהחדר הזה'}</span></div>
             <div class="kv"><span class="k">יוסר מ${bidi(removeFloor)}</span><span data-share-removed>${removed.length ? removed.join(', ') : 'שום דבר'}</span></div>
-            ${p.crossing_walls_kept.length ? html`<div class="note">${countLabel(p.crossing_walls_kept.length, 'קיר אחד שחוצה', 'קירות שחוצים')} את קו החדר נשאר${p.crossing_walls_kept.length === 1 ? '' : 'ים'} ב${bidi(removeFloor)}.</div>` : nothing}
             <div class="kv"><span class="k">מצלמות והתקנים</span><span data-share-anchors>${p.anchors.length
-              ? p.anchors.map((a) => html`<div>${a.name ?? a.resource_id} · ${a.action === 'rebind' ? 'יעבור לחדר המשותף' : 'כבר בחדר - הכפילות תוסר'}</div>`)
-              : 'אין מה להעביר'}</span></div>
-            <div class="note">${p.same_frame ? 'לשתי התוכניות אותה מסגרת: החדר יוצג באותו מקום.' : 'לתוכניות מסגרות שונות: החדר יותאם למקום של החדר הכפול.'} שינויים מהקומה השנייה נשמרים בטיוטה של קומת הרצפה ומופיעים במפה החיה אחרי פרסום שלה.</div>
+              ? p.anchors.map((a) => html`<div>${a.name ?? a.resource_id} · ${fate[a.action] ?? a.action}</div>`)
+              : 'אין'}</span></div>
+            ${p.aligned ? nothing : html`<div class="err" data-share-alignment>ודא את יישור הקומות: המתאר של הקומה התחתונה לא נופל בתוך המתאר של העליונה.</div>`}
+            <div class="note">${p.same_frame ? 'לשתי התוכניות אותה מסגרת: החדר יוצג באותו מקום.' : 'לתוכניות מסגרות שונות: החדר יותאם למקום של החדר הכפול לפי המטרים.'} כל קומה שומרת את המתאר והקירות שלה; התוכן (טריבונות, סימוני מגרש, עצמים) נשמר בקומת הרצפה ומוצג בשתיהן. שינוי מהקומה השנייה מתפרסם עם פרסום של כל אחת מהן.</div>
           </div>`
         : nothing}
       ${d.error ? html`<div class="err">${d.error}</div>` : nothing}
@@ -1269,7 +1296,16 @@ export class ExplorePlanEditor extends LitElement {
       const item = findGeomItem(doc, this.geomSel.id);
       text = item ? sharedHint(doc, item, geomItemPoint(item)) : '';
     }
-    return text ? html`<div class="shared-hint" data-shared-hint><sw-icon name="floor" size=${14}></sw-icon>${text}</div>` : nothing;
+    const can = !!this.bundle?.permissions.structure;
+    const cam = a?.resource_type === 'camera';
+    // B1: an anchor inside a shared room that is not a member stays on its floor; the editor offers to add it
+    const member = a ? (a.room_candidate
+      ? html`<div class="shared-hint" data-share-candidate><sw-icon name="floor" size=${14}></sw-icon>${cam ? 'מצלמה בתוך האולם שאינה משותפת - הוסף?' : 'התקן בתוך האולם שאינו משותף - הוסף?'}
+          ${can ? html`<sw-button size="sm" variant="ghost" data-share-member-add ?disabled=${this.zoneBusy} @click=${() => this.setShareMember(a, a.room_candidate!, true)}>הוסף לחלל המשותף</sw-button>` : nothing}</div>`
+      : (a.shared_member || a.shared) && can
+        ? html`<div class="btns"><sw-button size="sm" variant="ghost" data-share-member-remove ?disabled=${this.zoneBusy} @click=${() => this.setShareMember(a, a.shared_member ?? a.shared!.zone_id, false)}>הסר מהחלל המשותף</sw-button></div>`
+        : nothing) : nothing;
+    return html`${text ? html`<div class="shared-hint" data-shared-hint><sw-icon name="floor" size=${14}></sw-icon>${text}</div>` : nothing}${member}`;
   }
 
   // ---- edits (draft state; explicit save) ----
@@ -1576,7 +1612,8 @@ export class ExplorePlanEditor extends LitElement {
       const r = await publishGeometry(d.versionId); // the version the preview compared
       this.geomDiff = null;
       // The server publishes nothing when the draft already is what viewers see; its answer says so (unchanged).
-      this.info = r.unchanged ? 'אין שינוי לפרסום' : 'המבנה פורסם; הצופים רואים אותו עכשיו';
+      const shared = (r.shared_published ?? []).length > 0;
+      this.info = r.unchanged && !shared ? 'אין שינוי לפרסום' : shared ? 'המבנה פורסם, כולל השינויים באולם המשותף; הצופים רואים אותם עכשיו' : 'המבנה פורסם; הצופים רואים אותו עכשיו';
       setTimeout(() => (this.info = ''), 4000);
       await this.loadStudio(b, true); // refresh what viewers see (the published hash)
     } catch (err) {
@@ -4672,6 +4709,10 @@ export class ExplorePlanEditor extends LitElement {
                 ? rows.map(([coll, c]) => html`<div><span>${COLL_LABEL[coll] ?? coll}</span><span>${c.added.length} נוספו · ${c.changed.length} שונו · ${c.removed.length} הוסרו</span></div>`)
                 : html`<div><span>אין שינוי בפריטים</span></div>`}
               ${data.diff.calibration_changed ? html`<div><span>כיול</span><span>קנה המידה השתנה</span></div>` : nothing}
+              ${(data.shared_pending ?? []).filter((p) => p.invalid || (p.changes ?? 0) > 0).map((p) => html`<div data-geom-shared-pending>
+                <span>כולל שינויים באולם המשותף (${bidi(p.home_floor_name ?? 'קומה אחרת')})</span>
+                <span>${p.invalid ? 'התוכן של האולם לא תקין - הפרסום ייחסם' : countLabel(p.changes ?? 0, 'שינוי אחד', 'שינויים')}</span>
+              </div>`)}
             </div>
             <div class="note">${data.published_counts ? `כעת: ${wallsAndOpenings(data.published_counts.walls, data.published_counts.openings)}` : 'פרסום ראשון של מבנה'} · אחרי הפרסום: ${wallsAndOpenings(data.counts.walls, data.counts.openings)}</div>
             ${errors.length ? html`<div class="err" data-geom-diff-error>${countLabel(errors.length, 'שגיאה חוסמת אחת', 'שגיאות חוסמות')} בטיוטה: הפרסום חסום עד לתיקון. ראה את הסימון האדום על המפה ואת רשימת הבעיות של המבנה.</div>` : nothing}`}
@@ -4715,7 +4756,7 @@ export class ExplorePlanEditor extends LitElement {
                         <button class="icon" data-tool-help title="קיצורי מקלדת" aria-label="קיצורי מקלדת" @click=${() => (this.shortcutsOpen = true)}><sw-icon name="help" size=${15}></sw-icon></button>`}
                 </div>
                 <div class="floorchip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
-                ${this.studio.doc && b.permissions.structure ? html`<div class="levelbar">${renderLevelChips(this.studio.doc.levels, this.activeLevel, (id) => this.setLevelFilter(id), () => this.openNewLevel(), (id) => this.openLevelEdit(id))}${this.phone.matches ? nothing : html`<sw-chip data-grid-chip icon="grid" ?selected=${this.grid.on} aria-pressed=${this.grid.on ? 'true' : 'false'} title="רשת עזר: גרירה והצבה של עצם נצמדות אליה (המרווח בכלי השכבות)" @click=${() => this.setGrid(b.floorId, { on: !this.grid.on })}>רשת</sw-chip>`}${!this.phone.matches && this.shownTags.length ? renderTagPicker(this.shownTags, (t) => this.selectByTag(t)) : nothing}</div>` : nothing}
+                ${this.studio.doc && b.permissions.structure ? html`<div class="levelbar">${renderLevelChips(this.studio.doc.levels.filter((l) => this.sharedLevels || !l.shared), this.activeLevel, (id) => this.setLevelFilter(id), () => this.openNewLevel(), (id) => this.openLevelEdit(id))}${this.phone.matches ? nothing : html`<sw-chip data-grid-chip icon="grid" ?selected=${this.grid.on} aria-pressed=${this.grid.on ? 'true' : 'false'} title="רשת עזר: גרירה והצבה של עצם נצמדות אליה (המרווח בכלי השכבות)" @click=${() => this.setGrid(b.floorId, { on: !this.grid.on })}>רשת</sw-chip>`}${!this.phone.matches && this.shownTags.length ? renderTagPicker(this.shownTags, (t) => this.selectByTag(t)) : nothing}</div>` : nothing}
                 <div class="rail" role="toolbar" aria-label="כלי עריכה">
                   ${TOOLS.map((tl) => html`<button class=${tl.id === this.tool ? 'on' : ''} data-tool=${tl.id} ?disabled=${!tl.ready || (STUDIO_TOOLS.includes(tl.id) && !b.permissions.structure) || (this.detectBusy && tl.id !== this.tool)} title=${tl.label} aria-label=${tl.label} aria-pressed=${tl.id === this.tool} @click=${() => this.pickTool(tl.id)}><sw-icon .name=${tl.icon} size=${18}></sw-icon></button>`)}
                   <hr />

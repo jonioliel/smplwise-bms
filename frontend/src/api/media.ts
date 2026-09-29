@@ -13,6 +13,10 @@ export interface ProductSettings {
   /** Default levels view on every map (0.1.89): 'all' shows every level together, 'default' opens on the floor's
    * default level; the level chips still switch levels from there. */
   'plan.levels'?: 'all' | 'default';
+  /** CR-009 (owner 2026-09-29): the shared room's home levels in the other floor's level bar. */
+  'map.shared_levels'?: 'show' | 'hide';
+  /** The view a floor map opens in (live map, history map, event page). */
+  'map.default_view'?: '2d' | '3d';
   /** CR-006: the 3D quality level a browser opens with ('1' schematic, '2' shadows, materials and the cutaway); each
    * browser may override it (sw.plan3d.quality) and drops to 1 by itself when level 2 misses the frame budget. */
   'plan.quality'?: '1' | '2';

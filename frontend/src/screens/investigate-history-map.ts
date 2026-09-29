@@ -85,6 +85,7 @@ export class InvestigateHistoryMap extends LitElement {
   private frameTimer = 0;
   /** T087: the 2D / 3D toggle of the historical map (no actions here, the states are those of the instant). */
   @state() private view3d = false;
+  private default3d = false;
   @state() private threeState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
   @state() private threeError = '';
   /** Kept in a field: the element re-applies a preset only when the property changes (an inline literal would snap the camera every render). */
@@ -346,6 +347,12 @@ export class InvestigateHistoryMap extends LitElement {
 
   protected updated(changed: Map<string, unknown>) {
     if (!isApi()) return;
+    // the setting map.default_view (owner 2026-09-29): a floor opens in 3D once its scene is there (no per-device memory
+    // of the last view existed before, and none is added: the toggle still switches for the visit)
+    if (this.default3d && !this.view3d && this.hasScene && webglAvailable()) {
+      this.default3d = false;
+      void this.toggle3d();
+    }
     if ((changed.has('floorId') && changed.get('floorId') !== undefined) || (changed.has('at') && changed.get('at') !== undefined)) void this.init();
   }
 
@@ -370,6 +377,7 @@ export class InvestigateHistoryMap extends LitElement {
       this.bundle = await loadMap(this.floorId, false, this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z'));
       this.restorePlanImage();
       this.level = initialLevel(settings['plan.levels'], this.bundle); // 0.1.89: fixed for the floor, no level bar here
+      this.default3d = settings['map.default_view'] === '3d' && !this.view3d;
       this.geometry = null; // another floor or instant: no structure until its document arrives
       if (this.bundle.source === 'api') {
         void loadLibrary(this.bundle.catalogRevision).then((lib) => {

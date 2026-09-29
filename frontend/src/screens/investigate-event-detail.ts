@@ -72,6 +72,7 @@ export class InvestigateEventDetail extends LitElement {
   private pollTimer = 0;
   /** T087: the map card's 3D, opened from the event's camera ("מבט מהמצלמה"). Read-only: no actions from the event page. */
   @state() private view3d = false;
+  private default3d = false;
   @state() private threeState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
   @state() private catalog3d: Catalog3DLookup | null = null;
   @state() private selected3d: string | null = null;
@@ -307,6 +308,12 @@ export class InvestigateEventDetail extends LitElement {
 
   protected updated(changed: Map<string, unknown>) {
     if (changed.has('eventId') && changed.get('eventId') !== undefined) void this.load();
+    // the setting map.default_view (owner 2026-09-29): a floor opens in 3D once its scene is there (no per-device memory
+    // of the last view existed before, and none is added: the toggle still switches for the visit)
+    if (this.default3d && !this.view3d && this.hasScene && webglAvailable()) {
+      this.default3d = false;
+      void this.toggle3d();
+    }
   }
 
   private async load() {
@@ -374,6 +381,7 @@ export class InvestigateEventDetail extends LitElement {
       void productSettings()
         .then((s) => {
           if (this.bundle === b) this.level = initialLevel(s['plan.levels'], b); // 0.1.89: fixed for the floor, no level bar here
+          if (this.bundle === b) this.default3d = s['map.default_view'] === '3d' && !this.view3d;
         })
         .catch(() => {}); // settings unavailable: keep every level shown
       if (b.source === 'api') {

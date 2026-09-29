@@ -132,6 +132,8 @@ export class ExploreFloorMap extends LitElement {
   @state() private geometry: GeometryDoc | null = null;
   /** T087: the 2D / 3D toggle. The element's module - and with it the three chunk - is imported on the first switch. */
   @state() private view3d = false;
+  /** map.default_view = 3d: switch to the 3D once the floor's scene is available (once per floor load). */
+  private default3d = false;
   @state() private threeState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
   @state() private threeError = '';
   @state() private preset3d: ScenePreset = 'iso';
@@ -909,6 +911,12 @@ export class ExploreFloorMap extends LitElement {
 
   protected updated(changed: Map<string, unknown>) {
     this.scheduleFadeTick(this.bundle && this.layers.has('states') ? this.roomStateLayer : null);
+    // the setting map.default_view (owner 2026-09-29): a floor opens in 3D once its scene is there (no per-device memory
+    // of the last view existed before, and none is added: the toggle still switches for the visit)
+    if (this.default3d && !this.view3d && this.hasScene && webglAvailable()) {
+      this.default3d = false;
+      void this.toggle3d();
+    }
     if (changed.has('floorId') && changed.get('floorId') !== undefined) {
       this.selectedId = null;
       this.anchor = null;
@@ -988,6 +996,7 @@ export class ExploreFloorMap extends LitElement {
       void productSettings()
         .then((s) => {
           if (this.bundle === b) this.levelFilter = initialLevel(s['plan.levels'], b); // 0.1.89: plan.levels default level, else every level
+          if (this.bundle === b) this.default3d = s['map.default_view'] === '3d' && !this.view3d;
           this.quality3d = s['plan.quality'] === '1' ? 1 : s['plan.quality'] === '2' ? 2 : null;
           this.presenceFade = parsePresenceFade(s['plan.presence_fade']); // CR-006 1b: off, or the fade window in minutes
         })

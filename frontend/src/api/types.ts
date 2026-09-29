@@ -204,6 +204,10 @@ export interface Anchor {
   /** CR-009: an anchor of a room another floor shares with this one - its real id, its home floor, and its position in
    * this plan's coordinates; edits go through ?from_floor_id. */
   shared?: import('../map/shared-space').SharedAnchorMark;
+  /** CR-009: this floor's anchor lies in a shared room but is not a member - shown here only; the editor may add it. */
+  room_candidate?: string;
+  /** CR-009: this floor's anchor is a member of the shared room (zone id): shown on every floor of it. */
+  shared_member?: string;
 }
 
 export interface ZonePoint {

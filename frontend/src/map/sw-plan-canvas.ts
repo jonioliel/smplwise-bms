@@ -625,6 +625,33 @@ export class SwPlanCanvas extends LitElement {
     .zone .zchip {
       pointer-events: none;
     }
+    .shared-other {
+      pointer-events: none;
+    }
+    .shared-other polygon {
+      fill: none;
+      stroke: var(--sw-accent);
+      stroke-opacity: 0.75;
+    }
+    .shared-other.upper polygon {
+      fill: var(--sw-accent);
+      fill-opacity: 0.07;
+    }
+    .shared-other rect {
+      fill: rgba(255, 255, 255, 0.92);
+      stroke: var(--sw-accent);
+      stroke-opacity: 0.5;
+      stroke-width: 1;
+    }
+    .shared-other text {
+      font-family: var(--sw-font);
+      font-size: 10px;
+      font-weight: 600;
+      fill: var(--sw-text-2);
+      text-anchor: middle;
+      direction: rtl;
+      unicode-bidi: plaintext;
+    }
     .zone .zchip rect {
       fill: var(--zc);
       fill-opacity: 0.14;
@@ -1507,6 +1534,26 @@ export class SwPlanCanvas extends LitElement {
         ${z.chip && (labelFits || !z.name) ? this.renderZoneChip(z, z.chip, live, c) : nothing}
         ${this.editable && own && !z.candidate ? this.renderZoneHandles(z, live) : nothing}
       </g>`;
+  }
+
+  /** CR-009 two-outline model: the other floor's outline of a shared room, brought onto this plan - on the court's floor
+   * the wider upper level (dashed outline, light tint, "מפלס עליון": the upper tribune rows drawn inside it are the
+   * hall's too), on the upper floor the court (thin dashed line, "מפלס תחתון"). Never hit-tested. */
+  private renderSharedOutlines() {
+    const entries = (this.geometry?.shared_spaces ?? []).filter((e) => (e.other_polygon?.length ?? 0) >= 3);
+    if (!entries.length) return nothing;
+    const inv = 1 / this.scale;
+    return svg`<g class="shared-outlines" aria-hidden="true">${entries.map((e) => {
+      const pts = e.other_polygon!.map((p) => `${(p.x * this.planWidth).toFixed(1)},${(p.y * this.planHeight).toFixed(1)}`).join(' ');
+      const upper = e.other_label === 'מפלס עליון';
+      const top = e.other_polygon!.reduce((a, p) => (p.y < a.y ? p : a), e.other_polygon![0]);
+      const label = e.other_label ?? '';
+      const lw = Math.max(40, label.length * 6.2 + 12);
+      return svg`<g class="shared-other ${upper ? 'upper' : 'lower'}" data-shared-outline=${e.zone_id} data-shared-level=${upper ? 'upper' : 'lower'}>
+        <polygon points=${pts} stroke-width=${((upper ? 1.6 : 1.1) * inv).toFixed(2)} stroke-dasharray=${`${(6 * inv).toFixed(2)} ${(4 * inv).toFixed(2)}`} />
+        <g transform="translate(${(top.x * this.planWidth).toFixed(1)} ${(top.y * this.planHeight - 10 * inv).toFixed(1)}) scale(${inv})"><rect x=${-lw / 2} y="-8" width=${lw} height="16" rx="8" /><text y="3.5">${label}</text></g>
+      </g>`;
+    })}</g>`;
   }
 
   /** CR-009: the chip of a room shown on two floors, just under its name (or where the name would be). */
@@ -2508,6 +2555,7 @@ export class SwPlanCanvas extends LitElement {
             ${this.plan ?? nothing}
             ${this.renderGrid()}
             ${this.zones.map((z) => this.renderZone(z))}
+            ${this.renderSharedOutlines()}
             ${this.renderStructure()}
             ${this.renderGeomHits()}
             ${this.renderCandidates()}

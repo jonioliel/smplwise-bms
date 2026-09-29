@@ -63,11 +63,13 @@ export interface ShareCandidate {
 }
 export interface ShareAnchorFate {
   anchor_id: string;
+  floor_id: string;
   resource_type: 'camera' | 'ha_entity';
   resource_id: string;
   name: string | null;
-  /** rebind: moved to the room on its home floor; drop_duplicate: the room already has it (the mirror shows it). */
-  action: 'rebind' | 'drop_duplicate';
+  /** member: stays where it is anchored and is shown on both floors; drop_duplicate: the other floor's copy of a camera the
+   * room already has (removed); kept: anchored elsewhere on the room's floor too - stays, not shared. */
+  action: 'member' | 'drop_duplicate' | 'kept';
 }
 /** What "הפוך לחלל משותף" will do (POST /zones/{id}/share/preview); the apply answers the same plus the ids it wrote. */
 export interface SharePreview {
@@ -77,15 +79,29 @@ export interface SharePreview {
   placement: Record<string, unknown>;
   duplicate: { zone_id: string; name: string; polygon: ZonePoint[] } | null;
   candidates: ShareCandidate[];
+  /** The other floor's own outline of the room (its duplicate room, kept - the hall may be wider there), or one drawn from
+   * the room's when there is none. */
+  outline: { zone_id: string | null; kept: boolean; polygon: ZonePoint[] };
   remove: { walls: number; openings: number; objects: number; labels: number; connectors: number; circuits: number; groups: number; zone: number };
-  crossing_walls_kept: string[];
+  /** The other floor's walls along its outline: they bound the room at that floor and stay. */
+  boundary_walls_kept: string[];
   anchors: ShareAnchorFate[];
-  attach: { walls: number; clipped_walls: number; openings: number; objects: number; labels: number; connectors: number; circuits: number; anchors: number };
+  members: { resource_type: 'camera' | 'ha_entity'; resource_id: string }[];
+  /** The two outlines agree (the lower one inside the upper one); false = "ודא את יישור הקומות". */
+  aligned: boolean;
+  alignment_warning: string | null;
+  attach: { objects: number; labels: number; connectors: number; circuits: number; members: number };
   share_id?: string;
 }
 export const previewShare = (zoneId: string, body: ShareRequest) => post<SharePreview>(`zones/${zoneId}/share/preview`, body);
 export const shareZone = (zoneId: string, body: ShareRequest) => post<SharePreview>(`zones/${zoneId}/share`, body);
 export const unshareZone = (zoneId: string, floorId: string) => del(`zones/${zoneId}/share/${floorId}`);
+/** Members of a shared room (security review B1): reach follows this list, never where an anchor lies. Adding one needs
+ * the share rights on every floor of the room. */
+export const addShareMember = (zoneId: string, resourceType: 'camera' | 'ha_entity', resourceId: string) =>
+  post<{ zone_id: string; added: boolean }>(`zones/${zoneId}/share/members`, { resource_type: resourceType, resource_id: resourceId });
+export const removeShareMember = (zoneId: string, resourceType: 'camera' | 'ha_entity', resourceId: string) =>
+  del(`zones/${zoneId}/share/members/${resourceType}/${encodeURIComponent(resourceId)}`);
 export const deleteZone = (id: string, signal?: AbortSignal) => (signal ? api<void>(`zones/${id}`, { method: 'DELETE', signal }) : del(`zones/${id}`));
 export const detectZones = (floorId: string, strength: 'light' | 'medium' | 'strong' = 'medium') => post<DetectResult>(`floors/${floorId}/zones/detect`, { strength });
 export const acceptZones = (floorId: string, candidates: { polygon: ZonePoint[]; name?: string; kind?: ZoneKind }[], replaceAuto: boolean) =>

@@ -15,7 +15,7 @@ import { blockingSegments, clipCoverage, isOpenState, type Seg } from './coverag
 import { anchor3d } from './anchor-3d';
 import type { MeshPart } from '../api/plan-catalog';
 import { temperatureText, type RoomStateLayer } from './room-state';
-import { plateHoles, volumeHeights } from './shared-space';
+import { plateHoles, sharedVolumes, volumeHeights, type SharedVolume } from './shared-space';
 
 export type { MeshPart };
 export type PartKind = 'floor' | 'room' | 'tint' | 'marker' | 'chip' | 'label' | 'wall' | 'lintel' | 'sill' | 'head' | 'door' | 'window' | 'object' | 'connector' | 'camera' | 'cone' | 'entity' | 'glow';
@@ -169,6 +169,18 @@ const RAMP_STEP_M = 0.5;
 const GLOW_DISTANCE_M = 6;
 const MIN_STEP_M = 0.05;
 const LEVEL_PAD_M = 0.5;
+/** CR-009: the thin walls of the other floor's outline of a shared room, and the slab ring at the step between them. */
+const SHARED_WALL_M = 0.15;
+const SHARED_SLAB_M = 0.2;
+const inPoly = (p: [number, number], poly: { x: number; y: number }[]): boolean => {
+  let hit = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i];
+    const b = poly[j];
+    if (a.y > p[1] !== b.y > p[1] && p[0] < ((b.x - a.x) * (p[1] - a.y)) / (b.y - a.y || 1e-300) + a.x) hit = !hit;
+  }
+  return hit;
+};
 /** The landing of a stair drawn as a plate this thick under its walking surface (T085). */
 export const LANDING_PLATE_M = 0.2;
 
@@ -300,6 +312,21 @@ export function insetRing(poly: [number, number][], w: number): [number, number]
   return ring;
 }
 
+/** The ring between two nested outlines as one keyhole polygon (CR-009, the step of the double-height hall where the
+ * upper floor is wider): the outer outline, then the inner one the other way round, bridged at the inner vertex nearest
+ * the outer's first vertex. [] when either is degenerate. */
+export function ringBetween(outer: [number, number][], inner: [number, number][]): [number, number][] {
+  if (outer.length < 3 || inner.length < 3) return [];
+  const area = (p: [number, number][]): number => p.reduce((s, a, i) => s + a[0] * p[(i + 1) % p.length][1] - p[(i + 1) % p.length][0] * a[1], 0);
+  const ao = area(outer);
+  if (Math.abs(ao) < 1e-9 || Math.abs(area(inner)) < 1e-9) return [];
+  const hole = Math.sign(area(inner)) === Math.sign(ao) ? [...inner].reverse() : [...inner];
+  let k = 0;
+  for (let i = 1; i < hole.length; i++) if (Math.hypot(hole[i][0] - outer[0][0], hole[i][1] - outer[0][1]) < Math.hypot(hole[k][0] - outer[0][0], hole[k][1] - outer[0][1])) k = i;
+  const turned = [...hole.slice(k), ...hole.slice(0, k)];
+  return [...outer, outer[0], ...turned, turned[0]];
+}
+
 /** Area-weighted centroid (the vertex mean for a degenerate ring) - the same maths as sw-plan-canvas.polygonCentroid. */
 function centroid(poly: { x: number; y: number }[]): { x: number; y: number } {
   let a = 0;
@@ -330,6 +357,8 @@ class Builder {
   readonly catalogLookup: CatalogLookup | undefined;
   /** CR-009: wall id -> the height of the shared room's volume it bounds. */
   readonly volumes: Map<string, number>;
+  /** CR-009 two-outline model: the shared rooms' volumes from their two outlines. */
+  readonly sharedVols: SharedVolume[];
   private segCache = new Map<string, Seg[]>();
 
   constructor(readonly input: SceneInput) {
@@ -340,6 +369,7 @@ class Builder {
     this.defaultLevel = this.levels.find((l) => l.id === defaultLevelId(input.doc)) ?? this.levels[0];
     this.layers = { ...DEFAULT_LAYERS, ...(input.layers ?? {}) };
     this.volumes = volumeHeights(input.doc);
+    this.sharedVols = sharedVolumes(input.doc);
     const cat = input.catalog;
     this.catalogLookup = cat ? (id) => { const c = cat(id); return c ? { shape: c.shape, icon: 'box', color_token: c.color_token } : undefined; } : undefined;
   }
@@ -451,7 +481,9 @@ class Builder {
     const rooms = plateHoles(this.input.doc, this.input.width, this.input.height, this.scale);
     for (const lv of this.levels) {
       if (!this.shown(lv.id)) continue;
-      const box = lv.id === this.defaultLevel.id ? ([0, 0, W, D] as [number, number, number, number]) : this.bounds(lv.id);
+      // CR-009: the court level of a room another floor shares from below spans the room's lower outline
+      const vol = lv.shared ? this.sharedVols.find((v) => v.levelId === lv.id && v.lowerWalls) : undefined;
+      const box = lv.id === this.defaultLevel.id ? ([0, 0, W, D] as [number, number, number, number]) : vol ? this.outlineBox(vol.lower, LEVEL_PAD_M / 2) : this.bounds(lv.id);
       if (!box) continue;
       const [x0, z0, x1, z1] = [Math.max(0, box[0]), Math.max(0, box[1]), Math.min(W, box[2]), Math.min(D, box[3])];
       // review M2 / M-c: the plate is cut around each well of the stairs going down from this level, so they stay visible
@@ -461,6 +493,48 @@ class Builder {
         if (a1 - a0 < 1e-4 || b1 - b0 < 1e-4) continue;
         this.box(n ? `floor:${lv.id}#${n}` : `floor:${lv.id}`, 'floor', { id: lv.id, kind: 'level' }, [(a0 + a1) / 2, lv.elevation_m - FLOOR_PLATE_M / 2, (b0 + b1) / 2], [a1 - a0, FLOOR_PLATE_M, b1 - b0], 0, 'map-bg', lv.id, 1, 0, false);
         n++;
+      }
+    }
+  }
+
+  /** The bounding box of a normalized outline, in metres, padded. */
+  private outlineBox(poly: { x: number; y: number }[], pad: number): Box2 {
+    const xs = poly.map((p) => this.m(p.x * this.input.width));
+    const zs = poly.map((p) => this.m(p.y * this.input.height));
+    return [Math.min(...xs) - pad, Math.min(...zs) - pad, Math.max(...xs) + pad, Math.max(...zs) + pad];
+  }
+
+  /** CR-009 two-outline model (owner 2026-09-29: the hall is wider on the upper floor): the lower outline stands from
+   * the court up to the upper floor's level, the upper outline from there up to the upper ceiling, and at the step
+   * between them a slab ring at the upper level - unless a tribune stands in the ring (its top rows are the step). Each
+   * floor's own walls already stand along its own outline; this adds the other floor's outline as thin walls
+   * ("vol:<zone>#lower.<i>" / "#upper.<i>") and the ring ("vol:<zone>#ring"). */
+  sharedVolume(): void {
+    if (!this.layers.structure || !this.sharedVols.length) return;
+    const { width, height } = this.input;
+    const pts = (poly: { x: number; y: number }[]): [number, number][] => poly.map((p): [number, number] => [this.m(p.x * width), this.m(p.y * height)]);
+    for (const v of this.sharedVols) {
+      if (!this.shown(v.levelId)) continue;
+      const ud = { id: `vol:${v.zoneId}`, kind: 'shared-volume' };
+      const run = (poly: [number, number][], y0: number, y1: number, tag: string): void => {
+        const h = y1 - y0;
+        if (!(h > MIN_STEP_M)) return;
+        for (let i = 0; i < poly.length; i++) {
+          const [ax, az] = poly[i];
+          const [bx, bz] = poly[(i + 1) % poly.length];
+          const len = Math.hypot(bx - ax, bz - az);
+          if (len < 1e-4) continue;
+          this.box(`vol:${v.zoneId}#${tag}.${i}`, 'wall', ud, [(ax + bx) / 2, y0 + h / 2, (az + bz) / 2], [len + SHARED_WALL_M, h, SHARED_WALL_M], -deg(Math.atan2(bz - az, bx - ax)), 'map-structure', v.levelId);
+        }
+      };
+      const lower = pts(v.lower);
+      const upper = pts(v.upper);
+      if (v.lowerWalls) run(lower, v.lowerElev, v.upperElev, 'lower');
+      if (v.upperWalls) run(upper, v.upperElev, v.topElev, 'upper');
+      const ring = ringBetween(upper, lower);
+      const covered = this.input.doc.objects.some((o) => o.item_id.startsWith('tribune.') && inPoly([o.position[0], o.position[1]], v.upper) && !inPoly([o.position[0], o.position[1]], v.lower));
+      if (ring.length && !covered) {
+        this.add({ id: `vol:${v.zoneId}#ring`, kind: 'floor', shape: 'prism', position: [0, v.upperElev - SHARED_SLAB_M, 0], size: [0, SHARED_SLAB_M, 0], rotation: [0, 0, 0], color: 'map-bg', opacity: 1, group: null, level_id: v.levelId, polygon: ring, userData: ud });
       }
     }
   }
@@ -849,6 +923,7 @@ export function buildScene(input: SceneInput): SceneDescription {
   b.floors();
   b.rooms();
   b.structure(prims);
+  b.sharedVolume();
   b.objects(prims);
   b.connectors(prims);
   b.anchors();
