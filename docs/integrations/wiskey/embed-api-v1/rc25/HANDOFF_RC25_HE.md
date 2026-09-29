@@ -1,5 +1,7 @@
 # הוראות לפיתוח SMPLWISE VMS — חיבור WisKey / smplwise access control
 
+Source: original
+
 עודכן: 29.09.2026. בסיס שפורסם ואומת: **2.0.0-rc.25**.
 
 - [הגרסה להתקנה](https://github.com/jonioliel/home-assistant-hikvision-intercom/releases/tag/v2.0.0-rc.25)
