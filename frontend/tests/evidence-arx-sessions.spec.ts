@@ -58,9 +58,10 @@ async function refreshTail(page: Page): Promise<string> {
 
 test('the administrator revokes a sign-in; the user signs out everywhere', async ({ browser }) => {
   test.skip(test.info().project.name !== 'desktop', 'desktop only');
-  const phone = await device(browser, '198.51.100.21');
-  const laptop = await device(browser, '198.51.100.22');
-  const admin = await device(browser, '198.51.100.23');
+  const run = 1 + Math.floor(Math.random() * 250); // a fresh /24 per run: back-to-back runs do not share the budget
+  const phone = await device(browser, `198.19.${run}.21`);
+  const laptop = await device(browser, `198.19.${run}.22`);
+  const admin = await device(browser, `198.19.${run}.23`);
   await signIn(admin.page, 'joni', 'pw-joni');
   // a clean start on a reused fixture: no earlier sign-ins of dana, no other sign-ins of the administrator
   await admin.page.evaluate(async () => {
