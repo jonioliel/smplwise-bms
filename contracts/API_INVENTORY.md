@@ -311,9 +311,9 @@ Ingress identity and the scoped role check named in its handler; errors use the 
 | zones | DELETE | `/api/v1/zones/{zone_id}` |  |
 | zones | PATCH | `/api/v1/zones/{zone_id}` |  |
 | zones | POST | `/api/v1/zones/{zone_id}/share` | The conversion, atomically: the duplicate content leaves the other floor's draft, its outline stays as that floor's |
-| zones | GET | `/api/v1/zones/{zone_id}/share/members` |  |
+| zones | GET | `/api/v1/zones/{zone_id}/share/members` | "חברים בחלל המשותף" (owner 2026-09-30): whoever reaches ANY floor that shows the room sees, of its members, exactly |
 | zones | POST | `/api/v1/zones/{zone_id}/share/members` | "הוסף לחלל המשותף": a camera or device of the room reaches every floor that shows it - the share rights on every |
-| zones | DELETE | `/api/v1/zones/{zone_id}/share/members/{resource_type}/{resource_id}` | "הסר מהחלל המשותף": narrows reach at once (revocation.mark) - placement.edit on any floor of the room. |
+| zones | DELETE | `/api/v1/zones/{zone_id}/share/members/{resource_type}/{resource_id}` | "הסר מהחלל המשותף": narrows reach at once (revocation.mark). Owner 2026-09-30: the same rights as adding - the |
 | zones | POST | `/api/v1/zones/{zone_id}/share/preview` | "הפוך לחלל משותף" - what sharing this room with the other floor would do, written nowhere: the placement and its |
 | zones | DELETE | `/api/v1/zones/{zone_id}/share/{floor_id}` | "בטל שיתוף": the other floor stops showing the room, and its readers stop reaching the room's members at once - the |
 | zones | PATCH | `/api/v1/zones/{zone_id}/share/{floor_id}` | "יישור": where the room sits on the other plan (same_frame, or fit: from / to points, rotation, scale). |
