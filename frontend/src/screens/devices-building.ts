@@ -627,6 +627,13 @@ export class DevicesBuilding extends LitElement {
       box-shadow: var(--sw-shadow-1);
       position: sticky;
       inset-block-start: 8px;
+      /* owner 2026-09-29 ("unnecessary scrolling"): the tree never scrolls on its own unless it is itself taller than
+         the viewport - then it sticks and scrolls inside the visible height (the top bar and the page padding off) */
+      box-sizing: border-box;
+      max-block-size: calc(100dvh - var(--sw-topbar-h, 64px) - var(--sw-banner-h, 0px) - 32px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
     }
     .tree-row {
       display: flex;
@@ -660,13 +667,33 @@ export class DevicesBuilding extends LitElement {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    /* owner 2026-09-29 (tree rows): the name takes the row (inline-start, ellipsis only when truly out of room, the full
+       name in its title); the lit count sits in a fixed column at the inline end, then the "⋯" column - so every row
+       lines up, with or without a menu (a row without one keeps the menu's width free) */
     .tree-row .lit {
+      flex: none;
+      box-sizing: border-box;
+      inline-size: var(--dv-tree-count-w, 44px);
+      justify-content: flex-end;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
       font-variant-numeric: tabular-nums;
       display: inline-flex;
       align-items: center;
       gap: 3px;
+    }
+    .tree-row.nomenu {
+      inline-size: auto;
+      margin-inline-end: var(--dv-tree-menu-w, 30px);
+    }
+    .tree-floor .tree-row {
+      flex: 1;
+      min-inline-size: 0;
+    }
+    .tree-floor devices-bulk-menu {
+      flex: none;
+      inline-size: var(--dv-tree-menu-w, 30px);
+      justify-content: center;
     }
     .tree-row .lit.warm {
       color: var(--sw-text);
@@ -677,7 +704,6 @@ export class DevicesBuilding extends LitElement {
     .tree-floor {
       display: flex;
       align-items: center;
-      gap: 2px;
       margin-block-start: 6px;
     }
     .tree-floor .tree-row {
@@ -687,14 +713,17 @@ export class DevicesBuilding extends LitElement {
       text-transform: none;
     }
     .tree-area {
+      position: relative;
       display: flex;
       align-items: center;
-      gap: 2px;
       padding-inline-start: 10px;
     }
     .tree-area devices-bulk-menu {
       flex: 1;
       min-inline-size: 0;
+    }
+    .tree-row .nm[title] {
+      cursor: inherit;
     }
     .sdot {
       inline-size: 8px;
@@ -706,17 +735,31 @@ export class DevicesBuilding extends LitElement {
     .sdot.on {
       background: var(--sw-warning);
     }
+    /* the hover "כבה אזור" takes NO room in the row (owner 2026-09-29: an invisible button used to squeeze the names):
+       it floats over the count column, before the "⋯", while the row is hovered or focused; on a touch screen the
+       row's "⋯" carries the same action, so it is not drawn there at all */
     .quick {
+      position: absolute;
+      inset-block: 0;
+      inset-inline-end: var(--dv-tree-menu-w, 30px);
+      display: flex;
+      align-items: center;
       opacity: 0;
+      pointer-events: none;
       transition: opacity var(--sw-t-fast) var(--sw-ease);
+    }
+    .quick sw-button {
+      background: var(--dv-surface-solid, var(--sw-surface));
+      border-radius: var(--sw-r-sm);
     }
     .tree-area:hover .quick,
     .tree-area:focus-within .quick {
       opacity: 1;
+      pointer-events: auto;
     }
     @media (hover: none) {
       .quick {
-        opacity: 1;
+        display: none;
       }
     }
     .fcards {
@@ -1170,18 +1213,19 @@ export class DevicesBuilding extends LitElement {
   }
 
   private renderTreePanel(t: DeviceTree) {
-    const lit = (c: DeviceCounts) => (c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>` : nothing);
+    // the count column is always drawn (empty without lights), so the rows line up (owner 2026-09-29)
+    const lit = (c: DeviceCounts) => (c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>` : html`<span class="lit" aria-hidden="true"></span>`);
     return html`<nav class="tree" aria-label="עץ המבנה" data-devices-tree>
-      <button class=${classMap({ 'tree-row': true, selected: this.selected === 'all' })} data-tree="all" aria-current=${this.selected === 'all' ? 'true' : 'false'} @click=${() => (this.selected = 'all')}>
-        <sw-icon name="building" size=${15}></sw-icon><span class="nm">כל המבנה</span>${lit(t.building)}
+      <button class=${classMap({ 'tree-row': true, nomenu: true, selected: this.selected === 'all' })} data-tree="all" aria-current=${this.selected === 'all' ? 'true' : 'false'} @click=${() => (this.selected = 'all')}>
+        <sw-icon name="building" size=${15}></sw-icon><span class="nm" title="כל המבנה">כל המבנה</span>${lit(t.building)}
       </button>
       ${repeat(
         t.floors,
         (f) => f.floor_id,
         (f) => html`<div class="tree-group" data-tree-floor=${f.floor_id}>
           <div class="tree-floor">
-            <button class=${classMap({ 'tree-row': true, selected: this.selected === f.floor_id })} data-tree-select=${f.floor_id} aria-current=${this.selected === f.floor_id ? 'true' : 'false'} @click=${() => (this.selected = f.floor_id)}>
-              <sw-icon name="floor" size=${14}></sw-icon><span class="nm">${bidi(f.name)}</span>${lit(f.counts)}
+            <button class=${classMap({ 'tree-row': true, nomenu: !(this.bulkAllowed && f.can_bulk), selected: this.selected === f.floor_id })} data-tree-select=${f.floor_id} aria-current=${this.selected === f.floor_id ? 'true' : 'false'} @click=${() => (this.selected = f.floor_id)}>
+              <sw-icon name="floor" size=${14}></sw-icon><span class="nm" title=${f.name}>${bidi(f.name)}</span>${lit(f.counts)}
             </button>
             ${this.bulkAllowed && f.can_bulk
               ? html`<devices-bulk-menu scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${f.counts} variant="menu" label="פעולות לקומה" data-bulk-floor=${f.floor_id}></devices-bulk-menu>`
@@ -1240,8 +1284,8 @@ export class DevicesBuilding extends LitElement {
     const pills = this.pillsShown(c);
     const body =
       where === 'tree'
-        ? html`<span class=${classMap({ sdot: true, on })}></span><span class="nm">${bidi(a.name)}</span><span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>`
-        : html`<span class=${classMap({ sdot: true, on })}></span><span class="nm">${bidi(a.name)}</span>
+        ? html`<span class=${classMap({ sdot: true, on })}></span><span class="nm" title=${a.name}>${bidi(a.name)}</span>${c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>` : html`<span class="lit" aria-hidden="true"></span>`}`
+        : html`<span class=${classMap({ sdot: true, on })}></span><span class="nm" title=${a.name}>${bidi(a.name)}</span>
             <span class="pills">${pills.length
               ? pills.map((p) => html`<span class=${classMap({ warm: p.warm })} title=${p.label}><sw-icon .name=${p.icon} size=${12}></sw-icon>${p.on === null ? p.total : `${p.on}/${p.total}`}</span>`)
               : html`<span class="none">אין התקנים</span>`}${c.alarm ? html`<span class=${classMap({ warm: c.alarm !== 'disarmed' })} title="אזעקה"><sw-icon name="shield" size=${12}></sw-icon>${ALARM_HE[c.alarm] ?? c.alarm}</span>` : nothing}</span>`;
