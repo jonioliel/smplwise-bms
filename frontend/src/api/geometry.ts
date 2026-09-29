@@ -46,6 +46,21 @@ export interface GeometryResponse {
   copy_candidates?: CopyCandidate[];
   /** PUT only (T085 review M-a): floors whose twin of a changed stair was not updated - no map.edit there. */
   twins_skipped?: { floor_id: string; name: string }[];
+  /** CR-009 (owner answer 1), draft reads: the shared rooms' changes a publish of this floor publishes on their home floor. */
+  shared_pending?: SharedPending[];
+}
+/** One home floor whose shared room has changes a publish of this floor would publish there too. `changes` null with
+ * `invalid`: the room's content does not validate (the publish reports why). */
+export interface SharedPending {
+  home_floor_id: string | null;
+  home_floor_level?: number | null;
+  home_floor_name?: string;
+  zone_ids?: string[];
+  changes: number | null;
+  invalid?: boolean;
+  /** invalid: the room's draft items that keep it from validating - a publish can leave them out (`shared_skip`). */
+  items?: { id: string; message: string }[];
+  message?: string;
 }
 export interface GeometryDiff {
   collections: Record<string, { added: string[]; removed: string[]; changed: string[] }>;
@@ -71,6 +86,7 @@ export interface GeometryDiffResponse {
   issues: GeometryIssue[];
   counts: GeometryCounts;
   published_counts: GeometryCounts | null;
+  shared_pending?: SharedPending[];
 }
 export interface CalibrationResult {
   version: PlanVersion;
@@ -102,12 +118,18 @@ export function getGeometry(versionId: string, opts: { draft?: boolean; at?: str
 export async function geometryFor(bundle: MapBundle): Promise<GeometryDoc | null> {
   const ref = bundle.geometryRef;
   if (bundle.source !== 'api' || !ref || !bundle.planVersionId) return null;
-  const hit = byHash.get(ref.doc_hash);
+  // CR-009: a floor that shows a room of another floor (or shares one of its own) is keyed by its view hash, which moves
+  // when the other floor changes; the document's own hash does not
+  const key = ref.view_hash ?? ref.doc_hash;
+  const hit = byHash.get(key);
   if (hit) return hit;
   try {
     // A published or archived row is asked for by its publish instant, so an exact-history bundle gets the row it names.
-    const r = await getGeometry(bundle.planVersionId, ref.status === 'draft' ? { draft: true } : ref.published_at ? { at: ref.published_at } : {});
-    byHash.set(r.geometry.doc_hash, r.doc);
+    // CR-009: with shared rooms the instant matters beyond this floor's own row - an exact-history bundle asks for its own
+    // instant (the rooms shared then, as their home floors were then), the live map for the current structure.
+    const opts = ref.status === 'draft' ? { draft: true } : ref.view_hash ? (bundle.history === 'exact' && bundle.at ? { at: bundle.at } : {}) : ref.published_at ? { at: ref.published_at } : {};
+    const r = await getGeometry(bundle.planVersionId, opts);
+    byHash.set(key, r.doc);
     return r.doc;
   } catch {
     return null;
@@ -144,8 +166,9 @@ export const saveGeometryDraft = (versionId: string, doc: GeometryDoc, baseRevis
   put<GeometryResponse>(`plan-versions/${versionId}/geometry`, { doc, base_revision: baseRevision });
 /** A publish changes the version's timeline: the cached one is dropped (documents stay cached by hash), so an open
  * historical map shows the new structure at instants after it. */
-export async function publishGeometry(versionId: string): Promise<{ published: GeometryRow | null; diff: GeometryDiff; unchanged: boolean }> {
-  const r = await post<{ published: GeometryRow | null; diff: GeometryDiff; unchanged: boolean }>(`plan-versions/${versionId}/geometry/publish`);
+export async function publishGeometry(versionId: string, sharedSkip: string[] = []): Promise<{ published: GeometryRow | null; diff: GeometryDiff; unchanged: boolean; shared_published?: { home_floor_id: string; zone_ids: string[]; changes: number }[] }> {
+  const r = await post<{ published: GeometryRow | null; diff: GeometryDiff; unchanged: boolean; shared_published?: { home_floor_id: string; zone_ids: string[]; changes: number }[] }>(
+    `plan-versions/${versionId}/geometry/publish`, sharedSkip.length ? { shared_skip: sharedSkip } : undefined);
   timelines.delete(versionId);
   return r;
 }

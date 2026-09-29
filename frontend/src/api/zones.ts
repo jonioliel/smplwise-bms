@@ -39,9 +39,91 @@ export interface DetectResult {
 export const listZones = (floorId: string) => get<{ zones: SpatialZone[] }>(`floors/${floorId}/zones`);
 export const createZone = (floorId: string, body: { name: string; kind?: ZoneKind; polygon: ZonePoint[]; color?: string; searchable?: boolean }) =>
   post<SpatialZone>(`floors/${floorId}/zones`, body);
-/** `signal`: an abort (a timeout) for a caller that must not wait forever - the editor's zone saves (review of T085, R4). */
-export const updateZone = (id: string, body: { revision: number; name?: string; kind?: ZoneKind; polygon?: ZonePoint[]; color?: string; searchable?: boolean; label_pos?: string; level_id?: string; ceiling_height_m?: number; tags?: string[] }, signal?: AbortSignal) =>
-  signal ? api<SpatialZone>(`zones/${id}`, { method: 'PATCH', body: JSON.stringify(body), signal }) : patch<SpatialZone>(`zones/${id}`, body);
+/** `signal`: an abort (a timeout) for a caller that must not wait forever - the editor's zone saves (review of T085, R4).
+ * `fromFloorId` (CR-009): a shared room edited on another floor's map - its polygon is in that plan's coordinates. */
+export const updateZone = (id: string, body: { revision: number; name?: string; kind?: ZoneKind; polygon?: ZonePoint[]; color?: string; searchable?: boolean; label_pos?: string; level_id?: string; ceiling_height_m?: number; tags?: string[] }, signal?: AbortSignal, fromFloorId?: string) => {
+  const path = `zones/${id}${fromFloorId ? `?from_floor_id=${encodeURIComponent(fromFloorId)}` : ''}`;
+  return signal ? api<SpatialZone>(path, { method: 'PATCH', body: JSON.stringify(body), signal }) : patch<SpatialZone>(path, body);
+};
+
+// ---------------------------------------------------------------- shared space (CR-009)
+
+export interface ShareRequest {
+  floor_id: string;
+  duplicate_zone_id?: string | null;
+  rotation_deg?: number;
+  auto?: boolean;
+}
+export interface ShareCandidate {
+  zone_id: string;
+  name: string;
+  name_score: number;
+  overlap: number | null;
+  score: number;
+}
+export interface ShareAnchorFate {
+  anchor_id: string;
+  floor_id: string;
+  resource_type: 'camera' | 'ha_entity';
+  resource_id: string;
+  name: string | null;
+  /** member: stays where it is anchored and is shown on both floors; drop_duplicate: the other floor's copy of a camera the
+   * room already has (removed); kept: anchored elsewhere on the room's floor too - stays, not shared. */
+  action: 'member' | 'drop_duplicate' | 'kept';
+}
+/** What "הפוך לחלל משותף" will do (POST /zones/{id}/share/preview); the apply answers the same plus the ids it wrote. */
+export interface SharePreview {
+  zone: { id: string; name: string; floor_id: string; floor_name: string; floor_level: number };
+  other_floor: { id: string; name: string; level: number; version_id: string; revision: number };
+  same_frame: boolean;
+  placement: Record<string, unknown>;
+  duplicate: { zone_id: string; name: string; polygon: ZonePoint[] } | null;
+  candidates: ShareCandidate[];
+  /** The other floor's own outline of the room (its duplicate room, kept - the hall may be wider there), or one drawn from
+   * the room's when there is none. */
+  outline: { zone_id: string | null; kept: boolean; polygon: ZonePoint[] };
+  remove: { walls: number; openings: number; objects: number; labels: number; connectors: number; circuits: number; groups: number; zone: number };
+  /** The other floor's walls along its outline: they bound the room at that floor and stay. */
+  boundary_walls_kept: string[];
+  anchors: ShareAnchorFate[];
+  members: { resource_type: 'camera' | 'ha_entity'; resource_id: string }[];
+  /** The two outlines agree (the lower one inside the upper one); false = "ודא את יישור הקומות". */
+  aligned: boolean;
+  alignment_warning: string | null;
+  attach: { objects: number; labels: number; connectors: number; circuits: number; members: number };
+  share_id?: string;
+}
+export const previewShare = (zoneId: string, body: ShareRequest) => post<SharePreview>(`zones/${zoneId}/share/preview`, body);
+export const shareZone = (zoneId: string, body: ShareRequest) => post<SharePreview>(`zones/${zoneId}/share`, body);
+export const unshareZone = (zoneId: string, floorId: string) => del(`zones/${zoneId}/share/${floorId}`);
+/** Members of a shared room (security review B1): reach follows this list, never where an anchor lies. Adding one needs
+ * the share rights on every floor of the room. */
+export const addShareMember = (zoneId: string, resourceType: 'camera' | 'ha_entity', resourceId: string) =>
+  post<{ zone_id: string; added: boolean }>(`zones/${zoneId}/share/members`, { resource_type: resourceType, resource_id: resourceId });
+export const removeShareMember = (zoneId: string, resourceType: 'camera' | 'ha_entity', resourceId: string) =>
+  del(`zones/${zoneId}/share/members/${resourceType}/${encodeURIComponent(resourceId)}`);
+
+/** One member of a shared space as the READER may see it (owner 2026-09-30: each member filtered by the reader's own
+ * permissions - a camera they may not view is not listed). `floors`: where it is anchored ("קומה אחרת" for a floor the
+ * reader may not read). */
+export interface ShareMember {
+  resource_type: 'camera' | 'ha_entity';
+  resource_id: string;
+  kind: 'camera' | 'door' | 'device';
+  name: string;
+  added_at?: string;
+  floors: { floor_id: string; name: string }[];
+}
+export interface ShareMembers {
+  zone_id: string;
+  floors: { floor_id: string; name: string }[];
+  members: ShareMember[];
+  /** The share rights on every floor of the room: add and remove. Without them the list is read-only. */
+  can_manage: boolean;
+  /** can_manage only: the anchors of the room's floors that are not members yet. */
+  candidates?: ShareMember[];
+}
+export const listShareMembers = (zoneId: string) => get<ShareMembers>(`zones/${zoneId}/share/members`);
 export const deleteZone = (id: string, signal?: AbortSignal) => (signal ? api<void>(`zones/${id}`, { method: 'DELETE', signal }) : del(`zones/${id}`));
 export const detectZones = (floorId: string, strength: 'light' | 'medium' | 'strong' = 'medium') => post<DetectResult>(`floors/${floorId}/zones/detect`, { strength });
 export const acceptZones = (floorId: string, candidates: { polygon: ZonePoint[]; name?: string; kind?: ZoneKind }[], replaceAuto: boolean) =>

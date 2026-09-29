@@ -35,7 +35,9 @@ export function levelOrDefault(doc: Pick<GeometryDoc, 'levels'>, id: string | nu
  * without a level or on a removed level shows with the default level - where the 3D and its coverage put it (T087
  * review: the 2D filters compared the raw level id and hid such a pin under every filter). */
 export function anchorOnLevel(doc: Pick<GeometryDoc, 'levels'>, anchorLevel: string | null | undefined, filter: string | null): boolean {
-  return filter === null || levelOrDefault(doc, anchorLevel) === filter;
+  // CR-009: an anchor of a room another floor shares with this one sits on that floor's level ("<home>:<level>") and shows
+  // on every level filter - the room is seen whole whatever the filter
+  return filter === null || levelOrDefault(doc, anchorLevel) === filter || (typeof anchorLevel === 'string' && anchorLevel.includes(':'));
 }
 
 /** The `plan.levels` setting turned into a level filter for a floor just opened (0.1.89): `all` (or the setting

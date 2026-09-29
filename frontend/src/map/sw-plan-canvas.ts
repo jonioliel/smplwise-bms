@@ -9,6 +9,7 @@ import { symbolOf } from './plan-symbols';
 import { CoverageCache, hasWallsOnLevel } from './coverage';
 import { levelOrDefault, translatePolygon } from './studio-ops';
 import { temperatureText, type RoomStateLayer } from './room-state';
+import { tribuneEntrances } from './shared-space';
 
 export type MarkerKind = 'camera' | 'lock' | 'light' | 'binary_sensor';
 
@@ -103,6 +104,9 @@ export interface PlanZone {
   labelPos?: string;
   /** Detection candidate not yet saved: dashed outline. */
   candidate?: boolean;
+  /** CR-009: a room shown on two floors carries a small chip naming the floor its surface is on ("רצפה בקומה -1"), on
+   * both maps (owner decision 2); null / absent = none. */
+  chip?: string | null;
 }
 
 /** Area-weighted polygon centroid in the polygon's own units (vertex mean for degenerate rings). */
@@ -618,6 +622,81 @@ export class SwPlanCanvas extends LitElement {
       fill: var(--sw-danger);
       stroke: var(--sw-surface);
       pointer-events: none;
+    }
+    .zone .zchip {
+      pointer-events: none;
+    }
+    .shared-other {
+      pointer-events: none;
+    }
+    .shared-other polygon {
+      fill: none;
+      stroke: var(--sw-accent);
+      stroke-opacity: 0.75;
+    }
+    .shared-other.upper polygon {
+      fill: var(--sw-accent);
+      fill-opacity: 0.07;
+    }
+    .shared-other rect {
+      fill: rgba(255, 255, 255, 0.92);
+      stroke: var(--sw-accent);
+      stroke-opacity: 0.5;
+      stroke-width: 1;
+    }
+    .tribune-entry {
+      pointer-events: none;
+    }
+    .tribune-entry circle {
+      fill: var(--sw-accent);
+      stroke: #fff;
+      stroke-width: 1.5;
+    }
+    .tribune-entry path {
+      fill: none;
+      stroke: #fff;
+      stroke-width: 1.6;
+    }
+    .tribune-entry rect {
+      fill: rgba(255, 255, 255, 0.95);
+      stroke: var(--sw-accent);
+      stroke-opacity: 0.6;
+      stroke-width: 1;
+    }
+    .tribune-entry text {
+      font-family: var(--sw-font);
+      font-size: 10px;
+      font-weight: 600;
+      fill: var(--sw-text-1, #1f2937);
+      text-anchor: middle;
+      direction: rtl;
+      unicode-bidi: plaintext;
+    }
+    .shared-other text {
+      font-family: var(--sw-font);
+      font-size: 10px;
+      font-weight: 600;
+      fill: var(--sw-text-2);
+      text-anchor: middle;
+      direction: rtl;
+      unicode-bidi: plaintext;
+    }
+    .zone .zchip rect {
+      fill: var(--zc);
+      fill-opacity: 0.14;
+      stroke: var(--zc);
+      stroke-opacity: 0.6;
+      stroke-width: 1;
+      stroke-dasharray: 3 2;
+    }
+    .zone .zchip text {
+      font-family: var(--sw-font);
+      font-size: 10px;
+      font-weight: 600;
+      fill: var(--sw-text-2);
+      text-anchor: middle;
+      direction: rtl;
+      unicode-bidi: plaintext;
     }
     .zone .zl-bg {
       fill: rgba(255, 255, 255, 0.92);
@@ -1481,8 +1560,48 @@ export class SwPlanCanvas extends LitElement {
               <text class="zl" y="3.5">${z.name}</text>
             </g>`
           : nothing}
+        ${z.chip && (labelFits || !z.name) ? this.renderZoneChip(z, z.chip, live, c) : nothing}
         ${this.editable && own && !z.candidate ? this.renderZoneHandles(z, live) : nothing}
       </g>`;
+  }
+
+  /** CR-009 two-outline model: the other floor's outline of a shared room, brought onto this plan - on the court's floor
+   * the wider upper level (dashed outline, light tint, "מפלס עליון": the upper tribune rows drawn inside it are the
+   * hall's too), on the upper floor the court (thin dashed line, "מפלס תחתון"). Never hit-tested. */
+  private renderSharedOutlines() {
+    const entries = (this.geometry?.shared_spaces ?? []).filter((e) => (e.other_polygon?.length ?? 0) >= 3);
+    if (!entries.length) return nothing;
+    const inv = 1 / this.scale;
+    // owner 2026-09-30: a door of this (upper) floor that opens onto the shared tribune's entry row is its entrance
+    const doors = this.geometry ? tribuneEntrances(this.geometry) : [];
+    return svg`<g class="shared-outlines" aria-hidden="true">${doors.map((d) => {
+      const label = 'כניסה לטריבונה';
+      const lw = label.length * 6.2 + 12;
+      return svg`<g class="tribune-entry" data-tribune-entry=${d.objectId} data-tribune-door=${d.openingId} transform="translate(${(d.point[0] * this.planWidth).toFixed(1)} ${(d.point[1] * this.planHeight).toFixed(1)}) scale(${inv})">
+        <circle r="6" /><path d="M -3 -1.5 L 0 1.8 L 3 -1.5" /><g transform="translate(0 -16)"><rect x=${-lw / 2} y="-8" width=${lw} height="16" rx="8" /><text y="3.5">${label}</text></g>
+      </g>`;
+    })}${entries.map((e) => {
+      const pts = e.other_polygon!.map((p) => `${(p.x * this.planWidth).toFixed(1)},${(p.y * this.planHeight).toFixed(1)}`).join(' ');
+      const upper = e.other_label === 'מפלס עליון';
+      const top = e.other_polygon!.reduce((a, p) => (p.y < a.y ? p : a), e.other_polygon![0]);
+      const label = e.other_label ?? '';
+      const lw = Math.max(40, label.length * 6.2 + 12);
+      return svg`<g class="shared-other ${upper ? 'upper' : 'lower'}" data-shared-outline=${e.zone_id} data-shared-level=${upper ? 'upper' : 'lower'}>
+        <polygon points=${pts} stroke-width=${((upper ? 1.6 : 1.1) * inv).toFixed(2)} stroke-dasharray=${`${(6 * inv).toFixed(2)} ${(4 * inv).toFixed(2)}`} />
+        <g transform="translate(${(top.x * this.planWidth).toFixed(1)} ${(top.y * this.planHeight - 10 * inv).toFixed(1)}) scale(${inv})"><rect x=${-lw / 2} y="-8" width=${lw} height="16" rx="8" /><text y="3.5">${label}</text></g>
+      </g>`;
+    })}</g>`;
+  }
+
+  /** CR-009: the chip of a room shown on two floors, just under its name (or where the name would be). */
+  private renderZoneChip(z: PlanZone, chip: string, live: { x: number; y: number }[], c: { x: number; y: number }) {
+    const inv = 1 / this.scale;
+    const at = this.zoneLabelPoint(z, live, c);
+    const cw = Math.max(40, chip.length * 6.2 + 14);
+    const dy = (z.name && this.zoneLabels ? 20 : 0) + (this.roomStates?.rooms[z.id]?.temperature != null ? 22 : 0);
+    return svg`<g class="zchip" data-zone-chip=${z.id} transform="translate(${at.x.toFixed(1)} ${(at.y + dy * inv).toFixed(1)}) scale(${inv})">
+      <rect x=${-cw / 2} y="-8" width=${cw} height="16" rx="8" /><text y="3.5">${chip}</text>
+    </g>`;
   }
 
   /** The state layer of one zone (CR-006 1b): the lit tint, the presence tint with its fade, the temperature chip under
@@ -2473,6 +2592,7 @@ export class SwPlanCanvas extends LitElement {
             ${this.plan ?? nothing}
             ${this.renderGrid()}
             ${this.zones.map((z) => this.renderZone(z))}
+            ${this.renderSharedOutlines()}
             ${this.renderStructure()}
             ${this.renderGeomHits()}
             ${this.renderCandidates()}

@@ -28,6 +28,7 @@ import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescripti
 import type { ScenePreset } from '../map/scene-three';
 import type { PartSelectDetail } from '../map/sw-plan-3d';
 import { boundItemOf } from '../map/part-select';
+import { zonesWithChips } from '../map/shared-space';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
 import { sameRefs } from '../map/memo';
 import { initialLevel } from '../map/studio-ops';
@@ -71,6 +72,7 @@ export class InvestigateEventDetail extends LitElement {
   private pollTimer = 0;
   /** T087: the map card's 3D, opened from the event's camera ("מבט מהמצלמה"). Read-only: no actions from the event page. */
   @state() private view3d = false;
+  private default3d = false;
   @state() private threeState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
   @state() private catalog3d: Catalog3DLookup | null = null;
   @state() private selected3d: string | null = null;
@@ -306,6 +308,12 @@ export class InvestigateEventDetail extends LitElement {
 
   protected updated(changed: Map<string, unknown>) {
     if (changed.has('eventId') && changed.get('eventId') !== undefined) void this.load();
+    // the setting map.default_view (owner 2026-09-29): a floor opens in 3D once its scene is there (no per-device memory
+    // of the last view existed before, and none is added: the toggle still switches for the visit)
+    if (this.default3d && !this.view3d && this.hasScene && webglAvailable()) {
+      this.default3d = false;
+      void this.toggle3d();
+    }
   }
 
   private async load() {
@@ -373,6 +381,7 @@ export class InvestigateEventDetail extends LitElement {
       void productSettings()
         .then((s) => {
           if (this.bundle === b) this.level = initialLevel(s['plan.levels'], b); // 0.1.89: fixed for the floor, no level bar here
+          if (this.bundle === b) this.default3d = s['map.default_view'] === '3d' && !this.view3d;
         })
         .catch(() => {}); // settings unavailable: keep every level shown
       if (b.source === 'api') {
@@ -662,7 +671,7 @@ export class InvestigateEventDetail extends LitElement {
                           .cameras=${this.bundle.anchors.filter((a) => a.resource_type === 'camera').map((a) => ({ id: a.id, label: entityName(a) }))} exportName=${`plan-3d-${loc.floor_name}-${ev.id}`}
                           @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`
                       : nothing}
-                    <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} .planWidth=${this.bundle.width} .planHeight=${this.bundle.height} .imageUrl=${this.bundle.imageUrl} .hideImage=${!this.planImage} .plan=${this.bundle.planSvg} .markers=${this.markers} .selectedId=${loc.anchor_id} .zones=${this.bundle.zones} .geometry=${this.geometry} .structureLevel=${this.level} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(this.bundle.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} alwaysLabel dimEntities></sw-plan-canvas>
+                    <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} .planWidth=${this.bundle.width} .planHeight=${this.bundle.height} .imageUrl=${this.bundle.imageUrl} .hideImage=${!this.planImage} .plan=${this.bundle.planSvg} .markers=${this.markers} .selectedId=${loc.anchor_id} .zones=${zonesWithChips(this.bundle.zones)} .geometry=${this.geometry} .structureLevel=${this.level} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(this.bundle.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} alwaysLabel dimEntities></sw-plan-canvas>
                     ${this.threeState === 'loading' ? html`<div class="load3d" data-3d-loading>טוען תלת-ממד…</div>` : nothing}
                   </div>
                   ${webglAvailable() ? nothing : html`<div class="note" data-event-3d-unavailable>${WEBGL_UNAVAILABLE_HE}</div>`}

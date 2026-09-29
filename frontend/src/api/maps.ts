@@ -14,6 +14,8 @@ export interface MapBundle {
   source: 'api' | 'demo';
   floorId: string;
   floorName: string;
+  /** The floor's number (CR-009: the share dialog's default - the room's surface is on the lower floor). */
+  floorLevel?: number | null;
   buildingName: string;
   siteName: string;
   /** Raster background (API) or synthetic SVG (demo). Coordinates are normalized to width/height. */
@@ -111,6 +113,7 @@ export async function loadMap(floorId: string, draft = false, at?: string): Prom
     source: 'api',
     floorId: m.floor.id,
     floorName: m.floor.name,
+    floorLevel: m.floor.level,
     buildingName: m.building.name,
     siteName: m.site.name,
     width: m.plan?.width_px ?? 1200,
@@ -190,11 +193,13 @@ export function entityName(a: { resource_type: string; label: string | null; cam
 
 export const createAnchor = (floorId: string, body: { resource_type: 'camera' | 'ha_entity'; resource_id: string; x: number; y: number; rotation_degrees?: number; field_of_view_degrees?: number | null; layer_id?: string; label?: string | null; level_id?: string | null; mount_height_m?: number | null; tilt_deg?: number | null }) =>
   post<Anchor>(`floors/${floorId}/anchors`, body);
-export const updateAnchor = (id: string, body: { revision: number; x?: number; y?: number; rotation_degrees?: number; field_of_view_degrees?: number | null; label?: string | null; coverage_radius?: number | null; coverage_polygon?: [number, number][] | null; label_pos?: string; level_id?: string | null; mount_height_m?: number | null; tilt_deg?: number | null }) =>
-  patch<Anchor>(`map-anchors/${id}`, body);
+/** `fromFloorId` (CR-009): the anchor belongs to a room another floor owns and is edited on this floor's map - the
+ * server maps the position back to the room's home plan. */
+export const updateAnchor = (id: string, body: { revision: number; x?: number; y?: number; rotation_degrees?: number; field_of_view_degrees?: number | null; label?: string | null; coverage_radius?: number | null; coverage_polygon?: [number, number][] | null; label_pos?: string; level_id?: string | null; mount_height_m?: number | null; tilt_deg?: number | null }, fromFloorId?: string) =>
+  patch<Anchor>(`map-anchors/${id}${fromFloorId ? `?from_floor_id=${encodeURIComponent(fromFloorId)}` : ''}`, body);
 /** S4: items placed on an earlier plan version - mapped through the crops (`crop`) or re-stamped after a visual check (`accept`). */
 export const realignAnchors = (floorId: string, mode: 'crop' | 'accept') => post<{ mode: string; moved: number; skipped: number; needs_alignment: boolean }>(`floors/${floorId}/anchors/realign`, { mode });
-export const deleteAnchor = (id: string) => del(`map-anchors/${id}`);
+export const deleteAnchor = (id: string, fromFloorId?: string) => del(`map-anchors/${id}${fromFloorId ? `?from_floor_id=${encodeURIComponent(fromFloorId)}` : ''}`);
 
 // ---- cameras ----
 

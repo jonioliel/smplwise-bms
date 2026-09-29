@@ -15,6 +15,7 @@ import { blockingSegments, clipCoverage, isOpenState, type Seg } from './coverag
 import { anchor3d } from './anchor-3d';
 import type { MeshPart } from '../api/plan-catalog';
 import { temperatureText, type RoomStateLayer } from './room-state';
+import { plateHoles, sharedUpperLevel, sharedVolumes, tribuneEntrances, tribuneLayout, volumeHeights, type SharedVolume, type TribuneEntrance } from './shared-space';
 
 export type { MeshPart };
 export type PartKind = 'floor' | 'room' | 'tint' | 'marker' | 'chip' | 'label' | 'wall' | 'lintel' | 'sill' | 'head' | 'door' | 'window' | 'object' | 'connector' | 'camera' | 'cone' | 'entity' | 'glow';
@@ -168,6 +169,11 @@ const RAMP_STEP_M = 0.5;
 const GLOW_DISTANCE_M = 6;
 const MIN_STEP_M = 0.05;
 const LEVEL_PAD_M = 0.5;
+/** CR-009: the thin walls of the other floor's outline of a shared room. */
+const SHARED_WALL_M = 0.15;
+/** CR-009 (owner 2026-09-30): the access landing on a tribune's entry row - the stairs model's landing plate
+ * (LANDING_PLATE_M, the circulation colour), this wide across the row. */
+const ENTRY_LANDING_W_M = 1.6;
 /** The landing of a stair drawn as a plate this thick under its walking surface (T085). */
 export const LANDING_PLATE_M = 0.2;
 
@@ -327,6 +333,12 @@ class Builder {
   readonly defaultLevel: GeomLevel;
   readonly layers: SceneLayers;
   readonly catalogLookup: CatalogLookup | undefined;
+  /** CR-009: wall id -> the height of the shared room's volume it bounds. */
+  readonly volumes: Map<string, number>;
+  /** CR-009 two-outline model: the shared rooms' volumes from their two outlines. */
+  readonly sharedVols: SharedVolume[];
+  /** CR-009 (owner 2026-09-30): the doors of the upper floor that open onto a shared tribune, by object id. */
+  private entrancesCache: Map<string, TribuneEntrance> | null = null;
   private segCache = new Map<string, Seg[]>();
 
   constructor(readonly input: SceneInput) {
@@ -336,6 +348,8 @@ class Builder {
     this.levels = input.doc.levels.length ? [...input.doc.levels].sort(byId) : [{ id: defaultLevelId(input.doc), name: '', elevation_m: 0, ceiling_height_m: 2.8, is_default: true }];
     this.defaultLevel = this.levels.find((l) => l.id === defaultLevelId(input.doc)) ?? this.levels[0];
     this.layers = { ...DEFAULT_LAYERS, ...(input.layers ?? {}) };
+    this.volumes = volumeHeights(input.doc);
+    this.sharedVols = sharedVolumes(input.doc);
     const cat = input.catalog;
     this.catalogLookup = cat ? (id) => { const c = cat(id); return c ? { shape: c.shape, icon: 'box', color_token: c.color_token } : undefined; } : undefined;
   }
@@ -349,7 +363,8 @@ class Builder {
   }
   shown(levelId: string | null | undefined): boolean {
     const want = this.input.level ?? null;
-    return want === null || this.level(levelId).id === want;
+    const lv = this.level(levelId);
+    return want === null || lv.id === want || !!lv.shared; // CR-009: a shared room shows on every level filter
   }
   add(p: ScenePart): void {
     this.parts.push({ ...p, position: v3(...p.position), size: v3(...p.size), rotation: v3(...p.rotation), polygon: p.polygon?.map(([x, z]): [number, number] => [r4(x), r4(z)]) });
@@ -357,9 +372,12 @@ class Builder {
   box(id: string, kind: PartKind, userData: ScenePart['userData'], centre: Vec3, size: Vec3, yaw: number, color: string, levelId: string | null, opacity = 1, pitch = 0, instanced = true): void {
     this.add({ id, kind, shape: 'box', position: centre, size, rotation: [pitch, yaw, 0], color, opacity, group: instanced ? groupKey('box', color, opacity) : null, level_id: levelId, userData });
   }
-  /** A wall's height: its own, else up to the ceiling of its level from its base. */
+  /** A wall's height: its own, else up to the ceiling of its level from its base; a wall of a shared room (CR-009) rises
+   * at least through the room's whole volume - the double-height hall's walls pass the floor above it. */
   wallHeight(w: GeomWall, lv: GeomLevel): number {
-    return isNum(w.height_m) && w.height_m > 0 ? w.height_m : Math.max(MIN_STEP_M, lv.ceiling_height_m - (w.base_z_m || 0));
+    const own = isNum(w.height_m) && w.height_m > 0 ? w.height_m : Math.max(MIN_STEP_M, lv.ceiling_height_m - (w.base_z_m || 0));
+    const volume = this.volumes.get(w.id);
+    return volume ? Math.max(own, volume - (w.base_z_m || 0)) : own;
   }
 
   /** The leaves of a door as the 2D draws them (geometry.ts door(), missing swing = right): none - no leaf; sliding -
@@ -438,13 +456,18 @@ class Builder {
     const W = this.m(this.input.width);
     const D = this.m(this.input.height);
     const wells = this.stairwells();
+    // CR-009: the floor's own plates are open over a room another floor shares with it from below (the double-height
+    // hall seen from its upper floor: no slab in the middle); the room's own levels keep their plates
+    const rooms = plateHoles(this.input.doc, this.input.width, this.input.height, this.scale);
     for (const lv of this.levels) {
       if (!this.shown(lv.id)) continue;
-      const box = lv.id === this.defaultLevel.id ? ([0, 0, W, D] as [number, number, number, number]) : this.bounds(lv.id);
+      // CR-009: the court level of a room another floor shares from below spans the room's lower outline
+      const vol = lv.shared ? this.sharedVols.find((v) => v.levelId === lv.id && v.lowerWalls) : undefined;
+      const box = lv.id === this.defaultLevel.id ? ([0, 0, W, D] as [number, number, number, number]) : vol ? this.outlineBox(vol.lower, LEVEL_PAD_M / 2) : this.bounds(lv.id);
       if (!box) continue;
       const [x0, z0, x1, z1] = [Math.max(0, box[0]), Math.max(0, box[1]), Math.min(W, box[2]), Math.min(D, box[3])];
       // review M2 / M-c: the plate is cut around each well of the stairs going down from this level, so they stay visible
-      const pieces = plateAround([x0, z0, x1, z1], wells.get(lv.id) ?? []);
+      const pieces = plateAround([x0, z0, x1, z1], [...(wells.get(lv.id) ?? []), ...(lv.shared ? [] : rooms)]);
       let n = 0;
       for (const [a0, b0, a1, b1] of pieces) {
         if (a1 - a0 < 1e-4 || b1 - b0 < 1e-4) continue;
@@ -452,6 +475,49 @@ class Builder {
         n++;
       }
     }
+  }
+
+  /** The bounding box of a normalized outline, in metres, padded. */
+  private outlineBox(poly: { x: number; y: number }[], pad: number): Box2 {
+    const xs = poly.map((p) => this.m(p.x * this.input.width));
+    const zs = poly.map((p) => this.m(p.y * this.input.height));
+    return [Math.min(...xs) - pad, Math.min(...zs) - pad, Math.max(...xs) + pad, Math.max(...zs) + pad];
+  }
+
+  /** CR-009 two-outline model (owner 2026-09-29: the hall is wider on the upper floor): the lower outline stands from
+   * the court up to the upper floor's level, the upper outline from there up to the upper ceiling. Each floor's own walls
+   * already stand along its own outline; this adds the other floor's outline as thin walls ("vol:<zone>#lower.<i>" /
+   * "#upper.<i>"). Nothing horizontal: owner 2026-09-30 - the gap between the outlines is the tribune's footprint, open
+   * to the hall; only the objects the user places stand in it. */
+  sharedVolume(): void {
+    if (!this.layers.structure || !this.sharedVols.length) return;
+    const { width, height } = this.input;
+    const pts = (poly: { x: number; y: number }[]): [number, number][] => poly.map((p): [number, number] => [this.m(p.x * width), this.m(p.y * height)]);
+    for (const v of this.sharedVols) {
+      if (!this.shown(v.levelId)) continue;
+      const ud = { id: `vol:${v.zoneId}`, kind: 'shared-volume' };
+      const run = (poly: [number, number][], y0: number, y1: number, tag: string): void => {
+        const h = y1 - y0;
+        if (!(h > MIN_STEP_M)) return;
+        for (let i = 0; i < poly.length; i++) {
+          const [ax, az] = poly[i];
+          const [bx, bz] = poly[(i + 1) % poly.length];
+          const len = Math.hypot(bx - ax, bz - az);
+          if (len < 1e-4) continue;
+          this.box(`vol:${v.zoneId}#${tag}.${i}`, 'wall', ud, [(ax + bx) / 2, y0 + h / 2, (az + bz) / 2], [len + SHARED_WALL_M, h, SHARED_WALL_M], -deg(Math.atan2(bz - az, bx - ax)), 'map-structure', v.levelId);
+        }
+      };
+      const lower = pts(v.lower);
+      const upper = pts(v.upper);
+      if (v.lowerWalls) run(lower, v.lowerElev, v.upperElev, 'lower');
+      if (v.upperWalls) run(upper, v.upperElev, v.topElev, 'upper');
+    }
+  }
+
+  /** The upper floor's doors onto shared tribunes (tribuneEntrances), computed once per scene. */
+  private entrance(objectId: string): TribuneEntrance | undefined {
+    if (!this.entrancesCache) this.entrancesCache = new Map(tribuneEntrances(this.input.doc).map((e) => [e.objectId, e]));
+    return this.entrancesCache.get(objectId);
   }
 
   /** The stairwells of each level (review M2, M-c): the footprint, in metres, of each stair that goes down from it to
@@ -659,6 +725,33 @@ class Builder {
       // share the height difference evenly, so the top row meets the floor the tribune is placed on
       const link = o.params?.connects_levels;
       const lower = typeof link === 'string' ? this.levels.find((l) => l.id === link && l.elevation_m < y0 - 1e-9) : undefined;
+      // CR-009 (owner 2026-09-30): a tribune of a shared space rises from the court past the upper floor's level - its
+      // rows share the rise to that level so one row (the entry row) tops out exactly there, with an access landing and,
+      // when a door of the upper floor opens onto it, a threshold from the door to the landing
+      const upperLevel = lower ? null : sharedUpperLevel(this.input.doc, o);
+      const lay = upperLevel !== null ? tribuneLayout(y0, hM, rowsRaw, stepRaw, upperLevel) : null;
+      if (lay && lay.entry !== null) {
+        const n = lay.rows;
+        const rd = d / n;
+        for (let i = 0; i < n; i++) {
+          const [ox, oz] = turned(0, -d / 2 + (i + 0.5) * rd, yaw);
+          const h = lay.step * (i + 1);
+          this.box(`obj:${o.id}#${i}`, 'object', ud, [cx + ox, y0 + h / 2, cz + oz], [w, h, rd], yaw, color, levelId, 1, 0, false);
+        }
+        const door = this.entrance(o.id);
+        const lw = Math.min(w, ENTRY_LANDING_W_M);
+        const along = door ? Math.max(-(w - lw) / 2, Math.min((w - lw) / 2, door.along)) : 0;
+        const [lx, lz] = turned(along, -d / 2 + (lay.entry + 0.5) * rd, yaw);
+        const top = y0 + lay.step * (lay.entry + 1);
+        this.box(`obj:${o.id}#landing`, 'object', ud, [cx + lx, top + 0.02 - LANDING_PLATE_M / 2, cz + lz], [lw, LANDING_PLATE_M, rd], yaw, 'obj-circulation', levelId, 1, 0, false);
+        if (door) {
+          const [px, pz] = [this.m(door.point[0] * this.input.width), this.m(door.point[1] * this.input.height)];
+          const [qx, qz] = [cx + lx, cz + lz];
+          const len = Math.hypot(qx - px, qz - pz);
+          if (len > 0.05) this.box(`obj:${o.id}#entry`, 'object', ud, [(px + qx) / 2, top + 0.02 - LANDING_PLATE_M / 2, (pz + qz) / 2], [len, LANDING_PLATE_M, Math.min(lw, 1.2)], -deg(Math.atan2(qz - pz, qx - px)), 'obj-circulation', levelId, 1, 0, false);
+        }
+        return;
+      }
       const floor = lower ? lower.elevation_m : y0;
       for (let i = 0; i < rows; i++) {
         const [ox, oz] = turned(0, -d / 2 + (i + 0.5) * rowD, yaw);
@@ -838,6 +931,7 @@ export function buildScene(input: SceneInput): SceneDescription {
   b.floors();
   b.rooms();
   b.structure(prims);
+  b.sharedVolume();
   b.objects(prims);
   b.connectors(prims);
   b.anchors();

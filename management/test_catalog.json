@@ -5579,5 +5579,83 @@
     "evidence": [],
     "executed_at": null,
     "notes": "Planned in CR-012 (2026-09-30); lab host names, addresses and keys stay out of the evidence."
+  },
+  {
+    "id": "AT199",
+    "requirement_ids": [
+      "R199"
+    ],
+    "task_ids": [
+      "T097"
+    ],
+    "title": "חלל משותף 1 — מודל, צירוף בקריאה ועריכה משתי הקומות",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Seeded sample with a building of two floors, each with a published plan"
+    ],
+    "procedure": [
+      "Backend: tests/test_shared_spaces.py - placement maths and membership, attach on draft / published / ?at= reads (namespaced ids, never stored, never in doc_hash, ETag follows the home floor), write routing from the other floor (change, add, delete, clipped wall read-only, moved-out refused, 409 when the home draft moved), audit rows.",
+      "Frontend unit: the room renders on both floors with namespaced ids; the rebase merges shared items."
+    ],
+    "expected": "A room (spatial zone) can be shared with a second floor of its building (shared_spaces row, migration 0036; placement same_frame or fit): the HOME floor's plan document keeps the room's walls, openings, objects (tribunes), labels, connectors and circuits and its anchors keep the room's cameras and devices; every read of the other floor (draft, published, ?at=, export, map bundle, 3D, building page) attaches that subset transformed by the placement with namespaced ids, computed on read and never stored or hashed (ETag and bundle view_hash follow it); an edit of the room made from the other floor (map.edit on either floor) is routed to the home floor's draft in the same request, only inside the room's polygon, with a 409 + rebase when the home draft moved, and audited naming both floors (CR-009 §3-§5).",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-009 (2026-09-29)."
+  },
+  {
+    "id": "AT200",
+    "requirement_ids": [
+      "R200"
+    ],
+    "task_ids": [
+      "T097"
+    ],
+    "title": "חלל משותף 2 — הרשאות: הגעה מכל אחת מהקומות, השלילה גוברת",
+    "kind": "security/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Seeded sample with a building of two floors, each with a published plan"
+    ],
+    "procedure": [
+      "Backend: scoped users - floor-B-only user reaches the hall's cameras (list, live/snapshot authorization, events, push reach) and entities, not other floor-A cameras; a user denied on the home floor or on the hall camera sees nothing of it; sharing without placement reach on a camera is refused; an un-share removes the reach on the next request; camera-only readers get the drawing without circuits."
+    ],
+    "expected": "A principal whose scope includes EITHER floor of a shared room reaches its zone, its cameras (live, playback, snapshots, events, push) and its entities and device actions exactly as if the room were on their floor, and nothing else of the home floor; one helper (services/shared_spaces.py) extends every reach site (rbac.camera_floors/scope_chain, access._chains/floor_cameras, ha_scope.placements, events place filter, search, site tree); an explicit deny still wins; sharing needs map.edit + placement.edit on both floors and placement reach on every camera of the room; an un-share removes the reach on the next request (CR-009 §6).",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-009 (2026-09-29)."
+  },
+  {
+    "id": "AT201",
+    "requirement_ids": [
+      "R201"
+    ],
+    "task_ids": [
+      "T097"
+    ],
+    "title": "חלל משותף 3 — המרה, ממשק ותלת־ממד",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Seeded sample with a building of two floors, each with a published plan"
+    ],
+    "procedure": [
+      "Backend: conversion preview and apply on a two-floor sample (duplicate walls/objects removed, duplicate zone deleted, anchors re-bound or dropped, audit).",
+      "Frontend unit: 3D plate cut around the shared room, court at the home datum, walls through both floors.",
+      "Live spec (Playwright, sample with two floors): convert a duplicate hall into a shared one, see it whole on both floors, edit a tribune from the upper floor, see it change on the lower one."
+    ],
+    "expected": "\"הפוך לחלל משותף\" converts the owner's two drawings of one room: choose the other floor and the duplicate room (auto-detected by name and overlap), the source floor (default the lower one), a preview of what is removed on the other floor and of the anchors re-bound to the shared room (never lost), then an atomic apply; the room renders identically on both floors' live map, editor, history map and 3D with a small chip naming the floor of its surface; the editor on the other floor edits the room's items with the hint 'חלל משותף · השינוי יופיע גם בקומה X'; in 3D the upper plate is cut around the room, the walls rise through both floors and the court sits at the home datum (CR-009 §7-§8).",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-009 (2026-09-29)."
   }
 ]

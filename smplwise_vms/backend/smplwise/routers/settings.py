@@ -44,6 +44,8 @@ DEFAULTS: dict[str, str] = {
     "history.ha_secondary": "false",  # S2: the HA recorder fills entity states the local history does not know (marked as secondary)
     "plan.estimates": "true",  # Plan Studio: show estimated metres (≈) before a plan is calibrated; false hides metres until calibration (owner decision 2026-09-23)
     "plan.levels": "all",  # default levels view on every map: all levels together, or the floor's default level only (owner decision 2026-09-26)
+    "map.shared_levels": "show",  # CR-009: the levels of a shared room's home floor in the other floor's level bar ("מפלס ראשי · קומה -1"): show | hide (owner 2026-09-29)
+    "map.default_view": "2d",  # the view a floor map opens in - live map, history map, event page: 2d | 3d (owner 2026-09-29); a device's own last choice wins
     "plan.quality": "2",  # CR-006: the 3D quality level a browser opens with (1 schematic, 2 shadows/materials/cutaway); a browser can override it for itself and falls back to 1 on a slow device
     "plan.presence_fade": "3",  # CR-006 1b: the presence tint on the floor map fades this many minutes after the last motion; "off" = the tint only while a sensor is on (owner decision 2026-09-28: on/off + minutes per installation)
     "playback.max_sessions": "4",  # playback sessions open at once (each is one NVR RTSP playback stream)
@@ -165,6 +167,8 @@ class SettingsPatch(BaseModel):
     history_ha_secondary: str | None = Field(default=None, pattern="^(true|false)$", alias="history.ha_secondary")
     plan_estimates: str | None = Field(default=None, pattern="^(true|false)$", alias="plan.estimates")
     plan_levels: str | None = Field(default=None, pattern="^(all|default)$", alias="plan.levels")
+    map_shared_levels: str | None = Field(default=None, pattern="^(show|hide)$", alias="map.shared_levels")
+    map_default_view: str | None = Field(default=None, pattern="^(2d|3d)$", alias="map.default_view")
     plan_quality: str | None = Field(default=None, pattern="^(1|2)$", alias="plan.quality")
     plan_presence_fade: str | None = Field(default=None, pattern="^(off|[1-9]|[1-9][0-9]|1[01][0-9]|120)$", alias="plan.presence_fade")  # off, or 1-120 minutes
     ai_provider: str | None = Field(default=None, pattern="^(none|local|external)$", alias="ai.provider")

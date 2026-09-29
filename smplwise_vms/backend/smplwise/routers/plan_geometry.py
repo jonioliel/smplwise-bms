@@ -15,12 +15,13 @@ from pydantic import BaseModel, Field, StringConstraints
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
-from ..db import new_id, now_iso, unlocked
+from ..db import new_id, now_iso, rollback_and_restart, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, authorize, require
 from ..services import geometry_store as store
 from ..services import plan_catalog
 from ..services import plan_detect
+from ..services import shared_spaces
 from ..services import plan_geometry as pg
 from ..services import plan_geometry_render as render
 from ..services.access import floor_reach, require_floor_read
@@ -73,21 +74,48 @@ def _far_ctx(conn: sqlite3.Connection, principal: Principal | None, published: b
     return store.FarContext(conn, published=published, can_read=(lambda fid: floor_reach(conn, principal, fid) is not None) if principal is not None else None)
 
 
+def _can_attach(conn: sqlite3.Connection, principal: Principal | None):
+    """CR-009 §6: a shared room's content is attached for every reader of the other floor except one explicitly denied
+    map.read on the room's home floor (deny wins)."""
+    if principal is None:
+        return None
+    return lambda home_floor_id: authorize(conn, principal, "map.read", ("floor", home_floor_id)).reason != "explicit_deny"
+
+
+def _shown(conn: sqlite3.Connection, principal: Principal | None, floor_id: str, doc: dict[str, Any], ctx: store.FarContext, mode: str,
+           at: str | None = None, circuits: bool = True) -> dict[str, Any]:
+    """What a reader gets of a stored document: `far` on its cross-floor connectors (T085 review M4) and the rooms other
+    floors share with it (CR-009) - both computed now, neither stored."""
+    can_name = (lambda fid: floor_reach(conn, principal, fid) is not None) if principal is not None else None  # review L1: names of readable floors only
+    return shared_spaces.attach(conn, floor_id, store.attach_far(conn, floor_id, doc, ctx), mode, at, can_attach=_can_attach(conn, principal), circuits=circuits,
+                                can_name=can_name)
+
+
 def _payload(conn: sqlite3.Connection, version: sqlite3.Row, row: sqlite3.Row | None, doc: dict[str, Any], principal: Principal | None = None,
              published: bool = False, ctx: store.FarContext | None = None, shown: dict[str, Any] | None = None) -> dict[str, Any]:
-    """The document as the reader gets it - with `far` on its cross-floor connectors, computed now (review M4) - and its
-    issues. `ctx` / `shown`: what the caller already computed (the published read computes `far` first, for its ETag)."""
+    """The document as the reader gets it - with `far` on its cross-floor connectors, computed now (review M4), and the
+    shared rooms attached (CR-009) - and its issues. `ctx` / `shown`: what the caller already computed (the published
+    read computes both first, for its ETag)."""
     ctx = ctx or _far_ctx(conn, principal, published)
-    shown = shown if shown is not None else store.attach_far(conn, version["floor_id"], doc, ctx)
+    shown = shown if shown is not None else _shown(conn, principal, version["floor_id"], doc, ctx, "published" if published else "draft")
     published_now = store.published_row(conn, version["id"])
     geometry = store.row_api(row) if row is not None else {
         "id": None, "plan_version_id": version["id"], "floor_id": version["floor_id"], "status": "new", "revision": 0, "doc_hash": store.doc_hash(doc),
         "created_at": None, "updated_at": None, "published_at": None, "published_by": None, "archived_at": None,
     }
-    return {"geometry": geometry, "doc": shown,
+    # CR-009: two real outlines check the placement - the lower one must fall inside the upper one
+    misaligned = [{"code": "shared_alignment", "severity": "warning", "structural": False, "id": e.get("zone_id"), "path": "shared_spaces",
+                   "message": "ודא את יישור הקומות: המתאר התחתון של החלל המשותף לא נופל בתוך המתאר העליון."}
+                  for e in shown.get("shared_spaces") or [] if e.get("aligned") is False]
+    out = {"geometry": geometry, "doc": shown,
             "issues": [i for i in pg.validate(doc, plan_catalog.item_index(conn)) if not i["structural"]] + store.anchor_issues(conn, version["floor_id"], doc)
-            + store.link_issues(conn, version["floor_id"], doc, ctx),
+            + store.link_issues(conn, version["floor_id"], doc, ctx) + misaligned,
             "published_hash": published_now["doc_hash"] if published_now is not None else None}
+    if not published and principal is not None and any(e.get("role") == "mirror" for e in shown.get("shared_spaces") or []) and _is_editor_version(conn, version):
+        # the editor's publish button: the shared room's changes waiting on the home floor count as something to publish
+        out["shared_pending"] = shared_spaces.shared_pending(conn, version["floor_id"], can_write=_can_publish_home(conn, principal),
+                                                             can_name=lambda fid: floor_reach(conn, principal, fid) is not None, validate=False)
+    return out
 
 
 def _far_tag(doc: dict[str, Any]) -> str:
@@ -96,6 +124,18 @@ def _far_tag(doc: dict[str, Any]) -> str:
     `far` the reader gets, so it tells nothing of a floor the reader may not read (review L-d)."""
     fars = [c.get("far") for c in doc.get("connectors") or [] if isinstance(c, dict) and c.get("far") is not None]
     return "" if not fars else "-f" + store.doc_hash({"far": fars})[:12]
+
+
+def _shared_tag(doc: dict[str, Any]) -> str:
+    """CR-009: the part of the ETag that follows the shared rooms - the home floor's document hash, the placement, the
+    polygon and the names each entry carries - as this reader gets them (a reader denied the home floor gets none)."""
+    entries = doc.get("shared_spaces")
+    if not entries:
+        return ""
+    # review L1: exactly what this reader gets of the shared rooms - the entries and the attached content - so a publish
+    # of the home floor that does not touch the room leaves the ETag as it was
+    items = [i for c in (*shared_spaces.MARKED_COLLECTIONS, "levels") for i in doc.get(c) or [] if isinstance(i, dict) and "shared" in i]
+    return "-s" + store.doc_hash({"shared": entries, "items": items})[:12]
 
 
 def _editable(conn: sqlite3.Connection, principal: Principal, version_id: str) -> sqlite3.Row:
@@ -122,6 +162,7 @@ def get_geometry(version_id: str, request: Request, draft: bool = False, at: str
         reach = "floor"
     else:
         reach = require_floor_read(conn, principal, v["floor_id"])  # T055: camera-scoped readers get the drawing only
+    iso: str | None = None
     if at:
         try:
             iso = parse_utc(at).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -134,10 +175,12 @@ def get_geometry(version_id: str, request: Request, draft: bool = False, at: str
         raise not_found("אין מבנה מפורסם לגרסה הזו.")
     # the walls, rooms and openings locate the camera; the circuits name HA entities a camera reader holds nothing on
     doc = store.load_doc(row) if reach == "floor" else {k: v2 for k, v2 in store.load_doc(row).items() if k != "circuits"}
-    # review L-d: only `far` is computed before the 304 check (the ETag follows it); issues and the rest only on a 200
+    # review L-d: only `far` and the shared rooms are computed before the 304 check (the ETag follows them); issues and
+    # the rest only on a 200
     ctx = _far_ctx(conn, principal, published=True)
-    shown = store.attach_far(conn, v["floor_id"], doc, ctx)
-    etag = f'"{row["doc_hash"]}{_far_tag(shown)}"' if reach == "floor" else f'"{row["doc_hash"]}{_far_tag(shown)}-c"'
+    shown = _shown(conn, principal, v["floor_id"], doc, ctx, "at" if iso else "published", iso, circuits=reach == "floor")
+    tags = f"{_far_tag(shown)}{_shared_tag(shown)}"
+    etag = f'"{row["doc_hash"]}{tags}"' if reach == "floor" else f'"{row["doc_hash"]}{tags}-c"'
     headers = {"ETag": etag, **NO_CACHE}
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers=headers)
@@ -155,13 +198,44 @@ class GeometryPut(BaseModel):
 @router.put("/plan-versions/{version_id}/geometry")
 def put_geometry(version_id: str, body: GeometryPut, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     v = _editable(conn, principal, version_id)
-    structural = [i for i in pg.validate(body.doc) if i["structural"]]
+    # CR-009: the items of a room another floor shares with this one are split off first - the floor's own items are
+    # validated and stored as always, the shared ones are routed to the home floor's draft (map.edit here is decision 1's
+    # grant: either floor edits the room). Every refusal comes before the first write (an API error still commits).
+    own, shared_items, echoed, deleted = shared_spaces.split(body.doc)
+    structural = [i for i in pg.validate(own) if i["structural"]]
     if structural:
         raise ApiError(422, "geometry_structure", "מבנה המסמך אינו תקין; השינוי לא נשמר.", details={"issues": structural[:50]})
+    if v["id"] != (store.editor_version(conn, v["floor_id"]) or {"id": None})["id"]:
+        shared_items, echoed = {}, {}  # only the floor's editor version shows the mirror; another version routes nothing
+    # security review M2: every check before the first write - this floor's revision, then the home floors' plan - and
+    # the home writes before this floor's save (its stairs twin sync reads the home drafts afresh after them); any error
+    # after a write rolls the whole request back
+    d = store.draft_row(conn, v["id"])
+    if body.base_revision != (d["revision"] if d is not None else 0):
+        raise conflict("stale_revision", "טיוטת המבנה השתנתה בינתיים; טען מחדש את העורך.", current_revision=d["revision"] if d is not None else 0, sent_revision=body.base_revision)
+
+    def can_write(home_floor_id: str) -> bool:  # review M1: a deny on the home floor wins over decision 1
+        return all(authorize(conn, principal, perm, ("floor", home_floor_id)).reason != "explicit_deny" for perm in ("map.edit", "map.read"))
+
+    try:
+        from ..services import ha_scope
+
+        planned = shared_spaces.plan_edits(conn, v["floor_id"], shared_items, echoed, deleted, can_write=can_write,
+                                           can_control=lambda eid: ha_scope.entity_allowed(conn, principal, eid, "ha.entity.control"))
+    except shared_spaces.SharedEditError as exc:
+        raise ApiError(exc.status, exc.code, exc.message, details=exc.details)
     synced: list[str] = []
     skipped: list[str] = []
-    row = store.save_draft(conn, v, body.doc, body.base_revision, principal.user_id, can_edit=lambda fid: authorize(conn, principal, "map.edit", ("floor", fid)).allowed,
-                           synced=synced, skipped=skipped)
+    try:
+        records = shared_spaces.commit_edits(conn, planned, principal.user_id, now_iso())
+        row = store.save_draft(conn, v, own, body.base_revision, principal.user_id, can_edit=lambda fid: authorize(conn, principal, "map.edit", ("floor", fid)).allowed,
+                               synced=synced, skipped=skipped)
+    except ApiError:
+        rollback_and_restart(conn)  # nothing half-written stays (an API error would otherwise commit)
+        raise
+    for rec in records:
+        audit(conn, actor=principal, action="geometry.shared.edit", decision="allowed", resource_type="floor", resource_id=rec["home_floor_id"],
+              details={"from_floor_id": v["floor_id"], "version_id": v["id"], **{k: rec[k] for k in ("zone_ids", "changed", "added", "removed")}})
     for fid in synced:  # the stairs model reached the twin on the other floor's draft (review M3)
         audit(conn, actor=principal, action="geometry.connector.twin_sync", decision="allowed", resource_type="floor", resource_id=fid, details={"version_id": v["id"], "from_floor_id": v["floor_id"]})
     body_out = _payload(conn, v, row, store.load_doc(row), principal)
@@ -171,20 +245,56 @@ def put_geometry(version_id: str, body: GeometryPut, principal: Principal = Depe
     return body_out
 
 
+class GeomPublishIn(BaseModel):
+    """CR-009 re-review low: the shared-space items to leave out of this publish (their published version stays) - the
+    ids a 422 `shared_invalid` named."""
+    shared_skip: list[str] = Field(default_factory=list, max_length=200)
+
+
 @router.post("/plan-versions/{version_id}/geometry/publish")
-def publish_geometry(version_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def publish_geometry(version_id: str, request: Request, body: GeomPublishIn | None = None, principal: Principal = Depends(current_principal),
+                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     v = get_version(conn, version_id)
     require(conn, principal, "map.publish", _floor(v))
     if v["status"] == "draft":
         raise conflict("publish_plan_first", "זו טיוטת תוכנית: פרסום הגרסה יפרסם גם את המבנה שלה.")
     if v["status"] == "archived":
         raise conflict("archived_version", "גרסה מהארכיון אינה ניתנת לפרסום.")
+    # CR-009, owner answer 1 (2026-09-29): publishing the other floor of a shared room also publishes the room's pending
+    # changes on its home floor - only the room's content, the rest of the home draft stays a draft. map.publish on the
+    # floor being published is the grant; a deny on the home floor leaves it out. Planned (and validated) before any write.
+    try:
+        shared = shared_spaces.plan_shared_publish(conn, v["floor_id"], can_write=_can_publish_home(conn, principal),
+                                                   skip=(body.shared_skip if body is not None else ())) if _is_editor_version(conn, v) else []
+    except shared_spaces.SharedEditError as exc:
+        raise ApiError(exc.status, exc.code, exc.message, details=exc.details)
     result = store.publish(conn, v, principal.user_id)
     if not result["unchanged"]:
         audit(conn, actor=principal, action="geometry.publish", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
               details={"version_id": v["id"], "geometry_id": result["published"]["id"], "changes": result["diff"]["total"],
                        "collections": {k: {kk: len(vv) for kk, vv in c.items()} for k, c in result["diff"]["collections"].items()}})
+    try:
+        done = shared_spaces.commit_shared_publish(conn, shared, principal.user_id, now_iso())
+    except ApiError:
+        rollback_and_restart(conn)
+        raise
+    for rec in done:  # owner answer 1: audited on both floors
+        audit(conn, actor=principal, action="geometry.shared.publish", decision="allowed", resource_type="floor", resource_id=rec["home_floor_id"], request_id=_rid(request),
+              details={"from_floor_id": v["floor_id"], "version_id": v["id"], "zone_ids": rec["zone_ids"], "changes": rec["changes"], "geometry_id": rec["geometry_id"]})
+        audit(conn, actor=principal, action="geometry.shared.publish", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
+              details={"home_floor_id": rec["home_floor_id"], "version_id": v["id"], "zone_ids": rec["zone_ids"], "changes": rec["changes"]})
+    result["shared_published"] = [{k: rec[k] for k in ("home_floor_id", "zone_ids", "changes")} for rec in done]
+    if done and result["unchanged"]:
+        result["unchanged"] = False
     return result
+
+
+def _is_editor_version(conn: sqlite3.Connection, v: sqlite3.Row) -> bool:
+    return v["id"] == (store.editor_version(conn, v["floor_id"]) or {"id": None})["id"]
+
+
+def _can_publish_home(conn: sqlite3.Connection, principal: Principal):
+    return lambda home_floor_id: all(authorize(conn, principal, perm, ("floor", home_floor_id)).reason != "explicit_deny" for perm in ("map.publish", "map.edit", "map.read"))
 
 
 @router.get("/plan-versions/{version_id}/geometry/diff")
@@ -196,7 +306,10 @@ def geometry_diff(version_id: str, principal: Principal = Depends(current_princi
     old = store.load_doc(p) if p is not None else None
     return {"diff": pg.diff(old, doc),
             "issues": [i for i in pg.validate(doc, plan_catalog.item_index(conn)) if not i["structural"]] + store.anchor_issues(conn, v["floor_id"], doc),
-            "counts": pg.counts(doc), "published_counts": pg.counts(old) if old is not None else None}
+            "counts": pg.counts(doc), "published_counts": pg.counts(old) if old is not None else None,
+            # CR-009: "כולל שינויים בחלל המשותף (קומה -1)" - what the publish of this floor also publishes there
+            "shared_pending": shared_spaces.shared_pending(conn, v["floor_id"], can_write=_can_publish_home(conn, principal),
+                                                           can_name=lambda fid: floor_reach(conn, principal, fid) is not None) if _is_editor_version(conn, v) else []}
 
 
 @router.get("/plan-versions/{version_id}/geometry/versions")
@@ -577,19 +690,25 @@ def _export_doc(conn: sqlite3.Connection, principal: Principal, version_id: str,
     v = get_version(conn, version_id)
     if draft:
         require(conn, principal, "map.edit", _floor(v))
-        return v, store.attach_far(conn, v["floor_id"], store.working_doc(conn, v)[0], _far_ctx(conn, principal))
+        return v, _shown(conn, principal, v["floor_id"], store.working_doc(conn, v)[0], _far_ctx(conn, principal), "draft")
     require(conn, principal, "map.edit" if v["status"] == "draft" else "map.read", _floor(v))
     row = store.published_row(conn, v["id"])
     if row is None:
         raise not_found("אין מבנה מפורסם לגרסה הזו.")
-    return v, store.attach_far(conn, v["floor_id"], store.load_doc(row), _far_ctx(conn, principal, published=True))
+    return v, _shown(conn, principal, v["floor_id"], store.load_doc(row), _far_ctx(conn, principal, published=True), "published")
+
+
+def _export_zones(conn: sqlite3.Connection, principal: Principal, v: sqlite3.Row) -> list[dict[str, Any]]:
+    """The floor's rooms and the rooms other floors share with it (CR-009), in this plan's coordinates."""
+    mirrored, _anchors = shared_spaces.bundle_parts(conn, v["floor_id"], v, can_attach=_can_attach(conn, principal))
+    return floor_zones(conn, v["floor_id"]) + mirrored
 
 
 @router.get("/plan-versions/{version_id}/export.svg", response_model=None)
 def export_svg(version_id: str, draft: bool = False, level: str | None = None, labels: bool = True, rooms: bool = True, layers: str | None = None,
                principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
     v, doc = _export_doc(conn, principal, version_id, draft)
-    text = render.render_svg(doc, floor_zones(conn, v["floor_id"]), v["width_px"], v["height_px"], level=level, labels=labels, rooms=rooms, layers=_layers(layers),
+    text = render.render_svg(doc, _export_zones(conn, principal, v), v["width_px"], v["height_px"], level=level, labels=labels, rooms=rooms, layers=_layers(layers),
                              anchors=store.anchor_positions(conn, v["floor_id"]), items=plan_catalog.item_index(conn))
     return Response(content=text.encode("utf-8"), media_type="image/svg+xml; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="plan-{v["id"]}.svg"', **NO_CACHE})
@@ -600,6 +719,6 @@ def export_png(version_id: str, request: Request, draft: bool = False, level: st
                principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
     v, doc = _export_doc(conn, principal, version_id, draft)
     picture = settings_of(request).data_dir / v["image_path"] if background else None
-    data = render.render_png(doc, floor_zones(conn, v["floor_id"]), v["width_px"], v["height_px"], background=picture if picture is not None and picture.exists() else None,
+    data = render.render_png(doc, _export_zones(conn, principal, v), v["width_px"], v["height_px"], background=picture if picture is not None and picture.exists() else None,
                              level=level, layers=_layers(layers), anchors=store.anchor_positions(conn, v["floor_id"]), items=plan_catalog.item_index(conn))
     return Response(content=data, media_type="image/png", headers={"Content-Disposition": f'attachment; filename="plan-{v["id"]}.png"', **NO_CACHE})

@@ -16,6 +16,17 @@ export interface SearchResult {
   /** Hash route (without '#') that opens the hit. */
   route: string;
   floor_id?: string | null;
+  /** CR-009: every floor that shows the hit (a room shared between floors) and the caller may read. */
+  floor_ids?: string[];
+}
+
+/** The route that opens a hit: a room shown on several floors opens on the floor the person is on when that floor is
+ * one of them (CR-009), else where the server said. currentPath is the hash path now ("/explore/floors/<id>..."). */
+export function routeFor(r: SearchResult, currentPath: string | null | undefined): string {
+  const m = /^\/explore\/floors\/([^/?]+)/.exec(currentPath ?? '');
+  const here = m ? m[1] : null;
+  if (!here || !r.floor_ids?.includes(here) || r.floor_id === here) return r.route;
+  return r.route.replace(/^\/explore\/floors\/[^/?]+/, `/explore/floors/${here}`);
 }
 
 export interface SearchResponse {

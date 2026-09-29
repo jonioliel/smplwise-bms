@@ -48,12 +48,17 @@ def _chains(conn: sqlite3.Connection) -> dict[str, set[tuple[str, str]]]:
     buildings = {r["id"]: r["site_id"] for r in conn.execute("SELECT id, site_id FROM buildings").fetchall()}
     floors = {r["id"]: r["building_id"] for r in conn.execute("SELECT id, building_id FROM floors WHERE deleted_at IS NULL").fetchall()}
     chains: dict[str, set[tuple[str, str]]] = {r["id"]: {("camera", r["id"]), INSTALLATION} for r in conn.execute("SELECT id FROM cameras").fetchall()}
-    for a in conn.execute("SELECT resource_id, floor_id FROM map_anchors WHERE resource_type = 'camera' AND effective_to IS NULL").fetchall():
-        chain = chains.get(a["resource_id"])
-        if chain is None or a["floor_id"] not in floors:
+    anchored = [(a["resource_id"], a["floor_id"]) for a in conn.execute("SELECT resource_id, floor_id FROM map_anchors WHERE resource_type = 'camera' AND effective_to IS NULL").fetchall()]
+    # CR-009: a camera in a shared room hangs on every floor that shows the room (the one helper, services/shared_spaces)
+    from .shared_spaces import mirrored_anchor_floors
+
+    anchored += [(rid, fid) for (rtype, rid), pairs in mirrored_anchor_floors(conn).items() if rtype == "camera" for fid, _home in pairs]
+    for cid, fid in anchored:
+        chain = chains.get(cid)
+        if chain is None or fid not in floors:
             continue
-        chain.add(("floor", a["floor_id"]))
-        bid = floors[a["floor_id"]]
+        chain.add(("floor", fid))
+        bid = floors[fid]
         chain.add(("building", bid))
         if bid in buildings:
             chain.add(("site", buildings[bid]))
@@ -142,7 +147,38 @@ def require_camera(conn: sqlite3.Connection, principal: Principal, camera_id: st
 
 
 def floor_cameras(conn: sqlite3.Connection, floor_id: str) -> set[str]:
-    return {r[0] for r in conn.execute("SELECT DISTINCT resource_id FROM map_anchors WHERE floor_id = ? AND resource_type = 'camera' AND effective_to IS NULL", (floor_id,)).fetchall()}
+    """The cameras anchored on a floor, and those of a shared room it shows (CR-009)."""
+    from .shared_spaces import floor_mirrored
+
+    own = {r[0] for r in conn.execute("SELECT DISTINCT resource_id FROM map_anchors WHERE floor_id = ? AND resource_type = 'camera' AND effective_to IS NULL", (floor_id,)).fetchall()}
+    return own | {rid for rtype, rid in floor_mirrored(conn, floor_id) if rtype == "camera"}
+
+
+def camera_reach_floors(conn: sqlite3.Connection, principal: Principal, permission: str = "map.read", scope: CameraScope | None = None) -> set[str]:
+    """The floors whose drawing a caller reaches through cameras (floor_reach "cameras", the site tree): each floor a
+    camera in their scope is anchored on. A camera in a shared room (CR-009) hangs on the room's home floor AND the
+    floors that show it; a caller who reaches it only through one of those floors must not get the OTHER floor's
+    drawing - the rest of that floor is not theirs ("nothing else of the home floor"). So a shared-room camera opens a
+    floor's drawing only for a binding on the camera itself (T055: camera-scoped readers get the drawing of the floors
+    their camera is on)."""
+    from .shared_spaces import member_share_floors
+
+    scope = scope or camera_scope(conn, principal, permission)
+    if not scope.ids:
+        return set()
+    room_floors = {rid: floors for (rtype, rid), floors in member_share_floors(conn).items() if rtype == "camera"}
+    direct: set[str] = set()
+    if set(room_floors) & scope.ids:
+        direct = {b["scope_id"] for b in _active_bindings(conn, principal) if b["scope_type"] == "camera" and b["effect"] != "deny" and permission in role_permissions(conn, b["role_id"])}
+    ids = sorted(scope.ids)
+    out: set[str] = set()
+    for r in conn.execute(f"SELECT DISTINCT resource_id, floor_id FROM map_anchors WHERE resource_type = 'camera' AND effective_to IS NULL AND resource_id IN ({','.join('?' * len(ids))})", ids).fetchall():
+        if r["resource_id"] not in room_floors or r["resource_id"] in direct:
+            out.add(r["floor_id"])
+    for rid, floors in room_floors.items():
+        if rid in scope.ids and rid in direct:
+            out |= floors
+    return out
 
 
 def floor_reach(conn: sqlite3.Connection, principal: Principal, floor_id: str, permission: str = "map.read") -> str | None:
@@ -151,8 +187,7 @@ def floor_reach(conn: sqlite3.Connection, principal: Principal, floor_id: str, p
     or None."""
     if authorize(conn, principal, permission, ("floor", floor_id)).allowed:
         return "floor"
-    scope = camera_scope(conn, principal, permission)
-    if scope.ids and scope.ids & floor_cameras(conn, floor_id):
+    if floor_id in camera_reach_floors(conn, principal, permission):
         return "cameras"
     return None
 

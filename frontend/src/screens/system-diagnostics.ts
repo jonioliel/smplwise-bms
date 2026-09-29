@@ -52,6 +52,7 @@ interface VideoCodecs {
 const TABS = [
   { id: 'general', label: 'כללי' },
   { id: 'media', label: 'וידאו ומדיה' },
+  { id: 'map', label: 'מפה' },
   { id: 'ha', label: 'גשר Home Assistant' },
   { id: 'access-control', label: 'בקרות כניסה' },
   { id: 'devices', label: 'חשמל והתקנים' },
@@ -763,6 +764,27 @@ export class SystemDiagnostics extends LitElement {
     </div>`;
   }
 
+  /** "מפה" (owner 2026-09-29): how the floor maps open and what the level bar lists. plan.levels also stays on the
+   * media tab (the same key, mirrored), so nothing that pointed there moves. */
+  private renderMap() {
+    const api = isApi();
+    const dirty = Object.keys(this.draft).length > 0;
+    const sel = (key: keyof ProductSettings, dflt: string, attr: string, options: [string, string][]) => html`<sw-field class="ctl"><select data-set=${attr} ?disabled=${!api || !this.canEdit}
+        @change=${(e: Event) => this.set(key, (e.target as HTMLSelectElement).value as never)}>${options.map(([v, l]) => html`<option value=${v} ?selected=${String(this.value(key) ?? dflt) === v}>${l}</option>`)}</select></sw-field>`;
+    return html`<div class="sections">
+      <sw-card heading="מפה" subheading="איך מפות הקומה נפתחות ומה מוצג בסרגל המפלסים" data-settings-map>
+        <div class="row"><span class="lbl">תצוגת פתיחה של מפה<span class="muted">המפה החיה, המפה ההיסטורית ודף האירוע נפתחים בתצוגה הזו כשלקומה יש מבנה; הכפתור 2D / 3D ממשיך להחליף בכל ביקור</span></span>
+          ${sel('map.default_view', '2d', 'map-default-view', [['2d', 'דו-ממד (2D)'], ['3d', 'תלת-ממד (3D)']])}</div>
+        <div class="row"><span class="lbl">מפלסים בפתיחת מפה<span class="muted">המפלס שמוצג כברירת מחדל בכל מפה; שבבי המפלסים ממשיכים לאפשר מעבר בין מפלסים</span></span>
+          ${sel('plan.levels', 'all', 'map-plan-levels', [['all', 'כל המפלסים יחד'], ['default', 'מפלס ברירת המחדל של הקומה']])}</div>
+        <div class="row"><span class="lbl">מפלסים של חלל משותף<span class="muted">בעורך של הקומה שמציגה חלל משותף (חלל בגובה כפול שהרצפה שלו בקומה אחרת): להציג בסרגל המפלסים גם את מפלסי הקומה שלו ("מפלס ראשי · קומה -1")</span></span>
+          ${sel('map.shared_levels', 'show', 'map-shared-levels', [['show', 'מוצגים'], ['hide', 'מוסתרים']])}</div>
+        <div class="foot"><sw-button variant="primary" icon="check" data-save-map ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>
+        ${!api ? html`<div class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</div>` : nothing}
+      </sw-card>
+    </div>`;
+  }
+
   /** CR-006 phase 2 (slice 2a): AI-rendered floor skins - the provider, exactly what leaves the premises, the privacy
    * acknowledgement, the budgets and the owner's connection test (one synthetic 64x64 pattern, never a plan). */
   private renderSkins() {
@@ -1191,7 +1213,7 @@ export class SystemDiagnostics extends LitElement {
         <sw-tabs underline .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'media') void this.loadMedia(); if (this.tab === 'ha') void this.loadHa(); if (this.tab === 'backup') void this.loadBackups(); if (this.tab === 'health') void this.loadReport(); }}></sw-tabs>
         ${this.message && this.tab === 'ha' ? html`<div class="muted" style="color:#15803d">${this.message}</div>` : nothing}
         ${this.error && this.tab === 'ha' ? html`<div class="muted" style="color:var(--sw-error)">${this.error}</div>` : nothing}
-        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'media' ? this.renderMedia() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'alarm' ? html`<system-alarm-settings ?canEdit=${this.canEdit}></system-alarm-settings>` : this.tab === 'remote' ? this.renderRemote() : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
+        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'alarm' ? html`<system-alarm-settings ?canEdit=${this.canEdit}></system-alarm-settings>` : this.tab === 'remote' ? this.renderRemote() : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
       </sw-page>
     `;
   }

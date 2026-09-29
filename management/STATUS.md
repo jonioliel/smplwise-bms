@@ -1,13 +1,13 @@
 # Project status — generated view
 
-Generated: 2026-09-29T22:47:11.269260+00:00
+Generated: 2026-09-29T22:47:29.321216+00:00
 
-Tasks: 96 | Requirements: 197 | Tests: 197 | Screens: 32
+Tasks: 97 | Requirements: 200 | Tests: 200 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 ## Status counts
-- BACKLOG: 88
+- BACKLOG: 89
 - BLOCKED: 2
 - DONE: 2
 - IN_PROGRESS: 1
@@ -18,7 +18,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 21
+- V1: 22
 - V2: 12
 
 ## Blockers
@@ -124,3 +124,4 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T094](tasks/T094.md) | V1 | REVIEW | מעטפת האפליקציה: המשתמש בסוף סרגל הניווט, בלי סרגל עליון בטלפון, סדר לשוניות אישי (CR-013) | — |
 | [T095](tasks/T095.md) | V1 | BACKLOG | גורם אימות שני ל-Arx (CR-011) — מדיניות כניסה, step-up לפעולות רגישות, passkeys | T092 |
 | [T096](tasks/T096.md) | V1 | BACKLOG | התראות באפליקציית Android (CR-012) — השכמת FCM דרך ממסר, חלופת UnifiedPush | T092 |
+| [T097](tasks/T097.md) | V1 | BACKLOG | חלל משותף לשתי קומות (CR-009) — אולם בגובה כפול, שלם בכל קומה | T085 |

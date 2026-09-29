@@ -33,6 +33,7 @@ import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescripti
 import type { ScenePreset } from '../map/scene-three';
 import type { PartSelectDetail } from '../map/sw-plan-3d';
 import { boundItemOf } from '../map/part-select';
+import { zonesWithChips } from '../map/shared-space';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
 import { sameRefs } from '../map/memo';
 
@@ -84,6 +85,7 @@ export class InvestigateHistoryMap extends LitElement {
   private frameTimer = 0;
   /** T087: the 2D / 3D toggle of the historical map (no actions here, the states are those of the instant). */
   @state() private view3d = false;
+  private default3d = false;
   @state() private threeState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
   @state() private threeError = '';
   /** Kept in a field: the element re-applies a preset only when the property changes (an inline literal would snap the camera every render). */
@@ -345,6 +347,12 @@ export class InvestigateHistoryMap extends LitElement {
 
   protected updated(changed: Map<string, unknown>) {
     if (!isApi()) return;
+    // the setting map.default_view (owner 2026-09-29): a floor opens in 3D once its scene is there (no per-device memory
+    // of the last view existed before, and none is added: the toggle still switches for the visit)
+    if (this.default3d && !this.view3d && this.hasScene && webglAvailable()) {
+      this.default3d = false;
+      void this.toggle3d();
+    }
     if ((changed.has('floorId') && changed.get('floorId') !== undefined) || (changed.has('at') && changed.get('at') !== undefined)) void this.init();
   }
 
@@ -369,6 +377,7 @@ export class InvestigateHistoryMap extends LitElement {
       this.bundle = await loadMap(this.floorId, false, this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z'));
       this.restorePlanImage();
       this.level = initialLevel(settings['plan.levels'], this.bundle); // 0.1.89: fixed for the floor, no level bar here
+      this.default3d = settings['map.default_view'] === '3d' && !this.view3d;
       this.geometry = null; // another floor or instant: no structure until its document arrives
       if (this.bundle.source === 'api') {
         void loadLibrary(this.bundle.catalogRevision).then((lib) => {
@@ -722,7 +731,7 @@ export class InvestigateHistoryMap extends LitElement {
                 .cameras=${b.anchors.filter((a) => a.resource_type === 'camera').map((a) => ({ id: a.id, label: entityName(a) }))} exportName=${`plan-3d-${b.floorName}-${this.date}`}
                 @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`
             : nothing}
-          <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .hideImage=${!this.planImage} .markers=${this.apiMarkers} .selectedId=${this.selectedId} .zones=${b.zones} .geometry=${this.geometry} .structureLevel=${this.level} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(b.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} .entityStates=${Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, this.stateAt(a)]))} dimEntities
+          <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .hideImage=${!this.planImage} .markers=${this.apiMarkers} .selectedId=${this.selectedId} .zones=${zonesWithChips(b.zones)} .geometry=${this.geometry} .structureLevel=${this.level} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(b.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} .entityStates=${Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, this.stateAt(a)]))} dimEntities
             @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { this.selectedId = e.detail.id; this.frameFailed = false; }}></sw-plan-canvas>
           ${this.threeState === 'loading' ? html`<div class="hist below" data-3d-loading>טוען תלת-ממד…</div>` : nothing}
           ${this.threeState === 'error' ? html`<div class="hist below" data-3d-load-error>תלת-ממד לא נטען: ${this.threeError}</div>` : nothing}

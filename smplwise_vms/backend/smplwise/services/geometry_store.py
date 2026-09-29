@@ -97,8 +97,11 @@ def _prepare(conn: sqlite3.Connection, version: sqlite3.Row, doc: dict[str, Any]
     """What every document goes through on its way into the table and out to the editor: the rebase on its version
     (ids, size, calibration), the normalization (circuit power, the connectors derived from objects that connect
     levels), dropping the read-only `far` of cross-floor connectors (attach_far computes it on every read, review M4)
-    and the refresh of bound bodies from the floor's live anchors (design 2a, rule 1)."""
-    doc = pg.rebase(doc, version, _asset(conn, version))
+    and the refresh of bound bodies from the floor's live anchors (design 2a, rule 1). What a shared room attached on
+    read (CR-009: items marked `shared`, `shared_spaces`) never reaches a stored document or its hash."""
+    from . import shared_spaces
+
+    doc = shared_spaces.strip(pg.rebase(doc, version, _asset(conn, version)))
     doc = strip_far(pg.normalize(doc, plan_catalog.item_index(conn)))
     return pg.apply_anchor_positions(doc, anchor_positions(conn, version["floor_id"]))
 
@@ -164,6 +167,25 @@ def publish(conn: sqlite3.Connection, version: sqlite3.Row, actor_id: str | None
     doc = pending_doc(conn, version)
     if doc is None:
         return {"published": row_api(prev) if prev is not None else None, "diff": pg.diff(prev_doc, prev_doc or {}), "unchanged": True}
+    if prev is not None:
+        conn.execute("UPDATE plan_geometry SET status = 'archived', archived_at = ?, updated_at = ? WHERE id = ?", (now, now, prev["id"]))
+    row = _insert(conn, version, "published", doc, actor_id, now)
+    return {"published": row_api(row), "diff": pg.diff(prev_doc, doc), "unchanged": False}
+
+
+def publish_doc(conn: sqlite3.Connection, version: sqlite3.Row, doc: dict[str, Any], actor_id: str | None, now: str | None = None) -> dict[str, Any]:
+    """Publish a given document of the version (CR-009: the home floor's published structure with a shared room's
+    pending changes taken from its draft - the rest of the draft stays a draft). Prepared and validated like a draft's
+    publish (422 on errors); the previous published row is archived."""
+    now = now or now_iso()
+    doc = _prepare(conn, version, doc)
+    errors = [i for i in pg.validate(doc, plan_catalog.item_index(conn)) if i["severity"] == "error"]
+    if errors:
+        raise ApiError(422, "geometry_invalid", "במבנה יש שגיאות שמונעות פרסום; הן מסומנות באדום על המפה.", details={"issues": errors[:50]})
+    prev = published_row(conn, version["id"])
+    prev_doc = load_doc(prev) if prev is not None else None
+    if prev is not None and prev["doc_hash"] == doc_hash(doc):
+        return {"published": row_api(prev), "diff": pg.diff(prev_doc, prev_doc), "unchanged": True}
     if prev is not None:
         conn.execute("UPDATE plan_geometry SET status = 'archived', archived_at = ?, updated_at = ? WHERE id = ?", (now, now, prev["id"]))
     row = _insert(conn, version, "published", doc, actor_id, now)

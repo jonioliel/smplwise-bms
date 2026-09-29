@@ -75,8 +75,11 @@ class Decision:
 
 
 def camera_floors(conn: sqlite3.Connection, camera_id: str) -> list[str]:
-    """The live floors a camera is currently anchored on (a camera may sit on more than one map)."""
-    return [
+    """The live floors a camera is currently anchored on (a camera may sit on more than one map), and the other floors
+    of a shared room it is anchored in (CR-009: the room is on both floors - services/shared_spaces is the one helper)."""
+    from .services.shared_spaces import camera_shared_floors
+
+    own = [
         r[0]
         for r in conn.execute(
             """SELECT DISTINCT a.floor_id FROM map_anchors a JOIN floors f ON f.id = a.floor_id
@@ -84,6 +87,7 @@ def camera_floors(conn: sqlite3.Connection, camera_id: str) -> list[str]:
             (camera_id,),
         ).fetchall()
     ]
+    return own + [f for f in camera_shared_floors(conn, camera_id) if f not in own]
 
 
 def scope_chain(conn: sqlite3.Connection, target_type: str, target_id: str) -> list[tuple[str, str]]:

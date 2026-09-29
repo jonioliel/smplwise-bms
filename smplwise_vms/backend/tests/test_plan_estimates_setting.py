@@ -33,6 +33,24 @@ def test_plan_levels_setting_defaults_to_all_patches_to_default_and_audits(setti
     assert c.patch("/api/v1/settings", json={"plan.levels": "sometimes"}).status_code == 422
 
 
+def test_map_section_settings_default_validate_and_audit(settings):
+    """CR-009 (owner 2026-09-29), הגדרות › מפה: map.shared_levels shows or hides the extra level chip of a shared room
+    (default show); map.default_view opens the live map, the history map and the event page in 2D or 3D (default 2d)."""
+    app = create_app(settings)
+    c = TestClient(app)
+    s = c.get("/api/v1/settings").json()["settings"]
+    assert s["map.shared_levels"] == "show" and s["map.default_view"] == "2d"
+    r = c.patch("/api/v1/settings", json={"map.shared_levels": "hide", "map.default_view": "3d"})
+    assert r.status_code == 200 and r.json()["settings"]["map.shared_levels"] == "hide" and r.json()["settings"]["map.default_view"] == "3d"
+    with app.state.db.connection() as conn:
+        row = conn.execute("SELECT details_json FROM audit_log WHERE action = 'settings.update' ORDER BY rowid DESC LIMIT 1").fetchone()
+        assert '"map.default_view": "3d"' in row[0] and '"map.shared_levels": "hide"' in row[0]
+    assert c.patch("/api/v1/settings", json={"map.shared_levels": "maybe"}).status_code == 422
+    assert c.patch("/api/v1/settings", json={"map.default_view": "4d"}).status_code == 422
+    bind(c, settings, "dana", "viewer", "installation", "*")
+    assert c.patch("/api/v1/settings", json={"map.default_view": "2d"}, headers=as_user("dana")).status_code == 403
+
+
 def test_plan_quality_setting_defaults_to_2_accepts_1_or_2_and_audits(settings):
     """CR-006 slice 1a: plan.quality is the 3D quality level a browser opens with (2 = shadows, materials and the
     cutaway; 1 = the schematic level, also the automatic fallback of a slow device). A browser may override it."""

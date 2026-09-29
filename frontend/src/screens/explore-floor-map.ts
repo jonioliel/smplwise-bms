@@ -39,6 +39,8 @@ import type { ScenePreset } from '../map/scene-three'; // type only: the three c
 import type { LevelSelectDetail, PartSelectDetail } from '../map/sw-plan-3d';
 import type { QualityLevel } from '../map/scene-three';
 import { boundItemOf } from '../map/part-select';
+import { sharedChip, zonesWithChips } from '../map/shared-space';
+import '../components/sw-share-members';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
 import { anchorOnLevel, initialLevel } from '../map/studio-ops';
 import { productSettings } from '../api/prefs';
@@ -131,6 +133,8 @@ export class ExploreFloorMap extends LitElement {
   @state() private geometry: GeometryDoc | null = null;
   /** T087: the 2D / 3D toggle. The element's module - and with it the three chunk - is imported on the first switch. */
   @state() private view3d = false;
+  /** map.default_view = 3d: switch to the 3D once the floor's scene is available (once per floor load). */
+  private default3d = false;
   @state() private threeState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
   @state() private threeError = '';
   @state() private preset3d: ScenePreset = 'iso';
@@ -544,6 +548,32 @@ export class ExploreFloorMap extends LitElement {
       gap: 6px;
       align-items: center;
     }
+    .shared-members {
+      position: absolute;
+      inset-inline-start: 12px;
+      inset-block-end: 56px;
+      z-index: var(--sw-z-map-ui);
+      inline-size: 300px;
+      max-inline-size: calc(100% - 24px);
+      max-block-size: 60%;
+      overflow: auto;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-3);
+      padding: 10px 12px;
+    }
+    .shared-members .sm-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-block-end: 6px;
+      font-size: var(--sw-fs-sm);
+    }
+    .shared-members .sm-head span {
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-xs);
+    }
     .sidelist {
       position: absolute;
       inset-inline-end: 12px;
@@ -908,6 +938,12 @@ export class ExploreFloorMap extends LitElement {
 
   protected updated(changed: Map<string, unknown>) {
     this.scheduleFadeTick(this.bundle && this.layers.has('states') ? this.roomStateLayer : null);
+    // the setting map.default_view (owner 2026-09-29): a floor opens in 3D once its scene is there (no per-device memory
+    // of the last view existed before, and none is added: the toggle still switches for the visit)
+    if (this.default3d && !this.view3d && this.hasScene && webglAvailable()) {
+      this.default3d = false;
+      void this.toggle3d();
+    }
     if (changed.has('floorId') && changed.get('floorId') !== undefined) {
       this.selectedId = null;
       this.anchor = null;
@@ -987,6 +1023,7 @@ export class ExploreFloorMap extends LitElement {
       void productSettings()
         .then((s) => {
           if (this.bundle === b) this.levelFilter = initialLevel(s['plan.levels'], b); // 0.1.89: plan.levels default level, else every level
+          if (this.bundle === b) this.default3d = s['map.default_view'] === '3d' && !this.view3d;
           this.quality3d = s['plan.quality'] === '1' ? 1 : s['plan.quality'] === '2' ? 2 : null;
           this.presenceFade = parsePresenceFade(s['plan.presence_fade']); // CR-006 1b: off, or the fade window in minutes
         })
@@ -1907,7 +1944,7 @@ export class ExploreFloorMap extends LitElement {
     if (!r || r.id !== a.id || r.busy) return;
     this.renaming = { ...r, busy: true };
     try {
-      const saved = await updateAnchor(a.id, { revision: a.revision, label: r.value.trim() || null });
+      const saved = await updateAnchor(a.id, { revision: a.revision, label: r.value.trim() || null }, a.shared ? this.bundle?.floorId : undefined);
       if (this.bundle) this.bundle = { ...this.bundle, anchors: this.bundle.anchors.map((x) => (x.id === a.id ? { ...x, label: saved.label, revision: saved.revision } : x)) };
       this.renaming = null;
       this.notice = saved.label ? `השם „${saved.label}“ נשמר` : 'חזרה לשם המקורי';
@@ -2035,6 +2072,20 @@ export class ExploreFloorMap extends LitElement {
     return html`<sw-popover heading=${heading} .x=${this.anchor.x} .y=${this.anchor.y} .stageWidth=${w} .stageHeight=${h} @close=${this.close}>${body}<div slot="footer">${footer}</div></sw-popover>`;
   }
 
+  /** CR-009 (owner 2026-09-30): a selected shared space shows its members - read-only unless the reader holds the
+   * share rights; each member only as far as the reader may see it (the server filters). */
+  private renderSharedMembers() {
+    const b = this.bundle;
+    if (!b || b.source !== 'api' || !this.selectedZoneId) return nothing;
+    const z = b.zones.find((x) => x.id === this.selectedZoneId);
+    const s = z?.shared;
+    if (!z || !s) return nothing;
+    return html`<div class="shared-members" data-shared-members>
+      <div class="sm-head"><strong>${z.name}</strong><span>${sharedChip(s) ?? ''}</span></div>
+      <sw-share-members .zoneId=${s.zone_id} @members-changed=${() => void this.load()}></sw-share-members>
+    </div>`;
+  }
+
   private renderPanel() {
     const counts = this.layerCounts();
     const rows: { id: Layer; label: string; count: string }[] = [
@@ -2141,7 +2192,7 @@ export class ExploreFloorMap extends LitElement {
         .selectedIds=${this.multi ? this.picked : []}
         .boxSelect=${this.multi}
         @box-select=${(e: CustomEvent<{ ids: string[] }>) => this.addPicks(e.detail.ids)}
-        .zones=${this.layers.has('zones') ? b.zones.map((z) => ({ ...z, labelPos: z.label_pos })) : []}
+        .zones=${this.layers.has('zones') ? zonesWithChips(b.zones) : []}
         .roomStates=${this.roomStateLayer}
         .selectedZoneId=${this.selectedZoneId}
         .dimEntities=${this.screenState === 'stale'}
@@ -2158,6 +2209,7 @@ export class ExploreFloorMap extends LitElement {
           </div>`
         : nothing}
       ${this.panel ? this.renderPanel() : nothing}
+      ${this.renderSharedMembers()}
       ${this.renderCircuitStrip()}
       ${this.multi ? this.renderPickbar() : nothing}
       ${this.renderSideList()}
