@@ -57,6 +57,7 @@ HA_UNAVAILABLE_HE = "תשתית המערכת אינה זמינה כרגע לאי
 RATE_LIMITED_HE = "יותר מדי ניסיונות כניסה. נסה שוב בעוד כמה דקות."
 ORIGIN_HE = "חיבור ממקור לא מורשה."
 REVOKED_HE = "הכניסה הזו נותקה (מרשימת הכניסות מרחוק). יש להיכנס מחדש."
+REMOTE_UNAVAILABLE_HE = "לא ניתן לאמת את הכניסה כרגע. נסה שוב בעוד רגע."
 
 COOKIE_SECURE = "__Secure-arx_session"
 COOKIE_PLAIN = "arx_session"  # only outside the add-on over plain http (a developer / Playwright backend)
@@ -712,10 +713,11 @@ def chain_revoked(conn, token: str) -> bool:
         found = conn.execute("SELECT 1 FROM remote_revoked_chains WHERE iss_hash = ?", (h,)).fetchone() is not None
     except Exception:  # noqa: BLE001
         # review L6: open only before migration 0035 (no table yet); once the table is known to exist, a database error
-        # fails CLOSED - the sign-in is treated as revoked (401) rather than let a revoked one back in
+        # fails CLOSED - but as a retryable 503, never as "revoked": a transient error must not make the browser revoke
+        # its own HA sign-in (arx/auth.ts does that on remote_session_revoked), and nothing is negatively cached
         if _REVOKED_TABLE["seen"]:
-            log.warning("remote_revoked_chains could not be read; refusing the sign-in", exc_info=True)
-            return True
+            log.warning("remote_revoked_chains could not be read; refusing the sign-in for now", exc_info=True)
+            raise ApiError(503, "remote_unavailable", REMOTE_UNAVAILABLE_HE, retryable=True)
         return False
     _REVOKED_TABLE["seen"] = True
     if found:
@@ -941,7 +943,9 @@ STALE_AFTER_S = REVALIDATE_EVERY_S + ACTIVE_WINDOW_S
 
 
 HA_BACKOFF_S = 30.0  # review M3: after HA could not be asked, no re-check of that session within this window
-RECHECK_WAIT_S = 15.0  # a request waiting for another request's re-check of the same session (validate_token times out at 10 s)
+# a request waiting for another request's re-check of the same session: at most this long, then it is served with the
+# last-known session (the re-check in flight settles the next one) - a slow HA must not hold worker threads
+RECHECK_WAIT_S = 1.0
 
 
 def _stale(s: RemoteSession) -> bool:

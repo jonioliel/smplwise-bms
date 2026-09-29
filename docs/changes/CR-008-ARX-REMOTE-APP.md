@@ -576,5 +576,15 @@ them - the worker and the manifest follow whatever base the page is served under
   exists. L7 the sessions list ignores stale answers; revoking only the current row signs out "here", not "everywhere".
 - **Addresses:** the audit keeps the full client address in `auth.remote_*` rows by design (forensics, rate-limit
   review); the sessions list and the roles screen show it masked (/24, /48) and `remote_sign_ins` stores it masked.
-- **Tests:** `tests/test_remote_hardening.py` (36), `tests/test_remote_access.py` (59, 2 expectations updated),
+- **Re-review follow-ups:** a database error while reading `remote_revoked_chains` answers a retryable 503
+  `remote_unavailable` (never `remote_session_revoked`, which would make the browser revoke its own HA sign-in; nothing
+  negatively cached), and the Arx client treats any 5xx at the exchange as "try again" (keeps the sign-in, retries in
+  30 s); a request waiting for another's idle re-check waits at most 1 s and is served with the last-known session.
+- **Lab checks still open:** (1) whether HA closes the WebSocket right after `auth/delete_refresh_token` of the very
+  token the connection authenticated with - then the result frame may not arrive and `ha_sign_ins_ended` can read 0
+  although the token is gone (check HA › Profile › Security after a "sign out everywhere"); (2) a tunnel or proxy that
+  rewrites `Host` makes the client id recorded on the session (`<scheme>://<Host><remote_path>/`) differ from the one the
+  browser signed in with - the HA deletion then skips the token (fails safe: the Arx revoke still holds, the HA sign-in
+  stays until the browser revokes it itself or it is deleted in the profile).
+- **Tests:** `tests/test_remote_hardening.py` (38), `tests/test_remote_access.py` (59, 2 expectations updated),
   `frontend/tests/evidence-arx-sessions.spec.ts` (desktop). Not in P2: Cloudflare Access (D3), native push.

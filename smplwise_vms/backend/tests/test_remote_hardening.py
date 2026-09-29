@@ -668,6 +668,43 @@ def test_m3_one_ha_call_for_concurrent_requests_of_a_stale_session(arx, monkeypa
     assert len(calls) == 1 and len(results) == 6 and all(r is s for r in results)
 
 
+def test_m3_waiters_do_not_hold_a_thread_while_ha_is_slow(arx, monkeypatch):
+    """Follow-up: a request waiting for another's re-check waits at most RECHECK_WAIT_S (1 s) and is then served with
+    the last-known session - a slow HA must not pin worker threads."""
+    import threading
+
+    phone = browser(arx)
+    sign_in(phone, arx, arx.viewer)
+    s = next(iter(hua.STORE._sessions.values()))
+    s.last_validated -= hua.STALE_AFTER_S + 5
+    calls = []
+
+    async def very_slow(settings, token, ip=None):
+        calls.append(1)
+        await asyncio.sleep(3)
+        return s.ha_user
+
+    monkeypatch.setattr(hua, "validate_token", very_slow)
+    took: list[float] = []
+
+    def one():
+        t0 = time.monotonic()
+        assert hua._recheck_sync(_FakeRequest(arx.app), arx.settings, s) is s
+        took.append(time.monotonic() - t0)
+
+    first = threading.Thread(target=one)
+    first.start()
+    time.sleep(0.2)  # the first request is now asking HA
+    waiters = [threading.Thread(target=one) for _ in range(4)]
+    for t in waiters:
+        t.start()
+    for t in waiters:
+        t.join()
+    assert len(took) == 4 and max(took) < 2.0 and len(calls) == 1  # served after ~1 s, no second HA call
+    first.join()
+    assert len(calls) == 1 and max(took) >= 2.5  # the first one did the (slow) re-check itself
+
+
 def test_m3_ha_down_backs_off_for_30_seconds(arx, monkeypatch):
     phone = browser(arx)
     sign_in(phone, arx, arx.viewer)
@@ -747,7 +784,38 @@ def test_l6_revoked_chain_check_fails_closed_once_the_table_exists(arx):
     hua._REVOKED_TABLE["seen"] = False
     assert hua.chain_revoked(Broken(), token) is False  # before migration 0035 (no table known)
     assert hua.load_revoked(arx.db) == 0 and hua._REVOKED_TABLE["seen"] is True  # start-up finds the table
-    assert hua.chain_revoked(Broken(), token) is True  # a database error now refuses the sign-in
+    # a database error now refuses the sign-in - as a retryable 503, never as "revoked" (the browser would then revoke its
+    # own HA sign-in), and nothing is remembered as rejected
+    with pytest.raises(hua.ApiError) as exc:
+        hua.chain_revoked(Broken(), token)
+    assert exc.value.status == 503 and exc.value.code == "remote_unavailable" and exc.value.retryable is True
+    assert not hua.was_rejected(token)
+
+
+def test_l6_transient_db_error_answers_503_on_the_exchange(arx, monkeypatch):
+    import sqlite3
+
+    real = hua.chain_revoked
+    broken = {"on": True}
+
+    def flaky(conn, token):
+        if broken["on"]:
+            class Broken:
+                def execute(self, *_a):
+                    raise sqlite3.OperationalError("database is locked")
+
+            return real(Broken(), token)
+        return real(conn, token)
+
+    hua._REVOKED_TABLE["seen"] = True
+    monkeypatch.setattr(hua, "chain_revoked", flaky)
+    token = arx.token(arx.viewer)
+    r = browser(arx).post("/arx/api/v1/auth/session", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 503 and r.json()["code"] == "remote_unavailable" and r.json()["retryable"] is True
+    assert "Home Assistant" not in r.json()["user_message"] and hua.STORE.count() == 0
+    assert _bearer_get(arx, token).status_code == 503  # the bearer path too
+    broken["on"] = False  # the database is back: the SAME token signs in (no negative cache)
+    assert browser(arx).post("/arx/api/v1/auth/session", headers={"Authorization": f"Bearer {token}"}).status_code == 200
 
 
 def test_l3_csp_report_keeps_host_and_port_only(arx):

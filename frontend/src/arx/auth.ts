@@ -332,7 +332,9 @@ export function refreshNow(): Promise<boolean> {
       schedule();
       return true;
     } catch (err) {
-      if (err instanceof ArxAuthError && err.code === 'network') {
+      // no connection, or the server says "try again" (5xx - e.g. 503 remote_unavailable / ha_unavailable): keep the
+      // sign-in and retry; only an explicit refusal ends it (CR-008 P2 review follow-up)
+      if (err instanceof ArxAuthError && (err.code === 'network' || (err.status ?? 0) >= 500)) {
         window.clearTimeout(refreshTimer);
         refreshTimer = window.setTimeout(() => void refreshNow(), 30_000);
         return false;
