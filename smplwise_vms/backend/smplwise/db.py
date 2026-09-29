@@ -269,6 +269,7 @@ def _begin_immediate(conn: sqlite3.Connection, label: str) -> None:
     """Take the write lock: this process's queue first (the gate of the connection's database), then SQLite's lock
     (BEGIN IMMEDIATE, which still waits busy_timeout for a writer in another process)."""
     started = time.monotonic()
+    full_ms = int(conn.execute("PRAGMA busy_timeout").fetchone()[0])  # the connection's own (BUSY_TIMEOUT_S unless a caller set less)
     gate = _conn_gate.get(id(conn)) if WRITE_GATE else None
     if gate is not None and id(conn) not in _gate_tokens:
         token = gate.acquire(min(1.0, BUSY_TIMEOUT_S))
@@ -282,7 +283,6 @@ def _begin_immediate(conn: sqlite3.Connection, label: str) -> None:
         _gate_tokens[id(conn)] = (gate, token, conn)
     # one attempt never waits longer than BUSY_TIMEOUT_S in total: SQLite gets what the gate queue left of it
     remaining_ms = max(1, int((BUSY_TIMEOUT_S - (time.monotonic() - started)) * 1000))
-    full_ms = int(BUSY_TIMEOUT_S * 1000)
     shortened = remaining_ms < full_ms
     try:
         if shortened:
@@ -416,7 +416,7 @@ class Database:
         from .errors import ApiError
 
         label = label or _caller(3)
-        conn = self._open(durable)
+        conn = self._open() if durable else self._open(durable=False)
         _MODES[id(conn)] = (mode, self, label)
         _conn_gate[id(conn)] = self.gate
         try:
