@@ -487,10 +487,11 @@ def estimate_tilt(segs: list[Seg], t_med: float) -> float:
 
 # ---------------------------------------------------------------- the picture -> masks
 
-def _analysis(gray: Image.Image, strength: float, analysis_px: int = ANALYSIS_PX) -> dict[str, Any]:
+def _analysis(gray: Image.Image, strength: float, analysis_px: int = ANALYSIS_PX, light: bool = False) -> dict[str, Any]:
     """The masks at the working resolution: `walls` (the closed / opened ink, as plan_stylize builds it), `ink` (a
     softer threshold that keeps the light thin lines a scan gives door arcs and window glass), `ink_d` (ink dilated by
-    one pixel, for line sampling), `thin` (ink away from the walls, dilated by two, for the arc test)."""
+    one pixel, for line sampling), `thin` (ink away from the walls, dilated by two, for the arc test); with `light`
+    (the arc_v2 door model only) also `light`, the ink up to at least grey 200."""
     width, height = gray.size
     scale = min(1.0, analysis_px / max(width, height))
     aw, ah = max(8, int(round(width * scale))), max(8, int(round(height * scale)))
@@ -506,10 +507,12 @@ def _analysis(gray: Image.Image, strength: float, analysis_px: int = ANALYSIS_PX
     # a one-pixel opening first: isolated scan speckles must not be closed into blobs (the raw ink keeps every line)
     walls = ps.opening(ps.closing(ps.opening(ink, 1), close_r), open_r)
     thin_ink = soft & ~ps.dilate(walls, 1)
-    # the arc_v2 door model (plan_detect_doors) reads thin grey symbol lines: at least up to grey 200, however dark the
-    # walls (a flat black plan puts Otsu's threshold at 90 and the soft ink at 140)
-    light = g < max(200, min(235, thr + 50))
-    return {"aw": aw, "ah": ah, "factor": aw / width, "ink": soft, "light": light,"ink_d": ps.dilate(soft, 1), "walls": walls, "thin": ps.dilate(thin_ink, 2), "threshold": thr}
+    out = {"aw": aw, "ah": ah, "factor": aw / width, "ink": soft, "ink_d": ps.dilate(soft, 1), "walls": walls, "thin": ps.dilate(thin_ink, 2), "threshold": thr}
+    if light:
+        # the arc_v2 door model (plan_detect_doors) reads thin grey symbol lines: at least up to grey 200, however dark
+        # the walls (a flat black plan puts Otsu's threshold at 90 and the soft ink at 140); only built behind its flag
+        out["light"] = g < max(200, min(235, thr + 50))
+    return out
 
 
 def _even_width(dt: np.ndarray, pts: np.ndarray, horizontal: bool) -> np.ndarray:
@@ -671,8 +674,8 @@ def _segments(pieces: list[Seg], t_med: float, min_len: float, reach_px: float |
     return [g for i, g in enumerate(segs) if (g.length >= min_len and g.length >= BLOB_RATIO * g.thick) or (i in continues and g.length + g.thick >= min_len)]
 
 
-def _stage(gray: Image.Image, strength: float, analysis_px: int, scale_m_per_px: float | None, deadline: float | None = None) -> dict[str, Any]:
-    an = _analysis(gray, strength, analysis_px)
+def _stage(gray: Image.Image, strength: float, analysis_px: int, scale_m_per_px: float | None, deadline: float | None = None, light: bool = False) -> dict[str, Any]:
+    an = _analysis(gray, strength, analysis_px, light=True) if light else _analysis(gray, strength, analysis_px)  # the default call stays as it was
     aw, ah, f = an["aw"], an["ah"], an["factor"]
     mask = an["walls"]
     _check(deadline)
@@ -1221,7 +1224,7 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
     if abs(tilt) < TILT_MIN_DEG:
         tilt = 0.0
     src = gray.rotate(tilt, resample=Image.BICUBIC, fillcolor=255) if tilt else gray
-    st = _stage(src, strength, ANALYSIS_PX, scale_m_per_px, deadline)
+    st = _stage(src, strength, ANALYSIS_PX, scale_m_per_px, deadline, light=door_model == "arc_v2")
     an, dt, s, calibrated, segs, aw, ah, f = st["an"], st["dt"], st["s"], st["calibrated"], st["segs"], st["aw"], st["ah"], st["f"]
     segs, outside_main, dropped_reference = drop_reference_strokes(segs, st["t_med"], s)
     segs, dropped_dashed = drop_dashed_lines(segs, s, st["t_med"], an["ink"])

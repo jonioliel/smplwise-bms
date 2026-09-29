@@ -167,6 +167,26 @@ def test_the_default_model_is_unchanged_and_an_unknown_model_is_refused():
         pd.detect(png, scale_m_per_px=SCALE, door_model="learned")
 
 
+def test_the_light_mask_is_only_built_for_arc_v2(monkeypatch):
+    p, wall = _room()
+    p.door(wall, (400, 250), 90, "end", "right")
+    png = _png(p)
+    real = pd._analysis
+    seen: list[tuple[tuple, dict, dict]] = []
+
+    def spy(*args, **kwargs):
+        out = real(*args, **kwargs)
+        seen.append((args, kwargs, out))
+        return out
+
+    monkeypatch.setattr(pd, "_analysis", spy)
+    pd.detect(png, scale_m_per_px=SCALE)
+    assert len(seen) == 2 and all(kw == {} and "light" not in out for _a, kw, out in seen), "the default path computes no light mask"
+    seen.clear()
+    pd.detect(png, scale_m_per_px=SCALE, door_model="arc_v2")
+    assert ["light" in out for _a, _kw, out in seen] == [False, True], "the tilt probe never, the main pass only behind the flag"
+
+
 def test_arc_v2_keeps_the_deadline_and_its_cost_is_bounded():
     p, _wall = _room()
     _symbol(p, (400, 205), (400, 295), (1, 0))
