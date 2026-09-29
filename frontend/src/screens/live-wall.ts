@@ -16,6 +16,19 @@ import { effectiveTransport, productSettings } from '../api/prefs';
 import { describeError } from '../api/client';
 import type { Camera } from '../api/types';
 import { simulateStrictRows } from './wall-grid';
+import { remoteVideo } from '../api/video-policy';
+import { RELEASE_MS, SNAPSHOT_REFRESH_MS, allocateLive, effectiveLiveCap, sameSet } from '../api/live-budget';
+
+/** The wall's quality choice of THIS device (`sub` = רגילה, `main` = גבוהה); unset = follow the installation setting. */
+export const WALL_QUALITY_KEY = 'sw.wall.quality';
+function storedQuality(): 'auto' | 'main' | 'sub' {
+  try {
+    const v = localStorage.getItem(WALL_QUALITY_KEY);
+    return v === 'main' || v === 'sub' ? v : 'auto';
+  } catch {
+    return 'auto';
+  }
+}
 
 /** T091 (owner request 2026-09-27): one row of the grid-layout settings dialog - the order the rows are kept
  * in IS the new sort_order (recomputed as 0..N-1 on save); `span` is the camera's grid_col_span. */
@@ -42,7 +55,20 @@ export class LiveWall extends LitElement {
   /** Comma-separated camera ids chosen on a floor map (T043); empty = all cameras. */
   @property() cameras = '';
   @state() private count = 4;
-  @state() private stream: 'auto' | 'main' | 'sub' = 'auto';
+  @state() private stream: 'auto' | 'main' | 'sub' = storedQuality();
+  /** Hotfix (remote live cap): the tiles that hold a live stream right now - in view (plus a tile of margin), within the
+   * budget; every other tile shows its snapshot. See api/live-budget.ts. */
+  @state() private liveSet: ReadonlySet<string> = new Set();
+  /** cache-buster of the snapshot-only tiles: they refresh every SNAPSHOT_REFRESH_MS (live tiles keep the minute) */
+  @state() private snapBust = Date.now();
+  private snapTimer: number | undefined;
+  private wanted = new Set<string>();
+  private graceTimers = new Map<string, number>();
+  private liveOrder: string[] = [];
+  private liveCap = 8;
+  private io: IntersectionObserver | undefined;
+  private ioMargin = -1;
+  private observed = new WeakSet<Element>();
   @state() private view = 'all';
   @state() private cams: Camera[] | null = null;
   @state() private settings: ProductSettings | null = null;
@@ -276,17 +302,107 @@ export class LiveWall extends LitElement {
 
   updated() {
     this.measure();
+    this.observeTiles();
+    this.reallocate();
+  }
+
+  /** The nearest scrolling ancestor (through shadow roots): the IntersectionObserver's margin only widens a scroller
+   * that IS the root - a page that scrolls inside `main` needs that element as the root, or the margin does nothing. */
+  private scrollRoot(): Element | null {
+    let el: Node | null = this;
+    while (el) {
+      const parent: Node | null = (el as Element).parentElement ?? ((el.getRootNode() as ShadowRoot).host ?? null);
+      if (!parent || !(parent instanceof Element)) return null;
+      const oy = getComputedStyle(parent).overflowY;
+      if (oy === 'auto' || oy === 'scroll' || oy === 'overlay') return parent;
+      el = parent;
+    }
+    return null;
+  }
+
+  /** Start observing the tiles: in view (with one tile of margin) = wanted; out of view for RELEASE_MS = released. */
+  private observeTiles() {
+    if (!this.cams || typeof IntersectionObserver === 'undefined') return;
+    const tiles = Array.from(this.renderRoot.querySelectorAll<HTMLElement>('sw-camera-tile[data-cam]'));
+    if (!tiles.length) return;
+    const margin = Math.round(tiles[0].getBoundingClientRect().height) || 180;
+    if (!this.io || Math.abs(margin - this.ioMargin) > 40) {
+      this.io?.disconnect();
+      this.observed = new WeakSet();
+      this.ioMargin = margin;
+      this.io = new IntersectionObserver((entries) => this.onIntersect(entries), { root: this.scrollRoot(), rootMargin: `${margin}px 0px ${margin}px 0px` });
+    }
+    for (const t of tiles) {
+      if (this.observed.has(t)) continue;
+      this.observed.add(t);
+      this.io.observe(t);
+    }
+  }
+
+  private onIntersect(entries: IntersectionObserverEntry[]) {
+    for (const e of entries) {
+      const id = (e.target as HTMLElement).dataset.cam;
+      if (!id) continue;
+      const timer = this.graceTimers.get(id);
+      if (e.isIntersecting) {
+        if (timer !== undefined) window.clearTimeout(timer);
+        this.graceTimers.delete(id);
+        this.wanted.add(id);
+      } else if (this.wanted.has(id) && timer === undefined) {
+        // left the view: the stream is released after RELEASE_MS (a quick scroll back keeps it)
+        this.graceTimers.set(id, window.setTimeout(() => {
+          this.graceTimers.delete(id);
+          this.wanted.delete(id);
+          this.reallocate();
+        }, RELEASE_MS));
+      }
+    }
+    this.reallocate();
+  }
+
+  /** The wall's live set from the budget and what is wanted; an unchanged set costs no render. Without an
+   * IntersectionObserver (very old webviews) the first tiles within the budget stream, as before. */
+  private reallocate() {
+    if (!this.cams) return;
+    const next = typeof IntersectionObserver === 'undefined' ? new Set(this.liveOrder.slice(0, this.liveCap)) : allocateLive(this.liveOrder, this.wanted, this.liveSet, this.liveCap);
+    if (!sameSet(next, this.liveSet)) this.liveSet = next;
+  }
+
+  /** The stream the wall plays: this device's choice, else the installation's (`remote.wall_profile` on the remote
+   * channel, `media.wall_profile` on LAN / Ingress - unchanged there). */
+  private wallProfile(): 'sub' | 'main' {
+    if (this.stream !== 'auto') return this.stream;
+    if (remoteVideo()) return this.settings?.['remote.wall_profile'] === 'main' ? 'main' : 'sub';
+    return this.settings?.['media.wall_profile'] ?? 'sub';
+  }
+
+  private setQuality(value: string) {
+    this.stream = value === 'main' ? 'main' : 'sub';
+    try {
+      localStorage.setItem(WALL_QUALITY_KEY, this.stream);
+    } catch {
+      /* private mode: the choice lasts until the page closes */
+    }
   }
 
   connectedCallback() {
     super.connectedCallback();
     void this.load();
     this.posterTimer = window.setInterval(() => (this.posterBust = Date.now()), 60_000);
+    this.snapTimer = window.setInterval(() => (this.snapBust = Date.now()), SNAPSHOT_REFRESH_MS);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     window.clearInterval(this.posterTimer);
+    window.clearInterval(this.snapTimer);
+    this.io?.disconnect();
+    this.io = undefined;
+    this.ioMargin = -1;
+    this.observed = new WeakSet();
+    for (const t of this.graceTimers.values()) window.clearTimeout(t);
+    this.graceTimers.clear();
+    this.wanted.clear();
     this.ro?.disconnect();
     window.removeEventListener('resize', this.measure);
   }
@@ -477,12 +593,18 @@ export class LiveWall extends LitElement {
     // to the 16N:9 approximation when that width is not known.
     const tilePx = fit && (this.colsOverride || window.innerWidth >= 768) ? fit.tile : 0;
     const gapPx = window.innerWidth < 768 ? 8 : WALL_GAP;
-    const cap = this.settings?.['media.max_live_sessions'] ?? 8;
-    const profile: 'sub' | 'main' = this.stream === 'auto' ? (this.settings?.['media.wall_profile'] ?? 'sub') : this.stream;
+    // hotfix: on the remote channel the budget is min(installation cap, remote.max_live_streams of this sign-in)
+    const remoteCap = remoteVideo() ? Number(this.settings?.['remote.max_live_streams'] ?? 16) : null;
+    const cap = effectiveLiveCap(this.settings?.['media.max_live_sessions'] ?? 8, remoteCap);
+    const streamable = (c: Camera) => c.status !== 'offline' && c.can_view_live !== false;
+    this.liveOrder = shown.filter(streamable).map((c) => c.id);
+    this.liveCap = cap;
+    const profile = this.wallProfile();
     const transport: Transport = effectiveTransport(this.settings);
     return html`
       <div class="grid ${fit ? 'fit' : ''}" style="--cols:${cols};--tile:${fit ? `${fit.tile}px` : 'auto'}" data-wall-cols=${cols} ?data-wall-cols-manual=${!!this.colsOverride}>
-        ${shown.map((c, i) => {
+        ${shown.map((c) => {
+          const isLive = streamable(c) && this.liveSet.has(c.id);
           const span = Math.min(spanOf(c), gridCols);
           // A span-N tile is N columns wide at ONE row's height (see bestFit()): its box is exactly as tall as a
           // plain tile. With the fitted tile width known, the ratio includes the N-1 gaps it also covers, so the
@@ -496,12 +618,14 @@ export class LiveWall extends LitElement {
           return html`<sw-camera-tile
             name=${c.name}
             state=${c.status === 'online' ? 'live' : c.status === 'offline' ? 'offline' : 'unknown'}
-            ?live=${c.status !== 'offline' && c.can_view_live !== false && i < cap}
+            data-cam=${c.id}
+            ?live=${isLive}
+            ?snapshotOnly=${streamable(c) && !isLive}
             cameraId=${c.id}
             profile=${profile}
             transport=${transport}
             .encoding=${c.encoding ?? null}
-            poster=${c.status === 'offline' ? '' : snapshotUrl(c.id, this.posterBust)}
+            poster=${c.status === 'offline' ? '' : snapshotUrl(c.id, streamable(c) && !isLive ? this.snapBust : this.posterBust)}
             ?compact=${n >= 9}
             fit=${span > 1 ? 'fill' : 'contain'}
             style=${`grid-column: span ${span}${ratio ? `; aspect-ratio: ${ratio}` : ''}`}
@@ -512,7 +636,7 @@ export class LiveWall extends LitElement {
       <div class="note" data-wall-cols-row style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">עמודות:
         ${[0, 1, 2, 3, 4, 5, 6].map((n) => html`<button class="colbtn ${this.colsOverride === n ? 'on' : ''}" data-wall-cols-set=${n} @click=${() => this.setCols(n)}>${n === 0 ? 'אוטו' : n}</button>`)}
       </div>
-      <div class="note">${shown.length} מתוך ${cams.length} מצלמות · פרופיל ${profile === 'sub' ? 'משני' : 'ראשי'} · תעבורה ${transport} · מכסת זרמים ${cap}${shown.length > cap ? ` — מעבר למכסה מוצג צילום בלבד` : ''} · צילומים מתרעננים כל דקה</div>
+      <div class="note">${shown.length} מתוך ${cams.length} מצלמות · פרופיל ${profile === 'sub' ? 'משני' : 'ראשי'} · תעבורה ${transport} · מכסת זרמים ${cap}${shown.length > cap ? ` — מעבר למכסה מוצג צילום בלבד` : ''} · צילומים מתרעננים כל דקה (אריחים בלי זרם חי: כל 10 שניות)</div>
     `;
   }
 
@@ -542,7 +666,7 @@ export class LiveWall extends LitElement {
     return html`
       <sw-page heading="כל המצלמות" subheading="${total} מצלמות${api ? '' : ` · תצוגה: ${VIEWS.find((v) => v.id === this.view)?.label} · נתוני הדגמה`}" wide>
         ${api ? nothing : html`<sw-field slot="actions"><select aria-label="תצוגה" @change=${(e: Event) => (this.view = (e.target as HTMLSelectElement).value)}>${VIEWS.map((v) => html`<option value=${v.id} ?selected=${v.id === this.view}>${v.label}</option>`)}</select></sw-field>`}
-        <sw-field slot="actions"><select aria-label="זרם" @change=${(e: Event) => (this.stream = (e.target as HTMLSelectElement).value as 'auto')}><option value="auto">חי · אוטומטי</option><option value="main">חי · ראשי</option><option value="sub">חי · משני</option></select></sw-field>
+        <sw-field slot="actions"><select aria-label="איכות" data-wall-quality title="איכות הקיר במכשיר הזה (נשמרת בדפדפן)" @change=${(e: Event) => this.setQuality((e.target as HTMLSelectElement).value)}>${(['sub', 'main'] as const).map((p) => html`<option value=${p} ?selected=${this.wallProfile() === p}>איכות: ${p === 'sub' ? 'רגילה' : 'גבוהה'}</option>`)}</select></sw-field>
         <div slot="actions" class="layouts" role="group" aria-label="פריסה">
           ${COUNTS.map((n) => html`<button class=${n === this.count && !this.cameras ? 'on' : ''} @click=${() => { this.setCount(n); if (this.cameras) navigate('/live/wall'); }} aria-pressed=${n === this.count && !this.cameras}>${n}</button>`)}
         </div>
