@@ -689,7 +689,7 @@ class FakeHA:
             if eid in self.refuse:
                 return {"ok": False, "error": "service_not_allowed"}
             if eid not in self.stuck:
-                new = {"turn_off": "off", "close_cover": "closed"}.get(payload["service"])
+                new = {"turn_off": "off", "close_cover": "closed", "turn_on": "on"}.get(payload["service"])
                 if new:
                     now = _now_z(0)
                     with self.app.state.db.write_aside() as w:
@@ -1337,12 +1337,14 @@ def test_bulk_cover_group_control_open_stop_position_with_exclusions(bulk_app):
 
 
 def test_bulk_group_cover_kinds_are_area_only(bulk_app):
-    """CR-007 slice 4 review (MEDIUM 4): covers_open / covers_stop / covers_position are the area's own "כל
-    התריסים" group control (the spec never describes a building-wide open) - refused at floor/building scope,
-    audited like any other refusal; covers_close (a slice-3 kind, part of the classic five-kind menu) is unaffected
-    and stays valid at every scope."""
+    """CR-007 slice 4 review (MEDIUM 4): covers_stop / covers_position are the area's own "כל התריסים" group control -
+    refused at floor/building scope, audited like any other refusal; covers_close (a slice-3 kind, part of the classic
+    five-kind menu) is unaffected and stays valid at every scope. Owner decision 2026-09-29 (the tiles' panel "open all"):
+    covers_open is valid at every scope too."""
     app, s, c, fake = bulk_app
-    for kind in ("covers_open", "covers_stop", "covers_position"):
+    assert c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "covers_open"}).status_code == 200
+    assert c.get("/api/v1/devices/actions/preview", params={"scope": "floor", "id": "ground", "kind": "covers_open"}).status_code == 200
+    for kind in ("covers_stop", "covers_position"):
         params = {"scope": "building", "id": "*", "kind": kind}
         if kind == "covers_position":
             params["position"] = 40
@@ -1559,3 +1561,59 @@ def test_items_permissions_read_only_rows_floor_scope_and_unlock_grant(dev_app):
     assert rb["scoped"] is True and _item_ids(rb) == [("second", "office", ["light.office"])]
     assert c.get("/api/v1/devices/items", params={"kind": "lights", "scope": "floor", "id": "ground"}, headers=as_user("ron")).status_code == 404
     assert c.get("/api/v1/devices/items", params={"kind": "switches", "scope": "area", "id": "unassigned"}, headers=as_user("ron")).status_code == 404
+
+# ---------------------------------------------------------------- the tiles' panel master control (owner 2026-09-29)
+
+
+def test_bulk_master_switches_on_off_follow_the_bulk_safe_mark(bulk_app):
+    """switches_off / switches_on: the same SwitchPolicy as "כבה הכל" - an administrator's bulk-safe mark is the only
+    way a switch enters (turning ON is guarded exactly like off), never an input_boolean; only switches in the needed
+    state are sent; the run goes through the ordinary bulk envelope, records and audit."""
+    app, s, c, fake = bulk_app
+    p = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "switches_off"}).json()
+    assert p["count"] == 0 and {x["entity_id"]: x["reason"] for x in p["excluded"]} == {"switch.lobby_sign": "switch_not_marked", "switch.loose": "switch_not_marked"}
+    assert c.put("/api/v1/devices/entities/switch.lobby_sign/bulk-safe", json={"bulk_safe": True}).status_code == 200
+    p = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "switches_off"}).json()
+    assert [t["entity_id"] for t in p["targets"]] == ["switch.lobby_sign"] and p["targets"][0]["action_id"] == "switch.turn_off"
+    assert p["kind_label"] == "כיבוי מתגים"
+    # already on: switches_on has nothing to send for it, and the unmarked loose switch stays out
+    on = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "switches_on"}).json()
+    assert on["count"] == 0 and on["skipped"]["already"] == 1 and [x["entity_id"] for x in on["excluded"]] == ["switch.loose"]
+    r = c.post("/api/v1/devices/actions", json=_bulk(scope="building", id="*", kind="switches_off", preview_digest=p["digest"]))
+    assert r.status_code == 202, r.text
+    done = _finish(c, r.json()["id"])
+    assert done["counts"]["confirmed"] == 1 and [call["service"] for call in fake.calls] == ["turn_off"]
+    on = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "switches_on"}).json()
+    assert [t["action_id"] for t in on["targets"]] == ["switch.turn_on"]
+    r2 = c.post("/api/v1/devices/actions", json=_bulk(scope="building", id="*", kind="switches_on", preview_digest=on["digest"]))
+    assert r2.status_code == 202, r2.text
+    assert _finish(c, r2.json()["id"])["counts"]["confirmed"] == 1 and fake.calls[-1]["service"] == "turn_on"
+    assert len(_audit_rows(app, phase="attempt", kind="switches_on")) == 1 and len(_audit_rows(app, phase="outcome", kind="switches_on")) == 1
+    # a viewer / operator (no devices.control_bulk) is refused, as for every bulk kind
+    bind(c, s, "op", "operator", "installation", "*")
+    assert c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "switches_on"}, headers=as_user("op")).status_code == 403
+
+
+def test_bulk_lights_and_screens_on_and_the_only_narrowing(bulk_app):
+    """lights_on / screens_on send turn_on to what is off; `only` (the panel's filter / search) narrows the resolved
+    set - it can never add an entity the rules left out (another scope, a lock, an unknown id)."""
+    app, s, c, fake = bulk_app
+    lo = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "lights_on"}).json()
+    assert sorted(t["entity_id"] for t in lo["targets"]) == ["light.lobby_spot", "light.office"] and {t["action_id"] for t in lo["targets"]} == {"light.turn_on"}
+    so = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "screens_on"}).json()
+    assert so["count"] == 0 and so["skipped"]["already"] == 1  # the TV is playing
+    full = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "lights_off"}).json()
+    assert sorted(t["entity_id"] for t in full["targets"]) == ["light.garden", "light.lobby"] and full["narrowed"] is False
+    one = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "lights_off", "only": "light.lobby"}).json()
+    assert [t["entity_id"] for t in one["targets"]] == ["light.lobby"] and one["narrowed"] is True and one["digest"] != full["digest"]
+    # only cannot widen: an entity of another area, a lock, an unknown id - none is added
+    area = c.get("/api/v1/devices/actions/preview", params={"scope": "area", "id": "lobby", "kind": "lights_off", "only": "light.garden,lock.front,light.nope,light.lobby"}).json()
+    assert [t["entity_id"] for t in area["targets"]] == ["light.lobby"]
+    # the run honours the same narrowing and refuses a set that changed
+    r = c.post("/api/v1/devices/actions", json=_bulk(scope="building", id="*", kind="lights_off", only=["light.lobby"], preview_digest=one["digest"]))
+    assert r.status_code == 202, r.text
+    done = _finish(c, r.json()["id"])
+    assert [i["entity_id"] for i in done["items"]] == ["light.lobby"] and [call["data"]["entity_id"] for call in fake.calls] == ["light.lobby"]
+    r2 = c.post("/api/v1/devices/actions", json=_bulk(scope="building", id="*", kind="lights_off", only=["light.garden"], preview_digest=one["digest"]))
+    assert r2.status_code == 409 and r2.json()["code"] == "target_changed"
+    assert c.post("/api/v1/devices/actions", json=_bulk(scope="building", id="*", kind="lights_off", only=[f"light.x{i}" for i in range(501)])).status_code == 422

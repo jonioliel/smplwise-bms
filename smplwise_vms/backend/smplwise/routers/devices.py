@@ -300,7 +300,7 @@ def assign_area(entity_id: str, request: Request, principal: Principal = Depends
 
 COMMAND_ID = r"^[A-Za-z0-9-]{8,64}$"
 Scope = Literal["building", "floor", "area"]
-Kind = Literal["lights_off", "covers_close", "covers_open", "covers_stop", "covers_position", "climate_off", "screens_off", "all_off"]
+Kind = Literal["lights_off", "covers_close", "covers_open", "covers_stop", "covers_position", "climate_off", "screens_off", "all_off", "switches_off", "switches_on", "lights_on", "screens_on"]
 
 
 class BulkBody(BaseModel):
@@ -318,6 +318,9 @@ class BulkBody(BaseModel):
     # CR-007 slice 4: the one argument a bulk kind ever carries - "כל התריסים" position, required exactly for
     # covers_position (bulk.resolve refuses a mismatch either way)
     position: int | None = Field(None, ge=0, le=100)
+    # owner 2026-09-29 (the tiles' panel): the entity ids the panel shows (its filter / search) - narrows the set, never
+    # widens it (services/device_bulk.resolve)
+    only: list[str] | None = Field(None, max_length=500)
 
 
 def _bulk_holder(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
@@ -386,6 +389,13 @@ def _envelope(act: _Refusals, body: BulkBody) -> dt.datetime:
     return min(expires, now + dt.timedelta(seconds=bulk.SEND_WITHIN_S))
 
 
+def _only(raw: str | None) -> set[str] | None:
+    """The preview's `only` (comma-separated entity ids) - None when absent."""
+    if raw is None:
+        return None
+    return {x.strip() for x in raw.split(",") if x.strip()}
+
+
 @router.get("/devices/actions/preview")
 def bulk_preview(
     principal: Principal = Depends(_bulk_reader),
@@ -394,11 +404,12 @@ def bulk_preview(
     id: str = Query(..., min_length=1, max_length=255),  # noqa: A002 - the scope's id, as in the request body
     kind: Kind = Query(...),
     position: int | None = Query(None, ge=0, le=100),
+    only: str | None = Query(None, max_length=20000),
 ) -> dict[str, Any]:
     """Exactly what `POST /devices/actions` would send for this scope and kind, per entity - the confirmation dialog
     states it (count by domain, what is skipped as already off / unavailable, what is never included). Sends nothing."""
     try:
-        return bulk.resolve(conn, principal, scope, id, kind, position)
+        return bulk.resolve(conn, principal, scope, id, kind, position, _only(only))
     except ApiError as exc:
         if exc.status == 403:
             audit(conn, actor=principal, action=bulk.AUDIT_ACTION, decision="denied", resource_type=f"devices_{scope}", resource_id=id, reason=exc.code,
@@ -426,7 +437,7 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder), con
     if body.confirmed is not True:
         raise act.refuse(ApiError(409, "confirmation_required", "פעולה מרוכזת דורשת אישור מפורש בחלון האישור."))
     try:
-        plan = bulk.resolve(conn, principal, body.scope, body.id, body.kind, body.position)
+        plan = bulk.resolve(conn, principal, body.scope, body.id, body.kind, body.position, set(body.only) if body.only is not None else None)
     except ApiError as exc:
         raise act.refuse(exc) from None
     if body.preview_digest is not None and body.preview_digest != plan["digest"]:
