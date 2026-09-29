@@ -1,5 +1,29 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.133 (pilot) — A real setup wizard: six checks against the installation, with explanations (T071)
+- **הגדרות › אשף התקנה** (`#/system/wizard`, system administrators) replaces the demo-only wizard: six steps -
+  **התקנה** (database answers, `/data` writable with ≥ 512 MB free, a system administrator exists, identity source,
+  time zone), **NVR** (model and firmware, channels online / offline, main + sub tracks, video profiles, clock drift
+  against the add-on, the NVR's UTC offset against the installation's zone - a wrong DST rule fails the step),
+  **Home Assistant** (connection and version, bridge paired and loaded, whether an HA restart is still pending after
+  a bridge update, HA clock and zone, the NVR ↔ HA clock gap), **go2rtc** (version; the `smplwise_` streams against
+  what the cameras need; other products' streams are only counted, never named), **קומה** (at least one floor with
+  a published plan), **מצלמה** (at least one camera placed). Each failure comes with a Hebrew explanation, the next
+  action and a link to the screen that fixes it; clock drift ≤ 2 s is fine, ≤ 30 s a warning, beyond that a failure.
+- `GET /setup/state` never contacts a device (cached probe results + database); `POST /setup/check/{step}` runs the
+  existing **read-only** probes (GET only - the wizard never changes anything on a device), one per user and step
+  every 5 s, a whole check cut off after 20 s ("לא ענה בזמן"), no database transaction open during device calls,
+  audited as `setup.check`. Responses carry model / firmware / versions / stream names - never serial numbers, MAC
+  or IP addresses (an NTP server address that could have reached the state is reduced to "configured: yes/no").
+- "בדוק שוב" per step, "בדוק הכול", a "מוכן לעבודה" summary when all six pass; system administrators see
+  "השלם את ההתקנה" in the shell until then (dismissable per session). The former `#/system/setup` stays as the
+  חיבורים page. Demo mode keeps its fixture data. Shell: the main area is now padded by the fixed system-error
+  banner, which used to cover the first rows of every screen.
+- Docs: `DOCS.md` + Hebrew mirror, `docs/user-guide/he/70-setup-wizard_HE.md`. Tests: `test_setup_wizard.py` 31
+  (fake NVR / HA / go2rtc; `fake.writes == []` asserted), 48 in the touched set; Playwright wizard spec (NVR down →
+  the step fails with the explanation, up → passes; desktop + phone), demo 2, screens sc26 6; tsc / build clean.
+  Opus review (2 medium fixed: NTP address, check deadline).
+
 ## 0.1.132 (pilot) — Events 8× faster under load, ingest and export backpressure, a local soak (T068); capture-cancel race; door-model study
 ### Events, ingest and exports (T068, device-free part)
 - **Events list p50 1,655 → 191 ms, p95 2,442 → 663 ms; facets 155 → 82 ms** (24 h window, 500 rows, ~8 alerts/s,
