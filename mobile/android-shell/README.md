@@ -10,7 +10,7 @@ Operator and customer guide in Hebrew: `docs/operations/ARX_ANDROID_SHELL_HE.md`
 | | |
 |---|---|
 | Package id | `com.smplwise.arx.app` (not the TWA's, so both install side by side during the trial) |
-| App name / version | SmplWise Arx, versionName `2.0.0`, versionCode `arxVersionCode` (default 1) |
+| App name / version | SmplWise Arx, versionName `2.0.1`, versionCode `arxVersionCode` (2) |
 | Screens | `ServersActivity` (launcher: the server list and the app's settings), `WebActivity` (one server, full screen) |
 | Toolchain | AGP 8.9.1, Kotlin 2.2.0, Gradle 8.11.1 (wrapper, checksum-pinned), compileSdk 36, targetSdk 35, minSdk 26, JDK 17 |
 | Libraries | `androidx.webkit` 1.14.0, `androidx.biometric` 1.1.0, `androidx.core:core-splashscreen` 1.0.1, `androidx.activity` 1.10.1, `androidx.appcompat` 1.7.0, Material Components 1.12.0 - nothing else |
@@ -66,16 +66,27 @@ future iOS app is again a thin `WKWebView` shell around the same site.
 
 ### The site (`WebActivity`)
 - **Navigation scope** (`NavPolicy`, unit-tested): top-level navigation stays in the app only on the selected server's
-  origin, under its path, or under `/auth/` on that origin (Home Assistant's sign-in endpoints, should the flow ever
-  navigate there). Paths are parsed and dot segments (plain or percent-encoded) are never in scope. Anything else on the
+  origin and under its path (no `/auth/` exception: the Arx sign-in talks to those endpoints with fetch). Paths are
+  parsed and dot segments (plain or percent-encoded) are never in scope. Anything else on the
   web - other hosts, the same host outside the Arx path (e.g. the WisKey "full window" link), `http:` - opens in the
   system browser; `mailto:` / `tel:` go to their apps; `javascript:`, `intent:`, `file:`, `content:`, `data:` and unknown
   schemes are dropped. `target=_blank` and `window.open` go through the same decision (a throwaway WebView learns the
-  URL; nothing opens a second window). Subframes (the same-origin WisKey panel) follow the page's own CSP.
+  URL, never fetches anything and is destroyed within 2 s; nothing opens a second window). Without a user gesture the
+  page can hand at most one link to the system every 10 s. Subframes (the same-origin WisKey panel) follow the page's
+  own CSP.
+- **Second check on every main document:** `shouldOverrideUrlLoading` never sees POST navigations (a form with
+  `target=_top`), back / forward or a restored state. So a main-frame request outside the server's Arx pages gets an
+  empty 403 from `shouldInterceptRequest` (it never reaches the network), and `onPageStarted` / `doUpdateVisitedHistory`
+  stop any such document and go back, or show the "outside the server" screen (`NavPolicy.mayShow`). The bridge answers
+  only while the page shown is an Arx page, and the injected script does nothing off the server's path (the same origin
+  also serves the platform's own UI at `/`).
 - **Hardening:** no `addJavascriptInterface`; file and content access off; universal/file-URL access off; mixed content
   never allowed; Safe Browsing on; cleartext off and only system CAs (`network_security_config.xml`); third-party cookies
   off; geolocation refused; certificate errors are never bypassed (the error screen says so); WebView debugging only in
-  debug builds; WebView usage metrics opted out.
+  debug builds; WebView usage metrics opted out; no task affinity (`taskAffinity=""`, no other app can slip an activity
+  into the app's task); taps through another app's overlay are ignored on the add-server, link and lock buttons; the site
+  screen opens only a stored server; bridge messages are parsed off the main thread (10 MB cap); a renderer crash
+  restarts the screen at most once per 30 s.
 - **Sessions:** cookies and localStorage are the WebView's, per origin, on disk. `CookieManager.flush()` on every page
   load and on pause. Arx keeps its sign-in (the refresh token) in localStorage (`arx.auth.v1`) and exchanges it for the
   `__Secure-arx_session` cookie (SameSite=Strict, Path=/arx/, at most 30 min); after an app restart the page resumes
@@ -86,10 +97,13 @@ future iOS app is again a thin `WKWebView` shell around the same site.
   and protected media are refused. `mediaPlaybackRequiresUserGesture = false` (muted live tiles start by themselves),
   hardware acceleration on, full-screen video through `onShowCustomView` (system bars hidden, screen kept on, Back
   leaves full screen). Rotation does not recreate the WebView (`configChanges`).
-- **Downloads:** files on the server (evidence exports, backups) go to Android's DownloadManager with the server's
-  cookies (attached only for the server's origin) and the WebView's user agent; files the page builds itself (`blob:`
-  URLs - the audit CSV, plan JSON, 3D export) are handed over by the injected script and saved through the system's
-  "save as" (up to 25 MB). **Uploads** (plan PDFs, restore ZIPs, bundles) open the system file picker with the MIME
+- **Downloads:** every file goes through the system's "save as" first. Files on the server (evidence exports, backups)
+  are then fetched by the app itself (`HttpURLConnection`, never Android's DownloadManager, which would keep the session
+  cookie in the system's download database and send it again on every redirect hop): the server's cookie for that URL,
+  redirects followed only to the server's own Arx pages (at most 5), the file streamed to the chosen place, a failed
+  download removed. Files the page builds itself (`blob:` URLs - the audit CSV, plan JSON, 3D export) are handed over by
+  the injected script (up to 10 MB; it keeps only the 16 most recent Blobs, 2 minutes each). Android packages (`.apk`)
+  are never saved. **Uploads** (plan PDFs, restore ZIPs, bundles) open the system file picker with the MIME
   types of the page's `accept` list.
 - **Look:** Android 12 splash (the icon on the brand blue), the same picture as the web screen's window background until
   the page paints; edge-to-edge - the status-bar strip takes the page's `<meta name="theme-color">` and the navigation
@@ -105,16 +119,23 @@ future iOS app is again a thin `WKWebView` shell around the same site.
 ### App lock ("נעילת האפליקציה")
 Off by default; switched on in the server list (the phone confirms the user first; switching it off does too). When on,
 the phone's fingerprint / face / screen lock (`androidx.biometric`, `BIOMETRIC_WEAK | DEVICE_CREDENTIAL`) is required on
-every cold start and after 0 ("מיד"), 1, 5, 15 or 60 minutes away (`LockPolicy`, unit-tested; the file picker, "save
-as", the microphone prompt and the credential screen itself do not count as "away"). A cover hides the whole window
-until then, the site's media pause, and on Android 13+ the recent-apps thumbnail is blank while the lock is on. If the
-phone no longer has a screen lock, the app switches its lock off and says so.
+every cold start and after 0 ("מיד"), 1, 5, 15 or 60 minutes away (`LockPolicy`, unit-tested). The time away is always
+counted; leaving through the app's own file picker, "save as" or microphone prompt waives only the first 30 s. Once
+shown, the lock stays until the phone confirms the user (cancelling the prompt keeps it). While locked: a cover hides
+the whole window; videos and audio pause and an open microphone is stopped; open dialogs close and new ones (a link's
+"add this server?", add / edit) wait for the unlock; Back only moves the app to the background; permission requests,
+file pickers, downloads and bridge messages are refused. The recent-apps thumbnail is blank while the lock is on
+(Android 13+ `setRecentsScreenshotEnabled`, older `FLAG_SECURE`). The app switches its lock off only when the phone has
+no screen lock or biometrics at all any more (it says so); any other "cannot authenticate now" keeps it locked with
+"נסו שוב".
 
 ### Deep links
 - `arx://servers` - the server list.
-- `arx://open?url=https://<server>/arx/#/...` - opens the link only when it lies on a stored server (parsed, rebuilt
-  from its parts on that server's origin). A link to any other address is never opened or added by itself: the list
-  shows the **full address** with the warning "הוסף רק אם אתה מכיר את מי שמפעיל את השרת" and "הוסף שרת".
+- `arx://open?url=https://<server>/arx/#/...` - opens the link only when it lies on a stored server and is the app's
+  entry page with its query and `#` route (parsed, rebuilt from its parts on that server's origin; an API path or a file
+  is refused). When a site is already open the list asks first ("לפתוח את הקישור?" - it may be an intercom call). A
+  link to any other address is never opened or added by itself: the list shows the **full address** with the warning
+  "הוסף רק אם אתה מכיר את מי שמפעיל את השרת" and "הוסף שרת".
 - Plain `https://` links (for example from WhatsApp or e-mail) open in the browser, not in the app: the app declares no
   verified https links, because the servers are known only at run time.
 
@@ -162,6 +183,26 @@ rendered with wrong colours and a short layout - the app now shows a notice on W
 soft keyboard had been used, a grey dim covered this app's window (not other apps) and survived a force-stop, with no
 overlay in the app's view tree or window list; treated as an emulator window-manager artifact until a phone shows it.
 
+### Security review round (2.0.1), seen on the emulator
+
+Same emulator and fixtures; the tunnel stand-in also served test routes (a file, an in-scope redirect, an `.apk`, a
+landing page outside `/arx/`) and logged every request with its Cookie and User-Agent.
+
+- **M1:** a POST form with `target=_top` to `/__test/landing` (same origin, outside Arx) submitted from the page: the
+  request never reached the network (nothing in the proxy log), the page stayed on `/arx/`. A POST to another origin was
+  already refused by the site's own CSP (`form-action 'self'`).
+- **M2:** a download link → "save as" (DocumentsUI) → the file (2000 bytes) fetched by the app itself (the app's user
+  agent, the page's cookie); the system download database has no request headers. An in-scope redirect: the WebView
+  resolved it before handing the URL over, then the same in-app fetch. The `.apk` link opened no picker (refused). The
+  redirect-hop rule itself is covered by unit tests only.
+- **M3:** lock on ("מיד"), app sent home, `arx://open` for an unknown server: the phone's prompt and the cover, no offer
+  dialog; cancelling the prompt kept the cover (this first **failed** - the lock's own credential screen counted as an
+  excursion and unlocked the app; fixed, unit-tested); a tap on the add button under the cover did nothing; Back moved
+  the app to the background; after the PIN the held-back offer dialog appeared.
+- **M5, incidentally:** returning from the "save as" picker after more than 30 s with "מיד" asked for the PIN.
+- The emulator's software GPU hung the app's render thread once while switching windows (an ANR in
+  `HardwareRenderer.pause`, no app code on the stack) - an emulator artifact like the grey dim above.
+
 ## Known limits
 - No push notifications (above).
 - **Not seen yet** (needs a phone and the lab): WebRTC video and two-way audio, full-screen video, downloads and
@@ -175,8 +216,7 @@ overlay in the app's view tree or window list; treated as an emulator window-man
 - The page-facing interface and blob downloads (files the page builds) need a WebView that supports the
   `WEB_MESSAGE_LISTENER` and `DOCUMENT_START_SCRIPT` features (current Android System WebView releases do; an outdated
   WebView gets a Hebrew message asking to update it, and "החלף שרת" still works through `arx://servers`).
-- Android 8-9 (API 26-28): server downloads land in the app's own Downloads folder (no storage permission is asked); the
-  download notification opens them.
+- Downloads show a toast when they start and end; there is no progress notification.
 
 ## Build settings (all optional)
 
@@ -187,8 +227,8 @@ overlay in the app's view tree or window list; treated as an emulator window-man
 | `arxHost` | a server added once on the first start (bare hostname) | empty |
 | `arxPath` | that server's path, with both slashes | `/arx/` |
 | `arxServerName` | that server's display name | its hostname |
-| `arxVersionCode` | integer; raise it for every APK you hand out | `1` |
-| `arxVersionName` | shown in app info and as `ArxApp.version` | `2.0.0` |
+| `arxVersionCode` | integer; raise it for every APK you hand out | `2` |
+| `arxVersionName` | shown in app info and as `ArxApp.version` | `2.0.1` |
 
 ## Build
 

@@ -573,6 +573,22 @@ Firebase or Google Play services dependency. This replaces §3d.2's "Capacitor l
 - **Not verified yet** (needs a phone and the lab): WebRTC video and two-way audio, full-screen video, downloads and
   uploads, the splash on Android 12+, insets on a real WebView 140+, `__Secure-arx_session` over https through the
   real tunnel. That is the owner's phone check.
+- **Owner on his phone (2026-09-29):** the 2.0.0 release APK installed and works.
+- **Security review of `b06ce29` → 2.0.1 (versionCode 2), same branch:** no blockers; five mediums fixed. M1 POST
+  navigations, back / forward and restored state bypassed the navigation check - main-frame requests outside the Arx
+  pages now get an empty 403 before the network, every started document and history entry is checked again, and the
+  bridge also requires the shown page to be an Arx page (the origin serves the platform UI at `/`). M2 downloads no
+  longer use DownloadManager (it stored the session cookie and resent it on redirects): "save as", then an in-app fetch
+  following redirects only to the Arx pages. M3 while locked no dialog stays or opens above the cover (queued until the
+  unlock), Back only backgrounds the app. M4 FLAG_SECURE below Android 13. M5 time away is always counted; the app's own
+  helpers waive 30 s only. The twelve lows (probe WebViews, no `/auth/` exception, `arx://open` entry page only and a
+  question before replacing an open site, lock switched off only without any screen lock, media and microphone stopped
+  on lock, bridge parsing off the main thread with a 10 MB cap, external opens throttled, renderer restarts capped, no
+  `.apk`, `taskAffinity=""` and overlay-tap filtering, stored servers only, bounded Blob memory) are fixed too.
+  Tests: 50 JVM unit tests. On the emulator: M1 (a POST form never reached the network), M2 (the in-app fetch with the
+  cookie, nothing in the system download database, `.apk` refused) and M3 (link and dialogs held back while locked,
+  Back to the background) seen; M3 also found a regression of the M5 change - cancelling the lock prompt unlocked the
+  app - fixed before the release build (a shown lock stays until the user is confirmed).
 
 ### P3 built (2026-09-29, branch `pilot/CR008-pwa-push`, not released)
 
