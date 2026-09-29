@@ -61,6 +61,45 @@ async function frameState(page: Page) {
 const hash = (page: Page) => page.evaluate(() => decodeURIComponent(location.hash));
 const activeTab = (page: Page) => page.locator('sw-tabs a[aria-current="page"]');
 
+/** T054 follow-up (dark frame around the embed, owner report 2026-09-29): the iframe must fill its `.stage` box
+ * exactly - no border, no outline, and no darker background sitting behind it while it loads or after it is ready. */
+async function frameGeometry(page: Page) {
+  // wiskey-embed is nested inside sw-app's own shadow root: document.querySelector cannot pierce it, so resolve the
+  // element through Playwright's (shadow-piercing) locator first and evaluate from there.
+  return page.locator('wiskey-embed').evaluate((embed: HTMLElement) => {
+    const root = embed.shadowRoot;
+    const stage = root?.querySelector('.stage') as HTMLElement | null;
+    const frame = root?.querySelector('iframe') as HTMLIFrameElement | null;
+    if (!stage || !frame) return null;
+    const s = stage.getBoundingClientRect();
+    const f = frame.getBoundingClientRect();
+    const cs = getComputedStyle(frame);
+    return {
+      dLeft: Math.abs(s.left - f.left),
+      dTop: Math.abs(s.top - f.top),
+      dWidth: Math.abs(s.width - f.width),
+      dHeight: Math.abs(s.height - f.height),
+      borderWidth: cs.borderTopWidth,
+      outlineStyle: cs.outlineStyle,
+      stageBg: getComputedStyle(stage).backgroundColor,
+      frameBg: cs.backgroundColor,
+    };
+  });
+}
+
+async function expectFrameFillsStage(page: Page) {
+  const g = await frameGeometry(page);
+  expect(g).not.toBeNull();
+  expect(g!.dLeft).toBeLessThanOrEqual(1);
+  expect(g!.dTop).toBeLessThanOrEqual(1);
+  expect(g!.dWidth).toBeLessThanOrEqual(1);
+  expect(g!.dHeight).toBeLessThanOrEqual(1);
+  expect(g!.borderWidth).toBe('0px');
+  expect(g!.outlineStyle).toBe('none');
+  expect(g!.stageBg).toBe('rgb(255, 255, 255)'); // --sw-surface, never a darker canvas token behind the frame
+  expect(g!.frameBg).toBe('rgb(255, 255, 255)');
+}
+
 let saved: AccessUi | null = null;
 
 test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)', () => {
@@ -111,6 +150,8 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     // the full-window link is the normal deep link (no embed=1)
     await expect(page.locator('wiskey-embed a[data-wiskey-embed-full]').first()).toHaveAttribute('href', '/hikvision-intercom?tab=users');
     await expect(frame).toHaveAttribute('allow', 'autoplay; microphone; camera; fullscreen; clipboard-write');
+    // the frame fills its box exactly: no border/outline, no darker background behind it (owner report 2026-09-29)
+    await expectFrameFillsStage(page);
     await page.screenshot({ path: testInfo.outputPath('wiskey-embed-v1-people.png') });
   });
 
@@ -669,6 +710,7 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await page.locator('sw-tabs a[href="#/wiskey/sync"]').click();
     await expect(page.locator(FRAME)).toHaveAttribute('data-confirmed-tab', 'sync');
     expect((await frameState(page)).tab).toBe('sync');
+    await expectFrameFillsStage(page); // the frame fills its box exactly on mobile too
     await page.screenshot({ path: testInfo.outputPath('wiskey-embed-phone-a.png') });
 
     // design B: WisKey sits behind "עוד"

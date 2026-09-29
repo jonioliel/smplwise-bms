@@ -360,14 +360,17 @@ export class WiskeyEmbed extends LitElement {
       flex: 1;
       min-block-size: 360px;
       display: flex;
+      background: var(--sw-surface);
     }
     iframe {
       flex: 1;
       inline-size: 100%;
       block-size: 100%;
-      min-block-size: 360px;
+      min-block-size: 0;
+      display: block;
       border: 0;
-      background: var(--sw-bg);
+      outline: none;
+      background: var(--sw-surface);
     }
     iframe[data-hidden] {
       visibility: hidden;
@@ -377,7 +380,7 @@ export class WiskeyEmbed extends LitElement {
       inset: 0;
       display: grid;
       place-items: center;
-      background: var(--sw-bg);
+      background: var(--sw-surface);
       padding: 16px;
     }
   `;
