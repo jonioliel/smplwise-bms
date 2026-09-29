@@ -19,7 +19,7 @@ before each pilot release (`python -m pip_audit -r smplwise_vms/backend/requirem
 | python-multipart | 0.0.32 | Apache-2.0 | uploads | |
 | pillow | 12.3.0 | MIT-CMU (HPND) | plan rendering | |
 | numpy | ≥2,<3 | BSD-3 | plan stylization / room detection | |
-| cryptography | ≥45,<51 (50.0.1 on the workstation) | Apache-2.0 OR BSD-3 | Ed25519 evidence-bundle signing (0.1.67) | added after the first audit |
+| cryptography | ≥45,<51 (50.0.1 on the workstation) | Apache-2.0 OR BSD-3 | Ed25519 evidence-bundle signing (0.1.67); Web Push VAPID (ES256) and RFC 8291 `aes128gcm` encryption (CR-008 P3 - chosen over adding pywebpush) | added after the first audit |
 | ezdxf | ≥1.3,<2 (1.4.4 on the workstation) | MIT | DXF plan import (0.1.43) | added after the first audit; pure Python |
 | tzdata | ≥2024.1 | Apache-2.0 | time zones | |
 | poppler-utils (Alpine) | distro | GPL-2.0 / GPL-3.0 | `pdftoppm` **as a subprocess** | not linked into our code; invoked per page with a timeout |

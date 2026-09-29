@@ -375,3 +375,29 @@ Ingress (§3b), ורושם זאת כתיקון מוצע ל-§4 שלו.
    הזרועים פגים או מבוטלים.
 4. הנחיות מדיה מרחוק: אילו זרמי WisKey בטוחים ל-WebRTC ‏(codec / ‏B-frames), כך שאותה מדיניות פרופיל תחול גם על
    וידאו האינטרקום.
+
+## 8. מצב הבנייה
+
+### P3 נבנה (29.09.2026, ענף `pilot/CR008-pwa-push`, לא שוחרר)
+
+נבנה בנפרד מענף ה־MVP של P1 (נתיב הבסיס, הכניסה מרחוק והסשנים שייכים לו; שום דבר כאן לא תלוי בהם - ה־worker
+וה־manifest הולכים אחרי הבסיס שבו הדף מוגש):
+
+- **PWA:** `arx-manifest.webmanifest` (scope / start_url `./`, `dir: rtl`, `lang: he`, אייקונים 192 / 512 / maskable /
+  SVG), service worker `arx-sw.js` שנרשם מ־`document.baseURI` עם בסיס האפליקציה כ־scope (קידומת ה־Ingress היום,
+  `/arx/` אחרי P1): מעטפת network-first עם דף "אין חיבור" בעברית, cache-first לקבצים עם hash, אף פעם לא `api/` או
+  וידאו. כרטיס "התקן את Arx", הסבר הוספה למסך הבית באייפון, הודעת גרסה חדשה. שם הקובץ `arx-sw.js` (ולא `sw.js` כפי
+  שנכתב ב־§3a/§3d) כדי שלא יתנגש בשמות ה־worker של Home Assistant.
+- **Web Push:** מיגרציה 0034 (`push_subscriptions`, `push_prefs`, `push_vapid`), `services/push.py`, `routers/push.py`
+  (`push/vapid-key`, `push/subscriptions`, `push/prefs`, `push/test`); VAPID ו־`aes128gcm` במימוש עם `cryptography`
+  (בלי pywebpush - הוא היה מוסיף requests, aiohttp, http-ece, py-vapid ו־six); רשימה סגורה של שירותי ה־Push של
+  הדפדפנים; נמענים לפי `row_scope(events.read)` (הכלל של רשימת ההתראות); קטגוריות, שעות שקט, מגבלת קצב למשתמש,
+  ניסיון חוזר בהמתנה, מחיקה ב־404/410. זוג מפתחות ה־VAPID נשמר בטבלה `push_vapid` במסד הנתונים (מחוץ ל־`settings`,
+  ולכן אף פעם לא בגיבוי פרויקט) ולא בקובץ ב־`/data`.
+- **הגדרות:** מערכת › התראות (לכל משתמש). מסלול ההתראה הוא מנוע החוקים המקומי (כל התראת חוק); שיחות WisKey עדיין
+  אינן אירועים (סעיף 7.1 פריט 2 יאפשר קטגוריית שיחת דלת).
+- **בדיקות:** `tests/test_push.py` (תשובה ידועה של RFC 8291, מחזור חיי המפתח, CRUD של המשתמש בלבד, שירות Push מזויף
+  200 / 410 / 429, סינון היקף, העדפות ושעות שקט, מגבלת קצב, תוכן בלי סודות); `frontend/tests/evidence-pwa-push.spec.ts`
+  ו־`unit-pwa-deeplink.spec.ts` (מחשב וטלפון).
+- **עוד לא נבדק:** מסירה דרך שירותי ה־Push האמיתיים (FCM / APNs / Mozilla) בטלפון אמיתי, ולחיצה על התראה באתר
+  המעבדה תחת Ingress ותחת `/arx/` - בדיקת בעלים אחרי המיזוג של P1.
