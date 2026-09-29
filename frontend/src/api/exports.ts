@@ -18,7 +18,8 @@ export interface ExportJob {
   owner: string;
   requested_from: string;
   requested_to: string;
-  state: 'queued' | 'running' | 'done' | 'partial' | 'failed' | 'cancelled' | 'interrupted';
+  /** paused_disk_full (T068): the add-on's data disk fell under storage.min_free_mb mid-job; resumes by itself when there is room. */
+  state: 'queued' | 'running' | 'done' | 'partial' | 'failed' | 'cancelled' | 'interrupted' | 'paused_disk_full';
   progress: number;
   error: string | null;
   created_at: string;

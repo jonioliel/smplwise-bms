@@ -30,7 +30,7 @@ from typing import Any, Callable
 from urllib.parse import parse_qs, urlsplit
 
 from ..config import Settings
-from ..db import Database, now_iso, unlocked
+from ..db import Database, get_setting, now_iso, unlocked
 from ..errors import ApiError
 from . import nvr, recordings
 from .timeutil import UTC, iso_utc, nvr_wall_to_utc, parse_utc, zone
@@ -144,19 +144,126 @@ def _row_to_job(row: sqlite3.Row) -> dict[str, Any]:
     }
 
 
-MAX_ACTIVE_JOBS = 5  # queued + running per owner
+MAX_ACTIVE_JOBS = 5  # queued + running + paused per owner
+MAX_QUEUED_TOTAL = 20  # queued + paused across all owners: the one worker thread's backlog is bounded (T068)
+MB = 1024 * 1024
+
+# ---------------------------------------------------------------- backpressure: queue bound and free disk (T068)
+
+DEFAULT_MIN_FREE_MB = 1024  # setting storage.min_free_mb: exports never take the add-on's data disk below this
+RESUME_MARGIN_MB = 64  # a paused job resumes once free space is back above the minimum by this much (no flapping)
+DISK_CHECK_EVERY_S = 1.0  # during a download, free space is re-checked at most this often
+PAUSED = "paused_disk_full"
+STATS: dict[str, int] = {"refused_disk": 0, "refused_queue_full": 0, "paused_disk_full": 0, "resumed": 0}
+_stats_lock = threading.Lock()
+
+
+def _count(name: str) -> None:
+    with _stats_lock:
+        STATS[name] += 1
+
+
+def stats() -> dict[str, int]:
+    with _stats_lock:
+        return dict(STATS)
+
+
+def min_free_mb(conn: sqlite3.Connection) -> int:
+    try:
+        return max(0, int(get_setting(conn, "storage.min_free_mb", str(DEFAULT_MIN_FREE_MB)) or DEFAULT_MIN_FREE_MB))
+    except ValueError:
+        return DEFAULT_MIN_FREE_MB
+
+
+def free_bytes(settings: Settings) -> int | None:
+    """Free space on the file system that holds the data directory (None when it cannot be read)."""
+    try:
+        return int(shutil.disk_usage(settings.data_dir).free)
+    except OSError:
+        return None
+
+
+def disk_state(settings: Settings, min_mb: int) -> dict[str, Any]:
+    try:
+        usage = shutil.disk_usage(settings.data_dir)
+        free, total = int(usage.free), int(usage.total)
+    except OSError:
+        free = total = None
+    return {"free_mb": None if free is None else free // MB, "total_mb": None if total is None else total // MB, "min_free_mb": min_mb,
+            "low": free is not None and free < min_mb * MB}
+
+
+def require_disk(settings: Settings, min_mb: int, need_bytes: int = 0) -> None:
+    """507 when a new export would take the data disk below `min_mb` (or it already is below it)."""
+    free = free_bytes(settings)
+    if free is None:
+        return
+    if free < min_mb * MB:
+        _count("refused_disk")
+        raise ApiError(507, "insufficient_storage",
+                       f"אין מספיק מקום פנוי בדיסק של התוסף לייצוא חדש: פנויים {free // MB} MB, והמינימום הוא {min_mb} MB. מחק ייצואים ישנים או פנה מקום ונסה שוב.",
+                       retryable=True, details={"free_mb": free // MB, "min_free_mb": min_mb})
+    if need_bytes and free - need_bytes < min_mb * MB:
+        _count("refused_disk")
+        raise ApiError(507, "insufficient_storage",
+                       f"הייצוא דורש כ־{max(1, need_bytes // MB)} MB, ואחריו יישארו פחות מ־{min_mb} MB פנויים בדיסק של התוסף. צמצם את הטווח או פנה מקום.",
+                       retryable=True, details={"free_mb": free // MB, "min_free_mb": min_mb, "estimate_mb": need_bytes // MB})
 
 
 def check_quota(conn: sqlite3.Connection, principal: Any) -> None:
-    active = conn.execute("SELECT COUNT(*) FROM export_jobs WHERE owner_user_id = ? AND state IN ('queued','running')", (principal.user_id,)).fetchone()[0]
+    active = conn.execute("SELECT COUNT(*) FROM export_jobs WHERE owner_user_id = ? AND state IN ('queued', 'running', 'paused_disk_full')", (principal.user_id,)).fetchone()[0]
     if active >= MAX_ACTIVE_JOBS:
         raise ApiError(429, "too_many_jobs", "יש כבר 5 עבודות ייצוא ממתינות; המתן לסיומן.", retryable=True)
+    waiting = conn.execute("SELECT COUNT(*) FROM export_jobs WHERE state IN ('queued', 'paused_disk_full')").fetchone()[0]
+    if waiting >= MAX_QUEUED_TOTAL:
+        _count("refused_queue_full")
+        raise ApiError(429, "export_queue_full", f"תור הייצוא מלא ({MAX_QUEUED_TOTAL} עבודות ממתינות במערכת); נסה שוב כשחלק מהן יסתיימו.", retryable=True,
+                       details={"waiting": waiting, "max": MAX_QUEUED_TOTAL})
+
+
+def paused_jobs(conn: sqlite3.Connection) -> int:
+    return conn.execute("SELECT COUNT(*) FROM export_jobs WHERE state = ?", (PAUSED,)).fetchone()[0]
+
+
+def resume_paused(conn: sqlite3.Connection, settings: Settings, *, manual: bool = False) -> int:
+    """Put jobs paused for a full disk back in the queue, oldest first, while there is room for them.
+    Automatic (the worker's every pass): a job resumes only when what it still has to download fits above the minimum
+    plus RESUME_MARGIN_MB - so a job whose next file cannot fit never loops download / abort / resume.
+    Manual (the storage screen): every paused job resumes as soon as free space is above the minimum (507 when it is
+    not); one that still does not fit pauses again. Downloaded files are kept; the worker continues with the first file
+    not yet on disk."""
+    rows = conn.execute("SELECT id, payload_json FROM export_jobs WHERE state = ? ORDER BY created_at", (PAUSED,)).fetchall()
+    if not rows:
+        return 0
+    min_mb = min_free_mb(conn)
+    free = free_bytes(settings)
+    if manual and free is not None and free < min_mb * MB:
+        raise ApiError(507, "insufficient_storage", f"עדיין אין מספיק מקום: פנויים {free // MB} MB, והמינימום הוא {min_mb} MB. פנה מקום ונסה שוב.",
+                       retryable=True, details={"free_mb": free // MB, "min_free_mb": min_mb})
+    room = None if free is None else free - min_mb * MB - (0 if manual else RESUME_MARGIN_MB * MB)
+    resumed = 0
+    for r in rows:
+        if room is not None and not manual:
+            files = json.loads(r["payload_json"]).get("files", [])
+            remaining = sum((f.get("size") or 0) for f in files if f.get("state") not in ("downloaded", "remuxed", "failed", "skipped"))
+            if remaining > room:
+                continue
+            room -= remaining
+        conn.execute("UPDATE export_jobs SET state = 'queued', error = NULL, updated_at = ? WHERE id = ? AND state = ?", (now_iso(), r["id"], PAUSED))
+        _count("resumed")
+        resumed += 1
+    if resumed:
+        log.info("%d export job(s) resumed: %s MB free", resumed, "?" if free is None else free // MB)
+        WORKER.wake()
+    return resumed
 
 
 def create_job(conn: sqlite3.Connection, settings: Settings, principal: Any, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str, max_bytes: int,
                recheck: Callable[[sqlite3.Connection], None] | None = None) -> dict[str, Any]:
     """`recheck` (and the owner's job quota) run again after the NVR search, in the same transaction as the INSERT: the
     search runs without the write lock, so a parallel request may have created its job meanwhile."""
+    min_mb = min_free_mb(conn)
+    require_disk(settings, min_mb)  # a full disk refuses before the NVR is even asked
     # the NVR search (paged, and queued behind any other search: one at a time on this firmware) runs without the
     # request's write lock - under it, every other writer waited for the NVR (round-10 lock storm)
     with unlocked(conn):
@@ -171,6 +278,7 @@ def create_job(conn: sqlite3.Connection, settings: Settings, principal: Any, cam
     total = sum(f.size or 0 for f in files)
     if total > max_bytes:
         raise ApiError(422, "export_too_large", f"נפח משוער {total // (1024 * 1024)} MB מעל המגבלה ({max_bytes // (1024 * 1024)} MB).", details={"estimate_bytes": total})
+    require_disk(settings, min_mb, total)  # the NVR files land on the data disk first
     payload = Payload(files=files, estimate_bytes=total or None, timezone=tz_name, coverage=coverage)
     job_id = uuid.uuid4().hex[:12]
     now = now_iso()
@@ -205,7 +313,7 @@ def request_cancel(conn: sqlite3.Connection, job_id: str) -> None:
     row = conn.execute("SELECT state FROM export_jobs WHERE id = ?", (job_id,)).fetchone()
     if not row:
         raise ApiError(404, "not_found", "עבודת הייצוא לא נמצאה.")
-    if row["state"] == "queued":
+    if row["state"] in ("queued", PAUSED):
         conn.execute("UPDATE export_jobs SET state = 'cancelled', error = 'בוטל על ידי המשתמש', updated_at = ? WHERE id = ?", (now_iso(), job_id))
     elif row["state"] == "running":
         WORKER.cancel_flags.add(job_id)
@@ -302,6 +410,8 @@ class Worker:
         """Run queued jobs one after another (also callable synchronously in tests). Returns jobs run."""
         assert self.db and self.settings
         ran = 0
+        with self.db.connection() as conn:
+            resume_paused(conn, self.settings)  # jobs paused by a full disk come back once there is room again
         while not self.stop:
             with self.db.connection() as conn:
                 row = conn.execute(NEXT_JOB_SQL, (_aged_cutoff(),)).fetchone()
@@ -337,23 +447,45 @@ class Worker:
         d = job_dir(settings, job_id)
         d.mkdir(parents=True, exist_ok=True)
         total_expected = sum(f.size or 0 for f in payload.files) or None
+        with self.db.connection(mode="read") as conn:
+            min_mb = min_free_mb(conn)
         done_bytes = 0
         ok_files: list[ExportFile] = []
         cancelled = False
+        disk_full: dict[str, Any] = {}  # set when free space fell below the minimum: the job pauses, it does not fail
         for idx, f in enumerate(payload.files):
             if job_id in self.cancel_flags:
                 cancelled = True
                 f.state = "skipped"
                 continue
             dest = d / f"{idx:03d}.ps"
+            if f.state == "downloaded" and dest.is_file() and dest.stat().st_size == f.bytes:
+                done_bytes += f.bytes  # a resumed job keeps what it downloaded before it was paused
+                ok_files.append(f)
+                continue
+            free = free_bytes(settings)
+            if free is not None and free < min_mb * MB:
+                disk_full.update(free=free)
+                break
             f.state = "downloading"
+            f.bytes = 0
+            f.error = None
             self._update(job_id, payload=payload)
             base = done_bytes
+            last = {"update": 0.0, "disk": time.monotonic()}
 
-            def progress(n: int, _f=f, _base=base) -> bool:
+            def progress(n: int, _f=f, _base=base, _last=last) -> bool:
                 _f.bytes = n
-                if total_expected:
+                now = time.monotonic()
+                if total_expected and now - _last["update"] >= 1.0:  # at most one progress write a second (was one per 256 KB chunk)
+                    _last["update"] = now
                     self._update(job_id, progress=min(0.95, (_base + n) / total_expected))
+                if now - _last["disk"] >= DISK_CHECK_EVERY_S:
+                    _last["disk"] = now
+                    free_now = free_bytes(settings)
+                    if free_now is not None and free_now < min_mb * MB:
+                        disk_full.update(free=free_now)
+                        return False  # abort this file; the job pauses below
                 return job_id not in self.cancel_flags  # False = abort
 
             try:
@@ -366,16 +498,37 @@ class Worker:
                 if job_id in self.cancel_flags:
                     cancelled = True
                     f.state = "skipped"
+                elif disk_full:
+                    f.state, f.bytes = "pending", 0
                 else:
                     f.state = "failed"
                     f.error = exc.code
                     log.warning("export %s file %s failed: %s", job_id, f.name, exc.code)
+            except OSError as exc:
+                if _is_disk_full(exc):  # the disk filled faster than the check: same pause
+                    disk_full.update(free=free_bytes(settings) or 0)
+                    f.state, f.bytes = "pending", 0
+                else:
+                    f.state = "failed"
+                    f.error = type(exc).__name__
+                    log.exception("export %s file %s crashed", job_id, f.name)
             except Exception as exc:  # unexpected
                 f.state = "failed"
                 f.error = type(exc).__name__
                 log.exception("export %s file %s crashed", job_id, f.name)
+            if disk_full:
+                dest.unlink(missing_ok=True)  # a partial file is never kept: the resumed job downloads it again
+                break
             self._update(job_id, payload=payload)
         payload.bytes_done = done_bytes
+        if disk_full and not cancelled:
+            free_mb = int(disk_full.get("free") or 0) // MB
+            _count("paused_disk_full")
+            log.warning("export %s paused: %d MB free on the data disk, minimum %d MB", job_id, free_mb, min_mb)
+            self._update(job_id, state=PAUSED, payload=payload,
+                         progress=min(0.95, done_bytes / total_expected) if total_expected else None,
+                         error=f"הייצוא הושהה: בדיסק של התוסף נשארו {free_mb} MB פנויים (המינימום {min_mb} MB). הוא ימשיך לבד כשיתפנה מקום, או מ'אחסון' › 'המשך ייצואים'.")
+            return
         if cancelled:
             self.cancel_flags.discard(job_id)
             self._update(job_id, state="cancelled", payload=payload, error="בוטל על ידי המשתמש")
@@ -477,6 +630,12 @@ class Worker:
         payload.actual_from = files[0].start_at
         payload.actual_to = files[-1].end_at
         payload.note = (payload.note + " " if payload.note else "") + "ללא ffmpeg הקובץ הוא ה־PS המקורי של ה־NVR (VLC מנגן אותו); לא נחתך לטווח."
+
+
+def _is_disk_full(exc: OSError) -> bool:
+    import errno
+
+    return exc.errno in (errno.ENOSPC, getattr(errno, "EDQUOT", -1)) or getattr(exc, "winerror", None) in (39, 112)  # ERROR_HANDLE_DISK_FULL, ERROR_DISK_FULL
 
 
 def _ffmpeg(ff: str, args: list[str], cwd: Path | None = None) -> None:

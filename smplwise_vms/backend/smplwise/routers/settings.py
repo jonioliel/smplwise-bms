@@ -45,6 +45,7 @@ DEFAULTS: dict[str, str] = {
     "exports.max_mb": "2048",  # refuse export jobs whose NVR files exceed this estimate
     "exports.retention_days": "7",  # finished export files are deleted after this many days
     "events.retention_days": "30",  # stored events are pruned after this many days
+    "storage.min_free_mb": "1024",  # T068: exports never take the add-on's data disk below this (new jobs get 507, running ones pause)
     "audit.retention_days": "365",  # T055: the janitor prunes audit rows older than this (was a fixed constant)
     # semantic search (T063): the local baseline needs no network; an external analysis provider is opt-in with a privacy acknowledgement and a daily budget — none is bundled
     "ai.provider": "local",  # none | local | external
@@ -87,7 +88,7 @@ DEFAULTS: dict[str, str] = {
 # frontend/src/styles/devices-themes.ts (docs/design/DEVICE_THEMES.md, "How to add a theme").
 DEVICE_THEMES = ("default", "sand", "forest", "graphite")
 
-INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly")
+INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days", "storage.min_free_mb", "audit.retention_days", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly")
 
 
 def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -109,6 +110,7 @@ class SettingsPatch(BaseModel):
     exports_max_mb: int | None = Field(default=None, ge=50, le=20480, alias="exports.max_mb")
     exports_retention_days: int | None = Field(default=None, ge=1, le=365, alias="exports.retention_days")
     events_retention_days: int | None = Field(default=None, ge=1, le=3650, alias="events.retention_days")
+    storage_min_free_mb: int | None = Field(default=None, ge=0, alias="storage.min_free_mb")  # shared with T050 (uploads): non-negative MB
     audit_retention_days: int | None = Field(default=None, ge=30, le=3650, alias="audit.retention_days")
     ui_design: str | None = Field(default=None, pattern="^(a|b)$", alias="ui.design")
     ui_design_names: str | None = Field(default=None, max_length=200, alias="ui.design_names")

@@ -12,8 +12,8 @@ import { navigate } from '../router';
 import { cancelExport, deleteExport, exportDownloadUrl, exportManifestUrl, formatBytes, listExports, type ExportJob } from '../api/exports';
 import { describeError } from '../api/client';
 
-const STATE_LABEL: Record<ExportJob['state'], string> = { queued: 'ממתין', running: 'מוריד', done: 'הושלם', partial: 'חלקי', failed: 'נכשל', cancelled: 'בוטל', interrupted: 'הופסק' };
-const STATE_KIND: Record<ExportJob['state'], StateKind> = { queued: 'neutral', running: 'live', done: 'recorded', partial: 'partial', failed: 'error', cancelled: 'unknown', interrupted: 'stale' };
+const STATE_LABEL: Record<ExportJob['state'], string> = { queued: 'ממתין', running: 'מוריד', done: 'הושלם', partial: 'חלקי', failed: 'נכשל', cancelled: 'בוטל', interrupted: 'הופסק', paused_disk_full: 'מושהה · אין מקום בדיסק' };
+const STATE_KIND: Record<ExportJob['state'], StateKind> = { queued: 'neutral', running: 'live', done: 'recorded', partial: 'partial', failed: 'error', cancelled: 'unknown', interrupted: 'stale', paused_disk_full: 'stale' };
 
 /** SC18 — exports and downloads: durable jobs, progress/cancel/partial/fail, scoped download (chapter 27). */
 @customElement('investigate-exports')
@@ -108,7 +108,7 @@ export class InvestigateExports extends LitElement {
   }
 
   private poll() {
-    if (this.jobs?.some((j) => j.state === 'queued' || j.state === 'running')) void this.load();
+    if (this.jobs?.some((j) => j.state === 'queued' || j.state === 'running' || j.state === 'paused_disk_full')) void this.load();
   }
 
   private fmt(iso: string, tz: string): string {
@@ -155,7 +155,7 @@ export class InvestigateExports extends LitElement {
             <div><div class="bar ${j.state === 'failed' ? 'fail' : j.state === 'partial' ? 'partial' : ''}"><i style="inline-size:${pct}%"></i></div><div class="meta">${STATE_LABEL[j.state]} · ${pct}%${j.state === 'running' ? ` · ${formatBytes(j.files.reduce((a, f) => a + f.bytes, 0))}` : ''}</div></div>
             <div class="actions">
               ${j.download_ready ? html`<a href=${exportDownloadUrl(j.id)} download=${j.output_name ?? ''}><sw-button size="sm" icon="download">הורדה</sw-button></a><a href=${exportManifestUrl(j.id)} target="_blank" rel="noopener"><sw-button size="sm" variant="ghost" icon="list">מניפסט</sw-button></a>` : nothing}
-              ${j.state === 'queued' || j.state === 'running' ? html`<sw-button size="sm" variant="ghost" icon="close" @click=${() => this.cancel(j)}>בטל</sw-button>` : html`<sw-button size="sm" variant="ghost" icon="trash" @click=${() => this.removeJob(j)}>מחק</sw-button>`}
+              ${j.state === 'queued' || j.state === 'running' || j.state === 'paused_disk_full' ? html`<sw-button size="sm" variant="ghost" icon="close" @click=${() => this.cancel(j)}>בטל</sw-button>` : html`<sw-button size="sm" variant="ghost" icon="trash" @click=${() => this.removeJob(j)}>מחק</sw-button>`}
             </div>
           </div>`;
         })}

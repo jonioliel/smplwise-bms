@@ -11,7 +11,7 @@ import '../components/sw-state-panel';
 import { isApi } from '../api/session';
 import { describeError } from '../api/client';
 import { productSettings } from '../api/prefs';
-import { fmtMb, getStorage, type StorageReport } from '../api/storage';
+import { fmtMb, getStorage, getStorageLocal, resumeExports, type StorageLocal, type StorageReport } from '../api/storage';
 import { getSigning, rotateSigning, type SigningInfo } from '../api/cases';
 
 const PER_CAMERA = [
@@ -224,7 +224,55 @@ export class SystemStorage extends LitElement {
     if (isApi()) {
       void this.load();
       void this.loadSigning();
+      void this.loadLocal();
     }
+  }
+
+  // T068: the add-on's own data disk (exports live there) and the export queue - independent of the NVR's answer
+  @state() private local: StorageLocal | null = null;
+  @state() private localError = '';
+  @state() private resuming = false;
+
+  private async loadLocal() {
+    try {
+      this.local = await getStorageLocal();
+      this.localError = '';
+    } catch (err) {
+      this.localError = describeError(err);
+    }
+  }
+
+  private async resume() {
+    this.resuming = true;
+    try {
+      this.local = await resumeExports();
+      this.localError = '';
+    } catch (err) {
+      this.localError = describeError(err);
+      void this.loadLocal();
+    } finally {
+      this.resuming = false;
+    }
+  }
+
+  private renderLocal() {
+    const l = this.local;
+    if (!l) return this.localError ? html`<div class="err">${this.localError}</div>` : nothing;
+    const d = l.data_disk;
+    const paused = l.exports.paused_disk_full;
+    const c = l.exports.counters;
+    return html`<sw-card heading="הדיסק של התוסף" subheading=${`ייצואים, תמונות אירועים וגיבויים נשמרים כאן · ייצוא חדש נדחה מתחת ל־${fmtMb(d.min_free_mb)} פנויים, וייצוא שרץ מושהה עד שיתפנה מקום`} data-storage-local>
+      ${this.localError ? html`<div class="err">${this.localError}</div>` : nothing}
+      <div class="ret">
+        <div><div class="v" data-local-free>${fmtMb(d.free_mb)}</div><div class="l">פנויים מתוך ${fmtMb(d.total_mb)} · מינימום ${fmtMb(d.min_free_mb)}</div></div>
+        <div>
+          <div><sw-badge kind=${d.low ? 'error' : paused ? 'stale' : 'recorded'} label=${d.low ? 'מתחת למינימום · ייצוא חדש נדחה' : paused ? `${paused} ייצואים מושהים` : 'תקין'} data-local-state></sw-badge></div>
+          <div class="l">בתור ${l.exports.waiting} מתוך ${l.exports.max_waiting} · נדחו בגלל מקום ${c.refused_disk} · הושהו ${c.paused_disk_full} · חודשו ${c.resumed}${c.refused_queue_full ? ` · נדחו בתור מלא ${c.refused_queue_full}` : ''}</div>
+          ${paused ? html`<div style="margin-block-start:6px"><sw-button size="sm" icon="refresh" data-local-resume ?disabled=${this.resuming || d.low} @click=${() => this.resume()}>${this.resuming ? 'ממשיך…' : 'המשך ייצואים מושהים'}</sw-button></div>` : nothing}
+        </div>
+      </div>
+      ${l.ingest_queue.dropped || l.ingest_queue.coalesced ? html`<div class="hint" style="margin-block-start:6px">תור קליטת ההתראות מה־NVR: ${l.ingest_queue.coalesced} אוחדו לרצף אחד · ${l.ingest_queue.dropped} נזרקו כשהמסד היה איטי (שיא ${l.ingest_queue.high_water} מתוך ${l.ingest_queue.max})</div>` : nothing}
+    </sw-card>`;
   }
 
   private async load(fresh = false) {
@@ -306,8 +354,9 @@ export class SystemStorage extends LitElement {
     const measured = r.measured_days_min == null ? '—' : r.measured_days_min === r.measured_days_max ? `${r.measured_days_min}` : `${r.measured_days_min}–${r.measured_days_max}`;
     return html`
       <sw-page heading="אחסון ותוכנית הקלטה" subheading="קריאה בלבד מה־NVR · נמדד לעומת אומדן, עם הסיבה לכל מספר · אין format, RAID או מחיקה מכאן">
-        <sw-button slot="actions" icon="refresh" data-storage-refresh ?disabled=${this.loading} @click=${() => this.load(true)}>${this.loading ? 'שואל את ה־NVR…' : 'רענון מול ה־NVR'}</sw-button>
+        <sw-button slot="actions" icon="refresh" data-storage-refresh ?disabled=${this.loading} @click=${() => { void this.load(true); void this.loadLocal(); }}>${this.loading ? 'שואל את ה־NVR…' : 'רענון מול ה־NVR'}</sw-button>
         ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
+        ${this.renderLocal()}
         ${!d.nvr.configured
           ? html`<sw-state-panel state="empty" heading="ה־NVR לא מוגדר" hint="הגדר את פרטי ה־NVR בהגדרות התוסף; המסך קורא ממנו בלבד."></sw-state-panel>`
           : !d.nvr.reachable

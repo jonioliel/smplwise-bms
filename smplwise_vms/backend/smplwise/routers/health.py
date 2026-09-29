@@ -12,6 +12,7 @@ from ..db import lock_stats, permission_revision, unlocked
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import autosync, events_cache, events_derive, events_ingest, ha_client, ha_sync
 from ..services import health_report as health_report_svc
+from .storage import local_state
 
 router = APIRouter()
 
@@ -40,6 +41,8 @@ def health(request: Request, principal: Principal = Depends(current_principal), 
         "events": {"ingest": events_ingest.STATE.as_dict(), "derive": events_derive.STATE, "stored": conn.execute("SELECT COUNT(*) FROM events").fetchone()[0],
                    "cache": events_cache.CACHE.stats()},
         "home_assistant": {"configured": ha_client.configured(settings), **ha_sync.STATE.as_dict()},
+        # T068: bounded queues and their drop / defer counters, the data disk against storage.min_free_mb (no ids, no paths)
+        "backpressure": local_state(settings, conn),
         "identity_source": principal.source,
         "renderer": "pdftoppm" if any(os.access(os.path.join(p, "pdftoppm"), os.X_OK) for p in os.environ.get("PATH", "").split(os.pathsep)) else "pymupdf-or-none",
     }

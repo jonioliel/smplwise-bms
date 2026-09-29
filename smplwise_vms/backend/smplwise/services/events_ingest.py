@@ -28,6 +28,7 @@ import threading
 import time
 import uuid
 import xml.etree.ElementTree as ET
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -156,6 +157,7 @@ class IngestState:
         self.events_stored = 0
         self.started_at: str | None = None
         self.disconnected_since: float | None = None
+        self.ws_drops = 0  # pushes a slow event socket missed (its queue was full)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -166,9 +168,120 @@ class IngestState:
             "reconnects": self.reconnects,
             "events_stored": self.events_stored,
             "started_at": self.started_at,
+            "queue": QUEUE.stats(),
+            "ws_drops": self.ws_drops,
         }
 
 
+# ---------------------------------------------------------------- backpressure (T068)
+
+MAX_PENDING = 256  # alerts waiting for the database; ~8 channels x ~16 kinds x 2 states, far above a healthy backlog of 0-1
+
+
+class _Pending:
+    __slots__ = ("alert", "key", "merged", "taken")
+
+    def __init__(self, alert: ParsedAlert, key: tuple[Any, ...]) -> None:
+        self.alert = alert
+        self.key = key
+        self.merged = 0  # older same-state alerts of the same camera / kind folded into this one
+        self.taken = False
+
+
+class IngestQueue:
+    """The bounded hand-off between the alert-stream reader and the database writer. The reader never waits for the
+    database: it keeps reading the NVR's socket (a stalled reader misses heartbeats and the NVR drops the stream) and
+    queues each alert here. Policy when the writer falls behind (a slow or busy database):
+    - coalesce: an alert for a camera / kind whose previous alert, in the same state, is still waiting replaces it -
+      the newest wins and carries the count of the ones it replaced (stored as repeats of the burst);
+    - drop: when MAX_PENDING distinct alerts are still waiting, the OLDEST one is dropped and counted.
+    Invariant (checked by the soak): accepted == processed + failed + coalesced + dropped + depth."""
+
+    def __init__(self, maxlen: int = MAX_PENDING) -> None:
+        self.maxlen = maxlen
+        self._cv = threading.Condition()
+        self._items: deque[_Pending] = deque()
+        self._last: dict[tuple[Any, ...], _Pending] = {}
+        self.accepted = 0
+        self.coalesced = 0
+        self.dropped = 0
+        self.dropped_repeats = 0
+        self.processed = 0
+        self.failed = 0
+        self.high_water = 0
+        self._last_drop_log = 0.0
+
+    @staticmethod
+    def key_of(alert: ParsedAlert) -> tuple[Any, ...]:
+        return (alert.channel, alert.dyn_channel, alert.raw_type.lower(), alert.target)
+
+    def put(self, alert: ParsedAlert) -> str:
+        key = self.key_of(alert)
+        dropped: _Pending | None = None
+        with self._cv:
+            self.accepted += 1
+            prev = self._last.get(key)
+            if prev is not None and not prev.taken and prev.alert.state == alert.state:
+                prev.merged += 1
+                prev.alert = alert  # keep the newest
+                self.coalesced += 1
+                return "coalesced"
+            p = _Pending(alert, key)
+            self._items.append(p)
+            self._last[key] = p
+            if len(self._items) > self.maxlen:
+                dropped = self._items.popleft()
+                dropped.taken = True
+                if self._last.get(dropped.key) is dropped:
+                    del self._last[dropped.key]
+                self.dropped += 1
+                self.dropped_repeats += dropped.merged  # already counted in `coalesced`; lost with it
+            self.high_water = max(self.high_water, len(self._items))
+            self._cv.notify()
+        if dropped is not None:
+            now = time.monotonic()
+            if now - self._last_drop_log > 60:
+                self._last_drop_log = now
+                log.warning("alert queue full (%d waiting for the database): dropping the oldest alerts; %d dropped so far", self.maxlen, self.dropped)
+            return "dropped_oldest"
+        return "queued"
+
+    def get(self, timeout: float = 1.0) -> _Pending | None:
+        with self._cv:
+            if not self._items:
+                self._cv.wait(timeout)
+            if not self._items:
+                return None
+            p = self._items.popleft()
+            p.taken = True
+            if self._last.get(p.key) is p:
+                del self._last[p.key]
+            return p
+
+    def done(self, ok: bool) -> None:
+        with self._cv:
+            if ok:
+                self.processed += 1
+            else:
+                self.failed += 1
+
+    def depth(self) -> int:
+        with self._cv:
+            return len(self._items)
+
+    def stats(self) -> dict[str, Any]:
+        with self._cv:
+            return {"depth": len(self._items), "max": self.maxlen, "high_water": self.high_water, "accepted": self.accepted, "processed": self.processed,
+                    "failed": self.failed, "coalesced": self.coalesced, "dropped": self.dropped, "dropped_repeats": self.dropped_repeats}
+
+    def reset(self) -> None:
+        with self._cv:
+            self._items.clear()
+            self._last.clear()
+            self.accepted = self.coalesced = self.dropped = self.dropped_repeats = self.processed = self.failed = self.high_water = 0
+
+
+QUEUE = IngestQueue()
 STATE = IngestState()
 _subscribers: list[queue.Queue] = []
 _sub_lock = threading.Lock()
@@ -193,8 +306,8 @@ def publish(event: dict[str, Any]) -> None:
     for q in subs:
         try:
             q.put_nowait(event)
-        except queue.Full:
-            pass
+        except queue.Full:  # a slow socket loses this push (its client reloads the list); counted, never blocks ingest
+            STATE.ws_drops += 1
 
 
 def row_to_event(row: sqlite3.Row) -> dict[str, Any]:
@@ -203,8 +316,11 @@ def row_to_event(row: sqlite3.Row) -> dict[str, Any]:
     return d
 
 
-def store_alert(conn: sqlite3.Connection, alert: ParsedAlert, tz_name: str, camera_lookup: Callable[[int], sqlite3.Row | None], now: dt.datetime | None = None) -> dict[str, Any] | None:
-    """Insert / merge one parsed alert. Returns the stored (or updated) event, or None for heartbeats/noise."""
+def store_alert(conn: sqlite3.Connection, alert: ParsedAlert, tz_name: str, camera_lookup: Callable[[int], sqlite3.Row | None], now: dt.datetime | None = None,
+                repeats: int = 0) -> dict[str, Any] | None:
+    """Insert / merge one parsed alert. Returns the stored (or updated) event, or None for heartbeats/noise.
+    `repeats`: older alerts of the same burst that the ingest queue folded into this one (backpressure) - added to the
+    row's count so a slow database never makes a burst look smaller than the device reported."""
     if alert.is_heartbeat:
         return None
     now = now or dt.datetime.now(UTC)
@@ -237,16 +353,18 @@ def store_alert(conn: sqlite3.Connection, alert: ParsedAlert, tz_name: str, came
         (etype, cam_key, iso_utc(occurred - dt.timedelta(seconds=DEDUP_WINDOW_S))),
     ).fetchone()
     if prev is not None:
-        conn.execute("UPDATE events SET count = count + 1, ended_at = ? WHERE id = ?", (iso_utc(occurred), prev["id"]))
+        conn.execute("UPDATE events SET count = count + 1 + ?, ended_at = ? WHERE id = ?", (max(0, repeats), iso_utc(occurred), prev["id"]))
         return row_to_event(conn.execute("SELECT * FROM events WHERE id = ?", (prev["id"],)).fetchone())
     key = f"as:{cam_key or f'ch{channel}'}:{etype}:{iso_utc(occurred)}"
     if conn.execute("SELECT 1 FROM events WHERE dedup_key = ?", (key,)).fetchone():
         return None
     details = {"description": alert.description, "device_time": alert.device_time, "time_precision": precision, "target": alert.target or None, "active_post_count": alert.active_post_count}
+    if repeats > 0:
+        details["coalesced"] = repeats  # the row starts at the newest of them (the older times were not kept)
     eid = uuid.uuid4().hex[:12]
     conn.execute(
         "INSERT INTO events(id, source, raw_type, type, camera_id, channel, occurred_at, ended_at, received_at, state, count, severity, confidence, details_json, dedup_key, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (eid, "alertstream", alert.raw_type, etype, cam["id"] if cam else None, channel, iso_utc(occurred), None, iso_utc(now), "active", 1, severity, "measured", json.dumps(details, ensure_ascii=False), key, now_iso()),
+        (eid, "alertstream", alert.raw_type, etype, cam["id"] if cam else None, channel, iso_utc(occurred), None, iso_utc(now), "active", 1 + max(0, repeats), severity, "measured", json.dumps(details, ensure_ascii=False), key, now_iso()),
     )
     return row_to_event(conn.execute("SELECT * FROM events WHERE id = ?", (eid,)).fetchone())
 
@@ -262,14 +380,18 @@ def record_gap(conn: sqlite3.Connection, started: dt.datetime, ended: dt.datetim
 
 
 class AlertStreamListener:
-    """Background thread: connect → read documents → store → publish; back-off on failure."""
+    """Two background threads: the reader (connect → read documents → queue; back-off on failure) and the writer
+    (queue → store → publish). The bounded QUEUE between them is the backpressure: a slow database never stalls the
+    NVR socket and never grows memory without bound (T068)."""
 
     def __init__(self) -> None:
         self.thread: threading.Thread | None = None
+        self.writer: threading.Thread | None = None
         self.stop = threading.Event()
         self.db: Database | None = None
         self.settings: Settings | None = None
         self.tz_getter: Callable[[], str] = lambda: "Asia/Jerusalem"
+        self.generation = 0  # a writer from an earlier start() ends itself when this moves on
 
     def start(self, db: Database, settings: Settings, tz_getter: Callable[[], str]) -> None:
         self.db, self.settings, self.tz_getter = db, settings, tz_getter
@@ -277,12 +399,35 @@ class AlertStreamListener:
             STATE.last_error = "nvr_not_configured"
             return
         self.stop.clear()
+        self.generation += 1
         STATE.started_at = now_iso()
+        self.writer = threading.Thread(target=self._drain, args=(self.generation,), name="alertstream-writer", daemon=True)
+        self.writer.start()
         self.thread = threading.Thread(target=self._loop, name="alertstream", daemon=True)
         self.thread.start()
 
     def shutdown(self) -> None:
         self.stop.set()
+        self.generation += 1
+
+    def submit(self, alert: ParsedAlert) -> str:
+        """The reader's side: a heartbeat is noted at once, anything else waits in the bounded queue for the writer."""
+        if alert.is_heartbeat:
+            STATE.last_heartbeat_at = now_iso()
+            return "heartbeat"
+        return QUEUE.put(alert)
+
+    def _drain(self, generation: int) -> None:
+        while not self.stop.is_set() and generation == self.generation:
+            p = QUEUE.get(timeout=1.0)
+            if p is None:
+                continue
+            try:
+                self._handle(p.alert, repeats=p.merged)
+                QUEUE.done(True)
+            except Exception:  # noqa: BLE001 - one bad alert (or a database busy past the retries) must not stop the writer
+                QUEUE.done(False)
+                log.exception("alert handling failed")
 
     def _camera_lookup(self, conn: sqlite3.Connection) -> Callable[[int], sqlite3.Row | None]:
         cache: dict[int, sqlite3.Row | None] = {}
@@ -294,7 +439,7 @@ class AlertStreamListener:
 
         return lookup
 
-    def _handle(self, alert: ParsedAlert) -> None:
+    def _handle(self, alert: ParsedAlert, repeats: int = 0) -> None:
         assert self.db
         if alert.is_heartbeat:
             STATE.last_heartbeat_at = now_iso()
@@ -310,7 +455,7 @@ class AlertStreamListener:
         def _write() -> dict[str, Any] | None:
             fired.clear()
             with db.connection() as conn:
-                stored = store_alert(conn, alert, tz, self._camera_lookup(conn))
+                stored = store_alert(conn, alert, tz, self._camera_lookup(conn), repeats=repeats)
                 if stored:
                     try:
                         # the HA notifications go out after the commit (deliver_pending), never under the write lock
@@ -367,10 +512,7 @@ class AlertStreamListener:
                                 buf = buf[end + len(b"</EventNotificationAlert>"):]
                                 alert = parse_alert(doc) if doc else None
                                 if alert:
-                                    try:
-                                        self._handle(alert)
-                                    except Exception:  # one bad document must not kill the stream
-                                        log.exception("alert handling failed")
+                                    self.submit(alert)  # never waits for the database (the writer thread stores it)
                             if len(buf) > 1_000_000:
                                 buf = buf[-100_000:]
             except Exception as exc:
