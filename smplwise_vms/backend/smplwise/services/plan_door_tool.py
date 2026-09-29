@@ -20,7 +20,7 @@ wall that runs along it; when none does (a door in a gap between two drawn walls
 carries a short wall piece of its own for the person to accept with it.
 
 Pure functions over a grey numpy array; the router (routers/plan_geometry.py, POST /plan-versions/{id}/door-proposal)
-reads the picture, the draft's walls and the calibration, runs `propose` in the detection worker pool under a short
+reads the picture, the draft's walls and the calibration, runs `propose` in a worker pool of its own (one worker) under a short
 deadline and returns the answer. Nothing is stored and no picture leaves the server."""
 from __future__ import annotations
 
@@ -51,6 +51,7 @@ RANK_DIST = 0.25  # the ranking's cost of a symbol's middle one door width away 
 WALL_T_M = 0.15  # the wall band sampled beside a door line when nothing better is known
 JAMB_M = 0.12  # a proposed wall piece reaches this far past each side of its door
 CROP_LEAVES = 2.2  # the crop reaches this many of the largest leaf past the click
+HINGE_REACH = 1.6  # hinge candidates lie within this many of the largest leaf of the click
 HINGE_STEP_PX = 3  # hinge candidates: the ink pixels on this grid when there are many (a scan's leaf line is wider)
 HINGE_ALL_MAX = 3000  # up to this many candidate pixels every one is a hinge candidate
 MAX_HINGES = 6000  # the densest crop keeps this many hinge candidates (the nearest to the click)
@@ -165,7 +166,7 @@ def _seg_dist(p: np.ndarray, a: np.ndarray, b: np.ndarray) -> tuple[float, float
 
 def _sample(mask: np.ndarray, pts: np.ndarray) -> np.ndarray:
     """mask at the points (..., 2) -> bool (...), clamped to the picture (the few samples outside the search)."""
-    return pdd._sample(mask, pts)
+    return pdd.sample(mask, pts)
 
 
 def local_wall_thickness(g: np.ndarray, thr: int, click: np.ndarray, reach: int) -> float | None:
@@ -207,12 +208,27 @@ class _Crop:
     where a hinge may be: ink within a few pixels of wall ink (a leaf hangs on a jamb), or any ink when the crop has no
     wall at all (a door drawn in a single-line partition)."""
 
-    def __init__(self, g: np.ndarray, thr: int, t_band: float, margin: int) -> None:
+    def __init__(self, g: np.ndarray, thr: int, t_band: float, margin: int, click: np.ndarray, reach: float, deadline: float | None = None) -> None:
         soft = g < max(200, min(235, thr + 50))
         wall = ps.opening(g <= wall_threshold(thr), 2)
+        self.wall2d = wall
         self.B = margin
-        # a hinge sits at a jamb: near wall ink, but not deep inside a wall band
-        near = soft & ps.dilate(wall, int(math.ceil(t_band)) + 4) & ~ps.erode(wall, 2) if wall.any() else soft
+        # a hinge sits at a jamb: near wall ink, but not deep inside a wall band - worked out only where a hinge may be
+        # (within `reach` of the click), from the wall ink up to the growth radius around that window
+        grow = int(math.ceil(t_band)) + 4
+        h, w = g.shape
+        x0, y0 = max(0, int(click[0] - reach)), max(0, int(click[1] - reach))
+        x1, y1 = min(w, int(click[0] + reach) + 1), min(h, int(click[1] + reach) + 1)
+        near = np.zeros_like(soft)
+        if x1 > x0 and y1 > y0:
+            ex0, ey0, ex1, ey1 = max(0, x0 - grow), max(0, y0 - grow), min(w, x1 + grow), min(h, y1 + grow)
+            sub = wall[ey0:ey1, ex0:ex1]
+            if wall.any():
+                ok = grow_square(sub, grow, deadline) & ~ps.erode(sub, 2)
+                near[y0:y1, x0:x1] = soft[y0:y1, x0:x1] & ok[y0 - ey0:y1 - ey0, x0 - ex0:x1 - ex0]
+            else:
+                near[y0:y1, x0:x1] = soft[y0:y1, x0:x1]
+        _check(deadline)
         self.hinge_ok = np.pad(near, margin)
         self.stride = self.hinge_ok.shape[1]
         # flat copies: a sample is one take() with the index clamped to the array (the margin keeps it inside anyway)
@@ -225,6 +241,14 @@ class _Crop:
         idx = q[..., 1].astype(np.intp) * self.stride + q[..., 0].astype(np.intp)
         return np.take(mask, idx, mode="clip")
 
+    def at_clamped(self, mask: np.ndarray, pts: np.ndarray) -> np.ndarray:
+        """`at` with each axis clamped to the padded arrays: for the few samples that may reach past the padding (the
+        jamb search along a wide double door)."""
+        rows = mask.size // self.stride
+        x = np.clip((pts[..., 0] + (self.B + 0.5)).astype(np.intp), 0, self.stride - 1)
+        y = np.clip((pts[..., 1] + (self.B + 0.5)).astype(np.intp), 0, rows - 1)
+        return np.take(mask, y * self.stride + x)
+
     def ratio(self, mask: np.ndarray, pts: np.ndarray) -> np.ndarray:
         return self.at(mask, pts).mean(axis=-1)
 
@@ -235,6 +259,30 @@ class _Crop:
         for o in np.linspace(1.0, -(t + 1.0), 5):
             hit |= self.at(self.wall, P + N[:, None, :] * o)
         return hit
+
+
+def grow_square(mask: np.ndarray, r: int, deadline: float | None = None) -> np.ndarray:
+    """plan_stylize.dilate(mask, r) - the same (2r+1) square - in doubling steps: a mask grown by c already covers
+    [-c, c], so one more pass shifted by s <= 2c + 1 each way covers [-(c+s), c+s]; log2(r) passes per axis instead of
+    r (padded by r first: at the border a mask grown by c covers only one side, and a doubling pass would leave holes).
+    Checks the deadline between passes."""
+    if r <= 0:
+        return mask.copy()
+    out = np.pad(mask, r)
+    for axis in (1, 0):
+        c = 0
+        while c < r:
+            _check(deadline)
+            k = min(2 * c + 1, r - c)
+            o = out.copy()
+            if axis == 1:
+                out[:, k:] |= o[:, :-k]
+                out[:, :-k] |= o[:, k:]
+            else:
+                out[k:, :] |= o[:-k, :]
+                out[:-k, :] |= o[k:, :]
+            c += k
+    return out[r:-r, r:-r]
 
 
 def _run_length(cx: _Crop, H: np.ndarray, V: np.ndarray, lmax: float, gap: int = 3, chunk: int = 24) -> np.ndarray:
@@ -300,7 +348,7 @@ def _candidates(cx: _Crop, click: np.ndarray, rmin: float, rmax: float, t_px: fl
     if not len(hinges):
         return []
     dist = np.hypot(*(hinges - click).T)
-    keep = dist <= 1.6 * rmax + 4
+    keep = dist <= HINGE_REACH * rmax + 4
     hinges, dist = hinges[keep], dist[keep]
     if len(hinges) > HINGE_ALL_MAX:
         # a scan's blurred lines are several pixels wide: a grid of them still lands on every leaf root; a crisp
@@ -388,10 +436,10 @@ def _swing_ink(cx: _Crop, H: np.ndarray, r: np.ndarray, U: np.ndarray, N: np.nda
     template, the best of three radii within 3 %) and of the straight chord from the leaf tip to the latch (the best of
     three parallel lines 2 px apart). Only the middles: the two coincide at their ends, and the arc bulges 0.29 r past
     the chord in its middle."""
-    arc = np.max(np.stack([cx.ratio(cx.line, pdd._arc_pts(H, r * f, U, N, 0.25, 0.75, 16)) for f in (0.97, 1.0, 1.03)]), axis=0)
+    arc = np.max(np.stack([cx.ratio(cx.line, pdd.arc_pts(H, r * f, U, N, 0.25, 0.75, 16)) for f in (0.97, 1.0, 1.03)]), axis=0)
     tip, latch = H + N * r[:, None], H + U * r[:, None]
     m = (U - N) / math.sqrt(2.0)  # the chord's normal (U and N are orthonormal)
-    chord = np.max(np.stack([cx.ratio(cx.line, pdd._line_pts(tip + m * dn, latch + m * dn, 0.25, 0.75, 12)) for dn in (-2.0, 0.0, 2.0)]), axis=0)
+    chord = np.max(np.stack([cx.ratio(cx.line, pdd.line_pts(tip + m * dn, latch + m * dn, 0.25, 0.75, 12)) for dn in (-2.0, 0.0, 2.0)]), axis=0)
     return arc, chord
 
 
@@ -408,7 +456,7 @@ def _score_square(cx: _Crop, H, L, U, N, tip, t, click) -> list[dict[str, Any]]:
     Hr, Ur, Nr = np.repeat(H, len(f), axis=0), np.repeat(U, len(f), axis=0), np.repeat(N, len(f), axis=0)
     R = (L[:, None] * f[None, :]).ravel()
     arc, chord = _swing_ink(cx, Hr, R, Ur, Nr)
-    leaf = cx.ratio(cx.leaf, pdd._line_pts(Hr, Hr + Nr * R[:, None], 0.1, 0.95, 14))
+    leaf = cx.ratio(cx.leaf, pdd.line_pts(Hr, Hr + Nr * R[:, None], 0.1, 0.95, 14))
     # a smaller copy of a door hinged part-way up its leaf fits a blurred chord as well as the door itself: of the radii
     # whose swing is within 0.1 of the best and whose leaf is drawn out to them, the largest
     swing = np.maximum(arc, chord).reshape(k, len(f))
@@ -416,13 +464,13 @@ def _score_square(cx: _Crop, H, L, U, N, tip, t, click) -> list[dict[str, Any]]:
     fits[np.arange(k), swing.argmax(axis=1)] = True
     pick = (len(f) - 1 - np.argmax(fits[:, ::-1], axis=1)) + np.arange(k) * len(f)
     r, arc, chord, leaf = R[pick], arc[pick], chord[pick], leaf[pick]
-    arc_all = np.max(np.stack([cx.ratio(cx.line, pdd._arc_pts(H, r * q, U, N, 0.1, 0.9, 24)) for q in (0.97, 1.0, 1.03)]), axis=0)
+    arc_all = np.max(np.stack([cx.ratio(cx.line, pdd.arc_pts(H, r * q, U, N, 0.1, 0.9, 24)) for q in (0.97, 1.0, 1.03)]), axis=0)
     s = np.linspace(0.15, 0.85, 12)
     gap = 1.0 - cx.band_solid(H[:, None, :] + U[:, None, :] * (r[:, None, None] * s[None, :, None]), N, t).mean(axis=1)
     end = _gap_end(cx, H, U, N, t, 0.8 * r, 1.25 * r)
     width = r  # a 90 degree leaf is as long as the door is wide; the ink gap between two blurred wall ends is narrower
-    ring_in = cx.ratio(cx.line, pdd._arc_pts(H, r * 0.5, U, N, 0.2, 0.8, 14))
-    ring_out = cx.ratio(cx.line, pdd._arc_pts(H, r * 1.3, U, N, 0.2, 0.8, 18))
+    ring_in = cx.ratio(cx.line, pdd.arc_pts(H, r * 0.5, U, N, 0.2, 0.8, 14))
+    ring_out = cx.ratio(cx.line, pdd.arc_pts(H, r * 1.3, U, N, 0.2, 0.8, 18))
     clutter = np.maximum(ring_in, ring_out)
     hj, hfill = _hinge_jamb(cx, H, U, N, t)
     out: list[dict[str, Any]] = []
@@ -470,7 +518,7 @@ def _score_slanted(cx: _Crop, H, L, U, N, tip, th, t, rmin, rmax, click) -> list
     return out
 
 
-def _pairs(cx: _Crop, cands: list[dict[str, Any]], t: float, click: np.ndarray, rmin: float) -> list[dict[str, Any]]:
+def _pairs(cx: _Crop, cands: list[dict[str, Any]], t: float, click: np.ndarray, rmin: float, rmax: float) -> list[dict[str, Any]]:
     """Double doors: two leaves swinging to the same side from hinges on one line, facing each other, whose latches
     (90 degree leaves) or leaf tips ("V") meet. The door spans hinge to hinge."""
     top = sorted(cands, key=lambda c: -c["score"])[:150]
@@ -500,13 +548,16 @@ def _pairs(cx: _Crop, cands: list[dict[str, Any]], t: float, click: np.ndarray, 
             apex = (tips - Hs[i]) @ Us[i]
             ok &= (np.hypot(*(tips - tips[i]).T) <= 0.3 * rr) & (span >= 0.6 * rr) & (span <= 2.2 * rr) & (np.abs(rs - rs[i]) <= 0.25 * rr)
             ok &= (np.abs(thetas - thetas[i]) <= 12.0) & (np.abs(apex - span / 2) <= 0.2 * np.abs(span)) & (np.abs(float(apex[i]) - span / 2) <= 0.2 * np.abs(span))
-        ok &= span >= 2 * rmin * 0.8
+        ok &= (span >= 2 * rmin * 0.8) & (span <= 2.4 * rmax)
         for j in np.nonzero(ok)[0]:
             b = top[j]
             sp = float(span[j])
             s = np.linspace(0.1, 0.9, 16)
             P = a["H"][None, None, :] + a["U"][None, None, :] * (sp * s)[None, :, None]
-            gap = 1.0 - float(cx.band_solid(P, a["N"][None, :], t).mean())
+            hit = np.zeros(P.shape[:2], dtype=bool)
+            for o in np.linspace(1.0, -(t + 1.0), 5):
+                hit |= cx.at_clamped(cx.wall, P + a["N"][None, None, :] * o)
+            gap = 1.0 - float(hit.mean())
             if gap < GAP_MIN:
                 continue  # a double door opens its whole span
             if a["square"] and min(a["scores"].get("hinge_jamb", 0.0), b["scores"].get("hinge_jamb", 0.0)) < 0.5:
@@ -599,14 +650,17 @@ def propose(pic: dict[str, Any], x: float, y: float, walls: list[dict[str, Any]]
     # the wall band beside a door line: WALL_T_M at a real scale, else the walls measured here, else a guess
     t_default = max(3.0, min(0.6 * rmax, (WALL_T_M / s) if (calibrated and s) else t_local if t_local is not None else 0.3 * rmin + 2))
     # the draft's walls near the click
-    pinned = [w for w in walls if w.get("id") == wall_id] if wall_id else []
+    # the draft's walls near the click; a wall the person clicked on (`wall_id`) comes first - the plain path uses the
+    # first - but the others stay: the door may sit in one of them (a door by a corner, clicked at its hinge, pins the
+    # perpendicular wall)
     near: list[tuple[float, Any]] = []
-    for seg in _segments(pinned or walls, W, H):
+    for seg in _segments(walls, W, H):
         wall, pts, cum, total, i, a, b, L = seg
         dist, along = _seg_dist(click_full, a, b)
         t_px = float(wall.get("thickness_m") or WALL_T_M) / s if s else t_default
-        if dist <= max(1.3 * rmax, t_px) + 4 or pinned:
-            near.append((dist, seg))
+        pin = wall_id is not None and wall.get("id") == wall_id
+        if dist <= max(1.3 * rmax, t_px) + 4 or pin:
+            near.append((-1.0 if pin else dist, seg))
     near.sort(key=lambda z: z[0])
     near = near[:6]
     # the crop at the upload resolution
@@ -616,7 +670,7 @@ def propose(pic: dict[str, Any], x: float, y: float, walls: list[dict[str, Any]]
     g = g_full[y0:y1, x0:x1]
     off = np.array([x0, y0], dtype=np.float64)
     click = click_full - off
-    dark = ps.opening(g <= wall_threshold(thr), 2) if g.size else np.zeros((1, 1), dtype=bool)  # the wall ink (the plain path)
+    dark = np.zeros((1, 1), dtype=bool)  # the wall ink of the crop (the plain path): the search's own wall mask
     t_band = t_default
     if near:
         w0 = near[0][1][0]
@@ -626,10 +680,16 @@ def propose(pic: dict[str, Any], x: float, y: float, walls: list[dict[str, Any]]
     cands: list[dict[str, Any]] = []
     doubles: list[dict[str, Any]] = []
     if g.size:
-        cx = _Crop(g, thr, t_band, int(math.ceil(2.6 * rmax + t_band + 40)))  # the longest ray, chunk and band stay inside
+        # the padding keeps every sample inside the arrays: a hinge lies within HINGE_REACH of the click, the longest
+        # ray (a 60 degree leaf, 2.5 rmax) plus a chunk, and the bands and arcs past it reach 2.6 rmax + t + 30 further;
+        # the crop already holds CROP_LEAVES * rmax (less at the picture's edge) around the click
+        edge = min(click[0], click[1], g.shape[1] - click[0], g.shape[0] - click[1])
+        margin = max(8, int(math.ceil(HINGE_REACH * rmax + 4 + 2.6 * rmax + t_band + 30 - edge)))
+        cx = _Crop(g, thr, t_band, margin, click, HINGE_REACH * rmax + 4, deadline)
+        dark = cx.wall2d
         cands = _candidates(cx, click, rmin, rmax, t_band, dirs, deadline)
         _check(deadline)
-        doubles = _pairs(cx, cands, t_band, click, rmin) if cands else []
+        doubles = _pairs(cx, cands, t_band, click, rmin, rmax) if cands else []
     singles = [c for c in cands if c["square"] or c.get("alone")]
     pool = [c for c in singles + doubles if c["score"] >= SCORE_MIN]
     best = None
@@ -709,7 +769,7 @@ def _refine(cx: _Crop, c: dict[str, Any], t: float) -> dict[str, Any]:
     back = np.array([-10.0, -8.0, -6.0, -4.0])
     ahead = w + np.array([4.0, 6.0, 8.0, 10.0])
     pts = H[None, None, :] - N[None, None, :] * offs[:, None, None] + U[None, None, :] * np.concatenate([back, ahead])[None, :, None]
-    solid = cx.at(cx.wall, pts)
+    solid = cx.at_clamped(cx.wall, pts)
     behind, past = solid[:, :4].mean(axis=1) >= 0.5, solid[:, 4:].mean(axis=1) >= 0.5
     rows = behind & past  # the wall on both sides of the door where it can be seen, else on either
     if not rows.any():
@@ -731,7 +791,7 @@ def _refine(cx: _Crop, c: dict[str, Any], t: float) -> dict[str, Any]:
     ss = np.arange(-0.6 * w, 1.6 * w + 1.0, 1.0)
     band = np.linspace(o_lo + 1, o_hi - 1, 3) if o_hi - o_lo >= 4 else np.array([o_c])  # the band's core: a wall end is rounded by the blur
     P = H[None, None, :] - N[None, None, :] * band[None, :, None] + U[None, None, :] * ss[:, None, None]
-    line = cx.at(cx.wall, P).any(axis=1)
+    line = cx.at_clamped(cx.wall, P).any(axis=1)
     mid = int(np.argmin(np.abs(ss - w / 2)))
     if line[mid]:
         return guess

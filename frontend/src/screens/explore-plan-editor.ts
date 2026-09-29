@@ -13,7 +13,7 @@ import '../components/sw-dialog';
 import '../components/sw-chip';
 import '../map/sw-plan-canvas';
 import type { GeomDragDetail, GeomDragMode, GhostHandleDetail, PlanMarker, MarkerSelectDetail, PlanZone, RulerOverlay, SwPlanCanvas } from '../map/sw-plan-canvas';
-import { acceptGhost, defaultGhost, flipHinge, flipSwing, ghostDoc, ghostFromProposal, ghostHandles, ghostWall, ghostWidthTo, onGhost, type DoorGhost } from '../map/door-tool';
+import { acceptGhost, defaultGhost, existingOpening, flipHinge, flipSwing, ghostDoc, ghostFromProposal, ghostHandles, ghostWall, ghostWidthTo, onGhost, type DoorGhost } from '../map/door-tool';
 import type { IconName } from '../components/sw-icon';
 import { navigate } from '../router';
 import { cameraState, createAnchor, deleteAnchor, listVersions, loadMap, publishVersion, rollbackVersion, updateAnchor, versionDiff, type MapBundle, type VersionDiff, realignAnchors } from '../api/maps';
@@ -2120,6 +2120,7 @@ export class ExplorePlanEditor extends LitElement {
       this.geomSel = null;
       this.multi = []; // like a single selection: the undone document may not have the members any more
       this.lastEdit = 'structure';
+      this.dropOrphanGhost();
     } else if (t === 'pins') {
       this.doUndo();
       this.lastEdit = 'pins'; // a fallback undo moves the domain, so the next redo mirrors it
@@ -2133,6 +2134,7 @@ export class ExplorePlanEditor extends LitElement {
       this.geomSel = null;
       this.multi = [];
       this.lastEdit = 'structure';
+      this.dropOrphanGhost();
     } else if (t === 'pins') {
       this.doRedo();
       this.lastEdit = 'pins';
@@ -2306,10 +2308,45 @@ export class ExplorePlanEditor extends LitElement {
 
   /** The "סמן דלת" tool (T087): the structure tool in its mark-door mode (the D key, or the mode's button). */
   private startMarkDoor() {
+    const draft = this.wallDraft;
+    if (draft && draft.length >= 2) {
+      this.finishWall(); // a wall being drawn is kept, not thrown away by the shortcut
+      this.flash('הקיר שבציור נשמר; סמן דלת פעיל');
+    } else if (draft) {
+      this.flash('נקודת הקיר שהתחלת בוטלה; סמן דלת פעיל');
+    }
     if (this.tool !== 'structure') this.pickTool('structure');
     this.studioMode = 'markdoor';
     this.wallDraft = null;
     this.hover = null;
+  }
+
+  private flash(text: string, ms = 3500) {
+    this.info = text;
+    setTimeout(() => {
+      if (this.info === text) this.info = '';
+    }, ms);
+  }
+
+  /** An undo / redo that took the ghost's wall away (the draft wall it stood on) takes the ghost too, and says so. */
+  private dropOrphanGhost() {
+    const doc = this.studio.doc;
+    if (this.doorGhost && doc && !ghostWall(doc, this.doorGhost)) {
+      this.dropDoorGhost();
+      this.flash('הקיר של ההצעה הוסר; ההצעה בוטלה');
+    }
+  }
+
+  /** Clicking an accepted door's symbol again: that door is selected, no second one stacked on it. */
+  private selectExisting(g: DoorGhost): boolean {
+    const doc = this.studio.doc;
+    const b = this.bundle;
+    const o = doc && b ? existingOpening(doc, g, b.width, b.height) : null;
+    if (!o) return false;
+    this.doorGhost = null;
+    this.geomSel = { id: o.id, kind: 'opening' };
+    this.flash('כאן כבר יש דלת: היא נבחרה');
+    return true;
   }
 
   private dropDoorGhost() {
@@ -2341,7 +2378,8 @@ export class ExplorePlanEditor extends LitElement {
         setTimeout(() => (this.info = ''), 2500);
         return;
       }
-      this.doorGhost = defaultGhost(doc, hit.wall, hit.t, p, W, H);
+      const dg = defaultGhost(doc, hit.wall, hit.t, p, W, H);
+      if (!this.selectExisting(dg)) this.doorGhost = dg;
       return;
     }
     const token = ++this.doorToken;
@@ -2358,7 +2396,7 @@ export class ExplorePlanEditor extends LitElement {
         setTimeout(() => (this.info = ''), 4000);
         return;
       }
-      this.doorGhost = g;
+      if (!this.selectExisting(g)) this.doorGhost = g;
     } catch (err) {
       if (token !== this.doorToken) return;
       this.info = err instanceof ApiError && err.code === 'door_proposal_timeout' ? 'ההצעה לא חושבה בזמן; לחץ שוב' : describeError(err);
@@ -2375,6 +2413,7 @@ export class ExplorePlanEditor extends LitElement {
     const b = this.bundle;
     this.doorGhost = null;
     if (!g || !doc || !b) return;
+    if (this.selectExisting(g)) return;
     const r = acceptGhost(doc, g, b.width, b.height, this.wallDefaults, this.placeOpts(doc).levelId);
     if (!r) return;
     this.studio.commit(r.doc);

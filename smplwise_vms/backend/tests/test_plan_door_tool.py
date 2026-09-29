@@ -209,6 +209,32 @@ def test_a_door_sticking_out_of_a_short_drawn_wall_gets_a_wall_piece():
     assert r["wall_id"] is None and r["new_wall"] is not None and r["found"] == "arc"
 
 
+def test_a_pinned_perpendicular_wall_does_not_hide_the_wall_the_door_sits_in():
+    """The client pins the wall it clicked on; a door by a corner clicked at its hinge pins the perpendicular wall. The
+    door still goes on the wall it sits in, not on a wall piece of its own on top of the drawn one."""
+    im, d = _plan()
+    d.rectangle((348 - T // 2, WALL_Y, 348 + T // 2 - 1, 560), fill=0)  # a wall down from the corner by the hinge
+    _door(d, (355, WALL_Y - T / 2), (445, WALL_Y - T / 2), (0, -1))
+    walls = [_wall(), _wall(348, WALL_Y, 348, 560, "w2")]
+    pic = _pic(im)
+    assert _propose(pic, (360, 280), walls)["wall_id"] == "w1"
+    r = _propose(pic, (360, 280), walls, wall_id="w2")
+    assert r["wall_id"] == "w1" and r["new_wall"] is None and r["found"] == "arc", r
+    # a bare wall pinned: the plain path still starts from the pinned wall
+    im2, _d2 = _plan(gap=None)
+    r2 = _propose(_pic(im2), (230, WALL_Y - 12), [_wall(), _wall(230, WALL_Y, 230, 560, "w2")], wall_id="w1")
+    assert r2["wall_id"] == "w1" and r2["found"] == "default"
+
+
+def test_grow_square_is_the_square_dilation():
+    from smplwise.services import plan_stylize as ps
+
+    rng = np.random.RandomState(0)
+    for r in (0, 1, 3, 8, 19, 40):
+        m = rng.rand(120, 90) < 0.02
+        assert (pdt.grow_square(m, r) == ps.dilate(m, r)).all(), r
+
+
 def test_uncalibrated_the_walls_around_the_click_set_the_size():
     im, d = _plan()
     _door(d, (355, WALL_Y - T / 2), (445, WALL_Y - T / 2), (0, -1))
@@ -347,6 +373,49 @@ def test_the_route_refuses_a_click_with_nothing_to_place_a_door_on(settings):
     app, c, ids, vid = _setup(settings)
     r = c.post(f"/api/v1/plan-versions/{vid}/door-proposal", json={"x": 0.3, "y": 0.35})  # the middle of a room, no wall drawn
     assert r.status_code == 422 and r.json()["code"] == "no_wall"
+
+
+def test_the_route_keeps_its_readings_behind_debug(settings):
+    app, c, ids, vid = _setup(settings)
+    url = f"/api/v1/plan-versions/{vid}/door-proposal"
+    plain = c.post(url, json={"x": DOOR_CLICK[0], "y": DOOR_CLICK[1]}).json()
+    assert plain["found"] == "arc" and not {"scores", "stats", "hinge_point", "leaf_tip"} & set(plain)
+    full = c.post(url + "?debug=1", json={"x": DOOR_CLICK[0], "y": DOOR_CLICK[1]}).json()
+    assert {"scores", "stats", "hinge_point", "leaf_tip"} <= set(full)
+
+
+def test_the_route_refuses_a_wall_on_another_level_and_a_missing_picture(settings):
+    app, c, ids, vid = _setup(settings)
+    url = f"/api/v1/plan-versions/{vid}/door-proposal"
+    doc = c.get(f"/api/v1/plan-versions/{vid}/geometry?draft=true").json()
+    body = doc["doc"]
+    body["levels"] = [{"id": "L0", "name": "ראשי", "elevation_m": 0, "ceiling_height_m": 3, "is_default": True, "external_ids": {}},
+                      {"id": "L1", "name": "תחתון", "elevation_m": -1.2, "ceiling_height_m": 3, "is_default": False, "external_ids": {}}]
+    body["walls"] = [{"id": "low1", "level_id": "L1", "polyline": [[0.5, 0.1], [0.5, 0.9]], "thickness_m": 0.1, "height_m": None, "base_z_m": 0,
+                      "kind": "interior", "confidence": 1, "source": "manual", "locked": False, "external_ids": {}}]
+    assert c.put(f"/api/v1/plan-versions/{vid}/geometry", json={"doc": body, "base_revision": doc["geometry"]["revision"]}).status_code == 200
+    r = c.post(url, json={"x": DOOR_CLICK[0], "y": DOOR_CLICK[1], "wall_id": "low1", "level_id": "L0"})
+    assert r.status_code == 422 and r.json()["code"] == "unknown_wall"
+    assert c.post(url, json={"x": DOOR_CLICK[0], "y": DOOR_CLICK[1], "wall_id": "low1", "level_id": "L1"}).json()["wall_id"] == "low1"
+    with app.state.db.connection() as conn:
+        image_path = conn.execute("SELECT image_path FROM plan_versions WHERE id = ?", (vid,)).fetchone()[0]
+    (dataclasses.replace(settings).data_dir / image_path).unlink()
+    r = c.post(url, json={"x": DOOR_CLICK[0], "y": DOOR_CLICK[1]})
+    assert r.status_code == 404
+
+
+def test_a_busy_detection_pool_does_not_hold_a_click(settings):
+    from smplwise.routers import plan_geometry as pgr
+
+    app, c, ids, vid = _setup(settings)
+    busy = [pgr.DETECT_POOL.submit(time.sleep, 1.5) for _ in range(2)]
+    try:
+        t0 = time.perf_counter()
+        r = c.post(f"/api/v1/plan-versions/{vid}/door-proposal", json={"x": DOOR_CLICK[0], "y": DOOR_CLICK[1]})
+        assert r.status_code == 200 and time.perf_counter() - t0 < 1.4 * sw_time_factor()
+    finally:
+        for f in busy:
+            f.result()
 
 
 def test_the_route_answers_504_past_its_deadline(settings, monkeypatch):

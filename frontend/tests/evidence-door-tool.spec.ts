@@ -19,7 +19,7 @@ const ids = { site: '', building: '', floor: '', version: '' };
 let api: APIRequestContext;
 
 type Opening = { id: string; wall_id: string; kind: string; width_m: number; swing: string; hinge: string; t: number; source: string };
-type Wall = { id: string; polyline: [number, number][]; thickness_m: number };
+type Wall = { id: string; polyline: [number, number][]; thickness_m: number; external_ids?: Record<string, string> };
 type Draft = { geometry: { revision: number }; doc: { walls: Wall[]; openings: Opening[] } };
 const draft = async () => (await (await api.get(`api/v1/plan-versions/${ids.version}/geometry?draft=true`)).json()) as Draft;
 
@@ -126,6 +126,12 @@ test.describe.serial('plan studio: the mark-door tool (SW A)', () => {
     const width1 = g.width_m;
     await page.keyboard.press('Enter');
     await expect(page.locator(`${ED} sw-plan-canvas [data-door-ghost]`)).toHaveCount(0);
+    // the same symbol clicked again: that door is selected, no second one is stacked on it
+    const again = page.waitForResponse((r) => r.url().endsWith('/door-proposal'));
+    await clickPlan(page, 830, 385);
+    expect((await again).status()).toBe(200);
+    await expect(page.locator(ED).getByText('כאן כבר יש דלת: היא נבחרה')).toBeVisible();
+    await expect(page.locator(`${ED} sw-plan-canvas [data-door-ghost]`)).toHaveCount(0);
 
     // 2. and 3. consecutive clicks: the second door's ghost is accepted by the click on the third door, Esc cancels the third
     const p2 = await propose(page, 480, 630); // the door in the wall y 600, hinged at its end (x 505), opening down
@@ -151,6 +157,7 @@ test.describe.serial('plan studio: the mark-door tool (SW A)', () => {
     expect(o2).toMatchObject({ kind: 'door', source: 'manual', swing: 'right', hinge: 'end' });
     expect(Math.abs(o2.width_m - 0.9)).toBeLessThanOrEqual(0.09);
     expect(new Set(d.doc.openings.map((o) => o.wall_id))).toEqual(new Set(d.doc.walls.map((w) => w.id)));
+    expect(d.doc.walls.every((w) => w.external_ids?.origin === 'door_tool')).toBe(true); // the pieces say where they came from
 
     // undo takes the last door and its wall piece in one step; redo brings both back
     await page.keyboard.press('Control+z');
@@ -176,5 +183,20 @@ test.describe.serial('plan studio: the mark-door tool (SW A)', () => {
     const parts = await el.evaluate((node) => (node as unknown as { description: { parts: { id: string; kind: string }[] } }).description.parts.map((p) => p.id));
     for (const o of d.doc.openings) expect(parts, `door ${o.id} in 3D`).toContain(`door:${o.id}`);
     test.info().annotations.push({ type: 'proposal-ms', description: `${p1.elapsed_ms}, ${p2.elapsed_ms}` });
+  });
+
+  test('D while a wall is being drawn keeps the wall and says so', async ({ page }) => {
+    const before = (await draft()).doc.walls.length;
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    await expect(page.locator(`${ED} sw-plan-canvas`)).toBeAttached({ timeout: 20000 });
+    await page.locator(`${ED} [data-tool="structure"]`).click();
+    await page.locator(`${ED} [data-studio-mode="wall"]`).click();
+    await clickPlan(page, 1250, 950);
+    await clickPlan(page, 1400, 950);
+    await page.keyboard.press('d');
+    await expect(page.locator(`${ED} [data-studio-mode="markdoor"]`)).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator(ED).getByText('הקיר שבציור נשמר; סמן דלת פעיל')).toBeVisible();
+    await page.keyboard.press('Control+s');
+    await expect.poll(async () => (await draft()).doc.walls.length, { timeout: 15000 }).toBe(before + 1);
   });
 });

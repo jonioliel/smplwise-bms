@@ -31,6 +31,8 @@ from .zones import floor_zones
 router = APIRouter()
 NO_CACHE = {"Cache-Control": "private, no-cache"}
 DETECT_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="plan-detect")
+# the door tool's clicks (T087) have a worker of their own: a 60 s detection by another editor never makes them wait
+DOOR_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="door-proposal")
 
 
 def shutdown_detect_pool() -> None:
@@ -38,9 +40,11 @@ def shutdown_detect_pool() -> None:
     running worker: it goes on until it finishes or its own deadline passes, so at most detect_timeout_s after its
     request. A fresh pool takes the old one's place (threads start only on the first submit), so an app created again
     in the same process - the test suite - still detects."""
-    global DETECT_POOL
+    global DETECT_POOL, DOOR_POOL
     old, DETECT_POOL = DETECT_POOL, concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="plan-detect")
     old.shutdown(wait=False, cancel_futures=True)
+    old_door, DOOR_POOL = DOOR_POOL, concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="door-proposal")
+    old_door.shutdown(wait=False, cancel_futures=True)
 
 
 def _layers(raw: str | None) -> set[str] | None:
@@ -404,6 +408,7 @@ def accept_detection(version_id: str, body: AcceptIn, request: Request, principa
 # ---------------------------------------------------------------- the door tool (T087, "סמן דלת")
 
 DOOR_PROPOSAL_TIMEOUT_S = 5.0  # a click waits at most this long (or detect_timeout_s, if lower); the target is 0.3 s
+DOOR_DEBUG_KEYS = ("scores", "stats", "hinge_point", "leaf_tip")  # the analysis' own readings: only with ?debug=1
 
 
 class DoorProposalIn(BaseModel):
@@ -420,14 +425,15 @@ def _door_job(path: Any, x: float, y: float, walls: list[dict[str, Any]], scale:
 
 
 @router.post("/plan-versions/{version_id}/door-proposal")
-def door_proposal(version_id: str, body: DoorProposalIn, request: Request, principal: Principal = Depends(current_principal_ro),
+def door_proposal(version_id: str, body: DoorProposalIn, request: Request, debug: bool = False, principal: Principal = Depends(current_principal_ro),
                   conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The "סמן דלת" tool: one click (x, y in the picture's 0..1 space) on a door symbol or on the wall where a door is,
     and the door the local analysis proposes there - the draft wall it sits on and its position (t), or a short wall
     piece of its own when no draft wall runs along it, the width in version pixels (the client turns it into metres
     with the document's effective scale), hinge side, swing, what was found and how sure. The analysis reads a small
-    crop of the version's picture at its own resolution (services/plan_door_tool.py) in the detection worker pool, under
-    a short deadline. Nothing is stored, nothing is audited (nothing changes) and no picture leaves the server; the
+    crop of the version's picture at its own resolution (services/plan_door_tool.py) under
+    a short deadline, in a worker of its own. `?debug=1` adds the analysis' readings (scores, stats, the hinge point and
+    leaf tip it read). Nothing is stored, nothing is audited (nothing changes) and no picture leaves the server; the
     client adds the door to the draft like any other opening once the person accepts it. Needs map.edit on the floor."""
     settings = settings_of(request)
     v = _editable(conn, principal, version_id)
@@ -448,7 +454,7 @@ def door_proposal(version_id: str, body: DoorProposalIn, request: Request, princ
     calibrated = isinstance(cal, dict) and cal.get("status") in ("measured", "estimated")
     timeout = min(DOOR_PROPOSAL_TIMEOUT_S, float(settings.detect_timeout_s))
     deadline = time.monotonic() + timeout
-    future = DETECT_POOL.submit(_door_job, src, body.x, body.y, walls, scale, calibrated, body.wall_id, deadline)
+    future = DOOR_POOL.submit(_door_job, src, body.x, body.y, walls, scale, calibrated, body.wall_id, deadline)
     try:
         result = future.result(timeout=timeout)
     except (concurrent.futures.TimeoutError, TimeoutError):
@@ -462,6 +468,9 @@ def door_proposal(version_id: str, body: DoorProposalIn, request: Request, princ
         raise ApiError(500, "door_proposal_failed", "חישוב ההצעה נכשל.", details={"error": type(exc).__name__})
     except (OSError, MemoryError, RuntimeError) as exc:
         raise ApiError(500, "door_proposal_failed", "חישוב ההצעה נכשל.", details={"error": type(exc).__name__})
+    if not debug:
+        for k in DOOR_DEBUG_KEYS:
+            result.pop(k, None)
     return {**result, "version_id": v["id"], "level_id": body.level_id or default_level}
 
 

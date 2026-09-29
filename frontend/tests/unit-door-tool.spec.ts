@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildPrimitives, pointOnWall, type DoorPrim, type GeometryDoc } from '../src/map/geometry';
 import type { DoorProposal } from '../src/api/geometry';
-import { GHOST_DOOR_ID, GHOST_JAMB_M, GHOST_WALL_ID, acceptGhost, defaultGhost, flipHinge, flipSwing, ghostDoc, ghostFromProposal, ghostHandles, ghostWidthTo, onGhost } from '../src/map/door-tool';
+import { DOOR_TOOL_ORIGIN, GHOST_DOOR_ID, GHOST_JAMB_M, GHOST_WALL_ID, acceptGhost, defaultGhost, existingOpening, flipHinge, flipSwing, ghostDoc, ghostFromProposal, ghostHandles, ghostWidthTo, onGhost } from '../src/map/door-tool';
 
 // The "סמן דלת" tool (T087): the pure steps from the server's door proposal to the ghost the editor shows, its handles
 // and adjustments, and the accepted door - an ordinary opening added as one new document (one undo step). Runs in node.
@@ -90,6 +90,28 @@ test.describe('the mark-door tool (unit)', () => {
     const w = r.doc.walls.find((x) => x.id === r.wallId)!;
     expect(w).toMatchObject({ thickness_m: 0.15, kind: 'interior', source: 'manual', level_id: 'L1' });
     expect(r.doc.openings.find((x) => x.id === r.openingId)).toMatchObject({ wall_id: r.wallId, t: 0.5, width_m: 0.85 });
+  });
+
+  test('a wall piece stops on a drawn wall end near it, is tagged as the door tool\'s, and keeps the door where it was', () => {
+    const doc = sample(); // wall "wb" ends at (0.6, 0.5)
+    const p = proposal({ wall_id: null, t: 0.5, new_wall: { polyline: [[0.5875, 0.5], [0.7125, 0.5]], thickness_px: 15 }, width_px: 85 });
+    const g = ghostFromProposal(doc, p, W, H, DEFAULTS);
+    const [a, b] = g.newWall!.polyline;
+    expect(a[0] * W).toBeCloseTo(600, 3); // snapped onto wb's end: no 0.12 m overlap
+    expect(b[0] * W).toBeCloseTo(650 + 42.5 + GHOST_JAMB_M * 100, 3); // nothing to snap to on the other side
+    expect(a[0] + (b[0] - a[0]) * g.t).toBeCloseTo(0.65, 6); // the door's centre did not move
+    const wider = ghostWidthTo(doc, g, [0.65 + 0.05, 0.5], W, H); // 1 m wide: its edge reaches wb's end
+    expect(wider.newWall!.polyline[0][0] + (wider.newWall!.polyline[1][0] - wider.newWall!.polyline[0][0]) * wider.t).toBeCloseTo(0.65, 6);
+    const r = acceptGhost(doc, g, W, H, DEFAULTS)!;
+    expect(r.doc.walls.find((w) => w.id === r.wallId)!.external_ids).toEqual({ origin: DOOR_TOOL_ORIGIN });
+  });
+
+  test('a door already where the ghost would go is found (the editor selects it instead of stacking a second)', () => {
+    const doc = sample(); // wb carries "oc" at t 0.5 (0.8 m) and "oe" at t 0.9
+    const on = ghostFromProposal(doc, proposal({ t: 0.52 }), W, H, DEFAULTS);
+    expect(existingOpening(doc, on, W, H)?.id).toBe('oc');
+    expect(existingOpening(doc, ghostFromProposal(doc, proposal({ t: 0.3 }), W, H, DEFAULTS), W, H)).toBeNull();
+    expect(existingOpening(doc, { ...on, wallId: null }, W, H)).toBeNull(); // a door with its own new wall piece
   });
 
   test('the demo default and the hit test of the ghost', () => {

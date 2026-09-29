@@ -12,6 +12,10 @@ export const GHOST_DOOR_ID = 'ghost-door';
 export const GHOST_WIDTH_M: [number, number] = [0.4, 3.0];
 /** A wall piece a door brings reaches this far past each side of it (services/plan_door_tool.py JAMB_M). */
 export const GHOST_JAMB_M = 0.12;
+/** A wall piece's end snaps onto a drawn wall's end this far past its jamb margin (instead of overlapping it). */
+export const GHOST_SNAP_M = 0.25;
+/** external_ids.origin of a wall piece the door tool added (the wall inspector says so). */
+export const DOOR_TOOL_ORIGIN = 'door_tool';
 
 export interface DoorGhost {
   found: DoorProposal['found'];
@@ -63,15 +67,41 @@ function fitGhost(doc: GeometryDoc, g: DoorGhost, W: number, H: number): DoorGho
   if (g.newWall) {
     // the piece reaches GHOST_JAMB_M past each side of the door, whatever the width, centred on the door
     const [a, b] = [g.newWall.polyline[0], g.newWall.polyline[g.newWall.polyline.length - 1]];
-    const cx = (a[0] + b[0]) / 2;
-    const cy = (a[1] + b[1]) / 2;
+    const cx = a[0] + (b[0] - a[0]) * g.t; // the door's centre (a snapped piece is uneven about it)
+    const cy = a[1] + (b[1] - a[1]) * g.t;
     const dx = (b[0] - a[0]) * W;
     const dy = (b[1] - a[1]) * H;
     const n = Math.hypot(dx, dy) || 1;
-    const halfPx = (g.width_m / 2 + GHOST_JAMB_M) / effectiveScale(doc).scale;
-    const ux = (dx / n) * halfPx;
-    const uy = (dy / n) * halfPx;
-    return { ...g, t: 0.5, newWall: { ...g.newWall, polyline: [[cx - ux / W, cy - uy / H], [cx + ux / W, cy + uy / H]] } };
+    const scale = effectiveScale(doc).scale;
+    const halfDoor = g.width_m / 2 / scale;
+    const ex = dx / n;
+    const ey = dy / n;
+    // each end reaches GHOST_JAMB_M past the door - or stops on a drawn wall's end there (no overlap with its neighbour)
+    const reachTo = (sign: 1 | -1): number => {
+      let best = halfDoor + GHOST_JAMB_M / scale;
+      let bestOff = Number.POSITIVE_INFINITY;
+      const maxLateral = Math.max(g.newWall!.thickness_m, 0.2) / scale;
+      for (const w of doc.walls) {
+        if (w.polyline.length < 2) continue;
+        for (const v of [w.polyline[0], w.polyline[w.polyline.length - 1]]) {
+          const rx = (v[0] - cx) * W;
+          const ry = (v[1] - cy) * H;
+          const along = (rx * ex + ry * ey) * sign;
+          const lateral = Math.abs(rx * ey - ry * ex);
+          if (along >= halfDoor && along <= halfDoor + (GHOST_JAMB_M + GHOST_SNAP_M) / scale && lateral <= maxLateral && lateral < bestOff) {
+            best = along;
+            bestOff = lateral;
+          }
+        }
+      }
+      return best;
+    };
+    const hi = reachTo(1);
+    const lo = reachTo(-1);
+    const a0: Pt = [cx - (ex * lo) / W, cy - (ey * lo) / H];
+    const b0: Pt = [cx + (ex * hi) / W, cy + (ey * hi) / H];
+    // the door stays where it was: its centre's share of the (possibly uneven) piece
+    return { ...g, t: lo / (lo + hi), newWall: { ...g.newWall, polyline: [a0, b0] } };
   }
   const [lo, hi] = openingRange(g.width_m, lengthM(wall, doc, W, H));
   return { ...g, t: clamp(g.t, lo, hi) };
@@ -153,7 +183,7 @@ export function acceptGhost(doc: GeometryDoc, g: DoorGhost, W: number, H: number
   if (!wallId) {
     if (!g.newWall) return null;
     const r = addWall(next, g.newWall.polyline, { thickness_m: g.newWall.thickness_m || defaults.thickness_m, kind: defaults.kind });
-    next = levelId && levelId !== defaultLevelId(next) ? patchWall(r.doc, r.id, { level_id: levelId }) : r.doc;
+    next = patchWall(r.doc, r.id, { external_ids: { origin: DOOR_TOOL_ORIGIN }, ...(levelId && levelId !== defaultLevelId(r.doc) ? { level_id: levelId } : {}) });
     wallId = r.id;
   }
   const wall = next.walls.find((w) => w.id === wallId);
@@ -161,6 +191,25 @@ export function acceptGhost(doc: GeometryDoc, g: DoorGhost, W: number, H: number
   const [lo, hi] = openingRange(g.width_m, lengthM(wall, next, W, H));
   const r = addOpening(next, wallId, clamp(g.t, lo, hi), 'door');
   return { doc: patchOpening(r.doc, r.id, { width_m: g.width_m, swing: g.swing, hinge: g.hinge }), openingId: r.id, wallId };
+}
+
+/** An opening already on the ghost's wall where the ghost would go (their centres closer than half the wider of the
+ * two): clicking an accepted door's symbol again selects that door instead of stacking a second one. */
+export function existingOpening(doc: GeometryDoc, g: DoorGhost, W: number, H: number): GeomOpening | null {
+  const wall = g.wallId ? doc.walls.find((w) => w.id === g.wallId) : null;
+  if (!wall) return null;
+  const len = lengthM(wall, doc, W, H);
+  let best: GeomOpening | null = null;
+  let bestM = Number.POSITIVE_INFINITY;
+  for (const o of doc.openings) {
+    if (o.wall_id !== wall.id) continue;
+    const m = Math.abs(o.t - g.t) * len;
+    if (m < Math.max(o.width_m, g.width_m) / 2 && m < bestM) {
+      best = o;
+      bestM = m;
+    }
+  }
+  return best;
 }
 
 /** The default ghost when the server cannot be asked (the demo plan): the editor's default door on the wall clicked,

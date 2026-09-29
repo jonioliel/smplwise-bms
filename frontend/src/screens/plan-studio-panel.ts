@@ -218,6 +218,7 @@ function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number,
   return html`<div class="sel" data-selected-wall=${w.id}>
     <div class="selhead"><strong>קיר ${WALL_KIND_LABEL[w.kind]}</strong><span class="muted">${fmtMetres(len, estimated, v.showEstimates)} · ${countLabel(openings, 'פתח אחד', 'פתחים')}</span></div>
     ${renderSourceBadge(w)}
+    ${w.external_ids?.origin === 'door_tool' ? html`<div class="note" data-wall-door-tool>קטע קיר שנוסף עם דלת בכלי "סמן דלת": בדוק את עוביו ואת החיבור לקירות הסמוכים.</div>` : nothing}
     <div class="two">
       <sw-field label="עובי (מ׳)"><input type="number" min="0.01" max="3" step="0.01" data-ltr .value=${String(w.thickness_m)}
         @change=${(e: Event) => { const x = numberOf(e); if (x > 0 && x <= 3) a.patchWall(w.id, { thickness_m: x }); }} /></sw-field>
