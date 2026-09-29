@@ -1100,12 +1100,19 @@ export class ExplorePlanEditor extends LitElement {
     try {
       await unshareZone(z.id, floorId);
       this.selectedZoneId = null;
-      await this.load();
+      await this.reloadShared();
     } catch (err) {
       this.error = describeError(err);
     } finally {
       this.zoneBusy = false;
     }
+  }
+
+  /** After a share or an un-share the floor's draft and its attached rooms changed on the server: the bundle and the
+   * structure are read again (the structure even for the same plan version - the studio keeps it otherwise). */
+  private async reloadShared() {
+    await this.load();
+    if (this.bundle) await this.loadStudio(this.bundle, true);
   }
 
   /** "הפוך לחלל משותף": the other floors of the building (the connector picker's list: floors the person may edit). */
@@ -1181,7 +1188,7 @@ export class ExplorePlanEditor extends LitElement {
       this.selectedZoneId = null;
       this.info = 'החדר משותף עכשיו לשתי הקומות';
       setTimeout(() => (this.info = ''), 4000);
-      await this.load();
+      await this.reloadShared();
     } catch (err) {
       this.shareDlg = { ...this.shareDlg!, busy: false, error: describeError(err) };
     }
