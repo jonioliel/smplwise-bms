@@ -273,6 +273,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         log.warning("no built UI found (SW_WWW_DIR=%s); API only", www)
 
     commit_before_send(app)
+    from . import remote_channel
+
+    remote_channel.install(app, settings)  # CR-008: outermost - the /arx prefix, its 404 switch and header stripping
     return app
 
 

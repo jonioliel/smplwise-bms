@@ -33,7 +33,7 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
    - `remote_access` (default `false`) and `remote_path` (default `/arx`) — SmplWise Arx remote access (CR-008):
      `https://<your HA hostname>/arx` opens the product with its own sign-in page (your Home Assistant username and
      password) through a Cloudflare tunnel path route. Off by default; while off, `/arx` answers 404 even if a tunnel
-     route exists. See "Remote access (SmplWise Arx)" below and `docs/operations/ARX_REMOTE_SETUP_HE.md`.
+     route exists. See "Remote access (SmplWise Arx)" below and `docs/operations/ARX_CLOUDFLARE_GUIDE_HE.md`.
    - WisKey (the `hikvision_intercom` integration) is reached through the add-on's own Home Assistant user (the
      Long-Lived Access Token in `ha_token`). WisKey authorizes that user by its own areas: viewing the WisKey tab
      needs the `overview`, `users` and `events` areas at `view`; **editing people from SMPLWISE (the person editor,
