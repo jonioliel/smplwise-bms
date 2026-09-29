@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-09-29T20:46:25.721720+00:00
+Generated: 2026-09-29T21:46:53.941458+00:00
 
-Tasks: 93 | Requirements: 189 | Tests: 189 | Screens: 32
+Tasks: 94 | Requirements: 191 | Tests: 191 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,13 +12,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 - DONE: 2
 - IN_PROGRESS: 1
 - READY: 1
-- REVIEW: 1
+- REVIEW: 2
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 18
+- V1: 19
 - V2: 12
 
 ## Blockers
@@ -121,3 +121,4 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T091](tasks/T091.md) | V1 | BACKLOG | תיעוד בעברית ומדריך למשתמש מלא עם צילומי מסך אמיתיים | T025, T054, T087 |
 | [T092](tasks/T092.md) | V1 | BACKLOG | Arx remote access (CR-008) — /arx, התחברות HA במסך שלנו, PWA ואפליקציה | T011 |
 | [T093](tasks/T093.md) | V1 | REVIEW | אבטחה: לייב | חקירה | אזעקה — אזעקה מתשתית המערכת (CR-010) | — |
+| [T094](tasks/T094.md) | V1 | REVIEW | מעטפת האפליקציה: המשתמש בסוף סרגל הניווט, בלי סרגל עליון בטלפון, סדר לשוניות אישי (CR-013) | — |

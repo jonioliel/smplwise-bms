@@ -5367,5 +5367,59 @@
     "evidence": [],
     "executed_at": null,
     "notes": "Automated fixture coverage on the branch (tests/test_alarm.py, frontend/tests/evidence-alarm.spec.ts); the acceptance run on the owner's system is pending."
+  },
+  {
+    "id": "AT190",
+    "requirement_ids": [
+      "R190"
+    ],
+    "task_ids": [
+      "T094"
+    ],
+    "title": "מעטפת 1 — המשתמש כפריט האחרון בניווט, תפריט משתמש, בלי סרגל עליון בטלפון",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Static preview (demo data, a mocked backend) or a fixture backend; a real phone for the owner's run"
+    ],
+    "procedure": [
+      "Phone 390x844, tablet 1024x768 and desktop 1440x900, demo data and a backend: read the navigation's order and names, open the user menu from the avatar, check each item, its permission gating and the red dot with and without open alerts.",
+      "On the phone: no top bar, the security section row sticky with 44 px targets, the tab row scrolls with the last tab fully reachable and the active tab revealed; nothing under the status bar in the installed web app and the Android app.",
+      "Open the bare address: ראשי (or the user's first tab); open old deep links: their screens."
+    ],
+    "expected": "Design A's rail (desktop, tablet) and phone bottom bar show ראשי (the device overview, home icon) · אבטחה · מפה · WisKey in the user's order, then the user avatar, always last; the avatar opens the user menu (a popover beside the rail, a bottom sheet on the phone) with a header (avatar, name, role; on the phone the health pill, the demo pill and the setup progress), התראות with the open-alert count first, סדר הלשוניות, הגדרות התראות, מערכת only for a user holding a settings permission, החלף שרת inside the Android app, כל המסכים, the user's own remote sign-ins and a destructive-styled sign-out (remote channel); the bell is removed and open alerts in the user's scope put a red dot on the avatar with the count in its accessible name; the desktop top bar keeps only the crumbs, the section control, the search and the health pill; the phone has no top bar, the security sections are a slim sticky row with 44 px targets above the page's tab row, which scrolls sideways with snap and an edge fade and keeps the active tab in view; the shell keeps the status-bar inset (zero inside the Android app's own WebView); the bare address lands on ראשי (ui.start_route default devices) or the user's first visible tab, deep links keep working (CR-013 §1-§2).",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Automated coverage on the branch (frontend/tests/evidence-shell.spec.ts on the static preview with demo data and a mocked backend; backend tests/test_user_prefs.py); the owner's run on his phone, the Android app and an installed web app is pending."
+  },
+  {
+    "id": "AT191",
+    "requirement_ids": [
+      "R191"
+    ],
+    "task_ids": [
+      "T094"
+    ],
+    "title": "מעטפת 2 — סדר לשוניות אישי שנשמר בשרת",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Static preview (demo data, a mocked backend) or a fixture backend; a real phone for the owner's run"
+    ],
+    "procedure": [
+      "Reorder by buttons, by keyboard and by dragging the handle (touch on a phone, mouse on a desktop); save; reload; open on a second device: the same order.",
+      "Sign in as a second user on the same browser: the default order; reset the first user's order: the default again.",
+      "PUT /me/prefs with unknown ids, duplicates, unknown keys and bad shapes: normalized or refused."
+    ],
+    "expected": "Each user can reorder their navigation tabs in a dialog (drag handle with touch and mouse, up/down buttons, arrow/Home/End keys, a live announcement, save, reset to default); the order is stored per user on the server (GET/PUT /api/v1/me/prefs, key nav.order, migration 0037; unknown ids dropped, duplicates removed, missing tabs appended in the default order; unknown keys refused; null resets), applies to the rail and the phone bottom bar on every device, is cached locally per user id for the first paint with the server winning on load, never leaks to another user of the same browser, keeps hidden tabs in their stored place, and never shows a tab the user may not see (CR-013 §2.4).",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Automated coverage on the branch (frontend/tests/evidence-shell.spec.ts on the static preview with demo data and a mocked backend; backend tests/test_user_prefs.py); the owner's run on his phone, the Android app and an installed web app is pending."
   }
 ]
