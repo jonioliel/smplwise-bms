@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { DetectResult } from '../src/api/geometry';
 import { buildPrimitives, type GeometryDoc } from '../src/map/geometry';
-import { allIds, byConfidence, byKind, candidatesDoc, defaultStates, fromResult, moveVertex, rescale, withParents } from '../src/map/candidates';
+import { OUTSIDE_MAIN_HE, allIds, byConfidence, byKind, candidatesDoc, defaultStates, fromResult, isOutsideMain, moveVertex, outsideMainSummary, rescale, withParents, type CandidateSet } from '../src/map/candidates';
 
 // Plan Studio phase 3 (T086): the pure candidate-set operations the editor's detect tool runs on. Node only.
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -68,4 +68,51 @@ test('moving a candidate wall end returns a new set and keeps the openings on th
   expect(moved.openings[0].wall_id).toBe('auto-r-w001');
   expect(moveVertex(set, 'nope', 0, [0, 0])).toBe(set);
   expect(moveVertex(set, 'auto-r-w001', 1, [1.4, -0.2]).walls[0].polyline[1]).toEqual([1, 0]); // clamped to the plan
+});
+
+test('walls outside the main structure (detector 1.2 flags): kept in the set, named, counted in the summary (T087 review)', () => {
+  const plain = fromResult(result());
+  expect(plain.outsideMain).toEqual([]); // an older detector or the DXF import: no flags
+  expect(outsideMainSummary(plain)).toBeNull();
+  const one = fromResult({ ...result(), flags: { outside_main: ['auto-r-w003'] } });
+  expect(isOutsideMain(one, 'auto-r-w003')).toBe(true);
+  expect(isOutsideMain(one, 'auto-r-w001')).toBe(false);
+  expect(outsideMainSummary(one)).toBe(`קיר אחד ${OUTSIDE_MAIN_HE} - בדוק לפני קבלה`);
+  const two = fromResult({ ...result(), flags: { outside_main: ['auto-r-w002', 'auto-r-w003'] } });
+  expect(outsideMainSummary(two)).toBe('2 קירות מחוץ למבנה הראשי - בדוק לפני קבלה');
+  // selectable and acceptable like any candidate: every selection rule still offers them
+  expect(allIds(two)).toContain('auto-r-w003');
+  expect(byKind(two, ['wall'])).toEqual(['auto-r-w001', 'auto-r-w002', 'auto-r-w003']);
+  expect(defaultStates(two)['auto-r-w003']).toBe('accepted');
+  // the flag follows edits of the set, and only walls still in the set are counted
+  expect(isOutsideMain(moveVertex(two, 'auto-r-w003', 1, [0.5, 0.8]), 'auto-r-w003')).toBe(true);
+  const fewer: CandidateSet = { ...two, walls: two.walls.filter((w) => w.id !== 'auto-r-w002') };
+  expect(outsideMainSummary(fewer)).toBe(`קיר אחד ${OUTSIDE_MAIN_HE} - בדוק לפני קבלה`);
+});
+
+test('the candidates layer draws a flagged wall with its own dash, a title and the flag in the pill (T087 review)', async ({ page }) => {
+  await page.goto('/#/explore/floors/f0');
+  const canvas = page.locator('explore-floor-map sw-plan-canvas');
+  await expect(canvas).toBeVisible({ timeout: 20000 });
+  const set = fromResult({ ...result(), flags: { outside_main: ['auto-r-w003'] } });
+  await canvas.evaluate(async (n, a) => {
+    const cv = n as HTMLElement & { geometry: unknown; candidates: unknown; selectedCandidateId: string | null; updateComplete: Promise<boolean> };
+    cv.geometry = a.doc;
+    cv.candidates = a.set;
+    cv.selectedCandidateId = 'auto-r-w003';
+    await cv.updateComplete;
+  }, { doc: sample(), set });
+  // the wall is cut by its window candidate into two drawn parts: both carry the flag
+  const parts = canvas.locator('[data-candidates] [data-candidate="auto-r-w003"]');
+  await expect(parts).toHaveCount(2);
+  await expect(canvas.locator('[data-candidates] [data-candidate="auto-r-w003"][data-outside-main]')).toHaveCount(2);
+  const flagged = parts.first();
+  await expect(flagged).toHaveClass(/outside/);
+  await expect(flagged.locator('title')).toHaveText(OUTSIDE_MAIN_HE);
+  const dash = await flagged.locator('.cwall').evaluate((el) => getComputedStyle(el).strokeDasharray);
+  const plainDash = await canvas.locator('[data-candidates] [data-candidate="auto-r-w001"] .cwall').first().evaluate((el) => getComputedStyle(el).strokeDasharray);
+  expect(dash).not.toBe(plainDash);
+  expect(dash).not.toBe('none'); // selected, it stays dashed (a selected plain candidate turns solid)
+  await expect(canvas.locator('[data-candidates] [data-outside-main]')).toHaveCount(2); // no other candidate is flagged
+  await expect(canvas.locator('[data-cand-score-for="auto-r-w003"]')).toContainText(OUTSIDE_MAIN_HE);
 });

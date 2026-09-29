@@ -729,7 +729,7 @@ def drop_reference_strokes(segs: list[Seg], t_med: float, s: float) -> tuple[lis
     that crosses the building - the latter stays a known limit). Owner's real scans (0.1.91 list): the section marks,
     the title underline and the north-arrow bars were suggested as walls.
 
-    A group outside the box that has REF_SIDES sides of at least REF_SIDE_M in two directions (a closed outline, a
+    A group outside the box that has REF_SIDES sides of at least REF_SIDE_M, in two orientations among those sides (a closed outline, a
     small building beside a large one, three sides of a yard wall) is never dropped: it stays a candidate and is
     returned in the second list, which the result reports as `flags.outside_main`, so the person reviewing sees it.
     Returns (kept segments, those of them outside the main structure, the number of segments dropped)."""
@@ -776,12 +776,14 @@ def drop_reference_strokes(segs: list[Seg], t_med: float, s: float) -> tuple[lis
         comp_lo[r] = np.minimum(comp_lo[r], e.min(axis=0)) if r in comp_lo else e.min(axis=0)
         comp_hi[r] = np.maximum(comp_hi[r], e.max(axis=0)) if r in comp_hi else e.max(axis=0)
     outside = {r for r in total if r not in structure and ((comp_hi[r] < lo).any() or (comp_lo[r] > hi).any())}
+    # the sides of at least REF_SIDE_M, and whether they hold two orientations (more than 30 degrees apart): a stack of
+    # parallel title rules joined by a short tick turns (the tick) but its long sides all run one way
     side_px = REF_SIDE_M / s
-    sides: dict[int, int] = {}
+    sides: dict[int, list[np.ndarray]] = {}
     for i, g in enumerate(segs):
         if g.length >= side_px:
-            sides[find(i)] = sides.get(find(i), 0) + 1
-    shaped = {r for r in outside if r in turns and sides.get(r, 0) >= REF_SIDES}
+            sides.setdefault(find(i), []).append(g.dir)
+    shaped = {r for r in outside if len(sides.get(r, [])) >= REF_SIDES and any(_angle_between(sides[r][0], v) > 30.0 for v in sides[r][1:])}
     drop = outside - shaped
     kept = [g for i, g in enumerate(segs) if find(i) not in drop]
     return kept, [g for i, g in enumerate(segs) if find(i) in shaped], n - len(kept)

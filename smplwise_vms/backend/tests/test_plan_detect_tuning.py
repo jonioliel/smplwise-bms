@@ -72,13 +72,8 @@ def test_reference_strokes_outside_the_building_are_not_walls():
 def test_a_small_outbuilding_far_from_a_large_building_stays_flagged():
     """A 5 x 5 m gatehouse 3 m from a 50 x 37.5 m hall with interior walls (well under REF_STRUCTURE_SHARE of its wall
     length) is a closed outline: its four walls stay, listed in flags.outside_main for the person reviewing."""
-    im = Image.new("L", (1600, 1200), 255)
-    d = ImageDraw.Draw(im)
-    s = 0.05  # 20 px = 1 m; walls 8 px = 0.4 m
-    d.rectangle([100, 100, 1100, 850], outline=0, width=8)
-    for x in (350, 600, 850):
-        d.rectangle([x, 108, x + 7, 842], fill=0)
-    d.rectangle([108, 470, 1092, 477], fill=0)
+    im, d = _hall()
+    s = 0.05
     d.rectangle([1160, 400, 1260, 500], outline=0, width=8)  # the gatehouse, 3 m right of the hall
     r = pd.detect(_png(im), targets=("walls",), scale_m_per_px=s)
     gate = [w for w in r["walls"] if all(x > 1140 for x, _ in _px(w))]
@@ -112,11 +107,41 @@ def test_a_dashed_line_is_not_walls_but_a_wall_with_doors_is():
     assert covered >= 350, [_px(w) for w in doors_wall]
 
 
+def _hall() -> tuple[Image.Image, ImageDraw.ImageDraw]:
+    """A 50 x 37.5 m hall with interior walls at 0.05 m / px (20 px = 1 m, walls 8 px = 0.4 m)."""
+    im = Image.new("L", (1600, 1200), 255)
+    d = ImageDraw.Draw(im)
+    d.rectangle([100, 100, 1100, 850], outline=0, width=8)
+    for x in (350, 600, 850):
+        d.rectangle([x, 108, x + 7, 842], fill=0)
+    d.rectangle([108, 470, 1092, 477], fill=0)
+    return im, d
+
+
+def _sg(a: tuple[float, float], b: tuple[float, float], thick: float = 6.0) -> pd.Seg:
+    return pd.Seg(np.array(a, float), np.array(b, float), [thick] * 5, axis=True)
+
+
+def test_parallel_title_rules_joined_by_a_tick_are_dropped_not_flagged():
+    """The rule on segments (0.02 m / px): a 60 x 40 m hall with interior walls is the structure. Outside it, three 5 m
+    title rules 0.4 m apart joined at one end by a 0.45 m tick have three sides of 1 m or more, but all in one
+    orientation - a sheet stroke, dropped and counted, never kept. A 5 x 5 m outline in the same place has sides in two
+    orientations - kept and returned as outside the main structure."""
+    s, t_med = 0.02, 6.0
+    hall = [_sg((0, 0), (3000, 0)), _sg((3000, 0), (3000, 2000)), _sg((3000, 2000), (0, 2000)), _sg((0, 2000), (0, 0))]
+    hall += [_sg((x, 0), (x, 2000)) for x in (500, 1000, 1500, 2000, 2500)]
+    rules = [_sg((500, y), (750, y), 3.0) for y in (2200, 2220, 2240)] + [_sg((500, 2200), (500, 2242), 3.0)]
+    kept, outside, dropped = pd.drop_reference_strokes(hall + rules, t_med, s)
+    assert (len(kept), outside, dropped) == (len(hall), [], 4)
+    gate = [_sg((500, 2200), (750, 2200)), _sg((750, 2200), (750, 2450)), _sg((750, 2450), (500, 2450)), _sg((500, 2450), (500, 2200))]
+    kept, outside, dropped = pd.drop_reference_strokes(hall + gate, t_med, s)
+    assert (len(kept), len(outside), dropped) == (len(hall) + 4, 4, 0)
+
+
 def test_a_facade_of_piers_and_narrow_windows_in_one_line_weight_is_a_wall():
     """Piers 1 m long between 0.4 m windows (the glass and both faces drawn across each window), every wall of the plan
     one line weight: the pieces look like dashes by length, thickness and spacing, but the windows leave ink across the
-    gaps, so the facade stays. Likewise a partition whose scan faded to a grey the wall mask loses (but the soft ink
-    keeps) in places."""
+    gaps, so the facade stays."""
     im = Image.new("L", (1600, 1200), 255)
     d = ImageDraw.Draw(im)
     d.rectangle([300, 150, 1300, 900], outline=0, width=12)
@@ -129,15 +154,27 @@ def test_a_facade_of_piers_and_narrow_windows_in_one_line_weight_is_a_wall():
             for y in (150, 155, 160):  # a 0.4 m window: both faces and the glass, 2 px lines
                 d.rectangle([w0, y, w1, y + 1], fill=0)
         x += 140
-    x = 312
-    while x < 1288:  # a partition at y = 520 with grey dropouts every 1.2 m
-        d.rectangle([x, 520, min(1287, x + 119), 531], fill=0)
-        if x + 120 < 1287:
-            d.rectangle([x + 120, 520, min(1287, x + 159), 531], fill=120)  # lighter than the wall threshold, still soft ink
-        x += 160
     r = pd.detect(_png(im), scale_m_per_px=S)
     facade = [w for w in r["walls"] if all(abs(y - 155) < 8 for _, y in _px(w))]
     assert sum(abs(_px(w)[1][0] - _px(w)[0][0]) for w in facade) >= 600, [_px(w) for w in r["walls"]]
+    assert r["stats"]["dropped_dashed"] == 0
+
+
+def test_a_partition_that_faded_in_places_is_a_wall():
+    """A partition of 1.2 m dark stretches with 0.4 m stretches faded to grey 134 - lighter than the wall threshold of
+    the picture (90), so the wall mask breaks it into dash-like pieces, but darker than the soft ink's (140), so a line
+    runs through every gap: not a dashed line, the partition stays."""
+    im = Image.new("L", (1600, 1200), 255)
+    d = ImageDraw.Draw(im)
+    d.rectangle([300, 150, 1300, 900], outline=0, width=12)
+    x = 312
+    while x < 1288:
+        d.rectangle([x, 520, min(1287, x + 119), 531], fill=0)
+        if x + 120 < 1287:
+            d.rectangle([x + 120, 520, min(1287, x + 159), 531], fill=134)
+        x += 160
+    r = pd.detect(_png(im), scale_m_per_px=S)
+    assert r["detector"]["params"]["threshold"] < 134
     part = [w for w in r["walls"] if all(abs(y - 525) < 8 for _, y in _px(w))]
     assert sum(abs(_px(w)[1][0] - _px(w)[0][0]) for w in part) >= 600, [_px(w) for w in r["walls"]]
     assert r["stats"]["dropped_dashed"] == 0

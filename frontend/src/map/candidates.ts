@@ -19,6 +19,26 @@ export interface CandidateSet {
   pixels: CandidatePixels;
   /** Metres per version pixel the server used for the metres of this set (null when unknown). */
   scaleMPerPx: number | null;
+  /** Detector 1.2 (T087 review): ids of the wall candidates kept although they lie outside the main structure (a small
+   * building beside a large one). They stay selectable and acceptable like any candidate; the layer draws them with
+   * their own dash and the list, the pill and the summary say so. Absent / empty: none. */
+  outsideMain?: string[];
+}
+
+/** The label of a wall candidate outside the main structure (list row, map pill, selection note). */
+export const OUTSIDE_MAIN_HE = 'מחוץ למבנה הראשי';
+
+/** Whether candidate `id` is a wall outside the main structure. */
+export function isOutsideMain(set: CandidateSet, id: string): boolean {
+  return !!set.outsideMain?.includes(id);
+}
+
+/** The summary line for the walls outside the main structure still in the set, or null when there are none. */
+export function outsideMainSummary(set: CandidateSet): string | null {
+  const flagged = new Set(set.outsideMain ?? []);
+  const n = set.walls.filter((w) => flagged.has(w.id)).length;
+  if (!n) return null;
+  return `${n === 1 ? 'קיר אחד' : `${n} קירות`} ${OUTSIDE_MAIN_HE} - בדוק לפני קבלה`;
 }
 
 const MIN_THICKNESS_M = 0.02;
@@ -27,7 +47,7 @@ const round5 = (v: number): number => Math.round(v * 1e5) / 1e5;
 const clampPt = (p: Pt): Pt => [round5(Math.min(1, Math.max(0, p[0]))), round5(Math.min(1, Math.max(0, p[1])))];
 
 export function fromResult(r: DetectResult): CandidateSet {
-  return { walls: r.walls, openings: r.openings, objects: r.objects ?? [], pixels: r.pixels ?? {}, scaleMPerPx: r.scale?.m_per_px ?? null };
+  return { walls: r.walls, openings: r.openings, objects: r.objects ?? [], pixels: r.pixels ?? {}, scaleMPerPx: r.scale?.m_per_px ?? null, outsideMain: r.flags?.outside_main ?? [] };
 }
 
 /** The set as a document, so the canvas draws it through buildPrimitives exactly like the structure. Every other
