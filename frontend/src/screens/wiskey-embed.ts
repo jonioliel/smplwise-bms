@@ -5,9 +5,10 @@ import '../components/sw-page';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
-import { can, isApi } from '../api/session';
+import '../components/sw-tabs';
+import { can, canNav, isApi } from '../api/session';
 import { parseRoute, pushRoute, replaceRoute } from '../router';
-import { WISKEY_SCREENS, WISKEY_UI, isWiskeyHref, setWiskeyEmbedNav, wiskeyPath, wiskeyRequest, wiskeyRoute, wiskeySegmentOf, type WiskeyScreen } from '../shell/nav';
+import { WISKEY_SCREENS, WISKEY_TABS, WISKEY_UI, activeTabOf, isWiskeyHref, setWiskeyEmbedNav, visibleTabs, wiskeyPath, wiskeyRequest, wiskeyRoute, wiskeySegmentOf, type WiskeyScreen } from '../shell/nav';
 import { attachWiskey, WISKEY_PANEL_PATH, WISKEY_PANEL_TAG, type WiskeyCatalog, type WiskeyConnector, type WiskeyLocation } from '../wiskey/embed-connector';
 import './wiskey-overview';
 import './wiskey-events';
@@ -58,6 +59,15 @@ import './wiskey-people';
  *
  * On module exit the frame is disposed and removed, so WisKey cleans up its listeners and media; a deliberate refresh
  * (the bar's "רענן", or "נסה שוב") reopens the panel on the last confirmed tab/tool.
+ *
+ * Height (owner report 2026-09-29, "only 4 cameras even after choosing 12"): the frame already fills the viewport below
+ * SMPLWISE's chrome (a flex column down to the bottom edge, no max-height), but WisKey's rc.25 overview sizes its page
+ * from the frame's own viewport in fixed steps (`panel.ts` `fitWall`: 1200 px or wider and under 800 px high = 4 cards,
+ * under 880 = 8, else 12) and caps the "תחנות בתצוגה" choice by that (`Math.min(density || 12, capacity)`). At 1440×900
+ * the frame is ~720-750 px high, so 4. "הגדל" (desktop) lifts the embed over SMPLWISE's top bar, rail and tab row - the
+ * WisKey tab row moves into the embed's own bar - so the frame gets the viewport minus that one bar; remembered per
+ * browser. WisKey's own full-screen button works inside the frame too (`allow="fullscreen"`). The cap itself is a
+ * request to the WisKey developers (docs/integrations/wiskey/WISKEY_FOLLOWUP_REQUESTS.md).
  */
 
 export { WISKEY_PANEL_PATH };
@@ -70,6 +80,24 @@ const IN_FLIGHT_MS = 3000; // v1: a navigation with no wiskey:location by then i
 const KEEP_MS = 2000; // after everything is settled: re-apply cheaply, Home Assistant may re-render
 
 const TOP_SWITCH_MS = 1000; // "פתח ב-WisKey": Home Assistant's router gets this long before a full page load
+const EXPANDED_KEY = 'sw-wiskey-expanded'; // "הגדל": a per-browser convenience (localStorage), never a setting
+
+function readExpanded(): boolean {
+  try {
+    return localStorage.getItem(EXPANDED_KEY) === '1';
+  } catch {
+    return false; // storage blocked: the default layout
+  }
+}
+
+function writeExpanded(on: boolean): void {
+  try {
+    if (on) localStorage.setItem(EXPANDED_KEY, '1');
+    else localStorage.removeItem(EXPANDED_KEY);
+  } catch {
+    /* storage blocked: this page view only */
+  }
+}
 
 export type EmbedPhase = 'loading' | 'waiting' | 'ready' | 'unsupported' | 'login_required' | 'not_installed' | 'unreachable' | 'blocked';
 /** Which adapter drives the frame: before the handshake / discovery, the embed API v1, the older panel, or neither. */
@@ -250,6 +278,8 @@ export class WiskeyEmbed extends LitElement {
   @state() private frameKey = 0;
   /** Set when this tab does not nest Home Assistant (reflected for the evidence specs and the host style). */
   @property({ reflect: true, attribute: 'data-direct' }) direct: DirectReason = '';
+  /** "הגדל" (desktop only, see the header): the embed covers SMPLWISE's top bar, rail and tab row. */
+  @property({ type: Boolean, reflect: true, attribute: 'data-expanded' }) expanded = readExpanded();
   private forbidden = false;
   private connector: WiskeyConnector | null = null;
   /** v1: the location the frame was opened on (its URL) - asked for, never taken as confirmed. */
@@ -355,9 +385,31 @@ export class WiskeyEmbed extends LitElement {
       color: var(--sw-accent-text);
       font-weight: 600;
     }
+    /* "הגדל" (desktop, framed only): over SMPLWISE's top bar, rail and tab row; the frame gets the viewport minus the
+       embed's own bar, which then carries the WisKey tab row */
+    .bar sw-tabs {
+      display: none;
+    }
+    @media (min-width: 768px) {
+      :host([data-expanded][data-direct='']) {
+        position: fixed;
+        inset: 0;
+        z-index: calc(var(--sw-z-topbar) + 1);
+        block-size: auto;
+        background: var(--sw-surface);
+      }
+      :host([data-expanded][data-direct='']) .bar sw-tabs {
+        display: block;
+      }
+    }
+    @media (max-width: 767px) {
+      [data-wiskey-expand] {
+        display: none;
+      }
+    }
     .stage {
       position: relative;
-      flex: 1;
+      flex: 1 1 auto;
       min-block-size: 360px;
       display: flex;
       background: var(--sw-surface);
@@ -927,6 +979,23 @@ export class WiskeyEmbed extends LitElement {
     `;
   }
 
+  private toggleExpanded() {
+    this.expanded = !this.expanded;
+    writeExpanded(this.expanded);
+  }
+
+  /** "הגדל" / "צמצם" (desktop; hidden on a phone, where the frame already has the screen below the top bar). */
+  private expandButton() {
+    const on = this.expanded;
+    return html`<sw-button size="sm" variant="ghost" icon=${on ? 'close' : 'expand'} data-wiskey-expand aria-pressed=${String(on)} title=${on ? 'החזר את סרגל SMPLWISE ואת שורת הלשוניות' : 'הגדל את WisKey לכל גובה החלון; שורת הלשוניות עוברת לסרגל הזה'} @click=${() => this.toggleExpanded()}>${on ? 'צמצם' : 'הגדל'}</sw-button>`;
+  }
+
+  /** Expanded, the shell's tab row is covered: the same WisKey tabs, in the embed's bar (hidden by CSS otherwise). */
+  private expandedTabs() {
+    if (!this.expanded) return nothing;
+    return html`<sw-tabs data-wiskey-bar-tabs .items=${visibleTabs(WISKEY_TABS, isApi(), canNav)} .active=${activeTabOf(parseRoute())}></sw-tabs>`;
+  }
+
   private fullLink() {
     return html`<a class="full" data-wiskey-embed-full href=${wiskeyDeepLink(this.shown())} target="_blank" rel="noopener"><sw-icon name="expand" size=${14}></sw-icon>פתח בחלון מלא</a>`;
   }
@@ -968,11 +1037,13 @@ export class WiskeyEmbed extends LitElement {
     return html`
       <div class="bar" data-wiskey-embed-bar>
         <span class="note">WisKey · <span class="title" data-wiskey-embed-title>${heading}</span></span>
+        ${this.expandedTabs()}
         ${this.statusNote()}
         <span class="grow"></span>
         ${this.phase === 'ready' || this.phase === 'waiting'
           ? html`<sw-button size="sm" variant="ghost" icon="refresh" data-wiskey-embed-refresh title="טען מחדש את WisKey במסך הנוכחי (שינויים שלא נשמרו בתוך WisKey יאבדו)" @click=${() => this.reload()}>רענן</sw-button>`
           : nothing}
+        ${this.expandButton()}
         ${this.fullLink()}
       </div>
       ${this.renderTools()}
