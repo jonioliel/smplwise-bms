@@ -22,7 +22,7 @@ import type { Anchor, Camera, PlanVersion } from '../api/types';
 import { domainLabel, entityMarkerKind, listEntities, stateLabel, type HaEntity } from '../api/ha';
 import { ROOM_FILL_LABEL, setRenderMode, stylizeVersion, type RoomFill, type StylizeResult } from '../api/plans';
 import { ZONE_KINDS, acceptZones, addShareMember, createZone, deleteZone, detectZones, listZones, pointInPolygon, previewShare, removeShareMember, shareZone, unshareZone, updateZone, zoneKindLabel, type SharePreview, type ShareRequest, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
-import { findGeomItem, geomIds, geomItemPoint, sharedChip, sharedHint } from '../map/shared-space';
+import { findGeomItem, geomIds, geomItemPoint, overhangZone, sharedChip, sharedHint } from '../map/shared-space';
 import { bidi } from '../i18n/bidi';
 import { proposeDoor } from '../api/geometry';
 import { acceptDetection, calibrate, calibrateEstimate, copyGeometryFrom, deleteTwin, detectStructure, exportUrl, geometryDiff, getLinkTargets, linkConnector, publishGeometry, type DetectResult, type DetectTarget, type GeometryDiffResponse } from '../api/geometry';
@@ -1305,7 +1305,29 @@ export class ExplorePlanEditor extends LitElement {
       : (a.shared_member || a.shared) && can
         ? html`<div class="btns"><sw-button size="sm" variant="ghost" data-share-member-remove ?disabled=${this.zoneBusy} @click=${() => this.setShareMember(a, a.shared_member ?? a.shared!.zone_id, false)}>הסר מהחלל המשותף</sw-button></div>`
         : nothing) : nothing;
-    return html`${text ? html`<div class="shared-hint" data-shared-hint><sw-icon name="floor" size=${14}></sw-icon>${text}</div>` : nothing}${member}`;
+    // re-review N3: under the upper level on the home floor an item is the floor's own unless marked as the room's
+    // content (the tribune that rises through the upper floor is; a storage room under it is not)
+    const own = this.geomSel && doc ? findGeomItem(doc, this.geomSel.id) : null;
+    const zone = own && (this.geomSel?.kind === 'object' || this.geomSel?.kind === 'label') ? overhangZone(doc, own) : null;
+    const mark = zone && own
+      ? html`<label class="shared-hint" data-shared-content-toggle><input type="checkbox" .checked=${own.shared_space_id === zone} ?disabled=${!this.bundle?.permissions.structure}
+          @change=${(e: Event) => this.setSharedContent(own.id, (e.target as HTMLInputElement).checked ? zone : null)} /> חלק מהחלל המשותף (מוצג גם בקומה השנייה)</label>`
+      : nothing;
+    return html`${text ? html`<div class="shared-hint" data-shared-hint><sw-icon name="floor" size=${14}></sw-icon>${text}</div>` : nothing}${member}${mark}`;
+  }
+
+  /** "חלק מהחלל המשותף" on an object or label under the upper level of a shared room (home floor): sets or clears its
+   * `shared_space_id` - one undoable edit, saved like any other. */
+  private setSharedContent(id: string, zone: string | null) {
+    const doc = this.studio.doc;
+    if (!doc) return;
+    const set = <T extends { id: string; shared_space_id?: string }>(items: T[]): T[] =>
+      items.map((x) => {
+        if (x.id !== id) return x;
+        const { shared_space_id: _old, ...rest } = x;
+        return (zone ? { ...rest, shared_space_id: zone } : rest) as T;
+      });
+    this.studio.commit({ ...doc, objects: set(doc.objects), labels: set(doc.labels) });
   }
 
   // ---- edits (draft state; explicit save) ----

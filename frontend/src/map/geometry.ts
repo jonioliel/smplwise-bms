@@ -72,6 +72,10 @@ export interface GeomLabel {
   size: number;
   /** CR-009: an item of a room another floor owns, attached on read (map/shared-space.ts); never stored here. */
   shared?: import('./shared-space').SharedItemMark;
+  /** CR-009 (re-review N3): explicit content of the shared space with this home zone id - needed for an item outside the
+   * room's home outline (under the upper level only); set by the server when drawn there from the other floor, and by
+   * the home floor's editor with "חלק מהחלל המשותף". */
+  shared_space_id?: string;
 }
 export type ObjectShape = 'box' | 'cylinder' | 'extruded_polygon' | 'stepped' | 'composite';
 export type ConnectorKind = 'stairs' | 'ramp' | 'tribune' | 'elevator' | 'ladder';
@@ -103,6 +107,10 @@ export interface GeomObject {
   tags?: string[];
   /** CR-009: an item of a room another floor owns, attached on read (map/shared-space.ts); never stored here. */
   shared?: import('./shared-space').SharedItemMark;
+  /** CR-009 (re-review N3): explicit content of the shared space with this home zone id - needed for an item outside the
+   * room's home outline (under the upper level only); set by the server when drawn there from the other floor, and by
+   * the home floor's editor with "חלק מהחלל המשותף". */
+  shared_space_id?: string;
 }
 export interface GeomGroup {
   id: string;
@@ -163,6 +171,10 @@ export interface GeomConnector {
   check_placement?: boolean;
   /** CR-009: an item of a room another floor owns, attached on read (map/shared-space.ts); never stored here. */
   shared?: import('./shared-space').SharedItemMark;
+  /** CR-009 (re-review N3): explicit content of the shared space with this home zone id - needed for an item outside the
+   * room's home outline (under the upper level only); set by the server when drawn there from the other floor, and by
+   * the home floor's editor with "חלק מהחלל המשותף". */
+  shared_space_id?: string;
 }
 export interface GeomCircuit {
   id: string;

@@ -2,9 +2,9 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildScene, ringBetween } from '../src/map/scene-builder';
-import { buildPrimitives, type GeometryDoc, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall } from '../src/map/geometry';
-import { guardShared, roomAt, sharedChip, sharedDeleted, sharedHint, sharedVolumes, zonesWithChips, type SharedSpaceEntry } from '../src/map/shared-space';
+import { buildScene, type ScenePart } from '../src/map/scene-builder';
+import { buildPrimitives, effectiveScale, type GeometryDoc, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall } from '../src/map/geometry';
+import { guardShared, overhangZone, roomAt, sharedChip, sharedDeleted, sharedHint, sharedUpperLevel, sharedVolumes, tribuneEntrances, tribuneLayout, zonesWithChips, type SharedSpaceEntry } from '../src/map/shared-space';
 import { rebaseOnServer } from '../src/map/studio-controller';
 import { anchorOnLevel } from '../src/map/studio-ops';
 import { routeFor } from '../src/api/search';
@@ -22,6 +22,19 @@ const HOME = 'fh';
 const UPPER = [{ x: 0.1, y: 0.1 }, { x: 0.5, y: 0.1 }, { x: 0.5, y: 0.5 }, { x: 0.1, y: 0.5 }];
 const LOWER = [{ x: 0.15, y: 0.15 }, { x: 0.45, y: 0.15 }, { x: 0.45, y: 0.45 }, { x: 0.15, y: 0.45 }];
 const MARK = { zone_id: 'zhall', home_floor_id: HOME };
+
+/** The generated horizontal parts inside the room above its floor: 'floor' parts (plates, rings) whose footprint holds a
+ * point of the upper outline's interior above `bottom` - there must be none (owner 2026-09-30). */
+function slabsInside(parts: ScenePart[], doc: GeometryDoc, bottom: number): string[] {
+  const W0 = doc.dimensions.width_px;
+  const H0 = doc.dimensions.height_px;
+  const { scale } = effectiveScale(doc);
+  const probes = [[0.12, 0.3], [0.3, 0.12], [0.3, 0.3], [0.48, 0.48]].map(([x, y]) => [x * W0 * scale, y * H0 * scale]);
+  return parts
+    .filter((p) => p.kind === 'floor' && p.position[1] > bottom + 0.1)
+    .filter((p) => probes.some(([x, z]) => (p.shape === 'box' ? Math.abs(p.position[0] - x) <= p.size[0] / 2 && Math.abs(p.position[2] - z) <= p.size[2] / 2 : true)))
+    .map((p) => p.id);
+}
 
 function sample(): GeometryDoc {
   const here = path.dirname(fileURLToPath(import.meta.url));
@@ -139,15 +152,9 @@ test.describe('shared space (CR-009)', () => {
     expect(down).toMatchObject({ lower: LOWER, upper: UPPER, lowerElev: 0, upperElev: 3, topElev: 5.8, lowerWalls: false, upperWalls: true });
     // no other outline (a room shared before the two-outline model) or no datum: no volume
     expect(sharedVolumes({ shared_spaces: [{ ...mirrorDoc().shared_spaces![0], other_polygon: [] }] })).toEqual([]);
-    // the ring between them is one keyhole polygon: outer, bridge, inner the other way round
-    const ring = ringBetween([[0, 0], [4, 0], [4, 4], [0, 4]], [[1, 1], [3, 1], [3, 3], [1, 3]]);
-    expect(ring.length).toBe(4 + 1 + 4 + 1);
-    expect(ring[4]).toEqual([0, 0]);
-    expect(ring[5]).toEqual([1, 1]); // the inner vertex nearest the bridge
-    expect(ringBetween([[0, 0], [1, 0]], [[0, 0], [1, 0], [1, 1]])).toEqual([]);
   });
 
-  test('3D on the upper floor: its plate open over the whole upper outline, the court\'s walls up to it, the ring at the step unless a tribune fills it', () => {
+  test('3D on the upper floor: its plate open over the whole upper outline, the court\'s walls up to it, no slab anywhere inside', () => {
     const doc = mirrorDoc();
     const W0 = doc.dimensions.width_px;
     const H0 = doc.dimensions.height_px;
@@ -169,15 +176,8 @@ test.describe('shared space (CR-009)', () => {
       expect(w.position[1]).toBeCloseTo(-1.5, 3);
     }
     expect(desc.parts.some((p) => p.id.startsWith('vol:zhall#upper.')), 'floor 0 stands its own walls along its own outline').toBe(false);
-    // the tribune stands on the court: the step between the outlines is open -> the ring slab is drawn
-    const ring = desc.parts.find((p) => p.id === 'vol:zhall#ring');
-    expect(ring).toBeTruthy();
-    expect(ring!.shape).toBe('prism');
-    expect(ring!.position[1]).toBeCloseTo(-0.2, 3);
-    // a tribune whose top rows fill the step: no ring
-    const filled: GeometryDoc = { ...doc, objects: [...doc.objects, O(`${HOME}:trib2`, [0.12, 0.3], { level_id: `${HOME}:L0`, item_id: 'tribune.stepped', shared: MARK })] };
-    const d2 = buildScene({ doc: filled, width: W0, height: H0, anchors: [], entityStates: {}, circuitStates: {} });
-    expect(d2.parts.some((p) => p.id === 'vol:zhall#ring')).toBe(false);
+    // owner 2026-09-30: nothing horizontal is generated inside the room - the step between the outlines stays open
+    expect(slabsInside(desc.parts, doc, -3)).toEqual([]);
   });
 
   test('3D on the court\'s floor: its walls rise to the upper level, the wider upper outline from there to the ceiling', () => {
@@ -192,7 +192,56 @@ test.describe('shared space (CR-009)', () => {
       expect(w.position[1]).toBeCloseTo(3 + 1.4, 3);
     }
     expect(desc.parts.some((p) => p.id.startsWith('vol:zhall#lower.'))).toBe(false);
-    expect(desc.parts.find((p) => p.id === 'vol:zhall#ring')!.position[1]).toBeCloseTo(3 - 0.2, 3);
+    expect(slabsInside(desc.parts, doc, 0)).toEqual([]);
+  });
+
+  test('the tribune rises from the court through the upper floor\'s level: an entry row exactly there, rows below and above it, the door of the upper floor onto it', () => {
+    // the rule alone: 4.5 m of rows from -3 (nominal 0.5 m steps) through the level 0
+    const lay = tribuneLayout(-3, 4.5, 9, undefined, 0);
+    expect(lay).toMatchObject({ rows: 9, entry: 5 });
+    expect(-3 + lay.step * (lay.entry! + 1)).toBeCloseTo(0, 9);
+    // a nominal step that does not divide the rise: the rows share it evenly, the entry row still tops out at the level
+    const odd = tribuneLayout(-3, 4.4, 10, 0.44, 0);
+    expect(-3 + odd.step * (odd.entry! + 1)).toBeCloseTo(0, 9);
+    expect(odd.rows).toBeGreaterThan(odd.entry! + 1);
+    expect(tribuneLayout(0, 1.5, 3, undefined, null).entry).toBeNull(); // not in a shared space: as before
+    expect(tribuneLayout(-3, 1.5, 3, undefined, 0).entry).toBeNull(); // below the upper level: as before
+
+    const doc = mirrorDoc();
+    const W0 = doc.dimensions.width_px;
+    const H0 = doc.dimensions.height_px;
+    const { scale } = effectiveScale(doc);
+    const d = 5; // metres deep: its back edge on floor 0's outline wall (y = 0.1), where floor 0's door opens onto it
+    const cy = 0.1 + d / scale / H0 / 2;
+    const tall = O(`${HOME}:grand`, [0.3, cy], { level_id: `${HOME}:L0`, item_id: 'tribune.stepped', size: { w_m: 8, d_m: d, h_m: 4.5 }, params: { rows: 9 }, shared: MARK });
+    const door: GeomOpening = { id: 'door-trib', wall_id: 'own-n', t: 0.5, kind: 'door', width_m: 1, height_m: 2.1, sill_m: 0, swing: 'right', hinge: 'start', anchor_ref: null, confidence: 1, source: 'manual' };
+    const withTribune: GeometryDoc = { ...doc, objects: [...doc.objects, tall], openings: [door] }; // the sample's own doors elsewhere left out
+    expect(sharedUpperLevel(withTribune, tall)).toBe(0);
+    const [entrance] = tribuneEntrances(withTribune);
+    expect(entrance).toMatchObject({ objectId: `${HOME}:grand`, openingId: 'door-trib', elevation: 0 });
+    expect(entrance.point[0]).toBeCloseTo(0.3, 6);
+    const catalog = (id: string) => (id === 'tribune.stepped' ? ({ shape: 'stepped', color_token: 'furniture', role: 'furniture' } as never) : undefined);
+    const desc = buildScene({ doc: withTribune, width: W0, height: H0, anchors: [], entityStates: {}, circuitStates: {}, catalog });
+    const rows = desc.parts.filter((p) => /^obj:.*:grand#\d+$/.test(p.id)).map((p) => ({ top: p.position[1] + p.size[1] / 2 }));
+    expect(rows.length).toBe(9);
+    const entryRow = rows[5];
+    expect(entryRow.top).toBeCloseTo(0, 6); // the entry row's top IS the upper floor's level
+    expect(rows.filter((r) => r.top < -1e-6).length).toBe(5); // rows below it
+    expect(rows.filter((r) => r.top > 1e-6).length).toBe(3); // and rows above it
+    const landing = desc.parts.find((p) => p.id === `obj:${HOME}:grand#landing`)!;
+    expect(landing.position[1] + landing.size[1] / 2).toBeCloseTo(0.02, 6);
+    expect(desc.parts.some((p) => p.id === `obj:${HOME}:grand#entry`), 'the threshold from the door to the landing').toBe(true);
+    // the tribune and its landing are the user's object: still no generated slab inside the room
+    expect(slabsInside(desc.parts, withTribune, -3)).toEqual([]);
+  });
+
+  test('under the upper level on the home floor an item is the floor\'s own unless marked as the room\'s content', () => {
+    const doc = homeDoc();
+    expect(overhangZone(doc, O('locker', [0.12, 0.3]))).toBe('zhall'); // inside the upper outline, outside the court
+    expect(overhangZone(doc, O('seat', [0.3, 0.3]))).toBeNull(); // on the court: the room's by geometry
+    expect(overhangZone(doc, O('far', [0.8, 0.8]))).toBeNull();
+    expect(sharedUpperLevel(doc, O('locker', [0.12, 0.3]))).toBeNull();
+    expect(sharedUpperLevel(doc, O('rows', [0.12, 0.3], { shared_space_id: 'zhall' }))).toBe(3);
   });
 
   test('the editor\'s hint names the other floor; search opens a shared room on the floor the person is on', () => {

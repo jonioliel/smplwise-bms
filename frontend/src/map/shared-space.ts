@@ -7,7 +7,7 @@
  * the claim of a new item, the deletions a save lists, the 3D volume from the two outlines.
  */
 import { bidi } from '../i18n/bidi';
-import type { GeometryDoc, Pt } from './geometry';
+import { effectiveScale, MAX_TRIBUNE_ROWS, type GeometryDoc, type GeomObject, type Pt } from './geometry';
 
 /** The marker of an attached item (never stored on this floor). A read-only item is a piece of a wall that crosses the
  * room's outline: it belongs to the rest of the home floor. */
@@ -120,6 +120,20 @@ export function sharedHint(doc: Pick<GeometryDoc, 'shared_spaces'> | null | unde
   return other ? `חלל משותף · השינוי יופיע גם ב${bidi(other)}` : 'חלל משותף';
 }
 
+/** Re-review N3 on the home floor: the shared room whose UPPER outline (brought onto this plan) holds the item while its
+ * home outline does not - the part under the upper level, where the floor's own items stay its own unless marked
+ * "חלק מהחלל המשותף" (`shared_space_id`). Null elsewhere, for attached items and for items without a position. */
+export function overhangZone(doc: Pick<GeometryDoc, 'shared_spaces'> | null | undefined, item: { position?: unknown; shared?: unknown } | null | undefined): string | null {
+  const pos = item?.position;
+  if (!item || item.shared || !Array.isArray(pos) || pos.length !== 2) return null;
+  const p: Pt = [Number(pos[0]), Number(pos[1])];
+  for (const e of doc?.shared_spaces ?? []) {
+    const other = e.other_polygon ?? [];
+    if (e.role === 'home' && other.length >= 3 && inside(p, other) && !(e.polygon.length >= 3 && inside(p, e.polygon))) return e.zone_id;
+  }
+  return null;
+}
+
 /** An item of the document by id (walls, openings, objects, labels, connectors, circuits, groups), or null. */
 export function findGeomItem(doc: GeometryDoc, id: string): { id: string; shared?: SharedItemMark; [k: string]: unknown } | null {
   for (const coll of COLLS) {
@@ -219,9 +233,9 @@ export function sharedDeleted(base: GeometryDoc | null, doc: GeometryDoc): strin
 
 /** 3D volume of a shared room from its two outlines (owner 2026-09-29: the hall is wider upstairs), in this plan's
  * normalized coordinates: the lower outline stands from its floor up to the upper floor's level, the upper outline from
- * there to the upper ceiling, and between them a slab ring at the upper level (the tribune's top landing) unless a
- * tribune covers it. `lowerWalls` / `upperWalls`: whether this view must generate that outline's walls (the floor's own
- * walls already stand along its own outline). */
+ * there to the upper ceiling. Nothing horizontal is generated inside the room (owner 2026-09-30: the gap between the
+ * outlines is the tribune's footprint, open to the hall - no slab ring). `lowerWalls` / `upperWalls`: whether this view
+ * must generate that outline's walls (the floor's own walls already stand along its own outline). */
 export interface SharedVolume {
   zoneId: string;
   /** The level (as this document names it) of the room's surface. */
@@ -245,6 +259,119 @@ export function sharedVolumes(doc: Pick<GeometryDoc, 'shared_spaces'>): SharedVo
   }
   return out;
 }
+// ---------------------------------------------------------------- the tribune through the upper floor's level
+//
+// Owner 2026-09-30: ONE tribune spans the hall's height - it rises from the court (the lower floor) past the upper
+// floor's level to rows above it; from the upper floor a door in its outline opens straight onto the tribune's middle,
+// from the court one walks onto the parquet. A stepped object of a shared space therefore has a bottom (its level + z)
+// and a top (bottom + its height, possibly above the upper level); its rows share the rise to the upper level evenly so
+// that one row - the ENTRY ROW - tops out exactly at the upper floor's level, and the same step continues above it.
+
+/** The elevation, in this document's metres, of the upper floor's level that a stepped object of a shared space passes
+ * through - null when the object is not in a shared space standing on the LOWER floor. On the upper floor's view the
+ * object is the attached content of the room (`shared`), and the upper level is this floor's own default level; on the
+ * court's floor it is its own content (inside the home outline, or explicitly the room's under the upper level). */
+export function sharedUpperLevel(doc: Pick<GeometryDoc, 'shared_spaces' | 'levels'>, o: Pick<GeomObject, 'position' | 'shared' | 'shared_space_id'>): number | null {
+  const base = (doc.levels ?? []).find((l) => l.is_default && !l.shared)?.elevation_m ?? 0;
+  for (const e of doc.shared_spaces ?? []) {
+    const datum = e.datum_m;
+    if (datum === null || datum === undefined || Math.abs(datum) < 1e-6) continue;
+    if (e.role === 'mirror') {
+      if (datum < 0 && o.shared && o.shared.zone_id === e.zone_id && o.shared.home_floor_id === e.home_floor_id) return base;
+    } else if (datum > 0) {
+      const inHome = e.polygon.length >= 3 && inside(o.position, e.polygon);
+      const other = e.other_polygon ?? [];
+      const flagged = o.shared_space_id === e.zone_id && other.length >= 3 && inside(o.position, other);
+      if (inHome || flagged) return base + datum;
+    }
+  }
+  return null;
+}
+
+export interface TribuneLayout {
+  rows: number;
+  /** The rise of each row (metres). */
+  step: number;
+  /** The index of the row whose top is the upper floor's level (rows before it are below it, after it above), or null. */
+  entry: number | null;
+  top: number;
+}
+
+/** The rows of a stepped object from its bottom, height and nominal rows / step (params.rows, params.step_height_m),
+ * given the upper floor's level it passes through (null: the tribune as before - `rows` rows of height / rows). With an
+ * upper level inside its height: k rows share the rise to it evenly (k = the nominal step's count, at least 1), the
+ * same step continues to the top, and row k-1 is the entry row. */
+export function tribuneLayout(bottom: number, height: number, rowsParam: unknown, stepParam: unknown, upper: number | null): TribuneLayout {
+  const nominalRows = typeof rowsParam === 'number' && Number.isInteger(rowsParam) && rowsParam >= 2 ? Math.min(rowsParam, MAX_TRIBUNE_ROWS) : 4;
+  const nominal = typeof stepParam === 'number' && Number.isFinite(stepParam) && stepParam > 0 ? stepParam : height / nominalRows;
+  const rise = upper === null ? NaN : upper - bottom;
+  if (!(rise > 0.05) || rise > height + nominal / 2 || !(nominal > 0)) return { rows: nominalRows, step: nominal, entry: null, top: bottom + Math.min(height, nominal * nominalRows) };
+  const k = Math.max(1, Math.round(rise / nominal));
+  const step = rise / k;
+  const rows = Math.min(MAX_TRIBUNE_ROWS, Math.max(k, Math.round(height / step)));
+  return { rows, step, entry: k - 1, top: bottom + rows * step };
+}
+
+export interface TribuneEntrance {
+  objectId: string;
+  openingId: string;
+  /** The door's centre, normalized plan coordinates. */
+  point: Pt;
+  /** The door's position across the tribune's width (metres from its centre, the tribune's own x axis). */
+  along: number;
+  /** The upper floor's level: the entry row's top. */
+  elevation: number;
+}
+
+const isStepped = (o: GeomObject): boolean => o.item_id.startsWith('tribune.') || typeof o.params?.rows === 'number';
+
+/** The doors of this floor's OWN walls on the upper level that open onto a shared tribune (their centre within the
+ * tribune's footprint, widened by the wall's thickness and half a metre): the entrances into its entry row. Only the upper
+ * floor's view has them - the court's floor does not draw the upper floor's walls. */
+export function tribuneEntrances(doc: GeometryDoc): TribuneEntrance[] {
+  const out: TribuneEntrance[] = [];
+  const W = doc.dimensions.width_px || 1000;
+  const H = doc.dimensions.height_px || 1000;
+  const { scale } = effectiveScale(doc);
+  const levels = new Map((doc.levels ?? []).map((l) => [l.id, l]));
+  const walls = new Map(doc.walls.filter((w) => !w.shared).map((w) => [w.id, w]));
+  // only a tribune that actually reaches the upper level has an entry row to open onto
+  const tribunes = doc.objects.filter((o) => isStepped(o) && o.shared).map((o) => ({ o, upper: sharedUpperLevel(doc, o) }))
+    .filter((t) => t.upper !== null && tribuneLayout((levels.get(t.o.level_id)?.elevation_m ?? 0) + (t.o.z_m || 0), t.o.size.h_m, t.o.params?.rows, t.o.params?.step_height_m, t.upper).entry !== null);
+  if (!tribunes.length) return out;
+  for (const op of doc.openings) {
+    if (op.kind !== 'door' && op.kind !== 'passage') continue;
+    const w = walls.get(op.wall_id);
+    if (!w || w.polyline.length < 2) continue;
+    const pts = w.polyline.map(([x, y]): Pt => [x * W, y * H]);
+    const lens = pts.slice(1).map((p, i) => Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]));
+    let s = Math.max(0, Math.min(1, op.t)) * lens.reduce((a, b) => a + b, 0);
+    let c: Pt = pts[0];
+    for (let i = 0; i < lens.length; i++) {
+      if (s <= lens[i] || i === lens.length - 1) {
+        const f = lens[i] > 0 ? Math.min(1, s / lens[i]) : 0;
+        c = [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * f, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * f];
+        break;
+      }
+      s -= lens[i];
+    }
+    const elev = levels.get(w.level_id)?.elevation_m ?? 0;
+    for (const { o, upper } of tribunes) {
+      if (Math.abs(elev + (w.base_z_m || 0) - (upper as number)) > 0.3) continue;
+      const r = (o.rotation_deg * Math.PI) / 180;
+      const dx = (c[0] - o.position[0] * W) * scale;
+      const dz = (c[1] - o.position[1] * H) * scale;
+      const lx = dx * Math.cos(r) + dz * Math.sin(r);
+      const lz = -dx * Math.sin(r) + dz * Math.cos(r);
+      const margin = (w.thickness_m || 0.2) + 0.5;
+      if (Math.abs(lx) <= o.size.w_m / 2 + margin && Math.abs(lz) <= o.size.d_m / 2 + margin) {
+        out.push({ objectId: o.id, openingId: op.id, point: [c[0] / W, c[1] / H], along: Math.max(-o.size.w_m / 2, Math.min(o.size.w_m / 2, lx)), elevation: upper as number });
+      }
+    }
+  }
+  return out;
+}
+
 /** 3D: the rooms whose volume passes through this floor's plates (a mirror room: the plate must be open above it),
  * as [x0, z0, x1, z1] boxes in metres. */
 export function plateHoles(doc: Pick<GeometryDoc, 'shared_spaces'>, width: number, height: number, scale: number): [number, number, number, number][] {
