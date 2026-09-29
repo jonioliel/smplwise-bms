@@ -1,5 +1,33 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.129 (pilot) — "database is locked" storm: root cause found and fixed (round-10 finding)
+- Round 10 (2026-09-26) recorded a transient SQLite "database is locked" storm under 45+ minutes of real-NVR load
+  and left the root writer unknown. It reproduces without the NVR and without antivirus: several paths held
+  SQLite's single write lock **while waiting on a device** - the NVR paged search inside export / case-preserve
+  creation (also queued behind the process-wide search lock), the NVR PUT of manual recording start / stop and the
+  janitor's expiry, a rule's Home Assistant notification (15 s timeout) inside the alert-stream and HA-sync
+  transactions, a download or slow Ingress client (the connection closed only after the whole body was sent),
+  entity-to-area assignment and the bridge discovery POST. Any wait past the 10 s busy timeout failed unrelated
+  writers, and audit rows, alerts and live-video audit were silently dropped. `ha_sync` and `events_ingest` were
+  victims, not holders.
+- Now: every device call runs outside the write lock, with the state written before the call (recording session
+  row + attempt audit before the NVR start; the row is closed as failed if the NVR refuses, and the recording is
+  stopped again if the database is still busy afterwards); HA notifications go out after the commit; the request
+  transaction is committed when the response starts, before the body is sent; the export quota and
+  "already preserving" checks are repeated inside the insert transaction (two parallel requests: one job, one 429 /
+  409); background writers retry up to 3 times with jitter instead of dropping (audit, alerts, bulk outcomes) -
+  except the HA state path, which makes one attempt so the HA websocket never waits through retries; lock holds
+  over 3 s and every busy failure are logged; `/health` shows `db.write_lock` counters (who held it only for
+  `system.configure`); the janitor runs a PASSIVE WAL checkpoint every 30 s; a released request connection is
+  read-only. Kept: `synchronous=FULL`, the 10 s busy timeout, every `unlocked()` caller, the 0.1.126 lock order.
+- Measured (opt-in load test `SW_DB_LOAD=1`, 90 s, 12 actors, fake devices): before, slow NVR - 24 locked, 25 HTTP
+  500, 11.4 s max wait; after - 0 / 0 / 1.1-1.4 s, longest lock hold 0.56 s.
+- Behaviour changes to know: a download's audit row is kept when the client disconnects mid-transfer; a successful
+  area change leaves an attempt and an outcome audit row. Not yet observed on the Linux add-on with the real NVR:
+  after a long session `busy_errors` in `/health` should stay 0.
+- Tests: `test_db_locking.py` 18 (8 + 10 fail on the old code), the load test, 51 in the touched set; two Opus
+  review rounds (4 medium fixed). Findings and fix recorded in the round-10 document and `RESOURCE_BUDGET.md`.
+
 ## 0.1.128 (pilot) — Device control: its own settings section and the "glass" style (CR-007 slice 6a)
 - New settings tab **"חשמל והתקנים"** (system administrators; everyone else sees it read-only): style
   (SMPLWISE / זכוכית), default view of the building screen (cards / tiles - a viewer's own toggle still wins on their
