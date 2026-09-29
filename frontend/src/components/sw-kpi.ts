@@ -1,10 +1,21 @@
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import './sw-icon';
 import type { IconName } from './sw-icon';
 import type { StateKind } from './sw-badge';
 
-/** Stat tile as on the boards: icon in a soft-blue square, big value, label, green/amber sub-label. */
+/**
+ * Stat tile as on the boards: icon in a soft-blue square, big value, label, green/amber sub-label.
+ *
+ * Owner 2026-09-29 (overview tiles):
+ * - `layout`: `cards` (default - the tall tile, icon above) or `compact` (a rectangle: the icon at the inline-start
+ *   side, the value and label beside it on one line - a long label wraps to a second line, then ellipsis - and one
+ *   line of secondary text). The screen resolves `ui.tile_layout` (api/tile-layout.ts) and passes it here. The compact
+ *   sizes are the `--sw-kpi-compact-*` custom properties (the knobs: styles/tile-knobs.ts, DEVICE_THEMES.md §9).
+ * - a tile can be a real control: `href` makes it a link (a navigation), `action` a button (it opens something on the
+ *   same screen; `expanded` is its aria-expanded). The hit area is the whole tile, a native <a> / <button> laid over
+ *   it, named by the tile's own text; the host's `title` carries the full text for a label cut by the ellipsis.
+ */
 @customElement('sw-kpi')
 export class SwKpi extends LitElement {
   @property() label = '';
@@ -13,6 +24,14 @@ export class SwKpi extends LitElement {
   @property() icon: IconName = 'info';
   @property({ reflect: true }) tone: StateKind = 'neutral';
   @property() badge = '';
+  @property({ reflect: true }) layout: 'cards' | 'compact' = 'cards';
+  /** A navigation: the whole tile is this link. */
+  @property() href = '';
+  /** A button: the whole tile is a button (the host's own click event carries the press). */
+  @property({ type: Boolean }) action = false;
+  @property({ type: Boolean }) expanded = false;
+  /** Words added to the control's accessible name ("הצג ושלוט", "פתח"). */
+  @property() hint = '';
 
   static styles = css`
     :host {
@@ -35,6 +54,7 @@ export class SwKpi extends LitElement {
       border-radius: 8px;
       background: var(--sw-accent-soft);
       color: var(--sw-accent);
+      flex: none;
     }
     :host([tone='error']) .icon,
     :host([tone='offline']) .icon {
@@ -49,6 +69,13 @@ export class SwKpi extends LitElement {
     :host([tone='live']) .icon {
       background: var(--sw-live-soft);
       color: #16a34a;
+    }
+    .txt {
+      min-inline-size: 0;
+    }
+    .value,
+    .label {
+      display: block;
     }
     .value {
       font-size: var(--sw-fs-2xl);
@@ -67,6 +94,7 @@ export class SwKpi extends LitElement {
       font-weight: var(--sw-fw-medium);
       color: #16a34a;
       margin-block-start: 1px;
+      font-variant-numeric: tabular-nums;
     }
     :host([tone='stale']) .detail,
     :host([tone='partial']) .detail {
@@ -89,18 +117,118 @@ export class SwKpi extends LitElement {
       font-weight: var(--sw-fw-semibold);
       border-radius: var(--sw-r-pill);
       padding: 1px 7px;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ---- compact: a rectangle, the icon beside the text (knobs: --sw-kpi-compact-*) ---- */
+    :host([layout='compact']) {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      column-gap: var(--sw-kpi-compact-gap, 10px);
+      row-gap: 0;
+      box-sizing: border-box;
+      min-block-size: var(--sw-kpi-compact-min-block, 60px);
+      padding-block: var(--sw-kpi-compact-pad-block, 8px);
+      padding-inline: var(--sw-kpi-compact-pad-inline, 12px);
+    }
+    :host([layout='compact']) .icon {
+      inline-size: var(--sw-kpi-compact-icon, 32px);
+      block-size: var(--sw-kpi-compact-icon, 32px);
+    }
+    /* the value and the label on one line; a long label wraps once, then ellipsis (the full text is the host's title) */
+    :host([layout='compact']) .line {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+      line-height: 1.25;
+    }
+    :host([layout='compact']) .value,
+    :host([layout='compact']) .label {
+      display: inline;
+      margin: 0;
+    }
+    :host([layout='compact']) .value {
+      font-size: var(--sw-kpi-compact-value-fs, 17px);
+      line-height: 1.2;
+      margin-inline-end: 6px;
+    }
+    :host([layout='compact']) .label {
+      font-size: var(--sw-fs-xs);
+    }
+    :host([layout='compact']) .detail {
+      margin-block-start: 1px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    :host([layout='compact']) .badge {
+      position: static;
+      align-self: start;
+    }
+
+    /* ---- a tile that is a control: the native link / button covers it ---- */
+    .hit {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: inherit;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .hit:focus-visible {
+      outline: 2px solid var(--sw-focus, var(--sw-accent));
+      outline-offset: 2px;
+    }
+    :host([interactive]) {
+      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
+    }
+    :host([interactive]:hover),
+    :host([interactive][data-expanded]) {
+      border-color: var(--sw-border-strong);
+      box-shadow: var(--sw-shadow-2);
+    }
+    :host([interactive][data-expanded]) {
+      border-color: var(--sw-accent);
     }
   `;
 
+  /** Everything the tile says, in reading order: the control's accessible name and the host's tooltip. */
+  private get words(): string {
+    return [`${this.value} ${this.label}`.trim(), this.detail, this.badge].filter(Boolean).join(' · ');
+  }
+
+  protected willUpdate(changed: PropertyValues<this>) {
+    const interactive = !!this.href || this.action;
+    this.toggleAttribute('interactive', interactive);
+    this.toggleAttribute('data-expanded', this.action && this.expanded);
+    if (changed.has('value') || changed.has('label') || changed.has('detail') || changed.has('badge')) this.title = this.words;
+  }
+
   render() {
+    const name = [this.words, this.hint].filter(Boolean).join(' · ');
     return html`
       <div class="icon"><sw-icon .name=${this.icon} size=${16}></sw-icon></div>
-      ${this.badge ? html`<span class="badge">${this.badge}</span>` : ''}
-      <div>
-        <div class="value">${this.value}</div>
-        <div class="label">${this.label}</div>
-        ${this.detail ? html`<div class="detail">${this.detail}</div>` : ''}
+      <div class="txt">
+        <div class="line"><span class="value">${this.value}</span> <span class="label">${this.label}</span></div>
+        ${this.detail ? html`<div class="detail">${this.detail}</div>` : nothing}
       </div>
+      ${this.badge ? html`<span class="badge">${this.badge}</span>` : nothing}
+      ${this.href
+        ? html`<a class="hit" href=${this.href} aria-label=${name}></a>`
+        : this.action
+          ? html`<button class="hit" type="button" aria-haspopup="dialog" aria-expanded=${String(this.expanded)} aria-label=${name}></button>`
+          : nothing}
     `;
   }
 }

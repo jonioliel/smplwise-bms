@@ -1,3 +1,4 @@
+import { parseRoute } from '../router';
 import { LitElement, html, css, svg, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
@@ -159,6 +160,9 @@ export class SystemDevices extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    // owner 2026-09-29: the Live overview's cameras tile opens this list on the offline cameras (`?filter=offline`)
+    const f = parseRoute().params.get('filter');
+    if (f === 'all' || f === 'online' || f === 'offline' || f === 'issues') this.filter = f;
     void this.reload();
   }
 
