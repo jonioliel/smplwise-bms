@@ -136,6 +136,12 @@ def placements(conn: sqlite3.Connection) -> Placements:
     return out
 
 
+def own_placements(conn: sqlite3.Connection) -> Placements:
+    """`placements` without a shared room's mirrors (`shared_from`): the entity's own anchors and circuits only. The
+    alarm's reach rule (review M1) - a shared room widens nobody's alarm permission to another floor."""
+    return {eid: own for eid, ps in placements(conn).items() if (own := [p for p in ps if not p.get("shared_from")])}
+
+
 def entity_visible(wide: bool, floors: set[str], placed: Placements, entity_id: str) -> bool:
     """The one placement rule: wide callers see it; a floor-scoped caller only when it is placed on one of their floors.
     A member of a shared room (CR-009) follows the camera chain rule: an explicit deny on ANY floor of the room takes it

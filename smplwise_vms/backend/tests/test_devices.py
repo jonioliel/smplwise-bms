@@ -378,7 +378,7 @@ def test_area_cards_carry_can_control(dev_app):
     ad = c.get("/api/v1/devices/areas/lobby", headers=as_user("dc")).json()
     flags = {r["entity_id"]: r["can_control"] for card in ad["cards"].values() for r in card["entities"]}
     assert flags["light.lobby"] and flags["switch.lobby_sign"] and flags["cover.lobby_blind"] and flags["climate.lobby"] and flags["media_player.lobby_tv"]
-    assert flags["lock.front"] is False and flags["alarm_control_panel.house"] is False
+    assert flags["lock.front"] is False and "alarm_control_panel.house" not in flags, "review L2: no alarm.view, no alarm row"
     # a floor-scoped operator (devices.control on one VMS floor) controls only the entity placed there
     ids = seed_tree(c)
     _publish_plan(c, ids["floor2"])
@@ -390,6 +390,32 @@ def test_area_cards_carry_can_control(dev_app):
     bind(c, s, "op2", "viewer", "installation", "*")  # add installation-wide devices.read so the lobby itself loads
     lobby = c.get("/api/v1/devices/areas/lobby", headers=as_user("op2")).json()
     assert all(r["can_control"] is False for card in lobby["cards"].values() for r in card["entities"])
+
+
+def test_review_l2_alarm_rows_need_alarm_view_in_the_tree_the_area_cards_and_the_items(dev_app):
+    """devices.read shows the building's devices, not its alarm system: the panel (and a zone's bypass control) is listed only
+    to a caller who holds alarm.view at the entity's scope; the tree's alarm count follows."""
+    app, s = dev_app
+    c = TestClient(app)
+    panel = "alarm_control_panel.house"
+
+    def rows_of(headers):
+        a = c.get("/api/v1/devices/areas/lobby", headers=headers).json()
+        items = c.get("/api/v1/devices/items", params={"kind": "alarm"}, headers=headers).json()
+        return ({r["entity_id"] for card in a["cards"].values() for r in card["entities"]},
+                {r["entity_id"] for f in items["floors"] for ar in f["areas"] for r in ar["items"]},
+                c.get("/api/v1/devices/tree", headers=headers).json()["building"]["alarm"])
+
+    area_ids, item_ids, count = rows_of({})
+    assert panel in area_ids and panel in item_ids and count == "armed_away", "the administrator (alarm.view) sees it"
+    bind(c, s, "vi", "viewer", "installation", "*")  # a viewer holds alarm.view
+    area_ids, item_ids, count = rows_of(as_user("vi"))
+    assert panel in area_ids and panel in item_ids and count == "armed_away"
+    role = _devices_control_only_role(c)  # devices.read + devices.control, no alarm.view
+    bind(c, s, "dc", role, "installation", "*")
+    area_ids, item_ids, count = rows_of(as_user("dc"))
+    assert "light.lobby" in area_ids and "lock.front" in area_ids, "the rest of the building is still listed"
+    assert panel not in area_ids and panel not in item_ids and count != "armed_away"
 
 
 def test_single_entity_action_requires_devices_control(dev_app, monkeypatch):

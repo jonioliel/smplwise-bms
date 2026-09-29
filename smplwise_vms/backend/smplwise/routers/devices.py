@@ -46,7 +46,20 @@ READ = "devices.read"
 
 def _visible_entities(conn: sqlite3.Connection, principal: Principal) -> tuple[list[dict[str, Any]], bool]:
     """The caller's entity set and whether it is a floor-scoped (narrowed) view. 403 without any grant."""
-    return ha_scope.scoped_rows(conn, principal, READ, svc.load_entities(conn))
+    rows, scoped = ha_scope.scoped_rows(conn, principal, READ, svc.load_entities(conn))
+    # review L2: the alarm's own rows (each panel, each zone's bypass control) also need alarm.view at the entity's floor
+    # scope - devices.read alone shows the building's devices, not its alarm system
+    from ..services import alarm as alarm_svc
+
+    owned = {r["entity_id"] for r in rows if r["domain"] == "alarm_control_panel"} | (alarm_svc.managed_controls(conn) & {r["entity_id"] for r in rows if r["domain"] in ("switch", "select")})
+    if owned:
+        wide, floors = ha_scope.visible_floors(conn, principal, "alarm.view")
+        if not wide:
+            placed = ha_scope.own_placements(conn)
+            hidden = {e for e in owned if not ha_scope.entity_visible(False, floors, placed, e)}
+            if hidden:
+                rows, scoped = [r for r in rows if r["entity_id"] not in hidden], True
+    return rows, scoped
 
 
 def _bulk_flags(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:

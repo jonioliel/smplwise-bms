@@ -49,7 +49,7 @@ class _Scope:
         self.conn, self.principal = conn, principal
         # review M1: a shared room's mirror (`shared_from`) is a placement for every other entity, never for the alarm - reach
         # to a panel or a bypass control comes only from its own anchors and circuits
-        self.placed = {eid: own for eid, ps in ha_scope.placements(conn).items() if (own := [p for p in ps if not p.get("shared_from")])}
+        self.placed = ha_scope.own_placements(conn)
         self.reach = {p: ha_scope.visible_floors(conn, principal, p) for p in (VIEW, ARM, DISARM, BYPASS)}
 
     def allowed(self, perm: str, entity_id: str) -> bool:
