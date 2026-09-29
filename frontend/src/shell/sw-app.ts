@@ -41,6 +41,7 @@ import '../screens/system-wizard';
 import '../screens/system-devices';
 import '../screens/system-diagnostics';
 import '../screens/system-storage';
+import '../pwa/notifications-settings';
 import '../screens/screens-index';
 import '../screens/styleguide-screen';
 import { onRouteChange, type RouteState, parseRoute } from '../router';
@@ -1136,6 +1137,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'devices') return html`<system-devices></system-devices>`;
         if (s[1] === 'storage') return html`<system-storage></system-storage>`;
         if (s[1] === 'access') return html`<system-access></system-access>`;
+        if (s[1] === 'notifications') return html`<arx-notifications-settings></arx-notifications-settings>`;
         return html`<system-diagnostics></system-diagnostics>`;
       case 'wiskey': {
         // T054/0.1.103: WisKey entry center (CR-005), now its own top-level area, not an explore sub-tab.

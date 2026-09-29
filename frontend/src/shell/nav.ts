@@ -277,6 +277,8 @@ export const GROUP_TABS: Record<NavGroup, TabItem[]> = {
   ],
   settings: [
     { id: 'general', label: 'כללי', href: '#/system/diagnostics' },
+    // CR-008 P3: per-user push notifications - every signed-in user may set their own (no TAB_PERMISSIONS entry)
+    { id: 'notifications', label: 'התראות', href: '#/system/notifications' },
     { id: 'access', label: 'משתמשים והרשאות', href: '#/system/access' },
     { id: 'audit', label: 'אודיט', href: '#/system/audit' },
     { id: 'storage', label: 'אחסון', href: '#/system/storage' },
@@ -386,6 +388,8 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
   ],
   system: [
     { id: 'general', label: 'כללי', href: '#/system/diagnostics' },
+    // CR-008 P3: per-user push notifications - every signed-in user may set their own (no TAB_PERMISSIONS entry)
+    { id: 'notifications', label: 'התראות', href: '#/system/notifications' },
     { id: 'access', label: 'משתמשים והרשאות', href: '#/system/access' },
     { id: 'audit', label: 'אודיט', href: '#/system/audit' },
     { id: 'storage', label: 'אחסון', href: '#/system/storage' },

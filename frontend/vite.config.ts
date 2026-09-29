@@ -17,7 +17,11 @@ export default defineConfig({
     // chunk, into the entry bundle's own dependency map, even though the entry never imports it.
     modulePreload: false,
     rollupOptions: {
+      // CR-008 P3: the service worker is a second entry with a fixed name next to index.html (`arx-sw.js`), so it is
+      // registered under the app's own base; it imports nothing the app imports, so it builds as one classic script.
+      input: { index: 'index.html', 'arx-sw': 'src/pwa/sw.ts' },
       output: {
+        entryFileNames: (chunk) => (chunk.name === 'arx-sw' ? 'arx-sw.js' : 'assets/[name]-[hash].js'),
         // Plan Studio 3D (T087): three.js in a chunk of its own, fetched only by the dynamic import of sw-plan-3d.
         manualChunks: (id) => (id.includes('/node_modules/three/') ? 'three' : undefined),
       },
