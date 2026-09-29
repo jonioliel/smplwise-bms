@@ -56,7 +56,10 @@ def schema_version(conn: sqlite3.Connection) -> int:
 def snapshot(conn: sqlite3.Connection, include_access: bool = True, include_audit: bool = False, include_events: bool = False) -> dict[str, list[dict[str, Any]]]:
     existing = _tables(conn)
     tables = PROJECT_TABLES + (ACCESS_TABLES if include_access else []) + (OPTIONAL_TABLES["audit"] if include_audit else []) + (OPTIONAL_TABLES["events"] if include_events else [])
-    return {t: [dict(r) for r in conn.execute(f"SELECT * FROM {t}").fetchall()] for t in tables if t in existing}
+    out = {t: [dict(r) for r in conn.execute(f"SELECT * FROM {t}").fetchall()] for t in tables if t in existing}
+    if "settings" in out:  # review M3: what a restore never writes back (secrets, identity, pairing) never leaves in an archive either
+        out["settings"] = [r for r in out["settings"] if r.get("key") not in SETTINGS_KEEP]
+    return out
 
 
 def _file_refs(data: dict[str, list[dict[str, Any]]]) -> list[str]:

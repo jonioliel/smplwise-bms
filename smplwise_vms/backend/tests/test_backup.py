@@ -81,6 +81,33 @@ def test_backup_roundtrip_into_fresh_installation(settings, tmp_path):
     assert c2.get("/api/v1/backups").json()["backups"] == []
 
 
+def test_review_m3_an_archive_carries_none_of_the_settings_a_restore_never_writes(settings):
+    """Security review M3: SETTINGS_KEEP stopped the RESTORE of the bridge secret; the export must leave every such key
+    out too - a backup file is downloaded, emailed and uploaded."""
+    app = create_app(settings)
+    c = TestClient(app)
+    _seed(c)
+    with app.state.db.connection() as conn:
+        for k in svc.SETTINGS_KEEP - {"permission_revision"}:  # the revision is an integer the app reads back
+            set_setting(conn, k, f"value-of-{k}-9f3a")
+        set_setting(conn, "bridge.secret", "TOP-SECRET-BRIDGE-9f3a")
+    e = c.post("/api/v1/backups", json={}).json()
+    raw = c.get(f"/api/v1/backups/{e['name']}/download").content
+    with zipfile.ZipFile(io.BytesIO(raw)) as z:
+        rows = json.loads(z.read("data/settings.json"))
+        blob = b"".join(z.read(n) for n in z.namelist() if n.startswith("data/") or n == "manifest.json")
+    keys = {r["key"] for r in rows}
+    assert "ui.design" in keys, "the project's own settings are still exported"
+    assert keys.isdisjoint(svc.SETTINGS_KEEP) and b"bridge.secret" not in blob and b"TOP-SECRET-BRIDGE" not in blob
+    # the automatic copy before an upgrade is the same snapshot
+    with app.state.db.connection() as conn:
+        set_setting(conn, "app.version", "0.0.1")
+    out = svc.pre_upgrade(settings)
+    assert out is not None
+    with zipfile.ZipFile(out) as z:
+        assert b"TOP-SECRET-BRIDGE" not in z.read("data/settings.json")
+
+
 def test_pre_upgrade_backup_and_prune(settings):
     app = create_app(settings)
     c = TestClient(app)
