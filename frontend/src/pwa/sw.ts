@@ -112,7 +112,11 @@ sw.addEventListener('fetch', ((e: FetchEvt) => {
   const url = new URL(req.url);
   const rel = relPath(url);
   if (rel === null || rel.startsWith('api/') || rel.startsWith('__arx/')) return; // never data, media or another origin
-  if (req.mode === 'navigate') {
+  // `mode: 'navigate'` fires for a same-scope IFRAME navigation too (e.g. the embedded WisKey panel, which can share
+  // the app's own origin and - in a test harness registering the worker at scope `/` - even its base pathname): only
+  // `destination: 'document'` is the top-level page the app-shell strategy is for. Anything else must reach the real
+  // network untouched, never the cached/offline shell.
+  if (req.mode === 'navigate' && req.destination === 'document') {
     e.respondWith(shell(req));
     return;
   }
