@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildScene, LANDING_PLATE_M } from '../src/map/scene-builder';
+import { skippedTwinsMessage } from '../src/map/studio-controller';
 import { connectorLabel, crossFloorLabel, rebuildStair, stairCaption, stairPath, stairPlan, stairRise, turnOf, type GeomConnector, type GeometryDoc, type GeomLevel, type Pt } from '../src/map/geometry';
 import { connectorTargets, currentTarget, floorLinks, otherFloorOf, parseTarget, targetValue, type LinkTargetFloor } from '../src/map/connector-targets';
 import { addStair, confirmPlacement, levelUsage, moveConnector, moveConnectorVertex, rotateConnector, STAIR_ALIASES } from '../src/map/studio-ops';
@@ -257,6 +258,11 @@ test.describe('stairs model (T085)', () => {
     doc.connectors = [{ ...doc.connectors[0], far: { ...doc.connectors[0].far!, direction: 'up', datum_m: 3.2 } }];
     const upScene = buildScene({ doc, width: doc.dimensions.width_px, height: doc.dimensions.height_px, anchors: [], entityStates: {}, circuitStates: {} });
     expect(upScene.parts.filter((q) => q.id.startsWith('floor:L0')).length).toBe(1);
+  });
+
+  test('review M-a: a save whose twin could not follow says which floor', () => {
+    expect(skippedTwinsMessage([{ name: 'קומה 1' }])).toBe('המדרגות בקומה 1 לא עודכנו - אין לך הרשאת עריכה שם');
+    expect(skippedTwinsMessage([{ name: 'קומה 1' }, { name: 'קומה 1' }, { name: 'גלריה' }])).toBe('המדרגות בקומה 1 ובגלריה לא עודכנו - אין לך הרשאת עריכה שם');
   });
 
   test('the building page pairs the twins of a link across two floors, once, and keeps a link whose twin is not published', () => {

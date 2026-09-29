@@ -44,6 +44,8 @@ export interface GeometryResponse {
   issues: GeometryIssue[];
   published_hash: string | null;
   copy_candidates?: CopyCandidate[];
+  /** PUT only (T085 review M-a): floors whose twin of a changed stair was not updated - no map.edit there. */
+  twins_skipped?: { floor_id: string; name: string }[];
 }
 export interface GeometryDiff {
   collections: Record<string, { added: string[]; removed: string[]; changed: string[] }>;

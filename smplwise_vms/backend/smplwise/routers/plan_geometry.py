@@ -156,10 +156,16 @@ def put_geometry(version_id: str, body: GeometryPut, principal: Principal = Depe
     if structural:
         raise ApiError(422, "geometry_structure", "מבנה המסמך אינו תקין; השינוי לא נשמר.", details={"issues": structural[:50]})
     synced: list[str] = []
-    row = store.save_draft(conn, v, body.doc, body.base_revision, principal.user_id, can_edit=lambda fid: authorize(conn, principal, "map.edit", ("floor", fid)).allowed, synced=synced)
+    skipped: list[str] = []
+    row = store.save_draft(conn, v, body.doc, body.base_revision, principal.user_id, can_edit=lambda fid: authorize(conn, principal, "map.edit", ("floor", fid)).allowed,
+                           synced=synced, skipped=skipped)
     for fid in synced:  # the stairs model reached the twin on the other floor's draft (review M3)
         audit(conn, actor=principal, action="geometry.connector.twin_sync", decision="allowed", resource_type="floor", resource_id=fid, details={"version_id": v["id"], "from_floor_id": v["floor_id"]})
-    return _payload(conn, v, row, store.load_doc(row), principal)
+    body_out = _payload(conn, v, row, store.load_doc(row), principal)
+    if skipped:  # review M-a: the stairs there stay as they were; the editor says so (names only of floors the person may read)
+        body_out["twins_skipped"] = [{"floor_id": fid, "name": (r["name"] if r is not None and floor_reach(conn, principal, fid) is not None else "קומה אחרת")}
+                                     for fid in skipped for r in [conn.execute("SELECT name FROM floors WHERE id = ?", (fid,)).fetchone()]]
+    return body_out
 
 
 @router.post("/plan-versions/{version_id}/geometry/publish")

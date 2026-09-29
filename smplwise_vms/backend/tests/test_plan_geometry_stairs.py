@@ -236,8 +236,15 @@ def test_a_scoped_editor_cannot_move_a_link_off_a_floor_they_cannot_edit_and_a_t
     g3 = c.get(f"/api/v1/plan-versions/{v3}/geometry?draft=true", headers=dana).json()
     before2 = _draft(c, v2)["geometry"]["revision"]
     changed = [dict(x, flights=[{"steps": 9}], shape="straight") if x["id"] == "st1" else x for x in g3["doc"]["connectors"]]
-    assert c.put(f"/api/v1/plan-versions/{v3}/geometry", json={"doc": dict(g3["doc"], connectors=changed), "base_revision": g3["geometry"]["revision"]}, headers=dana).status_code == 200
+    put = c.put(f"/api/v1/plan-versions/{v3}/geometry", json={"doc": dict(g3["doc"], connectors=changed), "base_revision": g3["geometry"]["revision"]}, headers=dana)
+    assert put.status_code == 200
     assert _draft(c, v2)["geometry"]["revision"] == before2, "no write to floor 2 without map.edit there"
+    # review M-a: never silently - the PUT names the floor left behind (neutrally: dana cannot read floor 2), and both
+    # floors warn that the twins' models differ
+    assert put.json()["twins_skipped"] == [{"floor_id": ids["floor2"], "name": "קומה אחרת"}]
+    assert "connector_twin_model" in [i["code"] for i in put.json()["issues"] if i["id"] == "st1"]
+    assert "connector_twin_model" in [i["code"] for i in _draft(c, v2)["issues"] if i["id"] == "st1"]
+    assert "twins_skipped" not in c.put(f"/api/v1/plan-versions/{v4}/geometry", json={"doc": _draft(c, v4)["doc"], "base_revision": _draft(c, v4)["geometry"]["revision"]}, headers=dana).json()
     # a reader of floor 3 only sees no name of floor 2
     bind(c, settings, "rina", "viewer", "floor", ids["floor3"])
     assert c.post(f"/api/v1/plan-versions/{v3}/geometry/publish").status_code == 200

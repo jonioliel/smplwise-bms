@@ -21,6 +21,13 @@ function adoptServerParts(local: GeometryDoc, server: GeometryDoc): GeometryDoc 
   };
 }
 
+/** "המדרגות בקומה 1 לא עודכנו - אין לך הרשאת עריכה שם" (T085 review M-a): the stairs changed here, their twin there did
+ * not follow. */
+export function skippedTwinsMessage(floors: readonly { name: string }[]): string {
+  const names = [...new Set(floors.map((f) => f.name))];
+  return `המדרגות ב${names.join(' וב')} לא עודכנו - אין לך הרשאת עריכה שם`;
+}
+
 const DEFAULT_API: StudioApi = { load: (id) => getGeometry(id, { draft: true }), save: (id, doc, base) => saveGeometryDraft(id, doc, base) };
 
 /**
@@ -38,6 +45,8 @@ export class StudioController implements ReactiveController {
   copyCandidates: CopyCandidate[] = [];
   saveState: SaveState = 'idle';
   error = '';
+  /** Called with a message the person should see after a save (the editor shows it for a while). */
+  onNotice: ((message: string) => void) | null = null;
   private versionId: string | null = null;
   private undoStack: GeometryDoc[] = [];
   private redoStack: GeometryDoc[] = [];
@@ -183,6 +192,8 @@ export class StudioController implements ReactiveController {
     this.hash = r.geometry.doc_hash;
     this.publishedHash = r.published_hash;
     this.issues = r.issues;
+    const skipped = r.twins_skipped ?? [];
+    if (skipped.length) this.onNotice?.(skippedTwinsMessage(skipped));
   }
 
   private async saveOnce(): Promise<void> {

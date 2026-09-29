@@ -775,6 +775,10 @@ export class ExplorePlanEditor extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.studio.onNotice = (m) => {
+      this.info = m;
+      setTimeout(() => (this.info = ''), 7000);
+    };
     void this.load();
     window.addEventListener('keydown', this.onKey);
     this.narrow = this.phone.matches;

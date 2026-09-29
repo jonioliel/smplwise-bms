@@ -114,7 +114,7 @@ def working_doc(conn: sqlite3.Connection, version: sqlite3.Row) -> tuple[dict[st
 
 
 def save_draft(conn: sqlite3.Connection, version: sqlite3.Row, doc: dict[str, Any], base_revision: int, actor_id: str | None, now: str | None = None,
-               *, can_edit: Callable[[str], bool] | None = None, synced: list[str] | None = None) -> sqlite3.Row:
+               *, can_edit: Callable[[str], bool] | None = None, synced: list[str] | None = None, skipped: list[str] | None = None) -> sqlite3.Row:
     """Store the editor's draft. With `can_edit` (the PUT route: map.edit per floor) a change of a cross-floor stair's
     model also reaches its twin on the other floors the person may edit (_sync_twins; their ids go to `synced` for the
     audit); internal saves pass nothing and never write another floor."""
@@ -136,7 +136,7 @@ def save_draft(conn: sqlite3.Connection, version: sqlite3.Row, doc: dict[str, An
         if prev is None:
             p = published_row(conn, version["id"])
             prev = load_doc(p) if p is not None else None
-        _sync_twins(conn, version, prev, doc, can_edit, actor_id, now, synced)
+        _sync_twins(conn, version, prev, doc, can_edit, actor_id, now, synced, skipped)
     return row
 
 
@@ -515,6 +515,8 @@ def link_issues(conn: sqlite3.Connection, floor_id: str, doc: dict[str, Any], ct
         twin = info["twins"].get(cid)
         if twin is None or floor_id not in (twin.get("floor_ids") or []):
             warn(cid, "connector_twin_missing", "בקומה השנייה אין את המחבר התאום; קשר אותו מחדש או מחק אותו.")
+        elif any(twin.get(k) != v for k, v in twin_model(c).items() if k in _MODEL_CHECK):
+            warn(cid, "connector_twin_model", "המדרגות בקומה השנייה שונות מאלה (סוג, רוחב, צורה, מהלכים או פודסט); עדכן אותן שם או שמור כאן מחדש.")
         if c.get("needs_placement"):
             warn(cid, "connector_placement", "מקם את המדרגות בקומה הזו: הן נוצרו במרכז התוכנית כי לשתי הקומות אין מסגרת משותפת.")
         elif c.get("check_placement"):
@@ -568,6 +570,9 @@ def _centred(polyline: list[Any], sdoc: dict[str, Any], tdoc: dict[str, Any]) ->
 STAIR_GOING_M = 0.28
 STAIR_WELL_M = 0.1
 _MODEL_KEYS = ("kind", "width_m", "shape", "turn", "flights", "landing_depth_m")
+# what link_issues compares with the twin: the turn is left out - a twin's turn is read from its own path, which the
+# person may have dragged
+_MODEL_CHECK = ("kind", "width_m", "shape", "flights", "landing_depth_m")
 
 
 def _flip(turn: Any) -> Any:
@@ -659,15 +664,20 @@ def apply_twin_model(twin: dict[str, Any], src: dict[str, Any], tdoc: dict[str, 
 
 
 def _sync_twins(conn: sqlite3.Connection, version: sqlite3.Row, prev: dict[str, Any] | None, doc: dict[str, Any], can_edit: Callable[[str], bool],
-                actor_id: str | None, now: str, synced: list[str] | None) -> None:
+                actor_id: str | None, now: str, synced: list[str] | None, skipped: list[str] | None = None) -> None:
     """A change of a cross-floor stair's model (kind, width, shape, turn, flights, landing) reaches its twin on the
-    other floor's draft - only on floors the person may edit, never recursively, and only when the model changed since
-    the stored draft (a move or an unrelated edit reads no other floor)."""
+    other floor's draft - only on floors the person may edit (the others go to `skipped`: the editor says so and
+    link_issues keeps warning, review M-a), never recursively, and only when the model changed since the stored draft
+    (a move or an unrelated edit reads no other floor)."""
     before = {c.get("id"): c for c in (prev or {}).get("connectors") or [] if isinstance(c, dict)}
     for c in doc.get("connectors") or []:
         other = _cross_other(c, version["floor_id"])
         old = before.get(c.get("id")) if other else None
-        if other is None or old is None or all(old.get(k) == c.get(k) for k in _MODEL_KEYS) or not can_edit(other):
+        if other is None or old is None or all(old.get(k) == c.get(k) for k in _MODEL_KEYS):
+            continue
+        if not can_edit(other):
+            if skipped is not None and other not in skipped:
+                skipped.append(other)
             continue
         v = editor_version(conn, other)
         if v is None:
