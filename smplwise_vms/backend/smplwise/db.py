@@ -473,20 +473,13 @@ class Database:
             return 0
 
     def checkpoint(self) -> dict[str, Any]:
-        """Idle housekeeping (janitor, every 30 s). Normally a PASSIVE checkpoint: it never takes the write lock and
-        never waits for a reader, so it cannot queue writers. Once the WAL file grew past WAL_TRUNCATE_BYTES (a long
-        read kept the passive checkpoints from reaching its end) and the moment is quiet - nobody in this process holds
-        or waits for the write lock - a TRUNCATE checkpoint runs under the gate: it copies everything back and cuts the
-        file to zero, waiting at most CHECKPOINT_BUSY_S for readers (writers queue behind it for that long at most). A
-        busy moment is left to the next tick."""
+        """Idle housekeeping (janitor, every 30 s). Always a PASSIVE checkpoint first: it never takes the write lock and
+        never waits for a reader, so it cannot queue writers. Only when that PASSIVE pass reached the end of the WAL
+        (checkpointed == frames: no reader holds an older snapshot), the WAL file is larger than WAL_TRUNCATE_BYTES and
+        the moment is quiet - nobody in this process holds or waits for the write lock (the gate, and the holders when
+        the gate is switched off) - a TRUNCATE checkpoint cuts the file to zero, under the gate, waiting at most
+        CHECKPOINT_BUSY_S. Anything else is left to the next tick."""
         size = self._wal_bytes()
-        if size >= WAL_TRUNCATE_BYTES:
-            token = self.gate.try_acquire()
-            if token is not None:
-                try:
-                    return self._truncate(size)
-                finally:
-                    self.gate.release(token)
         conn = sqlite3.connect(self.path, timeout=0.2, isolation_level=None, check_same_thread=False)
         try:
             try:
@@ -495,9 +488,20 @@ class Database:
                 if not is_busy(exc):
                     raise
                 return {"mode": "PASSIVE", "wal_bytes": size, "busy": True}
-            return {"mode": "PASSIVE", "wal_bytes": size, "busy": bool(busy), "frames": frames, "checkpointed": done}
         finally:
             conn.close()
+        passive = {"mode": "PASSIVE", "wal_bytes": size, "busy": bool(busy), "frames": frames, "checkpointed": done}
+        if busy or size < WAL_TRUNCATE_BYTES or frames != done or _holders:
+            return passive
+        token = self.gate.try_acquire()
+        if token is None:
+            return passive
+        try:
+            if _holders:  # a writer with the gate switched off (SW_DB_WRITE_GATE=0) started meanwhile
+                return passive
+            return self._truncate(size)
+        finally:
+            self.gate.release(token)
 
     def _truncate(self, size: int) -> dict[str, Any]:
         started = time.monotonic()

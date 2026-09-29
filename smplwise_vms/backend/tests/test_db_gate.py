@@ -403,7 +403,20 @@ def test_checkpoint_never_waits_for_a_busy_writer(db, keeper, monkeypatch):
         t.join(5)
 
 
-def test_checkpoint_truncate_gives_up_on_a_long_reader(db, keeper, monkeypatch):
+def test_checkpoint_quiet_check_holds_with_the_gate_switched_off(db, keeper, monkeypatch):
+    monkeypatch.setattr(db_mod, "WAL_TRUNCATE_BYTES", 64 * 1024)
+    monkeypatch.setattr(db_mod, "WRITE_GATE", False)
+    _grow_wal(db)
+    with db.connection():  # a writer holds the lock; the gate is not in use, the holders are
+        assert not db.gate.state()["held"]
+        out = db.checkpoint()
+        assert out["mode"] == "PASSIVE"
+    assert db.checkpoint()["mode"] == "TRUNCATE"
+
+
+def test_checkpoint_does_not_truncate_behind_a_long_reader(db, keeper, monkeypatch):
+    """Review L2: PASSIVE first; a reader holding an older snapshot keeps it from reaching the end, so no TRUNCATE (which
+    would wait for that reader) - the next quiet tick after the reader ends truncates."""
     monkeypatch.setattr(db_mod, "WAL_TRUNCATE_BYTES", 64 * 1024)
     monkeypatch.setattr(db_mod, "CHECKPOINT_BUSY_S", 0.2)
     reader = sqlite3.connect(db.path, isolation_level=None)
@@ -413,8 +426,8 @@ def test_checkpoint_truncate_gives_up_on_a_long_reader(db, keeper, monkeypatch):
         _grow_wal(db)
         started = time.monotonic()
         out = db.checkpoint()
-        assert out["mode"] == "TRUNCATE" and out["busy"] is True
-        assert time.monotonic() - started < 2.0
+        assert out["mode"] == "PASSIVE" and out["checkpointed"] < out["frames"]
+        assert time.monotonic() - started < 1.0
         assert db.gate.state() == {"held": False, "waiting": 0}
         with db.connection() as conn:  # writers are not stuck behind it
             set_setting(conn, "after", "1")
