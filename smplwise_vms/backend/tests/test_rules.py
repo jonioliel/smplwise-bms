@@ -34,6 +34,11 @@ def test_window_logic():
 
 
 def test_rules_match_alerts_dry_run_and_permissions(settings):
+    # Fixture days are relative to the wall clock (the API dry run replays "the last N hours" from now): d0 is two days
+    # back in UTC, d1 the day after. Night events sit at 22:00-23:45Z on d0 (01:00-02:45 local), the day event at 10:00Z
+    # on d1 - all of it in the past and inside the 336 h window, whatever today's date is.
+    d0 = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=2)).date().isoformat()
+    d1 = (dt.date.fromisoformat(d0) + dt.timedelta(days=1)).isoformat()
     app = create_app(settings)
     c = TestClient(app)
     ids = seed_tree(c)
@@ -45,7 +50,7 @@ def test_rules_match_alerts_dry_run_and_permissions(settings):
     c.post(f"/api/v1/plan-versions/{v['id']}/publish")
     c.post(f"/api/v1/floors/{floor}/anchors", json={"resource_type": "camera", "resource_id": cam_in, "x": 0.3, "y": 0.3})
     with app.state.db.connection() as conn:
-        ha_sync.upsert_state(conn, {"entity_id": "binary_sensor.door", "state": "off", "last_changed": "2026-09-16T09:00:00+00:00", "attributes": {"device_class": "door", "friendly_name": "דלת"}})
+        ha_sync.upsert_state(conn, {"entity_id": "binary_sensor.door", "state": "off", "last_changed": f"{d0}T09:00:00+00:00", "attributes": {"device_class": "door", "friendly_name": "דלת"}})
     c.post(f"/api/v1/floors/{floor}/anchors", json={"resource_type": "ha_entity", "resource_id": "binary_sensor.door", "x": 0.35, "y": 0.3, "layer_id": "doors"})
 
     # the rule: motion or door events, on floor 2, at night (22:00-06:00 local), 10 minute cooldown, notify
@@ -60,13 +65,13 @@ def test_rules_match_alerts_dry_run_and_permissions(settings):
     assert [x["id"] for x in lst["rules"]] == [rule["id"]] and lst["action_kinds"] == ["notify", "ha_notify"]
 
     # events: 01:00 local = 22:00 UTC previous day
-    night = "2026-09-15T22:00:00Z"
+    night = f"{d0}T22:00:00Z"
     e_night = _event(app, "n1", cam_in, night)
-    e_night_soon = _event(app, "n2", cam_in, "2026-09-15T22:05:00Z")
-    e_night_later = _event(app, "n3", cam_in, "2026-09-15T22:20:00Z")
-    e_day = _event(app, "d1", cam_in, "2026-09-16T10:00:00Z")
+    e_night_soon = _event(app, "n2", cam_in, f"{d0}T22:05:00Z")
+    e_night_later = _event(app, "n3", cam_in, f"{d0}T22:20:00Z")
+    e_day = _event(app, "d1", cam_in, f"{d1}T10:00:00Z")
     e_out = _event(app, "o1", cam_out, night)
-    e_person = _event(app, "p1", cam_in, "2026-09-15T22:30:00Z", etype="person")
+    e_person = _event(app, "p1", cam_in, f"{d0}T22:30:00Z", etype="person")
     with app.state.db.connection() as conn:
         tz = "Asia/Jerusalem"
         m = svc.match(conn, svc.row_to_rule(conn.execute("SELECT * FROM rules").fetchone()), {**e_night, "details": {}}, tz)
@@ -81,7 +86,7 @@ def test_rules_match_alerts_dry_run_and_permissions(settings):
         assert [a["event_id"] for a in svc.evaluate_event(conn, {**e_night_later, "details": {}}, tz)] == ["n3"]
         assert svc.evaluate_event(conn, {**e_night, "details": {}}, tz) == [] or conn.execute("SELECT COUNT(*) FROM rule_alerts WHERE event_id = 'n1'").fetchone()[0] == 1
         # a door transition from HA on the placed sensor fires too (source ha, type door)
-        door = correlation.record_transition(conn, {"state": "off"}, {"entity_id": "binary_sensor.door", "state": "on", "last_changed": "2026-09-15T23:00:00+00:00", "attributes": {"device_class": "door", "friendly_name": "דלת"}})
+        door = correlation.record_transition(conn, {"state": "off"}, {"entity_id": "binary_sensor.door", "state": "on", "last_changed": f"{d0}T23:00:00+00:00", "attributes": {"device_class": "door", "friendly_name": "דלת"}})
         assert [a["rule_name"] for a in svc.evaluate_event(conn, door, tz)] == ["תנועה בלילה בלובי"]
         assert conn.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 7, "alerts never create events (no loops)"
     alerts = c.get("/api/v1/rules/alerts").json()
@@ -93,7 +98,7 @@ def test_rules_match_alerts_dry_run_and_permissions(settings):
     assert c.get(f"/api/v1/rules/{rule['id']}").json()["alerts"] == {"total": 3, "open": 2}
 
     # dry run over the stored events: same matcher, in-memory cooldown, nothing written
-    now = dt.datetime(2026, 9, 16, 12, 0, tzinfo=dt.timezone.utc)
+    now = dt.datetime.fromisoformat(f"{d1}T12:00:00+00:00")
     with app.state.db.connection() as conn:
         before = conn.execute("SELECT COUNT(*) FROM rule_alerts").fetchone()[0]
         d = svc.dry_run(conn, rule_row, 24, "Asia/Jerusalem", now=now)
@@ -111,8 +116,8 @@ def test_rules_match_alerts_dry_run_and_permissions(settings):
     assert stale.status_code == 409
     upd = c.patch(f"/api/v1/rules/{rule['id']}", json={**body, "enabled": False, "revision": 1}).json()
     assert upd["revision"] == 2 and upd["enabled"] is False and upd["updated_by_username"]
-    e9 = _event(app, "n9", cam_in, "2026-09-15T23:30:00Z")
-    e10 = _event(app, "n10", cam_in, "2026-09-15T23:45:00Z")
+    e9 = _event(app, "n9", cam_in, f"{d0}T23:30:00Z")
+    e10 = _event(app, "n10", cam_in, f"{d0}T23:45:00Z")
     with app.state.db.connection() as conn:
         assert svc.evaluate_event(conn, {**e9, "details": {}}, "Asia/Jerusalem") == [], "a disabled rule is silent"
         conn.execute("UPDATE rules SET enabled = 1, owner = 'ha', ha_automation_id = 'automation.night'")
