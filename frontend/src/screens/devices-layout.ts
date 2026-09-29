@@ -172,6 +172,9 @@ function readingOrder(items: Record<string, LayoutItem>, keys: string[]): string
 export function derivePhone(desktop: Layout, grids: string[][]): Layout {
   const items: Record<string, LayoutItem> = {};
   const seen = new Set<string>();
+  const prefix = (k: string) => k.slice(0, k.indexOf(':') + 1);
+  /** Per key prefix: the first free row under what was stacked so far. */
+  const next = new Map<string, number>();
   for (const keys of grids) {
     let y = 0;
     for (const k of readingOrder(desktop.items, keys)) {
@@ -180,9 +183,17 @@ export function derivePhone(desktop: Layout, grids: string[][]): Layout {
       y += d.h + GAP_ROWS;
       seen.add(k);
     }
+    for (const k of keys) next.set(prefix(k), Math.max(next.get(prefix(k)) ?? 0, y));
   }
-  // keys of grids this screen is not showing now (another view): the same rule, grid by grid, when they show
-  for (const [k, d] of Object.entries(desktop.items)) if (!seen.has(k)) items[k] = { ...d, x: 0, w: COLS.phone };
+  // keys this screen does not draw now - another view's grid, or (owner feedback 2026-09-29) a domain card whose area
+  // has nothing of it: one column too, in reading order, stacked under what is drawn, so a saved phone layout never has
+  // two items in one place (the server refuses overlaps) and each comes back in order when it shows
+  for (const k of readingOrder(desktop.items, Object.keys(desktop.items).filter((x) => !seen.has(x)))) {
+    const d = desktop.items[k];
+    const y = next.get(prefix(k)) ?? 0;
+    items[k] = { ...d, x: 0, w: COLS.phone, y };
+    next.set(prefix(k), y + d.h + GAP_ROWS);
+  }
   return { v: 1, cols: COLS.phone, items };
 }
 
@@ -663,7 +674,13 @@ export class DevicesLayoutController implements ReactiveController {
 
   private peers(key: string): string[] {
     const g = this.gridOf.get(key);
-    return this.grids.find((x) => x.id === g)?.keys ?? [key];
+    const keys = this.grids.find((x) => x.id === g)?.keys ?? [key];
+    // Owner feedback 2026-09-29: an item the screen does not draw now (a domain card whose area has nothing of it)
+    // keeps its saved slot; on a one-grid screen it stays a peer, so a drawn card moved onto that slot pushes it down
+    // instead of overlapping it (the server refuses overlapping items of one grid)
+    if (this.grids.length !== 1 || !this.draft) return keys;
+    const drawn = new Set(keys);
+    return [...keys, ...Object.keys(this.draft.items).filter((k) => !drawn.has(k))];
   }
 
   /** Changes one item; a position or size change pushes the peers it now covers down. */

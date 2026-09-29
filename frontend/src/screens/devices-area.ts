@@ -1062,11 +1062,12 @@ export class DevicesArea extends LitElement {
     const sub = `${floorName ? `${bidi(floorName)} · ` : ''}${d.counts.entities} התקנים${d.scoped ? ' · לפי הקומות שלך' : ''}`;
     const connected = this.sync?.connected ?? false;
     const cards = CARD_IDS.filter((id) => this.prefs.showSensors || id !== 'sensors').map((id) => d.cards[id]);
-    const filled = cards.filter((c) => c.count > 0);
-    const empty = cards.filter((c) => c.count === 0);
+    // Owner feedback 2026-09-29 ("hide empty domains"): a domain this area has nothing of is not a card at all. Its saved
+    // layout slot stays in the record; a viewer's layout packs its rows away (devices-layout.ts, as for an item gone
+    // from Home Assistant), and the card comes back in its saved place when the domain appears.
+    const ordered = cards.filter((c) => c.count > 0);
     const anyControllable = cards.some((c) => c.entities.some((r) => r.can_control));
     const bulk = this.bulkAllowed;
-    const ordered = [...filled, ...empty];
     this.lay.prepare([{ id: 'cards', keys: ordered.map((c) => `card:${c.id}`) }]);
     return html`<sw-page heading=${bidi(d.area.name)} subheading=${sub} backHref="/devices/building" crumbs=${crumbs} wide @bulk-request=${this.onBulkRequest}>
       <div slot="actions">
@@ -1086,9 +1087,11 @@ export class DevicesArea extends LitElement {
         : nothing}
       ${this.error ? html`<sw-state-panel compact state="error" heading="הרענון האחרון נכשל" hint=${this.error}></sw-state-panel>` : nothing}
       ${this.lay.renderBar()}
-      <div class=${classMap({ grid: true, 'lay-grid': this.lay.gridOn('cards') })} data-lay-grid="cards" data-lay-cols=${this.lay.gridCols('cards')} ?data-lay-phone-preview=${this.lay.phonePreview('cards')}>
-        ${repeat(ordered, (c) => c.id, (c) => this.lay.wrap(`card:${c.id}`, this.renderCard(c)))}
-      </div>
+      ${ordered.length
+        ? html`<div class=${classMap({ grid: true, 'lay-grid': this.lay.gridOn('cards') })} data-lay-grid="cards" data-lay-cols=${this.lay.gridCols('cards')} ?data-lay-phone-preview=${this.lay.phonePreview('cards')}>
+            ${repeat(ordered, (c) => c.id, (c) => this.lay.wrap(`card:${c.id}`, this.renderCard(c)))}
+          </div>`
+        : html`<sw-state-panel data-devices-state="area_empty" state="empty" heading="אין התקנים באזור הזה" hint="שייכו התקנים לאזור ב־Home Assistant (או מ״ללא שיוך״); כרטיס של תאורה, מתגים, מיזוג, תריסים, אבטחה, מסכים או חיישנים מופיע כשיש באזור התקן מהסוג הזה."></sw-state-panel>`}
       <div class="note">
         ${anyControllable
           ? 'הקשה על מתג, כפתור או החלקה לשליטה בהתקן. המצב המוצג בשורה הוא תמיד מה ש־Home Assistant דיווח; פקודה שנשלחה מסומנת "ממתין לאישור" עד שהדיווח מגיע, ומתבטלת אם הוא לא מגיע בזמן. תנועת תריס (פתיחה, סגירה או מיקום) דורשת הקשת אישור נוספת.'
