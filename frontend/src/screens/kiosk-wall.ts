@@ -344,7 +344,7 @@ export class KioskWall extends LitElement {
     const real = api ? this.selected.slice(pageIndex * this.pageSize, (pageIndex + 1) * this.pageSize) : [];
     const demo = demoWall.filter((c) => c.state !== 'forbidden').slice(0, 9);
     const online = api ? real.filter((c) => c.status === 'online').length : 7;
-    const cap = this.settings?.['media.max_live_sessions'] ?? 8;
+    const cap = this.settings?.['media.max_live_sessions'] ?? 16;
     return html`
       <header>
         <img src="${base}brand/smplwise-mark.png" alt="SmplWise" />

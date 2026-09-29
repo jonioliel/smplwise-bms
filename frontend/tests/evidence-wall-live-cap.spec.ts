@@ -173,7 +173,7 @@ async function openWall(page: Page, over: Partial<Opts> = {}, hash = '#/live/wal
     if (path === 'settings') {
       return json({
         settings: {
-          'media.transport_default': 'mse', 'media.max_live_sessions': o.mediaCap, 'media.wall_profile': o.lanWall, 'snapshots.max_age_s': 60,
+          'media.transport_default': 'mse', 'media.max_live_sessions': o.mediaCap, 'media.wall_profile': o.lanWall, 'snapshots.max_age_s': 5, // < 10 s: the wall refreshes snapshot tiles every max(10, this) s
           'remote.max_live_streams': o.remoteCap, 'remote.wall_profile': o.remoteWall, 'remote.mse_fallback': o.mse ? 'true' : 'false', 'remote.default_profile': 'main',
         },
         can_edit: false,
@@ -226,23 +226,63 @@ test.describe('camera wall under the remote live cap (mocked API, fake relay)', 
     test.setTimeout(60000);
     // the wall thinks 4 are allowed, the server allows 2: tiles 3 and 4 are refused - c3 with the message, c4 by a bare close 4429
     await openWall(page, { serverCap: 2, silentCams: ['c4'] });
-    const capText = (id: string) => tile(page, id).locator('[data-live-cap] [data-player-error]');
-    await expect(capText('c3')).toHaveText('הגעת למכסת הזרמים החיים בחיבור הזה (2)', { timeout: 15000 });
-    await expect(tile(page, 'c3').locator('[data-live-cap-hint]')).toHaveText('פנה למנהל המערכת');
-    await expect(capText('c4')).toContainText('הגעת למכסת הזרמים החיים בחיבור הזה', { timeout: 15000 });
-    await expect(tile(page, 'c3').locator('[data-video-badge]')).toHaveCount(0); // never "מנסה main·WebRTC…" on a refusal
-    await expect(tile(page, 'c3').locator('[data-player-error]')).not.toHaveText('שגיאה בזרם הווידאו');
-    await page.waitForTimeout(5000); // longer than the first retry delay (3 s): nothing reconnects
+    // N1: the refused tiles sit out as snapshots (their slot is freed, the working budget drops to what really streams)
+    await expect(tile(page, 'c3').locator('[data-snapshot-label]')).toHaveText('תמונה · לחץ לצפייה חיה', { timeout: 15000 });
+    await expect(tile(page, 'c4').locator('[data-snapshot-label]')).toHaveText('תמונה · לחץ לצפייה חיה', { timeout: 15000 });
+    await expect(page.locator('live-wall sw-live-player')).toHaveCount(2);
+    await page.waitForTimeout(5000); // longer than the first retry delay (3 s): nothing reconnects, nothing walks the ladder
     const all = await socks(page);
     expect(all.filter((s) => s.camera === 'c3' || s.camera === 'c4').length, 'one attempt each').toBe(2);
     expect(all.some((s) => s.kind === 'mse')).toBe(false);
     expect(all.length).toBe(4);
+    expect((await activeSocks(page)).map((s) => s.camera).sort()).toEqual(['c1', 'c2']);
   });
 
-  test('the cap hint names the settings for a user who may configure', async ({ page }) => {
-    await openWall(page, { serverCap: 1, admin: true });
-    await expect(tile(page, 'c2').locator('[data-live-cap-hint]')).toHaveText('אפשר להגדיל בהגדרות › מערכת › גישה מרחוק', { timeout: 15000 });
-    await expect(tile(page, 'c2').locator('[data-player-error]')).toHaveText('הגעת למכסת הזרמים החיים בחיבור הזה (1)');
+  for (const admin of [false, true]) {
+    test(`the cap text on a player (${admin ? 'user who may configure' : 'other user'}): the count, who may raise it, no badge, no generic error`, async ({ page }) => {
+      await openWall(page, { serverCap: 1, admin });
+      await expect.poll(async () => (await activeSocks(page)).length, { timeout: 15000 }).toBe(1);
+      const text = await page.evaluate(async () => {
+        const p = document.createElement('sw-live-player') as HTMLElement & { cameraId: string; plan: string; updateComplete: Promise<boolean> };
+        p.cameraId = 'cx';
+        p.plan = 'main:webrtc,main:mse';
+        p.style.cssText = 'position:fixed;left:0;top:0;width:320px;height:200px;z-index:9999';
+        document.body.append(p);
+        await new Promise((r) => setTimeout(r, 1500));
+        const root = p.shadowRoot!;
+        return { title: root.querySelector('[data-player-error]')?.textContent, hint: root.querySelector('[data-live-cap-hint]')?.textContent, badge: root.querySelectorAll('[data-video-badge]').length };
+      });
+      expect(text.title).toBe('הגעת למכסת הזרמים החיים בחיבור הזה (1)');
+      expect(text.hint).toBe(admin ? 'אפשר להגדיל בהגדרות › מערכת › גישה מרחוק' : 'פנה למנהל המערכת');
+      expect(text.badge).toBe(0);
+      await page.waitForTimeout(4000);
+      const cx = (await socks(page)).filter((s) => s.camera === 'cx');
+      expect(cx.length, 'one attempt, no retry, no ladder step').toBe(1);
+      expect(cx[0].kind).toBe('webrtc');
+    });
+  }
+
+  test('B1: a wall re-used for another selection (map pick → all cameras) gives every visible tile a stream', async ({ page }) => {
+    await openWall(page, { cams: 10, remoteCap: 16, mediaCap: 16 }, '#/live/wall?cameras=c5,c9');
+    await expect(page.locator('live-wall sw-live-player')).toHaveCount(2, { timeout: 15000 });
+    await page.evaluate(() => (location.hash = '#/live/wall'));
+    await expect(page.locator('live-wall sw-camera-tile')).toHaveCount(10, { timeout: 10000 });
+    await expect(tile(page, 'c1').locator('sw-live-player')).toHaveCount(1, { timeout: 15000 });
+    await expect(tile(page, 'c2').locator('sw-live-player')).toHaveCount(1, { timeout: 15000 });
+    await expect(page.locator('live-wall sw-live-player')).toHaveCount(10, { timeout: 15000 });
+    await expect(page.locator('live-wall [data-snapshot-label]')).toHaveCount(0);
+  });
+
+  test('the budget note: 11 cameras under a cap of 8 say how many are live and which setting binds', async ({ page }) => {
+    await openWall(page, { cams: 11, remoteCap: 16, mediaCap: 8 });
+    await expect(page.locator('live-wall [data-wall-cap-note]')).toHaveText('מוצגות 8 מצלמות חיות מתוך 11 · המכסה: הגדרות › מדיה', { timeout: 15000 });
+    await expect(page.locator('live-wall [data-snapshot-label]')).toHaveCount(3);
+  });
+
+  test('the default budget shows the whole 11-camera wall live (16), with no note', async ({ page }) => {
+    await openWall(page, { cams: 11, remoteCap: 16, mediaCap: 16 });
+    await expect(page.locator('live-wall sw-live-player')).toHaveCount(11, { timeout: 15000 });
+    await expect(page.locator('live-wall [data-wall-cap-note]')).toHaveCount(0);
   });
 
   test('LAN channel: the remote cap does not apply (the 8 tiles all stream), and the wall plays media.wall_profile', async ({ page }) => {
@@ -260,7 +300,7 @@ test.describe('wall quality: installation setting, per-device switch, the remote
 
   test('remote: remote.wall_profile main plays main; the badge tells the truth per tile (main·WebRTC, main·MSE for an H.265 main)', async ({ page }) => {
     await openWall(page, { cams: 4, remoteWall: 'main', main265: ['c2'] });
-    await expect(page.locator('[data-wall-quality]')).toHaveValue('main');
+    await expect(page.locator('[data-wall-quality]')).toHaveValue('auto');
     await expect(tile(page, 'c1').locator('[data-video-badge]')).toHaveAttribute('data-step', 'main·WebRTC', { timeout: 15000 });
     await expect(tile(page, 'c1').locator('[data-video-badge]')).toHaveAttribute('data-state', 'playing', { timeout: 15000 });
     await expect(tile(page, 'c2').locator('[data-video-badge]')).toHaveAttribute('data-step', 'main·MSE', { timeout: 15000 });
@@ -270,7 +310,7 @@ test.describe('wall quality: installation setting, per-device switch, the remote
   test('remote: the device switch overrides the installation setting at once, is remembered per device, and survives a reload', async ({ page }) => {
     test.setTimeout(60000);
     await openWall(page, { cams: 4, remoteWall: 'sub' });
-    await expect(page.locator('[data-wall-quality]')).toHaveValue('sub');
+    await expect(page.locator('[data-wall-quality]')).toHaveValue('auto');
     await expect(tile(page, 'c1').locator('[data-video-badge]')).toHaveAttribute('data-step', 'sub·WebRTC', { timeout: 15000 });
     await page.locator('[data-wall-quality]').selectOption('main');
     await expect(tile(page, 'c1').locator('[data-video-badge]')).toHaveAttribute('data-step', 'main·WebRTC', { timeout: 15000 });
@@ -282,11 +322,15 @@ test.describe('wall quality: installation setting, per-device switch, the remote
     await expect(page.locator('[data-wall-quality]')).toHaveValue('main');
     await expect(tile(page, 'c1').locator('[data-video-badge]')).toHaveAttribute('data-step', 'main·WebRTC', { timeout: 15000 });
     expect((await socks(page)).every((x) => x.profile === 'main')).toBe(true);
+    // back to the installation default: this device's choice is forgotten
+    await page.locator('[data-wall-quality]').selectOption('auto');
+    await expect(tile(page, 'c1').locator('[data-video-badge]')).toHaveAttribute('data-step', 'sub·WebRTC', { timeout: 15000 });
+    expect(await page.evaluate(() => localStorage.getItem('sw.wall.quality'))).toBeNull();
   });
 
   test('LAN: unchanged - media.wall_profile decides, the switch overrides it for this device only', async ({ page }) => {
     await openWall(page, { cams: 4, channel: 'local', lanWall: 'main', remoteWall: 'sub' });
-    await expect(page.locator('[data-wall-quality]')).toHaveValue('main');
+    await expect(page.locator('[data-wall-quality]')).toHaveValue('auto');
     await expect.poll(async () => (await activeSocks(page)).length, { timeout: 15000 }).toBe(4);
     expect((await socks(page)).every((s) => s.profile === 'main')).toBe(true);
     await expect(page.locator('live-wall [data-video-badge]')).toHaveCount(0); // no plan on the LAN

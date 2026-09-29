@@ -22,7 +22,7 @@ DEFAULTS: dict[str, str] = {
     # auto | webrtc | mse. MSE by default (owner decision 2026-09-14): it works through Ingress, Cloudflare
     # and behind CGNAT; WebRTC/auto are selectable in Settings once UDP to the go2rtc host is possible.
     "media.transport_default": "mse",
-    "media.max_live_sessions": "8",
+    "media.max_live_sessions": "16",
     "media.wall_profile": "sub",  # sub | main — profile used by the camera wall
     "snapshots.max_age_s": "60",
     # IANA zone of the site/NVR wall clock (chapter 20). The lab NVR reports windowsZone "Israel Standard Time".
