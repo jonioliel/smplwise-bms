@@ -160,7 +160,9 @@ export class DeviceControls implements ReactiveController {
   drafts: Record<string, number> = {};
   private debouncedRange = debouncedCommand<number>();
 
-  constructor(private host: ReactiveControllerHost) {
+  /** onSettle: called when a command ends (confirmed, sent or rolled back) - a screen whose caller may not receive
+   * the state push (no entity.state.read) refetches then, so the row's reported state still follows. */
+  constructor(private host: ReactiveControllerHost, private onSettle?: () => void) {
     host.addController(this);
   }
 
@@ -173,6 +175,7 @@ export class DeviceControls implements ReactiveController {
   setCmd = (key: string, s: CommandState<unknown>) => {
     this.commands = { ...this.commands, [key]: s };
     this.changed();
+    if (s.phase !== 'pending') this.onSettle?.();
     if (s.phase === 'confirmed' || s.phase === 'sent') window.setTimeout(() => this.clearCmd(key, s), 2500);
     else if (s.phase === 'rolled_back') window.setTimeout(() => this.clearCmd(key, s), 4000);
   };

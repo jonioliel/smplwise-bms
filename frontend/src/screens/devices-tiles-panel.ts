@@ -156,7 +156,7 @@ export class DevicesTilesPanel extends LitElement {
   @state() private q = '';
   @state() private why: string | null = null; // the read-only row whose reason is shown (tap)
   @state() private unlocking: DeviceItem | null = null;
-  private ctl = new DeviceControls(this);
+  private ctl = new DeviceControls(this, () => this.schedule());
   private stop: (() => void) | null = null;
   private timer = 0;
   private loading = false;

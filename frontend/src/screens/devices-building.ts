@@ -204,7 +204,8 @@ const BUILDING_GLASS = css`
   }
   /* the tree panel: pill rows */
   :host([data-devices-style='glass']) .split {
-    grid-template-columns: var(--dv-tree-inline) minmax(0, 1fr);
+    /* owner 2026-09-29: a wide screen gives the tree (and its area names) more room */
+    grid-template-columns: clamp(var(--dv-tree-inline), 16vw, var(--dv-tree-inline-max, 340px)) minmax(0, 1fr);
     gap: var(--dv-gap-lg);
   }
   :host([data-devices-style='glass']) nav.tree {
@@ -720,7 +721,8 @@ export class DevicesBuilding extends LitElement {
     /* ---- the mockup's layout: tree panel (inline start) + floor cards */
     .split {
       display: grid;
-      grid-template-columns: 250px minmax(0, 1fr);
+      /* owner 2026-09-29: a wide screen gives the tree (and its area names) more room */
+      grid-template-columns: clamp(250px, 16vw, 320px) minmax(0, 1fr);
       gap: 16px;
       align-items: start;
     }
