@@ -434,3 +434,30 @@ go2rtc main-stream codec check (step 6 - the settings screen shows the static H.
 round and release (step 7). Tests: 45 backend tests (`tests/test_remote_access.py`, fake HA core
 `tests/fake_ha_core.py`) and 8 Playwright runs (`tests/evidence-arx-remote.spec.ts` desktop + phone against
 `tests/fixtures/arx_fake_ha.py`). Owner check: AT185 subset of §4 on the lab site.
+
+### 8.1 Security review round 1 (fixed on the same branch)
+
+- **B1 CSRF:** `SameSite=Strict` still sends the cookie on same-*site* requests (sibling sub-domains), and ~35 POST
+  routes take no JSON body. `RemoteChannel` now refuses any non-GET/HEAD/OPTIONS request that carries the session
+  cookie unless `Sec-Fetch-Site: same-origin` (or, without that header, `Origin` equal to the request's scheme + host):
+  403 `csrf_refused`, audited `auth.remote_csrf_refused`. Bearer-only requests (no cookie) are exempt.
+- **M1:** in `browser_session` the `hassTokens` seed exists only while an Arx page is open (cleared on `pagehide`,
+  re-seeded on load / back-forward); sign-out and the idle lock clear it; the settings tab says plainly that HA at `/`
+  shares the sign-in.
+- **M2:** a re-exchange ends the presented session at once (its WebSockets move to the new one); sign-out ends every
+  session of that browser's chain.
+- **M3:** turning the flag off also forgets cached bearer principals; the bearer path has the per-user limit and
+  audits its refusals (`via: bearer`).
+- **M4:** HA device actions (single, bulk, area assignment) accept the remote principal like an Ingress one; every
+  audit row of a remote actor carries `channel: remote`.
+- Nits: users first seen through Arx follow the HA directory's active flag like Ingress users; remote WebSockets
+  accept a bearer without a cookie (the future native app); `__Host-` is impossible under `Path=/arx/` (documented);
+  the guide warns that a ban threshold without `trusted_proxies` can ban the add-on's own address.
+- **V1, HA's real request schemas** (HA core `dev`, read 2026-09-29): `POST /auth/login_flow` - `client_id` (str,
+  required), `handler` ([str|null, str|null], exactly 2), `redirect_uri` (str, required), `code_challenge`
+  (optional, `^[A-Za-z0-9_-]{43}$`), `code_challenge_method` (optional; a challenge requires `S256`, `plain` refused),
+  `type` (optional, default `authorize`); no other keys. `POST /auth/login_flow/{flow_id}` - `client_id` required,
+  extra keys allowed (the step's fields). `POST /auth/token` - `grant_type=authorization_code` with `client_id`,
+  `code` and, when the flow had a challenge, `code_verifier` (SHA-256, base64url, unpadded, constant-time compare);
+  `grant_type=refresh_token` with `refresh_token` and the issuing `client_id`; `action=revoke` with `token`. So PKCE is
+  native to HA and the Arx client's requests match; the fake HA core now refuses exactly what these schemas refuse.

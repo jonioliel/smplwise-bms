@@ -845,6 +845,7 @@ export class SystemDiagnostics extends LitElement {
           ${sel('remote.policy', 'flag', [['flag', 'דגל אישי לכל משתמש'], ['any_role', 'כל משתמש עם תפקיד']])}</div>
         <div class="row"><span class="lbl">שמירת הכניסה בדפדפן<span class="muted">90 יום מתחדשים: כמו האפליקציה של Home Assistant · עד סגירת הדפדפן: הכניסה נמחקת בסגירה · 90 יום עם נעילה: כניסה חוזרת אחרי זמן ללא פעילות</span></span>
           ${sel('remote.session', 'rolling_90d', [['rolling_90d', '90 יום מתחדשים'], ['browser_session', 'עד סגירת הדפדפן'], ['rolling_90d_idle_lock', '90 יום עם נעילה בחוסר פעילות']])}</div>
+        <div class="muted" data-remote-shared-login style="margin-block-start:6px">שימו לב: הכניסה ל־Arx מחברת את אותו דפדפן גם ל־Home Assistant בכתובת <span class="ltr">/</span> של אותו שם מתחם (כדי ש־WisKey ייפתח מחובר). ב"עד סגירת הדפדפן" החיבור ל־Home Assistant קיים רק כל עוד דף Arx פתוח; בנעילה בחוסר פעילות הוא מבוטל כשהנעילה מופעלת ב־Arx, אבל עד שפותחים את Arx שוב, Home Assistant בכתובת <span class="ltr">/</span> עדיין פתוח באותו דפדפן. יציאה מ־Arx מנתקת משניהם.</div>
         ${idle
           ? html`<div class="row"><span class="lbl">נעילה אחרי (דקות ללא פעילות)<span class="muted">5 עד 10080 דקות · ברירת מחדל 720 (12 שעות)</span></span>
               <sw-field class="ctl"><input type="number" min="5" max="10080" step="5" data-set-remote="remote.idle_lock_minutes" .value=${v('remote.idle_lock_minutes', '720')} ?disabled=${ro} @change=${(e: Event) => this.set('remote.idle_lock_minutes', Number((e.target as HTMLInputElement).value))} /></sw-field></div>`

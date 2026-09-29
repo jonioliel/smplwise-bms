@@ -1,4 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // CR-008 SmplWise Arx MVP, end to end against tests/fixtures/arx_fake_ha.py (the real backend with the remote channel
 // ON at /arx/, serving the built UI; a fake Home Assistant core). Run with SW_ARX_FIXTURE=1 and SW_API_PORT = the
@@ -134,6 +137,47 @@ test('a user with MFA gets the code step', async ({ page }) => {
   await expect(page.locator('sw-app')).toBeVisible();
   const me = await page.evaluate(async () => (await fetch('api/v1/me')).json());
   expect(me.user.id).toBe('u-mfa');
+  await page.locator('sw-app [data-arx-signout]').click();
+  await expect(page.locator('arx-login')).toBeVisible();
+});
+
+// The owner's look at the MVP (committed under docs/evidence/cr008-mvp/): the sign-in page on desktop and phone, the
+// MFA step, a wrong password, the map right after sign-in, the remote-access settings tab and the per-user toggle.
+const EVIDENCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/evidence/cr008-mvp');
+
+test('evidence screenshots for the owner', async ({ page }) => {
+  const phone = test.info().project.name === 'mobile';
+  test.skip(!['desktop', 'mobile'].includes(test.info().project.name));
+  fs.mkdirSync(EVIDENCE, { recursive: true });
+  await routeHa(page);
+  await page.goto(ARX);
+  await expect(page.locator('arx-login #username')).toBeVisible();
+  await page.screenshot({ path: path.join(EVIDENCE, phone ? '02-login-phone-390x844.png' : '01-login-desktop-1440x900.png') });
+  if (phone) return;
+
+  await signIn(page, 'avi', 'wrong');
+  await expect(page.locator('arx-login [data-arx-error]')).toBeVisible();
+  await page.screenshot({ path: path.join(EVIDENCE, '04-wrong-password.png') });
+  await page.locator('arx-login #password').fill('pw-avi');
+  await page.locator('arx-login [data-arx-submit]').click();
+  await expect(page.locator('arx-login #code')).toBeVisible();
+  await page.screenshot({ path: path.join(EVIDENCE, '03-mfa-step.png') });
+  await page.goto(ARX); // leave the MFA user half-way; sign in as the administrator
+  await signIn(page, 'joni', 'pw-joni');
+  await expect(page.locator('sw-app')).toBeVisible();
+  await expect(page.locator('sw-app .who-a b')).toHaveText('יוני אוליאל');
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: path.join(EVIDENCE, '05-map-after-sign-in.png') });
+
+  await page.goto(`${ARX}#/system/diagnostics`);
+  await page.locator('system-diagnostics sw-tabs').getByText('גישה מרחוק', { exact: true }).click();
+  await expect(page.locator('system-diagnostics [data-remote-settings]')).toBeVisible();
+  await page.screenshot({ path: path.join(EVIDENCE, '06-settings-remote-access.png'), fullPage: true });
+
+  await page.goto(`${ARX}#/system/access`);
+  await page.locator('system-access sw-table').getByText('דנה כהן').first().click();
+  await expect(page.locator('system-access [data-remote-access-toggle]')).toBeVisible();
+  await page.screenshot({ path: path.join(EVIDENCE, '07-user-remote-access-toggle.png') });
   await page.locator('sw-app [data-arx-signout]').click();
   await expect(page.locator('arx-login')).toBeVisible();
 });

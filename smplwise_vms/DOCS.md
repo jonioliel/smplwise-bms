@@ -655,7 +655,12 @@ Supervisor network.
 - **Security.** The `/arx` channel never accepts Ingress identity headers (they are dropped), answers 404 while the
   option is off, sends a strict CSP (`frame-ancestors 'self'`), `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`
   and `Permissions-Policy`, and keeps its session in an `HttpOnly; Secure; SameSite=Strict; Path=/arx/` cookie that is
-  re-issued with every token refresh (at most 30 minutes old). Sessions are re-checked against HA every minute
+  re-issued with every token refresh (at most 30 minutes old; the previous one ends at once). A state-changing
+  request that carries that cookie must come from an Arx page on the same origin (`Sec-Fetch-Site: same-origin`, or a
+  matching `Origin`), otherwise it is refused (`csrf_refused`, audited). The cookie cannot use the `__Host-` prefix
+  (that needs `Path=/`, which would send it to HA's pages too), so a sibling sub-domain of the same zone could plant a
+  cookie of the same name; that only ever signs the victim in as someone else's session, never exposes the real one
+  - keep untrusted hosts off the Arx zone (CR-008 D11). Sessions are re-checked against HA every minute
   while in use. Sign-in attempts are rate-limited per address and per user, and every sign-in, refusal, revocation
   and sign-out is in the audit log (`auth.remote_session.*`; addresses and ids, never tokens).
 - **Home Assistant settings.** Cloudflared requires HA's `http` `use_x_forwarded_for` with `trusted_proxies`

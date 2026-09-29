@@ -349,6 +349,15 @@ export async function resume(): Promise<boolean> {
 /** Once the app runs: the refresh loop, the idle lock, and what to do when the sign-in ends. */
 export function startBackground(signedOut: (reason: 'expired' | 'idle' | 'logout') => void): void {
   onSignedOut = signedOut;
+  if (config.session === 'browser_session') {
+    // security review M1: HA reads its seed only from localStorage, which outlives the browser session - so in this
+    // mode the seed exists only while an Arx page is open (resume() writes it again on the next load of this tab)
+    window.addEventListener('pagehide', () => clearHassTokens(clientId(), currentTokens()?.refresh_token));
+    window.addEventListener('pageshow', (e) => {
+      const t = currentTokens();
+      if (e.persisted && t) seedHassTokens(t, true); // back from the back/forward cache: this page is open again
+    });
+  }
   schedule();
   startIdleWatch();
 }
