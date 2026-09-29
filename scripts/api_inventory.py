@@ -54,6 +54,10 @@ def main() -> None:
     # websocket routes are not part of OpenAPI: walk the included routers
     def walk(routes, prefix=""):
         for r in routes:
+            original = getattr(r, "original_router", None)
+            if original is not None:  # newer FastAPI includes routers lazily (_IncludedRouter): prefix on the include context
+                yield from walk(original.routes, prefix + (getattr(getattr(r, "include_context", None), "prefix", "") or ""))
+                continue
             inner = getattr(r, "routes", None)
             if inner is not None and getattr(r, "endpoint", None) is None:
                 yield from walk(inner, prefix + (getattr(r, "prefix", "") or ""))
