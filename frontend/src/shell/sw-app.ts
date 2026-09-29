@@ -36,6 +36,7 @@ import '../screens/investigate-rules';
 import '../screens/system-access';
 import '../screens/system-audit';
 import '../screens/system-setup';
+import '../screens/system-wizard';
 import '../screens/system-devices';
 import '../screens/system-diagnostics';
 import '../screens/system-storage';
@@ -44,11 +45,12 @@ import '../screens/styleguide-screen';
 import { onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
+import { setupState } from '../api/setup';
 import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, visibleAreas, visibleGroups, demoRedirect, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav } from './nav';
 import { bidi } from '../i18n/bidi';
 import { currentDesign, onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
-import { canNav, isApi, loadSession, onSession, type Session } from '../api/session';
+import { can, canNav, isApi, loadSession, onSession, type Session } from '../api/session';
 import { productSettings } from '../api/prefs';
 import '../components/sw-state-panel';
 import '../components/sw-page';
@@ -66,6 +68,8 @@ export class SwApp extends LitElement {
   @state() private design: DesignId = currentDesign();
   @state() private sys: HealthSummary | null = null;
   private sysTimer = 0;
+  /** T071: "complete the setup" for a system administrator while wizard steps remain; dismissed per browser session. */
+  @state() private setupHint: { done: number; total: number } | null = null;
   @state() private searchQ = '';
   @state() private searchResults: SearchResult[] = [];
   @state() private searchOpen = false;
@@ -231,6 +235,7 @@ export class SwApp extends LitElement {
       overflow: auto;
       display: flex;
       flex-direction: column;
+      padding-block-start: var(--sw-banner-h, 0px);
     }
     .subnav {
       padding: 12px 24px 0;
@@ -594,6 +599,41 @@ export class SwApp extends LitElement {
       border-block-end: 1px solid #fecaca;
       font-size: var(--sw-fs-sm);
     }
+    .setuphint {
+      flex: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 12px 24px 0;
+      padding: 8px 12px;
+      border-radius: 10px;
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+      font-size: var(--sw-fs-sm);
+    }
+    .setuphint a {
+      margin-inline-start: auto;
+      color: inherit;
+      font-weight: var(--sw-fw-semibold);
+      white-space: nowrap;
+    }
+    .setuphint .x {
+      all: unset;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      inline-size: 24px;
+      block-size: 24px;
+      border-radius: 6px;
+    }
+    .setuphint .x:focus-visible {
+      outline: 2px solid var(--sw-accent);
+    }
+    @media (max-width: 767px) {
+      .setuphint {
+        margin: 8px 12px 0;
+      }
+    }
     .sysbanner a {
       color: inherit;
       font-weight: var(--sw-fw-semibold);
@@ -726,8 +766,10 @@ export class SwApp extends LitElement {
         }).catch(() => undefined).finally(() => (this.startResolved = true));
         void this.pollSummary();
         this.sysTimer = window.setInterval(() => void this.pollSummary(), 60_000);
+        void this.loadSetupHint();
       }
     });
+    window.addEventListener('sw-setup-state', this.onSetupState);
     this.stopDesign = onDesign((d) => {
       this.design = d;
       this.setAttribute('data-design', d);
@@ -755,13 +797,37 @@ export class SwApp extends LitElement {
     });
   }
 
+  /** The degraded-system banner is fixed under the top bar and used to cover the first rows of <main> (the tab row, and
+   * since T071 the setup hint's link). Its measured height pads <main>, so nothing sits under it at rest. Caveat: a
+   * screen toolbar that is `position: sticky; top: 0` inside <main> sticks to the scrollport's top edge, which the padding
+   * does not move, so while scrolled it still passes under the banner; such a toolbar should use
+   * `top: var(--sw-banner-h, 0px)` (inherited from sw-app's host) if it must stay clear. */
+  private bannerObs: ResizeObserver | null = null;
+  private observedBanner: HTMLElement | null = null;
+
+  protected updated() {
+    const banner = this.renderRoot.querySelector<HTMLElement>('[data-sys-banner]');
+    if (banner === this.observedBanner) return;
+    this.bannerObs?.disconnect();
+    this.bannerObs = null;
+    this.observedBanner = banner;
+    if (!banner) {
+      this.style.removeProperty('--sw-banner-h');
+      return;
+    }
+    this.bannerObs = new ResizeObserver(() => this.style.setProperty('--sw-banner-h', `${banner.offsetHeight}px`));
+    this.bannerObs.observe(banner);
+  }
+
   disconnectedCallback() {
+    this.bannerObs?.disconnect();
     super.disconnectedCallback();
     this.stopRouter?.();
     this.stopSession?.();
     this.stopDesign?.();
     this.stopWiskeyNav?.();
     window.removeEventListener('keydown', this.onGlobalKey);
+    window.removeEventListener('sw-setup-state', this.onSetupState);
     window.clearInterval(this.sysTimer);
     this.sysTimer = 0;
   }
@@ -790,6 +856,50 @@ export class SwApp extends LitElement {
     if (!s || s.status !== 'error') return nothing;
     const errors = s.items.filter((i) => i.status === 'error');
     return html`<div class="sysbanner" role="alert" data-sys-banner><sw-icon name="warning" size=${16}></sw-icon><span>${errors.map((i) => i.label).join(' · ')}</span><a href="#/system/diagnostics?tab=health">לבריאות המערכת</a></div>`;
+  }
+
+  // ---- setup hint (T071) ----
+
+  private static readonly SETUP_HINT_KEY = 'sw.setupHint.dismissed';
+
+  private setupHintDismissed(): boolean {
+    try {
+      return window.sessionStorage.getItem(SwApp.SETUP_HINT_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  /** GET /setup/state never probes a device, so this costs a few database reads, once per session load. */
+  private async loadSetupHint() {
+    if (!can('system.configure') || this.setupHintDismissed()) return;
+    try {
+      const s = await setupState();
+      this.setupHint = s.ready ? null : { done: s.done, total: s.total };
+    } catch {
+      this.setupHint = null;
+    }
+  }
+
+  private onSetupState = (e: Event) => {
+    const d = (e as CustomEvent<{ ready: boolean; done: number; total: number }>).detail;
+    if (!can('system.configure') || this.setupHintDismissed()) return;
+    this.setupHint = d.ready ? null : { done: d.done, total: d.total };
+  };
+
+  private dismissSetupHint() {
+    try {
+      window.sessionStorage.setItem(SwApp.SETUP_HINT_KEY, '1');
+    } catch {
+      /* private mode: dismissed for this page only */
+    }
+    this.setupHint = null;
+  }
+
+  private renderSetupHint() {
+    const h = this.setupHint;
+    if (!h || this.gated || (this.route?.mode === 'system' && this.route.segments[1] === 'wizard')) return nothing;
+    return html`<div class="setuphint" role="status" data-setup-hint><sw-icon name="info" size=${16}></sw-icon><span><b>השלם את ההתקנה</b> · ${h.done} מתוך ${h.total} שלבים הושלמו</span><a href="#/system/wizard">לאשף ההתקנה</a><button type="button" class="x" aria-label="הסתר עד הכניסה הבאה" title="הסתר עד הכניסה הבאה" data-setup-hint-dismiss @click=${() => this.dismissSetupHint()}><sw-icon name="close" size=${14}></sw-icon></button></div>`;
   }
 
   // ---- global search (top bar) ----
@@ -969,6 +1079,7 @@ export class SwApp extends LitElement {
       case 'system':
         if (s[1] === 'audit') return html`<system-audit></system-audit>`;
         if (s[1] === 'setup') return html`<system-setup></system-setup>`;
+        if (s[1] === 'wizard') return html`<system-wizard></system-wizard>`;
         if (s[1] === 'devices') return html`<system-devices></system-devices>`;
         if (s[1] === 'storage') return html`<system-storage></system-storage>`;
         if (s[1] === 'access') return html`<system-access></system-access>`;
@@ -1046,6 +1157,7 @@ export class SwApp extends LitElement {
       </header>
       ${this.renderSysBanner()}
       <main>
+        ${this.renderSetupHint()}
         ${this.renderGate() || html`
           <div class="subnav">${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeAreaTab(this.route)}></sw-tabs>` : nothing}</div>
           <div class="screen">${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}
@@ -1105,6 +1217,7 @@ export class SwApp extends LitElement {
         <sw-avatar name=${this.session.me?.user.display_name || this.session.me?.user.username || 'יוני'} size=${28} title=${t('app.account')} aria-label=${t('app.account')}></sw-avatar>
       </header>
       <main>
+        ${this.renderSetupHint()}
         ${this.renderGate() || html`
           <div class="subnav">${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeTabOf(this.route)}></sw-tabs>` : nothing}</div>
           <div class="screen">${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}

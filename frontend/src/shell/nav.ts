@@ -251,7 +251,8 @@ export const GROUP_TABS: Record<NavGroup, TabItem[]> = {
     { id: 'access', label: 'משתמשים והרשאות', href: '#/system/access' },
     { id: 'audit', label: 'אודיט', href: '#/system/audit' },
     { id: 'storage', label: 'אחסון', href: '#/system/storage' },
-    { id: 'setup', label: 'אשף התקנה', href: '#/system/setup' },
+    { id: 'wizard', label: 'אשף התקנה', href: '#/system/wizard' },
+    { id: 'setup', label: 'חיבורים', href: '#/system/setup' },
   ],
 };
 
@@ -359,7 +360,8 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'access', label: 'משתמשים והרשאות', href: '#/system/access' },
     { id: 'audit', label: 'אודיט', href: '#/system/audit' },
     { id: 'storage', label: 'אחסון', href: '#/system/storage' },
-    { id: 'setup', label: 'אשף התקנה', href: '#/system/setup' },
+    { id: 'wizard', label: 'אשף התקנה', href: '#/system/wizard' },
+    { id: 'setup', label: 'חיבורים', href: '#/system/setup' },
   ],
 };
 
@@ -407,7 +409,7 @@ export function crumbsOf(r: RouteState | null, api = false): string[] {
 export const DEMO_ONLY_HREFS = new Set<string>();
 
 /** Tabs whose real screen has a different name than the design's demo screen. */
-export const API_LABELS: Record<string, string> = { '#/investigate/reviews': 'Review · חלונות', '#/investigate/playback/sync': 'ניגון מסונכרן', '#/system/setup': 'חיבורים' };
+export const API_LABELS: Record<string, string> = { '#/investigate/reviews': 'Review · חלונות', '#/investigate/playback/sync': 'ניגון מסונכרן' };
 
 /** Tabs the owner hid in the settings (0.1.61: the AI search); filled by the shell once the product settings load. */
 export const HIDDEN_HREFS = new Set<string>();
@@ -454,12 +456,14 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   '#/system/audit': ['audit.read'],
   '#/system/storage': ['system.configure'],
   '#/system/setup': ['system.configure', 'sources.configure'],
+  // T071: the wizard reads GET /setup/state, which needs system.configure at installation scope
+  '#/system/wizard': ['system.configure'],
 };
 
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
-export const INSTALLATION_ONLY_HREFS = new Set<string>(STATIC_WISKEY_TABS.map((t) => t.href ?? ''));
+export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard']);
 
 /** `installationOnly`: the permission must be held at installation scope, not at any scope. */
 export type Can = (permission: string, installationOnly?: boolean) => boolean;
