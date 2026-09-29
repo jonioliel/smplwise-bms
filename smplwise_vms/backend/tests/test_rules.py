@@ -130,3 +130,39 @@ def test_rules_match_alerts_dry_run_and_permissions(settings):
     assert c.get("/api/v1/rules", headers=as_user("adi")).status_code == 200
     assert c.delete(f"/api/v1/rules/{rule['id']}", headers=as_user("adi")).status_code == 204
     assert c.get("/api/v1/rules/alerts").json()["alerts"] == []
+
+
+def test_alerts_scoped_count_and_list_for_a_camera_scoped_user(settings):
+    """CR-013: the shell's red dot counts `unacked` - it must be the caller's own open alerts, not the installation's,
+    and a scoped caller must get their older alerts even when many newer ones belong to cameras they cannot see (the
+    list used to take the newest limit*3 rows installation-wide and filter afterwards)."""
+    app = create_app(settings)
+    c = TestClient(app)
+    ids = seed_tree(c)
+    floor = ids["floor2"]
+    cam_in = c.post("/api/v1/cameras", json={"channel": 1, "alias": "לובי"}).json()["id"]
+    cam_out = c.post("/api/v1/cameras", json={"channel": 2, "alias": "חניה"}).json()["id"]
+    asset = c.post(f"/api/v1/floors/{floor}/plan-assets", files={"file": ("plan.png", png_bytes(), "image/png")}).json()
+    v = c.post(f"/api/v1/floors/{floor}/plan-versions", json={"asset_id": asset["id"]}).json()
+    c.post(f"/api/v1/plan-versions/{v['id']}/publish")
+    c.post(f"/api/v1/floors/{floor}/anchors", json={"resource_type": "camera", "resource_id": cam_in, "x": 0.3, "y": 0.3})
+    rule = c.post("/api/v1/rules", json={"name": "כל תנועה", "trigger": {"types": ["motion"], "severity_min": "info"}, "actions": [{"kind": "notify", "message": "תנועה"}]}).json()
+
+    def alert(i: int, cam: str | None, at: str, acked: bool = False) -> tuple:
+        return (f"a{i}", rule["id"], f"e{i}", cam, None, at, at, "[]", "תנועה", at if acked else None)
+
+    rows = [alert(i, cam_in, f"2026-09-01T00:0{i}:00Z") for i in range(3)]  # the scoped user's: the oldest
+    rows.append(alert(3, cam_in, "2026-09-01T00:09:00Z", acked=True))
+    rows += [alert(10 + i, cam_out, f"2026-09-02T{i // 60:02d}:{i % 60:02d}:00Z") for i in range(400)]  # newer, out of scope
+    rows += [alert(900 + i, None, f"2026-09-03T00:0{i}:00Z") for i in range(2)]  # camera-less: installation-wide only
+    with app.state.db.connection() as conn:
+        conn.executemany("INSERT INTO rule_alerts(id, rule_id, event_id, camera_id, entity_id, fired_at, occurred_at, reasons_json, message, acked_at) VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
+
+    admin = c.get("/api/v1/rules/alerts?unacked=true").json()
+    assert admin["unacked"] == 405 and len(admin["alerts"]) == 100
+    bind(c, settings, "tal", "operator", "floor", floor)
+    mine = c.get("/api/v1/rules/alerts?unacked=true", headers=as_user("tal")).json()
+    assert mine["unacked"] == 3, "the caller's own open alerts, not the installation's"
+    assert sorted(a["id"] for a in mine["alerts"]) == ["a0", "a1", "a2"], "older in-scope alerts are found behind 400 newer out-of-scope ones"
+    everything = c.get("/api/v1/rules/alerts", headers=as_user("tal")).json()
+    assert sorted(a["id"] for a in everything["alerts"]) == ["a0", "a1", "a2", "a3"] and everything["unacked"] == 3
