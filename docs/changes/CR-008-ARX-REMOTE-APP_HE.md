@@ -1,4 +1,4 @@
-Source: docs/changes/CR-008-ARX-REMOTE-APP.md @ 5de93ff94516180892427cfb76e255089f1f73c9
+Source: docs/changes/CR-008-ARX-REMOTE-APP.md @ a5b01569a46289de1f4897c01b6b4c8d28dcd16d
 
 > תרגום של `docs/changes/CR-008-ARX-REMOTE-APP.md`; המקור באנגלית קובע במקרה של סתירה.
 
@@ -490,6 +490,45 @@ D11-D14 לא משנות את D1 (נתיב `/arx`, אותו מקור) או את D
   `tests/fixtures/setup_fake_devices.py`; ה-WebRTC / MSE של הדפדפן מדומים שם - מדיה אמיתית היא בדיקת המעבדה).
 
 ## 9. מצב הבנייה
+
+### השלמות לסקירות האבטחה נבנו (30.09.2026, ענף `pilot/remote-followups`, לא שוחרר)
+
+שני הפריטים הפתוחים שהסוקרים רשמו (דוח סבב 10 §6.1) נסגרו:
+
+- **אימות לפני טרנזקציית הכתיבה** (`749dc52`). `get_conn` לקח את תור הכתיבה (תור FIFO של הכותבים) ואת מנעול הכתיבה של
+  SQLite ב-`BEGIN IMMEDIATE` לפני שהזהות המרוחקת הייתה ידועה, כך ש-POST לא מאומת מהאינטרנט נכנס לתור לפני כותבים
+  לגיטימיים, ורק אז קיבל 401. עכשיו `auth.resolve_remote_first` מזהה קודם את ה-session / ה-bearer: מהזיכרון
+  (`offline=True`), או ב-`NeedsUnlock` (צריך לשאול את HA או לכתוב שורת סירוב / כניסה) בלי שום חיבור פתוח של הבקשה. בלי
+  הרשאה, session לא מוכר / שפג / שבוטל, טוקן זבל, שפג או שכבר נדחה: 401 בלי לגעת בתור. session שבוטל בזמן שהבקשה חיכתה
+  לתורה מזוהה מחדש. סירובים שכל אחד יכול לחזור עליהם (כניסה או בקשת bearer שנחסמו ב-rate limit, בקשה חוצת-אתרים עם
+  עוגייה של session לא קיים) נרשמים ב-audit לכל היותר פעם בדקה לכל סיבה וכתובת, ומספר המדוכאים עובר לשורה הבאה; בקשה
+  שנדחתה של session אמיתי נרשמת תמיד. Ingress / LAN ללא שינוי. ראיות: `tests/test_remote_auth_first.py` (הצפה של 35
+  סוגי בקשות משנות-מצב לא מאומתות לא נוגעת ב-`WriteGate.acquire`, ב-`lock_stats` ובטבלת ה-audit, והשומר נקי; אותה הצפה
+  בזמן שכותב מחזיק את התור נענית מיד ולא נכנסת לתור, והכותב הלגיטימי שממתין מקבל את המנעול מיד בשחרור).
+- **מגבלות גודל גוף בקשה בזמן הזרמת הגוף** (`6b3eb60`). FastAPI קורא גוף של טופס לפני התלויות של הנתיב, ולכן העלאות
+  נשמרו במלואן לקובץ זמני - לפני בדיקת הגודל של הנתיב ואפילו לפני האימות. `smplwise/body_limit.py` (ASGI, מיד בתוך
+  `RemoteChannel`): `Content-Length` מעל המגבלה נענה ב-413 לפני שנקרא בית אחד מהגוף; גוף chunked נספר ונחתך במגבלה
+  (קבצי ה-spool של מפענח ה-multipart נסגרים); ה-413 הוא מבנה השגיאה של הפרויקט (`payload_too_large`,
+  `details.max_bytes`, `details.stage = "request_body"`, `details.rule`) עם `Connection: close`. WebSockets, תשובות
+  זורמות וממסר המדיה לא מושפעים.
+
+| כלל | נתיב (תחת `/api/v1`) | מגבלה |
+|---|---|---|
+| default | כל בקשה אחרת | 1 MiB |
+| plan_upload | `POST floors/{id}/plan-assets` | `max_upload_bytes` (40 MiB) + 64 KiB |
+| catalog_image | `POST sites/{id}/image`, `POST buildings/{id}/image` | 12 MiB + 64 KiB |
+| skins_control_image | `POST floors/{id}/skins/control-image` | 8 MiB + 64 KiB |
+| backup_upload | `POST backups/upload` | 200 MiB + 64 KiB |
+| evidence_bundle | `POST cases/bundles/verify`, `POST cases/bundles/import` | התקרה של `cases.import_max_mb` (4096 MiB) + 64 KiB; הנתיבים עצמם עוצרים בערך המוגדר תוך כדי הזרמה |
+| geometry_document / detection_accept | `PUT plan-versions/{id}/geometry`, `POST plan-versions/{id}/detect/accept` | 16 MiB |
+| catalog_import | `POST catalog/import` | 8 MiB |
+| csp_report | `POST csp-report` | 16 KiB |
+| remote_public | מרחוק: `auth/session`, `auth/remote-config`, `/.well-known/*` | 4 KiB |
+| remote_anonymous | מרחוק, כל נתיב, בלי session חי (בלי עוגיית Arx של session מוכר, בלי טוקן bearer של session bearer מוכר; מהזיכרון בלבד) | לכל היותר 64 KiB |
+
+עדיין אין נתיב להעלאת תמונת אדם של WisKey (שלב A3; `extra="forbid"` דוחה מפתח `photo`), ולכן נתיבי האנשים נופלים
+תחת ברירת המחדל של 1 MiB. הבקשה הראשונה של לקוח bearer חייבת להישאר מתחת ל-64 KiB (הטוקן שלו הופך ל-session bearer
+מוכר באותה בקשה). ראיות: `tests/test_body_limit.py`.
 
 ### אפליקציית Android עם תצוגה משלה נבנתה (29.09.2026, ענף `pilot/CR008-android-shell`, לא שוחרר)
 
