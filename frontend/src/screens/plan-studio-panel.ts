@@ -1292,7 +1292,7 @@ const circuitVar = (token: string): string => `var(--sw-${circuitToken(token) ??
 export function renderCircuitPanel(v: CircuitView, a: CircuitActions): TemplateResult {
   const c = v.creating;
   const sel = v.sel;
-  return html`<sw-card heading="מעגלי תאורה" subheading=${v.membersMode ? (v.placing ? circuitPlacingHint(v.placing) : CIRCUIT_MEMBERS_HINT) : 'כמה מנורות על ישות מפסק אחת ב־Home Assistant'} data-circuit-panel data-studio-save=${v.saveState}>
+  return html`<sw-card heading="מעגלי תאורה" subheading=${v.membersMode ? (v.placing ? circuitPlacingHint(v.placing) : CIRCUIT_MEMBERS_HINT) : 'כמה מנורות על ישות מפסק אחת'} data-circuit-panel data-studio-save=${v.saveState}>
     ${v.doc.circuits.length
       ? html`<div class="list">${v.doc.circuits.map((k) => html`<button class=${sel?.id === k.id ? 'on' : ''} data-circuit-row=${k.id} style=${`border-inline-start: 4px solid ${circuitVar(k.color_token)}`} @click=${() => a.select(sel?.id === k.id ? null : k.id)}>
           <span>${k.name}</span><span class="note ltr" style="margin:0">${k.member_ids.length} · ${v.power(k)} W · ${k.switch_entity_id}</span>
@@ -1301,7 +1301,7 @@ export function renderCircuitPanel(v: CircuitView, a: CircuitActions): TemplateR
     ${c
       ? html`<div class="sel" data-circuit-new-form>
           <sw-field label="שם המעגל"><input type="text" maxlength="80" data-circuit-name placeholder="למשל: אולם צפון" .value=${c.name} @input=${(e: Event) => a.setNew({ name: (e.target as HTMLInputElement).value })} /></sw-field>
-          <sw-field label="ישות המפסק (switch / light)"><input type="search" data-ltr data-circuit-switch-q placeholder="חיפוש בקטלוג HA" .value=${c.q} @input=${(e: Event) => a.setNew({ q: (e.target as HTMLInputElement).value })} /></sw-field>
+          <sw-field label="ישות המפסק (switch / light)"><input type="search" data-ltr data-circuit-switch-q placeholder="חיפוש בקטלוג" .value=${c.q} @input=${(e: Event) => a.setNew({ q: (e.target as HTMLInputElement).value })} /></sw-field>
           <div class="list">${c.results.slice(0, 20).map((e) => html`<button class=${c.entity?.entity_id === e.entity_id ? 'on' : ''} data-circuit-switch=${e.entity_id} @click=${() => a.setNew({ entity: e })}><span>${e.name || e.original_name || e.entity_id}</span><span class="ltr">${e.entity_id}</span></button>`)}</div>
           <sw-field label="צבע"><select data-circuit-color @change=${(e: Event) => a.setNew({ color: (e.target as HTMLSelectElement).value })}>${v.colors.map((col, i) => html`<option value=${col} ?selected=${col === c.color}>מעגל ${i + 1}</option>`)}</select></sw-field>
           <div class="btns"><sw-button variant="primary" size="sm" icon="check" data-circuit-create ?disabled=${c.busy || !c.name.trim() || !c.entity} @click=${() => a.create()}>צור מעגל</sw-button><sw-button variant="ghost" size="sm" data-circuit-cancel @click=${() => a.cancelNew()}>ביטול</sw-button></div>
@@ -1328,7 +1328,7 @@ function renderCircuitInspector(k: GeomCircuit, v: CircuitView, a: CircuitAction
         const on = v.placing?.id === i.id;
         return html`<button class=${on ? 'on' : ''} data-circuit-lamp=${i.id} aria-pressed=${on} title=${`${i.names.he} · ${i.size.w_m}×${i.size.d_m} מ׳`} @click=${() => a.armLamp(on ? null : i)}><svg viewBox="0 0 24 24" aria-hidden="true">${symbolOf(i.icon)}</svg><span>${i.names.he}</span></button>`;
       })}</div>` : nothing}
-    <div class="note">המצב החי של המנורות נגזר מהמפסק; ההפעלה מהמפה החיה היא פעולת HA הקיימת, באותן הרשאות.</div>
+    <div class="note">המצב החי של המנורות נגזר מהמפסק; ההפעלה מהמפה החיה היא פעולת ההתקן הקיימת, באותן הרשאות.</div>
   </div>`;
 }
 

@@ -585,7 +585,7 @@ class HaSync:
         session's loop, waits for it, and says whether anything changed. 503 while HA is not connected."""
         loop, call = self._session_loop, self._session_call
         if not STATE.connected or loop is None or call is None:
-            raise ApiError(503, "ha_unavailable", "אין כרגע חיבור ל־Home Assistant; המבנה יתעדכן מעצמו כשהחיבור יחזור.", retryable=True)
+            raise ApiError(503, "ha_unavailable", "אין כרגע חיבור לתשתית המערכת; המבנה יתעדכן מעצמו כשהחיבור יחזור.", retryable=True)
         done = self._last_done
         if done is not None and time.monotonic() - done[0] < MANUAL_COALESCE_S:
             # a refresh finished a moment ago (another user's button, a registry event): its answer is this one's
@@ -596,12 +596,12 @@ class HaSync:
         except concurrent.futures.TimeoutError:
             # NOT cancelled: the refresh keeps the lock until its mirror write is done, so no other refresh can write
             # beside it (a cancelled one released the lock while its executor write went on)
-            raise ApiError(504, "ha_timeout", "Home Assistant לא ענה בזמן; הרענון ממשיך ברקע - נסו שוב בעוד רגע.", retryable=True) from None
+            raise ApiError(504, "ha_timeout", "תשתית המערכת לא ענתה בזמן; הרענון ממשיך ברקע - נסו שוב בעוד רגע.", retryable=True) from None
         except concurrent.futures.CancelledError:
             # the HA socket dropped mid-refresh (the session cancels its pending calls): nothing was written
-            raise ApiError(503, "ha_unavailable", "החיבור ל־Home Assistant נותק במהלך הרענון; המבנה יתעדכן מעצמו כשהחיבור יחזור.", retryable=True) from None
+            raise ApiError(503, "ha_unavailable", "החיבור לתשתית המערכת נותק במהלך הרענון; המבנה יתעדכן מעצמו כשהחיבור יחזור.", retryable=True) from None
         if changed is None:
-            raise ApiError(502, "ha_registry_incomplete", "Home Assistant לא החזיר את הרישום המלא; המבנה הקודם נשמר. נסו שוב בעוד רגע.", retryable=True,
+            raise ApiError(502, "ha_registry_incomplete", "תשתית המערכת לא החזירה את הרישום המלא; המבנה הקודם נשמר. נסו שוב בעוד רגע.", retryable=True,
                            details={"failed": STATE.last_registry_error})
         return {"changed": changed, "last_registry_at": STATE.last_registry_at}
 

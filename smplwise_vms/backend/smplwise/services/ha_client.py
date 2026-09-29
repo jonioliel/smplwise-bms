@@ -41,16 +41,16 @@ def _headers(settings: Settings) -> dict[str, str]:
 
 def get_states(settings: Settings) -> list[dict[str, Any]]:
     if not configured(settings):
-        raise ApiError(503, "ha_not_configured", "אין גישה ל־Home Assistant (SUPERVISOR_TOKEN חסר).")
+        raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת (SUPERVISOR_TOKEN חסר).")
     try:
         with httpx.Client(timeout=20) as c:
             r = c.get(_rest_base(settings) + "/states", headers=_headers(settings))
     except httpx.HTTPError as exc:
-        raise ApiError(503, "ha_unavailable", "Home Assistant אינו זמין כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+        raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
     if r.status_code in (401, 403):
-        raise ApiError(503, "ha_forbidden", "Home Assistant דחה את הגישה של ה־Add-on.", details={"status": r.status_code})
+        raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הגישה.", details={"status": r.status_code})
     if r.status_code != 200:
-        raise ApiError(503, "ha_error", "Home Assistant החזיר שגיאה.", retryable=True, details={"status": r.status_code})
+        raise ApiError(503, "ha_error", "תשתית המערכת החזירה שגיאה.", retryable=True, details={"status": r.status_code})
     return r.json()
 
 
@@ -67,36 +67,36 @@ def get_config(settings: Settings) -> tuple[dict[str, Any], str | None]:
     """GET /api/config (read-only): Home Assistant's version and time zone, plus the response's `Date` header - HA's own
     clock at one-second resolution, which the setup wizard compares with the add-on's (T071)."""
     if not configured(settings):
-        raise ApiError(503, "ha_not_configured", "אין גישה ל־Home Assistant (SUPERVISOR_TOKEN חסר).")
+        raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת (SUPERVISOR_TOKEN חסר).")
     try:
         with httpx.Client(timeout=8) as c:
             r = c.get(_rest_base(settings) + "/config", headers=_headers(settings))
     except httpx.HTTPError as exc:
-        raise ApiError(503, "ha_unavailable", "Home Assistant אינו זמין כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+        raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
     if r.status_code in (401, 403):
-        raise ApiError(503, "ha_forbidden", "Home Assistant דחה את הגישה של ה־Add-on.", details={"status": r.status_code})
+        raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הגישה.", details={"status": r.status_code})
     if r.status_code != 200:
-        raise ApiError(503, "ha_error", "Home Assistant החזיר שגיאה.", retryable=True, details={"status": r.status_code})
+        raise ApiError(503, "ha_error", "תשתית המערכת החזירה שגיאה.", retryable=True, details={"status": r.status_code})
     try:
         body = r.json()
     except ValueError as exc:
-        raise ApiError(503, "ha_error", "Home Assistant החזיר תשובה שאינה JSON.", retryable=True) from exc
+        raise ApiError(503, "ha_error", "תשתית המערכת החזירה תשובה שאינה JSON.", retryable=True) from exc
     return (body if isinstance(body, dict) else {}), r.headers.get("date")
 
 
 def call_bridge_execute(settings: Settings, payload: dict[str, Any], timeout: float = 15.0) -> dict[str, Any]:
     """POST /api/services/smplwise_bridge/execute?return_response — the only write path to HA."""
     if not configured(settings):
-        raise ApiError(503, "ha_not_configured", "אין גישה ל־Home Assistant.")
+        raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
     try:
         with httpx.Client(timeout=timeout) as c:
             r = c.post(_rest_base(settings) + "/services/smplwise_bridge/execute?return_response", headers=_headers(settings), content=json.dumps(payload))
     except httpx.HTTPError as exc:
-        raise ApiError(503, "ha_unavailable", "Home Assistant אינו זמין כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+        raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
     if r.status_code == 400 and "not found" in r.text.lower():
-        raise ApiError(503, "bridge_not_installed", "גשר SMPLWISE אינו מותקן ב־Home Assistant.", details={"status": r.status_code})
+        raise ApiError(503, "bridge_not_installed", "גשר SMPLWISE אינו מותקן.", details={"status": r.status_code})
     if r.status_code in (401, 403):
-        raise ApiError(503, "ha_forbidden", "Home Assistant דחה את הקריאה.", details={"status": r.status_code})
+        raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הקריאה.", details={"status": r.status_code})
     if r.status_code >= 400:
         raise ApiError(503, "bridge_error", "הגשר החזיר שגיאה.", retryable=False, details={"status": r.status_code, "body": r.text[:200]})
     try:
@@ -112,16 +112,16 @@ def call_bridge_set_area(settings: Settings, payload: dict[str, Any], timeout: f
     domain service call. Same envelope and error handling as call_bridge_execute; a distinct function (not a shared
     helper) so each write path stays a single, easily audited block of code."""
     if not configured(settings):
-        raise ApiError(503, "ha_not_configured", "אין גישה ל־Home Assistant.")
+        raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
     try:
         with httpx.Client(timeout=timeout) as c:
             r = c.post(_rest_base(settings) + "/services/smplwise_bridge/set_entity_area?return_response", headers=_headers(settings), content=json.dumps(payload))
     except httpx.HTTPError as exc:
-        raise ApiError(503, "ha_unavailable", "Home Assistant אינו זמין כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+        raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
     if r.status_code == 400 and "not found" in r.text.lower():
-        raise ApiError(503, "bridge_not_installed", "גשר SMPLWISE אינו מותקן ב־Home Assistant (או ישן מדי לתמוך בשיוך אזור).", details={"status": r.status_code})
+        raise ApiError(503, "bridge_not_installed", "גשר SMPLWISE אינו מותקן (או ישן מדי לתמוך בשיוך אזור).", details={"status": r.status_code})
     if r.status_code in (401, 403):
-        raise ApiError(503, "ha_forbidden", "Home Assistant דחה את הקריאה.", details={"status": r.status_code})
+        raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הקריאה.", details={"status": r.status_code})
     if r.status_code >= 400:
         raise ApiError(503, "bridge_error", "הגשר החזיר שגיאה.", retryable=False, details={"status": r.status_code, "body": r.text[:200]})
     try:
@@ -151,7 +151,7 @@ async def ws_session(
         await ws.send(json.dumps({"type": "auth", "access_token": settings.ha_token}))
         auth = json.loads(await ws.recv())
         if auth.get("type") != "auth_ok":
-            raise ApiError(503, "ha_forbidden", "Home Assistant דחה את הטוקן של ה־Add-on.")
+            raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את האסימון.")
         counter = {"id": 0}
         pending: dict[int, asyncio.Future] = {}
 
@@ -233,14 +233,14 @@ def post_discovery(settings: Settings, service: str, config: dict[str, Any]) -> 
     """Supervisor discovery API: makes Home Assistant offer `service` (the bridge) with `config` prefilled."""
     token = supervisor_token()
     if not token:
-        raise ApiError(503, "supervisor_unavailable", "אין גישה ל־Supervisor (מחוץ ל־Add-on).")
+        raise ApiError(503, "supervisor_unavailable", "שירות הניהול אינו זמין (מחוץ להתקנה).")
     base = os.environ.get("SW_SUPERVISOR_URL", "http://supervisor").rstrip("/")
     try:
         r = httpx.post(base + "/discovery", json={"service": service, "config": config}, headers={"Authorization": f"Bearer {token}"}, timeout=10)
     except httpx.HTTPError as exc:
-        raise ApiError(503, "supervisor_unavailable", "ה־Supervisor אינו זמין כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+        raise ApiError(503, "supervisor_unavailable", "שירות הניהול אינו זמין כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
     if r.status_code != 200:
-        raise ApiError(503, "supervisor_error", "ה־Supervisor דחה את הודעת הגילוי.", details={"status": r.status_code})
+        raise ApiError(503, "supervisor_error", "שירות הניהול דחה את הודעת הגילוי.", details={"status": r.status_code})
     try:
         return r.json()
     except ValueError:
@@ -250,19 +250,19 @@ def post_discovery(settings: Settings, service: str, config: dict[str, Any]) -> 
 def call_service(settings: Settings, domain: str, service: str, data: dict[str, Any], return_response: bool = False, timeout: float = 15.0) -> dict[str, Any]:
     """POST /api/services/<domain>/<service> on Home Assistant Core (only used for the bridge's own services)."""
     if not configured(settings):
-        raise ApiError(503, "ha_not_configured", "אין גישה ל־Home Assistant (SUPERVISOR_TOKEN חסר).")
+        raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת (SUPERVISOR_TOKEN חסר).")
     url = _rest_base(settings) + f"/services/{domain}/{service}" + ("?return_response" if return_response else "")
     try:
         with httpx.Client(timeout=timeout) as c:
             r = c.post(url, headers=_headers(settings), json=data)
     except httpx.HTTPError as exc:
-        raise ApiError(503, "ha_unavailable", "Home Assistant אינו זמין כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+        raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
     if r.status_code in (400, 404):
-        raise ApiError(503, "service_not_found", "השירות אינו רשום ב־Home Assistant (האינטגרציה חסרה או ישנה).", details={"status": r.status_code})
+        raise ApiError(503, "service_not_found", "השירות אינו רשום בתשתית המערכת (האינטגרציה חסרה או ישנה).", details={"status": r.status_code})
     if r.status_code in (401, 403):
-        raise ApiError(503, "ha_forbidden", "Home Assistant דחה את הקריאה.", details={"status": r.status_code})
+        raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הקריאה.", details={"status": r.status_code})
     if r.status_code >= 300:
-        raise ApiError(503, "ha_error", "Home Assistant החזיר שגיאה.", retryable=True, details={"status": r.status_code})
+        raise ApiError(503, "ha_error", "תשתית המערכת החזירה שגיאה.", retryable=True, details={"status": r.status_code})
     try:
         body = r.json()
     except ValueError:

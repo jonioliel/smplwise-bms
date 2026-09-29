@@ -1777,7 +1777,7 @@ def test_physical_actions_when_ha_is_unavailable(feed):
     c = TestClient(app)
     r = c.post("/api/v1/intercom/stations/entry-a/release", json=env(confirmed=True))
     assert r.status_code == 503 and r.json()["details"]["state"] == "ha_unavailable" and r.json()["details"]["outcome"] == "not_sent"
-    assert "Home Assistant אינו זמין" in r.json()["user_message"]
+    assert "תשתית המערכת אינה זמינה" in r.json()["user_message"]
     assert not sent(fakes, "stations/test_unlock")
 
 

@@ -116,7 +116,7 @@ def create_rule(body: RuleIn, request: Request, principal: Principal = Depends(c
     if any(a.kind == "ha_notify" for a in body.actions):
         require(conn, principal, "rules.ha_notify", INSTALLATION)  # sensitive: a rule that pushes through Home Assistant
     if body.owner == "ha" and not body.ha_automation_id:
-        raise ApiError(422, "validation", "חוק בבעלות HA חייב לציין את מזהה האוטומציה ב־HA.")
+        raise ApiError(422, "validation", "חוק בבעלות תשתית המערכת חייב לציין את מזהה האוטומציה בתשתית המערכת.")
     cols = body.columns()
     rid = new_id()
     now = now_iso()
@@ -187,7 +187,7 @@ def update_rule(rule_id: str, body: RulePatch, request: Request, principal: Prin
     if body.revision != r["revision"]:
         raise conflict("stale_revision", "החוק השתנה בינתיים; טען מחדש.", current_revision=r["revision"], sent_revision=body.revision)
     if body.owner == "ha" and not body.ha_automation_id:
-        raise ApiError(422, "validation", "חוק בבעלות HA חייב לציין את מזהה האוטומציה ב־HA.")
+        raise ApiError(422, "validation", "חוק בבעלות תשתית המערכת חייב לציין את מזהה האוטומציה בתשתית המערכת.")
     cols = body.columns()
     before = svc.row_to_rule(r)
     conn.execute(

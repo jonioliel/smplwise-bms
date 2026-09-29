@@ -1855,14 +1855,14 @@ export class ExploreFloorMap extends LitElement {
         });
       }
     } catch (err) {
-      const msg = err instanceof ApiError && err.code === 'bridge_not_paired' ? 'גשר SMPLWISE אינו מצומד ב־Home Assistant. התקנה וצימוד: הגדרות → גשר Home Assistant.' : describeError(err);
+      const msg = err instanceof ApiError && err.code === 'bridge_not_paired' ? 'גשר SMPLWISE אינו מצומד. התקנה וצימוד: הגדרות → כללי.' : describeError(err);
       this.action = { entityId, spec, record: null, error: msg, busy: false };
     }
   }
 
   private apiEntityBody(a: Anchor, floorName: string) {
     const e = a.entity;
-    if (!e) return html`<div class="note">ישות HA · <span class="ltr">${a.resource_id}</span> — לא נמצאה בקטלוג המסונכרן (ייתכן שהוסרה מ־Home Assistant).</div>`;
+    if (!e) return html`<div class="note">התקן · <span class="ltr">${a.resource_id}</span> — לא נמצא בקטלוג המסונכרן (ייתכן שהוסר).</div>`;
     const tone = this.entityTone(e);
     const act = this.action?.entityId === e.entity_id ? this.action : null;
     const fresh = e.fresh && this.syncConnected;
@@ -1870,7 +1870,7 @@ export class ExploreFloorMap extends LitElement {
     return html`
       <div class="ecard" data-entity-card>
         <div class="estate ${tone}"><sw-badge kind=${tone} label=${stateLabel(e)}></sw-badge><span class="esub">${domainLabel(e.domain)}${e.area_name ? ` · ${e.area_name}` : ''} · ${floorName}</span></div>
-        ${a.label && e.name && a.label !== e.name ? html`<div class="note">ב־Home Assistant: ${e.name}</div>` : nothing}
+        ${a.label && e.name && a.label !== e.name ? html`<div class="note">שם מקורי: ${e.name}</div>` : nothing}
         ${this.notice ? html`<div class="note" data-notice>${this.notice}</div>` : nothing}
         ${renaming
           ? html`<div class="rename" data-rename-form><input .value=${renaming.value} placeholder=${e.name ?? a.resource_id} aria-label="שם במפה" @input=${(ev: Event) => (this.renaming = { id: a.id, value: (ev.target as HTMLInputElement).value })} @keydown=${(ev: KeyboardEvent) => { if (ev.key === 'Enter') void this.saveRename(a); if (ev.key === 'Escape') this.renaming = null; }} />
@@ -1886,7 +1886,7 @@ export class ExploreFloorMap extends LitElement {
           </dl>
         </details>
       </div>
-      ${!fresh ? html`<div class="warn">${e.state === 'unavailable' ? 'Home Assistant מדווח שהישות אינה זמינה.' : 'הסנכרון מול Home Assistant מנותק — המצב עלול להיות מיושן.'}</div>` : nothing}
+      ${!fresh ? html`<div class="warn">${e.state === 'unavailable' ? 'ההתקן אינו זמין.' : 'הסנכרון מול תשתית המערכת מנותק — המצב עלול להיות מיושן.'}</div>` : nothing}
       ${e.actions === undefined ? html`<div class="note">${t('entity.noControl')}</div>` : e.actions.length === 0 ? html`<div class="note">קריאה בלבד — אין פעולות מותרות ל־${domainLabel(e.domain)}.</div>` : nothing}
       ${e.actions?.some((s) => s.granted === false) ? html`<div class="note" data-grant-note>פעולה מעומעמת דורשת הרשאה נפרדת (למשל פתיחת דלת) שאינה חלק משליטה כללית בישויות.</div>` : nothing}
       ${act
@@ -1910,7 +1910,7 @@ export class ExploreFloorMap extends LitElement {
       const saved = await updateAnchor(a.id, { revision: a.revision, label: r.value.trim() || null });
       if (this.bundle) this.bundle = { ...this.bundle, anchors: this.bundle.anchors.map((x) => (x.id === a.id ? { ...x, label: saved.label, revision: saved.revision } : x)) };
       this.renaming = null;
-      this.notice = saved.label ? `השם „${saved.label}“ נשמר` : 'חזרה לשם מ־Home Assistant';
+      this.notice = saved.label ? `השם „${saved.label}“ נשמר` : 'חזרה לשם המקורי';
     } catch (err) {
       this.notice = describeError(err);
       this.renaming = { ...r, busy: false };
@@ -1937,7 +1937,7 @@ export class ExploreFloorMap extends LitElement {
     if (!c) return nothing;
     const ent = this.bundle?.anchors.find((a) => a.resource_type === 'ha_entity' && a.resource_id === c.entityId)?.entity;
     return html`<sw-dialog open heading=${t('entity.confirm')} subheading=${ent?.name ?? c.entityId} @close=${() => (this.confirmSpec = null)}>
-      <div style="font-size:var(--sw-fs-sm);line-height:1.5">הפעולה <strong>${c.spec.label}</strong> על <span class="ltr">${c.entityId}</span> היא פעולה ${c.spec.risk_label ?? 'רגישה'}${c.spec.risk === 'sensitive' ? ' (הרשאה נפרדת)' : ''}. היא תבוצע ב־Home Assistant בזהות שלך ותירשם באודיט.</div>
+      <div style="font-size:var(--sw-fs-sm);line-height:1.5">הפעולה <strong>${c.spec.label}</strong> על <span class="ltr">${c.entityId}</span> היא פעולה ${c.spec.risk_label ?? 'רגישה'}${c.spec.risk === 'sensitive' ? ' (הרשאה נפרדת)' : ''}. היא תבוצע בזהות שלך ותירשם באודיט.</div>
       <div slot="footer"><sw-button variant="danger" @click=${() => this.send(c.entityId, c.spec, true)}>${c.spec.label}</sw-button><sw-button variant="ghost" @click=${() => (this.confirmSpec = null)}>${t('actions.cancel')}</sw-button></div>
     </sw-dialog>`;
   }
@@ -2166,7 +2166,7 @@ export class ExploreFloorMap extends LitElement {
         <span><i style="--lg: var(--sw-stale)"></i>לא מעודכן</span>
         <span><i style="--lg: var(--sw-offline)"></i>מנותק</span>
         <span><i style="--lg: var(--sw-forbidden)"></i>ללא הרשאה</span>
-        <span><i style="--lg: #fff; box-shadow: 0 0 0 1px var(--sw-border-strong)"></i>ישות HA</span>
+        <span><i style="--lg: #fff; box-shadow: 0 0 0 1px var(--sw-border-strong)"></i>התקן</span>
       </div>`}
       ${this.renderCard()}
       ${this.renderConfirm()}
@@ -2189,7 +2189,7 @@ export class ExploreFloorMap extends LitElement {
           </div>
           <h1>${b ? `${b.buildingName} – ${b.floorName}` : 'מפת קומה'}</h1>
           <div class="sub">
-            <span>${cameraCount} מצלמות${b && b.source === 'api' ? ` · ${b.anchors.length - cameraCount} ישויות HA${b.zones.length ? ` · ${b.zones.length} אזורים` : ''}` : ''}${b?.source === 'demo' ? ' · נתוני הדגמה' : b?.planStatus === 'published' ? ' · תוכנית מפורסמת' : ''}</span>
+            <span>${cameraCount} מצלמות${b && b.source === 'api' ? ` · ${b.anchors.length - cameraCount} התקנים${b.zones.length ? ` · ${b.zones.length} אזורים` : ''}` : ''}${b?.source === 'demo' ? ' · נתוני הדגמה' : b?.planStatus === 'published' ? ' · תוכנית מפורסמת' : ''}</span>
             ${apiFloor?.draft_version_id ? html`<sw-badge kind="stale" label="טיוטת תוכנית ממתינה לפרסום"></sw-badge>` : nothing}
           </div>
         </div>

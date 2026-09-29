@@ -547,7 +547,7 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await open(page, '/wiskey/overview');
     const err = page.locator('wiskey-embed [data-wiskey-embed-error="unreachable"]');
     await expect(err).toBeVisible({ timeout: 30000 });
-    await expect(err.locator('sw-state-panel')).toHaveAttribute('heading', 'לא ניתן לטעון את WisKey מתוך Home Assistant');
+    await expect(err.locator('sw-state-panel')).toHaveAttribute('heading', 'לא ניתן לטעון את WisKey');
     await expect(err.locator('[data-wiskey-embed-retry]')).toBeVisible();
     await expect(err.locator('a[data-wiskey-embed-full]')).toHaveAttribute('href', '/hikvision-intercom?tab=overview');
     await page.screenshot({ path: testInfo.outputPath('wiskey-embed-unreachable.png') });
@@ -557,7 +557,7 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await stubPanel(page, { kiosk: true, panels: false, api: 'v1' });
     await err.locator('[data-wiskey-embed-retry]').click();
     await expect(page.locator('wiskey-embed [data-wiskey-embed-error="not_installed"]')).toBeVisible({ timeout: 30000 });
-    await expect(page.locator('wiskey-embed [data-wiskey-embed-error="not_installed"] sw-state-panel')).toHaveAttribute('heading', 'לוח WisKey לא נמצא ב־Home Assistant');
+    await expect(page.locator('wiskey-embed [data-wiskey-embed-error="not_installed"] sw-state-panel')).toHaveAttribute('heading', 'לוח WisKey לא נמצא');
   });
 
   test('height: at 1440×900 the frame gets the whole viewport below SMPLWISE\'s chrome; "הגדל" gives it the viewport minus the embed bar', async ({ page }, testInfo) => {

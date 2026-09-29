@@ -58,7 +58,7 @@ const TOOLS: { id: Tool; icon: IconName; label: string; ready: boolean }[] = [
   { id: 'select', icon: 'target', label: 'בחירה וגרירה', ready: true },
   { id: 'camera', icon: 'camera', label: 'הוספת מצלמה', ready: true },
   { id: 'lights', icon: 'light', label: 'הוספת תאורה (מפסקים)', ready: true },
-  { id: 'entity', icon: 'plus', label: 'ישות HA אחרת', ready: true },
+  { id: 'entity', icon: 'plus', label: 'התקן אחר', ready: true },
   { id: 'zones', icon: 'map', label: 'חדרים ואזורים', ready: true },
   { id: 'structure', icon: 'wall', label: 'מבנה: קירות, דלתות וחלונות', ready: true },
   { id: 'library', icon: 'grid', label: 'ספריית עצמים', ready: true },
@@ -4017,7 +4017,7 @@ export class ExplorePlanEditor extends LitElement {
       <sw-field label="שם במפה (ידני)"><input data-entity-name placeholder=${e?.name ?? a.resource_id} .value=${a.label ?? ''} @change=${(ev: Event) => this.apply(a.id, { label: (ev.target as HTMLInputElement).value.trim() || null })} /></sw-field>
       <sw-field label="מיקום התווית"><select data-label-pos @change=${(ev: Event) => this.apply(a.id, { label_pos: (ev.target as HTMLSelectElement).value })}>${[['auto', 'אוטומטי'], ['top', 'מעל'], ['bottom', 'מתחת'], ['left', 'משמאל'], ['right', 'מימין']].map(([v, l]) => html`<option value=${v} ?selected=${(a.label_pos ?? 'auto') === v}>${l}</option>`)}</select></sw-field>
       ${this.renderMount(a, false)}
-      <div class="note">ריק = השם מ־Home Assistant${e?.name ? ` („${e.name}“)` : ''}. השם הידני מוצג במפה, ברשימת הצד ובכרטיס.</div>
+      <div class="note">ריק = השם המקורי${e?.name ? ` („${e.name}“)` : ''}. השם הידני מוצג במפה, ברשימת הצד ובכרטיס.</div>
       <div class="note" style="margin-block-start:6px">revision ${a.revision}${this.dirty.has(a.id) ? ' · שינויים לא שמורים' : ''}</div>
       <div style="display:flex;gap:8px;margin-block-start:10px;flex-wrap:wrap">
         <sw-button variant="primary" size="sm" icon="check" ?disabled=${!this.dirty.size || this.busy} @click=${() => this.save()}>שמירת מיקום</sw-button>
@@ -4046,7 +4046,7 @@ export class ExplorePlanEditor extends LitElement {
     if (this.tool === 'entity' || this.tool === 'lights') {
       const lights = this.tool === 'lights';
       const results = (this.entResults ?? []).filter((e) => !anchoredIds.has(e.entity_id));
-      return html`<sw-card heading=${lights ? 'הוספת תאורה' : 'הוספת ישות Home Assistant אחרת'} subheading=${lights ? 'מפסקים (switch) מהקטלוג; לחץ על התוכנית להצבה. השם ניתן לשינוי אחרי ההצבה.' : 'כל ישות אחרת בקטלוג (דלתות, חיישנים, מזגנים…) ואז לחיצה על התוכנית'} data-tool-panel=${this.tool}>
+      return html`<sw-card heading=${lights ? 'הוספת תאורה' : 'הוספת התקן אחר'} subheading=${lights ? 'מפסקים (switch) מהקטלוג; לחץ על התוכנית להצבה. השם ניתן לשינוי אחרי ההצבה.' : 'כל ישות אחרת בקטלוג (דלתות, חיישנים, מזגנים…) ואז לחיצה על התוכנית'} data-tool-panel=${this.tool}>
         <sw-field><input type="search" placeholder=${lights ? 'חיפוש מפסק לפי שם או אזור' : 'חיפוש לפי שם, entity_id או אזור'} data-ltr .value=${this.entQ} @input=${(e: Event) => this.onEntQuery((e.target as HTMLInputElement).value)} /></sw-field>
         ${lights ? html`<label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-lights-all .checked=${this.lightsAll} @change=${(e: Event) => { this.lightsAll = (e.target as HTMLInputElement).checked; void this.searchEntities(); }} /> להציג גם ישויות light (נורות חכמות)</label>` : nothing}
         ${b.source === 'demo'
@@ -4119,7 +4119,7 @@ export class ExplorePlanEditor extends LitElement {
       ${(this.studio.doc?.levels.length ?? 0) > 1 ? html`<sw-field label="מפלס"><select data-zone-level @change=${(e: Event) => this.patchZone(z, { level_id: (e.target as HTMLSelectElement).value })}>${this.studio.doc!.levels.map((l) => html`<option value=${l.id} ?selected=${(z.level_id ?? defaultLevelId(this.studio.doc!)) === l.id}>${l.name}</option>`)}</select></sw-field>` : nothing}
       ${this.renderZoneTags(z)}
       <div class="kv"><span class="k">מצלמות באזור</span><span>${cams.length ? cams.map((a) => this.anchorName(a)).join(', ') : 'אין'}</span></div>
-      <div class="kv"><span class="k">ישויות HA באזור</span><span>${ents.length ? `${ents.length} ישויות` : 'אין'}</span></div>
+      <div class="kv"><span class="k">התקנים באזור</span><span>${ents.length ? `${ents.length} ישויות` : 'אין'}</span></div>
       <div class="row"><span class="lbl">הכללה בחיפוש מרחבי<span class="muted">זמין לחוקי התראה ולחיפוש לפי מקום</span></span><sw-toggle ?checked=${z.searchable} label=${z.searchable ? 'כלול' : 'לא כלול'} @click=${() => this.patchZone(z, { searchable: !z.searchable })}></sw-toggle></div>
       <div class="note">${z.polygon.length} פינות · ${z.source === 'auto' ? 'זוהה אוטומטית מהתוכנית' : 'צויר ידנית'} · revision ${z.revision}</div>
       <div class="note" data-zone-hint>גרור פינה כדי לשנות צורה, גרור נקודת אמצע כדי להוסיף פינה, גרור את הגוף כדי להזיז; Delete על פינה מסיר אותה</div>
@@ -4353,7 +4353,7 @@ export class ExplorePlanEditor extends LitElement {
                     <button data-bind-accept @click=${() => this.bindObject(this.bindOffer!.objectId, this.bindOffer!.anchor)}>הצמד לישות</button><button data-bind-dismiss @click=${() => { this.bindRefused.add(this.bindOffer!.objectId); this.bindOffer = null; }}>לא</button></span></div>` : nothing}
                 ${this.tool === 'structure' && this.studioMode === 'markdoor' && this.studio.doc ? this.renderMarkDoorHint() : nothing}
                 ${this.wallDraft ? html`<div class="placing-hint"><span>ציור קיר: ${this.wallDraft.length} נקודות · Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים · לחיצה על הנקודה הראשונה סוגרת מתאר · Esc לביטול</span></div>` : nothing}
-                <div class="legend"><span><i></i>מצלמות · ${cams}</span><span><i class="ent"></i>ישויות HA · ${ents}</span><span><i class="zone"></i>אזורים · ${this.zones.length}</span></div>
+                <div class="legend"><span><i></i>מצלמות · ${cams}</span><span><i class="ent"></i>התקנים · ${ents}</span><span><i class="zone"></i>אזורים · ${this.zones.length}</span></div>
               </div>
               <div class="props">
                 ${sel ? (sel.resource_type === 'camera' ? this.renderCameraInspector(sel) : this.renderEntityInspector(sel)) : this.selectedZone && this.tool !== 'zones' ? html`<sw-card heading="אזור" subheading=${this.selectedZone.name}>${this.renderZoneInspector(this.selectedZone)}</sw-card>${this.multiOn ? html`<div class="note" data-multi-hint>${MULTI_HINT}</div>` : nothing}` : this.renderToolPanel(b)}

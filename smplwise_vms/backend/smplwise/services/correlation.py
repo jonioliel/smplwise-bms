@@ -207,7 +207,7 @@ def correlate(conn: sqlite3.Connection, ev: dict[str, Any], window_s: int = 120,
         if anchor is None:
             entity_ids = [e["entity_id"] for e in entities]
     elif not include_entities:
-        notes.append({"code": "entities_hidden", "text": "אין הרשאה לקרוא מצבי ישויות HA; מוצגים אירועי מצלמות בלבד."})
+        notes.append({"code": "entities_hidden", "text": "אין הרשאה לקרוא מצבי התקנים; מוצגים אירועי מצלמות בלבד."})
         entity_ids = []
     links: list[dict[str, Any]] = []
     if entity_ids:
@@ -220,7 +220,7 @@ def correlate(conn: sqlite3.Connection, ev: dict[str, Any], window_s: int = 120,
             links.append({
                 "kind": "sensor", "event_id": e["id"], "entity_id": d["entity_id"], "name": d.get("name") or d["entity_id"], "type": e["type"], "at": e["occurred_at"], "delta_s": _delta(e["occurred_at"], t),
                 "label": f"{d.get('name') or d['entity_id']}: {d.get('from') or 'לא ידוע'} → {d.get('to')}", "certainty": "measured" if not avail else "availability",
-                "note": "החיישן איבד קשר" if avail == "lost" else "החיישן חזר לדווח" if avail == "restored" else "מצב שנמדד בחיישן (זמן HA)",
+                "note": "החיישן איבד קשר" if avail == "lost" else "החיישן חזר לדווח" if avail == "restored" else "מצב שנמדד בחיישן (זמן מדווח)",
             })
         q = f"SELECT * FROM ha_actions WHERE entity_id IN ({','.join('?' * len(entity_ids))}) AND requested_at >= ? AND requested_at <= ? ORDER BY requested_at"
         for a in conn.execute(q, (*entity_ids, lo, hi)).fetchall():

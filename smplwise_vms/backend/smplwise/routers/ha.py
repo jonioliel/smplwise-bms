@@ -161,7 +161,7 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
     note_grant(ha_scope.control_decision(conn, principal, entity_id), "ha.action")  # T055: the action's audit rows name its scope
     e = _entity(conn, entity_id)
     if e["removed_at"] or e["disabled"]:
-        raise ApiError(409, "entity_unavailable", "הישות אינה זמינה ב־Home Assistant.")
+        raise ApiError(409, "entity_unavailable", "ההתקן אינו זמין.")
     try:
         expires = parse_utc(body.expires_at)
     except ValueError:
@@ -181,7 +181,7 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
     if spec["sensitive"] and body.confirmation_grant != "confirmed":
         raise ApiError(409, "confirmation_required", "פעולה רגישה דורשת אישור מפורש.", details={"action": body.allowed_action_id})
     if principal.source not in ("ingress", "remote") and not settings.dev_user:  # CR-008: the Arx remote channel is the same HA user
-        raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת HA.")
+        raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן.")
     secret = ha_bridge.signing_key(conn)
     paired = bool(secret) and bool(get_setting(conn, "bridge.paired_at"))
     aid, now = uuid.uuid4().hex[:12], now_iso()
@@ -196,7 +196,7 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
         conn.execute("UPDATE ha_actions SET status = 'failed', error = 'bridge_not_paired', responded_at = ? WHERE id = ?", (now_iso(), aid))
         audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="bridge_not_paired",
               request_id=getattr(request.state, "correlation_id", None), details={"action": body.allowed_action_id, "id": aid})
-        raise ApiError(503, "bridge_not_paired", "פעולות HA דורשות את גשר SMPLWISE מותקן ומצומד ב־Home Assistant.", details={"action_id": aid})
+        raise ApiError(503, "bridge_not_paired", "פעולות אלו דורשות את גשר SMPLWISE מותקן ומצומד.", details={"action_id": aid})
     payload = ha_bridge.sign(secret or "", {"user_id": principal.user_id, "domain": spec["domain"], "service": spec["service"], "data": data, "request_id": aid})
     try:
         with unlocked(conn):
@@ -212,7 +212,7 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
     audit(conn, actor=principal, action="ha.action", decision="allowed" if ok else "denied", resource_type="ha_entity", resource_id=entity_id, reason=error,
           request_id=getattr(request.state, "correlation_id", None), details={"action": body.allowed_action_id, "id": aid, "arguments": body.arguments, "sensitive": spec["sensitive"]})
     out = _action_row(conn, aid)
-    out["note"] = "הבקשה התקבלה; המצב מאושר רק כשמגיע עדכון מ־Home Assistant." if ok else None
+    out["note"] = "הבקשה התקבלה; המצב מאושר רק כשמגיע עדכון." if ok else None
     return out
 
 

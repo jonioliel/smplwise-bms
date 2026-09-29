@@ -141,7 +141,7 @@ export class LiveOverview extends LitElement {
       out.push({ kind: 'info', title: 'ה־NVR לא שלח התראות מאז ההפעלה', meta: 'אירועי תנועה נגזרים מההקלטות כל 10 דקות', why: 'מוצג כי זרם ההתראות מחובר אך ריק — ב־NVR יש להפעיל "Notify Surveillance Center" ב־linkage של זיהוי התנועה', link: '#/system/setup' });
     }
     if (this.raw?.home_assistant.configured && !this.raw.home_assistant.connected) {
-      out.push({ kind: 'alert', title: 'אין חיבור ל־Home Assistant', meta: this.raw.home_assistant.last_error ?? '', why: 'מוצג כי מצבי הישויות והדלתות עלולים להיות מיושנים', link: '#/system/setup' });
+      out.push({ kind: 'alert', title: 'אין חיבור לתשתית המערכת', meta: this.raw.home_assistant.last_error ?? '', why: 'מוצג כי מצבי הישויות והדלתות עלולים להיות מיושנים', link: '#/system/setup' });
     }
     return out;
   }
@@ -171,7 +171,7 @@ export class LiveOverview extends LitElement {
           <sw-kpi icon="camera" tone=${cams.length && online === cams.length ? 'live' : online ? 'stale' : 'offline'} value=${`${online}/${cams.length}`} label="מצלמות" detail=${this.recorder ? `מחוברות · ${this.recorder.model ?? this.recorder.name}` : 'מחוברות'}></sw-kpi>
           <sw-kpi icon="building" value=${String(sites.length)} label="אתרים" detail=${`${floors.length} קומות · ${floors.filter((f) => f.has_plan).length} עם תוכנית`} tone="neutral"></sw-kpi>
           <sw-kpi icon="bell" value=${this.summaryDenied ? '—' : String(this.summary?.today.total ?? 0)} label="אירועים" detail=${this.summaryDenied ? 'ללא הרשאה לאירועים' : 'היום'} tone="neutral" badge=${this.summary?.today.unacked ? `${this.summary.today.unacked} לבדיקה` : ''}></sw-kpi>
-          <sw-kpi icon="shield" tone=${tone} value=${h ? STATUS_LABEL[h.status] : '…'} label="מצב מערכת" detail=${firstIssue ? firstIssue.label : 'NVR, go2rtc, HA ואחסון'}></sw-kpi>
+          <sw-kpi icon="shield" tone=${tone} value=${h ? STATUS_LABEL[h.status] : '…'} label="מצב מערכת" detail=${firstIssue ? firstIssue.label : 'NVR, go2rtc, תשתית המערכת ואחסון'}></sw-kpi>
         </div>
         ${favorites.length
           ? html`<div class="fav" data-overview-favorites>
@@ -214,7 +214,7 @@ export class LiveOverview extends LitElement {
                     ${e.thumbnail === 'ready'
                       ? html`<img class="thumb" src=${thumbnailUrl(e.id)} alt="" loading="lazy" />`
                       : html`<div class="none"><sw-icon name=${e.type === 'offline' || e.type === 'coverage_gap' ? 'offline' : e.type === 'door' || e.type === 'io' ? 'door' : e.type === 'person' ? 'user' : e.type === 'vehicle' ? 'route' : 'bell'} size=${14}></sw-icon></div>`}
-                    <div class="txt"><b style=${`--tone:${API_EVENT_TONE[e.type as keyof typeof API_EVENT_TONE] ?? '#6b7280'}`}><i></i>${EVENT_LABEL[e.type as keyof typeof EVENT_LABEL] ?? e.type}${e.acked_at ? '' : ' · לבדיקה'}</b><small>${e.camera_name ?? (e.details as { name?: string } | undefined)?.name ?? 'ללא מצלמה'} · ${e.confidence === 'inferred' ? 'נגזר מהקלטה' : e.source === 'ha' ? 'חיישן HA' : 'התראה'}</small></div>
+                    <div class="txt"><b style=${`--tone:${API_EVENT_TONE[e.type as keyof typeof API_EVENT_TONE] ?? '#6b7280'}`}><i></i>${EVENT_LABEL[e.type as keyof typeof EVENT_LABEL] ?? e.type}${e.acked_at ? '' : ' · לבדיקה'}</b><small>${e.camera_name ?? (e.details as { name?: string } | undefined)?.name ?? 'ללא מצלמה'} · ${e.confidence === 'inferred' ? 'נגזר מהקלטה' : e.source === 'ha' ? 'חיישן התקן' : 'התראה'}</small></div>
                     <time>${this.fmtTime(e.occurred_at)}</time>
                   </div>`,
                 )
@@ -458,20 +458,20 @@ export class LiveOverview extends LitElement {
     const spotlights = [
       { kind: 'critical', title: 'מצלמה מנותקת: מסדרון מזרחי', meta: 'קומה 0 · מאז 07:55', why: 'מוצג כי אין הקלטה ממצלמה זו כבר שעתיים', link: '#/system/devices' },
       { kind: 'alert', title: `${unacked.length} אירועים שלא נבדקו`, meta: 'אדם בכניסה הראשית 10:14, רכב בחצר 09:42', why: 'מוצג כי אירועי אדם/רכב מחכים לסימון טיפול', link: '#/investigate/events' },
-      { kind: 'alert', title: 'החיבור ל־Home Assistant לא רענן', meta: 'סנכרון אחרון לפני 4 דק׳', why: 'מוצג כי מצבי הישויות עלולים להיות מיושנים', link: '#/system/diagnostics' },
+      { kind: 'alert', title: 'החיבור לתשתית המערכת לא רענן', meta: 'סנכרון אחרון לפני 4 דק׳', why: 'מוצג כי מצבי הישויות עלולים להיות מיושנים', link: '#/system/diagnostics' },
     ];
     const used = 0.68;
     const r = 34;
     const c = 2 * Math.PI * r;
     const favorites = demoWall.filter((x) => x.state === 'live').slice(0, 2);
     return html`
-      <sw-page heading="בוקר טוב, יוני" subheading="המערכת פועלת · גשר Home Assistant לא רענן · נתוני הדגמה">
+      <sw-page heading="בוקר טוב, יוני" subheading="המערכת פועלת · גשר לא רענן · נתוני הדגמה">
         <div slot="actions" class="date">יום שני, 14 בספטמבר 2026<br />10:24</div>
         <div class="kpis">
           <sw-kpi icon="camera" tone="live" value=${String(online)} label="מצלמות" detail="מחוברות"></sw-kpi>
           <sw-kpi icon="building" value=${String(demoSites.length)} label="אתרים" detail="פעילים" tone="neutral"></sw-kpi>
           <sw-kpi icon="bell" value=${String(demoEvents.length)} label="אירועים" detail="ב־24 השעות" tone="neutral" badge=${`${unacked.length} חדשים`}></sw-kpi>
-          <sw-kpi icon="shield" tone="stale" value="חלקי" label="מצב מערכת" detail="גשר HA לא רענן"></sw-kpi>
+          <sw-kpi icon="shield" tone="stale" value="חלקי" label="מצב מערכת" detail="גשר לא רענן"></sw-kpi>
         </div>
         <div class="fav">
           ${favorites.map((cam) => html`<sw-camera-tile name=${cam.name} state=${cam.state} scene=${demoScene[cam.id] ?? 'lobby'} @click=${() => navigate(`/live/cameras/${cam.id}`)}></sw-camera-tile>`)}

@@ -192,21 +192,21 @@ export async function awaitAction(id: string, onUpdate: (a: HaActionRecord) => v
 
 /** Why an action ended denied or failed, in words (the code stays in the record for the audit). */
 export const ACTION_ERROR_LABEL: Record<string, string> = {
-  ha_unauthorized: 'Home Assistant דחה את הפעולה: למשתמש שלך אין הרשאה לישות זו ב־Home Assistant',
-  ha_unknown_user: 'Home Assistant אינו מכיר את המשתמש שמאחורי ההפעלה הזו',
+  ha_unauthorized: 'תשתית המערכת דחתה את הפעולה: למשתמש שלך אין הרשאה להתקן זה',
+  ha_unknown_user: 'תשתית המערכת אינה מכירה את המשתמש שמאחורי ההפעלה הזו',
   bridge_not_paired: 'גשר SMPLWISE אינו מצומד',
   bridge_error: 'הגשר החזיר שגיאה',
-  ha_unavailable: 'Home Assistant אינו זמין',
-  service_not_allowed: 'הגשר סירב: השירות אינו ברשימת הפעולות המאושרות (גשר ישן? גרסה 0.2.4 הוסיפה את פקדי חשמל והתקנים: מיקום תריס, עוצמת מאוורר, מצב מאוורר במזגן, כיבוי מזגן, הדלקה / כיבוי / השתקה של מסך — הפעל את Home Assistant מחדש כדי לטעון את הגרסה החדשה)',
-  unknown_user: 'Home Assistant אינו מכיר את המשתמש',
+  ha_unavailable: 'תשתית המערכת אינה זמינה',
+  service_not_allowed: 'הגשר סירב: השירות אינו ברשימת הפעולות המאושרות (גשר ישן? גרסה 0.2.4 הוסיפה את פקדי חשמל והתקנים: מיקום תריס, עוצמת מאוורר, מצב מאוורר במזגן, כיבוי מזגן, הדלקה / כיבוי / השתקה של מסך — הפעילו מחדש את תשתית המערכת כדי לטעון את הגרסה החדשה)',
+  unknown_user: 'תשתית המערכת אינה מכירה את המשתמש',
 };
 
 export const ACTION_STATUS_LABEL: Record<HaActionStatus, string> = {
-  pending: 'נשלח · ממתין לעדכון מ־Home Assistant',
+  pending: 'נשלח · ממתין לעדכון מתשתית המערכת',
   confirmed: 'אושר · המצב התעדכן',
   unknown: 'לא ידוע · לא התקבל עדכון מצב',
   failed: 'נכשל',
-  denied: 'נדחה · אין הרשאה ב־Home Assistant',
+  denied: 'נדחה · אין הרשאה בתשתית המערכת',
 };
 
 const ACTIVE = new Set(['on', 'open', 'opening', 'unlocked', 'unlocking', 'playing', 'home', 'heat', 'cool', 'heat_cool', 'dry', 'fan_only', 'cleaning', 'active', 'detected', 'problem', 'running']);
@@ -309,7 +309,7 @@ export function domainLabel(domain: string): string {
     sensor: 'חיישן',
     fan: 'מאוורר',
     climate: 'אקלים',
-    camera: 'מצלמת HA',
+    camera: 'מצלמת התקן',
     button: 'כפתור',
     script: 'סקריפט',
     scene: 'סצנה',

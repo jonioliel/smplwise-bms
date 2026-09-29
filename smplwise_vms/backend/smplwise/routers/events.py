@@ -227,7 +227,7 @@ TYPE_REASON = {
     "vehicle": "ה־NVR לא שלח אירוע זיהוי רכב ב־{days} הימים האחרונים; דורש אירועים חכמים (VCA) במצלמה או ב־NVR",
     "line": "ה־NVR לא שלח חציית קו ב־{days} הימים האחרונים; דורש הגדרת line crossing במצלמה",
     "field": "ה־NVR לא שלח חדירה לאזור ב־{days} הימים האחרונים; דורש הגדרת intrusion במצלמה",
-    "door": "לא נרשמו מעברי מצב של חיישני דלת או מנעולים מ־Home Assistant ב־{days} הימים האחרונים",
+    "door": "לא נרשמו מעברי מצב של חיישני דלת או מנעולים ב־{days} הימים האחרונים",
     "coverage_gap": "לא נרשמו פערי כיסוי ב־{days} הימים האחרונים (זה טוב)",
 }
 
@@ -335,7 +335,7 @@ def _facets(conn: sqlite3.Connection, wide: bool, ids: RowScope, days: int, floo
             places.append({"id": site["id"], "name": site["name"], "buildings": buildings})
     notes = []
     if "ha" not in sources:
-        notes.append("אין אירועי חיישנים (HA) בתקופה: או ש־Home Assistant לא מחובר, או שאין חיישני דלת / תנועה / מנעולים שהשתנו")
+        notes.append("אין אירועי חיישני התקנים בתקופה: או שתשתית המערכת לא מחוברת, או שאין חיישני דלת / תנועה / מנעולים שהשתנו")
     if not any(p["cameras"] for p in placed.values()):
         notes.append("אף מצלמה לא מוצבת על תוכנית: חיפוש לפי מקום אינו אפשרי עד שמציבים מצלמות בעורך התוכנית")
     return {

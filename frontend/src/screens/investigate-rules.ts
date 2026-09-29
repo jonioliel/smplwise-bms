@@ -171,7 +171,7 @@ export class InvestigateRules extends LitElement {
       ? [r.scope.floor_ids.length ? `${r.scope.floor_ids.length} קומות` : '', r.scope.zone_ids.length ? `${r.scope.zone_ids.length} אזורים` : '', r.scope.camera_ids.length ? `${r.scope.camera_ids.length} מצלמות` : ''].filter(Boolean).join(' · ')
       : 'כל המתקן';
     const win = r.window.from || r.window.to || r.window.days.length ? `${r.window.days.map((d) => DAY_LABEL[d] ?? d).join('') || 'כל יום'} ${r.window.from ?? '00:00'}–${r.window.to ?? '24:00'}` : 'תמיד';
-    return `${t} · ${scope} · ${win} · השהיה ${r.cooldown_s} שנ׳ · ${r.owner === 'ha' ? `בבעלות HA (${r.ha_automation_id})` : 'התראה במערכת'}`;
+    return `${t} · ${scope} · ${win} · השהיה ${r.cooldown_s} שנ׳ · ${r.owner === 'ha' ? `בבעלות תשתית המערכת (${r.ha_automation_id})` : 'התראה במערכת'}`;
   }
 
   private renderEditor() {
@@ -199,19 +199,19 @@ export class InvestigateRules extends LitElement {
       </div>
       <div class="two">
         <sw-field label="פעולה"><select data-rule-action-kind @change=${(ev: Event) => this.edit((x) => (x.actions = [{ ...(x.actions[0] ?? { message: '' }), kind: (ev.target as HTMLSelectElement).value as RuleAction['kind'] }]))}>
-          <option value="notify" ?selected=${(b.actions[0]?.kind ?? 'notify') === 'notify'}>התראה במערכת</option><option value="ha_notify" ?selected=${b.actions[0]?.kind === 'ha_notify'}>התראה דרך Home Assistant (notify)</option>
+          <option value="notify" ?selected=${(b.actions[0]?.kind ?? 'notify') === 'notify'}>התראה במערכת</option><option value="ha_notify" ?selected=${b.actions[0]?.kind === 'ha_notify'}>התראה דרך תשתית המערכת (notify)</option>
         </select></sw-field>
         ${b.actions[0]?.kind === 'ha_notify'
-          ? html`<sw-field label="שירות notify ב־HA (למשל mobile_app_phone)"><input data-ltr data-rule-service placeholder="mobile_app_phone" .value=${b.actions[0]?.service ?? ''} @input=${(ev: Event) => this.edit((x) => (x.actions = [{ ...x.actions[0], service: (ev.target as HTMLInputElement).value.trim() }]))} /></sw-field>`
+          ? html`<sw-field label="שירות notify בתשתית המערכת (למשל mobile_app_phone)"><input data-ltr data-rule-service placeholder="mobile_app_phone" .value=${b.actions[0]?.service ?? ''} @input=${(ev: Event) => this.edit((x) => (x.actions = [{ ...x.actions[0], service: (ev.target as HTMLInputElement).value.trim() }]))} /></sw-field>`
           : nothing}
       </div>
       <sw-field label="הודעת ההתראה"><input data-rule-message .value=${b.actions[0]?.message ?? ''} @input=${(ev: Event) => this.edit((x) => (x.actions = [{ ...(x.actions[0] ?? { kind: 'notify' }), message: (ev.target as HTMLInputElement).value }]))} /></sw-field>
-      ${b.actions[0]?.kind === 'ha_notify' ? html`<div class="hint">התראה דרך HA דורשת את ההרשאה הרגישה "חוקים: התראה דרך Home Assistant" (תפקיד מותאם). ההודעה נשלחת ל־notify.&lt;שירות&gt; עם הכותרת SMPLWISE.</div>` : nothing}
+      ${b.actions[0]?.kind === 'ha_notify' ? html`<div class="hint">התראה דרך תשתית המערכת דורשת את ההרשאה הרגישה "חוקים: התראה דרך תשתית המערכת" (תפקיד מותאם). ההודעה נשלחת ל־notify.&lt;שירות&gt; עם הכותרת SMPLWISE.</div>` : nothing}
       <div class="two">
-        <sw-field label="בעלות"><select @change=${(ev: Event) => this.edit((x) => (x.owner = (ev.target as HTMLSelectElement).value as RuleBody['owner']))}><option value="local" ?selected=${b.owner === 'local'}>מקומי (המערכת מפעילה)</option><option value="ha" ?selected=${b.owner === 'ha'}>Home Assistant (הפניה בלבד)</option></select></sw-field>
-        ${b.owner === 'ha' ? html`<sw-field label="מזהה אוטומציה ב־HA"><input .value=${b.ha_automation_id ?? ''} @input=${(ev: Event) => this.edit((x) => (x.ha_automation_id = (ev.target as HTMLInputElement).value || null))} /></sw-field>` : html`<label class="chk"><input type="checkbox" .checked=${b.enabled} @change=${(ev: Event) => this.edit((x) => (x.enabled = (ev.target as HTMLInputElement).checked))} /> פעיל</label>`}
+        <sw-field label="בעלות"><select @change=${(ev: Event) => this.edit((x) => (x.owner = (ev.target as HTMLSelectElement).value as RuleBody['owner']))}><option value="local" ?selected=${b.owner === 'local'}>מקומי (המערכת מפעילה)</option><option value="ha" ?selected=${b.owner === 'ha'}>תשתית המערכת (הפניה בלבד)</option></select></sw-field>
+        ${b.owner === 'ha' ? html`<sw-field label="מזהה אוטומציה בתשתית המערכת"><input .value=${b.ha_automation_id ?? ''} @input=${(ev: Event) => this.edit((x) => (x.ha_automation_id = (ev.target as HTMLInputElement).value || null))} /></sw-field>` : html`<label class="chk"><input type="checkbox" .checked=${b.enabled} @change=${(ev: Event) => this.edit((x) => (x.enabled = (ev.target as HTMLInputElement).checked))} /> פעיל</label>`}
       </div>
-      <div class="hint">הפעולה היחידה בפיילוט: התראה במערכת. אין פקודות למכשירים ואין webhooks; התראה אינה אירוע ולכן חוק לא יכול להזין את עצמו. חוק בבעלות HA אינו מופעל כאן (בעלים אחד לכל אוטומציה).</div>
+      <div class="hint">הפעולה היחידה בפיילוט: התראה במערכת. אין פקודות למכשירים ואין webhooks; התראה אינה אירוע ולכן חוק לא יכול להזין את עצמו. חוק בבעלות תשתית המערכת אינו מופעל כאן (בעלים אחד לכל אוטומציה).</div>
       <div class="dryhead"><sw-button size="sm" icon="refresh" data-rule-dryrun ?disabled=${this.dryBusy} @click=${() => this.dryRun()}>${this.dryBusy ? 'מריץ…' : 'הרצה יבשה על 24 שעות'}</sw-button>${dry ? html`<span class="hint" data-dryrun-result>${dry.evaluated} אירועים נבדקו · <strong>${dry.would_fire.length}</strong> התראות היו נוצרות · ${dry.suppressed.length} נחסמו בהשהיה · ${dry.not_matched} לא תאמו</span>` : nothing}</div>
       ${dry
         ? html`<div class="dry">${[...dry.would_fire.map((r) => ({ ...r, fire: true })), ...dry.suppressed.map((r) => ({ ...r, fire: false }))].sort((a, b2) => a.occurred_at.localeCompare(b2.occurred_at)).slice(0, 40).map((r) => html`<div class="dryrow" data-dryrun-row data-fire=${r.fire ? 'true' : 'false'}><span class="ltr">${this.fmt(r.occurred_at)}</span><span>${EVENT_LABEL[r.type as EventKind] ?? r.type} · ${r.camera_name ?? '—'}</span><span class="hint">${r.fire ? r.reasons.join(' · ') : `נחסם: ${r.suppressed}`}</span></div>`)}${dry.would_fire.length + dry.suppressed.length > 40 ? html`<div class="hint">מוצגות 40 הראשונות</div>` : nothing}<div class="hint">${dry.note}</div></div>`
@@ -390,7 +390,7 @@ export class InvestigateRules extends LitElement {
                 </sw-card>`;
               })}
             </div>`
-          : html`<sw-card><div class="empty">${this.tab === 'notif' ? 'ערוצי התראה: Push דרך HA, מייל (Beta). ההגדרה מגיעה עם T063.' : this.tab === 'sched' ? 'לוחות זמנים בזמן האתר (Asia/Jerusalem), שעון קיץ לפי התאריך.' : 'Triggers זמינים: אירועי NVR (אדם, רכב, תנועה, חציית קו, ניתוק) ושינויי מצב HA (allowlist).'}</div></sw-card>`}
+          : html`<sw-card><div class="empty">${this.tab === 'notif' ? 'ערוצי התראה: Push דרך תשתית המערכת, מייל (Beta). ההגדרה מגיעה עם T063.' : this.tab === 'sched' ? 'לוחות זמנים בזמן האתר (Asia/Jerusalem), שעון קיץ לפי התאריך.' : 'Triggers זמינים: אירועי NVR (אדם, רכב, תנועה, חציית קו, ניתוק) ושינויי מצב התקן (allowlist).'}</div></sw-card>`}
       </sw-page>
     `;
   }
@@ -445,7 +445,7 @@ export class InvestigateRuleEditor extends LitElement {
           <div class="stack">
             <sw-card heading="Trigger">
               <div class="two">
-                <sw-field label="מקור"><select><option>אירוע NVR</option><option>שינוי HA</option></select></sw-field>
+                <sw-field label="מקור"><select><option>אירוע NVR</option><option>שינוי התקן</option></select></sw-field>
                 <sw-field label="סוג"><select><option>${r.trigger}</option><option>זיהוי רכב</option><option>תנועה</option></select></sw-field>
               </div>
             </sw-card>
@@ -461,7 +461,7 @@ export class InvestigateRuleEditor extends LitElement {
             </sw-card>
             <sw-card heading="פעולה">
               <div class="two">
-                <sw-field label="פעולה"><select><option>${r.action}</option><option>Push דרך HA</option><option>פתיחת תצוגת מצלמות</option></select></sw-field>
+                <sw-field label="פעולה"><select><option>${r.action}</option><option>Push דרך תשתית המערכת</option><option>פתיחת תצוגת מצלמות</option></select></sw-field>
                 <sw-field label="Cooldown"><input value="5 דקות" /></sw-field>
               </div>
               <div class="hint">unlock / disarm אינם מופעלים על סמך תוצאת AI. שליטה אוטומטית היא opt-in לפי allowlist.</div>

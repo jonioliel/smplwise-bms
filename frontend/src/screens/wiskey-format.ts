@@ -235,7 +235,7 @@ const HE: Record<string, string> = {
   validity_summary_hint: 'התוקף לפי ההגדרה המרכזית; מצב הסנכרון לציוד מוצג בנפרד.',
   valid_from: 'התחלה',
   valid_until: 'סיום',
-  clock_ha_zone: 'אזור הזמן של Home Assistant',
+  clock_ha_zone: 'אזור הזמן של המערכת',
   user_sync_hint: 'מצב הסנכרון לפי גרסת המשתמש האחרונה שאומתה. תקשורת התחנה מוצגת בנפרד; שינויים שטרם הוחלו נשארים בהמתנה.',
   panel_data_stale: 'ייתכן שהנתונים המוצגים אינם עדכניים. הרענון נכשל; ניתן לנסות שוב באמצעות רענון.',
   // person editor (panel.ts editorBody, i18n.ts he) - CR-005 phase 2 slice A1
@@ -301,7 +301,7 @@ const HE: Record<string, string> = {
   capture_again: 'קריאת כרטיס נוסף',
   capture_confirm_prompt: 'להוסיף את הכרטיס שנקרא למשתמש {name} ולסנכרן את השיוכים הקיימים שלו?',
   capture_targets: 'שיוכים קיימים לאינטרקומים',
-  capture_limits: 'קריאה אחת בכל תחנה. הבקשה ממתינה עד 30 שניות; התצוגה הפרטית פגה לאחר שתי דקות. סגירה מפסיקה את הקריאה ב־HA; זמן ההמתנה בקורא נקבע בקושחה. קריאה פיזית עדיין דורשת אימות.',
+  capture_limits: 'קריאה אחת בכל תחנה. הבקשה ממתינה עד 30 שניות; התצוגה הפרטית פגה לאחר שתי דקות. סגירה מפסיקה את הקריאה; זמן ההמתנה בקורא נקבע בקושחה. קריאה פיזית עדיין דורשת אימות.',
   capture_revision_changed: 'המשתמש השתנה או נמחק. סגור את החלון והתחל קריאה חדשה מהרשומה העדכנית.',
   capture_from_editor_hint: 'בחר אינטרקום, הצמד את הכרטיס לקורא שלו ואשר את הוספתו. יש לשמור שינויים במשתמש לפני תחילת הקריאה.',
   capture_save_user_first: 'יש לשמור תחילה את המשתמש החדש, ואז לפתוח עריכה כדי לקרוא כרטיס מהאינטרקום.',
@@ -329,10 +329,10 @@ const HE: Record<string, string> = {
   capture_state_expired: 'זמן הקריאה (שתי דקות) הסתיים ב־WisKey. לא נשמר כרטיס.',
   capture_state_cancelled: 'הקריאה בוטלה. לא נשמר כרטיס.',
   capture_state_abandoned: 'הקריאה נסגרה כי החלון הפסיק לעקוב אחריה (למשל כרטיסייה מוקפאת או מחשב שנכנס למצב שינה). לא נשמר כרטיס.',
-  capture_state_lost: 'WisKey אינו מכיר עוד את הקריאה (למשל אחרי הפעלה מחדש של Home Assistant). לא נשמר כרטיס.',
+  capture_state_lost: 'WisKey אינו מכיר עוד את הקריאה (למשל אחרי הפעלה מחדש של המערכת). לא נשמר כרטיס.',
   capture_state_closed: 'WisKey דחה את הוספת הכרטיס וסגר את הקריאה. לא נשמר כרטיס.',
   capture_state_confirmed: 'הכרטיס נוסף למשתמש ונשלחה בקשה לסנכרון לתחנות.',
-  manager_closed: 'מנהל הגישה של WisKey נסגר (ייתכן ש־Home Assistant נטען מחדש). נסה שוב בעוד רגע.',
+  manager_closed: 'מנהל הגישה של WisKey נסגר (ייתכן שהמערכת נטענה מחדש). נסה שוב בעוד רגע.',
 };
 
 /** WisKey's `translate`: a known key, else the key itself with underscores as spaces. */

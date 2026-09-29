@@ -49,10 +49,10 @@ export function agoHe(what: string, iso: string | null | undefined, now: number 
 /** The two timing lines next to the refresh button: when the structure last CHANGED (last_structure_at) and when it
  * was last CHECKED against Home Assistant (last_registry_at - every refresh, changed or not). */
 export function structureTiming(sync: HaSyncState | null | undefined, now: number = Date.now()): { changed: string; checked: string } {
-  if (!sync?.last_registry_at) return { changed: 'המבנה טרם נטען מ־Home Assistant', checked: '' };
+  if (!sync?.last_registry_at) return { changed: 'המבנה טרם נטען', checked: '' };
   return {
-    changed: agoHe('המבנה עודכן', sync.last_structure_at, now) || 'המבנה לא השתנה מאז הפעלת ה־Add-on',
-    checked: agoHe('נבדק מול Home Assistant', sync.last_registry_at, now),
+    changed: agoHe('המבנה עודכן', sync.last_structure_at, now) || 'המבנה לא השתנה מאז ההפעלה',
+    checked: agoHe('נבדק', sync.last_registry_at, now),
   };
 }
 
@@ -1091,7 +1091,7 @@ export class DevicesBuilding extends LitElement {
       <div slot="actions">
         ${this.lay.renderEditButton()}
         ${t.scoped ? html`<sw-badge kind="partial" label="לפי הקומות שלך"></sw-badge>` : nothing}
-        ${isApi() ? html`<sw-badge data-devices-sync kind=${connected ? 'live' : 'stale'} label=${connected ? 'מסונכרן עם Home Assistant' : 'לא מסונכרן עם Home Assistant'}></sw-badge>` : nothing}
+        ${isApi() ? html`<sw-badge data-devices-sync kind=${connected ? 'live' : 'stale'} label=${connected ? 'מסונכרן' : 'לא מסונכרן'}></sw-badge>` : nothing}
         ${isApi() ? this.renderRefresh() : nothing}
       </div>
       ${this.error ? html`<sw-state-panel compact state="error" heading="הרענון האחרון נכשל" hint=${this.error}></sw-state-panel>` : nothing}
@@ -1112,13 +1112,13 @@ export class DevicesBuilding extends LitElement {
           : nothing}
       </div>
       ${!t.floors.length
-        ? html`<sw-state-panel data-devices-state="empty" state="empty" heading=${t.scoped ? 'אין התקנים בקומות שלך' : 'אין קומות ואזורים מ־Home Assistant'} hint=${t.scoped ? 'רק ישויות שהוצבו על המפה של הקומות שבהרשאתך מופיעות כאן.' : 'צרו קומות ואזורים ב־Home Assistant ושייכו אליהם התקנים; העץ יתעדכן מעצמו אחרי סנכרון הרישום.'}></sw-state-panel>`
+        ? html`<sw-state-panel data-devices-state="empty" state="empty" heading=${t.scoped ? 'אין התקנים בקומות שלך' : 'אין קומות ואזורים'} hint=${t.scoped ? 'רק ישויות שהוצבו על המפה של הקומות שבהרשאתך מופיעות כאן.' : 'צרו קומות ואזורים ושייכו אליהם התקנים; העץ יתעדכן מעצמו אחרי סנכרון הרישום.'}></sw-state-panel>`
         : nothing}
       ${this.lay.renderBar()}
       ${this.layout === 'cards' ? this.renderCards(t) : this.renderTiles(t)}
       <div class="note">${this.bulkAllowed
-        ? 'מצב ההתקנים כפי ש־Home Assistant מדווח אותו. פעולות מרוכזות (⋯ בקומה או באזור, והכפתורים למעלה) נפתחות תמיד בחלון אישור שמפרט מה יישלח; מנעולים, אזעקה ושחרור דלתות אינם נכללים לעולם. שליטה בהתקן בודד - במסך האזור.'
-        : 'תצוגה לקריאה בלבד: מצב ההתקנים כפי ש־Home Assistant מדווח אותו. שליטה בהתקן בודד - במסך האזור.'}</div>
+        ? 'מצב ההתקנים כפי שדווח. פעולות מרוכזות (⋯ בקומה או באזור, והכפתורים למעלה) נפתחות תמיד בחלון אישור שמפרט מה יישלח; מנעולים, אזעקה ושחרור דלתות אינם נכללים לעולם. שליטה בהתקן בודד - במסך האזור.'
+        : 'תצוגה לקריאה בלבד: מצב ההתקנים כפי שדווח. שליטה בהתקן בודד - במסך האזור.'}</div>
       ${this.bulkAllowed ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
       ${this.lay.renderPanel()}
     </sw-page>`;
@@ -1131,7 +1131,7 @@ export class DevicesBuilding extends LitElement {
     return html`<span class="ha-refresh">
       ${this.structureFlash ? html`<sw-badge data-structure-changed kind="live" label="מבנה עודכן"></sw-badge>` : nothing}
       <sw-button size="sm" icon="refresh" data-devices-refresh ?disabled=${this.refreshing} @click=${() => void this.refreshFromHa()}
-        >${this.refreshing ? 'מרענן…' : 'רענן מ־Home Assistant'}</sw-button
+        >${this.refreshing ? 'מרענן…' : 'רענן'}</sw-button
       >
       <span class="refreshed" data-devices-refreshed>${timing.changed}</span>
       ${timing.checked ? html`<span class="refreshed" data-devices-checked>· ${timing.checked}</span>` : nothing}
@@ -1144,7 +1144,7 @@ export class DevicesBuilding extends LitElement {
     return html`${repeat(t.floors, (f) => f.floor_id, (f) => this.renderFloor(f))}
       ${t.unassigned.counts.entities || !t.scoped
         ? html`<section class="floor" data-floor="unassigned">
-            <div class="floor-head"><h2>ללא שיוך</h2><span class="level">התקנים שאינם משויכים לאזור ב־Home Assistant</span></div>
+            <div class="floor-head"><h2>ללא שיוך</h2><span class="level">התקנים שאינם משויכים לאזור</span></div>
             ${this.renderAreasGrid('areas:unassigned', html`${this.lay.wrap('area:unassigned', this.renderTile({ area_id: 'unassigned', name: t.unassigned.name, icon: null, floor_id: null, counts: t.unassigned.counts, has_camera: false }, true))}`)}
           </section>`
         : nothing}`;
@@ -1161,7 +1161,7 @@ export class DevicesBuilding extends LitElement {
         ${repeat(floors, (f) => f.floor_id, (f) => this.lay.wrap(`floor:${f.floor_id}`, this.renderFloorCard(f)))}
         ${(this.selected === 'all' || !shown.length) && (t.unassigned.counts.entities || !t.scoped)
           ? this.lay.wrap('floor:unassigned', html`<section class="fcard loose" data-floor-card="unassigned" data-lay-key="floor:unassigned">
-              <header><h2>ללא שיוך</h2><span class="lit">${t.unassigned.counts.entities} התקנים שאינם משויכים לאזור ב־Home Assistant</span></header>
+              <header><h2>ללא שיוך</h2><span class="lit">${t.unassigned.counts.entities} התקנים שאינם משויכים לאזור</span></header>
               <div class="rows">${this.renderAreaRow({ area_id: 'unassigned', name: t.unassigned.name, icon: null, floor_id: null, counts: t.unassigned.counts, has_camera: false }, 'card', true)}</div>
             </section>`)
           : nothing}

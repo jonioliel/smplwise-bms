@@ -19,7 +19,7 @@ const RESULTS = [
   { scene: 'entrance', when: '14.09.2026 10:14', cam: 'כניסה ראשית', why: 'NVR: זיהוי אדם (Smart)' },
   { scene: 'lobby', when: '14.09.2026 10:13', cam: 'לובי', why: 'NVR: תנועה + סמיכות במפה לכניסה' },
   { scene: 'parking', when: '14.09.2026 06:43', cam: 'חניה מקורה', why: 'NVR: חציית קו' },
-  { scene: 'entrance', when: '14.09.2026 08:12', cam: 'כניסה ראשית', why: 'HA: דלת נפתחה + תנועה' },
+  { scene: 'entrance', when: '14.09.2026 08:12', cam: 'כניסה ראשית', why: 'התקן: דלת נפתחה + תנועה' },
   { scene: 'corridor', when: '13.09.2026 23:10', cam: 'מסדרון מזרחי', why: 'NVR: זיהוי אדם' },
   { scene: 'backyard', when: '13.09.2026 18:03', cam: 'חצר אחורית', why: 'NVR: תנועה' },
 ] as const;

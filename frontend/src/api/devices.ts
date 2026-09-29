@@ -202,7 +202,7 @@ export const assignEntityArea = (entityId: string, areaId: string) => put<{ enti
  * say what is missing and what would fill it. `GET /devices/building` (the same counts as the tree's `building`)
  * has no wrapper yet: no screen needs it apart from the tree, which already carries the counts. */
 export const CARD_EMPTY: Record<CardId, { heading: string; hint: string }> = {
-  lighting: { heading: 'אין תאורה באזור הזה', hint: 'שייכו גופי תאורה לאזור ב־Home Assistant והם יופיעו כאן אוטומטית.' },
+  lighting: { heading: 'אין תאורה באזור הזה', hint: 'שייכו גופי תאורה לאזור והם יופיעו כאן אוטומטית.' },
   switches: { heading: 'אין מתגים באזור הזה', hint: 'מתגים ודגלים (input_boolean) המשויכים לאזור יופיעו כאן.' },
   climate: { heading: 'אין התקן מיזוג באזור הזה', hint: 'שייכו מזגן, תרמוסטט, מאוורר או מייבש לאזור והם יופיעו כאן.' },
   covers: { heading: 'אין תריסים באזור הזה', hint: 'תריסים, וילונות ושערים המשויכים לאזור יופיעו כאן.' },

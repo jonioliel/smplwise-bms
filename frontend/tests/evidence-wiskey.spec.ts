@@ -61,7 +61,7 @@ test.describe('WisKey entry center (T054, top-level nav since 0.1.103)', () => {
     const panel = screen.locator('sw-state-panel[data-wiskey-state="ha_not_configured"]');
     await expect(panel).toBeVisible({ timeout: 30000 });
     await expect(panel).toHaveAttribute('heading', 'WisKey אינו מחובר בסביבה הזו');
-    await expect(panel).toHaveAttribute('hint', /אין כאן גישה ל־Home Assistant/);
+    await expect(panel).toHaveAttribute('hint', /אין כאן גישה לתשתית המערכת/);
     await expect(screen.locator('[data-wiskey-feed="ha_not_configured"]')).toBeVisible();
     // nothing invented: no stations, no counters, no activity
     await expect(screen.locator('[data-wiskey-door]')).toHaveCount(0);

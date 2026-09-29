@@ -54,7 +54,7 @@ test('/arx opens the Arx sign-in page, not Home Assistant', async ({ page }) => 
   const login = page.locator('arx-login');
   await expect(login).toBeVisible();
   await expect(login).toContainText('SmplWise Arx');
-  await expect(login).toContainText('היכנס עם שם המשתמש והסיסמה של Home Assistant');
+  await expect(login).toContainText('היכנס עם שם המשתמש והסיסמה שלך');
   await expect(page.locator('sw-app')).toHaveCount(0); // the shell waits for a session
   // the server confirms: no session, no API
   const me = await page.request.get(`${ARX}api/v1/me`, { headers: { 'X-Remote-User-Id': 'u-owner' } });
