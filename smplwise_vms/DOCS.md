@@ -351,7 +351,8 @@ picture is sent anywhere yet.
   uncompressed total above twice the upload cap are refused before anything is read (the entry count and the
   directory size are read from the archive's end records before the ZIP is indexed). Uploads are streamed to a
   temporary file (removed afterwards) and capped by the product setting `cases.import_max_mb` (default 512 MB,
-  16-4096). One verification or import runs at a time (another one gets 429 "busy"), and none starts - or goes on -
+  16-4096); an upload that stalls for 30 s or takes longer than 10 minutes is dropped with 408, freeing the slot.
+  One verification or import runs at a time (another one gets 429 "busy"), and none starts - or goes on -
   when it would leave less than `storage.min_free_mb` (default 1024 MB) free on /data, where the database lives
   (507). "בדיקת hash חוזרת" runs one at a time and at most once a minute per case. Dates, names and texts from a
   bundle are validated and stripped of control and bidi-override characters before they are stored or shown.

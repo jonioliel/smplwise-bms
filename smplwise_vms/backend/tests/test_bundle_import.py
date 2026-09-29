@@ -470,6 +470,7 @@ def test_unsigned_bundle_with_our_id_is_only_a_claim(settings, monkeypatch, tmp_
 
     def mutate(m):
         m["case"]["title"] = "\u202eזויף\u202c"
+        m["case"]["tags"] = ["\u2066תג\x07\u2069"]
         m["generated_at"] = "yesterday-ish"
 
     forged = _strip_signature(data, mutate)
@@ -483,7 +484,7 @@ def test_unsigned_bundle_with_our_id_is_only_a_claim(settings, monkeypatch, tmp_
     assert r.status_code == 201, r.text
     p = r.json()["case"]["provenance"]
     assert p["producer"] == "this_claimed" and p["this_installation"] is True and p["confirmed_by_signature"] is False and p["exported_at"] is None
-    assert r.json()["case"]["title"] == "זויף"
+    assert r.json()["case"]["title"] == "זויף" and r.json()["case"]["tags"] == ["תג"]
 
 
 def test_concurrent_duplicate_import_creates_one_case(settings, monkeypatch, tmp_path):
@@ -591,3 +592,55 @@ def test_client_disconnect_and_chunked_multipart_over_the_cap(settings, tmp_path
     r = b.post("/api/v1/cases/bundles/import", content=body(), headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
     assert r.status_code == 413 and r.json()["code"] == "payload_too_large"
     assert _staging_empty(sb) and not cases._TRANSFER_LOCK.locked()
+
+
+
+def _slow_upload(app, path: str, headers: list[tuple[bytes, bytes]], chunks: list[bytes], pause_s: float) -> list[dict]:
+    """Drive the ASGI app with a body that trickles: the first chunk, then silence of pause_s per further chunk."""
+    queue = [{"type": "http.request", "body": c, "more_body": True} for c in chunks]
+
+    state = {"n": 0}
+
+    async def receive():
+        if queue:
+            if state["n"]:
+                await asyncio.sleep(pause_s)
+            state["n"] += 1
+            return queue.pop(0)
+        await asyncio.sleep(3600)  # a client that never finishes
+
+    sent: list[dict] = []
+
+    async def send(message):
+        sent.append(message)
+
+    scope = {"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": "POST", "scheme": "http", "path": path,
+             "raw_path": path.encode(), "query_string": b"", "root_path": "", "headers": [(b"host", b"testserver"), *headers],
+             "client": ("testclient", 50001), "server": ("testserver", 80)}
+    asyncio.run(app(scope, receive, send))
+    return sent
+
+
+def test_a_trickling_upload_times_out_and_frees_the_lock(settings, monkeypatch, tmp_path):
+    b, sb = _second(settings, tmp_path)
+    monkeypatch.setattr(cases, "UPLOAD_IDLE_S", 0.3)
+    for path in ("/api/v1/cases/bundles/verify", "/api/v1/cases/bundles/import"):
+        sent = _slow_upload(b.app, path, [(b"content-type", b"application/zip")], [b"PK\x03\x04" + b"x" * 1024], 0)
+        start = next(m for m in sent if m["type"] == "http.response.start")
+        body = b"".join(m.get("body", b"") for m in sent if m["type"] == "http.response.body")
+        assert start["status"] == 408 and json.loads(body)["code"] == "upload_timeout"
+        assert _staging_empty(sb) and not cases._TRANSFER_LOCK.locked()
+    # multipart that stalls after its first part
+    boundary = "swSlow"
+    head = f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="s.zip"\r\nContent-Type: application/zip\r\n\r\n'.encode()
+    sent = _slow_upload(b.app, "/api/v1/cases/bundles/verify", [(b"content-type", f"multipart/form-data; boundary={boundary}".encode())], [head + b"x" * 2048], 0)
+    assert next(m for m in sent if m["type"] == "http.response.start")["status"] == 408
+    assert _staging_empty(sb) and not cases._TRANSFER_LOCK.locked()
+    # the overall deadline: chunks keep coming, each within the idle timeout, but the whole body takes too long
+    monkeypatch.setattr(cases, "UPLOAD_IDLE_S", 5)
+    monkeypatch.setattr(cases, "UPLOAD_DEADLINE_S", 0.5)
+    sent = _slow_upload(b.app, "/api/v1/cases/bundles/verify", [(b"content-type", b"application/zip")], [b"x" * 100] * 10, 0.2)
+    assert next(m for m in sent if m["type"] == "http.response.start")["status"] == 408
+    assert _staging_empty(sb) and not cases._TRANSFER_LOCK.locked()
+    # and the next upload goes through
+    assert b.post("/api/v1/cases/bundles/verify", content=b"not a zip", headers=ZIP).status_code == 200

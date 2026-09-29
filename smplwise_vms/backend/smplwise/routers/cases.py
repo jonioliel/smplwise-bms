@@ -3,6 +3,7 @@ a status. A clip is a bookmark that points at the NVR until an export job copies
 no longer has is reported as missing and never as preserved. Edits need cases.manage and the current revision."""
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import hashlib
 import json
@@ -23,6 +24,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile as StarletteUploadFile
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.formparsers import MultiPartException
+from starlette.requests import ClientDisconnect
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
@@ -58,6 +60,10 @@ _INTEGRITY_LOCK = threading.Lock()
 INTEGRITY_COOLDOWN_S = 60.0
 _integrity_last: dict[str, float] = {}
 FREE_CHECK_EVERY = 64 * MB
+# a trickling client must not hold the one-at-a-time lock: at most UPLOAD_IDLE_S between two body chunks and
+# UPLOAD_DEADLINE_S for the whole body, else 408 (the lock is released and the staging file removed)
+UPLOAD_IDLE_S = 30.0
+UPLOAD_DEADLINE_S = 600.0
 
 
 def _rid(request: Request) -> str | None:
@@ -640,6 +646,11 @@ def _too_large(cap: int) -> ApiError:
     return ApiError(413, "payload_too_large", f"החבילה גדולה מהמותר ({cap // MB} MB; ההגדרה cases.import_max_mb).", details={"max_bytes": cap})
 
 
+def _upload_timeout() -> ApiError:
+    return ApiError(408, "upload_timeout", "העלאת החבילה נעצרה או איטית מדי; נסה שוב.", retryable=True,
+                    details={"idle_s": UPLOAD_IDLE_S, "deadline_s": UPLOAD_DEADLINE_S})
+
+
 def _busy() -> ApiError:
     return ApiError(429, "busy", "פעולה דומה (אימות, ייבוא או בדיקת hash) רצה כרגע; נסה שוב בעוד רגע.", retryable=True)
 
@@ -696,13 +707,31 @@ async def _receive_bundle(request: Request, settings: Settings, cap: int, name: 
                 h.update(chunk)
                 out.write(chunk)
 
+            deadline = time.monotonic() + UPLOAD_DEADLINE_S
+            timed_out = False
+
+            async def next_message() -> Any:
+                # one body message within the idle timeout and the overall deadline
+                nonlocal timed_out
+                wait = min(UPLOAD_IDLE_S, deadline - time.monotonic())
+                try:
+                    if wait <= 0:
+                        raise asyncio.TimeoutError
+                    return await asyncio.wait_for(request.receive(), wait)
+                except asyncio.TimeoutError:
+                    timed_out = True
+                    raise _upload_timeout() from None
+
             if ctype == "multipart/form-data":
                 seen = 0
                 over = False
 
                 async def receive() -> Any:  # counts the body at the ASGI level, before the multipart parser buffers it
                     nonlocal seen, over
-                    message = await request.receive()
+                    try:
+                        message = await next_message()
+                    except ApiError:
+                        raise MultiPartException("upload timed out") from None
                     if message["type"] == "http.request":
                         seen += len(message.get("body", b""))
                         if seen > cap + MULTIPART_SLACK:
@@ -713,6 +742,8 @@ async def _receive_bundle(request: Request, settings: Settings, cap: int, name: 
                 try:
                     form = await Request(request.scope, receive).form(max_files=1, max_fields=4)
                 except StarletteHTTPException:
+                    if timed_out:
+                        raise _upload_timeout() from None
                     if over:
                         raise _too_large(cap) from None
                     raise ApiError(422, "validation", "גוף ה־multipart אינו תקין.", details={"fields": ["file"]}) from None
@@ -726,8 +757,16 @@ async def _receive_bundle(request: Request, settings: Settings, cap: int, name: 
                 finally:
                     await form.close()
             else:
-                async for chunk in request.stream():
-                    take(chunk)
+                while True:
+                    message = await next_message()
+                    if message["type"] == "http.disconnect":
+                        raise ClientDisconnect()
+                    if message["type"] != "http.request":
+                        continue
+                    if message.get("body"):
+                        take(message["body"])
+                    if not message.get("more_body", False):
+                        break
     except BaseException:
         path.unlink(missing_ok=True)
         raise
@@ -850,7 +889,7 @@ def _import_bundle(db: Database, settings: Settings, up: dict[str, Any], princip
         src_case = manifest.get("case") if isinstance(manifest.get("case"), dict) else {}
         title = (bundle_svc._s(src_case.get("title"), 120) or "").strip() or "תיק מיובא"
         description = (bundle_svc._s(src_case.get("description"), 4000) or "")
-        tags = _clean_tags([t for t in src_case.get("tags") or [] if isinstance(t, str)] if isinstance(src_case.get("tags"), list) else [])
+        tags = _clean_tags([bundle_svc.clean_text(t) for t in src_case.get("tags") or [] if isinstance(t, str)] if isinstance(src_case.get("tags"), list) else [])
         with db.connection(label="POST /cases/bundles/import") as w:
             again = duplicate(w)
             if again:

@@ -46,8 +46,8 @@ DEFAULTS: dict[str, str] = {
     "exports.retention_days": "7",  # finished export files are deleted after this many days
     "events.retention_days": "30",  # stored events are pruned after this many days
     "audit.retention_days": "365",  # T055: the janitor prunes audit rows older than this (was a fixed constant)
-    "cases.import_max_mb": "512",
-    "storage.min_free_mb": "1024",  # free space kept on /data (SQLite lives there): bundle uploads / imports that would go below are refused (507)  # T050: the largest evidence bundle accepted for verification / import (streamed to a temp file)
+    "cases.import_max_mb": "512",  # T050: the largest evidence bundle accepted for verification / import (streamed to a temp file)
+    "storage.min_free_mb": "1024",  # free space kept on /data (SQLite lives there): bundle uploads / imports that would go below are refused (507)
     # semantic search (T063): the local baseline needs no network; an external analysis provider is opt-in with a privacy acknowledgement and a daily budget — none is bundled
     "ai.provider": "local",  # none | local | external
     "ai.privacy_ack": "false",
