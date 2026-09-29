@@ -107,6 +107,7 @@ test('the administrator revokes a sign-in; the user signs out everywhere', async
   await phone.page.locator('sw-app [data-profile-menu]').click();
   const menu = phone.page.locator('sw-app sw-user-menu [data-profile-menu-panel]');
   await expect(menu).toBeVisible();
+  await menu.locator('[data-menu-account]').click(); // "החשבון שלי": the menu's second level
   await menu.locator('[data-my-sessions] summary').click();
   await expect(menu.locator('[data-my-sessions] [data-remote-session]')).toHaveCount(2);
   await expect(menu.locator('[data-my-sessions] [data-current]')).toHaveCount(1);

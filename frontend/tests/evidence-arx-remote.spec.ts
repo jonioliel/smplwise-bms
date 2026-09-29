@@ -33,6 +33,8 @@ test.beforeEach(async ({ context }) => {
 /** Sign out of Arx. CR-013: design A carries the sign-out in the user menu (the avatar: the rail's foot, or the phone's
  * bottom bar); design B keeps its top-bar icon. */
 async function signOut(page: Page) {
+  // the shell starts in design B and switches once the product settings arrive: decide after that
+  await page.waitForFunction(() => !!document.documentElement.dataset.design);
   if (!(await page.locator('sw-app sw-button[data-arx-signout]').count())) {
     await page.locator(test.info().project.name === 'mobile' ? 'sw-app [data-nav-me]' : 'sw-app [data-profile-menu]').click();
   }

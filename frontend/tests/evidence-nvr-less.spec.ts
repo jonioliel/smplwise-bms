@@ -183,7 +183,7 @@ test.describe('NVR-less mode (Home Assistant only)', () => {
     await open(page, '/system/diagnostics?tab=media');
     await expect(page.locator('system-diagnostics [data-nvr-less-settings]')).toBeVisible({ timeout: 30000 });
     await expect(page.locator('system-diagnostics [data-set-wall-count]')).toHaveCount(0);
-    await expect(page.locator('system-diagnostics [data-set-start-route] option')).toHaveText(['מפת קומה', 'חשמל והתקנים']);
+    await expect(page.locator('system-diagnostics [data-set-start-route] option')).toHaveText(['ראשי (ברירת מחדל)', 'מפת קומה']); // CR-013: ראשי (the device overview) is the default start screen
   });
 
   test('the map keeps working without cameras: sites, floors and the entity catalogue open, no camera layer', async ({ page, request }) => {

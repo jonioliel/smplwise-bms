@@ -541,6 +541,8 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await expect(link).toBeVisible();
     await expect(link).toContainText('ראשי'); // CR-013: the device overview is "ראשי", the bar's first tab
     // four tabs and the user avatar share the bar: no item may be pushed out of the viewport
+    await expect(bottom.locator(':scope > a, :scope > button')).toHaveCount(5);
+    await expect(bottom.locator(':scope > :last-child')).toHaveAttribute('data-nav-me', '');
     const box = await link.boundingBox();
     const vw = page.viewportSize()!.width;
     expect(box && box.x >= 0 && box.x + box.width <= vw + 1).toBe(true);
@@ -1496,7 +1498,12 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       const p = await ctx.newPage();
       await open(p, '/live', 'a');
       await expect(p.locator(`sw-app a[href="${HREF}"]`).first()).toBeAttached({ timeout: 30000 });
-      await expect(p.locator('sw-app nav a[href="#/system/diagnostics"]')).toHaveCount(0); // the settings entry needs system.configure
+      // the settings entry needs system.configure: CR-013 moved it into the user menu, where a viewer has none
+      await p.locator(testInfo.project.name === 'mobile' ? 'sw-app [data-nav-me]' : 'sw-app [data-profile-menu]').click();
+      await expect(p.locator('sw-app sw-user-menu [data-user-menu]')).toBeVisible();
+      await expect(p.locator('sw-app sw-user-menu [data-menu-settings]')).toHaveCount(0);
+      await expect(p.locator('sw-app nav a[href^="#/system/"]')).toHaveCount(0);
+      await p.keyboard.press('Escape');
       // reached directly: the section shows the installation's choices, every control disabled, no save
       await open(p, '/system/diagnostics?tab=devices', 'a');
       const sec = p.locator('system-diagnostics sw-card[data-devices-settings]');

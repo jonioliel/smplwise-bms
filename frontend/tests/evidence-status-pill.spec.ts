@@ -21,7 +21,12 @@ test.describe('system status pill (SW A)', () => {
     const summary = await (await request.get('/api/v1/health/summary')).json();
     expect(['ok', 'warn', 'error']).toContain(summary.status);
     await open(page, '/explore/sites');
-    const pill = page.locator('sw-app [data-sys-pill]');
+    // CR-013: the phone has no top bar - the pill is in the user menu's header (its own attribute), shown while the
+    // sheet is open; a wide screen keeps it in the top bar
+    const phone = testInfo.project.name === 'mobile';
+    await expect(page.locator('sw-app [data-sys-pill]')).toHaveCount(1);
+    if (phone) await page.locator('sw-app [data-nav-me]').click();
+    const pill = page.locator(phone ? 'sw-app [data-menu-sys-pill]' : 'sw-app [data-sys-pill]');
     await expect(pill).toBeVisible({ timeout: 10000 });
     await expect(pill).toHaveAttribute('data-status', summary.status);
     if (summary.status === 'ok') await expect(pill).toContainText('תקינה');

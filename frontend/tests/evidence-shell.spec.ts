@@ -33,6 +33,13 @@ async function navTabs(page: Page, info: { project: { name: string } }): Promise
   return page.locator(`${navSel(info)} a[data-nav]`).evaluateAll((els) => els.map((e) => e.getAttribute('data-nav') ?? ''));
 }
 
+/** The tab-order dialog: the avatar, then "החשבון שלי" (the menu's second level), then "סדר הלשוניות". */
+async function openOrder(page: Page, info: { project: { name: string } }) {
+  await meButton(page, info).click();
+  await page.locator('sw-app sw-user-menu [data-menu-account]').click();
+  await page.locator('sw-app sw-user-menu [data-menu-nav-order]').click();
+}
+
 async function shot(page: Page, name: string) {
   fs.mkdirSync(EVIDENCE, { recursive: true });
   await page.screenshot({ path: path.join(EVIDENCE, `${name}.png`) });
@@ -104,34 +111,88 @@ test.describe('CR-013 shell on the demo data', () => {
     }
   });
 
-  test('the user menu: header, התראות first, סדר הלשוניות, מערכת; Escape closes it', async ({ page }, info) => {
+  test('the user menu: התראות · מערכת · החשבון שלי, a second level, no subtitles; Escape closes it', async ({ page }, info) => {
     await open(page, '/devices/building');
     const me = meButton(page, info);
     await expect(me).toBeVisible();
     await expect(me).toHaveAttribute('aria-expanded', 'false');
+    await expect(me).not.toHaveClass(/active/);
     await me.click();
+    await page.mouse.move(1, 1); // no hover artefact in the evidence
     const menu = page.locator('sw-app sw-user-menu [data-user-menu]');
     await expect(menu).toBeVisible();
     await expect(me).toHaveAttribute('aria-expanded', 'true');
     await expect(menu.locator('[data-user-name]')).toHaveText('יוני');
-    const items = menu.locator('ul a, ul button, ul summary');
-    await expect(items.first()).toHaveAttribute('data-menu-alerts', '');
-    await expect(menu.locator('[data-menu-nav-order]')).toBeVisible();
+    // first level: exactly התראות · מערכת · החשבון שלי, one line each, no count chip without open alerts
+    await expect(menu.locator('ul[data-menu-level="main"] > li')).toHaveText(['התראות', 'מערכת', 'החשבון שלי']);
+    await expect(menu.locator('[data-alert-count]')).toHaveCount(0);
+    await expect(menu.locator('small')).toHaveCount(0);
     await expect(menu.locator('[data-menu-settings]')).toHaveAttribute('href', '#/system/diagnostics');
-    await expect(menu.locator('[data-menu-screens]')).toBeVisible();
-    // the demo pill moved from the top bar into the menu's header on the phone
+    await expect(page.locator('sw-app sw-user-menu [data-menu-screens]')).toHaveCount(0);
+    // the demo pill moved from the top bar into the menu's header on the phone; one status pill on the page
     if (phone(info)) await expect(menu.locator('[data-user-menu-pills]')).toBeVisible();
     else await expect(menu.locator('[data-user-menu-pills]')).toBeHidden();
     await page.waitForTimeout(300); // the sheet's slide-in
     await shot(page, phone(info) ? 'shell-phone-user-menu' : `shell-${info.project.name}-user-menu`);
+    // second level in the same panel
+    await menu.locator('[data-menu-account]').click();
+    await expect(menu.locator('ul[data-menu-level="account"] > li')).toHaveText(['סדר הלשוניות', 'הגדרות התראות']);
+    await expect(menu.locator('[data-menu-notify-prefs]')).toHaveAttribute('href', '#/system/notifications');
+    await page.keyboard.press('Escape'); // back to the first level
+    await expect(menu.locator('[data-menu-account]')).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(menu).toBeHidden();
     await expect(me).toHaveAttribute('aria-expanded', 'false');
-    // מערכת from the menu opens the settings; the menu closes on navigation
+    // מערכת from the menu opens the settings; the menu closes on navigation; the avatar is the active item there
     await me.click();
     await menu.locator('[data-menu-settings]').click();
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/system/diagnostics');
     await expect(menu).toBeHidden();
+    await expect(me).toHaveClass(/active/);
+    await expect(me).toHaveAttribute('aria-current', 'page');
+    await expect(page.locator(`${navSel(info)} a[aria-current="page"]`)).toHaveCount(0);
+    // "כל המסכים" is a system tab now (system.configure; everything in the demo)
+    await expect(page.locator('sw-app .subnav sw-tabs a[href="#/screens"]')).toHaveCount(1);
+  });
+
+  test('Back closes the phone sheet and the tab-order dialog, not the screen', async ({ page }, info) => {
+    await open(page, '/live/wall');
+    await page.goto('/?design=a#/devices/building');
+    await page.waitForTimeout(400);
+    const menu = page.locator('sw-app sw-user-menu [data-user-menu]');
+    if (phone(info)) {
+      await meButton(page, info).click();
+      await expect(menu).toBeVisible();
+      await page.goBack();
+      await expect(menu).toBeHidden();
+      expect(await page.evaluate(() => location.hash)).toBe('#/devices/building');
+      await expect(page.locator('sw-app devices-building')).toHaveCount(1);
+    }
+    await openOrder(page, info);
+    const dlg = page.locator('sw-app sw-nav-order li[data-tab]').first();
+    await expect(dlg).toBeVisible();
+    await page.goBack();
+    await expect(dlg).toBeHidden();
+    expect(await page.evaluate(() => location.hash)).toBe('#/devices/building');
+    await expect(page.locator('sw-app devices-building')).toHaveCount(1);
+    // closed with ✕, the entry goes too: Back then leaves the screen as usual
+    await openOrder(page, info);
+    await expect(dlg).toBeVisible();
+    await page.locator('sw-app sw-nav-order sw-dialog sw-button[label="סגור"]').click();
+    await expect(dlg).toBeHidden();
+    await page.waitForTimeout(200);
+    await page.goBack();
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/live/wall');
+  });
+
+  test('the kiosk and the Lovelace card view show no bars, no avatar and no user menu', async ({ page }) => {
+    for (const hash of ['/kiosk/all', '/live/wall?embed=1']) {
+      await open(page, hash);
+      await expect(page.locator('sw-app nav.rail, sw-app nav.bottom, sw-app header.topbar'), hash).toHaveCount(0);
+      await expect(page.locator('sw-app sw-user-menu, sw-app [data-nav-me], sw-app [data-profile-menu]'), hash).toHaveCount(0);
+      expect(await page.evaluate(() => getComputedStyle(document.querySelector('sw-app')!).paddingTop), hash).toBe('0px');
+      await page.evaluate(() => sessionStorage.clear());
+    }
   });
 
   test('phone: the security sections as a sticky row and the tab row scrolls without clipping', async ({ page }, info) => {
@@ -144,6 +205,9 @@ test.describe('CR-013 shell on the demo data', () => {
     for (const a of await row.locator('a').all()) expect((await a.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     const tabs = page.locator('sw-app .subnav sw-tabs');
     await expect(tabs.locator('a')).toHaveText(['תמונת מצב', 'כל המצלמות', 'תצוגות שמורות', 'בריאות מצלמות']);
+    // the second level: the underline variant, 44 px targets
+    await expect(tabs).toHaveAttribute('underline', '');
+    for (const a of await tabs.locator('a').all()) expect((await a.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     // wider than the phone: it scrolls, and the hidden side fades
     expect(await tabs.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
     await expect(tabs).toHaveAttribute('data-fade', /left|both/);
@@ -165,19 +229,21 @@ test.describe('CR-013 shell on the demo data', () => {
     const ob = (await on.boundingBox())!;
     expect(ob.x).toBeGreaterThanOrEqual(tb.x - 0.5);
     expect(ob.x + ob.width).toBeLessThanOrEqual(tb.x + tb.width + 0.5);
-    // the row stays at the top while the content scrolls
+    // only the section row stays at the top while the content scrolls; the tab row scrolls away with it
     await open(page, '/live');
+    const sticky = (await page.locator('sw-app nav[data-security-row]').boundingBox())!;
+    expect(sticky.height).toBeLessThanOrEqual(50);
     await page.locator('sw-app main').evaluate((m) => m.scrollTo(0, 600));
     await page.waitForTimeout(200);
     expect((await page.locator('sw-app nav[data-security-row]').boundingBox())!.y).toBeLessThan(20);
+    expect((await page.locator('sw-app .subnav sw-tabs').boundingBox())!.y).toBeLessThan(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   });
 
   test('tab order (this browser in the demo): by buttons, save, reload keeps it, reset', async ({ page }, info) => {
     await open(page, '/devices/building');
     await page.evaluate(() => sessionStorage.setItem('cr013-keep', '1'));
-    await meButton(page, info).click();
-    await page.locator('sw-app sw-user-menu [data-menu-nav-order]').click();
+    await openOrder(page, info);
     const dlg = page.locator('sw-app sw-nav-order');
     await expect(dlg.locator('li[data-tab]')).toHaveCount(4);
     await expect(dlg.locator('li[data-tab] .name')).toHaveText(TABS);
@@ -195,8 +261,7 @@ test.describe('CR-013 shell on the demo data', () => {
     await page.waitForTimeout(500);
     expect(await navTabs(page, info)).toEqual(['wiskey', 'devices', 'explore', 'security']);
     // keyboard on the handle
-    await meButton(page, info).click();
-    await page.locator('sw-app sw-user-menu [data-menu-nav-order]').click();
+    await openOrder(page, info);
     await dlg.locator('li[data-tab="explore"] .handle').focus();
     await page.keyboard.press('Home');
     await expect(dlg.locator('li[data-tab] .name')).toHaveText(['מפה', 'WisKey', 'ראשי', 'אבטחה']);
@@ -227,6 +292,7 @@ class Mock {
   alerts = 0;
   prefs = new Map<string, string[]>();
   puts: { user: string; body: Record<string, unknown> }[] = [];
+  rulesRequests = 0;
 
   normalize(v: unknown): string[] {
     const seen: string[] = [];
@@ -268,6 +334,13 @@ class Mock {
       const alerts = Array.from({ length: this.alerts }, (_, i) => ({ id: `a${i}`, rule_id: 'r1', rule_name: 'אדם בלילה', event_id: `e${i}`, camera_id: null, entity_id: null, message: `התראה ${i + 1}`, reasons: [], fired_at: '2026-09-30T00:00:00Z', occurred_at: '2026-09-30T00:00:00Z', acked_at: null, acked_by_username: null }));
       return json({ alerts, unacked: this.alerts });
     }
+    if (p === 'rules') {
+      this.rulesRequests += 1;
+      if (!u.perms.includes('rules.manage')) return json({ code: 'forbidden', user_message: 'אין הרשאה', retryable: false, correlation_id: '', details: {} }, 403);
+      return json({ rules: [], types: [], sources: [], action_kinds: ['notify'], days: [] });
+    }
+    if (p === 'sites') return json({ sites: [], can_create_site: false });
+    if (p === 'cameras') return json({ cameras: [], recorder: null, can_sync: false });
     return json({ code: 'not_found', user_message: 'לא נמצא (בדיקה)', retryable: false, correlation_id: '', details: {} }, 404);
   }
 }
@@ -297,6 +370,7 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     await meButton(page, info).click();
     await expect(menu.locator('[data-user-name]')).toHaveText('דנה כהן');
     await expect(menu.locator('[data-menu-settings]')).toHaveCount(0);
+    await menu.locator('[data-menu-account]').click();
     await expect(menu.locator('[data-menu-notify-prefs]')).toHaveAttribute('href', '#/system/notifications');
     // a start screen the user does not see falls back to their first tab
     mock.user = { ...NO_ALERTS_VIEWER, perms: ['video.live'] };
@@ -311,18 +385,35 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     await expect(me.locator('[data-alert-dot]')).toHaveCount(1);
     await expect(me).toHaveAttribute('aria-label', /3 התראות פתוחות/);
     await me.click();
+    await page.mouse.move(1, 1);
     const menu = page.locator('sw-app sw-user-menu [data-user-menu]');
     await expect(menu.locator('[data-menu-alerts] [data-alert-count]')).toHaveText('3');
+    // one status pill on the page: the top bar's (wide) or the sheet's own (phone)
+    await expect(page.locator('sw-app [data-sys-pill]')).toHaveCount(1);
+    await expect(page.locator('sw-app [data-menu-sys-pill]')).toHaveCount(phone(info) ? 1 : 0);
     await page.waitForTimeout(300);
     if (phone(info)) await shot(page, 'shell-phone-user-menu-alerts');
     else if (info.project.name === 'desktop') await shot(page, 'shell-desktop-user-menu-alerts');
     await menu.locator('[data-menu-alerts]').click();
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/investigate/rules?tab=alerts');
-    // no open alerts: no dot, "0" in the menu
+    // the alerts inbox, not the rules list
+    const rules = page.locator('sw-app investigate-rules');
+    await expect(rules.locator('sw-tabs button[aria-pressed="true"]')).toContainText('התראות');
+    await expect(rules.locator('[data-alert-row]')).toHaveCount(3);
+    await expect(rules.locator('[data-alert-ack]')).toHaveCount(0); // the admin mock holds no events.ack
+    // a single open alert reads in the singular
+    mock.alerts = 1;
+    await open(page, '/devices/building');
+    await expect(meButton(page, info)).toHaveAttribute('aria-label', /התראה פתוחה אחת/);
+    // no open alerts: no dot, no chip in the menu
     mock.alerts = 0;
     await open(page, '/devices/building');
     await expect(meButton(page, info).locator('[data-alert-dot]')).toHaveCount(0);
-    await expect(meButton(page, info)).not.toHaveAttribute('aria-label', /התראות פתוחות/);
+    await expect(meButton(page, info)).not.toHaveAttribute('aria-label', /התראות פתוחות|התראה פתוחה/);
+    await meButton(page, info).click();
+    await expect(menu.locator('[data-menu-alerts]')).toBeVisible();
+    await expect(menu.locator('[data-alert-count]')).toHaveCount(0);
+    await page.keyboard.press('Escape');
     // a user who may not read alerts: no dot and no התראות item
     mock.user = NO_ALERTS_VIEWER;
     mock.alerts = 5;
@@ -332,10 +423,25 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     await expect(menu.locator('[data-menu-alerts]')).toHaveCount(0);
   });
 
+  test('a user without rules.manage: the alerts inbox only - no rules request, no rules tab, no "חוק חדש"', async ({ page }) => {
+    mock.user = { ...VIEWER, perms: [...VIEWER.perms, 'events.ack'] };
+    mock.alerts = 2;
+    await open(page, '/investigate/rules?tab=alerts');
+    const rules = page.locator('sw-app investigate-rules');
+    await expect(rules.locator('[data-alert-row]')).toHaveCount(2);
+    await expect(rules.locator('sw-tabs button')).toHaveText([/התראות/]);
+    await expect(rules.locator('[data-rule-new]')).toHaveCount(0);
+    await expect(rules.locator('[data-alert-ack]')).toHaveCount(2); // events.ack: the acknowledge button
+    expect(mock.rulesRequests).toBe(0);
+    // the plain rules address too
+    await open(page, '/investigate/rules');
+    await expect(rules.locator('[data-alert-row]')).toHaveCount(2);
+    expect(mock.rulesRequests).toBe(0);
+  });
+
   test('tab order per user on the server: drag, save, reload (server wins), a second user unaffected, reset', async ({ page }, info) => {
     await open(page, '/devices/building');
-    await meButton(page, info).click();
-    await page.locator('sw-app sw-user-menu [data-menu-nav-order]').click();
+    await openOrder(page, info);
     const dlg = page.locator('sw-app sw-nav-order');
     await expect(dlg.locator('li[data-tab]')).toHaveCount(4);
     // drag מפה by its handle above ראשי
@@ -368,8 +474,7 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     mock.user = ADMIN;
     await open(page, '/devices/building');
     await expect.poll(() => navTabs(page, info)).toEqual(['wiskey', 'explore', 'devices', 'security']);
-    await meButton(page, info).click();
-    await page.locator('sw-app sw-user-menu [data-menu-nav-order]').click();
+    await openOrder(page, info);
     await dlg.locator('[data-nav-order-reset]').click();
     await expect.poll(() => mock.puts.at(-1)).toEqual({ user: 'u-admin', body: { 'nav.order': null } });
     expect(await navTabs(page, info)).toEqual(DEFAULT_ORDER);
@@ -381,8 +486,7 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     mock.prefs.set('u-viewer', ['wiskey', 'explore', 'devices', 'security']);
     await open(page, '/devices/building');
     await expect.poll(() => navTabs(page, info)).toEqual(['explore', 'devices', 'security']);
-    await meButton(page, info).click();
-    await page.locator('sw-app sw-user-menu [data-menu-nav-order]').click();
+    await openOrder(page, info);
     const dlg = page.locator('sw-app sw-nav-order');
     await expect(dlg.locator('li[data-tab]')).toHaveCount(3);
     await dlg.locator('li[data-tab="security"] [data-move="up"]').click();
