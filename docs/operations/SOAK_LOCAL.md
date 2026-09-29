@@ -80,8 +80,9 @@ Found and fixed by the soak runs (before the passing run):
 ## SQLite write path (2026-09-29)
 
 Since branch `pilot/db-lock-storm` every write transaction queues in a FIFO write gate (`db.WriteGate`) before
-`BEGIN IMMEDIATE`, and the high-rate mirror writes of device data (HA state / registry, NVR alerts, derived events)
-commit with `synchronous=NORMAL`; user actions and audit rows stay `FULL`. Root cause, numbers and the inventory:
+`BEGIN IMMEDIATE` (add-on option `db_write_gate`, default on), and the high-rate mirror writes of data a device
+sends again (HA state / registry, derived events) commit with `synchronous=NORMAL`; NVR alerts, HA state changes that
+record an event, user actions and audit rows stay `FULL`. Root cause, numbers and the inventory:
 `TEST_ROUND_RESULTS_2026-09-26_ROUND10_HE.md`, section 6. For a soak this means:
 
 - `db.write_lock` in `/health` also reports `max_wait_s` / `max_wait_by` (the longest time a writer queued);
