@@ -1277,7 +1277,7 @@ export class SwApp extends LitElement {
     const first = s.items.find((i) => i.status === 'error') ?? s.items[0];
     const text = s.status === 'ok' ? 'מערכת תקינה' : s.status === 'warn' ? 'יש מה לבדוק' : `תקלה: ${first?.label.split(' — ')[0] ?? ''}`;
     const title = s.items.length ? s.items.map((i) => `• ${i.label}`).join('\n') : 'כל הרכיבים שהמערכת רואה עובדים';
-    return html`<button class="status-a sys ${s.status} ${designA ? '' : 'b'}" ?data-sys-pill=${!inMenu} ?data-menu-sys-pill=${inMenu} data-status=${s.status} title=${title} aria-label=${`מצב המערכת: ${text}`} @click=${() => (window.location.hash = '#/system/diagnostics?tab=health')}><i></i>${text}</button>`;
+    return html`<button class="status-a sys ${s.status} ${designA ? '' : 'b'}" ?data-sys-pill=${!inMenu} ?data-menu-sys-pill=${inMenu} data-status=${s.status} title=${title} aria-label=${`מצב המערכת: ${text}`} @click=${() => (inMenu ? this.navigateFromOverlay('#/system/diagnostics?tab=health') : (window.location.hash = '#/system/diagnostics?tab=health'))}><i></i>${text}</button>`;
   }
 
   private renderSysBanner() {
@@ -1663,7 +1663,31 @@ export class SwApp extends LitElement {
     if ((window.history.state as { swOverlay?: boolean } | null)?.swOverlay) window.history.back();
   }
 
+  /** Where a menu item leads once its overlay entry is gone (navigateFromOverlay). */
+  private pendingHref: string | null = null;
+
+  /** A menu item's navigation: close the overlay, drop its history entry first (Back then returns to the screen the
+   * user was on, not to a duplicate of it), then go. */
+  private navigateFromOverlay(href: string) {
+    this.closeMenu(false, false);
+    this.orderOpen = false;
+    const own = this.overlayEntry && (window.history.state as { swOverlay?: boolean } | null)?.swOverlay;
+    this.overlayEntry = false;
+    if (own) {
+      this.pendingHref = href;
+      window.history.back();
+    } else {
+      window.location.hash = href;
+    }
+  }
+
   private onPopState = (e: PopStateEvent) => {
+    if (this.pendingHref) {
+      const href = this.pendingHref;
+      this.pendingHref = null;
+      window.location.hash = href;
+      return;
+    }
     if (!this.overlayEntry || (e.state as { swOverlay?: boolean } | null)?.swOverlay) return;
     this.overlayEntry = false;
     this.orderOpen = false;
@@ -1704,7 +1728,7 @@ export class SwApp extends LitElement {
     const h = this.setupHint;
     return html`<span slot="pills" class="menu-pills">
       ${this.session.mode === 'api' || this.session.mode === 'no_access' ? this.renderSysPill(true, true) : this.session.mode === 'demo' ? html`<sw-badge kind="neutral" label="נתוני הדגמה" data-demo-pill></sw-badge>` : nothing}
-      ${h ? html`<a class="setup-pill" href="#/system/wizard" data-setup-pill @click=${() => this.closeMenu(false)}><sw-icon name="info" size=${14}></sw-icon>השלם את ההתקנה · ${h.done}/${h.total}</a>` : nothing}
+      ${h ? html`<a class="setup-pill" href="#/system/wizard" data-setup-pill @click=${(e: Event) => { e.preventDefault(); this.navigateFromOverlay('#/system/wizard'); }}><sw-icon name="info" size=${14}></sw-icon>השלם את ההתקנה · ${h.done}/${h.total}</a>` : nothing}
     </span>`;
   }
 
@@ -1714,7 +1738,7 @@ export class SwApp extends LitElement {
     const noTabs = this.gated || !visibleAreas(api, canNav, this.navOrder).length;
     return html`<sw-user-menu .open=${this.menuOpen} .name=${this.userName} .role=${this.userRole} .api=${api} .gated=${noTabs} .alerts=${this.gated ? null : this.alertCount}
         .settingsHref=${settings?.href ?? ''}
-        @close=${() => this.closeMenu()} @nav-order=${() => {
+        @close=${() => this.closeMenu()} @navigate=${(e: CustomEvent<{ href: string }>) => this.navigateFromOverlay(e.detail.href)} @nav-order=${() => {
           // the sheet hands over to the dialog: its history entry now stands for the dialog
           this.closeMenu(false, false);
           this.orderOpen = true;

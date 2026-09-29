@@ -303,6 +303,16 @@ export class SwUserMenu extends LitElement {
     this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
   }
 
+  /** A menu link: the shell navigates (after dropping the sheet's history entry, so Back is not spent on it). A plain
+   * click only - a modified click (new tab) keeps the browser's own behaviour. */
+  private go(e: MouseEvent) {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const href = (e.currentTarget as HTMLAnchorElement).getAttribute('href');
+    if (!href) return;
+    e.preventDefault();
+    this.dispatchEvent(new CustomEvent('navigate', { detail: { href }, bubbles: true, composed: true }));
+  }
+
   private onKey = (e: KeyboardEvent) => {
     if (!this.open) return;
     if (e.key === 'Escape') {
@@ -377,12 +387,12 @@ export class SwUserMenu extends LitElement {
       <div class="pills" data-user-menu-pills><slot name="pills"></slot></div>
       <ul data-menu-level="main">
         ${alerts !== null
-          ? html`<li class="alerts ${alerts ? 'hot' : ''}"><a href=${this.alertsHref} data-menu-alerts @click=${() => this.close()}>
+          ? html`<li class="alerts ${alerts ? 'hot' : ''}"><a href=${this.alertsHref} data-menu-alerts @click=${(e: MouseEvent) => this.go(e)}>
               <span class="ic"><sw-icon name="bell" size=${18}></sw-icon></span><span class="txt">התראות</span>
               ${alerts ? html`<span class="count" data-alert-count aria-label=${openAlertsText(alerts)}>${alertCountText(alerts)}</span>` : nothing}</a></li>`
           : nothing}
         ${this.settingsHref
-          ? html`<li><a href=${this.settingsHref} data-menu-settings @click=${() => this.close()}>
+          ? html`<li><a href=${this.settingsHref} data-menu-settings @click=${(e: MouseEvent) => this.go(e)}>
               <span class="ic"><sw-icon name="system" size=${18}></sw-icon></span><span class="txt">מערכת</span></a></li>`
           : nothing}
         ${hasAccount
@@ -411,7 +421,7 @@ export class SwUserMenu extends LitElement {
               <span class="ic"><sw-icon name="grip" size=${18}></sw-icon></span><span class="txt">סדר הלשוניות</span></button></li>`
           : nothing}
         ${acc.prefs
-          ? html`<li><a href="#/system/notifications" data-menu-notify-prefs @click=${() => this.close()}>
+          ? html`<li><a href="#/system/notifications" data-menu-notify-prefs @click=${(e: MouseEvent) => this.go(e)}>
               <span class="ic"><sw-icon name="bellSettings" size=${18}></sw-icon></span><span class="txt">הגדרות התראות</span></a></li>`
           : nothing}
         ${acc.sessions
