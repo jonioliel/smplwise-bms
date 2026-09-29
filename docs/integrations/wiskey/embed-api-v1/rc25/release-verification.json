@@ -1,0 +1,83 @@
+{
+  "release": {
+    "published": true,
+    "tag": "v2.0.0-rc.25",
+    "sha": "bf15cbb2304aa671b5188fd7d7c11d0e67148270",
+    "url": "https://github.com/jonioliel/home-assistant-hikvision-intercom/releases/tag/v2.0.0-rc.25",
+    "published_at": "2026-09-29T04:48:23Z",
+    "archive_manifest_verified": true,
+    "embed_contract": 1,
+    "handoff_files_verified": true
+  },
+  "release_ci": {
+    "run": 36522612188,
+    "sha": "bf15cbb2304aa671b5188fd7d7c11d0e67148270",
+    "url": "https://github.com/jonioliel/home-assistant-hikvision-intercom/actions/runs/36522612188",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "id": 109258588200,
+        "name": "hassfest / validate",
+        "conclusion": "success",
+        "test_summaries": []
+      },
+      {
+        "id": 109258588333,
+        "name": "python / tests (3.12)",
+        "conclusion": "success",
+        "test_summaries": [
+          "2026-09-29T04:41:10.7588947Z ======================= 1679 passed in 72.33s (0:01:12) ========================",
+          "2026-09-29T04:41:10.9753177Z All checks passed!",
+          "2026-09-29T04:41:11.0440683Z 440 files already formatted",
+          "2026-09-29T04:41:13.9627018Z Success: no issues found in 99 source files"
+        ]
+      },
+      {
+        "id": 109258588366,
+        "name": "python / tests (3.14)",
+        "conclusion": "success",
+        "test_summaries": [
+          "2026-09-29T04:40:49.1327295Z ============================ 1679 passed in 46.74s =============================",
+          "2026-09-29T04:40:49.3993377Z All checks passed!",
+          "2026-09-29T04:40:49.4960943Z 440 files already formatted",
+          "2026-09-29T04:40:53.7495876Z Success: no issues found in 99 source files"
+        ]
+      },
+      {
+        "id": 109258588373,
+        "name": "python / dependency-security",
+        "conclusion": "success",
+        "test_summaries": []
+      },
+      {
+        "id": 109258588401,
+        "name": "python / frontend",
+        "conclusion": "success",
+        "test_summaries": [
+          "2026-09-29T04:44:21.3332714Z   298 passed (3.3m)",
+          "2026-09-29T04:48:11.9263528Z   685 passed (3.8m)"
+        ]
+      },
+      {
+        "id": 109258588421,
+        "name": "hacs / validate",
+        "conclusion": "success",
+        "test_summaries": []
+      },
+      {
+        "id": 109258588440,
+        "name": "python / home-assistant",
+        "conclusion": "success",
+        "test_summaries": [
+          "2026-09-29T04:43:30.8882839Z ======================= 612 passed in 159.75s (0:02:39) ========================"
+        ]
+      },
+      {
+        "id": 109260537889,
+        "name": "publish",
+        "conclusion": "success",
+        "test_summaries": []
+      }
+    ]
+  }
+}
