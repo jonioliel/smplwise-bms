@@ -139,7 +139,7 @@ def test_validation(dev_app):  # noqa: F811
     assert bad({"v": 1, "cols": 4, "items": {}}) == 422  # a desktop layout has 12 columns
     assert bad({"v": 1, "cols": 12, "items": {}}, variant="phone") == 422  # a phone layout has 4
     assert bad({"v": 1, "cols": 4, "items": {"card:lighting": {"x": 2, "y": 0, "w": 4, "h": 5}}}, variant="phone") == 422
-    assert bad({"v": 2, "cols": 12, "items": {}}) == 422
+    assert bad({"v": 3, "cols": 12, "items": {}}) == 422  # 1 (6b) and 2 (6c, device tiles) only
     assert bad({"v": 1, "cols": 12, "items": {"floor:ground": item}}) == 422  # an area screen lays out its cards only
     assert bad({"v": 1, "cols": 12, "items": {"card:garage": item}}) == 422
     assert bad({"v": 1, "cols": 12, "items": {"card:lighting": item}}, scope="building", sid="main") == 422  # and the building its floors / areas
@@ -303,3 +303,143 @@ def test_layouts_of_areas_gone_from_home_assistant_are_pruned_on_writes_only(dev
     # copy to all areas prunes too (nothing left to prune here: no new row)
     assert c.post(f"{URL}/area/lobby/copy-to-all-areas", json={"revision": 2}).status_code == 200
     assert "empty_room" not in left() and len(_audit(app, "devices.layout.prune")) == 1
+
+
+# ---------------------------------------------------------------- slice 6c: device tiles inside the area cards
+
+def _tiles_layout(**tiles_over) -> dict:
+    tiles = {
+        "light.lobby_2": {"order": 0, "span": 2, "size": "l", "title": "  ספוט  "},
+        "light.lobby": {"order": 1},
+    }
+    tiles.update(tiles_over)
+    return {"v": 2, "cols": 12, "items": {
+        "card:lighting": {"x": 0, "y": 0, "w": 8, "h": 30, "tiles": tiles},
+        "card:climate": {"x": 8, "y": 0, "w": 4, "h": 20},
+    }}
+
+
+def test_tiles_saved_with_defaults_and_read_back_by_everyone(dev_app):  # noqa: F811
+    app, s = dev_app
+    c = TestClient(app)
+    r = _put(c, "area", "lobby", "desktop", 0, _tiles_layout())
+    assert r.status_code == 200, r.text
+    lay = r.json()["desktop"]["layout"]
+    assert lay["v"] == 2 and r.json()["desktop"]["revision"] == 1
+    assert lay["items"]["card:lighting"]["tiles"] == {
+        "light.lobby_2": {"order": 0, "span": 2, "size": "l", "hidden": False, "title": "ספוט"},
+        "light.lobby": {"order": 1, "span": 1, "size": "m", "hidden": False, "title": None},
+    }
+    assert "tiles" not in lay["items"]["card:climate"]  # a card without an arrangement stores none
+    bind(c, s, "vera", "viewer", "installation", "*")
+    seen = c.get(f"{URL}/area/lobby", headers=as_user("vera")).json()
+    assert seen["desktop"]["layout"] == lay and seen["can_edit"] is False
+    # the phone variant arranges its own tiles, with its own revision
+    phone = {"v": 2, "cols": 4, "items": {"card:lighting": {"x": 0, "y": 0, "w": 4, "h": 30, "tiles": {"light.lobby": {"order": 0, "span": 2}, "light.lobby_2": {"order": 1, "span": 2}}}}}
+    p = _put(c, "area", "lobby", "phone", 0, phone)
+    assert p.status_code == 200 and p.json()["phone"]["revision"] == 1 and p.json()["desktop"]["revision"] == 1
+    assert p.json()["desktop"]["layout"]["items"]["card:lighting"]["tiles"]["light.lobby_2"]["order"] == 0  # untouched
+    # a stale editor of the arrangement is refused like any other layout write, nothing written
+    stale = _put(c, "area", "lobby", "desktop", 0, _tiles_layout(**{"light.lobby": {"order": 5}}))
+    assert stale.status_code == 409 and stale.json()["details"]["revision"] == 1
+    assert c.get(f"{URL}/area/lobby").json()["desktop"]["layout"]["items"]["card:lighting"]["tiles"]["light.lobby"]["order"] == 1
+    r2 = _put(c, "area", "lobby", "desktop", 1, _tiles_layout(**{"light.lobby": {"order": 5}}))
+    assert r2.status_code == 200 and r2.json()["desktop"]["revision"] == 2
+    # the audit row names the scope, id, variant and revision - never a title or an entity
+    details = [r["details_json"] for r in _audit(app, "devices.layout.update")]
+    assert details and all("ספוט" not in d and "light." not in d for d in details)
+    # copy to all areas carries the arrangement as it is
+    assert c.post(f"{URL}/area/lobby/copy-to-all-areas", json={"revision": 2}).status_code == 200
+    assert c.get(f"{URL}/area/office").json()["desktop"]["layout"]["items"]["card:lighting"]["tiles"]["light.lobby"]["order"] == 5
+
+
+def test_tile_hidden_merges_with_hidden_entities_both_ways(dev_app):  # noqa: F811
+    app, _ = dev_app
+    c = TestClient(app)
+    lay = _tiles_layout(**{"light.lobby": {"order": 1, "hidden": True}})
+    lay["items"]["card:lighting"]["hidden_entities"] = ["light.lobby_2", "light.not_arranged"]
+    r = _put(c, "area", "lobby", "desktop", 0, lay)
+    assert r.status_code == 200, r.text
+    item = r.json()["desktop"]["layout"]["items"]["card:lighting"]
+    # a hidden tile joins the card's list (an older screen reads that list only) ...
+    assert item["hidden_entities"] == ["light.lobby", "light.lobby_2", "light.not_arranged"]
+    # ... and an entity of the list is a hidden tile
+    assert item["tiles"]["light.lobby_2"]["hidden"] is True and item["tiles"]["light.lobby"]["hidden"] is True
+    # the merged set is bounded too
+    many = _tiles_layout(**{f"light.t{i}": {"order": 10 + i, "hidden": True} for i in range(mod.MAX_TILES - 2)})
+    many["items"]["card:lighting"]["hidden_entities"] = ["light.x1", "light.x2", "light.x3"]  # 198 + 3 > 200
+    assert _put(c, "area", "lobby", "desktop", 1, many).status_code == 422
+    many["items"]["card:lighting"]["hidden_entities"] = ["light.x1", "light.x2"]  # exactly 200: fine
+    assert _put(c, "area", "lobby", "desktop", 1, many).status_code == 200
+
+
+def test_tile_validation(dev_app):  # noqa: F811
+    app, _ = dev_app
+    c = TestClient(app)
+
+    def status(layout, variant="desktop", scope="area", sid="lobby"):
+        return _put(c, scope, sid, variant, 0, layout).status_code
+
+    for field, value in (("order", -1), ("order", mod.MAX_TILE_ORDER + 1), ("order", "1"), ("order", 1.5), ("span", 0), ("span", 3), ("span", True),
+                         ("size", "xl"), ("size", "md"), ("hidden", "yes"), ("title", "x" * 61), ("title", "a‮b"), ("title", "a\nb"), ("color", "red")):
+        assert status(_tiles_layout(**{"light.lobby": {"order": 1, field: value}})) == 422, (field, value)
+    assert status(_tiles_layout(**{"light.lobby": {"span": 1}})) == 422  # the order is required
+    for bad_key in ("not an id", "light", "x" * 300 + ".y", "light.a b"):
+        assert status(_tiles_layout(**{bad_key: {"order": 7}})) == 422, bad_key
+    # every order once within a card
+    dup = _put(c, "area", "lobby", "desktop", 0, _tiles_layout(**{"light.lobby": {"order": 0}}))
+    assert dup.status_code == 422 and "own order" in dup.text
+    # a span within the card's tile columns (all cards have two today: the bound comes from TILE_COLS)
+    original = dict(mod.TILE_COLS)
+    try:
+        mod.TILE_COLS["lighting"] = 1
+        narrow = _put(c, "area", "lobby", "desktop", 0, _tiles_layout())
+        assert narrow.status_code == 422 and "tile columns" in narrow.text
+    finally:
+        mod.TILE_COLS.clear()
+        mod.TILE_COLS.update(original)
+    # bounded counts
+    assert status(_tiles_layout(**{f"light.t{i}": {"order": 10 + i} for i in range(mod.MAX_TILES)})) == 422
+    # tiles need the v2 schema, an area card, the area screen
+    old = _tiles_layout()
+    old["v"] = 1
+    v1 = _put(c, "area", "lobby", "desktop", 0, old)
+    assert v1.status_code == 422 and "layout v 2" in v1.text
+    assert status({"v": 2, "cols": 12, "items": {"floor:ground": {"x": 0, "y": 0, "w": 6, "h": 10, "tiles": {"light.lobby": {"order": 0}}}}}, scope="building", sid="main") == 422
+    # nothing written by any refused request
+    assert c.get(f"{URL}/area/lobby").json()["desktop"] is None
+    assert c.get(f"{URL}/building/main").json()["desktop"] is None
+
+
+def test_old_v1_layouts_load_and_save_unchanged(dev_app):  # noqa: F811
+    """Backward compatibility: a 6b layout (v 1, no tiles) is accepted, stored and returned exactly as before - no
+    `tiles` key appears - and a v 2 layout without any tiles is fine too."""
+    app, _ = dev_app
+    c = TestClient(app)
+    r = _put(c, "area", "lobby", "desktop", 0, _desktop())
+    assert r.status_code == 200
+    lay = r.json()["desktop"]["layout"]
+    assert lay["v"] == 1
+    assert all("tiles" not in it for it in lay["items"].values())
+    assert lay["items"]["card:climate"] == {"x": 8, "y": 0, "w": 4, "h": 20, "text": "md", "bg": None, "border": None, "title": None, "icon": None, "hidden": False, "hidden_entities": []}
+    # a layout stored by 6b (straight into the table, as an older add-on wrote it) reads back byte for byte
+    stored = {"v": 1, "cols": 12, "items": {"card:lighting": {"x": 0, "y": 0, "w": 12, "h": 10, "text": "md", "bg": None, "border": None, "title": None, "icon": None, "hidden": False, "hidden_entities": ["light.lobby"]}}}
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE device_layouts SET layout_json = ? WHERE scope = 'area' AND scope_id = 'lobby' AND variant = 'desktop'", (json.dumps(stored),))
+    assert c.get(f"{URL}/area/lobby").json()["desktop"]["layout"] == stored
+    # re-saved unchanged by an editor that knows nothing of tiles: still no tiles key
+    again = _put(c, "area", "lobby", "desktop", 1, stored)
+    assert again.status_code == 200 and again.json()["desktop"]["layout"] == stored
+    # a v2 layout with empty tiles maps is fine and stores none
+    empty = {"v": 2, "cols": 12, "items": {"card:lighting": {"x": 0, "y": 0, "w": 12, "h": 10, "tiles": {}}}}
+    r3 = _put(c, "area", "lobby", "desktop", 2, empty)
+    assert r3.status_code == 200 and "tiles" not in r3.json()["desktop"]["layout"]["items"]["card:lighting"]
+
+
+def test_tile_columns_match_the_frontend():
+    src = (ROOT / "frontend" / "src" / "screens" / "devices-layout.ts").read_text(encoding="utf-8")
+    m = re.search(r"export const TILE_COLS: Record<string, number> = \{([^}]*)\}", src)
+    assert m, "TILE_COLS not found in devices-layout.ts"
+    front = {k: int(v) for k, v in re.findall(r"(\w+): (\d+)", m.group(1))}
+    assert front == mod.TILE_COLS
+    assert re.search(rf"export const LAYOUT_VERSION = {mod.LAYOUT_VERSION};", src)

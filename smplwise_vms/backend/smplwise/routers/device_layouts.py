@@ -11,6 +11,12 @@ the automatic layout; the phone layout is derived from the desktop one in the br
 The layout is presentation only: grid units (column, 8 px row), a text size step, colour ROLES of the active palette
 (never a colour value), a title, an icon of the product's set and "hidden". Nothing here reaches Home Assistant.
 
+Slice 6c (owner 2026-09-29, "1.א"): an area card may also arrange its device tiles - `tiles` = {entity id: {order,
+span (1 | 2 of the card's two tile columns), size (s | m | l), hidden, title}}. The layout JSON carries a schema version:
+`v: 1` (6b, no tiles - still accepted and returned exactly as stored) or `v: 2` (tiles allowed). A tile's `hidden` and
+the card's `hidden_entities` are one set: the server merges them both ways on every write, so an older screen that
+reads only `hidden_entities` still hides the same devices. A card without `tiles` keeps the automatic tile order.
+
 Routes: `GET /devices/layouts/{scope}/{id}` (devices.read anywhere), `PUT` (one variant, optimistic `revision`, 409
 when stale), `DELETE` (reset: one variant or both), `POST /devices/layouts/area/{id}/copy-to-all-areas`. Every write
 checks `system.configure` BEFORE the body is read (the permission-first, JSON-only envelope of routers/devices.py) and
@@ -24,7 +30,7 @@ import sqlite3
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from ..audit import audit
 from ..auth import current_principal_ro, get_conn, get_read_conn
@@ -66,6 +72,39 @@ ICONS = (
 
 Role = Literal["accent", "warm", "cool", "success", "warning", "danger", "neutral"]
 TextSize = Literal["sm", "md", "lg"]
+TileSize = Literal["s", "m", "l"]
+
+# Slice 6c: the tile columns of each area card (a tile spans 1 or all of them). Keep in step with TILE_COLS in
+# frontend/src/screens/devices-layout.ts (tests/test_device_layouts.py compares the two).
+TILE_COLS = {"lighting": 2, "switches": 2, "climate": 2, "covers": 2, "security": 2, "media": 2, "sensors": 2}
+MAX_TILES = 200
+MAX_TILE_ORDER = 999
+LAYOUT_VERSION = 2  # the schema version this server writes tiles with; 1 = the 6b layout (no tiles)
+
+
+def _clean_title(v: str | None) -> str | None:
+    if v is None:
+        return None
+    if CONTROL_RE.search(v):
+        raise ValueError("control characters are not allowed in a title")
+    v = v.strip()
+    return v or None
+
+
+class TileLayout(BaseModel):
+    """One device tile inside an area card (6c): its place in the card's order, its width in the card's tile columns,
+    a size step, hidden, a custom title (plain text)."""
+    model_config = ConfigDict(extra="forbid", strict=True)
+    order: int = Field(ge=0, le=MAX_TILE_ORDER)
+    span: int = Field(1, ge=1, le=max(TILE_COLS.values()))
+    size: TileSize = "m"
+    hidden: bool = False
+    title: str | None = Field(None, max_length=60)
+
+    @field_validator("title")
+    @classmethod
+    def _title(cls, v: str | None) -> str | None:
+        return _clean_title(v)
 
 
 class LayoutItem(BaseModel):
@@ -82,16 +121,32 @@ class LayoutItem(BaseModel):
     hidden: bool = False
     # review ruling 4: the entities a card does not show (still counted in its numbers); area cards only
     hidden_entities: list[str] = Field(default_factory=list, max_length=MAX_HIDDEN_ENTITIES)
+    # slice 6c: the card's own device-tile arrangement (area cards only; empty = the automatic order)
+    tiles: dict[str, TileLayout] = Field(default_factory=dict, max_length=MAX_TILES)
 
     @field_validator("title")
     @classmethod
     def _title(cls, v: str | None) -> str | None:
-        if v is None:
-            return None
-        if CONTROL_RE.search(v):
-            raise ValueError("control characters are not allowed in a title")
-        v = v.strip()
-        return v or None
+        return _clean_title(v)
+
+    @field_validator("tiles")
+    @classmethod
+    def _tile_keys(cls, v: dict[str, TileLayout]) -> dict[str, TileLayout]:
+        if any(not ENTITY_ID_RE.fullmatch(e) for e in v):
+            raise ValueError("a tile key is not an entity id")
+        return v
+
+    @model_validator(mode="after")
+    def _merge_hidden(self) -> "LayoutItem":
+        """A hidden tile and the card's hidden_entities are one set (6c): merged both ways."""
+        if self.tiles:
+            hidden = set(self.hidden_entities) | {e for e, t in self.tiles.items() if t.hidden}
+            if len(hidden) > MAX_HIDDEN_ENTITIES:
+                raise ValueError("too many hidden entities")
+            self.hidden_entities = sorted(hidden)
+            for e, t in self.tiles.items():
+                t.hidden = e in hidden
+        return self
 
     @field_validator("icon")
     @classmethod
@@ -110,9 +165,19 @@ class LayoutItem(BaseModel):
 
 class Layout(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
-    v: Literal[1] = 1
+    v: Literal[1, 2] = 1  # the layout schema version: 1 = 6b, 2 = 6c (device tiles inside the area cards)
     cols: int
     items: dict[str, LayoutItem] = Field(max_length=MAX_ITEMS)
+
+
+def _dump(layout: Layout) -> str:
+    """The stored JSON: every field with its default filled in, except an empty `tiles` (a 6b layout stays exactly
+    what it was, and a card without an arrangement costs nothing)."""
+    data = layout.model_dump(exclude_defaults=False)
+    for it in data["items"].values():
+        if not it.get("tiles"):
+            it.pop("tiles", None)
+    return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
 
 
 class PutBody(BaseModel):
@@ -183,6 +248,26 @@ def _validate_semantics(scope: str, variant: str, layout: Layout) -> list[str]:
             errors.append(f"layout.items.{key[:40]}: x + w exceeds the {cols} columns")
         if it.hidden_entities and scope != "area":
             errors.append(f"layout.items.{key[:40]}: hidden_entities belong to the area screen's cards")
+        if it.tiles:
+            errors.extend(_tile_errors(scope, key, it, layout.v))
+    return errors
+
+
+def _tile_errors(scope: str, key: str, it: LayoutItem, version: int) -> list[str]:
+    """Slice 6c: tiles belong to an area card of a v2 layout; each order once; a span within the card's columns."""
+    where = f"layout.items.{key[:40]}.tiles"
+    if scope != "area" or not key.startswith("card:"):
+        return [f"{where}: device tiles belong to the area screen's cards"]
+    errors: list[str] = []
+    if version < LAYOUT_VERSION:
+        errors.append(f"{where}: device tiles need layout v {LAYOUT_VERSION}")
+    cols = TILE_COLS.get(key[5:], 1)
+    orders = [t.order for t in it.tiles.values()]
+    if len(set(orders)) != len(orders):
+        errors.append(f"{where}: each tile needs its own order")
+    for entity_id, t in it.tiles.items():
+        if t.span > cols:
+            errors.append(f"{where}.{entity_id[:60]}: span {t.span} exceeds the card's {cols} tile columns")
     return errors
 
 
@@ -311,7 +396,7 @@ def put_layout(scope: str, scope_id: str, request: Request, principal: Principal
     if body.revision != current:
         raise ApiError(409, "layout_conflict", "מישהו אחר שמר את הפריסה בינתיים. טענו אותה מחדש וערכו שוב.", details={"revision": current})
     _prune_vanished(conn, principal, request)
-    rev = _write(conn, principal, scope, scope_id, body.variant, json.dumps(body.layout.model_dump(exclude_defaults=False), ensure_ascii=False, separators=(",", ":")))
+    rev = _write(conn, principal, scope, scope_id, body.variant, _dump(body.layout))
     audit(conn, actor=principal, action="devices.layout.update", decision="allowed", resource_type=f"device_layout_{scope}", resource_id=scope_id,
           request_id=getattr(request.state, "correlation_id", None), details={"scope": scope, "id": scope_id, "variant": body.variant, "revision": rev})
     return _record(conn, principal, scope, scope_id)

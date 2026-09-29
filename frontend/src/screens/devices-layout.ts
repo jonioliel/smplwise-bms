@@ -27,6 +27,14 @@ import { LAYOUT_ROLE_IDS, type LayoutRoleId } from '../styles/devices-palettes';
  *
  * A grid with nothing stored keeps the screen's automatic layout, pixel for pixel. Entering the editor measures that
  * automatic layout (what the editor sees is what it starts from).
+ *
+ * Slice 6c (owner 2026-09-29, "1.א"): inside the area screen's domain cards, each device tile can be arranged too. In
+ * edit mode a card's "סידור התקנים" opens that card alone ("tile arrangement": a breadcrumb back to the cards), where
+ * tiles are dragged into a new order (keyboard: arrows move a tile earlier / later, Shift + arrows change its span, H
+ * hides it) and the side panel sets span (of the card's TILE_COLS columns), size (s / m / l), hidden and a custom title.
+ * Stored per card item as `tiles` = {entity id: {order, span, size, hidden, title}} in a layout of schema `v: 2`; a
+ * hidden tile and the card's `hidden_entities` are one set. "אפס סידור" drops the card's arrangement. The phone layout
+ * derives the tile order from the desktop one (one column: every tile full width) and can then be arranged on its own.
  */
 
 export type LayoutScope = 'building' | 'area';
@@ -52,6 +60,31 @@ const ICON_HE: Record<LayoutIcon, string> = {
 };
 export const ROLE_HE: Record<LayoutRoleId, string> = { accent: 'הדגשה', warm: 'חם', cool: 'קריר', success: 'הצלחה', warning: 'אזהרה', danger: 'סכנה', neutral: 'ניטרלי' };
 
+export type TileSize = 's' | 'm' | 'l';
+
+/** Slice 6c: one device tile inside an area card. */
+export interface TileLayout {
+  /** Its place in the card (0 first; unique within the card). */
+  order: number;
+  /** Its width in the card's tile columns (TILE_COLS). */
+  span: number;
+  size: TileSize;
+  hidden: boolean;
+  /** A custom title (plain text), else the device's own name. */
+  title: string | null;
+}
+
+export interface TileEntry {
+  id: string;
+  t: TileLayout;
+}
+
+/** The tile columns of each area card (keep in step with TILE_COLS in routers/device_layouts.py - a backend test compares them). */
+export const TILE_COLS: Record<string, number> = { lighting: 2, switches: 2, climate: 2, covers: 2, security: 2, media: 2, sensors: 2 };
+/** The layout schema this editor writes (1 = 6b; 2 = 6c, device tiles). routers/device_layouts.py LAYOUT_VERSION. */
+export const LAYOUT_VERSION = 2;
+export const SIZE_HE: Record<TileSize, string> = { s: 'קטן', m: 'רגיל', l: 'גדול' };
+
 export interface LayoutItem {
   x: number;
   y: number;
@@ -65,10 +98,12 @@ export interface LayoutItem {
   hidden: boolean;
   /** Area cards: the entities the card does not show (they still count in its numbers). */
   hidden_entities: string[];
+  /** Slice 6c, area cards: the card's device-tile arrangement (absent or empty: the automatic order). */
+  tiles?: Record<string, TileLayout>;
 }
 
 export interface Layout {
-  v: 1;
+  v: 1 | 2;
   cols: number;
   items: Record<string, LayoutItem>;
 }
@@ -168,6 +203,35 @@ function readingOrder(items: Record<string, LayoutItem>, keys: string[]): string
   return keys.filter((k) => items[k]).sort((a, b) => items[a].y - items[b].y || items[a].x - items[b].x);
 }
 
+/** Slice 6c: the phone rule for a card's tiles - the desktop order, one column (every tile the card's full width). */
+function phoneTiles(key: string, d: LayoutItem): Partial<LayoutItem> {
+  if (!d.tiles || !Object.keys(d.tiles).length) return {};
+  const cols = TILE_COLS[key.slice(key.indexOf(':') + 1)] ?? 1;
+  return { tiles: Object.fromEntries(Object.entries(d.tiles).map(([id, t]) => [id, { ...t, span: cols }])) };
+}
+
+/**
+ * Slice 6c: a card's tiles in their arranged order - the arranged ones by `order`, then any device the arrangement
+ * does not know yet (added in Home Assistant since) in the screen's own order, with the card's default span. `ids` are
+ * the devices the card has now (a stored tile of a device gone from the card is left out). Hidden = the tile's own flag
+ * or the card's hidden_entities (one set).
+ */
+export function orderedTiles(it: LayoutItem | null | undefined, ids: string[], span: number): TileEntry[] {
+  const stored = it?.tiles ?? {};
+  const hide = new Set(it?.hidden_entities ?? []);
+  const known = ids.filter((id) => stored[id]).sort((a, b) => stored[a].order - stored[b].order);
+  const fresh = ids.filter((id) => !stored[id]);
+  return [...known, ...fresh].map((id, i) => {
+    const s = stored[id];
+    return { id, t: s ? { ...s, order: i, hidden: s.hidden || hide.has(id) } : { order: i, span, size: 'm', hidden: hide.has(id), title: null } };
+  });
+}
+
+/** Whether a card item carries a tile arrangement. */
+export function arranged(it: LayoutItem | null | undefined): boolean {
+  return !!it?.tiles && Object.keys(it.tiles).length > 0;
+}
+
 /** The automatic phone layout: one column, in the desktop's reading order, each grid on its own. */
 export function derivePhone(desktop: Layout, grids: string[][]): Layout {
   const items: Record<string, LayoutItem> = {};
@@ -179,7 +243,7 @@ export function derivePhone(desktop: Layout, grids: string[][]): Layout {
     let y = 0;
     for (const k of readingOrder(desktop.items, keys)) {
       const d = desktop.items[k];
-      items[k] = { ...d, x: 0, w: COLS.phone, y };
+      items[k] = { ...d, x: 0, w: COLS.phone, y, ...phoneTiles(k, d) };
       y += d.h + GAP_ROWS;
       seen.add(k);
     }
@@ -191,10 +255,10 @@ export function derivePhone(desktop: Layout, grids: string[][]): Layout {
   for (const k of readingOrder(desktop.items, Object.keys(desktop.items).filter((x) => !seen.has(x)))) {
     const d = desktop.items[k];
     const y = next.get(prefix(k)) ?? 0;
-    items[k] = { ...d, x: 0, w: COLS.phone, y };
+    items[k] = { ...d, x: 0, w: COLS.phone, y, ...phoneTiles(k, d) };
     next.set(prefix(k), y + d.h + GAP_ROWS);
   }
-  return { v: 1, cols: COLS.phone, items };
+  return { v: desktop.v, cols: COLS.phone, items };
 }
 
 /** One grid as the screen draws it now, measured into grid units (the editor starts from what it sees). */
@@ -283,8 +347,20 @@ export interface LayoutOptions {
   onEnter?: () => void;
   /** The screen's compact density: a viewer's layout packs its gaps to one row (8 px). */
   compact?: () => boolean;
-  /** Area cards: the entities a card can show, for the panel's "visible entities" checklist. */
+  /** Area cards: the entities a card can show, in the order the card draws them automatically - the panel's "visible
+   * entities" checklist and (6c) the card's tiles. */
   entities?: (key: string) => { id: string; name: string }[];
+  /** Slice 6c: a card's automatic tile span (a two-up tile card: 1; a card of full-width rows: its TILE_COLS). */
+  tileSpan?: (key: string) => number;
+}
+
+interface TileDrag {
+  key: string;
+  id: string;
+  pointerId: number;
+  x0: number;
+  y0: number;
+  started: boolean;
 }
 
 interface Drag {
@@ -312,6 +388,10 @@ export class DevicesLayoutController implements ReactiveController {
   note = '';
   confirm: 'reset' | 'copy' | null = null;
   live = '';
+  /** Slice 6c: the card whose device tiles are being arranged ("סידור התקנים"), and its selected tile. */
+  tileCard: string | null = null;
+  tileSel: string | null = null;
+  private tdrag: TileDrag | null = null;
   private draft: Layout | null = null;
   private base = '';
   private phone = false;
@@ -347,15 +427,17 @@ export class DevicesLayoutController implements ReactiveController {
   hostUpdated() {
     const root = this.host.renderRoot as ParentNode;
     for (const el of root.querySelectorAll<HTMLElement>('[data-lay-inert]')) {
-      if (el.parentElement?.classList.contains('lay-edit')) continue;
+      const parent = el.parentElement?.classList;
+      if (parent?.contains('lay-edit') || parent?.contains('lay-tedit')) continue;
       el.inert = false;
       el.removeAttribute('aria-hidden');
       el.removeAttribute('data-lay-inert');
     }
     if (!this.editing) return;
-    for (const item of root.querySelectorAll<HTMLElement>('.lay-item.lay-edit')) {
+    // 6c: the same for the device tiles while their card is arranged (a key on a tile's slider never reaches a device)
+    for (const item of root.querySelectorAll<HTMLElement>('.lay-item.lay-edit, .lay-tile.lay-tedit')) {
       const body = item.firstElementChild as HTMLElement | null;
-      if (!body || body.classList.contains('lay-hd') || body.hasAttribute('data-lay-inert')) continue;
+      if (!body || body.classList.contains('lay-hd') || body.classList.contains('lay-thd') || body.hasAttribute('data-lay-inert')) continue;
       body.inert = true;
       body.setAttribute('aria-hidden', 'true');
       body.setAttribute('data-lay-inert', '');
@@ -365,6 +447,7 @@ export class DevicesLayoutController implements ReactiveController {
   hostDisconnected() {
     this.mq?.removeEventListener('change', this.onMq);
     window.clearTimeout(this.pressTimer);
+    this.endTileDrag();
     this.host.removeAttribute('data-lay-editing');
   }
 
@@ -512,7 +595,282 @@ export class DevicesLayoutController implements ReactiveController {
       @pointercancel=${(e: PointerEvent) => this.onUp(e, true)}
       @keydown=${(e: KeyboardEvent) => this.onKey(e, key)}
       @focus=${() => this.select(key, false)}
-    >${content}<span class="lay-hd" data-lay-handle aria-hidden="true"><sw-icon name="move" size=${11}></sw-icon>${label} · ${it.w} × ${it.h}${it.hidden ? ' · מוסתר' : ''}</span><span class="lay-rz" data-lay-resize aria-hidden="true"></span></div>`;
+    >${content}<span class="lay-hd" data-lay-handle aria-hidden="true"><sw-icon name="move" size=${11}></sw-icon>${label} · ${it.w} × ${it.h}${it.hidden ? ' · מוסתר' : ''}</span><span class="lay-rz" data-lay-resize aria-hidden="true"></span>${this.canArrange(key)
+      ? html`<button type="button" class="lay-tbtn" data-lay-tiles-enter=${key} aria-label=${`סידור התקנים: ${label}`} @click=${(e: Event) => { e.stopPropagation(); this.enterTiles(key); }}><sw-icon name="grid" size=${12}></sw-icon>סידור התקנים${arranged(it) ? ' ✓' : ''}</button>`
+      : nothing}</div>`;
+  }
+
+  // -------------------------------------------------------------------------------------------- 6c: device tiles
+
+  /** An area card with devices can have its tiles arranged. */
+  private canArrange(key: string): boolean {
+    return this.opts.scope === 'area' && (this.opts.entities?.(key).length ?? 0) > 0;
+  }
+
+  /** The card whose tiles are being arranged (in edit mode). */
+  arranging(key: string): boolean {
+    return this.editing && this.tileCard === key;
+  }
+
+  private tileIds(key: string): string[] {
+    return (this.opts.entities?.(key) ?? []).map((e) => e.id);
+  }
+
+  private tileSpan(key: string): number {
+    return this.opts.tileSpan?.(key) ?? 1;
+  }
+
+  private tileCols(key: string): number {
+    return TILE_COLS[key.slice(key.indexOf(':') + 1)] ?? 1;
+  }
+
+  private tileName(key: string, id: string): string {
+    return this.opts.entities?.(key).find((e) => e.id === id)?.name ?? id;
+  }
+
+  private spanHe(key: string, span: number): string {
+    const cols = this.tileCols(key);
+    return span >= cols ? 'רוחב מלא' : cols === 2 ? 'חצי רוחב' : `${span} מתוך ${cols} עמודות`;
+  }
+
+  /** The draft's tiles of a card, in order (the editor's working list). */
+  private tileList(key: string): TileEntry[] {
+    return orderedTiles(this.draft?.items[key], this.tileIds(key), this.tileSpan(key));
+  }
+
+  /**
+   * What a card draws: null = its automatic tiles (no arrangement, and not being arranged); else its tiles in order -
+   * a viewer's without the hidden ones, the arranging editor's with them (dimmed, so they can come back). `ids` are the
+   * card's devices in its automatic order.
+   */
+  tiles(key: string, ids: string[]): TileEntry[] | null {
+    const it = this.item(key);
+    const editing = this.arranging(key);
+    if (!editing && !arranged(it)) return null;
+    const list = orderedTiles(it, ids, this.tileSpan(key));
+    return editing ? list : list.filter((x) => !x.t.hidden);
+  }
+
+  /** The arranging editor draws its card alone, full width, with the card's own colours and text size. */
+  stage(key: string, content: TemplateResult): TemplateResult {
+    const it = this.item(key);
+    return html`<div class="lay-stage" data-lay-stage=${key} ?data-lay-phone-preview=${this.variant === 'phone' && !this.phone}>
+      <div class="lay-item" data-lay-key=${key} data-lay-bg=${it?.bg ?? nothing} data-lay-border=${it?.border ?? nothing} data-lay-text=${it && it.text !== 'md' ? it.text : nothing}>${content}</div>
+    </div>`;
+  }
+
+  /** One device tile: its span and size (a viewer), plus the arranging chrome (the editor). */
+  wrapTile(key: string, x: TileEntry, index: number, count: number, content: TemplateResult): TemplateResult {
+    const t = x.t;
+    const style = { gridColumn: `span ${Math.min(t.span, this.tileCols(key))}` };
+    const size = t.size !== 'm' ? t.size : nothing;
+    if (!this.arranging(key)) {
+      return html`<div class="lay-tile" data-lay-tile=${x.id} data-tile-size=${size} data-tile-span=${t.span} style=${styleMap(style)}>${content}</div>`;
+    }
+    const sel = this.tileSel === x.id;
+    const name = t.title ?? this.tileName(key, x.id);
+    const label = `${name}: מקום ${index + 1} מתוך ${count} · ${this.spanHe(key, t.span)} · גודל ${SIZE_HE[t.size]}${t.hidden ? ' · מוסתר' : ''}`;
+    return html`<div
+      class=${classMap({ 'lay-tile': true, 'lay-tedit': true, 'lay-tsel': sel, 'lay-hidden': t.hidden, 'lay-drag': this.tdrag?.id === x.id && this.tdrag.started })}
+      data-lay-tile=${x.id}
+      data-tile-size=${size}
+      data-tile-span=${t.span}
+      data-lay-tpos=${`${index},${t.span},${t.size}`}
+      style=${styleMap(style)}
+      tabindex="0"
+      role="button"
+      aria-pressed=${String(sel)}
+      aria-label=${label}
+      @pointerdown=${(e: PointerEvent) => this.onTDown(e, key, x.id)}
+      @keydown=${(e: KeyboardEvent) => this.onTKey(e, key, x.id)}
+      @focus=${() => this.selectTile(x.id, false)}
+    >${content}<span class="lay-thd" data-lay-thandle aria-hidden="true"><sw-icon name="move" size=${10}></sw-icon>${index + 1}${t.hidden ? ' · מוסתר' : ''}${t.span >= this.tileCols(key) && this.tileCols(key) > 1 ? ' · רוחב מלא' : ''}</span></div>`;
+  }
+
+  /** "סידור התקנים": this card alone, its tiles editable. */
+  enterTiles(key: string) {
+    if (!this.editing || !this.draft?.items[key] || !this.canArrange(key)) return;
+    this.tileCard = key;
+    this.tileSel = null;
+    this.selected = key;
+    this.live = `סידור התקנים: ${this.opts.label(key)}`;
+    this.update();
+  }
+
+  /** Back to the cards (the arrangement stays in the draft until "שמור" / "בטל"). */
+  leaveTiles() {
+    const key = this.tileCard;
+    this.endTileDrag();
+    this.tileCard = null;
+    this.tileSel = null;
+    this.update();
+    if (key) void this.host.updateComplete.then(() => (this.host.renderRoot as ParentNode).querySelector<HTMLElement>(`.lay-item.lay-edit[data-lay-key="${CSS.escape(key)}"]`)?.focus({ preventScroll: false }));
+  }
+
+  private selectTile(id: string | null, announce = true) {
+    if (this.tileSel === id) return;
+    this.tileSel = id;
+    if (announce && id && this.tileCard) this.announceTile(this.tileCard, id);
+    this.update();
+  }
+
+  private announceTile(key: string, id: string) {
+    const list = this.tileList(key);
+    const i = list.findIndex((x) => x.id === id);
+    if (i < 0) return;
+    const t = list[i].t;
+    this.live = `${t.title ?? this.tileName(key, id)}: מקום ${i + 1} מתוך ${list.length}, ${this.spanHe(key, t.span)}, גודל ${SIZE_HE[t.size]}${t.hidden ? ', מוסתר' : ''}`;
+  }
+
+  /** Rewrites a card's arrangement from its working list: orders 0..n-1, spans inside the card, and the hidden tiles
+   * and the card's hidden_entities kept one set. */
+  private editTiles(key: string, fn: (list: TileEntry[]) => TileEntry[]) {
+    const it = this.draft?.items[key];
+    if (!it) return;
+    const cols = this.tileCols(key);
+    const next = fn(this.tileList(key));
+    const tiles: Record<string, TileLayout> = {};
+    next.forEach(({ id, t }, i) => (tiles[id] = { ...t, order: i, span: clamp(t.span, 1, cols) }));
+    const hide = new Set(it.hidden_entities ?? []);
+    for (const { id, t } of next) {
+      if (t.hidden) hide.add(id);
+      else hide.delete(id);
+    }
+    this.patch(key, { tiles, hidden_entities: [...hide].sort() });
+  }
+
+  patchTile(key: string, id: string, change: Partial<TileLayout>) {
+    this.editTiles(key, (list) => list.map((x) => (x.id === id ? { id, t: { ...x.t, ...change } } : x)));
+    this.announceTile(key, id);
+  }
+
+  moveTile(key: string, id: string, to: number) {
+    this.editTiles(key, (list) => {
+      const from = list.findIndex((x) => x.id === id);
+      const dest = clamp(to, 0, list.length - 1);
+      if (from < 0 || dest === from) return list;
+      const out = [...list];
+      const [moved] = out.splice(from, 1);
+      out.splice(dest, 0, moved);
+      return out;
+    });
+    this.announceTile(key, id);
+  }
+
+  /** "אפס סידור": the card's automatic tile order again (its hidden devices stay hidden - the card's checklist). */
+  resetTiles(key: string) {
+    this.patch(key, { tiles: {} });
+    this.tileSel = null;
+    this.live = `${this.opts.label(key)}: הסדר האוטומטי`;
+    this.update();
+  }
+
+  private refocusTile(id: string) {
+    void this.host.updateComplete.then(() => (this.host.renderRoot as ParentNode).querySelector<HTMLElement>(`.lay-tile.lay-tedit[data-lay-tile="${CSS.escape(id)}"]`)?.focus({ preventScroll: true }));
+  }
+
+  private onTKey(e: KeyboardEvent, key: string, id: string) {
+    const list = this.tileList(key);
+    const i = list.findIndex((x) => x.id === id);
+    if (i < 0) return;
+    const t = list[i].t;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      this.selectTile(id);
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      if (this.tileSel) this.selectTile(null);
+      else this.leaveTiles();
+      return;
+    }
+    if (e.code === 'KeyH' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // by the key's place, not its letter: "H" on a Hebrew keyboard types "י"
+      e.preventDefault();
+      this.tileSel = id;
+      this.patchTile(key, id, { hidden: !t.hidden });
+      this.refocusTile(id);
+      return;
+    }
+    const rtl = getComputedStyle(e.currentTarget as HTMLElement).direction === 'rtl';
+    // logical order: in RTL the start is on the right, so ArrowRight moves a tile earlier
+    const toEnd = e.key === 'ArrowLeft' ? (rtl ? 1 : -1) : e.key === 'ArrowRight' ? (rtl ? -1 : 1) : 0;
+    const down = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+    const d = toEnd || down;
+    if (!d) return;
+    e.preventDefault();
+    this.tileSel = id;
+    if (e.shiftKey) this.patchTile(key, id, { span: t.span + d });
+    else this.moveTile(key, id, i + d);
+    this.refocusTile(id);
+  }
+
+  private onTDown(e: PointerEvent, key: string, id: string) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const el = e.currentTarget as HTMLElement;
+    const onHandle = !!(e.target as HTMLElement).closest('[data-lay-thandle]');
+    this.endTileDrag();
+    window.addEventListener('pointermove', this.onTMove);
+    window.addEventListener('pointerup', this.onTUp);
+    window.addEventListener('pointercancel', this.onTUp);
+    if (e.pointerType === 'touch' && !onHandle) {
+      // a finger on a tile scrolls the page; a long press picks the tile (then the arrows / the panel move it)
+      this.pressTimer = window.setTimeout(() => {
+        this.selectTile(id);
+        el.focus({ preventScroll: true });
+      }, 450);
+      this.tdrag = { key, id, pointerId: -1, x0: e.clientX, y0: e.clientY, started: false };
+      return;
+    }
+    e.preventDefault();
+    this.tdrag = { key, id, pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, started: false };
+    this.selectTile(id);
+    el.focus({ preventScroll: true });
+  }
+
+  /** A drag reorders live: over another tile, the dragged one takes its place (the DOM order is the tile order, so a
+   * tile may be re-inserted under the pointer - the listeners are on the window, not on the tile). */
+  private onTMove = (e: PointerEvent) => {
+    const d = this.tdrag;
+    if (!d) return;
+    if (d.pointerId === -1) {
+      if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) > 8) this.endTileDrag(); // a touch that moves scrolls
+      return;
+    }
+    if (e.pointerId !== d.pointerId) return;
+    if (!d.started) {
+      if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 6) return;
+      d.started = true;
+      this.update();
+    }
+    const root = this.host.renderRoot as ParentNode;
+    for (const el of root.querySelectorAll<HTMLElement>('.lay-tile.lay-tedit')) {
+      const over = el.dataset.layTile;
+      if (!over || over === d.id) continue;
+      const r = el.getBoundingClientRect();
+      if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) continue;
+      const to = this.tileList(d.key).findIndex((x) => x.id === over);
+      if (to >= 0) this.moveTile(d.key, d.id, to);
+      break;
+    }
+  };
+
+  private onTUp = (e: PointerEvent) => {
+    const d = this.tdrag;
+    if (d && d.pointerId !== -1 && e.pointerId !== d.pointerId) return;
+    const moved = d?.started;
+    this.endTileDrag();
+    if (moved && d) this.refocusTile(d.id);
+    this.update();
+  };
+
+  private endTileDrag() {
+    window.clearTimeout(this.pressTimer);
+    this.tdrag = null;
+    window.removeEventListener('pointermove', this.onTMove);
+    window.removeEventListener('pointerup', this.onTUp);
+    window.removeEventListener('pointercancel', this.onTUp);
   }
 
   // -------------------------------------------------------------------------------------------- entering / leaving
@@ -548,6 +906,8 @@ export class DevicesLayoutController implements ReactiveController {
     this.base = JSON.stringify(this.draft);
     this.editing = true;
     this.selected = null;
+    this.tileCard = null;
+    this.tileSel = null;
     this.error = '';
     this.note = '';
     this.conflict = false;
@@ -560,6 +920,9 @@ export class DevicesLayoutController implements ReactiveController {
     this.draft = null;
     this.selected = null;
     this.drag = null;
+    this.endTileDrag();
+    this.tileCard = null;
+    this.tileSel = null;
     this.confirm = null;
     this.host.removeAttribute('data-lay-editing');
   }
@@ -582,7 +945,8 @@ export class DevicesLayoutController implements ReactiveController {
     this.update();
     const rev = this.record?.[this.variant]?.revision ?? 0;
     try {
-      this.record = await putLayout(this.opts.scope, this.opts.id(), this.variant, rev, this.draft);
+      // written in the current schema (v 2: device tiles allowed); a 6b record is upgraded on its next save
+      this.record = await putLayout(this.opts.scope, this.opts.id(), this.variant, rev, { ...this.draft, v: LAYOUT_VERSION });
       this.close();
       this.note = this.variant === 'phone' ? 'פריסת הטלפון נשמרה לכל המשתמשים.' : 'הפריסה נשמרה לכל המשתמשים.';
     } catch (err) {
@@ -705,6 +1069,7 @@ export class DevicesLayoutController implements ReactiveController {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     const el = e.currentTarget as HTMLElement;
     const target = e.target as HTMLElement;
+    if (target.closest('[data-lay-tiles-enter]')) return; // 6c: the card's "סידור התקנים" button is a button, not a drag
     const onResize = !!target.closest('[data-lay-resize]');
     const onHandle = onResize || !!target.closest('[data-lay-handle]');
     const it = this.draft?.items[key];
@@ -777,7 +1142,7 @@ export class DevicesLayoutController implements ReactiveController {
 
   private onKey(e: KeyboardEvent, key: string) {
     const it = this.draft?.items[key];
-    if (!it) return;
+    if (!it || (e.target as HTMLElement).closest?.('[data-lay-tiles-enter]')) return;
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       this.select(key);
@@ -815,7 +1180,7 @@ export class DevicesLayoutController implements ReactiveController {
     const stored = this.record?.[this.variant] ?? null;
     const dirty = this.dirty;
     const areaScope = this.opts.scope === 'area';
-    return html`<div class="lay-bar" data-layout-bar role="toolbar" aria-label="עריכת פריסה">
+    return html`<div class="lay-bar" data-layout-bar ?data-tiles=${!!this.tileCard} role="toolbar" aria-label="עריכת פריסה">
         <span class="what"><sw-icon name="edit" size=${15}></sw-icon>מצב עריכה</span>
         <span class="where">${this.opts.screenName()} · ${this.variant === 'phone' ? 'פריסת טלפון' : 'פריסת מחשב'}${this.variant === 'phone' && !this.record?.phone ? ' (אוטומטית עד שתישמר)' : ''}</span>
         <span class="lay-seg" role="group" aria-label="פריסה">
@@ -831,6 +1196,13 @@ export class DevicesLayoutController implements ReactiveController {
         </span>
         ${this.error ? html`<span class="lay-msg err" role="alert" data-layout-error>${this.error}${this.conflict ? html` <sw-button size="sm" variant="ghost" data-layout-reload @click=${() => void this.reloadAfterConflict()}>טען מחדש</sw-button>` : nothing}</span>` : nothing}
         ${this.note ? html`<span class="lay-msg" role="status">${this.note}</span>` : nothing}
+        ${this.tileCard
+          ? html`<nav class="lay-crumb" data-layout-tiles-crumb aria-label="מיקום בעורך">
+              <button type="button" data-layout-tiles-back @click=${() => this.leaveTiles()}><span aria-hidden="true">→</span> כל הכרטיסים</button>
+              <span aria-hidden="true">›</span>
+              <span class="here" aria-current="page">${this.opts.label(this.tileCard)} · סידור התקנים</span>
+            </nav>`
+          : nothing}
         <span class="lay-live" aria-live="polite" data-layout-live>${this.live}</span>
       </div>
       ${this.renderConfirm()}`;
@@ -869,7 +1241,9 @@ export class DevicesLayoutController implements ReactiveController {
       const next = new Set(hide);
       if (show) next.delete(id);
       else next.add(id);
-      this.patch(key, { hidden_entities: [...next].sort() });
+      // 6c: an arranged tile's own "hidden" follows (one set)
+      const tiles = arranged(it) ? Object.fromEntries(Object.entries(it.tiles!).map(([k, t]) => [k, k === id ? { ...t, hidden: !show } : t])) : it.tiles;
+      this.patch(key, { hidden_entities: [...next].sort(), ...(tiles ? { tiles } : {}) });
     };
     return html`<div class="lay-f"><span class="lbl">ישויות מוצגות בכרטיס (${list.length - list.filter((e) => hide.has(e.id)).length} מתוך ${list.length})</span>
       <div class="lay-ents" data-layout-entities>
@@ -881,6 +1255,7 @@ export class DevicesLayoutController implements ReactiveController {
   /** The panel of the selected item (a bottom sheet on a phone). */
   renderPanel(): TemplateResult | typeof nothing {
     if (!this.editing || !this.draft) return nothing;
+    if (this.tileCard && this.draft.items[this.tileCard]) return this.renderTilePanel(this.tileCard);
     const key = this.selected;
     const it = key ? this.draft.items[key] : null;
     if (!key || !it) {
@@ -934,16 +1309,61 @@ export class DevicesLayoutController implements ReactiveController {
           ${nudge('גובה −', 'הנמך ב־8 פיקסלים', { h: it.h - 1 }, 'shorter')}
         </div></div>
       ${this.renderEntities(key, it)}
+      ${this.canArrange(key) ? html`<button type="button" class="btn" data-layout-tiles-open @click=${() => this.enterTiles(key)}>סידור התקנים בכרטיס${arranged(it) ? ' (מסודר)' : ''}…</button>` : nothing}
       <label class="lay-check"><input type="checkbox" data-layout-hidden .checked=${it.hidden} @change=${(e: Event) => this.patch(key, { hidden: (e.target as HTMLInputElement).checked })} />מוסתר לכולם</label>
       <div class="lay-hint">הצבעים הם תפקידים בערכת הצבעים של האזור (הגדרות › חשמל והתקנים), כך שהפריסה נראית נכון בכל ערכה, בהיר או כהה. הגובה הוא מינימום: כרטיס לא חותך את ההתקנים שבו.</div>
     </aside>`;
   }
+
+  /** 6c: the panel while a card's tiles are arranged - the selected tile's span, size, place, hidden and title. */
+  private renderTilePanel(key: string): TemplateResult {
+    const label = this.opts.label(key);
+    const list = this.tileList(key);
+    const cols = this.tileCols(key);
+    const isArranged = arranged(this.draft?.items[key]);
+    const reset = html`<button type="button" class="btn" data-layout-tiles-reset ?disabled=${!isArranged} @click=${() => this.resetTiles(key)}>אפס סידור</button>`;
+    const i = this.tileSel ? list.findIndex((x) => x.id === this.tileSel) : -1;
+    if (i < 0) {
+      return html`<aside class="lay-panel" data-layout-panel=${`tiles:${key}`} aria-label=${`סידור התקנים: ${label}`}>
+        <div class="ph">סידור התקנים<span class="chip">${label}</span></div>
+        <div class="lay-hint">בחרו התקן כדי לערוך אותו (בטלפון: לחיצה ארוכה). גררו התקן כדי לשנות את מקומו בכרטיס. במקלדת: Tab להתקן, חיצים מזיזים אותו לפני או אחרי, Shift עם חיצים משנה את רוחבו, H מסתיר או מחזיר אותו.</div>
+        <div class="lay-tacts">${reset}</div>
+        <div class="lay-hint">"אפס סידור" מחזיר את הסדר האוטומטי של הכרטיס. התקנים מוסתרים נשארים מוסתרים - מחזירים אותם כאן או ברשימת "ישויות מוצגות" של הכרטיס.</div>
+      </aside>`;
+    }
+    const { id, t } = list[i];
+    const name = this.tileName(key, id);
+    return html`<aside class="lay-panel" data-layout-panel=${`tile:${id}`} aria-label=${`מאפייני ההתקן: ${t.title ?? name}`}>
+      <div class="ph">מאפייני ההתקן<span class="chip">${t.title ?? name}</span></div>
+      <div class="lay-f"><label for="lay-ttitle">כותרת</label>
+        <input id="lay-ttitle" type="text" maxlength="60" data-layout-tile-title .value=${t.title ?? ''} placeholder=${name} @input=${(e: Event) => { const v = (e.target as HTMLInputElement).value; this.patchTile(key, id, { title: v.trim() ? v : null }); }} /></div>
+      <div class="lay-f"><span class="lbl">רוחב בכרטיס</span>
+        <span class="lay-seg" role="group" aria-label="רוחב בכרטיס">
+          ${Array.from({ length: cols }, (_, k) => k + 1).map((s) => html`<button type="button" data-layout-tile-span=${s} aria-pressed=${String(t.span === s)} @click=${() => this.patchTile(key, id, { span: s })}>${this.spanHe(key, s)}</button>`)}
+        </span></div>
+      <div class="lay-f"><span class="lbl">גודל</span>
+        <span class="lay-seg" role="group" aria-label="גודל">
+          ${(['s', 'm', 'l'] as const).map((z) => html`<button type="button" data-layout-tile-size=${z} aria-pressed=${String(t.size === z)} @click=${() => this.patchTile(key, id, { size: z })}>${SIZE_HE[z]}</button>`)}
+        </span></div>
+      <div class="lay-f"><span class="lbl">מקום בכרטיס: ${i + 1} מתוך ${list.length}</span>
+        <div class="lay-nudge">
+          <button type="button" data-layout-tile-move="first" ?disabled=${i === 0} @click=${() => this.moveTile(key, id, 0)}>ראשון</button>
+          <button type="button" data-layout-tile-move="earlier" ?disabled=${i === 0} @click=${() => this.moveTile(key, id, i - 1)}>הקדם</button>
+          <button type="button" data-layout-tile-move="later" ?disabled=${i === list.length - 1} @click=${() => this.moveTile(key, id, i + 1)}>אחר</button>
+          <button type="button" data-layout-tile-move="last" ?disabled=${i === list.length - 1} @click=${() => this.moveTile(key, id, list.length - 1)}>אחרון</button>
+        </div></div>
+      <label class="lay-check"><input type="checkbox" data-layout-tile-hidden .checked=${t.hidden} @change=${(e: Event) => this.patchTile(key, id, { hidden: (e.target as HTMLInputElement).checked })} />מוסתר (עדיין נספר במונים של הכרטיס)</label>
+      <div class="lay-tacts">${reset}</div>
+    </aside>`;
+  }
 }
 
-/** An area card's entities without the ones its layout hides (the card still counts them). */
+/** An area card's entities without the ones its layout hides (the card still counts them) - the card's list and
+ * (6c) its hidden tiles, one set. */
 export function shownEntities<T extends { entity_id: string }>(it: LayoutItem | null, rows: T[]): T[] {
-  const hide = it?.hidden_entities;
-  return hide && hide.length ? rows.filter((r) => !hide.includes(r.entity_id)) : rows;
+  const hide = new Set(it?.hidden_entities ?? []);
+  for (const [id, t] of Object.entries(it?.tiles ?? {})) if (t.hidden) hide.add(id);
+  return hide.size ? rows.filter((r) => !hide.has(r.entity_id)) : rows;
 }
 
 /** The title an item shows: the layout's own, else the screen's. */

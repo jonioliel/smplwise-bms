@@ -2272,4 +2272,210 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await resetLayouts(request);
     }
   });
+
+  // ------------------------------------------------ CR-007 slice 6c: device tiles inside the area cards (owner "1.א")
+  /** The device tiles of an arranged card, in the order drawn. */
+  const tileOrder = (scope: Locator) => scope.locator('.lay-tile').evaluateAll((els) => els.map((e) => e.getAttribute('data-lay-tile')));
+
+  test('6c: "סידור התקנים" arranges a card\'s device tiles - drag and keyboard reorder, span, size, title, H hides (the card still counts it); saved for everyone, a viewer sees the order and cannot edit; "אפס סידור"', async ({ page, browser, request }, testInfo) => {
+    test.setTimeout(180_000);
+    await seed(request);
+    await resetLayouts(request);
+    await devicesSettings(request, DEVICES_DEFAULTS);
+    const mobile = testInfo.project.name === 'mobile';
+    const variant = mobile ? 'phone' : 'desktop'; // the editor opens on the viewport's own layout
+    const user = `cr007tiles${testInfo.project.name}`;
+    const bindings: string[] = [];
+    try {
+      await open(page, '/devices/areas/cr007_lobby', 'a');
+      const a = page.locator('devices-area');
+      const lightingCard = a.locator('sw-card[data-card="lighting"]');
+      await expect(lightingCard).toBeVisible({ timeout: 30000 });
+      await expect(lightingCard).toHaveAttribute('subheading', /^2 התקנים · 1 פעילים/);
+      const chipCount = await a.locator('sw-chip[data-area-chip="cr007_lobby"]').evaluate((e) => (e as unknown as { count: number }).count);
+      await a.locator('[data-layout-edit]').click();
+      await expect(a.locator(`[data-layout-variant="${variant}"]`)).toHaveAttribute('aria-pressed', 'true');
+      // the card's own "סידור התקנים": the card alone, a breadcrumb back, the tiles panel
+      await a.locator('[data-lay-tiles-enter="card:lighting"]').click();
+      const stage = a.locator('[data-lay-stage="card:lighting"]');
+      await expect(stage).toBeVisible();
+      await expect(a.locator('[data-layout-tiles-crumb]')).toContainText('סידור התקנים');
+      await expect(a.locator('sw-card[data-card="climate"]')).toHaveCount(0);
+      await expect(a.locator('[data-layout-panel="tiles:card:lighting"]')).toBeVisible();
+      // the automatic order (the server's: by name - "ספוט לובי" before "תאורת לובי")
+      expect(await tileOrder(stage)).toEqual(['light.cr007_lobby_2', 'light.cr007_lobby']);
+      // the tiles' own controls are inert while arranged (a key never reaches a device)
+      const lobbyTile = stage.locator('.lay-tile[data-lay-tile="light.cr007_lobby"]');
+      const spotTile = stage.locator('.lay-tile[data-lay-tile="light.cr007_lobby_2"]');
+      await expect(lobbyTile.locator('.tile[data-entity="light.cr007_lobby"]')).toHaveAttribute('inert', '');
+      await expect(lobbyTile.locator('.tile[data-entity="light.cr007_lobby"]')).toHaveAttribute('aria-hidden', 'true');
+      const sent: string[] = [];
+      page.on('request', (r) => {
+        if (r.method() === 'POST' && /\/ha\/entities\/[^/]+\/actions$/.test(r.url())) sent.push(r.url());
+      });
+      if (!mobile) {
+        // drag the second tile onto the first: it takes its place
+        await drag(page, lobbyTile.locator('[data-lay-thandle]'), 0, 0); // a press without a move selects only
+        expect(await tileOrder(stage)).toEqual(['light.cr007_lobby_2', 'light.cr007_lobby']);
+        const from = (await lobbyTile.locator('[data-lay-thandle]').boundingBox())!;
+        const to = (await spotTile.boundingBox())!;
+        await drag(page, lobbyTile.locator('[data-lay-thandle]'), to.x + to.width / 2 - (from.x + from.width / 2), to.y + to.height / 2 - (from.y + from.height / 2));
+        expect(await tileOrder(stage)).toEqual(['light.cr007_lobby', 'light.cr007_lobby_2']);
+        // and back with the keyboard: ArrowLeft moves toward the end in RTL (later)
+        await lobbyTile.focus();
+        await page.keyboard.press('ArrowLeft');
+        await expect.poll(() => tileOrder(stage)).toEqual(['light.cr007_lobby_2', 'light.cr007_lobby']);
+      }
+      // the keyboard: ArrowRight moves a tile toward the start in RTL (earlier), Shift + arrows change its span
+      await lobbyTile.focus();
+      await page.keyboard.press('ArrowRight');
+      await expect.poll(() => tileOrder(stage)).toEqual(['light.cr007_lobby', 'light.cr007_lobby_2']);
+      await expect(a.locator('[data-layout-live]')).toContainText('מקום 1 מתוך 2');
+      await page.keyboard.press('Shift+ArrowLeft');
+      await expect(lobbyTile).toHaveAttribute('data-lay-tpos', '0,2,m');
+      await expect(a.locator('[data-layout-live]')).toContainText('רוחב מלא');
+      const tgrid = stage.locator('.lay-tgrid');
+      expect((await lobbyTile.boundingBox())!.width).toBeGreaterThan((await tgrid.boundingBox())!.width - 4);
+      // the panel: a custom title (text) and the size
+      const panel = a.locator('[data-layout-panel="tile:light.cr007_lobby"]');
+      await expect(panel).toBeVisible();
+      await panel.locator('[data-layout-tile-title]').fill('תאורה <b>ראשית</b>');
+      await panel.locator('[data-layout-tile-size="l"]').click();
+      await expect(lobbyTile).toHaveAttribute('data-tile-size', 'l');
+      await expect(lobbyTile.locator('.tile .t > span')).toHaveText('תאורה <b>ראשית</b>'); // text, never markup
+      await expect(lobbyTile.locator('.tile .t > span b')).toHaveCount(0);
+      // H hides the spot (dimmed here, still in place); nothing reached a device
+      await spotTile.focus();
+      await page.keyboard.press('h');
+      await expect(spotTile).toHaveClass(/lay-hidden/);
+      await expect(spotTile).toHaveAttribute('data-lay-tpos', '1,1,m');
+      for (const k of ['Home', 'End', ' ', 'PageDown']) await page.keyboard.press(k);
+      expect(sent).toEqual([]);
+      await lobbyTile.focus();
+      if (mobile) {
+        // the phone evidence: the short hint sheet (nothing selected) and the card in view under the compact bar
+        await page.keyboard.press('Escape');
+        await expect(a.locator('[data-layout-panel="tiles:card:lighting"]')).toBeVisible();
+        await expect(a.locator('[data-layout-bar] [data-layout-copy]')).toBeHidden();
+        await stage.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      }
+      await layoutShot(page, mobile ? 'tiles-phone' : 'tiles-desktop');
+
+      // the breadcrumb goes back to the cards (the arrangement stays in the draft); save for everyone
+      await a.locator('[data-layout-tiles-crumb] [data-layout-tiles-back]').click();
+      await expect(stage).toHaveCount(0);
+      await expect(a.locator('.lay-item.lay-edit[data-lay-key="card:climate"]')).toHaveCount(1);
+      const saved = page.waitForResponse((r) => r.url().includes('/api/v1/devices/layouts/area/cr007_lobby') && r.request().method() === 'PUT');
+      await a.locator('sw-button[data-layout-save]').click();
+      const put = await saved;
+      expect(put.status()).toBe(200);
+      expect(JSON.parse(put.request().postData() ?? '{}')).toMatchObject({ variant, layout: { v: 2 } });
+      await expect(a.locator('[data-layout-bar]')).toHaveCount(0);
+      const rec = await (await request.get('/api/v1/devices/layouts/area/cr007_lobby')).json();
+      const item = rec[variant].layout.items['card:lighting'];
+      expect(rec[variant].layout.v).toBe(2);
+      expect(item.tiles['light.cr007_lobby']).toEqual({ order: 0, span: 2, size: 'l', hidden: false, title: 'תאורה <b>ראשית</b>' });
+      expect(item.tiles['light.cr007_lobby_2']).toMatchObject({ order: 1, span: 1, size: 'm', hidden: true });
+      expect(item.hidden_entities).toEqual(['light.cr007_lobby_2']);
+      // applied: the saved order, span and size; the hidden spot gone from the card but still counted
+      const card = a.locator('sw-card[data-card="lighting"]');
+      expect(await tileOrder(card)).toEqual(['light.cr007_lobby']);
+      await expect(card.locator('.lay-tile[data-lay-tile="light.cr007_lobby"]')).toHaveAttribute('data-tile-size', 'l');
+      await expect(card.locator('.lay-tile[data-lay-tile="light.cr007_lobby"]')).toHaveAttribute('style', /span 2/);
+      await expect(card.locator('.tile[data-entity="light.cr007_lobby"]')).toContainText('תאורה <b>ראשית</b>');
+      await expect(card).toHaveAttribute('subheading', /^2 התקנים · 1 פעילים/);
+      expect(await a.locator('sw-chip[data-area-chip="cr007_lobby"]').evaluate((e) => (e as unknown as { count: number }).count)).toBe(chipCount);
+      // the tile's controls work again outside the editor
+      await expect(card.locator('.tile[data-entity="light.cr007_lobby"] sw-toggle[data-control="power"]')).toBeVisible();
+      await expect(a.locator('[data-lay-inert]')).toHaveCount(0);
+
+      // a viewer sees the same order and cannot edit (no button, and the server refuses)
+      bindings.push(await bindUser(request, user, 'viewer'));
+      const ctx = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': user }, viewport: page.viewportSize()!, locale: 'he-IL' });
+      const p = await ctx.newPage();
+      await open(p, '/devices/areas/cr007_lobby', 'a');
+      const vcard = p.locator('devices-area sw-card[data-card="lighting"]');
+      await expect(vcard.locator('.lay-tile[data-lay-tile="light.cr007_lobby"]')).toBeVisible({ timeout: 30000 });
+      expect(await tileOrder(vcard)).toEqual(['light.cr007_lobby']);
+      await expect(vcard).toContainText('תאורה <b>ראשית</b>');
+      await expect(vcard).toHaveAttribute('subheading', /^2 התקנים/);
+      await expect(p.locator('devices-area [data-layout-edit], devices-area [data-lay-tiles-enter]')).toHaveCount(0);
+      expect((await p.request.put('/api/v1/devices/layouts/area/cr007_lobby', { data: { variant, revision: rec[variant].revision, layout: rec[variant].layout } })).status()).toBe(403);
+      await ctx.close();
+
+      // "אפס סידור": the card's automatic order again, its hidden light stays hidden; the change is only a draft until saved
+      await a.locator('[data-layout-edit]').click();
+      await a.locator('[data-lay-tiles-enter="card:lighting"]').click();
+      expect(await tileOrder(stage)).toEqual(['light.cr007_lobby', 'light.cr007_lobby_2']);
+      await a.locator('[data-layout-panel="tiles:card:lighting"] [data-layout-tiles-reset]').click();
+      await expect.poll(() => tileOrder(stage)).toEqual(['light.cr007_lobby_2', 'light.cr007_lobby']);
+      await expect(stage.locator('.lay-tile[data-lay-tile="light.cr007_lobby_2"]')).toHaveClass(/lay-hidden/);
+      await expect(stage.locator('.lay-tile[data-lay-tile="light.cr007_lobby"]')).toHaveAttribute('data-lay-tpos', '1,1,m');
+      // Escape with nothing selected goes back to the cards; "בטל" drops the draft
+      await stage.locator('.lay-tile[data-lay-tile="light.cr007_lobby"]').focus();
+      await page.keyboard.press('Escape');
+      await page.keyboard.press('Escape');
+      await expect(stage).toHaveCount(0);
+      await a.locator('sw-button[data-layout-cancel]').click();
+      expect((await (await request.get('/api/v1/devices/layouts/area/cr007_lobby')).json())[variant].revision).toBe(rec[variant].revision);
+    } finally {
+      for (const id of bindings) await request.delete(`/api/v1/access/bindings/${id}`).catch(() => {});
+      await resetLayouts(request);
+    }
+  });
+
+  test('6c: the phone layout derives the tile order from the desktop (every tile full width), then is arranged on its own; the desktop arrangement stays', async ({ page, request }, testInfo) => {
+    test.setTimeout(180_000);
+    await seed(request);
+    await resetLayouts(request);
+    await devicesSettings(request, DEVICES_DEFAULTS);
+    const mobile = testInfo.project.name === 'mobile';
+    const layout = { v: 2, cols: 12, items: {
+      'card:lighting': { x: 0, y: 0, w: 12, h: 20, tiles: { 'light.cr007_lobby_2': { order: 0, span: 1 }, 'light.cr007_lobby': { order: 1, span: 1 } } },
+      'card:climate': { x: 0, y: 22, w: 12, h: 20 },
+    } };
+    try {
+      expect((await request.put('/api/v1/devices/layouts/area/cr007_lobby', { data: { variant: 'desktop', revision: 0, layout } })).status()).toBe(200);
+      await open(page, '/devices/areas/cr007_lobby', 'a');
+      const a = page.locator('devices-area');
+      const card = a.locator('sw-card[data-card="lighting"]');
+      await expect(card.locator('.lay-tile[data-lay-tile="light.cr007_lobby_2"]')).toBeVisible({ timeout: 30000 });
+      // the viewer's own layout: the desktop order on both; on a phone every tile is the card's full width
+      expect(await tileOrder(card)).toEqual(['light.cr007_lobby_2', 'light.cr007_lobby']);
+      const spans = await card.locator('.lay-tile').evaluateAll((els) => els.map((e) => e.getAttribute('data-tile-span')));
+      expect(spans).toEqual(mobile ? ['2', '2'] : ['1', '1']);
+      if (mobile) {
+        const gw = (await card.locator('.lay-tgrid').boundingBox())!.width;
+        expect((await card.locator('.lay-tile').first().boundingBox())!.width).toBeGreaterThan(gw - 4);
+      }
+      // the phone layout, arranged on its own
+      await a.locator('[data-layout-edit]').click();
+      if (!mobile) await a.locator('[data-layout-variant="phone"]').click();
+      await expect(a.locator('[data-layout-variant="phone"]')).toHaveAttribute('aria-pressed', 'true');
+      await a.locator('[data-lay-tiles-enter="card:lighting"]').click();
+      const stage = a.locator('[data-lay-stage="card:lighting"]');
+      if (!mobile) await expect(stage).toHaveAttribute('data-lay-phone-preview', '');
+      expect(await tileOrder(stage)).toEqual(['light.cr007_lobby_2', 'light.cr007_lobby']);
+      const spot = stage.locator('.lay-tile[data-lay-tile="light.cr007_lobby_2"]');
+      await expect(spot).toHaveAttribute('data-lay-tpos', '0,2,m');
+      await spot.focus();
+      await page.keyboard.press('ArrowLeft'); // RTL: toward the end - later
+      await expect.poll(() => tileOrder(stage)).toEqual(['light.cr007_lobby', 'light.cr007_lobby_2']);
+      await page.keyboard.press('Shift+ArrowRight'); // narrower: half the card
+      await expect(spot).toHaveAttribute('data-lay-tpos', '1,1,m');
+      const saved = page.waitForResponse((r) => r.url().includes('/api/v1/devices/layouts/area/cr007_lobby') && r.request().method() === 'PUT');
+      await a.locator('sw-button[data-layout-save]').click();
+      const put = await saved;
+      expect(put.status()).toBe(200);
+      expect(JSON.parse(put.request().postData() ?? '{}').variant).toBe('phone');
+      const rec = await (await request.get('/api/v1/devices/layouts/area/cr007_lobby')).json();
+      expect(rec.phone.layout.cols).toBe(4);
+      expect(rec.phone.layout.items['card:lighting'].tiles).toMatchObject({ 'light.cr007_lobby': { order: 0, span: 2 }, 'light.cr007_lobby_2': { order: 1, span: 1 } });
+      expect(rec.desktop.layout.items['card:lighting'].tiles).toMatchObject({ 'light.cr007_lobby_2': { order: 0, span: 1 }, 'light.cr007_lobby': { order: 1, span: 1 } }); // its own
+      // each viewport draws its own arrangement
+      await expect.poll(() => tileOrder(card)).toEqual(mobile ? ['light.cr007_lobby', 'light.cr007_lobby_2'] : ['light.cr007_lobby_2', 'light.cr007_lobby']);
+    } finally {
+      await resetLayouts(request);
+    }
+  });
 });
