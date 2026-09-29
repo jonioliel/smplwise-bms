@@ -409,3 +409,28 @@ that hostname was the customer's existing one on the owner's `smplwise.com` zone
 D11-D14 do not change D1 (path `/arx`, same origin) or D6 (seed `hassTokens`) - they only fix which domain and
 tunnel deliver that hostname per customer. `docs/operations/ARX_CLOUDFLARE_GUIDE_HE.md` §0 and §9 carry the
 installer-facing walkthrough and the automation details.
+
+Owner answers later on 2026-09-29: **D8 = (b) MFA optional** (the setting `remote.require_mfa_admin` exists, default
+off); **D9 stays open** - an HA-side setting, documented in DOCS and the guide, never enforced by Arx.
+
+## 8. MVP built (branch `pilot/CR008-arx-mvp`, 2026-09-29)
+
+§4 "our steps" 1-4 are built, plus the §3f settings and the per-user flag (part of step 5). Not yet released.
+
+| Step | What exists |
+|---|---|
+| 1 | Add-on options `remote_access` (bool, default false) and `remote_path` (default `/arx`, one safe path segment; HA's root paths refused) in `config.yaml` / `Settings`; `ha_core_url` (HA core for token validation; inside the add-on from the Supervisor's `/core/info`). DOCS + DOCS_HE. |
+| 2 | `remote_channel.py`, the outermost ASGI middleware: 404 under the prefix while off, `308 /arx -> /arx/`, `root_path` = prefix, request state `sw_channel = remote`, inbound `X-Remote-User-*` / `X-Ingress-*` / `X-Hass-*` / developer identity headers dropped, the HA bridge's signed machine routes 404; CSP (`frame-ancestors 'self'`; `style-src` also needs `'unsafe-inline'` for Lit's inline style attributes), `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: same-origin`, `Permissions-Policy`, `nosniff`, COOP, `Cache-Control: no-store` on the API. HSTS left to Cloudflare. |
+| 3 | `services/ha_user_auth.py`: JWT pre-check, HA core WebSocket `auth` + `auth/current_user` with the caller's `X-Forwarded-For` (retried without it if HA refuses the header), negative cache; in-memory sessions (256-bit ids, rotated on every exchange, never beyond the access token); `POST/DELETE api/v1/auth/session`, `GET api/v1/auth/remote-config`; `resolve_principal`'s remote branch (cookie or bearer; the same `Principal`, `source = "remote"`; never the developer identity); WebSocket `Origin` check and socket closing on revocation; 60 s revalidation of sessions used in the last 2 minutes; `remote.policy` flag / any_role, inactive users, `remote.require_mfa_admin`; rate limits per address (10/min, 50/h) and per user (20/min, 200/h); audit `auth.remote_session.created/.rejected/.revoked/.logout` and `remote.access_flag`; no bootstrap remotely. Migration 0033 `remote_access_users`; `PUT api/v1/access/users/{id}/remote-access`. |
+| 4 | `frontend/src/arx/`: channel detection from the address, the designed sign-in page (username/password, MFA step, HA's error texts in Hebrew), PKCE against HA's `/auth/login_flow` + `/auth/token` with `client_id = <origin>/arx/`, `arx.auth.v1` storage per `remote.session`, the `hassTokens` seed (shape verified against HA's `token_storage.ts` and home-assistant-js-websocket's `AuthData`), refresh 5 min before expiry and on 401 with a cookie re-exchange, idle lock, sign-out (revoke + session delete + both stores). The service worker registered is `arx-sw.js` with scope `/arx/` - the file itself ships with the PWA branch (`pilot/CR008-pwa-push`). הגדרות › גישה מרחוק; the per-user toggle in משתמשים והרשאות. |
+
+Deviations from the text above, recorded: the cookie is `SameSite=Strict` as §3b.4 says (the MVP brief said Lax;
+Strict is the stricter of the two and works because every Arx request is same-site); audit action names follow
+§3b.8; the setting is `remote.mse_fallback` (§3f), not `remote.allow_mse_fallback`; the "keep me signed in" box of
+§3b.1 is replaced by the `remote.session` setting (D5); a bearer token on a WebSocket is not accepted (cookie only).
+
+Not built yet (remaining §4 steps): the player's use of `remote.default_profile` / `remote.mse_fallback` and the
+go2rtc main-stream codec check (step 6 - the settings screen shows the static H.264 / B-frames hint only); review
+round and release (step 7). Tests: 45 backend tests (`tests/test_remote_access.py`, fake HA core
+`tests/fake_ha_core.py`) and 8 Playwright runs (`tests/evidence-arx-remote.spec.ts` desktop + phone against
+`tests/fixtures/arx_fake_ha.py`). Owner check: AT185 subset of §4 on the lab site.

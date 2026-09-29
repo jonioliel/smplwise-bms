@@ -38,6 +38,7 @@ const TABS = [
   { id: 'ha', label: 'גשר Home Assistant' },
   { id: 'access-control', label: 'בקרות כניסה' },
   { id: 'devices', label: 'חשמל והתקנים' },
+  { id: 'remote', label: 'גישה מרחוק' },
   { id: 'health', label: 'בריאות ועבודות' },
   { id: 'backup', label: 'גיבוי ושחזור' },
   { id: 'support', label: 'תמיכה' },
@@ -825,6 +826,45 @@ export class SystemDiagnostics extends LitElement {
     </div>`;
   }
 
+  /** הגדרות › גישה מרחוק (CR-008 SmplWise Arx, owner decisions D4/D5/D7/D8 of 2026-09-29): who may sign in through
+   * `https://<HA hostname>/arx`, how the browser keeps the sign-in, and the remote video policy. The channel itself is the
+   * add-on option remote_access; the per-user flag lives in משתמשים והרשאות. system.configure edits. */
+  private renderRemote() {
+    const api = isApi();
+    const ro = !api || !this.canEdit;
+    const keys = ['remote.policy', 'remote.session', 'remote.idle_lock_minutes', 'remote.default_profile', 'remote.mse_fallback', 'remote.require_mfa_admin'] as const;
+    const dirty = keys.some((k) => k in this.draft);
+    const v = <K extends (typeof keys)[number]>(k: K, d: string) => String(this.value(k) ?? d);
+    const sel = (key: (typeof keys)[number], d: string, options: [string, string][]) => html`<sw-field class="ctl"><select data-set-remote=${key} ?disabled=${ro} @change=${(e: Event) => this.set(key, (e.target as HTMLSelectElement).value as never)}>
+        ${options.map(([val, label]) => html`<option value=${val} ?selected=${v(key, d) === val}>${label}</option>`)}
+      </select></sw-field>`;
+    const idle = v('remote.session', 'rolling_90d') === 'rolling_90d_idle_lock';
+    return html`<div class="sections" data-remote-settings>
+      <sw-card heading="גישה מרחוק · SmplWise Arx" subheading="כניסה דרך https://<שם ה־Home Assistant>/arx עם מסך הכניסה של המערכת (שם משתמש וסיסמה של Home Assistant). הערוץ עצמו מופעל באפשרות ה־add-on remote_access.">
+        <div class="row"><span class="lbl">מי רשאי להיכנס מרחוק<span class="muted">דגל אישי: רק משתמשים שהופעלה להם גישה מרחוק במסך משתמשים והרשאות · כל בעל תפקיד: כל משתמש Home Assistant עם תפקיד כלשהו במערכת</span></span>
+          ${sel('remote.policy', 'flag', [['flag', 'דגל אישי לכל משתמש'], ['any_role', 'כל משתמש עם תפקיד']])}</div>
+        <div class="row"><span class="lbl">שמירת הכניסה בדפדפן<span class="muted">90 יום מתחדשים: כמו האפליקציה של Home Assistant · עד סגירת הדפדפן: הכניסה נמחקת בסגירה · 90 יום עם נעילה: כניסה חוזרת אחרי זמן ללא פעילות</span></span>
+          ${sel('remote.session', 'rolling_90d', [['rolling_90d', '90 יום מתחדשים'], ['browser_session', 'עד סגירת הדפדפן'], ['rolling_90d_idle_lock', '90 יום עם נעילה בחוסר פעילות']])}</div>
+        ${idle
+          ? html`<div class="row"><span class="lbl">נעילה אחרי (דקות ללא פעילות)<span class="muted">5 עד 10080 דקות · ברירת מחדל 720 (12 שעות)</span></span>
+              <sw-field class="ctl"><input type="number" min="5" max="10080" step="5" data-set-remote="remote.idle_lock_minutes" .value=${v('remote.idle_lock_minutes', '720')} ?disabled=${ro} @change=${(e: Event) => this.set('remote.idle_lock_minutes', Number((e.target as HTMLInputElement).value))} /></sw-field></div>`
+          : nothing}
+        <div class="row"><span class="lbl">אימות דו־שלבי למנהלים<span class="muted">כשמופעל: משתמש עם הרשאות ניהול נכנס מרחוק רק אם הפעיל MFA בפרופיל ה־Home Assistant שלו</span></span>
+          ${sel('remote.require_mfa_admin', 'false', [['false', 'רשות'], ['true', 'חובה למנהלים']])}</div>
+      </sw-card>
+      <sw-card heading="וידאו מרחוק" subheading="WebRTC עובר ישירות בין הדפדפן ל־go2rtc; MSE מעביר את הווידאו עצמו דרך המנהרה ולכן הוא רק מוצא אחרון.">
+        <div class="row"><span class="lbl">זרם ברירת מחדל<span class="muted">הזרם שצופה מרוחק מקבל ראשון, ב־WebRTC</span></span>
+          ${sel('remote.default_profile', 'main', [['main', 'ראשי (main)'], ['sub', 'משני (sub)']])}</div>
+        <div class="row"><span class="lbl">MSE כמוצא אחרון<span class="muted">כש־WebRTC לא מתחבר או לא מפענח. כבוי: אין וידאו דרך המנהרה בכלל</span></span>
+          ${sel('remote.mse_fallback', 'true', [['true', 'מותר (מוצג לצופה)'], ['false', 'אסור']])}</div>
+        <div class="muted" data-remote-codec-hint style="margin-block-start:8px">דפדפנים מפענחים ב־WebRTC רק H.264 ללא B-frames; H.265 לא מתנגן ב־WebRTC ברוב הדפדפנים. אם הזרם הראשי של ה־NVR אינו כזה, הגדירו בו H.264 ללא B-frames או בחרו כאן בזרם המשני.</div>
+      </sw-card>
+      ${this.canEdit
+        ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-remote ?disabled=${!dirty || this.busy} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'remote' ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error && this.tab === 'remote' ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>`
+        : html`<div class="muted">${api ? 'שינוי ההגדרות דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
+    </div>`;
+  }
+
   /** הגדרות › חשמל והתקנים (CR-007 slice 6a): how the device-control screens look for everyone in the installation -
    * the style (with a static preview of each), the building screen's first view, the density, the sensors card and
    * the climate strip. Presentation only; per-area layout editing is slice 6b. */
@@ -1066,7 +1106,7 @@ export class SystemDiagnostics extends LitElement {
         <sw-tabs underline .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'media') void this.loadMedia(); if (this.tab === 'ha') void this.loadHa(); if (this.tab === 'backup') void this.loadBackups(); if (this.tab === 'health') void this.loadReport(); }}></sw-tabs>
         ${this.message && this.tab === 'ha' ? html`<div class="muted" style="color:#15803d">${this.message}</div>` : nothing}
         ${this.error && this.tab === 'ha' ? html`<div class="muted" style="color:var(--sw-error)">${this.error}</div>` : nothing}
-        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'media' ? this.renderMedia() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
+        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'media' ? this.renderMedia() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
       </sw-page>
     `;
   }

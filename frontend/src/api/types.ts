@@ -1,7 +1,11 @@
 // Shapes returned by the add-on backend (smplwise_vms/backend). Keep in step with the routers.
 
 export interface Me {
-  user: { id: string; username: string; display_name: string; source: 'ingress' | 'dev' };
+  user: { id: string; username: string; display_name: string; source: 'ingress' | 'dev' | 'remote' };
+  /** CR-008: the entry channel - `remote` through SmplWise Arx (`/arx/`), `local` through Ingress (or a developer backend). */
+  channel?: 'remote' | 'local';
+  /** CR-008: the remote.* settings the Arx client needs; null outside the remote channel. */
+  remote?: Record<string, string | number> | null;
   bindings: { id: string; role_id: string; role_name: string; scope_type: string; scope_id: string; scope_name: string; effect: string }[];
   permissions_installation: string[];
   /** Held at any scope (union of the allow bindings, minus installation-wide denies): what the shell may show. */

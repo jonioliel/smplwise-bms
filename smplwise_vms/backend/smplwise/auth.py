@@ -19,6 +19,7 @@ import time
 from .db import Database, database_of, get_setting, new_id, now_iso, permission_revision, read_mode, release, set_setting
 from .errors import unauthenticated
 from .rbac import Principal
+from .remote_channel import is_remote
 
 HEADER_ID = "x-remote-user-id"
 HEADER_NAME = "x-remote-user-name"
@@ -66,6 +67,12 @@ def _client_host(request: Request) -> str:
 
 def resolve_principal(request: Request, settings: Settings) -> Principal:
     headers = request.headers
+    if is_remote(request):
+        # CR-008: the /arx channel never takes identity from headers (the middleware already dropped them) and never
+        # uses the developer identity; only an Arx session cookie or an HA bearer token validated against HA core
+        from .services import ha_user_auth
+
+        return ha_user_auth.remote_principal(request, settings)
     if settings.dev_user and not settings.in_addon:
         username = headers.get(DEV_HEADER) or settings.dev_user
         return Principal(user_id=f"dev-{username}", username=username, display_name=username, source="dev")
@@ -114,7 +121,10 @@ def touch_user(conn: sqlite3.Connection, principal: Principal, force: bool = Fal
 
 
 def maybe_bootstrap(conn: sqlite3.Connection, settings: Settings, principal: Principal, request_id: str | None) -> None:
-    """Grant system_admin once to the HA username named in the add-on options."""
+    """Grant system_admin once to the HA username named in the add-on options - through Ingress only: never on the
+    CR-008 remote channel, whatever the username."""
+    if principal.source == "remote":
+        return
     if not settings.bootstrap_admin_username:
         return
     if get_setting(conn, "bootstrap_state", "pending") != "pending":

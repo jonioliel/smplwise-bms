@@ -53,6 +53,8 @@ import { currentDesign, onDesign, resolveDesign, type DesignId } from '../api/de
 import { t } from '../i18n/he';
 import { can, canNav, isApi, loadSession, nvrLess, onSession, watchPermissions, type Session } from '../api/session';
 import { productSettings } from '../api/prefs';
+import { REMOTE } from '../arx/pre-gate';
+import { logout as arxLogout } from '../arx/auth';
 import '../components/sw-state-panel';
 import '../components/sw-page';
 
@@ -1081,6 +1083,13 @@ export class SwApp extends LitElement {
     return null;
   }
 
+  /** CR-008 remote channel (SmplWise Arx): sign out - revokes the HA refresh token, ends the Arx session, clears both
+   * token stores; the page then shows the Arx sign-in again. Under Ingress HA owns the sign-in, so nothing here. */
+  private renderArxSignOut() {
+    if (!REMOTE) return nothing;
+    return html`<sw-button class="arx-signout" variant="ghost" size="sm" iconOnly icon="logout" label="יציאה" title="יציאה מ־SmplWise Arx" data-arx-signout @click=${() => void arxLogout('logout')}></sw-button>`;
+  }
+
   private renderPermToast() {
     return this.permToast ? html`<div class="perm-toast" role="status" aria-live="polite" data-perm-toast>${this.permToast}</div>` : nothing;
   }
@@ -1213,7 +1222,7 @@ export class SwApp extends LitElement {
           : this.session.mode === 'demo'
             ? html`<sw-badge kind="neutral" label="נתוני הדגמה"></sw-badge>`
             : nothing}
-        <sw-button class="bell" variant="ghost" size="sm" iconOnly icon="bell" label=${t('app.notifications')}></sw-button>
+        <sw-button class="bell" variant="ghost" size="sm" iconOnly icon="bell" label=${t('app.notifications')}></sw-button>${this.renderArxSignOut()}
         <span class="user-a"><sw-avatar name=${name} size=${34} title=${t('app.account')} aria-label=${t('app.account')}></sw-avatar><span class="who-a"><b>${name}</b><span>${me?.bindings[0]?.role_name ?? (this.session.mode === 'demo' ? 'מנהל VMS' : 'ללא שיוך')}</span></span></span>
         <span class="logo-a"><b>smplwise</b><small>Arx</small></span>
       </header>
@@ -1275,7 +1284,7 @@ export class SwApp extends LitElement {
           : this.session.mode === 'demo'
             ? html`<sw-badge kind="neutral" label="נתוני הדגמה"></sw-badge>`
             : nothing}
-        <sw-button class="bell" variant="ghost" size="sm" iconOnly icon="bell" label=${t('app.notifications')}></sw-button>
+        <sw-button class="bell" variant="ghost" size="sm" iconOnly icon="bell" label=${t('app.notifications')}></sw-button>${this.renderArxSignOut()}
         <sw-avatar name=${this.session.me?.user.display_name || this.session.me?.user.username || 'יוני'} size=${28} title=${t('app.account')} aria-label=${t('app.account')}></sw-avatar>
       </header>
       <main>
