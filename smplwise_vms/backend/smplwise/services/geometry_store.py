@@ -711,10 +711,6 @@ def _sync_twins(conn: sqlite3.Connection, version: sqlite3.Row, prev: dict[str, 
         old = before.get(c.get("id")) if other else None
         if other is None or old is None or all(old.get(k) == c.get(k) for k in _MODEL_KEYS):
             continue
-        if not can_edit(other):
-            if skipped is not None and other not in skipped:
-                skipped.append(other)
-            continue
         v = editor_version(conn, other)
         if v is None:
             continue
@@ -725,6 +721,10 @@ def _sync_twins(conn: sqlite3.Connection, version: sqlite3.Row, prev: dict[str, 
             continue
         new = apply_twin_model(twins[i], c, tdoc)
         if new is twins[i]:
+            continue
+        if not can_edit(other):  # only a floor that really holds a twin to update is reported (final review)
+            if skipped is not None and other not in skipped:
+                skipped.append(other)
             continue
         tdoc["connectors"] = [*twins[:i], new, *twins[i + 1:]]
         save_draft(conn, v, tdoc, tdraft["revision"] if tdraft is not None else 0, actor_id, now)
