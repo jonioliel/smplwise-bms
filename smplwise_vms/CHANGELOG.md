@@ -1,5 +1,28 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.137 (pilot) — Plan Studio detector: thin hollow exterior walls (T087, the parked prototype made safe)
+- The owner's scans draw exterior walls as two thin parallel lines with white between; the detector missed them
+  (exterior coverage on floor 0 was 0.00). A second pass, **`hollow_v1`**, now finds them: two thin strokes (≤ 5 px and
+  thinner than the plan's median solid wall) at a spacing learnt from the plan (0.12-0.6 m), nothing as dark as the
+  line cores between them, at least 1.5 m, on the two main axes, linked to a solid wall or turning a corner; stair
+  treads, tribune railings, opening face lines and hatched or furnished pairs are rejected. Two solid walls 0.75 m
+  apart (the T-junction fixture that parked the prototype) are never merged.
+- **Never on a solid-wall plan** (review finding: counters and wardrobes 0.5 m deep read as exterior walls): a
+  plan-level gate emits hollow walls only when they cover ≥ 25 % of the building box's perimeter and turn a corner,
+  with no solid wall just outside them; otherwise nothing changes and the detect summary says why. A hollow
+  candidate replaces a solid detection only when that detection is itself outline-only; windows found on replaced
+  pieces are carried over (real-floor windows unchanged: 7 / 8 / 3). Bounded time: bisect lookups, deadline checks
+  every 256 strokes, the pass skipped above 1,500 thin strokes.
+- **On by default with an opt-out**: the detect dialog has "קירות חלולים (חיצוניים דקים)" checked; the API takes
+  `hollow_walls: false`. Each wall carries `hollow: true/false` (schema-compatible; the editor may style it later).
+- Owner's real plans (floors 0 / -1 / -2): exterior coverage by walls marked exterior 0.00 / 0.26 / 0.00 →
+  0.66 / 0.49 / 0.00 (floor -2's envelope is faint glazing and single lines - gated off), 25 hollow walls of which 18
+  on the envelope, +0.8-1.8 s per plan. Known limits (triage §6): one spacing per plan, two axes only, a hollow
+  facade on one side only is not taken, a fence 0.6-0.9 m outside the envelope blocks the gate, very close pairs with
+  light grey fill still read as hollow.
+- Tests: `test_plan_detect_hollow.py` 8 + detector set 110, synthetic metrics identical for solid walls / doors /
+  windows; tsc clean. Opus review (1 blocker + 3 medium fixed) + scoped re-review APPROVED.
+
 ## 0.1.136 (pilot) — Device control: click enters the area, empty domains hidden, per-device tile layout (CR-007 6c, owner requests)
 - **A click on an area opens it** (owner: "a click opens a tooltip and then I have to click 'פתח אזור', and the tooltip is
   sometimes hidden"). In the tree and in the floor cards a click on an area row goes straight to the area screen;
