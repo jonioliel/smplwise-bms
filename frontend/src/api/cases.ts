@@ -2,11 +2,11 @@
  * Investigation cases (T049): a case links events, recording clips and notes from several cameras. A clip is a
  * bookmark into the NVR until an export job preserves a copy; footage the NVR no longer has is reported as missing.
  */
-import { apiUrl, del, get, patch, post, upload } from './client';
+import { api, apiUrl, del, get, patch, post } from './client';
 
 export type CaseStatus = 'open' | 'in_review' | 'closed';
 export type CaseItemKind = 'event' | 'clip' | 'note' | 'snapshot';
-export type Preservation = 'preserved' | 'preserving' | 'nvr_only' | 'missing' | 'unknown' | 'none';
+export type Preservation = 'preserved' | 'preserving' | 'nvr_only' | 'missing' | 'unknown' | 'not_in_bundle' | 'none';
 
 export const CASE_STATUS_LABEL: Record<CaseStatus, string> = { open: 'פתוח', in_review: 'בבדיקה', closed: 'סגור' };
 export const PRESERVATION_LABEL: Record<Preservation, string> = {
@@ -15,6 +15,7 @@ export const PRESERVATION_LABEL: Record<Preservation, string> = {
   nvr_only: 'סימנייה ל־NVR בלבד',
   missing: 'חסר: ה־NVR כבר לא מחזיק את הקטע',
   unknown: 'לא נבדק מול ה־NVR',
+  not_in_bundle: 'לא נכלל בחבילת המקור (סימנייה בלבד)',
   none: '',
 };
 
@@ -40,6 +41,48 @@ export interface Case {
   updated_at: string;
   closed_at: string | null;
   counts: CaseCounts;
+  /** T050 import: 'imported' = the case came from an evidence bundle; provenance says from where. */
+  origin?: 'local' | 'imported';
+  provenance?: CaseProvenance | null;
+}
+
+/** Where an imported case came from (recorded at import; the bundle verified cleanly then). */
+export interface CaseProvenance {
+  source_installation_id: string | null;
+  source_app_version: string | null;
+  exported_at: string | null;
+  exported_by: string | null;
+  exported_by_display: string | null;
+  timezone: string | null;
+  this_installation: boolean | null;
+  confirmed_by_signature: boolean;
+  basis: 'installation_id' | 'signing_key' | 'unknown';
+  bundle_sha256: string;
+  bundle_bytes: number;
+  bundle_name: string | null;
+  signature: { present: boolean; valid: boolean; trust: SignatureVerdict['trust']; kid: string | null; known: boolean; retired: boolean | null };
+  verification: { ok: boolean; files: number; schema: string | null; verified_at: string };
+  source_case: { id: string | null; title: string | null; status: string | null; owner_username: string | null; created_at: string | null; updated_at: string | null };
+  imported_at: string;
+  imported_by: string | null;
+  files_stored: number;
+  bytes_stored: number;
+  skipped_at_source: number;
+}
+
+/** What the bundle said about an imported item: the source camera is a name only, never a camera here. */
+export interface ItemOrigin {
+  bundle_sha256: string;
+  source_installation_id: string | null;
+  source_item_id: string | null;
+  kind: CaseItemKind;
+  camera_id: string | null;
+  camera_name: string | null;
+  added_by: string | null;
+  created_at: string | null;
+  preservation: string | null;
+  in_bundle: boolean;
+  stored: boolean;
 }
 
 export interface CaseItem {
@@ -61,6 +104,8 @@ export interface CaseItem {
   file_path?: string | null;
   file_sha256?: string | null;
   file_url?: string | null;
+  imported?: boolean;
+  origin?: ItemOrigin | null;
 }
 
 export interface CaseDetail extends Case {
@@ -85,7 +130,7 @@ export function listCases(opts: { status?: CaseStatus; q?: string } = {}) {
   if (opts.status) p.set('status', opts.status);
   if (opts.q) p.set('q', opts.q);
   const qs = p.toString();
-  return get<{ cases: Case[]; can_manage: boolean }>(`cases${qs ? `?${qs}` : ''}`);
+  return get<{ cases: Case[]; can_manage: boolean; can_import?: boolean }>(`cases${qs ? `?${qs}` : ''}`);
 }
 export const createCase = (body: { title: string; description?: string; tags?: string[]; status?: CaseStatus }) => post<Case>('cases', body);
 export const getCase = (id: string, check = true) => get<CaseDetail>(`cases/${id}${check ? '' : '?check=false'}`);
@@ -147,17 +192,56 @@ export interface SigningInfo {
   trust: string;
   can_rotate: boolean;
 }
+export type BundleFileStatus = 'ok' | 'mismatch' | 'missing' | 'corrupt';
+export const FILE_STATUS_LABEL: Record<BundleFileStatus, string> = { ok: 'תואם', mismatch: 'שונה', missing: 'חסר', corrupt: 'פגום' };
+/** The producing installation as the manifest names it; `confirmed_by_signature` = signed by a key of this installation. */
+export interface BundleOrigin {
+  installation_id: string | null;
+  app_version: string | null;
+  exported_at: string | null;
+  exported_by: string | null;
+  exported_by_display: string | null;
+  timezone: string | null;
+  this_installation: boolean | null;
+  basis: 'installation_id' | 'signing_key' | 'unknown';
+  confirmed_by_signature: boolean;
+}
 export interface BundleVerification {
   ok: boolean;
   schema: string | null;
+  schema_version?: number | null;
+  supported?: boolean;
   case?: string;
   generated_at?: string;
   manifest_ok: boolean | null;
-  files: { path: string; status: 'ok' | 'mismatch' | 'missing' | 'corrupt'; expected: string; actual: string | null }[];
+  files: { path: string; status: BundleFileStatus; expected: string; actual: string | null; bytes?: number | null }[];
   extra: string[];
   errors: string[];
   signature?: SignatureVerdict;
   authenticity?: string;
+  origin?: BundleOrigin | null;
+  counts?: Record<BundleFileStatus | 'extra', number>;
+  /** Plain-language verdict: a matching hash = unchanged since export, not proof that the footage is genuine. */
+  summary?: string;
+  bundle?: { sha256: string; bytes: number; name: string | null };
+  already_imported?: { case_id: string; title: string } | null;
+  importable?: boolean;
+}
+export interface BundleImport {
+  case: Case;
+  items: number;
+  files: number;
+  bytes: number;
+  bundle: { sha256: string; bytes: number; name: string | null };
+  report: Pick<BundleVerification, 'ok' | 'summary' | 'counts' | 'origin' | 'signature' | 'schema' | 'schema_version' | 'authenticity'>;
+}
+export interface CaseIntegrity {
+  case_id: string;
+  checked_at: string;
+  ok: boolean;
+  files: { item_id: string; kind: CaseItemKind; status: 'ok' | 'mismatch' | 'missing'; expected: string; actual: string | null }[];
+  hidden_items: number;
+  note: string;
 }
 export const getSigning = () => get<SigningInfo>('evidence/signing');
 export const rotateSigning = () => post<SigningInfo>('evidence/signing/rotate');
@@ -165,8 +249,9 @@ export const createBundle = (id: string) => post<Bundle>(`cases/${id}/bundle`);
 export const listBundles = (id: string) => get<{ bundles: Bundle[] }>(`cases/${id}/bundles`);
 export const bundleUrl = (id: string, name: string) => apiUrl(`cases/${id}/bundles/${name}`);
 export const caseItemFileUrl = (id: string, itemId: string) => apiUrl(`cases/${id}/items/${itemId}/file`);
-export function verifyBundle(file: File) {
-  const form = new FormData();
-  form.append('file', file, file.name);
-  return upload<BundleVerification>('cases/bundles/verify', form);
-}
+/** The ZIP goes as the raw request body (streamed to a temp file on the server, never held in memory there). */
+const zipBody = (file: Blob) => ({ method: 'POST', body: file, headers: { 'Content-Type': 'application/zip' } });
+const named = (path: string, file: File | Blob) => (file instanceof File && file.name ? `${path}?name=${encodeURIComponent(file.name.slice(0, 200))}` : path);
+export const verifyBundle = (file: File | Blob) => api<BundleVerification>(named('cases/bundles/verify', file), zipBody(file));
+export const importBundle = (file: File | Blob) => api<BundleImport>(named('cases/bundles/import', file), zipBody(file));
+export const checkCaseIntegrity = (id: string) => post<CaseIntegrity>(`cases/${id}/integrity`);

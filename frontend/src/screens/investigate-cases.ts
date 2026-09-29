@@ -25,13 +25,21 @@ import { frameUrl } from '../api/recordings';
 import { exportDownloadUrl, formatBytes } from '../api/exports';
 import { listCameras } from '../api/maps';
 import type { Camera } from '../api/types';
-import { CASE_STATUS_LABEL, PRESERVATION_LABEL, addCaseItem, bundleUrl, caseItemFileUrl, createBundle, createCase, deleteCase, getCase, listBundles, listCases, preserveCaseItem, removeCaseItem, updateCase, verifyBundle, type Bundle, type BundleVerification, type Case, type CaseDetail, type CaseItem, type CaseStatus, type Preservation } from '../api/cases';
+import { CASE_STATUS_LABEL, FILE_STATUS_LABEL, PRESERVATION_LABEL, addCaseItem, bundleUrl, caseItemFileUrl, checkCaseIntegrity, createBundle, createCase, deleteCase, getCase, importBundle, listBundles, listCases, preserveCaseItem, removeCaseItem, updateCase, verifyBundle, type Bundle, type BundleFileStatus, type BundleVerification, type Case, type CaseDetail, type CaseIntegrity, type CaseItem, type CaseStatus, type Preservation, type SignatureVerdict } from '../api/cases';
 
 const STATUS_KIND: Record<CaseStatus, StateKind> = { open: 'stale', in_review: 'recorded', closed: 'neutral' };
-const PRES_KIND: Record<Preservation, StateKind> = { preserved: 'recorded', preserving: 'partial', nvr_only: 'stale', missing: 'error', unknown: 'unknown', none: 'neutral' };
+const PRES_KIND: Record<Preservation, StateKind> = { preserved: 'recorded', preserving: 'partial', nvr_only: 'stale', missing: 'error', unknown: 'unknown', not_in_bundle: 'neutral', none: 'neutral' };
+const FILE_KIND: Record<BundleFileStatus, StateKind> = { ok: 'recorded', mismatch: 'error', missing: 'error', corrupt: 'error' };
+const shortHash = (h?: string | null) => (h ? `${h.slice(0, 12)}…` : '—');
+/** One line on a manifest signature: integrity since export, and whose key it is. */
+function signatureText(s?: SignatureVerdict | null): string {
+  if (!s || !s.present) return 'ללא חתימה (חבילה מגרסה ישנה, או שהחתימה הוסרה) — נבדקו רק הגיבובים.';
+  if (!s.valid) return `חתימה לא תקינה${s.reason ? ` (${s.reason})` : ''} — ה־manifest שונה אחרי הייצוא או שהחתימה זויפה.`;
+  return `חתימה תקינה · Ed25519 · מפתח ${s.kid}${s.trust === 'installation' ? (s.retired ? ' · מפתח שהוחלף, מוכר למתקן זה' : ' · המפתח הפעיל של מתקן זה') : ' · מפתח שאינו מוכר למתקן זה — שלמות בלבד, לא אמון'}`;
+}
 const fmtWhen = (iso: string, tz?: string) => new Intl.DateTimeFormat('he-IL', { timeZone: tz, dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso));
 const API_COLUMNS: TableColumn[] = [
-  { key: 'title', label: 'תיק', render: (r) => html`<strong>${String(r.title)}</strong>${r.tags ? html`<div style="font-size:11px;color:var(--sw-text-3)">${String(r.tags)}</div>` : nothing}` },
+  { key: 'title', label: 'תיק', render: (r) => html`<strong>${String(r.title)}</strong>${r.imported ? html` <sw-badge kind="historic" label="מיובא" data-case-imported></sw-badge>` : nothing}${r.tags ? html`<div style="font-size:11px;color:var(--sw-text-3)">${String(r.tags)}</div>` : nothing}` },
   { key: 'status', label: 'סטטוס', render: (r) => html`<sw-badge kind=${STATUS_KIND[r.status as CaseStatus]} label=${CASE_STATUS_LABEL[r.status as CaseStatus]}></sw-badge>` },
   { key: 'owner', label: 'בעלים' },
   { key: 'items', label: 'פריטים' },
@@ -63,6 +71,12 @@ export class InvestigateCases extends LitElement {
   @state() private newDesc = '';
   @state() private newTags = '';
   @state() private busy = false;
+  @state() private canImport = false;
+  @state() private importOpen = false;
+  @state() private importFile: File | null = null;
+  @state() private importReport: BundleVerification | null = null;
+  @state() private importBusy = false;
+  @state() private importError = '';
   private qTimer = 0;
 
   static styles = css`
@@ -81,6 +95,67 @@ export class InvestigateCases extends LitElement {
       font-size: var(--sw-fs-sm);
       margin-block-end: 8px;
     }
+    .verdict {
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: var(--sw-fs-sm);
+      border: 1px solid var(--sw-border);
+      background: var(--sw-surface-2);
+    }
+    .verdict[data-ok='true'] {
+      border-color: #15803d;
+    }
+    .verdict[data-ok='false'] {
+      border-color: var(--sw-danger);
+    }
+    .kv {
+      display: grid;
+      grid-template-columns: max-content minmax(0, 1fr);
+      gap: 3px 10px;
+      font-size: var(--sw-fs-xs);
+    }
+    .kv > span {
+      color: var(--sw-text-3);
+    }
+    .kv strong {
+      font-weight: 500;
+      overflow-wrap: anywhere;
+    }
+    .files {
+      max-block-size: 220px;
+      overflow: auto;
+      border: 1px solid var(--sw-border);
+      border-radius: 8px;
+    }
+    .files .r {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 8px;
+      align-items: center;
+      padding: 4px 8px;
+      font-size: var(--sw-fs-xs);
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .files .r:last-child {
+      border-block-end: 0;
+    }
+    .files .path {
+      direction: ltr;
+      unicode-bidi: isolate;
+      text-align: start;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: var(--sw-font-mono);
+    }
+    .hint {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .ltr {
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
   `;
 
   connectedCallback() {
@@ -95,6 +170,7 @@ export class InvestigateCases extends LitElement {
       const r = await listCases({ status: this.status === 'all' ? undefined : this.status, q: this.q || undefined });
       this.cases = r.cases;
       this.canManage = r.can_manage;
+      this.canImport = Boolean(r.can_import);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -129,11 +205,101 @@ export class InvestigateCases extends LitElement {
     }
   }
 
+  private pickImport() {
+    const input = this.renderRoot.querySelector<HTMLInputElement>('[data-bundle-import-file]');
+    if (input) {
+      input.value = '';
+      input.click();
+    }
+  }
+
+  /** Verify first (nothing is imported yet): the report dialog shows every file, the producer and the verdict. */
+  private async onImportFile(file?: File) {
+    if (!file) return;
+    this.importFile = file;
+    this.importReport = null;
+    this.importError = '';
+    this.importOpen = true;
+    this.importBusy = true;
+    try {
+      this.importReport = await verifyBundle(file);
+    } catch (err) {
+      this.importError = describeError(err);
+    } finally {
+      this.importBusy = false;
+    }
+  }
+
+  private async importNow() {
+    if (!this.importFile) return;
+    this.importBusy = true;
+    this.importError = '';
+    try {
+      const r = await importBundle(this.importFile);
+      this.importOpen = false;
+      this.importFile = null;
+      navigate(`/investigate/cases/${r.case.id}`);
+    } catch (err) {
+      this.importError = describeError(err);
+      if (err instanceof ApiError && err.code === 'already_imported' && this.importReport)
+        this.importReport = { ...this.importReport, importable: false, already_imported: { case_id: String(err.body.details.case_id ?? ''), title: String(err.body.details.title ?? '') } };
+    } finally {
+      this.importBusy = false;
+    }
+  }
+
+  private renderImportDialog() {
+    const v = this.importReport;
+    const f = this.importFile;
+    const o = v?.origin;
+    const when = (iso?: string | null) => (iso ? fmtWhen(iso) : '—');
+    const producer = !o
+      ? '—'
+      : o.this_installation === true
+        ? o.confirmed_by_signature
+          ? 'התקנה זו (מאושר בחתימה)'
+          : 'התקנה זו לפי המזהה בלבד (לא מאושר בחתימה)'
+        : o.this_installation === false
+          ? 'התקנה אחרת'
+          : 'לא ידוע (חבילה ללא מזהה התקנה)';
+    const dup = v?.already_imported;
+    return html`<sw-dialog open heading="ייבוא חבילת ראיות" subheading=${f ? `${f.name} · ${formatBytes(f.size)}` : ''} data-bundle-import-dialog @close=${() => (this.importOpen = false)}>
+      ${this.importBusy && !v ? html`<sw-state-panel state="loading" heading="מאמת את החבילה…" hint="כל קובץ מגובב מחדש ומושווה ל־manifest; שום דבר עוד לא יובא"></sw-state-panel>` : nothing}
+      ${this.importError ? html`<div class="err" data-import-error>${this.importError}</div>` : nothing}
+      ${v
+        ? html`<div class="verdict" data-import-summary data-ok=${String(v.ok)}>${v.summary ?? (v.ok ? 'החבילה אומתה.' : 'האימות נכשל.')}</div>
+            <div class="kv" data-import-origin>
+              <span>תיק במקור</span><strong>${v.case ?? '—'}</strong>
+              <span>יוצא</span><strong>${when(o?.exported_at)}${o?.exported_by_display || o?.exported_by ? ` · על ידי ${o?.exported_by_display || o?.exported_by}` : ''}</strong>
+              <span>הופקה ב־</span><strong data-import-producer data-this-installation=${String(o?.this_installation ?? 'unknown')}>${producer}${o?.installation_id ? html` · <span class="ltr">${o.installation_id}</span>` : nothing}</strong>
+              <span>גרסה</span><strong><span class="ltr">SMPLWISE ${o?.app_version ?? '?'} · manifest v${v.schema_version ?? '?'}</span>${v.supported === false ? ' · לא נתמכת' : ''}</strong>
+              <span>חתימה</span><strong data-import-signature>${signatureText(v.signature)}</strong>
+              <span>SHA-256 של החבילה</span><strong class="ltr" title=${v.bundle?.sha256 ?? ''}>${shortHash(v.bundle?.sha256)}</strong>
+            </div>
+            ${v.files.length || v.extra.length
+              ? html`<div class="files" data-import-files>
+                  ${v.files.map((x) => html`<div class="r" data-import-file data-status=${x.status}><span class="path" title=${x.path}>${x.path}</span><sw-badge kind=${FILE_KIND[x.status]} label=${FILE_STATUS_LABEL[x.status]}></sw-badge><span class="hint ltr">${x.bytes == null ? '—' : formatBytes(x.bytes)}</span></div>`)}
+                  ${v.extra.map((x) => html`<div class="r" data-import-file data-status="extra"><span class="path" title=${x}>${x}</span><sw-badge kind="error" label="לא ב־manifest"></sw-badge><span></span></div>`)}
+                </div>`
+              : nothing}
+            ${dup
+              ? html`<div class="hint" data-import-duplicate>החבילה הזו כבר יובאה לתיק "${dup.title}". <sw-button size="sm" variant="ghost" @click=${() => { this.importOpen = false; navigate(`/investigate/cases/${dup.case_id}`); }}>פתח את התיק הקיים</sw-button></div>`
+              : nothing}
+            ${!this.canImport ? html`<div class="hint">ייבוא כתיק דורש הרשאת ניהול תיקים לכל ההתקנה; אימות מותר לכל מי שקורא תיקים.</div>` : nothing}
+            <div class="hint">${v.authenticity ?? ''} ייבוא יוצר תיק חדש לקריאה בלבד: שום דבר מהחבילה לא הופך למצלמה, לתוכנית, למשתמש או להגדרה.</div>`
+        : nothing}
+      <sw-button slot="footer" variant="ghost" @click=${() => (this.importOpen = false)}>סגור</sw-button>
+      ${this.canImport ? html`<sw-button slot="footer" variant="primary" icon="upload" data-bundle-import-confirm ?disabled=${this.importBusy || !v?.importable} @click=${() => this.importNow()}>ייבא כתיק</sw-button>` : nothing}
+    </sw-dialog>`;
+  }
+
   private renderApi() {
-    const rows = this.cases.map((c) => ({ id: c.id, title: c.title, status: c.status, owner: c.owner_username, items: c.counts.items, clips: c.counts.events + c.counts.clips, preserved: c.counts.preserved, updated: c.updated_at, tags: c.tags.join(' · ') }));
+    const rows = this.cases.map((c) => ({ id: c.id, title: c.title, status: c.status, owner: c.owner_username, items: c.counts.items, clips: c.counts.events + c.counts.clips, preserved: c.counts.preserved, updated: c.updated_at, tags: c.tags.join(' · '), imported: c.origin === 'imported' }));
     return html`
       <sw-page heading="תיקים" subheading="קישור להקלטה אינו שימור: ראיה נחשבת שמורה רק אחרי העתקה מאומתת מה־NVR">
+        <sw-button slot="actions" icon="upload" data-bundle-import @click=${() => this.pickImport()}>ייבוא חבילת ראיות</sw-button>
         ${this.canManage ? html`<sw-button slot="actions" variant="primary" icon="plus" data-case-new @click=${() => (this.creating = true)}>תיק חדש</sw-button>` : nothing}
+        <input type="file" accept=".zip,application/zip" hidden data-bundle-import-file @change=${(e: Event) => void this.onImportFile((e.target as HTMLInputElement).files?.[0])} />
         <div class="bar">
           ${(['all', 'open', 'in_review', 'closed'] as const).map((s) => html`<sw-chip ?selected=${this.status === s} @click=${() => this.setStatus(s)}>${s === 'all' ? 'הכל' : CASE_STATUS_LABEL[s]}</sw-chip>`)}
           <span class="grow"></span>
@@ -154,6 +320,7 @@ export class InvestigateCases extends LitElement {
               <sw-button slot="footer" variant="primary" icon="plus" data-case-create-confirm ?disabled=${this.busy || !this.newTitle.trim()} @click=${() => this.create()}>צור תיק</sw-button>
             </sw-dialog>`
           : nothing}
+        ${this.importOpen ? this.renderImportDialog() : nothing}
       </sw-page>
     `;
   }
@@ -189,6 +356,7 @@ export class InvestigateCaseDetail extends LitElement {
   @state() private verifyResult: BundleVerification | null = null;
   @state() private cams: Camera[] = [];
   @state() private snapCam = '';
+  @state() private integrity: CaseIntegrity | null = null;
   private loadedFor = '';
   private pollTimer = 0;
 
@@ -449,7 +617,34 @@ export class InvestigateCaseDetail extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
+    .prov {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: start;
+    }
+    .prov > sw-icon {
+      color: var(--sw-accent);
+    }
+    .prov .body {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      font-size: var(--sw-fs-sm);
+      min-inline-size: 0;
+    }
+    .prov .meta {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      overflow-wrap: anywhere;
+    }
     @media (max-width: 767px) {
+      .prov {
+        grid-template-columns: auto minmax(0, 1fr);
+      }
+      .prov > sw-button {
+        grid-column: 1 / -1;
+      }
       .clips {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
@@ -541,17 +736,48 @@ export class InvestigateCaseDetail extends LitElement {
       ${v
         ? html`<div class="note" data-bundle-verify-result>${v.ok ? `החבילה אומתה: ${v.files.length} קבצים תואמים ל־manifest${v.case ? ` · תיק "${v.case}"` : ''}` : `האימות נכשל${v.errors.length ? `: ${v.errors.join(', ')}` : ''}`}
             ${v.files.some((f) => f.status !== 'ok') || v.extra.length ? html`<ul class="hint" style="margin:4px 0 0;padding-inline-start:18px">${v.files.filter((f) => f.status !== 'ok').map((f) => html`<li class="ltr">${f.path}: ${f.status}</li>`)}${v.extra.map((x) => html`<li class="ltr">${x}: extra</li>`)}</ul>` : nothing}
-            ${v.signature
-              ? html`<div data-bundle-signature data-signature-trust=${v.signature.trust}>${!v.signature.present
-                  ? 'ללא חתימה (חבילה מגרסה ישנה, או שהחתימה הוסרה) — נבדקו רק הגיבובים.'
-                  : v.signature.valid
-                    ? `חתימה תקינה · Ed25519 · מפתח ${v.signature.kid}${v.signature.trust === 'installation' ? (v.signature.retired ? ' · מפתח שהוחלף, מוכר למתקן זה' : ' · המפתח הפעיל של מתקן זה') : ' · מפתח שאינו מוכר למתקן זה — שלמות בלבד, לא אמון'}`
-                    : `חתימה לא תקינה${v.signature.reason ? ` (${v.signature.reason})` : ''} — ה־manifest שונה אחרי הייצוא או שהחתימה זויפה.`}</div>`
-              : nothing}
+            ${v.signature ? html`<div data-bundle-signature data-signature-trust=${v.signature.trust}>${signatureText(v.signature)}</div>` : nothing}
+            ${v.summary ? html`<div class="hint" style="margin-block-start:4px" data-bundle-verify-summary>${v.summary}</div>` : nothing}
             ${v.authenticity ? html`<div class="hint" style="margin-block-start:4px">${v.authenticity}</div>` : nothing}
           </div>`
         : nothing}
       <div class="hint" style="margin-block-start:6px">SHA-256 מוכיח שכל קובץ לא השתנה מאז יצירת החבילה; חתימת Ed25519 על ה־manifest מוכיחה שהחבילה לא שונתה מאז הייצוא על ידי מחזיק המפתח של המתקן (integrity-at-export). אף אחד מהם אינו מוכיח את אמיתות הצילום במקור (capture authenticity), ואין כאן הצהרה על קבילות משפטית. אימות מחוץ למערכת: scripts/verify_bundle.py.</div>
+    </sw-card>`;
+  }
+
+  private async recheck(d: CaseDetail) {
+    this.busy = true;
+    this.error = '';
+    try {
+      this.integrity = await checkCaseIntegrity(d.id);
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /** An imported case: where the bundle came from, when, by whom, and whether its hashes matched (T050 import). */
+  private renderProvenance(d: CaseDetail) {
+    const p = d.provenance;
+    if (d.origin !== 'imported' || !p) return nothing;
+    const where = p.this_installation === true ? 'מהתקנה זו' : p.this_installation === false ? 'מהתקנה אחרת' : 'מהתקנה לא ידועה';
+    const ch = this.integrity;
+    return html`<sw-card data-case-provenance data-this-installation=${String(p.this_installation ?? 'unknown')}>
+      <div class="prov">
+        <sw-icon name="shield" size=${18}></sw-icon>
+        <div class="body">
+          <strong data-provenance-headline>יובא ${where} ב־${this.fmt(p.imported_at)}; hash ${p.verification.ok ? 'תואם' : 'לא תואם'} (${p.verification.files} קבצים נבדקו בייבוא)</strong>
+          <span class="meta">במקור: "${p.source_case.title ?? '—'}" · יוצא ${p.exported_at ? this.fmt(p.exported_at) : '—'}${p.exported_by_display || p.exported_by ? ` על ידי ${p.exported_by_display || p.exported_by}` : ''} · SMPLWISE ${p.source_app_version ?? '?'}</span>
+          <span class="meta">התקנת מקור <span class="ltr">${p.source_installation_id ?? '—'}</span> · ${signatureText({ present: p.signature.present, valid: p.signature.valid, kid: p.signature.kid, known: p.signature.known, retired: p.signature.retired, trust: p.signature.trust })}</span>
+          <span class="meta">חבילה <span class="ltr" title=${p.bundle_sha256}>SHA-256 ${shortHash(p.bundle_sha256)}</span> · ${formatBytes(p.bundle_bytes)} · יובא על ידי ${p.imported_by ?? '—'}${p.skipped_at_source ? ` · ${p.skipped_at_source} פריטים לא נכללו כבר במקור` : ''}</span>
+          ${ch
+            ? html`<span class=${ch.ok ? 'ok' : 'err'} data-case-integrity-result data-ok=${String(ch.ok)}>${ch.ok ? (ch.files.length ? `בדיקה חוזרת ${this.fmt(ch.checked_at)}: hash תואם — ${ch.files.length} קבצים לא השתנו מאז הייבוא` : `בדיקה חוזרת ${this.fmt(ch.checked_at)}: אין בתיק קבצים שמורים לבדוק`) : `בדיקה חוזרת ${this.fmt(ch.checked_at)}: hash לא תואם — ${ch.files.filter((f) => f.status !== 'ok').length} מתוך ${ch.files.length} קבצים שונו או חסרים`}</span>`
+            : nothing}
+          <span class="hint">התאמת hash מוכיחה שהקבצים לא שונו מאז הייצוא; היא אינה מוכיחה שהצילום אמיתי. פריטים מיובאים הם לקריאה בלבד; מחיקת התיק מסירה גם את הקבצים המיובאים.</span>
+        </div>
+        <sw-button size="sm" icon="refresh" data-case-integrity ?disabled=${this.busy} @click=${() => void this.recheck(d)}>בדיקת hash חוזרת</sw-button>
+      </div>
     </sw-card>`;
   }
 
@@ -562,28 +788,34 @@ export class InvestigateCaseDetail extends LitElement {
     const thumb =
       it.kind === 'note'
         ? html`<div class="thumb"><sw-icon name="edit" size=${18}></sw-icon></div>`
-        : it.kind === 'snapshot'
+        : it.kind === 'snapshot' && it.file_path
           ? html`<img class="thumb" src=${caseItemFileUrl(d.id, it.id)} alt="תמונה מהמצלמה" />`
+          : it.imported
+          ? html`<div class="thumb"><sw-icon name=${it.file_path ? 'case' : 'bookmark'} size=${18}></sw-icon></div>`
           : it.kind === 'event' && it.event?.thumbnail === 'ready' && it.event_id
           ? html`<img class="thumb" src=${thumbnailUrl(it.event_id)} alt="" />`
           : it.camera_id && at
             ? html`<img class="thumb" src=${frameUrl(it.camera_id, at)} alt="" @error=${(e: Event) => ((e.target as HTMLElement).style.visibility = 'hidden')} />`
             : html`<div class="thumb"></div>`;
-    return html`<div class="item" data-case-item data-kind=${it.kind} data-preservation=${pres}>
+    const o = it.origin;
+    return html`<div class="item" data-case-item data-kind=${it.kind} data-preservation=${pres} ?data-imported=${Boolean(it.imported)}>
       ${thumb}
       <div class="body">
-        <div class="head"><strong>${kind}</strong>${it.camera_name ? html`<span>· ${it.camera_name}</span>` : nothing}${pres !== 'none' ? html`<sw-badge kind=${PRES_KIND[pres]} label=${PRESERVATION_LABEL[pres]}></sw-badge>` : nothing}</div>
+        <div class="head"><strong>${kind}</strong>${it.camera_name ? html`<span>· ${it.camera_name}${it.imported ? ' (מצלמת המקור)' : ''}</span>` : nothing}${pres !== 'none' ? html`<sw-badge kind=${PRES_KIND[pres]} label=${PRESERVATION_LABEL[pres]}></sw-badge>` : nothing}${it.imported ? html`<sw-badge kind="historic" label="מיובא · לקריאה בלבד"></sw-badge>` : nothing}</div>
         ${it.from_at && it.to_at ? html`<div class="range ltr">${this.fmt(it.from_at)} → ${this.fmt(it.to_at)}</div>` : nothing}
         ${it.note ? html`<div>${it.note}</div>` : nothing}
-        <div class="meta">${it.added_by_username} · ${this.fmt(it.created_at)}${it.export?.error ? ` · ייצוא: ${it.export.error}` : ''}${pres === 'missing' ? ' · לא ניתן לשמר: ההקלטה כבר לא ב־NVR' : ''}</div>
+        <div class="meta">${o
+          ? `במקור: ${o.added_by ?? '—'}${o.created_at ? ` · ${this.fmt(o.created_at)}` : ''} · יובא על ידי ${it.added_by_username}${pres === 'missing' ? ' · הקובץ המיובא חסר בדיסק' : ''}`
+          : html`${it.added_by_username} · ${this.fmt(it.created_at)}${it.export?.error ? ` · ייצוא: ${it.export.error}` : ''}${pres === 'missing' ? ' · לא ניתן לשמר: ההקלטה כבר לא ב־NVR' : ''}`}</div>
       </div>
       <div class="acts">
         ${it.camera_id && at && it.kind !== 'snapshot' ? html`<sw-button size="sm" icon="play" @click=${() => navigate('/investigate/playback', { camera: it.camera_id ?? '', t: at })}>נגן</sw-button>` : nothing}
-        ${it.kind === 'snapshot' && it.file_sha256 ? html`<span class="meta ltr" title="SHA-256">${it.file_sha256.slice(0, 12)}…</span>` : nothing}
+        ${(it.kind === 'snapshot' || it.imported) && it.file_sha256 ? html`<span class="meta ltr" title="SHA-256">${it.file_sha256.slice(0, 12)}…</span>` : nothing}
+        ${it.imported && it.file_path && it.kind !== 'snapshot' ? html`<a href=${caseItemFileUrl(d.id, it.id)} download data-item-file><sw-button size="sm" variant="ghost" icon="download">הורדה</sw-button></a>` : nothing}
         ${it.event_id ? html`<sw-button size="sm" variant="ghost" icon="bell" @click=${() => navigate(`/investigate/events/${it.event_id}`)}>אירוע</sw-button>` : nothing}
         ${d.can_manage && it.kind !== 'note' && (pres === 'nvr_only' || pres === 'unknown') ? html`<sw-button size="sm" icon="download" data-item-preserve ?disabled=${this.busy} @click=${() => void this.run(() => preserveCaseItem(d.id, it.id).then(() => undefined), 'עבודת שימור נוצרה; הפריט יסומן כשמור כשההעתקה תסתיים')}>שמור עותק</sw-button>` : nothing}
         ${it.export?.download_ready ? html`<a href=${exportDownloadUrl(it.export.id)} download><sw-button size="sm" variant="ghost" icon="download">הורדה</sw-button></a>` : nothing}
-        ${d.can_manage ? html`<sw-button size="sm" variant="ghost" iconOnly icon="close" label="הסר מהתיק" data-item-remove ?disabled=${this.busy} @click=${() => void this.run(() => removeCaseItem(d.id, it.id).then(() => undefined))}></sw-button>` : nothing}
+        ${d.can_manage && !it.imported ? html`<sw-button size="sm" variant="ghost" iconOnly icon="close" label="הסר מהתיק" data-item-remove ?disabled=${this.busy} @click=${() => void this.run(() => removeCaseItem(d.id, it.id).then(() => undefined))}></sw-button>` : nothing}
       </div>
     </div>`;
   }
@@ -604,6 +836,7 @@ export class InvestigateCaseDetail extends LitElement {
         <div class="wrap">
           ${this.error ? html`<div class="err" data-case-error>${this.error}</div>` : nothing}
           ${this.info ? html`<div class="ok" data-case-info>${this.info}</div>` : nothing}
+          ${this.renderProvenance(d)}
           ${d.description || d.tags.length
             ? html`<sw-card>${d.description ? html`<div class="desc" data-case-description>${d.description}</div>` : nothing}${d.tags.length ? html`<div class="tags">${d.tags.map((t) => html`<sw-chip>${t}</sw-chip>`)}</div>` : nothing}</sw-card>`
             : nothing}
