@@ -1,4 +1,4 @@
-Source: docs/changes/CR-004-FLOOR-LEVEL-UNIFICATION.md @ 5805e35ebabe9c0cca349fa74c49b4b72cb7fd7f
+Source: docs/changes/CR-004-FLOOR-LEVEL-UNIFICATION.md @ af9ed7cf8fe1da688e5246115f004d3965149ee6
 
 > תרגום של `docs/changes/CR-004-FLOOR-LEVEL-UNIFICATION.md`; המקור באנגלית קובע במקרה של סתירה.
 

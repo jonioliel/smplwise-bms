@@ -1,4 +1,4 @@
-Source: docs/changes/CR-005-ACCESS-CONTROL-INTEGRATION.md @ 39835b17273e863c7626efa880e949b8d81a90ac
+Source: docs/changes/CR-005-ACCESS-CONTROL-INTEGRATION.md @ af9ed7cf8fe1da688e5246115f004d3965149ee6
 
 > תרגום של `docs/changes/CR-005-ACCESS-CONTROL-INTEGRATION.md`; המקור באנגלית קובע במקרה של סתירה.
 

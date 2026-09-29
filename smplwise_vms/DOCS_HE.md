@@ -1,4 +1,4 @@
-Source: smplwise_vms/DOCS.md @ 18ac4ad
+Source: smplwise_vms/DOCS.md @ af9ed7cf8fe1da688e5246115f004d3965149ee6
 
 > תרגום של `smplwise_vms/DOCS.md`; המקור באנגלית קובע במקרה של סתירה.
 

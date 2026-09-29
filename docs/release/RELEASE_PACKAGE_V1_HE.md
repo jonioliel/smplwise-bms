@@ -1,4 +1,4 @@
-Source: docs/release/RELEASE_PACKAGE_V1.md @ f45547e
+Source: docs/release/RELEASE_PACKAGE_V1.md @ af9ed7cf8fe1da688e5246115f004d3965149ee6
 
 > תרגום של `docs/release/RELEASE_PACKAGE_V1.md`; המקור באנגלית קובע במקרה של סתירה.
 
