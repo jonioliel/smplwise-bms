@@ -13,6 +13,7 @@ import { describeError } from '../api/client';
 import { productSettings } from '../api/prefs';
 import { fmtMb, getStorage, getStorageLocal, resumeExports, type StorageLocal, type StorageReport } from '../api/storage';
 import { getSigning, rotateSigning, type SigningInfo } from '../api/cases';
+import { formatBytes } from '../api/exports';
 
 const PER_CAMERA = [
   { name: 'כניסה ראשית', gb: 320 },
@@ -255,13 +256,13 @@ export class SystemStorage extends LitElement {
     }
   }
 
-  private renderLocal() {
+  private renderDiskGuard() {
     const l = this.local;
     if (!l) return this.localError ? html`<div class="err">${this.localError}</div>` : nothing;
     const d = l.data_disk;
     const paused = l.exports.paused_disk_full;
     const c = l.exports.counters;
-    return html`<sw-card heading="הדיסק של התוסף" subheading=${`ייצואים, תמונות אירועים וגיבויים נשמרים כאן · ייצוא חדש נדחה מתחת ל־${fmtMb(d.min_free_mb)} פנויים, וייצוא שרץ מושהה עד שיתפנה מקום`} data-storage-local>
+    return html`<sw-card heading="הדיסק של התוסף" subheading=${`ייצואים, תמונות אירועים וגיבויים נשמרים כאן · ייצוא חדש נדחה מתחת ל־${fmtMb(d.min_free_mb)} פנויים, וייצוא שרץ מושהה עד שיתפנה מקום`} data-storage-disk-guard>
       ${this.localError ? html`<div class="err">${this.localError}</div>` : nothing}
       <div class="ret">
         <div><div class="v" data-local-free>${fmtMb(d.free_mb)}</div><div class="l">פנויים מתוך ${fmtMb(d.total_mb)} · מינימום ${fmtMb(d.min_free_mb)}</div></div>
@@ -319,6 +320,21 @@ export class SystemStorage extends LitElement {
     }
   }
 
+  private renderLocal(d: StorageReport) {
+    const l = d.local;
+    if (!l) return nothing;
+    const mb = formatBytes;
+    return html`<sw-card heading="אחסון התוסף (/data)" subheading="נמדד בכל טעינה · הקבצים שהמערכת שומרת אצלה, לא ב־NVR" data-storage-local>
+      <div class="kv">
+        <div><span>פנוי</span><strong>${mb(l.free_bytes)} מתוך ${mb(l.total_bytes)}</strong></div>
+        <div><span>ייצוא קטעים</span><strong>${mb(l.exports_bytes)}</strong></div>
+        <div><span>תיקים (תמונות וחבילות)</span><strong>${mb(l.cases_bytes)}</strong></div>
+        <div><span>ראיות מיובאות</span><strong data-storage-imported data-bytes=${String(l.imported.bytes)}>${mb(l.imported.bytes)} · ${l.imported.cases} תיקים מיובאים</strong></div>
+      </div>
+      <div class="note" style="margin-block-start:6px">קבצי ראיות מיובאות נשמרים לכל תיק מיובא בנפרד ונמחקים יחד עם התיק.</div>
+    </sw-card>`;
+  }
+
   private renderSigning() {
     const s = this.signing;
     const fmt = (iso: string | null) => (iso ? iso.replace('T', ' ').replace('Z', ' UTC') : '—');
@@ -343,9 +359,9 @@ export class SystemStorage extends LitElement {
   }
 
   private renderApi() {
-    if (this.error && !this.data) return html`<sw-page heading="אחסון ותוכנית הקלטה"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>${this.renderLocal()}</sw-page>`;
+    if (this.error && !this.data) return html`<sw-page heading="אחסון ותוכנית הקלטה"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>${this.renderDiskGuard()}</sw-page>`;
     const d = this.data;
-    if (!d) return html`<sw-page heading="אחסון ותוכנית הקלטה">${this.renderLocal()}<sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    if (!d) return html`<sw-page heading="אחסון ותוכנית הקלטה">${this.renderDiskGuard()}<sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     const t = d.totals;
     const r = d.retention;
     const ring = 16;
@@ -356,7 +372,8 @@ export class SystemStorage extends LitElement {
       <sw-page heading="אחסון ותוכנית הקלטה" subheading="קריאה בלבד מה־NVR · נמדד לעומת אומדן, עם הסיבה לכל מספר · אין format, RAID או מחיקה מכאן">
         <sw-button slot="actions" icon="refresh" data-storage-refresh ?disabled=${this.loading} @click=${() => { void this.load(true); void this.loadLocal(); }}>${this.loading ? 'שואל את ה־NVR…' : 'רענון מול ה־NVR'}</sw-button>
         ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
-        ${this.renderLocal()}
+        ${this.renderDiskGuard()}
+        ${this.renderLocal(d)}
         ${!d.nvr.configured
           ? html`<sw-state-panel state="empty" heading="ה־NVR לא מוגדר" hint="הגדר את פרטי ה־NVR בהגדרות התוסף; המסך קורא ממנו בלבד."></sw-state-panel>`
           : !d.nvr.reachable

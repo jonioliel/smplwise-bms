@@ -26,6 +26,8 @@ export interface ProductSettings {
   'events.retention_days'?: number;
   /** T055: audit rows older than this are pruned by the janitor (was a fixed 365-day constant). */
   'audit.retention_days'?: number;
+  /** T050: the largest evidence bundle accepted for verification / import, in MB (16-4096). */
+  'cases.import_max_mb'?: number;
   /** Design switch: 'a' = mockups v1.3 (SW A), 'b' = the earlier boards (SW B); names are editable. */
   'ui.design'?: 'a' | 'b';
   'ui.design_names'?: string;

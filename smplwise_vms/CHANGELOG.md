@@ -1,5 +1,92 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.131 (pilot) — Evidence bundles from another installation: verify and import (T050)
+- **"ייבוא חבילת ראיות"** on the cases screen: upload a bundle ZIP (raw or multipart, streamed to a staging file, cap
+  `cases.import_max_mb` default 512 MB, one upload at a time, 507 when `/data` would drop below
+  `storage.min_free_mb` default 1024, 408 after 30 s idle / 10 min total so a stalled upload never blocks others),
+  get a verification report - per file תקין / חסר / לא תואם / פגום, manifest version, producing installation, and a
+  plain summary: **a matching hash proves the file is unchanged since export; it does not prove the footage is
+  genuine**. "ייבא כתיק" (cases-manage, installation-wide) creates a new case marked **מיובא** with provenance
+  (source installation, exporter, export time, bundle hash), read-only items and notes, files stored under
+  `imported/<hash>/` and counted in the storage screen; nothing from a bundle becomes a camera, event, user or
+  setting; the same bundle imports once (409 with the existing case). "בדיקת hash חוזרת" on the case (once a minute).
+- **Producer honesty**: an installation id is public (every manifest carries it), so "מהתקנה זו" is claimed only when
+  the bundle's signature verifies against this installation's key; an unsigned bundle with our id reads
+  "לפי המזהה בלבד (לא מאושר בחתימה)". Bundles now carry a stable installation id and a signature; unsigned bundles
+  still import, labelled as such.
+- **Hostile archives**: the ZIP's end records are read before the archive is opened - more than 5,000 entries or an
+  oversized directory is refused in about a millisecond (a review measurement: a crafted 86 MB archive with a million
+  entries used 532 MB of RAM before this guard); `..`, absolute paths, drive letters, backslashes, control
+  characters, symlinks, special files, encrypted entries, duplicates, extreme compression and oversized unpacked
+  totals are refused before any member is read; only the expected file names are extracted, always under the
+  destination; `report.html` / `notes.md` are never stored; served files get their type from magic bytes with
+  `nosniff` and a sandbox CSP; names and notes are rendered as text and stripped of control / bidi characters.
+- After a backup restore an imported case comes back without its files (they are outside project backups, like
+  snapshots) and blocks re-import until deleted - documented in `DOCS.md`.
+- Migration 0030. Tests: `test_bundle_import.py` 19 + bundle / cases / signing / janitor / settings 33 in the set;
+  Playwright import flow 3/3 (desktop, tablet, mobile); Opus security review (1 blocker + 2 medium fixed) + two
+  scoped re-reviews.
+
+## 0.1.130 (pilot) — Device layout editor and colour themes (CR-007 6b); groups and delegated assignment (T082); Plan Studio tuning; Hebrew documentation batch 1
+### Device control (CR-007 slice 6b, the owner's §7.11 decisions)
+- **"ערוך פריסה"** on the building screen (floor / area cards) and the area screen (domain cards): drag and resize on an
+  8 px grid (grid units, never pixels; RTL exact; arrows nudge, Shift+arrows resize), a side panel per card (custom
+  title and icon, text size in three steps, background / border colour as a palette ROLE - never a free colour -
+  hide, and which entities the card shows; hidden entities are still counted), "שמור / בטל / אפס לברירת מחדל",
+  "העתק לכל האזורים" (confirmed, revision-checked, audited). One layout per installation, stored on the server
+  (migration 0028), shown to everyone; the button exists only for `system.configure` holders and the routes refuse
+  anyone else before reading the body; optimistic revisions (409), overlap refused (422), backup / restore
+  included. A floor-scoped user receives only the parts of the layout they may see, and rows of anything not drawn
+  (hidden, not theirs, gone from Home Assistant) close up. Card contents are inert while editing, so a keyboard
+  cannot change a real device by accident. Layouts of areas that left Home Assistant are pruned on the next save
+  (audited) - a read never writes.
+- **Phone**: derived automatically from the desktop order, and editable on its own afterwards ("חזור לאוטומטי").
+- **Colour themes**: four palettes (כחול, חול, יער, גרפיט), each with light and dark values for every knob and
+  role; a swatch picker in הגדרות › חשמל והתקנים; **"בהיר או כהה"** (`devices.scheme`: בהיר / כהה / לפי המכשיר,
+  default בהיר - dark applies only when chosen, never by the OS setting alone, because the app shell is light).
+  Documented knob by knob in `docs/design/DEVICE_THEMES.md` §6-7 for whoever designs the next themes.
+- Open for the owner: position / size per individual device tile (today the unit is the domain card, as in the
+  mockup's Edit board) - recorded in CR-007 §7.11.
+- Tests: `test_device_layouts.py` 8 + settings / devices / backup 61 in the set; 6a + 6b Playwright 17 passed on
+  desktop and mobile; Opus review + two scoped re-reviews.
+### Roles and permissions (T082)
+- **Groups**: named groups of users with role bindings the members inherit (effective permissions = union of the
+  user's and the groups' bindings); membership and bindings with revisions (409), an impact preview naming every
+  affected user before a change, delete refused while members or bindings remain, every change audited (ids only).
+- **Delegation to a site administrator**: `rbac.assign` may be delegated, limited to an allow-list of roles
+  (הגדרות › תפקידים, default viewer + operator), to the site admin's own scope, up to their own permissions, never to
+  themselves or a group they belong to, never a system or sensitive role; they manage a group only when all its
+  bindings are inside their reach and see only the users, bindings, roles and groups within it (server-filtered).
+  **Deny bindings** stay a full-authority tool: delegated actors can neither create nor lift one. Full authority now
+  requires `rbac.assign` AND `rbac.roles.manage` installation-wide - this closes a hole where a site admin bound to the
+  whole installation could hand out system_admin.
+- **Bulk**: group membership replacement and `POST /access/bindings/bulk` (≤ 50 items, 64 KB, JSON only, permission
+  before the body) are all-or-nothing: the first refused item refuses the request with its index and id. No
+  binding or membership write may leave the installation without an active administrator (409 `last_admin`),
+  including a deny on oneself. Migration 0029; `docs/security/HA_IDENTITY_RBAC_HE.md` §14.
+- Tests: RBAC set + migrations + backup 37 passed; two Opus security reviews with a probe against a temp database
+  (3 medium findings around deny bindings fixed, 10 nits incl. existence leaks before the permission check).
+### Plan Studio tuning (the 0.1.89 / 0.1.91 lists, T087)
+- Fixed: a realign route declared twice (a test now fails when any route is declared twice); a camera on a removed
+  level had an unclipped cone in 2D and 3D; switching floors in 3D kept the previous floor's framing; a hand-drawn
+  tribune connector was invisible in 3D; the editor's and the floor map's level filters treat a removed level as the
+  default level, like 3D does.
+- Detector: sheet strokes far outside the building (section marks, title underline, north arrow) and dashed lines
+  are no longer walls; tribune edge lines are no longer walls. A separate small building (three sides in two
+  directions) is kept and flagged **"מחוץ למבנה הראשי"** (dashed warning stroke, label, a count in the detect summary)
+  instead of dropped; a gap counts as a dash gap only when nothing crosses it, so a pier-window-pier facade or a
+  faded partition survives. On the owner's three real plans: walls-outside-the-building 5 / 18 / 11 → 1 / 12 / 3,
+  tribune false walls on floor 0 8 → 4, synthetic metrics identical (walls recall ≥ 0.974, precision ≥ 0.969, doors
+  21/21, windows 17/17). Doors were not chased on purpose: the arcs on those scans are mostly not detectable
+  (numbers in the triage) - a new door model is its own task; a thin-hollow-exterior-wall prototype (0.00 → 0.68
+  on floor 0) is parked because it merges adjacent solid walls. Triage of every list item with a reason:
+  `docs/evidence/T087/TUNING_TRIAGE_2026-09-29.md`. Tests: 73 detector + routes, 30 unit; Opus review + two re-reviews.
+### Documentation in Hebrew (T091 batch 1)
+- Hebrew mirrors with a `Source: <path> @ <commit>` header (drift reported by `scripts/docs_he_check.py`):
+  `smplwise_vms/README_HE.md`, `DOCS_HE.md` (the full add-on documentation), eight operations documents,
+  `docs/release/RELEASE_PACKAGE_V1_HE.md`, `docs/security/DEPENDENCY_AND_SECRETS_AUDIT_HE.md`. Stale version
+  references are marked with a translation note, not silently changed. The eight CR documents remain.
+
 ## 0.1.129 (pilot) — "database is locked" storm: root cause found and fixed (round-10 finding)
 - Round 10 (2026-09-26) recorded a transient SQLite "database is locked" storm under 45+ minutes of real-NVR load
   and left the root writer unknown. It reproduces without the NVR and without antivirus: several paths held

@@ -55,6 +55,14 @@ export interface StorageReport {
     lookback_days: number;
   };
   limits: { writes: boolean; notes: string[] };
+  /** The add-on's own disk (/data), measured on every call; imported evidence counts per imported case (T050). */
+  local?: {
+    total_bytes: number | null;
+    free_bytes: number | null;
+    imported: { cases: number; bytes: number };
+    exports_bytes: number;
+    cases_bytes: number;
+  };
 }
 
 export const getStorage = (fresh = false) => get<StorageReport>(`storage${fresh ? '?fresh=true' : ''}`);

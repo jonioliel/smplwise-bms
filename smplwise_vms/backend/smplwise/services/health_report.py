@@ -122,10 +122,10 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
     # storage
     try:
         du = shutil.disk_usage(settings.data_dir)
-        sizes = {"plans": _dir_size(settings.plans_dir), "thumbs": _dir_size(settings.data_dir / "thumbs"), "backups": _dir_size(settings.data_dir / "backups"), "exports": _dir_size(settings.data_dir / "exports")}
+        sizes = {"plans": _dir_size(settings.plans_dir), "thumbs": _dir_size(settings.data_dir / "thumbs"), "backups": _dir_size(settings.data_dir / "backups"), "exports": _dir_size(settings.data_dir / "exports"), "imported": _dir_size(settings.data_dir / "imported")}
         free_ratio = du.free / du.total if du.total else 1
         st = "error" if du.free < 512 * 1024**2 else "warn" if (du.free < 2 * 1024**3 or free_ratio < 0.10) else "ok"
-        checks.append(_check("storage", "אחסון התוסף (/data)", st, f"פנוי {_fmt_bytes(du.free)} מתוך {_fmt_bytes(du.total)} · תוכניות {_fmt_bytes(sizes['plans'])} · תמונות אירועים {_fmt_bytes(sizes['thumbs'])} · גיבויים {_fmt_bytes(sizes['backups'])} · ייצוא {_fmt_bytes(sizes['exports'])}", free=du.free, total=du.total, **sizes))
+        checks.append(_check("storage", "אחסון התוסף (/data)", st, f"פנוי {_fmt_bytes(du.free)} מתוך {_fmt_bytes(du.total)} · תוכניות {_fmt_bytes(sizes['plans'])} · תמונות אירועים {_fmt_bytes(sizes['thumbs'])} · גיבויים {_fmt_bytes(sizes['backups'])} · ייצוא {_fmt_bytes(sizes['exports'])} · ראיות מיובאות {_fmt_bytes(sizes['imported'])}", free=du.free, total=du.total, **sizes))
     except OSError as exc:
         checks.append(_check("storage", "אחסון התוסף (/data)", "error", f"לא ניתן לקרוא את שטח הדיסק ({type(exc).__name__})"))
 

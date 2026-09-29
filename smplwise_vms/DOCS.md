@@ -322,7 +322,47 @@ picture is sent anywhere yet.
   "צור חבילת ראיות" writes one ZIP: preserved clips with their export manifests, snapshots, notes, a manifest
   with SHA-256 per file and a readable report; bookmarks that were never preserved are listed as skipped.
   "אימות חבילה" recomputes the hashes of any bundle file and reports each entry. The hash proves integrity since
-  the bundle was made, not authenticity against the camera; signing and key management come later.
+  the bundle was made, not authenticity against the camera (the manifest signature is described under "Limits").
+- Bundle import (T050): "ייבוא חבילת ראיות" on the cases list takes a bundle ZIP made by another installation (or
+  by this one, earlier), verifies it first and shows a report: every file of the manifest as תואם / שונה / חסר /
+  פגום with its size, files the manifest does not list, the manifest version, the producing installation (its id,
+  SMPLWISE version, export time and exporter), whether that is this installation, the signature verdict and a
+  plain-language summary. "ייבא כתיק" is enabled only when everything matched; it creates a NEW case marked
+  "מיובא" with a provenance banner (source installation, exporter, export time, the bundle's SHA-256, "hash תואם"
+  at import) and a "בדיקת hash חוזרת" button that re-hashes the stored copies. Clips and snapshots are copied under
+  /data/imported/<bundle SHA-256>/ together with the manifest and its signature; notes become read-only imported
+  notes; bookmarks the source never preserved stay as "לא נכלל בחבילת המקור". Imported items cannot be removed one
+  by one; deleting the case removes them and their files. The same bundle is imported once (409 names the existing
+  case); after that case is deleted it can be imported again.
+- What verification proves: a matching SHA-256 per file (and an intact manifest) means the files did not change
+  since the bundle was exported. A valid signature by a key of THIS installation also confirms that this
+  installation produced it; a valid signature by an unknown key proves integrity only. The installation id in a
+  manifest is a claim, confirmed only by that signature: the id is public (every bundle and the signing screen show
+  it), so an unsigned bundle carrying this installation's id is reported and bannered as "לפי המזהה בלבד (לא מאושר
+  בחתימה)", never as made here. What it does not prove: that the footage is genuine, that
+  the camera clock was right, or anything about legal admissibility - the camera, the NVR and the network are
+  outside every hash and signature.
+- What an imported bundle may not do: nothing in it becomes a camera, an event, a plan, a user, a binding or a
+  setting; source camera ids are kept as text only; report.html and notes.md are hashed but never stored to be
+  shown; only clip / snapshot files whose names pass a strict allow-list reach the disk, served with their real
+  type (JPEG / MP4 by signature, anything else as a download), nosniff and a sandbox policy. Archives with `..`,
+  absolute paths, drive letters, backslashes, control characters, symlinks, encrypted entries, duplicate names, more
+  than 5000 entries, a central directory larger than 5000 records could be, an extreme compression ratio or an
+  uncompressed total above twice the upload cap are refused before anything is read (the entry count and the
+  directory size are read from the archive's end records before the ZIP is indexed). Uploads are streamed to a
+  temporary file (removed afterwards) and capped by the product setting `cases.import_max_mb` (default 512 MB,
+  16-4096); an upload that stalls for 30 s or takes longer than 10 minutes is dropped with 408, freeing the slot.
+  One verification or import runs at a time (another one gets 429 "busy"), and none starts - or goes on -
+  when it would leave less than `storage.min_free_mb` (default 1024 MB) free on /data, where the database lives
+  (507). "בדיקת hash חוזרת" runs one at a time and at most once a minute per case. Dates, names and texts from a
+  bundle are validated and stripped of control and bidi-override characters before they are stored or shown.
+- Permissions: verifying needs what reading cases needs (events.read somewhere); importing needs cases.manage for
+  the whole installation (an imported case belongs to no camera here). Both are checked before the upload is read.
+  Imported items are shown only to users who read every camera. Verification and import (allowed and refused) are
+  audited. The imported bytes appear under מערכת › אחסון ("אחסון התוסף (/data)" › ראיות מיובאות) and in the
+  health report, and leave with the case. Imported files are not part of project backups (like snapshots): after a
+  backup restore an imported case comes back with its items marked "חסר" and still blocks a re-import of the same
+  bundle (409 names it) - delete that case, then import the bundle again to get the files back.
 - Managing cases (create, edit, add or remove items, preserve) needs the cases.manage permission — operators,
   site admins and the system admin have it; viewers see nothing here. Every change is audited.
 

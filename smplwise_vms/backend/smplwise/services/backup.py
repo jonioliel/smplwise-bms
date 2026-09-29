@@ -27,7 +27,7 @@ OPTIONAL_TABLES = {"audit": ["audit_log"], "events": ["events"]}
 FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path", "stylized_path"]}
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.zip$")
 KEEP = {"auto-pre-upgrade": 5, "auto-daily": 7}
-SETTINGS_KEEP = {"permission_revision", "instance_id", "app.version", "bridge.secret", "bridge.pairing_code", "bridge.paired_at"}
+SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.version", "bridge.secret", "bridge.pairing_code", "bridge.paired_at"}
 MAX_UPLOAD = 200 * 1024 * 1024
 DAILY_SECONDS = 24 * 3600
 

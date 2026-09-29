@@ -4,276 +4,410 @@
     "name_he": "מפת קומה חיה (דו־ממד)",
     "section": "map",
     "route": "#/explore/floors/{floor}",
-    "viewports": ["desktop", "phone"],
-    "roles": ["system_admin", "viewer"],
+    "viewports": [
+      "desktop",
+      "phone"
+    ],
+    "roles": [
+      "system_admin",
+      "viewer"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — מפת הקומה החיה, סמלי מצלמות וישויות, מצב הזמן־אמת."
+    "caption_he": "מפת הקומה החיה בדו-ממד: תוכנית מפורסמת עם סיכות מצלמה וישות, שכבות להצגה/הסתרה, ופתיחת כרטיס בלחיצה. פרטים ב-20-map_HE.md."
   },
   {
     "id": "map-3d",
     "name_he": "מפת קומה חיה (תלת־ממד)",
     "section": "map",
     "route": "#/explore/floors/{floor}",
-    "viewports": ["desktop"],
-    "roles": ["system_admin"],
-    "setup": [
-      { "type": "waitFor", "selector": "explore-floor-map [data-view-3d]:not([disabled])" },
-      { "type": "click", "selector": "explore-floor-map [data-view-3d]" },
-      { "type": "waitFor", "selector": "explore-floor-map sw-plan-3d[data-floor-3d][data-ready]" }
+    "viewports": [
+      "desktop"
     ],
-    "caption_he": "TODO: כיתוב — מעבר לתצוגה תלת־ממדית של אותה קומה."
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitFor",
+        "selector": "explore-floor-map [data-view-3d]:not([disabled])"
+      },
+      {
+        "type": "click",
+        "selector": "explore-floor-map [data-view-3d]"
+      },
+      {
+        "type": "waitFor",
+        "selector": "explore-floor-map sw-plan-3d[data-floor-3d][data-ready]"
+      }
+    ],
+    "caption_he": "אותה קומה בתצוגה תלת-ממדית איזומטרית — רמת איכות ניתנת לבחירה, וגוון נוכחות שדועך לאחר תנועה. פרטים ב-20-map_HE.md."
   },
   {
     "id": "cameras-overview",
     "name_he": "סקירה (Live · Dashboard)",
     "section": "cameras",
     "route": "#/live",
-    "viewports": ["desktop", "phone"],
-    "roles": ["system_admin"],
+    "viewports": [
+      "desktop",
+      "phone"
+    ],
+    "roles": [
+      "system_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — מסך הבית: חריגים, קפיצה למצלמה או למפה."
+    "caption_he": "מסך הבית של לייב: מצלמות מחוברות, אתרים וקומות, אירועי היום, מצב מערכת ורצועת \"דורש תשומת לב\" עם הסיבה וקישור לכל שורה. פרטים ב-30-cameras_HE.md."
   },
   {
     "id": "cameras-wall",
     "name_he": "כל המצלמות (רשת)",
     "section": "cameras",
     "route": "#/live/wall",
-    "viewports": ["desktop"],
-    "roles": ["system_admin"],
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — רשת כל המצלמות, מצב חי."
+    "caption_he": "כל המצלמות על קיר אחד: פריסת עמודות/רוחב, סדר הופעה, ואריחים שמעבר לתקרת הסשנים מציגים תצוגה מקדימה בלבד. פרטים ב-30-cameras_HE.md."
   },
   {
     "id": "cameras-single",
     "name_he": "מצלמה בודדת",
     "section": "cameras",
     "route": "#/live/cameras/{camera}",
-    "viewports": ["desktop"],
-    "roles": ["system_admin"],
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — תצוגת מצלמה יחידה במסך מלא."
+    "caption_he": "תצוגת מצלמה יחידה במסך מלא: מצב, בקרות PTZ/שמע לפי יכולת המצלמה, צילום מסך ומצלמות שכנות באותה קומה. פרטים ב-30-cameras_HE.md."
   },
   {
     "id": "events-list",
     "name_he": "מרכז אירועים",
     "section": "events",
     "route": "#/investigate/events",
-    "viewports": ["desktop", "phone"],
-    "roles": ["system_admin", "operator"],
+    "viewports": [
+      "desktop",
+      "phone"
+    ],
+    "roles": [
+      "system_admin",
+      "operator"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — רשימת אירועים, סינון וצפייה מהירה."
+    "caption_he": "מרכז האירועים: סינון לפי מצלמה/סוג/תאריך/מקום/מקור, קיבוץ \"חלונות\", ושורת שדות עם/בלי נתונים עם הסיבה. פרטים ב-31-events_HE.md."
   },
   {
     "id": "events-history-map",
     "name_he": "מפה היסטורית",
     "section": "events",
     "route": "#/investigate/floors/{floor}/history",
-    "viewports": ["desktop"],
-    "roles": ["system_admin"],
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — שחזור מצב הקומה בזמן שחלף."
+    "caption_he": "מפה היסטורית: מצב הקומה ברגע נבחר, כיסוי הקלטה לכל סיכת מצלמה, ומצב ישות \"לא ידוע\" כשההיסטוריה לא מכירה אותו. פרטים ב-31-events_HE.md."
   },
   {
     "id": "events-playback",
     "name_he": "הקלטות / ציר זמן",
     "section": "events",
     "route": "#/investigate/playback",
-    "viewports": ["desktop"],
-    "roles": ["system_admin"],
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — נגן ההקלטות וציר הזמן."
+    "caption_he": "נגן ההקלטות: ציר זמן עם seek ל-key frame, האטה וצעידת פריים, השוואת עד ארבע מצלמות, וייצוא קטע עם אומדן ומעקב משימה. פרטים ב-31-events_HE.md."
   },
   {
     "id": "plan-studio-editor",
     "name_he": "עורך תוכנית ועוגנים (Plan Studio)",
     "section": "plan-studio",
     "route": "#/explore/floors/{floor}/edit",
-    "viewports": ["desktop"],
-    "roles": ["editor", "system_admin"],
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "editor",
+      "system_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — עריכת קירות, פריטים ועוגנים על גבי התוכנית."
+    "caption_he": "עורך Plan Studio: מיקום מצלמות/ישויות, ציור קירות וחדרים, זיהוי אוטומטי, פרסום גרסה. פרטים ב-21-plan-studio_HE.md."
   },
   {
     "id": "wiskey-overview",
     "name_he": "WisKey · מרכז הכניסה",
     "section": "wiskey",
     "route": "#/wiskey/overview",
-    "viewports": ["desktop", "phone"],
-    "roles": ["system_admin"],
+    "viewports": [
+      "desktop",
+      "phone"
+    ],
+    "roles": [
+      "system_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — מרכז הכניסה של WisKey (מוטמע כברירת מחדל; ראו README לגבי הפאנל המדומה)."
+    "caption_he": "מרכז הכניסה של WisKey (מוטמע כברירת מחדל): עמדות, שיחות, שחרור דלת והכרזות. פרטים ב-50-wiskey_HE.md."
   },
   {
     "id": "wiskey-events",
     "name_he": "WisKey · פעילות",
     "section": "wiskey",
     "route": "#/wiskey/events",
-    "viewports": ["desktop"],
-    "roles": ["system_admin"],
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — יומן הכניסות והאירועים של WisKey."
+    "caption_he": "יומן הכניסות והפעילות של WisKey — סינון לפי עמדה/אדם/תוצאה/דלת/טווח תאריכים. פרטים ב-50-wiskey_HE.md."
   },
   {
     "id": "wiskey-people",
     "name_he": "WisKey · אנשים",
     "section": "wiskey",
     "route": "#/wiskey/people",
-    "viewports": ["desktop"],
-    "roles": ["system_admin"],
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — ספריית האנשים של WisKey."
+    "caption_he": "ספריית האנשים של WisKey — חיפוש, ועורך האדם (PIN, כרטיסים, תוקף) למי שמחזיק בהרשאה. פרטים ב-50-wiskey_HE.md."
   },
   {
     "id": "devices-building",
     "name_he": "חשמל והתקנים · המבנה",
     "section": "devices",
     "route": "#/devices/building",
-    "viewports": ["desktop", "phone"],
-    "roles": ["system_admin", "viewer", "operator"],
+    "viewports": [
+      "desktop",
+      "phone"
+    ],
+    "roles": [
+      "system_admin",
+      "viewer",
+      "operator"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — עץ הקומות/אזורים ברמת המבנה."
+    "caption_he": "מסך המבנה של חשמל והתקנים: עץ קומות/אזורים, כרטיסי קומה, פעולות מרוכזות (כיבוי תאורה/הכל) ו\"רענן מ-Home Assistant\". פרטים ב-40-devices_HE.md."
   },
   {
     "id": "devices-area",
     "name_he": "חשמל והתקנים · אזור",
     "section": "devices",
     "route": "#/devices/areas/{area}",
-    "viewports": ["desktop"],
-    "roles": ["system_admin"],
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — כרטיסי ההתקנים של אזור בודד."
+    "caption_he": "כרטיסי ההתקנים של אזור בודד — תאורה, מזגן, תריסים, חיישנים — עם פקודות בודדות ותג \"בטוח לכיבוי מרוכז\". פרטים ב-40-devices_HE.md."
   },
   {
     "id": "devices-bulk",
     "name_he": "חשמל והתקנים · פעולה מרוכזת",
     "section": "devices",
     "route": "#/devices/areas/{area}",
-    "viewports": ["desktop"],
-    "roles": ["system_admin"],
-    "setup": [
-      { "type": "click", "selector": "devices-area [data-bulk-trigger=\"area\"]" },
-      { "type": "waitFor", "selector": "devices-area [data-bulk-panel=\"popover\"]" }
+    "viewports": [
+      "desktop"
     ],
-    "caption_he": "TODO: כיתוב — פתיחת תפריט הפעולות המרוכזות לאזור."
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "click",
+        "selector": "devices-area [data-bulk-trigger=\"area\"]"
+      },
+      {
+        "type": "waitFor",
+        "selector": "devices-area [data-bulk-panel=\"popover\"]"
+      }
+    ],
+    "caption_he": "פתיחת תפריט פעולה מרוכזת לאזור, עם דיאלוג אישור שמפרט בדיוק מה יישלח ומה מוחרג. פרטים ב-40-devices_HE.md."
   },
   {
     "id": "settings-general",
     "name_he": "הגדרות · כללי",
     "section": "settings",
     "route": "#/system/diagnostics?tab=general",
-    "viewports": ["desktop"],
-    "roles": ["system_admin"],
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — עיצוב ואפשרויות כלליות."
+    "caption_he": "הגדרות · כללי: עיצוב הממשק, אזור זמן, מדיניות אחסון (קריאה מה-NVR), קיצורים לאינטגרציות ולבריאות המערכת. פרטים ב-80-settings_HE.md."
   },
   {
     "id": "settings-media",
     "name_he": "הגדרות · וידאו ומדיה",
     "section": "settings",
     "route": "#/system/diagnostics?tab=media",
-    "viewports": ["desktop"],
-    "roles": ["system_admin"],
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — go2rtc, סקינים ותצוגה מקדימה."
+    "caption_he": "הגדרות · וידאו ומדיה: תעבורת וידאו (MSE/WebRTC), מכסות זרמים וסשנים, שמירת אירועים/ייצוא/אודיט, וסקינים מרונדרים ב-AI. פרטים ב-80-settings_HE.md."
   },
   {
     "id": "settings-ha",
     "name_he": "הגדרות · גשר Home Assistant",
     "section": "settings",
     "route": "#/system/diagnostics?tab=ha",
-    "viewports": ["desktop"],
-    "roles": ["system_admin"],
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — צימוד וסטטוס גשר HA."
+    "caption_he": "הגדרות · גשר Home Assistant: מצב האינטגרציה, כתובת וקוד זיווג, התקנת הגשר בלחיצה אחת. פרטים ב-80-settings_HE.md."
   },
   {
     "id": "settings-access-control",
     "name_he": "הגדרות · בקרות כניסה",
     "section": "settings",
     "route": "#/system/diagnostics?tab=access-control",
-    "viewports": ["desktop"],
-    "roles": ["system_admin"],
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — בחירת מסך WisKey מוטמע מול מסך SMPLWISE, לכל אזור."
+    "caption_he": "הגדרות · בקרות כניסה: הצגת/הסתרת אזור WisKey, ובחירת WisKey מוטמע מול SMPLWISE לכל מסך (מרכז הכניסה/פעילות/אנשים). פרטים ב-80-settings_HE.md ו-50-wiskey_HE.md."
   },
   {
     "id": "settings-health",
     "name_he": "הגדרות · בריאות ועבודות",
     "section": "settings",
     "route": "#/system/diagnostics?tab=health",
-    "viewports": ["desktop"],
-    "roles": ["system_admin"],
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — סטטוס בדיקות הבריאות ותורי העבודות."
+    "caption_he": "הגדרות · בריאות ועבודות: כרטיס נפרד לכל תת-מערכת (NVR, go2rtc, גשר HA, קליטת אירועים) וסטטוס \"בדוק עכשיו\". פרטים ב-80-settings_HE.md."
   },
   {
     "id": "settings-backup",
     "name_he": "הגדרות · גיבוי ושחזור",
     "section": "settings",
     "route": "#/system/diagnostics?tab=backup",
-    "viewports": ["desktop"],
-    "roles": ["system_admin"],
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — יצירת גיבוי, רשימת גיבויים, שחזור."
+    "caption_he": "הגדרות · גיבוי ושחזור: יצירת גיבוי, רשימת גיבויים אוטומטיים/ידניים, שחזור עם אישור RESTORE. פרטים ב-80-settings_HE.md."
   },
   {
     "id": "settings-support",
     "name_he": "הגדרות · תמיכה",
     "section": "settings",
     "route": "#/system/diagnostics?tab=support",
-    "viewports": ["desktop"],
-    "roles": ["system_admin"],
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — פרטי גרסה ומידע לתמיכה."
+    "caption_he": "הגדרות · תמיכה: פרטי גרסה והפקת חבילת תמיכה מצונזרת (בלי סודות). פרטים ב-80-settings_HE.md."
   },
   {
     "id": "roles-permissions",
     "name_he": "משתמשים והרשאות",
     "section": "roles",
     "route": "#/system/access",
-    "viewports": ["desktop"],
-    "roles": ["system_admin", "site_admin"],
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin",
+      "site_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — משתמשים, שיוך תפקיד והרשאות אפקטיביות."
+    "caption_he": "משתמשים והרשאות: לשוניות משתמשים/קבוצות/תפקידים/הרשאות אפקטיביות/אודיט, שיוך תפקיד לפי היקף, והאצלה למנהל אתר. פרטים ב-81-roles_HE.md."
   },
   {
     "id": "audit-log",
     "name_he": "יומן אודיט",
     "section": "roles",
     "route": "#/system/audit",
-    "viewports": ["desktop"],
-    "roles": ["system_admin"],
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — יומן הפעולות המורשות/הנדחות."
+    "caption_he": "יומן האודיט — כל פעולה מורשית או נדחית, עם משתמש, פעולה, משאב, החלטה ותפקיד/היקף ששימשו. פרטים ב-81-roles_HE.md."
   },
   {
     "id": "storage-analytics",
     "name_he": "אנליטיקת אחסון",
     "section": "settings",
     "route": "#/system/storage",
-    "viewports": ["desktop"],
-    "roles": ["system_admin"],
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — ניצול אחסון וקיבולת הקלטה."
+    "caption_he": "אנליטיקת אחסון (Beta, נתוני הדגמה): תחזית שימוש (נמדד מול אומדן), פילוח לפי מצלמה ומדיניות הקלטה — לצד דוח הקריאה מה-NVR עצמו. פרטים ב-60-backup_HE.md."
   },
   {
     "id": "setup-wizard",
     "name_he": "אשף התקנה",
     "section": "settings",
     "route": "#/system/setup",
-    "viewports": ["desktop"],
-    "roles": ["system_admin"],
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — אשף החיבור הראשוני ל־NVR/HA."
+    "caption_he": "מסך \"אשף התקנה\" (fixture עיצובי בלבד, נתוני הדגמה) — ההתקנה האמיתית מתבצעת בלשונית Configuration של ה-add-on. פרטים ב-70-setup-wizard_HE.md."
   },
   {
     "id": "phone-bottom-nav",
     "name_he": "ניווט תחתון (טלפון)",
     "section": "mobile",
     "route": "#/live",
-    "viewports": ["phone"],
-    "roles": ["viewer"],
+    "viewports": [
+      "phone"
+    ],
+    "roles": [
+      "viewer"
+    ],
     "setup": [],
-    "caption_he": "TODO: כיתוב — סרגל הניווט התחתון בתצוגת טלפון."
+    "caption_he": "סרגל הניווט התחתון בתצוגת טלפון — אותם אזורי ניווט כמו הדסקטופ, מסודרים לרוחב מסך צר. פרטים ב-10-getting-started_HE.md."
   }
 ]
