@@ -639,6 +639,25 @@ def _bearer_principal(request: Any, settings: Settings, token: str) -> Principal
     return principal
 
 
+def remote_resolves_in_memory(request: Any, settings: Settings) -> bool:
+    """True when remote_principal will answer from memory - a live session cookie, or a bearer token still in the
+    validation cache - so the caller need not give up its write lock for it (auth._principal). A peek only: it
+    touches neither the session's last use nor the cache."""
+    sid = session_id_of(settings, request)
+    now = time.time()
+    if sid:
+        with STORE._lock:
+            s = STORE._sessions.get(sid)
+            if s is not None and s.token_exp > now:
+                return True
+    token = bearer_of(request)
+    if not token:
+        return True  # no credential: refused at once, nothing to call
+    with _cache_lock:
+        hit = _bearer_cache.get(token_hash(token))
+    return bool(hit and now - hit[1] < BEARER_CACHE_S and hit[2] > now)
+
+
 def remote_principal(request: Any, settings: Settings) -> Principal:
     s = STORE.get(session_id_of(settings, request))
     if s is not None:
