@@ -312,7 +312,8 @@ test.describe('overview tiles against the devices fixture backend', () => {
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/security/alarm');
     await page.waitForTimeout(800);
     expect(await page.evaluate(() => location.hash)).toBe('#/security/alarm'); // no queued Back reopening the panel
-    await expect(panel).not.toHaveAttribute('open', '');
+    await expect(page.locator('sw-app security-alarm')).toHaveCount(1);
+    await expect(panel).toHaveCount(0);
     // M2: the dialog's `locked` - a running lock-all ignores ✕ / Escape / the backdrop
     await page.goto('about:blank');
     await request.post('/api/v1/ha/dev/states', { data: { states: [{ entity_id: 'lock.cr007t_front', state: 'unlocked', attributes: { friendly_name: 'דלת כניסה', device_class: 'lock' } }] } });
@@ -499,5 +500,40 @@ test.describe('overview tiles against the devices fixture backend', () => {
     // of every tree / count of the other specs (the unassigned bucket above all)
     await request.post('/api/v1/ha/dev/registry', { data: { entities: entities.map((e) => ({ ...e, disabled_by: 'user' })), devices: [], areas, floors } });
     await seed(request);
+  });
+
+  test('הגדרות › חשמל › פעולה קבוצתית: search, select all filtered, approve, remove - one call each, counts', async ({ page, request }, testInfo) => {
+    await seed(request);
+    const ids = ['switch.cr007t_pump', 'switch.cr007t_boiler', 'switch.cr007t_sign'];
+    await request.post('/api/v1/devices/bulk-safe', { data: { entity_ids: ids, bulk_safe: false } });
+    const posts: unknown[] = [];
+    page.on('request', (r) => {
+      if (r.method() === 'POST' && r.url().endsWith('/api/v1/devices/bulk-safe')) posts.push(r.postDataJSON());
+    });
+    await open(page, '/system/diagnostics?tab=devices&section=bulk-safe');
+    const admin = page.locator('system-diagnostics devices-bulk-safe-admin');
+    await admin.locator('input[data-bulk-safe-search]').fill('cr007t_', { timeout: 30000 });
+    await expect(admin.locator('[data-bulk-safe-counts]')).toContainText(/^\u200e?3 מתוך/);
+    await admin.locator('sw-button[data-bulk-safe-all]').click();
+    await expect(admin.locator('[data-bulk-safe-selected]')).toContainText(/נבחרו \u200e?3 מתוך/);
+    await admin.locator('sw-button[data-bulk-safe-approve]').click();
+    const dlg = admin.locator('sw-dialog[data-bulk-safe-dialog]');
+    await expect(dlg.locator('[data-bulk-safe-question]')).toHaveText(/לאשר \u200e?3 מתגים לפעולה קבוצתית\?/);
+    await expect(dlg).toContainText('מתג יכול להיות דוד, משאבה או שער');
+    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `bulk-safe-admin-${testInfo.project.name}.png`) });
+    await dlg.locator('sw-button[data-bulk-safe-confirm]').click();
+    await expect(admin.locator('[data-bulk-safe-result]')).toContainText('אושרו', { timeout: 10000 });
+    expect(posts).toEqual([{ entity_ids: expect.arrayContaining(ids), bulk_safe: true }]);
+    await admin.locator('select[data-bulk-safe-marked]').selectOption('yes');
+    await expect(admin.locator('[data-bulk-safe-counts]')).toContainText(/^\u200e?3 מתוך/);
+    // remove from one: select it alone
+    await admin.locator('input[data-bulk-safe-search]').fill('cr007t_pump');
+    await admin.locator('input[data-bulk-safe-row="switch.cr007t_pump"]:visible').click();
+    await admin.locator('sw-button[data-bulk-safe-remove]').click();
+    await expect(admin.locator('[data-bulk-safe-question]')).toHaveText(/להסיר את האישור מ־\u200e?1 מתגים\?/);
+    await admin.locator('sw-button[data-bulk-safe-confirm]').click();
+    await expect.poll(() => posts.length).toBe(2);
+    await expect.poll(async () => ((await (await request.get('/api/v1/devices/bulk-safe')).json()).switches as { entity_id: string; marked: boolean }[]).filter((m) => ids.includes(m.entity_id) && m.marked).map((m) => m.entity_id).sort()).toEqual(['switch.cr007t_boiler', 'switch.cr007t_sign']);
+    await request.post('/api/v1/devices/bulk-safe', { data: { entity_ids: ids, bulk_safe: false } });
   });
 });

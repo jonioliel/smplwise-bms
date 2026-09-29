@@ -241,10 +241,13 @@ export class SwDrawer extends LitElement {
         dlg.setAttribute('open', '');
       }
       this.lockScroll();
+      // Escape is caught at the document (capture), wherever focus is - even outside the <dialog> after a re-render
+      document.addEventListener('keydown', this.onKeyCapture, true);
       requestAnimationFrame(() => this.focusEdge('start'));
     } else if (!this.open && dlg.open) {
       dlg.close();
       this.unlockScroll();
+      document.removeEventListener('keydown', this.onKeyCapture, true);
       const back = this.opener;
       this.opener = null;
       if (back?.isConnected) back.focus({ preventScroll: true });
@@ -255,6 +258,7 @@ export class SwDrawer extends LitElement {
     super.disconnectedCallback();
     if (this.dialog?.open) this.dialog.close();
     this.unlockScroll();
+    document.removeEventListener('keydown', this.onKeyCapture, true);
   }
 
   /** Every scrolling ancestor (through shadow roots) stops scrolling while the modal drawer is open: a wheel or a
@@ -364,7 +368,7 @@ export class SwDrawer extends LitElement {
 
   render() {
     if (this.modal) {
-      return html`<dialog class="panel" aria-labelledby="dh" @cancel=${this.onCancel} @close=${this.onNativeClose} @pointerdown=${this.onPointerDown} @click=${this.onDialogClick} @keydown=${{ handleEvent: this.onKeyCapture, capture: true }}>
+      return html`<dialog class="panel" aria-labelledby="dh" @cancel=${this.onCancel} @close=${this.onNativeClose} @pointerdown=${this.onPointerDown} @click=${this.onDialogClick}>
         <span class="trap" tabindex="0" aria-hidden="true" @focus=${() => this.focusEdge('end')}></span>
         ${this.renderInner()}
         <span class="trap" tabindex="0" aria-hidden="true" @focus=${() => this.focusEdge('start')}></span>
