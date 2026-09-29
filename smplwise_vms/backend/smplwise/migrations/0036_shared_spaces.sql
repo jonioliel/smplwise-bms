@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS shared_spaces (
   zone_id        TEXT NOT NULL REFERENCES spatial_zones(id),
   home_floor_id  TEXT NOT NULL REFERENCES floors(id),
   floor_id       TEXT NOT NULL REFERENCES floors(id),
+  other_zone_id  TEXT REFERENCES spatial_zones(id),            -- the other floor's own outline of the room (two-outline model)
   placement_json TEXT NOT NULL,
   revision       INTEGER NOT NULL DEFAULT 1,
   created_by     TEXT,
@@ -16,6 +17,23 @@ CREATE TABLE IF NOT EXISTS shared_spaces (
   removed_at     TEXT,
   removed_by     TEXT
 );
+-- Members (security review B1): the cameras and devices of the shared space, EXPLICITLY - reach follows this list,
+-- never geometry. Set at share time and changed only by "הוסף לחלל המשותף / הסר", which needs the share rights.
+-- Keyed by the room (its home zone): a member reaches every floor that shows the room, wherever it is anchored.
+CREATE TABLE IF NOT EXISTS shared_space_members (
+  id            TEXT PRIMARY KEY,
+  zone_id       TEXT NOT NULL REFERENCES spatial_zones(id),
+  resource_type TEXT NOT NULL CHECK (resource_type IN ('camera', 'ha_entity')),
+  resource_id   TEXT NOT NULL,
+  added_by      TEXT,
+  added_at      TEXT NOT NULL,
+  removed_at    TEXT,
+  removed_by    TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_shared_members_active ON shared_space_members (zone_id, resource_type, resource_id) WHERE removed_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_shared_members_resource ON shared_space_members (resource_type, resource_id, removed_at);
+CREATE TRIGGER IF NOT EXISTS trg_cv_shared_members_ins AFTER INSERT ON shared_space_members BEGIN UPDATE cache_versions SET version = version + 1 WHERE name = 'structure'; END;
+CREATE TRIGGER IF NOT EXISTS trg_cv_shared_members_upd AFTER UPDATE ON shared_space_members BEGIN UPDATE cache_versions SET version = version + 1 WHERE name = 'structure'; END;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_shared_spaces_active ON shared_spaces (zone_id, floor_id) WHERE removed_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_shared_spaces_floor ON shared_spaces (floor_id, removed_at);
 CREATE INDEX IF NOT EXISTS idx_shared_spaces_home ON shared_spaces (home_floor_id, removed_at);

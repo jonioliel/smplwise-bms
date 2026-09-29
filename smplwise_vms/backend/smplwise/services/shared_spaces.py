@@ -31,7 +31,10 @@ POINT_TOL_M = 0.05
 # a clipped piece of a wall that crosses the outline shorter than this many wall tolerances is the stub of an adjoining
 # wall touching the room, not a part of it
 MIN_PIECE_TOLS = 2.0
-SHARED_COLLECTIONS = ("walls", "openings", "objects", "labels", "connectors", "circuits", "groups")
+# the room's CONTENT, shared between its floors (two-outline model: walls and openings stay each floor's own)
+SHARED_COLLECTIONS = ("objects", "labels", "connectors", "circuits", "groups")
+# every collection an attached item could be marked in (split / strip never let a marked item through)
+MARKED_COLLECTIONS = ("walls", "openings", *SHARED_COLLECTIONS)
 LABEL_PREFIX = "רצפה בקומה"
 
 
@@ -50,6 +53,7 @@ class Share:
     zone_polygon: list[dict[str, float]]
     zone_revision: int
     zone_level_id: str | None
+    other_zone_id: str | None = None
 
 
 def _rows(conn: sqlite3.Connection, where: str, args: Iterable[Any], at: str | None = None) -> list[Share]:
@@ -72,7 +76,8 @@ def _rows(conn: sqlite3.Connection, where: str, args: Iterable[Any], at: str | N
         if not isinstance(polygon, list) or len(polygon) < 3:
             continue
         out.append(Share(r["id"], r["zone_id"], r["home_floor_id"], r["floor_id"], placement if isinstance(placement, dict) else {"mode": "same_frame"},
-                         int(r["revision"]), r["created_at"], r["zone_name"] or "", polygon, int(r["zone_revision"]), r["zone_level_id"]))
+                         int(r["revision"]), r["created_at"], r["zone_name"] or "", polygon, int(r["zone_revision"]), r["zone_level_id"],
+                         r["other_zone_id"] if "other_zone_id" in r.keys() else None))
     return out
 
 
@@ -292,7 +297,12 @@ def _level_ids(doc: dict[str, Any]) -> tuple[set[str], str]:
     return ids, default
 
 
-def room_subset(doc: dict[str, Any], polygon: list[dict[str, float]]) -> dict[str, list[dict[str, Any]]]:
+def _region(region: Any) -> list[list[dict[str, float]]]:
+    """One outline or a list of outlines (the two-outline model: the room's region is their union)."""
+    return [region] if region and isinstance(region[0], dict) else [p for p in region or [] if p]
+
+
+def room_subset(doc: dict[str, Any], region: Any) -> dict[str, list[dict[str, Any]]]:
     """The items of a home document inside the room, in home coordinates with their own ids. Room walls (wholly
     inside) and their openings are editable; the inside pieces of a wall that crosses the outline are read-only copies
     ("<id>#<n>", `_clip` = the piece) with the openings whose centre falls on them. Objects, labels: by their position;
@@ -303,9 +313,10 @@ def room_subset(doc: dict[str, Any], polygon: list[dict[str, float]]) -> dict[st
     dims = doc.get("dimensions") or {}
     w, h = float(dims.get("width_px") or 1000), float(dims.get("height_px") or 1000)
     scale, _ = pg.effective_scale(doc)
-    poly = poly_px(polygon, w, h)
+    polys = [poly_px(p, w, h) for p in _region(region)]
+    poly = polys[0]  # walls are clipped to the room's own outline on this floor; content may lie in any outline
     ptol = POINT_TOL_M / scale
-    out: dict[str, list[dict[str, Any]]] = {c: [] for c in SHARED_COLLECTIONS}
+    out: dict[str, list[dict[str, Any]]] = {c: [] for c in MARKED_COLLECTIONS}
     by_wall: dict[str, list[dict[str, Any]]] = {}
     for o in doc.get("openings") or []:
         if isinstance(o, dict) and isinstance(o.get("wall_id"), str):
@@ -342,12 +353,12 @@ def room_subset(doc: dict[str, Any], polygon: list[dict[str, float]]) -> dict[st
     included: set[str] = set()
     for o in doc.get("objects") or []:
         if isinstance(o, dict) and isinstance(o.get("id"), str) and isinstance(o.get("position"), list) and len(o["position"]) == 2 and _num(o["position"][0]) and _num(o["position"][1]):
-            if near((float(o["position"][0]) * w, float(o["position"][1]) * h), poly, ptol):
+            if any(near((float(o["position"][0]) * w, float(o["position"][1]) * h), p, ptol) for p in polys):
                 out["objects"].append({**copy.deepcopy(o), "_readonly": False})
                 included.add(o["id"])
     for lb in doc.get("labels") or []:
         if isinstance(lb, dict) and isinstance(lb.get("id"), str) and isinstance(lb.get("position"), list) and len(lb["position"]) == 2 and _num(lb["position"][0]) and _num(lb["position"][1]):
-            if near((float(lb["position"][0]) * w, float(lb["position"][1]) * h), poly, ptol):
+            if any(near((float(lb["position"][0]) * w, float(lb["position"][1]) * h), p, ptol) for p in polys):
                 out["labels"].append({**copy.deepcopy(lb), "_readonly": False})
     ctol = WALL_TOL_M / scale
     for c in doc.get("connectors") or []:
@@ -359,13 +370,28 @@ def room_subset(doc: dict[str, Any], polygon: list[dict[str, float]]) -> dict[st
             continue
         pl = c.get("polyline")
         if isinstance(pl, list) and len(pl) >= 2 and all(isinstance(p, list) and len(p) == 2 and _num(p[0]) and _num(p[1]) for p in pl) \
-                and all(near((float(p[0]) * w, float(p[1]) * h), poly, ctol) for p in pl):
+                and all(any(near((float(p[0]) * w, float(p[1]) * h), q, ctol) for q in polys) for p in pl):
             out["connectors"].append({**copy.deepcopy(c), "_readonly": False})
     for coll in ("circuits", "groups"):
         for k in doc.get(coll) or []:
             members = k.get("member_ids") if isinstance(k, dict) else None
             if isinstance(k, dict) and isinstance(k.get("id"), str) and isinstance(members, list) and members and all(m in included for m in members):
                 out[coll].append({**copy.deepcopy(k), "_readonly": False})
+    return out
+
+
+def region_of(conn: sqlite3.Connection, share: Share, place: Placement) -> list[list[dict[str, float]]]:
+    """The room's region in HOME coordinates: its home outline, and the other floor's own outline brought back through
+    the placement (two-outline model: the hall is wider at the upper level, and the tribunes' upper rows lie outside
+    the court's outline). The content of the room is what lies inside either."""
+    out = [share.zone_polygon]
+    if share.other_zone_id:
+        z = conn.execute("SELECT polygon_json FROM spatial_zones WHERE id = ? AND deleted_at IS NULL", (share.other_zone_id,)).fetchone()
+        if z is not None:
+            try:
+                out.append([{"x": _r6(q[0]), "y": _r6(q[1])} for q in (place.inv(float(p["x"]), float(p["y"])) for p in json.loads(z["polygon_json"]))])
+            except (ValueError, TypeError, KeyError):
+                pass
     return out
 
 
@@ -395,7 +421,7 @@ def project(sub: dict[str, list[dict[str, Any]]], share: Share, place: Placement
     def lvl(v: Any) -> str:
         return ns(H, v if isinstance(v, str) and v in level_ids else default_level)
 
-    out: dict[str, list[dict[str, Any]]] = {c: [] for c in SHARED_COLLECTIONS}
+    out: dict[str, list[dict[str, Any]]] = {c: [] for c in sub}
     for coll, items in sub.items():
         for it in items:
             x = {k: v for k, v in it.items() if not k.startswith("_")}
@@ -524,100 +550,170 @@ def _datum(conn: sqlite3.Connection, me_id: str, own_doc: dict[str, Any], far_id
     return store.FarContext(conn, published=published).datum(me, pg.floor_height(own_doc), far)
 
 
+_SUBSET_CACHE: dict[tuple[Any, ...], tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]]]] = {}
+_SUBSET_MAX = 256
+OTHER_FLOOR = "קומה אחרת"
+UPPER_LABEL = "מפלס עליון"
+LOWER_LABEL = "מפלס תחתון"
+
+
+def _outline_zone(conn: sqlite3.Connection, zone_id: str | None) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM spatial_zones WHERE id = ? AND deleted_at IS NULL", (zone_id,)).fetchone() if zone_id else None
+
+
+def _mirror_content(conn: sqlite3.Connection, s: Share, hv: "HomeView", place: Placement, other_zone: sqlite3.Row | None, circuits: bool,
+                    datum: float | None, readable: bool) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
+    """The home floor's content inside the room's region, projected onto the other floor, and the home levels it uses
+    (namespaced, at the home datum). Security review M6: memoized for stored documents on everything it depends on
+    (the home row's hash, the share and both outlines' revisions, the other plan's size, the datum, the reader's name
+    right) - a repeated read, and every 304, parses nothing. Review L1: only the levels the content uses, and the home
+    floor named only to a reader who may read it."""
+    key = None
+    if hv.row is not None and hv.row["status"] != "draft":
+        key = (hv.row["doc_hash"], s.id, s.revision, s.zone_revision, other_zone["revision"] if other_zone is not None else None,
+               place.hb, place.ha, circuits, datum, readable)
+        hit = _SUBSET_CACHE.get(key)
+        if hit is not None:
+            return copy.deepcopy(hit[0]), copy.deepcopy(hit[1])
+    level_ids, default_level = _level_ids(hv.doc)
+    sub = room_subset(hv.doc, region_of(conn, s, place))
+    for coll in ("walls", "openings"):
+        sub[coll] = []  # two-outline model: each floor's walls bound the hall at that floor and stay its own
+    if not circuits:
+        sub["circuits"] = []
+    proj = project(sub, s, place, level_ids, default_level)
+    used = {un_ns(s.home_floor_id, it.get(k)) for items in proj.values() for it in items for k in ("level_id", "level_from", "level_to") if isinstance(it.get(k), str)}
+    used |= {un_ns(s.home_floor_id, (it.get("params") or {}).get("connects_levels")) for it in proj.get("objects", []) if isinstance((it.get("params") or {}).get("connects_levels"), str)}
+    home_name = _floor(conn, s.home_floor_id)
+    fname = home_name["name"] if home_name is not None and readable else OTHER_FLOOR
+    levels = []
+    for lv in hv.doc.get("levels") or []:
+        if isinstance(lv, dict) and lv.get("id") in used:
+            elev = float(lv["elevation_m"]) if _num(lv.get("elevation_m")) else 0.0
+            levels.append({"id": ns(s.home_floor_id, lv["id"]), "name": f"{lv.get('name') or lv['id']} · {fname}", "elevation_m": round(elev + (datum or 0.0), 4),
+                           "ceiling_height_m": lv.get("ceiling_height_m"), "is_default": False, "external_ids": {}, "shared": {"home_floor_id": s.home_floor_id, "zone_id": s.zone_id}})
+    if key is not None:
+        if len(_SUBSET_CACHE) >= _SUBSET_MAX:
+            _SUBSET_CACHE.clear()
+        _SUBSET_CACHE[key] = (copy.deepcopy(proj), copy.deepcopy(levels))
+    return proj, levels
+
+
 def attach(conn: sqlite3.Connection, floor_id: str, doc: dict[str, Any], mode: str = "published", at: str | None = None, *,
-           can_attach: Callable[[str], bool] | None = None, circuits: bool = True) -> dict[str, Any]:
-    """A copy of `doc` (a document of `floor_id`) with every room another floor shares with it attached, and the rooms it
-    shares itself described (`shared_spaces`, role "home": the chip and the 3D volume). Computed on every read, never
-    stored (strip() removes it on the way in). `can_attach(home_floor_id)`: False for a reader explicitly denied on the
-    home floor - deny wins (CR-009 §6); `circuits`: False for a camera-only reader."""
-    mirrors = shares_of_floor(conn, floor_id, at if mode == "at" else None)
-    homes = shares_from_floor(conn, floor_id, at if mode == "at" else None)
-    if not mirrors and not homes:
+           can_attach: Callable[[str], bool] | None = None, circuits: bool = True, can_name: Callable[[str], bool] | None = None) -> dict[str, Any]:
+    """A copy of `doc` (a document of `floor_id`) with the rooms it shares described in `shared_spaces` and, on a floor
+    that is not a room's home, the room's CONTENT attached (objects - tribunes, labels, connectors, circuits, groups -
+    namespaced, marked `shared`). Two-outline model: every floor keeps its own outline and walls of the room; an entry
+    carries this floor's outline (`polygon`) and the other floor's outline in this plan's coordinates (`other_polygon`,
+    drawn dashed: "מפלס עליון" / "מפלס תחתון"), the datum between them, the upper ceiling and this floor's room walls (the
+    3D volume), and whether the placement looks right (`aligned`). Computed on every read, never stored (strip()).
+    `can_attach(floor)`: False for a reader explicitly denied on that floor - deny wins; `circuits`: False for a
+    camera-only reader; `can_name(floor)`: whether the reader may read that floor's name (review L1)."""
+    gs = [g for g in groups(conn, at if mode == "at" else None).values() if floor_id in g.floors]
+    if not gs:
         return doc
     out = dict(doc)
     for coll in SHARED_COLLECTIONS + ("levels",):
         out[coll] = list(out.get(coll) or [])
     entries: list[dict[str, Any]] = []
     published = mode != "draft"
-    by_home: dict[str, list[Share]] = {}
-    for s in mirrors:
-        by_home.setdefault(s.home_floor_id, []).append(s)
-    for H, shares in by_home.items():
-        if can_attach is not None and not can_attach(H):
+    me = _floor(conn, floor_id)
+    own_dims = _dims_of(None, doc)
+    own_levels, own_default = _level_ids(doc)
+    taken = {i.get("id") for c in SHARED_COLLECTIONS + ("levels",) for i in out[c] if isinstance(i, dict)}
+    for g in gs:
+        if can_attach is not None and not all(can_attach(f) for f in g.floors):
             continue
-        hv = home_view(conn, H, mode, at)
-        hfloor = _floor(conn, H)
-        if hv.doc is None or hfloor is None:
-            continue
-        level_ids, default_level = _level_ids(hv.doc)
-        datum = _datum(conn, floor_id, doc, H, published)
-        taken: set[str] = set()
-        for lv in hv.doc.get("levels") or []:
-            if isinstance(lv, dict) and isinstance(lv.get("id"), str):
-                elev = float(lv["elevation_m"]) if _num(lv.get("elevation_m")) else 0.0
-                out["levels"].append({**{k: v for k, v in lv.items() if k != "is_default"}, "id": ns(H, lv["id"]), "is_default": False,
-                                      "name": f"{lv.get('name') or lv['id']} · {hfloor['name']}", "elevation_m": round(elev + (datum or 0.0), 4),
-                                      "shared": {"home_floor_id": H, "zone_id": shares[0].zone_id}})
-        up_ceiling = _default_ceiling(doc)
-        for s in shares:
-            place = Placement(s.placement, _dims_of(hv.version, hv.doc), _dims_of(None, doc))
-            sub = room_subset(hv.doc, s.zone_polygon)
-            if not circuits:
-                sub["circuits"] = []
-            proj = project(sub, s, place, level_ids, default_level)
-            wall_ids: list[str] = []
-            for coll, items in proj.items():
-                for it in items:
-                    if it["id"] in taken:
-                        continue  # two rooms of one home floor overlapping on a wall: once
-                    taken.add(it["id"])
-                    out[coll].append(it)
-                    if coll == "walls" and not it["shared"].get("readonly"):
-                        wall_ids.append(it["id"])
-            below = datum is not None and datum < 0
-            entries.append({"zone_id": s.zone_id, "zone_name": s.zone_name, "home_floor_id": H, "home_floor_name": hfloor["name"], "home_floor_level": hfloor["level"],
-                            "role": "mirror", "polygon": [{"x": q[0], "y": q[1]} for q in (place.pt((p["x"], p["y"])) for p in s.zone_polygon)],
-                            "placement": s.placement, "home_revision": hv.revision if mode == "draft" else None, "home_version_id": hv.version["id"] if hv.version is not None else None,
-                            "home_doc_hash": hv.row["doc_hash"] if hv.row is not None else None, "datum_m": datum,
-                            "level_id": ns(H, s.zone_level_id if s.zone_level_id in level_ids else default_level),
-                            "volume_height_m": round(-datum + up_ceiling, 3) if below else None, "wall_ids": wall_ids, "label": surface_label(hfloor["level"])})
-    for s in homes:
-        other = _floor(conn, s.floor_id)
-        if other is None:
-            continue
-        from . import geometry_store as store
-
-        _ov, other_levels = store.floor_levels(conn, s.floor_id)
-        datum = _datum(conn, floor_id, doc, s.floor_id, published)
-        me = _floor(conn, floor_id)
-        level_ids, default_level = _level_ids(doc)
-        sub = room_subset(doc, s.zone_polygon)
-        entries.append({"zone_id": s.zone_id, "zone_name": s.zone_name, "home_floor_id": floor_id, "home_floor_name": me["name"] if me else "", "home_floor_level": me["level"] if me else None,
-                        "role": "home", "other_floor_id": s.floor_id, "other_floor_name": other["name"], "polygon": s.zone_polygon, "placement": s.placement,
-                        "datum_m": datum, "level_id": s.zone_level_id if s.zone_level_id in level_ids else default_level,
-                        "volume_height_m": round(datum + _default_ceiling({"levels": other_levels}), 3) if datum is not None and datum > 0 else None,
-                        "wall_ids": [w["id"] for w in sub["walls"] if not w.get("_readonly")], "label": surface_label(me["level"] if me else "")})
+        home = g.shares[0]
+        for s in g.shares:
+            if floor_id not in (g.home_floor_id, s.floor_id):
+                continue
+            other_floor = s.floor_id if floor_id == g.home_floor_id else g.home_floor_id
+            ofloor = _floor(conn, other_floor)
+            if ofloor is None or me is None:
+                continue
+            readable = can_name is None or can_name(other_floor)
+            datum = _datum(conn, floor_id, doc, other_floor, published)
+            other_zone = _outline_zone(conn, s.other_zone_id)
+            hv = home_view(conn, g.home_floor_id, mode, at)
+            if hv.doc is None:
+                continue
+            place = Placement(s.placement, _dims_of(hv.version, hv.doc), own_dims if floor_id != g.home_floor_id else _dims_of(store_editor_or_published(conn, s.floor_id)))
+            upper_ceiling = _default_ceiling(doc) if (datum is not None and datum < 0) else _levels_ceiling(conn, other_floor)
+            if floor_id == g.home_floor_id:
+                # the home floor: its own room; the other floor's outline brought here (the upper rows of the tribunes)
+                poly = home.zone_polygon
+                other_poly = [{"x": _r6(q[0]), "y": _r6(q[1])} for q in (place.inv(float(p["x"]), float(p["y"])) for p in json.loads(other_zone["polygon_json"]))] if other_zone is not None else []
+                sub = room_subset(doc, poly)
+                wall_ids = [w["id"] for w in sub["walls"] if not w.get("_readonly")]
+                level_id = s.zone_level_id if s.zone_level_id in own_levels else own_default
+                entry_role = "home"
+                aligned = alignment_ok(poly, other_poly, (own_dims[0], own_dims[1], 0.0)) if other_poly else True
+            else:
+                proj, levels = _mirror_content(conn, s, hv, place, other_zone, circuits, datum, readable)
+                for coll, items in proj.items():
+                    for it in items:
+                        if it["id"] not in taken:
+                            taken.add(it["id"])
+                            out[coll].append(it)
+                for lv in levels:
+                    if lv["id"] not in taken:
+                        taken.add(lv["id"])
+                        out["levels"].append(lv)
+                lower = [{"x": _r6(q[0]), "y": _r6(q[1])} for q in (place.pt((p["x"], p["y"])) for p in home.zone_polygon)]
+                poly = json.loads(other_zone["polygon_json"]) if other_zone is not None else lower
+                other_poly = lower if other_zone is not None else []
+                sub = room_subset(doc, poly) if other_zone is not None else {"walls": []}
+                wall_ids = [w["id"] for w in sub["walls"] if not w.get("_readonly")]
+                level_id = own_default
+                entry_role = "mirror"
+                aligned = alignment_ok(lower, poly, _anchor_tol(conn, floor_id)) if other_zone is not None else True
+            below = datum is not None and datum < 0  # the other floor is below: this floor holds the upper outline
+            entries.append({
+                "zone_id": g.zone_id, "zone_name": s.zone_name, "outline_zone_id": s.other_zone_id if entry_role == "mirror" else g.zone_id,
+                "home_floor_id": g.home_floor_id, "home_floor_level": _floor(conn, g.home_floor_id)["level"],
+                "home_floor_name": (ofloor["name"] if readable else OTHER_FLOOR) if entry_role == "mirror" else me["name"],
+                "role": entry_role, "other_floor_id": other_floor, "other_floor_name": ofloor["name"] if readable else OTHER_FLOOR, "other_floor_level": ofloor["level"],
+                "polygon": poly, "other_polygon": other_poly, "other_label": LOWER_LABEL if below else UPPER_LABEL,
+                "home_revision": hv.revision if (mode == "draft" and entry_role == "mirror") else None,
+                "datum_m": datum, "upper_ceiling_m": upper_ceiling, "level_id": level_id,
+                # the room's walls on this floor rise to the other floor's level (lower floor) or stand on their own (upper)
+                "volume_height_m": round(datum, 3) if (datum is not None and datum > 0) else None, "wall_ids": wall_ids,
+                "aligned": aligned, "label": surface_label(_floor(conn, g.home_floor_id)["level"])})
     out["shared_spaces"] = entries
     return out
 
+
+def store_editor_or_published(conn: sqlite3.Connection, floor_id: str) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? AND status IN ('published', 'draft') ORDER BY CASE status WHEN 'published' THEN 0 ELSE 1 END, created_at DESC LIMIT 1",
+                        (floor_id,)).fetchone()
+
+
+def _levels_ceiling(conn: sqlite3.Connection, floor_id: str) -> float:
+    from . import geometry_store as store
+
+    _v, levels = store.floor_levels(conn, floor_id)
+    return _default_ceiling({"levels": levels})
 
 def strip(doc: dict[str, Any]) -> dict[str, Any]:
     """What attach() added never enters a stored document or its hash: items marked `shared` and `shared_spaces`."""
     if "shared_spaces" in doc:
         doc.pop("shared_spaces", None)
-    for coll in SHARED_COLLECTIONS + ("levels",):
+    doc.pop("shared_deleted", None)
+    for coll in MARKED_COLLECTIONS + ("levels",):
         items = doc.get(coll)
         if isinstance(items, list) and any(isinstance(i, dict) and "shared" in i for i in items):
             doc[coll] = [i for i in items if not (isinstance(i, dict) and "shared" in i)]
     return doc
 
 
-def split(doc: dict[str, Any]) -> tuple[dict[str, Any], dict[str, dict[str, list[dict[str, Any]]]], dict[str, dict[str, Any]]]:
+def split(doc: dict[str, Any]) -> tuple[dict[str, Any], dict[str, dict[str, list[dict[str, Any]]]], dict[str, dict[str, Any]], set[str]]:
     """A document a client sent: (its own part, the shared items by home floor, the echoed shared_spaces mirror entries
-    by home floor). An item is shared when it carries the `shared` marker."""
+    by home floor, the ids of shared items it deletes - `shared_deleted`). An item is shared when it carries the
+    `shared` marker."""
     own = dict(doc)
     shared: dict[str, dict[str, list[dict[str, Any]]]] = {}
-    for coll in SHARED_COLLECTIONS + ("levels",):
+    for coll in MARKED_COLLECTIONS + ("levels",):
         items = doc.get(coll)
         if not isinstance(items, list):
             continue
@@ -625,7 +721,7 @@ def split(doc: dict[str, Any]) -> tuple[dict[str, Any], dict[str, dict[str, list
         for i in items:
             m = i.get("shared") if isinstance(i, dict) else None
             if isinstance(m, dict) and isinstance(m.get("home_floor_id"), str):
-                if coll != "levels":
+                if coll in SHARED_COLLECTIONS:
                     shared.setdefault(m["home_floor_id"], {c: [] for c in SHARED_COLLECTIONS})[coll].append(i)
             elif isinstance(i, dict) and "shared" in i:
                 continue  # a malformed marker: dropped, never stored
@@ -637,7 +733,10 @@ def split(doc: dict[str, Any]) -> tuple[dict[str, Any], dict[str, dict[str, list
         if isinstance(e, dict) and e.get("role") == "mirror" and isinstance(e.get("home_floor_id"), str):
             echoed.setdefault(e["home_floor_id"], e)
     own.pop("shared_spaces", None)
-    return own, shared, echoed
+    # review M1: a shared item is deleted only when the client lists it; one it merely left out is kept
+    deleted = {str(x) for x in doc.get("shared_deleted") or [] if isinstance(x, str)} if isinstance(doc.get("shared_deleted"), list) else set()
+    own.pop("shared_deleted", None)
+    return own, shared, echoed, deleted
 
 
 # ---------------------------------------------------------------- write routing (decision 1)
@@ -663,44 +762,48 @@ def _clean(i: dict[str, Any]) -> str:
     return json.dumps(_canon({k: v for k, v in i.items() if k not in ("shared", "far")}), sort_keys=True, ensure_ascii=False)
 
 
-def _item_inside(coll: str, item: dict[str, Any], doc: dict[str, Any], polygon: list[dict[str, float]]) -> bool:
-    """Membership of one item in home coordinates (the same rule as room_subset)."""
+def _item_inside(coll: str, item: dict[str, Any], doc: dict[str, Any], region: list[list[dict[str, float]]]) -> bool:
+    """Membership of one item in home coordinates (the same rule as room_subset): inside any outline of the room."""
     from . import plan_geometry as pg
 
     dims = doc.get("dimensions") or {}
     w, h = float(dims.get("width_px") or 1000), float(dims.get("height_px") or 1000)
     scale, _ = pg.effective_scale(doc)
-    poly = poly_px(polygon, w, h)
+    polys = [poly_px(p, w, h) for p in region]
     try:
         if coll in ("objects", "labels"):
             p = item.get("position")
-            return near((float(p[0]) * w, float(p[1]) * h), poly, POINT_TOL_M / scale)
+            return any(near((float(p[0]) * w, float(p[1]) * h), poly, POINT_TOL_M / scale) for poly in polys)
         if coll in ("walls", "connectors"):
             thick = item.get("thickness_m") if coll == "walls" and _num(item.get("thickness_m")) else pg.DEFAULT_WALL_THICKNESS_M
             tol = max(float(thick), WALL_TOL_M) / scale
             pts = [(float(p[0]) * w, float(p[1]) * h) for p in item.get("polyline") or []]
-            if len(pts) < 2:
-                return False
-            pieces, total = clip_intervals(pts, poly, tol)
-            return len(pieces) == 1 and pieces[0][0] <= 1e-6 and pieces[0][1] >= total - 1e-6
+            return len(pts) >= 2 and all(any(near(q, poly, tol) for poly in polys) for q in pts)
     except (TypeError, ValueError, IndexError):
         return False
-    return True  # openings follow their wall, circuits and groups their members
+    return False  # openings, circuits and groups are judged by what they reference (plan_edits)
 
 
-def plan_edits(conn: sqlite3.Connection, floor_id: str, sent_shared: dict[str, dict[str, list[dict[str, Any]]]], echoed: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+def plan_edits(conn: sqlite3.Connection, floor_id: str, sent_shared: dict[str, dict[str, list[dict[str, Any]]]], echoed: dict[str, dict[str, Any]],
+               deleted: set[str] | None = None, *, can_write: Callable[[str], bool] | None = None) -> list[dict[str, Any]]:
     """The shared items a client of `floor_id` (the other floor) sent, planned as writes to each home floor's editor
-    draft: what changed, was added (a namespaced new id) or removed against the current attach. Only rooms shared with
-    this floor, only items inside the room before and after, never a read-only piece (ignored), never a derived
-    connector (the home save regenerates it). A home floor whose echo is missing is not touched (a client that never
-    read the mirror must not delete it); a home draft that moved since the client read it raises 409 when anything
-    differs. Writes NOTHING - an API error still commits the request's transaction (db.connection), so every refusal
-    must come before the first write; commit_edits() writes the plan. Returns one entry per home floor to write."""
+    draft: what changed, was added (a namespaced new id) or deleted (listed in `deleted`) against the current attach.
+    Security review B2 / M1:
+    - only rooms shared with this floor, only items inside the room before and after, never a read-only piece
+      (ignored), never a derived connector (the home save regenerates it);
+    - an addition whose id already exists anywhere in the home document is refused (422 shared_id_taken) - it can
+      never overwrite an item of the rest of the home floor;
+    - an opening must sit on a wall of the room (or one added in the same edit); a circuit or a group only on objects of
+      the room; a circuit's switch entity cannot be changed from here (422 shared_switch);
+    - a principal explicitly denied on the home floor writes nothing (403 shared_denied, no revision in the answer);
+    - an item left out is never deleted: deletions are only the ids listed.
+    A home floor whose echo is missing is not touched; a home draft that moved since the client read it raises 409 when
+    anything differs. Writes NOTHING - every refusal comes before the first write; commit_edits() writes the plan."""
     from . import geometry_store as store
 
-    shares = shares_of_floor(conn, floor_id)
+    deleted = deleted or set()
     by_home: dict[str, list[Share]] = {}
-    for s in shares:
+    for s in shares_of_floor(conn, floor_id):
         by_home.setdefault(s.home_floor_id, []).append(s)
     records: list[dict[str, Any]] = []
     for H, hs in by_home.items():
@@ -713,17 +816,21 @@ def plan_edits(conn: sqlite3.Connection, floor_id: str, sent_shared: dict[str, d
         other_v = store.editor_version(conn, floor_id)
         level_ids, default_level = _level_ids(hv.doc)
         sent = sent_shared.get(H, {c: [] for c in SHARED_COLLECTIONS})
-        # the current attach, by zone, and the shares by zone
         view: dict[str, dict[str, dict[str, Any]]] = {c: {} for c in SHARED_COLLECTIONS}
         owner: dict[str, Share] = {}
         places: dict[str, Placement] = {}
+        regions: dict[str, list[list[dict[str, float]]]] = {}
         for s in hs:
             place = Placement(s.placement, _dims_of(hv.version, hv.doc), _dims_of(other_v))
             places[s.zone_id] = place
-            for coll, items in project(room_subset(hv.doc, s.zone_polygon), s, place, level_ids, default_level).items():
+            regions[s.zone_id] = region_of(conn, s, place)
+            for coll, items in project(room_subset(hv.doc, regions[s.zone_id]), s, place, level_ids, default_level).items():
+                if coll not in view:
+                    continue
                 for it in items:
                     view[coll].setdefault(it["id"], it)
                     owner.setdefault(it["id"], s)
+        home_ids = {i.get("id") for c in ("levels", *SHARED_COLLECTIONS, "rooms", "uncertain_regions") for i in hv.doc.get(c) or [] if isinstance(i, dict)}
         changed: dict[str, list[tuple[dict[str, Any] | None, dict[str, Any] | None, Share]]] = {c: [] for c in SHARED_COLLECTIONS}
         for coll in SHARED_COLLECTIONS:
             got = {i["id"]: i for i in sent.get(coll, []) if isinstance(i.get("id"), str)}
@@ -738,21 +845,38 @@ def plan_edits(conn: sqlite3.Connection, floor_id: str, sent_shared: dict[str, d
                         continue  # not a new item of this home floor
                     if coll == "connectors" and str(un_ns(H, iid)).startswith("cx-"):
                         continue
+                    if un_ns(H, iid) in home_ids:
+                        raise SharedEditError(422, "shared_id_taken", "המזהה כבר קיים בקומה של החלל; פריט חדש צריך מזהה חדש.", id=iid, collection=coll)
                     zid = (it.get("shared") or {}).get("zone_id")
                     s = next((x for x in hs if x.zone_id == zid), hs[0])
                     changed[coll].append((None, it, s))
             for iid, cur in view[coll].items():
-                if iid not in got and not cur["shared"].get("readonly") and not (coll == "connectors" and str(un_ns(H, iid)).startswith("cx-")):
+                if iid in deleted and iid not in got and not cur["shared"].get("readonly") and not (coll == "connectors" and str(un_ns(H, iid)).startswith("cx-")):
                     changed[coll].append((cur, None, owner[iid]))
         if not any(changed.values()):
             continue
+        if can_write is not None and not can_write(H):
+            raise SharedEditError(403, "shared_denied", "אין לך הרשאה לערוך את החלל המשותף בקומה שלו.")
         if echo.get("home_revision") != hv.revision:
-            raise SharedEditError(409, "stale_revision", "החלל המשותף עודכן מהקומה השנייה בינתיים; העורך ימזג ויטען מחדש.",
-                                  current_revision=hv.revision, sent_revision=echo.get("home_revision"), shared=True, home_floor_id=H)
+            raise SharedEditError(409, "stale_revision", "החלל המשותף עודכן מהקומה השנייה בינתיים; העורך ימזג ויטען מחדש.", shared=True, home_floor_id=H)
         doc = copy.deepcopy(hv.doc)
         counts = {"changed": 0, "added": 0, "removed": 0}
         zones: set[str] = set()
-        for coll, rows in changed.items():
+        # what the room holds after the edit: its walls (not read-only) and objects, by home id
+        room_walls = {un_ns(H, i) for i, it in view.get("walls", {}).items() if not it["shared"].get("readonly")}
+        room_objects = {un_ns(H, i) for i in view["objects"]}
+        for cur, new, s in changed.get("walls", []):
+            if new is None:
+                room_walls.discard(un_ns(H, cur["id"]))
+            else:
+                room_walls.add(un_ns(H, new["id"]))
+        for cur, new, s in changed["objects"]:
+            if new is None:
+                room_objects.discard(un_ns(H, cur["id"]))
+            else:
+                room_objects.add(un_ns(H, new["id"]))
+        for coll in SHARED_COLLECTIONS:
+            rows = changed[coll]
             if not rows:
                 continue
             items = list(doc.get(coll) or [])
@@ -760,19 +884,22 @@ def plan_edits(conn: sqlite3.Connection, floor_id: str, sent_shared: dict[str, d
             drop: set[str] = set()
             for cur, new, s in rows:
                 zones.add(s.zone_id)
-                place = places[s.zone_id]
                 if new is None:
                     drop.add(un_ns(H, cur["id"]))
                     counts["removed"] += 1
                     continue
-                back = unproject(coll, new, s, place, level_ids, default_level)
-                if not _item_inside(coll, back, doc, s.zone_polygon):
-                    raise SharedEditError(422, "shared_outside", "אפשר לערוך מכאן רק את מה שבתוך החלל המשותף; את השאר ערוך בקומה שלו.", id=new.get("id"), collection=coll)
+                back = unproject(coll, new, s, places[s.zone_id], level_ids, default_level)
                 if coll == "openings":
-                    host = back.get("wall_id")
-                    if not any(isinstance(wl, dict) and wl.get("id") == host for wl in doc.get("walls") or []) and not any(
-                            un_ns(H, x[1]["id"]) == host for x in changed.get("walls", []) if x[1] is not None):
+                    if back.get("wall_id") not in room_walls:
                         raise SharedEditError(422, "shared_outside", "הפתח חייב לשבת על קיר של החלל המשותף.", id=new.get("id"), collection=coll)
+                elif coll in ("circuits", "groups"):
+                    members = back.get("member_ids") if isinstance(back.get("member_ids"), list) else []
+                    if not members or any(m not in room_objects for m in members):
+                        raise SharedEditError(422, "shared_outside", "מעגל או קבוצה מהחלל המשותף יכולים לכלול רק עצמים שבתוכו.", id=new.get("id"), collection=coll)
+                    if coll == "circuits" and cur is not None and back.get("switch_entity_id") != cur.get("switch_entity_id"):
+                        raise SharedEditError(422, "shared_switch", "את המפסק של מעגל בחלל המשותף משנים בקומה שלו.", id=new.get("id"))
+                elif not _item_inside(coll, back, doc, regions[s.zone_id]):
+                    raise SharedEditError(422, "shared_outside", "אפשר לערוך מכאן רק את מה שבתוך החלל המשותף; את השאר ערוך בקומה שלו.", id=new.get("id"), collection=coll)
                 if back["id"] in index:
                     items[index[back["id"]]] = back
                     counts["changed" if cur is not None else "added"] += 1
@@ -790,7 +917,6 @@ def plan_edits(conn: sqlite3.Connection, floor_id: str, sent_shared: dict[str, d
             raise SharedEditError(422, "geometry_structure", "מבנה החלל המשותף אינו תקין; השינוי לא נשמר.", issues=structural[:50], home_floor_id=H)
         records.append({"home_floor_id": H, "zone_ids": sorted(zones), **counts, "_version": hv.version, "_doc": doc, "_revision": hv.revision})
     return records
-
 
 def commit_edits(conn: sqlite3.Connection, planned: list[dict[str, Any]], actor_id: str | None, now: str) -> list[dict[str, Any]]:
     """Write what plan_edits() planned; returns the audit records (home floor, zones, counts)."""
@@ -819,112 +945,272 @@ def anchor_in_room(x: float, y: float, share: Share, dims: tuple[float, float, f
     return near((float(x) * w, float(y) * h), poly_px(share.zone_polygon, w, h), tol)
 
 
+# ---------------------------------------------------------------- membership: THE reach rule (security review B1)
+#
+# Reach follows an explicit list - the members of the shared space - never geometry: moving an anchor into the room, or
+# growing the room's polygon, grants nobody anything. A member is added at share time and by "הוסף לחלל המשותף", both of
+# which need the share rights (map.edit + placement.edit on every floor that shows the room, and placement reach on each
+# camera); removing one narrows reach and ends open streams (revocation.mark).
+
+@dataclass(frozen=True)
+class Group:
+    """One shared room: its home zone, its home floor and every floor that shows it (the home floor first)."""
+    zone_id: str
+    home_floor_id: str
+    floors: tuple[str, ...]
+    shares: tuple[Share, ...]
+
+    def share_to(self, floor_id: str) -> Share | None:
+        return next((s for s in self.shares if s.floor_id == floor_id), None)
+
+
+def groups(conn: sqlite3.Connection, at: str | None = None) -> dict[str, Group]:
+    out: dict[str, list[Share]] = {}
+    for s in _rows(conn, "", (), at):
+        out.setdefault(s.zone_id, []).append(s)
+    return {z: Group(z, ss[0].home_floor_id, tuple(dict.fromkeys([ss[0].home_floor_id, *(s.floor_id for s in ss)])), tuple(ss)) for z, ss in out.items()}
+
+
+def group_of_zone(conn: sqlite3.Connection, zone_id: str) -> Group | None:
+    return groups(conn).get(zone_id)
+
+
+def member_rows(conn: sqlite3.Connection, zone_id: str | None = None, at: str | None = None) -> list[sqlite3.Row]:
+    live = "added_at <= ? AND (removed_at IS NULL OR removed_at > ?)" if at else "removed_at IS NULL"
+    try:
+        return conn.execute(f"SELECT * FROM shared_space_members WHERE {live}{' AND zone_id = ?' if zone_id else ''} ORDER BY resource_type, resource_id",
+                            (*((at, at) if at else ()), *((zone_id,) if zone_id else ()))).fetchall()
+    except sqlite3.OperationalError:  # before migration 0036
+        return []
+
+
 def mirrored_anchor_floors(conn: sqlite3.Connection, at: str | None = None) -> dict[tuple[str, str], list[tuple[str, str]]]:
-    """THE reach helper (CR-009 §6): every anchor inside a shared room on its home floor, keyed (resource_type,
-    resource_id), with the (other floor, home floor) pairs the room reaches. Computed per call from the live rows - a
-    share or un-share is seen by the very next request. Empty (one cheap query) when nothing is shared."""
-    shares = _rows(conn, "", (), at)
-    if not shares:
+    """THE reach helper (CR-009 §6): every MEMBER of a shared room, keyed (resource_type, resource_id), with the
+    (floor it reaches, origin floor) pairs - every floor that shows the room except the one it is anchored on (the home
+    floor when it is anchored on none). The origin is the floor whose deny takes it away for entities (ha_scope). A
+    table lookup per call, no document parsed; a share, an un-share or a member change is seen by the next request."""
+    gs = groups(conn, at)
+    if not gs:
         return {}
-    by_home: dict[str, list[Share]] = {}
-    for s in shares:
-        by_home.setdefault(s.home_floor_id, []).append(s)
     out: dict[tuple[str, str], list[tuple[str, str]]] = {}
-    q = ",".join("?" * len(by_home))
+    members = member_rows(conn, None, at)
+    if not members:
+        return {}
     cond = "effective_from <= ? AND (effective_to IS NULL OR effective_to > ?)" if at else "effective_to IS NULL"
-    rows = conn.execute(f"SELECT resource_type, resource_id, floor_id, x, y FROM map_anchors WHERE floor_id IN ({q}) AND {cond}", (*sorted(by_home), *((at, at) if at else ()))).fetchall()
-    dims = {H: _anchor_tol(conn, H) for H in by_home}
-    for a in rows:
-        for s in by_home.get(a["floor_id"], []):
-            if anchor_in_room(a["x"], a["y"], s, dims[s.home_floor_id]):
-                pair = (s.floor_id, s.home_floor_id)
-                lst = out.setdefault((a["resource_type"], a["resource_id"]), [])
-                if pair not in lst:
-                    lst.append(pair)
+    anchored: dict[tuple[str, str], set[str]] = {}
+    keys = sorted({(m["resource_type"], m["resource_id"]) for m in members})
+    for rtype, rid in keys:
+        anchored[(rtype, rid)] = {r[0] for r in conn.execute(f"SELECT floor_id FROM map_anchors WHERE resource_type = ? AND resource_id = ? AND {cond}", (rtype, rid, *((at, at) if at else ()))).fetchall()}
+    for m in members:
+        g = gs.get(m["zone_id"])
+        if g is None:
+            continue
+        key = (m["resource_type"], m["resource_id"])
+        on = [f for f in g.floors if f in anchored.get(key, set())]
+        origin = on[0] if on else g.home_floor_id
+        lst = out.setdefault(key, [])
+        for f in g.floors:
+            if f not in on and (f, origin) not in lst:
+                lst.append((f, origin))
+    return {k: v for k, v in out.items() if v}
+
+
+def member_share_floors(conn: sqlite3.Connection) -> dict[tuple[str, str], set[str]]:
+    """(resource_type, resource_id) -> every floor of the shared rooms it is a member of (a deny on any of them takes
+    it away - the camera chain rule, applied to entities too)."""
+    gs = groups(conn)
+    out: dict[tuple[str, str], set[str]] = {}
+    for m in member_rows(conn):
+        g = gs.get(m["zone_id"])
+        if g is not None:
+            out.setdefault((m["resource_type"], m["resource_id"]), set()).update(g.floors)
     return out
 
 
 def camera_shared_floors(conn: sqlite3.Connection, camera_id: str) -> list[str]:
-    """The other floors a camera reaches through the shared rooms it is anchored in (rbac.camera_floors)."""
+    """The floors a camera reaches through the shared rooms it is a member of (rbac.camera_floors): a table lookup."""
     if not any_active(conn):
         return []
-    return sorted({f for f, _h in mirrored_anchor_floors(conn).get(("camera", camera_id), [])})
+    try:
+        zones = [r[0] for r in conn.execute("SELECT zone_id FROM shared_space_members WHERE resource_type = 'camera' AND resource_id = ? AND removed_at IS NULL", (camera_id,)).fetchall()]
+    except sqlite3.OperationalError:
+        return []
+    if not zones:
+        return []
+    gs = groups(conn)
+    return sorted({f for z in zones if z in gs for f in gs[z].floors})
 
 
 def floor_mirrored(conn: sqlite3.Connection, floor_id: str) -> set[tuple[str, str]]:
-    """(resource_type, resource_id) of the anchors mirrored onto a floor."""
+    """(resource_type, resource_id) of the members shown on a floor from another floor of their room."""
     if not any_active(conn):
         return set()
     return {k for k, pairs in mirrored_anchor_floors(conn).items() if any(f == floor_id for f, _h in pairs)}
 
 
-def shared_circuit_switches(conn: sqlite3.Connection) -> dict[str, list[tuple[str, str]]]:
-    """The switch entity of every circuit of a shared room (its home floor's published structure), keyed entity id ->
-    (other floor, home floor): such a switch counts as placed on the other floor too (ha_scope.placements)."""
-    from . import geometry_store as store
+def is_member(conn: sqlite3.Connection, zone_id: str, resource_type: str, resource_id: str) -> bool:
+    return any(m["resource_type"] == resource_type and m["resource_id"] == resource_id for m in member_rows(conn, zone_id))
 
-    out: dict[str, list[tuple[str, str]]] = {}
-    for s in all_shares(conn):
-        v = conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? AND status = 'published' ORDER BY created_at DESC LIMIT 1", (s.home_floor_id,)).fetchone()
-        row = store.published_row(conn, v["id"]) if v is not None else None
-        if row is None:
+
+def add_member(conn: sqlite3.Connection, zone_id: str, resource_type: str, resource_id: str, actor_id: str | None, now: str) -> bool:
+    if is_member(conn, zone_id, resource_type, resource_id):
+        return False
+    from ..db import new_id
+
+    conn.execute("INSERT INTO shared_space_members(id, zone_id, resource_type, resource_id, added_by, added_at) VALUES (?, ?, ?, ?, ?, ?)",
+                 (new_id(), zone_id, resource_type, resource_id, actor_id, now))
+    return True
+
+
+def remove_member(conn: sqlite3.Connection, zone_id: str, resource_type: str, resource_id: str, actor_id: str | None, now: str) -> bool:
+    try:
+        cur = conn.execute("UPDATE shared_space_members SET removed_at = ?, removed_by = ? WHERE zone_id = ? AND resource_type = ? AND resource_id = ? AND removed_at IS NULL",
+                           (now, actor_id, zone_id, resource_type, resource_id))
+    except sqlite3.OperationalError:
+        return False
+    return cur.rowcount > 0
+
+
+def members_on_floor(conn: sqlite3.Connection, floor_id: str) -> dict[tuple[str, str], str]:
+    """(resource_type, resource_id) -> zone id, for the members of the rooms a floor shows."""
+    gs = groups(conn)
+    return {(m["resource_type"], m["resource_id"]): m["zone_id"] for m in member_rows(conn) if m["zone_id"] in gs and floor_id in gs[m["zone_id"]].floors}
+
+
+def room_candidates(conn: sqlite3.Connection, floor_id: str) -> dict[str, str]:
+    """anchor id -> zone id: the floor's own anchors that lie in a shared room it shows but are NOT members - shown on
+    their own floor only; the editor offers "הוסף לחלל המשותף" to whoever holds the share rights. Geometry is a hint here,
+    never a grant."""
+    gs = groups(conn)
+    mine = [g for g in gs.values() if floor_id in g.floors]
+    if not mine:
+        return {}
+    members = members_on_floor(conn, floor_id)
+    out: dict[str, str] = {}
+    for g in mine:
+        outline = outline_on(conn, g, floor_id)
+        if outline is None:
             continue
-        for k in room_subset(store.load_doc(row), s.zone_polygon)["circuits"]:
-            eid = k.get("switch_entity_id")
-            if isinstance(eid, str):
-                lst = out.setdefault(eid, [])
-                if (s.floor_id, s.home_floor_id) not in lst:
-                    lst.append((s.floor_id, s.home_floor_id))
+        poly, dims = outline
+        for a in conn.execute("SELECT id, resource_type, resource_id, x, y FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL", (floor_id,)).fetchall():
+            if (a["resource_type"], a["resource_id"]) in members or a["id"] in out:
+                continue
+            if near((float(a["x"]) * dims[0], float(a["y"]) * dims[1]), poly_px(poly, dims[0], dims[1]), dims[2]):
+                out[a["id"]] = g.zone_id
     return out
+
+
+def outline_on(conn: sqlite3.Connection, g: Group, floor_id: str) -> tuple[list[dict[str, float]], tuple[float, float, float]] | None:
+    """The room's outline on a floor of its group, in that floor's plan coordinates, with (width, height, point tolerance)
+    of that floor's current plan version: the home zone on the home floor; on another floor its own outline zone when it
+    has one (two-outline model), else the home outline through the placement."""
+    dims = _anchor_tol(conn, floor_id)
+    home = next(iter(g.shares))
+    if floor_id == g.home_floor_id:
+        return home.zone_polygon, dims
+    s = g.share_to(floor_id)
+    if s is None:
+        return None
+    if s.other_zone_id:
+        z = conn.execute("SELECT polygon_json FROM spatial_zones WHERE id = ? AND deleted_at IS NULL", (s.other_zone_id,)).fetchone()
+        if z is not None:
+            return json.loads(z["polygon_json"]), dims
+    place = live_placement(conn, s)
+    return [{"x": q[0], "y": q[1]} for q in (place.pt((p["x"], p["y"])) for p in s.zone_polygon)], dims
+
+
+def transfer(conn: sqlite3.Connection, g: Group, from_floor: str, to_floor: str) -> tuple[Callable[[float, float], Pt], Callable[[Any], float], float]:
+    """Point, angle and scale maps from one floor of a room's group to another (live plan versions): home -> other through
+    that share's placement, other -> home through its inverse, other -> other through both."""
+    ident: tuple[Callable[[float, float], Pt], Callable[[Any], float], float] = (lambda x, y: (x, y), lambda d: float(d or 0), 1.0)
+    if from_floor == to_floor:
+        return ident
+    steps: list[tuple[Placement, bool]] = []
+    if from_floor != g.home_floor_id:
+        s = g.share_to(from_floor)
+        if s is None:
+            return ident
+        steps.append((live_placement(conn, s), False))
+    if to_floor != g.home_floor_id:
+        s = g.share_to(to_floor)
+        if s is None:
+            return ident
+        steps.append((live_placement(conn, s), True))
+
+    def pt(x: float, y: float) -> Pt:
+        for p, fwd in steps:
+            x, y = p.fwd(x, y) if fwd else p.inv(x, y)
+        return (x, y)
+
+    def ang(d: Any) -> float:
+        v = float(d or 0)
+        for p, fwd in steps:
+            v = p.angle(v) if fwd else p.iangle(v)
+        return v
+
+    k = 1.0
+    for p, fwd in steps:
+        if not p.same:
+            k = k * p.k if fwd else k / p.k
+    return pt, ang, k
 
 
 def bundle_parts(conn: sqlite3.Connection, floor_id: str, version: sqlite3.Row | None, at: str | None = None, *,
                  can_attach: Callable[[str], bool] | None = None) -> tuple[list[dict[str, Any]], list[tuple[sqlite3.Row, dict[str, Any]]]]:
-    """What the map bundle of the other floor adds: the shared zones (polygon in this plan's coordinates, `shared`) and
-    the home anchors inside them (row, overrides: position, rotation, coverage, level, `shared`)."""
-    mirrors = shares_of_floor(conn, floor_id, at)
-    if not mirrors or version is None:
+    """What the map bundle of a floor adds for the shared rooms it shows: the room's zone when the floor has no outline
+    of its own (polygon in this plan's coordinates, `shared`), and the MEMBERS anchored on the room's other floors (row,
+    overrides: position, rotation, coverage, level, `shared`). A reader explicitly denied on the floor an anchor is on
+    (or, for the zone, on the home floor) gets neither - deny wins."""
+    if version is None:
+        return [], []
+    gs = [g for g in groups(conn, at).values() if floor_id in g.floors]
+    if not gs:
         return [], []
     from ..routers.zones import zone_row
 
     zones: list[dict[str, Any]] = []
     anchors: list[tuple[sqlite3.Row, dict[str, Any]]] = []
     seen: set[str] = set()
-    for s in mirrors:
-        if can_attach is not None and not can_attach(s.home_floor_id):
+    cond = "effective_from <= ? AND (effective_to IS NULL OR effective_to > ?)" if at else "effective_to IS NULL"
+    for g in gs:
+        hfloor = _floor(conn, g.home_floor_id)
+        if hfloor is None:
             continue
-        hfloor = _floor(conn, s.home_floor_id)
-        hver = conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? AND status IN ('published', 'draft') ORDER BY CASE status WHEN 'published' THEN 0 ELSE 1 END, created_at DESC LIMIT 1",
-                            (s.home_floor_id,)).fetchone()
-        if hfloor is None or hver is None:
-            continue
-        place = Placement(s.placement, _dims_of(hver), _dims_of(version))
-        z = conn.execute("SELECT * FROM spatial_zones WHERE id = ?", (s.zone_id,)).fetchone()
-        zr = zone_row(z)
-        default_level = "L0"
-        zr.update({"polygon": [{"x": q[0], "y": q[1]} for q in (place.pt((p["x"], p["y"])) for p in s.zone_polygon)], "level_id": ns(s.home_floor_id, z["level_id"] or default_level),
-                   "shared": {"role": "mirror", "zone_id": s.zone_id, "home_floor_id": s.home_floor_id, "home_floor_name": hfloor["name"], "home_floor_level": hfloor["level"],
-                              "label": surface_label(hfloor["level"])}})
-        zones.append(zr)
-        dims = _anchor_tol(conn, s.home_floor_id)
-        cond = "effective_from <= ? AND (effective_to IS NULL OR effective_to > ?)" if at else "effective_to IS NULL"
-        for a in conn.execute(f"SELECT * FROM map_anchors WHERE floor_id = ? AND {cond} ORDER BY layer_id, resource_id", (s.home_floor_id, *((at, at) if at else ()))).fetchall():
-            if a["id"] in seen or not anchor_in_room(a["x"], a["y"], s, dims):
-                continue
-            seen.add(a["id"])
-            x, y = place.pt((a["x"], a["y"]))
-            cov = None
-            if a["coverage_polygon"]:
-                try:
-                    cov = [place.pt(p) for p in json.loads(a["coverage_polygon"])]
-                except (ValueError, TypeError, IndexError):
-                    cov = None
-            anchors.append((a, {"position": {"x": x, "y": y}, "rotation_degrees": place.angle(a["rotation_degrees"] or 0),
-                                "coverage_polygon": cov, "coverage_radius": round(a["coverage_radius"] * place.k, 6) if a["coverage_radius"] and not place.same else a["coverage_radius"],
-                                "level_id": ns(s.home_floor_id, a["level_id"] or default_level),
-                                "shared": {"zone_id": s.zone_id, "home_floor_id": s.home_floor_id, "home_floor_name": hfloor["name"], "label": surface_label(hfloor["level"])}}))
+        home_ok = can_attach is None or can_attach(g.home_floor_id)
+        share = g.share_to(floor_id)
+        if share is not None and not share.other_zone_id and home_ok:
+            pt, _ang, _k = transfer(conn, g, g.home_floor_id, floor_id)
+            z = conn.execute("SELECT * FROM spatial_zones WHERE id = ?", (g.zone_id,)).fetchone()
+            zr = zone_row(z)
+            zr.update({"polygon": [{"x": _r6(q[0]), "y": _r6(q[1])} for q in (pt(p["x"], p["y"]) for p in share.zone_polygon)], "level_id": ns(g.home_floor_id, z["level_id"] or "L0"),
+                       "shared": {"role": "mirror", "zone_id": g.zone_id, "home_floor_id": g.home_floor_id, "home_floor_name": hfloor["name"], "home_floor_level": hfloor["level"],
+                                  "label": surface_label(hfloor["level"])}})
+            zones.append(zr)
+        for m in member_rows(conn, g.zone_id, at):
+            for a in conn.execute(f"SELECT * FROM map_anchors WHERE resource_type = ? AND resource_id = ? AND {cond} ORDER BY floor_id",
+                                  (m["resource_type"], m["resource_id"], *((at, at) if at else ()))).fetchall():
+                if a["floor_id"] == floor_id or a["floor_id"] not in g.floors or a["id"] in seen:
+                    continue
+                if any(x["floor_id"] == floor_id for x in conn.execute(f"SELECT floor_id FROM map_anchors WHERE resource_type = ? AND resource_id = ? AND floor_id = ? AND {cond}",
+                                                                          (m["resource_type"], m["resource_id"], floor_id, *((at, at) if at else ()))).fetchall()):
+                    continue  # anchored here too: the floor's own anchor shows it
+                if can_attach is not None and not can_attach(a["floor_id"]):
+                    continue
+                seen.add(a["id"])
+                pt, ang, k = transfer(conn, g, a["floor_id"], floor_id)
+                x, y = pt(a["x"], a["y"])
+                cov = None
+                if a["coverage_polygon"]:
+                    try:
+                        cov = [[_r6(q[0]), _r6(q[1])] for q in (pt(float(p[0]), float(p[1])) for p in json.loads(a["coverage_polygon"]))]
+                    except (ValueError, TypeError, IndexError):
+                        cov = None
+                src = _floor(conn, a["floor_id"])
+                anchors.append((a, {"position": {"x": _r6(x), "y": _r6(y)}, "rotation_degrees": round(ang(a["rotation_degrees"] or 0) % 360, 3),
+                                    "coverage_polygon": cov, "coverage_radius": round(min(1.0, a["coverage_radius"] * k), 6) if a["coverage_radius"] else a["coverage_radius"],
+                                    "level_id": ns(a["floor_id"], a["level_id"] or "L0"),
+                                    "shared": {"zone_id": g.zone_id, "home_floor_id": a["floor_id"], "home_floor_name": src["name"] if src else "", "label": surface_label(hfloor["level"])}}))
     return zones, anchors
-
 
 def editor_placement(conn: sqlite3.Connection, share: Share) -> Placement:
     """The placement between the two floors' editor versions (what an edit made on the other floor's map is in)."""
@@ -939,24 +1225,15 @@ def live_placement(conn: sqlite3.Connection, share: Share) -> Placement:
     return Placement(share.placement, _dims_of(conn.execute(q, (share.home_floor_id,)).fetchone()), _dims_of(conn.execute(q, (share.floor_id,)).fetchone()))
 
 
-def anchor_via(conn: sqlite3.Connection, anchor: sqlite3.Row, from_floor_id: str) -> tuple[Share, Placement]:
-    """An anchor of a home floor edited from the other floor (CR-009 decision 1): the share of a room that holds it and
-    shows it on `from_floor_id`, with the placement of the maps the edit comes from. Raises SharedEditError otherwise."""
-    for s in shares_of_floor(conn, from_floor_id):
-        if s.home_floor_id == anchor["floor_id"] and anchor_in_room(anchor["x"], anchor["y"], s, _anchor_tol(conn, s.home_floor_id)):
-            return s, live_placement(conn, s)
-    raise SharedEditError(422, "not_shared", "העוגן לא נמצא בחלל משותף שמוצג בקומה הזו.")
-
-
-def room_at(conn: sqlite3.Connection, floor_id: str, x: float, y: float) -> tuple[Share, Placement] | None:
-    """The shared room (of another home floor) at a point of this floor's map, if any."""
-    for s in shares_of_floor(conn, floor_id):
-        place = live_placement(conn, s)
-        hx, hy = place.inv(float(x), float(y))
-        if anchor_in_room(hx, hy, s, _anchor_tol(conn, s.home_floor_id)):
-            return s, place
-    return None
-
+def anchor_via(conn: sqlite3.Connection, anchor: sqlite3.Row, from_floor_id: str) -> tuple[Group, Callable[[float, float], Pt], Callable[[Any], float], float]:
+    """A member anchor edited on another floor's map (CR-009 decision 1): the room whose member it is, shown on both its
+    floor and `from_floor_id`, and the maps from `from_floor_id`'s coordinates back to the anchor's floor. Only a member:
+    geometry never makes an anchor editable from another floor. Raises SharedEditError otherwise."""
+    for g in groups(conn).values():
+        if anchor["floor_id"] in g.floors and from_floor_id in g.floors and is_member(conn, g.zone_id, anchor["resource_type"], anchor["resource_id"]):
+            pt, ang, k = transfer(conn, g, from_floor_id, anchor["floor_id"])
+            return g, pt, ang, k
+    raise SharedEditError(422, "not_shared", "העוגן אינו חלק מחלל משותף שמוצג בקומה הזו.")
 
 def mirrored_circuits(conn: sqlite3.Connection, floor_id: str, mode: str, at: str | None = None, *, can_attach: Callable[[str], bool] | None = None) -> list[dict[str, Any]]:
     """The circuits of the rooms shared with this floor as the attached document names them ("<home>:<id>", members
@@ -968,50 +1245,63 @@ def mirrored_circuits(conn: sqlite3.Connection, floor_id: str, mode: str, at: st
         hv = home_view(conn, s.home_floor_id, mode, at)
         if hv.doc is None:
             continue
-        for k in room_subset(hv.doc, s.zone_polygon)["circuits"]:
+        for k in room_subset(hv.doc, region_of(conn, s, Placement(s.placement, _dims_of(hv.version, hv.doc), _dims_of(store_editor_or_published(conn, s.floor_id)))))["circuits"]:
             out.append({**{kk: v for kk, v in k.items() if not kk.startswith("_")}, "id": ns(s.home_floor_id, k["id"]),
                         "member_ids": [ns(s.home_floor_id, m) for m in k.get("member_ids") or []]})
     return out
 
 
 def home_zone_marks(conn: sqlite3.Connection, floor_id: str) -> dict[str, dict[str, Any]]:
-    """zone id -> the `shared` mark of this floor's own rooms that other floors show (the chip on the home map too)."""
+    """zone id -> the `shared` mark of this floor's rooms that are part of a shared space: its own room on the home
+    floor (role "home", the floors that show it), its own outline of the room on another floor (role "mirror") - the
+    chip "רצפה בקומה -1" on both maps."""
     out: dict[str, dict[str, Any]] = {}
-    me = _floor(conn, floor_id)
-    for s in shares_from_floor(conn, floor_id):
-        other = _floor(conn, s.floor_id)
-        mark = out.setdefault(s.zone_id, {"role": "home", "zone_id": s.zone_id, "home_floor_id": floor_id, "home_floor_name": me["name"] if me else "",
-                                          "home_floor_level": me["level"] if me else None, "label": surface_label(me["level"] if me else ""), "floors": []})
-        if other is not None:
-            mark["floors"].append({"floor_id": s.floor_id, "name": other["name"], "level": other["level"]})
+    for g in groups(conn).values():
+        if floor_id not in g.floors:
+            continue
+        home = _floor(conn, g.home_floor_id)
+        base = {"zone_id": g.zone_id, "home_floor_id": g.home_floor_id, "home_floor_name": home["name"] if home else "", "home_floor_level": home["level"] if home else None,
+                "label": surface_label(home["level"] if home else "")}
+        if floor_id == g.home_floor_id:
+            out[g.zone_id] = {**base, "role": "home", "floors": [{"floor_id": s.floor_id, "name": f["name"], "level": f["level"]} for s in g.shares for f in [_floor(conn, s.floor_id)] if f]}
+        else:
+            s = g.share_to(floor_id)
+            if s is not None and s.other_zone_id:
+                out[s.other_zone_id] = {**base, "role": "mirror", "floors": []}
     return out
 
 
+def _row_hash(conn: sqlite3.Connection, floor_id: str, mode: str, at: str | None) -> str | None:
+    """The hash of the home floor's document a read of `mode` attaches - one query, no document parsed (review M6)."""
+    from . import geometry_store as store
+
+    if mode == "draft":
+        v = store.editor_version(conn, floor_id)
+        row = (store.draft_row(conn, v["id"]) or store.published_row(conn, v["id"])) if v is not None else None
+    elif mode == "at" and at:
+        v = conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? AND status != 'draft' AND published_at IS NOT NULL AND published_at <= ? "
+                         "AND (archived_at IS NULL OR archived_at > ?) ORDER BY published_at DESC LIMIT 1", (floor_id, at, at)).fetchone()
+        row = store.at_row(conn, v["id"], at) if v is not None else None
+    else:
+        v = conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? AND status = 'published' ORDER BY created_at DESC LIMIT 1", (floor_id,)).fetchone()
+        row = store.published_row(conn, v["id"]) if v is not None else None
+    return row["doc_hash"] if row is not None else None
+
+
 def shared_tag(conn: sqlite3.Connection, floor_id: str, mode: str = "published", at: str | None = None) -> str:
-    """The part of a read's cache key that follows the other floors (a change on the home floor, a share, an un-share, a
-    placement or polygon edit): "" when the floor shares nothing either way."""
-    mirrors = shares_of_floor(conn, floor_id, at if mode == "at" else None)
-    homes = shares_from_floor(conn, floor_id, at if mode == "at" else None)
-    if not mirrors and not homes:
+    """The part of a map bundle's cache key (view_hash) that follows the shared rooms a floor shows: the shares and
+    both outlines' revisions and, on a floor that is not the home one, the home document's hash. No document is parsed
+    (review M6). "" when the floor is in no shared room."""
+    gs = [g for g in groups(conn, at if mode == "at" else None).values() if floor_id in g.floors]
+    if not gs:
         return ""
     parts: list[Any] = []
-    for s in mirrors:
-        hv = home_view(conn, s.home_floor_id, mode, at) if mode != "draft" else None
-        if mode == "draft":
-            from . import geometry_store as store
-
-            v = store.editor_version(conn, s.home_floor_id)
-            row = (store.draft_row(conn, v["id"]) or store.published_row(conn, v["id"])) if v is not None else None
-            h = row["doc_hash"] if row is not None else None
-        else:
-            h = hv.row["doc_hash"] if hv is not None and hv.row is not None else None
-        f = _floor(conn, s.home_floor_id)
-        parts.append(["m", s.id, s.revision, s.zone_revision, h, f["name"] if f else None, f["level"] if f else None])
-    for s in homes:
-        f = _floor(conn, s.floor_id)
-        parts.append(["h", s.id, s.revision, s.zone_revision, f["name"] if f else None, f["level"] if f else None])
+    for g in gs:
+        for s in g.shares:
+            oz = _outline_zone(conn, s.other_zone_id)
+            parts.append([s.id, s.revision, s.zone_revision, oz["revision"] if oz is not None else None,
+                          _row_hash(conn, g.home_floor_id, mode, at) if floor_id != g.home_floor_id else None])
     return hashlib.sha256(json.dumps(parts, ensure_ascii=False).encode("utf-8")).hexdigest()[:12]
-
 
 # ---------------------------------------------------------------- conversion (the owner's two drawings -> one room)
 
@@ -1068,28 +1358,34 @@ def _name_score(a: str, b: str) -> float:
 
 def fit_placement(conn: sqlite3.Connection, home_v: sqlite3.Row, other_v: sqlite3.Row, zone: sqlite3.Row, duplicate: sqlite3.Row | None, rotation_deg: float = 0.0) -> dict[str, Any]:
     """same_frame when the two plans share a frame (geometry_store.frame_of) and no rotation is asked; else fitted: the
-    duplicate room's centroid and size (its area in width units), or - without one - the plan centre and the calibrated
-    metres."""
+    scale from the two plans' metres (their effective scales - the calibration, else the estimate, which gives the same
+    width for every uncalibrated plan), never from the two outlines' areas (the hall is wider upstairs), and the home
+    outline's centroid onto the other floor's outline centroid (or the same place on the plan without one). The result is
+    checked by alignment_ok(): the lower outline must fall inside the upper one."""
     from . import geometry_store as store
 
     if store.frame_of(conn, home_v, other_v) is not None and not rotation_deg:
         return {"mode": "same_frame"}
     ha = float(home_v["height_px"]) / float(home_v["width_px"])
     hb = float(other_v["height_px"]) / float(other_v["width_px"])
-    zpoly = json.loads(zone["polygon_json"])
-    ca = _centroid(_wu(zpoly, ha))
+    ca = _centroid(_wu(json.loads(zone["polygon_json"]), ha))
     frm = [_r6(ca[0]), _r6(ca[1] / ha)]
+    k = (float(home_v["width_px"]) * _scale_of_version(home_v)) / (float(other_v["width_px"]) * _scale_of_version(other_v))
     if duplicate is not None:
-        dpoly = json.loads(duplicate["polygon_json"])
-        cb = _centroid(_wu(dpoly, hb))
-        aa, ab = _area(_wu(zpoly, ha)), _area(_wu(dpoly, hb))
-        k = math.sqrt(ab / aa) if aa > 1e-12 else 1.0
+        cb = _centroid(_wu(json.loads(duplicate["polygon_json"]), hb))
         to = [_r6(cb[0]), _r6(cb[1] / hb)]
     else:
-        k = (float(home_v["width_px"]) * _scale_of_version(home_v)) / (float(other_v["width_px"]) * _scale_of_version(other_v))
         to = list(frm)
     return {"mode": "fit", "from": frm, "to": to, "rotation_deg": round(float(rotation_deg) % 360, 3), "scale": round(k, 6)}
 
+
+def alignment_ok(inner: list[dict[str, float]], outer: list[dict[str, float]], dims: tuple[float, float, float]) -> bool:
+    """The placement check of two real outlines: every corner of the lower outline (brought onto the upper floor's plan)
+    lies inside the upper outline or within the wall tolerance of it. False -> "ודא את יישור הקומות"."""
+    w, h, ptol = dims
+    poly = poly_px(outer, w, h)
+    tol = WALL_TOL_M * ptol / POINT_TOL_M if ptol else 0.01 * max(w, h)  # the wall tolerance in this plan's pixels
+    return all(near((float(p["x"]) * w, float(p["y"]) * h), poly, tol) for p in inner)
 
 def candidates(conn: sqlite3.Connection, zone: sqlite3.Row, other_floor_id: str, same_frame: bool) -> list[dict[str, Any]]:
     """The rooms of the other floor that may be the duplicate: by name (equal 1.0, one inside the other 0.7) and, when
@@ -1111,27 +1407,49 @@ def candidates(conn: sqlite3.Connection, zone: sqlite3.Row, other_floor_id: str,
     return out
 
 
+def _boundary(pts: list[Pt], poly: list[Pt], tol: float) -> bool:
+    """A wall along the outline: every corner and every segment midpoint within the tolerance of the outline."""
+    samples = [*pts, *(((a[0] + b[0]) / 2, (a[1] + b[1]) / 2) for a, b in zip(pts, pts[1:]))]
+    return all(_outline_dist(p, poly) <= tol for p in samples)
+
+
 def _removal(doc: dict[str, Any], polygon: list[dict[str, float]]) -> tuple[dict[str, list[str]], list[str], dict[str, Any]]:
-    """What leaves the other floor's draft: its items inside the duplicate room (walls wholly inside and their openings,
-    objects, labels, same-floor connectors), circuits and groups pruned; walls crossing the outline kept and listed.
-    Returns (removed ids by collection, kept crossing wall ids, the new document)."""
+    """What leaves the other floor's draft at conversion (two-outline model): the duplicate CONTENT inside its outline -
+    objects, labels, same-floor connectors, and walls wholly inside that do not run along the outline (a second drawing
+    of the court) with their openings; circuits and groups pruned. The floor's own walls along its outline stay: they
+    bound the hall at that floor. Returns (removed ids by collection, kept boundary wall ids, the new document)."""
+    from . import plan_geometry as pg
+
+    dims = doc.get("dimensions") or {}
+    w, h = float(dims.get("width_px") or 1000), float(dims.get("height_px") or 1000)
+    scale, _ = pg.effective_scale(doc)
+    poly = poly_px(polygon, w, h)
     sub = room_subset(doc, polygon)
-    walls = {w["id"] for w in sub["walls"] if not w.get("_readonly")}
-    crossing = sorted({w["id"].rsplit("#", 1)[0] for w in sub["walls"] if w.get("_readonly")})
+    walls: set[str] = set()
+    kept: list[str] = []
+    for wl in sub["walls"]:
+        if wl.get("_readonly"):
+            continue
+        pts = [(float(p[0]) * w, float(p[1]) * h) for p in wl["polyline"]]
+        tol = max(float(wl.get("thickness_m") or pg.DEFAULT_WALL_THICKNESS_M), WALL_TOL_M) / scale
+        if _boundary(pts, poly, tol):
+            kept.append(wl["id"])
+        else:
+            walls.add(wl["id"])
     objects = {o["id"] for o in sub["objects"]}
     labels = {lb["id"] for lb in sub["labels"]}
     conns = {c["id"] for c in sub["connectors"] if not c.get("_readonly")}
     openings = {o["id"] for o in doc.get("openings") or [] if isinstance(o, dict) and o.get("wall_id") in walls}
     new = copy.deepcopy(doc)
-    new["walls"] = [w for w in new.get("walls") or [] if not (isinstance(w, dict) and w.get("id") in walls)]
+    new["walls"] = [x for x in new.get("walls") or [] if not (isinstance(x, dict) and x.get("id") in walls)]
     new["openings"] = [o for o in new.get("openings") or [] if not (isinstance(o, dict) and o.get("id") in openings)]
     new["objects"] = [o for o in new.get("objects") or [] if not (isinstance(o, dict) and o.get("id") in objects)]
     new["labels"] = [lb for lb in new.get("labels") or [] if not (isinstance(lb, dict) and lb.get("id") in labels)]
     new["connectors"] = [c for c in new.get("connectors") or [] if not (isinstance(c, dict) and (c.get("id") in conns or c.get("object_id") in objects))]
     circuits: list[str] = []
-    groups: list[str] = []
-    for coll, gone in (("circuits", circuits), ("groups", groups)):
-        kept = []
+    groups_gone: list[str] = []
+    for coll, gone in (("circuits", circuits), ("groups", groups_gone)):
+        keep_items = []
         for k in new.get(coll) or []:
             if not isinstance(k, dict):
                 continue
@@ -1139,22 +1457,28 @@ def _removal(doc: dict[str, Any], polygon: list[dict[str, float]]) -> tuple[dict
             if isinstance(k.get("member_ids"), list) and k["member_ids"] and not members:
                 gone.append(k["id"])
                 continue
-            kept.append({**k, "member_ids": members} if isinstance(k.get("member_ids"), list) else k)
-        new[coll] = kept
+            keep_items.append({**k, "member_ids": members} if isinstance(k.get("member_ids"), list) else k)
+        new[coll] = keep_items
     for o in new.get("objects") or []:
-        if isinstance(o, dict) and o.get("group_id") in groups:
+        if isinstance(o, dict) and o.get("group_id") in groups_gone:
             o["group_id"] = None
     removed = {"walls": sorted(walls), "openings": sorted(openings), "objects": sorted(objects), "labels": sorted(labels), "connectors": sorted(conns),
-               "circuits": sorted(circuits), "groups": sorted(groups)}
-    return removed, crossing, new
+               "circuits": sorted(circuits), "groups": sorted(groups_gone)}
+    return removed, sorted(kept), new
+
+
+def _anchor_name(names: dict[str, str], a: sqlite3.Row) -> str:
+    return names.get(a["resource_id"]) if a["resource_type"] == "camera" else (a["label"] or a["resource_id"])
 
 
 def plan_conversion(conn: sqlite3.Connection, zone: sqlite3.Row, other_floor_id: str, duplicate_zone_id: str | None, rotation_deg: float = 0.0,
                     auto: bool = True) -> dict[str, Any]:
-    """Everything the conversion will do, computed without writing: the placement, the duplicate room (chosen or
-    auto-detected), what leaves the other floor's draft, and the fate of every anchor inside the duplicate room
-    ("rebind": moved to the home floor at the un-transformed position; "drop_duplicate": the home room already has
-    that camera / entity, the mirror shows it). Raises SharedEditError for a request that cannot be converted."""
+    """Everything the conversion will do, computed without writing (two-outline model): the placement; the other
+    floor's outline of the room (its duplicate room, chosen or auto-detected - KEPT, with the walls along it; without one
+    a new outline is drawn from the home one); what leaves its draft (the duplicate content inside); the members (the
+    cameras and devices anchored inside either outline, each staying where it is anchored) and the anchors dropped as
+    duplicates (the other floor's copy of a camera the home room already has); and the alignment check. Raises
+    SharedEditError for a request that cannot be converted."""
     from . import geometry_store as store
 
     home_id = zone["floor_id"]
@@ -1167,6 +1491,8 @@ def plan_conversion(conn: sqlite3.Connection, zone: sqlite3.Row, other_floor_id:
         raise SharedEditError(422, "validation", "אפשר לשתף חדר רק עם קומה באותו בניין.")
     if any(s.floor_id == other_floor_id for s in shares_of_zone(conn, zone["id"])):
         raise SharedEditError(409, "already_shared", "החדר כבר משותף עם הקומה הזו.")
+    if any(s.other_zone_id == zone["id"] for s in all_shares(conn)):
+        raise SharedEditError(409, "already_shared", "החדר הזה כבר מתאר של חלל משותף.")
     home_v, other_v = store.editor_version(conn, home_id), store.editor_version(conn, other_floor_id)
     if home_v is None or other_v is None:
         raise SharedEditError(409, "no_plan", "לשתי הקומות צריכה להיות תוכנית לפני שמשתפים חדר.")
@@ -1177,6 +1503,9 @@ def plan_conversion(conn: sqlite3.Connection, zone: sqlite3.Row, other_floor_id:
         dup = conn.execute("SELECT * FROM spatial_zones WHERE id = ? AND floor_id = ? AND deleted_at IS NULL", (duplicate_zone_id, other_floor_id)).fetchone()
         if dup is None:
             raise SharedEditError(422, "validation", "החדר הכפול שנבחר לא נמצא בקומה השנייה.")
+        taken = [s for s in all_shares(conn) if s.other_zone_id == dup["id"] or s.zone_id == dup["id"]]
+        if taken:
+            raise SharedEditError(409, "already_shared", "החדר שנבחר כבר שייך לחלל משותף.")
     elif auto and cands and cands[0]["score"] >= 0.5:
         dup = conn.execute("SELECT * FROM spatial_zones WHERE id = ?", (cands[0]["zone_id"],)).fetchone()
     placement = fit_placement(conn, home_v, other_v, zone, dup, rotation_deg)
@@ -1184,41 +1513,41 @@ def plan_conversion(conn: sqlite3.Connection, zone: sqlite3.Row, other_floor_id:
     hdoc, _ = store.working_doc(conn, home_v)
     place = Placement(placement, _dims_of(home_v, hdoc), _dims_of(other_v, odoc))
     zpoly = json.loads(zone["polygon_json"])
-    mirror_poly = [{"x": q[0], "y": q[1]} for q in (place.pt((p["x"], p["y"])) for p in zpoly)]
-    area_poly = json.loads(dup["polygon_json"]) if dup is not None else mirror_poly
-    removed, crossing, new_doc = _removal(odoc, area_poly)
-    # anchors of the duplicate drawing
-    ow, oh, otol = _anchor_tol(conn, other_floor_id)
-    opoly = poly_px(area_poly, ow, oh)
-    home_has = {(a["resource_type"], a["resource_id"]) for a in conn.execute("SELECT resource_type, resource_id FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL", (home_id,)).fetchall()}
+    lower_on_other = [{"x": _r6(q[0]), "y": _r6(q[1])} for q in (place.pt((p["x"], p["y"])) for p in zpoly)]
+    outline = json.loads(dup["polygon_json"]) if dup is not None else lower_on_other
+    removed, kept_walls, new_doc = _removal(odoc, outline)
+    odims, hdims = _anchor_tol(conn, other_floor_id), _anchor_tol(conn, home_id)
     names = {r["id"]: (r["alias"] or r["name_source"] or f"ערוץ {r['channel']}") for r in conn.execute("SELECT id, alias, name_source, channel FROM cameras").fetchall()}
-    anchors: list[dict[str, Any]] = []
-    hw, hh, _ = _anchor_tol(conn, home_id)
+    home_in = {}
+    for a in conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL ORDER BY layer_id, resource_id", (home_id,)).fetchall():
+        if near((float(a["x"]) * hdims[0], float(a["y"]) * hdims[1]), poly_px(zpoly, hdims[0], hdims[1]), hdims[2]):
+            home_in[(a["resource_type"], a["resource_id"])] = a
+    anchors: list[dict[str, Any]] = [{"anchor_id": a["id"], "floor_id": home_id, "resource_type": k[0], "resource_id": k[1], "name": _anchor_name(names, a), "action": "member"}
+                                     for k, a in home_in.items()]
+    opoly = poly_px(outline, odims[0], odims[1])
     for a in conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL ORDER BY layer_id, resource_id", (other_floor_id,)).fetchall():
-        if not near((float(a["x"]) * ow, float(a["y"]) * oh), opoly, otol):
+        if not near((float(a["x"]) * odims[0], float(a["y"]) * odims[1]), opoly, odims[2]):
             continue
         key = (a["resource_type"], a["resource_id"])
-        name = names.get(a["resource_id"]) if a["resource_type"] == "camera" else (a["label"] or a["resource_id"])
-        if key in home_has:
-            anchors.append({"anchor_id": a["id"], "resource_type": a["resource_type"], "resource_id": a["resource_id"], "name": name, "action": "drop_duplicate"})
-        else:
-            x, y = place.inv(float(a["x"]), float(a["y"]))
-            anchors.append({"anchor_id": a["id"], "resource_type": a["resource_type"], "resource_id": a["resource_id"], "name": name, "action": "rebind",
-                            "to": {"floor_id": home_id, "x": round(min(1.0, max(0.0, x)), 4), "y": round(min(1.0, max(0.0, y)), 4), "rotation_degrees": place.iangle(a["rotation_degrees"] or 0)}})
+        on_home = conn.execute("SELECT 1 FROM map_anchors WHERE floor_id = ? AND resource_type = ? AND resource_id = ? AND effective_to IS NULL", (home_id, *key)).fetchone()
+        # security review M3b: only a copy of a camera the home ROOM has is dropped; one anchored elsewhere on the home
+        # floor keeps its anchor here and is not made a member (it would show twice)
+        action = "drop_duplicate" if key in home_in else ("kept" if on_home else "member")
+        anchors.append({"anchor_id": a["id"], "floor_id": other_floor_id, "resource_type": key[0], "resource_id": key[1], "name": _anchor_name(names, a), "action": action})
     hsub = room_subset(hdoc, zpoly)
+    aligned = alignment_ok(lower_on_other, outline, odims) if dup is not None else True
     return {
         "zone": {"id": zone["id"], "name": zone["name"], "floor_id": home_id, "floor_name": home["name"], "floor_level": home["level"]},
         "other_floor": {"id": other_floor_id, "name": other["name"], "level": other["level"], "version_id": other_v["id"], "revision": odraft["revision"] if odraft is not None else 0},
-        "home_version_id": home_v["id"], "same_frame": same, "placement": placement, "mirror_polygon": mirror_poly,
+        "home_version_id": home_v["id"], "same_frame": same, "placement": placement, "mirror_polygon": lower_on_other,
         "duplicate": ({"zone_id": dup["id"], "name": dup["name"], "polygon": json.loads(dup["polygon_json"])} if dup is not None else None),
+        "outline": {"zone_id": dup["id"] if dup is not None else None, "kept": dup is not None, "polygon": outline},
         "candidates": cands,
-        "remove": {**{k: len(v) for k, v in removed.items()}, "zone": 1 if dup is not None else 0}, "removed_ids": removed, "crossing_walls_kept": crossing,
-        "anchors": anchors,
-        "attach": {"walls": sum(1 for w in hsub["walls"] if not w.get("_readonly")), "clipped_walls": sum(1 for w in hsub["walls"] if w.get("_readonly")),
-                   "openings": len(hsub["openings"]), "objects": len(hsub["objects"]), "labels": len(hsub["labels"]), "connectors": len(hsub["connectors"]),
-                   "circuits": len(hsub["circuits"]),
-                   "anchors": sum(1 for a in conn.execute("SELECT x, y FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL", (home_id,)).fetchall()
-                                  if near((float(a["x"]) * hw, float(a["y"]) * hh), poly_px(zpoly, hw, hh), _anchor_tol(conn, home_id)[2]))},
+        "remove": {**{k: len(v) for k, v in removed.items()}, "zone": 0}, "removed_ids": removed, "boundary_walls_kept": kept_walls,
+        "anchors": anchors, "members": [{"resource_type": x["resource_type"], "resource_id": x["resource_id"]} for x in anchors if x["action"] == "member"],
+        "aligned": aligned, "alignment_warning": None if aligned else "ודא את יישור הקומות",
+        "attach": {"objects": len(hsub["objects"]), "labels": len(hsub["labels"]), "connectors": len(hsub["connectors"]), "circuits": len(hsub["circuits"]),
+                   "members": sum(1 for x in anchors if x["action"] == "member")},
         "_new_doc": new_doc, "_other_version": other_v, "_other_draft_revision": odraft["revision"] if odraft is not None else 0,
     }
 
@@ -1227,58 +1556,54 @@ def public(plan: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in plan.items() if not k.startswith("_")}
 
 
+def member_cameras(plan: dict[str, Any]) -> list[str]:
+    """The cameras the conversion makes members (their reach widens to the other floor: T055 B1 on each)."""
+    return sorted({m["resource_id"] for m in plan["members"] if m["resource_type"] == "camera"})
+
+
 def apply_conversion(conn: sqlite3.Connection, zone: sqlite3.Row, plan: dict[str, Any], actor_id: str | None, now: str) -> dict[str, Any]:
-    """The plan, written in the caller's transaction: the other floor's draft without the duplicate drawing, its
-    anchors re-bound or dropped (tombstoned, never deleted), the duplicate zone soft-deleted, the share row inserted."""
+    """The plan, written in the caller's transaction (every refusal came before): the other floor's draft without the
+    duplicate content, its outline kept (or drawn), the duplicate anchors tombstoned (never deleted), the members listed,
+    the share row inserted."""
     from ..db import new_id
     from . import geometry_store as store
 
     other_v = plan["_other_version"]
     if any(plan["remove"][k] for k in ("walls", "openings", "objects", "labels", "connectors", "circuits", "groups")):
         store.save_draft(conn, other_v, plan["_new_doc"], plan["_other_draft_revision"], actor_id, now)
-    home_id = zone["floor_id"]
-    home_v = store.editor_version(conn, home_id)
-    rebound: list[dict[str, Any]] = []
+    dropped: list[str] = []
     for item in plan["anchors"]:
+        if item["action"] != "drop_duplicate":
+            continue
         a = conn.execute("SELECT * FROM map_anchors WHERE id = ? AND effective_to IS NULL", (item["anchor_id"],)).fetchone()
         if a is None:
             continue
         conn.execute("UPDATE map_anchors SET effective_to = ?, updated_by = ?, updated_at = ? WHERE id = ?", (now, actor_id, now, a["id"]))
         store.unbind_anchor(conn, a["floor_id"], a["resource_type"], a["resource_id"], actor_id, now, last={"x": a["x"], "y": a["y"], "rotation": a["rotation_degrees"] or 0})
-        if item["action"] != "rebind":
-            continue
-        dup = conn.execute("SELECT id FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL AND resource_type = ? AND resource_id = ?", (home_id, a["resource_type"], a["resource_id"])).fetchone()
-        if dup is not None:
-            continue
-        aid = new_id()
-        cov = None
-        if a["coverage_polygon"]:
-            try:
-                place = Placement(plan["placement"], _dims_of(home_v), _dims_of(other_v))
-                cov = json.dumps([place.ipt(p) for p in json.loads(a["coverage_polygon"])])
-            except (ValueError, TypeError, IndexError):
-                cov = None
-        conn.execute(
-            """INSERT INTO map_anchors(id, floor_id, plan_version_id, resource_type, resource_id, x, y, rotation_degrees, field_of_view_degrees, layer_id, label, revision, effective_from, created_by, updated_by, updated_at, coverage_radius, coverage_polygon, label_pos, level_id, mount_height_m, tilt_deg)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (aid, home_id, home_v["id"] if home_v is not None else a["plan_version_id"], a["resource_type"], a["resource_id"], item["to"]["x"], item["to"]["y"], item["to"]["rotation_degrees"],
-             a["field_of_view_degrees"], a["layer_id"], a["label"], now, actor_id, actor_id, now, None if cov is None and a["coverage_radius"] is None else a["coverage_radius"], cov,
-             a["label_pos"], None, a["mount_height_m"], a["tilt_deg"]))
-        rebound.append({"from_anchor_id": a["id"], "anchor_id": aid, "resource": f"{a['resource_type']}:{a['resource_id']}"})
-    if plan["duplicate"] is not None:
-        conn.execute("UPDATE spatial_zones SET deleted_at = ?, updated_at = ?, revision = revision + 1 WHERE id = ? AND deleted_at IS NULL", (now, now, plan["duplicate"]["zone_id"]))
+        dropped.append(a["id"])
+    outline_id = plan["outline"]["zone_id"]
+    if outline_id is None:
+        outline_id = new_id()
+        conn.execute("INSERT INTO spatial_zones(id, floor_id, plan_version_id, name, kind, polygon_json, color, source, searchable, revision, created_by, created_at, updated_at) "
+                     "VALUES (?, ?, ?, ?, ?, ?, ?, 'manual', 1, 1, ?, ?, ?)",
+                     (outline_id, plan["other_floor"]["id"], other_v["id"], zone["name"], zone["kind"], json.dumps(plan["outline"]["polygon"]), zone["color"], actor_id, now, now))
+    added = [m for m in plan["members"] if add_member(conn, zone["id"], m["resource_type"], m["resource_id"], actor_id, now)]
     sid = new_id()
-    conn.execute("INSERT INTO shared_spaces(id, zone_id, home_floor_id, floor_id, placement_json, revision, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)",
-                 (sid, zone["id"], home_id, plan["other_floor"]["id"], json.dumps(plan["placement"]), actor_id, now, now))
-    return {"share_id": sid, "rebound": rebound, "dropped": [i["anchor_id"] for i in plan["anchors"] if i["action"] == "drop_duplicate"]}
+    conn.execute("INSERT INTO shared_spaces(id, zone_id, home_floor_id, floor_id, other_zone_id, placement_json, revision, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)",
+                 (sid, zone["id"], zone["floor_id"], plan["other_floor"]["id"], outline_id, json.dumps(plan["placement"]), actor_id, now, now))
+    return {"share_id": sid, "outline_zone_id": outline_id, "members_added": added, "dropped": dropped}
 
 
 def unshare(conn: sqlite3.Connection, zone_id: str, floor_id: str, actor_id: str | None, now: str) -> bool:
+    """The other floor stops showing the room. The room's members are dropped with its last share (a later share lists
+    them again, with the rights it needs) - reach never comes back by itself."""
     try:
         cur = conn.execute("UPDATE shared_spaces SET removed_at = ?, removed_by = ?, updated_at = ?, revision = revision + 1 WHERE zone_id = ? AND floor_id = ? AND removed_at IS NULL",
                            (now, actor_id, now, zone_id, floor_id))
     except sqlite3.OperationalError:
         return False
+    if cur.rowcount and not shares_of_zone(conn, zone_id):
+        conn.execute("UPDATE shared_space_members SET removed_at = ?, removed_by = ? WHERE zone_id = ? AND removed_at IS NULL", (now, actor_id, zone_id))
     return cur.rowcount > 0
 
 
@@ -1288,9 +1613,9 @@ def set_placement(conn: sqlite3.Connection, zone_id: str, floor_id: str, placeme
     return cur.rowcount > 0
 
 
-def room_cameras(conn: sqlite3.Connection, zone: sqlite3.Row) -> list[str]:
-    """The cameras anchored inside a room on its floor (sharing widens their reach: T055 B1)."""
-    tmp = Share("", zone["id"], zone["floor_id"], "", {"mode": "same_frame"}, 1, "", zone["name"] or "", json.loads(zone["polygon_json"]), int(zone["revision"]), zone["level_id"])
-    dims = _anchor_tol(conn, zone["floor_id"])
-    return sorted({a["resource_id"] for a in conn.execute("SELECT resource_id, x, y FROM map_anchors WHERE floor_id = ? AND resource_type = 'camera' AND effective_to IS NULL", (zone["floor_id"],)).fetchall()
-                   if anchor_in_room(a["x"], a["y"], tmp, dims)})
+def zone_in_share(conn: sqlite3.Connection, zone_id: str) -> Group | None:
+    """The shared room a zone is part of - as the home room or as another floor's outline of it - or None."""
+    for g in groups(conn).values():
+        if g.zone_id == zone_id or any(s.other_zone_id == zone_id for s in g.shares):
+            return g
+    return None

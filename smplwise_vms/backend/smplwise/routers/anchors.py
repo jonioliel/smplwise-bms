@@ -176,8 +176,17 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
     if not camera_only:
         from ..services import plan_geometry as _pg
 
+        from .ha import _entity_allowed as _readable_entity
+
+        # a circuit of a room another floor owns reads its switch only for a reader who may see that entity (a member of
+        # the room, or placed on a floor of theirs) - naming a switch in the room's content grants nothing (review B1)
         circuits = circuits + [k for k in shared_spaces.mirrored_circuits(conn, floor_id, share_mode, share_at, can_attach=can_attach)
-                               if isinstance(k.get("switch_entity_id"), str) and _pg.SWITCH_RE.match(k["switch_entity_id"])]
+                               if isinstance(k.get("switch_entity_id"), str) and _pg.SWITCH_RE.match(k["switch_entity_id"])
+                               and _readable_entity(conn, principal, k["switch_entity_id"], "entity.state.read")]
+    # the editor's hint (review B1): an anchor inside a shared room that is not a member stays on its floor; whoever holds
+    # the share rights is offered "הוסף לחלל המשותף"; members show where they belong
+    candidates = shared_spaces.room_candidates(conn, floor_id) if can_edit and not at_iso else {}
+    members_here = shared_spaces.members_on_floor(conn, floor_id) if not camera_only else {}
     tag = shared_spaces.shared_tag(conn, floor_id, share_mode, share_at)
     if geometry is not None and tag:
         geometry = {**geometry, "view_hash": f"{geometry['doc_hash']}-s{tag}"}
@@ -255,7 +264,8 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
         "catalog_revision": plan_catalog.revision(conn),
         "levels": levels,
         "circuit_states": circuit_states,
-        "anchors": [dict(anchor_row(a), camera=cameras.get(a["resource_id"]) if a["resource_type"] == "camera" else None, entity=entities.get(a["resource_id"]) if a["resource_type"] == "ha_entity" else None) for a in anchors]
+        "anchors": [dict(anchor_row(a), camera=cameras.get(a["resource_id"]) if a["resource_type"] == "camera" else None, entity=entities.get(a["resource_id"]) if a["resource_type"] == "ha_entity" else None,
+                        **({"room_candidate": candidates[a["id"]]} if a["id"] in candidates else {}), **({"shared_member": members_here[(a["resource_type"], a["resource_id"])]} if (a["resource_type"], a["resource_id"]) in members_here else {})) for a in anchors]
                    + [dict(anchor_row(a), **over, camera=cameras.get(a["resource_id"]) if a["resource_type"] == "camera" else None, entity=entities.get(a["resource_id"]) if a["resource_type"] == "ha_entity" else None)
                       for a, over in mirrored],
         "ha_sync": ha_sync.STATE.as_dict(),
@@ -326,24 +336,6 @@ def _shared_error(exc: Exception) -> ApiError:
 def create_anchor(floor_id: str, body: AnchorIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, "placement.edit", ("floor", floor_id))
-    from ..services import shared_spaces
-
-    via_floor_id: str | None = None
-    hit = shared_spaces.room_at(conn, floor_id, body.x, body.y)
-    if hit is not None:
-        # CR-009: a camera or device placed inside a room another floor shares with this one belongs to that room - it is
-        # created on the room's home floor (placement.edit here is decision 1's grant) and every floor that shows the
-        # room shows it
-        share, place = hit
-        via_floor_id, floor_id = floor_id, share.home_floor_id
-        hx, hy = place.inv(body.x, body.y)
-        body.x, body.y = round(min(1.0, max(0.0, hx)), 6), round(min(1.0, max(0.0, hy)), 6)
-        body.rotation_degrees = place.iangle(body.rotation_degrees) % 360
-        body.level_id = None
-        if body.coverage_polygon is not None:
-            body.coverage_polygon = [place.ipt(p) for p in body.coverage_polygon]
-        if body.coverage_radius is not None and not place.same:
-            body.coverage_radius = min(1.0, body.coverage_radius / place.k)
     version = _editor_version(conn, floor_id)
     if not version:
         raise conflict("no_plan", "לקומה אין תוכנית; העלה תוכנית לפני הצבת פריטים.")
@@ -370,7 +362,7 @@ def create_anchor(floor_id: str, body: AnchorIn, request: Request, principal: Pr
          body.coverage_radius, _check_polygon(body.coverage_polygon), body.label_pos, body.level_id or None, body.mount_height_m, body.tilt_deg),
     )
     audit(conn, actor=principal, action="anchor.create", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
-          details={"anchor_id": aid, "resource": f"{body.resource_type}:{body.resource_id}", "x": body.x, "y": body.y, **({"via_floor_id": via_floor_id} if via_floor_id else {})})
+          details={"anchor_id": aid, "resource": f"{body.resource_type}:{body.resource_id}", "x": body.x, "y": body.y})
     return anchor_row(get_anchor(conn, aid))
 
 
@@ -384,11 +376,16 @@ def _anchor_edit_scope(conn: sqlite3.Connection, principal: Principal, a: sqlite
 
     get_floor(conn, from_floor_id)
     try:
-        share, place = shared_spaces.anchor_via(conn, a, from_floor_id)
+        via = shared_spaces.anchor_via(conn, a, from_floor_id)
     except shared_spaces.SharedEditError as exc:
         raise _shared_error(exc)
+    # security review M1: a deny on the anchor's own floor wins over decision 1's "edit from either floor"
+    for perm in ("placement.edit", "map.read"):
+        d = authorize(conn, principal, perm, ("floor", a["floor_id"]))
+        if d.reason == "explicit_deny":
+            require(conn, principal, perm, ("floor", a["floor_id"]))  # the audited 403
     require(conn, principal, "placement.edit", ("floor", from_floor_id))
-    return share, place
+    return via
 
 
 class RealignIn(BaseModel):
@@ -441,23 +438,25 @@ def update_anchor(anchor_id: str, body: AnchorPatch, request: Request, from_floo
     if body.revision != a["revision"]:
         raise conflict("stale_revision", "העוגן השתנה בינתיים; טען מחדש ובחר איך למזג.", current_revision=a["revision"], sent_revision=body.revision)
     if via is not None:
-        # the other floor's map coordinates back to the home plan (CR-009); the anchor stays inside the room
+        # the other floor's map coordinates back to the anchor's own plan (CR-009); moving never changes membership
         from ..services import shared_spaces
 
-        share, place = via
+        g, back, back_angle, k = via
         if body.x is not None or body.y is not None:
-            hx, hy = place.inv(body.x if body.x is not None else place.fwd(a["x"], a["y"])[0], body.y if body.y is not None else place.fwd(a["x"], a["y"])[1])
-            if not shared_spaces.anchor_in_room(hx, hy, share, shared_spaces._anchor_tol(conn, share.home_floor_id)) or not (0 <= hx <= 1 and 0 <= hy <= 1):
-                raise ApiError(422, "shared_outside", "אפשר להזיז מכאן רק בתוך החלל המשותף; את השאר ערוך בקומה שלו.")
+            here, _a, _k = shared_spaces.transfer(conn, g, a["floor_id"], from_floor_id)
+            cx, cy = here(a["x"], a["y"])
+            hx, hy = back(body.x if body.x is not None else cx, body.y if body.y is not None else cy)
+            if not (0 <= hx <= 1 and 0 <= hy <= 1):
+                raise ApiError(422, "shared_outside", "המיקום יוצא מגבולות התוכנית של הקומה שבה העוגן מוצב.")
             body.x, body.y = round(hx, 6), round(hy, 6)
         if body.rotation_degrees is not None:
-            body.rotation_degrees = place.iangle(body.rotation_degrees) % 360
+            body.rotation_degrees = round(back_angle(body.rotation_degrees) % 360, 3) % 360
         if body.coverage_polygon is not None:
-            body.coverage_polygon = [place.ipt(p) for p in body.coverage_polygon]
-        if body.coverage_radius is not None and not place.same:
-            body.coverage_radius = min(1.0, body.coverage_radius / place.k)
+            body.coverage_polygon = [[round(q[0], 6), round(q[1], 6)] for q in (back(float(p[0]), float(p[1])) for p in body.coverage_polygon)]
+        if body.coverage_radius is not None:
+            body.coverage_radius = min(1.0, body.coverage_radius * k)
         if body.level_id is not None:
-            body.level_id = shared_spaces.un_ns(share.home_floor_id, body.level_id) if str(body.level_id).startswith(f"{share.home_floor_id}:") else ""
+            body.level_id = shared_spaces.un_ns(a["floor_id"], body.level_id) if str(body.level_id).startswith(f"{a['floor_id']}:") else ""
     fields = {k: v for k, v in body.model_dump().items() if k != "revision" and (v is not None or (k in NULLABLE_KEYS and k in body.model_fields_set))}
     if "coverage_polygon" in fields:
         fields["coverage_polygon"] = _check_polygon(fields["coverage_polygon"])

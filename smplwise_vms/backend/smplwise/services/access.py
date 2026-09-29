@@ -161,24 +161,23 @@ def camera_reach_floors(conn: sqlite3.Connection, principal: Principal, permissi
     drawing - the rest of that floor is not theirs ("nothing else of the home floor"). So a shared-room camera opens a
     floor's drawing only for a binding on the camera itself (T055: camera-scoped readers get the drawing of the floors
     their camera is on)."""
-    from .shared_spaces import mirrored_anchor_floors
+    from .shared_spaces import member_share_floors
 
     scope = scope or camera_scope(conn, principal, permission)
     if not scope.ids:
         return set()
-    mirrored = mirrored_anchor_floors(conn)
-    in_rooms = {rid for (rtype, rid) in mirrored if rtype == "camera"}
+    room_floors = {rid: floors for (rtype, rid), floors in member_share_floors(conn).items() if rtype == "camera"}
     direct: set[str] = set()
-    if in_rooms & scope.ids:
+    if set(room_floors) & scope.ids:
         direct = {b["scope_id"] for b in _active_bindings(conn, principal) if b["scope_type"] == "camera" and b["effect"] != "deny" and permission in role_permissions(conn, b["role_id"])}
     ids = sorted(scope.ids)
     out: set[str] = set()
     for r in conn.execute(f"SELECT DISTINCT resource_id, floor_id FROM map_anchors WHERE resource_type = 'camera' AND effective_to IS NULL AND resource_id IN ({','.join('?' * len(ids))})", ids).fetchall():
-        if r["resource_id"] not in in_rooms or r["resource_id"] in direct:
+        if r["resource_id"] not in room_floors or r["resource_id"] in direct:
             out.add(r["floor_id"])
-    for (rtype, rid), pairs in mirrored.items():
-        if rtype == "camera" and rid in scope.ids and rid in direct:
-            out |= {fid for fid, _home in pairs}
+    for rid, floors in room_floors.items():
+        if rid in scope.ids and rid in direct:
+            out |= floors
     return out
 
 

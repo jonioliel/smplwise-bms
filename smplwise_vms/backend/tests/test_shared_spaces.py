@@ -149,39 +149,62 @@ def test_membership_clips_a_wall_along_the_outline_and_drops_a_touching_stub():
 # ---------------------------------------------------------------- conversion
 
 
-def test_conversion_preview_lists_what_leaves_the_other_floor_and_apply_is_atomic(settings):
+WIDE = [{"x": 0.15, "y": 0.15}, {"x": 0.65, "y": 0.15}, {"x": 0.65, "y": 0.75}, {"x": 0.15, "y": 0.75}]
+
+
+def _wide(settings) -> dict[str, Any]:
+    """The owner's hall as it really is: wider at the upper level. Floor 3 draws its own, wider outline with walls along it
+    (and a second drawing of the court's top wall inside); floor 2 has the tribune's upper rows outside the court."""
+    w = _world(settings)
+    c = w["c"]
+    z = c.get(f"/api/v1/floors/{w['f3']}/zones").json()["zones"][0]
+    assert c.patch(f"/api/v1/zones/{w['dup']}", json={"revision": z["revision"], "polygon": WIDE}).status_code == 200
+    g3 = _draft(c, w["v3"])["doc"]
+    walls = [WALL("u1", [[0.15, 0.15], [0.65, 0.15]]), WALL("u2", [[0.65, 0.15], [0.65, 0.75]]), WALL("court-copy", [[0.2, 0.2], [0.6, 0.2]]), WALL("o3", [[0.8, 0.1], [0.8, 0.9]])]
+    assert _save(c, w["v3"], g3, walls=walls, openings=[DOOR("du", "u2", 0.5)]).status_code == 200
+    g2 = _draft(c, w["v2"])["doc"]
+    assert _save(c, w["v2"], g2, objects=[*g2["objects"], OBJ("rows-up", [0.4, 0.7], "tribune.stepped", size={"w_m": 6, "d_m": 1.5, "h_m": 1.0}, params={"rows": 3})]).status_code == 200
+    return w
+
+
+def test_conversion_keeps_the_other_floors_outline_removes_only_duplicate_content_and_lists_members(settings):
     w = _world(settings)
     c = w["c"]
     pv = c.post(f"/api/v1/zones/{w['hall']}/share/preview", json={"floor_id": w["f3"]})
     assert pv.status_code == 200, pv.text
     p = pv.json()
-    assert p["placement"] == {"mode": "same_frame"} and p["same_frame"] is True
-    assert p["duplicate"]["zone_id"] == w["dup"], "the duplicate room was detected by name and overlap"
+    assert p["placement"] == {"mode": "same_frame"} and p["same_frame"] is True and p["aligned"] is True
+    assert p["duplicate"]["zone_id"] == w["dup"] and p["outline"] == {"zone_id": w["dup"], "kept": True, "polygon": HALL}
     assert p["candidates"][0]["name_score"] == 1.0 and p["candidates"][0]["overlap"] == 1.0
-    assert p["removed_ids"]["walls"] == ["d1", "d2"] and p["removed_ids"]["openings"] == ["dd"] and p["removed_ids"]["objects"] == ["dobj"]
-    assert p["crossing_walls_kept"] == ["c3"] and p["remove"]["zone"] == 1
+    # the walls along floor 3's outline bound the hall at that floor: kept; only the duplicate content leaves
+    assert p["boundary_walls_kept"] == ["d1", "d2"] and p["removed_ids"]["walls"] == [] and p["removed_ids"]["objects"] == ["dobj"] and p["remove"]["zone"] == 0
     acts = {a["anchor_id"]: a["action"] for a in p["anchors"]}
-    assert acts == {w["anchors"]["camD"]: "rebind", w["anchors"]["camH3"]: "drop_duplicate"}, "cam3 outside the room stays where it is"
-    assert p["attach"] == {"walls": 3, "clipped_walls": 1, "openings": 2, "objects": 1, "labels": 1, "connectors": 0, "circuits": 0, "anchors": 2}
-    # the preview wrote nothing
-    assert len(_draft(c, w["v3"])["doc"]["walls"]) == 4
+    assert acts == {w["anchors"]["camH2"]: "member", w["anchors"]["light"]: "member", w["anchors"]["camD"]: "member", w["anchors"]["camH3"]: "drop_duplicate"}
+    assert len(_draft(c, w["v3"])["doc"]["objects"]) == 2, "the preview wrote nothing"
     r = _share(w)
-    assert r["share_id"] and len(r["rebound"]) == 1 and r["dropped"] == [w["anchors"]["camH3"]]
+    assert r["outline_zone_id"] == w["dup"] and r["dropped"] == [w["anchors"]["camH3"]]
+    assert sorted((m["resource_type"], m["resource_id"]) for m in r["members_added"]) == sorted([("camera", w["cams"]["camH"]), ("ha_entity", "light.hall"), ("camera", w["cams"]["camD"])])
     d3 = _draft(c, w["v3"])
-    own = [x["id"] for x in d3["doc"]["walls"] if "shared" not in x]
-    assert own == ["c3", "o3"] and [o["id"] for o in d3["doc"]["objects"] if "shared" not in o] == ["oobj"]
+    assert [x["id"] for x in d3["doc"]["walls"]] == ["d1", "d2", "c3", "o3"] and [o["id"] for o in d3["doc"]["objects"] if "shared" not in o] == ["oobj"]
     with w["app"].state.db.connection() as conn:
-        assert conn.execute("SELECT deleted_at FROM spatial_zones WHERE id = ?", (w["dup"],)).fetchone()[0] is not None
+        assert conn.execute("SELECT deleted_at FROM spatial_zones WHERE id = ?", (w["dup"],)).fetchone()[0] is None, "floor 3's outline stays"
         camd = conn.execute("SELECT floor_id, x, y FROM map_anchors WHERE resource_id = ? AND effective_to IS NULL", (w["cams"]["camD"],)).fetchall()
-        assert [(a["floor_id"], a["x"], a["y"]) for a in camd] == [(w["f2"], 0.5, 0.5)], "camD was re-bound to the hall on its home floor, never lost"
-        camh = conn.execute("SELECT floor_id FROM map_anchors WHERE resource_id = ? AND effective_to IS NULL", (w["cams"]["camH"],)).fetchall()
-        assert [a[0] for a in camh] == [w["f2"]], "the duplicate anchor was tombstoned: the mirror shows the hall's own"
-        actions = [r[0] for r in conn.execute("SELECT action FROM audit_log WHERE action IN ('zone.share', 'geometry.shared.convert', 'anchor.rebind') ORDER BY rowid").fetchall()]
-        assert actions == ["zone.share", "geometry.shared.convert", "anchor.rebind"]
-        det = json.loads(conn.execute("SELECT details_json FROM audit_log WHERE action = 'zone.share'").fetchone()[0])
-        assert det["home_floor_id"] == w["f2"] and det["floor_id"] == w["f3"]
+        assert [(a["floor_id"], a["x"], a["y"]) for a in camd] == [(w["f3"], 0.5, 0.5)], "review M3c: camD stays where it is, a member now"
+        actions = [r[0] for r in conn.execute("SELECT action FROM audit_log WHERE action IN ('zone.share', 'geometry.shared.convert', 'zone.share.member_add') ORDER BY rowid").fetchall()]
+        assert actions == ["zone.share", "geometry.shared.convert", "zone.share.member_add", "zone.share.member_add", "zone.share.member_add"]
     again = c.post(f"/api/v1/zones/{w['hall']}/share", json={"floor_id": w["f3"]})
     assert again.status_code == 409 and again.json()["code"] == "already_shared"
+
+
+def test_review_m3b_a_camera_anchored_elsewhere_on_the_home_floor_keeps_its_anchor_on_the_other_floor(settings):
+    w = _world(settings)
+    c = w["c"]
+    # camA is on floor 2 OUTSIDE the hall; floor 3 has camA inside its duplicate room
+    a = _anchor(c, w["f3"], "camera", w["cams"]["camA"], 0.4, 0.55)
+    acts = {x["anchor_id"]: x["action"] for x in c.post(f"/api/v1/zones/{w['hall']}/share/preview", json={"floor_id": w["f3"]}).json()["anchors"]}
+    assert acts[a] == "kept"
+    r = _share(w)
+    assert a not in r["dropped"] and ("camera", w["cams"]["camA"]) not in [(m["resource_type"], m["resource_id"]) for m in r["members_added"]]
 
 
 def test_a_room_is_shared_only_within_its_building_and_never_with_its_own_floor(settings):
@@ -191,114 +214,195 @@ def test_a_room_is_shared_only_within_its_building_and_never_with_its_own_floor(
     other_b = c.post(f"/api/v1/sites/{w['ids']['site']}/buildings", json={"name": "מבנה ב"}).json()["id"]
     far = c.post(f"/api/v1/buildings/{other_b}/floors", json={"name": "קומה 0", "level": 0}).json()["id"]
     _plan(c, far)
-    r = c.post(f"/api/v1/zones/{w['hall']}/share/preview", json={"floor_id": far})
-    assert r.status_code == 422
+    assert c.post(f"/api/v1/zones/{w['hall']}/share/preview", json={"floor_id": far}).status_code == 422
 
 
-# ---------------------------------------------------------------- attach on read
+# ---------------------------------------------------------------- read side (two outlines)
 
 
-def test_the_other_floor_reads_the_hall_whole_computed_never_stored(settings):
-    w = _world(settings)
+def test_the_upper_floor_reads_the_halls_content_with_both_outlines_computed_never_stored(settings):
+    w = _wide(settings)
     c = w["c"]
-    _share(w)
+    r = _share(w)
+    assert r["outline_zone_id"] == w["dup"]
     f2 = w["f2"]
     d3 = _draft(c, w["v3"])
     doc = d3["doc"]
-    shared_walls = {x["id"]: x for x in doc["walls"] if "shared" in x}
-    assert set(shared_walls) == {f"{f2}:hw2", f"{f2}:hw3", f"{f2}:hw4", f"{f2}:ext#1"}
-    assert shared_walls[f"{f2}:ext#1"]["shared"]["readonly"] is True and "readonly" not in shared_walls[f"{f2}:hw2"]["shared"]
-    assert shared_walls[f"{f2}:ext#1"]["polyline"] == [[pytest.approx(0.2, abs=0.02), 0.2], [pytest.approx(0.6, abs=0.02), 0.2]]
-    ops = {o["id"]: o for o in doc["openings"] if "shared" in o}
-    assert set(ops) == {f"{f2}:d-hall", f"{f2}:d-ext-in"} and ops[f"{f2}:d-ext-in"]["wall_id"] == f"{f2}:ext#1"
-    assert [o["id"] for o in doc["objects"] if "shared" in o] == [f"{f2}:trib"]
+    # content is shared, walls are each floor's own: floor 3 keeps its outline walls, the court copy left
+    assert [x["id"] for x in doc["walls"]] == ["u1", "u2", "o3"], "no wall of floor 2 attached, the copy of the court's wall removed"
+    assert sorted(o["id"] for o in doc["objects"] if "shared" in o) == [f"{f2}:rows-up", f"{f2}:trib"], "the upper rows outside the court's outline come too"
     assert [lb["id"] for lb in doc["labels"] if "shared" in lb] == [f"{f2}:lb-court"]
-    levels = {lv["id"]: lv for lv in doc["levels"]}
-    assert levels[f"{f2}:L0"]["elevation_m"] == -3.0, "the court is one floor down"
-    entry = doc["shared_spaces"][0]
-    assert entry["role"] == "mirror" and entry["home_floor_id"] == f2 and entry["label"] == "רצפה בקומה 2" and entry["volume_height_m"] == pytest.approx(5.8)
-    assert entry["home_revision"] == _draft(c, w["v2"])["geometry"]["revision"]
-    # the home floor's own read says the room is shared (the chip there too) without any mirrored item
+    assert {lv["id"] for lv in doc["levels"] if "shared" in lv} == {f"{f2}:L0"} and next(lv for lv in doc["levels"] if lv["id"] == f"{f2}:L0")["elevation_m"] == -3.0
+    e = doc["shared_spaces"][0]
+    assert e["role"] == "mirror" and e["polygon"] == WIDE and e["other_polygon"] == HALL and e["other_label"] == "מפלס תחתון" and e["aligned"] is True
+    assert e["datum_m"] == -3.0 and e["upper_ceiling_m"] == 2.8 and e["volume_height_m"] is None and e["label"] == "רצפה בקומה 2"
+    assert "home_doc_hash" not in e and "home_version_id" not in e, "review L1"
+    assert e["home_revision"] == _draft(c, w["v2"])["geometry"]["revision"]
     d2 = _draft(c, w["v2"])["doc"]
-    assert d2["shared_spaces"][0]["role"] == "home" and d2["shared_spaces"][0]["other_floor_id"] == w["f3"] and not any("shared" in x for x in d2["walls"])
-    assert d2["shared_spaces"][0]["volume_height_m"] == pytest.approx(5.8) and sorted(d2["shared_spaces"][0]["wall_ids"]) == ["hw2", "hw3", "hw4"]
-    # nothing of it is stored on floor 3, and a change on floor 2 never changes floor 3's hash
+    h = d2["shared_spaces"][0]
+    assert h["role"] == "home" and h["polygon"] == HALL and h["other_polygon"] == WIDE and h["other_label"] == "מפלס עליון"
+    assert h["volume_height_m"] == 3.0 and sorted(h["wall_ids"]) == ["hw2", "hw3", "hw4"] and not any("shared" in x for x in d2["objects"])
     with w["app"].state.db.connection() as conn:
-        raw = conn.execute("SELECT doc_json, doc_hash FROM plan_geometry WHERE plan_version_id = ? AND status = 'draft'", (w["v3"],)).fetchone()
-        assert '"shared"' not in raw["doc_json"] and f"{f2}:" not in raw["doc_json"]
+        raw = conn.execute("SELECT doc_json FROM plan_geometry WHERE plan_version_id = ? AND status = 'draft'", (w["v3"],)).fetchone()[0]
+        assert '"shared"' not in raw and f"{f2}:" not in raw
+    # a move on floor 2 changes floor 3's view, never its hash
     before = d3["geometry"]["doc_hash"]
     moved = [dict(o, position=[0.45, 0.3]) if o["id"] == "trib" else o for o in _draft(c, w["v2"])["doc"]["objects"]]
     assert _save(c, w["v2"], objects=moved).status_code == 200
     d3b = _draft(c, w["v3"])
     assert d3b["geometry"]["doc_hash"] == before and next(o for o in d3b["doc"]["objects"] if o["id"] == f"{f2}:trib")["position"] == [0.45, 0.3]
-    # the published read follows the home floor's publish through its ETag
+    # published read: the ETag follows the room's content only (review L1)
+    _publish(c, w["v2"])
+    _publish(c, w["v3"])
     pub = c.get(f"/api/v1/plan-versions/{w['v3']}/geometry")
     etag = pub.headers["etag"]
-    assert "-s" in etag and next(o for o in pub.json()["doc"]["objects"] if o["id"] == f"{f2}:trib")["position"] == [0.4, 0.3], "the live map shows the home floor's published hall"
-    assert c.get(f"/api/v1/plan-versions/{w['v3']}/geometry", headers={"If-None-Match": etag}).status_code == 304
+    assert "-s" in etag and c.get(f"/api/v1/plan-versions/{w['v3']}/geometry", headers={"If-None-Match": etag}).status_code == 304
+    g2 = _draft(c, w["v2"])["doc"]  # a change of floor 2 OUTSIDE the room, published
+    assert _save(c, w["v2"], g2, labels=[*g2["labels"], {"id": "far-label", "text": "מסדרון", "position": [0.9, 0.9], "level_id": "L0", "size": 14}]).status_code == 200
     _publish(c, w["v2"])
-    pub2 = c.get(f"/api/v1/plan-versions/{w['v3']}/geometry", headers={"If-None-Match": etag})
-    assert pub2.status_code == 200 and pub2.headers["etag"] != etag
-    # the map bundle: the room's zone and anchors on floor 3, in its coordinates, and a view_hash that follows them
+    assert c.get(f"/api/v1/plan-versions/{w['v3']}/geometry", headers={"If-None-Match": etag}).status_code == 304, "a publish of floor 2 outside the room leaves floor 3's ETag"
+    # the bundle: floor 3's own outline zone carries the chip; the members come in, positioned for floor 3
     m3 = c.get(f"/api/v1/floors/{w['f3']}/map").json()
-    zones = {z["id"]: z for z in m3["zones"]}
-    assert zones[w["hall"]]["shared"]["role"] == "mirror" and zones[w["hall"]]["shared"]["label"] == "רצפה בקומה 2"
-    mir = {a["resource_id"]: a for a in m3["anchors"] if a.get("shared")}
-    assert set(mir) == {w["cams"]["camH"], w["cams"]["camD"], "light.hall"} and mir["light.hall"]["entity"]["state"] == "on"
-    assert m3["geometry"]["view_hash"].startswith(m3["geometry"]["doc_hash"] + "-s")
+    assert next(z for z in m3["zones"] if z["id"] == w["dup"])["shared"]["role"] == "mirror" and not any(z["id"] == w["hall"] for z in m3["zones"])
+    mir = {a["resource_id"] for a in m3["anchors"] if a.get("shared")}
+    assert mir == {w["cams"]["camH"], "light.hall"} and m3["geometry"]["view_hash"].startswith(m3["geometry"]["doc_hash"] + "-s")
     m2 = c.get(f"/api/v1/floors/{w['f2']}/map").json()
+    assert {a["resource_id"] for a in m2["anchors"] if a.get("shared")} == {w["cams"]["camD"]}, "a member anchored upstairs shows downstairs too"
     assert next(z for z in m2["zones"] if z["id"] == w["hall"])["shared"]["role"] == "home"
-    # the export draws the mirrored hall
-    svg = c.get(f"/api/v1/plan-versions/{w['v3']}/export.svg")
-    assert svg.status_code == 200 and f'data-room="{w['hall']}"' in svg.text and f"{f2}:trib" in svg.text
 
 
-# ---------------------------------------------------------------- editing from the other floor (decision 1)
+def test_a_misplaced_placement_warns_to_check_the_alignment(settings):
+    w = _wide(settings)
+    c = w["c"]
+    _share(w)
+    s = c.get(f"/api/v1/zones/{w['hall']}/share/members").json()
+    assert s["floors"] == [w["f2"], w["f3"]]
+    r = c.patch(f"/api/v1/zones/{w['hall']}/share/{w['f3']}", json={"revision": 1, "mode": "fit", "from": [0.4, 0.4], "to": [0.8, 0.8], "rotation_deg": 0, "scale": 1})
+    assert r.status_code == 200, r.text
+    d3 = _draft(c, w["v3"])
+    assert d3["doc"]["shared_spaces"][0]["aligned"] is False
+    assert [i["code"] for i in d3["issues"] if i["code"] == "shared_alignment"] == ["shared_alignment"]
+    assert "ודא את יישור הקומות" in next(i["message"] for i in d3["issues"] if i["code"] == "shared_alignment")
+
+
+# ---------------------------------------------------------------- editing from the other floor (decision 1, review B2 / M1 / M2)
+
+
+def _put(c: TestClient, vid: str, doc: dict, rev: int, headers: dict | None = None):
+    return c.put(f"/api/v1/plan-versions/{vid}/geometry", json={"doc": doc, "base_revision": rev}, headers=headers or {})
 
 
 def test_an_edit_from_the_upper_floor_lands_in_the_home_draft_and_only_inside_the_room(settings):
-    w = _world(settings)
+    w = _wide(settings)
     c, f2 = w["c"], w["f2"]
     _share(w)
     g = _draft(c, w["v3"])
     doc = g["doc"]
     rev2 = _draft(c, w["v2"])["geometry"]["revision"]
-    # move the tribune and add a bench inside the hall, both from floor 3
     doc["objects"] = [dict(o, position=[0.5, 0.35], rotation_deg=10) if o["id"] == f"{f2}:trib" else o for o in doc["objects"]]
-    doc["objects"].append(OBJ(f"{f2}:bench", [0.3, 0.45], "chair.basic", level_id="L0", shared={"zone_id": w["hall"], "home_floor_id": f2}))
-    # edits of a read-only piece are ignored (the exterior wall belongs to the rest of floor 2)
-    doc["walls"] = [dict(x, polyline=[[0.2, 0.25], [0.6, 0.25]]) if x["id"] == f"{f2}:ext#1" else x for x in doc["walls"]]
-    r = c.put(f"/api/v1/plan-versions/{w['v3']}/geometry", json={"doc": doc, "base_revision": g["geometry"]["revision"]})
+    doc["objects"].append(OBJ(f"{f2}:bench", [0.3, 0.72], "chair.basic", level_id="L0", shared={"zone_id": w["hall"], "home_floor_id": f2}))  # upper outline only
+    r = _put(c, w["v3"], doc, g["geometry"]["revision"])
     assert r.status_code == 200, r.text
     home = _draft(c, w["v2"])
     assert home["geometry"]["revision"] == rev2 + 1
     objs = {o["id"]: o for o in home["doc"]["objects"]}
-    assert objs["trib"]["position"] == [0.5, 0.35] and objs["trib"]["rotation_deg"] == 10 and objs["bench"]["level_id"] == "L0" and "shared" not in objs["bench"]
-    assert next(x for x in home["doc"]["walls"] if x["id"] == "ext")["polyline"] == [[0.05, 0.2], [0.9, 0.2]]
-    assert next(o for o in r.json()["doc"]["objects"] if o["id"] == f"{f2}:bench")["shared"]["home_floor_id"] == f2, "the answer is re-attached"
+    assert objs["trib"]["position"] == [0.5, 0.35] and objs["trib"]["rotation_deg"] == 10 and "shared" not in objs["bench"]
     with w["app"].state.db.connection() as conn:
         det = json.loads(conn.execute("SELECT details_json FROM audit_log WHERE action = 'geometry.shared.edit'").fetchone()[0])
         assert det["from_floor_id"] == w["f3"] and det["zone_ids"] == [w["hall"]] and det["changed"] == 1 and det["added"] == 1
-    # moving something out of the room from floor 3 is refused, and nothing is written (own edits included)
+    # out of both outlines: refused, and nothing written (own edits included)
     g = _draft(c, w["v3"])
     doc = g["doc"]
     doc["objects"] = [dict(o, position=[0.9, 0.9]) if o["id"] == f"{f2}:trib" else o for o in doc["objects"]]
     doc["labels"] = doc["labels"] + [{"id": "own-label", "text": "קומה 3", "position": [0.9, 0.2], "level_id": "L0", "size": 14}]
-    bad = c.put(f"/api/v1/plan-versions/{w['v3']}/geometry", json={"doc": doc, "base_revision": g["geometry"]["revision"]})
+    bad = _put(c, w["v3"], doc, g["geometry"]["revision"])
     assert bad.status_code == 422 and bad.json()["code"] == "shared_outside"
     assert _draft(c, w["v3"])["geometry"]["revision"] == g["geometry"]["revision"] and not any(lb["id"] == "own-label" for lb in _draft(c, w["v3"])["doc"]["labels"])
-    # deleting a hall wall from floor 3 deletes it (and its door) at home
+    # a deletion must be listed: left out, the tribune stays; listed, it goes
     g = _draft(c, w["v3"])
     doc = g["doc"]
-    doc["walls"] = [x for x in doc["walls"] if x["id"] != f"{f2}:hw2"]
-    doc["openings"] = [o for o in doc["openings"] if o["wall_id"] != f"{f2}:hw2"]
-    assert c.put(f"/api/v1/plan-versions/{w['v3']}/geometry", json={"doc": doc, "base_revision": g["geometry"]["revision"]}).status_code == 200
+    doc["objects"] = [o for o in doc["objects"] if o["id"] != f"{f2}:trib"]
+    assert _put(c, w["v3"], doc, g["geometry"]["revision"]).status_code == 200
+    assert "trib" in {o["id"] for o in _draft(c, w["v2"])["doc"]["objects"]}, "review M1: an item left out is never deleted"
+    g = _draft(c, w["v3"])
+    doc = dict(g["doc"], shared_deleted=[f"{f2}:trib"])
+    doc["objects"] = [o for o in doc["objects"] if o["id"] != f"{f2}:trib"]
+    assert _put(c, w["v3"], doc, g["geometry"]["revision"]).status_code == 200
+    assert "trib" not in {o["id"] for o in _draft(c, w["v2"])["doc"]["objects"]} and "chair-out" in {o["id"] for o in _draft(c, w["v2"])["doc"]["objects"]}
+
+
+def test_review_b2_an_addition_never_overwrites_the_home_floor_and_circuits_stay_inside(settings):
+    w = _world(settings)
+    c, f2 = w["c"], w["f2"]
+    _share(w)
+    mark = {"zone_id": w["hall"], "home_floor_id": f2}
+    rev2 = _draft(c, w["v2"])["geometry"]["revision"]
+    # an "addition" named like an item of the rest of floor 2 (the chair outside the hall) is refused
+    g = _draft(c, w["v3"])
+    doc = g["doc"]
+    doc["objects"] = [*doc["objects"], OBJ(f"{f2}:chair-out", [0.3, 0.3], shared=mark)]
+    r = _put(c, w["v3"], doc, g["geometry"]["revision"])
+    assert r.status_code == 422 and r.json()["code"] == "shared_id_taken"
+    # a wall or an opening sent as shared is never routed nor stored: walls are each floor's own
+    doc = _draft(c, w["v3"])["doc"]
+    doc["walls"] = [*doc["walls"], dict(WALL(f"{f2}:ext", [[0.0, 0.0], [1.0, 1.0]]), shared=mark)]
+    doc["openings"] = [*doc["openings"], dict(DOOR(f"{f2}:dx", f"{f2}:out1", 0.5), shared=mark)]
+    assert _put(c, w["v3"], doc, _draft(c, w["v3"])["geometry"]["revision"]).status_code == 200
     home = _draft(c, w["v2"])["doc"]
-    assert "hw2" not in {x["id"] for x in home["walls"]} and "d-hall" not in {o["id"] for o in home["openings"]} and "out1" in {x["id"] for x in home["walls"]}
+    assert next(x for x in home["walls"] if x["id"] == "ext")["polyline"] == [[0.05, 0.2], [0.9, 0.2]] and "dx" not in {o["id"] for o in home["openings"]}
+    assert _draft(c, w["v2"])["geometry"]["revision"] == rev2
+    # a circuit may hold only objects of the room
+    g = _draft(c, w["v3"])
+    doc = g["doc"]
+    doc["circuits"] = [*doc["circuits"], {"id": f"{f2}:k1", "name": "אולם", "switch_entity_id": "light.hall", "member_ids": [f"{f2}:trib", f"{f2}:chair-out"],
+                                          "color_token": "circuit-1", "power_w": 0, "shared": mark}]
+    r = _put(c, w["v3"], doc, g["geometry"]["revision"])
+    assert r.status_code == 422 and r.json()["code"] == "shared_outside"
+    doc["circuits"][-1]["member_ids"] = [f"{f2}:trib"]
+    assert _put(c, w["v3"], doc, g["geometry"]["revision"]).status_code == 200
+    # ... and its switch is changed on its own floor only
+    g = _draft(c, w["v3"])
+    doc = g["doc"]
+    doc["circuits"] = [dict(k, switch_entity_id="light.corridor") if k["id"] == f"{f2}:k1" else k for k in doc["circuits"]]
+    r = _put(c, w["v3"], doc, g["geometry"]["revision"])
+    assert r.status_code == 422 and r.json()["code"] == "shared_switch"
+
+
+def test_review_m1_a_deny_on_the_home_floor_writes_nothing_and_a_stale_mirror_is_a_conflict(settings):
+    w = _world(settings)
+    c, f2 = w["c"], w["f2"]
+    _share(w)
+    c.get("/api/v1/me", headers=as_user("rami"))
+    _binding(settings, "rami", "editor", "floor", w["f3"])
+    _binding(settings, "rami", "viewer", "floor", f2, effect="deny")
+    hdr = as_user("rami")
+    rev2 = _draft(c, w["v2"])["geometry"]["revision"]
+    g = _draft(c, w["v3"], hdr)
+    assert not any("shared" in o for o in g["doc"]["objects"]), "denied the home floor: no content attached"
+    # a crafted echo with no items, listing every id as deleted
+    doc = dict(g["doc"], shared_spaces=[{"role": "mirror", "home_floor_id": f2, "zone_id": w["hall"], "home_revision": rev2}], shared_deleted=[f"{f2}:trib", f"{f2}:lb-court"])
+    r = _put(c, w["v3"], doc, g["geometry"]["revision"], hdr)
+    assert r.status_code == 403 and r.json()["code"] == "shared_denied" and "current_revision" not in json.dumps(r.json())
+    assert _draft(c, w["v2"])["geometry"]["revision"] == rev2
+    # a stale mirror: 409 with no revision leaked, nothing written
+    stale = _draft(c, w["v3"])
+    objs = [dict(o, position=[0.35, 0.3]) if o["id"] == "trib" else o for o in _draft(c, w["v2"])["doc"]["objects"]]
+    assert _save(c, w["v2"], objects=objs).status_code == 200
+    doc = stale["doc"]
+    doc["objects"] = [dict(o, rotation_deg=45) if o["id"] == f"{f2}:trib" else o for o in doc["objects"]]
+    r = _put(c, w["v3"], doc, stale["geometry"]["revision"])
+    assert r.status_code == 409 and r.json()["details"]["shared"] is True and "current_revision" not in r.json()["details"]
+    assert _draft(c, w["v3"])["geometry"]["revision"] == stale["geometry"]["revision"]
+    # review M2: a stale revision of THIS floor is refused before any home write
+    fresh = _draft(c, w["v3"])
+    rev2b = _draft(c, w["v2"])["geometry"]["revision"]
+    doc = fresh["doc"]
+    doc["objects"] = [dict(o, rotation_deg=15) if o["id"] == f"{f2}:trib" else o for o in doc["objects"]]
+    r = _put(c, w["v3"], doc, fresh["geometry"]["revision"] + 5)
+    assert r.status_code == 409 and _draft(c, w["v2"])["geometry"]["revision"] == rev2b
 
 
 def _as_browser(v: Any) -> Any:
-    """JSON as a browser re-serializes it: 0.0 comes back as 0."""
     if isinstance(v, float) and v.is_integer():
         return int(v)
     if isinstance(v, dict):
@@ -316,81 +420,67 @@ def test_an_untouched_mirror_writes_nothing_home_and_a_malformed_item_is_refused
     g = _draft(c, w["v3"])
     doc = _as_browser(g["doc"])
     doc["labels"] = doc["labels"] + [{"id": "own", "text": "קומה 3", "position": [0.9, 0.2], "level_id": "L0", "size": 14}]
-    assert c.put(f"/api/v1/plan-versions/{w['v3']}/geometry", json={"doc": doc, "base_revision": g["geometry"]["revision"]}).status_code == 200
-    assert _draft(c, w["v2"])["geometry"]["revision"] == rev2, "saving floor 3's own label never rewrites the hall"
+    assert _put(c, w["v3"], doc, g["geometry"]["revision"]).status_code == 200
+    assert _draft(c, w["v2"])["geometry"]["revision"] == rev2
     g = _draft(c, w["v3"])
     doc = g["doc"]
     doc["objects"] = doc["objects"] + [dict(OBJ(f"{f2}:bad", [0.3, 0.3]), size="large", shared={"zone_id": w["hall"], "home_floor_id": f2})]
-    r = c.put(f"/api/v1/plan-versions/{w['v3']}/geometry", json={"doc": doc, "base_revision": g["geometry"]["revision"]})
+    r = _put(c, w["v3"], doc, g["geometry"]["revision"])
     assert r.status_code == 422 and r.json()["code"] == "geometry_structure"
     assert _draft(c, w["v2"])["geometry"]["revision"] == rev2 and _draft(c, w["v3"])["geometry"]["revision"] == g["geometry"]["revision"]
 
 
-def test_a_stale_mirror_is_a_conflict_and_a_client_that_never_read_it_deletes_nothing(settings):
-    w = _world(settings)
-    c, f2 = w["c"], w["f2"]
-    _share(w)
-    stale = _draft(c, w["v3"])
-    # someone edits the hall on floor 2 meanwhile
-    objs = [dict(o, position=[0.35, 0.3]) if o["id"] == "trib" else o for o in _draft(c, w["v2"])["doc"]["objects"]]
-    assert _save(c, w["v2"], objects=objs).status_code == 200
-    doc = stale["doc"]
-    doc["objects"] = [dict(o, rotation_deg=45) if o["id"] == f"{f2}:trib" else o for o in doc["objects"]]
-    r = c.put(f"/api/v1/plan-versions/{w['v3']}/geometry", json={"doc": doc, "base_revision": stale["geometry"]["revision"]})
-    assert r.status_code == 409 and r.json()["code"] == "stale_revision" and r.json()["details"]["shared"] is True
-    assert _draft(c, w["v3"])["geometry"]["revision"] == stale["geometry"]["revision"], "nothing written"
-    # a client without the mirror (no shared_spaces echo, no shared items) saves its own floor and the hall stays
-    fresh = _draft(c, w["v3"])
-    plain = {k: v for k, v in fresh["doc"].items() if k != "shared_spaces"}
-    for coll in ("walls", "openings", "objects", "labels", "connectors", "levels", "circuits", "groups"):
-        plain[coll] = [x for x in plain[coll] if "shared" not in x]
-    assert c.put(f"/api/v1/plan-versions/{w['v3']}/geometry", json={"doc": plain, "base_revision": fresh["geometry"]["revision"]}).status_code == 200
-    assert "trib" in {o["id"] for o in _draft(c, w["v2"])["doc"]["objects"]}
-
-
-def test_zone_and_anchor_edits_from_the_other_floor_go_through_the_placement(settings):
-    w = _world(settings, png3=png_bytes(800, 400, color=(250, 240, 240)))
-    c = w["c"]
-    r = _share(w, duplicate_zone_id=w["dup"], rotation_deg=90)
-    place = r["placement"]
-    assert place["mode"] == "fit" and place["rotation_deg"] == 90
-    m3 = c.get(f"/api/v1/floors/{w['f3']}/map").json()
-    cam = next(a for a in m3["anchors"] if a.get("shared") and a["resource_id"] == w["cams"]["camH"])
-    # nudge the hall's camera on floor 3's map: it moves on floor 2, back through the placement, and stays in the room
-    x, y = cam["position"]["x"] + 0.01, cam["position"]["y"]
-    up = c.patch(f"/api/v1/map-anchors/{cam['id']}?from_floor_id={w['f3']}", json={"revision": cam["revision"], "x": x, "y": y, "rotation_degrees": (cam["rotation_degrees"] + 15) % 360})
-    assert up.status_code == 200, up.text
-    assert up.json()["floor_id"] == w["f2"]
-    m3b = c.get(f"/api/v1/floors/{w['f3']}/map").json()
-    again = next(a for a in m3b["anchors"] if a["id"] == cam["id"])
-    assert again["position"]["x"] == pytest.approx(x, abs=1e-4) and again["position"]["y"] == pytest.approx(y, abs=1e-4)
-    assert again["rotation_degrees"] == pytest.approx((cam["rotation_degrees"] + 15) % 360, abs=1e-2)
-    out = c.patch(f"/api/v1/map-anchors/{cam['id']}?from_floor_id={w['f3']}", json={"revision": again["revision"], "x": 0.99, "y": 0.99})
-    assert out.status_code == 422 and out.json()["code"] == "shared_outside"
-    # an anchor placed on floor 3 inside the hall is created on the hall's home floor
-    zone3 = next(z for z in m3b["zones"] if z["id"] == w["hall"])
-    cx = sum(p["x"] for p in zone3["polygon"]) / 4
-    cy = sum(p["y"] for p in zone3["polygon"]) / 4
-    made = c.post(f"/api/v1/floors/{w['f3']}/anchors", json={"resource_type": "ha_entity", "resource_id": "light.stage", "x": cx, "y": cy})
-    assert made.status_code == 201 and made.json()["floor_id"] == w["f2"]
-    assert made.json()["position"]["x"] == pytest.approx(0.4, abs=1e-3) and made.json()["position"]["y"] == pytest.approx(0.4, abs=1e-3)
-    # the room's name and polygon from floor 3
-    z = c.get(f"/api/v1/floors/{w['f2']}/zones").json()["zones"]
-    hz = next(q for q in z if q["id"] == w["hall"])
-    moved = [{"x": p["x"], "y": p["y"]} for p in zone3["polygon"]]
-    pr = c.patch(f"/api/v1/zones/{w['hall']}?from_floor_id={w['f3']}", json={"revision": hz["revision"], "name": "אולם", "polygon": moved})
-    assert pr.status_code == 200, pr.text
-    assert pr.json()["name"] == "אולם" and pr.json()["polygon"] == [{"x": pytest.approx(p["x"], abs=2e-4), "y": pytest.approx(p["y"], abs=2e-4)} for p in HALL]
-
-
-# ---------------------------------------------------------------- permissions (decision 3)
+# ---------------------------------------------------------------- members (review B1): reach is explicit
 
 
 def _p(user: str) -> Principal:
     return Principal(f"dev-{user}", user, user, "dev")
 
 
-def test_a_user_of_the_upper_floor_only_reaches_the_whole_hall_and_nothing_else_of_the_home_floor(settings):
+def test_review_b1_geometry_grants_nothing_members_are_explicit(settings):
+    w = _world(settings)
+    c, app = w["c"], w["app"]
+    _share(w)
+    c.get("/api/v1/me", headers=as_user("dana"))
+    c.get("/api/v1/me", headers=as_user("ofer"))
+    _binding(settings, "dana", "viewer", "floor", w["f3"])
+    _binding(settings, "ofer", "editor", "floor", w["f3"])
+    cams = w["cams"]
+
+    def dana_cams() -> set[str]:
+        with app.state.db.connection() as conn:
+            return set(camera_scope(conn, _p("dana"), "map.read").ids)
+
+    assert cams["camA"] not in dana_cams()
+    # a floor-3 editor swallows the whole plan with the room's outline: refused (rights on every floor of the room)
+    z3 = next(z for z in c.get(f"/api/v1/floors/{w['f3']}/zones").json()["zones"] if z["id"] == w["dup"])
+    whole = [{"x": 0, "y": 0}, {"x": 1, "y": 0}, {"x": 1, "y": 1}, {"x": 0, "y": 1}]
+    assert c.patch(f"/api/v1/zones/{w['dup']}", json={"revision": z3["revision"], "polygon": whole}, headers=as_user("ofer")).status_code == 403
+    # the admin grows the HOME outline over the whole plan and moves camA into it: still nothing for dana
+    zh = next(z for z in c.get(f"/api/v1/floors/{w['f2']}/zones").json()["zones"] if z["id"] == w["hall"])
+    assert c.patch(f"/api/v1/zones/{w['hall']}", json={"revision": zh["revision"], "polygon": whole}).status_code == 200
+    assert c.patch(f"/api/v1/map-anchors/{w['anchors']['camA']}", json={"revision": 1, "x": 0.4, "y": 0.4}).status_code == 200
+    assert cams["camA"] not in dana_cams()
+    m2 = c.get(f"/api/v1/floors/{w['f2']}/map").json()
+    assert next(a for a in m2["anchors"] if a["id"] == w["anchors"]["camA"]).get("room_candidate") == w["hall"], "the editor is offered to add it"
+    m3 = c.get(f"/api/v1/floors/{w['f3']}/map", headers=as_user("dana")).json()
+    assert cams["camA"] not in {a["resource_id"] for a in m3["anchors"]}
+    # adding it needs the share rights: a floor-3 editor is refused, the admin is not
+    assert c.post(f"/api/v1/zones/{w['hall']}/share/members", json={"resource_type": "camera", "resource_id": cams["camA"]}, headers=as_user("ofer")).status_code == 403
+    r = c.post(f"/api/v1/zones/{w['hall']}/share/members", json={"resource_type": "camera", "resource_id": cams["camA"]})
+    assert r.status_code == 201 and r.json()["added"] is True
+    assert cams["camA"] in dana_cams()
+    # removing it narrows at once and marks open streams (review M5)
+    import time as _t
+
+    from smplwise.services import revocation
+
+    t0 = _t.time()
+    assert c.delete(f"/api/v1/zones/{w['hall']}/share/members/camera/{cams['camA']}").status_code == 204
+    assert cams["camA"] not in dana_cams() and revocation.revoked_since("dev-dana", t0)
+
+
+def test_a_user_of_the_upper_floor_only_reaches_the_halls_members_and_nothing_else_of_the_home_floor(settings):
     w = _world(settings)
     c, app = w["c"], w["app"]
     _share(w)
@@ -399,12 +489,11 @@ def test_a_user_of_the_upper_floor_only_reaches_the_whole_hall_and_nothing_else_
     with app.state.db.connection() as conn:
         scope = camera_scope(conn, _p("dana"), "map.read")
         assert w["cams"]["camH"] in scope.ids and w["cams"]["camD"] in scope.ids and w["cams"]["cam3"] in scope.ids
-        assert w["cams"]["camA"] not in scope.ids, "a floor-2 camera outside the hall stays out of reach"
+        assert w["cams"]["camA"] not in scope.ids
         placed = ha_scope.placements(conn)
         wide, floors = ha_scope.visible_floors(conn, _p("dana"), "entity.state.read")
         assert ha_scope.entity_visible(wide, floors, placed, "light.hall") and not ha_scope.entity_visible(wide, floors, placed, "light.corridor")
     hdr = as_user("dana")
-    # the map, the live snapshot authorization and the events of the hall's camera
     m3 = c.get(f"/api/v1/floors/{w['f3']}/map", headers=hdr).json()
     assert {a["resource_id"] for a in m3["anchors"]} == {w["cams"]["camH"], w["cams"]["camD"], w["cams"]["cam3"], "light.hall"}
     assert c.get(f"/api/v1/floors/{w['f2']}/map", headers=hdr).status_code == 403
@@ -412,33 +501,33 @@ def test_a_user_of_the_upper_floor_only_reaches_the_whole_hall_and_nothing_else_
     assert w["cams"]["camH"] in cams and w["cams"]["camA"] not in cams
     pub = c.get(f"/api/v1/plan-versions/{w['v3']}/geometry", headers=hdr)
     assert pub.status_code == 200 and any(o["id"] == f"{w['f2']}:trib" for o in pub.json()["doc"]["objects"])
-    # search finds the hall from floor 3
+    assert pub.json()["doc"]["shared_spaces"][0]["home_floor_name"] == "קומה אחרת", "review L1: the home floor is not named to her"
     res = c.get("/api/v1/search?q=אולם", headers=hdr).json()["results"]
-    hall = next(x for x in res if x["kind"] == "zone")
-    assert hall["floor_id"] == w["f3"] and hall["route"].startswith(f"/explore/floors/{w['f3']}")
-    # the site tree lists floor 3 with the shared cameras counted once
+    assert {x["floor_id"] for x in res if x["kind"] == "zone"} == {w["f3"]}
     tree = c.get("/api/v1/sites", headers=hdr).json()
-    floors = [f for s in tree["sites"] for b in s["buildings"] for f in b["floors"]]
-    assert [f["id"] for f in floors] == [w["f3"]] and floors[0]["shared_camera_count"] == 2
-    # un-share: the reach is gone on the very next request
+    floors_listed = [f for s in tree["sites"] for b in s["buildings"] for f in b["floors"]]
+    assert [f["id"] for f in floors_listed] == [w["f3"]] and floors_listed[0]["shared_camera_count"] == 1
+    # un-share: the reach is gone on the very next request, and the members with it
     assert c.delete(f"/api/v1/zones/{w['hall']}/share/{w['f3']}").status_code == 204
     with app.state.db.connection() as conn:
         assert w["cams"]["camH"] not in camera_scope(conn, _p("dana"), "map.read").ids
+        assert ss.member_rows(conn, w["hall"]) == []
     m3 = c.get(f"/api/v1/floors/{w['f3']}/map", headers=hdr).json()
-    assert {a["resource_id"] for a in m3["anchors"]} == {w["cams"]["cam3"]}
-    assert not any("shared" in o for o in c.get(f"/api/v1/plan-versions/{w['v3']}/geometry", headers=hdr).json()["doc"]["objects"])
+    assert {a["resource_id"] for a in m3["anchors"]} == {w["cams"]["cam3"], w["cams"]["camD"]}
 
 
-def test_deny_still_wins_on_the_hall(settings):
+def test_deny_still_wins_on_either_floor_for_cameras_and_entities_alike(settings):
     w = _world(settings)
     c, app = w["c"], w["app"]
     _share(w)
-    c.get("/api/v1/me", headers=as_user("eli"))
-    c.get("/api/v1/me", headers=as_user("noa"))
+    for u in ("eli", "noa", "tal"):
+        c.get("/api/v1/me", headers=as_user(u))
     _binding(settings, "eli", "viewer", "floor", w["f3"])
-    _binding(settings, "eli", "viewer", "floor", w["f2"], effect="deny")  # denied the hall's home floor
+    _binding(settings, "eli", "viewer", "floor", w["f2"], effect="deny")  # denied the home floor
     _binding(settings, "noa", "viewer", "floor", w["f3"])
     _binding(settings, "noa", "viewer", "camera", w["cams"]["camH"], effect="deny")  # denied the hall's camera
+    _binding(settings, "tal", "viewer", "floor", w["f2"])
+    _binding(settings, "tal", "viewer", "floor", w["f3"], effect="deny")  # review L3: denied the OTHER floor
     with app.state.db.connection() as conn:
         eli = camera_scope(conn, _p("eli"), "map.read")
         assert w["cams"]["camH"] not in eli.ids and w["cams"]["camD"] not in eli.ids and w["cams"]["cam3"] in eli.ids
@@ -446,33 +535,34 @@ def test_deny_still_wins_on_the_hall(settings):
         assert not ha_scope.entity_visible(wide, floors, ha_scope.placements(conn), "light.hall")
         noa = camera_scope(conn, _p("noa"), "map.read")
         assert w["cams"]["camH"] not in noa.ids and w["cams"]["camD"] in noa.ids
+        tal = camera_scope(conn, _p("tal"), "map.read")
+        wide, floors = ha_scope.visible_floors(conn, _p("tal"), "entity.state.read")
+        assert w["cams"]["camH"] not in tal.ids and w["cams"]["camA"] in tal.ids
+        assert not ha_scope.entity_visible(wide, floors, ha_scope.placements(conn), "light.hall"), "the entity behaves as the camera does"
+        assert ha_scope.entity_visible(wide, floors, ha_scope.placements(conn), "light.corridor")
     m3 = c.get(f"/api/v1/floors/{w['f3']}/map", headers=as_user("eli")).json()
-    assert {a["resource_id"] for a in m3["anchors"]} == {w["cams"]["cam3"]} and not any(z.get("shared") for z in m3["zones"])
+    assert {a["resource_id"] for a in m3["anchors"]} == {w["cams"]["cam3"]} and not any(o for o in [])
     g = c.get(f"/api/v1/plan-versions/{w['v3']}/geometry", headers=as_user("eli"))
     assert not any("shared" in o for o in g.json()["doc"]["objects"]) and "-s" not in g.headers["etag"]
-    m3n = c.get(f"/api/v1/floors/{w['f3']}/map", headers=as_user("noa")).json()
-    assert w["cams"]["camH"] not in {a["resource_id"] for a in m3n["anchors"]} and w["cams"]["camD"] in {a["resource_id"] for a in m3n["anchors"]}
 
 
-def test_sharing_widens_reach_so_it_needs_both_floors_and_every_camera_of_the_room(settings):
+def test_sharing_widens_reach_so_it_needs_every_floor_and_every_member_camera(settings):
     w = _world(settings)
     c = w["c"]
     for u in ("ofer", "gal"):
         c.get("/api/v1/me", headers=as_user(u))
-    _binding(settings, "ofer", "editor", "floor", w["f3"])  # the other floor only
-    r = c.post(f"/api/v1/zones/{w['hall']}/share/preview", json={"floor_id": w["f3"]}, headers=as_user("ofer"))
-    assert r.status_code == 403
+    _binding(settings, "ofer", "editor", "floor", w["f3"])
+    assert c.post(f"/api/v1/zones/{w['hall']}/share/preview", json={"floor_id": w["f3"]}, headers=as_user("ofer")).status_code == 403
     _binding(settings, "gal", "editor", "floor", w["f3"])
     _binding(settings, "gal", "editor", "floor", w["f2"])
-    _binding(settings, "gal", "editor", "camera", w["cams"]["camH"], effect="deny")
-    assert c.post(f"/api/v1/zones/{w['hall']}/share/preview", json={"floor_id": w["f3"]}, headers=as_user("gal")).status_code == 200, "looking needs map.edit on both floors"
-    r = c.post(f"/api/v1/zones/{w['hall']}/share", json={"floor_id": w["f3"]}, headers=as_user("gal"))
-    assert r.status_code == 403
+    _binding(settings, "gal", "editor", "camera", w["cams"]["camD"], effect="deny")  # review M3a: a member camera from floor 3
+    assert c.post(f"/api/v1/zones/{w['hall']}/share/preview", json={"floor_id": w["f3"]}, headers=as_user("gal")).status_code == 200
+    assert c.post(f"/api/v1/zones/{w['hall']}/share", json={"floor_id": w["f3"]}, headers=as_user("gal")).status_code == 403
     with w["app"].state.db.connection() as conn:
         assert conn.execute("SELECT COUNT(*) FROM shared_spaces").fetchone()[0] == 0
 
 
-def test_the_other_floors_editor_edits_the_room_with_map_edit_there_only(settings):
+def test_the_other_floors_editor_edits_the_room_and_its_members_with_map_edit_there(settings):
     w = _world(settings)
     c, f2 = w["c"], w["f2"]
     _share(w)
@@ -483,17 +573,55 @@ def test_the_other_floors_editor_edits_the_room_with_map_edit_there_only(setting
     g = _draft(c, w["v3"], hdr)
     doc = g["doc"]
     doc["objects"] = [dict(o, position=[0.42, 0.32]) if o["id"] == f"{f2}:trib" else o for o in doc["objects"]]
-    r = c.put(f"/api/v1/plan-versions/{w['v3']}/geometry", json={"doc": doc, "base_revision": g["geometry"]["revision"]}, headers=hdr)
-    assert r.status_code == 200, r.text
+    assert _put(c, w["v3"], doc, g["geometry"]["revision"], hdr).status_code == 200
     assert next(o for o in _draft(c, w["v2"])["doc"]["objects"] if o["id"] == "trib")["position"] == [0.42, 0.32]
-    # the room's anchors from floor 3 with placement.edit there; one outside the room stays out of reach
     m3 = c.get(f"/api/v1/floors/{w['f3']}/map", headers=hdr).json()
     light = next(a for a in m3["anchors"] if a["resource_id"] == "light.hall")
     assert c.patch(f"/api/v1/map-anchors/{light['id']}?from_floor_id={w['f3']}", json={"revision": light["revision"], "x": 0.31, "y": 0.31}, headers=hdr).status_code == 200
-    corr = w["anchors"]["corr"]
+    corr = w["anchors"]["corr"]  # not a member: never editable from floor 3
     r = c.patch(f"/api/v1/map-anchors/{corr}?from_floor_id={w['f3']}", json={"revision": 1, "x": 0.9, "y": 0.52}, headers=hdr)
     assert r.status_code == 422 and r.json()["code"] == "not_shared"
-    assert c.patch(f"/api/v1/map-anchors/{corr}", json={"revision": 1, "x": 0.9, "y": 0.52}, headers=hdr).status_code == 403
+    # a camera placed on floor 3 inside the room stays on floor 3 and is only a candidate until added (review B1)
+    made = c.post(f"/api/v1/floors/{w['f3']}/anchors", json={"resource_type": "ha_entity", "resource_id": "light.stage", "x": 0.4, "y": 0.4}, headers=hdr)
+    assert made.status_code == 201 and made.json()["floor_id"] == w["f3"]
+    m3 = c.get(f"/api/v1/floors/{w['f3']}/map", headers=hdr).json()
+    assert next(a for a in m3["anchors"] if a["resource_id"] == "light.stage").get("room_candidate") == w["hall"]
+
+
+def test_zone_anchor_edits_from_the_other_floor_go_through_the_placement(settings):
+    w = _world(settings, png3=png_bytes(800, 400, color=(250, 240, 240)))
+    c = w["c"]
+    r = _share(w, duplicate_zone_id=w["dup"], rotation_deg=90)
+    assert r["placement"]["mode"] == "fit" and r["placement"]["rotation_deg"] == 90
+    m3 = c.get(f"/api/v1/floors/{w['f3']}/map").json()
+    cam = next(a for a in m3["anchors"] if a.get("shared") and a["resource_id"] == w["cams"]["camH"])
+    x, y = cam["position"]["x"] + 0.01, cam["position"]["y"]
+    up = c.patch(f"/api/v1/map-anchors/{cam['id']}?from_floor_id={w['f3']}", json={"revision": cam["revision"], "x": x, "y": y, "rotation_degrees": (cam["rotation_degrees"] + 15) % 360})
+    assert up.status_code == 200, up.text
+    assert up.json()["floor_id"] == w["f2"]
+    again = next(a for a in c.get(f"/api/v1/floors/{w['f3']}/map").json()["anchors"] if a["id"] == cam["id"])
+    assert again["position"]["x"] == pytest.approx(x, abs=1e-4) and again["position"]["y"] == pytest.approx(y, abs=1e-4)
+    assert again["rotation_degrees"] == pytest.approx((cam["rotation_degrees"] + 15) % 360, abs=1e-2)
+    # camD, a member anchored upstairs, shows downstairs at the transformed place
+    m2 = c.get(f"/api/v1/floors/{w['f2']}/map").json()
+    d = next(a for a in m2["anchors"] if a["resource_id"] == w["cams"]["camD"])
+    assert d["shared"]["home_floor_id"] == w["f3"] and 0 <= d["position"]["x"] <= 1
+
+
+# ---------------------------------------------------------------- zones of a shared room (review M4)
+
+
+def test_review_m4_a_shared_room_is_not_deleted_or_replaced_under_the_share(settings):
+    w = _world(settings)
+    c = w["c"]
+    _share(w)
+    for zid in (w["hall"], w["dup"]):
+        r = c.delete(f"/api/v1/zones/{zid}")
+        assert r.status_code == 409 and r.json()["code"] == "zone_shared"
+    with w["app"].state.db.connection() as conn:
+        conn.execute("UPDATE spatial_zones SET source = 'auto' WHERE id = ?", (w["hall"],))
+    r = c.post(f"/api/v1/floors/{w['f2']}/zones/accept", json={"candidates": [{"polygon": HALL, "name": "חדש"}], "replace_auto": True})
+    assert r.status_code == 201 and w["hall"] in {z["id"] for z in r.json()["zones"]}
 
 
 def test_history_and_camera_only_readers(settings):
@@ -504,10 +632,8 @@ def test_history_and_camera_only_readers(settings):
 
     time.sleep(1.1)
     _share(w)
-    # before the share, floor 3's history map has no hall
     m = c.get(f"/api/v1/floors/{w['f3']}/map?at={before}").json()
-    assert not any(z.get("shared") for z in m["zones"])
-    # a user bound to the hall camera alone reaches floor 3's drawing (the camera is on it) without circuits or zones
+    assert not any(a.get("shared") for a in m["anchors"])
     c.get("/api/v1/me", headers=as_user("cam"))
     _binding(settings, "cam", "viewer", "camera", w["cams"]["camH"])
     m3 = c.get(f"/api/v1/floors/{w['f3']}/map", headers=as_user("cam")).json()

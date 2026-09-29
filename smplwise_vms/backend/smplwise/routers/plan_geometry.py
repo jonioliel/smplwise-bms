@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, StringConstraints
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
-from ..db import new_id, now_iso, unlocked
+from ..db import new_id, now_iso, rollback_and_restart, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, authorize, require
 from ..services import geometry_store as store
@@ -86,7 +86,9 @@ def _shown(conn: sqlite3.Connection, principal: Principal | None, floor_id: str,
            at: str | None = None, circuits: bool = True) -> dict[str, Any]:
     """What a reader gets of a stored document: `far` on its cross-floor connectors (T085 review M4) and the rooms other
     floors share with it (CR-009) - both computed now, neither stored."""
-    return shared_spaces.attach(conn, floor_id, store.attach_far(conn, floor_id, doc, ctx), mode, at, can_attach=_can_attach(conn, principal), circuits=circuits)
+    can_name = (lambda fid: floor_reach(conn, principal, fid) is not None) if principal is not None else None  # review L1: names of readable floors only
+    return shared_spaces.attach(conn, floor_id, store.attach_far(conn, floor_id, doc, ctx), mode, at, can_attach=_can_attach(conn, principal), circuits=circuits,
+                                can_name=can_name)
 
 
 def _payload(conn: sqlite3.Connection, version: sqlite3.Row, row: sqlite3.Row | None, doc: dict[str, Any], principal: Principal | None = None,
@@ -101,9 +103,13 @@ def _payload(conn: sqlite3.Connection, version: sqlite3.Row, row: sqlite3.Row | 
         "id": None, "plan_version_id": version["id"], "floor_id": version["floor_id"], "status": "new", "revision": 0, "doc_hash": store.doc_hash(doc),
         "created_at": None, "updated_at": None, "published_at": None, "published_by": None, "archived_at": None,
     }
+    # CR-009: two real outlines check the placement - the lower one must fall inside the upper one
+    misaligned = [{"code": "shared_alignment", "severity": "warning", "structural": False, "id": e.get("zone_id"), "path": "shared_spaces",
+                   "message": "ודא את יישור הקומות: המתאר התחתון של החלל המשותף לא נופל בתוך המתאר העליון."}
+                  for e in shown.get("shared_spaces") or [] if e.get("aligned") is False]
     return {"geometry": geometry, "doc": shown,
             "issues": [i for i in pg.validate(doc, plan_catalog.item_index(conn)) if not i["structural"]] + store.anchor_issues(conn, version["floor_id"], doc)
-            + store.link_issues(conn, version["floor_id"], doc, ctx),
+            + store.link_issues(conn, version["floor_id"], doc, ctx) + misaligned,
             "published_hash": published_now["doc_hash"] if published_now is not None else None}
 
 
@@ -119,7 +125,12 @@ def _shared_tag(doc: dict[str, Any]) -> str:
     """CR-009: the part of the ETag that follows the shared rooms - the home floor's document hash, the placement, the
     polygon and the names each entry carries - as this reader gets them (a reader denied the home floor gets none)."""
     entries = doc.get("shared_spaces")
-    return "" if not entries else "-s" + store.doc_hash({"shared": entries})[:12]
+    if not entries:
+        return ""
+    # review L1: exactly what this reader gets of the shared rooms - the entries and the attached content - so a publish
+    # of the home floor that does not touch the room leaves the ETag as it was
+    items = [i for c in (*shared_spaces.MARKED_COLLECTIONS, "levels") for i in doc.get(c) or [] if isinstance(i, dict) and "shared" in i]
+    return "-s" + store.doc_hash({"shared": entries, "items": items})[:12]
 
 
 def _editable(conn: sqlite3.Connection, principal: Principal, version_id: str) -> sqlite3.Row:
@@ -185,21 +196,36 @@ def put_geometry(version_id: str, body: GeometryPut, principal: Principal = Depe
     # CR-009: the items of a room another floor shares with this one are split off first - the floor's own items are
     # validated and stored as always, the shared ones are routed to the home floor's draft (map.edit here is decision 1's
     # grant: either floor edits the room). Every refusal comes before the first write (an API error still commits).
-    own, shared_items, echoed = shared_spaces.split(body.doc)
+    own, shared_items, echoed, deleted = shared_spaces.split(body.doc)
     structural = [i for i in pg.validate(own) if i["structural"]]
     if structural:
         raise ApiError(422, "geometry_structure", "מבנה המסמך אינו תקין; השינוי לא נשמר.", details={"issues": structural[:50]})
     if v["id"] != (store.editor_version(conn, v["floor_id"]) or {"id": None})["id"]:
         shared_items, echoed = {}, {}  # only the floor's editor version shows the mirror; another version routes nothing
+    # security review M2: every check before the first write - this floor's revision, then the home floors' plan - and
+    # the home writes before this floor's save (its stairs twin sync reads the home drafts afresh after them); any error
+    # after a write rolls the whole request back
+    d = store.draft_row(conn, v["id"])
+    if body.base_revision != (d["revision"] if d is not None else 0):
+        raise conflict("stale_revision", "טיוטת המבנה השתנתה בינתיים; טען מחדש את העורך.", current_revision=d["revision"] if d is not None else 0, sent_revision=body.base_revision)
+
+    def can_write(home_floor_id: str) -> bool:  # review M1: a deny on the home floor wins over decision 1
+        return all(authorize(conn, principal, perm, ("floor", home_floor_id)).reason != "explicit_deny" for perm in ("map.edit", "map.read"))
+
     try:
-        planned = shared_spaces.plan_edits(conn, v["floor_id"], shared_items, echoed)
+        planned = shared_spaces.plan_edits(conn, v["floor_id"], shared_items, echoed, deleted, can_write=can_write)
     except shared_spaces.SharedEditError as exc:
         raise ApiError(exc.status, exc.code, exc.message, details=exc.details)
     synced: list[str] = []
     skipped: list[str] = []
-    row = store.save_draft(conn, v, own, body.base_revision, principal.user_id, can_edit=lambda fid: authorize(conn, principal, "map.edit", ("floor", fid)).allowed,
-                           synced=synced, skipped=skipped)
-    for rec in shared_spaces.commit_edits(conn, planned, principal.user_id, now_iso()):
+    try:
+        records = shared_spaces.commit_edits(conn, planned, principal.user_id, now_iso())
+        row = store.save_draft(conn, v, own, body.base_revision, principal.user_id, can_edit=lambda fid: authorize(conn, principal, "map.edit", ("floor", fid)).allowed,
+                               synced=synced, skipped=skipped)
+    except ApiError:
+        rollback_and_restart(conn)  # nothing half-written stays (an API error would otherwise commit)
+        raise
+    for rec in records:
         audit(conn, actor=principal, action="geometry.shared.edit", decision="allowed", resource_type="floor", resource_id=rec["home_floor_id"],
               details={"from_floor_id": v["floor_id"], "version_id": v["id"], **{k: rec[k] for k in ("zone_ids", "changed", "added", "removed")}})
     for fid in synced:  # the stairs model reached the twin on the other floor's draft (review M3)

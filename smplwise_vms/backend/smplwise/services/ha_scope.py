@@ -120,25 +120,31 @@ def placements(conn: sqlite3.Connection) -> Placements:
                     out.setdefault(eid, []).append({"floor_id": fid, "floor_name": names[fid]})
                     have.add(fid)
     if shared_spaces.any_active(conn):
+        # CR-009 (security review B1): a MEMBER of a shared room is placed on every floor that shows the room - by the
+        # explicit member list, never by where its anchor or the room's polygon lie
         names = names or {r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM floors WHERE deleted_at IS NULL").fetchall()}
-        mirrored = {rid: pairs for (rtype, rid), pairs in shared_spaces.mirrored_anchor_floors(conn).items() if rtype == "ha_entity"}
-        for eid, pairs in shared_spaces.shared_circuit_switches(conn).items():
-            mirrored.setdefault(eid, [])
-            mirrored[eid] = mirrored[eid] + [p for p in pairs if p not in mirrored[eid]]
-        for eid, pairs in mirrored.items():
+        share_floors = shared_spaces.member_share_floors(conn)
+        for (rtype, eid), pairs in shared_spaces.mirrored_anchor_floors(conn).items():
+            if rtype != "ha_entity":
+                continue
             have = {p["floor_id"] for p in out.get(eid, [])}
-            for fid, home in pairs:
+            for fid, origin in pairs:
                 if fid in names and fid not in have:
-                    out.setdefault(eid, []).append({"floor_id": fid, "floor_name": names[fid], "shared_from": home})
+                    out.setdefault(eid, []).append({"floor_id": fid, "floor_name": names[fid], "shared_from": origin,
+                                                    "share_floors": sorted(share_floors.get(("ha_entity", eid), set()))})
                     have.add(fid)
     return out
 
 
 def entity_visible(wide: bool, floors: set[str], placed: Placements, entity_id: str) -> bool:
-    """The one placement rule: wide callers see it; a floor-scoped caller only when it is placed on one of their floors
-    - through a shared room only when the caller is not explicitly denied on the room's home floor (CR-009, deny wins)."""
+    """The one placement rule: wide callers see it; a floor-scoped caller only when it is placed on one of their floors.
+    A member of a shared room (CR-009) follows the camera chain rule: an explicit deny on ANY floor of the room takes it
+    away (security review L3: cameras and entities behave the same)."""
+    places = placed.get(entity_id, [])
     denied = getattr(floors, "denied", frozenset())
-    return wide or any(p["floor_id"] in floors and p.get("shared_from") not in denied for p in placed.get(entity_id, []))
+    if not wide and denied and any(denied & set(p.get("share_floors") or ()) for p in places):
+        return False
+    return wide or any(p["floor_id"] in floors for p in places)
 
 
 def entity_allowed(conn: sqlite3.Connection, principal: Principal, entity_id: str, permission: str) -> bool:
@@ -164,9 +170,11 @@ def control_decision(conn: sqlite3.Connection, principal: Principal, entity_id: 
     for perm in CONTROL_PERMISSIONS:
         if perm == "devices.control" and not devices_control_reaches(conn, entity_id):
             continue
-        for target, home in [(INSTALLATION, None)] + [(("floor", p["floor_id"]), p.get("shared_from")) for p in placed]:
+        share_floors = {f for p in placed for f in p.get("share_floors") or ()}
+        denied_on_room = any(authorize(conn, principal, perm, ("floor", f)).reason == "explicit_deny" for f in share_floors)
+        for target in [INSTALLATION] + [("floor", p["floor_id"]) for p in placed]:
             d = authorize(conn, principal, perm, target)
-            if d.allowed and (home is None or authorize(conn, principal, perm, ("floor", home)).reason != "explicit_deny"):
+            if d.allowed and (target == INSTALLATION or not denied_on_room):  # CR-009: a deny on any floor of the room wins
                 return d
     return None
 
