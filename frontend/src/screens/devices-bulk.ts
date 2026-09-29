@@ -44,6 +44,16 @@ export function activeFor(kind: BulkKind, c: DeviceCounts): number {
   return c.lights_on + c.switches_on + c.covers_open + c.climate_active + c.media_on;
 }
 
+/** Owner feedback 2026-09-29 ("hide empty domains"): a quick action for a domain the scope has no entity of at all
+ * is not offered (no covers → no "סגור תריסים"); "כבה הכל" always is. The server's preview still decides what is sent. */
+export function presentFor(kind: BulkKind, c: DeviceCounts): boolean {
+  if (kind === 'lights_off') return c.lights > 0;
+  if (kind === 'covers_close' || kind === 'covers_open' || kind === 'covers_stop' || kind === 'covers_position') return c.covers > 0;
+  if (kind === 'climate_off') return c.climate > 0;
+  if (kind === 'screens_off') return c.media > 0;
+  return true;
+}
+
 const KIND_ICON: Record<BulkKind, IconName> = { lights_off: 'light', covers_close: 'layers', covers_open: 'layers', covers_stop: 'layers', covers_position: 'layers', climate_off: 'activity', screens_off: 'play', all_off: 'bolt' };
 
 function requestEvent(req: BulkRequest): CustomEvent<BulkRequest> {
@@ -58,6 +68,13 @@ function requestEvent(req: BulkRequest): CustomEvent<BulkRequest> {
  * hold devices.control_bulk there) the popover shows the chips and the link only. Picking an action never sends
  * anything: it raises `bulk-request`, and the screen opens the confirmation dialog (devices-bulk-dialog), the only
  * place that sends.
+ *
+ * Owner feedback 2026-09-29 (building screen): with `hover`, the slotted row is a LINK into the area (a click enters
+ * it), and the popover is a summary shown on hover (mouse / pen, after a short delay) and on keyboard focus of the row;
+ * a touch screen has no hover, so the row carries its own "⋯" (`data-area-more`) that opens the same popover. Every
+ * panel lives in the top layer (the Popover API: never clipped by a sticky / glass ancestor, never under a sibling) and
+ * is placed in the viewport next to its trigger - below it, flipped above near the bottom edge, clamped to the sides.
+ * It closes on Escape, on a press outside, when the page scrolls under it (the trigger moved) and on a resize.
  */
 @customElement('devices-bulk-menu')
 export class DevicesBulkMenu extends LitElement {
@@ -79,7 +96,14 @@ export class DevicesBulkMenu extends LitElement {
   @property() openHref = '';
   /** The host fills its row (a slotted row trigger). */
   @property({ type: Boolean, reflect: true }) block = false;
+  /** The slotted row navigates; the popover is the hover / focus summary (and the row's own "⋯" on touch). */
+  @property({ type: Boolean, reflect: true }) hover = false;
   @state() private open = false;
+  /** What opened the panel: a hover summary closes when the pointer leaves, a focus one when focus leaves. */
+  private how: 'click' | 'hover' | 'focus' = 'click';
+  private hoverTimer = 0;
+  private watch = 0;
+  private placedAt: { x: number; y: number } | null = null;
 
   static styles = css`
     :host {
@@ -96,14 +120,19 @@ export class DevicesBulkMenu extends LitElement {
       flex: 1;
       min-inline-size: 0;
     }
+    /* the top layer (popover="manual") - or, without the Popover API, a fixed panel above everything; placed by place() */
     .panel {
-      position: absolute;
-      inset-block-start: calc(100% + 4px);
-      inset-inline-end: 0;
-      z-index: var(--sw-z-topbar);
+      position: fixed;
+      inset: auto;
+      margin: 0;
+      z-index: 1000;
+      box-sizing: border-box;
+      overflow: auto;
       min-inline-size: 220px;
-      max-inline-size: min(300px, calc(100vw - 32px));
-      background: var(--sw-surface);
+      max-inline-size: min(300px, calc(100vw - 16px));
+      color: var(--sw-text);
+      /* a summary over the tree must stay readable: the glass palette's solid surface when there is one */
+      background: var(--dv-surface-solid, var(--sw-surface));
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-3);
@@ -111,13 +140,27 @@ export class DevicesBulkMenu extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 2px;
-      /* CR-007 6a: the glass style's material (defined on a glass device screen only; none elsewhere) */
-      backdrop-filter: var(--sw-glass-blur, none);
-      -webkit-backdrop-filter: var(--sw-glass-blur, none);
     }
-    :host([align='start']) .panel {
-      inset-inline-end: auto;
-      inset-inline-start: 0;
+    .more {
+      flex: none;
+      display: inline-grid;
+      place-items: center;
+      inline-size: 30px;
+      block-size: 30px;
+      padding: 0;
+      border: 0;
+      border-radius: var(--sw-r-sm);
+      background: transparent;
+      color: var(--sw-text-3);
+      font: inherit;
+      cursor: pointer;
+    }
+    .more:hover,
+    .more:focus-visible,
+    .more[aria-expanded='true'] {
+      background: var(--sw-surface-2);
+      color: var(--sw-text);
+      outline: none;
     }
     .title {
       font-size: var(--sw-fs-xs);
@@ -219,16 +262,78 @@ export class DevicesBulkMenu extends LitElement {
     if (e.key === 'Escape' && this.open) this.open = false;
   };
 
+  private onResize = () => {
+    if (this.open) this.open = false;
+  };
+
+  /** Hover (a mouse or a pen - a touch has no hover) opens the summary after a short delay; leaving closes it after a
+   * short grace, so the pointer can cross the gap into the panel (a descendant: entering it re-enters the host). */
+  private onEnter = (e: PointerEvent) => {
+    if (!this.hover || e.pointerType === 'touch') return;
+    window.clearTimeout(this.hoverTimer);
+    if (this.open) return;
+    this.hoverTimer = window.setTimeout(() => this.show('hover'), 300);
+  };
+
+  private onLeave = (e: PointerEvent) => {
+    if (!this.hover || e.pointerType === 'touch') return;
+    window.clearTimeout(this.hoverTimer);
+    if (!this.open || this.how !== 'hover') return;
+    this.hoverTimer = window.setTimeout(() => {
+      if (this.how === 'hover') this.open = false;
+    }, 250);
+  };
+
+  /** Keyboard focus on the row shows the summary; Tab then reaches its "⋯" and the panel's actions. */
+  private onFocusIn = (e: FocusEvent) => {
+    if (!this.hover || this.open) return;
+    const t = e.target as HTMLElement;
+    let visible = false;
+    try {
+      visible = t.matches(':focus-visible');
+    } catch {
+      visible = true;
+    }
+    if (t.getAttribute('slot') === 'trigger' && visible) this.show('focus');
+  };
+
+  private onFocusOut = (e: FocusEvent) => {
+    if (!this.open) return;
+    const to = e.relatedTarget as Node | null;
+    if (to && (this.contains(to) || this.shadowRoot?.contains(to))) return;
+    // focus moved elsewhere: every panel closes (hover, focus or click); a focus summary also when focus just ends. A
+    // press on a non-focusable part of the panel (no relatedTarget) keeps a hover / click panel open.
+    if (this.how === 'focus' || to) this.open = false;
+  };
+
   connectedCallback() {
     super.connectedCallback();
     document.addEventListener('pointerdown', this.onDoc, true);
     window.addEventListener('keydown', this.onKey);
+    window.addEventListener('resize', this.onResize);
+    this.addEventListener('pointerenter', this.onEnter);
+    this.addEventListener('pointerleave', this.onLeave);
+    this.addEventListener('focusin', this.onFocusIn);
+    this.addEventListener('focusout', this.onFocusOut);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     document.removeEventListener('pointerdown', this.onDoc, true);
     window.removeEventListener('keydown', this.onKey);
+    window.removeEventListener('resize', this.onResize);
+    this.removeEventListener('pointerenter', this.onEnter);
+    this.removeEventListener('pointerleave', this.onLeave);
+    this.removeEventListener('focusin', this.onFocusIn);
+    this.removeEventListener('focusout', this.onFocusOut);
+    window.clearTimeout(this.hoverTimer);
+    cancelAnimationFrame(this.watch);
+    this.watch = 0;
+  }
+
+  private show(how: 'click' | 'hover' | 'focus') {
+    this.how = how;
+    this.open = true;
   }
 
   private pick(kind: BulkKind) {
@@ -239,10 +344,72 @@ export class DevicesBulkMenu extends LitElement {
   private toggle(e: Event) {
     e.preventDefault();
     e.stopPropagation(); // a trigger inside a tile must never follow the tile's own link
+    window.clearTimeout(this.hoverTimer);
+    if (this.open && this.how !== 'click') {
+      this.how = 'click'; // a tap on "⋯" while the hover summary shows: keep it, now as a menu
+      return;
+    }
+    this.how = 'click';
     this.open = !this.open;
   }
 
+  protected updated() {
+    const panel = this.renderRoot.querySelector<HTMLElement>('.panel');
+    if (!panel) {
+      cancelAnimationFrame(this.watch);
+      this.watch = 0;
+      return;
+    }
+    try {
+      if (typeof panel.showPopover === 'function' && !panel.matches(':popover-open')) panel.showPopover();
+    } catch {
+      /* no top layer here: the fixed panel above everything */
+    }
+    this.place(panel);
+  }
+
+  /** The panel next to its trigger, inside the viewport: under it, above it near the bottom edge, clamped to the sides
+   * and never taller than the viewport (it scrolls then). `align` picks the edge it lines up with (logical, RTL-aware). */
+  private place(panel: HTMLElement) {
+    const r = this.getBoundingClientRect();
+    const vw = document.documentElement.clientWidth || window.innerWidth;
+    const vh = window.innerHeight;
+    const m = 8;
+    panel.style.maxBlockSize = `${Math.max(120, vh - 2 * m)}px`;
+    const pw = panel.offsetWidth;
+    const ph = panel.offsetHeight;
+    const rtl = getComputedStyle(this).direction === 'rtl';
+    const fromLeft = (this.align === 'start') !== rtl;
+    let left = fromLeft ? r.left : r.right - pw;
+    left = Math.min(Math.max(m, left), Math.max(m, vw - pw - m));
+    let top = r.bottom + 4;
+    if (top + ph > vh - m) {
+      const above = r.top - 4 - ph;
+      top = above >= m ? above : Math.max(m, vh - m - ph);
+    }
+    panel.style.left = `${Math.round(left)}px`;
+    panel.style.top = `${Math.round(top)}px`;
+    panel.dataset.placement = top < r.top ? 'above' : 'below';
+    this.placedAt = { x: r.left, y: r.top };
+    if (!this.watch) this.watch = requestAnimationFrame(this.follow);
+  }
+
+  /** While open: the trigger moved (the page or a panel scrolled, the layout shifted) - the popover closes. */
+  private follow = () => {
+    this.watch = 0;
+    if (!this.open) return;
+    const r = this.getBoundingClientRect();
+    if (this.placedAt && (Math.abs(r.left - this.placedAt.x) > 2 || Math.abs(r.top - this.placedAt.y) > 2)) {
+      this.open = false;
+      return;
+    }
+    this.watch = requestAnimationFrame(this.follow);
+  };
+
   render() {
+    if (this.hover) {
+      return html`<slot name="trigger"></slot><button type="button" class="more" data-area-more aria-haspopup="menu" aria-expanded=${String(this.open)} aria-label=${`${this.label}: ${this.targetName}`} title="סיכום ופעולות מהירות" @click=${this.toggle}><sw-icon name="more" size=${16}></sw-icon></button>${this.open ? this.renderPanel() : nothing}`;
+    }
     const fallback = this.triggerLabel
       ? html`<sw-button size="sm" data-bulk-trigger=${this.scope} aria-haspopup="menu" aria-expanded=${String(this.open)}>${this.triggerLabel} ▾</sw-button>`
       : html`<sw-button size="sm" variant="ghost" icon="more" iconOnly label=${`${this.label}: ${this.targetName}`} data-bulk-trigger=${this.scope} aria-haspopup="menu" aria-expanded=${String(this.open)}></sw-button>`;
@@ -251,11 +418,11 @@ export class DevicesBulkMenu extends LitElement {
 
   private renderPanel() {
     const c = this.counts;
-    return html`<div class="panel" role="menu" data-bulk-panel=${this.variant} aria-label=${`${BULK_SCOPE_LABEL[this.scope]} ${this.targetName}`} @click=${(e: Event) => e.stopPropagation()}>
+    return html`<div class="panel" popover="manual" role="menu" data-bulk-panel=${this.variant} data-open-how=${this.how} aria-label=${`${BULK_SCOPE_LABEL[this.scope]} ${this.targetName}`} @click=${(e: Event) => e.stopPropagation()}>
       <div class="title">${BULK_SCOPE_LABEL[this.scope]} · ${bidi(this.targetName)}</div>
       ${this.variant === 'popover' && c ? this.renderChips(c) : nothing}
       ${this.actions
-        ? html`${BULK_KINDS.map((k) => {
+        ? html`${BULK_KINDS.filter((k) => !c || presentFor(k, c)).map((k) => {
               const n = c ? activeFor(k, c) : null;
               const label = k === 'all_off' ? `${BULK_KIND_LABEL[k]}${this.scope === 'area' ? ' באזור' : this.scope === 'floor' ? ' בקומה' : ''} · אישור` : BULK_KIND_LABEL[k];
               return html`<button class=${classMap({ item: true, all: k === 'all_off' })} role="menuitem" data-bulk-kind=${k} ?disabled=${n === 0} @click=${() => this.pick(k)}>

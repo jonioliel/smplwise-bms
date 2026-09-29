@@ -166,6 +166,24 @@ numbers). Position and size per individual device tile are **deferred to the own
 gets only the layout items of the floors / areas they can see, and a viewer's layout packs away the rows of anything
 not drawn (hidden, not theirs, gone from Home Assistant).
 
+Owner decision 2026-09-29 ("1.א"): position / size / hide **per individual device tile inside a card is wanted**, in
+addition to the domain-card layout. **6c built** (branch `pilot/CR007-devices-6c`, docs/design/DEVICE_THEMES.md §8):
+each area card item may carry `tiles` = {entity id: {order, span (of the card's two tile columns), size s / m / l,
+hidden, title}} in a layout of schema `v: 2` (6b's `v: 1` records load and save unchanged; no migration); a hidden tile
+and the card's `hidden_entities` are one set, merged by the server. In edit mode "סידור התקנים" opens one card alone
+(breadcrumb back) where tiles are dragged / moved with the arrows, Shift + arrows change the span, H hides; a side
+panel sets span, size, hidden and a plain-text title; "אפס סידור" per card. The phone layout derives the tile order
+from the desktop (every tile full width) and is arranged on its own once saved. Hidden tiles still count in the card's
+numbers; bulk previews and safety lists never read layouts. Tests: backend (schema, v1 compatibility, unique order,
+span bounds, hidden merge, revision) and Playwright 6c desktop + mobile.
+
+Owner feedback 2026-09-29 (building screen screenshots), built in the same branch: a click on an area row (tree and
+floor cards) enters the area; the area popover is a hover / keyboard-focus summary, opened by the row's "⋯" on touch,
+rendered in the top layer and placed inside the viewport (flips above near the bottom edge, closes on Escape, a press
+outside, scroll and resize); the floor card's title enters the floor; empty domains are not shown (building counters,
+lit counts, area cards, quick actions of absent domains) - a card hidden because empty keeps its saved layout slot and
+its rows pack away.
+
 ## 8. Next step
 
 Slice 1 dispatched 2026-09-28 from this document; the DomusUI extraction is the reference for card rules and

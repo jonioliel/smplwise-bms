@@ -433,6 +433,203 @@ export const devicesLayoutCss = [
       color: var(--sw-text-3);
       line-height: 1.5;
     }
+
+    /* ---- slice 6c: device tiles inside an area card (DEVICE_THEMES.md §8) */
+    /* an arranged card: one grid of the card's tile columns, the tiles in the saved order (the DOM order), no gaps left
+       by hidden ones; beats the screens' automatic .tiles / glass / compact rules */
+    :host .lay-tgrid.lay-tgrid.lay-tgrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--dv-gap-sm, 8px);
+      align-items: stretch;
+    }
+    :host([data-devices-density='compact']) .lay-tgrid.lay-tgrid.lay-tgrid {
+      gap: 6px;
+    }
+    .lay-tile {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      min-inline-size: 0;
+    }
+    .lay-tile > :first-child {
+      flex: 1 1 auto;
+    }
+    /* size: three steps, on top of the card's own text size */
+    .lay-tile[data-tile-size='s'] {
+      --lay-tscale: 0.88;
+    }
+    .lay-tile[data-tile-size='l'] {
+      --lay-tscale: 1.2;
+    }
+    .lay-tile[data-tile-size] {
+      --sw-fs-xs: calc(var(--dvb-fs-xs) * var(--lay-scale, 1) * var(--lay-tscale));
+      --sw-fs-sm: calc(var(--dvb-fs-sm) * var(--lay-scale, 1) * var(--lay-tscale));
+      --sw-fs-md: calc(var(--dvb-fs-md) * var(--lay-scale, 1) * var(--lay-tscale));
+      --sw-fs-lg: calc(var(--dvb-fs-lg) * var(--lay-scale, 1) * var(--lay-tscale));
+      --sw-fs-xl: calc(var(--dvb-fs-xl) * var(--lay-scale, 1) * var(--lay-tscale));
+      --dv-fs-tile-name: calc(var(--dvb-fs-tile-name) * var(--lay-scale, 1) * var(--lay-tscale));
+      --dv-fs-item-name: calc(var(--dvb-fs-item-name) * var(--lay-scale, 1) * var(--lay-tscale));
+      --dv-fs-value-big: calc(var(--dvb-fs-value-big) * var(--lay-scale, 1) * var(--lay-tscale));
+    }
+    :host .lay-tile.lay-tile[data-tile-size='s'] > :is(.tile, .row) {
+      min-block-size: 0;
+      padding-block: 5px;
+    }
+    :host .lay-tile.lay-tile[data-tile-size='l'] > :is(.tile, .row) {
+      min-block-size: 96px;
+      padding-block: 16px;
+    }
+
+    /* the arranging editor: the card alone, its tiles with a dashed outline and a place chip */
+    .lay-stage {
+      display: block;
+    }
+    .lay-stage[data-lay-phone-preview] {
+      inline-size: min(100%, 400px);
+    }
+    .lay-tile.lay-tedit {
+      outline: 2px dashed color-mix(in srgb, var(--sw-accent) 45%, transparent);
+      outline-offset: 2px;
+      border-radius: var(--sw-r-sm);
+      cursor: grab;
+      touch-action: pan-y;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    /* the tile's own controls rest while it is arranged: a tap selects, it never switches a device */
+    .lay-tile.lay-tedit > :first-child {
+      pointer-events: none;
+    }
+    .lay-tile.lay-tedit:focus-visible {
+      outline: 3px solid var(--sw-focus, var(--sw-accent));
+    }
+    .lay-tile.lay-tsel {
+      outline: 2px solid var(--sw-accent);
+      z-index: 2;
+    }
+    .lay-tile.lay-drag {
+      cursor: grabbing;
+      opacity: 0.85;
+      z-index: 3;
+    }
+    .lay-tile.lay-hidden > :first-child {
+      opacity: 0.35;
+    }
+    .lay-thd {
+      position: absolute;
+      inset-block-start: -9px;
+      inset-inline-start: 8px;
+      z-index: 4;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 0 7px;
+      border-radius: 999px;
+      background: var(--sw-text-3);
+      color: var(--sw-surface-solid, #fff);
+      font-size: 10.5px;
+      font-weight: 700;
+      line-height: 16px;
+      white-space: nowrap;
+      cursor: grab;
+      touch-action: none;
+    }
+    .lay-tsel .lay-thd {
+      background: var(--sw-accent);
+      color: var(--sw-on-accent, #fff);
+    }
+    /* a card's "סידור התקנים" in the cards editor (the move chip holds the other corner) */
+    .lay-tbtn {
+      position: absolute;
+      inset-block-start: -12px;
+      inset-inline-end: 10px;
+      z-index: 5;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 9px;
+      border: 1px solid var(--sw-accent);
+      border-radius: 999px;
+      background: var(--sw-surface-solid, #fff);
+      color: var(--sw-accent-text, var(--sw-accent));
+      font: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 18px;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .lay-tbtn:hover {
+      background: var(--sw-accent-soft, var(--sw-surface-2));
+    }
+    .lay-tbtn:focus-visible {
+      outline: 2px solid var(--sw-focus, var(--sw-accent));
+      outline-offset: 2px;
+    }
+    .lay-item:has(> .lay-tbtn) > .lay-hd {
+      max-inline-size: calc(100% - 150px);
+    }
+    @media (pointer: coarse) {
+      .lay-tbtn {
+        line-height: 26px;
+        padding-inline: 12px;
+        inset-block-start: -16px;
+      }
+      .lay-thd {
+        line-height: 22px;
+        padding-inline: 10px;
+        inset-block-start: -12px;
+      }
+    }
+    /* a phone arranging one card: the sticky bar keeps only what that needs (cancel, save, the way back) - the
+       variant, reset and copy-to-all act on the whole screen and wait until the cards are back */
+    @media (max-width: 767px) {
+      .lay-bar[data-tiles] > .lay-seg,
+      .lay-bar[data-tiles] [data-layout-phone-auto],
+      .lay-bar[data-tiles] [data-layout-reset],
+      .lay-bar[data-tiles] [data-layout-copy] {
+        display: none;
+      }
+    }
+    /* the breadcrumb back to the cards, on its own line of the edit bar (a phone too) */
+    .lay-crumb {
+      flex-basis: 100%;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+    }
+    .lay-crumb button {
+      border: 1px solid var(--sw-border-strong);
+      border-radius: 8px;
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+      padding: 4px 10px;
+      min-block-size: 30px;
+      cursor: pointer;
+    }
+    .lay-crumb .here {
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-text);
+    }
+    .lay-tacts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .lay-tacts .btn,
+    .lay-panel > .btn {
+      padding-inline: 12px;
+    }
+    .lay-panel .btn:disabled,
+    .lay-nudge button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
   `,
   unsafeCSS(roleRules),
 ];

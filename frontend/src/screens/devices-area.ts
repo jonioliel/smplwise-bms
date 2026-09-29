@@ -25,7 +25,7 @@ import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
 import { navigate } from '../router';
 import { bidi, ltrNum } from '../i18n/bidi';
 import { applyDevicesPrefs, DEVICES_PREFS_DEFAULT, devicesStyleTokens, loadDevicesPrefs, type DevicesPrefs } from './devices-style';
-import { DevicesLayoutController, shownEntities, titleOf, type MeasuredGrid } from './devices-layout';
+import { DevicesLayoutController, shownEntities, TILE_COLS, titleOf, type MeasuredGrid, type TileEntry } from './devices-layout';
 
 /** CR-007 slice 4: a cover of these device classes is a passage, not a shutter - read-only wherever the covers card
  * renders it (device-class-aware wording/icon, `can_control` already false server-side). */
@@ -42,6 +42,9 @@ const HVAC_SELECTABLE = ['off', 'heat', 'cool', 'heat_cool', 'auto', 'dry', 'fan
 /** How long a "one gesture to arm, one tap to confirm" control stays armed (cover open / close / position: attention
  * risk in the allow-list, services/ha_bridge.py - a confirmation is required, but a modal is overkill for a card). */
 const ARM_MS = 4000;
+
+/** The cards whose devices are two-up tiles (the others are full-width rows). */
+const TILE_CARDS = new Set<CardId>(['lighting', 'switches', 'sensors']);
 
 const CARD_ICON: Record<CardId, IconName> = { lighting: 'light', switches: 'bolt', climate: 'activity', covers: 'layers', security: 'shield', media: 'play', sensors: 'sensor' };
 
@@ -252,8 +255,26 @@ export class DevicesArea extends LitElement {
     defaultH: () => 30,
     label: (key) => (this.detail ? (this.detail.cards[key.slice(5) as CardId]?.label ?? key) : key),
     compact: () => this.prefs.density === 'compact',
-    entities: (key) => (this.detail?.cards[key.slice(5) as CardId]?.entities ?? []).map((r) => ({ id: r.entity_id, name: r.name })),
+    entities: (key) => {
+      const c = this.detail?.cards[key.slice(5) as CardId];
+      return c ? this.displayRows(c).map((r) => ({ id: r.entity_id, name: r.name })) : [];
+    },
+    // 6c: lighting, switches and sensors are two-up tiles; the other cards' rows are the card's full width
+    tileSpan: (key) => (TILE_CARDS.has(key.slice(5) as CardId) ? 1 : (TILE_COLS[key.slice(5)] ?? 1)),
   });
+
+  /** A card's devices in the order it draws them automatically (the sensors card: grouped by device class). */
+  private displayRows(c: DeviceCard): DeviceRow[] {
+    if (c.id !== 'sensors') return c.entities;
+    const rank = (g: string | null | undefined) => {
+      const i = SENSOR_GROUP_ORDER.indexOf(g ?? 'other');
+      return i === -1 ? (g && g !== 'other' ? SENSOR_GROUP_ORDER.length : SENSOR_GROUP_ORDER.length + 1) : i;
+    };
+    return c.entities
+      .map((r, i) => ({ r, i }))
+      .sort((a, b) => rank(a.r.group) - rank(b.r.group) || (rank(a.r.group) === SENSOR_GROUP_ORDER.length ? (a.r.group ?? '').localeCompare(b.r.group ?? '') : 0) || a.i - b.i)
+      .map((x) => x.r);
+  }
 
   private measureCards(): MeasuredGrid[] {
     const el = this.renderRoot.querySelector<HTMLElement>('[data-lay-grid="cards"]');
@@ -1062,12 +1083,15 @@ export class DevicesArea extends LitElement {
     const sub = `${floorName ? `${bidi(floorName)} · ` : ''}${d.counts.entities} התקנים${d.scoped ? ' · לפי הקומות שלך' : ''}`;
     const connected = this.sync?.connected ?? false;
     const cards = CARD_IDS.filter((id) => this.prefs.showSensors || id !== 'sensors').map((id) => d.cards[id]);
-    const filled = cards.filter((c) => c.count > 0);
-    const empty = cards.filter((c) => c.count === 0);
+    // Owner feedback 2026-09-29 ("hide empty domains"): a domain this area has nothing of is not a card at all. Its saved
+    // layout slot stays in the record; a viewer's layout packs its rows away (devices-layout.ts, as for an item gone
+    // from Home Assistant), and the card comes back in its saved place when the domain appears.
+    const ordered = cards.filter((c) => c.count > 0);
     const anyControllable = cards.some((c) => c.entities.some((r) => r.can_control));
     const bulk = this.bulkAllowed;
-    const ordered = [...filled, ...empty];
     this.lay.prepare([{ id: 'cards', keys: ordered.map((c) => `card:${c.id}`) }]);
+    // 6c: "סידור התקנים" - the editor shows the card being arranged alone
+    const arranging = this.lay.tileCard ? ordered.find((c) => this.lay.arranging(`card:${c.id}`)) : undefined;
     return html`<sw-page heading=${bidi(d.area.name)} subheading=${sub} backHref="/devices/building" crumbs=${crumbs} wide @bulk-request=${this.onBulkRequest}>
       <div slot="actions">
         ${this.lay.renderEditButton()}
@@ -1086,9 +1110,13 @@ export class DevicesArea extends LitElement {
         : nothing}
       ${this.error ? html`<sw-state-panel compact state="error" heading="הרענון האחרון נכשל" hint=${this.error}></sw-state-panel>` : nothing}
       ${this.lay.renderBar()}
-      <div class=${classMap({ grid: true, 'lay-grid': this.lay.gridOn('cards') })} data-lay-grid="cards" data-lay-cols=${this.lay.gridCols('cards')} ?data-lay-phone-preview=${this.lay.phonePreview('cards')}>
-        ${repeat(ordered, (c) => c.id, (c) => this.lay.wrap(`card:${c.id}`, this.renderCard(c)))}
-      </div>
+      ${arranging
+        ? this.lay.stage(`card:${arranging.id}`, this.renderCard(arranging))
+        : ordered.length
+        ? html`<div class=${classMap({ grid: true, 'lay-grid': this.lay.gridOn('cards') })} data-lay-grid="cards" data-lay-cols=${this.lay.gridCols('cards')} ?data-lay-phone-preview=${this.lay.phonePreview('cards')}>
+            ${repeat(ordered, (c) => c.id, (c) => this.lay.wrap(`card:${c.id}`, this.renderCard(c)))}
+          </div>`
+        : html`<sw-state-panel data-devices-state="area_empty" state="empty" heading="אין התקנים באזור הזה" hint="שייכו התקנים לאזור ב־Home Assistant (או מ״ללא שיוך״); כרטיס של תאורה, מתגים, מיזוג, תריסים, אבטחה, מסכים או חיישנים מופיע כשיש באזור התקן מהסוג הזה."></sw-state-panel>`}
       <div class="note">
         ${anyControllable
           ? 'הקשה על מתג, כפתור או החלקה לשליטה בהתקן. המצב המוצג בשורה הוא תמיד מה ש־Home Assistant דיווח; פקודה שנשלחה מסומנת "ממתין לאישור" עד שהדיווח מגיע, ומתבטלת אם הוא לא מגיע בזמן. תנועת תריס (פתיחה, סגירה או מיקום) דורשת הקשת אישור נוספת.'
@@ -1104,11 +1132,15 @@ export class DevicesArea extends LitElement {
     const e = CARD_EMPTY[c.id];
     const it = this.lay.item(`card:${c.id}`); // CR-007 6b: the layout's own title, icon and shown entities
     const ents = shownEntities(it, c.entities);
+    // CR-007 6c: an arranged card (or the one being arranged) draws its tiles in the saved order / span / size
+    const tiles = c.count ? this.lay.tiles(`card:${c.id}`, this.displayRows(c).map((r) => r.entity_id)) : null;
     return html`<sw-card data-card=${c.id} data-lay-key=${`card:${c.id}`} ?data-empty=${c.count === 0} heading=${titleOf(it, c.label)} subheading=${c.count ? `${c.count} התקנים${c.id === 'lighting' || c.id === 'switches' || c.id === 'climate' || c.id === 'covers' || c.id === 'media' ? ` · ${c.active} פעילים` : ''}` : ''}>
       <sw-icon slot="actions" .name=${it?.icon ?? CARD_ICON[c.id]} size=${18}></sw-icon>
       ${c.count === 0
         ? html`<sw-state-panel compact data-card-empty state="empty" heading=${e.heading} hint=${e.hint}></sw-state-panel>`
-        : !ents.length
+        : tiles
+          ? this.renderArranged(c, tiles)
+          : !ents.length
           ? html`<div class="count" data-card-all-hidden>כל ההתקנים בכרטיס הוסתרו בעורך הפריסה.</div>`
           : c.id === 'sensors'
             ? this.renderSensorGroups(ents)
@@ -1116,6 +1148,24 @@ export class DevicesArea extends LitElement {
               ? html`<div class="tiles">${repeat(ents, (r) => r.entity_id, (r) => this.renderTile(r, c.id))}</div>`
               : html`${c.id === 'covers' ? this.renderCoverGroupControl() : nothing}<div class="rows">${repeat(ents, (r) => r.entity_id, (r) => this.renderRow(r, c.id))}</div>`}
     </sw-card>`;
+  }
+
+  /** CR-007 6c: a card's devices as arranged - one grid of TILE_COLS columns in the saved order, each tile with its
+   * span, size and title (the device's own row / tile inside; its controls unchanged). The card's numbers (heading,
+   * the floor chips) still count every device, hidden or not; a sensors card arranged by hand is one list. */
+  private renderArranged(c: DeviceCard, tiles: TileEntry[]) {
+    if (!tiles.length) return html`<div class="count" data-card-all-hidden>כל ההתקנים בכרטיס הוסתרו בעורך הפריסה.</div>`;
+    const key = `card:${c.id}`;
+    const byId = new Map(c.entities.map((r) => [r.entity_id, r]));
+    return html`${c.id === 'covers' && !this.lay.arranging(key) ? this.renderCoverGroupControl() : nothing}<div class="tiles lay-tgrid" data-lay-tiles=${c.id}>${repeat(
+      tiles,
+      (x) => x.id,
+      (x, i) => {
+        const raw = byId.get(x.id)!;
+        const r = x.t.title ? { ...raw, name: x.t.title } : raw; // the custom title is text only (Lit escapes it)
+        return this.lay.wrapTile(key, x, i, tiles.length, TILE_CARDS.has(c.id) ? this.renderTile(r, c.id) : this.renderRow(r, c.id));
+      },
+    )}</div>`;
   }
 
   /** CR-007 slice 4: the sensors card grouped by device class, compact - temperature, humidity, power/energy,

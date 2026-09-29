@@ -358,9 +358,13 @@ function countsAttr(pills: CountPill[]): string {
  * - "כרטיסים" (default, the approved mockup's board 1): a tree panel on the inline-start side ("כל המבנה", floors as
  *   group headers with a "⋯" menu, area rows with a state dot, the lit count and a hover "כבה אזור"), and the main
  *   column's floor cards (header with the lit count and "כבה קומה ▾", one row per area with its state chips, footer
- *   "פתח קומה"). Choosing a floor in the tree (or "פתח קומה") narrows the cards to that floor. An area row opens the
- *   area popover: state chips, the four quick actions, "כבה הכל באזור · אישור" and "פתח אזור ›".
+ *   "פתח קומה"). Choosing a floor in the tree (or "פתח קומה", or the floor card's title) narrows the cards to that
+ *   floor. Owner feedback 2026-09-29: a click on an area row ENTERS the area; hovering it (or focusing it with the
+ *   keyboard) shows the area popover as a summary - state chips, the quick actions, "כבה הכל באזור · אישור" and
+ *   "פתח אזור ›" - and the row's own "⋯" opens the same popover on a touch screen (devices-bulk-menu `hover`).
  * - "אריחים": the slice-1 floor sections with area tiles, each tile with its "⋯" popover.
+ * Owner feedback 2026-09-29 ("hide empty domains"): a building counter of a domain the installation has no entity of
+ * at all is not shown (no "0/0 אין במבנה"), nor a lit count where there is no light; the pills show present kinds only.
  * The bulk actions exist only for a holder of devices.control_bulk and only where the tree says the server would
  * accept them (`can_bulk`); every one opens the confirmation dialog (devices-bulk-dialog), which alone sends, and the
  * tree refetches when a bulk action ends. "הצג על המפה" of the mockup waits for the HA area ↔ plan room link (CR-007
@@ -740,6 +744,32 @@ export class DevicesBuilding extends LitElement {
       margin: 0;
       font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-semibold);
+    }
+    /* owner feedback 2026-09-29: the floor's title enters the floor, like "פתח קומה" */
+    .fcard header h2 .ftitle {
+      border: 0;
+      padding: 0;
+      background: none;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+      text-align: start;
+      border-radius: 4px;
+    }
+    .fcard header h2 .ftitle:hover {
+      color: var(--sw-accent);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    .fcard header h2 .ftitle:focus-visible {
+      outline: 2px solid var(--sw-focus, var(--sw-accent));
+      outline-offset: 2px;
+    }
+    /* an area row is a link into the area (owner feedback 2026-09-29) */
+    a.tree-row,
+    a.arow {
+      box-sizing: border-box;
+      text-decoration: none;
     }
     .fcard header .lit {
       font-size: var(--sw-fs-xs);
@@ -1140,7 +1170,7 @@ export class DevicesBuilding extends LitElement {
   }
 
   private renderTreePanel(t: DeviceTree) {
-    const lit = (c: DeviceCounts) => html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>`;
+    const lit = (c: DeviceCounts) => (c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>` : nothing);
     return html`<nav class="tree" aria-label="עץ המבנה" data-devices-tree>
       <button class=${classMap({ 'tree-row': true, selected: this.selected === 'all' })} data-tree="all" aria-current=${this.selected === 'all' ? 'true' : 'false'} @click=${() => (this.selected = 'all')}>
         <sw-icon name="building" size=${15}></sw-icon><span class="nm">כל המבנה</span>${lit(t.building)}
@@ -1183,8 +1213,8 @@ export class DevicesBuilding extends LitElement {
     return html`<section class="fcard" data-floor-card=${f.floor_id} data-lay-key=${`floor:${f.floor_id}`}>
       <header>
         ${it?.icon ? html`<sw-icon class="lay-title-icon" .name=${it.icon} size=${16}></sw-icon>` : nothing}
-        <h2>${bidi(titleOf(it, f.name))}</h2>
-        <span class=${classMap({ lit: true, warm: c.lights_on > 0 })} data-lit=${c.lights_on}><sw-icon name="light" size=${13}></sw-icon>${c.lights ? `${ltrNum(c.lights_on)} דולקות מתוך ${ltrNum(c.lights)}` : 'אין תאורה'}</span>
+        <h2><button type="button" class="ftitle" data-floor-title=${f.floor_id} aria-current=${this.selected === f.floor_id ? 'true' : 'false'} title="פתח קומה" @click=${() => (this.selected = f.floor_id)}>${bidi(titleOf(it, f.name))}</button></h2>
+        ${c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} data-lit=${c.lights_on}><sw-icon name="light" size=${13}></sw-icon>${ltrNum(c.lights_on)} דולקות מתוך ${ltrNum(c.lights)}</span>` : nothing}
         ${this.bulkAllowed && f.can_bulk
           ? html`<devices-bulk-menu scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${c} variant="menu" triggerLabel="כבה קומה" data-floor-menu=${f.floor_id}></devices-bulk-menu>`
           : nothing}
@@ -1199,8 +1229,9 @@ export class DevicesBuilding extends LitElement {
     </section>`;
   }
 
-  /** One area as a row (tree panel or floor card) that opens the area popover; the tree row also carries a hover
-   * "כבה אזור" for a bulk holder. The unassigned bucket is a plain link to its screen (it is not an area). */
+  /** One area as a row (tree panel or floor card): a link into the area, with the area popover as its hover / focus
+   * summary and its "⋯" (owner feedback 2026-09-29); the tree row also carries a hover "כבה אזור" for a bulk holder.
+   * The unassigned bucket is a plain link to its screen (it is not an area). */
   private renderAreaRow(a: DeviceArea, where: 'tree' | 'card', unassigned = false) {
     const c = a.counts;
     const on = anythingOn(c);
@@ -1218,9 +1249,9 @@ export class DevicesBuilding extends LitElement {
     if (unassigned) {
       return html`<a class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style="text-decoration:none">${body}</a>`;
     }
-    const menu = html`<devices-bulk-menu block scope="area" .targetId=${a.area_id} .targetName=${a.name} .counts=${c} variant="popover" align="start" .actions=${bulk} openHref=${href} label="אזור"
+    const menu = html`<devices-bulk-menu block hover scope="area" .targetId=${a.area_id} .targetName=${a.name} .counts=${c} variant="popover" align="start" .actions=${bulk} openHref=${href} label="סיכום האזור"
         data-tree-area=${where === 'tree' ? a.area_id : nothing} data-card-area=${where === 'card' ? a.area_id : nothing}>
-        <button slot="trigger" class=${where === 'tree' ? 'tree-row' : 'arow'} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} aria-haspopup="menu" aria-label=${`${a.name} · ${c.entities} התקנים`}>${body}</button>
+        <a slot="trigger" class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} aria-label=${`${a.name} · ${c.entities} התקנים · כניסה לאזור`}>${body}</a>
       </devices-bulk-menu>`;
     if (where === 'card') return menu;
     return html`<div class="tree-area">
@@ -1232,8 +1263,9 @@ export class DevicesBuilding extends LitElement {
   }
 
   private renderKpis(c: DeviceCounts) {
+    // owner feedback 2026-09-29: a domain the installation has nothing of is not a counter at all (no "0/0 אין במבנה")
     const kpi = (label: string, on: number, total: number, icon: IconName, warm = true) =>
-      html`<sw-kpi data-kpi=${label} data-value=${`${on}/${total}`} label=${label} value=${`${on}/${total}`} .icon=${icon} tone=${total === 0 ? 'unknown' : warm && on > 0 ? 'live' : 'neutral'} detail=${total === 0 ? 'אין במבנה' : ''}></sw-kpi>`;
+      total === 0 ? nothing : html`<sw-kpi data-kpi=${label} data-value=${`${on}/${total}`} label=${label} value=${`${on}/${total}`} .icon=${icon} tone=${warm && on > 0 ? 'live' : 'neutral'}></sw-kpi>`;
     return html`<div class="kpis">
       ${kpi('תאורה דולקת', c.lights_on, c.lights, 'light')}
       ${kpi('מתגים פעילים', c.switches_on, c.switches, 'bolt')}
