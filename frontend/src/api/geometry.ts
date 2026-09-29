@@ -251,6 +251,35 @@ export const calibrateEstimate = (versionId: string, scaleMPerPx: number, reason
     ...(replaceMeasured === undefined ? {} : { replace_measured: replaceMeasured }),
   });
 
+/** POST /plan-versions/{id}/door-proposal (T087, the "סמן דלת" tool): what the local analysis proposes for one click -
+ * services/plan_door_tool.py. Never stored: the editor adds it to the draft as an ordinary opening once accepted. */
+export type DoorFound = 'arc' | 'chord' | 'leaf' | 'double' | 'gap' | 'default';
+export interface DoorProposalRequest {
+  x: number;
+  y: number;
+  wall_id?: string;
+  level_id?: string;
+}
+export interface DoorProposal {
+  found: DoorFound;
+  /** Hebrew, short: "נמצאה קשת" / "נמצא פער" / "ברירת מחדל - בדוק" ... */
+  note: string;
+  /** The draft wall the door goes on; null when the proposal brings a wall piece of its own (`new_wall`). */
+  wall_id: string | null;
+  t: number;
+  new_wall: { polyline: [number, number][]; thickness_px: number } | null;
+  /** Version pixels: the client turns them into metres with the document's effective scale. null = the default width. */
+  width_px: number | null;
+  hinge: 'start' | 'end';
+  swing: 'left' | 'right' | 'double';
+  confidence: number;
+  warning: string | null;
+  elapsed_ms: number;
+  version_id: string;
+  level_id: string;
+}
+export const proposeDoor = (versionId: string, body: DoorProposalRequest) => post<DoorProposal>(`plan-versions/${versionId}/door-proposal`, body);
+
 /** Error codes /detect, /detect/accept and /calibration (estimate) can answer with (the API review, backed by
  * routers/plan_geometry.py and tests/test_plan_detect_api.py): the client reads them off ApiError.code. detect_timeout
  * (504) is retryable. calibration_measured (409, "an estimate never replaces a measured calibration silently"): the

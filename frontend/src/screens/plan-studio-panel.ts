@@ -14,7 +14,7 @@ import type { SaveState } from '../map/studio-controller';
 import { TAG_MAX_COUNT, TAG_MAX_LEN, cornerRemovable, kindDefaults, normalizeTag, openingRange, withTag, withoutTag, type AlignMode, type WallDefaults } from '../map/studio-ops';
 import { symbolOf } from '../map/plan-symbols';
 
-export type StudioMode = 'select' | 'wall' | 'door' | 'window' | 'passage' | 'label';
+export type StudioMode = 'select' | 'wall' | 'door' | 'markdoor' | 'window' | 'passage' | 'label';
 export type GeomKind = 'wall' | 'opening' | 'label' | 'object' | 'connector' | 'group';
 export interface GeomSel {
   id: string;
@@ -30,10 +30,15 @@ const OPENING_DRAG_HINT = 'גרירת פתח קיים מזיזה אותו לאו
  * press never moves anything. The select tool shows the same line. */
 export const SELECT_HINT = 'לחץ על קיר, פתח, תווית או עצם כדי לבחור. קיר זז רק אחרי שנבחר: גרירת גוף הקיר הנבחר מזיזה את כולו, גרירת פינה שלו משנה את צורתו. פתח נגרר לאורך הקיר, תווית ועצם למקומם; החצים מזיזים בעדינות את מה שנבחר (Shift = צעד גדול) · Esc מבטל את הבחירה. במסך מגע כל פריט זז רק אחרי שנבחר, כך שהזזת המפה באצבע לא מזיזה פריטים.';
 
-export const STUDIO_MODES: { id: StudioMode; label: string; hint: string; drag?: string }[] = [
+/** The "סמן דלת" tool (T087): a click on a door symbol in the plan proposes the door from the drawing. */
+export const MARK_DOOR_HINT = 'לחץ על סמל דלת בתוכנית (או על הקיר במקום הדלת): תוצג הצעה מקווקוות - רוחב, ציר וכיוון פתיחה לפי הסמל. Enter או לחיצה על ההצעה מאשרים, לחיצה על סמל הבא מאשרת ומציעה את הבאה, Esc מבטל.';
+export const MARK_DOOR_TIP = 'סמן דלת (D): לחיצה על סמל דלת בשרטוט מציעה את הדלת לפי הסמל';
+
+export const STUDIO_MODES: { id: StudioMode; label: string; hint: string; drag?: string; tip?: string }[] = [
   { id: 'select', label: 'בחירה', hint: SELECT_HINT },
   { id: 'wall', label: 'קיר', hint: 'לחץ נקודה אחר נקודה. Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים, לחיצה על הנקודה הראשונה סוגרת מתאר, Shift מבטל הצמדה לזוויות, Backspace מוחק נקודה.' },
   { id: 'door', label: 'דלת', hint: 'לחץ על קיר כדי להציב דלת. כיוון הפתיחה והציר נקבעים כאן בפאנל.', drag: OPENING_DRAG_HINT },
+  { id: 'markdoor', label: 'סמן דלת', hint: MARK_DOOR_HINT, tip: MARK_DOOR_TIP },
   { id: 'window', label: 'חלון', hint: 'לחץ על קיר כדי להציב חלון.', drag: OPENING_DRAG_HINT },
   { id: 'passage', label: 'מעבר', hint: 'פתח בלי דלת בקיר.', drag: OPENING_DRAG_HINT },
   { id: 'label', label: 'תווית', hint: 'לחץ במקום התווית ואז הקלד את הטקסט כאן בפאנל.', drag: 'גרירת תווית קיימת מזיזה אותה; חצים להזזה עדינה (Shift = צעד גדול)' },
@@ -154,7 +159,7 @@ export function renderStudioPanel(v: StudioView, a: StudioActions): TemplateResu
   }
   return html`<sw-card heading="מבנה" subheading=${SAVE_LABEL[v.saveState]} data-studio-panel data-studio-save=${v.saveState}>
     <div class="modes" role="group" aria-label="כלי ציור">
-      ${STUDIO_MODES.map((m) => html`<button class=${m.id === v.mode ? 'on' : ''} data-studio-mode=${m.id} aria-pressed=${m.id === v.mode} @click=${() => a.setMode(m.id)}>${m.label}</button>`)}
+      ${STUDIO_MODES.map((m) => html`<button class=${m.id === v.mode ? 'on' : ''} data-studio-mode=${m.id} aria-pressed=${m.id === v.mode} title=${m.tip ?? nothing} aria-keyshortcuts=${m.id === 'markdoor' ? 'D' : nothing} @click=${() => a.setMode(m.id)}>${m.label}</button>`)}
     </div>
     <div class="note">${mode.hint}</div>
     ${mode.drag ? html`<div class="note" data-studio-drag-hint>${mode.drag}</div>` : nothing}
@@ -804,6 +809,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     title: 'כלים ספציפיים',
     items: [
       { keys: 'ציור קיר (מבנה)', desc: 'Enter מסיים את הקיר; Backspace/Delete מוחק את הנקודה האחרונה' },
+      { keys: 'D', desc: 'סמן דלת (כלי המבנה): לחיצה על סמל דלת מציעה אותה; Enter מאשר, Esc מבטל את ההצעה' },
       { keys: 'ציור אזור', desc: 'לחיצה מוסיפה פינה; Enter מסיים משלוש פינות; Esc מבטל' },
       { keys: 'מפלסים ומחברים', desc: 'Esc מבטל את נקודת ההתחלה שנבחרה למחבר' },
       { keys: 'מדידה / כיול', desc: 'Esc מנקה את הנקודות שנבחרו עד כה' },

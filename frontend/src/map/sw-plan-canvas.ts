@@ -32,6 +32,23 @@ export interface PlanMarker {
   state: StateKind;
 }
 
+/** A handle of the door ghost of the "סמן דלת" tool (T087): `width` is dragged along the wall, `hinge` and `swing` are
+ * pressed (flip). `at` in normalized plan space. */
+export interface GhostHandle {
+  id: 'width' | 'hinge' | 'swing';
+  at: Pt;
+  label: string;
+}
+
+/** What the door ghost reports: a handle pressed or dragged (x, y in normalized plan space), or the ghost itself pressed
+ * (`accept`). */
+export interface GhostHandleDetail {
+  id: GhostHandle['id'] | 'accept';
+  phase: 'click' | 'move' | 'end';
+  x?: number;
+  y?: number;
+}
+
 export interface MarkerSelectDetail {
   id: string | null;
   /** Marker centre in host (stage) pixels, for anchoring a popover. */
@@ -281,6 +298,13 @@ export class SwPlanCanvas extends LitElement {
   @property() selectedCandidateId: string | null = null;
   /** Desktop: the end points of the selected candidate wall can be dragged before accepting. */
   @property({ type: Boolean }) candidateEditable = false;
+  /** The "סמן דלת" tool's proposal (T087): a draw-only document (the wall the door goes on - or the short piece it brings
+   * - and the door), drawn dashed over the structure with its note and handles until the person accepts or cancels. */
+  @property({ attribute: false }) ghost: GeometryDoc | null = null;
+  @property() ghostNote = '';
+  /** The note is a warning (nothing found, or a wall piece added): its own tone. */
+  @property({ type: Boolean }) ghostWarn = false;
+  @property({ attribute: false }) ghostHandles: GhostHandle[] = [];
   @state() private candHover: string | null = null;
   @state() private candDrag: { x: number; y: number } | null = null;
   private candCache: { set: CandidateSet; doc: GeometryDoc | null; w: number; h: number; prims: Primitive[] } | null = null;
@@ -832,6 +856,59 @@ export class SwPlanCanvas extends LitElement {
       font-weight: 600;
       text-anchor: middle;
       dominant-baseline: middle;
+    }
+    .ghost {
+      pointer-events: none;
+    }
+    .ghost .gwall {
+      fill: none;
+      stroke: var(--sw-accent);
+      stroke-dasharray: 6 4;
+      opacity: 0.55;
+    }
+    .ghost .gleaf,
+    .ghost .garc,
+    .ghost .ggap {
+      fill: none;
+      stroke: var(--sw-accent);
+      stroke-dasharray: 5 3;
+    }
+    .ghost-note rect {
+      fill: var(--sw-surface);
+      stroke: var(--sw-accent);
+    }
+    .ghost-note.warn rect {
+      stroke: var(--sw-warning);
+    }
+    .ghost-note text {
+      fill: var(--sw-text);
+      font-family: var(--sw-font);
+      font-weight: 600;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+    .ghost-hits .hit {
+      fill: transparent;
+      stroke: transparent;
+      pointer-events: stroke;
+      cursor: pointer;
+    }
+    .ghost-hits .ghandle {
+      fill: var(--sw-surface);
+      stroke: var(--sw-accent);
+      pointer-events: all;
+      cursor: pointer;
+    }
+    .ghost-hits .ghandle.drag {
+      cursor: ew-resize;
+    }
+    .ghost-hits .gglyph {
+      fill: var(--sw-accent);
+      font-family: var(--sw-font);
+      font-weight: 700;
+      text-anchor: middle;
+      dominant-baseline: central;
+      pointer-events: none;
     }
     .cand-hits .hit {
       fill: transparent;
@@ -2129,6 +2206,98 @@ export class SwPlanCanvas extends LitElement {
     </g>`;
   }
 
+  /** The door ghost of the "סמן דלת" tool (T087): the proposed door (and the wall piece it brings, if any) dashed in the
+   * accent colour, its note above it, a wide invisible stroke over the door that accepts it, and the handles - the
+   * width square at the latch end (dragged along the wall), the hinge and swing flips (pressed). */
+  private renderGhost() {
+    const doc = this.ghost;
+    if (!doc) return nothing;
+    const prims = buildPrimitives(doc, this.planWidth, this.planHeight);
+    const inv = 1 / this.scale;
+    const W = this.planWidth;
+    const H = this.planHeight;
+    const door = prims.find((p): p is DoorPrim => p.kind === 'door');
+    const newWall = doc.walls.find((w) => w.id.startsWith('ghost-wall'));
+    const label = this.ghostNote;
+    const tw = (label.length * 7 + 18) * inv;
+    // the note sits on the side of the wall the door does not open to, clear of the leaf, the arc and the handles
+    let at: Pt | null = null;
+    if (door) {
+      const c: Pt = [(door.gap[0][0] + door.gap[1][0]) / 2, (door.gap[0][1] + door.gap[1][1]) / 2];
+      const tip = door.leaves[0]?.[1] ?? c;
+      const dx = door.gap[1][0] - door.gap[0][0];
+      const dy = door.gap[1][1] - door.gap[0][1];
+      const len = Math.hypot(dx, dy) || 1;
+      let nx = -dy / len;
+      let ny = dx / len;
+      if ((tip[0] - c[0]) * nx + (tip[1] - c[1]) * ny > 0) {
+        nx = -nx;
+        ny = -ny;
+      }
+      const wallPx = Math.max(0, ...prims.filter((p): p is WallPrim => p.kind === 'wall').map((p) => p.width));
+      const reach = wallPx / 2 + Math.abs(nx) * (tw / 2 + 8 * inv) + Math.abs(ny) * 18 * inv;
+      at = [c[0] + nx * reach, c[1] + ny * reach + 10 * inv]; // (the pill is drawn 10 px above its anchor)
+    }
+    return svg`<g class="ghost" data-door-ghost data-ghost-new-wall=${newWall ? 'yes' : 'no'}>
+        ${prims.filter((p): p is WallPrim => p.kind === 'wall' && !!newWall && p.id === newWall.id).map((p) => svg`<polyline class="gwall" points=${ptsAttr(p.points)} stroke-width=${Math.max(p.width, 2 * inv)} />`)}
+        ${door ? svg`<line class="ggap" x1=${door.gap[0][0]} y1=${door.gap[0][1]} x2=${door.gap[1][0]} y2=${door.gap[1][1]} stroke-width=${1.2 * inv} />
+          ${door.leaves.map(([x, y]) => svg`<line class="gleaf" data-ghost-leaf x1=${x[0]} y1=${x[1]} x2=${y[0]} y2=${y[1]} stroke-width=${2 * inv} />`)}
+          ${door.arcs.map((arc) => svg`<path class="garc" d=${`M ${arc.from[0]} ${arc.from[1]} A ${arc.r} ${arc.r} 0 0 ${arc.sweep} ${arc.to[0]} ${arc.to[1]}`} stroke-width=${1.4 * inv} />`)}` : nothing}
+        ${at && label ? svg`<g class="ghost-note ${this.ghostWarn ? 'warn' : ''}" data-ghost-note><rect x=${at[0] - tw / 2} y=${at[1] - 34 * inv} width=${tw} height=${20 * inv} rx=${10 * inv} stroke-width=${inv} /><text x=${at[0]} y=${at[1] - 24 * inv} font-size=${12 * inv}>${label}</text></g>` : nothing}
+      </g>
+      <g class="ghost-hits">
+        ${door ? svg`<line class="hit" data-ghost-accept x1=${door.gap[0][0]} y1=${door.gap[0][1]} x2=${door.gap[1][0]} y2=${door.gap[1][1]} stroke-width=${24 * inv}
+            @pointerdown=${(e: PointerEvent) => e.stopPropagation()} @click=${(e: Event) => this.ghostEvent(e, { id: 'accept', phase: 'click' })}><title>אישור הדלת (Enter)</title></line>` : nothing}
+        ${this.ghostHandles.map((h) => {
+          const cx = h.at[0] * W;
+          const cy = h.at[1] * H;
+          if (h.id === 'width') {
+            const r = 6 * inv;
+            return svg`<rect class="ghandle drag" data-ghost-handle="width" x=${cx - r} y=${cy - r} width=${2 * r} height=${2 * r} stroke-width=${1.6 * inv} role="slider" aria-label=${h.label}
+              @pointerdown=${(e: PointerEvent) => this.onGhostDrag(e)} @click=${(e: Event) => e.stopPropagation()}><title>${h.label}</title></rect>`;
+          }
+          return svg`<g data-ghost-handle=${h.id}><circle class="ghandle" cx=${cx} cy=${cy} r=${9 * inv} stroke-width=${1.6 * inv} role="button" aria-label=${h.label}
+              @pointerdown=${(e: PointerEvent) => e.stopPropagation()} @click=${(e: Event) => this.ghostEvent(e, { id: h.id, phase: 'click' })}><title>${h.label}</title></circle>
+            <text class="gglyph" x=${cx} y=${cy} font-size=${11 * inv}>${h.id === 'hinge' ? '⇄' : '⇅'}</text></g>`;
+        })}
+      </g>`;
+  }
+
+  private ghostEvent(e: Event, detail: GhostHandleDetail) {
+    e.stopPropagation();
+    if (this.dragMoved) return;
+    this.dispatchEvent(new CustomEvent('ghost-handle', { detail, bubbles: true, composed: true }));
+  }
+
+  private onGhostDrag(e: PointerEvent) {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    this.releaseFieldFocus();
+    const rect0 = this.getBoundingClientRect();
+    let moved = false;
+    this.viewport.setPointerCapture(e.pointerId);
+    const send = (phase: 'move' | 'end', ev: PointerEvent) => {
+      const p = this.toPlan(ev.clientX - rect0.left, ev.clientY - rect0.top);
+      this.dispatchEvent(new CustomEvent('ghost-handle', { detail: { id: 'width', phase, x: +p.x.toFixed(5), y: +p.y.toFixed(5) }, bubbles: true, composed: true }));
+    };
+    const move = (ev: PointerEvent) => {
+      moved = true;
+      send('move', ev);
+    };
+    const end = (ev: PointerEvent) => {
+      this.viewport.removeEventListener('pointermove', move);
+      this.viewport.removeEventListener('pointerup', end);
+      this.viewport.removeEventListener('pointercancel', end);
+      if (moved) send('end', ev);
+      this.dragMoved = true;
+      setTimeout(() => (this.dragMoved = false), 0);
+    };
+    this.viewport.addEventListener('pointermove', move);
+    this.viewport.addEventListener('pointerup', end);
+    this.viewport.addEventListener('pointercancel', end);
+  }
+
   /** The wall being drawn, the rubber band to the snapped cursor, and the snap dot. */
   private renderWallDraft() {
     const pts = this.wallDraft;
@@ -2222,6 +2391,7 @@ export class SwPlanCanvas extends LitElement {
             ${this.renderGeomHits()}
             ${this.renderCandidates()}
             ${this.renderCandidateHits()}
+            ${this.renderGhost()}
             ${this.markers.map((m) => this.renderMarker(m))}
             ${this.renderDraft()}
             ${this.renderWallDraft()}
