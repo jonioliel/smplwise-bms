@@ -37,6 +37,9 @@ const SCREENS: { sc: string; route: string; full?: boolean }[] = [
   { sc: 'sc27-devices', route: '/system/devices' },
   { sc: 'sc28-diagnostics', route: '/system/diagnostics', full: true },
   { sc: 'sc20-storage', route: '/system/storage', full: true },
+  // owner 2026-09-29: the devices building (compact tiles on a phone) and the tiles' panel open (drawer / bottom sheet)
+  { sc: 'sc32-devices-building', route: '/devices/building' },
+  { sc: 'sc33-devices-tiles-panel', route: '/devices/building?domain=lights' },
   { sc: 'index', route: '/screens', full: true },
 ];
 
