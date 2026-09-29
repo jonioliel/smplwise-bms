@@ -401,4 +401,54 @@ test.describe('overview tiles against the devices fixture backend', () => {
     await expect(note).toHaveCount(0);
     expect(await page.evaluate(() => localStorage.getItem('sw.tiles.override'))).toBeNull();
   });
+
+  test('review G: a site as large as the owner\'s (4 floors, 10 areas, 224 devices, 74 unassigned) - one scroll container, scrolling only as far as the content, at 2000x990 and 1366x768', async ({ page, request }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop sizes');
+    test.setTimeout(120_000);
+    const floors = [0, 1, 2, 3].map((i) => ({ floor_id: `cr007g_f${i}`, name: i ? `קומה ${i}` : 'קרקע', level: i }));
+    const names = ['לובי כניסה ראשי', 'חדר מדרגות ראשי', 'מרחב שירות משותף ומחסן', 'משרד הנהלה', 'חדר ישיבות גדול', 'מטבחון', 'מסדרון מזרחי', 'חדר שרתים', 'חדר אורחים', 'מרפסת'];
+    const areas = names.map((name, i) => ({ area_id: `cr007g_a${i}`, name, floor_id: `cr007g_f${i % 4}` }));
+    const entities: { entity_id: string; area_id: string | null }[] = [];
+    const states: { entity_id: string; state: string; attributes: Record<string, unknown> }[] = [];
+    const add = (id: string, area: string | null, state: string, name: string) => {
+      entities.push({ entity_id: id, area_id: area });
+      states.push({ entity_id: id, state, attributes: { friendly_name: name } });
+    };
+    for (let i = 0; i < 150; i++) {
+      const a = areas[i % areas.length].area_id;
+      const d = ['light', 'switch', 'sensor', 'cover', 'lock'][i % 5];
+      add(`${d}.cr007g_${i}`, a, d === 'sensor' ? '21' : d === 'cover' ? 'closed' : d === 'lock' ? 'locked' : i % 3 ? 'off' : 'on', `${d} ${i}`);
+    }
+    for (let i = 0; i < 74; i++) add(`${i % 2 ? 'switch' : 'sensor'}.cr007g_u${i}`, null, i % 2 ? 'off' : '20', `ללא אזור ${i}`);
+    expect((await request.post('/api/v1/ha/dev/registry', { data: { entities, devices: [], areas, floors } })).status()).toBe(200);
+    expect((await request.post('/api/v1/ha/dev/states', { data: { states: states.slice(0, 50) } })).status()).toBe(200);
+    for (let i = 50; i < states.length; i += 50) await request.post('/api/v1/ha/dev/states', { data: { states: states.slice(i, i + 50) } });
+    for (const [w, h] of [[2000, 990], [1366, 768]]) {
+      for (const layout of ['cards', 'tiles']) {
+        await page.setViewportSize({ width: w, height: h });
+        await page.addInitScript((l) => localStorage.setItem('sw.devices.layout', l), layout);
+        await page.goto('about:blank');
+        await page.goto('/?design=a&debug=overflow#/devices/building');
+        await expect(page.locator('devices-building sw-kpi').first()).toBeVisible({ timeout: 30000 });
+        await page.waitForTimeout(1200);
+        const r = await page.evaluate(() => (window as unknown as { __arxOverflow: (n?: number) => { main: { scrollHeight: number; clientHeight: number; scrolls: boolean }; page: { scrollHeight: number; clientHeight: number }; scrollers: { path: string }[] } }).__arxOverflow(5));
+        const where = `${w}x${h} ${layout}`;
+        expect(r.page.scrollHeight, where).toBeLessThanOrEqual(r.page.clientHeight);
+        // exactly one scroll container - the app's main - and only when the content is taller
+        expect(r.scrollers.map((s) => s.path.split(' > ').pop()), `${where} ${JSON.stringify(r.scrollers)}`).toEqual(r.main.scrolls ? ['main'] : []);
+        const contentBottom = await page.evaluate(() => {
+          const main = document.querySelector('sw-app')!.shadowRoot!.querySelector('main') as HTMLElement;
+          const pageEl = main.querySelector('.screen > *')!.shadowRoot?.querySelector('sw-page') ?? main.querySelector('.screen > *')!;
+          const mTop = main.getBoundingClientRect().top - main.scrollTop;
+          const body = (pageEl as HTMLElement).shadowRoot!.querySelector('.body')!;
+          return { body: Math.round(body.getBoundingClientRect().bottom - mTop), page: Math.round(pageEl.getBoundingClientRect().bottom - mTop) };
+        });
+        // the scroll area ends where the page ends, and the page ends 24 px (its padding) under its last content
+        expect(Math.abs(r.main.scrollHeight - Math.max(r.main.clientHeight, contentBottom.page)), where).toBeLessThanOrEqual(2);
+        if (r.main.scrolls) expect(contentBottom.page - contentBottom.body, where).toBeLessThanOrEqual(26);
+        if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `big-site-${w}x${h}-${layout}.png`) });
+      }
+    }
+    await seed(request);
+  });
 });

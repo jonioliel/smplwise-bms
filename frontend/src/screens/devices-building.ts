@@ -752,7 +752,7 @@ export class DevicesBuilding extends LitElement {
       /* owner 2026-09-29 ("unnecessary scrolling"): the tree never scrolls on its own unless it is itself taller than
          the viewport - then it sticks and scrolls inside the visible height (the top bar and the page padding off) */
       box-sizing: border-box;
-      max-block-size: calc(100dvh - var(--sw-topbar-h, 64px) - var(--sw-banner-h, 0px) - 32px);
+      max-block-size: calc(100dvh - var(--sw-topbar-h, 64px) - var(--sw-banner-h, 0px) - 16px); /* the view under the top bar, minus the 8 px sticky offset top and bottom */
       overflow-y: auto;
       overscroll-behavior: contain;
       scrollbar-width: thin;
