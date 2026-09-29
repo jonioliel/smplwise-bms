@@ -20,7 +20,7 @@ from ..config import Settings
 from ..db import Database, now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import correlation, events_derive, events_ingest, thumbnails
+from ..services import correlation, events_derive, events_ingest, revocation, thumbnails
 from ..services.access import camera_allowed, require_camera, visible_camera_ids
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from .media import _principal_for_ws
@@ -645,6 +645,7 @@ async def events_ws(websocket: WebSocket) -> None:
     q = events_ingest.subscribe()
     seq = 0
     last_scope = asyncio.get_event_loop().time()
+    access_gen = revocation.generation(principal.user_id)
     try:
         while True:
             try:
@@ -653,7 +654,8 @@ async def events_ws(websocket: WebSocket) -> None:
                 seq += 1
                 await websocket.send_text(json.dumps({"version": 1, "type": "heartbeat", "sequence": seq, "subscription_id": principal.user_id, "occurred_at": now_iso(), "received_at": now_iso(), "payload": {"ingest": events_ingest.STATE.as_dict()}}))
                 continue
-            if asyncio.get_event_loop().time() - last_scope > 60:  # permission changes apply within a minute
+            if asyncio.get_event_loop().time() - last_scope > 60 or revocation.generation(principal.user_id) != access_gen:  # at once on an access change (T055), else within a minute
+                access_gen = revocation.generation(principal.user_id)
                 wide, ids = await run_in_threadpool(_scope_now)
                 last_scope = asyncio.get_event_loop().time()
             if not _visible(ev, wide, ids):

@@ -14,6 +14,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import new_id, now_iso
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, authorize, require
+from ..services.access import camera_scope, require_camera, require_floor_read
 from .catalog import building_row, floor_row, get_building, get_floor, get_site, site_row
 from ..services.timeutil import parse_utc
 from .plans import needs_alignment, version_at, version_row
@@ -112,7 +113,11 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
     """Everything the map needs in one call. `draft=true` (editors) prefers the latest draft background; `at=<UTC>`
     returns the version that was published at that instant and the anchors effective then (historical map, T038)."""
     f = get_floor(conn, floor_id)
-    require(conn, principal, "map.read", ("floor", floor_id))
+    # T055: "floor" = a binding on the floor or above; "cameras" = only camera-scoped bindings for cameras anchored
+    # here - the drawing and those cameras' anchors, nothing else of the floor (no entities, zones, circuit states)
+    reach = require_floor_read(conn, principal, floor_id)
+    cam_scope = camera_scope(conn, principal, "map.read")
+    camera_only = reach == "cameras"
     can_edit = authorize(conn, principal, "placement.edit", ("floor", floor_id)).allowed
     can_structure = authorize(conn, principal, "map.edit", ("floor", floor_id)).allowed  # loading a structure draft needs map.edit
     can_publish = authorize(conn, principal, "map.publish", ("floor", floor_id)).allowed
@@ -134,6 +139,9 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
         history = "current" if at_iso else None
         version = _editor_version(conn, floor_id) if (draft and can_edit and not at_iso) else _current_version(conn, floor_id)
         anchors = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL ORDER BY layer_id, resource_id", (floor_id,)).fetchall()
+    # T055: a camera the caller cannot see is not in the bundle - not as an anchor, not in the camera list; a
+    # camera-only reader gets camera anchors alone
+    anchors = [a for a in anchors if (cam_scope.allows(a["resource_id"]) if a["resource_type"] == "camera" else not camera_only)]
     from ..services import geometry_store, plan_catalog
 
     geometry_row = None
@@ -146,8 +154,11 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
             geometry_row = geometry_store.published_row(conn, version["id"])
     geometry = geometry_store.ref(geometry_row)
     levels = geometry_store.levels_of(geometry_row)
-    circuits = geometry_store.circuits_of(geometry_row)
-    cameras = {r["id"]: camera_row(r) for r in conn.execute("SELECT * FROM cameras ORDER BY sort_order, channel").fetchall()}
+    circuits = [] if camera_only else geometry_store.circuits_of(geometry_row)
+    # the placement editor lists every camera it may place (as before T055) minus the ones explicitly denied to the
+    # caller; a viewer's list is the visible cameras on this map (below)
+    cameras = {r["id"]: camera_row(r) for r in conn.execute("SELECT * FROM cameras ORDER BY sort_order, channel").fetchall()
+               if (r["id"] not in cam_scope.denied if can_edit else cam_scope.allows(r["id"]))}
     from ..services import ha_bridge, ha_history, ha_sync
 
     entity_ids = [a["resource_id"] for a in anchors if a["resource_type"] == "ha_entity"]
@@ -218,7 +229,8 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
         "circuit_states": circuit_states,
         "anchors": [dict(anchor_row(a), camera=cameras.get(a["resource_id"]) if a["resource_type"] == "camera" else None, entity=entities.get(a["resource_id"]) if a["resource_type"] == "ha_entity" else None) for a in anchors],
         "ha_sync": ha_sync.STATE.as_dict(),
-        "zones": _zones_for(conn, floor_id),
+        "zones": [] if camera_only else _zones_for(conn, floor_id),
+        "reach": reach,
         "needs_alignment": needs_alignment(conn, version, anchors),
         "at": at_iso,
         "history": history,
@@ -271,7 +283,8 @@ def list_anchors(floor_id: str, principal: Principal = Depends(current_principal
     get_floor(conn, floor_id)
     require(conn, principal, "map.read", ("floor", floor_id))
     rows = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL ORDER BY layer_id, resource_id", (floor_id,)).fetchall()
-    return {"anchors": [anchor_row(r) for r in rows]}
+    scope = camera_scope(conn, principal, "map.read")  # T055: a denied camera's anchor is not listed
+    return {"anchors": [anchor_row(r) for r in rows if r["resource_type"] != "camera" or scope.allows(r["resource_id"])]}
 
 
 @router.post("/floors/{floor_id}/anchors", status_code=201)
@@ -283,6 +296,8 @@ def create_anchor(floor_id: str, body: AnchorIn, request: Request, principal: Pr
         raise conflict("no_plan", "לקומה אין תוכנית; העלה תוכנית לפני הצבת פריטים.")
     if body.resource_type == "camera" and not conn.execute("SELECT 1 FROM cameras WHERE id = ?", (body.resource_id,)).fetchone():
         raise ApiError(422, "validation", "המצלמה אינה רשומה במערכת.")
+    if body.resource_type == "camera" and body.resource_id in camera_scope(conn, principal, "map.read").denied:
+        require_camera(conn, principal, body.resource_id, "map.read")  # T055: an explicitly denied camera is not placed by its denied user
     if body.resource_type == "ha_entity":
         ent = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (body.resource_id,)).fetchone()
         if not ent:

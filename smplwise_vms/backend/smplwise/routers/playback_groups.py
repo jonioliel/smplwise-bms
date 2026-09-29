@@ -18,6 +18,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize
 from ..services import playback as pb
 from ..services import playback_groups as pg
+from ..services.access import camera_scope
 from ..services.timeutil import iso_utc, parse_utc
 from .playback import SeekBody, _segment_for
 from .recordings import camera_for_playback
@@ -106,7 +107,16 @@ def seek_group(group_id: str, body: SeekBody, request: Request, principal: Princ
         raise ApiError(422, "validation", "start_at חייב להיות UTC (Z).")
     s = read_settings(conn)
     existing = {x.camera_id: x for x in pg.sessions_of(group) if x.state not in ("closed", "expired", "failed")}
-    cam_ids = list(existing) + [c for c in group.missing if c not in existing]
+    # T055: a seek re-checks every member - a camera the caller lost since the group started is dropped (its session
+    # closed), never re-opened by the seek
+    scope = camera_scope(conn, principal, "video.playback")
+    lost = [c for c in existing if not scope.allows(c)]
+    if lost:
+        with unlocked(conn):
+            for cid in lost:
+                pb.close(settings, existing.pop(cid), "revoked")
+                group.missing[cid] = "forbidden"
+    cam_ids = list(existing) + [c for c in group.missing if c not in existing and scope.allows(c)]
     cams = [c for c in (conn.execute("SELECT * FROM cameras WHERE id = ?", (cid,)).fetchone() for cid in cam_ids) if c]
     group.generation += 1
     group.requested_at = start

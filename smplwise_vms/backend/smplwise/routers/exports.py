@@ -112,6 +112,7 @@ def delete(job_id: str, request: Request, principal: Principal = Depends(current
 @router.get("/exports/{job_id}/download")
 def download(job_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)):
     job = _owned(conn, principal, job_id)
+    require_camera(conn, principal, job["camera_id"], "video.export")  # T055: checked at creation AND at delivery
     path = ex.output_path(settings_of(request), job)
     if not path or job["state"] not in ("done", "partial"):
         raise ApiError(409, "not_ready", "הקובץ עדיין לא מוכן.")
@@ -123,6 +124,7 @@ def download(job_id: str, request: Request, principal: Principal = Depends(curre
 @router.get("/exports/{job_id}/manifest")
 def manifest(job_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)):
     job = _owned(conn, principal, job_id)
+    require_camera(conn, principal, job["camera_id"], "video.export")
     p = ex.job_dir(settings_of(request), job_id) / "manifest.json"
     if not job.get("manifest") or not p.is_file():
         raise ApiError(409, "not_ready", "המניפסט עדיין לא נוצר.")

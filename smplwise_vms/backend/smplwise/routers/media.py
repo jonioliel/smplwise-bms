@@ -24,10 +24,11 @@ from ..auth import current_principal, get_conn, maybe_bootstrap, resolve_princip
 from ..config import Settings
 from ..db import Database, retry_locked, unlocked
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, require
-from ..services import autosync, revocation
+from ..rbac import INSTALLATION, Decision, Principal, require
+from ..services import autosync
 from ..services import go2rtc as g2
-from ..services.access import camera_allowed, require_camera
+from ..services.access import camera_decision, require_camera
+from ..services.leases import CameraLease
 from ..services.relay import relay_ws
 from .settings import read_settings
 
@@ -156,17 +157,18 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
         await websocket.close(code=4401)
         return
 
-    def _authorize() -> tuple[bool, sqlite3.Row | None, int]:
+    def _authorize() -> tuple[Decision | None, sqlite3.Row | None, int]:
         with db.connection() as conn:
             cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
             if not cam or not cam["enabled"]:
-                return False, None, 0
-            allowed = camera_allowed(conn, principal, camera_id, "video.live")
-            if not allowed:
-                audit(conn, actor=principal, action="video.live", decision="denied", resource_type="camera", resource_id=camera_id, reason="no_binding")
-            return allowed, cam, read_settings(conn)["media.max_live_sessions"]
+                return None, None, 0
+            decision = camera_decision(conn, principal, camera_id, "video.live")
+            if not decision.allowed:
+                audit(conn, actor=principal, action="video.live", decision="denied", resource_type="camera", resource_id=camera_id, reason=decision.reason, under=decision)
+            return decision, cam, read_settings(conn)["media.max_live_sessions"]
 
-    allowed, cam, cap = await run_in_threadpool(_authorize)
+    decision, cam, cap = await run_in_threadpool(_authorize)
+    allowed = bool(decision and decision.allowed)
     if not allowed or cam is None:
         await websocket.close(code=4403)
         return
@@ -184,10 +186,14 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
     client = g2.Go2rtc(settings)
     session = LiveSession(id=uuid.uuid4().hex[:10], camera_id=camera_id, stream=name, user_id=principal.user_id, username=principal.username)
 
+    # T055: the relay keeps the camera only while the viewer still holds video.live on it (re-checked on every access
+    # change of the user and every leases.RECHECK_S) - a revoke of an unrelated camera no longer ends this stream
+    lease = CameraLease(db, principal, camera_id, "video.live")
+
     def _audit(action: str, details: dict[str, Any]) -> None:
         def _write() -> None:
             with db.connection() as conn:
-                audit(conn, actor=principal, action=action, decision="allowed", resource_type="camera", resource_id=camera_id, details=details)
+                audit(conn, actor=principal, action=action, decision="allowed", resource_type="camera", resource_id=camera_id, details=details, under=decision)
 
         try:
             retry_locked(_write, what=f"audit {action}")  # a busy database delays the row, it does not lose it
@@ -200,16 +206,24 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
     def on_down(n: int) -> None:
         session.bytes_down += n
 
+    reason = "ended"
     try:
         await run_in_threadpool(_audit, "video.live.start", {"session": session.id, "stream": name})
-        reason = await relay_ws(websocket, client.ws_url(name), client.ws_headers(), on_down, should_stop=lambda: revocation.revoked_since(principal.user_id, session.started_at))
+        reason = await relay_ws(websocket, client.ws_url(name), client.ws_headers(), on_down, should_stop=lease.should_stop)
+        if lease.lost:
+            reason = "access_lost"
         log.info("live session %s ended: %s", session.id, reason)
     except Exception as exc:  # upstream refused / dropped
+        reason = "upstream_failure"
         log.warning("live session %s upstream failure: %s", session.id, type(exc).__name__)
         with contextlib.suppress(Exception):
             await websocket.send_text('{"type":"error","value":"upstream_unavailable"}')
     finally:
         REGISTRY.sessions.pop(session.id, None)
         with contextlib.suppress(Exception):
-            await websocket.close()
-        await run_in_threadpool(_audit, "video.live.stop", {"session": session.id, "seconds": int(time.time() - session.started_at), "bytes_down": session.bytes_down})
+            if reason == "access_lost":
+                await websocket.send_text('{"type":"error","value":"access_lost"}')
+                await websocket.close(code=4403)
+            else:
+                await websocket.close()
+        await run_in_threadpool(_audit, "video.live.stop", {"session": session.id, "seconds": int(time.time() - session.started_at), "bytes_down": session.bytes_down, "reason": reason})

@@ -188,6 +188,13 @@ def get_floor(conn: sqlite3.Connection, floor_id: str) -> sqlite3.Row:
 def list_sites(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), tree: bool = Query(True)) -> dict[str, Any]:
     """Only nodes the caller may read appear; a site is listed when the caller can read it or any child."""
     all_read = authorize(conn, principal, P_READ, INSTALLATION).allowed
+    # T055: a floor reached only through camera-scoped bindings (a camera anchored there) is listed too - its map
+    # shows the drawing and those cameras (services/access.floor_reach)
+    from ..services.access import camera_scope
+
+    cam_ids = set() if all_read else set(camera_scope(conn, principal, P_READ).ids)
+    cam_floors = {r[0] for r in conn.execute(
+        f"SELECT DISTINCT floor_id FROM map_anchors WHERE resource_type = 'camera' AND effective_to IS NULL AND resource_id IN ({','.join('?' * len(cam_ids))})", sorted(cam_ids)).fetchall()} if cam_ids else set()
     sites_out: list[dict[str, Any]] = []
     for s in conn.execute("SELECT * FROM sites WHERE deleted_at IS NULL ORDER BY sort_order, name").fetchall():
         site_ok = all_read or authorize(conn, principal, P_READ, ("site", s["id"])).allowed
@@ -196,7 +203,7 @@ def list_sites(principal: Principal = Depends(current_principal), conn: sqlite3.
             building_ok = site_ok or authorize(conn, principal, P_READ, ("building", b["id"])).allowed
             floors_out: list[dict[str, Any]] = []
             for f in conn.execute("SELECT * FROM floors WHERE building_id = ? AND deleted_at IS NULL ORDER BY level DESC, sort_order, name", (b["id"],)).fetchall():
-                if building_ok or authorize(conn, principal, P_READ, ("floor", f["id"])).allowed:
+                if building_ok or authorize(conn, principal, P_READ, ("floor", f["id"])).allowed or f["id"] in cam_floors:
                     floors_out.append(floor_row(conn, f))
             if building_ok or floors_out:
                 item = building_row(b)
@@ -333,7 +340,9 @@ def create_floor(building_id: str, body: FloorIn, request: Request, principal: P
 @router.get("/floors/{floor_id}")
 def read_floor(floor_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     f = get_floor(conn, floor_id)
-    require(conn, principal, P_READ, ("floor", floor_id))
+    from ..services.access import require_floor_read
+
+    require_floor_read(conn, principal, floor_id, P_READ)
     b = get_building(conn, f["building_id"])
     s = get_site(conn, b["site_id"])
     return {"floor": floor_row(conn, f), "building": building_row(b), "site": site_row(s)}

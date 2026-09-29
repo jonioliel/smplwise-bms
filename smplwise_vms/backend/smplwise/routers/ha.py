@@ -21,7 +21,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..config import Settings
 from ..db import unlocked, Database, bump_permission_revision, get_setting, now_iso, set_setting
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, authorize, require
+from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
 from ..services import bridge_install, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync
 from ..services.timeutil import iso_utc, parse_utc
 from .media import _principal_for_ws
@@ -158,6 +158,7 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
         # Anything else needs ha.entity.control, which stays the audited reason for the 403 - so a devices.control-only
         # caller asking for lock.lock is denied and audited exactly like a caller holding no control at all.
         require(conn, principal, "ha.entity.control", INSTALLATION)
+    note_grant(ha_scope.control_decision(conn, principal, entity_id))  # T055: the action's audit rows name its scope
     e = _entity(conn, entity_id)
     if e["removed_at"] or e["disabled"]:
         raise ApiError(409, "entity_unavailable", "הישות אינה זמינה ב־Home Assistant.")
@@ -405,6 +406,8 @@ def _apply_directory_to_users(conn: sqlite3.Connection, request: Request, pushed
               reason="ha_directory" if p is not None else "missing_from_directory", request_id=getattr(request.state, "correlation_id", None))
         if not active_now:
             disabled.append(r["id"])
+        else:
+            revocation.changed([r["id"]])  # re-enabled: the shell re-fetches /me (T055)
     if disabled:
         bump_permission_revision(conn)
         revocation.mark(disabled)
@@ -430,9 +433,12 @@ async def ha_ws(websocket: WebSocket) -> None:
         await websocket.close(code=4403)
         return
     await websocket.accept()
+    from ..services import revocation
+
     q = ha_sync.subscribe()
     seq = 0
     last_scope = time.time()
+    access_gen = revocation.generation(principal.user_id)
     try:
         while True:
             try:
@@ -441,7 +447,8 @@ async def ha_ws(websocket: WebSocket) -> None:
                 seq += 1
                 await websocket.send_text(json.dumps({"version": 1, "type": "heartbeat", "sequence": seq, "subscription_id": principal.user_id, "occurred_at": now_iso(), "received_at": now_iso(), "payload": {"sync": ha_sync.STATE.as_dict()}}))
                 continue
-            if time.time() - last_scope > 60:
+            if time.time() - last_scope > 60 or revocation.generation(principal.user_id) != access_gen:  # T055: at once on an access change
+                access_gen = revocation.generation(principal.user_id)
                 wide, floors, placements = await run_in_threadpool(_scope)
                 last_scope = time.time()
             if msg.get("type") == "entity_state_changed":

@@ -7,7 +7,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Callable
 
-from ..rbac import INSTALLATION, Principal, authorize, require
+from ..rbac import INSTALLATION, Decision, Principal, authorize, require
 
 Placements = dict[str, list[dict[str, str]]]
 
@@ -122,6 +122,20 @@ def control_allowed(conn: sqlite3.Connection, principal: Principal, entity_id: s
     if entity_allowed(conn, principal, entity_id, "ha.entity.control"):
         return True
     return devices_control_reaches(conn, entity_id) and entity_allowed(conn, principal, entity_id, "devices.control")
+
+
+def control_decision(conn: sqlite3.Connection, principal: Principal, entity_id: str) -> Decision | None:
+    """The allowing decision behind control_allowed (installation-wide, else the first floor the entity is placed on) -
+    what the action's audit rows record as the scope it was authorised under (T055). None = not allowed."""
+    placed = placements(conn).get(entity_id, [])
+    for perm in CONTROL_PERMISSIONS:
+        if perm == "devices.control" and not devices_control_reaches(conn, entity_id):
+            continue
+        for target in [INSTALLATION] + [("floor", p["floor_id"]) for p in placed]:
+            d = authorize(conn, principal, perm, target)
+            if d.allowed:
+                return d
+    return None
 
 
 def control_checker(conn: sqlite3.Connection, principal: Principal) -> Callable[[str], bool]:

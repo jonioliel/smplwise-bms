@@ -610,8 +610,15 @@ def list_bundles(case_id: str, request: Request, principal: Principal = Depends(
 
 @router.get("/cases/{case_id}/bundles/{name}")
 def download_bundle(case_id: str, name: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> FileResponse:
-    _read_scope(conn, principal)
+    scope = _read_scope(conn, principal)
     _get(conn, case_id)
+    if scope is not None:
+        # T055: a built bundle holds every item of the case - a reader who does not see all of its cameras (or its
+        # imported, camera-less items) gets the case's items one by one, not the whole ZIP
+        cams = {r[0] for r in conn.execute("SELECT DISTINCT camera_id FROM case_items WHERE case_id = ? AND camera_id IS NOT NULL", (case_id,)).fetchall()}
+        imported = conn.execute("SELECT 1 FROM case_items WHERE case_id = ? AND origin_json IS NOT NULL LIMIT 1", (case_id,)).fetchone()
+        if cams - scope or imported:
+            require(conn, principal, "events.read", INSTALLATION)
     if not bundle_svc.re.fullmatch(r"case-[0-9a-f]{8}-\d{8}T\d{6}Z\.zip", name):
         raise not_found("החבילה לא נמצאה.")
     p = bundle_svc.bundles_dir(settings_of(request), case_id) / name

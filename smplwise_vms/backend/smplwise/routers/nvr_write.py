@@ -36,8 +36,16 @@ def _require_read(conn: sqlite3.Connection, principal: Principal) -> None:
     require(conn, principal, NOTIFY_PERMISSION, INSTALLATION)
 
 
-def _cameras(conn: sqlite3.Connection) -> list[sqlite3.Row]:
-    return conn.execute("SELECT id, channel, alias, name_source FROM cameras WHERE recorder_id = 'nvr-1' AND enabled = 1 AND channel IS NOT NULL ORDER BY channel").fetchall()
+def _cameras(conn: sqlite3.Connection, principal: Principal | None = None, permission: str | None = None) -> list[sqlite3.Row]:
+    """The NVR's enabled channels; with a principal, only the cameras in their camera scope (T055) for `permission`
+    (or, for a read, for any permission _require_read accepts) - a camera deny takes its channel out of the list."""
+    rows = conn.execute("SELECT id, channel, alias, name_source FROM cameras WHERE recorder_id = 'nvr-1' AND enabled = 1 AND channel IS NOT NULL ORDER BY channel").fetchall()
+    if principal is None:
+        return rows
+    from ..services.access import camera_scope
+
+    scopes = [camera_scope(conn, principal, p) for p in ((permission,) if permission else ("system.configure", NOTIFY_PERMISSION, *NVR_PERMISSIONS))]
+    return [r for r in rows if any(s.allows(r["id"]) for s in scopes)]
 
 
 @router.get("/nvr/notify")
@@ -45,7 +53,7 @@ def notify_status(request: Request, principal: Principal = Depends(current_princ
     """Which channels notify the surveillance centre for motion and for the smart events (read-only probe)."""
     _require_read(conn, principal)
     settings = settings_of(request)
-    cams = _cameras(conn)
+    cams = _cameras(conn, principal)
     with unlocked(conn):
         status = nvr_write.notify_status(settings, [int(c["channel"]) for c in cams])
     channels = []
@@ -79,11 +87,18 @@ def set_notify(body: NotifyIn, request: Request, principal: Principal = Depends(
     chosen channels. Each trigger is one recorded, reversible change; types a channel does not have are skipped."""
     require(conn, principal, NOTIFY_PERMISSION, INSTALLATION)
     settings = settings_of(request)
-    cams = _cameras(conn)
+    every = _cameras(conn)
+    cams = _cameras(conn, principal, NOTIFY_PERMISSION)
     wanted = set(body.channels) if body.channels else {int(c["channel"]) for c in cams}
-    known = {int(c["channel"]) for c in cams}
+    known = {int(c["channel"]) for c in every}
     if not wanted <= known:
         raise ApiError(422, "validation", "ערוץ לא מוכר.", details={"unknown": sorted(wanted - known)})
+    held = {int(c["channel"]) for c in cams}
+    for c in every:
+        if int(c["channel"]) in wanted - held:  # T055: a denied camera's channel is refused (audited), not silently skipped
+            from ..services.access import require_camera
+
+            require_camera(conn, principal, c["id"], NOTIFY_PERMISSION)
     types = list(nvr_write.NOTIFY_TYPES) if body.smart else ["VMD"]
     results: list[dict[str, Any]] = []
     client = nvr_write._client(settings)
@@ -166,6 +181,9 @@ def record_status(camera_id: str, principal: Principal = Depends(current_princip
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
+    from ..services.access import require_camera
+
+    require_camera(conn, principal, camera_id, "video.live")  # T055: the camera's recording state follows its live scope
     can = authorize(conn, principal, "nvr.record.manual", INSTALLATION).allowed
     return {"camera_id": camera_id, "active": nvr_write.manual_row(nvr_write.manual_active(conn, camera_id)), "can_write": can, "max_minutes": nvr_write.MANUAL_MAX_MIN, "track_id": cam["main_track"]}
 
@@ -313,17 +331,32 @@ class OsdIn(BaseModel):
     display_week: bool | None = None
 
 
-def _channel_of(conn: sqlite3.Connection, camera_id: str) -> tuple[sqlite3.Row, int]:
+def _camera_config_scope(conn: sqlite3.Connection, principal: Principal, camera_id: str, write: str | None) -> None:
+    """T055: the camera's own NVR settings follow the camera scope. NVR configuration stays an installation-wide grant
+    (checked by each route first); on top, the permission used must also hold on this camera's chain - so an explicit
+    deny on the camera (or its floor / site) takes the camera's settings away even from an installation-wide holder.
+    A read needs any of the permissions _require_read accepts, on the camera."""
+    from ..services.access import camera_allowed, require_camera
+
+    if write:
+        require_camera(conn, principal, camera_id, write)
+        return
+    if not any(camera_allowed(conn, principal, camera_id, perm) for perm in ("system.configure", NOTIFY_PERMISSION, *NVR_PERMISSIONS)):
+        require_camera(conn, principal, camera_id, "system.configure")  # the audited 403
+
+
+def _channel_of(conn: sqlite3.Connection, camera_id: str, principal: Principal, write: str | None = None) -> tuple[sqlite3.Row, int]:
     cam = conn.execute("SELECT id, channel, alias, name_source FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam or cam["channel"] is None:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
+    _camera_config_scope(conn, principal, camera_id, write)
     return cam, int(cam["channel"])
 
 
 @router.get("/cameras/{camera_id}/osd")
 def get_osd(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _require_read(conn, principal)
-    cam, ch = _channel_of(conn, camera_id)
+    cam, ch = _channel_of(conn, camera_id, principal)
     with unlocked(conn):
         st = nvr_system.osd_status(settings_of(request), ch)
     return {**st, "camera_id": camera_id, "channel": ch, "vms_name": cam["alias"] or cam["name_source"] or f"ערוץ {ch}",
@@ -333,7 +366,7 @@ def get_osd(camera_id: str, request: Request, principal: Principal = Depends(cur
 @router.put("/cameras/{camera_id}/osd")
 def set_osd(camera_id: str, body: OsdIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "nvr.config.osd", INSTALLATION)
-    _cam, ch = _channel_of(conn, camera_id)
+    _cam, ch = _channel_of(conn, camera_id, principal, "nvr.config.osd")
     parts = [p for p, v in (("שם", body.name_enabled), ("תאריך ושעה", body.datetime_enabled), ("פורמט תאריך", body.date_style), ("פורמט שעה", body.time_style), ("יום בשבוע", body.display_week)) if v is not None]
     if not parts:
         raise ApiError(422, "validation", "אין מה לכתוב.")
@@ -350,7 +383,7 @@ class NameIn(BaseModel):
 @router.post("/cameras/{camera_id}/osd/name", status_code=201)
 def write_channel_name(camera_id: str, body: NameIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "nvr.config.osd", INSTALLATION)
-    cam, ch = _channel_of(conn, camera_id)
+    cam, ch = _channel_of(conn, camera_id, principal, "nvr.config.osd")
     name = (body.name or cam["alias"] or cam["name_source"] or f"ערוץ {ch}")[:32]
     with unlocked(conn):
         rec = nvr_system.set_channel_name(settings_of(request), conn, principal, ch, name, request_id=_rid(request))
@@ -359,10 +392,11 @@ def write_channel_name(camera_id: str, body: NameIn, request: Request, principal
 
 # ---------------------------------------------------------------- 0.1.72: schedules (B5, C1) and smart rules (B4)
 
-def _track_of(conn: sqlite3.Connection, camera_id: str) -> tuple[sqlite3.Row, int, int]:
+def _track_of(conn: sqlite3.Connection, camera_id: str, principal: Principal, write: str | None = None) -> tuple[sqlite3.Row, int, int]:
     cam = conn.execute("SELECT id, channel, alias, name_source, main_track FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam or cam["channel"] is None:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
+    _camera_config_scope(conn, principal, camera_id, write)
     ch = int(cam["channel"])
     return cam, ch, int(cam["main_track"] or f"{ch}01")
 
@@ -371,7 +405,7 @@ def _track_of(conn: sqlite3.Connection, camera_id: str) -> tuple[sqlite3.Row, in
 def get_schedules(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Arming schedules of motion / line crossing / intrusion and the main track's recording schedule (read-only)."""
     _require_read(conn, principal)
-    _cam, ch, track = _track_of(conn, camera_id)
+    _cam, ch, track = _track_of(conn, camera_id, principal)
     settings = settings_of(request)
     out: dict[str, Any] = {"camera_id": camera_id, "channel": ch, "track_id": track, "arming": {}, "record": None, "unsupported": {},
                            "can": {"events": authorize(conn, principal, "nvr.config.events", INSTALLATION).allowed, "schedule": authorize(conn, principal, "nvr.config.schedule", INSTALLATION).allowed},
@@ -404,7 +438,7 @@ def set_arming(camera_id: str, kind: str, body: WeekIn, request: Request, princi
     require(conn, principal, "nvr.config.events", INSTALLATION)
     if kind not in nvr_schedule.SCHEDULE_KINDS:
         raise ApiError(404, "not_found", "סוג לוח לא מוכר.")
-    _cam, ch, _track = _track_of(conn, camera_id)
+    _cam, ch, _track = _track_of(conn, camera_id, principal, "nvr.config.events")
     days = nvr_schedule.check_week(body.days)
     active = sum(len(d) for d in days)
     settings = settings_of(request)
@@ -432,7 +466,7 @@ def set_record_schedule(camera_id: str, body: RecordScheduleIn, request: Request
     """C1: the weekly recording schedule of the main track; a mistake here means hours without recording, so the UI
     shows the difference first and the change log keeps the previous document for a one-click rollback."""
     require(conn, principal, "nvr.config.schedule", INSTALLATION)
-    _cam, ch, track = _track_of(conn, camera_id)
+    _cam, ch, track = _track_of(conn, camera_id, principal, "nvr.config.schedule")
     days = nvr_schedule.check_week(body.days, modes=True) if body.days is not None else None
     if days is None and body.enabled is None and body.schedule_enabled is None:
         raise ApiError(422, "validation", "אין מה לכתוב.")
@@ -445,7 +479,7 @@ def set_record_schedule(camera_id: str, body: RecordScheduleIn, request: Request
 @router.get("/cameras/{camera_id}/smart")
 def get_smart(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _require_read(conn, principal)
-    _cam, ch, _track = _track_of(conn, camera_id)
+    _cam, ch, _track = _track_of(conn, camera_id, principal)
     settings = settings_of(request)
     with unlocked(conn):
         client = nvr_write._client(settings)
@@ -468,7 +502,7 @@ def set_smart(camera_id: str, body: SmartRulesIn, request: Request, principal: P
     """B4: line crossing and intrusion rules - one recorded change per document; the zones cache is dropped so the
     camera screen shows the new shapes right away."""
     require(conn, principal, "nvr.config.smart", INSTALLATION)
-    _cam, ch, _track = _track_of(conn, camera_id)
+    _cam, ch, _track = _track_of(conn, camera_id, principal, "nvr.config.smart")
     if body.line is None and body.field is None:
         raise ApiError(422, "validation", "אין מה לכתוב.")
     from .cameras import _ZONES_CACHE

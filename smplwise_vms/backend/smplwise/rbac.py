@@ -1,10 +1,12 @@
 """VMS-local authorization: built-in roles (contracts/examples/role-catalog.design.json), scoped
-bindings (installation ⊇ site ⊇ building ⊇ floor) and default deny. Every action is evaluated as a
-(permission, target) pair; capabilities are never unioned across scopes."""
+bindings (installation ⊇ site ⊇ building ⊇ floor ⊇ camera) and default deny. Every action is evaluated as a
+(permission, target) pair; capabilities are never unioned across scopes. An explicit deny anywhere on the
+target's chain beats every allow on it (docs/security/HA_IDENTITY_RBAC_HE.md §15)."""
 from __future__ import annotations
 
 import json
 import sqlite3
+from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,7 +20,7 @@ ROLE_NAMES_HE: dict[str, str] = {
     role["id"]: role["name_he"] for role in json.loads((Path(__file__).parent / "roles.json").read_text(encoding="utf-8"))["roles"]
 }
 
-SCOPE_ORDER = ("installation", "site", "building", "floor")
+SCOPE_ORDER = ("installation", "site", "building", "floor", "camera")
 INSTALLATION = ("installation", "*")
 
 _CUSTOM_CACHE: dict[tuple[str, int], dict[str, list[str]]] = {}
@@ -69,8 +71,33 @@ class Decision:
     scope: tuple[str, str] | None = None
 
 
+def camera_floors(conn: sqlite3.Connection, camera_id: str) -> list[str]:
+    """The live floors a camera is currently anchored on (a camera may sit on more than one map)."""
+    return [
+        r[0]
+        for r in conn.execute(
+            """SELECT DISTINCT a.floor_id FROM map_anchors a JOIN floors f ON f.id = a.floor_id
+               WHERE a.resource_type = 'camera' AND a.resource_id = ? AND a.effective_to IS NULL AND f.deleted_at IS NULL ORDER BY a.floor_id""",
+            (camera_id,),
+        ).fetchall()
+    ]
+
+
 def scope_chain(conn: sqlite3.Connection, target_type: str, target_id: str) -> list[tuple[str, str]]:
-    """Return the target and all its ancestors, e.g. floor → building → site → installation."""
+    """Return the target and all its ancestors, e.g. floor → building → site → installation.
+
+    A camera (T055) is its own node; its ancestors are EVERY floor it is anchored on (with their buildings and
+    sites) and the installation - an unanchored camera hangs off the installation alone. Deny-overrides in
+    authorize() then applies across the whole chain (docs/security/HA_IDENTITY_RBAC_HE.md §15)."""
+    if target_type == "camera":
+        chain = [("camera", target_id)]
+        for fid in camera_floors(conn, target_id):
+            for node in scope_chain(conn, "floor", fid):
+                if node not in chain:
+                    chain.append(node)
+        if INSTALLATION not in chain:
+            chain.append(INSTALLATION)
+        return chain
     chain: list[tuple[str, str]] = []
     if target_type == "floor":
         row = conn.execute("SELECT id, building_id FROM floors WHERE id = ?", (target_id,)).fetchone()
@@ -123,9 +150,27 @@ def require(conn: sqlite3.Connection, principal: Principal, permission: str, tar
     if not decision.allowed:
         from .audit import audit  # local import: audit depends on db only
 
-        audit(conn, actor=principal, action=permission, decision="denied", resource_type=target[0], resource_id=target[1], reason=decision.reason)
+        audit(conn, actor=principal, action=permission, decision="denied", resource_type=target[0], resource_id=target[1], reason=decision.reason, under=decision)
         raise forbidden(permission=permission, target_type=target[0], target_id=target[1], reason=decision.reason)
+    _LAST_GRANT.set(decision)
     return decision
+
+
+# T055 audit: the allowing decision of the latest require() in THIS request (a context variable - every request runs in
+# its own copied context, so nothing leaks between requests). audit() records its binding, role and scope on an
+# "allowed" row that names no decision itself - the config and command rows of the routers that enforce with require().
+_LAST_GRANT: ContextVar[Decision | None] = ContextVar("sw_last_grant", default=None)
+
+
+def last_grant() -> Decision | None:
+    return _LAST_GRANT.get()
+
+
+def note_grant(decision: Decision | None) -> None:
+    """For a route that decides through authorize() rather than require() (a placement rule, several permissions):
+    the allowing decision its audit rows should record."""
+    if decision is not None and decision.allowed:
+        _LAST_GRANT.set(decision)
 
 
 def effective_permissions(conn: sqlite3.Connection, principal: Principal, target: tuple[str, str]) -> list[str]:
@@ -176,9 +221,26 @@ def bindings_of(conn: sqlite3.Connection, principal: Principal) -> list[dict]:
 def scope_name(conn: sqlite3.Connection, scope_type: str, scope_id: str) -> str:
     if scope_type == "installation":
         return "כל ההתקנה"
+    if scope_type == "camera":
+        row = conn.execute("SELECT alias, name_source, channel FROM cameras WHERE id = ?", (scope_id,)).fetchone()
+        return f"מצלמה · {row['alias'] or row['name_source'] or 'ערוץ ' + str(row['channel'])}" if row else scope_id
     table = {"site": "sites", "building": "buildings", "floor": "floors"}[scope_type]
     row = conn.execute(f"SELECT name FROM {table} WHERE id = ?", (scope_id,)).fetchone()
     return row["name"] if row else scope_id
+
+
+def permissions_fingerprint(conn: sqlite3.Connection, principal: Principal) -> str:
+    """A short hash of everything this user's access depends on - the active flag and each active binding (direct or
+    through a group) with its role's current permissions, scope, effect and expiry. It moves exactly when the user's
+    effective access may have changed, unlike the installation-wide permission_revision (T055: the shell re-fetches
+    /me and the navigation when /me/ws or /me?known= says it moved)."""
+    import hashlib
+
+    user = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
+    parts = [f"active={1 if user is None or user['active'] else 0}"]
+    for b in sorted(_active_bindings(conn, principal), key=lambda r: r["id"]):
+        parts.append("|".join((b["id"], b["role_id"], ",".join(sorted(role_permissions(conn, b["role_id"]))), b["scope_type"], b["scope_id"], b["effect"], b["expires_at"] or "")))
+    return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()[:16]
 
 
 def has_any_binding(conn: sqlite3.Connection, principal: Principal) -> bool:
