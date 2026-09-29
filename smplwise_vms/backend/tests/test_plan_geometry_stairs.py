@@ -284,6 +284,15 @@ def test_floor_height_sets_the_rise_between_floors_from_either_side_and_to_non_d
     twin4 = c.post(f"/api/v1/buildings/{ids['building']}/floors", json={"name": "קומה 4ב", "level": 4}).json()
     _save(c, _plan(c, twin4["id"], png_bytes()), floor_height_m=9.0)
     assert _conn(c, v3, "st6")["far"]["datum_m"] == 10.0, "floor 4 (created first) counts 3.0; the second floor 4 is ignored"
+    # final review: more than 3 missing numbers (floor 3 -> floor 12: 7..11 missing, after 4 and 6) count one default height
+    # for the whole gap, with a warning to number the floors consecutively
+    f12 = c.post(f"/api/v1/buildings/{ids['building']}/floors", json={"name": "קומה 12", "level": 12}).json()
+    _plan(c, f12["id"], png_bytes())
+    _save(c, v3, connectors=[*_draft(c, v3)["doc"]["connectors"], STAIRS("st12")])
+    assert c.post(f"/api/v1/plan-versions/{v3}/geometry/link", json={"connector_id": "st12", "floor_id": f12["id"]}).status_code == 200
+    assert _conn(c, v3, "st12")["far"]["datum_m"] == 4.0 + 3.0 + 3.0 + 3.0 + 3.0  # 3 (4.0), 4 (3.0), 5 missing -> gap, 6 (3.0), 7..11 -> one 3.0
+    gaps = [i["id"] for i in _draft(c, v3)["issues"] if i["code"] == "floor_numbers_gap"]
+    assert gaps == ["st12"], "only the link across the wide gap warns"
     # the height is validated
     assert [i["code"] for i in _save(c, v2, floor_height_m=1.0)["issues"]] == ["floor_height"]
     assert [i["code"] for i in _save(c, v2, floor_height_m=12.5)["issues"]] == ["floor_height"]

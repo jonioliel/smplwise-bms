@@ -385,6 +385,21 @@ def strip_far(doc: dict[str, Any]) -> dict[str, Any]:
     return doc
 
 
+# Floor numbers are expected to be consecutive: a gap of up to this many missing numbers counts the default height each.
+MAX_FILLED_GAP = 3
+
+
+def _runs(numbers: list[int]) -> list[list[int]]:
+    """Sorted integers split into runs of consecutive numbers."""
+    out: list[list[int]] = []
+    for n in numbers:
+        if out and out[-1][-1] == n - 1:
+            out[-1].append(n)
+        else:
+            out.append([n])
+    return out
+
+
 class FarContext:
     """What one request knows about the other floors its documents' connectors reach: each floor row, its plan version
     and the levels, connectors and floor height of its document - one query and one parse per floor per request, shared
@@ -429,25 +444,37 @@ class FarContext:
             self._heights[floor_id] = pg.floor_height({"floor_height_m": raw})
         return self._heights[floor_id]
 
+    def _rows(self, building_id: str) -> list[sqlite3.Row]:
+        rows = self._buildings.get(building_id)
+        if rows is None:
+            rows = self.conn.execute("SELECT id, level FROM floors WHERE building_id = ? AND deleted_at IS NULL ORDER BY level, sort_order, created_at, rowid", (building_id,)).fetchall()
+            self._buildings[building_id] = rows
+        return rows
+
+    def widest_gap(self, me: sqlite3.Row, far: sqlite3.Row) -> int:
+        """The longest run of consecutive floor numbers between the two floors that no floor of the building has."""
+        have = {int(r["level"]) for r in self._rows(me["building_id"])} | {int(me["level"])}
+        return max((len(run) for run in _runs([n for n in range(*sorted((int(me["level"]), int(far["level"])))) if n not in have])), default=0)
+
     def datum(self, me: sqlite3.Row, own_height: float, far: sqlite3.Row) -> float:
         """How far the other floor's datum (its default level's floor) is above this floor's, in metres: the floor
         heights of the floor numbers from this one up to the other (one per number, the first floor of a repeated number;
-        this floor's from the document at hand; a missing number the default), negative downwards (review M1, L-b,
-        owner's "גובה קומה")."""
-        rows = self._buildings.get(me["building_id"])
-        if rows is None:
-            rows = self.conn.execute("SELECT id, level FROM floors WHERE building_id = ? AND deleted_at IS NULL ORDER BY level, sort_order, created_at, rowid", (me["building_id"],)).fetchall()
-            self._buildings[me["building_id"]] = rows
-        heights: dict[int, float] = {me["level"]: own_height}
-        for r in rows:
-            if r["level"] not in heights:
-                heights[r["level"]] = self._height(r["id"])
+        this floor's from the document at hand), negative downwards (review M1, owner's "גובה קומה"). Floor numbers are
+        expected to be consecutive integers: a gap of up to MAX_FILLED_GAP missing numbers counts the default height for each
+        (review L-b: floors 0 and 2 without a floor 1 are two storeys apart); a wider gap (a building numbered 0, 10, 20)
+        counts ONE default height for the whole gap and link_issues warns floor_numbers_gap (final review)."""
+        heights: dict[int, float] = {int(me["level"]): own_height}
+        for r in self._rows(me["building_id"]):
+            if int(r["level"]) not in heights:
+                heights[int(r["level"])] = self._height(r["id"])
         a, b = int(me["level"]), int(far["level"])
+        if a == b:
+            return 0.0
         lo, hi = min(a, b), max(a, b)
-        # every floor number between the two counts once - a number no floor has counts the default height (review L-b:
-        # floors 0 and 2 without a floor 1 are two storeys apart, not one)
-        total = sum(heights.get(n, pg.DEFAULT_FLOOR_HEIGHT_M) for n in range(lo, hi))
-        return round(total if b > a else -total, 4) if a != b else 0.0
+        total = sum(heights[n] for n in range(lo, hi) if n in heights)
+        for run in _runs([n for n in range(lo, hi) if n not in heights]):  # each gap of missing numbers
+            total += pg.DEFAULT_FLOOR_HEIGHT_M * (len(run) if len(run) <= MAX_FILLED_GAP else 1)
+        return round(total if b > a else -total, 4)
 
 
 def attach_far(conn: sqlite3.Connection, floor_id: str, doc: dict[str, Any], ctx: FarContext | None = None) -> dict[str, Any]:
@@ -518,6 +545,9 @@ def link_issues(conn: sqlite3.Connection, floor_id: str, doc: dict[str, Any], ct
             continue
         if isinstance(c.get("level_to"), str) and c["level_to"] not in info["levels"]:
             warn(cid, "connector_far_level", "המפלס שהמחבר מגיע אליו בקומה השנייה לא קיים עוד; בחר מפלס יעד מחדש.")
+        me = conn.execute("SELECT id, level, building_id FROM floors WHERE id = ?", (floor_id,)).fetchone()
+        if me is not None and info["row"]["building_id"] == me["building_id"] and ctx.widest_gap(me, info["row"]) > MAX_FILLED_GAP:
+            warn(cid, "floor_numbers_gap", "מספרי הקומות בין שתי הקומות לא רציפים: הגובה על הפער חושב כקומה אחת. מספר את הקומות ברצף (0, 1, 2…) כדי שגובה המדרגות יהיה נכון.")
         twin = info["twins"].get(cid)
         if twin is None or floor_id not in (twin.get("floor_ids") or []):
             warn(cid, "connector_twin_missing", "בקומה השנייה אין את המחבר התאום; קשר אותו מחדש או מחק אותו.")
