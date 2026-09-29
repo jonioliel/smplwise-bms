@@ -5,14 +5,22 @@
                            (`__Secure-arx_session`, Path=<remote_path>/, HttpOnly, Secure, SameSite=Strict).
 `DELETE auth/session`      remote channel only: sign out (the session is dropped, the cookie cleared).
 `PUT access/users/{id}/remote-access`  system.configure: the per-user flag of remote.policy = flag (D4).
+
+CR-008 P2 (remote-access hardening), on both channels:
+`GET    auth/sessions?scope=own|all`  the remote sign-ins (one row per browser / client), own; `all` with system.configure.
+`DELETE auth/sessions/{id}`           end one sign-in (own; another user's with system.configure). Audited.
+`DELETE auth/sessions[?user_id=]`     "sign out everywhere" (own) or every sign-in of one user (system.configure).
+Ending one's OWN sign-ins also deletes their HA refresh tokens (best effort); an administrator's revoke ends the Arx
+access only. Either way the WebSockets of the ended sessions close at once and the same sign-in cannot come back.
 """
 from __future__ import annotations
 
 import datetime as dt
+import re
 import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
@@ -21,8 +29,8 @@ from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
 from ..db import now_iso
 from ..errors import ApiError, unauthenticated
-from ..rbac import INSTALLATION, Principal, require
-from ..remote_channel import is_remote
+from ..rbac import INSTALLATION, Principal, authorize, require
+from ..remote_channel import channel_of, is_remote
 from ..services import ha_user_auth as hua
 
 router = APIRouter()
@@ -104,3 +112,86 @@ def set_remote_access(user_id: str, body: RemoteFlag, request: Request, principa
         if read_settings(conn)["remote.policy"] == "flag":
             dropped = len(hua.STORE.drop_user(user_id))
     return {"user_id": user_id, "remote_access": body.enabled, "sessions_ended": dropped}
+
+
+# ---------------------------------------------------------------- CR-008 P2: the remote sessions list
+
+SESSION_NOT_FOUND_HE = "הכניסה הזו כבר לא פעילה."
+
+
+def _who(request: Request) -> tuple[Principal, bool]:
+    """The caller and whether they administer the installation - on a short read connection of its own, so the async
+    revoke handlers never hold the write lock while they close sockets or call HA."""
+    from ..auth import _principal
+
+    with request.app.state.db.connection(mode="read", label=f"{request.method} auth/sessions") as conn:
+        principal = _principal(request, conn)
+        return principal, authorize(conn, principal, "system.configure", INSTALLATION).allowed
+
+
+def _require_admin(request: Request, principal: Principal) -> None:
+    with request.app.state.db.connection(label="auth/sessions admin") as conn:
+        require(conn, principal, "system.configure", INSTALLATION)  # 403, audited
+
+
+def _live_by_chain() -> dict[str, int]:
+    from .media import remote_live_by_chain
+
+    return remote_live_by_chain()
+
+
+def _current_chain(request: Request) -> str | None:
+    s = hua.session_of(request)
+    return (s.chain or s.sid) if s is not None else None
+
+
+@router.get("/auth/sessions")
+def list_remote_sessions(request: Request, scope: str = Query("own", pattern="^(own|all)$")) -> dict[str, Any]:
+    principal, admin = _who(request)
+    if scope == "all" and not admin:
+        _require_admin(request, principal)
+    entries = hua.STORE.chains(None if scope == "all" else principal.user_id)
+    current = _current_chain(request)
+    live = _live_by_chain()
+    return {"scope": scope, "can_manage": admin, "channel": channel_of(request),
+            "sessions": [hua.describe(e, current, live) for e in entries]}
+
+
+def _clear_cookie(response: Response, settings) -> None:
+    for name in (hua.COOKIE_SECURE, hua.COOKIE_PLAIN):
+        response.delete_cookie(name, path=settings.remote_path + "/", httponly=True, secure=name == hua.COOKIE_SECURE, samesite="strict")
+
+
+async def _revoke(request: Request, principal: Principal, sessions: list, target_user: str, reason: str) -> JSONResponse:
+    settings = settings_of(request)
+    current = _current_chain(request)
+    ends_current = current is not None and any((s.chain or s.sid) == current for s in sessions)
+    own = target_user == principal.user_id
+    result = await hua.revoke_sessions(request.app.state, settings, sessions, actor=principal, reason=reason, target_user=target_user,
+                                       also_at_ha=own, request_id=getattr(request.state, "correlation_id", None))
+    response = JSONResponse({**result, "current_ended": ends_current})
+    if ends_current:
+        _clear_cookie(response, settings)
+    return response
+
+
+@router.delete("/auth/sessions/{session_id}")
+async def revoke_remote_session(session_id: str, request: Request) -> JSONResponse:
+    principal, admin = await run_in_threadpool(_who, request)  # identity first: an anonymous caller learns nothing (401)
+    sessions = hua.STORE.sessions_of({session_id}) if re.fullmatch(r"[0-9a-f]{20}", session_id) else []
+    if not sessions:
+        raise ApiError(404, "session_not_found", SESSION_NOT_FOUND_HE)
+    owner = sessions[0].principal.user_id
+    if owner != principal.user_id and not admin:
+        await run_in_threadpool(_require_admin, request, principal)
+    return await _revoke(request, principal, sessions, owner, "revoked_by_user" if owner == principal.user_id else "revoked_by_admin")
+
+
+@router.delete("/auth/sessions")
+async def revoke_all_remote_sessions(request: Request, user_id: str | None = Query(None, max_length=200)) -> JSONResponse:
+    principal, admin = await run_in_threadpool(_who, request)
+    target = user_id or principal.user_id
+    if target != principal.user_id and not admin:
+        await run_in_threadpool(_require_admin, request, principal)
+    sessions = hua.STORE.sessions_of(user_id=target)
+    return await _revoke(request, principal, sessions, target, "signed_out_everywhere" if target == principal.user_id else "revoked_all_by_admin")

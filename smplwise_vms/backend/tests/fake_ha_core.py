@@ -6,7 +6,7 @@ src/data/auth.ts). Shared by the backend tests (tests/test_remote_access.py) and
 - `GET /auth/providers`, `POST /auth/login_flow` (PKCE S256), `POST /auth/login_flow/{flow_id}` (username/password,
   then the `mfa` step for a user with MFA; `invalid_auth` / `invalid_code` like HA), `POST /auth/token`
   (authorization_code with code_verifier, refresh_token, `action=revoke`), all as pure functions plus a tiny HTTP server;
-- the WebSocket API's `auth` + `auth/current_user` as an in-process socket (`dial`) that ha_user_auth._dial is swapped
+- the WebSocket API's `auth` + `auth/current_user` (+ `auth/delete_refresh_token`, CR-008 P2) as an in-process socket (`dial`) that ha_user_auth._dial is swapped
   for.
 
 Access tokens are JWT-shaped (header.payload.signature, `exp` in the payload) so the add-on's structural pre-check
@@ -68,6 +68,7 @@ class FakeHaCore:
     _access: dict[str, tuple[str, float]] = field(default_factory=dict)  # token -> (refresh token, exp)
     dials: list[dict[str, Any]] = field(default_factory=list)  # every WebSocket the add-on opened (url, headers)
     requests: list[tuple[str, str]] = field(default_factory=list)  # every HTTP call (method, path)
+    deleted_refresh: list[str] = field(default_factory=list)  # refresh-token ids deleted over the WebSocket API
 
     def add_user(self, user: FakeUser) -> FakeUser:
         with self.lock:
@@ -303,6 +304,18 @@ class FakeCoreSocket:
                 "id": u.id, "name": u.name, "is_owner": u.is_owner, "is_admin": u.is_admin,
                 "credentials": [{"auth_provider_type": "homeassistant", "auth_provider_id": None}],
                 "mfa_modules": [{"id": "totp", "name": "Authenticator app", "enabled": bool(u.mfa_code)}]}}))
+        elif msg.get("type") == "auth/delete_refresh_token":
+            # HA core auth/__init__.py websocket_delete_refresh_token: the id must name a refresh token of the
+            # connection's own user (access tokens here carry the first 12 characters of theirs as `iss`)
+            rid = msg.get("refresh_token_id")
+            with self.core.lock:
+                rt = next((r for r in self.core._refresh.values() if r.token[:12] == rid), None)
+            if rt is None or rt.user_id != self.user.id:
+                self.out.append(json.dumps({"id": msg.get("id"), "type": "result", "success": False, "error": {"code": "invalid_token_id", "message": "Received invalid token"}}))
+            else:
+                self.core.deleted_refresh.append(rid)
+                self.core.revoke_refresh(rt.token)
+                self.out.append(json.dumps({"id": msg.get("id"), "type": "result", "success": True, "result": {}}))
         else:
             self.out.append(json.dumps({"id": msg.get("id"), "type": "result", "success": False, "error": {"code": "unknown_command"}}))
 

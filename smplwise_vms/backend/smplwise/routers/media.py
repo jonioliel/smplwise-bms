@@ -46,6 +46,7 @@ class LiveSession:
     username: str
     started_at: float = field(default_factory=time.time)
     bytes_down: int = 0
+    remote_chain: str | None = None  # CR-008 P2: the remote sign-in (session chain) this stream runs under; None = local
 
 
 class SessionRegistry:
@@ -60,6 +61,15 @@ class SessionRegistry:
 
 
 REGISTRY = SessionRegistry()
+
+
+def remote_live_by_chain() -> dict[str, int]:
+    """CR-008 P2: live streams per remote sign-in (the sessions list, the per-session cap, /health)."""
+    out: dict[str, int] = {}
+    for s in list(REGISTRY.sessions.values()):
+        if s.remote_chain:
+            out[s.remote_chain] = out.get(s.remote_chain, 0) + 1
+    return out
 
 
 def _stream_for(conn: sqlite3.Connection, camera_id: str) -> sqlite3.Row:

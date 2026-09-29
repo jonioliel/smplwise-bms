@@ -6,6 +6,8 @@ const REASON_TEXT: Record<string, string> = {
   idle: 'ננעלת לאחר חוסר פעילות. יש להיכנס שוב.',
   expired: 'הכניסה פגה. יש להיכנס שוב.',
   logout: 'יצאת מ־SmplWise Arx.',
+  everywhere: 'יצאת מ־SmplWise Arx בכל המכשירים.',
+  revoked: 'הכניסה במכשיר הזה נותקה מרשימת הכניסות מרחוק. יש להיכנס שוב.',
 };
 
 /**

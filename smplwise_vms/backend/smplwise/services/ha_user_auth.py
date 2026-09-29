@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import collections
+import dataclasses
 import hashlib
 import json
 import logging
@@ -55,6 +56,7 @@ TOKEN_INVALID_HE = "ההזדהות מול Home Assistant פגה או בוטלה.
 HA_UNAVAILABLE_HE = "Home Assistant אינו זמין כרגע לאימות הכניסה. נסה שוב בעוד רגע."
 RATE_LIMITED_HE = "יותר מדי ניסיונות כניסה. נסה שוב בעוד כמה דקות."
 ORIGIN_HE = "חיבור ממקור לא מורשה."
+REVOKED_HE = "הכניסה הזו נותקה (מרשימת הכניסות מרחוק). יש להיכנס מחדש."
 
 COOKIE_SECURE = "__Secure-arx_session"
 COOKIE_PLAIN = "arx_session"  # only outside the add-on over plain http (a developer / Playwright backend)
@@ -94,19 +96,71 @@ def token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8", "replace")).hexdigest()
 
 
-def jwt_exp(token: str) -> float | None:
-    """The unverified `exp` of an HA access token (a JWT), or None when the string is not shaped like one. Only a
-    pre-check: HA verifies the signature when we ask it."""
+def _jwt_payload(token: str) -> dict[str, Any] | None:
     parts = token.split(".")
     if len(parts) != 3 or not all(parts) or len(token) > 4096:
         return None
     try:
         raw = parts[1] + "=" * (-len(parts[1]) % 4)
         payload = json.loads(base64.urlsafe_b64decode(raw.encode("ascii")))
-        exp = payload.get("exp") if isinstance(payload, dict) else None
-        return float(exp) if isinstance(exp, (int, float)) else None
     except (ValueError, UnicodeError):
         return None
+    return payload if isinstance(payload, dict) else None
+
+
+def jwt_exp(token: str) -> float | None:
+    """The unverified `exp` of an HA access token (a JWT), or None when the string is not shaped like one. Only a
+    pre-check: HA verifies the signature when we ask it."""
+    payload = _jwt_payload(token)
+    exp = payload.get("exp") if payload else None
+    return float(exp) if isinstance(exp, (int, float)) else None
+
+
+def jwt_iss(token: str) -> str | None:
+    """The unverified `iss` of an HA access token: HA puts the id of the refresh token that issued it there, so every
+    access token of one sign-in (one browser, one app install) carries the same value."""
+    payload = _jwt_payload(token)
+    iss = payload.get("iss") if payload else None
+    return iss if isinstance(iss, str) and iss else None
+
+
+def iss_hash(token: str) -> str:
+    """SHA-256 of the token's refresh-token id (never stored in clear); "" when the token carries none."""
+    iss = jwt_iss(token)
+    return hashlib.sha256(("iss:" + iss).encode("utf-8", "replace")).hexdigest() if iss else ""
+
+
+def public_id(chain: str) -> str:
+    """What the sessions list shows and the revoke endpoints take: a hash of the session chain, never the cookie value."""
+    return hashlib.sha256(("chain:" + chain).encode("utf-8", "replace")).hexdigest()[:20]
+
+
+def mask_address(ip: str) -> str:
+    """An address for the sessions list: IPv4 to its /24, IPv6 to its /48; anything else is dropped."""
+    import ipaddress
+
+    try:
+        addr = ipaddress.ip_address((ip or "").strip())
+    except ValueError:
+        return ""
+    if addr.version == 4:
+        return str(ipaddress.ip_network(f"{addr}/24", strict=False))
+    return str(ipaddress.ip_network(f"{addr}/48", strict=False))
+
+
+def agent_family(ua: str) -> str:
+    """"Chrome · Android"-style family of a User-Agent (the list shows no full strings)."""
+    ua = ua or ""
+    if not ua:
+        return ""
+    browser = ("Edge" if "Edg/" in ua else "Samsung Internet" if "SamsungBrowser/" in ua else "Opera" if "OPR/" in ua
+               else "Firefox" if ("Firefox/" in ua or "FxiOS/" in ua) else "Chrome" if ("Chrome/" in ua or "CriOS/" in ua)
+               else "Safari" if "Safari/" in ua else "")
+    osname = ("iOS" if ("iPhone" in ua or "iPad" in ua) else "Android" if "Android" in ua else "Windows" if "Windows" in ua
+              else "macOS" if "Mac OS X" in ua else "Linux" if "Linux" in ua else "")
+    if not browser and not osname:
+        return ua.split("/", 1)[0][:40]
+    return " · ".join(x for x in (browser, osname) if x)
 
 
 # ---------------------------------------------------------------- HA core: where and how
@@ -238,6 +292,15 @@ class RemoteSession:
     last_used: float
     last_validated: float
     chain: str = ""  # one browser's sign-in: every rotation keeps it; sign-out ends the whole chain
+    # CR-008 P2: what the sessions list shows and how it was made
+    via: str = "cookie"  # cookie (an Arx session) | bearer (an HA access token on every request, a native client)
+    chain_started: float = 0.0  # when this browser / client signed in (the chain's first session)
+    last_ip: str = ""
+    country: str = ""
+    user_agent: str = ""
+    iss_hash: str = ""  # SHA-256 of the refresh-token id the access token carries (remote_revoked_chains)
+    token_key: str = ""  # token_hash of a bearer session's token (the lookup key of the bearer path)
+    continued: bool = False  # the session continues an existing chain (a rotation, a native client's next token)
 
 
 class SessionStore:
@@ -245,28 +308,51 @@ class SessionStore:
         self._lock = threading.Lock()
         self._sessions: dict[str, RemoteSession] = {}
         self._sockets: dict[str, weakref.WeakSet] = {}
+        self._by_token: dict[str, str] = {}  # bearer sessions: token_hash -> sid
         self._to_close: list[Any] = []
 
-    def create(self, principal: Principal, ha_user: HaUser, token: str, token_exp: float, client_ip: str, replaces: str | None = None) -> RemoteSession:
-        """A new session; `replaces` = the sid the browser presented (a rotation after a token refresh): that session
-        ends now (security review M2) and its open WebSockets move to the new one instead of being closed."""
+    def create(self, principal: Principal, ha_user: HaUser, token: str, token_exp: float, client_ip: str, replaces: str | None = None,
+               via: str = "cookie", meta: dict[str, str] | None = None) -> RemoteSession:
+        """A new session. A cookie session with `replaces` = the sid the browser presented (a rotation after a token
+        refresh): that session ends now (security review M2) and its open WebSockets move to the new one instead of
+        being closed. A bearer session (CR-008 P2) joins the chain of the same sign-in (the token's refresh-token id), so
+        a native client's successive access tokens are one entry of the sessions list and one live-stream budget; the
+        earlier tokens' sessions simply end with their tokens."""
         now = time.time()
+        meta = meta or {}
         s = RemoteSession(sid=secrets.token_urlsafe(32), principal=principal, token=token, token_exp=token_exp, ha_user=ha_user,
-                          client_ip=client_ip, created_at=now, last_used=now, last_validated=now)
-        s.chain = s.sid
+                          client_ip=client_ip, created_at=now, last_used=now, last_validated=now, via=via, chain_started=now,
+                          last_ip=client_ip, country=meta.get("country", ""), user_agent=meta.get("user_agent", ""), iss_hash=iss_hash(token),
+                          token_key=token_hash(token) if via == "bearer" else "")
+        s.chain = s.sid if via == "cookie" else "b:" + (s.iss_hash or s.token_key)
         with self._lock:
-            old = self._sessions.get(replaces) if replaces else None
-            if old is not None and old.principal.user_id == principal.user_id:
-                s.chain = old.chain or old.sid
-                self._sessions.pop(old.sid, None)
-                socks = self._sockets.pop(old.sid, None)
-                if socks:
-                    self._sockets.setdefault(s.sid, weakref.WeakSet()).update(socks)
+            if via == "cookie":
+                old = self._sessions.get(replaces) if replaces else None
+                if old is not None and old.principal.user_id == principal.user_id and old.via == "cookie":
+                    s.chain = old.chain or old.sid
+                    s.chain_started = old.chain_started or old.created_at
+                    s.continued = True
+                    self._drop_quietly_locked(old.sid, move_sockets_to=s.sid)
+            else:
+                prior = [x for x in self._sessions.values() if x.via == "bearer" and x.chain == s.chain and x.principal.user_id == principal.user_id]
+                if prior:
+                    s.chain_started = min(x.chain_started or x.created_at for x in prior)
+                    s.continued = True
             self._sessions[s.sid] = s
+            if s.token_key:
+                self._by_token[s.token_key] = s.sid
             mine = sorted((x for x in self._sessions.values() if x.principal.user_id == principal.user_id), key=lambda x: x.created_at)
             for old in mine[:-MAX_SESSIONS_PER_USER]:
                 self._drop_locked(old.sid)
         return s
+
+    def _drop_quietly_locked(self, sid: str, move_sockets_to: str) -> None:
+        old = self._sessions.pop(sid, None)
+        if old is not None and old.token_key:
+            self._by_token.pop(old.token_key, None)
+        socks = self._sockets.pop(sid, None)
+        if socks:
+            self._sockets.setdefault(move_sockets_to, weakref.WeakSet()).update(socks)
 
     def get(self, sid: str | None) -> RemoteSession | None:
         if not sid:
@@ -282,8 +368,15 @@ class SessionStore:
             s.last_used = now
             return s
 
+    def get_bearer(self, key: str) -> RemoteSession | None:
+        with self._lock:
+            sid = self._by_token.get(key)
+        return self.get(sid)
+
     def _drop_locked(self, sid: str) -> RemoteSession | None:
         s = self._sessions.pop(sid, None)
+        if s is not None and s.token_key:
+            self._by_token.pop(s.token_key, None)
         socks = self._sockets.pop(sid, None)
         if socks:
             self._to_close.extend(list(socks))
@@ -312,11 +405,40 @@ class SessionStore:
             return s
 
     def drop_user(self, user_id: str) -> list[RemoteSession]:
+        """Every remote session of the user, cookie and bearer alike (their WebSockets close on the next pass)."""
         with self._lock:
             sids = [sid for sid, s in self._sessions.items() if s.principal.user_id == user_id]
-            dropped = [s for s in (self._drop_locked(sid) for sid in sids) if s is not None]
-        forget_bearer_user(user_id)  # security review M3: the bearer cache follows at once, not after 60 s
-        return dropped
+            return [s for s in (self._drop_locked(sid) for sid in sids) if s is not None]
+
+    def sessions_of(self, public_ids: set[str] | None = None, user_id: str | None = None) -> list[RemoteSession]:
+        """The sessions of the given sign-ins (public ids) and / or of one user."""
+        with self._lock:
+            return [s for s in self._sessions.values()
+                    if (public_ids is None or public_id(s.chain or s.sid) in public_ids) and (user_id is None or s.principal.user_id == user_id)]
+
+    def drop_sessions(self, sessions: list[RemoteSession]) -> list[RemoteSession]:
+        with self._lock:
+            return [x for x in (self._drop_locked(s.sid) for s in sessions) if x is not None]
+
+    def chains(self, user_id: str | None = None) -> list[dict[str, Any]]:
+        """One entry per sign-in (a browser's chain of rotated cookie sessions, a native client's successive bearer
+        sessions): the freshest session, the chain's start. Newest use first."""
+        now = time.time()
+        out: dict[str, dict[str, Any]] = {}
+        with self._lock:
+            for s in self._sessions.values():
+                if s.token_exp <= now or (user_id is not None and s.principal.user_id != user_id):
+                    continue
+                chain = s.chain or s.sid
+                start = s.chain_started or s.created_at
+                cur = out.get(chain)
+                if cur is None:
+                    out[chain] = {"chain": chain, "session": s, "started": start}
+                    continue
+                cur["started"] = min(cur["started"], start)
+                if s.last_used > cur["session"].last_used:
+                    cur["session"] = s
+        return sorted(out.values(), key=lambda e: -e["session"].last_used)
 
     def attach_socket(self, sid: str, websocket: Any) -> None:
         with self._lock:
@@ -340,25 +462,33 @@ class SessionStore:
         with self._lock:
             return len(self._sessions)
 
+    def stats(self) -> dict[str, int]:
+        """For /health: sessions by kind, sign-ins (chains), distinct users and attached sockets; no ids."""
+        now = time.time()
+        with self._lock:
+            live = [s for s in self._sessions.values() if s.token_exp > now]
+            return {"sessions": len(live), "cookie": sum(1 for s in live if s.via == "cookie"), "bearer": sum(1 for s in live if s.via == "bearer"),
+                    "sign_ins": len({s.chain or s.sid for s in live}), "users": len({s.principal.user_id for s in live}),
+                    "sockets": sum(len(v) for v in self._sockets.values())}
+
     def clear(self) -> None:
         with self._lock:
             self._sessions.clear()
             self._sockets.clear()
+            self._by_token.clear()
             self._to_close.clear()
 
 
 STORE = SessionStore()
 
-# bearer requests (API clients, the future native app): validated principals by token hash, <= BEARER_CACHE_S old
-_bearer_cache: dict[str, tuple[Principal, float, float]] = {}
 _rejected: dict[str, float] = {}  # token hash -> until (negative cache)
 _cache_lock = threading.Lock()
 
 
 def forget_bearer_user(user_id: str) -> None:
-    with _cache_lock:
-        for key in [k for k, v in _bearer_cache.items() if v[0].user_id == user_id]:
-            _bearer_cache.pop(key, None)
+    """The MVP's bearer cache is gone: bearer principals are bearer sessions in STORE (CR-008 P2), so drop_user covers
+    them. Kept for callers."""
+    STORE.drop_user(user_id)
 
 
 def _remember_rejected(token: str) -> None:
@@ -518,9 +648,36 @@ def policy_refusal(conn, principal: Principal, ha_user: HaUser) -> ApiError | No
     return None
 
 
+def chain_revoked(conn, token: str) -> bool:
+    """CR-008 P2: this access token belongs to a sign-in that was ended from the sessions list (remote_revoked_chains)."""
+    h = iss_hash(token)
+    if not h:
+        return False
+    try:
+        return conn.execute("SELECT 1 FROM remote_revoked_chains WHERE iss_hash = ?", (h,)).fetchone() is not None
+    except Exception:  # noqa: BLE001 - before migration 0035
+        return False
+
+
+def _record_sign_in(db, principal: Principal, meta: dict[str, str]) -> None:
+    """The roles screen's "last remote sign-in" (remote_sign_ins; the address masked)."""
+    from ..db import now_iso
+
+    try:
+        with db.connection(label="remote sign-in") as conn:
+            conn.execute(
+                """INSERT INTO remote_sign_ins(user_id, last_at, last_address, last_country, sign_ins) VALUES (?, ?, ?, ?, 1)
+                   ON CONFLICT(user_id) DO UPDATE SET last_at = excluded.last_at, last_address = excluded.last_address,
+                                                      last_country = excluded.last_country, sign_ins = sign_ins + 1""",
+                (principal.user_id, now_iso(), mask_address(meta.get("client_ip", "")), meta.get("country") or None))
+    except Exception:  # noqa: BLE001 - bookkeeping never breaks a sign-in (and a database before migration 0035)
+        log.warning("could not record the remote sign-in", exc_info=True)
+
+
 def _audit(db, *, actor: Principal | None, action: str, decision: str, reason: str | None, meta: dict[str, Any], resource_id: str | None = None) -> None:
     from ..audit import audit
 
+    meta = {**meta, "channel": "remote"}  # CR-008 P2: the audit screen's channel filter finds refusals without an actor too
     try:
         with db.connection(label=action) as conn:
             audit(conn, actor=actor, action=action, decision=decision, resource_type="user", resource_id=resource_id or (actor.user_id if actor else None),
@@ -561,19 +718,25 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
 
     def decide() -> tuple[Principal, ApiError | None]:
         with db.connection(mode="read", label="auth/session") as conn:
-            principal = build_principal(conn, ha_user)
+            principal = dataclasses.replace(build_principal(conn, ha_user), via="cookie")
+            if chain_revoked(conn, token):
+                return principal, unauthenticated("remote_session_revoked", REVOKED_HE)
             return principal, policy_refusal(conn, principal, ha_user)
 
     principal, refusal = await run_in_threadpool(decide)
     if refusal is not None:
+        if refusal.code == "remote_session_revoked":
+            _remember_rejected(token)
         raise await rejected(refusal.code, refusal, principal)
-    session = STORE.create(principal, ha_user, token, exp, ip, replaces=session_id_of(settings, conn_like))
+    session = STORE.create(principal, ha_user, token, exp, ip, replaces=session_id_of(settings, conn_like), meta=meta)
 
     def touch_and_audit() -> None:
         from ..auth import touch_user
 
         with db.connection(label="auth/session") as conn:
             touch_user(conn, principal, force=True)
+        if not session.continued:
+            _record_sign_in(db, principal, meta)
         _audit(db, actor=principal, action="auth.remote_session.created", decision="allowed", reason=None, meta=meta)
 
     await run_in_threadpool(touch_and_audit)
@@ -592,13 +755,17 @@ def logout(app_state: Any, settings: Settings, conn_like: Any) -> bool:
 
 # ---------------------------------------------------------------- per request (resolve_principal's remote branch)
 
-def _bearer_principal(request: Any, settings: Settings, token: str) -> Principal:
+def _bearer_session(request: Any, settings: Settings, token: str) -> RemoteSession:
+    """A request (or a WebSocket) carrying `Authorization: Bearer <HA access token>` and no Arx cookie - an API client,
+    the future native app. CR-008 P2 (review nit): the validated token becomes a bearer SESSION in the store, so it is
+    listed, revocable, counted for the live-stream cap and re-validated by the background pass like a cookie session,
+    and its WebSockets close when it is revoked. Validated against HA at most every BEARER_CACHE_S when the background
+    pass is not running."""
     key = token_hash(token)
     now = time.time()
-    with _cache_lock:
-        hit = _bearer_cache.get(key)
-    if hit and now - hit[1] < BEARER_CACHE_S and hit[2] > now:
-        return hit[0]
+    s = STORE.get_bearer(key)
+    if s is not None and now - s.last_validated < BEARER_CACHE_S:
+        return s
     exp = jwt_exp(token)
     if exp is None or exp <= now or was_rejected(token):
         raise unauthenticated("remote_token_invalid", TOKEN_INVALID_HE)
@@ -613,6 +780,8 @@ def _bearer_principal(request: Any, settings: Settings, token: str) -> Principal
     meta = {**request_meta(request), "via": "bearer"}
 
     def rejected(reason: str, err: ApiError, actor: Principal | None = None) -> ApiError:
+        if s is not None:
+            STORE.drop(s.sid)
         _audit(db, actor=actor, action="auth.remote_session.rejected", decision="denied", reason=reason, meta=meta)
         return err
 
@@ -628,32 +797,67 @@ def _bearer_principal(request: Any, settings: Settings, token: str) -> Principal
     if not LIMITER.hit(f"user:{ha_user.id}", USER_LIMITS):
         raise rejected("rate_limited_user", ApiError(429, "rate_limited", RATE_LIMITED_HE, retryable=True))
     with db.connection(mode="read", label="remote bearer") as conn:
-        principal = build_principal(conn, ha_user)
-        refusal = policy_refusal(conn, principal, ha_user)
+        principal = dataclasses.replace(build_principal(conn, ha_user), via="bearer")
+        refusal = unauthenticated("remote_session_revoked", REVOKED_HE) if chain_revoked(conn, token) else policy_refusal(conn, principal, ha_user)
     if refusal is not None:
+        if refusal.code == "remote_session_revoked":
+            _remember_rejected(token)
         raise rejected(refusal.code, refusal, principal)
-    with _cache_lock:
-        if len(_bearer_cache) > 5000:
-            _bearer_cache.clear()
-        _bearer_cache[key] = (principal, now, exp)
-    return principal
+    if s is not None:
+        s.last_validated = time.time()
+        s.ha_user = ha_user
+        return s
+    s = STORE.create(principal, ha_user, token, exp, ip, via="bearer", meta=meta)
+    if not s.continued:  # a new sign-in of a bearer client (not its next access token)
+        _record_sign_in(db, principal, meta)
+        _audit(db, actor=principal, action="auth.remote_session.created", decision="allowed", reason=None, meta=meta)
+    return s
+
+
+def _bearer_principal(request: Any, settings: Settings, token: str) -> Principal:
+    return _bearer_session(request, settings, token).principal
+
+
+def _note_use(conn: Any, s: RemoteSession) -> None:
+    """The sessions list's "last seen from" (address, country, user agent) and, for the handlers of this request, which
+    remote session it runs under (the live-stream cap, the list's current-session marker)."""
+    h = conn.headers
+    ip = client_ip(conn)
+    if ip:
+        s.last_ip = ip
+    if h.get("cf-ipcountry"):
+        s.country = h.get("cf-ipcountry", "")[:8]
+    ua = h.get("user-agent")
+    if ua:
+        s.user_agent = ua[:200]
+    try:
+        conn.state.sw_remote_session = s
+    except AttributeError:
+        pass
+
+
+def session_of(conn: Any) -> RemoteSession | None:
+    """The remote session the current request / WebSocket runs under (after the principal was resolved), or None."""
+    state = (getattr(conn, "scope", None) or {}).get("state") or {}
+    return state.get("sw_remote_session")
 
 
 def remote_principal(request: Any, settings: Settings) -> Principal:
     s = STORE.get(session_id_of(settings, request))
-    if s is not None:
-        return s.principal
-    token = bearer_of(request)
-    if token:
-        return _bearer_principal(request, settings, token)
-    raise unauthenticated("remote_login_required", LOGIN_REQUIRED_HE)
+    if s is None:
+        token = bearer_of(request)
+        if not token:
+            raise unauthenticated("remote_login_required", LOGIN_REQUIRED_HE)
+        s = _bearer_session(request, settings, token)
+    _note_use(request, s)
+    return s.principal
 
 
 async def remote_principal_ws(websocket: Any, settings: Settings) -> Principal | None:
-    """A remote WebSocket handshake. A browser (the session cookie): Origin must be this host; the socket is attached
-    to its session, so revoking the session closes it. A client with `Authorization: Bearer` and no cookie (the future
-    native app, which cannot be driven cross-site by a page): the token is validated like any bearer request, without
-    blocking the event loop."""
+    """A remote WebSocket handshake. A browser (the session cookie): Origin must be this host. A client with
+    `Authorization: Bearer` and no cookie (the future native app, which cannot be driven cross-site by a page): the
+    token is validated like any bearer request, without blocking the event loop. Either way the socket is attached to
+    its session, so revoking the session (sign-out, the sessions list, the background pass) closes it at once."""
     sid = session_id_of(settings, websocket)
     if sid:
         if not origin_ok(websocket):
@@ -661,17 +865,134 @@ async def remote_principal_ws(websocket: Any, settings: Settings) -> Principal |
         s = STORE.get(sid)
         if s is None:
             return None
-        STORE.attach_socket(s.sid, websocket)
-        return s.principal
-    token = bearer_of(websocket)
-    if not token:
-        return None
+    else:
+        token = bearer_of(websocket)
+        if not token:
+            return None
+        from starlette.concurrency import run_in_threadpool
+
+        try:
+            s = await run_in_threadpool(_bearer_session, websocket, settings, token)
+        except ApiError:
+            return None
+    STORE.attach_socket(s.sid, websocket)
+    _note_use(websocket, s)
+    return s.principal
+
+
+# ---------------------------------------------------------------- the sessions list and its revocations (CR-008 P2)
+
+def describe(entry: dict[str, Any], current_chain: str | None = None, live_by_chain: dict[str, int] | None = None) -> dict[str, Any]:
+    """One row of GET auth/sessions: no cookie value, no token, no full address or user agent."""
+    import datetime as dt
+
+    s: RemoteSession = entry["session"]
+    chain = entry["chain"]
+
+    def iso(t: float) -> str:
+        return dt.datetime.fromtimestamp(t, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    return {
+        "id": public_id(chain),
+        "user_id": s.principal.user_id,
+        "username": s.principal.username,
+        "display_name": s.principal.display_name,
+        "created_at": iso(entry["started"]),
+        "last_seen_at": iso(s.last_used),
+        "address": mask_address(s.last_ip or s.client_ip),
+        "country": s.country or None,
+        "agent": agent_family(s.user_agent),
+        "channel": s.via,
+        "current": chain == current_chain,
+        "live_streams": (live_by_chain or {}).get(chain, 0),
+    }
+
+
+async def delete_refresh_token_at_ha(settings: Settings, token: str) -> bool:
+    """End the sign-in at HA as well: with the user's own access token, HA's WebSocket command
+    `auth/delete_refresh_token` for the refresh token that issued it (what HA's profile page does). Best effort, never
+    raises. Used only when users end their OWN sessions - an administrator's revoke ends the Arx access, not the user's
+    Home Assistant sign-in."""
+    iss = jwt_iss(token)
+    if not iss or (jwt_exp(token) or 0) <= time.time():
+        return False
+    try:
+        ws = await _dial(core_ws_url(settings), {})
+    except Exception:  # noqa: BLE001
+        return False
+    try:
+        async with asyncio.timeout(5):
+            hello = json.loads(await ws.recv())
+            if hello.get("type") != "auth_required":
+                return False
+            await ws.send(json.dumps({"type": "auth", "access_token": token}))
+            if json.loads(await ws.recv()).get("type") != "auth_ok":
+                return False
+            await ws.send(json.dumps({"id": 1, "type": "auth/delete_refresh_token", "refresh_token_id": iss}))
+            while True:
+                msg = json.loads(await ws.recv())
+                if msg.get("id") == 1 and msg.get("type") == "result":
+                    return bool(msg.get("success"))
+    except Exception:  # noqa: BLE001 - HA away, a dropped socket: the local revocation stands anyway
+        return False
+    finally:
+        try:
+            await ws.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+async def revoke_sessions(app_state: Any, settings: Settings, sessions: list[RemoteSession], *, actor: Principal, reason: str,
+                          target_user: str, also_at_ha: bool, request_id: str | None = None) -> dict[str, int]:
+    """End these remote sessions now: out of the store (their WebSockets close before this returns), their sign-ins
+    refused from now on (remote_revoked_chains: the browser cannot re-exchange a fresh access token of the same
+    sign-in), their exact tokens negatively cached, one audit row. `also_at_ha`: the user's own request - the HA refresh
+    tokens are deleted too (best effort), so the same browsers are signed out of the HA side of the origin as well."""
     from starlette.concurrency import run_in_threadpool
 
-    try:
-        return await run_in_threadpool(_bearer_principal, websocket, settings, token)
-    except ApiError:
-        return None
+    from ..db import now_iso
+
+    dropped = STORE.drop_sessions(sessions)
+    for s in dropped:
+        _remember_rejected(s.token)
+    chains = {s.chain or s.sid for s in dropped}
+    hashes = {s.iss_hash: s.principal.user_id for s in dropped if s.iss_hash}
+
+    def persist() -> None:
+        from ..audit import audit
+
+        with app_state.db.connection(label="auth/sessions revoke") as conn:
+            now = now_iso()
+            for h, uid in hashes.items():
+                conn.execute("INSERT OR IGNORE INTO remote_revoked_chains(iss_hash, user_id, revoked_at, revoked_by, reason) VALUES (?, ?, ?, ?, ?)",
+                             (h, uid, now, actor.user_id, reason))
+            # a year after the revoke HA's sliding 90-day refresh token cannot still be alive unless used - and a used one is
+            # refused here; keep the table small
+            conn.execute("DELETE FROM remote_revoked_chains WHERE revoked_at < ?", (_days_ago(365),))
+            audit(conn, actor=actor, action="auth.remote_session.revoked", decision="allowed", resource_type="user", resource_id=target_user,
+                  reason=reason, request_id=request_id,
+                  details={"sessions": len(chains), "ids": sorted(public_id(c) for c in chains)[:20], "channel": "remote",
+                           "via": sorted({s.via for s in dropped})})
+
+    await run_in_threadpool(persist)
+    await _close_sockets()
+    at_ha = 0
+    if also_at_ha:
+        freshest: dict[str, RemoteSession] = {}
+        for s in dropped:
+            key = s.iss_hash or s.sid
+            if key not in freshest or s.token_exp > freshest[key].token_exp:
+                freshest[key] = s
+        for s in freshest.values():
+            if await delete_refresh_token_at_ha(settings, s.token):
+                at_ha += 1
+    return {"sessions_ended": len(chains), "ha_sign_ins_ended": at_ha}
+
+
+def _days_ago(days: int) -> str:
+    import datetime as dt
+
+    return (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 # ---------------------------------------------------------------- background revalidation
@@ -714,7 +1035,7 @@ async def revalidate_once(db: Any, settings: Settings, validate: Callable[..., A
         STORE.drop(s.sid)
         dropped += 1
         await run_in_threadpool(_audit, db, actor=s.principal, action="auth.remote_session.revoked", decision="denied", reason=reason,
-                                meta={"client_ip": s.client_ip})
+                                meta={"client_ip": s.client_ip, **({"via": "bearer"} if s.via == "bearer" else {})})
     await _close_sockets()
     return dropped
 
@@ -734,7 +1055,6 @@ def reset_for_tests() -> None:
     STORE.clear()
     LIMITER.clear()
     with _cache_lock:
-        _bearer_cache.clear()
         _rejected.clear()
     _core_base.clear()
     _xff_refused.clear()

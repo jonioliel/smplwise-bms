@@ -8,6 +8,8 @@ import '../components/sw-tabs';
 import '../components/sw-field';
 import '../components/sw-toggle';
 import '../components/sw-icon';
+import '../components/sw-remote-sessions';
+import { logout as arxLogout } from '../arx/auth';
 import { demoHealth, demoJobs } from '../fixtures/catalog';
 import { isApi, nvrLess } from '../api/session';
 import { getSettings, listSessions, listStreams, patchSettings, syncStreams, type ProductSettings } from '../api/media';
@@ -853,6 +855,11 @@ export class SystemDiagnostics extends LitElement {
         <div class="row"><span class="lbl">אימות דו־שלבי למנהלים<span class="muted">כשמופעל: משתמש עם הרשאות ניהול נכנס מרחוק רק אם הפעיל MFA בפרופיל ה־Home Assistant שלו</span></span>
           ${sel('remote.require_mfa_admin', 'false', [['false', 'רשות'], ['true', 'חובה למנהלים']])}</div>
       </sw-card>
+      ${api
+        ? html`<sw-card heading="כניסות פעילות מרחוק" subheading=${this.canEdit ? 'כל הכניסות הפעילות של כל המשתמשים: דפדפן או אפליקציה, מאיפה (מדינה או כתובת מוסתרת), מתי. ניתוק סוגר מיד את חיבורי הווידאו והעדכונים שלה, והכניסה הזו לא תוכל לחזור בלי כניסה מחדש.' : 'הכניסות הפעילות שלך מרחוק.'} data-card="remote.sessions" data-remote-sessions-card>
+            <sw-remote-sessions scope=${this.canEdit ? 'all' : 'own'} @remote-signed-out=${() => void arxLogout('logout')}></sw-remote-sessions>
+          </sw-card>`
+        : nothing}
       <sw-card heading="וידאו מרחוק" subheading="WebRTC עובר ישירות בין הדפדפן ל־go2rtc; MSE מעביר את הווידאו עצמו דרך המנהרה ולכן הוא רק מוצא אחרון.">
         <div class="row"><span class="lbl">זרם ברירת מחדל<span class="muted">הזרם שצופה מרוחק מקבל ראשון, ב־WebRTC</span></span>
           ${sel('remote.default_profile', 'main', [['main', 'ראשי (main)'], ['sub', 'משני (sub)']])}</div>
