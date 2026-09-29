@@ -159,7 +159,9 @@ def test_relinking_to_another_floor_removes_the_old_twin(settings):
     unconfirmed = c.post(f"/api/v1/plan-versions/{v2}/geometry/link", json={"connector_id": "st1", "floor_id": f4["id"]})
     assert unconfirmed.status_code == 409 and unconfirmed.json()["code"] == "relink_confirm", "moving the link deletes the old twin: only when confirmed"
     assert _conn(c, v3) is not None
+    _save(c, v2, connectors=[dict(x, check_placement=True) for x in _draft(c, v2)["doc"]["connectors"]])  # this copy's own flag
     moved = c.post(f"/api/v1/plan-versions/{v2}/geometry/link", json={"connector_id": "st1", "floor_id": f4["id"], "replace": True})
+    assert "check_placement" not in _conn(c, v4), "the new twin does not inherit a flag of this floor's copy"
     assert moved.status_code == 200 and moved.json()["removed_floors"] == [ids["floor3"]]
     assert _conn(c, v3) is None and _conn(c, v4) is not None
     assert _conn(c, v2)["floor_ids"] == sorted([ids["floor2"], f4["id"]])

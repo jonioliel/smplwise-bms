@@ -710,6 +710,7 @@ def _twin(item: dict[str, Any], level_from: str, floors: list[str]) -> dict[str,
     twin = copy.deepcopy(item)
     twin.pop("far", None)
     twin.pop("needs_placement", None)
+    twin.pop("check_placement", None)  # final review: a flag of this floor's copy is not the new twin's
     twin["polyline"] = list(reversed(twin.get("polyline") or []))
     if isinstance(twin.get("flights"), list):
         twin["flights"] = list(reversed(twin["flights"]))
