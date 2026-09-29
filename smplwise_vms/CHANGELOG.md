@@ -1,6 +1,6 @@
 # Changelog — SMPLWISE VMS add-on
 
-## 0.1.133 (pilot) — A real setup wizard: six checks against the installation, with explanations (T071)
+## 0.1.133 (pilot) — A real setup wizard (T071); role bindings per camera and session downgrade (T055)
 - **הגדרות › אשף התקנה** (`#/system/wizard`, system administrators) replaces the demo-only wizard: six steps -
   **התקנה** (database answers, `/data` writable with ≥ 512 MB free, a system administrator exists, identity source,
   time zone), **NVR** (model and firmware, channels online / offline, main + sub tracks, video profiles, clock drift
@@ -23,6 +23,38 @@
   (fake NVR / HA / go2rtc; `fake.writes == []` asserted), 48 in the touched set; Playwright wizard spec (NVR down →
   the step fails with the explanation, up → passes; desktop + phone), demo 2, screens sc26 6; tsc / build clean.
   Opus review (2 medium fixed: NTP address, check deadline).
+
+### Roles and permissions: camera scope and session downgrade (T055)
+- A role binding may now target **a single camera** (הגדרות › תפקידים › היקף "מצלמה", picker limited to the
+  actor's reach), next to installation / site / floor. Precedence: the camera, then every floor it is anchored on,
+  their buildings and sites, then the installation - **a deny anywhere on that chain wins over any allow**; an
+  unanchored camera is reachable only through an installation or camera binding; existing bindings behave as
+  before. Documented in `docs/security/HA_IDENTITY_RBAC_HE.md` §15.
+- Every camera-bearing resource is filtered on the server through ONE helper (27 resources: camera list and status,
+  snapshot, capabilities / PTZ, zones, live and its socket, recordings, frames, playback sessions / groups / seeks,
+  events list / facets / summary / windows / timeline / detail / thumbnail / correlation / route / ack / push, case
+  items and bundles, exports estimate / create / download / manifest, alerts, search, saved views, NVR camera
+  settings, the floor map bundle, anchors, plan image and geometry). A camera-only user gets the floor drawing and
+  their own cameras' anchors - no HA entities, zones or circuits, no editing. WisKey station stills are not VMS
+  cameras (installation-scoped, as before). Roles holding `rbac.assign` cannot be bound at camera scope (allow);
+  a full administrator can still deny any role on one camera.
+- **Placing a camera on a map is not a way to gain it** (review finding): placing, moving or removing a camera anchor
+  requires `placement.edit` on the camera's current chain - reading it is not enough; an unanchored camera is
+  placed only by an installation-wide holder; the editor's camera list follows the same rule. A delegated site
+  administrator can bind a camera only when every floor it hangs on is inside their reach; group reach counts
+  camera bindings. No installation fallback undoes a camera deny any more (timeline, ack-many, case item file,
+  bundle download - review finding). Camera-less events and alerts follow the installation grant.
+- **Session downgrade**: nothing caches effective permissions beyond one request; `/me` carries a permissions
+  fingerprint and the new `/me/ws` pushes `permissions_changed` (the shell shows "ההרשאות שלך עודכנו" and
+  refetches); an open live or playback stream loses only the revoked camera (`access_lost`, close 4403); queued or
+  running exports of a lost camera are cancelled and downloads are re-checked; deactivation in Home Assistant cuts
+  everything. Audit rows now record the scope, role and binding they were authorised under (migration 0032, columns
+  only). `scripts/api_inventory.py` lists websocket routes again.
+- Tests: `test_rbac_camera_scope.py` 101 (a 36-case precedence matrix; all 27 resources for a camera-scoped user
+  AND for "installation allow + camera deny"; delegation; downgrade: refusal, lease closed, playback closed, export
+  cancelled, notice; audit scope), 146 in the RBAC set; Playwright: a user bound to one camera sees exactly that
+  camera on live / events / map, and the revoke toast. Two Opus security reviews with probes (2 blockers + 3 medium
+  fixed, one leftover placement case fixed).
 
 ## 0.1.132 (pilot) — Events 8× faster under load, ingest and export backpressure, a local soak (T068); capture-cancel race; door-model study
 ### Events, ingest and exports (T068, device-free part)
