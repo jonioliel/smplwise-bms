@@ -66,6 +66,8 @@ class FakeDevices:
         n = self.nvr
         if not n["up"]:
             raise httpx.ConnectError("fake NVR is down", request=request)
+        if request.method == "POST" and request.url.path == "/ISAPI/ContentMgmt/search":  # a read by POST (recording search)
+            return self._ok(request, f"<CMSearchResult {NS}><responseStatus>true</responseStatus><responseStatusStrg>NO MATCHES</responseStatusStrg><numOfMatches>0</numOfMatches></CMSearchResult>")
         if request.method != "GET":
             self.writes.append(f"nvr {request.method} {request.url.path}")
             return httpx.Response(403, text=_xml(f"<ResponseStatus {NS}><statusString>Forbidden</statusString><subStatusCode>notSupport</subStatusCode></ResponseStatus>"), request=request)
