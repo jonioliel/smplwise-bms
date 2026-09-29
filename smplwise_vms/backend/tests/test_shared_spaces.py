@@ -363,6 +363,23 @@ def test_re_review_lows_ids_names_publish_skip_schema_guard_and_anchor_moves(set
     assert "other_zone_id" in {r[1] for r in mem.execute("PRAGMA table_info(shared_spaces)")}
 
 
+def test_an_alarm_managed_member_stays_read_only_on_every_floor_of_the_room(settings):
+    """CR-010 x CR-009 (coordinator note at the merge): what the alarm owns is operated through the alarm section only -
+    a shared room's alarm-managed member shows on the other floor's map read-only, like everywhere else."""
+    w = _world(settings)
+    c, app = w["c"], w["app"]
+    eid = "alarm_control_panel.hall"
+    with app.state.db.connection() as conn:
+        ha_sync.upsert_state(conn, {"entity_id": eid, "state": "disarmed", "last_changed": "2026-09-29T09:00:00+00:00", "attributes": {"friendly_name": "לוח אזעקה"}})
+    _anchor(c, w["f2"], "ha_entity", eid, 0.5, 0.5)
+    _share(w)
+    with app.state.db.connection() as conn:
+        assert ss.is_member(conn, w["hall"], "ha_entity", eid)
+    m3 = c.get(f"/api/v1/floors/{w['f3']}/map").json()
+    ent = next(a for a in m3["anchors"] if a["resource_id"] == eid and a.get("shared"))["entity"]
+    assert ent["alarm_managed"] is True and ent["actions"] == []
+
+
 def test_a_misplaced_placement_warns_to_check_the_alignment(settings):
     w = _wide(settings)
     c = w["c"]
