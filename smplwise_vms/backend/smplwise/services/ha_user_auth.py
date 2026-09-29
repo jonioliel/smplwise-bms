@@ -427,6 +427,12 @@ class SessionStore:
         with self._lock:
             return self._sessions.get(sid)
 
+    def peek_bearer(self, key: str) -> RemoteSession | None:
+        """The bearer session of a token hash without touching it (body_limit's credential tier)."""
+        with self._lock:
+            sid = self._by_token.get(key)
+            return self._sessions.get(sid) if sid else None
+
     def drop(self, sid: str) -> RemoteSession | None:
         with self._lock:
             return self._drop_locked(sid)
@@ -686,6 +692,21 @@ def bearer_of(conn: Any) -> str | None:
         return token or None
     return None
 
+
+def holds_live_credential(settings: Settings, conn: Any) -> bool:
+    """body_limit.py's tier on the remote channel: does the request name a session this process knows - an Arx cookie
+    of a session in the store, or a bearer token whose bearer session is in the store - and whose access token has not
+    expired? Memory only (no Home Assistant, no database, no last-used touch) and NOT an authentication: the request is
+    still authenticated as usual; this only decides whether it may send more than the anonymous body cap."""
+    now = time.time()
+    s = STORE.peek(session_id_of(settings, conn))
+    if s is not None and s.token_exp > now:
+        return True
+    token = bearer_of(conn)
+    if not token:
+        return False
+    b = STORE.peek_bearer(token_hash(token))
+    return b is not None and b.token_exp > now
 
 
 def origin_ok(conn: Any) -> bool:
