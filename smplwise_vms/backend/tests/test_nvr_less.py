@@ -84,6 +84,9 @@ def test_load_settings_without_nvr_options(tmp_path, monkeypatch):
     monkeypatch.setenv("SW_MODE", "ha_only")
     assert installation_mode(load_settings(opts)) == HA_ONLY
     monkeypatch.delenv("SW_MODE")
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "t")  # inside the add-on: never the placeholder
+    assert load_settings(opts).nvr_host is None
+    monkeypatch.delenv("SUPERVISOR_TOKEN")
     # the add-on reads /data/options.json: no nvr_host is the NVR-less mode, whatever the environment says
     real_path = config.Path
     monkeypatch.setattr(config, "Path", lambda p: real_path(opts) if str(p) == "/data/options.json" else real_path(p))
@@ -271,6 +274,12 @@ def test_wizard_is_ready_with_the_remaining_steps(ha_only, monkeypatch):
     later = c.get(STATE).json()
     assert step_of(later, "go2rtc")["status"] == "done" and step_of(later, "go2rtc")["source"] == "background"
     assert later["ready"] is True and later["total"] == 4
+    # a later failed check forgets the success: once its own cache expires the step is not "done" again
+    monkeypatch.setattr(wizard.time, "time", real)
+    fake.go2rtc["up"] = False
+    assert step_of(c.post("/api/v1/setup/check/go2rtc").json(), "go2rtc")["status"] == "failed"
+    monkeypatch.setattr(wizard.time, "time", lambda: real() + wizard.LIVE_TTL_S + 60)
+    assert step_of(c.get(STATE).json(), "go2rtc")["status"] != "done"
     assert fake.writes == []
 
 

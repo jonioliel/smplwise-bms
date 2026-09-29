@@ -746,9 +746,10 @@ def _cached_live(step_id: str) -> dict[str, Any] | None:
 def _remember(step_id: str, result: dict[str, Any]) -> None:
     with _lock:
         _live[step_id] = (time.time(), result)
-        if step_id == "go2rtc" and result.get("status") == "done":
-            _go2rtc_ok.clear()
-            _go2rtc_ok.update(result)
+        if step_id == "go2rtc":
+            _go2rtc_ok.clear()  # a failed check forgets the last success: it must not read "done" once the cache expires
+            if result.get("status") == "done":
+                _go2rtc_ok.update(result)
 
 
 BACKGROUND: dict[str, Callable[[Settings, sqlite3.Connection], dict[str, Any]]] = {

@@ -102,7 +102,8 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
         dev_user=dev_user,
         bootstrap_admin_username=_opt(options, "bootstrap_admin_username", "SW_BOOTSTRAP_ADMIN"),
         nvr_host=_opt(options, "nvr_host", "NVR_HOST") or (
-            None if in_addon or (os.environ.get("SW_MODE") or "").strip().lower() == "ha_only" else DEV_NVR_PLACEHOLDER),
+            None if in_addon or os.environ.get("SUPERVISOR_TOKEN") or (os.environ.get("SW_MODE") or "").strip().lower() == "ha_only"
+            else DEV_NVR_PLACEHOLDER),  # SUPERVISOR_TOKEN: inside the add-on, never a placeholder
         nvr_http_port=int(_opt(options, "nvr_http_port", "NVR_HTTP_PORT", "80") or 80),
         nvr_user=_opt(options, "nvr_username", "NVR_USER"),
         nvr_password=_opt(options, "nvr_password", "NVR_PASSWORD"),
