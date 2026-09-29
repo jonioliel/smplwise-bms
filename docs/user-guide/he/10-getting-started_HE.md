@@ -1,5 +1,7 @@
 # צעדים ראשונים
 
+Source: original
+
 ## מה זה
 
 SMPLWISE VMS נפתח **בתוך Home Assistant**, לא כאתר עצמאי: אין לו התחברות (login) משלו, אין לו
