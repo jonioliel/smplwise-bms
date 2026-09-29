@@ -1,4 +1,4 @@
-Source: docs/operations/SOAK_LOCAL.md @ 775745e
+Source: docs/operations/SOAK_LOCAL.md @ 2a9f0e2
 
 > תרגום של `docs/operations/SOAK_LOCAL.md`; המקור באנגלית קובע במקרה של סתירה.
 
@@ -81,6 +81,23 @@ Python, עומקי תורים, עבודות ייצוא ממתינות; חיבו�
   ו-7 HTTP 500). אלה קריאות (reads) וכעת משתמשות בחיבורי מצב-קריאה (`test_event_centre_reads_never_wait_for_the_write_lock`).
 - ייצוא שההרצה שלו זרקה חריגה (למשל כתיבת התקדמות עדיין עסוקה אחרי הניסיונות החוזרים שלה) נשאר `running`
   עד ההפעלה מחדש הבאה; ה-worker כעת מסמן אותו `failed` עם סיבה בעברית.
+
+## נתיב הכתיבה של SQLite (2026-09-29)
+
+מאז הענף `pilot/db-lock-storm` כל טרנזקציית כתיבה עומדת בתור FIFO (`db.WriteGate`) לפני `BEGIN IMMEDIATE`, וכתיבות
+ה"מראה" התכופות של נתוני התקנים (מצב / רישום HA, התראות NVR, אירועים נגזרים) מבצעות commit עם `synchronous=NORMAL`;
+פעולות משתמש ושורות audit נשארות `FULL`. סיבת השורש, המספרים והמלאי: `TEST_ROUND_RESULTS_2026-09-26_ROUND10_HE.md`,
+סעיף 6. עבור soak זה אומר:
+
+- `db.write_lock` ב-`/health` מדווח גם `max_wait_s` / `max_wait_by` (הזמן הארוך ביותר שכותב חיכה בתור);
+  `busy_errors` חייב להישאר 0.
+- השחקן "מסד איטי" של ה-soak מחזיק את המנעול של SQLite מחוץ לתור (כמו תהליך אחר): כותבים מחכים לו דרך ה-busy
+  timeout של SQLite, כמו קודם.
+- בדיקת העומס של נתיב הכתיבה היא בדיקה נפרדת וקצרה יותר: `SW_PERF=1 python -m pytest tests/test_db_lock_storm.py -s
+  -p no:cacheprovider -o addopts=""` (`SW_DB_STORM_FSYNC_MS` מדמה fsync של כרטיס SD, `SW_DB_WRITE_GATE=0` להשוואת A/B).
+  `SW_DB_IO_GUARD=1` בכל הרצת pytest מפרט קלט/פלט להתקנים שבוצע תחת מנעול הכתיבה.
+- ב-add-on (Linux) סריקת אנטי-וירוס של Windows על קובץ המסד אינה גורם; fsync איטי על אחסון SD / eMMC כן, ובזה
+  מטפלת החלוקה למחלקות עמידות.
 
 ## מגבלות
 
