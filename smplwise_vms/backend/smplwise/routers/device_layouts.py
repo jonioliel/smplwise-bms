@@ -28,7 +28,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from ..audit import audit
 from ..auth import current_principal_ro, get_conn, get_read_conn
-from ..db import Database, database_of, now_iso, read_mode
+from ..db import now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize
 from ..services import devices as svc
@@ -251,24 +251,22 @@ def _visible(conn: sqlite3.Connection, principal: Principal) -> tuple[set[str], 
     return floors, areas
 
 
-def _prune_vanished(conn: sqlite3.Connection) -> None:
-    """Review nit 8: layout rows of HA areas that no longer exist go (lazily, on the next read). Only while Home
-    Assistant's structure is known at all - an empty mirror (a first start, HA unreachable) never prunes anything."""
+def _prune_vanished(conn: sqlite3.Connection, principal: Principal, request: Request) -> None:
+    """Review nit 8 (re-review): layout rows of HA areas that no longer exist go - on a WRITE only (PUT, copy to all
+    areas: a system.configure holder, inside that request's transaction), never on a read. One audit row per pruned
+    area (scope, id and the rows removed - never the layout). Only while Home Assistant's structure is known at all:
+    an empty mirror (a first start, HA unreachable) never prunes anything."""
     known = set(_known_areas(conn))
     if not known:
         return
-    rows = {r["scope_id"] for r in conn.execute("SELECT DISTINCT scope_id FROM device_layouts WHERE scope = 'area'").fetchall()}
-    stale = sorted(rows - known - {svc.UNASSIGNED})
-    if not stale:
-        return
-    marks = ", ".join("?" * len(stale))
-    db: Database | None = database_of(conn)
-    if read_mode(conn) and db is not None:
-        with db.write_aside() as w:
-            w.execute(f"DELETE FROM device_layouts WHERE scope = 'area' AND scope_id IN ({marks})", stale)
-    elif not read_mode(conn):
-        conn.execute(f"DELETE FROM device_layouts WHERE scope = 'area' AND scope_id IN ({marks})", stale)
-    log.info("pruned the layouts of %d areas no longer in Home Assistant", len(stale))
+    rows = conn.execute("SELECT scope_id, COUNT(*) AS n FROM device_layouts WHERE scope = 'area' GROUP BY scope_id").fetchall()
+    stale = [(r["scope_id"], int(r["n"])) for r in rows if r["scope_id"] not in known and r["scope_id"] != svc.UNASSIGNED]
+    for scope_id, n in stale:
+        conn.execute("DELETE FROM device_layouts WHERE scope = 'area' AND scope_id = ?", (scope_id,))
+        audit(conn, actor=principal, action="devices.layout.prune", decision="allowed", resource_type="device_layout_area", resource_id=scope_id,
+              request_id=getattr(request.state, "correlation_id", None), details={"scope": "area", "id": scope_id, "count": n})
+    if stale:
+        log.info("pruned the layouts of %d areas no longer in Home Assistant", len(stale))
 
 
 def _revision(conn: sqlite3.Connection, scope: str, scope_id: str, variant: str) -> int:
@@ -292,8 +290,7 @@ def get_layout(scope: str, scope_id: str, principal: Principal = Depends(current
     """The screen's stored layout (desktop and phone; null = automatic) - everyone who reads the device screens."""
     ha_scope.scoped_rows(conn, principal, READ, [])  # the audited 403 without devices.read anywhere
     _check_scope(scope, scope_id)
-    _prune_vanished(conn)
-    return _record(conn, principal, scope, scope_id, _visible(conn, principal))
+    return _record(conn, principal, scope, scope_id, _visible(conn, principal))  # a read never writes
 
 
 @router.put("/devices/layouts/{scope}/{scope_id}")
@@ -313,6 +310,7 @@ def put_layout(scope: str, scope_id: str, request: Request, principal: Principal
     current = _revision(conn, scope, scope_id, body.variant)
     if body.revision != current:
         raise ApiError(409, "layout_conflict", "מישהו אחר שמר את הפריסה בינתיים. טענו אותה מחדש וערכו שוב.", details={"revision": current})
+    _prune_vanished(conn, principal, request)
     rev = _write(conn, principal, scope, scope_id, body.variant, json.dumps(body.layout.model_dump(exclude_defaults=False), ensure_ascii=False, separators=(",", ":")))
     audit(conn, actor=principal, action="devices.layout.update", decision="allowed", resource_type=f"device_layout_{scope}", resource_id=scope_id,
           request_id=getattr(request.state, "correlation_id", None), details={"scope": scope, "id": scope_id, "variant": body.variant, "revision": rev})
@@ -360,6 +358,7 @@ def copy_to_all_areas(scope_id: str, request: Request, principal: Principal = De
     if body.revision != src_rev:
         raise ApiError(409, "layout_conflict", "מישהו אחר שמר את הפריסה בינתיים. טענו אותה מחדש.", details={"revision": src_rev})
     src = {r["variant"]: r["layout_json"] for r in conn.execute("SELECT variant, layout_json FROM device_layouts WHERE scope = 'area' AND scope_id = ?", (scope_id,)).fetchall()}
+    _prune_vanished(conn, principal, request)
     targets = [a for a in [*_known_areas(conn), svc.UNASSIGNED] if a != scope_id]
     for area_id in targets:
         _write(conn, principal, "area", area_id, "desktop", src["desktop"])

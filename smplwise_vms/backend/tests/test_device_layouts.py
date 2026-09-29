@@ -275,17 +275,31 @@ def test_floor_scoped_viewer_sees_only_their_floors_keys(dev_app):  # noqa: F811
     assert set(c.get(f"{URL}/building/main").json()["desktop"]["layout"]["items"]) == set(layout["items"])
 
 
-def test_layouts_of_areas_gone_from_home_assistant_are_pruned(dev_app):  # noqa: F811
-    """Review nit 8: a layout row of an HA area that no longer exists goes on the next read - never while the HA
-    structure is unknown."""
-    app, _ = dev_app
+def test_layouts_of_areas_gone_from_home_assistant_are_pruned_on_writes_only(dev_app):  # noqa: F811
+    """Review nit 8 (re-review): a layout row of an HA area that no longer exists goes on the next WRITE of a
+    system.configure holder, audited (scope, id, count); a read - by anyone - never writes."""
+    app, s = dev_app
     c = TestClient(app)
     one = {"v": 1, "cols": 12, "items": {"card:lighting": {"x": 0, "y": 0, "w": 12, "h": 10}}}
     for area in ("empty_room", "lobby"):
         assert _put(c, "area", area, "desktop", 0, one).status_code == 200
     with app.state.db.connection() as conn:
         ha_sync.apply_structure(conn, [a for a in AREAS if a["area_id"] != "empty_room"], FLOORS)
-    c.get(f"{URL}/area/lobby")
-    with app.state.db.connection() as conn:
-        left = {r[0] for r in conn.execute("SELECT DISTINCT scope_id FROM device_layouts").fetchall()}
-    assert left == {"lobby"}
+
+    def left() -> set[str]:
+        with app.state.db.connection() as conn:
+            return {r[0] for r in conn.execute("SELECT DISTINCT scope_id FROM device_layouts").fetchall()}
+
+    bind(c, s, "vera", "viewer", "installation", "*")
+    for headers in (None, as_user("vera")):
+        assert c.get(f"{URL}/area/lobby", headers=headers).status_code == 200
+        assert c.get(f"{URL}/building/main", headers=headers).status_code == 200
+    assert left() == {"empty_room", "lobby"}  # reads pruned nothing
+    assert _audit(app, "devices.layout.prune") == []
+    assert _put(c, "area", "lobby", "desktop", 1, one).status_code == 200
+    assert left() == {"lobby"}
+    rows = _audit(app, "devices.layout.prune")
+    assert [(r["resource_id"], json.loads(r["details_json"])) for r in rows] == [("empty_room", {"scope": "area", "id": "empty_room", "count": 1})]
+    # copy to all areas prunes too (nothing left to prune here: no new row)
+    assert c.post(f"{URL}/area/lobby/copy-to-all-areas", json={"revision": 2}).status_code == 200
+    assert "empty_room" not in left() and len(_audit(app, "devices.layout.prune")) == 1
