@@ -42,7 +42,11 @@ const RULE_TEMPLATES: { id: string; label: string; body: Partial<RuleBody> }[] =
 
 @customElement('investigate-rules')
 export class InvestigateRules extends LitElement {
+  /** CR-013: the user menu's "התראות" opens this screen on its alerts (`?tab=alerts`). */
+  @property() initialTab = '';
   @state() private tab = 'rules';
+  /** A user who may read alerts (events.read) but not manage rules: the alerts only. */
+  @state() private rulesForbidden = false;
   @state() private rules: Rule[] = [];
   @state() private alerts: RuleAlert[] = [];
   @state() private unacked = 0;
@@ -61,6 +65,7 @@ export class InvestigateRules extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    if (this.initialTab === 'alerts') this.tab = isApi() ? 'alerts' : 'notif';
     if (isApi()) void this.load();
   }
 
@@ -68,11 +73,21 @@ export class InvestigateRules extends LitElement {
     this.loading = true;
     this.error = '';
     try {
-      const [r, a] = await Promise.all([listRules(), listAlerts()]);
-      this.rules = r.rules;
-      this.meta = { types: r.types, sources: r.sources, days: r.days };
+      const [rs, as] = await Promise.allSettled([listRules(), listAlerts()]);
+      if (as.status === 'rejected') throw as.reason;
+      const a = as.value;
       this.alerts = a.alerts;
       this.unacked = a.unacked;
+      if (rs.status === 'rejected') {
+        // CR-013: the alerts inbox is reachable from the user menu with events.read alone; rules need rules.manage
+        if (!(rs.reason instanceof ApiError && rs.reason.status === 403)) throw rs.reason;
+        this.rulesForbidden = true;
+        this.tab = 'alerts';
+        return;
+      }
+      const r = rs.value;
+      this.rules = r.rules;
+      this.meta = { types: r.types, sources: r.sources, days: r.days };
       if (!this.tree) {
         const [tree, cams] = await Promise.all([loadTree(), listCameras()]);
         this.tree = tree;
@@ -225,8 +240,8 @@ export class InvestigateRules extends LitElement {
     if (this.error && !this.rules.length && !this.editing) return html`<sw-page heading="התראות וחוקי אוטומציה"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel></sw-page>`;
     return html`
       <sw-page heading="התראות וחוקי אוטומציה" subheading="Trigger → היקף → חלון זמן → השהיה → התראה במערכת · הרצה יבשה לפני הפעלה · אין פקודות למכשירים">
-        <sw-button slot="actions" variant="primary" icon="plus" data-rule-new @click=${() => this.openEditor()}>חוק חדש</sw-button>
-        <sw-tabs .items=${[{ id: 'rules', label: 'חוקים', count: this.rules.length }, { id: 'alerts', label: 'התראות', count: this.unacked }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
+        ${this.rulesForbidden ? nothing : html`<sw-button slot="actions" variant="primary" icon="plus" data-rule-new @click=${() => this.openEditor()}>חוק חדש</sw-button>`}
+        <sw-tabs .items=${this.rulesForbidden ? [{ id: 'alerts', label: 'התראות', count: this.unacked }] : [{ id: 'rules', label: 'חוקים', count: this.rules.length }, { id: 'alerts', label: 'התראות', count: this.unacked }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
         ${this.error && !this.editing ? html`<div class="err">${this.error}</div>` : nothing}
         ${this.tab === 'rules'
           ? this.loading && !this.rules.length

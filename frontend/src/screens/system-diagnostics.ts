@@ -659,7 +659,8 @@ export class SystemDiagnostics extends LitElement {
     const api = isApi();
     const dirty = Object.keys(this.draft).length > 0;
     const NVR = nvrLess(); // NVR-less mode: only the map, display and retention settings stay
-    const starts = NVR ? [['explore', 'מפת קומה'], ['devices', 'חשמל והתקנים']] : [['explore', 'מפת קומה'], ['live', 'סקירה (לייב)'], ['wall', 'כל המצלמות'], ['events', 'מרכז אירועים'], ['playback', 'הקלטות'], ['devices', 'חשמל והתקנים']];
+    // CR-013: "ראשי" (the device overview) is the default start screen
+    const starts = NVR ? [['devices', 'ראשי (ברירת מחדל)'], ['explore', 'מפת קומה']] : [['devices', 'ראשי (ברירת מחדל)'], ['explore', 'מפת קומה'], ['live', 'סקירה (לייב)'], ['wall', 'כל המצלמות'], ['events', 'מרכז אירועים'], ['playback', 'הקלטות']];
     return html`<div class="sections">
       ${NVR ? this.renderNvrLessNotice('הגדרות הווידאו וההקלטות אינן בשימוש') : nothing}
       <sw-card heading=${NVR ? 'תצוגה ומפה' : 'תעבורת וידאו'} subheading=${NVR ? 'מסך הפתיחה, המפה והתלת-ממד' : 'ברירת המחדל לכל הנגנים; כל נגן יכול לעקוף אותה לדפדפן הנוכחי'}>
@@ -681,7 +682,7 @@ export class SystemDiagnostics extends LitElement {
           </select></sw-field></div>`}
         <div class="row"><span class="lbl">מסך פתיחה<span class="muted">המסך שהמערכת נפתחת עליו כשהכתובת לא מציינת מסך (ריענון של הכתובת הראשית)</span></span>
           <sw-field class="ctl"><select data-set-start-route ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.start_route', (e.target as HTMLSelectElement).value)}>
-            ${starts.map(([v, l]) => html`<option value=${v} ?selected=${String(this.value('ui.start_route') ?? 'explore') === v}>${l}</option>`)}
+            ${starts.map(([v, l]) => html`<option value=${v} ?selected=${String(this.value('ui.start_route') ?? 'devices') === v}>${l}</option>`)}
           </select></sw-field></div>
         <div class="row"><span class="lbl">הסתרת המפה<span class="muted">מסיר את אזור המפה מהניווט לכל המשתמשים; למשתמש בודד: תפקיד בלי ההרשאה map.read</span></span>
           <sw-field class="ctl"><select data-set-hide-map ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_map', (e.target as HTMLSelectElement).value)}>
