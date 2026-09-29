@@ -481,7 +481,13 @@ def test_pin_hash_and_the_first_pin_rules(alarm_app):
     r = c.put("/api/v1/alarm/me/pin", json={"pin": PIN}, headers=o)
     assert r.status_code == 409 and r.json()["code"] == "pin_by_admin" and "פנה למנהל המערכת" in r.json()["user_message"]
     _set_code(c)
+    # re-review L-a: an arm-only operator may not test panel-code guesses - the panel-code route needs alarm.disarm
+    r = c.put("/api/v1/alarm/me/pin", json={"pin": PIN, "panel_code": CODE}, headers=o)
+    assert r.status_code == 409 and r.json()["code"] == "pin_by_admin"
+    role = c.post("/api/v1/access/roles", json={"name": "מנטרל", "permissions": ["alarm.view"], "sensitive": ["alarm.disarm"]}).json()
+    assert c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-omer", "role_id": role["id"], "scope_type": "installation", "scope_id": "*"}).status_code == 201
     assert c.put("/api/v1/alarm/me/pin", json={"pin": PIN, "panel_code": "11111111"}, headers=o).json()["code"] == "wrong_code"
+    assert codes.LOCKOUT._fails.get("panel:alarm_control_panel.risco_house")  # the guess counted against the panel too
     assert c.put("/api/v1/alarm/me/pin", json={"pin": "1234", "panel_code": CODE}, headers=o).json()["code"] == "invalid_pin"  # 6 by default
     assert c.put("/api/v1/alarm/me/pin", json={"pin": PIN, "panel_code": CODE}, headers=o).status_code == 200
     assert c.put("/api/v1/alarm/me/pin", json={"pin": "55555555"}, headers=o).status_code == 403  # changing needs the current PIN

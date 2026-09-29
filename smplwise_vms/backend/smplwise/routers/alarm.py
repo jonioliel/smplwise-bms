@@ -573,10 +573,12 @@ def set_my_pin(request: Request, principal: Principal = Depends(_alarm_actor), c
     else:
         typed = secret.get("panel_code")
         scope = _Scope(conn, principal)
-        stored = [p for p in codes.stored_panel_codes(conn) if scope.allowed(VIEW, p)]
+        # re-review L-a: only a panel the caller may DISARM (an arm-only user must not test panel-code guesses), and the
+        # guess counts against the user AND those panels
+        stored = [p for p in codes.stored_panel_codes(conn) if scope.allowed(DISARM, p)]
         if not stored:
             raise act.refuse(ApiError(409, "pin_by_admin", "פנה למנהל המערכת לקבלת קוד אישי."))
-        keys = [f"user:{principal.user_id}"]
+        keys = [f"user:{principal.user_id}"] + [f"panel:{p}" for p in stored]
         locked = codes.LOCKOUT.locked_for(keys, conn)
         if locked > 0:
             raise act.refuse(ApiError(429, "code_locked", "יותר מדי ניסיונות קוד שגויים. נסו שוב מאוחר יותר.", retryable=True, details={"retry_after_s": int(locked) + 1}))
