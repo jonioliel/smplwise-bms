@@ -435,7 +435,63 @@ round and release (step 7). Tests: 45 backend tests (`tests/test_remote_access.p
 `tests/fake_ha_core.py`) and 8 Playwright runs (`tests/evidence-arx-remote.spec.ts` desktop + phone against
 `tests/fixtures/arx_fake_ha.py`). Owner check: AT185 subset of §4 on the lab site.
 
-### 8.1 Step 6 built (branch `pilot/CR008-video-policy`, 2026-09-29)
+### 8.1 Security review round 1 (fixed on the same branch)
+
+- **B1 CSRF:** `SameSite=Strict` still sends the cookie on same-*site* requests (sibling sub-domains), and ~35 POST
+  routes take no JSON body. `RemoteChannel` now refuses any non-GET/HEAD/OPTIONS request that carries the session
+  cookie unless `Sec-Fetch-Site: same-origin` (or, without that header, `Origin` equal to the request's scheme + host):
+  403 `csrf_refused`, audited `auth.remote_csrf_refused`. Bearer-only requests (no cookie) are exempt.
+- **M1:** in `browser_session` the `hassTokens` seed exists only while an Arx page is open (cleared on `pagehide`,
+  re-seeded on load / back-forward); sign-out and the idle lock clear it; the settings tab says plainly that HA at `/`
+  shares the sign-in.
+- **M2:** a re-exchange ends the presented session at once (its WebSockets move to the new one); sign-out ends every
+  session of that browser's chain.
+- **M3:** turning the flag off also forgets cached bearer principals; the bearer path has the per-user limit and
+  audits its refusals (`via: bearer`).
+- **M4:** HA device actions (single, bulk, area assignment) accept the remote principal like an Ingress one; every
+  audit row of a remote actor carries `channel: remote`.
+- Nits: users first seen through Arx follow the HA directory's active flag like Ingress users; remote WebSockets
+  accept a bearer without a cookie (the future native app); `__Host-` is impossible under `Path=/arx/` (documented);
+  the guide warns that a ban threshold without `trusted_proxies` can ban the add-on's own address.
+- **V1, HA's real request schemas** (HA core `dev`, read 2026-09-29): `POST /auth/login_flow` - `client_id` (str,
+  required), `handler` ([str|null, str|null], exactly 2), `redirect_uri` (str, required), `code_challenge`
+  (optional, `^[A-Za-z0-9_-]{43}$`), `code_challenge_method` (optional; a challenge requires `S256`, `plain` refused),
+  `type` (optional, default `authorize`); no other keys. `POST /auth/login_flow/{flow_id}` - `client_id` required,
+  extra keys allowed (the step's fields). `POST /auth/token` - `grant_type=authorization_code` with `client_id`,
+  `code` and, when the flow had a challenge, `code_verifier` (SHA-256, base64url, unpadded, constant-time compare);
+  `grant_type=refresh_token` with `refresh_token` and the issuing `client_id`; `action=revoke` with `token`. So PKCE is
+  native to HA and the Arx client's requests match; the fake HA core now refuses exactly what these schemas refuse.
+
+## 9. Build status
+
+### P3 built (2026-09-29, branch `pilot/CR008-pwa-push`, not released)
+
+Built independently of the P1 MVP branch (base path, remote login and sessions are that branch's; nothing here depends on
+them - the worker and the manifest follow whatever base the page is served under):
+
+- **PWA:** `arx-manifest.webmanifest` (scope / start_url `./`, `dir: rtl`, `lang: he`, 192 / 512 / maskable / SVG
+  icons), service worker `arx-sw.js` registered from `document.baseURI` with the app base as scope (Ingress prefix
+  today, `/arx/` after P1): network-first shell with a Hebrew offline page, cache-first hashed assets, never `api/` or
+  video. "התקן את Arx" banner, iOS add-to-home-screen guide, update-available notice. The worker file is `arx-sw.js`
+  (not `sw.js` as §3a/§3d wrote) so it cannot collide with Home Assistant's own worker names.
+- **Web Push:** migration 0034 (`push_subscriptions`, `push_prefs`, `push_vapid`), `services/push.py`,
+  `routers/push.py` (`push/vapid-key`, `push/subscriptions`, `push/prefs`, `push/test`); VAPID + `aes128gcm`
+  implemented with `cryptography` (no pywebpush - it would add requests, aiohttp, http-ece, py-vapid and six);
+  endpoint allow-list of the browser push services; recipients by `row_scope(events.read)` (the alert list's rule);
+  categories, quiet hours, per-user rate limit, retry/backoff, 404/410 removal. The VAPID pair lives in the database
+  table `push_vapid` (outside `settings`, so never in a project backup) rather than a file in `/data`.
+- **Settings:** מערכת › התראות (every user). The notify path is the local rules engine (every rule alert); WisKey calls
+  are not events yet (§7.1 item 2 would enable a door-call category).
+- **Tests:** `tests/test_push.py` (RFC 8291 known answer, key lifecycle, own-only CRUD, fake push service
+  200 / 410 / 429, scope filtering, prefs + quiet hours, rate limit, payload without secrets);
+  `frontend/tests/evidence-pwa-push.spec.ts` + `unit-pwa-deeplink.spec.ts` (desktop + phone).
+- **Security review (2026-09-29) fixes:** retries re-check owner and reach before every attempt; `drain()` counts
+  retries in flight; the worker cache is versioned by the add-on version (unhashed files network-first, old caches
+  deleted on activate); `push` counters in `/health`; `POST push/rotate-key`; HA add-on backups carry the key (documented).
+- **Not verified yet:** delivery through the real push services (FCM / APNs / Mozilla) on a real phone, and the
+  notification click on the lab site under Ingress and under `/arx/` - an owner check after the P1 merge.
+
+### 8.2 Step 6 built (branch `pilot/CR008-video-policy`, 2026-09-29)
 
 - **Player policy** (`frontend/src/api/video-policy.ts`, `sw-live-player`): on the remote channel (`/me.channel`)
   every live player walks a ladder - `remote.default_profile` over WebRTC; then `remote.mse_fallback` true → the same

@@ -17,6 +17,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import re
 import secrets
 import threading
 import time
@@ -130,11 +131,30 @@ class FakeHaCore:
                 "errors": errors or {}, "description_placeholders": {"mfa_module_name": "Authenticator app"} if step == "mfa" else None,
                 "last_step": None, "preview": None}
 
+    # HA core dev, homeassistant/components/auth/login_flow.py (read 2026-09-29): LoginFlowIndexView.post's
+    # RequestDataValidator schema - no extra keys (a plain Schema), handler a 2-list, code_challenge 43 base64url chars,
+    # a challenge requires code_challenge_method S256 ('plain' is refused, RFC 7636 4.3).
+    START_KEYS = {"client_id", "handler", "redirect_uri", "code_challenge", "code_challenge_method", "type"}
+    CHALLENGE_RE = re.compile(r"^[A-Za-z0-9_-]{43}\Z")
+
     def start_flow(self, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        extra = sorted(set(body) - self.START_KEYS)
+        if extra:
+            return 400, {"message": f"Message format incorrect: extra keys not allowed @ data['{extra[0]}']"}
+        for key in ("client_id", "handler", "redirect_uri"):
+            if key not in body:
+                return 400, {"message": f"Message format incorrect: required key not provided @ data['{key}']"}
+        handler = body["handler"]
+        if not isinstance(handler, list) or len(handler) != 2 or not all(h is None or isinstance(h, str) for h in handler):
+            return 400, {"message": "Message format incorrect: handler"}
+        if "code_challenge" in body and not (isinstance(body["code_challenge"], str) and self.CHALLENGE_RE.match(body["code_challenge"])):
+            return 400, {"message": "Message format incorrect: code_challenge"}
+        if "code_challenge" in body and body.get("code_challenge_method") != "S256":
+            return 400, {"message": "code_challenge_method must be S256"}
         client_id, redirect_uri = body.get("client_id"), body.get("redirect_uri")
         if not isinstance(client_id, str) or not isinstance(redirect_uri, str) or urlparse(client_id).netloc != urlparse(redirect_uri).netloc:
             return 400, {"message": "Invalid redirect URI"}
-        if body.get("handler") not in (["homeassistant", None], ["homeassistant"]):
+        if handler[0] != "homeassistant":
             return 404, {"message": "Invalid handler specified"}
         flow_id = secrets.token_hex(16)
         with self.lock:
@@ -178,8 +198,10 @@ class FakeHaCore:
                 entry = self._codes.pop(form.get("code", ""), None)
             if not entry or entry["client_id"] != form.get("client_id"):
                 return 400, {"error": "invalid_request", "error_description": "Invalid code"}
-            if entry["challenge"]:
+            if entry["challenge"]:  # auth/__init__.py _async_handle_auth_code: a challenge requires a matching verifier
                 verifier = form.get("code_verifier", "")
+                if not verifier:
+                    return 400, {"error": "invalid_request", "error_description": "Missing code verifier"}
                 if _b64(hashlib.sha256(verifier.encode()).digest()) != entry["challenge"]:
                     return 400, {"error": "invalid_grant", "error_description": "Invalid code verifier"}
             return 200, self.issue(entry["user"], entry["client_id"])

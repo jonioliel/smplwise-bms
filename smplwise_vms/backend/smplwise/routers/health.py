@@ -28,6 +28,14 @@ def _write_lock_view(conn: sqlite3.Connection, principal: Principal) -> dict[str
     return stats
 
 
+def _push_view(conn: sqlite3.Connection) -> dict[str, Any]:
+    from ..services import push as push_svc
+
+    row = conn.execute("SELECT COUNT(*), COUNT(DISTINCT user_id) FROM push_subscriptions").fetchone()
+    return {**push_svc.STATS, "running": push_svc.NOTIFIER.running, "subscriptions": row[0], "subscribed_users": row[1],
+            "key_created": conn.execute("SELECT 1 FROM push_vapid WHERE id = 1").fetchone() is not None}
+
+
 @router.get("/health")
 def health(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     settings = settings_of(request)
@@ -50,6 +58,8 @@ def health(request: Request, principal: Principal = Depends(current_principal), 
         # T068: bounded queues and their drop / defer counters, the data disk against storage.min_free_mb (no ids, no paths)
         "backpressure": local_state(settings, conn),
         "identity_source": principal.source,
+        # CR-008 P3: Web Push worker counters and subscription totals (no endpoints, no user ids)
+        **({"push": _push_view(conn)} if authorize(conn, principal, "system.configure", INSTALLATION).allowed else {}),
         "renderer": "pdftoppm" if any(os.access(os.path.join(p, "pdftoppm"), os.X_OK) for p in os.environ.get("PATH", "").split(os.pathsep)) else "pymupdf-or-none",
     }
 

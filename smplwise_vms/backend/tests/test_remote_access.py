@@ -194,7 +194,8 @@ class Arx:
         monkeypatch.setattr(hua, "_dial", self.core.dial)
         self.settings = dataclasses.replace(settings, remote_access=True, www_dir=_www(tmp_path), ha_core_url="http://ha-core.test:8123", **over)
         self.app = create_app(self.settings)
-        self.client = TestClient(self.app)
+        # an Arx page's own requests: same origin (the CSRF gate of remote_channel refuses anything else with the cookie)
+        self.client = TestClient(self.app, headers=ORIGIN)
         self.db = Database(self.settings.db_path)
         self.owner = self.core.add_user(FakeUser("u-owner", "joni", "pw-owner", "יוני", is_owner=True, is_admin=True))
         self.viewer = self.core.add_user(FakeUser("u-viewer", "dana", "pw-viewer", "דנה"))
@@ -431,8 +432,10 @@ def test_websocket_checks_origin_and_session(arx):
     with pytest.raises(WebSocketDisconnect):
         with arx.client.websocket_connect("/arx/api/v1/me/ws", headers={"Origin": "https://evil.example"}) as ws:
             ws.receive_text()
+    bare = TestClient(arx.app)
+    bare.cookies.update(arx.client.cookies)
     with pytest.raises(WebSocketDisconnect):
-        with arx.client.websocket_connect("/arx/api/v1/me/ws") as ws:  # no Origin at all
+        with bare.websocket_connect("/arx/api/v1/me/ws") as ws:  # the cookie without any Origin
             ws.receive_text()
     with arx.client.websocket_connect("/arx/api/v1/me/ws", headers=ORIGIN) as ws:
         hello = json.loads(ws.receive_text())
@@ -526,6 +529,179 @@ def test_every_route_needs_a_remote_session(arx):
                 pass
     assert checked > 200
     assert leaks == [], leaks
+
+
+# ---------------------------------------------------------------- security review round 1 (B1, M2, M3, M4, V1)
+
+def _rotate_signing_key(client, **headers):
+    return client.post("/arx/api/v1/evidence/signing/rotate", content=b"x", headers={"Content-Type": "text/plain", **headers})
+
+
+@pytest.fixture()
+def arx_admin(arx):
+    arx.flag("u-owner")
+    arx.bind("u-owner", "system_admin")
+    assert arx.login(arx.owner).status_code == 200
+    return arx
+
+
+def test_csrf_foreign_origin_with_the_cookie_is_refused(arx_admin):
+    arx = arx_admin
+    r = _rotate_signing_key(arx.client, Origin="https://evil.example.com")
+    assert r.status_code == 403 and r.json()["code"] == "csrf_refused"
+    r = _rotate_signing_key(arx.client, **{"Sec-Fetch-Site": "same-site", "Origin": "http://testserver"})
+    assert r.status_code == 403, "Sec-Fetch-Site wins over a matching Origin"
+    row = arx.audit("auth.remote_csrf_refused")[0]
+    assert row["actor_user_id"] == "u-owner" and json.loads(row["details_json"])["origin"] == "https://evil.example.com"
+    assert arx.audit("evidence.signing.rotate") == [] or all(a["decision"] != "allowed" for a in arx.audit("evidence.signing.rotate"))
+
+
+def test_csrf_cookie_without_origin_or_fetch_metadata_is_refused(arx_admin):
+    arx = arx_admin
+    bare = TestClient(arx.app)  # no Origin, no Sec-Fetch-Site
+    bare.cookies.update(arx.client.cookies)
+    assert _rotate_signing_key(bare).status_code == 403
+    assert bare.delete("/arx/api/v1/auth/session").status_code == 403
+    assert bare.get("/arx/api/v1/me").status_code == 200, "safe methods need no proof of origin"
+
+
+def test_csrf_same_origin_passes(arx_admin):
+    arx = arx_admin
+    assert _rotate_signing_key(arx.client).status_code not in (401, 403)  # Origin http://testserver (the fixture's default)
+    fresh = TestClient(arx.app)
+    fresh.cookies.update(arx.client.cookies)
+    assert _rotate_signing_key(fresh, **{"Sec-Fetch-Site": "same-origin"}).status_code not in (401, 403)
+    assert _rotate_signing_key(fresh, Origin="https://testserver", **{"X-Forwarded-Proto": "https"}).status_code not in (401, 403)
+    assert _rotate_signing_key(fresh, Origin="http://testserver.evil.com").status_code == 403
+
+
+def test_csrf_bearer_only_requests_are_exempt(arx):
+    arx.flag("u-owner")
+    arx.bind("u-owner", "system_admin")
+    token = arx.token(arx.owner)
+    r = _rotate_signing_key(TestClient(arx.app), Authorization=f"Bearer {token}", Origin="https://elsewhere.example")
+    assert r.status_code not in (401, 403), r.text
+
+
+def test_rotation_ends_the_previous_session(arx):
+    arx.flag("u-viewer")
+    assert arx.login(arx.viewer).status_code == 200
+    old = arx.client.cookies.get("arx_session")
+    assert arx.login(arx.viewer).status_code == 200  # the browser re-exchanges with its cookie
+    new = arx.client.cookies.get("arx_session")
+    assert old != new and hua.STORE.count() == 1
+    stale = TestClient(arx.app)
+    stale.cookies.set("arx_session", old)
+    assert stale.get("/arx/api/v1/me").status_code == 401
+    assert arx.client.get("/arx/api/v1/me").status_code == 200
+
+
+def test_rotation_keeps_open_websockets(arx):
+    arx.flag("u-viewer")
+    arx.bind("u-viewer", "viewer")
+    assert arx.login(arx.viewer).status_code == 200
+    with arx.client.websocket_connect("/arx/api/v1/me/ws", headers=ORIGIN) as ws:
+        assert json.loads(ws.receive_text())["type"] == "hello"
+        assert arx.login(arx.viewer).status_code == 200
+        asyncio.run(hua._close_sockets())
+        assert list(hua.STORE._sockets.values())[0], "the socket moved to the new session"
+
+
+def test_logout_ends_every_session_of_the_chain(arx):
+    arx.flag("u-viewer")
+    assert arx.login(arx.viewer).status_code == 200
+    other = TestClient(arx.app, headers=ORIGIN)  # another browser of the same user
+    assert other.post("/arx/api/v1/auth/session", headers={"Authorization": f"Bearer {arx.token(arx.viewer)}"}).status_code == 200
+    assert arx.login(arx.viewer).status_code == 200
+    assert hua.STORE.count() == 2
+    assert arx.client.delete("/arx/api/v1/auth/session").status_code == 204
+    assert hua.STORE.count() == 1 and other.get("/arx/api/v1/me").status_code == 200  # the other browser stays
+
+
+def test_flag_off_forgets_cached_bearer_principals(arx):
+    arx.flag("u-viewer")
+    token = arx.token(arx.viewer)
+    api = TestClient(arx.app)
+    assert api.get("/arx/api/v1/me", headers={"Authorization": f"Bearer {token}"}).status_code == 200
+    admin = TestClient(arx.app)
+    arx.bind("dev-joni", "system_admin")
+    assert admin.put("/api/v1/access/users/u-viewer/remote-access", json={"enabled": False}).status_code == 200
+    r = api.get("/arx/api/v1/me", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 403 and r.json()["code"] == "remote_not_allowed"
+    row = arx.audit("auth.remote_session.rejected")[-1]
+    assert row["reason"] == "remote_not_allowed" and json.loads(row["details_json"])["via"] == "bearer"
+
+
+def test_bearer_path_limits_per_user(arx, monkeypatch):
+    monkeypatch.setattr(hua, "USER_LIMITS", [(60.0, 2)])
+    arx.flag("u-viewer")
+    api = TestClient(arx.app)
+    codes = [api.get("/arx/api/v1/me", headers={"Authorization": f"Bearer {arx.token(arx.viewer)}", "CF-Connecting-IP": f"198.51.100.{i}"}).status_code for i in range(3)]
+    assert codes == [200, 200, 429]
+    assert arx.audit("auth.remote_session.rejected")[-1]["reason"] == "rate_limited_user"
+
+
+def test_websocket_accepts_a_bearer_without_cookie(arx):
+    arx.flag("u-viewer")
+    arx.bind("u-viewer", "viewer")
+    with TestClient(arx.app).websocket_connect("/arx/api/v1/me/ws", headers={"Authorization": f"Bearer {arx.token(arx.viewer)}"}) as ws:
+        assert json.loads(ws.receive_text())["type"] == "hello"
+
+
+def test_remote_user_controls_a_light(settings, tmp_path, monkeypatch):
+    """Security review M4: device control is the owner's main remote use - the remote principal acts through the bridge
+    exactly like an Ingress one (signed with the HA user id), and the audit says channel=remote."""
+    from smplwise.services import ha_bridge, ha_client, ha_sync
+
+    states = [{"entity_id": "light.lobby", "state": "off", "attributes": {"friendly_name": "Lobby light", "supported_features": 44},
+               "last_changed": "2026-09-15T10:00:00+00:00", "last_updated": "2026-09-15T10:00:00+00:00"}]
+    monkeypatch.setattr(ha_client, "get_states", lambda _s: states)
+    arx = Arx(settings, tmp_path, monkeypatch, ha_url="http://ha.local:8123", ha_token="t")
+    try:
+        ha_sync.STATE.connected = True
+        ha_sync.snapshot(arx.app.state.db, arx.settings)
+        admin = TestClient(arx.app)
+        secret = admin.get("/api/v1/ha/bridge/pairing").json()["pairing_code"]
+        admin.post("/api/v1/ha/bridge/ping", json=ha_bridge.sign(secret, {"version": "0.2.5"}))
+        calls = []
+
+        def fake_execute(_settings, payload, timeout=15.0):
+            calls.append(ha_bridge.verify(secret, payload) or payload)
+            return {"ok": True, "context_id": "ctx"}
+
+        monkeypatch.setattr(ha_client, "call_bridge_execute", fake_execute)
+        arx.flag("u-viewer")
+        arx.bind("u-viewer", "operator")
+        assert arx.login(arx.viewer).status_code == 200
+        body = {"allowed_action_id": "light.turn_on", "arguments": {"brightness_pct": 40}, "expected_state_version": None, "confirmation_grant": None,
+                "client_request_id": "arx-1", "expires_at": "2099-01-01T00:00:00Z"}
+        r = arx.client.post("/arx/api/v1/ha/entities/light.lobby/actions", json=body)
+        assert r.status_code == 202, r.text
+        assert calls[-1]["user_id"] == "u-viewer" and calls[-1]["data"]["entity_id"] == "light.lobby"
+        rows = [a for a in arx.audit("ha.action") if a["actor_user_id"] == "u-viewer"]
+        assert rows and all(json.loads(a["details_json"])["channel"] == "remote" for a in rows)
+        # a viewer without control is still refused, remote or not
+        arx.flag("u-mfa")
+        arx.bind("u-mfa", "viewer")
+        assert arx.login(arx.mfa).status_code == 200
+        assert arx.client.post("/arx/api/v1/ha/entities/light.lobby/actions", json={**body, "client_request_id": "arx-2"}).status_code == 403
+    finally:
+        hua.reset_for_tests()
+
+
+def test_fake_login_flow_mirrors_ha_schemas():
+    """V1: the fake refuses what HA core's login_flow / token views refuse (schemas read from HA core dev on
+    2026-09-29), so the Playwright run against it proves the Arx client's requests are accepted."""
+    core = FakeHaCore()
+    base = {"client_id": "http://t/arx/", "handler": ["homeassistant", None], "redirect_uri": "http://t/arx/?auth_callback=1"}
+    ch = "A" * 43
+    assert core.start_flow({**base, "code_challenge": ch, "code_challenge_method": "S256"})[0] == 200
+    assert core.start_flow({**base, "state": "x"})[0] == 400  # extra keys are refused
+    assert core.start_flow({**base, "code_challenge": ch})[0] == 400  # a challenge without S256
+    assert core.start_flow({**base, "code_challenge": ch, "code_challenge_method": "plain"})[0] == 400
+    assert core.start_flow({**base, "code_challenge": "short", "code_challenge_method": "S256"})[0] == 400
+    assert core.start_flow({**base, "handler": ["homeassistant"]})[0] == 400  # exactly two items
+    assert core.start_flow({k: v for k, v in base.items() if k != "redirect_uri"})[0] == 400
 
 
 def test_the_built_ui_contains_no_secrets():

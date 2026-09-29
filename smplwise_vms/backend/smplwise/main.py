@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import mimetypes
 import uuid
 from pathlib import Path
 
@@ -18,7 +19,7 @@ from .config import DEV_NVR_PLACEHOLDER, Settings, load_settings
 from .db import Database
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
-from .routers import access, access_control, access_groups, anchors, backup, cameras, cases, catalog, device_layouts, devices, events, exports, frames, ha, health, me, media, plan_catalog, plan_geometry, plans, playback, playback_groups, recordings, rules, search, settings as settings_router, setup, skins, storage, views, zones, nvr_write
+from .routers import access, access_control, access_groups, anchors, backup, cameras, cases, catalog, device_layouts, devices, events, exports, frames, ha, health, me, media, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, search, settings as settings_router, setup, skins, storage, views, zones, nvr_write
 
 log = logging.getLogger("smplwise")
 
@@ -41,6 +42,9 @@ def janitor_tick(db: Database, settings: Settings) -> None:
     thumbnails.prune(settings, s["events.retention_days"])
     audit_mod.prune_db(db, s["audit.retention_days"])
     ha_history.prune_db(db)
+    from .services import push as push_svc
+
+    push_svc.prune(db)  # CR-008 P3: push subscriptions whose browser has not synced for months
     from .services import storage
 
     if not is_ha_only(settings):  # NVR-less mode: no NVR storage report to keep warm, no NVR recording to stop
@@ -153,6 +157,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(cases.router, prefix=api, tags=["cases"])
     app.include_router(storage.router, prefix=api, tags=["storage"])
     app.include_router(rules.router, prefix=api, tags=["rules"])
+    app.include_router(push.router, prefix=api, tags=["push"])
     app.include_router(health.router, prefix=api, tags=["ops"])
     app.include_router(setup.router, prefix=api, tags=["ops"])
     app.include_router(views.router, prefix=api, tags=["views"])
@@ -221,6 +226,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import backup as backup_svc
 
         app.state.backup_task = asyncio.create_task(backup_svc.daily_loop(app.state.db, settings))
+        from .services import push as push_svc
+
+        push_svc.NOTIFIER.start(app.state.db)  # CR-008 P3: Web Push for rule alerts (only to subscribed users in scope)
         await run_in_threadpool(bridge_install.run_startup, app.state.db, settings)
 
         async def loop() -> None:
@@ -260,6 +268,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import intercom_sync
 
         intercom_sync.SYNC.shutdown()
+        from .services import push as push_svc
+
+        from starlette.concurrency import run_in_threadpool as _in_thread
+
+        await _in_thread(push_svc.NOTIFIER.shutdown)  # queued alerts get a few seconds to go out
         from .routers import plan_geometry as plan_geometry_router
 
         plan_geometry_router.shutdown_detect_pool()
@@ -269,6 +282,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # Supervisor watchdog target: no identity, no details.
         return {"status": "ok"}
 
+    mimetypes.add_type("application/manifest+json", ".webmanifest")  # the PWA manifest (CR-008 P3)
     www = settings.www_dir
     if www and Path(www).is_dir():
         index = Path(www) / "index.html"
@@ -276,6 +290,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.get("/", include_in_schema=False)
         async def root():
             return FileResponse(index, headers={"Cache-Control": "no-cache"})
+
+        sw_file = Path(www) / "arx-sw.js"
+
+        @app.get("/arx-sw.js", include_in_schema=False)
+        async def service_worker():
+            # CR-008 P3: the app's service worker, scoped to the directory it is served from (the Ingress prefix or
+            # /arx/); always revalidated so a new release's worker is found at once
+            if not sw_file.is_file():
+                raise StarletteHTTPException(404, "not found")
+            return FileResponse(sw_file, media_type="text/javascript", headers={"Cache-Control": "no-cache"})
 
         app.mount("/", StaticFiles(directory=str(www), html=True), name="www")
     else:

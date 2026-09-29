@@ -14,10 +14,13 @@ middleware sits in front of everything:
   before anything else sees them;
 - remote responses get the security headers of CR-008 §3e (CSP with `frame-ancestors 'self'`, `X-Frame-Options:
   SAMEORIGIN` - the WisKey embed and Ingress framing are same-origin -, `Referrer-Policy`, `Permissions-Policy`,
-  `nosniff`, and `Cache-Control: no-store` on the API). HSTS is left to Cloudflare (the tunnel terminates TLS).
+  `nosniff`, and `Cache-Control: no-store` on the API). HSTS is left to Cloudflare (the tunnel terminates TLS);
+- a state-changing request carrying the Arx session cookie must prove it comes from this origin (csrf_ok) or it is
+  refused 403 `csrf_refused` and audited (security review B1).
 """
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from .config import Settings
@@ -62,6 +65,76 @@ SECURITY_HEADERS: list[tuple[bytes, bytes]] = [
 # machine-to-machine routes with no user identity (the HA bridge integration's signed calls on the internal network):
 # never reachable through the tunnel
 BLOCKED_ON_REMOTE = ("/api/v1/ha/bridge/ping", "/api/v1/ha/bridge/directory")
+
+
+SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+SESSION_COOKIES = ("__Secure-arx_session", "arx_session")
+CSRF_BODY = json.dumps({"code": "csrf_refused", "user_message": "הבקשה נדחתה: היא לא הגיעה מדף של SmplWise Arx.",
+                        "retryable": False, "correlation_id": "", "details": {}}, ensure_ascii=False).encode("utf-8")
+
+
+def _header(headers: list[tuple[bytes, bytes]], name: bytes) -> str | None:
+    for k, v in headers:
+        if k.lower() == name:
+            return v.decode("latin-1")
+    return None
+
+
+def _session_cookie(headers: list[tuple[bytes, bytes]]) -> str | None:
+    raw = ";".join(v.decode("latin-1") for k, v in headers if k.lower() == b"cookie")
+    for part in raw.split(";"):
+        name, _, value = part.strip().partition("=")
+        if name in SESSION_COOKIES and value:
+            return value
+    return None
+
+
+def csrf_ok(scope: dict, headers: list[tuple[bytes, bytes]]) -> bool:
+    """A state-changing request that carries the Arx session cookie must come from an Arx page on this very origin
+    (CR-008 security review B1). SameSite=Strict still sends the cookie on same-SITE requests (a sibling sub-domain of
+    the zone), and ~35 POST routes take no JSON body, so neither the cookie flag nor the content type is enough.
+    `Sec-Fetch-Site: same-origin` when the browser sends it (every current browser does); otherwise `Origin` equal to
+    this request's scheme + host. Neither header → refused."""
+    site = _header(headers, b"sec-fetch-site")
+    if site is not None:
+        return site == "same-origin"
+    origin = _header(headers, b"origin")
+    host = _header(headers, b"host")
+    if not origin or not host or origin == "null":
+        return False
+    from urllib.parse import urlsplit
+
+    try:
+        o = urlsplit(origin)
+    except ValueError:
+        return False
+    schemes = {"https", scope.get("scheme") or "http"}
+    xfp = _header(headers, b"x-forwarded-proto")
+    if xfp:
+        schemes = {xfp.split(",")[0].strip().lower()}
+    return o.netloc.lower() == host.lower() and o.scheme in schemes and not o.path.strip("/")
+
+
+def _audit_csrf(scope: dict, headers: list[tuple[bytes, bytes]], sid: str | None) -> None:
+    app = scope.get("app")
+    db = getattr(getattr(app, "state", None), "db", None)
+    if db is None:
+        return
+    from .audit import audit
+    from .services import ha_user_auth as hua
+
+    session = hua.STORE.peek(sid) if sid else None
+    details = {"method": scope.get("method"), "path": scope.get("path"), "origin": (_header(headers, b"origin") or "")[:200],
+               "sec_fetch_site": _header(headers, b"sec-fetch-site") or "",
+               "client_ip": (_header(headers, b"cf-connecting-ip") or (_header(headers, b"x-forwarded-for") or "").split(",")[0]).strip()[:64]}
+    try:
+        with db.connection(label="csrf_refused") as conn:
+            audit(conn, actor=session.principal if session else None, action="auth.remote_csrf_refused", decision="denied", resource_type="request",
+                  resource_id=None, reason="csrf_refused", details=details)
+    except Exception:  # noqa: BLE001 - the refusal stands even when the audit row cannot be written
+        import logging
+
+        logging.getLogger("smplwise.remote").exception("could not audit a refused cross-site request")
 
 
 def channel_of(conn: Any) -> str:
@@ -121,9 +194,18 @@ class RemoteChannel:
         if any(rest == b or rest.startswith(b + "/") for b in BLOCKED_ON_REMOTE):
             await _plain(send, 404, b'{"code":"not_found","user_message":"Not found","retryable":false,"correlation_id":"","details":{}}')
             return
+        headers = list(scope.get("headers") or [])
+        if kind == "http" and (scope.get("method") or "GET").upper() not in SAFE_METHODS:
+            sid = _session_cookie(headers)
+            if sid is not None and not csrf_ok(scope, headers):  # a bearer-only request (no cookie) is exempt
+                from starlette.concurrency import run_in_threadpool
+
+                await run_in_threadpool(_audit_csrf, scope, headers, sid)
+                await _plain(send, 403, CSRF_BODY)
+                return
         child = dict(scope)
         child["root_path"] = (scope.get("root_path") or "") + prefix
-        child["headers"] = _clean_headers(list(scope.get("headers") or []))
+        child["headers"] = _clean_headers(headers)
         state[CHANNEL_KEY] = REMOTE
         child["state"] = state
         if kind == "websocket":

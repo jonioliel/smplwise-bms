@@ -237,6 +237,7 @@ class RemoteSession:
     created_at: float
     last_used: float
     last_validated: float
+    chain: str = ""  # one browser's sign-in: every rotation keeps it; sign-out ends the whole chain
 
 
 class SessionStore:
@@ -246,11 +247,21 @@ class SessionStore:
         self._sockets: dict[str, weakref.WeakSet] = {}
         self._to_close: list[Any] = []
 
-    def create(self, principal: Principal, ha_user: HaUser, token: str, token_exp: float, client_ip: str) -> RemoteSession:
+    def create(self, principal: Principal, ha_user: HaUser, token: str, token_exp: float, client_ip: str, replaces: str | None = None) -> RemoteSession:
+        """A new session; `replaces` = the sid the browser presented (a rotation after a token refresh): that session
+        ends now (security review M2) and its open WebSockets move to the new one instead of being closed."""
         now = time.time()
         s = RemoteSession(sid=secrets.token_urlsafe(32), principal=principal, token=token, token_exp=token_exp, ha_user=ha_user,
                           client_ip=client_ip, created_at=now, last_used=now, last_validated=now)
+        s.chain = s.sid
         with self._lock:
+            old = self._sessions.get(replaces) if replaces else None
+            if old is not None and old.principal.user_id == principal.user_id:
+                s.chain = old.chain or old.sid
+                self._sessions.pop(old.sid, None)
+                socks = self._sockets.pop(old.sid, None)
+                if socks:
+                    self._sockets.setdefault(s.sid, weakref.WeakSet()).update(socks)
             self._sessions[s.sid] = s
             mine = sorted((x for x in self._sessions.values() if x.principal.user_id == principal.user_id), key=lambda x: x.created_at)
             for old in mine[:-MAX_SESSIONS_PER_USER]:
@@ -278,14 +289,34 @@ class SessionStore:
             self._to_close.extend(list(socks))
         return s
 
+    def peek(self, sid: str | None) -> RemoteSession | None:
+        """The session without touching it (the audit of a refused request)."""
+        if not sid:
+            return None
+        with self._lock:
+            return self._sessions.get(sid)
+
     def drop(self, sid: str) -> RemoteSession | None:
         with self._lock:
             return self._drop_locked(sid)
 
+    def drop_chain(self, sid: str) -> RemoteSession | None:
+        """Sign-out: the presented session and every other session of the same browser's chain."""
+        with self._lock:
+            s = self._sessions.get(sid)
+            if s is None:
+                return None
+            chain = s.chain or s.sid
+            for other in [x for x, v in self._sessions.items() if (v.chain or v.sid) == chain]:
+                self._drop_locked(other)
+            return s
+
     def drop_user(self, user_id: str) -> list[RemoteSession]:
         with self._lock:
             sids = [sid for sid, s in self._sessions.items() if s.principal.user_id == user_id]
-            return [s for s in (self._drop_locked(sid) for sid in sids) if s is not None]
+            dropped = [s for s in (self._drop_locked(sid) for sid in sids) if s is not None]
+        forget_bearer_user(user_id)  # security review M3: the bearer cache follows at once, not after 60 s
+        return dropped
 
     def attach_socket(self, sid: str, websocket: Any) -> None:
         with self._lock:
@@ -322,6 +353,12 @@ STORE = SessionStore()
 _bearer_cache: dict[str, tuple[Principal, float, float]] = {}
 _rejected: dict[str, float] = {}  # token hash -> until (negative cache)
 _cache_lock = threading.Lock()
+
+
+def forget_bearer_user(user_id: str) -> None:
+    with _cache_lock:
+        for key in [k for k, v in _bearer_cache.items() if v[0].user_id == user_id]:
+            _bearer_cache.pop(key, None)
 
 
 def _remember_rejected(token: str) -> None:
@@ -530,7 +567,7 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
     principal, refusal = await run_in_threadpool(decide)
     if refusal is not None:
         raise await rejected(refusal.code, refusal, principal)
-    session = STORE.create(principal, ha_user, token, exp, ip)
+    session = STORE.create(principal, ha_user, token, exp, ip, replaces=session_id_of(settings, conn_like))
 
     def touch_and_audit() -> None:
         from ..auth import touch_user
@@ -544,9 +581,10 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
 
 
 def logout(app_state: Any, settings: Settings, conn_like: Any) -> bool:
-    """Drop the caller's session (cookie, else bearer's sessions are left to expire). Audited when one existed."""
+    """Drop the caller's session and every other session of its chain (this browser's earlier rotations). Audited
+    when one existed. A bearer-only client has no session to drop; its tokens die when HA revokes them."""
     sid = session_id_of(settings, conn_like)
-    s = STORE.drop(sid) if sid else None
+    s = STORE.drop_chain(sid) if sid else None
     if s is not None:
         _audit(app_state.db, actor=s.principal, action="auth.remote_session.logout", decision="allowed", reason=None, meta=request_meta(conn_like))
     return s is not None
@@ -571,21 +609,29 @@ def _bearer_principal(request: Any, settings: Settings, token: str) -> Principal
     except RuntimeError:
         pass
     ip = client_ip(request)
+    db = request.app.state.db
+    meta = {**request_meta(request), "via": "bearer"}
+
+    def rejected(reason: str, err: ApiError, actor: Principal | None = None) -> ApiError:
+        _audit(db, actor=actor, action="auth.remote_session.rejected", decision="denied", reason=reason, meta=meta)
+        return err
+
     if not LIMITER.hit(f"ip:{ip}", IP_LIMITS):
-        raise ApiError(429, "rate_limited", RATE_LIMITED_HE, retryable=True)
+        raise rejected("rate_limited_ip", ApiError(429, "rate_limited", RATE_LIMITED_HE, retryable=True))
     try:
         ha_user = asyncio.run(validate_token(settings, token, ip))
     except TokenInvalid:
         _remember_rejected(token)
-        raise unauthenticated("remote_token_invalid", TOKEN_INVALID_HE)
+        raise rejected("token_invalid", unauthenticated("remote_token_invalid", TOKEN_INVALID_HE))
     except HaUnavailable:
         raise ApiError(503, "ha_unavailable", HA_UNAVAILABLE_HE, retryable=True)
-    db = request.app.state.db
+    if not LIMITER.hit(f"user:{ha_user.id}", USER_LIMITS):
+        raise rejected("rate_limited_user", ApiError(429, "rate_limited", RATE_LIMITED_HE, retryable=True))
     with db.connection(mode="read", label="remote bearer") as conn:
         principal = build_principal(conn, ha_user)
         refusal = policy_refusal(conn, principal, ha_user)
     if refusal is not None:
-        raise refusal
+        raise rejected(refusal.code, refusal, principal)
     with _cache_lock:
         if len(_bearer_cache) > 5000:
             _bearer_cache.clear()
@@ -604,16 +650,28 @@ def remote_principal(request: Any, settings: Settings) -> Principal:
 
 
 async def remote_principal_ws(websocket: Any, settings: Settings) -> Principal | None:
-    """A remote WebSocket handshake: Origin must be this host; then the session cookie (attached, so revoking the
-    session closes the socket)."""
-    if not origin_ok(websocket):
-        return None
+    """A remote WebSocket handshake. A browser (the session cookie): Origin must be this host; the socket is attached
+    to its session, so revoking the session closes it. A client with `Authorization: Bearer` and no cookie (the future
+    native app, which cannot be driven cross-site by a page): the token is validated like any bearer request, without
+    blocking the event loop."""
     sid = session_id_of(settings, websocket)
-    s = STORE.get(sid)
-    if s is None:
+    if sid:
+        if not origin_ok(websocket):
+            return None
+        s = STORE.get(sid)
+        if s is None:
+            return None
+        STORE.attach_socket(s.sid, websocket)
+        return s.principal
+    token = bearer_of(websocket)
+    if not token:
         return None
-    STORE.attach_socket(s.sid, websocket)
-    return s.principal
+    from starlette.concurrency import run_in_threadpool
+
+    try:
+        return await run_in_threadpool(_bearer_principal, websocket, settings, token)
+    except ApiError:
+        return None
 
 
 # ---------------------------------------------------------------- background revalidation

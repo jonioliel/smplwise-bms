@@ -419,7 +419,62 @@ D11-D14 לא משנות את D1 (נתיב `/arx`, אותו מקור) או את D
 ‏(`tests/evidence-arx-remote.spec.ts` מחשב + טלפון מול `tests/fixtures/arx_fake_ha.py`). בדיקת הבעלים: תת-קבוצת AT185
 של §4 באתר המעבדה.
 
-### 8.1 צעד 6 נבנה (ענף `pilot/CR008-video-policy`, ‏2026-09-29)
+### 8.1 סבב סקירת אבטחה 1 (תוקן באותו ענף)
+
+- **B1 ‏CSRF:** ‏`SameSite=Strict` עדיין שולח את העוגייה בבקשות מאותו *אתר* (תת-דומיינים שכנים), וכ-35 נתיבי POST לא
+  מקבלים גוף JSON. `RemoteChannel` דוחה כעת כל בקשה שאינה GET/HEAD/OPTIONS ונושאת את עוגיית החיבור, אלא אם
+  `Sec-Fetch-Site: same-origin` (או, בלי הכותרת הזו, `Origin` השווה לסכמה ולמארח של הבקשה): 403 ‏`csrf_refused`,
+  נרשם באודיט כ-`auth.remote_csrf_refused`. בקשות bearer בלבד (בלי עוגייה) פטורות.
+- **M1:** ב-`browser_session` זריעת `hassTokens` קיימת רק כל עוד דף Arx פתוח (נמחקת ב-`pagehide`, נזרעת מחדש בטעינה
+  ובחזרה מה-back-forward cache); יציאה ונעילה בחוסר פעילות מוחקות אותה; לשונית ההגדרות אומרת במפורש ש-HA בכתובת `/`
+  חולק את הכניסה.
+- **M2:** החלפה מחדש מסיימת מיד את החיבור שהוצג (ה-WebSockets שלו עוברים לחדש); יציאה מסיימת את כל השרשרת של הדפדפן.
+- **M3:** כיבוי הדגל שוכח גם principals של bearer שבמטמון; בנתיב ה-bearer יש הגבלה למשתמש ורישום סירובים באודיט
+  (`via: bearer`).
+- **M4:** פעולות התקני HA (בודדת, מרובה, שיוך אזור) מקבלות את ה-principal המרוחק כמו של Ingress; כל שורת אודיט של
+  משתמש מרוחק נושאת `channel: remote`.
+- הערות קטנות: משתמשים שנראו לראשונה דרך Arx עוקבים אחרי דגל הפעילות של ספריית HA כמו משתמשי Ingress; WebSockets
+  מרוחקים מקבלים bearer בלי עוגייה (לאפליקציה העתידית); `__Host-` בלתי אפשרי תחת `Path=/arx/` (מתועד); המדריך
+  מזהיר שסף חסימה בלי `trusted_proxies` עלול לחסום את כתובת ה-add-on עצמו.
+- **V1, סכמות הבקשה האמיתיות של HA** (HA core ענף `dev`, נקרא ב-29.09.2026): `POST /auth/login_flow` - `client_id`
+  (מחרוזת, חובה), `handler` ‏([str|null, str|null], בדיוק 2), `redirect_uri` (מחרוזת, חובה), `code_challenge`
+  (אופציונלי, `^[A-Za-z0-9_-]{43}$`), `code_challenge_method` (אופציונלי; challenge מחייב `S256`, ‏`plain` נדחה),
+  `type` (אופציונלי, ברירת מחדל `authorize`); שום מפתח אחר. `POST /auth/login_flow/{flow_id}` - `client_id` חובה,
+  מפתחות נוספים מותרים (שדות השלב). `POST /auth/token` - ‏`grant_type=authorization_code` עם `client_id`, ‏`code`
+  וכשלתהליך היה challenge גם `code_verifier` ‏(SHA-256, ‏base64url בלי ריפוד, השוואה בזמן קבוע);
+  `grant_type=refresh_token` עם `refresh_token` ו-`client_id` המנפיק; `action=revoke` עם `token`. כלומר PKCE מובנה
+  ב-HA והבקשות של לקוח Arx תואמות; ליבת ה-HA המדומה דוחה כעת בדיוק את מה שהסכמות האלה דוחות.
+
+## 9. מצב הבנייה
+
+### P3 נבנה (29.09.2026, ענף `pilot/CR008-pwa-push`, לא שוחרר)
+
+נבנה בנפרד מענף ה־MVP של P1 (נתיב הבסיס, הכניסה מרחוק והסשנים שייכים לו; שום דבר כאן לא תלוי בהם - ה־worker
+וה־manifest הולכים אחרי הבסיס שבו הדף מוגש):
+
+- **PWA:** `arx-manifest.webmanifest` (scope / start_url `./`, `dir: rtl`, `lang: he`, אייקונים 192 / 512 / maskable /
+  SVG), service worker `arx-sw.js` שנרשם מ־`document.baseURI` עם בסיס האפליקציה כ־scope (קידומת ה־Ingress היום,
+  `/arx/` אחרי P1): מעטפת network-first עם דף "אין חיבור" בעברית, cache-first לקבצים עם hash, אף פעם לא `api/` או
+  וידאו. כרטיס "התקן את Arx", הסבר הוספה למסך הבית באייפון, הודעת גרסה חדשה. שם הקובץ `arx-sw.js` (ולא `sw.js` כפי
+  שנכתב ב־§3a/§3d) כדי שלא יתנגש בשמות ה־worker של Home Assistant.
+- **Web Push:** מיגרציה 0034 (`push_subscriptions`, `push_prefs`, `push_vapid`), `services/push.py`, `routers/push.py`
+  (`push/vapid-key`, `push/subscriptions`, `push/prefs`, `push/test`); VAPID ו־`aes128gcm` במימוש עם `cryptography`
+  (בלי pywebpush - הוא היה מוסיף requests, aiohttp, http-ece, py-vapid ו־six); רשימה סגורה של שירותי ה־Push של
+  הדפדפנים; נמענים לפי `row_scope(events.read)` (הכלל של רשימת ההתראות); קטגוריות, שעות שקט, מגבלת קצב למשתמש,
+  ניסיון חוזר בהמתנה, מחיקה ב־404/410. זוג מפתחות ה־VAPID נשמר בטבלה `push_vapid` במסד הנתונים (מחוץ ל־`settings`,
+  ולכן אף פעם לא בגיבוי פרויקט) ולא בקובץ ב־`/data`.
+- **הגדרות:** מערכת › התראות (לכל משתמש). מסלול ההתראה הוא מנוע החוקים המקומי (כל התראת חוק); שיחות WisKey עדיין
+  אינן אירועים (סעיף 7.1 פריט 2 יאפשר קטגוריית שיחת דלת).
+- **בדיקות:** `tests/test_push.py` (תשובה ידועה של RFC 8291, מחזור חיי המפתח, CRUD של המשתמש בלבד, שירות Push מזויף
+  200 / 410 / 429, סינון היקף, העדפות ושעות שקט, מגבלת קצב, תוכן בלי סודות); `frontend/tests/evidence-pwa-push.spec.ts`
+  ו־`unit-pwa-deeplink.spec.ts` (מחשב וטלפון).
+- **תיקוני סקירת האבטחה (29.09.2026):** כל ניסיון חוזר בודק מחדש בעלות וגישה; `drain()` סופר ניסיונות חוזרים שבדרך;
+  מטמון ה־worker ממוספר לפי גרסת ה־Add-on (קבצים בלי hash ב־network-first, מטמונים ישנים נמחקים בהפעלה); מוני `push`
+  ב־`/health`; `POST push/rotate-key`; גיבויי HA של ה־Add-on כוללים את המפתח (מתועד).
+- **עוד לא נבדק:** מסירה דרך שירותי ה־Push האמיתיים (FCM / APNs / Mozilla) בטלפון אמיתי, ולחיצה על התראה באתר
+  המעבדה תחת Ingress ותחת `/arx/` - בדיקת בעלים אחרי המיזוג של P1.
+
+### 8.2 צעד 6 נבנה (ענף `pilot/CR008-video-policy`, ‏2026-09-29)
 
 - **מדיניות הנגן** (`frontend/src/api/video-policy.ts`, `sw-live-player`): בערוץ המרוחק (`/me.channel`) כל נגן חי
   עובר על סולם - `remote.default_profile` ב-WebRTC; אחר כך `remote.mse_fallback` מופעל ← אותו פרופיל ב-MSE, כבוי ←

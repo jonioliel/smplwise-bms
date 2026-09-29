@@ -180,7 +180,7 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
         raise ApiError(403, "grant_required", f"הפעולה דורשת הרשאה נפרדת ({_grant_label(grant)}); שליטה כללית בישויות אינה כוללת אותה.", details={"action": body.allowed_action_id, "grant": grant})
     if spec["sensitive"] and body.confirmation_grant != "confirmed":
         raise ApiError(409, "confirmation_required", "פעולה רגישה דורשת אישור מפורש.", details={"action": body.allowed_action_id})
-    if principal.source != "ingress" and not settings.dev_user:
+    if principal.source not in ("ingress", "remote") and not settings.dev_user:  # CR-008: the Arx remote channel is the same HA user
         raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת HA.")
     secret = ha_bridge.signing_key(conn)
     paired = bool(secret) and bool(get_setting(conn, "bridge.paired_at"))
@@ -393,7 +393,7 @@ def _apply_directory_to_users(conn: sqlite3.Connection, request: Request, pushed
 
     admins = {r["subject_id"] for r in conn.execute("SELECT subject_id FROM bindings WHERE subject_kind = 'user' AND role_id = 'system_admin' AND scope_type = 'installation' AND effect = 'allow' AND revoked_at IS NULL").fetchall()}
     disabled: list[str] = []
-    for r in conn.execute("SELECT id, active FROM users WHERE source = 'ingress'").fetchall():
+    for r in conn.execute("SELECT id, active FROM users WHERE source IN ('ingress', 'remote')").fetchall():  # CR-008: first seen through Arx
         p = pushed.get(r["id"])
         if p is None:
             active_now = 1 if r["id"] in admins else 0

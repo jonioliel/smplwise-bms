@@ -1,4 +1,18 @@
 import { defineConfig } from 'vite';
+import fs from 'node:fs';
+
+// CR-008 P3: the service worker's cache is named after the add-on version (smplwise_vms/config.yaml), so every release
+// ships a different arx-sw.js (the browser installs the new worker) and the new worker deletes the old release's cache.
+// SW_BUILD_ID overrides it (tests, one-off builds).
+function buildId(): string {
+  if (process.env.SW_BUILD_ID) return process.env.SW_BUILD_ID;
+  try {
+    const m = /^version:\s*"?([^"\s]+)"?/m.exec(fs.readFileSync(new URL('../smplwise_vms/config.yaml', import.meta.url), 'utf8'));
+    return m ? m[1] : 'dev';
+  } catch {
+    return 'dev';
+  }
+}
 
 // `base: './'` keeps every asset URL relative so the same build works under the HA Ingress
 // prefix (/api/hassio_ingress/<token>/) and on a plain dev server.
@@ -7,6 +21,7 @@ const API = `http://127.0.0.1:${process.env.SW_API_PORT || '8099'}`;
 
 export default defineConfig({
   base: './',
+  define: { __ARX_BUILD__: JSON.stringify(buildId()) },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
@@ -17,7 +32,11 @@ export default defineConfig({
     // chunk, into the entry bundle's own dependency map, even though the entry never imports it.
     modulePreload: false,
     rollupOptions: {
+      // CR-008 P3: the service worker is a second entry with a fixed name next to index.html (`arx-sw.js`), so it is
+      // registered under the app's own base; it imports nothing the app imports, so it builds as one classic script.
+      input: { index: 'index.html', 'arx-sw': 'src/pwa/sw.ts' },
       output: {
+        entryFileNames: (chunk) => (chunk.name === 'arx-sw' ? 'arx-sw.js' : 'assets/[name]-[hash].js'),
         // Plan Studio 3D (T087): three.js in a chunk of its own, fetched only by the dynamic import of sw-plan-3d.
         manualChunks: (id) => (id.includes('/node_modules/three/') ? 'three' : undefined),
       },
