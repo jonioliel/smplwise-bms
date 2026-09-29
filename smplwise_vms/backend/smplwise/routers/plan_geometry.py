@@ -309,6 +309,13 @@ class DetectIn(BaseModel):
     door_model: Literal["gap", "arc_v2"] = "gap"
     # T087: the hollow-wall pass (plan_detect_hollow, walls drawn as two thin lines); on by default, a plan opts out
     hollow_walls: bool = True
+    # T086 tuning (detector 1.4, the 0.1.90 list items 3-6), each on by default, a plan opts out: section-cut lines
+    # crossing into the building are no walls; a white gap under 0.3 m with no symbol is no passage; a tribune is
+    # proposed as a steps object; a pier grid as column objects with the envelope line between them
+    section_lines: bool = True
+    join_gaps: bool = True
+    steps_regions: bool = True
+    columns: bool = True
 
 
 class CandidateSet(BaseModel):
@@ -334,7 +341,8 @@ class AcceptIn(BaseModel):
 
 
 def _auto_counts(doc: dict[str, Any]) -> dict[str, int]:
-    return {c: sum(1 for i in doc.get(c) or [] if isinstance(i, dict) and i.get("source") == "auto") for c in ("walls", "openings")}
+    """The draft's detected items per collection; objects since detector 1.4 (tribunes and columns are proposed too)."""
+    return {c: sum(1 for i in doc.get(c) or [] if isinstance(i, dict) and i.get("source") == "auto") for c in ("walls", "openings", "objects")}
 
 
 @router.post("/plan-versions/{version_id}/detect")
@@ -365,7 +373,8 @@ def detect_structure(version_id: str, body: DetectIn, request: Request, principa
     # instead of finishing a result nobody reads, so a timed-out run does not hold one of the two workers
     deadline = time.monotonic() + settings.detect_timeout_s
     future = DETECT_POOL.submit(plan_detect.detect, png, targets=targets, strength=body.strength, scale_m_per_px=scale, level_id=level_id, run_id=new_id()[:6], deadline=deadline,
-                                 door_model=body.door_model, hollow_walls=body.hollow_walls)
+                                 door_model=body.door_model, hollow_walls=body.hollow_walls, section_lines=body.section_lines, join_gaps=body.join_gaps,
+                                 steps_regions=body.steps_regions, columns=body.columns)
     try:
         with unlocked(conn):  # the write lock is not held while the worker runs
             result = future.result(timeout=settings.detect_timeout_s)
@@ -382,7 +391,7 @@ def detect_structure(version_id: str, body: DetectIn, request: Request, principa
         result["scale"]["status"] = cal["status"]  # the detector calls any given scale measured; an estimate stays an estimate
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
     audit(conn, actor=principal, action="geometry.detect", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
-          details={"version_id": v["id"], "targets": targets, "strength": body.strength, "walls": len(result["walls"]), "openings": len(result["openings"]), "ms": elapsed_ms,
+          details={"version_id": v["id"], "targets": targets, "strength": body.strength, "walls": len(result["walls"]), "openings": len(result["openings"]), "objects": len(result.get("objects") or []), "ms": elapsed_ms,
                    "calibrated": scale is not None, "tilt_deg": result["detector"]["params"].get("tilt_deg") if isinstance(result.get("detector"), dict) else None})
     return {**result, "version_id": v["id"], "level_id": level_id, "existing_auto": _auto_counts(doc), "elapsed_ms": elapsed_ms}
 

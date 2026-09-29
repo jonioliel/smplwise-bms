@@ -12,7 +12,11 @@ candidates and a person accepts them (routers/plan_geometry.py).
 Tuned on the owner's real scans (T087, detector 1.1-1.2): before the gaps are classified, the sheet's own strokes well
 outside the building, dashed lines and the edges of a tribune (a regular stack of rows) are dropped. Detector 1.3
 (hollow_v1): walls drawn as two thin lines with white between them are found by a second pass (plan_detect_hollow)
-and flagged `hollow` in the result; every wall carries the flag."""
+and flagged `hollow` in the result; every wall carries the flag. Detector 1.4 (T086 tuning, each rule a request option,
+on by default): a section-cut line that crosses the envelope is dropped like the sheet strokes outside it; a white gap
+under JOIN_GAP_M between pieces of one line with no symbol joins them (no passage); a tribune's region and a pier grid's
+columns are proposed as document-v2 object candidates (`objects`, plan_detect_objects), the column outlines' stubs
+dropped and the envelope line between edge columns proposed as walls."""
 from __future__ import annotations
 
 import heapq
@@ -27,7 +31,9 @@ from PIL import Image
 from . import plan_stylize as ps
 from .plan_zones import rdp
 
-VERSION = "1.3"  # 1.1 (T087 tuning): reference strokes and dashed lines are not walls; 1.2: tribune edges; 1.3: hollow walls
+VERSION = "1.4"  # 1.1 (T087 tuning): reference strokes and dashed lines are not walls; 1.2: tribune edges; 1.3: hollow walls;
+# 1.4 (T086 tuning, the 0.1.90 list items 3-6): section lines crossing the envelope, short gaps joined, steps regions and
+# columns proposed as objects (plan_detect_objects)
 ANALYSIS_PX = 1600  # the working resolution (design 9.1 / 9.6)
 TILT_PX = 800  # the cheap first pass that measures the tilt of a scan
 TILT_MIN_DEG = 0.15
@@ -61,6 +67,9 @@ REF_MARGIN_M = 1.2  # ... and a group that is not structure goes when it lies th
 REF_SIDES = 3  # ... unless it has this many sides of REF_SIDE_M or more in two directions (a small building: kept, flagged)
 REF_SIDE_M = 1.0
 REF_STRAIGHT_SHARE = 0.3  # ... one that runs one way (a stroke of the sheet, or one line of a fragmented outline) from this share
+REF_CROSS_MIN_M = 2.0  # a section-cut stroke crossing into the building (detector 1.4, section_lines) is at least this long
+JOIN_GAP_M = 0.3  # a white gap narrower than this between pieces of one line, no symbol in it, is one wall (1.4, join_gaps) ...
+JOIN_THICK_RATIO = 1.5  # ... when the two pieces are about as thick (the thicker at most this many times the thinner)
 LINE_INK = 0.6  # a drawn line beside a segment: ink on this share of the samples along it
 STEPS_SPACING_M = (0.6, 1.2)  # the rows of a tribune are this far apart ...
 STEPS_MIN_ROWS = 3  # ... at least this many beyond the edge ...
@@ -729,7 +738,7 @@ def _point_seg_dist(p: np.ndarray, a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return np.hypot(*(p - q).T)
 
 
-def drop_reference_strokes(segs: list[Seg], t_med: float, s: float) -> tuple[list[Seg], list[Seg], int]:
+def drop_reference_strokes(segs: list[Seg], t_med: float, s: float, crossing: bool = False, counts: dict[str, int] | None = None) -> tuple[list[Seg], list[Seg], int]:
     """Drop the strokes of the sheet that are not the building: section-cut marks, north arrows, the title underline,
     a scale bar, a dimension line off to the side. The structure is every connected group of segments (an end within
     half a thickness plus max(3 px, t_med) of another segment's body) holding at least REF_STRUCTURE_SHARE of the
@@ -743,6 +752,9 @@ def drop_reference_strokes(segs: list[Seg], t_med: float, s: float) -> tuple[lis
     A group outside the box that has REF_SIDES sides of at least REF_SIDE_M, in two orientations among those sides (a closed outline, a
     small building beside a large one, three sides of a yard wall) is never dropped: it stays a candidate and is
     returned in the second list, which the result reports as `flags.outside_main`, so the person reviewing sees it.
+
+    With `crossing` (detector 1.4, the request's `section_lines`) a straight stroke that is not structure and crosses
+    the edge of the structure's box is dropped too (see the code), counted in `counts["crossing"]` when given.
     Returns (kept segments, those of them outside the main structure, the number of segments dropped)."""
     n = len(segs)
     if n < 2:
@@ -796,6 +808,31 @@ def drop_reference_strokes(segs: list[Seg], t_med: float, s: float) -> tuple[lis
             sides.setdefault(find(i), []).append(g.dir)
     shaped = {r for r in outside if len(sides.get(r, [])) >= REF_SIDES and any(_angle_between(sides[r][0], v) > 30.0 for v in sides[r][1:])}
     drop = outside - shaped
+    if crossing:
+        # T086 tuning (the 0.1.90 list, item 3): a section-cut line that crosses into the building. Its group is not
+        # structure (it touches no wall at either end - the wall it crosses runs on through it, and the arrow bar at its
+        # outer end belongs to its own group), it is no shape (not REF_SIDES sides in two directions), a stroke of it of
+        # at least REF_CROSS_MIN_M is longer than the rest of its group together, and that stroke has one end inside the
+        # structure's bounding box and the other beyond the grown box. A free-standing wall inside the building never leaves the box; a garden wall leaving the envelope touches
+        # it (structure); a wall parallel to the envelope outside it has no end inside the box.
+        raw_lo, raw_hi = sp.min(axis=0), sp.max(axis=0)
+        long_px = REF_CROSS_MIN_M / s
+        crossed: set[int] = set()
+        for i, g in enumerate(segs):
+            r = find(i)
+            if r in structure or r in outside or r in crossed or g.length < long_px:
+                continue
+            if len(sides.get(r, [])) >= REF_SIDES and any(_angle_between(sides[r][0], v) > 30.0 for v in sides[r][1:]):
+                continue  # a shape (three sides in two directions), not a stroke
+            if total[r] - g.length >= g.length:
+                continue  # the rest of its group (an arrow bar, a tick) is an appendix of the stroke, never as long as it
+            inside = [bool(((p >= raw_lo) & (p <= raw_hi)).all()) for p in (g.a, g.b)]
+            beyond = [bool(((p < lo) | (p > hi)).any()) for p in (g.a, g.b)]
+            if (inside[0] and beyond[1]) or (inside[1] and beyond[0]):
+                crossed.add(r)
+        drop |= crossed
+        if counts is not None:
+            counts["crossing"] = sum(1 for i in range(n) if find(i) in crossed)
     kept = [g for i, g in enumerate(segs) if find(i) not in drop]
     return kept, [g for i, g in enumerate(segs) if find(i) in shaped], n - len(kept)
 
@@ -884,13 +921,14 @@ def _lines_beside(g: Seg, ink: np.ndarray, reach: float) -> list[tuple[float, fl
     return [own, *lines]
 
 
-def drop_steps_edges(segs: list[Seg], ink: np.ndarray, s: float) -> list[Seg]:
+def drop_steps_edges(segs: list[Seg], ink: np.ndarray, s: float, found: list[tuple[Seg, float]] | None = None) -> list[Seg]:
     """The edges of a tribune are not walls (T087 tuning, the 0.1.91 list, item 4): a straight axis segment of at least
     STEPS_MIN_LEN_M with at least STEPS_MIN_ROWS more lines drawn parallel to it on one side (read from the soft ink),
     each STEPS_SPACING_M from the previous and evenly spaced (STEPS_REGULAR), is the edge or a row of a steps region
     and is dropped. Stair treads are closer than STEPS_SPACING_M[0]; a wall with one parallel line beside it (a
     corridor) has no rows. Owner's real scans: both edge lines of the tribune were suggested as
-    walls (its faint rows were not)."""
+    walls (its faint rows were not). With `found` (detector 1.4, steps_regions) every dropped segment is appended with
+    the side (+1 / -1 along its left normal) its rows lie on, for plan_detect_objects.steps_regions."""
     st_lo, st_hi = STEPS_SPACING_M[0] / s, STEPS_SPACING_M[1] / s
     reach = st_hi * (STEPS_MIN_ROWS + 0.5)
     out: list[Seg] = []
@@ -899,8 +937,11 @@ def drop_steps_edges(segs: list[Seg], ink: np.ndarray, s: float) -> list[Seg]:
             out.append(g)
             continue
         lines = _lines_beside(g, ink, reach)[1:]
-        if not any(_steps_side(lines, sign, st_lo, st_hi) for sign in (1.0, -1.0)):
+        sides = [sign for sign in (1.0, -1.0) if _steps_side(lines, sign, st_lo, st_hi)]
+        if not sides:
             out.append(g)
+        elif found is not None:
+            found.extend((g, sign) for sign in sides)
     return out
 
 
@@ -1079,7 +1120,8 @@ def _gap_status(mask: np.ndarray, g0: np.ndarray, g1: np.ndarray, p0: np.ndarray
     return "cross0" if c0 and not c1 else "cross1" if c1 else "free"
 
 
-def walls_from_gaps(segs: list[Seg], s: float, calibrated: bool, thin_mask: np.ndarray, ink: np.ndarray, want_openings: bool, wall_mask: np.ndarray | None = None) -> tuple[list[Seg], list[dict[str, Any]]]:
+def walls_from_gaps(segs: list[Seg], s: float, calibrated: bool, thin_mask: np.ndarray, ink: np.ndarray, want_openings: bool, wall_mask: np.ndarray | None = None,
+                    join_px: float | None = None, counts: dict[str, int] | None = None) -> tuple[list[Seg], list[dict[str, Any]]]:
     """Walk every line of collinear segments in order; a recognised gap joins its two neighbours into one wall with the
     opening at the gap, an unrecognised gap keeps them apart. The skeleton stops half a thickness short of a wall end
     (thinning retracts the ends), so a gap is measured between the ends grown by t / 2 - the same growth the
@@ -1091,9 +1133,14 @@ def walls_from_gaps(segs: list[Seg], s: float, calibrated: bool, thin_mask: np.n
     it are two walls. With crossing faces at both ends, a door or window stays with the current wall.
 
     A wall joined from pieces is hollow (Seg.hollow, the length-weighted confidence of its hollow pieces) when its
-    hollow pieces make at least half of its pieces' length."""
+    hollow pieces make at least half of its pieces' length.
+
+    With `join_px` (detector 1.4, the request's `join_gaps`; walls-only runs too) a free gap narrower than join_px
+    between pieces of about one thickness (JOIN_THICK_RATIO) that shows no door or window symbol joins them into one
+    wall without an opening (a passage found there is dropped); `counts["joined"]` counts those gaps."""
     walls: list[Seg] = []
     openings: list[dict[str, Any]] = []
+    joined = 0
 
     def hollow_of(ids: list[int]) -> float:
         total = sum(segs[k].length for k in ids)
@@ -1120,14 +1167,27 @@ def walls_from_gaps(segs: list[Seg], s: float, calibrated: bool, thin_mask: np.n
             t_ref = max(t_cur, segs[i].thick, 2.0)
             g0 = base.a + d * (cur_hi + t_cur / 2)
             g1 = base.a + d * (lo - segs[i].thick / 2)
-            status = "free" if want_openings and lo - segs[i].thick / 2 > cur_hi + t_cur / 2 else "blocked"
+            status = "free" if (want_openings or join_px) and lo - segs[i].thick / 2 > cur_hi + t_cur / 2 else "blocked"
             if status == "free" and wall_mask is not None:
                 p0, p1 = g0, g1
                 g0, g1 = _gap_end(wall_mask, g0, d, t_cur), _gap_end(wall_mask, g1, -d, segs[i].thick)
                 status = _gap_status(wall_mask, g0, g1, p0, p1, d, t_cur, segs[i].thick)
-            found = classify_gap(g0, g1, d, t_ref, s, calibrated, thin_mask, ink) if status != "blocked" else None
+            found = classify_gap(g0, g1, d, t_ref, s, calibrated, thin_mask, ink) if status != "blocked" and want_openings else None
             if found is not None and status != "free" and found["kind"] == "passage":
                 found = None
+            if (join_px and status == "free" and (found is None or found["kind"] == "passage") and float(np.hypot(*(g1 - g0))) < join_px
+                    and max(t_cur, segs[i].thick) <= JOIN_THICK_RATIO * min(t_cur, segs[i].thick) and bool(segs[cur_ids[-1]].hollow) == bool(segs[i].hollow)):
+                # detector 1.4 (join_gaps): a white gap under JOIN_GAP_M between two pieces of one line, with no door or
+                # window symbol and no wall across or at either face, is a break in the drawing (a label's halo, a
+                # dimension tick), not a passage: one wall, no opening. A hollow piece and a solid one are two
+                # constructions and stay apart (on the owner's floor 0 the join made a hollow envelope piece interior
+                # and lost the window carried onto it)
+                cur_hi = max(cur_hi, hi)
+                cur_samples += segs[i].samples
+                cur_axis = cur_axis and segs[i].axis
+                cur_ids.append(i)
+                joined += 1
+                continue
             if found is not None and status != "free":
                 # one end is a crossing wall's face: the opening goes to the piece on its free side, and the line is
                 # cut at the crossing wall
@@ -1157,6 +1217,8 @@ def walls_from_gaps(segs: list[Seg], s: float, calibrated: bool, thin_mask: np.n
         walls.append(Seg(base.a + d * cur_lo, base.a + d * cur_hi, cur_samples, cur_axis, hollow=hollow_of(cur_ids)))
         for o in pending:
             openings.append(dict(o, wall_seg=len(walls) - 1, t=(o["along"] - cur_lo) / max(cur_hi - cur_lo, 1e-9)))
+    if counts is not None:
+        counts["joined"] = joined
     return walls, openings
 
 
@@ -1218,7 +1280,8 @@ def windows_by_profile(walls: list[Seg], openings: list[dict[str, Any]], dt: np.
 
 # ---------------------------------------------------------------- the detector
 
-def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TARGETS, strength: float = 0.6, scale_m_per_px: float | None = None, level_id: str = "L0", run_id: str = "0", deadline: float | None = None, door_model: str = "gap", hollow_walls: bool = True) -> dict[str, Any]:
+def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TARGETS, strength: float = 0.6, scale_m_per_px: float | None = None, level_id: str = "L0", run_id: str = "0", deadline: float | None = None, door_model: str = "gap", hollow_walls: bool = True,
+           section_lines: bool = True, join_gaps: bool = True, steps_regions: bool = True, columns: bool = True) -> dict[str, Any]:
     """Candidates (document-v2 walls and openings, source "auto") for a plan picture. `scale_m_per_px` is the version's
     calibration (None when there is none); `targets` always includes "walls" ("openings" needs them). `deadline` (a
     time.monotonic() value, the router's guard) is checked between the stages and inside the thinning: DetectTimeout
@@ -1247,7 +1310,8 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
     src = gray.rotate(tilt, resample=Image.BICUBIC, fillcolor=255) if tilt else gray
     st = _stage(src, strength, ANALYSIS_PX, scale_m_per_px, deadline, light=door_model == "arc_v2")
     an, dt, s, calibrated, segs, aw, ah, f = st["an"], st["dt"], st["s"], st["calibrated"], st["segs"], st["aw"], st["ah"], st["f"]
-    segs, outside_main, dropped_reference = drop_reference_strokes(segs, st["t_med"], s)
+    ref_counts: dict[str, int] = {}
+    segs, outside_main, dropped_reference = drop_reference_strokes(segs, st["t_med"], s, crossing=section_lines, counts=ref_counts)
     # T087 hollow_v1: walls drawn as two thin lines with white between (plan_detect_hollow), after the solid walls and
     # their reference-stroke rule (which stays exactly as it was); a solid piece the closing made of part of such a
     # pair is absorbed into it
@@ -1270,9 +1334,24 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
         segs = segs + merge_collinear(hollow, join_px=max(1.5 * st["t_med"], 6.0))
     _check(deadline)
     segs, dropped_dashed = drop_dashed_lines(segs, s, st["t_med"], an["ink"])
-    segs = drop_steps_edges(segs, an["ink_d"], s)
+    steps_found: list[tuple[Seg, float]] = []
+    segs = drop_steps_edges(segs, an["ink_d"], s, found=steps_found if steps_regions else None)
+    # detector 1.4 (T086 tuning, the 0.1.90 list items 4 and 6): a tribune's region and a pier grid's columns become
+    # object candidates (plan_detect_objects); the sides of a column's outline are no wall stubs
+    from . import plan_detect_objects as pdo
+
+    col_list: list[dict[str, float]] = []
+    col_runs: list[tuple[int, list[int]]] = []
+    stubs = 0
+    if columns:
+        col_list, col_runs = pdo.find_columns(an, s, st["t_med"], calibrated, lambda: _check(deadline))
+        segs, stubs = pdo.drop_column_stubs(segs, col_list)
+    regions = pdo.steps_regions(steps_found, an["ink_d"], s) if steps_regions else []
+    _check(deadline)
     want_openings = "openings" in targets
-    walls, openings = walls_from_gaps(segs, s, calibrated, an["thin"], an["ink_d"], want_openings, an["walls"])
+    join_px = JOIN_GAP_M / s if join_gaps else None
+    gap_counts: dict[str, int] = {}
+    walls, openings = walls_from_gaps(segs, s, calibrated, an["thin"], an["ink_d"], want_openings, an["walls"], join_px=join_px, counts=gap_counts)
     _check(deadline)
     if want_openings:
         openings += windows_by_profile(walls, openings, dt_ink(), an["ink_d"], s)
@@ -1281,7 +1360,7 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
             # a window the solid pass alone finds on pieces now absorbed into a hollow wall moves to that wall (the solid
             # pass re-run on the pieces on the hollow walls' lines only)
             base_segs = drop_steps_edges(drop_dashed_lines(pdh.on_hollow_lines(solid_segs, hollow), s, st["t_med"], an["ink"])[0], an["ink_d"], s)
-            base_walls, base_openings = walls_from_gaps(base_segs, s, calibrated, an["thin"], an["ink_d"], True, an["walls"])
+            base_walls, base_openings = walls_from_gaps(base_segs, s, calibrated, an["thin"], an["ink_d"], True, an["walls"], join_px=join_px)
             base_openings += windows_by_profile(base_walls, base_openings, dt_ink(), an["ink_d"], s)
             carried = pdh.carry_windows(base_walls, base_openings, walls, openings)
             openings += carried
@@ -1295,6 +1374,11 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
         openings, merged = pdd.merge_into(openings, v2_doors, walls)
         v2_stats.update(merged)
         _check(deadline)
+    # the envelope between the columns of a row on the building's edge (walls with no openings, appended last so every
+    # opening keeps its wall index); exterior, at most pdo.ENVELOPE_CONF sure
+    envelope = pdo.envelope_walls(col_list, col_runs, walls, st["t_med"], s) if columns else []
+    inferred = {id(g) for g in envelope}
+    walls = walls + envelope
     mask = an["walls"]
     ys, xs = np.nonzero(mask)
     frame = (float(xs.min()), float(ys.min()), float(xs.max()), float(ys.max())) if xs.size else (0.0, 0.0, float(aw), float(ah))
@@ -1320,8 +1404,8 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
         """Design 9.1 step 4: exterior when at least 1.6 x the median thickness or lying on the plan's frame; partition
         under 0.6 x; else interior. Known limit: the inner corner of an L-shaped outline is not on the frame and reads
         interior unless it is thicker than the rest - the kind is a suggestion the editor changes in the panel. A hollow
-        wall is exterior (the owner's scans draw the envelope that way)."""
-        if g.hollow or g.thick >= 1.6 * t_wall_med or on_frame(g):
+        wall is exterior (the owner's scans draw the envelope that way), and so is the envelope between columns."""
+        if g.hollow or id(g) in inferred or g.thick >= 1.6 * t_wall_med or on_frame(g):
             return "exterior"
         return "partition" if g.thick < 0.6 * t_wall_med else "interior"
 
@@ -1331,6 +1415,8 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
         (plan_detect_hollow: length, blank interior, agreement with the plan's spacing; at most HOLLOW_CONF_MAX)."""
         if g.hollow:
             return float(g.hollow)
+        if id(g) in inferred:  # the envelope between columns: nothing drawn there is read, only the columns' row
+            return pdo.ENVELOPE_CONF
         arr = np.array(g.samples) if g.samples else np.array([g.thick])
         q1, q3 = np.percentile(arr, 25), np.percentile(arr, 75)
         consistency = 1.0 - min(1.0, (q3 - q1) / max(g.thick, 1e-6))
@@ -1369,11 +1455,53 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
             continue  # its width comes from the assumed scale: no calibration hint from it
         if o["kind"] == "door" and o["swing"] != "double":
             door_gaps.append(o["width_px"] / f)
+    def turned(d: np.ndarray) -> float:
+        """A straightened-frame direction's angle on the scan, in degrees 0..180 (the object's rotation)."""
+        return round(math.degrees(math.atan2(d[0] * sin_t + d[1] * cos_t, d[0] * cos_t - d[1] * sin_t)) % 180.0, 2)
+
+    def size_m(v: float) -> float:
+        return round(min(100.0, max(0.05, v * s)), 3)
+
+    out_objects: list[dict[str, Any]] = []
+
+    def add_object(item_id: str, centre: np.ndarray, rot: float, w_px: float, d_px: float, h_m: float, params_: dict[str, Any], conf: float) -> None:
+        oid = f"auto-{run_id}-x{len(out_objects) + 1:03d}"
+        out_objects.append({
+            "id": oid, "level_id": level_id, "item_id": item_id, "position": back(centre), "rotation_deg": rot,
+            "size": {"w_m": size_m(w_px), "d_m": size_m(d_px), "h_m": h_m}, "z_m": 0, "params": params_, "label": None,
+            "anchor_ref": None, "group_id": None, "locked": False, "source": "auto", "confidence": conf, "external_ids": {},
+        })
+        pixels[oid] = {"w_px": round(w_px / f, 2), "d_px": round(d_px / f, 2)}
+
+    for r in regions:  # a tribune: rows along its width, stepping across its depth
+        add_object(pdo.STEPS_ITEM, r["centre"], turned(r["dir"]), r["length"], r["depth"], round(min(100.0, r["rows"] * pdo.STEP_HEIGHT_M), 2),
+                   {"rows": int(r["rows"]), "step_height_m": pdo.STEP_HEIGHT_M, "step_width_m": round(min(3.0, max(0.2, r["spacing"] * s)), 2), "connects_levels": None},
+                   round(min(0.9, 0.5 + 0.05 * r["rows"]), 3))
+    run_len = {}
+    for _axis, run in col_runs:
+        for i in run:
+            run_len[i] = max(run_len.get(i, 0), len(run))
+    for i, c in enumerate(col_list):
+        add_object(pdo.COL_ITEM, np.array([c["cx"], c["cy"]]), turned(np.array([1.0, 0.0])), c["w"], c["h"], pdo.COL_HEIGHT_M, {},
+                   round(min(0.8, 0.5 + 0.1 * (run_len.get(i, pdo.COL_MIN_ROW) - pdo.COL_MIN_ROW + 1)), 3))
     hint = None
     if not calibrated and door_gaps:  # design 6.3: the median single door is DOOR_TYPICAL_M
         hint = {"scale_m_per_px": round(DOOR_TYPICAL_M / float(np.median(door_gaps)), 6), "status": "estimated", "method": "door_width", "reason": "לפי רוחב דלת אופייני", "doors": len(door_gaps)}
     params: dict[str, Any] = {"strength": strength, "targets": list(targets), "analysis_px": [aw, ah], "threshold": an["threshold"], "tilt_deg": round(tilt, 2)}
     stats: dict[str, Any] = {"probe_segments": len(probe["segs"]), "segments": len(segs), "dropped_reference": dropped_reference, "dropped_dashed": dropped_dashed, "hollow": hollow_stats}
+    # detector 1.4 (T086 tuning, the 0.1.90 list items 3-6): each rule is a request option, on by default; a rule
+    # switched off is named in params (the answer with every rule on keeps its shape), what a rule did is counted
+    for key, on in (("section_lines", section_lines), ("join_gaps", join_gaps), ("steps_regions", steps_regions), ("columns", columns)):
+        if not on:
+            params[key] = False
+    if section_lines:
+        stats["dropped_crossing"] = ref_counts.get("crossing", 0)
+    if join_gaps:
+        stats["joined_gaps"] = gap_counts.get("joined", 0)
+    if steps_regions:
+        stats["steps_regions"] = len(regions)
+    if columns:
+        stats.update(columns=len(col_list), column_stubs=stubs, envelope_walls=len(envelope))
     if hollow_stats.get("gate"):  # hollow walls found but not the plan's envelope: none emitted, never silently
         stats["hollow_gate"] = hollow_stats["gate"]
     if hollow_stats.get("skipped"):  # "too_many_strokes" (bounded cost) or "off" (the request's hollow_walls: false)
@@ -1387,6 +1515,8 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
     return {
         "walls": out_walls if "walls" in targets else [],
         "openings": out_openings if want_openings else [],
+        # detector 1.4: object candidates (document-v2 objects, source "auto"): tribunes and columns (plan_detect_objects)
+        "objects": out_objects if "walls" in targets else [],
         "detector": {"name": "plan_detect", "version": VERSION, "params": params},
         "calibration_hint": hint,
         "pixels": pixels,
