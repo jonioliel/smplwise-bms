@@ -5076,5 +5076,52 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "T093",
+    "title": "אבטחה: לייב | חקירה | אזעקה — אזעקה מתשתית המערכת (CR-010)",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Design A's rail and phone bar are אבטחה · מפה · חשמל · WisKey · מערכת; לייב and חקירה are sections of the security area with a third section אזעקה, shown as a segmented control in the top bar at every width while each section's pages stay the tab row under it; every existing route keeps working (#/live/..., #/investigate/..., #/system/devices, Lovelace embed views, kiosk, the guide's screens.json), #/security/alarm is new and #/security opens the section last used in the browser (לייב by default); breadcrumbs area › section › page, Ctrl+K offers the sections, the alarm section is gated by alarm.view; design B gains a flat אזעקה entry (CR-010 §3).",
+      "Each alarm_control_panel entity is a panel with its state, supported arm modes and code needs; its zones are the binary sensors of the same integration and config entry (auxiliary tamper/battery/alarmed/armed sensors attach to their zone) and each zone's bypass control (switch, or select with a bypass option) is paired by override, same device, an exact integration key (Risco: system + zone number of the unique id, exact-only), stem, name, zone number; unpaired controls are listed; arm_home/away/night/vacation/custom_bypass and disarm (never trigger) and zone bypass go through the bridge path with alarm.view/arm/disarm/bypass at the panel's scope, disarm and bypass confirmed, every action audited with channel; the alarm screen shows the colour-coded state, arm buttons, ready-to-arm, zones by area with live state, filters, panel switcher; settings show the pairing with manual overrides (CR-010 §4-§7).",
+      "An administrator stores each panel's code once, encrypted with AES-256-GCM (key file in /data/keys, 0600, never in a project backup), write-only through the API; per user arm_policy and disarm_policy = no_code | code_required (default code_required; bypass follows disarm); alarm.code_mode personal_pin (default; 4-8 digit PIN stored as a salted scrypt hash) or panel_code (constant-time compare with the stored code); without a stored code the typed panel code is passed through; wrong codes: 5 in 5 minutes per user or per panel lock code entry for 10 minutes; remote settings alarm.remote_control, alarm.remote_disarm and alarm.remote_codeless (default on, owner decision); no code or PIN ever appears in a log, an audit row, an API response, an error, a URL or the database in clear (CR-010 §5a)."
+    ],
+    "requirement_ids": [
+      "R187",
+      "R188",
+      "R189"
+    ],
+    "test_ids": [
+      "AT187",
+      "AT188",
+      "AT189"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "Physical system: security review of the code storage and the remote rules before release; nothing armed or disarmed for real without the owner's task-specific approval."
+    },
+    "deliverables": [
+      "docs/changes/CR-010-SECURITY-ALARM.md (+ _HE mirror): integrations, pairing, code policy and threat model, build status",
+      "Backend: services/alarm.py, services/alarm_codes.py, routers/alarm.py, migration 0036, permissions, bridge 0.2.6; tests/test_alarm.py",
+      "Frontend: security area navigation, screens/security-alarm.ts, screens/system-alarm.ts; tests/evidence-alarm.spec.ts",
+      "DOCS.md / DOCS_HE.md section, docs/user-guide/he/32-alarm_HE.md"
+    ],
+    "evidence": [
+      "2026-09-29: owner request (live and investigation under one אבטחה area with a new אזעקה section pulling the panel, its sensors and bypass switches from the platform). Owner decisions 21:45 (Risco first-class; stored encrypted panel code; per-user no_code/code_required for arm and disarm; personal PIN default; lockout) and 21:50 (alarm.remote_codeless default on). Built on pilot/CR010-security-alarm: backend test_alarm.py 25 passed; affected existing suites 86 passed; Playwright evidence-alarm demo 21/21, live fixture 12/12, screens 99/99; tsc and vite build clean. Fixture tests only - no real panel was contacted."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]
