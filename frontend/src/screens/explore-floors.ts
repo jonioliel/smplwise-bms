@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing } from 'lit';
+import { LitElement, html, css, nothing, svg } from 'lit';
 import { bidi, ltrNum } from '../i18n/bidi';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page';
@@ -18,7 +18,8 @@ import { createBuilding, createFloor, deleteFloor, loadTree, updateFloor, type C
 import { ApiError, describeError } from '../api/client';
 import type { Building, Floor, Site } from '../api/types';
 import { getGeometry } from '../api/geometry';
-import { buildScene, isoProjection, keepIsos, type IsoScene } from '../map/scene-builder';
+import { buildScene, isoPoint, isoProjection, keepIsos, type IsoScene } from '../map/scene-builder';
+import { floorLinks, type FloorLinkDoc } from '../map/connector-targets';
 
 type Dialog = { kind: 'floor' } | { kind: 'rename'; floor: Floor } | { kind: 'delete'; floor: Floor; force: boolean } | { kind: 'building' } | null;
 
@@ -37,6 +38,8 @@ export class ExploreFloors extends LitElement {
   /** T087: the true isometric of every floor with a published structure, one document read per version (cached here). */
   @state() private isos = new Map<string, IsoScene | null>();
   private isoPending = new Set<string>();
+  /** T085: the connectors of each published structure (by version), for the links between floors. */
+  @state() private linkDocs = new Map<string, FloorLinkDoc>();
 
   /** The cache without the versions the tree no longer lists (a republished or deleted floor). */
   private pruned(): Map<string, IsoScene | null> {
@@ -55,6 +58,7 @@ export class ExploreFloors extends LitElement {
         const desc = buildScene({ doc: r.doc, width: f.plan_width_px || r.doc.dimensions.width_px, height: f.plan_height_px || r.doc.dimensions.height_px, anchors: [], entityStates: {}, circuitStates: {},
           layers: { objects: false, cameras: false, entities: false, zones: false } });
         this.isos = this.pruned().set(vid, desc.parts.some((p) => p.kind === 'wall') ? isoProjection(desc) : null);
+        this.linkDocs = new Map(this.linkDocs).set(vid, { floorId: f.id, connectors: r.doc.connectors, levels: r.doc.levels });
       })
       .catch(() => {
         this.isos = this.pruned().set(vid, null); // no published structure (404) or no permission: the room outlines stay
@@ -63,7 +67,79 @@ export class ExploreFloors extends LitElement {
     return null;
   }
 
+  /** T085: the stacked floors of the building as plates, one above the other by floor number, and a line for every
+   * connector linked between two floors, from its position on one plate to its twin's on the other (published
+   * structures only). Nothing when no two floors are linked. */
+  private renderLinks(floors: Floor[]) {
+    const docs = floors.map((f) => (f.published_version_id ? this.linkDocs.get(f.published_version_id) : undefined)).filter((d): d is FloorLinkDoc => !!d);
+    const links = floorLinks(docs, floors.map((f) => ({ id: f.id, name: f.name })));
+    if (!links.length) return nothing;
+    const order = [...floors].sort((a, b) => a.level - b.level || a.sort_order - b.sort_order);
+    const GAP = 34;
+    const n = order.length;
+    const dy = (floorId: string) => (n - 1 - order.findIndex((f) => f.id === floorId)) * GAP; // the lowest floor at the bottom
+    const pt = (floorId: string, p: [number, number]) => {
+      const q = isoPoint(p[0], p[1]);
+      return { x: q.x, y: q.y + dy(floorId) };
+    };
+    const plate = (floorId: string) => [[0, 0], [1, 0], [1, 1], [0, 1]].map(([u, v]) => pt(floorId, [u, v])).map((q) => `${q.x.toFixed(1)},${q.y.toFixed(1)}`).join(' ');
+    const height = 72 + (n - 1) * GAP;
+    return html`<sw-card heading="קשרים בין קומות" subheading="מדרגות ומעליות שמקשרות קומות (מבנה מפורסם)" data-floor-links>
+      <div class="links">
+        <svg class="stack" viewBox=${`0 0 120 ${height}`} aria-hidden="true">
+          ${order.map((f) => svg`<g data-stack-floor=${f.id}><polygon class="plate" points=${plate(f.id)} /><text class="pname" x="2" y=${(dy(f.id) + 38).toFixed(1)}>${f.name}</text></g>`)}
+          ${links.map((l) => {
+            const a = pt(l.a.floorId, l.a.at);
+            const b = l.b ? pt(l.b.floorId, l.b.at) : null;
+            return svg`<g data-stack-link=${l.id}>
+              ${b ? svg`<line class="lk" x1=${a.x} y1=${a.y} x2=${b.x} y2=${b.y} />` : nothing}
+              <circle class="lkdot" cx=${a.x} cy=${a.y} r="2.2" />${b ? svg`<circle class="lkdot" cx=${b.x} cy=${b.y} r="2.2" />` : nothing}
+            </g>`;
+          })}
+        </svg>
+        <ul class="lklist">
+          ${links.map((l) => html`<li data-link-row=${l.id}>${l.kindLabel}: ${bidi(l.a.label)} ↔ ${bidi(l.b?.label ?? l.farLabel)}${l.b ? '' : ' (הקומה השנייה לא פורסמה)'}</li>`)}
+        </ul>
+      </div>
+    </sw-card>`;
+  }
+
   static styles = css`
+    .links {
+      display: flex;
+      gap: 18px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    svg.stack {
+      inline-size: 180px;
+      block-size: auto;
+      overflow: visible;
+    }
+    svg.stack .plate {
+      fill: var(--sw-surface);
+      stroke: var(--sw-border-strong);
+      stroke-width: 0.8;
+    }
+    svg.stack .pname {
+      font-size: 6px;
+      fill: var(--sw-text-3);
+    }
+    svg.stack .lk {
+      stroke: var(--sw-accent);
+      stroke-width: 1.4;
+      stroke-dasharray: 3 2;
+    }
+    svg.stack .lkdot {
+      fill: var(--sw-accent);
+    }
+    .lklist {
+      margin: 0;
+      padding-inline-start: 18px;
+      font-size: var(--sw-fs-sm);
+      display: grid;
+      gap: 4px;
+    }
     .pic {
       inline-size: 112px;
       block-size: 72px;
@@ -287,6 +363,7 @@ export class ExploreFloors extends LitElement {
                   <span class="chev"><sw-icon name="chevron" size=${16}></sw-icon></span>
                 </button>`,
               )}
+              ${this.renderLinks(floors)}
               ${this.error && !this.dialog ? html`<div class="err">${this.error}</div>` : nothing}
               <div class="actions">
                 <div>
@@ -311,7 +388,7 @@ export class ExploreFloors extends LitElement {
                   <dt>כתובת</dt><dd>${site.address || '—'}</dd>
                   <dt>אזור זמן</dt><dd><span class="ltr">${site.timezone}</span></dd>
                   <dt>קומות</dt><dd>${floors.length} · ${floors.filter((f) => f.has_plan).length} עם תוכנית מפורסמת</dd>
-                  <dt>קשרים בין קומות</dt><dd>מדרגות ומעלית יוגדרו בעורך (Beta)</dd>
+                  <dt>קשרים בין קומות</dt><dd>מדרגות ומעלית בין קומות מוגדרות בעורך התוכנית ("מחבר אל"); הקשרים שפורסמו מופיעים בלשונית הקומות</dd>
                 </dl>
               </sw-card>`}
         ${this.renderDialog(building)}

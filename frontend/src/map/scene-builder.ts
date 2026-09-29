@@ -9,7 +9,7 @@
  * Ruling R-P4-T4-1: one convention for cameras - the forward is -z of the part, the description carries pitch = -tilt,
  * so applying the Euler as it stands looks DOWN by the tilt; consumers derive the view direction from the same Euler.
  */
-import { buildPrimitives, DEFAULT_WALL_THICKNESS_M, effectiveScale, MAX_TRIBUNE_ROWS, type CatalogLookup, type ConnectorPrim, type DoorPrim, type GeometryDoc, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type ObjectPrim, type ObjectShape, type Pt, type Primitive, type WallPrim, type WindowPrim } from './geometry';
+import { buildPrimitives, DEFAULT_WALL_THICKNESS_M, effectiveScale, MAX_TRIBUNE_ROWS, stairPlan, stairRise, type CatalogLookup, type GeomConnector, type ConnectorPrim, type DoorPrim, type GeometryDoc, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type ObjectPrim, type ObjectShape, type Pt, type Primitive, type WallPrim, type WindowPrim } from './geometry';
 import { defaultLevelId, levelOrDefault } from './studio-ops';
 import { blockingSegments, clipCoverage, isOpenState, type Seg } from './coverage';
 import { anchor3d } from './anchor-3d';
@@ -168,6 +168,8 @@ const RAMP_STEP_M = 0.5;
 const GLOW_DISTANCE_M = 6;
 const MIN_STEP_M = 0.05;
 const LEVEL_PAD_M = 0.5;
+/** The landing of a stair drawn as a plate this thick under its walking surface (T085). */
+export const LANDING_PLATE_M = 0.2;
 
 /** Half-up to 0.1 mm, the r2 rule of the primitives one digit further (metres, not pixels). */
 export const r4 = (v: number): number => Math.floor(v * 1e4 + 0.5) / 1e4;
@@ -387,7 +389,7 @@ class Builder {
     for (const w of doc.walls) if (this.level(w.level_id).id === levelId) for (const p of w.polyline) take(p[0], p[1]);
     for (const o of doc.objects) if (this.level(o.level_id).id === levelId) take(o.position[0], o.position[1]);
     for (const lb of doc.labels) if (this.level(lb.level_id).id === levelId) take(lb.position[0], lb.position[1]);
-    for (const c of doc.connectors) if (this.level(c.level_from).id === levelId || (c.level_to && this.level(c.level_to).id === levelId)) for (const p of c.polyline) take(p[0], p[1]);
+    for (const c of doc.connectors) if (this.level(c.level_from).id === levelId || (c.level_to && !c.floor_ids?.length && this.level(c.level_to).id === levelId)) for (const p of c.polyline) take(p[0], p[1]); // a far level is another floor's
     for (const z of zones ?? []) if (this.level(z.level_id).id === levelId) for (const p of z.polygon) take(p.x, p.y);
     if (!Number.isFinite(minX)) return null;
     return [this.m(minX) - LEVEL_PAD_M, this.m(minZ) - LEVEL_PAD_M, this.m(maxX) + LEVEL_PAD_M, this.m(maxZ) + LEVEL_PAD_M];
@@ -608,13 +610,18 @@ class Builder {
     // (the kind select offers it) has no object and is drawn as steps like stairs, never left out (T087 tuning: it was
     // invisible in the 3D)
     const fromObject = new Set(this.input.doc.connectors.filter((c) => c.object_id).map((c) => c.id));
+    const docOf = new Map(this.input.doc.connectors.map((c) => [c.id, c]));
+    const levelMap = new Map(this.levels.map((l) => [l.id, l]));
     for (const p of prims) {
       if (p.kind !== 'connector' || ((p as ConnectorPrim).ckind === 'tribune' && fromObject.has(p.id))) continue;
       const c = p as ConnectorPrim;
+      const gc = docOf.get(c.id);
+      const cross = !!gc?.floor_ids?.length; // level_to then names a level of the OTHER floor (T085)
       const from = this.level(c.level_from);
-      const to = c.level_to ? this.level(c.level_to) : null;
+      if (gc && c.ckind !== 'elevator' && this.stair(gc, from, stairRise(levelMap, gc))) continue;
+      const to = c.level_to && !cross ? this.level(c.level_to) : null;
       const e0 = from.elevation_m;
-      const e1 = to ? to.elevation_m : from.elevation_m + from.ceiling_height_m;
+      const e1 = cross && gc ? e0 + stairRise(levelMap, gc) : to ? to.elevation_m : from.elevation_m + from.ceiling_height_m;
       const [ax, az] = [this.m(c.points[0][0]), this.m(c.points[0][1])];
       const [bx, bz] = [this.m(c.points[c.points.length - 1][0]), this.m(c.points[c.points.length - 1][1])];
       const L = Math.hypot(bx - ax, bz - az);
@@ -638,6 +645,51 @@ class Builder {
         this.box(`conn:${c.id}#${i}`, 'connector', ud, [ax + (bx - ax) * f, lower + h / 2, az + (bz - az) * f], [L / n, h, width], yaw, 'obj-circulation', from.id);
       }
     }
+  }
+
+  /** Stairs with the stairs model (T085): each flight as rising steps (step height = the rise over every step of both
+   * flights), the landing as a plate at the elevation the first flight reaches (its steps x the step height), the second
+   * flight going on to the target; a U's flights are parallel and its landing spans both. The rise is signed along the
+   * walking line (stairRise). Returns false when the connector has no stair plan (the plain steps draw instead). */
+  stair(c: GeomConnector, from: GeomLevel, rise: number): boolean {
+    const { width, height } = this.input;
+    const plan = stairPlan(c, width, height, effectiveScale(this.input.doc).scale);
+    if (!plan || !plan.flights.length) return false;
+    const total = plan.flights.reduce((n, f) => n + f.steps, 0);
+    const e0 = from.elevation_m;
+    const bottom = Math.min(e0, e0 + rise);
+    const ud = { id: c.id, kind: 'connector' };
+    const w = c.width_m;
+    let done = 0;
+    plan.flights.forEach((f, i) => {
+      const [ax, az] = [this.m(f.from[0]), this.m(f.from[1])];
+      const [bx, bz] = [this.m(f.to[0]), this.m(f.to[1])];
+      const L = Math.hypot(bx - ax, bz - az);
+      if (L < 1e-4) {
+        done += f.steps;
+        return;
+      }
+      const yaw = -deg(Math.atan2(bz - az, bx - ax));
+      for (let k = 0; k < f.steps; k++) {
+        const top = e0 + (rise * (done + k + 1)) / total;
+        const h = Math.max(MIN_STEP_M, top - bottom);
+        const t = (k + 0.5) / f.steps;
+        this.box(`conn:${c.id}#f${i}s${k}`, 'connector', ud, [ax + (bx - ax) * t, bottom + h / 2, az + (bz - az) * t], [L / f.steps, h, w], yaw, 'obj-circulation', from.id);
+      }
+      done += f.steps;
+      const landing = plan.landings[i];
+      if (landing && i === 0) {
+        const top = e0 + (rise * done) / total;
+        const [c0, c1, , c3] = landing.map(([x, z]): [number, number] => [this.m(x), this.m(z)]);
+        const along = Math.hypot(c1[0] - c0[0], c1[1] - c0[1]);
+        const across = Math.hypot(c3[0] - c0[0], c3[1] - c0[1]);
+        const cx = landing.reduce((s, q) => s + this.m(q[0]), 0) / landing.length;
+        const cz = landing.reduce((s, q) => s + this.m(q[1]), 0) / landing.length;
+        const tk = Math.max(MIN_STEP_M, Math.min(LANDING_PLATE_M, top - bottom));
+        this.box(`conn:${c.id}#landing`, 'connector', ud, [cx, top - tk / 2, cz], [along, tk, across], -deg(Math.atan2(c1[1] - c0[1], c1[0] - c0[0])), 'obj-circulation', from.id);
+      }
+    });
+    return true;
   }
 
   anchors(): void {

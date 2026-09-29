@@ -1,6 +1,6 @@
 /** Plan Studio (T084): pure edits of a structure document - every function returns a new document, so undo / redo is
  * a stack of documents and nothing is ever mutated in place. */
-import { DEFAULT_LEVEL_ID, OPENING_DEFAULTS, isClosedOutline, objectCorners, pointAt, rotated, type ConnectorKind, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomSize, type GeomWall, type OpeningKind, type Pt, type Swing, type WallKind } from './geometry';
+import { DEFAULT_LEVEL_ID, MAX_STAIR_STEPS, OPENING_DEFAULTS, STAIR_GOING_M, isClosedOutline, objectCorners, pointAt, rotated, stairPath, type ConnectorKind, type StairShape, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomSize, type GeomWall, type OpeningKind, type Pt, type Swing, type WallKind } from './geometry';
 import type { CatalogItem } from '../api/plan-catalog';
 
 export interface WallDefaults {
@@ -356,10 +356,11 @@ export function patchLevel(doc: GeometryDoc, id: string, patch: Partial<GeomLeve
   return { ...doc, levels: doc.levels.map((l) => (l.id === id ? { ...l, ...patch, id: l.id } : patch.is_default ? { ...l, is_default: false } : l)) };
 }
 
-/** How many items sit on a level: walls, labels, objects, and connectors that start or end there. */
+/** How many items sit on a level: walls, labels, objects, and connectors that start or end there (a connector to another
+ * floor ends on a level of THAT floor, so only its level_from counts here). */
 export function levelUsage(doc: GeometryDoc, id: string): number {
   return doc.walls.filter((w) => w.level_id === id).length + doc.labels.filter((l) => l.level_id === id).length + doc.objects.filter((o) => o.level_id === id).length
-    + doc.connectors.filter((c) => c.level_from === id || c.level_to === id).length;
+    + doc.connectors.filter((c) => c.level_from === id || (!c.floor_ids?.length && c.level_to === id)).length;
 }
 
 /** The level goes only when nothing sits on it and it is not the default (rooms and anchors keep their own level id:
@@ -931,10 +932,88 @@ export function patchConnector(doc: GeometryDoc, id: string, patch: Partial<Geom
   return { ...doc, connectors: doc.connectors.map((c) => (c.id === id ? { ...c, ...patch, id: c.id } : c)) };
 }
 
-/** A corner of a drawn connector; a connector derived from an object (a tribune) follows its object, not the pointer. */
+/** A corner of a drawn connector; a connector derived from an object (a tribune) follows its object, not the pointer.
+ * Moving a twin that waited for placement (needs_placement) places it. */
 export function moveConnectorVertex(doc: GeometryDoc, id: string, index: number, p: Pt): GeometryDoc {
-  return { ...doc, connectors: doc.connectors.map((c) => (c.id === id && !c.object_id ? { ...c, polyline: c.polyline.map((q, i) => (i === index ? clampPt(p) : q)) } : c)) };
+  return { ...doc, connectors: doc.connectors.map((c) => (c.id === id && !c.object_id ? placed({ ...c, polyline: c.polyline.map((q, i) => (i === index ? clampPt(p) : q)) }) : c)) };
 }
+
+const placed = (c: GeomConnector): GeomConnector => {
+  if (!c.needs_placement) return c;
+  const { needs_placement: _drop, ...rest } = c;
+  void _drop;
+  return rest;
+};
+
+/** The whole connector moved by (dx, dy) in normalized plan space, kept inside the plan (the shift is cut so no corner
+ * leaves it); a twin waiting for placement is placed. Only this floor's copy moves: the twin on the other floor keeps
+ * its own position (T085). */
+export function moveConnector(doc: GeometryDoc, id: string, dx: number, dy: number): GeometryDoc {
+  return {
+    ...doc,
+    connectors: doc.connectors.map((c) => {
+      if (c.id !== id || c.object_id) return c;
+      const xs = c.polyline.map((q) => q[0]);
+      const ys = c.polyline.map((q) => q[1]);
+      const ddx = Math.min(1 - Math.max(...xs), Math.max(-Math.min(...xs), dx));
+      const ddy = Math.min(1 - Math.max(...ys), Math.max(-Math.min(...ys), dy));
+      return placed({ ...c, polyline: c.polyline.map((q) => clampPt([q[0] + ddx, q[1] + ddy])) });
+    }),
+  };
+}
+
+/** The connector turned by `deg` (clockwise on screen) around the middle of its bounding box, in plan pixels so a
+ * non-square plan does not shear it; corners are kept inside the plan. */
+export function rotateConnector(doc: GeometryDoc, id: string, deg: number, W: number, H: number): GeometryDoc {
+  const th = (deg * Math.PI) / 180;
+  return {
+    ...doc,
+    connectors: doc.connectors.map((c) => {
+      if (c.id !== id || c.object_id) return c;
+      const px = c.polyline.map((q): Pt => [q[0] * W, q[1] * H]);
+      const cx = (Math.min(...px.map((q) => q[0])) + Math.max(...px.map((q) => q[0]))) / 2;
+      const cy = (Math.min(...px.map((q) => q[1])) + Math.max(...px.map((q) => q[1]))) / 2;
+      return placed({ ...c, polyline: px.map((q) => { const r = rotated(cx, cy, q[0] - cx, q[1] - cy, th); return clampPt([r[0] / W, r[1] / H]); }) });
+    }),
+  };
+}
+
+export interface StairOpts {
+  shape: StairShape;
+  start: Pt;
+  /** The first flight's direction in plan pixels; up the plan when omitted. */
+  dir?: Pt;
+  flights: number[];
+  width_m: number;
+  landing_m?: number;
+  turn?: 'left' | 'right';
+  going_m?: number;
+  levelFrom: string;
+  levelTo: string | null;
+  kind?: ConnectorKind;
+}
+
+/** Stairs placed from a start point (T085): the walking line generated by stairPath from the direction, the width, the
+ * steps of each flight x the going and the landing depth - a one-click straight, L or U stair whose corners are then
+ * dragged into place. */
+export function addStair(doc: GeometryDoc, o: StairOpts, W: number, H: number, scale: number): { doc: GeometryDoc; id: string } {
+  const going = o.going_m ?? STAIR_GOING_M;
+  const flights = o.flights.map((n) => ({ steps: Math.max(1, Math.min(MAX_STAIR_STEPS, Math.round(n))) }));
+  const landing = o.landing_m ?? o.width_m;
+  const turn = o.turn ?? 'right';
+  const polyline = stairPath({ shape: o.shape, start: o.start, dir: o.dir ?? [0, -1], width_m: o.width_m, runs_m: flights.map((f) => f.steps * going), landing_m: landing, turn }, W, H, scale);
+  const c: GeomConnector = { id: newId(), kind: o.kind ?? 'stairs', level_from: o.levelFrom, level_to: o.levelTo, floor_ids: [], polyline, width_m: o.width_m, label: null, object_id: null, source: 'manual',
+    external_ids: {}, shape: o.shape, turn: o.shape === 'straight' ? 'none' : turn, flights, landing_depth_m: flights.length > 1 || o.shape !== 'straight' ? landing : null };
+  return { doc: { ...doc, connectors: [...doc.connectors, c] }, id: c.id };
+}
+
+/** The library items that are stairs or an elevator (T085): placing one from the library places a connector - the
+ * one model that links levels and floors - not an object. Straight stairs = one flight, stairs with a landing = a U. */
+export const STAIR_ALIASES: Record<string, { kind: ConnectorKind; shape: StairShape | null; flights: number[]; width_m: number }> = {
+  'stairs.straight': { kind: 'stairs', shape: 'straight', flights: [16], width_m: 1.2 },
+  'stairs.landing': { kind: 'stairs', shape: 'u', flights: [9, 9], width_m: 1.1 },
+  'elevator.passenger': { kind: 'elevator', shape: null, flights: [], width_m: 1.6 },
+};
 
 // ---------------------------------------------------------------- circuits (T085)
 
