@@ -70,8 +70,9 @@ def test_link_reaches_the_chosen_level_of_the_other_floor_and_both_twins_name_ea
     assert mine["level_from"] == "L0" and mine["level_to"] == "L-gal" and mine["floor_ids"] == sorted([ids["floor2"], ids["floor3"]])
     assert theirs["level_from"] == "L-gal" and theirs["level_to"] == "L0", "the twin starts on the gallery and leads back to floor 2's main level"
     assert theirs["polyline"] == [[0.5, 0.5], [0.3, 0.5]] and not theirs.get("needs_placement"), "the same sheet: the same plan coordinates, walked back"
-    assert mine["far"] == {"floor_id": ids["floor3"], "floor_name": "קומה 3", "level_name": "גלריה", "direction": "up"}
-    assert theirs["far"] == {"floor_id": ids["floor2"], "floor_name": "קומה 2", "level_name": "מפלס ראשי", "direction": "down"}
+    assert mine["far"] == {"floor_id": ids["floor3"], "floor_name": "קומה 3", "level_name": "גלריה", "direction": "up", "level_elevation_m": 2.0, "datum_m": 3.0}
+    assert theirs["far"] == {"floor_id": ids["floor2"], "floor_name": "קומה 2", "level_name": "מפלס ראשי", "direction": "down", "level_elevation_m": 0.0, "datum_m": -3.0}
+    assert set(map(tuple, theirs["polyline"])) == set(map(tuple, mine["polyline"])), "the twin's footprint is the original's"
     assert _draft(c, v2)["issues"] == [] and _draft(c, v3)["issues"] == []
     # the export labels the stairs with the other floor and level
     svg = c.get(f"/api/v1/plan-versions/{v2}/export.svg?draft=true")
@@ -155,9 +156,26 @@ def test_relinking_to_another_floor_removes_the_old_twin(settings):
     v4 = _plan(c, f4["id"], png_bytes())
     _save(c, v2, connectors=[STAIRS()])
     assert c.post(f"/api/v1/plan-versions/{v2}/geometry/link", json={"connector_id": "st1", "floor_id": ids["floor3"]}).status_code == 200
-    assert c.post(f"/api/v1/plan-versions/{v2}/geometry/link", json={"connector_id": "st1", "floor_id": f4["id"]}).status_code == 200
+    unconfirmed = c.post(f"/api/v1/plan-versions/{v2}/geometry/link", json={"connector_id": "st1", "floor_id": f4["id"]})
+    assert unconfirmed.status_code == 409 and unconfirmed.json()["code"] == "relink_confirm", "moving the link deletes the old twin: only when confirmed"
+    assert _conn(c, v3) is not None
+    moved = c.post(f"/api/v1/plan-versions/{v2}/geometry/link", json={"connector_id": "st1", "floor_id": f4["id"], "replace": True})
+    assert moved.status_code == 200 and moved.json()["removed_floors"] == [ids["floor3"]]
     assert _conn(c, v3) is None and _conn(c, v4) is not None
     assert _conn(c, v2)["floor_ids"] == sorted([ids["floor2"], f4["id"]])
+    with app.state.db.connection() as conn:
+        assert conn.execute("SELECT resource_id FROM audit_log WHERE action = 'geometry.connector.twin_delete'").fetchall()[0][0] == ids["floor3"]
+    # another building is refused (review L11)
+    other_site = c.post("/api/v1/sites", json={"name": "אתר אחר", "address": ""}).json()
+    other_b = c.post(f"/api/v1/sites/{other_site['id']}/buildings", json={"name": "מבנה ב"}).json()
+    far_floor = c.post(f"/api/v1/buildings/{other_b['id']}/floors", json={"name": "קומה זרה", "level": 1}).json()
+    _plan(c, far_floor["id"], png_bytes())
+    assert c.post(f"/api/v1/plan-versions/{v2}/geometry/link", json={"connector_id": "st1", "floor_id": far_floor["id"], "replace": True}).status_code == 422
+    # an item of the same id on the target that is not this connector's twin is never taken over (review L10)
+    _save(c, v3, connectors=[STAIRS("st2", level_to=None)])
+    _save(c, v2, connectors=[*_draft(c, v2)["doc"]["connectors"], STAIRS("st2")])
+    taken = c.post(f"/api/v1/plan-versions/{v2}/geometry/link", json={"connector_id": "st2", "floor_id": ids["floor3"]})
+    assert taken.status_code == 409 and taken.json()["code"] == "twin_id_taken"
 
 
 def test_the_stairs_model_is_validated_and_a_u_stair_twin_keeps_its_flights_walked_back(settings):
@@ -174,7 +192,8 @@ def test_the_stairs_model_is_validated_and_a_u_stair_twin_keeps_its_flights_walk
     assert codes(flights=[{"steps": 0}, {"steps": 10}]) == ["stair_steps"]
     assert codes(flights=[{"steps": 61}, {"steps": 10}]) == ["stair_steps"]
     assert codes(flights=[]) == ["stair_flights"]
-    assert codes(width_m=0.5) == ["size"] and codes(width_m=5.5) == ["size"]
+    assert codes(width_m=0.5) == ["size"] and codes(width_m=5.5) == ["size", "stair_landing"]
+    assert codes(landing_depth_m=0.8) == ["stair_landing"], "a turning landing narrower than the stair: a warning (review L6)"
     assert codes(landing_depth_m=0.1) == ["size"]
     assert codes(polyline=[[0.3, 0.8], [0.3, 0.3]]) == ["stair_path"]
     assert codes(shape="spiral") == ["enum"]
@@ -187,3 +206,118 @@ def test_the_stairs_model_is_validated_and_a_u_stair_twin_keeps_its_flights_walk
     assert theirs["flights"] == [{"steps": 10}, {"steps": 12}] and theirs["polyline"] == [[0.45, 0.8], [0.45, 0.3], [0.3, 0.3], [0.3, 0.8]]
     assert theirs["turn"] == "left" and theirs["shape"] == "u" and theirs["landing_depth_m"] == 1.2
     assert _draft(c, v3)["issues"] == []
+
+
+def test_a_scoped_editor_cannot_move_a_link_off_a_floor_they_cannot_edit_and_a_twin_relinks_only_from_its_origin(settings):
+    """Review B1: an editor of floors 3 and 4 re-linking the twin on floor 3 to floor 4 would have deleted floor 2's
+    stairs. Every floor the connector names must be editable (403), a twin moves its link only from the original
+    floor (409), and twin-delete needs both floors."""
+    app, c, ids, v2, v3 = _setup(settings, same_sheet=True)
+    f4 = c.post(f"/api/v1/buildings/{ids['building']}/floors", json={"name": "קומה 4", "level": 4}).json()
+    v4 = _plan(c, f4["id"], png_bytes())
+    _save(c, v2, connectors=[STAIRS()])
+    assert c.post(f"/api/v1/plan-versions/{v2}/geometry/link", json={"connector_id": "st1", "floor_id": ids["floor3"]}).status_code == 200
+    assert _conn(c, v3)["origin_floor_id"] == ids["floor2"] and _conn(c, v2)["origin_floor_id"] == ids["floor2"]
+    bind(c, settings, "dana", "editor", "floor", ids["floor3"])
+    bind(c, settings, "dana", "editor", "floor", f4["id"])
+    dana = as_user("dana")
+    r = c.post(f"/api/v1/plan-versions/{v3}/geometry/link", json={"connector_id": "st1", "floor_id": f4["id"], "replace": True}, headers=dana)
+    assert r.status_code == 403
+    assert _conn(c, v2) is not None and _conn(c, v4) is None, "floor 2's stairs are untouched"
+    assert c.post(f"/api/v1/plan-versions/{v3}/geometry/twin-delete", json={"connector_id": "st1", "floor_id": ids["floor2"]}, headers=dana).status_code == 403
+    # even an admin moves a twin's link only from the floor it was linked from
+    r = c.post(f"/api/v1/plan-versions/{v3}/geometry/link", json={"connector_id": "st1", "floor_id": f4["id"], "replace": True})
+    assert r.status_code == 409 and r.json()["code"] == "relink_from_origin" and "קשר מחדש מהקומה המקורית" in r.json()["user_message"]
+    # changing only the level it reaches, from the twin's side, is fine
+    assert c.post(f"/api/v1/plan-versions/{v3}/geometry/link", json={"connector_id": "st1", "floor_id": ids["floor2"]}).status_code == 200
+    # within her floors dana links freely, and the draft she saves reaches no floor she cannot edit
+    _save(c, v4, connectors=[STAIRS("st4")])
+    assert c.post(f"/api/v1/plan-versions/{v4}/geometry/link", json={"connector_id": "st4", "floor_id": ids["floor3"]}, headers=dana).status_code == 200
+    g3 = c.get(f"/api/v1/plan-versions/{v3}/geometry?draft=true", headers=dana).json()
+    before2 = _draft(c, v2)["geometry"]["revision"]
+    changed = [dict(x, flights=[{"steps": 9}], shape="straight") if x["id"] == "st1" else x for x in g3["doc"]["connectors"]]
+    assert c.put(f"/api/v1/plan-versions/{v3}/geometry", json={"doc": dict(g3["doc"], connectors=changed), "base_revision": g3["geometry"]["revision"]}, headers=dana).status_code == 200
+    assert _draft(c, v2)["geometry"]["revision"] == before2, "no write to floor 2 without map.edit there"
+    # a reader of floor 3 only sees no name of floor 2
+    bind(c, settings, "rina", "viewer", "floor", ids["floor3"])
+    assert c.post(f"/api/v1/plan-versions/{v3}/geometry/publish").status_code == 200
+    seen = c.get(f"/api/v1/plan-versions/{v3}/geometry", headers=as_user("rina")).json()["doc"]["connectors"]
+    far = next(x for x in seen if x["id"] == "st1")["far"]
+    assert far["floor_name"] == "קומה אחרת" and far["level_name"] is None
+
+
+def test_floor_height_sets_the_rise_between_floors_from_either_side_and_to_non_default_levels(settings):
+    """Owner 2026-09-29 + review M1: the rise between floors = the floor heights between them + the level it reaches
+    there - the level it leaves here; far carries the datum and the target level's elevation."""
+    app, c, ids, v2, v3 = _setup(settings, same_sheet=True)
+    low = {"id": "L-low", "name": "מרתף", "elevation_m": -1.0, "ceiling_height_m": 2.4, "is_default": False, "external_ids": {}}
+    _save(c, v2, floor_height_m=3.2, levels=[*_draft(c, v2)["doc"]["levels"], low], connectors=[STAIRS(level_from="L-low")])
+    _save(c, v3, levels=[*_draft(c, v3)["doc"]["levels"], dict(GALLERY, elevation_m=1.5)])
+    assert c.post(f"/api/v1/plan-versions/{v2}/geometry/link", json={"connector_id": "st1", "floor_id": ids["floor3"], "level_to": "L-gal"}).status_code == 200
+    mine, theirs = _conn(c, v2), _conn(c, v3)
+    assert (mine["far"]["datum_m"], mine["far"]["level_elevation_m"]) == (3.2, 1.5)  # rise here: 3.2 + 1.5 - (-1.0) = 5.7
+    assert (theirs["far"]["datum_m"], theirs["far"]["level_elevation_m"]) == (-3.2, -1.0)  # from the gallery: -3.2 - 1.0 - 1.5 = -5.7
+    assert theirs["level_from"] == "L-gal" and theirs["level_to"] == "L-low"
+    # a floor in between counts its own height
+    f4 = c.post(f"/api/v1/buildings/{ids['building']}/floors", json={"name": "קומה 4", "level": 4}).json()
+    v4 = _plan(c, f4["id"], png_bytes())
+    _save(c, v3, floor_height_m=4.0)
+    _save(c, v2, connectors=[*_draft(c, v2)["doc"]["connectors"], STAIRS("st9")])
+    assert c.post(f"/api/v1/plan-versions/{v2}/geometry/link", json={"connector_id": "st9", "floor_id": f4["id"]}).status_code == 200
+    assert _conn(c, v2, "st9")["far"]["datum_m"] == 7.2 and _conn(c, v4, "st9")["far"]["datum_m"] == -7.2
+    # the height is validated
+    assert [i["code"] for i in _save(c, v2, floor_height_m=1.0)["issues"]] == ["floor_height"]
+    assert [i["code"] for i in _save(c, v2, floor_height_m=12.5)["issues"]] == ["floor_height"]
+
+
+def test_far_is_computed_on_read_never_stored_and_a_rename_reaches_the_published_read(settings):
+    """Review M4: far is not part of the stored document or its hash; the published read computes it too (with an ETag
+    that follows it)."""
+    app, c, ids, v2, v3 = _setup(settings, same_sheet=True)
+    _save(c, v2, connectors=[STAIRS()])
+    assert c.post(f"/api/v1/plan-versions/{v2}/geometry/link", json={"connector_id": "st1", "floor_id": ids["floor3"]}).status_code == 200
+    assert c.post(f"/api/v1/plan-versions/{v2}/geometry/publish").status_code == 200
+    with app.state.db.connection() as conn:
+        assert all('"far"' not in r[0] for r in conn.execute("SELECT doc_json FROM plan_geometry").fetchall())
+    pub = c.get(f"/api/v1/plan-versions/{v2}/geometry")
+    assert pub.json()["doc"]["connectors"][0]["far"]["floor_name"] == "קומה 3"
+    etag = pub.headers["etag"]
+    assert c.get(f"/api/v1/plan-versions/{v2}/geometry", headers={"If-None-Match": etag}).status_code == 304
+    hash_before = _draft(c, v2)["geometry"]["doc_hash"]
+    assert c.patch(f"/api/v1/floors/{ids['floor3']}", json={"name": "גלריה עליונה"}).status_code == 200
+    again = c.get(f"/api/v1/plan-versions/{v2}/geometry", headers={"If-None-Match": etag})
+    assert again.status_code == 200 and again.json()["doc"]["connectors"][0]["far"]["floor_name"] == "גלריה עליונה"
+    assert _draft(c, v2)["geometry"]["doc_hash"] == hash_before
+    assert c.post(f"/api/v1/plan-versions/{v2}/geometry/publish").json()["unchanged"] is True, "a rename elsewhere publishes nothing here"
+    # a far sent back by the editor is dropped on save
+    d = _draft(c, v2)
+    assert "far" not in _save(c, v2, connectors=d["doc"]["connectors"])["geometry"] and _draft(c, v2)["geometry"]["revision"] == d["geometry"]["revision"]
+
+
+def test_a_stairs_model_change_reaches_the_twin_walked_back_from_its_own_start(settings):
+    """Review M3: changing the shape, turn, flights, width or landing of linked stairs updates the twin (reversed
+    flights, the other turn side) and regenerates its path from its own start and direction."""
+    app, c, ids, v2, v3 = _setup(settings, same_sheet=True)
+    _save(c, v2, connectors=[STAIRS(shape="straight", turn="none", flights=[{"steps": 12}], landing_depth_m=None, polyline=[[0.5, 0.8], [0.5, 0.5]])])
+    assert c.post(f"/api/v1/plan-versions/{v2}/geometry/link", json={"connector_id": "st1", "floor_id": ids["floor3"]}).status_code == 200
+    twin0 = _conn(c, v3)
+    assert twin0["polyline"] == [[0.5, 0.5], [0.5, 0.8]]
+    d = _draft(c, v2)
+    u = [dict(x, shape="u", turn="right", flights=[{"steps": 8}, {"steps": 6}], landing_depth_m=1.2, polyline=[[0.5, 0.8], [0.5, 0.6], [0.6, 0.6], [0.6, 0.8]]) for x in d["doc"]["connectors"]]
+    _save(c, v2, connectors=u)
+    twin = _conn(c, v3)
+    assert (twin["shape"], twin["turn"], twin["flights"], twin["landing_depth_m"]) == ("u", "left", [{"steps": 6}, {"steps": 8}], 1.2)
+    assert len(twin["polyline"]) == 4 and twin["polyline"][0] == [0.5, 0.5], "the twin keeps its own start"
+    assert twin["polyline"][1][0] == 0.5 and twin["polyline"][1][1] > 0.5, "and its own direction (down the plan, from the top)"
+    assert twin["polyline"][2][0] > 0.5, "turning left walked down from the top is the same side as the original right turn"
+    with app.state.db.connection() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'geometry.connector.twin_sync'").fetchone()[0] == 1
+    # a move alone does not touch the twin
+    rev = _draft(c, v3)["geometry"]["revision"]
+    _save(c, v2, connectors=[dict(x, polyline=[[q[0] + 0.01, q[1]] for q in x["polyline"]]) for x in _draft(c, v2)["doc"]["connectors"]])
+    assert _draft(c, v3)["geometry"]["revision"] == rev
+    # relinking brings the model along too
+    _save(c, v3, levels=[*_draft(c, v3)["doc"]["levels"], GALLERY])
+    _save(c, v2, connectors=[dict(x, width_m=1.4) for x in _draft(c, v2)["doc"]["connectors"]])
+    assert c.post(f"/api/v1/plan-versions/{v2}/geometry/link", json={"connector_id": "st1", "floor_id": ids["floor3"], "level_to": "L-gal"}).status_code == 200
+    assert _conn(c, v3)["width_m"] == 1.4 and _conn(c, v3)["level_from"] == "L-gal"

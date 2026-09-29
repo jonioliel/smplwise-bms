@@ -42,6 +42,16 @@ STAIR_POINTS = {"straight": 2, "l": 3, "u": 4}
 MAX_STAIR_STEPS = 60
 STAIR_WIDTH_M = (0.6, 5.0)
 LANDING_DEPTH_M = (0.3, 10.0)
+# The height of a floor, floor to floor (T085, owner 2026-09-29): a property of the floor's document (absent = the
+# default); what a stair to another floor rises through, and how the building page spaces its plates.
+DEFAULT_FLOOR_HEIGHT_M = 3.0
+FLOOR_HEIGHT_M = (2.2, 12.0)
+
+
+def floor_height(doc: Mapping[str, Any]) -> float:
+    """The document's floor-to-floor height, or the default when absent or out of range."""
+    h = doc.get("floor_height_m") if isinstance(doc, Mapping) else None
+    return float(h) if _num(h) and FLOOR_HEIGHT_M[0] <= h <= FLOOR_HEIGHT_M[1] else DEFAULT_FLOOR_HEIGHT_M
 GROUP_KINDS = ("array", "manual")
 SWITCH_RE = re.compile(r"^(switch|light)\.[a-z0-9_]+$")
 # The circuit colours (tokens.css --sw-circuit-1..6; the frontend whitelist CIRCUIT_TOKENS in map/geometry.ts): the maps
@@ -274,6 +284,9 @@ def validate(doc: Any, items: Mapping[str, Mapping[str, Any]] | None = None) -> 
     _check_groups(doc["groups"], objects, issues)
     _check_connectors(doc["connectors"], levels, objects, issues)
     _check_circuits(doc["circuits"], objects, known, issues)
+    fh = doc.get("floor_height_m")
+    if fh is not None and not (_num(fh) and FLOOR_HEIGHT_M[0] <= fh <= FLOOR_HEIGHT_M[1]):
+        _issue(issues, "floor_height", f"גובה הקומה בין {FLOOR_HEIGHT_M[0]:g} ל־{FLOOR_HEIGHT_M[1]:g} מ׳.", path="floor_height_m")
     unc = doc.get("uncertainty")
     if not isinstance(unc, dict) or not _unit(unc.get("overall")) or not isinstance(unc.get("notes"), list):
         _issue(issues, "uncertainty", "uncertainty צריך overall בין 0 ל־1 ורשימת notes.", path="uncertainty")
@@ -436,6 +449,7 @@ def _check_fields(coll: str, i: int, item: dict[str, Any], issues: list[dict[str
         opt("landing_depth_m", _num)
         opt("far", lambda v: isinstance(v, dict))
         opt("needs_placement", lambda v: isinstance(v, bool))
+        opt("origin_floor_id", lambda v: isinstance(v, str))
     elif coll == "circuits":
         req("name", isinstance(item.get("name"), str))
         req("switch_entity_id", isinstance(item.get("switch_entity_id"), str))
@@ -687,6 +701,8 @@ def _check_stair_model(c: dict[str, Any], issues: list[dict[str, Any]]) -> None:
     depth = c.get("landing_depth_m")
     if depth is not None and not LANDING_DEPTH_M[0] <= depth <= LANDING_DEPTH_M[1]:
         _issue(issues, "size", f"עומק הפודסט בין {LANDING_DEPTH_M[0]:g} ל־{LANDING_DEPTH_M[1]:g} מ׳.", item=cid, path="connectors")
+    elif depth is not None and shape in ("l", "u") and depth < c["width_m"]:
+        _issue(issues, "stair_landing", "הפודסט צר מרוחב המדרגות; בפנייה הוא צריך להיות לפחות ברוחבן.", item=cid, path="connectors", severity="warning")
 
 
 def _check_circuits(circuits: list[dict[str, Any]], objects: dict[str, dict[str, Any]], items: Mapping[str, Mapping[str, Any]], issues: list[dict[str, Any]]) -> None:

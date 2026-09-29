@@ -112,7 +112,7 @@ def test_stairs_linked_to_another_floor_exist_in_both_drafts_under_one_id(settin
     r = c.post(f"/api/v1/plan-versions/{vid}/geometry/link", json={"connector_id": "st1", "floor_id": ids["floor3"]})
     assert r.status_code == 200, r.text
     assert r.json()["connector"]["floor_ids"] == sorted([ids["floor2"], ids["floor3"]])
-    assert r.json()["target"] == {"floor_id": ids["floor3"], "version_id": other, "revision": 1, "level_id": "L0", "placement": "aligned"}
+    assert r.json()["target"] == {"floor_id": ids["floor3"], "version_id": other, "revision": 1, "level_id": "L0", "placement": "aligned", "frame": "sheet"}
     mine = c.get(f"/api/v1/plan-versions/{vid}/geometry?draft=true").json()
     theirs = c.get(f"/api/v1/plan-versions/{other}/geometry?draft=true").json()
     assert mine["issues"] == [] and theirs["issues"] == []
