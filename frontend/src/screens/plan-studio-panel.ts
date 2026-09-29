@@ -5,7 +5,7 @@
  */
 import { css, html, nothing, type TemplateResult } from 'lit';
 import type { CalibrationHint, CopyCandidate, GeometryIssue } from '../api/geometry';
-import { OUTSIDE_MAIN_HE, isOutsideMain, outsideMainSummary, type CandidateSet, type CandKind, type CandState } from '../map/candidates';
+import { OUTSIDE_MAIN_HE, isOutsideMain, outsideMainSummary, type CandidateSet, type CandKind, type CandState, objectsSummary } from '../map/candidates';
 import { connectorTargets, currentTarget, isTwinCopy, otherFloorOf, type LinkTargetFloor } from '../map/connector-targets';
 import { COLOR_TOKENS, FLOOR_HEIGHT_RANGE, floorHeight, LANDING_RANGE, MAX_STAIR_STEPS, OBJECT_SHAPES, STAIR_WIDTH_RANGE, SYMBOL_IDS, circuitToken, connectorLabel, effectiveScale, hasStairModel, stairCaption, type StairShape, lengthPx, perimeterM, polygonAreaM2, type ConnectorKind, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomSize, type ObjectShape, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
 import type { CatalogItem, CatalogLibrary, ParamSpec } from '../api/plan-catalog';
@@ -390,7 +390,20 @@ export interface DetectOpts {
   replaceAuto: boolean;
   /** The hollow-wall pass (T087, walls drawn as two thin lines): on unless false; the request's `hollow_walls`. */
   hollow?: boolean;
+  /** Detector 1.4 (T086 tuning), each on unless false: the request's `section_lines`, `join_gaps`, `steps_regions`, `columns`. */
+  sectionLines?: boolean;
+  joinGaps?: boolean;
+  stepsRegions?: boolean;
+  columns?: boolean;
 }
+
+/** The detect panel's rule checkboxes after the hollow walls (detector 1.4): option key, data attribute, label. */
+export const DETECT_RULES: readonly { key: 'sectionLines' | 'joinGaps' | 'stepsRegions' | 'columns'; attr: string; label: string }[] = [
+  { key: 'sectionLines', attr: 'section', label: 'קווי חתך החוצים את המבנה אינם קירות' },
+  { key: 'joinGaps', attr: 'join', label: 'רווח קטן מ־30 ס״מ בלי סימון - קיר אחד' },
+  { key: 'stepsRegions', attr: 'steps', label: 'הצע טריבונה משורות מקבילות' },
+  { key: 'columns', attr: 'columns', label: 'הצע עמודים וקו מעטפת ביניהם' },
+];
 export interface DetectRunState {
   busy: boolean;
   startedAt: number;
@@ -418,7 +431,7 @@ export interface DetectCandidatesView {
   sel: string | null;
   hint: CalibrationHint | null;
   /** Unlocked items of the candidates' source in the live draft (what a replace would remove). */
-  existingAuto: { walls: number; openings: number };
+  existingAuto: { walls: number; openings: number; objects?: number };
   elapsedMs: number | null;
   /** DXF only: room polygons offered to the zones layer (never part of the structure accept). */
   rooms: number;
@@ -435,7 +448,8 @@ export interface DetectView {
   run: DetectRunState;
   cands: DetectCandidatesView | null;
   acceptedCount: number;
-  /** DXF object candidates go with the accept (no per-object toggle: the candidates layer does not draw objects). */
+  /** The object candidates (DXF blocks; detected tribunes and columns) go with the accept together: no per-object toggle,
+   * the candidates layer draws them dashed and faded while left out. */
   objectsOn: boolean;
   hintApplied: boolean;
   /** The door-width estimate may be offered: the document's calibration is not measured. */
@@ -514,6 +528,7 @@ export function renderDetectPanel(v: DetectView, a: DetectActions): TemplateResu
             <label class="chk"><input type="checkbox" data-detect-walls .checked=${o.walls} @change=${(e: Event) => { const on = (e.target as HTMLInputElement).checked; a.setOpts({ ...o, walls: on, openings: on && o.openings }); }} /> קירות</label>
             <label class="chk"><input type="checkbox" data-detect-openings .checked=${o.openings} ?disabled=${!o.walls} @change=${(e: Event) => a.setOpts({ ...o, openings: (e.target as HTMLInputElement).checked })} /> פתחים (דלתות, חלונות, מעברים)</label>
             <label class="chk"><input type="checkbox" data-detect-hollow .checked=${o.hollow !== false} ?disabled=${!o.walls} @change=${(e: Event) => a.setOpts({ ...o, hollow: (e.target as HTMLInputElement).checked })} /> קירות חלולים (חיצוניים דקים)</label>
+            ${DETECT_RULES.map((rule) => html`<label class="chk"><input type="checkbox" data-detect-rule=${rule.attr} .checked=${o[rule.key] !== false} ?disabled=${!o.walls} @change=${(e: Event) => a.setOpts({ ...o, [rule.key]: (e.target as HTMLInputElement).checked })} /> ${rule.label}</label>`)}
           </div>
           <sw-field label=${`עוצמת ניקוי: ${o.strength.toFixed(2)} (קל ← חזק)`}><input type="range" min="0.3" max="1" step="0.05" data-detect-strength .value=${String(o.strength)}
             @input=${(e: Event) => a.setOpts({ ...o, strength: parseFloat((e.target as HTMLInputElement).value) })} /></sw-field>
@@ -539,7 +554,7 @@ function renderCandidates(v: DetectView, c: DetectCandidatesView, a: DetectActio
   const sel = c.sel && ids.includes(c.sel) ? { id: c.sel, kind: candKind(set, c.sel), score: candScore(set, c.sel) } : null;
   const err = v.acceptError;
   const bad = new Set(err?.ids ?? []);
-  const existing = c.existingAuto.walls + c.existingAuto.openings;
+  const existing = c.existingAuto.walls + c.existingAuto.openings + (c.existingAuto.objects ?? 0);
   const earlier = c.source === 'dxf' ? 'מיובאים' : 'אוטומטיים';
   const origin = c.source === 'dxf' ? ' · מיובאים מ־DXF' : c.elapsedMs !== null ? ` · זוהו ב־${(c.elapsedMs / 1000).toFixed(1)} שנ׳` : '';
   return html`<div class="note" data-detect-summary>${countLabel(set.walls.length, 'קיר אחד', 'קירות')} · ${countLabel(set.openings.length, 'פתח אחד', 'פתחים')}${set.objects.length ? ` · ${countLabel(set.objects.length, 'עצם אחד', 'עצמים')}` : ''} · <span data-detect-accepted>${v.acceptedCount}</span> מסומנים לאישור${origin}</div>
@@ -574,7 +589,7 @@ function renderCandidates(v: DetectView, c: DetectCandidatesView, a: DetectActio
       ${ids.length > CAND_ROWS ? html`<div class="note">מוצגים ${CAND_ROWS} הראשונים ברשימה; במפה מוצגים כולם.</div>` : nothing}
     </div>
     ${sel ? html`<div class="note" data-cand-selected=${sel.id}>${CAND_KIND_LABEL[sel.kind]} נבחר${isOutsideMain(set, sel.id) ? ` · ${OUTSIDE_MAIN_HE}` : ''} · ביטחון ${sel.score.toFixed(2)} · ${candSize(v, set, sel.id)} · ${(c.states[sel.id] ?? 'accepted') === 'accepted' ? 'יאושר' : 'נדחה'}</div>` : nothing}
-    ${set.objects.length ? html`<label class="chk"><input type="checkbox" data-detect-objects .checked=${v.objectsOn} @change=${(e: Event) => a.setObjects((e.target as HTMLInputElement).checked)} /> כולל ${countLabel(set.objects.length, 'עצם אחד', 'עצמים')} מהקובץ</label>` : nothing}
+    ${set.objects.length ? html`<label class="chk"><input type="checkbox" data-detect-objects .checked=${v.objectsOn} @change=${(e: Event) => a.setObjects((e.target as HTMLInputElement).checked)} /> כולל ${objectsSummary(set, c.source)}</label>` : nothing}
     ${existing ? html`<label class="chk"><input type="checkbox" data-detect-replace .checked=${v.opts.replaceAuto} @change=${(e: Event) => a.setOpts({ ...v.opts, replaceAuto: (e.target as HTMLInputElement).checked })} /> החלף ${earlier} קודמים (${existing} בטיוטה)</label>` : nothing}
     ${c.rooms ? html`<div class="btns"><sw-button size="sm" icon="map" data-detect-rooms ?disabled=${v.busy} @click=${() => a.importRooms()}>ייבא ${countLabel(c.rooms, 'חדר אחד', 'חדרים')} כאזורים</sw-button><span class="note">החדרים נשמרים כאזורים, לא כחלק מהמבנה</span></div>` : nothing}
     ${err

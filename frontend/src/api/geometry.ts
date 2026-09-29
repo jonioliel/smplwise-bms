@@ -186,6 +186,13 @@ export interface DetectRequest {
   level_id?: string;
   /** T087: the hollow-wall pass (walls drawn as two thin lines); the server's default is on, false opts a plan out. */
   hollow_walls?: boolean;
+  /** Detector 1.4 (T086 tuning), each on by default, false opts a plan out: section-cut lines crossing the envelope
+   * are no walls; a white gap under 0.3 m with no symbol is one wall (no passage); a tribune is proposed as a steps
+   * object; a pier grid as column objects with the envelope line between them. */
+  section_lines?: boolean;
+  join_gaps?: boolean;
+  steps_regions?: boolean;
+  columns?: boolean;
 }
 export interface CalibrationHint {
   scale_m_per_px: number;
@@ -195,7 +202,7 @@ export interface CalibrationHint {
   doors: number;
 }
 /** Version pixels per candidate: the client recomputes the metres with the document's effective scale before accepting. */
-export type CandidatePixels = Record<string, { thickness_px?: number; width_px?: number }>;
+export type CandidatePixels = Record<string, { thickness_px?: number; width_px?: number; w_px?: number; d_px?: number }>;
 export interface DetectorInfo {
   name: string;
   version: string;
@@ -212,6 +219,8 @@ export interface DxfRoomCandidate {
 export interface DetectResult {
   walls: GeomWall[];
   openings: GeomOpening[];
+  /** The DXF import's mapped blocks; since detector 1.4 also /detect's tribunes and columns (source "auto", their
+   * width / depth in version pixels in `pixels` as w_px / d_px). */
   objects?: GeomObject[];
   rooms?: DxfRoomCandidate[];
   detector: DetectorInfo;

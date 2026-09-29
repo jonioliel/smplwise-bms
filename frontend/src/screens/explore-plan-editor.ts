@@ -28,7 +28,7 @@ import { allIds, byConfidence, byKind, defaultStates, fromResult, moveVertex as 
 import { otherFloorOf, parseTarget, type LinkTargetFloor } from '../map/connector-targets';
 import { productSettings } from '../api/prefs';
 import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
-import { applyAnchorPositions, distanceM, effectiveScale, isClosedOutline, lengthPx, MAX_STAIR_STEPS, nearestWall, pointOnWall, rebuildStair, snapPoint, STAIR_GOING_M, type StairShape, type GeomConnector, type AnchorPosition, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt } from '../map/geometry';
+import { applyAnchorPositions, distanceM, effectiveScale, isClosedOutline, lengthPx, MAX_STAIR_STEPS, nearestWall, pointOnWall, rebuildStair, snapPoint, STAIR_GOING_M, type StairShape, type GeomConnector, type AnchorPosition, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt, type GeomObject } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
 import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addCircuitLamp, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateBeside, duplicateObject, initialLevel, kindDefaults, levelUsage, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchLevel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem, translatePolygon, TAG_MAX_COUNT, circuitEligible, itemsWithTag, joinCircuit, setLevelOf, tagCounts, tagItems, withTag, withoutTag, type MultiItem, type WallDefaults,
   GRID_DEFAULT_M, GRID_STEPS_M, GUIDE_SNAP_PX, alignObjects, distributeObjects, gridDelta, gridStepPx, objectBox, snapObjectPosition, snapToGrid, guideTargets, type AlignMode, type Guide, type GuideTargets, anchorOnLevel, addStair, confirmPlacement, moveConnector, rotateConnector, STAIR_ALIASES } from '../map/studio-ops';
@@ -283,6 +283,7 @@ export class ExplorePlanEditor extends LitElement {
   @state() private candSel: string | null = null;
   @state() private candEdits: Record<string, Partial<GeomWall>> = {};
   @state() private candObjectsOn = true;
+  private candStatesShown: { states: Record<string, CandState>; objects: GeomObject[]; on: boolean; shown: Record<string, CandState> } | null = null;
   @state() private hintApplied = false;
   @state() private detectAsk: DetectReplaceAsk | null = null;
   @state() private detectErr: DetectAcceptError | null = null;
@@ -1534,6 +1535,7 @@ export class ExplorePlanEditor extends LitElement {
     this.guideCache = { key, targets };
     return targets;
   }
+
 
   private pickTool(tool: Tool) {
     if (this.detectBusy && tool !== this.tool) return;
@@ -3555,7 +3557,11 @@ export class ExplorePlanEditor extends LitElement {
       }
       if (!current()) return;
       const targets: DetectTarget[] = this.detectOpts.openings ? ['walls', 'openings'] : ['walls'];
-      const r = await detectStructure(versionId, { targets, strength: this.detectOpts.strength, hollow_walls: this.detectOpts.hollow !== false });
+      const o = this.detectOpts;
+      const r = await detectStructure(versionId, {
+        targets, strength: o.strength, hollow_walls: o.hollow !== false,
+        section_lines: o.sectionLines !== false, join_gaps: o.joinGaps !== false, steps_regions: o.stepsRegions !== false, columns: o.columns !== false,
+      });
       if (!current() || r.version_id !== versionId) return; // an older run, or the editor moved to another version meanwhile
       this.showCandidates(r, 'detect');
       this.detectRun = { busy: false, startedAt: 0, elapsed: Math.round((Date.now() - startedAt) / 1000), error: '', timedOut: false, limitS };
@@ -3599,6 +3605,20 @@ export class ExplorePlanEditor extends LitElement {
     const keep = new Set(withParents(set, ids));
     this.candStates = Object.fromEntries(allIds(set).map((id) => [id, keep.has(id) ? ('accepted' as const) : ('rejected' as const)]));
     this.detectAsk = null;
+  }
+
+  /** The states the candidates layer draws: the walls' and openings' own, and every object candidate accepted or left
+   * out together with the panel's "כולל ... עצמים" (objects have no state of their own). Memoised on its inputs, so the
+   * canvas gets the same object while nothing changed. */
+  private get shownCandStates(): Record<string, CandState> {
+    const objects = this.cands?.set.objects ?? [];
+    if (!objects.length) return this.candStates;
+    const m = this.candStatesShown;
+    if (m && m.states === this.candStates && m.objects === objects && m.on === this.candObjectsOn) return m.shown;
+    const state: CandState = this.candObjectsOn ? 'accepted' : 'rejected';
+    const shown = { ...this.candStates, ...Object.fromEntries(objects.map((o) => [o.id, state])) };
+    this.candStatesShown = { states: this.candStates, objects, on: this.candObjectsOn, shown };
+    return shown;
   }
 
   /** The ids "אשר" sends: accepted walls and openings (an accepted opening always with its wall), then the DXF objects
@@ -4484,7 +4504,7 @@ export class ExplorePlanEditor extends LitElement {
                   .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null} .rulers=${this.rulers} .gridStep=${this.studio.doc ? this.gridPx(this.studio.doc) : 0} .guides=${this.guides} .catalog=${this.catalogLookup}
                   .ghost=${this.doorGhost && this.studio.doc ? ghostDoc(this.studio.doc, this.doorGhost, this.wallDefaults) : null} .ghostNote=${this.doorGhost?.note ?? ''} .ghostWarn=${!!this.doorGhost && (this.doorGhost.found === 'default' || !!this.doorGhost.warning)}
                   .ghostHandles=${this.doorGhost && this.studio.doc ? ghostHandles(this.studio.doc, this.doorGhost, b.width, b.height) : []} @ghost-handle=${(e: CustomEvent<GhostHandleDetail>) => this.onGhostHandle(e.detail)}
-                  .candidates=${this.tool === 'detect' && this.cands ? this.cands.set : null} .candidateStates=${this.candStates} .selectedCandidateId=${this.candSel} .candidateEditable=${this.tool === 'detect' && !this.narrow && !this.busy}
+                  .candidates=${this.tool === 'detect' && this.cands ? this.cands.set : null} .candidateStates=${this.shownCandStates} .selectedCandidateId=${this.candSel} .candidateEditable=${this.tool === 'detect' && !this.narrow && !this.busy}
                   @candidate-select=${(e: CustomEvent<{ id: string }>) => this.toggleCandidate(e.detail.id)}
                   @candidate-drag=${(e: CustomEvent<{ id: string; index: number; x: number; y: number }>) => this.onCandidateDrag(e.detail)} .anchorPositions=${this.anchorPositions}
                   @plan-hover=${(e: CustomEvent<{ x: number; y: number; shift: boolean; item?: boolean }>) => this.onPlanHover(e.detail.x, e.detail.y, e.detail.shift, !!e.detail.item)}

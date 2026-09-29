@@ -1,0 +1,96 @@
+{
+ "name": "steps",
+ "width": 1600,
+ "height": 1200,
+ "scale_m_per_px": 0.02,
+ "walls": [
+  {
+   "a": [
+    200,
+    150
+   ],
+   "b": [
+    1400,
+    150
+   ],
+   "thickness_px": 12,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1400,
+    150
+   ],
+   "b": [
+    1400,
+    1050
+   ],
+   "thickness_px": 12,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1400,
+    1050
+   ],
+   "b": [
+    200,
+    1050
+   ],
+   "thickness_px": 12,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    200,
+    1050
+   ],
+   "b": [
+    200,
+    150
+   ],
+   "thickness_px": 12,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    206,
+    700
+   ],
+   "b": [
+    1394,
+    700
+   ],
+   "thickness_px": 7,
+   "kind": "interior"
+  },
+  {
+   "a": [
+    1000,
+    706
+   ],
+   "b": [
+    1000,
+    1044
+   ],
+   "thickness_px": 7,
+   "kind": "interior"
+  }
+ ],
+ "doors": [],
+ "windows": [],
+ "objects": [
+  {
+   "kind": "steps",
+   "centre": [
+    800.0,
+    435.0
+   ],
+   "size_px": [
+    600,
+    270
+   ],
+   "rows": 6
+  }
+ ]
+}
