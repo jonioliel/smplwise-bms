@@ -842,8 +842,78 @@ def session_of(conn: Any) -> RemoteSession | None:
     return state.get("sw_remote_session")
 
 
+# An idle session is not re-validated by the background pass (it only re-checks sessions used in the last
+# ACTIVE_WINDOW_S). When one comes back after longer than this, HA and the policy are asked again BEFORE the request is
+# served, so a sign-in revoked at HA while the browser was idle never gets a single request through (CR-008 P2 - the
+# "idle-revoked session reused before the next tick" path of the pen-test checklist).
+STALE_AFTER_S = REVALIDATE_EVERY_S + ACTIVE_WINDOW_S
+
+
+def _stale(s: RemoteSession) -> bool:
+    return time.time() - s.last_validated > STALE_AFTER_S
+
+
+def _reuse_refused(db: Any, s: RemoteSession, reason: str, ip: str) -> None:
+    STORE.drop(s.sid)
+    _audit(db, actor=s.principal, action="auth.remote_session.revoked", decision="denied", reason=reason,
+           meta={"client_ip": ip, "on_reuse": True, **({"via": "bearer"} if s.via == "bearer" else {})})
+
+
+def _recheck_sync(request: Any, settings: Settings, s: RemoteSession) -> RemoteSession:
+    try:
+        asyncio.get_running_loop()
+        return s  # never expected on the event loop (HTTP dependencies run in the thread pool); the pass re-checks it
+    except RuntimeError:
+        pass
+    db = request.app.state.db
+    ip = client_ip(request)
+    try:
+        ha_user = asyncio.run(validate_token(settings, s.token, ip))
+    except TokenInvalid:
+        _reuse_refused(db, s, "token_revoked", ip)
+        raise unauthenticated("remote_token_invalid", TOKEN_INVALID_HE)
+    except HaUnavailable:
+        return s  # HA briefly away: as in the background pass, the session ends with its access token anyway
+    with db.connection(mode="read", label="remote reuse") as conn:
+        refusal = policy_refusal(conn, s.principal, ha_user)
+    if refusal is not None:
+        _reuse_refused(db, s, refusal.code, ip)
+        raise refusal
+    s.last_validated = time.time()
+    s.ha_user = ha_user
+    return s
+
+
+async def _recheck_async(websocket: Any, settings: Settings, s: RemoteSession) -> RemoteSession | None:
+    from starlette.concurrency import run_in_threadpool
+
+    db = websocket.app.state.db
+    ip = client_ip(websocket)
+    try:
+        ha_user = await validate_token(settings, s.token, ip)
+    except TokenInvalid:
+        await run_in_threadpool(_reuse_refused, db, s, "token_revoked", ip)
+        return None
+    except HaUnavailable:
+        return s
+
+    def check() -> ApiError | None:
+        with db.connection(mode="read", label="remote reuse") as conn:
+            return policy_refusal(conn, s.principal, ha_user)
+
+    refusal = await run_in_threadpool(check)
+    if refusal is not None:
+        await run_in_threadpool(_reuse_refused, db, s, refusal.code, ip)
+        return None
+    s.last_validated = time.time()
+    s.ha_user = ha_user
+    return s
+
+
 def remote_principal(request: Any, settings: Settings) -> Principal:
     s = STORE.get(session_id_of(settings, request))
+    if s is not None and _stale(s):
+        s = _recheck_sync(request, settings, s)
     if s is None:
         token = bearer_of(request)
         if not token:
@@ -863,6 +933,8 @@ async def remote_principal_ws(websocket: Any, settings: Settings) -> Principal |
         if not origin_ok(websocket):
             return None
         s = STORE.get(sid)
+        if s is not None and _stale(s):
+            s = await _recheck_async(websocket, settings, s)
         if s is None:
             return None
     else:

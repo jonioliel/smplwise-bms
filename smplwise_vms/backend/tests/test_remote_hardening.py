@@ -475,6 +475,55 @@ def test_csp_report_sink_is_rate_limited_and_row_bounded(arx, monkeypatch):
     assert len(rows) == 4 and rows[("other", "other")] == 4  # 3 distinct counters (inline + 2 hosts), the rest in "other"
 
 
+# ---------------------------------------------------------------- 6. an idle session revoked at HA, reused before the pass
+
+def _age(seconds: float) -> None:
+    for s in hua.STORE._sessions.values():
+        s.last_validated -= seconds
+        s.last_used -= seconds
+
+
+def test_idle_session_revoked_at_ha_gets_no_request_through(arx):
+    phone = browser(arx)
+    sign_in(phone, arx, arx.viewer)
+    _age(hua.STALE_AFTER_S + 5)  # idle: the background pass never re-checked it
+    arx.core.revoke_user("u-viewer")  # the refresh token deleted in the HA profile meanwhile
+    dials = len(arx.core.dials)
+    r = phone.get("/arx/api/v1/me")  # no background pass has run
+    assert r.status_code == 401 and r.json()["code"] == "remote_token_invalid"
+    assert len(arx.core.dials) == dials + 1 and hua.STORE.count() == 0
+    row = arx.audit("auth.remote_session.revoked")[-1]
+    assert row["reason"] == "token_revoked" and json.loads(row["details_json"])["on_reuse"] is True
+
+
+def test_idle_session_reused_over_a_websocket_is_rechecked(arx):
+    phone = browser(arx)
+    sign_in(phone, arx, arx.viewer)
+    _age(hua.STALE_AFTER_S + 5)
+    arx.flag("u-viewer", False)  # the policy changed while it was idle
+    with pytest.raises(WebSocketDisconnect):
+        with phone.websocket_connect("/arx/api/v1/me/ws", headers=ORIGIN) as ws:
+            ws.receive_text()
+    assert arx.audit("auth.remote_session.revoked")[-1]["reason"] == "remote_not_allowed"
+
+
+def test_a_fresh_or_still_valid_idle_session_is_served(arx, monkeypatch):
+    phone = browser(arx)
+    sign_in(phone, arx, arx.viewer)
+    dials = len(arx.core.dials)
+    assert phone.get("/arx/api/v1/me").status_code == 200 and len(arx.core.dials) == dials  # fresh: no HA call
+    _age(hua.STALE_AFTER_S + 5)
+    assert phone.get("/arx/api/v1/me").status_code == 200 and len(arx.core.dials) == dials + 1  # re-checked once
+    assert phone.get("/arx/api/v1/me").status_code == 200 and len(arx.core.dials) == dials + 1
+    _age(hua.STALE_AFTER_S + 5)
+
+    async def away(*_a, **_k):
+        raise hua.HaUnavailable("down")
+
+    monkeypatch.setattr(hua, "validate_token", away)
+    assert phone.get("/arx/api/v1/me").status_code == 200  # HA briefly away: served, as the background pass does
+
+
 def test_sign_in_record_masks_the_address(arx):
     sign_in(browser(arx), arx, arx.viewer, **{"CF-Connecting-IP": "203.0.113.5", "CF-IPCountry": "IL"})
     with arx.db.connection(mode="read") as conn:
