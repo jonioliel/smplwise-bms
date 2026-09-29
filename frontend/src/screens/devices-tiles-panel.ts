@@ -795,6 +795,7 @@ export class DevicesTilesPanel extends LitElement {
       </div>
       <div class="end">
         ${controllable && toggleKinds ? this.ctl.renderPowerToggle(r) : nothing}
+        ${controllable && this.kind === 'locks' ? this.ctl.renderLockControls(r, (row) => (this.unlocking = row as DeviceItem)) : nothing}
         ${!controllable
           ? html`<button type="button" class="ro" data-readonly title=${reason} aria-expanded=${String(this.why === r.entity_id)} aria-label=${`לקריאה בלבד: ${reason}`} @click=${() => (this.why = this.why === r.entity_id ? null : r.entity_id)}><sw-icon name="info" size=${12}></sw-icon>לקריאה בלבד</button>`
           : nothing}
@@ -804,7 +805,6 @@ export class DevicesTilesPanel extends LitElement {
       ${controllable && this.kind === 'covers' ? this.ctl.renderCoverControls(r) : nothing}
       ${controllable && this.kind === 'climate' ? this.ctl.renderClimateControls(r) : nothing}
       ${controllable && this.kind === 'media' ? this.ctl.renderMediaControls(r) : nothing}
-      ${controllable && this.kind === 'locks' ? this.ctl.renderLockControls(r, (row) => (this.unlocking = row as DeviceItem)) : nothing}
       ${controllable ? this.ctl.renderCmdStatus(r.entity_id) : nothing}
     </div>`;
   }

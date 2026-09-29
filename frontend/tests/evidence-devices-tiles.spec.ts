@@ -384,4 +384,21 @@ test.describe('overview tiles against the devices fixture backend', () => {
     await expect.poll(() => fetched.length, { timeout: 5000 }).toBeGreaterThan(0);
     await seed(request);
   });
+
+  test('review M5: the preview shows the installation value; a local override is named next to it and can be cleared', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'the settings screen');
+    await page.addInitScript(() => localStorage.setItem('sw.tiles.override', 'cards'));
+    await open(page, '/system/diagnostics');
+    const sel = page.locator('system-diagnostics select[data-set-tile-layout]');
+    await expect(sel).toBeVisible({ timeout: 30000 });
+    const note = page.locator('system-diagnostics [data-tile-override-note]');
+    await expect(note).toContainText('כרטיסים');
+    await sel.selectOption('compact');
+    await expect(page.locator('system-diagnostics [data-tile-preview]')).toHaveAttribute('data-tile-preview', 'compact'); // not the override's cards
+    await page.evaluate(() => localStorage.removeItem('sw.tiles.override')); // the init script would set it again on a reload only
+    await page.evaluate(() => localStorage.setItem('sw.tiles.override', 'cards'));
+    await page.locator('system-diagnostics sw-button[data-tile-override-clear]').click();
+    await expect(note).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('sw.tiles.override'))).toBeNull();
+  });
 });
