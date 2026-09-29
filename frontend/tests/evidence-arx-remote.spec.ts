@@ -141,6 +141,57 @@ test('a user with MFA gets the code step', async ({ page }) => {
   await expect(page.locator('arx-login')).toBeVisible();
 });
 
+// CR-008 hotfix: the owner's HA (2026.9) refused PKCE on /auth/login_flow with a 400 ("Message format incorrect: not a
+// valid option at 'code_challenge'"). The fake plays an HA release without PKCE: the client retries once without it
+// and exchanges the code without a code_verifier.
+test('older HA: sign-in succeeds after the PKCE fallback', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop');
+  const starts: Record<string, unknown>[] = [];
+  const starts400: string[] = [];
+  const grants: string[][] = [];
+  page.on('request', (req) => {
+    const url = new URL(req.url());
+    if (req.method() !== 'POST') return;
+    if (url.pathname === '/auth/login_flow') starts.push(req.postDataJSON() as Record<string, unknown>);
+    if (url.pathname === '/auth/token') {
+      const form = new URLSearchParams(req.postData() ?? '');
+      if (form.get('grant_type') === 'authorization_code') grants.push([...form.keys()].sort());
+    }
+  });
+  page.on('response', async (res) => {
+    if (new URL(res.url()).pathname === '/auth/login_flow' && res.status() === 400) starts400.push((await res.json()).message);
+  });
+  expect((await (await page.request.post(`${FAKE}/fake/mode`, { data: { pkce: false } })).json()).pkce).toBe(false);
+  try {
+    await routeHa(page);
+    await page.goto(ARX);
+    await signIn(page, 'dana', 'wrong'); // the failed password keeps the flow: still exactly one retry
+    await expect(page.locator('arx-login [data-arx-error]')).toHaveText('שם משתמש או סיסמה לא תקינים');
+    await page.locator('arx-login #password').fill('pw-dana');
+    await page.locator('arx-login [data-arx-submit]').click();
+    await expect(page.locator('sw-app')).toBeVisible();
+    await expect(page.locator('arx-login')).toHaveCount(0);
+    const me = await page.evaluate(async () => (await fetch('api/v1/me')).json());
+    expect(me.user).toMatchObject({ id: 'u-viewer', source: 'remote' });
+
+    // one PKCE start refused with HA's exact text, one retry without the PKCE keys, nothing else changed
+    expect(starts).toHaveLength(2);
+    expect(starts400).toEqual(["Message format incorrect: not a valid option at 'code_challenge'"]);
+    expect(Object.keys(starts[0]).sort()).toEqual(['client_id', 'code_challenge', 'code_challenge_method', 'handler', 'redirect_uri']);
+    expect(Object.keys(starts[1]).sort()).toEqual(['client_id', 'handler', 'redirect_uri']);
+    expect(starts[1]).toMatchObject({ client_id: starts[0].client_id, handler: starts[0].handler, redirect_uri: starts[0].redirect_uri });
+    expect(grants).toEqual([['client_id', 'code', 'grant_type']]); // no code_verifier
+    expect((await (await page.request.get(`${FAKE}/fake/state`)).json()).code_grant_keys.at(-1)).toEqual(['client_id', 'code', 'grant_type']);
+    const stores = await page.evaluate(() => ({ hass: localStorage.getItem('hassTokens'), arx: localStorage.getItem('arx.auth.v1') }));
+    expect(JSON.parse(stores.hass ?? 'null')?.refresh_token).toBe(JSON.parse(stores.arx ?? 'null')?.refresh_token);
+
+    await page.locator('sw-app [data-arx-signout]').click();
+    await expect(page.locator('arx-login')).toBeVisible();
+  } finally {
+    await page.request.post(`${FAKE}/fake/mode`, { data: { pkce: true } });
+  }
+});
+
 // The owner's look at the MVP (committed under docs/evidence/cr008-mvp/): the sign-in page on desktop and phone, the
 // MFA step, a wrong password, the map right after sign-in, the remote-access settings tab and the per-user toggle.
 const EVIDENCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/evidence/cr008-mvp');

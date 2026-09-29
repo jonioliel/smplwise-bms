@@ -1,7 +1,8 @@
 /**
  * CR-008 SmplWise Arx: sign-in against Home Assistant's own auth endpoints on the same origin, exactly as HA's login
- * page does (src/data/auth.ts): `/auth/providers` → `/auth/login_flow` (PKCE S256) → `/auth/login_flow/<id>` (username
- * and password, then the MFA code when HA asks) → `/auth/token`. The password goes to HA only, never to the add-on.
+ * page does (src/data/auth.ts): `/auth/providers` → `/auth/login_flow` (PKCE S256 when HA accepts it) →
+ * `/auth/login_flow/<id>` (username and password, then the MFA code when HA asks) → `/auth/token`. The password goes
+ * to HA only, never to the add-on.
  *
  * Tokens are kept under our own key `arx.auth.v1` (localStorage, or sessionStorage in the `browser_session` mode) and
  * seeded into HA's `hassTokens` (hass-tokens.ts). The access token is exchanged for the Arx session cookie
@@ -151,9 +152,32 @@ export type FlowStep =
   | { kind: 'done'; code: string };
 
 export interface LoginFlow {
-  verifier: string;
+  /** The PKCE verifier, or null when this HA does not accept PKCE (the token request then omits `code_verifier`). */
+  verifier: string | null;
   flowId: string;
   handler: [string, string | null];
+}
+
+/** Whether this HA accepts PKCE on `/auth/login_flow`: unknown until the first start, then remembered for this page
+ * (memory only). PKCE S256 arrived in HA core with home-assistant/core#181957 (merged to dev 2026-09-26, so 2026.10);
+ * every release up to 2026.9.x rejects the extra keys with a 400 (see isPkceRejection). */
+let pkceSupported: boolean | null = null;
+
+/** HA's answer when its `/auth/login_flow` schema has no PKCE keys (http/data_validator.py: `json_message(f"Message
+ * format incorrect: {err}", 400)`): 2026.9 (probatio) says "Message format incorrect: not a valid option at
+ * 'code_challenge'", up to 2026.8 (voluptuous) "Message format incorrect: extra keys not allowed @ data['code_challenge']".
+ * Any other 400 on the first start is treated the same way (one retry without PKCE; a second 400 is shown as it is). */
+function pkceRejection(status: number, data: Record<string, unknown> | null): 'pkce_keys' | 'first_400' | null {
+  if (status !== 400) return null;
+  const msg = typeof data?.message === 'string' ? data.message : '';
+  if (msg.includes('code_challenge') && (msg.includes('not a valid option') || msg.includes('extra keys not allowed'))) return 'pkce_keys';
+  return 'first_400';
+}
+
+async function postStart(handler: [string, string | null], challenge: string | null) {
+  const body: Record<string, unknown> = { client_id: clientId(), handler, redirect_uri: redirectUri() };
+  if (challenge) Object.assign(body, { code_challenge: challenge, code_challenge_method: 'S256' });
+  return haJson('/auth/login_flow', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 }
 
 function httpError(status: number, data: Record<string, unknown> | null): ArxAuthError {
@@ -176,20 +200,32 @@ function stepOf(data: Record<string, unknown>): FlowStep {
   return { kind: 'form', flowId: String(data.flow_id ?? ''), step: String(data.step_id ?? 'init'), error: base ? haErrorText(base) : null, mfaName: placeholders.mfa_module_name };
 }
 
-/** Start HA's login flow for its user store (`homeassistant` provider), with PKCE. */
+/** Start HA's login flow for its user store (`homeassistant` provider), with PKCE when this HA accepts it. */
 export async function startFlow(): Promise<{ flow: LoginFlow; step: FlowStep }> {
   const providers = await haJson('/auth/providers', { method: 'GET' });
   if (providers.status !== 200 || !providers.data) throw httpError(providers.status, providers.data);
   const list = (Array.isArray(providers.data) ? providers.data : (providers.data.providers as unknown[])) as { type: string; id: string | null }[];
   const local = (list ?? []).find((p) => p.type === 'homeassistant');
   if (!local) throw new ArxAuthError('no_provider', 'ספק הכניסה של Home Assistant (משתמשים וסיסמאות) אינו פעיל.');
-  const { verifier, challenge } = await pkcePair();
   const handler: [string, string | null] = [local.type, local.id ?? null];
-  const r = await haJson('/auth/login_flow', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ client_id: clientId(), handler, redirect_uri: redirectUri(), code_challenge: challenge, code_challenge_method: 'S256' }),
-  });
+  let verifier: string | null = null;
+  let r: Awaited<ReturnType<typeof haJson>>;
+  if (pkceSupported !== false) {
+    const pair = await pkcePair();
+    r = await postStart(handler, pair.challenge);
+    const rejected = pkceSupported === null ? pkceRejection(r.status, r.data) : null;
+    if (rejected) {
+      // an HA release without PKCE: exactly one retry without it, remembered for this page (never a loop)
+      console.info(`Arx: Home Assistant refused PKCE on /auth/login_flow (${rejected}); signing in without it`);
+      pkceSupported = false;
+      r = await postStart(handler, null);
+    } else {
+      verifier = pair.verifier;
+      if (r.status === 200) pkceSupported = true;
+    }
+  } else {
+    r = await postStart(handler, null);
+  }
   if (r.status !== 200 || !r.data) throw httpError(r.status, r.data);
   const step = stepOf(r.data);
   if (step.kind !== 'form') throw new ArxAuthError('unknown_error', haErrorText('unknown_error'));
@@ -255,7 +291,9 @@ async function exchange(t: ArxTokens): Promise<ExchangeResult> {
 
 /** Sign-in finished at HA (an authorization code): tokens, the HA seed, the Arx session. */
 export async function completeSignIn(flow: LoginFlow, code: string): Promise<ExchangeResult> {
-  const t = tokensFrom(await tokenRequest({ grant_type: 'authorization_code', code, code_verifier: flow.verifier }));
+  const grant: Record<string, string> = { grant_type: 'authorization_code', code };
+  if (flow.verifier) grant.code_verifier = flow.verifier; // HA with PKCE refuses a verifier for a flow without a challenge
+  const t = tokensFrom(await tokenRequest(grant));
   try {
     const r = await exchange(t);
     t.user_id = r.user.id;
