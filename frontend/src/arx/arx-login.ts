@@ -193,6 +193,12 @@ export class ArxLogin extends LitElement {
       flex: none;
       margin-block-start: 1px;
     }
+    /* a link-style button never takes the primary buttons' hover fill (a touch leaves :hover behind on phones,
+       which turned "החלף שרת" into a blue block with invisible text - seen in the Android app) */
+    button.link:hover:not(:disabled) {
+      background: none;
+      text-decoration: underline;
+    }
     .app-servers {
       display: flex;
       justify-content: center;
