@@ -494,7 +494,8 @@ def test_remote_config_is_public_on_the_remote_channel_only(arx):
 
 
 # every route of the app, reached on the remote channel without a session, is refused (CR-008 §3e.2)
-PUBLIC_ON_REMOTE = {("GET", "/api/v1/auth/remote-config"), ("DELETE", "/api/v1/auth/session")}  # config; an idempotent sign-out
+# config; an idempotent sign-out; the CSP report sink (CR-008 P2: counters only, rate-limited, bounded)
+PUBLIC_ON_REMOTE = {("GET", "/api/v1/auth/remote-config"), ("DELETE", "/api/v1/auth/session"), ("POST", "/api/v1/csp-report")}
 BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/bridge/directory")}  # 404: the bridge's signed calls
 
 

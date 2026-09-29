@@ -208,3 +208,118 @@ async def revoke_all_remote_sessions(request: Request, user_id: str | None = Que
         await run_in_threadpool(_require_admin, request, principal)
     sessions = hua.STORE.sessions_of(user_id=target)
     return await _revoke(request, principal, sessions, target, "signed_out_everywhere" if target == principal.user_id else "revoked_all_by_admin")
+
+
+# ---------------------------------------------------------------- CR-008 P2: CSP violation reports (counters only)
+
+CSP_BODY_MAX = 16 * 1024  # a report is well under 2 KB; a batch of the Reporting API a few of them
+CSP_BATCH_MAX = 20
+CSP_ROWS_MAX = 200  # distinct (disposition, directive, blocked) counters; beyond it everything counts as "other"
+CSP_IP_LIMITS: list[tuple[float, int]] = [(60.0, 30)]
+CSP_ALL_LIMITS: list[tuple[float, int]] = [(60.0, 300)]
+_DIRECTIVE_RE = re.compile(r"^[a-z][a-z-]{0,39}$")
+_KEYWORDS = {"inline", "eval", "wasm-eval", "data", "blob", "self", "trusted-types-policy", "trusted-types-sink"}
+
+
+def _blocked_origin(raw: Any, host: str) -> str:
+    """Scheme + host of the blocked resource, `self` for this origin, a CSP keyword as is; never a path or a query."""
+    from urllib.parse import urlsplit
+
+    value = str(raw or "").strip()[:500]
+    if not value:
+        return "none"
+    if value.lower() in _KEYWORDS:
+        return value.lower()
+    if value.endswith(":") and value[:-1].isalpha():
+        return value[:-1].lower()[:20]  # data: / blob: / about:
+    try:
+        u = urlsplit(value)
+    except ValueError:
+        return "other"
+    if not u.scheme or not u.netloc:
+        return u.scheme.lower()[:20] or "other"
+    if u.netloc.lower() == (host or "").lower():
+        return "self"
+    return f"{u.scheme.lower()}://{u.netloc.lower()}"[:100]
+
+
+def _csp_items(payload: Any, host: str) -> list[tuple[str, str, str]]:
+    """(disposition, directive, blocked) of every report in a legacy `application/csp-report` body or a Reporting API
+    batch (`application/reports+json`); anything else is ignored."""
+    reports: list[dict[str, Any]] = []
+    if isinstance(payload, dict) and isinstance(payload.get("csp-report"), dict):
+        r = payload["csp-report"]
+        reports.append({"disposition": r.get("disposition"), "directive": r.get("effective-directive") or r.get("violated-directive"), "blocked": r.get("blocked-uri")})
+    elif isinstance(payload, list):
+        for item in payload[:CSP_BATCH_MAX]:
+            if isinstance(item, dict) and item.get("type") == "csp-violation" and isinstance(item.get("body"), dict):
+                b = item["body"]
+                reports.append({"disposition": b.get("disposition"), "directive": b.get("effectiveDirective"), "blocked": b.get("blockedURL")})
+    out = []
+    for r in reports:
+        directive = str(r.get("directive") or "").strip().lower().split(" ")[0]
+        out.append(("enforce" if r.get("disposition") == "enforce" else "report", directive if _DIRECTIVE_RE.match(directive) else "other",
+                    _blocked_origin(r.get("blocked"), host)))
+    return out
+
+
+def _count_csp(db, items: list[tuple[str, str, str]]) -> None:
+    with db.connection(label="csp-report") as conn:
+        now = now_iso()
+        for disposition, directive, blocked in items:
+            known = conn.execute("SELECT 1 FROM csp_reports WHERE disposition = ? AND directive = ? AND blocked = ?", (disposition, directive, blocked)).fetchone()
+            if not known and conn.execute("SELECT COUNT(*) FROM csp_reports").fetchone()[0] >= CSP_ROWS_MAX:
+                directive, blocked = "other", "other"
+            conn.execute(
+                """INSERT INTO csp_reports(disposition, directive, blocked, count, first_at, last_at) VALUES (?, ?, ?, 1, ?, ?)
+                   ON CONFLICT(disposition, directive, blocked) DO UPDATE SET count = count + 1, last_at = excluded.last_at""",
+                (disposition, directive, blocked, now, now))
+
+
+@router.post("/csp-report", status_code=204)
+async def csp_report(request: Request) -> Response:
+    """The browsers' CSP violation reports for the remote channel (Reporting API `report-to` and the older `report-uri`).
+    Unauthenticated by nature (a report is posted by the browser itself), so: remote channel only, rate-limited per
+    address and in total, the body bounded while it streams, at most 20 reports a batch, and nothing kept but counters
+    per disposition, directive and blocked origin (no page URL, no sample, no path)."""
+    _remote_only(request)
+    if not hua.LIMITER.hit(f"csp:{hua.client_ip(request)}", CSP_IP_LIMITS) or not hua.LIMITER.hit("csp:*", CSP_ALL_LIMITS):
+        raise ApiError(429, "rate_limited", "יותר מדי דיווחים.", retryable=True)
+    ctype = (request.headers.get("content-type") or "").split(";")[0].strip().lower()
+    if ctype not in ("application/csp-report", "application/reports+json", "application/json"):
+        raise ApiError(415, "unsupported_media_type", "סוג תוכן לא נתמך.")
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > CSP_BODY_MAX:
+            raise ApiError(413, "too_large", "הדיווח גדול מדי.")
+    import json as _json
+
+    try:
+        payload = _json.loads(bytes(body) or b"null")
+    except ValueError:
+        raise ApiError(400, "bad_request", "דיווח לא תקין.")
+    items = _csp_items(payload, request.headers.get("host") or "")
+    if items:
+        await run_in_threadpool(_count_csp, request.app.state.db, items)
+    return Response(status_code=204)
+
+
+@router.get("/csp-reports")
+def list_csp_reports(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """הגדרות › גישה מרחוק: the counters, the mode and both policies, for the owner's review before enforcing."""
+    from ..remote_channel import CSP, CSP_STRICT, csp_enforcing
+
+    require(conn, principal, "system.configure", INSTALLATION)
+    rows = [dict(r) for r in conn.execute("SELECT disposition, directive, blocked, count, first_at, last_at FROM csp_reports ORDER BY count DESC, last_at DESC").fetchall()]
+    return {"mode": "enforce" if csp_enforcing() else "report_only", "rows": rows, "total": sum(r["count"] for r in rows),
+            "policy": {"enforced": CSP_STRICT if csp_enforcing() else CSP, "report_only": None if csp_enforcing() else CSP_STRICT}}
+
+
+@router.delete("/csp-reports")
+def clear_csp_reports(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "system.configure", INSTALLATION)
+    n = conn.execute("DELETE FROM csp_reports").rowcount
+    audit(conn, actor=principal, action="remote.csp_reports_cleared", decision="allowed", resource_type="installation", resource_id="*",
+          request_id=getattr(request.state, "correlation_id", None), details={"rows": n})
+    return {"cleared": n}

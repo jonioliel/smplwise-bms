@@ -1041,10 +1041,19 @@ async def revalidate_once(db: Any, settings: Settings, validate: Callable[..., A
 
 
 async def revalidate_loop(db: Any, settings: Settings) -> None:
+    from starlette.concurrency import run_in_threadpool
+
+    from .. import remote_channel
+
+    await run_in_threadpool(remote_channel.load_csp_mode, db)
+    ticks = 0
     while True:
         await asyncio.sleep(LOOP_TICK_S)
         try:
             await revalidate_once(db, settings)
+            ticks += 1
+            if ticks % 6 == 0:  # every 30 s the CSP mode follows the database too (a restored backup, CR-008 P2)
+                await run_in_threadpool(remote_channel.load_csp_mode, db)
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001 - never let the loop die
@@ -1052,6 +1061,9 @@ async def revalidate_loop(db: Any, settings: Settings) -> None:
 
 
 def reset_for_tests() -> None:
+    from .. import remote_channel
+
+    remote_channel.set_csp_enforce(False)
     STORE.clear()
     LIMITER.clear()
     with _cache_lock:

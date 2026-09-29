@@ -99,6 +99,9 @@ DEFAULTS: dict[str, str] = {
     # CR-008 P2 (hardening): live streams one remote sign-in (a browser / a bearer client) may hold open at once - the
     # next start answers 429; the installation-wide media.max_live_sessions still applies on top
     "remote.max_live_streams": "4",
+    # CR-008 P2: false = the stricter CSP (remote_channel.CSP_STRICT) is report-only next to the enforced one; true = it is
+    # the enforced policy. Switched on by the owner after reviewing the reports (הגדרות › גישה מרחוק).
+    "remote.csp_enforce": "false",
 }
 
 # CR-007 6a/6b: the registered device-screen palettes - keep in step with DEVICE_THEMES in
@@ -170,6 +173,7 @@ class SettingsPatch(BaseModel):
     remote_mse_fallback: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.mse_fallback")
     remote_require_mfa_admin: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.require_mfa_admin")
     remote_max_live_streams: int | None = Field(default=None, ge=1, le=32, alias="remote.max_live_streams")
+    remote_csp_enforce: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.csp_enforce")
 
     model_config = {"populate_by_name": True}
 
@@ -202,6 +206,10 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         raise ApiError(422, "provider_not_available", "לא מצורף ספק ניתוח חיצוני; קיים רק חוזה המתאם (פרטיות, גרסת מודל, תקציב, opt-in).", details={"choices": ["none", "local"]})
     for key, value in changes.items():
         set_setting(conn, key, str(value))
+    if "remote.csp_enforce" in changes:  # CR-008 P2: the remote channel's next response already follows
+        from ..remote_channel import set_csp_enforce
+
+        set_csp_enforce(changes["remote.csp_enforce"] == "true")
     audit(conn, actor=principal, action="settings.update", decision="allowed", resource_type="installation", resource_id="*",
           request_id=getattr(request.state, "correlation_id", None), details=changes)
     return {"settings": read_settings(conn), "can_edit": True}

