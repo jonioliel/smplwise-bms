@@ -12,7 +12,7 @@ import type { IconName } from '../components/sw-icon';
 import type { DevicesBulkDialog } from './devices-bulk';
 import { canAnywhere, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
-import { subscribeHa } from '../api/ha';
+import { subscribeHa, type HaEntity } from '../api/ha';
 import { ALARM_HE, getDeviceItems, type DeviceItem, type DeviceItems, type DeviceRow, type ItemsScope, type TileKind } from '../api/devices';
 import type { BulkKind } from '../api/device-bulk';
 import { bidi, ltrNum } from '../i18n/bidi';
@@ -130,8 +130,53 @@ export function changedAt(iso: string, now: Date = new Date()): string {
   return d.toDateString() === now.toDateString() ? `השתנה ב־${time}` : `השתנה ב־${d.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' })} ${time}`;
 }
 
-/** How long the panel waits before refetching after a push (the building screen's own window). */
-const REFRESH_MS = 400;
+/** How long the panel waits before refetching (review M4: pushes about listed rows patch them in place; a refetch is
+ * only for an entity it does not list, a structure change or a reconnect). */
+const REFRESH_MS = 1000;
+
+function num(v: unknown): number | null {
+  const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN;
+  return Number.isFinite(n) ? n : null;
+}
+
+/** The domain's own "on" - the same rules as the server's (services/devices.py is_active). */
+export function activeOf(domain: string, s: string | null): boolean {
+  if (['light', 'switch', 'input_boolean', 'fan', 'humidifier'].includes(domain)) return s === 'on';
+  if (domain === 'cover') return s === 'open' || s === 'opening';
+  if (domain === 'climate') return !['off', 'unavailable', 'unknown', '', null].includes(s);
+  if (domain === 'media_player') return !['off', 'standby', 'unavailable', 'unknown', '', null].includes(s);
+  if (domain === 'lock') return s === 'locked';
+  return false;
+}
+
+/** A listed row brought up to a pushed entity (review M4): the reported state and the attributes the panel shows. */
+export function patchRow(r: DeviceItem, e: HaEntity): DeviceItem {
+  const s = e.state;
+  const a = e.attributes ?? {};
+  const out: DeviceItem = { ...r, state: s, available: e.available, last_changed: e.last_changed ?? r.last_changed, active: activeOf(r.domain, s) };
+  if (r.domain === 'light') {
+    const b = num(a.brightness);
+    out.brightness_pct = s === 'on' && b !== null ? Math.max(0, Math.min(100, Math.round((b * 100) / 255))) : null;
+  } else if (r.domain === 'cover') {
+    out.position = num(a.current_position);
+    out.tilt = num(a.current_tilt_position);
+    out.moving = s === 'opening' || s === 'closing';
+  } else if (r.domain === 'climate') {
+    out.hvac_mode = s && s !== 'unavailable' && s !== 'unknown' ? s : null;
+    out.hvac_action = typeof a.hvac_action === 'string' ? a.hvac_action : null;
+    out.current_temperature = num(a.current_temperature);
+    out.target_temperature = num(a.temperature);
+  } else if (r.domain === 'media_player') {
+    const v = num(a.volume_level);
+    out.volume_pct = v === null ? null : Math.round(v * 100);
+    out.muted = typeof a.is_volume_muted === 'boolean' ? a.is_volume_muted : null;
+  } else if (r.domain === 'lock') {
+    out.locked = s === 'locked';
+  } else if (r.domain === 'alarm_control_panel') {
+    out.armed = !['disarmed', 'unavailable', 'unknown', null].includes(s);
+  }
+  return out;
+}
 
 /**
  * The overview tiles' panel (owner 2026-09-29): a tile ("0/33 מתגים פעילים") opens every entity of its kind in the
@@ -161,7 +206,7 @@ export class DevicesTilesPanel extends LitElement {
   @state() private unlocking: DeviceItem | null = null;
   /** Lock-all (owner 2026-09-29): the locks to lock, the dialog's step and each lock's outcome. Never unlock-all. */
   @state() private lockAll: { rows: DeviceItem[]; step: 'confirm' | 'running' | 'done'; out: Record<string, CommandPhase> } | null = null;
-  private ctl = new DeviceControls(this, () => this.schedule());
+  private ctl = new DeviceControls(this, () => this.changed());
   private stop: (() => void) | null = null;
   private timer = 0;
   private loading = false;
@@ -484,9 +529,9 @@ export class DevicesTilesPanel extends LitElement {
       (m) => {
         if (m.type === 'entity_state_changed') {
           const id = m.entity.entity_id;
-          const domain = id.split('.')[0];
-          // a row of this list, or a new entity of this kind (it may have just appeared in the scope)
-          if (this.ids.has(id) || (this.domains().includes(domain) && !this.ids.has(id))) this.schedule();
+          // a row of this list: patched in place (review M4); a new entity of this kind may have entered the scope
+          if (this.ids.has(id)) this.patch(m.entity);
+          else if (this.domains().includes(id.split('.')[0])) this.schedule();
         } else if (m.type === 'structure_changed' || m.type === 'ha_sync_state') this.schedule();
       },
       (connected) => {
@@ -500,6 +545,23 @@ export class DevicesTilesPanel extends LitElement {
     this.stop = null;
     window.clearTimeout(this.timer);
     this.timer = 0;
+  }
+
+  /** A listed row follows a push without a refetch; the counts follow the rows. */
+  private patch(e: HaEntity) {
+    const d = this.data;
+    if (!d) return;
+    const floors = d.floors.map((f) => ({ ...f, areas: f.areas.map((a) => ({ ...a, items: a.items.map((r) => (r.entity_id === e.entity_id ? patchRow(r, e) : r)) })) }));
+    const rows = floors.flatMap((f) => f.areas.flatMap((a) => a.items));
+    const count = (s: Exclude<ItemsFilter, 'all'>) => rows.filter((r) => rowState(r) === s).length;
+    this.data = d.truncated ? { ...d, floors } : { ...d, floors, counts: { total: rows.length, active: count('active'), inactive: count('inactive'), unavailable: count('unavailable') } };
+  }
+
+  /** A command of this panel ended: refetch (a caller without entity.state.read gets no push) and tell the screen
+   * behind, whose counters may have changed too. */
+  private changed() {
+    this.schedule();
+    this.dispatchEvent(new CustomEvent('panel-changed', { bubbles: true, composed: true }));
   }
 
   private domains(): string[] {
@@ -636,8 +698,8 @@ export class DevicesTilesPanel extends LitElement {
                 )}
               </section>`,
             )}
-      ${d.truncated ? html`<div class="note">מוצגים 500 הפריטים הראשונים.</div>` : nothing}
-      ${bulkOk ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
+      ${d.truncated ? html`<div class="note" data-panel-truncated>מוצגים 500 פריטים מתוך ${ltrNum(c.total)}; צמצמו בעזרת הסינון, החיפוש או קומה אחת.</div>` : nothing}
+      ${bulkOk ? html`<devices-bulk-dialog @bulk-done=${() => this.changed()}></devices-bulk-dialog>` : nothing}
       ${this.kind === 'locks' ? html`${this.renderUnlockDialog()}${this.renderLockAllDialog()}` : nothing}`;
   }
 
@@ -692,7 +754,7 @@ export class DevicesTilesPanel extends LitElement {
       }, { label: 'נעילה' });
     }
     if (this.lockAll) this.lockAll = { ...this.lockAll, step: 'done' };
-    this.schedule();
+    this.changed();
   }
 
   private renderLockAllDialog() {

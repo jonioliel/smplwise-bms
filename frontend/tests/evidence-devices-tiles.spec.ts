@@ -362,4 +362,26 @@ test.describe('overview tiles against the devices fixture backend', () => {
     await expect(panel).not.toHaveAttribute('open', '');
     await seed(request);
   });
+
+  test('review M4: a push about a listed row patches it in place (no refetch); an entity the panel does not list refetches', async ({ page, request }) => {
+    await seed(request);
+    await open(page, '/devices/building?domain=switches');
+    const panel = page.locator('devices-building devices-tiles-panel');
+    const pump = panel.locator('.row[data-entity="switch.cr007t_pump"]');
+    await expect(pump).toHaveAttribute('data-state', 'inactive', { timeout: 30000 });
+    await page.waitForTimeout(1500);
+    const fetched: number[] = [];
+    page.on('request', (r) => {
+      if (r.url().includes('/api/v1/devices/items')) fetched.push(Date.now());
+    });
+    await request.post('/api/v1/ha/dev/states', { data: { states: [{ entity_id: 'switch.cr007t_pump', state: 'on', attributes: { friendly_name: 'משאבת מים' } }] } });
+    await expect(pump).toHaveAttribute('data-state', 'active', { timeout: 5000 });
+    await expect(panel.locator('.seg button[data-filter="active"]')).toContainText('2');
+    await page.waitForTimeout(1500);
+    expect(fetched).toEqual([]);
+    // a switch the panel has never listed: refetched (it may have entered the scope)
+    await request.post('/api/v1/ha/dev/states', { data: { states: [{ entity_id: `switch.cr007t_new_${Date.now()}`, state: 'off', attributes: { friendly_name: 'מתג חדש' } }] } });
+    await expect.poll(() => fetched.length, { timeout: 5000 }).toBeGreaterThan(0);
+    await seed(request);
+  });
 });
