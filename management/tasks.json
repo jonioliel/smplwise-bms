@@ -5016,5 +5016,54 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "T092",
+    "title": "Arx remote access (CR-008) — /arx, התחברות HA במסך שלנו, PWA ואפליקציה",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [
+      "T011"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "security",
+    "requires_hardware": false,
+    "acceptance": [
+      "With the add-on option remote_access on (default off), the product is served under the public path /arx (option remote_path) on the customer's HA hostname through a Cloudflare remotely-managed tunnel route (path ^/arx(/.*)?$ -> http://<addon-hostname>:8099, no ports: mapping): /arx redirects to /arx/, the prefix is stripped server-side, API, WebSockets, images, downloads and hash routes work unchanged, /arx is 404 when the option is off, a no-op service worker at /arx/sw.js takes the /arx/ scope from HA's root service worker, X-Remote-User-* headers are ignored on this channel while Ingress trust stays bound to the Supervisor proxy address, security headers (CSP, frame-ancestors 'self', no-store on api) apply, and every route except an explicit allow-list answers 401 without a session (CR-008 §3a/§3e).",
+      "A designed SmplWise Arx login page signs in with the HA username and password through HA's own login flow on the same origin (/auth/providers, /auth/login_flow with PKCE, the MFA step, /auth/token), stores the tokens (arx.auth.v1, and seeds hassTokens in HA's AuthData shape so the embedded WisKey panel is signed in), refreshes them, and exchanges the access token for an HttpOnly SameSite=Strict session cookie scoped to /arx/; the server validates the token against HA core (auth + auth/current_user), builds the same principal as Ingress (HA user id, VMS roles unchanged), re-validates at most every 60 s so a revoked refresh token or disabled user loses access within a minute, rate-limits the exchange per client IP, forwards the client IP to HA, never runs the bootstrap grant remotely, never exposes the Supervisor token, and audits remote logins, rejections, revocations and logouts (CR-008 §3b).",
+      "SmplWise Arx is installable as a PWA (manifest with scope /arx/, own service worker that never caches the API, install prompt and an iOS guide) with Web Push (VAPID keys kept in /data, a subscription table per user, a notify path from the rules/alerts engine limited to events the user may see, click opens the event); a later Capacitor wrapper loads the customer's /arx origin, supports several sites, biometric unlock and native push through a SmplWise push relay (CR-008 §3d)."
+    ],
+    "requirement_ids": [
+      "R184",
+      "R185",
+      "R186"
+    ],
+    "test_ids": [
+      "AT184",
+      "AT185",
+      "AT186"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "Public exposure: security review before release; header-forgery, route-enumeration and revocation tests must pass; no lab host names, addresses or tokens in fixtures or evidence."
+    },
+    "deliverables": [
+      "docs/changes/CR-008-ARX-REMOTE-APP.md (+ _HE mirror): facts, architecture, fastest path, phases, owner decisions",
+      "Backend: /arx prefix middleware, remote session exchange and validation against HA core, rate limits, audit; tests",
+      "Frontend: Arx login page with the MFA step, token storage and hassTokens seeding, /arx/sw.js; later PWA + Web Push",
+      "DOCS.md / DOCS_HE.md: owner steps for the Cloudflare route and the remote_access option"
+    ],
+    "evidence": [
+      "2026-09-29: owner request (product renamed SmplWise Arx; https://<site>/arx opens only our system with our own login using HA credentials; later an app with notifications; a working environment today). Planning record CR-008 written: path routing needs the remotely-managed tunnel (options-mode additional_hosts has no path and the HA rule matches first); internal service http://0b8c26d5-smplwise-vms:8099 on the hassio network, no ports: needed; login via HA's own /auth/login_flow + /auth/token on the same origin; hassTokens seeding verified against HA frontend token_storage.ts / home-assistant-js-websocket AuthData. MVP estimate ≈ 11-12 h; decisions D1-D10 open."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]
