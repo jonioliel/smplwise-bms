@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- https only, and only the system's certificate authorities (no user-installed CAs). The debug build adds plain http to
+     127.0.0.1 (a local backend forwarded with adb reverse) in src/debug/res/xml/network_security_config.xml. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

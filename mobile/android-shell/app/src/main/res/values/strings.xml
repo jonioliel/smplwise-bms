@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hebrew is the product language, so it is the default (no values-iw needed). No platform branding (UI_COPY_RULES). -->
+<resources>
+    <string name="app_name" translatable="false">SmplWise Arx</string>
+
+    <!-- server list -->
+    <string name="servers_title">שרתים</string>
+    <string name="servers_intro">בחרו שרת לפתיחה. אפשר לשמור כמה שרתים (אתרים) ולעבור ביניהם; הכניסה לכל שרת נשמרת באפליקציה, בנפרד לכל שרת.</string>
+    <string name="servers_empty">עדיין אין שרתים. הוסיפו את כתובת השרת שקיבלתם.</string>
+    <string name="add_server">הוסף שרת</string>
+    <string name="edit_server">עריכת שרת</string>
+    <string name="server_name">שם לתצוגה (לדוגמה: המשרד)</string>
+    <string name="server_url">כתובת השרת</string>
+    <string name="server_url_hint">הכתובת שקיבלת ממנהל המערכת, לדוגמה: site.example.com</string>
+    <string name="server_actions">פעולות לשרת</string>
+    <string name="auto_open">פתח אוטומטית</string>
+    <string name="auto_open_hint">כשמוגדר שרת אחד בלבד, האפליקציה נפתחת ישר אליו. לרשימה: לחיצה ארוכה על סמל האפליקציה › שרתים, או "החלף שרת" בתוך האתר.</string>
+    <string name="settings_title">הגדרות</string>
+    <string name="last_used">שימוש אחרון</string>
+    <string name="version_line">SmplWise Arx גרסה %1$s</string>
+
+    <string name="action_open">פתח</string>
+    <string name="action_edit">עריכה</string>
+    <string name="action_move_up">הזז למעלה</string>
+    <string name="action_move_down">הזז למטה</string>
+    <string name="action_delete">מחיקה</string>
+    <string name="save">שמור</string>
+    <string name="cancel">ביטול</string>
+    <string name="ok">אישור</string>
+    <string name="add_anyway">הוסף בכל זאת</string>
+    <string name="save_anyway">שמור בכל זאת</string>
+    <string name="checking">בודק את השרת…</string>
+
+    <string name="delete_title">מחיקת שרת</string>
+    <string name="delete_message">למחוק את "%1$s" מהרשימה?</string>
+
+    <string name="error_empty">יש להזין כתובת.</string>
+    <string name="error_not_https">זו אינה כתובת אתר. הזינו כתובת כמו site.example.com.</string>
+    <string name="error_credentials">אין לכלול שם משתמש או סיסמה בכתובת.</string>
+    <string name="error_host">שם השרת אינו תקין.</string>
+    <string name="error_port">מספר הפורט אינו תקין.</string>
+    <string name="error_url">הכתובת אינה תקינה.</string>
+    <string name="error_duplicate">השרת הזה כבר ברשימה.</string>
+
+    <string name="warn_unreachable">לא ניתן להגיע לשרת כרגע (אין חיבור, או שהכתובת שגויה). אפשר להוסיף אותו בכל זאת ולנסות מאוחר יותר.</string>
+    <string name="warn_not_arx">השרת ענה, אבל לא נמצאה בו גישה מרחוק של SmplWise Arx בכתובת הזו (קוד %1$d). בדקו את הכתובת, או שהגישה מרחוק כבויה בשרת.</string>
+    <string name="warn_not_arx_body">השרת ענה, אבל לא נמצאה בו גישה מרחוק של SmplWise Arx בכתובת הזו. בדקו את הכתובת, או שהגישה מרחוק כבויה בשרת.</string>
+
+    <string name="open_unknown_title">קישור לשרת שאינו ברשימה</string>
+    <string name="open_unknown_message">הקישור מוביל לכתובת הזו, שאינה באף שרת ברשימה:</string>
+    <string name="open_unknown_warning">הוסף רק אם אתה מכיר את מי שמפעיל את השרת.</string>
+
+    <string name="shortcut_servers_short">שרתים</string>
+    <string name="shortcut_servers_long">רשימת השרתים</string>
+
+    <!-- app lock -->
+    <string name="lock_title">נעילת האפליקציה</string>
+    <string name="lock_hint">בפתיחה, ואחרי זמן מחוץ לאפליקציה, נדרשים טביעת אצבע, זיהוי פנים או קוד הנעילה של הטלפון.</string>
+    <string name="lock_after">נעילה אחרי</string>
+    <string name="lock_after_title">לנעול אחרי זמן מחוץ לאפליקציה</string>
+    <string name="lock_immediately">מיד</string>
+    <string name="lock_one_minute">דקה</string>
+    <string name="lock_minutes">%1$d דקות</string>
+    <string name="lock_one_hour">שעה</string>
+    <string name="lock_unavailable">כדי להשתמש בנעילה צריך להגדיר בטלפון נעילת מסך (קוד, תבנית, סיסמה או טביעת אצבע).</string>
+    <string name="lock_unavailable_off">בטלפון כבר לא מוגדרת נעילת מסך, ולכן נעילת האפליקציה כובתה. אפשר להפעיל אותה שוב במסך השרתים אחרי שמגדירים נעילת מסך.</string>
+    <string name="lock_enable_prompt">הפעלת נעילת האפליקציה</string>
+    <string name="lock_disable_prompt">כיבוי נעילת האפליקציה</string>
+    <string name="lock_prompt_title">פתיחת SmplWise Arx</string>
+    <string name="lock_locked">האפליקציה נעולה</string>
+    <string name="lock_message">אמתו את זהותכם כדי להמשיך.</string>
+    <string name="lock_unlock">פתיחה</string>
+
+    <!-- the site -->
+    <string name="exit_title">לצאת מ־SmplWise Arx?</string>
+    <string name="exit_hint">אפשר גם לעבור לשרת אחר.</string>
+    <string name="exit_button">יציאה</string>
+    <string name="first_open_hint">להחלפת שרת: התפריט של המשתמש › החלף שרת</string>
+    <string name="got_it">הבנתי</string>
+    <string name="choose_file">בחירת קובץ</string>
+    <string name="no_app_for_link">אין בטלפון אפליקציה שיכולה לפתוח את הקישור.</string>
+    <string name="download_started">ההורדה התחילה; היא תופיע בהורדות של הטלפון.</string>
+    <string name="download_saved">הקובץ נשמר.</string>
+    <string name="download_failed">ההורדה נכשלה.</string>
+    <string name="download_too_large">הקובץ גדול מדי לשמירה מתוך האפליקציה (עד 25MB).</string>
+    <string name="download_unsupported">אי אפשר להוריד את הקובץ הזה באפליקציה בגרסת רכיב התצוגה של הטלפון. עדכנו את Android System WebView מחנות האפליקציות.</string>
+
+    <!-- error screen -->
+    <string name="retry">נסה שוב</string>
+    <string name="servers_button">שרתים</string>
+    <string name="error_offline_title">אין חיבור לאינטרנט</string>
+    <string name="error_offline">הטלפון לא מחובר לרשת. בדקו Wi-Fi או נתונים סלולריים ונסו שוב.</string>
+    <string name="error_not_found_title">השרת לא נמצא</string>
+    <string name="error_not_found">הכתובת לא נמצאה, או שהגישה מרחוק כבויה בשרת. בדקו את הכתובת ברשימת השרתים.</string>
+    <string name="error_timeout_title">השרת לא עונה</string>
+    <string name="error_timeout">לא התקבלה תשובה מהשרת. ייתכן שהוא כבוי או שהחיבור אליו איטי.</string>
+    <string name="error_tls_title">החיבור אינו מאובטח</string>
+    <string name="error_tls">אישור האבטחה של השרת אינו תקין, ולכן החיבור נחסם. פנו למי שמנהל את השרת.</string>
+    <string name="error_server_title">השרת אינו זמין כרגע</string>
+    <string name="error_server">השרת או החיבור אליו מחזירים שגיאה. נסו שוב בעוד כמה דקות.</string>
+    <string name="error_scope_title">השרת הפנה לכתובת אחרת</string>
+    <string name="error_scope">השרת הפנה את האפליקציה לאתר אחר, שאינו חלק משרת זה. הכתובת לא נפתחה באפליקציה.</string>
+    <string name="error_other_title">לא ניתן לפתוח את השרת</string>
+    <string name="error_other">משהו השתבש בטעינה. נסו שוב.</string>
+</resources>
