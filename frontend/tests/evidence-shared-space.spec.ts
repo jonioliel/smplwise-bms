@@ -145,7 +145,7 @@ test.describe.serial('shared space: the hall on two floors, wider upstairs (CR-0
     await page.goto('about:blank');
     await page.goto(`/?design=a#/explore/floors/${ids.f0}/edit`);
     await page.locator(`${ed} [data-publish]`).click({ timeout: 20000 });
-    await expect(page.locator(`${ed} [data-geom-shared-pending]`)).toContainText('כולל שינויים באולם המשותף', { timeout: 15000 });
+    await expect(page.locator(`${ed} [data-geom-shared-pending]`)).toContainText('כולל שינויים בחלל המשותף', { timeout: 15000 });
     await expect(page.locator(`${ed} [data-geom-shared-pending]`)).toContainText('שינוי אחד');
     await shot(page, '03-floor0-publish-dialog');
     await page.locator(`${ed} [data-geom-publish]`).click();

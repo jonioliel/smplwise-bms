@@ -1230,7 +1230,7 @@ export class ExplorePlanEditor extends LitElement {
     const fate: Record<string, string> = { member: 'משותף - נשאר במקומו', drop_duplicate: 'עותק כפול - יוסר', kept: 'מוצב גם במקום אחר בקומה של החדר - נשאר, לא משותף' };
     const removeFloor = p ? p.other_floor.name : '';
     return html`<sw-dialog open heading="הפוך לחלל משותף" subheading=${d.zone.name} data-share-dialog @close=${() => (this.shareDlg = null)}>
-      <div class="note">חדר אחד ששייך לשתי קומות (כמו אולם בגובה כפול): הוא נשמר פעם אחת, מוצג שלם בשתי הקומות, ואפשר לערוך אותו משתיהן.</div>
+      <div class="note">חלל משותף הוא חדר אחד ששייך לשתי קומות (חלל בגובה כפול): כל קומה שומרת את המתאר והקירות שלה, התוכן נשמר פעם אחת, מוצג בשתי הקומות ואפשר לערוך אותו משתיהן.</div>
       ${d.floors.length
         ? html`<sw-field label="הקומה השנייה"><select data-share-floor @change=${(e: Event) => this.pickShareFloor((e.target as HTMLSelectElement).value)}>${d.floors.map((f) => html`<option value=${f.floor_id} ?selected=${f.floor_id === d.floorId}>${bidi(f.name)}</option>`)}</select></sw-field>`
         : d.busy ? nothing : html`<div class="err">אין בבניין קומה נוספת שמותר לך לערוך.</div>`}
@@ -1282,7 +1282,7 @@ export class ExplorePlanEditor extends LitElement {
         <div class="note">משותף עם ${(s.floors ?? []).map((f) => bidi(f.name)).join(', ')}: החדר מוצג שלם גם שם.</div>
         ${b.permissions.structure ? (s.floors ?? []).map((f) => html`<sw-button size="sm" variant="ghost" data-zone-unshare=${f.floor_id} ?disabled=${this.zoneBusy} @click=${() => this.unshare(z, f.floor_id)}>בטל שיתוף עם ${bidi(f.name)}</sw-button>`) : nothing}</div>`;
     }
-    return b.permissions.structure ? html`<div class="btns"><sw-button size="sm" icon="floor" data-zone-share ?disabled=${this.zoneBusy} title="חדר ששייך לשתי קומות, כמו אולם בגובה כפול" @click=${() => this.openShare(z)}>הפוך לחלל משותף</sw-button></div>` : nothing;
+    return b.permissions.structure ? html`<div class="btns"><sw-button size="sm" icon="floor" data-zone-share ?disabled=${this.zoneBusy} title="חדר ששייך לשתי קומות - חלל בגובה כפול" @click=${() => this.openShare(z)}>הפוך לחלל משותף</sw-button></div>` : nothing;
   }
 
   /** "חלל משותף · השינוי יופיע גם בקומה X" on the selected item of a shared room (either floor). */
@@ -1300,7 +1300,7 @@ export class ExplorePlanEditor extends LitElement {
     const cam = a?.resource_type === 'camera';
     // B1: an anchor inside a shared room that is not a member stays on its floor; the editor offers to add it
     const member = a ? (a.room_candidate
-      ? html`<div class="shared-hint" data-share-candidate><sw-icon name="floor" size=${14}></sw-icon>${cam ? 'מצלמה בתוך האולם שאינה משותפת - הוסף?' : 'התקן בתוך האולם שאינו משותף - הוסף?'}
+      ? html`<div class="shared-hint" data-share-candidate><sw-icon name="floor" size=${14}></sw-icon>${cam ? 'מצלמה בתוך החלל המשותף שאינה חברה בו - הוסף?' : 'התקן בתוך החלל המשותף שאינו חבר בו - הוסף?'}
           ${can ? html`<sw-button size="sm" variant="ghost" data-share-member-add ?disabled=${this.zoneBusy} @click=${() => this.setShareMember(a, a.room_candidate!, true)}>הוסף לחלל המשותף</sw-button>` : nothing}</div>`
       : (a.shared_member || a.shared) && can
         ? html`<div class="btns"><sw-button size="sm" variant="ghost" data-share-member-remove ?disabled=${this.zoneBusy} @click=${() => this.setShareMember(a, a.shared_member ?? a.shared!.zone_id, false)}>הסר מהחלל המשותף</sw-button></div>`

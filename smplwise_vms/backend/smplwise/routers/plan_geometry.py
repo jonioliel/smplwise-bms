@@ -307,7 +307,7 @@ def geometry_diff(version_id: str, principal: Principal = Depends(current_princi
     return {"diff": pg.diff(old, doc),
             "issues": [i for i in pg.validate(doc, plan_catalog.item_index(conn)) if not i["structural"]] + store.anchor_issues(conn, v["floor_id"], doc),
             "counts": pg.counts(doc), "published_counts": pg.counts(old) if old is not None else None,
-            # CR-009: "כולל שינויים באולם המשותף (קומה -1)" - what the publish of this floor also publishes there
+            # CR-009: "כולל שינויים בחלל המשותף (קומה -1)" - what the publish of this floor also publishes there
             "shared_pending": shared_spaces.shared_pending(conn, v["floor_id"], can_write=_can_publish_home(conn, principal),
                                                            can_name=lambda fid: floor_reach(conn, principal, fid) is not None) if _is_editor_version(conn, v) else []}
 

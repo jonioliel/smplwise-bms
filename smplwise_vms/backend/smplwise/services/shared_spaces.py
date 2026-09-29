@@ -1076,7 +1076,7 @@ def plan_shared_publish(conn: sqlite3.Connection, floor_id: str, *, can_write: C
 
 def shared_pending(conn: sqlite3.Connection, floor_id: str, *, can_write: Callable[[str], bool] | None = None, can_name: Callable[[str], bool] | None = None,
                    validate: bool = True) -> list[dict[str, Any]]:
-    """The publish dialog's line "כולל שינויים באולם המשותף (קומה -1)": per home floor, how many of the room's items
+    """The publish dialog's line "כולל שינויים בחלל המשותף (קומה -1)": per home floor, how many of the room's items
     publishing this floor would publish there. Never raises (an invalid room is reported by the publish itself)."""
     try:
         planned = plan_shared_publish(conn, floor_id, can_write=can_write, validate=validate)
