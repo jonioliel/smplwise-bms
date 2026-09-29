@@ -154,7 +154,8 @@ WIDE = [{"x": 0.15, "y": 0.15}, {"x": 0.65, "y": 0.15}, {"x": 0.65, "y": 0.75}, 
 
 def _wide(settings) -> dict[str, Any]:
     """The owner's hall as it really is: wider at the upper level. Floor 3 draws its own, wider outline with walls along it
-    (and a second drawing of the court's top wall inside); floor 2 has the tribune's upper rows outside the court."""
+    (and a second drawing of the court's top wall inside); floor 2 has the tribune's upper rows outside the court -
+    explicitly the hall's (`shared_space_id`, re-review N3) - and a locker under the overhang on its own level."""
     w = _world(settings)
     c = w["c"]
     z = c.get(f"/api/v1/floors/{w['f3']}/zones").json()["zones"][0]
@@ -163,7 +164,9 @@ def _wide(settings) -> dict[str, Any]:
     walls = [WALL("u1", [[0.15, 0.15], [0.65, 0.15]]), WALL("u2", [[0.65, 0.15], [0.65, 0.75]]), WALL("court-copy", [[0.2, 0.2], [0.6, 0.2]]), WALL("o3", [[0.8, 0.1], [0.8, 0.9]])]
     assert _save(c, w["v3"], g3, walls=walls, openings=[DOOR("du", "u2", 0.5)]).status_code == 200
     g2 = _draft(c, w["v2"])["doc"]
-    assert _save(c, w["v2"], g2, objects=[*g2["objects"], OBJ("rows-up", [0.4, 0.7], "tribune.stepped", size={"w_m": 6, "d_m": 1.5, "h_m": 1.0}, params={"rows": 3})]).status_code == 200
+    assert _save(c, w["v2"], g2, objects=[*g2["objects"], OBJ("rows-up", [0.4, 0.7], "tribune.stepped", size={"w_m": 6, "d_m": 1.5, "h_m": 1.0}, params={"rows": 3},
+                                                              shared_space_id=w["hall"]),
+                                          OBJ("locker", [0.62, 0.3], "chair.basic")]).status_code == 200
     return w
 
 
@@ -271,6 +274,43 @@ def test_the_upper_floor_reads_the_halls_content_with_both_outlines_computed_nev
     assert next(z for z in m2["zones"] if z["id"] == w["hall"])["shared"]["role"] == "home"
 
 
+def test_re_review_n3_the_home_floors_own_items_under_the_overhang_stay_its_own(settings):
+    """Re-review N3: shared content is explicit, not geometry. An object floor 2 draws on its own level under the upper
+    outline (a locker under the tribune) is neither attached to floor 3, nor writable or deletable from it, nor
+    published by floor 3's publish; the tribune's upper rows carrying `shared_space_id` are the hall's."""
+    w = _wide(settings)
+    c, f2 = w["c"], w["f2"]
+    _share(w)
+    _publish(c, w["v2"])
+    _publish(c, w["v3"])
+    g = _draft(c, w["v3"])
+    ids = {o["id"] for o in g["doc"]["objects"] if "shared" in o}
+    assert f"{f2}:rows-up" in ids and f"{f2}:locker" not in ids
+    assert not any(o["id"] == f"{f2}:locker" for o in c.get(f"/api/v1/plan-versions/{w['v3']}/geometry").json()["doc"]["objects"])
+    mark = {"zone_id": w["hall"], "home_floor_id": f2}
+    rev2 = _draft(c, w["v2"])["geometry"]["revision"]
+    # an edit of it sent from floor 3 is an "addition" of an id floor 2 already has: refused, nothing written
+    doc = dict(g["doc"])
+    doc["objects"] = [*doc["objects"], OBJ(f"{f2}:locker", [0.62, 0.35], shared=mark)]
+    r = _put(c, w["v3"], doc, g["geometry"]["revision"])
+    assert r.status_code == 422 and r.json()["code"] == "shared_id_taken"
+    # listing it as deleted does nothing
+    doc = dict(_draft(c, w["v3"])["doc"], shared_deleted=[f"{f2}:locker"])
+    assert _put(c, w["v3"], doc, _draft(c, w["v3"])["geometry"]["revision"]).status_code == 200
+    home = _draft(c, w["v2"])
+    assert home["geometry"]["revision"] == rev2 and any(o["id"] == "locker" for o in home["doc"]["objects"])
+    # floor 2 moves its locker in its draft: floor 3's publish counts nothing and publishes nothing of it
+    objs = [dict(o, position=[0.63, 0.25]) if o["id"] == "locker" else o for o in home["doc"]["objects"]]
+    assert _save(c, w["v2"], objects=objs).status_code == 200
+    assert c.get(f"/api/v1/plan-versions/{w['v3']}/geometry/diff").json()["shared_pending"] == []
+    assert c.post(f"/api/v1/plan-versions/{w['v3']}/geometry/publish").json()["shared_published"] == []
+    assert next(o for o in _published(c, w["v2"])["objects"] if o["id"] == "locker")["position"] == [0.62, 0.3]
+    # a bad shared_space_id is refused by the structure check
+    g2 = _draft(c, w["v2"])["doc"]
+    bad = [dict(o, shared_space_id=7) if o["id"] == "locker" else o for o in g2["objects"]]
+    assert _save(c, w["v2"], objects=bad).status_code == 422
+
+
 def test_a_misplaced_placement_warns_to_check_the_alignment(settings):
     w = _wide(settings)
     c = w["c"]
@@ -307,6 +347,7 @@ def test_an_edit_from_the_upper_floor_lands_in_the_home_draft_and_only_inside_th
     assert home["geometry"]["revision"] == rev2 + 1
     objs = {o["id"]: o for o in home["doc"]["objects"]}
     assert objs["trib"]["position"] == [0.5, 0.35] and objs["trib"]["rotation_deg"] == 10 and "shared" not in objs["bench"]
+    assert objs["bench"]["shared_space_id"] == w["hall"], "re-review N3: drawn under the upper level from floor 3 - explicitly the hall's"
     with w["app"].state.db.connection() as conn:
         det = json.loads(conn.execute("SELECT details_json FROM audit_log WHERE action = 'geometry.shared.edit'").fetchone()[0])
         assert det["from_floor_id"] == w["f3"] and det["zone_ids"] == [w["hall"]] and det["changed"] == 1 and det["added"] == 1

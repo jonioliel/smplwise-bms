@@ -302,12 +302,15 @@ def _region(region: Any) -> list[list[dict[str, float]]]:
     return [region] if region and isinstance(region[0], dict) else [p for p in region or [] if p]
 
 
-def room_subset(doc: dict[str, Any], region: Any) -> dict[str, list[dict[str, Any]]]:
+def room_subset(doc: dict[str, Any], region: Any, zone_id: str | None = None) -> dict[str, list[dict[str, Any]]]:
     """The items of a home document inside the room, in home coordinates with their own ids. Room walls (wholly
     inside) and their openings are editable; the inside pieces of a wall that crosses the outline are read-only copies
     ("<id>#<n>", `_clip` = the piece) with the openings whose centre falls on them. Objects, labels: by their position;
     same-floor connectors wholly inside and the derived connectors of included objects; circuits and groups whose
-    members are all included. Every item carries `_readonly` (bool); nothing is copied from the document by reference."""
+    members are all included. Every item carries `_readonly` (bool); nothing is copied from the document by reference.
+    Re-review N3: the region's FIRST outline (the home outline) holds content by geometry; the other outlines (the upper
+    level brought home) only hold an item that carries `shared_space_id` == `zone_id` - the home floor's own items under
+    the overhang, on its own level (a storage room under the tribune), stay its own."""
     from . import plan_geometry as pg
 
     dims = doc.get("dimensions") or {}
@@ -316,6 +319,11 @@ def room_subset(doc: dict[str, Any], region: Any) -> dict[str, list[dict[str, An
     polys = [poly_px(p, w, h) for p in _region(region)]
     poly = polys[0]  # walls are clipped to the room's own outline on this floor; content may lie in any outline
     ptol = POINT_TOL_M / scale
+
+    def member(item: dict[str, Any], pts: list[Pt], tol: float) -> bool:
+        if all(near(q, poly, tol) for q in pts):
+            return True
+        return zone_id is not None and item.get("shared_space_id") == zone_id and all(any(near(q, p, tol) for p in polys) for q in pts)
     out: dict[str, list[dict[str, Any]]] = {c: [] for c in MARKED_COLLECTIONS}
     by_wall: dict[str, list[dict[str, Any]]] = {}
     for o in doc.get("openings") or []:
@@ -353,12 +361,12 @@ def room_subset(doc: dict[str, Any], region: Any) -> dict[str, list[dict[str, An
     included: set[str] = set()
     for o in doc.get("objects") or []:
         if isinstance(o, dict) and isinstance(o.get("id"), str) and isinstance(o.get("position"), list) and len(o["position"]) == 2 and _num(o["position"][0]) and _num(o["position"][1]):
-            if any(near((float(o["position"][0]) * w, float(o["position"][1]) * h), p, ptol) for p in polys):
+            if member(o, [(float(o["position"][0]) * w, float(o["position"][1]) * h)], ptol):
                 out["objects"].append({**copy.deepcopy(o), "_readonly": False})
                 included.add(o["id"])
     for lb in doc.get("labels") or []:
         if isinstance(lb, dict) and isinstance(lb.get("id"), str) and isinstance(lb.get("position"), list) and len(lb["position"]) == 2 and _num(lb["position"][0]) and _num(lb["position"][1]):
-            if any(near((float(lb["position"][0]) * w, float(lb["position"][1]) * h), p, ptol) for p in polys):
+            if member(lb, [(float(lb["position"][0]) * w, float(lb["position"][1]) * h)], ptol):
                 out["labels"].append({**copy.deepcopy(lb), "_readonly": False})
     ctol = WALL_TOL_M / scale
     for c in doc.get("connectors") or []:
@@ -370,7 +378,7 @@ def room_subset(doc: dict[str, Any], region: Any) -> dict[str, list[dict[str, An
             continue
         pl = c.get("polyline")
         if isinstance(pl, list) and len(pl) >= 2 and all(isinstance(p, list) and len(p) == 2 and _num(p[0]) and _num(p[1]) for p in pl) \
-                and all(any(near((float(p[0]) * w, float(p[1]) * h), q, ctol) for q in polys) for p in pl):
+                and member(c, [(float(p[0]) * w, float(p[1]) * h) for p in pl], ctol):
             out["connectors"].append({**copy.deepcopy(c), "_readonly": False})
     for coll in ("circuits", "groups"):
         for k in doc.get(coll) or []:
@@ -576,7 +584,7 @@ def _mirror_content(conn: sqlite3.Connection, s: Share, hv: "HomeView", place: P
         if hit is not None:
             return copy.deepcopy(hit[0]), copy.deepcopy(hit[1])
     level_ids, default_level = _level_ids(hv.doc)
-    sub = room_subset(hv.doc, region_of(conn, s, place))
+    sub = room_subset(hv.doc, region_of(conn, s, place), s.zone_id)
     for coll in ("walls", "openings"):
         sub[coll] = []  # two-outline model: each floor's walls bound the hall at that floor and stay its own
     if not circuits:
@@ -762,8 +770,16 @@ def _clean(i: dict[str, Any]) -> str:
     return json.dumps(_canon({k: v for k, v in i.items() if k not in ("shared", "far")}), sort_keys=True, ensure_ascii=False)
 
 
-def _item_inside(coll: str, item: dict[str, Any], doc: dict[str, Any], region: list[list[dict[str, float]]]) -> bool:
-    """Membership of one item in home coordinates (the same rule as room_subset): inside any outline of the room."""
+def _item_inside(coll: str, item: dict[str, Any], doc: dict[str, Any], region: list[list[dict[str, float]]], zone_id: str | None = None) -> bool:
+    """Membership of one item in home coordinates (the same rule as room_subset): inside the home outline, or inside
+    another outline of the room when it carries `shared_space_id` == `zone_id` (re-review N3)."""
+    if _where(coll, item, doc, region) == "home":
+        return True
+    return zone_id is not None and item.get("shared_space_id") == zone_id and _where(coll, item, doc, region) == "other"
+
+
+def _where(coll: str, item: dict[str, Any], doc: dict[str, Any], region: list[list[dict[str, float]]]) -> str | None:
+    """"home" (inside the home outline), "other" (inside another outline of the room only) or None."""
     from . import plan_geometry as pg
 
     dims = doc.get("dimensions") or {}
@@ -773,15 +789,23 @@ def _item_inside(coll: str, item: dict[str, Any], doc: dict[str, Any], region: l
     try:
         if coll in ("objects", "labels"):
             p = item.get("position")
-            return any(near((float(p[0]) * w, float(p[1]) * h), poly, POINT_TOL_M / scale) for poly in polys)
-        if coll in ("walls", "connectors"):
+            pts = [(float(p[0]) * w, float(p[1]) * h)]
+            tol = POINT_TOL_M / scale
+        elif coll in ("walls", "connectors"):
             thick = item.get("thickness_m") if coll == "walls" and _num(item.get("thickness_m")) else pg.DEFAULT_WALL_THICKNESS_M
             tol = max(float(thick), WALL_TOL_M) / scale
             pts = [(float(p[0]) * w, float(p[1]) * h) for p in item.get("polyline") or []]
-            return len(pts) >= 2 and all(any(near(q, poly, tol) for poly in polys) for q in pts)
+            if len(pts) < 2:
+                return None
+        else:
+            return None  # openings, circuits and groups are judged by what they reference (plan_edits)
     except (TypeError, ValueError, IndexError):
-        return False
-    return False  # openings, circuits and groups are judged by what they reference (plan_edits)
+        return None
+    if all(near(q, polys[0], tol) for q in pts):
+        return "home"
+    if all(any(near(q, poly, tol) for poly in polys) for q in pts):
+        return "other"
+    return None
 
 
 def plan_edits(conn: sqlite3.Connection, floor_id: str, sent_shared: dict[str, dict[str, list[dict[str, Any]]]], echoed: dict[str, dict[str, Any]],
@@ -827,7 +851,7 @@ def plan_edits(conn: sqlite3.Connection, floor_id: str, sent_shared: dict[str, d
             place = Placement(s.placement, _dims_of(hv.version, hv.doc), _dims_of(other_v))
             places[s.zone_id] = place
             regions[s.zone_id] = region_of(conn, s, place)
-            for coll, items in project(room_subset(hv.doc, regions[s.zone_id]), s, place, level_ids, default_level).items():
+            for coll, items in project(room_subset(hv.doc, regions[s.zone_id], s.zone_id), s, place, level_ids, default_level).items():
                 if coll not in view:
                     continue
                 for it in items:
@@ -906,7 +930,9 @@ def plan_edits(conn: sqlite3.Connection, floor_id: str, sent_shared: dict[str, d
                     if cur is None and isinstance(sw, str) and sw and sw not in room_switches and not (can_control is not None and can_control(sw)):
                         raise SharedEditError(422, "shared_switch", "מעגל חדש בחלל המשותף יכול להשתמש רק במפסק שכבר משמש מעגל בחלל, או במפסק שמותר לך להפעיל.",
                                               id=new.get("id"))
-                elif not _item_inside(coll, back, doc, regions[s.zone_id]):
+                elif coll in ("objects", "labels", "connectors") and _where(coll, back, doc, regions[s.zone_id]) == "other":
+                    back["shared_space_id"] = s.zone_id  # re-review N3: drawn or moved under the upper level from here - explicitly the room's
+                elif not _item_inside(coll, back, doc, regions[s.zone_id], s.zone_id):
                     raise SharedEditError(422, "shared_outside", "אפשר לערוך מכאן רק את מה שבתוך החלל המשותף; את השאר ערוך בקומה שלו.", id=new.get("id"), collection=coll)
                 if back["id"] in index:
                     items[index[back["id"]]] = back
@@ -939,9 +965,9 @@ def commit_edits(conn: sqlite3.Connection, planned: list[dict[str, Any]], actor_
 
 # ---------------------------------------------------------------- publishing from the other floor (owner answer 1, 2026-09-29)
 
-def _content(doc: dict[str, Any], region: list[list[dict[str, float]]]) -> dict[str, dict[str, dict[str, Any]]]:
+def _content(doc: dict[str, Any], region: list[list[dict[str, float]]], zone_id: str | None = None) -> dict[str, dict[str, dict[str, Any]]]:
     """The room's content items of a home document by collection and id (derived connectors left out: regenerated)."""
-    sub = room_subset(doc, region)
+    sub = room_subset(doc, region, zone_id)
     return {c: {i["id"]: {k: v for k, v in i.items() if not k.startswith("_")} for i in sub.get(c, []) if not (c == "connectors" and i.get("_readonly"))}
             for c in SHARED_COLLECTIONS}
 
@@ -980,7 +1006,7 @@ def plan_shared_publish(conn: sqlite3.Connection, floor_id: str, *, can_write: C
         for s in hs:
             place = Placement(s.placement, _dims_of(v, draft), _dims_of(other_v))
             region = region_of(conn, s, place)
-            dc, pc = _content(draft, region), _content(pub, region)
+            dc, pc = _content(draft, region, s.zone_id), _content(pub, region, s.zone_id)
             # what this publish changes: a room item of the draft that differs, or one deleted from the draft (an item
             # moved out of the room in the draft keeps its published place: not a change here)
             live = {c: {i.get("id") for i in draft.get(c) or [] if isinstance(i, dict)} for c in SHARED_COLLECTIONS}
@@ -1372,7 +1398,7 @@ def mirrored_circuits(conn: sqlite3.Connection, floor_id: str, mode: str, at: st
         hv = home_view(conn, s.home_floor_id, mode, at)
         if hv.doc is None:
             continue
-        for k in room_subset(hv.doc, region_of(conn, s, Placement(s.placement, _dims_of(hv.version, hv.doc), _dims_of(store_editor_or_published(conn, s.floor_id)))))["circuits"]:
+        for k in room_subset(hv.doc, region_of(conn, s, Placement(s.placement, _dims_of(hv.version, hv.doc), _dims_of(store_editor_or_published(conn, s.floor_id)))), s.zone_id)["circuits"]:
             out.append({**{kk: v for kk, v in k.items() if not kk.startswith("_")}, "id": ns(s.home_floor_id, k["id"]),
                         "member_ids": [ns(s.home_floor_id, m) for m in k.get("member_ids") or []]})
     return out

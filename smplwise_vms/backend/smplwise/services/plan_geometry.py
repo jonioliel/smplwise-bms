@@ -402,6 +402,7 @@ def _check_fields(coll: str, i: int, item: dict[str, Any], issues: list[dict[str
         opt("external_ids", lambda v: isinstance(v, dict))
     elif coll == "labels":
         req("text", isinstance(item.get("text"), str))
+        opt("shared_space_id", lambda v: isinstance(v, str) and 1 <= len(v) <= 64)  # CR-009 re-review N3: explicit shared-space content
         req("position", _finite_point(item.get("position")))
         req("level_id", isinstance(item.get("level_id"), str))
         req("size", _num(item.get("size")))
@@ -411,6 +412,7 @@ def _check_fields(coll: str, i: int, item: dict[str, Any], issues: list[dict[str
         tags()
     elif coll == "objects":
         req("item_id", isinstance(item.get("item_id"), str))
+        opt("shared_space_id", lambda v: isinstance(v, str) and 1 <= len(v) <= 64)  # CR-009 re-review N3: explicit shared-space content
         req("level_id", isinstance(item.get("level_id"), str))
         req("position", _finite_point(item.get("position")))
         req("rotation_deg", _num(item.get("rotation_deg")))
@@ -433,6 +435,7 @@ def _check_fields(coll: str, i: int, item: dict[str, Any], issues: list[dict[str
         opt("label", lambda v: isinstance(v, str))
     elif coll == "connectors":
         req("kind", isinstance(item.get("kind"), str))
+        opt("shared_space_id", lambda v: isinstance(v, str) and 1 <= len(v) <= 64)  # CR-009 re-review N3: explicit shared-space content
         req("level_from", isinstance(item.get("level_from"), str))
         opt("level_to", lambda v: isinstance(v, str))
         req("floor_ids", isinstance(item.get("floor_ids"), list) and all(isinstance(f, str) for f in item["floor_ids"]))
