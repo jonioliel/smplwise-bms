@@ -65,14 +65,14 @@ def _client_host(request: Request) -> str:
     return request.client.host if request.client else ""
 
 
-def resolve_principal(request: Request, settings: Settings) -> Principal:
+def resolve_principal(request: Request, settings: Settings, offline: bool = False) -> Principal:
     headers = request.headers
     if is_remote(request):
         # CR-008: the /arx channel never takes identity from headers (the middleware already dropped them) and never
         # uses the developer identity; only an Arx session cookie or an HA bearer token validated against HA core
         from .services import ha_user_auth
 
-        return ha_user_auth.remote_principal(request, settings)
+        return ha_user_auth.remote_principal(request, settings, offline=offline)
     if settings.dev_user and not settings.in_addon:
         username = headers.get(DEV_HEADER) or settings.dev_user
         return Principal(user_id=f"dev-{username}", username=username, display_name=username, source="dev")
@@ -158,14 +158,17 @@ def maybe_bootstrap(conn: sqlite3.Connection, settings: Settings, principal: Pri
 
 def _principal(request: Request, conn: sqlite3.Connection) -> Principal:
     settings = settings_of(request)
-    from .services import ha_user_auth
+    if is_remote(request):
+        from .services.ha_user_auth import NeedsUnlock
 
-    if is_remote(request) and not ha_user_auth.remote_resolves_in_memory(request, settings):
-        # a bearer token not yet validated goes to Home Assistant (a WebSocket round trip) and writes its own audit
-        # rows: never under this request's write lock (SW_DB_IO_GUARD finding, 2026-09-29). A live cookie session or a
-        # cached token answers from memory and keeps the lock (no second turn in the write queue).
-        with unlocked(conn):
-            principal = resolve_principal(request, settings)
+        try:
+            # from memory only while this request holds its write lock: a live session or a recently validated token
+            principal = resolve_principal(request, settings, offline=True)
+        except NeedsUnlock:
+            # Home Assistant must be asked (a new, stale or re-validated token) or a refusal row written: never under
+            # the request's write lock - the audit's own connection would wait for this very lock (2026-09-29 review)
+            with unlocked(conn):
+                principal = resolve_principal(request, settings)
     else:
         principal = resolve_principal(request, settings)
     touch_user(conn, principal)
