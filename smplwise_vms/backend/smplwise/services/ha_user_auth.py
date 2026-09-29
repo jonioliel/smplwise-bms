@@ -1046,6 +1046,27 @@ async def _recheck_async(websocket: Any, settings: Settings, s: RemoteSession) -
         s.recheck_lock.release()
 
 
+def remote_resolves_in_memory(request: Any, settings: Settings) -> bool:
+    """True when remote_principal will answer from memory - a live, not stale cookie session, or a bearer session
+    validated less than BEARER_CACHE_S ago - so the caller need not give up its write lock for it (auth._principal).
+    False when it may ask Home Assistant (a new or stale token: _bearer_session, _recheck_sync) or write refusal rows.
+    A peek only: it touches neither the session's last use nor anything else. Mirrors remote_principal's branches."""
+    now = time.time()
+    sid = session_id_of(settings, request)
+    if sid:
+        with STORE._lock:
+            s = STORE._sessions.get(sid)
+        if s is not None and s.token_exp > now:
+            return not _stale(s)
+    token = bearer_of(request)
+    if not token:
+        return True  # no credential: refused at once, nothing to call
+    with STORE._lock:
+        bsid = STORE._by_token.get(token_hash(token))
+        b = STORE._sessions.get(bsid) if bsid else None
+    return bool(b is not None and b.token_exp > now and now - b.last_validated < BEARER_CACHE_S)
+
+
 def remote_principal(request: Any, settings: Settings) -> Principal:
     s = STORE.get(session_id_of(settings, request))
     if s is not None and _stale(s):

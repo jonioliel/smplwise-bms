@@ -16,7 +16,7 @@ from .audit import audit
 from .config import Settings
 import time
 
-from .db import Database, database_of, get_setting, new_id, now_iso, permission_revision, read_mode, release, set_setting
+from .db import Database, commit_now, database_of, get_setting, new_id, now_iso, permission_revision, read_mode, release, set_setting, unlocked
 from .errors import unauthenticated
 from .rbac import Principal
 from .remote_channel import is_remote
@@ -151,15 +151,23 @@ def maybe_bootstrap(conn: sqlite3.Connection, settings: Settings, principal: Pri
             grant(w)
         # a deferred read transaction keeps the snapshot it started with: restart it so this very request
         # (typically the first /me of the admin) already sees the new binding
-        conn.execute("COMMIT")
-        conn.execute("BEGIN")
+        commit_now(conn)
     else:
         grant(conn)
 
 
 def _principal(request: Request, conn: sqlite3.Connection) -> Principal:
     settings = settings_of(request)
-    principal = resolve_principal(request, settings)
+    from .services import ha_user_auth
+
+    if is_remote(request) and not ha_user_auth.remote_resolves_in_memory(request, settings):
+        # a bearer token not yet validated goes to Home Assistant (a WebSocket round trip) and writes its own audit
+        # rows: never under this request's write lock (SW_DB_IO_GUARD finding, 2026-09-29). A live cookie session or a
+        # cached token answers from memory and keeps the lock (no second turn in the write queue).
+        with unlocked(conn):
+            principal = resolve_principal(request, settings)
+    else:
+        principal = resolve_principal(request, settings)
     touch_user(conn, principal)
     maybe_bootstrap(conn, settings, principal, getattr(request.state, "correlation_id", None))
     return principal

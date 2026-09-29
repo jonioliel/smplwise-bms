@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Request
 
 from .. import __version__
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
-from ..db import lock_stats, permission_revision, unlocked
+from ..db import database_of, lock_stats, permission_revision, unlocked
 from ..mode import describe as describe_mode
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import autosync, events_cache, events_derive, events_ingest, ha_client, ha_sync, stream_codecs
@@ -22,8 +22,12 @@ def _write_lock_view(conn: sqlite3.Connection, principal: Principal) -> dict[str
     """The write-lock counters for everyone; who held the lock (request paths with other users' entity / camera ids)
     only for a system.configure holder."""
     stats = lock_stats()
+    db = database_of(conn)
+    if db is not None:
+        stats["gate"] = db.gate.state()  # held / waiting right now
     if not authorize(conn, principal, "system.configure", INSTALLATION).allowed:
         stats.pop("max_hold_by", None)
+        stats.pop("max_wait_by", None)
         stats.pop("last_busy", None)
     return stats
 

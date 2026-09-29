@@ -584,6 +584,70 @@ def test_csrf_bearer_only_requests_are_exempt(arx):
     assert r.status_code not in (401, 403), r.text
 
 
+def test_bearer_validation_runs_without_the_write_lock(arx, monkeypatch):
+    """SW_DB_IO_GUARD finding (2026-09-29): a write-mode remote request validated its bearer token against Home
+    Assistant (a WebSocket round trip) while holding the request's write lock."""
+    import sqlite3
+
+    arx.flag("u-owner")
+    arx.bind("u-owner", "system_admin")
+    token = arx.token(arx.owner)
+    real_validate = hua.validate_token
+    free: list[bool] = []
+
+    async def validate(settings, tok, ip):
+        probe = sqlite3.connect(arx.app.state.db.path, timeout=0, isolation_level=None)
+        try:
+            probe.execute("BEGIN IMMEDIATE")
+            probe.execute("ROLLBACK")
+            free.append(True)
+        except sqlite3.OperationalError:
+            free.append(False)
+        finally:
+            probe.close()
+        return await real_validate(settings, tok, ip)
+
+    monkeypatch.setattr(hua, "validate_token", validate)
+    r = _rotate_signing_key(TestClient(arx.app), Authorization=f"Bearer {token}")
+    assert r.status_code not in (401, 403, 500), r.text
+    assert free == [True]
+
+
+def test_only_an_unvalidated_bearer_gives_up_the_write_lock(arx, monkeypatch):
+    """Re-review (perf): a cookie session or a cached bearer answers from memory - no second turn in the write queue."""
+    from smplwise import auth as auth_mod
+
+    arx.flag("u-owner")
+    arx.bind("u-owner", "system_admin")
+    real_unlocked = auth_mod.unlocked
+    turns: list[str] = []
+
+    def spy(conn):
+        turns.append("unlocked")
+        return real_unlocked(conn)
+
+    monkeypatch.setattr(auth_mod, "unlocked", spy)
+    token = arx.token(arx.owner)
+    bearer = TestClient(arx.app)
+    assert _rotate_signing_key(bearer, Authorization=f"Bearer {token}").status_code not in (401, 403, 500)
+    assert turns == ["unlocked"]  # first sight of the token: validated against HA without the lock
+    assert _rotate_signing_key(bearer, Authorization=f"Bearer {token}").status_code not in (401, 403, 500)
+    assert turns == ["unlocked"]  # cached: no second turn
+    assert arx.login(arx.owner).status_code == 200
+    turns.clear()
+    r = _rotate_signing_key(arx.client, **ORIGIN)
+    assert r.status_code not in (401, 403, 500), r.text
+    assert turns == []  # the cookie session answers from memory
+    # a stale cookie session (0.1.142 hardening) is re-checked against HA before the request: that must not hold the lock
+    for s in list(hua.STORE._sessions.values()):
+        s.last_validated -= 10 * 3600
+        s.recheck_after = 0.0
+    turns.clear()
+    r = _rotate_signing_key(arx.client, **ORIGIN)
+    assert r.status_code not in (403, 500), r.text
+    assert turns == ["unlocked"]
+
+
 def test_rotation_ends_the_previous_session(arx):
     arx.flag("u-viewer")
     assert arx.login(arx.viewer).status_code == 200
