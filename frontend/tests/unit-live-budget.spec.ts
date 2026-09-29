@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { RELEASE_MS, SNAPSHOT_REFRESH_MS, allocateLive, effectiveLiveCap } from '../src/api/live-budget';
+import { REFUSED_MS, RELEASE_MS, SNAPSHOT_REFRESH_MIN_MS, allocateLive, effectiveLiveCap, snapshotRefreshMs } from '../src/api/live-budget';
 
 // The wall's live-stream budget (hotfix for the remote cap): pure functions, Node only.
 
@@ -12,11 +12,17 @@ test.describe('effective cap', () => {
     expect(effectiveLiveCap(8, 16)).toBe(8);
     expect(effectiveLiveCap(32, 16)).toBe(16);
     expect(effectiveLiveCap(8, null)).toBe(8);
-    expect(effectiveLiveCap(0, null)).toBe(8);
+    expect(effectiveLiveCap(16, 16)).toBe(16);
+    expect(effectiveLiveCap(0, null)).toBe(16);
   });
   test('the timings the owner asked for', () => {
     expect(RELEASE_MS).toBe(5000);
-    expect(SNAPSHOT_REFRESH_MS).toBe(10000);
+    expect(SNAPSHOT_REFRESH_MIN_MS).toBe(10000);
+    expect(REFUSED_MS).toBe(10000);
+    // the server caches a snapshot for snapshots.max_age_s: never refresh faster than that, never faster than 10 s
+    expect(snapshotRefreshMs(5)).toBe(10000);
+    expect(snapshotRefreshMs(60)).toBe(60000);
+    expect(snapshotRefreshMs(Number.NaN)).toBe(10000);
   });
 });
 

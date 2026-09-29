@@ -17,7 +17,8 @@ import { describeError } from '../api/client';
 import type { Camera } from '../api/types';
 import { simulateStrictRows } from './wall-grid';
 import { remoteVideo } from '../api/video-policy';
-import { RELEASE_MS, SNAPSHOT_REFRESH_MS, allocateLive, effectiveLiveCap, sameSet } from '../api/live-budget';
+import { repeat } from 'lit/directives/repeat.js';
+import { REFUSED_MS, RELEASE_MS, allocateLive, effectiveLiveCap, sameSet, snapshotRefreshMs } from '../api/live-budget';
 
 /** The wall's quality choice of THIS device (`sub` = רגילה, `main` = גבוהה); unset = follow the installation setting. */
 export const WALL_QUALITY_KEY = 'sw.wall.quality';
@@ -59,13 +60,21 @@ export class LiveWall extends LitElement {
   /** Hotfix (remote live cap): the tiles that hold a live stream right now - in view (plus a tile of margin), within the
    * budget; every other tile shows its snapshot. See api/live-budget.ts. */
   @state() private liveSet: ReadonlySet<string> = new Set();
-  /** cache-buster of the snapshot-only tiles: they refresh every SNAPSHOT_REFRESH_MS (live tiles keep the minute) */
+  /** cache-buster of the snapshot-only tiles: they refresh every max(10 s, snapshots.max_age_s) - the server caches a
+   * snapshot that long - while the tab is visible (live tiles keep the minute) */
   @state() private snapBust = Date.now();
   private snapTimer: number | undefined;
+  /** the tiles inside the observed area right now (a snapshot tile out of view keeps its picture, it does not poll) */
+  private inView = new Set<string>();
+  /** N1: a tile the server refused for the cap sits out REFUSED_MS as a snapshot, and the working budget drops to what
+   * really streams (`ceiling`), so the refusal does not repeat every render */
+  private refused = new Map<string, number>();
+  private ceiling: number | undefined;
   private wanted = new Set<string>();
   private graceTimers = new Map<string, number>();
   private liveOrder: string[] = [];
-  private liveCap = 8;
+  private liveCap = 16;
+  private capNote: { live: number; of: number; where: string } | null = null;
   private io: IntersectionObserver | undefined;
   private ioMargin = -1;
   private observed = new WeakSet<Element>();
@@ -344,6 +353,8 @@ export class LiveWall extends LitElement {
       const id = (e.target as HTMLElement).dataset.cam;
       if (!id) continue;
       const timer = this.graceTimers.get(id);
+      if (e.isIntersecting) this.inView.add(id);
+      else this.inView.delete(id);
       if (e.isIntersecting) {
         if (timer !== undefined) window.clearTimeout(timer);
         this.graceTimers.delete(id);
@@ -364,22 +375,59 @@ export class LiveWall extends LitElement {
    * IntersectionObserver (very old webviews) the first tiles within the budget stream, as before. */
   private reallocate() {
     if (!this.cams) return;
-    const next = typeof IntersectionObserver === 'undefined' ? new Set(this.liveOrder.slice(0, this.liveCap)) : allocateLive(this.liveOrder, this.wanted, this.liveSet, this.liveCap);
+    // an id that is no longer on the wall (another selection, a count change) must not keep a slot or a wish
+    const onWall = new Set(this.liveOrder);
+    for (const id of [...this.wanted]) if (!onWall.has(id)) this.wanted.delete(id);
+    const cap = Math.min(this.liveCap, this.ceiling ?? this.liveCap);
+    const wanted = new Set([...this.wanted].filter((id) => !this.refused.has(id)));
+    const next = typeof IntersectionObserver === 'undefined'
+      ? new Set(this.liveOrder.filter((id) => !this.refused.has(id)).slice(0, cap))
+      : allocateLive(this.liveOrder, wanted, this.liveSet, cap);
     if (!sameSet(next, this.liveSet)) this.liveSet = next;
+  }
+
+  /** N1: the relay refused this tile's stream for the remote cap (player-status code `remote_live_cap`). */
+  private onPlayerStatus(e: Event) {
+    const d = (e as CustomEvent<{ code?: string }>).detail;
+    if (d?.code !== 'remote_live_cap') return;
+    const el = e.composedPath().find((n) => n instanceof HTMLElement && n.dataset?.cam) as HTMLElement | undefined;
+    const id = el?.dataset.cam;
+    if (!id || this.refused.has(id)) return;
+    // what really streams now: the live set without this tile (a tile refused earlier already left the set)
+    this.ceiling = Math.min(this.ceiling ?? Infinity, Math.max(1, this.liveSet.size - (this.liveSet.has(id) ? 1 : 0)));
+    this.refused.set(id, window.setTimeout(() => {
+      this.refused.delete(id);
+      if (!this.refused.size) this.ceiling = undefined; // try the full budget again
+      this.reallocate();
+    }, REFUSED_MS));
+    this.reallocate();
+  }
+
+  private restartSnapTimer() {
+    window.clearInterval(this.snapTimer);
+    this.snapTimer = window.setInterval(() => {
+      if (!document.hidden) this.snapBust = Date.now(); // N3: no polling behind a hidden tab
+    }, snapshotRefreshMs(Number(this.settings?.['snapshots.max_age_s'] ?? 60)));
   }
 
   /** The stream the wall plays: this device's choice, else the installation's (`remote.wall_profile` on the remote
    * channel, `media.wall_profile` on LAN / Ingress - unchanged there). */
   private wallProfile(): 'sub' | 'main' {
-    if (this.stream !== 'auto') return this.stream;
+    return this.stream !== 'auto' ? this.stream : this.defaultProfile();
+  }
+
+  /** The installation's choice for this channel (what "ברירת מחדל" follows). */
+  private defaultProfile(): 'sub' | 'main' {
     if (remoteVideo()) return this.settings?.['remote.wall_profile'] === 'main' ? 'main' : 'sub';
     return this.settings?.['media.wall_profile'] ?? 'sub';
   }
 
+  /** 'auto' (ברירת מחדל) forgets this device's choice and follows the installation setting again. */
   private setQuality(value: string) {
-    this.stream = value === 'main' ? 'main' : 'sub';
+    this.stream = value === 'main' ? 'main' : value === 'sub' ? 'sub' : 'auto';
     try {
-      localStorage.setItem(WALL_QUALITY_KEY, this.stream);
+      if (this.stream === 'auto') localStorage.removeItem(WALL_QUALITY_KEY);
+      else localStorage.setItem(WALL_QUALITY_KEY, this.stream);
     } catch {
       /* private mode: the choice lasts until the page closes */
     }
@@ -388,8 +436,10 @@ export class LiveWall extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     void this.load();
-    this.posterTimer = window.setInterval(() => (this.posterBust = Date.now()), 60_000);
-    this.snapTimer = window.setInterval(() => (this.snapBust = Date.now()), SNAPSHOT_REFRESH_MS);
+    this.posterTimer = window.setInterval(() => {
+      if (!document.hidden) this.posterBust = Date.now();
+    }, 60_000);
+    this.restartSnapTimer();
   }
 
   disconnectedCallback() {
@@ -402,6 +452,10 @@ export class LiveWall extends LitElement {
     this.observed = new WeakSet();
     for (const t of this.graceTimers.values()) window.clearTimeout(t);
     this.graceTimers.clear();
+    for (const t of this.refused.values()) window.clearTimeout(t);
+    this.refused.clear();
+    this.ceiling = undefined;
+    this.inView.clear();
     this.wanted.clear();
     this.ro?.disconnect();
     window.removeEventListener('resize', this.measure);
@@ -426,6 +480,7 @@ export class LiveWall extends LitElement {
       this.cams = list.cameras.filter((c) => c.enabled);
       this.canManage = list.can_sync;
       this.settings = settings;
+      this.restartSnapTimer();
       let stored = 0;
       try {
         stored = Number(localStorage.getItem(COUNT_KEY) ?? 0);
@@ -595,15 +650,20 @@ export class LiveWall extends LitElement {
     const gapPx = window.innerWidth < 768 ? 8 : WALL_GAP;
     // hotfix: on the remote channel the budget is min(installation cap, remote.max_live_streams of this sign-in)
     const remoteCap = remoteVideo() ? Number(this.settings?.['remote.max_live_streams'] ?? 16) : null;
-    const cap = effectiveLiveCap(this.settings?.['media.max_live_sessions'] ?? 8, remoteCap);
+    const cap = effectiveLiveCap(this.settings?.['media.max_live_sessions'] ?? 16, remoteCap);
     const streamable = (c: Camera) => c.status !== 'offline' && c.can_view_live !== false;
     this.liveOrder = shown.filter(streamable).map((c) => c.id);
     this.liveCap = cap;
     const profile = this.wallProfile();
     const transport: Transport = effectiveTransport(this.settings);
+    // the toolbar note when the BUDGET (not the window) turns tiles into snapshots, naming the setting that binds
+    const mediaCap = Number(this.settings?.['media.max_live_sessions'] ?? 16);
+    this.capNote = this.liveOrder.length > cap
+      ? { live: cap, of: this.liveOrder.length, where: remoteCap != null && remoteCap <= mediaCap ? 'גישה מרחוק' : 'מדיה' }
+      : null;
     return html`
       <div class="grid ${fit ? 'fit' : ''}" style="--cols:${cols};--tile:${fit ? `${fit.tile}px` : 'auto'}" data-wall-cols=${cols} ?data-wall-cols-manual=${!!this.colsOverride}>
-        ${shown.map((c) => {
+        ${repeat(shown, (c) => c.id, (c) => {
           const isLive = streamable(c) && this.liveSet.has(c.id);
           const span = Math.min(spanOf(c), gridCols);
           // A span-N tile is N columns wide at ONE row's height (see bestFit()): its box is exactly as tall as a
@@ -625,8 +685,9 @@ export class LiveWall extends LitElement {
             profile=${profile}
             transport=${transport}
             .encoding=${c.encoding ?? null}
-            poster=${c.status === 'offline' ? '' : snapshotUrl(c.id, streamable(c) && !isLive ? this.snapBust : this.posterBust)}
+            poster=${c.status === 'offline' ? '' : snapshotUrl(c.id, streamable(c) && !isLive && this.inView.has(c.id) ? this.snapBust : this.posterBust)}
             ?compact=${n >= 9}
+            @player-status=${(e: Event) => this.onPlayerStatus(e)}
             fit=${span > 1 ? 'fill' : 'contain'}
             style=${`grid-column: span ${span}${ratio ? `; aspect-ratio: ${ratio}` : ''}`}
             @click=${() => navigate(`/live/cameras/${c.id}`)}></sw-camera-tile>`;
@@ -636,7 +697,7 @@ export class LiveWall extends LitElement {
       <div class="note" data-wall-cols-row style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">עמודות:
         ${[0, 1, 2, 3, 4, 5, 6].map((n) => html`<button class="colbtn ${this.colsOverride === n ? 'on' : ''}" data-wall-cols-set=${n} @click=${() => this.setCols(n)}>${n === 0 ? 'אוטו' : n}</button>`)}
       </div>
-      <div class="note">${shown.length} מתוך ${cams.length} מצלמות · פרופיל ${profile === 'sub' ? 'משני' : 'ראשי'} · תעבורה ${transport} · מכסת זרמים ${cap}${shown.length > cap ? ` — מעבר למכסה מוצג צילום בלבד` : ''} · צילומים מתרעננים כל דקה (אריחים בלי זרם חי: כל 10 שניות)</div>
+      <div class="note">${shown.length} מתוך ${cams.length} מצלמות · פרופיל ${profile === 'sub' ? 'משני' : 'ראשי'} · תעבורה ${transport} · מכסת זרמים ${cap}${shown.length > cap ? ` — מעבר למכסה מוצג צילום בלבד` : ''} · צילומים מתרעננים כל דקה</div>
     `;
   }
 
@@ -663,16 +724,18 @@ export class LiveWall extends LitElement {
   render() {
     const api = isApi();
     const total = api ? this.cams?.length ?? 0 : demoWall.length;
+    const body = api ? this.renderApi() : this.renderDemo(); // first: it works out the budget note the toolbar shows
     return html`
       <sw-page heading="כל המצלמות" subheading="${total} מצלמות${api ? '' : ` · תצוגה: ${VIEWS.find((v) => v.id === this.view)?.label} · נתוני הדגמה`}" wide>
         ${api ? nothing : html`<sw-field slot="actions"><select aria-label="תצוגה" @change=${(e: Event) => (this.view = (e.target as HTMLSelectElement).value)}>${VIEWS.map((v) => html`<option value=${v.id} ?selected=${v.id === this.view}>${v.label}</option>`)}</select></sw-field>`}
-        <sw-field slot="actions"><select aria-label="איכות" data-wall-quality title="איכות הקיר במכשיר הזה (נשמרת בדפדפן)" @change=${(e: Event) => this.setQuality((e.target as HTMLSelectElement).value)}>${(['sub', 'main'] as const).map((p) => html`<option value=${p} ?selected=${this.wallProfile() === p}>איכות: ${p === 'sub' ? 'רגילה' : 'גבוהה'}</option>`)}</select></sw-field>
+        <sw-field slot="actions"><select aria-label="איכות" data-wall-quality title="איכות הקיר במכשיר הזה (נשמרת בדפדפן)" @change=${(e: Event) => this.setQuality((e.target as HTMLSelectElement).value)}><option value="auto" ?selected=${this.stream === 'auto'}>איכות: ברירת מחדל (${this.stream === 'auto' ? (this.wallProfile() === 'sub' ? 'רגילה' : 'גבוהה') : this.defaultProfile() === 'sub' ? 'רגילה' : 'גבוהה'})</option>${(['sub', 'main'] as const).map((p) => html`<option value=${p} ?selected=${this.stream === p}>איכות: ${p === 'sub' ? 'רגילה' : 'גבוהה'}</option>`)}</select></sw-field>
+        ${api && this.capNote ? html`<span slot="actions" class="note" data-wall-cap-note>מוצגות ${this.capNote.live} מצלמות חיות מתוך ${this.capNote.of} · המכסה: הגדרות › ${this.capNote.where}</span>` : nothing}
         <div slot="actions" class="layouts" role="group" aria-label="פריסה">
           ${COUNTS.map((n) => html`<button class=${n === this.count && !this.cameras ? 'on' : ''} @click=${() => { this.setCount(n); if (this.cameras) navigate('/live/wall'); }} aria-pressed=${n === this.count && !this.cameras}>${n}</button>`)}
         </div>
         ${api && this.canManage && this.cams?.length ? html`<sw-button slot="actions" variant="ghost" icon="grid" data-wall-settings-open title="סדר הופעה ורוחב עמודות" @click=${() => this.openSettings()}>סידור הקיר</sw-button>` : nothing}
         <sw-button slot="actions" variant="ghost" icon="expand" data-open-kiosk title="פותח את הקיוסק בלשונית חדשה" @click=${() => this.openKiosk()}>קיוסק</sw-button>
-        ${api ? this.renderApi() : this.renderDemo()}
+        ${body}
         ${this.renderSettingsDialog()}
       </sw-page>
     `;
