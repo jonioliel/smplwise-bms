@@ -48,6 +48,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterator, TypeVar
 
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
+GUARDED_MIGRATIONS = ("0036", "0037")  # verified by their objects at start-up, whatever schema_migrations says (Database.ensure_migration_objects)
 BUSY_TIMEOUT_S = 10.0  # how long a writer waits for the write lock before "database is locked"
 SLOW_HOLD_S = float(os.environ.get("SW_DB_SLOW_HOLD_S", "3"))  # a longer write-lock hold is logged with its holder
 # the janitor truncates the WAL file once it grew past this (at a quiet moment); also SQLite's journal_size_limit
@@ -409,6 +410,33 @@ class Database:
         finally:
             conn.close()
         return applied
+
+    def ensure_migration_objects(self) -> list[str]:
+        """Review M2: the start-up schema guard for migrations whose numbers other branches also used. A database that
+        recorded 0036 / 0037 in schema_migrations from another numbering never runs ours, yet the alarm tables,
+        `ha_entities.config_entry_id` and `user_prefs` must exist whatever the table of applied versions says. Checks the
+        objects themselves and creates what is missing (idempotent: CREATE TABLE IF NOT EXISTS, the column only when
+        absent); returns what it created, which the caller logs as a warning. Run after `migrate()`."""
+        added: list[str] = []
+        conn = self._open()
+        try:
+            tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()}
+            for prefix in GUARDED_MIGRATIONS:
+                for file in sorted(MIGRATIONS_DIR.glob(f"{prefix}_*.sql")):
+                    sql = file.read_text(encoding="utf-8")
+                    missing = [t for t in re.findall(r"^CREATE TABLE (?:IF NOT EXISTS )?(\w+)", sql, flags=re.M) if t not in tables]
+                    if not missing:
+                        continue
+                    body = re.sub(r"^ALTER TABLE .*?;", "", sql, flags=re.M | re.S)  # the column is checked below
+                    body = re.sub(r"^CREATE (TABLE|INDEX) (?!IF NOT EXISTS)", r"CREATE \1 IF NOT EXISTS ", body, flags=re.M)
+                    conn.executescript(body)
+                    added.extend(missing)
+            if "ha_entities" in tables and "config_entry_id" not in {r[1] for r in conn.execute("PRAGMA table_info(ha_entities)").fetchall()}:
+                conn.execute("ALTER TABLE ha_entities ADD COLUMN config_entry_id TEXT")
+                added.append("ha_entities.config_entry_id")
+        finally:
+            conn.close()
+        return added
 
     @contextmanager
     def connection(self, mode: str = "write", label: str | None = None, durable: bool = True) -> Iterator[sqlite3.Connection]:

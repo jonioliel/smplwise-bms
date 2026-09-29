@@ -83,6 +83,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     applied = app.state.db.migrate()
     if applied:
         log.info("applied migrations %s", applied)
+    try:  # review M2: objects of 0036 (alarm) and 0037 (user_prefs) exist whatever schema_migrations recorded
+        guarded = app.state.db.ensure_migration_objects()
+        if guarded:
+            log.warning("schema guard created objects missing despite the recorded migrations: %s", guarded)
+    except Exception:  # noqa: BLE001 - never block the start
+        log.exception("could not check the alarm / user_prefs schema")
     try:  # CR-009 re-review: a dev database that ran an earlier shape of the shared-spaces migration gets what it lacks
         from .services import shared_spaces as shared_spaces_svc
 
