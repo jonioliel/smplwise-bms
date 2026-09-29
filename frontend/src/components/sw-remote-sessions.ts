@@ -32,6 +32,11 @@ export class SwRemoteSessions extends LitElement {
     void this.load();
   }
 
+  protected willUpdate(changed: Map<string, unknown>) {
+    // the settings screen learns whether the viewer administers the installation after its first render
+    if (changed.has('scope') && this.hasUpdated) void this.load();
+  }
+
   async load() {
     try {
       const r = await listRemoteSessions(this.scope);
