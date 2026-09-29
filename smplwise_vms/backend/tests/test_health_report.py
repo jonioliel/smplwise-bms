@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from smplwise.main import create_app
 
-EXPECTED = ["db", "storage", "nvr", "go2rtc", "ha_sync", "bridge", "events_ingest", "events_derive", "discovery", "thumbnails", "exports", "sessions", "backups"]
+EXPECTED = ["db", "storage", "nvr", "go2rtc", "ha_sync", "bridge", "events_ingest", "events_derive", "discovery", "video_webrtc", "thumbnails", "exports", "sessions", "backups"]
 
 
 def test_health_report_shape_statuses_and_permissions(settings):

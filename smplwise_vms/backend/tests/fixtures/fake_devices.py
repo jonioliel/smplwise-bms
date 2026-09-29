@@ -47,6 +47,15 @@ class FakeDevices:
                 # the NTP server by address (192.0.2.x, RFC 5737 documentation range) and an odd port value; delay_s holds
                 # every answer that long (outside the lock), for the deadline and parallel-request tests
                 "ntp_address": None, "ntp_port": "123", "delay_s": 0.0,
+                # CR-008 D7: GET /ISAPI/Streaming/channels (N01 main, N02 sub) in the lab document's shape
+                # (private-evidence/nvr-probes: <Video> with videoCodecType, SVC, SmartCodec). `streaming` False answers
+                # notSupport; `encodings` is every channel's default, `encodings_by_channel` {channel: {"main": {...}}}
+                # overrides one. Keys: codec, profile (H264Profile / H265Profile), svc, bframes (a synthetic <BFrame>
+                # element - the lab firmware has none), width, height.
+                "streaming": True,
+                "encodings": {"main": {"codec": "H.265", "svc": False, "width": 2560, "height": 1440},
+                              "sub": {"codec": "H.264", "svc": None, "width": 640, "height": 360}},
+                "encodings_by_channel": {},
             }
             self.go2rtc: dict[str, Any] = {"up": True, "auth": True, "version": "1.9.9-fake", "streams": {}, "foreign": ["intercom_door_1", "intercom_door_2"]}
             self.ha: dict[str, Any] = {"up": True, "status": 200, "version": "2026.9.3", "time_zone": "Asia/Jerusalem", "drift_s": 0}
@@ -92,6 +101,9 @@ class FakeDevices:
                 f"<Track><id>{c}01</id><Channel>{c}01</Channel><Description>{desc}</Description><SrcDescriptor><SrcChannel>{c}</SrcChannel></SrcDescriptor></Track>"
                 f"<Track><id>{c}02</id><Channel>{c}02</Channel><SrcDescriptor><SrcChannel>{c}</SrcChannel></SrcDescriptor></Track>"
                 for c in chans if c not in n["no_tracks"]) + "</TrackList>")
+        if path == "/ISAPI/Streaming/channels" and n["streaming"]:
+            return self._ok(request, f"<StreamingChannelList version=\"1.0\" {NS}>" + "".join(
+                self._streaming_channel(c, kind) for c in chans for kind in ("main", "sub")) + "</StreamingChannelList>")
         if path == "/ISAPI/System/time":
             if n["time_error"]:
                 return httpx.Response(500, text="error", request=request)
@@ -101,6 +113,20 @@ class FakeDevices:
                      else "<addressingFormatType>hostname</addressingFormatType><hostName>pool.ntp.org</hostName>")
             return self._ok(request, f"<NTPServer version=\"2.0\" {NS}><id>1</id>{where}<portNo>{n['ntp_port']}</portNo><synchronizeInterval>1440</synchronizeInterval></NTPServer>")
         return httpx.Response(404, text=_xml(f"<ResponseStatus {NS}><statusString>Invalid Operation</statusString><subStatusCode>notSupport</subStatusCode></ResponseStatus>"), request=request)
+
+    def _streaming_channel(self, channel: int, kind: str) -> str:
+        e = {**self.nvr["encodings"][kind], **(self.nvr["encodings_by_channel"].get(channel) or self.nvr["encodings_by_channel"].get(str(channel)) or {}).get(kind, {})}
+        codec = e.get("codec") or "H.264"
+        profile = f"<{'H265Profile' if '265' in codec else 'H264Profile'}>{e['profile']}</{'H265Profile' if '265' in codec else 'H264Profile'}>" if e.get("profile") else ""
+        svc = f"<SVC><enabled>{'true' if e['svc'] else 'false'}</enabled><SVCMode>manual</SVCMode></SVC>" if e.get("svc") is not None else ""
+        bframes = f"<BFrame><enabled>{'true' if e['bframes'] else 'false'}</enabled></BFrame>" if e.get("bframes") is not None else ""
+        sid = f"{channel}0{1 if kind == 'main' else 2}"
+        return (f'<StreamingChannel version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema"><id>{sid}</id><channelName>{sid}</channelName><enabled>true</enabled>'
+                "<Transport><ControlProtocolList><ControlProtocol><streamingTransport>RTSP</streamingTransport></ControlProtocol></ControlProtocolList></Transport>"
+                f"<Video><enabled>true</enabled><dynVideoInputChannelID>{channel}</dynVideoInputChannelID><videoCodecType>{codec}</videoCodecType>"
+                f"<videoResolutionWidth>{e.get('width', 1920)}</videoResolutionWidth><videoResolutionHeight>{e.get('height', 1080)}</videoResolutionHeight>"
+                f"<videoQualityControlType>VBR</videoQualityControlType><maxFrameRate>2500</maxFrameRate><GovLength>50</GovLength>{profile}{svc}{bframes}"
+                "<snapShotImageType>JPEG</snapShotImageType><SmartCodec><enabled>false</enabled></SmartCodec></Video></StreamingChannel>")
 
     @staticmethod
     def _ok(request: httpx.Request, body: str) -> httpx.Response:

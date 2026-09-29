@@ -1,4 +1,4 @@
-Source: docs/changes/CR-008-ARX-REMOTE-APP.md @ d00d4e6d9713ac2932375137bfea0e7cf126c1c1
+Source: docs/changes/CR-008-ARX-REMOTE-APP.md @ pending
 
 > תרגום של `docs/changes/CR-008-ARX-REMOTE-APP.md`; המקור באנגלית קובע במקרה של סתירה.
 
@@ -462,6 +462,32 @@ D11-D14 לא משנות את D1 (נתיב `/arx`, אותו מקור) או את D
   מקור, קוד חד-פעמי שקשור ל-`client_id`). לליבת ה-HA המדומה יש מצב `pkce=False` עם ה-400 המדויק של HA; בדיקות:
   `test_older_ha_without_pkce_sign_in_and_exchange`, ‏`test_ha_with_pkce_refuses_a_verifier_without_a_challenge`, ומקרה
   ה-Playwright ‏"older HA: sign-in succeeds after the PKCE fallback".
+
+### 8.2 צעד 6 נבנה (ענף `pilot/CR008-video-policy`, ‏2026-09-29)
+
+- **מדיניות הנגן** (`frontend/src/api/video-policy.ts`, `sw-live-player`): בערוץ המרוחק (`/me.channel`) כל נגן חי
+  עובר על סולם - `remote.default_profile` ב-WebRTC; אחר כך `remote.mse_fallback` מופעל ← אותו פרופיל ב-MSE, כבוי ←
+  הפרופיל השני ב-WebRTC ולבסוף ההודעה "הזרם הראשי אינו ניתן לפענוח ב-WebRTC - ראה הגדרות › וידאו". שלב WebRTC נשפט
+  לפי סטטיסטיקות ה-RTP שלו (סקירה M2): בייטים שמגיעים בלי פריים מפוענח במשך ה-GOP של הזרם + 3 שניות (6-20 שניות; 10
+  שניות כשה-GOP לא ידוע, 20 עם smart codec) הם כשל פענוח; כשעוד לא הגיעו בייטים ממשיכים לחכות עד 30 שניות ואז זה כשל
+  חיבור; `disconnected` חולף לפני הפריים הראשון אינו כשל. זרם שהרישום מסמן כלא-בטוח ל-WebRTC מדולג. כש-go2rtc למטה
+  מוצג "שרת הווידאו אינו זמין" בלי לעבור על הסולם. התג מראה "מנסה main·WebRTC…" בזמן הניסיון ו-`main·WebRTC` /
+  `sub·WebRTC` / `main·MSE` ברגע שזה מתנגן; הנפילות מוכרזות על התמונה. LAN / Ingress ללא שינוי (אין הגדרה
+  `video.lan_profile`; לא נוספה).
+- **לאישור הבעלים (הערה ל-D7):** רק תצוגת המצלמה הבודדת מתחילה ב-`remote.default_profile`; קיר המצלמות ואריחי המפה
+  שומרים מרחוק על הפרופיל שלהם (`media.wall_profile` של הקיר, ברירת מחדל `sub`; אריח המפה `sub`) ועוברים על אותו
+  סולם WebRTC-תחילה - כמה זרמים ראשיים בבת אחת על קישור סלולרי יהיו כבדים.
+- **בדיקת קידוד** (סטייה מ"מידע הזרם של go2rtc" ב-§3c): נקרא מה-NVR במקום - `GET /ISAPI/Streaming/channels` (קריאה
+  בלבד) בזמן הגילוי, נשמר לכל מצלמה ב-`capabilities_json.encoding` (codec, פרופיל, SVC, smart codec, B-frames היכן
+  שנחשף, הכרעה ok / no / unknown). בדיקת המעבדה מ-2026-09-14 (עשר מצלמות): לשבע יש זרם ראשי H.264 עם **SVC מופעל**
+  וזרם משני H.264 בלי SVC; שלוש הן H.265 בשני הזרמים. יחד עם עובדת המעבדה של D7 (WebRTC פענח רק את הפרופיל המשני)
+  H.264 + SVC נחשב לא-בטוח ל-WebRTC לצד H.265, MJPEG ו-B-frames - הסקה מהמתאם, לאישור בבדיקת המעבדה. הקושחה
+  במעבדה לא חושפת שדה B-frames. קריאה מתוך ה-Description של track הקלטה בלבד (ב-tracks של המעבדה כתוב H.264-BP לכל
+  העשר) היא לכל היותר "unknown", לעולם לא "מתנגן" (סקירה M1). מוצג בהגדרות › גישה מרחוק (שורת סיכום ← פירוט בבריאות), בכרטיס `video_webrtc`
+  בדוח הבריאות (מזהיר רק כש-`remote_access` מופעל והזרם הראשי קודם), ביכולות המצלמה, בשלב ה-NVR באשף ההתקנה (הנחיה
+  בעברית; עם דגם Hikvision - נתיב תפריט הווב של ה-NVR, טרם אומת על NVR המעבדה), וב-`/health.video_codecs` (ספירות).
+- בדיקות: `tests/test_stream_codecs.py` ‏(backend), `tests/evidence-remote-video.spec.ts` ‏(Playwright, מחשב, מול
+  `tests/fixtures/setup_fake_devices.py`; ה-WebRTC / MSE של הדפדפן מדומים שם - מדיה אמיתית היא בדיקת המעבדה).
 
 ## 9. מצב הבנייה
 
