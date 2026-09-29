@@ -14,7 +14,7 @@ export type BulkScope = 'building' | 'floor' | 'area';
 /** CR-007 slice 4: covers_open / covers_stop / covers_position are the area's own "כל התריסים" group control
  * (devices-area.ts), never offered in the floor/area/building quick-actions menu (BULK_KINDS below) - the
  * same bulk path (server resolve/record/run), a different trigger. */
-export type BulkKind = 'lights_off' | 'covers_close' | 'covers_open' | 'covers_stop' | 'covers_position' | 'climate_off' | 'screens_off' | 'all_off';
+export type BulkKind = 'lights_off' | 'covers_close' | 'covers_open' | 'covers_stop' | 'covers_position' | 'climate_off' | 'screens_off' | 'all_off' | 'switches_off' | 'switches_on' | 'lights_on' | 'screens_on';
 /** "sent" (review MEDIUM 3): a record with nothing observable (cover.stop_cover and the like) is never "confirmed" -
  * accepted, and honestly reported as sent, matching the single-entity route's own "נשלח" (api/device-commands.ts). */
 export type BulkOutcome = 'queued' | 'accepted' | 'confirmed' | 'sent' | 'not_confirmed' | 'refused' | 'unknown';
@@ -34,6 +34,11 @@ export const BULK_KIND_LABEL: Record<BulkKind, string> = {
   climate_off: 'כבה מיזוג',
   screens_off: 'כבה מסכים',
   all_off: 'כבה הכל',
+  // owner 2026-09-29: the tiles' panel master control
+  switches_off: 'כבה מתגים',
+  switches_on: 'הדלק מתגים',
+  lights_on: 'הדלק תאורה',
+  screens_on: 'הדלק מסכים',
 };
 
 export const BULK_SCOPE_LABEL: Record<BulkScope, string> = { building: 'המבנה', floor: 'קומה', area: 'אזור' };
@@ -127,9 +132,12 @@ function commandId(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-export async function previewBulk(scope: BulkScope, id: string, kind: BulkKind, position?: number) {
+/** `only` (owner 2026-09-29, the tiles' panel filter / search): narrow the set to these entity ids - the server never
+ * adds one. */
+export async function previewBulk(scope: BulkScope, id: string, kind: BulkKind, position?: number, only?: string[]) {
   const q = new URLSearchParams({ scope, id, kind });
   if (position !== undefined) q.set('position', String(position));
+  if (only) q.set('only', only.join(','));
   const sentAt = Date.now();
   const p = await get<BulkPreview>(`devices/actions/preview?${q.toString()}`);
   const receivedAt = Date.now();
@@ -140,7 +148,7 @@ export async function previewBulk(scope: BulkScope, id: string, kind: BulkKind, 
 
 /** The physical request. `confirmed: true` is stated here and nowhere else: only the dialog's confirm button calls
  * it. `position` (CR-007 slice 4): covers_position's own argument, the "כל התריסים" group control. */
-export function runBulk(scope: BulkScope, id: string, kind: BulkKind, previewDigest: string, position?: number) {
+export function runBulk(scope: BulkScope, id: string, kind: BulkKind, previewDigest: string, position?: number, only?: string[]) {
   return post<BulkRecord>('devices/actions', {
     scope,
     id,
@@ -150,6 +158,7 @@ export function runBulk(scope: BulkScope, id: string, kind: BulkKind, previewDig
     expires_at: new Date(serverNow() + BULK_TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z'),
     preview_digest: previewDigest,
     ...(position !== undefined ? { position } : {}),
+    ...(only ? { only } : {}),
   });
 }
 

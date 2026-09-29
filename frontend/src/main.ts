@@ -5,3 +5,6 @@ import { bootRemote } from './arx/boot';
 
 if (REMOTE) void bootRemote();
 import './pwa/arx-pwa-prompts'; // CR-008 P3: service worker, install prompt, iOS hint, update notice
+import { installOverflowDebug } from './debug/overflow';
+
+installOverflowDebug(); // review G: `?debug=overflow` installs window.__arxOverflow() (read-only diagnostics)

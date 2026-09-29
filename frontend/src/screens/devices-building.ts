@@ -20,6 +20,33 @@ import type { BulkKind } from '../api/device-bulk';
 import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
 import { applyDevicesPrefs, DEVICES_PREFS_DEFAULT, devicesStyleTokens, loadDevicesPrefs, type DevicesPrefs } from './devices-style';
 import { DevicesLayoutController, titleOf, type LayoutGrid, type MeasuredGrid } from './devices-layout';
+import './devices-tiles-panel';
+import { ITEMS_FILTERS, type ItemsFilter } from './devices-tiles-panel';
+import { TILE_KINDS, type ItemsScope, type TileKind } from '../api/devices';
+import { TileLayoutController } from '../api/tile-layout';
+import { onRouteChange, parseRoute, pushRoute, replaceRoute } from '../router';
+
+/** The count pills' keys that open the tiles' panel (cameras and sensors are counts only). */
+const PILL_KIND: Partial<Record<keyof DeviceCounts, TileKind>> = { lights: 'lights', switches: 'switches', covers: 'covers', climate: 'climate', media: 'media', locks: 'locks' };
+
+/** The panel's deep link on the building screen (owner 2026-09-29): `#/devices/building?domain=<kind>[&floor=<id> |
+ * &area=<id>][&filter=active|inactive|unavailable]` - the hash-query convention of the other screens (router.ts). */
+export function panelFromParams(p: URLSearchParams): { kind: TileKind; scope: ItemsScope; id: string; filter: ItemsFilter } | null {
+  const kind = p.get('domain') as TileKind | null;
+  if (!kind || !TILE_KINDS.includes(kind)) return null;
+  const floor = p.get('floor');
+  const area = p.get('area');
+  const f = p.get('filter') as ItemsFilter | null;
+  return { kind, scope: area ? 'area' : floor ? 'floor' : 'building', id: area ?? floor ?? '', filter: f && ITEMS_FILTERS.includes(f) ? f : 'all' };
+}
+
+export function panelParams(kind: TileKind, scope: ItemsScope, id: string, filter: ItemsFilter): URLSearchParams {
+  const q = new URLSearchParams({ domain: kind });
+  if (scope === 'floor') q.set('floor', id);
+  if (scope === 'area') q.set('area', id);
+  if (filter !== 'all') q.set('filter', filter);
+  return q;
+}
 
 /** Refetches are throttled, not debounced: the first push starts a window, every push inside it rides the same
  * refetch, and a push during the fetch itself queues exactly one more (loadAgain). A screen full of sensors updating
@@ -177,7 +204,8 @@ const BUILDING_GLASS = css`
   }
   /* the tree panel: pill rows */
   :host([data-devices-style='glass']) .split {
-    grid-template-columns: var(--dv-tree-inline) minmax(0, 1fr);
+    /* owner 2026-09-29: a wide screen gives the tree (and its area names) more room */
+    grid-template-columns: clamp(var(--dv-tree-inline), 16vw, var(--dv-tree-inline-max, 340px)) minmax(0, 1fr);
     gap: var(--dv-gap-lg);
   }
   :host([data-devices-style='glass']) nav.tree {
@@ -336,6 +364,49 @@ const BUILDING_GLASS = css`
   }
 `;
 
+/** Owner 2026-09-29: the compact summary tiles (ui.tile_layout, `data-tile-layout` on the host) - the building's counters
+ * and the area tiles of the "אריחים" view as rectangles, icon beside the value. Every size is a `--dv-kpi-*` knob
+ * (styles/devices-themes.ts); placed after the glass and density rules so it wins over both. */
+const TILE_LAYOUT = css`
+  :host([data-tile-layout='compact']) .kpis {
+    grid-template-columns: repeat(auto-fill, minmax(var(--dv-kpi-compact-col-min), 1fr));
+    grid-auto-rows: 1fr; /* review low: every compact tile as tall as the tallest */
+    gap: var(--dv-kpi-compact-grid-gap);
+  }
+  :host([data-tile-layout='compact']) sw-kpi {
+    min-block-size: var(--dv-kpi-compact-min-block);
+    padding-block: var(--dv-kpi-compact-pad-block);
+    padding-inline: var(--dv-kpi-compact-pad-inline);
+    column-gap: var(--dv-kpi-compact-gap);
+    row-gap: 0;
+  }
+  :host([data-tile-layout='compact']) .areas {
+    grid-template-columns: repeat(auto-fill, minmax(var(--dv-kpi-compact-col-min), 1fr));
+    gap: var(--dv-kpi-compact-grid-gap);
+  }
+  :host([data-tile-layout='compact']) a.tile {
+    min-block-size: var(--dv-kpi-compact-min-block);
+    padding-block: var(--dv-kpi-compact-pad-block);
+    padding-inline: var(--dv-kpi-compact-pad-inline);
+    gap: 4px;
+  }
+  :host([data-tile-layout='compact'][data-devices-style='glass']) .tile-head > sw-icon {
+    inline-size: var(--dv-kpi-compact-icon);
+    block-size: var(--dv-kpi-compact-icon);
+    padding: calc(var(--dv-icon-ring-pad) - 2px);
+  }
+  @media (max-width: 599px) {
+    :host([data-tile-layout='compact']) .kpis,
+    :host([data-tile-layout='compact']) .areas {
+      grid-template-columns: repeat(var(--dv-kpi-compact-cols-phone), minmax(0, 1fr));
+    }
+    /* an odd last tile takes the whole row */
+    :host([data-tile-layout='compact']) .kpis > sw-kpi:last-child:nth-child(odd) {
+      grid-column: 1 / -1;
+    }
+  }
+`;
+
 function anythingOn(c: DeviceCounts): boolean {
   return c.lights_on + c.switches_on + c.covers_open + c.climate_active + c.media_on > 0;
 }
@@ -400,6 +471,13 @@ export class DevicesBuilding extends LitElement {
   private tickTimer = 0;
   /** Until when a structure_changed push is taken as the echo of this user's own manual refresh (no second fetch). */
   private manualUntil = 0;
+  /** Owner 2026-09-29: the summary tiles' shape (ui.tile_layout, resolved; `data-tile-layout` on the host). */
+  private tiles = new TileLayoutController(this);
+  /** The tiles' panel: which kind, over which scope (null = closed). Mirrors the route's `domain` / `floor` / `area`. */
+  @state() private panel: { kind: TileKind; scope: ItemsScope; id: string; name: string; filter: ItemsFilter } | null = null;
+  private offRoute: (() => void) | null = null;
+  /** The panel's history entry was pushed by this screen (Back / close go back over it). */
+  private pushedPanel = false;
 
   /** CR-007 6b: the building screen's layout (one per installation: floor cards and area tiles; system.configure edits). */
   private lay = new DevicesLayoutController(this, {
@@ -476,6 +554,58 @@ export class DevicesBuilding extends LitElement {
 
   private building(kind: BulkKind) {
     void this.dialog?.show({ scope: 'building', id: '*', name: 'המבנה', kind });
+  }
+
+  /** A scope's display name from the tree (the panel shows the server's own name once it loads). */
+  private scopeName(scope: ItemsScope, id: string): string {
+    if (scope === 'building') return 'המבנה';
+    if (id === 'unassigned') return 'ללא שיוך';
+    const t = this.tree;
+    if (scope === 'floor') return t?.floors.find((f) => f.floor_id === id)?.name ?? '';
+    for (const f of t?.floors ?? []) {
+      const a = f.areas.find((x) => x.area_id === id);
+      if (a) return a.name;
+    }
+    return '';
+  }
+
+  /** Owner 2026-09-29: a summary tile / floor chip opens the tiles' panel for its kind over its scope - written to the
+   * address (replaceRoute, no history entry), which the route listener turns into `panel`. */
+  private openPanel(kind: TileKind, scope: ItemsScope = 'building', id = '') {
+    if (this.lay.editing) return; // the layout editor owns the screen
+    this.panel = { kind, scope, id, name: this.scopeName(scope, id), filter: 'all' };
+    // review M1: a history entry of its own, so the browser's / the phone's Back closes the panel, not the screen
+    pushRoute('/devices/building', panelParams(kind, scope, id, 'all'));
+    this.pushedPanel = true;
+  }
+
+  private closePanel = () => {
+    const was = this.panel;
+    this.panel = null;
+    if (this.pushedPanel) {
+      this.pushedPanel = false;
+      history.back(); // the entry this screen pushed; the route listener sees the address without the panel
+    } else if (was && panelFromParams(parseRoute().params)?.kind === was.kind) replaceRoute('/devices/building'); // a deep link: no entry of ours - but never over an address that already moved on
+  };
+
+  /** Re-review M3: the panel leaves for another screen - the panel's own entry is REPLACED by the target, so no Back
+   * is queued behind the navigation. */
+  private onPanelNavigate = (e: CustomEvent<{ path: string; params?: URLSearchParams }>) => {
+    this.panel = null;
+    this.pushedPanel = false;
+    replaceRoute(e.detail.path, e.detail.params);
+  };
+
+  private onPanelFilter = (e: CustomEvent<ItemsFilter>) => {
+    const p = this.panel;
+    if (!p) return;
+    this.panel = { ...p, filter: e.detail };
+    replaceRoute('/devices/building', panelParams(p.kind, p.scope, p.id, e.detail));
+  };
+
+  private isOpen(kind: TileKind, scope: ItemsScope = 'building', id = ''): boolean {
+    const p = this.panel;
+    return !!p && p.kind === kind && p.scope === scope && (scope === 'building' || p.id === id);
   }
 
   static styles = [devicesStyleTokens, css`
@@ -612,7 +742,8 @@ export class DevicesBuilding extends LitElement {
     /* ---- the mockup's layout: tree panel (inline start) + floor cards */
     .split {
       display: grid;
-      grid-template-columns: 250px minmax(0, 1fr);
+      /* owner 2026-09-29: a wide screen gives the tree (and its area names) more room */
+      grid-template-columns: clamp(250px, 16vw, 320px) minmax(0, 1fr);
       gap: 16px;
       align-items: start;
     }
@@ -627,6 +758,13 @@ export class DevicesBuilding extends LitElement {
       box-shadow: var(--sw-shadow-1);
       position: sticky;
       inset-block-start: 8px;
+      /* owner 2026-09-29 ("unnecessary scrolling"): the tree never scrolls on its own unless it is itself taller than
+         the viewport - then it sticks and scrolls inside the visible height (the top bar and the page padding off) */
+      box-sizing: border-box;
+      max-block-size: calc(100dvh - var(--sw-topbar-h, 64px) - var(--sw-banner-h, 0px) - 16px); /* the view under the top bar, minus the 8 px sticky offset top and bottom */
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
     }
     .tree-row {
       display: flex;
@@ -660,13 +798,33 @@ export class DevicesBuilding extends LitElement {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    /* owner 2026-09-29 (tree rows): the name takes the row (inline-start, ellipsis only when truly out of room, the full
+       name in its title); the lit count sits in a fixed column at the inline end, then the "⋯" column - so every row
+       lines up, with or without a menu (a row without one keeps the menu's width free) */
     .tree-row .lit {
+      flex: none;
+      box-sizing: border-box;
+      inline-size: var(--dv-tree-count-w, 44px);
+      justify-content: flex-end;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
       font-variant-numeric: tabular-nums;
       display: inline-flex;
       align-items: center;
       gap: 3px;
+    }
+    .tree-row.nomenu {
+      inline-size: auto;
+      margin-inline-end: var(--dv-tree-menu-w, 30px);
+    }
+    .tree-floor .tree-row {
+      flex: 1;
+      min-inline-size: 0;
+    }
+    .tree-floor devices-bulk-menu {
+      flex: none;
+      inline-size: var(--dv-tree-menu-w, 30px);
+      justify-content: center;
     }
     .tree-row .lit.warm {
       color: var(--sw-text);
@@ -677,7 +835,6 @@ export class DevicesBuilding extends LitElement {
     .tree-floor {
       display: flex;
       align-items: center;
-      gap: 2px;
       margin-block-start: 6px;
     }
     .tree-floor .tree-row {
@@ -687,14 +844,17 @@ export class DevicesBuilding extends LitElement {
       text-transform: none;
     }
     .tree-area {
+      position: relative;
       display: flex;
       align-items: center;
-      gap: 2px;
       padding-inline-start: 10px;
     }
     .tree-area devices-bulk-menu {
       flex: 1;
       min-inline-size: 0;
+    }
+    .tree-row .nm[title] {
+      cursor: inherit;
     }
     .sdot {
       inline-size: 8px;
@@ -706,17 +866,31 @@ export class DevicesBuilding extends LitElement {
     .sdot.on {
       background: var(--sw-warning);
     }
+    /* the hover "כבה אזור" takes NO room in the row (owner 2026-09-29: an invisible button used to squeeze the names):
+       it floats over the count column, before the "⋯", while the row is hovered or focused; on a touch screen the
+       row's "⋯" carries the same action, so it is not drawn there at all */
     .quick {
+      position: absolute;
+      inset-block: 0;
+      inset-inline-end: var(--dv-tree-menu-w, 30px);
+      display: flex;
+      align-items: center;
       opacity: 0;
+      pointer-events: none;
       transition: opacity var(--sw-t-fast) var(--sw-ease);
+    }
+    .quick sw-button {
+      background: var(--dv-surface-solid, var(--sw-surface));
+      border-radius: var(--sw-r-sm);
     }
     .tree-area:hover .quick,
     .tree-area:focus-within .quick {
       opacity: 1;
+      pointer-events: auto;
     }
     @media (hover: none) {
       .quick {
-        opacity: 1;
+        display: none;
       }
     }
     .fcards {
@@ -953,7 +1127,73 @@ export class DevicesBuilding extends LitElement {
         margin-inline-start: 0;
       }
     }
-  `, BUILDING_GLASS];
+    /* owner 2026-09-29: a floor's count chips (and the floor card's lit count) open the tiles' panel for that floor */
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      font-variant-numeric: tabular-nums;
+      padding: 2px 8px;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--sw-text-2);
+    }
+    .fchips {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .fchips:empty {
+      display: none;
+    }
+    .fchips button.chip {
+      position: relative;
+      background: transparent;
+      min-block-size: 28px;
+    }
+    @media (max-width: 767px), (pointer: coarse) {
+      .fchips button.chip {
+        min-block-size: 36px;
+      }
+      .fchips button.chip::before {
+        content: '';
+        position: absolute;
+        inset-block: -4px;
+        inset-inline: 0;
+      }
+    }
+    button.chip {
+      min-block-size: 28px;
+      border-color: var(--sw-border);
+      background: var(--sw-surface);
+      cursor: pointer;
+    }
+    button.chip.warm {
+      color: var(--sw-text);
+      font-weight: var(--sw-fw-semibold);
+    }
+    button.chip:hover,
+    button.chip:focus-visible {
+      border-color: var(--sw-border-strong);
+      background: var(--sw-surface-2);
+      outline: none;
+    }
+    button.chip:focus-visible {
+      box-shadow: 0 0 0 2px var(--sw-focus, var(--sw-accent));
+    }
+    button.chip[aria-expanded='true'] {
+      border-color: var(--sw-accent);
+    }
+    @media (max-width: 767px), (pointer: coarse) {
+      button.chip {
+        min-block-size: 44px;
+        padding-inline: 10px;
+      }
+    }
+  `, BUILDING_GLASS, TILE_LAYOUT];
 
   connectedCallback() {
     super.connectedCallback();
@@ -961,6 +1201,22 @@ export class DevicesBuilding extends LitElement {
       this.prefs = p;
       applyDevicesPrefs(this, p);
       if (!this.layoutChosen) this.layout = p.defaultView;
+    });
+    // the tiles' panel follows the address (a deep link from search or the Live overview, or this screen's own tiles)
+    this.offRoute = onRouteChange((r) => {
+      if (r.segments[0] !== 'devices' || (r.segments[1] ?? 'building') !== 'building') return;
+      const want = panelFromParams(r.params);
+      if (!want) {
+        this.panel = null;
+        this.pushedPanel = false; // Back already left the panel's entry
+        return;
+      }
+      const cur = this.panel;
+      if (cur && cur.kind === want.kind && cur.scope === want.scope && cur.id === want.id) {
+        if (cur.filter !== want.filter) this.panel = { ...cur, filter: want.filter };
+        return;
+      }
+      this.panel = { ...want, name: this.scopeName(want.scope, want.id) };
     });
     if (!isApi()) {
       this.tree = DEMO;
@@ -994,6 +1250,8 @@ export class DevicesBuilding extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    this.offRoute?.();
+    this.offRoute = null;
     this.stop?.();
     this.stop = null;
     window.clearTimeout(this.timer);
@@ -1107,7 +1365,7 @@ export class DevicesBuilding extends LitElement {
         ${bulkBuilding
           ? html`<span class="bulk-buttons" data-bulk-building>
               <sw-button size="sm" icon="light" data-bulk-kind="lights_off" @click=${() => this.building('lights_off')}>כבה תאורה בלבד</sw-button>
-              <sw-button size="sm" variant="danger" icon="bolt" data-bulk-kind="all_off" @click=${() => this.building('all_off')}>כבה הכל בבניין · דורש אישור</sw-button>
+              <sw-button size="sm" variant="danger" icon="bolt" data-bulk-kind="all_off" @click=${() => this.building('all_off')}>כבה הכל בבניין</sw-button>
             </span>`
           : nothing}
       </div>
@@ -1117,10 +1375,11 @@ export class DevicesBuilding extends LitElement {
       ${this.lay.renderBar()}
       ${this.layout === 'cards' ? this.renderCards(t) : this.renderTiles(t)}
       <div class="note">${this.bulkAllowed
-        ? 'מצב ההתקנים כפי שדווח. פעולות מרוכזות (⋯ בקומה או באזור, והכפתורים למעלה) נפתחות תמיד בחלון אישור שמפרט מה יישלח; מנעולים, אזעקה ושחרור דלתות אינם נכללים לעולם. שליטה בהתקן בודד - במסך האזור.'
-        : 'תצוגה לקריאה בלבד: מצב ההתקנים כפי שדווח. שליטה בהתקן בודד - במסך האזור.'}</div>
+        ? 'מצב ההתקנים כפי שדווח. לחיצה על אריח סיכום מציגה את ההתקנים מהסוג הזה ומאפשרת לשלוט בהם. פעולות מרוכזות (⋯ בקומה או באזור, והכפתורים למעלה) נפתחות תמיד בחלון אישור שמפרט מה יישלח; מנעולים, אזעקה ושחרור דלתות אינם נכללים לעולם.'
+        : 'מצב ההתקנים כפי שדווח. לחיצה על אריח סיכום מציגה את ההתקנים מהסוג הזה; שליטה בהם לפי ההרשאות שלך.'}</div>
       ${this.bulkAllowed ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
       ${this.lay.renderPanel()}
+      <devices-tiles-panel ?open=${!!this.panel} .kind=${this.panel?.kind ?? 'lights'} .scope=${this.panel?.scope ?? 'building'} .scopeId=${this.panel?.id ?? ''} .scopeName=${this.panel?.name || this.scopeName(this.panel?.scope ?? 'building', this.panel?.id ?? '')} .filter=${this.panel?.filter ?? 'all'} @panel-close=${this.closePanel} @panel-filter=${this.onPanelFilter} @panel-changed=${() => this.scheduleReload()} @panel-navigate=${this.onPanelNavigate}></devices-tiles-panel>
     </sw-page>`;
   }
 
@@ -1170,18 +1429,19 @@ export class DevicesBuilding extends LitElement {
   }
 
   private renderTreePanel(t: DeviceTree) {
-    const lit = (c: DeviceCounts) => (c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>` : nothing);
+    // the count column is always drawn (empty without lights), so the rows line up (owner 2026-09-29)
+    const lit = (c: DeviceCounts) => (c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>` : html`<span class="lit" aria-hidden="true"></span>`);
     return html`<nav class="tree" aria-label="עץ המבנה" data-devices-tree>
-      <button class=${classMap({ 'tree-row': true, selected: this.selected === 'all' })} data-tree="all" aria-current=${this.selected === 'all' ? 'true' : 'false'} @click=${() => (this.selected = 'all')}>
-        <sw-icon name="building" size=${15}></sw-icon><span class="nm">כל המבנה</span>${lit(t.building)}
+      <button class=${classMap({ 'tree-row': true, nomenu: true, selected: this.selected === 'all' })} data-tree="all" aria-current=${this.selected === 'all' ? 'true' : 'false'} @click=${() => (this.selected = 'all')}>
+        <sw-icon name="building" size=${15}></sw-icon><span class="nm" title="כל המבנה">כל המבנה</span>${lit(t.building)}
       </button>
       ${repeat(
         t.floors,
         (f) => f.floor_id,
         (f) => html`<div class="tree-group" data-tree-floor=${f.floor_id}>
           <div class="tree-floor">
-            <button class=${classMap({ 'tree-row': true, selected: this.selected === f.floor_id })} data-tree-select=${f.floor_id} aria-current=${this.selected === f.floor_id ? 'true' : 'false'} @click=${() => (this.selected = f.floor_id)}>
-              <sw-icon name="floor" size=${14}></sw-icon><span class="nm">${bidi(f.name)}</span>${lit(f.counts)}
+            <button class=${classMap({ 'tree-row': true, nomenu: !(this.bulkAllowed && f.can_bulk), selected: this.selected === f.floor_id })} data-tree-select=${f.floor_id} aria-current=${this.selected === f.floor_id ? 'true' : 'false'} @click=${() => (this.selected = f.floor_id)}>
+              <sw-icon name="floor" size=${14}></sw-icon><span class="nm" title=${f.name}>${bidi(f.name)}</span>${lit(f.counts)}
             </button>
             ${this.bulkAllowed && f.can_bulk
               ? html`<devices-bulk-menu scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${f.counts} variant="menu" label="פעולות לקומה" data-bulk-floor=${f.floor_id}></devices-bulk-menu>`
@@ -1214,7 +1474,8 @@ export class DevicesBuilding extends LitElement {
       <header>
         ${it?.icon ? html`<sw-icon class="lay-title-icon" .name=${it.icon} size=${16}></sw-icon>` : nothing}
         <h2><button type="button" class="ftitle" data-floor-title=${f.floor_id} aria-current=${this.selected === f.floor_id ? 'true' : 'false'} title="פתח קומה" @click=${() => (this.selected = f.floor_id)}>${bidi(titleOf(it, f.name))}</button></h2>
-        ${c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} data-lit=${c.lights_on}><sw-icon name="light" size=${13}></sw-icon>${ltrNum(c.lights_on)} דולקות מתוך ${ltrNum(c.lights)}</span>` : nothing}
+        ${c.lights ? html`<button type="button" class=${classMap({ lit: true, chip: true, warm: c.lights_on > 0 })} data-lit=${c.lights_on} data-floor-chip="lights" aria-haspopup="dialog" aria-expanded=${String(this.isOpen('lights', 'floor', f.floor_id))} title=${`תאורה · ${f.name}`} @click=${() => this.openPanel('lights', 'floor', f.floor_id)}><sw-icon name="light" size=${13}></sw-icon>${ltrNum(c.lights_on)} דולקות מתוך ${ltrNum(c.lights)}</button>` : nothing}
+        <span class="fchips" data-floor-chips=${f.floor_id}>${this.renderFloorChips(f, 12, true)}</span>
         ${this.bulkAllowed && f.can_bulk
           ? html`<devices-bulk-menu scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${c} variant="menu" triggerLabel="כבה קומה" data-floor-menu=${f.floor_id}></devices-bulk-menu>`
           : nothing}
@@ -1240,8 +1501,8 @@ export class DevicesBuilding extends LitElement {
     const pills = this.pillsShown(c);
     const body =
       where === 'tree'
-        ? html`<span class=${classMap({ sdot: true, on })}></span><span class="nm">${bidi(a.name)}</span><span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>`
-        : html`<span class=${classMap({ sdot: true, on })}></span><span class="nm">${bidi(a.name)}</span>
+        ? html`<span class=${classMap({ sdot: true, on })}></span><span class="nm" title=${a.name}>${bidi(a.name)}</span>${c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>` : html`<span class="lit" aria-hidden="true"></span>`}`
+        : html`<span class=${classMap({ sdot: true, on })}></span><span class="nm" title=${a.name}>${bidi(a.name)}</span>
             <span class="pills">${pills.length
               ? pills.map((p) => html`<span class=${classMap({ warm: p.warm })} title=${p.label}><sw-icon .name=${p.icon} size=${12}></sw-icon>${p.on === null ? p.total : `${p.on}/${p.total}`}</span>`)
               : html`<span class="none">אין התקנים</span>`}${c.alarm ? html`<span class=${classMap({ warm: c.alarm !== 'disarmed' })} title="אזעקה"><sw-icon name="shield" size=${12}></sw-icon>${ALARM_HE[c.alarm] ?? c.alarm}</span>` : nothing}</span>`;
@@ -1262,23 +1523,42 @@ export class DevicesBuilding extends LitElement {
     </div>`;
   }
 
+  /** The building's summary tiles. Owner 2026-09-29: each is a real button (aria-expanded) opening the tiles' panel for
+   * its kind across the building, in the installation's tile shape (ui.tile_layout: cards or compact). */
   private renderKpis(c: DeviceCounts) {
+    const layout = this.tiles.layout;
+    const open = (kind: TileKind) => () => this.openPanel(kind);
     // owner feedback 2026-09-29: a domain the installation has nothing of is not a counter at all (no "0/0 אין במבנה")
-    const kpi = (label: string, on: number, total: number, icon: IconName, warm = true) =>
-      total === 0 ? nothing : html`<sw-kpi data-kpi=${label} data-value=${`${on}/${total}`} label=${label} value=${`${on}/${total}`} .icon=${icon} tone=${warm && on > 0 ? 'live' : 'neutral'}></sw-kpi>`;
-    return html`<div class="kpis">
-      ${kpi('תאורה דולקת', c.lights_on, c.lights, 'light')}
-      ${kpi('מתגים פעילים', c.switches_on, c.switches, 'bolt')}
-      ${kpi('תריסים פתוחים', c.covers_open, c.covers, 'layers')}
-      ${kpi('מיזוג פעיל', c.climate_active, c.climate, 'activity')}
-      ${kpi('מסכים דולקים', c.media_on, c.media, 'play')}
-      ${c.locks ? html`<sw-kpi data-kpi="נעולים" data-value=${`${c.locks_locked}/${c.locks}`} label="מנעולים נעולים" value=${`${c.locks_locked}/${c.locks}`} icon="lock" tone=${c.locks_locked === c.locks ? 'live' : 'stale'} detail=${c.locks_locked === c.locks ? 'הכול נעול' : 'יש מנעול פתוח'}></sw-kpi>` : nothing}
-      ${c.alarm ? html`<sw-kpi data-kpi="אזעקה" label="אזעקה" value=${ALARM_HE[c.alarm] ?? c.alarm} icon="shield" tone=${alarmTone(c.alarm)}></sw-kpi>` : nothing}
+    const kpi = (label: string, on: number, total: number, icon: IconName, kind: TileKind, warm = true) =>
+      total === 0
+        ? nothing
+        : html`<sw-kpi data-kpi=${label} data-tile-kind=${kind} data-value=${`${on}/${total}`} label=${label} value=${`${on}/${total}`} .icon=${icon} tone=${warm && on > 0 ? 'live' : 'neutral'} layout=${layout} action ?expanded=${this.isOpen(kind)} hint="הצג ושלוט" @click=${open(kind)}></sw-kpi>`;
+    return html`<div class="kpis" data-kpis>
+      ${kpi('תאורה דולקת', c.lights_on, c.lights, 'light', 'lights')}
+      ${kpi('מתגים פעילים', c.switches_on, c.switches, 'bolt', 'switches')}
+      ${kpi('תריסים פתוחים', c.covers_open, c.covers, 'layers', 'covers')}
+      ${kpi('מיזוג פעיל', c.climate_active, c.climate, 'activity', 'climate')}
+      ${kpi('מסכים דולקים', c.media_on, c.media, 'play', 'media')}
+      ${c.locks ? html`<sw-kpi data-kpi="נעולים" data-tile-kind="locks" data-value=${`${c.locks_locked}/${c.locks}`} label="מנעולים נעולים" value=${`${c.locks_locked}/${c.locks}`} icon="lock" tone=${c.locks_locked === c.locks ? 'live' : 'stale'} detail=${c.locks_locked === c.locks ? 'הכול נעול' : 'יש מנעול פתוח'} layout=${layout} action ?expanded=${this.isOpen('locks')} hint="הצג ושלוט" @click=${open('locks')}></sw-kpi>` : nothing}
+      ${c.alarm ? html`<sw-kpi data-kpi="אזעקה" data-tile-kind="alarm" label="אזעקה" value=${ALARM_HE[c.alarm] ?? c.alarm} icon="shield" tone=${alarmTone(c.alarm)} layout=${layout} action ?expanded=${this.isOpen('alarm')} hint="הצג" @click=${open('alarm')}></sw-kpi>` : nothing}
     </div>`;
   }
 
+  /** A floor's count pills as buttons (owner 2026-09-29): each opens the tiles' panel for its kind on that floor;
+   * cameras and sensors stay plain counts. */
+  private renderFloorChips(f: DeviceFloor, size: number, card = false) {
+    // the floor card (owner 2026-09-29): switches / covers / climate / locks / screens next to its own lights count
+    // (the card's lit count is the lights chip), icon + number only - the words in the tooltip and the aria-label
+    const pills = this.pillsShown(f.counts).filter((p) => !card || (p.key !== 'lights' && PILL_KIND[p.key]));
+    const chip = (kind: TileKind | undefined, key: string, icon: IconName, text: string, title: string, warm: boolean) =>
+      kind
+        ? html`<button type="button" class=${classMap({ chip: true, warm })} data-floor-chip=${kind} aria-haspopup="dialog" aria-expanded=${String(this.isOpen(kind, 'floor', f.floor_id))} title=${`${title} · ${f.name}`} aria-label=${`${title}: ${text} · ${f.name}`} @click=${() => this.openPanel(kind, 'floor', f.floor_id)}><sw-icon .name=${icon} size=${size}></sw-icon>${text}</button>`
+        : html`<span class=${classMap({ chip: true, warm })} data-floor-count=${key} title=${title}><sw-icon .name=${icon} size=${size}></sw-icon>${text}</span>`;
+    return html`${pills.map((p) => chip(PILL_KIND[p.key], p.key, p.icon, p.on === null ? String(p.total) : `${p.on}/${p.total}`, p.label, p.warm))}
+      ${f.counts.alarm && !card ? chip('alarm', 'alarm', 'shield', ALARM_HE[f.counts.alarm] ?? f.counts.alarm, 'אזעקה', f.counts.alarm !== 'disarmed') : nothing}`;
+  }
+
   private renderFloor(f: DeviceFloor) {
-    const pills = this.pillsShown(f.counts);
     return html`<section class="floor" data-floor=${f.floor_id}>
       <div class="floor-head">
         <h2>${bidi(f.name)}</h2>
@@ -1287,10 +1567,7 @@ export class DevicesBuilding extends LitElement {
         ${this.bulkAllowed && f.can_bulk
           ? html`<devices-bulk-menu scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${f.counts} variant="menu" align="start" label="פעולות לקומה" data-bulk-floor=${f.floor_id}></devices-bulk-menu>`
           : nothing}
-        <div class="floor-sum">
-          ${pills.map((p) => html`<span class=${classMap({ warm: p.warm })} title=${p.label}><sw-icon .name=${p.icon} size=${13}></sw-icon>${p.on === null ? p.total : `${p.on}/${p.total}`}</span>`)}
-          ${f.counts.alarm ? html`<span class=${classMap({ warm: f.counts.alarm !== 'disarmed' })} title="אזעקה"><sw-icon name="shield" size=${13}></sw-icon>${ALARM_HE[f.counts.alarm] ?? f.counts.alarm}</span>` : nothing}
-        </div>
+        <div class="floor-sum" data-floor-sum=${f.floor_id}>${this.renderFloorChips(f, 13)}</div>
       </div>
       ${this.renderClimateStrip(f.climate, 'מזגני הקומה')}
       ${this.renderAreasGrid(`areas:${f.floor_id}`, html`${repeat(f.areas, (a) => a.area_id, (a) => this.lay.wrap(`area:${a.area_id}`, this.renderTile(a)))}`)}

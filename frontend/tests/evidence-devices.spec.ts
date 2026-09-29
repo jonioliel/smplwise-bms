@@ -890,8 +890,8 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await expect(dialog.locator('[data-bulk-what]')).toBeVisible({ timeout: 10000 }); // (the sw-dialog host itself has no box: its backdrop is fixed)
     await expect(dialog.locator('[data-bulk-count]')).toHaveAttribute('data-bulk-count', '2');
     await expect(dialog.locator('[data-bulk-domains] [data-domain="light"]')).toContainText('2');
-    await expect(dialog.locator('[data-bulk-never]')).toContainText('מנעולים');
-    await expect(dialog.locator('[data-bulk-never]')).toContainText('(1)'); // the hall's lock is there, and not included
+    // re-review: a lights action no longer lists the locks / alarm as "not included" (only "כבה הכל" does)
+    await expect(dialog.locator('[data-bulk-never]')).not.toContainText('נמצאים כאן ואינם נכללים');
     await expect.poll(() => focusedBulkButton(page)).toBe('cancel');
     expect(posted).toHaveLength(0); // opening the dialog sends nothing
     await dialog.locator('sw-button[data-bulk-cancel]').click();
@@ -1126,18 +1126,13 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await seed(request);
   });
 
-  test('a bulk holder sees whether each switch is included in bulk actions; an administrator marks one safe and back', async ({ page, request }) => {
+  test('owner 2026-09-30: the area screen shows nothing about bulk eligibility (it is managed in הגדרות › חשמל › פעולה קבוצתית)', async ({ page, request }) => {
     await seed(request);
     await open(page, '/devices/areas/cr007_lobby', 'a');
     const sign = page.locator('devices-area .tile[data-entity="switch.cr007_sign"]');
-    const line = sign.locator('[data-bulk-safe]');
-    await expect(line).toHaveAttribute('data-bulk-safe', 'switch_not_marked', { timeout: 30000 });
-    await expect(line).toContainText('לא נכלל בכיבוי מרוכז');
-    await line.locator('sw-button[data-bulk-safe-toggle]').click();
-    await expect(line).toHaveAttribute('data-bulk-safe', 'marked', { timeout: 10000 });
-    await expect(line).toContainText('נכלל בכיבוי מרוכז (סומן כבטוח)');
-    await line.locator('sw-button[data-bulk-safe-toggle]').click();
-    await expect(line).toHaveAttribute('data-bulk-safe', 'switch_not_marked', { timeout: 10000 });
+    await expect(sign).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('devices-area [data-bulk-safe], devices-area [data-bulk-safe-toggle]')).toHaveCount(0);
+    await expect(sign).not.toContainText('כיבוי מרוכז');
   });
 
   // ---------------------------------------------------------------- slice 4: climate/covers in full, sensors, assign

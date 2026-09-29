@@ -73,6 +73,11 @@ KIND_LABELS = {
     "climate_off": "כיבוי מיזוג",
     "screens_off": "כיבוי מסכים",
     "all_off": "כיבוי הכל",
+    # owner 2026-09-29 (the tiles' panel master control): turn a kind's shown devices on / off together
+    "switches_off": "כיבוי מתגים",
+    "switches_on": "הדלקת מתגים",
+    "lights_on": "הדלקת תאורה",
+    "screens_on": "הדלקת מסכים",
 }
 SCOPE_LABELS = {"building": "המבנה", "floor": "קומה", "area": "אזור"}
 
@@ -87,6 +92,11 @@ _COVERS_STOP = (("cover", "cover.stop_cover"),)
 _COVERS_POSITION = (("cover", "cover.set_cover_position"),)
 _CLIMATE = (("climate", "climate.turn_off"), ("fan", "fan.turn_off"))  # fans live on the climate card (מיזוג ואקלים)
 _SCREENS = (("media_player", "media_player.turn_off"),)
+# owner 2026-09-29: the tiles' panel master control. Switches only through the same SwitchPolicy (an administrator's
+# bulk-safe mark is the only way in; never input_boolean, never the door layer) - turning ON is guarded exactly like off.
+_SWITCHES_ON = (("switch", "switch.turn_on"),)
+_LIGHTS_ON = (("light", "light.turn_on"),)
+_SCREENS_ON = (("media_player", "media_player.turn_on"),)
 # kind -> (domain, allow-listed action) in the order they are sent
 KINDS: dict[str, tuple[tuple[str, str], ...]] = {
     "lights_off": _LIGHTS,
@@ -97,14 +107,23 @@ KINDS: dict[str, tuple[tuple[str, str], ...]] = {
     "climate_off": _CLIMATE,
     "screens_off": _SCREENS,
     "all_off": _LIGHTS + _SWITCHES + _COVERS_CLOSE + _CLIMATE + _SCREENS,
+    "switches_off": _SWITCHES,
+    "switches_on": _SWITCHES_ON,
+    "lights_on": _LIGHTS_ON,
+    "screens_on": _SCREENS_ON,
 }
+# kinds that turn something ON: an entity is sent when it is off (the reverse of _needs' "off" rule)
+ON_KINDS = frozenset({"switches_on", "lights_on", "screens_on"})
 # kinds whose targets carry a request argument (validated the same way as the single-entity action, ha_bridge.ACTIONS)
 KINDS_WITH_POSITION = frozenset({"covers_position"})
 # CR-007 slice 4 review (MEDIUM 4): the area's own "כל התריסים" group control - open all / stop all / position all -
 # is the area's control, not the building's or a floor's (the spec never describes building-wide opening); unlike
 # covers_close (a slice-3 kind, approved at every scope as part of the classic five-kind menu), these three are new
 # in slice 4 and exist only for that one control, so they are refused outside scope "area".
-AREA_ONLY_KINDS = frozenset({"covers_open", "covers_stop", "covers_position"})
+# Owner decision 2026-09-29 (the tiles' panel: "open all / close all" for the covers of the building, a floor or an
+# area): covers_open is no longer area-only; stop and position stay the area's own group control.
+AREA_ONLY_KINDS = frozenset({"covers_stop", "covers_position"})
+ONLY_MAX = 500  # `only`: the entity ids a request may be narrowed to (the panel's filter / search)
 # never part of a bulk action, whatever the kind; the ones present in the scope are named in the preview
 NEVER_BULK_DOMAINS = frozenset({"lock", "alarm_control_panel", "siren", "script", "scene", "button"})
 # review MEDIUM 9: one definition of each, in services/devices.py (also used server-side under devices.control,
@@ -158,6 +177,10 @@ def _needs(kind: str, domain: str, state: str | None) -> bool:
     """Whether the kind's action would change this entity (HA's last report): an entity already off / closed /
     open - or, for covers_stop, not moving at all - is not sent (`covers_position` is decided separately in
     `resolve()`, against the requested position, not the state)."""
+    if kind in ON_KINDS:
+        if domain == "media_player":
+            return state in ("off", "standby")
+        return state == "off"
     if domain in ("light", "switch", "input_boolean", "fan"):
         return state == "on"
     if domain == "cover":
@@ -209,7 +232,8 @@ class SwitchPolicy:
         return False, "switch_not_marked"
 
     def excluded_reason(self, e: dict[str, Any]) -> str | None:
-        if e["entity_id"] in self.alarm_managed:
+        # CR-010: an alarm zone's bypass control (computed once per request), or a row that says so itself
+        if e["entity_id"] in self.alarm_managed or e.get("alarm_managed"):
             return "alarm_managed"
         if e["domain"] in ("cover", "switch") and e["entity_id"] in self.door_layer:
             return "doors_layer"
@@ -229,6 +253,16 @@ EXCLUDED_LABELS = {
     "circuit_not_marked": "לא סומן כבטוח לכיבוי קבוצתי (מפסק של מעגל תאורה - מומלץ לסמן כבטוח)",
     "no_position": "התריס אינו מדווח מיקום ואינו תומך בקביעת מיקום",
 }
+# re-review: the same reasons in words that fit a kind that turns something ON (the "off" wording would be false)
+EXCLUDED_LABELS_ON = {
+    **EXCLUDED_LABELS,
+    "switch_not_marked": "לא סומן כבטוח לפעולה קבוצתית (הדלקה וכיבוי)",
+    "circuit_not_marked": "לא סומן כבטוח לפעולה קבוצתית (מפסק של מעגל תאורה - מומלץ לסמן כבטוח)",
+}
+
+
+def excluded_label(reason: str, kind: str) -> str:
+    return (EXCLUDED_LABELS_ON if kind in ON_KINDS else EXCLUDED_LABELS)[reason]
 COVER_SUPPORT_SET_POSITION = 4  # HA cover.CoverEntityFeature.SET_POSITION
 
 
@@ -279,10 +313,12 @@ def scope_flags(conn: Any, principal: Principal, entities: list[dict[str, Any]])
     return {"building": False, "all": False, "areas": areas, "floors": {area_floor.get(a, dsvc.NO_FLOOR) for a in areas}}
 
 
-def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: str, position: int | None = None) -> dict[str, Any]:
+def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: str, position: int | None = None, only: set[str] | None = None) -> dict[str, Any]:
     """The exact set a bulk request would send, or an ApiError (404 unknown scope, 403 outside the caller's scope).
     The same function answers the preview (the confirmation dialog) and the request itself. `position` (CR-007 slice
-    4): the one argument a bulk kind ever carries (covers_position, 0-100) - required exactly for that kind."""
+    4): the one argument a bulk kind ever carries (covers_position, 0-100) - required exactly for that kind. `only`
+    (owner 2026-09-29, the tiles' panel filter / search): narrows the scope to these entity ids - it can only remove
+    entities from the set the rules resolve, never add one."""
     if scope not in SCOPES:
         raise ApiError(422, "validation", "היקף לא מוכר.", details={"fields": ["scope"]})
     if kind not in KINDS:
@@ -311,6 +347,10 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
         name = areas[scope_id]["name"]
         fid = area_floor.get(scope_id)
         floor_name = (floors[fid]["name"] if fid in floors else dsvc.NO_FLOOR_NAME) if fid else None
+    if only is not None:
+        if len(only) > ONLY_MAX:
+            raise ApiError(422, "validation", f"ניתן לצמצם לכל היותר {ONLY_MAX} התקנים.", details={"fields": ["only"]})
+        in_scope = [e for e in in_scope if e["entity_id"] in only]
     wide, held, permitted = bulk_scope(conn, principal)
     if scope == "building" and not wide:
         raise ApiError(403, "forbidden", "פעולה מרוכזת על המבנה כולו דורשת הרשאה לכל ההתקנה; ההרשאה שלך מוגבלת לקומות.", details={"permission": PERMISSION})
@@ -327,7 +367,10 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
         if not held(e["entity_id"]):
             continue  # outside the caller's floors: not sent, and not described either
         if domain in NEVER_BULK_DOMAINS:
-            never[domain] = never.get(domain, 0) + 1  # present here, never part of a bulk action - said in the dialog
+            # present here, never part of a bulk action - said in the dialog of "כבה הכל" only (re-review: a lights
+            # action listing the alarm and the locks as "not included" reads as if they could have been)
+            if kind == "all_off":
+                never[domain] = never.get(domain, 0) + 1
             continue
         if e["entity_id"] in policy.alarm_managed and domain in actions:
             # CR-010 review B1: named in the dialog as excluded (permitted() also refuses it, for every other caller)
@@ -339,7 +382,7 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
             continue
         reason = policy.excluded_reason(e)
         if reason:
-            excluded.append({"entity_id": e["entity_id"], "name": _name(e), "domain": domain, "reason": reason, "reason_label": EXCLUDED_LABELS[reason]})
+            excluded.append({"entity_id": e["entity_id"], "name": _name(e), "domain": domain, "reason": reason, "reason_label": excluded_label(reason, kind)})
             continue
         state = e.get("state")
         if state in UNAVAILABLE_STATES or not e.get("available"):
@@ -382,6 +425,7 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
         "excluded": excluded,
         "never_included": never,
         "digest": digest([t["entity_id"] for t in targets], kind, position),
+        "narrowed": only is not None,
         "server_time_ms": int(time.time() * 1000),  # the client computes expires_at on the server's time line
         "position": position,  # covers_position only - echoed back so the confirmation dialog can restate it
         "note": "מנעולים, מערכת האזעקה, צופרים, סקריפטים, סצנות, כפתורים ושחרור דלתות אינם נכללים לעולם בפעולה מרוכזת.",

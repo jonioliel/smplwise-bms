@@ -19,6 +19,9 @@ import { healthSummary, STATUS_LABEL, type HealthSummary } from '../api/health';
 import { productSettings } from '../api/prefs';
 import { snapshotUrl } from '../api/media';
 import type { Camera, Site } from '../api/types';
+import { TileLayoutController } from '../api/tile-layout';
+import { dateInZone } from '../api/recordings';
+import { liveTileKnobs } from '../styles/tile-knobs';
 
 /** GET /api/v1/health — connection facts used for the attention list. */
 interface RawHealth {
@@ -67,6 +70,8 @@ export class LiveOverview extends LitElement {
   @state() private loaded = false;
   private timer = 0;
   private clockTimer = 0;
+  /** Owner 2026-09-29: the tiles' shape (ui.tile_layout) - compact rectangles on a phone by default. */
+  private tiles = new TileLayoutController(this);
 
   connectedCallback() {
     super.connectedCallback();
@@ -164,14 +169,15 @@ export class LiveOverview extends LitElement {
     const r = 34;
     const c = 2 * Math.PI * r;
     const favorites = cams.filter((x) => x.status === 'online').slice(0, 2);
+    const layout = this.tiles.layout;
     return html`
       <sw-page heading=${`${greeting(hour)}${name ? `, ${name}` : ''}`} subheading=${h ? `מצב המערכת: ${STATUS_LABEL[h.status]}${firstIssue ? ` · ${firstIssue.label}` : ' · כל הבדיקות תקינות'}` : 'קורא את מצב המערכת…'}>
         <div slot="actions" class="date">${this.now.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: this.tz })}<br />${this.now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: this.tz })}</div>
         <div class="kpis" data-overview-kpis>
-          <sw-kpi icon="camera" tone=${cams.length && online === cams.length ? 'live' : online ? 'stale' : 'offline'} value=${`${online}/${cams.length}`} label="מצלמות" detail=${this.recorder ? `מחוברות · ${this.recorder.model ?? this.recorder.name}` : 'מחוברות'}></sw-kpi>
-          <sw-kpi icon="building" value=${String(sites.length)} label="אתרים" detail=${`${floors.length} קומות · ${floors.filter((f) => f.has_plan).length} עם תוכנית`} tone="neutral"></sw-kpi>
-          <sw-kpi icon="bell" value=${this.summaryDenied ? '—' : String(this.summary?.today.total ?? 0)} label="אירועים" detail=${this.summaryDenied ? 'ללא הרשאה לאירועים' : 'היום'} tone="neutral" badge=${this.summary?.today.unacked ? `${this.summary.today.unacked} לבדיקה` : ''}></sw-kpi>
-          <sw-kpi icon="shield" tone=${tone} value=${h ? STATUS_LABEL[h.status] : '…'} label="מצב מערכת" detail=${firstIssue ? firstIssue.label : 'NVR, go2rtc, תשתית המערכת ואחסון'}></sw-kpi>
+          <sw-kpi data-overview-tile="cameras" icon="camera" tone=${cams.length && online === cams.length ? 'live' : online ? 'stale' : 'offline'} value=${`${online}/${cams.length}`} label="מצלמות" detail=${this.recorder ? `מחוברות · ${this.recorder.model ?? this.recorder.name}` : 'מחוברות'} layout=${layout} href="#/system/devices?sort=offline" hint="פתח את רשימת המצלמות"></sw-kpi>
+          <sw-kpi data-overview-tile="sites" icon="building" value=${String(sites.length)} label="אתרים" detail=${`${floors.length} קומות · ${floors.filter((f) => f.has_plan).length} עם תוכנית`} tone="neutral" layout=${layout} href="#/explore/sites" hint="פתח את האתרים"></sw-kpi>
+          <sw-kpi data-overview-tile="events" icon="bell" value=${this.summaryDenied ? '—' : String(this.summary?.today.total ?? 0)} label="אירועים" detail=${this.summaryDenied ? 'ללא הרשאה לאירועים' : 'היום'} tone="neutral" badge=${this.summary?.today.unacked ? `${this.summary.today.unacked} לבדיקה` : ''} layout=${layout} href=${`#/investigate/events?date=${dateInZone(this.now, this.tz)}`} hint="פתח את אירועי היום"></sw-kpi>
+          <sw-kpi data-overview-tile="health" icon="shield" tone=${tone} value=${h ? STATUS_LABEL[h.status] : '…'} label="מצב מערכת" detail=${firstIssue ? firstIssue.label : 'NVR, go2rtc, תשתית המערכת ואחסון'} layout=${layout} href="#/system/diagnostics?tab=health" hint="פתח את פרטי הבריאות"></sw-kpi>
         </div>
         ${favorites.length
           ? html`<div class="fav" data-overview-favorites>
@@ -236,7 +242,7 @@ export class LiveOverview extends LitElement {
     `;
   }
 
-  static styles = css`
+  static styles = [liveTileKnobs, css`
     .date {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
@@ -449,7 +455,25 @@ export class LiveOverview extends LitElement {
         display: none;
       }
     }
-  `;
+    /* owner 2026-09-29: compact tiles (ui.tile_layout) - rectangles, icon beside the value; the sizes are the
+       --lv-tile-* knobs (styles/tile-knobs.ts). Four across on a desktop, the knob's column count on a phone. */
+    :host([data-tile-layout='compact']) .kpis {
+      grid-template-columns: repeat(auto-fit, minmax(var(--lv-tile-compact-col-min), 1fr));
+      grid-auto-rows: 1fr;
+      gap: var(--lv-tile-compact-grid-gap);
+      padding-block-start: 6px; /* room for a badge riding the tile's top corner */
+    }
+    @media (min-width: 1024px) {
+      :host([data-tile-layout='compact']) .kpis {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 599px) {
+      :host([data-tile-layout='compact']) .kpis {
+        grid-template-columns: repeat(var(--lv-tile-compact-cols-phone), minmax(0, 1fr));
+      }
+    }
+  `];
 
   render() {
     if (isApi()) return this.renderApi();
@@ -464,14 +488,15 @@ export class LiveOverview extends LitElement {
     const r = 34;
     const c = 2 * Math.PI * r;
     const favorites = demoWall.filter((x) => x.state === 'live').slice(0, 2);
+    const layout = this.tiles.layout;
     return html`
       <sw-page heading="בוקר טוב, יוני" subheading="המערכת פועלת · גשר לא רענן · נתוני הדגמה">
         <div slot="actions" class="date">יום שני, 14 בספטמבר 2026<br />10:24</div>
-        <div class="kpis">
-          <sw-kpi icon="camera" tone="live" value=${String(online)} label="מצלמות" detail="מחוברות"></sw-kpi>
-          <sw-kpi icon="building" value=${String(demoSites.length)} label="אתרים" detail="פעילים" tone="neutral"></sw-kpi>
-          <sw-kpi icon="bell" value=${String(demoEvents.length)} label="אירועים" detail="ב־24 השעות" tone="neutral" badge=${`${unacked.length} חדשים`}></sw-kpi>
-          <sw-kpi icon="shield" tone="stale" value="חלקי" label="מצב מערכת" detail="גשר לא רענן"></sw-kpi>
+        <div class="kpis" data-overview-kpis>
+          <sw-kpi data-overview-tile="cameras" icon="camera" tone="live" value=${String(online)} label="מצלמות" detail="מחוברות" layout=${layout} href="#/system/devices?sort=offline" hint="פתח את רשימת המצלמות"></sw-kpi>
+          <sw-kpi data-overview-tile="sites" icon="building" value=${String(demoSites.length)} label="אתרים" detail="פעילים" tone="neutral" layout=${layout} href="#/explore/sites" hint="פתח את האתרים"></sw-kpi>
+          <sw-kpi data-overview-tile="events" icon="bell" value=${String(demoEvents.length)} label="אירועים" detail="ב־24 השעות" tone="neutral" badge=${`${unacked.length} חדשים`} layout=${layout} href="#/investigate/events" hint="פתח את האירועים"></sw-kpi>
+          <sw-kpi data-overview-tile="health" icon="shield" tone="stale" value="חלקי" label="מצב מערכת" detail="גשר לא רענן" layout=${layout} href="#/system/diagnostics?tab=health" hint="פתח את פרטי הבריאות"></sw-kpi>
         </div>
         <div class="fav">
           ${favorites.map((cam) => html`<sw-camera-tile name=${cam.name} state=${cam.state} scene=${demoScene[cam.id] ?? 'lobby'} @click=${() => navigate(`/live/cameras/${cam.id}`)}></sw-camera-tile>`)}

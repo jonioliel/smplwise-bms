@@ -184,6 +184,81 @@ outside, scroll and resize); the floor card's title enters the floor; empty doma
 lit counts, area cards, quick actions of absent domains) - a card hidden because empty keeps its saved layout slot and
 its rows pack away.
 
+### 7.12 Overview tiles: a panel behind each counter, the compact tile layout, the tree rows (owner 2026-09-29)
+
+Owner request (building screen, a phone and a 2000 px desktop): a click on a summary tile ("0/33 מתגים פעילים",
+"8/8 מנעולים נעולים") did nothing - it must show what is on / off / open and let him control the items; the tiles (here
+and on the Live overview) are too tall on a phone - a compact rectangle with the icon beside the value, as a design
+option; the tree rows cut the area names although the row has room; needless scrolling.
+
+**Build status: built** on branch `pilot/CR007-overview-tiles` (not merged, no version bump):
+
+- `GET /devices/items?kind=lights|switches|covers|climate|media|locks|alarm&scope=building|floor|area&id=` - every entity
+  of the tile's kind in the scope, grouped floor › area, each row the area card's own row (`can_control`, last change),
+  counts, `can_bulk`, and per lock `can_unlock` (`door.unlock` at its scope). Read-only, `devices.read` scoped as the tree.
+- Each building counter is a button (`aria-expanded`) that opens the tiles' panel (`devices-tiles-panel.ts`) for its
+  kind across the building; a floor's count chips (tiles view) and a floor card's lit count open it for that floor.
+  The panel is `sw-drawer`'s new modal mode: a side drawer on a desktop, a bottom sheet on a phone, focus trapped,
+  Escape / backdrop close, focus back on the tile. Header counts, a segmented filter (הכול / פעילים|פתוחים|לא נעולים /
+  כבויים|סגורים|נעולים / לא זמינים), a search, rows by floor › area with the reported state and the last change, and
+  the same controls as the area screen (moved unchanged into `devices-controls.ts`, shared). Unlock: only with
+  `door.unlock`, only after the panel's own confirmation dialog, sent with the confirmation grant; lock is one tap.
+  The alarm panels are listed with their state only and a link "פתח במסך האזעקה" (`#/security/alarm`). The kind's bulk
+  action (lights_off, covers_close, climate_off, screens_off) opens the existing confirmation dialog; switches have no
+  bulk kind of their own (open question to the owner). Rows the viewer may not control say why (hover and tap). Live
+  through the `/ha/ws` push and after each command settles; no polling. Deep link:
+  `#/devices/building?domain=<kind>[&floor=<id>|&area=<id>][&filter=active|inactive|unavailable]`.
+- Live overview: the four tiles are links - cameras to the camera list (`?filter=offline` when a camera is offline),
+  sites, today's events, the health tab.
+- `ui.tile_layout` = `auto` (default: compact under 600 px, cards above) | `cards` | `compact`, per installation in
+  הגדרות › כללי › עיצוב הממשק with a live preview, plus a per-browser override (the `ui.design` pattern). The sizes are
+  theme knobs (`--dv-kpi-compact-*`, `--lv-tile-compact-*`; docs/design/DEVICE_THEMES.md §9).
+- Tree rows: the hover "כבה אזור" no longer takes room (it floats over the count column); name first with the full name
+  in its title, the lit count and the "⋯" in fixed end columns so the rows line up; the tree grows with a wide screen
+  (16vw, 250-320 px) and scrolls inside itself only when it is taller than the viewport.
+
+Tests: backend `test_devices.py` (3), `test_ui_settings.py` (1); Playwright `unit-devices-tiles.spec.ts` (demo data) and
+`evidence-devices-tiles.spec.ts` (fixture backend), `screens.spec.ts` sc32 / sc33. Known limits: the owner's
+"unnecessary scrolling" could not be reproduced on the demo or the fixture data (nothing scrolls when the content fits
+at 1366-2000 px); a building layout saved in the layout editor with tall rows would add height of its own.
+
+**Owner answers (2026-09-29 22:50), built on the same branch:**
+
+1. **Master control** in the panel, icon only (44 px; the words in its aria-label and tooltip). Switches, lights and
+   screens: one smart power button - filled while any shown device is on (a press turns them all off), outline when all
+   are off (a press turns them all on), a count badge when only some are on. Covers: open all / close all. Climate: none.
+   Locks: lock all only, never unlock all. It acts on what the panel shows (scope, filter and search: the bulk request's
+   new `only`, which narrows the resolved set and can never add to it) through the existing bulk flow - new kinds
+   `switches_off`, `switches_on`, `lights_on`, `screens_on`; the confirmation asks "להדליק 22 מתגים?" with the list
+   collapsible, then progress and per-entity results, audited as every bulk. **Switches:** the existing per-entity
+   bulk-safe mark (opt-in, off by default, §7.10) stays the only way a switch enters - for ON exactly as for OFF; no
+   default-include flag was added, since that would reverse the §7.10 ruling (a door release relay is a switch too).
+   **Rulings recorded here:** `covers_open` is now valid at every scope (it was area-only after the slice-4 review;
+   stop and position stay area-only). Locks remain outside the bulk path entirely (§3: "never part of a bulk action"), so
+   lock-all is one confirmation, then the ordinary single-entity `lock.lock` per lock, one at a time, each with its own
+   result and audit row.
+2. **Floor cards** carry the floor's domain chips (switches, covers, climate, screens, locks next to the card's own
+   lights count): icon and count, the words in the tooltip and aria-label; each opens the panel for that floor.
+3. **The Live cameras tile** opens the full camera list with the offline cameras first (`#/system/devices?sort=offline`,
+   their state "מנותקת" in red), not a list filtered to them.
+
+**Review fixes (Opus review of the first ten commits):** a nested confirmation (unlock, lock all, bulk) closes only
+itself - never the panel, never while a bulk action runs (B1); Back closes the panel (its own history entry, M1); no
+scroll bleed while it is open, and the page behind is locked (M2); a drag that ends on the backdrop does not close it
+(M3); pushed rows are patched in place, a refetch only for an entity it does not list (M4); the settings preview shows
+the installation value and names a local override (M5); the compact badge rides the tile's corner, equal tile heights,
+no empty drawer footer (M6); one scroll container at the owner's site size (4 floors, 10 areas, 224 devices) at
+2000x990 and 1366x768, and `?debug=overflow` installs a read-only `window.__arxOverflow()` diagnostic for a real
+installation (G).
+
+**Owner decisions 2026-09-30 and the re-review:** eligibility for group actions is shown as little as possible on the
+operator screens - no per-row "not included" text, no counts, no links; the master control counts only the rows a bulk
+action reaches and, with none, is simply disabled (the reason in its tooltip only); the confirmation is short (the
+question with the count, two buttons, the rest under a closed "פרטים"). The bulk-safe mark is managed in ONE place,
+הגדרות › חשמל והתקנים › פעולה קבוצתית (`GET` / `POST /devices/bulk-safe`: every switch, search, filters, select all
+filtered, approve / remove in one call, audited per entity plus a summary; alarm-managed switches refused). The mark
+stays switches-only. After the merge of CR-010, alarm-managed rows are read-only in the panel and never counted.
+
 ## 8. Next step
 
 Slice 1 dispatched 2026-09-28 from this document; the DomusUI extraction is the reference for card rules and

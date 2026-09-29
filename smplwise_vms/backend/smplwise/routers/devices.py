@@ -59,6 +59,12 @@ async def _raw_body(request: Request) -> bytes:
     return await request.body()
 
 
+def _configure_holder_early(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
+    """system.configure before the body is read (the same envelope as the slice-4 assign route); the refusal is audited."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    return principal
+
+
 def _is_json(content_type: str | None) -> bool:
     media = (content_type or "").split(";", 1)[0].strip().lower()
     return media == "application/json" or (media.startswith("application/") and media.endswith("+json"))
@@ -132,6 +138,66 @@ def area(area_id: str, principal: Principal = Depends(current_principal_ro), con
     return body
 
 
+ItemKind = Literal["lights", "switches", "covers", "climate", "media", "locks", "alarm"]
+
+
+@router.get("/devices/items")
+def items(
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),
+    kind: ItemKind = Query(...),
+    scope: Literal["building", "floor", "area"] = Query("building"),
+    id: str | None = Query(None, min_length=1, max_length=255),  # noqa: A002 - the scope's id, as in the bulk routes
+) -> dict[str, Any]:
+    """CR-007 overview tiles (owner 2026-09-29): every entity of one kind in the building, one HA floor or one HA area,
+    grouped by floor › area, each with the area card's own fields and `can_control` - what the panel behind a summary
+    tile ("0/33 מתגים פעילים") lists and controls. The controls still run through `POST /ha/entities/{id}/actions`
+    (single entity) and `POST /devices/actions` (bulk, `can_bulk` says where); a lock row also says whether this caller
+    may unlock it (`can_unlock`: `door.unlock` at the lock's own scope - the action route checks it again). Same
+    visibility as the tree (`devices.read`, a floor-scoped reader sees only what is placed on their floors); a scope
+    this caller cannot see is a 404. Read-only: nothing here calls Home Assistant."""
+    if scope != "building" and not id:
+        raise ApiError(422, "validation", "נדרש מזהה קומה או אזור (id).", details={"fields": ["id"]})
+    entities, scoped = _visible_entities(conn, principal)
+    control_of = ha_scope.control_checker(conn, principal)
+    body = svc.build_items(conn, entities, kind, scope, id or "*", scoped=scoped, control_of=control_of)
+    if body is None:
+        raise ApiError(404, "not_found", "הקומה או האזור לא נמצאו.")
+    flags = _bulk_flags(conn, principal)
+    if scope == "building":
+        body["can_bulk"] = bool(flags["building"])
+    elif scope == "floor":
+        body["can_bulk"] = bool(flags["all"] or body["id"] in flags["floors"])
+    else:
+        body["can_bulk"] = body["id"] != svc.UNASSIGNED and bool(flags["all"] or body["id"] in flags["areas"])
+    # re-review M1: which rows a bulk action would reach (the same SwitchPolicy the bulk resolves with - the bulk-safe
+    # mark, the door layer, door covers, alarm-managed), so the master control counts only those
+    policy = bulk.SwitchPolicy(conn)
+    for f in body["floors"]:
+        for a in f["areas"]:
+            for r in a["items"]:
+                # CR-010: what the alarm section owns is listed read-only here too, and never counted by the master control
+                r["alarm_managed"] = r["entity_id"] in policy.alarm_managed
+                if r["alarm_managed"]:
+                    r["can_control"] = False
+                    if kind == "locks":
+                        r["can_unlock"] = False
+                reason = policy.excluded_reason(r)
+                r["bulk_excluded"] = reason
+                if r["domain"] == "switch":
+                    r["bulk_safe"], r["bulk_reason"] = policy.switch_reason(r["entity_id"])
+    body["can_mark_bulk_safe"] = kind == "switches" and authorize(conn, principal, "system.configure", INSTALLATION).allowed
+    if kind == "locks":
+        wide, floors = ha_scope.visible_floors(conn, principal, "door.unlock")
+        placed = ha_scope.placements(conn) if floors and not wide else {}
+        for f in body["floors"]:
+            for a in f["areas"]:
+                for r in a["items"]:
+                    r["can_unlock"] = bool(r["can_control"]) and not r.get("alarm_managed") and ha_scope.entity_visible(wide, floors, placed, r["entity_id"])
+    body["sync"] = ha_sync.STATE.as_dict()
+    return body
+
+
 REFRESH_EVERY_S = 10.0  # per user: the button is a nudge, not a poll
 _refresh_lock = threading.Lock()
 _last_refresh: dict[str, float] = {}
@@ -158,6 +224,89 @@ def refresh_from_ha(principal: Principal = Depends(current_principal_ro), conn: 
 class BulkSafeBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     bulk_safe: bool
+
+
+# ---------------------------------------------------------------- הגדרות › חשמל › פעולה קבוצתית (owner 2026-09-30)
+#
+# The bulk-safe mark exists for switches only (CR-007 §7.10: lights, covers, climate and screens follow the kind's own
+# rules; input_booleans never enter; locks, the alarm and door releases never). One screen manages it for every switch.
+
+BULK_SAFE_MAX = 500
+
+
+@router.get("/devices/bulk-safe")
+def list_bulk_safe(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """Every switch with its bulk-safe mark, place, state, why it is or is not included and who marked it when -
+    the settings screen's list. system.configure (the mark's own permission)."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    policy = bulk.SwitchPolicy(conn)
+    marks = {r["entity_id"]: dict(r) for r in conn.execute("SELECT entity_id, marked_by_username, marked_at FROM device_bulk_safe").fetchall()}
+    floors, areas = svc.load_structure(conn, svc.load_entities(conn))
+    fname = {f["floor_id"]: f["name"] for f in floors}
+    area_floor = {a["area_id"]: a.get("floor_id") for a in areas}
+    out = []
+    for e in svc.load_entities(conn):
+        if e["domain"] != "switch":
+            continue
+        ok, reason = policy.switch_reason(e["entity_id"])
+        m = marks.get(e["entity_id"]) or {}
+        fid = area_floor.get(e.get("area_id")) if e.get("area_id") else None
+        out.append({
+            "entity_id": e["entity_id"], "name": e.get("name") or e.get("original_name") or e["entity_id"],
+            "area_id": e.get("area_id"), "area_name": e.get("area_name"), "floor_id": fid, "floor_name": fname.get(fid) if fid else None,
+            "state": e.get("state"), "available": bool(e.get("available")),
+            "marked": e["entity_id"] in policy.marked, "included": ok, "reason": reason, "reason_label": bulk.EXCLUDED_LABELS.get(reason) if not ok else None,
+            "alarm_managed": e["entity_id"] in policy.alarm_managed,
+            "marked_by": m.get("marked_by_username"), "marked_at": m.get("marked_at"),
+        })
+    out.sort(key=lambda r: (r["name"].casefold(), r["entity_id"]))
+    return {"switches": out, "note": "הסימון קיים למתגים בלבד: תאורה, תריסים, מיזוג ומסכים נכללים לפי סוגם; מנעולים, אזעקה ושחרור דלתות לעולם לא."}
+
+
+class BulkSafeManyBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    entity_ids: list[str] = Field(min_length=1, max_length=BULK_SAFE_MAX)
+    bulk_safe: bool
+
+
+@router.post("/devices/bulk-safe")
+def set_bulk_safe_many(request: Request, principal: Principal = Depends(_configure_holder_early), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+    """Mark (or unmark) many switches as bulk-safe in one call - the settings screen's "אשר לנבחרים" / "הסר אישור
+    מהנבחרים". system.configure, checked before the body; JSON only; at most BULK_SAFE_MAX ids. Per id: refused when it
+    is not a switch in the catalogue, when the alarm section owns it (`alarm_managed`) or - to mark - when it sits on the
+    map's door layer; otherwise set through the same path as the single route. One audit row per changed entity
+    (`devices.bulk_safe`) and one summary row (`devices.bulk_safe.batch`)."""
+    if not _is_json(request.headers.get("content-type")):
+        raise ApiError(415, "unsupported_media_type", "הבקשה חייבת להישלח כ־JSON (Content-Type: application/json).")
+    try:
+        body = BulkSafeManyBody.model_validate(json.loads(raw) if raw.strip() else {})
+    except (ValueError, ValidationError) as exc:
+        fields = sorted({".".join(str(p) for p in err["loc"]) or "body" for err in exc.errors()}) if isinstance(exc, ValidationError) else ["body"]
+        raise ApiError(422, "validation", "הבקשה אינה תקינה: " + ", ".join(fields), details={"fields": fields}) from None
+    policy = bulk.SwitchPolicy(conn)
+    rid = getattr(request.state, "correlation_id", None)
+    results = []
+    changed = 0
+    for eid in dict.fromkeys(body.entity_ids):  # each id once, in the order given
+        row = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (eid,)).fetchone()
+        if not row or row["domain"] != "switch":
+            results.append({"entity_id": eid, "ok": False, "reason": "not_switch"})
+            continue
+        if eid in policy.alarm_managed:
+            results.append({"entity_id": eid, "ok": False, "reason": "alarm_managed"})
+            continue
+        if body.bulk_safe and eid in policy.door_layer:
+            results.append({"entity_id": eid, "ok": False, "reason": "doors_layer"})
+            continue
+        was = eid in policy.marked
+        if was != body.bulk_safe:
+            bulk.set_bulk_safe(conn, principal, eid, body.bulk_safe)
+            audit(conn, actor=principal, action="devices.bulk_safe", decision="allowed", resource_type="ha_entity", resource_id=eid, request_id=rid, details={"bulk_safe": body.bulk_safe, "batch": True})
+            changed += 1
+        results.append({"entity_id": eid, "ok": True, "reason": None, "changed": was != body.bulk_safe})
+    audit(conn, actor=principal, action="devices.bulk_safe.batch", decision="allowed", resource_type="installation", resource_id="*", request_id=rid,
+          details={"bulk_safe": body.bulk_safe, "requested": len(results), "changed": changed, "refused": [r["entity_id"] for r in results if not r["ok"]][:100]})
+    return {"results": results, "changed": changed, "refused": sum(1 for r in results if not r["ok"])}
 
 
 @router.put("/devices/entities/{entity_id}/bulk-safe")
@@ -273,7 +422,7 @@ def assign_area(entity_id: str, request: Request, principal: Principal = Depends
 
 COMMAND_ID = r"^[A-Za-z0-9-]{8,64}$"
 Scope = Literal["building", "floor", "area"]
-Kind = Literal["lights_off", "covers_close", "covers_open", "covers_stop", "covers_position", "climate_off", "screens_off", "all_off"]
+Kind = Literal["lights_off", "covers_close", "covers_open", "covers_stop", "covers_position", "climate_off", "screens_off", "all_off", "switches_off", "switches_on", "lights_on", "screens_on"]
 
 
 class BulkBody(BaseModel):
@@ -291,6 +440,9 @@ class BulkBody(BaseModel):
     # CR-007 slice 4: the one argument a bulk kind ever carries - "כל התריסים" position, required exactly for
     # covers_position (bulk.resolve refuses a mismatch either way)
     position: int | None = Field(None, ge=0, le=100)
+    # owner 2026-09-29 (the tiles' panel): the entity ids the panel shows (its filter / search) - narrows the set, never
+    # widens it (services/device_bulk.resolve)
+    only: list[str] | None = Field(None, max_length=500)
 
 
 def _bulk_holder(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
@@ -359,6 +511,13 @@ def _envelope(act: _Refusals, body: BulkBody) -> dt.datetime:
     return min(expires, now + dt.timedelta(seconds=bulk.SEND_WITHIN_S))
 
 
+def _only(raw: str | None) -> set[str] | None:
+    """The preview's `only` (comma-separated entity ids) - None when absent."""
+    if raw is None:
+        return None
+    return {x.strip() for x in raw.split(",") if x.strip()}
+
+
 @router.get("/devices/actions/preview")
 def bulk_preview(
     principal: Principal = Depends(_bulk_reader),
@@ -367,11 +526,12 @@ def bulk_preview(
     id: str = Query(..., min_length=1, max_length=255),  # noqa: A002 - the scope's id, as in the request body
     kind: Kind = Query(...),
     position: int | None = Query(None, ge=0, le=100),
+    only: str | None = Query(None, max_length=20000),
 ) -> dict[str, Any]:
     """Exactly what `POST /devices/actions` would send for this scope and kind, per entity - the confirmation dialog
     states it (count by domain, what is skipped as already off / unavailable, what is never included). Sends nothing."""
     try:
-        return bulk.resolve(conn, principal, scope, id, kind, position)
+        return bulk.resolve(conn, principal, scope, id, kind, position, _only(only))
     except ApiError as exc:
         if exc.status == 403:
             audit(conn, actor=principal, action=bulk.AUDIT_ACTION, decision="denied", resource_type=f"devices_{scope}", resource_id=id, reason=exc.code,
@@ -399,7 +559,7 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder), con
     if body.confirmed is not True:
         raise act.refuse(ApiError(409, "confirmation_required", "פעולה מרוכזת דורשת אישור מפורש בחלון האישור."))
     try:
-        plan = bulk.resolve(conn, principal, body.scope, body.id, body.kind, body.position)
+        plan = bulk.resolve(conn, principal, body.scope, body.id, body.kind, body.position, set(body.only) if body.only is not None else None)
     except ApiError as exc:
         raise act.refuse(exc) from None
     if body.preview_digest is not None and body.preview_digest != plan["digest"]:

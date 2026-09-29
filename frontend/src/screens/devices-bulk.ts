@@ -32,6 +32,8 @@ export interface BulkRequest {
   name: string;
   kind: BulkKind;
   position?: number;
+  /** Owner 2026-09-29: the entity ids the tiles' panel shows (its filter / search) - narrows the set. */
+  only?: string[];
 }
 
 /** How many entities a kind would reach according to the tree's counts (a hint for the menu only - the server's
@@ -54,7 +56,37 @@ export function presentFor(kind: BulkKind, c: DeviceCounts): boolean {
   return true;
 }
 
-const KIND_ICON: Record<BulkKind, IconName> = { lights_off: 'light', covers_close: 'layers', covers_open: 'layers', covers_stop: 'layers', covers_position: 'layers', climate_off: 'activity', screens_off: 'play', all_off: 'bolt' };
+const KIND_ICON: Record<BulkKind, IconName> = { lights_off: 'light', covers_close: 'layers', covers_open: 'layers', covers_stop: 'layers', covers_position: 'layers', climate_off: 'activity', screens_off: 'play', all_off: 'bolt', switches_off: 'power', switches_on: 'power', lights_on: 'light', screens_on: 'play' };
+
+/** Owner 2026-09-29: the master control's confirmation asks the question in words ("להדליק 22 מתגים?"). */
+const NOUN: Partial<Record<BulkKind, [string, string, string]>> = {
+  // [verb, one, many]
+  switches_on: ['להדליק', 'מתג אחד', 'מתגים'],
+  switches_off: ['לכבות', 'מתג אחד', 'מתגים'],
+  lights_on: ['להדליק', 'גוף תאורה אחד', 'גופי תאורה'],
+  lights_off: ['לכבות', 'גוף תאורה אחד', 'גופי תאורה'],
+  screens_on: ['להדליק', 'מסך אחד', 'מסכים'],
+  screens_off: ['לכבות', 'מסך אחד', 'מסכים'],
+  covers_open: ['לפתוח', 'תריס אחד', 'תריסים'],
+  covers_close: ['לסגור', 'תריס אחד', 'תריסים'],
+};
+
+/** Re-review M1: why there is nothing to send, in words true for the kind (ON kinds look for devices that are off). */
+function nothingWhy(p: BulkPreview): string {
+  const where = p.scope === 'building' ? 'במבנה' : `ב${BULK_SCOPE_LABEL[p.scope]} ${p.name}`;
+  if (p.excluded.length && !p.skipped.already && !p.skipped.unavailable) return `אף התקן ${where} אינו נכלל בפעולה קבוצתית.`;
+  const on = p.kind === 'switches_on' || p.kind === 'lights_on' || p.kind === 'screens_on' || p.kind === 'covers_open';
+  return `לפי הדיווח האחרון אין ${where} התקן ${on ? 'כבוי או סגור' : 'פעיל'} מהסוג הזה.`;
+}
+
+function question(kind: BulkKind, n: number, position?: number | null): string {
+  const w = NOUN[kind];
+  if (w) return n === 1 ? `${w[0]} ${w[1]}?` : `${w[0]} ${ltrNum(n)} ${w[2]}?`;
+  if (kind === 'climate_off') return n === 1 ? 'לכבות התקן מיזוג אחד?' : `לכבות ${ltrNum(n)} התקני מיזוג?`;
+  if (kind === 'covers_stop') return n === 1 ? 'לעצור תריס אחד?' : `לעצור ${ltrNum(n)} תריסים?`;
+  if (kind === 'covers_position') return `להזיז ${n === 1 ? 'תריס אחד' : `${ltrNum(n)} תריסים`} למיקום ${ltrNum(position ?? 0)}%?`;
+  return n === 1 ? 'לכבות התקן אחד?' : `לכבות ${ltrNum(n)} התקנים?`; // all_off
+}
 
 function requestEvent(req: BulkRequest): CustomEvent<BulkRequest> {
   return new CustomEvent<BulkRequest>('bulk-request', { detail: req, bubbles: true, composed: true });
@@ -567,7 +599,7 @@ export class DevicesBulkDialog extends LitElement {
     this.error = '';
     this.phase = 'loading';
     try {
-      const p = await previewBulk(req.scope, req.id, req.kind, req.position);
+      const p = await previewBulk(req.scope, req.id, req.kind, req.position, req.only);
       if (this.req !== req) return;
       this.preview = p;
       this.phase = p.count ? 'confirm' : 'nothing';
@@ -593,7 +625,7 @@ export class DevicesBulkDialog extends LitElement {
     if (!req || !p || this.phase !== 'confirm') return;
     this.phase = 'sending';
     try {
-      const first = await runBulk(req.scope, req.id, req.kind, p.digest, req.position);
+      const first = await runBulk(req.scope, req.id, req.kind, p.digest, req.position, req.only);
       this.phase = 'running';
       this.follow = { stopped: false };
       const done = await followBulk(first, (r) => (this.record = r), this.follow);
@@ -629,7 +661,7 @@ export class DevicesBulkDialog extends LitElement {
     const req = this.req;
     if (this.phase === 'closed' || !req) return html`<sw-dialog data-bulk-dialog="closed"></sw-dialog>`;
     const heading = `${BULK_KIND_LABEL[req.kind]} · ${BULK_SCOPE_LABEL[req.scope]}${req.scope === 'building' ? '' : ` ${req.name}`}`;
-    return html`<sw-dialog open data-bulk-dialog=${this.phase} heading=${heading} subheading="פעולה מרוכזת על כמה התקנים בבת אחת" @close=${this.close}>
+    return html`<sw-dialog open ?locked=${this.phase === 'sending'} data-bulk-dialog=${this.phase} heading=${heading} @close=${this.close}>
       ${this.renderBody()}
     </sw-dialog>`;
   }
@@ -642,9 +674,8 @@ export class DevicesBulkDialog extends LitElement {
     if (this.phase === 'nothing' && p) {
       return html`<div class="what" data-bulk-nothing>
           <div class="big">אין מה לשלוח</div>
-          <div>לפי הדיווח האחרון אין ב${BULK_SCOPE_LABEL[p.scope]} ${p.scope === 'building' ? '' : bidi(p.name)} התקן פעיל מהסוג הזה.</div>
-          ${this.renderSkipped(p)}
-          <div class="never">${p.note}</div>
+          <div data-bulk-nothing-why>${nothingWhy(p)}</div>
+          <details data-bulk-details><summary>פרטים</summary>${this.renderSkipped(p)}<div class="never">${p.note}</div></details>
         </div>
         <div class="actions">${cancel('סגור')}</div>`;
     }
@@ -664,18 +695,25 @@ export class DevicesBulkDialog extends LitElement {
         : nothing}`;
   }
 
+  /** Owner 2026-09-30: short - the question with the count and the two buttons; everything else (the device list,
+   * what is skipped or excluded and why, the standing notes) under a closed "פרטים". A warning that matters to THIS
+   * action (opening every cover of a floor / the building) stays visible. */
   private renderConfirm(p: BulkPreview) {
     const never = Object.entries(p.never_included);
     const posSuffix = p.kind === 'covers_position' && p.position !== null && p.position !== undefined ? ` למיקום ${ltrNum(p.position)}%` : '';
     return html`<div class="what" data-bulk-what>
-        <div class="big" data-bulk-count=${p.count}>יישלח ${p.kind_label}${posSuffix} ל־${ltrNum(p.count)} התקנים${p.scope === 'building' ? ' במבנה כולו' : ` ב${BULK_SCOPE_LABEL[p.scope]} ${bidi(p.name)}`}${p.floor_name ? ` (${bidi(p.floor_name)})` : ''}:</div>
-        <div class="domains" data-bulk-domains>${Object.entries(p.by_domain).map(([d, n]) => html`<span data-domain=${d}>${p.domain_labels[d] ?? d}: ${ltrNum(n)}</span>`)}</div>
-        <details><summary>רשימת ההתקנים</summary><ul>${p.targets.map((t) => html`<li>${bidi(t.name)}${t.area_name && p.scope !== 'area' ? html` <span class="muted">· ${bidi(t.area_name)}</span>` : nothing}</li>`)}</ul></details>
-        ${this.renderSkipped(p)}
-        <div class="never" data-bulk-never>
-          ${p.note}${never.length ? html`<br />נמצאים כאן ואינם נכללים: ${never.map(([d, n]) => `${p.domain_labels[d] ?? d} (${n})`).join(', ')}.` : nothing}
-        </div>
-        <div class="muted">התקן ייחשב כבוי / סגור רק כשיתקבל דיווח על כך.</div>
+        <div class="big" data-bulk-question>${question(p.kind, p.count, p.position)}</div>
+        ${p.kind === 'covers_open' && p.scope !== 'area' ? html`<div class="muted" data-bulk-covers-all>כל התריסים ${p.scope === 'building' ? 'במבנה' : 'בקומה'} ייפתחו, כולל קומת הקרקע.</div>` : nothing}
+        <details data-bulk-details><summary>פרטים</summary>
+          <div class="muted" data-bulk-count=${p.count}>יישלח ${p.kind_label}${posSuffix} ${p.count === 1 ? 'להתקן אחד' : `ל־${ltrNum(p.count)} התקנים`}${p.scope === 'building' ? ' במבנה כולו' : ` ב${BULK_SCOPE_LABEL[p.scope]} ${bidi(p.name)}`}${p.floor_name ? ` (${bidi(p.floor_name)})` : ''}.</div>
+          <div class="domains" data-bulk-domains>${Object.entries(p.by_domain).map(([d, n]) => html`<span data-domain=${d}>${p.domain_labels[d] ?? d}: ${ltrNum(n)}</span>`)}</div>
+          <ul class="list">${p.targets.map((t) => html`<li>${bidi(t.name)}${t.area_name && p.scope !== 'area' ? html` <span class="muted">· ${bidi(t.area_name)}</span>` : nothing}</li>`)}</ul>
+          ${this.renderSkipped(p)}
+          <div class="never" data-bulk-never>
+            ${p.note}${never.length ? html`<br />נמצאים כאן ואינם נכללים: ${never.map(([d, n]) => `${p.domain_labels[d] ?? d} (${n})`).join(', ')}.` : nothing}
+          </div>
+          <div class="muted">התקן ייחשב כבוי / סגור רק כשיתקבל דיווח על כך.</div>
+        </details>
       </div>
       <div class="actions">
         <sw-button data-bulk-cancel autofocus @click=${this.close}>ביטול</sw-button>

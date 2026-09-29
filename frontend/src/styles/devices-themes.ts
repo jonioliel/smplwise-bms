@@ -105,9 +105,46 @@ export const DEVICE_THEME_KNOBS: Record<string, string> = {
   '--dv-entity-tile-min': 'minimum width of a device tile column inside a card',
   '--dv-tree-inline': 'width of the building tree panel',
   '--dv-hover-lift': 'how far an area tile rises on hover (motion allowed only)',
+  // owner 2026-09-29: the compact summary tiles (ui.tile_layout; every style - the block below; styles/tile-knobs.ts)
+  '--dv-kpi-compact-min-block': 'minimum height of a compact summary tile / area tile (the whole tile is the tap target: >= 44px)',
+  '--dv-kpi-compact-pad-block': 'compact tile padding, top and bottom',
+  '--dv-kpi-compact-pad-inline': 'compact tile padding, start and end',
+  '--dv-kpi-compact-gap': 'space between a compact tile\'s icon and its text',
+  '--dv-kpi-compact-icon': 'the icon square at a compact tile\'s inline start',
+  '--dv-kpi-compact-value-fs': 'the value ("0/33") of a compact tile',
+  '--dv-kpi-compact-col-min': 'minimum column width of the compact tiles grid on a tablet / desktop (auto-fill)',
+  '--dv-kpi-compact-cols-phone': 'columns of the compact tiles grid on a phone (under 600px)',
+  '--dv-kpi-compact-grid-gap': 'gap between compact tiles',
+  // the building tree panel (owner 2026-09-29: rows line up, the name takes the row)
+  '--dv-tree-count-w': 'width of the tree rows\' lit-count column (inline end)',
+  '--dv-tree-inline-max': 'the tree panel\'s widest (it grows from --dv-tree-inline with the screen, 16vw)',
+  '--dv-tree-menu-w': 'width of the tree rows\' "⋯" column (kept free on rows without a menu)',
 };
 
 export const devicesThemes = css`
+  /* ---- 0. every style: the compact summary tiles (ui.tile_layout) and the tree columns - bridged to sw-kpi's own
+     --sw-kpi-compact-* properties. A palette may override any of them in its own block. ---- */
+  :host {
+    --dv-kpi-compact-min-block: 60px;
+    --dv-kpi-compact-pad-block: 8px;
+    --dv-kpi-compact-pad-inline: 12px;
+    --dv-kpi-compact-gap: 10px;
+    --dv-kpi-compact-icon: 32px;
+    --dv-kpi-compact-value-fs: 17px;
+    --dv-kpi-compact-col-min: 168px;
+    --dv-kpi-compact-cols-phone: 2;
+    --dv-kpi-compact-grid-gap: 8px;
+    --dv-tree-count-w: 44px;
+    --dv-tree-menu-w: 30px;
+    --dv-tree-inline-max: 340px;
+    --sw-kpi-compact-min-block: var(--dv-kpi-compact-min-block);
+    --sw-kpi-compact-pad-block: var(--dv-kpi-compact-pad-block);
+    --sw-kpi-compact-pad-inline: var(--dv-kpi-compact-pad-inline);
+    --sw-kpi-compact-gap: var(--dv-kpi-compact-gap);
+    --sw-kpi-compact-icon: var(--dv-kpi-compact-icon);
+    --sw-kpi-compact-value-fs: var(--dv-kpi-compact-value-fs);
+  }
+
   /* ---- 1. the bridge: glass knobs -> the v2 tokens every nested component reads ---- */
   :host([data-devices-style='glass']) {
     --sw-glass-blur: var(--dv-surface-blur);

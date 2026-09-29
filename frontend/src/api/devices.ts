@@ -103,6 +103,8 @@ export interface DeviceRow {
    * suggested), "switch_not_marked" or "doors_layer" (never). */
   bulk_safe?: boolean;
   bulk_reason?: 'marked' | 'circuit_not_marked' | 'doors_layer' | 'switch_not_marked';
+  /** Re-review M1 (tiles' panel rows): why a bulk action would not reach this row (the bulk resolve's own rules), or null. */
+  bulk_excluded?: string | null;
   // lighting
   brightness_pct?: number | null;
   color_mode?: string | null;
@@ -185,6 +187,44 @@ export interface DeviceAreaDetail {
 }
 
 export const getDevicesTree = () => get<DeviceTree>('devices/tree');
+
+/** The overview tiles' kinds (owner 2026-09-29): one per building / floor counter. */
+export type TileKind = 'lights' | 'switches' | 'covers' | 'climate' | 'media' | 'locks' | 'alarm';
+export const TILE_KINDS: TileKind[] = ['lights', 'switches', 'covers', 'climate', 'media', 'locks', 'alarm'];
+export type ItemsScope = 'building' | 'floor' | 'area';
+
+/** A row of the tiles' panel: the area card's own row plus its place (and, for a lock, whether this caller may unlock). */
+export interface DeviceItem extends DeviceRow {
+  area_id: string;
+  area_name: string;
+  floor_id: string | null;
+  floor_name: string | null;
+  can_unlock?: boolean;
+}
+
+export interface DeviceItems {
+  kind: TileKind;
+  scope: ItemsScope;
+  id: string;
+  name: string;
+  floor_name: string | null;
+  /** active = lit / on / open / heating-cooling / playing / locked / armed; unavailable apart from both. */
+  counts: { total: number; active: number; inactive: number; unavailable: number };
+  floors: { floor_id: string; name: string; level: number | null; areas: { area_id: string; name: string; items: DeviceItem[] }[] }[];
+  truncated: boolean;
+  scoped: boolean;
+  can_bulk?: boolean;
+  /** The caller may mark switches bulk-safe (system.configure) - the switches list only. */
+  can_mark_bulk_safe?: boolean;
+  sync?: HaSyncState;
+}
+
+/** `GET /devices/items`: every entity of one tile kind in the building / one HA floor / one HA area, floor › area. */
+export function getDeviceItems(kind: TileKind, scope: ItemsScope = 'building', id = '') {
+  const q = new URLSearchParams({ kind, scope });
+  if (scope !== 'building') q.set('id', id);
+  return get<DeviceItems>(`devices/items?${q.toString()}`);
+}
 
 /** "רענן מ-Home Assistant" (CR-007 HA refresh): re-read HA's entity / device / area / floor registries now.
  * `devices.read`; one per user per 10 s (429 `refresh_rate_limited`, details.retry_after_s); 503 while HA is not

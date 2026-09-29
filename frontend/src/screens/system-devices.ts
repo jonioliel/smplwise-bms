@@ -1,3 +1,4 @@
+import { parseRoute } from '../router';
 import { LitElement, html, css, svg, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
@@ -42,6 +43,8 @@ const SCENES: SceneKind[] = ['entrance', 'lobby', 'corridor', 'hall', 'parking',
 export class SystemDevices extends LitElement {
   @state() private selected: string | null = null;
   @state() private filter: 'all' | 'online' | 'offline' | 'issues' = 'all';
+  /** Owner 2026-09-29: from the Live overview's cameras tile - every camera, the offline ones first. */
+  @state() private offlineFirst = false;
   @state() private cameras: Camera[] | null = null;
   @state() private recorder: { name: string; model: string | null; firmware: string | null; last_seen_at: string | null } | null = null;
   @state() private canSync = false;
@@ -159,6 +162,12 @@ export class SystemDevices extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    // owner 2026-09-29: the Live overview's cameras tile opens the FULL list with the offline cameras first (`?sort=offline`);
+    // `?filter=` still preselects a chip
+    const params = parseRoute().params;
+    const f = params.get('filter');
+    if (f === 'all' || f === 'online' || f === 'offline' || f === 'issues') this.filter = f;
+    this.offlineFirst = params.get('sort') === 'offline';
     void this.reload();
   }
 
@@ -257,7 +266,7 @@ export class SystemDevices extends LitElement {
 
   private columns: TableColumn[] = [
     { key: 'name', label: 'מצלמה', render: (r) => html`<div class="cam">${r.api && (r.api as { status?: string }).status === 'online' ? html`<img class="snap" src=${snapshotUrl(String(r.id))} alt="" loading="lazy" style="inline-size:64px;block-size:40px;object-fit:cover;border-radius:5px;flex-shrink:0;background:var(--sw-surface-3);display:block" @error=${(e: Event) => ((e.target as HTMLImageElement).style.visibility = 'hidden')} />` : r.scene ? html`<sw-scene kind=${r.scene as SceneKind}></sw-scene>` : html`<div class="none"></div>`}<div><b>${String(r.name)}</b><small>${String(r.sub)}</small></div></div>` },
-    { key: 'state', label: 'מצב', render: (r) => html`<span class="status"><i style="--c:${r.state === 'live' ? 'var(--sw-live)' : r.state === 'offline' ? 'var(--sw-danger)' : r.state === 'unknown' ? 'var(--sw-unknown)' : 'var(--sw-stale)'}"></i>${r.state === 'live' ? 'מחוברת' : r.state === 'offline' ? 'מנותקת' : r.state === 'stale' ? 'לא מעודכן' : r.state === 'forbidden' ? 'ללא הרשאה' : 'לא נבדק'}</span>` },
+    { key: 'state', label: 'מצב', render: (r) => html`<span class="status" data-cam-state=${String(r.state)} style=${r.state === 'offline' ? 'color:var(--sw-danger);font-weight:var(--sw-fw-semibold)' : ''}><i style="--c:${r.state === 'live' ? 'var(--sw-live)' : r.state === 'offline' ? 'var(--sw-danger)' : r.state === 'unknown' ? 'var(--sw-unknown)' : 'var(--sw-stale)'}"></i>${r.state === 'live' ? 'מחוברת' : r.state === 'offline' ? 'מנותקת' : r.state === 'stale' ? 'לא מעודכן' : r.state === 'forbidden' ? 'ללא הרשאה' : 'לא נבדק'}</span>` },
     { key: 'fps', label: 'FPS', ltr: true },
     { key: 'bitrate', label: 'קצב', ltr: true },
     { key: 'firmware', label: 'זרם ראשי', ltr: true },
@@ -268,7 +277,8 @@ export class SystemDevices extends LitElement {
 
   render() {
     const all = this.rows;
-    const rows = all.filter((c) => (this.filter === 'all' ? true : this.filter === 'online' ? c.state === 'live' : this.filter === 'offline' ? c.state === 'offline' : c.state === 'stale' || c.state === 'forbidden' || c.state === 'unknown'));
+    const picked = all.filter((c) => (this.filter === 'all' ? true : this.filter === 'online' ? c.state === 'live' : this.filter === 'offline' ? c.state === 'offline' : c.state === 'stale' || c.state === 'forbidden' || c.state === 'unknown'));
+    const rows = this.offlineFirst ? [...picked].sort((a, b) => Number(b.state === 'offline') - Number(a.state === 'offline')) : picked;
     const cam = all.find((c) => c.id === this.selected);
     const api = !!this.cameras;
     return html`
