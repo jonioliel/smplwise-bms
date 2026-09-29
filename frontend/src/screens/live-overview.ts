@@ -459,7 +459,9 @@ export class LiveOverview extends LitElement {
        --lv-tile-* knobs (styles/tile-knobs.ts). Four across on a desktop, the knob's column count on a phone. */
     :host([data-tile-layout='compact']) .kpis {
       grid-template-columns: repeat(auto-fit, minmax(var(--lv-tile-compact-col-min), 1fr));
+      grid-auto-rows: 1fr;
       gap: var(--lv-tile-compact-grid-gap);
+      padding-block-start: 6px; /* room for a badge riding the tile's top corner */
     }
     @media (min-width: 1024px) {
       :host([data-tile-layout='compact']) .kpis {

@@ -124,7 +124,7 @@ export class SwKpi extends LitElement {
     /* ---- compact: a rectangle, the icon beside the text (knobs: --sw-kpi-compact-*) ---- */
     :host([layout='compact']) {
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto;
+      grid-template-columns: auto minmax(0, 1fr);
       align-items: center;
       column-gap: var(--sw-kpi-compact-gap, 10px);
       row-gap: 0;
@@ -166,9 +166,12 @@ export class SwKpi extends LitElement {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    /* review M6: the badge rides the tile's top corner - it never takes a column from the value and the label */
     :host([layout='compact']) .badge {
-      position: static;
-      align-self: start;
+      inset-block-start: -7px;
+      inset-inline-end: 8px;
+      z-index: 2;
+      pointer-events: none;
     }
 
     /* ---- a tile that is a control: the native link / button covers it ---- */
@@ -217,13 +220,15 @@ export class SwKpi extends LitElement {
 
   render() {
     const name = [this.words, this.hint].filter(Boolean).join(' · ');
+    // review low: the control carries the whole text as its name - the visible text is not read a second time
+    const interactive = !!this.href || this.action;
     return html`
-      <div class="icon"><sw-icon .name=${this.icon} size=${16}></sw-icon></div>
-      <div class="txt">
+      <div class="icon" aria-hidden=${interactive ? 'true' : nothing}><sw-icon .name=${this.icon} size=${16}></sw-icon></div>
+      <div class="txt" aria-hidden=${interactive ? 'true' : nothing}>
         <div class="line"><span class="value">${this.value}</span> <span class="label">${this.label}</span></div>
         ${this.detail ? html`<div class="detail">${this.detail}</div>` : nothing}
       </div>
-      ${this.badge ? html`<span class="badge">${this.badge}</span>` : nothing}
+      ${this.badge ? html`<span class="badge" aria-hidden=${interactive ? 'true' : nothing}>${this.badge}</span>` : nothing}
       ${this.href
         ? html`<a class="hit" href=${this.href} aria-label=${name}></a>`
         : this.action

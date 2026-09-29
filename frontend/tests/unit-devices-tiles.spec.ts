@@ -310,4 +310,47 @@ test.describe('review fixes (demo data)', () => {
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/devices/building?domain=switches');
     await expect(b.locator('devices-tiles-panel')).toHaveAttribute('open', '');
   });
+
+  test('M2 / M3 / M6: the page behind does not scroll while the panel is open; a drag ending outside never closes it; no empty footer bar', async ({ page }) => {
+    await open(page, '/devices/building?domain=lights');
+    const panel = page.locator('devices-building devices-tiles-panel');
+    await expect(panel).toHaveAttribute('open', '');
+    const mainOverflow = () => page.evaluate(() => (document.querySelector('sw-app')!.shadowRoot!.querySelector('main') as HTMLElement).style.overflow);
+    expect(await mainOverflow()).toBe('hidden');
+    // the drawer's footer is not drawn when nothing is slotted into it
+    expect(await panel.locator('sw-drawer').evaluate((d) => d.shadowRoot!.querySelector('footer')!.hidden)).toBe(true);
+    // a press inside the panel, dragged out and released over the backdrop, keeps it open
+    const row = panel.locator('.row[data-entity]').first();
+    const box = (await row.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(5, 5, { steps: 5 });
+    await page.mouse.up();
+    await expect(panel).toHaveAttribute('open', '');
+    await page.keyboard.press('Escape');
+    await expect(panel).not.toHaveAttribute('open', '');
+    expect(await mainOverflow()).toBe('');
+  });
+
+  test('M6: on a phone the Live events tile keeps its value and label together - the badge rides the corner', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the phone layout');
+    await open(page, '/live');
+    const ev = page.locator('live-overview sw-kpi[data-overview-tile="events"]');
+    await expect(ev).toHaveAttribute('layout', 'compact');
+    const g = await ev.evaluate((k) => {
+      const q = (s: string) => k.shadowRoot!.querySelector(s)!.getBoundingClientRect();
+      const v = q('.value');
+      const l = q('.label');
+      const b = q('.badge');
+      const line = q('.line');
+      const overlap = !(b.right <= line.left || b.left >= line.right || b.bottom <= line.top || b.top >= line.bottom);
+      return { sameLine: Math.abs(v.top - l.top) < 8, overlap, h: k.getBoundingClientRect().height };
+    });
+    expect(g.sameLine).toBe(true);
+    expect(g.overlap).toBe(false);
+    expect(g.h).toBeLessThanOrEqual(80);
+    // every compact tile of the row equally tall
+    const hs = await page.locator('live-overview sw-kpi').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+    expect(new Set(hs).size).toBe(1);
+  });
 });

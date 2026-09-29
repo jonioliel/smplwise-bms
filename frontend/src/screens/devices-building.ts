@@ -370,6 +370,7 @@ const BUILDING_GLASS = css`
 const TILE_LAYOUT = css`
   :host([data-tile-layout='compact']) .kpis {
     grid-template-columns: repeat(auto-fill, minmax(var(--dv-kpi-compact-col-min), 1fr));
+    grid-auto-rows: 1fr; /* review low: every compact tile as tall as the tallest */
     gap: var(--dv-kpi-compact-grid-gap);
   }
   :host([data-tile-layout='compact']) sw-kpi {
@@ -398,6 +399,10 @@ const TILE_LAYOUT = css`
     :host([data-tile-layout='compact']) .kpis,
     :host([data-tile-layout='compact']) .areas {
       grid-template-columns: repeat(var(--dv-kpi-compact-cols-phone), minmax(0, 1fr));
+    }
+    /* an odd last tile takes the whole row */
+    :host([data-tile-layout='compact']) .kpis > sw-kpi:last-child:nth-child(odd) {
+      grid-column: 1 / -1;
     }
   }
 `;
