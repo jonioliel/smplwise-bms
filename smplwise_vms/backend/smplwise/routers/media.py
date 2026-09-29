@@ -84,7 +84,27 @@ def _remote_chain(conn) -> str | None:
     from ..services import ha_user_auth
 
     s = ha_user_auth.session_of(conn)
-    return (s.chain or s.sid) if s is not None else None
+    return s.sign_in() if s is not None else None
+
+
+CAP_AUDIT_EVERY_S = 60.0
+_cap_audited: dict[str, tuple[float, int]] = {}  # sign-in -> (last audit row, refusals since)
+
+
+def cap_audit_details(chain: str | None, cap: int) -> dict[str, Any] | None:
+    """Review L2: a player retrying against the cap must not flood the audit log - one row per sign-in per minute, with
+    the number of refusals folded into it (`suppressed`); None = count this one and write nothing."""
+    key = chain or ""
+    now = time.time()
+    last, since = _cap_audited.get(key, (0.0, 0))
+    if now - last < CAP_AUDIT_EVERY_S:
+        _cap_audited[key] = (last, since + 1)
+        return None
+    if len(_cap_audited) > 2000:
+        for k in [k for k, v in _cap_audited.items() if now - v[0] > CAP_AUDIT_EVERY_S]:
+            _cap_audited.pop(k, None)
+    _cap_audited[key] = (now, 0)
+    return {"max": cap, **({"suppressed": since} if since else {})}
 
 
 def remote_cap_refusal(chain: str | None, cap: int) -> ApiError | None:
@@ -155,8 +175,10 @@ def live_info(camera_id: str, request: Request, principal: Principal = Depends(c
     chain = _remote_chain(request)
     refusal = remote_cap_refusal(chain, s["remote.max_live_streams"])
     if refusal is not None:
-        audit(conn, actor=principal, action="video.live", decision="denied", resource_type="camera", resource_id=camera_id, reason="remote_live_cap",
-              details={"max": s["remote.max_live_streams"]})
+        details = cap_audit_details(chain, s["remote.max_live_streams"])
+        if details is not None:
+            audit(conn, actor=principal, action="video.live", decision="denied", resource_type="camera", resource_id=camera_id, reason="remote_live_cap",
+                  details=details)
         raise refusal
     return {
         "camera_id": cam["id"],
@@ -204,19 +226,22 @@ async def _principal_for_ws(websocket: WebSocket) -> Principal | None:
     return principal
 
 
-async def _refuse_remote_cap(websocket: WebSocket, db: Database, principal: Principal, camera_id: str, refusal: ApiError) -> None:
+async def _refuse_remote_cap(websocket: WebSocket, db: Database, principal: Principal, camera_id: str, refusal: ApiError, chain: str | None) -> None:
     """The remote live cap on the socket: accepted first so the browser sees the reason (a close before accept is a
     bare handshake failure), then `{"type":"error","value":"remote_live_cap","message":…}` and close 4429 (the player
-    shows its "stream quota reached" state for 4429). Audited like the HTTP refusal."""
+    shows its "stream quota reached" state for 4429). Audited like the HTTP refusal (throttled per sign-in)."""
     import json as _json
+
+    details = cap_audit_details(chain, int(refusal.details.get("max") or 0))
 
     def _write() -> None:
         with db.connection() as conn:
             audit(conn, actor=principal, action="video.live", decision="denied", resource_type="camera", resource_id=camera_id, reason="remote_live_cap",
-                  details={"max": refusal.details.get("max")})
+                  details=details)
 
-    with contextlib.suppress(Exception):
-        await run_in_threadpool(_write)
+    if details is not None:
+        with contextlib.suppress(Exception):
+            await run_in_threadpool(_write)
     with contextlib.suppress(Exception):
         if websocket.client_state.name == "CONNECTING":
             await websocket.accept()
@@ -256,7 +281,7 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
     chain = _remote_chain(websocket)  # CR-008 P2: the remote sign-in's own budget (remote.max_live_streams)
     refusal = remote_cap_refusal(chain, remote_cap)
     if refusal is not None:
-        await _refuse_remote_cap(websocket, db, principal, camera_id, refusal)
+        await _refuse_remote_cap(websocket, db, principal, camera_id, refusal, chain)
         return
 
     try:
@@ -288,7 +313,7 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
     # re-checked with nothing awaited before the registration: two starts of one sign-in cannot both pass the cap
     refusal = remote_cap_refusal(chain, remote_cap)
     if refusal is not None:
-        await _refuse_remote_cap(websocket, db, principal, camera_id, refusal)
+        await _refuse_remote_cap(websocket, db, principal, camera_id, refusal, chain)
         return
     REGISTRY.sessions[session.id] = session
 

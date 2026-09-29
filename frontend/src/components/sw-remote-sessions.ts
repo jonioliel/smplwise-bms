@@ -37,29 +37,36 @@ export class SwRemoteSessions extends LitElement {
     if (changed.has('scope') && this.hasUpdated) void this.load();
   }
 
+  /** Review L7: the own and the all-users answers may arrive out of order when the scope changes - only the latest counts. */
+  private seq = 0;
+
   async load() {
+    const mine = ++this.seq;
     try {
       const r = await listRemoteSessions(this.scope);
+      if (mine !== this.seq) return;
       this.rows = r.sessions;
       this.remote = r.channel === 'remote';
       this.error = '';
     } catch (err) {
+      if (mine !== this.seq) return;
       this.error = describeError(err);
       this.rows = [];
     }
   }
 
-  private announce(result: RevokeResult, what: string) {
+  /** everywhere: every sign-in of the user ended (the sign-in page then says so); false: one row, which was this page's. */
+  private announce(result: RevokeResult, what: string, everywhere: boolean) {
     this.message = result.sessions_ended ? what : 'לא נמצאו כניסות פעילות.';
     this.dispatchEvent(new CustomEvent('remote-sessions-changed', { bubbles: true, composed: true, detail: result }));
-    if (result.current_ended) this.dispatchEvent(new CustomEvent('remote-signed-out', { bubbles: true, composed: true, detail: result }));
+    if (result.current_ended) this.dispatchEvent(new CustomEvent('remote-signed-out', { bubbles: true, composed: true, detail: { ...result, everywhere } }));
   }
 
   private async revoke(row: RemoteSession) {
     this.busy = true;
     this.message = '';
     try {
-      this.announce(await revokeRemoteSession(row.id), row.current ? 'יצאת מהמכשיר הזה.' : 'הכניסה נותקה.');
+      this.announce(await revokeRemoteSession(row.id), row.current ? 'יצאת מהמכשיר הזה.' : 'הכניסה נותקה.', false);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -78,7 +85,7 @@ export class SwRemoteSessions extends LitElement {
     this.message = '';
     try {
       const r = await revokeAllRemoteSessions();
-      this.announce(r, `נותקו ${r.sessions_ended} כניסות.`);
+      this.announce(r, `נותקו ${r.sessions_ended} כניסות.`, true);
     } catch (err) {
       this.error = describeError(err);
     } finally {

@@ -561,5 +561,20 @@ them - the worker and the manifest follow whatever base the page is served under
   (remote-only, rate-limited, bounded, counters only in `csp_reports`); `remote.csp_enforce` switch after review; a
   route's own CSP is now kept. DOCS / DOCS_HE "Remote-access hardening".
 - **Pen-test checklist:** `docs/operations/ARX_REMOTE_PENTEST_HE.md` - not run on the lab yet (owner / lab step).
-- **Tests:** `tests/test_remote_hardening.py` (23), `tests/test_remote_access.py` (57, 2 expectations updated),
+- **Security review of P2 (fixed on the branch):** M1 "sign out everywhere" deletes at HA only refresh tokens HA lists
+  as `normal` sign-ins of the Arx client id (`<origin><remote_path>/`, recorded per session), never a long-lived token or
+  another client's, concurrently and within 8 s in all. M2 a revoke marks its sign-ins revoked in memory before dropping
+  their sessions (loaded from `remote_revoked_chains` at start-up); `STORE.create` refuses a revoked sign-in under its
+  lock, the background pass and the idle re-check drop one, and a socket whose session vanished before the attach is
+  refused. M3 the idle re-check runs once per session at a time and, when HA cannot be asked, not again for 30 s -
+  **while HA is down an idle session is kept until its access token expires (<= 30 min)**, consistent with §3b.5. M4 the
+  live-camera zones view's inline `<style>` moved to static styles (a test forbids inline style elements in the app);
+  the enforce switch is disabled while inline-style reports exist. L1 sessions, the list and the live cap are keyed on
+  the sign-in (the hashed refresh-token id), so a cookie-less re-exchange shares them. L2 the cap refusal is audited once
+  a minute per sign-in with a `suppressed` count. L3 CSP counters keep `host[:port]` only. L4 the revoke audit row names
+  the actor's channel and `ended_via`. L6 the revoked-chain check fails closed on a database error once the table
+  exists. L7 the sessions list ignores stale answers; revoking only the current row signs out "here", not "everywhere".
+- **Addresses:** the audit keeps the full client address in `auth.remote_*` rows by design (forensics, rate-limit
+  review); the sessions list and the roles screen show it masked (/24, /48) and `remote_sign_ins` stores it masked.
+- **Tests:** `tests/test_remote_hardening.py` (36), `tests/test_remote_access.py` (59, 2 expectations updated),
   `frontend/tests/evidence-arx-sessions.spec.ts` (desktop). Not in P2: Cloudflare Access (D3), native push.

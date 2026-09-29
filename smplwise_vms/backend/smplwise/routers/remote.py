@@ -107,7 +107,7 @@ def set_remote_access(user_id: str, body: RemoteFlag, request: Request, principa
         from .settings import read_settings
 
         if read_settings(conn)["remote.policy"] == "flag":
-            dropped = len({s.chain or s.sid for s in hua.STORE.drop_user(user_id)})
+            dropped = len({s.sign_in() for s in hua.STORE.drop_user(user_id)})
             _close_sockets_from_thread()
     if before != body.enabled:
         audit(conn, actor=principal, action="remote.access_flag", decision="allowed", resource_type="user", resource_id=user_id,
@@ -155,7 +155,7 @@ def _live_by_chain() -> dict[str, int]:
 
 def _current_chain(request: Request) -> str | None:
     s = hua.session_of(request)
-    return (s.chain or s.sid) if s is not None else None
+    return s.sign_in() if s is not None else None
 
 
 @router.get("/auth/sessions")
@@ -178,7 +178,7 @@ def _clear_cookie(response: Response, settings) -> None:
 async def _revoke(request: Request, principal: Principal, sessions: list, target_user: str, reason: str) -> JSONResponse:
     settings = settings_of(request)
     current = _current_chain(request)
-    ends_current = current is not None and any((s.chain or s.sid) == current for s in sessions)
+    ends_current = current is not None and any(s.sign_in() == current for s in sessions)
     own = target_user == principal.user_id
     result = await hua.revoke_sessions(request.app.state, settings, sessions, actor=principal, reason=reason, target_user=target_user,
                                        also_at_ha=own, request_id=getattr(request.state, "correlation_id", None))
@@ -238,9 +238,15 @@ def _blocked_origin(raw: Any, host: str) -> str:
         return "other"
     if not u.scheme or not u.netloc:
         return u.scheme.lower()[:20] or "other"
-    if u.netloc.lower() == (host or "").lower():
+    try:  # review L3: hostname[:port] only - never the userinfo part of a URL
+        where = (u.hostname or "") + (f":{u.port}" if u.port else "")
+    except ValueError:
+        return "other"
+    if not where:
+        return "other"
+    if where == (host or "").lower():
         return "self"
-    return f"{u.scheme.lower()}://{u.netloc.lower()}"[:100]
+    return f"{u.scheme.lower()}://{where}"[:100]
 
 
 def _csp_items(payload: Any, host: str) -> list[tuple[str, str, str]]:

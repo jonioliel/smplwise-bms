@@ -56,7 +56,7 @@ export class SwProfileMenu extends LitElement {
               ? html`<section data-my-sessions>
                   <h3>הסשנים שלי</h3>
                   <p>כניסות פעילות מרחוק (SmplWise Arx) מכל המכשירים שלך.</p>
-                  <sw-remote-sessions compact scope="own" @remote-signed-out=${() => void arxLogout('everywhere')}></sw-remote-sessions>
+                  <sw-remote-sessions compact scope="own" @remote-signed-out=${(e: CustomEvent<{ everywhere?: boolean }>) => void arxLogout(e.detail?.everywhere ? 'everywhere' : 'logout')}></sw-remote-sessions>
                 </section>`
               : nothing}
             ${REMOTE ? html`<sw-button variant="ghost" size="sm" icon="logout" data-profile-signout @click=${() => void arxLogout('logout')}>יציאה מ־SmplWise Arx</sw-button>` : nothing}

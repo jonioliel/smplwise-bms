@@ -716,7 +716,9 @@ JPG עם בחירת עמוד, סיבוב וחיתוך), מיקום מצלמות 
   התשובה, והכניסה לא יכולה לחזור: מזהה ה-refresh token שטוקני הגישה שלה נושאים נרשם (כ-hash, בטבלה
   `remote_revoked_chains`, נשמר שנה) והחלפה חוזרת נענית `remote_session_revoked`; הדפדפן מציג אז את מסך הכניסה
   ("הכניסה במכשיר הזה נותקה") ומבטל בעצמו את ה-refresh token שלו. כשמשתמש מנתק את הכניסות **שלו**, ה-add-on גם
-  מוחק את ה-refresh tokens האלה ב-Home Assistant (`auth/delete_refresh_token` בטוקן של המשתמש עצמו, במאמץ מיטבי) -
+  מוחק את ה-refresh tokens האלה ב-Home Assistant (`auth/delete_refresh_token` בטוקן של המשתמש עצמו, במאמץ מיטבי, עד
+  8 שניות) - אבל רק את אלה ש-HA מציג ככניסות רגילות של הלקוח Arx (`https://<host><remote_path>/`); טוקן גישה ארוך
+  טווח או כניסה של אפליקציה אחרת ששימשה עם Arx לעולם אינם נמחקים ב-HA -
   אותם דפדפנים מתנתקים גם מ-HA בכתובת `/`. ניתוק על ידי מנהל מסיים את הגישה ל-Arx בלבד; הכניסה של המשתמש ל-HA
   שלו. כל ניתוק נרשם באודיט (`auth.remote_session.revoked`, סיבה `signed_out_everywhere` / `revoked_by_user` /
   `revoked_by_admin` / `revoked_all_by_admin`).

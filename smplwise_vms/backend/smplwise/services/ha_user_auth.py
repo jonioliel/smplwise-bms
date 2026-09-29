@@ -300,7 +300,21 @@ class RemoteSession:
     user_agent: str = ""
     iss_hash: str = ""  # SHA-256 of the refresh-token id the access token carries (remote_revoked_chains)
     token_key: str = ""  # token_hash of a bearer session's token (the lookup key of the bearer path)
+    client_id: str = ""  # the Arx OAuth client id this sign-in was made from: `<origin><remote_path>/` (review M1)
     continued: bool = False  # the session continues an existing chain (a rotation, a native client's next token)
+    # review M3: one re-check against HA at a time per session, and none before this time after HA was unreachable
+    recheck_after: float = 0.0
+    recheck_lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
+
+    def sign_in(self) -> str:
+        """The sign-in this session belongs to - what the sessions list shows as one row, what a revoke ends and what the
+        live-stream budget counts (review L1): the HA refresh token behind the access token (its hashed `iss`), so every
+        cookie chain and every bearer session of one sign-in share it; the cookie chain when a token carries no `iss`."""
+        return "i:" + self.iss_hash if self.iss_hash else (self.chain or self.sid)
+
+
+class ChainRevoked(Exception):
+    """STORE.create refused: the sign-in was ended from the sessions list (possibly while this exchange was running)."""
 
 
 class SessionStore:
@@ -310,9 +324,30 @@ class SessionStore:
         self._sockets: dict[str, weakref.WeakSet] = {}
         self._by_token: dict[str, str] = {}  # bearer sessions: token_hash -> sid
         self._to_close: list[Any] = []
+        # review M2: the revoked sign-ins (iss hashes) in memory - filled at the START of a revoke, before its sessions are
+        # dropped, and loaded from remote_revoked_chains at start-up; consulted under the lock by create()
+        self._revoked_iss: set[str] = set()
+
+    def revoke_sign_ins(self, hashes: set[str], sessions: list[RemoteSession]) -> list[RemoteSession]:
+        """Mark these sign-ins revoked and drop, in the same critical section, the given sessions and every session of
+        those sign-ins - including one an exchange created after the caller listed them."""
+        with self._lock:
+            self._revoked_iss.update(h for h in hashes if h)
+            sids = {s.sid for s in sessions} | {sid for sid, s in self._sessions.items() if s.iss_hash and s.iss_hash in self._revoked_iss}
+            return [x for x in (self._drop_locked(sid) for sid in sids) if x is not None]
+
+    def is_revoked(self, iss_hash_value: str) -> bool:
+        if not iss_hash_value:
+            return False
+        with self._lock:
+            return iss_hash_value in self._revoked_iss
+
+    def load_revoked(self, hashes: set[str]) -> None:
+        with self._lock:
+            self._revoked_iss.update(hashes)
 
     def create(self, principal: Principal, ha_user: HaUser, token: str, token_exp: float, client_ip: str, replaces: str | None = None,
-               via: str = "cookie", meta: dict[str, str] | None = None) -> RemoteSession:
+               via: str = "cookie", meta: dict[str, str] | None = None, client_id: str = "") -> RemoteSession:
         """A new session. A cookie session with `replaces` = the sid the browser presented (a rotation after a token
         refresh): that session ends now (security review M2) and its open WebSockets move to the new one instead of
         being closed. A bearer session (CR-008 P2) joins the chain of the same sign-in (the token's refresh-token id), so
@@ -323,9 +358,11 @@ class SessionStore:
         s = RemoteSession(sid=secrets.token_urlsafe(32), principal=principal, token=token, token_exp=token_exp, ha_user=ha_user,
                           client_ip=client_ip, created_at=now, last_used=now, last_validated=now, via=via, chain_started=now,
                           last_ip=client_ip, country=meta.get("country", ""), user_agent=meta.get("user_agent", ""), iss_hash=iss_hash(token),
-                          token_key=token_hash(token) if via == "bearer" else "")
+                          token_key=token_hash(token) if via == "bearer" else "", client_id=client_id)
         s.chain = s.sid if via == "cookie" else "b:" + (s.iss_hash or s.token_key)
         with self._lock:
+            if s.iss_hash and s.iss_hash in self._revoked_iss:
+                raise ChainRevoked()  # review M2: a revoke landed while this exchange was validating the token
             if via == "cookie":
                 old = self._sessions.get(replaces) if replaces else None
                 if old is not None and old.principal.user_id == principal.user_id and old.via == "cookie":
@@ -394,13 +431,14 @@ class SessionStore:
             return self._drop_locked(sid)
 
     def drop_chain(self, sid: str) -> RemoteSession | None:
-        """Sign-out: the presented session and every other session of the same browser's chain."""
+        """Sign-out: the presented session and every other session of the same sign-in (this browser's earlier
+        rotations, and a cookie-less re-exchange of the same HA sign-in)."""
         with self._lock:
             s = self._sessions.get(sid)
             if s is None:
                 return None
-            chain = s.chain or s.sid
-            for other in [x for x, v in self._sessions.items() if (v.chain or v.sid) == chain]:
+            key = s.sign_in()
+            for other in [x for x, v in self._sessions.items() if v.sign_in() == key]:
                 self._drop_locked(other)
             return s
 
@@ -414,7 +452,7 @@ class SessionStore:
         """The sessions of the given sign-ins (public ids) and / or of one user."""
         with self._lock:
             return [s for s in self._sessions.values()
-                    if (public_ids is None or public_id(s.chain or s.sid) in public_ids) and (user_id is None or s.principal.user_id == user_id)]
+                    if (public_ids is None or public_id(s.sign_in()) in public_ids) and (user_id is None or s.principal.user_id == user_id)]
 
     def drop_sessions(self, sessions: list[RemoteSession]) -> list[RemoteSession]:
         with self._lock:
@@ -429,7 +467,7 @@ class SessionStore:
             for s in self._sessions.values():
                 if s.token_exp <= now or (user_id is not None and s.principal.user_id != user_id):
                     continue
-                chain = s.chain or s.sid
+                chain = s.sign_in()
                 start = s.chain_started or s.created_at
                 cur = out.get(chain)
                 if cur is None:
@@ -440,10 +478,14 @@ class SessionStore:
                     cur["session"] = s
         return sorted(out.values(), key=lambda e: -e["session"].last_used)
 
-    def attach_socket(self, sid: str, websocket: Any) -> None:
+    def attach_socket(self, sid: str, websocket: Any) -> bool:
+        """False when the session is gone (revoked or expired between the check and the attach, review M2): the caller
+        refuses the socket rather than serve one nothing would ever close."""
         with self._lock:
-            if sid in self._sessions:
-                self._sockets.setdefault(sid, weakref.WeakSet()).add(websocket)
+            if sid not in self._sessions:
+                return False
+            self._sockets.setdefault(sid, weakref.WeakSet()).add(websocket)
+            return True
 
     def take_sockets_to_close(self) -> list[Any]:
         with self._lock:
@@ -468,7 +510,7 @@ class SessionStore:
         with self._lock:
             live = [s for s in self._sessions.values() if s.token_exp > now]
             return {"sessions": len(live), "cookie": sum(1 for s in live if s.via == "cookie"), "bearer": sum(1 for s in live if s.via == "bearer"),
-                    "sign_ins": len({s.chain or s.sid for s in live}), "users": len({s.principal.user_id for s in live}),
+                    "sign_ins": len({s.sign_in() for s in live}), "users": len({s.principal.user_id for s in live}),
                     "sockets": sum(len(v) for v in self._sockets.values())}
 
     def clear(self) -> None:
@@ -477,6 +519,7 @@ class SessionStore:
             self._sockets.clear()
             self._by_token.clear()
             self._to_close.clear()
+            self._revoked_iss.clear()
 
 
 STORE = SessionStore()
@@ -561,6 +604,16 @@ def request_meta(conn: Any) -> dict[str, str]:
     if h.get("user-agent"):
         meta["user_agent"] = h.get("user-agent", "")[:200]
     return meta
+
+
+def arx_client_id(settings: Settings, conn: Any) -> str:
+    """The OAuth client id the Arx sign-in page used on this origin: `<scheme>://<host><remote_path>/` (arx/channel.ts
+    clientId()). Behind the tunnel the scheme is cloudflared's X-Forwarded-Proto (https); the add-on itself always is."""
+    host = (conn.headers.get("host") or "").strip()
+    if not host:
+        return ""
+    proto = "https" if settings.in_addon else (conn.headers.get("x-forwarded-proto") or conn.url.scheme or "http").split(",")[0].strip().lower()
+    return f"{proto}://{host}{settings.remote_path}/"
 
 
 def cookie_name(settings: Settings, conn: Any) -> str:
@@ -653,10 +706,39 @@ def chain_revoked(conn, token: str) -> bool:
     h = iss_hash(token)
     if not h:
         return False
+    if STORE.is_revoked(h):
+        return True
     try:
-        return conn.execute("SELECT 1 FROM remote_revoked_chains WHERE iss_hash = ?", (h,)).fetchone() is not None
-    except Exception:  # noqa: BLE001 - before migration 0035
+        found = conn.execute("SELECT 1 FROM remote_revoked_chains WHERE iss_hash = ?", (h,)).fetchone() is not None
+    except Exception:  # noqa: BLE001
+        # review L6: open only before migration 0035 (no table yet); once the table is known to exist, a database error
+        # fails CLOSED - the sign-in is treated as revoked (401) rather than let a revoked one back in
+        if _REVOKED_TABLE["seen"]:
+            log.warning("remote_revoked_chains could not be read; refusing the sign-in", exc_info=True)
+            return True
         return False
+    _REVOKED_TABLE["seen"] = True
+    if found:
+        STORE.load_revoked({h})
+    return found
+
+
+_REVOKED_TABLE = {"seen": False}
+
+
+def load_revoked(db: Any) -> int:
+    """Start-up (review M2): the revoked sign-ins into memory, and whether migration 0035's table exists (L6)."""
+    try:
+        with db.connection(mode="read", label="remote revoked chains") as conn:
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'remote_revoked_chains'").fetchone() is None:
+                return 0
+            _REVOKED_TABLE["seen"] = True
+            hashes = {r[0] for r in conn.execute("SELECT iss_hash FROM remote_revoked_chains").fetchall()}
+    except Exception:  # noqa: BLE001 - the per-exchange database check still applies
+        log.warning("could not load the revoked remote sign-ins", exc_info=True)
+        return 0
+    STORE.load_revoked(hashes)
+    return len(hashes)
 
 
 def _record_sign_in(db, principal: Principal, meta: dict[str, str]) -> None:
@@ -728,7 +810,12 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
         if refusal.code == "remote_session_revoked":
             _remember_rejected(token)
         raise await rejected(refusal.code, refusal, principal)
-    session = STORE.create(principal, ha_user, token, exp, ip, replaces=session_id_of(settings, conn_like), meta=meta)
+    try:
+        session = STORE.create(principal, ha_user, token, exp, ip, replaces=session_id_of(settings, conn_like), meta=meta,
+                               client_id=arx_client_id(settings, conn_like))
+    except ChainRevoked:  # review M2: a revoke of this sign-in landed while the token was being validated
+        _remember_rejected(token)
+        raise await rejected("remote_session_revoked", unauthenticated("remote_session_revoked", REVOKED_HE), principal)
 
     def touch_and_audit() -> None:
         from ..auth import touch_user
@@ -807,7 +894,11 @@ def _bearer_session(request: Any, settings: Settings, token: str) -> RemoteSessi
         s.last_validated = time.time()
         s.ha_user = ha_user
         return s
-    s = STORE.create(principal, ha_user, token, exp, ip, via="bearer", meta=meta)
+    try:
+        s = STORE.create(principal, ha_user, token, exp, ip, via="bearer", meta=meta, client_id=arx_client_id(settings, request))
+    except ChainRevoked:  # review M2: revoked while this request was validating the token
+        _remember_rejected(token)
+        raise rejected("remote_session_revoked", unauthenticated("remote_session_revoked", REVOKED_HE), principal)
     if not s.continued:  # a new sign-in of a bearer client (not its next access token)
         _record_sign_in(db, principal, meta)
         _audit(db, actor=principal, action="auth.remote_session.created", decision="allowed", reason=None, meta=meta)
@@ -849,8 +940,13 @@ def session_of(conn: Any) -> RemoteSession | None:
 STALE_AFTER_S = REVALIDATE_EVERY_S + ACTIVE_WINDOW_S
 
 
+HA_BACKOFF_S = 30.0  # review M3: after HA could not be asked, no re-check of that session within this window
+RECHECK_WAIT_S = 15.0  # a request waiting for another request's re-check of the same session (validate_token times out at 10 s)
+
+
 def _stale(s: RemoteSession) -> bool:
-    return time.time() - s.last_validated > STALE_AFTER_S
+    now = time.time()
+    return now - s.last_validated > STALE_AFTER_S and now >= s.recheck_after
 
 
 def _reuse_refused(db: Any, s: RemoteSession, reason: str, ip: str) -> None:
@@ -860,6 +956,11 @@ def _reuse_refused(db: Any, s: RemoteSession, reason: str, ip: str) -> None:
 
 
 def _recheck_sync(request: Any, settings: Settings, s: RemoteSession) -> RemoteSession:
+    """An idle session coming back (see STALE_AFTER_S). Review M3: one re-check in flight per session - concurrent
+    requests of the same session wait for it and reuse its outcome instead of each asking HA - and when HA cannot be
+    asked, the session is served and not re-checked again for HA_BACKOFF_S (an HA outage must not turn every request into
+    a 10 s HA call that fills the thread pool). While HA stays down such a session lives until its access token expires
+    (<= 30 min), as in the background pass (CR-008 §3b.5)."""
     try:
         asyncio.get_running_loop()
         return s  # never expected on the event loop (HTTP dependencies run in the thread pool); the pass re-checks it
@@ -867,47 +968,78 @@ def _recheck_sync(request: Any, settings: Settings, s: RemoteSession) -> RemoteS
         pass
     db = request.app.state.db
     ip = client_ip(request)
+    if not s.recheck_lock.acquire(timeout=RECHECK_WAIT_S):
+        return s  # another request is still asking HA; the pass or the next request settles it
     try:
-        ha_user = asyncio.run(validate_token(settings, s.token, ip))
-    except TokenInvalid:
-        _reuse_refused(db, s, "token_revoked", ip)
-        raise unauthenticated("remote_token_invalid", TOKEN_INVALID_HE)
-    except HaUnavailable:
-        return s  # HA briefly away: as in the background pass, the session ends with its access token anyway
-    with db.connection(mode="read", label="remote reuse") as conn:
-        refusal = policy_refusal(conn, s.principal, ha_user)
-    if refusal is not None:
-        _reuse_refused(db, s, refusal.code, ip)
-        raise refusal
-    s.last_validated = time.time()
-    s.ha_user = ha_user
-    return s
+        if STORE.peek(s.sid) is None:  # the re-check we waited for refused it (or a revoke ended it meanwhile)
+            raise unauthenticated("remote_token_invalid", TOKEN_INVALID_HE)
+        if not _stale(s):
+            return s  # the re-check we waited for passed (or HA is in its back-off window)
+        if STORE.is_revoked(s.iss_hash):  # review M2
+            _reuse_refused(db, s, "remote_session_revoked", ip)
+            raise unauthenticated("remote_session_revoked", REVOKED_HE)
+        try:
+            ha_user = asyncio.run(validate_token(settings, s.token, ip))
+        except TokenInvalid:
+            _reuse_refused(db, s, "token_revoked", ip)
+            raise unauthenticated("remote_token_invalid", TOKEN_INVALID_HE)
+        except HaUnavailable:
+            s.recheck_after = time.time() + HA_BACKOFF_S
+            return s
+        with db.connection(mode="read", label="remote reuse") as conn:
+            refusal = policy_refusal(conn, s.principal, ha_user)
+        if refusal is not None:
+            _reuse_refused(db, s, refusal.code, ip)
+            raise refusal
+        s.last_validated = time.time()
+        s.ha_user = ha_user
+        return s
+    finally:
+        s.recheck_lock.release()
 
 
 async def _recheck_async(websocket: Any, settings: Settings, s: RemoteSession) -> RemoteSession | None:
+    """The WebSocket handshake's re-check: the same single flight and back-off as _recheck_sync, without blocking the
+    event loop while another request holds the session's re-check."""
     from starlette.concurrency import run_in_threadpool
 
     db = websocket.app.state.db
     ip = client_ip(websocket)
+    deadline = time.monotonic() + RECHECK_WAIT_S
+    while not s.recheck_lock.acquire(blocking=False):
+        if time.monotonic() > deadline:
+            return s
+        await asyncio.sleep(0.05)
     try:
-        ha_user = await validate_token(settings, s.token, ip)
-    except TokenInvalid:
-        await run_in_threadpool(_reuse_refused, db, s, "token_revoked", ip)
-        return None
-    except HaUnavailable:
+        if STORE.peek(s.sid) is None:
+            return None
+        if not _stale(s):
+            return s
+        if STORE.is_revoked(s.iss_hash):
+            await run_in_threadpool(_reuse_refused, db, s, "remote_session_revoked", ip)
+            return None
+        try:
+            ha_user = await validate_token(settings, s.token, ip)
+        except TokenInvalid:
+            await run_in_threadpool(_reuse_refused, db, s, "token_revoked", ip)
+            return None
+        except HaUnavailable:
+            s.recheck_after = time.time() + HA_BACKOFF_S
+            return s
+
+        def check() -> ApiError | None:
+            with db.connection(mode="read", label="remote reuse") as conn:
+                return policy_refusal(conn, s.principal, ha_user)
+
+        refusal = await run_in_threadpool(check)
+        if refusal is not None:
+            await run_in_threadpool(_reuse_refused, db, s, refusal.code, ip)
+            return None
+        s.last_validated = time.time()
+        s.ha_user = ha_user
         return s
-
-    def check() -> ApiError | None:
-        with db.connection(mode="read", label="remote reuse") as conn:
-            return policy_refusal(conn, s.principal, ha_user)
-
-    refusal = await run_in_threadpool(check)
-    if refusal is not None:
-        await run_in_threadpool(_reuse_refused, db, s, refusal.code, ip)
-        return None
-    s.last_validated = time.time()
-    s.ha_user = ha_user
-    return s
+    finally:
+        s.recheck_lock.release()
 
 
 def remote_principal(request: Any, settings: Settings) -> Principal:
@@ -947,7 +1079,8 @@ async def remote_principal_ws(websocket: Any, settings: Settings) -> Principal |
             s = await run_in_threadpool(_bearer_session, websocket, settings, token)
         except ApiError:
             return None
-    STORE.attach_socket(s.sid, websocket)
+    if not STORE.attach_socket(s.sid, websocket):
+        return None  # review M2: the session ended between the lookup and the attach - nothing would close this socket
     _note_use(websocket, s)
     return s.principal
 
@@ -980,31 +1113,47 @@ def describe(entry: dict[str, Any], current_chain: str | None = None, live_by_ch
     }
 
 
-async def delete_refresh_token_at_ha(settings: Settings, token: str) -> bool:
-    """End the sign-in at HA as well: with the user's own access token, HA's WebSocket command
-    `auth/delete_refresh_token` for the refresh token that issued it (what HA's profile page does). Best effort, never
-    raises. Used only when users end their OWN sessions - an administrator's revoke ends the Arx access, not the user's
-    Home Assistant sign-in."""
+HA_DELETE_TIMEOUT_S = 8.0  # review M1: every HA deletion of one revoke together, then the answer goes out regardless
+
+
+async def delete_refresh_token_at_ha(settings: Settings, token: str, client_id: str) -> bool:
+    """End the sign-in at HA as well, with the user's own access token (what HA's profile page does) - but only when HA
+    confirms it is ONE OF OURS (review M1): `auth/refresh_tokens` lists the user's refresh tokens, and only the entry whose
+    id is this token's `iss`, whose type is `normal` and whose client_id is this Arx address (`<origin><remote_path>/`)
+    is deleted with `auth/delete_refresh_token`. A long-lived access token or a sign-in of another client (the Companion
+    app, HA's own UI) used on the bearer path is never touched. Best effort, never raises; the caller bounds the time.
+    Used only when users end their OWN sessions - an administrator's revoke ends the Arx access, not the user's HA
+    sign-in."""
     iss = jwt_iss(token)
-    if not iss or (jwt_exp(token) or 0) <= time.time():
+    if not iss or not client_id or (jwt_exp(token) or 0) <= time.time():
         return False
     try:
         ws = await _dial(core_ws_url(settings), {})
     except Exception:  # noqa: BLE001
         return False
     try:
-        async with asyncio.timeout(5):
-            hello = json.loads(await ws.recv())
-            if hello.get("type") != "auth_required":
-                return False
-            await ws.send(json.dumps({"type": "auth", "access_token": token}))
-            if json.loads(await ws.recv()).get("type") != "auth_ok":
-                return False
-            await ws.send(json.dumps({"id": 1, "type": "auth/delete_refresh_token", "refresh_token_id": iss}))
+        hello = json.loads(await ws.recv())
+        if hello.get("type") != "auth_required":
+            return False
+        await ws.send(json.dumps({"type": "auth", "access_token": token}))
+        if json.loads(await ws.recv()).get("type") != "auth_ok":
+            return False
+
+        async def call(msg_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+            await ws.send(json.dumps({"id": msg_id, **payload}))
             while True:
                 msg = json.loads(await ws.recv())
-                if msg.get("id") == 1 and msg.get("type") == "result":
-                    return bool(msg.get("success"))
+                if msg.get("id") == msg_id and msg.get("type") == "result":
+                    return msg
+
+        listing = await call(1, {"type": "auth/refresh_tokens"})
+        if not listing.get("success") or not isinstance(listing.get("result"), list):
+            return False
+        mine = next((t for t in listing["result"] if isinstance(t, dict) and t.get("id") == iss), None)
+        if mine is None or mine.get("type") != "normal" or mine.get("client_id") != client_id:
+            log.info("sign out everywhere: HA refresh token left alone (type %s, not this Arx client)", (mine or {}).get("type"))
+            return False
+        return bool((await call(2, {"type": "auth/delete_refresh_token", "refresh_token_id": iss})).get("success"))
     except Exception:  # noqa: BLE001 - HA away, a dropped socket: the local revocation stands anyway
         return False
     finally:
@@ -1016,18 +1165,20 @@ async def delete_refresh_token_at_ha(settings: Settings, token: str) -> bool:
 
 async def revoke_sessions(app_state: Any, settings: Settings, sessions: list[RemoteSession], *, actor: Principal, reason: str,
                           target_user: str, also_at_ha: bool, request_id: str | None = None) -> dict[str, int]:
-    """End these remote sessions now: out of the store (their WebSockets close before this returns), their sign-ins
-    refused from now on (remote_revoked_chains: the browser cannot re-exchange a fresh access token of the same
-    sign-in), their exact tokens negatively cached, one audit row. `also_at_ha`: the user's own request - the HA refresh
-    tokens are deleted too (best effort), so the same browsers are signed out of the HA side of the origin as well."""
+    """End these remote sessions now: their sign-ins marked revoked in memory FIRST (review M2 - an exchange of the same
+    sign-in racing this revoke is refused inside STORE.create) and their sessions dropped in the same step, their
+    WebSockets closed before this returns, the sign-ins recorded in remote_revoked_chains (the browser cannot re-exchange
+    a fresh access token of the same sign-in, also after a restart), their exact tokens negatively cached, one audit row.
+    `also_at_ha`: the user's own request - their Arx refresh tokens at HA are deleted too (only ours, see
+    delete_refresh_token_at_ha), concurrently and within HA_DELETE_TIMEOUT_S in all."""
     from starlette.concurrency import run_in_threadpool
 
     from ..db import now_iso
 
-    dropped = STORE.drop_sessions(sessions)
+    dropped = STORE.revoke_sign_ins({s.iss_hash for s in sessions if s.iss_hash}, sessions)
     for s in dropped:
         _remember_rejected(s.token)
-    chains = {s.chain or s.sid for s in dropped}
+    sign_ins = {s.sign_in() for s in dropped}
     hashes = {s.iss_hash: s.principal.user_id for s in dropped if s.iss_hash}
 
     def persist() -> None:
@@ -1041,10 +1192,12 @@ async def revoke_sessions(app_state: Any, settings: Settings, sessions: list[Rem
             # a year after the revoke HA's sliding 90-day refresh token cannot still be alive unless used - and a used one is
             # refused here; keep the table small
             conn.execute("DELETE FROM remote_revoked_chains WHERE revoked_at < ?", (_days_ago(365),))
+            # review L4: the channel is the ACTOR's (an administrator may revoke from inside the system); what was ended
+            # is `ended_via` (cookie / bearer)
             audit(conn, actor=actor, action="auth.remote_session.revoked", decision="allowed", resource_type="user", resource_id=target_user,
                   reason=reason, request_id=request_id,
-                  details={"sessions": len(chains), "ids": sorted(public_id(c) for c in chains)[:20], "channel": "remote",
-                           "via": sorted({s.via for s in dropped})})
+                  details={"sessions": len(sign_ins), "ids": sorted(public_id(c) for c in sign_ins)[:20],
+                           "channel": "remote" if actor.source == "remote" else "local", "ended_via": sorted({s.via for s in dropped})})
 
     await run_in_threadpool(persist)
     await _close_sockets()
@@ -1055,10 +1208,15 @@ async def revoke_sessions(app_state: Any, settings: Settings, sessions: list[Rem
             key = s.iss_hash or s.sid
             if key not in freshest or s.token_exp > freshest[key].token_exp:
                 freshest[key] = s
-        for s in freshest.values():
-            if await delete_refresh_token_at_ha(settings, s.token):
-                at_ha += 1
-    return {"sessions_ended": len(chains), "ha_sign_ins_ended": at_ha}
+        tasks = [asyncio.ensure_future(delete_refresh_token_at_ha(settings, s.token, s.client_id)) for s in freshest.values()]
+        if tasks:
+            done, pending = await asyncio.wait(tasks, timeout=HA_DELETE_TIMEOUT_S)
+            for t in pending:
+                t.cancel()
+            at_ha = sum(1 for t in done if not t.cancelled() and t.exception() is None and t.result())
+            if pending:
+                log.warning("sign out everywhere: %d HA deletion(s) did not finish in %.0f s; the Arx revocation stands", len(pending), HA_DELETE_TIMEOUT_S)
+    return {"sessions_ended": len(sign_ins), "ha_sign_ins_ended": at_ha}
 
 
 def _days_ago(days: int) -> str:
@@ -1087,12 +1245,15 @@ async def revalidate_once(db: Any, settings: Settings, validate: Callable[..., A
     for s in STORE.due_for_revalidation():
         reason: str | None = None
         ha_user = s.ha_user
-        try:
-            ha_user = await validate(settings, s.token, s.client_ip)
-        except TokenInvalid:
-            reason = "token_revoked"
-        except HaUnavailable:
-            continue  # HA briefly away: keep the session (it ends with its access token anyway)
+        if STORE.is_revoked(s.iss_hash):  # review M2: a sign-in ended from the sessions list never survives a pass
+            reason = "remote_session_revoked"
+        else:
+            try:
+                ha_user = await validate(settings, s.token, s.client_ip)
+            except TokenInvalid:
+                reason = "token_revoked"
+            except HaUnavailable:
+                continue  # HA briefly away: keep the session (it ends with its access token anyway)
         if reason is None:
             def check() -> ApiError | None:
                 with db.connection(mode="read", label="remote revalidate") as conn:
@@ -1118,6 +1279,7 @@ async def revalidate_loop(db: Any, settings: Settings) -> None:
     from .. import remote_channel
 
     await run_in_threadpool(remote_channel.load_csp_mode, db)
+    await run_in_threadpool(load_revoked, db)  # review M2 / L6: the revoked sign-ins and the table's existence
     ticks = 0
     while True:
         await asyncio.sleep(LOOP_TICK_S)
@@ -1142,3 +1304,4 @@ def reset_for_tests() -> None:
         _rejected.clear()
     _core_base.clear()
     _xff_refused.clear()
+    _REVOKED_TABLE["seen"] = False

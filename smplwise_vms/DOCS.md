@@ -704,7 +704,9 @@ Supervisor network.
   (hashed, table `remote_revoked_chains`, kept a year) and a re-exchange answers `remote_session_revoked`; the browser
   then shows the sign-in page ("הכניסה במכשיר הזה נותקה") and revokes its own refresh token. When users end their OWN
   sign-ins, the add-on also deletes those refresh tokens at Home Assistant (`auth/delete_refresh_token` with the user's
-  own token, best effort) - the same browsers are signed out of HA at `/` too. An administrator's revoke ends the Arx
+  own token, best effort, 8 seconds at most) - but only the ones HA lists as normal sign-ins of the Arx client
+  (`https://<host><remote_path>/`); a long-lived access token or a sign-in of another app used with Arx is never
+  deleted at HA - the same browsers are signed out of HA at `/` too. An administrator's revoke ends the Arx
   access only; the user's HA sign-in is theirs. Every revoke is audited (`auth.remote_session.revoked`, reason
   `signed_out_everywhere` / `revoked_by_user` / `revoked_by_admin` / `revoked_all_by_admin`).
 - **Bearer clients** (an API client, the future native app) get a session of their own per sign-in: listed, revocable,

@@ -421,6 +421,17 @@ export class LiveCamera extends LitElement {
   @query('sw-live-player') private player?: SwLivePlayer;
 
   static styles = css`
+    /* the detection-zones view (renderZones). Here, not in a <style> element of the template: the remote channel's strict
+       CSP (style-src-elem 'self', CR-008 P2) refuses inline style elements; static styles are constructed stylesheets */
+    .zones .frame { position: relative; aspect-ratio: 16 / 9; background: #0f1729; border-radius: 8px; overflow: hidden; }
+    .zones .frame img { inline-size: 100%; block-size: 100%; object-fit: fill; display: block; }
+    .zones .frame svg { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; }
+    .zones .cell { fill: rgba(239, 68, 68, 0.28); stroke: rgba(239, 68, 68, 0.55); stroke-width: 1; }
+    .zones .mask { fill: rgba(15, 23, 42, 0.78); stroke: #0f172a; stroke-width: 3; }
+    .zones .field { fill: rgba(245, 158, 11, 0.25); stroke: #f59e0b; stroke-width: 4; }
+    .zones .line { fill: none; stroke: #2f6bff; stroke-width: 6; }
+    .zones .line.off { stroke-dasharray: 14 10; opacity: 0.6; }
+    .zones .legend { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-block-start: 8px; }
     .video {
       position: relative;
       aspect-ratio: 16 / 9;
@@ -888,17 +899,6 @@ export class LiveCamera extends LitElement {
     const scale = (pts: number[][], n: { width: number; height: number }) => pts.map(([x, y]) => `${(x / n.width) * 1000},${(y / n.height) * 1000}`).join(' ');
     const target = (t: string) => (t === 'human' ? 'אדם' : t === 'vehicle' ? 'רכב' : t);
     return html`
-      <style>
-        .zones .frame { position: relative; aspect-ratio: 16 / 9; background: #0f1729; border-radius: 8px; overflow: hidden; }
-        .zones .frame img { inline-size: 100%; block-size: 100%; object-fit: fill; display: block; }
-        .zones .frame svg { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; }
-        .zones .cell { fill: rgba(239, 68, 68, 0.28); stroke: rgba(239, 68, 68, 0.55); stroke-width: 1; }
-        .zones .mask { fill: rgba(15, 23, 42, 0.78); stroke: #0f172a; stroke-width: 3; }
-        .zones .field { fill: rgba(245, 158, 11, 0.25); stroke: #f59e0b; stroke-width: 4; }
-        .zones .line { fill: none; stroke: #2f6bff; stroke-width: 6; }
-        .zones .line.off { stroke-dasharray: 14 10; opacity: 0.6; }
-        .zones .legend { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-block-start: 8px; }
-      </style>
       <div class="zones" data-zones-loaded>
         <div class="frame">
           <img src=${snapshotUrl(cam.id)} alt="" />

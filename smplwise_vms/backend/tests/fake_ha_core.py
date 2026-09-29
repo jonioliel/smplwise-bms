@@ -9,7 +9,7 @@ src/data/auth.ts). Shared by the backend tests (tests/test_remote_access.py) and
 - `pkce=False` (or `POST /fake/mode {"pkce": false}` on the HTTP server): a Home Assistant release WITHOUT PKCE
   (every release up to 2026.9.x; PKCE arrived with home-assistant/core#181957, merged to dev 2026-09-26): its
   `/auth/login_flow` schema refuses the PKCE keys, and `/auth/token` ignores a `code_verifier`;
-- the WebSocket API's `auth` + `auth/current_user` (+ `auth/delete_refresh_token`, CR-008 P2) as an in-process socket (`dial`) that ha_user_auth._dial is swapped
+- the WebSocket API's `auth` + `auth/current_user` (+ `auth/refresh_tokens` and `auth/delete_refresh_token`, CR-008 P2) as an in-process socket (`dial`) that ha_user_auth._dial is swapped
   for.
 
 Access tokens are JWT-shaped (header.payload.signature, `exp` in the payload) so the add-on's structural pre-check
@@ -58,6 +58,7 @@ class _Refresh:
     user_id: str
     client_id: str
     revoked: bool = False
+    token_type: str = "normal"  # HA's RefreshToken.token_type: normal | long_lived_access_token | system
 
 
 @dataclass
@@ -82,10 +83,12 @@ class FakeHaCore:
 
     # ---------------------------------------------------------- tokens
 
-    def issue(self, user_id: str, client_id: str = "http://testserver/arx/") -> dict[str, Any]:
-        """A refresh token and a first access token for `user_id` (what a finished login flow ends with)."""
+    def issue(self, user_id: str, client_id: str | None = "http://testserver/arx/", token_type: str = "normal") -> dict[str, Any]:
+        """A refresh token and a first access token for `user_id` (what a finished login flow ends with). CR-008 P2:
+        `token_type="long_lived_access_token"` (client_id None) models a long-lived token from the HA profile, another
+        client_id a sign-in of another client (the Companion app, HA's own UI)."""
         with self.lock:
-            rt = _Refresh(token=secrets.token_hex(32), user_id=user_id, client_id=client_id)
+            rt = _Refresh(token=secrets.token_hex(32), user_id=user_id, client_id=client_id or "", token_type=token_type)
             self._refresh[rt.token] = rt
         return self._access_for(rt)
 
@@ -340,6 +343,14 @@ class FakeCoreSocket:
                 self.core.deleted_refresh.append(rid)
                 self.core.revoke_refresh(rt.token)
                 self.out.append(json.dumps({"id": msg.get("id"), "type": "result", "success": True, "result": {}}))
+        elif msg.get("type") == "auth/refresh_tokens":
+            # HA core auth/__init__.py websocket_refresh_tokens: the connection user's live refresh tokens (id, client_id,
+            # type, ...); the fake's ids are the first 12 characters of the token, as in the access tokens' `iss`
+            with self.core.lock:
+                mine = [{"id": r.token[:12], "client_id": r.client_id or None, "client_name": None, "client_icon": None, "type": r.token_type,
+                         "created_at": "2026-09-29T00:00:00+00:00", "is_current": False, "last_used_at": None, "last_used_ip": None,
+                         "auth_provider_type": "homeassistant"} for r in self.core._refresh.values() if r.user_id == self.user.id and not r.revoked]
+            self.out.append(json.dumps({"id": msg.get("id"), "type": "result", "success": True, "result": mine}))
         else:
             self.out.append(json.dumps({"id": msg.get("id"), "type": "result", "success": False, "error": {"code": "unknown_command"}}))
 

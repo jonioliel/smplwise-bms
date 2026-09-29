@@ -86,6 +86,9 @@ export class SwCspReports extends LitElement {
     const d = this.data;
     if (!d) return this.error ? html`<div class="err" role="alert">${this.error}</div>` : html`<div class="muted">טוען דיווחים…</div>`;
     const enforcing = d.mode === 'enforce';
+    // inline <style> elements seen by browsers: enforcing now would unstyle those screens - fix them first (CR-008 P2 review M4)
+    const inlineStyles = d.rows.filter((r) => (r.directive === 'style-src-elem' || r.directive === 'style-src') && r.blocked === 'inline').reduce((n, r) => n + r.count, 0);
+    const blocked = !enforcing && inlineStyles > 0;
     return html`
       <div class="mode" data-csp-mode=${d.mode}>
         <sw-badge kind=${enforcing ? 'live' : 'partial'} label=${enforcing ? 'נאכפת' : 'דיווח בלבד'}></sw-badge>
@@ -106,9 +109,12 @@ export class SwCspReports extends LitElement {
           </table>`
         : html`<div class="muted" data-csp-empty>אין דיווחים. דפדפנים שולחים דיווח רק כשמשהו בדף חורג מהמדיניות.</div>`}
       <div class="muted">נשמרות ספירות בלבד (הנחיה, מקור חסום, סוג) - בלי כתובות דפים, תוכן או משתמשים. דיווחים ממקורות לא מוכרים הם לרוב תוספי דפדפן.</div>
+      ${this.canEdit && blocked
+        ? html`<div class="warn" role="note" data-csp-enforce-blocked>אי אפשר לאכוף עדיין: דפדפנים דיווחו על ${inlineStyles} מקרים של עיצוב מוטמע בתגית style, והאכיפה הייתה משאירה את המסכים האלה בלי עיצוב. אחרי תיקון בגרסה הבאה - לאפס את הספירה ולבדוק שוב.</div>`
+        : nothing}
       ${this.canEdit
         ? html`<div class="foot">
-            <sw-button size="sm" variant=${this.armed ? (enforcing ? 'secondary' : 'danger') : enforcing ? 'secondary' : 'primary'} icon="shield" data-csp-enforce ?disabled=${this.busy} @click=${() => void this.setEnforce(!enforcing)}>
+            <sw-button size="sm" variant=${this.armed ? (enforcing ? 'secondary' : 'danger') : enforcing ? 'secondary' : 'primary'} icon="shield" data-csp-enforce ?disabled=${this.busy || blocked} @click=${() => void this.setEnforce(!enforcing)}>
               ${this.armed ? 'לאשר?' : enforcing ? 'חזרה לדיווח בלבד' : 'אכוף את המדיניות המחמירה'}
             </sw-button>
             ${this.armed ? html`<sw-button size="sm" variant="ghost" @click=${() => (this.armed = false)}>ביטול</sw-button>` : nothing}
@@ -158,6 +164,12 @@ export class SwCspReports extends LitElement {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
+    }
+    .warn {
+      padding: 8px;
+      border-radius: 6px;
+      background: var(--sw-warning-soft, #fff7e6);
+      font-size: var(--sw-fs-xs);
     }
     .muted {
       color: var(--sw-text-3);

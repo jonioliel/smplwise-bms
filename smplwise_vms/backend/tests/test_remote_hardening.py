@@ -22,8 +22,12 @@ def arx(settings, tmp_path, monkeypatch):
     a.flag("u-owner")
     a.bind("u-owner", "system_admin")
     a.bind("dev-joni", "system_admin")  # the local (developer identity) administrator
+    from smplwise.routers import media
+
+    media._cap_audited.clear()
     yield a
     hua.reset_for_tests()
+    media._cap_audited.clear()
 
 
 def browser(arx: Arx, **headers) -> TestClient:
@@ -60,7 +64,10 @@ def test_helpers_mask_and_family():
 
 def test_sessions_list_is_own_unless_admin(arx):
     phone = browser(arx)
-    sign_in(phone, arx, arx.viewer, **{"CF-Connecting-IP": "203.0.113.77", "CF-IPCountry": "IL", "User-Agent": CHROME_ANDROID})
+    phone_tokens = arx.core.issue("u-viewer")
+    r = phone.post("/arx/api/v1/auth/session", headers={"Authorization": f"Bearer {phone_tokens['access_token']}", "CF-Connecting-IP": "203.0.113.77",
+                                                        "CF-IPCountry": "IL", "User-Agent": CHROME_ANDROID})
+    assert r.status_code == 200
     laptop = browser(arx)
     sign_in(laptop, arx, arx.viewer, **{"CF-Connecting-IP": "198.51.100.9", "User-Agent": SAFARI_IOS})
     owner = browser(arx)
@@ -87,9 +94,9 @@ def test_sessions_list_is_own_unless_admin(arx):
     assert {x["user_id"] for x in owner.get("/arx/api/v1/auth/sessions?scope=all").json()["sessions"]} == {"u-viewer", "u-owner"}
     local = TestClient(arx.app).get("/api/v1/auth/sessions?scope=all").json()
     assert local["channel"] == "local" and len(local["sessions"]) == 3 and not any(x["current"] for x in local["sessions"])
-    # a rotation (the browser's refresh) stays ONE row, with its first sign-in time
+    # a rotation (the browser's refresh: a fresh access token of the same sign-in) stays ONE row, with its first sign-in time
     before = next(x for x in phone.get("/arx/api/v1/auth/sessions").json()["sessions"] if x["current"])
-    sign_in(phone, arx, arx.viewer)
+    assert phone.post("/arx/api/v1/auth/session", headers={"Authorization": f"Bearer {next_token(arx, phone_tokens['refresh_token'])}"}).status_code == 200
     after = next(x for x in phone.get("/arx/api/v1/auth/sessions").json()["sessions"] if x["current"])
     assert after["id"] == before["id"] and after["created_at"] == before["created_at"]
     assert len(phone.get("/arx/api/v1/auth/sessions").json()["sessions"]) == 2
@@ -353,7 +360,12 @@ def test_remote_live_cap_per_sign_in(arx):
                 ws.receive_text()
             assert exc.value.code == 4429
         denied = [a for a in arx.audit("video.live") if a["reason"] == "remote_live_cap"]
-        assert len(denied) == 2 and all(json.loads(a["details_json"])["channel"] == "remote" for a in denied)
+        # review L2: one audit row per sign-in per minute (the socket refusal right after the HTTP one is counted, not written)
+        assert len(denied) == 1 and json.loads(denied[0]["details_json"])["channel"] == "remote"
+        media._cap_audited[chain] = (time.time() - media.CAP_AUDIT_EVERY_S - 1, media._cap_audited[chain][1])
+        assert phone.get(f"/arx/api/v1/media/live/{cam['id']}").status_code == 429
+        denied = [a for a in arx.audit("video.live") if a["reason"] == "remote_live_cap"]
+        assert len(denied) == 2 and json.loads(denied[-1]["details_json"])["suppressed"] == 1
         # the sessions list and /health count them
         assert next(x for x in phone.get("/arx/api/v1/auth/sessions").json()["sessions"] if x["current"])["live_streams"] == 4
         remote = admin.get("/api/v1/health").json()["remote"]
@@ -529,3 +541,217 @@ def test_sign_in_record_masks_the_address(arx):
     with arx.db.connection(mode="read") as conn:
         row = conn.execute("SELECT * FROM remote_sign_ins WHERE user_id = 'u-viewer'").fetchone()
     assert row["last_address"] == "203.0.113.0/24" and row["last_country"] == "IL" and row["sign_ins"] == 1
+
+
+# ---------------------------------------------------------------- security review of P2 (M1-M4, L1-L7)
+
+def _bearer_get(arx: Arx, token: str, path: str = "/arx/api/v1/me"):
+    return TestClient(arx.app).get(path, headers={"Authorization": f"Bearer {token}"})
+
+
+def test_m1_sign_out_everywhere_deletes_only_arx_sign_ins_at_ha(arx):
+    phone = browser(arx)
+    sign_in(phone, arx, arx.viewer)  # an Arx sign-in (client http://testserver/arx/)
+    long_lived = arx.core.issue("u-viewer", client_id=None, token_type="long_lived_access_token")
+    companion = arx.core.issue("u-viewer", client_id="https://home-assistant.io/iOS")
+    for t in (long_lived, companion):  # both used on the bearer path
+        assert _bearer_get(arx, t["access_token"]).status_code == 200
+    before = set(arx.core.refresh_tokens_of("u-viewer"))
+    r = phone.delete("/arx/api/v1/auth/sessions")
+    assert r.status_code == 200 and r.json()["sessions_ended"] == 3 and r.json()["ha_sign_ins_ended"] == 1
+    left = set(arx.core.refresh_tokens_of("u-viewer"))
+    assert left == before - {t for t in before if t not in (long_lived["refresh_token"], companion["refresh_token"])}
+    assert long_lived["refresh_token"] in left and companion["refresh_token"] in left  # never touched at HA
+    assert len(arx.core.deleted_refresh) == 1
+
+
+def test_m1_ha_down_keeps_the_local_revoke_and_answers_in_time(arx, monkeypatch):
+    phone, laptop = browser(arx), browser(arx)
+    sign_in(phone, arx, arx.viewer)
+    sign_in(laptop, arx, arx.viewer)
+
+    async def hanging(*_a, **_k):
+        await asyncio.sleep(30)
+
+    monkeypatch.setattr(hua, "_dial", hanging)
+    monkeypatch.setattr(hua, "HA_DELETE_TIMEOUT_S", 0.5)
+    started = time.monotonic()
+    r = phone.delete("/arx/api/v1/auth/sessions")
+    assert time.monotonic() - started < 5
+    assert r.status_code == 200 and r.json()["sessions_ended"] == 2 and r.json()["ha_sign_ins_ended"] == 0
+    assert laptop.get("/arx/api/v1/me").status_code == 401 and hua.STORE.count() == 0
+
+
+def test_m2_a_sign_in_racing_a_revoke_is_refused(arx, monkeypatch):
+    tokens = arx.core.issue("u-viewer")
+    real = hua.policy_refusal
+    raced = {"done": False}
+
+    def policy_then_revoke(conn, principal, ha_user):
+        if not raced["done"]:  # the administrator's revoke lands after the exchange's revoked-chain check
+            raced["done"] = True
+            hua.STORE.revoke_sign_ins({hua.iss_hash(tokens["access_token"])}, [])
+        return real(conn, principal, ha_user)
+
+    monkeypatch.setattr(hua, "policy_refusal", policy_then_revoke)
+    r = browser(arx).post("/arx/api/v1/auth/session", headers={"Authorization": f"Bearer {tokens['access_token']}"})
+    assert r.status_code == 401 and r.json()["code"] == "remote_session_revoked" and hua.STORE.count() == 0
+    assert "set-cookie" not in r.headers
+    # the bearer path too
+    other = arx.core.issue("u-viewer")
+    raced["done"] = False
+    tokens = other
+    r = _bearer_get(arx, other["access_token"])
+    assert r.status_code == 401 and r.json()["code"] == "remote_session_revoked" and hua.STORE.count() == 0
+
+
+def test_m2_revalidation_drops_a_revoked_sign_in_without_asking_ha(arx):
+    phone = browser(arx)
+    sign_in(phone, arx, arx.viewer)
+    s = next(iter(hua.STORE._sessions.values()))
+    hua.STORE.load_revoked({s.iss_hash})  # e.g. loaded from remote_revoked_chains at start-up
+    s.last_validated -= hua.REVALIDATE_EVERY_S + 1
+    dials = len(arx.core.dials)
+    assert asyncio.run(hua.revalidate_once(arx.db, arx.settings)) == 1
+    assert len(arx.core.dials) == dials and phone.get("/arx/api/v1/me").status_code == 401
+    assert arx.audit("auth.remote_session.revoked")[-1]["reason"] == "remote_session_revoked"
+
+
+def test_m2_revoked_sign_ins_load_at_start_up(arx):
+    tokens = arx.core.issue("u-viewer")
+    phone = browser(arx)
+    assert phone.post("/arx/api/v1/auth/session", headers={"Authorization": f"Bearer {tokens['access_token']}"}).status_code == 200
+    assert TestClient(arx.app).delete("/api/v1/auth/sessions?user_id=u-viewer").status_code == 200
+    hua.reset_for_tests()
+    assert hua.load_revoked(arx.db) == 1 and hua.STORE.is_revoked(hua.iss_hash(tokens["access_token"]))
+
+
+def test_m2_a_socket_attached_after_its_session_vanished_is_refused(arx, monkeypatch):
+    assert hua.STORE.attach_socket("no-such-session", object()) is False
+    phone = browser(arx)
+    sign_in(phone, arx, arx.viewer)
+    monkeypatch.setattr(hua.STORE, "attach_socket", lambda *_a: False)  # revoked between the lookup and the attach
+    with pytest.raises(WebSocketDisconnect) as exc:
+        with phone.websocket_connect("/arx/api/v1/me/ws", headers=ORIGIN) as ws:
+            ws.receive_text()
+    assert exc.value.code == 4401
+
+
+class _FakeRequest:
+    def __init__(self, app):
+        self.app = app
+        self.headers = {"cf-connecting-ip": "198.51.100.7"}
+        self.client = None
+
+
+def test_m3_one_ha_call_for_concurrent_requests_of_a_stale_session(arx, monkeypatch):
+    import threading
+
+    phone = browser(arx)
+    sign_in(phone, arx, arx.viewer)
+    s = next(iter(hua.STORE._sessions.values()))
+    s.last_validated -= hua.STALE_AFTER_S + 5
+    calls = []
+
+    async def slow_ok(settings, token, ip=None):
+        calls.append(time.monotonic())
+        await asyncio.sleep(0.3)
+        return s.ha_user
+
+    monkeypatch.setattr(hua, "validate_token", slow_ok)
+    results = []
+    threads = [threading.Thread(target=lambda: results.append(hua._recheck_sync(_FakeRequest(arx.app), arx.settings, s))) for _ in range(6)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(calls) == 1 and len(results) == 6 and all(r is s for r in results)
+
+
+def test_m3_ha_down_backs_off_for_30_seconds(arx, monkeypatch):
+    phone = browser(arx)
+    sign_in(phone, arx, arx.viewer)
+    s = next(iter(hua.STORE._sessions.values()))
+    s.last_validated -= hua.STALE_AFTER_S + 5
+    calls = []
+
+    async def down(*_a, **_k):
+        calls.append(1)
+        raise hua.HaUnavailable("down")
+
+    monkeypatch.setattr(hua, "validate_token", down)
+    assert phone.get("/arx/api/v1/me").status_code == 200 and len(calls) == 1  # served while HA is away
+    assert phone.get("/arx/api/v1/me").status_code == 200 and len(calls) == 1  # no retry within the window
+    assert s.recheck_after > time.time() + hua.HA_BACKOFF_S - 5
+    s.recheck_after = time.time() - 1  # the window passed
+    assert phone.get("/arx/api/v1/me").status_code == 200 and len(calls) == 2
+
+
+def test_m4_no_inline_style_elements_in_the_app():
+    """The strict CSP refuses inline <style> ELEMENTS (style-src-elem 'self'): the app must render none. Allowed: the
+    worker's offline page (its own document, served without this policy) and the style WisKey's embed injects into HA's
+    own page (another document, HA's policy)."""
+    import re
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parents[3] / "frontend" / "src"
+    allowed = {"pwa/offline-page.ts", "screens/wiskey-embed.ts"}
+    pattern = re.compile(r"<style[\s>]|createElement\(\s*['\"]style['\"]\s*\)")
+    comments = re.compile(r"/\*.*?\*/|^\s*//.*$|\s//\s.*$", re.S | re.M)
+    offenders = [f.relative_to(src).as_posix() for f in src.rglob("*.ts") if pattern.search(comments.sub("", f.read_text(encoding="utf-8")))]
+    assert sorted(set(offenders) - allowed) == [], offenders
+    assert "screens/live-camera.ts" not in offenders
+
+
+def test_l1_two_chains_of_one_sign_in_share_one_row_and_one_cap(arx):
+    from smplwise.routers import media
+
+    admin = TestClient(arx.app)
+    cam = admin.post("/api/v1/cameras", json={"channel": 1, "alias": "a"}).json()
+    tokens = arx.core.issue("u-viewer")
+    first, second = browser(arx), browser(arx)  # the second exchanges a fresh token of the SAME sign-in without the cookie
+    assert first.post("/arx/api/v1/auth/session", headers={"Authorization": f"Bearer {tokens['access_token']}"}).status_code == 200
+    assert second.post("/arx/api/v1/auth/session", headers={"Authorization": f"Bearer {next_token(arx, tokens['refresh_token'])}"}).status_code == 200
+    rows = first.get("/arx/api/v1/auth/sessions").json()["sessions"]
+    assert len(rows) == 1 and rows[0]["current"] is True
+    key = next(iter(hua.STORE._sessions.values())).sign_in()
+    try:
+        for i in range(4):
+            media.REGISTRY.sessions[f"t{i}"] = media.LiveSession(id=f"t{i}", camera_id=cam["id"], stream="s", user_id="u-viewer", username="dana", remote_chain=key)
+        assert second.get(f"/arx/api/v1/media/live/{cam['id']}").status_code == 429  # the budget of the sign-in, not the cookie
+    finally:
+        media.REGISTRY.sessions.clear()
+
+
+def test_l4_revoke_audit_names_the_actors_channel(arx):
+    phone, laptop = browser(arx), browser(arx)
+    sign_in(phone, arx, arx.viewer)
+    sign_in(laptop, arx, arx.viewer)
+    laptop_id = next(x["id"] for x in phone.get("/arx/api/v1/auth/sessions").json()["sessions"] if not x["current"])
+    assert TestClient(arx.app).delete(f"/api/v1/auth/sessions/{laptop_id}").status_code == 200  # the local administrator
+    local = json.loads(arx.audit("auth.remote_session.revoked")[-1]["details_json"])
+    assert local["channel"] == "local" and local["ended_via"] == ["cookie"] and "via" not in local
+    assert phone.delete("/arx/api/v1/auth/sessions").status_code == 200  # the user, remotely
+    remote = json.loads(arx.audit("auth.remote_session.revoked")[-1]["details_json"])
+    assert remote["channel"] == "remote" and remote["ended_via"] == ["cookie"]
+
+
+def test_l6_revoked_chain_check_fails_closed_once_the_table_exists(arx):
+    import sqlite3
+
+    class Broken:
+        def execute(self, *_a):
+            raise sqlite3.OperationalError("disk I/O error")
+
+    token = arx.token(arx.viewer)
+    hua._REVOKED_TABLE["seen"] = False
+    assert hua.chain_revoked(Broken(), token) is False  # before migration 0035 (no table known)
+    assert hua.load_revoked(arx.db) == 0 and hua._REVOKED_TABLE["seen"] is True  # start-up finds the table
+    assert hua.chain_revoked(Broken(), token) is True  # a database error now refuses the sign-in
+
+
+def test_l3_csp_report_keeps_host_and_port_only(arx):
+    report = {"csp-report": {"effective-directive": "img-src", "blocked-uri": "https://user:secret@evil.example:8443/x.png?q=1", "disposition": "report"}}
+    assert TestClient(arx.app).post("/arx/api/v1/csp-report", content=json.dumps(report), headers={"Content-Type": "application/csp-report"}).status_code == 204
+    rows = TestClient(arx.app).get("/api/v1/csp-reports").json()["rows"]
+    assert [r["blocked"] for r in rows] == ["https://evil.example:8443"]
