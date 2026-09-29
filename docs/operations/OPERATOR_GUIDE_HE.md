@@ -1,4 +1,4 @@
-# SMPLWISE VMS — מדריך מפעיל, התקנה ותמיכה (פיילוט)
+# SmplWise Arx — מדריך מפעיל, התקנה ותמיכה (פיילוט)
 
 Source: original
 

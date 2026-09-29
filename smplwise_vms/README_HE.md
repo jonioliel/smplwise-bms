@@ -2,7 +2,7 @@ Source: smplwise_vms/README.md @ 22a833c
 
 > תרגום של `smplwise_vms/README.md`; המקור באנגלית קובע במקרה של סתירה.
 
-# SMPLWISE VMS — Add-on ל-Home Assistant
+# SmplWise Arx — Add-on ל-Home Assistant
 
 ניהול וידאו ממוקד-מפה עבור NVR מסוג Hikvision בתוך Home Assistant (Ingress, זהות HA, תפקידי VMS).
 ראו את [DOCS.md](DOCS.md) (או את המקבילה בעברית [DOCS_HE.md](DOCS_HE.md)) להתקנה ולתצורה. מקור ה-UI:

@@ -1,4 +1,4 @@
-# מעבר מה־Add-on הישן (Hikvision NVR Panel 1.5.27) ל־SMPLWISE VMS — מדריך (T070)
+# מעבר מה־Add-on הישן (Hikvision NVR Panel 1.5.27) ל־SmplWise Arx — מדריך (T070)
 
 Source: original
 

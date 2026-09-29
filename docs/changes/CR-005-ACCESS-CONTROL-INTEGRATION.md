@@ -1,4 +1,4 @@
-# CR-005 — Access Control tab: embed WisKey (hikvision_intercom) capabilities in SMPLWISE VMS
+# CR-005 — Access Control tab: embed WisKey (hikvision_intercom) capabilities in SmplWise Arx
 
 **Numbering:** registered as CR-005 on 2026-09-27 (CR-001 HA identity/RBAC, CR-002 lab-accounts deviation,
 CR-003 Plan Studio, CR-004 floor/level unification, proposed but not started).
@@ -14,7 +14,7 @@ overall sign-off.
 The owner built and actively maintains their own Home Assistant custom integration, **WisKey**
 (`hikvision_intercom`, HA-facing product name "smplwise access control"), which already has a full, polished,
 hand-built HA panel for controlling Hikvision video-intercom door stations — people/credentials, doors, schedules,
-events, health, and more. The ask, verbatim in substance: **all of it**, embedded as a new tab in SMPLWISE VMS
+events, health, and more. The ask, verbatim in substance: **all of it**, embedded as a new tab in SmplWise Arx
 next to Map and Investigation, called **"בקרות כניסה" (Access Control)** — full parity, full editing, every
 capability that exists in WisKey today — **without removing the WisKey integration itself**, which stays
 installed and remains the sole authoritative backend. The owner offered, and this session used, a clone of the

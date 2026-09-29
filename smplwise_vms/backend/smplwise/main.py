@@ -59,7 +59,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.plans_dir.mkdir(parents=True, exist_ok=True)
 
-    app = FastAPI(title="SMPLWISE VMS", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="SmplWise Arx", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = settings
     app.state.db = Database(settings.db_path)
     from .services import backup as backup_svc

@@ -1,7 +1,7 @@
 // Hebrew UI strings. Keys are stable English identifiers so an English catalogue can be added later.
 export const he = {
   app: {
-    name: 'SMPLWISE VMS',
+    name: 'SmplWise Arx',
     search: 'חיפוש מצלמה, קומה, ישות או אירוע…',
     notifications: 'התראות',
     account: 'חשבון',

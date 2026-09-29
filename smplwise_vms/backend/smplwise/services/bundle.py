@@ -197,7 +197,7 @@ def _report_html(case: dict[str, Any], items: list[dict[str, Any]], skipped: lis
     return f"""<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>חבילת ראיות · {e(case['title'])}</title>
 <style>body{{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#111}}table{{border-collapse:collapse;width:100%;font-size:13px}}td,th{{border:1px solid #cbd5e1;padding:6px 8px;vertical-align:top}}th{{background:#f1f5f9}}.mono{{font-family:monospace;font-size:11px;word-break:break-all}}.note{{color:#475569;font-size:13px}}</style></head>
 <body><h1>חבילת ראיות: {e(case['title'])}</h1>
-<p class="note">תיק {e(case['id'])} · סטטוס {e(case['status'])} · בעלים {e(case['owner_username'] or '')} · נוצר {now.strftime('%Y-%m-%d %H:%M:%S')} UTC · אזור זמן האתר {e(tz_name)} · הופק על ידי {e(getattr(actor, 'username', '') or '')} · SMPLWISE VMS {e(__version__)}</p>
+<p class="note">תיק {e(case['id'])} · סטטוס {e(case['status'])} · בעלים {e(case['owner_username'] or '')} · נוצר {now.strftime('%Y-%m-%d %H:%M:%S')} UTC · אזור זמן האתר {e(tz_name)} · הופק על ידי {e(getattr(actor, 'username', '') or '')} · SmplWise Arx {e(__version__)}</p>
 {('<p>' + e(case['description']) + '</p>') if case.get('description') else ''}
 <table><thead><tr><th>סוג</th><th>מצלמה</th><th>טווח (UTC)</th><th>אירוע</th><th>שימור</th><th>קובץ</th><th>SHA-256</th><th>הערה</th></tr></thead><tbody>{rows}</tbody></table>
 {('<h2>פריטים שלא נכללו</h2><ul>' + skip_rows + '</ul>') if skipped else ''}

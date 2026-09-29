@@ -1,4 +1,4 @@
-# SMPLWISE VMS add-on (pilot 0.1.0)
+# SmplWise Arx add-on (pilot 0.1.0)
 
 Map-centred video management for a Hikvision NVR, served inside Home Assistant through Ingress.
 This build contains the catalogue (sites → buildings → floors), architectural plan import (PDF / PNG /
@@ -9,7 +9,7 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
 
 1. Settings → Apps → App store → ⋮ → **Repositories** → paste
    `https://github.com/jonioliel/smplwise-bms` → **Add**.
-2. Install **SMPLWISE VMS**. The Supervisor builds the image locally (a few minutes on first install).
+2. Install **SmplWise Arx**. The Supervisor builds the image locally (a few minutes on first install).
 3. Open the add-on **Configuration** tab:
    - `bootstrap_admin_username` — the Home Assistant **username** (not display name) that becomes the
      VMS system administrator. The grant happens once, on that user's first visit, and is written to
@@ -38,7 +38,7 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      source; it has not yet been verified against the lab installation. The WisKey tab's editor context shows
      whether WisKey lists the people commands for the add-on's user. Reading a card from a station's reader (card
      capture, `cards/*`) is in the same WisKey `users` area at `manage`.
-4. Start the add-on and open it from the sidebar (**SMPLWISE VMS**). With NVR details set, the cameras
+4. Start the add-on and open it from the sidebar (**SmplWise Arx**). With NVR details set, the cameras
    appear by themselves within a minute (discovery at start-up and every 10 minutes); הגדרות → מצלמות
    → "סנכרון מה־NVR" refreshes immediately. If the list stays empty, check the add-on log and
    `/api/v1/health` (`discovery.cameras_last_error`).

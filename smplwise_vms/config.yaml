@@ -1,4 +1,4 @@
-name: SMPLWISE VMS
+name: SmplWise Arx
 version: "0.1.136"
 slug: smplwise_vms
 description: Map-centred video management for Hikvision NVRs and Home Assistant (pilot build)
@@ -21,7 +21,7 @@ map:
     read_only: false
 ingress_port: 8099
 panel_icon: mdi:cctv
-panel_title: SMPLWISE VMS
+panel_title: SmplWise Arx
 # Menu entry for every HA user; access inside the product is decided by VMS roles, never by this flag.
 panel_admin: false
 watchdog: http://[HOST]:[PORT:8099]/healthz

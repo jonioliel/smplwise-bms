@@ -140,7 +140,7 @@ def run_smoke(client: Client, *, live: bool = False, now: Callable[[], dt.dateti
     add("audit", "ok" if st == 200 else ("skip" if st == 403 else "fail"), f"-> {st}")
     st, body, ctype = client.request("GET", "")
     text = body.decode("utf-8", errors="replace") if st == 200 else ""
-    add("ui", "ok" if st == 200 and "SMPLWISE VMS" in text else ("skip" if st == 404 else "fail"), f"index -> {st}{' (API-only backend, no built UI)' if st == 404 else ''}")
+    add("ui", "ok" if st == 200 and "SmplWise Arx" in text else ("skip" if st == 404 else "fail"), f"index -> {st}{' (API-only backend, no built UI)' if st == 404 else ''}")
     if live:
         st, body, _ = client.request("GET", "api/v1/ha/status")
         hs = _json(body) if st == 200 else None

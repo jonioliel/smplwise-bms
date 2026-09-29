@@ -121,12 +121,12 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
     except AttributeError:
         pass
-    print(f"Release check — SMPLWISE VMS {res['version']}")
+    print(f"Release check — SmplWise Arx {res['version']}")
     for c in res["checks"]:
         print(f"  [{'ok' if c['ok'] else 'FAIL'}] {c['name']}: {c['detail']}")
     print("RESULT:", "ready for the owner's approval" if res["ok"] else "NOT ready")
     if args.tag and res["tag"]:
-        print(f"\nAfter approval:\n  git tag -a {res['tag']} -m \"SMPLWISE VMS {res['version']} — approved release\"\n  git push origin {res['tag']}")
+        print(f"\nAfter approval:\n  git tag -a {res['tag']} -m \"SmplWise Arx {res['version']} — approved release\"\n  git push origin {res['tag']}")
     if args.json:
         Path(args.json).write_text(json.dumps(res, ensure_ascii=False, indent=2), encoding="utf-8")
     return 0 if res["ok"] else 1

@@ -1,4 +1,4 @@
-# מדריך שימוש ב-SMPLWISE VMS — תוכן עניינים
+# מדריך שימוש ב-SmplWise Arx — תוכן עניינים
 
 Source: original
 

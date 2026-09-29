@@ -1,4 +1,7 @@
-# Changelog — SMPLWISE VMS add-on
+# Changelog — SmplWise Arx add-on
+
+## Unreleased
+- Product name: SmplWise Arx (display names only; technical identifiers unchanged)
 
 ## 0.1.136 (pilot) — Device control: click enters the area, empty domains hidden, per-device tile layout (CR-007 6c, owner requests)
 - **A click on an area opens it** (owner: "a click opens a tooltip and then I have to click 'פתח אזור', and the tooltip is

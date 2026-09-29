@@ -18,7 +18,7 @@ class SmplwiseBridgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         self._discovered: dict[str, str] | None = None
-        self._addon_name = "SMPLWISE VMS"
+        self._addon_name = "SmplWise Arx"
 
     async def _try_pair(self, url: str, code: str) -> str | None:
         """Ping the add-on with a signed message; returns an error key or None when paired."""

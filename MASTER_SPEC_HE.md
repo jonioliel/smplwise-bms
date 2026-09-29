@@ -1,4 +1,4 @@
-# SMPLWISE VMS — Master Development Specification
+# SmplWise Arx — Master Development Specification
 
 **Version:** 1.1.0-planning | **Date:** 14.09.2026 | **Language:** Hebrew
 

@@ -4,7 +4,7 @@
 set -e
 
 export SW_LOG_LEVEL="$(bashio::config 'log_level' 'info')"
-bashio::log.info "SMPLWISE VMS backend starting on port 8099 (Ingress only, no host port)"
+bashio::log.info "SmplWise Arx backend starting on port 8099 (Ingress only, no host port)"
 
 if ! bashio::config.has_value 'bootstrap_admin_username'; then
   bashio::log.warning "bootstrap_admin_username is empty: nobody will be the VMS system administrator until it is set"

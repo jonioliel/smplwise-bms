@@ -214,10 +214,10 @@
           slug = await slugFromAddonList(hass);
         } catch (err) {
           // the add-on list is for Home Assistant admins only; say so rather than a bare "Unauthorized"
-          throw new Error(`התוסף SMPLWISE VMS לא נמצא בסרגל הצדדי, ורשימת התוספים לא נקראה (היא זמינה למנהלי Home Assistant בלבד): ${reasonOf(err)}`);
+          throw new Error(`התוסף SmplWise Arx לא נמצא בסרגל הצדדי, ורשימת התוספים לא נקראה (היא זמינה למנהלי Home Assistant בלבד): ${reasonOf(err)}`);
         }
       }
-      if (!slug) throw new Error('התוסף SMPLWISE VMS לא נמצא בין התוספים המותקנים');
+      if (!slug) throw new Error('התוסף SmplWise Arx לא נמצא בין התוספים המותקנים');
       let info;
       try {
         info = await supervisor(hass, `/addons/${slug}/info`, 'get');
@@ -273,9 +273,9 @@
       let body = '';
       if (st.phase === 'ready') {
         const src = `${st.base}/#${routeFor(cfg)}?embed=1`;
-        body = `<iframe src="${esc(src)}" title="SMPLWISE VMS" allow="fullscreen; autoplay" style="border:0;inline-size:100%;block-size:${h}px;display:block"></iframe>`;
+        body = `<iframe src="${esc(src)}" title="SmplWise Arx" allow="fullscreen; autoplay" style="border:0;inline-size:100%;block-size:${h}px;display:block"></iframe>`;
       } else if (st.phase === 'error') {
-        body = `<div class="msg">SMPLWISE: לא ניתן לפתוח את התצוגה (${esc(st.message)}). ודא שהתוסף SMPLWISE VMS מותקן, פועל ומוצג בסרגל הצדדי (Show in sidebar), או הוסף <code>addon</code> או <code>ingress_url</code> להגדרת הכרטיס.</div>`;
+        body = `<div class="msg">SMPLWISE: לא ניתן לפתוח את התצוגה (${esc(st.message)}). ודא שהתוסף SmplWise Arx מותקן, פועל ומוצג בסרגל הצדדי (Show in sidebar), או הוסף <code>addon</code> או <code>ingress_url</code> להגדרת הכרטיס.</div>`;
       } else {
         body = `<div class="msg">SMPLWISE: מתחבר…</div>`;
       }
@@ -370,7 +370,7 @@
   if (!customElements.get('smplwise-card')) customElements.define('smplwise-card', SmplwiseCard);
   window.customCards = window.customCards || [];
   if (!window.customCards.some((c) => c.type === 'smplwise-card')) {
-    window.customCards.push({ type: 'smplwise-card', name: 'SMPLWISE VMS', description: 'מצלמה, מפה, אירועים או בריאות מ־SMPLWISE VMS בתוך הדשבורד (זהות HA, הרשאות VMS)', preview: false });
+    window.customCards.push({ type: 'smplwise-card', name: 'SmplWise Arx', description: 'מצלמה, מפה, אירועים או בריאות מ־SmplWise Arx בתוך הדשבורד (זהות HA, הרשאות VMS)', preview: false });
   }
   window.SMPLWISE_CARD_VERSION = VERSION;
 })();

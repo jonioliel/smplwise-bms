@@ -15,7 +15,7 @@ ADR records what is now locked, how changes are made, and what stays open.
 
 | Component | Owns | Never does |
 |---|---|---|
-| **SMPLWISE VMS add-on** (FastAPI + Lit UI, Ingress only) | the SQLite database under `/data`, plan files, event pictures, exports, backups; every authorization decision; the media relay to go2rtc; NVR reads | write to the NVR configuration, create HA users or change HA permissions, touch go2rtc streams outside the `smplwise_` prefix |
+| **SmplWise Arx add-on** (FastAPI + Lit UI, Ingress only) | the SQLite database under `/data`, plan files, event pictures, exports, backups; every authorization decision; the media relay to go2rtc; NVR reads | write to the NVR configuration, create HA users or change HA permissions, touch go2rtc streams outside the `smplwise_` prefix |
 | **Bridge integration** `smplwise_bridge` (shipped inside the add-on image, copied into `custom_components`) | running allow-listed HA services in the calling user's identity, pushing the HA user directory to the add-on | store VMS data, decide permissions |
 | **go2rtc** (external add-on) | RTSP → WebRTC / MSE for live and playback | authentication of browsers (the add-on relays and authorizes) |
 | **Hikvision NVR** | recordings, alerts, device time | — (read-only from our side) |

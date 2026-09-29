@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "SMPLWISE VMS — planned core contract subset",
+    "title": "SmplWise Arx — planned core contract subset",
     "version": "0.1.0-design",
     "description": "Design only. Not an implemented server. Domain authorization is mandatory in addition to transport authentication. Full resources listed in MASTER_SPEC_HE.md chapter 32."
   },

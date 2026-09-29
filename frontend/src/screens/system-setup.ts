@@ -451,7 +451,7 @@ export class SystemSetup extends LitElement {
   private renderApi() {
     const h = this.raw;
     return html`
-      <sw-page heading="חיבורים" subheading="מצב החיבורים של ה־Add-on: NVR, go2rtc, Home Assistant ואחסון · קריאה בלבד · הערכים עצמם מוגדרים ב־Home Assistant › Add-ons › SMPLWISE VMS › Configuration">
+      <sw-page heading="חיבורים" subheading="מצב החיבורים של ה־Add-on: NVR, go2rtc, Home Assistant ואחסון · קריאה בלבד · הערכים עצמם מוגדרים ב־Home Assistant › Add-ons › SmplWise Arx › Configuration">
         <sw-button slot="actions" icon="refresh" ?disabled=${this.busy} @click=${() => this.load()}>${this.busy ? 'בודק…' : 'רענון'}</sw-button>
         ${this.error ? html`<sw-state-panel state="error" heading="מצב החיבורים לא נטען" hint=${this.error}></sw-state-panel>` : nothing}
         ${!h
@@ -502,7 +502,7 @@ export class SystemSetup extends LitElement {
               <div class="opts" data-connection-options>
                 ${OPTIONS.map((o) => html`<div class="check"><span>${o.label}</span><span class="val ltr">${o.key}</span></div>`)}
               </div>
-              <div class="hint">Home Assistant › הגדרות › Add-ons › SMPLWISE VMS › Configuration. משתמש ה־NVR צריך הרשאות צפייה והקלטות בלבד; ה־VMS לא כותב ל־NVR.</div>
+              <div class="hint">Home Assistant › הגדרות › Add-ons › SmplWise Arx › Configuration. משתמש ה־NVR צריך הרשאות צפייה והקלטות בלבד; ה־VMS לא כותב ל־NVR.</div>
             </sw-card>`}
       </sw-page>
     `;

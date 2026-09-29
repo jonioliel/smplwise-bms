@@ -1,4 +1,4 @@
-# SMPLWISE VMS — Claude Code working notes
+# SmplWise Arx — Claude Code working notes
 
 Read `AGENTS.md` first. It is the operating contract; its Codex-oriented wording applies to Claude Code
 unchanged. Precedence when documents disagree: approved change request → `MASTER_SPEC_HE.md` and

@@ -1,4 +1,4 @@
-# SMPLWISE VMS — V1 release package (T072)
+# SmplWise Arx — V1 release package (T072)
 
 Status: **prepared, not approved**. The owner's acceptance test round and signature close this package; until then
 the add-on ships as pilot builds (`0.1.x`) from `main`. `python scripts/release_check.py --tag` verifies the
@@ -109,7 +109,7 @@ may not run.
 | Commit | |
 | Approved by (owner) | |
 | Date | |
-| Tag | `vX.Y.Z` — created with `git tag -a vX.Y.Z -m "SMPLWISE VMS X.Y.Z — approved release"` and pushed after signing |
+| Tag | `vX.Y.Z` — created with `git tag -a vX.Y.Z -m "SmplWise Arx X.Y.Z — approved release"` and pushed after signing |
 
 No target date replaces the gates above: the package is signed only when every listed item is either evidenced or
 explicitly excluded.

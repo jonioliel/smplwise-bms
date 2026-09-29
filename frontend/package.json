@@ -2,7 +2,7 @@
   "name": "smplwise-vms-frontend",
   "private": true,
   "version": "0.1.0",
-  "description": "SMPLWISE VMS web UI (served by the Home Assistant add-on through Ingress)",
+  "description": "SmplWise Arx web UI (served by the Home Assistant add-on through Ingress)",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
