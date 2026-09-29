@@ -14,11 +14,7 @@
     ],
     "setup": [],
     "caption_he": "מפת הקומה החיה בדו-ממד: תוכנית מפורסמת עם סיכות מצלמה וישות, שכבות להצגה/הסתרה, ופתיחת כרטיס בלחיצה. פרטים ב-20-map_HE.md.",
-    "source": "live",
-    "demo_files": [
-      "map-2d--viewer.png",
-      "map-2d-phone--viewer.png"
-    ]
+    "source": "demo"
   },
   {
     "id": "map-3d",
@@ -46,7 +42,7 @@
       }
     ],
     "caption_he": "אותה קומה בתצוגה תלת-ממדית איזומטרית — רמת איכות ניתנת לבחירה, וגוון נוכחות שדועך לאחר תנועה. פרטים ב-20-map_HE.md.",
-    "source": "live"
+    "source": "demo"
   },
   {
     "id": "cameras-overview",
@@ -128,7 +124,7 @@
     ],
     "setup": [],
     "caption_he": "מפה היסטורית: מצב הקומה ברגע נבחר, כיסוי הקלטה לכל סיכת מצלמה, ומצב ישות \"לא ידוע\" כשההיסטוריה לא מכירה אותו. פרטים ב-31-events_HE.md.",
-    "source": "live"
+    "source": "demo"
   },
   {
     "id": "events-playback",
@@ -159,10 +155,7 @@
     ],
     "setup": [],
     "caption_he": "עורך Plan Studio: מיקום מצלמות/ישויות, ציור קירות וחדרים, זיהוי אוטומטי, פרסום גרסה. פרטים ב-21-plan-studio_HE.md.",
-    "source": "live",
-    "demo_files": [
-      "plan-studio-editor--editor.png"
-    ]
+    "source": "demo"
   },
   {
     "id": "wiskey-overview",

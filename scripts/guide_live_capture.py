@@ -3,7 +3,7 @@
 
     python scripts/guide_live_capture.py capture [--only id,id] [--base-url URL] [--text-dir DIR]
     python scripts/guide_live_capture.py scan    [--text-dir DIR]
-    python scripts/guide_live_capture.py apply   [--compress-kb 600]
+    python scripts/guide_live_capture.py apply   [--compress-kb 600] [--demo file.png,...]
 
 capture: reads the workstation's private lab settings (secrets/lab.env of the main checkout - never copied,
          printed or written anywhere), opens the Home Assistant WebSocket with the existing long-lived token, asks
@@ -272,9 +272,15 @@ def cmd_apply(args: argparse.Namespace) -> int:
             with Image.open(p) as im:
                 q = im.convert("RGB").quantize(colors=256, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
                 q.save(p, optimize=True)
+    forced_demo = {f.strip() for f in args.demo.split(",") if f.strip()}
+    for name in forced_demo:
+        print(f"{name}: marked demo (restore its demo picture with git checkout)")
     live = set(copied)
     for s in screens:
         files = [f.name for f in IMG_DIR.glob(f"{s['id']}*.png") if re.fullmatch(rf"{re.escape(s['id'])}(-phone)?(--[a-z_]+)?\.png", f.name)]
+        if s.get("source") == "live":  # an earlier apply: those pictures stay live unless re-marked
+            live.update(f for f in files if f not in s.get("demo_files", []))
+        live.difference_update(forced_demo)
         mine = [f for f in files if f in live]
         s["source"] = "live" if mine else "demo"
         demo = sorted(f for f in files if f not in live)
@@ -299,6 +305,7 @@ def main(argv: list[str]) -> int:
     s.add_argument("--text-dir", default="")
     a = sub.add_parser("apply")
     a.add_argument("--compress-kb", type=int, default=600)
+    a.add_argument("--demo", default="", help="comma list of picture files that are (again) demo pictures")
     args = ap.parse_args(argv[1:])
     return {"capture": cmd_capture, "scan": cmd_scan, "apply": cmd_apply}[args.cmd](args)
 

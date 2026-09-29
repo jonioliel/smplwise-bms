@@ -29,8 +29,10 @@ import { fileURLToPath } from 'node:url';
 // the page (and in same-origin frames) is rewritten: IPv4 addresses, MAC addresses, serial-like tokens, e-mail
 // addresses, runs of 7+ digits (ID / employee / phone numbers), the private literals, and any host name. Host names
 // become `your-site.example`, the rest `•••`. People's names (WisKey residents, the platform's users other than the
-// capturing account), read from the installation at run time, become pseudonyms (`דייר 1`, `משתמש 2`).
-// Camera pictures and camera names stay as they are (owner decision for T091).
+// capturing account), read from the installation at run time, become pseudonyms (`דייר 1`, `משתמש 2`), and their
+// avatar initials follow. Site, building, floor, area and room names become generic ones (`האתר`, `בניין א`,
+// `קומה 0`, `אזור 1`). Camera pictures and camera names stay as they are (owner decisions for T091, 2026-09-29);
+// the floor plans themselves are not published - screens that draw the plan keep their demo pictures.
 // The page's visible text is then dumped and scanned again; a hit left after three attempts fails the test and
 // no redacted picture is written for that screen.
 
@@ -87,11 +89,19 @@ interface Ids {
 // In-page helpers (serialised into the page, so plain JS inside template strings).
 
 /** Rewrites private data in every text node / input value / title-less painted attribute, through shadow roots.
- * Returns the number of replacements. `priv` = literal strings; `pairs` = [from, to, wholeWord] name pseudonyms,
- * applied first (longest first). */
-const MASK_JS = String.raw`(priv, pairs) => {
+ * Returns the number of replacements. `priv` = literal strings; `pairs` = [from, to, mode] name replacements, applied
+ * first (longest first) - mode `site` / `word`: the name as a whole word anywhere (`site` also inside a camera
+ * name), `segment`: a whole segment of a text between separators (· › – / , : parentheses), so a room called like an
+ * ordinary word never rewrites the product's own copy, `exact`: the whole text (avatar initials). `keep` = camera
+ * names (owner-approved): a text that is exactly a camera name only gets the `site` replacements. */
+const MASK_JS = String.raw`(priv, pairs, keep) => {
   const esc = (s) => s.replace(/[.*+?^\${}()|[\]\\]/g, '\\$&');
-  const named = (pairs || []).map(([from, to, whole]) => [whole ? new RegExp('(?<![\\p{L}\\p{N}])' + esc(from) + '(?![\\p{L}\\p{N}])', 'gu') : new RegExp(esc(from), 'g'), to]);
+  const word = (from) => new RegExp('(?<![\\p{L}\\p{N}])' + esc(from) + '(?![\\p{L}\\p{N}])', 'gu');
+  const named = (pairs || []).filter((p) => p[2] === 'site' || p[2] === 'word').map(([from, to, mode]) => [word(from), to, mode]);
+  const segs = new Map((pairs || []).filter((p) => p[2] === 'segment').map(([from, to]) => [from, to]));
+  const exact = new Map((pairs || []).filter((p) => p[2] === 'exact').map(([from, to]) => [from, to]));
+  const kept = new Set(keep || []);
+  const SEP = /(\s*[·•|›‹\/,:()–—]\s*|\s+-\s+)/;
   const LONGNUM = /(?<!\d)\d{7,}(?!\d)/g;
   const IPV4 = /\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}(?::\d{1,5})?\b/g;
   const MAC = /\b[0-9A-Fa-f]{2}(?:[:-][0-9A-Fa-f]{2}){5}\b/g;
@@ -103,7 +113,15 @@ const MASK_JS = String.raw`(priv, pairs) => {
   const fix = (s) => {
     if (!s) return s;
     let t = s;
-    for (const [re, to] of named) t = t.replace(re, to);
+    const isCamera = kept.has(s.trim());
+    for (const [re, to, mode] of named) if (!isCamera || mode === 'site') t = t.replace(re, to);
+    if (!isCamera && segs.size) {
+      t = t.split(SEP).map((part) => {
+        const k = part.trim();
+        return k && segs.has(k) ? part.replace(k, segs.get(k)) : part;
+      }).join('');
+    }
+    if (exact.has(t.trim())) t = t.replace(t.trim(), exact.get(t.trim()));
     for (const p of priv) if (p && t.includes(p)) { t = t.split(p).join(/[a-z]/i.test(p) && p.includes('.') ? 'your-site.example' : '•••'); }
     t = t.replace(EMAIL, '•••').replace(MAC, '•••').replace(IPV4, '•••').replace(SERIAL, '•••').replace(LONGNUM, '•••');
     t = t.replace(HOST, (m) => (SAFE_HOST.test(m) ? m : 'your-site.example'));
@@ -191,10 +209,14 @@ const MEDIA_JS = String.raw`() => {
   return pending;
 }`;
 
-/** People's names on this installation (WisKey residents, platform users other than the capturing account) and
- * employee numbers, read at run time and replaced by pseudonyms - they never reach a file. */
-type NamePair = [string, string, boolean];
+/** People's names on this installation (WisKey residents, platform users other than the capturing account), their
+ * avatar initials, employee numbers, and the names of sites, buildings, floors, areas and rooms - read at run time
+ * and replaced by pseudonyms / generic names in memory only; they never reach a file. */
+type NameMode = 'site' | 'word' | 'segment' | 'exact';
+type NamePair = [string, string, NameMode];
 let NAME_PAIRS: NamePair[] = [];
+let CAMERA_NAMES: string[] = [];
+const SEP = /(\s*[·•|›‹/,:()–—]\s*|\s+-\s+)/;
 
 /** Independent scan of a text dump (Node side): the same families as MASK_JS plus the private literals and names. */
 function scanText(text: string): string[] {
@@ -210,12 +232,81 @@ function scanText(text: string): string[] {
   PRIVATE.forEach((p, i) => {
     if (p && text.includes(p)) hits.push(`private-literal-${i}`);
   });
-  NAME_PAIRS.forEach(([from, , whole], i) => {
+  // The dump has one line per text node, as the masker saw them.
+  const cams = new Set(CAMERA_NAMES);
+  const lines = text.split('\n');
+  NAME_PAIRS.forEach(([from, , mode], i) => {
     const esc = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const re = whole ? new RegExp(`(?<![\\p{L}\\p{N}])${esc}(?![\\p{L}\\p{N}])`, 'u') : new RegExp(esc);
-    if (re.test(text)) hits.push(`name-${i}`);
+    const re = new RegExp(`(?<![\\p{L}\\p{N}])${esc}(?![\\p{L}\\p{N}])`, 'u');
+    for (const line of lines) {
+      const l = line.trim();
+      const camera = cams.has(l);
+      const hit =
+        mode === 'site' ? re.test(l)
+        : mode === 'word' ? !camera && re.test(l)
+        : mode === 'segment' ? !camera && l.split(SEP).some((p) => p.trim() === from)
+        : l === from;
+      if (hit) {
+        hits.push(`name-${mode}-${i}`);
+        break;
+      }
+    }
   });
   return hits;
+}
+
+/** sw-avatar's rule: the first letters of the first two words, else the first two characters. */
+const initialsOf = (name: string) => {
+  const parts = name.trim().split(/\s+/);
+  return parts.length > 1 ? parts[0][0] + parts[1][0] : name.slice(0, 2);
+};
+
+/** Places: site / building names anywhere (whole words), floors, areas and rooms as whole text segments. Names equal
+ * to a camera name stay (camera names are owner-approved). */
+async function discoverPlaces(page: Page): Promise<{ pairs: NamePair[]; cameras: string[] }> {
+  const get = async (p: string) => {
+    const r = await page.request.get(new URL(p, BASE).toString());
+    return r.ok() ? r.json() : null;
+  };
+  const cams = await get('api/v1/cameras');
+  const cameras = ((cams?.cameras ?? []) as { alias?: string | null; name?: string }[]).map((c) => (c.alias || c.name || '').trim()).filter(Boolean);
+  const camSet = new Set(cameras);
+  const pairs: NamePair[] = [];
+  const seen = new Set<string>();
+  const add = (name: string | null | undefined, to: string, mode: NameMode) => {
+    const n = (name ?? '').trim();
+    if (!n || n === to || seen.has(n) || camSet.has(n)) return;
+    seen.add(n);
+    pairs.push([n, to, mode]);
+  };
+  const tree = await get('api/v1/sites?tree=true');
+  const floorIds: string[] = [];
+  const letters = 'אבגדהוזחטי';
+  let b = 0;
+  ((tree?.sites ?? []) as { name: string; buildings?: { name: string; floors?: { id: string; name: string; level: number }[] }[] }[]).forEach((s, si, all) => {
+    add(s.name, all.length > 1 ? `אתר ${si + 1}` : 'האתר', 'site');
+    for (const bl of s.buildings ?? []) {
+      add(bl.name, `בניין ${letters[b++ % letters.length]}`, 'site');
+      for (const f of bl.floors ?? []) {
+        floorIds.push(f.id);
+        add(f.name, `קומה ${f.level}`, 'segment');
+      }
+    }
+  });
+  let area = 0;
+  const dt = await get('api/v1/devices/tree');
+  for (const f of (dt?.floors ?? []) as { name: string; level: number | null; areas?: { name: string }[] }[]) {
+    if (f.level !== null && f.level !== undefined) add(f.name, `קומה ${f.level}`, 'segment');
+    for (const a of f.areas ?? []) add(a.name, `אזור ${++area}`, 'segment');
+  }
+  for (const id of floorIds) {
+    const z = await get(`api/v1/floors/${id}/zones`);
+    for (const zone of (z?.zones ?? []) as { name: string }[]) add(zone.name, `אזור ${++area}`, 'segment');
+  }
+  // WisKey door stations are named after the rooms they guard.
+  const feed = await get('api/v1/intercom/overview');
+  ((feed?.overview?.stations ?? []) as { name: string }[]).forEach((st, i) => add(st.name, `עמדה ${i + 1}`, 'segment'));
+  return { pairs, cameras };
 }
 
 async function discoverNames(page: Page): Promise<NamePair[]> {
@@ -229,25 +320,38 @@ async function discoverNames(page: Page): Promise<NamePair[]> {
   const tokens = new Set<string>();
   // Service accounts named like the product itself stay: replacing them would rewrite the product's own name.
   const product = /^(smplwise|arx|wiskey|admin|system|vms)$/i;
+  const initials: [string, string][] = [];
+  const keptInitials = new Set<string>();
   const add = (name: string | null | undefined, pseudonym: string) => {
     const n = (name ?? '').trim();
-    if (!n || self.has(n) || product.test(n)) return;
-    pairs.push([n, pseudonym, true]);
+    if (!n) return;
+    if (self.has(n) || product.test(n)) {
+      keptInitials.add(initialsOf(n));
+      return;
+    }
+    pairs.push([n, pseudonym, 'word']);
+    initials.push([initialsOf(n), initialsOf(pseudonym)]);
     for (const tok of n.split(/\s+/)) if (tok.length >= 2 && tok !== n) tokens.add(tok);
   };
+  for (const n of self) keptInitials.add(initialsOf(n));
   const people = await get('api/v1/intercom/people?offset=0&limit=200');
   ((people?.people?.records ?? []) as { display_name?: string; employee_no?: string }[]).forEach((p, i) => {
     add(p.display_name, `דייר ${i + 1}`);
-    if (p.employee_no && p.employee_no.length >= 3) pairs.push([p.employee_no, '•••', true]);
+    if (p.employee_no && p.employee_no.length >= 3) pairs.push([p.employee_no, '•••', 'word']);
   });
   const users = await get('api/v1/identity/users');
   ((users?.users ?? []) as { name?: string; username?: string }[]).forEach((u, i) => {
-    if (self.has(u.username ?? '') || self.has(u.name ?? '')) return;
+    if (self.has(u.username ?? '') || self.has(u.name ?? '')) {
+      if (u.name) keptInitials.add(initialsOf(u.name));
+      return;
+    }
     add(u.name, `משתמש ${i + 1}`);
     if (u.username && u.username !== u.name) add(u.username, `user${i + 1}`);
   });
   // Remaining single words of a name (a first name alone in an event row), after the full names.
-  for (const tok of tokens) if (!pairs.some(([from]) => from === tok)) pairs.push([tok, '•••', true]);
+  for (const tok of tokens) if (!pairs.some(([from]) => from === tok)) pairs.push([tok, '•••', 'word']);
+  // Avatar initials of a pseudonymised person, unless someone shown under a real name has the same initials.
+  for (const [from, to] of initials) if (!keptInitials.has(from) && !pairs.some(([f, , m]) => m === 'exact' && f === from)) pairs.push([from, to, 'exact']);
   return pairs.sort((a, b) => b[0].length - a[0].length);
 }
 
@@ -370,7 +474,9 @@ test.describe.serial('user guide screenshots - live installation (T091)', () => 
       try {
         if (!ids) {
           ids = await discoverIds(page);
-          NAME_PAIRS = await discoverNames(page);
+          const places = await discoverPlaces(page);
+          NAME_PAIRS = [...(await discoverNames(page)), ...places.pairs].sort((a, b) => b[0].length - a[0].length);
+          CAMERA_NAMES = places.cameras;
         }
         await page.goto(BASE + fillRoute(screen.route, ids), { waitUntil: 'domcontentloaded' });
         await page.waitForSelector('sw-app', { timeout: 60_000 });
@@ -383,7 +489,7 @@ test.describe.serial('user guide screenshots - live installation (T091)', () => 
         let hits: string[] = [];
         let text = '';
         for (let attempt = 0; attempt < 3; attempt++) {
-          await inAllFrames<number>(page, MASK_JS, PRIVATE, NAME_PAIRS);
+          await inAllFrames<number>(page, MASK_JS, PRIVATE, NAME_PAIRS, CAMERA_NAMES);
           await page.waitForTimeout(100);
           await page.screenshot({ path: path.join(OUT_DIR, `${file}.pending`), type: 'png' });
           text = (await inAllFrames<string>(page, TEXT_JS)).join('\n----- frame -----\n');
