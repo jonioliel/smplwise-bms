@@ -14,7 +14,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import new_id, now_iso
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, authorize, require
-from ..services.access import camera_scope, require_camera, require_floor_read
+from ..services.access import camera_reach_for_placement, camera_scope, require_camera_placement, require_floor_read
 from .catalog import building_row, floor_row, get_building, get_floor, get_site, site_row
 from ..services.timeutil import parse_utc
 from .plans import needs_alignment, version_at, version_row
@@ -155,10 +155,12 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
     geometry = geometry_store.ref(geometry_row)
     levels = geometry_store.levels_of(geometry_row)
     circuits = [] if camera_only else geometry_store.circuits_of(geometry_row)
-    # the placement editor lists every camera it may place (as before T055) minus the ones explicitly denied to the
-    # caller; a viewer's list is the visible cameras on this map (below)
+    # the placement editor lists the cameras it may place (security review T055 B1: cameras it already reaches, or
+    # every camera but its denied ones for an installation-wide placement.edit holder) plus the ones it sees here; a
+    # viewer's list is the visible cameras on this map (below)
+    placeable = camera_reach_for_placement(conn, principal) if can_edit else None
     cameras = {r["id"]: camera_row(r) for r in conn.execute("SELECT * FROM cameras ORDER BY sort_order, channel").fetchall()
-               if (r["id"] not in cam_scope.denied if can_edit else cam_scope.allows(r["id"]))}
+               if cam_scope.allows(r["id"]) or (placeable is not None and placeable.allows(r["id"]))}
     from ..services import ha_bridge, ha_history, ha_sync
 
     entity_ids = [a["resource_id"] for a in anchors if a["resource_type"] == "ha_entity"]
@@ -296,8 +298,10 @@ def create_anchor(floor_id: str, body: AnchorIn, request: Request, principal: Pr
         raise conflict("no_plan", "לקומה אין תוכנית; העלה תוכנית לפני הצבת פריטים.")
     if body.resource_type == "camera" and not conn.execute("SELECT 1 FROM cameras WHERE id = ?", (body.resource_id,)).fetchone():
         raise ApiError(422, "validation", "המצלמה אינה רשומה במערכת.")
-    if body.resource_type == "camera" and body.resource_id in camera_scope(conn, principal, "map.read").denied:
-        require_camera(conn, principal, body.resource_id, "map.read")  # T055: an explicitly denied camera is not placed by its denied user
+    if body.resource_type == "camera":
+        # T055 B1: placing a camera widens who reaches it - only an editor who already reaches it on its current chain
+        # (or holds placement.edit installation-wide, minus its denied cameras) may put it on this floor
+        require_camera_placement(conn, principal, body.resource_id)
     if body.resource_type == "ha_entity":
         ent = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (body.resource_id,)).fetchone()
         if not ent:
@@ -363,6 +367,8 @@ def realign_anchors(floor_id: str, body: RealignIn, request: Request, principal:
 def update_anchor(anchor_id: str, body: AnchorPatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     a = get_anchor(conn, anchor_id)
     require(conn, principal, "placement.edit", ("floor", a["floor_id"]))
+    if a["resource_type"] == "camera":
+        require_camera_placement(conn, principal, a["resource_id"])  # T055 B1: moves only a camera the editor reaches
     if body.revision != a["revision"]:
         raise conflict("stale_revision", "העוגן השתנה בינתיים; טען מחדש ובחר איך למזג.", current_revision=a["revision"], sent_revision=body.revision)
     fields = {k: v for k, v in body.model_dump().items() if k != "revision" and (v is not None or (k in NULLABLE_KEYS and k in body.model_fields_set))}
@@ -385,6 +391,9 @@ def update_anchor(anchor_id: str, body: AnchorPatch, request: Request, principal
 def delete_anchor(anchor_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> None:
     a = get_anchor(conn, anchor_id)
     require(conn, principal, "placement.edit", ("floor", a["floor_id"]))
+    if a["resource_type"] == "camera":
+        # T055 B1: taking a camera off a floor can lift a deny that sat on that floor - the same reach as placing it
+        require_camera_placement(conn, principal, a["resource_id"])
     now = now_iso()
     conn.execute("UPDATE map_anchors SET effective_to = ?, updated_by = ?, updated_at = ? WHERE id = ?", (now, principal.user_id, now, anchor_id))
     from ..services import geometry_store

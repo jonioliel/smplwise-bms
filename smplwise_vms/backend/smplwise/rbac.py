@@ -152,25 +152,37 @@ def require(conn: sqlite3.Connection, principal: Principal, permission: str, tar
 
         audit(conn, actor=principal, action=permission, decision="denied", resource_type=target[0], resource_id=target[1], reason=decision.reason, under=decision)
         raise forbidden(permission=permission, target_type=target[0], target_id=target[1], reason=decision.reason)
-    _LAST_GRANT.set(decision)
+    note_grant(decision, permission)
     return decision
 
 
-# T055 audit: the allowing decision of the latest require() in THIS request (a context variable - every request runs in
-# its own copied context, so nothing leaks between requests). audit() records its binding, role and scope on an
-# "allowed" row that names no decision itself - the config and command rows of the routers that enforce with require().
-_LAST_GRANT: ContextVar[Decision | None] = ContextVar("sw_last_grant", default=None)
+# T055 audit: the allowing decisions of THIS request's require() calls, by permission (a context variable - every
+# request runs in its own copied context, so nothing leaks between requests; an immutable tuple, so a nested context
+# never edits its parent's). audit() records the binding, role and scope of the grant behind an "allowed" row that names
+# no decision itself: the grant of the permission the action is named after (exact, or the longest permission the
+# action extends: video.export -> video.export.create), else the request's latest grant.
+_GRANTS: ContextVar[tuple[tuple[str, Decision], ...]] = ContextVar("sw_grants", default=())
 
 
-def last_grant() -> Decision | None:
-    return _LAST_GRANT.get()
+def last_grant(action: str | None = None) -> Decision | None:
+    grants = _GRANTS.get()
+    if not grants:
+        return None
+    if action:
+        exact = [d for p, d in grants if p == action]
+        if exact:
+            return exact[-1]
+        prefixed = sorted(((p, d) for p, d in grants if p and action.startswith(p + ".")), key=lambda pd: len(pd[0]))
+        if prefixed:
+            return prefixed[-1][1]
+    return grants[-1][1]
 
 
-def note_grant(decision: Decision | None) -> None:
-    """For a route that decides through authorize() rather than require() (a placement rule, several permissions):
-    the allowing decision its audit rows should record."""
+def note_grant(decision: Decision | None, permission: str = "") -> None:
+    """Record an allowing decision for this request's audit rows (require() does it for every grant; a route that
+    decides through authorize() - a placement rule, several permissions - calls it with the decision it used)."""
     if decision is not None and decision.allowed:
-        _LAST_GRANT.set(decision)
+        _GRANTS.set(_GRANTS.get() + ((permission, decision),))
 
 
 def effective_permissions(conn: sqlite3.Connection, principal: Principal, target: tuple[str, str]) -> list[str]:

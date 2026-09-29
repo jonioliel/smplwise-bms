@@ -158,7 +158,7 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
         # Anything else needs ha.entity.control, which stays the audited reason for the 403 - so a devices.control-only
         # caller asking for lock.lock is denied and audited exactly like a caller holding no control at all.
         require(conn, principal, "ha.entity.control", INSTALLATION)
-    note_grant(ha_scope.control_decision(conn, principal, entity_id))  # T055: the action's audit rows name its scope
+    note_grant(ha_scope.control_decision(conn, principal, entity_id), "ha.action")  # T055: the action's audit rows name its scope
     e = _entity(conn, entity_id)
     if e["removed_at"] or e["disabled"]:
         raise ApiError(409, "entity_unavailable", "הישות אינה זמינה ב־Home Assistant.")

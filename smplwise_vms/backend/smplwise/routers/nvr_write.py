@@ -140,11 +140,11 @@ def set_motion(camera_id: str, body: MotionIn, request: Request, principal: Prin
 
     if body.cells is None and body.sensitivity is None and body.enabled is None:
         raise ApiError(422, "validation", "אין מה לשנות.")
+    require(conn, principal, "nvr.config.detection", INSTALLATION)
+    require_camera(conn, principal, camera_id, "video.live")  # T055: 403 before 404
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam or cam["channel"] is None:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
-    require(conn, principal, "nvr.config.detection", INSTALLATION)
-    require_camera(conn, principal, camera_id, "video.live")
     ch = int(cam["channel"])
     sensitivity = body.sensitivity
     if sensitivity is not None:
@@ -167,23 +167,23 @@ class RecordIn(BaseModel):
 def _camera_for_record(conn: sqlite3.Connection, principal: Principal, camera_id: str) -> sqlite3.Row:
     from ..services.access import require_camera
 
+    require(conn, principal, "nvr.record.manual", INSTALLATION)
+    require_camera(conn, principal, camera_id, "video.live")  # T055: 403 before 404
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
-    require(conn, principal, "nvr.record.manual", INSTALLATION)
-    require_camera(conn, principal, camera_id, "video.live")
     return cam
 
 
 @router.get("/cameras/{camera_id}/record")
 def record_status(camera_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A1: the manual recording the VMS started for this camera (if any) and whether the caller may start one."""
+    from ..services.access import require_camera
+
+    require_camera(conn, principal, camera_id, "video.live")  # T055: the camera's recording state follows its live scope (403 before 404)
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
-    from ..services.access import require_camera
-
-    require_camera(conn, principal, camera_id, "video.live")  # T055: the camera's recording state follows its live scope
     can = authorize(conn, principal, "nvr.record.manual", INSTALLATION).allowed
     return {"camera_id": camera_id, "active": nvr_write.manual_row(nvr_write.manual_active(conn, camera_id)), "can_write": can, "max_minutes": nvr_write.MANUAL_MAX_MIN, "track_id": cam["main_track"]}
 
@@ -346,10 +346,10 @@ def _camera_config_scope(conn: sqlite3.Connection, principal: Principal, camera_
 
 
 def _channel_of(conn: sqlite3.Connection, camera_id: str, principal: Principal, write: str | None = None) -> tuple[sqlite3.Row, int]:
+    _camera_config_scope(conn, principal, camera_id, write)  # T055: 403 before 404
     cam = conn.execute("SELECT id, channel, alias, name_source FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam or cam["channel"] is None:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
-    _camera_config_scope(conn, principal, camera_id, write)
     return cam, int(cam["channel"])
 
 
@@ -393,10 +393,10 @@ def write_channel_name(camera_id: str, body: NameIn, request: Request, principal
 # ---------------------------------------------------------------- 0.1.72: schedules (B5, C1) and smart rules (B4)
 
 def _track_of(conn: sqlite3.Connection, camera_id: str, principal: Principal, write: str | None = None) -> tuple[sqlite3.Row, int, int]:
+    _camera_config_scope(conn, principal, camera_id, write)  # T055: 403 before 404
     cam = conn.execute("SELECT id, channel, alias, name_source, main_track FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam or cam["channel"] is None:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
-    _camera_config_scope(conn, principal, camera_id, write)
     ch = int(cam["channel"])
     return cam, ch, int(cam["main_track"] or f"{ch}01")
 

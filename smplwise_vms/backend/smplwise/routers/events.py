@@ -21,7 +21,7 @@ from ..db import Database, now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import correlation, events_derive, events_ingest, revocation, thumbnails
-from ..services.access import camera_allowed, require_camera, visible_camera_ids
+from ..services.access import RowScope, camera_allowed, require_camera, row_scope
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from .media import _principal_for_ws
 from .settings import read_settings
@@ -30,21 +30,23 @@ router = APIRouter()
 TYPES = ("motion", "person", "vehicle", "line", "field", "offline", "tamper", "door", "io", "storage", "system", "coverage_gap", "manual", "other")
 
 
-def _scope(conn: sqlite3.Connection, principal: Principal) -> tuple[bool, set[str] | None]:
-    """(installation_wide, visible camera ids). Camera-less events are shown to installation-wide readers only."""
-    ids = visible_camera_ids(conn, principal, "events.read")
-    if ids is None:
-        return True, None
-    if not ids and not authorize(conn, principal, "events.read", INSTALLATION).allowed:
-        # no floor grants either → make the denial explicit (audited)
+def _scope(conn: sqlite3.Connection, principal: Principal) -> tuple[bool, RowScope]:
+    """(everything, row scope): a camera event follows the caller's camera scope, a camera-less event the
+    installation-wide grant - a camera deny no longer hides the camera-less events of an installation-wide reader
+    (security review T055 M3). Nobody with events.read nowhere gets anything (the audited 403)."""
+    sc = row_scope(conn, principal, "events.read")
+    if not sc.any():
         require(conn, principal, "events.read", INSTALLATION)
-    return False, ids
+    return sc.everything, sc
 
 
-def _visible(row: dict[str, Any], wide: bool, ids: set[str] | None) -> bool:
-    if wide:
-        return True
-    return bool(row.get("camera_id")) and row["camera_id"] in (ids or set())
+def _visible(row: dict[str, Any], wide: bool, sc: RowScope) -> bool:
+    return wide or sc.allows_row(row.get("camera_id"))
+
+
+def _camera_ids(wide: bool, sc: RowScope) -> set[str] | None:
+    """The camera set the correlation / route helpers take (None = every camera)."""
+    return None if wide or sc.cameras.everything else set(sc.cameras.ids)
 
 
 def _with_names(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -242,7 +244,7 @@ def event_facets(principal: Principal = Depends(current_principal_ro), conn: sql
     sources: dict[str, int] = {}
     severities: dict[str, int] = {}
     for r in conn.execute("SELECT type, source, severity, camera_id, COUNT(*) AS n FROM events WHERE occurred_at >= ? GROUP BY type, source, severity, camera_id", (since,)).fetchall():
-        if not wide and (r["camera_id"] is None or r["camera_id"] not in (ids or set())):
+        if not _visible(dict(r), wide, ids):
             continue
         types[r["type"]] = types.get(r["type"], 0) + r["n"]
         sources[r["source"]] = sources.get(r["source"], 0) + r["n"]
@@ -252,7 +254,7 @@ def event_facets(principal: Principal = Depends(current_principal_ro), conn: sql
     anchors = conn.execute("SELECT floor_id, resource_type, resource_id, x, y FROM map_anchors WHERE effective_to IS NULL").fetchall()
     zones = conn.execute("SELECT id, floor_id, name, kind, polygon_json FROM spatial_zones WHERE deleted_at IS NULL ORDER BY name").fetchall()
     for a in anchors:
-        if not wide and a["resource_type"] == "camera" and a["resource_id"] not in (ids or set()):
+        if not wide and a["resource_type"] == "camera" and not ids.cameras.allows(a["resource_id"]):
             continue
         p = placed.setdefault(a["floor_id"], {"cameras": 0, "sensors": 0})
         p["cameras" if a["resource_type"] == "camera" else "sensors"] += 1
@@ -261,15 +263,25 @@ def event_facets(principal: Principal = Depends(current_principal_ro), conn: sql
                 zh = zone_hits.setdefault(z["id"], {"cameras": 0, "sensors": 0})
                 zh["cameras" if a["resource_type"] == "camera" else "sensors"] += 1
     places = []
+    # T055 nit: only the places in the caller's reach - a floor they hold events.read on, or one with a camera they see
+    cam_floors = {a["floor_id"] for a in anchors if a["resource_type"] == "camera" and ids.cameras.allows(a["resource_id"])}
+
+    def floor_in_reach(fid: str) -> bool:
+        return wide or ids.camera_less or fid in cam_floors or authorize(conn, principal, "events.read", ("floor", fid)).allowed
+
     for site in conn.execute("SELECT id, name FROM sites WHERE deleted_at IS NULL ORDER BY sort_order, name").fetchall():
         buildings = []
         for b in conn.execute("SELECT id, name FROM buildings WHERE site_id = ? AND deleted_at IS NULL ORDER BY sort_order, name", (site["id"],)).fetchall():
             floors = []
             for f in conn.execute("SELECT id, name FROM floors WHERE building_id = ? AND deleted_at IS NULL ORDER BY sort_order, level", (b["id"],)).fetchall():
+                if not floor_in_reach(f["id"]):
+                    continue
                 counts = placed.get(f["id"], {"cameras": 0, "sensors": 0})
                 floors.append({"id": f["id"], "name": f["name"], **counts, "zones": [{"id": z["id"], "name": z["name"], "kind": z["kind"], **zone_hits.get(z["id"], {"cameras": 0, "sensors": 0})} for z in zones if z["floor_id"] == f["id"]]})
-            buildings.append({"id": b["id"], "name": b["name"], "floors": floors})
-        places.append({"id": site["id"], "name": site["name"], "buildings": buildings})
+            if floors:
+                buildings.append({"id": b["id"], "name": b["name"], "floors": floors})
+        if buildings:
+            places.append({"id": site["id"], "name": site["name"], "buildings": buildings})
     notes = []
     if "ha" not in sources:
         notes.append("אין אירועי חיישנים (HA) בתקופה: או ש־Home Assistant לא מחובר, או שאין חיישני דלת / תנועה / מנעולים שהשתנו")
@@ -440,14 +452,16 @@ def ack_many(body: AckManyIn, request: Request, principal: Principal = Depends(c
     """Handle a whole window: every event is checked for scope like a single ack; each ack is audited by name."""
     acked: list[str] = []
     skipped: list[str] = []
+    # T055 B2: per event, the camera's own decision (a camera deny holds even for an installation-wide holder); a
+    # camera-less event needs the installation grant
+    sc = row_scope(conn, principal, "events.ack")
     for eid in dict.fromkeys(body.event_ids):
         row = conn.execute("SELECT * FROM events WHERE id = ?", (eid,)).fetchone()
         if not row:
             skipped.append(eid)
             continue
         ev = events_ingest.row_to_event(row)
-        allowed = camera_allowed(conn, principal, ev["camera_id"], "events.ack") if ev["camera_id"] else authorize(conn, principal, "events.ack", INSTALLATION).allowed
-        if not allowed and not authorize(conn, principal, "events.ack", INSTALLATION).allowed:
+        if not sc.allows_row(ev["camera_id"]):
             skipped.append(eid)
             continue
         if not ev["acked_at"]:
@@ -463,10 +477,11 @@ def ack_many(body: AckManyIn, request: Request, principal: Principal = Depends(c
 @router.get("/cameras/{camera_id}/events")
 def camera_events(camera_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$")) -> dict[str, Any]:
     """Timeline markers for one camera and local day (events.read or video.playback on that camera)."""
+    # T055 B2 / nit: the camera's own decision first (403 before 404, and no installation fallback past a camera deny)
+    if not camera_allowed(conn, principal, camera_id, "video.playback"):
+        require_camera(conn, principal, camera_id, "events.read")
     if not conn.execute("SELECT 1 FROM cameras WHERE id = ?", (camera_id,)).fetchone():
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
-    if not (camera_allowed(conn, principal, camera_id, "events.read") or camera_allowed(conn, principal, camera_id, "video.playback")):
-        require(conn, principal, "events.read", INSTALLATION)
     s = read_settings(conn)
     start, end = local_day_bounds(dt.date.fromisoformat(date), zone(s["time.zone"]))
     rows = [events_ingest.row_to_event(r) for r in conn.execute("SELECT * FROM events WHERE camera_id = ? AND occurred_at >= ? AND occurred_at < ? ORDER BY occurred_at", (camera_id, iso_utc(start), iso_utc(end))).fetchall()]
@@ -577,7 +592,7 @@ def event_correlation(event_id: str, principal: Principal = Depends(current_prin
         require(conn, principal, "events.read", INSTALLATION)
     wide, ids = _scope(conn, principal)
     can_entities = authorize(conn, principal, "entity.state.read", INSTALLATION).allowed
-    out = correlation.correlate(conn, ev, window_s=window, camera_ids_allowed=None if wide else (ids or set()), include_entities=can_entities)
+    out = correlation.correlate(conn, ev, window_s=window, camera_ids_allowed=_camera_ids(wide, ids), include_entities=can_entities)
     _with_names(conn, [ev])
     out["event"] = {k: ev.get(k) for k in ("id", "type", "source", "camera_id", "camera_name", "occurred_at", "received_at", "confidence", "details")}
     return out
@@ -596,7 +611,7 @@ def event_route(event_id: str, principal: Principal = Depends(current_principal)
     else:
         require(conn, principal, "events.read", INSTALLATION)
     wide, ids = _scope(conn, principal)
-    return correlation.suggest_route(conn, ev, window_s=window, camera_ids_allowed=None if wide else (ids or set()))
+    return correlation.suggest_route(conn, ev, window_s=window, camera_ids_allowed=_camera_ids(wide, ids))
 
 
 @router.post("/events/{event_id}/ack")
@@ -627,14 +642,10 @@ async def events_ws(websocket: WebSocket) -> None:
         await websocket.close(code=4401)
         return
 
-    def _scope_now() -> tuple[bool, set[str] | None]:
+    def _scope_now() -> tuple[bool, RowScope]:
         with db.connection() as conn:
-            ids = visible_camera_ids(conn, principal, "events.read")
-            if ids is None:
-                return True, None
-            if not ids and not authorize(conn, principal, "events.read", INSTALLATION).allowed:
-                return False, set()
-            return False, ids
+            sc = row_scope(conn, principal, "events.read")  # nothing held = nothing pushed
+            return sc.everything, sc
 
     try:
         wide, ids = await run_in_threadpool(_scope_now)

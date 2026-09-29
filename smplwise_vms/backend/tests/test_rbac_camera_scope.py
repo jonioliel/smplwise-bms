@@ -54,7 +54,7 @@ def _binding(settings: Settings, user: str, role: str, scope_type: str, scope_id
     return bid
 
 
-def _event(app, eid: str, camera_id: str) -> None:
+def _event(app, eid: str, camera_id: str | None) -> None:
     occurred = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
     with app.state.db.connection() as conn:
         conn.execute(
@@ -95,10 +95,28 @@ def _world(settings: Settings) -> dict[str, Any]:
     _anchor(c, floor_b, "camera", cams["cam_split"])
     for eid, cam in (("e2", "cam2"), ("e3", "cam3"), ("efar", "cam_far")):
         _event(app, eid, cams[cam])
+    _event(app, "esys", None)  # a camera-less event (storage / system): follows the installation grant
     case = c.post("/api/v1/cases", json={"title": "היקף מצלמה"}).json()["id"]
     for eid in ("e2", "e3"):
         assert c.post(f"/api/v1/cases/{case}/items", json={"kind": "event", "event_id": eid}).status_code == 201
-    return {"app": app, "c": c, "settings": settings, **ids, "site_b": site_b, "building_b": bld_b, "floor_b": floor_b, "cams": cams, "versions": versions, "case": case}
+    # a second case with stored snapshots of cam2 and cam3, and rule alerts: camera-less, cam2, cam3
+    snap_case = c.post("/api/v1/cases", json={"title": "תמונות"}).json()["id"]
+    now = now_iso()
+    snaps = {}
+    with app.state.db.connection() as conn:
+        for cam in ("cam2", "cam3"):
+            iid = new_id()
+            rel = f"cases/{snap_case}/{iid}.jpg"
+            (settings.data_dir / rel).parent.mkdir(parents=True, exist_ok=True)
+            (settings.data_dir / rel).write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 32)
+            conn.execute("INSERT INTO case_items(id, case_id, kind, camera_id, from_at, to_at, added_by, created_at, file_path, file_sha256) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                         (iid, snap_case, "snapshot", cams[cam], now, now, "dev-joni", now, rel, "0" * 64))
+            snaps[cam] = iid
+        conn.execute("INSERT INTO rules(id, name, trigger_json, scope_json, window_json, actions_json, created_at, updated_at) VALUES ('r1', 'בדיקה', '{}', '{}', '{}', '[]', ?, ?)", (now, now))
+        for aid, eid, cam in (("a-sys", "esys", None), ("a2", "e2", cams["cam2"]), ("a3", "e3", cams["cam3"])):
+            conn.execute("INSERT INTO rule_alerts(id, rule_id, event_id, camera_id, fired_at, occurred_at, reasons_json) VALUES (?, 'r1', ?, ?, ?, ?, '[]')", (aid, eid, cam, now, now))
+    return {"app": app, "c": c, "settings": settings, **ids, "site_b": site_b, "building_b": bld_b, "floor_b": floor_b, "cams": cams, "versions": versions, "case": case,
+            "snap_case": snap_case, "snaps": snaps}
 
 
 @pytest.fixture(scope="module")
@@ -161,10 +179,12 @@ def test_camera_on_two_floors_and_unanchored(world):
 
 
 # ---------------------------------------------------------------- 2. every camera-bearing resource
-
-def _status(r) -> int:
-    return r.status_code
-
+#
+# Two personas run through the SAME list (security review B2: the second was the missing case):
+#   scoped - operator bound to cam2 alone (a camera binding)
+#   wide   - operator bound installation-wide AND denied (operator) on cam3
+# Each check asserts cam2 is served and cam3 is refused or filtered; `wide` adds what an installation reader keeps
+# (other cameras, camera-less events and alerts - review M3).
 
 def _ws_close_code(c: TestClient, url: str, h: dict[str, str]) -> int:
     with pytest.raises(WebSocketDisconnect) as ei:
@@ -177,7 +197,7 @@ def _today() -> str:
     return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")
 
 
-# (name, check(c, h, w, cams)) - each asserts the scoped camera is served and every other camera refused or filtered
+# (name, check(c, h, w, cams, wide))
 RESOURCES: list[tuple[str, Callable[..., None]]] = []
 
 
@@ -188,164 +208,199 @@ def resource(name: str):
     return deco
 
 
+def _others(cams: dict[str, str]) -> set[str]:
+    return {v for k, v in cams.items() if k != "cam3"}
+
+
 @resource("camera list")
-def _(c, h, w, cams):
-    assert {x["id"] for x in c.get("/api/v1/cameras", headers=h).json()["cameras"]} == {cams["cam2"]}
+def _(c, h, w, cams, wide):
+    got = {x["id"] for x in c.get("/api/v1/cameras", headers=h).json()["cameras"]}
+    assert got == (_others(cams) if wide else {cams["cam2"]})
 
 
 @resource("snapshot")
-def _(c, h, w, cams):
+def _(c, h, w, cams, wide):
     assert c.get(f"/api/v1/cameras/{cams['cam3']}/snapshot.jpg", headers=h).status_code == 403
     assert c.get(f"/api/v1/cameras/{cams['cam2']}/snapshot.jpg", headers=h).status_code != 403  # the NVR is not configured here
 
 
 @resource("live info")
-def _(c, h, w, cams):
-    assert [c.get(f"/api/v1/media/live/{cams[k]}", headers=h).status_code for k in ("cam2", "cam3", "cam_split", "cam_free")] == [200, 403, 403, 403]
+def _(c, h, w, cams, wide):
+    got = [c.get(f"/api/v1/media/live/{cams[k]}", headers=h).status_code for k in ("cam2", "cam3", "cam_split", "cam_free")]
+    assert got == ([200, 403, 200, 200] if wide else [200, 403, 403, 403])
 
 
 @resource("live socket")
-def _(c, h, w, cams):
+def _(c, h, w, cams, wide):
     assert _ws_close_code(c, f"/api/v1/media/live/{cams['cam3']}/ws?profile=sub", h) == 4403
     assert _ws_close_code(c, f"/api/v1/media/live/{cams['cam2']}/ws?profile=sub", h) == 4503  # authorised; go2rtc is not configured
 
 
 @resource("recordings")
-def _(c, h, w, cams):
+def _(c, h, w, cams, wide):
     assert c.get(f"/api/v1/cameras/{cams['cam3']}/recordings?date={_today()}", headers=h).status_code == 403
     assert c.get(f"/api/v1/cameras/{cams['cam2']}/recordings?date={_today()}", headers=h).status_code != 403
 
 
 @resource("recording frame")
-def _(c, h, w, cams):
+def _(c, h, w, cams, wide):
     assert c.get(f"/api/v1/cameras/{cams['cam3']}/frame?at=2026-09-20T10:00:00Z", headers=h).status_code == 403
     assert c.get(f"/api/v1/cameras/{cams['cam2']}/frame?at=2026-09-20T10:00:00Z", headers=h).status_code != 403
 
 
 @resource("playback session")
-def _(c, h, w, cams):
+def _(c, h, w, cams, wide):
     body = {"start_at": "2026-09-20T10:00:00Z"}
     assert c.post("/api/v1/playback/sessions", json={**body, "camera_id": cams["cam3"]}, headers=h).status_code == 403
     assert c.post("/api/v1/playback/sessions", json={**body, "camera_id": cams["cam2"]}, headers=h).json()["code"] == "no_track"
 
 
 @resource("playback group")
-def _(c, h, w, cams):
+def _(c, h, w, cams, wide):
     assert c.post("/api/v1/playback/groups", json={"camera_ids": [cams["cam2"], cams["cam3"]], "start_at": "2026-09-20T10:00:00Z"}, headers=h).status_code == 403
 
 
 @resource("events list")
-def _(c, h, w, cams):
-    assert {e["id"] for e in c.get("/api/v1/events", headers=h).json()["events"]} == {"e2"}
+def _(c, h, w, cams, wide):
+    assert {e["id"] for e in c.get("/api/v1/events", headers=h).json()["events"]} == ({"e2", "efar", "esys"} if wide else {"e2"})
 
 
 @resource("event facets")
-def _(c, h, w, cams):
+def _(c, h, w, cams, wide):
     f = c.get("/api/v1/events/facets", headers=h).json()
-    assert sum(t["count"] for t in f["types"]) == 1
+    assert sum(t["count"] for t in f["types"]) == (3 if wide else 1)
     floors = {fl["id"]: fl for s in f["places"] for b in s["buildings"] for fl in b["floors"]}
-    assert floors[w["floor2"]]["cameras"] == 1 and floors[w["floor3"]]["cameras"] == 0 and floors[w["floor_b"]]["cameras"] == 0
+    assert floors[w["floor2"]]["cameras"] == (2 if wide else 1) and floors.get(w["floor3"], {"cameras": 0})["cameras"] == 0
+    assert (w["floor_b"] in floors) is wide, "places are limited to the caller's reach"
 
 
 @resource("event summary")
-def _(c, h, w, cams):
-    assert c.get("/api/v1/events/summary", headers=h).json()["today"]["total"] <= 1  # e2 only (when "today" in the zone)
+def _(c, h, w, cams, wide):
+    assert c.get("/api/v1/events/summary", headers=h).json()["today"]["total"] <= (3 if wide else 1)  # never e3
 
 
 @resource("review windows")
-def _(c, h, w, cams):
-    assert c.get("/api/v1/events/windows", headers=h).json()["events_total"] == 1
+def _(c, h, w, cams, wide):
+    assert c.get("/api/v1/events/windows", headers=h).json()["events_total"] == (3 if wide else 1)
 
 
 @resource("camera timeline")
-def _(c, h, w, cams):
+def _(c, h, w, cams, wide):
     assert c.get(f"/api/v1/cameras/{cams['cam3']}/events?date={_today()}", headers=h).status_code == 403
     assert c.get(f"/api/v1/cameras/{cams['cam2']}/events?date={_today()}", headers=h).status_code == 200
+    assert c.get(f"/api/v1/cameras/no-such-camera/events?date={_today()}", headers=h).status_code == (404 if wide else 403), "403 before 404"
 
 
 @resource("event detail, thumbnail, correlation, route")
-def _(c, h, w, cams):
+def _(c, h, w, cams, wide):
     for tail in ("", "/thumbnail", "/correlation", "/route"):
         assert c.get(f"/api/v1/events/e3{tail}", headers=h).status_code == 403, tail
     assert c.get("/api/v1/events/e2", headers=h).status_code == 200
+    assert c.get("/api/v1/events/esys", headers=h).status_code == (200 if wide else 403)
 
 
-@resource("case items")
-def _(c, h, w, cams):
+@resource("event acknowledgement")
+def _(c, h, w, cams, wide):
+    r = c.post("/api/v1/events/ack-many", json={"event_ids": ["e3", "e2"]}, headers=h).json()
+    assert r["acked"] == ["e2"] and r["skipped"] == ["e3"]
+    assert c.post("/api/v1/events/e3/ack", headers=h).status_code == 403
+
+
+@resource("rule alerts")
+def _(c, h, w, cams, wide):
+    got = {a["id"] for a in c.get("/api/v1/rules/alerts", headers=h).json()["alerts"]}
+    assert got == ({"a2", "a-sys"} if wide else {"a2"})
+    assert c.post("/api/v1/rules/alerts/a3/ack", headers=h).status_code == 403
+
+
+@resource("case items and stored snapshots")
+def _(c, h, w, cams, wide):
     case = c.get(f"/api/v1/cases/{w['case']}?check=false", headers=h).json()
     assert [i["camera_id"] for i in case["items"]] == [cams["cam2"]] and case["hidden_items"] == 1
+    assert c.get(f"/api/v1/cases/{w['snap_case']}/items/{w['snaps']['cam3']}/file", headers=h).status_code == 403
+    assert c.get(f"/api/v1/cases/{w['snap_case']}/items/{w['snaps']['cam2']}/file", headers=h).status_code == 200
 
 
 @resource("case bundle download")
-def _(c, h, w, cams):
+def _(c, h, w, cams, wide):
     built = w["c"].post(f"/api/v1/cases/{w['case']}/bundle")
     assert built.status_code == 201, built.text
     assert c.get(f"/api/v1/cases/{w['case']}/bundles/{built.json()['name']}", headers=h).status_code == 403, "the ZIP holds cam3's item too"
 
 
 @resource("export create and download")
-def _(c, h, w, cams):
+def _(c, h, w, cams, wide):
     body = {"from_at": "2026-09-20T10:00:00Z", "to_at": "2026-09-20T10:05:00Z"}
     assert c.post("/api/v1/exports/estimate", json={**body, "camera_id": cams["cam3"]}, headers=h).status_code == 403
     assert c.post("/api/v1/exports/estimate", json={**body, "camera_id": cams["cam2"]}, headers=h).json()["code"] == "no_track"
-    job = _job(w, "scoped", cams["cam3"], "done")
+    job = _job(w, h["X-SW-Dev-User"], cams["cam3"], "done")
     assert c.get(f"/api/v1/exports/{job}/download", headers=h).status_code == 403
 
 
 @resource("PTZ / capabilities and detection zones")
-def _(c, h, w, cams):
+def _(c, h, w, cams, wide):
     for tail in ("capabilities", "zones"):
         assert c.get(f"/api/v1/cameras/{cams['cam3']}/{tail}", headers=h).status_code == 403
         assert c.get(f"/api/v1/cameras/{cams['cam2']}/{tail}", headers=h).status_code != 403
+    assert c.get("/api/v1/cameras/no-such-camera/capabilities", headers=h).status_code == (404 if wide else 403), "403 before 404"
 
 
 @resource("camera settings (manual record state)")
-def _(c, h, w, cams):
+def _(c, h, w, cams, wide):
     assert c.get(f"/api/v1/cameras/{cams['cam3']}/record", headers=h).status_code == 403
     assert c.get(f"/api/v1/cameras/{cams['cam2']}/record", headers=h).status_code == 200
 
 
 @resource("floor map bundle")
-def _(c, h, w, cams):
+def _(c, h, w, cams, wide):
     m = c.get(f"/api/v1/floors/{w['floor2']}/map", headers=h).json()
-    assert m["reach"] == "cameras" and [a["resource_id"] for a in m["anchors"]] == [cams["cam2"]], "no cam_split, no light"
-    assert [x["id"] for x in m["cameras"]] == [cams["cam2"]] and m["zones"] == [] and m["circuit_states"] == {}
-    assert not any(m["permissions"].values())
-    assert c.get(f"/api/v1/floors/{w['floor3']}/map", headers=h).status_code == 403
-    assert c.get(f"/api/v1/floors/{w['floor_b']}/map", headers=h).status_code == 403
-    assert c.get(f"/api/v1/floors/{w['floor2']}/anchors", headers=h).status_code == 403, "the raw anchor list stays floor-scoped"
+    cam_anchors = sorted(a["resource_id"] for a in m["anchors"] if a["resource_type"] == "camera")
+    if wide:
+        assert m["reach"] == "floor" and cam_anchors == sorted([cams["cam2"], cams["cam_split"]]) and any(a["resource_type"] == "ha_entity" for a in m["anchors"])
+        m3 = c.get(f"/api/v1/floors/{w['floor3']}/map", headers=h).json()
+        assert m3["reach"] == "floor" and not [a for a in m3["anchors"] if a["resource_type"] == "camera"], "the denied camera is not in the bundle"
+        assert cams["cam3"] not in {x["id"] for x in m3["cameras"]}
+    else:
+        assert m["reach"] == "cameras" and [a["resource_id"] for a in m["anchors"]] == [cams["cam2"]], "no cam_split, no light"
+        assert [x["id"] for x in m["cameras"]] == [cams["cam2"]] and m["zones"] == [] and m["circuit_states"] == {}
+        assert not any(m["permissions"].values())
+        assert c.get(f"/api/v1/floors/{w['floor3']}/map", headers=h).status_code == 403
+        assert c.get(f"/api/v1/floors/{w['floor_b']}/map", headers=h).status_code == 403
+        assert c.get(f"/api/v1/floors/{w['floor2']}/anchors", headers=h).status_code == 403, "the raw anchor list stays floor-scoped"
 
 
 @resource("sites tree and plan image")
-def _(c, h, w, cams):
+def _(c, h, w, cams, wide):
     tree = c.get("/api/v1/sites", headers=h).json()["sites"]
-    assert [f["id"] for s in tree for b in s["buildings"] for f in b["floors"]] == [w["floor2"]]
+    floors = {f["id"] for s in tree for b in s["buildings"] for f in b["floors"]}
+    assert floors == ({w["floor2"], w["floor3"], w["floor_b"]} if wide else {w["floor2"]})
     assert c.get(f"/api/v1/plan-versions/{w['versions'][w['floor2']]}/image.png", headers=h).status_code == 200
-    assert c.get(f"/api/v1/plan-versions/{w['versions'][w['floor3']]}/image.png", headers=h).status_code == 403
+    assert c.get(f"/api/v1/plan-versions/{w['versions'][w['floor3']]}/image.png", headers=h).status_code == (200 if wide else 403)
 
 
 @resource("search")
-def _(c, h, w, cams):
+def _(c, h, w, cams, wide):
     found = {r["id"] for r in c.get("/api/v1/search?q=cam&limit=20", headers=h).json()["results"] if r["kind"] == "camera"}
-    assert found == {cams["cam2"]}
+    assert found == (_others(cams) if wide else {cams["cam2"]})
 
 
 @resource("saved views")
-def _(c, h, w, cams):
+def _(c, h, w, cams, wide):
     views = [v for v in c.get("/api/v1/views", headers=h).json()["views"] if v["name"] == "כל המצלמות"]
-    assert views and views[0]["cameras"] == [cams["cam2"]] and views[0]["hidden_cameras"] == 4
+    assert views and cams["cam3"] not in views[0]["cameras"] and cams["cam2"] in views[0]["cameras"]
+    assert views[0]["hidden_cameras"] == (1 if wide else 4)
 
 
 @resource("health per camera")
-def _(c, h, w, cams):
+def _(c, h, w, cams, wide):
     body = c.get("/api/v1/health/summary", headers=h).text
     assert cams["cam3"] not in body and c.get("/api/v1/health/report", headers=h).status_code == 403
 
 
 @resource("WisKey station cameras")
-def _(c, h, w, cams):
-    # stations are not VMS cameras: access.read at camera scope reaches no station and no still
-    assert c.get("/api/v1/intercom/overview", headers=h).status_code == 403
+def _(c, h, w, cams, wide):
+    # stations are not VMS cameras: access.read at camera scope reaches no station; installation-wide it does
+    assert (c.get("/api/v1/intercom/overview", headers=h).status_code == 403) is not wide
 
 
 def _job(w: dict[str, Any], user: str, camera_id: str, state: str) -> str:
@@ -360,22 +415,25 @@ def _job(w: dict[str, Any], user: str, camera_id: str, state: str) -> str:
 
 
 @pytest.fixture(scope="module")
-def scoped(world) -> dict[str, str]:
-    """`scoped`: operator bound to cam2 alone (a camera binding) - live, playback, events, export on that camera."""
-    c = world["c"]
-    c.get("/api/v1/me", headers=as_user("scoped"))
-    _binding(world["settings"], "scoped", "operator", "camera", world["cams"]["cam2"])
-    assert c.post("/api/v1/views", json={"name": "כל המצלמות", "cameras": list(world["cams"].values()), "shared": True}).status_code == 201
-    return as_user("scoped")
+def personas(world) -> dict[str, dict[str, str]]:
+    c, cams = world["c"], world["cams"]
+    for user in ("scoped", "widedeny"):
+        c.get("/api/v1/me", headers=as_user(user))
+    _binding(world["settings"], "scoped", "operator", "camera", cams["cam2"])
+    _binding(world["settings"], "widedeny", "operator", "installation", "*")
+    _binding(world["settings"], "widedeny", "operator", "camera", cams["cam3"], effect="deny")
+    assert c.post("/api/v1/views", json={"name": "כל המצלמות", "cameras": list(cams.values()), "shared": True}).status_code == 201
+    return {"scoped": as_user("scoped"), "wide": as_user("widedeny")}
 
 
+@pytest.mark.parametrize("persona", ("scoped", "wide"))
 @pytest.mark.parametrize("name,check", RESOURCES, ids=[n for n, _ in RESOURCES])
-def test_every_camera_resource_is_filtered(world, scoped, name, check):
-    check(world["c"], scoped, world, world["cams"])
+def test_every_camera_resource_is_filtered(world, personas, persona, name, check):
+    check(world["c"], dict(personas[persona]), world, world["cams"], persona == "wide")
 
 
-def test_camera_scoped_me_and_navigation(world, scoped):
-    me = world["c"].get("/api/v1/me", headers=scoped).json()
+def test_camera_scoped_me_and_navigation(world, personas):
+    me = world["c"].get("/api/v1/me", headers=personas["scoped"]).json()
     assert me["permissions_installation"] == [] and {"video.live", "events.read", "map.read"} <= set(me["permissions_any"])
     assert [b["scope_type"] for b in me["bindings"]] == ["camera"] and me["bindings"][0]["scope_name"] == "מצלמה · cam2"
 
@@ -394,6 +452,91 @@ def test_camera_settings_follow_a_camera_deny(world):
     m = c.get(f"/api/v1/floors/{w['floor3']}/map", headers=h).json()
     assert m["reach"] == "floor" and not [a for a in m["anchors"] if a["resource_type"] == "camera"], "the denied camera is not in the bundle"
     assert cams["cam3"] not in {x["id"] for x in m["cameras"]}, "nor in the editor's camera list"
+
+
+# ---------------------------------------------------------------- placement reach (review B1, M1), camera denies of admin roles (M2)
+
+def test_placing_moving_and_removing_a_camera_needs_reach(tmp_path):
+    settings = _settings(tmp_path)
+    w = _world(settings)
+    c, cams = w["c"], w["cams"]
+    for u in ("eve", "vic"):
+        c.get("/api/v1/me", headers=as_user(u))
+    _binding(settings, "eve", "editor", "floor", w["floor2"])
+    _binding(settings, "vic", "viewer", "floor", w["floor2"])
+    h = as_user("eve")
+    body = {"resource_type": "camera", "x": 0.7, "y": 0.7}
+    # create: a camera of another site, on no map, or on another floor is not hers to put on floor 2
+    for key in ("cam_far", "cam_free", "cam3"):
+        assert c.post(f"/api/v1/floors/{w['floor2']}/anchors", json={**body, "resource_id": cams[key]}, headers=h).status_code == 403, key
+    assert c.get(f"/api/v1/media/live/{cams['cam_far']}", headers=as_user("vic")).status_code == 403, "the floor-2 viewer gained nothing"
+    # the editor's camera list: only the cameras she reaches
+    m = c.get(f"/api/v1/floors/{w['floor2']}/map", headers=h).json()
+    assert m["permissions"]["edit"] and {x["id"] for x in m["cameras"]} == {cams["cam2"], cams["cam_split"]}
+    # move: a camera she reaches, yes; one explicitly denied to her, neither moved nor taken off the floor
+    a2 = next(a for a in m["anchors"] if a["resource_id"] == cams["cam2"])
+    assert c.patch(f"/api/v1/map-anchors/{a2['id']}", json={"revision": a2["revision"], "x": 0.2}, headers=h).status_code == 200
+    _binding(settings, "eve", "editor", "camera", cams["cam_split"], effect="deny")
+    split = next(a for a in m["anchors"] if a["resource_id"] == cams["cam_split"])
+    assert c.patch(f"/api/v1/map-anchors/{split['id']}", json={"revision": split["revision"], "x": 0.1}, headers=h).status_code == 403
+    assert c.delete(f"/api/v1/map-anchors/{split['id']}", headers=h).status_code == 403
+    assert cams["cam_split"] not in {x["id"] for x in c.get(f"/api/v1/floors/{w['floor2']}/map", headers=h).json()["cameras"]}
+    # an installation-wide placement editor (the system administrator) places any camera
+    assert c.post(f"/api/v1/floors/{w['floor2']}/anchors", json={**body, "resource_id": cams["cam_far"]}).status_code == 201
+
+
+def test_anchor_placed_on_a_new_floor_after_binding(tmp_path):
+    """M1 ruling (§15): a camera-only user gets the drawing of every floor the camera is anchored on; a new floor comes
+    only from someone who already reaches the camera (B1) - a floor editor who does not is refused."""
+    settings = _settings(tmp_path)
+    w = _world(settings)
+    c, cams = w["c"], w["cams"]
+    for u in ("mia", "fay"):
+        c.get("/api/v1/me", headers=as_user(u))
+    _binding(settings, "mia", "viewer", "camera", cams["cam2"])
+    _binding(settings, "fay", "editor", "floor", w["floor3"])
+    assert c.get(f"/api/v1/floors/{w['floor3']}/map", headers=as_user("mia")).status_code == 403
+    r = c.post(f"/api/v1/floors/{w['floor3']}/anchors", json={"resource_type": "camera", "resource_id": cams["cam2"], "x": 0.5, "y": 0.5}, headers=as_user("fay"))
+    assert r.status_code == 403
+    assert c.get(f"/api/v1/floors/{w['floor3']}/map", headers=as_user("mia")).status_code == 403, "a floor editor cannot widen mia's reach"
+    assert c.post(f"/api/v1/floors/{w['floor3']}/anchors", json={"resource_type": "camera", "resource_id": cams["cam2"], "x": 0.5, "y": 0.5}).status_code == 201
+    m = c.get(f"/api/v1/floors/{w['floor3']}/map", headers=as_user("mia")).json()
+    assert m["reach"] == "cameras" and [a["resource_id"] for a in m["anchors"]] == [cams["cam2"]], "placed by someone who reached it: documented"
+
+
+def test_full_admin_denies_admin_roles_on_one_camera(tmp_path):
+    settings = _settings(tmp_path)
+    w = _world(settings)
+    c, cams = w["c"], w["cams"]
+    c.get("/api/v1/me", headers=as_user("nadia"))
+    _binding(settings, "nadia", "system_admin", "installation", "*")
+    body = {"subject_kind": "user", "subject_id": "dev-nadia", "scope_type": "camera", "scope_id": cams["cam3"]}
+    for role in ("system_admin", "site_admin"):
+        r = c.post("/api/v1/access/bindings", json={**body, "role_id": role, "effect": "deny"})
+        assert r.status_code == 201, r.text
+        assert c.post("/api/v1/access/bindings", json={**body, "role_id": role}).json()["code"] == "scope_not_allowed_for_role"
+    h = as_user("nadia")
+    assert c.get(f"/api/v1/media/live/{cams['cam3']}", headers=h).status_code == 403
+    assert c.get(f"/api/v1/media/live/{cams['cam2']}", headers=h).status_code == 200
+
+
+def test_audit_grant_is_the_one_behind_the_action():
+    import contextvars
+
+    from smplwise import rbac
+    from smplwise.rbac import INSTALLATION, Decision
+
+    def run() -> None:
+        cam = Decision(True, "binding", "b1", "operator", ("camera", "c1"))
+        inst = Decision(True, "binding", "b2", "system_admin", INSTALLATION)
+        rbac.note_grant(cam, "video.export")
+        rbac.note_grant(inst, "sources.configure")
+        assert rbac.last_grant("video.export.create") is cam, "the export row names the export grant, not the later one"
+        assert rbac.last_grant("sources.configure") is inst
+        assert rbac.last_grant("camera.update") is inst  # no permission of that name: the latest grant
+
+    contextvars.copy_context().run(run)
+    assert rbac.last_grant() is None, "nothing leaks out of a request's context"
 
 
 # ---------------------------------------------------------------- 3. delegation

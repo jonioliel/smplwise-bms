@@ -368,10 +368,11 @@ def check_delegation(conn: sqlite3.Connection, principal: Principal, role_id: st
     is in their reach (group_reach_problem). Every refusal is an audited `denied` row with its reason."""
     action = "rbac.bind" if op == "bind" else "rbac.unbind"
     require(conn, principal, "rbac.assign", scope)
-    if op == "bind" and role_id == "system_admin" and scope != INSTALLATION:
+    if op == "bind" and effect == "allow" and role_id == "system_admin" and scope != INSTALLATION:
         raise ApiError(422, "scope_not_allowed_for_role", "מנהל מערכת VMS מוקצה רק ברמת ההתקנה כולה.")
-    if op == "bind" and scope[0] == "camera" and "rbac.assign" in role_permissions(conn, role_id):
-        # T055 ruling: no "administrator of one camera" - a camera binding carries viewing / operating roles only
+    if op == "bind" and effect == "allow" and scope[0] == "camera" and "rbac.assign" in role_permissions(conn, role_id):
+        # T055 ruling R3: no "administrator of one camera" - an ALLOW at camera scope carries viewing / operating roles
+        # only; a full administrator may still DENY any role (system_admin, site_admin) on one camera (review M2)
         raise ApiError(422, "scope_not_allowed_for_role", "תפקיד שכולל שיוך תפקידים אינו מוקצה ברמת מצלמה.", details={"role_id": role_id})
     if full_authority(conn, principal):
         return

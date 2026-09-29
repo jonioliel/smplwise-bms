@@ -77,6 +77,48 @@ def camera_scope(conn: sqlite3.Connection, principal: Principal, permission: str
     return CameraScope(permission, False, ids, denied)
 
 
+@dataclass(frozen=True)
+class RowScope:
+    """Rows that may or may not name a camera (events, rule alerts): a camera row follows the camera scope, a
+    camera-less row the installation-wide grant (an installation deny takes it away; a camera deny does not - security
+    review T055 M3)."""
+
+    cameras: CameraScope
+    camera_less: bool
+
+    @property
+    def everything(self) -> bool:
+        return self.cameras.everything and self.camera_less
+
+    def allows_row(self, camera_id: str | None) -> bool:
+        return self.cameras.allows(camera_id) if camera_id else self.camera_less
+
+    def any(self) -> bool:
+        return self.camera_less or self.cameras.any()
+
+
+def row_scope(conn: sqlite3.Connection, principal: Principal, permission: str) -> RowScope:
+    return RowScope(camera_scope(conn, principal, permission), authorize(conn, principal, permission, INSTALLATION).allowed)
+
+
+def camera_reach_for_placement(conn: sqlite3.Connection, principal: Principal) -> CameraScope:
+    """The cameras an editor may place, move or remove on a map (security review T055 B1): placing a camera on a floor
+    widens who reaches it (every reader of that floor, and its camera-scoped users get that floor's drawing), so the
+    actor must already reach the camera on its CURRENT chain (map.read) - or hold placement.edit installation-wide,
+    minus the cameras explicitly denied to them."""
+    reads = camera_scope(conn, principal, "map.read")
+    if authorize(conn, principal, "placement.edit", INSTALLATION).allowed:
+        every = frozenset(r[0] for r in conn.execute("SELECT id FROM cameras").fetchall())
+        return CameraScope("placement.edit", False, every - reads.denied, reads.denied)
+    return reads
+
+
+def require_camera_placement(conn: sqlite3.Connection, principal: Principal, camera_id: str) -> None:
+    if not camera_reach_for_placement(conn, principal).allows(camera_id):
+        require(conn, principal, "map.read", ("camera", camera_id))  # the audited 403 (an explicit deny names itself)
+        require(conn, principal, "placement.edit", INSTALLATION)
+
+
 def visible_camera_ids(conn: sqlite3.Connection, principal: Principal, permission: str = "map.read") -> set[str] | None:
     """None = every camera; otherwise the set of camera ids the caller reaches with `permission` (camera_scope)."""
     scope = camera_scope(conn, principal, permission)

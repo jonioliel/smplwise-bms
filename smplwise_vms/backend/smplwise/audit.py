@@ -42,7 +42,7 @@ def _write_audit(
     if under is None and decision == "allowed" and actor is not None:
         from .rbac import last_grant  # local import: rbac imports this module lazily too
 
-        under = last_grant()
+        under = last_grant(action)
     scope = getattr(under, "scope", None)
     if under is not None and scope:
         try:
