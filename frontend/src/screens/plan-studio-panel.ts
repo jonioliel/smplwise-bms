@@ -387,6 +387,8 @@ export interface DetectOpts {
   /** 0.3 (light) .. 1.0 (strong) morphology, the server's strength. */
   strength: number;
   replaceAuto: boolean;
+  /** The hollow-wall pass (T087, walls drawn as two thin lines): on unless false; the request's `hollow_walls`. */
+  hollow?: boolean;
 }
 export interface DetectRunState {
   busy: boolean;
@@ -510,6 +512,7 @@ export function renderDetectPanel(v: DetectView, a: DetectActions): TemplateResu
           <div class="chks">
             <label class="chk"><input type="checkbox" data-detect-walls .checked=${o.walls} @change=${(e: Event) => { const on = (e.target as HTMLInputElement).checked; a.setOpts({ ...o, walls: on, openings: on && o.openings }); }} /> קירות</label>
             <label class="chk"><input type="checkbox" data-detect-openings .checked=${o.openings} ?disabled=${!o.walls} @change=${(e: Event) => a.setOpts({ ...o, openings: (e.target as HTMLInputElement).checked })} /> פתחים (דלתות, חלונות, מעברים)</label>
+            <label class="chk"><input type="checkbox" data-detect-hollow .checked=${o.hollow !== false} ?disabled=${!o.walls} @change=${(e: Event) => a.setOpts({ ...o, hollow: (e.target as HTMLInputElement).checked })} /> קירות חלולים (חיצוניים דקים)</label>
           </div>
           <sw-field label=${`עוצמת ניקוי: ${o.strength.toFixed(2)} (קל ← חזק)`}><input type="range" min="0.3" max="1" step="0.05" data-detect-strength .value=${String(o.strength)}
             @input=${(e: Event) => a.setOpts({ ...o, strength: parseFloat((e.target as HTMLInputElement).value) })} /></sw-field>

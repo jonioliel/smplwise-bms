@@ -307,6 +307,8 @@ class DetectIn(BaseModel):
     level_id: str | None = Field(default=None, max_length=64)
     # T087: "arc_v2" adds the door-symbol search that needs no gap (plan_detect_doors); off by default
     door_model: Literal["gap", "arc_v2"] = "gap"
+    # T087: the hollow-wall pass (plan_detect_hollow, walls drawn as two thin lines); on by default, a plan opts out
+    hollow_walls: bool = True
 
 
 class CandidateSet(BaseModel):
@@ -363,7 +365,7 @@ def detect_structure(version_id: str, body: DetectIn, request: Request, principa
     # instead of finishing a result nobody reads, so a timed-out run does not hold one of the two workers
     deadline = time.monotonic() + settings.detect_timeout_s
     future = DETECT_POOL.submit(plan_detect.detect, png, targets=targets, strength=body.strength, scale_m_per_px=scale, level_id=level_id, run_id=new_id()[:6], deadline=deadline,
-                                 door_model=body.door_model)
+                                 door_model=body.door_model, hollow_walls=body.hollow_walls)
     try:
         with unlocked(conn):  # the write lock is not held while the worker runs
             result = future.result(timeout=settings.detect_timeout_s)

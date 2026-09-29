@@ -19,7 +19,7 @@ export interface CandidateSet {
   pixels: CandidatePixels;
   /** Metres per version pixel the server used for the metres of this set (null when unknown). */
   scaleMPerPx: number | null;
-  /** Detector 1.2 (T087 review): ids of the wall candidates kept although they lie outside the main structure (a small
+  /** Detector 1.2 and later (T087 review): ids of the wall candidates kept although they lie outside the main structure (a small
    * building beside a large one). They stay selectable and acceptable like any candidate; the layer draws them with
    * their own dash and the list, the pill and the summary say so. Absent / empty: none. */
   outsideMain?: string[];

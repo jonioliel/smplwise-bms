@@ -39,6 +39,9 @@ export interface GeomWall {
   external_ids?: ExternalIds;
   /** Free-text tags for marking and selection (T085; at most TAG_MAX_COUNT of TAG_MAX_LEN characters). Absent = none. */
   tags?: string[];
+  /** Detector 1.3 (T087): a detected wall drawn as two thin lines with white between (hollow_v1); every detected wall
+   * carries it, the editor does not draw it differently yet. Absent on hand-drawn and older walls. */
+  hollow?: boolean;
 }
 export interface GeomOpening {
   id: string;
