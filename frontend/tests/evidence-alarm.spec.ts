@@ -176,7 +176,7 @@ test.describe('CR-010 alarm against the real backend (fake Home Assistant side)'
     if (info.project.name === 'mobile') await noOverflow(page);
   });
 
-  test('arm without a code (no_code), disarm with the PIN: a wrong PIN is refused, the right one disarms', async ({ page }) => {
+  test('arm without a code (no_code), disarm with the PIN: a wrong PIN is refused, the right one disarms', async ({ page }, info) => {
     await open(page, `/security/alarm?panel=${HOUSE}`);
     const hero = page.locator('security-alarm section.hero');
     await expect(hero).toHaveAttribute('data-alarm-state', /disarmed|armed_away/, { timeout: 30000 });
@@ -184,10 +184,13 @@ test.describe('CR-010 alarm against the real backend (fake Home Assistant side)'
     await page.locator('security-alarm [data-arm="arm_away"]').click();
     await expect(hero).toHaveAttribute('data-alarm-state', 'armed_away', { timeout: 15000 });
     await page.locator('security-alarm [data-disarm]').click();
-    for (const k of ['9', '9', '9', '9']) await page.locator(`security-alarm [data-key="${k}"]`).click();
-    await page.locator('security-alarm [data-alarm-confirm]').click();
-    await expect(page.locator('security-alarm [data-code-error]')).toHaveText('קוד שגוי');
-    await expect(page.locator('security-alarm input[data-code]')).toHaveValue('');
+    // one wrong PIN per run (desktop only): five in five minutes lock the user and the panel out for ten
+    if (info.project.name === 'desktop') {
+      for (const k of ['9', '9', '9', '9']) await page.locator(`security-alarm [data-key="${k}"]`).click();
+      await page.locator('security-alarm [data-alarm-confirm]').click();
+      await expect(page.locator('security-alarm [data-code-error]')).toHaveText('קוד שגוי');
+      await expect(page.locator('security-alarm input[data-code]')).toHaveValue('');
+    }
     await page.locator('security-alarm input[data-code]').fill(PIN);
     await page.locator('security-alarm [data-alarm-confirm]').click();
     await expect(hero).toHaveAttribute('data-alarm-state', 'disarmed', { timeout: 15000 });
@@ -199,7 +202,7 @@ test.describe('CR-010 alarm against the real backend (fake Home Assistant side)'
     await expect(zone).toBeVisible({ timeout: 30000 });
     const wasBypassed = (await zone.getAttribute('data-tone')) === 'bypassed';
     await zone.locator('[data-bypass]').click();
-    await expect(page.locator('security-alarm sw-dialog[data-alarm-dialog]')).toBeVisible();
+    await expect(page.locator('security-alarm input[data-code]')).toBeVisible(); // the dialog host itself has no box (fixed backdrop)
     await page.locator('security-alarm input[data-code]').fill(PIN);
     await page.locator('security-alarm [data-alarm-confirm]').click();
     if (wasBypassed) await expect(zone).not.toHaveAttribute('data-tone', 'bypassed', { timeout: 15000 });
