@@ -1,7 +1,7 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import { ApiError, describeError } from '../api/client';
 import { getGeometry, saveGeometryDraft, type CopyCandidate, type GeometryIssue, type GeometryResponse } from '../api/geometry';
-import type { GeometryDoc } from './geometry';
+import type { GeometryDoc, GeomConnector } from './geometry';
 
 export type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
 
@@ -28,6 +28,37 @@ export function skippedTwinsMessage(floors: readonly { name: string }[]): string
   return `המדרגות ב${names.join(' וב')} לא עודכנו - אין לך הרשאת עריכה שם`;
 }
 
+const sameJson = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+/** A connector as stored: `far` is computed on every read and says nothing about an edit. */
+const connectorKey = (c: GeomConnector): string => {
+  const { far: _far, ...rest } = c;
+  void _far;
+  return JSON.stringify(rest);
+};
+
+/** T085 review L-e: the draft moved on the server (a twin synced from another floor raises its revision) while this
+ * editor held unsaved edits. When the server's change touched only connectors this editor did not edit (compared with
+ * `base`, the document the local edits started from), the local edits are replayed on the server's document: its
+ * connectors, with the ones edited here (added, changed or removed) taken from here, and every other part from here.
+ * Null when the server changed anything else, a connector edited here too, or nothing visible at all (then the conflict
+ * stands and the editor asks for a reload). */
+export function rebaseOnServer(base: GeometryDoc, local: GeometryDoc, server: GeometryDoc): GeometryDoc | null {
+  const keys = new Set([...Object.keys(base), ...Object.keys(server)]) as Set<keyof GeometryDoc>;
+  for (const k of keys) if (k !== 'connectors' && !sameJson(base[k], server[k])) return null;
+  const index = (d: GeometryDoc) => new Map((d.connectors ?? []).map((c) => [c.id, connectorKey(c)]));
+  const b = index(base);
+  const l = index(local);
+  const s = index(server);
+  const ids = [...new Set([...b.keys(), ...l.keys(), ...s.keys()])];
+  const mine = new Set(ids.filter((id) => b.get(id) !== l.get(id)));
+  const theirs = ids.filter((id) => b.get(id) !== s.get(id));
+  if (!theirs.length || theirs.some((id) => mine.has(id))) return null;
+  const localById = new Map(local.connectors.map((c) => [c.id, c]));
+  const connectors = server.connectors.flatMap((c) => (mine.has(c.id) ? (localById.has(c.id) ? [localById.get(c.id)!] : []) : [c]));
+  for (const c of local.connectors) if (mine.has(c.id) && !s.has(c.id)) connectors.push(c);
+  return { ...local, connectors };
+}
+
 const DEFAULT_API: StudioApi = { load: (id) => getGeometry(id, { draft: true }), save: (id, doc, base) => saveGeometryDraft(id, doc, base) };
 
 /**
@@ -48,6 +79,10 @@ export class StudioController implements ReactiveController {
   /** Called with a message the person should see after a save (the editor shows it for a while). */
   onNotice: ((message: string) => void) | null = null;
   private versionId: string | null = null;
+  /** The server's document the local edits started from (the last load or save answer): what a rebase compares with. */
+  private base: GeometryDoc | null = null;
+  /** A rebase was done since the last successful save: a second stale answer is a real conflict (review L-e). */
+  private rebased = false;
   private undoStack: GeometryDoc[] = [];
   private redoStack: GeometryDoc[] = [];
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -106,6 +141,8 @@ export class StudioController implements ReactiveController {
     this.versionId = versionId;
     this.apply(r);
     this.doc = r.doc;
+    this.base = r.doc;
+    this.rebased = false;
     this.copyCandidates = r.copy_candidates ?? [];
     this.undoStack = [];
     this.redoStack = [];
@@ -148,6 +185,7 @@ export class StudioController implements ReactiveController {
     this.redoStack = [];
     this.apply(r);
     this.doc = r.doc;
+    this.base = r.doc;
     this.dirty = false;
     this.conflicted = false;
     this.saveState = 'saved';
@@ -196,6 +234,29 @@ export class StudioController implements ReactiveController {
     if (skipped.length) this.onNotice?.(skippedTwinsMessage(skipped));
   }
 
+  /** After a stale answer: load the server's draft and replay the local edits on it when they cannot collide
+   * (rebaseOnServer). True when the working state moved to the server's revision and still waits to be saved. */
+  private async rebase(id: string, loaded: number): Promise<boolean> {
+    if (!this.base || this.rebased) return false;
+    let r: GeometryResponse;
+    try {
+      r = await this.api.load(id);
+    } catch {
+      return false;
+    }
+    if (loaded !== this.loaded || !this.doc) return false;
+    const merged = rebaseOnServer(this.base, this.doc, r.doc);
+    if (!merged) return false;
+    this.rebased = true;
+    this.apply(r);
+    this.base = r.doc;
+    this.doc = merged;
+    this.dirty = true;
+    this.saveState = 'pending';
+    this.error = '';
+    return true;
+  }
+
   private async saveOnce(): Promise<void> {
     const doc = this.doc;
     const id = this.versionId;
@@ -211,15 +272,20 @@ export class StudioController implements ReactiveController {
       const r = await this.api.save(id, doc, this.revision);
       if (loaded !== this.loaded) return; // a newer load replaced the working state: this answer belongs to the old one
       this.apply(r);
+      if (r.doc) this.base = r.doc;
+      this.rebased = false;
       if (this.doc === doc && r.doc) this.doc = adoptServerParts(doc, r.doc);
       this.saveState = this.dirty ? 'pending' : 'saved';
       this.error = '';
     } catch (err) {
       if (loaded !== this.loaded) return;
       this.dirty = true;
-      if (err instanceof ApiError && err.code === 'stale_revision') this.conflicted = true;
+      if (err instanceof ApiError && err.code === 'stale_revision') {
+        if (await this.rebase(id, loaded)) return; // the local edits go out again on the server's revision (flush loops)
+        this.conflicted = true;
+      }
       this.saveState = 'error';
-      this.error = this.conflicted ? 'טיוטת המבנה נערכה במקום אחר; טען מחדש את העורך כדי לא לדרוס שינוי.' : describeError(err);
+      this.error = this.conflicted ? 'הקומה עודכנה מקומה אחרת או במקום אחר; טען מחדש את העורך כדי לא לדרוס שינוי (שינויים שלא נשמרו כאן לא יישמרו).' : describeError(err);
     } finally {
       this.host.requestUpdate();
     }
