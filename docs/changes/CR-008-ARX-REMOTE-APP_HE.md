@@ -1,4 +1,4 @@
-Source: docs/changes/CR-008-ARX-REMOTE-APP.md @ e907b1f28c3ed59002e2d1a27341fbc17f70b6b9
+Source: docs/changes/CR-008-ARX-REMOTE-APP.md @ d00d4e6d9713ac2932375137bfea0e7cf126c1c1
 
 > תרגום של `docs/changes/CR-008-ARX-REMOTE-APP.md`; המקור באנגלית קובע במקרה של סתירה.
 
@@ -446,6 +446,22 @@ D11-D14 לא משנות את D1 (נתיב `/arx`, אותו מקור) או את D
   וכשלתהליך היה challenge גם `code_verifier` ‏(SHA-256, ‏base64url בלי ריפוד, השוואה בזמן קבוע);
   `grant_type=refresh_token` עם `refresh_token` ו-`client_id` המנפיק; `action=revoke` עם `token`. כלומר PKCE מובנה
   ב-HA והבקשות של לקוח Arx תואמות; ליבת ה-HA המדומה דוחה כעת בדיוק את מה שהסכמות האלה דוחות.
+- **תיקון חם אחרי הבדיקה החיה הראשונה (0.1.140 דרך Cloudflare, 29.09.2026): PKCE רק כש-HA מקבל אותו.** ה-HA של
+  הבעלים ענה ל-`POST /auth/login_flow` הראשון ב-
+  `400 {"message": "Message format incorrect: not a valid option at 'code_challenge'"}`. ‏V1 קרא את ענף `dev` של HA
+  core; לאף גרסה משוחררת של HA עדיין אין PKCE: הוא הגיע עם home-assistant/core#181957 ‏("Support PKCE S256 in OAuth
+  server", מוזג ל-`dev` ב-26.09.2026, ולכן צפוי ב-2026.10.0). הסכמה בתג 2026.9.0 כוללת רק `client_id`, ‏`handler`,
+  ‏`redirect_uri` ו-`type`, ו-`http/data_validator.py` עונה `json_message(f"Message format incorrect: {err}", 400)`;
+  ‏2026.9 מאמת עם probatio 0.11.4, שמציג מפתח לא מוצהר כ-"not a valid option at '<key>'" (עד 2026.8 voluptuous אמר
+  "extra keys not allowed @ data['<key>']"). לקוח Arx ‏(`frontend/src/arx/auth.ts`) מתחיל כעת עם PKCE; כשההתחלה
+  הראשונה מקבלת 400 (הטקסטים של HA שלמעלה, או כל 400 אחר) הוא מנסה **פעם אחת** בלי `code_challenge` /
+  `code_challenge_method` וזוכר `pkce=false` בזיכרון לאותו דף, כך ש-`/auth/token` משמיט את `code_verifier` ‏(HA עם PKCE
+  דוחה verifier לתהליך שהתחיל בלי challenge - הגנת ה-downgrade של core#181957; ‏2026.9 מתעלם ממנו). לעולם לא יותר
+  מניסיון חוזר אחד; 400 בניסיון החוזר, או בכל בקשה מאוחרת יותר, מוצג כפי שהוא. ‏`client_id`, ‏`redirect_uri` ושלב
+  ה-MFA לא השתנו. בלי PKCE הכניסה חזקה כמו זרימת ה-authorization code של HA עצמו בגרסאות האלה (אותו
+  מקור, קוד חד-פעמי שקשור ל-`client_id`). לליבת ה-HA המדומה יש מצב `pkce=False` עם ה-400 המדויק של HA; בדיקות:
+  `test_older_ha_without_pkce_sign_in_and_exchange`, ‏`test_ha_with_pkce_refuses_a_verifier_without_a_challenge`, ומקרה
+  ה-Playwright ‏"older HA: sign-in succeeds after the PKCE fallback".
 
 ## 9. מצב הבנייה
 

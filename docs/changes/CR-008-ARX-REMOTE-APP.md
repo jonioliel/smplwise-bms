@@ -463,6 +463,23 @@ round and release (step 7). Tests: 45 backend tests (`tests/test_remote_access.p
   `code` and, when the flow had a challenge, `code_verifier` (SHA-256, base64url, unpadded, constant-time compare);
   `grant_type=refresh_token` with `refresh_token` and the issuing `client_id`; `action=revoke` with `token`. So PKCE is
   native to HA and the Arx client's requests match; the fake HA core now refuses exactly what these schemas refuse.
+- **Hotfix after the first live test (0.1.140 through Cloudflare, 2026-09-29): PKCE only when HA accepts it.** The
+  owner's HA answered the first `POST /auth/login_flow` with
+  `400 {"message": "Message format incorrect: not a valid option at 'code_challenge'"}`. V1 read HA core `dev`; no HA
+  release has PKCE yet: it arrived with home-assistant/core#181957 ("Support PKCE S256 in OAuth server", merged to `dev`
+  on 2026-09-26, so expected in 2026.10.0). The 2026.9.0 tag's schema has only `client_id`, `handler`, `redirect_uri`
+  and `type`, and `http/data_validator.py` answers `json_message(f"Message format incorrect: {err}", 400)`; 2026.9
+  validates with probatio 0.11.4, which renders an undeclared key as "not a valid option at '<key>'" (up to 2026.8,
+  voluptuous said "extra keys not allowed @ data['<key>']"). The Arx client (`frontend/src/arx/auth.ts`) now starts
+  with PKCE; when that first start gets a 400 (HA's texts above, or any other 400) it retries **once** without
+  `code_challenge` / `code_challenge_method` and remembers `pkce=false` in memory for the page, so `/auth/token` omits
+  `code_verifier` (an HA with PKCE refuses a verifier for a flow started without a challenge, the downgrade defense of
+  core#181957; 2026.9 ignores it). Never more than one retry; a 400 on the retry, or on any later request, is shown
+  unchanged. `client_id`, `redirect_uri` and the MFA step are unchanged. Without PKCE the sign-in is
+  as strong as HA's own authorization-code flow on those releases (same origin, a one-time code bound to `client_id`).
+  The fake HA core has a `pkce=False` mode with HA's exact 400; tests: `test_older_ha_without_pkce_sign_in_and_exchange`,
+  `test_ha_with_pkce_refuses_a_verifier_without_a_challenge`, and the Playwright case "older HA: sign-in succeeds after
+  the PKCE fallback".
 
 ## 9. Build status
 

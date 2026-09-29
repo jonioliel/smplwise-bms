@@ -704,6 +704,56 @@ def test_fake_login_flow_mirrors_ha_schemas():
     assert core.start_flow({k: v for k, v in base.items() if k != "redirect_uri"})[0] == 400
 
 
+def _code_for(core: FakeHaCore, base: dict, user: FakeUser, **pkce) -> str:
+    status, form = core.start_flow({**base, **pkce})
+    assert status == 200, form
+    status, done = core.step_flow(form["flow_id"], {"client_id": base["client_id"], "username": user.username, "password": user.password})
+    assert status == 200 and done["type"] == "create_entry", done
+    return done["result"]
+
+
+def test_older_ha_without_pkce_sign_in_and_exchange(arx):
+    """CR-008 hotfix: an HA release without PKCE (<= 2026.9.x) refuses the PKCE keys with its exact 400; the Arx client
+    retries once without them and exchanges the code WITHOUT a code_verifier; the token it gets opens an Arx session."""
+    arx.flag("u-viewer")
+    arx.bind("u-viewer", "viewer")
+    core = arx.core
+    core.pkce = False
+    client_id = "http://testserver/arx/"
+    base = {"client_id": client_id, "handler": ["homeassistant", None], "redirect_uri": f"{client_id}?auth_callback=1"}
+    # the owner's HA 2026.9 answer, verbatim (probatio's undeclared-key message, wrapped by http/data_validator.py)
+    assert core.start_flow({**base, "code_challenge": "A" * 43, "code_challenge_method": "S256"}) == (
+        400, {"message": "Message format incorrect: not a valid option at 'code_challenge'"})
+    code = _code_for(core, base, arx.viewer)
+    status, tokens = core.token({"grant_type": "authorization_code", "code": code, "client_id": client_id})
+    assert status == 200 and tokens["refresh_token"]
+    assert core.code_grant_keys[-1] == ["client_id", "code", "grant_type"]  # no code_verifier
+    r = arx.client.post("/arx/api/v1/auth/session", headers={"Authorization": f"Bearer {tokens['access_token']}"})
+    assert r.status_code == 200, r.text
+    assert r.json()["user"]["id"] == "u-viewer"
+    # the refresh grant is the same with and without PKCE
+    status, fresh = core.token({"grant_type": "refresh_token", "refresh_token": tokens["refresh_token"], "client_id": client_id})
+    assert status == 200 and fresh["access_token"]
+
+
+def test_ha_with_pkce_refuses_a_verifier_without_a_challenge():
+    """HA with PKCE (core#181957) refuses a code_verifier for a flow started without a challenge (the downgrade
+    defense), which is why the client omits it after the fallback; an HA without PKCE ignores it."""
+    client_id = "http://t/arx/"
+    base = {"client_id": client_id, "handler": ["homeassistant", None], "redirect_uri": f"{client_id}?auth_callback=1"}
+    for pkce, expected in ((True, 400), (False, 200)):
+        core = FakeHaCore(pkce=pkce)
+        user = core.add_user(FakeUser("u-1", "dana", "pw", "דנה"))
+        code = _code_for(core, base, user)
+        status, body = core.token({"grant_type": "authorization_code", "code": code, "client_id": client_id, "code_verifier": "v" * 43})
+        assert status == expected, body
+    # and with PKCE, a challenge still needs its matching verifier
+    core = FakeHaCore()
+    user = core.add_user(FakeUser("u-1", "dana", "pw", "דנה"))
+    code = _code_for(core, base, user, code_challenge="A" * 43, code_challenge_method="S256")
+    assert core.token({"grant_type": "authorization_code", "code": code, "client_id": client_id})[1]["error_description"] == "Code verifier required"
+
+
 def test_the_built_ui_contains_no_secrets():
     from pathlib import Path
 
