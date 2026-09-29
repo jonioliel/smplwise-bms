@@ -81,6 +81,29 @@ def _rows(conn: sqlite3.Connection, where: str, args: Iterable[Any], at: str | N
     return out
 
 
+def ensure_schema(conn: sqlite3.Connection) -> list[str]:
+    """Re-review low: migration 0036 changed while the branch was open (other_zone_id inside CREATE TABLE, the members
+    table). A database that already recorded the first 0036 never runs it again, so this idempotent guard, run at start
+    after the migrations, adds what is missing. Returns what it added."""
+    added: list[str] = []
+    try:
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(shared_spaces)").fetchall()}
+    except sqlite3.OperationalError:
+        return added
+    if not cols:
+        return added  # before 0036: the migration itself creates everything
+    if "other_zone_id" not in cols:
+        conn.execute("ALTER TABLE shared_spaces ADD COLUMN other_zone_id TEXT REFERENCES spatial_zones(id)")
+        added.append("shared_spaces.other_zone_id")
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'shared_space_members'").fetchone() is None:
+        from pathlib import Path
+
+        sql = next(iter(sorted((Path(__file__).resolve().parent.parent / "migrations").glob("*_shared_spaces.sql")))).read_text(encoding="utf-8")
+        conn.executescript(sql)  # every statement there is IF NOT EXISTS
+        added.append("shared_space_members")
+    return added
+
+
 def any_active(conn: sqlite3.Connection) -> bool:
     try:
         return conn.execute("SELECT 1 FROM shared_spaces WHERE removed_at IS NULL LIMIT 1").fetchone() is not None
@@ -577,9 +600,11 @@ def _mirror_content(conn: sqlite3.Connection, s: Share, hv: "HomeView", place: P
     right) - a repeated read, and every 304, parses nothing. Review L1: only the levels the content uses, and the home
     floor named only to a reader who may read it."""
     key = None
+    home_row = _floor(conn, s.home_floor_id)
     if hv.row is not None and hv.row["status"] != "draft":
+        # re-review low: the home floor's name is in the levels' names - a rename must not serve a stale cached copy
         key = (hv.row["doc_hash"], s.id, s.revision, s.zone_revision, other_zone["revision"] if other_zone is not None else None,
-               place.hb, place.ha, circuits, datum, readable)
+               place.hb, place.ha, circuits, datum, readable, home_row["name"] if home_row is not None else None)
         hit = _SUBSET_CACHE.get(key)
         if hit is not None:
             return copy.deepcopy(hit[0]), copy.deepcopy(hit[1])
@@ -592,8 +617,7 @@ def _mirror_content(conn: sqlite3.Connection, s: Share, hv: "HomeView", place: P
     proj = project(sub, s, place, level_ids, default_level)
     used = {un_ns(s.home_floor_id, it.get(k)) for items in proj.values() for it in items for k in ("level_id", "level_from", "level_to") if isinstance(it.get(k), str)}
     used |= {un_ns(s.home_floor_id, (it.get("params") or {}).get("connects_levels")) for it in proj.get("objects", []) if isinstance((it.get("params") or {}).get("connects_levels"), str)}
-    home_name = _floor(conn, s.home_floor_id)
-    fname = home_name["name"] if home_name is not None and readable else OTHER_FLOOR
+    fname = home_row["name"] if home_row is not None and readable else OTHER_FLOOR
     levels = []
     for lv in hv.doc.get("levels") or []:
         if isinstance(lv, dict) and lv.get("id") in used:
@@ -857,7 +881,7 @@ def plan_edits(conn: sqlite3.Connection, floor_id: str, sent_shared: dict[str, d
                 for it in items:
                     view[coll].setdefault(it["id"], it)
                     owner.setdefault(it["id"], s)
-        home_ids = {i.get("id") for c in ("levels", *SHARED_COLLECTIONS, "rooms", "uncertain_regions") for i in hv.doc.get(c) or [] if isinstance(i, dict)}
+        home_ids = {i.get("id") for c in ("levels", "walls", "openings", *SHARED_COLLECTIONS, "rooms", "uncertain_regions") for i in hv.doc.get(c) or [] if isinstance(i, dict)}
         changed: dict[str, list[tuple[dict[str, Any] | None, dict[str, Any] | None, Share]]] = {c: [] for c in SHARED_COLLECTIONS}
         for coll in SHARED_COLLECTIONS:
             got = {i["id"]: i for i in sent.get(coll, []) if isinstance(i.get("id"), str)}
@@ -972,17 +996,22 @@ def _content(doc: dict[str, Any], region: list[list[dict[str, float]]], zone_id:
             for c in SHARED_COLLECTIONS}
 
 
-def plan_shared_publish(conn: sqlite3.Connection, floor_id: str, *, can_write: Callable[[str], bool] | None = None, validate: bool = True) -> list[dict[str, Any]]:
+def plan_shared_publish(conn: sqlite3.Connection, floor_id: str, *, can_write: Callable[[str], bool] | None = None, validate: bool = True,
+                        skip: Iterable[str] = ()) -> list[dict[str, Any]]:
     """What publishing `floor_id` (the other floor of a shared room) also publishes on each room's home floor: the
     room's content as it is in the home DRAFT, merged into the home floor's PUBLISHED structure - nothing else of the
     home draft (the rest stays a draft). An item moved out of the room in the home draft keeps its published place; one
     moved in takes the draft's. Only when the home floor's editor version is its published plan version (a new plan
     version publishes with its own plan). A home floor the principal is denied on is left out. Writes nothing; the
-    merged documents are prepared and validated here (422 before any write)."""
+    merged documents are prepared and validated here (422 before any write). Re-review low: when the merged document
+    does not validate because of items of the room's draft (a group or a level that exists only in the home draft), the
+    422 `shared_invalid` names those items (`items`), and a publish with `skip` = their ids keeps their published
+    version (or leaves a new one out) - the rest of the room's changes go out."""
     from . import geometry_store as store
     from . import plan_geometry as pg
     from . import plan_catalog
 
+    skip_ids = {str(x) for x in skip}
     by_home: dict[str, list[Share]] = {}
     for s in shares_of_floor(conn, floor_id):
         by_home.setdefault(s.home_floor_id, []).append(s)
@@ -990,6 +1019,7 @@ def plan_shared_publish(conn: sqlite3.Connection, floor_id: str, *, can_write: C
     for H, hs in by_home.items():
         if can_write is not None and not can_write(H):
             continue
+        skipped = {un_ns(H, x) for x in skip_ids}
         v = store.editor_version(conn, H)
         if v is None or v["status"] != "published":
             continue
@@ -1007,6 +1037,13 @@ def plan_shared_publish(conn: sqlite3.Connection, floor_id: str, *, can_write: C
             place = Placement(s.placement, _dims_of(v, draft), _dims_of(other_v))
             region = region_of(conn, s, place)
             dc, pc = _content(draft, region, s.zone_id), _content(pub, region, s.zone_id)
+            for c in SHARED_COLLECTIONS:  # skipped: as published (or absent when new)
+                for i in list(dc[c]):
+                    if i in skipped:
+                        if i in pc[c]:
+                            dc[c][i] = pc[c][i]
+                        else:
+                            del dc[c][i]
             # what this publish changes: a room item of the draft that differs, or one deleted from the draft (an item
             # moved out of the room in the draft keeps its published place: not a change here)
             live = {c: {i.get("id") for i in draft.get(c) or [] if isinstance(i, dict)} for c in SHARED_COLLECTIONS}
@@ -1025,6 +1062,11 @@ def plan_shared_publish(conn: sqlite3.Connection, floor_id: str, *, can_write: C
         prepared = store._prepare(conn, v, merged) if validate else merged
         errors = [i for i in pg.validate(prepared, plan_catalog.item_index(conn)) if i["severity"] == "error"] if validate else []
         if errors:
+            room = {i for c in SHARED_COLLECTIONS for i in _content(draft, region_of(conn, hs[0], Placement(hs[0].placement, _dims_of(v, draft), _dims_of(other_v))), hs[0].zone_id)[c]}
+            bad = sorted({str(e.get("id")) for e in errors if e.get("id") in room})
+            if bad and all(e.get("id") in room for e in errors):
+                raise SharedEditError(422, "shared_invalid", "יש בחלל המשותף פריטים שעדיין לא מוכנים לפרסום; אפשר לפרסם בלי הפריטים האלה.",
+                                      issues=errors[:50], home_floor_id=H, items=[{"id": ns(H, i), "message": next(e["message"] for e in errors if e.get("id") == i)} for i in bad])
             raise SharedEditError(422, "geometry_invalid", "בחלל המשותף יש שגיאות שמונעות פרסום; תקן אותן בקומה שלו.", issues=errors[:50], home_floor_id=H)
         f = _floor(conn, H)
         out.append({"home_floor_id": H, "home_floor_level": f["level"] if f else None, "home_floor_name": f["name"] if f else "", "zone_ids": zones, "changes": changes,
@@ -1039,7 +1081,7 @@ def shared_pending(conn: sqlite3.Connection, floor_id: str, *, can_write: Callab
     try:
         planned = plan_shared_publish(conn, floor_id, can_write=can_write, validate=validate)
     except SharedEditError as exc:
-        return [{"home_floor_id": exc.details.get("home_floor_id"), "changes": None, "invalid": True}]
+        return [{"home_floor_id": exc.details.get("home_floor_id"), "changes": None, "invalid": True, "items": exc.details.get("items") or [], "message": exc.message}]
     return [{"home_floor_id": p["home_floor_id"], "home_floor_level": p["home_floor_level"],
              "home_floor_name": p["home_floor_name"] if can_name is None or can_name(p["home_floor_id"]) else OTHER_FLOOR,
              "zone_ids": p["zone_ids"], "changes": p["changes"]} for p in planned]
@@ -1270,6 +1312,16 @@ def outline_on(conn: sqlite3.Connection, g: Group, floor_id: str) -> tuple[list[
             return json.loads(z["polygon_json"]), dims
     place = live_placement(conn, s)
     return [{"x": q[0], "y": q[1]} for q in (place.pt((p["x"], p["y"])) for p in s.zone_polygon)], dims
+
+
+def inside_outline(conn: sqlite3.Connection, g: Group, floor_id: str, x: float, y: float) -> bool:
+    """Whether a point (that floor's plan coordinates) lies in the room's outline on that floor - re-review low: a member
+    anchor edited from another floor of the room stays inside the room on its own floor."""
+    o = outline_on(conn, g, floor_id)
+    if o is None:
+        return False
+    poly, (w, h, tol) = o
+    return near((float(x) * w, float(y) * h), poly_px(poly, w, h), tol)
 
 
 def transfer(conn: sqlite3.Connection, g: Group, from_floor: str, to_floor: str) -> tuple[Callable[[float, float], Pt], Callable[[Any], float], float]:

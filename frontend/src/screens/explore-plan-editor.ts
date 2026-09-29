@@ -275,7 +275,7 @@ export class ExplorePlanEditor extends LitElement {
   @state() private measurePts: Pt[] = [];
   /** The structure preview of a published plan version: the version it compares, so a late answer or a confirm never
    * lands on another one. */
-  @state() private geomDiff: { versionId: string; data: GeometryDiffResponse | null; error: string } | null = null;
+  @state() private geomDiff: { versionId: string; data: GeometryDiffResponse | null; error: string; skip: string[] } | null = null;
   /** Setting `plan.estimates` (default true): estimated metres carry "≈" before calibration; false hides them. */
   @state() private showEstimates = true;
   /** Plan Studio phase 3 (T086): the detect tool - options, the running request, the candidate set and its states. The
@@ -1594,12 +1594,12 @@ export class ExplorePlanEditor extends LitElement {
   }
 
   private async openGeomDiff(versionId: string) {
-    this.geomDiff = { versionId, data: null, error: '' };
+    this.geomDiff = { versionId, data: null, error: '', skip: [] };
     try {
       const data = await geometryDiff(versionId);
-      if (this.geomDiff?.versionId === versionId) this.geomDiff = { versionId, data, error: '' }; // not closed meanwhile
+      if (this.geomDiff?.versionId === versionId) this.geomDiff = { versionId, data, error: '', skip: [] }; // not closed meanwhile
     } catch (err) {
-      if (this.geomDiff?.versionId === versionId) this.geomDiff = { versionId, data: null, error: describeError(err) };
+      if (this.geomDiff?.versionId === versionId) this.geomDiff = { versionId, data: null, error: describeError(err), skip: [] };
     }
   }
 
@@ -1609,11 +1609,11 @@ export class ExplorePlanEditor extends LitElement {
     if (!b || !d?.data) return;
     this.busy = true;
     try {
-      const r = await publishGeometry(d.versionId); // the version the preview compared
+      const r = await publishGeometry(d.versionId, d.skip); // the version the preview compared
       this.geomDiff = null;
       // The server publishes nothing when the draft already is what viewers see; its answer says so (unchanged).
       const shared = (r.shared_published ?? []).length > 0;
-      this.info = r.unchanged && !shared ? 'אין שינוי לפרסום' : shared ? 'המבנה פורסם, כולל השינויים באולם המשותף; הצופים רואים אותם עכשיו' : 'המבנה פורסם; הצופים רואים אותו עכשיו';
+      this.info = r.unchanged && !shared ? 'אין שינוי לפרסום' : shared ? 'המבנה פורסם, כולל השינויים בחלל המשותף; הצופים רואים אותם עכשיו' : 'המבנה פורסם; הצופים רואים אותו עכשיו';
       setTimeout(() => (this.info = ''), 4000);
       await this.loadStudio(b, true); // refresh what viewers see (the published hash)
     } catch (err) {
@@ -4710,14 +4710,16 @@ export class ExplorePlanEditor extends LitElement {
                 : html`<div><span>אין שינוי בפריטים</span></div>`}
               ${data.diff.calibration_changed ? html`<div><span>כיול</span><span>קנה המידה השתנה</span></div>` : nothing}
               ${(data.shared_pending ?? []).filter((p) => p.invalid || (p.changes ?? 0) > 0).map((p) => html`<div data-geom-shared-pending>
-                <span>כולל שינויים באולם המשותף (${bidi(p.home_floor_name ?? 'קומה אחרת')})</span>
-                <span>${p.invalid ? 'התוכן של האולם לא תקין - הפרסום ייחסם' : countLabel(p.changes ?? 0, 'שינוי אחד', 'שינויים')}</span>
-              </div>`)}
+                <span>כולל שינויים בחלל המשותף${p.home_floor_name ? ` (${bidi(p.home_floor_name)})` : ''}</span>
+                <span>${p.invalid ? (p.items?.length ? `${countLabel(p.items.length, 'פריט אחד לא מוכן', 'פריטים לא מוכנים')} לפרסום` : 'התוכן של החלל המשותף לא תקין - הפרסום ייחסם') : countLabel(p.changes ?? 0, 'שינוי אחד', 'שינויים')}</span>
+              </div>
+              ${p.invalid && p.items?.length ? html`<div class="note" data-geom-shared-invalid>${p.items.map((i) => html`<div>${i.id.split(':').pop()} · ${i.message}</div>`)}
+                <label><input type="checkbox" data-geom-shared-skip .checked=${d.skip.length > 0} @change=${(e: Event) => { this.geomDiff = { ...d, skip: (e.target as HTMLInputElement).checked ? p.items!.map((i) => i.id) : [] }; }} /> פרסם בלי הפריטים האלה (הם יישארו כמו שפורסמו)</label></div>` : nothing}`)}
             </div>
             <div class="note">${data.published_counts ? `כעת: ${wallsAndOpenings(data.published_counts.walls, data.published_counts.openings)}` : 'פרסום ראשון של מבנה'} · אחרי הפרסום: ${wallsAndOpenings(data.counts.walls, data.counts.openings)}</div>
             ${errors.length ? html`<div class="err" data-geom-diff-error>${countLabel(errors.length, 'שגיאה חוסמת אחת', 'שגיאות חוסמות')} בטיוטה: הפרסום חסום עד לתיקון. ראה את הסימון האדום על המפה ואת רשימת הבעיות של המבנה.</div>` : nothing}`}
       <sw-button slot="footer" variant="ghost" data-geom-cancel @click=${() => (this.geomDiff = null)}>ביטול</sw-button>
-      <sw-button slot="footer" variant="primary" icon="check" data-geom-publish ?disabled=${this.busy || !data || errors.length > 0} @click=${() => this.confirmGeomPublish()}>פרסם מבנה</sw-button>
+      <sw-button slot="footer" variant="primary" icon="check" data-geom-publish ?disabled=${this.busy || !data || errors.length > 0 || (data.shared_pending ?? []).some((p) => p.invalid && !(p.items?.length && d.skip.length))} @click=${() => this.confirmGeomPublish()}>פרסם מבנה</sw-button>
     </sw-dialog>`;
   }
 

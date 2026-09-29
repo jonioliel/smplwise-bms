@@ -448,6 +448,8 @@ def update_anchor(anchor_id: str, body: AnchorPatch, request: Request, from_floo
             hx, hy = back(body.x if body.x is not None else cx, body.y if body.y is not None else cy)
             if not (0 <= hx <= 1 and 0 <= hy <= 1):
                 raise ApiError(422, "shared_outside", "המיקום יוצא מגבולות התוכנית של הקומה שבה העוגן מוצב.")
+            if not shared_spaces.inside_outline(conn, g, a["floor_id"], hx, hy):  # CR-009 re-review: never out of the room from here
+                raise ApiError(422, "shared_outside", "מהקומה הזו אפשר להזיז את העוגן רק בתוך החלל המשותף; את השאר עושים בקומה שלו.")
             body.x, body.y = round(hx, 6), round(hy, 6)
         if body.rotation_degrees is not None:
             body.rotation_degrees = round(back_angle(body.rotation_degrees) % 360, 3) % 360

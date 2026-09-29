@@ -245,8 +245,15 @@ def put_geometry(version_id: str, body: GeometryPut, principal: Principal = Depe
     return body_out
 
 
+class GeomPublishIn(BaseModel):
+    """CR-009 re-review low: the shared-space items to leave out of this publish (their published version stays) - the
+    ids a 422 `shared_invalid` named."""
+    shared_skip: list[str] = Field(default_factory=list, max_length=200)
+
+
 @router.post("/plan-versions/{version_id}/geometry/publish")
-def publish_geometry(version_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def publish_geometry(version_id: str, request: Request, body: GeomPublishIn | None = None, principal: Principal = Depends(current_principal),
+                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     v = get_version(conn, version_id)
     require(conn, principal, "map.publish", _floor(v))
     if v["status"] == "draft":
@@ -257,7 +264,8 @@ def publish_geometry(version_id: str, request: Request, principal: Principal = D
     # changes on its home floor - only the room's content, the rest of the home draft stays a draft. map.publish on the
     # floor being published is the grant; a deny on the home floor leaves it out. Planned (and validated) before any write.
     try:
-        shared = shared_spaces.plan_shared_publish(conn, v["floor_id"], can_write=_can_publish_home(conn, principal)) if _is_editor_version(conn, v) else []
+        shared = shared_spaces.plan_shared_publish(conn, v["floor_id"], can_write=_can_publish_home(conn, principal),
+                                                   skip=(body.shared_skip if body is not None else ())) if _is_editor_version(conn, v) else []
     except shared_spaces.SharedEditError as exc:
         raise ApiError(exc.status, exc.code, exc.message, details=exc.details)
     result = store.publish(conn, v, principal.user_id)

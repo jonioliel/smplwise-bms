@@ -58,6 +58,9 @@ export interface SharedPending {
   zone_ids?: string[];
   changes: number | null;
   invalid?: boolean;
+  /** invalid: the room's draft items that keep it from validating - a publish can leave them out (`shared_skip`). */
+  items?: { id: string; message: string }[];
+  message?: string;
 }
 export interface GeometryDiff {
   collections: Record<string, { added: string[]; removed: string[]; changed: string[] }>;
@@ -163,8 +166,9 @@ export const saveGeometryDraft = (versionId: string, doc: GeometryDoc, baseRevis
   put<GeometryResponse>(`plan-versions/${versionId}/geometry`, { doc, base_revision: baseRevision });
 /** A publish changes the version's timeline: the cached one is dropped (documents stay cached by hash), so an open
  * historical map shows the new structure at instants after it. */
-export async function publishGeometry(versionId: string): Promise<{ published: GeometryRow | null; diff: GeometryDiff; unchanged: boolean; shared_published?: { home_floor_id: string; zone_ids: string[]; changes: number }[] }> {
-  const r = await post<{ published: GeometryRow | null; diff: GeometryDiff; unchanged: boolean; shared_published?: { home_floor_id: string; zone_ids: string[]; changes: number }[] }>(`plan-versions/${versionId}/geometry/publish`);
+export async function publishGeometry(versionId: string, sharedSkip: string[] = []): Promise<{ published: GeometryRow | null; diff: GeometryDiff; unchanged: boolean; shared_published?: { home_floor_id: string; zone_ids: string[]; changes: number }[] }> {
+  const r = await post<{ published: GeometryRow | null; diff: GeometryDiff; unchanged: boolean; shared_published?: { home_floor_id: string; zone_ids: string[]; changes: number }[] }>(
+    `plan-versions/${versionId}/geometry/publish`, sharedSkip.length ? { shared_skip: sharedSkip } : undefined);
   timelines.delete(versionId);
   return r;
 }

@@ -311,6 +311,58 @@ def test_re_review_n3_the_home_floors_own_items_under_the_overhang_stay_its_own(
     assert _save(c, w["v2"], objects=bad).status_code == 422
 
 
+def test_re_review_lows_ids_names_publish_skip_schema_guard_and_anchor_moves(settings):
+    w = _world(settings)
+    c, f2, app = w["c"], w["f2"], w["app"]
+    _share(w)
+    mark = {"zone_id": w["hall"], "home_floor_id": f2}
+    # an "addition" named like a WALL of floor 2 is refused too (no id reuse across collections)
+    g = _draft(c, w["v3"])
+    doc = dict(g["doc"])
+    doc["objects"] = [*doc["objects"], OBJ(f"{f2}:hw2", [0.3, 0.3], shared=mark)]
+    r = _put(c, w["v3"], doc, g["geometry"]["revision"])
+    assert r.status_code == 422 and r.json()["code"] == "shared_id_taken"
+    # the cached subset follows a rename of the home floor (the levels carry its name)
+    _publish(c, w["v2"])
+    _publish(c, w["v3"])
+    name = lambda: next(lv["name"] for lv in c.get(f"/api/v1/plan-versions/{w['v3']}/geometry").json()["doc"]["levels"] if lv["id"] == f"{f2}:L0")
+    assert name().endswith("קומה 2")
+    assert c.patch(f"/api/v1/floors/{f2}", json={"name": "מגרש"}).status_code == 200
+    assert name().endswith("מגרש")
+    # a room item of floor 2's draft on a level that exists only in that draft: floor 3's publish names it and can go without it
+    d2 = _draft(c, w["v2"])["doc"]
+    levels = [*d2["levels"], {"id": "L9", "name": "יציע", "elevation_m": 2.0, "ceiling_height_m": 2.5, "is_default": False, "external_ids": {}}]
+    objs = [dict(o, level_id="L9") if o["id"] == "trib" else o for o in d2["objects"]]
+    labels = [dict(lb, position=[0.45, 0.5]) if lb["id"] == "lb-court" else lb for lb in d2["labels"]]
+    assert _save(c, w["v2"], levels=levels, objects=objs, labels=labels).status_code == 200
+    pend = c.get(f"/api/v1/plan-versions/{w['v3']}/geometry/diff").json()["shared_pending"]
+    assert pend[0]["invalid"] is True and [i["id"] for i in pend[0]["items"]] == [f"{f2}:trib"]
+    r = c.post(f"/api/v1/plan-versions/{w['v3']}/geometry/publish")
+    assert r.status_code == 422 and r.json()["code"] == "shared_invalid" and [i["id"] for i in r.json()["details"]["items"]] == [f"{f2}:trib"]
+    r = c.post(f"/api/v1/plan-versions/{w['v3']}/geometry/publish", json={"shared_skip": [f"{f2}:trib"]})
+    assert r.status_code == 200 and r.json()["shared_published"][0]["changes"] == 1
+    pub = _published(c, w["v2"])
+    assert next(o for o in pub["objects"] if o["id"] == "trib")["level_id"] == "L0" and next(lb for lb in pub["labels"] if lb["id"] == "lb-court")["position"] == [0.45, 0.5]
+    # a member anchored on floor 2, moved from floor 3's map: only inside the room
+    a2 = w["anchors"]["camH2"]
+    rev = next(a for a in c.get(f"/api/v1/floors/{w['f3']}/map").json()["anchors"] if a["id"] == a2)["revision"]
+    r = c.patch(f"/api/v1/map-anchors/{a2}?from_floor_id={w['f3']}", json={"revision": rev, "x": 0.9, "y": 0.9})
+    assert r.status_code == 422 and r.json()["code"] == "shared_outside"
+    assert c.patch(f"/api/v1/map-anchors/{a2}?from_floor_id={w['f3']}", json={"revision": rev, "x": 0.5, "y": 0.5}).status_code == 200
+    # the schema guard: a database that ran the first shape of the migration gets the column and the members table
+    import sqlite3 as _sq
+
+    mem = _sq.connect(":memory:")
+    mem.execute("CREATE TABLE spatial_zones(id TEXT PRIMARY KEY)")
+    mem.execute("CREATE TABLE floors(id TEXT PRIMARY KEY)")
+    mem.execute("CREATE TABLE cache_versions(name TEXT PRIMARY KEY, version INTEGER)")
+    mem.execute("CREATE TABLE shared_spaces(id TEXT PRIMARY KEY, zone_id TEXT, home_floor_id TEXT, floor_id TEXT, placement_json TEXT, revision INTEGER, created_by TEXT, "
+                "created_at TEXT, updated_at TEXT, removed_at TEXT, removed_by TEXT)")
+    assert ss.ensure_schema(mem) == ["shared_spaces.other_zone_id", "shared_space_members"]
+    assert ss.ensure_schema(mem) == []
+    assert "other_zone_id" in {r[1] for r in mem.execute("PRAGMA table_info(shared_spaces)")}
+
+
 def test_a_misplaced_placement_warns_to_check_the_alignment(settings):
     w = _wide(settings)
     c = w["c"]

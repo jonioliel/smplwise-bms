@@ -83,6 +83,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     applied = app.state.db.migrate()
     if applied:
         log.info("applied migrations %s", applied)
+    try:  # CR-009 re-review: a dev database that ran an earlier shape of the shared-spaces migration gets what it lacks
+        from .services import shared_spaces as shared_spaces_svc
+
+        with app.state.db.connection(label="shared_spaces.ensure_schema") as conn:
+            fixed = shared_spaces_svc.ensure_schema(conn)
+        if fixed:
+            log.warning("shared spaces schema completed: %s", fixed)
+    except Exception:  # noqa: BLE001 - never block the start
+        log.exception("could not check the shared spaces schema")
     backup_svc.record_version(app.state.db)
     try:  # CR-007 slice 3 review: a bulk device action cut off by the previous process gets its outcome now
         from .services import device_bulk
