@@ -72,6 +72,26 @@ class DeepLinksTest {
     }
 
     @Test
+    fun onlyTheEntryPageWithItsRouteOpens() { // review L3
+        assertEquals(
+            Route.Open("https://office.example.com/arx/", "https://office.example.com/arx/?design=a#/investigate/events/ev1"),
+            DeepLinks.route("https://office.example.com/arx/?design=a#/investigate/events/ev1", servers),
+        )
+        assertEquals(
+            Route.Open("https://office.example.com/arx/", "https://office.example.com/arx/"),
+            DeepLinks.route("https://office.example.com/arx", servers),
+        )
+        for (deeper in listOf(
+            "https://office.example.com/arx/api/v1/exports/e1/download",
+            "https://office.example.com/arx/index.html",
+            "https://office.example.com/arx/assets/x.js",
+            "https://office.example.com/arx/api/v1/auth/session",
+        )) {
+            assertEquals(deeper, Route.Invalid, DeepLinks.route(deeper, servers))
+        }
+    }
+
+    @Test
     fun hostileTargetsAreInvalid() {
         for (bad in listOf(
             "javascript:alert(1)",

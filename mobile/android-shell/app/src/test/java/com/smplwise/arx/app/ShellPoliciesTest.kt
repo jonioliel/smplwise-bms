@@ -25,6 +25,41 @@ class ShellPoliciesTest {
     }
 
     @Test
+    fun leavingThroughTheAppsOwnHelperWaivesOnlyAShortGrace() { // review M5
+        val away = 2 * min
+        // "מיד": picking a file for 20 s does not lock, 31 s does, hours certainly do
+        assertFalse(LockPolicy.needsUnlock(true, 1_000, away, away + 20_000, 0, viaExcursion = true))
+        assertTrue(LockPolicy.needsUnlock(true, 1_000, away, away + 31_000, 0, viaExcursion = true))
+        assertTrue(LockPolicy.needsUnlock(true, 1_000, away, away + 3 * 60 * min, 5, viaExcursion = true))
+        // the grace never extends the chosen time: 15 minutes stays 15 minutes
+        assertFalse(LockPolicy.needsUnlock(true, 1_000, away, away + 14 * min, 15, viaExcursion = true))
+        assertTrue(LockPolicy.needsUnlock(true, 1_000, away, away + 15 * min, 15, viaExcursion = true))
+        // without an excursion there is no grace
+        assertTrue(LockPolicy.needsUnlock(true, 1_000, away, away + 20_000, 0, viaExcursion = false))
+        assertEquals(30_000L, LockPolicy.EXCURSION_GRACE_MS)
+    }
+
+    @Test
+    fun aShownLockStaysUntilTheUserIsConfirmed() { // emulator finding: cancelling the phone's prompt must not unlock
+        val away = 2 * min
+        // the credential screen took the app to the background for 5 s with the excursion flag set
+        assertFalse(LockPolicy.needsUnlock(true, 1_000, away, away + 5_000, 0, viaExcursion = true, lockShowing = false))
+        assertTrue(LockPolicy.needsUnlock(true, 1_000, away, away + 5_000, 0, viaExcursion = true, lockShowing = true))
+        assertTrue(LockPolicy.needsUnlock(true, 1_000, null, away, 60, lockShowing = true))
+        assertFalse(LockPolicy.needsUnlock(false, 1_000, null, away, 60, lockShowing = true)) // lock switched off
+    }
+
+    @Test
+    fun theLockIsSwitchedOffOnlyWhenThePhoneHasNoScreenLock() { // review L4
+        assertEquals(LockPolicy.AuthState.PROMPT, LockPolicy.onAuthState(canAuthenticate = true, noneEnrolled = false))
+        assertEquals(LockPolicy.AuthState.SWITCH_OFF, LockPolicy.onAuthState(canAuthenticate = false, noneEnrolled = true))
+        assertEquals(LockPolicy.AuthState.STAY_LOCKED, LockPolicy.onAuthState(canAuthenticate = false, noneEnrolled = false))
+        // androidx.biometric's codes the app maps from
+        assertEquals(0, androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS)
+        assertEquals(11, androidx.biometric.BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED)
+    }
+
+    @Test
     fun theSafeAreaGoesToThePageFromWebView140() {
         assertEquals(140, InsetPolicy.webViewMajor("140.0.7339.51"))
         assertEquals(96, InsetPolicy.webViewMajor(" 96.0.4664.104 "))
@@ -127,7 +162,17 @@ class ShellPoliciesTest {
 
     @Test
     fun theInjectedScriptExposesOnlyTheWhitelistedInterface() {
-        val js = BridgeScript.source("2.0.0")
+        val js = BridgeScript.source("2.0.0", "/arx/")
+        // only under the server's Arx path: the same origin also serves the platform's own pages (review M1)
+        assertTrue(js.contains("String(location.pathname).indexOf('\\u002farx\\u002f') !== 0) return;"))
+        // blobs: 10 MB (review L6), and only the latest few for a short time (review L12)
+        assertEquals(10 * 1024 * 1024, BridgeScript.MAX_BLOB_BYTES)
+        assertTrue(js.contains("while (blobs.size > ${BridgeScript.MAX_BLOBS})"))
+        assertTrue(js.contains("forget(u); }, ${BridgeScript.BLOB_KEEP_MS});"))
+        // microphone / camera tracks stopped on lock (review L5)
+        assertTrue(js.contains("__arxStopCapture"))
+        assertTrue(BridgeScript.PAUSE.contains("HTMLMediaElement") && BridgeScript.PAUSE.contains("shadowRoot"))
+        assertTrue(BridgeScript.PAUSE.contains("__arxStopCapture"))
         assertTrue(js.contains("window.ArxAppNative"))
         assertTrue(js.contains("platform: 'android'"))
         assertTrue(js.contains("version: '2.0.0'"))

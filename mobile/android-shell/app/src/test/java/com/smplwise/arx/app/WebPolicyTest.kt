@@ -25,13 +25,84 @@ class WebPolicyTest {
     }
 
     @Test
-    fun theSignInFlowOnTheSameOriginStaysInTheApp() {
-        assertEquals(Decision.IN_APP, main("https://site.example.com/auth/authorize?client_id=x"))
-        assertEquals(Decision.IN_APP, main("https://site.example.com/auth/login_flow"))
-        assertEquals(Decision.EXTERNAL, main("https://site.example.com/auth")) // not under /auth/
-        assertEquals(Decision.EXTERNAL, main("https://site.example.com/authx/"))
-        assertEquals(Decision.EXTERNAL, main("https://evil.example.com/auth/authorize"))
-        assertEquals(Decision.EXTERNAL, main("https://site.example.com/auth/%2e%2e/lovelace"))
+    fun noAuthExceptionForTopLevelNavigation() { // review L2: the sign-in uses fetch, never navigates to /auth/
+        assertEquals(Decision.EXTERNAL, main("https://site.example.com/auth/authorize?client_id=x"))
+        assertEquals(Decision.EXTERNAL, main("https://site.example.com/auth/login_flow"))
+        assertEquals(Decision.EXTERNAL, main("https://site.example.com/auth"))
+        assertFalse(NavPolicy.inScope(server, "https://site.example.com/auth/token"))
+    }
+
+    @Test
+    fun onlyTheServersPagesMayBeShownAfterAnyNavigation() { // review M1: POST, back / forward, restored state
+        assertTrue(NavPolicy.mayShow(server, "https://site.example.com/arx/#/live"))
+        assertTrue(NavPolicy.mayShow(server, "https://site.example.com/arx/?app=android"))
+        assertTrue(NavPolicy.mayShow(server, "about:blank"))
+        assertTrue(NavPolicy.mayShow(server, null))
+        assertTrue(NavPolicy.mayShow(server, ""))
+        assertFalse(NavPolicy.mayShow(server, "https://site.example.com/")) // the platform's own UI, same origin
+        assertFalse(NavPolicy.mayShow(server, "https://site.example.com/lovelace/0"))
+        assertFalse(NavPolicy.mayShow(server, "https://evil.example.com/arx/"))
+        assertFalse(NavPolicy.mayShow(server, "http://site.example.com/arx/"))
+        assertFalse(NavPolicy.mayShow(server, "https://site.example.com/arx/%2e%2e/"))
+        assertFalse(NavPolicy.mayShow(server, "data:text/html,<h1>x</h1>"))
+        assertFalse(NavPolicy.mayShow(server, "javascript:alert(1)"))
+        assertFalse(NavPolicy.mayShow(server, "about:srcdoc"))
+        assertFalse(NavPolicy.mayShow(server, "file:///etc/hosts"))
+    }
+
+    @Test
+    fun externalOpensWithoutAGestureAreThrottled() { // review L7
+        val t = 1_000_000L
+        assertTrue(NavPolicy.allowExternal(true, t, t - 1))
+        assertTrue(NavPolicy.allowExternal(false, t, null))
+        assertFalse(NavPolicy.allowExternal(false, t, t - 9_999))
+        assertTrue(NavPolicy.allowExternal(false, t, t - 10_000))
+        assertTrue(NavPolicy.allowExternal(false, t, t + 5)) // a clock from before a reboot never blocks forever
+    }
+
+    @Test
+    fun rendererRestartsAreCapped() { // review L8
+        val t = 5_000_000L
+        assertTrue(NavPolicy.allowRendererRestart(t, null))
+        assertFalse(NavPolicy.allowRendererRestart(t, t - 29_999))
+        assertTrue(NavPolicy.allowRendererRestart(t, t - 30_000))
+    }
+
+    @Test
+    fun downloadRedirectsStayOnTheServersPages() { // review M2
+        val cur = "https://site.example.com/arx/api/v1/exports/e1/download"
+        assertEquals(
+            "https://site.example.com/arx/api/v1/exports/e1/file.zip",
+            DownloadPolicy.nextHop(server, cur, "file.zip"),
+        )
+        assertEquals(
+            "https://site.example.com/arx/api/v1/backups/b.zip",
+            DownloadPolicy.nextHop(server, cur, "/arx/api/v1/backups/b.zip"),
+        )
+        assertNull(DownloadPolicy.nextHop(server, cur, "https://storage.example.com/x.zip")) // another host
+        assertNull(DownloadPolicy.nextHop(server, cur, "/lovelace/x")) // same origin, outside Arx
+        assertNull(DownloadPolicy.nextHop(server, cur, "http://site.example.com/arx/x.zip")) // downgrade
+        assertNull(DownloadPolicy.nextHop(server, cur, "//evil.example.com/arx/x"))
+        assertNull(DownloadPolicy.nextHop(server, cur, "../../../../../lovelace")) // resolves to /lovelace
+        assertEquals("https://site.example.com/arx/x", DownloadPolicy.nextHop(server, cur, "../../../../x")) // still /arx/
+        assertNull(DownloadPolicy.nextHop(server, cur, "/arx/%2e%2e/x"))
+        assertNull(DownloadPolicy.nextHop(server, cur, null))
+        assertNull(DownloadPolicy.nextHop(server, cur, ""))
+        assertNull(DownloadPolicy.nextHop(server, cur, "/arx/a b"))
+        assertNull(DownloadPolicy.nextHop(server, cur, "https://site.example.com\\@evil.example.com/arx/"))
+        assertEquals(5, DownloadPolicy.MAX_REDIRECTS)
+    }
+
+    @Test
+    fun androidPackagesAreNeverSaved() { // review L9
+        assertTrue(DownloadPolicy.refused("update.apk", "application/octet-stream"))
+        assertTrue(DownloadPolicy.refused("Update.APK", null))
+        assertTrue(DownloadPolicy.refused("bundle.apks", null))
+        assertTrue(DownloadPolicy.refused("x.bin", "application/vnd.android.package-archive"))
+        assertTrue(DownloadPolicy.refused("x", "application/vnd.android.package-archive; charset=binary"))
+        assertFalse(DownloadPolicy.refused("export-2026-09-29.zip", "application/zip"))
+        assertFalse(DownloadPolicy.refused("audit.csv", "text/csv"))
+        assertFalse(DownloadPolicy.refused(null, null))
     }
 
     @Test
@@ -110,6 +181,17 @@ class WebPolicyTest {
         assertFalse(BridgePolicy.accept(origin, null, true))
         assertFalse(BridgePolicy.accept(origin, "https://site.example.com/arx/", true)) // an origin has no path
         assertFalse(BridgePolicy.accept("not an origin", "not an origin", true))
+    }
+
+    @Test
+    fun theBridgeAlsoNeedsTheShownPageToBeAnArxPage() { // review M1: the origin also serves the platform's UI at /
+        val origin = "https://site.example.com"
+        assertTrue(BridgePolicy.accept(server, origin, origin, true, "https://site.example.com/arx/#/live"))
+        assertFalse(BridgePolicy.accept(server, origin, origin, true, "https://site.example.com/"))
+        assertFalse(BridgePolicy.accept(server, origin, origin, true, "https://site.example.com/hikvision-intercom"))
+        assertFalse(BridgePolicy.accept(server, origin, origin, true, null))
+        assertFalse(BridgePolicy.accept(server, origin, origin, false, "https://site.example.com/arx/"))
+        assertFalse(BridgePolicy.accept(server, origin, "https://evil.example.com", true, "https://site.example.com/arx/"))
     }
 
     @Test

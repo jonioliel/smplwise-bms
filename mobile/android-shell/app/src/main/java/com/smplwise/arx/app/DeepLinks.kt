@@ -6,8 +6,10 @@ import java.net.URISyntaxException
 /**
  * The app's own links (pure, unit-tested):
  * - `arx://servers` - the server list ("החלף שרת" inside the site, the icon's long-press shortcut);
- * - `arx://open?url=https://<server>/arx/#/...` - open a link, but only on a server that is already in the list. A link
- *   to any other site is never opened by itself: the list offers to add that server and shows the full address.
+ * - `arx://open?url=https://<server>/arx/#/...` - open a link, but only on a server that is already in the list and
+ *   only the app's entry page (its query and `#` route; not an API path or a file). A link to any other site is never
+ *   opened by itself: the list offers to add that server and shows the full address. When a site is already open the
+ *   list asks before replacing it (it may be an intercom call).
  *
  * Plain https links (for example in a messaging app) open in the browser: the app declares no verified https links,
  * because the servers are known only at run time.
@@ -53,8 +55,11 @@ object DeepLinks {
         val scheme = ServerUrls.parse(target)?.origin?.substringBefore("://") ?: return Route.Invalid
         if (scheme != "https" && !allowDevHttp) return Route.Invalid
         for (server in serverUrls) {
-            val url = ServerUrls.resolveOnServer(server, target, allowDevHttp)
-            if (url != null) return Route.Open(server, url)
+            val url = ServerUrls.resolveOnServer(server, target, allowDevHttp) ?: continue
+            // only the app's entry page with its query and # route (security review L3): never an API path, a file
+            // download or anything else under the server's path
+            val serverPath = ServerUrls.parse(server)?.rawPath ?: continue
+            return if (ServerUrls.parse(url)?.rawPath == serverPath) Route.Open(server, url) else Route.Invalid
         }
         val ok = ServerUrls.normalize(target, allowDevHttp = allowDevHttp) as? ServerUrls.Result.Ok ?: return Route.Invalid
         // the full address as it will be shown: rebuilt from its parts when it parses, otherwise the server address

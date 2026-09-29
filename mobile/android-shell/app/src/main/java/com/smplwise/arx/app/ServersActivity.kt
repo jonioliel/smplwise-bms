@@ -43,6 +43,8 @@ class ServersActivity : LockedActivity() {
     private val main = Handler(Looper.getMainLooper())
     /** Set by `arx://open` with a link on no stored server. */
     private var offer: DeepLinks.Route.Offer? = null
+    /** Set by `arx://open` for a stored server while a site is already open. */
+    private var replace: DeepLinks.Route.Open? = null
     private val dev = BuildConfig.ALLOW_DEV_HTTP
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -78,7 +80,7 @@ class ServersActivity : LockedActivity() {
         }
         list = findViewById(R.id.list)
         empty = findViewById(R.id.empty)
-        findViewById<ExtendedFloatingActionButton>(R.id.add).setOnClickListener { showServerDialog(null, null) }
+        findViewById<ExtendedFloatingActionButton>(R.id.add).setOnClickListener { whenUnlocked { showServerDialog(null, null) } }
         findViewById<MaterialSwitch>(R.id.autoOpen).apply {
             isChecked = store.autoOpen
             setOnCheckedChangeListener { _, checked -> store.autoOpen = checked }
@@ -87,8 +89,8 @@ class ServersActivity : LockedActivity() {
         setupLockSettings()
         render()
         if (savedInstanceState == null) {
-            if (offer != null) showOffer()
-            else if (store.servers().isEmpty()) showServerDialog(null, null)
+            if (offer != null || replace != null) showPending()
+            else if (store.servers().isEmpty()) whenUnlocked { showServerDialog(null, null) }
         }
     }
 
@@ -97,7 +99,15 @@ class ServersActivity : LockedActivity() {
         setIntent(intent)
         if (handleIntent(intent)) return
         render()
-        if (offer != null) showOffer()
+        showPending()
+    }
+
+    /** A link's question (add an unknown server / replace the open site) - never above the lock (security review M3). */
+    private fun showPending() {
+        whenUnlocked {
+            if (replace != null) showReplace()
+            if (offer != null) showOffer()
+        }
     }
 
     override fun onDestroy() {
@@ -125,8 +135,14 @@ class ServersActivity : LockedActivity() {
     private fun openLink(target: String): Boolean {
         return when (val route = DeepLinks.route(target, store.servers().map { it.url }, dev)) {
             is DeepLinks.Route.Open -> {
-                open(route.serverUrl, route.url)
-                true
+                if (WebActivity.running) {
+                    // a site is open (maybe an intercom call): ask before replacing it (security review L3)
+                    replace = route
+                    false
+                } else {
+                    open(route.serverUrl, route.url)
+                    true
+                }
             }
             is DeepLinks.Route.Offer -> {
                 offer = route
@@ -142,12 +158,35 @@ class ServersActivity : LockedActivity() {
         offer = null
         val view = LayoutInflater.from(this).inflate(R.layout.dialog_offer, null)
         view.findViewById<TextView>(R.id.offerUrl).text = route.fullUrl
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.open_unknown_title)
-            .setView(view)
-            .setPositiveButton(R.string.add_server) { _, _ -> showServerDialog(null, route.serverUrl) }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
+        val dialog = track(
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.open_unknown_title)
+                .setView(view)
+                .setPositiveButton(R.string.add_server) { _, _ -> whenUnlocked { showServerDialog(null, route.serverUrl) } }
+                .setNegativeButton(R.string.cancel, null)
+                .show(),
+        )
+        guardTouches(dialog)
+    }
+
+    /** `arx://open` while a site is open: replace it only when the user says so. */
+    private fun showReplace() {
+        val route = replace ?: return
+        replace = null
+        val dialog = track(
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.replace_site_title)
+                .setMessage(getString(R.string.replace_site_message) + "\n\n" + route.url)
+                .setPositiveButton(R.string.replace_site_open) { _, _ -> open(route.serverUrl, route.url) }
+                .setNegativeButton(R.string.cancel, null)
+                .show(),
+        )
+        guardTouches(dialog)
+    }
+
+    /** No taps through another app's overlay on the buttons that add a server or open a link (security review L10). */
+    private fun guardTouches(dialog: AlertDialog) {
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.filterTouchesWhenObscured = true
     }
 
     private fun open(serverUrl: String, url: String) {
@@ -183,7 +222,7 @@ class ServersActivity : LockedActivity() {
             setOnMenuItemClickListener {
                 when (it.itemId) {
                     1 -> open(server.url, server.url)
-                    2 -> showServerDialog(server, null)
+                    2 -> whenUnlocked { showServerDialog(server, null) }
                     3 -> { store.move(server.id, -1); render() }
                     4 -> { store.move(server.id, +1); render() }
                     5 -> confirmDelete(server)
@@ -194,15 +233,17 @@ class ServersActivity : LockedActivity() {
     }
 
     private fun confirmDelete(server: Server) {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.delete_title)
-            .setMessage(getString(R.string.delete_message, server.name))
-            .setPositiveButton(R.string.action_delete) { _, _ ->
-                store.delete(server.id)
-                render()
-            }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
+        track(
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.delete_title)
+                .setMessage(getString(R.string.delete_message, server.name))
+                .setPositiveButton(R.string.action_delete) { _, _ ->
+                    store.delete(server.id)
+                    render()
+                }
+                .setNegativeButton(R.string.cancel, null)
+                .show(),
+        )
     }
 
     // ---- app lock ------------------------------------------------------------------------------------------------------
@@ -219,7 +260,7 @@ class ServersActivity : LockedActivity() {
         }
         minutes.setOnClickListener {
             val choices = LockPolicy.MINUTES_CHOICES
-            MaterialAlertDialogBuilder(this)
+            track(MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.lock_after_title)
                 .setSingleChoiceItems(choices.map { minutesLabel(it) }.toTypedArray(), choices.indexOf(store.lockMinutes)) { d, which ->
                     store.lockMinutes = choices[which]
@@ -227,7 +268,7 @@ class ServersActivity : LockedActivity() {
                     refresh()
                 }
                 .setNegativeButton(R.string.cancel, null)
-                .show()
+                .show())
         }
         refresh()
     }
@@ -235,11 +276,13 @@ class ServersActivity : LockedActivity() {
     /** Switching the lock on or off both need the phone to confirm the user first. */
     private fun onLockToggled(on: Boolean, done: () -> Unit) {
         if (!AppLock.canAuthenticate(this)) {
-            MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.lock_title)
-                .setMessage(R.string.lock_unavailable)
-                .setPositiveButton(R.string.ok, null)
-                .show()
+            track(
+                MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.lock_title)
+                    .setMessage(R.string.lock_unavailable)
+                    .setPositiveButton(R.string.ok, null)
+                    .show(),
+            )
             if (!on) store.lockEnabled = false
             done()
             return
@@ -279,6 +322,7 @@ class ServersActivity : LockedActivity() {
             .setPositiveButton(R.string.save, null) // replaced below so a warning keeps the dialog open
             .setNegativeButton(R.string.cancel, null)
             .create()
+        track(dialog)
         var warnedFor: String? = null
 
         fun save(url: String) {
@@ -291,6 +335,7 @@ class ServersActivity : LockedActivity() {
 
         dialog.setOnShowListener {
             val positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            positive.filterTouchesWhenObscured = true // security review L10
             positive.setOnClickListener {
                 urlLayout.error = null
                 nameLayout.error = null

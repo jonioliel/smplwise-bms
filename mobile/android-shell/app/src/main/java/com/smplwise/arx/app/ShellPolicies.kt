@@ -8,20 +8,49 @@ object LockPolicy {
     val MINUTES_CHOICES = listOf(0, 1, 5, 15, 60)
     const val DEFAULT_MINUTES = 1
 
+    /** Leaving through the app's own helper (file picker, "save as", the microphone prompt) waives this much, no more. */
+    const val EXCURSION_GRACE_MS = 30_000L
+
     /**
      * Whether the app must ask for the fingerprint / face / screen lock before showing anything:
      * - never when the lock is off;
      * - always when this process has not been unlocked yet (a cold start, or Android killed the process);
-     * - after [minutes] or more in the background (a file picker or the system's own permission dialog is not
-     *   "background": the caller does not record those).
+     * - after [minutes] or more in the background. The time away is always recorded; when the app left through one of
+     *   its own helpers ([viaExcursion]) the first [EXCURSION_GRACE_MS] do not count, so picking a file does not lock
+     *   the app, but staying away longer does (security review M5).
      */
-    fun needsUnlock(enabled: Boolean, unlockedAt: Long?, backgroundSince: Long?, now: Long, minutes: Int): Boolean {
+    fun needsUnlock(
+        enabled: Boolean,
+        unlockedAt: Long?,
+        backgroundSince: Long?,
+        now: Long,
+        minutes: Int,
+        viaExcursion: Boolean = false,
+        lockShowing: Boolean = false,
+    ): Boolean {
         if (!enabled) return false
+        // once shown, the lock stays until the phone confirms the user: leaving for the phone's own credential screen
+        // and cancelling it is not an excursion that could waive it (seen on the emulator)
+        if (lockShowing) return true
         if (unlockedAt == null) return true
         if (backgroundSince == null) return false
         val elapsed = now - backgroundSince
         if (elapsed < 0) return true // the clock is monotonic; a negative span means state from before a reboot
+        if (viaExcursion && elapsed < EXCURSION_GRACE_MS) return false
         return elapsed >= minutes.coerceAtLeast(0) * 60_000L
+    }
+
+    enum class AuthState { PROMPT, SWITCH_OFF, STAY_LOCKED }
+
+    /**
+     * What the lock does with the phone's answer to "can you authenticate?" (security review L4): prompt when it can;
+     * switch the lock off only when the phone has no screen lock or biometrics at all any more; for anything else
+     * (hardware busy or unavailable, a security update pending) stay locked and let the user try again.
+     */
+    fun onAuthState(canAuthenticate: Boolean, noneEnrolled: Boolean): AuthState = when {
+        canAuthenticate -> AuthState.PROMPT
+        noneEnrolled -> AuthState.SWITCH_OFF
+        else -> AuthState.STAY_LOCKED
     }
 }
 

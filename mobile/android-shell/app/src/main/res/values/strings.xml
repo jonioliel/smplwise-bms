@@ -70,6 +70,10 @@
     <string name="lock_locked">האפליקציה נעולה</string>
     <string name="lock_message">אמתו את זהותכם כדי להמשיך.</string>
     <string name="lock_unlock">פתיחה</string>
+    <string name="lock_try_again">הטלפון לא יכול לאמת כרגע. נסו שוב בעוד רגע.</string>
+    <string name="replace_site_title">לפתוח את הקישור?</string>
+    <string name="replace_site_message">האתר שפתוח עכשיו באפליקציה ייסגר (גם שיחת אינטרקום פעילה, אם יש).</string>
+    <string name="replace_site_open">פתח</string>
 
     <!-- the site -->
     <string name="exit_title">לצאת מ־SmplWise Arx?</string>
@@ -80,7 +84,8 @@
     <string name="webview_outdated">רכיב התצוגה של הטלפון (Android System WebView) ישן, ולכן חלק מהמסכים עלולים להיראות לא נכון. עדכנו אותו מחנות האפליקציות.</string>
     <string name="choose_file">בחירת קובץ</string>
     <string name="no_app_for_link">אין בטלפון אפליקציה שיכולה לפתוח את הקישור.</string>
-    <string name="download_started">ההורדה התחילה; היא תופיע בהורדות של הטלפון.</string>
+    <string name="download_started">ההורדה התחילה; הקובץ יישמר במקום שבחרתם.</string>
+    <string name="download_refused">האפליקציה לא שומרת קובצי התקנה של אפליקציות.</string>
     <string name="download_saved">הקובץ נשמר.</string>
     <string name="download_failed">ההורדה נכשלה.</string>
     <string name="download_too_large">הקובץ גדול מדי לשמירה מתוך האפליקציה (עד 25MB).</string>

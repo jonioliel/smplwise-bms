@@ -2,7 +2,6 @@ package com.smplwise.arx.app
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.DownloadManager
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -14,8 +13,8 @@ import android.net.Uri
 import android.net.http.SslError
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.os.Message
+import android.provider.DocumentsContract
 import android.os.SystemClock
 import android.util.Base64
 import android.view.View
@@ -57,6 +56,8 @@ import com.google.android.material.snackbar.Snackbar
 import org.json.JSONException
 import org.json.JSONObject
 import org.json.JSONTokener
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.concurrent.Executors
 import kotlin.math.max
 
@@ -76,6 +77,7 @@ import kotlin.math.max
 class WebActivity : LockedActivity() {
     private lateinit var serverUrl: String
     private lateinit var serverOrigin: String
+    private lateinit var serverPath: String
     private lateinit var webView: WebView
     private lateinit var root: FrameLayout
     private lateinit var webHolder: FrameLayout
@@ -91,6 +93,9 @@ class WebActivity : LockedActivity() {
     private var webViewOutdated = false
     private var firstPageShown = false
     private var failedUrl: String? = null
+    private var rendererGone = false
+    private var lastExternalAt: Long? = null
+    private val probes = mutableListOf<WebView>()
 
     private var customView: View? = null
     private var customCallback: WebChromeClient.CustomViewCallback? = null
@@ -138,18 +143,35 @@ class WebActivity : LockedActivity() {
         }
     }
 
+    private var pendingDownload: ServerDownload? = null
+
+    private val saveDownload = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val d = pendingDownload
+        pendingDownload = null
+        val uri = result.data?.data
+        if (result.resultCode != RESULT_OK || uri == null || d == null) return@registerForActivityResult
+        toast(R.string.download_started)
+        downloads.execute { fetchTo(d, uri) }
+    }
+
+    /** Server downloads run on their own thread: a large export must not hold up the bridge or "save as". */
+    private val downloads = Executors.newSingleThreadExecutor()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         val ok = ServerUrls.normalize(intent.getStringExtra(EXTRA_SERVER).orEmpty(), allowDevHttp = dev) as? ServerUrls.Result.Ok
-        if (ok == null) {
+        // only a server the user stored (security review L11)
+        if (ok == null || store.servers().none { it.url == ok.url }) {
             startActivity(Intent(this, ServersActivity::class.java).setData(Uri.parse("arx://servers")))
             finish()
             return
         }
         serverUrl = ok.url
         serverOrigin = ok.origin
+        serverPath = ok.url.removePrefix(ok.origin)
         store.lastServerUrl = serverUrl
+        instances += this
         // M1: the start link is rebuilt from its parsed parts on this server (never trusted as a raw string)
         val start = ServerUrls.resolveOnServer(serverUrl, intent.getStringExtra(EXTRA_URL).orEmpty(), dev) ?: serverUrl
 
@@ -222,23 +244,29 @@ class WebActivity : LockedActivity() {
     private fun installBridge() {
         val rules = setOf(serverOrigin)
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) return
-        WebViewCompat.addWebMessageListener(webView, BridgePolicy.NATIVE_OBJECT, rules) { _, message, sourceOrigin, isMainFrame, _ ->
-            if (!BridgePolicy.accept(serverOrigin, sourceOrigin.toString(), isMainFrame)) return@addWebMessageListener
-            onBridgeMessage(message.data ?: return@addWebMessageListener)
+        WebViewCompat.addWebMessageListener(webView, BridgePolicy.NATIVE_OBJECT, rules) { view, message, sourceOrigin, isMainFrame, _ ->
+            // origin, main frame, and the page shown must be one of the server's Arx pages (not the platform UI at /)
+            if (!BridgePolicy.accept(serverUrl, serverOrigin, sourceOrigin.toString(), isMainFrame, view.url, dev)) return@addWebMessageListener
+            val raw = message.data ?: return@addWebMessageListener
+            if (raw.length > BridgeScript.MAX_MESSAGE_CHARS) return@addWebMessageListener
+            // parsed off the main thread (a blob message can be megabytes; security review L6)
+            io.execute {
+                val msg = try {
+                    JSONObject(raw)
+                } catch (e: JSONException) {
+                    return@execute
+                }
+                runOnUiThread { if (!isDestroyed) onBridgeMessage(msg) }
+            }
         }
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
-            WebViewCompat.addDocumentStartJavaScript(webView, BridgeScript.source(BuildConfig.VERSION_NAME), rules)
+            WebViewCompat.addDocumentStartJavaScript(webView, BridgeScript.source(BuildConfig.VERSION_NAME, serverPath), rules)
             bridge = true
         }
     }
 
-    private fun onBridgeMessage(raw: String) {
-        if (raw.length > BridgeScript.MAX_MESSAGE_CHARS) return
-        val msg = try {
-            JSONObject(raw)
-        } catch (e: JSONException) {
-            return
-        }
+    private fun onBridgeMessage(msg: JSONObject) {
+        if (locked) return
         val type = msg.optString("type")
         if (type !in BridgePolicy.MESSAGE_TYPES) return
         when (type) {
@@ -260,7 +288,7 @@ class WebActivity : LockedActivity() {
                 NavPolicy.Decision.IN_APP -> false
                 NavPolicy.Decision.EXTERNAL -> {
                     if (!firstPageShown && request.isRedirect) showError(LoadErrors.Kind.OUT_OF_SCOPE, url)
-                    else openExternal(request.url)
+                    else openExternal(request.url, request.hasGesture())
                     true
                 }
                 NavPolicy.Decision.APP_LINK -> {
@@ -271,7 +299,20 @@ class WebActivity : LockedActivity() {
             }
         }
 
+        /**
+         * shouldOverrideUrlLoading is never asked about POST navigations (a form with `target=_top`) - so a main-frame
+         * request that is not one of the server's pages never reaches the network: it gets an empty answer, and the
+         * start guard below takes the WebView back (security review M1).
+         */
+        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+            if (!request.isForMainFrame) return null
+            val url = request.url.toString()
+            if (NavPolicy.mayShow(serverUrl, url, dev)) return null
+            return WebResourceResponse("text/plain", "utf-8", 403, "Blocked", emptyMap(), java.io.ByteArrayInputStream(ByteArray(0)))
+        }
+
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+            if (guardShown(view, url)) return
             progress.visibility = View.VISIBLE
         }
 
@@ -289,6 +330,7 @@ class WebActivity : LockedActivity() {
         }
 
         override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
+            if (guardShown(view, url)) return // back / forward and restored history are checked here (M1)
             view.postDelayed({ readPageColors() }, 400) // hash routes: the new screen renders after the history update
         }
 
@@ -310,14 +352,40 @@ class WebActivity : LockedActivity() {
         }
 
         override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
-            // The page's renderer crashed or was killed for memory: start this screen again instead of crashing the app.
+            // The page's renderer crashed or was killed for memory: start this screen again instead of crashing the app,
+            // but at most once per 30 s (security review L8) - a second crash shows the error screen.
             val url = view.url?.let { ServerUrls.resolveOnServer(serverUrl, it, dev) } ?: serverUrl
             (view.parent as? ViewGroup)?.removeView(view)
             view.destroy()
-            open(this@WebActivity, serverUrl, url)
-            finish()
+            rendererGone = true
+            val now = SystemClock.elapsedRealtime()
+            if (NavPolicy.allowRendererRestart(now, lastRendererRestart)) {
+                lastRendererRestart = now
+                open(this@WebActivity, serverUrl, url)
+                finish()
+            } else {
+                showError(LoadErrors.Kind.OTHER, url)
+            }
             return true
         }
+    }
+
+    /**
+     * The second half of M1: a main document that is not one of the server's pages (reached by a POST, back / forward,
+     * a restored state) is stopped at once; the WebView goes back, or - with nothing to go back to - shows the "outside
+     * the server" screen. True when it intervened.
+     */
+    private fun guardShown(view: WebView, url: String?): Boolean {
+        if (NavPolicy.mayShow(serverUrl, url, dev)) return false
+        view.stopLoading()
+        if (view.canGoBack()) {
+            view.goBack()
+            toast(R.string.error_scope_title)
+        } else {
+            view.loadUrl("about:blank")
+            showError(LoadErrors.Kind.OUT_OF_SCOPE, null)
+        }
+        return true
     }
 
     private inner class Chrome : WebChromeClient() {
@@ -328,20 +396,24 @@ class WebActivity : LockedActivity() {
 
         override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
             if (!isUserGesture) return false
+            if (locked) return false
             // The new window never shows: a throwaway WebView learns the URL, then NavPolicy decides where it goes.
+            // Every probe is tracked and destroyed after it answered, after 2 s at the latest, on window.close() and
+            // with this screen (security review L1).
             val probe = WebView(this@WebActivity)
+            probes += probe
             var handled = false
             fun route(url: String) {
                 if (handled) return
                 handled = true
                 when (NavPolicy.decide(serverUrl, url, true, dev)) {
                     NavPolicy.Decision.IN_APP -> webView.loadUrl(url)
-                    NavPolicy.Decision.EXTERNAL -> openExternal(Uri.parse(url))
+                    NavPolicy.Decision.EXTERNAL -> openExternal(Uri.parse(url), isUserGesture)
                     NavPolicy.Decision.APP_LINK -> handleAppLink(url)
                     NavPolicy.Decision.BLOCK -> Unit
                 }
                 // not probe.post: a view that was never attached never runs its posted actions (seen on the emulator)
-                webView.post { probe.stopLoading(); probe.destroy() }
+                webView.post { destroyProbe(probe) }
             }
             probe.webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(v: WebView, request: WebResourceRequest): Boolean {
@@ -349,14 +421,31 @@ class WebActivity : LockedActivity() {
                     return true
                 }
 
+                override fun shouldInterceptRequest(v: WebView, request: WebResourceRequest): WebResourceResponse =
+                    // the probe never fetches anything itself (a POST popup would otherwise reach the network)
+                    WebResourceResponse("text/plain", "utf-8", 403, "Blocked", emptyMap(), java.io.ByteArrayInputStream(ByteArray(0)))
+
                 override fun onPageStarted(v: WebView, url: String, favicon: Bitmap?) {
                     v.stopLoading()
                     if (url != "about:blank") route(url)
                 }
+
+                override fun onRenderProcessGone(v: WebView, detail: RenderProcessGoneDetail): Boolean {
+                    destroyProbe(v)
+                    return true
+                }
             }
+            probe.webChromeClient = object : WebChromeClient() {
+                override fun onCloseWindow(window: WebView) = destroyProbe(window)
+            }
+            webView.postDelayed({ destroyProbe(probe) }, 2_000)
             (resultMsg.obj as WebView.WebViewTransport).webView = probe
             resultMsg.sendToTarget()
             return true
+        }
+
+        override fun onCloseWindow(window: WebView) {
+            if (window in probes) destroyProbe(window)
         }
 
         override fun onShowCustomView(view: View, callback: CustomViewCallback) {
@@ -390,7 +479,7 @@ class WebActivity : LockedActivity() {
             runOnUiThread {
                 val grant = PermissionPolicy.grantable(serverOrigin, request.origin?.toString(), request.resources)
                 when {
-                    grant.isEmpty() -> request.deny()
+                    locked || grant.isEmpty() -> request.deny() // never while the app is locked (security review L5)
                     ContextCompat.checkSelfPermission(this@WebActivity, Manifest.permission.RECORD_AUDIO) ==
                         PackageManager.PERMISSION_GRANTED -> request.grant(grant.toTypedArray())
                     else -> {
@@ -412,6 +501,10 @@ class WebActivity : LockedActivity() {
         }
 
         override fun onShowFileChooser(view: WebView, callback: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
+            if (locked) {
+                callback.onReceiveValue(null)
+                return true
+            }
             fileCallback?.onReceiveValue(null)
             fileCallback = callback
             val mimes = FileTypes.mimeTypes(params.acceptTypes) { MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) }
@@ -435,7 +528,20 @@ class WebActivity : LockedActivity() {
         override fun getDefaultVideoPoster(): Bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
     }
 
-    private fun openExternal(uri: Uri) {
+    private fun destroyProbe(probe: WebView) {
+        if (!probes.remove(probe)) return
+        probe.stopLoading()
+        probe.destroy()
+    }
+
+    /**
+     * Hands a link to the system (browser, mail, dialer). Without a user gesture at most one every 10 s, and never while
+     * locked (security review L7).
+     */
+    private fun openExternal(uri: Uri, hasGesture: Boolean) {
+        val now = SystemClock.elapsedRealtime()
+        if (locked || !NavPolicy.allowExternal(hasGesture, now, lastExternalAt)) return
+        lastExternalAt = now
         try {
             startActivity(Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (e: ActivityNotFoundException) {
@@ -465,35 +571,88 @@ class WebActivity : LockedActivity() {
                 pendingBlobAt = SystemClock.elapsedRealtime()
                 webView.evaluateJavascript("window.__arxSaveBlob && window.__arxSaveBlob(${JSONObject.quote(url)})", null)
             }
-            ServerUrls.parse(url)?.origin == serverOrigin -> enqueue(url, userAgent, contentDisposition, mimetype)
-            url.startsWith("https:") || url.startsWith("http:") -> openExternal(Uri.parse(url))
+            NavPolicy.inScope(serverUrl, url, dev) -> askWhereToSave(url, userAgent, contentDisposition, mimetype)
+            url.startsWith("https:") || url.startsWith("http:") -> openExternal(Uri.parse(url), false)
             else -> toast(R.string.download_unsupported)
         }
     }
 
+    private class ServerDownload(val url: String, val name: String, val mime: String, val userAgent: String)
+
     /**
-     * A file on the server (evidence export, backup): the system DownloadManager fetches it with this server's cookies
-     * (the `__Secure-arx_session` cookie, Path=/arx/) - they are attached only for the server's own origin.
+     * A file on the server (evidence export, backup) is fetched by the app itself, never by the system DownloadManager:
+     * that would store the session cookie in the system's download database and send it again on every redirect hop
+     * (security review M2). The user picks where to save it first ("save as"); then the file streams there.
      */
-    private fun enqueue(url: String, userAgent: String?, contentDisposition: String?, mimetype: String?) {
+    private fun askWhereToSave(url: String, userAgent: String?, contentDisposition: String?, mimetype: String?) {
+        if (locked) return
+        val mime = mimetype?.substringBefore(';')?.trim()?.takeIf { it.isNotEmpty() } ?: "application/octet-stream"
         val name = FileTypes.safeName(URLUtil.guessFileName(url, contentDisposition, mimetype), "arx-download")
-        val request = DownloadManager.Request(Uri.parse(url))
-            .setTitle(name)
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-        mimetype?.takeIf { it.isNotBlank() }?.let { request.setMimeType(it) }
-        CookieManager.getInstance().getCookie(url)?.let { request.addRequestHeader("Cookie", it) }
-        request.addRequestHeader("User-Agent", userAgent ?: webView.settings.userAgentString)
-        if (Build.VERSION.SDK_INT >= 29) {
-            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name)
-        } else {
-            request.setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, name) // no storage permission
+        if (DownloadPolicy.refused(name, mime)) {
+            toast(R.string.download_refused)
+            return
         }
+        pendingDownload = ServerDownload(url, name, mime, userAgent ?: webView.settings.userAgentString)
+        val create = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+            .setType(mime).putExtra(Intent.EXTRA_TITLE, name)
         try {
-            (getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
-            toast(R.string.download_started)
-        } catch (e: Exception) {
-            toast(R.string.download_failed)
+            AppLock.excursion = true
+            saveDownload.launch(create)
+        } catch (e: ActivityNotFoundException) {
+            AppLock.excursion = false
+            pendingDownload = null
+            toast(R.string.download_unsupported)
         }
+    }
+
+    /**
+     * Streams [d] into [target]: the server's cookies for that URL only, redirects followed only to the server's own
+     * pages (DownloadPolicy.nextHop, at most 5), anything else fails and removes the half-created file.
+     */
+    private fun fetchTo(d: ServerDownload, target: Uri) {
+        val resolver = applicationContext.contentResolver
+        var url = d.url
+        var hops = 0
+        val ok = try {
+            var done = false
+            while (true) {
+                val conn = URL(url).openConnection() as HttpURLConnection
+                try {
+                    conn.instanceFollowRedirects = false
+                    conn.connectTimeout = 15_000
+                    conn.readTimeout = 60_000
+                    conn.useCaches = false
+                    CookieManager.getInstance().getCookie(url)?.let { conn.setRequestProperty("Cookie", it) }
+                    conn.setRequestProperty("User-Agent", d.userAgent)
+                    val code = conn.responseCode
+                    if (code in 300..399) {
+                        val next = DownloadPolicy.nextHop(serverUrl, url, conn.getHeaderField("Location"), dev)
+                        if (next == null || ++hops > DownloadPolicy.MAX_REDIRECTS) break
+                        url = next
+                        continue
+                    }
+                    if (code != HttpURLConnection.HTTP_OK) break
+                    conn.inputStream.use { input ->
+                        resolver.openOutputStream(target)?.use { out -> input.copyTo(out, 64 * 1024) } ?: return@use
+                        done = true
+                    }
+                    break
+                } finally {
+                    conn.disconnect()
+                }
+            }
+            done
+        } catch (e: Exception) {
+            false
+        }
+        if (!ok) {
+            try {
+                DocumentsContract.deleteDocument(resolver, target)
+            } catch (e: Exception) {
+                // best effort: the provider may not support deleting
+            }
+        }
+        runOnUiThread { if (!isDestroyed) toast(if (ok) R.string.download_saved else R.string.download_failed) }
     }
 
     /** A file the page built itself (audit CSV, plan JSON, 3D export): "save as" through the system's file picker. */
@@ -509,6 +668,10 @@ class WebActivity : LockedActivity() {
         }
         val mime = msg.optString("mime").substringBefore(';').trim().ifEmpty { "application/octet-stream" }
         val name = FileTypes.safeName(msg.optString("name"), "arx-file")
+        if (DownloadPolicy.refused(name, mime)) {
+            toast(R.string.download_refused)
+            return
+        }
         io.execute {
             val bytes = try {
                 Base64.decode(dataUrl.substring(comma + 1), Base64.DEFAULT)
@@ -602,10 +765,17 @@ class WebActivity : LockedActivity() {
     }
 
     private fun retry() {
+        if (rendererGone) {
+            // the WebView is gone with its renderer: start this screen afresh
+            open(this, serverUrl, failedUrl?.let { ServerUrls.resolveOnServer(serverUrl, it, dev) } ?: serverUrl)
+            finish()
+            return
+        }
         errorView.visibility = View.GONE
         val target = failedUrl?.let { ServerUrls.resolveOnServer(serverUrl, it, dev) }
+            ?: webView.url?.let { ServerUrls.resolveOnServer(serverUrl, it, dev) }
         failedUrl = null
-        if (target != null) webView.loadUrl(target) else if (firstPageShown) webView.reload() else webView.loadUrl(ServerUrls.launchUrl(serverUrl))
+        webView.loadUrl(target ?: ServerUrls.launchUrl(serverUrl))
     }
 
     private fun isOnline(): Boolean {
@@ -632,7 +802,7 @@ class WebActivity : LockedActivity() {
     }
 
     private fun showExitSheet() {
-        val sheet = BottomSheetDialog(this)
+        val sheet = track(BottomSheetDialog(this))
         val view = layoutInflater.inflate(R.layout.sheet_exit, null)
         view.findViewById<MaterialButton>(R.id.sheetServers).setOnClickListener {
             sheet.dismiss()
@@ -664,18 +834,31 @@ class WebActivity : LockedActivity() {
             .show()
     }
 
+    /**
+     * Locked: every video and audio element is paused and the microphone / camera tracks the page opened are stopped
+     * (BridgeScript.PAUSE), then the WebView pauses; permission requests, file pickers, downloads and bridge messages
+     * are refused until the unlock (security review L5).
+     */
     override fun onLockChanged(locked: Boolean) {
-        if (!::webView.isInitialized) return
-        if (locked) webView.onPause() else webView.onResume()
+        if (!::webView.isInitialized || rendererGone) return
+        if (locked) {
+            pendingPermission?.deny()
+            pendingPermission = null
+            if (customView != null) chrome.onHideCustomView()
+            webView.evaluateJavascript(BridgeScript.PAUSE, null)
+            webView.onPause()
+        } else {
+            webView.onResume()
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        if (::webView.isInitialized) webView.onResume()
+        if (::webView.isInitialized && !rendererGone && !locked) webView.onResume()
     }
 
     override fun onPause() {
-        if (::webView.isInitialized) {
+        if (::webView.isInitialized && !rendererGone) {
             CookieManager.getInstance().flush() // the session cookie and the page's storage survive a kill
             webView.onPause()
         }
@@ -684,14 +867,17 @@ class WebActivity : LockedActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        if (::webView.isInitialized) webView.saveState(outState)
+        if (::webView.isInitialized && !rendererGone) webView.saveState(outState)
     }
 
     override fun onDestroy() {
+        instances.remove(this)
+        probes.toList().forEach { destroyProbe(it) }
         io.shutdown()
+        downloads.shutdown() // a running download finishes
         pendingPermission?.deny()
         fileCallback?.onReceiveValue(null)
-        if (::webView.isInitialized) {
+        if (::webView.isInitialized && !rendererGone) {
             (webView.parent as? ViewGroup)?.removeView(webView)
             webView.destroy()
         }
@@ -701,17 +887,30 @@ class WebActivity : LockedActivity() {
     private fun toast(res: Int) = Toast.makeText(this, res, Toast.LENGTH_SHORT).show()
 
     companion object {
+        /** The site screens alive (main thread only). There is one at a time: opening a site finishes the others. */
+        private val instances = mutableListOf<WebActivity>()
+
+        /** A site screen exists (the server list asks before an `arx://open` replaces it). */
+        val running: Boolean get() = instances.isNotEmpty()
+
+        /** The last renderer-crash restart, for the once-per-30-s cap (process-wide: the screen itself restarts). */
+        private var lastRendererRestart: Long? = null
+
         private const val EXTRA_SERVER = "com.smplwise.arx.app.SERVER"
         private const val EXTRA_URL = "com.smplwise.arx.app.URL"
 
-        /** Opens [url] (on [serverUrl]) in a fresh task, so a running site of another server is replaced, not stacked. */
+        /**
+         * Opens [url] (on [serverUrl]) and finishes every other site screen, so a running site of another server is
+         * replaced, not stacked. Started in the caller's task: the app's activities have no task affinity (L10), so
+         * task-affinity flags would scatter them over new tasks.
+         */
         fun open(context: Context, serverUrl: String, url: String) {
-            context.startActivity(
-                Intent(context, WebActivity::class.java)
-                    .putExtra(EXTRA_SERVER, serverUrl)
-                    .putExtra(EXTRA_URL, url)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
-            )
+            instances.toList().forEach { if (it !== context) it.finish() }
+            val intent = Intent(context, WebActivity::class.java)
+                .putExtra(EXTRA_SERVER, serverUrl)
+                .putExtra(EXTRA_URL, url)
+            if (context !is android.app.Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
         }
     }
 }

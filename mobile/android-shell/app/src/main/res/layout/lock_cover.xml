@@ -5,6 +5,7 @@
     android:layout_height="match_parent"
     android:background="@color/backgroundColor"
     android:clickable="true"
+    android:filterTouchesWhenObscured="true"
     android:focusable="true"
     android:gravity="center"
     android:layoutDirection="rtl"
@@ -38,6 +39,7 @@
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/unlock"
+        android:filterTouchesWhenObscured="true"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
