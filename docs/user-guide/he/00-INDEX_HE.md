@@ -69,3 +69,5 @@ R182 (המראה העברי של תיעוד התפעול — README/DOCS.md, doc
 - מגבלות V1 שאושרו/הוצעו לבעלים: `docs/release/RELEASE_PACKAGE_V1_HE.md` סעיף 4.
 - תשתית הצילומים: `docs/user-guide/he/README_HE.md`, `docs/user-guide/he/screens.json`,
   `frontend/tests/guide-screenshots.spec.ts`.
+- **התקנה** — גישה מרחוק ל-Arx מאחורי Cloudflare Tunnel (לקוח חדש / מעבר ממצב options / הוספת מסלול
+  `/arx` בלבד, אבטחה מומלצת, בדיקות קבלה): `docs/operations/ARX_CLOUDFLARE_GUIDE_HE.md`.
