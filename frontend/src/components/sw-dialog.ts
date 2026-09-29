@@ -23,7 +23,8 @@ export class SwDialog extends LitElement {
       z-index: var(--sw-z-modal);
       display: grid;
       place-items: center;
-      padding: 16px;
+      /* standalone: keep the box clear of the notch and the home indicator */
+      padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
     }
     .box {
       inline-size: min(440px, 100%);

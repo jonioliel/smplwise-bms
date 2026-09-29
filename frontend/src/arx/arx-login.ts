@@ -33,7 +33,8 @@ export class ArxLogin extends LitElement {
       inset: 0;
       display: grid;
       place-items: center;
-      padding: 16px;
+      /* standalone (installed) iOS/Android: keep the card clear of the notch, status bar and home indicator */
+      padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
       overflow: auto;
       box-sizing: border-box;
       font-family: var(--sw-font);

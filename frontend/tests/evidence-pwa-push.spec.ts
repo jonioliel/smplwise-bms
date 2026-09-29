@@ -51,9 +51,29 @@ test.describe('PWA shell (CR-008 P3)', () => {
     expect(reg.scope).toBe(new URL('./', baseURL).href);
     expect(reg.script).toBe(new URL('arx-sw.js', baseURL).href);
     const manifest = await (await page.request.get('arx-manifest.webmanifest')).json();
-    expect(manifest).toMatchObject({ name: 'SmplWise Arx', short_name: 'Arx', start_url: './', scope: './', display: 'standalone', dir: 'rtl', lang: 'he' });
-    expect(manifest.icons.map((i: { purpose: string }) => i.purpose)).toContain('maskable');
+    expect(manifest).toMatchObject({
+      id: './',
+      name: 'SmplWise Arx',
+      short_name: 'Arx',
+      start_url: './',
+      scope: './',
+      display: 'standalone',
+      orientation: 'any',
+      dir: 'rtl',
+      lang: 'he',
+      theme_color: '#2f6bff',
+      background_color: '#f5f7fb',
+    });
+    // maskable icons ship at both sizes, separate from the "any" purpose entries
+    const bySize = (size: string, purpose: string) => manifest.icons.find((i: { sizes: string; purpose: string }) => i.sizes === size && i.purpose === purpose);
+    expect(bySize('192x192', 'any')).toBeTruthy();
+    expect(bySize('512x512', 'any')).toBeTruthy();
+    expect(bySize('192x192', 'maskable')).toBeTruthy();
+    expect(bySize('512x512', 'maskable')).toBeTruthy();
     for (const icon of manifest.icons) expect((await page.request.get(icon.src)).status(), icon.src).toBe(200);
+    // shortcuts: live view and notifications, both inside the app's own scope
+    expect(manifest.shortcuts?.map((s: { name: string }) => s.name)).toEqual(expect.arrayContaining(['צפייה חיה', 'התראות']));
+    for (const s of manifest.shortcuts ?? []) expect(new URL(s.url, new URL('arx-manifest.webmanifest', baseURL)).href.startsWith(new URL('./', baseURL).href)).toBe(true);
     expect(await page.locator('link[rel="manifest"]').getAttribute('href')).toBe('./arx-manifest.webmanifest');
     // the app shell only: an API response never lands in the worker's cache
     await controlled(page);
@@ -173,6 +193,101 @@ test.describe('PWA shell (CR-008 P3)', () => {
     await page.goto('/#/system/notifications');
     await expect(page.locator('arx-notifications-settings [data-push-support="ios_install"]')).toBeVisible();
     await ctx.close();
+  });
+
+  test('iPhone: the guide and its push hint hide once the app reports standalone (display-mode)', async ({ browser, baseURL }) => {
+    const ctx = await browser.newContext({
+      baseURL,
+      locale: 'he-IL',
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+    });
+    // simulate an installed home-screen app: `(display-mode: standalone)` matches, as iOS sets it once launched from
+    // the home-screen icon (real Safari also sets `navigator.standalone`, not reproducible from a normal browser context)
+    await ctx.addInitScript(() => {
+      const real = window.matchMedia?.bind(window);
+      window.matchMedia = (query: string) => {
+        if (query.includes('display-mode') && query.includes('standalone')) return { matches: true, media: query } as MediaQueryList;
+        return real ? real(query) : ({ matches: false, media: query } as MediaQueryList);
+      };
+    });
+    const page = await ctx.newPage();
+    await page.goto('/');
+    await page.waitForFunction(() => !!customElements.get('arx-pwa-prompts'));
+    await page.waitForTimeout(300);
+    await expect(page.locator('arx-pwa-prompts [data-pwa-ios]')).toBeHidden();
+    await expect(page.locator('arx-pwa-prompts [data-pwa-install]')).toBeHidden();
+    // the notifications tab no longer needs the "install first" hint: push works in the installed app (a denied
+    // browser permission is a separate, unrelated state - this only checks the iOS "install it first" branch)
+    await page.goto('/#/system/notifications');
+    await expect(page.locator('arx-notifications-settings [data-push-support="ios_install"]')).toHaveCount(0);
+    await ctx.close();
+  });
+
+  test('apple meta tags for the iOS home-screen install', async ({ page }) => {
+    await page.goto('/');
+    const head = page.locator('head');
+    await expect(head.locator('meta[name="apple-mobile-web-app-capable"]')).toHaveAttribute('content', 'yes');
+    await expect(head.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute('content', 'Arx');
+    // "default": the shell's top bar does not add safe-area-inset-top padding, so it relies on the opaque status bar
+    // iOS reserves in that mode; switching to black-translucent needs the top bar to handle the inset first (CR-008 P4)
+    await expect(head.locator('meta[name="apple-mobile-web-app-status-bar-style"]')).toHaveAttribute('content', 'default');
+    await expect(head.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', './icons/arx-180.png');
+    await expect(head.locator('meta[name="viewport"]')).toHaveAttribute('content', /viewport-fit=cover/);
+    await expect(head.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#2f6bff');
+    const icon = await (await page.request.get('icons/arx-180.png')).body();
+    expect(icon.length).toBeGreaterThan(0);
+  });
+
+  test('the shell reserves the safe area on the top bar, the side rail and the bottom nav', async ({ page }, info) => {
+    test.skip(info.project.name !== 'mobile', 'safe-area-inset only matters on the phone layout');
+    await page.goto('/#/live');
+    await page.waitForFunction(() => !!document.querySelector('sw-app')?.shadowRoot);
+    const rules = await page.evaluate(() => {
+      const root = document.querySelector('sw-app')!.shadowRoot!;
+      const texts: string[] = [];
+      for (const sheet of root.adoptedStyleSheets) for (const rule of Array.from(sheet.cssRules)) texts.push(rule.cssText);
+      return texts;
+    });
+    const withInset = (selectorPart: string) => rules.filter((r) => r.includes(selectorPart) && r.includes('safe-area-inset'));
+    expect(withInset('header.topbar').length, rules.join('\n')).toBeGreaterThan(0);
+    expect(withInset('nav.rail').length, rules.join('\n')).toBeGreaterThan(0);
+    expect(withInset('nav.bottom').length, rules.join('\n')).toBeGreaterThan(0);
+  });
+
+  test('update notice: רענון applies the waiting worker and reloads (stubbed registration)', async ({ page }) => {
+    // Unlike "a new release" above (a real worker install, a real new cache), this stubs navigator.serviceWorker
+    // outright: no worker ever installs, so watchUpdates() sees an already-waiting worker from the first tick and the
+    // notice shows immediately. It proves the button's own contract - postMessage('arx-skip-waiting'), reload on
+    // controllerchange - without a real service worker lifecycle.
+    await page.addInitScript(() => {
+      const messages: unknown[] = [];
+      (window as unknown as { __swMessages: unknown[] }).__swMessages = messages;
+      const target = new EventTarget();
+      const worker = { postMessage: (m: unknown) => messages.push(m) };
+      const registration = { waiting: worker, installing: null, active: worker, addEventListener: () => undefined, update: async () => undefined };
+      const container = {
+        controller: worker,
+        ready: Promise.resolve(registration),
+        register: async () => registration,
+        getRegistration: async () => registration,
+        addEventListener: (type: string, cb: EventListenerOrEventListenerObject) => target.addEventListener(type, cb),
+        removeEventListener: (type: string, cb: EventListenerOrEventListenerObject) => target.removeEventListener(type, cb),
+        dispatchEvent: (e: Event) => target.dispatchEvent(e),
+      };
+      Object.defineProperty(window.navigator, 'serviceWorker', { value: container, configurable: true });
+    });
+    await page.goto('/');
+    const toast = page.locator('arx-pwa-prompts [data-pwa-update]');
+    await expect(toast).toBeVisible({ timeout: 10_000 });
+    await toast.locator('sw-button').click();
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __swMessages: { type?: string }[] }).__swMessages.some((m) => m?.type === 'arx-skip-waiting'))).toBe(true);
+    await Promise.all([
+      page.waitForEvent('load'),
+      page.evaluate(() => (navigator.serviceWorker as unknown as { dispatchEvent: (e: Event) => void }).dispatchEvent(new Event('controllerchange'))),
+    ]);
   });
 
   test('notification click opens the deep link under the app base', async ({ page, context }) => {
