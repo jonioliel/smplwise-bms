@@ -272,6 +272,16 @@ def test_floor_height_sets_the_rise_between_floors_from_either_side_and_to_non_d
     _save(c, v2, connectors=[*_draft(c, v2)["doc"]["connectors"], STAIRS("st9")])
     assert c.post(f"/api/v1/plan-versions/{v2}/geometry/link", json={"connector_id": "st9", "floor_id": f4["id"]}).status_code == 200
     assert _conn(c, v2, "st9")["far"]["datum_m"] == 7.2 and _conn(c, v4, "st9")["far"]["datum_m"] == -7.2
+    # review L-b: floor numbers that no floor has count the default height (floor 3 -> floor 6: 4.0 + 3.0 + 3.0)
+    f6 = c.post(f"/api/v1/buildings/{ids['building']}/floors", json={"name": "קומה 6", "level": 6}).json()
+    v6 = _plan(c, f6["id"], png_bytes())
+    _save(c, v3, connectors=[*_draft(c, v3)["doc"]["connectors"], STAIRS("st6")])
+    assert c.post(f"/api/v1/plan-versions/{v3}/geometry/link", json={"connector_id": "st6", "floor_id": f6["id"]}).status_code == 200
+    assert _conn(c, v3, "st6")["far"]["datum_m"] == 10.0 and _conn(c, v6, "st6")["far"]["datum_m"] == -10.0
+    # a repeated floor number keeps today's rule: the first floor of that number counts once
+    twin4 = c.post(f"/api/v1/buildings/{ids['building']}/floors", json={"name": "קומה 4ב", "level": 4}).json()
+    _save(c, _plan(c, twin4["id"], png_bytes()), floor_height_m=9.0)
+    assert _conn(c, v3, "st6")["far"]["datum_m"] == 10.0, "floor 4 (created first) counts 3.0; the second floor 4 is ignored"
     # the height is validated
     assert [i["code"] for i in _save(c, v2, floor_height_m=1.0)["issues"]] == ["floor_height"]
     assert [i["code"] for i in _save(c, v2, floor_height_m=12.5)["issues"]] == ["floor_height"]

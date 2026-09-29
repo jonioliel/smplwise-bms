@@ -431,22 +431,23 @@ class FarContext:
 
     def datum(self, me: sqlite3.Row, own_height: float, far: sqlite3.Row) -> float:
         """How far the other floor's datum (its default level's floor) is above this floor's, in metres: the floor
-        heights of the building's floors from this one up to the other (one per floor number; this floor's from the
-        document at hand), negative downwards (review M1, owner's "גובה קומה")."""
+        heights of the floor numbers from this one up to the other (one per number, the first floor of a repeated number;
+        this floor's from the document at hand; a missing number the default), negative downwards (review M1, L-b,
+        owner's "גובה קומה")."""
         rows = self._buildings.get(me["building_id"])
         if rows is None:
-            rows = self.conn.execute("SELECT id, level FROM floors WHERE building_id = ? AND deleted_at IS NULL ORDER BY level, sort_order, id", (me["building_id"],)).fetchall()
+            rows = self.conn.execute("SELECT id, level FROM floors WHERE building_id = ? AND deleted_at IS NULL ORDER BY level, sort_order, created_at, rowid", (me["building_id"],)).fetchall()
             self._buildings[me["building_id"]] = rows
         heights: dict[int, float] = {me["level"]: own_height}
         for r in rows:
             if r["level"] not in heights:
                 heights[r["level"]] = self._height(r["id"])
-        a, b = me["level"], far["level"]
-        if b > a:
-            return round(sum(h for lv, h in heights.items() if a <= lv < b), 4)
-        if b < a:
-            return round(-sum(h for lv, h in heights.items() if b <= lv < a), 4)
-        return 0.0
+        a, b = int(me["level"]), int(far["level"])
+        lo, hi = min(a, b), max(a, b)
+        # every floor number between the two counts once - a number no floor has counts the default height (review L-b:
+        # floors 0 and 2 without a floor 1 are two storeys apart, not one)
+        total = sum(heights.get(n, pg.DEFAULT_FLOOR_HEIGHT_M) for n in range(lo, hi))
+        return round(total if b > a else -total, 4) if a != b else 0.0
 
 
 def attach_far(conn: sqlite3.Connection, floor_id: str, doc: dict[str, Any], ctx: FarContext | None = None) -> dict[str, Any]:
