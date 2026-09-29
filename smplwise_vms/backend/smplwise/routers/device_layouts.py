@@ -18,6 +18,7 @@ is audited with the scope, the id and the revision only - never the layout itsel
 from __future__ import annotations
 
 import json
+import logging
 import re
 import sqlite3
 from typing import Any, Literal
@@ -27,7 +28,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from ..audit import audit
 from ..auth import current_principal_ro, get_conn, get_read_conn
-from ..db import now_iso
+from ..db import Database, database_of, now_iso, read_mode
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize
 from ..services import devices as svc
@@ -35,12 +36,15 @@ from ..services import ha_scope
 from .devices import READ, _configure_holder, _is_json, _raw_body
 
 router = APIRouter()
+log = logging.getLogger("smplwise.device_layouts")
 
 SCOPES = ("building", "area")
 VARIANTS = ("desktop", "phone")
 BUILDING_ID = "main"
 COLUMNS = {"desktop": 12, "phone": 4}
 MAX_BODY = 64 * 1024
+ENTITY_ID_RE = re.compile(r"^[a-z_]{1,64}\.[A-Za-z0-9_]{1,200}$")
+MAX_HIDDEN_ENTITIES = 200
 MAX_ITEMS = 300
 MAX_ROW = 4000  # in 8 px rows: 32 000 px, far below anything a screen shows
 MAX_SPAN_ROWS = 400
@@ -76,6 +80,8 @@ class LayoutItem(BaseModel):
     title: str | None = Field(None, max_length=60)
     icon: str | None = None
     hidden: bool = False
+    # review ruling 4: the entities a card does not show (still counted in its numbers); area cards only
+    hidden_entities: list[str] = Field(default_factory=list, max_length=MAX_HIDDEN_ENTITIES)
 
     @field_validator("title")
     @classmethod
@@ -94,6 +100,13 @@ class LayoutItem(BaseModel):
             raise ValueError("unknown icon")
         return v
 
+    @field_validator("hidden_entities")
+    @classmethod
+    def _entities(cls, v: list[str]) -> list[str]:
+        if any(not ENTITY_ID_RE.fullmatch(e) for e in v):
+            raise ValueError("not an entity id")
+        return sorted(set(v))
+
 
 class Layout(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
@@ -111,7 +124,7 @@ class PutBody(BaseModel):
 
 class CopyBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    revision: int | None = Field(None, ge=0)  # the source's desktop revision the editor saw (409 when it moved on)
+    revision: int = Field(ge=0)  # the source's desktop revision the editor saw (409 when it moved on) - required
 
 
 def _check_scope(scope: str, scope_id: str) -> None:
@@ -131,6 +144,30 @@ def _check_exists(conn: sqlite3.Connection, scope: str, scope_id: str) -> None:
         raise ApiError(404, "area_not_found", "האזור לא נמצא ב־Home Assistant.")
 
 
+def _grid_of(conn: sqlite3.Connection, scope: str) -> Any:
+    """Which grid an item key belongs to (items of different grids may share coordinates): the area screen has one;
+    the building screen one for the floor cards and one per floor for the area tiles."""
+    if scope == "area":
+        return lambda key: "cards"
+    _floors, areas = svc.load_structure(conn, svc.load_entities(conn))
+    floor_of = {a["area_id"]: a.get("floor_id") or svc.NO_FLOOR for a in areas}
+    floor_of[svc.UNASSIGNED] = svc.UNASSIGNED
+    return lambda key: "floors" if key.startswith("floor:") else f"areas:{floor_of.get(key[5:], key)}"
+
+
+def _overlaps(layout: Layout, grid_of: Any) -> list[str]:
+    groups: dict[str, list[tuple[str, LayoutItem]]] = {}
+    for key, it in layout.items.items():
+        groups.setdefault(grid_of(key), []).append((key, it))
+    out: list[str] = []
+    for items in groups.values():
+        for i, (ka, a) in enumerate(items):
+            for kb, b in items[i + 1:]:
+                if a.x < b.x + b.w and b.x < a.x + a.w and a.y < b.y + b.h and b.y < a.y + a.h:
+                    out.append(f"{ka[:40]} / {kb[:40]}")
+    return out
+
+
 def _validate_semantics(scope: str, variant: str, layout: Layout) -> list[str]:
     """What pydantic cannot say alone: the variant's column count, items inside the grid, keys of this screen."""
     errors: list[str] = []
@@ -144,6 +181,8 @@ def _validate_semantics(scope: str, variant: str, layout: Layout) -> list[str]:
             errors.append(f"layout.items.{key[:40]}: the area screen lays out its cards (card:<id>) only")
         if it.x + it.w > cols:
             errors.append(f"layout.items.{key[:40]}: x + w exceeds the {cols} columns")
+        if it.hidden_entities and scope != "area":
+            errors.append(f"layout.items.{key[:40]}: hidden_entities belong to the area screen's cards")
     return errors
 
 
@@ -175,14 +214,61 @@ def _row(conn: sqlite3.Connection, scope: str, scope_id: str, variant: str) -> d
     return {"layout": json.loads(r["layout_json"]), "revision": r["revision"], "updated_by": r["display_name"] or r["username"] or r["updated_by"], "updated_at": r["updated_at"]}
 
 
-def _record(conn: sqlite3.Connection, principal: Principal, scope: str, scope_id: str) -> dict[str, Any]:
-    return {
-        "scope": scope,
-        "id": scope_id,
-        "desktop": _row(conn, scope, scope_id, "desktop"),
-        "phone": _row(conn, scope, scope_id, "phone"),
-        "can_edit": authorize(conn, principal, "system.configure", INSTALLATION).allowed,
-    }
+def _record(conn: sqlite3.Connection, principal: Principal, scope: str, scope_id: str, visible: tuple[set[str], set[str]] | None = None) -> dict[str, Any]:
+    """The record. `visible` (floor ids, area ids) narrows it for a floor-scoped caller (review MEDIUM 1): only the
+    keys of floors / areas they can see, nothing of an area they cannot, and `narrowed: true` so the screen packs the
+    rows those items leave. Who saved it is shown to system.configure holders only."""
+    can_edit = authorize(conn, principal, "system.configure", INSTALLATION).allowed
+    out: dict[str, Any] = {"scope": scope, "id": scope_id, "can_edit": can_edit, "narrowed": False}
+    for variant in VARIANTS:
+        rec = _row(conn, scope, scope_id, variant)
+        if rec and not can_edit:
+            rec["updated_by"] = None
+        if rec and visible is not None:
+            floors, areas = visible
+            if scope == "area" and scope_id not in areas:
+                rec = None
+            elif scope == "building":
+                items = rec["layout"]["items"]
+                keep = {k: v for k, v in items.items() if (k[6:] in floors if k.startswith("floor:") else k[5:] in areas)}
+                out["narrowed"] = out["narrowed"] or len(keep) != len(items)
+                rec["layout"]["items"] = keep
+        out[variant] = rec
+    return out
+
+
+def _visible(conn: sqlite3.Connection, principal: Principal) -> tuple[set[str], set[str]] | None:
+    """(floor ids, area ids) of a floor-scoped caller, the same filter as the tree; None = installation-wide."""
+    entities, scoped = ha_scope.scoped_rows(conn, principal, READ, svc.load_entities(conn))
+    if not scoped:
+        return None
+    t = svc.build_tree(conn, entities, scoped=True)
+    floors = {f["floor_id"] for f in t["floors"]}
+    areas = {a["area_id"] for f in t["floors"] for a in f["areas"]}
+    if t["unassigned"]["counts"]["entities"]:
+        floors.add(svc.UNASSIGNED)
+        areas.add(svc.UNASSIGNED)
+    return floors, areas
+
+
+def _prune_vanished(conn: sqlite3.Connection) -> None:
+    """Review nit 8: layout rows of HA areas that no longer exist go (lazily, on the next read). Only while Home
+    Assistant's structure is known at all - an empty mirror (a first start, HA unreachable) never prunes anything."""
+    known = set(_known_areas(conn))
+    if not known:
+        return
+    rows = {r["scope_id"] for r in conn.execute("SELECT DISTINCT scope_id FROM device_layouts WHERE scope = 'area'").fetchall()}
+    stale = sorted(rows - known - {svc.UNASSIGNED})
+    if not stale:
+        return
+    marks = ", ".join("?" * len(stale))
+    db: Database | None = database_of(conn)
+    if read_mode(conn) and db is not None:
+        with db.write_aside() as w:
+            w.execute(f"DELETE FROM device_layouts WHERE scope = 'area' AND scope_id IN ({marks})", stale)
+    elif not read_mode(conn):
+        conn.execute(f"DELETE FROM device_layouts WHERE scope = 'area' AND scope_id IN ({marks})", stale)
+    log.info("pruned the layouts of %d areas no longer in Home Assistant", len(stale))
 
 
 def _revision(conn: sqlite3.Connection, scope: str, scope_id: str, variant: str) -> int:
@@ -206,7 +292,8 @@ def get_layout(scope: str, scope_id: str, principal: Principal = Depends(current
     """The screen's stored layout (desktop and phone; null = automatic) - everyone who reads the device screens."""
     ha_scope.scoped_rows(conn, principal, READ, [])  # the audited 403 without devices.read anywhere
     _check_scope(scope, scope_id)
-    return _record(conn, principal, scope, scope_id)
+    _prune_vanished(conn)
+    return _record(conn, principal, scope, scope_id, _visible(conn, principal))
 
 
 @router.put("/devices/layouts/{scope}/{scope_id}")
@@ -219,6 +306,9 @@ def put_layout(scope: str, scope_id: str, request: Request, principal: Principal
     errors = _validate_semantics(scope, body.variant, body.layout)
     if errors:
         raise ApiError(422, "validation", "הפריסה אינה תקינה: " + "; ".join(errors[:5]), details={"errors": errors[:50]})
+    overlaps = _overlaps(body.layout, _grid_of(conn, scope))
+    if overlaps:
+        raise ApiError(422, "layout_overlap", "שני כרטיסים באותו מקום: " + "; ".join(overlaps[:5]), details={"overlaps": overlaps[:50]})
     _check_exists(conn, scope, scope_id)
     current = _revision(conn, scope, scope_id, body.variant)
     if body.revision != current:
@@ -267,7 +357,7 @@ def copy_to_all_areas(scope_id: str, request: Request, principal: Principal = De
     src_rev = _revision(conn, "area", scope_id, "desktop")
     if not src_rev:
         raise ApiError(409, "nothing_to_copy", "לאזור הזה אין פריסה שמורה להעתקה. שמרו אותה קודם.")
-    if body.revision is not None and body.revision != src_rev:
+    if body.revision != src_rev:
         raise ApiError(409, "layout_conflict", "מישהו אחר שמר את הפריסה בינתיים. טענו אותה מחדש.", details={"revision": src_rev})
     src = {r["variant"]: r["layout_json"] for r in conn.execute("SELECT variant, layout_json FROM device_layouts WHERE scope = 'area' AND scope_id = ?", (scope_id,)).fetchall()}
     targets = [a for a in [*_known_areas(conn), svc.UNASSIGNED] if a != scope_id]

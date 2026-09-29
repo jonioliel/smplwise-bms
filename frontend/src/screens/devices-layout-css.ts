@@ -50,6 +50,10 @@ export const devicesLayoutCss = [
       align-items: stretch;
       justify-items: stretch;
     }
+    /* the compact density: tighter columns too (a viewer's rows are packed to one-row gaps, devices-layout.ts) */
+    :host([data-devices-density='compact']) .lay-grid.lay-grid.lay-grid[data-lay-cols] {
+      column-gap: 8px;
+    }
     :host .lay-grid.lay-grid.lay-grid[data-lay-cols='12'] {
       grid-template-columns: repeat(12, minmax(0, 1fr));
     }
@@ -411,6 +415,13 @@ export const devicesLayoutCss = [
       color: var(--sw-text);
       font: inherit;
       cursor: pointer;
+    }
+    .lay-ents {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-block-size: 160px;
+      overflow: auto;
     }
     .lay-check {
       display: flex;

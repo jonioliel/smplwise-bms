@@ -1958,4 +1958,164 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await devicesSettings(request, DEVICES_DEFAULTS);
     }
   });
+
+  // ------------------------------------------------ 6b review round 1
+  /** An item's first grid row (1-based) as the viewer's layout places it. */
+  const rowOf = (loc: Locator) => loc.evaluate((e) => Number((e as HTMLElement).style.gridRow.split('/')[0].trim()));
+
+  test('6b review: a floor-scoped viewer gets only their floors\' layout keys and no empty band; a hidden card or entity leaves no hole; compact packs the gaps', async ({ page, browser, request }, testInfo) => {
+    test.setTimeout(180_000);
+    await seed(request);
+    await resetLayouts(request);
+    await devicesSettings(request, DEVICES_DEFAULTS);
+    const tag = testInfo.project.name;
+    const bindings: string[] = [];
+    let siteId: string | undefined;
+    try {
+      // floor A (a VMS floor) holds the office light: its viewer sees HA floor cr007_upper only
+      const site = await request.post('/api/v1/sites', { data: { name: `CR-007 6b scoped site (${tag})` } });
+      siteId = ((await site.json()) as { id: string }).id;
+      const building = await request.post(`/api/v1/sites/${siteId}/buildings`, { data: { name: 'CR-007 6b building' } });
+      const buildingId = ((await building.json()) as { id: string }).id;
+      const floorA = ((await (await request.post(`/api/v1/buildings/${buildingId}/floors`, { data: { name: 'CR-007 6b floor A', level: 1 } })).json()) as { id: string }).id;
+      const png = await (await request.get('/brand/smplwise-mark.png')).body();
+      const asset = await request.post(`/api/v1/floors/${floorA}/plan-assets`, { multipart: { file: { name: 'plan.png', mimeType: 'image/png', buffer: png } } });
+      const version = await request.post(`/api/v1/floors/${floorA}/plan-versions`, { data: { asset_id: ((await asset.json()) as { id: string }).id } });
+      await request.post(`/api/v1/plan-versions/${((await version.json()) as { id: string }).id}/publish`);
+      expect((await request.post(`/api/v1/floors/${floorA}/anchors`, { data: { resource_type: 'ha_entity', resource_id: 'light.cr007_office', x: 0.3, y: 0.3 } })).status()).toBe(201);
+      const user = `cr007layA${tag}`;
+      const me = await (await request.get('/api/v1/me', { headers: { 'X-SW-Dev-User': user } })).json();
+      const b = await request.post('/api/v1/access/bindings', { data: { subject_kind: 'user', subject_id: me.user.id, role_id: 'viewer', scope_type: 'floor', scope_id: floorA } });
+      bindings.push(((await b.json()) as { id: string }).id);
+
+      // the building's floor cards, one under the other; the ground floor first, with a title only its viewers may read
+      const floors = { v: 1, cols: 12, items: {
+        'floor:cr007_ground': { x: 0, y: 0, w: 12, h: 30, title: 'קומת הכניסה הפרטית' },
+        'floor:cr007_upper': { x: 0, y: 32, w: 12, h: 30 },
+        'floor:cr007_annex': { x: 0, y: 64, w: 12, h: 30 },
+        'floor:unassigned': { x: 0, y: 96, w: 12, h: 20 },
+      } };
+      expect((await request.put('/api/v1/devices/layouts/building/main', { data: { variant: 'desktop', revision: 0, layout: floors } })).status()).toBe(200);
+      const ctx = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': user } });
+      const p = await ctx.newPage();
+      const got = await p.request.get('/api/v1/devices/layouts/building/main');
+      const text = await got.text();
+      const body = JSON.parse(text);
+      expect(Object.keys(body.desktop.layout.items)).toEqual(['floor:cr007_upper']);
+      expect(body.narrowed).toBe(true);
+      expect(body.desktop.updated_by).toBeNull();
+      for (const leak of ['cr007_ground', 'cr007_annex', 'cr007_lobby', 'הפרטית']) expect(text).not.toContain(leak);
+      await open(p, '/devices/building', 'a');
+      const card = p.locator('devices-building .lay-item[data-lay-key="floor:cr007_upper"]');
+      await expect(card).toBeVisible({ timeout: 30000 });
+      expect(await rowOf(card)).toBe(1); // the rows the other floors held are packed away: no empty band above it
+      await ctx.close();
+
+      // a hidden card leaves no hole, desktop and (derived) phone alike; a hidden entity leaves the card, not its numbers
+      const area = { v: 1, cols: 12, items: {
+        'card:lighting': { x: 0, y: 0, w: 12, h: 20, hidden_entities: ['light.cr007_lobby_2'] },
+        'card:climate': { x: 0, y: 22, w: 12, h: 20, hidden: true },
+        'card:covers': { x: 0, y: 44, w: 12, h: 20 },
+      } };
+      expect((await request.put('/api/v1/devices/layouts/area/cr007_lobby', { data: { variant: 'desktop', revision: 0, layout: area } })).status()).toBe(200);
+      await open(page, '/devices/areas/cr007_lobby', 'a');
+      const a = page.locator('devices-area');
+      const covers = a.locator('.lay-item[data-lay-key="card:covers"]');
+      await expect(covers).toBeVisible({ timeout: 30000 });
+      await expect(a.locator('sw-card[data-card="climate"]')).toHaveCount(0);
+      expect(await rowOf(covers)).toBe(23); // lighting 0-20, the 2-row gap, then covers: climate's rows are gone
+      const lighting = a.locator('sw-card[data-card="lighting"]');
+      await expect(lighting.locator('.tile[data-entity="light.cr007_lobby"]')).toHaveCount(1);
+      await expect(lighting.locator('.tile[data-entity="light.cr007_lobby_2"]')).toHaveCount(0);
+      await expect(lighting).toHaveAttribute('subheading', /^2 התקנים/); // still counted
+      // the editor still shows the hidden card in place, and the checklist lists both lights
+      if (tag === 'desktop') {
+        await a.locator('[data-layout-edit]').click();
+        await expect(a.locator('.lay-item.lay-hidden[data-lay-key="card:climate"]')).toHaveCount(1);
+        await a.locator('.lay-item[data-lay-key="card:lighting"]').click();
+        const checklist = a.locator('[data-layout-panel="card:lighting"] [data-layout-entities]');
+        await expect(checklist.locator('input[data-layout-entity]')).toHaveCount(2);
+        await expect(checklist.locator('input[data-layout-entity="light.cr007_lobby_2"]')).not.toBeChecked();
+        await a.locator('sw-button[data-layout-cancel]').click();
+      }
+      // the compact density: one-row gaps and tighter columns under a saved layout
+      await devicesSettings(request, { 'devices.density': 'compact' });
+      await page.goto('about:blank');
+      await open(page, '/devices/areas/cr007_lobby', 'a');
+      await expect(covers).toBeVisible({ timeout: 30000 });
+      expect(await rowOf(covers)).toBe(22);
+      expect(await a.locator('.lay-grid').evaluate((g) => getComputedStyle(g).columnGap)).toBe('8px');
+    } finally {
+      for (const id of bindings) await request.delete(`/api/v1/access/bindings/${id}`).catch(() => {});
+      if (siteId) await request.delete(`/api/v1/sites/${siteId}`).catch(() => {});
+      await devicesSettings(request, DEVICES_DEFAULTS);
+      await resetLayouts(request);
+    }
+  });
+
+  test('6b review: in edit mode the cards\' own controls are inert (Tab goes from the toolbar to the next card, never into one); the building tiles view is laid out on its own grids', async ({ page, request }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'keyboard editor flow');
+    test.setTimeout(180_000);
+    await seed(request);
+    await resetLayouts(request);
+    await devicesSettings(request, DEVICES_DEFAULTS);
+    try {
+      await open(page, '/devices/areas/cr007_lobby', 'a');
+      const a = page.locator('devices-area');
+      await expect(a.locator('sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
+      await a.locator('[data-layout-edit]').click();
+      const body = a.locator('.lay-item[data-lay-key="card:lighting"] > sw-card');
+      await expect(body).toHaveAttribute('inert', '');
+      await expect(body).toHaveAttribute('aria-hidden', 'true');
+      await a.locator('sw-button[data-layout-save] button').focus();
+      const focused = async () => a.evaluate((e) => {
+        const f = e.shadowRoot!.activeElement as HTMLElement | null;
+        return f ? { item: f.classList.contains('lay-item'), key: f.getAttribute('data-lay-key'), inCard: !!f.closest('sw-card') } : null;
+      });
+      await page.keyboard.press('Tab');
+      const first = await focused();
+      expect(first?.item).toBe(true);
+      for (let i = 0; i < 4; i++) {
+        await page.keyboard.press('Tab');
+        const f = await focused();
+        if (f) expect(f.inCard).toBe(false);
+      }
+      // Home / End / PageUp on the editor never reach a device: nothing is sent
+      const sent: string[] = [];
+      page.on('request', (r) => {
+        if (r.method() === 'POST' && /\/ha\/entities\/[^/]+\/actions$/.test(r.url())) sent.push(r.url());
+      });
+      for (const k of ['Home', 'End', 'PageUp', 'PageDown', ' ']) await page.keyboard.press(k);
+      expect(sent).toEqual([]);
+      await a.locator('sw-button[data-layout-cancel]').click();
+      await expect(a.locator('[data-lay-inert]')).toHaveCount(0); // controls live again after the editor closes
+
+      // the building's tiles view: each floor's tiles on their own grid, saved as area:<id> items
+      await open(page, '/devices/building', 'a');
+      const b = page.locator('devices-building');
+      await expect(b.locator('a.tile[data-area="cr007_lobby"]')).toBeVisible({ timeout: 30000 });
+      await b.locator('[data-layout-edit]').click();
+      const lobby = b.locator('.lay-item[data-lay-key="area:cr007_lobby"]');
+      const l0 = await pos(lobby);
+      await lobby.focus();
+      await page.keyboard.press('ArrowDown');
+      await page.keyboard.press('ArrowDown');
+      await b.locator('[data-layout-panel="area:cr007_lobby"] [data-layout-title]').fill('לובי ראשי');
+      await b.locator('sw-button[data-layout-save]').click();
+      await expect(b.locator('[data-layout-bar]')).toHaveCount(0);
+      const rec = await (await request.get('/api/v1/devices/layouts/building/main')).json();
+      expect(rec.desktop.layout.items['area:cr007_lobby'].y).toBe(l0.y + 2);
+      expect(Object.keys(rec.desktop.layout.items).every((k: string) => k.startsWith('area:'))).toBe(true);
+      await page.reload();
+      await page.waitForSelector('sw-app');
+      await expect(b.locator('section[data-floor="cr007_ground"] .areas.lay-grid')).toHaveCount(1, { timeout: 30000 });
+      await expect(b.locator('a.tile[data-area="cr007_lobby"] .name')).toHaveText('לובי ראשי');
+      // the cards view keeps its automatic layout
+      await b.locator('button[data-layout="cards"]').click();
+      await expect(b.locator('.fcards.lay-grid')).toHaveCount(0);
+      await b.locator('button[data-layout="tiles"]').click();
+    } finally {
+      await resetLayouts(request);
+    }
+  });
 });

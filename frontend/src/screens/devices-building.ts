@@ -405,6 +405,7 @@ export class DevicesBuilding extends LitElement {
     measure: () => this.measureGrids(),
     defaultH: (key) => (key.startsWith('floor:') ? 30 : 14),
     label: (key) => this.layLabel(key),
+    compact: () => this.prefs.density === 'compact',
     onEnter: () => {
       this.selected = 'all';
     },

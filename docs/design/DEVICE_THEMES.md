@@ -286,6 +286,13 @@ from the role knobs, so the glass material and the card's own surface stay under
 - The side panel (a bottom sheet on a phone): title, icon, text size, background and border role, width / height,
   move and resize buttons, "מוסתר לכולם".
 
+**Review round 1.** While editing, a card's own content is `inert` and `aria-hidden` (Tab goes from the toolbar to
+the next card, keys never reach a device). A viewer's layout packs away the rows of items not drawn (hidden, a floor /
+area a floor-scoped reader cannot see - the server sends only their items and `narrowed: true` - or gone from Home
+Assistant); the compact density packs gaps to one row and an 8 px column gap. The server refuses overlapping items of
+one grid (`layout_overlap`), requires the source revision on copy to all areas, and drops the layout rows of HA areas
+that no longer exist on the next read. Area cards carry `hidden_entities` (the panel's "visible entities" checklist).
+
 **The phone layout** is derived automatically from the desktop one (each grid one column, in the desktop's reading
 order) until it is saved on its own; "חזור לאוטומטי" deletes the stored phone layout. Editing the phone layout on a
 desktop shows a phone-wide preview.

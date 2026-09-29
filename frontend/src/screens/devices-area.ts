@@ -25,7 +25,7 @@ import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
 import { navigate } from '../router';
 import { bidi, ltrNum } from '../i18n/bidi';
 import { applyDevicesPrefs, DEVICES_PREFS_DEFAULT, devicesStyleTokens, loadDevicesPrefs, type DevicesPrefs } from './devices-style';
-import { DevicesLayoutController, titleOf, type MeasuredGrid } from './devices-layout';
+import { DevicesLayoutController, shownEntities, titleOf, type MeasuredGrid } from './devices-layout';
 
 /** CR-007 slice 4: a cover of these device classes is a passage, not a shutter - read-only wherever the covers card
  * renders it (device-class-aware wording/icon, `can_control` already false server-side). */
@@ -251,6 +251,8 @@ export class DevicesArea extends LitElement {
     measure: () => this.measureCards(),
     defaultH: () => 30,
     label: (key) => (this.detail ? (this.detail.cards[key.slice(5) as CardId]?.label ?? key) : key),
+    compact: () => this.prefs.density === 'compact',
+    entities: (key) => (this.detail?.cards[key.slice(5) as CardId]?.entities ?? []).map((r) => ({ id: r.entity_id, name: r.name })),
   });
 
   private measureCards(): MeasuredGrid[] {
@@ -1100,16 +1102,19 @@ export class DevicesArea extends LitElement {
 
   private renderCard(c: DeviceCard) {
     const e = CARD_EMPTY[c.id];
-    const it = this.lay.item(`card:${c.id}`); // CR-007 6b: the layout's own title and icon
+    const it = this.lay.item(`card:${c.id}`); // CR-007 6b: the layout's own title, icon and shown entities
+    const ents = shownEntities(it, c.entities);
     return html`<sw-card data-card=${c.id} data-lay-key=${`card:${c.id}`} ?data-empty=${c.count === 0} heading=${titleOf(it, c.label)} subheading=${c.count ? `${c.count} התקנים${c.id === 'lighting' || c.id === 'switches' || c.id === 'climate' || c.id === 'covers' || c.id === 'media' ? ` · ${c.active} פעילים` : ''}` : ''}>
       <sw-icon slot="actions" .name=${it?.icon ?? CARD_ICON[c.id]} size=${18}></sw-icon>
       ${c.count === 0
         ? html`<sw-state-panel compact data-card-empty state="empty" heading=${e.heading} hint=${e.hint}></sw-state-panel>`
-        : c.id === 'sensors'
-          ? this.renderSensorGroups(c.entities)
-          : c.id === 'lighting' || c.id === 'switches'
-            ? html`<div class="tiles">${repeat(c.entities, (r) => r.entity_id, (r) => this.renderTile(r, c.id))}</div>`
-            : html`${c.id === 'covers' ? this.renderCoverGroupControl() : nothing}<div class="rows">${repeat(c.entities, (r) => r.entity_id, (r) => this.renderRow(r, c.id))}</div>`}
+        : !ents.length
+          ? html`<div class="count" data-card-all-hidden>כל ההתקנים בכרטיס הוסתרו בעורך הפריסה.</div>`
+          : c.id === 'sensors'
+            ? this.renderSensorGroups(ents)
+            : c.id === 'lighting' || c.id === 'switches'
+              ? html`<div class="tiles">${repeat(ents, (r) => r.entity_id, (r) => this.renderTile(r, c.id))}</div>`
+              : html`${c.id === 'covers' ? this.renderCoverGroupControl() : nothing}<div class="rows">${repeat(ents, (r) => r.entity_id, (r) => this.renderRow(r, c.id))}</div>`}
     </sw-card>`;
   }
 

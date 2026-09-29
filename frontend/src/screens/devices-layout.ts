@@ -63,6 +63,8 @@ export interface LayoutItem {
   title: string | null;
   icon: LayoutIcon | null;
   hidden: boolean;
+  /** Area cards: the entities the card does not show (they still count in its numbers). */
+  hidden_entities: string[];
 }
 
 export interface Layout {
@@ -84,6 +86,8 @@ export interface LayoutRecord {
   desktop: LayoutVariantRecord | null;
   phone: LayoutVariantRecord | null;
   can_edit: boolean;
+  /** A floor-scoped reader got only the items they can see: the rows the others held are packed away. */
+  narrowed?: boolean;
 }
 
 export const COLS: Record<LayoutVariant, number> = { desktop: 12, phone: 4 };
@@ -98,12 +102,42 @@ export const getLayout = (scope: LayoutScope, id: string) => api<LayoutRecord>(p
 export const putLayout = (scope: LayoutScope, id: string, variant: LayoutVariant, revision: number, layout: Layout) => put<LayoutRecord>(path(scope, id), { variant, revision, layout });
 export const resetLayout = (scope: LayoutScope, id: string, variant: LayoutVariant | 'all', revision?: number) =>
   api<LayoutRecord>(`${path(scope, id)}?variant=${variant}${revision !== undefined ? `&revision=${revision}` : ''}`, { method: 'DELETE' });
-export const copyLayoutToAllAreas = (id: string, revision?: number) => post<{ copied_to: number; source: LayoutRecord }>(`${path('area', id)}/copy-to-all-areas`, revision !== undefined ? { revision } : {});
+export const copyLayoutToAllAreas = (id: string, revision: number) => post<{ copied_to: number; source: LayoutRecord }>(`${path('area', id)}/copy-to-all-areas`, { revision });
 
 // ------------------------------------------------------------------------------------------------ pure geometry
 
 export function newItem(x: number, y: number, w: number, h: number): LayoutItem {
-  return { x, y, w, h, text: 'md', bg: null, border: null, title: null, icon: null, hidden: false };
+  return { x, y, w, h, text: 'md', bg: null, border: null, title: null, icon: null, hidden: false, hidden_entities: [] };
+}
+
+/**
+ * What a viewer sees of one grid when some items are not drawn (hidden, or a floor / area this viewer cannot see, or
+ * one that left Home Assistant): the rows they held are packed away, so no empty band is left (review MEDIUM 2).
+ * An item moves up only when something above it in its columns is gone (or moved up itself): it then sits `gap` rows
+ * under the nearest drawn item above it (or at the top); the rest keep their place, columns and order. `all` packs
+ * every item that way (a narrowed record, where what is gone is not even known; the compact density, with `gap` 1).
+ */
+export function pack(items: Record<string, LayoutItem>, keys: string[], gone: Set<string>, all: boolean, gap: number): Record<string, LayoutItem> {
+  const out: Record<string, LayoutItem> = { ...items };
+  const shown = keys.filter((k) => items[k] && !gone.has(k)).sort((a, b) => items[a].y - items[b].y || items[a].x - items[b].x);
+  const removed = keys.filter((k) => items[k] && gone.has(k));
+  const placed: string[] = [];
+  for (const k of shown) {
+    const it = items[k];
+    const cols = (o: LayoutItem) => o.x < it.x + it.w && it.x < o.x + o.w;
+    const above = placed.filter((p) => cols(items[p]) && items[p].y + items[p].h <= it.y);
+    const affected = all || removed.some((r) => cols(items[r]) && items[r].y < it.y) || above.some((p) => out[p].y !== items[p].y);
+    let y = it.y;
+    if (affected) y = Math.max(0, ...above.map((p) => out[p].y + out[p].h + Math.min(gap, Math.max(0, it.y - items[p].y - items[p].h))));
+    for (let guard = 0; guard < 500; guard++) {
+      const hit = placed.find((p) => cols(out[p]) && y < out[p].y + out[p].h && out[p].y < y + it.h);
+      if (!hit) break;
+      y = out[hit].y + out[hit].h + gap;
+    }
+    out[k] = { ...it, y };
+    placed.push(k);
+  }
+  return out;
 }
 
 function overlap(a: LayoutItem, b: LayoutItem): boolean {
@@ -236,6 +270,10 @@ export interface LayoutOptions {
   label: (key: string) => string;
   /** Called when the editor opens (the building screen shows every floor). */
   onEnter?: () => void;
+  /** The screen's compact density: a viewer's layout packs its gaps to one row (8 px). */
+  compact?: () => boolean;
+  /** Area cards: the entities a card can show, for the panel's "visible entities" checklist. */
+  entities?: (key: string) => { id: string; name: string }[];
 }
 
 interface Drag {
@@ -291,6 +329,26 @@ export class DevicesLayoutController implements ReactiveController {
       this.mq = null;
     }
     void this.load();
+  }
+
+  /** Review MEDIUM 3: while the layout is edited the cards' own controls are `inert` (no Tab, no keys, no pointer, out of
+   * the accessibility tree) - a key on a slider must never switch a real device. Set after every render. */
+  hostUpdated() {
+    const root = this.host.renderRoot as ParentNode;
+    for (const el of root.querySelectorAll<HTMLElement>('[data-lay-inert]')) {
+      if (el.parentElement?.classList.contains('lay-edit')) continue;
+      el.inert = false;
+      el.removeAttribute('aria-hidden');
+      el.removeAttribute('data-lay-inert');
+    }
+    if (!this.editing) return;
+    for (const item of root.querySelectorAll<HTMLElement>('.lay-item.lay-edit')) {
+      const body = item.firstElementChild as HTMLElement | null;
+      if (!body || body.classList.contains('lay-hd') || body.hasAttribute('data-lay-inert')) continue;
+      body.inert = true;
+      body.setAttribute('aria-hidden', 'true');
+      body.setAttribute('data-lay-inert', '');
+    }
   }
 
   hostDisconnected() {
@@ -362,6 +420,25 @@ export class DevicesLayoutController implements ReactiveController {
     const layout = this.editing ? this.draft : this.viewerLayout(this.viewVariant());
     this.activeGrids = new Set(this.editing ? grids.map((g) => g.id) : grids.filter((g) => layout && g.keys.some((k) => layout.items[k])).map((g) => g.id));
     this.view = layout ? complete(layout, grids.map((g) => g.keys), this.opts.defaultH) : null;
+    if (this.view && !this.editing) this.view = { ...this.view, items: this.packed(this.view.items, grids) };
+  }
+
+  /** A viewer's layout without the rows of what is not drawn (hidden items, what the viewer cannot see, what left
+   * Home Assistant), and with one-row gaps in the compact density. The editor always sees the stored positions. */
+  private packed(items: Record<string, LayoutItem>, grids: LayoutGrid[]): Record<string, LayoutItem> {
+    const drawn = new Set(grids.flatMap((g) => g.keys));
+    const prefix = (k: string) => k.slice(0, k.indexOf(':') + 1);
+    const strayPrefixes = new Set(Object.keys(items).filter((k) => !drawn.has(k)).map(prefix));
+    const compact = this.opts.compact?.() ?? false;
+    let out = items;
+    for (const g of grids) {
+      if (!this.activeGrids.has(g.id)) continue;
+      const gone = new Set(g.keys.filter((k) => out[k]?.hidden));
+      const all = compact || !!this.record?.narrowed || g.keys.some((k) => strayPrefixes.has(prefix(k)));
+      if (!gone.size && !all) continue;
+      out = pack(out, g.keys, gone, all, compact ? 1 : GAP_ROWS);
+    }
+    return out;
   }
 
   /** Whether this grid is laid out (else the screen's automatic grid). */
@@ -557,7 +634,7 @@ export class DevicesLayoutController implements ReactiveController {
     this.busy = true;
     this.update();
     try {
-      const r = await copyLayoutToAllAreas(this.opts.id(), this.record?.desktop?.revision);
+      const r = await copyLayoutToAllAreas(this.opts.id(), this.record?.desktop?.revision ?? 0);
       this.record = r.source;
       this.confirm = null;
       this.note = `הפריסה הועתקה ל־${r.copied_to} אזורים.`;
@@ -766,6 +843,24 @@ export class DevicesLayoutController implements ReactiveController {
     </sw-dialog>`;
   }
 
+  /** Review ruling 4: which entities an area card shows - a checklist; a hidden one still counts in the card's numbers. */
+  private renderEntities(key: string, it: LayoutItem): TemplateResult | typeof nothing {
+    const list = this.opts.entities?.(key) ?? [];
+    if (!list.length) return nothing;
+    const hide = new Set(it.hidden_entities ?? []);
+    const toggle = (id: string, show: boolean) => {
+      const next = new Set(hide);
+      if (show) next.delete(id);
+      else next.add(id);
+      this.patch(key, { hidden_entities: [...next].sort() });
+    };
+    return html`<div class="lay-f"><span class="lbl">ישויות מוצגות בכרטיס (${list.length - list.filter((e) => hide.has(e.id)).length} מתוך ${list.length})</span>
+      <div class="lay-ents" data-layout-entities>
+        ${list.map((e) => html`<label class="lay-check"><input type="checkbox" data-layout-entity=${e.id} .checked=${!hide.has(e.id)} @change=${(ev: Event) => toggle(e.id, (ev.target as HTMLInputElement).checked)} />${e.name}</label>`)}
+      </div>
+      <span class="lay-hint">ישות מוסתרת עדיין נספרת במונים של הכרטיס.</span></div>`;
+  }
+
   /** The panel of the selected item (a bottom sheet on a phone). */
   renderPanel(): TemplateResult | typeof nothing {
     if (!this.editing || !this.draft) return nothing;
@@ -821,10 +916,17 @@ export class DevicesLayoutController implements ReactiveController {
           ${nudge('גובה +', 'הגבה ב־8 פיקסלים', { h: it.h + 1 }, 'taller')}
           ${nudge('גובה −', 'הנמך ב־8 פיקסלים', { h: it.h - 1 }, 'shorter')}
         </div></div>
+      ${this.renderEntities(key, it)}
       <label class="lay-check"><input type="checkbox" data-layout-hidden .checked=${it.hidden} @change=${(e: Event) => this.patch(key, { hidden: (e.target as HTMLInputElement).checked })} />מוסתר לכולם</label>
       <div class="lay-hint">הצבעים הם תפקידים בערכת הצבעים של האזור (הגדרות › חשמל והתקנים), כך שהפריסה נראית נכון בכל ערכה, בהיר או כהה. הגובה הוא מינימום: כרטיס לא חותך את ההתקנים שבו.</div>
     </aside>`;
   }
+}
+
+/** An area card's entities without the ones its layout hides (the card still counts them). */
+export function shownEntities<T extends { entity_id: string }>(it: LayoutItem | null, rows: T[]): T[] {
+  const hide = it?.hidden_entities;
+  return hide && hide.length ? rows.filter((r) => !hide.includes(r.entity_id)) : rows;
 }
 
 /** The title an item shows: the layout's own, else the screen's. */

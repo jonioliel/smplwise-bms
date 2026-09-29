@@ -11,10 +11,11 @@ from pathlib import Path
 
 from conftest import as_user, bind, seed_tree
 from fastapi.testclient import TestClient
-from test_devices import dev_app  # noqa: F401 - the HA structure fixture (floors, areas, entities)
+from test_devices import AREAS, FLOORS, _place, _publish_plan, dev_app  # noqa: F401 - the HA structure fixture (floors, areas, entities)
 
 from smplwise.main import create_app
 from smplwise.routers import device_layouts as mod
+from smplwise.services import ha_sync
 
 ROOT = Path(__file__).resolve().parents[3]
 URL = "/api/v1/devices/layouts"
@@ -46,7 +47,7 @@ def test_read_for_devices_read_holders_write_only_with_system_configure_checked_
     app, s = dev_app
     c = TestClient(app)
     empty = c.get(f"{URL}/area/lobby").json()
-    assert empty == {"scope": "area", "id": "lobby", "desktop": None, "phone": None, "can_edit": True}
+    assert empty == {"scope": "area", "id": "lobby", "desktop": None, "phone": None, "can_edit": True, "narrowed": False}
     assert _put(c, "area", "lobby", "desktop", 0, _desktop()).status_code == 200
     ids = seed_tree(c)
     bind(c, s, "vera", "viewer", "installation", "*")
@@ -54,10 +55,15 @@ def test_read_for_devices_read_holders_write_only_with_system_configure_checked_
     bind(c, s, "op", "operator", "installation", "*")
     bind(c, s, "wall", "kiosk", "floor", ids["floor2"])
     c.get("/api/v1/me", headers=as_user("nobody"))
-    for user in ("vera", "flo", "op"):
+    for user in ("vera", "op"):
         r = c.get(f"{URL}/area/lobby", headers=as_user(user))
         assert r.status_code == 200, user
         assert r.json()["desktop"]["layout"]["items"]["card:lighting"]["bg"] == "accent" and r.json()["can_edit"] is False
+        assert r.json()["desktop"]["updated_by"] is None  # who saved it: system.configure holders only
+    # floor-scoped with nothing placed: reads, but nothing of an area it cannot see
+    r = c.get(f"{URL}/area/lobby", headers=as_user("flo"))
+    assert r.status_code == 200 and r.json()["desktop"] is None
+    assert c.get(f"{URL}/area/lobby").json()["desktop"]["updated_by"]  # the administrator sees who saved it
     for user in ("nobody", "wall"):
         assert c.get(f"{URL}/area/lobby", headers=as_user(user)).status_code == 403, user
     # every write refused without system.configure - also with a malformed / non-JSON body it was never entitled to send
@@ -79,9 +85,9 @@ def test_revision_conflict_and_persistence_for_another_user(dev_app):  # noqa: F
     assert r1.status_code == 200 and r1.json()["desktop"]["revision"] == 1
     assert r1.json()["desktop"]["updated_by"] and r1.json()["desktop"]["updated_at"]
     # a second editor who also started from "no layout" is stale now: 409 with the current revision, nothing written
-    stale = _put(c, "area", "lobby", "desktop", 0, _desktop(**{"card:climate": {"x": 0, "y": 0, "w": 12, "h": 8}}))
+    stale = _put(c, "area", "lobby", "desktop", 0, _desktop(**{"card:climate": {"x": 8, "y": 0, "w": 4, "h": 8}}))
     assert stale.status_code == 409 and stale.json()["code"] == "layout_conflict" and stale.json()["details"]["revision"] == 1
-    r2 = _put(c, "area", "lobby", "desktop", 1, _desktop(**{"card:climate": {"x": 6, "y": 0, "w": 6, "h": 24}}))
+    r2 = _put(c, "area", "lobby", "desktop", 1, _desktop(**{"card:climate": {"x": 8, "y": 0, "w": 4, "h": 24}}))
     assert r2.status_code == 200 and r2.json()["desktop"]["revision"] == 2
     # the phone variant has its own revision
     p = _put(c, "area", "lobby", "phone", 0, _phone())
@@ -92,7 +98,7 @@ def test_revision_conflict_and_persistence_for_another_user(dev_app):  # noqa: F
     # persisted for everyone: another user reads exactly what was saved (defaults filled in)
     bind(c, s, "vera", "viewer", "installation", "*")
     seen = c.get(f"{URL}/area/lobby", headers=as_user("vera")).json()
-    assert seen["desktop"]["layout"]["items"]["card:climate"] == {"x": 6, "y": 0, "w": 6, "h": 24, "text": "md", "bg": None, "border": None, "title": None, "icon": None, "hidden": False}
+    assert seen["desktop"]["layout"]["items"]["card:climate"] == {"x": 8, "y": 0, "w": 4, "h": 24, "text": "md", "bg": None, "border": None, "title": None, "icon": None, "hidden": False, "hidden_entities": []}
     assert seen["phone"]["layout"]["cols"] == 4
     assert c.get(f"{URL}/building/main", headers=as_user("vera")).json()["desktop"]["layout"]["items"]["area:lobby"]["bg"] == "warm"
     # audit: scope + id + variant + revision only, never the layout
@@ -119,6 +125,17 @@ def test_validation(dev_app):  # noqa: F811
                          ("title", "x" * 61), ("title", "a‮b"), ("title", "a\nb"), ("hidden", "yes"), ("style", "color:red")):
         assert bad({"v": 1, "cols": 12, "items": {"card:lighting": {**item, field: value}}}) == 422, (field, value)
     assert bad({"v": 1, "cols": 12, "items": {"card:lighting": {**item, "x": 10, "w": 4}}}) == 422  # past the 12 columns
+    # two items of one grid in the same place (review nit 5)
+    over = _put(c, "area", "lobby", "desktop", 0, {"v": 1, "cols": 12, "items": {"card:lighting": item, "card:climate": {**item, "x": 2, "y": 5}}})
+    assert over.status_code == 422 and over.json()["code"] == "layout_overlap"
+    # the building: floor cards and each floor's area tiles are separate grids - the same coordinates are fine there
+    assert _put(c, "building", "main", "desktop", 0, {"v": 1, "cols": 12, "items": {"floor:ground": item, "area:lobby": item, "area:office": item}}).status_code == 200
+    assert _put(c, "building", "main", "desktop", 1, {"v": 1, "cols": 12, "items": {"area:lobby": item, "area:empty_room": item}}).json()["code"] == "layout_overlap"
+    assert c.delete(f"{URL}/building/main").status_code == 200
+    # the visible-entities checklist: entity ids only, area cards only
+    for bad_list in (["not an id"], ["light"], ["x" * 300 + ".y"], ["light.a"] * 0 + [f"light.e{i}" for i in range(mod.MAX_HIDDEN_ENTITIES + 1)]):
+        assert bad({"v": 1, "cols": 12, "items": {"card:lighting": {**item, "hidden_entities": bad_list}}}) == 422, bad_list[:2]
+    assert bad({"v": 1, "cols": 12, "items": {"floor:ground": {**item, "hidden_entities": ["light.lobby"]}}}, scope="building", sid="main") == 422
     assert bad({"v": 1, "cols": 4, "items": {}}) == 422  # a desktop layout has 12 columns
     assert bad({"v": 1, "cols": 12, "items": {}}, variant="phone") == 422  # a phone layout has 4
     assert bad({"v": 1, "cols": 4, "items": {"card:lighting": {"x": 2, "y": 0, "w": 4, "h": 5}}}, variant="phone") == 422
@@ -151,15 +168,16 @@ def test_validation(dev_app):  # noqa: F811
 def test_reset_and_copy_to_all_areas(dev_app):  # noqa: F811
     app, _ = dev_app
     c = TestClient(app)
-    # nothing stored yet: nothing to copy
-    r = c.post(f"{URL}/area/lobby/copy-to-all-areas", json={})
+    # nothing stored yet: nothing to copy; the revision is required
+    r = c.post(f"{URL}/area/lobby/copy-to-all-areas", json={"revision": 0})
     assert r.status_code == 409 and r.json()["code"] == "nothing_to_copy"
-    assert c.post(f"{URL}/area/nowhere/copy-to-all-areas", json={}).status_code == 404
+    assert c.post(f"{URL}/area/lobby/copy-to-all-areas", json={}).status_code == 422
+    assert c.post(f"{URL}/area/nowhere/copy-to-all-areas", json={"revision": 0}).status_code == 404
     assert c.post(f"{URL}/area/lobby/copy-to-all-areas", content=b"{}", headers={"Content-Type": "text/plain"}).status_code == 415
     assert _put(c, "area", "lobby", "desktop", 0, _desktop()).status_code == 200
     # an area with its own edited phone layout, and one with its own desktop layout
     assert _put(c, "area", "office", "phone", 0, _phone()).status_code == 200
-    assert _put(c, "area", "garden", "desktop", 0, _desktop(**{"card:climate": {"x": 0, "y": 0, "w": 12, "h": 6}})).status_code == 200
+    assert _put(c, "area", "garden", "desktop", 0, _desktop(**{"card:climate": {"x": 8, "y": 0, "w": 4, "h": 6}})).status_code == 200
     # a stale source revision is refused
     assert c.post(f"{URL}/area/lobby/copy-to-all-areas", json={"revision": 7}).status_code == 409
     r = c.post(f"{URL}/area/lobby/copy-to-all-areas", json={"revision": 1})
@@ -173,8 +191,8 @@ def test_reset_and_copy_to_all_areas(dev_app):  # noqa: F811
     assert c.get(f"{URL}/area/garden").json()["desktop"]["revision"] == 2
     # with a phone layout on the source, the phone layout is copied too
     assert _put(c, "area", "lobby", "phone", 0, _phone()).status_code == 200
-    assert c.post(f"{URL}/area/lobby/copy-to-all-areas", json={}).status_code == 200
-    assert c.get(f"{URL}/area/office").json()["phone"]["layout"] == _phone() | {"items": {k: {**v, "text": "md", "bg": None, "border": None, "title": None, "icon": None, "hidden": False} for k, v in _phone()["items"].items()}}
+    assert c.post(f"{URL}/area/lobby/copy-to-all-areas", json={"revision": 1}).status_code == 200
+    assert c.get(f"{URL}/area/office").json()["phone"]["layout"] == _phone() | {"items": {k: {**v, "text": "md", "bg": None, "border": None, "title": None, "icon": None, "hidden": False, "hidden_entities": []} for k, v in _phone()["items"].items()}}
     copies = _audit(app, "devices.layout.copy")
     assert [json.loads(x["details_json"]) for x in copies] == [{"scope": "area", "id": "lobby", "revision": 1, "areas": 4}, {"scope": "area", "id": "lobby", "revision": 1, "areas": 4}]
     # reset: the phone alone ("חזור לאוטומטי"), with a stale revision refused
@@ -222,3 +240,52 @@ def test_icons_and_roles_match_the_frontend():
     icon_src = (ROOT / "frontend" / "src" / "components" / "sw-icon.ts").read_text(encoding="utf-8")
     for name in mod.ICONS:
         assert re.search(rf"^\s+{name}: svg`", icon_src, re.M), name  # every allowed icon exists in the product's set
+
+
+def test_floor_scoped_viewer_sees_only_their_floors_keys(dev_app):  # noqa: F811
+    """Review MEDIUM 1: the building layout names every floor and HA area (ids are name slugs) and custom titles - a
+    floor-scoped viewer gets only the keys of what they can see, `narrowed`, and never who saved it."""
+    app, s = dev_app
+    c = TestClient(app)
+    ids = seed_tree(c)
+    _publish_plan(c, ids["floor2"])
+    _place(c, ids["floor2"], "light.office")  # HA area "office" on HA floor "second"
+    layout = {"v": 1, "cols": 12, "items": {
+        "floor:ground": {"x": 0, "y": 0, "w": 6, "h": 30, "title": "קומת כניסה סודית"},
+        "floor:second": {"x": 6, "y": 0, "w": 6, "h": 30},
+        "area:lobby": {"x": 0, "y": 0, "w": 4, "h": 14},
+        "area:office": {"x": 0, "y": 0, "w": 4, "h": 14, "title": "המשרד"},
+    }}
+    assert _put(c, "building", "main", "desktop", 0, layout).status_code == 200
+    bind(c, s, "flo", "viewer", "floor", ids["floor2"])
+    r = c.get(f"{URL}/building/main", headers=as_user("flo"))
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body["desktop"]["layout"]["items"]) == {"floor:second", "area:office"}
+    assert body["narrowed"] is True and body["desktop"]["updated_by"] is None
+    text = r.text
+    for leak in ("lobby", "ground", "סודית"):
+        assert leak not in text, leak
+    # their own area: the record; any other area: nothing
+    assert _put(c, "area", "office", "desktop", 0, {"v": 1, "cols": 12, "items": {"card:lighting": {"x": 0, "y": 0, "w": 12, "h": 10}}}).status_code == 200
+    assert c.get(f"{URL}/area/office", headers=as_user("flo")).json()["desktop"]["layout"]["cols"] == 12
+    assert _put(c, "area", "lobby", "desktop", 0, {"v": 1, "cols": 12, "items": {"card:lighting": {"x": 0, "y": 0, "w": 12, "h": 10, "title": "לובי"}}}).status_code == 200
+    assert c.get(f"{URL}/area/lobby", headers=as_user("flo")).json()["desktop"] is None
+    # installation-wide callers get it whole
+    assert set(c.get(f"{URL}/building/main").json()["desktop"]["layout"]["items"]) == set(layout["items"])
+
+
+def test_layouts_of_areas_gone_from_home_assistant_are_pruned(dev_app):  # noqa: F811
+    """Review nit 8: a layout row of an HA area that no longer exists goes on the next read - never while the HA
+    structure is unknown."""
+    app, _ = dev_app
+    c = TestClient(app)
+    one = {"v": 1, "cols": 12, "items": {"card:lighting": {"x": 0, "y": 0, "w": 12, "h": 10}}}
+    for area in ("empty_room", "lobby"):
+        assert _put(c, "area", area, "desktop", 0, one).status_code == 200
+    with app.state.db.connection() as conn:
+        ha_sync.apply_structure(conn, [a for a in AREAS if a["area_id"] != "empty_room"], FLOORS)
+    c.get(f"{URL}/area/lobby")
+    with app.state.db.connection() as conn:
+        left = {r[0] for r in conn.execute("SELECT DISTINCT scope_id FROM device_layouts").fetchall()}
+    assert left == {"lobby"}
