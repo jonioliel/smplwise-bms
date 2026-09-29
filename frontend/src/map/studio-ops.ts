@@ -938,12 +938,19 @@ export function moveConnectorVertex(doc: GeometryDoc, id: string, index: number,
   return { ...doc, connectors: doc.connectors.map((c) => (c.id === id && !c.object_id ? placed({ ...c, polyline: c.polyline.map((q, i) => (i === index ? clampPt(p) : q)) }) : c)) };
 }
 
-const placed = (c: GeomConnector): GeomConnector => {
-  if (!c.needs_placement) return c;
-  const { needs_placement: _drop, ...rest } = c;
-  void _drop;
+/** A twin moved (or its place confirmed) is placed: no "מקם" / "ודא את המיקום" hint any more. */
+export const placed = (c: GeomConnector): GeomConnector => {
+  if (!c.needs_placement && !c.check_placement) return c;
+  const { needs_placement: _a, check_placement: _b, ...rest } = c;
+  void _a;
+  void _b;
   return rest;
 };
+
+/** "אישור מיקום": the person confirms the twin stands where it should. */
+export function confirmPlacement(doc: GeometryDoc, id: string): GeometryDoc {
+  return { ...doc, connectors: doc.connectors.map((c) => (c.id === id ? placed(c) : c)) };
+}
 
 /** The whole connector moved by (dx, dy) in normalized plan space, kept inside the plan (the shift is cut so no corner
  * leaves it); a twin waiting for placement is placed. Only this floor's copy moves: the twin on the other floor keeps

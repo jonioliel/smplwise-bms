@@ -517,6 +517,8 @@ def link_issues(conn: sqlite3.Connection, floor_id: str, doc: dict[str, Any], ct
             warn(cid, "connector_twin_missing", "בקומה השנייה אין את המחבר התאום; קשר אותו מחדש או מחק אותו.")
         if c.get("needs_placement"):
             warn(cid, "connector_placement", "מקם את המדרגות בקומה הזו: הן נוצרו במרכז התוכנית כי לשתי הקומות אין מסגרת משותפת.")
+        elif c.get("check_placement"):
+            warn(cid, "connector_check_placement", "ודא את המיקום של המדרגות בקומה הזו: הצורה שלהן עודכנה מהקומה השנייה.")
     return out
 
 
@@ -652,6 +654,7 @@ def apply_twin_model(twin: dict[str, Any], src: dict[str, Any], tdoc: dict[str, 
         landing = float(out.get("landing_depth_m") or width_m)
         out["polyline"] = stair_path(shape, (x0, y0), ((x1 - x0) * w, (y1 - y0) * h), width_m, [n * going for n in steps], landing,
                                      out.get("turn") if out.get("turn") in ("left", "right") else "right", w, h, scale)
+        out["check_placement"] = True  # owner 2026-09-29: "ודא את המיקום" on the twin's floor until moved or confirmed
     return out
 
 

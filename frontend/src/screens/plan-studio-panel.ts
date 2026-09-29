@@ -1187,6 +1187,8 @@ export interface ConnectorActions {
   rotate(id: string): void;
   /** The floor's height, floor to floor (owner 2026-09-29): what stairs to another floor rise through. */
   setFloorHeight(m: number): void;
+  /** "אישור מיקום" of a twin whose place is to be checked or chosen. */
+  confirmPlacement(id: string): void;
 }
 
 /** A connector end's level name for the connector list and inspector. Callers show a cross-floor link themselves
@@ -1332,6 +1334,8 @@ function renderConnectorInspector(c: GeomConnector, v: ConnectorView, a: Connect
       ? html`<div class="note" data-conn-twin-note>מקושר אל ${target}: אותו מחבר מופיע בטיוטה של שתי הקומות. הזזה כאן לא מזיזה את המדרגות בקומה השנייה, ולהפך.</div>`
       : nothing}
     ${c.needs_placement ? html`<div class="note warn" data-conn-placement>מקם את המדרגות בקומה הזו: הן נוצרו במרכז התוכנית כי לשתי הקומות אין מסגרת משותפת. גרור אותן למקומן.</div>` : nothing}
+    ${!c.needs_placement && c.check_placement ? html`<div class="note warn" data-conn-check-placement>ודא את המיקום: צורת המדרגות עודכנה מהקומה השנייה והמסלול נבנה מחדש מנקודת ההתחלה שלהן כאן.</div>` : nothing}
+    ${c.needs_placement || c.check_placement ? html`<div class="btns"><sw-button size="sm" data-conn-confirm-place @click=${() => a.confirmPlacement(c.id)}>אישור מיקום</sw-button></div>` : nothing}
     ${stairs ? renderStairModel(c, a, num) : nothing}
     <sw-field label="תווית (אופציונלי; ריק = הפרש הגובה או הקומה)"><input type="text" maxlength="80" data-conn-label ?disabled=${derived} .value=${c.label ?? ''} @change=${(e: Event) => a.patch(c.id, { label: (e.target as HTMLInputElement).value.trim() || null })} /></sw-field>
     <div class="note" data-conn-route>${levelName(c.level_from)} ← ${target}${derived ? '' : ' · גרירת פינה מזיזה פינה, גרירת המחבר הנבחר מזיזה את כולו'}</div>

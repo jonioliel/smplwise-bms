@@ -450,6 +450,7 @@ def _check_fields(coll: str, i: int, item: dict[str, Any], issues: list[dict[str
         opt("far", lambda v: isinstance(v, dict))
         opt("needs_placement", lambda v: isinstance(v, bool))
         opt("origin_floor_id", lambda v: isinstance(v, str))
+        opt("check_placement", lambda v: isinstance(v, bool))
     elif coll == "circuits":
         req("name", isinstance(item.get("name"), str))
         req("switch_entity_id", isinstance(item.get("switch_entity_id"), str))

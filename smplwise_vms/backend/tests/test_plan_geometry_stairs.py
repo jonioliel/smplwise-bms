@@ -312,6 +312,13 @@ def test_a_stairs_model_change_reaches_the_twin_walked_back_from_its_own_start(s
     assert twin["polyline"][2][0] > 0.5, "turning left walked down from the top is the same side as the original right turn"
     with app.state.db.connection() as conn:
         assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'geometry.connector.twin_sync'").fetchone()[0] == 1
+    # owner 2026-09-29: the regenerated twin asks "ודא את המיקום" (a warning, never blocking) until moved or confirmed
+    assert twin["check_placement"] is True
+    d3 = _draft(c, v3)
+    assert [(i["code"], i["severity"]) for i in d3["issues"]] == [("connector_check_placement", "warning")]
+    assert c.post(f"/api/v1/plan-versions/{v3}/geometry/publish").status_code == 200
+    confirmed = _save(c, v3, connectors=[{k: v for k, v in x.items() if k != "check_placement"} for x in d3["doc"]["connectors"]])  # "אישור מיקום"
+    assert confirmed["issues"] == [] and "check_placement" not in _conn(c, v3)
     # a move alone does not touch the twin
     rev = _draft(c, v3)["geometry"]["revision"]
     _save(c, v2, connectors=[dict(x, polyline=[[q[0] + 0.01, q[1]] for q in x["polyline"]]) for x in _draft(c, v2)["doc"]["connectors"]])

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { buildScene, LANDING_PLATE_M } from '../src/map/scene-builder';
 import { connectorLabel, crossFloorLabel, rebuildStair, stairCaption, stairPath, stairPlan, stairRise, turnOf, type GeomConnector, type GeometryDoc, type GeomLevel, type Pt } from '../src/map/geometry';
 import { connectorTargets, currentTarget, floorLinks, otherFloorOf, parseTarget, targetValue, type LinkTargetFloor } from '../src/map/connector-targets';
-import { addStair, levelUsage, moveConnector, moveConnectorVertex, rotateConnector, STAIR_ALIASES } from '../src/map/studio-ops';
+import { addStair, confirmPlacement, levelUsage, moveConnector, moveConnectorVertex, rotateConnector, STAIR_ALIASES } from '../src/map/studio-ops';
 
 // Stairs between floors and stairs with a landing (T085, owner 2026-09-29): the U / L / straight walking line generated
 // from a start, a direction, a width, the flights and the landing; the plan drawing (flights with a line per riser, the
@@ -139,6 +139,12 @@ test.describe('stairs model (T085)', () => {
     expect(turnOf(turned.polyline)).toBe(turnOf(c.polyline));
     expect(Math.abs(turned.polyline[1][1] - turned.polyline[0][1])).toBeLessThan(1e-4); // the first flight now runs sideways
     expect(levelUsage(d1, 'L1')).toBe(0);
+    // "ודא את המיקום" after a sync: cleared by "אישור מיקום" or by moving the twin (owner 2026-09-29)
+    const synced = { ...r.doc, connectors: [{ ...c, check_placement: true }] };
+    expect(confirmPlacement(synced, c.id).connectors[0].check_placement).toBeUndefined();
+    expect(moveConnector(synced, c.id, 0.01, 0).connectors[0].check_placement).toBeUndefined();
+    expect(moveConnectorVertex(synced, c.id, 1, [0.5, 0.5]).connectors[0].check_placement).toBeUndefined();
+    expect(confirmPlacement(synced, 'other').connectors[0].check_placement).toBe(true);
   });
 
   test('3D: each flight rises step by step, the landing is a plate at the first flight\'s top, the second flight goes on to the target', () => {
