@@ -1,4 +1,4 @@
-Source: docs/changes/CR-008-ARX-REMOTE-APP.md @ 388228e8f15837547013a706967352f9c79397c6
+Source: docs/changes/CR-008-ARX-REMOTE-APP.md @ dd84221ce02a6117b5bd8b43df6309688f6c9002
 
 > תרגום של `docs/changes/CR-008-ARX-REMOTE-APP.md`; המקור באנגלית קובע במקרה של סתירה.
 
@@ -418,3 +418,21 @@ D11-D14 לא משנות את D1 (נתיב `/arx`, אותו מקור) או את D
 בדיקות backend ‏(`tests/test_remote_access.py`, ליבת HA מדומה `tests/fake_ha_core.py`) ו-8 הרצות Playwright
 ‏(`tests/evidence-arx-remote.spec.ts` מחשב + טלפון מול `tests/fixtures/arx_fake_ha.py`). בדיקת הבעלים: תת-קבוצת AT185
 של §4 באתר המעבדה.
+
+### 8.1 צעד 6 נבנה (ענף `pilot/CR008-video-policy`, ‏2026-09-29)
+
+- **מדיניות הנגן** (`frontend/src/api/video-policy.ts`, `sw-live-player`): בערוץ המרוחק (`/me.channel`) כל נגן חי
+  עובר על סולם - `remote.default_profile` ב-WebRTC; אחר כך `remote.mse_fallback` מופעל ← אותו פרופיל ב-MSE, כבוי ←
+  הפרופיל השני ב-WebRTC ולבסוף ההודעה "הזרם הראשי אינו ניתן לפענוח ב-WebRTC - ראה הגדרות › וידאו". שלב WebRTC נכשל
+  כשהוא לא מתחבר או לא מציג פריים תוך 12 שניות; זרם שהרישום מסמן כלא-בטוח ל-WebRTC מדולג. תג `main·WebRTC` /
+  `sub·WebRTC` / `main·MSE`, והנפילות מוכרזות על התמונה. אריחי הקיר והמפה שומרים על הפרופיל שלהם. LAN / Ingress ללא
+  שינוי (אין הגדרה `video.lan_profile`; לא נוספה).
+- **בדיקת קידוד** (סטייה מ"מידע הזרם של go2rtc" ב-§3c): נקרא מה-NVR במקום - `GET /ISAPI/Streaming/channels` (קריאה
+  בלבד) בזמן הגילוי, נשמר לכל מצלמה ב-`capabilities_json.encoding` (codec, פרופיל, SVC, smart codec, B-frames היכן
+  שנחשף, הכרעה ok / no / unknown). בדיקת המעבדה מ-2026-09-14 מסבירה את עובדת המעבדה של D7: כל זרם ראשי הוא H.264
+  עם **SVC מופעל**, כל זרם משני H.264 בלי SVC - ולכן H.264 + SVC נחשב לא-בטוח ל-WebRTC לצד H.265, MJPEG ו-B-frames.
+  הקושחה במעבדה לא חושפת שדה B-frames. מוצג בהגדרות › גישה מרחוק (שורת סיכום ← פירוט בבריאות), בכרטיס `video_webrtc`
+  בדוח הבריאות (מזהיר רק כש-`remote_access` מופעל והזרם הראשי קודם), ביכולות המצלמה, בשלב ה-NVR באשף ההתקנה (הנחיה
+  בעברית; עם דגם Hikvision - נתיב תפריט הווב של ה-NVR, טרם אומת על NVR המעבדה), וב-`/health.video_codecs` (ספירות).
+- בדיקות: `tests/test_stream_codecs.py` ‏(backend), `tests/evidence-remote-video.spec.ts` ‏(Playwright, מחשב, מול
+  `tests/fixtures/setup_fake_devices.py`; ה-WebRTC / MSE של הדפדפן מדומים שם - מדיה אמיתית היא בדיקת המעבדה).
