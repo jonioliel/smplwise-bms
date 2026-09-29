@@ -1,13 +1,13 @@
 # Project status — generated view
 
-Generated: 2026-09-29T16:01:08.452466+00:00
+Generated: 2026-09-29T18:18:17.630251+00:00
 
-Tasks: 92 | Requirements: 186 | Tests: 186 | Screens: 32
+Tasks: 93 | Requirements: 189 | Tests: 189 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 ## Status counts
-- BACKLOG: 86
+- BACKLOG: 87
 - BLOCKED: 2
 - DONE: 2
 - IN_PROGRESS: 1
@@ -17,7 +17,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 17
+- V1: 18
 - V2: 12
 
 ## Blockers
@@ -119,3 +119,4 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T090](tasks/T090.md) | V2 | BACKLOG | סטודיו התוכנית 8 — BIM / IFC | T085, T088 |
 | [T091](tasks/T091.md) | V1 | BACKLOG | תיעוד בעברית ומדריך למשתמש מלא עם צילומי מסך אמיתיים | T025, T054, T087 |
 | [T092](tasks/T092.md) | V1 | BACKLOG | Arx remote access (CR-008) — /arx, התחברות HA במסך שלנו, PWA ואפליקציה | T011 |
+| [T093](tasks/T093.md) | V1 | BACKLOG | ׳—׳׳ ׳׳©׳•׳×׳£ ׳׳©׳×׳™ ׳§׳•׳׳•׳× (CR-009) ג€” ׳׳•׳׳ ׳‘׳’׳•׳‘׳” ׳›׳₪׳•׳, ׳©׳׳ ׳‘׳›׳ ׳§׳•׳׳” | T085 |
