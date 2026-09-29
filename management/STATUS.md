@@ -1,13 +1,13 @@
 # Project status — generated view
 
-Generated: 2026-09-29T21:25:01.013784+00:00
+Generated: 2026-09-29T21:33:19.112300+00:00
 
-Tasks: 93 | Requirements: 189 | Tests: 189 | Screens: 32
+Tasks: 95 | Requirements: 195 | Tests: 195 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 ## Status counts
-- BACKLOG: 86
+- BACKLOG: 88
 - BLOCKED: 2
 - DONE: 2
 - IN_PROGRESS: 1
@@ -18,7 +18,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 18
+- V1: 20
 - V2: 12
 
 ## Blockers
@@ -121,3 +121,5 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T091](tasks/T091.md) | V1 | BACKLOG | תיעוד בעברית ומדריך למשתמש מלא עם צילומי מסך אמיתיים | T025, T054, T087 |
 | [T092](tasks/T092.md) | V1 | BACKLOG | Arx remote access (CR-008) — /arx, התחברות HA במסך שלנו, PWA ואפליקציה | T011 |
 | [T093](tasks/T093.md) | V1 | REVIEW | אבטחה: לייב | חקירה | אזעקה — אזעקה מתשתית המערכת (CR-010) | — |
+| [T095](tasks/T095.md) | V1 | BACKLOG | גורם אימות שני ל-Arx (CR-011) — מדיניות כניסה, step-up לפעולות רגישות, passkeys | T092 |
+| [T096](tasks/T096.md) | V1 | BACKLOG | התראות באפליקציית Android (CR-012) — השכמת FCM דרך ממסר, חלופת UnifiedPush | T092 |
