@@ -20,6 +20,7 @@ import '../screens/wiskey-people';
 import '../screens/wiskey-embed';
 import '../screens/devices-building';
 import '../screens/devices-area';
+import '../screens/security-alarm';
 import '../screens/live-overview';
 import '../screens/live-wall';
 import '../screens/live-camera';
@@ -49,7 +50,7 @@ import { onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
-import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, visibleAreas, visibleGroups, demoRedirect, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS } from './nav';
+import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, visibleAreas, visibleGroups, demoRedirect, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections } from './nav';
 import { bidi } from '../i18n/bidi';
 import { currentDesign, onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
@@ -717,8 +718,8 @@ export class SwApp extends LitElement {
       padding: 14px 30px 0;
     }
     :host([data-design='a']) nav.bottom {
-      /* 0.1.103: WisKey made this 5 areas (was 4); CR-007 made it 6 (חשמל). visibleAreas() renders unsliced here
-         (unlike design B's fixed 4 + overflow), so the grid follows the item count or the last item wraps/clips. */
+      /* 0.1.103: WisKey made this 5 areas (was 4); CR-007 made it 6 (חשמל); CR-010 folded לייב and חקירה into אבטחה (5).
+         visibleAreas() renders unsliced here (unlike design B's fixed 4 + overflow), so the grid follows the item count. */
       grid-auto-flow: column;
       grid-auto-columns: 1fr;
       grid-template-columns: none;
@@ -726,6 +727,60 @@ export class SwApp extends LitElement {
     :host([data-design='a']) nav.bottom a {
       font-size: 9px;
       padding-inline: 2px;
+    }
+    /* CR-010: the security area's sections as a segmented control in the top bar (every width); the search gives it room */
+    header.has-sections .search.a {
+      inline-size: min(360px, 26vw);
+      margin-inline-start: 4px;
+    }
+    @media (max-width: 767px) {
+      header.has-sections sw-badge {
+        display: none;
+      }
+    }
+    nav.sections {
+      display: inline-flex;
+      flex: none;
+      gap: 2px;
+      padding: 3px;
+      background: var(--sw-surface-3);
+      border-radius: 12px;
+    }
+    nav.sections a {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-block-size: 34px;
+      box-sizing: border-box;
+      padding: 0 14px;
+      border-radius: 9px;
+      color: var(--sw-text-2);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: var(--sw-fw-medium);
+      white-space: nowrap;
+    }
+    nav.sections a:hover {
+      color: var(--sw-text);
+    }
+    nav.sections a.on {
+      background: var(--sw-surface);
+      color: var(--sw-accent-text);
+      font-weight: var(--sw-fw-semibold);
+      box-shadow: var(--sw-shadow-1);
+    }
+    nav.sections a:focus-visible {
+      outline: 2px solid var(--sw-focus);
+      outline-offset: 1px;
+    }
+    @media (max-width: 767px) {
+      nav.sections sw-icon {
+        display: none;
+      }
+      nav.sections a {
+        padding: 0 11px;
+        font-size: 12.5px;
+      }
     }
     @media (max-width: 1279px) {
       .crumbs-a {
@@ -826,6 +881,9 @@ export class SwApp extends LitElement {
       // embed mirroring the panel's own moves into the address (replaced)
       if (!replaced) this.moreOpen = false;
       if (this.redirectDemo(route)) return;
+      // CR-010: the security section in use, so #/security (the rail entry) reopens it
+      const section = sectionOf(route);
+      if (section) rememberSection(section);
       this.toggleAttribute('data-kiosk', route.segments[0] === 'kiosk');
       // embed=1 (Lovelace card iframe, T056): no chrome for the rest of the session, whatever the in-app navigation does
       if (route.params.get('embed') === '1') {
@@ -972,9 +1030,15 @@ export class SwApp extends LitElement {
     this.searchTimer = window.setTimeout(() => void this.runSearch(q), 180);
   }
 
+  /** CR-010: the app's own screens matching the query (the security sections), shown before the server's results. */
+  private pageHits(q: string): SearchResult[] {
+    return pageTargets(q, isApi(), canNav).map((p) => ({ kind: 'page' as const, id: p.href, title: p.label, subtitle: p.subtitle, route: p.href.replace(/^#/, '') }));
+  }
+
   private async runSearch(q: string) {
     if (!isApi()) {
-      this.searchResults = [];
+      this.searchResults = this.pageHits(q);
+      this.searchIndex = this.searchResults.length ? 0 : -1;
       this.searchOpen = true;
       return;
     }
@@ -983,12 +1047,12 @@ export class SwApp extends LitElement {
     try {
       const r = await apiSearch(q, 6);
       if (seq !== this.searchSeq) return;
-      this.searchResults = r.results;
+      this.searchResults = [...this.pageHits(q), ...r.results];
       this.searchIndex = r.results.length ? 0 : -1;
       this.searchOpen = true;
     } catch {
       if (seq === this.searchSeq) {
-        this.searchResults = [];
+        this.searchResults = this.pageHits(q);
         this.searchOpen = true;
       }
     } finally {
@@ -1069,7 +1133,7 @@ export class SwApp extends LitElement {
       <label class="search ${designA ? 'a' : ''}"><sw-icon name="search" size=${designA ? 16 : 14}></sw-icon><input type="search" placeholder=${designA ? 'חיפוש חדרים, מצלמות, קומות וישויות…' : t('app.search')} aria-label=${t('app.search')} autocomplete="off" role="combobox" aria-expanded=${open} aria-controls="search-results" .value=${this.searchQ} @input=${this.onSearchInput} @keydown=${this.onSearchKey} @focus=${() => { if (this.searchResults.length) this.searchOpen = true; }} @blur=${() => setTimeout(() => this.closeSearch(), 150)} />${designA ? html`<kbd>⌘ K</kbd>` : nothing}</label>
       ${open
         ? html`<div class="results" id="search-results" role="listbox" aria-label="תוצאות חיפוש">
-            ${!isApi()
+            ${!isApi() && !this.searchResults.length
               ? html`<div class="empty">החיפוש עובד מול השרת (במצב הדגמה אין נתונים).</div>`
               : this.searchBusy && !this.searchResults.length
                 ? html`<div class="empty">מחפש…</div>`
@@ -1088,7 +1152,7 @@ export class SwApp extends LitElement {
       return html`<div class="gate"><sw-state-panel state="forbidden" heading="נדרשת כניסה למערכת" hint=${s.error ?? ''}></sw-state-panel></div>`;
     }
     if (s.mode === 'no_access') {
-      return html`<div class="gate"><sw-state-panel state="forbidden" heading="אין לך עדיין תפקיד במערכת" hint="המשתמש ${s.me?.user.display_name || s.me?.user.username || ''} מזוהה במערכת, אך מנהל ה־VMS טרם שייך לו תפקיד והיקף. פנה למנהל המערכת."></sw-state-panel></div>${this.renderPermToast()}`;
+      return html`<div class="gate"><sw-state-panel state="forbidden" heading="אין לך עדיין תפקיד במערכת" hint="המשתמש ${s.me?.user.display_name || s.me?.user.username || ''} מזוהה במערכת, אך מנהל המערכת טרם שייך לו תפקיד והיקף. פנה למנהל המערכת."></sw-state-panel></div>${this.renderPermToast()}`;
     }
     return null;
   }
@@ -1177,6 +1241,14 @@ export class SwApp extends LitElement {
         if (w.screen === 'people') return html`<wiskey-people></wiskey-people>`;
         return html`<wiskey-overview></wiskey-overview>`;
       }
+      case 'security': {
+        // CR-010: אבטחה › אזעקה; #/security itself opens the section this browser used last (לייב by default)
+        if (s[1] === 'alarm') return html`<security-alarm .panelId=${r.params.get('panel') ?? ''}></security-alarm>`;
+        if (this.session.mode === 'loading') return html`<sw-state-panel state="loading"></sw-state-panel>`;
+        const target = securityTarget(this.session.mode === 'api', canNav);
+        queueMicrotask(() => window.location.replace(target));
+        return html`<sw-state-panel state="loading"></sw-state-panel>`;
+      }
       case 'devices':
         // CR-007 slice 1: the read-only electricity / device control area - the building tree and one area's cards.
         if (s[1] === 'areas' && s[2]) return html`<devices-area .areaId=${decodeURIComponent(s[2])}></devices-area>`;
@@ -1201,13 +1273,17 @@ export class SwApp extends LitElement {
   private renderNvrLess() {
     if (this.embedded()) return html`<explore-floor-map .floorId=${'f0'} .screenState=${'ready'}></explore-floor-map>`;
     return html`<sw-page heading="מצב ללא NVR"><sw-state-panel data-nvr-less state="empty" heading="האזור הזה דורש NVR"
-      hint="ההתקנה פועלת במצב ללא NVR (תשתית המערכת בלבד): לייב, מצלמות, אירועים, הקלטות, תיקים וייצוא אינם זמינים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password בהגדרות SMPLWISE VMS בתשתית המערכת והפעילו מחדש - הנתונים נשארים כמו שהם."
+      hint="ההתקנה פועלת במצב ללא NVR (תשתית המערכת בלבד): לייב, מצלמות, אירועים, הקלטות, תיקים וייצוא אינם זמינים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password בהגדרות SmplWise Arx בתשתית המערכת והפעילו מחדש - הנתונים נשארים כמו שהם."
       actionLabel="לחיבורים" @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
   }
 
   private renderA() {
     const area = areaOf(this.route);
-    const tabs = area ? visibleTabs(AREA_TABS[area], this.session.mode === 'api', canNav) : [];
+    const api = this.session.mode === 'api';
+    // CR-010: in the security area the tab row shows the current SECTION's pages; the sections themselves are the
+    // segmented control in the top bar (renderSections)
+    const section = area === 'security' ? sectionOf(this.route) : null;
+    const tabs = section ? visibleTabs(SECTION_TABS[section], api, canNav) : area && area !== 'security' ? visibleTabs(AREA_TABS[area], api, canNav) : [];
     const editor = this.route?.segments[3] === 'edit' || this.route?.segments[3] === 'import';
     const crumbs = crumbsOf(this.route, this.session.mode === 'api');
     const me = this.session.me;
@@ -1224,8 +1300,9 @@ export class SwApp extends LitElement {
         ${this.gated ? nothing : html`<a class=${classMap({ item: true, a: true, small: true, active: this.route?.segments[0] === 'screens' })} href="#/screens" title="כל המסכים"><sw-icon name="list" size=${16}></sw-icon><span>מסכים</span></a>`}
         <div class="secure"><sw-icon name="shield" size=${18}></sw-icon><span>מקומי ומאובטח</span></div>
       </nav>
-      <header class="topbar">
+      <header class=${classMap({ topbar: true, "has-sections": area === 'security' && !this.gated })}>
         <div class="crumbs-a">${crumbs.map((c, i) => html`${i ? html`<sw-icon name="chevron" size=${12}></sw-icon>` : nothing}<span class=${i === 0 ? 'strong' : ''}>${bidi(c)}</span>`)}</div>
+        ${area === 'security' && !this.gated ? this.renderSections(section) : nothing}
         ${this.renderSearch(true)}
         <span class="spacer"></span>
         ${this.session.mode === 'api' || this.session.mode === 'no_access'
@@ -1234,7 +1311,7 @@ export class SwApp extends LitElement {
             ? html`<sw-badge kind="neutral" label="נתוני הדגמה"></sw-badge>`
             : nothing}
         <sw-button class="bell" variant="ghost" size="sm" iconOnly icon="bell" label=${t('app.notifications')}></sw-button>${this.renderArxSignOut()}
-        <span class="user-a"><sw-profile-menu .name=${name} .size=${34} .role=${me?.bindings[0]?.role_name ?? ''} .api=${this.session.mode === 'api'}></sw-profile-menu><span class="who-a"><b>${name}</b><span>${me?.bindings[0]?.role_name ?? (this.session.mode === 'demo' ? 'מנהל VMS' : 'ללא שיוך')}</span></span></span>
+        <span class="user-a"><sw-profile-menu .name=${name} .size=${34} .role=${me?.bindings[0]?.role_name ?? ''} .api=${this.session.mode === 'api'}></sw-profile-menu><span class="who-a"><b>${name}</b><span>${me?.bindings[0]?.role_name ?? (this.session.mode === 'demo' ? 'מנהל מערכת' : 'ללא שיוך')}</span></span></span>
         <span class="logo-a"><b>smplwise</b><small>Arx</small></span>
       </header>
       ${this.renderSysBanner()}
@@ -1248,6 +1325,16 @@ export class SwApp extends LitElement {
         ${visibleAreas(this.session.mode === 'api', canNav).map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href}><sw-icon .name=${n.icon} size=${20}></sw-icon>${n.label}</a>`)}
       </nav>
     `;
+  }
+
+  /** CR-010: the security area's sections (לייב | חקירה | אזעקה) as a segmented control in the top bar - on every width,
+   * the phone included, so the three levels stay apart: area (rail / bottom bar), section (here), page (the tab row). */
+  private renderSections(active: ReturnType<typeof sectionOf>) {
+    const sections = visibleSections(this.session.mode === 'api', canNav);
+    if (sections.length < 2) return nothing;
+    return html`<nav class="sections" aria-label="אבטחה" data-security-sections>${sections.map(
+      (s) => html`<a href=${s.href} class=${classMap({ on: s.id === active })} aria-current=${s.id === active ? 'page' : 'false'} data-section=${s.id}><sw-icon .name=${s.icon} size=${15}></sw-icon><span>${s.label}</span></a>`,
+    )}</nav>`;
   }
 
   private embedded(route = this.route): boolean {
@@ -1313,8 +1400,9 @@ export class SwApp extends LitElement {
    * settings, a genuine list of the remaining groups the phone has no direct icon slot for. */
   private renderBottomB(group: ReturnType<typeof groupOf>) {
     const all = visibleGroups(this.session.mode === 'api', canNav);
-    const shown = all.slice(0, 4);
-    const overflow = all.slice(4);
+    // five slots: five groups fit as they are (the NVR-less mode with the alarm, CR-010); more share four + "עוד"
+    const shown = all.length <= 5 ? all : all.slice(0, 4);
+    const overflow = all.length <= 5 ? [] : all.slice(4);
     const moreActive = overflow.some((n) => n.id === group);
     // five slots (four groups + "עוד") in the full product; the NVR-less mode has only four groups, which fill the bar
     const slots = shown.length + (overflow.length ? 1 : 0);

@@ -32,7 +32,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
-from ..db import Database, get_setting, now_iso, unlocked
+from ..db import Database, commit_now, get_setting, now_iso, rollback_and_restart, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import device_bulk as bulk
@@ -103,6 +103,16 @@ def area(area_id: str, principal: Principal = Depends(current_principal_ro), con
     body = svc.build_area(conn, entities, area_id, scoped=scoped, control_of=control_of)
     if body is None:
         raise ApiError(404, "not_found", "האזור לא נמצא.")
+    # CR-010 review B1: what the alarm section owns (the panel, a zone's bypass control) is listed read-only here
+    from ..services import alarm as alarm_svc
+
+    managed = alarm_svc.managed_controls(conn)
+    for card in body["cards"].values():
+        for r in card.get("entities", []):
+            r["alarm_managed"] = r["entity_id"] in managed
+            if r["alarm_managed"]:
+                r["can_control"] = False
+                r["managed_label"] = alarm_svc.MANAGED_LABEL
     flags = _bulk_flags(conn, principal)
     body["can_bulk"] = area_id != svc.UNASSIGNED and (flags["all"] or area_id in flags["areas"])
     # review round 1: whether each switch may enter a bulk action (a lighting circuit's switch, or marked bulk-safe
@@ -160,6 +170,12 @@ def items(
     for f in body["floors"]:
         for a in f["areas"]:
             for r in a["items"]:
+                # CR-010: what the alarm section owns is listed read-only here too, and never counted by the master control
+                r["alarm_managed"] = r["entity_id"] in policy.alarm_managed
+                if r["alarm_managed"]:
+                    r["can_control"] = False
+                    if kind == "locks":
+                        r["can_unlock"] = False
                 reason = policy.excluded_reason(r)
                 r["bulk_excluded"] = reason
                 if r["domain"] == "switch":
@@ -171,7 +187,7 @@ def items(
         for f in body["floors"]:
             for a in f["areas"]:
                 for r in a["items"]:
-                    r["can_unlock"] = bool(r["can_control"]) and ha_scope.entity_visible(wide, floors, placed, r["entity_id"])
+                    r["can_unlock"] = bool(r["can_control"]) and not r.get("alarm_managed") and ha_scope.entity_visible(wide, floors, placed, r["entity_id"])
     body["sync"] = ha_sync.STATE.as_dict()
     return body
 
@@ -216,6 +232,12 @@ def set_bulk_safe(entity_id: str, body: BulkSafeBody, request: Request, principa
         raise ApiError(404, "not_found", "הישות לא נמצאה בקטלוג.")
     if row["domain"] != "switch":
         raise ApiError(422, "validation", "רק מתג (switch) מסומן כבטוח לכיבוי מרוכז; שאר הסוגים נקבעים לפי הכללים.")
+    from ..services import alarm as alarm_svc
+
+    if body.bulk_safe and alarm_svc.is_managed_control(conn, entity_id):  # CR-010 review B1
+        audit(conn, actor=principal, action="devices.bulk_safe", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="alarm_managed",
+              request_id=getattr(request.state, "correlation_id", None), details={"bulk_safe": True})
+        raise ApiError(409, "alarm_managed", "מתג עקיפה של חיישן אזעקה נשלט ממסך האזעקה ולעולם לא נכלל בפעולה מרוכזת.")
     bulk.set_bulk_safe(conn, principal, entity_id, body.bulk_safe)
     audit(conn, actor=principal, action="devices.bulk_safe", decision="allowed", resource_type="ha_entity", resource_id=entity_id,
           request_id=getattr(request.state, "correlation_id", None), details={"bulk_safe": body.bulk_safe})
@@ -271,7 +293,7 @@ def assign_area(entity_id: str, request: Request, principal: Principal = Depends
         raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן.")
     secret = ha_bridge.signing_key(conn)
     if not secret or not get_setting(conn, "bridge.paired_at"):
-        raise ApiError(503, "bridge_not_paired", "שיוך אזור דורש את גשר SMPLWISE מותקן ומצומד.")
+        raise ApiError(503, "bridge_not_paired", "שיוך אזור דורש את הגשר מותקן ומצומד.")
     bridge_rid = uuid.uuid4().hex[:12]
     payload = ha_bridge.sign(secret, {"user_id": principal.user_id, "entity_id": entity_id, "area_id": body.area_id, "request_id": bridge_rid})
     # two-phase: the attempt row is committed (by unlocked) before Home Assistant is asked, so an area change is never
@@ -460,7 +482,7 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder), con
         raise act.refuse(ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן."))
     secret = ha_bridge.signing_key(conn)
     if not secret or not get_setting(conn, "bridge.paired_at"):
-        raise act.refuse(ApiError(503, "bridge_not_paired", "פעולות אלו דורשות את גשר SMPLWISE מותקן ומצומד."))
+        raise act.refuse(ApiError(503, "bridge_not_paired", "פעולות אלו דורשות את הגשר מותקן ומצומד."))
     bulk_id = uuid.uuid4().hex[:12]
     blocking = bulk.RUNNER.reserve(bulk.scope_key(body.scope, body.id), bulk_id, {t["entity_id"] for t in plan["targets"]})
     if blocking:
@@ -470,14 +492,12 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder), con
         try:
             bulk.record(conn, principal, bulk_id, plan, body.client_request_id, not_after)
         except ApiError as exc:  # never keep half a record: drop what was written, refuse, send nothing
-            conn.execute("ROLLBACK")
-            conn.execute("BEGIN IMMEDIATE")
+            rollback_and_restart(conn)
             raise act.refuse(exc) from None
         audit(conn, actor=principal, action=bulk.AUDIT_ACTION, decision="allowed", resource_type=act.resource_type, resource_id=act.resource_id, request_id=act.rid,
               details={**act.details, "phase": "attempt", "bulk_id": bulk_id, "scope_name": plan["name"], "entity_count": plan["count"], "by_domain": plan["by_domain"],
                        "entity_ids": [t["entity_id"] for t in plan["targets"]], "skipped": plan["skipped"], "excluded": [x["entity_id"] for x in plan["excluded"]]})
-        conn.execute("COMMIT")  # the attempt row and the queued records exist before the first call - or nothing is sent
-        conn.execute("BEGIN")  # deferred: nothing more is written on this connection
+        commit_now(conn)  # the attempt row and the queued records exist before the first call - or nothing is sent; nothing more is written here
         db: Database = request.app.state.db
         targets = plan["targets"]
         bulk.RUNNER.start(bulk_id, lambda: bulk.run(db, settings, principal, bulk_id, targets, secret, not_after, act.rid))
@@ -501,7 +521,6 @@ def bulk_status(bulk_id: str, request: Request, principal: Principal = Depends(c
         # its worker is gone (the add-on restarted mid-bulk): record what was never sent, read the rest once more
         db: Database = request.app.state.db
         bulk.settle_orphan(db, bulk_id)
-        conn.execute("COMMIT")
-        conn.execute("BEGIN")
+        commit_now(conn)  # a fresh read snapshot
         b = bulk.load(conn, bulk_id)
     return b

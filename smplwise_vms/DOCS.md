@@ -34,6 +34,9 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      `https://<your HA hostname>/arx` opens the product with its own sign-in page (your Home Assistant username and
      password) through a Cloudflare tunnel path route. Off by default; while off, `/arx` answers 404 even if a tunnel
      route exists. See "Remote access (SmplWise Arx)" below and `docs/operations/ARX_CLOUDFLARE_GUIDE_HE.md`.
+   - `db_write_gate` (default `true`) — database writes wait in one queue, in arrival order, instead of retrying on
+     their own (the fix for the "database is locked" storm of test round 10). Leave it on; turn it off only when
+     support asks, to compare. `/health` → `db.write_lock` shows `write_gate`, the queue (`gate`) and the waits.
    - WisKey (the `hikvision_intercom` integration) is reached through the add-on's own Home Assistant user (the
      Long-Lived Access Token in `ha_token`). WisKey authorizes that user by its own areas: viewing the WisKey tab
      needs the `overview`, `users` and `events` areas at `view`; **editing people from SMPLWISE (the person editor,
@@ -156,7 +159,7 @@ Design note: `docs/operations/NVR_LESS_MODE.md`.
   "foreign" and never touched.
 - Camera tiles show a fresh NVR snapshot (read-only ISAPI picture, cached in /data for
   `snapshots.max_age_s`) until the stream plays.
-- Session cap (`media.max_live_sessions`, default 8) protects the NVR; the wall and the kiosk use sub
+- Session cap (`media.max_live_sessions`, default 16, was 8; a saved value is kept) protects the NVR; the wall and the kiosk use sub
   streams, the single-camera view the main stream. Tiles beyond the cap show the snapshot only.
 
 ## Recordings and playback
@@ -719,9 +722,9 @@ Supervisor network.
   quick views: "כניסות מרחוק" (every `auth.remote_*` row) and "סירובים מרחוק" (every refusal on the remote channel:
   `remote_not_allowed`, `csrf_refused`, the rate limits, a revoked sign-in, the live-stream cap). API: `GET audit`
   with `channel=local|remote|bearer` and `view=remote_sign_ins|remote_refusals`.
-- **Live streams per sign-in.** `remote.max_live_streams` (default 4, 1-32): the next live start of the same remote
+- **Live streams per sign-in.** `remote.max_live_streams` (default 16, 1-32; 4 before the 11-camera wall hotfix - a value an administrator saved is kept): the next live start of the same remote
   sign-in is refused - `GET media/live/{id}` answers 429 `remote_live_cap` with a Hebrew message, the live socket
-  sends the message and closes 4429. `media.max_live_sessions` still caps the whole installation. `/health` (system
+  sends the message (with `max`) and closes 4429; the player shows it as a cap (no retry, no ladder), the wall shows the tiles beyond the cap as snapshots and streams only the tiles in view. `remote.wall_profile` (sub / main) is the wall's stream on the remote channel; each device can switch it on the wall. `media.max_live_sessions` still caps the whole installation. `/health` (system
   administrators) shows `remote`: sessions by kind, sign-ins, users, sockets, remote live streams and the cap.
 - **Content-Security-Policy.** The enforced policy is unchanged (`script-src 'self'`, no inline script). A stricter one
   - no inline `<style>` elements (`style-src-elem 'self'`; inline style attributes stay allowed for Lit) - is sent as
@@ -932,3 +935,55 @@ Quiet hours need two different times (`from == to` is refused); a window that cr
 `arx-sw.js`; the new worker deletes the previous release's cache when it takes over (after "רענון" on the update notice).
 Hashed build files are served cache-first; fonts, icons, brand images and the manifest network-first (the cache is only
 the offline fallback).
+
+## Security area and the intrusion alarm (CR-010)
+
+**Navigation.** Design A's rail and phone bar are אבטחה · מפה · חשמל · WisKey · מערכת. "אבטחה" (security) holds three
+sections - לייב (live), חקירה (investigation) and אזעקה (the alarm) - shown as a segmented control in the top bar; each
+section's own pages stay the tab row under it. Every old address still works (`#/live/...`, `#/investigate/...`,
+`#/system/devices`, the Lovelace card views, the kiosk); the alarm is `#/security/alarm`, and `#/security` opens the
+section the browser used last. Design B adds a flat "אזעקה" entry. The alarm section needs `alarm.view`.
+
+**What the alarm shows.** Every `alarm_control_panel` entity is a panel: its state, the arm modes it reports
+(`supported_features`), whether it needs a code (`code_format`, `code_arm_required`) and who changed it last. Its zones
+are the `binary_sensor` entities of the same integration and config entry (auxiliary tamper / battery / "alarmed" /
+"armed" sensors attach to their zone), each with its bypass control when one is found: the same device, then an exact
+integration key (Risco: the system and zone number of the unique id - the owner's system, never paired by name), then
+the entity or unique id with the property words removed, the name, the zone number. Visonic's bypass is a select
+(`bypass` / `armed`); Alarmo reports the sensors it watches while they are open or bypassed, and others are assigned
+by hand. Unpaired bypass switches are listed ("ללא שיוך"). הגדרות › מערכת › אזעקה shows every panel, its integration and
+the pairing table with manual overrides (pair, no bypass, assign to one partition, exclude).
+
+**Control.** Arm (`alarm.arm`: operator, site_admin, system_admin), disarm (`alarm.disarm`: site_admin, system_admin;
+sensitive), bypass a zone (`alarm.bypass`: site_admin, system_admin; sensitive) through the bridge like every entity
+action, audited with actor, panel / zone, outcome and channel. Disarm and bypass ask for a confirmation; arming does not.
+Trigger is never offered. Scope: installation-wide holders see every panel, a floor binding the panels placed on its
+floors. The bridge must be 0.2.6 (restart Home Assistant once after the update) for arm_night, arm_vacation,
+arm_custom_bypass and the "code refused" answer.
+
+**Codes (owner decisions 2026-09-29).** An administrator stores each panel's code once (הגדרות › מערכת › אזעקה,
+`system.configure`); it is encrypted (AES-256-GCM) with a key in `/data/keys/alarm-codes.key` (mode 0600) and is never
+shown again, logged, audited or returned. Per user (משתמשים והרשאות › user): arming and disarming each either "ללא קוד"
+(Arx sends the stored code) or "חייב קוד" (default). What a "חייב קוד" user types is `alarm.code_mode`: a personal Arx
+PIN (default; `alarm.pin_min_length` digits - 6 by default, 4-8 - up to 8, stored only as a salted scrypt hash) or the
+panel's own code (compared with the stored one). The first PIN is set by an administrator in משתמשים והרשאות (or by the
+user after typing a stored panel code correctly); changing it needs the current one; an administrator's own policy
+and PIN are changed by another administrator or with their current PIN. Without a stored code the panel's code is
+typed and passed through each time. Wrong codes: 5 in 5 minutes lock code entry for 10 minutes - per user for a PIN,
+per user and panel for a panel code; the lock survives a restart. The panel and every bypass control are operated
+only from the alarm section: map cards, the devices screens and bulk actions show them read-only ("נשלט ממסך
+האזעקה"), and a zone shared by two partitions is visible and bypassable only for someone who holds both. There is no
+key rotation, and renaming a panel's entity id requires entering its code again.
+
+**Remote channel (`/arx`).** `alarm.remote_control` (default on) and `alarm.remote_disarm` (default on; off = from
+outside only arming and restoring a bypassed zone). `alarm.remote_codeless` (default ON, owner decision): "ללא קוד" users
+arm and disarm without a code from outside too. The biometric lock exists only in the Android app, and only when
+switched on there; a browser or installed-PWA session has none - turn the setting off to make every remote action ask
+for a code. Every remote alarm action is audited with `channel: remote`.
+
+**Backups and who can read the codes.** An Arx project backup contains no alarm code, PIN hash or key. A Home
+Assistant backup of the add-on (`backup: hot`, the whole `/data`) contains the database and the key file together, so
+whoever holds it can decrypt the panel codes - the same policy as the VAPID and signing keys: keep those backups
+private, and after a leak change the code at the panel and store it again. Anyone with shell access to the Home
+Assistant host can read `/data`. Home Assistant sees the panel code in the service call, as it does for its own alarm
+card. Threat model: docs/changes/CR-010-SECURITY-ALARM.md §5a.

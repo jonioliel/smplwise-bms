@@ -213,10 +213,16 @@ class SwitchPolicy:
         self.door_layer = _door_layer_entities(conn)
         self.circuits = set(geometry_store.circuit_switches(conn))
         self.marked = {r[0] for r in conn.execute("SELECT entity_id FROM device_bulk_safe").fetchall()}
+        from . import alarm as alarm_svc
+
+        self.alarm_managed = alarm_svc.managed_controls(conn)  # CR-010 review B1: a zone's bypass control, never in bulk
 
     def switch_reason(self, entity_id: str) -> tuple[bool, str]:
-        """(included, reason) for a switch: doors_layer (never), marked (the only way in), circuit_not_marked (a
-        lighting circuit's switch - the mark is suggested, never implied) or switch_not_marked."""
+        """(included, reason) for a switch: alarm_managed (never - it bypasses an alarm zone), doors_layer (never), marked
+        (the only way in), circuit_not_marked (a lighting circuit's switch - the mark is suggested, never implied) or
+        switch_not_marked."""
+        if entity_id in self.alarm_managed:
+            return False, "alarm_managed"
         if entity_id in self.door_layer:
             return False, "doors_layer"
         if entity_id in self.marked:
@@ -226,9 +232,8 @@ class SwitchPolicy:
         return False, "switch_not_marked"
 
     def excluded_reason(self, e: dict[str, Any]) -> str | None:
-        # seam for the alarm screen's own devices (another branch sets `alarm_managed` on the entity rows): an entity the
-        # alarm screen manages is never part of a devices bulk action. Absent = not managed.
-        if e.get("alarm_managed"):
+        # CR-010: an alarm zone's bypass control (computed once per request), or a row that says so itself
+        if e["entity_id"] in self.alarm_managed or e.get("alarm_managed"):
             return "alarm_managed"
         if e["domain"] in ("cover", "switch") and e["entity_id"] in self.door_layer:
             return "doors_layer"
@@ -241,12 +246,12 @@ class SwitchPolicy:
 
 
 EXCLUDED_LABELS = {
+    "alarm_managed": "נשלט ממסך האזעקה - מתג עקיפה של חיישן אזעקה לעולם לא בפעולה מרוכזת",
     "door_cover": "דלת / שער / חניה - תנועה של מעבר אינה נכללת בפעולה מרוכזת",
     "doors_layer": "הוצב במפה בשכבת הדלתות - לעולם לא בפעולה מרוכזת",
     "switch_not_marked": "לא סומן כבטוח לכיבוי קבוצתי",
     "circuit_not_marked": "לא סומן כבטוח לכיבוי קבוצתי (מפסק של מעגל תאורה - מומלץ לסמן כבטוח)",
     "no_position": "התריס אינו מדווח מיקום ואינו תומך בקביעת מיקום",
-    "alarm_managed": "נשלט ממסך האזעקה",
 }
 # re-review: the same reasons in words that fit a kind that turns something ON (the "off" wording would be false)
 EXCLUDED_LABELS_ON = {
@@ -267,6 +272,9 @@ def bulk_scope(conn: Any, principal: Principal) -> tuple[bool, Any, Any]:
     does AND its domain is one a bulk action may ever reach."""
     wide, floors = ha_scope.visible_floors(conn, principal, PERMISSION)
     placed = ha_scope.placements(conn) if floors and not wide else {}
+    from . import alarm as alarm_svc
+
+    managed = alarm_svc.managed_controls(conn)  # CR-010 review B1
 
     def in_scope(entity_id: str) -> bool:
         return ha_scope.entity_visible(wide, floors, placed, entity_id)
@@ -276,7 +284,8 @@ def bulk_scope(conn: Any, principal: Principal) -> tuple[bool, Any, Any]:
         # single-entity route in the slice-4 review): a bulk request's own SwitchPolicy.excluded_reason already
         # excludes those, honestly, with a reason the dialog states - a second, silent exclusion here would hide them
         # from "excluded" instead.
-        return entity_id.split(".", 1)[0] in ha_scope.DEVICES_CONTROL_DOMAINS and in_scope(entity_id)
+        # CR-010 review B1: what the alarm section owns (a zone's bypass switch) is never reached from here either
+        return entity_id.split(".", 1)[0] in ha_scope.DEVICES_CONTROL_DOMAINS and entity_id not in managed and in_scope(entity_id)
 
     return wide, in_scope, permitted
 
@@ -362,6 +371,10 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
             # action listing the alarm and the locks as "not included" reads as if they could have been)
             if kind == "all_off":
                 never[domain] = never.get(domain, 0) + 1
+            continue
+        if e["entity_id"] in policy.alarm_managed and domain in actions:
+            # CR-010 review B1: named in the dialog as excluded (permitted() also refuses it, for every other caller)
+            excluded.append({"entity_id": e["entity_id"], "name": _name(e), "domain": domain, "reason": "alarm_managed", "reason_label": EXCLUDED_LABELS["alarm_managed"]})
             continue
         if not permitted(e["entity_id"]):
             continue

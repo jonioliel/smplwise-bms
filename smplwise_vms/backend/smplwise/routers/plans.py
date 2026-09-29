@@ -174,63 +174,72 @@ def _page_png(settings: Settings, asset: sqlite3.Row, page: int, max_px: int) ->
 # ---------- upload ----------
 
 @router.post("/floors/{floor_id}/plan-assets", status_code=201)
-async def upload_asset(floor_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def upload_asset(floor_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     settings = settings_of(request)
     get_floor(conn, floor_id)
     require(conn, principal, "map.import", ("floor", floor_id))
 
-    head = await file.read(1024)
-    mime = plan_render.sniff_mime(head)
-    if mime == "image/svg+xml":
-        raise ApiError(415, "unsupported_format", "SVG אינו נתמך עד שיוטמע sanitization; ייצא PDF או PNG.")
-    if mime not in plan_render.SUPPORTED:
-        raise ApiError(415, "unsupported_format", "הקובץ אינו PDF, PNG או JPG (הזיהוי לפי התוכן, לא לפי הסיומת).")
+    # the upload is read, decoded and rendered (a DXF or a large image takes seconds) without the write lock. A sync
+    # handler on purpose: it runs in the threadpool, so taking the lock back after the render (unlocked()'s exit, which
+    # may queue behind other writers) never blocks the event loop; the multipart body is already spooled to file.file
+    with unlocked(conn):
+        head = file.file.read(1024)
+        mime = plan_render.sniff_mime(head)
+        if mime == "image/svg+xml":
+            raise ApiError(415, "unsupported_format", "SVG אינו נתמך עד שיוטמע sanitization; ייצא PDF או PNG.")
+        if mime not in plan_render.SUPPORTED:
+            raise ApiError(415, "unsupported_format", "הקובץ אינו PDF, PNG או JPG (הזיהוי לפי התוכן, לא לפי הסיומת).")
 
-    asset_id = new_id()
-    folder = _asset_dir(settings, asset_id)
-    folder.mkdir(parents=True, exist_ok=True)
-    dest = folder / f"source{plan_render.SUPPORTED[mime]}"
-    size = 0
+        asset_id = new_id()
+        folder = _asset_dir(settings, asset_id)
+        folder.mkdir(parents=True, exist_ok=True)
+        dest = folder / f"source{plan_render.SUPPORTED[mime]}"
+        size = 0
+        try:
+            with dest.open("wb") as out:
+                out.write(head)
+                size = len(head)
+                while True:
+                    chunk = file.file.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    size += len(chunk)
+                    if size > settings.max_upload_bytes:
+                        raise ApiError(413, "payload_too_large", f"הקובץ גדול מ־{settings.max_upload_bytes // (1024 * 1024)} MB.")
+                    out.write(chunk)
+            page_count = 1
+            if mime == "application/pdf":
+                try:
+                    page_count = plan_render.pdf_page_count(dest)
+                except Exception as exc:  # noqa: BLE001 - poppler / pypdf refuse the file: the upload is the problem
+                    raise ApiError(422, "corrupt_pdf", "ה־PDF לא ניתן לקריאה.", details={"error": type(exc).__name__})
+                if page_count < 1 or page_count > settings.max_pdf_pages:
+                    raise ApiError(422, "too_many_pages", f"ה־PDF חייב להכיל 1–{settings.max_pdf_pages} עמודים.", details={"pages": page_count})
+            elif mime == "image/vnd.dxf":
+                try:
+                    info = plan_dxf.inspect(dest)
+                    if info.drawable == 0:
+                        raise plan_dxf.DxfError("dxf_empty", "nothing drawable", {"unsupported": info.unsupported})
+                    result = plan_dxf.render(dest, folder / f"page-1-{settings.preview_px}.png", settings.preview_px)
+                except plan_dxf.DxfError as exc:
+                    raise ApiError(422, exc.code, {"corrupt_dxf": "קובץ ה־DXF לא ניתן לקריאה.", "dxf_empty": "ב־DXF אין גאומטריה שניתן לצייר (קווים, פוליליינים, מעגלים, קשתות, בלוקים).", "dxf_too_large": "ה־DXF גדול מדי."}.get(exc.code, "ה־DXF נדחה."), details=exc.details)
+                plan_dxf.save_options(folder, {"layers": None, "units": None, "info": info.to_dict(), "render": result.to_dict()})
+            else:
+                plan_render.normalize_image(dest, folder / f"page-1-{settings.preview_px}.png", settings.preview_px)
+        except ApiError:
+            shutil.rmtree(folder, ignore_errors=True)
+            raise
+        except Exception as exc:  # corrupt file, decoder error
+            shutil.rmtree(folder, ignore_errors=True)
+            raise ApiError(422, "decode_failed", "לא ניתן לקרוא את הקובץ.", details={"error": type(exc).__name__}) from exc
+
+        sha = plan_render.sha256_of(dest)
+        name = (file.filename or "plan")[:200]
     try:
-        with dest.open("wb") as out:
-            out.write(head)
-            size = len(head)
-            while True:
-                chunk = await file.read(1024 * 1024)
-                if not chunk:
-                    break
-                size += len(chunk)
-                if size > settings.max_upload_bytes:
-                    raise ApiError(413, "payload_too_large", f"הקובץ גדול מ־{settings.max_upload_bytes // (1024 * 1024)} MB.")
-                out.write(chunk)
-        page_count = 1
-        if mime == "application/pdf":
-            try:
-                page_count = plan_render.pdf_page_count(dest)
-            except Exception as exc:  # noqa: BLE001 - poppler / pypdf refuse the file: the upload is the problem
-                raise ApiError(422, "corrupt_pdf", "ה־PDF לא ניתן לקריאה.", details={"error": type(exc).__name__})
-            if page_count < 1 or page_count > settings.max_pdf_pages:
-                raise ApiError(422, "too_many_pages", f"ה־PDF חייב להכיל 1–{settings.max_pdf_pages} עמודים.", details={"pages": page_count})
-        elif mime == "image/vnd.dxf":
-            try:
-                info = plan_dxf.inspect(dest)
-                if info.drawable == 0:
-                    raise plan_dxf.DxfError("dxf_empty", "nothing drawable", {"unsupported": info.unsupported})
-                result = plan_dxf.render(dest, folder / f"page-1-{settings.preview_px}.png", settings.preview_px)
-            except plan_dxf.DxfError as exc:
-                raise ApiError(422, exc.code, {"corrupt_dxf": "קובץ ה־DXF לא ניתן לקריאה.", "dxf_empty": "ב־DXF אין גאומטריה שניתן לצייר (קווים, פוליליינים, מעגלים, קשתות, בלוקים).", "dxf_too_large": "ה־DXF גדול מדי."}.get(exc.code, "ה־DXF נדחה."), details=exc.details)
-            plan_dxf.save_options(folder, {"layers": None, "units": None, "info": info.to_dict(), "render": result.to_dict()})
-        else:
-            plan_render.normalize_image(dest, folder / f"page-1-{settings.preview_px}.png", settings.preview_px)
+        get_floor(conn, floor_id)  # still there after the render
     except ApiError:
         shutil.rmtree(folder, ignore_errors=True)
         raise
-    except Exception as exc:  # corrupt file, decoder error
-        shutil.rmtree(folder, ignore_errors=True)
-        raise ApiError(422, "decode_failed", "לא ניתן לקרוא את הקובץ.", details={"error": type(exc).__name__}) from exc
-
-    sha = plan_render.sha256_of(dest)
-    name = (file.filename or "plan")[:200]
     conn.execute(
         "INSERT INTO plan_assets(id, floor_id, original_name, mime, sha256, bytes, page_count, storage_path, uploaded_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (asset_id, floor_id, name, mime, sha, size, page_count, str(dest.relative_to(settings.data_dir).as_posix()), principal.user_id, now_iso()),
@@ -532,7 +541,7 @@ def patch_version(version_id: str, body: RenderModeIn, request: Request, princip
     v = get_version(conn, version_id)
     require(conn, principal, "map.import", ("floor", v["floor_id"]))
     if body.render_mode == "stylized" and not _has_stylized(v):
-        raise conflict("stylized_missing", "הרץ קודם את העיבוד לשפת SMPLWISE.")
+        raise conflict("stylized_missing", "הרץ קודם את העיבוד לשפת Arx.")
     conn.execute("UPDATE plan_versions SET render_mode = ? WHERE id = ?", (body.render_mode, version_id))
     audit(conn, actor=principal, action="plan.render_mode", decision="allowed", resource_type="plan_version", resource_id=version_id, request_id=_rid(request), details={"render_mode": body.render_mode})
     return version_row(get_version(conn, version_id))

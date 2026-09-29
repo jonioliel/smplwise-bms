@@ -584,6 +584,232 @@ def test_csrf_bearer_only_requests_are_exempt(arx):
     assert r.status_code not in (401, 403), r.text
 
 
+def test_bearer_validation_runs_without_the_write_lock(arx, monkeypatch):
+    """SW_DB_IO_GUARD finding (2026-09-29): a write-mode remote request validated its bearer token against Home
+    Assistant (a WebSocket round trip) while holding the request's write lock."""
+    import sqlite3
+
+    arx.flag("u-owner")
+    arx.bind("u-owner", "system_admin")
+    token = arx.token(arx.owner)
+    real_validate = hua.validate_token
+    free: list[bool] = []
+
+    async def validate(settings, tok, ip):
+        probe = sqlite3.connect(arx.app.state.db.path, timeout=0, isolation_level=None)
+        try:
+            probe.execute("BEGIN IMMEDIATE")
+            probe.execute("ROLLBACK")
+            free.append(True)
+        except sqlite3.OperationalError:
+            free.append(False)
+        finally:
+            probe.close()
+        return await real_validate(settings, tok, ip)
+
+    monkeypatch.setattr(hua, "validate_token", validate)
+    r = _rotate_signing_key(TestClient(arx.app), Authorization=f"Bearer {token}")
+    assert r.status_code not in (401, 403, 500), r.text
+    assert free == [True]
+
+
+class _LockWatch:
+    """Records, for one remote request at a time, every write-lock turn given up (auth.unlocked), every HA validation
+    and every refusal / sign-in audit - each with whether the request's write gate was held at that moment - plus the
+    I/O guard's findings (tests/db_io_guard.py)."""
+
+    def __init__(self, arx, monkeypatch) -> None:
+        import db_io_guard
+        from smplwise import auth as auth_mod
+        from smplwise import db as db_mod
+
+        self.arx, self.turns, self.ha, self.audits = arx, [], [], []
+        monkeypatch.setattr(db_mod, "BUSY_TIMEOUT_S", 1.0)  # a write under the lock would fail fast, not hang 10 s
+        gate = arx.app.state.db.gate
+        real_unlocked, real_validate, real_audit = auth_mod.unlocked, hua.validate_token, hua._audit
+
+        def unlocked(conn):
+            self.turns.append("unlocked")
+            return real_unlocked(conn)
+
+        async def validate(settings, tok, ip):
+            self.ha.append(gate.state()["held"])
+            return await real_validate(settings, tok, ip)
+
+        def audit(db, **kw):
+            self.audits.append((kw.get("action"), gate.state()["held"]))
+            return real_audit(db, **kw)
+
+        monkeypatch.setattr(auth_mod, "unlocked", unlocked)
+        monkeypatch.setattr(hua, "validate_token", validate)
+        monkeypatch.setattr(hua, "_audit", audit)
+        self._guard = db_io_guard
+        db_io_guard.FINDINGS.items.clear()
+        mp = pytest.MonkeyPatch()
+        db_io_guard.install(mp.setattr)
+        self._mp = mp
+
+    def reset(self) -> None:
+        self.turns.clear()
+        self.ha.clear()
+        self.audits.clear()
+
+    def assert_nothing_under_the_lock(self) -> None:
+        assert True not in self.ha, "Home Assistant was asked while the request held the write gate"
+        assert all(not held for _, held in self.audits), f"an audit row was written under the gate: {self.audits}"
+        found = self._guard.FINDINGS.report()
+        assert found == [], found
+
+    def close(self) -> None:
+        self._mp.undo()
+        self._guard.FINDINGS.items.clear()
+
+
+@pytest.fixture()
+def watch(arx, monkeypatch):
+    w = _LockWatch(arx, monkeypatch)
+    yield w
+    w.close()
+
+
+def _bearer_session_of(token: str):
+    sid = hua.STORE._by_token.get(hua.token_hash(token))
+    return hua.STORE._sessions.get(sid) if sid else None
+
+
+def test_only_an_unvalidated_bearer_gives_up_the_write_lock(arx, watch):
+    """A cookie session or a cached bearer answers from memory - no turn in the write queue; anything that asks HA or
+    writes a row does so after giving the lock up. Revoked chains and expired sessions on both paths included."""
+    arx.flag("u-owner")
+    arx.bind("u-owner", "system_admin")
+    token = arx.token(arx.owner)
+    bearer = TestClient(arx.app)
+    assert _rotate_signing_key(bearer, Authorization=f"Bearer {token}").status_code not in (401, 403, 500)
+    assert watch.turns == ["unlocked"] and watch.ha == [False]  # first sight: validated against HA without the lock
+    watch.reset()
+    assert _rotate_signing_key(bearer, Authorization=f"Bearer {token}").status_code not in (401, 403, 500)
+    assert watch.turns == [] and watch.ha == []  # cached: no turn, no HA
+    assert arx.login(arx.owner).status_code == 200
+    watch.reset()
+    r = _rotate_signing_key(arx.client, **ORIGIN)
+    assert r.status_code not in (401, 403, 500), r.text
+    assert watch.turns == []  # the cookie session answers from memory
+
+    # a stale cookie session is re-checked against HA before the request - without the lock
+    cookie_sessions = [s for s in hua.STORE._sessions.values() if s.via == "cookie"]
+    for s in cookie_sessions:
+        s.last_validated -= 10 * 3600
+        s.recheck_after = 0.0
+    watch.reset()
+    r = _rotate_signing_key(arx.client, **ORIGIN)
+    assert r.status_code not in (403, 500), r.text
+    assert watch.turns == ["unlocked"] and watch.ha == [False]
+
+    # an expired cookie session: dropped from memory, refused at once - nothing to ask, nothing written, no turn
+    for s in [s for s in hua.STORE._sessions.values() if s.via == "cookie"]:
+        s.token_exp = time.time() - 1
+    watch.reset()
+    assert _rotate_signing_key(arx.client, **ORIGIN).status_code == 401
+    assert watch.turns == [] and watch.ha == []
+
+    # a revoked cookie chain: the revoke dropped the session - refused from memory, no turn
+    assert arx.login(arx.owner).status_code == 200
+    s = next(x for x in hua.STORE._sessions.values() if x.via == "cookie")
+    hua.STORE.revoke_sign_ins({s.iss_hash}, [s])
+    watch.reset()
+    assert _rotate_signing_key(arx.client, **ORIGIN).status_code == 401
+    assert watch.turns == [] and watch.ha == []
+
+    # an expired bearer session: dropped; the token itself is still valid at HA - validated again without the lock
+    b = _bearer_session_of(token)
+    assert b is not None
+    b.token_exp = time.time() - 1
+    watch.reset()
+    assert _rotate_signing_key(bearer, Authorization=f"Bearer {token}").status_code not in (401, 403, 500)
+    assert watch.turns == ["unlocked"] and watch.ha == [False]
+
+    # a revoked bearer chain: the session is dropped; the next request asks HA and is refused - and its refusal row is
+    # written (after giving the lock up), not lost
+    b = _bearer_session_of(token)
+    hua.STORE.revoke_sign_ins({b.iss_hash}, [b])
+    watch.reset()
+    r = _rotate_signing_key(bearer, Authorization=f"Bearer {token}")
+    assert r.status_code == 401 and r.json()["code"] == "remote_session_revoked", r.text
+    assert watch.turns == ["unlocked"]
+    assert ("auth.remote_session.rejected", False) in watch.audits
+    assert any(row["reason"] == "remote_session_revoked" for row in arx.audit("auth.remote_session.rejected"))
+    watch.assert_nothing_under_the_lock()
+
+
+def _jump_clock_after_the_first_lookup(monkeypatch, seconds: float) -> None:
+    """The clock crosses a threshold right after the request's first look at the session store - the gap in which the
+    old two-step check (peek, then resolve) could decide "from memory" and then ask HA under the lock."""
+    real_get, real_time = hua.STORE.get, time.time
+    state = {"jumped": False}
+
+    def get(sid):
+        out = real_get(sid)
+        state["jumped"] = True
+        return out
+
+    monkeypatch.setattr(hua.STORE, "get", get)
+    monkeypatch.setattr(hua.time, "time", lambda: real_time() + (seconds if state["jumped"] else 0.0))
+
+
+def test_a_cookie_session_turning_stale_mid_request_asks_ha_without_the_lock(arx, watch, monkeypatch):
+    arx.flag("u-owner")
+    arx.bind("u-owner", "system_admin")
+    assert arx.login(arx.owner).status_code == 200
+    s = next(x for x in hua.STORE._sessions.values() if x.via == "cookie")
+    s.last_validated = time.time() - hua.STALE_AFTER_S + 0.5  # fresh at the first look, stale right after it
+    s.recheck_after = 0.0
+    _jump_clock_after_the_first_lookup(monkeypatch, 5.0)
+    watch.reset()
+    r = _rotate_signing_key(arx.client, **ORIGIN)
+    assert r.status_code not in (403, 500), r.text
+    assert watch.ha in ([], [False])  # asked (without the lock) or answered from memory - never under the lock
+    watch.assert_nothing_under_the_lock()
+
+
+def test_a_bearer_session_crossing_the_cache_window_mid_request_asks_ha_without_the_lock(arx, watch, monkeypatch):
+    arx.flag("u-owner")
+    arx.bind("u-owner", "system_admin")
+    token = arx.token(arx.owner)
+    bearer = TestClient(arx.app)
+    assert _rotate_signing_key(bearer, Authorization=f"Bearer {token}").status_code not in (401, 403, 500)
+    b = _bearer_session_of(token)
+    b.last_validated = time.time() - hua.BEARER_CACHE_S + 0.5
+    _jump_clock_after_the_first_lookup(monkeypatch, 5.0)
+    watch.reset()
+    assert _rotate_signing_key(bearer, Authorization=f"Bearer {token}").status_code not in (401, 403, 500)
+    assert watch.ha == [False] and watch.turns == ["unlocked"]
+    watch.assert_nothing_under_the_lock()
+
+
+def test_a_bearer_session_revoked_mid_request_is_refused_without_the_lock(arx, watch, monkeypatch):
+    arx.flag("u-owner")
+    arx.bind("u-owner", "system_admin")
+    token = arx.token(arx.owner)
+    bearer = TestClient(arx.app)
+    assert _rotate_signing_key(bearer, Authorization=f"Bearer {token}").status_code not in (401, 403, 500)
+    real_get_bearer = hua.STORE.get_bearer
+
+    def revoked_meanwhile(key):
+        b = _bearer_session_of(token)
+        if b is not None:  # the administrator's revoke lands between the request's lookups
+            hua.STORE.revoke_sign_ins({b.iss_hash}, [b])
+        return real_get_bearer(key)
+
+    monkeypatch.setattr(hua.STORE, "get_bearer", revoked_meanwhile)
+    watch.reset()
+    r = _rotate_signing_key(bearer, Authorization=f"Bearer {token}")
+    assert r.status_code == 401 and r.json()["code"] == "remote_session_revoked", r.text
+    assert watch.turns == ["unlocked"] and watch.ha == [False]
+    assert ("auth.remote_session.rejected", False) in watch.audits
+    assert any(row["reason"] == "remote_session_revoked" for row in arx.audit("auth.remote_session.rejected"))
+    watch.assert_nothing_under_the_lock()
+
+
 def test_rotation_ends_the_previous_session(arx):
     arx.flag("u-viewer")
     assert arx.login(arx.viewer).status_code == 200

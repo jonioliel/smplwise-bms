@@ -19,6 +19,7 @@ const SCREENS: { sc: string; route: string; full?: boolean }[] = [
   { sc: 'sc06-plan-editor', route: '/explore/floors/f0/edit' },
   { sc: 'sc10-entities', route: '/explore/entities' },
   { sc: 'sc23-access', route: '/wiskey/overview' },
+  { sc: 'sc34-alarm', route: '/security/alarm', full: true }, // CR-010: אבטחה › אזעקה
   { sc: 'sc12-playback', route: '/investigate/playback', full: true },
   { sc: 'sc13-sync', route: '/investigate/playback/sync', full: true },
   { sc: 'sc11-history-map', route: '/investigate/floors/f0/history' },

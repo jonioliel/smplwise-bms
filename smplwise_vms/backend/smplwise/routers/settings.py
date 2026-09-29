@@ -22,7 +22,7 @@ DEFAULTS: dict[str, str] = {
     # auto | webrtc | mse. MSE by default (owner decision 2026-09-14): it works through Ingress, Cloudflare
     # and behind CGNAT; WebRTC/auto are selectable in Settings once UDP to the go2rtc host is possible.
     "media.transport_default": "mse",
-    "media.max_live_sessions": "8",
+    "media.max_live_sessions": "16",
     "media.wall_profile": "sub",  # sub | main — profile used by the camera wall
     "snapshots.max_age_s": "60",
     # IANA zone of the site/NVR wall clock (chapter 20). The lab NVR reports windowsZone "Israel Standard Time".
@@ -102,10 +102,24 @@ DEFAULTS: dict[str, str] = {
     "remote.require_mfa_admin": "false",  # D8 (owner 2026-09-29: MFA optional): true refuses admin-permission users without HA MFA remotely
     # CR-008 P2 (hardening): live streams one remote sign-in (a browser / a bearer client) may hold open at once - the
     # next start answers 429; the installation-wide media.max_live_sessions still applies on top
-    "remote.max_live_streams": "4",
+    "remote.max_live_streams": "16",  # default 16 (was 4: an 11-camera wall could not play); a value an administrator saved is never overridden
+    "remote.wall_profile": "sub",  # sub | main: the stream the camera wall plays on the remote channel (LAN / Ingress keep media.wall_profile)
     # CR-008 P2: false = the stricter CSP (remote_channel.CSP_STRICT) is report-only next to the enforced one; true = it is
     # the enforced policy. Switched on by the owner after reviewing the reports (הגדרות › גישה מרחוק).
     "remote.csp_enforce": "false",
+    # CR-010 (אבטחה › אזעקה, owner request 2026-09-29): alarm control over the remote channel (/arx). remote_control off
+    # refuses every alarm action from outside; remote_disarm off refuses only what lowers protection from outside -
+    # disarming a panel and bypassing a zone. Inside the local network (Ingress) neither applies. Holders of the
+    # permission still need it: these only take rights away.
+    "alarm.remote_control": "true",
+    "alarm.remote_disarm": "true",
+    # CR-010 code policy (owner decisions 2026-09-29): which code a user whose policy is code_required types - personal_pin
+    # (their own Arx PIN, a salted hash; the panel code is never revealed) or panel_code (the panel's code, compared with
+    # the stored one). remote_codeless: a no_code user arms / disarms without a code from outside too (default on, owner
+    # answer 2026-09-29 21:50 - he relies on the Android app's biometric lock); off = from outside everyone types a code.
+    "alarm.code_mode": "personal_pin",
+    "alarm.remote_codeless": "true",
+    "alarm.pin_min_length": "6",  # personal PIN length: 6-8 digits by default (security review L8); 4-8 allowed
 }
 
 # CR-007 6a/6b: the registered device-screen palettes - keep in step with DEVICE_THEMES in
@@ -175,10 +189,16 @@ class SettingsPatch(BaseModel):
     remote_session: str | None = Field(default=None, pattern="^(rolling_90d|browser_session|rolling_90d_idle_lock)$", alias="remote.session")
     remote_idle_lock_minutes: int | None = Field(default=None, ge=5, le=10080, alias="remote.idle_lock_minutes")
     remote_default_profile: str | None = Field(default=None, pattern="^(main|sub)$", alias="remote.default_profile")
+    remote_wall_profile: str | None = Field(default=None, pattern="^(main|sub)$", alias="remote.wall_profile")
     remote_mse_fallback: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.mse_fallback")
     remote_require_mfa_admin: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.require_mfa_admin")
     remote_max_live_streams: int | None = Field(default=None, ge=1, le=32, alias="remote.max_live_streams")
     remote_csp_enforce: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.csp_enforce")
+    alarm_remote_control: str | None = Field(default=None, pattern="^(true|false)$", alias="alarm.remote_control")
+    alarm_remote_disarm: str | None = Field(default=None, pattern="^(true|false)$", alias="alarm.remote_disarm")
+    alarm_code_mode: str | None = Field(default=None, pattern="^(personal_pin|panel_code)$", alias="alarm.code_mode")
+    alarm_remote_codeless: str | None = Field(default=None, pattern="^(true|false)$", alias="alarm.remote_codeless")
+    alarm_pin_min_length: str | None = Field(default=None, pattern="^[4-8]$", alias="alarm.pin_min_length")
 
     model_config = {"populate_by_name": True}
 

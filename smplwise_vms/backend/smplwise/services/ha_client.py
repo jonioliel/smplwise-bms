@@ -94,7 +94,7 @@ def call_bridge_execute(settings: Settings, payload: dict[str, Any], timeout: fl
     except httpx.HTTPError as exc:
         raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
     if r.status_code == 400 and "not found" in r.text.lower():
-        raise ApiError(503, "bridge_not_installed", "גשר SMPLWISE אינו מותקן.", details={"status": r.status_code})
+        raise ApiError(503, "bridge_not_installed", "הגשר אינו מותקן.", details={"status": r.status_code})
     if r.status_code in (401, 403):
         raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הקריאה.", details={"status": r.status_code})
     if r.status_code >= 400:
@@ -119,7 +119,7 @@ def call_bridge_set_area(settings: Settings, payload: dict[str, Any], timeout: f
     except httpx.HTTPError as exc:
         raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
     if r.status_code == 400 and "not found" in r.text.lower():
-        raise ApiError(503, "bridge_not_installed", "גשר SMPLWISE אינו מותקן (או ישן מדי לתמוך בשיוך אזור).", details={"status": r.status_code})
+        raise ApiError(503, "bridge_not_installed", "הגשר אינו מותקן (או ישן מדי לתמוך בשיוך אזור).", details={"status": r.status_code})
     if r.status_code in (401, 403):
         raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הקריאה.", details={"status": r.status_code})
     if r.status_code >= 400:
@@ -210,6 +210,9 @@ def registry_maps(entities: list[dict[str, Any]], devices: list[dict[str, Any]],
             "registry_id": e.get("id"),
             "unique_id": e.get("unique_id"),
             "platform": e.get("platform"),
+            # CR-010: one alarm system's zones / bypass controls are told apart from a second system of the same
+            # integration by the config entry (services/alarm.py)
+            "config_entry_id": e.get("config_entry_id"),
             "device_id": e.get("device_id"),
             "area_id": area_id,
             "area_name": area.get("name") if area else None,

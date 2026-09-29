@@ -82,8 +82,10 @@ export interface ProductSettings {
   'remote.default_profile'?: 'main' | 'sub';
   'remote.mse_fallback'?: 'true' | 'false';
   'remote.require_mfa_admin'?: 'true' | 'false';
-  /** CR-008 P2: live streams one remote sign-in may hold open at once (default 4); the next one is refused (429). */
+  /** CR-008 P2: live streams one remote sign-in may hold open at once (default 16); the next one is refused (429). */
   'remote.max_live_streams'?: number;
+  /** The stream the camera wall plays on the remote channel (default 'sub'; LAN / Ingress use media.wall_profile). */
+  'remote.wall_profile'?: 'main' | 'sub';
   /** CR-008 P2: 'true' enforces the stricter CSP on the remote channel (default 'false': report-only). */
   'remote.csp_enforce'?: 'true' | 'false';
 }

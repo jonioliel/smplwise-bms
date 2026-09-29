@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import mimetypes
 import uuid
 from pathlib import Path
@@ -19,7 +20,7 @@ from .config import DEV_NVR_PLACEHOLDER, Settings, load_settings
 from .db import Database
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
-from .routers import access, access_control, access_groups, anchors, backup, cameras, cases, catalog, device_layouts, devices, events, exports, frames, ha, health, me, media, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, search, settings as settings_router, setup, skins, storage, views, zones, nvr_write
+from .routers import access, access_control, access_groups, alarm, anchors, backup, cameras, cases, catalog, device_layouts, devices, events, exports, frames, ha, health, me, media, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, search, settings as settings_router, setup, skins, storage, views, zones, nvr_write
 
 log = logging.getLogger("smplwise")
 
@@ -52,7 +53,7 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         from .services import nvr_write
 
         nvr_write.stop_expired_manual(db, settings)  # A1: manual recordings past their planned stop
-    db.checkpoint()  # a PASSIVE WAL checkpoint only: never takes the write lock, never queues writers
+    db.checkpoint()  # PASSIVE; a TRUNCATE only when the WAL grew past its size limit and nobody writes or waits
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -68,6 +69,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="SmplWise Arx", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = settings
     app.state.db = Database(settings.db_path)
+    from . import db as db_mod
+
+    # the add-on option db_write_gate (default on); SW_DB_WRITE_GATE=0 always wins
+    db_mod.WRITE_GATE = settings.db_write_gate and os.environ.get("SW_DB_WRITE_GATE", "1") != "0"
+    if not db_mod.WRITE_GATE:
+        log.warning("database write gate is OFF (db_write_gate / SW_DB_WRITE_GATE=0): writers rely on SQLite's busy handler alone")
     from .services import backup as backup_svc
 
     pre = backup_svc.pre_upgrade(settings)  # rollback safety: a copy of the data before a new version touches it
@@ -149,6 +156,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(access_control.router, prefix=api, tags=["access-control"])
     app.include_router(devices.router, prefix=api, tags=["devices"])
     app.include_router(device_layouts.router, prefix=api, tags=["devices"])
+    app.include_router(alarm.router, prefix=api, tags=["alarm"])  # CR-010: אבטחה › אזעקה
     app.include_router(zones.router, prefix=api, tags=["zones"])
     app.include_router(skins.router, prefix=api, tags=["plans"])
     app.include_router(search.router, prefix=api, tags=["search"])

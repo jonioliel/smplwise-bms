@@ -95,7 +95,7 @@ def upload_backup(request: Request, file: UploadFile = File(...), principal: Pri
     try:
         e = svc.save_upload(settings_of(request), content)
     except ValueError as exc:
-        raise ApiError(422, "invalid_backup", "הקובץ אינו גיבוי SMPLWISE תקין.", details={"error": str(exc)})
+        raise ApiError(422, "invalid_backup", "הקובץ אינו גיבוי Arx תקין.", details={"error": str(exc)})
     audit(conn, actor=principal, action="backup.upload", decision="allowed", resource_type="backup", resource_id=e["name"], request_id=_rid(request), details={"bytes": e["bytes"], "original_name": file.filename})
     return e
 

@@ -6,6 +6,7 @@
  * `/api/hassio_ingress/<token>/` today, `/arx/` on the remote channel. The worker is `<base>arx-sw.js` with that base as
  * its scope, so it never touches Home Assistant's own pages or worker (scope `/`).
  */
+import { inAndroidApp } from '../arx/android-app';
 
 /** Chromium's install prompt event (not in the DOM typings). */
 export interface InstallPromptEvent extends Event {
@@ -75,14 +76,15 @@ export function dismiss(key: string): void {
   changed();
 }
 
-/** Show the install banner: Chromium offered to install, not installed, not framed, not dismissed recently. */
+/** Show the install banner: Chromium offered to install, not installed, not framed, not dismissed recently, and not
+ * already inside the Android app (CR-008 §9 - the app is the installed form). */
 export function showInstall(): boolean {
-  return !!pwa.installEvent && !pwa.installed && !isStandalone() && !isFramed() && !dismissed('install');
+  return !!pwa.installEvent && !pwa.installed && !isStandalone() && !isFramed() && !inAndroidApp() && !dismissed('install');
 }
 
 /** Show the iOS guide: Safari on iPhone/iPad, not already on the home screen, not framed, not dismissed recently. */
 export function showIosHint(): boolean {
-  return isIos() && !isStandalone() && !isFramed() && !dismissed('ios');
+  return isIos() && !isStandalone() && !isFramed() && !inAndroidApp() && !dismissed('ios');
 }
 
 export async function promptInstall(): Promise<'accepted' | 'dismissed' | 'unavailable'> {

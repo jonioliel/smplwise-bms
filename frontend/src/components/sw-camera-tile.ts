@@ -30,6 +30,8 @@ export class SwCameraTile extends LitElement {
   @property() stamp = '';
   /** Real picture: snapshot URL (poster) and/or a live stream through the relay. */
   @property() poster = '';
+  /** The wall holds no stream for this tile (over the cap, or out of view): a refreshed snapshot with the hint that a tap opens live. */
+  @property({ type: Boolean, reflect: true }) snapshotOnly = false;
   @property() cameraId = '';
   @property({ type: Boolean }) live = false;
   @property() profile: 'sub' | 'main' = 'sub';
@@ -206,10 +208,10 @@ export class SwCameraTile extends LitElement {
       ${real === 'live'
         ? html`<sw-live-player .cameraId=${this.cameraId} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop} .poster=${this.poster} .fit=${this.fit} compact></sw-live-player>`
         : real === 'poster'
-          ? html`<img class="poster" src=${this.poster} alt="" />`
+          ? html`<img class="poster" src=${this.poster} alt="" loading="lazy" />`
           : html`<sw-scene kind=${this.scene}></sw-scene>`}
       <div class="shade"></div>
-      ${real === 'scene' && !this.noDemo ? html`<span class="demo">דמו</span>` : real === 'poster' ? html`<span class="demo">צילום</span>` : nothing}
+      ${real === 'scene' && !this.noDemo ? html`<span class="demo">דמו</span>` : real === 'poster' ? html`<span class="demo" data-snapshot-label>${this.snapshotOnly ? 'תמונה · לחץ לצפייה חיה' : 'צילום'}</span>` : nothing}
       ${this.state === 'stale' || this.state === 'recorded' || this.state === 'historic' ? html`<sw-badge class="pill" onImage kind=${this.state}></sw-badge>` : nothing}
       ${this.name ? html`<span class="label"><span class="dot"></span>${this.name}</span>` : nothing}
       ${this.stamp ? html`<span class="stamp">${this.stamp}</span>` : this.meta && !this.compact ? html`<span class="meta">${this.meta}</span>` : nothing}

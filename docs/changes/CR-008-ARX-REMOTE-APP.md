@@ -511,6 +511,95 @@ round and release (step 7). Tests: 45 backend tests (`tests/test_remote_access.p
 
 ## 9. Build status
 
+### Android app with its own WebView built (2026-09-29, branch `pilot/CR008-android-shell`, not released)
+
+The owner installed the Trusted Web Activity trial (branch `pilot/CR008-android-twa`) and asked for a more professional
+app that is not based on Chrome: no browser address bar ever, no dependence on Digital Asset Links. Owner decisions of
+2026-09-29: build the own-WebView shell for Android now; iOS postponed; native push through Firebase not decided, so no
+Firebase or Google Play services dependency. This replaces §3d.2's "Capacitor later" for Android.
+
+- **App:** `mobile/android-shell/` (README there), package `com.smplwise.arx.app` (installs next to the TWA's
+  `com.smplwise.arx`), "SmplWise Arx" 2.0.0, minSdk 26, targetSdk 35. **Plain Kotlin with `androidx.webkit`, not
+  Capacitor:** the content is a remote site chosen at run time (several servers per phone), which Capacitor loads only
+  through its development-oriented `server.url`, and Capacitor's bridge would expose its plugins to whatever that server
+  serves; here the page gets one frozen object, only on the selected server's origin. The TWA branch's Kotlin server list
+  is carried over with its security review applied (M1 links rebuilt from parsed parts, M2 `%2e%2e` refused, L1 one 6 s
+  deadline for the reachability check, L2 no backup or device transfer, L3 an unknown server's full address and a
+  warning, L4 tests, L5 plain https links open in the browser).
+- **Owner feedback from the TWA trial applied:** neutral examples (`site.example.com`), `http://` addresses accepted and
+  upgraded to https, an address without a path tried at `/arx/` then at the root, "החלף שרת" in the user menu as well as
+  on the sign-in page and in הגדרות › גישה מרחוק, Back at the site's first screen offers "יציאה / שרתים", the server
+  list marks the last server used, a one-time hint where "החלף שרת" lives.
+- **Security:** top-level navigation stays in the app only on the server's origin under its path or `/auth/` (parsed,
+  dot segments refused); everything else opens in the browser, dangerous schemes are dropped; `target=_blank` follows
+  the same rule. No `addJavascriptInterface`: `window.ArxApp` (`platform`, `shell`, `version`, `switchServer()`) comes
+  from `addDocumentStartJavaScript` + `addWebMessageListener`, both limited by the WebView to the server's origin, and
+  every message is checked again (main frame, origin, known type). File/content access off, mixed content never, Safe
+  Browsing on, cleartext off with system CAs only, third-party cookies off, geolocation refused, certificate errors never
+  bypassed; the microphone (two-way audio) is the only permission ever granted, only to the server's origin.
+- **Sessions:** the WebView's cookies and localStorage per origin (flushed on every load and on pause); Arx resumes
+  from `arx.auth.v1` after an app restart exactly as a browser tab and re-exchanges for `__Secure-arx_session`; with
+  `remote.session = browser_session` a new app process asks for the password again.
+- **Also:** WebRTC and full-screen video, DownloadManager with the server's cookies (server files) and "save as" for files
+  the page builds (`blob:`), the system file picker for uploads, Android 12 splash, edge-to-edge with the bars in the
+  page's colours (safe-area insets reach the page on WebView 140+, padded natively below), a Hebrew error screen
+  ("נסה שוב", "שרתים"), `arx://servers` and `arx://open?url=` (stored servers only), and an optional app lock (fingerprint,
+  face or screen lock on open and after 0/1/5/15/60 minutes away).
+- **Web side:** `frontend/src/arx/android-app.ts` recognises the shell by its injected object and keeps the TWA's
+  `?app=android` (same function names as the TWA branch: `inAndroidApp()`, `switchServer()`); "החלף שרת" as above; no
+  PWA install banner or iOS hint inside the app; the notifications screen explains that the app has no push yet.
+- **Notifications - design note (not built; owner decision pending).** Android's WebView has no Web Push. (i) **FCM**
+  is the only mechanism Android offers to wake a sleeping app without a constant connection of its own. The Arx server
+  would ask a small SmplWise push relay (FCM credentials belong to the app publisher and cannot ship in every
+  customer's add-on, §3d.2) to send a content-less "wake" message, so Google sees only that a device is woken; the app
+  then fetches the alert from the Arx server itself, under the user's own session and RBAC. It needs a free Firebase
+  project and the relay. (ii) A **foreground service holding a WebSocket** to each Arx server needs no external service,
+  but shows a permanent status-bar icon, costs battery, and is killed by some vendors' battery savers regardless. The
+  PWA and the TWA keep Web Push, which also travels through an external service - the browser vendor's push service.
+- **Tests run:** 40 JVM unit tests (`ServerUrlsTest` 16, `WebPolicyTest` 11, `ShellPoliciesTest` 8, `DeepLinksTest` 5),
+  Android lint (0 errors), `frontend/tests/unit-android-app.spec.ts` (8, plus the 3 existing deeplink cases), `tsc`,
+  `npm run build`; debug and release APKs built, the release signed with a development key and verified with apksigner.
+- **Seen on an emulator** (Android 13 AOSP image, System WebView 101, no Chrome; the real backend with the remote
+  channel and the fake-HA Arx fixture behind a stand-in for the tunnel; details in the app README): adding servers
+  (check passing, unreachable warning, path probe), auto-open, the site full screen with no browser UI, the bridge
+  object exactly as specified, "החלף שרת" → the native list, Back → "יציאה / שרתים", external links and `window.open`
+  to the browser while the page stays, `intent:` dropped, a real sign-in that **survived Home + force-stop + relaunch**
+  (resumed signed in), `arx://open` for a stored and an unknown server, the Hebrew error screen and "נסה שוב", the app
+  lock with the emulator's PIN. Fixed from what it showed: a leaked popup WebView, the server list's toolbar title,
+  the lock cover's status-bar icons, and the sign-in page's link button turning into a blue block after a tap. Also
+  found: the site's CSS needs WebView 111+ (`color-mix()`, `dvh`, `:has()`), so older WebViews now get a notice to
+  update; and an unexplained grey dim over the app's window after the soft keyboard was used on the emulator (no
+  overlay in the app; other apps unaffected) - to watch for on a phone.
+- **Not verified yet** (needs a phone and the lab): WebRTC video and two-way audio, full-screen video, downloads and
+  uploads, the splash on Android 12+, insets on a real WebView 140+, `__Secure-arx_session` over https through the
+  real tunnel. That is the owner's phone check.
+- **Owner on his phone (2026-09-29):** the 2.0.0 release APK installed and works.
+- **Security review of `b06ce29` → 2.0.1 (versionCode 2), same branch:** no blockers; five mediums fixed. M1 POST
+  navigations, back / forward and restored state bypassed the navigation check - main-frame requests outside the Arx
+  pages now get an empty 403 before the network, every started document and history entry is checked again, and the
+  bridge also requires the shown page to be an Arx page (the origin serves the platform UI at `/`). M2 downloads no
+  longer use DownloadManager (it stored the session cookie and resent it on redirects): "save as", then an in-app fetch
+  following redirects only to the Arx pages. M3 while locked no dialog stays or opens above the cover (queued until the
+  unlock), Back only backgrounds the app. M4 FLAG_SECURE below Android 13. M5 time away is always counted; the app's own
+  helpers waive 30 s only. The twelve lows (probe WebViews, no `/auth/` exception, `arx://open` entry page only and a
+  question before replacing an open site, lock switched off only without any screen lock, media and microphone stopped
+  on lock, bridge parsing off the main thread with a 10 MB cap, external opens throttled, renderer restarts capped, no
+  `.apk`, `taskAffinity=""` and overlay-tap filtering, stored servers only, bounded Blob memory) are fixed too.
+  Tests: 50 JVM unit tests. On the emulator: M1 (a POST form never reached the network), M2 (the in-app fetch with the
+  cookie, nothing in the system download database, `.apk` refused) and M3 (link and dialogs held back while locked,
+  Back to the background) seen; M3 also found a regression of the M5 change - cancelling the lock prompt unlocked the
+  app - fixed before the release build (a shown lock stays until the user is confirmed).
+- **Re-review of 2.0.1: approved** (the owner installed 2.0.1; the app lock, including cancelling the prompt, works on
+  his phone). Four residual lows fixed in **2.0.2 (versionCode 3)**: (1) nothing above the lock cover - the server's ⋮
+  menu and the delete confirmation wait for the unlock, the page's alert / confirm / prompt are refused while locked and
+  otherwise shown as the app's dialogs; (2) media behind the lock - the media guard now runs in every frame of the
+  server's origin, the WisKey intercom panel included: on lock all audio and video pause, microphone / camera tracks
+  stop, audio contexts are suspended, play() and getUserMedia are refused until the unlock, and nothing resumes by
+  itself; (3) a page can no longer stack server lists - "החלף שרת" from the page needs a tap, the list is single-top;
+  (4) one site screen at a time also after a process restart. Tests: 52 JVM unit tests; items 1-3 seen on the emulator
+  (a same-origin iframe outside `/arx/` locked with the app; no server list without a tap; `alert()` as the app's
+  dialog).
+
 ### P3 built (2026-09-29, branch `pilot/CR008-pwa-push`, not released)
 
 Built independently of the P1 MVP branch (base path, remote login and sessions are that branch's; nothing here depends on

@@ -16,7 +16,7 @@ from .audit import audit
 from .config import Settings
 import time
 
-from .db import Database, database_of, get_setting, new_id, now_iso, permission_revision, read_mode, release, set_setting
+from .db import Database, commit_now, database_of, get_setting, new_id, now_iso, permission_revision, read_mode, release, set_setting, unlocked
 from .errors import unauthenticated
 from .rbac import Principal
 from .remote_channel import is_remote
@@ -65,14 +65,14 @@ def _client_host(request: Request) -> str:
     return request.client.host if request.client else ""
 
 
-def resolve_principal(request: Request, settings: Settings) -> Principal:
+def resolve_principal(request: Request, settings: Settings, offline: bool = False) -> Principal:
     headers = request.headers
     if is_remote(request):
         # CR-008: the /arx channel never takes identity from headers (the middleware already dropped them) and never
         # uses the developer identity; only an Arx session cookie or an HA bearer token validated against HA core
         from .services import ha_user_auth
 
-        return ha_user_auth.remote_principal(request, settings)
+        return ha_user_auth.remote_principal(request, settings, offline=offline)
     if settings.dev_user and not settings.in_addon:
         username = headers.get(DEV_HEADER) or settings.dev_user
         return Principal(user_id=f"dev-{username}", username=username, display_name=username, source="dev")
@@ -151,15 +151,26 @@ def maybe_bootstrap(conn: sqlite3.Connection, settings: Settings, principal: Pri
             grant(w)
         # a deferred read transaction keeps the snapshot it started with: restart it so this very request
         # (typically the first /me of the admin) already sees the new binding
-        conn.execute("COMMIT")
-        conn.execute("BEGIN")
+        commit_now(conn)
     else:
         grant(conn)
 
 
 def _principal(request: Request, conn: sqlite3.Connection) -> Principal:
     settings = settings_of(request)
-    principal = resolve_principal(request, settings)
+    if is_remote(request):
+        from .services.ha_user_auth import NeedsUnlock
+
+        try:
+            # from memory only while this request holds its write lock: a live session or a recently validated token
+            principal = resolve_principal(request, settings, offline=True)
+        except NeedsUnlock:
+            # Home Assistant must be asked (a new, stale or re-validated token) or a refusal row written: never under
+            # the request's write lock - the audit's own connection would wait for this very lock (2026-09-29 review)
+            with unlocked(conn):
+                principal = resolve_principal(request, settings)
+    else:
+        principal = resolve_principal(request, settings)
     touch_user(conn, principal)
     maybe_bootstrap(conn, settings, principal, getattr(request.state, "correlation_id", None))
     return principal

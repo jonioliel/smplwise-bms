@@ -77,7 +77,16 @@ PERMISSION_LABELS: dict[str, str] = {
     "audio.talk": "דיבור דו־כיווני",
     "camera.ptz": "שליטת PTZ",
     "door.unlock": "פתיחת דלת",
+    # CR-010 (אבטחה › אזעקה): the intrusion alarm section. alarm.view reads the panels and their zones (viewer and above,
+    # not kiosk); alarm.arm arms a panel (operator and above - arming raises protection); alarm.disarm (T079, sensitive)
+    # disarms, now granted by default to site_admin and system_admin like access.release; alarm.bypass (sensitive)
+    # bypasses / restores one zone of a panel through the control the server paired with it - site_admin and
+    # system_admin. All four are scoped like entity.state.read: installation-wide, or the panels placed on the
+    # holder's floors (services/ha_scope.py). A custom role grants disarm / bypass only by naming them as sensitive.
+    "alarm.view": "צפייה באזעקה ובחיישניה",
+    "alarm.arm": "דריכת אזעקה",
     "alarm.disarm": "ניטרול אזעקה",
+    "alarm.bypass": "עקיפת חיישן אזעקה (הוצאת אזור מהגנה)",
     "nvr.config.write": "כתיבה להגדרות ה־NVR",
     "nvr.config.events": "NVR: הפעלת התראות (Notify Surveillance Center) ולוחות זימון",
     "nvr.config.detection": "NVR: עריכת אזורי זיהוי תנועה ורגישות",
@@ -386,7 +395,7 @@ def check_delegation(conn: sqlite3.Connection, principal: Principal, role_id: st
     action = "rbac.bind" if op == "bind" else "rbac.unbind"
     require(conn, principal, "rbac.assign", scope)
     if op == "bind" and effect == "allow" and role_id == "system_admin" and scope != INSTALLATION:
-        raise ApiError(422, "scope_not_allowed_for_role", "מנהל מערכת VMS מוקצה רק ברמת ההתקנה כולה.")
+        raise ApiError(422, "scope_not_allowed_for_role", "מנהל מערכת מוקצה רק ברמת ההתקנה כולה.")
     if op == "bind" and effect == "allow" and scope[0] == "camera" and "rbac.assign" in role_permissions(conn, role_id):
         # T055 ruling R3: no "administrator of one camera" - an ALLOW at camera scope carries viewing / operating roles
         # only; a full administrator may still DENY any role (system_admin, site_admin) on one camera (review M2)
@@ -600,7 +609,7 @@ def sync_directory(request: Request, principal: Principal = Depends(current_prin
     require(conn, principal, "system.configure", INSTALLATION)
     settings = settings_of(request)
     if not get_setting(conn, "bridge.paired_at"):
-        raise ApiError(503, "bridge_not_paired", "גשר SMPLWISE אינו מצומד ב־Home Assistant.")
+        raise ApiError(503, "bridge_not_paired", "גשר Arx אינו מצומד ב־Home Assistant.")
     audit(conn, actor=principal, action="identity.sync", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request))
     try:
         with unlocked(conn):

@@ -360,10 +360,12 @@ def test_devices_control_permission_registered():
 def test_area_cards_carry_can_control(dev_app):
     app, s = dev_app
     c = TestClient(app)
-    # the default identity (bootstrap system_admin) controls everything it can see
+    # the default identity (bootstrap system_admin) controls everything it can see - except what the alarm section owns
+    # (CR-010 review B1: the alarm panel is read-only here, flagged alarm_managed)
     a = c.get("/api/v1/devices/areas/lobby").json()
     rows = [r for card in a["cards"].values() for r in card["entities"]]
-    assert rows and all(r["can_control"] is True for r in rows)
+    assert rows and all(r["can_control"] is (not r["alarm_managed"]) for r in rows)
+    assert [r["entity_id"] for r in rows if r["alarm_managed"]] == ["alarm_control_panel.house"]
     # a plain viewer (devices.read only) and an editor (devices.read, no control of any kind) read but never control
     bind(c, s, "vi", "viewer", "installation", "*")
     bind(c, s, "ed", "editor", "installation", "*")
@@ -547,7 +549,7 @@ def test_every_allow_listed_action_is_allowed_by_the_bridge():
         have = _bridge_allowed_services(copy / "__init__.py")
         assert not want - have, f"{copy}: missing in the bridge allow-list: {sorted(want - have)}"
     manifest = json.loads((ROOT / "custom_components" / "smplwise_bridge" / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == "0.2.5", "a new bridge allow-list ships as a new bridge version (HA must restart to load it)"
+    assert manifest["version"] == "0.2.6", "a new bridge allow-list ships as a new bridge version (HA must restart to load it)"
 
 
 def test_attribute_confirmation_never_compares_the_state_to_the_argument(dev_app, monkeypatch):
@@ -1643,7 +1645,7 @@ def test_items_carry_the_bulk_facts_and_the_alarm_managed_seam(bulk_app):
         policy = device_bulk.SwitchPolicy(conn)
     assert policy.excluded_reason({"entity_id": "light.x", "domain": "light", "alarm_managed": 1}) == "alarm_managed"
     assert policy.excluded_reason({"entity_id": "light.x", "domain": "light"}) is None
-    assert device_bulk.excluded_label("alarm_managed", "lights_off") == "נשלט ממסך האזעקה"
+    assert device_bulk.excluded_label("alarm_managed", "lights_off").startswith("נשלט ממסך האזעקה")
     row = {"entity_id": "switch.s", "domain": "switch", "state": "on", "available": True, "card": "switches", "attributes": {}, "alarm_managed": 1}
     assert svc.card_row(row, True)["alarm_managed"] is True
     assert "alarm_managed" not in svc.card_row({k: v for k, v in row.items() if k != "alarm_managed"}, True)

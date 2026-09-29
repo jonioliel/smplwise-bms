@@ -60,7 +60,7 @@ function rowState(r: DeviceRow): Exclude<ItemsFilter, 'all'> {
 /** Why a row the user can see has no control (shown on hover and on tap). '' = it has controls. */
 export function readOnlyReason(r: DeviceItem, kind: TileKind, demo: boolean): string {
   if (kind === 'alarm') return 'דריכה וניטרול נעשים במסך האזעקה';
-  if (r.alarm_managed) return 'נשלט ממסך האזעקה';
+  if (r.alarm_managed) return r.managed_label ?? 'נשלט ממסך האזעקה';
   if (demo) return 'נתוני הדגמה - אין שליטה בהתקנים';
   if (rowState(r) === 'unavailable') return 'ההתקן לא זמין כרגע';
   if (r.door_class) return 'דלת / שער - תנועה של מעבר, לקריאה בלבד כאן';

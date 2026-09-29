@@ -23,7 +23,13 @@ CONFIRM_WINDOW_S = 20.0  # a pending action is "unknown" after this long without
 
 # States that also report an action's effect: a TV / projector turned off often reports "standby" rather than "off"
 # (services/devices.py MEDIA_OFF_STATES already reads standby as off) - review round 1 of CR-007 slice 3.
-EQUIVALENT_STATES: dict[str, frozenset[str]] = {"media_player.turn_off": frozenset({"off", "standby"})}
+EQUIVALENT_STATES: dict[str, frozenset[str]] = {
+    "media_player.turn_off": frozenset({"off", "standby"}),
+    # CR-010: a panel with an exit delay reports "arming" first and the armed state only after the delay (often longer
+    # than CONFIRM_WINDOW_S) - "arming" is the panel's own report that it accepted the command. The alarm screen keeps
+    # showing the live state, so "בהשהיית יציאה" is never shown as "armed".
+    **{f"alarm_control_panel.alarm_arm_{m}": frozenset({f"armed_{m}", "arming"}) for m in ("home", "away", "night", "vacation", "custom_bypass")},
+}
 
 
 def state_matches(action_id: str, expected: str, state: str | None) -> bool:

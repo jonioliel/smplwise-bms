@@ -95,6 +95,9 @@ export interface DeviceRow {
   /** CR-007 slice 2: devices.control or ha.entity.control at this entity's own floor scope. Controls render only
    * when this is true - the read-only rendering from slice 1 stays for everyone else. */
   can_control: boolean;
+  /** CR-010 review B1: owned by the alarm section (a zone's bypass control, the panel) - read-only everywhere else. */
+  alarm_managed?: boolean;
+  managed_label?: string;
   /** CR-007 slice 3 (switch rows, for a bulk holder): whether this switch may enter a bulk action and why - "marked"
    * (an administrator marked it: the only way in), "circuit_not_marked" (a lighting circuit's switch: the mark is
    * suggested), "switch_not_marked" or "doors_layer" (never). */
@@ -102,8 +105,6 @@ export interface DeviceRow {
   bulk_reason?: 'marked' | 'circuit_not_marked' | 'doors_layer' | 'switch_not_marked';
   /** Re-review M1 (tiles' panel rows): why a bulk action would not reach this row (the bulk resolve's own rules), or null. */
   bulk_excluded?: string | null;
-  /** Seam: the alarm screen manages this device (set by the alarm branch; absent = not managed). */
-  alarm_managed?: boolean;
   // lighting
   brightness_pct?: number | null;
   color_mode?: string | null;

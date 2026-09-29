@@ -332,12 +332,14 @@ def test_audit_channel_filters_and_remote_views(arx, monkeypatch):
 
 # ---------------------------------------------------------------- 4. the live-stream cap per remote sign-in
 
-def test_remote_live_cap_per_sign_in(arx):
+def test_remote_live_cap_per_sign_in(arx, settings):
     from smplwise.routers import media
 
     admin = TestClient(arx.app)
     cam = admin.post("/api/v1/cameras", json={"channel": 1, "alias": "a"}).json()
-    assert admin.get("/api/v1/settings").json()["settings"]["remote.max_live_streams"] == 4
+    # the default is 16 (an 11-camera wall must play whole); this test pins the cap to 4 as an administrator would
+    assert admin.get("/api/v1/settings").json()["settings"]["remote.max_live_streams"] == 16
+    assert admin.patch("/api/v1/settings", json={"remote.max_live_streams": 4}).status_code == 200
     phone, laptop = browser(arx), browser(arx)
     sign_in(phone, arx, arx.viewer)
     sign_in(laptop, arx, arx.viewer)
@@ -355,7 +357,7 @@ def test_remote_live_cap_per_sign_in(arx):
         # the WebSocket start: accepted, told why in Hebrew, closed 4429 - before any upstream connection
         with phone.websocket_connect(f"/arx/api/v1/media/live/{cam['id']}/ws?profile=sub", headers=ORIGIN) as ws:
             msg = json.loads(ws.receive_text())
-            assert msg["type"] == "error" and msg["value"] == "remote_live_cap" and "4 במקביל" in msg["message"]
+            assert msg["type"] == "error" and msg["value"] == "remote_live_cap" and "4 במקביל" in msg["message"] and msg["max"] == 4
             with pytest.raises(WebSocketDisconnect) as exc:
                 ws.receive_text()
             assert exc.value.code == 4429
@@ -366,6 +368,14 @@ def test_remote_live_cap_per_sign_in(arx):
         assert phone.get(f"/arx/api/v1/media/live/{cam['id']}").status_code == 429
         denied = [a for a in arx.audit("video.live") if a["reason"] == "remote_live_cap"]
         assert len(denied) == 2 and json.loads(denied[-1]["details_json"])["suppressed"] == 1
+        # the wall shows a tile beyond the cap as a snapshot: the snapshot endpoint answers on the remote channel at the
+        # cap and is not a live stream (the registry and the per-sign-in count are untouched)
+        folder = settings.data_dir / "snapshots"
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / f"{cam['id']}.jpg").write_bytes(b"\xff\xd8\xff\xd9")
+        snap = phone.get(f"/arx/api/v1/cameras/{cam['id']}/snapshot.jpg")
+        assert snap.status_code == 200 and snap.headers["content-type"] == "image/jpeg", snap.text
+        assert len(media.REGISTRY.sessions) == 4 and media.remote_live_by_chain()[chain] == 4
         # the sessions list and /health count them
         assert next(x for x in phone.get("/arx/api/v1/auth/sessions").json()["sessions"] if x["current"])["live_streams"] == 4
         remote = admin.get("/api/v1/health").json()["remote"]
@@ -380,6 +390,43 @@ def test_remote_live_cap_per_sign_in(arx):
         assert admin.patch("/api/v1/settings", json={"remote.max_live_streams": 0}).status_code == 422
     finally:
         media.REGISTRY.sessions.clear()
+
+
+def test_remote_live_cap_default_is_16_and_a_saved_value_is_kept(arx):
+    """Hotfix (11-camera wall): only the DEFAULT changed. A key nobody saved reads 16; a value an administrator saved
+    (also the old default 4) is read back unchanged; the validation stays 1..32."""
+    from smplwise.routers.settings import DEFAULTS, read_settings
+
+    admin = TestClient(arx.app)
+    assert DEFAULTS["remote.max_live_streams"] == "16" and DEFAULTS["media.max_live_sessions"] == "16"  # the wall budget is min(both)
+    assert admin.get("/api/v1/settings").json()["settings"]["media.max_live_sessions"] == 16
+    assert admin.patch("/api/v1/settings", json={"media.max_live_sessions": 8}).status_code == 200  # a saved value is kept
+    assert admin.get("/api/v1/settings").json()["settings"]["media.max_live_sessions"] == 8
+    assert admin.patch("/api/v1/settings", json={"media.max_live_sessions": 33}).status_code == 422
+    assert admin.get("/api/v1/settings").json()["settings"]["remote.max_live_streams"] == 16
+    assert admin.patch("/api/v1/settings", json={"remote.max_live_streams": 4}).status_code == 200
+    assert admin.get("/api/v1/settings").json()["settings"]["remote.max_live_streams"] == 4
+    assert admin.patch("/api/v1/settings", json={"remote.max_live_streams": 32}).status_code == 200
+    assert admin.patch("/api/v1/settings", json={"remote.max_live_streams": 33}).status_code == 422
+    assert admin.patch("/api/v1/settings", json={"remote.max_live_streams": 0}).status_code == 422
+
+
+def test_remote_wall_profile_setting(arx):
+    """The quality the camera wall plays on the remote channel: `sub` by default, `main` on choice, nothing else;
+    `media.wall_profile` (LAN / Ingress) is a separate key and is not touched."""
+    admin = TestClient(arx.app)
+    s = admin.get("/api/v1/settings").json()["settings"]
+    assert s["remote.wall_profile"] == "sub" and s["media.wall_profile"] == "sub"
+    assert admin.patch("/api/v1/settings", json={"remote.wall_profile": "main"}).status_code == 200
+    s = admin.get("/api/v1/settings").json()["settings"]
+    assert s["remote.wall_profile"] == "main" and s["media.wall_profile"] == "sub"
+    for bad in ("hd", "", "auto"):
+        assert admin.patch("/api/v1/settings", json={"remote.wall_profile": bad}).status_code == 422
+    # a viewer reads it (the wall needs it) but cannot change it
+    viewer = browser(arx)
+    sign_in(viewer, arx, arx.viewer)
+    assert viewer.get("/arx/api/v1/settings").json()["settings"]["remote.wall_profile"] == "main"
+    assert viewer.patch("/arx/api/v1/settings", json={"remote.wall_profile": "sub"}).status_code == 403
 
 
 def test_health_remote_block_is_for_administrators_only(arx):
@@ -745,6 +792,7 @@ def test_l1_two_chains_of_one_sign_in_share_one_row_and_one_cap(arx):
 
     admin = TestClient(arx.app)
     cam = admin.post("/api/v1/cameras", json={"channel": 1, "alias": "a"}).json()
+    assert admin.patch("/api/v1/settings", json={"remote.max_live_streams": 4}).status_code == 200  # the default is 16 now
     tokens = arx.core.issue("u-viewer")
     first, second = browser(arx), browser(arx)  # the second exchanges a fresh token of the SAME sign-in without the cookie
     assert first.post("/arx/api/v1/auth/session", headers={"Authorization": f"Bearer {tokens['access_token']}"}).status_code == 200

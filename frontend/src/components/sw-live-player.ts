@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import './sw-icon';
 import { liveWsUrl, type Transport } from '../api/media';
+import { can } from '../api/session';
 import { badgeLabel, decodeLadder, undecodableMessage, type Profile, type VideoStep } from '../api/video-policy';
 
 /**
@@ -37,6 +38,11 @@ const MSE_TIMEOUT_MS = 20000;
 /** Automatic reconnect after a transient failure (not after 4401/4403/4429): 3 s, 6 s, 12 s … max 30 s. */
 const RETRY_BASE_MS = 3000;
 const RETRY_MAX_MS = 30000;
+
+/** The remote live cap (`remote_live_cap`, WebSocket close 4429): what the tile says, and who may raise it. Never a retry. */
+export const liveCapTitle = (max: number) => `הגעת למכסת הזרמים החיים בחיבור הזה${max > 0 ? ` (${max})` : ''}`;
+export const LIVE_CAP_HINT_ADMIN = 'אפשר להגדיל בהגדרות › מערכת › גישה מרחוק';
+export const LIVE_CAP_HINT_OTHER = 'פנה למנהל המערכת';
 
 /** Recorded playback: how much media may wait ahead of a paused or slowed playhead before fragments are dropped. */
 const MAX_AHEAD_S = 25;
@@ -78,6 +84,9 @@ export class SwLivePlayer extends LitElement {
   @state() status: PlayerStatus = 'idle';
   @state() transport: 'webrtc' | 'mse' | '' = '';
   @state() error = '';
+  /** The remote live cap refused this stream: a final state (no ladder, no automatic retry) with its own text. */
+  @state() capped = false;
+  @state() capMax = 0;
   @state() muted = true;
   /** the current step of `plan` */
   @state() step = 0;
@@ -181,6 +190,10 @@ export class SwLivePlayer extends LitElement {
       display: grid;
       justify-items: center;
       gap: 6px;
+    }
+    .center .hint {
+      font-size: 10.5px;
+      opacity: 0.75;
     }
     .spin {
       inline-size: 22px;
@@ -387,6 +400,7 @@ export class SwLivePlayer extends LitElement {
     const gen = (this.generation += 1);
     this.status = 'connecting';
     this.error = '';
+    this.capped = false;
     this.transport = '';
     this.triedWebrtc = preferMse;
     this.lastPreferMse = preferMse;
@@ -419,6 +433,10 @@ export class SwLivePlayer extends LitElement {
     ws.onclose = (ev) => {
       if (gen !== this.generation) return;
       if (this.status === 'error') return;
+      if (ev.code === 4429 && this.laddered) {
+        this.capRefused(); // the close without its message (a proxy dropped it): still a cap, still no ladder and no retry
+        return;
+      }
       // go2rtc drops the socket when its WebRTC consumer dies: in auto mode that is a transport failure, not the end.
       if ((this.mode === 'auto' || this.laddered) && this.transport === 'webrtc' && this.status !== 'playing' && ev.code < 4000) {
         this.webrtcFailed('WebRTC נכשל');
@@ -479,6 +497,18 @@ export class SwLivePlayer extends LitElement {
 
   private send(msg: unknown) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
+  }
+
+  /** `remote_live_cap` (the relay's error message, then close 4429): shown as what it is. Not a transport failure - the
+   * WebRTC → MSE ladder is not walked, no retry timer is armed (a retry storm would only burn the rate-limited audit),
+   * and no "מנסה …" badge is left on the picture. */
+  private capRefused(max?: number) {
+    this.teardown();
+    this.capped = true;
+    this.capMax = Number(max) > 0 ? Number(max) : 0;
+    this.status = 'error';
+    this.error = liveCapTitle(this.capMax);
+    this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'error', error: this.error, code: 'remote_live_cap', max: this.capMax }, bubbles: true, composed: true }));
   }
 
   private fail(message: string, retryable = true) {
@@ -787,10 +817,14 @@ export class SwLivePlayer extends LitElement {
   }
 
   private onSignal(text: string) {
-    let msg: { type?: string; value?: string };
+    let msg: { type?: string; value?: string; max?: number };
     try {
       msg = JSON.parse(text);
     } catch {
+      return;
+    }
+    if (msg.type === 'error' && msg.value === 'remote_live_cap') {
+      this.capRefused(msg.max);
       return;
     }
     switch (msg.type) {
@@ -915,10 +949,14 @@ export class SwLivePlayer extends LitElement {
       ${this.poster && showPoster ? html`<img class="poster" src=${this.poster} alt="" />` : nothing}
       <video class=${showPoster ? 'hidden' : ''} autoplay playsinline muted @playing=${this.onPlaying} @timeupdate=${this.onTimeUpdate}></video>
       ${this.status === 'connecting' ? html`<div class="center"><div><span class="spin"></span><span>מתחבר${this.transport ? ` · ${this.transport === 'webrtc' ? 'WebRTC' : 'MSE'}` : ''}…</span></div></div>` : nothing}
-      ${this.status === 'error' ? html`<div class="center"><div><sw-icon name="offline" size=${22}></sw-icon><span data-player-error>${this.error}</span></div></div>` : nothing}
+      ${this.status === 'error' && this.capped
+        ? html`<div class="center" data-live-cap><div><sw-icon name="lock" size=${this.compact ? 16 : 22}></sw-icon><span data-player-error>${this.error}</span><span class="hint" data-live-cap-hint>${can('system.configure') ? LIVE_CAP_HINT_ADMIN : LIVE_CAP_HINT_OTHER}</span></div></div>`
+        : this.status === 'error'
+          ? html`<div class="center"><div><sw-icon name="offline" size=${22}></sw-icon><span data-player-error>${this.error}</span></div></div>`
+          : nothing}
       ${this.status === 'ended' ? html`<div class="center"><div><sw-icon name="history" size=${22}></sw-icon><span>הקטע הסתיים</span></div></div>` : nothing}
       ${this.status === 'idle' && !this.poster ? html`<div class="center"><div><sw-icon name="camera" size=${22}></sw-icon><span>לא מחובר</span></div></div>` : nothing}
-      <span class="status ${this.status}"><i></i><span class="t">${this.status === 'playing' ? `${this.wsUrl ? 'הקלטה' : 'חי'} · ${this.transport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.status === 'connecting' ? 'מתחבר' : this.status === 'error' ? 'לא זמין' : this.status === 'ended' ? 'הסתיים' : 'תמונה'}</span></span>
+      <span class="status ${this.status}"><i></i><span class="t">${this.status === 'playing' ? `${this.wsUrl ? 'הקלטה' : 'חי'} · ${this.transport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.status === 'connecting' ? 'מתחבר' : this.status === 'error' ? (this.capped ? 'מכסה' : 'לא זמין') : this.status === 'ended' ? 'הסתיים' : 'תמונה'}</span></span>
       ${this.laddered ? this.renderPlan() : nothing}
       ${this.needsTap && this.status !== 'playing' ? html`<button class="tap" data-tap-to-play @click=${this.tapToPlay}><sw-icon name="live" size=${18}></sw-icon>הקש להפעלה</button>` : nothing}
       ${this.status === 'playing' ? html`<button class="mute" title=${this.muted ? 'הפעל שמע' : 'השתק'} aria-label=${this.muted ? 'הפעל שמע' : 'השתק'} @click=${this.toggleMute}><sw-icon name=${this.muted ? 'volume' : 'mic'} size=${13}></sw-icon></button>` : nothing}

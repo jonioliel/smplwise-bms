@@ -1,3 +1,4 @@
+import './system-alarm'; // CR-010: the user's alarm code policy in the user drawer
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
@@ -696,7 +697,7 @@ export class SystemAccess extends LitElement {
             </div>`
         : nothing}
       ${systemRole ? html`<div class="hint">תפקיד עם הרשאות מערכת מוקצה רק ברמת ההתקנה כולה.</div>` : nothing}
-      <div class="hint">הרשאות בתוך SMPLWISE בלבד. שום דבר לא נכתב ל־Home Assistant. השינוי נרשם באודיט עם diff לפני/אחרי.</div>
+      <div class="hint">הרשאות בתוך Arx בלבד. שום דבר לא נכתב ל־Home Assistant. השינוי נרשם באודיט עם diff לפני/אחרי.</div>
     </div>`;
   }
 
@@ -754,7 +755,7 @@ export class SystemAccess extends LitElement {
       <div class="stage">
         ${dir.users.length
           ? html`<sw-table .columns=${columns} .rows=${dir.users as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => { this.selected = e.detail.id; this.wizard = null; }}></sw-table>`
-          : html`<sw-state-panel state="empty" heading="אין משתמשים עדיין" hint=${dir.directory.paired ? 'הספרייה תגיע מהגשר תוך דקה.' : 'צמד את גשר SMPLWISE ב־Home Assistant כדי לקבל את רשימת המשתמשים.'}></sw-state-panel>`}
+          : html`<sw-state-panel state="empty" heading="אין משתמשים עדיין" hint=${dir.directory.paired ? 'הספרייה תגיע מהגשר תוך דקה.' : 'צמד את גשר Arx ב־Home Assistant כדי לקבל את רשימת המשתמשים.'}></sw-state-panel>`}
         ${u
           ? html`<sw-drawer open heading=${u.name} subheading=${`Home Assistant · ${u.username || u.id} · ${u.active ? 'פעיל' : 'ללא גישה'}`} @close=${() => { this.selected = null; this.wizard = null; }}>
               ${this.wizard && this.wizard.subjectKind === 'user'
@@ -762,8 +763,8 @@ export class SystemAccess extends LitElement {
                 : html`<dl>
                     <dt>מקור זהות</dt><dd>Home Assistant · <span class="ltr">${u.id}</span></dd>
                     <dt>סנכרון</dt><dd>${SYNC_LABEL[u.sync_status]}${u.synced_at ? ` · ${fmtWhen(u.synced_at)}` : ''}</dd>
-                    <dt>ב־VMS</dt><dd>${u.first_seen_at ? `מאז ${fmtWhen(u.first_seen_at)} · לאחרונה ${fmtWhen(u.last_seen_at)}` : 'טרם נכנס לממשק'}</dd>
-                    <dt>מנהל HA</dt><dd>${u.is_admin ? 'כן · מידע בלבד, לא תפקיד VMS' : 'לא'}</dd>
+                    <dt>ב־Arx</dt><dd>${u.first_seen_at ? `מאז ${fmtWhen(u.first_seen_at)} · לאחרונה ${fmtWhen(u.last_seen_at)}` : 'טרם נכנס לממשק'}</dd>
+                    <dt>מנהל HA</dt><dd>${u.is_admin ? 'כן · מידע בלבד, לא תפקיד במערכת' : 'לא'}</dd>
                     <dt>קבוצות</dt><dd>${u.groups.map((g) => g.name).join(', ') || '—'}</dd>
                     ${dir.delegated ? nothing : html`<dt>גישה מרחוק</dt><dd data-remote-access>${can('system.configure')
                       ? html`<sw-toggle label="SmplWise Arx" .checked=${live(!!u.remote_access && this.remoteOff?.userId !== u.id)} ?disabled=${this.busy} data-remote-access-toggle @change=${(e: CustomEvent<{ checked: boolean }>) => this.requestRemote(u, e.detail.checked)}></sw-toggle>`
@@ -776,10 +777,11 @@ export class SystemAccess extends LitElement {
                             <sw-button size="sm" variant="ghost" @click=${() => (this.remoteOff = null)}>ביטול</sw-button>
                           </div>`
                         : nothing}</dd>`}
+                    ${!dir.delegated && can('system.configure') ? html`<dt>אזעקה</dt><dd data-alarm-user-policy><system-alarm-user .userId=${u.id} ?canEdit=${!this.busy}></system-alarm-user></dd>` : nothing}
                   </dl>
                   <div style="margin-block-start:10px;font-weight:600;font-size:var(--sw-fs-xs)">שיוכים</div>
                   ${u.bindings.length ? u.bindings.map((b) => this.renderBindingRow(b, canAssign)) : html`<div class="hint">ללא שיוך: אין גישה לתוכן.</div>`}
-                  <div class="hint" style="margin-block-start:8px">אין כפתור לשינוי סיסמת HA או להפיכה למנהל HA. מנהל HA אינו מקבל תפקיד VMS אוטומטית.</div>`}
+                  <div class="hint" style="margin-block-start:8px">אין כפתור לשינוי סיסמת HA או להפיכה למנהל HA. מנהל HA אינו מקבל תפקיד במערכת אוטומטית.</div>`}
               <div slot="footer">
                 ${this.wizard
                   ? html`<sw-button variant="primary" size="sm" icon="check" data-wizard-save ?disabled=${this.busy} @click=${() => this.saveWizard()}>שמור שיוך</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.wizard = null)}>ביטול</sw-button>`
@@ -819,7 +821,7 @@ export class SystemAccess extends LitElement {
         <div class="stage groups-stage">
           ${groups.length
             ? html`<sw-table .columns=${columns} .rows=${groups as unknown as Record<string, unknown>[]} .selected=${this.selectedGroup} @row-select=${(e: CustomEvent<{ id: string }>) => { this.selectedGroup = e.detail.id; this.members = null; this.wizard = null; this.renameDraft = null; }}></sw-table>`
-            : html`<sw-state-panel state="empty" heading="אין קבוצות" hint=${delegated ? 'אין קבוצה שכל השיוכים שלה בתוך ההיקף שלך.' : 'קבוצה מקבלת תפקיד בהיקף, וכל חבריה יורשים אותו. קבוצות VMS בלבד, לא קבוצות HA.'}></sw-state-panel>`}
+            : html`<sw-state-panel state="empty" heading="אין קבוצות" hint=${delegated ? 'אין קבוצה שכל השיוכים שלה בתוך ההיקף שלך.' : 'קבוצה מקבלת תפקיד בהיקף, וכל חבריה יורשים אותו. קבוצות Arx בלבד, לא קבוצות HA.'}></sw-state-panel>`}
           ${g
             ? html`<sw-drawer open heading=${g.name} subheading=${`${g.members.length} חברים · ${g.bindings.length} שיוכים · רוויזיה ${g.revision}`} data-group-drawer @close=${() => { this.selectedGroup = null; this.members = null; this.wizard = null; this.renameDraft = null; }}>
                 ${this.wizard && this.wizard.subjectKind === 'group'
@@ -865,7 +867,7 @@ export class SystemAccess extends LitElement {
               <div class="sub">${u.added.length ? html`<span class="ok">יתווספו: ${u.added.map(lbl).join(', ')}</span>` : 'ללא הרשאות חדשות'} · ${u.removed.length ? html`<span class="err">יוסרו: ${u.removed.map(lbl).join(', ')}</span>` : 'ללא הסרות'}</div></div>
           </div>`)}</div>`
         : html`<div class="hint" style="margin-block-start:8px">אין חברים בקבוצה: אף משתמש אינו מושפע כרגע. מי שיצורף בהמשך יירש את השיוך.</div>`}
-      <div class="hint" style="margin-block-start:8px">הרשאות בתוך SMPLWISE בלבד. השינוי נרשם באודיט (מזהים בלבד) וחל מהבקשה הבאה של כל משתמש.</div>
+      <div class="hint" style="margin-block-start:8px">הרשאות בתוך Arx בלבד. השינוי נרשם באודיט (מזהים בלבד) וחל מהבקשה הבאה של כל משתמש.</div>
       <sw-button slot="footer" variant="ghost" @click=${() => (this.groupChange = null)}>ביטול</sw-button>
       <sw-button slot="footer" variant="primary" icon="check" data-group-impact-confirm ?disabled=${this.busy} @click=${() => this.confirmGroupChange()}>${c.confirmLabel}</sw-button>
     </sw-dialog>`;
@@ -1087,7 +1089,7 @@ export class SystemAccess extends LitElement {
   }
 
   private renderApi() {
-    if (this.forbidden) return html`<sw-page heading="משתמשים והרשאות"><sw-state-panel state="forbidden" hint="צפייה בספריית המשתמשים דורשת תפקיד מנהל מערכת VMS."></sw-state-panel></sw-page>`;
+    if (this.forbidden) return html`<sw-page heading="משתמשים והרשאות"><sw-state-panel state="forbidden" hint="צפייה בספריית המשתמשים דורשת תפקיד מנהל מערכת."></sw-state-panel></sw-page>`;
     if (this.error && !this.directory) return html`<sw-page heading="משתמשים והרשאות"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel></sw-page>`;
     if (!this.directory || !this.roles) return html`<sw-page heading="משתמשים והרשאות"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     const dir = this.directory;
@@ -1140,7 +1142,7 @@ export class SystemAccess extends LitElement {
                       <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">מותר בהיקף</div><div class="row"><span>עריכת תוכנית קומה 2</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div><div class="row"><span>הצבת ציוד מורשה</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div></div>
                       <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">לא ניתן</div><div class="row"><span>עריכת קומה 3</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div><div class="row"><span>ניהול משתמשים / NVR</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div><div class="row"><span>פתיחת מנעול</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div></div>
                     </div>
-                    <div class="hint">הרשאות בתוך SMPLWISE בלבד. שום דבר לא נכתב ל־HA. השינוי ירשם באודיט עם diff לפני/אחרי.</div>
+                    <div class="hint">הרשאות בתוך Arx בלבד. שום דבר לא נכתב ל־HA. השינוי ירשם באודיט עם diff לפני/אחרי.</div>
                   </div>`
                 : html`<dl>
                     <dt>מקור זהות</dt><dd>Home Assistant · <span class="ltr">${u.haUser}</span></dd>
@@ -1148,7 +1150,7 @@ export class SystemAccess extends LitElement {
                     <dt>קבוצות</dt><dd>${u.groups.join(', ') || '—'}</dd>
                     <dt>שיוכים</dt><dd>${u.bindings.length ? u.bindings.map((b) => html`<div>${b.role} · ${b.scope}</div>`) : 'ללא: אין גישה לתוכן'}</dd>
                   </dl>
-                  <div class="hint">אין כפתור לשינוי סיסמת HA או להפיכה למנהל HA. מנהל HA אינו מקבל תפקיד VMS אוטומטית.</div>`}
+                  <div class="hint">אין כפתור לשינוי סיסמת HA או להפיכה למנהל HA. מנהל HA אינו מקבל תפקיד במערכת אוטומטית.</div>`}
               <div slot="footer">
                 ${this.assigning
                   ? html`<sw-button variant="primary" size="sm" icon="check">שמור שיוך</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.assigning = false)}>ביטול</sw-button>`
@@ -1207,7 +1209,7 @@ export class SystemAccess extends LitElement {
   render() {
     if (isApi()) return this.renderApi();
     return html`
-      <sw-page heading="משתמשים והרשאות" subheading="זהות מ־Home Assistant · הרשאות בתוך SMPLWISE בלבד · נתוני הדגמה">
+      <sw-page heading="משתמשים והרשאות" subheading="זהות מ־Home Assistant · הרשאות בתוך Arx בלבד · נתוני הדגמה">
         <sw-button slot="actions" icon="refresh">סנכרון משתמשים מ־HA</sw-button>
         <sw-tabs .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
         <div class="notice"><sw-icon name="shield" size=${14}></sw-icon>שיוך כאן אינו משנה דבר ב־Home Assistant: לא קבוצות HA, לא דגל מנהל, לא סיסמאות. אין "הוספת משתמש" — משתמשים נוצרים ב־HA בלבד.</div>

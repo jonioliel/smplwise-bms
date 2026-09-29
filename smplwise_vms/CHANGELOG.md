@@ -1,5 +1,92 @@
 # Changelog — SmplWise Arx add-on
 
+## 0.1.144 (pilot) — The camera wall from outside plays every camera and lets you choose the quality; a fair write queue for the database; the Android app's side of the add-on; the product is "Arx" everywhere
+### Camera wall from outside (owner report, 2026-09-29)
+- **Only 4 cameras played on the wall from outside, the rest said "שגיאה בזרם הווידאו"**: the remote live cap
+  `remote.max_live_streams` of 0.1.142 defaulted to 4, and the installation cap `media.max_live_sessions` to 8. Both
+  now default to **16** (a value an administrator saved is kept); when a cap still turns tiles into snapshots the
+  wall says "מוצגות N מצלמות חיות מתוך M" and where the cap is set. A refusal by the cap is shown as what it is - "הגעת למכסת הזרמים החיים בחיבור הזה (N)" with where to
+  raise it (or "פנה למנהל המערכת") - with no fallback walk and no retry.
+- The wall streams **only the tiles on the screen**, within the budget; a tile that scrolled away releases its
+  stream after 5 s and the next one takes it. Tiles beyond the budget show the camera's snapshot (refreshed as
+  often as the snapshot cache allows, at most every 10 s, never while the tab is hidden), labelled "תמונה · לחץ לצפייה חיה"; a tap opens the single-camera view. On the LAN the same rule applies
+  with the installation's own cap (a desktop where every tile fits looks the same as before).
+- **Quality on the wall is your choice**: הגדרות › גישה מרחוק › "איכות בקיר המצלמות מבחוץ" (`remote.wall_profile`:
+  רגילה = secondary stream, the default / גבוהה = main stream), and a quick switch on the wall itself
+  "איכות: רגילה | גבוהה", remembered per device (with "ברירת מחדל" to follow the installation again), applied at once. A main stream that cannot be decoded falls back
+  as in the single-camera view and the tile's badge says what really plays.
+- Settings show "פעילים עכשיו: N" next to the cap and the hint "מומלץ: לפחות כמספר המצלמות בקיר". Note: the wall
+  shows `ui.wall_count` cameras (default 4) - choose a larger layout in the wall's toolbar for more.
+### Database: a fair write queue (round-10 "database is locked" storm)
+- One queue per database file in front of every write (first come, first served, also after waiting more than a
+  second), one 10 s budget shared with SQLite's own wait, and no device or network call while the write lock is
+  held - checked by a guard over 450+ tests. Found and fixed on the way: a manual commit kept the lock while a door
+  was being released and the release's outcome row was lost; plan and picture uploads could freeze the event loop
+  for up to a minute; on the remote channel a request validated its sign-in against the platform while holding the
+  lock (now resolved from memory, or with the lock given up - structurally, not by prediction).
+- Mirror writes that the device sends again (entity states, derived events) are written without a disk sync per
+  commit; anything a person did, every alert, rule firing and audit row is always synced. The state history may lose
+  about the last 30 s on a power cut.
+- New add-on option **`db_write_gate`** (default on; turn it off to return to the previous behaviour). `/health`
+  shows the queue (`gate_timeouts`, `waits_over_1s`, `max_wait_recent_s`). Measured under load with a slow disk
+  emulated (the workstation was busy, so the absolute numbers are inflated; both runs under the same load): worst
+  wait 1.64 s with the queue against 4.98 s without, waits over a second 0 against 68, no "database is locked".
+### Android app (own WebView, 2.0.2) - the add-on's side
+- Inside the app the site shows "החלף שרת" in the user menu, on the sign-in page and in הגדרות › גישה מרחוק, hides
+  the install banner and tells the truth about push notifications (not available inside the app yet). The app
+  itself lives under `mobile/android-shell/` (plain Kotlin, no Google services); two Opus security reviews, all
+  findings fixed; guide `docs/operations/ARX_ANDROID_SHELL_HE.md`.
+### Name
+- Leftovers of the old name are gone from the screens: the role reads "מנהל מערכת", the bridge is "הגשר" outside
+  Settings and "גשר Arx" inside, "SMPLWISE" as the product is "Arx". The company wordmark and every technical
+  identifier are unchanged.
+
+## 0.1.143 (pilot) — Plan Studio: stairs between floors, stairs with a landing (straight / L / U), floor height; detector 1.4; the guide with live screenshots
+### Stairs between floors and stairs with a landing (owner priority 1)
+- **One picker "מחבר אל"** on a connector lists this floor's other levels and every level of every other floor of
+  the building ("קומה 1 · גלריה"): stairs (and a ramp, an elevator, a ladder) now lead to a chosen level on another
+  floor. The other floor gets the same stairs as a **twin** walked from the other side (path and flights reversed,
+  label "↓ קומה 0 · …"); it keeps the coordinates when both floors share a frame, else it is placed at the plan's
+  centre with "מקם את המדרגות בקומה הזו". Moving one twin never moves the other; a change of the stairs' model
+  reaches the twin on save and marks it **"ודא את המיקום"** with an "אישור מיקום" button (a warning, never a publish
+  block). Deleting asks "למחוק גם בקומה השנייה?". The library's "מדרגות ישרות", "מדרגות עם פודסט" and "מעלית" now
+  place connectors; stairs objects already on plans stay as they are.
+- **Stairs with a landing**: shape straight / L / U (half turn), turn side, one or two flights (1-60 steps each),
+  landing depth, width 0.6-5 m; L and U are placed with two clicks. 2D follows the architectural convention - a
+  line per tread, the landing as a plain rectangle, the walking line with a start dot and an arrow, the break line,
+  the caption "12+12 מדרגות · פודסט". 3D: each flight rises step by step, the landing is a plate at the height
+  where the first flight ends, and a floor's plate is cut open (one opening per flight / landing) where stairs go
+  down, so the descending twin is visible.
+- **Floor height**: new field "גובה קומה (רצפה עד רצפה, מ׳)" in מפלסים ומחברים (`floor_height_m`, default 3.0,
+  2.2-12, in the floor's plan document - no migration). The rise of stairs between floors = the heights of the
+  floors between + the target level's elevation - this level's elevation; a missing floor number counts the
+  default height (up to three in a row, beyond that one default height and a warning `floor_numbers_gap`). The
+  building page spaces the floor plates by it and draws a line between twins (published structures).
+- **Permissions** (review blocker, closed before release): linking, re-linking, syncing and deleting a twin need
+  `map.edit` on every floor the connector touches; a re-link from a twin is refused ("קשר מחדש מהקומה המקורית"), a
+  re-link that removes a twin asks first, every removal is audited; an editor without the right on the other floor
+  is told "המדרגות בקומה X לא עודכנו" and both floors carry the warning `connector_twin_model`. The other floor's
+  names and heights are shown only to readers of that floor. An editor open on the other floor keeps its unsaved
+  edits when a sync arrives (rebased once, undo history included).
+- Known limits: the SVG / PNG export still draws stairs as a plain band; floor numbers are expected to be
+  consecutive; the building page shows published links only.
+### Automatic detection 1.4 (tuning items 3-6 from the owner's real scans)
+- Four new rules, each a checkbox in the detect panel, on by default: **section lines** (a stroke that crosses a
+  wall or an opening in it and runs out of the building is dropped), **short gaps** (a gap under 0.3 m between two
+  collinear pieces of the same kind becomes one wall, no false passage), **tribunes** (proposed as a stepped
+  tribune object with its rows), **pier grids** (regular rows of square piers proposed as column objects, the
+  facade line between them as exterior walls; a thick wall with a regular window rhythm is NOT a pier grid).
+  Object candidates are drawn dashed and accepted together.
+- On the owner's three scans (local, counts only): floor -2 envelope recall 0.32 -> 0.56 with 7 columns, floor 0
+  two tribunes, floor -1 fewer fragments. Known limit: the scans' own section lines stop about 0.45 m short of the
+  envelope and are kept as walls (a fence or a railing near a wall is never dropped - the safer rule); doors on
+  scans are still mostly not found. A browser running a cached frontend from before this version receives the
+  new `objects` candidates but does not draw them - reload the Plan Studio page after updating.
+- Also: the history / event 3D scene is rebuilt only when what it reads changed.
+### Guide
+- The Hebrew user guide carries live screenshots (23 of 27 screens; floor plans and place names are demo /
+  generic) and one browsable page `docs/user-guide/he/GUIDE_ALL_HE.html`.
+
 ## 0.1.142 (pilot) — Remote access hardening (CR-008 P2): sessions, sign out everywhere, live-stream cap, strict CSP report-only; installed-app polish
 ### Remote access hardening (CR-008 P2)
 - **Sessions**: every remote sign-in (cookie or bearer) is a session you can see - הגדרות › גישה מרחוק shows your own
@@ -1631,7 +1718,6 @@
   everything; `cam_calls.cjs`: the camera screen sends no OSD / schedules / smart request as a viewer or an
   operator and still does as the administrator. Backend suite green, tsc clean.
 
-
 ## 0.1.80 (pilot) — refused saves say why, dialogs take the keyboard, a viewer sees a lock instead of "something broke"
 - A value pydantic refuses (an out-of-range retention, a bad time zone pattern, a missing field) came back as
   FastAPI's bare `{"detail": [...]}`, which no screen can read: הגדרות › "שמור" with 5 days of audit retention
@@ -1653,7 +1739,6 @@
   (17), an editor to 15 (33). Not changed, needs a product decision: the navigation does not hide categories
   by permission, and the camera screen asks for OSD / schedules / smart data without checking `nvr.config.*`.
   Record: `docs/operations/TEST_ROUND_RESULTS_2026-09-22_HE.md` section 5.
-
 
 ## 0.1.79 (pilot) — full-system review: every screen walked, every suite run, six fixes, honest device-blocked reporting
 - Storage and connections screens showed the word "ApiError" as the reason when a device did not answer; a shared
@@ -1683,7 +1768,6 @@
   need the NVR (notify permissions, a row to hover). Round-6 checklist for the
   owner (0.1.78 + 0.1.79 items, plus the device-only flows the sweep could not reach).
 
-
 ## 0.1.78 (pilot) — audit retention as a setting, a deny option in the role wizard
 - Audit log retention was a fixed 365-day constant in code; it is `audit.retention_days` now (30-3650 days),
   editable in הגדרות › כללי next to the export/event retention fields the janitor already used the same way.
@@ -1701,7 +1785,6 @@
 - Left for later, deliberately not attempted tonight: per-camera scope (today's finest binding scope is still
   floor) touches the RBAC model itself and deserves its own session, not an unsupervised one; live-session audit
   surfacing in the UI needs new backend session-listing infrastructure first.
-
 
 ## 0.1.77 (pilot) — the camera video no longer outgrows the screen, free-text event search, a friendlier NVR card
 - Camera screen: the video's 16:9 box had no height limit, so on a wide desktop (design A has no page max-width)
@@ -1723,7 +1806,6 @@
   stream had nothing in the last 24h at the time (alertStream reconnecting), so the three evidence specs that
   depend on recent live events were not re-verified against fresh data tonight; nothing in this version touches
   the code paths they cover.
-
 
 ## 0.1.76 (pilot) — round-5 fixes for everything the owner's round-4 pass flagged, mobile improvement pass
 - Custom roles: "בחר הכל / נקה הכל" on both permission groups; saving a new role and auto-assigning it to its
@@ -1761,7 +1843,6 @@
   code path; TypeScript + `vite build` clean; dev-environment verification of the accordion, back button (desktop
   and 375px mobile), and column override via the browser pane. `docs/operations/TEST_ROUND_RESULTS_2026-09-17_HE.md`
   §סבב 5 lists every round-4 "bad" item against what changed.
-
 
 ## 0.1.75 (pilot) — camera rename from its screen, phone layout of the map, clean worker shutdown
 - Camera screen: "שנה שם" in the header renames the camera in the VMS (wall, map, events); the NVR name changes only

@@ -245,7 +245,8 @@ async def _refuse_remote_cap(websocket: WebSocket, db: Database, principal: Prin
     with contextlib.suppress(Exception):
         if websocket.client_state.name == "CONNECTING":
             await websocket.accept()
-        await websocket.send_text(_json.dumps({"type": "error", "value": "remote_live_cap", "message": refusal.user_message}, ensure_ascii=False))
+        await websocket.send_text(_json.dumps({"type": "error", "value": "remote_live_cap", "message": refusal.user_message,
+                                              "max": refusal.details.get("max")}, ensure_ascii=False))
         await websocket.close(code=4429)
 
 

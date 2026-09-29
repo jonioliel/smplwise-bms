@@ -164,6 +164,12 @@ ACTIONS: dict[str, dict[str, Any]] = {
     "alarm_control_panel.alarm_arm_home": _a("alarm_control_panel", "alarm_arm_home", "דריכה בבית", expect="armed_home", risk="attention"),
     "alarm_control_panel.alarm_arm_away": _a("alarm_control_panel", "alarm_arm_away", "דריכה מלאה", expect="armed_away", risk="attention"),
     "alarm_control_panel.alarm_disarm": _a("alarm_control_panel", "alarm_disarm", "נטרול", expect="disarmed", risk="sensitive", grant="alarm.disarm"),
+    # CR-010 (the alarm section): the other arm modes a panel may offer (supported_features ARM_NIGHT / ARM_VACATION /
+    # ARM_CUSTOM_BYPASS). Trigger is never allow-listed. The panel's code is never an argument here: the alarm route
+    # (routers/alarm.py) adds it to the service data only, so it never reaches ha_actions.arguments_json or the audit.
+    "alarm_control_panel.alarm_arm_night": _a("alarm_control_panel", "alarm_arm_night", "דריכת לילה", expect="armed_night", risk="attention"),
+    "alarm_control_panel.alarm_arm_vacation": _a("alarm_control_panel", "alarm_arm_vacation", "דריכת חופשה", expect="armed_vacation", risk="attention"),
+    "alarm_control_panel.alarm_arm_custom_bypass": _a("alarm_control_panel", "alarm_arm_custom_bypass", "דריכה עם עקיפה", expect="armed_custom_bypass", risk="attention"),
 }
 
 
