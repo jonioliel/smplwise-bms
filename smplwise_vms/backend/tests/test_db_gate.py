@@ -602,7 +602,9 @@ def test_no_manual_transaction_control_outside_db_py():
     from pathlib import Path
 
     root = Path(db_mod.__file__).resolve().parent
-    pattern = re.compile(r"""\.execute(?:script)?\(\s*[rbf]?["']\s*(COMMIT|ROLLBACK|END|BEGIN\s+(?:IMMEDIATE|EXCLUSIVE))\b""", re.IGNORECASE)
+    # conn.execute("COMMIT") & co., and the sqlite3 methods conn.commit() / conn.rollback()
+    pattern = re.compile(r"""\.execute(?:script)?\(\s*[rbf]?["']\s*(COMMIT|ROLLBACK|END|BEGIN\s+(?:IMMEDIATE|EXCLUSIVE))\b|\.(?:commit|rollback)\(\s*\)""", re.IGNORECASE)
+    assert pattern.search("conn.commit()") and pattern.search("self.conn.rollback()") and not pattern.search("db.commit_now(conn)")
     offenders = []
     for path in sorted(root.rglob("*.py")):
         if path.name == "db.py" and path.parent == root:
