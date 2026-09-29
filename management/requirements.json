@@ -3998,5 +3998,101 @@
     "test_ids": [
       "AT186"
     ]
+  },
+  {
+    "id": "R193",
+    "title": "2FA 1 — מדיניות גורם שני בכניסה מרחוק",
+    "statement": "Remote sign-in second factor by policy (CR-011 §4A): remote.mfa_policy off|admins|sensitive|all with a per-user override replaces remote.require_mfa_admin; for users under the policy the remote channel accepts only an Arx sign-in whose HA refresh token is type normal, client_id = this Arx address, auth_provider_type homeassistant, created after Arx first saw MFA enabled for the user (checked through auth/refresh_tokens and auth/current_user); long-lived access tokens and other clients' sign-ins are refused there; refusals are audited and explained.",
+    "task_ids": [
+      "T095"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT193"
+    ]
+  },
+  {
+    "id": "R194",
+    "title": "2FA 2 — Step-up לפעולות רגישות ומפתח מכשיר Android",
+    "statement": "Step-up for sensitive actions (CR-011 §4E): disarm, bypass, door unlock, alarm codes/PINs/remote settings, user roles and the remote flag, system.configure settings, revoking others' sessions and factor resets answer 403 step_up_required unless the session holds a second-factor proof younger than security.step_up_minutes (default 5); proofs come from a server challenge (32-byte nonce, 60 s, bound to user, session and action); the Android app proves with a Keystore EC P-256 key bound to BIOMETRIC_STRONG (per-use auth, invalidated by new biometric enrolment) signing the challenge through BiometricPrompt with a CryptoObject, registered per device only after a fresh sign-in or an existing factor; browser/PWA sessions without a device key fall back to the personal alarm PIN for alarm actions; audited, rate-limited, remote channel by default; factor reset by administrators from the local channel only by default.",
+    "task_ids": [
+      "T095"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT194"
+    ]
+  },
+  {
+    "id": "R195",
+    "title": "2FA 3 — Passkeys ואישור בדחיפה",
+    "statement": "Passkeys and push approval (CR-011 §4C/§4D): WebAuthn registration and assertion with rpId = the Arx hostname and userVerification required serve as step-up (and optionally sign-in) proofs in browsers and the PWA, and inside the Android WebView through androidx.webkit setWebAuthenticationSupport(FOR_APP) with a /.well-known/assetlinks.json tunnel route to the add-on and a runtime fallback; after CR-012, a push approval with number matching signed by the device key approves a sensitive action started elsewhere.",
+    "task_ids": [
+      "T095"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT195"
+    ]
+  },
+  {
+    "id": "R196",
+    "title": "התראות אפליקציה 1 — רישום מכשיר ומשיכה חתומה",
+    "statement": "Device registration and signed fetch (CR-012 §3): the Android app registers per server and user a Keystore signing key and its push kind/address (push_subscriptions kind fcm|unifiedpush|socket); background calls are signed with that key; GET push/device/pending returns the device's pending notices re-checked against current permissions, categories and quiet hours; sign-out, server removal, remote-access revocation, sign-out-everywhere and device revocation remove the registration; notices map to the right server by an opaque server_ref.",
+    "task_ids": [
+      "T096"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT196"
+    ]
+  },
+  {
+    "id": "R197",
+    "title": "התראות אפליקציה 2 — השכמת FCM ללא תוכן דרך ממסר SmplWise",
+    "statement": "FCM content-less wake (CR-012 §4A): the Arx server asks a central SmplWise relay (installation key authentication, opaque per-device handles, rate limits, counts-only logs) to send a high-priority data-only FCM message carrying only server_ref and an opaque id (TTL 1 h, collapse per server); the app fetches the notice from its Arx server and always shows a visible notification (a generic one when the fetch fails); channels אזעקה/התראות/דלתות/תקלות/מערכת, lock-screen public version per the owner's choice, actions open-camera and acknowledge (unlock required), Android 13 permission asked in context.",
+    "task_ids": [
+      "T096"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT197"
+    ]
+  },
+  {
+    "id": "R198",
+    "title": "התראות אפליקציה 3 — חלופת UnifiedPush",
+    "statement": "UnifiedPush fallback (CR-012 §4C): the app registers with the user's distributor through the UnifiedPush connector and gives Arx a Web Push endpoint and keys; Arx sends with the existing push.py (RFC 8291, VAPID) to push servers on a per-site allow-list entry; notifications behave as in the FCM path.",
+    "task_ids": [
+      "T096"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT198"
+    ]
   }
 ]

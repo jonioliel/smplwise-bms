@@ -5286,5 +5286,163 @@
     "evidence": [],
     "executed_at": null,
     "notes": "Planned in CR-008 (2026-09-29); lab host names and addresses stay out of the evidence."
+  },
+  {
+    "id": "AT193",
+    "requirement_ids": [
+      "R193"
+    ],
+    "task_ids": [
+      "T095"
+    ],
+    "title": "2FA 1 — מדיניות גורם שני בכניסה מרחוק",
+    "kind": "integration/e2e/security",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fake HA core with MFA-enabled and MFA-less users, long-lived and normal tokens"
+    ],
+    "procedure": [
+      "Automated: each policy value against users with and without MFA; a long-lived token and another client's token refused for a user under the policy; a sign-in older than the recorded MFA first-seen time refused.",
+      "Lab (owner): an MFA user signs in at /arx and gets the code step; a user without MFA under the policy sees the refusal text."
+    ],
+    "expected": "Remote sign-in second factor by policy (CR-011 §4A): remote.mfa_policy off|admins|sensitive|all with a per-user override replaces remote.require_mfa_admin; for users under the policy the remote channel accepts only an Arx sign-in whose HA refresh token is type normal, client_id = this Arx address, auth_provider_type homeassistant, created after Arx first saw MFA enabled for the user (checked through auth/refresh_tokens and auth/current_user); long-lived access tokens and other clients' sign-ins are refused there; refusals are audited and explained.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-011 (2026-09-30); lab host names, addresses and keys stay out of the evidence."
+  },
+  {
+    "id": "AT194",
+    "requirement_ids": [
+      "R194"
+    ],
+    "task_ids": [
+      "T095"
+    ],
+    "title": "2FA 2 — Step-up לפעולות רגישות ומפתח מכשיר Android",
+    "kind": "integration/e2e/security",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Android phone with a Class 3 biometric (owner)",
+      "Nothing armed or disarmed for real without the owner's task-specific approval"
+    ],
+    "procedure": [
+      "Automated: every listed route refuses without a fresh proof and accepts after one; a replayed or foreign-action signature is refused; enrolment without a fresh sign-in is refused; lockout after 5 failures.",
+      "Owner phone: a step-up with the fingerprint signs and the gated action proceeds; a new fingerprint enrolled on the phone invalidates the key; a browser session is asked for the PIN."
+    ],
+    "expected": "Step-up for sensitive actions (CR-011 §4E): disarm, bypass, door unlock, alarm codes/PINs/remote settings, user roles and the remote flag, system.configure settings, revoking others' sessions and factor resets answer 403 step_up_required unless the session holds a second-factor proof younger than security.step_up_minutes (default 5); proofs come from a server challenge (32-byte nonce, 60 s, bound to user, session and action); the Android app proves with a Keystore EC P-256 key bound to BIOMETRIC_STRONG (per-use auth, invalidated by new biometric enrolment) signing the challenge through BiometricPrompt with a CryptoObject, registered per device only after a fresh sign-in or an existing factor; browser/PWA sessions without a device key fall back to the personal alarm PIN for alarm actions; audited, rate-limited, remote channel by default; factor reset by administrators from the local channel only by default.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-011 (2026-09-30); lab host names, addresses and keys stay out of the evidence."
+  },
+  {
+    "id": "AT195",
+    "requirement_ids": [
+      "R195"
+    ],
+    "task_ids": [
+      "T095"
+    ],
+    "title": "2FA 3 — Passkeys ואישור בדחיפה",
+    "kind": "integration/e2e/security",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Desktop browser with a platform authenticator or a phone for cross-device sign-in"
+    ],
+    "procedure": [
+      "Automated: WebAuthn attestation/assertion verification with test vectors; challenge binding; origin mismatch refused.",
+      "Owner: a passkey step-up in desktop Chrome and in the PWA; in the Android app when the WebView supports it; a push approval from the phone."
+    ],
+    "expected": "Passkeys and push approval (CR-011 §4C/§4D): WebAuthn registration and assertion with rpId = the Arx hostname and userVerification required serve as step-up (and optionally sign-in) proofs in browsers and the PWA, and inside the Android WebView through androidx.webkit setWebAuthenticationSupport(FOR_APP) with a /.well-known/assetlinks.json tunnel route to the add-on and a runtime fallback; after CR-012, a push approval with number matching signed by the device key approves a sensitive action started elsewhere.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-011 (2026-09-30); lab host names, addresses and keys stay out of the evidence."
+  },
+  {
+    "id": "AT196",
+    "requirement_ids": [
+      "R196"
+    ],
+    "task_ids": [
+      "T096"
+    ],
+    "title": "התראות אפליקציה 1 — רישום מכשיר ומשיכה חתומה",
+    "kind": "integration/e2e/security",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Two Arx servers (fake or lab) in one app"
+    ],
+    "procedure": [
+      "Automated: a notice for a user without reach is never returned; a revoked device's signature is refused; unknown server_ref is dropped by the app.",
+      "Owner phone: two servers, each notification opens the right server; sign-out on one stops its notifications."
+    ],
+    "expected": "Device registration and signed fetch (CR-012 §3): the Android app registers per server and user a Keystore signing key and its push kind/address (push_subscriptions kind fcm|unifiedpush|socket); background calls are signed with that key; GET push/device/pending returns the device's pending notices re-checked against current permissions, categories and quiet hours; sign-out, server removal, remote-access revocation, sign-out-everywhere and device revocation remove the registration; notices map to the right server by an opaque server_ref.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-012 (2026-09-30); lab host names, addresses and keys stay out of the evidence."
+  },
+  {
+    "id": "AT197",
+    "requirement_ids": [
+      "R197"
+    ],
+    "task_ids": [
+      "T096"
+    ],
+    "title": "התראות אפליקציה 2 — השכמת FCM ללא תוכן דרך ממסר SmplWise",
+    "kind": "integration/e2e/security",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Firebase project and relay deployed by the owner",
+      "Android phone with Google Play services"
+    ],
+    "procedure": [
+      "Automated: the relay refuses unknown installations and foreign handles; payloads to FCM contain no text, user or site; the app shows the generic notice when the fetch fails.",
+      "Owner phone in Doze (screen off > 30 min): a rule alert arrives within seconds; lock screen shows the chosen level; acknowledge requires unlock."
+    ],
+    "expected": "FCM content-less wake (CR-012 §4A): the Arx server asks a central SmplWise relay (installation key authentication, opaque per-device handles, rate limits, counts-only logs) to send a high-priority data-only FCM message carrying only server_ref and an opaque id (TTL 1 h, collapse per server); the app fetches the notice from its Arx server and always shows a visible notification (a generic one when the fetch fails); channels אזעקה/התראות/דלתות/תקלות/מערכת, lock-screen public version per the owner's choice, actions open-camera and acknowledge (unlock required), Android 13 permission asked in context.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-012 (2026-09-30); lab host names, addresses and keys stay out of the evidence."
+  },
+  {
+    "id": "AT198",
+    "requirement_ids": [
+      "R198"
+    ],
+    "task_ids": [
+      "T096"
+    ],
+    "title": "התראות אפליקציה 3 — חלופת UnifiedPush",
+    "kind": "integration/e2e/security",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "ntfy distributor on the phone and a reachable ntfy server"
+    ],
+    "procedure": [
+      "Automated: an endpoint outside the site's allow-list is refused; RFC 8291 known-answer test reused.",
+      "Owner or lab phone without the FCM path: a rule alert arrives through ntfy."
+    ],
+    "expected": "UnifiedPush fallback (CR-012 §4C): the app registers with the user's distributor through the UnifiedPush connector and gives Arx a Web Push endpoint and keys; Arx sends with the existing push.py (RFC 8291, VAPID) to push servers on a per-site allow-list entry; notifications behave as in the FCM path.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-012 (2026-09-30); lab host names, addresses and keys stay out of the evidence."
   }
 ]

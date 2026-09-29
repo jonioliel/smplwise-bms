@@ -5081,5 +5081,101 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "T095",
+    "title": "גורם אימות שני ל-Arx (CR-011) — מדיניות כניסה, step-up לפעולות רגישות, passkeys",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [
+      "T092"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "security",
+    "requires_hardware": true,
+    "acceptance": [
+      "Remote sign-in second factor by policy (CR-011 §4A): remote.mfa_policy off|admins|sensitive|all with a per-user override replaces remote.require_mfa_admin; for users under the policy the remote channel accepts only an Arx sign-in whose HA refresh token is type normal, client_id = this Arx address, auth_provider_type homeassistant, created after Arx first saw MFA enabled for the user (checked through auth/refresh_tokens and auth/current_user); long-lived access tokens and other clients' sign-ins are refused there; refusals are audited and explained.",
+      "Step-up for sensitive actions (CR-011 §4E): disarm, bypass, door unlock, alarm codes/PINs/remote settings, user roles and the remote flag, system.configure settings, revoking others' sessions and factor resets answer 403 step_up_required unless the session holds a second-factor proof younger than security.step_up_minutes (default 5); proofs come from a server challenge (32-byte nonce, 60 s, bound to user, session and action); the Android app proves with a Keystore EC P-256 key bound to BIOMETRIC_STRONG (per-use auth, invalidated by new biometric enrolment) signing the challenge through BiometricPrompt with a CryptoObject, registered per device only after a fresh sign-in or an existing factor; browser/PWA sessions without a device key fall back to the personal alarm PIN for alarm actions; audited, rate-limited, remote channel by default; factor reset by administrators from the local channel only by default.",
+      "Passkeys and push approval (CR-011 §4C/§4D): WebAuthn registration and assertion with rpId = the Arx hostname and userVerification required serve as step-up (and optionally sign-in) proofs in browsers and the PWA, and inside the Android WebView through androidx.webkit setWebAuthenticationSupport(FOR_APP) with a /.well-known/assetlinks.json tunnel route to the add-on and a runtime fallback; after CR-012, a push approval with number matching signed by the device key approves a sensitive action started elsewhere."
+    ],
+    "requirement_ids": [
+      "R193",
+      "R194",
+      "R195"
+    ],
+    "test_ids": [
+      "AT193",
+      "AT194",
+      "AT195"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "Authentication and physical actions: security review of the step-up gates, enrolment and recovery before release; nothing disarmed or unlocked for real without the owner's task-specific approval; no HA user, group or MFA changes."
+    },
+    "deliverables": [
+      "docs/changes/CR-011-SECOND-FACTOR.md (+ _HE mirror): HA MFA facts, options A-E, threat model, phased plan, owner decisions",
+      "Phase 1: remote.mfa_policy + sign-in provenance + long-lived-token refusal; step-up framework; device registration; Android biometric device key",
+      "Phase 2: passkeys (browsers, PWA, Android WebView); phase 3: push approval after CR-012"
+    ],
+    "evidence": [
+      "2026-09-30: design record CR-011 written (branch pilot/design-2fa-push): HA login flow enforces enabled MFA modules for the homeassistant provider (auth/__init__.py async_finish_flow), tokens carry no MFA claim, auth/refresh_tokens exposes type/client_id/auth_provider_type/created_at; gap found - the remote exchange and bearer path accept long-lived tokens that bypass MFA; recommendation phase 1 A-policy + E step-up with an Android Keystore key (≈8-9 d), phase 2 passkeys, phase 3 push approval. Owner decisions Q1-Q11 open."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T096",
+    "title": "התראות באפליקציית Android (CR-012) — השכמת FCM דרך ממסר, חלופת UnifiedPush",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [
+      "T092"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "security",
+    "requires_hardware": true,
+    "acceptance": [
+      "Device registration and signed fetch (CR-012 §3): the Android app registers per server and user a Keystore signing key and its push kind/address (push_subscriptions kind fcm|unifiedpush|socket); background calls are signed with that key; GET push/device/pending returns the device's pending notices re-checked against current permissions, categories and quiet hours; sign-out, server removal, remote-access revocation, sign-out-everywhere and device revocation remove the registration; notices map to the right server by an opaque server_ref.",
+      "FCM content-less wake (CR-012 §4A): the Arx server asks a central SmplWise relay (installation key authentication, opaque per-device handles, rate limits, counts-only logs) to send a high-priority data-only FCM message carrying only server_ref and an opaque id (TTL 1 h, collapse per server); the app fetches the notice from its Arx server and always shows a visible notification (a generic one when the fetch fails); channels אזעקה/התראות/דלתות/תקלות/מערכת, lock-screen public version per the owner's choice, actions open-camera and acknowledge (unlock required), Android 13 permission asked in context.",
+      "UnifiedPush fallback (CR-012 §4C): the app registers with the user's distributor through the UnifiedPush connector and gives Arx a Web Push endpoint and keys; Arx sends with the existing push.py (RFC 8291, VAPID) to push servers on a per-site allow-list entry; notifications behave as in the FCM path."
+    ],
+    "requirement_ids": [
+      "R196",
+      "R197",
+      "R198"
+    ],
+    "test_ids": [
+      "AT196",
+      "AT197",
+      "AT198"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "New external service (relay) and a Google dependency in the app: owner decision before any build; relay credentials never in Git; no notification content leaves the customer's server."
+    },
+    "deliverables": [
+      "docs/changes/CR-012-ANDROID-PUSH.md (+ _HE mirror): Android delivery facts, options A-D, multi-server mapping, recommendation, owner decisions",
+      "App: device registration, FCM service or UnifiedPush connector, signed fetch, channels, actions, permission",
+      "Relay (SmplWise-operated) and server: registration kinds, relay client, pending endpoint, revocation hooks"
+    ],
+    "evidence": [
+      "2026-09-30: design record CR-012 written (branch pilot/design-2fa-push): WebView has no Web Push; FCM high priority is Android's way to wake a dozing app and must end in a visible notification; FCM is not end-to-end encrypted, so a content-less wake + fetch from the customer's Arx server; recommendation A through a central SmplWise relay (≈7-9 d) with UnifiedPush as the fallback (≈3-4 d, push.py already speaks Web Push); foreground-socket option documented with Android 14/15 limits. Owner decisions Q1-Q8 open."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]
