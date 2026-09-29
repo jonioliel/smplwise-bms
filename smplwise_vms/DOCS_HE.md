@@ -34,6 +34,10 @@ JPG עם בחירת עמוד, סיבוב וחיתוך), מיקום מצלמות 
    - `openai_api_key` (אופציונלי) — מפתח ה-API של OpenAI לעורות קומה מרונדרות ב-AI (ראו "עורות קומה מרונדרות
      ב-AI" למטה). נשמר רק בהגדרות ה-add-on: לעולם לא במסד הנתונים, ביומנים, ביומן הביקורת או בהודעת שגיאה;
      מסך ההגדרות מציג רק האם הוא הוגדר. אם משאירים אותו ריק, שום דבר לא יכול להישלח ל-OpenAI.
+   - `remote_access` (ברירת מחדל `false`) ו-`remote_path` (ברירת מחדל `/arx`) — גישה מרחוק SmplWise Arx (CR-008):
+     `https://<שם ה-HA שלכם>/arx` פותח את המוצר עם מסך כניסה משלו (שם המשתמש והסיסמה של Home Assistant) דרך
+     נתיב (path route) במנהרת Cloudflare. כבוי כברירת מחדל; כשהוא כבוי, `/arx` מחזיר 404 גם אם קיים נתיב במנהרה.
+     ראו "גישה מרחוק (SmplWise Arx)" למטה ואת `docs/operations/ARX_REMOTE_SETUP_HE.md`.
    - WisKey (אינטגרציית `hikvision_intercom`) נגיש דרך משתמש ה-Home Assistant הייעודי של ה-add-on (ה-Long-Lived
      Access Token ב-`ha_token`). WisKey מסמיך משתמש זה לפי האזורים (areas) שלו: צפייה בלשונית WisKey דורשת את
      האזורים `overview`, `users` ו-`events` ברמת `view`; **עריכת אנשים מתוך SMPLWISE (עורך האנשים, הרשאה
