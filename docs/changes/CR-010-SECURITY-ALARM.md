@@ -219,8 +219,10 @@ Built on `pilot/CR010-security-alarm` (2026-09-29), not merged, no version bump:
 - Backend: services/alarm.py (discovery, pairing - Risco exact: device, then the system + zone number of the unique id,
   never a name guess), services/alarm_codes.py (encryption, PINs, policy, code plan, lockout), routers/alarm.py,
   migration 0036, permissions, allow-list, bridge 0.2.6, the general route's alarm gate, search. Tests:
-  tests/test_alarm.py 25 (Risco 2 partitions / 8 zones and PAI fixtures in tests/fake_alarm.py; the code and the PIN
-  are grepped in the captured log, every audit row, every ha_actions row, the replies and the raw database files).
+  tests/test_alarm.py 26 (Risco 2 partitions / 8 zones and PAI fixtures in tests/fake_alarm.py; the code and the PIN
+  are grepped in the captured log, every audit row, every ha_actions row, the replies and the raw database files);
+  the affected existing suites (ha, ha_adapters, ha_authority, devices, lovelace_card, migrations, search, ui_settings,
+  rbac, rbac_matrix, me_permissions, custom_roles, bridge_install) 86 passed.
 - Frontend: the security area (nav.ts, sw-app.ts, router.ts), security-alarm.ts, system-alarm.ts (settings tab and
   the user drawer), Ctrl+K page targets. Playwright evidence-alarm.spec.ts: demo navigation 21/21, live against the
   fixture backend 12/12; screens spec 99/99; screenshots in docs/evidence/CR010.
