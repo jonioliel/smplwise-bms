@@ -171,3 +171,37 @@ def test_devices_theme_and_scheme_6b(settings):
         bind(c, settings, "dana", "viewer", "installation", "*")
         assert c.patch("/api/v1/settings", json={"devices.scheme": "dark"}, headers=as_user("dana")).status_code == 403
         assert c.get("/api/v1/settings", headers=as_user("dana")).json()["settings"]["devices.scheme"] == "light"
+
+
+def test_ui_tile_layout_setting(settings):
+    """Owner 2026-09-29 (overview tiles): ui.tile_layout - the summary tiles' shape on the Live overview and the devices
+    screens - auto (the default: compact under 600 px, cards above) | cards | compact. Per installation like ui.design
+    (a browser can override it for itself, in the browser only); the frontend lists the same three values."""
+    import re
+    from pathlib import Path
+
+    front = (Path(__file__).resolve().parents[3] / "frontend" / "src" / "api" / "tile-layout.ts").read_text(encoding="utf-8")
+    m = re.search(r"export const TILE_LAYOUTS = \[([^\]]*)\]", front)
+    assert m, "TILE_LAYOUTS not found in tile-layout.ts"
+    assert tuple(re.findall(r"'([a-z]+)'", m.group(1))) == ("auto", "cards", "compact")
+    app = create_app(settings)
+    with TestClient(app) as c:
+        assert c.get("/api/v1/settings").json()["settings"]["ui.tile_layout"] == "auto"
+        for value in ("compact", "cards", "auto"):
+            r = c.patch("/api/v1/settings", json={"ui.tile_layout": value})
+            assert r.status_code == 200, (value, r.text)
+            assert r.json()["settings"]["ui.tile_layout"] == value
+            assert c.get("/api/v1/settings").json()["settings"]["ui.tile_layout"] == value
+        for bad in ("Compact", "tiles", "", "list", "compact "):
+            assert c.patch("/api/v1/settings", json={"ui.tile_layout": bad}).status_code == 422, bad
+        assert c.get("/api/v1/settings").json()["settings"]["ui.tile_layout"] == "auto"
+        assert c.patch("/api/v1/settings", json={"ui.tile_layout": "compact"}).status_code == 200
+        with app.state.db.connection() as conn:
+            rows = [json.loads(r[0] or "{}") for r in conn.execute("SELECT details_json FROM audit_log WHERE action = 'settings.update' AND decision = 'allowed' ORDER BY rowid").fetchall()]
+        assert {"ui.tile_layout": "compact"} in rows
+        # read by any user; written only with system.configure
+        bind(c, settings, "dana", "viewer", "installation", "*")
+        seen = c.get("/api/v1/settings", headers=as_user("dana"))
+        assert seen.status_code == 200 and seen.json()["settings"]["ui.tile_layout"] == "compact"
+        assert c.patch("/api/v1/settings", json={"ui.tile_layout": "cards"}, headers=as_user("dana")).status_code == 403
+        assert c.get("/api/v1/settings").json()["settings"]["ui.tile_layout"] == "compact"

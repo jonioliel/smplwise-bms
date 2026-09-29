@@ -122,6 +122,49 @@ def area(area_id: str, principal: Principal = Depends(current_principal_ro), con
     return body
 
 
+ItemKind = Literal["lights", "switches", "covers", "climate", "media", "locks", "alarm"]
+
+
+@router.get("/devices/items")
+def items(
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),
+    kind: ItemKind = Query(...),
+    scope: Literal["building", "floor", "area"] = Query("building"),
+    id: str | None = Query(None, min_length=1, max_length=255),  # noqa: A002 - the scope's id, as in the bulk routes
+) -> dict[str, Any]:
+    """CR-007 overview tiles (owner 2026-09-29): every entity of one kind in the building, one HA floor or one HA area,
+    grouped by floor › area, each with the area card's own fields and `can_control` - what the panel behind a summary
+    tile ("0/33 מתגים פעילים") lists and controls. The controls still run through `POST /ha/entities/{id}/actions`
+    (single entity) and `POST /devices/actions` (bulk, `can_bulk` says where); a lock row also says whether this caller
+    may unlock it (`can_unlock`: `door.unlock` at the lock's own scope - the action route checks it again). Same
+    visibility as the tree (`devices.read`, a floor-scoped reader sees only what is placed on their floors); a scope
+    this caller cannot see is a 404. Read-only: nothing here calls Home Assistant."""
+    if scope != "building" and not id:
+        raise ApiError(422, "validation", "נדרש מזהה קומה או אזור (id).", details={"fields": ["id"]})
+    entities, scoped = _visible_entities(conn, principal)
+    control_of = ha_scope.control_checker(conn, principal)
+    body = svc.build_items(conn, entities, kind, scope, id or "*", scoped=scoped, control_of=control_of)
+    if body is None:
+        raise ApiError(404, "not_found", "הקומה או האזור לא נמצאו.")
+    flags = _bulk_flags(conn, principal)
+    if scope == "building":
+        body["can_bulk"] = bool(flags["building"])
+    elif scope == "floor":
+        body["can_bulk"] = bool(flags["all"] or body["id"] in flags["floors"])
+    else:
+        body["can_bulk"] = body["id"] != svc.UNASSIGNED and bool(flags["all"] or body["id"] in flags["areas"])
+    if kind == "locks":
+        wide, floors = ha_scope.visible_floors(conn, principal, "door.unlock")
+        placed = ha_scope.placements(conn) if floors and not wide else {}
+        for f in body["floors"]:
+            for a in f["areas"]:
+                for r in a["items"]:
+                    r["can_unlock"] = bool(r["can_control"]) and ha_scope.entity_visible(wide, floors, placed, r["entity_id"])
+    body["sync"] = ha_sync.STATE.as_dict()
+    return body
+
+
 REFRESH_EVERY_S = 10.0  # per user: the button is a nudge, not a poll
 _refresh_lock = threading.Lock()
 _last_refresh: dict[str, float] = {}

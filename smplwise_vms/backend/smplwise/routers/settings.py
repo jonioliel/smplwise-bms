@@ -35,6 +35,10 @@ DEFAULTS: dict[str, str] = {
     "ui.hide_search": "false",  # hide the AI search tab (the owner's choice while it is not in use)
     "ui.start_route": "explore",  # screen the UI opens on: explore (map) | live (overview) | wall | events | playback | devices
     "ui.hide_map": "false",  # hide the map area from the navigation for everyone (a single user: a role without map.read)
+    # owner 2026-09-29 (overview tiles): the summary tiles' shape on the Live overview and the devices screens -
+    # auto (compact under 600 px wide, cards above) | cards (tall, icon above) | compact (a rectangle, icon beside the
+    # value). Per installation, like ui.design; a browser may override it for itself (frontend/src/api/tile-layout.ts).
+    "ui.tile_layout": "auto",
     "history.ha_secondary": "false",  # S2: the HA recorder fills entity states the local history does not know (marked as secondary)
     "plan.estimates": "true",  # Plan Studio: show estimated metres (≈) before a plan is calibrated; false hides metres until calibration (owner decision 2026-09-23)
     "plan.levels": "all",  # default levels view on every map: all levels together, or the floor's default level only (owner decision 2026-09-26)
@@ -141,6 +145,7 @@ class SettingsPatch(BaseModel):
     ui_hide_search: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_search")
     ui_start_route: str | None = Field(default=None, pattern="^(explore|live|wall|events|playback|devices)$", alias="ui.start_route")
     ui_hide_map: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_map")
+    ui_tile_layout: str | None = Field(default=None, pattern="^(auto|cards|compact)$", alias="ui.tile_layout")
     history_ha_secondary: str | None = Field(default=None, pattern="^(true|false)$", alias="history.ha_secondary")
     plan_estimates: str | None = Field(default=None, pattern="^(true|false)$", alias="plan.estimates")
     plan_levels: str | None = Field(default=None, pattern="^(all|default)$", alias="plan.levels")

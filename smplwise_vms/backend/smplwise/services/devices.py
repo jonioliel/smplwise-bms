@@ -380,6 +380,117 @@ def build_cards(entities: list[dict[str, Any]], control_of: ControlChecker) -> d
     return {"cards": cards, "counts": counts}
 
 
+# ---------------------------------------------------------------- one domain across a scope (the overview tiles' panel)
+
+# CR-007 overview tiles (owner 2026-09-29): a building / floor summary tile ("0/33 מתגים פעילים") opens a panel with
+# every entity of that kind in the scope, grouped by floor › area. The kinds are the tiles' own (the DeviceCounts keys).
+ITEM_KINDS: dict[str, tuple[str, ...]] = {
+    "lights": ("light",),
+    "switches": ("switch", "input_boolean"),
+    "covers": ("cover",),
+    "climate": ("climate", "fan", "humidifier"),
+    "media": ("media_player",),
+    "locks": ("lock",),
+    "alarm": ("alarm_control_panel",),
+}
+ITEMS_MAX = 500  # a panel lists at most this many rows (an installation has far fewer of one kind); `truncated` says so
+
+
+def _unavailable(row: dict[str, Any]) -> bool:
+    return not row["available"] or row["state"] in ("unavailable", None)
+
+
+def build_items(conn: sqlite3.Connection, entities: list[dict[str, Any]], kind: str, scope: str, scope_id: str, *, scoped: bool, control_of: ControlChecker) -> dict[str, Any] | None:
+    """Every entity of `kind` in the scope (the building, one floor - `none` for the areas on no floor - or one area,
+    `unassigned` for the entities in no area), as card rows grouped by floor › area in the tree's own order, with the
+    counts the panel's header and filter need. None when the scope is unknown to this caller (404). Pure projection
+    over `entities` (already the caller's visible set); `control_of` is the same per-row control check as the area
+    cards (services/ha_scope.control_checker)."""
+    domains = ITEM_KINDS[kind]
+    tree = build_tree(conn, entities, scoped=scoped)
+    areas_in: set[str | None] | None = None  # None = every area and the unassigned bucket
+    name = "המבנה"
+    floor_name: str | None = None
+    if scope == "floor":
+        floor = next((f for f in tree["floors"] if f["floor_id"] == scope_id), None)
+        if floor is None:
+            return None
+        areas_in = {a["area_id"] for a in floor["areas"]}
+        name = floor["name"]
+    elif scope == "area":
+        if scope_id == UNASSIGNED:
+            if scoped and not any(not e.get("area_id") for e in entities):
+                return None
+            areas_in = {None}
+            name = UNASSIGNED_NAME
+        else:
+            hit = next(((f, a) for f in tree["floors"] for a in f["areas"] if a["area_id"] == scope_id), None)
+            if hit is None:
+                return None
+            areas_in = {scope_id}
+            name = hit[1]["name"]
+            floor_name = hit[0]["name"] if hit[0]["floor_id"] != NO_FLOOR else None
+    by_area: dict[str | None, list[dict[str, Any]]] = {}
+    for e in entities:
+        if e["domain"] not in domains:
+            continue
+        aid = e.get("area_id") or None
+        if areas_in is not None and aid not in areas_in:
+            continue
+        by_area.setdefault(aid, []).append(e)
+    counts = {"total": 0, "active": 0, "inactive": 0, "unavailable": 0}
+    total_rows = 0
+
+    def rows_of(aid: str | None, area_name: str, floor_id: str | None, fname: str | None) -> list[dict[str, Any]]:
+        nonlocal total_rows
+        out = []
+        for e in sorted(by_area.get(aid, []), key=lambda x: ((x.get("name") or x["entity_id"]).casefold(), x["entity_id"])):
+            row = card_row(e, control_of(e["entity_id"]))
+            row["area_id"], row["area_name"], row["floor_id"], row["floor_name"] = aid or UNASSIGNED, area_name, floor_id, fname
+            if kind == "alarm":
+                row["active"] = bool(row.get("armed"))
+            counts["total"] += 1
+            if _unavailable(row):
+                counts["unavailable"] += 1
+            elif row["active"]:
+                counts["active"] += 1
+            else:
+                counts["inactive"] += 1
+            total_rows += 1
+            if total_rows <= ITEMS_MAX:
+                out.append(row)
+        return out
+
+    groups: list[dict[str, Any]] = []
+    for f in tree["floors"]:
+        fid = f["floor_id"]
+        fname = f["name"] if fid != NO_FLOOR else NO_FLOOR_NAME
+        fareas = []
+        for a in f["areas"]:
+            if areas_in is not None and a["area_id"] not in areas_in:
+                continue
+            rows = rows_of(a["area_id"], a["name"], fid, fname)
+            if rows:
+                fareas.append({"area_id": a["area_id"], "name": a["name"], "items": rows})
+        if fareas:
+            groups.append({"floor_id": fid, "name": fname, "level": f.get("level"), "areas": fareas})
+    if areas_in is None or None in areas_in:
+        rows = rows_of(None, UNASSIGNED_NAME, None, None)
+        if rows:
+            groups.append({"floor_id": UNASSIGNED, "name": UNASSIGNED_NAME, "level": None, "areas": [{"area_id": UNASSIGNED, "name": UNASSIGNED_NAME, "items": rows}]})
+    return {
+        "kind": kind,
+        "scope": scope,
+        "id": scope_id,
+        "name": name,
+        "floor_name": floor_name,
+        "counts": counts,
+        "floors": groups,
+        "truncated": total_rows > ITEMS_MAX,
+        "scoped": scoped,
+    }
+
+
 def build_area(conn: sqlite3.Connection, entities: list[dict[str, Any]], area_id: str, *, scoped: bool, control_of: ControlChecker) -> dict[str, Any] | None:
     """One area's cards, plus the areas of the same floor for the chip row. None when the area is unknown (or holds
     nothing the caller may see, for a scoped caller). `control_of` (CR-007 slice 2) is the devices.control /

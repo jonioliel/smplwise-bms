@@ -32,6 +32,8 @@ export interface ProductSettings {
   /** Design switch: 'a' = mockups v1.3 (SW A), 'b' = the earlier boards (SW B); names are editable. */
   'ui.design'?: 'a' | 'b';
   'ui.design_names'?: string;
+  /** Owner 2026-09-29: the summary tiles' shape (Live overview, devices screens) - api/tile-layout.ts. */
+  'ui.tile_layout'?: 'auto' | 'cards' | 'compact';
   /** Owner-set defaults (0.1.61): wall tile count, kiosk page layout, hidden AI search tab. */
   'ui.wall_count'?: number | string;
   'ui.kiosk_cols'?: number | string;
