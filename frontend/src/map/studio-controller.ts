@@ -59,6 +59,25 @@ export function rebaseOnServer(base: GeometryDoc, local: GeometryDoc, server: Ge
   return { ...local, connectors };
 }
 
+/** The connectors the server changed against `base` (added, changed or removed; `far` ignored). */
+export function serverChangedConnectors(base: GeometryDoc, server: GeometryDoc): Set<string> {
+  const index = (d: GeometryDoc) => new Map((d.connectors ?? []).map((c) => [c.id, connectorKey(c)]));
+  const b = index(base);
+  const s = index(server);
+  return new Set([...new Set([...b.keys(), ...s.keys()])].filter((id) => b.get(id) !== s.get(id)));
+}
+
+/** A document of the undo / redo history with the server's version of the connectors in `ids` (review M-1): an undo after
+ * a rebase must never bring back the connector the other floor's sync replaced (and push it back there). */
+export function withServerConnectors(doc: GeometryDoc, server: GeometryDoc, ids: ReadonlySet<string>): GeometryDoc {
+  if (!ids.size) return doc;
+  const byId = new Map(server.connectors.map((c) => [c.id, c]));
+  const connectors = doc.connectors.flatMap((c) => (ids.has(c.id) ? (byId.has(c.id) ? [byId.get(c.id)!] : []) : [c]));
+  const have = new Set(connectors.map((c) => c.id));
+  for (const c of server.connectors) if (ids.has(c.id) && !have.has(c.id)) connectors.push(c);
+  return { ...doc, connectors };
+}
+
 const DEFAULT_API: StudioApi = { load: (id) => getGeometry(id, { draft: true }), save: (id, doc, base) => saveGeometryDraft(id, doc, base) };
 
 /**
@@ -248,6 +267,9 @@ export class StudioController implements ReactiveController {
     const merged = rebaseOnServer(this.base, this.doc, r.doc);
     if (!merged) return false;
     this.rebased = true;
+    const theirs = serverChangedConnectors(this.base, r.doc);
+    this.undoStack = this.undoStack.map((d) => withServerConnectors(d, r.doc, theirs));
+    this.redoStack = this.redoStack.map((d) => withServerConnectors(d, r.doc, theirs));
     this.apply(r);
     this.base = r.doc;
     this.doc = merged;

@@ -352,11 +352,15 @@ test.describe('studio controller (unit)', () => {
     await c.load('v1');
     // the other floor's editor synced a twin here: revision 1 with one connector changed
     const synced = { ...doc, connectors: doc.connectors.map((x, i) => (i === 0 ? { ...x, width_m: 2.5 } : x)) };
+    let serverRev = 1;
+    const savedDocs: GeometryDoc[] = [];
     const serverApi: StudioApi = {
       load: async () => ({ geometry: row(1, 'draft'), doc: synced, issues: [], published_hash: null, copy_candidates: [] }),
       save: async (_id, d, rev) => {
-        if (rev !== 1) throw new ApiError(409, { code: 'stale_revision', user_message: 'x', retryable: false, correlation_id: '', details: {} });
-        return { geometry: row(2, 'draft'), doc: d, issues: [], published_hash: null };
+        if (rev !== serverRev) throw new ApiError(409, { code: 'stale_revision', user_message: 'x', retryable: false, correlation_id: '', details: {} });
+        serverRev += 1;
+        savedDocs.push(d);
+        return { geometry: row(serverRev, 'draft'), doc: d, issues: [], published_hash: null };
       },
     };
     const c2 = new StudioController(host(), serverApi, 20);
@@ -370,6 +374,14 @@ test.describe('studio controller (unit)', () => {
     expect(c2.doc!.walls.length).toBe(2);
     expect(c2.doc!.connectors[0].width_m).toBe(2.5); // the server's connector kept
     expect(c2.hasConflict).toBe(false);
+    // review M-1: an undo of the unrelated edit never brings the pre-sync connector back
+    c2.undo();
+    expect(c2.doc!.walls.length).toBe(doc.walls.length);
+    expect(c2.doc!.connectors[0].width_m).toBe(2.5);
+    expect(await c2.flush()).toBe(true);
+    expect(savedDocs.at(-1)!.connectors[0].width_m).toBe(2.5);
+    c2.redo();
+    expect(c2.doc!.connectors[0].width_m).toBe(2.5);
     // the plain fake: the server moved without a visible change - a conflict, as before
     c.revision = 5;
     c.commit({ ...c.doc!, walls: [] });
