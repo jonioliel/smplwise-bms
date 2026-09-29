@@ -317,3 +317,55 @@ def test_retry_locked_rides_out_a_holder_that_lets_go(db, monkeypatch):
     t.join(5)
     with db.connection(mode="read") as conn:
         assert conn.execute("SELECT value FROM settings WHERE key = 'k'").fetchone()[0] == "retried"
+
+
+def test_no_manual_transaction_control_outside_db_py():
+    """COMMIT / ROLLBACK / BEGIN IMMEDIATE by hand keep (or bypass) the write gate: use db.commit_now,
+    db.rollback_and_restart, unlocked() or a new connection. A deferred BEGIN and savepoints stay allowed."""
+    import re
+    from pathlib import Path
+
+    root = Path(db_mod.__file__).resolve().parent
+    pattern = re.compile(r"""\.execute(?:script)?\(\s*[rbf]?["']\s*(COMMIT|ROLLBACK|END|BEGIN\s+(?:IMMEDIATE|EXCLUSIVE))\b""", re.IGNORECASE)
+    offenders = []
+    for path in sorted(root.rglob("*.py")):
+        if path.name == "db.py" and path.parent == root:
+            continue
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if pattern.search(line) and "ROLLBACK TO" not in line.upper():
+                offenders.append(f"{path.relative_to(root)}:{n}: {line.strip()}")
+    assert offenders == []
+
+
+def test_commit_now_hands_the_gate_on_and_keeps_reading(db):
+    with db.connection() as conn:
+        set_setting(conn, "k", "1")
+        db_mod.commit_now(conn)
+        assert db.gate.state() == {"held": False, "waiting": 0} and conn.in_transaction
+        with db.write_aside() as w:  # the same thread can write elsewhere at once: no self-deadlock
+            set_setting(w, "k2", "2")
+        conn.execute("SELECT 1").fetchone()
+    with db.connection() as conn:
+        db_mod.commit_now(conn, keep_reading=False)
+        assert not conn.in_transaction and not db.gate.state()["held"]
+    with db.connection() as conn:
+        set_setting(conn, "gone", "1")
+        db_mod.rollback_and_restart(conn)
+        assert conn.in_transaction and db.gate.state()["held"]
+        set_setting(conn, "kept", "1")
+    with db.connection(mode="read") as conn:
+        assert {r[0] for r in conn.execute("SELECT key FROM settings WHERE key IN ('k', 'k2', 'gone', 'kept')")} == {"k", "k2", "kept"}
+
+
+def test_a_gate_kept_after_a_manual_commit_is_reported(db, monkeypatch, caplog):
+    import logging
+
+    monkeypatch.setattr(db_mod, "BUSY_TIMEOUT_S", 1.5)
+    with db.connection(label="manual committer") as conn:
+        conn.execute("COMMIT")  # the bug the helpers prevent: the token stays with a connection that no longer writes
+        with caplog.at_level(logging.ERROR, logger="smplwise.db"):
+            with pytest.raises(sqlite3.OperationalError, match="locked"):
+                with db.write_aside(label="victim"):
+                    pass
+        assert any("manual committer" in r.getMessage() and "outside a transaction" in r.getMessage() for r in caplog.records)
+    assert db.gate.state() == {"held": False, "waiting": 0}

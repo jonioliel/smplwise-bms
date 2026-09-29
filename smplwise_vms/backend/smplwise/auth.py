@@ -16,7 +16,7 @@ from .audit import audit
 from .config import Settings
 import time
 
-from .db import Database, database_of, get_setting, new_id, now_iso, permission_revision, read_mode, release, set_setting
+from .db import Database, commit_now, database_of, get_setting, new_id, now_iso, permission_revision, read_mode, release, set_setting
 from .errors import unauthenticated
 from .rbac import Principal
 from .remote_channel import is_remote
@@ -151,8 +151,7 @@ def maybe_bootstrap(conn: sqlite3.Connection, settings: Settings, principal: Pri
             grant(w)
         # a deferred read transaction keeps the snapshot it started with: restart it so this very request
         # (typically the first /me of the admin) already sees the new binding
-        conn.execute("COMMIT")
-        conn.execute("BEGIN")
+        commit_now(conn)
     else:
         grant(conn)
 

@@ -148,7 +148,8 @@ def gate_for(path: Path) -> WriteGate:
 
 
 _conn_gate: dict[int, WriteGate] = {}  # id(conn) -> its database's gate (connection() / write_aside())
-_gate_tokens: dict[int, tuple[WriteGate, object]] = {}  # id(conn) -> the gate token it holds while it writes
+_gate_tokens: dict[int, tuple[WriteGate, object, sqlite3.Connection]] = {}  # id(conn) -> the gate token it holds while it writes
+_stray_logged: set[int] = set()
 
 
 def _release_gate(conn: sqlite3.Connection) -> None:
@@ -206,16 +207,36 @@ def _busy(label: str, exc: sqlite3.OperationalError) -> sqlite3.OperationalError
     return exc
 
 
+def _report_stray_holders(gate: WriteGate, waiter: str) -> None:
+    """A writer has waited a second: is the gate held by a connection outside any transaction? That is a manual
+    COMMIT (conn.execute("COMMIT") instead of db.commit_now) - the token stays with a connection that no longer writes,
+    and every writer queues behind it until the connection closes. Logged once per connection, as an error."""
+    for key, (g, _tok, holder) in list(_gate_tokens.items()):
+        if g is not gate or key in _stray_logged:
+            continue
+        try:
+            open_tx = holder.in_transaction
+        except sqlite3.ProgrammingError:  # closed
+            open_tx = False
+        if not open_tx:
+            _stray_logged.add(key)
+            label = _MODES.get(key, ("write", None, "?"))[2]
+            log.error("write gate held by %s outside a transaction (a manual COMMIT? use db.commit_now); %s waits", label, waiter)
+
+
 def _begin_immediate(conn: sqlite3.Connection, label: str) -> None:
     """Take the write lock: this process's queue first (the gate of the connection's database), then SQLite's lock
     (BEGIN IMMEDIATE, which still waits busy_timeout for a writer in another process)."""
     started = time.monotonic()
     gate = _conn_gate.get(id(conn)) if WRITE_GATE else None
     if gate is not None and id(conn) not in _gate_tokens:
-        token = gate.acquire(BUSY_TIMEOUT_S)
+        token = gate.acquire(min(1.0, BUSY_TIMEOUT_S))
+        if token is None and BUSY_TIMEOUT_S > 1.0:
+            _report_stray_holders(gate, label)
+            token = gate.acquire(BUSY_TIMEOUT_S - (time.monotonic() - started))
         if token is None:
             raise _busy(label, sqlite3.OperationalError("database is locked"))
-        _gate_tokens[id(conn)] = (gate, token)
+        _gate_tokens[id(conn)] = (gate, token, conn)
     try:
         conn.execute("BEGIN IMMEDIATE")
     except sqlite3.OperationalError as exc:
@@ -258,6 +279,7 @@ def _drop_hold(conn: sqlite3.Connection) -> None:
     """The connection is closing: forget its hold and hand the gate on, whatever state the transaction ended in."""
     _holders.pop(id(conn), None)
     _release_gate(conn)
+    _stray_logged.discard(id(conn))
     _conn_gate.pop(id(conn), None)
 
 
@@ -460,6 +482,27 @@ def release(conn: sqlite3.Connection) -> None:
         conn.execute("COMMIT")
     _end_hold(conn)  # hands the gate on
     conn.execute("PRAGMA query_only=1")
+
+
+def commit_now(conn: sqlite3.Connection, *, keep_reading: bool = True) -> None:
+    """Commit the connection's transaction in the middle of a request and hand the write lock on - THE way to commit
+    by hand (a bare conn.execute("COMMIT") keeps this process's write gate, and every other writer queues until the
+    connection closes; tests/test_db_gate.py forbids it outside db.py). keep_reading: continue in a deferred read
+    transaction (nothing more may be written on the connection until it closes); False leaves it in autocommit."""
+    if conn.in_transaction:
+        conn.execute("COMMIT")
+    _end_hold(conn)
+    if keep_reading:
+        conn.execute("BEGIN")
+
+
+def rollback_and_restart(conn: sqlite3.Connection) -> None:
+    """Drop everything this write transaction wrote and start a fresh one (queued like any writer)."""
+    if conn.in_transaction:
+        conn.execute("ROLLBACK")
+    _end_hold(conn)
+    label = _MODES.get(id(conn), ("write", None, "restart"))[2]
+    _begin_immediate(conn, label)
 
 
 def get_setting(conn: sqlite3.Connection, key: str, default: str | None = None) -> str | None:
