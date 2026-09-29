@@ -579,6 +579,44 @@ def test_review_b1_geometry_grants_nothing_members_are_explicit(settings):
     assert cams["camA"] not in dana_cams() and revocation.revoked_since("dev-dana", t0)
 
 
+def test_re_review_n1_a_member_taken_off_the_rooms_floors_loses_its_reach_and_its_membership(settings):
+    """Re-review N1: a hall camera taken off the map and placed on a floor outside the room is no longer reachable by a
+    user of the room's other floor - the membership ends with its last anchor on the room's floors (audited)."""
+    w = _world(settings)
+    c, app = w["c"], w["app"]
+    _share(w)
+    c.get("/api/v1/me", headers=as_user("dana"))
+    _binding(settings, "dana", "viewer", "floor", w["f3"])
+    cam = w["cams"]["camH"]
+
+    def dana_cams() -> set[str]:
+        with app.state.db.connection() as conn:
+            return set(camera_scope(conn, _p("dana"), "map.read").ids)
+
+    assert cam in dana_cams()
+    with app.state.db.connection() as conn:
+        live = [r[0] for r in conn.execute("SELECT id FROM map_anchors WHERE resource_type = 'camera' AND resource_id = ? AND effective_to IS NULL", (cam,)).fetchall()]
+        assert ss.is_member(conn, w["hall"], "camera", cam)
+    for aid in live:
+        assert c.delete(f"/api/v1/map-anchors/{aid}").status_code == 204
+    f9 = c.post(f"/api/v1/buildings/{w['ids']['building']}/floors", json={"name": "קומה 9", "level": 9}).json()["id"]
+    _plan(c, f9)
+    _anchor(c, f9, "camera", cam, 0.5, 0.5)
+    assert cam not in dana_cams()
+    with app.state.db.connection() as conn:
+        assert not ss.is_member(conn, w["hall"], "camera", cam)
+        assert ss.camera_shared_floors(conn, cam) == []
+        row = conn.execute("SELECT details_json FROM audit_log WHERE action = 'zone.share.member_remove' ORDER BY rowid DESC LIMIT 1").fetchone()
+        assert row is not None and json.loads(row[0])["reason"] == "anchor_removed"
+    m3 = c.get(f"/api/v1/floors/{w['f3']}/map", headers=as_user("dana")).json()
+    assert cam not in {a["resource_id"] for a in m3["anchors"]}
+    # a member whose membership row outlived its anchors (an older database) grants nothing either
+    with app.state.db.connection() as conn:
+        ss.add_member(conn, w["hall"], "camera", cam, None, now_iso())
+        assert ss.camera_shared_floors(conn, cam) == [] and ("camera", cam) not in ss.mirrored_anchor_floors(conn)
+    assert cam not in dana_cams()
+
+
 def test_a_user_of_the_upper_floor_only_reaches_the_halls_members_and_nothing_else_of_the_home_floor(settings):
     w = _world(settings)
     c, app = w["c"], w["app"]

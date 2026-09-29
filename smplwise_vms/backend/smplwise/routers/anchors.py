@@ -489,3 +489,15 @@ def delete_anchor(anchor_id: str, request: Request, from_floor_id: str | None = 
                                            last={"x": a["x"], "y": a["y"], "rotation": a["rotation_degrees"] or 0})  # its bodies stay where the anchor was, unbound
     audit(conn, actor=principal, action="anchor.delete", decision="allowed", resource_type="floor", resource_id=a["floor_id"], request_id=_rid(request),
           details={"anchor_id": anchor_id, "resource": f"{a['resource_type']}:{a['resource_id']}", "unbound_bodies": unbound, **({"via_floor_id": from_floor_id} if via is not None else {})})
+    # CR-009 re-review N1: a member no longer anchored on any floor of its shared room leaves the room - its reach through
+    # the room ends now (audited, open streams re-checked)
+    from ..services import shared_spaces
+
+    ended = shared_spaces.end_unplaced_memberships(conn, a["resource_type"], a["resource_id"], principal.user_id, now)
+    for zid in ended:
+        audit(conn, actor=principal, action="zone.share.member_remove", decision="allowed", resource_type="zone", resource_id=zid, request_id=_rid(request),
+              details={"resource": f"{a['resource_type']}:{a['resource_id']}", "reason": "anchor_removed", "anchor_id": anchor_id})
+    if ended:
+        from ..services import revocation
+
+        revocation.mark([r[0] for r in conn.execute("SELECT id FROM users").fetchall()])

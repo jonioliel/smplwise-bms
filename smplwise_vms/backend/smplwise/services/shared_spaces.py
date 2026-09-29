@@ -1098,7 +1098,9 @@ def mirrored_anchor_floors(conn: sqlite3.Connection, at: str | None = None) -> d
             continue
         key = (m["resource_type"], m["resource_id"])
         on = [f for f in g.floors if f in anchored.get(key, set())]
-        origin = on[0] if on else g.home_floor_id
+        if not on:
+            continue  # re-review N1: a member reaches the room's floors only while it is anchored on one of them
+        origin = on[0]
         lst = out.setdefault(key, [])
         for f in g.floors:
             if f not in on and (f, origin) not in lst:
@@ -1106,20 +1108,31 @@ def mirrored_anchor_floors(conn: sqlite3.Connection, at: str | None = None) -> d
     return {k: v for k, v in out.items() if v}
 
 
+def _live_anchor_floors(conn: sqlite3.Connection, resource_type: str, resource_id: str) -> set[str]:
+    return {r[0] for r in conn.execute("SELECT floor_id FROM map_anchors WHERE resource_type = ? AND resource_id = ? AND effective_to IS NULL", (resource_type, resource_id)).fetchall()}
+
+
 def member_share_floors(conn: sqlite3.Connection) -> dict[tuple[str, str], set[str]]:
     """(resource_type, resource_id) -> every floor of the shared rooms it is a member of (a deny on any of them takes
-    it away - the camera chain rule, applied to entities too)."""
+    it away - the camera chain rule, applied to entities too). Re-review N1: only while it is anchored on one of them."""
     gs = groups(conn)
     out: dict[tuple[str, str], set[str]] = {}
+    placed: dict[tuple[str, str], set[str]] = {}
     for m in member_rows(conn):
         g = gs.get(m["zone_id"])
-        if g is not None:
-            out.setdefault((m["resource_type"], m["resource_id"]), set()).update(g.floors)
+        if g is None:
+            continue
+        key = (m["resource_type"], m["resource_id"])
+        if key not in placed:
+            placed[key] = _live_anchor_floors(conn, *key)
+        if placed[key] & set(g.floors):
+            out.setdefault(key, set()).update(g.floors)
     return out
 
 
 def camera_shared_floors(conn: sqlite3.Connection, camera_id: str) -> list[str]:
-    """The floors a camera reaches through the shared rooms it is a member of (rbac.camera_floors): a table lookup."""
+    """The floors a camera reaches through the shared rooms it is a member of (rbac.camera_floors): a table lookup.
+    Re-review N1: a member reaches a room's floors only while it is anchored on one of them."""
     if not any_active(conn):
         return []
     try:
@@ -1129,7 +1142,22 @@ def camera_shared_floors(conn: sqlite3.Connection, camera_id: str) -> list[str]:
     if not zones:
         return []
     gs = groups(conn)
-    return sorted({f for z in zones if z in gs for f in gs[z].floors})
+    placed = _live_anchor_floors(conn, "camera", camera_id)
+    return sorted({f for z in zones if z in gs and placed & set(gs[z].floors) for f in gs[z].floors})
+
+
+def end_unplaced_memberships(conn: sqlite3.Connection, resource_type: str, resource_id: str, actor_id: str | None, now: str) -> list[str]:
+    """Re-review N1: after an anchor is removed, the rooms whose member is no longer anchored on any of their floors lose
+    it (a camera taken off the hall's map and placed elsewhere must not stay reachable from the hall's other floor).
+    Returns the zone ids whose membership ended; the caller audits and marks revocation."""
+    placed = _live_anchor_floors(conn, resource_type, resource_id)
+    ended: list[str] = []
+    for g in groups(conn).values():
+        if placed & set(g.floors) or not is_member(conn, g.zone_id, resource_type, resource_id):
+            continue
+        if remove_member(conn, g.zone_id, resource_type, resource_id, actor_id, now):
+            ended.append(g.zone_id)
+    return ended
 
 
 def floor_mirrored(conn: sqlite3.Connection, floor_id: str) -> set[tuple[str, str]]:
