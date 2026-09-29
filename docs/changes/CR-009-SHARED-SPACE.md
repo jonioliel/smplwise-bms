@@ -3,7 +3,10 @@
 **Numbering:** registered as CR-009 on 2026-09-29 (CR-008 remote access is the previous record).
 
 **Status:** Approved for development by the owner on 2026-09-29 from a mockup. Task T093. This note is the design
-agreed before the build; §10 records what was built.
+agreed before the build; §10 records the first build. **§11 (the owner's answers and the security review, the same
+day) supersedes §3-§8 and §10 wherever they differ** - above all: each floor keeps its own outline and walls of the
+room (two-outline model), cameras and devices are shared by an explicit member list, and publishing the other floor
+publishes the room's pending changes on its home floor.
 
 ## 1. The request (owner, 2026-09-29, translated)
 
@@ -222,7 +225,8 @@ The preview answers the same lists without writing. `DELETE /zones/{zone_id}/sha
 - The SVG / PNG export draws the mirrored structure but not the chip; the per-floor iso thumbnail does not cut the
   room.
 - A devices-area badge per room (HA areas are not linked to Arx rooms).
-- Publishing the home floor from the other floor's publish button.
+- ~~Publishing the home floor from the other floor's publish button.~~ Done differently by owner answer 1 (§11.1):
+  only the room's content is published there.
 
 ## 10. Build status
 
@@ -275,3 +279,103 @@ historical map shows a shared room as it was when the floor's structure was publ
 raises the home draft's revision, so an editor open on the home floor reloads on its next save (as with the stairs'
 twin sync); B's editor lists the home floor's levels in its level bar; the devices area (HA areas) has no per-room
 "משותף" badge - the building page's floor card counts the shared cameras instead.
+
+## 11. Revision: the owner's answers and the security review (2026-09-29)
+
+After the first build the owner answered three questions and an independent security review returned
+CHANGES_REQUIRED. Both were built on the same branch; this section is the design as it now stands.
+
+### 11.1 Owner answers
+
+1. **Publish (answer ב):** publishing the OTHER floor also publishes the shared room's pending changes on its home
+   floor - only the room's content (objects, labels, same-floor connectors, circuits, groups inside the room); the rest
+   of the home draft stays a draft, and an item moved out of the room in the home draft keeps its published place.
+   `map.publish` on the floor being published is the grant; a principal with an explicit deny (map.publish, map.edit or
+   map.read) on the home floor publishes nothing there. Only when the home floor's editor version is its published plan
+   version. Planned and validated before any write (422 `geometry_invalid` with `home_floor_id`), rolled back on error
+   (`rollback_and_restart`). Audit `geometry.shared.publish` on BOTH floors. The diff (`GET …/geometry/diff`) and the
+   draft read return `shared_pending: [{home_floor_id, home_floor_name, zone_ids, changes}]`; the publish answer
+   returns `shared_published`. The editor's publish button appears when the room has pending changes, and the dialog
+   says "כולל שינויים באולם המשותף (קומה ‎-1)" with the count. Publishing the home floor works as before.
+2. **Settings "מפה" (הגדרות › מפה):** `map.default_view` = `2d` | `3d` (default `2d`) - the live map, the history map and
+   the event page open in 3D when the floor has a structure (no per-device memory of the last choice existed, and none
+   was added; the 2D / 3D button still switches per visit); `plan.levels` mirrored there (the key and its place on the
+   media tab stay); `map.shared_levels` = `show` | `hide` (default `show`) - whether the editor's level bar lists the
+   shared room's home levels. Validated in `routers/settings.py` (422 on another value), audited as every setting.
+3. **Two-outline model (answer ב + details):** the hall is wider on the upper floor, so each floor keeps its OWN outline
+   and its own walls and openings of the room; only the CONTENT (tribunes, markings, objects, lighting, circuits) and
+   the member cameras / devices are shared.
+   - `shared_spaces.other_zone_id` names the other floor's outline zone. At conversion the duplicate room is KEPT as
+     that outline, with the walls along it (`boundary_walls_kept`); only duplicate content inside it is removed
+     (interior walls such as a second drawing of the court's lines, objects, labels, connectors). Without a duplicate
+     room an outline is created from the home room.
+   - The room's region (membership of content) is the union of the home outline and the other outline mapped home.
+     Walls and openings are never attached nor routed; `guardShared` claims only content.
+   - Map: every entry carries `other_polygon` / `other_label`. The court's floor draws the upper outline dashed with a
+     light tint and "מפלס עליון" (content inside it but outside the court - the upper rows - is the hall's and draws
+     normally); the upper floor draws the court thin dashed with "מפלס תחתון". Never hit-tested.
+   - 3D (`sharedVolumes` + `Builder.sharedVolume`): the lower outline stands from the court up to the upper level, the
+     upper outline from there to the upper ceiling; each floor stands its own walls along its own outline and the view
+     adds the other floor's outline as thin walls (`vol:<zone>#lower.<i>` / `#upper.<i>`). At the step between them a
+     slab ring (`vol:<zone>#ring`, a keyhole prism) at the upper level, unless a tribune stands in the ring. The upper
+     plate's opening is the whole upper outline (its bounding box); the court level's plate spans the lower outline.
+   - Placement check: when the lower outline does not fall inside the upper one the entry says `aligned: false`, the
+     editor's issue list and the share dialog warn "ודא את יישור הקומות". No alignment screen (the PATCH exists).
+
+### 11.2 Security review - what changed
+
+- **B1 explicit members.** New table `shared_space_members(zone_id, resource_type camera|ha_entity, resource_id,
+  added_by/at, removed_by/at)`, set at share time from the cameras and devices anchored inside the room and changed
+  only by `POST /zones/{id}/share/members` / `DELETE /zones/{id}/share/members/{type}/{rid}` with the share rights
+  (map.edit + placement.edit on every floor of the room, `require_camera_placement` for a camera). Reach
+  (`mirrored_anchor_floors`, `access.camera_reach_floors`, `ha_scope.placements`) follows membership only - an anchor
+  moved or drawn into the room grants nothing. The editor shows "מצלמה בתוך האולם שאינה משותפת - הוסף?" on a
+  candidate with an add button, and "הסר מהחלל המשותף" on a member. A polygon edit needs the rights on every floor that
+  shows the room.
+- **B2 write hardening.** An "addition" whose id exists in the home document is refused (422 `shared_id_taken`);
+  circuits and groups must have all members inside the room (422 `shared_outside`); a circuit's switch cannot be
+  changed from the other floor (422 `shared_switch`); walls and openings are never routed.
+- **M1** a deny on the home floor is honoured on writes (403 `shared_denied`, nothing written); a missing item is never
+  deleted - the client lists deletions in `shared_deleted` (`sharedDeleted(base, doc)`); no revision leaks in 403 /
+  409 bodies; the same rules for the anchor edit scope.
+- **M2** every home write is planned first, written in an order that cannot fail halfway, and rolled back on error.
+- **M3** conversion: `require_camera_placement` for every member camera; a camera whose home anchor lies elsewhere
+  keeps its anchor on the other floor (`kept`); no clamping of positions outside the room.
+- **M4** deleting a shared zone answers 409 `zone_shared`; `accept_zones` (replace_auto) keeps shared zones.
+- **M5** un-share and member removal call `revocation.mark` (open streams re-checked).
+- **M6** the published GET answers 304 before building the attach; `shared_tag` hashes without parsing documents;
+  `rbac.camera_floors` reads the member table.
+- **L1** a reader who may not read the home floor gets "קומה אחרת" for its name and no home levels, hashes or version
+  ids; the ETag hashes only what the reader gets. **L3** tests for a deny on floor B (cameras and entities alike).
+  **L5** anchors created from B use the editor's plan version. **L7** the dialog always sends `duplicate_zone_id`; the
+  un-share confirm says the removed duplicate content does not come back. **L8** a backup from before migration 0036
+  restores (both tables emptied), and a backup of a shared room round-trips.
+
+### 11.3 Build status of the revision
+
+| Commit | What |
+|---|---|
+| 7cf6e5b | merge of `g0/intake` (for `rollback_and_restart`) |
+| 74ee105 | security review B1, B2, M1-M6, L1, L3, L5 + the two-outline backend |
+| 1c5fde5 | publish from the other floor (answer 1), settings keys (answer 2), member delete trigger, tests incl. L8 |
+| 7eef429 | frontend: outlines on the map, 3D volume, share dialog, members, shared deletions, publish count, הגדרות › מפה |
+| fe2d380 | live spec for the wider upper floor |
+
+Tests (run 2026-09-29, workstation):
+
+- Backend: `tests/test_shared_spaces.py` 21 passed; with 23 related modules (access, rbac, rbac camera scope, rbac
+  matrix, zones, search, anchors 3D, backup, devices, events, events cache, correlation, HA authority, push, catalog
+  images, circuits search, geometry api / store / binding / integration / stairs, settings) 288 passed. Full suite not
+  run here.
+- Frontend: `tsc --noEmit` clean, `npm run build` OK; `tests/unit-shared-space.spec.ts` 9 passed (content drawn on
+  every level, claim of content only, shared deletions, 409 merge, the volume from two outlines, the 3D of both floors
+  with the ring and the tribune rule, hint and search).
+- Live: `tests/evidence-shared-space.spec.ts` 2 passed on a throwaway backend (floor 0's outline 2 m wider on each
+  side): conversion keeps floor 0's outline and walls, both dashed outlines, the upper rows on floor -1, the tribune
+  moved from floor 0, the publish dialog's count and the publish on floor -1, both floors in 3D, the map opening in 3D
+  from הגדרות › מפה. The owner's real plans were not used.
+
+Known limits of the revision: the upper plate's hole and the court plate are bounding boxes; the ring is drawn at the
+upper level of the step whatever the tribune's real footprint (one tribune anywhere in the ring suppresses it); the
+member list is edited per anchor in the editor (no bulk screen); the alignment warning has no alignment screen; the
+publish count is per item, not per field.
