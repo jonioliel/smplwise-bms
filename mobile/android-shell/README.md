@@ -10,7 +10,7 @@ Operator and customer guide in Hebrew: `docs/operations/ARX_ANDROID_SHELL_HE.md`
 | | |
 |---|---|
 | Package id | `com.smplwise.arx.app` (not the TWA's, so both install side by side during the trial) |
-| App name / version | SmplWise Arx, versionName `2.0.1`, versionCode `arxVersionCode` (2) |
+| App name / version | SmplWise Arx, versionName `2.0.2`, versionCode `arxVersionCode` (3) |
 | Screens | `ServersActivity` (launcher: the server list and the app's settings), `WebActivity` (one server, full screen) |
 | Toolchain | AGP 8.9.1, Kotlin 2.2.0, Gradle 8.11.1 (wrapper, checksum-pinned), compileSdk 36, targetSdk 35, minSdk 26, JDK 17 |
 | Libraries | `androidx.webkit` 1.14.0, `androidx.biometric` 1.1.0, `androidx.core:core-splashscreen` 1.0.1, `androidx.activity` 1.10.1, `androidx.appcompat` 1.7.0, Material Components 1.12.0 - nothing else |
@@ -122,9 +122,12 @@ the phone's fingerprint / face / screen lock (`androidx.biometric`, `BIOMETRIC_W
 every cold start and after 0 ("מיד"), 1, 5, 15 or 60 minutes away (`LockPolicy`, unit-tested). The time away is always
 counted; leaving through the app's own file picker, "save as" or microphone prompt waives only the first 30 s. Once
 shown, the lock stays until the phone confirms the user (cancelling the prompt keeps it). While locked: a cover hides
-the whole window; videos and audio pause and an open microphone is stopped; open dialogs close and new ones (a link's
-"add this server?", add / edit) wait for the unlock; Back only moves the app to the background; permission requests,
-file pickers, downloads and bridge messages are refused. The recent-apps thumbnail is blank while the lock is on
+the whole window; in every frame of the server's origin - the WisKey intercom panel the Arx page frames included -
+audio and video pause, microphone / camera tracks stop, audio contexts are suspended, and play() and getUserMedia are
+refused until the unlock (nothing resumes by itself afterwards: the page decides); open dialogs and the server's ⋮
+menu close, new ones (a link's "add this server?", add / edit / delete) wait for the unlock, and the page's own
+alert / confirm / prompt are cancelled; Back only moves the app to the background; permission requests, file pickers,
+downloads and bridge messages are refused. The recent-apps thumbnail is blank while the lock is on
 (Android 13+ `setRecentsScreenshotEnabled`, older `FLAG_SECURE`). The app switches its lock off only when the phone has
 no screen lock or biometrics at all any more (it says so); any other "cannot authenticate now" keeps it locked with
 "נסו שוב".
@@ -203,6 +206,17 @@ landing page outside `/arx/`) and logged every request with its Cookie and User-
 - The emulator's software GPU hung the app's render thread once while switching windows (an ANR in
   `HardwareRenderer.pause`, no app code on the stack) - an emulator artifact like the grey dim above.
 
+### Re-review round (2.0.2), seen on the emulator
+
+- **Media behind the lock:** a same-origin iframe outside `/arx/` (standing in for the WisKey panel) had the media
+  guard and no `ArxApp`; with the app locked, play() and getUserMedia were refused there and in the main page, and a
+  guessed token could not lift the guard; after the PIN both frames were unlocked.
+- **Server-list stacking:** `ArxApp.switchServer()` twice and `location.href = 'arx://servers'` without a gesture did
+  nothing (the server list opens only after a tap).
+- **JS dialogs:** the page's `alert()` appeared as the app's dialog titled "Fake HA" with "אישור".
+- Not seen on the emulator: a real microphone call (the emulator has no audio here) and the two-task restart case
+  (item 4; covered by code review only).
+
 ## Known limits
 - No push notifications (above).
 - **Not seen yet** (needs a phone and the lab): WebRTC video and two-way audio, full-screen video, downloads and
@@ -213,6 +227,8 @@ landing page outside `/arx/`) and logged every request with its Cookie and User-
 - Cloudflare Access (D3) in front of `/arx` redirects to another host, which the app does not open inside; the error
   screen explains it. A future build could add an allow-list.
 - The site itself needs a current Android System WebView (111+); older ones get a notice to update it.
+- The page's `alert()` / `confirm()` / `prompt()` show as the app's dialogs, and "החלף שרת" from the page reacts only
+  to a tap.
 - The page-facing interface and blob downloads (files the page builds) need a WebView that supports the
   `WEB_MESSAGE_LISTENER` and `DOCUMENT_START_SCRIPT` features (current Android System WebView releases do; an outdated
   WebView gets a Hebrew message asking to update it, and "החלף שרת" still works through `arx://servers`).
@@ -227,8 +243,8 @@ landing page outside `/arx/`) and logged every request with its Cookie and User-
 | `arxHost` | a server added once on the first start (bare hostname) | empty |
 | `arxPath` | that server's path, with both slashes | `/arx/` |
 | `arxServerName` | that server's display name | its hostname |
-| `arxVersionCode` | integer; raise it for every APK you hand out | `2` |
-| `arxVersionName` | shown in app info and as `ArxApp.version` | `2.0.1` |
+| `arxVersionCode` | integer; raise it for every APK you hand out | `3` |
+| `arxVersionName` | shown in app info and as `ArxApp.version` | `2.0.2` |
 
 ## Build
 
