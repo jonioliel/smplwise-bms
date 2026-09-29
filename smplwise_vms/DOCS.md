@@ -159,7 +159,7 @@ Design note: `docs/operations/NVR_LESS_MODE.md`.
   "foreign" and never touched.
 - Camera tiles show a fresh NVR snapshot (read-only ISAPI picture, cached in /data for
   `snapshots.max_age_s`) until the stream plays.
-- Session cap (`media.max_live_sessions`, default 8) protects the NVR; the wall and the kiosk use sub
+- Session cap (`media.max_live_sessions`, default 16, was 8; a saved value is kept) protects the NVR; the wall and the kiosk use sub
   streams, the single-camera view the main stream. Tiles beyond the cap show the snapshot only.
 
 ## Recordings and playback

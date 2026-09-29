@@ -208,7 +208,7 @@ export class SwCameraTile extends LitElement {
       ${real === 'live'
         ? html`<sw-live-player .cameraId=${this.cameraId} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop} .poster=${this.poster} .fit=${this.fit} compact></sw-live-player>`
         : real === 'poster'
-          ? html`<img class="poster" src=${this.poster} alt="" />`
+          ? html`<img class="poster" src=${this.poster} alt="" loading="lazy" />`
           : html`<sw-scene kind=${this.scene}></sw-scene>`}
       <div class="shade"></div>
       ${real === 'scene' && !this.noDemo ? html`<span class="demo">דמו</span>` : real === 'poster' ? html`<span class="demo" data-snapshot-label>${this.snapshotOnly ? 'תמונה · לחץ לצפייה חיה' : 'צילום'}</span>` : nothing}

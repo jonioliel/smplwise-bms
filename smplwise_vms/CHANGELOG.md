@@ -1,7 +1,7 @@
 # Changelog — SmplWise Arx add-on
 
 ## Unreleased (hotfix) — the camera wall from outside plays all cameras
-- The remote live cap `remote.max_live_streams` now defaults to 16 (was 4, which left tiles 5..11 of an 11-camera wall on "שגיאה בזרם הווידאו"; a value an administrator saved is untouched), a cap refusal is shown as what it is on every path ("הגעת למכסת הזרמים החיים בחיבור הזה (N)" with who may raise it; no ladder walk, no retry), the wall streams only the tiles in view within the budget and shows the rest as snapshots refreshed every 10 s ("תמונה · לחץ לצפייה חיה"), and the new `remote.wall_profile` (הגדרות › גישה מרחוק) plus a per-device "איכות: רגילה | גבוהה" switch on the wall choose the sub or main stream; LAN behaviour is unchanged.
+- The remote live cap `remote.max_live_streams` and the installation cap `media.max_live_sessions` now default to 16 (were 4 and 8, which left tiles 5..11 of an 11-camera wall on "שגיאה בזרם הווידאו"; a value an administrator saved is untouched), a cap refusal is shown as what it is on every path ("הגעת למכסת הזרמים החיים בחיבור הזה (N)" with who may raise it; no ladder walk, no retry), the wall streams only the tiles in view within the budget and shows the rest as snapshots refreshed every 10 s ("תמונה · לחץ לצפייה חיה"), and the new `remote.wall_profile` (הגדרות › גישה מרחוק) plus a per-device "איכות: רגילה | גבוהה" switch on the wall choose the sub or main stream; LAN behaviour is unchanged.
 
 ## 0.1.143 (pilot) — Plan Studio: stairs between floors, stairs with a landing (straight / L / U), floor height; detector 1.4; the guide with live screenshots
 ### Stairs between floors and stairs with a landing (owner priority 1)

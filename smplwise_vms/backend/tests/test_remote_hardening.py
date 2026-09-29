@@ -398,7 +398,11 @@ def test_remote_live_cap_default_is_16_and_a_saved_value_is_kept(arx):
     from smplwise.routers.settings import DEFAULTS, read_settings
 
     admin = TestClient(arx.app)
-    assert DEFAULTS["remote.max_live_streams"] == "16"
+    assert DEFAULTS["remote.max_live_streams"] == "16" and DEFAULTS["media.max_live_sessions"] == "16"  # the wall budget is min(both)
+    assert admin.get("/api/v1/settings").json()["settings"]["media.max_live_sessions"] == 16
+    assert admin.patch("/api/v1/settings", json={"media.max_live_sessions": 8}).status_code == 200  # a saved value is kept
+    assert admin.get("/api/v1/settings").json()["settings"]["media.max_live_sessions"] == 8
+    assert admin.patch("/api/v1/settings", json={"media.max_live_sessions": 33}).status_code == 422
     assert admin.get("/api/v1/settings").json()["settings"]["remote.max_live_streams"] == 16
     assert admin.patch("/api/v1/settings", json={"remote.max_live_streams": 4}).status_code == 200
     assert admin.get("/api/v1/settings").json()["settings"]["remote.max_live_streams"] == 4
