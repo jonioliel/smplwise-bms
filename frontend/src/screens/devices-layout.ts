@@ -511,6 +511,16 @@ export class DevicesLayoutController implements ReactiveController {
   prepare(grids: LayoutGrid[]) {
     this.grids = grids;
     this.gridOf = new Map(grids.flatMap((g) => g.keys.map((k) => [k, g.id] as [string, string])));
+    // 6c review: the card being arranged lost its last device (a structure refresh): back to the cards, and say why
+    // (its arrangement stays in the draft - the card returns with it when the domain does)
+    if (this.tileCard && !this.gridOf.has(this.tileCard)) {
+      const label = this.opts.label(this.tileCard);
+      this.endTileDrag();
+      this.tileCard = null;
+      this.tileSel = null;
+      this.note = `בכרטיס "${label}" כבר אין התקנים, ולכן חזרנו לכל הכרטיסים.`;
+      this.live = this.note;
+    }
     const layout = this.editing ? this.draft : this.viewerLayout(this.viewVariant());
     this.activeGrids = new Set(this.editing ? grids.map((g) => g.id) : grids.filter((g) => layout && g.keys.some((k) => layout.items[k])).map((g) => g.id));
     this.view = layout ? complete(layout, grids.map((g) => g.keys), this.opts.defaultH) : null;

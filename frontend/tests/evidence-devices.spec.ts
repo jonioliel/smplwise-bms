@@ -2478,4 +2478,31 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await resetLayouts(request);
     }
   });
+
+  test('6c review: the card being arranged loses its last device (a structure refresh) - the editor goes back to the cards and says why, no breadcrumb or tile panel left behind', async ({ page, request }, testInfo) => {
+    test.setTimeout(120_000);
+    test.skip(testInfo.project.name !== 'desktop', 'editor flow');
+    await seed(request);
+    await resetLayouts(request);
+    try {
+      await open(page, '/devices/areas/cr007_den', 'a');
+      const a = page.locator('devices-area');
+      await expect(a.locator('sw-card[data-card="climate"]')).toBeVisible({ timeout: 30000 });
+      await a.locator('[data-layout-edit]').click();
+      await a.locator('[data-lay-tiles-enter="card:climate"]').click();
+      await expect(a.locator('[data-lay-stage="card:climate"]')).toBeVisible();
+      // Home Assistant moves the den's only climate device to the hall (the fixture's registry control)
+      const moved = ENTITIES.map((e) => (e.entity_id === 'climate.cr007_den' ? { ...e, area_id: 'cr007_hall' } : e));
+      expect((await request.post('/api/v1/ha/dev/registry', { data: { entities: moved, devices: [], areas: AREAS, floors: FLOORS } })).status()).toBe(200);
+      await expect(a.locator('[data-lay-stage]')).toHaveCount(0, { timeout: 20000 });
+      await expect(a.locator('[data-layout-tiles-crumb]')).toHaveCount(0);
+      await expect(a.locator('[data-layout-panel^="tile"]')).toHaveCount(0);
+      await expect(a.locator('[data-layout-bar]')).toContainText('כבר אין התקנים');
+      await expect(a.locator('.lay-item.lay-edit[data-lay-key="card:lighting"]')).toBeVisible(); // still editing, the cards back
+      await a.locator('sw-button[data-layout-cancel]').click();
+    } finally {
+      await seed(request);
+      await resetLayouts(request);
+    }
+  });
 });

@@ -301,7 +301,8 @@ export class DevicesBulkMenu extends LitElement {
     if (!this.open) return;
     const to = e.relatedTarget as Node | null;
     if (to && (this.contains(to) || this.shadowRoot?.contains(to))) return;
-    if (this.how === 'hover') return; // the pointer decides
+    // focus moved elsewhere: every panel closes (hover, focus or click); a focus summary also when focus just ends. A
+    // press on a non-focusable part of the panel (no relatedTarget) keeps a hover / click panel open.
     if (this.how === 'focus' || to) this.open = false;
   };
 

@@ -96,7 +96,8 @@ class TileLayout(BaseModel):
     a size step, hidden, a custom title (plain text)."""
     model_config = ConfigDict(extra="forbid", strict=True)
     order: int = Field(ge=0, le=MAX_TILE_ORDER)
-    span: int = Field(1, ge=1, le=max(TILE_COLS.values()))
+    # field-level upper bound only (the widest card); the real per-card bound is checked in _tile_errors
+    span: int = Field(1, ge=1, le=max(TILE_COLS.values()), description="Field-level upper bound only (the widest card); the per-card bound is _tile_errors.")
     size: TileSize = "m"
     hidden: bool = False
     title: str | None = Field(None, max_length=60)
