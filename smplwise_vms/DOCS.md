@@ -626,6 +626,46 @@ picture is sent anywhere yet.
   Home Assistant account may not read add-on info. The card creates the Ingress session itself and keeps it
   alive while the dashboard is open. Screens inside the card open with `embed=1`, i.e. without the shell chrome.
 
+## Remote access (SmplWise Arx)
+
+CR-008 MVP. With the add-on option `remote_access: true`, `https://<your Arx hostname>/arx/` opens the product
+directly (not the HA UI) with its own sign-in page. The Cloudflare side (a token-managed tunnel with a `/arx` path
+route to `http://<add-on host>:8099` above the plain HA route) is described step by step in
+`docs/operations/ARX_CLOUDFLARE_GUIDE_HE.md`. The add-on needs no `ports:` mapping; the tunnel reaches it on the
+Supervisor network.
+
+- **Sign-in.** Your Home Assistant username and password, then the MFA code when your HA account has one. The page
+  talks to Home Assistant's own login endpoints on the same hostname; the password never reaches the add-on, and HA
+  counts failed attempts and raises its usual notification. HA lists the sign-in as the client `…/arx/` under
+  Profile › Security › Refresh tokens - deleting it there signs that browser out of Arx within a minute.
+- **Who may sign in.** הגדרות › גישה מרחוק › "מי רשאי להיכנס מרחוק": by default only users whose personal flag is
+  on (משתמשים והרשאות › the user › "גישה מרחוק"); alternatively every HA user who holds any Arx role. Everyone else
+  gets "הגישה מרחוק לא הופעלה עבור המשתמש שלך". Turning a flag off ends that user's remote sessions at once.
+  Roles and scopes are exactly the ones the user has through Ingress (the same HA user id). The first system
+  administrator is still granted only through Ingress (`bootstrap_admin_username` never applies remotely).
+- **Staying signed in.** `remote.session`: 90 days rolling (HA's refresh token, like the Companion app; the
+  default), until the browser closes, or 90 days with an idle lock (`remote.idle_lock_minutes`, default 720).
+  Optional: require HA MFA for users holding administrative permissions (`remote.require_mfa_admin`, off).
+- **WisKey.** The sign-in also signs the browser in to Home Assistant on the same hostname (HA's `hassTokens`), so
+  the embedded WisKey panel opens without a second login. That browser is then signed in to the HA UI at `/` as the
+  same user too; signing out of Arx signs it out of both.
+- **Video.** `remote.default_profile` (main) over WebRTC; MSE through the tunnel only as an announced last resort
+  (`remote.mse_fallback`). Browsers decode only H.264 without B-frames over WebRTC - set the NVR's main stream that
+  way, or choose `sub` as the remote default. (The player's use of these two settings is the next step of CR-008.)
+- **Security.** The `/arx` channel never accepts Ingress identity headers (they are dropped), answers 404 while the
+  option is off, sends a strict CSP (`frame-ancestors 'self'`), `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`
+  and `Permissions-Policy`, and keeps its session in an `HttpOnly; Secure; SameSite=Strict; Path=/arx/` cookie that is
+  re-issued with every token refresh (at most 30 minutes old). Sessions are re-checked against HA every minute
+  while in use. Sign-in attempts are rate-limited per address and per user, and every sign-in, refusal, revocation
+  and sign-out is in the audit log (`auth.remote_session.*`; addresses and ids, never tokens).
+- **Home Assistant settings.** Cloudflared requires HA's `http` `use_x_forwarded_for` with `trusted_proxies`
+  `172.30.33.0/24`; that also lets HA see the real address behind Arx's token checks. HA bans no address by default;
+  a `login_attempts_threshold` (HA → Settings → System → Network, or `http:` in configuration.yaml) makes HA ban an
+  address after that many failures - for HA and Arx alike, until it is removed from `ip_bans.yaml`. That is an HA
+  decision (CR-008 D9), not an Arx setting.
+- **Limits.** Remote sessions live in memory: after an add-on restart the browser re-establishes its session
+  silently from its HA token. Native-app push, the installable app and Cloudflare Access are later phases.
+
 ## Security boundaries checked by tests
 
 - Permissions are evaluated per resource on the server: a camera is reachable only through a floor the user may
