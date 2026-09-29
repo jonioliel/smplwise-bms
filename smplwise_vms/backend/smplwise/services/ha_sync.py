@@ -49,6 +49,13 @@ ATTR_ALLOW = {
     # CR-007 slice 4: climate/covers in full - preset, swing, target humidity (climate and humidifier alike) and a
     # humidifier's own mode list
     "preset_modes", "swing_mode", "swing_modes", "humidity", "current_humidity", "min_humidity", "max_humidity", "available_modes",
+    # CR-010 (the alarm section): what an alarm panel reports about itself (whether arming needs the code, who changed
+    # it last, Alarmo's open / bypassed sensors and arm mode, the exit / entry delay) and what zone sensors report about
+    # their zone (its number - the bypass pairing's last strategy - bypass, tamper, trouble, last trip). Never a code:
+    # Home Assistant does not put one in any state attribute.
+    "code_arm_required", "changed_by", "open_sensors", "bypassed_sensors", "arm_mode", "next_state", "delay",
+    "zone_id", "zone", "zone_number", "zone_name", "bypassed", "bypass", "tamper", "device_tamper", "zone_tamper", "zone_trouble",
+    "zone_open", "last_tripped_time", "battery_low",
 }
 STATE_DOMAINS_SKIP = {"update", "image", "conversation", "zone", "person", "device_tracker", "notify", "tts", "stt", "wake_word", "assist_satellite"}
 
@@ -185,6 +192,13 @@ def apply_registry(conn: sqlite3.Connection, maps: dict[str, dict[str, Any]]) ->
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)""",
                 (eid, m["registry_id"], m["unique_id"], m["platform"], m["device_id"], m["area_id"], m["area_name"], m["ha_floor_id"], m["ha_floor_name"], m["name"], m["original_name"], domain, m["icon"], m["entity_category"], m["disabled"], m["hidden"], now, now),
             )
+        # CR-010: the config entry (a separate statement so a database before migration 0036 - the upgrade tests -
+        # still takes the registry above)
+        try:
+            conn.execute("UPDATE ha_entities SET config_entry_id = ? WHERE entity_id = ?", (m.get("config_entry_id"), eid))
+        except sqlite3.OperationalError as exc:
+            if "config_entry_id" not in str(exc):
+                raise
         n += 1
     return n
 

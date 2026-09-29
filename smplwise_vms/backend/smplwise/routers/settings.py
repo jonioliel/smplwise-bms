@@ -102,6 +102,18 @@ DEFAULTS: dict[str, str] = {
     # CR-008 P2: false = the stricter CSP (remote_channel.CSP_STRICT) is report-only next to the enforced one; true = it is
     # the enforced policy. Switched on by the owner after reviewing the reports (הגדרות › גישה מרחוק).
     "remote.csp_enforce": "false",
+    # CR-010 (אבטחה › אזעקה, owner request 2026-09-29): alarm control over the remote channel (/arx). remote_control off
+    # refuses every alarm action from outside; remote_disarm off refuses only what lowers protection from outside -
+    # disarming a panel and bypassing a zone. Inside the local network (Ingress) neither applies. Holders of the
+    # permission still need it: these only take rights away.
+    "alarm.remote_control": "true",
+    "alarm.remote_disarm": "true",
+    # CR-010 code policy (owner decisions 2026-09-29): which code a user whose policy is code_required types - personal_pin
+    # (their own Arx PIN, a salted hash; the panel code is never revealed) or panel_code (the panel's code, compared with
+    # the stored one). remote_codeless: a no_code user arms / disarms without a code from outside too (default on, owner
+    # answer 2026-09-29 21:50 - he relies on the Android app's biometric lock); off = from outside everyone types a code.
+    "alarm.code_mode": "personal_pin",
+    "alarm.remote_codeless": "true",
 }
 
 # CR-007 6a/6b: the registered device-screen palettes - keep in step with DEVICE_THEMES in
@@ -174,6 +186,10 @@ class SettingsPatch(BaseModel):
     remote_require_mfa_admin: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.require_mfa_admin")
     remote_max_live_streams: int | None = Field(default=None, ge=1, le=32, alias="remote.max_live_streams")
     remote_csp_enforce: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.csp_enforce")
+    alarm_remote_control: str | None = Field(default=None, pattern="^(true|false)$", alias="alarm.remote_control")
+    alarm_remote_disarm: str | None = Field(default=None, pattern="^(true|false)$", alias="alarm.remote_disarm")
+    alarm_code_mode: str | None = Field(default=None, pattern="^(personal_pin|panel_code)$", alias="alarm.code_mode")
+    alarm_remote_codeless: str | None = Field(default=None, pattern="^(true|false)$", alias="alarm.remote_codeless")
 
     model_config = {"populate_by_name": True}
 

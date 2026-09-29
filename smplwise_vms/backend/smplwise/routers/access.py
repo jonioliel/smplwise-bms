@@ -77,7 +77,16 @@ PERMISSION_LABELS: dict[str, str] = {
     "audio.talk": "דיבור דו־כיווני",
     "camera.ptz": "שליטת PTZ",
     "door.unlock": "פתיחת דלת",
+    # CR-010 (אבטחה › אזעקה): the intrusion alarm section. alarm.view reads the panels and their zones (viewer and above,
+    # not kiosk); alarm.arm arms a panel (operator and above - arming raises protection); alarm.disarm (T079, sensitive)
+    # disarms, now granted by default to site_admin and system_admin like access.release; alarm.bypass (sensitive)
+    # bypasses / restores one zone of a panel through the control the server paired with it - site_admin and
+    # system_admin. All four are scoped like entity.state.read: installation-wide, or the panels placed on the
+    # holder's floors (services/ha_scope.py). A custom role grants disarm / bypass only by naming them as sensitive.
+    "alarm.view": "צפייה באזעקה ובחיישניה",
+    "alarm.arm": "דריכת אזעקה",
     "alarm.disarm": "ניטרול אזעקה",
+    "alarm.bypass": "עקיפת חיישן אזעקה (הוצאת אזור מהגנה)",
     "nvr.config.write": "כתיבה להגדרות ה־NVR",
     "nvr.config.events": "NVR: הפעלת התראות (Notify Surveillance Center) ולוחות זימון",
     "nvr.config.detection": "NVR: עריכת אזורי זיהוי תנועה ורגישות",

@@ -20,7 +20,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Context, HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
-from homeassistant.exceptions import Unauthorized
+from homeassistant.exceptions import ServiceValidationError, Unauthorized
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
@@ -82,7 +82,13 @@ ALLOWED_SERVICES = {
     ("climate", "set_preset_mode"), ("climate", "set_swing_mode"), ("climate", "set_humidity"),
     ("humidifier", "set_humidity"), ("humidifier", "set_mode"),
     ("cover", "open_cover_tilt"), ("cover", "close_cover_tilt"), ("cover", "stop_cover_tilt"), ("cover", "set_cover_tilt_position"),
+    # 0.2.6 (CR-010, the alarm section): the other arm modes a panel may offer. Never alarm_trigger.
+    ("alarm_control_panel", "alarm_arm_night"), ("alarm_control_panel", "alarm_arm_vacation"), ("alarm_control_panel", "alarm_arm_custom_bypass"),
 }
+
+# 0.2.6 (CR-010): Home Assistant's own translation keys for a refused alarm code (alarm_control_panel and the
+# integrations that follow it). The answer names the refusal, never the code: the error text is not forwarded.
+CODE_REFUSALS = {"invalid_code": "invalid_code", "invalid_code_format": "invalid_code", "code_arm_required": "code_required"}
 
 
 CARD_URL = "/smplwise_bridge/smplwise-card.js"
@@ -162,6 +168,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await hass.services.async_call(domain, service, data, blocking=True, context=context)
         except Unauthorized:
             return {"ok": False, "error": "unauthorized"}
+        except ServiceValidationError as exc:
+            # 0.2.6 (CR-010): a refused alarm code is its own answer (the add-on shows "the code was refused"); the
+            # exception text is never returned or logged - only its class or translation key
+            refusal = CODE_REFUSALS.get(str(getattr(exc, "translation_key", "") or ""))
+            if refusal:
+                return {"ok": False, "error": refusal}
+            _LOGGER.warning("smplwise_bridge.execute %s.%s refused: %s", domain, service, type(exc).__name__)
+            return {"ok": False, "error": type(exc).__name__}
         except Exception as exc:  # noqa: BLE001
             _LOGGER.warning("smplwise_bridge.execute %s.%s failed: %s", domain, service, type(exc).__name__)
             return {"ok": False, "error": type(exc).__name__}
