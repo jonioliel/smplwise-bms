@@ -288,3 +288,26 @@ test.describe('owner answers 2026-09-29 (demo data)', () => {
     await expect(page.locator('system-devices [data-cam-state="offline"]').first()).toContainText('מנותקת');
   });
 });
+test.describe('review fixes (demo data)', () => {
+  test('M1: Back closes the panel (its own history entry) and stays on the building screen; a filter adds no entry', async ({ page }) => {
+    await open(page, '/devices/building');
+    const b = page.locator('devices-building');
+    const before = await page.evaluate(() => history.length);
+    await b.locator('sw-kpi[data-tile-kind="switches"] button.hit').click();
+    await expect(b.locator('devices-tiles-panel')).toHaveAttribute('open', '');
+    await b.locator('devices-tiles-panel .seg button[data-filter="active"]').click();
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/devices/building?domain=switches&filter=active');
+    expect(await page.evaluate(() => history.length)).toBe(before + 1);
+    await page.goBack();
+    await expect(b.locator('devices-tiles-panel')).not.toHaveAttribute('open', '');
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/devices/building');
+    await expect(b.locator('sw-kpi').first()).toBeVisible();
+    // closing with Escape goes back over the same entry: a second Back leaves nothing of the panel behind
+    await b.locator('sw-kpi[data-tile-kind="switches"] button.hit').click();
+    await page.keyboard.press('Escape');
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/devices/building');
+    await page.goForward();
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/devices/building?domain=switches');
+    await expect(b.locator('devices-tiles-panel')).toHaveAttribute('open', '');
+  });
+});

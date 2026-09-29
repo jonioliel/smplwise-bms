@@ -24,7 +24,7 @@ import './devices-tiles-panel';
 import { ITEMS_FILTERS, type ItemsFilter } from './devices-tiles-panel';
 import { TILE_KINDS, type ItemsScope, type TileKind } from '../api/devices';
 import { TileLayoutController } from '../api/tile-layout';
-import { onRouteChange, replaceRoute } from '../router';
+import { onRouteChange, pushRoute, replaceRoute } from '../router';
 
 /** The count pills' keys that open the tiles' panel (cameras and sensors are counts only). */
 const PILL_KIND: Partial<Record<keyof DeviceCounts, TileKind>> = { lights: 'lights', switches: 'switches', covers: 'covers', climate: 'climate', media: 'media', locks: 'locks' };
@@ -471,6 +471,8 @@ export class DevicesBuilding extends LitElement {
   /** The tiles' panel: which kind, over which scope (null = closed). Mirrors the route's `domain` / `floor` / `area`. */
   @state() private panel: { kind: TileKind; scope: ItemsScope; id: string; name: string; filter: ItemsFilter } | null = null;
   private offRoute: (() => void) | null = null;
+  /** The panel's history entry was pushed by this screen (Back / close go back over it). */
+  private pushedPanel = false;
 
   /** CR-007 6b: the building screen's layout (one per installation: floor cards and area tiles; system.configure edits). */
   private lay = new DevicesLayoutController(this, {
@@ -567,12 +569,17 @@ export class DevicesBuilding extends LitElement {
   private openPanel(kind: TileKind, scope: ItemsScope = 'building', id = '') {
     if (this.lay.editing) return; // the layout editor owns the screen
     this.panel = { kind, scope, id, name: this.scopeName(scope, id), filter: 'all' };
-    replaceRoute('/devices/building', panelParams(kind, scope, id, 'all'));
+    // review M1: a history entry of its own, so the browser's / the phone's Back closes the panel, not the screen
+    pushRoute('/devices/building', panelParams(kind, scope, id, 'all'));
+    this.pushedPanel = true;
   }
 
   private closePanel = () => {
     this.panel = null;
-    replaceRoute('/devices/building');
+    if (this.pushedPanel) {
+      this.pushedPanel = false;
+      history.back(); // the entry this screen pushed; the route listener sees the address without the panel
+    } else replaceRoute('/devices/building'); // a deep link: no entry of ours to go back over
   };
 
   private onPanelFilter = (e: CustomEvent<ItemsFilter>) => {
@@ -1171,6 +1178,7 @@ export class DevicesBuilding extends LitElement {
       const want = panelFromParams(r.params);
       if (!want) {
         this.panel = null;
+        this.pushedPanel = false; // Back already left the panel's entry
         return;
       }
       const cur = this.panel;
