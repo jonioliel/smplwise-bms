@@ -83,11 +83,33 @@ export function decodeLadder(value: string): VideoStep[] {
 
 /** What a screen hands its `sw-live-player` (`plan` + `preferred`): '' outside the remote channel (today's behaviour),
  * `none` when nothing may play under the policy (the player shows the message). */
-export function playerPlan(preferred: Profile, encoding?: CameraEncoding | null, me: Me | null | undefined = session.me): { plan: string; preferred: Profile | '' } {
+export function playerPlan(preferred: Profile, encoding?: CameraEncoding | null, me: Me | null | undefined = session.me): { plan: string; preferred: Profile | ''; gop: string } {
   const policy = remoteVideo(me);
-  if (!policy) return { plan: '', preferred: '' };
+  if (!policy) return { plan: '', preferred: '', gop: '' };
   const steps = videoLadder(preferred, policy.mseFallback, encoding);
-  return { plan: steps.length ? encodeLadder(steps) : 'none', preferred };
+  return { plan: steps.length ? encodeLadder(steps) : 'none', preferred, gop: encodeGop(encoding) };
+}
+
+/** Smart codec (H.264+ / H.265+) stretches the GOP dynamically: the longest first-frame wait. */
+const SMART_CODEC_GOP_MS = 20000;
+
+/** The key-frame interval of a stream in ms when the NVR reported it (GovLength frames at the stream's frame rate, 25
+ * when it runs at the camera's full rate), for the player's first-frame watch; 0 = unknown. */
+export function gopMs(encoding: CameraEncoding | null | undefined, profile: Profile): number {
+  const e = encoding?.[profile];
+  if (!e) return 0;
+  if (e.smart_codec) return SMART_CODEC_GOP_MS;
+  if (!e.gov_length || e.gov_length <= 0) return 0;
+  return Math.round((e.gov_length / (e.fps && e.fps > 0 ? e.fps : 25)) * 1000);
+}
+
+/** `main:2000,sub:2500` - a value, like the plan, so a re-rendered parent does not reconnect the player. */
+export function encodeGop(encoding: CameraEncoding | null | undefined): string {
+  return (['main', 'sub'] as Profile[])
+    .map((p) => [p, gopMs(encoding, p)] as const)
+    .filter(([, ms]) => ms > 0)
+    .map(([p, ms]) => `${p}:${ms}`)
+    .join(',');
 }
 
 /** The player badge: `main·WebRTC`, `sub·WebRTC`, `main·MSE`. */

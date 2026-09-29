@@ -10,53 +10,68 @@ import { test, expect, request as pwRequest, type APIRequestContext, type Page }
 // the capability registry. The remote channel is what the SERVER says (`/me.channel`, `/me.remote`): the spec answers
 // /me through the real backend and marks it remote with the two settings under test (the /arx sign-in itself is
 // evidence-arx-remote.spec.ts). The browser's media stack is replaced by an init script: a fake live socket (the relay's
-// signalling: offer → answer, `mse` → the MIME reply) and a fake RTCPeerConnection whose outcome per profile is set by
-// the test - `ok` delivers a canvas stream (a real <video> "playing" event), `fail` never connects, `nodecode` connects
-// and renders nothing (the lab's main stream). What it does not prove: real go2rtc WebRTC / MSE media (the lab check).
+// signalling: offer → answer, `mse` → the MIME reply) and a fake RTCPeerConnection with RTP statistics, whose outcome
+// per profile is set by the test:
+//   ok        connects and delivers a canvas stream (a real <video> "playing" event)
+//   fail      never connects (ICE `failed`)
+//   nodecode  connects, bytes arrive, no frame ever decodes (the lab's main stream)
+//   slow      connects, but no media arrives for 13 s - then the first frame (a long GOP over a slow link)
+//   flap      connects, goes `disconnected` for a moment, recovers, then plays
+//   down      the relay answers the offer with `upstream_unavailable` (go2rtc down)
+//   slowoffer createOffer takes 800 ms, then as ok (a camera switch during it)
+// What it does not prove: real go2rtc WebRTC / MSE media (the lab check).
 
 const CONTROL = process.env.SW_SETUP_CONTROL || 'http://127.0.0.1:8359';
 const MAIN_UNDECODABLE = 'הזרם הראשי אינו ניתן לפענוח ב-WebRTC - ראה הגדרות › וידאו';
 
-type RtcMode = 'ok' | 'fail' | 'nodecode';
+type RtcMode = 'ok' | 'fail' | 'nodecode' | 'slow' | 'flap' | 'down' | 'slowoffer';
+interface SocketEntry {
+  profile: string;
+  camera: string;
+  kind: string;
+  offers: number;
+}
 
 const FAKE_MEDIA = () => {
   const w = window as unknown as Record<string, unknown>;
-  w.__liveSockets = [] as { profile: string; kind: string }[];
+  w.__liveSockets = [] as SocketEntry[];
   w.__rtc = (w.__rtc as Record<string, string>) ?? { main: 'ok', sub: 'ok' };
+  const modeOf = (profile: string) => (w.__rtc as Record<string, string>)[profile] ?? 'ok';
   const RealWS = window.WebSocket;
   class FakeLive {
-    static CONNECTING = 0;
-    static OPEN = 1;
-    static CLOSING = 2;
-    static CLOSED = 3;
     url: string;
     readyState = 0;
     binaryType = 'blob';
-    profile: string;
-    entry: { profile: string; kind: string };
+    entry: SocketEntry;
     onopen: ((e: Event) => void) | null = null;
     onmessage: ((e: MessageEvent) => void) | null = null;
     onclose: ((e: CloseEvent) => void) | null = null;
     onerror: ((e: Event) => void) | null = null;
     constructor(url: string) {
       this.url = url;
-      this.profile = new URL(url).searchParams.get('profile') || 'sub';
-      this.entry = { profile: this.profile, kind: '' };
+      const u = new URL(url);
+      const profile = u.searchParams.get('profile') || 'sub';
+      this.entry = { profile, camera: (/\/media\/live\/([^/]+)\/ws/.exec(u.pathname) ?? [])[1] ?? '', kind: '', offers: 0 };
       (w.__liveSockets as unknown[]).push(this.entry);
-      w.__lastProfile = this.profile;
+      w.__lastProfile = profile;
       setTimeout(() => {
         this.readyState = 1;
         this.onopen?.(new Event('open'));
       }, 20);
     }
+    private reply(body: unknown) {
+      setTimeout(() => this.readyState === 1 && this.onmessage?.(new MessageEvent('message', { data: JSON.stringify(body) })), 20);
+    }
     send(data: string) {
       const msg = JSON.parse(data) as { type: string };
       if (msg.type === 'webrtc/offer') {
         this.entry.kind = 'webrtc';
-        setTimeout(() => this.onmessage?.(new MessageEvent('message', { data: JSON.stringify({ type: 'webrtc/answer', value: 'v=0 fake-answer' }) })), 20);
+        this.entry.offers += 1;
+        if (modeOf(this.entry.profile) === 'down') this.reply({ type: 'error', value: 'upstream_unavailable' });
+        else this.reply({ type: 'webrtc/answer', value: 'v=0 fake-answer' });
       } else if (msg.type === 'mse') {
         this.entry.kind = 'mse';
-        setTimeout(() => this.onmessage?.(new MessageEvent('message', { data: JSON.stringify({ type: 'mse', value: 'video/mp4; codecs="avc1.640029"' }) })), 20);
+        this.reply({ type: 'mse', value: 'video/mp4; codecs="avc1.640029"' });
       }
     }
     close() {
@@ -76,40 +91,60 @@ const FAKE_MEDIA = () => {
     ontrack: ((e: { streams: MediaStream[]; track: MediaStreamTrack }) => void) | null = null;
     onicecandidate: ((e: { candidate: null }) => void) | null = null;
     onconnectionstatechange: (() => void) | null = null;
-    private timer = 0;
+    private timers: number[] = [];
+    private bytes = 0;
+    private frames = 0;
+    private mode = modeOf(String(w.__lastProfile));
     addTransceiver() {}
     async createOffer() {
+      if (this.mode === 'slowoffer') await new Promise((r) => setTimeout(r, 800));
       return { type: 'offer', sdp: 'v=0 fake-offer' };
     }
     async setLocalDescription() {}
     async addIceCandidate() {}
+    async getStats() {
+      return new Map([['v', { type: 'inbound-rtp', kind: 'video', bytesReceived: this.bytes, framesDecoded: this.frames }]]);
+    }
+    private later(ms: number, fn: () => void) {
+      this.timers.push(window.setTimeout(() => this.connectionState !== 'closed' && fn(), ms));
+    }
+    private state(s: string) {
+      this.connectionState = s;
+      this.onconnectionstatechange?.();
+    }
+    private play() {
+      const c = document.createElement('canvas');
+      c.width = 320;
+      c.height = 180;
+      const ctx = c.getContext('2d')!;
+      let n = 0;
+      this.timers.push(window.setInterval(() => {
+        ctx.fillStyle = n++ % 2 ? '#1d4ed8' : '#16a34a';
+        ctx.fillRect(0, 0, 320, 180);
+        this.bytes += 4000;
+        this.frames += 1;
+      }, 100));
+      const stream = c.captureStream(10);
+      this.ontrack?.({ streams: [stream], track: stream.getVideoTracks()[0] });
+    }
     async setRemoteDescription() {
-      const mode = (w.__rtc as Record<string, string>)[String(w.__lastProfile)] ?? 'ok';
-      this.timer = window.setTimeout(() => {
-        if (this.connectionState === 'closed') return;
-        if (mode === 'fail') {
-          this.connectionState = 'failed';
-          this.onconnectionstatechange?.();
-          return;
-        }
-        this.connectionState = 'connected';
-        this.onconnectionstatechange?.();
-        if (mode !== 'ok') return; // nodecode: connected, but no frame ever renders
-        const c = document.createElement('canvas');
-        c.width = 320;
-        c.height = 180;
-        const ctx = c.getContext('2d')!;
-        let n = 0;
-        window.setInterval(() => {
-          ctx.fillStyle = n++ % 2 ? '#1d4ed8' : '#16a34a';
-          ctx.fillRect(0, 0, 320, 180);
-        }, 100);
-        const stream = c.captureStream(10);
-        this.ontrack?.({ streams: [stream], track: stream.getVideoTracks()[0] });
-      }, 60);
+      const mode = this.mode;
+      if (mode === 'fail') return this.later(60, () => this.state('failed'));
+      this.later(60, () => this.state('connected'));
+      if (mode === 'ok' || mode === 'slowoffer') return this.later(80, () => this.play());
+      if (mode === 'nodecode') return this.timers.push(window.setInterval(() => (this.bytes += 4000), 100));
+      if (mode === 'slow') return this.later(13000, () => this.play());
+      if (mode === 'flap') {
+        this.later(300, () => this.state('disconnected'));
+        this.later(1000, () => this.state('connected'));
+        this.later(2000, () => this.play());
+      }
     }
     close() {
-      window.clearTimeout(this.timer);
+      this.timers.forEach((t) => {
+        window.clearTimeout(t);
+        window.clearInterval(t);
+      });
       this.connectionState = 'closed';
     }
   }
@@ -136,7 +171,16 @@ async function openCamera(page: Page, cameraId: string, rtc: Record<string, RtcM
 }
 
 const player = (page: Page) => page.locator('live-camera sw-live-player');
-const sockets = (page: Page) => page.evaluate(() => (window as unknown as { __liveSockets: { profile: string; kind: string }[] }).__liveSockets);
+const badge = (page: Page) => player(page).locator('[data-video-badge]');
+const status = (page: Page) => player(page).evaluate((p) => (p as unknown as { status: string }).status);
+const sockets = (page: Page) => page.evaluate(() => (window as unknown as { __liveSockets: SocketEntry[] }).__liveSockets.map(({ profile, kind }) => ({ profile, kind })));
+
+/** The badge says what PLAYS only while it plays; before that "מנסה <step>…". */
+async function expectPlaying(page: Page, step: string, timeout = 15000) {
+  await expect(badge(page)).toHaveAttribute('data-state', 'playing', { timeout });
+  await expect(badge(page)).toHaveAttribute('data-step', step);
+  await expect(badge(page)).toHaveText(step);
+}
 
 test.describe('remote video policy against the fixture backend (fake NVR / go2rtc)', () => {
   test.skip(process.env.SW_LIVE !== '1' || process.env.SW_SETUP_FIXTURE !== '1', 'set SW_LIVE=1 SW_SETUP_FIXTURE=1 against tests/fixtures/setup_fake_devices.py');
@@ -180,11 +224,10 @@ test.describe('remote video policy against the fixture backend (fake NVR / go2rt
     await request?.dispose();
   });
 
-  test('remote default main: main·WebRTC plays, no fallback notice', async ({ page }) => {
+  test('remote default main: "מנסה" while connecting, then main·WebRTC plays, no fallback notice', async ({ page }) => {
     await remoteMe(page, { profile: 'main', mse: true });
     await openCamera(page, h264Camera, { main: 'ok', sub: 'ok' });
-    await expect(player(page).locator('[data-video-badge]')).toHaveText('main·WebRTC');
-    await expect.poll(() => player(page).evaluate((p) => (p as unknown as { status: string }).status), { timeout: 15000 }).toBe('playing');
+    await expectPlaying(page, 'main·WebRTC');
     await expect(player(page).locator('[data-video-notice]')).toHaveCount(0);
     expect(await sockets(page)).toEqual([{ profile: 'main', kind: 'webrtc' }]);
     await expect(page.locator('live-camera [data-remote-video-policy]')).toContainText('WebRTC תחילה');
@@ -194,20 +237,37 @@ test.describe('remote video policy against the fixture backend (fake NVR / go2rt
   test('a forced WebRTC failure falls back to MSE when remote.mse_fallback allows it (announced)', async ({ page }) => {
     await remoteMe(page, { profile: 'main', mse: true });
     await openCamera(page, h264Camera, { main: 'fail', sub: 'ok' });
-    await expect(player(page).locator('[data-video-badge]')).toHaveText('main·MSE', { timeout: 15000 });
+    await expect(badge(page)).toHaveAttribute('data-step', 'main·MSE', { timeout: 15000 });
+    await expect(badge(page)).toHaveText('מנסה main·MSE…'); // no fMP4 in this fake: it never claims to play
     await expect(player(page).locator('[data-video-notice]')).toContainText('MSE דרך המנהרה');
     await expect.poll(() => sockets(page)).toEqual([{ profile: 'main', kind: 'webrtc' }, { profile: 'main', kind: 'mse' }]);
     await page.screenshot({ path: test.info().outputPath('remote-main-mse-fallback.png') });
   });
 
-  test('MSE off: main that cannot decode falls to sub·WebRTC with the message', async ({ page }) => {
+  test('review M2: a first frame at 13 s still plays over WebRTC (no bytes yet = keep waiting)', async ({ page }) => {
+    test.setTimeout(60000);
+    await remoteMe(page, { profile: 'main', mse: true });
+    await openCamera(page, h264Camera, { main: 'slow', sub: 'ok' });
+    await page.waitForTimeout(12500);
+    await expect(badge(page)).toHaveText('מנסה main·WebRTC…');
+    await expectPlaying(page, 'main·WebRTC', 10000);
+    expect(await sockets(page)).toEqual([{ profile: 'main', kind: 'webrtc' }]);
+  });
+
+  test('review M2: a transient "disconnected" before the first frame is not a failure', async ({ page }) => {
+    await remoteMe(page, { profile: 'main', mse: true });
+    await openCamera(page, h264Camera, { main: 'flap', sub: 'ok' });
+    await expectPlaying(page, 'main·WebRTC');
+    expect(await sockets(page)).toEqual([{ profile: 'main', kind: 'webrtc' }]);
+  });
+
+  test('MSE off: main that cannot decode (bytes, no frames) falls to sub·WebRTC with the message', async ({ page }) => {
     test.setTimeout(60000);
     await remoteMe(page, { profile: 'main', mse: false });
     await openCamera(page, h264Camera, { main: 'nodecode', sub: 'ok' });
-    await expect(player(page).locator('[data-video-badge]')).toHaveText('main·WebRTC');
-    await expect(player(page).locator('[data-video-badge]')).toHaveText('sub·WebRTC', { timeout: 20000 }); // the 12 s frame deadline
+    await expect(badge(page)).toHaveText('מנסה main·WebRTC…');
+    await expectPlaying(page, 'sub·WebRTC', 25000);
     await expect(player(page).locator('[data-video-notice]')).toContainText(MAIN_UNDECODABLE);
-    await expect.poll(() => player(page).evaluate((p) => (p as unknown as { status: string }).status), { timeout: 10000 }).toBe('playing');
     expect((await sockets(page)).every((s) => s.kind !== 'mse')).toBe(true);
   });
 
@@ -216,26 +276,50 @@ test.describe('remote video policy against the fixture backend (fake NVR / go2rt
     await remoteMe(page, { profile: 'main', mse: false });
     await openCamera(page, h264Camera, { main: 'nodecode', sub: 'nodecode' });
     await expect(player(page).locator('[data-player-error]')).toHaveText(MAIN_UNDECODABLE, { timeout: 40000 });
-    await expect(player(page).locator('[data-video-badge]')).toHaveCount(0);
+    await expect(badge(page)).toHaveCount(0);
     expect(await sockets(page)).toEqual([{ profile: 'main', kind: 'webrtc' }, { profile: 'sub', kind: 'webrtc' }]);
     await page.screenshot({ path: test.info().outputPath('remote-no-mse-message.png') });
+  });
+
+  test('go2rtc down: "שרת הווידאו אינו זמין", no raw code, MSE not blamed, the ladder not walked', async ({ page }) => {
+    await remoteMe(page, { profile: 'main', mse: false });
+    await openCamera(page, h264Camera, { main: 'down', sub: 'down' });
+    const err = player(page).locator('[data-player-error]');
+    await expect(err).toHaveText('שרת הווידאו אינו זמין', { timeout: 10000 });
+    await expect(err).not.toContainText('upstream');
+    await expect(err).not.toContainText('MSE');
+    expect(await sockets(page)).toEqual([{ profile: 'main', kind: 'webrtc' }]);
+  });
+
+  test('review M3: a camera switch during createOffer never sends the stale offer on the new socket', async ({ page }) => {
+    await remoteMe(page, { profile: 'main', mse: true });
+    await openCamera(page, h264Camera, { main: 'slowoffer', sub: 'ok' });
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __liveSockets: unknown[] }).__liveSockets.length)).toBe(1);
+    await player(page).evaluate((p, other) => {
+      (p as unknown as { cameraId: string }).cameraId = other; // the same player instance, another camera, mid-createOffer
+    }, h265Camera);
+    await expectPlaying(page, 'main·WebRTC');
+    const all = await page.evaluate(() => (window as unknown as { __liveSockets: SocketEntry[] }).__liveSockets);
+    expect(all.map((s) => s.camera)).toEqual([h264Camera, h265Camera]);
+    expect(all.map((s) => s.offers)).toEqual([0, 1]);
   });
 
   test('a main stream the NVR reports as H.265 skips WebRTC: straight to main·MSE (allowed)', async ({ page }) => {
     await remoteMe(page, { profile: 'main', mse: true });
     await openCamera(page, h265Camera, { main: 'ok', sub: 'ok' });
-    await expect(player(page).locator('[data-video-badge]')).toHaveText('main·MSE');
+    await expect(badge(page)).toHaveAttribute('data-step', 'main·MSE');
     await expect.poll(() => sockets(page)).toEqual([{ profile: 'main', kind: 'mse' }]);
     // the camera's capabilities carry the settings hint from the registry
     await expect(page.locator('live-camera [data-caps-webrtc-hint]')).toContainText('מקודד H.265 - לא יתנגן ב-WebRTC; לשינוי: NVR DS-7616NI-FAKE', { timeout: 15000 });
   });
 
-  test('LAN / Ingress channel: no plan, no badge - today\'s player', async ({ page }) => {
+  test("LAN / Ingress channel: no plan, no badge - today's player", async ({ page }) => {
     await openCamera(page, h264Camera, { main: 'ok', sub: 'ok' });
     await expect(player(page)).toBeVisible();
     await page.waitForTimeout(500);
     expect(await player(page).evaluate((p) => (p as unknown as { plan: string }).plan)).toBe('');
-    await expect(player(page).locator('[data-video-badge]')).toHaveCount(0);
+    await expect(badge(page)).toHaveCount(0);
+    expect(await status(page)).not.toBe('error');
   });
 
   test('Settings › Remote access: the codec summary line links to the health detail with the hints', async ({ page }) => {

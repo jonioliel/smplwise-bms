@@ -148,6 +148,8 @@ export interface StreamEncoding {
   b_frames?: boolean | null;
   svc?: boolean | null;
   smart_codec?: boolean | null;
+  /** frames between key frames (ISAPI GovLength) */
+  gov_length?: number | null;
   resolution?: string | null;
   fps?: number | null;
   source?: 'isapi' | 'track';

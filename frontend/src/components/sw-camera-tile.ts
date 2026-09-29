@@ -201,10 +201,10 @@ export class SwCameraTile extends LitElement {
     }
     const real = this.live && this.cameraId ? 'live' : this.poster ? 'poster' : 'scene';
     // CR-008 D7: on the remote channel the tile keeps its own profile (the wall's) but plays it by the remote policy
-    const plan = real === 'live' ? playerPlan(this.profile, this.encoding) : { plan: '', preferred: '' as const };
+    const plan = real === 'live' ? playerPlan(this.profile, this.encoding) : { plan: '', preferred: '' as const, gop: '' };
     return html`
       ${real === 'live'
-        ? html`<sw-live-player .cameraId=${this.cameraId} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .poster=${this.poster} .fit=${this.fit} compact></sw-live-player>`
+        ? html`<sw-live-player .cameraId=${this.cameraId} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop} .poster=${this.poster} .fit=${this.fit} compact></sw-live-player>`
         : real === 'poster'
           ? html`<img class="poster" src=${this.poster} alt="" />`
           : html`<sw-scene kind=${this.scene}></sw-scene>`}
