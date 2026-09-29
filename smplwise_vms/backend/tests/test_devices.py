@@ -1617,3 +1617,33 @@ def test_bulk_lights_and_screens_on_and_the_only_narrowing(bulk_app):
     r2 = c.post("/api/v1/devices/actions", json=_bulk(scope="building", id="*", kind="lights_off", only=["light.garden"], preview_digest=one["digest"]))
     assert r2.status_code == 409 and r2.json()["code"] == "target_changed"
     assert c.post("/api/v1/devices/actions", json=_bulk(scope="building", id="*", kind="lights_off", only=[f"light.x{i}" for i in range(501)])).status_code == 422
+
+def test_items_carry_the_bulk_facts_and_the_alarm_managed_seam(bulk_app):
+    """Re-review M1: each items row says whether a bulk action would reach it (the bulk resolve's own SwitchPolicy) and
+    the switches list says whether this caller may mark switches; the "not marked" reason reads right for ON kinds;
+    a lights action no longer lists the locks / alarm as "not included" (only "כבה הכל" does). The alarm_managed seam
+    (set by another branch): a row carrying it truthy is excluded with its own reason; absent = not managed."""
+    app, s, c, fake = bulk_app
+    sw = c.get("/api/v1/devices/items", params={"kind": "switches"}).json()
+    rows = {r["entity_id"]: r for f in sw["floors"] for a in f["areas"] for r in a["items"]}
+    assert rows["switch.lobby_sign"]["bulk_excluded"] == "switch_not_marked" and rows["switch.lobby_sign"]["bulk_safe"] is False
+    assert sw["can_mark_bulk_safe"] is True
+    c.put("/api/v1/devices/entities/switch.lobby_sign/bulk-safe", json={"bulk_safe": True})
+    rows = {r["entity_id"]: r for f in c.get("/api/v1/devices/items", params={"kind": "switches"}).json()["floors"] for a in f["areas"] for r in a["items"]}
+    assert rows["switch.lobby_sign"]["bulk_excluded"] is None and rows["switch.lobby_sign"]["bulk_safe"] is True
+    assert c.get("/api/v1/devices/items", params={"kind": "lights"}).json()["can_mark_bulk_safe"] is False
+    bind(c, s, "vi", "viewer", "installation", "*")
+    assert c.get("/api/v1/devices/items", params={"kind": "switches"}, headers=as_user("vi")).json()["can_mark_bulk_safe"] is False
+    on = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "switches_on"}).json()
+    assert {x["entity_id"]: x["reason_label"] for x in on["excluded"]}["switch.loose"].startswith("לא סומן כבטוח לפעולה קבוצתית")
+    lights = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "lights_off"}).json()
+    assert lights["never_included"] == {}
+    # the seam
+    with app.state.db.connection() as conn:
+        policy = device_bulk.SwitchPolicy(conn)
+    assert policy.excluded_reason({"entity_id": "light.x", "domain": "light", "alarm_managed": 1}) == "alarm_managed"
+    assert policy.excluded_reason({"entity_id": "light.x", "domain": "light"}) is None
+    assert device_bulk.excluded_label("alarm_managed", "lights_off") == "נשלט ממסך האזעקה"
+    row = {"entity_id": "switch.s", "domain": "switch", "state": "on", "available": True, "card": "switches", "attributes": {}, "alarm_managed": 1}
+    assert svc.card_row(row, True)["alarm_managed"] is True
+    assert "alarm_managed" not in svc.card_row({k: v for k, v in row.items() if k != "alarm_managed"}, True)

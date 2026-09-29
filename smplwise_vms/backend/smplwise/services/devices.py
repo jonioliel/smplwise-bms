@@ -287,6 +287,8 @@ def _row(e: dict[str, Any]) -> dict[str, Any]:
         "active": is_active(e["domain"], e.get("state")),
         "icon": e.get("icon"),
         "last_changed": e.get("last_changed"),
+        # seam: the alarm screen's own devices (another branch adds the column / predicate); absent = not managed
+        **({"alarm_managed": bool(e.get("alarm_managed"))} if "alarm_managed" in e else {}),
     }
 
 

@@ -226,6 +226,10 @@ class SwitchPolicy:
         return False, "switch_not_marked"
 
     def excluded_reason(self, e: dict[str, Any]) -> str | None:
+        # seam for the alarm screen's own devices (another branch sets `alarm_managed` on the entity rows): an entity the
+        # alarm screen manages is never part of a devices bulk action. Absent = not managed.
+        if e.get("alarm_managed"):
+            return "alarm_managed"
         if e["domain"] in ("cover", "switch") and e["entity_id"] in self.door_layer:
             return "doors_layer"
         if e["domain"] == "cover" and (e.get("device_class") or "") in DOOR_COVER_CLASSES:
@@ -242,7 +246,18 @@ EXCLUDED_LABELS = {
     "switch_not_marked": "לא סומן כבטוח לכיבוי קבוצתי",
     "circuit_not_marked": "לא סומן כבטוח לכיבוי קבוצתי (מפסק של מעגל תאורה - מומלץ לסמן כבטוח)",
     "no_position": "התריס אינו מדווח מיקום ואינו תומך בקביעת מיקום",
+    "alarm_managed": "נשלט ממסך האזעקה",
 }
+# re-review: the same reasons in words that fit a kind that turns something ON (the "off" wording would be false)
+EXCLUDED_LABELS_ON = {
+    **EXCLUDED_LABELS,
+    "switch_not_marked": "לא סומן כבטוח לפעולה קבוצתית (הדלקה וכיבוי)",
+    "circuit_not_marked": "לא סומן כבטוח לפעולה קבוצתית (מפסק של מעגל תאורה - מומלץ לסמן כבטוח)",
+}
+
+
+def excluded_label(reason: str, kind: str) -> str:
+    return (EXCLUDED_LABELS_ON if kind in ON_KINDS else EXCLUDED_LABELS)[reason]
 COVER_SUPPORT_SET_POSITION = 4  # HA cover.CoverEntityFeature.SET_POSITION
 
 
@@ -343,7 +358,10 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
         if not held(e["entity_id"]):
             continue  # outside the caller's floors: not sent, and not described either
         if domain in NEVER_BULK_DOMAINS:
-            never[domain] = never.get(domain, 0) + 1  # present here, never part of a bulk action - said in the dialog
+            # present here, never part of a bulk action - said in the dialog of "כבה הכל" only (re-review: a lights
+            # action listing the alarm and the locks as "not included" reads as if they could have been)
+            if kind == "all_off":
+                never[domain] = never.get(domain, 0) + 1
             continue
         if not permitted(e["entity_id"]):
             continue
@@ -351,7 +369,7 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
             continue
         reason = policy.excluded_reason(e)
         if reason:
-            excluded.append({"entity_id": e["entity_id"], "name": _name(e), "domain": domain, "reason": reason, "reason_label": EXCLUDED_LABELS[reason]})
+            excluded.append({"entity_id": e["entity_id"], "name": _name(e), "domain": domain, "reason": reason, "reason_label": excluded_label(reason, kind)})
             continue
         state = e.get("state")
         if state in UNAVAILABLE_STATES or not e.get("available"):

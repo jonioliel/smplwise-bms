@@ -154,6 +154,17 @@ def items(
         body["can_bulk"] = bool(flags["all"] or body["id"] in flags["floors"])
     else:
         body["can_bulk"] = body["id"] != svc.UNASSIGNED and bool(flags["all"] or body["id"] in flags["areas"])
+    # re-review M1: which rows a bulk action would reach (the same SwitchPolicy the bulk resolves with - the bulk-safe
+    # mark, the door layer, door covers, alarm-managed), so the master control counts only those
+    policy = bulk.SwitchPolicy(conn)
+    for f in body["floors"]:
+        for a in f["areas"]:
+            for r in a["items"]:
+                reason = policy.excluded_reason(r)
+                r["bulk_excluded"] = reason
+                if r["domain"] == "switch":
+                    r["bulk_safe"], r["bulk_reason"] = policy.switch_reason(r["entity_id"])
+    body["can_mark_bulk_safe"] = kind == "switches" and authorize(conn, principal, "system.configure", INSTALLATION).allowed
     if kind == "locks":
         wide, floors = ha_scope.visible_floors(conn, principal, "door.unlock")
         placed = ha_scope.placements(conn) if floors and not wide else {}
