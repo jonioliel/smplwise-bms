@@ -1,4 +1,4 @@
-# Device-control screens: styles, palettes, knobs and layouts (CR-007 slices 6a and 6b)
+# Device-control screens: styles, palettes, knobs and layouts (CR-007 slices 6a, 6b and 6c)
 
 This document covers how the "חשמל והתקנים" screens look, and how a designer adds a new look without touching the
 screens. The screens are the building screen, the area screen, and the bulk popover and dialog. The source of truth is
@@ -302,3 +302,49 @@ desktop shows a phone-wide preview.
 Screenshots (`docs/evidence/T025/`, from the 6b tests): `devices-layout-edit-desktop.png` (edit mode),
 `devices-layout-panel-desktop.png` (a selected card and its panel), `devices-layout-phone-edit.png` (the phone
 editor), `devices-layout-theme-picker.png` (the theme swatches).
+
+**Owner feedback 2026-09-29 (empty domains).** A domain card the area has nothing of is not drawn. Its stored item
+stays in the record; the viewer's layout packs its rows away (the same rule as an item gone from Home Assistant), and
+the card comes back in its saved place when the domain appears. On the area screen the editor keeps such an item as a
+collision peer (a drawn card moved onto its slot pushes it down, so a save never overlaps), and the derived phone
+layout stacks undrawn items under the drawn ones.
+
+## 8. Per-device tiles (6c)
+
+Owner decision 2026-09-29 ("1.א"): inside the area screen's domain cards, each device tile can be arranged too.
+
+**Schema.** An area card item (`card:<id>`) may carry `tiles` = `{entity id: {order, span, size, hidden, title}}`:
+`order` 0..999, unique within the card; `span` 1..`TILE_COLS[card]` (every card has two tile columns today:
+`TILE_COLS` in `devices-layout.ts` and `routers/device_layouts.py`, compared by a backend test); `size` `s` / `m` / `l`;
+`hidden`; `title` (plain text, 60 characters, no control or bidi-override characters). At most 200 tiles per card.
+The layout JSON carries a schema version: `v: 1` (6b, no tiles - still accepted and returned exactly as stored) or
+`v: 2` (tiles allowed; the editor writes 2 on every save). A tile's `hidden` and the card's `hidden_entities` are one
+set: the server merges them both ways on every write, so a screen that reads only `hidden_entities` hides the same
+devices. An empty `tiles` map is not stored. No migration: the column holds JSON.
+
+**Viewer.** A card without `tiles` keeps its automatic tiles, pixel for pixel. An arranged card draws one grid
+(`.lay-tgrid`, the card's tile columns) with its devices in the saved order (the DOM order - screen readers and Tab
+follow it), each wrapped in `.lay-tile` with `grid-column: span N` and `data-tile-size` (s / l scale the card's text
+tokens by 0.88 / 1.2 on top of its own text size, and its padding / minimum height). Devices the arrangement does not
+know (added since) follow in the automatic order with the card's default span (1 for the two-up lighting, switches
+and sensors cards; the full width for the row cards). An arranged sensors card is one list, not grouped by class.
+Hidden devices are not drawn but still count in the card's numbers and the floor chips; the bulk previews and safety
+lists never read layouts.
+
+**Editor.** In edit mode each area card with devices shows "סידור התקנים" (and its panel has the same entry). It opens
+the card alone (`.lay-stage`, phone-wide when the phone layout is edited on a desktop) with a breadcrumb "כל הכרטיסים ›
+<card> · סידור התקנים" in the edit bar; on a phone the bar then keeps only cancel / save / back. Tiles: drag a tile (or
+its place chip) onto another to take its place; keyboard - Tab to a tile, arrows move it earlier / later (logical: in
+RTL ArrowRight is earlier), Shift + arrows change its span, H (the key's place, any layout) hides / shows it, Escape
+deselects, then goes back. A touch scrolls; a long press picks a tile. The panel: title, span, size, place (first /
+earlier / later / last), hidden, and "אפס סידור" (the card's automatic order again; hidden devices stay hidden - the
+card's checklist brings them back). Tile content is `inert` and `aria-hidden` while arranged, as the cards' in 6b. The
+arrangement is part of the draft: "שמור" saves it with the rest of the layout (optimistic revision, audited without
+the layout), "בטל" drops it.
+
+**Phone.** The derived phone layout copies each card's tiles in the desktop order with every tile the card's full
+width (the cards' own phone rule: one column); once the phone layout is saved its tiles are arranged on their own.
+"העתק לכל האזורים" copies the arrangement with the layout.
+
+Screenshots (`docs/evidence/T025/`, from the 6c tests): `devices-layout-tiles-desktop.png` (tile arrangement on a
+desktop, a tile selected), `devices-layout-tiles-phone.png` (tile arrangement on a phone).
