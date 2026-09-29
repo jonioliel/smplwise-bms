@@ -33,7 +33,17 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
     """Who the caller is and what they may do - computed on this request, never cached (T055). `known` = the
     fingerprint the shell holds; `permissions_changed` says whether it moved since."""
     fingerprint = permissions_fingerprint(conn, principal)
+    from ..remote_channel import channel_of
+
+    channel = channel_of(request)
+    remote = None
+    if channel == "remote":  # CR-008: what the Arx client needs (session mode, idle lock, video profile policy)
+        from ..services.ha_user_auth import remote_settings
+
+        remote = {k: v for k, v in remote_settings(conn).items() if k != "remote.require_mfa_admin"}
     return {
+        "channel": channel,
+        "remote": remote,
         "user": {
             "id": principal.user_id,
             "username": principal.username,

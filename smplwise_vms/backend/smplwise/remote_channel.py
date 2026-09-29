@@ -59,6 +59,11 @@ SECURITY_HEADERS: list[tuple[bytes, bytes]] = [
 ]
 
 
+# machine-to-machine routes with no user identity (the HA bridge integration's signed calls on the internal network):
+# never reachable through the tunnel
+BLOCKED_ON_REMOTE = ("/api/v1/ha/bridge/ping", "/api/v1/ha/bridge/directory")
+
+
 def channel_of(conn: Any) -> str:
     """`remote` or `local` for a Request / WebSocket (or anything with an ASGI scope)."""
     scope = getattr(conn, "scope", None) or {}
@@ -111,6 +116,10 @@ class RemoteChannel:
             qs = scope.get("query_string") or b""
             location = (prefix + "/").encode() + (b"?" + qs if qs else b"")
             await _plain(send, 308, b"", [(b"location", location)])
+            return
+        rest = path[len(prefix):]
+        if any(rest == b or rest.startswith(b + "/") for b in BLOCKED_ON_REMOTE):
+            await _plain(send, 404, b'{"code":"not_found","user_message":"Not found","retryable":false,"correlation_id":"","details":{}}')
             return
         child = dict(scope)
         child["root_path"] = (scope.get("root_path") or "") + prefix

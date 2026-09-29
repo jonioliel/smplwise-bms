@@ -63,7 +63,7 @@ def _www(tmp_path):
     www = tmp_path / "www"
     www.mkdir(exist_ok=True)
     (www / "index.html").write_text("<!doctype html><title>Arx</title><sw-app></sw-app>", encoding="utf-8")
-    (www / "sw.js").write_text("// no-op\n", encoding="utf-8")
+    (www / "arx-sw.js").write_text("// placeholder: the PWA branch ships the real worker\n", encoding="utf-8")
     return www
 
 
@@ -74,7 +74,7 @@ def remote_client(settings, tmp_path, **over) -> TestClient:
 
 def test_remote_off_is_404_everywhere_under_the_prefix(settings, tmp_path):
     c = TestClient(create_app(dataclasses.replace(settings, www_dir=_www(tmp_path))))
-    for path in ("/arx", "/arx/", "/arx/api/v1/me", "/arx/sw.js", "/arx/index.html"):
+    for path in ("/arx", "/arx/", "/arx/api/v1/me", "/arx/arx-sw.js", "/arx/index.html"):
         r = c.get(path, follow_redirects=False)
         assert r.status_code == 404, path
     # the local (Ingress / developer) paths are unchanged
@@ -95,7 +95,7 @@ def test_prefix_is_stripped_for_static_files(settings, tmp_path):
     c = remote_client(settings, tmp_path)
     r = c.get("/arx/")
     assert r.status_code == 200 and "<sw-app>" in r.text
-    assert c.get("/arx/sw.js").status_code == 200
+    assert c.get("/arx/arx-sw.js").status_code == 200
 
 
 def test_remote_channel_never_uses_the_developer_identity(settings, tmp_path):
@@ -171,3 +171,373 @@ def test_remote_websocket_without_session_is_refused(settings, tmp_path):
     with pytest.raises(WebSocketDisconnect):
         with c.websocket_connect("/arx/api/v1/me/ws", headers={"X-Remote-User-Id": "u-owner"}) as ws:
             ws.receive_text()
+
+
+# ---------------------------------------------------------------- 3. HA-token sessions (a fake HA core)
+
+import asyncio  # noqa: E402
+import time  # noqa: E402
+
+from fake_ha_core import FakeHaCore, FakeUser, make_jwt  # noqa: E402
+from smplwise.db import Database, new_id, now_iso, permission_revision  # noqa: E402
+from smplwise.services import ha_user_auth as hua  # noqa: E402
+
+ORIGIN = {"Origin": "http://testserver"}
+
+
+class Arx:
+    """A remote-enabled app, a fake HA core behind it, and helpers to shape the directory, flags and bindings."""
+
+    def __init__(self, settings, tmp_path, monkeypatch, **over):
+        hua.reset_for_tests()
+        self.core = FakeHaCore()
+        monkeypatch.setattr(hua, "_dial", self.core.dial)
+        self.settings = dataclasses.replace(settings, remote_access=True, www_dir=_www(tmp_path), ha_core_url="http://ha-core.test:8123", **over)
+        self.app = create_app(self.settings)
+        self.client = TestClient(self.app)
+        self.db = Database(self.settings.db_path)
+        self.owner = self.core.add_user(FakeUser("u-owner", "joni", "pw-owner", "יוני", is_owner=True, is_admin=True))
+        self.viewer = self.core.add_user(FakeUser("u-viewer", "dana", "pw-viewer", "דנה"))
+        self.mfa = self.core.add_user(FakeUser("u-mfa", "avi", "pw-avi", "אבי", mfa_code="123456"))
+        with self.db.connection() as conn:
+            for u in (self.owner, self.viewer, self.mfa):
+                conn.execute("INSERT INTO ha_users(id, name, username, is_active, is_admin, synced_at) VALUES (?, ?, ?, 1, ?, ?)",
+                             (u.id, u.name, u.username, int(u.is_admin), now_iso()))
+
+    def flag(self, user_id: str, on: bool = True) -> None:
+        with self.db.connection() as conn:
+            if on:
+                conn.execute("INSERT OR IGNORE INTO remote_access_users(user_id, granted_by, granted_at) VALUES (?, 'test', ?)", (user_id, now_iso()))
+            else:
+                conn.execute("DELETE FROM remote_access_users WHERE user_id = ?", (user_id,))
+
+    def bind(self, user_id: str, role: str = "viewer") -> None:
+        with self.db.connection() as conn:
+            conn.execute("INSERT INTO bindings(id, subject_kind, subject_id, role_id, scope_type, scope_id, effect, permission_revision, assigned_by, created_at) "
+                         "VALUES (?, 'user', ?, ?, 'installation', '*', 'allow', ?, 'test', ?)", (new_id(), user_id, role, permission_revision(conn), now_iso()))
+
+    def setting(self, key: str, value: str) -> None:
+        from smplwise.db import set_setting
+
+        with self.db.connection() as conn:
+            set_setting(conn, key, value)
+
+    def token(self, user: FakeUser) -> str:
+        return self.core.issue(user.id)["access_token"]
+
+    def login(self, user: FakeUser, **headers):
+        return self.client.post("/arx/api/v1/auth/session", headers={"Authorization": f"Bearer {self.token(user)}", **headers})
+
+    def audit(self, action: str) -> list[dict]:
+        with self.db.connection(mode="read") as conn:
+            return [dict(r) for r in conn.execute("SELECT * FROM audit_log WHERE action = ? ORDER BY at", (action,)).fetchall()]
+
+
+@pytest.fixture()
+def arx(settings, tmp_path, monkeypatch):
+    a = Arx(settings, tmp_path, monkeypatch)
+    yield a
+    hua.reset_for_tests()
+
+
+def test_exchange_sets_the_session_cookie_and_the_same_principal(arx):
+    arx.flag("u-viewer")
+    arx.bind("u-viewer", "viewer")
+    r = arx.login(arx.viewer, **{"CF-Connecting-IP": "203.0.113.7", "CF-IPCountry": "IL"})
+    assert r.status_code == 200, r.text
+    assert r.json()["user"] == {"id": "u-viewer", "username": "dana", "display_name": "דנה", "source": "remote"}
+    cookie = r.headers["set-cookie"]
+    assert cookie.startswith("arx_session=") and "HttpOnly" in cookie and "Path=/arx/" in cookie and "SameSite=strict" in cookie
+    me = arx.client.get("/arx/api/v1/me").json()
+    assert me["user"]["id"] == "u-viewer" and me["user"]["source"] == "remote" and me["channel"] == "remote"
+    assert me["has_access"] is True and me["bindings"][0]["role_id"] == "viewer"
+    assert me["remote"]["remote.session"] == "rolling_90d" and me["remote"]["remote.default_profile"] == "main"
+    assert "remote.require_mfa_admin" not in me["remote"]
+    # the add-on asked HA core directly (never the Supervisor proxy) and attributed the call to the caller
+    assert arx.core.dials[-1]["url"] == "ws://ha-core.test:8123/api/websocket"
+    assert arx.core.dials[-1]["headers"] == {"X-Forwarded-For": "203.0.113.7"}
+    row = arx.audit("auth.remote_session.created")[-1]
+    details = json.loads(row["details_json"])
+    assert row["actor_user_id"] == "u-viewer" and details["client_ip"] == "203.0.113.7" and details["country"] == "IL"
+    assert "Bearer" not in (row["details_json"] or "") and "eyJ" not in (row["details_json"] or "")
+
+
+def test_secure_cookie_behind_https(arx):
+    arx.flag("u-viewer")
+    r = arx.login(arx.viewer, **{"X-Forwarded-Proto": "https"})
+    c = r.headers["set-cookie"]
+    assert c.startswith("__Secure-arx_session=") and "Secure" in c and "HttpOnly" in c and "Path=/arx/" in c
+
+
+def test_policy_flag_refuses_users_without_the_flag_in_hebrew(arx):
+    arx.bind("u-viewer", "viewer")
+    r = arx.login(arx.viewer)
+    assert r.status_code == 403 and r.json()["code"] == "remote_not_allowed"
+    assert "הגישה מרחוק לא הופעלה" in r.json()["user_message"]
+    assert "set-cookie" not in r.headers
+    assert arx.audit("auth.remote_session.rejected")[-1]["reason"] == "remote_not_allowed"
+
+
+def test_policy_any_role(arx):
+    arx.setting("remote.policy", "any_role")
+    assert arx.login(arx.viewer).status_code == 403  # no role at all
+    arx.bind("u-viewer", "viewer")
+    assert arx.login(arx.viewer).status_code == 200  # any role will do, no flag needed
+
+
+def test_inactive_directory_user_is_refused(arx):
+    arx.flag("u-viewer")
+    with arx.db.connection() as conn:
+        conn.execute("UPDATE ha_users SET is_active = 0 WHERE id = 'u-viewer'")
+    r = arx.login(arx.viewer)
+    assert r.status_code == 403 and r.json()["code"] == "remote_user_inactive"
+
+
+def test_mfa_required_for_admins_only_when_the_setting_is_on(arx):
+    arx.flag("u-owner")
+    arx.bind("u-owner", "system_admin")
+    assert arx.login(arx.owner).status_code == 200  # D8: MFA optional by default
+    arx.setting("remote.require_mfa_admin", "true")
+    r = arx.login(arx.owner)
+    assert r.status_code == 403 and r.json()["code"] == "remote_mfa_required"
+    arx.flag("u-mfa")
+    arx.bind("u-mfa", "system_admin")
+    assert arx.login(arx.mfa).status_code == 200  # an admin with MFA in HA
+    arx.flag("u-viewer")
+    arx.bind("u-viewer", "viewer")
+    assert arx.login(arx.viewer).status_code == 200  # a non-admin without MFA
+
+
+def test_garbage_and_expired_tokens_never_reach_ha(arx):
+    for token in ("not-a-token", "a.b.c", make_jwt(time.time() - 5)):
+        r = arx.client.post("/arx/api/v1/auth/session", headers={"Authorization": f"Bearer {token}"})
+        assert r.status_code == 401 and r.json()["code"] == "remote_token_invalid"
+    assert arx.core.dials == []
+    r = arx.client.post("/arx/api/v1/auth/session")
+    assert r.status_code == 401 and r.json()["code"] == "remote_login_required"
+
+
+def test_a_token_ha_refuses_is_remembered(arx):
+    forged = make_jwt(time.time() + 600)
+    for _ in range(2):
+        r = arx.client.post("/arx/api/v1/auth/session", headers={"Authorization": f"Bearer {forged}"})
+        assert r.status_code == 401
+    assert len(arx.core.dials) == 1  # the negative cache answered the second attempt
+
+
+def test_rate_limit_per_address(arx, monkeypatch):
+    monkeypatch.setattr(hua, "IP_LIMITS", [(60.0, 3)])
+    arx.flag("u-viewer")
+    codes = [arx.login(arx.viewer, **{"CF-Connecting-IP": "198.51.100.1"}).status_code for _ in range(4)]
+    assert codes == [200, 200, 200, 429]
+    assert arx.login(arx.viewer, **{"CF-Connecting-IP": "198.51.100.2"}).status_code == 200  # another address
+    assert arx.audit("auth.remote_session.rejected")[-1]["reason"] == "rate_limited_ip"
+
+
+def test_rate_limit_per_user(arx, monkeypatch):
+    monkeypatch.setattr(hua, "USER_LIMITS", [(60.0, 2)])
+    arx.flag("u-viewer")
+    codes = [arx.login(arx.viewer, **{"CF-Connecting-IP": f"198.51.100.{i}"}).status_code for i in range(3)]
+    assert codes == [200, 200, 429]
+
+
+def test_logout_ends_the_session(arx):
+    arx.flag("u-viewer")
+    assert arx.login(arx.viewer).status_code == 200
+    assert arx.client.get("/arx/api/v1/me").status_code == 200
+    r = arx.client.delete("/arx/api/v1/auth/session")
+    assert r.status_code == 204 and "arx_session=" in r.headers.get("set-cookie", "")
+    assert arx.client.get("/arx/api/v1/me").status_code == 401
+    assert arx.audit("auth.remote_session.logout")[-1]["actor_user_id"] == "u-viewer"
+    assert hua.STORE.count() == 0
+
+
+def test_every_exchange_rotates_the_session_id(arx):
+    arx.flag("u-viewer")
+    a = arx.login(arx.viewer).cookies.get("arx_session")
+    b = arx.login(arx.viewer).cookies.get("arx_session")
+    assert a and b and a != b
+
+
+def test_session_ends_with_its_access_token(arx):
+    arx.flag("u-viewer")
+    assert arx.login(arx.viewer).status_code == 200
+    for s in list(hua.STORE._sessions.values()):
+        s.token_exp = time.time() - 1
+    assert arx.client.get("/arx/api/v1/me").status_code == 401
+
+
+def test_revalidation_drops_a_revoked_session_within_a_pass(arx):
+    arx.flag("u-viewer")
+    assert arx.login(arx.viewer).status_code == 200
+    arx.core.revoke_user("u-viewer")  # the "…/arx/" refresh token deleted in the HA profile
+    for s in hua.STORE._sessions.values():
+        s.last_validated -= hua.REVALIDATE_EVERY_S + 1
+    dropped = asyncio.run(hua.revalidate_once(arx.db, arx.settings))
+    assert dropped == 1
+    assert arx.client.get("/arx/api/v1/me").status_code == 401
+    assert arx.audit("auth.remote_session.revoked")[-1]["reason"] == "token_revoked"
+
+
+def test_revalidation_applies_the_policy(arx):
+    arx.flag("u-viewer")
+    assert arx.login(arx.viewer).status_code == 200
+    arx.flag("u-viewer", False)
+    for s in hua.STORE._sessions.values():
+        s.last_validated -= hua.REVALIDATE_EVERY_S + 1
+    assert asyncio.run(hua.revalidate_once(arx.db, arx.settings)) == 1
+    assert arx.audit("auth.remote_session.revoked")[-1]["reason"] == "remote_not_allowed"
+
+
+def test_idle_sessions_are_not_revalidated(arx):
+    arx.flag("u-viewer")
+    assert arx.login(arx.viewer).status_code == 200
+    dials = len(arx.core.dials)
+    for s in hua.STORE._sessions.values():
+        s.last_validated -= hua.REVALIDATE_EVERY_S + 1
+        s.last_used -= hua.ACTIVE_WINDOW_S + 1
+    asyncio.run(hua.revalidate_once(arx.db, arx.settings))
+    assert len(arx.core.dials) == dials
+
+
+def test_bearer_requests_map_to_the_same_principal(arx):
+    arx.flag("u-viewer")
+    arx.bind("u-viewer", "viewer")
+    token = arx.token(arx.viewer)
+    fresh = TestClient(arx.app)  # no cookie
+    r = fresh.get("/arx/api/v1/me", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200 and r.json()["user"]["id"] == "u-viewer" and r.json()["user"]["source"] == "remote"
+    assert fresh.get("/arx/api/v1/me", headers={"Authorization": f"Bearer {make_jwt(time.time() + 60)}"}).status_code == 401
+    # the local channel never takes a bearer token as an identity
+    local = TestClient(create_app(dataclasses.replace(arx.settings, dev_user=None)))
+    assert local.get("/api/v1/me", headers={"Authorization": f"Bearer {token}"}).json()["code"] == "untrusted_origin"
+
+
+def test_remote_sign_in_never_bootstraps_the_admin(arx):
+    """bootstrap_admin_username = joni (the test settings) and HA's joni signs in remotely: no system_admin grant."""
+    arx.flag("u-owner")
+    assert arx.login(arx.owner).status_code == 200
+    me = arx.client.get("/arx/api/v1/me").json()
+    assert me["bootstrap_state"] == "pending" and me["bindings"] == []
+    assert arx.audit("rbac.bootstrap_admin") == []
+
+
+def test_websocket_checks_origin_and_session(arx):
+    from starlette.websockets import WebSocketDisconnect
+
+    arx.flag("u-viewer")
+    arx.bind("u-viewer", "viewer")
+    assert arx.login(arx.viewer).status_code == 200
+    with pytest.raises(WebSocketDisconnect):
+        with arx.client.websocket_connect("/arx/api/v1/me/ws", headers={"Origin": "https://evil.example"}) as ws:
+            ws.receive_text()
+    with pytest.raises(WebSocketDisconnect):
+        with arx.client.websocket_connect("/arx/api/v1/me/ws") as ws:  # no Origin at all
+            ws.receive_text()
+    with arx.client.websocket_connect("/arx/api/v1/me/ws", headers=ORIGIN) as ws:
+        hello = json.loads(ws.receive_text())
+        assert hello["type"] == "hello"
+
+
+def test_revoked_session_closes_its_websocket(arx):
+    from starlette.websockets import WebSocketDisconnect
+
+    arx.flag("u-viewer")
+    arx.bind("u-viewer", "viewer")
+    assert arx.login(arx.viewer).status_code == 200
+    with arx.client.websocket_connect("/arx/api/v1/me/ws", headers=ORIGIN) as ws:
+        assert json.loads(ws.receive_text())["type"] == "hello"
+        assert arx.client.delete("/arx/api/v1/auth/session").status_code == 204
+        with pytest.raises(WebSocketDisconnect) as exc:
+            for _ in range(5):
+                ws.receive_text()
+        assert exc.value.code == 4401
+
+
+def test_remote_access_flag_endpoint(arx):
+    arx.flag("u-viewer")
+    assert arx.login(arx.viewer).status_code == 200
+    # the local (developer identity) admin toggles the flag: system.configure, audited, sessions end at once
+    admin = TestClient(arx.app)
+    arx.bind("dev-joni", "system_admin")
+    users = {u["id"]: u for u in admin.get("/api/v1/identity/users").json()["users"]}
+    assert users["u-viewer"]["remote_access"] is True and users["u-owner"]["remote_access"] is False
+    r = admin.put("/api/v1/access/users/u-viewer/remote-access", json={"enabled": False})
+    assert r.status_code == 200 and r.json()["sessions_ended"] == 1
+    assert arx.client.get("/arx/api/v1/me").status_code == 401
+    assert json.loads(arx.audit("remote.access_flag")[-1]["details_json"]) == {"before": True, "after": False}
+    assert admin.put("/api/v1/access/users/nobody/remote-access", json={"enabled": True}).status_code == 404
+    arx.bind("dev-dana", "viewer")
+    assert admin.put("/api/v1/access/users/u-owner/remote-access", json={"enabled": True}, headers={"X-SW-Dev-User": "dana"}).status_code == 403
+
+
+def test_remote_settings_are_validated(arx):
+    admin = TestClient(arx.app)
+    arx.bind("dev-joni", "system_admin")
+    s = admin.get("/api/v1/settings").json()["settings"]
+    assert s["remote.policy"] == "flag" and s["remote.session"] == "rolling_90d" and s["remote.idle_lock_minutes"] == 720
+    assert s["remote.default_profile"] == "main" and s["remote.mse_fallback"] == "true" and s["remote.require_mfa_admin"] == "false"
+    ok = admin.patch("/api/v1/settings", json={"remote.policy": "any_role", "remote.session": "rolling_90d_idle_lock", "remote.idle_lock_minutes": 30})
+    assert ok.status_code == 200
+    for bad in ({"remote.policy": "all"}, {"remote.idle_lock_minutes": 2}, {"remote.session": "forever"}, {"remote.default_profile": "hd"}):
+        assert admin.patch("/api/v1/settings", json=bad).status_code == 422
+
+
+def test_remote_config_is_public_on_the_remote_channel_only(arx):
+    r = arx.client.get("/arx/api/v1/auth/remote-config")
+    assert r.status_code == 200 and r.json() == {"path": "/arx/", "session": "rolling_90d", "idle_lock_minutes": 720}
+    assert TestClient(arx.app).get("/api/v1/auth/remote-config").status_code == 404
+    assert TestClient(arx.app).post("/api/v1/auth/session", headers={"Authorization": "Bearer x.y.z"}).status_code == 404
+
+
+# every route of the app, reached on the remote channel without a session, is refused (CR-008 §3e.2)
+PUBLIC_ON_REMOTE = {("GET", "/api/v1/auth/remote-config"), ("DELETE", "/api/v1/auth/session")}  # config; an idempotent sign-out
+BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/bridge/directory")}  # 404: the bridge's signed calls
+
+
+def test_every_route_needs_a_remote_session(arx):
+    from fastapi.routing import APIRoute, APIWebSocketRoute
+    from starlette.websockets import WebSocketDisconnect
+
+    from test_plan_routes_unique import _routers
+
+    fresh = TestClient(arx.app)
+    leaks = []
+    checked = 0
+    routes = [r for router in _routers().values() for r in router.routes]
+    for route in routes:
+        full = "/api/v1" + route.path
+        path = "/".join("x" if seg.startswith("{") else seg for seg in full.split("/"))
+        if isinstance(route, APIRoute):
+            for method in sorted(route.methods - {"HEAD"}):
+                if (method, full) in PUBLIC_ON_REMOTE:
+                    continue
+                checked += 1
+                r = fresh.request(method, "/arx" + path, headers={"X-Remote-User-Id": "u-owner", "X-SW-Dev-User": "joni"})
+                if r.status_code != (404 if (method, full) in BLOCKED_ON_REMOTE else 401):
+                    leaks.append((method, full, r.status_code))
+        elif isinstance(route, APIWebSocketRoute):
+            checked += 1
+            try:
+                with fresh.websocket_connect("/arx" + path, headers=ORIGIN) as ws:
+                    ws.receive_text()
+                leaks.append(("WS", route.path, "accepted"))
+            except WebSocketDisconnect:
+                pass
+    assert checked > 200
+    assert leaks == [], leaks
+
+
+def test_the_built_ui_contains_no_secrets():
+    from pathlib import Path
+
+    import re
+
+    jwt = re.compile(r"eyJ[A-Za-z0-9_-]{16,}\.eyJ[A-Za-z0-9_-]{16,}\.")
+    www = Path(__file__).resolve().parents[2] / "www"
+    files = [f for f in www.rglob("*") if f.suffix in (".js", ".html", ".css", ".json")]
+    assert files
+    for f in files:
+        text = f.read_text(encoding="utf-8", errors="replace")
+        assert not jwt.search(text), f"a JWT-shaped token in {f.name}"
+        assert "sk-" + "proj-" not in text and "Bearer ey" not in text, f.name

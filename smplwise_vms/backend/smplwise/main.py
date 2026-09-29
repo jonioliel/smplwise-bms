@@ -157,6 +157,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(setup.router, prefix=api, tags=["ops"])
     app.include_router(views.router, prefix=api, tags=["views"])
     app.include_router(nvr_write.router, prefix=api, tags=["nvr"])
+    from .routers import remote as remote_router
+
+    app.include_router(remote_router.router, prefix=api, tags=["remote"])  # CR-008: auth/session, the remote-access flag
 
     @app.on_event("startup")
     async def _start_janitor() -> None:
@@ -231,12 +234,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     log.warning("janitor tick failed: %s", type(exc).__name__, exc_info=True)
 
         app.state.janitor = asyncio.create_task(loop())
+        if settings.remote_access:  # CR-008: re-validate remote sessions against HA (revocation within 60 s)
+            from .services import ha_user_auth
+
+            log.info("remote access (SmplWise Arx) is ON at %s/", settings.remote_path)
+            app.state.remote_revalidation = asyncio.create_task(ha_user_auth.revalidate_loop(app.state.db, settings))
 
     @app.on_event("shutdown")
     async def _stop_janitor() -> None:
-        task = getattr(app.state, "janitor", None)
-        if task:
-            task.cancel()
+        for name in ("janitor", "remote_revalidation"):
+            task = getattr(app.state, name, None)
+            if task:
+                task.cancel()
         from .services import events_ingest
         from .services import exports as ex
 
