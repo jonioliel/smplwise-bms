@@ -177,7 +177,7 @@ test.describe('overview tiles (demo data)', () => {
     const lb = await lv.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ x: Math.round(r.x), h: r.height })));
     expect(new Set(lb.map((x) => x.x)).size).toBe(2);
     for (const x of lb) expect(x.h).toBeLessThanOrEqual(80);
-    await expect(page.locator('live-overview sw-kpi[data-overview-tile="cameras"] a.hit')).toHaveAttribute('href', '#/system/devices?filter=offline');
+    await expect(page.locator('live-overview sw-kpi[data-overview-tile="cameras"] a.hit')).toHaveAttribute('href', '#/system/devices?sort=offline');
     await expect(page.locator('live-overview sw-kpi[data-overview-tile="health"] a.hit')).toHaveAttribute('href', '#/system/diagnostics?tab=health');
     await noHorizontalOverflow(page);
     await shot(page, 'live-compact-390');
@@ -259,5 +259,32 @@ test.describe('overview tiles (demo data)', () => {
     expect(colours.bg).toBe('rgb(28, 28, 30)');
     expect(colours.fg).toBe('rgb(245, 245, 247)');
     await shot(page, `panel-dark-${testInfo.project.name}`);
+  });
+});
+
+test.describe('owner answers 2026-09-29 (demo data)', () => {
+  test('floor cards carry the domain chips (icon + count, words in the tooltip); a chip opens the panel for that floor', async ({ page }) => {
+    await open(page, '/devices/building');
+    const chips = page.locator('devices-building [data-floor-chips="ground"]');
+    await expect(chips).toBeVisible();
+    // lights stay the card's own lit count; the chips are the other domains present on the floor
+    expect(await chips.locator('button[data-floor-chip]').evaluateAll((els) => els.map((e) => e.getAttribute('data-floor-chip')))).toEqual(['switches', 'covers', 'climate', 'media', 'locks']);
+    const sw = chips.locator('button[data-floor-chip="switches"]');
+    await expect(sw).toHaveText(/^\s*1\/2\s*$/);
+    await expect(sw).toHaveAttribute('title', /מתגים/);
+    await sw.click();
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/devices/building?domain=switches&floor=ground');
+    await expect(page.locator('devices-building devices-tiles-panel .row[data-entity]')).toHaveCount(2);
+  });
+
+  test('the Live cameras tile opens the FULL camera list with the offline cameras first, marked "מנותקת"', async ({ page }) => {
+    await open(page, '/system/devices?sort=offline');
+    const states = await page.locator('system-devices [data-cam-state]').evaluateAll((els) => els.map((e) => e.getAttribute('data-cam-state')));
+    expect(states.length).toBeGreaterThan(1);
+    const offline = states.filter((s) => s === 'offline').length;
+    expect(offline).toBeGreaterThan(0);
+    expect(states.slice(0, offline).every((s) => s === 'offline')).toBe(true); // offline first
+    expect(states.slice(offline).some((s) => s !== 'offline')).toBe(true); // and not filtered to them
+    await expect(page.locator('system-devices [data-cam-state="offline"]').first()).toContainText('מנותקת');
   });
 });

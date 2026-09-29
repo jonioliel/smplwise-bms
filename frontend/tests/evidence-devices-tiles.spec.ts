@@ -227,4 +227,94 @@ test.describe('overview tiles against the devices fixture backend', () => {
     expect(new Set(ends).size, JSON.stringify(ends)).toBe(1);
     if (SHOTS) await tree.screenshot({ path: path.join(SHOTS, 'tree-after-2000x990-fixture.png') });
   });
+
+  // ---------------------------------------------------------------- owner answers 2026-09-29: the master control
+
+  test('lights: the smart master button shows the group state, asks the question, acts on what is shown (scope + filter + search) through the bulk flow', async ({ page, request }, testInfo) => {
+    test.setTimeout(90_000);
+    await seed(request);
+    const previews: string[] = [];
+    page.on('request', (r) => {
+      if (r.url().includes('/api/v1/devices/actions/preview')) previews.push(decodeURIComponent(r.url()));
+    });
+    await open(page, '/devices/building?domain=lights');
+    const panel = page.locator('devices-building devices-tiles-panel');
+    const master = panel.locator('button[data-panel-master="lights"]');
+    // one of two on: filled, a count badge, the words only in the label / tooltip
+    await expect(master).toHaveAttribute('data-state', 'mixed', { timeout: 30000 });
+    await expect(master.locator('[data-master-badge]')).toHaveText(/1/);
+    await expect(master).toHaveAttribute('aria-label', /כבה את כל התאורה/);
+    await expect(master).toHaveAttribute('title', 'כבה את כל התאורה');
+    const box = await master.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    await master.click();
+    const dlg = panel.locator('devices-bulk-dialog');
+    await expect(dlg.locator('[data-bulk-question]')).toHaveText('לכבות גוף תאורה אחד?', { timeout: 10000 });
+    expect(previews.at(-1)).toContain('kind=lights_off');
+    expect(previews.at(-1)).not.toContain('only=');
+    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `master-confirm-${testInfo.project.name}.png`) });
+    await dlg.locator('sw-button[data-bulk-confirm]').click();
+    await expect(dlg.locator('[data-bulk-result="ok"]')).toBeVisible({ timeout: 20000 });
+    await dlg.locator('sw-button[data-bulk-cancel]').click();
+    await expect(panel).toHaveAttribute('open', ''); // the confirmation closed, the panel stays
+    await expect(master).toHaveAttribute('data-state', 'off', { timeout: 10000 });
+    await expect(master).toHaveAttribute('aria-label', 'הדלק את כל התאורה');
+    // narrowed by the search: only the office light
+    await panel.locator('input[data-panel-search]').fill('משרד');
+    await master.click();
+    await expect(dlg.locator('[data-bulk-question]')).toHaveText('להדליק גוף תאורה אחד?', { timeout: 10000 });
+    expect(previews.at(-1)).toContain('only=light.cr007t_office');
+    await dlg.locator('sw-button[data-bulk-confirm]').click();
+    await expect(dlg.locator('[data-bulk-result="ok"]')).toBeVisible({ timeout: 20000 });
+    const e = await (await request.get('/api/v1/ha/entities/light.cr007t_office')).json();
+    expect(e.state).toBe('on');
+    expect((await (await request.get('/api/v1/ha/entities/light.cr007t_stairs')).json()).state).toBe('off');
+    await seed(request);
+  });
+
+  test('switches: only switches an administrator marked bulk-safe are ever sent (the "כבה הכל" rule), for ON as for OFF', async ({ page, request }) => {
+    await seed(request);
+    await request.put('/api/v1/devices/entities/switch.cr007t_sign/bulk-safe', { data: { bulk_safe: false } });
+    await open(page, '/devices/building?domain=switches');
+    const panel = page.locator('devices-building devices-tiles-panel');
+    const master = panel.locator('button[data-panel-master="switches"]');
+    await expect(master).toHaveAttribute('data-state', 'mixed', { timeout: 30000 });
+    await master.click();
+    const dlg = panel.locator('devices-bulk-dialog');
+    await expect(dlg.locator('[data-bulk-nothing]')).toBeVisible({ timeout: 10000 }); // nothing marked: nothing to send
+    await expect(dlg.locator('[data-bulk-excluded] li[data-entity="switch.cr007t_sign"]')).toHaveAttribute('data-reason', 'switch_not_marked');
+    await dlg.locator('sw-button[data-bulk-cancel]').click();
+    expect((await request.put('/api/v1/devices/entities/switch.cr007t_sign/bulk-safe', { data: { bulk_safe: true } })).status()).toBe(200);
+    await master.click();
+    await expect(dlg.locator('[data-bulk-question]')).toHaveText('לכבות מתג אחד?', { timeout: 10000 });
+    await dlg.locator('sw-button[data-bulk-cancel]').click();
+    await request.put('/api/v1/devices/entities/switch.cr007t_sign/bulk-safe', { data: { bulk_safe: false } });
+  });
+
+  test('locks: a lock-all icon (never unlock-all) - one confirmation, then each lock locked one at a time with its own result', async ({ page, request }) => {
+    await seed(request);
+    await request.post('/api/v1/ha/dev/states', { data: { states: [{ entity_id: 'lock.cr007t_front', state: 'unlocked', attributes: { friendly_name: 'דלת כניסה', device_class: 'lock' } }] } });
+    const sent: string[] = [];
+    page.on('request', (r) => {
+      if (r.method() === 'POST' && /\/ha\/entities\/lock\.[^/]+\/actions$/.test(r.url())) sent.push((r.postDataJSON() as { allowed_action_id: string }).allowed_action_id);
+    });
+    await open(page, '/devices/building?domain=locks');
+    const panel = page.locator('devices-building devices-tiles-panel');
+    const all = panel.locator('button[data-panel-master="locks"]');
+    await expect(all).toBeEnabled({ timeout: 30000 });
+    await expect(all).toHaveAttribute('title', 'נעל את כל המנעולים');
+    await expect(panel.locator('[data-master*="unlock"]')).toHaveCount(0);
+    await all.click();
+    const dlg = panel.locator('sw-dialog[data-lock-all-dialog="confirm"]');
+    await expect(dlg.locator('[data-lock-all-question]')).toHaveText('לנעול מנעול אחד?');
+    expect(sent).toEqual([]);
+    await dlg.locator('sw-button[data-lock-all-confirm]').click();
+    await expect(panel.locator('sw-dialog[data-lock-all-dialog="done"] [data-lock-all-question]')).toHaveText('ננעלו 1 מתוך 1', { timeout: 15000 });
+    expect(sent).toEqual(['lock.lock']);
+    await expect(panel.locator('[data-lock-all-item="lock.cr007t_front"]')).toHaveAttribute('data-outcome', 'confirmed');
+    await panel.locator('sw-button[data-lock-all-close]').click();
+    await expect(panel.locator('.row[data-entity="lock.cr007t_front"] [data-row-state]')).toHaveText('נעול', { timeout: 10000 });
+    await expect(all).toBeDisabled(); // everything is locked now
+  });
 });

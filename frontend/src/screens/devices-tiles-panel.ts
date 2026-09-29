@@ -17,6 +17,7 @@ import { ALARM_HE, getDeviceItems, type DeviceItem, type DeviceItems, type Devic
 import type { BulkKind } from '../api/device-bulk';
 import { bidi, ltrNum } from '../i18n/bidi';
 import { DeviceControls, deviceControlStyles, rowLabel } from './devices-controls';
+import { runCommand, type CommandPhase } from '../api/device-commands';
 
 /** Which rows a segment shows: `active` = the tile's counted state (lit, on, open, running, playing, locked, armed). */
 export type ItemsFilter = 'all' | 'active' | 'inactive' | 'unavailable';
@@ -31,17 +32,19 @@ interface KindMeta {
   unavailable: string;
   /** The "attention" segment comes first after "הכול": the counted state, or (locks) its opposite. */
   order: ItemsFilter[];
-  bulk?: { kind: BulkKind; label: string };
+  /** Owner 2026-09-29: the master control - one smart on/off button (switches, lights, screens) or open / close
+   * (covers); the words live in its aria-label and tooltip only. Climate has none; locks have lock-all (below). */
+  master?: { on: BulkKind; off: BulkKind; onLabel: string; offLabel: string } | { open: BulkKind; close: BulkKind; openLabel: string; closeLabel: string };
   emptyHint: string;
 }
 
 /** Owner 2026-09-29: the tiles' panel wording per kind (the segmented filter: הכול / פעילים|פתוחים|לא נעולים / כבויים|סגורים|נעולים / לא זמינים). */
 export const KIND_META: Record<TileKind, KindMeta> = {
-  lights: { noun: 'גופי תאורה', icon: 'light', active: 'דולקים', inactive: 'כבויים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], bulk: { kind: 'lights_off', label: 'כבה את כל התאורה' }, emptyHint: 'גופי תאורה המשויכים לאזורים יופיעו כאן.' },
-  switches: { noun: 'מתגים', icon: 'bolt', active: 'פעילים', inactive: 'כבויים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], emptyHint: 'מתגים ודגלים המשויכים לאזורים יופיעו כאן.' },
-  covers: { noun: 'תריסים', icon: 'layers', active: 'פתוחים', inactive: 'סגורים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], bulk: { kind: 'covers_close', label: 'סגור את כל התריסים' }, emptyHint: 'תריסים, וילונות ושערים המשויכים לאזורים יופיעו כאן.' },
-  climate: { noun: 'התקני מיזוג', icon: 'activity', active: 'פעילים', inactive: 'כבויים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], bulk: { kind: 'climate_off', label: 'כבה את כל המיזוג' }, emptyHint: 'מזגנים, תרמוסטטים, מאווררים ומייבשים יופיעו כאן.' },
-  media: { noun: 'מסכים ונגנים', icon: 'play', active: 'דולקים', inactive: 'כבויים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], bulk: { kind: 'screens_off', label: 'כבה את כל המסכים' }, emptyHint: 'טלוויזיות, מקרנים ורמקולים יופיעו כאן.' },
+  lights: { noun: 'גופי תאורה', icon: 'light', active: 'דולקים', inactive: 'כבויים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], master: { on: 'lights_on', off: 'lights_off', onLabel: 'הדלק את כל התאורה', offLabel: 'כבה את כל התאורה' }, emptyHint: 'גופי תאורה המשויכים לאזורים יופיעו כאן.' },
+  switches: { noun: 'מתגים', icon: 'bolt', active: 'פעילים', inactive: 'כבויים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], master: { on: 'switches_on', off: 'switches_off', onLabel: 'הדלק את כל המתגים', offLabel: 'כבה את כל המתגים' }, emptyHint: 'מתגים ודגלים המשויכים לאזורים יופיעו כאן.' },
+  covers: { noun: 'תריסים', icon: 'layers', active: 'פתוחים', inactive: 'סגורים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], master: { open: 'covers_open', close: 'covers_close', openLabel: 'פתח את כל התריסים', closeLabel: 'סגור את כל התריסים' }, emptyHint: 'תריסים, וילונות ושערים המשויכים לאזורים יופיעו כאן.' },
+  climate: { noun: 'התקני מיזוג', icon: 'activity', active: 'פעילים', inactive: 'כבויים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], emptyHint: 'מזגנים, תרמוסטטים, מאווררים ומייבשים יופיעו כאן.' },
+  media: { noun: 'מסכים ונגנים', icon: 'play', active: 'דולקים', inactive: 'כבויים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], master: { on: 'screens_on', off: 'screens_off', onLabel: 'הדלק את כל המסכים', offLabel: 'כבה את כל המסכים' }, emptyHint: 'טלוויזיות, מקרנים ורמקולים יופיעו כאן.' },
   locks: { noun: 'מנעולים', icon: 'lock', active: 'נעולים', inactive: 'לא נעולים', unavailable: 'לא זמינים', order: ['all', 'inactive', 'active', 'unavailable'], emptyHint: 'מנעולים המשויכים לאזורים יופיעו כאן.' },
   alarm: { noun: 'לוחות אזעקה', icon: 'shield', active: 'דרוכים', inactive: 'מנוטרלים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], emptyHint: 'לוח אזעקה המשויך לאזור יופיע כאן.' },
 };
@@ -156,6 +159,8 @@ export class DevicesTilesPanel extends LitElement {
   @state() private q = '';
   @state() private why: string | null = null; // the read-only row whose reason is shown (tap)
   @state() private unlocking: DeviceItem | null = null;
+  /** Lock-all (owner 2026-09-29): the locks to lock, the dialog's step and each lock's outcome. Never unlock-all. */
+  @state() private lockAll: { rows: DeviceItem[]; step: 'confirm' | 'running' | 'done'; out: Record<string, CommandPhase> } | null = null;
   private ctl = new DeviceControls(this, () => this.schedule());
   private stop: (() => void) | null = null;
   private timer = 0;
@@ -234,11 +239,70 @@ export class DevicesTilesPanel extends LitElement {
         font-size: var(--sw-fs-sm);
         outline: none;
       }
-      .bulk {
+      .ctlbar {
         display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
         align-items: center;
+        gap: 8px;
+      }
+      .ctlbar .seg {
+        flex: 1;
+        min-inline-size: 0;
+      }
+      .master-group {
+        display: flex;
+        gap: 6px;
+      }
+      /* the master control: an icon-only 44 px button; filled = something is on (a press turns all off) */
+      button.master {
+        position: relative;
+        flex: none;
+        display: grid;
+        place-items: center;
+        inline-size: 44px;
+        block-size: 44px;
+        padding: 0;
+        border: 2px solid var(--sw-accent);
+        border-radius: 50%;
+        background: transparent;
+        color: var(--sw-accent);
+        cursor: pointer;
+      }
+      button.master[data-state='on'],
+      button.master[data-state='mixed'] {
+        background: var(--sw-accent);
+        color: var(--sw-on-accent, #fff);
+      }
+      button.master:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      button.master:focus-visible {
+        outline: 2px solid var(--sw-focus, var(--sw-accent));
+        outline-offset: 2px;
+      }
+      button.master .badge {
+        position: absolute;
+        inset-block-start: -4px;
+        inset-inline-end: -4px;
+        min-inline-size: 18px;
+        block-size: 18px;
+        padding-inline: 4px;
+        box-sizing: border-box;
+        border-radius: 999px;
+        background: var(--sw-warning);
+        color: #1c1c1e;
+        font-size: 11px;
+        font-weight: var(--sw-fw-bold);
+        line-height: 18px;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+      }
+      .la-list {
+        margin: 4px 0 0;
+        padding-inline-start: 18px;
+        max-block-size: 180px;
+        overflow: auto;
+        font-size: var(--sw-fs-sm);
       }
       .note {
         font-size: var(--sw-fs-xs);
@@ -480,6 +544,13 @@ export class DevicesTilesPanel extends LitElement {
     }
   }
 
+  /** Review B1: a nested confirmation (unlock, lock-all, the bulk dialog) raises its own composed `close` - only the
+   * drawer's own close event (target = the drawer) closes the panel. */
+  private onDrawerClose = (e: Event) => {
+    if (e.target !== e.currentTarget) return;
+    this.close();
+  };
+
   private close() {
     this.open = false;
     this.unlocking = null;
@@ -510,7 +581,7 @@ export class DevicesTilesPanel extends LitElement {
   }
 
   render() {
-    return html`<sw-drawer modal ?open=${this.open} heading=${this.heading()} subheading=${this.subheading()} data-tiles-panel=${this.kind} data-scope=${this.scope} @close=${this.close}>
+    return html`<sw-drawer modal ?open=${this.open} heading=${this.heading()} subheading=${this.subheading()} data-tiles-panel=${this.kind} data-scope=${this.scope} @close=${this.onDrawerClose}>
       ${this.open ? this.renderBody() : nothing}
     </sw-drawer>`;
   }
@@ -532,16 +603,17 @@ export class DevicesTilesPanel extends LitElement {
     const floors = d.floors
       .map((f) => ({ ...f, areas: f.areas.map((a) => ({ ...a, items: a.items.filter(match) })).filter((a) => a.items.length) }))
       .filter((f) => f.areas.length);
-    const bulkOk = isApi() && !!m.bulk && d.can_bulk === true && canAnywhere('devices.control_bulk');
+    const bulkOk = isApi() && !!m.master && d.can_bulk === true && canAnywhere('devices.control_bulk');
+    const shown = floors.flatMap((f) => f.areas.flatMap((a) => a.items));
+    const narrowed = this.filter !== 'all' || !!q;
     return html`<div class="top">
-        ${bulkOk
-          ? html`<div class="bulk" data-panel-bulk>
-              <sw-button size="sm" variant="danger" icon=${m.icon} data-bulk-kind=${m.bulk!.kind} @click=${() => void this.bulkDialog?.show({ scope: this.scope, id: this.scope === 'building' ? '*' : this.scopeId, name: d.name, kind: m.bulk!.kind })}>${m.bulk!.label} · דורש אישור</sw-button>
-            </div>`
-          : nothing}
         ${this.kind === 'alarm' ? html`<a class="alarm-link" href="#/security/alarm" data-alarm-link @click=${() => this.close()}><sw-icon name="shield" size=${15}></sw-icon>פתח במסך האזעקה ›</a>` : nothing}
-        <div class="seg" role="group" aria-label="סינון">
-          ${m.order.map((f) => html`<button type="button" data-filter=${f} aria-pressed=${String(this.filter === f)} @click=${() => this.setFilter(f)}>${label[f]} <span>(${ltrNum(n[f])})</span></button>`)}
+        <div class="ctlbar">
+          <div class="seg" role="group" aria-label="סינון">
+            ${m.order.map((f) => html`<button type="button" data-filter=${f} aria-pressed=${String(this.filter === f)} @click=${() => this.setFilter(f)}>${label[f]} <span>(${ltrNum(n[f])})</span></button>`)}
+          </div>
+          ${bulkOk ? this.renderMaster(shown, narrowed, d.name) : nothing}
+          ${this.kind === 'locks' ? this.renderLockAllButton(shown) : nothing}
         </div>
         <label class="search"><sw-icon name="search" size=${14}></sw-icon><input type="search" data-panel-search placeholder=${`חיפוש ב${m.noun}…`} aria-label=${`חיפוש ב${m.noun}`} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>
       </div>
@@ -566,7 +638,80 @@ export class DevicesTilesPanel extends LitElement {
             )}
       ${d.truncated ? html`<div class="note">מוצגים 500 הפריטים הראשונים.</div>` : nothing}
       ${bulkOk ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
-      ${this.kind === 'locks' ? this.renderUnlockDialog() : nothing}`;
+      ${this.kind === 'locks' ? html`${this.renderUnlockDialog()}${this.renderLockAllDialog()}` : nothing}`;
+  }
+
+  /** The master control (owner 2026-09-29): acts on the rows the panel shows (its scope, filter and search) through
+   * the existing bulk flow - its confirmation dialog, its rules (only what the caller may control in bulk; a switch
+   * only when marked bulk-safe), batches, per-item result and audit. On / off: filled while any shown device is on
+   * (a press turns them all off), outline when all are off (a press turns them all on), with a count badge when only
+   * some are on. Covers: open all and close all. */
+  private renderMaster(shown: DeviceItem[], narrowed: boolean, name: string) {
+    const master = KIND_META[this.kind].master!;
+    const only = narrowed ? shown.map((r) => r.entity_id) : undefined;
+    const avail = shown.filter((r) => rowState(r) !== 'unavailable');
+    const on = avail.filter((r) => rowState(r) === 'active').length;
+    const ask = (kind: BulkKind) => void this.bulkDialog?.show({ scope: this.scope, id: this.scope === 'building' ? '*' : this.scopeId, name, kind, only, ask: true });
+    if ('open' in master) {
+      return html`<div class="master-group" data-panel-master="covers">
+        <button type="button" class="master" data-master=${master.open} aria-label=${master.openLabel} title=${master.openLabel} ?disabled=${!avail.length} @click=${() => ask(master.open)}><sw-icon name="coverOpen" size=${20}></sw-icon></button>
+        <button type="button" class="master" data-master=${master.close} aria-label=${master.closeLabel} title=${master.closeLabel} ?disabled=${!avail.length} @click=${() => ask(master.close)}><sw-icon name="coverClose" size=${20}></sw-icon></button>
+      </div>`;
+    }
+    const state = on === 0 ? 'off' : on === avail.length ? 'on' : 'mixed';
+    const words = on ? master.offLabel : master.onLabel;
+    return html`<button type="button" class="master" data-panel-master=${this.kind} data-master=${on ? master.off : master.on} data-state=${state} aria-pressed=${String(on > 0)}
+      aria-label=${state === 'mixed' ? `${words} (${on} מתוך ${avail.length} פעילים)` : words} title=${words} ?disabled=${!avail.length} @click=${() => ask(on ? master.off : master.on)}>
+      <sw-icon name="power" size=${20}></sw-icon>${state === 'mixed' ? html`<span class="badge" data-master-badge aria-hidden="true">${ltrNum(on)}</span>` : nothing}
+    </button>`;
+  }
+
+  /** Lock-all (owner 2026-09-29; never unlock-all). A lock is not a bulk kind - CR-007 keeps locks out of the bulk
+   * path entirely - so this is one confirmation for the shown unlocked locks the caller may control, then the
+   * ordinary single-entity lock.lock action for each, ONE AT A TIME, each with its own result. */
+  private renderLockAllButton(shown: DeviceItem[]) {
+    const mine = shown.filter((r) => r.can_control && rowState(r) !== 'unavailable');
+    if (!isApi() || !mine.length) return nothing;
+    const open = mine.filter((r) => !r.locked);
+    const words = 'נעל את כל המנעולים';
+    return html`<button type="button" class="master" data-panel-master="locks" data-master="lock_all" aria-label=${open.length ? `${words} (${open.length} לא נעולים)` : `${words} - כולם נעולים`} title=${words} ?disabled=${!open.length}
+      @click=${() => (this.lockAll = { rows: open, step: 'confirm', out: {} })}>
+      <sw-icon name="lock" size=${20}></sw-icon>${open.length ? html`<span class="badge" aria-hidden="true">${ltrNum(open.length)}</span>` : nothing}
+    </button>`;
+  }
+
+  private async runLockAll() {
+    const la = this.lockAll;
+    if (!la || la.step !== 'confirm') return;
+    this.lockAll = { ...la, step: 'running' };
+    for (const r of la.rows) {
+      const key = `${r.entity_id}:lock`;
+      await runCommand(key, 'lock', r.entity_id, 'lock.lock', {}, 'locked', (s) => {
+        this.ctl.setCmd(key, s);
+        if (this.lockAll) this.lockAll = { ...this.lockAll, out: { ...this.lockAll.out, [r.entity_id]: s.phase } };
+      }, { label: 'נעילה' });
+    }
+    if (this.lockAll) this.lockAll = { ...this.lockAll, step: 'done' };
+    this.schedule();
+  }
+
+  private renderLockAllDialog() {
+    const la = this.lockAll;
+    if (!la) return html`<sw-dialog data-lock-all-dialog="closed"></sw-dialog>`;
+    const word: Record<CommandPhase, string> = { pending: 'ממתין לאישור', confirmed: 'ננעל', sent: 'נשלח', rolled_back: 'לא ננעל' };
+    const done = Object.values(la.out).filter((x) => x === 'confirmed').length;
+    return html`<sw-dialog open data-lock-all-dialog=${la.step} heading="נעילת מנעולים" subheading="כל מנעול ננעל בפעולה נפרדת, אחד אחרי השני" @close=${() => la.step !== 'running' && (this.lockAll = null)}>
+      <div class="unlock-what" data-lock-all-question>${la.step === 'confirm' ? (la.rows.length === 1 ? 'לנעול מנעול אחד?' : `לנעול ${la.rows.length} מנעולים?`) : `ננעלו ${done} מתוך ${la.rows.length}`}</div>
+      <details ?open=${la.step !== 'confirm'}><summary>רשימת המנעולים</summary>
+        <ul class="la-list">${la.rows.map((r) => html`<li data-lock-all-item=${r.entity_id} data-outcome=${la.out[r.entity_id] ?? ''}>${bidi(r.name)} <span class="note">· ${bidi(r.area_name)}${la.out[r.entity_id] ? ` · ${word[la.out[r.entity_id]]}` : ''}</span></li>`)}</ul>
+      </details>
+      <div class="unlock-actions">
+        ${la.step === 'confirm'
+          ? html`<sw-button data-lock-all-cancel autofocus @click=${() => (this.lockAll = null)}>ביטול</sw-button>
+              <sw-button data-lock-all-confirm variant="primary" icon="lock" @click=${() => void this.runLockAll()}>נעל (${ltrNum(la.rows.length)})</sw-button>`
+          : html`<sw-button data-lock-all-close ?disabled=${la.step === 'running'} @click=${() => (this.lockAll = null)}>סגור</sw-button>`}
+      </div>
+    </sw-dialog>`;
   }
 
   private renderRow(r: DeviceItem) {

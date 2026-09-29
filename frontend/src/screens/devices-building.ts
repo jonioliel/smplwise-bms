@@ -1120,6 +1120,14 @@ export class DevicesBuilding extends LitElement {
       background: transparent;
       color: var(--sw-text-2);
     }
+    .fchips {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .fchips:empty {
+      display: none;
+    }
     button.chip {
       min-block-size: 28px;
       border-color: var(--sw-border);
@@ -1429,6 +1437,7 @@ export class DevicesBuilding extends LitElement {
         ${it?.icon ? html`<sw-icon class="lay-title-icon" .name=${it.icon} size=${16}></sw-icon>` : nothing}
         <h2><button type="button" class="ftitle" data-floor-title=${f.floor_id} aria-current=${this.selected === f.floor_id ? 'true' : 'false'} title="פתח קומה" @click=${() => (this.selected = f.floor_id)}>${bidi(titleOf(it, f.name))}</button></h2>
         ${c.lights ? html`<button type="button" class=${classMap({ lit: true, chip: true, warm: c.lights_on > 0 })} data-lit=${c.lights_on} data-floor-chip="lights" aria-haspopup="dialog" aria-expanded=${String(this.isOpen('lights', 'floor', f.floor_id))} title=${`תאורה · ${f.name}`} @click=${() => this.openPanel('lights', 'floor', f.floor_id)}><sw-icon name="light" size=${13}></sw-icon>${ltrNum(c.lights_on)} דולקות מתוך ${ltrNum(c.lights)}</button>` : nothing}
+        <span class="fchips" data-floor-chips=${f.floor_id}>${this.renderFloorChips(f, 12, true)}</span>
         ${this.bulkAllowed && f.can_bulk
           ? html`<devices-bulk-menu scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${c} variant="menu" triggerLabel="כבה קומה" data-floor-menu=${f.floor_id}></devices-bulk-menu>`
           : nothing}
@@ -1499,14 +1508,16 @@ export class DevicesBuilding extends LitElement {
 
   /** A floor's count pills as buttons (owner 2026-09-29): each opens the tiles' panel for its kind on that floor;
    * cameras and sensors stay plain counts. */
-  private renderFloorChips(f: DeviceFloor, size: number) {
-    const pills = this.pillsShown(f.counts);
+  private renderFloorChips(f: DeviceFloor, size: number, card = false) {
+    // the floor card (owner 2026-09-29): switches / covers / climate / locks / screens next to its own lights count
+    // (the card's lit count is the lights chip), icon + number only - the words in the tooltip and the aria-label
+    const pills = this.pillsShown(f.counts).filter((p) => !card || (p.key !== 'lights' && PILL_KIND[p.key]));
     const chip = (kind: TileKind | undefined, key: string, icon: IconName, text: string, title: string, warm: boolean) =>
       kind
         ? html`<button type="button" class=${classMap({ chip: true, warm })} data-floor-chip=${kind} aria-haspopup="dialog" aria-expanded=${String(this.isOpen(kind, 'floor', f.floor_id))} title=${`${title} · ${f.name}`} aria-label=${`${title}: ${text} · ${f.name}`} @click=${() => this.openPanel(kind, 'floor', f.floor_id)}><sw-icon .name=${icon} size=${size}></sw-icon>${text}</button>`
         : html`<span class=${classMap({ chip: true, warm })} data-floor-count=${key} title=${title}><sw-icon .name=${icon} size=${size}></sw-icon>${text}</span>`;
     return html`${pills.map((p) => chip(PILL_KIND[p.key], p.key, p.icon, p.on === null ? String(p.total) : `${p.on}/${p.total}`, p.label, p.warm))}
-      ${f.counts.alarm ? chip('alarm', 'alarm', 'shield', ALARM_HE[f.counts.alarm] ?? f.counts.alarm, 'אזעקה', f.counts.alarm !== 'disarmed') : nothing}`;
+      ${f.counts.alarm && !card ? chip('alarm', 'alarm', 'shield', ALARM_HE[f.counts.alarm] ?? f.counts.alarm, 'אזעקה', f.counts.alarm !== 'disarmed') : nothing}`;
   }
 
   private renderFloor(f: DeviceFloor) {

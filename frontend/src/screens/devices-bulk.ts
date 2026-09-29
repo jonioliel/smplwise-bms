@@ -32,6 +32,10 @@ export interface BulkRequest {
   name: string;
   kind: BulkKind;
   position?: number;
+  /** Owner 2026-09-29: the entity ids the tiles' panel shows (its filter / search) - narrows the set. */
+  only?: string[];
+  /** The tiles' panel's master control: the dialog asks the question in words first. */
+  ask?: boolean;
 }
 
 /** How many entities a kind would reach according to the tree's counts (a hint for the menu only - the server's
@@ -54,7 +58,26 @@ export function presentFor(kind: BulkKind, c: DeviceCounts): boolean {
   return true;
 }
 
-const KIND_ICON: Record<BulkKind, IconName> = { lights_off: 'light', covers_close: 'layers', covers_open: 'layers', covers_stop: 'layers', covers_position: 'layers', climate_off: 'activity', screens_off: 'play', all_off: 'bolt' };
+const KIND_ICON: Record<BulkKind, IconName> = { lights_off: 'light', covers_close: 'layers', covers_open: 'layers', covers_stop: 'layers', covers_position: 'layers', climate_off: 'activity', screens_off: 'play', all_off: 'bolt', switches_off: 'power', switches_on: 'power', lights_on: 'light', screens_on: 'play' };
+
+/** Owner 2026-09-29: the master control's confirmation asks the question in words ("להדליק 22 מתגים?"). */
+const NOUN: Partial<Record<BulkKind, [string, string, string]>> = {
+  // [verb, one, many]
+  switches_on: ['להדליק', 'מתג אחד', 'מתגים'],
+  switches_off: ['לכבות', 'מתג אחד', 'מתגים'],
+  lights_on: ['להדליק', 'גוף תאורה אחד', 'גופי תאורה'],
+  lights_off: ['לכבות', 'גוף תאורה אחד', 'גופי תאורה'],
+  screens_on: ['להדליק', 'מסך אחד', 'מסכים'],
+  screens_off: ['לכבות', 'מסך אחד', 'מסכים'],
+  covers_open: ['לפתוח', 'תריס אחד', 'תריסים'],
+  covers_close: ['לסגור', 'תריס אחד', 'תריסים'],
+};
+
+function question(kind: BulkKind, n: number): string | null {
+  const w = NOUN[kind];
+  if (!w) return null;
+  return n === 1 ? `${w[0]} ${w[1]}?` : `${w[0]} ${ltrNum(n)} ${w[2]}?`;
+}
 
 function requestEvent(req: BulkRequest): CustomEvent<BulkRequest> {
   return new CustomEvent<BulkRequest>('bulk-request', { detail: req, bubbles: true, composed: true });
@@ -567,7 +590,7 @@ export class DevicesBulkDialog extends LitElement {
     this.error = '';
     this.phase = 'loading';
     try {
-      const p = await previewBulk(req.scope, req.id, req.kind, req.position);
+      const p = await previewBulk(req.scope, req.id, req.kind, req.position, req.only);
       if (this.req !== req) return;
       this.preview = p;
       this.phase = p.count ? 'confirm' : 'nothing';
@@ -593,7 +616,7 @@ export class DevicesBulkDialog extends LitElement {
     if (!req || !p || this.phase !== 'confirm') return;
     this.phase = 'sending';
     try {
-      const first = await runBulk(req.scope, req.id, req.kind, p.digest, req.position);
+      const first = await runBulk(req.scope, req.id, req.kind, p.digest, req.position, req.only);
       this.phase = 'running';
       this.follow = { stopped: false };
       const done = await followBulk(first, (r) => (this.record = r), this.follow);
@@ -667,8 +690,10 @@ export class DevicesBulkDialog extends LitElement {
   private renderConfirm(p: BulkPreview) {
     const never = Object.entries(p.never_included);
     const posSuffix = p.kind === 'covers_position' && p.position !== null && p.position !== undefined ? ` למיקום ${ltrNum(p.position)}%` : '';
+    const q = this.req?.ask ? question(p.kind, p.count) : null;
     return html`<div class="what" data-bulk-what>
-        <div class="big" data-bulk-count=${p.count}>יישלח ${p.kind_label}${posSuffix} ל־${ltrNum(p.count)} התקנים${p.scope === 'building' ? ' במבנה כולו' : ` ב${BULK_SCOPE_LABEL[p.scope]} ${bidi(p.name)}`}${p.floor_name ? ` (${bidi(p.floor_name)})` : ''}:</div>
+        ${q ? html`<div class="big" data-bulk-question>${q}</div>` : nothing}
+        <div class=${q ? 'muted' : 'big'} data-bulk-count=${p.count}>יישלח ${p.kind_label}${posSuffix} ל־${ltrNum(p.count)} התקנים${p.scope === 'building' ? ' במבנה כולו' : ` ב${BULK_SCOPE_LABEL[p.scope]} ${bidi(p.name)}`}${p.floor_name ? ` (${bidi(p.floor_name)})` : ''}:</div>
         <div class="domains" data-bulk-domains>${Object.entries(p.by_domain).map(([d, n]) => html`<span data-domain=${d}>${p.domain_labels[d] ?? d}: ${ltrNum(n)}</span>`)}</div>
         <details><summary>רשימת ההתקנים</summary><ul>${p.targets.map((t) => html`<li>${bidi(t.name)}${t.area_name && p.scope !== 'area' ? html` <span class="muted">· ${bidi(t.area_name)}</span>` : nothing}</li>`)}</ul></details>
         ${this.renderSkipped(p)}
