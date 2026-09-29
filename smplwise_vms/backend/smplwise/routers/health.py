@@ -10,7 +10,7 @@ from .. import __version__
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import lock_stats, permission_revision, unlocked
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import autosync, events_derive, events_ingest, ha_client, ha_sync
+from ..services import autosync, events_cache, events_derive, events_ingest, ha_client, ha_sync
 from ..services import health_report as health_report_svc
 
 router = APIRouter()
@@ -37,7 +37,8 @@ def health(request: Request, principal: Principal = Depends(current_principal), 
         "nvr_configured": bool(settings.nvr_host and settings.nvr_user),
         "go2rtc_configured": bool(settings.go2rtc_url),
         "discovery": {**autosync.STATE, "cameras": conn.execute("SELECT COUNT(*) FROM cameras").fetchone()[0], "interval_s": autosync.INTERVAL_S},
-        "events": {"ingest": events_ingest.STATE.as_dict(), "derive": events_derive.STATE, "stored": conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]},
+        "events": {"ingest": events_ingest.STATE.as_dict(), "derive": events_derive.STATE, "stored": conn.execute("SELECT COUNT(*) FROM events").fetchone()[0],
+                   "cache": events_cache.CACHE.stats()},
         "home_assistant": {"configured": ha_client.configured(settings), **ha_sync.STATE.as_dict()},
         "identity_source": principal.source,
         "renderer": "pdftoppm" if any(os.access(os.path.join(p, "pdftoppm"), os.X_OK) for p in os.environ.get("PATH", "").split(os.pathsep)) else "pymupdf-or-none",
