@@ -251,6 +251,14 @@ no empty drawer footer (M6); one scroll container at the owner's site size (4 fl
 2000x990 and 1366x768, and `?debug=overflow` installs a read-only `window.__arxOverflow()` diagnostic for a real
 installation (G).
 
+**Owner decisions 2026-09-30 and the re-review:** eligibility for group actions is shown as little as possible on the
+operator screens - no per-row "not included" text, no counts, no links; the master control counts only the rows a bulk
+action reaches and, with none, is simply disabled (the reason in its tooltip only); the confirmation is short (the
+question with the count, two buttons, the rest under a closed "פרטים"). The bulk-safe mark is managed in ONE place,
+הגדרות › חשמל והתקנים › פעולה קבוצתית (`GET` / `POST /devices/bulk-safe`: every switch, search, filters, select all
+filtered, approve / remove in one call, audited per entity plus a summary; alarm-managed switches refused). The mark
+stays switches-only. After the merge of CR-010, alarm-managed rows are read-only in the panel and never counted.
+
 ## 8. Next step
 
 Slice 1 dispatched 2026-09-28 from this document; the DomusUI extraction is the reference for card rules and
