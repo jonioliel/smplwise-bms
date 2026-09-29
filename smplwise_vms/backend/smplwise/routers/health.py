@@ -36,6 +36,18 @@ def _push_view(conn: sqlite3.Connection) -> dict[str, Any]:
             "key_created": conn.execute("SELECT 1 FROM push_vapid WHERE id = 1").fetchone() is not None}
 
 
+def _remote_view(conn: sqlite3.Connection, settings: Any) -> dict[str, Any]:
+    """CR-008 P2: the remote channel's live counters - sessions by kind, sign-ins, users, attached sockets, live
+    streams running under remote sign-ins and the per-sign-in cap (no ids, no addresses)."""
+    from ..services import ha_user_auth
+    from .media import remote_live_by_chain
+    from .settings import read_settings
+
+    live = remote_live_by_chain()
+    return {"enabled": bool(settings.remote_access), **ha_user_auth.STORE.stats(), "live_streams": sum(live.values()),
+            "max_live_streams_per_sign_in": read_settings(conn)["remote.max_live_streams"]}
+
+
 @router.get("/health")
 def health(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     settings = settings_of(request)
@@ -59,7 +71,7 @@ def health(request: Request, principal: Principal = Depends(current_principal), 
         "backpressure": local_state(settings, conn),
         "identity_source": principal.source,
         # CR-008 P3: Web Push worker counters and subscription totals (no endpoints, no user ids)
-        **({"push": _push_view(conn)} if authorize(conn, principal, "system.configure", INSTALLATION).allowed else {}),
+        **({"push": _push_view(conn), "remote": _remote_view(conn, settings)} if authorize(conn, principal, "system.configure", INSTALLATION).allowed else {}),
         "renderer": "pdftoppm" if any(os.access(os.path.join(p, "pdftoppm"), os.X_OK) for p in os.environ.get("PATH", "").split(os.pathsep)) else "pymupdf-or-none",
     }
 

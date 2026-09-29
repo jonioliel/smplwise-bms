@@ -38,6 +38,9 @@ export interface DirectoryUser {
   is_self: boolean;
   /** CR-008: the per-user remote-access flag (SmplWise Arx, remote.policy = flag). */
   remote_access?: boolean;
+  /** CR-008 P2: the last remote sign-in (ISO time) and how many remote sign-ins are active now. */
+  remote_last_sign_in?: string | null;
+  remote_sessions?: number;
 }
 
 export interface ScopeRef {
@@ -58,6 +61,8 @@ export interface DirectoryResponse {
   assign_scopes?: ScopeRef[];
   /** Role ids the caller may hand out (all for a system administrator, the allow-list for a delegated one). */
   assignable_roles?: string[];
+  /** CR-008 P2: `flag` = turning a user's remote flag off ends their remote sign-ins at once. */
+  remote_policy?: 'flag' | 'any_role';
 }
 
 export interface RoleInfo {

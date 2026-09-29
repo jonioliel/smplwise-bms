@@ -7,6 +7,7 @@ import '../components/sw-button';
 import '../components/sw-badge';
 import '../components/sw-tabs';
 import '../components/sw-avatar';
+import './sw-profile-menu';
 import '../screens/explore-floor-map';
 import '../screens/explore-sites';
 import '../screens/explore-floors';
@@ -1233,7 +1234,7 @@ export class SwApp extends LitElement {
             ? html`<sw-badge kind="neutral" label="נתוני הדגמה"></sw-badge>`
             : nothing}
         <sw-button class="bell" variant="ghost" size="sm" iconOnly icon="bell" label=${t('app.notifications')}></sw-button>${this.renderArxSignOut()}
-        <span class="user-a"><sw-avatar name=${name} size=${34} title=${t('app.account')} aria-label=${t('app.account')}></sw-avatar><span class="who-a"><b>${name}</b><span>${me?.bindings[0]?.role_name ?? (this.session.mode === 'demo' ? 'מנהל VMS' : 'ללא שיוך')}</span></span></span>
+        <span class="user-a"><sw-profile-menu .name=${name} .size=${34} .role=${me?.bindings[0]?.role_name ?? ''} .api=${this.session.mode === 'api'}></sw-profile-menu><span class="who-a"><b>${name}</b><span>${me?.bindings[0]?.role_name ?? (this.session.mode === 'demo' ? 'מנהל VMS' : 'ללא שיוך')}</span></span></span>
         <span class="logo-a"><b>smplwise</b><small>Arx</small></span>
       </header>
       ${this.renderSysBanner()}
@@ -1295,7 +1296,7 @@ export class SwApp extends LitElement {
             ? html`<sw-badge kind="neutral" label="נתוני הדגמה"></sw-badge>`
             : nothing}
         <sw-button class="bell" variant="ghost" size="sm" iconOnly icon="bell" label=${t('app.notifications')}></sw-button>${this.renderArxSignOut()}
-        <sw-avatar name=${this.session.me?.user.display_name || this.session.me?.user.username || 'יוני'} size=${28} title=${t('app.account')} aria-label=${t('app.account')}></sw-avatar>
+        <sw-profile-menu .name=${this.session.me?.user.display_name || this.session.me?.user.username || 'יוני'} .size=${28} .role=${this.session.me?.bindings[0]?.role_name ?? ''} .api=${this.session.mode === 'api'}></sw-profile-menu>
       </header>
       <main>
         ${this.renderSetupHint()}

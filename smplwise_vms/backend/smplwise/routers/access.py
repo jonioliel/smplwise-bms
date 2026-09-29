@@ -217,6 +217,16 @@ def _users(conn: sqlite3.Connection, principal: Principal) -> list[dict[str, Any
         remote_ids = {r[0] for r in conn.execute("SELECT user_id FROM remote_access_users").fetchall()}
     except sqlite3.OperationalError:
         remote_ids = set()
+    try:  # CR-008 P2: the last remote sign-in (migration 0035) and the live remote sign-ins per user
+        last_remote = {r["user_id"]: r["last_at"] for r in conn.execute("SELECT user_id, last_at FROM remote_sign_ins").fetchall()}
+    except sqlite3.OperationalError:
+        last_remote = {}
+    from ..services import ha_user_auth
+
+    remote_live: dict[str, int] = {}
+    for entry in ha_user_auth.STORE.chains():
+        uid = entry["session"].principal.user_id
+        remote_live[uid] = remote_live.get(uid, 0) + 1
     groups_of: dict[str, list[dict[str, str]]] = {}
     for r in conn.execute("SELECT m.user_id, g.id, g.name FROM group_members m JOIN groups g ON g.id = m.group_id").fetchall():
         groups_of.setdefault(r["user_id"], []).append({"id": r["id"], "name": r["name"]})
@@ -241,6 +251,8 @@ def _users(conn: sqlite3.Connection, principal: Principal) -> list[dict[str, Any
             "bindings": _user_bindings(conn, uid),
             "is_self": uid == principal.user_id,
             "remote_access": uid in remote_ids,
+            "remote_last_sign_in": last_remote.get(uid),
+            "remote_sessions": remote_live.get(uid, 0),
         })
     return out
 
@@ -543,6 +555,8 @@ def list_users(principal: Principal = Depends(current_principal), conn: sqlite3.
         "delegated": not full_authority(conn, principal),
         "assign_scopes": assign_scopes(conn, principal),
         "assignable_roles": sorted(all_roles(conn)) if full_authority(conn, principal) else delegable_roles(conn),
+        # CR-008 P2: turning a user's remote flag off ends their remote sessions only under remote.policy = flag
+        "remote_policy": get_setting(conn, "remote.policy", "flag") or "flag",
     }
 
 
@@ -564,6 +578,8 @@ def _delegated_directory(conn: sqlite3.Connection, principal: Principal) -> dict
             "first_seen_at": None,
             "last_seen_at": None,
             "remote_access": False,
+            "remote_last_sign_in": None,
+            "remote_sessions": 0,
             "groups": [g for g in u["groups"] if g["id"] in reach_groups],
             "bindings": [b for b in u["bindings"] if delegated_sees(conn, principal, b)],
         })
@@ -800,10 +816,32 @@ def list_audit(
     actor: str | None = Query(None, max_length=200),
     resource_id: str | None = Query(None, max_length=200),
     limit: int = Query(100, ge=1, le=500),
+    channel: str | None = Query(None, pattern="^(local|remote|bearer)$"),
+    view: str | None = Query(None, pattern="^(remote_sign_ins|remote_refusals)$"),
 ) -> dict[str, Any]:
+    """The audit screen. CR-008 P2: `channel` = where the actor came from (`local` = inside the system's own UI,
+    `remote` = SmplWise Arx, `bearer` = Arx with a bearer token); `view` = a quick view that replaces the action prefix:
+    `remote_sign_ins` (every auth.remote_* row: sign-ins, refusals, revocations, sign-outs, refused cross-site requests)
+    or `remote_refusals` (every denied row of the remote channel - remote_not_allowed, csrf_refused, rate limits, a
+    revoked sign-in, the remote live-stream cap)."""
     require(conn, principal, "audit.read", INSTALLATION)
-    sql = "SELECT * FROM audit_log WHERE action LIKE ?"
-    args: list[Any] = [prefix + "%"]
+    detail = "COALESCE(CASE WHEN json_valid(details_json) THEN json_extract(details_json, '$.{0}') END, '')"
+    remote_row = f"({detail.format('channel')} = 'remote' OR action LIKE 'auth.remote%')"
+    if view == "remote_sign_ins":
+        sql = "SELECT * FROM audit_log WHERE action LIKE 'auth.remote%'"
+        args: list[Any] = []
+    elif view == "remote_refusals":
+        sql = f"SELECT * FROM audit_log WHERE decision = 'denied' AND {remote_row}"
+        args = []
+    else:
+        sql = "SELECT * FROM audit_log WHERE action LIKE ?"
+        args = [prefix + "%"]
+    if channel == "remote":
+        sql += f" AND {remote_row}"
+    elif channel == "bearer":
+        sql += f" AND {detail.format('via')} = 'bearer'"
+    elif channel == "local":
+        sql += f" AND NOT {remote_row}"
     if actor:
         sql += " AND actor_username = ?"
         args.append(actor)

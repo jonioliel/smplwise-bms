@@ -14,7 +14,9 @@ middleware sits in front of everything:
   before anything else sees them;
 - remote responses get the security headers of CR-008 §3e (CSP with `frame-ancestors 'self'`, `X-Frame-Options:
   SAMEORIGIN` - the WisKey embed and Ingress framing are same-origin -, `Referrer-Policy`, `Permissions-Policy`,
-  `nosniff`, and `Cache-Control: no-store` on the API). HSTS is left to Cloudflare (the tunnel terminates TLS);
+  `nosniff`, and `Cache-Control: no-store` on the API). HSTS is left to Cloudflare (the tunnel terminates TLS). CR-008
+  P2: a stricter policy (CSP_STRICT) runs report-only next to the enforced one until `remote.csp_enforce` makes it the
+  enforced one; both report to `<remote_path>/api/v1/csp-report` (counters only, routers/remote.py);
 - a state-changing request carrying the Arx session cookie must prove it comes from this origin (csrf_ok) or it is
   refused 403 `csrf_refused` and audited (security review B1).
 """
@@ -52,14 +54,62 @@ CSP = "; ".join([
     "base-uri 'self'",
     "form-action 'self'",
 ])
-SECURITY_HEADERS: list[tuple[bytes, bytes]] = [
-    (b"content-security-policy", CSP.encode()),
+# CR-008 P2: the stricter candidate. Inline <style> ELEMENTS are refused (style-src-elem 'self' - an injected style block
+# can exfiltrate data through attribute selectors and redress the page); inline style ATTRIBUTES stay allowed
+# (style-src-attr), because Lit binds them everywhere. Lit's `static styles` are constructed stylesheets, which CSP does
+# not govern. It ships as Content-Security-Policy-Report-Only until the owner has reviewed the reports and switched
+# `remote.csp_enforce` on (הגדרות › גישה מרחוק); then it is the enforced policy.
+CSP_STRICT = CSP.replace("style-src 'self' 'unsafe-inline'", "style-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'")
+REPORT_GROUP = "arx-csp"
+REPORT_PATH = "/api/v1/csp-report"  # under the remote prefix: POST <remote_path>/api/v1/csp-report (routers/remote.py)
+_CSP_MODE = {"enforce_strict": False}
+
+BASE_HEADERS: list[tuple[bytes, bytes]] = [
     (b"x-frame-options", b"SAMEORIGIN"),
     (b"referrer-policy", b"same-origin"),
     (b"permissions-policy", b"camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()"),
     (b"x-content-type-options", b"nosniff"),
     (b"cross-origin-opener-policy", b"same-origin"),
 ]
+SECURITY_HEADERS: list[tuple[bytes, bytes]] = [(b"content-security-policy", CSP.encode()), *BASE_HEADERS]  # without reporting
+
+
+def set_csp_enforce(on: bool) -> None:
+    """Switch the stricter policy between report-only (False, the default) and enforced (True) - immediately, for the
+    next response. Called by PATCH settings and at start-up; the background pass re-reads it every 30 s (a restore)."""
+    _CSP_MODE["enforce_strict"] = bool(on)
+
+
+def csp_enforcing() -> bool:
+    return _CSP_MODE["enforce_strict"]
+
+
+def load_csp_mode(db: Any) -> None:
+    try:
+        with db.connection(mode="read", label="csp mode") as conn:
+            from .db import get_setting
+
+            set_csp_enforce((get_setting(conn, "remote.csp_enforce", "false") or "false") == "true")
+    except Exception:  # noqa: BLE001 - keep the current mode when the database cannot be read
+        pass
+
+
+def security_headers(prefix: str) -> list[tuple[bytes, bytes]]:
+    """The remote channel's headers: the enforced CSP (the base policy, or the strict one once `remote.csp_enforce` is
+    on), the strict one as report-only while it is not, both reporting to `<prefix>/api/v1/csp-report` (the Reporting
+    API group and the older report-uri, for Firefox and Safari)."""
+    endpoint = prefix + REPORT_PATH
+    report = f"; report-uri {endpoint}; report-to {REPORT_GROUP}"
+    out = [(b"reporting-endpoints", f'{REPORT_GROUP}="{endpoint}"'.encode())]
+    if csp_enforcing():
+        out.append((b"content-security-policy", (CSP_STRICT + report).encode()))
+    else:
+        out.append((b"content-security-policy", (CSP + report).encode()))
+        out.append((b"content-security-policy-report-only", (CSP_STRICT + report).encode()))
+    return out + BASE_HEADERS
+
+
+_OWN = {b"content-security-policy-report-only", b"reporting-endpoints"} | {h for h, _ in BASE_HEADERS}
 
 
 # machine-to-machine routes with no user identity (the HA bridge integration's signed calls on the internal network):
@@ -197,7 +247,9 @@ class RemoteChannel:
         headers = list(scope.get("headers") or [])
         if kind == "http" and (scope.get("method") or "GET").upper() not in SAFE_METHODS:
             sid = _session_cookie(headers)
-            if sid is not None and not csrf_ok(scope, headers):  # a bearer-only request (no cookie) is exempt
+            # a bearer-only request (no cookie) is exempt, and so is the CSP report sink (browsers post violation reports
+            # without fetch metadata we could rely on; it changes nothing but bounded counters)
+            if sid is not None and rest != REPORT_PATH and not csrf_ok(scope, headers):
                 from starlette.concurrency import run_in_threadpool
 
                 await run_in_threadpool(_audit_csrf, scope, headers, sid)
@@ -212,11 +264,14 @@ class RemoteChannel:
             await self.app(child, receive, send)
             return
         api = path.startswith(prefix + "/api/")
+        ours = security_headers(prefix)
 
         async def send_secured(message) -> None:
             if message["type"] == "http.response.start":
-                headers = [(k, v) for k, v in (message.get("headers") or []) if k.lower() not in {h for h, _ in SECURITY_HEADERS}]
-                headers.extend(SECURITY_HEADERS)
+                # a route's own Content-Security-Policy (e.g. `sandbox` on an evidence file) is KEPT: browsers enforce every
+                # CSP header, so ours only adds restrictions (CR-008 P2; the MVP replaced it)
+                headers = [(k, v) for k, v in (message.get("headers") or []) if k.lower() not in _OWN]
+                headers.extend(ours)
                 if api and not any(k.lower() == b"cache-control" for k, _ in headers):
                     headers.append((b"cache-control", b"no-store"))
                 message = {**message, "headers": headers}

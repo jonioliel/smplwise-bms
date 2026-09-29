@@ -53,6 +53,7 @@ export async function bootRemote(): Promise<void> {
       await startApp();
       return;
     }
+    notice = takeSignOutReason() ?? notice; // CR-008 P2: resume() itself learnt that this sign-in was revoked
   } catch (err) {
     notice = err instanceof ArxAuthError ? err.message : '';
     kind = 'error';

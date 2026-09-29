@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .db import now_iso, permission_revision
@@ -59,7 +59,10 @@ class Principal:
     user_id: str
     username: str
     display_name: str
-    source: str  # ingress | dev
+    source: str  # ingress | dev | remote
+    # CR-008 P2: on the remote channel, how the caller proved who they are - "cookie" (an Arx session) or "bearer" (an HA
+    # access token on every request, a native client); "" elsewhere. Not part of equality: the same user either way.
+    via: str = field(default="", compare=False)
 
 
 @dataclass(frozen=True)

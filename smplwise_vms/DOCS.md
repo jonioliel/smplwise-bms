@@ -690,6 +690,58 @@ Supervisor network.
 - **Limits.** Remote sessions live in memory: after an add-on restart the browser re-establishes its session
   silently from its HA token. Native-app push, the installable app and Cloudflare Access are later phases.
 
+### Remote-access hardening (CR-008 P2)
+
+- **Sessions list.** הגדרות › גישה מרחוק › "כניסות פעילות מרחוק" lists every active remote sign-in (one row per
+  browser or client; a system administrator sees everyone's, anyone else their own): the browser family and system,
+  the country (Cloudflare's `CF-IPCountry`) or the last address masked to /24 (IPv6 /48), the first sign-in, the last
+  activity, cookie (a browser) or bearer (a client sending its HA token on every request), live streams, and "המכשיר
+  הזה" for the current one. The id shown is a hash, never the cookie. The avatar menu has the same list for the user
+  ("הסשנים שלי") with "התנתק מכל המקומות". API: `GET auth/sessions?scope=own|all`, `DELETE auth/sessions/{id}`,
+  `DELETE auth/sessions[?user_id=]`.
+- **What ending a sign-in does.** Its sessions end, their WebSockets (live video, events, the access channel) close
+  before the answer, and the sign-in cannot come back: the refresh-token id its access tokens carry is recorded
+  (hashed, table `remote_revoked_chains`, kept a year) and a re-exchange answers `remote_session_revoked`; the browser
+  then shows the sign-in page ("הכניסה במכשיר הזה נותקה") and revokes its own refresh token. When users end their OWN
+  sign-ins, the add-on also deletes those refresh tokens at Home Assistant (`auth/delete_refresh_token` with the user's
+  own token, best effort, 8 seconds at most) - but only the ones HA lists as normal sign-ins of the Arx client
+  (`https://<host><remote_path>/`); a long-lived access token or a sign-in of another app used with Arx is never
+  deleted at HA - the same browsers are signed out of HA at `/` too. An administrator's revoke ends the Arx
+  access only; the user's HA sign-in is theirs. Every revoke is audited (`auth.remote_session.revoked`, reason
+  `signed_out_everywhere` / `revoked_by_user` / `revoked_by_admin` / `revoked_all_by_admin`).
+- **Bearer clients** (an API client, the future native app) get a session of their own per sign-in: listed, revocable,
+  re-checked against HA every minute like a browser's, with their WebSockets closed on revoke; their actions are
+  audited with `via: bearer`.
+- **Per-user flag.** משתמשים והרשאות shows for each user the flag, the last remote sign-in and the active remote
+  sign-ins; switching the flag off while sign-ins are active first says how many will close (under
+  `remote.policy = flag` they close at once, WebSockets included).
+- **Audit filters.** The audit screen filters by channel (local / remote / remote with a bearer token) and has two
+  quick views: "כניסות מרחוק" (every `auth.remote_*` row) and "סירובים מרחוק" (every refusal on the remote channel:
+  `remote_not_allowed`, `csrf_refused`, the rate limits, a revoked sign-in, the live-stream cap). API: `GET audit`
+  with `channel=local|remote|bearer` and `view=remote_sign_ins|remote_refusals`.
+- **Live streams per sign-in.** `remote.max_live_streams` (default 4, 1-32): the next live start of the same remote
+  sign-in is refused - `GET media/live/{id}` answers 429 `remote_live_cap` with a Hebrew message, the live socket
+  sends the message and closes 4429. `media.max_live_sessions` still caps the whole installation. `/health` (system
+  administrators) shows `remote`: sessions by kind, sign-ins, users, sockets, remote live streams and the cap.
+- **Content-Security-Policy.** The enforced policy is unchanged (`script-src 'self'`, no inline script). A stricter one
+  - no inline `<style>` elements (`style-src-elem 'self'`; inline style attributes stay allowed for Lit) - is sent as
+  `Content-Security-Policy-Report-Only`. Both report to `POST <remote_path>/api/v1/csp-report` (`report-to` with
+  `Reporting-Endpoints`, and `report-uri` for Firefox / Safari). The endpoint is unauthenticated by nature and
+  therefore remote-only, rate-limited (30 per minute per address, 300 per minute in total), bounded (16 KB a body, 20
+  reports a batch) and keeps counters only: disposition, directive and blocked origin (scheme + host or a keyword),
+  never a page URL, sample or path, at most 200 rows (the rest counts as "other"). הגדרות › גישה מרחוק › "מדיניות
+  אבטחת תוכן (CSP)" shows the counters; after reviewing them the owner switches "אכוף את המדיניות המחמירה"
+  (`remote.csp_enforce`), which takes effect on the next response. Reports from unknown origins are usually browser
+  extensions. A route's own CSP (e.g. `sandbox` on evidence files) is kept next to the channel's.
+- **Rate limits, in one place.** Arx: the session exchange 10 per minute and 50 per hour per address, 20 per minute and
+  200 per hour per user (bearer requests are validated under the same limits); sign-out per address; CSP reports as
+  above. Home Assistant: its own failed-login accounting and optional `login_attempts_threshold` (see above - it bans the
+  address for HA and Arx alike). Cloudflare (optional, recommended): a rate-limiting rule on `/auth/login_flow*`,
+  `/auth/token` and `/arx/api/v1/auth/session`, e.g. 20 requests per minute per address, action "block" for 10
+  minutes; Cloudflare Access on `/arx` stays a later option (D3).
+- **Pen-test checklist.** `docs/operations/ARX_REMOTE_PENTEST_HE.md`: the attack paths the two security reviews listed
+  as untested on a real deployment, each with the exact request and the expected result.
+
 ## Security boundaries checked by tests
 
 - Permissions are evaluated per resource on the server: a camera is reachable only through a floor the user may

@@ -28,6 +28,8 @@ def _write_audit(
     binding, role and scope the action was authorised under (T055; ids only)."""
     if getattr(actor, "source", None) == "remote":  # CR-008: whatever a remote (SmplWise Arx) session does says so
         details = {**(details or {}), "channel": "remote"}
+        if getattr(actor, "via", "") == "bearer":  # CR-008 P2: an HA bearer token rather than an Arx session cookie
+            details["via"] = "bearer"
     base = (
         now_iso(),
         getattr(actor, "user_id", None),

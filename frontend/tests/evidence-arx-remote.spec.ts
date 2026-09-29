@@ -24,6 +24,11 @@ test.skip(!ENABLED, 'needs the Arx fixture backend (SW_ARX_FIXTURE=1, tests/fixt
 test.describe.configure({ mode: 'serial' });
 // page.route cannot see requests a service worker makes; the worker registration itself is covered by the build
 test.use({ serviceWorkers: 'block' });
+// Each test is its own "device" with its own client address (the tunnel's CF-Connecting-IP), random per run: back-to-back
+// runs, and evidence-arx-sessions.spec.ts on the same fixture, never share the per-address sign-in limit (10 a minute).
+test.beforeEach(async ({ context }) => {
+  await context.setExtraHTTPHeaders({ 'CF-Connecting-IP': `198.18.${1 + Math.floor(Math.random() * 250)}.${1 + Math.floor(Math.random() * 250)}` });
+});
 
 async function routeHa(page: Page) {
   await page.route(`${ORIGIN}/auth/**`, async (route) => {
