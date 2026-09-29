@@ -1,4 +1,4 @@
-Source: docs/operations/SOAK_LOCAL.md @ 2a9f0e2
+Source: docs/operations/SOAK_LOCAL.md @ 3ca029d
 
 > תרגום של `docs/operations/SOAK_LOCAL.md`; המקור באנגלית קובע במקרה של סתירה.
 
@@ -84,9 +84,10 @@ Python, עומקי תורים, עבודות ייצוא ממתינות; חיבו�
 
 ## נתיב הכתיבה של SQLite (2026-09-29)
 
-מאז הענף `pilot/db-lock-storm` כל טרנזקציית כתיבה עומדת בתור FIFO (`db.WriteGate`) לפני `BEGIN IMMEDIATE`, וכתיבות
-ה"מראה" התכופות של נתוני התקנים (מצב / רישום HA, התראות NVR, אירועים נגזרים) מבצעות commit עם `synchronous=NORMAL`;
-פעולות משתמש ושורות audit נשארות `FULL`. סיבת השורש, המספרים והמלאי: `TEST_ROUND_RESULTS_2026-09-26_ROUND10_HE.md`,
+מאז הענף `pilot/db-lock-storm` כל טרנזקציית כתיבה עומדת בתור FIFO (`db.WriteGate`) לפני `BEGIN IMMEDIATE` (אפשרות
+ה-add-on `db_write_gate`, פעילה כברירת מחדל), וכתיבות ה"מראה" התכופות של נתונים שהתקן שולח שוב (מצב / רישום HA,
+אירועים נגזרים) מבצעות commit עם `synchronous=NORMAL`; התראות NVR, שינויי מצב HA שיוצרים אירוע, פעולות משתמש ושורות
+audit נשארות `FULL`. סיבת השורש, המספרים והמלאי: `TEST_ROUND_RESULTS_2026-09-26_ROUND10_HE.md`,
 סעיף 6. עבור soak זה אומר:
 
 - `db.write_lock` ב-`/health` מדווח גם `max_wait_s` / `max_wait_by` (הזמן הארוך ביותר שכותב חיכה בתור);
