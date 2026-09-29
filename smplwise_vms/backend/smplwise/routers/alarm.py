@@ -709,10 +709,25 @@ def delete_panel_code(entity_id: str, request: Request, principal: Principal = D
     return {"panel_code": codes.panel_code_info(conn, entity_id)}
 
 
+def _sole_configurer(conn: sqlite3.Connection, principal: Principal) -> bool:
+    """No other active user holds system.configure (at installation scope)."""
+    for r in conn.execute("SELECT id, username FROM users WHERE active = 1 AND id != ?", (principal.user_id,)).fetchall():
+        other = Principal(user_id=r["id"], username=r["username"] or "", display_name="", source="dev")
+        if authorize(conn, other, "system.configure", INSTALLATION).allowed:
+            return False
+    return True
+
+
 def _own_change(act: "_Act", conn: sqlite3.Connection, current: Any) -> None:
     """Security review M3: an administrator changes their OWN alarm policy or PIN only with their current PIN - without
     one, another administrator does it (a borrowed admin session must not make itself code-less)."""
     if not codes.pin_hash_of(conn, act.principal.user_id):
+        if _sole_configurer(conn, act.principal):
+            # re-review L-b: nobody else could ever do it - the only administrator sets their own, audited as bootstrap
+            act.action = "alarm.pin.bootstrap"
+            act.audit("allowed", "sole_administrator")
+            act.action = "alarm.pin"
+            return
         raise act.refuse(ApiError(403, "own_change_by_other_admin", "את מדיניות האזעקה והקוד האישי שלך משנה מנהל מערכת אחר (או אתה, עם הקוד האישי הנוכחי)."))
     _verify_current_pin(act, conn, act.principal.user_id, current)
 

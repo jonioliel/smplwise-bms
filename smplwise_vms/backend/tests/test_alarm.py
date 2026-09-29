@@ -788,6 +788,20 @@ def test_bulk_never_reaches_a_bypass_switch_even_marked_bulk_safe(alarm_app):
     rows = [r for card in area["cards"].values() for r in card.get("entities", []) if r["entity_id"] == sw]
     assert rows and rows[0]["alarm_managed"] is True and rows[0]["can_control"] is False
 
+def test_sole_administrator_bootstraps_own_pin(alarm_app):
+    """Re-review L-b: when no other active user holds system.configure, the only administrator sets their own first PIN
+    and policy (audited alarm.pin.bootstrap); while another administrator exists they may not."""
+    app, s, c, calls, _ = alarm_app
+    assert c.put("/api/v1/alarm/users/dev-joni/pin", json={"pin": PIN}).json()["code"] == "own_change_by_other_admin"  # boss exists
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE users SET active = 0 WHERE id = 'dev-boss'")
+    assert c.put("/api/v1/alarm/users/dev-joni/policy", json={"disarm_policy": "no_code"}).status_code == 200
+    assert c.put("/api/v1/alarm/users/dev-joni/pin", json={"pin": PIN}).status_code == 200
+    # from now on the current PIN is required, sole or not
+    assert c.put("/api/v1/alarm/users/dev-joni/pin", json={"pin": "12345678"}).json()["code"] == "wrong_code"
+    with app.state.db.connection() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'alarm.pin.bootstrap'").fetchone()[0] == 2
+
 def test_user_policy_admin_api(alarm_app):
     app, s, c, calls, _ = alarm_app
     bind(c, s, "omer", "operator", "installation", "*")
