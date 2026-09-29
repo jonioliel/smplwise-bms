@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Request
 
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..rbac import INSTALLATION, Principal, require
-from ..services import storage
+from ..services import bundle_import, storage
 
 router = APIRouter()
 
@@ -16,6 +16,8 @@ router = APIRouter()
 @router.get("/storage")
 def storage_report(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), fresh: bool = False) -> dict[str, Any]:
     """Disks, per-camera recording schedule, retention measured vs. estimated (with reasons) and the pilot's
-    device limits. Cached ten minutes; `fresh=true` asks the NVR again. Nothing here writes to the device."""
+    device limits. Cached ten minutes; `fresh=true` asks the NVR again. Nothing here writes to the device.
+    `local` is the add-on's own disk, measured on every call (T050: imported evidence counts there per imported case)."""
     require(conn, principal, "system.configure", INSTALLATION)
-    return storage.report(settings_of(request), conn, fresh=fresh)
+    settings = settings_of(request)
+    return {**storage.report(settings, conn, fresh=fresh), "local": bundle_import.local_usage(settings, conn)}
