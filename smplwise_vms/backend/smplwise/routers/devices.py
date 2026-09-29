@@ -59,6 +59,12 @@ async def _raw_body(request: Request) -> bytes:
     return await request.body()
 
 
+def _configure_holder_early(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
+    """system.configure before the body is read (the same envelope as the slice-4 assign route); the refusal is audited."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    return principal
+
+
 def _is_json(content_type: str | None) -> bool:
     media = (content_type or "").split(";", 1)[0].strip().lower()
     return media == "application/json" or (media.startswith("application/") and media.endswith("+json"))
@@ -218,6 +224,89 @@ def refresh_from_ha(principal: Principal = Depends(current_principal_ro), conn: 
 class BulkSafeBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     bulk_safe: bool
+
+
+# ---------------------------------------------------------------- הגדרות › חשמל › פעולה קבוצתית (owner 2026-09-30)
+#
+# The bulk-safe mark exists for switches only (CR-007 §7.10: lights, covers, climate and screens follow the kind's own
+# rules; input_booleans never enter; locks, the alarm and door releases never). One screen manages it for every switch.
+
+BULK_SAFE_MAX = 500
+
+
+@router.get("/devices/bulk-safe")
+def list_bulk_safe(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """Every switch with its bulk-safe mark, place, state, why it is or is not included and who marked it when -
+    the settings screen's list. system.configure (the mark's own permission)."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    policy = bulk.SwitchPolicy(conn)
+    marks = {r["entity_id"]: dict(r) for r in conn.execute("SELECT entity_id, marked_by_username, marked_at FROM device_bulk_safe").fetchall()}
+    floors, areas = svc.load_structure(conn, svc.load_entities(conn))
+    fname = {f["floor_id"]: f["name"] for f in floors}
+    area_floor = {a["area_id"]: a.get("floor_id") for a in areas}
+    out = []
+    for e in svc.load_entities(conn):
+        if e["domain"] != "switch":
+            continue
+        ok, reason = policy.switch_reason(e["entity_id"])
+        m = marks.get(e["entity_id"]) or {}
+        fid = area_floor.get(e.get("area_id")) if e.get("area_id") else None
+        out.append({
+            "entity_id": e["entity_id"], "name": e.get("name") or e.get("original_name") or e["entity_id"],
+            "area_id": e.get("area_id"), "area_name": e.get("area_name"), "floor_id": fid, "floor_name": fname.get(fid) if fid else None,
+            "state": e.get("state"), "available": bool(e.get("available")),
+            "marked": e["entity_id"] in policy.marked, "included": ok, "reason": reason, "reason_label": bulk.EXCLUDED_LABELS.get(reason) if not ok else None,
+            "alarm_managed": e["entity_id"] in policy.alarm_managed,
+            "marked_by": m.get("marked_by_username"), "marked_at": m.get("marked_at"),
+        })
+    out.sort(key=lambda r: (r["name"].casefold(), r["entity_id"]))
+    return {"switches": out, "note": "הסימון קיים למתגים בלבד: תאורה, תריסים, מיזוג ומסכים נכללים לפי סוגם; מנעולים, אזעקה ושחרור דלתות לעולם לא."}
+
+
+class BulkSafeManyBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    entity_ids: list[str] = Field(min_length=1, max_length=BULK_SAFE_MAX)
+    bulk_safe: bool
+
+
+@router.post("/devices/bulk-safe")
+def set_bulk_safe_many(request: Request, principal: Principal = Depends(_configure_holder_early), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+    """Mark (or unmark) many switches as bulk-safe in one call - the settings screen's "אשר לנבחרים" / "הסר אישור
+    מהנבחרים". system.configure, checked before the body; JSON only; at most BULK_SAFE_MAX ids. Per id: refused when it
+    is not a switch in the catalogue, when the alarm section owns it (`alarm_managed`) or - to mark - when it sits on the
+    map's door layer; otherwise set through the same path as the single route. One audit row per changed entity
+    (`devices.bulk_safe`) and one summary row (`devices.bulk_safe.batch`)."""
+    if not _is_json(request.headers.get("content-type")):
+        raise ApiError(415, "unsupported_media_type", "הבקשה חייבת להישלח כ־JSON (Content-Type: application/json).")
+    try:
+        body = BulkSafeManyBody.model_validate(json.loads(raw) if raw.strip() else {})
+    except (ValueError, ValidationError) as exc:
+        fields = sorted({".".join(str(p) for p in err["loc"]) or "body" for err in exc.errors()}) if isinstance(exc, ValidationError) else ["body"]
+        raise ApiError(422, "validation", "הבקשה אינה תקינה: " + ", ".join(fields), details={"fields": fields}) from None
+    policy = bulk.SwitchPolicy(conn)
+    rid = getattr(request.state, "correlation_id", None)
+    results = []
+    changed = 0
+    for eid in dict.fromkeys(body.entity_ids):  # each id once, in the order given
+        row = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (eid,)).fetchone()
+        if not row or row["domain"] != "switch":
+            results.append({"entity_id": eid, "ok": False, "reason": "not_switch"})
+            continue
+        if eid in policy.alarm_managed:
+            results.append({"entity_id": eid, "ok": False, "reason": "alarm_managed"})
+            continue
+        if body.bulk_safe and eid in policy.door_layer:
+            results.append({"entity_id": eid, "ok": False, "reason": "doors_layer"})
+            continue
+        was = eid in policy.marked
+        if was != body.bulk_safe:
+            bulk.set_bulk_safe(conn, principal, eid, body.bulk_safe)
+            audit(conn, actor=principal, action="devices.bulk_safe", decision="allowed", resource_type="ha_entity", resource_id=eid, request_id=rid, details={"bulk_safe": body.bulk_safe, "batch": True})
+            changed += 1
+        results.append({"entity_id": eid, "ok": True, "reason": None, "changed": was != body.bulk_safe})
+    audit(conn, actor=principal, action="devices.bulk_safe.batch", decision="allowed", resource_type="installation", resource_id="*", request_id=rid,
+          details={"bulk_safe": body.bulk_safe, "requested": len(results), "changed": changed, "refused": [r["entity_id"] for r in results if not r["ok"]][:100]})
+    return {"results": results, "changed": changed, "refused": sum(1 for r in results if not r["ok"])}
 
 
 @router.put("/devices/entities/{entity_id}/bulk-safe")

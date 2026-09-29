@@ -1649,3 +1649,36 @@ def test_items_carry_the_bulk_facts_and_the_alarm_managed_seam(bulk_app):
     row = {"entity_id": "switch.s", "domain": "switch", "state": "on", "available": True, "card": "switches", "attributes": {}, "alarm_managed": 1}
     assert svc.card_row(row, True)["alarm_managed"] is True
     assert "alarm_managed" not in svc.card_row({k: v for k, v in row.items() if k != "alarm_managed"}, True)
+
+def test_bulk_safe_management_list_and_batch(bulk_app, monkeypatch):
+    """הגדרות › חשמל › פעולה קבוצתית (owner 2026-09-30): GET lists every switch with its mark; POST marks / unmarks many
+    in one call - system.configure before the body, at most 500 ids, per-id results (not a switch, alarm-managed and, to
+    mark, the door layer refused), one audit row per changed entity plus a summary row."""
+    app, s, c, fake = bulk_app
+    lst = c.get("/api/v1/devices/bulk-safe").json()
+    by = {r["entity_id"]: r for r in lst["switches"]}
+    assert set(by) >= {"switch.lobby_sign", "switch.loose"} and all(r["entity_id"].startswith("switch.") for r in lst["switches"])
+    assert by["switch.lobby_sign"]["marked"] is False and by["switch.lobby_sign"]["area_name"] == "לובי" and by["switch.lobby_sign"]["floor_name"] == "קרקע"
+    from smplwise.services import alarm as alarm_svc
+
+    monkeypatch.setattr(alarm_svc, "managed_controls", lambda conn: {"switch.loose"})
+    r = c.post("/api/v1/devices/bulk-safe", json={"entity_ids": ["switch.lobby_sign", "switch.loose", "light.lobby", "switch.nope"], "bulk_safe": True})
+    assert r.status_code == 200, r.text
+    res = {x["entity_id"]: (x["ok"], x["reason"]) for x in r.json()["results"]}
+    assert res == {"switch.lobby_sign": (True, None), "switch.loose": (False, "alarm_managed"), "light.lobby": (False, "not_switch"), "switch.nope": (False, "not_switch")}
+    assert r.json()["changed"] == 1
+    lst = {x["entity_id"]: x for x in c.get("/api/v1/devices/bulk-safe").json()["switches"]}
+    assert lst["switch.lobby_sign"]["marked"] is True and lst["switch.lobby_sign"]["marked_by"] and lst["switch.loose"]["alarm_managed"] is True
+    with app.state.db.connection() as conn:
+        rows = [json.loads(x[1] or "{}") for x in conn.execute("SELECT action, details_json FROM audit_log WHERE action IN ('devices.bulk_safe', 'devices.bulk_safe.batch') ORDER BY rowid").fetchall()]
+        acts = [x[0] for x in conn.execute("SELECT action FROM audit_log WHERE action IN ('devices.bulk_safe', 'devices.bulk_safe.batch') ORDER BY rowid").fetchall()]
+    assert acts == ["devices.bulk_safe", "devices.bulk_safe.batch"] and rows[1]["changed"] == 1
+    # unmark; the same id twice counts once
+    r2 = c.post("/api/v1/devices/bulk-safe", json={"entity_ids": ["switch.lobby_sign", "switch.lobby_sign"], "bulk_safe": False})
+    assert r2.json()["changed"] == 1 and len(r2.json()["results"]) == 1
+    # limits and permission
+    assert c.post("/api/v1/devices/bulk-safe", json={"entity_ids": [f"switch.x{i}" for i in range(501)], "bulk_safe": True}).status_code == 422
+    assert c.post("/api/v1/devices/bulk-safe", json={"entity_ids": [], "bulk_safe": True}).status_code == 422
+    bind(c, s, "op", "operator", "installation", "*")
+    assert c.get("/api/v1/devices/bulk-safe", headers=as_user("op")).status_code == 403
+    assert c.post("/api/v1/devices/bulk-safe", content=b"not json", headers={**as_user("op"), "content-type": "text/plain"}).status_code == 403
