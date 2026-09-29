@@ -1,4 +1,4 @@
-Source: docs/changes/CR-008-ARX-REMOTE-APP.md @ 388228e8f15837547013a706967352f9c79397c6
+Source: docs/changes/CR-008-ARX-REMOTE-APP.md @ 66ee5481cb8a341347b4111b40f88797dd62eb21
 
 > תרגום של `docs/changes/CR-008-ARX-REMOTE-APP.md`; המקור באנגלית קובע במקרה של סתירה.
 
@@ -418,3 +418,29 @@ D11-D14 לא משנות את D1 (נתיב `/arx`, אותו מקור) או את D
 בדיקות backend ‏(`tests/test_remote_access.py`, ליבת HA מדומה `tests/fake_ha_core.py`) ו-8 הרצות Playwright
 ‏(`tests/evidence-arx-remote.spec.ts` מחשב + טלפון מול `tests/fixtures/arx_fake_ha.py`). בדיקת הבעלים: תת-קבוצת AT185
 של §4 באתר המעבדה.
+
+### 8.1 סבב סקירת אבטחה 1 (תוקן באותו ענף)
+
+- **B1 ‏CSRF:** ‏`SameSite=Strict` עדיין שולח את העוגייה בבקשות מאותו *אתר* (תת-דומיינים שכנים), וכ-35 נתיבי POST לא
+  מקבלים גוף JSON. `RemoteChannel` דוחה כעת כל בקשה שאינה GET/HEAD/OPTIONS ונושאת את עוגיית החיבור, אלא אם
+  `Sec-Fetch-Site: same-origin` (או, בלי הכותרת הזו, `Origin` השווה לסכמה ולמארח של הבקשה): 403 ‏`csrf_refused`,
+  נרשם באודיט כ-`auth.remote_csrf_refused`. בקשות bearer בלבד (בלי עוגייה) פטורות.
+- **M1:** ב-`browser_session` זריעת `hassTokens` קיימת רק כל עוד דף Arx פתוח (נמחקת ב-`pagehide`, נזרעת מחדש בטעינה
+  ובחזרה מה-back-forward cache); יציאה ונעילה בחוסר פעילות מוחקות אותה; לשונית ההגדרות אומרת במפורש ש-HA בכתובת `/`
+  חולק את הכניסה.
+- **M2:** החלפה מחדש מסיימת מיד את החיבור שהוצג (ה-WebSockets שלו עוברים לחדש); יציאה מסיימת את כל השרשרת של הדפדפן.
+- **M3:** כיבוי הדגל שוכח גם principals של bearer שבמטמון; בנתיב ה-bearer יש הגבלה למשתמש ורישום סירובים באודיט
+  (`via: bearer`).
+- **M4:** פעולות התקני HA (בודדת, מרובה, שיוך אזור) מקבלות את ה-principal המרוחק כמו של Ingress; כל שורת אודיט של
+  משתמש מרוחק נושאת `channel: remote`.
+- הערות קטנות: משתמשים שנראו לראשונה דרך Arx עוקבים אחרי דגל הפעילות של ספריית HA כמו משתמשי Ingress; WebSockets
+  מרוחקים מקבלים bearer בלי עוגייה (לאפליקציה העתידית); `__Host-` בלתי אפשרי תחת `Path=/arx/` (מתועד); המדריך
+  מזהיר שסף חסימה בלי `trusted_proxies` עלול לחסום את כתובת ה-add-on עצמו.
+- **V1, סכמות הבקשה האמיתיות של HA** (HA core ענף `dev`, נקרא ב-29.09.2026): `POST /auth/login_flow` - `client_id`
+  (מחרוזת, חובה), `handler` ‏([str|null, str|null], בדיוק 2), `redirect_uri` (מחרוזת, חובה), `code_challenge`
+  (אופציונלי, `^[A-Za-z0-9_-]{43}$`), `code_challenge_method` (אופציונלי; challenge מחייב `S256`, ‏`plain` נדחה),
+  `type` (אופציונלי, ברירת מחדל `authorize`); שום מפתח אחר. `POST /auth/login_flow/{flow_id}` - `client_id` חובה,
+  מפתחות נוספים מותרים (שדות השלב). `POST /auth/token` - ‏`grant_type=authorization_code` עם `client_id`, ‏`code`
+  וכשלתהליך היה challenge גם `code_verifier` ‏(SHA-256, ‏base64url בלי ריפוד, השוואה בזמן קבוע);
+  `grant_type=refresh_token` עם `refresh_token` ו-`client_id` המנפיק; `action=revoke` עם `token`. כלומר PKCE מובנה
+  ב-HA והבקשות של לקוח Arx תואמות; ליבת ה-HA המדומה דוחה כעת בדיוק את מה שהסכמות האלה דוחות.
