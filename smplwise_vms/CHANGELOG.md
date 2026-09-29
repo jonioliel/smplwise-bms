@@ -1,5 +1,51 @@
 # Changelog — SmplWise Arx add-on
 
+## 0.1.143 (pilot) — Plan Studio: stairs between floors, stairs with a landing (straight / L / U), floor height; detector 1.4; the guide with live screenshots
+### Stairs between floors and stairs with a landing (owner priority 1)
+- **One picker "מחבר אל"** on a connector lists this floor's other levels and every level of every other floor of
+  the building ("קומה 1 · גלריה"): stairs (and a ramp, an elevator, a ladder) now lead to a chosen level on another
+  floor. The other floor gets the same stairs as a **twin** walked from the other side (path and flights reversed,
+  label "↓ קומה 0 · …"); it keeps the coordinates when both floors share a frame, else it is placed at the plan's
+  centre with "מקם את המדרגות בקומה הזו". Moving one twin never moves the other; a change of the stairs' model
+  reaches the twin on save and marks it **"ודא את המיקום"** with an "אישור מיקום" button (a warning, never a publish
+  block). Deleting asks "למחוק גם בקומה השנייה?". The library's "מדרגות ישרות", "מדרגות עם פודסט" and "מעלית" now
+  place connectors; stairs objects already on plans stay as they are.
+- **Stairs with a landing**: shape straight / L / U (half turn), turn side, one or two flights (1-60 steps each),
+  landing depth, width 0.6-5 m; L and U are placed with two clicks. 2D follows the architectural convention - a
+  line per tread, the landing as a plain rectangle, the walking line with a start dot and an arrow, the break line,
+  the caption "12+12 מדרגות · פודסט". 3D: each flight rises step by step, the landing is a plate at the height
+  where the first flight ends, and a floor's plate is cut open (one opening per flight / landing) where stairs go
+  down, so the descending twin is visible.
+- **Floor height**: new field "גובה קומה (רצפה עד רצפה, מ׳)" in מפלסים ומחברים (`floor_height_m`, default 3.0,
+  2.2-12, in the floor's plan document - no migration). The rise of stairs between floors = the heights of the
+  floors between + the target level's elevation - this level's elevation; a missing floor number counts the
+  default height (up to three in a row, beyond that one default height and a warning `floor_numbers_gap`). The
+  building page spaces the floor plates by it and draws a line between twins (published structures).
+- **Permissions** (review blocker, closed before release): linking, re-linking, syncing and deleting a twin need
+  `map.edit` on every floor the connector touches; a re-link from a twin is refused ("קשר מחדש מהקומה המקורית"), a
+  re-link that removes a twin asks first, every removal is audited; an editor without the right on the other floor
+  is told "המדרגות בקומה X לא עודכנו" and both floors carry the warning `connector_twin_model`. The other floor's
+  names and heights are shown only to readers of that floor. An editor open on the other floor keeps its unsaved
+  edits when a sync arrives (rebased once, undo history included).
+- Known limits: the SVG / PNG export still draws stairs as a plain band; floor numbers are expected to be
+  consecutive; the building page shows published links only.
+### Automatic detection 1.4 (tuning items 3-6 from the owner's real scans)
+- Four new rules, each a checkbox in the detect panel, on by default: **section lines** (a stroke that crosses a
+  wall or an opening in it and runs out of the building is dropped), **short gaps** (a gap under 0.3 m between two
+  collinear pieces of the same kind becomes one wall, no false passage), **tribunes** (proposed as a stepped
+  tribune object with its rows), **pier grids** (regular rows of square piers proposed as column objects, the
+  facade line between them as exterior walls; a thick wall with a regular window rhythm is NOT a pier grid).
+  Object candidates are drawn dashed and accepted together.
+- On the owner's three scans (local, counts only): floor -2 envelope recall 0.32 -> 0.56 with 7 columns, floor 0
+  two tribunes, floor -1 fewer fragments. Known limit: the scans' own section lines stop about 0.45 m short of the
+  envelope and are kept as walls (a fence or a railing near a wall is never dropped - the safer rule); doors on
+  scans are still mostly not found. A browser running a cached frontend from before this version receives the
+  new `objects` candidates but does not draw them - reload the Plan Studio page after updating.
+- Also: the history / event 3D scene is rebuilt only when what it reads changed.
+### Guide
+- The Hebrew user guide carries live screenshots (23 of 27 screens; floor plans and place names are demo /
+  generic) and one browsable page `docs/user-guide/he/GUIDE_ALL_HE.html`.
+
 ## 0.1.142 (pilot) — Remote access hardening (CR-008 P2): sessions, sign out everywhere, live-stream cap, strict CSP report-only; installed-app polish
 ### Remote access hardening (CR-008 P2)
 - **Sessions**: every remote sign-in (cookie or bearer) is a session you can see - הגדרות › גישה מרחוק shows your own
