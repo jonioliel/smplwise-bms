@@ -8,8 +8,12 @@ How it attributes: at every httpx send (sync and async) and every subprocess wai
 thread (and, for a coroutine, the frames of the coroutines awaiting it) is walked; a frame whose locals hold a
 sqlite3.Connection that is currently a write-lock holder (db._holders) and inside a transaction is a violation. Request
 connections are opened in one worker thread and used in another, so the stack - not the thread - is what ties the I/O
-to the transaction. Limits: a fake that replaces a device function outright (instead of an httpx transport) is not
-seen, and a connection reached only through an attribute (self.conn) is not seen.
+to the transaction. Limit: a fake that replaces a device function outright (instead of a transport) is not seen.
+
+Also reported: a connection that keeps this process's write gate outside any transaction at an I/O call (a manual
+COMMIT - the gate stays held and every writer queues; kind ".../gate-outside-tx"). Connections are found in frame
+locals and one attribute deep in product objects (act.conn). Entry points: httpx (sync / async), subprocess (run,
+communicate, wait, asyncio.create_subprocess_exec), socket.connect, urllib.request.urlopen, websockets.connect.
 
 Enabled for a whole pytest run by SW_DB_IO_GUARD=1 (tests/conftest.py); the findings are printed at the end of the
 session and written to SW_DB_IO_GUARD_OUT (JSON) when set. It never fails a test: it is an inventory tool."""
@@ -52,12 +56,29 @@ FINDINGS = Findings()
 CURRENT_TEST = {"id": "?"}
 
 
-def held_write_conns_in_stack(start: Any = None) -> list[tuple[str, str]]:
-    """(holder label, product frame that holds it) for every write-lock-holding connection in a caller's locals."""
-    holders = db_mod._holders.copy()
-    if not holders:
+def _conns_of(v: Any) -> list[sqlite3.Connection]:
+    """The connection itself, or connections one attribute deep in a product object (act.conn, self.conn)."""
+    if isinstance(v, sqlite3.Connection):
+        return [v]
+    mod = getattr(type(v), "__module__", "") or ""
+    if not mod.startswith("smplwise"):
         return []
-    found: list[tuple[str, str]] = []
+    try:
+        attrs = vars(v)
+    except TypeError:
+        return []
+    return [a for a in list(attrs.values()) if isinstance(a, sqlite3.Connection)]
+
+
+def held_write_conns_in_stack(start: Any = None) -> list[tuple[str, str, str]]:
+    """(kind, holder label, product frame that holds it) for every connection in a caller's locals (or one attribute
+    deep) that holds the write lock inside a transaction ("lock"), or keeps this process's write gate outside any
+    transaction ("gate": a manual COMMIT, every other writer queues)."""
+    holders = db_mod._holders.copy()
+    tokens = getattr(db_mod, "_gate_tokens", {}).copy()
+    if not holders and not tokens:
+        return []
+    found: list[tuple[str, str, str]] = []
     seen: set[int] = set()
     f = start or sys._getframe(2)
     depth = 0
@@ -68,14 +89,20 @@ def held_write_conns_in_stack(start: Any = None) -> list[tuple[str, str]]:
         except Exception:  # noqa: BLE001 - a frame being torn down
             values = []
         for v in values:
-            if isinstance(v, sqlite3.Connection) and id(v) in holders and id(v) not in seen:
+            for c in _conns_of(v):
+                if id(c) in seen or (id(c) not in holders and id(c) not in tokens):
+                    continue
                 try:
-                    open_tx = v.in_transaction
+                    open_tx = c.in_transaction
                 except sqlite3.ProgrammingError:
                     continue
-                if open_tx:
-                    seen.add(id(v))
-                    found.append((holders[id(v)][0], _where(f)))
+                label = holders.get(id(c), (db_mod._MODES.get(id(c), ("", None, "?"))[2],))[0]
+                if open_tx and id(c) in holders:
+                    seen.add(id(c))
+                    found.append(("lock", label, _where(f)))
+                elif not open_tx and id(c) in tokens:
+                    seen.add(id(c))
+                    found.append(("gate", label, _where(f)))
         f = f.f_back
     return found
 
@@ -99,8 +126,8 @@ def _product_site() -> str:
 
 
 def _check(kind: str, target: str) -> None:
-    for holder, where in held_write_conns_in_stack(sys._getframe(2)):
-        FINDINGS.add(kind, target, holder, f"{where} -> {_product_site()}", CURRENT_TEST["id"])
+    for what, holder, where in held_write_conns_in_stack(sys._getframe(2)):
+        FINDINGS.add(kind if what == "lock" else f"{kind}/gate-outside-tx", target, holder, f"{where} -> {_product_site()}", CURRENT_TEST["id"])
 
 
 def install(monkeypatch_setattr) -> None:
@@ -134,6 +161,41 @@ def install(monkeypatch_setattr) -> None:
         _check("subprocess", str(self.args[0] if isinstance(self.args, (list, tuple)) and self.args else self.args)[:60])
         return orig_wait(self, *a, **kw)
 
+    import asyncio
+    import socket
+    import urllib.request
+
+    orig_create_subprocess_exec = asyncio.create_subprocess_exec
+    orig_socket_connect = socket.socket.connect
+    orig_urlopen = urllib.request.urlopen
+
+    async def create_subprocess_exec(program, *a, **kw):
+        _check("subprocess", str(program)[:60])
+        return await orig_create_subprocess_exec(program, *a, **kw)
+
+    def socket_connect(self, address, *a, **kw):
+        _check("socket", str(address)[:60])
+        return orig_socket_connect(self, address, *a, **kw)
+
+    def urlopen(url, *a, **kw):
+        _check("urllib", str(getattr(url, "full_url", url))[:60])
+        return orig_urlopen(url, *a, **kw)
+
+    monkeypatch_setattr(asyncio, "create_subprocess_exec", create_subprocess_exec)
+    monkeypatch_setattr(socket.socket, "connect", socket_connect)
+    monkeypatch_setattr(urllib.request, "urlopen", urlopen)
+    try:
+        import websockets
+
+        orig_ws_connect = websockets.connect
+
+        def ws_connect(uri, *a, **kw):
+            _check("websocket", str(uri)[:60])
+            return orig_ws_connect(uri, *a, **kw)
+
+        monkeypatch_setattr(websockets, "connect", ws_connect)
+    except ImportError:
+        pass
     monkeypatch_setattr(httpx.Client, "send", send)
     monkeypatch_setattr(httpx.AsyncClient, "send", asend)
     monkeypatch_setattr(subprocess, "run", run)
