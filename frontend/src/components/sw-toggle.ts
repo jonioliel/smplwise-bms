@@ -56,6 +56,15 @@ export class SwToggle extends LitElement {
     }
   `;
 
+  constructor() {
+    super();
+    // A press on the host's own box around the switch (a screen may pad it to a 44 px touch target) flips it too; a
+    // press on the switch itself is handled by the button. Nothing changes where the host has no padding.
+    this.addEventListener('click', (e) => {
+      if (e.composedPath()[0] === this) this.flip();
+    });
+  }
+
   private flip() {
     if (this.disabled) return;
     this.checked = !this.checked;
