@@ -1,5 +1,38 @@
 # Changelog — SmplWise Arx add-on
 
+## 0.1.142 (pilot) — Remote access hardening (CR-008 P2): sessions, sign out everywhere, live-stream cap, strict CSP report-only; installed-app polish
+### Remote access hardening (CR-008 P2)
+- **Sessions**: every remote sign-in (cookie or bearer) is a session you can see - הגדרות › גישה מרחוק shows your own
+  sign-ins (hashed id, address masked to /24 or the Cloudflare country, browser family, cookie / bearer, the current
+  one marked); administrators with `system.configure` see everyone's. End one, **"התנתק מכל המקומות"** for your own,
+  or all of one user's (admin). A revoke closes that sign-in's WebSockets before answering, a refreshed token of the
+  same sign-in is refused afterwards (migration 0035, survives a restart), and a sign-in racing the revoke is refused
+  too. Ending your own sign-ins also deletes at the platform **only the refresh tokens Arx itself issued** (never a
+  long-lived token or another app's), all deletions capped at 8 s; an admin's revoke ends Arx access only. New
+  avatar menu with "הסשנים שלי" and sign-out here / everywhere.
+- **Roles screen**: the remote flag, last remote sign-in and active sign-ins per user; switching the flag off warns
+  "N כניסות פעילות ייסגרו" and closes them at once. **Audit**: filter by channel (local / remote / bearer) with quick
+  views "כניסות מרחוק" and "סירובים מרחוק"; revoke rows carry the channel of whoever revoked.
+- **Live-stream cap** per remote sign-in (`remote.max_live_streams`, default 4): the next start gets 429 with a
+  Hebrew message on HTTP, a message + close 4429 on the WebSocket; counts in `/health`; refusals audited at most
+  once a minute per sign-in. LAN / Ingress unchanged.
+- **Stricter CSP in report-only** next to the enforced policy; reports go to `POST /csp-report` (rate-limited,
+  size-bounded, counters only, host:port only); a settings switch enforces it - disabled with an explanation while
+  inline-style reports exist (the live camera's zones view moved its styles into the component; a test now forbids
+  inline `<style>` elements in the app). A route's own CSP (evidence files' `sandbox`) is appended, never replaced.
+- An idle remote session (unused > 3 min) is re-checked against the platform before its first request - one check in
+  flight per session, and while the platform is unreachable no retry for 30 s (the session is kept until its access
+  token expires, at most 30 min). Pen-test checklist: `docs/operations/ARX_REMOTE_PENTEST_HE.md` (not yet run).
+- Tests: `test_remote_hardening.py` 38 + remote 59 + push 12; Playwright Arx remote + sessions 7 (desktop); Opus
+  security review (4 medium + 7 low fixed) + scoped re-review.
+### Installed app (PWA) polish
+- Manifest: maskable 192 px icon and shortcuts ("צפייה חיה", "התראות"); safe-area insets on the top bar, side
+  rail, bottom navigation, the Arx sign-in / idle-lock screen, dialogs and the offline page (iPhone notch and home
+  indicator in the installed app); the iOS install guide, the update notice and the push hints were verified as
+  already correct. PWA spec 17 (desktop + mobile), Arx spec 11, screens 64.
+- **Service worker fix**: an iframe navigation on the app's own origin (the embedded WisKey panel) was answered from
+  the app-shell cache; only the top-level document is now served that way.
+
 ## 0.1.141 (pilot) — Hotfix: Arx sign-in on today's Home Assistant releases (no PKCE yet); remote video policy (main over WebRTC first, NVR codec check); the UI no longer names the platform outside Settings
 ### Hotfix (owner's first live sign-in at `/arx`, 2026-09-29)
 - **Sign-in failed with "Message format incorrect: not a valid option at 'code_challenge'"**: the Arx login page

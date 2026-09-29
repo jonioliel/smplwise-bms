@@ -1,4 +1,4 @@
-Source: docs/changes/CR-008-ARX-REMOTE-APP.md @ e002a35da6ead1c0142c4f3d5a2abf3e333e8a4b
+Source: docs/changes/CR-008-ARX-REMOTE-APP.md @ 7eabc57dedf41269fa42798e653d3459cbde00fa
 
 > תרגום של `docs/changes/CR-008-ARX-REMOTE-APP.md`; המקור באנגלית קובע במקרה של סתירה.
 
