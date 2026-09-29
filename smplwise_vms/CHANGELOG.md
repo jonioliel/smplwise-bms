@@ -1,7 +1,29 @@
 # Changelog — SmplWise Arx add-on
 
-## Unreleased
-- Product name: SmplWise Arx (display names only; technical identifiers unchanged)
+## 0.1.139 (pilot) — The product is now **SmplWise Arx**; WisKey "הגדל" mode and an experimental Companion-app embed; CR-008 remote-access plan
+- **Name**: the product is called **SmplWise Arx** (short "Arx") - the add-on title and panel, the wordmark in the
+  shell, the Lovelace card title, the documentation and the Hebrew guide. Display names only: the add-on slug
+  `smplwise_vms`, folders, API routes, settings keys, the bridge domain, stream names and data paths are unchanged, so
+  the update installs like any other and nothing moves.
+- **WisKey overview shows 4 cameras although 12 were chosen** (owner report): WisKey sizes its cards per page from the
+  frame's height in fixed steps (under 800 px → 4, under 880 → 8, else 12 - in its own source) and keeps the choice in
+  memory only; our frame already fills the space, but the app's top bar, tab row and embed bar leave it under 800 px
+  on a 900 px screen. New **"הגדל / צמצם"** in the embed bar (desktop, remembered per browser): the embed covers the
+  app chrome (below the system alert banner; Esc leaves; the covered shell is inert) - 8 per page at 1440×900, 12
+  on a 1080p screen. A request to honour and persist the user's choice is written for the WisKey developers
+  (`docs/integrations/wiskey/WISKEY_FOLLOWUP_REQUESTS.md`).
+- **Companion app embed (experimental, OFF)**: הגדרות › בקרות כניסה › "הטמעה גם באפליקציית Companion (ניסיוני)"
+  (`access.phone_embed`). When on, inside the Companion app the WisKey frame is signed in through the app's own
+  bridge on the top window (the frame gets a proxy to that bridge, tokens are forwarded only to our same-origin
+  frame, never logged or stored, the app's message bus is not relayed; wrappers exist only while a frame is
+  attached); if the proxy cannot be installed in time the tab falls back to the 0.1.123 behaviour ("פתח ב-WisKey").
+  Tested only against a fake bridge - not yet on a real phone; leave it off until the owner tries it. A phone
+  browser embeds normally, as before. Two Opus security reviews.
+- **CR-008 plan recorded**: `docs/changes/CR-008-ARX-REMOTE-APP.md` (+ Hebrew) - Arx at `https://<host>/arx` through
+  the customer's Cloudflare tunnel with our own login against Home Assistant, the fastest path to a working
+  environment, phases (MVP → hardening → PWA + Web Push → native wrapper) and the owner's decisions (§7); task T092.
+- Tests: rename - release / card / settings 12, screens spec 32/32 (30 evidence captures refreshed), tsc / build
+  clean; embed - connector unit 14, embed + phone specs 72 passed across three viewports, relay tests ×3; docs drift 0.
 
 ## 0.1.138 (pilot) — Runs without an NVR: "מצב ללא NVR" for electricity-only installations (owner request)
 - Owner request (2026-09-29): "bring the system up without an NVR, in case I want it only for electricity control".
