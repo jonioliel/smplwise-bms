@@ -40,7 +40,7 @@ import type { LevelSelectDetail, PartSelectDetail } from '../map/sw-plan-3d';
 import type { QualityLevel } from '../map/scene-three';
 import { boundItemOf } from '../map/part-select';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
-import { initialLevel } from '../map/studio-ops';
+import { anchorOnLevel, initialLevel } from '../map/studio-ops';
 import { productSettings } from '../api/prefs';
 import { demoSceneInput, demoSceneLabels } from '../fixtures/demo-3d';
 import { circuitAction } from '../map/circuit-action';
@@ -1048,7 +1048,7 @@ export class ExploreFloorMap extends LitElement {
     }
     return b.anchors
       .filter((a) => (a.resource_type === 'camera' ? this.layers.has('cameras') : this.layers.has(a.layer_id === 'doors' ? 'doors' : a.layer_id === 'lights' ? 'lights' : 'sensors')))
-      .filter((a) => !this.levelFilter || (a.level_id ?? b.levels.find((l) => l.is_default)?.id ?? 'L0') === this.levelFilter)
+      .filter((a) => anchorOnLevel(b, a.level_id, this.levelFilter))
       .map((a) => ({
         id: a.id,
         kind: a.resource_type === 'camera' ? 'camera' : entityMarkerKind(a.layer_id, a.entity?.domain),
@@ -1420,7 +1420,7 @@ export class ExploreFloorMap extends LitElement {
     if (!s) return nothing;
     const now = new Date(); // the local date (toISOString is UTC: a day behind in the evening, a day ahead after midnight)
     const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    return html`<sw-plan-3d data-floor-3d .description=${s.desc} .selectedId=${this.sel3d} .preset=${this.preset3d} .cameras=${s.cameras} .labels=${s.labels}
+    return html`<sw-plan-3d data-floor-3d .description=${s.desc} .selectedId=${this.sel3d} .preset=${this.preset3d} .frameKey=${b.floorId} .cameras=${s.cameras} .labels=${s.labels}
       .levels=${b.levels.map((l) => ({ id: l.id, name: l.name, elevation_m: l.elevation_m }))} .activeLevel=${this.levelFilter} .thumbnailScene=${s.all} .qualityDefault=${this.quality3d} .levelDots=${this.roomStateLayer?.levels ?? {}}
       exportName=${`plan-3d-${b.floorName}${this.levelFilter ? `-${this.levelFilter}` : ''}-${stamp}`} @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}
       @level-select=${(e: CustomEvent<LevelSelectDetail>) => (this.levelFilter = e.detail.id)}></sw-plan-3d>`;

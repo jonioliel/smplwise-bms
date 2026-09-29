@@ -5,7 +5,7 @@
  */
 import { css, html, nothing, type TemplateResult } from 'lit';
 import type { CalibrationHint, CopyCandidate, GeometryIssue } from '../api/geometry';
-import type { CandidateSet, CandKind, CandState } from '../map/candidates';
+import { OUTSIDE_MAIN_HE, isOutsideMain, outsideMainSummary, type CandidateSet, type CandKind, type CandState } from '../map/candidates';
 import { COLOR_TOKENS, OBJECT_SHAPES, SYMBOL_IDS, circuitToken, connectorLabel, effectiveScale, lengthPx, perimeterM, polygonAreaM2, type ConnectorKind, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomSize, type ObjectShape, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
 import type { CatalogItem, CatalogLibrary, ParamSpec } from '../api/plan-catalog';
 import type { HaEntity } from '../api/ha';
@@ -533,6 +533,7 @@ function renderCandidates(v: DetectView, c: DetectCandidatesView, a: DetectActio
   const earlier = c.source === 'dxf' ? 'מיובאים' : 'אוטומטיים';
   const origin = c.source === 'dxf' ? ' · מיובאים מ־DXF' : c.elapsedMs !== null ? ` · זוהו ב־${(c.elapsedMs / 1000).toFixed(1)} שנ׳` : '';
   return html`<div class="note" data-detect-summary>${countLabel(set.walls.length, 'קיר אחד', 'קירות')} · ${countLabel(set.openings.length, 'פתח אחד', 'פתחים')}${set.objects.length ? ` · ${countLabel(set.objects.length, 'עצם אחד', 'עצמים')}` : ''} · <span data-detect-accepted>${v.acceptedCount}</span> מסומנים לאישור${origin}</div>
+    ${outsideMainSummary(set) ? html`<div class="note warn" data-detect-outside-main>${outsideMainSummary(set)}</div>` : nothing}
     ${!ids.length ? html`<div class="note" data-detect-empty>לא נמצאו קירות. נסה עוצמת ניקוי אחרת, או צייר בכלי "מבנה".</div>` : nothing}
     ${c.hint && v.estimated && v.canEstimate && !v.hintApplied
       ? html`<div class="hint" data-calib-hint>
@@ -555,13 +556,14 @@ function renderCandidates(v: DetectView, c: DetectCandidatesView, a: DetectActio
         const state = c.states[id] ?? 'accepted';
         return html`<div class="dcand ${state} ${id === c.sel ? 'on' : ''} ${bad.has(id) ? 'bad' : ''}" data-cand-row=${id} data-cand-state=${state} ?data-cand-bad=${bad.has(id)}>
           <input type="checkbox" aria-label=${`קבל ${CAND_KIND_LABEL[k]}`} .checked=${state === 'accepted'} ?disabled=${v.busy} @change=${() => a.toggle(id)} />
-          <button class="linkbtn" aria-label=${`${CAND_KIND_LABEL[k]} ${candScore(set, id).toFixed(2)}`} @click=${() => a.focus(id)}>${CAND_KIND_LABEL[k]}</button>
+          <button class="linkbtn" aria-label=${`${CAND_KIND_LABEL[k]} ${candScore(set, id).toFixed(2)}${isOutsideMain(set, id) ? ` ${OUTSIDE_MAIN_HE}` : ''}`} @click=${() => a.focus(id)}>${CAND_KIND_LABEL[k]}</button>
+          ${isOutsideMain(set, id) ? html`<span class="outside" data-cand-outside-main>${OUTSIDE_MAIN_HE}</span>` : nothing}
           <span class="muted ltr" aria-hidden="true">${candScore(set, id).toFixed(2)}</span>
         </div>`;
       })}
       ${ids.length > CAND_ROWS ? html`<div class="note">מוצגים ${CAND_ROWS} הראשונים ברשימה; במפה מוצגים כולם.</div>` : nothing}
     </div>
-    ${sel ? html`<div class="note" data-cand-selected=${sel.id}>${CAND_KIND_LABEL[sel.kind]} נבחר · ביטחון ${sel.score.toFixed(2)} · ${candSize(v, set, sel.id)} · ${(c.states[sel.id] ?? 'accepted') === 'accepted' ? 'יאושר' : 'נדחה'}</div>` : nothing}
+    ${sel ? html`<div class="note" data-cand-selected=${sel.id}>${CAND_KIND_LABEL[sel.kind]} נבחר${isOutsideMain(set, sel.id) ? ` · ${OUTSIDE_MAIN_HE}` : ''} · ביטחון ${sel.score.toFixed(2)} · ${candSize(v, set, sel.id)} · ${(c.states[sel.id] ?? 'accepted') === 'accepted' ? 'יאושר' : 'נדחה'}</div>` : nothing}
     ${set.objects.length ? html`<label class="chk"><input type="checkbox" data-detect-objects .checked=${v.objectsOn} @change=${(e: Event) => a.setObjects((e.target as HTMLInputElement).checked)} /> כולל ${countLabel(set.objects.length, 'עצם אחד', 'עצמים')} מהקובץ</label>` : nothing}
     ${existing ? html`<label class="chk"><input type="checkbox" data-detect-replace .checked=${v.opts.replaceAuto} @change=${(e: Event) => a.setOpts({ ...v.opts, replaceAuto: (e.target as HTMLInputElement).checked })} /> החלף ${earlier} קודמים (${existing} בטיוטה)</label>` : nothing}
     ${c.rooms ? html`<div class="btns"><sw-button size="sm" icon="map" data-detect-rooms ?disabled=${v.busy} @click=${() => a.importRooms()}>ייבא ${countLabel(c.rooms, 'חדר אחד', 'חדרים')} כאזורים</sw-button><span class="note">החדרים נשמרים כאזורים, לא כחלק מהמבנה</span></div>` : nothing}
@@ -1591,12 +1593,22 @@ export const studioPanelStyles = css`
   }
   .dcand {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
     gap: 6px;
     align-items: center;
     padding: 3px 4px;
     border-block-end: 1px solid var(--sw-border);
     font-size: var(--sw-fs-sm);
+  }
+  /* T087 review: a wall candidate outside the main structure - dark text on the warning tint (the warning colour alone
+     is too light for text on white) */
+  .dcand .outside,
+  .note.warn {
+    color: var(--sw-text);
+    background: var(--sw-warning-soft);
+    border-inline-start: 3px solid var(--sw-warning);
+    padding-inline: 4px;
+    font-weight: 600;
   }
   .dcand .linkbtn {
     text-align: start;

@@ -6,6 +6,7 @@ import type { CatalogItem, CatalogLibrary } from '../src/api/plan-catalog';
 import { lookup3dOf } from '../src/api/plan-catalog';
 import type { GeometryDoc, GeomConnector, GeomObject, GeomOpening, GeomWall, Pt } from '../src/map/geometry';
 import { ISO_FACE_CAP, buildScene, isoPoint, isoProjection, keepIsos, type SceneAnchor, type SceneDescription, type SceneInput, type ScenePart } from '../src/map/scene-builder';
+import { anchorOnLevel, levelOrDefault } from '../src/map/studio-ops';
 
 // Plan Studio phase 4 (T087, design 10.5, ruling R-P4-4): the scene description is a pure function of the document, the
 // anchors, the states, the library and the zones - pinned on the shared fixture (sample-v2.scene.json, regenerated with
@@ -264,6 +265,38 @@ test('anchorsEveryLevel (0.1.89 fix): a camera on a non-default level is hidden 
   expect(byId(everyLevel, 'cam:a-cam2').level_id).toBe('L1'); // still placed at its own level's elevation
   // the structure itself still culls to the level exactly as without anchorsEveryLevel
   expect(everyLevel.parts.filter((p) => p.kind === 'wall').map((p) => p.id)).toEqual(filtered.parts.filter((p) => p.kind === 'wall').map((p) => p.id));
+});
+
+test('a camera whose level was removed is clipped by the default level walls, in the 3D and the 2D alike (T087 tuning)', () => {
+  const doc: GeometryDoc = { ...sample(), walls: [WALL('n', [[0.1, 0.3], [0.9, 0.3]]), WALL('e', [[0.9, 0.3], [0.9, 0.7]]), WALL('s', [[0.9, 0.7], [0.1, 0.7]]), WALL('w', [[0.1, 0.7], [0.1, 0.3]])], openings: [], objects: [], connectors: [], groups: [], circuits: [] };
+  const cam = (level_id: string | null) => ANCHOR('c', 'camera', 'cam-x', 0.5, 0.5, { rotation: 0, fov: 60, radius: 0.5, level_id });
+  const cone = (level_id: string | null) => byId(buildScene({ ...sampleInput(), doc, anchors: [cam(level_id)] }), 'cam:c#cone').polygon!;
+  const reach = (poly: [number, number][]) => Math.max(...poly.map(([x, z]) => Math.hypot(x, z)));
+  const onDefault = cone(null);
+  const gone = cone('L-removed');
+  // the default level's north wall (0.2 x 800 px = 160 px from the camera) stops the cone well short of its 500 px radius
+  expect(reach(onDefault)).toBeLessThan(reach(cone('L1')));
+  expect(gone).toEqual(onDefault);
+  expect(levelOrDefault(doc, 'L-removed')).toBe('L0');
+  expect(levelOrDefault(doc, 'L1')).toBe('L1');
+  expect(levelOrDefault(doc, null)).toBe('L0');
+  expect(levelOrDefault({ levels: [] }, 'X')).toBe('X'); // no level list: nothing to fall back from
+  // the 2D pin filters (the editor and the floor map) agree with the 3D: a pin on a removed level shows with the default
+  expect(anchorOnLevel(doc, 'L-removed', 'L0')).toBe(true);
+  expect(anchorOnLevel(doc, 'L-removed', 'L1')).toBe(false);
+  expect(anchorOnLevel(doc, null, 'L0')).toBe(true);
+  expect(anchorOnLevel(doc, 'L1', 'L1')).toBe(true);
+  expect(anchorOnLevel(doc, 'L1', 'L0')).toBe(false);
+  expect(anchorOnLevel(doc, 'L-removed', null)).toBe(true);
+});
+
+test('a tribune connector drawn by hand shows as steps; one derived from a tribune object is drawn by its object only (T087 tuning)', () => {
+  const doc: GeometryDoc = { ...sample(), connectors: [CONN('hand', 'tribune', [[0.3, 0.8], [0.3, 0.9]]), CONN('cx-o4', 'tribune', [[0.25, 0.6], [0.25, 0.7]], { object_id: 'o4', source: 'auto' })] };
+  const desc = buildScene({ ...sampleInput(), doc });
+  const hand = desc.parts.filter((p) => p.id.startsWith('conn:hand#'));
+  expect(hand.length).toBeGreaterThanOrEqual(3); // steps from L0 down to L1, like stairs
+  expect(hand.every((p) => p.kind === 'connector' && p.userData.id === 'hand')).toBe(true);
+  expect(desc.parts.some((p) => p.id.startsWith('conn:cx-o4'))).toBe(false); // the object o4 draws its rows
 });
 
 test('door leaves follow the 2D rules: none, sliding on its track, two half leaves, a missing swing opens right', () => {

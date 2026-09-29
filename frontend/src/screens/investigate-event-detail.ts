@@ -649,7 +649,7 @@ export class InvestigateEventDetail extends LitElement {
                         title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? 'אין מבנה מפורסם לקומה הזו' : 'מבט מהמצלמה בתלת-ממד'} @click=${() => this.toggle3d()}>${this.view3d ? '2D' : '3D'}</sw-button>
                     </div>
                     ${this.shows3d && this.sceneDescription
-                      ? html`<sw-plan-3d data-event-3d .description=${this.sceneDescription} .selectedId=${this.selected3d} .preset=${this.eventPreset} .labels=${this.sceneMemo?.labels ?? {}}
+                      ? html`<sw-plan-3d data-event-3d .description=${this.sceneDescription} .selectedId=${this.selected3d} .preset=${this.eventPreset} .frameKey=${ev.id} .labels=${this.sceneMemo?.labels ?? {}}
                           .cameras=${this.bundle.anchors.filter((a) => a.resource_type === 'camera').map((a) => ({ id: a.id, label: entityName(a) }))} exportName=${`plan-3d-${loc.floor_name}-${ev.id}`}
                           @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`
                       : nothing}

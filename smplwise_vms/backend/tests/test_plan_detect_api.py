@@ -115,7 +115,7 @@ def test_accept_merges_edits_reissues_ids_and_replaces_auto(settings):
     edited = next(w for w in doc["walls"] if w["id"] == first)
     assert edited["thickness_m"] == 0.3 and edited["kind"] == "exterior" and edited["source"] == "auto", "edits apply to the editable fields only"
     assert doc["meta"]["last_detection"]["accepted"] == {"walls": n_w, "openings": n_o, "objects": 0} and doc["meta"]["last_detection"]["by"] == "dev-joni"
-    assert doc["meta"]["detector_version"] == "plan_detect 1.0"
+    assert doc["meta"]["detector_version"] == f"plan_detect {plan_detect.VERSION}"
     assert all(i["code"] != "unknown_wall" for i in a.json()["issues"])
     assert c.get(f"/api/v1/plan-versions/{vid}/geometry").status_code == 404, "nothing is published by accepting"
     # the same run accepted again without replacing: every colliding id is re-issued and the openings follow their wall

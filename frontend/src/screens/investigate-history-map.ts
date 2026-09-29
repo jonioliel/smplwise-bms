@@ -708,7 +708,7 @@ export class InvestigateHistoryMap extends LitElement {
           <div class="chip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
           <div class="hist">מצב היסטורי · <span class="ltr">${secondLabel(this.minute)}</span></div>
           ${this.shows3d && this.sceneDescription
-            ? html`<sw-plan-3d data-history-3d .description=${this.sceneDescription} .selectedId=${this.selectedId} .preset=${this.preset3d} .labels=${this.sceneMemo?.labels ?? {}}
+            ? html`<sw-plan-3d data-history-3d .description=${this.sceneDescription} .selectedId=${this.selectedId} .preset=${this.preset3d} .frameKey=${b.floorId} .labels=${this.sceneMemo?.labels ?? {}}
                 .cameras=${b.anchors.filter((a) => a.resource_type === 'camera').map((a) => ({ id: a.id, label: entityName(a) }))} exportName=${`plan-3d-${b.floorName}-${this.date}`}
                 @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`
             : nothing}

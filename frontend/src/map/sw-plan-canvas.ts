@@ -4,10 +4,10 @@ import '../components/sw-button';
 import { t } from '../i18n/he';
 import type { StateKind } from '../components/sw-badge';
 import { applyAnchorPositions, buildPrimitives, circuitToken, isClosedOutline, objectHitCorners, objectHitOrder, type AnchorPosition, type CatalogLookup, type DoorPrim, type GeometryDoc, type LabelPrim, type ConnectorPrim, type ObjectPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
-import { candidatesDoc, type CandidateSet, type CandState } from './candidates';
+import { OUTSIDE_MAIN_HE, candidatesDoc, isOutsideMain, type CandidateSet, type CandState } from './candidates';
 import { symbolOf } from './plan-symbols';
 import { CoverageCache, hasWallsOnLevel } from './coverage';
-import { defaultLevelId, translatePolygon } from './studio-ops';
+import { levelOrDefault, translatePolygon } from './studio-ops';
 import { temperatureText, type RoomStateLayer } from './room-state';
 
 export type MarkerKind = 'camera' | 'lock' | 'light' | 'binary_sensor';
@@ -804,6 +804,13 @@ export class SwPlanCanvas extends LitElement {
     }
     .candidates .cand.rejected {
       opacity: 0.28;
+    }
+    /* T087 review: a wall candidate outside the main structure - its own short dash in the warning colour, also when
+       selected (the selection keeps it solid-free so the flag stays readable) */
+    .candidates .cand.outside .cwall,
+    .candidates .cand.outside.sel .cwall {
+      stroke: var(--sw-warning);
+      stroke-dasharray: 2 4;
     }
     .candidates .cand.sel .cwall {
       opacity: 1;
@@ -1603,7 +1610,7 @@ export class SwPlanCanvas extends LitElement {
   private clippedCoverage(m: PlanMarker, live: { x: number; y: number }, rotation: number, fov: number): string | null {
     const doc = this.geometry;
     if (!this.clipCoverage || !doc || m.polygon) return null;
-    const level = m.level ?? defaultLevelId(doc);
+    const level = levelOrDefault(doc, m.level); // a removed level: the default level's walls (the 3D agrees)
     if (!hasWallsOnLevel(doc, level)) return null;
     const pts = this.coverage.polygon(m.id, { x: live.x, y: live.y, rotation, fov, radiusPx: this.radiusOf(m), level }, doc, this.planWidth, this.planHeight, this.entityStates, this.catalog ?? undefined);
     const hit = this.covPoints.get(m.id);
@@ -2025,18 +2032,20 @@ export class SwPlanCanvas extends LitElement {
     if (!set) return nothing;
     const prims = this.candidatePrims(set);
     const inv = 1 / this.scale;
-    const cls = (id: string) => `cand ${this.candidateStates[id] ?? 'accepted'} ${id === this.selectedCandidateId ? 'sel' : ''}`;
+    const cls = (id: string) => `cand ${this.candidateStates[id] ?? 'accepted'} ${id === this.selectedCandidateId ? 'sel' : ''} ${isOutsideMain(set, id) ? 'outside' : ''}`;
     const attrs = (id: string) => ({ state: this.candidateStates[id] ?? 'accepted', score: this.candConfidence(set, id).toFixed(2) });
     const shown = this.candHover ?? this.selectedCandidateId;
     const at = shown ? this.candAnchor(prims, shown) : null;
-    const label = shown ? `ביטחון ${this.candConfidence(set, shown).toFixed(2)}` : '';
+    const label = shown ? `ביטחון ${this.candConfidence(set, shown).toFixed(2)}${isOutsideMain(set, shown) ? ` · ${OUTSIDE_MAIN_HE}` : ''}` : '';
     const tw = (label.length * 7 + 16) * inv;
     return svg`<g class="candidates" data-candidates>
       ${prims.map((p) => {
         const a = attrs(p.id);
         switch (p.kind) {
           case 'wall':
-            return svg`<g class=${cls(p.id)} data-candidate=${p.id} data-kind="wall" data-state=${a.state} data-score=${a.score}><polyline class="cwall" points=${ptsAttr(p.points)} stroke-width=${p.width} /></g>`;
+            return isOutsideMain(set, p.id)
+              ? svg`<g class=${cls(p.id)} data-candidate=${p.id} data-kind="wall" data-state=${a.state} data-score=${a.score} data-outside-main><title>${OUTSIDE_MAIN_HE}</title><polyline class="cwall" points=${ptsAttr(p.points)} stroke-width=${p.width} /></g>`
+              : svg`<g class=${cls(p.id)} data-candidate=${p.id} data-kind="wall" data-state=${a.state} data-score=${a.score}><polyline class="cwall" points=${ptsAttr(p.points)} stroke-width=${p.width} /></g>`;
           case 'door':
             return svg`<g class=${cls(p.id)} data-candidate=${p.id} data-kind="door" data-state=${a.state} data-score=${a.score}>
               ${p.leaves.map(([x, y]) => svg`<line class="cleaf" x1=${x[0]} y1=${x[1]} x2=${y[0]} y2=${y[1]} stroke-width=${1.6 * inv} />`)}

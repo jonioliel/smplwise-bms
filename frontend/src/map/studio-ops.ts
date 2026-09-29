@@ -22,6 +22,22 @@ export function defaultLevelId(doc: GeometryDoc): string {
   return doc.levels.find((l) => l.is_default)?.id ?? DEFAULT_LEVEL_ID;
 }
 
+/** The level an item with `id` stands on: its own when the document lists it, else the default level - an anchor keeps
+ * its level id after the level is removed (removeLevel), and the server reads an unknown one as the default, so the
+ * cone must be clipped by the default level's walls, not by the walls of a level that no longer exists (T087 tuning,
+ * 0.1.89 list: an unclipped cone). A document without a level list keeps the id as given. */
+export function levelOrDefault(doc: Pick<GeometryDoc, 'levels'>, id: string | null | undefined): string {
+  if (!doc.levels.length) return id || DEFAULT_LEVEL_ID;
+  return id && doc.levels.some((l) => l.id === id) ? id : (doc.levels.find((l) => l.is_default)?.id ?? DEFAULT_LEVEL_ID);
+}
+
+/** Whether a pin (an anchor) shows under the level filter `filter` (null = every level): by levelOrDefault, so an anchor
+ * without a level or on a removed level shows with the default level - where the 3D and its coverage put it (T087
+ * review: the 2D filters compared the raw level id and hid such a pin under every filter). */
+export function anchorOnLevel(doc: Pick<GeometryDoc, 'levels'>, anchorLevel: string | null | undefined, filter: string | null): boolean {
+  return filter === null || levelOrDefault(doc, anchorLevel) === filter;
+}
+
 /** The `plan.levels` setting turned into a level filter for a floor just opened (0.1.89): `all` (or the setting
  * unavailable) shows every level; `default` opens on the floor's default level. A document without levels or with a
  * single level behaves the same either way, so it stays null (no filter, and no level bar to filter with). */
