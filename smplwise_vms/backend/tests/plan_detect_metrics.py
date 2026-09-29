@@ -13,6 +13,7 @@ from typing import Any, Callable
 import numpy as np
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "plan_detect"
+TUNING = Path(__file__).resolve().parent / "fixtures" / "plan_detect_tuning"  # the 0.1.90 list items 3-6 (gen_tuning.py)
 ANGLE_TOL_DEG = 6.0
 TOLERANCE_PX: dict[str, float] = {"noisy": 12.0}
 
@@ -146,13 +147,55 @@ def opening_scores(gt: dict[str, Any], walls: list[dict[str, Any]], openings: li
     return {"recall": found / n if n else 1.0, "kind_recall": exact / n if n else 1.0, "found": found, "total": n, "false": len(det) - len(used)}
 
 
+def pieces_per_wall(gt: dict[str, Any], walls: list[dict[str, Any]], tol_px: float) -> float:
+    """How many detected walls run along each ground-truth wall that is found at all (mean; 1.0 = no fragments): a wall
+    broken into pieces keeps its recall and precision, only this count shows it (the 0.1.90 list, item 5)."""
+    w, h = gt["width"], gt["height"]
+    counts = []
+    for gw in gt["walls"]:
+        ga, gb = np.array(gw["a"], float), np.array(gw["b"], float)
+        n = sum(1 for dw in walls if _overlap_on(ga, gb, *_seg_px(dw, w, h), tol_px) > 0)
+        if n:
+            counts.append(n)
+    return float(np.mean(counts)) if counts else 0.0
+
+
+# the object candidates the detector proposes for a ground-truth object kind (plan_detect_objects)
+OBJECT_ITEMS: dict[str, tuple[str, ...]] = {"steps": ("tribune.stepped",), "column": ("column.square", "column.round")}
+
+
+def object_scores(gt: dict[str, Any], objects: list[dict[str, Any]], kind: str, tol_px: float) -> dict[str, Any]:
+    """A ground-truth object of `kind` is found when a proposed object of its library items has its centre within tol_px
+    plus half the object's smaller side; the rest of the proposed objects of those items are false."""
+    w, h = gt["width"], gt["height"]
+    items = OBJECT_ITEMS[kind]
+    det = [np.array([o["position"][0] * w, o["position"][1] * h]) for o in objects if o.get("item_id") in items]
+    want = [o for o in gt.get("objects", []) if o["kind"] == kind]
+    used: set[int] = set()
+    found = 0
+    for g in want:
+        c = np.array(g["centre"], float)
+        best = None
+        for k, dc in enumerate(det):
+            dist = float(np.hypot(*(dc - c)))
+            if k not in used and dist <= tol_px + min(g["size_px"]) / 2 and (best is None or dist < best[0]):
+                best = (dist, k)
+        if best is not None:
+            used.add(best[1])
+            found += 1
+    return {"recall": found / len(want) if want else 1.0, "found": found, "total": len(want), "false": len(det) - len(used)}
+
+
 def evaluate(gt: dict[str, Any], result: dict[str, Any], tol_px: float = 10.0) -> dict[str, Any]:
     walls = result["walls"]
-    return {
-        "walls": wall_scores(gt, walls, tol_px),
+    out = {
+        "walls": {**wall_scores(gt, walls, tol_px), "pieces": pieces_per_wall(gt, walls, tol_px)},
         "doors": opening_scores(gt, walls, result["openings"], ("door", "passage"), "doors", tol_px),
         "windows": opening_scores(gt, walls, result["openings"], ("window",), "windows", tol_px),
     }
+    if "objects" in gt:  # the tuning set (fixtures/plan_detect_tuning) scores the proposed objects too
+        out["objects"] = {kind: object_scores(gt, result.get("objects") or [], kind, tol_px) for kind in OBJECT_ITEMS}
+    return out
 
 
 def run_set(detect_fn: Callable[..., dict[str, Any]], folder: Path = FIXTURES, calibrated: bool = True) -> list[dict[str, Any]]:
@@ -163,7 +206,7 @@ def run_set(detect_fn: Callable[..., dict[str, Any]], folder: Path = FIXTURES, c
         t0 = time.perf_counter()
         result = detect_fn(png, scale_m_per_px=gt["scale_m_per_px"] if calibrated else None)
         ms = int((time.perf_counter() - t0) * 1000)
-        rows.append({"name": name, "ms": ms, **evaluate(gt, result, TOLERANCE_PX.get(name, 10.0)), "hint": result.get("calibration_hint"), "counts": {"walls": len(result["walls"]), "openings": len(result["openings"])}})
+        rows.append({"name": name, "ms": ms, **evaluate(gt, result, TOLERANCE_PX.get(name, 10.0)), "hint": result.get("calibration_hint"), "counts": {"walls": len(result["walls"]), "openings": len(result["openings"]), "objects": len(result.get("objects") or [])}})
     return rows
 
 
