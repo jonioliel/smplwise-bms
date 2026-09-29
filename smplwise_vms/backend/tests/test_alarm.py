@@ -631,8 +631,8 @@ def _settle(app) -> None:
 
 def test_pass_through_counts_only_failures(alarm_app, caplog):
     """No stored code: the typed panel code is passed through. Each typed attempt counts as a failure when sent and is
-    forgiven when the panel confirms it (review M-A); the panel's refusal (invalid_code) stays counted; a generic
-    ServiceValidationError is not a wrong code (review L3)."""
+    forgiven when the panel confirms it (review M-A), or when it failed before the panel (an allow-list, final review
+    item 2); the panel's refusal and any other failure (a generic ServiceValidationError included) stay counted."""
     app, s, c, calls, answer = alarm_app
     caplog.set_level(logging.DEBUG)
     _no_code(c)
@@ -644,13 +644,17 @@ def test_pass_through_counts_only_failures(alarm_app, caplog):
         assert r.status_code == 202, r.text
         _report(app, "alarm_control_panel.risco_house", "disarmed")
         _settle(app)  # what the next typed attempt does first: the panel confirmed, the provisional failure is forgiven
-    answer.update(ok=False, error="ServiceValidationError")
-    for _ in range(5):
-        assert _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE).json()["code"] == "code_rejected"
+    # final review item 2: failures that happen before the panel are forgiven (an allow-list) ...
+    for err in ("service_not_allowed", "bridge_not_paired", "bad_signature", "unauthorized", "stale", "entity_required"):
+        answer.update(ok=False, error=err)
+        assert _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE).status_code in (202, 403)
     answer.update(ok=False, error="invalid_code")
-    for _ in range(5):
+    for _ in range(4):
         r = _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE)
         assert r.status_code == 422 and r.json()["code"] == "code_rejected" and CODE not in r.text
+    # ... anything else stays counted: a generic error may be how an integration reports a wrong code
+    answer.update(ok=False, error="ServiceValidationError")
+    assert _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE).json()["code"] == "code_rejected"
     r = _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE)
     assert r.status_code == 429 and r.json()["code"] == "code_locked"
     _assert_code_nowhere(app, s, caplog, [r.text])

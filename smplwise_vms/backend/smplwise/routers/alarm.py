@@ -253,6 +253,16 @@ class _Act:
 # when the panel confirms it - a panel such as Risco ignores a wrong code silently - and at most ONE typed attempt per
 # user and per panel may be unsettled at a time (429 attempt_pending), so concurrent requests cannot outrun the count.
 _PASS_THROUGH: dict[str, dict[str, Any]] = {}
+# Final review item 2: the ONLY failures that forgive a typed attempt - those that happen before the command can reach the
+# panel (pairing, configuration, the bridge's own refusals, signature / freshness, identity, validation). Everything
+# else - a generic HomeAssistantError, a ServiceValidationError without a code key, ha_unavailable after the timeout when
+# the command may have reached the panel - stays counted, so a panel that reports a wrong code generically still locks.
+PRE_PANEL_FAILURES = frozenset({
+    "bridge_not_paired", "ha_not_configured", "bridge_not_installed", "ha_forbidden", "service_not_allowed", "unauthorized",
+    "ha_unauthorized", "unknown_user", "ha_unknown_user", "entity_required", "bad_signature", "stale", "replay",
+    "bridge_bad_signature", "bridge_stale", "bridge_replay", "identity_unmapped", "action_not_allowed", "action_domain_mismatch",
+    "argument_not_allowed", "validation",
+})
 _PASS_THROUGH_LOCK = threading.Lock()
 
 
@@ -293,8 +303,8 @@ def _settle_pass_through(conn: sqlite3.Connection) -> None:
         if not forgive and a.get("error") != "invalid_code" and a["status"] != "failed":
             cur = conn.execute("SELECT state FROM ha_entities WHERE entity_id = ?", (a["entity_id"],)).fetchone()
             forgive = bool(cur and e["target"] and cur["state"] == e["target"] and a.get("observed_state") == e["target"])
-        if a["status"] == "failed" and a.get("error") not in ("invalid_code", None):
-            forgive = True  # the bridge failed for another reason: not a wrong code
+        if a["status"] == "failed" and a.get("error") in PRE_PANEL_FAILURES:
+            forgive = True  # failed before the command could reach the panel: no code was judged
         if forgive and e["ts"] is not None:
             codes.LOCKOUT.forgive(e["keys"], e["ts"], conn)
 
@@ -440,8 +450,8 @@ def panel_action(entity_id: str, request: Request, principal: Principal = Depend
     except ApiError as exc:
         if token:
             e = _PASS_THROUGH.get(token) or {}
-            if e.get("ts") is not None and exc.code not in ("invalid_code",):
-                codes.LOCKOUT.forgive(keys, e["ts"], conn)  # the bridge / platform failed: no code was judged
+            if e.get("ts") is not None and exc.code in PRE_PANEL_FAILURES:
+                codes.LOCKOUT.forgive(keys, e["ts"], conn)  # failed before the panel: no code was judged
         raise
     finally:
         # final review item 1: whatever went wrong before an action id existed (a database error included), the slot is
@@ -456,8 +466,8 @@ def panel_action(entity_id: str, request: Request, principal: Principal = Depend
         else:
             e = _PASS_THROUGH.get(token) or {}
             _release_pass_through(token)
-            if out.get("error") != "invalid_code" and e.get("ts") is not None:
-                # review L3: only the panel's real refusal of a code stays counted (not a generic ServiceValidationError)
+            if out.get("error") in PRE_PANEL_FAILURES and e.get("ts") is not None:
+                # final review item 2: forgiven only when the command cannot have reached the panel
                 codes.LOCKOUT.forgive(keys, e["ts"], conn)
     if out["status"] == "failed" and out.get("error") in CODE_REFUSALS:
         raise ApiError(422, "code_rejected", "הלוח דחה את הקוד או את הפקודה.", details={"action_id": out["id"]})
