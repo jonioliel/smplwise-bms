@@ -402,6 +402,105 @@ def test_review_m1_a_deny_on_the_home_floor_writes_nothing_and_a_stale_mirror_is
     assert r.status_code == 409 and _draft(c, w["v2"])["geometry"]["revision"] == rev2b
 
 
+def _published(c: TestClient, vid: str) -> dict:
+    r = c.get(f"/api/v1/plan-versions/{vid}/geometry")
+    assert r.status_code == 200, r.text
+    return r.json()["doc"]
+
+
+def test_owner_answer_1_publishing_the_other_floor_publishes_only_the_rooms_pending_changes_home(settings):
+    """Owner answer 1 (2026-09-29): publishing floor 3 also publishes the hall's pending changes on floor 2 - only the
+    elements inside the room; the rest of floor 2's draft stays a draft. The dialog counts them; both floors audit it;
+    a deny on the home floor leaves it out."""
+    w = _world(settings)
+    c, f2 = w["c"], w["f2"]
+    _share(w)
+    _publish(c, w["v3"])  # the conversion's own changes on floor 3 go out first
+    # from floor 3: the tribune turned; on floor 2 itself: the chair outside the hall moved, and the label moved out of it
+    g = _draft(c, w["v3"])
+    doc = g["doc"]
+    doc["objects"] = [dict(o, rotation_deg=20) if o["id"] == f"{f2}:trib" else o for o in doc["objects"]]
+    assert _put(c, w["v3"], doc, g["geometry"]["revision"]).status_code == 200
+    home = _draft(c, w["v2"])["doc"]
+    assert _save(c, w["v2"], objects=[dict(o, position=[0.75, 0.75]) if o["id"] == "chair-out" else o for o in home["objects"]],
+                 labels=[dict(lb, position=[0.9, 0.9]) if lb["id"] == "lb-court" else lb for lb in home["labels"]]).status_code == 200
+    diff = c.get(f"/api/v1/plan-versions/{w['v3']}/geometry/diff").json()
+    assert [(p["home_floor_id"], p["changes"]) for p in diff["shared_pending"]] == [(f2, 1)]
+    assert _draft(c, w["v3"])["shared_pending"][0]["changes"] == 1
+    # a reader denied on floor 2 who may publish floor 3: nothing of floor 2 is counted or published
+    c.get("/api/v1/me", headers=as_user("rami"))
+    _binding(settings, "rami", "editor", "floor", w["f3"])
+    deny = _binding(settings, "rami", "viewer", "floor", f2, effect="deny")
+    assert c.get(f"/api/v1/plan-versions/{w['v3']}/geometry/diff", headers=as_user("rami")).json()["shared_pending"] == []
+    r = c.post(f"/api/v1/plan-versions/{w['v3']}/geometry/publish", headers=as_user("rami"))
+    assert r.status_code == 200 and r.json()["shared_published"] == []
+    assert next(o for o in _published(c, w["v2"])["objects"] if o["id"] == "trib")["rotation_deg"] == 0
+    with Database(settings.db_path).connection() as conn:
+        conn.execute("DELETE FROM bindings WHERE id = ?", (deny,))
+    # the owner publishes floor 3 (its own draft unchanged): the tribune goes out on floor 2, nothing else does
+    r = c.post(f"/api/v1/plan-versions/{w['v3']}/geometry/publish")
+    assert r.status_code == 200, r.text
+    assert r.json()["unchanged"] is False and [(p["home_floor_id"], p["changes"]) for p in r.json()["shared_published"]] == [(f2, 1)]
+    pub = _published(c, w["v2"])
+    assert next(o for o in pub["objects"] if o["id"] == "trib")["rotation_deg"] == 20
+    assert next(o for o in pub["objects"] if o["id"] == "chair-out")["position"] == [0.7, 0.7], "the rest of floor 2 stays a draft"
+    assert next(lb for lb in pub["labels"] if lb["id"] == "lb-court")["position"] == [0.4, 0.5], "an item moved out of the room keeps its published place"
+    draft2 = _draft(c, w["v2"])["doc"]
+    assert next(o for o in draft2["objects"] if o["id"] == "chair-out")["position"] == [0.75, 0.75]
+    with w["app"].state.db.connection() as conn:
+        rows = conn.execute("SELECT resource_id, details_json FROM audit_log WHERE action = 'geometry.shared.publish' ORDER BY rowid").fetchall()
+    assert sorted(r[0] for r in rows) == sorted([f2, w["f3"]])
+    assert all(json.loads(d)["changes"] == 1 for _, d in rows)
+    # nothing pending any more; publishing floor 2 itself works as before
+    assert c.get(f"/api/v1/plan-versions/{w['v3']}/geometry/diff").json()["shared_pending"] == []
+    _publish(c, w["v2"])
+    assert next(o for o in _published(c, w["v2"])["objects"] if o["id"] == "chair-out")["position"] == [0.75, 0.75]
+
+
+def test_review_l8_a_backup_from_before_shared_spaces_restores_and_a_new_one_round_trips(settings):
+    """Review L8: a backup taken before migration 0036 (no shared_spaces / shared_space_members in it) restores cleanly -
+    the replace empties both tables, the room is again drawn on its own floor only - and a backup of a shared room
+    brings the share and its members back."""
+    import io
+    import zipfile
+
+    w = _world(settings)
+    c = w["c"]
+    _share(w)
+    assert c.get(f"/api/v1/zones/{w['hall']}/share/members").status_code == 200
+    e = c.post("/api/v1/backups", json={"note": "shared"}).json()
+    full = c.get(f"/api/v1/backups/{e['name']}/download").content
+    buf = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(full)) as src, zipfile.ZipFile(buf, "w") as dst:
+        for item in src.infolist():
+            if item.filename in ("data/shared_spaces.json", "data/shared_space_members.json"):
+                continue
+            body = src.read(item.filename)
+            if item.filename == "manifest.json":
+                m = json.loads(body)
+                m["schema_version"] = 35
+                m["tables"] = [t for t in m.get("tables") or [] if t not in ("shared_spaces", "shared_space_members")] if isinstance(m.get("tables"), list) else m.get("tables")
+                body = json.dumps(m).encode("utf-8")
+            dst.writestr(item, body)
+    old = c.post("/api/v1/backups/upload", files={"file": ("old.zip", buf.getvalue(), "application/zip")})
+    assert old.status_code in (200, 201), old.text
+    r = c.post(f"/api/v1/backups/{old.json()['name']}/restore", json={"mode": "replace", "scope": "project", "confirm": "RESTORE"})
+    assert r.status_code == 200, r.text
+    with w["app"].state.db.connection() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM shared_spaces").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM shared_space_members").fetchone()[0] == 0
+    g = _draft(c, w["v3"])
+    assert not g["doc"].get("shared_spaces") and not any("shared" in o for o in g["doc"]["objects"])
+    assert c.get(f"/api/v1/floors/{w['f3']}/map").status_code == 200
+    # the backup of the shared room brings it back whole
+    up = c.post("/api/v1/backups/upload", files={"file": ("full.zip", full, "application/zip")})
+    assert c.post(f"/api/v1/backups/{up.json()['name']}/restore", json={"mode": "replace", "scope": "project", "confirm": "RESTORE"}).status_code == 200
+    with w["app"].state.db.connection() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM shared_spaces WHERE removed_at IS NULL").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM shared_space_members WHERE removed_at IS NULL").fetchone()[0] >= 1
+    assert any(e.get("role") == "mirror" for e in _draft(c, w["v3"])["doc"].get("shared_spaces") or [])
+
+
 def _as_browser(v: Any) -> Any:
     if isinstance(v, float) and v.is_integer():
         return int(v)

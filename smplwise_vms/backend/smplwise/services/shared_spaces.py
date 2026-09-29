@@ -929,6 +929,97 @@ def commit_edits(conn: sqlite3.Connection, planned: list[dict[str, Any]], actor_
     return out
 
 
+# ---------------------------------------------------------------- publishing from the other floor (owner answer 1, 2026-09-29)
+
+def _content(doc: dict[str, Any], region: list[list[dict[str, float]]]) -> dict[str, dict[str, dict[str, Any]]]:
+    """The room's content items of a home document by collection and id (derived connectors left out: regenerated)."""
+    sub = room_subset(doc, region)
+    return {c: {i["id"]: {k: v for k, v in i.items() if not k.startswith("_")} for i in sub.get(c, []) if not (c == "connectors" and i.get("_readonly"))}
+            for c in SHARED_COLLECTIONS}
+
+
+def plan_shared_publish(conn: sqlite3.Connection, floor_id: str, *, can_write: Callable[[str], bool] | None = None, validate: bool = True) -> list[dict[str, Any]]:
+    """What publishing `floor_id` (the other floor of a shared room) also publishes on each room's home floor: the
+    room's content as it is in the home DRAFT, merged into the home floor's PUBLISHED structure - nothing else of the
+    home draft (the rest stays a draft). An item moved out of the room in the home draft keeps its published place; one
+    moved in takes the draft's. Only when the home floor's editor version is its published plan version (a new plan
+    version publishes with its own plan). A home floor the principal is denied on is left out. Writes nothing; the
+    merged documents are prepared and validated here (422 before any write)."""
+    from . import geometry_store as store
+    from . import plan_geometry as pg
+    from . import plan_catalog
+
+    by_home: dict[str, list[Share]] = {}
+    for s in shares_of_floor(conn, floor_id):
+        by_home.setdefault(s.home_floor_id, []).append(s)
+    out: list[dict[str, Any]] = []
+    for H, hs in by_home.items():
+        if can_write is not None and not can_write(H):
+            continue
+        v = store.editor_version(conn, H)
+        if v is None or v["status"] != "published":
+            continue
+        d = store.draft_row(conn, v["id"])
+        p = store.published_row(conn, v["id"])
+        if d is None or p is None:
+            continue
+        draft, _ = store.working_doc(conn, v)
+        pub = store.load_doc(p)
+        other_v = store.editor_version(conn, floor_id)
+        merged = copy.deepcopy(pub)
+        changes = 0
+        zones: list[str] = []
+        for s in hs:
+            place = Placement(s.placement, _dims_of(v, draft), _dims_of(other_v))
+            region = region_of(conn, s, place)
+            dc, pc = _content(draft, region), _content(pub, region)
+            # what this publish changes: a room item of the draft that differs, or one deleted from the draft (an item
+            # moved out of the room in the draft keeps its published place: not a change here)
+            live = {c: {i.get("id") for i in draft.get(c) or [] if isinstance(i, dict)} for c in SHARED_COLLECTIONS}
+            n = sum(1 for c in SHARED_COLLECTIONS for i in dc[c] if _clean(dc[c][i]) != _clean(pc[c].get(i, {}))) \
+                + sum(1 for c in SHARED_COLLECTIONS for i in pc[c] if i not in dc[c] and i not in live[c])
+            if not n:
+                continue
+            changes += n
+            zones.append(s.zone_id)
+            for c in SHARED_COLLECTIONS:
+                draft_ids = {i.get("id") for i in draft.get(c) or [] if isinstance(i, dict)}
+                gone = {i for i in pc[c] if i not in dc[c] and i not in draft_ids} | set(dc[c])  # deleted, or replaced by the draft's
+                merged[c] = [i for i in merged.get(c) or [] if not (isinstance(i, dict) and i.get("id") in gone)] + list(dc[c].values())
+        if not changes:
+            continue
+        prepared = store._prepare(conn, v, merged) if validate else merged
+        errors = [i for i in pg.validate(prepared, plan_catalog.item_index(conn)) if i["severity"] == "error"] if validate else []
+        if errors:
+            raise SharedEditError(422, "geometry_invalid", "בחלל המשותף יש שגיאות שמונעות פרסום; תקן אותן בקומה שלו.", issues=errors[:50], home_floor_id=H)
+        f = _floor(conn, H)
+        out.append({"home_floor_id": H, "home_floor_level": f["level"] if f else None, "home_floor_name": f["name"] if f else "", "zone_ids": zones, "changes": changes,
+                    "_version": v, "_doc": prepared})
+    return out
+
+
+def shared_pending(conn: sqlite3.Connection, floor_id: str, *, can_write: Callable[[str], bool] | None = None, can_name: Callable[[str], bool] | None = None,
+                   validate: bool = True) -> list[dict[str, Any]]:
+    """The publish dialog's line "כולל שינויים באולם המשותף (קומה -1)": per home floor, how many of the room's items
+    publishing this floor would publish there. Never raises (an invalid room is reported by the publish itself)."""
+    try:
+        planned = plan_shared_publish(conn, floor_id, can_write=can_write, validate=validate)
+    except SharedEditError as exc:
+        return [{"home_floor_id": exc.details.get("home_floor_id"), "changes": None, "invalid": True}]
+    return [{"home_floor_id": p["home_floor_id"], "home_floor_level": p["home_floor_level"],
+             "home_floor_name": p["home_floor_name"] if can_name is None or can_name(p["home_floor_id"]) else OTHER_FLOOR,
+             "zone_ids": p["zone_ids"], "changes": p["changes"]} for p in planned]
+
+
+def commit_shared_publish(conn: sqlite3.Connection, planned: list[dict[str, Any]], actor_id: str | None, now: str) -> list[dict[str, Any]]:
+    from . import geometry_store as store
+
+    out = []
+    for p in planned:
+        r = store.publish_doc(conn, p["_version"], p["_doc"], actor_id, now)
+        out.append({**{k: v for k, v in p.items() if not k.startswith("_")}, "geometry_id": r["published"]["id"] if r["published"] else None})
+    return out
+
 # ---------------------------------------------------------------- anchors and zones for the map bundle
 
 def _anchor_tol(conn: sqlite3.Connection, home_floor_id: str) -> tuple[float, float, float]:

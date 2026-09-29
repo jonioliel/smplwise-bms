@@ -173,6 +173,25 @@ def publish(conn: sqlite3.Connection, version: sqlite3.Row, actor_id: str | None
     return {"published": row_api(row), "diff": pg.diff(prev_doc, doc), "unchanged": False}
 
 
+def publish_doc(conn: sqlite3.Connection, version: sqlite3.Row, doc: dict[str, Any], actor_id: str | None, now: str | None = None) -> dict[str, Any]:
+    """Publish a given document of the version (CR-009: the home floor's published structure with a shared room's
+    pending changes taken from its draft - the rest of the draft stays a draft). Prepared and validated like a draft's
+    publish (422 on errors); the previous published row is archived."""
+    now = now or now_iso()
+    doc = _prepare(conn, version, doc)
+    errors = [i for i in pg.validate(doc, plan_catalog.item_index(conn)) if i["severity"] == "error"]
+    if errors:
+        raise ApiError(422, "geometry_invalid", "במבנה יש שגיאות שמונעות פרסום; הן מסומנות באדום על המפה.", details={"issues": errors[:50]})
+    prev = published_row(conn, version["id"])
+    prev_doc = load_doc(prev) if prev is not None else None
+    if prev is not None and prev["doc_hash"] == doc_hash(doc):
+        return {"published": row_api(prev), "diff": pg.diff(prev_doc, prev_doc), "unchanged": True}
+    if prev is not None:
+        conn.execute("UPDATE plan_geometry SET status = 'archived', archived_at = ?, updated_at = ? WHERE id = ?", (now, now, prev["id"]))
+    row = _insert(conn, version, "published", doc, actor_id, now)
+    return {"published": row_api(row), "diff": pg.diff(prev_doc, doc), "unchanged": False}
+
+
 def rollback(conn: sqlite3.Connection, version: sqlite3.Row, geometry_id: str, actor_id: str | None, now: str | None = None) -> sqlite3.Row:
     now = now or now_iso()
     src = conn.execute("SELECT * FROM plan_geometry WHERE id = ? AND plan_version_id = ?", (geometry_id, version["id"])).fetchone()

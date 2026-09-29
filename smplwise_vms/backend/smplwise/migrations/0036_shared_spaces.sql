@@ -34,6 +34,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_shared_members_active ON shared_space_membe
 CREATE INDEX IF NOT EXISTS idx_shared_members_resource ON shared_space_members (resource_type, resource_id, removed_at);
 CREATE TRIGGER IF NOT EXISTS trg_cv_shared_members_ins AFTER INSERT ON shared_space_members BEGIN UPDATE cache_versions SET version = version + 1 WHERE name = 'structure'; END;
 CREATE TRIGGER IF NOT EXISTS trg_cv_shared_members_upd AFTER UPDATE ON shared_space_members BEGIN UPDATE cache_versions SET version = version + 1 WHERE name = 'structure'; END;
+CREATE TRIGGER IF NOT EXISTS trg_cv_shared_members_del AFTER DELETE ON shared_space_members BEGIN UPDATE cache_versions SET version = version + 1 WHERE name = 'structure'; END;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_shared_spaces_active ON shared_spaces (zone_id, floor_id) WHERE removed_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_shared_spaces_floor ON shared_spaces (floor_id, removed_at);
 CREATE INDEX IF NOT EXISTS idx_shared_spaces_home ON shared_spaces (home_floor_id, removed_at);

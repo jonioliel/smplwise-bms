@@ -107,10 +107,15 @@ def _payload(conn: sqlite3.Connection, version: sqlite3.Row, row: sqlite3.Row | 
     misaligned = [{"code": "shared_alignment", "severity": "warning", "structural": False, "id": e.get("zone_id"), "path": "shared_spaces",
                    "message": "ודא את יישור הקומות: המתאר התחתון של החלל המשותף לא נופל בתוך המתאר העליון."}
                   for e in shown.get("shared_spaces") or [] if e.get("aligned") is False]
-    return {"geometry": geometry, "doc": shown,
+    out = {"geometry": geometry, "doc": shown,
             "issues": [i for i in pg.validate(doc, plan_catalog.item_index(conn)) if not i["structural"]] + store.anchor_issues(conn, version["floor_id"], doc)
             + store.link_issues(conn, version["floor_id"], doc, ctx) + misaligned,
             "published_hash": published_now["doc_hash"] if published_now is not None else None}
+    if not published and principal is not None and any(e.get("role") == "mirror" for e in shown.get("shared_spaces") or []) and _is_editor_version(conn, version):
+        # the editor's publish button: the shared room's changes waiting on the home floor count as something to publish
+        out["shared_pending"] = shared_spaces.shared_pending(conn, version["floor_id"], can_write=_can_publish_home(conn, principal),
+                                                             can_name=lambda fid: floor_reach(conn, principal, fid) is not None, validate=False)
+    return out
 
 
 def _far_tag(doc: dict[str, Any]) -> str:
@@ -245,12 +250,40 @@ def publish_geometry(version_id: str, request: Request, principal: Principal = D
         raise conflict("publish_plan_first", "זו טיוטת תוכנית: פרסום הגרסה יפרסם גם את המבנה שלה.")
     if v["status"] == "archived":
         raise conflict("archived_version", "גרסה מהארכיון אינה ניתנת לפרסום.")
+    # CR-009, owner answer 1 (2026-09-29): publishing the other floor of a shared room also publishes the room's pending
+    # changes on its home floor - only the room's content, the rest of the home draft stays a draft. map.publish on the
+    # floor being published is the grant; a deny on the home floor leaves it out. Planned (and validated) before any write.
+    try:
+        shared = shared_spaces.plan_shared_publish(conn, v["floor_id"], can_write=_can_publish_home(conn, principal)) if _is_editor_version(conn, v) else []
+    except shared_spaces.SharedEditError as exc:
+        raise ApiError(exc.status, exc.code, exc.message, details=exc.details)
     result = store.publish(conn, v, principal.user_id)
     if not result["unchanged"]:
         audit(conn, actor=principal, action="geometry.publish", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
               details={"version_id": v["id"], "geometry_id": result["published"]["id"], "changes": result["diff"]["total"],
                        "collections": {k: {kk: len(vv) for kk, vv in c.items()} for k, c in result["diff"]["collections"].items()}})
+    try:
+        done = shared_spaces.commit_shared_publish(conn, shared, principal.user_id, now_iso())
+    except ApiError:
+        rollback_and_restart(conn)
+        raise
+    for rec in done:  # owner answer 1: audited on both floors
+        audit(conn, actor=principal, action="geometry.shared.publish", decision="allowed", resource_type="floor", resource_id=rec["home_floor_id"], request_id=_rid(request),
+              details={"from_floor_id": v["floor_id"], "version_id": v["id"], "zone_ids": rec["zone_ids"], "changes": rec["changes"], "geometry_id": rec["geometry_id"]})
+        audit(conn, actor=principal, action="geometry.shared.publish", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
+              details={"home_floor_id": rec["home_floor_id"], "version_id": v["id"], "zone_ids": rec["zone_ids"], "changes": rec["changes"]})
+    result["shared_published"] = [{k: rec[k] for k in ("home_floor_id", "zone_ids", "changes")} for rec in done]
+    if done and result["unchanged"]:
+        result["unchanged"] = False
     return result
+
+
+def _is_editor_version(conn: sqlite3.Connection, v: sqlite3.Row) -> bool:
+    return v["id"] == (store.editor_version(conn, v["floor_id"]) or {"id": None})["id"]
+
+
+def _can_publish_home(conn: sqlite3.Connection, principal: Principal):
+    return lambda home_floor_id: all(authorize(conn, principal, perm, ("floor", home_floor_id)).reason != "explicit_deny" for perm in ("map.publish", "map.edit", "map.read"))
 
 
 @router.get("/plan-versions/{version_id}/geometry/diff")
@@ -262,7 +295,10 @@ def geometry_diff(version_id: str, principal: Principal = Depends(current_princi
     old = store.load_doc(p) if p is not None else None
     return {"diff": pg.diff(old, doc),
             "issues": [i for i in pg.validate(doc, plan_catalog.item_index(conn)) if not i["structural"]] + store.anchor_issues(conn, v["floor_id"], doc),
-            "counts": pg.counts(doc), "published_counts": pg.counts(old) if old is not None else None}
+            "counts": pg.counts(doc), "published_counts": pg.counts(old) if old is not None else None,
+            # CR-009: "כולל שינויים באולם המשותף (קומה -1)" - what the publish of this floor also publishes there
+            "shared_pending": shared_spaces.shared_pending(conn, v["floor_id"], can_write=_can_publish_home(conn, principal),
+                                                           can_name=lambda fid: floor_reach(conn, principal, fid) is not None) if _is_editor_version(conn, v) else []}
 
 
 @router.get("/plan-versions/{version_id}/geometry/versions")
