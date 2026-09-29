@@ -49,6 +49,44 @@ const PREFIXES: { id: string; label: string }[] = [
   { id: 'plan.', label: 'תוכניות ומפות' },
 ];
 
+/** CR-008 P2: where the actor came from. Local = inside the system's own UI (through תשתית המערכת). */
+const CHANNELS: { id: '' | 'local' | 'remote' | 'bearer'; label: string }[] = [
+  { id: '', label: 'כל הערוצים' },
+  { id: 'local', label: 'מקומי (תשתית המערכת)' },
+  { id: 'remote', label: 'מרחוק (Arx)' },
+  { id: 'bearer', label: 'מרחוק · אסימון גישה' },
+];
+
+/** CR-008 P2 quick views: they replace the action family. */
+const VIEWS: { id: '' | 'remote_sign_ins' | 'remote_refusals'; label: string }[] = [
+  { id: 'remote_sign_ins', label: 'כניסות מרחוק' },
+  { id: 'remote_refusals', label: 'סירובים מרחוק' },
+];
+
+/** Readable names of the remote channel's refusal reasons (the code stays visible next to them). */
+const REMOTE_REASON: Record<string, string> = {
+  remote_not_allowed: 'גישה מרחוק לא הופעלה',
+  remote_user_inactive: 'משתמש לא פעיל',
+  remote_mfa_required: 'נדרש אימות דו־שלבי',
+  csrf_refused: 'בקשה ממקור זר',
+  rate_limited_ip: 'יותר מדי ניסיונות מהכתובת',
+  rate_limited_user: 'יותר מדי ניסיונות של המשתמש',
+  token_invalid: 'אסימון לא תקף',
+  token_revoked: 'הכניסה בוטלה',
+  remote_session_revoked: 'כניסה שנותקה',
+  remote_live_cap: 'מכסת זרמים מרחוק',
+  signed_out_everywhere: 'התנתקות מכל המקומות',
+  revoked_by_user: 'נותקה על ידי המשתמש',
+  revoked_by_admin: 'נותקה על ידי מנהל',
+  revoked_all_by_admin: 'כל הכניסות נותקו על ידי מנהל',
+};
+
+function channelOf(d: Record<string, unknown> | undefined, action: string): string {
+  if (d?.via === 'bearer') return 'מרחוק · אסימון';
+  if (d?.channel === 'remote' || action.startsWith('auth.remote')) return 'מרחוק';
+  return 'מקומי';
+}
+
 const DECISION: Record<string, { kind: 'success' | 'danger' | 'neutral' | 'warning'; label: string }> = {
   allowed: { kind: 'success', label: 'הותר' },
   granted: { kind: 'success', label: 'הוענק' },
@@ -63,7 +101,8 @@ const apiColumns: TableColumn[] = [
   { key: 'action', label: 'פעולה', ltr: true, render: (r) => html`<span class="ltr">${String(r.action)}</span>` },
   { key: 'decision', label: 'החלטה', render: (r) => { const d = DECISION[String(r.decision)] ?? { kind: 'neutral' as const, label: String(r.decision) }; return html`<sw-badge kind=${d.kind} label=${d.label}></sw-badge>`; } },
   { key: 'resource', label: 'משאב', render: (r) => html`${r.resource_type ? html`<span style="color:var(--sw-text-3)">${String(r.resource_type)}</span> ` : nothing}<span class="ltr">${String(r.resource_id ?? '')}</span>` },
-  { key: 'reason', label: 'סיבה / פרטים', render: (r) => html`${String(r.reason ?? '')}${Object.keys((r.details as Record<string, unknown>) ?? {}).length ? html` <span style="color:var(--sw-text-3)" class="ltr">${JSON.stringify(r.details).slice(0, 120)}</span>` : nothing}` },
+  { key: 'channel', label: 'ערוץ', render: (r) => html`<span data-audit-channel style="font-size:var(--sw-fs-xs)">${channelOf(r.details as Record<string, unknown>, String(r.action))}</span>` },
+  { key: 'reason', label: 'סיבה / פרטים', render: (r) => html`${REMOTE_REASON[String(r.reason ?? '')] ? html`${REMOTE_REASON[String(r.reason)]} <span class="ltr" style="color:var(--sw-text-3)">(${String(r.reason)})</span>` : String(r.reason ?? '')}${Object.keys((r.details as Record<string, unknown>) ?? {}).length ? html` <span style="color:var(--sw-text-3)" class="ltr">${JSON.stringify(r.details).slice(0, 120)}</span>` : nothing}` },
   { key: 'permission_revision', label: 'rev', ltr: true },
 ];
 
@@ -76,6 +115,8 @@ export class SystemAudit extends LitElement {
   @state() private family = '';
   @state() private actor = '';
   @state() private limit = 100;
+  @state() private channel: (typeof CHANNELS)[number]['id'] = '';
+  @state() private view: (typeof VIEWS)[number]['id'] | '' = '';
 
   connectedCallback() {
     super.connectedCallback();
@@ -86,6 +127,8 @@ export class SystemAudit extends LitElement {
     try {
       const q = new URLSearchParams({ prefix: this.family, limit: String(this.limit) });
       if (this.actor.trim()) q.set('actor', this.actor.trim());
+      if (this.channel) q.set('channel', this.channel);
+      if (this.view) q.set('view', this.view);
       const r = await get<{ rows: AuditRow[] }>(`/audit?${q.toString()}`);
       this.rows = r.rows;
       this.error = '';
@@ -115,6 +158,8 @@ export class SystemAudit extends LitElement {
         <sw-button slot="actions" icon="download" ?disabled=${!rows?.length} @click=${() => this.exportCsv()}>ייצוא CSV</sw-button>
         <div class="filters" data-audit-filters>
           <sw-field><select aria-label="פעולה" .value=${this.family} @change=${(e: Event) => { this.family = (e.target as HTMLSelectElement).value; void this.load(); }}>${PREFIXES.map((p) => html`<option value=${p.id} ?selected=${p.id === this.family}>${p.label}</option>`)}</select></sw-field>
+          <sw-field><select aria-label="ערוץ" data-audit-channel-filter .value=${this.channel} @change=${(e: Event) => { this.channel = (e.target as HTMLSelectElement).value as typeof this.channel; void this.load(); }}>${CHANNELS.map((c) => html`<option value=${c.id} ?selected=${c.id === this.channel}>${c.label}</option>`)}</select></sw-field>
+          ${VIEWS.map((v) => html`<sw-chip icon=${v.id === 'remote_refusals' ? 'shield' : 'user'} data-audit-view=${v.id} aria-pressed=${this.view === v.id ? 'true' : 'false'} ?selected=${this.view === v.id} @click=${() => { this.view = this.view === v.id ? '' : v.id; void this.load(); }}>${v.label}</sw-chip>`)}
           <sw-field><input type="search" placeholder="שם משתמש" aria-label="משתמש" .value=${this.actor} @change=${(e: Event) => { this.actor = (e.target as HTMLInputElement).value; void this.load(); }} /></sw-field>
           <sw-field><select aria-label="כמות" @change=${(e: Event) => { this.limit = Number((e.target as HTMLSelectElement).value); void this.load(); }}>${[100, 250, 500].map((n) => html`<option value=${n} ?selected=${n === this.limit}>${n} אחרונות</option>`)}</select></sw-field>
           <sw-button size="sm" icon="refresh" @click=${() => this.load()}>רענון</sw-button>

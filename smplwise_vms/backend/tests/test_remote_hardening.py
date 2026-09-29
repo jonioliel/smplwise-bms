@@ -273,6 +273,56 @@ def test_directory_shows_remote_sign_ins_and_the_flag_impact(arx):
     assert viewer["remote_sessions"] == 0 and viewer["remote_last_sign_in"]
 
 
+def test_audit_channel_filters_and_remote_views(arx, monkeypatch):
+    admin = TestClient(arx.app)  # dev-joni (system_admin: audit.read)
+    assert admin.patch("/api/v1/settings", json={"remote.idle_lock_minutes": 30}).status_code == 200  # a local change
+    phone = browser(arx)
+    sign_in(phone, arx, arx.viewer)
+    owner = browser(arx)
+    sign_in(owner, arx, arx.owner)
+    assert owner.patch("/arx/api/v1/settings", json={"remote.idle_lock_minutes": 40}).status_code == 200  # a remote change
+    api = TestClient(arx.app)
+    arx.bind("u-viewer", "system_admin")
+    assert api.patch("/arx/api/v1/settings", json={"remote.idle_lock_minutes": 50}, headers={"Authorization": f"Bearer {arx.token(arx.viewer)}"}).status_code == 200
+    # refusals: a user without the flag, a cross-site request, a rate limit
+    arx.bind("u-mfa", "viewer")
+    assert arx.login(arx.mfa).status_code == 403
+    assert TestClient(arx.app, headers={"Origin": "https://evil.example"}, cookies=phone.cookies).post(
+        "/arx/api/v1/evidence/signing/rotate", content=b"x", headers={"Content-Type": "text/plain"}).status_code == 403
+    monkeypatch.setattr(hua, "IP_LIMITS", [(60.0, 0)])
+    assert arx.login(arx.viewer, **{"CF-Connecting-IP": "198.51.100.66"}).status_code == 429
+
+    def rows(**q):
+        r = admin.get("/api/v1/audit", params={"prefix": "", **q})
+        assert r.status_code == 200, r.text
+        return r.json()["rows"]
+
+    settings_rows = {r["details"].get("remote.idle_lock_minutes"): r for r in rows(prefix="settings.")}
+    assert set(settings_rows) >= {30, 40, 50}
+    assert [r["details"]["remote.idle_lock_minutes"] for r in rows(prefix="settings.", channel="local")] == [30]
+    assert sorted(r["details"]["remote.idle_lock_minutes"] for r in rows(prefix="settings.", channel="remote")) == [40, 50]
+    assert [r["details"]["remote.idle_lock_minutes"] for r in rows(prefix="settings.", channel="bearer")] == [50]
+    assert all(r["action"].startswith("auth.remote") or r["details"].get("channel") == "remote" for r in rows(channel="remote"))
+    assert not any(r["action"].startswith("auth.remote") for r in rows(channel="local"))
+
+    sign_ins = rows(view="remote_sign_ins")
+    assert sign_ins and all(r["action"].startswith("auth.remote") for r in sign_ins)
+    assert {"auth.remote_session.created", "auth.remote_session.rejected", "auth.remote_csrf_refused"} <= {r["action"] for r in sign_ins}
+    refusals = rows(view="remote_refusals")
+    assert refusals and all(r["decision"] == "denied" for r in refusals)
+    reasons = {r["reason"] for r in refusals}
+    assert {"remote_not_allowed", "csrf_refused", "rate_limited_ip"} <= reasons
+    assert all(r["action"] != "settings.update" for r in refusals)
+    # the quick view composes with the channel filter; bad values are refused
+    assert all(r["details"].get("via") == "bearer" for r in rows(view="remote_sign_ins", channel="bearer"))
+    assert admin.get("/api/v1/audit", params={"channel": "ingress"}).status_code == 422
+    assert admin.get("/api/v1/audit", params={"view": "everything"}).status_code == 422
+    # a viewer without audit.read gets nothing
+    viewer = TestClient(arx.app, headers={"X-SW-Dev-User": "dana"})
+    arx.bind("dev-dana", "viewer")
+    assert viewer.get("/api/v1/audit", params={"view": "remote_refusals"}).status_code == 403
+
+
 def test_sign_in_record_masks_the_address(arx):
     sign_in(browser(arx), arx, arx.viewer, **{"CF-Connecting-IP": "203.0.113.5", "CF-IPCountry": "IL"})
     with arx.db.connection(mode="read") as conn:
