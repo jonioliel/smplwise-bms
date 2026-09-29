@@ -461,3 +461,32 @@ round and release (step 7). Tests: 45 backend tests (`tests/test_remote_access.p
   `code` and, when the flow had a challenge, `code_verifier` (SHA-256, base64url, unpadded, constant-time compare);
   `grant_type=refresh_token` with `refresh_token` and the issuing `client_id`; `action=revoke` with `token`. So PKCE is
   native to HA and the Arx client's requests match; the fake HA core now refuses exactly what these schemas refuse.
+
+## 9. Build status
+
+### P3 built (2026-09-29, branch `pilot/CR008-pwa-push`, not released)
+
+Built independently of the P1 MVP branch (base path, remote login and sessions are that branch's; nothing here depends on
+them - the worker and the manifest follow whatever base the page is served under):
+
+- **PWA:** `arx-manifest.webmanifest` (scope / start_url `./`, `dir: rtl`, `lang: he`, 192 / 512 / maskable / SVG
+  icons), service worker `arx-sw.js` registered from `document.baseURI` with the app base as scope (Ingress prefix
+  today, `/arx/` after P1): network-first shell with a Hebrew offline page, cache-first hashed assets, never `api/` or
+  video. "התקן את Arx" banner, iOS add-to-home-screen guide, update-available notice. The worker file is `arx-sw.js`
+  (not `sw.js` as §3a/§3d wrote) so it cannot collide with Home Assistant's own worker names.
+- **Web Push:** migration 0034 (`push_subscriptions`, `push_prefs`, `push_vapid`), `services/push.py`,
+  `routers/push.py` (`push/vapid-key`, `push/subscriptions`, `push/prefs`, `push/test`); VAPID + `aes128gcm`
+  implemented with `cryptography` (no pywebpush - it would add requests, aiohttp, http-ece, py-vapid and six);
+  endpoint allow-list of the browser push services; recipients by `row_scope(events.read)` (the alert list's rule);
+  categories, quiet hours, per-user rate limit, retry/backoff, 404/410 removal. The VAPID pair lives in the database
+  table `push_vapid` (outside `settings`, so never in a project backup) rather than a file in `/data`.
+- **Settings:** מערכת › התראות (every user). The notify path is the local rules engine (every rule alert); WisKey calls
+  are not events yet (§7.1 item 2 would enable a door-call category).
+- **Tests:** `tests/test_push.py` (RFC 8291 known answer, key lifecycle, own-only CRUD, fake push service
+  200 / 410 / 429, scope filtering, prefs + quiet hours, rate limit, payload without secrets);
+  `frontend/tests/evidence-pwa-push.spec.ts` + `unit-pwa-deeplink.spec.ts` (desktop + phone).
+- **Security review (2026-09-29) fixes:** retries re-check owner and reach before every attempt; `drain()` counts
+  retries in flight; the worker cache is versioned by the add-on version (unhashed files network-first, old caches
+  deleted on activate); `push` counters in `/health`; `POST push/rotate-key`; HA add-on backups carry the key (documented).
+- **Not verified yet:** delivery through the real push services (FCM / APNs / Mozilla) on a real phone, and the
+  notification click on the lab site under Ingress and under `/arx/` - an owner check after the P1 merge.

@@ -168,8 +168,12 @@ def evaluate_event(conn: sqlite3.Connection, ev: dict[str, Any], tz_name: str | 
         )
         conn.execute("UPDATE rules SET last_fired_at = ? WHERE id = ?", (now, rule["id"]))
         pending = [(a["service"], a.get("message") or message, rule["name"]) for a in rule["actions"] if a.get("kind") == "ha_notify" and a.get("service")]
+        details = ev.get("details") or {}
+        # CR-008 P3: what the Web Push path needs to pick recipients by scope and preference (popped at delivery)
+        push = {"camera_id": target_cam, "entity_id": target_ent, "event_type": ev.get("type"), "source": ev.get("source"), "severity": ev.get("severity"),
+                "availability": details.get("availability"), "occurred_at": ev.get("occurred_at"), "place": details.get("name") if target_ent else None}
         fired.append({"id": aid, "rule_id": rule["id"], "rule_name": rule["name"], "event_id": ev["id"], "message": message, "reasons": m["reasons"], "ha_notify": {},
-                      "_pending": pending})
+                      "_pending": pending, "_push": push})
     if deliver:
         deliver_pending(fired)
     return fired
@@ -178,10 +182,20 @@ def evaluate_event(conn: sqlite3.Connection, ev: dict[str, Any], tz_name: str | 
 def deliver_pending(fired: list[dict[str, Any]]) -> None:
     """Send the Home Assistant notifications of fired rules. Callers that hold a write transaction (the alert stream,
     the HA state sync) evaluate with deliver=False and call this after their commit: the POST to HA can take up to its
-    timeout, and under the write lock that stalled every other writer (round-10 lock storm)."""
+    timeout, and under the write lock that stalled every other writer (round-10 lock storm).
+    CR-008 P3: the same alerts are then handed to the Web Push worker (services/push.py), which only enqueues here -
+    recipients, preferences and sending happen on its own thread."""
     for item in fired:
         for service, message, title in item.pop("_pending", None) or ():
             item["ha_notify"][service] = HA_NOTIFY(service, message, title)
+    try:
+        from . import push
+
+        push.enqueue_fired(fired)
+    except Exception:  # noqa: BLE001 - a push problem must never break ingestion or the HA notifications
+        import logging
+
+        logging.getLogger("smplwise.push").exception("could not enqueue Web Push notifications")
 
 
 def dry_run(conn: sqlite3.Connection, rule: dict[str, Any], hours: int, tz_name: str, now: dt.datetime | None = None) -> dict[str, Any]:

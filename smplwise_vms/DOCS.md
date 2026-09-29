@@ -802,3 +802,62 @@ the limit) at the rate the NVR allows — in the lab about 0.5–1 MB/s, so a wh
 hour. Jobs therefore run smallest first (by the estimated size); a job that has waited more than 15 minutes goes
 first regardless. חקירה › ייצוא shows the queue with progress; a queued job can be cancelled.
 
+
+## Install as an app and push notifications (CR-008 P3)
+
+SmplWise Arx is an installable web app (PWA): `arx-manifest.webmanifest` and the service worker `arx-sw.js` are served
+next to `index.html`, and the worker's scope is the app's own base - the Ingress prefix inside Home Assistant, `/arx/`
+on the remote channel - so it never touches Home Assistant's own pages or service worker. It caches the app shell only
+(the page, the hashed build files, fonts and icons); API responses, images from the API, downloads and video are never
+cached. Without a network the last cached shell opens, or a Hebrew "no connection" page.
+
+**Installing.** Android and desktop Chrome / Edge: the "התקן את Arx" card appears at the bottom when the browser offers
+installation (or use the browser menu). iPhone / iPad: Safari has no install prompt; Arx shows a short guide (Share →
+Add to Home Screen). iOS delivers Web Push only to an app installed this way (iOS 16.4+). Inside Home Assistant (the
+Ingress frame) no install prompt is shown. When a new version's worker is waiting, "גרסה חדשה של Arx זמינה" offers a
+reload.
+
+**Notifications (מערכת › התראות, every user).** Each HA user switches Web Push on per browser ("הפעלת התראות במכשיר
+הזה"), chooses categories - rule alerts, doors (HA door / lock transitions; WisKey calls are not stored as events yet),
+device faults (video loss, tamper, storage, a sensor that went unavailable), system health (NVR system events) - and
+optional quiet hours in the installation's time zone (critical alerts may pass). A test button sends one notification to
+the user's own devices (3 per minute). Up to 10 devices per user; a device that has not opened Arx for 120 days is pruned.
+
+**What is sent, to whom.** Every alert a local rule raises is also pushed - after the rule engine's commit, from a worker
+thread, never under the database write lock - to each subscribed user who may see it: the same rule as the alert list
+(a camera alert needs `events.read` on that camera or a floor / building / site it is placed on; a camera-less alert
+needs installation-wide `events.read`). Per-user rate limit: 10 per minute. The payload is title, one line of text, an
+in-app deep link (`#/investigate/events/<id>`), the event and alert ids, category and severity - no image, no token, no
+URL; the app loads the details after the user signs in. A click routes an open Arx window to the event or opens Arx
+(inside HA: the HA page hosting it). The same HA user id counts on Ingress and on the remote channel.
+
+**Keys and push services.** A VAPID key pair is generated once per installation and kept in the add-on database (table
+`push_vapid`, never in the settings and never in a project backup, never logged); only the public key is served
+(`GET api/v1/push/vapid-key`). Messages are encrypted end to end (RFC 8291 `aes128gcm`) and signed (RFC 8292 VAPID),
+implemented with the `cryptography` package already in the image (no additional dependency). The add-on only calls the
+browsers' push services (Google FCM, Mozilla, Apple, Microsoft WNS) over outbound HTTPS; a subscription pointing
+anywhere else is refused. Nothing inbound is needed. A 404/410 from the push service removes the subscription;
+429 and 5xx are retried with backoff; every retry first re-checks that the subscription still belongs to the same user
+and that the user still reaches the alert. Subscribe, unsubscribe, preference changes, test sends and key rotation are
+audited (the subscription URL itself is never logged or returned). Worker counters (queued, sent, retried, gone,
+refused …) appear under `push` in `GET api/v1/health` for `system.configure` holders.
+
+**Backups and key rotation.** An Arx project backup never contains the VAPID key or the subscriptions. A Home Assistant
+backup of the add-on (`backup: hot`, the whole `/data`) does contain both: restoring it brings the same key and
+subscriptions back, and anyone holding that backup file holds the private key. Restoring an Arx project backup on a
+different installation keeps that installation's own key; browsers that still allow notifications re-register silently
+the next time Arx opens there (the app compares its subscription's key with the server's on every start). If a key
+may have leaked (a Home Assistant backup out of your control), a system administrator replaces it: מערכת › התראות ›
+"החלפת המפתח" (`POST api/v1/push/rotate-key`, `system.configure`, audited). All subscriptions of all users are removed
+and each device re-subscribes with the new key on its next visit.
+
+Quiet hours need two different times (`from == to` is refused); a window that crosses midnight (22:00–07:00) is fine.
+
+**API.** `GET push/vapid-key`, `GET|POST push/subscriptions`, `DELETE push/subscriptions/{id}` (own only),
+`GET|PUT push/prefs`, `POST push/test` - all under `api/v1/`, all acting on the calling user only; `POST push/rotate-key`
+(`system.configure`).
+
+**Service worker updates.** The worker's cache is named after the add-on version, so every release ships a changed
+`arx-sw.js`; the new worker deletes the previous release's cache when it takes over (after "רענון" on the update notice).
+Hashed build files are served cache-first; fonts, icons, brand images and the manifest network-first (the cache is only
+the offline fallback).

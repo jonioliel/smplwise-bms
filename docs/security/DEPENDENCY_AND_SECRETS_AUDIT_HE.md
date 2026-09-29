@@ -28,7 +28,7 @@ smplwise_vms/backend/requirements.txt`, `npm audit` בתיקיית `frontend/`, 
 | python-multipart | 0.0.32 | Apache-2.0 | העלאות | |
 | pillow | 12.3.0 | MIT-CMU (HPND) | רינדור תוכנית | |
 | numpy | ≥2,<3 | BSD-3 | סגנון תוכנית / זיהוי חדרים | |
-| cryptography | ≥45,<51 (50.0.1 בתחנת העבודה) | Apache-2.0 OR BSD-3 | חתימת Ed25519 לחבילת ראיות (0.1.67) | נוסף אחרי הביקורת הראשונה |
+| cryptography | ≥45,<51 (50.0.1 בתחנת העבודה) | Apache-2.0 OR BSD-3 | חתימת Ed25519 לחבילת ראיות (0.1.67); חתימת VAPID (ES256) והצפנת RFC 8291 `aes128gcm` ל־Web Push (CR-008 P3 - במקום להוסיף את pywebpush) | נוסף אחרי הביקורת הראשונה |
 | ezdxf | ≥1.3,<2 (1.4.4 בתחנת העבודה) | MIT | ייבוא תוכנית DXF (0.1.43) | נוסף אחרי הביקורת הראשונה; Python טהור |
 | tzdata | ≥2024.1 | Apache-2.0 | אזורי זמן | |
 | poppler-utils (Alpine) | distro | GPL-2.0 / GPL-3.0 | `pdftoppm` **כתת-תהליך (subprocess)** | לא מקושר (linked) לתוך הקוד שלנו; מופעל לכל עמוד עם timeout |
