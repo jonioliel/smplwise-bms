@@ -506,7 +506,7 @@ export class SwLivePlayer extends LitElement {
         break;
       case 'error':
         if (this.transport === 'webrtc' && this.mode === 'auto') this.webrtcFailed(msg.value ?? 'WebRTC');
-        else this.fail(msg.value === 'upstream_unavailable' ? 'go2rtc לא זמין' : `שגיאת זרם: ${msg.value ?? ''}`);
+        else this.fail(msg.value === 'upstream_unavailable' ? 'go2rtc לא זמין' : msg.value === 'access_lost' ? 'ההרשאה לצפייה במצלמה הזו הוסרה' : `שגיאת זרם: ${msg.value ?? ''}`, msg.value !== 'access_lost');
         break;
       default:
         break;

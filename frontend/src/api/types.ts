@@ -8,6 +8,12 @@ export interface Me {
   permissions_any?: string[];
   has_access: boolean;
   permission_revision: number;
+  /** T055: false once Home Assistant disabled the user (every request is refused from then on). */
+  active?: boolean;
+  /** T055: hash of everything this user's access depends on; moves exactly when their permissions may have changed. */
+  permissions_fingerprint?: string;
+  /** T055: /me?known=<fingerprint> - whether it moved since. */
+  permissions_changed?: boolean;
   bootstrap_state: string;
 }
 

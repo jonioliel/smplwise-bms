@@ -63,8 +63,12 @@ const TABS = [
   { id: 'audit', label: 'אודיט הרשאות' },
 ];
 
+/** T055 (§15): the permissions a camera-scoped binding actually carries - everything served per camera. The rest of a
+ * role (HA entities, WisKey, map editing, ...) needs a floor / site / installation binding and does nothing here. */
+const CAMERA_PERMISSIONS = new Set(['map.read', 'video.live', 'video.playback', 'video.export', 'events.read', 'events.ack', 'cases.manage']);
+
 interface ScopeOption {
-  type: 'installation' | 'site' | 'building' | 'floor';
+  type: 'installation' | 'site' | 'building' | 'floor' | 'camera';
   id: string;
   name: string;
 }
@@ -411,6 +415,13 @@ export class SystemAccess extends LitElement {
     this.wizard = { subjectKind: kind, subjectId: id, subjectName: name, roleId, scopeKey: first ? `${first.type}:${first.id}` : 'installation:*', effect: 'allow' };
   }
 
+  /** T055: switch the wizard between a place (installation / site / building / floor) and a single camera. */
+  private pickScopeKind(w: Wizard, camera: boolean) {
+    const opts = this.scopeOptions.filter((s) => (s.type === 'camera') === camera);
+    const first = opts[0];
+    if (first) this.wizard = { ...w, scopeKey: `${first.type}:${first.id}` };
+  }
+
   /** T082: every group change is previewed first - the server names each affected user and what they gain or lose. */
   private async previewGroupChange(g: AccessGroup, heading: string, confirmLabel: string, body: Parameters<typeof groupImpact>[1], run: (revision: number) => Promise<void>) {
     this.busy = true;
@@ -622,6 +633,11 @@ export class SystemAccess extends LitElement {
     const scope = this.scopeOptions.find((s) => `${s.type}:${s.id}` === w.scopeKey);
     const systemRole = role?.system_role ?? false;
     const deny = w.effect === 'deny';
+    // T055: a camera is its own kind of scope - the picker lists only the cameras the server says are in reach
+    const assignRole = role?.permissions.includes('rbac.assign') ?? false;
+    const placeOpts = this.scopeOptions.filter((s) => s.type !== 'camera');
+    const cameraOpts = this.scopeOptions.filter((s) => s.type === 'camera');
+    const onCamera = w.scopeKey.startsWith('camera:');
     return html`<div class="wiz">
       <sw-steps .steps=${['תפקיד', 'היקף', 'תצוגה מקדימה', 'שמירה']} .current=${2}></sw-steps>
       <div class="hint">שיוך ל${w.subjectKind === 'group' ? 'קבוצה' : 'משתמש'}: <strong>${w.subjectName}</strong></div>
@@ -632,7 +648,14 @@ export class SystemAccess extends LitElement {
             <option value="deny" ?selected=${deny}>חסימה — מסיר את הרשאות התפקיד בהיקף, גם אם שיוך אחר מרשה</option>
           </select></sw-field>`}
       <sw-field label="תפקיד"><select data-wizard-role @change=${(e: Event) => (this.wizard = { ...w, roleId: (e.target as HTMLSelectElement).value })}>${this.roles.roles.map((r) => html`<option value=${r.id} ?selected=${r.id === w.roleId}>${r.name}</option>`)}</select></sw-field>
-      <sw-field label="היקף"><select data-wizard-scope @change=${(e: Event) => (this.wizard = { ...w, scopeKey: (e.target as HTMLSelectElement).value })}>${this.scopeOptions.map((s) => html`<option value=${`${s.type}:${s.id}`} ?selected=${`${s.type}:${s.id}` === w.scopeKey} ?disabled=${systemRole && s.type !== 'installation'}>${s.name}</option>`)}</select></sw-field>
+      <sw-field label="סוג היקף"><select data-wizard-scope-kind @change=${(e: Event) => this.pickScopeKind(w, (e.target as HTMLSelectElement).value === 'camera')}>
+        <option value="place" ?selected=${!onCamera}>התקנה / אתר / מבנה / קומה</option>
+        <option value="camera" ?selected=${onCamera} ?disabled=${!cameraOpts.length || systemRole || assignRole}>מצלמה</option>
+      </select></sw-field>
+      ${onCamera
+        ? html`<sw-field label="מצלמה"><select data-wizard-camera @change=${(e: Event) => (this.wizard = { ...w, scopeKey: (e.target as HTMLSelectElement).value })}>${cameraOpts.map((s) => html`<option value=${`${s.type}:${s.id}`} ?selected=${`${s.type}:${s.id}` === w.scopeKey}>${s.name.replace(/^מצלמה · /, '')}</option>`)}</select></sw-field>`
+        : html`<sw-field label="היקף"><select data-wizard-scope @change=${(e: Event) => (this.wizard = { ...w, scopeKey: (e.target as HTMLSelectElement).value })}>${placeOpts.map((s) => html`<option value=${`${s.type}:${s.id}`} ?selected=${`${s.type}:${s.id}` === w.scopeKey} ?disabled=${systemRole && s.type !== 'installation'}>${s.name}</option>`)}</select></sw-field>`}
+      ${onCamera ? html`<div class="hint" data-camera-scope-hint>היקף מצלמה: ההרשאות חלות על המצלמה הזו בלבד — שידור חי, הקלטות, אירועים וייצוא שלה. במפה תוצג תוכנית הקומה שלה עם המצלמה הזו בלבד, בלי ישויות Home Assistant ובלי מצלמות אחרות. חסימה ברמה רחבה יותר (קומה, אתר, התקנה) גוברת גם עליה.</div>` : nothing}
       ${this.directory?.delegated ? html`<div class="hint" data-delegated-hint>כמנהל אתר מוצגים רק התפקידים שמותר לך להאציל וההיקפים שבאחריותך. אינך משנה את השיוכים של עצמך ואינך יוצר חסימות.</div>` : nothing}
       ${w.subjectKind === 'group' ? html`<div class="hint">לפני השמירה תוצג ההשפעה על כל אחד מחברי הקבוצה.</div>` : nothing}
       ${role
@@ -641,6 +664,11 @@ export class SystemAccess extends LitElement {
               <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">ייחסמו ב־${scope?.name ?? 'ההיקף'}</div>${role.permissions.map((p) => html`<div class="row"><span>${this.label(p)}</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div>`)}</div>
               <div class="hint" style="align-self:start">חסימה פועלת רק על ההרשאות שהתפקיד הזה מקנה, ורק בהיקף שנבחר. היא גוברת על כל שיוך "הרשאה" אחר לאותו משתמש באותה הרשאה ובאותו היקף (או היקף שמכיל אותו) — לא על שיוכים בהיקפים לא קשורים.</div>
             </div>`
+          : onCamera
+            ? html`<div class="eff" data-camera-effect>
+                <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">מותר ב־${scope?.name ?? 'המצלמה'}</div>${role.permissions.filter((p) => CAMERA_PERMISSIONS.has(p)).map((p) => html`<div class="row"><span>${this.label(p)}</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div>`)}</div>
+                <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">ללא השפעה בהיקף מצלמה</div>${role.permissions.filter((p) => !CAMERA_PERMISSIONS.has(p)).map((p) => html`<div class="row"><span>${this.label(p)}</span><sw-icon name="close" size=${14} style="color:var(--sw-text-3)"></sw-icon></div>`)}<div class="row"><span>כל מצלמה אחרת</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div></div>
+              </div>`
           : html`<div class="eff">
               <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">מותר ב־${scope?.name ?? 'ההיקף'}</div>${role.permissions.map((p) => html`<div class="row"><span>${this.label(p)}</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div>`)}</div>
               <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">לא כלול / מחוץ להיקף</div>${role.sensitive_missing.map((p) => html`<div class="row"><span>${this.label(p)}</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div>`)}<div class="row"><span>כל היקף אחר</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div></div>

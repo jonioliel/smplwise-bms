@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
+import { keyed } from 'lit/directives/keyed.js';
 import '../components/sw-icon';
 import '../components/sw-button';
 import '../components/sw-badge';
@@ -48,7 +49,7 @@ import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, cru
 import { bidi } from '../i18n/bidi';
 import { currentDesign, onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
-import { canNav, isApi, loadSession, onSession, type Session } from '../api/session';
+import { canNav, isApi, loadSession, onSession, watchPermissions, type Session } from '../api/session';
 import { productSettings } from '../api/prefs';
 import '../components/sw-state-panel';
 import '../components/sw-page';
@@ -78,6 +79,11 @@ export class SwApp extends LitElement {
   private searchSeq = 0;
   private stopRouter?: () => void;
   private stopSession?: () => void;
+  /** T055: the /me/ws access channel - a permissions change re-fetches /me, re-mounts the screen and says so. */
+  private stopPermissions?: () => void;
+  @state() private permEpoch = 0;
+  @state() private permToast = '';
+  private permToastTimer = 0;
   private stopDesign?: () => void;
   private stopWiskeyNav?: () => void;
 
@@ -578,6 +584,20 @@ export class SwApp extends LitElement {
     .status-a.sys.b {
       font-size: var(--sw-fs-xs);
     }
+    .perm-toast {
+      position: fixed;
+      inset-block-end: calc(24px + env(safe-area-inset-bottom, 0px));
+      inset-inline-start: 50%;
+      transform: translateX(50%);
+      z-index: var(--sw-z-topbar);
+      padding: 10px 18px;
+      border-radius: 10px;
+      background: var(--sw-text, #0f172a);
+      color: var(--sw-surface, #fff);
+      font-size: var(--sw-fs-sm, 14px);
+      box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
+      max-inline-size: calc(100vw - 32px);
+    }
     .sysbanner {
       position: fixed;
       inset-inline: 0;
@@ -704,6 +724,7 @@ export class SwApp extends LitElement {
       this.session = s;
       if (s.mode !== 'loading') void resolveDesign();
       if (s.mode === 'api' && this.route) this.redirectDemo(this.route);
+      if ((s.mode === 'api' || s.mode === 'no_access') && !this.stopPermissions) this.stopPermissions = watchPermissions(() => void this.onPermissionsChanged());
       if (s.mode === 'api' && !this.sysTimer) {
         void productSettings().then((ps) => {
           HIDDEN_HREFS.clear();
@@ -759,6 +780,9 @@ export class SwApp extends LitElement {
     super.disconnectedCallback();
     this.stopRouter?.();
     this.stopSession?.();
+    this.stopPermissions?.();
+    this.stopPermissions = undefined;
+    window.clearTimeout(this.permToastTimer);
     this.stopDesign?.();
     this.stopWiskeyNav?.();
     window.removeEventListener('keydown', this.onGlobalKey);
@@ -933,12 +957,31 @@ export class SwApp extends LitElement {
       return html`<div class="gate"><sw-state-panel state="forbidden" heading="הזדהות דרך Home Assistant נדרשת" hint=${s.error ?? ''}></sw-state-panel></div>`;
     }
     if (s.mode === 'no_access') {
-      return html`<div class="gate"><sw-state-panel state="forbidden" heading="אין לך עדיין תפקיד במערכת" hint="המשתמש ${s.me?.user.display_name || s.me?.user.username || ''} מזוהה מ־Home Assistant, אך מנהל ה־VMS טרם שייך לו תפקיד והיקף. פנה למנהל המערכת."></sw-state-panel></div>`;
+      return html`<div class="gate"><sw-state-panel state="forbidden" heading="אין לך עדיין תפקיד במערכת" hint="המשתמש ${s.me?.user.display_name || s.me?.user.username || ''} מזוהה מ־Home Assistant, אך מנהל ה־VMS טרם שייך לו תפקיד והיקף. פנה למנהל המערכת."></sw-state-panel></div>${this.renderPermToast()}`;
     }
     return null;
   }
 
+  private renderPermToast() {
+    return this.permToast ? html`<div class="perm-toast" role="status" aria-live="polite" data-perm-toast>${this.permToast}</div>` : nothing;
+  }
+
+  /** T055: the server says this user's access changed - re-read /me (navigation and gates follow the session), re-mount
+   * the current screen so it re-fetches what it may still see, and tell the user. */
+  private async onPermissionsChanged() {
+    await loadSession();
+    this.permEpoch += 1;
+    this.permToast = 'ההרשאות שלך עודכנו';
+    window.clearTimeout(this.permToastTimer);
+    this.permToastTimer = window.setTimeout(() => (this.permToast = ''), 5000);
+    window.dispatchEvent(new CustomEvent('sw-permissions-changed'));
+  }
+
   private renderScreen() {
+    return html`${keyed(this.permEpoch, this.renderRoute())}${this.renderPermToast()}`;
+  }
+
+  private renderRoute() {
     const r = this.route;
     if (!r) return nothing;
     if (this.landedDefault && this.session.mode === 'api' && !this.startResolved) return html`<sw-state-panel state="loading"></sw-state-panel>`;
