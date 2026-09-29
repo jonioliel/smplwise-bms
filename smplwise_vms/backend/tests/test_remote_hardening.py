@@ -240,3 +240,41 @@ def test_revoked_chains_survive_a_restart(arx):
         row = conn.execute("SELECT * FROM remote_revoked_chains").fetchone()
     assert row["user_id"] == "u-viewer" and row["reason"] == "revoked_all_by_admin" and len(row["iss_hash"]) == 64
     assert tokens["refresh_token"][:12] not in json.dumps(dict(row))
+
+
+# ---------------------------------------------------------------- 2. the roles screen: flag, last sign-in, active count
+
+def test_directory_shows_remote_sign_ins_and_the_flag_impact(arx):
+    admin = TestClient(arx.app)  # the local administrator (dev-joni)
+    users = {u["id"]: u for u in admin.get("/api/v1/identity/users").json()["users"]}
+    assert users["u-viewer"]["remote_sessions"] == 0 and users["u-viewer"]["remote_last_sign_in"] is None
+    phone, laptop = browser(arx), browser(arx)
+    sign_in(phone, arx, arx.viewer)
+    sign_in(laptop, arx, arx.viewer)
+    sign_in(phone, arx, arx.viewer)  # a rotation is not a new sign-in
+    body = admin.get("/api/v1/identity/users").json()
+    assert body["remote_policy"] == "flag"
+    viewer = {u["id"]: u for u in body["users"]}["u-viewer"]
+    assert viewer["remote_access"] is True and viewer["remote_sessions"] == 2 and viewer["remote_last_sign_in"]
+    with arx.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT sign_ins FROM remote_sign_ins WHERE user_id = 'u-viewer'").fetchone()[0] == 2
+
+    # turning the flag off ends both sign-ins and closes their WebSockets in the same request
+    with phone.websocket_connect("/arx/api/v1/me/ws", headers=ORIGIN) as ws:
+        assert json.loads(ws.receive_text())["type"] == "hello"
+        r = phone.put("/api/v1/access/users/u-viewer/remote-access", json={"enabled": False})  # same client: the local admin
+        assert r.status_code == 200 and r.json()["sessions_ended"] == 2
+        with pytest.raises(WebSocketDisconnect) as exc:
+            for _ in range(5):
+                ws.receive_text()
+        assert exc.value.code == 4401
+    assert json.loads(arx.audit("remote.access_flag")[-1]["details_json"]) == {"before": True, "after": False, "sessions_ended": 2}
+    viewer = {u["id"]: u for u in admin.get("/api/v1/identity/users").json()["users"]}["u-viewer"]
+    assert viewer["remote_sessions"] == 0 and viewer["remote_last_sign_in"]
+
+
+def test_sign_in_record_masks_the_address(arx):
+    sign_in(browser(arx), arx, arx.viewer, **{"CF-Connecting-IP": "203.0.113.5", "CF-IPCountry": "IL"})
+    with arx.db.connection(mode="read") as conn:
+        row = conn.execute("SELECT * FROM remote_sign_ins WHERE user_id = 'u-viewer'").fetchone()
+    assert row["last_address"] == "203.0.113.0/24" and row["last_country"] == "IL" and row["sign_ins"] == 1

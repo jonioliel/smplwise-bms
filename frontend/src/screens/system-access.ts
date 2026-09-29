@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { live } from 'lit/directives/live.js';
 import '../components/sw-page';
 import '../components/sw-table';
 import '../components/sw-card';
@@ -118,6 +119,8 @@ export class SystemAccess extends LitElement {
   @state() private groupsMeta: { can_manage: boolean; delegated: boolean } = { can_manage: false, delegated: false };
   @state() private renameDraft: string | null = null;
   @state() private groupChange: { heading: string; impact: GroupImpact; confirmLabel: string; run: () => Promise<void> } | null = null;
+  /** CR-008 P2: turning a user's remote flag off while they have active remote sign-ins - the impact, awaiting a yes. */
+  @state() private remoteOff: { userId: string; count: number } | null = null;
   private roleImpactTimer = 0;
 
   static styles = css`
@@ -268,6 +271,22 @@ export class SystemAccess extends LitElement {
     dd {
       margin: 0;
       min-inline-size: 0;
+    }
+    dd .sub {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      margin-block-start: 2px;
+    }
+    .remote-off {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin-block-start: 6px;
+      padding: 8px;
+      border-radius: var(--sw-r-sm, 6px);
+      background: var(--sw-danger-soft, #fef2f2);
+      font-size: var(--sw-fs-xs);
     }
     .eff {
       display: grid;
@@ -681,13 +700,25 @@ export class SystemAccess extends LitElement {
     </div>`;
   }
 
-  /** CR-008: the per-user remote-access flag (remote.policy = flag). Off ends the user's remote sessions at once. */
+  /** CR-008: the per-user remote-access flag (remote.policy = flag). Off ends the user's remote sessions at once - so
+   * with active sessions the switch first shows the impact ("N כניסות פעילות ייסגרו") and waits for a confirmation
+   * (CR-008 P2). */
+  private requestRemote(u: DirectoryUser, enabled: boolean) {
+    const active = u.remote_sessions ?? 0;
+    if (!enabled && active > 0 && (this.directory?.remote_policy ?? 'flag') === 'flag') {
+      this.remoteOff = { userId: u.id, count: active };
+      return;
+    }
+    void this.toggleRemote(u.id, enabled);
+  }
+
   private async toggleRemote(userId: string, enabled: boolean) {
     this.busy = true;
     this.error = '';
+    this.remoteOff = null;
     try {
-      await setRemoteAccess(userId, enabled);
-      this.message = enabled ? 'הגישה מרחוק הופעלה' : 'הגישה מרחוק כובתה';
+      const r = await setRemoteAccess(userId, enabled);
+      this.message = enabled ? 'הגישה מרחוק הופעלה' : r.sessions_ended ? `הגישה מרחוק כובתה · ${r.sessions_ended} כניסות נסגרו` : 'הגישה מרחוק כובתה';
       await this.load();
     } catch (err) {
       this.error = describeError(err);
@@ -697,15 +728,26 @@ export class SystemAccess extends LitElement {
     }
   }
 
+  /** CR-008 P2: "N כניסות פעילות · אחרונה <when>" - the user's remote sign-ins as the roles screen shows them. */
+  private remoteStats(u: DirectoryUser) {
+    const n = u.remote_sessions ?? 0;
+    const active = n === 0 ? 'אין כניסות פעילות מרחוק' : n === 1 ? 'כניסה פעילה אחת' : `${n} כניסות פעילות`;
+    return `${active} · ${u.remote_last_sign_in ? `כניסה אחרונה מרחוק ${fmtWhen(u.remote_last_sign_in)}` : 'טרם נכנס מרחוק'}`;
+  }
+
   private renderUsersApi() {
     const dir = this.directory!;
     const canAssign = dir.can_assign;
+    const remoteColumn: TableColumn[] = dir.delegated
+      ? []
+      : [{ key: 'remote_access', label: 'מרחוק', render: (r) => { const u = r as unknown as DirectoryUser; const n = u.remote_sessions ?? 0; return html`<span data-remote-col style="font-size:var(--sw-fs-xs)">${u.remote_access ? 'מופעלת' : 'כבויה'}${n ? html` · <sw-badge kind="live" label=${n === 1 ? 'מחובר' : `${n} חיבורים`}></sw-badge>` : nothing}</span><div style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">${u.remote_last_sign_in ? `אחרונה ${fmtWhen(u.remote_last_sign_in)}` : 'טרם נכנס'}</div>`; } }];
     const columns: TableColumn[] = [
       { key: 'name', label: 'שם', render: (r) => html`<div style="display:flex;align-items:center;gap:10px"><sw-avatar name=${String(r.name)} size=${30}></sw-avatar><div><strong>${String(r.name)}</strong>${r.is_admin ? html` <sw-badge kind="neutral" label="מנהל HA · מידע בלבד"></sw-badge>` : nothing}${r.is_self ? html` <sw-badge kind="recorded" label="אני"></sw-badge>` : nothing}<div style="font-size:var(--sw-fs-xs);color:var(--sw-text-3);direction:ltr;text-align:start">${String(r.username || r.id)}</div></div></div>` },
       { key: 'bindings', label: 'תפקיד · היקף', render: (r) => { const bs = r.bindings as AccessBinding[]; return bs.length ? html`${bs.slice(0, 2).map((b) => html`<div style="font-size:var(--sw-fs-xs)"><strong>${b.role_name}</strong> · ${b.scope_name}${b.via_group ? ` (קבוצה)` : ''}</div>`)}${bs.length > 2 ? html`<div style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">+${bs.length - 2}</div>` : nothing}` : html`<span style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">ללא שיוך · אין גישה לתוכן</span>`; } },
       { key: 'groups', label: 'קבוצות', render: (r) => html`<span style="font-size:var(--sw-fs-xs)">${(r.groups as { name: string }[]).map((g) => g.name).join(', ') || '—'}</span>` },
       { key: 'active', label: 'מצב', render: (r) => html`<span style="display:inline-flex;align-items:center;gap:6px;font-size:var(--sw-fs-xs)"><i style="inline-size:7px;block-size:7px;border-radius:50%;background:${r.active ? 'var(--sw-live)' : 'var(--sw-offline)'}"></i>${r.active ? 'פעיל' : 'ללא גישה (HA)'}</span>` },
       { key: 'sync_status', label: 'סנכרון', render: (r) => html`<span style="font-size:var(--sw-fs-xs)">${SYNC_LABEL[r.sync_status as DirectoryUser['sync_status']]}</span><div style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">${r.last_seen_at ? `נראה ${fmtWhen(String(r.last_seen_at))}` : 'טרם נכנס'}</div>` },
+      ...remoteColumn,
     ];
     const u = dir.users.find((x) => x.id === this.selected) ?? null;
     return html`
@@ -724,8 +766,16 @@ export class SystemAccess extends LitElement {
                     <dt>מנהל HA</dt><dd>${u.is_admin ? 'כן · מידע בלבד, לא תפקיד VMS' : 'לא'}</dd>
                     <dt>קבוצות</dt><dd>${u.groups.map((g) => g.name).join(', ') || '—'}</dd>
                     ${dir.delegated ? nothing : html`<dt>גישה מרחוק</dt><dd data-remote-access>${can('system.configure')
-                      ? html`<sw-toggle label="SmplWise Arx" .checked=${!!u.remote_access} ?disabled=${this.busy} data-remote-access-toggle @change=${(e: CustomEvent<{ checked: boolean }>) => void this.toggleRemote(u.id, e.detail.checked)}></sw-toggle>`
-                      : u.remote_access ? 'מופעלת' : 'כבויה'}</dd>`}
+                      ? html`<sw-toggle label="SmplWise Arx" .checked=${live(!!u.remote_access && this.remoteOff?.userId !== u.id)} ?disabled=${this.busy} data-remote-access-toggle @change=${(e: CustomEvent<{ checked: boolean }>) => this.requestRemote(u, e.detail.checked)}></sw-toggle>`
+                      : u.remote_access ? 'מופעלת' : 'כבויה'}
+                      <div class="sub" data-remote-stats>${this.remoteStats(u)}</div>
+                      ${this.remoteOff?.userId === u.id
+                        ? html`<div class="remote-off" role="alert" data-remote-off-impact>
+                            <span>${this.remoteOff.count === 1 ? 'כניסה פעילה אחת תיסגר עכשיו' : `${this.remoteOff.count} כניסות פעילות ייסגרו עכשיו`} (כולל חיבורי וידאו פתוחים).</span>
+                            <sw-button size="sm" variant="danger" data-remote-off-confirm ?disabled=${this.busy} @click=${() => void this.toggleRemote(u.id, false)}>כבה וסגור</sw-button>
+                            <sw-button size="sm" variant="ghost" @click=${() => (this.remoteOff = null)}>ביטול</sw-button>
+                          </div>`
+                        : nothing}</dd>`}
                   </dl>
                   <div style="margin-block-start:10px;font-weight:600;font-size:var(--sw-fs-xs)">שיוכים</div>
                   ${u.bindings.length ? u.bindings.map((b) => this.renderBindingRow(b, canAssign)) : html`<div class="hint">ללא שיוך: אין גישה לתוכן.</div>`}

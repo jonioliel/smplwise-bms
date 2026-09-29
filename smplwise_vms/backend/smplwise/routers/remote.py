@@ -101,17 +101,30 @@ def set_remote_access(user_id: str, body: RemoteFlag, request: Request, principa
         conn.execute("INSERT OR IGNORE INTO remote_access_users(user_id, granted_by, granted_at) VALUES (?, ?, ?)", (user_id, principal.user_id, now_iso()))
     else:
         conn.execute("DELETE FROM remote_access_users WHERE user_id = ?", (user_id,))
-    if before != body.enabled:
-        audit(conn, actor=principal, action="remote.access_flag", decision="allowed", resource_type="user", resource_id=user_id,
-              request_id=getattr(request.state, "correlation_id", None), details={"before": before, "after": body.enabled})
     dropped = 0
     if not body.enabled:
-        # under remote.policy = flag the user's remote sessions end now (their WebSockets close on the next pass)
+        # under remote.policy = flag the user's remote sign-ins end now, their WebSockets with them (CR-008 P2)
         from .settings import read_settings
 
         if read_settings(conn)["remote.policy"] == "flag":
-            dropped = len(hua.STORE.drop_user(user_id))
+            dropped = len({s.chain or s.sid for s in hua.STORE.drop_user(user_id)})
+            _close_sockets_from_thread()
+    if before != body.enabled:
+        audit(conn, actor=principal, action="remote.access_flag", decision="allowed", resource_type="user", resource_id=user_id,
+              request_id=getattr(request.state, "correlation_id", None),
+              details={"before": before, "after": body.enabled, **({"sessions_ended": dropped} if dropped else {})})
     return {"user_id": user_id, "remote_access": body.enabled, "sessions_ended": dropped}
+
+
+def _close_sockets_from_thread() -> None:
+    """Close the dropped sessions' WebSockets now from a sync handler (it runs in AnyIO's worker thread); otherwise the
+    background pass closes them within seconds."""
+    try:
+        from anyio.from_thread import run as run_async
+
+        run_async(hua._close_sockets)
+    except Exception:  # noqa: BLE001 - not in a worker thread (a direct call): the next pass closes them
+        pass
 
 
 # ---------------------------------------------------------------- CR-008 P2: the remote sessions list

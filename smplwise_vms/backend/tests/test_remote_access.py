@@ -468,7 +468,7 @@ def test_remote_access_flag_endpoint(arx):
     r = admin.put("/api/v1/access/users/u-viewer/remote-access", json={"enabled": False})
     assert r.status_code == 200 and r.json()["sessions_ended"] == 1
     assert arx.client.get("/arx/api/v1/me").status_code == 401
-    assert json.loads(arx.audit("remote.access_flag")[-1]["details_json"]) == {"before": True, "after": False}
+    assert json.loads(arx.audit("remote.access_flag")[-1]["details_json"]) == {"before": True, "after": False, "sessions_ended": 1}
     assert admin.put("/api/v1/access/users/nobody/remote-access", json={"enabled": True}).status_code == 404
     arx.bind("dev-dana", "viewer")
     assert admin.put("/api/v1/access/users/u-owner/remote-access", json={"enabled": True}, headers={"X-SW-Dev-User": "dana"}).status_code == 403
