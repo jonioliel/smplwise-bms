@@ -17,6 +17,7 @@ from ..db import get_setting, now_iso, permission_revision
 from ..errors import reason_of
 from . import autosync, events_derive, events_ingest, ha_client, ha_sync, thumbnails
 from . import backup as backup_svc
+from ..mode import NVR_LESS_LABEL, installation_mode, is_ha_only
 
 PROBE_TTL_S = 20
 STARTED = time.time()
@@ -130,7 +131,14 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
         checks.append(_check("storage", "אחסון התוסף (/data)", "error", f"לא ניתן לקרוא את שטח הדיסק ({type(exc).__name__})"))
 
     # devices (probed, cached)
-    if probe:
+    ha_only = is_ha_only(settings)
+    if ha_only:
+        # NVR-less mode (mode.py): the NVR is not part of this installation - a neutral "off", never a warning; go2rtc is
+        # optional (WisKey station video) and is probed only when it is configured
+        nvr = {"status": "off", "detail": f"{NVR_LESS_LABEL} (Home Assistant בלבד). גילוי מצלמות, קליטת התראות, אירועים נגזרים, תמונות אירועים וייצוא אינם פועלים; להוספת NVR: nvr_host ב־Configuration של ה־Add-on והפעלה מחדש.", "configured": False, "mode": "ha_only"}
+        go = _cached("go2rtc", lambda: _probe_go2rtc(settings)) if (probe and settings.go2rtc_url) else (
+            {"status": "off", "detail": "לא מוגדר (רשות במצב ללא NVR: וידאו של עמדות WisKey).", "configured": False} if not settings.go2rtc_url else {"status": "warn", "detail": "לא נבדק בבקשה זו."})
+    elif probe:
         nvr = _cached("nvr", lambda: _probe_nvr(settings))
         go = _cached("go2rtc", lambda: _probe_go2rtc(settings))
     else:
@@ -154,28 +162,34 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
 
     # events
     ing = events_ingest.STATE.as_dict()
-    if not (settings.nvr_host and settings.nvr_user):
+    if ha_only:
+        pass  # NVR-less mode: no alert stream, no derived events, no discovery, thumbnails or exports (see the nvr check)
+    elif not (settings.nvr_host and settings.nvr_user):
         checks.append(_check("events_ingest", "קליטת התראות מה־NVR", "warn", "ה־NVR לא מוגדר.", configured=False))
     else:
         hb = _age_s(ing.get("last_heartbeat_at"))
         checks.append(_check("events_ingest", "קליטת התראות מה־NVR (alertStream)", "ok" if ing.get("connected") else "error", f"{'מחובר' if ing.get('connected') else 'מנותק'} · פעימה {'לפני ' + str(int(hb)) + ' שנ׳' if hb is not None else '—'} · {ing.get('events_stored', 0)} התראות נקלטו · {ing.get('reconnects', 0)} חיבורים מחדש{' · ' + str(ing.get('last_error')) if ing.get('last_error') else ''}", **ing))
     dv = dict(events_derive.STATE)
     dage = _age_s(dv.get("last_ok"))
-    checks.append(_check("events_derive", "אירועים נגזרים מהקלטות", "error" if dv.get("last_error") else ("ok" if dv.get("last_ok") else "warn"), f"{'שגיאה: ' + str(dv['last_error']) if dv.get('last_error') else ('עודכן לפני ' + str(int(dage // 60)) + ' דק׳' if dage is not None else 'טרם רץ')} · {dv.get('derived', 0)} נגזרו · {conn.execute('SELECT COUNT(*) FROM events').fetchone()[0]} אירועים במאגר", **dv))
+    if not ha_only:
+        checks.append(_check("events_derive", "אירועים נגזרים מהקלטות", "error" if dv.get("last_error") else ("ok" if dv.get("last_ok") else "warn"), f"{'שגיאה: ' + str(dv['last_error']) if dv.get('last_error') else ('עודכן לפני ' + str(int(dage // 60)) + ' דק׳' if dage is not None else 'טרם רץ')} · {dv.get('derived', 0)} נגזרו · {conn.execute('SELECT COUNT(*) FROM events').fetchone()[0]} אירועים במאגר", **dv))
 
     # discovery / thumbnails / exports / sessions / backups
     ds = dict(autosync.STATE)
     cams = conn.execute("SELECT COUNT(*) FROM cameras").fetchone()[0]
     cage = _age_s(ds.get("cameras_last_ok"))
-    checks.append(_check("discovery", "גילוי מצלמות מה־NVR", "error" if ds.get("cameras_last_error") else ("ok" if ds.get("cameras_last_ok") else "warn"), f"{cams} מצלמות רשומות · {'עודכן לפני ' + str(int(cage // 60)) + ' דק׳' if cage is not None else 'טרם רץ'} · כל {autosync.INTERVAL_S // 60} דק׳{' · ' + str(ds.get('cameras_last_error')) if ds.get('cameras_last_error') else ''}", cameras=cams, **ds))
+    if not ha_only:
+        checks.append(_check("discovery", "גילוי מצלמות מה־NVR", "error" if ds.get("cameras_last_error") else ("ok" if ds.get("cameras_last_ok") else "warn"), f"{cams} מצלמות רשומות · {'עודכן לפני ' + str(int(cage // 60)) + ' דק׳' if cage is not None else 'טרם רץ'} · כל {autosync.INTERVAL_S // 60} דק׳{' · ' + str(ds.get('cameras_last_error')) if ds.get('cameras_last_error') else ''}", cameras=cams, **ds))
     th = dict(thumbnails.STATE)
-    checks.append(_check("thumbnails", "תמונות אירועים (ffmpeg)", "error" if th.get("last_error") == "ffmpeg_missing" else ("warn" if th.get("failed", 0) > th.get("generated", 0) and th.get("failed", 0) > 3 else "ok"), f"{th.get('generated', 0)} נוצרו · {th.get('failed', 0)} נכשלו · {th.get('queued', 0)} בתור{' · אחרונה: ' + str(th.get('last_error')) if th.get('last_error') else ''}", **th))
+    if not ha_only:
+        checks.append(_check("thumbnails", "תמונות אירועים (ffmpeg)", "error" if th.get("last_error") == "ffmpeg_missing" else ("warn" if th.get("failed", 0) > th.get("generated", 0) and th.get("failed", 0) > 3 else "ok"), f"{th.get('generated', 0)} נוצרו · {th.get('failed', 0)} נכשלו · {th.get('queued', 0)} בתור{' · אחרונה: ' + str(th.get('last_error')) if th.get('last_error') else ''}", **th))
     jobs = {r[0]: r[1] for r in conn.execute("SELECT state, COUNT(*) FROM export_jobs GROUP BY state").fetchall()}
     from . import exports as exports_svc
 
     disk = exports_svc.disk_state(settings, exports_svc.min_free_mb(conn))  # T068: a full data disk pauses exports
     disk_note = f" · הדיסק של התוסף: {disk['free_mb']} MB פנויים, מתחת למינימום {disk['min_free_mb']} MB - ייצואים חדשים נדחים" if disk["low"] else ""
-    checks.append(_check("exports", "ייצוא קטעים", "warn" if jobs.get("failed") or jobs.get("paused_disk_full") or disk["low"] else "ok",
+    if not ha_only:
+        checks.append(_check("exports", "ייצוא קטעים", "warn" if jobs.get("failed") or jobs.get("paused_disk_full") or disk["low"] else "ok",
                          (" · ".join(f"{n} {s}" for s, n in jobs.items()) if jobs else "אין עבודות ייצוא") + disk_note, data_disk=disk, **jobs))
     from ..routers.media import REGISTRY as LIVE
     from .playback import REGISTRY as PB
@@ -188,14 +202,14 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
     bage = _age_s(last["created_at"]) if last else None
     checks.append(_check("backups", "גיבויים", "error" if not last else ("warn" if bage is not None and bage > 2 * 86400 else "ok"), f"{len(backups)} גיבויים · אחרון {last['name'] + ' (' + last['kind'] + ')' if last else 'אין עדיין'}{' · לפני ' + str(int(bage // 3600)) + ' שע׳' if bage is not None else ''}", count=len(backups), last=last["name"] if last else None, last_kind=last["kind"] if last else None, last_age_s=bage))
 
-    worst = "ok"
+    worst = "ok"  # "off" (not part of this installation) never lowers the overall status
     for c in checks:
         if c["status"] == "error":
             worst = "error"
             break
         if c["status"] == "warn":
             worst = "warn"
-    return {"status": worst, "version": __version__, "uptime_s": int(time.time() - STARTED), "checked_at": now_iso(), "probe_ttl_s": PROBE_TTL_S, "checks": checks}
+    return {"status": worst, "mode": installation_mode(settings), "version": __version__, "uptime_s": int(time.time() - STARTED), "checked_at": now_iso(), "probe_ttl_s": PROBE_TTL_S, "checks": checks}
 
 
 def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
@@ -204,7 +218,9 @@ def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
     items: list[dict[str, str]] = []
     nvr = bool(settings.nvr_host and settings.nvr_user)
     ing = events_ingest.STATE
-    if nvr:
+    if is_ha_only(settings):
+        pass  # NVR-less mode: no NVR is expected, so its absence is not something to check (mode.py)
+    elif nvr:
         down_for = (time.time() - ing.disconnected_since) if (not ing.connected and ing.disconnected_since) else 0
         if not ing.connected and (down_for > 60 or not ing.last_heartbeat_at):
             items.append({"id": "nvr", "status": "error", "label": "NVR מנותק — אין התראות חיות; וידאו חי והקלטות עשויים להיכשל"})
@@ -237,4 +253,4 @@ def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
             worst = "error"
             break
         worst = "warn"
-    return {"status": worst, "items": items, "checked_at": now_iso(), "version": __version__}
+    return {"status": worst, "mode": installation_mode(settings), "items": items, "checked_at": now_iso(), "version": __version__}

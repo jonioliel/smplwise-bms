@@ -33,7 +33,7 @@ DEFAULTS: dict[str, str] = {
     "ui.kiosk_cols": "3",  # kiosk page layout when the URL carries none
     "ui.kiosk_rows": "2",
     "ui.hide_search": "false",  # hide the AI search tab (the owner's choice while it is not in use)
-    "ui.start_route": "explore",  # screen the UI opens on: explore (map) | live (overview) | wall | events | playback
+    "ui.start_route": "explore",  # screen the UI opens on: explore (map) | live (overview) | wall | events | playback | devices
     "ui.hide_map": "false",  # hide the map area from the navigation for everyone (a single user: a role without map.read)
     "history.ha_secondary": "false",  # S2: the HA recorder fills entity states the local history does not know (marked as secondary)
     "plan.estimates": "true",  # Plan Studio: show estimated metres (≈) before a plan is calibrated; false hides metres until calibration (owner decision 2026-09-23)
@@ -120,7 +120,7 @@ class SettingsPatch(BaseModel):
     ui_kiosk_cols: int | None = Field(default=None, ge=1, le=6, alias="ui.kiosk_cols")
     ui_kiosk_rows: int | None = Field(default=None, ge=1, le=5, alias="ui.kiosk_rows")
     ui_hide_search: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_search")
-    ui_start_route: str | None = Field(default=None, pattern="^(explore|live|wall|events|playback)$", alias="ui.start_route")
+    ui_start_route: str | None = Field(default=None, pattern="^(explore|live|wall|events|playback|devices)$", alias="ui.start_route")
     ui_hide_map: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_map")
     history_ha_secondary: str | None = Field(default=None, pattern="^(true|false)$", alias="history.ha_secondary")
     plan_estimates: str | None = Field(default=None, pattern="^(true|false)$", alias="plan.estimates")

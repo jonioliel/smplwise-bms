@@ -31,6 +31,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..config import Settings
 from ..db import Database, new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
+from ..mode import REQUIRE_NVR  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import bundle as bundle_svc
 from ..services import bundle_import
@@ -469,7 +470,7 @@ def remove_item(case_id: str, item_id: str, request: Request, principal: Princip
     audit(conn, actor=principal, action="case.item.remove", decision="allowed", resource_type="case", resource_id=case_id, request_id=_rid(request), details={"item": item_id, "kind": it["kind"]})
 
 
-@router.post("/cases/{case_id}/items/{item_id}/preserve", status_code=201)
+@router.post("/cases/{case_id}/items/{item_id}/preserve", status_code=201, dependencies=[REQUIRE_NVR])
 def preserve_item(case_id: str, item_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Copy the footage out of the NVR through an export job (T048) and link it; only then the item counts as preserved."""
     _require_manage(conn, principal)

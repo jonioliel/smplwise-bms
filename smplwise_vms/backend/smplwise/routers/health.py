@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Request
 from .. import __version__
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import lock_stats, permission_revision, unlocked
+from ..mode import describe as describe_mode
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import autosync, events_cache, events_derive, events_ingest, ha_client, ha_sync
 from ..services import health_report as health_report_svc
@@ -33,6 +34,8 @@ def health(request: Request, principal: Principal = Depends(current_principal), 
     return {
         "status": "ok",
         "version": __version__,
+        # NVR-less mode: `mode` ha_only and nvr.state not_configured - neutral, never a failure of the add-on
+        **describe_mode(settings),
         "db": {"ok": conn.execute("SELECT 1").fetchone()[0] == 1, "permission_revision": permission_revision(conn), "write_lock": _write_lock_view(conn, principal)},
         "data_dir_writable": os.access(settings.data_dir, os.W_OK),
         "nvr_configured": bool(settings.nvr_host and settings.nvr_user),

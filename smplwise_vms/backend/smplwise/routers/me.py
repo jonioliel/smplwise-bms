@@ -5,11 +5,12 @@ import json
 import sqlite3
 import time
 
-from fastapi import APIRouter, Depends, Query, WebSocket
+from fastapi import APIRouter, Depends, Query, Request, WebSocket
 from starlette.concurrency import run_in_threadpool
 
-from ..auth import current_principal_ro, get_read_conn
+from ..auth import current_principal_ro, get_read_conn, settings_of
 from ..db import Database, get_setting, now_iso, permission_revision
+from ..mode import installation_mode
 from ..rbac import INSTALLATION, Principal, bindings_of, effective_permissions, has_any_binding, permissions_anywhere, permissions_fingerprint
 from ..services import revocation
 
@@ -27,7 +28,7 @@ def _active(conn: sqlite3.Connection, principal: Principal) -> bool:
 
 
 @router.get("/me")
-def me(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
+def me(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
        known: str | None = Query(None, max_length=64)) -> dict:
     """Who the caller is and what they may do - computed on this request, never cached (T055). `known` = the
     fingerprint the shell holds; `permissions_changed` says whether it moved since."""
@@ -48,6 +49,8 @@ def me(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Conne
         "permissions_fingerprint": fingerprint,
         "permissions_changed": bool(known) and known != fingerprint,
         "bootstrap_state": get_setting(conn, "bootstrap_state", "pending"),
+        # NVR-less mode (mode.py): `ha_only` hides the NVR areas in the shell; every route still checks permissions itself
+        "mode": installation_mode(settings_of(request)),
     }
 
 

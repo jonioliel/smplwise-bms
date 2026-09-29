@@ -17,6 +17,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked, new_id, now_iso
 from ..errors import ApiError, not_found
+from ..mode import REQUIRE_NVR  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import autosync, nvr
 from ..services.access import camera_allowed, require_camera, visible_camera_ids
@@ -69,7 +70,7 @@ def list_cameras(principal: Principal = Depends(current_principal_ro), conn: sql
     }
 
 
-@router.get("/cameras/{camera_id}/snapshot.jpg")
+@router.get("/cameras/{camera_id}/snapshot.jpg", dependencies=[REQUIRE_NVR])
 def snapshot(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Response:
     """Fresh JPEG from the NVR (read-only), cached in /data for `snapshots.max_age_s`; a stale copy is
     served with X-Snapshot-Stale when the NVR is unreachable. Same permission as live video."""
@@ -103,7 +104,7 @@ def now_ts() -> float:
     return time.time()
 
 
-@router.post("/cameras/sync")
+@router.post("/cameras/sync", dependencies=[REQUIRE_NVR])
 def sync_cameras(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Read-only discovery from the NVR: channels, online flag and track ids. Existing aliases/order survive.
     The same discovery also runs automatically at start-up and every few minutes (services/autosync)."""
@@ -139,7 +140,7 @@ class CameraIn(BaseModel):
     alias: str = Field(min_length=1, max_length=120)
 
 
-@router.post("/cameras", status_code=201)
+@router.post("/cameras", status_code=201, dependencies=[REQUIRE_NVR])
 def create_camera(body: CameraIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "sources.configure", INSTALLATION)
     _ensure_recorder(conn)
@@ -172,7 +173,7 @@ def _motion_caps(request: Request, conn: sqlite3.Connection, channel: int) -> di
         return None
 
 
-@router.get("/cameras/{camera_id}/zones")
+@router.get("/cameras/{camera_id}/zones", dependencies=[REQUIRE_NVR])
 def detection_zones(camera_id: str, request: Request, refresh: bool = False, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The camera's detection configuration as the NVR holds it — motion grid, privacy mask, intrusion regions,
     line-crossing lines — read-only (ISAPI GET), cached for a minute, same permission as live video. These are
@@ -212,7 +213,7 @@ _CAPS_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 CAPS_TTL_S = 300
 
 
-@router.get("/cameras/{camera_id}/capabilities")
+@router.get("/cameras/{camera_id}/capabilities", dependencies=[REQUIRE_NVR])
 def camera_capabilities(camera_id: str, request: Request, refresh: bool = False, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """What the NVR says this camera can do — PTZ (supported / unsupported / unknown, with the device's reason),
     its preset list, two-way audio (available / disabled / unsupported / unknown). Read-only, cached five minutes,

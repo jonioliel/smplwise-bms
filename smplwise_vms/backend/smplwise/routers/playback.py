@@ -20,6 +20,7 @@ from ..auth import current_principal, get_conn, settings_of
 from ..config import Settings
 from ..db import unlocked, Database
 from ..errors import ApiError
+from ..mode import REQUIRE_NVR  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize
 from ..services import go2rtc as g2
 from ..services import playback as pb
@@ -71,7 +72,7 @@ def _owned(conn: sqlite3.Connection, principal: Principal, session_id: str) -> p
     return session
 
 
-@router.post("/playback/sessions", status_code=201)
+@router.post("/playback/sessions", status_code=201, dependencies=[REQUIRE_NVR])
 def create_session(body: CreateBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     settings = settings_of(request)
     cam = camera_for_playback(conn, principal, body.camera_id)
@@ -109,7 +110,7 @@ def get_session(session_id: str, principal: Principal = Depends(current_principa
     return pb.to_dict(session, read_settings(conn)["playback.lease_s"])
 
 
-@router.post("/playback/sessions/{session_id}/seek")
+@router.post("/playback/sessions/{session_id}/seek", dependencies=[REQUIRE_NVR])
 def seek_session(session_id: str, body: SeekBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     settings = settings_of(request)
     session = _owned(conn, principal, session_id)

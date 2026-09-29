@@ -114,8 +114,11 @@ def test_cases_preserve_without_nvr_and_permissions(client, settings):
     cam = client.post("/api/v1/cameras", json={"channel": 1, "alias": "a"}).json()
     case = client.post("/api/v1/cases", json={"title": "t"}).json()
     clip = client.post(f"/api/v1/cases/{case['id']}/items", json={"kind": "clip", "camera_id": cam["id"], "from_at": "2026-09-14T11:00:00Z", "to_at": "2026-09-14T11:01:00Z"}).json()
-    assert client.post(f"/api/v1/cases/{case['id']}/items/{clip['id']}/preserve").status_code == 503
-    assert client.get(f"/api/v1/cases/{case['id']}").json()["checked"] is False
+    # without an NVR host the add-on runs in the NVR-less mode: preserving (an NVR export) is refused before anything else
+    nvr_less = TestClient(create_app(replace(settings, nvr_host=None)))
+    r = nvr_less.post(f"/api/v1/cases/{case['id']}/items/{clip['id']}/preserve")
+    assert r.status_code == 409 and r.json()["code"] == "nvr_not_configured"
+    assert nvr_less.get(f"/api/v1/cases/{case['id']}").json()["checked"] is False, "no coverage probe without an NVR"
     # a viewer reads nothing; an installation-wide operator reads and manages
     bind(client, settings, "ron", "viewer", "floor", ids["floor2"])
     assert client.get("/api/v1/cases", headers=as_user("ron")).status_code == 403

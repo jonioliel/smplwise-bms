@@ -38,7 +38,7 @@ LEVELS = ("installation", "site", "building", "floor", "camera")
 def _settings(path: Path, **kw: Any) -> Settings:
     base = Settings(
         data_dir=path / "data", www_dir=None, in_addon=False, trusted_proxies=("172.30.32.2",), dev_user="joni", bootstrap_admin_username="joni",
-        nvr_host=None, nvr_http_port=80, nvr_user=None, nvr_password=None, go2rtc_url=None, log_level="warning", max_upload_bytes=5 * 1024 * 1024,
+        nvr_host="nvr.fixture.test", nvr_http_port=80, nvr_user=None, nvr_password=None, go2rtc_url=None, log_level="warning", max_upload_bytes=5 * 1024 * 1024,
         max_pdf_pages=5, max_render_px=800, preview_px=300,
     )
     return replace(base, **kw)
