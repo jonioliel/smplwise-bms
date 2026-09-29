@@ -334,14 +334,17 @@ def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) ->
     retries of ~30 s would miss the socket's ping deadline and cost a disconnect plus a full resync. A state lost to a
     busy database is corrected by the next push of that entity or the next snapshot."""
     from . import rules as rules_svc
-    from .correlation import record_transition
+    from .correlation import may_record, record_transition
 
     new = data["new_state"]
     fired: list[dict[str, Any]] = []
+    # a pure mirror update commits without fsync; one that may record a correlation event (and rule alerts) - rows HA
+    # never sends again - is fsynced (db.py, durability classes)
+    durable = may_record(data.get("old_state"), new)
 
     def _write() -> dict[str, Any]:
         fired.clear()
-        with db.connection(durable=False) as conn:
+        with db.connection(durable=durable) as conn:
             row = upsert_state(conn, new)
             transition = record_transition(conn, data.get("old_state"), new)
             if transition:

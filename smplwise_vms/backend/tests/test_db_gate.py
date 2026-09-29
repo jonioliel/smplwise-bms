@@ -180,6 +180,75 @@ def test_durability_classes(db):
         assert w.execute("PRAGMA synchronous").fetchone()[0] == 2
 
 
+def test_a_mirror_transaction_that_records_an_event_commits_full(db, monkeypatch):
+    """Review M1: an HA state push that creates a correlation event (not sent again) is fsynced; a pure upsert is not."""
+    from smplwise.services import ha_sync
+
+    at_commit: list[int] = []
+    real_finish = db_mod._finish
+
+    def finish(conn, sql):
+        if sql == "COMMIT" and conn.in_transaction and not db_mod.read_mode(conn):
+            at_commit.append(conn.execute("PRAGMA synchronous").fetchone()[0])
+        return real_finish(conn, sql)
+
+    monkeypatch.setattr(db_mod, "_finish", finish)
+    now = db_mod.now_iso()
+
+    def push(eid, old, new, dc):
+        attrs = {"friendly_name": eid, "device_class": dc}
+        ha_sync.handle_state_event(db, {"entity_id": eid, "old_state": {"entity_id": eid, "state": old, "attributes": attrs, "last_changed": now, "last_updated": now},
+                                        "new_state": {"entity_id": eid, "state": new, "attributes": attrs, "last_changed": now, "last_updated": now}})
+
+    push("sensor.power_1", "1", "2", "power")
+    push("binary_sensor.front_door", "off", "on", "door")
+    with db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM events WHERE source = 'ha'").fetchone()[0] == 1
+    assert at_commit == [1, 2]  # NORMAL for the mirror row alone, FULL once an event row was written
+
+
+def test_durability_is_chosen_before_begin(db):
+    """SQLite refuses to change synchronous inside a transaction, so the class is picked when the connection opens."""
+    with db.connection(durable=False) as conn:
+        with pytest.raises(sqlite3.OperationalError, match="inside a transaction"):
+            conn.execute("PRAGMA synchronous=FULL")
+    from smplwise.services.correlation import may_record
+
+    door = lambda s: {"entity_id": "binary_sensor.front_door", "state": s, "attributes": {"device_class": "door"}}  # noqa: E731
+    power = lambda s: {"entity_id": "sensor.power_1", "state": s, "attributes": {"device_class": "power"}}  # noqa: E731
+    assert may_record(door("off"), door("on"))
+    assert not may_record(None, door("on")) and not may_record(door("on"), door("on"))
+    assert not may_record(power("1"), power("2"))
+
+
+def test_the_alert_stream_writes_full(settings, monkeypatch):
+    """NVR alerts are never sent again: their transaction is fsynced."""
+    import datetime as dt
+
+    from fastapi.testclient import TestClient
+    from smplwise.main import create_app
+    from smplwise.services import events_ingest
+
+    app = create_app(settings)
+    TestClient(app).post("/api/v1/cameras", json={"channel": 1, "alias": "cam1"})
+    at_commit: list[int] = []
+    real_finish = db_mod._finish
+
+    def finish(conn, sql):
+        if sql == "COMMIT" and conn.in_transaction and not db_mod.read_mode(conn):
+            at_commit.append(conn.execute("PRAGMA synchronous").fetchone()[0])
+        return real_finish(conn, sql)
+
+    monkeypatch.setattr(db_mod, "_finish", finish)
+    monkeypatch.setattr(events_ingest.LISTENER, "db", app.state.db)
+    monkeypatch.setattr(events_ingest.LISTENER, "settings", settings)
+    monkeypatch.setattr(events_ingest.LISTENER, "tz_getter", lambda: "Asia/Jerusalem")
+    events_ingest.LISTENER._handle(events_ingest.ParsedAlert(raw_type="VMD", state="active", channel=1, dyn_channel=None,
+                                                             device_time=dt.datetime.now(dt.timezone(dt.timedelta(hours=3))).replace(microsecond=0).isoformat(),
+                                                             description="", target="", active_post_count=1))
+    assert at_commit and set(at_commit) == {2}
+
+
 def test_mirror_writers_use_normal_and_user_actions_stay_full(db, monkeypatch):
     from smplwise.services import ha_sync
 

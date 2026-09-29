@@ -513,7 +513,7 @@ class AlertStreamListener:
 
         def _write() -> dict[str, Any] | None:
             fired.clear()
-            with db.connection(durable=False) as conn:
+            with db.connection() as conn:  # FULL: the NVR never sends an alert again (db.py, durability classes)
                 stored = store_alert(conn, alert, tz, self._camera_lookup(conn), repeats=repeats)
                 if stored:
                     try:

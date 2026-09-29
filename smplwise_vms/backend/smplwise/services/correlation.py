@@ -45,6 +45,18 @@ def tracked_kind(entity_id: str, domain: str, device_class: str | None, name: st
     return None
 
 
+def may_record(old: dict[str, Any] | None, new: dict[str, Any]) -> bool:
+    """False when record_transition surely records nothing (an untracked entity, a first state, no change) - decided
+    without the database, so the caller can pick the transaction's durability before it begins (db.py)."""
+    if old is None:
+        return False
+    eid = new.get("entity_id", "")
+    attrs = new.get("attributes") or {}
+    if not tracked_kind(eid, eid.split(".", 1)[0], attrs.get("device_class"), attrs.get("friendly_name") or eid):
+        return False
+    return new.get("state") is not None and old.get("state") != new.get("state")
+
+
 def record_transition(conn: sqlite3.Connection, old: dict[str, Any] | None, new: dict[str, Any]) -> dict[str, Any] | None:
     """Keep one HA state transition as an event (source 'ha'); None when the entity is not tracked or nothing changed.
     Availability changes are kept too (severity alert when the sensor is lost) — a missing state is a fact to show."""

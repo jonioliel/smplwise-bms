@@ -19,11 +19,15 @@ BUSY_TIMEOUT_S and then fails exactly like SQLite ("database is locked"), so eve
 SQLite's busy timeout still covers another process (a backup tool, the soak harness).
 
 Durability classes: a connection is synchronous=FULL (every commit is fsynced: a committed audit row survives a power
-cut) unless it is opened with durable=False - the high-rate mirror writes of device data that the device sends again
-(the Home Assistant state and registry mirror, NVR alerts, events derived from recordings). Those commit with
-synchronous=NORMAL: no fsync per commit (WAL: an add-on crash loses nothing; a power cut can lose the last commits
-since the previous fsync). On the SD card / eMMC of a typical Home Assistant host an fsync takes milliseconds to tens
-of milliseconds, and ~40 HA state pushes a second each paying one under the write lock is enough to saturate it."""
+cut) unless it is opened with durable=False - the high-rate mirror writes of data a device sends again: the Home
+Assistant state and registry mirror (the next push / snapshot rewrites it) and events derived from recordings (the next
+derive pass re-creates them). Those commit with synchronous=NORMAL: no fsync per commit (WAL: an add-on crash loses
+nothing; a power cut can lose the last commits since the previous fsync). A transaction that may also write something
+nobody sends again - an HA correlation event and its rule alerts - opens a FULL connection instead (the class is chosen
+before BEGIN: SQLite refuses to change synchronous inside a transaction). NVR alerts are never re-sent, so the alert
+stream writes FULL. On the SD card / eMMC
+of a typical Home Assistant host an fsync takes milliseconds to tens of milliseconds, and ~40 HA state pushes a second
+each paying one under the write lock is enough to saturate it."""
 from __future__ import annotations
 
 import datetime as dt
