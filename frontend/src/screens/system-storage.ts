@@ -8,7 +8,7 @@ import '../components/sw-button';
 import '../components/sw-chip';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
-import { isApi } from '../api/session';
+import { isApi, nvrLess } from '../api/session';
 import { describeError } from '../api/client';
 import { productSettings } from '../api/prefs';
 import { fmtMb, getStorage, getStorageLocal, resumeExports, type StorageLocal, type StorageReport } from '../api/storage';
@@ -358,7 +358,20 @@ export class SystemStorage extends LitElement {
     </sw-card>`;
   }
 
+  /** NVR-less mode: only the add-on's own disk - there are no recordings, disks or schedules to read. */
+  private renderNvrLess() {
+    const d = this.data;
+    return html`<sw-page heading="אחסון" subheading="האחסון המקומי של ה־Add-on (/data) · מצב ללא NVR">
+      <sw-button slot="actions" icon="refresh" data-storage-refresh ?disabled=${this.loading} @click=${() => { void this.load(true); void this.loadLocal(); }}>${this.loading ? 'בודק…' : 'רענון'}</sw-button>
+      ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
+      ${this.renderDiskGuard()}
+      ${d ? this.renderLocal(d) : nothing}
+      <sw-state-panel data-storage-nvr-less state="empty" heading="מצב ללא NVR" hint="ההתקנה פועלת עם Home Assistant בלבד: אין הקלטות, דיסקים או תוכנית הקלטה לקרוא. להוספת NVR: nvr_host, nvr_username ו־nvr_password ב־Home Assistant › Add-ons › SMPLWISE VMS › Configuration והפעלה מחדש."></sw-state-panel>
+    </sw-page>`;
+  }
+
   private renderApi() {
+    if (nvrLess()) return this.renderNvrLess();
     if (this.error && !this.data) return html`<sw-page heading="אחסון ותוכנית הקלטה"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>${this.renderDiskGuard()}</sw-page>`;
     const d = this.data;
     if (!d) return html`<sw-page heading="אחסון ותוכנית הקלטה">${this.renderDiskGuard()}<sw-state-panel state="loading"></sw-state-panel></sw-page>`;

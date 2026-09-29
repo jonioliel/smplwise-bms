@@ -139,6 +139,10 @@ FAKE_GO2RTC = "fake-go2rtc.test"
 os.environ["GO2RTC_URL"] = f"http://{FAKE_GO2RTC}:1984"
 os.environ["WISKEY_USER"] = "fixture-door"
 os.environ["WISKEY_PASSWORD"] = "fixture-pass"
+# NVR-less mode (docs/operations/NVR_LESS_MODE.md): a backend without any NVR host runs as `ha_only` and hides the NVR
+# areas. The specs this fixture serves expect the full navigation, so it names a placeholder host (a reserved `.test` name
+# that never resolves; with no NVR user nothing ever connects to it). The NVR-less mode has its own evidence-nvr-less spec.
+os.environ.setdefault("NVR_HOST", "nvr-placeholder.test")
 
 import httpx  # noqa: E402
 import websockets  # noqa: E402

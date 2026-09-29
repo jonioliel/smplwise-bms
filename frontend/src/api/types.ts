@@ -15,6 +15,9 @@ export interface Me {
   /** T055: /me?known=<fingerprint> - whether it moved since. */
   permissions_changed?: boolean;
   bootstrap_state: string;
+  /** NVR-less mode (owner request 2026-09-29): `ha_only` when the add-on options name no NVR host - the shell hides the
+   * NVR areas for everyone. Absent on an older backend (= full). */
+  mode?: 'full' | 'ha_only';
 }
 
 export interface Site {

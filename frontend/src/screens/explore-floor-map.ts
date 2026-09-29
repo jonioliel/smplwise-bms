@@ -21,7 +21,7 @@ import { navigate } from '../router';
 import { cameraState, entityName, loadMap, updateAnchor, type MapBundle } from '../api/maps';
 import { snapshotUrl } from '../api/media';
 import { findFloor, firstFloor, loadTree, type CatalogTree } from '../api/catalog';
-import { isApi } from '../api/session';
+import { isApi, nvrLess } from '../api/session';
 import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
 import type { Anchor } from '../api/types';
@@ -979,7 +979,10 @@ export class ExploreFloorMap extends LitElement {
       this.restoreLayers();
       this.restorePlanImage();
       this.levelFilter = null;
-      this.bundle = await loadMap(this.floorId);
+      const loaded = await loadMap(this.floorId);
+      // NVR-less mode: cameras left over from an earlier NVR (a restored backup, an NVR removed from the options) are not
+      // drawn - their live view and history are not available; entities, rooms, structure and the 3D are unaffected
+      this.bundle = nvrLess() ? { ...loaded, anchors: loaded.anchors.filter((a) => a.resource_type !== 'camera') } : loaded;
       const b = this.bundle;
       void productSettings()
         .then((s) => {
@@ -2193,7 +2196,7 @@ export class ExploreFloorMap extends LitElement {
         <div class="spacer"></div>
         <div class="tools">
           <div class="layers" role="group" aria-label=${t('floor.layers')}>
-            ${LAYERS.map((l) => html`<button class=${this.layers.has(l.id) ? 'on' : ''} title=${l.label()} aria-label=${l.label()} aria-pressed=${this.layers.has(l.id)} @click=${() => this.toggleLayer(l.id)}><sw-icon name=${l.icon} size=${14}></sw-icon></button>`)}
+            ${LAYERS.filter((l) => l.id !== 'cameras' || !nvrLess()).map((l) => html`<button class=${this.layers.has(l.id) ? 'on' : ''} title=${l.label()} aria-label=${l.label()} aria-pressed=${this.layers.has(l.id)} @click=${() => this.toggleLayer(l.id)}><sw-icon name=${l.icon} size=${14}></sw-icon></button>`)}
           </div>
           <sw-button icon="cube" aria-pressed=${this.shows3d} data-view-3d ?disabled=${!this.shows3d && (!this.can3d || this.threeState === 'loading')}
             title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? 'אין מבנה מפורסם לקומה הזו' : 'מקש 3'} @click=${() => this.toggle3d()}>${this.shows3d ? '2D' : '3D'}</sw-button>
@@ -2202,7 +2205,7 @@ export class ExploreFloorMap extends LitElement {
             ? html`<sw-button icon="image" data-skin-controls-export ?disabled=${this.skinBusy} title="תמונות הבקרה של הקומה לסקין עתידי (אורות כבויים / דולקים), מהמבנה המפורסם, בלי תוויות — נשמרות במתקן בלבד" @click=${() => this.exportControlImages()}>${this.skinBusy ? 'מצלם…' : 'תמונות בקרה'}</sw-button>${this.skinNote ? html`<span class="note" data-skin-note>${this.skinNote}</span>` : nothing}`
             : nothing}
           <sw-button icon="layers" aria-pressed=${this.panel} @click=${() => (this.panel = !this.panel)}>${t('floor.layers')}</sw-button>
-          ${b && b.source === 'api' ? html`<sw-button icon="list" aria-pressed=${this.sideList} data-sidelist-toggle @click=${() => this.toggleSideList()}>רשימה</sw-button><sw-button icon="grid" aria-pressed=${this.multi} data-multi-toggle @click=${() => this.setMulti(!this.multi)}>בחירת מצלמות</sw-button>` : nothing}
+          ${b && b.source === 'api' ? html`<sw-button icon="list" aria-pressed=${this.sideList} data-sidelist-toggle @click=${() => this.toggleSideList()}>רשימה</sw-button>${nvrLess() ? nothing : html`<sw-button icon="grid" aria-pressed=${this.multi} data-multi-toggle @click=${() => this.setMulti(!this.multi)}>בחירת מצלמות</sw-button>`}` : nothing}
           <sw-field style="min-inline-size:280px"><select aria-label=${t('floor.switcher')} @change=${(e: Event) => navigate(`/explore/floors/${(e.target as HTMLSelectElement).value}`)}>${floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${bidi(f.name)} · ${f.cameraCount} מצלמות${f.hasPlan ? '' : ' · אין תוכנית'}</option>`)}</select></sw-field>
           ${!b || b.permissions.edit ? html`<sw-button icon="edit" @click=${() => navigate(`/explore/floors/${this.floorId}/edit`)}>עריכת תוכנית</sw-button>` : nothing}
         </div>
