@@ -99,8 +99,11 @@ class WriteGate:
         self._holder: object | None = None
         self._queue: deque[list[Any]] = deque()  # [event, token handed over or None]
 
-    def acquire(self, timeout: float) -> object | None:
-        """A token once it is this caller's turn, None after `timeout` seconds (the caller reports "database is locked")."""
+    def acquire(self, timeout: float, on_slow: Callable[[], None] | None = None, slow_after: float = 1.0) -> object | None:
+        """A token once it is this caller's turn, None after `timeout` seconds (the caller reports "database is locked").
+        on_slow: run once (outside the lock) when the turn has not come after `slow_after` seconds; the caller keeps its
+        place in the queue meanwhile - it waits on the same entry, never re-queues at the end."""
+        deadline = time.monotonic() + max(0.0, timeout)
         with self._lock:
             if self._holder is None and not self._queue:
                 self._holder = object()
@@ -108,7 +111,13 @@ class WriteGate:
             entry: list[Any] = [threading.Event(), None]
             self._queue.append(entry)
         try:
-            entry[0].wait(max(0.0, timeout))
+            if on_slow is not None and slow_after < timeout:
+                if not entry[0].wait(slow_after):
+                    try:
+                        on_slow()
+                    except Exception:  # noqa: BLE001 - a diagnostic must never cost the waiter its turn
+                        log.exception("write gate: slow-wait callback failed")
+            entry[0].wait(max(0.0, deadline - time.monotonic()))
         except BaseException:
             # interrupted while waiting: leave the queue, or hand on a turn that arrived meanwhile - never keep either
             with self._lock:
@@ -166,6 +175,7 @@ def gate_for(path: Path) -> WriteGate:
 _conn_gate: dict[int, WriteGate] = {}  # id(conn) -> its database's gate (connection() / write_aside())
 _gate_tokens: dict[int, tuple[WriteGate, object, sqlite3.Connection]] = {}  # id(conn) -> the gate token it holds while it writes
 _stray_logged: set[int] = set()
+_beginning: set[int] = set()  # id(conn) between taking the gate and BEGIN IMMEDIATE returning
 
 
 def _release_gate(conn: sqlite3.Connection) -> None:
@@ -253,8 +263,8 @@ def _report_stray_holders(gate: WriteGate, waiter: str) -> None:
     COMMIT (conn.execute("COMMIT") instead of db.commit_now) - the token stays with a connection that no longer writes,
     and every writer queues behind it until the connection closes. Logged once per connection, as an error."""
     for key, (g, _tok, holder) in list(_gate_tokens.items()):
-        if g is not gate or key in _stray_logged:
-            continue
+        if g is not gate or key in _stray_logged or key in _beginning:
+            continue  # a holder still inside BEGIN IMMEDIATE (waiting for another process) is not a stray
         try:
             open_tx = holder.in_transaction
         except sqlite3.ProgrammingError:  # closed
@@ -272,15 +282,13 @@ def _begin_immediate(conn: sqlite3.Connection, label: str) -> None:
     full_ms = int(conn.execute("PRAGMA busy_timeout").fetchone()[0])  # the connection's own (BUSY_TIMEOUT_S unless a caller set less)
     gate = _conn_gate.get(id(conn)) if WRITE_GATE else None
     if gate is not None and id(conn) not in _gate_tokens:
-        token = gate.acquire(min(1.0, BUSY_TIMEOUT_S))
-        if token is None and BUSY_TIMEOUT_S > 1.0:
-            _report_stray_holders(gate, label)
-            token = gate.acquire(BUSY_TIMEOUT_S - (time.monotonic() - started))
+        token = gate.acquire(BUSY_TIMEOUT_S, on_slow=lambda: _report_stray_holders(gate, label))
         if token is None:
             with _stats_lock:
                 LOCK_STATS["gate_timeouts"] += 1
             raise _busy(label, sqlite3.OperationalError("database is locked"))
         _gate_tokens[id(conn)] = (gate, token, conn)
+    _beginning.add(id(conn))
     # one attempt never waits longer than BUSY_TIMEOUT_S in total: SQLite gets what the gate queue left of it
     remaining_ms = max(1, int((BUSY_TIMEOUT_S - (time.monotonic() - started)) * 1000))
     shortened = remaining_ms < full_ms
@@ -297,6 +305,7 @@ def _begin_immediate(conn: sqlite3.Connection, label: str) -> None:
         _release_gate(conn)
         raise
     finally:
+        _beginning.discard(id(conn))
         if shortened:
             try:
                 conn.execute(f"PRAGMA busy_timeout={full_ms}")

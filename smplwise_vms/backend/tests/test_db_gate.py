@@ -19,6 +19,86 @@ def db(tmp_path) -> Database:
     return d
 
 
+def test_writers_queued_longer_than_a_second_keep_their_order(db):
+    """Re-review N1: the 1 s stray-holder check once re-queued a waiter at the END - every writer waiting over a second
+    (the storm case) lost its place. Writers arriving 0.3 s apart behind a 2 s holder must start in arrival order."""
+    order: list[int] = []
+    holding, done = threading.Event(), threading.Event()
+
+    def hold() -> None:
+        with db.connection(label="long holder"):
+            holding.set()
+            done.wait(10)
+
+    def writer(i: int) -> None:
+        with db.connection(label=f"w{i}") as conn:
+            order.append(i)
+            set_setting(conn, "last", str(i))
+
+    h = threading.Thread(target=hold)
+    h.start()
+    holding.wait(5)
+    threads = []
+    for i in range(5):
+        t = threading.Thread(target=writer, args=(i,))
+        t.start()
+        threads.append(t)
+        deadline = time.monotonic() + 2
+        while db.gate.state()["waiting"] < i + 1 and time.monotonic() < deadline:
+            time.sleep(0.005)
+        time.sleep(0.3)
+    time.sleep(0.5)  # the first writers have now waited well over a second
+    done.set()
+    for t in [h, *threads]:
+        t.join(10)
+    assert order == [0, 1, 2, 3, 4]
+
+
+def test_a_holder_still_inside_begin_is_not_reported_as_a_stray(db, monkeypatch, caplog):
+    """Re-review: the gate's holder may still be in BEGIN IMMEDIATE, waiting for another process - not a manual COMMIT."""
+    import logging
+
+    monkeypatch.setattr(db_mod, "BUSY_TIMEOUT_S", 3.0)
+    outside = sqlite3.connect(db.path, isolation_level=None, check_same_thread=False)
+    outside.execute("BEGIN IMMEDIATE")
+    threading.Timer(1.6, lambda: outside.execute("ROLLBACK")).start()
+    results: list[str] = []
+
+    def writer(name: str) -> None:
+        with db.connection(label=name) as conn:
+            set_setting(conn, name, "1")
+            results.append(name)
+
+    with caplog.at_level(logging.ERROR, logger="smplwise.db"):
+        a = threading.Thread(target=writer, args=("beginning holder",))
+        a.start()
+        deadline = time.monotonic() + 2
+        while not db.gate.state()["held"] and time.monotonic() < deadline:
+            time.sleep(0.005)
+        b = threading.Thread(target=writer, args=("second",))
+        b.start()
+        a.join(10)
+        b.join(10)
+    outside.close()
+    assert results == ["beginning holder", "second"]
+    assert not any("outside a transaction" in r.getMessage() for r in caplog.records)
+
+
+def test_the_slow_callback_runs_once_and_keeps_the_place():
+    gate = WriteGate()
+    first = gate.acquire(1)
+    calls: list[int] = []
+    got: dict[str, object] = {}
+    t = threading.Thread(target=lambda: got.setdefault("tok", gate.acquire(5, on_slow=lambda: calls.append(gate.state()["waiting"]), slow_after=0.1)))
+    t.start()
+    time.sleep(0.4)
+    assert calls == [1] and gate.state()["waiting"] == 1  # still queued in the same entry
+    gate.release(first)
+    t.join(5)
+    assert got["tok"] is not None and calls == [1]
+    gate.release(got["tok"])
+
+
 def test_gate_is_first_come_first_served():
     gate = WriteGate()
     first = gate.acquire(1)
