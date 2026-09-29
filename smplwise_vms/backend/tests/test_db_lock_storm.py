@@ -9,7 +9,10 @@ SW_DB_STORM_S seconds, against a temporary database:
 - alerts (~5/s): NVR alerts through events_ingest.LISTENER._handle;
 - audit (~5/s): refusal audit rows from read-mode connections (write_aside);
 - http_read (3 threads) and http_write (~3/s): real API requests through the ASGI app;
-- probe (~4/s): a one-row write that measures how long an innocent writer waits.
+- probe (~4/s): a one-row write that measures how long an innocent writer waits;
+- two_phase (~2/s): attempt row, commit_now, a 50 ms device call, outcome row in write_aside (the WisKey shape);
+- device_call (~2/s): a write, a 50 ms device call inside unlocked(), a write after taking the lock back.
+The report names the write gate's state (SW_DB_WRITE_GATE=0 for the A/B).
 
 Slow storage: SW_DB_STORM_FSYNC_MS (default 15) emulates the fsync of an SD card / eMMC - the storage of most Home
 Assistant hosts - by holding every COMMIT of a synchronous=FULL connection that long before it runs (the lock is held
@@ -37,7 +40,7 @@ from fastapi.testclient import TestClient
 from conftest import sw_perf_enabled, sw_time_factor
 from smplwise import audit as audit_mod
 from smplwise import db as db_mod
-from smplwise.db import Database, set_setting
+from smplwise.db import Database, commit_now, set_setting, unlocked
 from smplwise.main import create_app
 from smplwise.services import events_ingest, ha_sync
 
@@ -45,6 +48,7 @@ pytestmark = pytest.mark.skipif(not sw_perf_enabled(), reason="opt-in stress tes
 
 DURATION_S = float(os.environ.get("SW_DB_STORM_S", "90"))
 FSYNC_S = float(os.environ.get("SW_DB_STORM_FSYNC_MS", "15")) / 1000.0
+DEVICE_S = 0.05  # the device call of the two-phase and unlocked() paths
 TZ = "Asia/Jerusalem"
 CAMERAS = 4
 P99_BOUND_S = 1.0  # a write waits at most a second at the 99th percentile
@@ -149,6 +153,25 @@ def test_write_paths_under_sustained_concurrent_load(settings, monkeypatch):
             conn.execute("SELECT COUNT(*) FROM events").fetchone()
             audit_mod.audit(conn, actor=None, action="storm.audit", decision="denied", reason="load", details={"i": i})
 
+    def two_phase(i: int) -> None:
+        """The WisKey / device-bulk shape: an attempt row committed by hand (commit_now), a device call without the lock,
+        the outcome row in a write_aside - the path that kept the gate after a bare COMMIT (review B1)."""
+        with db.connection(label="storm two-phase") as conn:
+            audit_mod.audit(conn, actor=None, action="storm.two_phase", decision="allowed", details={"phase": "attempt", "i": i})
+            commit_now(conn, keep_reading=False)
+            time.sleep(DEVICE_S)
+            with db.write_aside(label="storm two-phase outcome") as w:
+                audit_mod.audit(w, actor=None, action="storm.two_phase", decision="allowed", details={"phase": "outcome", "i": i})
+            conn.execute("BEGIN")
+
+    def device_call(i: int) -> None:
+        """A handler that calls a device inside unlocked() and writes the result after taking the lock back."""
+        with db.connection(label="storm device call") as conn:
+            set_setting(conn, "storm.device.before", str(i))
+            with unlocked(conn):
+                time.sleep(DEVICE_S)
+            set_setting(conn, "storm.device.after", str(i))
+
     def probe(i: int) -> None:
         with db.connection() as conn:
             set_setting(conn, "storm.probe", str(i))
@@ -170,6 +193,7 @@ def test_write_paths_under_sustained_concurrent_load(settings, monkeypatch):
     threads = [
         actor("ha_state_a", 0.05, ha_state(0)), actor("ha_state_b", 0.05, ha_state(1)),
         actor("alerts", 0.2, alert), actor("audit", 0.2, audit_step), actor("probe", 0.25, probe),
+        actor("two_phase", 0.5, two_phase), actor("device_call", 0.5, device_call),
         actor("http_write", 0.3, http("PATCH", ["/api/v1/settings"], lambda i: {"history.ha_secondary": "true" if i % 2 else "false"})),
         *[actor(f"http_read_{k}", 0.05, http("GET", reads[k:] + reads[:k]), writer=False) for k in range(3)],
     ]
@@ -184,6 +208,7 @@ def test_write_paths_under_sustained_concurrent_load(settings, monkeypatch):
     check = real_connect(db.path)
     try:
         audit_rows = check.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'storm.audit'").fetchone()[0]
+        outcomes = check.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'storm.two_phase' AND details_json LIKE '%outcome%'").fetchone()[0]
     finally:
         check.close()  # Windows: an open handle keeps the temporary directory from being removed
     rows = [st.summary() for st in stats.values()]
@@ -191,12 +216,13 @@ def test_write_paths_under_sustained_concurrent_load(settings, monkeypatch):
     lat = [w[0] for w in writes] or [0.0]
     wal = db.path.with_name(db.path.name + "-wal")
     report = {
-        "duration_s": round(elapsed, 1), "fsync_emulated_ms": FSYNC_S * 1000, "gate": hasattr(db_mod, "WriteGate"),
+        "duration_s": round(elapsed, 1), "fsync_emulated_ms": FSYNC_S * 1000, "write_gate": db_mod.WRITE_GATE,
         "total_ops": sum(r["ops"] for r in rows), "total_locked": sum(r["locked"] for r in rows), "total_other_errors": sum(r["other_errors"] for r in rows),
         "writes": len(writes), "write_p50_s": round(statistics.median(lat), 3), "write_p95_s": round(lat[int(0.95 * (len(lat) - 1))], 3),
         "write_p99_s": round(lat[int(0.99 * (len(lat) - 1))], 3), "write_max_s": round(lat[-1], 3),
         "slowest_writes": [{"s": round(s, 3), "actor": a, "at_s": round(o, 1)} for s, a, o in writes[-6:]],
         "audit_rows_written": audit_rows, "audit_ok_ops": stats["audit"].ops - stats["audit"].locked - sum(stats["audit"].other.values()),
+        "two_phase_outcomes": outcomes, "two_phase_ok_ops": stats["two_phase"].ops - stats["two_phase"].locked - sum(stats["two_phase"].other.values()),
         "wal_bytes_at_end": wal.stat().st_size if wal.exists() else 0, "lock_stats": db_mod.lock_stats(), "actors": rows,
     }
     print("\n" + json.dumps(report, ensure_ascii=False, indent=1))
@@ -208,5 +234,6 @@ def test_write_paths_under_sustained_concurrent_load(settings, monkeypatch):
     assert report["total_locked"] == 0, f"{report['total_locked']} 'database is locked' errors"
     assert report["total_other_errors"] == 0, [r["other_kinds"] for r in rows if r["other_errors"]]
     assert report["audit_rows_written"] == report["audit_ok_ops"], "every audit call that returned wrote its row"
+    assert report["two_phase_outcomes"] == report["two_phase_ok_ops"], "every two-phase call wrote its outcome row"
     assert report["write_p99_s"] < P99_BOUND_S * factor, f"write p99 {report['write_p99_s']} s"
     assert report["write_max_s"] < MAX_BOUND_S * factor, f"write max {report['write_max_s']} s"
