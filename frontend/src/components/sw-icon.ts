@@ -84,6 +84,10 @@ const PATHS: Record<string, ReturnType<typeof svg>> = {
   cube: svg`<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/>`,
   hand: svg`<path d="M8 12.5V6a1.6 1.6 0 0 1 3.2 0v5.5M11.2 11.5V4.8a1.6 1.6 0 0 1 3.2 0v6.7M14.4 11.7V6.6a1.6 1.6 0 0 1 3.2 0v8.4M8 13l-1.7-1.6a1.6 1.6 0 0 0-2.4 2.1L6.5 17a7 7 0 0 0 6.2 3.8h.6a6 6 0 0 0 6-6v-3.4a1.6 1.6 0 0 0-3.2 0"/>`,
   help: svg`<circle cx="12" cy="12" r="9"/><path d="M9.3 9.3a2.7 2.7 0 0 1 5.2 1c0 1.9-2.5 1.8-2.5 3.7"/><path d="M12 17.2h.01"/>`,
+  /* CR-013: a drag handle (six dots) and the move up / down arrows of the tab-order dialog */
+  grip: svg`<path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" stroke-width="3.2"/>`,
+  arrowUp: svg`<path d="M12 19V5M6 11l6-6 6 6"/>`,
+  arrowDown: svg`<path d="M12 5v14M6 13l6 6 6-6"/>`,
 };
 
 export type IconName = keyof typeof PATHS;
