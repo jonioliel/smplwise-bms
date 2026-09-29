@@ -126,11 +126,14 @@ test.describe.serial('plan studio: the mark-door tool (SW A)', () => {
     const width1 = g.width_m;
     await page.keyboard.press('Enter');
     await expect(page.locator(`${ED} sw-plan-canvas [data-door-ghost]`)).toHaveCount(0);
-    // the same symbol clicked again: that door is selected, no second one is stacked on it
-    const again = page.waitForResponse((r) => r.url().endsWith('/door-proposal'));
-    await clickPlan(page, 830, 385);
-    expect((await again).status()).toBe(200);
-    await expect(page.locator(ED).getByText('כאן כבר יש דלת: היא נבחרה')).toBeVisible();
+    // the same symbol clicked again (inside its arc): that door is selected - by the server's proposal landing on it, or
+    // by the door's own hit band at this zoom - and no second one is stacked on it
+    await clickPlan(page, 870, 400);
+    const sel = () => page.locator(ED).evaluate((el) => {
+      const e = el as unknown as { geomSel: { id: string; kind: string } | null; studio: { doc: { openings: { id: string }[] } }; doorAsking: boolean };
+      return { kind: e.geomSel?.kind ?? null, on: !!e.geomSel && e.studio.doc.openings.some((o) => o.id === e.geomSel!.id), n: e.studio.doc.openings.length, asking: e.doorAsking };
+    });
+    await expect.poll(async () => { const v = await sel(); return v.asking ? 'asking' : `${v.kind}:${v.on}:${v.n}`; }, { timeout: 10000 }).toBe('opening:true:1');
     await expect(page.locator(`${ED} sw-plan-canvas [data-door-ghost]`)).toHaveCount(0);
 
     // 2. and 3. consecutive clicks: the second door's ghost is accepted by the click on the third door, Esc cancels the third
