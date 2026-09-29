@@ -369,7 +369,7 @@ Tests (run 2026-09-29, workstation):
   run here.
 - Frontend: `tsc --noEmit` clean, `npm run build` OK; `tests/unit-shared-space.spec.ts` 9 passed (content drawn on
   every level, claim of content only, shared deletions, 409 merge, the volume from two outlines, the 3D of both floors
-  with the ring and the tribune rule, hint and search).
+  with the ring and the tribune rule, hint and search); all `unit-*` specs 237 passed.
 - Live: `tests/evidence-shared-space.spec.ts` 2 passed on a throwaway backend (floor 0's outline 2 m wider on each
   side): conversion keeps floor 0's outline and walls, both dashed outlines, the upper rows on floor -1, the tribune
   moved from floor 0, the publish dialog's count and the publish on floor -1, both floors in 3D, the map opening in 3D
