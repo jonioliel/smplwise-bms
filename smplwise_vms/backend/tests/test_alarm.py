@@ -27,6 +27,7 @@ from smplwise.services import alarm_codes as codes
 from smplwise.services import ha_bridge, ha_client, ha_sync
 
 ROOT = Path(__file__).resolve().parents[3]
+BOSS = {"X-SW-Dev-User": "boss"}  # a second system administrator: an admin's own policy / first PIN are set by another (review M3)
 CODE = "92461385"  # the panel code of these tests: grep for it everywhere it must never appear
 PIN = "58302719"  # 8 digits: a chance match inside the database files is negligible
 
@@ -81,6 +82,7 @@ def alarm_app(settings, monkeypatch):
         return dict(answer)
 
     monkeypatch.setattr(ha_client, "call_bridge_execute", fake_execute)
+    bind(c, s, "boss", "system_admin", "installation", "*")
     return app, s, c, calls, answer
 
 
@@ -105,7 +107,7 @@ def _bypass(c, zone: str, on: bool, headers=None, **kw):
 
 
 def _no_code(c, user_id: str = "dev-joni") -> None:
-    assert c.put(f"/api/v1/alarm/users/{user_id}/policy", json={"arm_policy": "no_code", "disarm_policy": "no_code"}).status_code == 200
+    assert c.put(f"/api/v1/alarm/users/{user_id}/policy", json={"arm_policy": "no_code", "disarm_policy": "no_code"}, headers=BOSS).status_code == 200
 
 
 def _as_remote(app, user_id: str = "dev-joni", username: str = "joni") -> None:
@@ -405,25 +407,51 @@ def test_code_plan_matrix():
     assert plan(action="bypass", panel=panel, user_policy=mixed, mode="personal_pin", stored=True, remote=False, remote_codeless=True) == {"prompt": "pin", "send": "none"}
 
 
-def test_pin_hash_and_self_service(alarm_app):
+def test_pin_hash_and_the_first_pin_rules(alarm_app):
+    """Security review M3: the FIRST PIN is set by an administrator, or by the user after typing a stored panel code
+    correctly; changing a PIN needs the current one; an administrator changes their own policy / PIN only with their
+    current PIN (or another administrator does it). PIN length: alarm.pin_min_length (default 6)."""
     app, s, c, calls, _ = alarm_app
     h = codes.hash_pin(PIN)
-    assert PIN not in h and codes.verify_pin(PIN, h) and not codes.verify_pin("0000", h) and not codes.verify_pin(PIN, None)
+    assert PIN not in h and codes.verify_pin(PIN, h) and not codes.verify_pin("000000", h) and not codes.verify_pin(PIN, None)
     assert codes.hash_pin(PIN) != h  # salted
-    assert c.put("/api/v1/alarm/me/pin", json={"pin": "12"}).status_code == 422
-    assert c.put("/api/v1/alarm/me/pin", json={"pin": PIN}).status_code == 200
-    assert c.put("/api/v1/alarm/me/pin", json={"pin": "5555"}).status_code == 403  # changing needs the current PIN
-    assert c.put("/api/v1/alarm/me/pin", json={"pin": "5555", "current_pin": PIN}).status_code == 200
-    me = c.get("/api/v1/alarm/me").json()
+    bind(c, s, "omer", "operator", "installation", "*")
+    o = as_user("omer")
+    # no stored panel code: only an administrator can give the first PIN
+    r = c.put("/api/v1/alarm/me/pin", json={"pin": PIN}, headers=o)
+    assert r.status_code == 409 and r.json()["code"] == "pin_by_admin" and "פנה למנהל המערכת" in r.json()["user_message"]
+    _set_code(c)
+    assert c.put("/api/v1/alarm/me/pin", json={"pin": PIN, "panel_code": "11111111"}, headers=o).json()["code"] == "wrong_code"
+    assert c.put("/api/v1/alarm/me/pin", json={"pin": "1234", "panel_code": CODE}, headers=o).json()["code"] == "invalid_pin"  # 6 by default
+    assert c.put("/api/v1/alarm/me/pin", json={"pin": PIN, "panel_code": CODE}, headers=o).status_code == 200
+    assert c.put("/api/v1/alarm/me/pin", json={"pin": "55555555"}, headers=o).status_code == 403  # changing needs the current PIN
+    assert c.put("/api/v1/alarm/me/pin", json={"pin": "55555555", "current_pin": PIN}, headers=o).status_code == 200
+    me = c.get("/api/v1/alarm/me", headers=o).json()
     assert me["pin_set"] is True and me["code_mode"] == "personal_pin" and me["disarm_policy"] == "code_required"
-    assert "5555" not in json.dumps(me)
-
+    assert "55555555" not in json.dumps(me)
+    assert c.patch("/api/v1/settings", json={"alarm.pin_min_length": "4"}, headers=BOSS).status_code == 200
+    assert c.put("/api/v1/alarm/me/pin", json={"pin": "4321", "current_pin": "55555555"}, headers=o).status_code == 200
+    # an administrator's own policy / PIN: another administrator, or their current PIN
+    assert c.put("/api/v1/alarm/users/dev-joni/policy", json={"arm_policy": "no_code"}).json()["code"] == "own_change_by_other_admin"
+    assert c.put("/api/v1/alarm/users/dev-joni/pin", json={"pin": PIN}).json()["code"] == "own_change_by_other_admin"
+    assert c.put("/api/v1/alarm/users/dev-joni/pin", json={"pin": PIN}, headers=BOSS).status_code == 200
+    assert c.put("/api/v1/alarm/users/dev-joni/policy", json={"arm_policy": "no_code"}).json()["code"] == "wrong_code"
+    assert c.put("/api/v1/alarm/users/dev-joni/policy", json={"arm_policy": "no_code", "current_pin": PIN}).status_code == 200
+    assert c.delete("/api/v1/alarm/users/dev-joni/pin").json()["code"] == "own_pin_by_other_admin"
+    assert c.delete("/api/v1/alarm/users/dev-nobody/pin", headers=BOSS).status_code == 404
+    # a code_required user without a PIN is told whom to ask
+    bind(c, s, "fay", "operator", "installation", "*")
+    r = _act(c, "alarm_control_panel.risco_house", "arm_away", as_user("fay"))
+    assert r.status_code == 409 and r.json()["code"] == "pin_not_set" and "פנה למנהל המערכת" in r.json()["user_message"]
+    with app.state.db.connection() as conn:
+        hows = [json.loads(d)["pin"] for (d,) in conn.execute("SELECT details_json FROM audit_log WHERE action = 'alarm.pin' AND decision = 'allowed'").fetchall()]
+    assert hows.count("first_by_panel_code") == 1 and hows.count("changed") == 2
 
 def test_code_required_with_pin_sends_the_stored_code(alarm_app, caplog):
     app, s, c, calls, _ = alarm_app
     caplog.set_level(logging.DEBUG)
     _set_code(c)
-    c.put("/api/v1/alarm/users/dev-joni/pin", json={"pin": PIN})
+    c.put("/api/v1/alarm/users/dev-joni/pin", json={"pin": PIN}, headers=BOSS)
     p = _panel(_panels(c), "alarm_control_panel.risco_house")
     assert p["code"] == {"arm": "pin", "disarm": "pin", "bypass": "pin"} and p["panel_code_set"] is True
     assert _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True).json()["code"] == "code_required"
@@ -488,7 +516,7 @@ def test_wrong_pins_lock_out_the_user_only(alarm_app, caplog):
     app, s, c, calls, _ = alarm_app
     caplog.set_level(logging.DEBUG)
     _set_code(c)
-    c.put("/api/v1/alarm/users/dev-joni/pin", json={"pin": PIN})
+    c.put("/api/v1/alarm/users/dev-joni/pin", json={"pin": PIN}, headers=BOSS)
     for _ in range(6):  # successes never count toward a lockout
         assert _act(c, "alarm_control_panel.risco_house", "arm_away", code=PIN).status_code == 202
     for i in range(5):
@@ -499,7 +527,7 @@ def test_wrong_pins_lock_out_the_user_only(alarm_app, caplog):
     assert r.status_code == 429 and r.json()["code"] == "code_locked"
     # another user on the SAME panel is not locked
     bind(c, s, "sara", "site_admin", "installation", "*")
-    c.put("/api/v1/alarm/users/dev-sara/pin", json={"pin": "77777777"})
+    c.put("/api/v1/alarm/users/dev-sara/pin", json={"pin": "77777777"}, headers=BOSS)
     assert _act(c, "alarm_control_panel.risco_house", "disarm", as_user("sara"), confirmed=True, code="77777777").status_code == 202
     with app.state.db.connection() as conn:
         assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'alarm.disarm' AND reason = 'wrong_code'").fetchone()[0] == 5
@@ -633,11 +661,12 @@ def test_user_policy_admin_api(alarm_app):
     assert r.status_code == 200 and r.json()["arm_policy"] == "code_required" and r.json()["pin_set"] is False
     assert c.put("/api/v1/alarm/users/dev-omer/policy", json={"arm_policy": "no_code"}).json()["arm_policy"] == "no_code"
     assert c.put("/api/v1/alarm/users/dev-omer/policy", json={"arm_policy": "whatever"}).status_code == 422
+    assert c.put("/api/v1/alarm/users/dev-omer/pin", json={"pin": "1234"}).json()["code"] == "invalid_pin"
     assert c.put("/api/v1/alarm/users/dev-omer/pin", json={"pin": PIN}).json()["pin_set"] is True
     assert c.delete("/api/v1/alarm/users/dev-omer/pin").json()["pin_set"] is False
     assert c.put("/api/v1/alarm/users/dev-omer/policy", json={"arm_policy": "no_code"}, headers=as_user("omer")).status_code == 403
     with app.state.db.connection() as conn:
-        rows = [r[0] for r in conn.execute("SELECT action FROM audit_log WHERE action IN ('alarm.user_policy', 'alarm.pin')").fetchall()]
+        rows = [r[0] for r in conn.execute("SELECT action FROM audit_log WHERE action IN ('alarm.user_policy', 'alarm.pin') AND decision = 'allowed'").fetchall()]
     assert rows.count("alarm.user_policy") == 1 and rows.count("alarm.pin") == 2
 
 
@@ -647,7 +676,7 @@ def test_code_never_stored_in_clear_logged_or_audited(alarm_app, caplog):
     app, s, c, calls, answer = alarm_app
     caplog.set_level(logging.DEBUG)
     _set_code(c)
-    c.put("/api/v1/alarm/users/dev-joni/pin", json={"pin": PIN})
+    c.put("/api/v1/alarm/users/dev-joni/pin", json={"pin": PIN}, headers=BOSS)
     texts = [
         _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=PIN).text,
         _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code="1" * 8).text,

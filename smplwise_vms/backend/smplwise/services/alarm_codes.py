@@ -37,7 +37,7 @@ from ..db import now_iso
 KEY_NAME = "alarm-codes.key"
 POLICIES = ("no_code", "code_required")
 DEFAULT_POLICY = "code_required"
-PIN_MIN, PIN_MAX = 4, 8
+PIN_MIN, PIN_MAX = 4, 8  # the setting alarm.pin_min_length (default 6, review L8) picks the minimum within these
 SCRYPT_N, SCRYPT_R, SCRYPT_P = 1 << 14, 8, 1
 _key_lock = threading.Lock()
 
@@ -69,12 +69,16 @@ def _load_or_create_key(settings: Settings, create: bool) -> bytes | None:
         except OSError:
             pass
         key = secrets.token_bytes(32)
-        # O_BINARY: on Windows (a developer backend) a text-mode descriptor would turn a 0x0A byte of the key into CR LF
-        fd = os.open(str(p), os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
+        # review L1: written to a temporary file (0600, binary - on Windows a text-mode descriptor turned a 0x0A byte of
+        # the key into CR LF), flushed to disk, then renamed into place, so a crash never leaves a half-written key
+        tmp = p.with_name(f".{KEY_NAME}.{secrets.token_hex(4)}.tmp")
+        fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
         try:
             os.write(fd, key)
+            os.fsync(fd)
         finally:
             os.close(fd)
+        os.replace(tmp, p)
         return key
 
 
@@ -121,6 +125,15 @@ def panel_code_info(conn: sqlite3.Connection, panel_entity_id: str) -> dict[str,
     return {"set": r is not None, "set_at": r["set_at"] if r else None, "set_by": r["set_by"] if r else None}
 
 
+def panel_code_readable(conn: sqlite3.Connection, settings: Settings, panel_entity_id: str) -> bool | None:
+    """Whether the stored code still decrypts (review L1): False after the key file was lost or replaced, or after the
+    panel's entity was renamed (the entity id is the ciphertext's associated data - review L2). None: no code stored."""
+    try:
+        return panel_code(conn, settings, panel_entity_id) is not None or None
+    except CodeError:
+        return False
+
+
 def stored_panel_codes(conn: sqlite3.Connection) -> set[str]:
     try:
         return {r[0] for r in conn.execute("SELECT panel_entity_id FROM alarm_panel_codes").fetchall()}
@@ -143,8 +156,8 @@ def same_code(a: str | None, b: str | None) -> bool:
 
 # ---------------------------------------------------------------- personal PINs (hash only)
 
-def valid_pin(pin: Any) -> bool:
-    return isinstance(pin, str) and pin.isascii() and pin.isdigit() and PIN_MIN <= len(pin) <= PIN_MAX
+def valid_pin(pin: Any, min_len: int = PIN_MIN) -> bool:
+    return isinstance(pin, str) and pin.isascii() and pin.isdigit() and max(PIN_MIN, min_len) <= len(pin) <= PIN_MAX
 
 
 def hash_pin(pin: str, salt: bytes | None = None) -> str:
@@ -251,22 +264,36 @@ def code_plan(*, action: str, panel: dict[str, Any], user_policy: dict[str, Any]
 # ---------------------------------------------------------------- wrong codes: lockout
 
 class Lockout:
-    """5 wrong codes in 5 minutes per user OR per panel lock that key for 10 minutes."""
+    """5 wrong codes in 5 minutes per key (a user, or a panel - see routers/alarm._code_gate) lock that key for 10 minutes.
+    The failure window is kept in memory; a lock in force is also written to `alarm_lockouts` (wall-clock expiry) when a
+    connection is given, so a restart does not lift it (review L8)."""
 
     def __init__(self, limit: int = 5, window_s: float = 300.0, lock_s: float = 600.0) -> None:
         self.limit, self.window_s, self.lock_s = limit, window_s, lock_s
         self._lock = threading.Lock()
         self._fails: dict[str, list[float]] = {}
-        self._until: dict[str, float] = {}
+        self._until: dict[str, float] = {}  # wall clock (time.time)
 
-    def locked_for(self, keys: list[str], now: float | None = None) -> float:
-        now = time.monotonic() if now is None else now
+    def _stored(self, conn: sqlite3.Connection | None, keys: list[str]) -> dict[str, float]:
+        if conn is None or not keys:
+            return {}
+        try:
+            rows = conn.execute(f"SELECT key, until_epoch FROM alarm_lockouts WHERE key IN ({','.join('?' * len(keys))})", keys).fetchall()
+        except sqlite3.OperationalError:
+            return {}
+        return {r[0]: float(r[1]) for r in rows}
+
+    def locked_for(self, keys: list[str], conn: sqlite3.Connection | None = None, now: float | None = None) -> float:
+        now = time.time() if now is None else now
+        stored = self._stored(conn, keys)
         with self._lock:
-            return max([0.0] + [self._until[k] - now for k in keys if self._until.get(k, 0.0) > now])
+            untils = [max(self._until.get(k, 0.0), stored.get(k, 0.0)) for k in keys]
+        return max([0.0] + [u - now for u in untils if u > now])
 
-    def fail(self, keys: list[str], now: float | None = None) -> float:
+    def fail(self, keys: list[str], conn: sqlite3.Connection | None = None, now: float | None = None) -> float:
         """Record one wrong code for each key; returns the lock (seconds) now in force, 0 when none."""
-        now = time.monotonic() if now is None else now
+        now = time.time() if now is None else now
+        newly: dict[str, float] = {}
         with self._lock:
             for k in keys:
                 recent = [t for t in self._fails.get(k, []) if now - t < self.window_s] + [now]
@@ -274,7 +301,14 @@ class Lockout:
                 if len(recent) >= self.limit:
                     self._until[k] = now + self.lock_s
                     self._fails[k] = []
-        return self.locked_for(keys, now)
+                    newly[k] = self._until[k]
+        if conn is not None and newly:
+            try:
+                for k, u in newly.items():
+                    conn.execute("INSERT INTO alarm_lockouts(key, until_epoch) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET until_epoch = excluded.until_epoch", (k, u))
+            except sqlite3.OperationalError:
+                pass
+        return self.locked_for(keys, conn, now)
 
     def succeed(self, user_key: str) -> None:
         with self._lock:
@@ -284,6 +318,5 @@ class Lockout:
         with self._lock:
             self._fails.clear()
             self._until.clear()
-
 
 LOCKOUT = Lockout()

@@ -43,3 +43,10 @@ CREATE TABLE alarm_user_policy (
   updated_at    TEXT NOT NULL,
   updated_by    TEXT
 );
+
+-- alarm_lockouts: a code-entry lock in force (5 wrong codes in 5 minutes), keyed "user:<id>" or "panel:<entity id>",
+-- with its wall-clock expiry, so a restart does not lift it (security review L8). Never a code.
+CREATE TABLE alarm_lockouts (
+  key         TEXT PRIMARY KEY,
+  until_epoch REAL NOT NULL
+);

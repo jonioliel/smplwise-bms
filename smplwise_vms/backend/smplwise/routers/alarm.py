@@ -75,6 +75,7 @@ def _settings(conn: sqlite3.Connection) -> dict[str, Any]:
         "remote_disarm": s["alarm.remote_disarm"] == "true",
         "remote_codeless": s["alarm.remote_codeless"] == "true",
         "code_mode": s["alarm.code_mode"] if s["alarm.code_mode"] in ("personal_pin", "panel_code") else "personal_pin",
+        "pin_min_length": int(s["alarm.pin_min_length"]) if str(s["alarm.pin_min_length"]).isdigit() and 4 <= int(s["alarm.pin_min_length"]) <= 8 else 6,
     }
 
 
@@ -254,7 +255,7 @@ def _settle_pass_through(conn: sqlite3.Connection) -> None:
         with _PASS_THROUGH_LOCK:
             _PASS_THROUGH.pop(aid, None)
         if a["status"] in ("unknown", "failed") and (a.get("error") in (None, "invalid_code")):
-            codes.LOCKOUT.fail(keys)
+            codes.LOCKOUT.fail(keys, conn)
 
 
 def _code_gate(act: _Act, plan: dict[str, str], typed: Any, panel: dict[str, Any], stored_code: str | None, *, disarm: bool) -> tuple[str | None, list[str]]:
@@ -274,7 +275,7 @@ def _code_gate(act: _Act, plan: dict[str, str], typed: Any, panel: dict[str, Any
     if prompt in ("pin", "panel"):
         if plan["send"] == "typed":
             _settle_pass_through(act.conn)
-        locked = codes.LOCKOUT.locked_for(keys)
+        locked = codes.LOCKOUT.locked_for(keys, act.conn)
         if locked > 0:
             raise act.refuse(ApiError(429, "code_locked", "יותר מדי ניסיונות קוד שגויים. נסו שוב מאוחר יותר.", retryable=True, details={"retry_after_s": int(locked) + 1}))
         if typed is None or typed == "":
@@ -284,7 +285,7 @@ def _code_gate(act: _Act, plan: dict[str, str], typed: Any, panel: dict[str, Any
     if prompt == "pin" or (prompt == "panel" and plan["send"] != "typed"):
         ok = codes.verify_pin(typed, codes.pin_hash_of(act.conn, uid)) if prompt == "pin" else codes.same_code(typed, stored_code)
         if not ok:
-            locked = codes.LOCKOUT.fail(keys)
+            locked = codes.LOCKOUT.fail(keys, act.conn)
             act.audit("denied", "wrong_code", locked_s=int(locked))
             raise ApiError(403, "wrong_code", "קוד שגוי.", details={"locked_s": int(locked)} if locked else {})
         codes.LOCKOUT.succeed(keys[0])
@@ -389,7 +390,7 @@ def panel_action(entity_id: str, request: Request, principal: Principal = Depend
     if out["status"] == "failed" and out.get("error") in CODE_REFUSALS:
         # review L3: only the panel's real refusal of a code counts as a wrong code (not any ServiceValidationError)
         if plan["send"] == "typed" and out.get("error") == "invalid_code":
-            codes.LOCKOUT.fail(keys)
+            codes.LOCKOUT.fail(keys, conn)
         raise ApiError(422, "code_rejected", "הלוח דחה את הקוד או את הפקודה.", details={"action_id": out["id"]})
     return out
 
@@ -469,28 +470,69 @@ def me(principal: Principal = Depends(current_principal), conn: sqlite3.Connecti
     return {"arm_policy": pol["arm_policy"], "disarm_policy": pol["disarm_policy"], "pin_set": pol["pin_set"], "pin_set_at": pol["pin_set_at"], "code_mode": cfg["code_mode"]}
 
 
+def _alarm_actor(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
+    """A caller who may use a code at all: alarm.arm, alarm.disarm or alarm.bypass anywhere (review L7)."""
+    if not set(permissions_anywhere(conn, principal)) & {ARM, DISARM, BYPASS}:
+        require(conn, principal, ARM, INSTALLATION)
+    return principal
+
+
+def _check_pin_shape(act: "_Act", pin: Any, conn: sqlite3.Connection) -> None:
+    lo = _settings(conn)["pin_min_length"]
+    if not codes.valid_pin(pin, lo):
+        raise act.refuse(ApiError(422, "invalid_pin", f"קוד אישי: {lo}–{codes.PIN_MAX} ספרות."))
+
+
+def _verify_current_pin(act: "_Act", conn: sqlite3.Connection, user_id: str, current: Any) -> None:
+    """The caller's current PIN (a borrowed unlocked session cannot replace it); failures count toward the lockout."""
+    key = [f"user:{user_id}"]
+    locked = codes.LOCKOUT.locked_for(key, conn)
+    if locked > 0:
+        raise act.refuse(ApiError(429, "code_locked", "יותר מדי ניסיונות קוד שגויים. נסו שוב מאוחר יותר.", retryable=True, details={"retry_after_s": int(locked) + 1}))
+    if not isinstance(current, str) or not codes.verify_pin(current, codes.pin_hash_of(conn, user_id)):
+        codes.LOCKOUT.fail(key, conn)
+        raise act.refuse(ApiError(403, "wrong_code", "הקוד הנוכחי שגוי."))
+    codes.LOCKOUT.succeed(key[0])
+
+
 @router.put("/alarm/me/pin")
-def set_my_pin(request: Request, principal: Principal = Depends(_control_holder), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
-    """Set / change the caller's own PIN (4-8 digits). Changing an existing PIN needs the current one (a borrowed
-    unlocked session cannot replace it); a wrong current PIN counts toward the lockout."""
-    _, secret = _parse(request, raw, PinBody, ("pin", "current_pin"))
+def set_my_pin(request: Request, principal: Principal = Depends(_alarm_actor), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+    """Change the caller's own PIN. Security review M3: changing an existing PIN needs the current one; the FIRST PIN is
+    set by an administrator (משתמשים והרשאות) - or here, by a user who types the stored code of a panel they may see
+    correctly (constant-time; failures count toward the lockout of the user and that panel). Audited without values."""
+    _, secret = _parse(request, raw, PinBody, ("pin", "current_pin", "panel_code"))
     act = _Act(request, conn, principal, "alarm.pin", "user", principal.user_id)
-    pin, current = secret.get("pin"), secret.get("current_pin")
-    if not codes.valid_pin(pin):
-        raise act.refuse(ApiError(422, "invalid_pin", f"קוד אישי: {codes.PIN_MIN}–{codes.PIN_MAX} ספרות."))
-    existing = codes.pin_hash_of(conn, principal.user_id)
-    if existing:
-        key = [f"user:{principal.user_id}"]
-        locked = codes.LOCKOUT.locked_for(key)
+    pin = secret.get("pin")
+    _check_pin_shape(act, pin, conn)
+    if codes.pin_hash_of(conn, principal.user_id):
+        _verify_current_pin(act, conn, principal.user_id, secret.get("current_pin"))
+        how = "changed"
+    else:
+        typed = secret.get("panel_code")
+        scope = _Scope(conn, principal)
+        stored = [p for p in codes.stored_panel_codes(conn) if scope.allowed(VIEW, p)]
+        if not stored:
+            raise act.refuse(ApiError(409, "pin_by_admin", "פנה למנהל המערכת לקבלת קוד אישי."))
+        keys = [f"user:{principal.user_id}"]
+        locked = codes.LOCKOUT.locked_for(keys, conn)
         if locked > 0:
             raise act.refuse(ApiError(429, "code_locked", "יותר מדי ניסיונות קוד שגויים. נסו שוב מאוחר יותר.", retryable=True, details={"retry_after_s": int(locked) + 1}))
-        if not isinstance(current, str) or not codes.verify_pin(current, existing):
-            codes.LOCKOUT.fail(key)
-            raise act.refuse(ApiError(403, "wrong_code", "הקוד הנוכחי שגוי."))
+        match = None
+        if isinstance(typed, str) and typed:
+            for p in stored:
+                try:
+                    if codes.same_code(typed, codes.panel_code(conn, settings_of(request), p)):
+                        match = p
+                except codes.CodeError:
+                    continue
+        if match is None:
+            codes.LOCKOUT.fail(keys, conn)
+            raise act.refuse(ApiError(403, "wrong_code", "קוד הלוח שגוי. אפשר גם לפנות למנהל המערכת לקבלת קוד אישי."))
+        codes.LOCKOUT.succeed(keys[0])
+        how = "first_by_panel_code"
     pol = codes.set_pin(conn, principal.user_id, pin, principal.username)
-    act.audit("allowed", None, pin="set")
+    act.audit("allowed", None, pin=how)
     return {"pin_set": pol["pin_set"], "pin_set_at": pol["pin_set_at"]}
-
 
 # ---------------------------------------------------------------- administration (system.configure)
 
@@ -500,12 +542,12 @@ def _configurer(principal: Principal = Depends(current_principal), conn: sqlite3
 
 
 @router.get("/alarm/config")
-def config(principal: Principal = Depends(_configurer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def config(request: Request, principal: Principal = Depends(_configurer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ents = svc.load(conn)
     ovr = svc.overrides(conn)
     disc = svc.discover(conn, ents, ovr)
     for p in disc["panels"]:
-        p["panel_code"] = codes.panel_code_info(conn, p["entity_id"])
+        p["panel_code"] = {**codes.panel_code_info(conn, p["entity_id"]), "readable": codes.panel_code_readable(conn, settings_of(request), p["entity_id"])}
     platforms = {p["platform"] for p in disc["panels"] if p.get("platform")}
 
     def _brief(e: dict[str, Any]) -> dict[str, Any]:
@@ -580,7 +622,10 @@ def put_panel_code(entity_id: str, request: Request, principal: Principal = Depe
     code = secret.get("code")
     if not svc.valid_code(code, fmt if fmt in ("number", "text") else None):
         raise act.refuse(ApiError(422, "invalid_code_format", "הקוד אינו בפורמט שהלוח מקבל." + (" (ספרות בלבד)" if fmt == "number" else "")))
-    info = codes.set_panel_code(conn, settings_of(request), entity_id, code, principal.username)
+    try:
+        info = codes.set_panel_code(conn, settings_of(request), entity_id, code, principal.username)
+    except (codes.CodeError, OSError):  # review L1: a damaged / unwritable key file - said plainly, never the code
+        raise act.refuse(ApiError(503, "code_key_unavailable", "קובץ המפתח של קודי האזעקה פגום או שאי אפשר לכתוב אותו (keys/alarm-codes.key בתיקיית הנתונים). הקוד לא נשמר.")) from None
     code = None  # noqa: F841
     act.audit("allowed", None, panel_code="set")
     return {"panel_code": info}
@@ -591,6 +636,14 @@ def delete_panel_code(entity_id: str, request: Request, principal: Principal = D
     removed = codes.clear_panel_code(conn, entity_id)
     _Act(request, conn, principal, "alarm.panel_code", "alarm_panel", entity_id).audit("allowed", None, panel_code="cleared" if removed else "absent")
     return {"panel_code": codes.panel_code_info(conn, entity_id)}
+
+
+def _own_change(act: "_Act", conn: sqlite3.Connection, current: Any) -> None:
+    """Security review M3: an administrator changes their OWN alarm policy or PIN only with their current PIN - without
+    one, another administrator does it (a borrowed admin session must not make itself code-less)."""
+    if not codes.pin_hash_of(conn, act.principal.user_id):
+        raise act.refuse(ApiError(403, "own_change_by_other_admin", "את מדיניות האזעקה והקוד האישי שלך משנה מנהל מערכת אחר (או אתה, עם הקוד האישי הנוכחי)."))
+    _verify_current_pin(act, conn, act.principal.user_id, current)
 
 
 @router.get("/alarm/users/{user_id}")
@@ -608,10 +661,12 @@ class PolicyBody(BaseModel):
 
 @router.put("/alarm/users/{user_id}/policy")
 def put_user_policy(user_id: str, request: Request, principal: Principal = Depends(_configurer), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
-    body, _ = _parse(request, raw, PolicyBody)
+    body, secret = _parse(request, raw, PolicyBody, ("current_pin",))
     act = _Act(request, conn, principal, "alarm.user_policy", "user", user_id)
     if not conn.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone():
         raise act.refuse(ApiError(404, "not_found", "המשתמש לא נמצא."))
+    if user_id == principal.user_id:
+        _own_change(act, conn, secret.get("current_pin"))
     pol = codes.set_policy(conn, user_id, body.arm_policy, body.disarm_policy, principal.username)
     act.audit("allowed", None, arm_policy=pol["arm_policy"], disarm_policy=pol["disarm_policy"])
     return {"user_id": user_id, **pol}
@@ -620,12 +675,13 @@ def put_user_policy(user_id: str, request: Request, principal: Principal = Depen
 @router.put("/alarm/users/{user_id}/pin")
 def put_user_pin(user_id: str, request: Request, principal: Principal = Depends(_configurer), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
     """An administrator sets a user's PIN (e.g. for someone who never opens the screen); the user may change it later."""
-    _, secret = _parse(request, raw, PinBody, ("pin",))
+    _, secret = _parse(request, raw, PinBody, ("pin", "current_pin"))
     act = _Act(request, conn, principal, "alarm.pin", "user", user_id)
     if not conn.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone():
         raise act.refuse(ApiError(404, "not_found", "המשתמש לא נמצא."))
-    if not codes.valid_pin(secret.get("pin")):
-        raise act.refuse(ApiError(422, "invalid_pin", f"קוד אישי: {codes.PIN_MIN}–{codes.PIN_MAX} ספרות."))
+    if user_id == principal.user_id:
+        _own_change(act, conn, secret.get("current_pin"))
+    _check_pin_shape(act, secret.get("pin"), conn)
     pol = codes.set_pin(conn, user_id, secret["pin"], principal.username)
     act.audit("allowed", None, pin="set")
     return {"user_id": user_id, **pol}
@@ -633,6 +689,11 @@ def put_user_pin(user_id: str, request: Request, principal: Principal = Depends(
 
 @router.delete("/alarm/users/{user_id}/pin")
 def delete_user_pin(user_id: str, request: Request, principal: Principal = Depends(_configurer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    act = _Act(request, conn, principal, "alarm.pin", "user", user_id)
+    if not conn.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone():  # review L7
+        raise act.refuse(ApiError(404, "not_found", "המשתמש לא נמצא."))
+    if user_id == principal.user_id:
+        raise act.refuse(ApiError(403, "own_pin_by_other_admin", "את הקוד האישי שלך מוחק מנהל מערכת אחר."))
     pol = codes.set_pin(conn, user_id, None, principal.username)
     _Act(request, conn, principal, "alarm.pin", "user", user_id).audit("allowed", None, pin="cleared")
     return {"user_id": user_id, **pol}

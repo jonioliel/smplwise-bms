@@ -130,9 +130,11 @@ export function zoneBypass(zoneEntityId: string, bypassed: boolean, opts: { conf
 
 // ---- the caller's own code settings
 export const alarmMe = () => get<{ arm_policy: CodePolicy; disarm_policy: CodePolicy; pin_set: boolean; pin_set_at: string | null; code_mode: string }>('alarm/me');
-export function setMyPin(pin: string, currentPin?: string) {
+/** Change the own PIN (with the current one), or set the FIRST one with a stored panel code (security review M3). */
+export function setMyPin(pin: string, currentPin?: string, panelCode?: string) {
   const body: Record<string, unknown> = { pin };
   if (currentPin) body.current_pin = currentPin;
+  if (panelCode) body.panel_code = panelCode;
   return put<{ pin_set: boolean; pin_set_at: string | null }>('alarm/me/pin', body);
 }
 
@@ -177,8 +179,9 @@ export interface UserAlarmPolicy {
   code_mode?: string;
 }
 export const userAlarmPolicy = (userId: string) => get<UserAlarmPolicy>(`alarm/users/${encodeURIComponent(userId)}`);
-export const setUserAlarmPolicy = (userId: string, body: { arm_policy?: CodePolicy; disarm_policy?: CodePolicy }) => put<UserAlarmPolicy>(`alarm/users/${encodeURIComponent(userId)}/policy`, body);
-export const setUserPin = (userId: string, pin: string) => put<UserAlarmPolicy>(`alarm/users/${encodeURIComponent(userId)}/pin`, { pin });
+/** `currentPin`: required when administrators change their OWN policy or PIN (security review M3). */
+export const setUserAlarmPolicy = (userId: string, body: { arm_policy?: CodePolicy; disarm_policy?: CodePolicy; current_pin?: string }) => put<UserAlarmPolicy>(`alarm/users/${encodeURIComponent(userId)}/policy`, body);
+export const setUserPin = (userId: string, pin: string, currentPin?: string) => put<UserAlarmPolicy>(`alarm/users/${encodeURIComponent(userId)}/pin`, currentPin ? { pin, current_pin: currentPin } : { pin });
 export const clearUserPin = (userId: string) => del(`alarm/users/${encodeURIComponent(userId)}/pin`);
 
 // ---- words
@@ -232,6 +235,9 @@ export const CODE_ERROR_LABEL: Record<string, string> = {
   code_locked: 'יותר מדי ניסיונות שגויים - הקוד ננעל לזמן קצר',
   rate_limited: 'יותר מדי ניסיונות - נסו שוב בעוד כמה דקות',
   code_rejected: 'הלוח דחה את הקוד או את הפקודה',
-  pin_not_set: 'עדיין אין לך קוד אישי',
+  pin_not_set: 'עדיין אין לך קוד אישי - פנה למנהל המערכת לקבלת קוד אישי',
+  pin_by_admin: 'פנה למנהל המערכת לקבלת קוד אישי',
+  own_change_by_other_admin: 'את המדיניות והקוד שלך משנה מנהל מערכת אחר, או אתה עם הקוד האישי הנוכחי',
+  own_pin_by_other_admin: 'את הקוד האישי שלך מוחק מנהל מערכת אחר',
   code_unverifiable: 'לא הוגדר קוד לוח לאימות',
 };

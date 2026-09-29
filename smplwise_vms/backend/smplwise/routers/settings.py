@@ -115,6 +115,7 @@ DEFAULTS: dict[str, str] = {
     # answer 2026-09-29 21:50 - he relies on the Android app's biometric lock); off = from outside everyone types a code.
     "alarm.code_mode": "personal_pin",
     "alarm.remote_codeless": "true",
+    "alarm.pin_min_length": "6",  # personal PIN length: 6-8 digits by default (security review L8); 4-8 allowed
 }
 
 # CR-007 6a/6b: the registered device-screen palettes - keep in step with DEVICE_THEMES in
@@ -192,6 +193,7 @@ class SettingsPatch(BaseModel):
     alarm_remote_disarm: str | None = Field(default=None, pattern="^(true|false)$", alias="alarm.remote_disarm")
     alarm_code_mode: str | None = Field(default=None, pattern="^(personal_pin|panel_code)$", alias="alarm.code_mode")
     alarm_remote_codeless: str | None = Field(default=None, pattern="^(true|false)$", alias="alarm.remote_codeless")
+    alarm_pin_min_length: str | None = Field(default=None, pattern="^[4-8]$", alias="alarm.pin_min_length")
 
     model_config = {"populate_by_name": True}
 

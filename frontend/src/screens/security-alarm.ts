@@ -76,7 +76,7 @@ export class SecurityAlarm extends LitElement {
   @state() private sent: { label: string; record: HaActionRecord | null; entity: string } | null = null;
   @state() private toast = '';
   @state() private pinOpen = false;
-  @state() private pinForm = { current: '', next: '', again: '' };
+  @state() private pinForm = { current: '', next: '', again: '', panel: '' };
   @state() private pinError = '';
   private stopHa?: () => void;
   private stopSession?: () => void;
@@ -589,8 +589,11 @@ export class SecurityAlarm extends LitElement {
 
   private start(p: Pending) {
     if (p.prompt === 'pin_missing') {
-      this.pinOpen = true;
-      this.pinError = 'כדי להפעיל או לנטרל נדרש קוד אישי. הגדירו אותו כאן.';
+      // security review M3: the first PIN comes from an administrator - or from the panel's own code, when one is stored
+      if (this.data?.panels.some((x) => x.panel_code_set)) {
+        this.pinOpen = true;
+        this.pinError = 'נדרש קוד אישי. הקלידו את קוד הלוח כדי להגדיר אותו, או פנו למנהל המערכת לקבלת קוד אישי.';
+      } else this.flash('פנה למנהל המערכת לקבלת קוד אישי.');
       return;
     }
     if (p.prompt === 'unverifiable') {
@@ -693,14 +696,14 @@ export class SecurityAlarm extends LitElement {
     }
     this.busy = true;
     try {
-      await setMyPin(f.next, f.current || undefined);
+      await setMyPin(f.next, f.current || undefined, f.panel || undefined);
       this.pinOpen = false;
-      this.pinForm = { current: '', next: '', again: '' };
+      this.pinForm = { current: '', next: '', again: '', panel: '' };
       this.pinError = '';
       this.flash('הקוד האישי נשמר');
       await this.load(true);
     } catch (err) {
-      this.pinError = err instanceof ApiError && err.body.code === 'wrong_code' ? 'הקוד הנוכחי שגוי.' : describeError(err);
+      this.pinError = err instanceof ApiError && err.body.code === 'wrong_code' ? (this.data?.me.pin_set ? 'הקוד הנוכחי שגוי.' : 'קוד הלוח שגוי.') : err instanceof ApiError ? (CODE_ERROR_LABEL[err.body.code] ?? describeError(err)) : describeError(err);
     } finally {
       this.busy = false;
     }
@@ -858,7 +861,7 @@ export class SecurityAlarm extends LitElement {
     return html`<sw-dialog open heading=${heading} subheading=${sub} data-alarm-dialog @close=${() => this.closeDialog()}>
       ${needsCode
         ? html`<form class="keypad" data-keypad autocomplete="off" @submit=${(e: Event) => { e.preventDefault(); this.submitCode(); }}>
-            <input data-code type="password" inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="sw-alarm-code-nofill" aria-label="קוד"
+            <input data-code type="password" inputmode="numeric" autocomplete="one-time-code" autocorrect="off" autocapitalize="off" spellcheck="false" name="sw-alarm-code-nofill" aria-label="קוד"
               maxlength="32" .value=${this.code} @input=${(e: Event) => { this.code = (e.target as HTMLInputElement).value; this.codeError = ''; }} />
             <div class="keys">${['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'back'].map((k) => html`<button type="button" data-key=${k} aria-label=${k === 'back' ? 'מחיקה' : k === 'clear' ? 'ניקוי' : k} @click=${() => this.key(k)}>${k === 'back' ? '⌫' : k === 'clear' ? 'C' : k}</button>`)}</div>
             ${this.codeError ? html`<div class="err" role="alert" data-code-error>${this.codeError}</div>` : nothing}
@@ -874,16 +877,18 @@ export class SecurityAlarm extends LitElement {
   private renderPin() {
     if (!this.pinOpen) return nothing;
     const has = this.data?.me.pin_set;
-    const set = (k: 'current' | 'next' | 'again') => (e: Event) => (this.pinForm = { ...this.pinForm, [k]: (e.target as HTMLInputElement).value });
+    const set = (k: 'current' | 'next' | 'again' | 'panel') => (e: Event) => (this.pinForm = { ...this.pinForm, [k]: (e.target as HTMLInputElement).value });
     return html`<sw-dialog open heading="הקוד האישי שלי" subheading="קוד של 4–8 ספרות להפעלה ולנטרול מהאפליקציה. זה אינו קוד הלוח." data-alarm-pin-dialog
-      @close=${() => { this.pinOpen = false; this.pinForm = { current: '', next: '', again: '' }; }}>
+      @close=${() => { this.pinOpen = false; this.pinForm = { current: '', next: '', again: '', panel: '' }; }}>
       <form class="pinform" autocomplete="off" @submit=${(e: Event) => { e.preventDefault(); void this.savePin(); }}>
-        ${has ? html`<label class="hint">הקוד הנוכחי<input type="password" inputmode="numeric" autocomplete="off" maxlength="8" data-pin-current .value=${this.pinForm.current} @input=${set('current')} /></label>` : nothing}
-        <label class="hint">קוד חדש<input type="password" inputmode="numeric" autocomplete="off" maxlength="8" data-pin-new .value=${this.pinForm.next} @input=${set('next')} /></label>
-        <label class="hint">שוב, לאימות<input type="password" inputmode="numeric" autocomplete="off" maxlength="8" data-pin-again .value=${this.pinForm.again} @input=${set('again')} /></label>
+        ${has
+          ? html`<label class="hint">הקוד הנוכחי<input type="password" inputmode="numeric" autocomplete="one-time-code" maxlength="8" data-pin-current .value=${this.pinForm.current} @input=${set('current')} /></label>`
+          : html`<label class="hint">קוד הלוח (להגדרת הקוד האישי הראשון)<input type="password" inputmode="numeric" autocomplete="one-time-code" maxlength="32" data-pin-panel .value=${this.pinForm.panel} @input=${set('panel')} /></label>`}
+        <label class="hint">קוד חדש<input type="password" inputmode="numeric" autocomplete="new-password" maxlength="8" data-pin-new .value=${this.pinForm.next} @input=${set('next')} /></label>
+        <label class="hint">שוב, לאימות<input type="password" inputmode="numeric" autocomplete="new-password" maxlength="8" data-pin-again .value=${this.pinForm.again} @input=${set('again')} /></label>
         ${this.pinError ? html`<div class="err" role="alert">${this.pinError}</div>` : nothing}
       </form>
-      <sw-button slot="footer" variant="ghost" @click=${() => { this.pinOpen = false; this.pinForm = { current: '', next: '', again: '' }; }}>ביטול</sw-button>
+      <sw-button slot="footer" variant="ghost" @click=${() => { this.pinOpen = false; this.pinForm = { current: '', next: '', again: '', panel: '' }; }}>ביטול</sw-button>
       <sw-button slot="footer" variant="primary" data-pin-save ?disabled=${this.busy} @click=${() => void this.savePin()}>שמירה</sw-button>
     </sw-dialog>`;
   }

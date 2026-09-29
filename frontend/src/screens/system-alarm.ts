@@ -22,7 +22,7 @@ import {
 } from '../api/alarm';
 import { describeError } from '../api/client';
 import { invalidateSettings } from '../api/prefs';
-import { isApi } from '../api/session';
+import { isApi, session } from '../api/session';
 
 const STRATEGY: Record<string, string> = {
   device: 'אותו device',
@@ -267,8 +267,14 @@ export class SystemAlarmUser extends LitElement {
   @state() private message = '';
   @state() private busy = false;
   @state() private pin = '';
+  /** Security review M3: administrators change their OWN policy / PIN only with their current PIN. */
+  @state() private current = '';
 
   static styles = [shared];
+
+  private get self(): boolean {
+    return session.me?.user.id === this.userId;
+  }
 
   updated(changed: Map<string, unknown>) {
     if (changed.has('userId') && this.userId && isApi()) void this.load();
@@ -304,14 +310,18 @@ export class SystemAlarmUser extends LitElement {
     if (!this.pol) return this.error ? html`<div class="err">${this.error}</div>` : nothing;
     const p = this.pol;
     const ro = !this.canEdit || this.busy;
-    const sel = (key: 'arm_policy' | 'disarm_policy', v: CodePolicy) => html`<select data-alarm-policy=${key} ?disabled=${ro} @change=${(e: Event) => void this.run(() => setUserAlarmPolicy(this.userId, { [key]: (e.target as HTMLSelectElement).value as CodePolicy }), 'נשמר')}>
+    const sel = (key: 'arm_policy' | 'disarm_policy', v: CodePolicy) => html`<select data-alarm-policy=${key} ?disabled=${ro} @change=${(e: Event) => void this.run(() => setUserAlarmPolicy(this.userId, { [key]: (e.target as HTMLSelectElement).value as CodePolicy, ...(this.self && this.current ? { current_pin: this.current } : {}) }), 'נשמר')}>
       <option value="code_required" ?selected=${v === 'code_required'}>חייב קוד</option><option value="no_code" ?selected=${v === 'no_code'}>ללא קוד</option></select>`;
     return html`<div data-alarm-user=${this.userId}>
+      ${this.self
+        ? html`<div class="row"><span class="lbl">הקוד האישי הנוכחי שלך<span class="muted">את המדיניות והקוד של עצמך משנים רק עם הקוד הנוכחי - או שמנהל מערכת אחר משנה אותם.</span></span>
+            <input type="password" inputmode="numeric" autocomplete="one-time-code" maxlength="8" aria-label="הקוד האישי הנוכחי" data-user-pin-current .value=${this.current} @input=${(e: Event) => (this.current = (e.target as HTMLInputElement).value)} /></div>`
+        : nothing}
       <div class="row"><span class="lbl">דריכה<span class="muted">ללא קוד: לחיצה אחת, והמערכת שולחת את קוד הלוח השמור</span></span>${sel('arm_policy', p.arm_policy)}</div>
       <div class="row"><span class="lbl">נטרול ועקיפה<span class="muted">עקיפת חיישן הולכת לפי מדיניות הנטרול</span></span>${sel('disarm_policy', p.disarm_policy)}</div>
       <div class="row"><span class="lbl">קוד אישי<span class="muted">${p.pin_set ? `מוגדר${p.pin_set_at ? ` · ${new Date(p.pin_set_at).toLocaleString('he-IL')}` : ''}${p.pin_set_by ? ` · ${p.pin_set_by}` : ''}` : 'לא מוגדר'} · 4–8 ספרות, נשמר כ-hash בלבד</span></span>
         <span class="inline"><input type="password" inputmode="numeric" autocomplete="new-password" maxlength="8" placeholder="קוד חדש" aria-label="קוד אישי" data-user-pin ?disabled=${ro} .value=${this.pin} @input=${(e: Event) => (this.pin = (e.target as HTMLInputElement).value)} />
-          <sw-button size="sm" variant="primary" data-user-pin-save ?disabled=${ro || !/^\d{4,8}$/.test(this.pin)} @click=${() => { const v = this.pin; this.pin = ''; void this.run(() => setUserPin(this.userId, v), 'הקוד האישי נשמר'); }}>שמירה</sw-button>
+          <sw-button size="sm" variant="primary" data-user-pin-save ?disabled=${ro || !/^\d{4,8}$/.test(this.pin)} @click=${() => { const v = this.pin; this.pin = ''; void this.run(() => setUserPin(this.userId, v, this.self ? this.current || undefined : undefined), 'הקוד האישי נשמר'); }}>שמירה</sw-button>
           ${p.pin_set ? html`<sw-button size="sm" variant="ghost" data-user-pin-clear ?disabled=${ro} @click=${() => void this.run(() => clearUserPin(this.userId), 'הקוד האישי נמחק')}>מחיקה</sw-button>` : nothing}</span></div>
       ${this.message ? html`<div class="ok" role="status">${this.message}</div>` : nothing}${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
     </div>`;

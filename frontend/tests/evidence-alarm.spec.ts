@@ -139,7 +139,7 @@ test.describe('CR-010 navigation: אבטחה › לייב | חקירה | אזע�
     const input = page.locator('security-alarm input[data-code]');
     await expect(input).toHaveAttribute('type', 'password');
     await expect(input).toHaveAttribute('inputmode', 'numeric');
-    await expect(input).toHaveAttribute('autocomplete', 'off');
+    await expect(input).toHaveAttribute('autocomplete', 'one-time-code'); // review L6: never a saved password
     for (const k of ['1', '2', '3', '4']) await page.locator(`security-alarm [data-key="${k}"]`).click();
     await expect(input).toHaveValue('1234');
     await shot(page, 'alarm-keypad', info.project.name);
@@ -152,7 +152,7 @@ test.describe('CR-010 navigation: אבטחה › לייב | חקירה | אזע�
 
 test.describe('CR-010 alarm against the real backend (fake Home Assistant side)', () => {
   test.skip(!LIVE, 'needs tests/fixtures/devices_fake_ha.py (SW_LIVE=1 SW_ALARM_FIXTURE=1)');
-  const PIN = '5820';
+  const PIN = '582046'; // 6 digits: alarm.pin_min_length defaults to 6 (review L8)
   const HOUSE = 'alarm_control_panel.risco_house';
 
   test.beforeAll(async ({ request }) => {
@@ -161,8 +161,13 @@ test.describe('CR-010 alarm against the real backend (fake Home Assistant side)'
     expect(seed.status()).toBe(200);
     // the stored panel code (the fake panel's 1234) and the admin's own PIN, set as an administrator would
     for (const p of [HOUSE, 'alarm_control_panel.risco_garden']) expect((await request.put(`/api/v1/alarm/panels/${p}/code`, { data: { code: '1234' } })).status()).toBe(200);
-    expect((await request.put('/api/v1/alarm/users/dev-joni/pin', { data: { pin: PIN } })).status()).toBe(200);
-    expect((await request.put('/api/v1/alarm/users/dev-joni/policy', { data: { arm_policy: 'no_code', disarm_policy: 'code_required' } })).status()).toBe(200);
+    // an administrator's own PIN and policy are set by ANOTHER administrator (security review M3): a second admin, 'boss'
+    const boss = { 'X-SW-Dev-User': 'boss' };
+    await request.get('/api/v1/me', { headers: boss });
+    const b = await request.post('/api/v1/access/bindings', { data: { subject_kind: 'user', subject_id: 'dev-boss', role_id: 'system_admin', scope_type: 'installation', scope_id: '*' } });
+    expect([201, 409]).toContain(b.status());
+    expect((await request.put('/api/v1/alarm/users/dev-joni/pin', { data: { pin: PIN }, headers: boss })).status()).toBe(200);
+    expect((await request.put('/api/v1/alarm/users/dev-joni/policy', { data: { arm_policy: 'no_code', disarm_policy: 'code_required' }, headers: boss })).status()).toBe(200);
   });
 
   test('the panels, the switcher and the Risco zones with their bypass switches', async ({ page }, info) => {
@@ -186,7 +191,7 @@ test.describe('CR-010 alarm against the real backend (fake Home Assistant side)'
     await page.locator('security-alarm [data-disarm]').click();
     // one wrong PIN per run (desktop only): five in five minutes lock the user and the panel out for ten
     if (info.project.name === 'desktop') {
-      for (const k of ['9', '9', '9', '9']) await page.locator(`security-alarm [data-key="${k}"]`).click();
+      for (const k of ['9', '9', '9', '9', '9', '9']) await page.locator(`security-alarm [data-key="${k}"]`).click();
       await page.locator('security-alarm [data-alarm-confirm]').click();
       await expect(page.locator('security-alarm [data-code-error]')).toHaveText('קוד שגוי');
       await expect(page.locator('security-alarm input[data-code]')).toHaveValue('');
