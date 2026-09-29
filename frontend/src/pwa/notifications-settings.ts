@@ -41,6 +41,7 @@ const SUPPORT_TEXT: Record<Exclude<PushSupport, 'ok'>, string> = {
   unsupported: 'הדפדפן הזה אינו תומך בהתראות Push.',
   ios_install: 'באייפון ובאייפד ההתראות מגיעות רק לאפליקציה שהותקנה: ב־Safari הקישו שיתוף ← "הוספה למסך הבית", פתחו את Arx מהמסך הבית וחזרו לכאן.',
   denied: 'ההתראות חסומות בדפדפן לאתר הזה. שחררו אותן בהגדרות האתר (סמל המנעול ליד הכתובת) ורעננו.',
+  android_shell: 'אפליקציית Android עדיין לא מקבלת התראות Push. כדי לקבל התראות בטלפון, פתחו את Arx בדפדפן Chrome (או התקינו אותו משם למסך הבית) והפעילו כאן את ההתראות.',
 };
 
 /** CR-008 P3 - הגדרות › התראות: per user. This device's push subscription, which kinds of alert reach the user's

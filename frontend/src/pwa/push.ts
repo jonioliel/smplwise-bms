@@ -5,6 +5,7 @@
  */
 import { del, get, post, put } from '../api/client';
 import { appBase, isFramed, isIos, isStandalone } from './register';
+import { inAndroidShell } from '../arx/android-app';
 
 export type PushCategory = 'alerts' | 'doors' | 'device_faults' | 'system';
 
@@ -36,9 +37,12 @@ export const rotateKey = () => post<{ public_key: string; subscriptions_removed:
 export const sendTest = () => post<{ sent: number; results: { id: string; endpoint_host: string; status: number; outcome: string }[] }>('push/test');
 
 /** Why push cannot be switched on here, or 'ok'. */
-export type PushSupport = 'ok' | 'insecure' | 'unsupported' | 'ios_install' | 'denied';
+export type PushSupport = 'ok' | 'insecure' | 'unsupported' | 'ios_install' | 'denied' | 'android_shell';
 
 export function pushSupport(): PushSupport {
+  // CR-008 §9: the Android app's own WebView has no Web Push (no push service behind it); notifications there are a
+  // later decision (native push). The browser and the installed PWA keep Web Push.
+  if (inAndroidShell()) return 'android_shell';
   if (!window.isSecureContext) return 'insecure';
   // iOS/iPadOS deliver Web Push only to an app added to the home screen (16.4+)
   if (isIos() && !isStandalone() && !isFramed()) return 'ios_install';
