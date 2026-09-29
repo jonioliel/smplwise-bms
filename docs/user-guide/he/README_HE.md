@@ -74,8 +74,9 @@ C:/cloude/smplwisebms/.venv/Scripts/python.exe scripts/build_guide.py
 - `capture --only id,id` מצלם רק חלק מהמסכים; `--base-url` מחליף את כתובת המעבדה בכתובת אחרת שמגישה את אותה
   תשתית (מנהרה), כשה־LAN לא נגיש מתחנת העבודה.
 - **קריאה בלבד:** ה־spec חוסם כל בקשה שאינה GET/HEAD/OPTIONS (חוץ מ־offer של WebRTC לצפייה בווידאו) ורושם אותה
-  ב־`blocked-requests.json` בתיקיית הטקסט. בפועל נחסמו רק בדיקות האשף האוטומטיות (`setup/check/*`), ולכן בצילום
-  האשף מופיעה בשלב ה־NVR השורה "אין חיבור לשרת" — תוצר של החסימה, לא מצב אמיתי.
+  ב־`blocked-requests.json` בתיקיית הטקסט. בפועל נחסמו רק בדיקות האשף האוטומטיות (`setup/check/*` — הן נרשמות ביומן
+  הביקורת), ולכן בצילום הדסקטופ של האשף הופיעה בשלב ה־NVR השורה "אין חיבור לשרת" — תוצר של החסימה, לא מצב
+  אמיתי. `setup-wizard.png` נשאר לכן צילום הדגמה (שממילא מדגים שלב שנכשל); צילום הטלפון חי.
 - **תפקיד:** מצלמים בתפקיד של משתמש הטוקן (`system_admin`). וריאנטים של תפקידים אחרים (`--viewer`, `--operator`,
   `--editor`, `--site_admin`) נשארים צילומי הדגמה; `screens.json` מסמן אותם ב־`demo_files`.
 - **פלט:** תמונות לא מצונזרות ב־`private-evidence/guide-live/raw/` ומצונזרות ב־`private-evidence/guide-live/redacted/`
