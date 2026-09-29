@@ -108,6 +108,43 @@ def test_review_m3_an_archive_carries_none_of_the_settings_a_restore_never_write
         assert b"TOP-SECRET-BRIDGE" not in z.read("data/settings.json")
 
 
+def test_review_m4_the_alarm_zone_pairing_overrides_round_trip_through_a_backup(settings, tmp_path):
+    """Review M4: alarm_zone_overrides (the administrator's zone <-> bypass pairing, migration 0036) is project data. It has
+    no parent or child table (no foreign keys), so its place in PROJECT_TABLES is free; codes, PINs and lockouts are NOT
+    project tables and stay out."""
+    assert "alarm_zone_overrides" in svc.PROJECT_TABLES
+    assert {"alarm_panel_codes", "alarm_user_policy", "alarm_lockouts"}.isdisjoint(svc.PROJECT_TABLES + svc.ACCESS_TABLES)
+    app = create_app(settings)
+    c = TestClient(app)
+    _seed(c)
+    rows = [("binary_sensor.front_door", "alarm_control_panel.risco_house", "switch.front_door_bypassed", 0), ("binary_sensor.aux", None, "", 1)]
+    with app.state.db.connection() as conn:
+        conn.executemany("INSERT INTO alarm_zone_overrides(zone_entity_id, panel_entity_id, bypass_entity_id, excluded, updated_at, updated_by) VALUES (?, ?, ?, ?, '2026-09-29T10:00:00Z', 'dev-joni')", rows)
+    e = c.post("/api/v1/backups", json={}).json()
+    assert e["tables"]["alarm_zone_overrides"] == 2
+    raw = c.get(f"/api/v1/backups/{e['name']}/download").content
+    settings2 = replace(settings, data_dir=tmp_path / "data2")
+    app2 = create_app(settings2)
+    c2 = TestClient(app2)
+    with app2.state.db.connection() as conn:  # a stale row of the target that the replace must not leave behind
+        conn.execute("INSERT INTO alarm_zone_overrides(zone_entity_id, excluded, updated_at) VALUES ('binary_sensor.stale', 0, '2026-09-29T10:00:00Z')")
+    up = c2.post("/api/v1/backups/upload", files={"file": ("copy.zip", raw, "application/zip")})
+    res = c2.post(f"/api/v1/backups/{up.json()['name']}/restore", json={"mode": "replace", "scope": "project", "confirm": "RESTORE"})
+    assert res.status_code == 200, res.text
+    assert res.json()["tables"]["alarm_zone_overrides"] == 2
+    with app2.state.db.connection() as conn:
+        got = conn.execute("SELECT zone_entity_id, panel_entity_id, bypass_entity_id, excluded, updated_by FROM alarm_zone_overrides ORDER BY zone_entity_id").fetchall()
+    assert [tuple(r) for r in got] == [("binary_sensor.aux", None, "", 1, "dev-joni"), ("binary_sensor.front_door", "alarm_control_panel.risco_house", "switch.front_door_bypassed", 0, "dev-joni")]
+    # a merge adds a missing row and keeps an existing one
+    with app2.state.db.connection() as conn:
+        conn.execute("DELETE FROM alarm_zone_overrides WHERE zone_entity_id = 'binary_sensor.aux'")
+        conn.execute("UPDATE alarm_zone_overrides SET panel_entity_id = 'alarm_control_panel.risco_garden' WHERE zone_entity_id = 'binary_sensor.front_door'")
+    res = c2.post(f"/api/v1/backups/{up.json()['name']}/restore", json={"mode": "merge", "confirm": "RESTORE"})
+    assert res.status_code == 200 and res.json()["tables"]["alarm_zone_overrides"] == 1
+    with app2.state.db.connection() as conn:
+        assert {r[0]: r[1] for r in conn.execute("SELECT zone_entity_id, panel_entity_id FROM alarm_zone_overrides")} == {"binary_sensor.aux": None, "binary_sensor.front_door": "alarm_control_panel.risco_garden"}
+
+
 def test_pre_upgrade_backup_and_prune(settings):
     app = create_app(settings)
     c = TestClient(app)
