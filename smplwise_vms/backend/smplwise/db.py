@@ -22,7 +22,9 @@ Durability classes: a connection is synchronous=FULL (every commit is fsynced: a
 cut) unless it is opened with durable=False - the high-rate mirror writes of data a device sends again: the Home
 Assistant state and registry mirror (the next push / snapshot rewrites it) and events derived from recordings (the next
 derive pass re-creates them). Those commit with synchronous=NORMAL: no fsync per commit (WAL: an add-on crash loses
-nothing; a power cut can lose the last commits since the previous fsync). A transaction that may also write something
+nothing; a power cut can lose the last commits since the previous fsync). The HA state mirror's transaction also
+appends ha_state_history rows (T041), which HA does not send again: on a power cut the last ~30 s of that history can
+be lost - accepted for a ~40/s stream, noted at ha_sync.upsert_state. A transaction that may also write something
 nobody sends again - an HA correlation event and its rule alerts - opens a FULL connection instead (the class is chosen
 before BEGIN: SQLite refuses to change synchronous inside a transaction). NVR alerts are never re-sent, so the alert
 stream writes FULL. On the SD card / eMMC

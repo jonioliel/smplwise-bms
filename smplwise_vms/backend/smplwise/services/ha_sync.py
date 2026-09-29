@@ -163,7 +163,11 @@ def upsert_state(conn: sqlite3.Connection, st: dict[str, Any], seen: str | None 
         )
     from . import ha_history  # local import: the history depends on db only
 
-    ha_history.record(conn, st)  # T041: every state the VMS learns of is history from now on
+    # T041: every state the VMS learns of is history from now on. Durability: a pure state update commits on a
+    # synchronous=NORMAL connection (db.py, durability classes), so these ha_state_history rows - which HA does NOT send
+    # again - can lose roughly the last 30 s (until the next WAL fsync / checkpoint) on a power cut; an add-on crash
+    # or restart loses nothing. The current state itself is corrected by the next push / snapshot.
+    ha_history.record(conn, st)
     return entity_row(conn.execute("SELECT * FROM ha_entities WHERE entity_id = ?", (eid,)).fetchone())
 
 
