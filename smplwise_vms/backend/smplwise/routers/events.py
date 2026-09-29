@@ -322,7 +322,7 @@ def _facets(conn: sqlite3.Connection, wide: bool, ids: set[str] | None, days: in
 
 
 @router.get("/events/summary")
-def summary(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def summary(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     wide, ids = _scope(conn, principal)
     s = read_settings(conn)
     start, end = local_day_bounds(dt.datetime.now(zone(s["time.zone"])).date(), zone(s["time.zone"]))
@@ -449,8 +449,8 @@ def group_windows(events: list[dict[str, Any]], gap_seconds: int, by: str = "cam
 @router.get("/events/windows")
 def list_windows(
     request: Request,
-    principal: Principal = Depends(current_principal),
-    conn: sqlite3.Connection = Depends(get_conn),
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),  # T068: a read, never under the write lock (it held it for the whole 1000-row build)
     date: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     from_: str | None = Query(None, alias="from"),
     to: str | None = None,
@@ -497,7 +497,7 @@ def ack_many(body: AckManyIn, request: Request, principal: Principal = Depends(c
 
 
 @router.get("/cameras/{camera_id}/events")
-def camera_events(camera_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$")) -> dict[str, Any]:
+def camera_events(camera_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$")) -> dict[str, Any]:
     """Timeline markers for one camera and local day (events.read or video.playback on that camera)."""
     if not conn.execute("SELECT 1 FROM cameras WHERE id = ?", (camera_id,)).fetchone():
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")

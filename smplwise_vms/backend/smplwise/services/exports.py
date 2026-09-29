@@ -30,7 +30,7 @@ from typing import Any, Callable
 from urllib.parse import parse_qs, urlsplit
 
 from ..config import Settings
-from ..db import Database, get_setting, now_iso, unlocked
+from ..db import Database, get_setting, now_iso, retry_locked, unlocked
 from ..errors import ApiError
 from . import nvr, recordings
 from .timeutil import UTC, iso_utc, nvr_wall_to_utc, parse_utc, zone
@@ -418,9 +418,27 @@ class Worker:
                 if not row:
                     return ran
                 conn.execute("UPDATE export_jobs SET state = 'running', updated_at = ? WHERE id = ?", (now_iso(), row["id"]))
-            self._run(row["id"])
+            try:
+                self._run(row["id"])
+            except Exception as exc:  # noqa: BLE001 - never leave a job "running" until the next restart (T068 soak)
+                log.exception("export %s crashed: %s", row["id"], type(exc).__name__)
+                self._crashed(row["id"], exc)
             ran += 1
         return ran
+
+    def _crashed(self, job_id: str, exc: BaseException) -> None:
+        assert self.db
+        db = self.db
+
+        def _mark() -> None:
+            with db.connection() as conn:
+                conn.execute("UPDATE export_jobs SET state = 'failed', error = ?, updated_at = ? WHERE id = ? AND state = 'running'",
+                             (f"הייצוא נכשל בשגיאה פנימית ({type(exc).__name__}); אפשר ליצור אותו מחדש.", now_iso(), job_id))
+
+        try:
+            retry_locked(_mark, what=f"export {job_id}: mark failed")
+        except Exception:  # noqa: BLE001 - the restart marks it interrupted as a last resort
+            log.exception("export %s: could not record the failure", job_id)
 
     def _update(self, job_id: str, *, state: str | None = None, progress: float | None = None, error: str | None = None, payload: Payload | None = None) -> None:
         assert self.db

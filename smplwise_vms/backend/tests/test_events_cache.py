@@ -194,6 +194,31 @@ def test_windows_and_health_report_the_cache(settings):
     assert {"hits", "misses", "size", "rows", "max_entries", "max_rows", "ttl_s"} <= set(h) and h["ttl_s"] <= 5 and h["size"] >= 1
 
 
+def test_event_centre_reads_never_wait_for_the_write_lock(settings):
+    """The windows view (a 1000-row build), the timeline and the day summary are reads: with another writer holding
+    SQLite's write lock they answer at once (the soak caught /events/windows holding the lock for its whole build)."""
+    import sqlite3
+
+    app = create_app(settings)
+    c = TestClient(app)
+    cam = c.post("/api/v1/cameras", json={"channel": 1, "alias": "a"}).json()
+    _store(app.state.db, 1, dt.datetime.now(UTC) - dt.timedelta(minutes=5))
+    day = dt.datetime.now(UTC).date().isoformat()
+    paths = ["/api/v1/events/windows", f"/api/v1/cameras/{cam['id']}/events?date={day}", "/api/v1/events/summary", "/api/v1/events", "/api/v1/events/facets"]
+    for p in paths:
+        assert c.get(p).status_code == 200  # warm: the throttled user touch is behind us
+    blocker = sqlite3.connect(str(app.state.db.path), timeout=1, isolation_level=None)
+    blocker.execute("BEGIN IMMEDIATE")
+    try:
+        for p in paths:
+            t0 = time.perf_counter()
+            r = c.get(p)
+            assert r.status_code == 200 and time.perf_counter() - t0 < 5, (p, r.status_code)
+    finally:
+        blocker.execute("ROLLBACK")
+        blocker.close()
+
+
 def test_thumbnail_folder_index(settings, monkeypatch):
     """The list reads thumbnail state from one folder listing: what the worker writes shows at once, a file added behind
     its back within INDEX_TTL_S, a prune drops the index."""

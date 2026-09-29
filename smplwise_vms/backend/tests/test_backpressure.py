@@ -261,6 +261,19 @@ def test_manual_resume_and_cancel_of_a_paused_job(lab, monkeypatch):  # noqa: F8
     assert c.post(f"/api/v1/exports/{job['id']}/cancel").json()["state"] == "cancelled", "a paused job can be cancelled"
 
 
+def test_a_crashing_job_is_marked_failed_not_left_running(lab, monkeypatch):  # noqa: F811
+    c, s, cam = lab
+    job = c.post("/api/v1/exports", json={"camera_id": cam["id"], **RANGE}).json()
+
+    def boom(_job_id: str) -> None:
+        raise RuntimeError("database is locked")  # e.g. a progress write that stayed busy past its retries
+
+    monkeypatch.setattr(ex.WORKER, "_run", boom)
+    assert ex.WORKER.run_pending() == 1
+    j = c.get(f"/api/v1/exports/{job['id']}").json()
+    assert j["state"] == "failed" and "RuntimeError" in j["error"]
+
+
 def test_health_shows_the_queues(settings):
     c = TestClient(create_app(settings))
     h = c.get("/api/v1/health").json()
