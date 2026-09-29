@@ -1,5 +1,32 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.131 (pilot) — Evidence bundles from another installation: verify and import (T050)
+- **"ייבוא חבילת ראיות"** on the cases screen: upload a bundle ZIP (raw or multipart, streamed to a staging file, cap
+  `cases.import_max_mb` default 512 MB, one upload at a time, 507 when `/data` would drop below
+  `storage.min_free_mb` default 1024, 408 after 30 s idle / 10 min total so a stalled upload never blocks others),
+  get a verification report - per file תקין / חסר / לא תואם / פגום, manifest version, producing installation, and a
+  plain summary: **a matching hash proves the file is unchanged since export; it does not prove the footage is
+  genuine**. "ייבא כתיק" (cases-manage, installation-wide) creates a new case marked **מיובא** with provenance
+  (source installation, exporter, export time, bundle hash), read-only items and notes, files stored under
+  `imported/<hash>/` and counted in the storage screen; nothing from a bundle becomes a camera, event, user or
+  setting; the same bundle imports once (409 with the existing case). "בדיקת hash חוזרת" on the case (once a minute).
+- **Producer honesty**: an installation id is public (every manifest carries it), so "מהתקנה זו" is claimed only when
+  the bundle's signature verifies against this installation's key; an unsigned bundle with our id reads
+  "לפי המזהה בלבד (לא מאושר בחתימה)". Bundles now carry a stable installation id and a signature; unsigned bundles
+  still import, labelled as such.
+- **Hostile archives**: the ZIP's end records are read before the archive is opened - more than 5,000 entries or an
+  oversized directory is refused in about a millisecond (a review measurement: a crafted 86 MB archive with a million
+  entries used 532 MB of RAM before this guard); `..`, absolute paths, drive letters, backslashes, control
+  characters, symlinks, special files, encrypted entries, duplicates, extreme compression and oversized unpacked
+  totals are refused before any member is read; only the expected file names are extracted, always under the
+  destination; `report.html` / `notes.md` are never stored; served files get their type from magic bytes with
+  `nosniff` and a sandbox CSP; names and notes are rendered as text and stripped of control / bidi characters.
+- After a backup restore an imported case comes back without its files (they are outside project backups, like
+  snapshots) and blocks re-import until deleted - documented in `DOCS.md`.
+- Migration 0030. Tests: `test_bundle_import.py` 19 + bundle / cases / signing / janitor / settings 33 in the set;
+  Playwright import flow 3/3 (desktop, tablet, mobile); Opus security review (1 blocker + 2 medium fixed) + two
+  scoped re-reviews.
+
 ## 0.1.130 (pilot) — Device layout editor and colour themes (CR-007 6b); groups and delegated assignment (T082); Plan Studio tuning; Hebrew documentation batch 1
 ### Device control (CR-007 slice 6b, the owner's §7.11 decisions)
 - **"ערוך פריסה"** on the building screen (floor / area cards) and the area screen (domain cards): drag and resize on an
