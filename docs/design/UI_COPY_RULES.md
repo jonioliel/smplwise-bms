@@ -64,3 +64,36 @@ non-settings screens hit this constantly whenever NVR-less mode is on) says "ת�
 "בהגדרות SmplWise Arx בתשתית המערכת", not at Home Assistant's Add-ons page.
 
 Source: original (owner instruction 2026-09-29, no prior written record).
+
+## Product name: Arx
+
+Owner decision, 2026-09-29 (the rename to "SmplWise Arx" shipped in 0.1.139 as a display-name change): the
+product is called **Arx** (long form **SmplWise Arx**) in every sentence a person reads. "VMS", "SMPLWISE VMS"
+and the all-caps "SMPLWISE" no longer name the product on screen.
+
+| Instead of | Say |
+|---|---|
+| "VMS", "ה־VMS", "SMPLWISE" as the product | "Arx" (or "המערכת" when the sentence reads better without a name) |
+| "SMPLWISE VMS" as the add-on's name (settings screens only) | "SmplWise Arx" - the name Home Assistant lists |
+| "מנהל מערכת VMS" / "מנהל VMS" / "מנהל ה־VMS" (the `system_admin` role) | "מנהל מערכת" / "מנהל המערכת" |
+| "תפקיד VMS" | "תפקיד במערכת" |
+| "גשר SMPLWISE" inside הגדרות › מערכת | "גשר Arx" |
+| "גשר SMPLWISE" outside the settings screens | "הגשר" (or dropped: "הפעולות רצות בזהות המשתמש") |
+| "מסכי SMPLWISE", "שפת SMPLWISE" | "מסכי Arx", "שפת Arx" |
+
+The role display name lives in `smplwise_vms/backend/smplwise/roles.json` (`name_he`), read at request time; no
+migration stores it, so it is changed there. The demo fixtures in `frontend/src/fixtures/catalog.ts` mirror it.
+
+Kept as they are (never changed by this rule):
+
+- Every identifier: routes, JSON keys and enum values (for example the WisKey screen choice `"smplwise"` and the
+  style value `"smplwise"`), setting keys, audit action names, permission ids, CSS classes, file names, the
+  `smplwise_bridge` domain, `smplwise_*` stream names, the add-on slug, and code or documentation comments.
+- **SMPLWISE Bridge** - the integration's own name in Home Assistant's UI (`manifest.json` and the config-flow
+  title). It appears only on the settings screens, where the exact name is what an administrator has to click. It
+  changes together with a bridge release, not with the UI copy.
+- **SmplWise** as the company wordmark: the logo text and image alt in the shell and the kiosk wall
+  (`brand/smplwise-mark.png`).
+- The Lovelace card's own messages inside Home Assistant dashboards (`custom_components/smplwise_bridge/www`),
+  which ship with the bridge.
+- Historical migrations and the specification documents, which record what was true when they were written.

@@ -217,7 +217,7 @@ def assign_area(entity_id: str, request: Request, principal: Principal = Depends
         raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן.")
     secret = ha_bridge.signing_key(conn)
     if not secret or not get_setting(conn, "bridge.paired_at"):
-        raise ApiError(503, "bridge_not_paired", "שיוך אזור דורש את גשר SMPLWISE מותקן ומצומד.")
+        raise ApiError(503, "bridge_not_paired", "שיוך אזור דורש את הגשר מותקן ומצומד.")
     bridge_rid = uuid.uuid4().hex[:12]
     payload = ha_bridge.sign(secret, {"user_id": principal.user_id, "entity_id": entity_id, "area_id": body.area_id, "request_id": bridge_rid})
     # two-phase: the attempt row is committed (by unlocked) before Home Assistant is asked, so an area change is never
@@ -395,7 +395,7 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder), con
         raise act.refuse(ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן."))
     secret = ha_bridge.signing_key(conn)
     if not secret or not get_setting(conn, "bridge.paired_at"):
-        raise act.refuse(ApiError(503, "bridge_not_paired", "פעולות אלו דורשות את גשר SMPLWISE מותקן ומצומד."))
+        raise act.refuse(ApiError(503, "bridge_not_paired", "פעולות אלו דורשות את הגשר מותקן ומצומד."))
     bulk_id = uuid.uuid4().hex[:12]
     blocking = bulk.RUNNER.reserve(bulk.scope_key(body.scope, body.id), bulk_id, {t["entity_id"] for t in plan["targets"]})
     if blocking:

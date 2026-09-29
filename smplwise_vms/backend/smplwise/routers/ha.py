@@ -196,7 +196,7 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
         conn.execute("UPDATE ha_actions SET status = 'failed', error = 'bridge_not_paired', responded_at = ? WHERE id = ?", (now_iso(), aid))
         audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="bridge_not_paired",
               request_id=getattr(request.state, "correlation_id", None), details={"action": body.allowed_action_id, "id": aid})
-        raise ApiError(503, "bridge_not_paired", "פעולות אלו דורשות את גשר SMPLWISE מותקן ומצומד.", details={"action_id": aid})
+        raise ApiError(503, "bridge_not_paired", "פעולות אלו דורשות את הגשר מותקן ומצומד.", details={"action_id": aid})
     payload = ha_bridge.sign(secret or "", {"user_id": principal.user_id, "domain": spec["domain"], "service": spec["service"], "data": data, "request_id": aid})
     try:
         with unlocked(conn):

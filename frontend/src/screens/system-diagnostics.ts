@@ -533,7 +533,7 @@ export class SystemDiagnostics extends LitElement {
             <div class="row"><span class="lbl">סנכרון מצבים (WebSocket)<span class="muted">${s?.connected ? `מחובר · HA ${s.ha_version ?? '?'} · ${s.entities} ישויות · אירוע אחרון ${fmtTime(s.last_event_at)}` : `מנותק${s?.last_error ? ` · ${s.last_error}` : ''} · ${s?.reconnects ?? 0} חיבורים מחדש`}</span></span><sw-badge kind=${s?.connected ? 'live' : 'offline'}></sw-badge></div>
             <div class="row"><span class="lbl">רישום ישויות (registry)<span class="muted">עודכן ${fmtTime(s?.last_registry_at)} · תמונת מצב ${fmtTime(s?.last_snapshot_at)}</span></span><sw-button size="sm" @click=${() => navigate('/explore/entities')}>לקטלוג</sw-button></div>`}
       </sw-card>
-      <sw-card heading="גשר SMPLWISE (אינטגרציה ב־Home Assistant)" subheading="פעולות על ישויות רצות רק דרך הגשר, בזהות המשתמש, לפי ההרשאות של Home Assistant">
+      <sw-card heading="גשר Arx (אינטגרציה ב־Home Assistant)" subheading="פעולות על ישויות רצות רק דרך הגשר, בזהות המשתמש, לפי ההרשאות של Home Assistant">
         ${h
           ? html`${this.renderIntegration(h)}<div class="row"><span class="lbl">צימוד<span class="muted">${h.bridge.paired ? `מצומד מאז ${fmtTime(h.bridge.paired_at)}` : 'לא מצומד — פעולות HA ייחסמו עד להתקנת הגשר'}</span></span><sw-badge kind=${h.bridge.paired ? 'live' : 'stale'} label=${h.bridge.paired ? 'מצומד' : 'לא מצומד'}></sw-badge></div>
             <div class="row"><span class="lbl">ספריית משתמשי HA<span class="muted">${h.bridge.directory_users} משתמשים · עודכן ${fmtTime(h.bridge.last_directory_at)}</span></span><sw-badge kind=${h.bridge.directory_users ? 'recorded' : 'unknown'}></sw-badge></div>`
@@ -624,7 +624,7 @@ export class SystemDiagnostics extends LitElement {
   /** NVR-less mode: the neutral notice a settings section shows instead of NVR / video forms that could only fail. */
   private renderNvrLessNotice(what: string) {
     return html`<sw-card heading="מצב ללא NVR" subheading=${what} data-nvr-less-settings>
-      <div class="muted">ההתקנה פועלת עם Home Assistant בלבד, ולכן ההגדרות של וידאו, הקלטות, ייצוא וחיפוש אירועים מוסתרות כאן. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password ב־Home Assistant › Add-ons › SMPLWISE VMS › Configuration והפעילו מחדש את ה־Add-on; ההגדרות יחזרו כמו שהיו.</div>
+      <div class="muted">ההתקנה פועלת עם Home Assistant בלבד, ולכן ההגדרות של וידאו, הקלטות, ייצוא וחיפוש אירועים מוסתרות כאן. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password ב־Home Assistant › Add-ons › SmplWise Arx › Configuration והפעילו מחדש את ה־Add-on; ההגדרות יחזרו כמו שהיו.</div>
     </sw-card>`;
   }
 
@@ -811,7 +811,7 @@ export class SystemDiagnostics extends LitElement {
     const dirty = ACCESS_SCREENS.some((a) => `access.ui.${a.screen}` in this.draft) || 'ui.hide_wiskey' in this.draft || 'access.phone_embed' in this.draft;
     const choice = (s: WiskeyScreen) => (String(this.value(`access.ui.${s}`) ?? 'wiskey') === 'smplwise' ? 'smplwise' : 'wiskey');
     return html`<div class="sections">
-      <sw-card heading="בקרות כניסה" subheading="לכל מסך: הממשק המקורי של WisKey מוטמע כמו שהוא, או המסך שנבנה ב־SMPLWISE. הלשונית נשארת באותו מקום ובאותו שם.">
+      <sw-card heading="בקרות כניסה" subheading="לכל מסך: הממשק המקורי של WisKey מוטמע כמו שהוא, או המסך שנבנה ב־Arx. הלשונית נשארת באותו מקום ובאותו שם.">
         <div class="row"><span class="lbl">הצג את WisKey במערכת<span class="muted">הסתרה מסירה את כל אזור WisKey מהניווט לכל המשתמשים, ללא תלות בתפקיד; הבחירות למסכים הבודדים למטה חלות רק כשהאזור מוצג</span></span>
           <sw-field class="ctl"><select data-set-hide-wiskey ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_wiskey', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('ui.hide_wiskey') ?? 'false') !== 'true'}>מוצג</option><option value="true" ?selected=${String(this.value('ui.hide_wiskey') ?? 'false') === 'true'}>מוסתר</option>
@@ -820,17 +820,17 @@ export class SystemDiagnostics extends LitElement {
           (a) => html`<div class="row"><span class="lbl">${a.label}<span class="muted">${a.detail} · <span class="ltr">${a.href}</span></span></span>
             <sw-field class="ctl"><select data-set-access-ui=${a.screen} ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set(`access.ui.${a.screen}`, (e.target as HTMLSelectElement).value as 'wiskey' | 'smplwise')}>
               <option value="wiskey" ?selected=${choice(a.screen) === 'wiskey'}>WisKey (מוטמע)</option>
-              <option value="smplwise" ?selected=${choice(a.screen) === 'smplwise'}>SMPLWISE</option>
+              <option value="smplwise" ?selected=${choice(a.screen) === 'smplwise'}>Arx</option>
             </select></sw-field></div>`,
         )}
-        <div class="row"><span class="lbl">הטמעה גם באפליקציית Companion (ניסיוני)<span class="muted">כבוי: באפליקציית Home Assistant בטלפון WisKey לא מוטמע - מוצג המסך של SMPLWISE או הערה, עם "פתח ב-WisKey". מופעל: SMPLWISE מעביר את ההזדהות של האפליקציה ל־Home Assistant שבתוך המסגרת. אם ההזדהות לא מצליחה, המסך חוזר לבד להתנהגות הרגילה.</span></span>
+        <div class="row"><span class="lbl">הטמעה גם באפליקציית Companion (ניסיוני)<span class="muted">כבוי: באפליקציית Home Assistant בטלפון WisKey לא מוטמע - מוצג המסך של Arx או הערה, עם "פתח ב-WisKey". מופעל: Arx מעביר את ההזדהות של האפליקציה ל־Home Assistant שבתוך המסגרת. אם ההזדהות לא מצליחה, המסך חוזר לבד להתנהגות הרגילה.</span></span>
           <sw-field class="ctl"><select data-set-phone-embed ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('access.phone_embed', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('access.phone_embed') ?? 'false') !== 'true'}>כבוי</option><option value="true" ?selected=${String(this.value('access.phone_embed') ?? 'false') === 'true'}>מופעל</option>
           </select></sw-field></div>
         <div class="row" data-access-ui-fixed><span class="lbl">שאר מסכי WisKey (עמדות, סנכרון, בריאות, יומן שינויים, ניהול)<span class="muted">קיימים רק ב־WisKey, ולכן תמיד מוטמעים</span></span><sw-field class="ctl"><select disabled><option selected>WisKey (מוטמע) · קבוע</option></select></sw-field></div>
-        <div class="muted" style="margin-block-start:8px">במסך מוטמע הדפדפן מריץ את הממשק של WisKey עצמו בתוך Home Assistant, עם החיבור של המשתמש ל־Home Assistant: ההרשאות, האישורים והאודיט שם הם של WisKey, לא של SMPLWISE. "פתח בחלון מלא" פותח את אותו לוח בלשונית נפרדת.</div>
+        <div class="muted" style="margin-block-start:8px">במסך מוטמע הדפדפן מריץ את הממשק של WisKey עצמו בתוך Home Assistant, עם החיבור של המשתמש ל־Home Assistant: ההרשאות, האישורים והאודיט שם הם של WisKey, לא של Arx. "פתח בחלון מלא" פותח את אותו לוח בלשונית נפרדת.</div>
         <div class="muted" data-access-ui-embed-api style="margin-block-start:6px">ההטמעה משתמשת בממשק ההטמעה של WisKey (WisKey 2.0.0-rc.19 ומעלה): הלשוניות נבנות מהמסכים ש־WisKey מתיר למשתמש והמעבר ביניהן נעשה בהודעות; בגרסאות WisKey ישנות יותר ההטמעה עוברת אוטומטית לשיטה הקודמת.</div>
-        <div class="muted" data-access-ui-warning style="margin-block-start:6px;color:var(--sw-text)"><b>שים לב:</b> משתמש שחשבון ה־Home Assistant שלו מחזיק ב־WisKey הרשאת ניהול (manage), או שהוא מנהל Home Assistant, יכול בתוך WisKey המוטמע לפתוח דלתות ולערוך אנשים (PIN, כרטיסים, תוקף) — בלי שלב האישור של SMPLWISE ובלי רישום באודיט של SMPLWISE. התיעוד של הפעולות האלה נמצא רק ביומן של WisKey.</div>
+        <div class="muted" data-access-ui-warning style="margin-block-start:6px;color:var(--sw-text)"><b>שים לב:</b> משתמש שחשבון ה־Home Assistant שלו מחזיק ב־WisKey הרשאת ניהול (manage), או שהוא מנהל Home Assistant, יכול בתוך WisKey המוטמע לפתוח דלתות ולערוך אנשים (PIN, כרטיסים, תוקף) — בלי שלב האישור של Arx ובלי רישום באודיט של Arx. התיעוד של הפעולות האלה נמצא רק ביומן של WisKey.</div>
         ${this.canEdit
           ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-access-ui ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'access-control' ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error && this.tab === 'access-control' ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>`
           : html`<div class="muted">${api ? 'שינוי הבחירה דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
@@ -925,12 +925,12 @@ export class SystemDiagnostics extends LitElement {
     </button>`;
     return html`<div class="sections">
       <sw-card data-devices-settings heading="חשמל והתקנים" subheading="המראה של מסכי החשמל וההתקנים לכל המשתמשים במתקן. תצוגה בלבד: כללי הבטיחות של פעולות מרוכזות (חלון אישור, תוקף, בלי מנעולים, אזעקה ושחרור דלתות) אינם הגדרה.">
-        <div class="row"><span class="lbl">סגנון<span class="muted">SMPLWISE הוא המראה של שאר המערכת; זכוכית היא הסגנון מהמוקאפ שאושר: משטחים שקופים ומטושטשים, אריחים מעוגלים עם אייקון. שניהם מימין לשמאל.</span></span>
+        <div class="row"><span class="lbl">סגנון<span class="muted">Arx הוא המראה של שאר המערכת; זכוכית היא הסגנון מהמוקאפ שאושר: משטחים שקופים ומטושטשים, אריחים מעוגלים עם אייקון. שניהם מימין לשמאל.</span></span>
           <sw-field class="ctl"><select data-set-devices-style ?disabled=${ro} @change=${(e: Event) => pick((e.target as HTMLSelectElement).value === 'glass' ? 'glass' : 'smplwise')}>
-            <option value="smplwise" ?selected=${p.style === 'smplwise'}>SMPLWISE</option><option value="glass" ?selected=${p.style === 'glass'}>זכוכית</option>
+            <option value="smplwise" ?selected=${p.style === 'smplwise'}>Arx</option><option value="glass" ?selected=${p.style === 'glass'}>זכוכית</option>
           </select></sw-field></div>
         <div class="swatches" role="group" aria-label="תצוגה מקדימה של הסגנונות" data-devices-style-preview>
-          ${swatch('smplwise', 'SMPLWISE', 'לבן, קווים דקים')}
+          ${swatch('smplwise', 'Arx', 'לבן, קווים דקים')}
           ${swatch('glass', 'זכוכית', 'שקוף, מעוגל, אייקונים')}
         </div>
         <devices-theme-picker data-devices-theme-picker .theme=${p.theme} .scheme=${p.scheme} ?disabled=${ro} @devices-pick=${(e: CustomEvent<DevicesPick>) => this.set(e.detail.key, e.detail.value as never)}></devices-theme-picker>

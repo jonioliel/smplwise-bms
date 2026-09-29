@@ -1855,7 +1855,7 @@ export class ExploreFloorMap extends LitElement {
         });
       }
     } catch (err) {
-      const msg = err instanceof ApiError && err.code === 'bridge_not_paired' ? 'גשר SMPLWISE אינו מצומד. התקנה וצימוד: הגדרות → כללי.' : describeError(err);
+      const msg = err instanceof ApiError && err.code === 'bridge_not_paired' ? 'הגשר אינו מצומד. התקנה וצימוד: הגדרות → כללי.' : describeError(err);
       this.action = { entityId, spec, record: null, error: msg, busy: false };
     }
   }

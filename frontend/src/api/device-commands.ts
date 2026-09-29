@@ -109,7 +109,7 @@ export async function runCommand<T>(
     settle(a, optimistic, label, onUpdate);
   } catch (err) {
     if (!isCurrent()) return;
-    const msg = err instanceof ApiError && err.code === 'bridge_not_paired' ? 'גשר SMPLWISE אינו מצומד.' : describeError(err);
+    const msg = err instanceof ApiError && err.code === 'bridge_not_paired' ? 'הגשר אינו מצומד.' : describeError(err);
     onUpdate({ phase: 'rolled_back', optimistic, label, note: msg });
   }
 }

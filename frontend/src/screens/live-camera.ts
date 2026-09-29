@@ -234,7 +234,7 @@ export class LiveCamera extends LitElement {
         ? 'ה־NVR כבר היה במצב הזה — לא נכתב דבר.'
         : refused
           ? 'הצורות והפרמטרים נכתבו ל־NVR ונרשמו, אבל ה־NVR סירב להפעיל את הכלל דרך ה־ISAPI (invalidOperation). בקושחה הזו ההפעלה נעשית בממשק ה־NVR / המצלמה (משאב VCA של המצלמה); אחרי ההפעלה שם התצוגה כאן תתעדכן.'
-          : 'הכללים נכתבו ל־NVR ונרשמו (ניתנים להחזרה). התראות "אדם" / "רכב" מגיעות רק כשהערוץ מודיע ל־VMS (הגדרות › חיבורים › התראות מה־NVR).';
+          : 'הכללים נכתבו ל־NVR ונרשמו (ניתנים להחזרה). התראות "אדם" / "רכב" מגיעות רק כשהערוץ מודיע ל־Arx (הגדרות › חיבורים › התראות מה־NVR).';
       this.smartEdit = null;
       await Promise.all([this.loadSchedules(), this.loadZones(true)]);
     } catch (err) {
@@ -348,8 +348,8 @@ export class LiveCamera extends LitElement {
     if (!o || !o.can_write) return nothing;
     const same = (o.nvr_name ?? '') === o.vms_name;
     return html`<div class="note" style="margin-block-start:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-osd>
-      <span>שם ב־NVR: <b data-osd-nvr-name>${o.nvr_name ?? '—'}</b>${same ? ' (זהה לשם ב־VMS)' : ` · ב־VMS: ${o.vms_name}`}</span>
-      <sw-button size="sm" icon="edit" ?disabled=${this.osdBusy || same} data-osd-write-name @click=${() => this.osdAction('שם הערוץ', () => writeChannelName(this.cam!.id))}>כתוב את שם ה־VMS ל־NVR</sw-button>
+      <span>שם ב־NVR: <b data-osd-nvr-name>${o.nvr_name ?? '—'}</b>${same ? ' (זהה לשם ב־Arx)' : ` · ב־Arx: ${o.vms_name}`}</span>
+      <sw-button size="sm" icon="edit" ?disabled=${this.osdBusy || same} data-osd-write-name @click=${() => this.osdAction('שם הערוץ', () => writeChannelName(this.cam!.id))}>כתוב את השם מ־Arx ל־NVR</sw-button>
       ${o.channel_name ? html`<label style="display:inline-flex;gap:4px;align-items:center"><input type="checkbox" data-osd-name-enabled .checked=${o.channel_name.enabled} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction('שם על התמונה', () => setOsd(this.cam!.id, { name_enabled: (e.target as HTMLInputElement).checked }))} /> שם על התמונה</label>` : nothing}
       ${o.datetime ? html`<label style="display:inline-flex;gap:4px;align-items:center"><input type="checkbox" data-osd-datetime-enabled .checked=${o.datetime.enabled} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction('חותמת זמן', () => setOsd(this.cam!.id, { datetime_enabled: (e.target as HTMLInputElement).checked }))} /> חותמת זמן</label>
         <sw-field><select aria-label="פורמט תאריך" data-osd-date-style ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction('פורמט תאריך', () => setOsd(this.cam!.id, { date_style: (e.target as HTMLSelectElement).value }))}>${o.date_styles.map((d) => html`<option value=${d} ?selected=${d === o.datetime!.date_style}>${d}</option>`)}</select></sw-field>` : nothing}
