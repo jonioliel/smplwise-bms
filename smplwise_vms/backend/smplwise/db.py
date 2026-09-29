@@ -6,7 +6,24 @@ SQLite has ONE write lock. A request connection takes it at BEGIN IMMEDIATE and 
 BUSY_TIMEOUT_S for it, then fails with "database is locked". So nothing slow may run while it is held: device calls
 (NVR, go2rtc, Home Assistant) go through unlocked(), notifications are sent after the commit, and the request's
 transaction is committed before the response body is sent (release_request, wired in main.py). Every hold is
-measured; a hold longer than SLOW_HOLD_S and every busy failure is logged with who held the lock (lock_stats())."""
+measured; a hold longer than SLOW_HOLD_S and every busy failure is logged with who held the lock (lock_stats()).
+
+One writer at a time, in arrival order (2026-09-29): every write transaction of this process first takes the database
+file's WriteGate - a FIFO queue in front of SQLite's lock - and only then BEGIN IMMEDIATE. SQLite's own busy handler
+does not queue: a waiter sleeps and re-tries (1, 2, 5 … 100 ms steps), and under a steady stream of short commits it
+loses re-try after re-try to writers that arrived later (tests/test_db_lock_storm.py: writes waited up to 4 s behind
+holds of at most 1.1 s); on slower storage the same unfairness can reach the busy timeout - "database is locked" with
+no long holder at all. The gate
+hands the lock to the oldest waiter the moment it is released. It waits at most
+BUSY_TIMEOUT_S and then fails exactly like SQLite ("database is locked"), so every caller and retry keeps working;
+SQLite's busy timeout still covers another process (a backup tool, the soak harness).
+
+Durability classes: a connection is synchronous=FULL (every commit is fsynced: a committed audit row survives a power
+cut) unless it is opened with durable=False - the high-rate mirror writes of device data that the device sends again
+(the Home Assistant state and registry mirror, NVR alerts, events derived from recordings). Those commit with
+synchronous=NORMAL: no fsync per commit (WAL: an add-on crash loses nothing; a power cut can lose the last commits
+since the previous fsync). On the SD card / eMMC of a typical Home Assistant host an fsync takes milliseconds to tens
+of milliseconds, and ~40 HA state pushes a second each paying one under the write lock is enough to saturate it."""
 from __future__ import annotations
 
 import datetime as dt
@@ -19,6 +36,7 @@ import sqlite3
 import sys
 import threading
 import time
+from collections import deque
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Iterator, TypeVar
@@ -26,6 +44,12 @@ from typing import Any, Callable, Iterator, TypeVar
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 BUSY_TIMEOUT_S = 10.0  # how long a writer waits for the write lock before "database is locked"
 SLOW_HOLD_S = float(os.environ.get("SW_DB_SLOW_HOLD_S", "3"))  # a longer write-lock hold is logged with its holder
+# the janitor truncates the WAL file once it grew past this (at a quiet moment); also SQLite's journal_size_limit
+WAL_TRUNCATE_BYTES = int(float(os.environ.get("SW_DB_WAL_TRUNCATE_MB", "64")) * 1024 * 1024)
+CHECKPOINT_BUSY_S = 0.5  # how long a TRUNCATE checkpoint waits for readers before it gives up until the next tick
+# SW_DB_WRITE_GATE=0 turns the FIFO write gate off (SQLite's own busy handler alone, as before 2026-09-29): an
+# operational escape hatch and the A/B switch of the stress tests
+WRITE_GATE = os.environ.get("SW_DB_WRITE_GATE", "1") != "0"
 
 log = logging.getLogger("smplwise.db")
 T = TypeVar("T")
@@ -57,11 +81,88 @@ def database_of(conn: sqlite3.Connection) -> "Database | None":
     return _MODES.get(id(conn), ("write", None, ""))[1]
 
 
+# ---------------------------------------------------------------- one writer at a time, in arrival order
+
+
+class WriteGate:
+    """A FIFO queue in front of SQLite's write lock, one per database file (see the module docstring). Not bound to a
+    thread: a request's transaction is begun in one worker thread and committed in another (CommitBeforeSend).
+    release() hands the gate straight to the oldest waiter and wakes only that one: no newcomer can overtake it, and
+    the other waiters stay asleep (waking them all would make them fight the holder for the GIL on every release)."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._holder: object | None = None
+        self._queue: deque[list[Any]] = deque()  # [event, token handed over or None]
+
+    def acquire(self, timeout: float) -> object | None:
+        """A token once it is this caller's turn, None after `timeout` seconds (the caller reports "database is locked")."""
+        with self._lock:
+            if self._holder is None and not self._queue:
+                self._holder = object()
+                return self._holder
+            entry: list[Any] = [threading.Event(), None]
+            self._queue.append(entry)
+        entry[0].wait(timeout)
+        with self._lock:
+            if entry[1] is None:  # timed out before its turn came
+                self._queue.remove(entry)
+            return entry[1]
+
+    def try_acquire(self) -> object | None:
+        """A token only when nobody holds the gate and nobody waits for it (the janitor's "quiet moment")."""
+        with self._lock:
+            if self._holder is None and not self._queue:
+                self._holder = object()
+                return self._holder
+            return None
+
+    def release(self, token: object) -> None:
+        with self._lock:
+            if self._holder is not token:
+                return
+            if self._queue:
+                entry = self._queue.popleft()
+                self._holder = entry[1] = object()
+                entry[0].set()
+            else:
+                self._holder = None
+
+    def state(self) -> dict[str, Any]:
+        with self._lock:
+            return {"held": self._holder is not None, "waiting": len(self._queue)}
+
+
+_gates: dict[str, WriteGate] = {}
+_gates_lock = threading.Lock()
+
+
+def gate_for(path: Path) -> WriteGate:
+    """The one gate of a database file, shared by every Database object that opens it (tests open several)."""
+    key = os.path.normcase(str(Path(path).resolve()))
+    with _gates_lock:
+        gate = _gates.get(key)
+        if gate is None:
+            gate = _gates[key] = WriteGate()
+        return gate
+
+
+_conn_gate: dict[int, WriteGate] = {}  # id(conn) -> its database's gate (connection() / write_aside())
+_gate_tokens: dict[int, tuple[WriteGate, object]] = {}  # id(conn) -> the gate token it holds while it writes
+
+
+def _release_gate(conn: sqlite3.Connection) -> None:
+    held = _gate_tokens.pop(id(conn), None)
+    if held is not None:
+        held[0].release(held[1])
+
+
 # ---------------------------------------------------------------- write-lock accounting
 
 _holders: dict[int, tuple[str, float]] = {}  # id(conn) -> (label, monotonic time the write lock was taken)
 _stats_lock = threading.Lock()
-LOCK_STATS: dict[str, Any] = {"holds": 0, "slow_holds": 0, "max_hold_s": 0.0, "max_hold_by": None, "busy_errors": 0, "last_busy": None}
+LOCK_STATS: dict[str, Any] = {"holds": 0, "slow_holds": 0, "max_hold_s": 0.0, "max_hold_by": None, "busy_errors": 0, "last_busy": None,
+                              "max_wait_s": 0.0, "max_wait_by": None}
 
 
 def lock_stats() -> dict[str, Any]:
@@ -97,20 +198,46 @@ def _note_busy(label: str) -> None:
         log.warning("database is locked for %s after %.0f s (no in-process holder: another process or a checkpoint)", label, BUSY_TIMEOUT_S)
 
 
+def _busy(label: str, exc: sqlite3.OperationalError) -> sqlite3.OperationalError:
+    try:
+        _note_busy(label)
+    except Exception:  # noqa: BLE001 - accounting must never replace the busy error the callers retry on
+        log.exception("write-lock accounting failed")
+    return exc
+
+
 def _begin_immediate(conn: sqlite3.Connection, label: str) -> None:
+    """Take the write lock: this process's queue first (the gate of the connection's database), then SQLite's lock
+    (BEGIN IMMEDIATE, which still waits busy_timeout for a writer in another process)."""
+    started = time.monotonic()
+    gate = _conn_gate.get(id(conn)) if WRITE_GATE else None
+    if gate is not None and id(conn) not in _gate_tokens:
+        token = gate.acquire(BUSY_TIMEOUT_S)
+        if token is None:
+            raise _busy(label, sqlite3.OperationalError("database is locked"))
+        _gate_tokens[id(conn)] = (gate, token)
     try:
         conn.execute("BEGIN IMMEDIATE")
     except sqlite3.OperationalError as exc:
+        _release_gate(conn)
         if is_busy(exc):
-            try:
-                _note_busy(label)
-            except Exception:  # noqa: BLE001 - accounting must never replace the busy error the callers retry on
-                log.exception("write-lock accounting failed")
+            _busy(label, exc)
         raise
-    _holders[id(conn)] = (label, time.monotonic())
+    except BaseException:
+        _release_gate(conn)
+        raise
+    now = time.monotonic()
+    _holders[id(conn)] = (label, now)
+    waited = now - started
+    if waited > LOCK_STATS["max_wait_s"]:
+        with _stats_lock:
+            if waited > LOCK_STATS["max_wait_s"]:
+                LOCK_STATS["max_wait_s"] = round(waited, 3)
+                LOCK_STATS["max_wait_by"] = label
 
 
 def _end_hold(conn: sqlite3.Connection) -> None:
+    _release_gate(conn)
     held = _holders.pop(id(conn), None)
     if held is None:
         return
@@ -125,6 +252,13 @@ def _end_hold(conn: sqlite3.Connection) -> None:
             LOCK_STATS["slow_holds"] += 1
     if secs > SLOW_HOLD_S:
         log.warning("write lock held %.1f s by %s (other writers wait; device calls belong in unlocked())", secs, label)
+
+
+def _drop_hold(conn: sqlite3.Connection) -> None:
+    """The connection is closing: forget its hold and hand the gate on, whatever state the transaction ended in."""
+    _holders.pop(id(conn), None)
+    _release_gate(conn)
+    _conn_gate.pop(id(conn), None)
 
 
 def _finish(conn: sqlite3.Connection, sql: str) -> None:
@@ -160,15 +294,18 @@ class Database:
         self.path = path
         self.touched: dict[str, float] = {}  # per-user last touch stamp (auth.touch_user throttle)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.gate = gate_for(self.path)
 
-    def _open(self) -> sqlite3.Connection:
+    def _open(self, durable: bool = True) -> sqlite3.Connection:
         conn = sqlite3.connect(self.path, timeout=BUSY_TIMEOUT_S, isolation_level=None, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
-        # synchronous stays FULL (the default): a committed audit row survives a power cut. The 2026-09-29 contention
-        # measurements showed no gain from NORMAL here - per-commit fsync was never what held the lock.
+        # FULL: every commit is fsynced (a committed audit row survives a power cut); NORMAL for the mirror writes of
+        # device data opened with durable=False (see the module docstring)
+        conn.execute(f"PRAGMA synchronous={'FULL' if durable else 'NORMAL'}")
         conn.execute("PRAGMA foreign_keys=ON")
         conn.execute(f"PRAGMA busy_timeout={int(BUSY_TIMEOUT_S * 1000)}")
+        conn.execute(f"PRAGMA journal_size_limit={WAL_TRUNCATE_BYTES}")  # a reset WAL is cut back to this size
         return conn
 
     def migrate(self) -> list[int]:
@@ -191,7 +328,7 @@ class Database:
         return applied
 
     @contextmanager
-    def connection(self, mode: str = "write", label: str | None = None) -> Iterator[sqlite3.Connection]:
+    def connection(self, mode: str = "write", label: str | None = None, durable: bool = True) -> Iterator[sqlite3.Connection]:
         """One transaction per request. Expected API errors (403, 409 …) still commit so that the
         audit row describing the refusal is kept; anything unexpected rolls back.
 
@@ -201,12 +338,15 @@ class Database:
         mode="read": a deferred, query-only transaction — WAL readers run concurrently with the writer and with
         each other. Anything such a request must still write (an audit row for a refusal, the throttled user
         touch, the one-time bootstrap) goes through write_aside(), a short IMMEDIATE transaction of its own.
-        `label` names the holder in the slow-hold / busy logs (default: the calling function)."""
+        `label` names the holder in the slow-hold / busy logs (default: the calling function).
+        durable=False: a high-rate mirror write of device data the device sends again, committed with
+        synchronous=NORMAL (see the module docstring); never for user actions or audit rows."""
         from .errors import ApiError
 
         label = label or _caller(3)
-        conn = self._open()
+        conn = self._open(durable)
         _MODES[id(conn)] = (mode, self, label)
+        _conn_gate[id(conn)] = self.gate
         try:
             if mode == "read":
                 conn.execute("PRAGMA query_only=1")
@@ -226,14 +366,17 @@ class Database:
             raise
         finally:
             _MODES.pop(id(conn), None)
-            _holders.pop(id(conn), None)
-            conn.close()
+            try:
+                conn.close()  # rolls back whatever is still open: the lock is free before the gate is handed on
+            finally:
+                _drop_hold(conn)
 
     @contextmanager
     def write_aside(self, label: str | None = None) -> Iterator[sqlite3.Connection]:
         """A short write transaction of its own, for the few rows a read-mode request must still record."""
         label = label or _caller(3)
         conn = self._open()
+        _conn_gate[id(conn)] = self.gate
         try:
             _begin_immediate(conn, label)
             yield conn
@@ -245,14 +388,33 @@ class Database:
                 pass
             raise
         finally:
-            _holders.pop(id(conn), None)
-            conn.close()
+            try:
+                conn.close()
+            finally:
+                _drop_hold(conn)
+
+    def _wal_bytes(self) -> int:
+        wal = self.path.with_name(self.path.name + "-wal")
+        try:
+            return wal.stat().st_size
+        except OSError:
+            return 0
 
     def checkpoint(self) -> dict[str, Any]:
-        """Idle housekeeping (janitor): a PASSIVE checkpoint only - it never takes the write lock and never waits for a
-        reader, so it cannot queue writers (a TRUNCATE would block new writers while it waits)."""
-        wal = self.path.with_name(self.path.name + "-wal")
-        size = wal.stat().st_size if wal.exists() else 0
+        """Idle housekeeping (janitor, every 30 s). Normally a PASSIVE checkpoint: it never takes the write lock and
+        never waits for a reader, so it cannot queue writers. Once the WAL file grew past WAL_TRUNCATE_BYTES (a long
+        read kept the passive checkpoints from reaching its end) and the moment is quiet - nobody in this process holds
+        or waits for the write lock - a TRUNCATE checkpoint runs under the gate: it copies everything back and cuts the
+        file to zero, waiting at most CHECKPOINT_BUSY_S for readers (writers queue behind it for that long at most). A
+        busy moment is left to the next tick."""
+        size = self._wal_bytes()
+        if size >= WAL_TRUNCATE_BYTES:
+            token = self.gate.try_acquire()
+            if token is not None:
+                try:
+                    return self._truncate(size)
+                finally:
+                    self.gate.release(token)
         conn = sqlite3.connect(self.path, timeout=0.2, isolation_level=None, check_same_thread=False)
         try:
             try:
@@ -264,6 +426,23 @@ class Database:
             return {"mode": "PASSIVE", "wal_bytes": size, "busy": bool(busy), "frames": frames, "checkpointed": done}
         finally:
             conn.close()
+
+    def _truncate(self, size: int) -> dict[str, Any]:
+        started = time.monotonic()
+        conn = sqlite3.connect(self.path, timeout=CHECKPOINT_BUSY_S, isolation_level=None, check_same_thread=False)
+        try:
+            try:
+                busy, frames, done = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+            except sqlite3.OperationalError as exc:
+                if not is_busy(exc):
+                    raise
+                busy, frames, done = 1, None, None
+        finally:
+            conn.close()
+        out = {"mode": "TRUNCATE", "wal_bytes": size, "busy": bool(busy), "frames": frames, "checkpointed": done,
+               "wal_bytes_after": self._wal_bytes(), "took_s": round(time.monotonic() - started, 3)}
+        log.info("WAL checkpoint (TRUNCATE) at %.1f MB: %s", size / 1048576, "busy, next tick" if busy else f"{out['wal_bytes_after']} bytes left")
+        return out
 
 
 def release(conn: sqlite3.Connection) -> None:
@@ -279,7 +458,7 @@ def release(conn: sqlite3.Connection) -> None:
         return
     if open_tx:
         conn.execute("COMMIT")
-    _end_hold(conn)
+    _end_hold(conn)  # hands the gate on
     conn.execute("PRAGMA query_only=1")
 
 

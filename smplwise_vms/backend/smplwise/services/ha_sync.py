@@ -341,7 +341,7 @@ def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) ->
 
     def _write() -> dict[str, Any]:
         fired.clear()
-        with db.connection() as conn:
+        with db.connection(durable=False) as conn:
             row = upsert_state(conn, new)
             transition = record_transition(conn, data.get("old_state"), new)
             if transition:
@@ -365,12 +365,12 @@ def store_states(db: Database, states: list[dict[str, Any]], seen: str) -> set[s
     rows = [st for st in states if st["entity_id"].split(".", 1)[0] not in STATE_DOMAINS_SKIP]
     for chunk in _chunks(rows):
         def _write(chunk=chunk) -> None:
-            with db.connection() as conn:
+            with db.connection(durable=False) as conn:
                 for st in chunk:
                     upsert_state(conn, st, seen)
         _busy_retry(_write)
         present.update(st["entity_id"] for st in chunk)
-    with db.connection() as conn:
+    with db.connection(mode="read") as conn:
         STATE.entities = count_entities(conn)
     return present
 
@@ -480,7 +480,7 @@ class HaSync:
                 # a registry_updated frame carries entity_id too, but never the old_state / new_state keys
                 if "new_state" in data and data.get("old_state") is not None:
                     try:
-                        with db.connection() as conn:
+                        with db.connection(durable=False) as conn:
                             removed = state_removed(conn, eid)
                     except Exception:
                         log.exception("state removal failed for %s", eid)
@@ -635,7 +635,7 @@ class HaSync:
                 _apply_locked()
 
         def _apply_locked() -> None:
-            with db.connection() as conn:
+            with db.connection(mode="read") as conn:
                 if not ents and conn.execute("SELECT 1 FROM ha_entities WHERE registry_id IS NOT NULL AND removed_at IS NULL LIMIT 1").fetchone():
                     # an empty entity registry while the mirror knows registry entities is a bad answer, not a wipe
                     result["incomplete"] = True
@@ -649,17 +649,17 @@ class HaSync:
             items = [(k, v) for k, v in maps.items() if k.split(".", 1)[0] not in STATE_DOMAINS_SKIP]
             for chunk in _chunks(items):
                 def _write(chunk=chunk) -> None:
-                    with db.connection() as conn:
+                    with db.connection(durable=False) as conn:
                         apply_registry(conn, dict(chunk))
                 _busy_retry(_write)
 
             def _structure() -> None:
-                with db.connection() as conn:
+                with db.connection(durable=False) as conn:
                     apply_structure(conn, areas_listing, floors_listing)
             _busy_retry(_structure)
 
             def _tombstone() -> None:
-                with db.connection() as conn:
+                with db.connection(durable=False) as conn:
                     # an entity that had a registry entry and no longer has one is gone, however recent its last state
                     # (HA deleted it, or renamed its id); one HA never registered stays while it keeps reporting states
                     present = set(maps) | {r["entity_id"] for r in conn.execute("SELECT entity_id FROM ha_entities WHERE state_seen_at >= ? AND registry_id IS NULL", (STATE.last_snapshot_at or "",)).fetchall()}
@@ -670,7 +670,7 @@ class HaSync:
                     device_bulk.clear_stale_marks(conn, set(maps))
                     STATE.entities = count_entities(conn)
             _busy_retry(_tombstone)
-            with db.connection() as conn:
+            with db.connection(mode="read") as conn:
                 result["changed"] = mirror_fingerprint(conn) != before
 
         write = loop.run_in_executor(None, _apply)

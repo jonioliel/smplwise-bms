@@ -513,7 +513,7 @@ class AlertStreamListener:
 
         def _write() -> dict[str, Any] | None:
             fired.clear()
-            with db.connection() as conn:
+            with db.connection(durable=False) as conn:
                 stored = store_alert(conn, alert, tz, self._camera_lookup(conn), repeats=repeats)
                 if stored:
                     try:
