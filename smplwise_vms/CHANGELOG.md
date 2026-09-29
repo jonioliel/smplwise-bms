@@ -1,5 +1,28 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.136 (pilot) — Device control: click enters the area, empty domains hidden, per-device tile layout (CR-007 6c, owner requests)
+- **A click on an area opens it** (owner: "a click opens a tooltip and then I have to click 'פתח אזור', and the tooltip is
+  sometimes hidden"). In the tree and in the floor cards a click on an area row goes straight to the area screen;
+  hovering the row (or reaching it with the keyboard) shows the summary popover with the counters and the quick
+  actions; on touch screens the row's "⋯" opens it. The popover is drawn above everything, stays inside the screen
+  (opens upward near the bottom edge) and closes on Escape, a click outside, scrolling or a resize. A click on a
+  floor card's title opens the floor.
+- **Empty domains are not shown** (owner: "no need for a covers tile or a climate card where there is none"): the
+  building counters, the lit count where there are no lights, the area's domain cards, the quick actions and the
+  per-area pill icons appear only for domains that have at least one entity (unavailable entities still count as
+  present). A card hidden because it is empty keeps its saved place in the layout; the others close the gap and it
+  returns to the same place when the domain appears.
+- **Per-device tiles** (owner decision 1.א): in edit mode, a card opens **"סידור התקנים"** - tiles are dragged or
+  moved with the arrows, Shift+arrows change the width (one or two columns), H hides, a side panel sets width, size
+  (s / m / l), a custom title (text only) and hidden; "אפס סידור" per card; tile controls are inert while arranging.
+  On the phone the order comes from the desktop layout with every tile full width, and can then be arranged
+  separately. Layout schema `v:2` with a `tiles` map per card; `v:1` layouts load and save unchanged (no migration);
+  order unique per card, width bounded by the card's columns, at most 200 tiles, hidden tiles still counted in the
+  pills. A card being arranged that loses its last device (a structure refresh) returns to the cards with a note.
+  Documented in `docs/design/DEVICE_THEMES.md` §8 and the user guide.
+- Tests: `test_device_layouts.py` 13 (5 new) + devices 57 in the set; Playwright desktop + phone 32 passed (6b, 4 new 6c,
+  4 new feedback tests); tsc / build clean. Sonnet review APPROVED_WITH_NITS (two small fixes applied).
+
 ## 0.1.135 (pilot) — WisKey embed: no dark edge around the panel (owner report)
 - Owner screenshot (WisKey rc.25 embedded, 0.1.127 adapter - one toolbar, as intended): a dark line along the right
   and bottom edges of the embedded panel. Cause (`screens/wiskey-embed.ts`): the panel's box and its overlay used the
