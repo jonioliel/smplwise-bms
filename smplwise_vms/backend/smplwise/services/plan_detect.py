@@ -68,6 +68,7 @@ REF_SIDES = 3  # ... unless it has this many sides of REF_SIDE_M or more in two 
 REF_SIDE_M = 1.0
 REF_STRAIGHT_SHARE = 0.3  # ... one that runs one way (a stroke of the sheet, or one line of a fragmented outline) from this share
 REF_CROSS_MIN_M = 2.0  # a section-cut stroke crossing into the building (detector 1.4, section_lines) is at least this long
+REF_CROSS_REACH_M = 0.75  # ... and passes within this of a structure wall's body (half the widest door: through an opening)
 JOIN_GAP_M = 0.3  # a white gap narrower than this between pieces of one line, no symbol in it, is one wall (1.4, join_gaps) ...
 JOIN_THICK_RATIO = 1.5  # ... when the two pieces are about as thick (the thicker at most this many times the thinner)
 LINE_INK = 0.6  # a drawn line beside a segment: ink on this share of the samples along it
@@ -738,6 +739,17 @@ def _point_seg_dist(p: np.ndarray, a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return np.hypot(*(p - q).T)
 
 
+def _seg_seg_dist(a: np.ndarray, b: np.ndarray, c: np.ndarray, d: np.ndarray) -> float:
+    """The distance between the segments a-b and c-d: 0 when they cross, else the least end-to-segment distance."""
+    def orient(p: np.ndarray, q: np.ndarray, r: np.ndarray) -> float:
+        return float((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]))
+
+    o1, o2, o3, o4 = orient(a, b, c), orient(a, b, d), orient(c, d, a), orient(c, d, b)
+    if o1 * o2 < 0 and o3 * o4 < 0:
+        return 0.0
+    return float(min(_point_seg_dist(np.array([c, d]), a, b).min(), _point_seg_dist(np.array([a, b]), c, d).min()))
+
+
 def drop_reference_strokes(segs: list[Seg], t_med: float, s: float, crossing: bool = False, counts: dict[str, int] | None = None) -> tuple[list[Seg], list[Seg], int]:
     """Drop the strokes of the sheet that are not the building: section-cut marks, north arrows, the title underline,
     a scale bar, a dimension line off to the side. The structure is every connected group of segments (an end within
@@ -813,11 +825,22 @@ def drop_reference_strokes(segs: list[Seg], t_med: float, s: float, crossing: bo
         # structure (it touches no wall at either end - the wall it crosses runs on through it, and the arrow bar at its
         # outer end belongs to its own group), it is no shape (not REF_SIDES sides in two directions), a stroke of it of
         # at least REF_CROSS_MIN_M is longer than the rest of its group together, and that stroke has one end inside the
-        # structure's bounding box and the other beyond the grown box. A free-standing wall inside the building never leaves the box; a garden wall leaving the envelope touches
-        # it (structure); a wall parallel to the envelope outside it has no end inside the box.
+        # structure's bounding box and the other beyond the grown box, and its body crosses the body of a structure
+        # segment or passes within REF_CROSS_REACH_M of one (review M1: it cuts the envelope - or passes through a door
+        # opening of it, as the owner's floor -1 "ב" line does). A free-standing wall inside the building never leaves the box; a
+        # garden wall leaving the envelope touches it (structure); a wall parallel to the envelope outside it has no
+        # end inside the box; a detached fence that starts in the notch of an L-shaped building (inside the box, outside
+        # the building) and leaves it crosses no wall.
         raw_lo, raw_hi = sp.min(axis=0), sp.max(axis=0)
         long_px = REF_CROSS_MIN_M / s
         crossed: set[int] = set()
+        struct_segs = [h for j, h in enumerate(segs) if find(j) in structure]
+
+        reach = REF_CROSS_REACH_M / s
+
+        def cuts_structure(g: Seg) -> bool:
+            return any(_seg_seg_dist(g.a, g.b, h.a, h.b) <= (g.thick + h.thick) / 2 + reach for h in struct_segs)
+
         for i, g in enumerate(segs):
             r = find(i)
             if r in structure or r in outside or r in crossed or g.length < long_px:
@@ -828,7 +851,7 @@ def drop_reference_strokes(segs: list[Seg], t_med: float, s: float, crossing: bo
                 continue  # the rest of its group (an arrow bar, a tick) is an appendix of the stroke, never as long as it
             inside = [bool(((p >= raw_lo) & (p <= raw_hi)).all()) for p in (g.a, g.b)]
             beyond = [bool(((p < lo) | (p > hi)).any()) for p in (g.a, g.b)]
-            if (inside[0] and beyond[1]) or (inside[1] and beyond[0]):
+            if ((inside[0] and beyond[1]) or (inside[1] and beyond[0])) and cuts_structure(g):
                 crossed.add(r)
         drop |= crossed
         if counts is not None:
@@ -1280,6 +1303,16 @@ def windows_by_profile(walls: list[Seg], openings: list[dict[str, Any]], dt: np.
 
 # ---------------------------------------------------------------- the detector
 
+def rotation_toward(n: np.ndarray, tilt_deg: float = 0.0) -> float:
+    """The object rotation (degrees, 0..360) that turns an object's local depth axis +y onto the straightened-frame
+    direction `n` as it lies on the scan (turned back by the scan's tilt, as detect's `back` does). The document's
+    convention (geometry.ts rotated, scene-builder turned): rotation r maps local (0, 1) to (-sin r, cos r) in plan
+    coordinates (y down); a tribune's row 0 lies at local -d/2 and is the lowest, so its rows rise along +y."""
+    c, s_ = math.cos(math.radians(tilt_deg)), math.sin(math.radians(tilt_deg))
+    nx, ny = n[0] * c - n[1] * s_, n[0] * s_ + n[1] * c
+    return round(math.degrees(math.atan2(-nx, ny)) % 360.0, 2) % 360.0
+
+
 def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TARGETS, strength: float = 0.6, scale_m_per_px: float | None = None, level_id: str = "L0", run_id: str = "0", deadline: float | None = None, door_model: str = "gap", hollow_walls: bool = True,
            section_lines: bool = True, join_gaps: bool = True, steps_regions: bool = True, columns: bool = True) -> dict[str, Any]:
     """Candidates (document-v2 walls and openings, source "auto") for a plan picture. `scale_m_per_px` is the version's
@@ -1459,6 +1492,9 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
         """A straightened-frame direction's angle on the scan, in degrees 0..180 (the object's rotation)."""
         return round(math.degrees(math.atan2(d[0] * sin_t + d[1] * cos_t, d[0] * cos_t - d[1] * sin_t)) % 180.0, 2)
 
+    def facing(n: np.ndarray) -> float:
+        return rotation_toward(n, tilt)
+
     def size_m(v: float) -> float:
         return round(min(100.0, max(0.05, v * s)), 3)
 
@@ -1473,8 +1509,10 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
         })
         pixels[oid] = {"w_px": round(w_px / f, 2), "d_px": round(d_px / f, 2)}
 
-    for r in regions:  # a tribune: rows along its width, stepping across its depth
-        add_object(pdo.STEPS_ITEM, r["centre"], turned(r["dir"]), r["length"], r["depth"], round(min(100.0, r["rows"] * pdo.STEP_HEIGHT_M), 2),
+    # a tribune: rows along its width, stepping across its depth; it rises away from the edge it was found from, toward
+    # its rows (review L1) - which of the two edges is the low one the drawing does not say: the reviewer turns it
+    for r in regions:
+        add_object(pdo.STEPS_ITEM, r["centre"], facing(r["normal"]), r["length"], r["depth"], round(min(100.0, r["rows"] * pdo.STEP_HEIGHT_M), 2),
                    {"rows": int(r["rows"]), "step_height_m": pdo.STEP_HEIGHT_M, "step_width_m": round(min(3.0, max(0.2, r["spacing"] * s)), 2), "connects_levels": None},
                    round(min(0.9, 0.5 + 0.05 * r["rows"]), 3))
     run_len = {}

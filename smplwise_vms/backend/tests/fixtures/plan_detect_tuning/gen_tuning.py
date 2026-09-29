@@ -7,6 +7,8 @@ owner's resolution) drawn with Pillow, each with its ground truth in pixel coord
     steps       a tribune: 7 lines 0.9 m apart, the edges heavier - one steps region, no walls; stair treads stay out
     fragments   partitions broken by 0.1-0.24 m white gaps (a label's halo, a dimension tick across) - one wall each
     piers       a facade of 0.9 m pier boxes every 6 m with faint glazing between - columns and the envelope line
+    facade      (review B1) masonry walls with a window rhythm: their piers are no columns, their windows stay
+    lnotch      (review M1) an L-shaped building with a detached fence in the notch: a wall, not a section line
 
 `python gen_tuning.py` rewrites the PNG and JSON files next to it; test_plan_detect_tuning2.py refuses a committed
 picture that differs from what this script draws."""
@@ -16,6 +18,8 @@ import json
 import sys
 from pathlib import Path
 from typing import Callable
+
+import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "plan_detect"))
 from gen_synthetic import Plan  # noqa: E402
@@ -143,7 +147,55 @@ def piers() -> Plan:
     return p
 
 
-PLANS: dict[str, Callable[[], Plan]] = {"reference": reference, "steps": steps, "fragments": fragments, "piers": piers}
+def _window3(p: Plan, wall_i: int, centre: tuple[int, int], width: int) -> None:
+    """A window as a scan of a thick wall shows it: both faces and the glass in 3 px lines, which the closing joins into
+    the wall's band (the gap pass then sees one wall, the profile pass finds the window)."""
+    g0, g1, d = p._gap(wall_i, centre, width)
+    t = p.gt["walls"][wall_i]["thickness_px"]
+    n = np.array([d[1], -d[0]])
+    for o in (-(t - 3) / 2, 0.0, (t - 3) / 2):
+        p.d.line([tuple(g0 + n * o), tuple(g1 + n * o)], fill=0, width=3)
+    p.gt["windows"].append({"centre": list(centre), "width_px": width, "wall": wall_i})
+
+
+def facade() -> Plan:
+    """Review B1: a masonry building whose top wall is 0.64 m thick with a window rhythm - 1.3 m piers between 0.9 m
+    windows, 2.2 m apart: blobs of a column's size at a pier grid's spacing - and whose bottom wall is 0.4 m thick with
+    1.0 m piers between 0.8 m windows (blobs only to the uncalibrated reading, whose median wall is a thin partition).
+    Without the windowed-wall rule the first version proposed 10 (calibrated) / 8 (uncalibrated) columns here.
+    The piers are pieces of their walls: no column, the windows found, the walls as without the column rule."""
+    p = _plan("facade")
+    top = p.wall((200, 250), (1400, 250), 32, "exterior")
+    p.wall((1400, 250), (1400, 1050), 14, "exterior")
+    bottom = p.wall((1400, 1050), (200, 1050), 20, "exterior")
+    p.wall((200, 1050), (200, 250), 14, "exterior")
+    for x in (500, 800, 1100):  # thin partitions: the median wall of the uncalibrated reading
+        p.wall((x, 264), (x, 1040), 5)
+    for y in (500, 800):
+        p.wall((207, y), (1393, y), 5)
+    for k in range(10):
+        _window3(p, top, (330 + 110 * k, 250), 44)
+    for k in range(9):
+        _window3(p, bottom, (1300 - 90 * k, 1050), 40)
+    return p
+
+
+def lnotch() -> Plan:
+    """Review M1: an L-shaped building with a detached fence that starts in the notch (inside the building's box, outside
+    the building), touches no wall and leaves the box: a wall, kept. A section-cut line that cuts the envelope below is
+    dropped."""
+    p = _plan("lnotch")
+    pts = [(200, 200), (1000, 200), (1000, 600), (1400, 600), (1400, 1000), (200, 1000)]
+    for a, b in zip(pts, pts[1:] + pts[:1]):
+        p.wall(a, b, OUTER, "exterior")
+    p.wall((600, 206), (600, 994), INNER)
+    p.wall((1200, 480), (1200, 60), 8, "exterior")  # the fence: 0.16 m, 8.4 m long, from the notch out of the box
+    _stroke(p, (800, 850), (800, 1150), 6)  # a section-cut line through the bottom wall, arrow bar outside
+    _stroke(p, (760, 1153), (840, 1153), 7)
+    return p
+
+
+PLANS: dict[str, Callable[[], Plan]] = {"reference": reference, "steps": steps, "fragments": fragments, "piers": piers, "facade": facade, "lnotch": lnotch}
 
 
 def generate(out_dir: Path) -> list[str]:

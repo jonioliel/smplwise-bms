@@ -4,7 +4,10 @@ envelope are no walls; a white gap under 0.3 m with no symbol joins its two piec
 a steps object (library item tribune.stepped); a pier grid as column objects with the envelope line between the edge
 columns, the sides of each pier's outline no wall stubs. Every rule is a request option, on by default: each plan is
 scored with its rule on and off, the committed synthetic set must come out identical, and the route passes the options
-through and accepts the object candidates."""
+through and accepts the object candidates. Review round 1 (Opus): a windowed masonry facade is no pier grid (B1), a
+fence in the notch of an L is no section line (M1), one missing column per run (M2), the envelope never overlaps a wall
+(M3), the on/off equality uncalibrated and on the T087 / hollow pictures (M4), the tribune's rising side (L1), the
+column pass keeps the deadline (L2)."""
 from __future__ import annotations
 
 import dataclasses
@@ -12,6 +15,7 @@ import json
 import sys
 
 import numpy as np
+import pytest
 from PIL import Image
 
 from conftest import seed_tree
@@ -25,7 +29,7 @@ from smplwise.services import plan_detect_objects as pdo
 sys.path.insert(0, str(pm.TUNING))
 import gen_tuning as gen  # noqa: E402
 
-NAMES = ["reference", "steps", "fragments", "piers"]
+NAMES = ["reference", "steps", "fragments", "piers", "facade", "lnotch"]
 OFF = {"section_lines": False, "join_gaps": False, "steps_regions": False, "columns": False}
 
 
@@ -79,6 +83,29 @@ def test_drop_reference_strokes_crossing_rule_on_segments():
     assert dropped == 2 and counts["crossing"] == 2 and len(kept) == len(hall) + len(keep), [(g.a, g.b) for g in kept]
     kept, _outside, dropped = pd.drop_reference_strokes(hall + keep + stroke, t_med, s)
     assert dropped == 0 and len(kept) == len(hall) + len(keep) + 2
+    # review M1: an L-shaped hall (the notch at the top right, 2000-3000 x 0-1000 is outside the building but inside its
+    # box) with a detached fence from the notch out of the box: it cuts no wall, so it stays
+    ell = [sg((0, 0), (2000, 0)), sg((2000, 0), (2000, 1000)), sg((2000, 1000), (3000, 1000)), sg((3000, 1000), (3000, 2000)),
+           sg((3000, 2000), (0, 2000)), sg((0, 2000), (0, 0)), sg((1000, 0), (1000, 2000))]
+    fence = [sg((2500, 700), (2500, -250), 8.0)]
+    kept, _outside, dropped = pd.drop_reference_strokes(ell + fence, t_med, s, crossing=True)
+    assert dropped == 0 and len(kept) == len(ell) + 1
+    assert pd._seg_seg_dist(np.array([0.0, 0.0]), np.array([10.0, 0.0]), np.array([5.0, -5.0]), np.array([5.0, 5.0])) == 0.0
+    assert pd._seg_seg_dist(np.array([0.0, 0.0]), np.array([10.0, 0.0]), np.array([15.0, -5.0]), np.array([15.0, 5.0])) == 5.0
+
+
+def test_a_fence_in_the_notch_of_an_l_shaped_building_stays_a_wall(monkeypatch):
+    """Review M1 on a picture: the fence (8.4 m, from the notch out of the building's box, touching nothing) stays; the
+    section-cut line through the bottom wall goes. Without the body test (every stroke 'cuts' the structure) the fence
+    went too."""
+    for calibrated in (True, False):
+        _gt, r, e = _run("lnotch", calibrated)
+        fence = [w for w in r["walls"] if all(abs(p[0] * 1600 - 1200) < 8 for p in w["polyline"]) and min(p[1] for p in w["polyline"]) * 1200 < 100]
+        assert fence and e["walls"]["recall"] >= 0.99 and e["walls"]["precision"] >= 0.99, (calibrated, e["walls"], [w["polyline"] for w in r["walls"]])
+        assert r["stats"]["dropped_crossing"] >= 1
+    monkeypatch.setattr(pd, "_seg_seg_dist", lambda *a: 0.0)
+    _gt, r, _e = _run("lnotch")
+    assert not [w for w in r["walls"] if all(abs(p[0] * 1600 - 1200) < 8 for p in w["polyline"])], "the body test is what keeps the fence"
 
 
 def test_short_gaps_join_and_are_no_passages():
@@ -118,7 +145,14 @@ def test_a_tribune_is_proposed_as_a_steps_object():
         gt, r, e = _run("steps", calibrated)
         assert e["objects"]["steps"]["found"] == 1 and e["objects"]["steps"]["false"] == 0 and e["objects"]["column"]["false"] == 0, (calibrated, e["objects"])
         (o,) = r["objects"]
-        assert o["item_id"] == pdo.STEPS_ITEM and o["source"] == "auto" and o["id"].startswith("auto-") and o["level_id"] == "L0" and o["rotation_deg"] == 0.0
+        assert o["item_id"] == pdo.STEPS_ITEM and o["source"] == "auto" and o["id"].startswith("auto-") and o["level_id"] == "L0" and o["rotation_deg"] in (0.0, 180.0)
+        # review L1: the rows rise away from the edge the region was found from - row 0 (local -d/2, the lowest) lies
+        # on one of the two edge lines (y 300 / 570 px), the local depth axis (-sin r, cos r) points into the rows
+        th = np.radians(o["rotation_deg"])
+        up = np.array([-np.sin(th), np.cos(th)])
+        c = np.array([o["position"][0] * 1600, o["position"][1] * 1200])
+        low_row = c - up * r["pixels"][o["id"]]["d_px"] / 2
+        assert min(abs(low_row[1] - 300), abs(low_row[1] - 570)) < 12 and abs(up[0]) < 1e-9, (o, low_row)
         assert o["params"]["rows"] == 6 and o["params"]["step_height_m"] == 0.3 and 0 < o["confidence"] <= 0.9
         assert r["pixels"][o["id"]]["w_px"] > 0 and r["pixels"][o["id"]]["d_px"] > 0
         if calibrated:
@@ -127,6 +161,39 @@ def test_a_tribune_is_proposed_as_a_steps_object():
         assert rows == [] and e["walls"]["precision"] >= 0.99, rows
     _gt, r, e = _run("steps", steps_regions=False)
     assert r["objects"] == [] and r["detector"]["params"]["steps_regions"] is False and e["walls"]["precision"] >= 0.99
+
+
+def test_a_tribune_rises_away_from_its_edge_toward_its_rows():
+    """Review L1 on segments (0.01 m / px): an edge with four rows 0.9 m below it is a region whose normal points down
+    (rotation 0: local +y is plan +y); the same rows above it point up (rotation 180); a vertical edge with its rows to the
+    right turns local +y onto +x (rotation 270), with a scan tilt the rotation follows it."""
+    s = 0.01
+    g = pd.Seg(np.array([50.0, 101.5]), np.array([549.0, 101.5]), [4.0] * 5, axis=True)
+
+    def region(*ys: int) -> dict:
+        ink = np.zeros((900, 600), dtype=bool)
+        for y in (100, *ys):
+            ink[y : y + 4, 50:550] = True
+        found: list = []
+        assert pd.drop_steps_edges([g], ink, s, found=found) == []
+        (reg,) = pdo.steps_regions(found, ink, s)
+        return reg
+
+    below = region(190, 280, 370, 460)
+    assert below["rows"] == 4 and np.allclose(below["normal"], [0.0, 1.0]) and pd.rotation_toward(below["normal"]) == 0.0
+    ink = np.zeros((900, 600), dtype=bool)  # the same rows seen from the bottom line: they lie above it
+    for y in (460, 370, 280, 190, 100):
+        ink[y : y + 4, 50:550] = True
+    g2 = pd.Seg(np.array([50.0, 461.5]), np.array([549.0, 461.5]), [4.0] * 5, axis=True)
+    found: list = []
+    pd.drop_steps_edges([g2], ink, s, found=found)
+    (above,) = pdo.steps_regions(found, ink, s)
+    assert np.allclose(above["normal"], [0.0, -1.0]) and pd.rotation_toward(above["normal"]) == 180.0
+    assert pd.rotation_toward(np.array([1.0, 0.0])) == 270.0 and pd.rotation_toward(np.array([-1.0, 0.0])) == 90.0
+    r = pd.rotation_toward(np.array([0.0, 1.0]), 2.0)
+    th = np.radians(r)
+    c, s_ = np.cos(np.radians(2.0)), np.sin(np.radians(2.0))
+    assert np.allclose([-np.sin(th), np.cos(th)], [-s_, c], atol=1e-3), "with a tilt the rotation turns the normal back onto the scan"
 
 
 def test_a_pier_grid_is_proposed_as_columns_with_the_envelope_between_them():
@@ -149,6 +216,67 @@ def test_a_pier_grid_is_proposed_as_columns_with_the_envelope_between_them():
     assert r["objects"] == [] and e["walls"]["recall"] < 0.6 and e["walls"]["precision"] < 0.85, e["walls"]
 
 
+def test_the_piers_of_a_windowed_masonry_wall_are_no_columns(monkeypatch):
+    """Review B1: a 0.64 m wall with 1.3 m piers between 0.9 m windows (2.2 m apart) and a 0.4 m wall with 1.0 m piers
+    between 0.8 m windows. The piers pass a column's size and a pier grid's spacing, but the window symbols continue from
+    both faces of each pier across the wall's whole thickness: no column, no stub dropped, no envelope, every window
+    found, the answer identical with the column rule off - calibrated and uncalibrated. Without the windowed-wall test
+    the rule proposed the top wall's piers (calibrated) and the bottom wall's (uncalibrated) as columns."""
+    for calibrated in (True, False):
+        _gt, r, e = _run("facade", calibrated)
+        assert r["objects"] == [] and r["stats"]["columns"] == 0 and r["stats"]["column_stubs"] == 0 and r["stats"]["envelope_walls"] == 0, (calibrated, r["stats"])
+        assert e["windows"]["found"] == e["windows"]["total"] == 19 and e["windows"]["false"] == 0, (calibrated, e["windows"])
+        assert e["walls"]["recall"] >= 0.99 and e["walls"]["precision"] >= 0.98, (calibrated, e["walls"])
+        _gt, off, _e = _run("facade", calibrated, columns=False)
+        assert r["walls"] == off["walls"] and r["openings"] == off["openings"], calibrated
+    monkeypatch.setattr(pdo, "windowed_wall", lambda *a, **k: False)
+    for calibrated in (True, False):
+        _gt, r, _e = _run("facade", calibrated)
+        assert len(r["objects"]) >= 3, (calibrated, "the facade reproduces the review's finding")
+
+
+def test_windowed_wall_reads_the_ink_beyond_the_pier_faces():
+    """A horizontal row of three 40 x 20 px blobs: with a 20 px wall band (or three window lines spanning it) between
+    them it is a windowed wall; with two hairlines 6 px apart (glazing) or a 6 px wall between them it is a pier grid."""
+    def row(between: str) -> tuple[list[dict], np.ndarray]:
+        fill = np.zeros((200, 600), dtype=bool)
+        blobs = []
+        for x in (100, 300, 500):
+            fill[90:110, x - 20 : x + 20] = True
+            blobs.append({"cx": float(x) - 0.5, "cy": 99.5, "w": 40.0, "h": 20.0})
+        for x0 in (120, 320):
+            if between == "wall":
+                fill[90:110, x0 : x0 + 160] = True
+            elif between == "window":
+                for y in (90, 99, 107):
+                    fill[y : y + 3, x0 : x0 + 160] = True
+            elif between == "glazing":
+                fill[96, x0 : x0 + 160] = fill[102, x0 : x0 + 160] = True
+            elif between == "thin":
+                fill[97:103, x0 : x0 + 160] = True
+        return blobs, fill
+
+    for between, want in (("wall", True), ("window", True), ("glazing", False), ("thin", False), ("none", False)):
+        blobs, fill = row(between)
+        assert pdo.windowed_wall(blobs, [0, 1, 2], 0, fill) is want, between
+
+
+def test_the_envelope_between_columns_never_overlaps_a_wall():
+    """Review M3: columns every 300 px on the bottom edge of a building, a wall piece 70 px long on the row's line in
+    the second stretch (27 % of it: below COL_COVERED, so the stretch gets an envelope): the proposed envelope covers the
+    rest of the row and leaves the wall's extent free."""
+    def col(x):
+        return {"cx": float(x), "cy": 500.0, "w": 40.0, "h": 40.0}
+
+    columns = [col(100), col(400), col(700)]
+    top = pd.Seg(np.array([100.0, 100.0]), np.array([700.0, 100.0]), [8.0] * 5, axis=True)
+    piece = pd.Seg(np.array([450.0, 500.0]), np.array([520.0, 500.0]), [8.0] * 5, axis=True)
+    out = pdo.envelope_walls(columns, [(0, [0, 1, 2])], [top, piece], 8.0, 0.02)
+    spans = sorted((min(g.a[0], g.b[0]), max(g.a[0], g.b[0])) for g in out)
+    assert spans and all(hi <= 446 + 1e-6 or lo >= 524 - 1e-6 for lo, hi in spans), spans
+    assert spans[0][0] == 100.0 and spans[-1][1] == 700.0 and sum(hi - lo for lo, hi in spans) > 500, spans
+
+
 def test_column_rows_need_a_regular_spacing_and_bridge_a_lost_column():
     def blob(x, y, side=40.0):
         return {"cx": float(x), "cy": float(y), "w": side, "h": side}
@@ -163,6 +291,13 @@ def test_column_rows_need_a_regular_spacing_and_bridge_a_lost_column():
     sizes = [blob(100, 500), blob(400, 500, 80.0), blob(700, 500)]
     assert pdo._runs(sizes, 100, 600, 0) == [], "columns of one row are about one size"
     assert pdo._runs([blob(500, y) for y in (100, 400, 700)], 100, 600, 1) == [[0, 1, 2]]
+    # review M2: a missing column in the first spacing - the run restarts from the column before the break
+    first = [blob(x, 500) for x in (100, 700, 1000, 1300)]
+    assert pdo._runs(first, 100, 600, 0) == [[1, 2, 3]]
+    assert pdo._runs(first, 100, 500, 0) == [[1, 2, 3]], "a first spacing out of range restarts the same way"
+    # exactly one missing column per run: a second double spacing ends it
+    twice = [blob(x, 500) for x in (100, 400, 1000, 1300, 1900, 2200)]
+    assert pdo._runs(twice, 100, 600, 0) == [[0, 1, 2, 3]]
 
 
 def test_components_of_a_mask():
@@ -175,14 +310,47 @@ def test_components_of_a_mask():
     assert pdo._components(np.zeros((5, 5), dtype=bool)) == []
 
 
+def test_square_blobs_keeps_the_deadline():
+    """Review L2: the deadline is checked between the erosion and the components (and after them)."""
+    gray = np.full((300, 300), 255, dtype=np.uint8)
+    gray[100:160, 100:160] = 0
+    calls: list[int] = []
+    assert len(pdo.square_blobs(gray, 30, 80, lambda: calls.append(1))) == 1 and len(calls) == 2
+
+    def expired() -> None:
+        raise pd.DetectTimeout("late")
+
+    with pytest.raises(pd.DetectTimeout):
+        pdo.square_blobs(gray, 30, 80, expired)
+
+
 def test_the_committed_synthetic_set_is_unchanged_by_the_new_rules():
-    """The six plans of the phase-3 set carry none of these drawings: every rule on or off, the same walls and openings,
-    and no object."""
+    """The six plans of the phase-3 set carry none of these drawings: every rule on or off, calibrated and not (review
+    M4), the same walls and openings, and no object."""
     for name, gt, png in pm.load_set():
-        on = pd.detect(png, scale_m_per_px=gt["scale_m_per_px"])
-        off = pd.detect(png, scale_m_per_px=gt["scale_m_per_px"], **OFF)
-        assert on["walls"] == off["walls"] and on["openings"] == off["openings"], name
-        assert on["objects"] == [] and off["objects"] == [], name
+        for scale in (gt["scale_m_per_px"], None):
+            on = pd.detect(png, scale_m_per_px=scale)
+            off = pd.detect(png, scale_m_per_px=scale, **OFF)
+            assert on["walls"] == off["walls"] and on["openings"] == off["openings"], (name, scale)
+            assert on["objects"] == [] and off["objects"] == [], (name, scale)
+
+
+def test_the_t087_and_hollow_pictures_are_unchanged_by_the_new_rules():
+    """Review M4: the tuning pictures of T087 and the hollow-wall pictures carry none of these drawings (a plain building,
+    its hall, a facade of piers and narrow windows, a hollow outline with a door and a window, a solid building with a
+    counter and a wardrobe): every rule on or off, the same walls and openings and no object, calibrated and not."""
+    import test_plan_detect_hollow as th
+    import test_plan_detect_tuning as tt
+
+    pictures = [("building", tt._building()[0], tt.S), ("hall", tt._hall()[0], 0.05), ("hollow outline", th._outline_with_door_and_window(), th.S),
+                ("counter and wardrobe", th._counter_and_wardrobe(), th.S)]
+    for name, im, s in pictures:
+        png = th._png(im)
+        for scale in (s, None):
+            on = pd.detect(png, scale_m_per_px=scale)
+            off = pd.detect(png, scale_m_per_px=scale, **OFF)
+            assert on["walls"] == off["walls"] and on["openings"] == off["openings"], (name, scale)
+            assert on["objects"] == [] and off["objects"] == [], (name, scale)
 
 
 def _setup(settings, png: bytes):

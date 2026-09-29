@@ -14,12 +14,15 @@ after an erosion by a square just under COL_MIN_M (lines, text, hatching and the
 core's box grown back is the column. A box COL_MIN_M to COL_MAX_M on each side, at most COL_ASPECT long for its width and
 filled (COL_RAW_FILL), is a column when at least COL_MIN_ROW of them of about one size (COL_SIZE_RATIO) stand on one line
 (centres within COL_LINE_TOL of their side) at a regular spacing (COL_SPACING_M, the widest at most COL_REGULAR times the
-narrowest; a double spacing - a column the scan lost - is bridged) - a pier grid, never a lone blob. The wall pieces that
+narrowest; ONE double spacing per run - a column the scan lost - is bridged, never the first) - a pier grid, never a
+lone blob - and when it is not a wall with a window rhythm (windowed_wall: the wall or a window symbol continues from
+both faces of its blobs across their whole thickness, review B1: a masonry facade's piers). The wall pieces that
 lie wholly inside a column (the sides of its outline, which the wall pass suggested as stubs) are dropped. A row of
 columns on the edge of the building's box (within max(COL_EDGE_M, a side) of it) is the envelope: the stretches between
-neighbouring columns that no wall already covers (COL_COVERED) become one wall candidate each run, centre to centre, of
-the median wall's thickness and a capped confidence (ENVELOPE_CONF) - the owner draws the facade between the piers as
-faint glazing below every threshold.
+neighbouring columns that walls cover less than COL_COVERED become wall candidates, centre to centre but only over the
+parts no wall covers (review M3: a proposed facade wall never overlaps a wall), of the median wall's thickness and a
+capped confidence (ENVELOPE_CONF) - the owner draws the facade between the piers as faint glazing below every threshold.
+Known limit: axis-parallel lines and blobs only - a wing at an angle gets no tribune and no columns.
 
 Numpy only; nothing here is stored: plan_detect turns the regions and columns into document-v2 object candidates."""
 from __future__ import annotations
@@ -49,6 +52,8 @@ COL_ASPECT = 2.6
 COL_SOLID = 0.7  # the eroded core fills this share of its bounding box ...
 COL_RAW_FILL = 0.9  # ... and the fill this share of the column's box (a word's box is half white)
 COL_MAX_RUNS = 200_000
+COL_WALL_RATIO = 1.3  # a blob whose thickness across its row is within this of the ink continuing from its faces is a
+# piece of that wall (a window pier), not a column (review B1)
 COL_MIN_ROW = 3
 COL_SIZE_RATIO = 1.4
 COL_LINE_TOL = 0.35  # centres on one line within this share of the mean side
@@ -88,8 +93,9 @@ def _rows_from(g: pd.Seg, sign: float, ink: np.ndarray, s: float) -> list[float]
 
 
 def steps_regions(edges: list[tuple[pd.Seg, float]], ink: np.ndarray, s: float) -> list[dict[str, Any]]:
-    """Regions (analysis px) from the dropped steps edges: {"centre", "dir", "length", "depth", "rows", "spacing"}, the
-    larger kept when two overlap (both edges of one tribune find the same region)."""
+    """Regions (analysis px) from the dropped steps edges: {"centre", "dir", "normal", "length", "depth", "rows",
+    "spacing"}, `normal` the unit vector from the edge toward its rows (the object rises that way), the larger kept when
+    two overlap (both edges of one tribune find the same region; of two equal ones the first edge found)."""
     regions: list[dict[str, Any]] = []
     for g, sign in edges:
         if g.length * s < STEPS_MIN_WIDTH_M:
@@ -100,7 +106,7 @@ def steps_regions(edges: list[tuple[pd.Seg, float]], ink: np.ndarray, s: float) 
         nl = np.array([g.dir[1], -g.dir[0]]) * sign
         depth = rows[-1]
         centre = (g.a + g.b) / 2 + nl * depth / 2
-        regions.append({"centre": centre, "dir": g.dir, "length": g.length, "depth": depth, "rows": len(rows), "spacing": depth / len(rows)})
+        regions.append({"centre": centre, "dir": g.dir, "normal": nl, "length": g.length, "depth": depth, "rows": len(rows), "spacing": depth / len(rows)})
     regions.sort(key=lambda r: -r["length"] * r["depth"])
     kept: list[dict[str, Any]] = []
     for r in regions:
@@ -128,17 +134,25 @@ def _overlap_share(a: dict[str, Any], b: dict[str, Any]) -> float:
 
 # ---------------------------------------------------------------- columns
 
-def square_blobs(gray: np.ndarray, lo_px: float, hi_px: float) -> list[dict[str, float]]:
+def fill_mask(gray: np.ndarray) -> np.ndarray:
+    """The ink a column is drawn with: COL_FILL_GREY darker than the paper (the median grey)."""
+    return gray < float(np.median(gray)) - COL_FILL_GREY
+
+
+def square_blobs(gray: np.ndarray, lo_px: float, hi_px: float, check: Callable[[], None] = lambda: None, fill: np.ndarray | None = None) -> list[dict[str, float]]:
     """The square filled blobs of the picture (analysis px) with sides lo_px..hi_px: {"cx", "cy", "w", "h"}; empty
-    when there are more than COL_MAX_BLOBS of them."""
-    paper = float(np.median(gray))
-    fill = gray < paper - COL_FILL_GREY
+    when there are more than COL_MAX_BLOBS of them, or when the eroded ink holds more than COL_MAX_RUNS row runs (a
+    noisy or hatched sheet: bounded cost). `check` (the detector's deadline) runs between the stages."""
+    if fill is None:
+        fill = fill_mask(gray)
     # the cores: what is left of the fill after an erosion by a square just under lo_px - every wall thinner than that
     # (the walls running into a pier) is gone, a column keeps a core of its side less 2r; the column is its core's
     # box grown back by r
     r = max(1, int((lo_px - 1) // 2))
     core = ps.erode(fill, r)
+    check()
     comps = _components(core)
+    check()
     h_img, w_img = fill.shape
     out: list[dict[str, float]] = []
     for x0, y0, x1, y1, area in comps:  # inclusive core boxes
@@ -223,26 +237,38 @@ def _runs(blobs: list[dict[str, float]], lo: float, hi: float, axis: int) -> lis
             lines[-1].append(i)
         else:
             lines.append([i])
+    def side(j: int) -> float:
+        return (blobs[j]["w"] + blobs[j]["h"]) / 2
+
+    def regular(run: list[int]) -> bool:
+        """The spacings of `run` as multiples of the shortest: each one or two units (a column the scan lost leaves a
+        double spacing - the row goes on across it, the lost column is not proposed), at most ONE double per run and
+        never the first (two columns alone cannot tell a double from a unit), the unit lo..hi, the spacings regular
+        (COL_REGULAR) and the columns of about one size (COL_SIZE_RATIO)."""
+        pos = [blobs[j][key[axis]] for j in run]
+        gaps = [b - a for a, b in zip(pos, pos[1:])]
+        unit = min(gaps)
+        if unit <= 0 or not lo <= unit <= hi:
+            return False
+        steps = [max(1, round(gp / unit)) for gp in gaps]
+        if max(steps) > 2 or steps.count(2) > 1 or steps[0] != 1:
+            return False
+        norm = [gp / k for gp, k in zip(gaps, steps)]
+        sides = [side(j) for j in run]
+        return max(norm) <= COL_REGULAR * min(norm) and max(sides) <= COL_SIZE_RATIO * min(sides)
+
     runs: list[list[int]] = []
     for line in lines:
         line.sort(key=lambda i: blobs[i][key[axis]])
         run: list[int] = []
         for i in line:
-            if run:
-                # the spacings as multiples of the run's first one (a column the scan lost leaves a double spacing: the
-                # row goes on across it, the lost column is not proposed)
-                gaps = [blobs[b][key[axis]] - blobs[a][key[axis]] for a, b in zip(run + [i], run[1:] + [i])]
-                unit = gaps[0]
-                steps = [max(1, round(gp / unit)) if unit > 0 else 0 for gp in gaps]
-                norm = [gp / k for gp, k in zip(gaps, steps)] if unit > 0 else [0.0]
-                sides = [(blobs[j]["w"] + blobs[j]["h"]) / 2 for j in run + [i]]
-                if (unit > 0 and max(steps) <= 2 and lo <= norm[-1] <= hi and max(norm) <= COL_REGULAR * min(norm)
-                        and max(sides) <= COL_SIZE_RATIO * min(sides)):
-                    run.append(i)
-                    continue
-                if len(run) >= COL_MIN_ROW:
-                    runs.append(run)
-            run = [i]
+            if not run or regular(run + [i]):
+                run.append(i)
+                continue
+            if len(run) >= COL_MIN_ROW:
+                runs.append(run)
+            # the column that ended the run may start the next one with its predecessor
+            run = [run[-1], i] if regular([run[-1], i]) else [i]
         if len(run) >= COL_MIN_ROW:
             runs.append(run)
     return runs
@@ -252,18 +278,59 @@ def find_columns(an: dict[str, Any], s: float, t_med: float, calibrated: bool, c
     """The columns (analysis px) and their runs as (axis, indices into the columns): axis 0 a horizontal row. On an
     uncalibrated plan the metres are the walls' guess (the median wall taken as 0.2 m), so the sizes are read against
     the median wall instead: a side of COL_SIDE_T wall thicknesses, a spacing of COL_SPACING_SIDES sides."""
+    fill = fill_mask(an["gray"])
     if calibrated:
-        blobs = square_blobs(an["gray"], COL_MIN_M / s, COL_MAX_M / s)
+        blobs = square_blobs(an["gray"], COL_MIN_M / s, COL_MAX_M / s, check, fill)
         lo, hi = COL_SPACING_M[0] / s, COL_SPACING_M[1] / s
     else:
-        blobs = square_blobs(an["gray"], COL_SIDE_T[0] * t_med, COL_SIDE_T[1] * t_med)
+        blobs = square_blobs(an["gray"], COL_SIDE_T[0] * t_med, COL_SIDE_T[1] * t_med, check, fill)
         side = float(np.median([(b["w"] + b["h"]) / 2 for b in blobs])) if blobs else 0.0
         lo, hi = COL_SPACING_SIDES[0] * side, COL_SPACING_SIDES[1] * side
     check()
-    runs = [(axis, run) for axis in (0, 1) for run in _runs(blobs, lo, hi, axis)]
+    # a row of window piers of a thick wall is no pier grid (review B1): its stubs stay walls, its windows are classified
+    runs = [(axis, run) for axis in (0, 1) for run in _runs(blobs, lo, hi, axis) if not windowed_wall(blobs, run, axis, fill)]
     used = sorted({i for _, run in runs for i in run})
     remap = {old: new for new, old in enumerate(used)}
     return [blobs[i] for i in used], [(axis, [remap[i] for i in run]) for axis, run in runs]
+
+
+def _continues(fill: np.ndarray, c: dict[str, float], axis: int, sign: float) -> bool:
+    """Whether a wall continues from the face of column `c` on side `sign` along the row axis: just beyond the face (2,
+    4 and 6 px) the ink across the row - a wall's fill, or the face and glass lines of a window symbol - spans at least
+    the column's own thickness across the row over COL_WALL_RATIO. Faint glazing between piers (two hairlines well inside
+    the pier's width) and a thinner wall running into the column span much less."""
+    h, w = fill.shape
+    cross = 1 - axis
+    size = (c["w"], c["h"])
+    centre = (c["cx"], c["cy"])
+    across = size[cross]
+    offs = np.arange(-0.75 * across, 0.75 * across + 1)
+    best = 0.0
+    for k in (2.0, 4.0, 6.0):
+        at = centre[axis] + sign * (size[axis] / 2 + k)
+        cs = np.round(centre[cross] + offs).astype(int)
+        a = int(round(at))
+        if not 0 <= a < (w if axis == 0 else h):
+            continue
+        ok = (cs >= 0) & (cs < (h if axis == 0 else w))
+        vals = fill[cs[ok], a] if axis == 0 else fill[a, cs[ok]]
+        idx = np.flatnonzero(vals)
+        if idx.size:
+            best = max(best, float(idx[-1] - idx[0] + 1))
+    return across <= COL_WALL_RATIO * best
+
+
+def windowed_wall(blobs: list[dict[str, float]], run: list[int], axis: int, fill: np.ndarray) -> bool:
+    """Whether a run of blobs is the piers of a wall with a window rhythm (review B1), not a pier grid: at least half of
+    its blobs have a wall (or a window symbol) continuing from each face that faces another blob of the run - the first
+    and the last blob on their inner face only. A thick masonry facade (0.6 m piers between 1.5 m windows) passes the
+    size and spacing tests of a pier grid; its piers are pieces of the wall, as thick across the row as the wall."""
+    walled = 0
+    for k, j in enumerate(run):
+        sides = ([-1.0] if k > 0 else []) + ([1.0] if k < len(run) - 1 else [])
+        if all(_continues(fill, blobs[j], axis, sg) for sg in sides):
+            walled += 1
+    return 2 * walled >= len(run)
 
 
 def _inside(p: np.ndarray, c: dict[str, float], pad: float) -> bool:
@@ -302,11 +369,16 @@ def envelope_walls(columns: list[dict[str, float]], runs: list[tuple[int, list[i
         for c0, c1 in zip(cs, cs[1:]):
             a0, a1 = (c0["cx"], c0["cy"])[axis], (c1["cx"], c1["cy"])[axis]
             f0, f1 = a0 + (c0["w"], c0["h"])[axis] / 2, a1 - (c1["w"], c1["h"])[axis] / 2
-            if _covered(walls, axis, at, f0, f1, side / 2) < COL_COVERED:
-                if stretch and abs(stretch[-1][1] - a0) < 1e-6:
-                    stretch[-1] = (stretch[-1][0], a1)
+            if _covered(walls, axis, at, f0, f1, side / 2) >= COL_COVERED:
+                continue
+            # only what no wall covers, centre to centre (review M3): a proposed facade wall never overlaps a wall
+            for u0, u1 in _uncovered(walls, axis, at, a0, a1, side / 2):
+                if u1 - u0 < max(2.0 * t, 1.0):
+                    continue
+                if stretch and abs(stretch[-1][1] - u0) < 1e-6:
+                    stretch[-1] = (stretch[-1][0], u1)
                 else:
-                    stretch.append((a0, a1))
+                    stretch.append((u0, u1))
         for s0, s1 in stretch:
             a = np.array([s0, at]) if axis == 0 else np.array([at, s0])
             b = np.array([s1, at]) if axis == 0 else np.array([at, s1])
@@ -314,10 +386,9 @@ def envelope_walls(columns: list[dict[str, float]], runs: list[tuple[int, list[i
     return out
 
 
-def _covered(walls: list[pd.Seg], axis: int, at: float, f0: float, f1: float, tol: float) -> float:
-    """The share of [f0, f1] on the line `at` (horizontal when axis is 0) that walls along it cover."""
-    if f1 <= f0:
-        return 1.0
+def _cover_intervals(walls: list[pd.Seg], axis: int, at: float, f0: float, f1: float, tol: float) -> list[tuple[float, float]]:
+    """The merged intervals of [f0, f1] on the line `at` (horizontal when axis is 0) that walls along it cover (each
+    wall's drawn extent: its ends grown by half its thickness)."""
     cross = 1 - axis
     iv = []
     for g in walls:
@@ -326,12 +397,34 @@ def _covered(walls: list[pd.Seg], axis: int, at: float, f0: float, f1: float, to
         if abs(g.a[cross] - at) > tol + g.thick / 2 or abs(g.b[cross] - at) > tol + g.thick / 2:
             continue
         lo, hi = sorted((float(g.a[axis]), float(g.b[axis])))
+        lo, hi = lo - g.thick / 2, hi + g.thick / 2
         if hi > f0 and lo < f1:
             iv.append((max(lo, f0), min(hi, f1)))
     iv.sort()
-    total, end = 0.0, f0
+    merged: list[tuple[float, float]] = []
     for lo, hi in iv:
-        if hi > end:
-            total += hi - max(lo, end)
-            end = hi
-    return total / (f1 - f0)
+        if merged and lo <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], hi))
+        else:
+            merged.append((lo, hi))
+    return merged
+
+
+def _covered(walls: list[pd.Seg], axis: int, at: float, f0: float, f1: float, tol: float) -> float:
+    """The share of [f0, f1] on the line `at` that walls along it cover."""
+    if f1 <= f0:
+        return 1.0
+    return sum(hi - lo for lo, hi in _cover_intervals(walls, axis, at, f0, f1, tol)) / (f1 - f0)
+
+
+def _uncovered(walls: list[pd.Seg], axis: int, at: float, f0: float, f1: float, tol: float) -> list[tuple[float, float]]:
+    """The sub-intervals of [f0, f1] on the line `at` that no wall along it covers."""
+    out: list[tuple[float, float]] = []
+    cur = f0
+    for lo, hi in _cover_intervals(walls, axis, at, f0, f1, tol):
+        if lo > cur:
+            out.append((cur, lo))
+        cur = max(cur, hi)
+    if cur < f1:
+        out.append((cur, f1))
+    return out
