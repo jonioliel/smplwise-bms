@@ -18,7 +18,7 @@ from ..db import unlocked
 from ..errors import ApiError, not_found
 from ..rbac import Principal
 from ..services import playback, thumbnails
-from ..services.access import camera_allowed
+from ..services.access import require_camera
 from ..services.timeutil import parse_utc
 from .settings import read_settings
 
@@ -55,11 +55,10 @@ def _prune(root: Path) -> None:
 @router.get("/cameras/{camera_id}/frame")
 def camera_frame(camera_id: str, request: Request, at: str = Query(..., min_length=10, max_length=40), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> FileResponse:
     """JPEG frame from the camera's recording at `at` (UTC); 404 when the recording has no picture there."""
+    require_camera(conn, principal, camera_id, "video.playback")  # T055: audited, and 403 before 404
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam:
         raise not_found("המצלמה לא נמצאה.")
-    if not camera_allowed(conn, principal, camera_id, "video.playback"):
-        raise ApiError(403, "forbidden", "אין הרשאת ניגון למצלמה זו.")
     try:
         t = parse_utc(at)
     except ValueError:

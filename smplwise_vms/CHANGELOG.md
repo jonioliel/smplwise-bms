@@ -1,5 +1,61 @@
 # Changelog — SMPLWISE VMS add-on
 
+## 0.1.133 (pilot) — A real setup wizard (T071); role bindings per camera and session downgrade (T055)
+- **הגדרות › אשף התקנה** (`#/system/wizard`, system administrators) replaces the demo-only wizard: six steps -
+  **התקנה** (database answers, `/data` writable with ≥ 512 MB free, a system administrator exists, identity source,
+  time zone), **NVR** (model and firmware, channels online / offline, main + sub tracks, video profiles, clock drift
+  against the add-on, the NVR's UTC offset against the installation's zone - a wrong DST rule fails the step),
+  **Home Assistant** (connection and version, bridge paired and loaded, whether an HA restart is still pending after
+  a bridge update, HA clock and zone, the NVR ↔ HA clock gap), **go2rtc** (version; the `smplwise_` streams against
+  what the cameras need; other products' streams are only counted, never named), **קומה** (at least one floor with
+  a published plan), **מצלמה** (at least one camera placed). Each failure comes with a Hebrew explanation, the next
+  action and a link to the screen that fixes it; clock drift ≤ 2 s is fine, ≤ 30 s a warning, beyond that a failure.
+- `GET /setup/state` never contacts a device (cached probe results + database); `POST /setup/check/{step}` runs the
+  existing **read-only** probes (GET only - the wizard never changes anything on a device), one per user and step
+  every 5 s, a whole check cut off after 20 s ("לא ענה בזמן"), no database transaction open during device calls,
+  audited as `setup.check`. Responses carry model / firmware / versions / stream names - never serial numbers, MAC
+  or IP addresses (an NTP server address that could have reached the state is reduced to "configured: yes/no").
+- "בדוק שוב" per step, "בדוק הכול", a "מוכן לעבודה" summary when all six pass; system administrators see
+  "השלם את ההתקנה" in the shell until then (dismissable per session). The former `#/system/setup` stays as the
+  חיבורים page. Demo mode keeps its fixture data. Shell: the main area is now padded by the fixed system-error
+  banner, which used to cover the first rows of every screen.
+- Docs: `DOCS.md` + Hebrew mirror, `docs/user-guide/he/70-setup-wizard_HE.md`. Tests: `test_setup_wizard.py` 31
+  (fake NVR / HA / go2rtc; `fake.writes == []` asserted), 48 in the touched set; Playwright wizard spec (NVR down →
+  the step fails with the explanation, up → passes; desktop + phone), demo 2, screens sc26 6; tsc / build clean.
+  Opus review (2 medium fixed: NTP address, check deadline).
+
+### Roles and permissions: camera scope and session downgrade (T055)
+- A role binding may now target **a single camera** (הגדרות › תפקידים › היקף "מצלמה", picker limited to the
+  actor's reach), next to installation / site / floor. Precedence: the camera, then every floor it is anchored on,
+  their buildings and sites, then the installation - **a deny anywhere on that chain wins over any allow**; an
+  unanchored camera is reachable only through an installation or camera binding; existing bindings behave as
+  before. Documented in `docs/security/HA_IDENTITY_RBAC_HE.md` §15.
+- Every camera-bearing resource is filtered on the server through ONE helper (27 resources: camera list and status,
+  snapshot, capabilities / PTZ, zones, live and its socket, recordings, frames, playback sessions / groups / seeks,
+  events list / facets / summary / windows / timeline / detail / thumbnail / correlation / route / ack / push, case
+  items and bundles, exports estimate / create / download / manifest, alerts, search, saved views, NVR camera
+  settings, the floor map bundle, anchors, plan image and geometry). A camera-only user gets the floor drawing and
+  their own cameras' anchors - no HA entities, zones or circuits, no editing. WisKey station stills are not VMS
+  cameras (installation-scoped, as before). Roles holding `rbac.assign` cannot be bound at camera scope (allow);
+  a full administrator can still deny any role on one camera.
+- **Placing a camera on a map is not a way to gain it** (review finding): placing, moving or removing a camera anchor
+  requires `placement.edit` on the camera's current chain - reading it is not enough; an unanchored camera is
+  placed only by an installation-wide holder; the editor's camera list follows the same rule. A delegated site
+  administrator can bind a camera only when every floor it hangs on is inside their reach; group reach counts
+  camera bindings. No installation fallback undoes a camera deny any more (timeline, ack-many, case item file,
+  bundle download - review finding). Camera-less events and alerts follow the installation grant.
+- **Session downgrade**: nothing caches effective permissions beyond one request; `/me` carries a permissions
+  fingerprint and the new `/me/ws` pushes `permissions_changed` (the shell shows "ההרשאות שלך עודכנו" and
+  refetches); an open live or playback stream loses only the revoked camera (`access_lost`, close 4403); queued or
+  running exports of a lost camera are cancelled and downloads are re-checked; deactivation in Home Assistant cuts
+  everything. Audit rows now record the scope, role and binding they were authorised under (migration 0032, columns
+  only). `scripts/api_inventory.py` lists websocket routes again.
+- Tests: `test_rbac_camera_scope.py` 101 (a 36-case precedence matrix; all 27 resources for a camera-scoped user
+  AND for "installation allow + camera deny"; delegation; downgrade: refusal, lease closed, playback closed, export
+  cancelled, notice; audit scope), 146 in the RBAC set; Playwright: a user bound to one camera sees exactly that
+  camera on live / events / map, and the revoke toast. Two Opus security reviews with probes (2 blockers + 3 medium
+  fixed, one leftover placement case fixed).
+
 ## 0.1.132 (pilot) — Events 8× faster under load, ingest and export backpressure, a local soak (T068); capture-cancel race; door-model study
 ### Events, ingest and exports (T068, device-free part)
 - **Events list p50 1,655 → 191 ms, p95 2,442 → 663 ms; facets 155 → 82 ms** (24 h window, 500 rows, ~8 alerts/s,

@@ -386,15 +386,21 @@
     "id": "setup-wizard",
     "name_he": "אשף התקנה",
     "section": "settings",
-    "route": "#/system/setup",
+    "route": "#/system/wizard",
     "viewports": [
-      "desktop"
+      "desktop",
+      "phone"
     ],
     "roles": [
       "system_admin"
     ],
-    "setup": [],
-    "caption_he": "מסך \"אשף התקנה\" (fixture עיצובי בלבד, נתוני הדגמה) — ההתקנה האמיתית מתבצעת בלשונית Configuration של ה-add-on. פרטים ב-70-setup-wizard_HE.md."
+    "setup": [
+      {
+        "type": "waitFor",
+        "selector": "system-wizard [data-wizard]"
+      }
+    ],
+    "caption_he": "אשף ההתקנה: שישה שלבים (התקנה, NVR, Home Assistant, go2rtc, קומה, מצלמה) עם מצב, ראיות, הסבר ומה עושים, \"בדוק שוב\" וקישור למסך המתקן. פרטים ב-70-setup-wizard_HE.md."
   },
   {
     "id": "phone-bottom-nav",

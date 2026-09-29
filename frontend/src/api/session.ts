@@ -3,7 +3,7 @@
  * design review). Screens read `session` and subscribe to changes; demo fixtures stay available so the
  * skeleton screens keep working without a server.
  */
-import { ApiError, get } from './client';
+import { ApiError, apiUrl, get } from './client';
 import type { Me } from './types';
 
 export type SessionMode = 'loading' | 'api' | 'demo' | 'unauthenticated' | 'no_access';
@@ -38,6 +38,55 @@ export async function loadSession(): Promise<Session> {
     else set({ mode: 'demo', me: null, error: null }); // no backend behind this page: static preview
   }
   return session;
+}
+
+/**
+ * T055: the server's access channel (`/me/ws`). It says `permissions_changed` as soon as this user's bindings, groups,
+ * roles or Home Assistant active flag change; the shell then re-fetches /me (the navigation follows `session`) and
+ * re-mounts the current screen. On every (re)connect the server's first message carries the current fingerprint, so
+ * a change made while the socket was down is noticed too. Returns a stop function.
+ */
+export function watchPermissions(onChanged: () => void): () => void {
+  let ws: WebSocket | null = null;
+  let stopped = false;
+  let delay = 2000;
+  const url = (() => {
+    const u = new URL(apiUrl('me/ws'));
+    u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+    return u.toString();
+  })();
+  const open = () => {
+    if (stopped) return;
+    try {
+      ws = new WebSocket(url);
+    } catch {
+      return;
+    }
+    ws.onopen = () => {
+      delay = 2000;
+    };
+    ws.onmessage = (m) => {
+      try {
+        const env = JSON.parse(m.data as string) as { type: string; payload?: { permissions_fingerprint?: string } };
+        const known = session.me?.permissions_fingerprint;
+        if (env.type === 'permissions_changed') onChanged();
+        else if (env.type === 'hello' && known && env.payload?.permissions_fingerprint && env.payload.permissions_fingerprint !== known) onChanged();
+      } catch {
+        /* ignore */
+      }
+    };
+    ws.onclose = () => {
+      if (!stopped) {
+        window.setTimeout(open, delay);
+        delay = Math.min(60000, delay * 2);
+      }
+    };
+  };
+  open();
+  return () => {
+    stopped = true;
+    ws?.close();
+  };
 }
 
 export function can(permission: string): boolean {

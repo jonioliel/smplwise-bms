@@ -21,9 +21,11 @@ from ..config import Settings
 from ..db import unlocked, Database
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize
-from ..services import revocation, go2rtc as g2
+from ..services import go2rtc as g2
 from ..services import playback as pb
 from ..services import recordings
+from ..services.access import require_camera
+from ..services.leases import CameraLease
 from ..services.relay import relay_ws
 from ..services.timeutil import UTC, iso_utc, parse_utc
 from .media import _principal_for_ws
@@ -73,6 +75,7 @@ def _owned(conn: sqlite3.Connection, principal: Principal, session_id: str) -> p
 def create_session(body: CreateBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     settings = settings_of(request)
     cam = camera_for_playback(conn, principal, body.camera_id)
+    decision = require_camera(conn, principal, cam["id"], "video.playback")
     if not cam["main_track"]:
         raise ApiError(409, "no_track", "למצלמה אין track הקלטה ידוע; הרץ סנכרון מצלמות.")
     try:
@@ -86,7 +89,7 @@ def create_session(body: CreateBody, request: Request, principal: Principal = De
     with unlocked(conn):
         session = pb.create(settings, principal, cam, actual_start, seg_end, s["time.zone"], s["playback.max_sessions"])
     audit(conn, actor=principal, action="video.playback.start", decision="allowed", resource_type="camera", resource_id=cam["id"],
-          request_id=getattr(request.state, "correlation_id", None), details={"session": session.id, "requested_at": iso_utc(start), "start_at": iso_utc(actual_start)})
+          request_id=getattr(request.state, "correlation_id", None), details={"session": session.id, "requested_at": iso_utc(start), "start_at": iso_utc(actual_start)}, under=decision)
     out = pb.to_dict(session, s["playback.lease_s"])
     out["moved_to_next_segment"] = actual_start != start
     return out
@@ -112,6 +115,7 @@ def seek_session(session_id: str, body: SeekBody, request: Request, principal: P
     session = _owned(conn, principal, session_id)
     if session.state in ("closed", "expired"):
         raise ApiError(409, "session_over", "סשן הניגון הסתיים; פתח ניגון חדש.")
+    decision = require_camera(conn, principal, session.camera_id, "video.playback")  # T055: a seek is a new request - re-checked
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (session.camera_id,)).fetchone()
     try:
         start = parse_utc(body.start_at)
@@ -122,7 +126,7 @@ def seek_session(session_id: str, body: SeekBody, request: Request, principal: P
     with unlocked(conn):
         pb.seek(settings, session, actual_start, seg_end)
     audit(conn, actor=principal, action="video.playback.seek", decision="allowed", resource_type="camera", resource_id=session.camera_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"session": session.id, "generation": session.generation, "start_at": iso_utc(actual_start)})
+          request_id=getattr(request.state, "correlation_id", None), details={"session": session.id, "generation": session.generation, "start_at": iso_utc(actual_start)}, under=decision)
     out = pb.to_dict(session, s["playback.lease_s"])
     out["moved_to_next_segment"] = actual_start != start
     return out
@@ -189,14 +193,20 @@ async def playback_ws(websocket: WebSocket, session_id: str, generation: int = Q
             session.first_frame_at = time.time()
             session.state = "playing"
 
-    opened_at = time.time()
-
     def superseded() -> bool:
-        return session.generation != my_gen or session.state in ("closed", "expired", "failed") or revocation.revoked_since(session.user_id, opened_at)
+        return session.generation != my_gen or session.state in ("closed", "expired", "failed")
 
+    # T055: the socket keeps the camera only while its owner still holds video.playback on it (services/leases.py);
+    # an administrator watching someone else's session is checked as themselves
+    lease = CameraLease(db, principal, session.camera_id, "video.playback", extra_stop=superseded)
     reason = "ended"
     try:
-        reason = await relay_ws(websocket, client.ws_url(session.stream), client.ws_headers(), on_down, should_stop=superseded)
+        reason = await relay_ws(websocket, client.ws_url(session.stream), client.ws_headers(), on_down, should_stop=lease.should_stop)
+        if lease.lost:
+            reason = "access_lost"
+            session.state = "closed"
+            with contextlib.suppress(Exception):
+                await run_in_threadpool(pb.close, settings, session, "revoked")
     except Exception as exc:  # upstream refused / dropped
         reason = "upstream_failure"
         log.warning("playback session %s upstream failure: %s", session.id, type(exc).__name__)
@@ -211,5 +221,5 @@ async def playback_ws(websocket: WebSocket, session_id: str, generation: int = Q
             elif session.state == "playing":
                 session.state = "paused"
         with contextlib.suppress(Exception):
-            await websocket.close(code=4410 if reason == "superseded" else 1000)
+            await websocket.close(code=4403 if reason == "access_lost" else 4410 if reason == "superseded" else 1000)
         log.info("playback session %s g%s socket closed: %s (%d bytes)", session.id, my_gen, reason, session.bytes_down)

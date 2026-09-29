@@ -13,7 +13,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..rbac import INSTALLATION, Principal, authorize
 from ..errors import ApiError
 from ..services import semantic
-from ..services.access import visible_camera_ids
+from ..services.access import camera_scope, visible_camera_ids
 from .settings import read_settings
 
 router = APIRouter()
@@ -155,7 +155,8 @@ def semantic_search(request: Request, q: str = Query(..., min_length=1, max_leng
     if s["ai.provider"] == "none":
         raise ApiError(409, "semantic_disabled", "החיפוש הסמנטי כבוי בהגדרות (ai.provider=none).")
     map_floors = _visible_floors(conn, principal, "map.read")
-    parsed = semantic.parse(q, conn, s["time.zone"], floor_ok=lambda fid: map_floors is None or fid in map_floors)
+    cam_scope = camera_scope(conn, principal, "events.read")  # a camera name the caller cannot see is not a place
+    parsed = semantic.parse(q, conn, s["time.zone"], floor_ok=lambda fid: map_floors is None or fid in map_floors, camera_ok=cam_scope.allows)
     from .events import list_events
 
     queries: list[dict[str, str]] = []

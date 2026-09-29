@@ -1,5 +1,7 @@
 # מעבר מה־Add-on הישן (Hikvision NVR Panel 1.5.27) ל־SMPLWISE VMS — מדריך (T070)
 
+Source: original
+
 העיקרון: שני ה־Add-ons רצים זה לצד זה (slug שונה, פאנל Ingress שונה, אותו NVR ואותו go2rtc), ה־VMS לא כותב
 ל־NVR בשום שלב, והחזרה לאחור היא פשוט להפעיל שוב את הישן. שום דבר מהישן לא נמחק.
 

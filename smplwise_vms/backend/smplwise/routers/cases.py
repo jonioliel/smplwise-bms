@@ -517,8 +517,13 @@ def item_file(case_id: str, item_id: str, request: Request, principal: Principal
     it = conn.execute("SELECT * FROM case_items WHERE id = ? AND case_id = ?", (item_id, case_id)).fetchone()
     if not it or not it["file_path"]:
         raise not_found("אין קובץ לפריט.")
-    if (it["camera_id"] and scope is not None and it["camera_id"] not in scope) or (it["origin_json"] and scope is not None):
-        require(conn, principal, "events.read", INSTALLATION)
+    # T055 B2: the item's own camera decides (a camera deny holds even for an installation-wide reader); an imported or
+    # camera-less note-like item follows the case (as in the case view)
+    if it["origin_json"]:
+        if scope is not None:
+            require(conn, principal, "events.read", INSTALLATION)
+    elif it["camera_id"] and scope is not None and it["camera_id"] not in scope:
+        require_camera(conn, principal, it["camera_id"], "events.read")
     p = settings_of(request).data_dir / it["file_path"]
     if not p.is_file():
         raise not_found("הקובץ חסר בדיסק.")
@@ -610,8 +615,16 @@ def list_bundles(case_id: str, request: Request, principal: Principal = Depends(
 
 @router.get("/cases/{case_id}/bundles/{name}")
 def download_bundle(case_id: str, name: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> FileResponse:
-    _read_scope(conn, principal)
+    scope = _read_scope(conn, principal)
     _get(conn, case_id)
+    if scope is not None:
+        # T055: a built bundle holds every item of the case - a reader who does not see all of its cameras (or its
+        # imported, camera-less items) gets the case's items one by one, not the whole ZIP
+        cams = {r[0] for r in conn.execute("SELECT DISTINCT camera_id FROM case_items WHERE case_id = ? AND camera_id IS NOT NULL AND origin_json IS NULL", (case_id,)).fetchall()}
+        for cam in sorted(cams - scope):  # security review B2: per camera - no installation fallback past a camera deny
+            require_camera(conn, principal, cam, "events.read")
+        if conn.execute("SELECT 1 FROM case_items WHERE case_id = ? AND origin_json IS NOT NULL LIMIT 1", (case_id,)).fetchone():
+            require(conn, principal, "events.read", INSTALLATION)
     if not bundle_svc.re.fullmatch(r"case-[0-9a-f]{8}-\d{8}T\d{6}Z\.zip", name):
         raise not_found("החבילה לא נמצאה.")
     p = bundle_svc.bundles_dir(settings_of(request), case_id) / name

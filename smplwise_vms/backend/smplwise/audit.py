@@ -22,25 +22,45 @@ def _write_audit(
     reason: str | None = None,
     request_id: str | None = None,
     details: dict[str, Any] | None = None,
+    under: Any | None = None,
 ) -> None:
-    """Append one audit row. Never include secrets or source URLs in `details`."""
+    """Append one audit row. Never include secrets or source URLs in `details`. `under` (an rbac.Decision) records the
+    binding, role and scope the action was authorised under (T055; ids only)."""
+    base = (
+        now_iso(),
+        getattr(actor, "user_id", None),
+        getattr(actor, "username", None),
+        action,
+        resource_type,
+        resource_id,
+        decision,
+        reason,
+        request_id,
+        permission_revision(conn),
+        json.dumps(details, ensure_ascii=False) if details else None,
+    )
+    if under is None and decision == "allowed" and actor is not None:
+        from .rbac import last_grant  # local import: rbac imports this module lazily too
+
+        under = last_grant(action)
+    scope = getattr(under, "scope", None)
+    if under is not None and scope:
+        try:
+            conn.execute(
+                """INSERT INTO audit_log(at, actor_user_id, actor_username, action, resource_type, resource_id, decision, reason,
+                                         request_id, permission_revision, details_json, scope_type, scope_id, role_id, binding_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (*base, scope[0], scope[1], getattr(under, "role_id", None), getattr(under, "binding_id", None)),
+            )
+            return
+        except sqlite3.OperationalError as exc:  # a database still before migration 0032 (upgrade tests)
+            if "scope_type" not in str(exc):
+                raise
     conn.execute(
         """INSERT INTO audit_log(at, actor_user_id, actor_username, action, resource_type, resource_id, decision, reason,
                                  request_id, permission_revision, details_json)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (
-            now_iso(),
-            getattr(actor, "user_id", None),
-            getattr(actor, "username", None),
-            action,
-            resource_type,
-            resource_id,
-            decision,
-            reason,
-            request_id,
-            permission_revision(conn),
-            json.dumps(details, ensure_ascii=False) if details else None,
-        ),
+        base,
     )
 
 
@@ -66,6 +86,7 @@ def audit(
     reason: str | None = None,
     request_id: str | None = None,
     details: dict[str, Any] | None = None,
+    under: Any | None = None,
 ) -> None:
     """Append one audit row. A read-mode request (deferred, query-only) records it through a short side
     transaction so a refusal is still kept without the request taking the write lock."""
@@ -73,7 +94,7 @@ def audit(
         db = database_of(conn)
         if db is not None:
             with db.write_aside() as w:
-                _write_audit(w, actor=actor, action=action, decision=decision, resource_type=resource_type, resource_id=resource_id, reason=reason, request_id=request_id, details=details)
+                _write_audit(w, actor=actor, action=action, decision=decision, resource_type=resource_type, resource_id=resource_id, reason=reason, request_id=request_id, details=details, under=under)
             return
-    _write_audit(conn, actor=actor, action=action, decision=decision, resource_type=resource_type, resource_id=resource_id, reason=reason, request_id=request_id, details=details)
+    _write_audit(conn, actor=actor, action=action, decision=decision, resource_type=resource_type, resource_id=resource_id, reason=reason, request_id=request_id, details=details, under=under)
 

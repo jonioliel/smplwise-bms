@@ -14,7 +14,7 @@ from ..db import new_id, now_iso
 from ..errors import ApiError, conflict, not_found
 from ..rbac import INSTALLATION, Principal, require
 from ..services import rules as svc
-from ..services.access import visible_camera_ids
+from ..services.access import require_camera, row_scope
 from .settings import read_settings
 
 router = APIRouter()
@@ -132,13 +132,14 @@ def create_rule(body: RuleIn, request: Request, principal: Principal = Depends(c
 @router.get("/rules/alerts")
 def list_alerts(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), unacked: bool = False, limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
     """Alerts raised by local rules, filtered to the caller's cameras (events.read)."""
-    ids = visible_camera_ids(conn, principal, "events.read")
-    if ids is not None and not ids:
+    # T055 M3: a camera alert follows the camera scope, a camera-less one the installation-wide grant
+    sc = row_scope(conn, principal, "events.read")
+    if not sc.any():
         require(conn, principal, "events.read", INSTALLATION)
     sql = "SELECT a.*, r.name AS rule_name FROM rule_alerts a JOIN rules r ON r.id = a.rule_id" + (" WHERE a.acked_at IS NULL" if unacked else "") + " ORDER BY a.fired_at DESC, a.occurred_at DESC LIMIT ?"
-    rows = [svc.alert_row(r) for r in conn.execute(sql, (limit * 3 if ids is not None else limit,)).fetchall()]
-    if ids is not None:
-        rows = [a for a in rows if a["camera_id"] in ids or (a["camera_id"] is None and False)][:limit]
+    rows = [svc.alert_row(r) for r in conn.execute(sql, (limit * 3 if not sc.everything else limit,)).fetchall()]
+    if not sc.everything:
+        rows = [a for a in rows if sc.allows_row(a["camera_id"])][:limit]
     return {"alerts": rows, "unacked": conn.execute("SELECT COUNT(*) FROM rule_alerts WHERE acked_at IS NULL").fetchone()[0]}
 
 
@@ -148,6 +149,8 @@ def ack_alert(alert_id: str, request: Request, principal: Principal = Depends(cu
     a = conn.execute("SELECT * FROM rule_alerts WHERE id = ?", (alert_id,)).fetchone()
     if not a:
         raise not_found("ההתראה לא נמצאה.")
+    if a["camera_id"]:
+        require_camera(conn, principal, a["camera_id"], "events.ack")  # T055: a camera deny holds past the installation grant
     if not a["acked_at"]:
         conn.execute("UPDATE rule_alerts SET acked_at = ?, acked_by = ?, acked_by_username = ? WHERE id = ?", (now_iso(), principal.user_id, principal.username, alert_id))
         audit(conn, actor=principal, action="rule.alert.ack", decision="allowed", resource_type="rule_alert", resource_id=alert_id, request_id=_rid(request), details={"rule_id": a["rule_id"], "event_id": a["event_id"]})

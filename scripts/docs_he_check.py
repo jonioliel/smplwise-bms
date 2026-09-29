@@ -11,6 +11,10 @@ Two checks, both informational (this script never fails the build — see main()
    *_HE.md files predate this convention (T091 introduces it going forward); they are not drift errors, just
    not yet checkable.
 
+   A Hebrew document that is not a translation of any English document (an owner checklist, a Hebrew-only
+   design note, `MASTER_SPEC_HE.md`, etc.) carries "Source: original" instead, and is reported with its own
+   "original" status - it is not a mirror and has no drift to track.
+
 2. SOURCE_GLOBS below (a plain, editable list - the "configurable list" R182 asks for) names the English docs
    that are expected to eventually have a Hebrew mirror. For each one, this script looks for either sibling
    convention: "<name>_HE.md" next to the source, or a mirrored path under docs/he/<same relative path>. A
@@ -54,6 +58,7 @@ SOURCE_GLOBS = [
 
 EXCLUDE_DIR_PARTS = ("legacy", "archive")
 HEADER_RE = re.compile(r"^Source:\s*(\S+)\s*@\s*([0-9a-fA-F]{7,40})\s*$", re.MULTILINE)
+ORIGINAL_HEADER_RE = re.compile(r"^Source:\s*original\s*$", re.MULTILINE)
 
 
 def _excluded(path: Path) -> bool:
@@ -76,7 +81,7 @@ class MirrorReport:
     mirror: str
     source: str | None = None
     commit: str | None = None
-    status: str = ""  # 'ok' | 'drift' | 'no-header' | 'unknown-commit' | 'source-missing'
+    status: str = ""  # 'ok' | 'drift' | 'no-header' | 'unknown-commit' | 'source-missing' | 'original'
     detail: str = ""
 
 
@@ -107,6 +112,8 @@ def check_mirror(root: Path, mirror: Path) -> MirrorReport:
     head_lines = "\n".join(text.splitlines()[:12])
     m = HEADER_RE.search(head_lines)
     if not m:
+        if ORIGINAL_HEADER_RE.search(head_lines):
+            return MirrorReport(mirror=rel, source="original", status="original", detail="marked as an original Hebrew document (no English source)")
         return MirrorReport(mirror=rel, status="no-header", detail="no 'Source: <path> @ <commit>' header in the first 12 lines")
     source, commit = m.group(1), m.group(2)
     source_path = root / source
@@ -178,6 +185,7 @@ def main() -> int:
         print("(none found)")
     drift = [r for r in reports if r.status == "drift"]
     no_header = [r for r in reports if r.status == "no-header"]
+    originals = [r for r in reports if r.status == "original"]
 
     missing = find_missing_mirrors(root)
     print(f"\n## English docs with no Hebrew mirror yet ({len(missing)} of {sum(len(list(root.glob(g))) for g in SOURCE_GLOBS)} tracked source globs)\n")
@@ -186,7 +194,15 @@ def main() -> int:
     else:
         print("(none — every tracked source has a mirror)")
 
-    print(f"\nSummary: {len(drift)} mirror(s) drifted, {len(no_header)} mirror(s) without a header, {len(missing)} source(s) with no mirror yet.")
+    if drift:
+        print("\nDrifted mirrors (source changed since the header's commit):")
+        for r in drift:
+            print(f"  - {r.mirror} (source: {r.source}, {r.detail})")
+
+    print(
+        f"\nSummary: {len(drift)} mirror(s) drifted, {len(no_header)} mirror(s) without a header, "
+        f"{len(originals)} original(s), {len(missing)} source(s) with no mirror yet."
+    )
     return 0
 
 

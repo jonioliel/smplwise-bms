@@ -1,5 +1,7 @@
 # סטטוס בוקר — 29.9.2026 (אחרי לילה של פיתוח רציף)
 
+Source: original
+
 מסמך לבעל המערכת. מקורות: `smplwise_vms/CHANGELOG.md` (0.1.123 → 0.1.131), `management/tasks.json`, יומני הסוכנים.
 **כל הגרסאות נדחפו ל־`g0/intake` ול־`main`; כל גרסה עברה סקירת קוד (Opus/Sonnet לפי הסיכון) וסוויטת backend מלאה.**
 

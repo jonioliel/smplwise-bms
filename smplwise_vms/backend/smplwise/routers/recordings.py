@@ -21,10 +21,10 @@ router = APIRouter()
 
 
 def camera_for_playback(conn: sqlite3.Connection, principal: Principal, camera_id: str) -> sqlite3.Row:
+    require_camera(conn, principal, camera_id, "video.playback")  # T055: 403 before 404
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
-    require_camera(conn, principal, camera_id, "video.playback")
     return cam
 
 

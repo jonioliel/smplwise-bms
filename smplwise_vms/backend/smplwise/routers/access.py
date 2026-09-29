@@ -20,7 +20,7 @@ from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
 from ..db import set_setting, bump_permission_revision, get_setting, new_id, now_iso, permission_revision, unlocked
 from ..errors import ApiError
-from ..rbac import INSTALLATION, ROLE_NAMES_HE, ROLES, Principal, all_roles, authorize, effective_permissions, permissions_anywhere, require, role_permissions, scope_name
+from ..rbac import INSTALLATION, ROLE_NAMES_HE, ROLES, Principal, all_roles, authorize, camera_floors, effective_permissions, permissions_anywhere, require, role_permissions, scope_name
 from ..services import ha_client, revocation
 from ..services import playback as pb
 from ..services.timeutil import parse_utc
@@ -257,6 +257,8 @@ def _ensure_user_row(conn: sqlite3.Connection, user_id: str) -> None:
 def _scope_exists(conn: sqlite3.Connection, scope_type: str, scope_id: str) -> bool:
     if scope_type == "installation":
         return scope_id == "*"
+    if scope_type == "camera":  # T055: a registered camera (cameras are never soft-deleted)
+        return conn.execute("SELECT 1 FROM cameras WHERE id = ?", (scope_id,)).fetchone() is not None
     table = SCOPE_TABLES.get(scope_type)
     if not table:
         return False
@@ -322,13 +324,25 @@ def group_reach_problem(conn: sqlite3.Connection, principal: Principal, group_id
     delegable = set(delegable_roles(conn))
     for b in rows:
         scope = (b["scope_type"], b["scope_id"])
-        if not authorize(conn, principal, "rbac.assign", scope).allowed:
+        if not scope_in_reach(conn, principal, scope):
             return {"reason": "scope", "binding_id": b["id"]}
         if b["role_id"] not in delegable:
             return {"reason": "role", "binding_id": b["id"]}
         if set(role_permissions(conn, b["role_id"])) - set(effective_permissions(conn, principal, scope)):
             return {"reason": "ceiling", "binding_id": b["id"]}
     return None
+
+
+def scope_in_reach(conn: sqlite3.Connection, principal: Principal, scope: tuple[str, str]) -> bool:
+    """Whether a scope lies inside the actor's subtree: rbac.assign there (on its whole chain, deny-overrides) and, for
+    a camera (T055), rbac.assign on EVERY floor the camera is anchored on - a camera that also hangs on a floor outside
+    the actor's subtree would otherwise hand that floor's drawing (§15 camera context) to someone the actor may not
+    reach. An unanchored camera is therefore in reach only of an installation-wide assigner."""
+    if not authorize(conn, principal, "rbac.assign", scope).allowed:
+        return False
+    if scope[0] == "camera":
+        return all(authorize(conn, principal, "rbac.assign", ("floor", f)).allowed for f in camera_floors(conn, scope[1]))
+    return True
 
 
 def is_member(conn: sqlite3.Connection, group_id: str, user_id: str) -> bool:
@@ -354,10 +368,17 @@ def check_delegation(conn: sqlite3.Connection, principal: Principal, role_id: st
     is in their reach (group_reach_problem). Every refusal is an audited `denied` row with its reason."""
     action = "rbac.bind" if op == "bind" else "rbac.unbind"
     require(conn, principal, "rbac.assign", scope)
-    if op == "bind" and role_id == "system_admin" and scope != INSTALLATION:
+    if op == "bind" and effect == "allow" and role_id == "system_admin" and scope != INSTALLATION:
         raise ApiError(422, "scope_not_allowed_for_role", "מנהל מערכת VMS מוקצה רק ברמת ההתקנה כולה.")
+    if op == "bind" and effect == "allow" and scope[0] == "camera" and "rbac.assign" in role_permissions(conn, role_id):
+        # T055 ruling R3: no "administrator of one camera" - an ALLOW at camera scope carries viewing / operating roles
+        # only; a full administrator may still DENY any role (system_admin, site_admin) on one camera (review M2)
+        raise ApiError(422, "scope_not_allowed_for_role", "תפקיד שכולל שיוך תפקידים אינו מוקצה ברמת מצלמה.", details={"role_id": role_id})
     if full_authority(conn, principal):
         return
+    if scope[0] == "camera" and not scope_in_reach(conn, principal, scope):
+        raise _refuse(conn, principal, action, scope, "delegation_camera_scope", "המצלמה מוצבת גם מחוץ להיקף שבאחריותך (או שאינה מוצבת בכלל); רק מנהל המערכת משייך אותה.",
+                      {"role_id": role_id, "camera_id": scope[1]})
     if op == "bind" and effect == "deny":
         # security review T082 (M2): a delegated administrator could deny people above them (a system admin, a peer
         # site admin) inside their scope. Deny bindings stay a full-authority tool.
@@ -396,19 +417,52 @@ def assign_scopes(conn: sqlite3.Connection, principal: Principal) -> list[dict[s
             for f in conn.execute("SELECT id, name FROM floors WHERE building_id = ? AND deleted_at IS NULL ORDER BY sort_order, level, name", (b["id"],)).fetchall():
                 if authorize(conn, principal, "rbac.assign", ("floor", f["id"])).allowed:
                     out.append({"type": "floor", "id": f["id"], "name": f"{s['name']} · {b['name']} · {f['name']}"})
+    # T055: the cameras the actor may bind at camera scope - the camera picker of the bindings editor
+    from ..services.access import camera_scope
+
+    reach = camera_scope(conn, principal, "rbac.assign")
+    full = full_authority(conn, principal)
+    for c in conn.execute("SELECT id FROM cameras ORDER BY sort_order, channel").fetchall():
+        if reach.allows(c["id"]) and (full or scope_in_reach(conn, principal, ("camera", c["id"]))):
+            out.append({"type": "camera", "id": c["id"], "name": scope_name(conn, "camera", c["id"])})
     return out
 
 
 def in_reach(conn: sqlite3.Connection, principal: Principal, b: dict[str, Any] | sqlite3.Row) -> bool:
-    return authorize(conn, principal, "rbac.assign", (b["scope_type"], b["scope_id"])).allowed
+    return scope_in_reach(conn, principal, (b["scope_type"], b["scope_id"]))
+
+
+def _principal_of(conn: sqlite3.Connection, user_id: str) -> Principal:
+    u = conn.execute("SELECT username, display_name, source FROM users WHERE id = ?", (user_id,)).fetchone()
+    return Principal(user_id=user_id, username=(u["username"] if u else ""), display_name=(u["display_name"] if u else ""), source=(u["source"] if u else "ingress"))
 
 
 def _terminate(conn: sqlite3.Connection, settings: Any, user_ids: set[str]) -> None:
-    """Immediate effect for revocations: mark the users (live/playback relays stop) and close playback sessions."""
+    """Immediate effect of a change that may take access away (§11, T055 §15): mark the users - their live relays
+    re-check their camera leases and the shell's /me/ws says `permissions_changed` - then, re-evaluated per user with
+    the change already written: close the playback sessions of cameras they no longer hold video.playback on, and
+    cancel their queued / running exports of cameras they no longer hold video.export on (download re-checks too)."""
     if not user_ids:
         return
+    from ..services import exports as ex
+    from ..services.access import camera_scope
+
     revocation.mark(user_ids)
-    sessions = [s for uid in user_ids for s in pb.REGISTRY.by_user(uid)]
+    sessions = []
+    for uid in user_ids:
+        p = _principal_of(conn, uid)
+        playback = camera_scope(conn, p, "video.playback")
+        sessions += [s for s in pb.REGISTRY.by_user(uid) if not playback.allows(getattr(s, "camera_id", None))]
+        export = camera_scope(conn, p, "video.export")
+        for job in conn.execute("SELECT id, camera_id FROM export_jobs WHERE owner_user_id = ? AND state IN ('queued', 'running')", (uid,)).fetchall():
+            if export.allows(job["camera_id"]):
+                continue
+            try:
+                ex.request_cancel(conn, job["id"])
+            except ApiError:  # finished in between: the download refuses it anyway
+                continue
+            audit(conn, actor=None, action="video.export.cancel", decision="allowed", resource_type="camera", resource_id=job["camera_id"],
+                  reason="access_lost", details={"job": job["id"], "owner_user_id": uid})
     if sessions:
         with unlocked(conn):
             for s in sessions:
@@ -567,7 +621,7 @@ class BindingBody(BaseModel):
     subject_kind: str = Field(pattern="^(user|group)$")
     subject_id: str = Field(min_length=1, max_length=200)
     role_id: str = Field(min_length=1, max_length=60)
-    scope_type: str = Field(pattern="^(installation|site|building|floor)$")
+    scope_type: str = Field(pattern="^(installation|site|building|floor|camera)$")
     scope_id: str = Field(min_length=1, max_length=200)
     effect: str = Field(default="allow", pattern="^(allow|deny)$")
     expires_at: str | None = None
@@ -595,7 +649,7 @@ def validate_binding(conn: sqlite3.Connection, principal: Principal, body: Bindi
     scope = (body.scope_type, body.scope_id)
     require(conn, principal, "rbac.assign", scope)
     if not _scope_exists(conn, *scope):
-        raise ApiError(422, "scope_unknown", "ההיקף (אתר / מבנה / קומה) לא נמצא.")
+        raise ApiError(422, "scope_unknown", "ההיקף (אתר / מבנה / קומה / מצלמה) לא נמצא.")
     if body.expires_at:
         try:
             if parse_utc(body.expires_at) <= dt.datetime.now(dt.timezone.utc):
@@ -657,6 +711,8 @@ def create_binding(body: BindingBody, request: Request, principal: Principal = D
     bid, rev = insert_binding(conn, principal, request, body)
     if body.effect == "deny":
         _terminate(conn, settings_of(request), affected_users(conn, body.subject_kind, body.subject_id))
+    else:
+        revocation.changed(affected_users(conn, body.subject_kind, body.subject_id))  # the shell shows what was granted
     row = conn.execute("SELECT * FROM bindings WHERE id = ?", (bid,)).fetchone()
     return {**_binding_dict(conn, row), "revision": rev}
 
@@ -694,7 +750,7 @@ def revoke_binding(binding_id: str, request: Request, principal: Principal = Dep
 
 class PreviewBody(BaseModel):
     user_id: str = Field(min_length=1, max_length=200)
-    scope_type: str = Field(default="installation", pattern="^(installation|site|building|floor)$")
+    scope_type: str = Field(default="installation", pattern="^(installation|site|building|floor|camera)$")
     scope_id: str = Field(default="*", min_length=1, max_length=200)
 
 
@@ -898,6 +954,8 @@ def update_custom_role(role_id: str, body: CustomRolePatch, request: Request, pr
     rev = bump_permission_revision(conn)
     if impact["removed"]:
         _terminate(conn, settings_of(request), {u["id"] for u in impact["users"]})
+    elif impact["added"]:
+        revocation.changed({u["id"] for u in impact["users"]})
     audit(conn, actor=principal, action="rbac.role.update", decision="allowed", resource_type="role", resource_id=role_id, request_id=_rid(request),
           details={"added": impact["added"], "removed": impact["removed"], "affected_users": len(impact["users"]), "affected_bindings": impact["bindings"], "delegable": body.delegable, "revision": rev})
     return {**_custom_role_dict(conn, conn.execute("SELECT * FROM custom_roles WHERE id = ?", (role_id,)).fetchone()), "impact": impact}

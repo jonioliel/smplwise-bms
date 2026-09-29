@@ -33,6 +33,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import bump_permission_revision, new_id, now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, all_roles, authorize, effective_permissions, require, scope_name
+from ..services import revocation
 from .access import (
     PERMISSION_LABELS, BindingBody, active_user_ids, keep_an_admin, _active_bindings_sql, _binding_dict, _ensure_user_row, _group_members, _rid, _scope_exists,
     _subject_name, _terminate, affected_users, assigns_anywhere, check_delegation, full_authority,
@@ -298,6 +299,7 @@ def set_members(group_id: str, request: Request, principal: Principal = Depends(
     audit(conn, actor=principal, action="rbac.group_members", decision="allowed", resource_type="group", resource_id=group_id, request_id=_rid(request),
           details={"added": added, "removed": removed, "group_bindings": [b["id"] for b in _group_bindings(conn, group_id)], "revision": rev, "group_revision": grev})
     _terminate(conn, settings_of(request), set(removed))
+    revocation.changed(set(added))
     return _group_dict(conn, _group_row(conn, group_id), principal)
 
 
@@ -306,7 +308,7 @@ def set_members(group_id: str, request: Request, principal: Principal = Depends(
 class GroupBindingBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     role_id: str = Field(min_length=1, max_length=60)
-    scope_type: str = Field(pattern="^(installation|site|building|floor)$")
+    scope_type: str = Field(pattern="^(installation|site|building|floor|camera)$")
     scope_id: str = Field(min_length=1, max_length=200)
     effect: str = Field(default="allow", pattern="^(allow|deny)$")
     expires_at: str | None = None
@@ -321,6 +323,8 @@ def bind_group(group_id: str, body: GroupBindingBody, request: Request, principa
     bid, rev = insert_binding(conn, principal, request, b)
     if b.effect == "deny":
         _terminate(conn, settings_of(request), affected_users(conn, "group", group_id))
+    else:
+        revocation.changed(affected_users(conn, "group", group_id))
     return {"binding_id": bid, "revision": rev, "group": _group_dict(conn, _group_row(conn, group_id), principal)}
 
 
@@ -342,7 +346,7 @@ class ImpactBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     op: Literal["bind", "unbind", "members"]
     role_id: str | None = Field(default=None, max_length=60)
-    scope_type: str | None = Field(default=None, pattern="^(installation|site|building|floor)$")
+    scope_type: str | None = Field(default=None, pattern="^(installation|site|building|floor|camera)$")
     scope_id: str | None = Field(default=None, max_length=200)
     effect: str = Field(default="allow", pattern="^(allow|deny)$")
     binding_id: str | None = Field(default=None, max_length=200)
@@ -468,13 +472,17 @@ def bulk_bindings(request: Request, principal: Principal = Depends(_assign_gate_
             raise _item_refusal(exc, i, item.subject_id, item.subject_kind) from None
     created: list[dict[str, Any]] = []
     terminate: set[str] = set()
+    granted: set[str] = set()
     with _all_or_nothing(conn):
         for i, item in enumerate(body.items):
             bid, rev = insert_binding(conn, principal, request, item, extra_audit={"bulk_index": i})
             created.append({"index": i, "binding_id": bid, "revision": rev})
             if item.effect == "deny":
                 terminate |= affected_users(conn, item.subject_kind, item.subject_id)
+            else:
+                granted |= affected_users(conn, item.subject_kind, item.subject_id)
     audit(conn, actor=principal, action="rbac.bind_bulk", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
           details={"binding_ids": [c["binding_id"] for c in created], "count": len(created), "revision": created[-1]["revision"]})
     _terminate(conn, settings_of(request), terminate)
+    revocation.changed(granted)
     return {"created": created, "revision": created[-1]["revision"]}

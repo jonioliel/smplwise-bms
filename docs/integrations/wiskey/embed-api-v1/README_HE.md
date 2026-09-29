@@ -1,5 +1,7 @@
 # מסירה לפיתוח SMPLWISE VMS — אישור השלמה
 
+Source: original
+
 הבקשה לממשק הטמעה יציב מומשה בצד WisKey ופורסמה בגרסה **2.0.0-rc.19**.
 
 - גרסה להתקנה: https://github.com/jonioliel/home-assistant-hikvision-intercom/releases/tag/v2.0.0-rc.19
