@@ -420,7 +420,11 @@ test.describe('overview tiles against the devices fixture backend', () => {
       add(`${d}.cr007g_${i}`, a, d === 'sensor' ? '21' : d === 'cover' ? 'closed' : d === 'lock' ? 'locked' : i % 3 ? 'off' : 'on', `${d} ${i}`);
     }
     for (let i = 0; i < 74; i++) add(`${i % 2 ? 'switch' : 'sensor'}.cr007g_u${i}`, null, i % 2 ? 'off' : '20', `ללא אזור ${i}`);
-    expect((await request.post('/api/v1/ha/dev/registry', { data: { entities, devices: [], areas, floors } })).status()).toBe(200);
+    // exactly the owner-sized site: whatever other specs left in this backend's catalogue is disabled for this test (a
+    // later seed of theirs names and re-enables their own entities)
+    const known = ((await (await request.get('/api/v1/ha/entities?limit=2000')).json()).entities as { entity_id: string }[]).map((e) => e.entity_id).filter((id) => !id.includes('cr007g_'));
+    const others = known.slice(0, 500 - entities.length).map((entity_id) => ({ entity_id, area_id: null, disabled_by: 'user' }));
+    expect((await request.post('/api/v1/ha/dev/registry', { data: { entities: [...entities, ...others], devices: [], areas, floors } })).status()).toBe(200);
     expect((await request.post('/api/v1/ha/dev/states', { data: { states: states.slice(0, 50) } })).status()).toBe(200);
     for (let i = 50; i < states.length; i += 50) await request.post('/api/v1/ha/dev/states', { data: { states: states.slice(i, i + 50) } });
     for (const [w, h] of [[2000, 990], [1366, 768]]) {
@@ -453,6 +457,9 @@ test.describe('overview tiles against the devices fixture backend', () => {
     // make them unavailable so they never count as on / off in the other tests' building-wide panels
     const gone = states.map((s) => ({ entity_id: s.entity_id, state: 'unavailable', attributes: s.attributes }));
     for (let i = 0; i < gone.length; i += 50) await request.post('/api/v1/ha/dev/states', { data: { states: gone.slice(i, i + 50) } });
+    // and disabled in the registry: an entity a later registry listing no longer names keeps its flags, so these stay out
+    // of every tree / count of the other specs (the unassigned bucket above all)
+    await request.post('/api/v1/ha/dev/registry', { data: { entities: entities.map((e) => ({ ...e, disabled_by: 'user' })), devices: [], areas, floors } });
     await seed(request);
   });
 });
