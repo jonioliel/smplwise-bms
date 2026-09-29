@@ -218,7 +218,10 @@ def put_geometry(version_id: str, body: GeometryPut, principal: Principal = Depe
         return all(authorize(conn, principal, perm, ("floor", home_floor_id)).reason != "explicit_deny" for perm in ("map.edit", "map.read"))
 
     try:
-        planned = shared_spaces.plan_edits(conn, v["floor_id"], shared_items, echoed, deleted, can_write=can_write)
+        from ..services import ha_scope
+
+        planned = shared_spaces.plan_edits(conn, v["floor_id"], shared_items, echoed, deleted, can_write=can_write,
+                                           can_control=lambda eid: ha_scope.entity_allowed(conn, principal, eid, "ha.entity.control"))
     except shared_spaces.SharedEditError as exc:
         raise ApiError(exc.status, exc.code, exc.message, details=exc.details)
     synced: list[str] = []

@@ -368,6 +368,45 @@ def test_review_b2_an_addition_never_overwrites_the_home_floor_and_circuits_stay
     assert r.status_code == 422 and r.json()["code"] == "shared_switch"
 
 
+def test_re_review_n2_a_new_circuit_from_the_other_floor_cannot_name_any_switch(settings):
+    """Re-review N2: deleting the room's circuit and adding a new one in the same save must not bring in a switch the
+    editor may not control - a new circuit reuses a switch already in the room, or needs ha.entity.control on it."""
+    w = _world(settings)
+    c, f2 = w["c"], w["f2"]
+    _share(w)
+    mark = {"zone_id": w["hall"], "home_floor_id": f2}
+    g = _draft(c, w["v3"])
+    doc = g["doc"]
+    doc["circuits"] = [*doc["circuits"], {"id": f"{f2}:k1", "name": "אולם", "switch_entity_id": "light.hall", "member_ids": [f"{f2}:trib"], "color_token": "circuit-1", "power_w": 0, "shared": mark}]
+    assert _put(c, w["v3"], doc, g["geometry"]["revision"]).status_code == 200  # the admin (who controls it)
+    c.get("/api/v1/me", headers=as_user("ofer"))
+    _binding(settings, "ofer", "editor", "floor", w["f3"])  # map.edit on floor 3, no ha.entity.control anywhere
+    hdr = as_user("ofer")
+
+    def swap(switch: str, new_id: str):
+        g = _draft(c, w["v3"], hdr)
+        d = dict(g["doc"], shared_deleted=[f"{f2}:k1"])
+        k = next(x for x in d["circuits"] if x["id"] == f"{f2}:k1")
+        d["circuits"] = [x for x in d["circuits"] if x["id"] != f"{f2}:k1"] + [dict(k, id=f"{f2}:{new_id}", switch_entity_id=switch)]
+        return _put(c, w["v3"], d, g["geometry"]["revision"], hdr)
+
+    rev2 = _draft(c, w["v2"])["geometry"]["revision"]
+    r = swap("light.corridor", "k2")
+    assert r.status_code == 422 and r.json()["code"] == "shared_switch"
+    assert _draft(c, w["v2"])["geometry"]["revision"] == rev2 and "k2" not in {k["id"] for k in _draft(c, w["v2"])["doc"]["circuits"]}
+    # the same swap reusing the room's own switch is fine
+    assert swap("light.hall", "k3").status_code == 200
+    assert {k["id"]: k["switch_entity_id"] for k in _draft(c, w["v2"])["doc"]["circuits"]} == {"k3": "light.hall"}
+    # an editor who may control the entity may name it
+    c.get("/api/v1/me", headers=as_user("gil"))
+    _binding(settings, "gil", "editor", "floor", w["f3"])
+    _binding(settings, "gil", "operator", "floor", f2)
+    g = _draft(c, w["v3"], as_user("gil"))
+    d = g["doc"]
+    d["circuits"] = [*d["circuits"], {"id": f"{f2}:k4", "name": "מסדרון", "switch_entity_id": "light.corridor", "member_ids": [f"{f2}:trib"], "color_token": "circuit-2", "power_w": 0, "shared": mark}]
+    assert _put(c, w["v3"], d, g["geometry"]["revision"], as_user("gil")).status_code == 200
+
+
 def test_review_m1_a_deny_on_the_home_floor_writes_nothing_and_a_stale_mirror_is_a_conflict(settings):
     w = _world(settings)
     c, f2 = w["c"], w["f2"]

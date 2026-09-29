@@ -785,7 +785,8 @@ def _item_inside(coll: str, item: dict[str, Any], doc: dict[str, Any], region: l
 
 
 def plan_edits(conn: sqlite3.Connection, floor_id: str, sent_shared: dict[str, dict[str, list[dict[str, Any]]]], echoed: dict[str, dict[str, Any]],
-               deleted: set[str] | None = None, *, can_write: Callable[[str], bool] | None = None) -> list[dict[str, Any]]:
+               deleted: set[str] | None = None, *, can_write: Callable[[str], bool] | None = None,
+               can_control: Callable[[str], bool] | None = None) -> list[dict[str, Any]]:
     """The shared items a client of `floor_id` (the other floor) sent, planned as writes to each home floor's editor
     draft: what changed, was added (a namespaced new id) or deleted (listed in `deleted`) against the current attach.
     Security review B2 / M1:
@@ -794,7 +795,9 @@ def plan_edits(conn: sqlite3.Connection, floor_id: str, sent_shared: dict[str, d
     - an addition whose id already exists anywhere in the home document is refused (422 shared_id_taken) - it can
       never overwrite an item of the rest of the home floor;
     - an opening must sit on a wall of the room (or one added in the same edit); a circuit or a group only on objects of
-      the room; a circuit's switch entity cannot be changed from here (422 shared_switch);
+      the room; a circuit's switch entity cannot be changed from here (422 shared_switch), and a NEW circuit may only
+      reuse the switch of a circuit already in the room unless the actor may control that entity (`can_control`,
+      ha.entity.control at its placement) - re-review N2: a delete + add in one save cannot smuggle in any switch;
     - a principal explicitly denied on the home floor writes nothing (403 shared_denied, no revision in the answer);
     - an item left out is never deleted: deletions are only the ids listed.
     A home floor whose echo is missing is not touched; a home draft that moved since the client read it raises 409 when
@@ -865,6 +868,7 @@ def plan_edits(conn: sqlite3.Connection, floor_id: str, sent_shared: dict[str, d
         # what the room holds after the edit: its walls (not read-only) and objects, by home id
         room_walls = {un_ns(H, i) for i, it in view.get("walls", {}).items() if not it["shared"].get("readonly")}
         room_objects = {un_ns(H, i) for i in view["objects"]}
+        room_switches = {v.get("switch_entity_id") for v in view["circuits"].values() if isinstance(v.get("switch_entity_id"), str)}
         for cur, new, s in changed.get("walls", []):
             if new is None:
                 room_walls.discard(un_ns(H, cur["id"]))
@@ -898,6 +902,10 @@ def plan_edits(conn: sqlite3.Connection, floor_id: str, sent_shared: dict[str, d
                         raise SharedEditError(422, "shared_outside", "מעגל או קבוצה מהחלל המשותף יכולים לכלול רק עצמים שבתוכו.", id=new.get("id"), collection=coll)
                     if coll == "circuits" and cur is not None and back.get("switch_entity_id") != cur.get("switch_entity_id"):
                         raise SharedEditError(422, "shared_switch", "את המפסק של מעגל בחלל המשותף משנים בקומה שלו.", id=new.get("id"))
+                    sw = back.get("switch_entity_id") if coll == "circuits" else None
+                    if cur is None and isinstance(sw, str) and sw and sw not in room_switches and not (can_control is not None and can_control(sw)):
+                        raise SharedEditError(422, "shared_switch", "מעגל חדש בחלל המשותף יכול להשתמש רק במפסק שכבר משמש מעגל בחלל, או במפסק שמותר לך להפעיל.",
+                                              id=new.get("id"))
                 elif not _item_inside(coll, back, doc, regions[s.zone_id]):
                     raise SharedEditError(422, "shared_outside", "אפשר לערוך מכאן רק את מה שבתוך החלל המשותף; את השאר ערוך בקומה שלו.", id=new.get("id"), collection=coll)
                 if back["id"] in index:
