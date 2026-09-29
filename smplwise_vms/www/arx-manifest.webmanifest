@@ -1,0 +1,21 @@
+{
+  "id": "./",
+  "name": "SmplWise Arx",
+  "short_name": "Arx",
+  "description": "מפה, מצלמות, אירועים, חשמל וכניסה במקום אחד",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5f7fb",
+  "theme_color": "#2f6bff",
+  "categories": ["security", "utilities"],
+  "icons": [
+    { "src": "icons/arx-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/arx-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/arx-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/arx.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

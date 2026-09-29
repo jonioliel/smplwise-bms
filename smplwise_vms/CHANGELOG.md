@@ -1,5 +1,56 @@
 # Changelog — SmplWise Arx add-on
 
+## 0.1.140 (pilot) — Arx from outside: `/arx` with our own sign-in against Home Assistant, install as an app, push notifications (CR-008 P1 + P3)
+### Remote access (CR-008 MVP)
+- New add-on options **`remote_access`** (off by default) and **`remote_path`** (`/arx`). With it on, the add-on also
+  answers on `https://<host>/arx` through the customer's Cloudflare tunnel - never through Ingress: the request is
+  marked as the **remote channel**, every Ingress / identity / developer header is dropped, security headers are set
+  (CSP, frame-ancestors same-origin for the WisKey embed, referrer and permissions policies), and anything that
+  changes state must come from our own origin (`Sec-Fetch-Site` / `Origin` check, else 403 - a same-site CSRF hole
+  found in review and closed before release). The bridge's unauthenticated signed routes answer 404 remotely.
+- **Sign-in screen of Arx** (RTL, the product's design, phone and desktop): username and password of Home Assistant,
+  the MFA code step, HA's own error texts - the flow is HA's `/auth/login_flow` + `/auth/token` with PKCE on the same
+  origin (verified against HA core's source; the fakes refuse the same keys HA refuses). The password goes to HA
+  only and is never stored by us. Arx keeps an opaque **session cookie** (`__Secure-arx_session`, scope `/arx/`, 256
+  bit, renewed at every exchange, the old one ended), validates the HA token against HA core and re-checks it every
+  60 s (a revoked token or a deactivated user is out within a minute), and maps the HA user to the **same roles and
+  permissions as inside Home Assistant** - nothing more, nothing less; no first-admin bootstrap from outside.
+- **Who may come in from outside**: by default only users with the per-user flag **"גישה מרחוק"** (roles screen);
+  the setting `remote.policy` can widen it to every user with an Arx role. Session policy `remote.session`:
+  rolling 90 days (default), browser session, or 90 days with an idle lock (`remote.idle_minutes`). MFA can be
+  required for administrators (`remote.require_mfa_admin`, off). Rate limits per address and per user, audit rows
+  `auth.remote_session.*` (ids only, `channel: remote` on every remote action), the client address taken from
+  Cloudflare's header only.
+- **One sign-in for WisKey too**: after signing in to Arx the same HA sign-in is handed to the embedded WisKey panel
+  (HA's own token store on the same origin), so it opens signed in. In browser-session and idle-lock modes the
+  hand-over lives only while an Arx page is open. Note: the browser is then also signed in to Home Assistant at `/`
+  with that user's own permissions. Sign-out revokes the refresh token at HA and clears both.
+- Remote users can do everything their roles allow, **including Home Assistant device actions** (the electricity
+  use case), audited with the channel. Video policy for the remote channel (`remote.default_profile` main / sub,
+  `remote.mse_fallback`) ships with the settings; the player's remote behaviour and the NVR codec check follow in the
+  next release.
+- Settings tab **"גישה מרחוק"**; owner's setup guide `docs/operations/ARX_CLOUDFLARE_GUIDE_HE.md` (dedicated Arx
+  domain, second tunnel, path route `/arx` first). Migration 0033 (the per-user flag). Tests: `test_remote_access.py`
+  57 + 216 in the touched set, Playwright 10 (desktop + phone); two adversarial Opus security reviews (1 blocker +
+  4 medium fixed).
+### Install as an app and notifications (CR-008 P3)
+- **Arx installs as an app** (PWA): manifest and icons, "התקן את Arx" banner, an iPhone add-to-home-screen guide, an
+  update notice when a new version is live, a Hebrew offline page. The service worker is scoped to the app's own base
+  (the Ingress path today, `/arx/` outside), caches the app shell only (never API calls, never video, never `/auth`),
+  and its cache is named after the add-on version so nothing stays stale after an update.
+- **Push notifications** (Web Push, works inside Home Assistant and from outside): settings tab **"התראות"** per user
+  - categories (rule alerts, door / lock events, device faults, system health), quiet hours (critical passes), a test
+  button, the list of this user's devices (up to 10). When a rule fires, after the commit, a separate worker sends
+  to the subscribed users **who may see that camera or area** (the same reach rule as the alert list, re-checked
+  before every retry), at most 10 per minute per user, retries with backoff, gone endpoints removed; the payload is
+  a title, one line, a deep link and ids - no tokens, no pictures. Only the known browser push services are ever
+  contacted. The keys (VAPID) are created once per installation and never logged; administrators can rotate them
+  (all devices then re-subscribe on their next visit). Home Assistant backups carry the key and the subscriptions -
+  documented. No new Python dependency: the standard's encryption is implemented with the library already present and
+  checked against the standard's published test vector. Migration 0034. Tests: `test_push.py` 12 (×10 runs), 123 in
+  the touched set, Playwright 18 (desktop + phone); Opus security review (4 medium fixed) + re-review APPROVED.
+- Not yet tried on a real phone through a real push service - that is the owner's first check after installing.
+
 ## 0.1.139 (pilot) — The product is now **SmplWise Arx**; WisKey "הגדל" mode and an experimental Companion-app embed; CR-008 remote-access plan
 - **Name**: the product is called **SmplWise Arx** (short "Arx") - the add-on title and panel, the wordmark in the
   shell, the Lovelace card title, the documentation and the Hebrew guide. Display names only: the add-on slug
