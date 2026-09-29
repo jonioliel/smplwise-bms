@@ -46,6 +46,10 @@ export interface AlarmZone {
   aux: string[];
   shared: boolean;
   bypass: ZoneBypass | null;
+  /** Every panel that lists this zone (security review M4). */
+  panels?: string[];
+  /** The caller may not view every panel that lists this shared zone: name only, no state. */
+  redacted?: boolean;
 }
 
 export interface UnpairedControl {
@@ -223,6 +227,7 @@ export function panelState(state: string | null, available = true): { label: str
 
 /** A zone's state in words: עקוף / תקלה / פתוח / סגור / תנועה ... */
 export function zoneState(z: AlarmZone): { label: string; tone: 'ok' | 'open' | 'fault' | 'bypassed' | 'motion' } {
+  if (z.redacted) return { label: 'משותף למחיצה שאינה בהרשאתך', tone: 'ok' };
   if (z.bypassed) return { label: 'עקוף', tone: 'bypassed' };
   if (!z.available) return { label: 'תקלה · לא זמין', tone: 'fault' };
   if (z.fault) return { label: 'תקלה', tone: 'fault' };

@@ -499,8 +499,12 @@ def discover(conn: sqlite3.Connection, entities: list[dict[str, Any]] | None = N
                 if owner and owner != p["entity_id"]:
                     continue
                 shared = len(g.panels) > 1 and not owner
-                zlist.append(_zone_view(z, attached.get(z["entity_id"], []), None if manual_ctl.get(z["entity_id"]) == "" else pairs.get(z["entity_id"]),
-                                        shared=shared, bypassed_by_panel=bypassed_by_panel, override=z["entity_id"] in manual_ctl))
+                zv = _zone_view(z, attached.get(z["entity_id"], []), None if manual_ctl.get(z["entity_id"]) == "" else pairs.get(z["entity_id"]),
+                                shared=shared, bypassed_by_panel=bypassed_by_panel, override=z["entity_id"] in manual_ctl)
+                # security review M4: every panel that lists this zone (all partitions of the system while it is shared) -
+                # viewing its state and bypassing it need the permission on each of them (routers/alarm.py)
+                zv["panels"] = [x["entity_id"] for x in g.panels] if shared else [p["entity_id"]]
+                zlist.append(zv)
             zlist.sort(key=lambda v: ((v["area_name"] or "￿"), v["zone_number"] if v["zone_number"] is not None else 1 << 30, v["name"]))
             pv["zones"] = zlist
             pv["unpaired_controls"] = [{"entity_id": c["entity_id"], "domain": c["domain"], "name": c.get("name") or c.get("original_name") or (c.get("attributes") or {}).get("friendly_name") or c["entity_id"],

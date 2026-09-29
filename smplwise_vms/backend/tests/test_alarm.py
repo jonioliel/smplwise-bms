@@ -312,6 +312,33 @@ def test_floor_scope_follows_placement(alarm_app):
     assert _act(c, "alarm_control_panel.risco_garden", "arm_away", as_user("fay")).status_code == 202
 
 
+def test_shared_zones_need_every_partition(alarm_app):
+    """Security review M4: an unassigned zone of a two-partition Risco system is listed on both panels; a caller placed on
+    one partition only sees it by name (no state, out of ready-to-arm) and cannot bypass it - bypassing needs
+    alarm.bypass on every panel that lists it. Once assigned to that partition it is theirs. (Home Assistant's Risco
+    integration does not report a zone's partition - read in core risco/binary_sensor.py: only zone_id and groups.)"""
+    app, s, c, calls, _ = alarm_app
+    ids = seed_tree(c)
+    f2 = ids["floor2"]
+    asset = c.post(f"/api/v1/floors/{f2}/plan-assets", files={"file": ("p.png", png_bytes(), "image/png")}).json()
+    v = c.post(f"/api/v1/floors/{f2}/plan-versions", json={"asset_id": asset["id"]}).json()
+    c.post(f"/api/v1/plan-versions/{v['id']}/publish")
+    assert c.post(f"/api/v1/floors/{f2}/anchors", json={"resource_type": "ha_entity", "resource_id": "alarm_control_panel.risco_garden", "x": 0.3, "y": 0.3}).status_code == 201
+    bind(c, s, "gil", "site_admin", "floor", f2)
+    c.put("/api/v1/alarm/users/dev-gil/policy", json={"arm_policy": "no_code", "disarm_policy": "no_code"})
+    g = as_user("gil")
+    garden = _panel(_panels(c, g), "alarm_control_panel.risco_garden")
+    back = next(z for z in garden["zones"] if z["entity_id"] == "binary_sensor.back_door")
+    assert back["redacted"] is True and back["state"] is None and back["bypass"] is None and back["open"] is False
+    assert garden["ready"]["open"] == []  # the house's open back door does not leak through the summary
+    r = _bypass(c, "binary_sensor.back_door", True, g, confirmed=True)
+    assert r.status_code == 403
+    # assigned to the garden partition: now it is the garden's zone, visible and bypassable by its holder
+    assert c.put("/api/v1/alarm/overrides/binary_sensor.back_door", json={"panel_entity_id": "alarm_control_panel.risco_garden"}).status_code == 200
+    back = next(z for z in _panel(_panels(c, g), "alarm_control_panel.risco_garden")["zones"] if z["entity_id"] == "binary_sensor.back_door")
+    assert not back.get("redacted") and back["state"] == "on" and back["panels"] == ["alarm_control_panel.risco_garden"]
+    assert _bypass(c, "binary_sensor.back_door", True, g, confirmed=True).status_code == 202
+
 # ---------------------------------------------------------------- actions through the bridge
 
 def test_arm_needs_no_confirmation_disarm_and_bypass_do(alarm_app):

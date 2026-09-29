@@ -96,9 +96,26 @@ REMOTE_MESSAGES = {
 }
 
 
+REDACTED_KEYS = ("state", "last_changed", "tamper", "battery_low", "battery_level", "alarmed", "bypass")
+
+
 def _visible_panels(conn: sqlite3.Connection, scope: _Scope) -> list[dict[str, Any]]:
+    """The panels the caller may view. Security review M4: a zone listed on several panels (an unassigned zone of a
+    multi-partition system) shows its state only to a caller who may view EVERY one of them; otherwise it stays in
+    the list by name only (redacted) and leaves the ready-to-arm summary, which is recomputed."""
     disc = svc.discover(conn)
-    return [p for p in disc["panels"] if scope.allowed(VIEW, p["entity_id"])]
+    out = [p for p in disc["panels"] if scope.allowed(VIEW, p["entity_id"])]
+    for p in out:
+        changed = False
+        for z in p["zones"]:
+            if not all(scope.allowed(VIEW, pid) for pid in z.get("panels", [p["entity_id"]])):
+                for k in REDACTED_KEYS:
+                    z[k] = None
+                z.update(open=False, fault=False, bypassed=False, available=True, redacted=True)
+                changed = True
+        if changed:
+            p["ready"] = svc.readiness([z for z in p["zones"] if not z.get("redacted")])
+    return out
 
 
 # ---------------------------------------------------------------- reads
@@ -411,8 +428,10 @@ def zone_bypass(zone_entity_id: str, request: Request, principal: Principal = De
         raise act.refuse(ApiError(404, "not_found", "החיישן לא נמצא."))
     panel, zone = found
     act.details["panel"] = panel["entity_id"]
-    if not scope.allowed(BYPASS, panel["entity_id"]):
-        require(conn, principal, BYPASS, INSTALLATION)
+    # security review M4: a zone listed on several panels (shared partitions) needs alarm.bypass on EVERY one of them
+    for pid in zone.get("panels") or [panel["entity_id"]]:
+        if not scope.allowed(BYPASS, pid):
+            require(conn, principal, BYPASS, INSTALLATION)
     note_grant(scope.decision(BYPASS, panel["entity_id"]), BYPASS)
     cfg = _settings(conn)
     blocked = _remote_block(principal, cfg, "bypass_on" if body.bypassed else "bypass_off")
