@@ -583,6 +583,35 @@ def test_csrf_bearer_only_requests_are_exempt(arx):
     assert r.status_code not in (401, 403), r.text
 
 
+def test_bearer_validation_runs_without_the_write_lock(arx, monkeypatch):
+    """SW_DB_IO_GUARD finding (2026-09-29): a write-mode remote request validated its bearer token against Home
+    Assistant (a WebSocket round trip) while holding the request's write lock."""
+    import sqlite3
+
+    arx.flag("u-owner")
+    arx.bind("u-owner", "system_admin")
+    token = arx.token(arx.owner)
+    real_validate = hua.validate_token
+    free: list[bool] = []
+
+    async def validate(settings, tok, ip):
+        probe = sqlite3.connect(arx.app.state.db.path, timeout=0, isolation_level=None)
+        try:
+            probe.execute("BEGIN IMMEDIATE")
+            probe.execute("ROLLBACK")
+            free.append(True)
+        except sqlite3.OperationalError:
+            free.append(False)
+        finally:
+            probe.close()
+        return await real_validate(settings, tok, ip)
+
+    monkeypatch.setattr(hua, "validate_token", validate)
+    r = _rotate_signing_key(TestClient(arx.app), Authorization=f"Bearer {token}")
+    assert r.status_code not in (401, 403, 500), r.text
+    assert free == [True]
+
+
 def test_rotation_ends_the_previous_session(arx):
     arx.flag("u-viewer")
     assert arx.login(arx.viewer).status_code == 200

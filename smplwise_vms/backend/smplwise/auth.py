@@ -16,7 +16,7 @@ from .audit import audit
 from .config import Settings
 import time
 
-from .db import Database, commit_now, database_of, get_setting, new_id, now_iso, permission_revision, read_mode, release, set_setting
+from .db import Database, commit_now, database_of, get_setting, new_id, now_iso, permission_revision, read_mode, release, set_setting, unlocked
 from .errors import unauthenticated
 from .rbac import Principal
 from .remote_channel import is_remote
@@ -158,7 +158,13 @@ def maybe_bootstrap(conn: sqlite3.Connection, settings: Settings, principal: Pri
 
 def _principal(request: Request, conn: sqlite3.Connection) -> Principal:
     settings = settings_of(request)
-    principal = resolve_principal(request, settings)
+    if is_remote(request):
+        # the remote channel may validate a bearer token against Home Assistant (a WebSocket round trip) and write its
+        # own session / audit rows: never under this request's write lock (SW_DB_IO_GUARD finding, 2026-09-29)
+        with unlocked(conn):
+            principal = resolve_principal(request, settings)
+    else:
+        principal = resolve_principal(request, settings)
     touch_user(conn, principal)
     maybe_bootstrap(conn, settings, principal, getattr(request.state, "correlation_id", None))
     return principal
