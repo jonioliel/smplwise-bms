@@ -210,6 +210,9 @@ def registry_maps(entities: list[dict[str, Any]], devices: list[dict[str, Any]],
             "registry_id": e.get("id"),
             "unique_id": e.get("unique_id"),
             "platform": e.get("platform"),
+            # CR-010: one alarm system's zones / bypass controls are told apart from a second system of the same
+            # integration by the config entry (services/alarm.py)
+            "config_entry_id": e.get("config_entry_id"),
             "device_id": e.get("device_id"),
             "area_id": area_id,
             "area_name": area.get("name") if area else None,

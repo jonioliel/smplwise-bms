@@ -590,7 +590,7 @@ def test_owner_answer_1_publishing_the_other_floor_publishes_only_the_rooms_pend
 
 
 def test_review_l8_a_backup_from_before_shared_spaces_restores_and_a_new_one_round_trips(settings):
-    """Review L8: a backup taken before migration 0036 (no shared_spaces / shared_space_members in it) restores cleanly -
+    """Review L8: a backup taken before migration 0037 (no shared_spaces / shared_space_members in it) restores cleanly -
     the replace empties both tables, the room is again drawn on its own floor only - and a backup of a shared room
     brings the share and its members back."""
     import io
@@ -610,7 +610,7 @@ def test_review_l8_a_backup_from_before_shared_spaces_restores_and_a_new_one_rou
             body = src.read(item.filename)
             if item.filename == "manifest.json":
                 m = json.loads(body)
-                m["schema_version"] = 35
+                m["schema_version"] = 36
                 m["tables"] = [t for t in m.get("tables") or [] if t not in ("shared_spaces", "shared_space_members")] if isinstance(m.get("tables"), list) else m.get("tables")
                 body = json.dumps(m).encode("utf-8")
             dst.writestr(item, body)

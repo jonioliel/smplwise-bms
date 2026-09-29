@@ -10,12 +10,14 @@
 
 /** A tile that scrolled out of view keeps its stream this long (so a short scroll back does not reconnect). */
 export const RELEASE_MS = 5000;
-/** How often a snapshot-only tile refreshes its picture. */
-export const SNAPSHOT_REFRESH_MS = 10_000;
+/** The fastest a snapshot-only tile refreshes; the server caches a snapshot for `snapshots.max_age_s`, so the real interval is the larger of the two. */
+export const SNAPSHOT_REFRESH_MIN_MS = 10_000;
+export const REFUSED_MS = 10_000;
+export const snapshotRefreshMs = (maxAgeS: number) => Math.max(SNAPSHOT_REFRESH_MIN_MS, (Number.isFinite(maxAgeS) ? maxAgeS : 0) * 1000);
 
 /** No remote cap (LAN / Ingress): only the installation-wide `media.max_live_sessions` applies. */
 export function effectiveLiveCap(mediaCap: number, remoteCap: number | null): number {
-  const media = Number.isFinite(mediaCap) && mediaCap > 0 ? mediaCap : 8;
+  const media = Number.isFinite(mediaCap) && mediaCap > 0 ? mediaCap : 16;
   return remoteCap != null && remoteCap > 0 ? Math.min(media, remoteCap) : media;
 }
 

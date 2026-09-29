@@ -282,7 +282,7 @@ def build() -> str:
 # The operator chapters follow docs/design/UI_COPY_RULES.md: no platform branding. The installer / administrator
 # chapters (60 backup, 70 setup wizard, 80 settings, 81 roles, 91 known limits, 95 troubleshooting), the glossary
 # and the index may name the platform, as the settings screens themselves do.
-OPERATOR_PAGES = ("10-", "20-", "21-", "30-", "31-", "40-", "50-", "85-")
+OPERATOR_PAGES = ("10-", "20-", "21-", "30-", "31-", "32-", "40-", "50-", "85-")  # 32-: CR-010 alarm
 BRAND_RE = re.compile(r"Home Assistant|\bHA\b|Supervisor|Ingress|\badd-on\b|Companion|HACS|תוסף", re.I)
 
 

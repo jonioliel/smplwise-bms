@@ -95,6 +95,9 @@ export interface DeviceRow {
   /** CR-007 slice 2: devices.control or ha.entity.control at this entity's own floor scope. Controls render only
    * when this is true - the read-only rendering from slice 1 stays for everyone else. */
   can_control: boolean;
+  /** CR-010 review B1: owned by the alarm section (a zone's bypass control, the panel) - read-only everywhere else. */
+  alarm_managed?: boolean;
+  managed_label?: string;
   /** CR-007 slice 3 (switch rows, for a bulk holder): whether this switch may enter a bulk action and why - "marked"
    * (an administrator marked it: the only way in), "circuit_not_marked" (a lighting circuit's switch: the mark is
    * suggested), "switch_not_marked" or "doors_layer" (never). */

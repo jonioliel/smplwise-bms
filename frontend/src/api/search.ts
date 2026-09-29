@@ -5,7 +5,8 @@
 import { get } from './client';
 import type { IconName } from '../components/sw-icon';
 
-export type SearchKind = 'zone' | 'camera' | 'floor' | 'building' | 'entity' | 'object';
+/** page (CR-010): a screen of the app itself (the security sections), matched in the browser - never sent to the server. */
+export type SearchKind = 'zone' | 'camera' | 'floor' | 'building' | 'entity' | 'object' | 'page';
 
 export interface SearchResult {
   kind: SearchKind;
@@ -34,8 +35,8 @@ export interface SearchResponse {
   counts: Partial<Record<SearchKind, number>>;
 }
 
-export const KIND_LABEL: Record<SearchKind, string> = { zone: 'חדר / אזור', camera: 'מצלמה', floor: 'קומה', building: 'מבנה', entity: 'התקן', object: 'עצם' };
-export const KIND_ICON: Record<SearchKind, IconName> = { zone: 'map', camera: 'camera', floor: 'floor', building: 'building', entity: 'light', object: 'grid' };
+export const KIND_LABEL: Record<SearchKind, string> = { zone: 'חדר / אזור', camera: 'מצלמה', floor: 'קומה', building: 'מבנה', entity: 'התקן', object: 'עצם', page: 'מסך' };
+export const KIND_ICON: Record<SearchKind, IconName> = { zone: 'map', camera: 'camera', floor: 'floor', building: 'building', entity: 'light', object: 'grid', page: 'shield' };
 
 export const search = (q: string, limit = 8) => get<SearchResponse>(`search?q=${encodeURIComponent(q)}&limit=${limit}`);
 
