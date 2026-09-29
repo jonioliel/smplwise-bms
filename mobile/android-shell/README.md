@@ -132,14 +132,46 @@ vendor's push service (FCM for Chrome). Two ways to give this app notifications 
 | Cost on the phone | None beyond Google Play services, which the phone already runs | A permanent notification icon, battery use, and some vendors' battery savers (Xiaomi, Huawei, Samsung and others) kill it anyway |
 | Store / review | Normal | Google Play restricts foreground-service types; a sideloaded app is unaffected |
 
+## Seen running (emulator, 2026-09-29)
+
+Headless Android 13 emulator (AOSP `default` x86_64 image, Android System WebView 101, no Chrome installed), the debug
+APK, local fixtures reached through `adb reverse`: the real backend with the remote channel on, and
+`frontend/tests/fixtures/arx_fake_ha.py` (fake Home Assistant core) behind a small proxy that plays the tunnel (`/auth/*`
+to the fake HA, the rest to the backend). Seen, with screenshots or DevTools checks:
+
+- first start with "הוסף שרת" and the owner's wording; the reachability check passing, the unreachable warning with
+  "הוסף בכל זאת", `http://127.0.0.1:8111` probed to `/arx/`; two servers with "שימוש אחרון"; auto-open with one server;
+- the site full screen with **no browser UI of any kind** (there is no browser on that image at all), the status bar in
+  the site's theme colour; `?app=android` removed from the address; `window.ArxApp` present, frozen, with exactly
+  `platform`, `shell`, `version`, `switchServer`; the user agent suffix; no install banner;
+- "החלף שרת" on the sign-in page opening the native list; Back at the first screen → the "יציאה / שרתים" sheet; the
+  one-time hint;
+- navigation: `https://example.com/...` and `http://<server>/lovelace/0` handed to the system browser app while the
+  page stayed on `/arx/`; `intent:` dropped; `window.open` to another site → browser, to `/arx/#/kiosk/all` → the same
+  WebView; no leftover popup WebView (a leak found and fixed here);
+- a real sign-in (fixture user) → the map; `api/v1/me` answering `source: remote`; after Home + force-stop + relaunch
+  the app resumed **signed in** without the sign-in page (localStorage + cookie kept);
+- `arx://open` to an unknown server → the full address and the warning; to the stored server → `#/live` opened;
+- the error screen ("השרת לא עונה") on a first load with the server down, "נסה שוב" recovering; with the service worker
+  installed, the P3 worker's cached shell answers offline instead (by design);
+- app lock with the emulator's screen-lock PIN: switching on needs the PIN; "מיד" → leaving and returning shows the
+  cover and the phone's prompt ("פתיחת SmplWise Arx"); the PIN unlocks.
+
+Found on WebView 101 and not the app's fault: the site's CSS needs `color-mix()`, `dvh` and `:has()`, so the page
+rendered with wrong colours and a short layout - the app now shows a notice on WebView < 111. Not explained: after the
+soft keyboard had been used, a grey dim covered this app's window (not other apps) and survived a force-stop, with no
+overlay in the app's view tree or window list; treated as an emulator window-manager artifact until a phone shows it.
+
 ## Known limits
 - No push notifications (above).
-- **Not seen on a device yet** (see the build log in CR-008 §9): the whole on-device behaviour - WebRTC, two-way audio,
-  full-screen video, downloads, uploads, app lock, insets on a real WebView 140+, splash, deep links.
+- **Not seen yet** (needs a phone and the lab): WebRTC video and two-way audio, full-screen video, downloads and
+  uploads, the splash on Android 12+, insets on a real WebView 140+, the `__Secure-arx_session` cookie over https
+  through the real tunnel.
 - The WisKey "full window" link and any other page of the same host outside the Arx path open in the browser (which has
   its own sign-in).
 - Cloudflare Access (D3) in front of `/arx` redirects to another host, which the app does not open inside; the error
   screen explains it. A future build could add an allow-list.
+- The site itself needs a current Android System WebView (111+); older ones get a notice to update it.
 - The page-facing interface and blob downloads (files the page builds) need a WebView that supports the
   `WEB_MESSAGE_LISTENER` and `DOCUMENT_START_SCRIPT` features (current Android System WebView releases do; an outdated
   WebView gets a Hebrew message asking to update it, and "החלף שרת" still works through `arx://servers`).
@@ -175,6 +207,13 @@ $env:Path = "$env:JAVA_HOME\bin;$env:Path"
 
 `gradle.properties` keeps Gradle modest (no daemon, 2 workers, 1.5 GB heap): the workstation also runs the backend,
 browsers and Playwright. First build ~5 minutes (downloads), later ones 2-9 minutes depending on load.
+
+Emulator used for the smoke test (installed per user on the workstation, 2026-09-29): the `emulator` package (WHPX
+acceleration, `emulator -accel-check` passes) and `system-images;android-33;default;x86_64`, AVD `arx_shell_smoke`
+(1.5 GB RAM, started with `-no-window -gpu swiftshader_indirect`). The ATD images render nothing to `screencap`; use the
+`default` image. On disk: about 1.1 GB for the emulator and 4.2 GB for the unpacked image
+(`%LOCALAPPDATA%\Android\Sdk\emulator`, `...\system-images\android-33`); remove both with `sdkmanager --uninstall
+emulator "system-images;android-33;default;x86_64"` and `avdmanager delete avd -n arx_shell_smoke` when not needed.
 
 Debug builds also accept plain `http://127.0.0.1` (debug-only network security config and `BuildConfig.ALLOW_DEV_HTTP`),
 for a smoke test against the local development backend: `adb reverse tcp:8099 tcp:8099`, then add
