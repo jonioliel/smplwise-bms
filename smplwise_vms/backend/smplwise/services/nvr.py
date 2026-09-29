@@ -58,6 +58,9 @@ def _text(el: ET.Element, name: str) -> str:
 
 
 def _client(settings: Settings) -> httpx.Client:
+    from ..mode import ensure_nvr
+
+    ensure_nvr(settings)  # NVR-less mode: 409 nvr_not_configured, reached only after the caller's permission check
     if not settings.nvr_host or not settings.nvr_user or not settings.nvr_password:
         raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו בהגדרות ה־Add-on.")
     return httpx.Client(

@@ -14,9 +14,10 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import __version__
-from .config import Settings, load_settings
+from .config import DEV_NVR_PLACEHOLDER, Settings, load_settings
 from .db import Database
 from .errors import ApiError, validation_payload
+from .mode import is_ha_only
 from .routers import access, access_control, access_groups, anchors, backup, cameras, cases, catalog, device_layouts, devices, events, exports, frames, ha, health, me, media, plan_catalog, plan_geometry, plans, playback, playback_groups, recordings, rules, search, settings as settings_router, setup, skins, storage, views, zones, nvr_write
 
 log = logging.getLogger("smplwise")
@@ -42,10 +43,11 @@ def janitor_tick(db: Database, settings: Settings) -> None:
     ha_history.prune_db(db)
     from .services import storage
 
-    storage.warm(db, settings)  # non-blocking; keeps the storage report warm between opens
-    from .services import nvr_write
+    if not is_ha_only(settings):  # NVR-less mode: no NVR storage report to keep warm, no NVR recording to stop
+        storage.warm(db, settings)  # non-blocking; keeps the storage report warm between opens
+        from .services import nvr_write
 
-    nvr_write.stop_expired_manual(db, settings)  # A1: manual recordings past their planned stop
+        nvr_write.stop_expired_manual(db, settings)  # A1: manual recordings past their planned stop
     db.checkpoint()  # a PASSIVE WAL checkpoint only: never takes the write lock, never queues writers
 
 
@@ -88,6 +90,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             log.info("attached %s Home Assistant NVR events to their cameras", fixed)
     except Exception:  # noqa: BLE001 - never block the start
         log.exception("HA event camera backfill failed")
+    if settings.nvr_host == DEV_NVR_PLACEHOLDER:
+        log.info("installation mode: full with a placeholder NVR host (developer backend without NVR_HOST); "
+                 "SW_MODE=ha_only starts the NVR-less mode")
+    if is_ha_only(settings):
+        log.info("installation mode: ha_only (no nvr_host in the add-on options) - NVR discovery, alert stream, "
+                 "recording-derived events, exports and event thumbnails are off; set nvr_host and restart to add an NVR")
     if settings.dev_user:
         log.warning("developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant")
 
@@ -175,7 +183,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         pb.set_instance_id(await run_in_threadpool(_instance))
         if settings.go2rtc_url:
             await run_in_threadpool(pb.sweep_orphans, settings)
-        ex.WORKER.start(app.state.db, settings)
+        ha_only = is_ha_only(settings)  # NVR-less mode: none of the NVR background work starts (mode.py)
+        if not ha_only:
+            ex.WORKER.start(app.state.db, settings)
         from .services import autosync, events_derive, events_ingest
 
         def _tz() -> str:
@@ -192,8 +202,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
                 storage.warm(app.state.db, settings, force=True)
 
-        app.state.discovery = asyncio.create_task(discover("startup"))
-        events_ingest.LISTENER.start(app.state.db, settings, _tz)
+        if not ha_only:
+            app.state.discovery = asyncio.create_task(discover("startup"))
+            events_ingest.LISTENER.start(app.state.db, settings, _tz)
         from .services import ha_sync
 
         ha_sync.SYNC.start(app.state.db, settings)
@@ -202,7 +213,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         intercom_sync.SYNC.start(settings)  # CR-005: WisKey entry-center feed (read-only)
         from .services import bridge_install, thumbnails
 
-        thumbnails.WORKER.start_with(app.state.db, settings)
+        if not ha_only:
+            thumbnails.WORKER.start_with(app.state.db, settings)
         from .services import backup as backup_svc
 
         app.state.backup_task = asyncio.create_task(backup_svc.daily_loop(app.state.db, settings))
@@ -213,7 +225,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 await asyncio.sleep(30)
                 try:
                     await run_in_threadpool(janitor_tick, app.state.db, settings)
-                    if autosync.PERIODIC.due():
+                    if not ha_only and autosync.PERIODIC.due():
                         await discover("periodic")
                 except Exception as exc:  # never let the janitor die
                     log.warning("janitor tick failed: %s", type(exc).__name__, exc_info=True)

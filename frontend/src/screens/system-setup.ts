@@ -6,7 +6,7 @@ import '../components/sw-button';
 import '../components/sw-field';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
-import { can, isApi } from '../api/session';
+import { can, isApi, nvrLess } from '../api/session';
 import { ApiError, get, describeError } from '../api/client';
 import { clearIntercomCredentials, getIntercomCredentials, setIntercomCredentials, type IntercomCredentialsList, type IntercomStationCredentials } from '../api/intercom';
 import { listCameras } from '../api/maps';
@@ -27,6 +27,8 @@ interface RawHealth {
   home_assistant: { configured: boolean; connected: boolean; last_snapshot_at: string | null; last_event_at: string | null; last_registry_at: string | null; last_error: string | null; reconnects: number; sequence: number; entities: number; started_at: string | null; ha_version: string | null };
   identity_source: string;
   renderer: string | null;
+  /** NVR-less mode (Home Assistant only) */
+  mode?: 'full' | 'ha_only';
 }
 
 const OPTIONS: { key: string; label: string }[] = [
@@ -104,7 +106,7 @@ export class SystemSetup extends LitElement {
     }
     // extra facts when the caller may see them; neither is required for the page
     try {
-      this.recorder = (await listCameras()).recorder;
+      this.recorder = nvrLess() ? null : (await listCameras()).recorder;
     } catch {
       this.recorder = null;
     }
@@ -130,6 +132,11 @@ export class SystemSetup extends LitElement {
 
   private async loadNvr() {
     if (!isApi()) return;
+    if (nvrLess()) {
+      // NVR-less mode: nothing to read from an NVR; only the connection details (the way to add one later outside HA)
+      void nvrConnection().then((v) => (this.connection = v)).catch(() => (this.connection = null));
+      return;
+    }
     try {
       const [n, c] = await Promise.all([notifyStatus(), listNvrChanges(10)]);
       this.notify = n;
@@ -356,7 +363,7 @@ export class SystemSetup extends LitElement {
     if (!v) return nothing;
     const f = this.connForm;
     return html`<sw-card heading="חיבור ל־NVR" subheading=${v.in_addon ? 'נשמר ב־Add-on options דרך ה־Supervisor; שמירה מפעילה מחדש את ה־Add-on' : 'נשמר ליד הנתונים (nvr_connection.json); בתוקף מיד'} data-nvr-connection>
-      ${this.row('כתובת · פורט HTTP · RTSP', `${v.host ?? '—'} · ${v.http_port} · ${v.rtsp_port}`)}
+      ${this.row('כתובת · פורט HTTP · RTSP', `${v.placeholder ? 'כתובת זמנית של סביבת פיתוח (לא NVR)' : v.host ?? '—'} · ${v.http_port} · ${v.rtsp_port}`)}
       ${this.row('משתמש', `${v.user ?? '—'} · ${v.has_password ? 'סיסמה מוגדרת' : 'ללא סיסמה'}`, v.has_password ? 'ok' : 'warn')}
       ${f
         ? html`<div class="two" data-nvr-connection-form>
@@ -458,6 +465,13 @@ export class SystemSetup extends LitElement {
           ? this.error ? nothing : html`<sw-state-panel state="loading" heading="קורא את מצב החיבורים…"></sw-state-panel>`
           : html`<div class="two" data-connections>
               <div class="grouplabel">מערכת ה־NVR</div>
+              ${h.mode === 'ha_only'
+                ? html`<sw-card heading="NVR - מצב ללא NVR" subheading="לא מוגדר - דילוג מכוון" data-nvr-less-connections>
+                    ${this.row('מצב ההתקנה', 'Home Assistant בלבד (ללא NVR)')}
+                    <div class="hint">מצלמות, לייב, אירועים, הקלטות, תיקים וייצוא מוסתרים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password ב־Home Assistant › Add-ons › SMPLWISE VMS › Configuration והפעילו מחדש את ה־Add-on. הנתונים נשארים כמו שהם.</div>
+                  </sw-card>
+                  ${this.renderConnectionCard()}`
+                : html`
               <sw-card heading="NVR (Hikvision, ISAPI + RTSP)" subheading=${h.nvr_configured ? 'מוגדר · קריאה בלבד' : 'לא מוגדר'}>
                 ${this.row('מוגדר ב־Add-on options', h.nvr_configured ? 'כן' : 'לא', h.nvr_configured ? 'ok' : 'err')}
                 ${this.recorder ? this.row('דגם · קושחה', `${this.recorder.model ?? '—'} · ${this.recorder.firmware ?? '—'}`) : nothing}
@@ -471,10 +485,11 @@ export class SystemSetup extends LitElement {
               </sw-card>
               ${this.renderNotifyCard()}
               ${this.renderSystemCard()}
-              ${this.renderConnectionCard()}
+              ${this.renderConnectionCard()}`}
               <div class="grouplabel">שירותים ותשתית נוספים</div>
-              <sw-card heading="go2rtc (relay לווידאו)" subheading=${h.go2rtc_configured ? 'מוגדר' : 'לא מוגדר'}>
-                ${this.row('מוגדר ב־Add-on options', h.go2rtc_configured ? 'כן' : 'לא', h.go2rtc_configured ? 'ok' : 'err')}
+              <sw-card heading="go2rtc (relay לווידאו)" subheading=${h.go2rtc_configured ? 'מוגדר' : h.mode === 'ha_only' ? 'לא מוגדר - רשות במצב ללא NVR' : 'לא מוגדר'}>
+                ${this.row('מוגדר ב־Add-on options', h.go2rtc_configured ? 'כן' : 'לא', h.go2rtc_configured ? 'ok' : h.mode === 'ha_only' ? '' : 'err')}
+                ${!h.go2rtc_configured && h.mode === 'ha_only' ? html`<div class="hint" data-go2rtc-optional>במצב ללא NVR go2rtc נדרש רק לווידאו של עמדות WisKey.</div>` : nothing}
                 ${this.row('סנכרון זרמים אחרון תקין', when(h.discovery.streams_last_ok), h.discovery.streams_last_error ? 'warn' : 'ok')}
                 ${h.discovery.streams_last_error ? this.row('שגיאת סנכרון זרמים', h.discovery.streams_last_error, 'err') : nothing}
                 ${this.check('go2rtc') ? this.row('בדיקת בריאות', this.check('go2rtc')!.detail, this.check('go2rtc')!.status === 'ok' ? 'ok' : this.check('go2rtc')!.status === 'warn' ? 'warn' : 'err') : html`<div class="hint">פרטי הזרמים והגרסה מוצגים ב"הגדרות › כללי › בריאות ועבודות" (דורש הרשאת ניהול).</div>`}

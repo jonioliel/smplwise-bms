@@ -14,7 +14,7 @@ export function announceSetup(s: SetupState) {
   window.dispatchEvent(new CustomEvent('sw-setup-state', { detail: { ready: s.ready, done: s.done, total: s.total, next: s.next } }));
 }
 
-const STATUS_ICON: Record<SetupStep['status'], string> = { done: 'check', todo: 'info', failed: 'warning', skipped: 'minus' };
+const STATUS_ICON: Record<SetupStep['status'], string> = { done: 'check', todo: 'info', failed: 'warning', skipped: 'minus', not_applicable: 'minus' };
 const SOURCE_TEXT: Record<SetupStep['source'], string> = { live: 'נבדק מול המכשיר', background: 'לפי עבודות הרקע של ה־Add-on', local: 'לפי בסיס הנתונים של ה־Add-on' };
 
 /** Signed numbers inside Hebrew text ("+03:00", "-45 שנ׳") render as "03:00+" in an RTL run: a left-to-right mark
@@ -63,7 +63,7 @@ export class SystemWizard extends LitElement {
       return;
     }
     // opening the wizard reads each device once: a step known only from the background jobs gets its live check
-    if (autoCheck) for (const s of this.data?.steps ?? []) if (s.source === 'background') void this.check(s.id, true);
+    if (autoCheck) for (const s of this.data?.steps ?? []) if (s.source === 'background' && s.status !== 'not_applicable') void this.check(s.id, true);
   }
 
   private async check(id: StepId, quiet = false) {
@@ -100,12 +100,13 @@ export class SystemWizard extends LitElement {
       return;
     }
     const steps = this.data.steps.map((x) => (x.id === id ? fresh : x));
-    const done = steps.filter((x) => x.status === 'done').length;
-    this.set({ ...this.data, steps, done, ready: done === steps.length, next: steps.find((x) => x.status !== 'done')?.id ?? null, checked_at: s.checked_at, checked: id });
+    const required = steps.filter((x) => x.status !== 'not_applicable'); // NVR-less mode: a step skipped on purpose is not counted
+    const done = required.filter((x) => x.status === 'done').length;
+    this.set({ ...this.data, steps, done, total: required.length, ready: done === required.length, next: required.find((x) => x.status !== 'done')?.id ?? null, checked_at: s.checked_at, checked: id });
   }
 
   private checkAll() {
-    for (const s of this.data?.steps ?? []) void this.check(s.id);
+    for (const s of this.data?.steps ?? []) if (s.status !== 'not_applicable') void this.check(s.id);
   }
 
   private jump(id: StepId) {
@@ -124,10 +125,21 @@ export class SystemWizard extends LitElement {
   }
 
   private renderSummary(d: SetupState) {
+    const skipped = d.steps.filter((s) => s.status === 'not_applicable').length;
+    if (d.ready && d.mode === 'ha_only') {
+      return html`<div class="summary ready" role="status" data-wizard-ready data-wizard-mode="ha_only">
+        <span class="big"><sw-icon name="check" size=${22}></sw-icon></span>
+        <div class="txt"><b>מוכן לעבודה</b><span>כל ${d.total} השלבים הנדרשים עברו · ${skipped} דולגו (מצב ללא NVR) · נבדק ${when(d.checked_at)}</span></div>
+        <div class="go">
+          <sw-button size="sm" variant="primary" icon="map" @click=${() => (window.location.hash = '#/explore/sites')}>למפה</sw-button>
+          <sw-button size="sm" icon="bolt" @click=${() => (window.location.hash = '#/devices/building')}>לחשמל והתקנים</sw-button>
+        </div>
+      </div>`;
+    }
     if (d.ready) {
       return html`<div class="summary ready" role="status" data-wizard-ready>
         <span class="big"><sw-icon name="check" size=${22}></sw-icon></span>
-        <div class="txt"><b>מוכן לעבודה</b><span>כל ששת השלבים עברו · נבדק ${when(d.checked_at)}</span></div>
+        <div class="txt"><b>מוכן לעבודה</b><span>${skipped ? `כל ${d.total} השלבים הנדרשים עברו · ${skipped} דולגו` : 'כל ששת השלבים עברו'} · נבדק ${when(d.checked_at)}</span></div>
         <div class="go">
           <sw-button size="sm" variant="primary" icon="live" @click=${() => (window.location.hash = '#/live/wall')}>לכל המצלמות</sw-button>
           <sw-button size="sm" icon="map" @click=${() => (window.location.hash = '#/explore/sites')}>למפה</sw-button>
@@ -139,7 +151,7 @@ export class SystemWizard extends LitElement {
     const failed = d.steps.filter((s) => s.status === 'failed').length;
     return html`<div class="summary" role="status" data-wizard-progress>
       <span class="count"><b>${d.done}</b>/${d.total}</span>
-      <div class="txt"><b>${d.done} מתוך ${d.total} שלבים הושלמו${failed ? ` · ${failed} נכשלו` : ''}</b>${next ? html`<span>השלב הבא: ${next.index}. ${next.title} — ${b(next.summary)}</span>` : nothing}</div>
+      <div class="txt"><b>${d.done} מתוך ${d.total} שלבים הושלמו${failed ? ` · ${failed} נכשלו` : ''}${skipped ? ` · ${skipped} דולגו${d.mode === 'ha_only' ? ' (מצב ללא NVR)' : ''}` : ''}</b>${next ? html`<span>השלב הבא: ${next.index}. ${next.title} — ${b(next.summary)}</span>` : nothing}</div>
       ${next ? html`<div class="go"><sw-button size="sm" variant="primary" @click=${() => this.jump(next.id)}>לשלב ${next.index}</sw-button></div>` : nothing}
     </div>`;
   }
@@ -154,8 +166,8 @@ export class SystemWizard extends LitElement {
           <h3 id=${`h-${s.id}`}>${s.title}</h3>
           <span class="meta">${SOURCE_TEXT[s.source]}${s.checked_at ? ` · ${when(s.checked_at)}` : ''}</span>
         </div>
-        <span class="pill ${s.status}" data-step-status><sw-icon name=${STATUS_ICON[s.status] as 'check'} size=${13}></sw-icon>${STATUS_TEXT[s.status]}</span>
-        <sw-button size="sm" icon="refresh" ?disabled=${busy} data-check=${s.id} @click=${() => this.check(s.id)}>${busy ? 'בודק…' : 'בדוק שוב'}</sw-button>
+        <span class="pill ${s.status}" data-step-status><sw-icon name=${STATUS_ICON[s.status] as 'check'} size=${13}></sw-icon>${s.status_label ?? STATUS_TEXT[s.status]}</span>
+        ${s.status === 'not_applicable' ? nothing : html`<sw-button size="sm" icon="refresh" ?disabled=${busy} data-check=${s.id} @click=${() => this.check(s.id)}>${busy ? 'בודק…' : 'בדוק שוב'}</sw-button>`}
       </header>
       <p class="sum" data-step-summary>${b(s.summary)}</p>
       ${s.problem
@@ -182,7 +194,8 @@ export class SystemWizard extends LitElement {
   render() {
     const d = this.data;
     const anyBusy = this.busy.size > 0;
-    return html`<sw-page heading="אשף התקנה" subheading=${`התקנה › NVR › Home Assistant › go2rtc › קומה › מצלמה · הבדיקות קוראות בלבד מהמכשירים${isApi() ? '' : ' · נתוני הדגמה'}`}>
+    const sub = d?.mode === 'ha_only' ? 'מצב ללא NVR · התקנה › Home Assistant › go2rtc › קומה · שלבי ה־NVR והמצלמה מדולגים' : 'התקנה › NVR › Home Assistant › go2rtc › קומה › מצלמה';
+    return html`<sw-page heading="אשף התקנה" subheading=${`${sub} · הבדיקות קוראות בלבד מהמכשירים${isApi() ? '' : ' · נתוני הדגמה'}`}>
       <sw-button slot="actions" icon="refresh" ?disabled=${!d || anyBusy} data-check-all @click=${() => this.checkAll()}>${anyBusy ? 'בודק…' : 'בדוק הכול'}</sw-button>
       ${this.error ? html`<sw-state-panel state="error" heading="מצב ההתקנה לא נטען" hint=${this.error}></sw-state-panel>` : nothing}
       ${!d
@@ -405,6 +418,16 @@ export class SystemWizard extends LitElement {
     .pill.todo {
       background: var(--sw-warning-soft);
       color: var(--sw-warning);
+    }
+    .pill.not_applicable {
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
+    }
+    .step.not_applicable {
+      opacity: 0.85;
+    }
+    .problem.not_applicable {
+      background: var(--sw-surface-2);
     }
     .sum {
       margin: 0;

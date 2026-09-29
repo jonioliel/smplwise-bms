@@ -9,7 +9,7 @@ import '../components/sw-field';
 import '../components/sw-toggle';
 import '../components/sw-icon';
 import { demoHealth, demoJobs } from '../fixtures/catalog';
-import { isApi } from '../api/session';
+import { isApi, nvrLess } from '../api/session';
 import { getSettings, listSessions, listStreams, patchSettings, syncStreams, type ProductSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { describeError, get } from '../api/client';
@@ -418,7 +418,7 @@ export class SystemDiagnostics extends LitElement {
 
   private async loadMedia() {
     void this.loadSkins();
-    if (!isApi() || !this.canEdit) return;
+    if (!isApi() || !this.canEdit || nvrLess()) return; // NVR-less mode: no camera streams to list
     try {
       const [s, sess] = await Promise.all([listStreams(), listSessions()]);
       this.streams = s.streams;
@@ -608,19 +608,27 @@ export class SystemDiagnostics extends LitElement {
     if (!designOverride() && this.settings) applyDesign(this.settings['ui.design'] === 'b' ? 'b' : 'a');
   }
 
+  /** NVR-less mode: the neutral notice a settings section shows instead of NVR / video forms that could only fail. */
+  private renderNvrLessNotice(what: string) {
+    return html`<sw-card heading="מצב ללא NVR" subheading=${what} data-nvr-less-settings>
+      <div class="muted">ההתקנה פועלת עם Home Assistant בלבד, ולכן ההגדרות של וידאו, הקלטות, ייצוא וחיפוש אירועים מוסתרות כאן. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password ב־Home Assistant › Add-ons › SMPLWISE VMS › Configuration והפעילו מחדש את ה־Add-on; ההגדרות יחזרו כמו שהיו.</div>
+    </sw-card>`;
+  }
+
   private renderGeneral() {
+    const NVR = nvrLess();
     return html`<div class="sections">
       ${this.renderDesign()}
       <sw-card heading="זמן ומיקום">
         <div class="row"><span class="lbl">אזור זמן לתצוגה<span class="muted">פנימית הכל UTC; שעון קיץ לפי התאריך המבוקש</span></span><sw-field class="ctl"><select><option>(UTC+02:00) Asia/Jerusalem</option></select></sw-field></div>
-        <div class="row"><span class="lbl">פרופיל זמן של ה־NVR<span class="muted">נקבע לפי ראיות לדגם ולקושחה</span></span><sw-field class="ctl"><select><option>hikvision · ds-76xx · שעון מקומי</option></select></sw-field></div>
+        ${NVR ? nothing : html`<div class="row"><span class="lbl">פרופיל זמן של ה־NVR<span class="muted">נקבע לפי ראיות לדגם ולקושחה</span></span><sw-field class="ctl"><select><option>hikvision · ds-76xx · שעון מקומי</option></select></sw-field></div>`}
         ${isApi() ? nothing : html`<div class="row"><span class="lbl">NTP במכשיר<span class="muted">pool.ntp.org · סטייה 2 שנ׳</span></span><sw-toggle checked label="פעיל"></sw-toggle></div>`}
       </sw-card>
-      <sw-card heading="מדיניות אחסון (קריאה מה־NVR)">
+      ${NVR ? this.renderNvrLessNotice('מדיניות האחסון נקראת מה־NVR') : html`<sw-card heading="מדיניות אחסון (קריאה מה־NVR)">
         <div class="row"><span class="lbl">שמירת הקלטות</span><sw-field class="ctl"><select disabled><option>לפי מקום פנוי (overwrite)</option></select></sw-field></div>
         <div class="row"><span class="lbl">כשהאחסון מתמלא</span><sw-field class="ctl"><select disabled><option>דריסת הישן ביותר</option></select></sw-field></div>
         <div class="row"><span class="lbl">התראת אחסון נמוך<span class="muted">מתחת ל־10% פנוי</span></span><sw-toggle checked label="פעיל"></sw-toggle></div>
-      </sw-card>
+      </sw-card>`}
       <sw-card heading="אינטגרציות">
         <div class="row"><span class="lbl">go2rtc (חיצוני)<span class="muted">זרמים בשם smplwise_* בלבד · זרמים זרים לא ייגעו</span></span><span style="display:flex;gap:8px;align-items:center"><sw-toggle checked label="מופעל"></sw-toggle><sw-button size="sm" @click=${() => { this.tab = 'media'; void this.loadMedia(); }}>הגדרה</sw-button></span></div>
         <div class="row"><span class="lbl">גשר Home Assistant<span class="muted">קטלוג ישויות, פעולות בשם המשתמש וספריית המשתמשים</span></span><sw-button size="sm" @click=${() => { this.tab = 'ha'; void this.loadHa(); }}>הגדרה</sw-button></div>
@@ -634,9 +642,12 @@ export class SystemDiagnostics extends LitElement {
   private renderMedia() {
     const api = isApi();
     const dirty = Object.keys(this.draft).length > 0;
+    const NVR = nvrLess(); // NVR-less mode: only the map, display and retention settings stay
+    const starts = NVR ? [['explore', 'מפת קומה'], ['devices', 'חשמל והתקנים']] : [['explore', 'מפת קומה'], ['live', 'סקירה (לייב)'], ['wall', 'כל המצלמות'], ['events', 'מרכז אירועים'], ['playback', 'הקלטות'], ['devices', 'חשמל והתקנים']];
     return html`<div class="sections">
-      <sw-card heading="תעבורת וידאו" subheading="ברירת המחדל לכל הנגנים; כל נגן יכול לעקוף אותה לדפדפן הנוכחי">
-        <div class="row"><span class="lbl">תעבורה ברירת מחדל<span class="muted">MSE (ברירת המחדל) עובד דרך Ingress, Cloudflare ומאחורי CGNAT · WebRTC נותן השהיה נמוכה אך דורש UDP ישיר ל־go2rtc (רשת מקומית או ללא CGNAT) · אוטומטי מנסה WebRTC ונופל ל־MSE</span></span>
+      ${NVR ? this.renderNvrLessNotice('הגדרות הווידאו וההקלטות אינן בשימוש') : nothing}
+      <sw-card heading=${NVR ? 'תצוגה ומפה' : 'תעבורת וידאו'} subheading=${NVR ? 'מסך הפתיחה, המפה והתלת-ממד' : 'ברירת המחדל לכל הנגנים; כל נגן יכול לעקוף אותה לדפדפן הנוכחי'}>
+        ${NVR ? nothing : html`<div class="row"><span class="lbl">תעבורה ברירת מחדל<span class="muted">MSE (ברירת המחדל) עובד דרך Ingress, Cloudflare ומאחורי CGNAT · WebRTC נותן השהיה נמוכה אך דורש UDP ישיר ל־go2rtc (רשת מקומית או ללא CGNAT) · אוטומטי מנסה WebRTC ונופל ל־MSE</span></span>
           <sw-field class="ctl"><select ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.transport_default', (e.target as HTMLSelectElement).value as ProductSettings['media.transport_default'])}>
             ${(['mse', 'auto', 'webrtc'] as const).map((t) => html`<option value=${t} ?selected=${(this.value('media.transport_default') ?? 'mse') === t}>${t === 'auto' ? 'אוטומטי (WebRTC → MSE)' : t === 'webrtc' ? 'WebRTC בלבד' : 'MSE (ברירת מחדל)'}</option>`)}
           </select></sw-field></div>
@@ -651,19 +662,19 @@ export class SystemDiagnostics extends LitElement {
         <div class="row"><span class="lbl">פריסת קיוסק כברירת מחדל<span class="muted">עמודות × שורות בעמוד; קישור קיוסק עם cols/rows גובר</span></span>
           <sw-field class="ctl"><select data-set-kiosk-layout ?disabled=${!api || !this.canEdit} @change=${(e: Event) => { const [c, r] = (e.target as HTMLSelectElement).value.split('x').map(Number); this.set('ui.kiosk_cols', c); this.set('ui.kiosk_rows', r); }}>
             ${[[2, 2], [3, 2], [3, 3], [4, 3], [4, 4], [5, 4], [6, 4]].map(([c, r]) => html`<option value=${`${c}x${r}`} ?selected=${Number(this.value('ui.kiosk_cols') ?? 3) === c && Number(this.value('ui.kiosk_rows') ?? 2) === r}>${c}×${r} · ${c * r} מצלמות</option>`)}
-          </select></sw-field></div>
+          </select></sw-field></div>`}
         <div class="row"><span class="lbl">מסך פתיחה<span class="muted">המסך שהמערכת נפתחת עליו כשהכתובת לא מציינת מסך (ריענון של הכתובת הראשית)</span></span>
           <sw-field class="ctl"><select data-set-start-route ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.start_route', (e.target as HTMLSelectElement).value)}>
-            ${[['explore', 'מפת קומה'], ['live', 'סקירה (לייב)'], ['wall', 'כל המצלמות'], ['events', 'מרכז אירועים'], ['playback', 'הקלטות']].map(([v, l]) => html`<option value=${v} ?selected=${String(this.value('ui.start_route') ?? 'explore') === v}>${l}</option>`)}
+            ${starts.map(([v, l]) => html`<option value=${v} ?selected=${String(this.value('ui.start_route') ?? 'explore') === v}>${l}</option>`)}
           </select></sw-field></div>
         <div class="row"><span class="lbl">הסתרת המפה<span class="muted">מסיר את אזור המפה מהניווט לכל המשתמשים; למשתמש בודד: תפקיד בלי ההרשאה map.read</span></span>
           <sw-field class="ctl"><select data-set-hide-map ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_map', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('ui.hide_map') ?? 'false') !== 'true'}>מוצגת</option><option value="true" ?selected=${String(this.value('ui.hide_map') ?? 'false') === 'true'}>מוסתרת</option>
           </select></sw-field></div>
-        <div class="row"><span class="lbl">HA recorder כמקור משני להיסטוריה<span class="muted">במפה ההיסטורית: כשההיסטוריה המקומית לא יודעת מצב של ישות, הוא נקרא מה־recorder של Home Assistant ומסומן כמקור משני</span></span>
+        ${NVR ? nothing : html`<div class="row"><span class="lbl">HA recorder כמקור משני להיסטוריה<span class="muted">במפה ההיסטורית: כשההיסטוריה המקומית לא יודעת מצב של ישות, הוא נקרא מה־recorder של Home Assistant ומסומן כמקור משני</span></span>
           <sw-field class="ctl"><select data-set-ha-secondary ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('history.ha_secondary', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('history.ha_secondary') ?? 'false') !== 'true'}>כבוי</option><option value="true" ?selected=${String(this.value('history.ha_secondary') ?? 'false') === 'true'}>פעיל</option>
-          </select></sw-field></div>
+          </select></sw-field></div>`}
         <div class="row"><span class="lbl">מידות לפני כיול<span class="muted">בעורך התוכנית, כשגרסת התוכנית עדיין לא כוילה: להציג אורכים ושטחים משוערים עם ≈, או להסתיר מטרים עד הכיול</span></span>
           <sw-field class="ctl"><select data-set-plan-estimates ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.estimates', (e.target as HTMLSelectElement).value as 'true' | 'false')}>
             <option value="true" ?selected=${String(this.value('plan.estimates') ?? 'true') !== 'false'}>משוערות עם ≈</option><option value="false" ?selected=${String(this.value('plan.estimates') ?? 'true') === 'false'}>מוסתרות עד כיול</option>
@@ -680,7 +691,7 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-plan-presence-fade ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.presence_fade', (e.target as HTMLSelectElement).value)}>
             ${[['off', 'כבוי — רק בזמן תנועה'], ['1', 'דקה'], ['2', '2 דקות'], ['3', '3 דקות'], ['5', '5 דקות'], ['10', '10 דקות'], ['15', '15 דקות'], ['30', '30 דקות'], ['60', 'שעה']].map(([v, l]) => html`<option value=${v} ?selected=${String(this.value('plan.presence_fade') ?? '3') === v}>${l}</option>`)}
           </select></sw-field></div>
-        <div class="row"><span class="lbl">הסתרת חיפוש AI<span class="muted">מסיר את הלשונית מהניווט; המסך עצמו נשאר זמין בכתובת</span></span>
+        ${NVR ? nothing : html`<div class="row"><span class="lbl">הסתרת חיפוש AI<span class="muted">מסיר את הלשונית מהניווט; המסך עצמו נשאר זמין בכתובת</span></span>
           <sw-field class="ctl"><select data-set-hide-search ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_search', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('ui.hide_search') ?? 'false') !== 'true'}>מוצג</option><option value="true" ?selected=${String(this.value('ui.hide_search') ?? 'false') === 'true'}>מוסתר</option>
           </select></sw-field></div>
@@ -689,10 +700,10 @@ export class SystemDiagnostics extends LitElement {
         <div class="row"><span class="lbl">סשני ניגון במקביל<span class="muted">כל ניגון = זרם playback אחד מה־NVR דרך go2rtc</span></span><sw-field class="ctl"><input type="number" min="1" max="16" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('playback.max_sessions') ?? 4)} @change=${(e: Event) => this.set('playback.max_sessions', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         <div class="row"><span class="lbl">פקיעת סשן ניגון ללא פעילות (שניות)<span class="muted">אחרי הזמן הזה הזרם נמחק מ־go2rtc אוטומטית</span></span><sw-field class="ctl"><input type="number" min="60" max="3600" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('playback.lease_s') ?? 600)} @change=${(e: Event) => this.set('playback.lease_s', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         <div class="row"><span class="lbl">גודל ייצוא מקסימלי (MB)<span class="muted">לפי הנפח המשוער של קבצי ה־NVR בטווח</span></span><sw-field class="ctl"><input type="number" min="50" max="20480" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('exports.max_mb') ?? 2048)} @change=${(e: Event) => this.set('exports.max_mb', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
-        <div class="row"><span class="lbl">שמירת קבצי ייצוא (ימים)<span class="muted">אחרי התקופה הקבצים נמחקים מ־/data/exports</span></span><sw-field class="ctl"><input type="number" min="1" max="365" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('exports.retention_days') ?? 7)} @change=${(e: Event) => this.set('exports.retention_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        <div class="row"><span class="lbl">שמירת קבצי ייצוא (ימים)<span class="muted">אחרי התקופה הקבצים נמחקים מ־/data/exports</span></span><sw-field class="ctl"><input type="number" min="1" max="365" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('exports.retention_days') ?? 7)} @change=${(e: Event) => this.set('exports.retention_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>`}
         <div class="row"><span class="lbl">שמירת אירועים (ימים)<span class="muted">אירועים ישנים יותר נמחקים מהמאגר המקומי</span></span><sw-field class="ctl"><input type="number" min="1" max="3650" data-ltr data-set-events-retention ?disabled=${!api || !this.canEdit} .value=${String(this.value('events.retention_days') ?? 30)} @change=${(e: Event) => this.set('events.retention_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         <div class="row"><span class="lbl">שמירת אודיט (ימים)<span class="muted">מי עשה מה ומתי — כתיבות ל־NVR, שינויי הרשאות, ייצוא; שורות ישנות יותר נמחקות</span></span><sw-field class="ctl"><input type="number" min="30" max="3650" data-ltr data-set-audit-retention ?disabled=${!api || !this.canEdit} .value=${String(this.value('audit.retention_days') ?? 365)} @change=${(e: Event) => this.set('audit.retention_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
-        <div class="row"><span class="lbl">גודל מרבי לחבילת ראיות (MB)<span class="muted">אימות וייבוא של חבילה מהתקנה אחרת; הקובץ נכתב לקובץ זמני ונמחק</span></span><sw-field class="ctl"><input type="number" min="16" max="4096" data-ltr data-set-import-max ?disabled=${!api || !this.canEdit} .value=${String(this.value('cases.import_max_mb') ?? 512)} @change=${(e: Event) => this.set('cases.import_max_mb', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        ${NVR ? nothing : html`<div class="row"><span class="lbl">גודל מרבי לחבילת ראיות (MB)<span class="muted">אימות וייבוא של חבילה מהתקנה אחרת; הקובץ נכתב לקובץ זמני ונמחק</span></span><sw-field class="ctl"><input type="number" min="16" max="4096" data-ltr data-set-import-max ?disabled=${!api || !this.canEdit} .value=${String(this.value('cases.import_max_mb') ?? 512)} @change=${(e: Event) => this.set('cases.import_max_mb', Number((e.target as HTMLInputElement).value))} /></sw-field></div>`}
         <div class="row"><span class="lbl">אזור זמן של האתר וה־NVR<span class="muted">IANA · חיפוש והקלטות מתורגמים לשעון הקיר של ה־NVR לפי הכלל הזה (כולל שעון קיץ)</span></span><sw-field class="ctl"><input type="text" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('time.zone') ?? 'Asia/Jerusalem')} @change=${(e: Event) => this.set('time.zone', (e.target as HTMLInputElement).value.trim())} /></sw-field></div>
         <div class="foot"><sw-button variant="primary" icon="check" ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>
         ${!api ? html`<div class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</div>` : nothing}

@@ -31,6 +31,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..config import Settings
 from ..db import Database, new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
+from ..mode import ensure_nvr, nvr_ready as _nvr_ready  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import bundle as bundle_svc
 from ..services import bundle_import
@@ -162,7 +163,7 @@ def _preservation(settings: Settings, conn: sqlite3.Connection, item: sqlite3.Ro
         return ("preserved" if p and p.is_file() else "missing"), None
     if item["kind"] == "note" or cam is None or not item["from_at"] or not item["to_at"]:
         return "none", export
-    if not check or not settings.nvr_host or not cam["main_track"]:
+    if not check or not _nvr_ready(settings) or not cam["main_track"]:
         return "unknown", export
     try:
         start, end = parse_utc(item["from_at"]), parse_utc(item["to_at"])
@@ -319,7 +320,7 @@ def get_case(case_id: str, request: Request, principal: Principal = Depends(curr
     scope = _read_scope(conn, principal)
     r = _get(conn, case_id)
     items, hidden = _items(settings, conn, case_id, scope, check)
-    return {**case_row(r, _counts(conn, [case_id])[case_id]), "items": items, "hidden_items": hidden, "can_manage": _can_manage(conn, principal), "checked": bool(check and settings.nvr_host)}
+    return {**case_row(r, _counts(conn, [case_id])[case_id]), "items": items, "hidden_items": hidden, "can_manage": _can_manage(conn, principal), "checked": bool(check and _nvr_ready(settings))}
 
 
 @router.patch("/cases/{case_id}")
@@ -429,7 +430,8 @@ def add_item(case_id: str, body: ItemIn, request: Request, principal: Principal 
     file_path = file_sha = None
     if body.kind == "snapshot":
         settings = settings_of(request)
-        if not settings.nvr_host:
+        ensure_nvr(settings)  # NVR-less mode: 409
+        if not _nvr_ready(settings):
             raise ApiError(503, "nvr_unconfigured", "לא הוגדר NVR; אין ממה לצלם.")
         cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
         with unlocked(conn):
@@ -487,7 +489,8 @@ def preserve_item(case_id: str, item_id: str, request: Request, principal: Princ
             raise conflict("already_preserving", "כבר קיימת עבודת שימור לפריט.", state=job["state"])
 
     not_preserving(conn)  # fails fast; create_job checks again after the NVR search, in the INSERT's transaction
-    if not settings.nvr_host:
+    ensure_nvr(settings)  # NVR-less mode: 409 (after the manage permission)
+    if not _nvr_ready(settings):
         raise ApiError(503, "nvr_unconfigured", "לא הוגדר NVR; אין ממה להעתיק.")
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (it["camera_id"],)).fetchone()
     if not cam:

@@ -86,6 +86,9 @@ def stream_name(session_id: str, generation: int) -> str:
 def playback_rtsp_url(settings: Settings, track_id: int, start: dt.datetime, end: dt.datetime, tz_name: str) -> str:
     """rtsp://user:pass@host:rtsp/Streaming/tracks/<track>?starttime=<local compact>&endtime=<local compact>.
     Times are the NVR's local wall clock (KNOWN_QUIRKS T4). Server-side only."""
+    from ..mode import ensure_nvr
+
+    ensure_nvr(settings)  # NVR-less mode: 409 nvr_not_configured
     if not settings.nvr_host or not settings.nvr_user or not settings.nvr_password:
         raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו בהגדרות ה־Add-on.")
     tz = zone(tz_name)

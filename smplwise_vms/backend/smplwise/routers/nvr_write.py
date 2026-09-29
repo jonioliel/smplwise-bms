@@ -12,6 +12,7 @@ from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
+from ..mode import ensure_nvr, installation_mode, is_ha_only  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import nvr, nvr_schedule, nvr_system, nvr_write
 
@@ -320,7 +321,11 @@ def set_connection(body: ConnectionIn, request: Request, principal: Principal = 
     request.app.state.settings = new
     audit(conn, actor=principal, action="nvr.connection.update", decision="allowed", resource_type="nvr", resource_id="connection", request_id=_rid(request),
           details={"host": body.host, "http_port": body.http_port, "rtsp_port": body.rtsp_port, "user": body.user, "password_changed": body.password is not None, "saved": where})
-    return {"saved": where, "device": info, "restarting": where == "supervisor", **nvr_system.connection_view(new)}
+    # NVR-less mode -> full: the NVR routes answer at once, but discovery, the alert stream and the other NVR background
+    # work start with the process - inside Home Assistant the Supervisor restarts the add-on; on a workstation, restart it
+    was_ha_only = is_ha_only(settings)
+    return {"saved": where, "device": info, "restarting": where == "supervisor", "mode": installation_mode(new),
+            "restart_required": was_ha_only and where != "supervisor", **nvr_system.connection_view(new)}
 
 
 class OsdIn(BaseModel):

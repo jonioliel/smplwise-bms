@@ -47,11 +47,11 @@ import { onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
-import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, visibleAreas, visibleGroups, demoRedirect, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav } from './nav';
+import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, visibleAreas, visibleGroups, demoRedirect, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS } from './nav';
 import { bidi } from '../i18n/bidi';
 import { currentDesign, onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
-import { can, canNav, isApi, loadSession, onSession, watchPermissions, type Session } from '../api/session';
+import { can, canNav, isApi, loadSession, nvrLess, onSession, watchPermissions, type Session } from '../api/session';
 import { productSettings } from '../api/prefs';
 import '../components/sw-state-panel';
 import '../components/sw-page';
@@ -762,6 +762,7 @@ export class SwApp extends LitElement {
     super.connectedCallback();
     this.stopSession = onSession((s) => {
       this.session = s;
+      applyNvrLess(nvrLess()); // NVR-less mode: the NVR areas leave the navigation for everyone (nav.ts)
       if (s.mode !== 'loading') void resolveDesign();
       if (s.mode === 'api' && this.route) this.redirectDemo(this.route);
       if ((s.mode === 'api' || s.mode === 'no_access') && !this.stopPermissions) this.stopPermissions = watchPermissions(() => void this.onPermissionsChanged());
@@ -777,7 +778,9 @@ export class SwApp extends LitElement {
           applyWiskeyUi(ps as unknown as Record<string, unknown>); // הגדרות › בקרות כניסה: embed or SMPLWISE per WisKey screen
           // the start screen (0.1.68): only when the address carried no route of its own
           const start = START_ROUTES[String(ps['ui.start_route'] ?? 'explore')] ?? START_ROUTES.explore;
-          const target = hideMap && start.startsWith('/explore') ? '/live/wall' : start;
+          let target = hideMap && start.startsWith('/explore') ? '/live/wall' : start;
+          // NVR-less mode: a start screen that needs the NVR opens the map (or, with the map hidden, the device control)
+          if (NVR_LESS && isNvrRoute(parseRoute(`#${target}`))) target = hideMap ? START_ROUTES.devices : START_ROUTES.explore;
           if (this.landedDefault && target !== START_ROUTES.explore) {
             this.landedDefault = false;
             window.location.replace(`#${target}`);
@@ -1096,6 +1099,7 @@ export class SwApp extends LitElement {
     if (!r) return nothing;
     if (this.landedDefault && this.session.mode === 'api' && !this.startResolved) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     const s = r.segments;
+    if (this.session.mode === 'api' && NVR_LESS && isNvrRoute(r)) return this.renderNvrLess();
     if (s[0] === 'styleguide') return html`<styleguide-screen></styleguide-screen>`;
     if (s[0] === 'screens') return html`<screens-index></screens-index>`;
     if (s[0] === 'kiosk') return html`<kiosk-wall></kiosk-wall>`;
@@ -1166,6 +1170,15 @@ export class SwApp extends LitElement {
     }
   }
 
+  /** NVR-less mode: a URL of an NVR area (a bookmark, an old link, the Lovelace card) lands here instead of a screen that
+   * would only fail. Inside the Lovelace card (embed=1) the card degrades to the map, its only view that needs no NVR. */
+  private renderNvrLess() {
+    if (this.embedded()) return html`<explore-floor-map .floorId=${'f0'} .screenState=${'ready'}></explore-floor-map>`;
+    return html`<sw-page heading="מצב ללא NVR"><sw-state-panel data-nvr-less state="empty" heading="האזור הזה דורש NVR"
+      hint="ההתקנה פועלת במצב ללא NVR (Home Assistant בלבד): לייב, מצלמות, אירועים, הקלטות, תיקים וייצוא אינם זמינים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password ב־Home Assistant › Add-ons › SMPLWISE VMS › Configuration והפעילו מחדש את ה־Add-on - הנתונים נשארים כמו שהם."
+      actionLabel="לחיבורים" @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
+  }
+
   private renderA() {
     const area = areaOf(this.route);
     const tabs = area ? visibleTabs(AREA_TABS[area], this.session.mode === 'api', canNav) : [];
@@ -1175,7 +1188,7 @@ export class SwApp extends LitElement {
     const name = me?.user.display_name || me?.user.username || 'יוני';
     return html`
       <nav class="rail" aria-label="ניווט ראשי">
-        <a class="brand-tile" href="#/live" title="SmplWise"><span>S</span></a>
+        <a class="brand-tile" href=${this.session.mode === 'api' && NVR_LESS ? (HIDDEN_HREFS.has('#/explore/floors/f0') ? '#/devices/building' : '#/explore/floors/f0') : '#/live'} title="SmplWise"><span>S</span></a>
         ${visibleAreas(this.session.mode === 'api', canNav).map(
           (n) => html`<a class=${classMap({ item: true, a: true, active: area === n.id })} href=${n.href} title=${n.label} aria-current=${area === n.id ? 'page' : 'false'}>
             <sw-icon .name=${n.icon} size=${23}></sw-icon><span>${n.label}</span>
@@ -1277,8 +1290,10 @@ export class SwApp extends LitElement {
     const shown = all.slice(0, 4);
     const overflow = all.slice(4);
     const moreActive = overflow.some((n) => n.id === group);
+    // five slots (four groups + "עוד") in the full product; the NVR-less mode has only four groups, which fill the bar
+    const slots = shown.length + (overflow.length ? 1 : 0);
     return html`
-      <nav class="bottom" aria-label="ניווט ראשי">
+      <nav class="bottom" aria-label="ניווט ראשי" style=${slots && slots !== 5 ? `grid-template-columns: repeat(${slots}, 1fr)` : ''}>
         ${shown.map((n) => html`<a class=${classMap({ active: group === n.id })} href=${n.href}><sw-icon .name=${n.icon} size=${20}></sw-icon>${n.label}</a>`)}
         ${overflow.length
           ? html`<button

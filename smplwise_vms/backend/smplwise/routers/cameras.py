@@ -17,6 +17,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked, new_id, now_iso
 from ..errors import ApiError, not_found
+from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import autosync, nvr
 from ..services.access import camera_allowed, require_camera, visible_camera_ids
@@ -75,6 +76,7 @@ def snapshot(camera_id: str, request: Request, principal: Principal = Depends(cu
     served with X-Snapshot-Stale when the NVR is unreachable. Same permission as live video."""
     settings = settings_of(request)
     require_camera(conn, principal, camera_id, "video.live")  # T055: 403 before 404 - an unknown id tells a scoped user nothing
+    ensure_nvr(settings_of(request))  # NVR-less mode: 409 after the permission check
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam:
         raise not_found("המצלמה לא נמצאה.")
@@ -108,6 +110,7 @@ def sync_cameras(request: Request, principal: Principal = Depends(current_princi
     """Read-only discovery from the NVR: channels, online flag and track ids. Existing aliases/order survive.
     The same discovery also runs automatically at start-up and every few minutes (services/autosync)."""
     require(conn, principal, "sources.configure", INSTALLATION)
+    ensure_nvr(settings_of(request))  # NVR-less mode: 409 after the permission check
     return autosync.sync_cameras(settings_of(request), conn, actor=principal, request_id=_rid(request), reason="manual")
 
 
@@ -142,6 +145,7 @@ class CameraIn(BaseModel):
 @router.post("/cameras", status_code=201)
 def create_camera(body: CameraIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "sources.configure", INSTALLATION)
+    ensure_nvr(settings_of(request))  # NVR-less mode: no NVR channel to register (after the permission check)
     _ensure_recorder(conn)
     existing = conn.execute("SELECT id FROM cameras WHERE recorder_id = ? AND channel = ?", (DEFAULT_RECORDER, body.channel)).fetchone()
     if existing:
@@ -179,6 +183,7 @@ def detection_zones(camera_id: str, request: Request, refresh: bool = False, pri
     polygons in the camera image and have nothing to do with rooms on the floor plan; a browser overlay is not
     an NVR mask and protects no recording. Editing needs an explicit approval and a verified write (not in the pilot)."""
     require_camera(conn, principal, camera_id, "video.live")  # T055: 403 before 404 - an unknown id tells a scoped user nothing
+    ensure_nvr(settings_of(request))  # NVR-less mode: 409 after the permission check
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam:
         raise not_found("המצלמה לא נמצאה.")
@@ -219,6 +224,7 @@ def camera_capabilities(camera_id: str, request: Request, refresh: bool = False,
     same permission as live video. Moving the camera, recalling a preset or talking are device writes: not offered
     in the pilot, and never shown as a fake control. Digital zoom is a browser-side enlargement, not a camera move."""
     require_camera(conn, principal, camera_id, "video.live")  # T055: 403 before 404 - an unknown id tells a scoped user nothing
+    ensure_nvr(settings_of(request))  # NVR-less mode: 409 after the permission check
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam:
         raise not_found("המצלמה לא נמצאה.")

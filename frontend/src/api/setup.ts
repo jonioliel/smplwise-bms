@@ -4,7 +4,8 @@
 import { get, post } from './client';
 
 export type StepId = 'install' | 'nvr' | 'ha' | 'go2rtc' | 'floor' | 'camera';
-export type StepStatus = 'done' | 'todo' | 'failed' | 'skipped';
+/** not_applicable: skipped on purpose (NVR-less mode) - neither done nor failed, and not counted in `total`. */
+export type StepStatus = 'done' | 'todo' | 'failed' | 'skipped' | 'not_applicable';
 
 export interface SetupLink {
   href: string;
@@ -25,10 +26,14 @@ export interface SetupStep {
   /** live = probed on demand; background = what the add-on's own jobs know; local = the add-on's database */
   source: 'live' | 'background' | 'local';
   checked_at: string;
+  /** The pill text of a not_applicable step ("דילוג - מצב ללא NVR"). */
+  status_label?: string;
 }
 
 export interface SetupState {
   version: string;
+  /** NVR-less mode: the NVR and camera steps are not_applicable and `total` counts the remaining steps only. */
+  mode?: 'full' | 'ha_only';
   checked_at: string;
   steps: SetupStep[];
   done: number;
@@ -44,7 +49,7 @@ export interface SetupState {
 export const setupState = () => get<SetupState>('setup/state');
 export const setupCheck = (step: StepId) => post<SetupState>(`setup/check/${step}`);
 
-export const STATUS_TEXT: Record<StepStatus, string> = { done: 'הושלם', todo: 'לביצוע', failed: 'נכשל', skipped: 'ממתין לשלב קודם' };
+export const STATUS_TEXT: Record<StepStatus, string> = { done: 'הושלם', todo: 'לביצוע', failed: 'נכשל', skipped: 'ממתין לשלב קודם', not_applicable: 'דילוג' };
 
 // ---------------------------------------------------------------- demo fixture (no backend)
 

@@ -112,3 +112,8 @@ export function canReadNvrConfig(): boolean {
 }
 
 export const isApi = () => session.mode === 'api';
+
+/** NVR-less mode: the backend runs with Home Assistant only (no `nvr_host` in the add-on options). The NVR areas (live,
+ * cameras, events, recordings, cases, exports) are hidden from the navigation and their URLs show a notice; the server
+ * refuses their device routes with 409 nvr_not_configured, so hiding is never the protection. */
+export const nvrLess = () => session.mode === 'api' && session.me?.mode === 'ha_only';

@@ -1,5 +1,5 @@
 """Setup wizard (T071, R141 / AT141): install → NVR → Home Assistant → go2rtc → floor → camera. One status per step
-(done / todo / failed / skipped) with the evidence behind it, a Hebrew explanation with the concrete next action when a
+(done / todo / failed / skipped / not_applicable) with the evidence behind it, a Hebrew explanation with the concrete next action when a
 step is not done, and a link to the settings section that fixes it.
 
 How a step is evaluated:
@@ -39,6 +39,7 @@ from ..errors import ApiError
 from . import autosync, bridge_install, events_ingest, ha_client, ha_sync, nvr, nvr_system
 from . import go2rtc as g2
 from .timeutil import zone
+from ..mode import installation_mode, is_ha_only
 
 STEPS = ("install", "nvr", "ha", "go2rtc", "floor", "camera")
 TITLES = {
@@ -59,6 +60,9 @@ MIN_FREE_BYTES = 512 * 1024**2  # the health report's own "error" line for /data
 
 _lock = threading.Lock()
 _live: dict[str, tuple[float, dict[str, Any]]] = {}
+# NVR-less mode: the last successful go2rtc check, kept past LIVE_TTL_S - without an NVR no stream sync runs, so the
+# background jobs never learn that go2rtc answers; reachability is the whole go2rtc step there
+_go2rtc_ok: dict[str, Any] = {}
 _last_check: dict[tuple[str, str], float] = {}
 
 LINKS = {
@@ -79,6 +83,7 @@ def reset() -> None:
         _live.clear()
         _inflight.clear()
         _last_check.clear()
+        _go2rtc_ok.clear()
 
 
 # ---------------------------------------------------------------- building blocks
@@ -535,6 +540,16 @@ def go2rtc_background(settings: Settings, conn: sqlite3.Connection) -> dict[str,
     if not settings.go2rtc_url:
         p = _go2rtc_problem("media_not_configured")
         return _step("go2rtc", "failed", p["message"], facts=[_fact("מוגדר ב־Add-on options", "לא", "err")], evidence={"configured": False}, settings_link=link, problem=p, source="background")
+    if is_ha_only(settings):
+        # NVR-less mode: no camera streams exist or are synced; the step is go2rtc answering (WisKey station video)
+        with _lock:
+            ok = dict(_go2rtc_ok)
+        if ok:
+            ev = ok.get("evidence") or {}
+            return _step("go2rtc", "done", f"go2rtc {ev.get('version') or '?'} ענה בבדיקה האחרונה", facts=ok.get("facts") or [], evidence=ev, settings_link=link,
+                         source="background", checked_at=ok.get("checked_at"))
+        p = _problem("not_checked", "go2rtc עוד לא נבדק מאז שה־Add-on עלה.", "לחצו \"בדוק שוב\" כדי לבדוק שהוא עונה.", link)
+        return _step("go2rtc", "todo", p["message"], facts=[_fact("מוגדר ב־Add-on options", "כן", "ok")], evidence={"configured": True}, settings_link=link, problem=p, source="background")
     ds = dict(autosync.STATE)
     expected = len(_expected_streams(conn))
     evidence = {"configured": True, "expected_streams": expected, "sync_last_ok": ds.get("streams_last_ok"), "sync_last_error": ds.get("streams_last_error")}
@@ -583,7 +598,7 @@ def go2rtc_probe(settings: Settings, expected: list[str]) -> dict[str, Any]:
     warnings = []
     if missing:
         warnings.append(_warning("streams_missing", f"חסרים {len(missing)} זרמים של מצלמות פעילות (למשל {missing[0]}); \"סנכרון זרמים\" ישלים אותם.", link))
-    if not expected:
+    if not expected and not is_ha_only(settings):
         warnings.append(_warning("no_cameras_yet", "אין עדיין מצלמות רשומות, ולכן אין זרמים לבדוק; הזרמים ייווצרו אחרי גילוי המצלמות מה־NVR.", _link("connections")))
     return _step("go2rtc", "done", f"go2rtc {version or '?'} · {len(ours)} זרמים שלנו ({online} פעילים)", facts=facts, evidence=evidence, settings_link=link, warnings=warnings, source="live")
 
@@ -690,6 +705,34 @@ def camera_step(conn: sqlite3.Connection, nvr_status: str) -> dict[str, Any]:
     return _step("camera", "done", f"{len(placed_known)} מצלמות מוצבות על המפה", facts=facts, evidence=evidence, settings_link=editor, warnings=warnings)
 
 
+# ---------------------------------------------------------------- NVR-less mode (mode.py)
+
+NVR_LESS_SKIP = "דילוג - מצב ללא NVR"
+NVR_LESS_ACTION = ("להוספת NVR בהמשך: מלאו nvr_host, nvr_username ו־nvr_password ב־Home Assistant › Add-ons › SMPLWISE VMS › "
+                   "Configuration והפעילו מחדש את ה־Add-on. הנתונים (מפות, תוכניות, הרשאות) נשארים כמו שהם, בלי הסבה.")
+
+
+def not_applicable_step(step_id: str, summary: str, problem: dict[str, Any], link: dict[str, str], *, label: str = NVR_LESS_SKIP) -> dict[str, Any]:
+    """A step that is not part of this installation: neither done nor failed, and not counted in `total`."""
+    return _step(step_id, "not_applicable", summary, facts=[_fact("מצב ההתקנה", "Home Assistant בלבד (ללא NVR)")], evidence={"configured": False, "mode": "ha_only"},
+                 settings_link=link, problem=problem) | {"status_label": label}
+
+
+def nvr_less_steps(settings: Settings) -> dict[str, dict[str, Any]]:
+    """The NVR and camera steps (and go2rtc while it is not configured - optional here, only WisKey station video uses it)
+    in the NVR-less mode."""
+    conn_link = _link("connections")
+    p = _problem("nvr_less_mode", "ההתקנה פועלת במצב ללא NVR (Home Assistant בלבד) - הדילוג מכוון.", NVR_LESS_ACTION, conn_link)
+    out = {
+        "nvr": not_applicable_step("nvr", "לא מוגדר - דילוג מכוון: ההתקנה פועלת ללא NVR.", p, conn_link),
+        "camera": not_applicable_step("camera", "אין מצלמות NVR במצב ללא NVR; המפה מציגה ישויות Home Assistant.", p, _link("sites")),
+    }
+    if not settings.go2rtc_url and not settings.wiskey_user:  # WisKey station stills and video need go2rtc
+        g = _problem("go2rtc_optional", "go2rtc לא מוגדר - במצב ללא NVR הוא רשות.", "go2rtc נדרש רק לווידאו של עמדות WisKey; להפעלה מלאו go2rtc_url ב־Configuration של ה־Add-on והפעילו מחדש.", _link("media"))
+        out["go2rtc"] = not_applicable_step("go2rtc", "לא מוגדר - רשות במצב ללא NVR (וידאו עמדות WisKey בלבד).", g, _link("media"), label="דילוג - לא מוגדר (רשות)")
+    return out
+
+
 # ---------------------------------------------------------------- state and checks
 
 def _cached_live(step_id: str) -> dict[str, Any] | None:
@@ -703,6 +746,10 @@ def _cached_live(step_id: str) -> dict[str, Any] | None:
 def _remember(step_id: str, result: dict[str, Any]) -> None:
     with _lock:
         _live[step_id] = (time.time(), result)
+        if step_id == "go2rtc":
+            _go2rtc_ok.clear()  # a failed check forgets the last success: it must not read "done" once the cache expires
+            if result.get("status") == "done":
+                _go2rtc_ok.update(result)
 
 
 BACKGROUND: dict[str, Callable[[Settings, sqlite3.Connection], dict[str, Any]]] = {
@@ -715,7 +762,11 @@ BACKGROUND: dict[str, Callable[[Settings, sqlite3.Connection], dict[str, Any]]] 
 def build_state(settings: Settings, conn: sqlite3.Connection, identity_source: str, *, deep_install: bool = False) -> dict[str, Any]:
     """Every step without touching a device: local steps now, device steps from the last live probe or the background."""
     steps: dict[str, dict[str, Any]] = {"install": install_step(settings, conn, identity_source, deep=deep_install)}
+    skipped = nvr_less_steps(settings) if is_ha_only(settings) else {}
     for sid in DEVICE_STEPS:
+        if sid in skipped:
+            steps[sid] = skipped[sid]
+            continue
         live = _cached_live(sid)
         if sid == "ha" and live is not None:
             # the cached HA result is the probe's own facts (reachability, version, clock); the bridge / sync part may have
@@ -724,12 +775,14 @@ def build_state(settings: Settings, conn: sqlite3.Connection, identity_source: s
         else:
             steps[sid] = live if live is not None else BACKGROUND[sid](settings, conn)
     steps["floor"] = floor_step(conn)
-    steps["camera"] = camera_step(conn, steps["nvr"]["status"])
+    steps["camera"] = skipped.get("camera") or camera_step(conn, steps["nvr"]["status"])
     ordered = [steps[s] for s in STEPS]
-    done = sum(1 for s in ordered if s["status"] == "done")
-    nxt = next((s["id"] for s in ordered if s["status"] != "done"), None)
+    required = [s for s in ordered if s["status"] != "not_applicable"]  # a step skipped on purpose is not counted
+    done = sum(1 for s in required if s["status"] == "done")
+    nxt = next((s["id"] for s in required if s["status"] != "done"), None)
     return {
-        "version": __version__, "checked_at": now_iso(), "steps": ordered, "done": done, "total": len(STEPS), "ready": done == len(STEPS), "next": nxt,
+        "version": __version__, "mode": installation_mode(settings), "checked_at": now_iso(), "steps": ordered, "done": done, "total": len(required),
+        "ready": done == len(required), "next": nxt,
         "thresholds": {"drift_ok_s": DRIFT_OK_S, "drift_fail_s": DRIFT_FAIL_S}, "check_every_s": CHECK_EVERY_S, "live_ttl_s": LIVE_TTL_S,
     }
 
@@ -782,7 +835,7 @@ def _probe(settings: Settings, step_id: str, inputs: dict[str, Any]) -> dict[str
     if step_id == "nvr":
         return nvr_probe(settings, inputs["tz"])
     if step_id == "go2rtc":
-        return go2rtc_probe(settings, inputs["expected"])
+        return go2rtc_probe(settings, [] if is_ha_only(settings) else inputs["expected"])  # NVR-less: no camera streams expected
     return ha_probe(settings, inputs["tz"])
 
 
@@ -799,7 +852,7 @@ def run_check(settings: Settings, step_id: str, inputs: dict[str, Any]) -> dict[
     """Probe one device step now - device calls only, no database connection - within CHECK_DEADLINE_S, and remember the
     result. A probe of the same step that is still running (a slow device) is joined, not started twice. Local steps and
     unconfigured devices need no probe: the state re-reads them. An unexpected error propagates (the caller refunds)."""
-    if step_id not in DEVICE_STEPS or not configured(settings, step_id):
+    if step_id not in DEVICE_STEPS or not configured(settings, step_id) or (step_id == "nvr" and is_ha_only(settings)):
         return None
     with _lock:
         fut = _inflight.get(step_id)

@@ -323,7 +323,10 @@ def reboot(settings: Settings, conn: sqlite3.Connection, principal: Any, *, requ
 # ---------------------------------------------------------------- D4: connection (VMS side)
 
 def connection_view(settings: Settings) -> dict[str, Any]:
-    return {"host": settings.nvr_host, "http_port": settings.nvr_http_port, "rtsp_port": settings.nvr_rtsp_port, "user": settings.nvr_user,
+    from ..mode import is_placeholder
+
+    # the developer placeholder host (config.DEV_NVR_PLACEHOLDER) is not an NVR: never shown as one
+    return {"host": None if is_placeholder(settings) else settings.nvr_host, "placeholder": is_placeholder(settings), "http_port": settings.nvr_http_port, "rtsp_port": settings.nvr_rtsp_port, "user": settings.nvr_user,
             "has_password": bool(settings.nvr_password), "in_addon": bool(settings.ha_url and settings.ha_url.startswith("http://supervisor"))}
 
 

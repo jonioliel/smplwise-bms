@@ -78,6 +78,33 @@ installation in six steps and says, for each one that is not done, what is wrong
   link to the wizard; × hides it until the browser session ends.
 - Without a backend (the design preview) the wizard shows fixture data.
 
+## NVR-less mode (Home Assistant only)
+
+The add-on also runs without a Hikvision NVR, for an installation that uses it for electricity and device control only.
+
+- **How to install for electricity only.** Leave `nvr_host` empty in the add-on Configuration (with `nvr_username` /
+  `nvr_password`). The add-on then starts in the `ha_only` installation mode; the log says so in one INFO line at
+  start-up. `go2rtc_url` is optional (only WisKey station video uses it). Home Assistant is connected automatically
+  through the Supervisor, as always.
+- **What works.** The map (sites, floors, plans, 3D, HA entity anchors), חשמל והתקנים (device control), WisKey,
+  settings, users and roles, backup and restore - unchanged.
+- **What is hidden.** For every user, regardless of role: the live overview and cameras, events, the historical map,
+  recordings and synchronized playback, cases, rules, search and exports, and camera health. A direct link to one of
+  them shows a "מצב ללא NVR" panel that points at the add-on options. The server refuses the NVR routes itself with
+  409 `nvr_not_configured` (hidden is not unprotected; every route keeps its permission check). The Lovelace card falls
+  back to the map for its NVR views. The storage page shows the add-on's own disk only; the video settings tab shows a
+  neutral notice instead of video forms.
+- **Health and the wizard.** The NVR shows as "לא מוגדר" (neutral, never red); no NVR job (camera discovery, alert
+  stream, derived events, thumbnails, exports) runs or is reported. The setup wizard marks the NVR and camera steps
+  "דילוג - מצב ללא NVR" (and go2rtc as optional while neither it nor the WisKey credentials are configured);
+  "מוכן לעבודה" is reached with the remaining steps. Home Assistant is the product in this mode: missing, or
+  disconnected for more than a minute, it is shown as an error.
+- **Adding the NVR later.** Fill `nvr_host`, `nvr_username` and `nvr_password` and restart the add-on. The mode is
+  derived from the options on every start and nothing in the data depends on it: no migration, maps, plans and
+  permissions stay as they are, and the camera areas appear. Removing the host again returns to the NVR-less mode.
+
+Design note: `docs/operations/NVR_LESS_MODE.md`.
+
 ## Identity and access
 
 - Users are Home Assistant users. The Supervisor forwards the authenticated user with every Ingress

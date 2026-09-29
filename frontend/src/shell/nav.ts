@@ -185,6 +185,30 @@ export function applyWiskeyHidden(settings: Record<string, unknown> | null | und
   return WISKEY_HIDDEN;
 }
 
+/** NVR-less mode (owner request 2026-09-29): the installation runs with Home Assistant only (no `nvr_host` in the add-on
+ * options; /me says `mode: ha_only`). Every NVR area - the live overview and cameras, events and everything under
+ * "חקירה" (history, recordings, sync, cases, rules, exports, search) and the camera health page - leaves the navigation
+ * for everyone, like `ui.hide_wiskey` hides WisKey; `sw-app.ts` answers their URLs with a "מצב ללא NVR" panel. Hidden is
+ * not unprotected: the server refuses the NVR routes itself (409 nvr_not_configured). Filled by the shell from the
+ * session. */
+export let NVR_LESS = false;
+export function applyNvrLess(on: boolean): boolean {
+  NVR_LESS = on;
+  return NVR_LESS;
+}
+
+/** An href of an area that needs the NVR (see NVR_LESS). */
+export function isNvrHref(href: string): boolean {
+  return href === '#/live' || href.startsWith('#/live/') || href.startsWith('#/investigate/') || href === '#/system/devices';
+}
+
+/** A route of an area that needs the NVR: live and cameras, the whole investigate mode, camera health, the kiosk wall. */
+export function isNvrRoute(r: RouteState | null): boolean {
+  if (!r) return false;
+  if (r.segments[0] === 'kiosk') return true;
+  return r.mode === 'live' || r.mode === 'investigate' || (r.mode === 'system' && r.segments[1] === 'devices');
+}
+
 /** SMPLWISE route segment (#/wiskey/<segment>) → the WisKey panel's own tab id (panel.ts `_tab`; "people" is the
  * panel's "users"). Unknown segments fall back to the panel's start tab, overview. */
 export const WISKEY_PANEL_TABS: Record<string, string> = {
@@ -415,7 +439,7 @@ export const API_LABELS: Record<string, string> = { '#/investigate/reviews': 'Re
 export const HIDDEN_HREFS = new Set<string>();
 
 /** הגדרות › מסך פתיחה (0.1.68): the route the UI lands on when the address carries none. */
-export const START_ROUTES: Record<string, string> = { explore: '/explore/floors/f0', live: '/live', wall: '/live/wall', events: '/investigate/events', playback: '/investigate/playback' };
+export const START_ROUTES: Record<string, string> = { explore: '/explore/floors/f0', live: '/live', wall: '/live/wall', events: '/investigate/events', playback: '/investigate/playback', devices: '/devices/building' };
 /** The map area's entries, hidden for everyone with הגדרות › הסתרת המפה (0.1.68). */
 export const MAP_HREFS = ['#/explore/sites', '#/explore/floors/f0', '#/explore/entities'];
 
@@ -476,7 +500,7 @@ export function tabAllowed(href: string, can?: Can): boolean {
 }
 
 export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[] {
-  return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
+  return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !(NVR_LESS && isNvrHref(t.href ?? '')) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
 }
 
 /** The rail entries the user gets: an area stays while one of its tabs is visible (the live area always - the
@@ -487,7 +511,8 @@ export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[
 export function visibleAreas(api: boolean, can?: Can): AreaEntry[] {
   return NAV_A.flatMap((n) => {
     const tabs = visibleTabs(AREA_TABS[n.id], api, can);
-    if (api && n.id !== 'live' && !tabs.length) return [];
+    // the live area always stays (its overview needs nothing) - except in the NVR-less mode, where it is all NVR
+    if (api && (n.id !== 'live' || NVR_LESS) && !tabs.length) return [];
     const first = tabs[0]?.href;
     return [first && !tabs.some((t) => t.href === n.href) ? { ...n, href: first } : n];
   });
@@ -499,7 +524,7 @@ export function visibleAreas(api: boolean, can?: Can): AreaEntry[] {
  * own group, not a sites sub-tab, so הסתרת המפה no longer interacts with it at all. */
 export function visibleGroups(api: boolean, can?: Can): NavEntry[] {
   return NAV.flatMap((n) => {
-    if (n.id === 'overview') return [n];
+    if (n.id === 'overview') return api && NVR_LESS ? [] : [n];
     const tabs = visibleTabs(GROUP_TABS[n.id], api, can);
     if (api && !tabs.length) return [];
     const first = tabs[0]?.href;
