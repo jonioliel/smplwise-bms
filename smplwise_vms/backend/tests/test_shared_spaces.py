@@ -593,6 +593,28 @@ def test_re_review_n2_a_new_circuit_from_the_other_floor_cannot_name_any_switch(
     assert _put(c, w["v3"], d, g["geometry"]["revision"], as_user("gil")).status_code == 200
 
 
+
+def test_review_l1_a_new_circuit_from_the_other_floor_cannot_take_an_alarm_managed_switch(settings):
+    """Review L1: even a caller who controls every entity (the admin) cannot wire a NEW shared circuit to what the alarm owns."""
+    w = _world(settings)
+    c, app, f2 = w["c"], w["app"], w["f2"]
+    _share(w)
+    with app.state.db.connection() as conn:
+        ha_sync.upsert_state(conn, {"entity_id": "alarm_control_panel.hall", "state": "disarmed", "last_changed": "2026-09-29T09:00:00+00:00", "attributes": {"friendly_name": "לוח אזעקה"}})
+    mark = {"zone_id": w["hall"], "home_floor_id": f2}
+
+    def add(switch: str, cid: str):
+        g = _draft(c, w["v3"])
+        doc = g["doc"]
+        doc["circuits"] = [*doc["circuits"], {"id": f"{f2}:{cid}", "name": "אולם", "switch_entity_id": switch, "member_ids": [f"{f2}:trib"], "color_token": "circuit-1", "power_w": 0, "shared": mark}]
+        return _put(c, w["v3"], doc, g["geometry"]["revision"])
+
+    r = add("alarm_control_panel.hall", "k-alarm")
+    assert r.status_code == 422 and r.json()["code"] == "shared_switch", r.text
+    assert "k-alarm" not in {k["id"] for k in _draft(c, w["v2"])["doc"]["circuits"]}
+    assert add("light.corridor", "k-ok").status_code == 200, "an ordinary switch the actor controls is still fine"
+
+
 def test_review_m1_a_deny_on_the_home_floor_writes_nothing_and_a_stale_mirror_is_a_conflict(settings):
     w = _world(settings)
     c, f2 = w["c"], w["f2"]
