@@ -414,5 +414,8 @@ them - the worker and the manifest follow whatever base the page is served under
 - **Tests:** `tests/test_push.py` (RFC 8291 known answer, key lifecycle, own-only CRUD, fake push service
   200 / 410 / 429, scope filtering, prefs + quiet hours, rate limit, payload without secrets);
   `frontend/tests/evidence-pwa-push.spec.ts` + `unit-pwa-deeplink.spec.ts` (desktop + phone).
+- **Security review (2026-09-29) fixes:** retries re-check owner and reach before every attempt; `drain()` counts
+  retries in flight; the worker cache is versioned by the add-on version (unhashed files network-first, old caches
+  deleted on activate); `push` counters in `/health`; `POST push/rotate-key`; HA add-on backups carry the key (documented).
 - **Not verified yet:** delivery through the real push services (FCM / APNs / Mozilla) on a real phone, and the
   notification click on the lab site under Ingress and under `/arx/` - an owner check after the P1 merge.

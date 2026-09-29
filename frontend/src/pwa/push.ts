@@ -32,6 +32,7 @@ export const listSubscriptions = () => get<{ subscriptions: PushSubscriptionRow[
 export const deleteSubscription = (id: string) => del(`push/subscriptions/${encodeURIComponent(id)}`);
 export const getPrefs = () => get<PushPrefs>('push/prefs');
 export const putPrefs = (p: Pick<PushPrefs, 'categories' | 'quiet'>) => put<PushPrefs>('push/prefs', p);
+export const rotateKey = () => post<{ public_key: string; subscriptions_removed: number }>('push/rotate-key');
 export const sendTest = () => post<{ sent: number; results: { id: string; endpoint_host: string; status: number; outcome: string }[] }>('push/test');
 
 /** Why push cannot be switched on here, or 'ok'. */

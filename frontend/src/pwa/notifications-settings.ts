@@ -8,7 +8,7 @@ import '../components/sw-field';
 import '../components/sw-toggle';
 import '../components/sw-icon';
 import { describeError } from '../api/client';
-import { isApi } from '../api/session';
+import { isApi, session } from '../api/session';
 import { isFramed } from './register';
 import {
   currentSubscription,
@@ -16,6 +16,7 @@ import {
   getPrefs,
   listSubscriptions,
   pushSupport,
+  rotateKey,
   putPrefs,
   sendTest,
   serviceName,
@@ -56,6 +57,7 @@ export class ArxNotificationsSettings extends LitElement {
   @state() private message = '';
   @state() private error = '';
   @state() private loaded = false;
+  @state() private rotateArmed = false;
 
   static styles = css`
     .sections {
@@ -223,6 +225,27 @@ export class ArxNotificationsSettings extends LitElement {
     });
   }
 
+  private rotate() {
+    if (!this.rotateArmed) {
+      this.rotateArmed = true;
+      return;
+    }
+    this.rotateArmed = false;
+    return this.run(async () => {
+      const r = await rotateKey();
+      await this.load();
+      this.flash(`נוצר מפתח חדש; ${r.subscriptions_removed} הרשמות הוסרו. מכשירים שמאשרים התראות יירשמו מחדש בפתיחה הבאה של Arx.`);
+    });
+  }
+
+  private renderKey() {
+    if (!isApi() || !(session.me?.permissions_installation ?? []).includes('system.configure')) return nothing;
+    return html`<sw-card heading="מפתח ההתראות של ההתקנה">
+      <div class="note">מפתח ה־VAPID חותם על כל ההתראות של ההתקנה. החלפה מוחקת את כל ההרשמות של כל המשתמשים; כל מכשיר שמאשר התראות נרשם מחדש בפתיחה הבאה של Arx. רק אם המפתח נחשף (למשל גיבוי Home Assistant שיצא מהשליטה).</div>
+      <div class="foot"><sw-button variant=${this.rotateArmed ? 'danger' : 'secondary'} icon="refresh" data-push-rotate ?disabled=${this.busy} @click=${() => this.rotate()}>${this.rotateArmed ? 'לחצו שוב לאישור ההחלפה' : 'החלפת המפתח'}</sw-button></div>
+    </sw-card>`;
+  }
+
   private setCat(id: PushCategory, on: boolean) {
     if (!this.draft) return;
     this.draft = { ...this.draft, categories: { ...this.draft.categories, [id]: on } };
@@ -317,7 +340,7 @@ export class ArxNotificationsSettings extends LitElement {
       <div class="sections" data-push-settings data-loaded=${this.loaded ? '1' : '0'}>
         ${this.renderDevice()} ${this.renderCategories()} ${this.renderQuiet()}
         <div class="foot"><sw-button variant="primary" icon="check" data-push-save ?disabled=${!dirty || this.busy || !isApi()} @click=${() => this.save()}>שמירת ההעדפות</sw-button></div>
-        ${this.renderDevices()}
+        ${this.renderDevices()} ${this.renderKey()}
       </div>
     </sw-page>`;
   }

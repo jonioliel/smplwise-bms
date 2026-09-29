@@ -788,8 +788,27 @@ URL; the app loads the details after the user signs in. A click routes an open A
 implemented with the `cryptography` package already in the image (no additional dependency). The add-on only calls the
 browsers' push services (Google FCM, Mozilla, Apple, Microsoft WNS) over outbound HTTPS; a subscription pointing
 anywhere else is refused. Nothing inbound is needed. A 404/410 from the push service removes the subscription;
-429 and 5xx are retried with backoff. Subscribe, unsubscribe, preference changes and test sends are audited (the
-subscription URL itself is never logged or returned).
+429 and 5xx are retried with backoff; every retry first re-checks that the subscription still belongs to the same user
+and that the user still reaches the alert. Subscribe, unsubscribe, preference changes, test sends and key rotation are
+audited (the subscription URL itself is never logged or returned). Worker counters (queued, sent, retried, gone,
+refused …) appear under `push` in `GET api/v1/health` for `system.configure` holders.
+
+**Backups and key rotation.** An Arx project backup never contains the VAPID key or the subscriptions. A Home Assistant
+backup of the add-on (`backup: hot`, the whole `/data`) does contain both: restoring it brings the same key and
+subscriptions back, and anyone holding that backup file holds the private key. Restoring an Arx project backup on a
+different installation keeps that installation's own key; browsers that still allow notifications re-register silently
+the next time Arx opens there (the app compares its subscription's key with the server's on every start). If a key
+may have leaked (a Home Assistant backup out of your control), a system administrator replaces it: מערכת › התראות ›
+"החלפת המפתח" (`POST api/v1/push/rotate-key`, `system.configure`, audited). All subscriptions of all users are removed
+and each device re-subscribes with the new key on its next visit.
+
+Quiet hours need two different times (`from == to` is refused); a window that crosses midnight (22:00–07:00) is fine.
 
 **API.** `GET push/vapid-key`, `GET|POST push/subscriptions`, `DELETE push/subscriptions/{id}` (own only),
-`GET|PUT push/prefs`, `POST push/test` - all under `api/v1/`, all acting on the calling user only.
+`GET|PUT push/prefs`, `POST push/test` - all under `api/v1/`, all acting on the calling user only; `POST push/rotate-key`
+(`system.configure`).
+
+**Service worker updates.** The worker's cache is named after the add-on version, so every release ships a changed
+`arx-sw.js`; the new worker deletes the previous release's cache when it takes over (after "רענון" on the update notice).
+Hashed build files are served cache-first; fonts, icons, brand images and the manifest network-first (the cache is only
+the offline fallback).

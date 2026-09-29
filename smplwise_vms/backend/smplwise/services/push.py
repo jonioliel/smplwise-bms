@@ -34,6 +34,7 @@ import json
 import logging
 import os
 import queue
+import re
 import sqlite3
 import threading
 import time
@@ -75,7 +76,11 @@ TEST_BURST, TEST_PER_MIN = 3, 3.0  # test notifications per user
 QUEUE_MAX = 500
 
 TRANSPORT: httpx.BaseTransport | None = None  # tests install an httpx.MockTransport (a fake push service)
-STATS: dict[str, Any] = {"sent": 0, "gone": 0, "failed": 0, "retried": 0, "rate_limited": 0, "no_reach": 0, "dropped_queue": 0, "last_error": None, "last_sent_at": None}
+# Worker counters since the add-on started (GET /health, system.configure holders): alerts queued, messages sent,
+# retried, subscriptions gone (404/410), failed; `refused` = recipients left out for lack of reach (at planning or at a
+# retry), `retry_skipped` = retries abandoned because the subscription was removed, moved or its user lost reach.
+STATS: dict[str, Any] = {"queued": 0, "sent": 0, "retried": 0, "gone": 0, "failed": 0, "refused": 0, "retry_skipped": 0, "rate_limited": 0,
+                         "dropped_queue": 0, "dropped_shutdown": 0, "last_error": None, "last_sent_at": None}
 
 
 # ---------------------------------------------------------------- encoding helpers
@@ -121,6 +126,22 @@ def ensure_vapid(conn: sqlite3.Connection) -> str:
     conn.execute("INSERT OR IGNORE INTO push_vapid(id, private_pem, public_key, created_at) VALUES (1, ?, ?, ?)", (pem, pub, now_iso()))
     log.info("generated the installation's Web Push (VAPID) key pair")  # never the key itself
     return str(conn.execute("SELECT public_key FROM push_vapid WHERE id = 1").fetchone()[0])
+
+
+def vapid_public_key(conn: sqlite3.Connection) -> str | None:
+    row = conn.execute("SELECT public_key FROM push_vapid WHERE id = 1").fetchone()
+    return str(row[0]) if row else None
+
+
+def rotate_key(conn: sqlite3.Connection) -> tuple[str, int]:
+    """Replace the installation's VAPID pair. Every subscription was made for the old public key, so all of them are
+    removed; each browser that still has notification permission re-subscribes with the new key the next time Arx
+    opens there (push.ts syncSubscription). Returns (new public key, subscriptions removed)."""
+    removed = conn.execute("DELETE FROM push_subscriptions").rowcount
+    conn.execute("DELETE FROM push_vapid")
+    with _KEYS_LOCK:
+        _KEYS.pop(_db_key(conn), None)
+    return ensure_vapid(conn), removed
 
 
 def signing_key(conn: sqlite3.Connection) -> tuple[ec.EllipticCurvePrivateKey, str] | None:
@@ -184,13 +205,19 @@ class InvalidSubscription(ValueError):
         self.message = message
 
 
+HOST_RE = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$")
+
+
 def allowed_endpoint(endpoint: str) -> bool:
+    """https, no credentials, no explicit port (so the VAPID `aud` is exactly scheme://host), a plain DNS host name, and
+    a host on the push-service allow-list."""
     try:
         u = urlsplit(endpoint)
+        port = u.port
     except ValueError:
         return False
     host = (u.hostname or "").lower()
-    if u.scheme != "https" or not host or u.username or u.password or u.port not in (None, 443):
+    if u.scheme != "https" or not host or u.username or u.password or port is not None or u.netloc.lower() != host or not HOST_RE.match(host):
         return False
     return any(host == s or host.endswith("." + s) for s in PUSH_HOST_SUFFIXES)
 
@@ -399,6 +426,7 @@ class Job:
     payload: bytes
     urgency: str = "normal"
     attempt: int = 0
+    camera_id: str | None = None  # the alert's camera (None = camera-less): what reach is re-checked against on a retry
 
 
 def plan(conn: sqlite3.Connection, notice: dict[str, Any], now: dt.datetime | None = None, tz_name: str | None = None) -> tuple[list[Job], dict[str, str]]:
@@ -431,7 +459,7 @@ def plan(conn: sqlite3.Connection, notice: dict[str, Any], now: dt.datetime | No
         principal = Principal(user_id=u["id"], username=u["username"] or "", display_name=u["display_name"] or "", source="push")
         if not row_scope(conn, principal, "events.read").allows_row(camera_id):
             decisions[user_id] = "no_reach"
-            STATS["no_reach"] += 1
+            STATS["refused"] += 1
             continue
         prefs = get_prefs(conn, user_id)
         if not prefs["categories"].get(category, True):
@@ -446,8 +474,29 @@ def plan(conn: sqlite3.Connection, notice: dict[str, Any], now: dt.datetime | No
             continue
         decisions[user_id] = "send"
         for s in subs:
-            jobs.append(Job(s["id"], user_id, s["endpoint"], s["p256dh"], s["auth"], payload, "high" if critical else "normal"))
+            jobs.append(Job(s["id"], user_id, s["endpoint"], s["p256dh"], s["auth"], payload, "high" if critical else "normal", camera_id=camera_id))
     return jobs, decisions
+
+
+def still_allowed(conn: sqlite3.Connection, job: Job) -> Job | None:
+    """Before a retry (up to minutes later): the subscription must still exist and still belong to the user the alert
+    was planned for (an endpoint moves to whoever subscribes that browser next), that user must be active and must still
+    reach the alert (row_scope events.read - a revoked binding or a new deny counts at once). Returns the job with the
+    subscription's current keys, or None."""
+    from .access import row_scope
+
+    s = conn.execute("SELECT * FROM push_subscriptions WHERE id = ?", (job.sub_id,)).fetchone()
+    if s is None or s["user_id"] != job.user_id:
+        return None
+    u = conn.execute("SELECT id, username, display_name, active FROM users WHERE id = ?", (job.user_id,)).fetchone()
+    if u is None or not u["active"]:
+        return None
+    principal = Principal(user_id=u["id"], username=u["username"] or "", display_name=u["display_name"] or "", source="push")
+    if not row_scope(conn, principal, "events.read").allows_row(job.camera_id):
+        STATS["refused"] += 1
+        return None
+    job.endpoint, job.p256dh, job.auth = s["endpoint"], s["p256dh"], s["auth"]
+    return job
 
 
 # ---------------------------------------------------------------- sending
@@ -552,27 +601,40 @@ class PushNotifier:
         self.db: Database | None = None
         self.thread: threading.Thread | None = None
         self.stop_evt = threading.Event()
+        self.inflight = 0  # retry jobs taken off the heap and not yet finished (drain() waits for them too)
 
     @property
     def running(self) -> bool:
-        return bool(self.thread and self.thread.is_alive())
+        return bool(self.thread and self.thread.is_alive()) and not self.stop_evt.is_set()
 
     def start(self, db: Database) -> None:
         if self.running:
             return
+        if self.thread and self.thread.is_alive():  # a shutdown still winding down: let it finish first
+            self.thread.join(timeout=5.0)
         self.db = db
         self.stop_evt.clear()
         self.q = queue.Queue(maxsize=QUEUE_MAX)
         self.retries = []
+        self.inflight = 0
         self.thread = threading.Thread(target=self._loop, name="push-notifier", daemon=True)
         self.thread.start()
 
-    def shutdown(self) -> None:
+    def shutdown(self, timeout: float = 5.0) -> None:
+        """Stop the worker: alerts already queued get up to `timeout` seconds to go out; pending retries are given up
+        (counted as dropped_shutdown)."""
+        if self.running:
+            self.drain(timeout, retries=False)
         self.stop_evt.set()
         try:
             self.q.put_nowait(None)
         except queue.Full:
             pass
+        if self.thread and self.thread is not threading.current_thread():
+            self.thread.join(timeout=2.0)
+        if self.retries:
+            STATS["dropped_shutdown"] += len(self.retries)
+            self.retries = []
 
     def enqueue(self, notices: list[dict[str, Any]]) -> int:
         if not self.running:
@@ -582,6 +644,7 @@ class PushNotifier:
             try:
                 self.q.put_nowait(notice)
                 n += 1
+                STATS["queued"] += 1
             except queue.Full:
                 STATS["dropped_queue"] += 1
         return n
@@ -625,21 +688,39 @@ class PushNotifier:
                         self.process(item)
                     finally:
                         self.q.task_done()
-                while self.retries and self.retries[0][0] <= time.monotonic():
-                    _, _, job = heapq.heappop(self.retries)
-                    with self.db.connection(mode="read", label="push.retry") as conn:  # type: ignore[union-attr]
-                        key = signing_key(conn)
-                        alive = conn.execute("SELECT 1 FROM push_subscriptions WHERE id = ?", (job.sub_id,)).fetchone()
-                    if key and alive:
-                        self.attempt(job, key)
+                self.run_due()
             except Exception:  # noqa: BLE001 - the worker never dies on one bad alert
                 log.exception("push delivery failed")
 
-    def drain(self, timeout: float = 5.0) -> None:
-        """Tests: wait until the queue and the retry heap are empty."""
+    def run_due(self) -> int:
+        """Send every retry whose time has come - each one re-checked first (still_allowed). Returns how many ran."""
+        assert self.db is not None
+        n = 0
+        while self.retries and self.retries[0][0] <= time.monotonic():
+            self.inflight += 1  # before the pop: drain() never sees an empty heap with a retry still on its way
+            try:
+                _, _, job = heapq.heappop(self.retries)
+                with self.db.connection(mode="read", label="push.retry") as conn:
+                    key = signing_key(conn)
+                    fresh = still_allowed(conn, job) if key else None
+                if key and fresh:
+                    self.attempt(fresh, key)
+                else:
+                    STATS["retry_skipped"] += 1
+                n += 1
+            finally:
+                self.inflight -= 1
+        return n
+
+    def drain(self, timeout: float = 5.0, retries: bool = True) -> bool:
+        """Wait until nothing is queued or in flight (and, with `retries`, nothing waits in the retry heap); returns
+        whether that happened within `timeout`."""
         deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline and (self.q.unfinished_tasks or self.retries):
+        while self.q.unfinished_tasks or self.inflight or (retries and self.retries):
+            if time.monotonic() >= deadline:
+                return False
             time.sleep(0.02)
+        return True
 
 
 NOTIFIER = PushNotifier()

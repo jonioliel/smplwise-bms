@@ -261,7 +261,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         intercom_sync.SYNC.shutdown()
         from .services import push as push_svc
 
-        push_svc.NOTIFIER.shutdown()
+        from starlette.concurrency import run_in_threadpool as _in_thread
+
+        await _in_thread(push_svc.NOTIFIER.shutdown)  # queued alerts get a few seconds to go out
         from .routers import plan_geometry as plan_geometry_router
 
         plan_geometry_router.shutdown_detect_pool()

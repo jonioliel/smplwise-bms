@@ -7,13 +7,13 @@ import sqlite3
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request, Response
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
-from ..db import Database, unlocked
+from ..db import Database, database_of, unlocked
 from ..errors import ApiError, not_found
-from ..rbac import Principal
+from ..rbac import INSTALLATION, Principal, require
 from ..services import push as svc
 
 router = APIRouter()
@@ -55,6 +55,12 @@ class Quiet(BaseModel):
     to: str = Field(default="07:00", pattern=HHMM)
     allow_critical: bool = True
 
+    @model_validator(mode="after")
+    def _not_empty(self) -> "Quiet":
+        if self.from_ == self.to:
+            raise ValueError("quiet hours need two different times (from == to is an empty window)")
+        return self
+
 
 class PrefsIn(BaseModel):
     categories: Categories = Field(default_factory=Categories)
@@ -62,9 +68,27 @@ class PrefsIn(BaseModel):
 
 
 @router.get("/push/vapid-key")
-def vapid_key(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """The installation's VAPID public key (applicationServerKey); the pair is created on the first call."""
-    return {"public_key": svc.ensure_vapid(conn)}
+def vapid_key(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The installation's VAPID public key (applicationServerKey); the pair is created on the first call (a short side
+    transaction; afterwards this is a read)."""
+    key = svc.vapid_public_key(conn)
+    if key is None:
+        db = database_of(conn)
+        assert db is not None
+        with db.write_aside() as w:
+            key = svc.ensure_vapid(w)
+    return {"public_key": key}
+
+
+@router.post("/push/rotate-key")
+def rotate_key(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Replace the installation's VAPID key pair (system.configure): every subscription is removed; browsers that still
+    allow notifications re-subscribe with the new key the next time Arx opens there."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    key, removed = svc.rotate_key(conn)
+    audit(conn, actor=principal, action="push.key.rotate", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
+          details={"subscriptions_removed": removed})
+    return {"public_key": key, "subscriptions_removed": removed}
 
 
 @router.get("/push/subscriptions")

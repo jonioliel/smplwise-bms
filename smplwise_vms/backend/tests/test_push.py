@@ -173,7 +173,8 @@ def test_subscription_crud_is_own_only(settings, fake_push):
 
     # the push service is the only place the server ever posts to
     for bad in ("http://fcm.googleapis.com/fcm/send/x", "https://127.0.0.1/x", "https://evil.example/fcm.googleapis.com", "https://fcm.googleapis.com.evil.example/x",
-                "https://user:pw@fcm.googleapis.com/x", "https://fcm.googleapis.com:8443/x"):
+                "https://user:pw@fcm.googleapis.com/x", "https://fcm.googleapis.com:8443/x", "https://fcm.googleapis.com:443/x",
+                "https://fcm.googleapis.com./x", "https://fcm_x.googleapis.com/x", "https://fcm.googleapis.com\\@evil.example/x"):
         r = c.post("/api/v1/push/subscriptions", json={**phone.body(), "endpoint": bad})
         assert r.status_code == 422 and r.json()["code"] == "push_endpoint_refused", bad
     assert c.post("/api/v1/push/subscriptions", json={**phone.body(), "keys": {"p256dh": b64u(b"\x04" + b"\x01" * 64), "auth": phone.body()["keys"]["auth"]}}).json()["code"] == "push_keys_invalid"
@@ -317,6 +318,7 @@ def test_prefs_quiet_hours_and_rate_limit(settings, fake_push, monkeypatch):
     assert decide(noon)["dev-ops2"] == "category_off" and decide(noon)["dev-joni"] == "send"
     assert c.put("/api/v1/push/prefs", headers=as_user("ops2"), json={"categories": {"nope": True}}).status_code == 422
     assert c.put("/api/v1/push/prefs", headers=as_user("ops2"), json={"quiet": {"enabled": True, "from": "25:00", "to": "07:00"}}).status_code == 422
+    assert c.put("/api/v1/push/prefs", headers=as_user("ops2"), json={"quiet": {"enabled": True, "from": "22:00", "to": "22:00"}}).status_code == 422, "an empty window is refused"
 
     # quiet hours 22:00-07:00 local: a critical alert passes when allowed, is held back when not; outside the window all pass
     c.put("/api/v1/push/prefs", headers=as_user("ops2"), json={"quiet": {"enabled": True, "from": "22:00", "to": "07:00", "allow_critical": True}})
@@ -365,3 +367,104 @@ def test_push_worker_off_is_harmless(settings):
     ev = _event(app, "e-off", None, source="system", etype="motion")
     fired = _fire(app, ev)
     assert len(fired) <= 1 and all("_push" not in f and "_pending" not in f for f in fired)
+
+
+def _notice(cam: str | None, alert: str) -> dict:
+    return {"alert_id": alert, "event_id": f"ev-{alert}", "rule_name": "תנועה", "message": "תנועה", "camera_id": cam, "event_type": "motion",
+            "source": "alertstream", "severity": "alert", "occurred_at": "2026-09-29T10:00:00Z"}
+
+
+def test_retry_rechecks_owner_and_reach(settings, fake_push):
+    """Security review M1: a retry minutes later must not deliver to a user who lost reach, nor to a browser whose
+    subscription has meanwhile moved to another HA user; an explicit camera deny keeps a subscribed user out at once."""
+    app, c, ids, cam, browsers = _world(settings)
+    worker = svc.PushNotifier()  # driven by hand: no thread, deterministic
+    worker.db = app.state.db
+
+    # (a) ops2 loses reach between the 429 and the retry
+    fake_push.script[browsers["ops2"].endpoint] = [429, 201]
+    worker.process(_notice(cam, "a1"))
+    assert len(fake_push.to(browsers["ops2"])) == 1 and len(worker.retries) == 1
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE bindings SET revoked_at = '2026-09-29T00:00:00Z' WHERE subject_id = 'dev-ops2'")
+    skipped = svc.STATS["retry_skipped"]
+    assert worker.run_due() == 1
+    assert len(fake_push.to(browsers["ops2"])) == 1, "no retry after the reach was revoked"
+    assert svc.STATS["retry_skipped"] == skipped + 1 and not worker.retries
+
+    # (b) joni's browser is taken over by another HA user (same row id) before the retry
+    base = len(fake_push.to(browsers["joni"]))  # joni already got a1 (sent at once)
+    fake_push.script[browsers["joni"].endpoint] = [429, 201]
+    worker.process(_notice(cam, "a2"))
+    assert len(fake_push.to(browsers["joni"])) == base + 1 and len(worker.retries) == 1
+    bind(c, settings, "carol", "system_admin", "installation", "*")
+    moved = c.post("/api/v1/push/subscriptions", json=browsers["joni"].body(), headers=as_user("carol"))
+    assert moved.status_code == 201
+    worker.run_due()
+    assert len(fake_push.to(browsers["joni"])) == base + 1, "joni's alert never reaches the browser now used by carol"
+
+    # a retry that is still allowed goes out, with the subscription's current keys
+    fake_push.script[browsers["joni"].endpoint] = [429, 201]
+    worker.process(_notice(cam, "a3"))  # carol owns it now and has installation-wide reach
+    worker.run_due()
+    calls = fake_push.to(browsers["joni"])
+    assert len(calls) == base + 3 and browsers["joni"].decrypt(calls[-1].content)["alert_id"] == "a3"
+
+    # (c) an explicit camera deny for a subscribed, installation-wide user: nothing, from the first attempt
+    from smplwise.db import new_id, now_iso, permission_revision
+
+    with app.state.db.connection() as conn:
+        conn.execute(
+            "INSERT INTO bindings(id, subject_kind, subject_id, role_id, scope_type, scope_id, effect, permission_revision, assigned_by, created_at) VALUES (?, 'user', 'dev-carol', 'operator', 'camera', ?, 'deny', ?, 'test', ?)",
+            (new_id(), cam, permission_revision(conn), now_iso()),
+        )
+        _, decisions = svc.plan(conn, _notice(cam, "a4"), tz_name="Asia/Jerusalem")
+    assert decisions["dev-carol"] == "no_reach"
+
+
+def test_drain_waits_for_retries_in_flight(settings, fake_push):
+    """The flaky-test root cause: a retry popped from the heap but not yet sent must keep drain() waiting."""
+    app, c, ids, cam, browsers = _world(settings)
+    worker = svc.PushNotifier()
+    worker.db = app.state.db
+    fake_push.script[browsers["ops2"].endpoint] = [429, 201]
+    worker.process(_notice(cam, "d1"))
+    assert worker.drain(0.05) is False, "a retry waits in the heap"
+    worker.inflight = 1
+    worker.retries.clear()
+    assert worker.drain(0.05) is False, "a retry in flight counts too"
+    worker.inflight = 0
+    assert worker.drain(0.05) is True
+
+
+def test_worker_restarts_after_shutdown(settings, fake_push):
+    app = create_app(settings)
+    svc.NOTIFIER.start(app.state.db)
+    assert svc.NOTIFIER.running
+    svc.NOTIFIER.shutdown(timeout=1.0)
+    assert not svc.NOTIFIER.running and svc.NOTIFIER.enqueue([{"alert_id": "x"}]) == 0
+    svc.NOTIFIER.start(app.state.db)
+    assert svc.NOTIFIER.running and svc.NOTIFIER.thread.is_alive()
+
+
+def test_rotate_key_and_health_counters(settings, fake_push):
+    app = create_app(settings)
+    c = TestClient(app)
+    old = c.get("/api/v1/push/vapid-key").json()["public_key"]
+    for u in ("joni", "bob"):
+        assert c.post("/api/v1/push/subscriptions", json=Browser(f"rot-{u}").body(), headers=as_user(u)).status_code == 201
+    assert c.post("/api/v1/push/rotate-key", headers=as_user("bob")).status_code == 403, "system.configure only"
+    r = c.post("/api/v1/push/rotate-key")
+    assert r.status_code == 200 and r.json()["subscriptions_removed"] == 2
+    new = r.json()["public_key"]
+    assert new != old and c.get("/api/v1/push/vapid-key").json()["public_key"] == new
+    assert c.get("/api/v1/push/subscriptions", headers=as_user("bob")).json()["subscriptions"] == []
+    rows = c.get("/api/v1/audit", params={"prefix": "push.key.rotate"}).json()["rows"]
+    assert rows and rows[0]["details"] == {"subscriptions_removed": 2}
+    with app.state.db.connection() as conn:
+        k = svc.signing_key(conn)
+    assert k[1] == new, "the sender's cached key follows the rotation"
+    # counters for system.configure holders only; no endpoints or ids in them
+    h = c.get("/api/v1/health").json()["push"]
+    assert {"queued", "sent", "retried", "gone", "refused", "subscriptions", "subscribed_users"} <= set(h) and h["subscriptions"] == 0
+    assert "push" not in c.get("/api/v1/health", headers=as_user("bob")).json()

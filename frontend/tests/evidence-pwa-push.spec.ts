@@ -1,5 +1,6 @@
 import { test, expect, type Page, type BrowserContext, type Worker } from '@playwright/test';
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -65,6 +66,53 @@ test.describe('PWA shell (CR-008 P3)', () => {
     expect(cached.some((u) => /\/assets\/index-[\w-]+\.js$/.test(u)), cached.join('\n')).toBe(true);
     expect(cached.filter((u) => u.includes('/api/'))).toEqual([]);
     expect(context.serviceWorkers().length).toBe(1);
+  });
+
+  test('a new release: update notice, new worker, old cache deleted', async ({ page }) => {
+    // The worker names its cache after the build (the add-on version), so a new release is a changed arx-sw.js. The
+    // browser fetches the worker script itself (not routable), so this test serves dist/ from its own tiny server and
+    // swaps the script for a "next release" copy half-way.
+    const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist');
+    const original = fs.readFileSync(path.join(dist, 'arx-sw.js'), 'utf8');
+    const oldName = /arx-shell-[0-9A-Za-z.\-]+/.exec(original)?.[0] ?? '';
+    expect(oldName, 'the build id is baked into the worker').toMatch(/^arx-shell-.+/);
+    let sw = original;
+    const types: Record<string, string> = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2' };
+    const server = http.createServer((req, res) => {
+      const rel = decodeURIComponent((req.url || '/').split('?')[0]).replace(/^\/+/, '') || 'index.html';
+      if (rel === 'arx-sw.js') {
+        res.writeHead(200, { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-cache' });
+        res.end(sw);
+        return;
+      }
+      const file = path.join(dist, rel);
+      if (!file.startsWith(dist) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end('{"code":"not_found"}');
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': types[path.extname(file)] ?? 'application/octet-stream' });
+      res.end(fs.readFileSync(file));
+    });
+    await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+    const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}/`;
+    try {
+      await page.goto(origin);
+      await controlled(page);
+      await page.reload();
+      const shellCaches = () => page.evaluate(async () => (await caches.keys()).filter((k) => k.startsWith('arx-shell-')));
+      expect(await shellCaches()).toEqual([oldName]);
+      sw = original.split(oldName).join(`${oldName}-next`);
+      await page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.update());
+      const toast = page.locator('arx-pwa-prompts [data-pwa-update]');
+      await expect(toast).toBeVisible({ timeout: 15_000 });
+      await Promise.all([page.waitForEvent('load'), toast.locator('sw-button').click()]);
+      await expect.poll(shellCaches, { timeout: 15_000 }).toEqual([`${oldName}-next`]);
+      await expect(toast).toBeHidden();
+    } finally {
+      await page.goto('about:blank');
+      await new Promise<void>((ok) => server.close(() => ok()));
+    }
   });
 
   test('install banner "התקן את Arx" (beforeinstallprompt)', async ({ page }, info) => {

@@ -3,9 +3,12 @@
  * its scope (the Ingress prefix today, `/arx/` on the remote channel). It is a classic script: it imports only modules no
  * app code imports (deeplink.ts, offline-page.ts), so the bundler inlines them.
  *
- * Caching - the app shell only:
+ * Caching - the app shell only, in one cache per release (`arx-shell-<add-on version>`; activate deletes the others, so
+ * old hashed files never pile up, and the version inside this file makes every release a worker update):
  * - navigations: network first; the last good index.html is the fallback, then the Hebrew offline page;
- * - hashed build assets, fonts, brand images, icons and the manifest: cache first (hashed names never change content);
+ * - hashed build assets (`assets/`): cache first - a hashed name never changes content;
+ * - fonts, brand images, icons, fonts.css and the manifest (names without a hash): network first, the cache is only the
+ *   offline fallback, so a changed icon or font is picked up at once;
  * - never `api/…` (data, images, downloads, WebSocket handshakes), never a Range request (video), never another origin.
  *
  * Web Push: shows the notification from the minimal payload (title, body, deep link, ids); a click focuses an open
@@ -65,7 +68,7 @@ interface PushData {
 }
 
 const sw = self as unknown as SwGlobal;
-const SHELL_CACHE = 'arx-shell-v1';
+const SHELL_CACHE = `arx-shell-${__ARX_BUILD__}`;
 const META_CACHE = 'arx-meta';
 const scope = (): string => baseOf(sw.registration.scope);
 const metaKey = (name: string) => `${scope()}__arx/${name}`;
@@ -76,7 +79,7 @@ function relPath(url: URL): string | null {
   return url.pathname.slice(base.pathname.length);
 }
 
-const STATIC = /^(assets|fonts|brand|icons)\//;
+const UNHASHED = /^(fonts|brand|icons)\//;
 
 sw.addEventListener('install', ((e: ExtendableEvt) => {
   // no precache list: the shell is cached as it is used; a new worker waits until the app asks it to take over
@@ -98,7 +101,7 @@ sw.addEventListener('message', ((e: MessageEvt) => {
   const data = e.data as { type?: string; openUrl?: string } | null;
   if (data?.type === 'arx-skip-waiting') void sw.skipWaiting();
   // the app tells the worker which top-level page hosts it (under Ingress: the HA panel), for clicks with no window open
-  if (data?.type === 'arx-context' && typeof data.openUrl === 'string' && data.openUrl.startsWith('/')) {
+  if (data?.type === 'arx-context' && typeof data.openUrl === 'string' && /^\/(?![/\\])/.test(data.openUrl) && data.openUrl.length < 500) {
     e.waitUntil(putMeta('context', { openUrl: data.openUrl }));
   }
 }) as never);
@@ -113,7 +116,8 @@ sw.addEventListener('fetch', ((e: FetchEvt) => {
     e.respondWith(shell(req));
     return;
   }
-  if (STATIC.test(rel) || rel === 'fonts.css' || rel === 'arx-manifest.webmanifest') e.respondWith(cacheFirst(req));
+  if (rel.startsWith('assets/')) e.respondWith(cacheFirst(req));
+  else if (UNHASHED.test(rel) || rel === 'fonts.css' || rel === 'arx-manifest.webmanifest') e.respondWith(networkFirst(req));
 }) as never);
 
 async function shell(req: Request): Promise<Response> {
@@ -135,6 +139,19 @@ async function cacheFirst(req: Request): Promise<Response> {
   const res = await fetch(req);
   if (res.ok && res.type === 'basic') await cache.put(req, res.clone());
   return res;
+}
+
+async function networkFirst(req: Request): Promise<Response> {
+  const cache = await caches.open(SHELL_CACHE);
+  try {
+    const res = await fetch(req);
+    if (res.ok && res.type === 'basic') await cache.put(req, res.clone());
+    return res;
+  } catch (err) {
+    const hit = await cache.match(req);
+    if (hit) return hit;
+    throw err;
+  }
 }
 
 async function putMeta(name: string, value: unknown): Promise<void> {
