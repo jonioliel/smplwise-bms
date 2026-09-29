@@ -583,6 +583,53 @@ class RateLimiter:
 LIMITER = RateLimiter()
 
 
+class RefusalAudits:
+    """At most one audit row per key (a refusal reason + the caller's address) per window, for the refusals an
+    anonymous caller can repeat at will: a rate-limited sign-in or bearer request and a cross-site request carrying a
+    cookie of no live session. Each such row is a write transaction - a turn in the database's write queue - so without
+    this a flood from the internet took one turn per request (round-10 §6.1 follow-up, 2026-09-30). The first refusal
+    of a window is written; the rest of the window is counted and the count travels with the next row written."""
+
+    WINDOW_S = 60.0
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._seen: dict[str, tuple[float, int]] = {}  # key -> (window start, refusals suppressed since)
+
+    def admit(self, key: str) -> tuple[bool, int]:
+        """(write this one?, how many were suppressed before it)."""
+        now = time.time()
+        with self._lock:
+            start, suppressed = self._seen.get(key, (0.0, 0))
+            if now - start >= self.WINDOW_S:
+                self._seen[key] = (now, 0)
+                if len(self._seen) > 20000:
+                    for k in [k for k, (t, _) in self._seen.items() if now - t >= self.WINDOW_S]:
+                        self._seen.pop(k, None)
+                return True, suppressed
+            self._seen[key] = (start, suppressed + 1)
+            return False, suppressed + 1
+
+    def clear(self) -> None:
+        with self._lock:
+            self._seen.clear()
+
+
+REFUSAL_AUDITS = RefusalAudits()
+THROTTLED_REASONS = ("rate_limited_ip", "rate_limited_user")
+
+
+def _audit_refusal(db, *, actor: Principal | None, reason: str, meta: dict[str, Any], action: str = "auth.remote_session.rejected") -> None:
+    """_audit for a refusal; a rate-limited one at most once per reason and address per minute (RefusalAudits)."""
+    if reason in THROTTLED_REASONS:
+        write, suppressed = REFUSAL_AUDITS.admit(f"{reason}|{meta.get('client_ip', '')}")
+        if not write:
+            return
+        if suppressed:
+            meta = {**meta, "suppressed_since_last": suppressed}
+    _audit(db, actor=actor, action=action, decision="denied", reason=reason, meta=meta)
+
+
 # ---------------------------------------------------------------- request helpers
 
 def client_ip(conn: Any) -> str:
@@ -638,6 +685,7 @@ def bearer_of(conn: Any) -> str | None:
         token = auth[7:].strip()
         return token or None
     return None
+
 
 
 def origin_ok(conn: Any) -> bool:
@@ -781,7 +829,7 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
     ip = meta["client_ip"]
 
     async def rejected(reason: str, err: ApiError, actor: Principal | None = None) -> ApiError:
-        await run_in_threadpool(_audit, db, actor=actor, action="auth.remote_session.rejected", decision="denied", reason=reason, meta=meta)
+        await run_in_threadpool(lambda: _audit_refusal(db, actor=actor, reason=reason, meta=meta))
         return err
 
     if not LIMITER.hit(f"ip:{ip}", IP_LIMITS):
@@ -879,7 +927,7 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
     def rejected(reason: str, err: ApiError, actor: Principal | None = None) -> ApiError:
         if s is not None:
             STORE.drop(s.sid)
-        _audit(db, actor=actor, action="auth.remote_session.rejected", decision="denied", reason=reason, meta=meta)
+        _audit_refusal(db, actor=actor, reason=reason, meta=meta)
         return err
 
     if not LIMITER.hit(f"ip:{ip}", IP_LIMITS):
@@ -1318,6 +1366,7 @@ def reset_for_tests() -> None:
     remote_channel.set_csp_enforce(False)
     STORE.clear()
     LIMITER.clear()
+    REFUSAL_AUDITS.clear()
     with _cache_lock:
         _rejected.clear()
     _core_base.clear()

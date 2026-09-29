@@ -616,7 +616,8 @@ def test_bearer_validation_runs_without_the_write_lock(arx, monkeypatch):
 class _LockWatch:
     """Records, for one remote request at a time, every write-lock turn given up (auth.unlocked), every HA validation
     and every refusal / sign-in audit - each with whether the request's write gate was held at that moment - plus the
-    I/O guard's findings (tests/db_io_guard.py)."""
+    I/O guard's findings (tests/db_io_guard.py). Since 2026-09-30 a remote request is authenticated before its write
+    transaction opens (auth.resolve_remote_first), so it never has a turn to give up: `turns` stays empty."""
 
     def __init__(self, arx, monkeypatch) -> None:
         import db_io_guard
@@ -679,13 +680,14 @@ def _bearer_session_of(token: str):
 
 def test_only_an_unvalidated_bearer_gives_up_the_write_lock(arx, watch):
     """A cookie session or a cached bearer answers from memory - no turn in the write queue; anything that asks HA or
-    writes a row does so after giving the lock up. Revoked chains and expired sessions on both paths included."""
+    writes a row does so before the request's write transaction opens (2026-09-30: nothing is held, so no turn is given
+    up either - `turns` stays empty). Revoked chains and expired sessions on both paths included."""
     arx.flag("u-owner")
     arx.bind("u-owner", "system_admin")
     token = arx.token(arx.owner)
     bearer = TestClient(arx.app)
     assert _rotate_signing_key(bearer, Authorization=f"Bearer {token}").status_code not in (401, 403, 500)
-    assert watch.turns == ["unlocked"] and watch.ha == [False]  # first sight: validated against HA without the lock
+    assert watch.turns == [] and watch.ha == [False]  # first sight: validated against HA before the write transaction
     watch.reset()
     assert _rotate_signing_key(bearer, Authorization=f"Bearer {token}").status_code not in (401, 403, 500)
     assert watch.turns == [] and watch.ha == []  # cached: no turn, no HA
@@ -703,7 +705,7 @@ def test_only_an_unvalidated_bearer_gives_up_the_write_lock(arx, watch):
     watch.reset()
     r = _rotate_signing_key(arx.client, **ORIGIN)
     assert r.status_code not in (403, 500), r.text
-    assert watch.turns == ["unlocked"] and watch.ha == [False]
+    assert watch.turns == [] and watch.ha == [False]
 
     # an expired cookie session: dropped from memory, refused at once - nothing to ask, nothing written, no turn
     for s in [s for s in hua.STORE._sessions.values() if s.via == "cookie"]:
@@ -726,16 +728,16 @@ def test_only_an_unvalidated_bearer_gives_up_the_write_lock(arx, watch):
     b.token_exp = time.time() - 1
     watch.reset()
     assert _rotate_signing_key(bearer, Authorization=f"Bearer {token}").status_code not in (401, 403, 500)
-    assert watch.turns == ["unlocked"] and watch.ha == [False]
+    assert watch.turns == [] and watch.ha == [False]
 
     # a revoked bearer chain: the session is dropped; the next request asks HA and is refused - and its refusal row is
-    # written (after giving the lock up), not lost
+    # written (before any write transaction of the request), not lost
     b = _bearer_session_of(token)
     hua.STORE.revoke_sign_ins({b.iss_hash}, [b])
     watch.reset()
     r = _rotate_signing_key(bearer, Authorization=f"Bearer {token}")
     assert r.status_code == 401 and r.json()["code"] == "remote_session_revoked", r.text
-    assert watch.turns == ["unlocked"]
+    assert watch.turns == []
     assert ("auth.remote_session.rejected", False) in watch.audits
     assert any(row["reason"] == "remote_session_revoked" for row in arx.audit("auth.remote_session.rejected"))
     watch.assert_nothing_under_the_lock()
@@ -782,7 +784,7 @@ def test_a_bearer_session_crossing_the_cache_window_mid_request_asks_ha_without_
     _jump_clock_after_the_first_lookup(monkeypatch, 5.0)
     watch.reset()
     assert _rotate_signing_key(bearer, Authorization=f"Bearer {token}").status_code not in (401, 403, 500)
-    assert watch.ha == [False] and watch.turns == ["unlocked"]
+    assert watch.ha == [False] and watch.turns == []
     watch.assert_nothing_under_the_lock()
 
 
@@ -804,7 +806,7 @@ def test_a_bearer_session_revoked_mid_request_is_refused_without_the_lock(arx, w
     watch.reset()
     r = _rotate_signing_key(bearer, Authorization=f"Bearer {token}")
     assert r.status_code == 401 and r.json()["code"] == "remote_session_revoked", r.text
-    assert watch.turns == ["unlocked"] and watch.ha == [False]
+    assert watch.turns == [] and watch.ha == [False]
     assert ("auth.remote_session.rejected", False) in watch.audits
     assert any(row["reason"] == "remote_session_revoked" for row in arx.audit("auth.remote_session.rejected"))
     watch.assert_nothing_under_the_lock()

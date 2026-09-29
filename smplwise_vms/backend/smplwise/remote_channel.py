@@ -177,6 +177,14 @@ def _audit_csrf(scope: dict, headers: list[tuple[bytes, bytes]], sid: str | None
     details = {"method": scope.get("method"), "path": scope.get("path"), "origin": (_header(headers, b"origin") or "")[:200],
                "sec_fetch_site": _header(headers, b"sec-fetch-site") or "",
                "client_ip": (_header(headers, b"cf-connecting-ip") or (_header(headers, b"x-forwarded-for") or "").split(",")[0]).strip()[:64]}
+    if session is None:
+        # a cookie of no live session is something anyone can send: at most one row per address a minute (each row is a
+        # turn in the write queue); a refused request of a real session is always recorded
+        write, suppressed = hua.REFUSAL_AUDITS.admit(f"csrf_refused|{details['client_ip']}")
+        if not write:
+            return
+        if suppressed:
+            details["suppressed_since_last"] = suppressed
     try:
         with db.connection(label="csrf_refused") as conn:
             audit(conn, actor=session.principal if session else None, action="auth.remote_csrf_refused", decision="denied", resource_type="request",

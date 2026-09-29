@@ -38,8 +38,49 @@ def _track(request: Request, conn: sqlite3.Connection) -> None:
     conns.append(conn)
 
 
+PRE_RESOLVED = "sw_principal"  # request.state key: the remote principal resolved before the write transaction
+
+
+def resolve_remote_first(request: Request) -> Principal:
+    """The remote channel authenticates BEFORE the request's write transaction (round-10 §6.1 / CR-008 §9 follow-up,
+    2026-09-30). get_conn takes the write gate - a turn in the process-wide FIFO queue of writers - and SQLite's write
+    lock at BEGIN IMMEDIATE; before this, an unauthenticated POST from the internet took that turn only to be refused
+    with 401 once it had it, so a flood of them queued in front of every legitimate writer. Now:
+    - no credential, an unknown / expired / revoked cookie, a garbage, expired or already-refused bearer token: 401 from
+      memory, the gate never touched;
+    - a live session or a bearer validated within BEARER_CACHE_S: answered from memory (offline=True);
+    - NeedsUnlock (Home Assistant must be asked, or a refusal / sign-in row written): resolved here, with no connection of
+      the request open at all - HA is asked without any lock and the rows go through their own short transactions.
+    Only then does get_conn open the write transaction. The principal is kept in the request state for _principal."""
+    from .services.ha_user_auth import NeedsUnlock
+
+    settings = settings_of(request)
+    try:
+        principal = resolve_principal(request, settings, offline=True)
+    except NeedsUnlock:
+        principal = resolve_principal(request, settings)
+    setattr(request.state, PRE_RESOLVED, principal)
+    return principal
+
+
+def _pre_resolved(request: Request) -> Principal | None:
+    """The principal resolve_remote_first found, while its session is still in the store. A session dropped while the
+    request waited for its write turn (a revoke, a sign-out) resolves again, exactly as a request arriving now would."""
+    principal = getattr(request.state, PRE_RESOLVED, None)
+    if principal is None:
+        return None
+    from .services import ha_user_auth
+
+    s = ha_user_auth.session_of(request)
+    if s is None or ha_user_auth.STORE.peek(s.sid) is None:
+        return None
+    return principal
+
+
 def get_conn(request: Request):
     db: Database = request.app.state.db
+    if is_remote(request) and getattr(request.state, PRE_RESOLVED, None) is None:
+        resolve_remote_first(request)  # 401 here never touches the write gate
     with db.connection(label=f"{request.method} {request.url.path}") as conn:
         _track(request, conn)
         yield conn
@@ -158,7 +199,10 @@ def maybe_bootstrap(conn: sqlite3.Connection, settings: Settings, principal: Pri
 
 def _principal(request: Request, conn: sqlite3.Connection) -> Principal:
     settings = settings_of(request)
-    if is_remote(request):
+    pre = _pre_resolved(request) if is_remote(request) else None
+    if pre is not None:
+        principal = pre  # get_conn resolved it before the write transaction (resolve_remote_first)
+    elif is_remote(request):
         from .services.ha_user_auth import NeedsUnlock
 
         try:
