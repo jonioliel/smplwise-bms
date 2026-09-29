@@ -560,6 +560,139 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await expect(page.locator('wiskey-embed [data-wiskey-embed-error="not_installed"] sw-state-panel')).toHaveAttribute('heading', 'לוח WisKey לא נמצא ב־Home Assistant');
   });
 
+  test('height: at 1440×900 the frame gets the whole viewport below SMPLWISE\'s chrome; "הגדל" gives it the viewport minus the embed bar', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop only (the owner report is a desktop one)');
+    await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
+    await open(page, '/wiskey/overview');
+    const frame = page.locator(FRAME);
+    await expect(frame).toHaveAttribute('data-confirmed-tab', 'overview', { timeout: 15000 });
+    expect(page.viewportSize()).toEqual({ width: 1440, height: 900 });
+
+    // the chrome, measured from the DOM: the top bar, <main>'s banner padding, everything in <main> before the screen
+    // (setup hint, tab row), and the embed's own bar (+ the tools row when it shows)
+    const measure = () =>
+      page.locator('wiskey-embed').evaluate((embed: HTMLElement) => {
+        const shell = (embed.getRootNode() as ShadowRoot).host as HTMLElement;
+        const sr = shell.shadowRoot!;
+        const h = (el: Element | null | undefined) => (el ? el.getBoundingClientRect().height : 0);
+        const main = sr.querySelector('main')!;
+        const screen = main.querySelector(':scope > .screen')!;
+        // <main>'s banner padding plus everything before the screen, margins included (setup hint, tab row)
+        const beforeScreen = screen.getBoundingClientRect().top - main.getBoundingClientRect().top;
+        const root = embed.shadowRoot!;
+        const f = root.querySelector('iframe')!;
+        const fr = f.getBoundingClientRect();
+        const expanded = embed.hasAttribute('data-expanded');
+        const shellChrome = expanded ? 0 : h(sr.querySelector('header.topbar')) + beforeScreen;
+        const embedChrome = h(root.querySelector('.bar')) + h(root.querySelector('nav.tools'));
+        return {
+          viewport: window.innerHeight,
+          chrome: shellChrome + embedChrome,
+          top: fr.top,
+          bottom: fr.bottom,
+          height: fr.height,
+          width: fr.width,
+          inner: f.contentWindow!.innerHeight, // what WisKey's fitWall reads (visualViewport.height = the frame's)
+          mainScrolls: main.scrollHeight > main.clientHeight + 1,
+          barTabs: root.querySelectorAll('.bar sw-tabs').length,
+        };
+      });
+    // WisKey rc.25 panel.ts fitWall (wiskey appearance): the cards per page for a frame of this size
+    const wiskeyCapacity = (w: number, hgt: number) => (w < 700 ? 4 : w < 980 ? (hgt < 760 ? 4 : 6) : w < 1200 ? (hgt < 820 ? 6 : 9) : hgt < 800 ? 4 : hgt < 880 ? 8 : 12);
+
+    const base = await measure();
+    testInfo.annotations.push({ type: 'default layout', description: `frame ${Math.round(base.width)}×${Math.round(base.height)} (chrome ${Math.round(base.chrome)} px) → WisKey rc.25 capacity ${wiskeyCapacity(base.width, base.height)}` });
+    expect(base.height).toBeGreaterThanOrEqual(base.viewport - base.chrome - 1);
+    expect(Math.abs(base.bottom - base.viewport)).toBeLessThanOrEqual(1); // down to the bottom edge, no max-height
+    expect(Math.abs(base.inner - base.height)).toBeLessThanOrEqual(1); // the panel's own viewport is the whole frame
+    expect(base.mainScrolls).toBe(false); // no scroll container gives the frame less than it shows
+    expect(base.barTabs).toBe(0);
+    await expectFrameFillsStage(page);
+
+    // "הגדל": over the shell's top bar and tab row; the WisKey tabs move into the embed's bar
+    await page.locator('wiskey-embed sw-button[data-wiskey-expand]').click();
+    await expect(page.locator('wiskey-embed')).toHaveAttribute('data-expanded', '');
+    const big = await measure();
+    testInfo.annotations.push({ type: 'expanded', description: `frame ${Math.round(big.width)}×${Math.round(big.height)} (chrome ${Math.round(big.chrome)} px) → WisKey rc.25 capacity ${wiskeyCapacity(big.width, big.height)}` });
+    expect(big.height).toBeGreaterThanOrEqual(big.viewport - big.chrome - 1);
+    expect(Math.abs(big.top - big.chrome)).toBeLessThanOrEqual(1);
+    expect(Math.abs(big.bottom - big.viewport)).toBeLessThanOrEqual(1);
+    expect(big.width).toBeGreaterThanOrEqual(1439);
+    expect(big.height).toBeGreaterThan(base.height + 100);
+    expect(big.height).toBeGreaterThanOrEqual(800); // WisKey's 8-card step at this width
+    await expectFrameFillsStage(page);
+    const barTabs = page.locator('wiskey-embed .bar sw-tabs a[href^="#/wiskey/"]');
+    await expect(barTabs).toHaveCount(FAKE_CATALOG.tabs.length);
+    await page.screenshot({ path: testInfo.outputPath('wiskey-embed-expanded.png') });
+    // a tab in the embed's bar is a wiskey:navigate message like the shell's row
+    await page.locator('wiskey-embed .bar sw-tabs a[href="#/wiskey/devices"]').click();
+    await expect(frame).toHaveAttribute('data-confirmed-tab', 'devices');
+    expect((await frameState(page)).received).toContainEqual({ type: 'wiskey:navigate', tab: 'devices', tool: null });
+    await expect(page.locator('wiskey-embed .bar sw-tabs a[aria-current="page"]')).toHaveAttribute('href', '#/wiskey/devices');
+
+    // remembered by this browser; "צמצם" restores the layout
+    await open(page, '/wiskey/overview');
+    await expect(page.locator('wiskey-embed')).toHaveAttribute('data-expanded', '', { timeout: 15000 });
+    await page.locator('wiskey-embed sw-button[data-wiskey-expand]').click();
+    await expect(page.locator('wiskey-embed')).not.toHaveAttribute('data-expanded', '');
+    const back = await measure();
+    expect(Math.abs(back.height - base.height)).toBeLessThanOrEqual(1);
+    expect(await page.evaluate(() => localStorage.getItem('sw-wiskey-expanded'))).toBeNull();
+  });
+
+  test('"הגדל" keeps the system alert banner visible above it, makes the covered shell inert, and Esc leaves it', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop only');
+    await page.route('**/api/v1/health/summary', (route: Route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'error', items: [{ id: 'nvr', status: 'error', label: 'מקליט לא זמין' }], checked_at: new Date().toISOString(), version: 'test' }) }),
+    );
+    await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
+    await open(page, '/wiskey/overview');
+    await expect(page.locator(FRAME)).toHaveAttribute('data-confirmed-tab', 'overview', { timeout: 15000 });
+    const banner = page.locator('sw-app [data-sys-banner]');
+    await expect(banner).toBeVisible();
+    await page.locator('wiskey-embed sw-button[data-wiskey-expand]').click();
+    await expect(page.locator('wiskey-embed')).toHaveAttribute('data-expanded', '');
+    const g = await page.locator('wiskey-embed').evaluate((embed: HTMLElement) => {
+      const sr = (embed.getRootNode() as ShadowRoot);
+      const b = sr.querySelector('[data-sys-banner]')!.getBoundingClientRect();
+      const e = embed.getBoundingClientRect();
+      const hit = sr.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+      return {
+        bannerTop: b.top,
+        bannerBottom: b.bottom,
+        embedTop: e.top,
+        embedBottom: e.bottom,
+        bannerOnTop: !!hit && !!hit.closest('[data-sys-banner]'),
+        shellMarked: (sr.host as HTMLElement).hasAttribute('data-wiskey-expanded'),
+        inert: ['nav.rail', 'header.topbar', 'main > .subnav'].map((s) => (sr.querySelector(s) as HTMLElement | null)?.inert ?? null),
+        screenInert: (sr.querySelector('main > .screen') as HTMLElement).inert,
+      };
+    });
+    expect(g.bannerTop).toBe(0);
+    expect(g.bannerOnTop).toBe(true); // the layer never covers the alert
+    expect(Math.abs(g.embedTop - g.bannerBottom)).toBeLessThanOrEqual(1); // the layer starts right below it
+    expect(Math.abs(g.embedBottom - 900)).toBeLessThanOrEqual(1);
+    expect(g.shellMarked).toBe(true);
+    expect(g.inert).toEqual([true, true, true]); // Tab cannot reach the covered shell
+    expect(g.screenInert).toBe(false);
+    await page.screenshot({ path: testInfo.outputPath('wiskey-embed-expanded-banner.png') });
+
+    // Esc leaves "הגדל" and gives the shell back
+    await page.locator('wiskey-embed sw-button[data-wiskey-expand]').focus();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('wiskey-embed')).not.toHaveAttribute('data-expanded', '');
+    const after = await page.locator('wiskey-embed').evaluate((embed: HTMLElement) => {
+      const sr = embed.getRootNode() as ShadowRoot;
+      return {
+        shellMarked: (sr.host as HTMLElement).hasAttribute('data-wiskey-expanded'),
+        inert: ['nav.rail', 'header.topbar', 'main > .subnav'].map((s) => (sr.querySelector(s) as HTMLElement | null)?.inert ?? null),
+        bannerTop: sr.querySelector('[data-sys-banner]')!.getBoundingClientRect().top,
+      };
+    });
+    expect(after).toEqual({ shellMarked: false, inert: [false, false, false], bannerTop: expect.any(Number) });
+    expect(after.bannerTop).toBeGreaterThan(0); // back under the top bar
+  });
+
   test('הגדרות › בקרות כניסה switches one tab between the embed and the SMPLWISE screen', async ({ page, request }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'desktop only');
     await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });

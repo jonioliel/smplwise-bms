@@ -92,6 +92,9 @@ export interface WiskeyFrame {
 export interface WiskeyConnectorOptions {
   /** The location the frame opens on (default: overview). */
   initial?: WiskeyLocation;
+  /** Extra query parameters for Home Assistant's frontend on every frame address (not WisKey's; e.g. `external_auth=1`
+   * for the experimental Companion-app relay, `companion-bridge.ts`). */
+  extraParams?: Readonly<Record<string, string>>;
   onReady?(catalog: WiskeyCatalog): void;
   onLocation?(location: WiskeyLocation): void;
   onTitle?(text: string): void;
@@ -120,11 +123,12 @@ export interface WiskeyConnector {
 
 /** The panel address on `origin`: `/hikvision-intercom?embed=1&tab=<tab>[&tool=<tool>]`; `embed: false` = the normal
  * (top-level) deep link, which WisKey rc.19 honours as well. */
-export function wiskeyPanelUrl(origin: string, location: WiskeyTarget, embed = true): string {
+export function wiskeyPanelUrl(origin: string, location: WiskeyTarget, embed = true, extra?: Readonly<Record<string, string>>): string {
   const url = new URL(WISKEY_PANEL_PATH, origin);
   if (embed) url.searchParams.set('embed', '1');
   url.searchParams.set('tab', location.tab);
   if (location.tool) url.searchParams.set('tool', location.tool);
+  for (const [k, v] of Object.entries(extra ?? {})) url.searchParams.set(k, v);
   return url.href;
 }
 
@@ -264,7 +268,7 @@ export function attachWiskey(iframe: WiskeyFrame, options: WiskeyConnectorOption
     host.clearTimeout(timer);
     catalog = null;
     loads = 0;
-    iframe.src = wiskeyPanelUrl(origin, confirmed);
+    iframe.src = wiskeyPanelUrl(origin, confirmed, true, options.extraParams);
   }
 
   // Listener ordering is intentional: the child may initialise before the iframe's load event.

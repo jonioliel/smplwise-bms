@@ -5,10 +5,12 @@ import '../components/sw-page';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
-import { can, isApi } from '../api/session';
+import '../components/sw-tabs';
+import { can, canNav, isApi } from '../api/session';
 import { parseRoute, pushRoute, replaceRoute } from '../router';
-import { WISKEY_SCREENS, WISKEY_UI, isWiskeyHref, setWiskeyEmbedNav, wiskeyPath, wiskeyRequest, wiskeyRoute, wiskeySegmentOf, type WiskeyScreen } from '../shell/nav';
+import { WISKEY_PHONE_EMBED, WISKEY_SCREENS, WISKEY_TABS, WISKEY_UI, activeTabOf, isWiskeyHref, setWiskeyEmbedNav, visibleTabs, wiskeyPath, wiskeyRequest, wiskeyRoute, wiskeySegmentOf, type WiskeyScreen } from '../shell/nav';
 import { attachWiskey, WISKEY_PANEL_PATH, WISKEY_PANEL_TAG, type WiskeyCatalog, type WiskeyConnector, type WiskeyLocation } from '../wiskey/embed-connector';
+import { attachCompanionBridge, bridgeWindow, type CompanionBridge, type ShimState } from '../wiskey/companion-bridge';
 import './wiskey-overview';
 import './wiskey-events';
 import './wiskey-people';
@@ -56,20 +58,54 @@ import './wiskey-people';
  * panel's deep link (`/hikvision-intercom?tab=…&tool=…`, honoured in normal mode since rc.19) the way its own
  * `navigate()` does (`src/common/navigate.ts`: pushState on the main window, then `location-changed`).
  *
+ * Experimental (owner request 2026-09-29, הגדרות › בקרות כניסה "הטמעה גם באפליקציית Companion", `access.phone_embed`,
+ * default off): in the app the frame IS opened, with `external_auth=1`, and `wiskey/companion-bridge.ts` relays the app's
+ * sign-in bridge from Home Assistant's top document into it (details and HA source lines there). If the nested
+ * frontend still cannot sign in (a login redirect, or no connection within the panel timeout) the tab falls back to the
+ * screen above, with a note that the phone embed did not work. Off: exactly the behaviour above.
+ *
  * On module exit the frame is disposed and removed, so WisKey cleans up its listeners and media; a deliberate refresh
  * (the bar's "רענן", or "נסה שוב") reopens the panel on the last confirmed tab/tool.
+ *
+ * Height (owner report 2026-09-29, "only 4 cameras even after choosing 12"): the frame already fills the viewport below
+ * SMPLWISE's chrome (a flex column down to the bottom edge, no max-height), but WisKey's rc.25 overview sizes its page
+ * from the frame's own viewport in fixed steps (`panel.ts` `fitWall`: 1200 px or wider and under 800 px high = 4 cards,
+ * under 880 = 8, else 12) and caps the "תחנות בתצוגה" choice by that (`Math.min(density || 12, capacity)`). At 1440×900
+ * the frame is ~720-750 px high, so 4. "הגדל" (desktop) lifts the embed over SMPLWISE's top bar, rail and tab row - the
+ * WisKey tab row moves into the embed's own bar - so the frame gets the viewport minus that one bar; remembered per
+ * browser. WisKey's own full-screen button works inside the frame too (`allow="fullscreen"`). The cap itself is a
+ * request to the WisKey developers (docs/integrations/wiskey/WISKEY_FOLLOWUP_REQUESTS.md).
  */
 
 export { WISKEY_PANEL_PATH };
 const PANEL_TAG = WISKEY_PANEL_TAG;
 const LOAD_TIMEOUT_MS = 20000; // no `load` at all: nothing answers at the address
 const PANEL_TIMEOUT_MS = 25000; // Home Assistant loaded but never mounted the panel
+const RELAY_PANEL_TIMEOUT_MS = 10000; // the same, with the experimental phone relay: fall back sooner (review 2026-09-29)
 const TAB_TIMEOUT_MS = 15000; // legacy: the panel's session (its permissions) loads after it mounts; navigate() refuses until then
 const TICK_MS = 400;
 const IN_FLIGHT_MS = 3000; // v1: a navigation with no wiskey:location by then is taken as not acted on
 const KEEP_MS = 2000; // after everything is settled: re-apply cheaply, Home Assistant may re-render
 
 const TOP_SWITCH_MS = 1000; // "פתח ב-WisKey": Home Assistant's router gets this long before a full page load
+const EXPANDED_KEY = 'sw-wiskey-expanded'; // "הגדל": a per-browser convenience (localStorage), never a setting
+
+function readExpanded(): boolean {
+  try {
+    return localStorage.getItem(EXPANDED_KEY) === '1';
+  } catch {
+    return false; // storage blocked: the default layout
+  }
+}
+
+function writeExpanded(on: boolean): void {
+  try {
+    if (on) localStorage.setItem(EXPANDED_KEY, '1');
+    else localStorage.removeItem(EXPANDED_KEY);
+  } catch {
+    /* storage blocked: this page view only */
+  }
+}
 
 export type EmbedPhase = 'loading' | 'waiting' | 'ready' | 'unsupported' | 'login_required' | 'not_installed' | 'unreachable' | 'blocked';
 /** Which adapter drives the frame: before the handshake / discovery, the embed API v1, the older panel, or neither. */
@@ -250,6 +286,8 @@ export class WiskeyEmbed extends LitElement {
   @state() private frameKey = 0;
   /** Set when this tab does not nest Home Assistant (reflected for the evidence specs and the host style). */
   @property({ reflect: true, attribute: 'data-direct' }) direct: DirectReason = '';
+  /** "הגדל" (desktop only, see the header): the embed covers SMPLWISE's top bar, rail and tab row. */
+  @property({ type: Boolean, reflect: true, attribute: 'data-expanded' }) expanded = readExpanded();
   private forbidden = false;
   private connector: WiskeyConnector | null = null;
   /** v1: the location the frame was opened on (its URL) - asked for, never taken as confirmed. */
@@ -271,6 +309,17 @@ export class WiskeyEmbed extends LitElement {
   private panelEl: PanelEl | null = null;
   private guarded = new WeakSet<Element>();
   private frameWin: Window | null = null;
+  /** Experimental phone embed: framed inside the Companion app through the sign-in relay. */
+  private phoneRelay = false;
+  private bridge: CompanionBridge | null = null;
+  /** Where the relay's proxies went for the frame's current document (reflected on the frame for the evidence specs). */
+  @state() private shim: ShimState = '';
+  /** The relay could not guarantee "no bus, no revoke" for a document (native / late / failed): the frame was dropped. */
+  @state() private relayRefused: ShimState = '';
+  /** "הגדל" actually in force (desktop, framed): the shell is covered and inert, Esc leaves it. */
+  private expandedActive = false;
+  private inerted: HTMLElement[] = [];
+  private desktopMq = window.matchMedia('(min-width: 768px)');
 
   static styles = css`
     :host {
@@ -355,9 +404,32 @@ export class WiskeyEmbed extends LitElement {
       color: var(--sw-accent-text);
       font-weight: 600;
     }
+    /* "הגדל" (desktop, framed only): over SMPLWISE's top bar, rail and tab row; the frame gets the viewport minus the
+       embed's own bar, which then carries the WisKey tab row */
+    .bar sw-tabs {
+      display: none;
+    }
+    @media (min-width: 768px) {
+      :host([data-expanded][data-direct='']) {
+        position: fixed;
+        /* below the system alert banner, which sw-app raises to the top edge while expanded */
+        inset: var(--sw-banner-h, 0px) 0 0 0;
+        z-index: calc(var(--sw-z-topbar) + 1);
+        block-size: auto;
+        background: var(--sw-surface);
+      }
+      :host([data-expanded][data-direct='']) .bar sw-tabs {
+        display: block;
+      }
+    }
+    @media (max-width: 767px) {
+      [data-wiskey-expand] {
+        display: none;
+      }
+    }
     .stage {
       position: relative;
-      flex: 1;
+      flex: 1 1 auto;
       min-block-size: 360px;
       display: flex;
       background: var(--sw-surface);
@@ -392,9 +464,13 @@ export class WiskeyEmbed extends LitElement {
       return;
     }
     if (isCompanionApp()) {
-      // the app signs Home Assistant in through its native bridge, which a nested frame cannot use: never frame it
-      this.direct = 'companion';
-      return;
+      // the app signs Home Assistant in through its native bridge, which a nested frame cannot use by itself: frame it
+      // only with the experimental relay switched on and a bridge to relay; otherwise never
+      this.phoneRelay = WISKEY_PHONE_EMBED && !!bridgeWindow() && this.direct !== 'companion';
+      if (!this.phoneRelay) {
+        this.direct = 'companion';
+        return;
+      }
     }
     // v1: a WisKey tab / tool link is sent as a message first; its history entry is written once the panel confirms
     window.addEventListener('click', this.onClick, true);
@@ -409,11 +485,18 @@ export class WiskeyEmbed extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('click', this.onClick, true);
+    this.desktopMq.removeEventListener('change', this.onMq);
+    this.setExpandedActive(false);
     this.dropFrame();
     this.detached = true;
   }
 
+  protected firstUpdated() {
+    this.desktopMq.addEventListener('change', this.onMq);
+  }
+
   protected updated(changed: PropertyValues<this>) {
+    this.syncExpanded();
     this.ensureConnector();
     const moved = (changed.has('tab') && changed.get('tab') !== undefined) || (changed.has('tool') && changed.get('tool') !== undefined);
     if (moved && !this.forbidden && !this.direct) this.onRequest();
@@ -446,8 +529,12 @@ export class WiskeyEmbed extends LitElement {
     if (!f) return;
     this.resetFrameState();
     this.opened = this.request();
+    // the relay watches the frame from before its address is assigned (the connector assigns it right away)
+    this.bridge?.dispose();
+    this.bridge = this.phoneRelay ? attachCompanionBridge(f, (s) => this.onShim(s)) : null;
     this.connector = attachWiskey(f, {
       initial: this.opened,
+      extraParams: this.bridge ? { external_auth: '1' } : undefined,
       onReady: (c) => this.onReady(c),
       onLocation: (l) => this.onLocation(l),
       onTitle: (t) => (this.panelTitle = t),
@@ -480,6 +567,9 @@ export class WiskeyEmbed extends LitElement {
     this.stopTimers();
     this.connector?.dispose();
     this.connector = null;
+    this.bridge?.dispose();
+    this.bridge = null;
+    this.shim = '';
     const f = this.frame();
     if (f) {
       try {
@@ -497,6 +587,7 @@ export class WiskeyEmbed extends LitElement {
    * otherwise a fresh frame opens what the route asks for. */
   private reload() {
     this.direct = '';
+    this.relayRefused = '';
     if (this.connector && this.mode === 'v1') {
       // the old catalog goes before the deliberate reload (contract §5.2); the panel reopens its last confirmed place
       this.resetFrameState();
@@ -758,7 +849,7 @@ export class WiskeyEmbed extends LitElement {
       if (!this.panelEl?.isConnected || this.panelEl.ownerDocument !== doc) this.panelEl = deepFind(doc, PANEL_TAG) as PanelEl | null;
       const panel = this.panelEl;
       if (!panel) {
-        if (Date.now() - this.loadedAt > PANEL_TIMEOUT_MS) {
+        if (Date.now() - this.loadedAt > (this.bridge ? RELAY_PANEL_TIMEOUT_MS : PANEL_TIMEOUT_MS)) {
           // Home Assistant's page answered but never connected: its sign-in did not complete inside the frame (the
           // Companion bridge waits for a token the app delivers to its top document only) - not "not Home Assistant"
           if (!ha.hass) return this.goDirect();
@@ -843,6 +934,16 @@ export class WiskeyEmbed extends LitElement {
     this.timer = window.setInterval(() => this.tick(), KEEP_MS);
   }
 
+  /** The relay's outcome for the frame's current document. Only `early` (every proxy in place before Home Assistant's
+   * scripts ran) keeps the frame; anything else would leave the app's real bridge (its bus, its revoke) inside it, so
+   * the frame goes at once and the tab shows the 0.1.123 screen (security review 2026-09-29, M1). */
+  private onShim(s: ShimState) {
+    this.shim = s;
+    if (s === 'early') return;
+    this.relayRefused = s;
+    this.goDirect();
+  }
+
   /** Home Assistant cannot sign in inside the frame: drop the frame and show the tab without nesting. */
   private goDirect() {
     this.dropFrame();
@@ -896,15 +997,21 @@ export class WiskeyEmbed extends LitElement {
   /** The tab without a nested Home Assistant: the SMPLWISE screen where one exists, otherwise a short note. */
   private renderDirect() {
     const label = TAB_LABELS[this.tab] ?? this.tab;
-    const phone = this.direct === 'companion';
-    const note = phone
-      ? 'בטלפון WisKey נפתח באפליקציה עצמה'
-      : 'Home Assistant מבקש התחברות בתוך המסגרת, ולכן WisKey נפתח ב־Home Assistant עצמו';
+    // the experimental phone embed that could not sign in counts as the phone case (no new-window link in the app)
+    const phone = this.direct === 'companion' || this.phoneRelay;
+    const note =
+      this.direct === 'companion'
+        ? 'בטלפון WisKey נפתח באפליקציה עצמה'
+        : this.phoneRelay && this.relayRefused
+          ? 'ההטמעה באפליקציה (ניסיוני) לא נתמכת במכשיר הזה, ולכן WisKey נפתח באפליקציה עצמה'
+          : this.phoneRelay
+          ? 'ההטמעה באפליקציה (ניסיוני) לא הצליחה להתחבר, ולכן WisKey נפתח באפליקציה עצמה'
+          : 'Home Assistant מבקש התחברות בתוך המסגרת, ולכן WisKey נפתח ב־Home Assistant עצמו';
     const screen = SMPLWISE_SCREEN[this.tab];
     const only = wiskeySegmentOf(this.tab);
     return html`
       <div class="bar" data-wiskey-embed-bar>
-        <span class="note ${phone ? '' : 'warn'}" data-wiskey-embed-note=${this.direct}>${note}</span>
+        <span class="note ${this.direct === 'companion' ? '' : 'warn'}" data-wiskey-embed-note=${this.direct} ?data-phone-relay=${this.phoneRelay} data-relay-refused=${this.relayRefused}>${note}</span>
         <span class="grow"></span>
         ${screen ? this.openInHaButton() : nothing}
         ${phone ? nothing : this.fullLink()}
@@ -920,11 +1027,61 @@ export class WiskeyEmbed extends LitElement {
                   <sw-state-panel state="empty" heading=${`WisKey · ${label}`} hint=${`${note}. המסך "${label}" קיים רק בממשק של WisKey.`}></sw-state-panel>
                   <div class="actions">
                     ${this.openInHaButton('primary')}
-                    ${phone ? nothing : html`<sw-button size="sm" icon="refresh" data-wiskey-embed-retry @click=${() => this.reload()}>נסה שוב</sw-button>`}
+                    ${this.direct === 'companion' ? nothing : html`<sw-button size="sm" icon="refresh" data-wiskey-embed-retry @click=${() => this.reload()}>נסה שוב</sw-button>`}
                   </div>
                 </div>
               </div>`}
     `;
+  }
+
+  private toggleExpanded() {
+    this.expanded = !this.expanded;
+    writeExpanded(this.expanded);
+  }
+
+  private onMq = () => this.syncExpanded();
+
+  private onEsc = (e: KeyboardEvent) => {
+    if (e.key !== 'Escape' || !this.expandedActive || e.defaultPrevented) return;
+    this.toggleExpanded(); // Esc leaves "הגדל" (inside the frame the key belongs to WisKey)
+  };
+
+  /** "הגדל" is in force only on a desktop width with a frame (see the host style). */
+  private syncExpanded() {
+    this.setExpandedActive(this.isConnected && this.expanded && this.direct === '' && !this.forbidden && this.desktopMq.matches);
+  }
+
+  /** While expanded: the shell's rail, top bar, tab row and bottom nav are inert (Tab never reaches what is covered),
+   * the system alert banner is raised above the layer (sw-app `:host([data-wiskey-expanded]) .sysbanner`, and the layer
+   * starts below it), and Esc leaves. Everything is undone when it ends or the module is left. */
+  private setExpandedActive(on: boolean) {
+    if (on === this.expandedActive) return;
+    this.expandedActive = on;
+    const root = this.getRootNode();
+    const shell = root instanceof ShadowRoot ? (root.host as HTMLElement) : null;
+    shell?.toggleAttribute('data-wiskey-expanded', on);
+    if (on) {
+      const covered = root instanceof ShadowRoot ? Array.from(root.querySelectorAll<HTMLElement>('nav.rail, header.topbar, nav.bottom, main > :not(.screen)')) : [];
+      this.inerted = covered.filter((el) => !el.inert);
+      for (const el of this.inerted) el.inert = true;
+      window.addEventListener('keydown', this.onEsc);
+    } else {
+      for (const el of this.inerted) el.inert = false;
+      this.inerted = [];
+      window.removeEventListener('keydown', this.onEsc);
+    }
+  }
+
+  /** "הגדל" / "צמצם" (desktop; hidden on a phone, where the frame already has the screen below the top bar). */
+  private expandButton() {
+    const on = this.expanded;
+    return html`<sw-button size="sm" variant="ghost" icon=${on ? 'close' : 'expand'} data-wiskey-expand aria-pressed=${String(on)} title=${on ? 'החזר את סרגל SMPLWISE ואת שורת הלשוניות' : 'הגדל את WisKey לכל גובה החלון; שורת הלשוניות עוברת לסרגל הזה'} @click=${() => this.toggleExpanded()}>${on ? 'צמצם' : 'הגדל'}</sw-button>`;
+  }
+
+  /** Expanded, the shell's tab row is covered: the same WisKey tabs, in the embed's bar (hidden by CSS otherwise). */
+  private expandedTabs() {
+    if (!this.expanded) return nothing;
+    return html`<sw-tabs data-wiskey-bar-tabs .items=${visibleTabs(WISKEY_TABS, isApi(), canNav)} .active=${activeTabOf(parseRoute())}></sw-tabs>`;
   }
 
   private fullLink() {
@@ -968,11 +1125,13 @@ export class WiskeyEmbed extends LitElement {
     return html`
       <div class="bar" data-wiskey-embed-bar>
         <span class="note">WisKey · <span class="title" data-wiskey-embed-title>${heading}</span></span>
+        ${this.expandedTabs()}
         ${this.statusNote()}
         <span class="grow"></span>
         ${this.phase === 'ready' || this.phase === 'waiting'
           ? html`<sw-button size="sm" variant="ghost" icon="refresh" data-wiskey-embed-refresh title="טען מחדש את WisKey במסך הנוכחי (שינויים שלא נשמרו בתוך WisKey יאבדו)" @click=${() => this.reload()}>רענן</sw-button>`
           : nothing}
+        ${this.expandButton()}
         ${this.fullLink()}
       </div>
       ${this.renderTools()}
@@ -987,6 +1146,7 @@ export class WiskeyEmbed extends LitElement {
             data-tab-applied=${this.tabApplied === null ? '' : String(this.tabApplied)}
             data-confirmed-tab=${confirmed?.tab ?? ''}
             data-confirmed-tool=${confirmed?.tool ?? ''}
+            data-companion-shim=${this.shim}
             title="WisKey"
             ?data-hidden=${failed}
             allow="autoplay; microphone; camera; fullscreen; clipboard-write"
