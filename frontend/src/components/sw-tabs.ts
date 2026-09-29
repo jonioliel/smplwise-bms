@@ -33,6 +33,29 @@ export class SwTabs extends LitElement {
     :host::-webkit-scrollbar {
       display: none;
     }
+    /* CR-013: a row wider than its box scrolls sideways (snapping to tabs) and fades at the edge that hides more tabs,
+       so a clipped label reads as "more this way" rather than a cut word. The fade masks the box, not the tabs. */
+    :host {
+      scroll-snap-type: x proximity;
+      scroll-padding-inline: 24px;
+      overscroll-behavior-x: contain;
+    }
+    a,
+    button {
+      scroll-snap-align: start;
+    }
+    :host([data-fade='left']) {
+      -webkit-mask-image: linear-gradient(to right, transparent 0, #000 32px);
+      mask-image: linear-gradient(to right, transparent 0, #000 32px);
+    }
+    :host([data-fade='right']) {
+      -webkit-mask-image: linear-gradient(to left, transparent 0, #000 32px);
+      mask-image: linear-gradient(to left, transparent 0, #000 32px);
+    }
+    :host([data-fade='both']) {
+      -webkit-mask-image: linear-gradient(to right, transparent 0, #000 32px, #000 calc(100% - 32px), transparent 100%);
+      mask-image: linear-gradient(to right, transparent 0, #000 32px, #000 calc(100% - 32px), transparent 100%);
+    }
     :host([underline]) {
       display: flex;
       background: transparent;
@@ -57,6 +80,8 @@ export class SwTabs extends LitElement {
       font-weight: var(--sw-fw-medium);
       cursor: pointer;
       white-space: nowrap;
+      /* a host may ask for taller touch targets (the shell's phone tab row, CR-013) */
+      min-block-size: var(--sw-tab-min-h, auto);
       transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease);
     }
     a:hover,
@@ -88,6 +113,66 @@ export class SwTabs extends LitElement {
       color: var(--sw-accent-text);
     }
   `;
+
+  private resizeObs: ResizeObserver | null = null;
+  private onScroll = () => this.updateFade();
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.addEventListener('scroll', this.onScroll, { passive: true });
+    this.resizeObs = new ResizeObserver(() => {
+      this.revealActive();
+      this.updateFade();
+    });
+    this.resizeObs.observe(this);
+  }
+
+  disconnectedCallback() {
+    this.removeEventListener('scroll', this.onScroll);
+    this.resizeObs?.disconnect();
+    this.resizeObs = null;
+    super.disconnectedCallback();
+  }
+
+  protected updated(changed: Map<string, unknown>) {
+    if (changed.has('active') || changed.has('items')) this.revealActive();
+    this.updateFade();
+  }
+
+  /** Which physical edges hide tabs (direction-agnostic: compares the tabs' boxes with this box). */
+  private updateFade() {
+    const kids = this.renderRoot.querySelectorAll<HTMLElement>('a, button');
+    if (!kids.length || this.scrollWidth <= this.clientWidth + 1) {
+      this.removeAttribute('data-fade');
+      return;
+    }
+    const box = this.getBoundingClientRect();
+    let minLeft = Infinity;
+    let maxRight = -Infinity;
+    kids.forEach((k) => {
+      const r = k.getBoundingClientRect();
+      minLeft = Math.min(minLeft, r.left);
+      maxRight = Math.max(maxRight, r.right);
+    });
+    const left = minLeft < box.left - 1;
+    const right = maxRight > box.right + 1;
+    const fade = left && right ? 'both' : left ? 'left' : right ? 'right' : '';
+    if (fade) this.setAttribute('data-fade', fade);
+    else this.removeAttribute('data-fade');
+  }
+
+  /** Bring the active tab fully into view inside the row (never scrolls the page). */
+  private revealActive() {
+    const on = this.renderRoot.querySelector<HTMLElement>('.on');
+    if (!on || this.scrollWidth <= this.clientWidth + 1) return;
+    const box = this.getBoundingClientRect();
+    const r = on.getBoundingClientRect();
+    const pad = 24;
+    let delta = 0;
+    if (r.left < box.left + pad) delta = r.left - (box.left + pad);
+    else if (r.right > box.right - pad) delta = r.right - (box.right - pad);
+    if (delta) this.scrollBy({ left: delta, behavior: 'instant' as ScrollBehavior });
+  }
 
   private choose(item: TabItem) {
     this.active = item.id;

@@ -38,15 +38,15 @@ async function noOverflow(page: Page) {
 test.describe('CR-010 navigation: אבטחה › לייב | חקירה | אזעקה (demo data)', () => {
   test.skip(process.env.SW_LIVE === '1', 'demo-data part: runs against the static preview');
 
-  test('the rail / bottom bar: אבטחה · מפה · חשמל · WisKey · מערכת - live and investigate are sections, not areas', async ({ page }, info) => {
+  test('the rail / bottom bar: ראשי · אבטחה · מפה · WisKey (CR-013; מערכת moved into the user menu) - live and investigate are sections, not areas', async ({ page }, info) => {
     await open(page, '/live');
     const phone = info.project.name === 'mobile';
     const nav = phone ? BOTTOM : RAIL;
-    const hrefs = await page.locator(`${nav} a`).evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? '').filter((h) => h !== '#/screens' && h !== '#/styleguide' && h !== '#/live'));
-    expect(hrefs).toEqual(['#/security', '#/explore/sites', '#/devices/building', '#/wiskey/overview', '#/system/diagnostics']);
+    const hrefs = await page.locator(`${nav} a[data-nav]`).evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''));
+    expect(hrefs).toEqual(['#/devices/building', '#/security', '#/explore/sites', '#/wiskey/overview']);
     await expect(page.locator(`${nav} a[href="#/security"]`)).toHaveClass(/active/);
-    // the sections: a segmented control in the top bar, on every width
-    const sections = page.locator(SECTIONS);
+    // the sections: a segmented control in the top bar; on the phone (no top bar since CR-013) a sticky row above the tabs
+    const sections = page.locator(phone ? 'sw-app nav[data-security-row]' : SECTIONS);
     await expect(sections).toBeVisible();
     await expect(sections.locator('a')).toHaveText(['לייב', 'חקירה', 'אזעקה']);
     await expect(sections.locator('a[data-section="live"]')).toHaveAttribute('aria-current', 'page');

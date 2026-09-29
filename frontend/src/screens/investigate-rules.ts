@@ -4,7 +4,7 @@ import '../components/sw-page';
 import '../components/sw-dialog';
 import '../components/sw-chip';
 import '../components/sw-state-panel';
-import { isApi } from '../api/session';
+import { can, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { loadTree, type CatalogTree } from '../api/catalog';
 import { listCameras } from '../api/maps';
@@ -42,7 +42,11 @@ const RULE_TEMPLATES: { id: string; label: string; body: Partial<RuleBody> }[] =
 
 @customElement('investigate-rules')
 export class InvestigateRules extends LitElement {
+  /** CR-013: the user menu's "התראות" opens this screen on its alerts (`?tab=alerts`). */
+  @property() initialTab = '';
   @state() private tab = 'rules';
+  /** A user who may read alerts (events.read) but not manage rules: the alerts only. */
+  @state() private rulesForbidden = false;
   @state() private rules: Rule[] = [];
   @state() private alerts: RuleAlert[] = [];
   @state() private unacked = 0;
@@ -61,6 +65,10 @@ export class InvestigateRules extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    // rules need rules.manage at installation scope (routers/rules.py); without it this screen is the alerts inbox only,
+    // decided before the first paint so the rules tab and "חוק חדש" never flash
+    this.rulesForbidden = isApi() && !can('rules.manage');
+    if (this.initialTab === 'alerts' || this.rulesForbidden) this.tab = isApi() ? 'alerts' : 'notif';
     if (isApi()) void this.load();
   }
 
@@ -68,11 +76,23 @@ export class InvestigateRules extends LitElement {
     this.loading = true;
     this.error = '';
     try {
-      const [r, a] = await Promise.all([listRules(), listAlerts()]);
-      this.rules = r.rules;
-      this.meta = { types: r.types, sources: r.sources, days: r.days };
+      const noRules = Promise.reject(new ApiError(403, { code: 'forbidden', user_message: '', retryable: false, correlation_id: '', details: {} }));
+      noRules.catch(() => undefined);
+      const [rs, as] = await Promise.allSettled([this.rulesForbidden ? noRules : listRules(), listAlerts()]);
+      if (as.status === 'rejected') throw as.reason;
+      const a = as.value;
       this.alerts = a.alerts;
       this.unacked = a.unacked;
+      if (rs.status === 'rejected') {
+        // CR-013: the alerts inbox is reachable from the user menu with events.read alone; rules need rules.manage
+        if (!(rs.reason instanceof ApiError && rs.reason.status === 403)) throw rs.reason;
+        this.rulesForbidden = true;
+        this.tab = 'alerts';
+        return;
+      }
+      const r = rs.value;
+      this.rules = r.rules;
+      this.meta = { types: r.types, sources: r.sources, days: r.days };
       if (!this.tree) {
         const [tree, cams] = await Promise.all([loadTree(), listCameras()]);
         this.tree = tree;
@@ -225,8 +245,8 @@ export class InvestigateRules extends LitElement {
     if (this.error && !this.rules.length && !this.editing) return html`<sw-page heading="התראות וחוקי אוטומציה"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel></sw-page>`;
     return html`
       <sw-page heading="התראות וחוקי אוטומציה" subheading="Trigger → היקף → חלון זמן → השהיה → התראה במערכת · הרצה יבשה לפני הפעלה · אין פקודות למכשירים">
-        <sw-button slot="actions" variant="primary" icon="plus" data-rule-new @click=${() => this.openEditor()}>חוק חדש</sw-button>
-        <sw-tabs .items=${[{ id: 'rules', label: 'חוקים', count: this.rules.length }, { id: 'alerts', label: 'התראות', count: this.unacked }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
+        ${this.rulesForbidden ? nothing : html`<sw-button slot="actions" variant="primary" icon="plus" data-rule-new @click=${() => this.openEditor()}>חוק חדש</sw-button>`}
+        <sw-tabs .items=${this.rulesForbidden ? [{ id: 'alerts', label: 'התראות', count: this.unacked }] : [{ id: 'rules', label: 'חוקים', count: this.rules.length }, { id: 'alerts', label: 'התראות', count: this.unacked }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
         ${this.error && !this.editing ? html`<div class="err">${this.error}</div>` : nothing}
         ${this.tab === 'rules'
           ? this.loading && !this.rules.length
@@ -246,7 +266,7 @@ export class InvestigateRules extends LitElement {
                   <div class="ic"><sw-icon name="bell" size=${16}></sw-icon></div>
                   <div class="txt"><b>${a.message || a.rule_name}</b><small>${a.rule_name} · ${a.camera_id ? `מצלמה ${a.camera_id}` : a.entity_id ?? ''} · <span class="ltr">${this.fmt(a.fired_at)}</span></small><small>${a.reasons.join(' · ')}</small></div>
                   <a href=${`#/investigate/events/${a.event_id}`}><sw-button size="sm" variant="ghost" icon="bell">לאירוע</sw-button></a>
-                  ${a.acked_at ? html`<span class="last">טופל · ${a.acked_by_username ?? ''}</span>` : html`<sw-button size="sm" icon="check" data-alert-ack ?disabled=${this.busy} @click=${() => void this.run(async () => { await ackAlert(a.id); })}>סמן כטופל</sw-button>`}
+                  ${a.acked_at ? html`<span class="last">טופל · ${a.acked_by_username ?? ''}</span>` : !can('events.ack') ? nothing : html`<sw-button size="sm" icon="check" data-alert-ack ?disabled=${this.busy} @click=${() => void this.run(async () => { await ackAlert(a.id); })}>סמן כטופל</sw-button>`}
                 </sw-card>`)
               : html`<sw-state-panel state="empty" heading="אין התראות" hint="התראות נוצרות כשאירוע חדש תואם חוק פעיל."></sw-state-panel>`}</div>`}
         ${this.renderEditor()}

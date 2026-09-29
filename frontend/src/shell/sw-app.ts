@@ -8,6 +8,12 @@ import '../components/sw-badge';
 import '../components/sw-tabs';
 import '../components/sw-avatar';
 import './sw-profile-menu';
+import './sw-user-menu';
+import './sw-nav-order';
+import { openAlertsText } from './sw-user-menu';
+import { loadNavOrder, navOrder, onNavOrder, resetNavOrder, saveNavOrder } from './nav-order';
+import { listAlerts } from '../api/rules';
+import { inAndroidShell } from '../arx/android-app';
 import '../screens/explore-floor-map';
 import '../screens/explore-sites';
 import '../screens/explore-floors';
@@ -50,7 +56,7 @@ import { onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
-import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, visibleAreas, visibleGroups, demoRedirect, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections } from './nav';
+import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, crumbsOf, visibleTabs, visibleAreas, visibleGroups, demoRedirect, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, type NavTabId } from './nav';
 import { bidi } from '../i18n/bidi';
 import { currentDesign, onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
@@ -66,6 +72,10 @@ import '../components/sw-page';
  * active entry as a soft-blue pill), a white top bar with a small search field, alerts and the HA
  * identity avatar, and the section's pages as a quiet pill-tab row above the content. Phones use a
  * bottom bar; narrow tablets collapse the side nav to icons.
+ * CR-013 (design SW A): the user avatar is the navigation's last item - the side rail's foot and the phone bottom
+ * bar's last slot - and opens the user menu (sw-user-menu: התראות, סדר הלשוניות, מערכת, sign-out); the bell is gone
+ * (a red dot on the avatar); the phone has no top bar (the security sections become a sticky row above the tab row);
+ * the tabs follow the user's own order (nav-order.ts, stored on the server).
  */
 @customElement('sw-app')
 export class SwApp extends LitElement {
@@ -95,6 +105,19 @@ export class SwApp extends LitElement {
   private permToastTimer = 0;
   private stopDesign?: () => void;
   private stopWiskeyNav?: () => void;
+  /** CR-013: the user menu (from the avatar, the navigation's last item), the tab-order dialog, the open alerts
+   * (the avatar's red dot; null = this user may not read alerts) and this user's tab order. */
+  @state() private menuOpen = false;
+  @state() private orderOpen = false;
+  @state() private alertCount: number | null = null;
+  @state() private navOrder: NavTabId[] = navOrder();
+  private menuTrigger: HTMLElement | null = null;
+  /** The phone layout (< 768 px): the user menu is a sheet, the tab row the underline variant. */
+  private phoneMq = window.matchMedia('(max-width: 767px)');
+  @state() private phone = this.phoneMq.matches;
+  private onPhoneMq = () => (this.phone = this.phoneMq.matches);
+  private stopNavOrder?: () => void;
+  private navOrderUser: string | null = null;
 
   static styles = css`
     :host {
@@ -823,19 +846,306 @@ export class SwApp extends LitElement {
         display: none;
       }
     }
+
+    /* ---- CR-013: the user as the navigation's last item; no top bar on the phone ---- */
+    :host {
+      /* the status-bar inset the page must keep clear of; the Android app's own WebView reserves it natively */
+      --sw-safe-top: env(safe-area-inset-top, 0px);
+    }
+    :host([data-android-shell]) {
+      --sw-safe-top: 0px;
+    }
+    nav.sections a .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    nav.secrow {
+      display: none;
+    }
+    button.me {
+      all: unset;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      cursor: pointer;
+      color: var(--sw-text-2);
+      -webkit-tap-highlight-color: transparent;
+    }
+    button.me .av {
+      position: relative;
+      display: inline-grid;
+      border-radius: 50%;
+      box-shadow: 0 0 0 2px var(--sw-surface), 0 0 0 3px transparent;
+      transition: box-shadow var(--sw-t-fast) var(--sw-ease);
+    }
+    /* review M9: a neutral grey circle; blue only while the menu is open or on the settings (the avatar's own area) */
+    button.me sw-avatar {
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
+      transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease);
+    }
+    button.me.open sw-avatar,
+    button.me.active sw-avatar {
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+    }
+    @media (hover: hover) {
+      button.me:hover .av {
+        box-shadow: 0 0 0 2px var(--sw-surface), 0 0 0 4px var(--sw-surface-3);
+      }
+    }
+    button.me:focus-visible {
+      outline: 2px solid var(--sw-focus);
+      outline-offset: 2px;
+      border-radius: 12px;
+    }
+    button.me .dot {
+      position: absolute;
+      inset-block-start: -1px;
+      inset-inline-end: -1px;
+      inline-size: 11px;
+      block-size: 11px;
+      border-radius: 50%;
+      background: var(--sw-danger);
+      border: 2px solid var(--sw-surface);
+      box-sizing: border-box;
+    }
+    button.me .lbl {
+      max-inline-size: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    button.me.rail {
+      inline-size: 70px;
+      min-block-size: 64px;
+      padding: 6px 0 4px;
+      border-radius: 12px;
+      font-size: 11.5px;
+      font-weight: var(--sw-fw-medium);
+    }
+    button.me.rail.open {
+      background: var(--sw-surface-3);
+      color: var(--sw-text);
+    }
+    button.me.rail.active {
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+      font-weight: var(--sw-fw-semibold);
+    }
+    button.me.bottom {
+      display: none;
+    }
+    .menu-pills {
+      display: contents;
+    }
+    .menu-pills .status-a {
+      display: inline-flex;
+      padding: 5px 10px;
+      background: var(--sw-surface-2);
+      border: 1px solid var(--sw-border);
+    }
+    .setup-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+      font-size: 12.5px;
+      font-weight: var(--sw-fw-semibold);
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    @media (max-width: 767px) {
+      :host([data-design='a']) {
+        grid-template-rows: minmax(0, 1fr) auto;
+        grid-template-areas:
+          'main'
+          'bottom';
+      }
+      /* the kiosk and the Lovelace card view have no bars and keep the whole screen (review M5) */
+      :host([data-design='a']:not([data-kiosk]):not([data-embed])) {
+        padding-block-start: var(--sw-safe-top);
+      }
+      :host([data-design='a']) header.topbar {
+        display: none;
+      }
+      /* the degraded-system alert keeps the top edge (below the status bar) now that no top bar is there */
+      :host([data-design='a']) .sysbanner {
+        inset-block-start: var(--sw-safe-top);
+        padding-inline: 12px;
+      }
+      /* the setup progress moved into the user menu's header (a pill), with the health pill and "נתוני הדגמה" */
+      :host([data-design='a']) .setuphint {
+        display: none;
+      }
+      /* review M7: only the section selector stays (slim, sticky); the page's tab row is the second level - the underline
+         variant - and scrolls away with the content. Its tabs keep 44 px targets (review M8). */
+      :host([data-design='a']) .subnav {
+        padding: 2px 12px 0;
+        --sw-tab-min-h: 44px;
+      }
+      :host([data-design='a']) .subnav sw-tabs {
+        align-self: stretch;
+      }
+      :host([data-design='a']) nav.secrow {
+        position: sticky;
+        inset-block-start: var(--sw-banner-h, 0px);
+        z-index: 4;
+        display: flex;
+        flex: none;
+        gap: 0;
+        padding: 0 12px;
+        border-radius: 0;
+        background: var(--sw-bg);
+        border-block-end: 1px solid var(--sw-border);
+      }
+      /* the track is drawn slim (34px); each segment keeps a 44px tap target */
+      :host([data-design='a']) nav.secrow::before {
+        content: '';
+        position: absolute;
+        inset: 5px 12px;
+        border-radius: 10px;
+        background: var(--sw-surface-3);
+      }
+      :host([data-design='a']) nav.secrow a {
+        position: relative;
+        flex: 1;
+        justify-content: center;
+        min-block-size: 44px;
+        padding: 0 3px;
+        background: none;
+        box-shadow: none;
+        border-radius: 0;
+        font-size: 13px;
+      }
+      :host([data-design='a']) nav.secrow a .pill {
+        justify-content: center;
+        inline-size: 100%;
+        block-size: 28px;
+        border-radius: 8px;
+        transition: background var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
+      }
+      :host([data-design='a']) nav.secrow a.on {
+        background: none;
+        box-shadow: none;
+      }
+      :host([data-design='a']) nav.secrow a.on .pill {
+        background: var(--sw-surface);
+        box-shadow: var(--sw-shadow-1), 0 0 0 1px var(--sw-border);
+      }
+      :host([data-design='a']) nav.secrow a:focus-visible {
+        outline: none;
+      }
+      :host([data-design='a']) nav.secrow a:focus-visible .pill {
+        outline: 2px solid var(--sw-focus);
+      }
+      :host([data-design='a']) nav.bottom {
+        position: relative;
+        z-index: var(--sw-z-topbar);
+        box-shadow: 0 -6px 18px rgba(34, 49, 76, 0.06);
+      }
+      :host([data-design='a']) nav.bottom a,
+      :host([data-design='a']) nav.bottom button.me {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        min-block-size: var(--sw-bottomnav-h);
+        min-inline-size: 44px;
+        padding: 4px 2px 5px;
+        font-size: 11px;
+        font-weight: var(--sw-fw-medium);
+        color: var(--sw-text-3);
+        -webkit-tap-highlight-color: transparent;
+      }
+      :host([data-design='a']) nav.bottom .ic {
+        display: grid;
+        place-items: center;
+        inline-size: 52px;
+        block-size: 30px;
+        border-radius: 15px;
+        transition: background var(--sw-t-med) var(--sw-ease), color var(--sw-t-med) var(--sw-ease);
+      }
+      :host([data-design='a']) nav.bottom a.active {
+        color: var(--sw-accent-text);
+        font-weight: var(--sw-fw-semibold);
+      }
+      :host([data-design='a']) nav.bottom a.active .ic {
+        background: var(--sw-accent-soft);
+        color: var(--sw-accent);
+      }
+      :host([data-design='a']) nav.bottom a:focus-visible,
+      :host([data-design='a']) nav.bottom button.me:focus-visible {
+        outline: none;
+      }
+      :host([data-design='a']) nav.bottom a:focus-visible .ic,
+      :host([data-design='a']) nav.bottom button.me:focus-visible .ic {
+        outline: 2px solid var(--sw-focus);
+      }
+      :host([data-design='a']) nav.bottom button.me.open {
+        color: var(--sw-text);
+      }
+      :host([data-design='a']) nav.bottom button.me.active {
+        color: var(--sw-accent-text);
+        font-weight: var(--sw-fw-semibold);
+      }
+      :host([data-design='a']) nav.bottom button.me.active .ic {
+        background: var(--sw-accent-soft);
+      }
+      :host([data-design='a']) nav.bottom button.me .dot {
+        inline-size: 9px;
+        block-size: 9px;
+        border-width: 1.5px;
+      }
+      :host([data-design='a']) nav.bottom .lbl {
+        max-inline-size: 72px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
   `;
 
-  /** True when the page opened without a route (or on the default one): the start-screen setting may redirect it. */
-  private landedDefault = ['', '#', '#/', '#/explore/floors/f0'].includes(window.location.hash);
+  /** True when the page opened without a route: the start screen decides where it lands. CR-013: an explicit
+   * #/explore/floors/f0 is a deep link like any other (it used to count as "no route" while the map was the default). */
+  private landedDefault = ['', '#', '#/'].includes(window.location.hash);
+
+  /** Replace the bare address with the start screen, now - not on the next hashchange, so no other screen mounts in between. */
+  private land(path: string) {
+    this.landedDefault = false;
+    window.location.replace(`#${path}`);
+    this.route = parseRoute(`#${path}`);
+  }
   /** The default screen waits for the product settings (the start-screen choice) before it renders - otherwise the
    * map's own floor redirect would race the start-screen redirect. */
   @state() private startResolved = false;
 
   connectedCallback() {
     super.connectedCallback();
+    this.toggleAttribute('data-android-shell', inAndroidShell()); // the app reserves the status bar itself (CR-013)
+    this.phoneMq.addEventListener('change', this.onPhoneMq);
+    window.addEventListener('popstate', this.onPopState);
+    this.stopNavOrder = onNavOrder((o) => (this.navOrder = o));
     this.stopSession = onSession((s) => {
       this.session = s;
       applyNvrLess(nvrLess()); // NVR-less mode: the NVR areas leave the navigation for everyone (nav.ts)
+      // CR-013: this user's tab order (cached copy at once, the server's copy when it answers) and open alerts
+      const who = s.mode === 'demo' ? 'demo' : s.me?.user.id ?? null;
+      if (who && who !== this.navOrderUser) {
+        this.navOrderUser = who;
+        void loadNavOrder(who, s.mode === 'api' || s.mode === 'no_access');
+      }
+      if (s.mode !== 'loading') void this.pollAlerts();
+      // the static demo has no start-screen setting: the bare address opens "ראשי"
+      if (s.mode === 'demo' && this.landedDefault) this.land(START_ROUTES.devices);
       if (s.mode !== 'loading') void resolveDesign();
       if (s.mode === 'api' && this.route) this.redirectDemo(this.route);
       if ((s.mode === 'api' || s.mode === 'no_access') && !this.stopPermissions) this.stopPermissions = watchPermissions(() => void this.onPermissionsChanged());
@@ -849,20 +1159,25 @@ export class SwApp extends LitElement {
           // "hidden for everyone" shape as hideMap above, applied to the whole WISKEY_TABS group at once.
           if (applyWiskeyHidden(ps as unknown as Record<string, unknown>)) for (const wt of WISKEY_TABS) HIDDEN_HREFS.add(wt.href ?? '');
           applyWiskeyUi(ps as unknown as Record<string, unknown>); // הגדרות › בקרות כניסה: embed or SMPLWISE per WisKey screen
-          // the start screen (0.1.68): only when the address carried no route of its own
-          const start = START_ROUTES[String(ps['ui.start_route'] ?? 'explore')] ?? START_ROUTES.explore;
+          // the start screen (0.1.68): only when the address carried no route of its own. CR-013: "ראשי" (the device
+          // overview) by default; a start screen this user does not see falls back to their first tab
+          const start = START_ROUTES[String(ps['ui.start_route'] ?? 'devices')] ?? START_ROUTES.devices;
           let target = hideMap && start.startsWith('/explore') ? '/live/wall' : start;
           // NVR-less mode: a start screen that needs the NVR opens the map (or, with the map hidden, the device control)
           if (NVR_LESS && isNvrRoute(parseRoute(`#${target}`))) target = hideMap ? START_ROUTES.devices : START_ROUTES.explore;
-          if (this.landedDefault && target !== START_ROUTES.explore) {
-            this.landedDefault = false;
-            window.location.replace(`#${target}`);
-            this.route = parseRoute(`#${target}`); // now, not on the next hashchange - the map must never mount in between
-          }
+          target = landingTarget(target, true, canNav, navOrder());
+          if (this.landedDefault) this.land(target);
           this.requestUpdate();
-        }).catch(() => undefined).finally(() => (this.startResolved = true));
+        }).catch(() => undefined).finally(() => {
+          // settings unreadable: still no bare address - "ראשי", or this user's first tab
+          if (this.landedDefault) this.land(landingTarget(START_ROUTES.devices, true, canNav, navOrder()));
+          this.startResolved = true;
+        });
         void this.pollSummary();
-        this.sysTimer = window.setInterval(() => void this.pollSummary(), 60_000);
+        this.sysTimer = window.setInterval(() => {
+          void this.pollSummary();
+          void this.pollAlerts();
+        }, 60_000);
         void this.loadSetupHint();
       }
     });
@@ -879,7 +1194,14 @@ export class SwApp extends LitElement {
       this.route = route;
       // T054 review: any navigation closes the bottom-nav overflow sheet, not just its own links - but not the WisKey
       // embed mirroring the panel's own moves into the address (replaced)
-      if (!replaced) this.moreOpen = false;
+      if (!replaced) {
+        this.moreOpen = false;
+        // CR-013: a menu item (or any navigation) closes the user menu and the tab-order dialog; their history entry
+        // is behind the new one now and simply stays (Back returns to the same screen)
+        this.overlayEntry = false;
+        this.closeMenu(false, false);
+        this.orderOpen = false;
+      }
       if (this.redirectDemo(route)) return;
       // CR-010: the security section in use, so #/security (the rail entry) reopens it
       const section = sectionOf(route);
@@ -929,6 +1251,9 @@ export class SwApp extends LitElement {
     window.clearTimeout(this.permToastTimer);
     this.stopDesign?.();
     this.stopWiskeyNav?.();
+    this.stopNavOrder?.();
+    this.phoneMq.removeEventListener('change', this.onPhoneMq);
+    window.removeEventListener('popstate', this.onPopState);
     window.removeEventListener('keydown', this.onGlobalKey);
     window.removeEventListener('sw-setup-state', this.onSetupState);
     window.clearInterval(this.sysTimer);
@@ -945,13 +1270,14 @@ export class SwApp extends LitElement {
     }
   }
 
-  private renderSysPill(designA: boolean) {
+  /** `inMenu`: the copy in the phone user menu's header (CR-013) - its own attribute, so [data-sys-pill] stays unique. */
+  private renderSysPill(designA: boolean, inMenu = false) {
     const s = this.sys;
-    if (!s) return designA ? html`<span class="status-a" data-sys-pill data-status="unknown"><i></i>מערכת מקומית</span>` : nothing;
+    if (!s) return designA ? html`<span class="status-a" ?data-sys-pill=${!inMenu} ?data-menu-sys-pill=${inMenu} data-status="unknown"><i></i>מערכת מקומית</span>` : nothing;
     const first = s.items.find((i) => i.status === 'error') ?? s.items[0];
     const text = s.status === 'ok' ? 'מערכת תקינה' : s.status === 'warn' ? 'יש מה לבדוק' : `תקלה: ${first?.label.split(' — ')[0] ?? ''}`;
     const title = s.items.length ? s.items.map((i) => `• ${i.label}`).join('\n') : 'כל הרכיבים שהמערכת רואה עובדים';
-    return html`<button class="status-a sys ${s.status} ${designA ? '' : 'b'}" data-sys-pill data-status=${s.status} title=${title} aria-label=${`מצב המערכת: ${text}`} @click=${() => (window.location.hash = '#/system/diagnostics?tab=health')}><i></i>${text}</button>`;
+    return html`<button class="status-a sys ${s.status} ${designA ? '' : 'b'}" ?data-sys-pill=${!inMenu} ?data-menu-sys-pill=${inMenu} data-status=${s.status} title=${title} aria-label=${`מצב המערכת: ${text}`} @click=${() => (inMenu ? this.navigateFromOverlay('#/system/diagnostics?tab=health') : (window.location.hash = '#/system/diagnostics?tab=health'))}><i></i>${text}</button>`;
   }
 
   private renderSysBanner() {
@@ -1210,7 +1536,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'exports') return html`<investigate-exports></investigate-exports>`;
         if (s[1] === 'search') return html`<investigate-search></investigate-search>`;
         if (s[1] === 'rules' && s[2]) return html`<investigate-rule-editor .ruleId=${s[2]}></investigate-rule-editor>`;
-        if (s[1] === 'rules') return html`<investigate-rules></investigate-rules>`;
+        if (s[1] === 'rules') return html`<investigate-rules .initialTab=${r.params.get('tab') ?? ''}></investigate-rules>`;
         return html`<investigate-playback></investigate-playback>`;
       case 'system':
         if (s[1] === 'audit') return html`<system-audit></system-audit>`;
@@ -1277,32 +1603,182 @@ export class SwApp extends LitElement {
       actionLabel="לחיבורים" @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
   }
 
+  // ---- CR-013: the user (avatar) as the navigation's last item, its menu and the tab order ----
+
+  private get userName(): string {
+    const me = this.session.me;
+    return me?.user.display_name || me?.user.username || (this.session.mode === 'demo' ? 'יוני' : '');
+  }
+
+  private get userRole(): string {
+    const me = this.session.me;
+    return me?.bindings[0]?.role_name ?? (this.session.mode === 'demo' ? 'מנהל מערכת' : this.session.mode === 'loading' ? '' : 'ללא שיוך');
+  }
+
+  /** The avatar's accessible name: who, and the open alerts (the red dot says it visually). */
+  private userLabel(): string {
+    const n = this.alertCount ?? 0;
+    return `תפריט המשתמש${this.userName ? ` · ${this.userName}` : ''}${n ? ` · ${openAlertsText(n)}` : ''}`;
+  }
+
+  /** The alert count for the red dot and the menu: the server's `unacked`, the open alerts in this user's scope
+   * (routers/rules.py filters by camera scope). Null = this user may not read alerts. Never inside the kiosk or the
+   * Lovelace card view: they have no user menu. */
+  private async pollAlerts() {
+    if (this.route?.segments[0] === 'kiosk' || this.embedded()) return;
+    if (this.session.mode === 'demo') {
+      this.alertCount = 0;
+      return;
+    }
+    if (this.session.mode !== 'api' || !canNav('events.read')) {
+      this.alertCount = null;
+      return;
+    }
+    try {
+      this.alertCount = (await listAlerts(true)).unacked;
+    } catch {
+      /* keep the last known count */
+    }
+  }
+
+  // ---- overlays and the Back button (review M4): while the phone sheet or the tab-order dialog is open, one history
+  // entry (same address) stands for it, so Back closes the overlay instead of leaving the screen underneath ----
+
+  private overlayEntry = false;
+
+  private pushOverlay() {
+    if (this.overlayEntry) return;
+    this.overlayEntry = true;
+    try {
+      window.history.pushState({ ...(window.history.state ?? {}), swOverlay: true }, '');
+    } catch {
+      this.overlayEntry = false;
+    }
+  }
+
+  /** The overlay closed by itself (✕, Esc, save): drop its history entry. */
+  private popOverlay() {
+    if (!this.overlayEntry) return;
+    this.overlayEntry = false;
+    if ((window.history.state as { swOverlay?: boolean } | null)?.swOverlay) window.history.back();
+  }
+
+  /** Where a menu item leads once its overlay entry is gone (navigateFromOverlay). */
+  private pendingHref: string | null = null;
+
+  /** A menu item's navigation: close the overlay, drop its history entry first (Back then returns to the screen the
+   * user was on, not to a duplicate of it), then go. */
+  private navigateFromOverlay(href: string) {
+    this.closeMenu(false, false);
+    this.orderOpen = false;
+    const own = this.overlayEntry && (window.history.state as { swOverlay?: boolean } | null)?.swOverlay;
+    this.overlayEntry = false;
+    if (own) {
+      this.pendingHref = href;
+      window.history.back();
+    } else {
+      window.location.hash = href;
+    }
+  }
+
+  private onPopState = (e: PopStateEvent) => {
+    if (this.pendingHref) {
+      const href = this.pendingHref;
+      this.pendingHref = null;
+      window.location.hash = href;
+      return;
+    }
+    if (!this.overlayEntry || (e.state as { swOverlay?: boolean } | null)?.swOverlay) return;
+    this.overlayEntry = false;
+    this.orderOpen = false;
+    this.closeMenu(true, false);
+  };
+
+  private openMenu(from: HTMLElement | null) {
+    this.menuTrigger = from;
+    this.menuOpen = true;
+    if (this.phone) this.pushOverlay();
+    void this.pollAlerts();
+  }
+
+  private closeMenu(restoreFocus = true, dropEntry = true) {
+    if (!this.menuOpen) return;
+    this.menuOpen = false;
+    if (dropEntry) this.popOverlay();
+    if (restoreFocus) this.menuTrigger?.focus({ preventScroll: true });
+  }
+
+  private renderMe(where: 'rail' | 'bottom') {
+    const n = this.alertCount ?? 0;
+    const first = this.userName.split(/\s+/)[0] || 'חשבון';
+    // review M6: the settings (#/system/...) are reached from here, so the avatar is the active item there
+    const here = areaOf(this.route) === 'system';
+    return html`<button type="button" class=${classMap({ me: true, [where]: true, open: this.menuOpen, active: here })} ?data-profile-menu=${where === 'rail'} ?data-nav-me=${where === 'bottom'} data-has-alerts=${n ? 'true' : 'false'}
+      aria-current=${here ? 'page' : 'false'} aria-haspopup="dialog" aria-expanded=${this.menuOpen ? 'true' : 'false'} aria-label=${this.userLabel()} title=${this.userLabel()}
+      @click=${(e: Event) => (this.menuOpen ? this.closeMenu(false) : this.openMenu(e.currentTarget as HTMLElement))}>
+      <span class="ic"><span class="av"><sw-avatar name=${this.userName} size=${where === 'rail' ? 36 : 26}></sw-avatar>${n ? html`<i class="dot" data-alert-dot aria-hidden="true"></i>` : nothing}</span></span><span class="lbl">${first}</span>
+    </button>`;
+  }
+
+  /** The status pills of the old phone top bar (demo data, the setup progress, the system health), now in the user
+   * menu's header on the phone (sw-user-menu shows the slot there only). */
+  private renderMenuPills() {
+    // only while the phone sheet is open: on a wide screen the top bar carries them (one [data-sys-pill] on the page)
+    if (!this.menuOpen || !this.phone) return nothing;
+    const h = this.setupHint;
+    return html`<span slot="pills" class="menu-pills">
+      ${this.session.mode === 'api' || this.session.mode === 'no_access' ? this.renderSysPill(true, true) : this.session.mode === 'demo' ? html`<sw-badge kind="neutral" label="נתוני הדגמה" data-demo-pill></sw-badge>` : nothing}
+      ${h ? html`<a class="setup-pill" href="#/system/wizard" data-setup-pill @click=${(e: Event) => { e.preventDefault(); this.navigateFromOverlay('#/system/wizard'); }}><sw-icon name="info" size=${14}></sw-icon>השלם את ההתקנה · ${h.done}/${h.total}</a>` : nothing}
+    </span>`;
+  }
+
+  private renderUserMenu() {
+    const api = this.session.mode === 'api';
+    const settings = this.gated ? null : settingsEntry(api, canNav);
+    const noTabs = this.gated || !visibleAreas(api, canNav, this.navOrder).length;
+    return html`<sw-user-menu .open=${this.menuOpen} .name=${this.userName} .role=${this.userRole} .api=${api} .gated=${noTabs} .alerts=${this.gated ? null : this.alertCount}
+        .settingsHref=${settings?.href ?? ''}
+        @close=${() => this.closeMenu()} @navigate=${(e: CustomEvent<{ href: string }>) => this.navigateFromOverlay(e.detail.href)} @nav-order=${() => {
+          // the sheet hands over to the dialog: its history entry now stands for the dialog
+          this.closeMenu(false, false);
+          this.orderOpen = true;
+          this.pushOverlay();
+        }}>${this.renderMenuPills()}</sw-user-menu>
+      <sw-nav-order .open=${this.orderOpen} .tabs=${visibleAreas(api, canNav, this.navOrder)} .order=${[...this.navOrder]}
+        .onSave=${(o: string[]) => saveNavOrder(o)} .onReset=${() => resetNavOrder()}
+        @close=${() => {
+          if (!this.orderOpen) return;
+          this.orderOpen = false;
+          this.popOverlay();
+          this.menuTrigger?.focus({ preventScroll: true });
+        }}></sw-nav-order>`;
+  }
+
   private renderA() {
     const area = areaOf(this.route);
     const api = this.session.mode === 'api';
     // CR-010: in the security area the tab row shows the current SECTION's pages; the sections themselves are the
-    // segmented control in the top bar (renderSections)
+    // segmented control in the top bar (renderSections) - on the phone, the first row above the tab row (CR-013)
     const section = area === 'security' ? sectionOf(this.route) : null;
     const tabs = section ? visibleTabs(SECTION_TABS[section], api, canNav) : area && area !== 'security' ? visibleTabs(AREA_TABS[area], api, canNav) : [];
     const editor = this.route?.segments[3] === 'edit' || this.route?.segments[3] === 'import';
     const crumbs = crumbsOf(this.route, this.session.mode === 'api');
-    const me = this.session.me;
-    const name = me?.user.display_name || me?.user.username || 'יוני';
+    const areas = visibleAreas(api, canNav, this.navOrder);
+    const showSections = area === 'security' && !this.gated;
     return html`
       <nav class="rail" aria-label="ניווט ראשי">
-        <a class="brand-tile" href=${this.session.mode === 'api' && NVR_LESS ? (HIDDEN_HREFS.has('#/explore/floors/f0') ? '#/devices/building' : '#/explore/floors/f0') : '#/live'} title="SmplWise"><span>S</span></a>
-        ${visibleAreas(this.session.mode === 'api', canNav).map(
-          (n) => html`<a class=${classMap({ item: true, a: true, active: area === n.id })} href=${n.href} title=${n.label} aria-current=${area === n.id ? 'page' : 'false'}>
+        <span class="brand-tile" aria-hidden="true"><span>S</span></span>
+        ${areas.map(
+          (n) => html`<a class=${classMap({ item: true, a: true, active: area === n.id })} href=${n.href} title=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}>
             <sw-icon .name=${n.icon} size=${23}></sw-icon><span>${n.label}</span>
           </a>`,
         )}
         <div class="grow"></div>
-        ${this.gated ? nothing : html`<a class=${classMap({ item: true, a: true, small: true, active: this.route?.segments[0] === 'screens' })} href="#/screens" title="כל המסכים"><sw-icon name="list" size=${16}></sw-icon><span>מסכים</span></a>`}
-        <div class="secure"><sw-icon name="shield" size=${18}></sw-icon><span>מקומי ומאובטח</span></div>
+        ${this.renderMe('rail')}
       </nav>
-      <header class=${classMap({ topbar: true, "has-sections": area === 'security' && !this.gated })}>
+      <header class=${classMap({ topbar: true, 'has-sections': showSections })}>
         <div class="crumbs-a">${crumbs.map((c, i) => html`${i ? html`<sw-icon name="chevron" size=${12}></sw-icon>` : nothing}<span class=${i === 0 ? 'strong' : ''}>${bidi(c)}</span>`)}</div>
-        ${area === 'security' && !this.gated ? this.renderSections(section) : nothing}
+        ${showSections ? this.renderSections(section) : nothing}
         ${this.renderSearch(true)}
         <span class="spacer"></span>
         ${this.session.mode === 'api' || this.session.mode === 'no_access'
@@ -1310,30 +1786,30 @@ export class SwApp extends LitElement {
           : this.session.mode === 'demo'
             ? html`<sw-badge kind="neutral" label="נתוני הדגמה"></sw-badge>`
             : nothing}
-        <sw-button class="bell" variant="ghost" size="sm" iconOnly icon="bell" label=${t('app.notifications')}></sw-button>${this.renderArxSignOut()}
-        <span class="user-a"><sw-profile-menu .name=${name} .size=${34} .role=${me?.bindings[0]?.role_name ?? ''} .api=${this.session.mode === 'api'}></sw-profile-menu><span class="who-a"><b>${name}</b><span>${me?.bindings[0]?.role_name ?? (this.session.mode === 'demo' ? 'מנהל מערכת' : 'ללא שיוך')}</span></span></span>
-        <span class="logo-a"><b>smplwise</b><small>Arx</small></span>
       </header>
       ${this.renderSysBanner()}
       <main>
         ${this.renderSetupHint()}
         ${this.renderGate() || html`
-          <div class="subnav">${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeAreaTab(this.route)}></sw-tabs>` : nothing}</div>
+          ${showSections && this.phone ? this.renderSections(section, true) : nothing}<div class="subnav">${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeAreaTab(this.route)} ?underline=${this.phone}></sw-tabs>` : nothing}</div>
           <div class="screen">${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}
       </main>
       <nav class="bottom" aria-label="ניווט ראשי">
-        ${visibleAreas(this.session.mode === 'api', canNav).map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href}><sw-icon .name=${n.icon} size=${20}></sw-icon>${n.label}</a>`)}
+        ${areas.map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}><span class="ic"><sw-icon .name=${n.icon} size=${21}></sw-icon></span><span class="lbl">${n.label}</span></a>`)}
+        ${this.renderMe('bottom')}
       </nav>
+      ${this.renderUserMenu()}
     `;
   }
 
-  /** CR-010: the security area's sections (לייב | חקירה | אזעקה) as a segmented control in the top bar - on every width,
-   * the phone included, so the three levels stay apart: area (rail / bottom bar), section (here), page (the tab row). */
-  private renderSections(active: ReturnType<typeof sectionOf>) {
+  /** CR-010: the security area's sections (לייב | חקירה | אזעקה) as a segmented control - in the top bar on a wide
+   * screen, and (CR-013, no top bar on the phone) as a slim sticky row above the tab row: area (rail / bottom bar),
+   * section (here), page (the tab row), each on its own level. `row` = the phone's copy inside the content. */
+  private renderSections(active: ReturnType<typeof sectionOf>, row = false) {
     const sections = visibleSections(this.session.mode === 'api', canNav);
     if (sections.length < 2) return nothing;
-    return html`<nav class="sections" aria-label="אבטחה" data-security-sections>${sections.map(
-      (s) => html`<a href=${s.href} class=${classMap({ on: s.id === active })} aria-current=${s.id === active ? 'page' : 'false'} data-section=${s.id}><sw-icon .name=${s.icon} size=${15}></sw-icon><span>${s.label}</span></a>`,
+    return html`<nav class=${row ? 'sections secrow' : 'sections'} aria-label="אבטחה" ?data-security-sections=${!row} ?data-security-row=${row}>${sections.map(
+      (s) => html`<a href=${s.href} class=${classMap({ on: s.id === active })} aria-current=${s.id === active ? 'page' : 'false'} data-section=${s.id}><span class="pill">${row ? nothing : html`<sw-icon .name=${s.icon} size=${15}></sw-icon>`}<span>${s.label}</span></span></a>`,
     )}</nav>`;
   }
 

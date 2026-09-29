@@ -255,6 +255,11 @@ test.describe('PWA shell (CR-008 P3)', () => {
     expect(withInset('header.topbar').length, rules.join('\n')).toBeGreaterThan(0);
     expect(withInset('nav.rail').length, rules.join('\n')).toBeGreaterThan(0);
     expect(withInset('nav.bottom').length, rules.join('\n')).toBeGreaterThan(0);
+    // CR-013: without a top bar on the phone the shell keeps the status-bar inset itself (--sw-safe-top), and the
+    // Android app's own WebView (which reserves the status bar natively) zeroes it
+    expect(rules.some((r) => r.includes('--sw-safe-top') && r.includes('safe-area-inset-top')), rules.join('\n')).toBe(true);
+    expect(rules.some((r) => r.includes('data-android-shell') && r.includes('--sw-safe-top: 0px')), rules.join('\n')).toBe(true);
+    expect(await page.evaluate(() => getComputedStyle(document.querySelector('sw-app')!).paddingTop)).toBe('0px'); // no notch in the test browser
   });
 
   test('update notice: רענון applies the waiting worker and reloads (stubbed registration)', async ({ page }) => {

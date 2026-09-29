@@ -664,7 +664,7 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
         embedBottom: e.bottom,
         bannerOnTop: !!hit && !!hit.closest('[data-sys-banner]'),
         shellMarked: (sr.host as HTMLElement).hasAttribute('data-wiskey-expanded'),
-        inert: ['nav.rail', 'header.topbar', 'main > .subnav'].map((s) => (sr.querySelector(s) as HTMLElement | null)?.inert ?? null),
+        inert: ['nav.rail', 'header.topbar', 'main > .subnav', 'sw-user-menu', 'sw-nav-order'].map((s) => (sr.querySelector(s) as HTMLElement | null)?.inert ?? null),
         screenInert: (sr.querySelector('main > .screen') as HTMLElement).inert,
       };
     });
@@ -673,7 +673,7 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     expect(Math.abs(g.embedTop - g.bannerBottom)).toBeLessThanOrEqual(1); // the layer starts right below it
     expect(Math.abs(g.embedBottom - 900)).toBeLessThanOrEqual(1);
     expect(g.shellMarked).toBe(true);
-    expect(g.inert).toEqual([true, true, true]); // Tab cannot reach the covered shell
+    expect(g.inert).toEqual([true, true, true, true, true]); // Tab cannot reach the covered shell (CR-013: nor the user menu / tab-order dialog)
     expect(g.screenInert).toBe(false);
     await page.screenshot({ path: testInfo.outputPath('wiskey-embed-expanded-banner.png') });
 
@@ -685,11 +685,11 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
       const sr = embed.getRootNode() as ShadowRoot;
       return {
         shellMarked: (sr.host as HTMLElement).hasAttribute('data-wiskey-expanded'),
-        inert: ['nav.rail', 'header.topbar', 'main > .subnav'].map((s) => (sr.querySelector(s) as HTMLElement | null)?.inert ?? null),
+        inert: ['nav.rail', 'header.topbar', 'main > .subnav', 'sw-user-menu', 'sw-nav-order'].map((s) => (sr.querySelector(s) as HTMLElement | null)?.inert ?? null),
         bannerTop: sr.querySelector('[data-sys-banner]')!.getBoundingClientRect().top,
       };
     });
-    expect(after).toEqual({ shellMarked: false, inert: [false, false, false], bannerTop: expect.any(Number) });
+    expect(after).toEqual({ shellMarked: false, inert: [false, false, false, false, false], bannerTop: expect.any(Number) });
     expect(after.bannerTop).toBeGreaterThan(0); // back under the top bar
   });
 

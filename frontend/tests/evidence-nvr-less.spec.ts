@@ -38,7 +38,8 @@ const STATES = [
 /** What each design's navigation must offer - and nothing else - in the NVR-less mode. CR-010: the security area stays
  * with its alarm section only (the alarm needs no NVR; the fixture's administrator holds alarm.view), and #/security
  * opens that section; design B's alarm entry likewise. */
-const NAV_A = ['#/security', '#/explore/sites', '#/devices/building', '#/wiskey/overview', '#/system/diagnostics'];
+// CR-013: ראשי (the device overview) first; מערכת lives in the user menu, not the bar
+const NAV_A = ['#/devices/building', '#/security', '#/explore/sites', '#/wiskey/overview'];
 const NAV_B = ['#/explore/sites', '#/security/alarm', '#/devices/building', '#/wiskey/overview', '#/system/diagnostics'];
 const NVR_HREFS = ['#/live', '#/live/wall', '#/investigate/events', '#/investigate/playback'];
 
@@ -101,7 +102,7 @@ test.describe('NVR-less mode (Home Assistant only)', () => {
     await shot(page, 'health', testInfo.project.name);
   });
 
-  test('design A: the rail (and the phone bottom nav) offer only security (the alarm), map, devices, WisKey and settings', async ({ page }, testInfo) => {
+  test('design A: the rail (and the phone bottom nav) offer only ראשי (devices), security (the alarm), map and WisKey; settings in the user menu', async ({ page }, testInfo) => {
     await open(page, '/explore/sites', 'a');
     const phone = testInfo.project.name === 'mobile';
     const sel = phone ? BOTTOM : RAIL;
@@ -109,6 +110,9 @@ test.describe('NVR-less mode (Home Assistant only)', () => {
     const hrefs = await navHrefs(page, sel);
     expect(hrefs.filter((h) => h !== '#/explore/floors/f0'), `nav: ${hrefs.join(', ')}`).toEqual(NAV_A);
     for (const h of NVR_HREFS) await expect(page.locator(`${sel} a[href="${h}"]`)).toHaveCount(0);
+    await page.locator(phone ? 'sw-app [data-nav-me]' : 'sw-app [data-profile-menu]').click();
+    await expect(page.locator('sw-app sw-user-menu [data-menu-settings]')).toHaveAttribute('href', '#/system/diagnostics');
+    await page.keyboard.press('Escape');
     if (phone) expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     await shot(page, 'nav-a', testInfo.project.name);
   });
@@ -179,7 +183,7 @@ test.describe('NVR-less mode (Home Assistant only)', () => {
     await open(page, '/system/diagnostics?tab=media');
     await expect(page.locator('system-diagnostics [data-nvr-less-settings]')).toBeVisible({ timeout: 30000 });
     await expect(page.locator('system-diagnostics [data-set-wall-count]')).toHaveCount(0);
-    await expect(page.locator('system-diagnostics [data-set-start-route] option')).toHaveText(['מפת קומה', 'חשמל והתקנים']);
+    await expect(page.locator('system-diagnostics [data-set-start-route] option')).toHaveText(['ראשי (ברירת מחדל)', 'מפת קומה']); // CR-013: ראשי (the device overview) is the default start screen
   });
 
   test('the map keeps working without cameras: sites, floors and the entity catalogue open, no camera layer', async ({ page, request }) => {

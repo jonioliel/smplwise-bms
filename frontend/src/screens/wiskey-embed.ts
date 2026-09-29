@@ -1051,7 +1051,7 @@ export class WiskeyEmbed extends LitElement {
     this.setExpandedActive(this.isConnected && this.expanded && this.direct === '' && !this.forbidden && this.desktopMq.matches);
   }
 
-  /** While expanded: the shell's rail, top bar, tab row and bottom nav are inert (Tab never reaches what is covered),
+  /** While expanded: the shell's rail, top bar, tab row, bottom nav, user menu and tab-order dialog (CR-013) are inert (Tab never reaches what is covered),
    * the system alert banner is raised above the layer (sw-app `:host([data-wiskey-expanded]) .sysbanner`, and the layer
    * starts below it), and Esc leaves. Everything is undone when it ends or the module is left. */
   private setExpandedActive(on: boolean) {
@@ -1061,7 +1061,7 @@ export class WiskeyEmbed extends LitElement {
     const shell = root instanceof ShadowRoot ? (root.host as HTMLElement) : null;
     shell?.toggleAttribute('data-wiskey-expanded', on);
     if (on) {
-      const covered = root instanceof ShadowRoot ? Array.from(root.querySelectorAll<HTMLElement>('nav.rail, header.topbar, nav.bottom, main > :not(.screen)')) : [];
+      const covered = root instanceof ShadowRoot ? Array.from(root.querySelectorAll<HTMLElement>('nav.rail, header.topbar, nav.bottom, main > :not(.screen), sw-user-menu, sw-nav-order')) : [];
       this.inerted = covered.filter((el) => !el.inert);
       for (const el of this.inerted) el.inert = true;
       window.addEventListener('keydown', this.onEsc);

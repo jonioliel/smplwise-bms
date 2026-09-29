@@ -5,14 +5,19 @@ import json
 import sqlite3
 import time
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, Query, Request, WebSocket
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
-from ..auth import current_principal_ro, get_read_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import Database, get_setting, now_iso, permission_revision
+from ..errors import validation
 from ..mode import installation_mode
 from ..rbac import INSTALLATION, Principal, bindings_of, effective_permissions, has_any_binding, permissions_anywhere, permissions_fingerprint
 from ..services import revocation
+from ..services import user_prefs
 
 router = APIRouter()
 
@@ -62,6 +67,37 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
         # NVR-less mode (mode.py): `ha_only` hides the NVR areas in the shell; every route still checks permissions itself
         "mode": installation_mode(settings_of(request)),
     }
+
+
+class PrefsPatch(BaseModel):
+    """A partial update of the caller's own preferences (CR-013). Only known keys are accepted (an unknown key is a
+    422, so this is never free-form client storage); null resets a key to its default."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    nav_order: list[Any] | None = Field(default=None, alias="nav.order", max_length=user_prefs.MAX_LIST)
+
+
+@router.get("/me/prefs")
+def get_my_prefs(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The caller's own interface preferences - every known key with its value or default (`stored` names the keys the
+    user set). Another user's preferences are never readable."""
+    return user_prefs.get_prefs(conn, principal.user_id)
+
+
+@router.put("/me/prefs")
+def put_my_prefs(body: PrefsPatch, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Set or reset (null) the caller's own preferences; `nav.order` keeps the known tab ids in the given order, drops
+    unknown ids and appends the missing ones in the default order. Presentation only: no permission changes."""
+    patch = {user_prefs_key(name): value for name, value in body.model_dump(by_alias=False).items() if name in body.model_fields_set}
+    try:
+        return user_prefs.set_prefs(conn, principal.user_id, patch)
+    except ValueError as exc:
+        raise validation("ההעדפה שנשלחה אינה תקינה.", reason=str(exc)) from exc
+
+
+def user_prefs_key(field: str) -> str:
+    return PrefsPatch.model_fields[field].alias or field
 
 
 @router.websocket("/me/ws")

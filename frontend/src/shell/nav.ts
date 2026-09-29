@@ -359,18 +359,31 @@ export interface AreaEntry {
   href: string;
 }
 
-/** WisKey (0.1.103): owner override 2026-09-27 - a genuine top-level area, a peer of live/explore/
+/** The navigation tabs of the rail (desktop, tablet) and the bottom bar (phone), in their default order.
+ * WisKey (0.1.103): owner override 2026-09-27 - a genuine top-level area, a peer of live/explore/
  * investigate/system, not nested under explore/מפה as phase 1a had it. Own top-level route namespace
  * (#/wiskey/...), matching how the other three areas each own their prefix.
- * CR-010: the order the owner asked for on the phone bottom bar - אבטחה · מפה · חשמל · WisKey · מערכת. */
+ * CR-013 (owner request 2026-09-29): ראשי · אבטחה · מפה · WisKey, then the user avatar (not a tab: always last, not
+ * movable). "ראשי" is the device overview that was "חשמל" (CR-007) - renamed with a home icon, the screen itself is
+ * unchanged. "מערכת" left the bar: it is an item of the user menu, for users who hold a settings permission
+ * (SYSTEM_AREA). Each user may reorder the tabs (nav-order.ts, stored on the server). */
 export const NAV_A: AreaEntry[] = [
+  { id: 'devices', icon: 'home', label: 'ראשי', href: '#/devices/building' },
   { id: 'security', icon: 'shield', label: 'אבטחה', href: '#/security' },
   { id: 'explore', icon: 'map', label: 'מפה', href: '#/explore/sites' },
-  /** CR-007 (2026-09-28): "חשמל והתקנים" - the short rail label; the page heading carries the full name. */
-  { id: 'devices', icon: 'bolt', label: 'חשמל', href: '#/devices/building' },
   { id: 'wiskey', icon: 'door', label: 'WisKey', href: '#/wiskey/overview' },
-  { id: 'system', icon: 'system', label: 'מערכת', href: '#/system/diagnostics' },
 ];
+
+/** The ids of the movable tabs, in the default order (the server keeps the same list: services/user_prefs.py). */
+export type NavTabId = 'devices' | 'security' | 'explore' | 'wiskey';
+export const NAV_TAB_IDS: NavTabId[] = NAV_A.map((n) => n.id as NavTabId);
+
+/** "מערכת" (the settings area): a route area of its own (crumbs, tabs) but, since CR-013, reached from the user menu. */
+export const SYSTEM_AREA: AreaEntry = { id: 'system', icon: 'system', label: 'מערכת', href: '#/system/diagnostics' };
+
+/** The settings tabs every signed-in user has (their own push notification preferences): holding only these is not
+ * "a settings permission" - the user menu offers them as their own item instead of "מערכת". */
+export const PERSONAL_SYSTEM_HREFS = new Set<string>(['#/system/notifications']);
 
 /** The security area's sections and their pages (CR-010). */
 export const SECTION_TABS: Record<SecuritySection, TabItem[]> = {
@@ -428,6 +441,8 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'storage', label: 'אחסון', href: '#/system/storage' },
     { id: 'wizard', label: 'אשף התקנה', href: '#/system/wizard' },
     { id: 'setup', label: 'חיבורים', href: '#/system/setup' },
+    /** CR-013 review M10: the screen catalogue left the user menu; a system administrator reaches it from here */
+    { id: 'screens', label: 'כל המסכים', href: '#/screens' },
   ],
 };
 
@@ -474,7 +489,7 @@ export function activeAreaTab(r: RouteState | null): string {
 export function crumbsOf(r: RouteState | null, api = false): string[] {
   const a = areaOf(r);
   if (!a) return [];
-  const area = NAV_A.find((n) => n.id === a);
+  const area = a === 'system' ? SYSTEM_AREA : NAV_A.find((n) => n.id === a);
   const sec = a === 'security' ? SECURITY_SECTIONS.find((x) => x.id === sectionOf(r)) : undefined;
   const tabs = sec ? SECTION_TABS[sec.id] : AREA_TABS[a];
   const tab = tabs.find((x) => x.id === activeAreaTab(r));
@@ -599,6 +614,8 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   '#/system/setup': ['system.configure', 'sources.configure'],
   // T071: the wizard reads GET /setup/state, which needs system.configure at installation scope
   '#/system/wizard': ['system.configure'],
+  // CR-013: the screen catalogue (a design / support tool), for system administrators only
+  '#/screens': ['system.configure'],
 };
 
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
@@ -625,8 +642,11 @@ export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[
  * not dropped because its own default page is hidden: with הסתרת המפה the map area used to keep the WisKey tab
  * for this reason (T054); since 0.1.103 WisKey is its own top-level area (not an explore tab) and MAP_HREFS does not
  * name it, so הסתרת המפה has no effect on it at all - moot, confirmed, not stale logic. */
-export function visibleAreas(api: boolean, can?: Can): AreaEntry[] {
-  return NAV_A.flatMap((n) => {
+export function visibleAreas(api: boolean, can?: Can, order: readonly string[] = NAV_TAB_IDS): AreaEntry[] {
+  // CR-013: the user's own order (nav-order.ts); an id the order does not name keeps its default place at the end
+  const rank = (id: string) => (order.includes(id) ? order.indexOf(id) : order.length + NAV_TAB_IDS.indexOf(id as NavTabId));
+  const ordered = [...NAV_A].sort((x, y) => rank(x.id) - rank(y.id));
+  return ordered.flatMap((n) => {
     const tabs = visibleTabs(AREA_TABS[n.id], api, can);
     // the security area stays while any section is visible (the live overview needs nothing; in the NVR-less mode only
     // the alarm section can keep it), and keeps its own #/security href - the shell opens the last used section
@@ -635,6 +655,32 @@ export function visibleAreas(api: boolean, can?: Can): AreaEntry[] {
     const first = tabs[0]?.href;
     return [first && !tabs.some((t) => t.href === n.href) ? { ...n, href: first } : n];
   });
+}
+
+/** CR-013: the user menu's "מערכת" item - only for a user who holds a settings permission (a settings tab other than the
+ * personal ones is visible to them), opening on their first such tab; null otherwise. */
+export function settingsEntry(api: boolean, can?: Can): AreaEntry | null {
+  const tabs = visibleTabs(AREA_TABS.system, api, can).filter((t) => !PERSONAL_SYSTEM_HREFS.has(t.href ?? ''));
+  if (!tabs.length) return null;
+  return tabs.some((t) => t.href === SYSTEM_AREA.href) ? SYSTEM_AREA : { ...SYSTEM_AREA, href: tabs[0].href ?? SYSTEM_AREA.href };
+}
+
+/** CR-013: where the app opens when the address names no screen - the start screen of the settings (ראשי by default)
+ * when this user sees it, otherwise their first visible tab in their own order. */
+export function landingTarget(start: string, api: boolean, can: Can | undefined, order: readonly string[]): string {
+  const area = areaOf(parseRouteLite(start));
+  const tabs = area ? visibleTabs(AREA_TABS[area], api, can) : [];
+  if (tabs.some((t) => t.href === `#${start}`)) return start;
+  const first = visibleAreas(api, can, order)[0];
+  if (!first) return start;
+  return (first.id === 'security' ? securityTarget(api, can) : first.href).replace(/^#/, '');
+}
+
+/** A RouteState for a path, without the router's window dependency (nav.ts stays pure). */
+function parseRouteLite(path: string): RouteState {
+  const segments = path.split('?')[0].split('/').filter(Boolean);
+  const modes = ['live', 'explore', 'investigate', 'system', 'wiskey', 'devices', 'security'];
+  return { path, segments, params: new URLSearchParams(path.split('?')[1] ?? ''), mode: modes.includes(segments[0]) ? (segments[0] as RouteState['mode']) : null };
 }
 
 /** Design B's flat entries (seven since 0.1.103, see the NAV comment), by the same rule as visibleAreas: a group

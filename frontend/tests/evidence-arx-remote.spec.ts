@@ -30,6 +30,17 @@ test.beforeEach(async ({ context }) => {
   await context.setExtraHTTPHeaders({ 'CF-Connecting-IP': `198.18.${1 + Math.floor(Math.random() * 250)}.${1 + Math.floor(Math.random() * 250)}` });
 });
 
+/** Sign out of Arx. CR-013: design A carries the sign-out in the user menu (the avatar: the rail's foot, or the phone's
+ * bottom bar); design B keeps its top-bar icon. */
+async function signOut(page: Page) {
+  // the shell starts in design B and switches once the product settings arrive: decide after that
+  await page.waitForFunction(() => !!document.documentElement.dataset.design);
+  if (!(await page.locator('sw-app sw-button[data-arx-signout]').count())) {
+    await page.locator(test.info().project.name === 'mobile' ? 'sw-app [data-nav-me]' : 'sw-app [data-profile-menu]').click();
+  }
+  await page.locator('sw-app [data-arx-signout]').click();
+}
+
 async function routeHa(page: Page) {
   await page.route(`${ORIGIN}/auth/**`, async (route) => {
     const url = new URL(route.request().url());
@@ -87,7 +98,7 @@ test('a wrong password shows HA\'s error, then the viewer signs in, resumes afte
   const nav = test.info().project.name === 'mobile' ? page.locator('sw-app nav.bottom') : page.locator('sw-app nav.rail');
   await expect(nav).toBeVisible();
   await expect(nav.locator('a').first()).toBeVisible();
-  await expect(page.locator('sw-app [data-arx-signout]')).toBeVisible();
+  await expect(page.locator('sw-app [data-arx-signout]')).toHaveCount(1); // CR-013: in the user menu
 
   // the Arx session cookie: HttpOnly, SameSite=Strict, Path=/arx/ (plain http here, so not the __Secure- name)
   const cookie = (await context.cookies(ARX)).find((c) => c.name === 'arx_session');
@@ -117,7 +128,7 @@ test('a wrong password shows HA\'s error, then the viewer signs in, resumes afte
   await page.screenshot({ path: test.info().outputPath('arx-signed-in.png') });
 
   // sign-out: HA's refresh token revoked, the session gone, both stores cleared, the sign-in page again
-  await page.locator('sw-app [data-arx-signout]').click();
+  await signOut(page);
   await expect(page.locator('arx-login')).toBeVisible();
   await expect(page.locator('arx-login [data-arx-notice]')).toHaveText('יצאת מ־SmplWise Arx.');
   const after = await page.evaluate(() => ({ hass: localStorage.getItem('hassTokens'), arx: localStorage.getItem('arx.auth.v1') }));
@@ -142,7 +153,7 @@ test('a user with MFA gets the code step', async ({ page }) => {
   await expect(page.locator('sw-app')).toBeVisible();
   const me = await page.evaluate(async () => (await fetch('api/v1/me')).json());
   expect(me.user.id).toBe('u-mfa');
-  await page.locator('sw-app [data-arx-signout]').click();
+  await signOut(page);
   await expect(page.locator('arx-login')).toBeVisible();
 });
 
@@ -190,7 +201,7 @@ test('older HA: sign-in succeeds after the PKCE fallback', async ({ page }) => {
     const stores = await page.evaluate(() => ({ hass: localStorage.getItem('hassTokens'), arx: localStorage.getItem('arx.auth.v1') }));
     expect(JSON.parse(stores.hass ?? 'null')?.refresh_token).toBe(JSON.parse(stores.arx ?? 'null')?.refresh_token);
 
-    await page.locator('sw-app [data-arx-signout]').click();
+    await signOut(page);
     await expect(page.locator('arx-login')).toBeVisible();
   } finally {
     await page.request.post(`${FAKE}/fake/mode`, { data: { pkce: true } });
@@ -221,7 +232,7 @@ test('evidence screenshots for the owner', async ({ page }) => {
   await page.goto(ARX); // leave the MFA user half-way; sign in as the administrator
   await signIn(page, 'joni', 'pw-joni');
   await expect(page.locator('sw-app')).toBeVisible();
-  await expect(page.locator('sw-app .who-a b')).toHaveText('יוני אוליאל');
+  await expect(page.locator('sw-app sw-user-menu [data-user-name]')).toHaveText('יוני אוליאל'); // CR-013: the name lives in the user menu
   await page.waitForTimeout(800);
   await page.screenshot({ path: path.join(EVIDENCE, '05-map-after-sign-in.png') });
 
@@ -234,7 +245,7 @@ test('evidence screenshots for the owner', async ({ page }) => {
   await page.locator('system-access sw-table').getByText('דנה כהן').first().click();
   await expect(page.locator('system-access [data-remote-access-toggle]')).toBeVisible();
   await page.screenshot({ path: path.join(EVIDENCE, '07-user-remote-access-toggle.png') });
-  await page.locator('sw-app [data-arx-signout]').click();
+  await signOut(page);
   await expect(page.locator('arx-login')).toBeVisible();
 });
 

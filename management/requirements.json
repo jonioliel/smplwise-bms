@@ -4048,6 +4048,38 @@
     ]
   },
   {
+    "id": "R190",
+    "title": "מעטפת 1 — המשתמש כפריט האחרון בניווט, תפריט משתמש, בלי סרגל עליון בטלפון",
+    "statement": "Design A's rail (desktop, tablet) and phone bottom bar show ראשי (the device overview, home icon) · אבטחה · מפה · WisKey in the user's order, then the user avatar, always last; the avatar opens the user menu (a popover beside the rail, a bottom sheet on the phone) with a header (avatar, name, role; on the phone the health pill, the demo pill and the setup progress), התראות with the open-alert count first, סדר הלשוניות, הגדרות התראות, מערכת only for a user holding a settings permission, החלף שרת inside the Android app, כל המסכים, the user's own remote sign-ins and a destructive-styled sign-out (remote channel); the bell is removed and open alerts in the user's scope put a red dot on the avatar with the count in its accessible name; the desktop top bar keeps only the crumbs, the section control, the search and the health pill; the phone has no top bar, the security sections are a slim sticky row with 44 px targets above the page's tab row, which scrolls sideways with snap and an edge fade and keeps the active tab in view; the shell keeps the status-bar inset (zero inside the Android app's own WebView); the bare address lands on ראשי (ui.start_route default devices) or the user's first visible tab, deep links keep working (CR-013 §1-§2).",
+    "task_ids": [
+      "T094"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT190"
+    ]
+  },
+  {
+    "id": "R191",
+    "title": "מעטפת 2 — סדר לשוניות אישי שנשמר בשרת",
+    "statement": "Each user can reorder their navigation tabs in a dialog (drag handle with touch and mouse, up/down buttons, arrow/Home/End keys, a live announcement, save, reset to default); the order is stored per user on the server (GET/PUT /api/v1/me/prefs, key nav.order, migration 0037; unknown ids dropped, duplicates removed, missing tabs appended in the default order; unknown keys refused; null resets), applies to the rail and the phone bottom bar on every device, is cached locally per user id for the first paint with the server winning on load, never leaks to another user of the same browser, keeps hidden tabs in their stored place, and never shows a tab the user may not see (CR-013 §2.4).",
+    "task_ids": [
+      "T094"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT191"
+    ]
+  },
+  {
     "id": "R193",
     "title": "2FA 1 — מדיניות גורם שני בכניסה מרחוק",
     "statement": "Remote sign-in second factor by policy (CR-011 §4A): remote.mfa_policy off|admins|sensitive|all with a per-user override replaces remote.require_mfa_admin; for users under the policy the remote channel accepts only an Arx sign-in whose HA refresh token is type normal, client_id = this Arx address, auth_provider_type homeassistant, created after Arx first saw MFA enabled for the user (checked through auth/refresh_tokens and auth/current_user); long-lived access tokens and other clients' sign-ins are refused there; refusals are audited and explained.",

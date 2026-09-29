@@ -33,7 +33,9 @@ DEFAULTS: dict[str, str] = {
     "ui.kiosk_cols": "3",  # kiosk page layout when the URL carries none
     "ui.kiosk_rows": "2",
     "ui.hide_search": "false",  # hide the AI search tab (the owner's choice while it is not in use)
-    "ui.start_route": "explore",  # screen the UI opens on: explore (map) | live (overview) | wall | events | playback | devices
+    # screen the UI opens on: explore (map) | live (overview) | wall | events | playback | devices ("ראשי", the device overview).
+    # CR-013 (owner request 2026-09-29): "ראשי" is the default landing screen; an administrator's saved choice still wins.
+    "ui.start_route": "devices",
     "ui.hide_map": "false",  # hide the map area from the navigation for everyone (a single user: a role without map.read)
     # owner 2026-09-29 (overview tiles): the summary tiles' shape on the Live overview and the devices screens -
     # auto (compact under 600 px wide, cards above) | cards (tall, icon above) | compact (a rectangle, icon beside the

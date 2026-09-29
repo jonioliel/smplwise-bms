@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from ..audit import audit
-from ..auth import current_principal, get_conn
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..db import new_id, now_iso
 from ..errors import ApiError, conflict, not_found
 from ..rbac import INSTALLATION, Principal, require
@@ -129,18 +129,39 @@ def create_rule(body: RuleIn, request: Request, principal: Principal = Depends(c
     return _with_counts(conn, [svc.row_to_rule(_get(conn, rid))])[0]
 
 
+def _alert_scope_sql(sc: Any) -> tuple[str, list[Any]]:
+    """The caller's reach over rule_alerts as a WHERE fragment: a camera alert follows the camera scope, a camera-less
+    one the installation-wide grant (T055 M3). Everything = no fragment."""
+    if sc.everything:
+        return "1 = 1", []
+    parts: list[str] = []
+    params: list[Any] = []
+    cams = sc.cameras
+    if cams.everything:
+        parts.append("COALESCE(a.camera_id, '') <> ''")
+    elif cams.ids:
+        parts.append("a.camera_id IN (SELECT value FROM json_each(?))")
+        params.append(json.dumps(sorted(cams.ids)))
+    if sc.camera_less:
+        parts.append("COALESCE(a.camera_id, '') = ''")
+    return ("(" + " OR ".join(parts) + ")") if parts else "0 = 1", params
+
+
 @router.get("/rules/alerts")
-def list_alerts(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), unacked: bool = False, limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
-    """Alerts raised by local rules, filtered to the caller's cameras (events.read)."""
+def list_alerts(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), unacked: bool = False, limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
+    """Alerts raised by local rules, filtered to the caller's cameras (events.read). `unacked` counts the open alerts
+    in the caller's scope (CR-013: the shell's red dot and the user menu's count) - never installation-wide. Read-only:
+    the shell polls it."""
     # T055 M3: a camera alert follows the camera scope, a camera-less one the installation-wide grant
     sc = row_scope(conn, principal, "events.read")
     if not sc.any():
         require(conn, principal, "events.read", INSTALLATION)
-    sql = "SELECT a.*, r.name AS rule_name FROM rule_alerts a JOIN rules r ON r.id = a.rule_id" + (" WHERE a.acked_at IS NULL" if unacked else "") + " ORDER BY a.fired_at DESC, a.occurred_at DESC LIMIT ?"
-    rows = [svc.alert_row(r) for r in conn.execute(sql, (limit * 3 if not sc.everything else limit,)).fetchall()]
-    if not sc.everything:
-        rows = [a for a in rows if sc.allows_row(a["camera_id"])][:limit]
-    return {"alerts": rows, "unacked": conn.execute("SELECT COUNT(*) FROM rule_alerts WHERE acked_at IS NULL").fetchone()[0]}
+    where, params = _alert_scope_sql(sc)
+    sql = f"SELECT a.*, r.name AS rule_name FROM rule_alerts a JOIN rules r ON r.id = a.rule_id WHERE {where}" + (" AND a.acked_at IS NULL" if unacked else "") + " ORDER BY a.fired_at DESC, a.occurred_at DESC LIMIT ?"
+    rows = [svc.alert_row(r) for r in conn.execute(sql, (*params, limit)).fetchall()]
+    rows = [a for a in rows if sc.allows_row(a["camera_id"])]  # the SQL already filtered; the Python rule stays the authority
+    open_ = conn.execute(f"SELECT COUNT(*) FROM rule_alerts a WHERE {where} AND a.acked_at IS NULL", params).fetchone()[0]
+    return {"alerts": rows, "unacked": open_}
 
 
 @router.post("/rules/alerts/{alert_id}/ack")
