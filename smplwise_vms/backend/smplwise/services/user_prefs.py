@@ -1,0 +1,70 @@
+"""A user's own interface preferences (CR-013, migration 0037): a closed list of keys, each with its own validator, stored
+per user so the preference follows the user to every device. Nothing here is a permission: the navigation a user may
+see is decided by their bindings; `nav.order` only orders the tabs the shell already decided to show."""
+from __future__ import annotations
+
+import json
+import sqlite3
+from typing import Any, Callable
+
+from ..db import now_iso
+
+# The navigation tabs of the app shell in their default order (frontend/src/shell/nav.ts, NAV_A): ראשי (the device
+# overview), אבטחה, מפה, WisKey. The user avatar is always last and is not a tab. A new tab is appended to every stored
+# order at its default place by normalize_nav_order, so an older stored order never hides it.
+NAV_TAB_IDS: tuple[str, ...] = ("devices", "security", "explore", "wiskey")
+MAX_LIST = 32
+MAX_ID = 32
+
+
+def normalize_nav_order(value: Any) -> list[str]:
+    """Known ids in the stored order (unknown ids and duplicates dropped), then the missing ones in the default order."""
+    if not isinstance(value, list) or len(value) > MAX_LIST:
+        raise ValueError("nav.order must be a list of tab ids")
+    seen: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or len(item) > MAX_ID:
+            raise ValueError("nav.order items must be short strings")
+        if item in NAV_TAB_IDS and item not in seen:
+            seen.append(item)
+    return seen + [t for t in NAV_TAB_IDS if t not in seen]
+
+
+VALIDATORS: dict[str, Callable[[Any], Any]] = {"nav.order": normalize_nav_order}
+DEFAULTS: dict[str, Any] = {"nav.order": list(NAV_TAB_IDS)}
+
+
+def get_prefs(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
+    """Every known key, the stored value (re-normalized: the known ids may have grown since) or the default."""
+    rows = {r["key"]: r for r in conn.execute("SELECT key, value_json, updated_at FROM user_prefs WHERE user_id = ?", (user_id,)).fetchall()}
+    prefs: dict[str, Any] = {}
+    stored: list[str] = []
+    updated: str | None = None
+    for key, default in DEFAULTS.items():
+        row = rows.get(key)
+        value = default
+        if row is not None:
+            try:
+                value = VALIDATORS[key](json.loads(row["value_json"]))
+                stored.append(key)
+                updated = max(updated or "", row["updated_at"])
+            except (ValueError, TypeError, json.JSONDecodeError):
+                value = default  # an unreadable row is the default, never an error for the shell
+        prefs[key] = value
+    return {"prefs": prefs, "stored": stored, "updated_at": updated}
+
+
+def set_prefs(conn: sqlite3.Connection, user_id: str, patch: dict[str, Any]) -> dict[str, Any]:
+    """Apply a partial update: a validated value replaces the key, null deletes it (back to the default)."""
+    now = now_iso()
+    for key, raw in patch.items():
+        if raw is None:
+            conn.execute("DELETE FROM user_prefs WHERE user_id = ? AND key = ?", (user_id, key))
+            continue
+        value = VALIDATORS[key](raw)
+        conn.execute(
+            "INSERT INTO user_prefs(user_id, key, value_json, updated_at) VALUES (?,?,?,?) "
+            "ON CONFLICT(user_id, key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at",
+            (user_id, key, json.dumps(value, ensure_ascii=False), now),
+        )
+    return get_prefs(conn, user_id)
