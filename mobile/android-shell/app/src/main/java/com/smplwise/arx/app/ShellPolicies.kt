@@ -40,6 +40,15 @@ object InsetPolicy {
 
     fun pageHandlesInsets(webViewMajor: Int?): Boolean =
         webViewMajor != null && webViewMajor >= FIRST_WEBVIEW_WITH_SAFE_AREA
+
+    /**
+     * The Arx web app uses CSS `color-mix()` (Chromium 111), `dvh` units (108) and `:has()` (105). On the emulator's
+     * frozen WebView 101 the page rendered with wrong colours and a short layout. An older WebView gets a notice asking
+     * to update "Android System WebView"; unknown versions get none.
+     */
+    const val MIN_WEBVIEW_FOR_SITE = 111
+
+    fun webViewOutdated(webViewMajor: Int?): Boolean = webViewMajor != null && webViewMajor < MIN_WEBVIEW_FOR_SITE
 }
 
 /** The system-bar colours taken from the page (pure). */

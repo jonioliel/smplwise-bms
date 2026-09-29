@@ -35,6 +35,10 @@ class ShellPoliciesTest {
         assertTrue(InsetPolicy.pageHandlesInsets(151))
         assertFalse(InsetPolicy.pageHandlesInsets(139))
         assertFalse(InsetPolicy.pageHandlesInsets(null))
+        assertTrue(InsetPolicy.webViewOutdated(101)) // the API 33 emulator image's WebView
+        assertFalse(InsetPolicy.webViewOutdated(111))
+        assertFalse(InsetPolicy.webViewOutdated(140))
+        assertFalse(InsetPolicy.webViewOutdated(null))
     }
 
     @Test

@@ -88,6 +88,7 @@ class WebActivity : LockedActivity() {
     private val dev = BuildConfig.ALLOW_DEV_HTTP
     private var bridge = false
     private var pageInsets = false
+    private var webViewOutdated = false
     private var firstPageShown = false
     private var failedUrl: String? = null
 
@@ -165,9 +166,9 @@ class WebActivity : LockedActivity() {
         if (Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = false
         applyBars(BarColors.DEFAULT_THEME, BarColors.DEFAULT_BACKGROUND)
 
-        pageInsets = InsetPolicy.pageHandlesInsets(
-            InsetPolicy.webViewMajor(WebViewCompat.getCurrentWebViewPackage(this)?.versionName),
-        )
+        val webViewMajor = InsetPolicy.webViewMajor(WebViewCompat.getCurrentWebViewPackage(this)?.versionName)
+        pageInsets = InsetPolicy.pageHandlesInsets(webViewMajor)
+        webViewOutdated = InsetPolicy.webViewOutdated(webViewMajor)
         webView = WebView(this).apply { layoutParams = FrameLayout.LayoutParams(-1, -1) }
         webHolder.addView(webView, 0)
         configureWebView()
@@ -339,7 +340,8 @@ class WebActivity : LockedActivity() {
                     NavPolicy.Decision.APP_LINK -> handleAppLink(url)
                     NavPolicy.Decision.BLOCK -> Unit
                 }
-                probe.post { probe.destroy() }
+                // not probe.post: a view that was never attached never runs its posted actions (seen on the emulator)
+                webView.post { probe.stopLoading(); probe.destroy() }
             }
             probe.webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(v: WebView, request: WebResourceRequest): Boolean {
@@ -644,8 +646,17 @@ class WebActivity : LockedActivity() {
         sheet.show()
     }
 
-    /** Once, after the first server has opened: where "החלף שרת" lives. */
+    /**
+     * After the first page: an outdated WebView gets a notice on every start (the site needs a current one); otherwise,
+     * once, where "החלף שרת" lives.
+     */
     private fun maybeShowSwitchHint() {
+        if (webViewOutdated) {
+            Snackbar.make(webHolder, R.string.webview_outdated, Snackbar.LENGTH_INDEFINITE)
+                .setAction(R.string.got_it) { }
+                .show()
+            return
+        }
         if (store.switchHintShown) return
         store.switchHintShown = true
         Snackbar.make(webHolder, R.string.first_open_hint, 8_000)

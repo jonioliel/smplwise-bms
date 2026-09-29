@@ -15,6 +15,7 @@ import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import com.google.android.material.button.MaterialButton
 
 /** Starts the app-lock bookkeeping for the whole process. */
@@ -116,6 +117,7 @@ abstract class LockedActivity : AppCompatActivity() {
     protected lateinit var store: ServerStore
     private var cover: View? = null
     private var prompting = false
+    private var lightIconsBefore: Boolean? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -150,6 +152,10 @@ abstract class LockedActivity : AppCompatActivity() {
         }
         view.visibility = View.VISIBLE
         view.bringToFront()
+        // the cover is light: dark status-bar icons while it shows (the screens underneath may use light ones)
+        val bars = WindowCompat.getInsetsController(window, window.decorView)
+        if (lightIconsBefore == null) lightIconsBefore = bars.isAppearanceLightStatusBars
+        bars.isAppearanceLightStatusBars = true
         onLockChanged(true)
         ask()
     }
@@ -158,6 +164,8 @@ abstract class LockedActivity : AppCompatActivity() {
         cover?.let {
             (it.parent as? ViewGroup)?.removeView(it)
             cover = null
+            lightIconsBefore?.let { before -> WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = before }
+            lightIconsBefore = null
             onLockChanged(false)
         }
     }

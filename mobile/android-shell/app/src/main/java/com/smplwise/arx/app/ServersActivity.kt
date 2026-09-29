@@ -63,10 +63,13 @@ class ServersActivity : LockedActivity() {
         setContentView(R.layout.activity_servers)
         // Edge-to-edge: the blue toolbar reaches under the status bar (light icons on it); the list pads itself.
         val toolbar = findViewById<View>(R.id.toolbar)
+        val barHeight = toolbar.minimumHeight // ?attr/actionBarSize
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.root)) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
             v.updatePadding(left = bars.left, right = bars.right, bottom = bars.bottom)
+            // the padding is inside the minimum height: grow it, so the title stays centred in its own bar
             toolbar.updatePadding(top = bars.top)
+            toolbar.minimumHeight = barHeight + bars.top
             insets
         }
         WindowCompat.getInsetsController(window, window.decorView).apply {
