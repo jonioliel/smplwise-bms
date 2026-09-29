@@ -589,6 +589,16 @@ Firebase or Google Play services dependency. This replaces §3d.2's "Capacitor l
   cookie, nothing in the system download database, `.apk` refused) and M3 (link and dialogs held back while locked,
   Back to the background) seen; M3 also found a regression of the M5 change - cancelling the lock prompt unlocked the
   app - fixed before the release build (a shown lock stays until the user is confirmed).
+- **Re-review of 2.0.1: approved** (the owner installed 2.0.1; the app lock, including cancelling the prompt, works on
+  his phone). Four residual lows fixed in **2.0.2 (versionCode 3)**: (1) nothing above the lock cover - the server's ⋮
+  menu and the delete confirmation wait for the unlock, the page's alert / confirm / prompt are refused while locked and
+  otherwise shown as the app's dialogs; (2) media behind the lock - the media guard now runs in every frame of the
+  server's origin, the WisKey intercom panel included: on lock all audio and video pause, microphone / camera tracks
+  stop, audio contexts are suspended, play() and getUserMedia are refused until the unlock, and nothing resumes by
+  itself; (3) a page can no longer stack server lists - "החלף שרת" from the page needs a tap, the list is single-top;
+  (4) one site screen at a time also after a process restart. Tests: 52 JVM unit tests; items 1-3 seen on the emulator
+  (a same-origin iframe outside `/arx/` locked with the app; no server list without a tap; `alert()` as the app's
+  dialog).
 
 ### P3 built (2026-09-29, branch `pilot/CR008-pwa-push`, not released)
 

@@ -212,24 +212,39 @@ class ServersActivity : LockedActivity() {
         }
     }
 
+    /** The ⋮ menu of a server; closed when the lock shows (security re-review, item 1). */
+    private var popup: PopupMenu? = null
+
+    override fun onLockChanged(locked: Boolean) {
+        if (locked) {
+            popup?.dismiss()
+            popup = null
+        }
+    }
+
     private fun showActions(anchor: View, server: Server, index: Int, count: Int) {
-        PopupMenu(this, anchor).apply {
+        if (locked) return
+        popup?.dismiss()
+        popup = PopupMenu(this, anchor).apply {
             menu.add(0, 1, 0, R.string.action_open)
             menu.add(0, 2, 1, R.string.action_edit)
             if (index > 0) menu.add(0, 3, 2, R.string.action_move_up)
             if (index < count - 1) menu.add(0, 4, 3, R.string.action_move_down)
             menu.add(0, 5, 4, R.string.action_delete)
             setOnMenuItemClickListener {
+                if (locked) return@setOnMenuItemClickListener true
                 when (it.itemId) {
                     1 -> open(server.url, server.url)
                     2 -> whenUnlocked { showServerDialog(server, null) }
                     3 -> { store.move(server.id, -1); render() }
                     4 -> { store.move(server.id, +1); render() }
-                    5 -> confirmDelete(server)
+                    5 -> whenUnlocked { confirmDelete(server) }
                 }
                 true
             }
-        }.show()
+            setOnDismissListener { if (popup === it) popup = null }
+            show()
+        }
     }
 
     private fun confirmDelete(server: Server) {

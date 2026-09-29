@@ -61,6 +61,16 @@ class WebPolicyTest {
     }
 
     @Test
+    fun switchingServersFromThePageNeedsARecentTouch() { // re-review, item 3
+        val t = 9_000_000L
+        assertFalse(NavPolicy.userActivated(t, null))
+        assertTrue(NavPolicy.userActivated(t, t))
+        assertTrue(NavPolicy.userActivated(t, t - 5_000))
+        assertFalse(NavPolicy.userActivated(t, t - 5_001))
+        assertFalse(NavPolicy.userActivated(t, t + 10)) // a touch "from the future" (state from before a reboot)
+    }
+
+    @Test
     fun rendererRestartsAreCapped() { // review L8
         val t = 5_000_000L
         assertTrue(NavPolicy.allowRendererRestart(t, null))

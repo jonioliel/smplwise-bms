@@ -176,6 +176,11 @@ abstract class LockedActivity : AppCompatActivity() {
         return dialog
     }
 
+    /** For a tracked dialog that installs its own dismiss listener: forget it when it closes. */
+    protected fun untrack(dialog: Dialog) {
+        dialogs.remove(dialog)
+    }
+
     /** Runs [action] now, or - when the app is locked or about to lock - right after the unlock. */
     protected fun whenUnlocked(action: () -> Unit) {
         if (locked || AppLock.isDue(store)) afterUnlock += action else action()
