@@ -95,6 +95,7 @@ Home Assistant, קומה (ו־go2rtc אם הוגדר). מסכי המצלמות, 
   בדיקה נרשמת ביומן הביקורת (`setup.check`).
 
 ![אשף התקנה: ה-NVR לא עונה — השלב נכשל עם ההסבר, מה עושים והקישור להגדרות ← חיבורים](img/setup-wizard.png)
-*צילום מה-build מול backend עם NVR ו-go2rtc מדומים (`frontend/tests/fixtures/setup_fake_devices.py`), לא מהמעבדה.*
+*צילום מהדגמה (NVR ו-go2rtc מדומים, `frontend/tests/fixtures/setup_fake_devices.py`) — מדגים שלב שנכשל; במערכת החיה כל השלבים הושלמו.*
 
-![אשף התקנה בטלפון: שלב ה-NVR הושלם עם הראיות (דגם, ערוצים, פרופילים, שעון)](img/setup-wizard-phone.png)
+![אשף התקנה בטלפון: כל ששת השלבים הושלמו — "מוכן לעבודה", עם הראיות של שלב ההתקנה](img/setup-wizard-phone.png)
+*צילום מהמערכת החיה.*
