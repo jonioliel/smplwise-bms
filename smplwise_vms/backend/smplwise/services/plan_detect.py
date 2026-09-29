@@ -10,7 +10,9 @@ the door widths when the plan is not calibrated. Nothing here is stored or publi
 candidates and a person accepts them (routers/plan_geometry.py).
 
 Tuned on the owner's real scans (T087, detector 1.1-1.2): before the gaps are classified, the sheet's own strokes well
-outside the building, dashed lines and the edges of a tribune (a regular stack of rows) are dropped."""
+outside the building, dashed lines and the edges of a tribune (a regular stack of rows) are dropped. Detector 1.3
+(hollow_v1): walls drawn as two thin lines with white between them are found by a second pass (plan_detect_hollow)
+and flagged `hollow` in the result; every wall carries the flag."""
 from __future__ import annotations
 
 import heapq
@@ -25,7 +27,7 @@ from PIL import Image
 from . import plan_stylize as ps
 from .plan_zones import rdp
 
-VERSION = "1.2"  # 1.1 (T087 tuning): reference strokes and dashed lines are not walls; 1.2: tribune edges
+VERSION = "1.3"  # 1.1 (T087 tuning): reference strokes and dashed lines are not walls; 1.2: tribune edges; 1.3: hollow walls
 ANALYSIS_PX = 1600  # the working resolution (design 9.1 / 9.6)
 TILT_PX = 800  # the cheap first pass that measures the tilt of a scan
 TILT_MIN_DEG = 0.15
@@ -332,11 +334,12 @@ def snap_axis(a: np.ndarray, b: np.ndarray, tol_deg: float = AXIS_TOL_DEG) -> tu
 class Seg:
     """A straight wall piece in analysis pixels. `thick`, `length` and `dir` are computed once when the piece is built
     (a merge builds a new Seg): merging and grouping compare them many times. `net` says the piece (or one it absorbed)
-    comes from a skeleton component that is not compact - the connected wall network, not a lone shape."""
-    __slots__ = ("a", "b", "samples", "axis", "raw", "thick", "length", "dir", "net")
+    comes from a skeleton component that is not compact - the connected wall network, not a lone shape. `hollow` is 0
+    for a solid piece, else the confidence of a hollow wall (plan_detect_hollow): two thin lines with white between."""
+    __slots__ = ("a", "b", "samples", "axis", "raw", "thick", "length", "dir", "net", "hollow")
 
-    def __init__(self, a: np.ndarray, b: np.ndarray, samples: list[float], axis: bool = False, raw: np.ndarray | None = None, net: bool = False) -> None:
-        self.a, self.b, self.samples, self.axis, self.net = a, b, samples, axis, net
+    def __init__(self, a: np.ndarray, b: np.ndarray, samples: list[float], axis: bool = False, raw: np.ndarray | None = None, net: bool = False, hollow: float = 0.0) -> None:
+        self.a, self.b, self.samples, self.axis, self.net, self.hollow = a, b, samples, axis, net, hollow
         self.raw = raw if raw is not None else _unit(a, b)  # the direction before any axis snapping (tilt estimate)
         self.thick = float(np.median(samples)) if samples else 2.0
         self.length = float(np.hypot(*(b - a)))
@@ -437,7 +440,7 @@ def merge_collinear(segs: list[Seg], join_px: float) -> list[Seg]:
                 if iv is None or iv[0] > cur.length + join_px or iv[1] < -join_px:
                     continue
                 d = cur.dir
-                cur = Seg(cur.a + d * min(0.0, iv[0]), cur.a + d * max(cur.length, iv[1]), cur.samples + segs[j].samples, cur.axis and segs[j].axis, cur.raw, cur.net or segs[j].net)
+                cur = Seg(cur.a + d * min(0.0, iv[0]), cur.a + d * max(cur.length, iv[1]), cur.samples + segs[j].samples, cur.axis and segs[j].axis, cur.raw, cur.net or segs[j].net, max(cur.hollow, segs[j].hollow))
                 used[j] = True
                 changed = True
                 for k in adj[j]:
@@ -507,7 +510,8 @@ def _analysis(gray: Image.Image, strength: float, analysis_px: int = ANALYSIS_PX
     # a one-pixel opening first: isolated scan speckles must not be closed into blobs (the raw ink keeps every line)
     walls = ps.opening(ps.closing(ps.opening(ink, 1), close_r), open_r)
     thin_ink = soft & ~ps.dilate(walls, 1)
-    out = {"aw": aw, "ah": ah, "factor": aw / width, "ink": soft, "ink_d": ps.dilate(soft, 1), "walls": walls, "thin": ps.dilate(thin_ink, 2), "threshold": thr}
+    # `dark`: the ink before any morphology, read by the hollow-wall pass (plan_detect_hollow) for thin strokes
+    out = {"aw": aw, "ah": ah, "factor": aw / width, "ink": soft, "ink_d": ps.dilate(soft, 1), "walls": walls, "thin": ps.dilate(thin_ink, 2), "threshold": thr, "dark": ink, "gray": g}
     if light:
         # the arc_v2 door model (plan_detect_doors) reads thin grey symbol lines: at least up to grey 200, however dark
         # the walls (a flat black plan puts Otsu's threshold at 90 and the soft ink at 140); only built behind its flag
@@ -895,21 +899,24 @@ def drop_steps_edges(segs: list[Seg], ink: np.ndarray, s: float) -> list[Seg]:
             out.append(g)
             continue
         lines = _lines_beside(g, ink, reach)[1:]
-        steps = False
-        for sign in (1.0, -1.0):
-            side = sorted(c * sign for c, _, _ in lines if c * sign > 0)
-            gaps = np.diff([0.0] + side[: STEPS_MIN_ROWS + 1])
-            rows = 0
-            for gp in gaps:
-                if st_lo <= gp <= st_hi:
-                    rows += 1
-                else:
-                    break
-            if rows >= STEPS_MIN_ROWS and max(gaps[:rows]) <= STEPS_REGULAR * min(gaps[:rows]):
-                steps = True
-        if not steps:
+        if not any(_steps_side(lines, sign, st_lo, st_hi) for sign in (1.0, -1.0)):
             out.append(g)
     return out
+
+
+def _steps_side(lines: list[tuple[float, float, float]], sign: float, st_lo: float, st_hi: float) -> bool:
+    """Whether the lines of _lines_beside on one side (`sign` of their offset) are the rows of a steps region: at
+    least STEPS_MIN_ROWS of them, each st_lo-st_hi px from the previous (the first from the line itself), evenly
+    (STEPS_REGULAR)."""
+    side = sorted(c * sign for c, _, _ in lines if c * sign > 0)
+    gaps = np.diff([0.0] + side[: STEPS_MIN_ROWS + 1])
+    rows = 0
+    for gp in gaps:
+        if st_lo <= gp <= st_hi:
+            rows += 1
+        else:
+            break
+    return rows >= STEPS_MIN_ROWS and max(gaps[:rows]) <= STEPS_REGULAR * min(gaps[:rows])
 
 
 # ---------------------------------------------------------------- openings
@@ -1081,9 +1088,20 @@ def walls_from_gaps(segs: list[Seg], s: float, calibrated: bool, thin_mask: np.n
     A gap with the face of a crossing wall at one end (_gap_status) never joins the pieces across that wall: a door or
     window found there belongs to the piece on its free side, whose wall then ends (or starts) at the crossing face;
     a passage there (no symbol to prove it) is not taken - a partition that ends at a crossing wall and a stub beyond
-    it are two walls. With crossing faces at both ends, a door or window stays with the current wall."""
+    it are two walls. With crossing faces at both ends, a door or window stays with the current wall.
+
+    A wall joined from pieces is hollow (Seg.hollow, the length-weighted confidence of its hollow pieces) when its
+    hollow pieces make at least half of its pieces' length."""
     walls: list[Seg] = []
     openings: list[dict[str, Any]] = []
+
+    def hollow_of(ids: list[int]) -> float:
+        total = sum(segs[k].length for k in ids)
+        hl = sum(segs[k].length for k in ids if segs[k].hollow)
+        if not hl or hl < 0.5 * total:
+            return 0.0
+        return round(sum(segs[k].length * segs[k].hollow for k in ids if segs[k].hollow) / hl, 3)
+
     for group in line_groups(segs):
         ref = max(group, key=lambda i: segs[i].length)
         base = segs[ref]
@@ -1095,6 +1113,7 @@ def walls_from_gaps(segs: list[Seg], s: float, calibrated: bool, thin_mask: np.n
         items.sort()
         d = base.dir
         cur_lo, cur_hi, cur_samples, cur_axis = items[0][0], items[0][1], list(segs[items[0][2]].samples), segs[items[0][2]].axis
+        cur_ids = [items[0][2]]
         pending: list[dict[str, Any]] = []
         for lo, hi, i in items[1:]:
             t_cur = max(float(np.median(cur_samples)), 2.0)
@@ -1116,25 +1135,26 @@ def walls_from_gaps(segs: list[Seg], s: float, calibrated: bool, thin_mask: np.n
                 if status == "cross1":  # the far end: the current wall runs on to the crossing face with the opening
                     pending.append(dict(found, along=(along0 + along1) / 2))
                     cur_hi = max(cur_hi, along1)
-                walls.append(Seg(base.a + d * cur_lo, base.a + d * cur_hi, cur_samples, cur_axis))
+                walls.append(Seg(base.a + d * cur_lo, base.a + d * cur_hi, cur_samples, cur_axis, hollow=hollow_of(cur_ids)))
                 for o in pending:
                     openings.append(dict(o, wall_seg=len(walls) - 1, t=(o["along"] - cur_lo) / max(cur_hi - cur_lo, 1e-9)))
                 pending = [] if status == "cross1" else [dict(found, along=(along0 + along1) / 2)]
                 cur_lo = lo if status == "cross1" else min(lo, along0)
-                cur_hi, cur_samples, cur_axis = hi, list(segs[i].samples), segs[i].axis
+                cur_hi, cur_samples, cur_axis, cur_ids = hi, list(segs[i].samples), segs[i].axis, [i]
                 continue
             if found is None:
-                walls.append(Seg(base.a + d * cur_lo, base.a + d * cur_hi, cur_samples, cur_axis))
+                walls.append(Seg(base.a + d * cur_lo, base.a + d * cur_hi, cur_samples, cur_axis, hollow=hollow_of(cur_ids)))
                 for o in pending:
                     openings.append(dict(o, wall_seg=len(walls) - 1, t=(o["along"] - cur_lo) / max(cur_hi - cur_lo, 1e-9)))
                 pending = []
-                cur_lo, cur_hi, cur_samples, cur_axis = lo, hi, list(segs[i].samples), segs[i].axis
+                cur_lo, cur_hi, cur_samples, cur_axis, cur_ids = lo, hi, list(segs[i].samples), segs[i].axis, [i]
                 continue
             pending.append(dict(found, along=base.project((g0 + g1) / 2)[0]))
             cur_hi = max(cur_hi, hi)
             cur_samples += segs[i].samples
             cur_axis = cur_axis and segs[i].axis
-        walls.append(Seg(base.a + d * cur_lo, base.a + d * cur_hi, cur_samples, cur_axis))
+            cur_ids.append(i)
+        walls.append(Seg(base.a + d * cur_lo, base.a + d * cur_hi, cur_samples, cur_axis, hollow=hollow_of(cur_ids)))
         for o in pending:
             openings.append(dict(o, wall_seg=len(walls) - 1, t=(o["along"] - cur_lo) / max(cur_hi - cur_lo, 1e-9)))
     return walls, openings
@@ -1227,6 +1247,15 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
     st = _stage(src, strength, ANALYSIS_PX, scale_m_per_px, deadline, light=door_model == "arc_v2")
     an, dt, s, calibrated, segs, aw, ah, f = st["an"], st["dt"], st["s"], st["calibrated"], st["segs"], st["aw"], st["ah"], st["f"]
     segs, outside_main, dropped_reference = drop_reference_strokes(segs, st["t_med"], s)
+    # T087 hollow_v1: walls drawn as two thin lines with white between (plan_detect_hollow), after the solid walls and
+    # their reference-stroke rule (which stays exactly as it was); a solid piece the closing made of part of such a
+    # pair is absorbed into it
+    from . import plan_detect_hollow as pdh
+
+    segs, hollow, hollow_stats = pdh.find_hollow(segs, an, s, st["t_med"], lambda: _check(deadline))
+    if hollow:
+        segs = segs + merge_collinear(hollow, join_px=max(1.5 * st["t_med"], 6.0))
+    _check(deadline)
     segs, dropped_dashed = drop_dashed_lines(segs, s, st["t_med"], an["ink"])
     segs = drop_steps_edges(segs, an["ink_d"], s)
     want_openings = "openings" in targets
@@ -1246,7 +1275,14 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
     mask = an["walls"]
     ys, xs = np.nonzero(mask)
     frame = (float(xs.min()), float(ys.min()), float(xs.max()), float(ys.max())) if xs.size else (0.0, 0.0, float(aw), float(ah))
-    t_wall_med = float(np.median([g.thick for g in walls])) if walls else st["t_med"]
+    hollow_walls = [g for g in walls if g.hollow]
+    if hollow_walls:  # a hollow outline is not in the wall mask: the frame reaches its outer faces
+        pts = np.array([p for g in hollow_walls for p in (g.a, g.b)])
+        pad = max(g.thick for g in hollow_walls) / 2
+        lo_h, hi_h = pts.min(axis=0) - pad, pts.max(axis=0) + pad
+        frame = (min(frame[0], lo_h[0]), min(frame[1], lo_h[1]), max(frame[2], hi_h[0]), max(frame[3], hi_h[1])) if xs.size else (lo_h[0], lo_h[1], hi_h[0], hi_h[1])
+    solid_walls = [g for g in walls if not g.hollow]  # the kinds of the solid walls do not depend on the hollow ones
+    t_wall_med = float(np.median([g.thick for g in solid_walls])) if solid_walls else st["t_med"]
 
     def on_frame(g: Seg) -> bool:
         """Both ends within 1.5 thicknesses of the same edge of the wall mask's bounding box: the wall runs along the
@@ -1260,14 +1296,18 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
     def kind_of(g: Seg) -> str:
         """Design 9.1 step 4: exterior when at least 1.6 x the median thickness or lying on the plan's frame; partition
         under 0.6 x; else interior. Known limit: the inner corner of an L-shaped outline is not on the frame and reads
-        interior unless it is thicker than the rest - the kind is a suggestion the editor changes in the panel."""
-        if g.thick >= 1.6 * t_wall_med or on_frame(g):
+        interior unless it is thicker than the rest - the kind is a suggestion the editor changes in the panel. A hollow
+        wall is exterior (the owner's scans draw the envelope that way)."""
+        if g.hollow or g.thick >= 1.6 * t_wall_med or on_frame(g):
             return "exterior"
         return "partition" if g.thick < 0.6 * t_wall_med else "interior"
 
     def confidence(g: Seg) -> float:
         """Design 9.1 step 5 (ruling 4): length (2 m and longer score full), thickness consistency (the interquartile
-        spread of the samples over the median) and straightness (on an axis, or not)."""
+        spread of the samples over the median) and straightness (on an axis, or not). A hollow wall carries its own
+        (plan_detect_hollow: length, blank interior, agreement with the plan's spacing; at most HOLLOW_CONF_MAX)."""
+        if g.hollow:
+            return float(g.hollow)
         arr = np.array(g.samples) if g.samples else np.array([g.thick])
         q1, q3 = np.percentile(arr, 25), np.percentile(arr, 75)
         consistency = 1.0 - min(1.0, (q3 - q1) / max(g.thick, 1e-6))
@@ -1285,7 +1325,7 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
     out_walls = [{
         "id": f"auto-{run_id}-w{i + 1:03d}", "level_id": level_id, "polyline": [back(g.a), back(g.b)],
         "thickness_m": round(max(0.02, g.thick * s), 3), "height_m": None, "base_z_m": 0, "kind": kind_of(g), "confidence": confidence(g),
-        "source": "auto", "locked": False, "external_ids": {},
+        "source": "auto", "locked": False, "external_ids": {}, "hollow": bool(g.hollow),
     } for i, g in enumerate(walls)]
     pixels = {w["id"]: {"thickness_px": round(walls[i].thick / f, 2)} for i, w in enumerate(out_walls)}
     # a wall of a group outside the main structure that was kept for its shape (drop_reference_strokes): its middle
@@ -1310,7 +1350,7 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
     if not calibrated and door_gaps:  # design 6.3: the median single door is DOOR_TYPICAL_M
         hint = {"scale_m_per_px": round(DOOR_TYPICAL_M / float(np.median(door_gaps)), 6), "status": "estimated", "method": "door_width", "reason": "לפי רוחב דלת אופייני", "doors": len(door_gaps)}
     params: dict[str, Any] = {"strength": strength, "targets": list(targets), "analysis_px": [aw, ah], "threshold": an["threshold"], "tilt_deg": round(tilt, 2)}
-    stats: dict[str, Any] = {"probe_segments": len(probe["segs"]), "segments": len(segs), "dropped_reference": dropped_reference, "dropped_dashed": dropped_dashed}
+    stats: dict[str, Any] = {"probe_segments": len(probe["segs"]), "segments": len(segs), "dropped_reference": dropped_reference, "dropped_dashed": dropped_dashed, "hollow": hollow_stats}
     if door_model != "gap":  # the default answer keeps its exact shape
         params["door_model"] = door_model
         stats["arc_v2"] = v2_stats or {}
