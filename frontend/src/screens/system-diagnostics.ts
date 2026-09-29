@@ -19,6 +19,8 @@ import { describeError, get } from '../api/client';
 import { navigate, parseRoute } from '../router';
 import { bridgePairing, haStatus, fmtTime, installBridge, type HaIntegrationStatus, type HaStatus } from '../api/ha';
 import { DEFAULT_NAMES, applyDesign, currentDesign, designOverride, parseNames, setDesignOverride, type DesignId } from '../api/design';
+import '../components/sw-kpi';
+import { TILE_LAYOUT_LABEL, TILE_LAYOUTS, resolveTileLayout, setInstallationTileLayout, setTileLayoutOverride, tileLayoutOverride, type TileLayoutSetting } from '../api/tile-layout';
 import { KIND_LABEL, TABLE_LABEL, backupDownloadUrl, createBackup, deleteBackup, fmtBytes, listBackups, restoreBackup, uploadBackup, type BackupEntry } from '../api/backup';
 import '../components/sw-dialog';
 import { STATUS_KIND, STATUS_LABEL, fmtUptime, healthReport, type HealthReport } from '../api/health';
@@ -263,6 +265,13 @@ export class SystemDiagnostics extends LitElement {
       margin-block-start: 8px;
       color: var(--sw-text);
       background: var(--sw-surface);
+    }
+    /* owner 2026-09-29: the live preview of "פריסת אריחים" (two sample tiles in the chosen shape) */
+    .tile-preview {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 170px));
+      gap: 8px;
+      padding-block: 4px 8px;
     }
     .foot {
       display: flex;
@@ -605,13 +614,23 @@ export class SystemDiagnostics extends LitElement {
     const names = parseNames(this.value('ui.design_names'));
     const design = (this.value('ui.design') as DesignId | undefined) ?? 'a';
     const override = designOverride();
-    const dirty = 'ui.design' in this.draft || 'ui.design_names' in this.draft;
+    const dirty = 'ui.design' in this.draft || 'ui.design_names' in this.draft || 'ui.tile_layout' in this.draft;
     const setName = (id: DesignId, v: string) => this.set('ui.design_names', JSON.stringify({ ...names, [id]: v.slice(0, 24) }));
+    // owner 2026-09-29: the summary tiles' shape (Live overview, devices screens) - installation default + this browser
+    const tileSetting = (this.value('ui.tile_layout') as TileLayoutSetting | undefined) ?? 'auto';
+    const tileOverride = tileLayoutOverride();
+    const previewLayout = resolveTileLayout(tileOverride ?? tileSetting);
     return html`<sw-card heading="עיצוב הממשק" subheading=${`פעיל עכשיו בדפדפן הזה: ${names[currentDesign()]}${override ? ' (עקיפה מקומית)' : ''}`}>
       <div class="row"><span class="lbl">ברירת המחדל של המערכת<span class="muted">חל על כל המשתמשים; כל אחד יכול לעקוף בדפדפן שלו</span></span><sw-field class="ctl"><select ?disabled=${!this.canEdit} @change=${(e: Event) => this.set('ui.design', (e.target as HTMLSelectElement).value as DesignId)}><option value="a" ?selected=${design === 'a'}>${names.a}</option><option value="b" ?selected=${design === 'b'}>${names.b}</option></select></sw-field></div>
       <div class="row"><span class="lbl">שם העיצוב החדש<span class="muted">ברירת מחדל: ${DEFAULT_NAMES.a} · העיצוב מחבילת 50 המסכים</span></span><sw-field class="ctl"><input maxlength="24" ?disabled=${!this.canEdit} .value=${names.a} @change=${(e: Event) => setName('a', (e.target as HTMLInputElement).value)} /></sw-field></div>
       <div class="row"><span class="lbl">שם העיצוב הקודם<span class="muted">ברירת מחדל: ${DEFAULT_NAMES.b} · הלוחות המקוריים</span></span><sw-field class="ctl"><input maxlength="24" ?disabled=${!this.canEdit} .value=${names.b} @change=${(e: Event) => setName('b', (e.target as HTMLInputElement).value)} /></sw-field></div>
       <div class="row"><span class="lbl">בדפדפן הזה בלבד<span class="muted">עקיפה אישית שנשמרת במכשיר; לא משנה את ברירת המחדל</span></span><sw-field class="ctl"><select @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; setDesignOverride(v === 'a' || v === 'b' ? v : null); if (v !== 'a' && v !== 'b') applyDesign(design); this.requestUpdate(); }}><option value="" ?selected=${!override}>לפי ברירת המחדל</option><option value="a" ?selected=${override === 'a'}>${names.a}</option><option value="b" ?selected=${override === 'b'}>${names.b}</option></select></sw-field></div>
+      <div class="row" data-tile-layout-row><span class="lbl">פריסת אריחים<span class="muted">אריחי הסיכום בתמונת המצב ובחשמל והתקנים: כרטיסים גבוהים, או קומפקטיים - מלבן עם הסמל לצד הערך. אוטומטי: קומפקטי בטלפון, כרטיסים במסך רחב</span></span><sw-field class="ctl"><select data-set-tile-layout ?disabled=${!this.canEdit} @change=${(e: Event) => this.set('ui.tile_layout', (e.target as HTMLSelectElement).value as TileLayoutSetting)}>${TILE_LAYOUTS.map((v) => html`<option value=${v} ?selected=${tileSetting === v}>${TILE_LAYOUT_LABEL[v]}</option>`)}</select></sw-field></div>
+      <div class="row"><span class="lbl">פריסת אריחים בדפדפן הזה<span class="muted">עקיפה אישית שנשמרת במכשיר; לא משנה את ברירת המחדל</span></span><sw-field class="ctl"><select data-set-tile-override @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; setTileLayoutOverride((TILE_LAYOUTS as readonly string[]).includes(v) ? (v as TileLayoutSetting) : null); this.requestUpdate(); }}><option value="" ?selected=${!tileOverride}>לפי ברירת המחדל</option>${TILE_LAYOUTS.map((v) => html`<option value=${v} ?selected=${tileOverride === v}>${TILE_LAYOUT_LABEL[v]}</option>`)}</select></sw-field></div>
+      <div class="tile-preview" data-tile-preview=${previewLayout} aria-label=${`תצוגה מקדימה: ${previewLayout === 'compact' ? 'קומפקטי' : 'כרטיסים'}`}>
+        <sw-kpi icon="bolt" value="0/33" label="מתגים פעילים" tone="neutral" layout=${previewLayout}></sw-kpi>
+        <sw-kpi icon="lock" value="8/8" label="מנעולים נעולים" detail="הכול נעול" tone="live" layout=${previewLayout}></sw-kpi>
+      </div>
       ${this.canEdit ? html`<div class="foot"><sw-button variant="primary" size="sm" icon="check" ?disabled=${!dirty || this.busy} @click=${() => this.saveDesign()}>שמור עיצוב</sw-button>${this.message && this.tab === 'general' ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error && this.tab === 'general' ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>` : nothing}
     </sw-card>`;
   }
@@ -619,6 +638,7 @@ export class SystemDiagnostics extends LitElement {
   private async saveDesign() {
     await this.save();
     if (!designOverride() && this.settings) applyDesign(this.settings['ui.design'] === 'b' ? 'b' : 'a');
+    if (this.settings) setInstallationTileLayout(this.settings['ui.tile_layout']); // open screens follow at once
   }
 
   /** NVR-less mode: the neutral notice a settings section shows instead of NVR / video forms that could only fail. */
