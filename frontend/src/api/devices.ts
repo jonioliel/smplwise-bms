@@ -100,6 +100,10 @@ export interface DeviceRow {
    * suggested), "switch_not_marked" or "doors_layer" (never). */
   bulk_safe?: boolean;
   bulk_reason?: 'marked' | 'circuit_not_marked' | 'doors_layer' | 'switch_not_marked';
+  /** Re-review M1 (tiles' panel rows): why a bulk action would not reach this row (the bulk resolve's own rules), or null. */
+  bulk_excluded?: string | null;
+  /** Seam: the alarm screen manages this device (set by the alarm branch; absent = not managed). */
+  alarm_managed?: boolean;
   // lighting
   brightness_pct?: number | null;
   color_mode?: string | null;
@@ -209,6 +213,8 @@ export interface DeviceItems {
   truncated: boolean;
   scoped: boolean;
   can_bulk?: boolean;
+  /** The caller may mark switches bulk-safe (system.configure) - the switches list only. */
+  can_mark_bulk_safe?: boolean;
   sync?: HaSyncState;
 }
 

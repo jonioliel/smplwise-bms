@@ -60,6 +60,7 @@ function rowState(r: DeviceRow): Exclude<ItemsFilter, 'all'> {
 /** Why a row the user can see has no control (shown on hover and on tap). '' = it has controls. */
 export function readOnlyReason(r: DeviceItem, kind: TileKind, demo: boolean): string {
   if (kind === 'alarm') return 'דריכה וניטרול נעשים במסך האזעקה';
+  if (r.alarm_managed) return 'נשלט ממסך האזעקה';
   if (demo) return 'נתוני הדגמה - אין שליטה בהתקנים';
   if (rowState(r) === 'unavailable') return 'ההתקן לא זמין כרגע';
   if (r.door_class) return 'דלת / שער - תנועה של מעבר, לקריאה בלבד כאן';
@@ -669,7 +670,7 @@ export class DevicesTilesPanel extends LitElement {
     const shown = floors.flatMap((f) => f.areas.flatMap((a) => a.items));
     const narrowed = this.filter !== 'all' || !!q;
     return html`<div class="top">
-        ${this.kind === 'alarm' ? html`<a class="alarm-link" href="#/security/alarm" data-alarm-link @click=${() => this.close()}><sw-icon name="shield" size=${15}></sw-icon>פתח במסך האזעקה ›</a>` : nothing}
+        ${this.kind === 'alarm' ? html`<a class="alarm-link" href="#/security/alarm" data-alarm-link @click=${(e: Event) => this.navigateAway(e, '/security/alarm')}><sw-icon name="shield" size=${15}></sw-icon>פתח במסך האזעקה ›</a>` : nothing}
         <div class="ctlbar">
           <div class="seg" role="group" aria-label="סינון">
             ${m.order.map((f) => html`<button type="button" data-filter=${f} aria-pressed=${String(this.filter === f)} @click=${() => this.setFilter(f)}>${label[f]} <span>(${ltrNum(n[f])})</span></button>`)}
@@ -711,21 +712,33 @@ export class DevicesTilesPanel extends LitElement {
   private renderMaster(shown: DeviceItem[], narrowed: boolean, name: string) {
     const master = KIND_META[this.kind].master!;
     const only = narrowed ? shown.map((r) => r.entity_id) : undefined;
-    const avail = shown.filter((r) => rowState(r) !== 'unavailable');
+    // re-review M1: only the rows a bulk action would reach count (controllable, not excluded - for a switch: marked
+    // bulk-safe by an administrator); with none, the button is disabled and says why
+    const avail = shown.filter((r) => rowState(r) !== 'unavailable' && r.can_control && !r.bulk_excluded);
     const on = avail.filter((r) => rowState(r) === 'active').length;
-    const ask = (kind: BulkKind) => void this.bulkDialog?.show({ scope: this.scope, id: this.scope === 'building' ? '*' : this.scopeId, name, kind, only, ask: true });
+    // owner 2026-09-30: nothing about eligibility on the screen - the reason lives in the disabled button's tooltip only
+    const none = this.kind === 'switches' ? 'אין מתגים שאושרו לפעולה קבוצתית - הגדרות › חשמל' : 'אין כאן התקנים שאושרו לפעולה קבוצתית - הגדרות › חשמל';
+    const ask = (kind: BulkKind) => void this.bulkDialog?.show({ scope: this.scope, id: this.scope === 'building' ? '*' : this.scopeId, name, kind, only });
     if ('open' in master) {
       return html`<div class="master-group" data-panel-master="covers">
-        <button type="button" class="master" data-master=${master.open} aria-label=${master.openLabel} title=${master.openLabel} ?disabled=${!avail.length} @click=${() => ask(master.open)}><sw-icon name="coverOpen" size=${20}></sw-icon></button>
-        <button type="button" class="master" data-master=${master.close} aria-label=${master.closeLabel} title=${master.closeLabel} ?disabled=${!avail.length} @click=${() => ask(master.close)}><sw-icon name="coverClose" size=${20}></sw-icon></button>
+        <button type="button" class="master" data-master=${master.open} aria-label=${avail.length ? master.openLabel : none} title=${avail.length ? master.openLabel : none} ?disabled=${!avail.length} @click=${() => ask(master.open)}><sw-icon name="coverOpen" size=${20}></sw-icon></button>
+        <button type="button" class="master" data-master=${master.close} aria-label=${avail.length ? master.closeLabel : none} title=${avail.length ? master.closeLabel : none} ?disabled=${!avail.length} @click=${() => ask(master.close)}><sw-icon name="coverClose" size=${20}></sw-icon></button>
       </div>`;
     }
     const state = on === 0 ? 'off' : on === avail.length ? 'on' : 'mixed';
-    const words = on ? master.offLabel : master.onLabel;
+    const words = !avail.length ? none : on ? master.offLabel : master.onLabel;
     return html`<button type="button" class="master" data-panel-master=${this.kind} data-master=${on ? master.off : master.on} data-state=${state} aria-pressed=${String(on > 0)}
       aria-label=${state === 'mixed' ? `${words} (${on} מתוך ${avail.length} פעילים)` : words} title=${words} ?disabled=${!avail.length} @click=${() => ask(on ? master.off : master.on)}>
       <sw-icon name="power" size=${20}></sw-icon>${state === 'mixed' ? html`<span class="badge" data-master-badge aria-hidden="true">${ltrNum(on)}</span>` : nothing}
     </button>`;
+  }
+
+  /** Re-review M3: leave the panel for another screen - the building screen replaces the panel's own history entry
+   * (no Back queued behind the navigation that could land on the panel again). */
+  private navigateAway(e: Event, path: string, params?: URLSearchParams) {
+    e.preventDefault();
+    this.open = false;
+    this.dispatchEvent(new CustomEvent('panel-navigate', { detail: { path, params }, bubbles: true, composed: true }));
   }
 
   /** Lock-all (owner 2026-09-29; never unlock-all). A lock is not a bulk kind - CR-007 keeps locks out of the bulk
@@ -762,7 +775,7 @@ export class DevicesTilesPanel extends LitElement {
     if (!la) return html`<sw-dialog data-lock-all-dialog="closed"></sw-dialog>`;
     const word: Record<CommandPhase, string> = { pending: 'ממתין לאישור', confirmed: 'ננעל', sent: 'נשלח', rolled_back: 'לא ננעל' };
     const done = Object.values(la.out).filter((x) => x === 'confirmed').length;
-    return html`<sw-dialog open data-lock-all-dialog=${la.step} heading="נעילת מנעולים" subheading="כל מנעול ננעל בפעולה נפרדת, אחד אחרי השני" @close=${() => la.step !== 'running' && (this.lockAll = null)}>
+    return html`<sw-dialog open ?locked=${la.step === 'running'} data-lock-all-dialog=${la.step} heading="נעילת מנעולים" subheading="כל מנעול ננעל בפעולה נפרדת, אחד אחרי השני" @close=${() => la.step !== 'running' && (this.lockAll = null)}>
       <div class="unlock-what" data-lock-all-question>${la.step === 'confirm' ? (la.rows.length === 1 ? 'לנעול מנעול אחד?' : `לנעול ${la.rows.length} מנעולים?`) : `ננעלו ${done} מתוך ${la.rows.length}`}</div>
       <details ?open=${la.step !== 'confirm'}><summary>רשימת המנעולים</summary>
         <ul class="la-list">${la.rows.map((r) => html`<li data-lock-all-item=${r.entity_id} data-outcome=${la.out[r.entity_id] ?? ''}>${bidi(r.name)} <span class="note">· ${bidi(r.area_name)}${la.out[r.entity_id] ? ` · ${word[la.out[r.entity_id]]}` : ''}</span></li>`)}</ul>

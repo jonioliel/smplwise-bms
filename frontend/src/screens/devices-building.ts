@@ -587,6 +587,14 @@ export class DevicesBuilding extends LitElement {
     } else replaceRoute('/devices/building'); // a deep link: no entry of ours to go back over
   };
 
+  /** Re-review M3: the panel leaves for another screen - the panel's own entry is REPLACED by the target, so no Back
+   * is queued behind the navigation. */
+  private onPanelNavigate = (e: CustomEvent<{ path: string; params?: URLSearchParams }>) => {
+    this.panel = null;
+    this.pushedPanel = false;
+    replaceRoute(e.detail.path, e.detail.params);
+  };
+
   private onPanelFilter = (e: CustomEvent<ItemsFilter>) => {
     const p = this.panel;
     if (!p) return;
@@ -1140,6 +1148,22 @@ export class DevicesBuilding extends LitElement {
     .fchips:empty {
       display: none;
     }
+    .fchips button.chip {
+      position: relative;
+      background: transparent;
+      min-block-size: 28px;
+    }
+    @media (max-width: 767px), (pointer: coarse) {
+      .fchips button.chip {
+        min-block-size: 36px;
+      }
+      .fchips button.chip::before {
+        content: '';
+        position: absolute;
+        inset-block: -4px;
+        inset-inline: 0;
+      }
+    }
     button.chip {
       min-block-size: 28px;
       border-color: var(--sw-border);
@@ -1340,7 +1364,7 @@ export class DevicesBuilding extends LitElement {
         ${bulkBuilding
           ? html`<span class="bulk-buttons" data-bulk-building>
               <sw-button size="sm" icon="light" data-bulk-kind="lights_off" @click=${() => this.building('lights_off')}>כבה תאורה בלבד</sw-button>
-              <sw-button size="sm" variant="danger" icon="bolt" data-bulk-kind="all_off" @click=${() => this.building('all_off')}>כבה הכל בבניין · דורש אישור</sw-button>
+              <sw-button size="sm" variant="danger" icon="bolt" data-bulk-kind="all_off" @click=${() => this.building('all_off')}>כבה הכל בבניין</sw-button>
             </span>`
           : nothing}
       </div>
@@ -1354,7 +1378,7 @@ export class DevicesBuilding extends LitElement {
         : 'מצב ההתקנים כפי שדווח. לחיצה על אריח סיכום מציגה את ההתקנים מהסוג הזה; שליטה בהם לפי ההרשאות שלך.'}</div>
       ${this.bulkAllowed ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
       ${this.lay.renderPanel()}
-      <devices-tiles-panel ?open=${!!this.panel} .kind=${this.panel?.kind ?? 'lights'} .scope=${this.panel?.scope ?? 'building'} .scopeId=${this.panel?.id ?? ''} .scopeName=${this.panel?.name || this.scopeName(this.panel?.scope ?? 'building', this.panel?.id ?? '')} .filter=${this.panel?.filter ?? 'all'} @panel-close=${this.closePanel} @panel-filter=${this.onPanelFilter} @panel-changed=${() => this.scheduleReload()}></devices-tiles-panel>
+      <devices-tiles-panel ?open=${!!this.panel} .kind=${this.panel?.kind ?? 'lights'} .scope=${this.panel?.scope ?? 'building'} .scopeId=${this.panel?.id ?? ''} .scopeName=${this.panel?.name || this.scopeName(this.panel?.scope ?? 'building', this.panel?.id ?? '')} .filter=${this.panel?.filter ?? 'all'} @panel-close=${this.closePanel} @panel-filter=${this.onPanelFilter} @panel-changed=${() => this.scheduleReload()} @panel-navigate=${this.onPanelNavigate}></devices-tiles-panel>
     </sw-page>`;
   }
 

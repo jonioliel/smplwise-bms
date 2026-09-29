@@ -280,23 +280,51 @@ test.describe('overview tiles against the devices fixture backend', () => {
     await seed(request);
   });
 
-  test('switches: only switches an administrator marked bulk-safe are ever sent (the "כבה הכל" rule), for ON as for OFF', async ({ page, request }) => {
+  test('switches: with nothing marked bulk-safe the master is disabled and says why only in its tooltip; once marked it asks (re-review M1, owner 2026-09-30)', async ({ page, request }) => {
     await seed(request);
-    await request.put('/api/v1/devices/entities/switch.cr007t_sign/bulk-safe', { data: { bulk_safe: false } });
-    await open(page, '/devices/building?domain=switches');
+    for (const id of ['switch.cr007t_sign', 'switch.cr007t_pump', 'switch.cr007t_boiler']) await request.put(`/api/v1/devices/entities/${id}/bulk-safe`, { data: { bulk_safe: false } });
+    await open(page, '/devices/building?domain=switches&floor=cr007t_ground');
     const panel = page.locator('devices-building devices-tiles-panel');
     const master = panel.locator('button[data-panel-master="switches"]');
-    await expect(master).toHaveAttribute('data-state', 'mixed', { timeout: 30000 });
+    await expect(master).toBeDisabled({ timeout: 30000 });
+    await expect(master).toHaveAttribute('title', /אין מתגים שאושרו לפעולה קבוצתית/);
+    // nothing about eligibility on the screen itself
+    await expect(panel.locator('[data-bulk-included], [data-bulk-safe-settings]')).toHaveCount(0);
+    await expect(panel.locator('.row[data-entity]').first()).not.toContainText('קבוצתי');
+    expect((await request.put('/api/v1/devices/entities/switch.cr007t_sign/bulk-safe', { data: { bulk_safe: true } })).status()).toBe(200);
+    await page.reload();
+    await expect(master).toBeEnabled({ timeout: 30000 });
+    await expect(master).toHaveAttribute('data-state', 'on'); // the one eligible switch is on (the others are not counted)
     await master.click();
     const dlg = panel.locator('devices-bulk-dialog');
-    await expect(dlg.locator('[data-bulk-nothing]')).toBeVisible({ timeout: 10000 }); // nothing marked: nothing to send
-    await expect(dlg.locator('[data-bulk-excluded] li[data-entity="switch.cr007t_sign"]')).toHaveAttribute('data-reason', 'switch_not_marked');
-    await dlg.locator('sw-button[data-bulk-cancel]').click();
-    expect((await request.put('/api/v1/devices/entities/switch.cr007t_sign/bulk-safe', { data: { bulk_safe: true } })).status()).toBe(200);
-    await master.click();
     await expect(dlg.locator('[data-bulk-question]')).toHaveText('לכבות מתג אחד?', { timeout: 10000 });
+    await expect(dlg.locator('details[data-bulk-details]')).not.toHaveAttribute('open', ''); // the rest under "פרטים"
     await dlg.locator('sw-button[data-bulk-cancel]').click();
     await request.put('/api/v1/devices/entities/switch.cr007t_sign/bulk-safe', { data: { bulk_safe: false } });
+  });
+
+  test('re-review M2 / M3: a running lock-all cannot be closed away; the alarm link lands on the alarm route (a tile click, not a deep link)', async ({ page, request }) => {
+    await seed(request);
+    await open(page, '/devices/building');
+    await page.locator('devices-building sw-kpi[data-tile-kind="alarm"] button.hit').click({ timeout: 30000 });
+    const panel = page.locator('devices-building devices-tiles-panel');
+    await panel.locator('a[data-alarm-link]').click();
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/security/alarm');
+    await page.waitForTimeout(800);
+    expect(await page.evaluate(() => location.hash)).toBe('#/security/alarm'); // no queued Back reopening the panel
+    await expect(panel).not.toHaveAttribute('open', '');
+    // M2: the dialog's `locked` - a running lock-all ignores ✕ / Escape / the backdrop
+    await page.goto('about:blank');
+    await request.post('/api/v1/ha/dev/states', { data: { states: [{ entity_id: 'lock.cr007t_front', state: 'unlocked', attributes: { friendly_name: 'דלת כניסה', device_class: 'lock' } }] } });
+    await open(page, '/devices/building?domain=locks');
+    await panel.locator('button[data-panel-master="locks"]').click({ timeout: 30000 });
+    await panel.locator('sw-dialog[data-lock-all-dialog="confirm"] sw-button[data-lock-all-confirm]').click();
+    await page.keyboard.press('Escape');
+    await expect(panel.locator('sw-dialog[data-lock-all-dialog]')).toHaveAttribute('open', '');
+    await expect(panel.locator('sw-dialog[data-lock-all-dialog="done"]')).toHaveCount(1, { timeout: 15000 });
+    await panel.locator('sw-button[data-lock-all-close]').click();
+    await expect(panel.locator('sw-dialog[data-lock-all-dialog="closed"]')).toHaveCount(1);
+    await seed(request);
   });
 
   test('locks: a lock-all icon (never unlock-all) - one confirmation, then each lock locked one at a time with its own result', async ({ page, request }) => {

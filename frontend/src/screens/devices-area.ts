@@ -14,7 +14,7 @@ import '../components/sw-dialog';
 import type { StateKind } from '../components/sw-badge';
 import type { IconName } from '../components/sw-icon';
 import { canAnywhere, isApi } from '../api/session';
-import { ApiError, describeError, put } from '../api/client';
+import { ApiError, describeError } from '../api/client';
 import { fmtTime, subscribeHa, type HaSyncState } from '../api/ha';
 import { ALARM_HE, assignEntityArea, CARD_EMPTY, CARD_IDS, HVAC_ACTION_HE, getDevicesArea, getDevicesTree, type CardId, type DeviceAreaDetail, type DeviceCard, type DeviceRow, type DeviceTree } from '../api/devices';
 import type { BulkKind } from '../api/device-bulk';
@@ -729,38 +729,8 @@ export class DevicesArea extends LitElement {
       ${card === 'sensors' && r.last_changed ? html`<div class="lc" data-last-changed>${fmtTime(r.last_changed)}</div>` : nothing}
       ${controllable && card === 'lighting' && (on || this.ctl.live<boolean>(r.entity_id, 'power') === true) ? this.ctl.renderBrightnessSlider(r) : nothing}
       ${controllable ? this.ctl.renderCmdStatus(r.entity_id) : nothing}
-      ${card === 'switches' && r.bulk_reason ? this.renderBulkSafe(r) : nothing}
       ${this.renderAssignButton(r)}
     </div>`;
-  }
-
-  /** CR-007 slice 3, review rounds 1-2: a switch enters a bulk action only when an administrator marked it safe (a
-   * door / gate release relay is a switch too); a lighting circuit's switch only gets the suggestion. Shown to a bulk
-   * holder; the mark is set here with system.configure. */
-  private renderBulkSafe(r: DeviceRow) {
-    const label =
-      r.bulk_reason === 'marked'
-        ? 'נכלל בכיבוי מרוכז (סומן כבטוח)'
-        : r.bulk_reason === 'circuit_not_marked'
-          ? 'לא נכלל בכיבוי מרוכז · מפסק של מעגל תאורה - מומלץ לסמן כבטוח'
-          : r.bulk_reason === 'doors_layer'
-            ? 'לא נכלל בכיבוי מרוכז (שכבת הדלתות)'
-            : 'לא נכלל בכיבוי מרוכז (לא סומן כבטוח לכיבוי קבוצתי)';
-    const canToggle = this.detail?.can_mark_bulk_safe === true && r.bulk_reason !== 'doors_layer';
-    return html`<div class="bulk-safe" data-bulk-safe=${r.bulk_reason ?? ''}>
-      ${label}${canToggle
-        ? html` <sw-button size="sm" variant="ghost" data-bulk-safe-toggle title="סמנו רק מתג שאינו שחרור דלת / שער ושבטוח לכבות יחד עם התאורה" @click=${() => void this.toggleBulkSafe(r)}>${r.bulk_reason === 'marked' ? 'בטל סימון' : 'סמן כבטוח לכיבוי מרוכז'}</sw-button>`
-        : nothing}
-    </div>`;
-  }
-
-  private async toggleBulkSafe(r: DeviceRow) {
-    try {
-      await put(`devices/entities/${encodeURIComponent(r.entity_id)}/bulk-safe`, { bulk_safe: r.bulk_reason !== 'marked' });
-    } catch (err) {
-      this.error = describeError(err);
-    }
-    void this.load();
   }
 
   // ---------------------------------------------------------------- CR-007 slice 4: covers card - the "כל התריסים"
