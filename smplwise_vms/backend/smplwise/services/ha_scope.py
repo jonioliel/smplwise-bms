@@ -73,25 +73,44 @@ def devices_control_reaches_checker(conn: sqlite3.Connection) -> Callable[[str],
     return check
 
 
+class FloorSet(set):
+    """The floors a caller holds a permission on (a plain set to every existing caller) that also remembers the floors
+    an explicit deny takes it away on: a placement through a shared room (CR-009) counts only when the room's home floor
+    is not denied - deny wins (entity_visible)."""
+
+    denied: frozenset[str] = frozenset()
+
+
 def visible_floors(conn: sqlite3.Connection, principal: Principal, permission: str) -> tuple[bool, set[str]]:
-    """(installation-wide, floor ids): wide callers get an empty set, everyone else the floors where they hold it."""
+    """(installation-wide, floor ids): wide callers get an empty set, everyone else the floors where they hold it
+    (a FloorSet carrying the explicitly denied floors too)."""
     if authorize(conn, principal, permission, INSTALLATION).allowed:
-        return True, set()
-    floors = {f["id"] for f in conn.execute("SELECT id FROM floors WHERE deleted_at IS NULL").fetchall() if authorize(conn, principal, permission, ("floor", f["id"])).allowed}
+        return True, FloorSet()
+    floors = FloorSet()
+    denied: set[str] = set()
+    for f in conn.execute("SELECT id FROM floors WHERE deleted_at IS NULL").fetchall():
+        d = authorize(conn, principal, permission, ("floor", f["id"]))
+        if d.allowed:
+            floors.add(f["id"])
+        elif d.reason == "explicit_deny":
+            denied.add(f["id"])
+    floors.denied = frozenset(denied)
     return False, floors
 
 
 def placements(conn: sqlite3.Connection) -> Placements:
-    """Where an entity is on the maps: its anchors, and the floors whose published structure has a circuit switched by
-    it (T085) - a floor viewer reads such a switch, a floor operator controls it, the push socket forwards it."""
+    """Where an entity is on the maps: its anchors, the floors whose published structure has a circuit switched by it
+    (T085) - a floor viewer reads such a switch, a floor operator controls it, the push socket forwards it - and the
+    other floors of a shared room it is placed in (CR-009; `shared_from` = the room's home floor)."""
     out: Placements = {}
     for r in conn.execute(
         "SELECT a.resource_id, a.floor_id, f.name AS floor_name FROM map_anchors a JOIN floors f ON f.id = a.floor_id WHERE a.resource_type = 'ha_entity' AND a.effective_to IS NULL"
     ).fetchall():
         out.setdefault(r["resource_id"], []).append({"floor_id": r["floor_id"], "floor_name": r["floor_name"]})
-    from . import geometry_store
+    from . import geometry_store, shared_spaces
 
     switches = geometry_store.circuit_switches(conn)
+    names: dict[str, str] | None = None
     if switches:
         names = {r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM floors WHERE deleted_at IS NULL").fetchall()}
         for eid, floors in switches.items():
@@ -100,12 +119,26 @@ def placements(conn: sqlite3.Connection) -> Placements:
                 if fid in names and fid not in have:
                     out.setdefault(eid, []).append({"floor_id": fid, "floor_name": names[fid]})
                     have.add(fid)
+    if shared_spaces.any_active(conn):
+        names = names or {r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM floors WHERE deleted_at IS NULL").fetchall()}
+        mirrored = {rid: pairs for (rtype, rid), pairs in shared_spaces.mirrored_anchor_floors(conn).items() if rtype == "ha_entity"}
+        for eid, pairs in shared_spaces.shared_circuit_switches(conn).items():
+            mirrored.setdefault(eid, [])
+            mirrored[eid] = mirrored[eid] + [p for p in pairs if p not in mirrored[eid]]
+        for eid, pairs in mirrored.items():
+            have = {p["floor_id"] for p in out.get(eid, [])}
+            for fid, home in pairs:
+                if fid in names and fid not in have:
+                    out.setdefault(eid, []).append({"floor_id": fid, "floor_name": names[fid], "shared_from": home})
+                    have.add(fid)
     return out
 
 
 def entity_visible(wide: bool, floors: set[str], placed: Placements, entity_id: str) -> bool:
-    """The one placement rule: wide callers see it; a floor-scoped caller only when it is placed on one of their floors."""
-    return wide or any(p["floor_id"] in floors for p in placed.get(entity_id, []))
+    """The one placement rule: wide callers see it; a floor-scoped caller only when it is placed on one of their floors
+    - through a shared room only when the caller is not explicitly denied on the room's home floor (CR-009, deny wins)."""
+    denied = getattr(floors, "denied", frozenset())
+    return wide or any(p["floor_id"] in floors and p.get("shared_from") not in denied for p in placed.get(entity_id, []))
 
 
 def entity_allowed(conn: sqlite3.Connection, principal: Principal, entity_id: str, permission: str) -> bool:
@@ -131,9 +164,9 @@ def control_decision(conn: sqlite3.Connection, principal: Principal, entity_id: 
     for perm in CONTROL_PERMISSIONS:
         if perm == "devices.control" and not devices_control_reaches(conn, entity_id):
             continue
-        for target in [INSTALLATION] + [("floor", p["floor_id"]) for p in placed]:
+        for target, home in [(INSTALLATION, None)] + [(("floor", p["floor_id"]), p.get("shared_from")) for p in placed]:
             d = authorize(conn, principal, perm, target)
-            if d.allowed:
+            if d.allowed and (home is None or authorize(conn, principal, perm, ("floor", home)).reason != "explicit_deny"):
                 return d
     return None
 

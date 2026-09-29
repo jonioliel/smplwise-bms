@@ -62,16 +62,34 @@ def search(
         if counts[kind] <= limit:
             results.append({"kind": kind, **item})
 
+    # CR-009: a room shared with other floors is found from each of them (floor_ids: every floor that shows it and the
+    # caller may read - the client opens the one the person is on); its cameras likewise
+    from ..services import shared_spaces
+
+    shared_floors: dict[str, list[str]] = {}
+    for s in shared_spaces.all_shares(conn):
+        shared_floors.setdefault(s.zone_id, []).append(s.floor_id)
+    mirrored = shared_spaces.mirrored_anchor_floors(conn) if shared_floors else {}
+    map_denied = {f for f in floors if authorize(conn, principal, "map.read", ("floor", f)).reason == "explicit_deny"} if shared_floors else set()
+    mirrored = {k: [(fid, home) for fid, home in pairs if home not in map_denied] for k, pairs in mirrored.items()}
+
     # rooms / zones (only those marked searchable)
     for z in conn.execute("SELECT id, floor_id, name, kind FROM spatial_zones WHERE deleted_at IS NULL AND searchable = 1 ORDER BY name").fetchall():
-        if not _contains(z["name"], needle) or not floor_ok(z["floor_id"]):
+        shown = [fid for fid in [z["floor_id"], *([] if z["floor_id"] in map_denied else shared_floors.get(z["id"], []))] if floor_ok(fid)]
+        if not _contains(z["name"], needle) or not shown:
             continue
-        f = floors[z["floor_id"]]
-        add("zone", {"id": z["id"], "title": z["name"], "subtitle": f"{f['building_name']} · {f['name']} · {KIND_LABEL.get(z['kind'], z['kind'])}", "route": f"/explore/floors/{z['floor_id']}?zone={z['id']}", "floor_id": z["floor_id"]})
+        f = floors[shown[0]]
+        add("zone", {"id": z["id"], "title": z["name"], "subtitle": f"{f['building_name']} · {f['name']} · {KIND_LABEL.get(z['kind'], z['kind'])}", "route": f"/explore/floors/{shown[0]}?zone={z['id']}",
+                     "floor_id": shown[0], **({"floor_ids": shown} if len(shown) > 1 or shown[0] != z["floor_id"] else {})})
 
     # cameras (scope: the cameras the caller may see on a map; unplaced cameras for installation-wide readers)
     cam_ids = visible_camera_ids(conn, principal, "map.read")
     placed = {r["resource_id"]: r["floor_id"] for r in conn.execute("SELECT resource_id, floor_id FROM map_anchors WHERE resource_type = 'camera' AND effective_to IS NULL").fetchall()}
+    for (rtype, rid), pairs in mirrored.items():  # a camera of a shared room the caller reaches only through the other floor
+        if rtype == "camera" and (rid not in placed or not floor_ok(placed[rid])):
+            ok = next((fid for fid, _home in pairs if floor_ok(fid)), None)
+            if ok:
+                placed[rid] = ok
     for c in conn.execute("SELECT id, alias, name_source, channel FROM cameras WHERE enabled = 1 ORDER BY sort_order, channel").fetchall():
         if cam_ids is not None and c["id"] not in cam_ids:
             continue
@@ -102,6 +120,13 @@ def search(
     # HA entities: everything for installation-wide readers, only placed entities on visible floors otherwise
     ent_floors = _visible_floors(conn, principal, "entity.state.read")
     ent_placed = {r["resource_id"]: r["floor_id"] for r in conn.execute("SELECT resource_id, floor_id FROM map_anchors WHERE resource_type = 'ha_entity' AND effective_to IS NULL").fetchall()}
+    denied_homes = {f["id"] for f in conn.execute("SELECT id FROM floors WHERE deleted_at IS NULL").fetchall()
+                    if authorize(conn, principal, "entity.state.read", ("floor", f["id"])).reason == "explicit_deny"} if mirrored and ent_floors is not None else set()
+    for (rtype, rid), pairs in mirrored.items():  # CR-009: an entity of a shared room, through the other floor (deny on its home wins)
+        if rtype == "ha_entity" and ent_floors is not None and ent_placed.get(rid) not in ent_floors:
+            ok = next((fid for fid, home in pairs if fid in ent_floors and home not in denied_homes), None)
+            if ok:
+                ent_placed[rid] = ok
     for e in conn.execute("SELECT entity_id, name, original_name, domain, area_name FROM ha_entities WHERE disabled = 0 ORDER BY name, entity_id").fetchall():
         if not (_contains(e["name"], needle) or _contains(e["original_name"], needle) or _contains(e["entity_id"], needle) or _contains(e["area_name"], needle)):
             continue

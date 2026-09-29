@@ -272,6 +272,12 @@ def _place_filter(conn: sqlite3.Connection, site_id: str | None, building_id: st
         q = ",".join("?" * len(floors))
         for a in conn.execute(f"SELECT resource_type, resource_id FROM map_anchors WHERE floor_id IN ({q}) AND effective_to IS NULL", sorted(floors)).fetchall():
             (cams if a["resource_type"] == "camera" else ents).add(a["resource_id"])
+        # CR-009: the cameras and devices of a room another floor shares with these floors are in this place too
+        from ..services.shared_spaces import mirrored_anchor_floors
+
+        for (rtype, rid), pairs in mirrored_anchor_floors(conn).items():
+            if any(fid in floors for fid, _home in pairs):
+                (cams if rtype == "camera" else ents).add(rid)
     note = None if cams or ents else {"field": field, "value": value, "reason": "במקום הזה לא מוצבות מצלמות או חיישנים על תוכנית; הצב פריטים בעורך התוכנית כדי לחפש לפי מיקום"}
     return cams, ents, note
 

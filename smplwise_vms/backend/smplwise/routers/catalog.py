@@ -138,11 +138,18 @@ def catalog_image(kind: str, obj_id: str, request: Request, principal: Principal
     return FileResponse(p, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
 
 
-def floor_row(conn: sqlite3.Connection, r: sqlite3.Row) -> dict[str, Any]:
+def floor_row(conn: sqlite3.Connection, r: sqlite3.Row, mirrored: dict[tuple[str, str], list[tuple[str, str]]] | None = None) -> dict[str, Any]:
+    """`mirrored`: services/shared_spaces.mirrored_anchor_floors, when the caller already has it (the site tree)."""
     published = conn.execute("SELECT id, width_px, height_px, published_at FROM plan_versions WHERE floor_id = ? AND status = 'published'", (r["id"],)).fetchone()
     draft = conn.execute("SELECT id FROM plan_versions WHERE floor_id = ? AND status = 'draft' ORDER BY created_at DESC LIMIT 1", (r["id"],)).fetchone()
     anchors = conn.execute("SELECT COUNT(*) FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL", (r["id"],)).fetchone()[0]
     cameras = conn.execute("SELECT COUNT(*) FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL AND resource_type = 'camera'", (r["id"],)).fetchone()[0]
+    # CR-009: what a room another floor shares with this one adds (the card shows it as "משותף", counted once per device)
+    if mirrored is None:
+        from ..services.shared_spaces import mirrored_anchor_floors
+
+        mirrored = mirrored_anchor_floors(conn)
+    shared = [k for k, pairs in mirrored.items() if any(fid == r["id"] for fid, _home in pairs)]
     return {
         "id": r["id"],
         "building_id": r["building_id"],
@@ -157,6 +164,8 @@ def floor_row(conn: sqlite3.Connection, r: sqlite3.Row) -> dict[str, Any]:
         "draft_version_id": draft["id"] if draft else None,
         "anchor_count": anchors,
         "camera_count": cameras,
+        "shared_anchor_count": len(shared),
+        "shared_camera_count": sum(1 for rtype, _rid in shared if rtype == "camera"),
         "updated_at": r["updated_at"],
     }
 
@@ -190,11 +199,13 @@ def list_sites(principal: Principal = Depends(current_principal), conn: sqlite3.
     all_read = authorize(conn, principal, P_READ, INSTALLATION).allowed
     # T055: a floor reached only through camera-scoped bindings (a camera anchored there) is listed too - its map
     # shows the drawing and those cameras (services/access.floor_reach)
-    from ..services.access import camera_scope
+    from ..services.access import camera_reach_floors
+    from ..services.shared_spaces import mirrored_anchor_floors
 
-    cam_ids = set() if all_read else set(camera_scope(conn, principal, P_READ).ids)
-    cam_floors = {r[0] for r in conn.execute(
-        f"SELECT DISTINCT floor_id FROM map_anchors WHERE resource_type = 'camera' AND effective_to IS NULL AND resource_id IN ({','.join('?' * len(cam_ids))})", sorted(cam_ids)).fetchall()} if cam_ids else set()
+    mirrored = mirrored_anchor_floors(conn)
+    # CR-009: the floors whose drawing the caller reaches through cameras - the one rule floor_reach uses too (a camera of
+    # a shared room opens the floors that show the room only for a binding on the camera itself)
+    cam_floors = set() if all_read else camera_reach_floors(conn, principal, P_READ)
     sites_out: list[dict[str, Any]] = []
     for s in conn.execute("SELECT * FROM sites WHERE deleted_at IS NULL ORDER BY sort_order, name").fetchall():
         site_ok = all_read or authorize(conn, principal, P_READ, ("site", s["id"])).allowed
@@ -204,7 +215,7 @@ def list_sites(principal: Principal = Depends(current_principal), conn: sqlite3.
             floors_out: list[dict[str, Any]] = []
             for f in conn.execute("SELECT * FROM floors WHERE building_id = ? AND deleted_at IS NULL ORDER BY level DESC, sort_order, name", (b["id"],)).fetchall():
                 if building_ok or authorize(conn, principal, P_READ, ("floor", f["id"])).allowed or f["id"] in cam_floors:
-                    floors_out.append(floor_row(conn, f))
+                    floors_out.append(floor_row(conn, f, mirrored))
             if building_ok or floors_out:
                 item = building_row(b)
                 if tree:

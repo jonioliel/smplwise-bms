@@ -105,6 +105,15 @@ def _zones_for(conn: sqlite3.Connection, floor_id: str) -> list[dict[str, Any]]:
     return floor_zones(conn, floor_id)
 
 
+def _marked_zones(conn: sqlite3.Connection, floor_id: str) -> list[dict[str, Any]]:
+    """The floor's rooms; one that other floors show too carries `shared` (role "home"; CR-009: the floor chip is drawn
+    on the home map as well)."""
+    from ..services import shared_spaces
+
+    marks = shared_spaces.home_zone_marks(conn, floor_id)
+    return [dict(z, shared=marks[z["id"]]) if z["id"] in marks else z for z in _zones_for(conn, floor_id)]
+
+
 def _editor_version(conn: sqlite3.Connection, floor_id: str) -> sqlite3.Row | None:
     draft = conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? AND status = 'draft' ORDER BY created_at DESC LIMIT 1", (floor_id,)).fetchone()
     return draft or _current_version(conn, floor_id)
@@ -144,7 +153,7 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
     # T055: a camera the caller cannot see is not in the bundle - not as an anchor, not in the camera list; a
     # camera-only reader gets camera anchors alone
     anchors = [a for a in anchors if (cam_scope.allows(a["resource_id"]) if a["resource_type"] == "camera" else not camera_only)]
-    from ..services import geometry_store, plan_catalog
+    from ..services import geometry_store, plan_catalog, shared_spaces
 
     geometry_row = None
     if version is not None:
@@ -157,6 +166,21 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
     geometry = geometry_store.ref(geometry_row)
     levels = geometry_store.levels_of(geometry_row)
     circuits = [] if camera_only else geometry_store.circuits_of(geometry_row)
+    # CR-009: the rooms other floors share with this one - their zones, anchors and circuits in this plan's coordinates
+    # (the structure itself comes with the geometry document); a reader denied on the home floor gets none (deny wins)
+    share_mode = "at" if (at_iso and history == "exact") else ("draft" if geometry_row is not None and geometry_row["status"] == "draft" else "published")
+    share_at = at_iso if share_mode == "at" else None
+    can_attach = lambda hf: authorize(conn, principal, "map.read", ("floor", hf)).reason != "explicit_deny"  # noqa: E731
+    mirrored_zones, mirrored = shared_spaces.bundle_parts(conn, floor_id, version, share_at, can_attach=can_attach)
+    mirrored = [(a, o) for a, o in mirrored if (cam_scope.allows(a["resource_id"]) if a["resource_type"] == "camera" else not camera_only)]
+    if not camera_only:
+        from ..services import plan_geometry as _pg
+
+        circuits = circuits + [k for k in shared_spaces.mirrored_circuits(conn, floor_id, share_mode, share_at, can_attach=can_attach)
+                               if isinstance(k.get("switch_entity_id"), str) and _pg.SWITCH_RE.match(k["switch_entity_id"])]
+    tag = shared_spaces.shared_tag(conn, floor_id, share_mode, share_at)
+    if geometry is not None and tag:
+        geometry = {**geometry, "view_hash": f"{geometry['doc_hash']}-s{tag}"}
     # the placement editor lists the cameras it may place (security review T055 B1: cameras it already reaches, or
     # every camera but its denied ones for an installation-wide placement.edit holder) plus the ones it sees here; a
     # viewer's list is the visible cameras on this map (below)
@@ -165,7 +189,7 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
                if cam_scope.allows(r["id"]) or (placeable is not None and placeable.allows(r["id"]))}
     from ..services import ha_bridge, ha_history, ha_sync
 
-    entity_ids = [a["resource_id"] for a in anchors if a["resource_type"] == "ha_entity"]
+    entity_ids = sorted({a["resource_id"] for a in [*anchors, *(m[0] for m in mirrored)] if a["resource_type"] == "ha_entity"})
     entities: dict[str, Any] = {}
     ha_hist = None
     if entity_ids:
@@ -231,9 +255,11 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
         "catalog_revision": plan_catalog.revision(conn),
         "levels": levels,
         "circuit_states": circuit_states,
-        "anchors": [dict(anchor_row(a), camera=cameras.get(a["resource_id"]) if a["resource_type"] == "camera" else None, entity=entities.get(a["resource_id"]) if a["resource_type"] == "ha_entity" else None) for a in anchors],
+        "anchors": [dict(anchor_row(a), camera=cameras.get(a["resource_id"]) if a["resource_type"] == "camera" else None, entity=entities.get(a["resource_id"]) if a["resource_type"] == "ha_entity" else None) for a in anchors]
+                   + [dict(anchor_row(a), **over, camera=cameras.get(a["resource_id"]) if a["resource_type"] == "camera" else None, entity=entities.get(a["resource_id"]) if a["resource_type"] == "ha_entity" else None)
+                      for a, over in mirrored],
         "ha_sync": ha_sync.STATE.as_dict(),
-        "zones": [] if camera_only else _zones_for(conn, floor_id),
+        "zones": [] if camera_only else _marked_zones(conn, floor_id) + mirrored_zones,
         "reach": reach,
         "needs_alignment": needs_alignment(conn, version, anchors),
         "at": at_iso,
@@ -243,7 +269,7 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
         "permissions": {"edit": can_edit, "publish": can_publish, "import": authorize(conn, principal, "map.import", ("floor", floor_id)).allowed,
                         "structure": can_structure},
         # the placement editor's list: exactly the cameras it may place (placement.edit on their chain, T055 re-review)
-        "cameras": [c for c in cameras.values() if placeable.allows(c["id"])] if placeable is not None else [c for c in cameras.values() if any(a["resource_id"] == c["id"] for a in anchors)],
+        "cameras": [c for c in cameras.values() if placeable.allows(c["id"])] if placeable is not None else [c for c in cameras.values() if any(a["resource_id"] == c["id"] for a in [*anchors, *(m[0] for m in mirrored)])],
     }
 
 
@@ -292,10 +318,32 @@ def list_anchors(floor_id: str, principal: Principal = Depends(current_principal
     return {"anchors": [anchor_row(r) for r in rows if r["resource_type"] != "camera" or scope.allows(r["resource_id"])]}
 
 
+def _shared_error(exc: Exception) -> ApiError:
+    return ApiError(exc.status, exc.code, exc.message, details=exc.details)  # type: ignore[attr-defined]
+
+
 @router.post("/floors/{floor_id}/anchors", status_code=201)
 def create_anchor(floor_id: str, body: AnchorIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, "placement.edit", ("floor", floor_id))
+    from ..services import shared_spaces
+
+    via_floor_id: str | None = None
+    hit = shared_spaces.room_at(conn, floor_id, body.x, body.y)
+    if hit is not None:
+        # CR-009: a camera or device placed inside a room another floor shares with this one belongs to that room - it is
+        # created on the room's home floor (placement.edit here is decision 1's grant) and every floor that shows the
+        # room shows it
+        share, place = hit
+        via_floor_id, floor_id = floor_id, share.home_floor_id
+        hx, hy = place.inv(body.x, body.y)
+        body.x, body.y = round(min(1.0, max(0.0, hx)), 6), round(min(1.0, max(0.0, hy)), 6)
+        body.rotation_degrees = place.iangle(body.rotation_degrees) % 360
+        body.level_id = None
+        if body.coverage_polygon is not None:
+            body.coverage_polygon = [place.ipt(p) for p in body.coverage_polygon]
+        if body.coverage_radius is not None and not place.same:
+            body.coverage_radius = min(1.0, body.coverage_radius / place.k)
     version = _editor_version(conn, floor_id)
     if not version:
         raise conflict("no_plan", "לקומה אין תוכנית; העלה תוכנית לפני הצבת פריטים.")
@@ -322,8 +370,25 @@ def create_anchor(floor_id: str, body: AnchorIn, request: Request, principal: Pr
          body.coverage_radius, _check_polygon(body.coverage_polygon), body.label_pos, body.level_id or None, body.mount_height_m, body.tilt_deg),
     )
     audit(conn, actor=principal, action="anchor.create", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
-          details={"anchor_id": aid, "resource": f"{body.resource_type}:{body.resource_id}", "x": body.x, "y": body.y})
+          details={"anchor_id": aid, "resource": f"{body.resource_type}:{body.resource_id}", "x": body.x, "y": body.y, **({"via_floor_id": via_floor_id} if via_floor_id else {})})
     return anchor_row(get_anchor(conn, aid))
+
+
+def _anchor_edit_scope(conn: sqlite3.Connection, principal: Principal, a: sqlite3.Row, from_floor_id: str | None):
+    """The floor whose placement.edit authorizes an edit of this anchor and, for an edit made on another floor's map
+    (CR-009 decision 1: a shared room is edited from either floor), the share and placement it goes through."""
+    if not from_floor_id or from_floor_id == a["floor_id"]:
+        require(conn, principal, "placement.edit", ("floor", a["floor_id"]))
+        return None
+    from ..services import shared_spaces
+
+    get_floor(conn, from_floor_id)
+    try:
+        share, place = shared_spaces.anchor_via(conn, a, from_floor_id)
+    except shared_spaces.SharedEditError as exc:
+        raise _shared_error(exc)
+    require(conn, principal, "placement.edit", ("floor", from_floor_id))
+    return share, place
 
 
 class RealignIn(BaseModel):
@@ -367,13 +432,32 @@ def realign_anchors(floor_id: str, body: RealignIn, request: Request, principal:
 
 
 @router.patch("/map-anchors/{anchor_id}")
-def update_anchor(anchor_id: str, body: AnchorPatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def update_anchor(anchor_id: str, body: AnchorPatch, request: Request, from_floor_id: str | None = None, principal: Principal = Depends(current_principal),
+                  conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     a = get_anchor(conn, anchor_id)
-    require(conn, principal, "placement.edit", ("floor", a["floor_id"]))
+    via = _anchor_edit_scope(conn, principal, a, from_floor_id)
     if a["resource_type"] == "camera":
         require_camera_placement(conn, principal, a["resource_id"])  # T055 B1: moves only a camera the editor reaches
     if body.revision != a["revision"]:
         raise conflict("stale_revision", "העוגן השתנה בינתיים; טען מחדש ובחר איך למזג.", current_revision=a["revision"], sent_revision=body.revision)
+    if via is not None:
+        # the other floor's map coordinates back to the home plan (CR-009); the anchor stays inside the room
+        from ..services import shared_spaces
+
+        share, place = via
+        if body.x is not None or body.y is not None:
+            hx, hy = place.inv(body.x if body.x is not None else place.fwd(a["x"], a["y"])[0], body.y if body.y is not None else place.fwd(a["x"], a["y"])[1])
+            if not shared_spaces.anchor_in_room(hx, hy, share, shared_spaces._anchor_tol(conn, share.home_floor_id)) or not (0 <= hx <= 1 and 0 <= hy <= 1):
+                raise ApiError(422, "shared_outside", "אפשר להזיז מכאן רק בתוך החלל המשותף; את השאר ערוך בקומה שלו.")
+            body.x, body.y = round(hx, 6), round(hy, 6)
+        if body.rotation_degrees is not None:
+            body.rotation_degrees = place.iangle(body.rotation_degrees) % 360
+        if body.coverage_polygon is not None:
+            body.coverage_polygon = [place.ipt(p) for p in body.coverage_polygon]
+        if body.coverage_radius is not None and not place.same:
+            body.coverage_radius = min(1.0, body.coverage_radius / place.k)
+        if body.level_id is not None:
+            body.level_id = shared_spaces.un_ns(share.home_floor_id, body.level_id) if str(body.level_id).startswith(f"{share.home_floor_id}:") else ""
     fields = {k: v for k, v in body.model_dump().items() if k != "revision" and (v is not None or (k in NULLABLE_KEYS and k in body.model_fields_set))}
     if "coverage_polygon" in fields:
         fields["coverage_polygon"] = _check_polygon(fields["coverage_polygon"])
@@ -386,14 +470,15 @@ def update_anchor(anchor_id: str, body: AnchorPatch, request: Request, principal
     sets = ", ".join(f"{k} = ?" for k in fields)
     conn.execute(f"UPDATE map_anchors SET {sets}, revision = revision + 1, updated_by = ?, updated_at = ? WHERE id = ?", (*fields.values(), principal.user_id, now_iso(), anchor_id))
     audit(conn, actor=principal, action="anchor.update", decision="allowed", resource_type="floor", resource_id=a["floor_id"], request_id=_rid(request),
-          details={"anchor_id": anchor_id, "before": before, "after": fields})
+          details={"anchor_id": anchor_id, "before": before, "after": fields, **({"via_floor_id": from_floor_id} if via is not None else {})})
     return anchor_row(get_anchor(conn, anchor_id))
 
 
 @router.delete("/map-anchors/{anchor_id}", status_code=204)
-def delete_anchor(anchor_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> None:
+def delete_anchor(anchor_id: str, request: Request, from_floor_id: str | None = None, principal: Principal = Depends(current_principal),
+                  conn: sqlite3.Connection = Depends(get_conn)) -> None:
     a = get_anchor(conn, anchor_id)
-    require(conn, principal, "placement.edit", ("floor", a["floor_id"]))
+    via = _anchor_edit_scope(conn, principal, a, from_floor_id)
     if a["resource_type"] == "camera":
         # T055 B1: taking a camera off a floor can lift a deny that sat on that floor - the same reach as placing it
         require_camera_placement(conn, principal, a["resource_id"])
@@ -404,4 +489,4 @@ def delete_anchor(anchor_id: str, request: Request, principal: Principal = Depen
     unbound = geometry_store.unbind_anchor(conn, a["floor_id"], a["resource_type"], a["resource_id"], principal.user_id, now,
                                            last={"x": a["x"], "y": a["y"], "rotation": a["rotation_degrees"] or 0})  # its bodies stay where the anchor was, unbound
     audit(conn, actor=principal, action="anchor.delete", decision="allowed", resource_type="floor", resource_id=a["floor_id"], request_id=_rid(request),
-          details={"anchor_id": anchor_id, "resource": f"{a['resource_type']}:{a['resource_id']}", "unbound_bodies": unbound})
+          details={"anchor_id": anchor_id, "resource": f"{a['resource_type']}:{a['resource_id']}", "unbound_bodies": unbound, **({"via_floor_id": from_floor_id} if via is not None else {})})
