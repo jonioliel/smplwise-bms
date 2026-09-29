@@ -69,6 +69,20 @@ class SyncState:
         self.last_structure_at: str | None = None  # the last refresh that actually changed floors / areas / entities
         self.registry_events = 0  # registry-updated events seen since start
 
+    def __setattr__(self, name: str, value: Any) -> None:
+        # when the connection was lost (monotonic): the NVR-less health reports an HA outage past a grace period
+        if name == "connected":
+            prev = self.__dict__.get("connected")
+            if value and not prev:
+                self.__dict__["disconnected_since"] = None
+            elif not value and prev is not False:
+                self.__dict__["disconnected_since"] = time.monotonic()
+        super().__setattr__(name, value)
+
+    def down_for(self) -> float:
+        since = self.__dict__.get("disconnected_since")
+        return 0.0 if self.connected or since is None else time.monotonic() - since
+
     def as_dict(self) -> dict[str, Any]:
         return {k: getattr(self, k) for k in ("connected", "last_snapshot_at", "last_event_at", "last_registry_at", "last_error", "reconnects", "sequence", "entities", "started_at", "ha_version",
                                               "last_registry_error", "last_structure_at", "registry_events")}

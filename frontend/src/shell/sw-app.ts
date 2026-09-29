@@ -1188,7 +1188,7 @@ export class SwApp extends LitElement {
     const name = me?.user.display_name || me?.user.username || 'יוני';
     return html`
       <nav class="rail" aria-label="ניווט ראשי">
-        <a class="brand-tile" href=${this.session.mode === 'api' && NVR_LESS ? '#/explore/floors/f0' : '#/live'} title="SmplWise"><span>S</span></a>
+        <a class="brand-tile" href=${this.session.mode === 'api' && NVR_LESS ? (HIDDEN_HREFS.has('#/explore/floors/f0') ? '#/devices/building' : '#/explore/floors/f0') : '#/live'} title="SmplWise"><span>S</span></a>
         ${visibleAreas(this.session.mode === 'api', canNav).map(
           (n) => html`<a class=${classMap({ item: true, a: true, active: area === n.id })} href=${n.href} title=${n.label} aria-current=${area === n.id ? 'page' : 'false'}>
             <sw-icon .name=${n.icon} size=${23}></sw-icon><span>${n.label}</span>

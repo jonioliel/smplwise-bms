@@ -38,7 +38,7 @@ def health(request: Request, principal: Principal = Depends(current_principal), 
         **describe_mode(settings),
         "db": {"ok": conn.execute("SELECT 1").fetchone()[0] == 1, "permission_revision": permission_revision(conn), "write_lock": _write_lock_view(conn, principal)},
         "data_dir_writable": os.access(settings.data_dir, os.W_OK),
-        "nvr_configured": bool(settings.nvr_host and settings.nvr_user),
+        "nvr_configured": bool(settings.nvr_host and settings.nvr_user),  # the placeholder host (no user) is not configured
         "go2rtc_configured": bool(settings.go2rtc_url),
         "discovery": {**autosync.STATE, "cameras": conn.execute("SELECT COUNT(*) FROM cameras").fetchone()[0], "interval_s": autosync.INTERVAL_S},
         "events": {"ingest": events_ingest.STATE.as_dict(), "derive": events_derive.STATE, "stored": conn.execute("SELECT COUNT(*) FROM events").fetchone()[0],

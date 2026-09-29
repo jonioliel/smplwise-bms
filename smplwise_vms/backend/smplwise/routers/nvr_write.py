@@ -12,7 +12,7 @@ from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
-from ..mode import REQUIRE_NVR, installation_mode, is_ha_only  # NVR-less mode: 409 nvr_not_configured
+from ..mode import ensure_nvr, installation_mode, is_ha_only  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import nvr, nvr_schedule, nvr_system, nvr_write
 
@@ -49,7 +49,7 @@ def _cameras(conn: sqlite3.Connection, principal: Principal | None = None, permi
     return [r for r in rows if any(s.allows(r["id"]) for s in scopes)]
 
 
-@router.get("/nvr/notify", dependencies=[REQUIRE_NVR])
+@router.get("/nvr/notify")
 def notify_status(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Which channels notify the surveillance centre for motion and for the smart events (read-only probe)."""
     _require_read(conn, principal)
@@ -82,7 +82,7 @@ class NotifyIn(BaseModel):
     enabled: bool = True
 
 
-@router.put("/nvr/notify", dependencies=[REQUIRE_NVR])
+@router.put("/nvr/notify")
 def set_notify(body: NotifyIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Add (or remove) "Notify Surveillance Center" on the motion trigger - and the smart triggers when asked - of the
     chosen channels. Each trigger is one recorded, reversible change; types a channel does not have are skipped."""
@@ -132,7 +132,7 @@ class MotionIn(BaseModel):
     enabled: bool | None = None
 
 
-@router.put("/cameras/{camera_id}/motion", dependencies=[REQUIRE_NVR])
+@router.put("/cameras/{camera_id}/motion")
 def set_motion(camera_id: str, body: MotionIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """B2: write the camera's motion-detection grid, sensitivity and/or enabled flag to the NVR (one recorded,
     reversible change). Needs `nvr.config.detection` and the camera in the caller's live scope."""
@@ -176,7 +176,7 @@ def _camera_for_record(conn: sqlite3.Connection, principal: Principal, camera_id
     return cam
 
 
-@router.get("/cameras/{camera_id}/record", dependencies=[REQUIRE_NVR])
+@router.get("/cameras/{camera_id}/record")
 def record_status(camera_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A1: the manual recording the VMS started for this camera (if any) and whether the caller may start one."""
     from ..services.access import require_camera
@@ -189,7 +189,7 @@ def record_status(camera_id: str, principal: Principal = Depends(current_princip
     return {"camera_id": camera_id, "active": nvr_write.manual_row(nvr_write.manual_active(conn, camera_id)), "can_write": can, "max_minutes": nvr_write.MANUAL_MAX_MIN, "track_id": cam["main_track"]}
 
 
-@router.post("/cameras/{camera_id}/record/start", status_code=201, dependencies=[REQUIRE_NVR])
+@router.post("/cameras/{camera_id}/record/start", status_code=201)
 def record_start(camera_id: str, body: RecordIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Start a manual recording on the camera's main track; the VMS stops it after `minutes` (default 10)."""
     cam = _camera_for_record(conn, principal, camera_id)
@@ -198,7 +198,7 @@ def record_start(camera_id: str, body: RecordIn, request: Request, principal: Pr
     return nvr_write.start_manual(settings_of(request), conn, principal, camera_id, int(cam["main_track"]), body.minutes, request_id=_rid(request))
 
 
-@router.post("/cameras/{camera_id}/record/stop", dependencies=[REQUIRE_NVR])
+@router.post("/cameras/{camera_id}/record/stop")
 def record_stop(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _camera_for_record(conn, principal, camera_id)
     r = nvr_write.stop_manual(settings_of(request), conn, principal, camera_id, request_id=_rid(request))
@@ -214,7 +214,7 @@ def _can(conn: sqlite3.Connection, principal: Principal) -> dict[str, bool]:
             (("time", "nvr.config.time"), ("storage", "nvr.storage.test"), ("alarm", "nvr.alarm_output"), ("reboot", "nvr.system.reboot"), ("osd", "nvr.config.osd"), ("connection", "system.configure"))}
 
 
-@router.get("/nvr/system", dependencies=[REQUIRE_NVR])
+@router.get("/nvr/system")
 def system_status(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Clock + NTP, disks with S.M.A.R.T., alarm outputs - read-only, with what this user may write."""
     _require_read(conn, principal)
@@ -238,7 +238,7 @@ class TimeIn(BaseModel):
     mode: str | None = Field(default=None, pattern="^(NTP|manual)$")
 
 
-@router.put("/nvr/time", dependencies=[REQUIRE_NVR])
+@router.put("/nvr/time")
 def set_time(body: TimeIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "nvr.config.time", INSTALLATION)
     if not body.sync_now and not body.mode:
@@ -255,14 +255,14 @@ class NtpIn(BaseModel):
     interval_min: int | None = Field(default=None, ge=1, le=10080)
 
 
-@router.put("/nvr/ntp", dependencies=[REQUIRE_NVR])
+@router.put("/nvr/ntp")
 def set_ntp(body: NtpIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "nvr.config.time", INSTALLATION)
     with unlocked(conn):
         return nvr_system.set_ntp(settings_of(request), conn, principal, host=body.host, port=body.port, interval_min=body.interval_min, request_id=_rid(request))
 
 
-@router.post("/nvr/outputs/{output_id}/pulse", status_code=201, dependencies=[REQUIRE_NVR])
+@router.post("/nvr/outputs/{output_id}/pulse", status_code=201)
 def pulse_output(output_id: int, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "nvr.alarm_output", INSTALLATION)
     with unlocked(conn):
@@ -273,7 +273,7 @@ class SmartIn(BaseModel):
     kind: str = Field(default="short", pattern="^(short|extended)$")
 
 
-@router.post("/nvr/storage/{hdd_id}/smart-test", status_code=201, dependencies=[REQUIRE_NVR])
+@router.post("/nvr/storage/{hdd_id}/smart-test", status_code=201)
 def smart_test(hdd_id: int, body: SmartIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "nvr.storage.test", INSTALLATION)
     with unlocked(conn):
@@ -284,7 +284,7 @@ class RebootIn(BaseModel):
     confirm: str = Field(max_length=20)
 
 
-@router.post("/nvr/reboot", status_code=201, dependencies=[REQUIRE_NVR])
+@router.post("/nvr/reboot", status_code=201)
 def reboot_nvr(body: RebootIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The typed word is the second confirmation the owner asked for (no live video / recording for 1-2 minutes)."""
     require(conn, principal, "nvr.system.reboot", INSTALLATION)
@@ -358,7 +358,7 @@ def _channel_of(conn: sqlite3.Connection, camera_id: str, principal: Principal, 
     return cam, int(cam["channel"])
 
 
-@router.get("/cameras/{camera_id}/osd", dependencies=[REQUIRE_NVR])
+@router.get("/cameras/{camera_id}/osd")
 def get_osd(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _require_read(conn, principal)
     cam, ch = _channel_of(conn, camera_id, principal)
@@ -368,7 +368,7 @@ def get_osd(camera_id: str, request: Request, principal: Principal = Depends(cur
             "can_write": authorize(conn, principal, "nvr.config.osd", INSTALLATION).allowed, "date_styles": list(nvr_system.DATE_STYLES)}
 
 
-@router.put("/cameras/{camera_id}/osd", dependencies=[REQUIRE_NVR])
+@router.put("/cameras/{camera_id}/osd")
 def set_osd(camera_id: str, body: OsdIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "nvr.config.osd", INSTALLATION)
     _cam, ch = _channel_of(conn, camera_id, principal, "nvr.config.osd")
@@ -385,7 +385,7 @@ class NameIn(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=32)  # absent = the VMS name
 
 
-@router.post("/cameras/{camera_id}/osd/name", status_code=201, dependencies=[REQUIRE_NVR])
+@router.post("/cameras/{camera_id}/osd/name", status_code=201)
 def write_channel_name(camera_id: str, body: NameIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "nvr.config.osd", INSTALLATION)
     cam, ch = _channel_of(conn, camera_id, principal, "nvr.config.osd")
@@ -406,7 +406,7 @@ def _track_of(conn: sqlite3.Connection, camera_id: str, principal: Principal, wr
     return cam, ch, int(cam["main_track"] or f"{ch}01")
 
 
-@router.get("/cameras/{camera_id}/schedules", dependencies=[REQUIRE_NVR])
+@router.get("/cameras/{camera_id}/schedules")
 def get_schedules(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Arming schedules of motion / line crossing / intrusion and the main track's recording schedule (read-only)."""
     _require_read(conn, principal)
@@ -438,7 +438,7 @@ class WeekIn(BaseModel):
     days: list[list[dict[str, Any]]] = Field(min_length=7, max_length=7)
 
 
-@router.put("/cameras/{camera_id}/schedules/{kind}", dependencies=[REQUIRE_NVR])
+@router.put("/cameras/{camera_id}/schedules/{kind}")
 def set_arming(camera_id: str, kind: str, body: WeekIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "nvr.config.events", INSTALLATION)
     if kind not in nvr_schedule.SCHEDULE_KINDS:
@@ -466,7 +466,7 @@ class RecordScheduleIn(BaseModel):
     schedule_enabled: bool | None = None
 
 
-@router.put("/cameras/{camera_id}/record-schedule", dependencies=[REQUIRE_NVR])
+@router.put("/cameras/{camera_id}/record-schedule")
 def set_record_schedule(camera_id: str, body: RecordScheduleIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """C1: the weekly recording schedule of the main track; a mistake here means hours without recording, so the UI
     shows the difference first and the change log keeps the previous document for a one-click rollback."""
@@ -481,7 +481,7 @@ def set_record_schedule(camera_id: str, body: RecordScheduleIn, request: Request
                                       mutate=lambda x: nvr_schedule.track_document(x, days, enabled=body.enabled, schedule_enabled=body.schedule_enabled), note="לוח הקלטה: " + " + ".join(parts), request_id=_rid(request))
 
 
-@router.get("/cameras/{camera_id}/smart", dependencies=[REQUIRE_NVR])
+@router.get("/cameras/{camera_id}/smart")
 def get_smart(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _require_read(conn, principal)
     _cam, ch, _track = _track_of(conn, camera_id, principal)
@@ -502,7 +502,7 @@ class SmartRulesIn(BaseModel):
     field: dict[str, Any] | None = None
 
 
-@router.put("/cameras/{camera_id}/smart", dependencies=[REQUIRE_NVR])
+@router.put("/cameras/{camera_id}/smart")
 def set_smart(camera_id: str, body: SmartRulesIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """B4: line crossing and intrusion rules - one recorded change per document; the zones cache is dropped so the
     camera screen shows the new shapes right away."""

@@ -72,22 +72,30 @@ the WisKey feed, the bridge install and the daily backup. One INFO line at start
 **Health.** A new neutral check status `off` ("לא מוגדר") that never lowers the overall status. In `ha_only` the NVR
 check is `off`, go2rtc is `off` while it is not configured (probed normally when it is), and the NVR job checks
 (`events_ingest`, `events_derive`, `discovery`, `thumbnails`, `exports`) are not reported. The summary drops the
-"ה־NVR לא הוגדר" item, so with HA connected and a backup present the pill is green.
+"ה־NVR לא הוגדר" item, so with HA connected and a backup present the pill is green. Home Assistant is the product in
+this mode: HA not configured, or disconnected for more than `HA_GRACE_S` (60 s, measured by `ha_sync.STATE.down_for()`),
+is an `error` in the summary (the system banner) and in the report's `ha_sync` check; the full mode keeps its warnings.
 
 **Wizard.** A new step status `not_applicable` with a `status_label`: NVR and camera are "דילוג - מצב ללא NVR" (problem
 code `nvr_less_mode`, next action = how to add the NVR later, link to הגדרות › חיבורים); go2rtc is
-"דילוג - לא מוגדר (רשות)" while not configured, because only WisKey station video needs it without an NVR. `total`
+"דילוג - לא מוגדר (רשות)" while neither `go2rtc_url` nor `wiskey_username` is set (WisKey station stills and video go
+through go2rtc, so with WisKey credentials it is a required step). A configured go2rtc is checked for reachability only
+(no camera streams are expected) and the last successful check is kept past the live cache, because no stream sync runs
+without an NVR to refresh the background state. `total`
 counts the required steps only, so "מוכן לעבודה" is reached with install, Home Assistant, floor (and go2rtc when
 configured - the four remaining steps of the brief). The NVR check probes nothing. *Recorded decision:* go2rtc is
 optional in `ha_only`; the brief's "four remaining steps" holds when go2rtc is configured, and an electricity-only
 installation without go2rtc is ready with three.
 
-**Routes.** `REQUIRE_NVR` (a dependency) answers 409 `nvr_not_configured` with the "how to add it" message, after the
-caller is identified (an unidentified caller still gets 401) and before any device call: whole routers `recordings`,
-`frames`, `playback_groups`, `exports`; single routes: camera sync / snapshot / capabilities / zones / manual channel,
-live media info and stream sync, playback session create / seek, case-item preserve, and every `nvr_write` route
-except the connection and the change list. Local reads keep answering (camera list, stored events, cases, storage
-report, floor maps, search). Every route keeps its own permission check in both modes. `PUT /nvr/connection` (outside
+**Routes.** 409 `nvr_not_configured` with the "how to add it" message, always AFTER the route's own identity and
+permission checks - a caller without the permission gets the same audited 403 as in the full mode, and only an
+authorised caller learns that the NVR is absent. `mode.ensure_nvr` sits at the NVR boundary - the ISAPI client
+(`nvr._client`, used by every NVR read and write), the live and playback RTSP URL builders - and in the handlers that
+reach no device or check go2rtc first: camera sync, manual channel, snapshot / capabilities / zones, live media info,
+stream sync, playback session and group create (before the go2rtc check), case snapshot / preserve. Local reads keep
+answering (camera list, stored events, the export list, cases, storage report, floor maps, search). A stored event of a
+leftover camera gets no thumbnail request (the list marks it `unavailable`, the thumbnail route answers 404
+`thumbnail_unavailable`), never a 202 that waits for a worker that does not run. `PUT /nvr/connection` (outside
 the add-on) answers `mode` and `restart_required` - the NVR routes answer at once, the background work starts with the
 next start.
 
@@ -102,10 +110,15 @@ choice in both modes. Screens: the wizard (skipped steps, no "בדוק שוב" o
 instead of the video, playback, export, AI-search and history forms; display, map and retention settings stay),
 אחסון (local disk only), the floor map (no camera anchors, no cameras layer, no multi-camera selection).
 
-**Fixtures.** The Playwright fixture backends that expect the full navigation (`devices_fake_ha.py`,
-`wiskey_fake_ha.py`) and the guide's demo-backend recipe name a placeholder host `nvr-placeholder.test` (reserved,
-never resolves; with no NVR user nothing connects), the backend test settings `nvr.fixture.test`; the NVR-less mode has
-its own fixture `frontend/tests/fixtures/nvr_less_backend.py`.
+**Developer and test launches keep the full mode (central).** Only the add-on (options in `/data/options.json`) derives
+`ha_only` from a missing `nvr_host`. Every other launch - the owner's dev backend, any throwaway `python -m smplwise`,
+every Playwright fixture backend - goes through `config.load_settings`, which fills a missing NVR host with
+`DEV_NVR_PLACEHOLDER` = `nvr-placeholder.test` (a reserved name that never resolves; no NVR user is ever filled in, so
+nothing connects and the NVR stays "not configured" exactly as before) unless the caller sets `SW_MODE=ha_only`. The
+start-up log says which. The NVR-less fixture `frontend/tests/fixtures/nvr_less_backend.py` sets `SW_MODE=ha_only`;
+the backend test settings (`tests/conftest.py`, built directly, not through `load_settings`) name the same placeholder.
+Case routes that used to check the host alone (coverage probe, snapshot / preserve) now require host and credentials,
+so the placeholder behaves exactly like no NVR there.
 
 ## 3. Evidence
 

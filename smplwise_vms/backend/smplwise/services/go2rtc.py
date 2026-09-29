@@ -36,6 +36,9 @@ def stream_name(recorder_id: str, channel: int, profile: str) -> str:
 
 def hikvision_rtsp_url(settings: Settings, channel: int, profile: str) -> str:
     """rtsp://user:pass@host:554/Streaming/Channels/<ch>01 (main) or <ch>02 (sub). Server-side only."""
+    from ..mode import ensure_nvr
+
+    ensure_nvr(settings)  # NVR-less mode: 409 nvr_not_configured
     if not settings.nvr_host or not settings.nvr_user or not settings.nvr_password:
         raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו בהגדרות ה־Add-on.")
     track = f"{channel}0{1 if profile == 'main' else 2}"

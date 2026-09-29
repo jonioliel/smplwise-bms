@@ -29,7 +29,6 @@ Source: original
    $env:SW_BOOTSTRAP_ADMIN = "joni"
    $env:SW_HOST = "127.0.0.1"
    $env:SW_PORT = "8099"
-   $env:NVR_HOST = "nvr-placeholder.test"   # מצב מלא: בלי כתובת NVR השרת עולה במצב ללא NVR ומסתיר את מסכי המצלמות
    C:/cloude/smplwisebms/.venv/Scripts/python.exe -m smplwise
    ```
 3. הרצת ה־preview (בתיקייה `frontend`, בטרמינל נפרד): `npm run preview` (מגיש על `4173`, מעביר `/api` ל־`8099`).

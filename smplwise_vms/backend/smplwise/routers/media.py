@@ -24,7 +24,7 @@ from ..auth import current_principal, get_conn, maybe_bootstrap, resolve_princip
 from ..config import Settings
 from ..db import Database, retry_locked, unlocked
 from ..errors import ApiError
-from ..mode import REQUIRE_NVR  # NVR-less mode: 409 nvr_not_configured
+from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Decision, Principal, require
 from ..services import autosync
 from ..services import go2rtc as g2
@@ -78,11 +78,12 @@ def ensure_camera_stream(settings: Settings, cam: sqlite3.Row, profile: str) -> 
     return name
 
 
-@router.post("/media/streams/sync", dependencies=[REQUIRE_NVR])
+@router.post("/media/streams/sync")
 def sync_streams(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Pre-create our namespaced streams in go2rtc for every enabled camera (idempotent, bounded). Also runs
     automatically after each discovery when go2rtc is configured."""
     require(conn, principal, "sources.configure", INSTALLATION)
+    ensure_nvr(settings_of(request))  # NVR-less mode: no camera streams to create (after the permission check)
     return autosync.ensure_streams(settings_of(request), conn, actor=principal, request_id=getattr(request.state, "correlation_id", None), reason="manual")
 
 
@@ -109,10 +110,11 @@ def list_sessions(principal: Principal = Depends(current_principal), conn: sqlit
     }
 
 
-@router.get("/media/live/{camera_id}", dependencies=[REQUIRE_NVR])
+@router.get("/media/live/{camera_id}")
 def live_info(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), profile: str = Query("sub", pattern="^(sub|main)$")) -> dict[str, Any]:
     """What the player needs before opening the socket: permission, transport default and the relay path."""
     require_camera(conn, principal, camera_id, "video.live")  # T055: 403 before 404
+    ensure_nvr(settings_of(request))  # NVR-less mode: 409 after the permission check
     cam = _stream_for(conn, camera_id)
     s = read_settings(conn)
     return {

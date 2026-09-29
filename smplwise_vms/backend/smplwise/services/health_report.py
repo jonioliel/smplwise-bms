@@ -20,6 +20,7 @@ from . import backup as backup_svc
 from ..mode import NVR_LESS_LABEL, installation_mode, is_ha_only
 
 PROBE_TTL_S = 20
+HA_GRACE_S = 60  # NVR-less mode: a Home Assistant disconnection longer than this is an error
 STARTED = time.time()
 _probe_lock = threading.Lock()
 _probe_cache: dict[str, tuple[float, dict[str, Any]]] = {}
@@ -150,10 +151,12 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
     # Home Assistant sync + bridge
     hs = ha_sync.STATE.as_dict()
     if not ha_client.configured(settings):
-        checks.append(_check("ha_sync", "סנכרון Home Assistant", "warn", "אין חיבור ל־Home Assistant בהגדרות (בתוסף: אוטומטי דרך ה־Supervisor).", configured=False))
+        checks.append(_check("ha_sync", "סנכרון Home Assistant", "error" if is_ha_only(settings) else "warn", "אין חיבור ל־Home Assistant בהגדרות (בתוסף: אוטומטי דרך ה־Supervisor).", configured=False))
     else:
         age = _age_s(hs.get("last_event_at") or hs.get("last_snapshot_at"))
         st = "ok" if hs.get("connected") else ("warn" if hs.get("last_snapshot_at") else "error")
+        if is_ha_only(settings) and not hs.get("connected") and ha_sync.STATE.down_for() > HA_GRACE_S:
+            st = "error"  # NVR-less mode: Home Assistant is the product
         checks.append(_check("ha_sync", "סנכרון Home Assistant", st, f"{'מחובר' if hs.get('connected') else 'מנותק'} · {hs.get('entities', 0)} ישויות · HA {hs.get('ha_version') or '?'} · עדכון אחרון {'לפני ' + str(int(age)) + ' שנ׳' if age is not None else '—'}{' · ' + str(hs.get('last_error')) if hs.get('last_error') else ''}", **hs))
     paired = bool(get_setting(conn, "bridge.secret")) and bool(get_setting(conn, "bridge.paired_at"))
     users = conn.execute("SELECT COUNT(*) FROM ha_users").fetchone()[0] if "ha_users" in {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")} else 0
@@ -233,7 +236,16 @@ def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
             items.append({"id": "go2rtc", "status": "warn", "label": "סנכרון הזרמים ל־go2rtc נכשל"})
     else:
         items.append({"id": "nvr", "status": "warn", "label": "ה־NVR לא הוגדר"})
-    if ha_client.configured(settings):
+    if is_ha_only(settings):
+        # NVR-less mode: Home Assistant is the whole product - missing, or down past a minute, is an error
+        hs = ha_sync.STATE
+        if not ha_client.configured(settings):
+            items.append({"id": "ha", "status": "error", "label": "אין חיבור ל־Home Assistant — במצב ללא NVR המערכת כולה נשענת עליו"})
+        elif not hs.connected and hs.down_for() > HA_GRACE_S:
+            items.append({"id": "ha", "status": "error", "label": "Home Assistant מנותק — שליטה בהתקנים ומצבי ישויות אינם זמינים"})
+        elif not hs.connected and hs.last_snapshot_at:
+            items.append({"id": "ha", "status": "warn", "label": "הסנכרון עם Home Assistant מנותק; מצבי ישויות עלולים להיות מיושנים"})
+    elif ha_client.configured(settings):
         hs = ha_sync.STATE
         if not hs.connected and hs.last_snapshot_at:
             items.append({"id": "ha", "status": "warn", "label": "הסנכרון עם Home Assistant מנותק; מצבי ישויות עלולים להיות מיושנים"})

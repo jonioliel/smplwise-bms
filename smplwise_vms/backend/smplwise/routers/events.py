@@ -19,6 +19,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..config import Settings
 from ..db import Database, database_of, now_iso
 from ..errors import ApiError
+from ..mode import is_ha_only
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import correlation, events_cache, events_derive, events_ingest, revocation, thumbnails
 from ..services.access import RowScope, camera_allowed, require_camera, row_scope
@@ -77,8 +78,12 @@ def _with_thumbs(settings: Settings, rows: list[dict[str, Any]], queue_first: in
             ask.append(r["id"])
             st = "pending"
         r["thumbnail"] = st
-    if ask:
+    if ask and not is_ha_only(settings):  # NVR-less mode: no worker, no recording to grab a picture from
         thumbnails.WORKER.request(settings, ask)
+    elif ask:
+        for r in rows:
+            if r["id"] in ask:
+                r["thumbnail"] = "unavailable"
     return rows
 
 
@@ -558,6 +563,8 @@ def thumbnail(event_id: str, request: Request, principal: Principal = Depends(cu
         return FileResponse(thumbnails.path_for(settings, event_id), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
     if st == "unavailable":
         raise ApiError(404, "thumbnail_unavailable", "לא נמצא פריים בהקלטה בזמן האירוע.")
+    if st == "none" and is_ha_only(settings):
+        raise ApiError(404, "thumbnail_unavailable", "אין תמונה לאירוע במצב ללא NVR.", details={"mode": "ha_only"})
     if st == "none":
         thumbnails.WORKER.request(settings, [event_id])
     return JSONResponse(status_code=202, content={"status": "pending", "queued": thumbnails.STATE["queued"]}, headers={"Retry-After": "4"})

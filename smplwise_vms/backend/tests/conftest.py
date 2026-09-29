@@ -50,9 +50,9 @@ def settings(tmp_path: Path) -> Settings:
         trusted_proxies=("172.30.32.2",),
         dev_user="joni",
         bootstrap_admin_username="joni",
-        # a full installation whose NVR has no credentials yet: the suite exercises the NVR routes with patched device
-        # calls, so it runs in the `full` mode; the NVR-less mode (no nvr_host at all) has its own test_nvr_less.py
-        nvr_host="nvr.fixture.test",
+        # what load_settings gives a developer / test backend without NVR_HOST: the full mode with a placeholder host and
+        # no credentials (config.DEV_NVR_PLACEHOLDER); the NVR-less mode (no nvr_host at all) has its own test_nvr_less.py
+        nvr_host="nvr-placeholder.test",
         nvr_http_port=80,
         nvr_user=None,
         nvr_password=None,

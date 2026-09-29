@@ -84,9 +84,10 @@ test.describe('NVR-less mode (Home Assistant only)', () => {
     const h = await (await request.get('/api/v1/health')).json();
     expect(h.mode).toBe('ha_only');
     expect(h.nvr.state).toBe('not_configured');
+    // Home Assistant is the product here: green once the (fake) HA is connected, red while it is not
+    await expect.poll(async () => (await (await request.get('/api/v1/health/summary')).json()).status, { timeout: 30000 }).toBe('ok');
     const s = await (await request.get('/api/v1/health/summary')).json();
     expect(s.items.map((i: { id: string }) => i.id)).not.toContain('nvr');
-    expect(s.status).toBe('ok');
     await open(page, '/explore/sites');
     await expect(page.locator('sw-app [data-sys-pill]')).toHaveAttribute('data-status', 'ok', { timeout: 30000 });
     await expect(page.locator('sw-app [data-sys-banner]')).toHaveCount(0);

@@ -9,18 +9,18 @@ In `ha_only`:
 - the NVR background work never starts (camera discovery, the alertStream listener, recording-derived events, the
   export worker, event thumbnails, the storage-report warm-up) - one INFO line at start-up says so;
 - `/health`, `/health/summary` and `/health/report` show the NVR as "לא מוגדר" (neutral), never as an error;
-- the routes that need the NVR answer 409 `nvr_not_configured` (after the caller is identified - an unidentified caller
-  still gets 401) instead of a device timeout; local reads (the camera list, stored events, cases) keep answering;
+- the routes that need the NVR answer 409 `nvr_not_configured` instead of a device error. The check sits at the NVR
+  boundary (`ensure_nvr`: the ISAPI client, the RTSP URL builders) and in the few handlers that reach no device, always
+  after the handler's own identity and permission checks - so 401 / 403 and their audit rows are exactly as before, and
+  only an authorised caller learns that the NVR is absent; local reads (the camera list, stored events, cases) keep
+  answering;
 - the UI hides the NVR areas from the navigation for everyone and answers their URLs with a "מצב ללא NVR" panel.
 Hidden is not unprotected: every route keeps its own permission check in both modes."""
 from __future__ import annotations
 
 from typing import Any
 
-from fastapi import Depends
-from starlette.requests import HTTPConnection
-
-from .config import Settings
+from .config import DEV_NVR_PLACEHOLDER, Settings
 from .errors import ApiError
 
 FULL = "full"
@@ -41,27 +41,30 @@ def is_ha_only(settings: Settings) -> bool:
     return installation_mode(settings) == HA_ONLY
 
 
+def nvr_ready(settings: Settings) -> bool:
+    """An NVR the add-on can talk to: a host and credentials (the developer placeholder host alone is not one)."""
+    return bool(settings.nvr_host and settings.nvr_user and settings.nvr_password)
+
+
+def is_placeholder(settings: Settings) -> bool:
+    """The developer / test placeholder host (config.DEV_NVR_PLACEHOLDER): full mode, no real NVR."""
+    return settings.nvr_host == DEV_NVR_PLACEHOLDER
+
+
 def describe(settings: Settings) -> dict[str, Any]:
     """The mode block the API reports (/me, /health, /setup/state)."""
     ha_only = is_ha_only(settings)
-    return {"mode": installation_mode(settings), "nvr": {"configured": bool(settings.nvr_host and settings.nvr_user and settings.nvr_password),
-                                                         "state": "not_configured" if ha_only else "configured" if settings.nvr_user else "incomplete",
-                                                         "label": NVR_LESS_LABEL if ha_only else ""}}
+    state = "not_configured" if ha_only else "placeholder" if is_placeholder(settings) else "configured" if nvr_ready(settings) else "incomplete"
+    label = NVR_LESS_LABEL if ha_only else "כתובת NVR זמנית של סביבת פיתוח (לא NVR אמיתי)" if state == "placeholder" else ""
+    return {"mode": installation_mode(settings), "nvr": {"configured": nvr_ready(settings), "state": state, "label": label}}
 
 
 def nvr_not_configured() -> ApiError:
     return ApiError(409, "nvr_not_configured", NVR_NOT_CONFIGURED_MESSAGE, details={"mode": HA_ONLY})
 
 
-def _require_nvr(conn: HTTPConnection) -> None:
-    settings: Settings = conn.app.state.settings
-    if not is_ha_only(settings):
-        return
-    from .auth import resolve_principal
-
-    resolve_principal(conn, settings)  # type: ignore[arg-type]  # 401 for an unidentified caller comes first
-    raise nvr_not_configured()
-
-
-# `dependencies=[REQUIRE_NVR]` on a route (or a router) that needs the NVR
-REQUIRE_NVR = Depends(_require_nvr)
+def ensure_nvr(settings: Settings) -> None:
+    """409 nvr_not_configured in the NVR-less mode. Called at the NVR boundary and by handlers that reach no device -
+    always after the handler's own permission check, never instead of it."""
+    if is_ha_only(settings):
+        raise nvr_not_configured()

@@ -55,6 +55,14 @@ class Settings:
         return self.data_dir / "smplwise.db"
 
 
+# NVR-less mode (mode.py): outside the add-on (a developer backend, a throwaway test backend, a Playwright fixture) an
+# installation without an NVR host would start in the `ha_only` mode and hide every camera screen. Those launches keep
+# the full mode by default through this placeholder (a reserved `.test` name that never resolves; without an NVR user
+# nothing ever connects to it). `SW_MODE=ha_only` asks for the NVR-less mode instead. Inside the add-on the options
+# decide alone: no nvr_host is ha_only.
+DEV_NVR_PLACEHOLDER = "nvr-placeholder.test"
+
+
 def _opt(options: dict, key: str, env: str, default: str | None = None) -> str | None:
     value = options.get(key)
     if value in (None, ""):
@@ -93,7 +101,8 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
         trusted_proxies=proxies,
         dev_user=dev_user,
         bootstrap_admin_username=_opt(options, "bootstrap_admin_username", "SW_BOOTSTRAP_ADMIN"),
-        nvr_host=_opt(options, "nvr_host", "NVR_HOST"),
+        nvr_host=_opt(options, "nvr_host", "NVR_HOST") or (
+            None if in_addon or (os.environ.get("SW_MODE") or "").strip().lower() == "ha_only" else DEV_NVR_PLACEHOLDER),
         nvr_http_port=int(_opt(options, "nvr_http_port", "NVR_HTTP_PORT", "80") or 80),
         nvr_user=_opt(options, "nvr_username", "NVR_USER"),
         nvr_password=_opt(options, "nvr_password", "NVR_PASSWORD"),

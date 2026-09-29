@@ -67,17 +67,30 @@ def test_mode_follows_the_nvr_host_option_only(settings, ha_only):
     assert installation_mode(dataclasses.replace(settings, nvr_user="u", nvr_password="p")) == FULL
 
 
-def test_load_settings_without_nvr_options_is_ha_only(tmp_path, monkeypatch):
-    from smplwise.config import load_settings
+def test_load_settings_without_nvr_options(tmp_path, monkeypatch):
+    """Inside the add-on the options decide alone (no nvr_host = ha_only). Every other launch - a developer backend, a
+    throwaway test backend, a Playwright fixture - keeps the full mode with a placeholder host unless SW_MODE=ha_only."""
+    from smplwise import config
+    from smplwise.config import DEV_NVR_PLACEHOLDER, load_settings
 
-    for k in ("NVR_HOST", "NVR_USER", "NVR_PASSWORD"):
+    for k in ("NVR_HOST", "NVR_USER", "NVR_PASSWORD", "SW_MODE"):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("SW_DATA_DIR", str(tmp_path / "data"))
     opts = tmp_path / "options.json"
     opts.write_text('{"nvr_host": "", "nvr_username": "", "nvr_password": "", "log_level": "info"}', encoding="utf-8")
+    dev = load_settings(opts)
+    assert dev.nvr_host == DEV_NVR_PLACEHOLDER and installation_mode(dev) == FULL, "a dev / test backend keeps the camera screens"
+    assert dev.nvr_user is None and dev.nvr_password is None, "the placeholder never gets credentials: nothing connects to it"
+    monkeypatch.setenv("SW_MODE", "ha_only")
     assert installation_mode(load_settings(opts)) == HA_ONLY
+    monkeypatch.delenv("SW_MODE")
+    # the add-on reads /data/options.json: no nvr_host is the NVR-less mode, whatever the environment says
+    real_path = config.Path
+    monkeypatch.setattr(config, "Path", lambda p: real_path(opts) if str(p) == "/data/options.json" else real_path(p))
+    addon = load_settings("/data/options.json")
+    assert addon.nvr_host is None and installation_mode(addon) == HA_ONLY
     opts.write_text('{"nvr_host": "nvr.local", "nvr_username": "v", "nvr_password": "p"}', encoding="utf-8")
-    assert installation_mode(load_settings(opts)) == FULL
+    assert installation_mode(load_settings("/data/options.json")) == FULL
 
 
 def test_mode_is_reported_in_me_health_and_setup_state(ha_only, settings):
@@ -91,6 +104,10 @@ def test_mode_is_reported_in_me_health_and_setup_state(ha_only, settings):
     assert c.get("/api/v1/health/report").json()["mode"] == HA_ONLY
 
     full = TestClient(create_app(dataclasses.replace(settings, data_dir=settings.data_dir.parent / "full")))
+    fh = full.get("/api/v1/health").json()
+    assert fh["nvr"]["state"] == "placeholder" and "פיתוח" in fh["nvr"]["label"], "the placeholder host is labelled, never shown as an NVR"
+    conn_view = full.get("/api/v1/nvr/connection").json()
+    assert conn_view["host"] is None and conn_view["placeholder"] is True
     assert full.get("/api/v1/me").json()["mode"] == FULL
     assert full.get("/api/v1/health").json()["mode"] == FULL
 
@@ -136,12 +153,45 @@ def test_janitor_tick_skips_the_nvr_work_in_ha_only(ha_only, monkeypatch):
 
 # ---------------------------------------------------------------- health: neutral, never red because of the NVR
 
-def test_health_summary_is_green_without_an_nvr(ha_only):
-    app = create_app(ha_only)
+def with_ha(settings):
+    return dataclasses.replace(settings, ha_url=f"http://{HA_HOST}:8123", ha_token="fake-token")
+
+
+def test_health_summary_is_green_without_an_nvr_while_home_assistant_is_up(ha_only, monkeypatch):
+    s = with_ha(ha_only)
+    app = create_app(s)
     c = TestClient(app)
-    backup_svc.create_standalone(ha_only, app.state.db, "auto-daily")  # a fresh install's only other item
-    s = c.get("/api/v1/health/summary").json()
-    assert s["status"] == "ok" and s["items"] == [], s
+    backup_svc.create_standalone(s, app.state.db, "auto-daily")  # a fresh install's only other item
+    monkeypatch.setattr(ha_sync.STATE, "connected", True)
+    r = c.get("/api/v1/health/summary").json()
+    assert r["status"] == "ok" and r["items"] == [], r
+
+
+def test_home_assistant_is_the_product_in_ha_only_missing_or_down_is_red(ha_only, monkeypatch):
+    """Without an NVR, Home Assistant is the whole product: not configured, or disconnected past a minute, is an error."""
+    app = create_app(ha_only)
+    backup_svc.create_standalone(ha_only, app.state.db, "auto-daily")
+    r = TestClient(app).get("/api/v1/health/summary").json()
+    assert r["status"] == "error" and [i["id"] for i in r["items"]] == ["ha"], r
+    rep_ = TestClient(app).get("/api/v1/health/report").json()
+    assert {x["id"]: x["status"] for x in rep_["checks"]}["ha_sync"] == "error"
+
+    s = with_ha(ha_only)
+    app2 = create_app(dataclasses.replace(s, data_dir=s.data_dir.parent / "ha"))
+    backup_svc.create_standalone(app2.state.settings, app2.state.db, "auto-daily")
+    c2 = TestClient(app2)
+    monkeypatch.setattr(ha_sync.STATE, "connected", True)
+    monkeypatch.setattr(ha_sync.STATE, "connected", False)  # just lost: within the grace period
+    assert c2.get("/api/v1/health/summary").json()["status"] != "error"
+    monkeypatch.setitem(ha_sync.STATE.__dict__, "disconnected_since", time.monotonic() - 120)
+    r2 = c2.get("/api/v1/health/summary").json()
+    assert r2["status"] == "error" and r2["items"][0]["id"] == "ha", r2
+    assert {x["id"]: x["status"] for x in c2.get("/api/v1/health/report").json()["checks"]}["ha_sync"] == "error"
+
+    full = dataclasses.replace(ha_only, nvr_host="nvr-placeholder.test", data_dir=s.data_dir.parent / "full")
+    app3 = create_app(full)
+    backup_svc.create_standalone(full, app3.state.db, "auto-daily")
+    assert TestClient(app3).get("/api/v1/health/summary").json()["status"] != "error", "the full mode keeps its HA wording (warn)"
 
 
 def test_health_report_shows_the_nvr_as_off_and_drops_the_nvr_jobs(ha_only, monkeypatch):
@@ -156,8 +206,7 @@ def test_health_report_shows_the_nvr_as_off_and_drops_the_nvr_jobs(ha_only, monk
     assert by["go2rtc"]["status"] == "off", "go2rtc is optional without an NVR"
     for gone in ("events_ingest", "events_derive", "discovery", "thumbnails", "exports"):
         assert gone not in by, f"{gone} is an NVR job and is not reported in the NVR-less mode"
-    assert "error" not in {x["status"] for x in r["checks"] if x["id"] != "backups"}
-    assert r["status"] != "error" or by["backups"]["status"] == "error"
+    assert "error" not in {x["status"] for x in r["checks"] if x["id"] not in ("backups", "ha_sync")}, "ha_sync: no HA here (its own test)"
 
 
 def test_off_checks_never_lower_the_overall_status(ha_only, monkeypatch):
@@ -211,43 +260,81 @@ def test_wizard_is_ready_with_the_remaining_steps(ha_only, monkeypatch):
     for sid in ("ha", "go2rtc"):
         assert step_of(c.post(f"/api/v1/setup/check/{sid}").json(), sid)["status"] == "done", sid
     body = c.get(STATE).json()
-    assert step_of(body, "go2rtc")["status"] == "done", "a configured go2rtc is a real step (WisKey station video)"
+    go = step_of(body, "go2rtc")
+    assert go["status"] == "done", "a configured go2rtc is a real step (WisKey station video)"
+    assert "no_cameras_yet" not in {w["code"] for w in go["warnings"]}, "no camera streams are expected without an NVR"
     assert body["total"] == 4 and body["done"] == 4 and body["ready"] is True and body["next"] is None
     assert [x["status"] for x in body["steps"]] == ["done", "not_applicable", "done", "done", "done", "not_applicable"]
+    # past the live cache (no stream sync runs without an NVR): go2rtc stays done on its last successful check
+    real = time.time
+    monkeypatch.setattr(wizard.time, "time", lambda: real() + wizard.LIVE_TTL_S + 60)
+    later = c.get(STATE).json()
+    assert step_of(later, "go2rtc")["status"] == "done" and step_of(later, "go2rtc")["source"] == "background"
+    assert later["ready"] is True and later["total"] == 4
     assert fake.writes == []
+
+
+def test_wizard_needs_go2rtc_when_wiskey_station_video_is_configured(ha_only):
+    s = dataclasses.replace(ha_only, wiskey_user="door", wiskey_password="pw")
+    body = TestClient(create_app(s)).get(STATE).json()
+    go = step_of(body, "go2rtc")
+    assert go["status"] == "failed" and go["problem"]["code"] == "media_not_configured", "WisKey stills and video go through go2rtc"
+    assert body["total"] == 4
 
 
 # ---------------------------------------------------------------- the NVR routes: clean 409, never 500 or a timeout
 
+# a camera left over from an earlier NVR (a restored backup, an NVR removed from the options): `cam1`
+AT = {"from_at": "2026-09-29T10:00:00Z", "to_at": "2026-09-29T10:00:30Z"}
 NVR_ROUTES = [
     ("POST", "/api/v1/cameras/sync", None),
     ("POST", "/api/v1/cameras", {"channel": 1, "alias": "x"}),
-    ("GET", "/api/v1/cameras/abc/snapshot.jpg", None),
-    ("GET", "/api/v1/cameras/abc/capabilities", None),
-    ("GET", "/api/v1/cameras/abc/zones", None),
-    ("GET", "/api/v1/cameras/abc/recordings?date=2026-09-29", None),
-    ("GET", "/api/v1/cameras/abc/frame?at=2026-09-29T10:00:00Z", None),
-    ("POST", "/api/v1/playback/sessions", {"camera_id": "abc", "start_at": "2026-09-29T10:00:00Z"}),
-    ("POST", "/api/v1/playback/groups", {"camera_ids": ["abc"], "start_at": "2026-09-29T10:00:00Z"}),
-    ("GET", "/api/v1/exports", None),
-    ("POST", "/api/v1/exports", {"camera_id": "abc", "from_at": "2026-09-29T10:00:00Z", "to_at": "2026-09-29T10:00:30Z"}),
-    ("POST", "/api/v1/exports/estimate", {"camera_id": "abc", "from_at": "2026-09-29T10:00:00Z", "to_at": "2026-09-29T10:00:30Z"}),
-    ("GET", "/api/v1/media/live/abc", None),
+    ("GET", "/api/v1/cameras/cam1/snapshot.jpg", None),
+    ("GET", "/api/v1/cameras/cam1/capabilities", None),
+    ("GET", "/api/v1/cameras/cam1/zones", None),
+    ("GET", "/api/v1/cameras/cam1/recordings?date=2026-09-29", None),
+    ("GET", "/api/v1/cameras/cam1/frame?at=2026-09-29T10:00:00Z", None),
+    ("POST", "/api/v1/playback/sessions", {"camera_id": "cam1", "start_at": "2026-09-29T10:00:00Z"}),
+    ("POST", "/api/v1/playback/groups", {"camera_ids": ["cam1"], "start_at": "2026-09-29T10:00:00Z"}),
+    ("POST", "/api/v1/exports", {"camera_id": "cam1", **AT}),
+    ("POST", "/api/v1/exports/estimate", {"camera_id": "cam1", **AT}),
+    ("GET", "/api/v1/media/live/cam1", None),
     ("POST", "/api/v1/media/streams/sync", None),
     ("GET", "/api/v1/nvr/system", None),
     ("GET", "/api/v1/nvr/notify", None),
-    ("POST", "/api/v1/nvr/reboot", None),
-    ("GET", "/api/v1/cameras/abc/osd", None),
-    ("POST", "/api/v1/cases/abc/items/def/preserve", None),
+    ("POST", "/api/v1/nvr/reboot", {"confirm": "RESTART"}),
+    ("GET", "/api/v1/cameras/cam1/osd", None),
+    ("POST", "/api/v1/cases/{case}/items/{item}/preserve", None),
 ]
+
+
+def leftover_camera(app) -> None:
+    from smplwise.services.autosync import DEFAULT_RECORDER, ensure_recorder
+
+    with app.state.db.connection() as conn:
+        ensure_recorder(conn)
+        now = now_iso()
+        conn.execute("INSERT INTO cameras(id, recorder_id, channel, name_source, sort_order, main_track, sub_track, capabilities_json, status, created_at, updated_at) "
+                     "VALUES ('cam1', ?, 1, 'שער', 1, 101, 102, '{}', 'online', ?, ?)", (DEFAULT_RECORDER, now, now))
+
+
+def resolve(c: TestClient, path: str) -> str:
+    if "{case}" not in path:
+        return path
+    case = c.post("/api/v1/cases", json={"title": "t"}).json()
+    item = c.post(f"/api/v1/cases/{case['id']}/items", json={"kind": "clip", "camera_id": "cam1", **AT}).json()
+    return path.format(case=case["id"], item=item["id"])
 
 
 @pytest.mark.parametrize("method,path,body", NVR_ROUTES, ids=[f"{m} {p}" for m, p, _ in NVR_ROUTES])
 def test_nvr_routes_answer_409_nvr_not_configured(method, path, body, ha_only, monkeypatch):
     for fn in ("device_info", "discover_channels"):
         monkeypatch.setattr(nvr, fn, lambda *a, **k: pytest.fail("no NVR call in the NVR-less mode"))
-    c = TestClient(create_app(ha_only))
+    app = create_app(ha_only)
+    leftover_camera(app)
+    c = TestClient(app)
     c.get("/api/v1/me")  # the first request of a fresh app (bootstrap grant) is not what is measured
+    path = resolve(c, path)
     t0 = time.time()
     r = c.request(method, path, json=body)
     assert r.status_code == 409, (path, r.status_code, r.text)
@@ -264,11 +351,39 @@ def test_nvr_routes_still_authenticate_first(ha_only):
         assert c.request(method, path, json=body).status_code == 401, path
 
 
+@pytest.mark.parametrize("method,path,body", [r for r in NVR_ROUTES if "{case}" not in r[1]], ids=[f"{m} {p}" for m, p, _ in NVR_ROUTES if "{case}" not in p])
+def test_nvr_routes_check_permissions_before_the_mode(method, path, body, ha_only):
+    """The mode answer comes after each route's own permission check: a user without a role gets the same audited 403
+    as in the full mode, and only an authorised caller learns that there is no NVR."""
+    app = create_app(ha_only)
+    leftover_camera(app)
+    c = TestClient(app)
+    c.get("/api/v1/me", headers=as_user("nobody"))
+    r = c.request(method, path, json=body, headers=as_user("nobody"))
+    assert r.status_code == 403, (path, r.status_code, r.text[:200])
+    with app.state.db.connection() as conn:
+        denied = conn.execute("SELECT COUNT(*) FROM audit_log WHERE decision = 'denied' AND actor_user_id = 'dev-nobody'").fetchone()[0]
+    assert denied >= 1, "the refusal is audited as before"
+
+
+def test_leftover_camera_events_get_no_thumbnail_queue(ha_only):
+    app = create_app(ha_only)
+    leftover_camera(app)
+    with app.state.db.connection() as conn:
+        now = now_iso()
+        conn.execute("INSERT INTO events(id, source, raw_type, type, camera_id, channel, occurred_at, received_at, state, count, severity, confidence, details_json, dedup_key, created_at) "
+                     "VALUES ('ev1', 'nvr', 'VMD', 'motion', 'cam1', 1, ?, ?, 'none', 1, 'info', 'measured', '{}', 'k1', ?)", (now, now, now))
+    c = TestClient(app)
+    r = c.get("/api/v1/events/ev1/thumbnail")
+    assert r.status_code == 404 and r.json()["code"] == "thumbnail_unavailable", "never a 202 that waits forever"
+    assert thumbnails.WORKER.is_pending("ev1") is False
+
+
 def test_local_reads_and_the_rest_of_the_product_keep_working(ha_only):
     c = TestClient(create_app(ha_only))
     ids = seed_tree(c)
     publish_plan(c, ids["floor2"])
-    for path in ("/api/v1/cameras", "/api/v1/events", "/api/v1/cases", "/api/v1/storage", "/api/v1/storage/local", "/api/v1/devices/tree",
+    for path in ("/api/v1/cameras", "/api/v1/events", "/api/v1/exports", "/api/v1/cases", "/api/v1/storage", "/api/v1/storage/local", "/api/v1/devices/tree",
                  "/api/v1/nvr/connection", "/api/v1/backups", "/api/v1/sites", f"/api/v1/floors/{ids['floor2']}/map", "/api/v1/search?q=קומה"):
         r = c.get(path)
         assert r.status_code == 200, (path, r.status_code, r.text[:200])

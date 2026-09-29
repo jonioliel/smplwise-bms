@@ -54,10 +54,6 @@ sys.path.insert(0, str(ROOT / "smplwise_vms" / "backend"))
 FAKE_HOST = "fake-devices.test"
 os.environ["HA_URL"] = f"http://{FAKE_HOST}:8123"
 os.environ["HA_TOKEN"] = "fake-fixture-token"
-# NVR-less mode (docs/operations/NVR_LESS_MODE.md): a backend without any NVR host runs as `ha_only` and hides the NVR
-# areas. The specs this fixture serves expect the full navigation, so it names a placeholder host (a reserved `.test` name
-# that never resolves; with no NVR user nothing ever connects to it). The NVR-less mode has its own evidence-nvr-less spec.
-os.environ.setdefault("NVR_HOST", "nvr-placeholder.test")
 PORT = int(os.environ.get("SW_PORT", "8099"))
 BASE = f"http://127.0.0.1:{PORT}/api/v1"
 

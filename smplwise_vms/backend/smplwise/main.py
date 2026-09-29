@@ -14,10 +14,10 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import __version__
-from .config import Settings, load_settings
+from .config import DEV_NVR_PLACEHOLDER, Settings, load_settings
 from .db import Database
 from .errors import ApiError, validation_payload
-from .mode import REQUIRE_NVR, is_ha_only
+from .mode import is_ha_only
 from .routers import access, access_control, access_groups, anchors, backup, cameras, cases, catalog, device_layouts, devices, events, exports, frames, ha, health, me, media, plan_catalog, plan_geometry, plans, playback, playback_groups, recordings, rules, search, settings as settings_router, setup, skins, storage, views, zones, nvr_write
 
 log = logging.getLogger("smplwise")
@@ -90,6 +90,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             log.info("attached %s Home Assistant NVR events to their cameras", fixed)
     except Exception:  # noqa: BLE001 - never block the start
         log.exception("HA event camera backfill failed")
+    if settings.nvr_host == DEV_NVR_PLACEHOLDER:
+        log.info("installation mode: full with a placeholder NVR host (developer backend without NVR_HOST); "
+                 "SW_MODE=ha_only starts the NVR-less mode")
     if is_ha_only(settings):
         log.info("installation mode: ha_only (no nvr_host in the add-on options) - NVR discovery, alert stream, "
                  "recording-derived events, exports and event thumbnails are off; set nvr_host and restart to add an NVR")
@@ -128,12 +131,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(cameras.router, prefix=api, tags=["cameras"])
     app.include_router(settings_router.router, prefix=api, tags=["settings"])
     app.include_router(media.router, prefix=api, tags=["media"])
-    # routers whose every route needs the NVR: 409 nvr_not_configured in the NVR-less mode (mode.py)
-    nvr_only = [REQUIRE_NVR]
-    app.include_router(recordings.router, prefix=api, tags=["recordings"], dependencies=nvr_only)
+    app.include_router(recordings.router, prefix=api, tags=["recordings"])
     app.include_router(playback.router, prefix=api, tags=["playback"])
-    app.include_router(playback_groups.router, prefix=api, tags=["playback"], dependencies=nvr_only)
-    app.include_router(exports.router, prefix=api, tags=["exports"], dependencies=nvr_only)
+    app.include_router(playback_groups.router, prefix=api, tags=["playback"])
+    app.include_router(exports.router, prefix=api, tags=["exports"])
     app.include_router(events.router, prefix=api, tags=["events"])
     app.include_router(ha.router, prefix=api, tags=["home-assistant"])
     if settings.dev_user and not settings.in_addon:
@@ -148,7 +149,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(skins.router, prefix=api, tags=["plans"])
     app.include_router(search.router, prefix=api, tags=["search"])
     app.include_router(backup.router, prefix=api, tags=["backup"])
-    app.include_router(frames.router, prefix=api, tags=["recordings"], dependencies=nvr_only)
+    app.include_router(frames.router, prefix=api, tags=["recordings"])
     app.include_router(cases.router, prefix=api, tags=["cases"])
     app.include_router(storage.router, prefix=api, tags=["storage"])
     app.include_router(rules.router, prefix=api, tags=["rules"])

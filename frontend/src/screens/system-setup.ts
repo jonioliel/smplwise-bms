@@ -363,7 +363,7 @@ export class SystemSetup extends LitElement {
     if (!v) return nothing;
     const f = this.connForm;
     return html`<sw-card heading="חיבור ל־NVR" subheading=${v.in_addon ? 'נשמר ב־Add-on options דרך ה־Supervisor; שמירה מפעילה מחדש את ה־Add-on' : 'נשמר ליד הנתונים (nvr_connection.json); בתוקף מיד'} data-nvr-connection>
-      ${this.row('כתובת · פורט HTTP · RTSP', `${v.host ?? '—'} · ${v.http_port} · ${v.rtsp_port}`)}
+      ${this.row('כתובת · פורט HTTP · RTSP', `${v.placeholder ? 'כתובת זמנית של סביבת פיתוח (לא NVR)' : v.host ?? '—'} · ${v.http_port} · ${v.rtsp_port}`)}
       ${this.row('משתמש', `${v.user ?? '—'} · ${v.has_password ? 'סיסמה מוגדרת' : 'ללא סיסמה'}`, v.has_password ? 'ok' : 'warn')}
       ${f
         ? html`<div class="two" data-nvr-connection-form>
@@ -487,8 +487,9 @@ export class SystemSetup extends LitElement {
               ${this.renderSystemCard()}
               ${this.renderConnectionCard()}`}
               <div class="grouplabel">שירותים ותשתית נוספים</div>
-              <sw-card heading="go2rtc (relay לווידאו)" subheading=${h.go2rtc_configured ? 'מוגדר' : 'לא מוגדר'}>
-                ${this.row('מוגדר ב־Add-on options', h.go2rtc_configured ? 'כן' : 'לא', h.go2rtc_configured ? 'ok' : 'err')}
+              <sw-card heading="go2rtc (relay לווידאו)" subheading=${h.go2rtc_configured ? 'מוגדר' : h.mode === 'ha_only' ? 'לא מוגדר - רשות במצב ללא NVR' : 'לא מוגדר'}>
+                ${this.row('מוגדר ב־Add-on options', h.go2rtc_configured ? 'כן' : 'לא', h.go2rtc_configured ? 'ok' : h.mode === 'ha_only' ? '' : 'err')}
+                ${!h.go2rtc_configured && h.mode === 'ha_only' ? html`<div class="hint" data-go2rtc-optional>במצב ללא NVR go2rtc נדרש רק לווידאו של עמדות WisKey.</div>` : nothing}
                 ${this.row('סנכרון זרמים אחרון תקין', when(h.discovery.streams_last_ok), h.discovery.streams_last_error ? 'warn' : 'ok')}
                 ${h.discovery.streams_last_error ? this.row('שגיאת סנכרון זרמים', h.discovery.streams_last_error, 'err') : nothing}
                 ${this.check('go2rtc') ? this.row('בדיקת בריאות', this.check('go2rtc')!.detail, this.check('go2rtc')!.status === 'ok' ? 'ok' : this.check('go2rtc')!.status === 'warn' ? 'warn' : 'err') : html`<div class="hint">פרטי הזרמים והגרסה מוצגים ב"הגדרות › כללי › בריאות ועבודות" (דורש הרשאת ניהול).</div>`}

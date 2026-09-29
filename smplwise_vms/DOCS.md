@@ -96,8 +96,9 @@ The add-on also runs without a Hikvision NVR, for an installation that uses it f
   neutral notice instead of video forms.
 - **Health and the wizard.** The NVR shows as "לא מוגדר" (neutral, never red); no NVR job (camera discovery, alert
   stream, derived events, thumbnails, exports) runs or is reported. The setup wizard marks the NVR and camera steps
-  "דילוג - מצב ללא NVR" (and go2rtc as optional while it is not configured); "מוכן לעבודה" is reached with the
-  remaining steps.
+  "דילוג - מצב ללא NVR" (and go2rtc as optional while neither it nor the WisKey credentials are configured);
+  "מוכן לעבודה" is reached with the remaining steps. Home Assistant is the product in this mode: missing, or
+  disconnected for more than a minute, it is shown as an error.
 - **Adding the NVR later.** Fill `nvr_host`, `nvr_username` and `nvr_password` and restart the add-on. The mode is
   derived from the options on every start and nothing in the data depends on it: no migration, maps, plans and
   permissions stay as they are, and the camera areas appear. Removing the host again returns to the NVR-less mode.
