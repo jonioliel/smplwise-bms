@@ -27,6 +27,7 @@ import { getSkinsStatus, runSkinsTest, type SkinsStatus, type SkinsTestResult } 
 import { devicesPrefsOf, type DevicesStyle } from './devices-style';
 import './devices-theme-picker';
 import type { DevicesPick } from './devices-theme-picker';
+import { inAndroidApp, switchServer } from '../arx/android-app';
 
 /** הגדרות › בקרות כניסה: the SMPLWISE WisKey screens that can show either WisKey's own panel or the screen built here. */
 const ACCESS_SCREENS: { screen: WiskeyScreen; label: string; href: string; detail: string }[] = [
@@ -852,6 +853,11 @@ export class SystemDiagnostics extends LitElement {
       </select></sw-field>`;
     const idle = v('remote.session', 'rolling_90d') === 'rolling_90d_idle_lock';
     return html`<div class="sections" data-remote-settings>
+      ${inAndroidApp()
+        ? html`<sw-card heading="אפליקציית Android" subheading="האפליקציה שומרת רשימת שרתים; אפשר לעבור ביניהם בכל רגע." data-remote-android-app>
+            <div class="row" data-remote-android-switch><span class="lbl">שרתים באפליקציה<span class="muted">רשימת השרתים של האפליקציה: מעבר לשרת אחר, הוספה ועריכה</span></span><sw-button size="sm" icon="list" data-arx-switch-server @click=${() => switchServer()}>החלף שרת</sw-button></div>
+          </sw-card>`
+        : nothing}
       <sw-card heading="גישה מרחוק · SmplWise Arx" subheading="כניסה דרך https://<שם ה־Home Assistant>/arx עם מסך הכניסה של המערכת (שם משתמש וסיסמה של Home Assistant). הערוץ עצמו מופעל באפשרות ה־add-on remote_access.">
         <div class="row"><span class="lbl">מי רשאי להיכנס מרחוק<span class="muted">דגל אישי: רק משתמשים שהופעלה להם גישה מרחוק במסך משתמשים והרשאות · כל בעל תפקיד: כל משתמש Home Assistant עם תפקיד כלשהו במערכת</span></span>
           ${sel('remote.policy', 'flag', [['flag', 'דגל אישי לכל משתמש'], ['any_role', 'כל משתמש עם תפקיד']])}</div>

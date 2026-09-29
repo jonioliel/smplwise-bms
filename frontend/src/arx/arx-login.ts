@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { ArxAuthError, completeSignIn, haErrorText, startFlow, submitStep, type LoginFlow } from './auth';
+import { inAndroidApp, switchServer } from './android-app';
 
 const REASON_TEXT: Record<string, string> = {
   idle: 'ננעלת לאחר חוסר פעילות. יש להיכנס שוב.',
@@ -192,6 +193,17 @@ export class ArxLogin extends LitElement {
       flex: none;
       margin-block-start: 1px;
     }
+    /* a link-style button never takes the primary buttons' hover fill (a touch leaves :hover behind on phones,
+       which turned "החלף שרת" into a blue block with invisible text - seen in the Android app) */
+    button.link:hover:not(:disabled) {
+      background: none;
+      text-decoration: underline;
+    }
+    .app-servers {
+      display: flex;
+      justify-content: center;
+      margin-block-start: -8px;
+    }
   `;
 
   firstUpdated() {
@@ -302,6 +314,9 @@ export class ArxLogin extends LitElement {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z" /></svg>
         <span>הסיסמה נבדקת מול תשתית המערכת ואינה נשמרת ב־Arx; ההרשאות שלך זהות להרשאותיך במערכת.</span>
       </div>
+      ${inAndroidApp()
+        ? html`<div class="app-servers"><button type="button" class="link" data-arx-switch-server @click=${() => switchServer()}>החלף שרת</button></div>`
+        : nothing}
     </main>`;
   }
 }

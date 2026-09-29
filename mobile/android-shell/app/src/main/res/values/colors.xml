@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- from the PWA manifest (frontend/public/arx-manifest.webmanifest): theme_color and background_color -->
+    <color name="themeColor">#2F6BFF</color>
+    <color name="backgroundColor">#F5F7FB</color>
+    <color name="ic_launcher_background">#2F6BFF</color>
+    <!-- the native screens: the product's neutral text and border tones -->
+    <color name="textPrimary">#1B2233</color>
+    <color name="textSecondary">#5B6477</color>
+    <color name="border">#DFE4EE</color>
+    <color name="warning">#9A5B00</color>
+</resources>
