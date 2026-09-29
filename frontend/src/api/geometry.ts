@@ -170,6 +170,8 @@ export interface DetectRequest {
   /** 0.3 (light morphology) to 1.0 (strong); the server's default is 0.6. */
   strength?: number;
   level_id?: string;
+  /** T087: the hollow-wall pass (walls drawn as two thin lines); the server's default is on, false opts a plan out. */
+  hollow_walls?: boolean;
 }
 export interface CalibrationHint {
   scale_m_per_px: number;

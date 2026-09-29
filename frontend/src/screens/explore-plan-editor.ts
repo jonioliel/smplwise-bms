@@ -260,7 +260,7 @@ export class ExplorePlanEditor extends LitElement {
   @state() private showEstimates = true;
   /** Plan Studio phase 3 (T086): the detect tool - options, the running request, the candidate set and its states. The
    * set outlives a tool switch (only drawn while the tool is active) until it is confirmed, discarded or replaced. */
-  @state() private detectOpts: DetectOpts = { walls: true, openings: true, strength: 0.6, replaceAuto: true };
+  @state() private detectOpts: DetectOpts = { walls: true, openings: true, strength: 0.6, replaceAuto: true, hollow: true };
   @state() private detectRun: DetectRunState = { busy: false, startedAt: 0, elapsed: 0, error: '', timedOut: false, limitS: null };
   /** Every run takes a token; only the latest run's answer and counter are used. */
   private detectToken = 0;
@@ -3216,7 +3216,7 @@ export class ExplorePlanEditor extends LitElement {
       }
       if (!current()) return;
       const targets: DetectTarget[] = this.detectOpts.openings ? ['walls', 'openings'] : ['walls'];
-      const r = await detectStructure(versionId, { targets, strength: this.detectOpts.strength });
+      const r = await detectStructure(versionId, { targets, strength: this.detectOpts.strength, hollow_walls: this.detectOpts.hollow !== false });
       if (!current() || r.version_id !== versionId) return; // an older run, or the editor moved to another version meanwhile
       this.showCandidates(r, 'detect');
       this.detectRun = { busy: false, startedAt: 0, elapsed: Math.round((Date.now() - startedAt) / 1000), error: '', timedOut: false, limitS };

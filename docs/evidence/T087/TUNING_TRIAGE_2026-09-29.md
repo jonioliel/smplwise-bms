@@ -88,72 +88,73 @@ None of these is mentioned as fixed in the CHANGELOG 0.1.90-0.1.126; none was re
   (5 files) re-run alone with one worker: 23 passed.
 - Detector: synthetic metrics identical before and after; real-scan numbers above (local, private files only).
 
-## 6. Hollow walls - shipped (hollow_v1, 2026-09-29)
+## 6. Hollow walls - shipped (hollow_v1, 2026-09-29, review round 1 applied)
 
 Branch `pilot/T087-hollow-walls` from `g0/intake` at c446891; detector 1.3. Code: `services/plan_detect_hollow.py`
-(the rule and every threshold in its module docstring), wired into `plan_detect.detect` after the solid walls and
-their reference-stroke rule; tests `tests/test_plan_detect_hollow.py`.
+(every rule and threshold in its module docstring), wired into `plan_detect.detect` after the solid walls and their
+reference-stroke rule; tests `tests/test_plan_detect_hollow.py`. Shipping ruling: on by default, a per-plan opt-out
+(request `hollow_walls: false`; the detect panel's checkbox "קירות חלולים (חיצוניים דקים)", checked by default).
 
 **Discriminator.** A hollow wall is two thin axis strokes of the dark ink (at most 5 px at the 1600 px working raster
 AND thinner than the plan's median solid wall), 0.12-0.6 m apart centre to centre, cut into the stretches whose
-interior holds no ink as dark as the strokes' cores (half way from the Otsu threshold to their median core grey - a
-light scan's blur between two hairlines is not ink; hatching, room content, a glass line or a crossing wall is), not
-a stack (no third stroke at 0.6-1.4 spacings beyond a line: treads, rows), at the plan's learnt spacing (length-
-weighted mode, +-35 %), not a tribune railing (the tribune rule beyond either line), not the face lines of an opening
-in a truly solid wall, at least 1.5 m long (or continuing one on its line), and linked to the building (end-to-body
-or along its line to a solid wall; a group with no solid wall only when it turns and lies in the solid walls' box).
-The kept stretch is one exterior wall on its middle line, as thick as the pair, `hollow: true` in the result (every
-wall carries the flag), confidence at most 0.9; fused solid pieces inside its band are absorbed, solid pieces mostly
-outside it stay and the stretch is cut around them.
+interior holds no ink as dark as the strokes' cores (a light scan's blur between hairlines is not ink; hatching, room
+content, a glass line or a crossing wall is; a grey fill is, when the interior is at least five rows wide), not a
+stack (treads, rows, rows of dashes), at the plan's learnt spacing (length-weighted mode +-35 %), not a tribune
+railing, not the face lines of an opening of a truly solid wall (a stretch touching solid pieces at one end only, or
+longer than 3 m, is cut around them instead: a wall filled over part of its length keeps its outline part), at least
+1.5 m (or continuing one), linked to the building, and past the **plan-level gate**: the hollow walls with no solid
+wall just beyond them add up to >= 25 % of the building box's perimeter and turn a corner of the building. A solid
+piece is absorbed only when it reads outline-only (its centre line blank); a window the solid pass finds on an
+absorbed piece is carried over to the hollow wall. More than 1500 strokes skip the pass.
 
-**The T-junction case.** Two 12 px solid walls 0.8 m apart centre to centre (the existing
-`test_t_junctions_near_the_corners...` second picture, unchanged and passing): the pass finds **0 strokes** (the
-walls are as thick as the median wall, t_med 12 px, rule 1) and the spacing is above 0.6 m anyway (rule 2). The
-prototype's merge came from pairing segments of the wall mask; hollow_v1 pairs raw strokes only.
+**The T-junction case.** Two 12 px solid walls 0.8 m apart (the existing test, unchanged and passing): 0 strokes.
 
-**Real floors (local, private scans at 3000 px, strength 0.6; numbers only).** Envelope recall / as exterior against
-the private hand-drawn reference (0.5 m lateral tolerance):
+**The review's probe** (0.16 m solid building, 2.4 m counter 0.55 m deep and 3 m wardrobe 0.5 m deep along its walls,
+now a fixture): without the gate two hollow "exterior" walls 0.51 / 0.56 m at confidence 0.89 / 0.90; with it none
+(`stats.hollow_gate = "no_envelope"`). An apartment full of furniture (fixture): no hollow wall, answer identical to
+the pass switched off.
 
-| Floor | Walls | Outside the building | Envelope recall | ... as exterior | ... as hollow | Hollow walls | Learnt spacing |
-|---|---|---|---|---|---|---|---|
-| 0, before | 36 | 1 | 0.68 | 0.00 | - | - | - |
-| 0, after | 45 | 1 | 0.89 | 0.67 | 0.67 | 16 | 4.8 px (0.18 m) |
-| -1, before | 174 | 12 | 0.76 | 0.26 | - | - | - |
-| -1, after | 173 | 12 | 0.77 | 0.49 | 0.36 | 11 | 4.6 px (0.19 m) |
-| -2, before | 80 | 3 | 0.32 | 0.00 | - | - | - |
-| -2, after | 80 | 3 | 0.32 | 0.00 | 0.00 | 3 | 6.0 px (0.17 m) |
+**Real floors (local, private scans at 3000 px, strength 0.6; numbers only).** Against the private hand-drawn
+envelope reference (0.5 m lateral tolerance):
 
-- Floor 0 per side (left / top / right): as exterior 0.86 / 0.77 / 0.35 (was 0 / 0 / 0). Floor -1 (top / right /
-  bottom): 0.85 / 0 / 0.72 (was 0.51 / 0 / 0.31); its right side is drawn as solid dark lines 0.5 m off the
-  reference line. Floor -2: its envelope reference is the glazing (two faint hairlines, below every threshold) and
-  single lines between the piers - no pair; its 3 hollow walls replace 3 solid walls at the same place (heavy walls
-  drawn as a double line with a light grey fill read hollow: known limit).
-- False walls added: of 30 hollow walls, 19 lie on the envelope, 10 replace a solid-pass wall at the same place, 1 is
-  new elsewhere (floor 0: it joins two solid pieces of one line across 1.1 m); outside-the-building counts unchanged.
-- Openings: 6 windows of the base run are gone (floor 0: 4, floor -1: 2), all proposed by the profile pass on
-  partly fused hairline pairs; 5 of the 6 positions were checked visually and show continuous lines with no window
-  symbol (the sixth sits beside a small box symbol). No other opening changed.
-- Door gaps: the hollow walls now break where the interior is inked, so openings appear as gaps between hollow
-  pieces: floor 0 has 9 gaps (2 classified as passages as before, 4 door-sized unclassified), floor -1 6 gaps (3
-  door-sized unclassified), floor -2 none. Of the 7 door-sized gaps, checked visually: 5 are pilaster boxes in the
-  wall, 1 a wall notch, 1 a real double door (floor -1) - it now appears as a gap but its leaves are not arcs the gap
-  pass classifies (see the door study). Doors found stay 0 / 0 / 0.
-- Detection time (same machine, interleaved min of 3): quiet, 1.36 -> 1.66 s / 2.65 -> 2.92 s / 1.58 -> 1.95 s with
-  the pass itself 0.39 / 0.89 / 0.30 s; under load (other agents running), 3.65 -> 4.83 s / 8.21 -> 8.75 s /
-  4.86 -> 5.69 s with the pass 0.98 / 1.35 / 0.98 s. The pass checks the run's deadline between its stages (60 s guard).
+| Floor | Walls | Outside the building | Envelope recall | ... as exterior | ... as hollow | Hollow walls | Windows / passages | Envelope share (gate) |
+|---|---|---|---|---|---|---|---|---|
+| 0, before | 36 | 1 | 0.68 | 0.00 | - | - | 7 / 2 | - |
+| 0, after | 46 | 1 | 0.88 | 0.66 | 0.66 | 16 | 7 / 2 (4 carried) | 0.53 (pass) |
+| -1, before | 174 | 12 | 0.76 | 0.26 | - | - | 8 / 3 | - |
+| -1, after | 174 | 12 | 0.77 | 0.49 | 0.34 | 9 | 8 / 3 (2 carried) | 0.35 (pass) |
+| -2, before | 80 | 3 | 0.32 | 0.00 | - | - | 3 / 4 | - |
+| -2, after | 80 | 3 | 0.32 | 0.00 | 0.00 | 0 | 3 / 4 | 0.09 (no_envelope) |
 
-**Synthetic set** (`tests/plan_detect_metrics.py`, calibrated and uncalibrated) before and after, identical: walls
-recall >= 0.974, precision >= 0.969; doors 21/21; windows 17/17; no hollow wall on any of the six plans.
+- False walls: of 25 hollow walls, 18 lie on the envelope, 6 replace a solid-pass wall at the same place, 1 is new
+  elsewhere (floor 0: it joins two solid pieces of one line across 1.1 m). Floor -2's former 3 grey-filled "hollow"
+  walls are gone (gate). Outside-the-building counts unchanged.
+- Windows: none lost (7 / 8 / 3 before and after). The 6 the first version lost - profile windows on fused hairline
+  pairs, 5 of 6 checked visually as continuous lines without a window symbol - are carried over to the hollow walls
+  unchanged; whether they are real stays the reviewer's call on the acceptance screen.
+- Door gaps: openings appear as gaps between hollow pieces: floor 0 9 gaps (2 passages as before, 4 door-sized
+  unclassified - checked earlier: pilaster boxes), floor -1 4 gaps (2 door-sized unclassified). Doors found stay 0.
+- Time (this workstation under load from other agents; min of 3, interleaved): detect 5.21 -> 6.28 s / 10.32 ->
+  10.09 s / 5.89 -> 6.66 s; the pass alone 1.8 / 1.0 / 0.8 s (0.4-0.9 s measured quiet before the review fixes).
+  Rows of dashes: 1440 strokes cost the pass about 1 s; 1728 strokes skip it (`stats.hollow_skipped =
+  "too_many_strokes"`). The deadline is checked between stages and every 256 strokes.
 
-**Fixtures** (`test_plan_detect_hollow.py`): a hollow outline with a 0.9 m door gap and a 1.2 m window (four hollow
-exterior walls; the door found as a door, the window as a window, both on hollow walls); a hollow outline meeting a
-solid wall (corners on its centre line; the solid walls exactly as without the pass); two thin lines with hatching or
-room content between them (no hollow wall, nothing on their line); a tribune railing (double line 0.2 m apart over
-rows 0.9 m apart) and stair treads (each rejected by its rule - with the rule switched off they would pass); the
-T-junction picture (0 strokes); the deadline inside the pass.
+**Synthetic set** (calibrated and uncalibrated) before and after, identical: walls recall >= 0.974, precision >=
+0.969; doors 21/21; windows 17/17; no hollow wall on any of the six plans.
 
-**Known limits.** Axis-parallel walls only; one spacing per plan (a second hollow-wall type is missed); floor 0's
-wall is drawn as a hairline pair plus an inner line 0.6 m in - hollow_v1 reads the hairline pair (0.3 m thick,
-~0.4 m off the drawn wall's middle), not the whole 0.8 m; a double line with a light grey fill reads hollow.
+**Fixtures** (`test_plan_detect_hollow.py`, 15): hollow outline with a door gap and a window; a hollow outline meeting
+a solid wall with a window and a door in it (solid walls and their openings identical to the pass switched off); a
+wall filled over part of its length (outline part hollow); hatching / room content between two lines; tribune railing
+and stair treads (each rule shown by switching it off); the T-junction picture; the review's counter-and-wardrobe probe
+(the gate shown by switching it off); an apartment full of furniture; the synthetic set; the request flag and the
+route; carried windows; the deadline; rows of dashes (time bound under SW_TEST_TIME_FACTOR, the stroke cap).
 
-Verification: `pytest tests/test_plan_detect_*.py` 96 passed (88 before + 8 new).
+**Frontend.** `DetectRequest.hollow_walls`, `GeomWall.hollow` (typed, not drawn differently yet), the detect panel's
+checkbox (`DetectOpts.hollow`, absent = on); `tsc --noEmit` clean.
+
+**Known limits.** Axis-parallel walls only; one spacing per plan; floor 0's wall is a hairline pair plus an inner line
+0.6 m in - hollow_v1 reads the hairline pair (0.3 m thick), not the whole 0.8 m; a grey fill between lines under five
+rows apart cannot be told from blur; the gate needs the hollow walls to cover a quarter of the building box's
+perimeter, so a plan drawing only one hollow side gets none.
+
+Verification: `pytest tests/test_plan_detect_*.py tests/test_plan_geometry_api.py` 110 passed; frontend `tsc --noEmit` clean.
