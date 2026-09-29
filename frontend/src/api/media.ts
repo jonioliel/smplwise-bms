@@ -65,6 +65,8 @@ export interface ProductSettings {
   'devices.show_sensors'?: 'true' | 'false';
   'devices.show_climate_strip'?: 'true' | 'false';
   'devices.density'?: 'comfortable' | 'compact';
+  /** CR-007 6b: the device area's colour scheme - light (default), dark, or auto (the viewer's operating system). */
+  'devices.scheme'?: 'light' | 'dark' | 'auto';
 }
 
 export const getSettings = () => get<{ settings: ProductSettings; can_edit: boolean }>('settings');

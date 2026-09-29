@@ -160,6 +160,12 @@ DomusUI-like) with full RTL; **6b** = the layout editor. Owner answers for 6b (n
 Ruling on sequencing: 6a ships first (0.1.128); 6b starts when 6a's implementer returns (shared files); the colour
 themes of 3 belong to 6b (they build on 6a's token layer).
 
+Coordinator ruling on the 6b review (2026-09-29): the editable unit on the area screen is the **domain card** (as §3
+and the mockup's Edit board), each with a "visible entities" checklist (a hidden entity is still counted in the card's
+numbers). Position and size per individual device tile are **deferred to the owner's decision**. A floor-scoped reader
+gets only the layout items of the floors / areas they can see, and a viewer's layout packs away the rows of anything
+not drawn (hidden, not theirs, gone from Home Assistant).
+
 ## 8. Next step
 
 Slice 1 dispatched 2026-09-28 from this document; the DomusUI extraction is the reference for card rules and

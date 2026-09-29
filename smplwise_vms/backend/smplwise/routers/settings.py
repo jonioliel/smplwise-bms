@@ -73,16 +73,19 @@ DEFAULTS: dict[str, str] = {
     # through GET /settings; changed with system.configure, audited like every product setting). Presentation only: the
     # safety rules of the bulk actions (confirmation, expiry, never locks / alarm / door release) are not settings.
     "devices.style": "smplwise",  # smplwise (the product's own look) | glass (the approved mockup's translucent style)
-    "devices.theme": "default",  # the style's palette (frontend/src/styles/devices-themes.ts); one built in, no picker until 6b
+    "devices.theme": "default",  # the style's palette (frontend/src/styles/devices-themes.ts); default | sand | forest | graphite, picked with swatches (6b)
     "devices.default_view": "cards",  # the building screen's first view: cards (tree panel + floor cards) | tiles; a viewer's own toggle wins
     "devices.show_sensors": "true",  # the sensors card on the area screen and the sensors count on the building screen
     "devices.show_climate_strip": "true",  # the building / floor "מזגנים" strip
     "devices.density": "comfortable",  # comfortable | compact (tighter tiles, rows and gaps)
+    # CR-007 6b: the device area's colour scheme - light (default) | dark | auto (the viewer's operating-system scheme).
+    # Light by default while the app shell is light only: dark never applies by itself (docs/design/DEVICE_THEMES.md).
+    "devices.scheme": "light",
 }
 
-# CR-007 6a: the registered device-screen palettes - keep in step with DEVICE_THEMES in
+# CR-007 6a/6b: the registered device-screen palettes - keep in step with DEVICE_THEMES in
 # frontend/src/styles/devices-themes.ts (docs/design/DEVICE_THEMES.md, "How to add a theme").
-DEVICE_THEMES = ("default",)
+DEVICE_THEMES = ("default", "sand", "forest", "graphite")
 
 INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly")
 
@@ -138,6 +141,7 @@ class SettingsPatch(BaseModel):
     devices_show_sensors: str | None = Field(default=None, pattern="^(true|false)$", alias="devices.show_sensors")
     devices_show_climate_strip: str | None = Field(default=None, pattern="^(true|false)$", alias="devices.show_climate_strip")
     devices_density: str | None = Field(default=None, pattern="^(comfortable|compact)$", alias="devices.density")
+    devices_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="devices.scheme")
 
     model_config = {"populate_by_name": True}
 

@@ -1,0 +1,935 @@
+import { html, nothing, type LitElement, type ReactiveController, type TemplateResult } from 'lit';
+import { classMap } from 'lit/directives/class-map.js';
+import { styleMap } from 'lit/directives/style-map.js';
+import '../components/sw-button';
+import '../components/sw-dialog';
+import '../components/sw-icon';
+import type { IconName } from '../components/sw-icon';
+import { api, ApiError, describeError, post, put } from '../api/client';
+import { can, isApi } from '../api/session';
+import { LAYOUT_ROLE_IDS, type LayoutRoleId } from '../styles/devices-palettes';
+
+/**
+ * CR-007 slice 6b: the layout editor of the device screens (owner decisions 7.11; docs/design/DEVICE_THEMES.md §7).
+ *
+ * One layout per installation and screen, stored on the server (routers/device_layouts.py), shown to everyone,
+ * edited only by a holder of system.configure - the "ערוך פריסה" button exists only for them, checked against the
+ * session's own permissions (`can('system.configure')`, installation scope), and the server checks it again.
+ *
+ * A layout places the screen's items (building: `floor:<id>` floor cards and `area:<id>` area tiles; area screen:
+ * `card:<id>` domain cards) on a grid: 12 columns on a desktop, 4 on a phone, rows of 8 px. Positions and sizes are
+ * LOGICAL grid units: x counts from the start edge (the right in RTL), so the same record is right in Hebrew and
+ * mirrored for an LTR viewer; the grid is CSS grid placement (devices-layout-css.ts), never absolute pixels.
+ *
+ * Per item: position and size, text size (3 steps), background and border colour as palette ROLES (never a colour
+ * value), a custom title and an icon of the product's set, hidden. The phone layout is derived automatically from
+ * the desktop one (one column, in the desktop's reading order) until it is edited on its own; "חזור לאוטומטי" drops it.
+ *
+ * A grid with nothing stored keeps the screen's automatic layout, pixel for pixel. Entering the editor measures that
+ * automatic layout (what the editor sees is what it starts from).
+ */
+
+export type LayoutScope = 'building' | 'area';
+export type LayoutVariant = 'desktop' | 'phone';
+export type LayoutText = 'sm' | 'md' | 'lg';
+
+/** The icons a card may carry (keep in step with ICONS in routers/device_layouts.py - a backend test compares them). */
+export const LAYOUT_ICONS = [
+  'light', 'bolt', 'activity', 'layers', 'shield', 'play', 'sensor', 'home', 'building', 'floor', 'stairs', 'elevator',
+  'lock', 'door', 'camera', 'eye', 'bell', 'clock', 'calendar', 'wifi', 'volume', 'users', 'map', 'grid', 'dashboard',
+  'star', 'sparkle', 'cube', 'hand', 'info',
+] as const satisfies readonly IconName[];
+export type LayoutIcon = (typeof LAYOUT_ICONS)[number];
+
+/** The palette roles a card's colours may take (ROLES in routers/device_layouts.py; resolved in devices-palettes.ts). */
+export const LAYOUT_ROLES = ['accent', 'warm', 'cool', 'success', 'warning', 'danger', 'neutral'] as const satisfies readonly LayoutRoleId[];
+
+const ICON_HE: Record<LayoutIcon, string> = {
+  light: 'תאורה', bolt: 'חשמל', activity: 'מיזוג', layers: 'תריסים', shield: 'אבטחה', play: 'מסכים', sensor: 'חיישן', home: 'בית',
+  building: 'מבנה', floor: 'קומה', stairs: 'מדרגות', elevator: 'מעלית', lock: 'מנעול', door: 'דלת', camera: 'מצלמה', eye: 'צפייה',
+  bell: 'פעמון', clock: 'שעון', calendar: 'לוח שנה', wifi: 'רשת', volume: 'שמע', users: 'אנשים', map: 'מפה', grid: 'אריחים',
+  dashboard: 'לוח מחוונים', star: 'כוכב', sparkle: 'ניצוץ', cube: 'קובייה', hand: 'יד', info: 'מידע',
+};
+export const ROLE_HE: Record<LayoutRoleId, string> = { accent: 'הדגשה', warm: 'חם', cool: 'קריר', success: 'הצלחה', warning: 'אזהרה', danger: 'סכנה', neutral: 'ניטרלי' };
+
+export interface LayoutItem {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  text: LayoutText;
+  bg: LayoutRoleId | null;
+  border: LayoutRoleId | null;
+  title: string | null;
+  icon: LayoutIcon | null;
+  hidden: boolean;
+  /** Area cards: the entities the card does not show (they still count in its numbers). */
+  hidden_entities: string[];
+}
+
+export interface Layout {
+  v: 1;
+  cols: number;
+  items: Record<string, LayoutItem>;
+}
+
+export interface LayoutVariantRecord {
+  layout: Layout;
+  revision: number;
+  updated_by: string | null;
+  updated_at: string;
+}
+
+export interface LayoutRecord {
+  scope: LayoutScope;
+  id: string;
+  desktop: LayoutVariantRecord | null;
+  phone: LayoutVariantRecord | null;
+  can_edit: boolean;
+  /** A floor-scoped reader got only the items they can see: the rows the others held are packed away. */
+  narrowed?: boolean;
+}
+
+export const COLS: Record<LayoutVariant, number> = { desktop: 12, phone: 4 };
+/** One grid row, in px. */
+export const ROW_PX = 8;
+/** The gap left between cards the editor places (2 rows = 16 px). */
+export const GAP_ROWS = 2;
+const PHONE_MQ = '(max-width: 767px)';
+
+const path = (scope: LayoutScope, id: string) => `devices/layouts/${scope}/${encodeURIComponent(id)}`;
+export const getLayout = (scope: LayoutScope, id: string) => api<LayoutRecord>(path(scope, id));
+export const putLayout = (scope: LayoutScope, id: string, variant: LayoutVariant, revision: number, layout: Layout) => put<LayoutRecord>(path(scope, id), { variant, revision, layout });
+export const resetLayout = (scope: LayoutScope, id: string, variant: LayoutVariant | 'all', revision?: number) =>
+  api<LayoutRecord>(`${path(scope, id)}?variant=${variant}${revision !== undefined ? `&revision=${revision}` : ''}`, { method: 'DELETE' });
+export const copyLayoutToAllAreas = (id: string, revision: number) => post<{ copied_to: number; source: LayoutRecord }>(`${path('area', id)}/copy-to-all-areas`, { revision });
+
+// ------------------------------------------------------------------------------------------------ pure geometry
+
+export function newItem(x: number, y: number, w: number, h: number): LayoutItem {
+  return { x, y, w, h, text: 'md', bg: null, border: null, title: null, icon: null, hidden: false, hidden_entities: [] };
+}
+
+/**
+ * What a viewer sees of one grid when some items are not drawn (hidden, or a floor / area this viewer cannot see, or
+ * one that left Home Assistant): the rows they held are packed away, so no empty band is left (review MEDIUM 2).
+ * An item moves up only when something above it in its columns is gone (or moved up itself): it then sits `gap` rows
+ * under the nearest drawn item above it (or at the top); the rest keep their place, columns and order. `all` packs
+ * every item that way (a narrowed record, where what is gone is not even known; the compact density, with `gap` 1).
+ */
+export function pack(items: Record<string, LayoutItem>, keys: string[], gone: Set<string>, all: boolean, gap: number): Record<string, LayoutItem> {
+  const out: Record<string, LayoutItem> = { ...items };
+  const shown = keys.filter((k) => items[k] && !gone.has(k)).sort((a, b) => items[a].y - items[b].y || items[a].x - items[b].x);
+  const removed = keys.filter((k) => items[k] && gone.has(k));
+  const placed: string[] = [];
+  for (const k of shown) {
+    const it = items[k];
+    const cols = (o: LayoutItem) => o.x < it.x + it.w && it.x < o.x + o.w;
+    const above = placed.filter((p) => cols(items[p]) && items[p].y + items[p].h <= it.y);
+    const affected = all || removed.some((r) => cols(items[r]) && items[r].y < it.y) || above.some((p) => out[p].y !== items[p].y);
+    let y = it.y;
+    if (affected) y = Math.max(0, ...above.map((p) => out[p].y + out[p].h + Math.min(gap, Math.max(0, it.y - items[p].y - items[p].h))));
+    for (let guard = 0; guard < 500; guard++) {
+      const hit = placed.find((p) => cols(out[p]) && y < out[p].y + out[p].h && out[p].y < y + it.h);
+      if (!hit) break;
+      y = out[hit].y + out[hit].h + gap;
+    }
+    out[k] = { ...it, y };
+    placed.push(k);
+  }
+  return out;
+}
+
+function overlap(a: LayoutItem, b: LayoutItem): boolean {
+  return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+}
+
+/** `fixed` stays where it is; every peer it (or a peer pushed by it) now covers moves down below it, keeping the
+ * 16 px gap. Peers are the keys of the same grid; everything else is left alone. */
+export function resolveCollisions(items: Record<string, LayoutItem>, fixed: string, peers: string[]): Record<string, LayoutItem> {
+  const out: Record<string, LayoutItem> = { ...items };
+  const placed = [fixed];
+  const rest = peers.filter((k) => k !== fixed && out[k]).sort((a, b) => out[a].y - out[b].y || out[a].x - out[b].x);
+  for (const k of rest) {
+    let it = out[k];
+    for (let guard = 0; guard < 500; guard++) {
+      const hit = placed.find((p) => overlap(it, out[p]));
+      if (!hit) break;
+      it = { ...it, y: out[hit].y + out[hit].h + GAP_ROWS };
+    }
+    out[k] = it;
+    placed.push(k);
+  }
+  return out;
+}
+
+/** Every item of every grid in reading order (top to bottom, start to end). */
+function readingOrder(items: Record<string, LayoutItem>, keys: string[]): string[] {
+  return keys.filter((k) => items[k]).sort((a, b) => items[a].y - items[b].y || items[a].x - items[b].x);
+}
+
+/** The automatic phone layout: one column, in the desktop's reading order, each grid on its own. */
+export function derivePhone(desktop: Layout, grids: string[][]): Layout {
+  const items: Record<string, LayoutItem> = {};
+  const seen = new Set<string>();
+  for (const keys of grids) {
+    let y = 0;
+    for (const k of readingOrder(desktop.items, keys)) {
+      const d = desktop.items[k];
+      items[k] = { ...d, x: 0, w: COLS.phone, y };
+      y += d.h + GAP_ROWS;
+      seen.add(k);
+    }
+  }
+  // keys of grids this screen is not showing now (another view): the same rule, grid by grid, when they show
+  for (const [k, d] of Object.entries(desktop.items)) if (!seen.has(k)) items[k] = { ...d, x: 0, w: COLS.phone };
+  return { v: 1, cols: COLS.phone, items };
+}
+
+/** One grid as the screen draws it now, measured into grid units (the editor starts from what it sees). */
+export interface MeasuredGrid {
+  el: HTMLElement;
+  items: { key: string; el: HTMLElement }[];
+}
+
+export function deriveFromDom(grid: MeasuredGrid, cols: number): Record<string, LayoutItem> {
+  const g = grid.el.getBoundingClientRect();
+  const cs = getComputedStyle(grid.el);
+  const rtl = cs.direction === 'rtl';
+  const tracks = Math.max(1, cs.gridTemplateColumns.split(/\s+/).filter((t) => /px$/.test(t)).length);
+  const gap = parseFloat(cs.columnGap) || 0;
+  const step = (g.width + gap) / tracks;
+  const out: Record<string, LayoutItem> = {};
+  const keys: string[] = [];
+  for (const { key, el } of grid.items) {
+    const r = el.getBoundingClientRect();
+    if (!r.width && !r.height) continue;
+    const start = rtl ? g.right - r.right : r.left - g.left;
+    const col = Math.max(0, Math.round(start / step));
+    const span = Math.max(1, Math.round((r.width + gap) / step));
+    let x = Math.round((col * cols) / tracks);
+    let w = Math.max(1, Math.round((span * cols) / tracks));
+    if (w > cols) w = cols;
+    if (x + w > cols) x = cols - w;
+    out[key] = newItem(x, Math.max(0, Math.round((r.top - g.top) / ROW_PX)), w, Math.max(2, Math.ceil(r.height / ROW_PX)));
+    keys.push(key);
+  }
+  // rounding may make two neighbours touch or overlap: settle them in reading order
+  let settled = out;
+  for (const k of readingOrder(out, keys)) settled = resolveCollisions(settled, k, readingOrder(settled, keys).filter((o) => settled[o].y >= settled[k].y));
+  return settled;
+}
+
+/** Items the screen shows that the layout does not know yet (an area added in Home Assistant since): appended below
+ * the grid's own items - three per row on a desktop, one on a phone. */
+export function complete(layout: Layout, grids: string[][], defaultH: (key: string) => number): Layout {
+  const items = { ...layout.items };
+  const per = layout.cols === COLS.desktop ? 3 : 1;
+  const w = Math.floor(layout.cols / per);
+  for (const keys of grids) {
+    const missing = keys.filter((k) => !items[k]);
+    if (!missing.length || missing.length === keys.length) continue; // a grid the layout never touched stays automatic
+    let y = Math.max(0, ...keys.filter((k) => items[k]).map((k) => items[k].y + items[k].h)) + GAP_ROWS;
+    missing.forEach((k, i) => {
+      const col = i % per;
+      if (i && col === 0) y += Math.max(...missing.slice(i - per, i).map((m) => defaultH(m))) + GAP_ROWS;
+      items[k] = newItem(col * w, y, w, defaultH(k));
+    });
+  }
+  return { ...layout, items };
+}
+
+function clone(l: Layout): Layout {
+  return JSON.parse(JSON.stringify(l)) as Layout;
+}
+
+function clamp(n: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, n));
+}
+
+// ------------------------------------------------------------------------------------------------ the controller
+
+export interface LayoutGrid {
+  /** A stable id of this grid on the screen (e.g. "fcards", "areas:<floor>"). */
+  id: string;
+  /** The items it shows, in the screen's own order. */
+  keys: string[];
+}
+
+export interface LayoutOptions {
+  scope: LayoutScope;
+  /** The record's id: "main" for the building, the area id on the area screen. */
+  id: () => string;
+  /** What the edit bar calls this screen ("מסך המבנה", "מסך האזור › לובי"). */
+  screenName: () => string;
+  /** The rendered grids, for the editor's first measurement. */
+  measure: () => MeasuredGrid[];
+  /** The height (in rows) of an item appended to a layout that does not know it yet. */
+  defaultH: (key: string) => number;
+  /** The screen's label of an item (the chip on it and the panel's heading). */
+  label: (key: string) => string;
+  /** Called when the editor opens (the building screen shows every floor). */
+  onEnter?: () => void;
+  /** The screen's compact density: a viewer's layout packs its gaps to one row (8 px). */
+  compact?: () => boolean;
+  /** Area cards: the entities a card can show, for the panel's "visible entities" checklist. */
+  entities?: (key: string) => { id: string; name: string }[];
+}
+
+interface Drag {
+  key: string;
+  mode: 'move' | 'resize';
+  pointerId: number;
+  x0: number;
+  y0: number;
+  item0: LayoutItem;
+  snapshot: Record<string, LayoutItem>;
+  step: number;
+  rtl: boolean;
+  moved: boolean;
+  started: boolean;
+}
+
+export class DevicesLayoutController implements ReactiveController {
+  record: LayoutRecord | null = null;
+  editing = false;
+  variant: LayoutVariant = 'desktop';
+  selected: string | null = null;
+  busy = false;
+  error = '';
+  conflict = false;
+  note = '';
+  confirm: 'reset' | 'copy' | null = null;
+  live = '';
+  private draft: Layout | null = null;
+  private base = '';
+  private phone = false;
+  private mq: MediaQueryList | null = null;
+  private loadedId = '';
+  private view: Layout | null = null;
+  private grids: LayoutGrid[] = [];
+  private activeGrids = new Set<string>();
+  private gridOf = new Map<string, string>();
+  private drag: Drag | null = null;
+  private pressTimer = 0;
+
+  constructor(
+    private host: LitElement,
+    private opts: LayoutOptions,
+  ) {
+    host.addController(this);
+  }
+
+  hostConnected() {
+    try {
+      this.mq = window.matchMedia(PHONE_MQ);
+      this.phone = this.mq.matches;
+      this.mq.addEventListener('change', this.onMq);
+    } catch {
+      this.mq = null;
+    }
+    void this.load();
+  }
+
+  /** Review MEDIUM 3: while the layout is edited the cards' own controls are `inert` (no Tab, no keys, no pointer, out of
+   * the accessibility tree) - a key on a slider must never switch a real device. Set after every render. */
+  hostUpdated() {
+    const root = this.host.renderRoot as ParentNode;
+    for (const el of root.querySelectorAll<HTMLElement>('[data-lay-inert]')) {
+      if (el.parentElement?.classList.contains('lay-edit')) continue;
+      el.inert = false;
+      el.removeAttribute('aria-hidden');
+      el.removeAttribute('data-lay-inert');
+    }
+    if (!this.editing) return;
+    for (const item of root.querySelectorAll<HTMLElement>('.lay-item.lay-edit')) {
+      const body = item.firstElementChild as HTMLElement | null;
+      if (!body || body.classList.contains('lay-hd') || body.hasAttribute('data-lay-inert')) continue;
+      body.inert = true;
+      body.setAttribute('aria-hidden', 'true');
+      body.setAttribute('data-lay-inert', '');
+    }
+  }
+
+  hostDisconnected() {
+    this.mq?.removeEventListener('change', this.onMq);
+    window.clearTimeout(this.pressTimer);
+    this.host.removeAttribute('data-lay-editing');
+  }
+
+  private onMq = () => {
+    this.phone = this.mq?.matches ?? false;
+    this.host.requestUpdate();
+  };
+
+  private update() {
+    this.host.requestUpdate();
+  }
+
+  /** The screen's id changed (another area): a fresh record, the editor closed. */
+  async load(force = false) {
+    const id = this.opts.id();
+    if (!isApi() || !id) return;
+    if (!force && id === this.loadedId && this.record) return;
+    if (id !== this.loadedId) this.close();
+    this.loadedId = id;
+    try {
+      const r = await getLayout(this.opts.scope, id);
+      if (this.opts.id() !== id) return;
+      this.record = r;
+    } catch {
+      this.record = null; // no layout (or no permission to read one): the automatic layout
+    }
+    this.update();
+  }
+
+  /** The session's own permission (installation scope), never a flag from the reply. */
+  get canEdit(): boolean {
+    return isApi() && can('system.configure');
+  }
+
+  get dirty(): boolean {
+    return this.editing && !!this.draft && JSON.stringify(this.draft) !== this.base;
+  }
+
+  private viewVariant(): LayoutVariant {
+    return this.editing ? this.variant : this.phone ? 'phone' : 'desktop';
+  }
+
+  private stored(v: LayoutVariant): Layout | null {
+    return this.record?.[v]?.layout ?? null;
+  }
+
+  private gridKeys(): string[][] {
+    return this.grids.map((g) => g.keys);
+  }
+
+  /** What a viewer sees for a variant: the stored layout, or (phone) the one derived from the desktop layout. */
+  private viewerLayout(v: LayoutVariant): Layout | null {
+    if (v === 'desktop') return this.stored('desktop');
+    const phone = this.stored('phone');
+    if (phone) return phone;
+    const desk = this.stored('desktop');
+    return desk ? derivePhone(desk, this.gridKeys()) : null;
+  }
+
+  /** Called at the top of the screen's render with the grids it is about to draw. */
+  prepare(grids: LayoutGrid[]) {
+    this.grids = grids;
+    this.gridOf = new Map(grids.flatMap((g) => g.keys.map((k) => [k, g.id] as [string, string])));
+    const layout = this.editing ? this.draft : this.viewerLayout(this.viewVariant());
+    this.activeGrids = new Set(this.editing ? grids.map((g) => g.id) : grids.filter((g) => layout && g.keys.some((k) => layout.items[k])).map((g) => g.id));
+    this.view = layout ? complete(layout, grids.map((g) => g.keys), this.opts.defaultH) : null;
+    if (this.view && !this.editing) this.view = { ...this.view, items: this.packed(this.view.items, grids) };
+  }
+
+  /** A viewer's layout without the rows of what is not drawn (hidden items, what the viewer cannot see, what left
+   * Home Assistant), and with one-row gaps in the compact density. The editor always sees the stored positions. */
+  private packed(items: Record<string, LayoutItem>, grids: LayoutGrid[]): Record<string, LayoutItem> {
+    const drawn = new Set(grids.flatMap((g) => g.keys));
+    const prefix = (k: string) => k.slice(0, k.indexOf(':') + 1);
+    const strayPrefixes = new Set(Object.keys(items).filter((k) => !drawn.has(k)).map(prefix));
+    const compact = this.opts.compact?.() ?? false;
+    let out = items;
+    for (const g of grids) {
+      if (!this.activeGrids.has(g.id)) continue;
+      const gone = new Set(g.keys.filter((k) => out[k]?.hidden));
+      const all = compact || !!this.record?.narrowed || g.keys.some((k) => strayPrefixes.has(prefix(k)));
+      if (!gone.size && !all) continue;
+      out = pack(out, g.keys, gone, all, compact ? 1 : GAP_ROWS);
+    }
+    return out;
+  }
+
+  /** Whether this grid is laid out (else the screen's automatic grid). */
+  gridOn(id: string): boolean {
+    return !!this.view && this.activeGrids.has(id);
+  }
+
+  get cols(): number {
+    return this.view?.cols ?? COLS.desktop;
+  }
+
+  /** Attributes for a grid element: `class=${ctl.gridOn(id) ? 'lay-grid' : ''}` plus these. */
+  gridCols(id: string): string | typeof nothing {
+    return this.gridOn(id) ? String(this.cols) : nothing;
+  }
+
+  phonePreview(id: string): boolean {
+    return this.gridOn(id) && this.editing && this.variant === 'phone' && !this.phone;
+  }
+
+  /** The item's stored settings (title, icon ...) when its grid is laid out. */
+  item(key: string): LayoutItem | null {
+    const g = this.gridOf.get(key);
+    if (!g || !this.gridOn(g)) return null;
+    return this.view?.items[key] ?? null;
+  }
+
+  /** One item: as it always was (no layout), hidden (for a viewer), or placed in grid units with its chrome. */
+  wrap(key: string, content: TemplateResult | typeof nothing): TemplateResult | typeof nothing {
+    const it = this.item(key);
+    if (!it) return content;
+    if (it.hidden && !this.editing) return nothing;
+    const style = { gridColumn: `${it.x + 1} / span ${it.w}`, gridRow: `${it.y + 1} / span ${it.h}` };
+    const attrs = {
+      bg: it.bg ?? nothing,
+      border: it.border ?? nothing,
+      text: it.text !== 'md' ? it.text : nothing,
+    };
+    if (!this.editing) {
+      return html`<div class="lay-item" data-lay-key=${key} data-lay-bg=${attrs.bg} data-lay-border=${attrs.border} data-lay-text=${attrs.text} style=${styleMap(style)}>${content}</div>`;
+    }
+    const sel = this.selected === key;
+    const label = this.opts.label(key);
+    const pos = `${label}: ${it.w} × ${it.h} · עמודה ${it.x + 1}, שורה ${it.y + 1}${it.hidden ? ' · מוסתר' : ''}`;
+    return html`<div
+      class=${classMap({ 'lay-item': true, 'lay-edit': true, 'lay-sel': sel, 'lay-hidden': it.hidden, 'lay-drag': this.drag?.key === key && this.drag.started })}
+      data-lay-key=${key}
+      data-lay-bg=${attrs.bg}
+      data-lay-border=${attrs.border}
+      data-lay-text=${attrs.text}
+      data-lay-pos=${`${it.x},${it.y},${it.w},${it.h}`}
+      style=${styleMap(style)}
+      tabindex="0"
+      role="button"
+      aria-pressed=${String(sel)}
+      aria-label=${pos}
+      @pointerdown=${(e: PointerEvent) => this.onDown(e, key)}
+      @pointermove=${(e: PointerEvent) => this.onMove(e)}
+      @pointerup=${(e: PointerEvent) => this.onUp(e)}
+      @pointercancel=${(e: PointerEvent) => this.onUp(e, true)}
+      @keydown=${(e: KeyboardEvent) => this.onKey(e, key)}
+      @focus=${() => this.select(key, false)}
+    >${content}<span class="lay-hd" data-lay-handle aria-hidden="true"><sw-icon name="move" size=${11}></sw-icon>${label} · ${it.w} × ${it.h}${it.hidden ? ' · מוסתר' : ''}</span><span class="lay-rz" data-lay-resize aria-hidden="true"></span></div>`;
+  }
+
+  // -------------------------------------------------------------------------------------------- entering / leaving
+
+  /** "ערוך פריסה": the viewport's own variant. */
+  async enter(variant: LayoutVariant = this.phone ? 'phone' : 'desktop') {
+    if (!this.canEdit || this.editing) return;
+    this.opts.onEnter?.();
+    await this.host.updateComplete; // measure what the screen draws after onEnter (every floor on the building screen)
+    this.open(variant);
+  }
+
+  private open(variant: LayoutVariant) {
+    const measured = this.opts.measure();
+    const keysNow = this.gridKeys();
+    // the desktop layout the editor builds on: the stored one, completed with any grid it never touched as it is drawn now
+    const desk: Layout = clone(this.stored('desktop') ?? { v: 1, cols: COLS.desktop, items: {} });
+    for (const m of measured) {
+      const keys = m.items.map((i) => i.key);
+      if (!keys.some((k) => desk.items[k])) Object.assign(desk.items, deriveFromDom(m, COLS.desktop));
+    }
+    let layout: Layout;
+    if (variant === 'desktop') layout = desk;
+    else {
+      layout = clone(this.stored('phone') ?? derivePhone(desk, keysNow));
+      for (const m of measured) {
+        const keys = m.items.map((i) => i.key);
+        if (!keys.some((k) => layout.items[k])) Object.assign(layout.items, derivePhone({ v: 1, cols: 12, items: deriveFromDom(m, COLS.desktop) }, [keys]).items);
+      }
+    }
+    this.variant = variant;
+    this.draft = complete(layout, keysNow, this.opts.defaultH);
+    this.base = JSON.stringify(this.draft);
+    this.editing = true;
+    this.selected = null;
+    this.error = '';
+    this.note = '';
+    this.conflict = false;
+    this.host.setAttribute('data-lay-editing', '');
+    this.update();
+  }
+
+  private close() {
+    this.editing = false;
+    this.draft = null;
+    this.selected = null;
+    this.drag = null;
+    this.confirm = null;
+    this.host.removeAttribute('data-lay-editing');
+  }
+
+  cancel() {
+    this.close();
+    this.error = '';
+    this.update();
+  }
+
+  switchVariant(v: LayoutVariant) {
+    if (v === this.variant || this.dirty) return;
+    this.open(v);
+  }
+
+  async save() {
+    if (!this.draft || this.busy) return;
+    this.busy = true;
+    this.error = '';
+    this.update();
+    const rev = this.record?.[this.variant]?.revision ?? 0;
+    try {
+      this.record = await putLayout(this.opts.scope, this.opts.id(), this.variant, rev, this.draft);
+      this.close();
+      this.note = this.variant === 'phone' ? 'פריסת הטלפון נשמרה לכל המשתמשים.' : 'הפריסה נשמרה לכל המשתמשים.';
+    } catch (err) {
+      this.conflict = err instanceof ApiError && err.status === 409;
+      this.error = this.conflict ? 'מישהו אחר שמר את הפריסה בינתיים. טענו אותה מחדש וערכו שוב.' : describeError(err);
+    } finally {
+      this.busy = false;
+      this.update();
+    }
+  }
+
+  async reloadAfterConflict() {
+    this.close();
+    this.error = '';
+    this.conflict = false;
+    await this.load(true);
+  }
+
+  /** "אפס לברירת מחדל": both variants go; the screen is automatic again. */
+  async reset() {
+    this.busy = true;
+    this.update();
+    try {
+      this.record = await resetLayout(this.opts.scope, this.opts.id(), 'all', this.record?.desktop?.revision);
+      this.close();
+      this.note = 'הפריסה חזרה לברירת המחדל האוטומטית.';
+    } catch (err) {
+      this.confirm = null;
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+      this.update();
+    }
+  }
+
+  /** "חזור לאוטומטי" (phone): the stored phone layout goes; the editor shows the derived one again. */
+  async phoneAuto() {
+    this.busy = true;
+    this.update();
+    try {
+      if (this.record?.phone) this.record = await resetLayout(this.opts.scope, this.opts.id(), 'phone', this.record.phone.revision);
+      const desk = this.stored('desktop');
+      this.draft = desk ? complete(derivePhone(desk, this.gridKeys()), this.gridKeys(), this.opts.defaultH) : null;
+      if (!this.draft) {
+        this.close();
+        this.note = 'פריסת הטלפון אוטומטית.';
+      } else {
+        this.base = JSON.stringify(this.draft);
+        this.note = 'פריסת הטלפון חזרה להיות אוטומטית (לפי סדר המחשב).';
+      }
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+      this.update();
+    }
+  }
+
+  async copyToAll() {
+    this.busy = true;
+    this.update();
+    try {
+      const r = await copyLayoutToAllAreas(this.opts.id(), this.record?.desktop?.revision ?? 0);
+      this.record = r.source;
+      this.confirm = null;
+      this.note = `הפריסה הועתקה ל־${r.copied_to} אזורים.`;
+    } catch (err) {
+      this.confirm = null;
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+      this.update();
+    }
+  }
+
+  // -------------------------------------------------------------------------------------------- editing one item
+
+  private select(key: string | null, announce = true) {
+    if (this.selected === key) return;
+    this.selected = key;
+    if (announce && key) this.announce(key);
+    this.update();
+  }
+
+  private announce(key: string) {
+    const it = this.draft?.items[key];
+    if (it) this.live = `${this.opts.label(key)}: עמודה ${it.x + 1}, שורה ${it.y + 1}, רוחב ${it.w}, גובה ${it.h}`;
+  }
+
+  private peers(key: string): string[] {
+    const g = this.gridOf.get(key);
+    return this.grids.find((x) => x.id === g)?.keys ?? [key];
+  }
+
+  /** Changes one item; a position or size change pushes the peers it now covers down. */
+  patch(key: string, change: Partial<LayoutItem>, from?: Record<string, LayoutItem>) {
+    if (!this.draft) return;
+    const items = from ?? this.draft.items;
+    const cur = items[key];
+    if (!cur) return;
+    const next: LayoutItem = { ...cur, ...change };
+    next.w = clamp(next.w, 1, this.draft.cols);
+    next.x = clamp(next.x, 0, this.draft.cols - next.w);
+    next.y = clamp(next.y, 0, 4000);
+    next.h = clamp(next.h, 2, 400);
+    const geometry = next.x !== cur.x || next.y !== cur.y || next.w !== cur.w || next.h !== cur.h;
+    const merged = { ...items, [key]: next };
+    this.draft = { ...this.draft, items: geometry ? resolveCollisions(merged, key, this.peers(key)) : merged };
+    if (geometry) this.announce(key);
+    this.update();
+  }
+
+  private onDown(e: PointerEvent, key: string) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const el = e.currentTarget as HTMLElement;
+    const target = e.target as HTMLElement;
+    const onResize = !!target.closest('[data-lay-resize]');
+    const onHandle = onResize || !!target.closest('[data-lay-handle]');
+    const it = this.draft?.items[key];
+    if (!it || !this.draft) return;
+    if (e.pointerType === 'touch' && !onHandle) {
+      // a finger on a card scrolls the page; a long press picks the card (then the arrows move it)
+      window.clearTimeout(this.pressTimer);
+      const x0 = e.clientX;
+      const y0 = e.clientY;
+      this.pressTimer = window.setTimeout(() => {
+        this.select(key);
+        el.focus({ preventScroll: true });
+      }, 450);
+      this.drag = { key, mode: 'move', pointerId: -1, x0, y0, item0: it, snapshot: this.draft.items, step: 1, rtl: false, moved: false, started: false };
+      return;
+    }
+    e.preventDefault();
+    const grid = el.parentElement!;
+    const cs = getComputedStyle(grid);
+    const gap = parseFloat(cs.columnGap) || 0;
+    const step = (grid.getBoundingClientRect().width + gap) / this.draft.cols;
+    const item0 = onResize ? { ...it, h: Math.max(it.h, Math.round(el.getBoundingClientRect().height / ROW_PX)) } : it;
+    this.drag = { key, mode: onResize ? 'resize' : 'move', pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, item0, snapshot: this.draft.items, step, rtl: cs.direction === 'rtl', moved: false, started: onHandle };
+    try {
+      el.setPointerCapture(e.pointerId);
+    } catch {
+      /* the pointer is gone already */
+    }
+    this.select(key);
+    el.focus({ preventScroll: true });
+  }
+
+  private onMove(e: PointerEvent) {
+    const d = this.drag;
+    if (!d) return;
+    if (d.pointerId === -1) {
+      // a touch waiting for its long press: moving means scrolling
+      if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) > 8) {
+        window.clearTimeout(this.pressTimer);
+        this.drag = null;
+      }
+      return;
+    }
+    if (e.pointerId !== d.pointerId) return;
+    const dx = e.clientX - d.x0;
+    const dy = e.clientY - d.y0;
+    if (!d.started && Math.hypot(dx, dy) < 4) return;
+    d.started = true;
+    const dcol = Math.round((d.rtl ? -dx : dx) / d.step);
+    const drow = Math.round(dy / ROW_PX);
+    const change: Partial<LayoutItem> = d.mode === 'move' ? { x: d.item0.x + dcol, y: d.item0.y + drow } : { w: d.item0.w + dcol, h: d.item0.h + drow };
+    const cur = this.draft?.items[d.key];
+    const want = { ...d.item0, ...change };
+    if (cur && (d.mode === 'move' ? want.x !== cur.x || want.y !== cur.y : want.w !== cur.w || want.h !== cur.h)) {
+      d.moved = true;
+      // from the snapshot taken at the start: a card pushed aside comes back when the dragged one moves on
+      this.patch(d.key, change, { ...d.snapshot, [d.key]: d.item0 });
+    }
+  }
+
+  private onUp(e: PointerEvent, cancelled = false) {
+    const d = this.drag;
+    window.clearTimeout(this.pressTimer);
+    if (!d) return;
+    if (d.pointerId !== -1 && e.pointerId !== d.pointerId) return;
+    if (cancelled && d.pointerId !== -1 && this.draft) this.draft = { ...this.draft, items: d.snapshot };
+    this.drag = null;
+    this.update();
+  }
+
+  private onKey(e: KeyboardEvent, key: string) {
+    const it = this.draft?.items[key];
+    if (!it) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      this.select(key);
+      return;
+    }
+    if (e.key === 'Escape') {
+      this.select(null);
+      return;
+    }
+    const rtl = getComputedStyle(e.currentTarget as HTMLElement).direction === 'rtl';
+    // logical columns: in RTL the start edge is on the right, so ArrowRight moves toward the start
+    const toEnd = e.key === 'ArrowLeft' ? (rtl ? 1 : -1) : e.key === 'ArrowRight' ? (rtl ? -1 : 1) : 0;
+    const down = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+    if (!toEnd && !down) return;
+    e.preventDefault();
+    this.selected = key;
+    if (e.shiftKey) this.patch(key, { w: it.w + toEnd, h: it.h + down });
+    else this.patch(key, { x: it.x + toEnd, y: it.y + down });
+  }
+
+  // -------------------------------------------------------------------------------------------- rendering the chrome
+
+  /** "ערוך פריסה", for a system.configure holder only (in the page's actions). */
+  renderEditButton(): TemplateResult | typeof nothing {
+    if (!this.canEdit || this.editing) return nothing;
+    return html`<sw-button size="sm" icon="edit" data-layout-edit @click=${() => void this.enter()}>ערוך פריסה</sw-button>`;
+  }
+
+  /** The edit bar at the top of the screen, and the confirmations; the saved / reset note otherwise. */
+  renderBar(): TemplateResult | typeof nothing {
+    if (!this.editing) {
+      if (!this.note && !this.error) return nothing;
+      return html`<div class=${classMap({ 'lay-msg': true, err: !!this.error })} role="status" data-layout-note>${this.error || this.note}</div>`;
+    }
+    const stored = this.record?.[this.variant] ?? null;
+    const dirty = this.dirty;
+    const areaScope = this.opts.scope === 'area';
+    return html`<div class="lay-bar" data-layout-bar role="toolbar" aria-label="עריכת פריסה">
+        <span class="what"><sw-icon name="edit" size=${15}></sw-icon>מצב עריכה</span>
+        <span class="where">${this.opts.screenName()} · ${this.variant === 'phone' ? 'פריסת טלפון' : 'פריסת מחשב'}${this.variant === 'phone' && !this.record?.phone ? ' (אוטומטית עד שתישמר)' : ''}</span>
+        <span class="lay-seg" role="group" aria-label="פריסה">
+          <button type="button" data-layout-variant="desktop" aria-pressed=${String(this.variant === 'desktop')} ?disabled=${dirty && this.variant !== 'desktop'} title=${dirty ? 'שמרו או בטלו קודם' : ''} @click=${() => this.switchVariant('desktop')}>מחשב</button>
+          <button type="button" data-layout-variant="phone" aria-pressed=${String(this.variant === 'phone')} ?disabled=${dirty && this.variant !== 'phone'} title=${dirty ? 'שמרו או בטלו קודם' : ''} @click=${() => this.switchVariant('phone')}>טלפון</button>
+        </span>
+        <span class="acts">
+          <sw-button size="sm" data-layout-cancel ?disabled=${this.busy} @click=${() => this.cancel()}>בטל</sw-button>
+          ${this.variant === 'phone' ? html`<sw-button size="sm" data-layout-phone-auto ?disabled=${this.busy || (!this.record?.phone && !dirty)} @click=${() => void this.phoneAuto()}>חזור לאוטומטי</sw-button>` : nothing}
+          <sw-button size="sm" data-layout-reset ?disabled=${this.busy || (!this.record?.desktop && !this.record?.phone)} @click=${() => this.ask('reset')}>אפס לברירת מחדל</sw-button>
+          ${areaScope ? html`<sw-button size="sm" icon="layers" data-layout-copy ?disabled=${this.busy || dirty || !this.record?.desktop} title=${dirty ? 'שמרו קודם' : !this.record?.desktop ? 'אין עדיין פריסה שמורה להעתקה' : ''} @click=${() => this.ask('copy')}>העתק לכל האזורים</sw-button>` : nothing}
+          <sw-button size="sm" variant="primary" icon="check" data-layout-save ?disabled=${this.busy || (!dirty && !!stored)} @click=${() => void this.save()}>שמור</sw-button>
+        </span>
+        ${this.error ? html`<span class="lay-msg err" role="alert" data-layout-error>${this.error}${this.conflict ? html` <sw-button size="sm" variant="ghost" data-layout-reload @click=${() => void this.reloadAfterConflict()}>טען מחדש</sw-button>` : nothing}</span>` : nothing}
+        ${this.note ? html`<span class="lay-msg" role="status">${this.note}</span>` : nothing}
+        <span class="lay-live" aria-live="polite" data-layout-live>${this.live}</span>
+      </div>
+      ${this.renderConfirm()}`;
+  }
+
+  private ask(what: 'reset' | 'copy') {
+    this.confirm = what;
+    this.error = '';
+    this.update();
+  }
+
+  private renderConfirm() {
+    if (!this.confirm) return html`<sw-dialog data-layout-confirm="closed"></sw-dialog>`;
+    const copy = this.confirm === 'copy';
+    const close = () => {
+      this.confirm = null;
+      this.update();
+    };
+    return html`<sw-dialog open data-layout-confirm=${this.confirm} heading=${copy ? 'להעתיק את הפריסה לכל האזורים?' : 'לאפס את הפריסה?'} @close=${close}>
+      <div>${copy
+        ? 'הפריסה השמורה של האזור הזה (מחשב, וטלפון אם נשמרה) תחליף את הפריסה של כל שאר האזורים, גם אם נערכה בהם פריסה משלהם. הפעולה נרשמת ביומן.'
+        : 'הפריסה השמורה (מחשב וטלפון) תימחק לכל המשתמשים, והמסך יחזור לסידור האוטומטי. הפעולה נרשמת ביומן.'}</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <sw-button data-layout-confirm-cancel autofocus @click=${close}>ביטול</sw-button>
+        <sw-button variant=${copy ? 'primary' : 'danger'} data-layout-confirm-ok ?disabled=${this.busy} @click=${() => void (copy ? this.copyToAll() : this.reset())}>${copy ? 'העתק לכל האזורים' : 'אפס'}</sw-button>
+      </div>
+    </sw-dialog>`;
+  }
+
+  /** Review ruling 4: which entities an area card shows - a checklist; a hidden one still counts in the card's numbers. */
+  private renderEntities(key: string, it: LayoutItem): TemplateResult | typeof nothing {
+    const list = this.opts.entities?.(key) ?? [];
+    if (!list.length) return nothing;
+    const hide = new Set(it.hidden_entities ?? []);
+    const toggle = (id: string, show: boolean) => {
+      const next = new Set(hide);
+      if (show) next.delete(id);
+      else next.add(id);
+      this.patch(key, { hidden_entities: [...next].sort() });
+    };
+    return html`<div class="lay-f"><span class="lbl">ישויות מוצגות בכרטיס (${list.length - list.filter((e) => hide.has(e.id)).length} מתוך ${list.length})</span>
+      <div class="lay-ents" data-layout-entities>
+        ${list.map((e) => html`<label class="lay-check"><input type="checkbox" data-layout-entity=${e.id} .checked=${!hide.has(e.id)} @change=${(ev: Event) => toggle(e.id, (ev.target as HTMLInputElement).checked)} />${e.name}</label>`)}
+      </div>
+      <span class="lay-hint">ישות מוסתרת עדיין נספרת במונים של הכרטיס.</span></div>`;
+  }
+
+  /** The panel of the selected item (a bottom sheet on a phone). */
+  renderPanel(): TemplateResult | typeof nothing {
+    if (!this.editing || !this.draft) return nothing;
+    const key = this.selected;
+    const it = key ? this.draft.items[key] : null;
+    if (!key || !it) {
+      return html`<aside class="lay-panel" data-layout-panel="none" aria-label="מאפייני הכרטיס">
+        <div class="ph">מאפייני הכרטיס</div>
+        <div class="lay-hint">בחרו כרטיס כדי לערוך אותו (בטלפון: לחיצה ארוכה). גררו כרטיס כדי להזיז אותו והידית בפינה משנה את גודלו, בקפיצות של עמודה ו־8 פיקסלים. במקלדת: Tab לכרטיס, חיצים מזיזים, Shift עם חיצים משנה גודל.</div>
+      </aside>`;
+    }
+    const label = this.opts.label(key);
+    // attribute NAMES cannot be bound in a Lit template: one swatch template per field
+    const swatch = (field: 'bg' | 'border', r: LayoutRoleId | null) => {
+      const name = r ? ROLE_HE[r] : 'ללא';
+      const on = String(it[field] === r);
+      const click = () => this.patch(key, field === 'bg' ? { bg: r } : { border: r });
+      return field === 'bg'
+        ? html`<button type="button" class="lay-swatch" data-role=${r ?? 'none'} data-layout-bg=${r ?? 'none'} aria-pressed=${on} aria-label=${name} title=${name} @click=${click}></button>`
+        : html`<button type="button" class="lay-swatch" data-role=${r ?? 'none'} data-layout-border=${r ?? 'none'} aria-pressed=${on} aria-label=${name} title=${name} @click=${click}></button>`;
+    };
+    const roleRow = (field: 'bg' | 'border', title: string) => html`<div class="lay-f"><span class="lbl">${title}</span>
+      <div class="lay-swatches" role="group" aria-label=${title}>${swatch(field, null)}${LAYOUT_ROLE_IDS.map((r) => swatch(field, r))}</div></div>`;
+    const nudge = (txt: string, lbl: string, change: Partial<LayoutItem>, attr: string) =>
+      html`<button type="button" data-layout-nudge=${attr} aria-label=${lbl} title=${lbl} @click=${() => this.patch(key, change)}>${txt}</button>`;
+    return html`<aside class="lay-panel" data-layout-panel=${key} aria-label=${`מאפייני הכרטיס: ${label}`}>
+      <div class="ph">מאפייני הכרטיס<span class="chip">${label}</span></div>
+      <div class="lay-f"><label for="lay-title">כותרת</label>
+        <input id="lay-title" type="text" maxlength="60" data-layout-title .value=${it.title ?? ''} placeholder=${label} @input=${(e: Event) => this.patch(key, { title: (e.target as HTMLInputElement).value.trim() ? (e.target as HTMLInputElement).value : null })} /></div>
+      <div class="lay-f"><label for="lay-icon">אייקון</label>
+        <select id="lay-icon" data-layout-icon @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; this.patch(key, { icon: v ? (v as LayoutIcon) : null }); }}>
+          <option value="" ?selected=${!it.icon}>ברירת המחדל</option>
+          ${LAYOUT_ICONS.map((i) => html`<option value=${i} ?selected=${it.icon === i}>${ICON_HE[i]}</option>`)}
+        </select></div>
+      <div class="lay-f"><span class="lbl">גודל טקסט</span>
+        <span class="lay-seg" role="group" aria-label="גודל טקסט">
+          ${(['sm', 'md', 'lg'] as const).map((t) => html`<button type="button" data-layout-text=${t} aria-pressed=${String(it.text === t)} @click=${() => this.patch(key, { text: t })}>${t === 'sm' ? 'קטן' : t === 'md' ? 'רגיל' : 'גדול'}</button>`)}
+        </span></div>
+      ${roleRow('bg', 'צבע רקע (מתוך ערכת הצבעים)')}
+      ${roleRow('border', 'צבע מסגרת')}
+      <div class="lay-row2">
+        <div class="lay-f"><label for="lay-w">רוחב (עמודות מתוך ${this.draft.cols})</label><input id="lay-w" type="number" min="1" max=${this.draft.cols} data-layout-w .value=${String(it.w)} @change=${(e: Event) => this.patch(key, { w: Number((e.target as HTMLInputElement).value) || it.w })} /></div>
+        <div class="lay-f"><label for="lay-h">גובה מינימלי (שורות של 8 פיקסלים)</label><input id="lay-h" type="number" min="2" max="400" data-layout-h .value=${String(it.h)} @change=${(e: Event) => this.patch(key, { h: Number((e.target as HTMLInputElement).value) || it.h })} /></div>
+      </div>
+      <div class="lay-f"><span class="lbl">הזזה ושינוי גודל</span>
+        <div class="lay-nudge">
+          ${nudge('▲', 'הזז למעלה', { y: it.y - 1 }, 'up')}
+          ${nudge('▼', 'הזז למטה', { y: it.y + 1 }, 'down')}
+          ${nudge('→', 'הזז לתחילת השורה', { x: it.x - 1 }, 'start')}
+          ${nudge('←', 'הזז לסוף השורה', { x: it.x + 1 }, 'end')}
+          ${nudge('רחב +', 'הרחב בעמודה', { w: it.w + 1 }, 'wider')}
+          ${nudge('רחב −', 'הצר בעמודה', { w: it.w - 1 }, 'narrower')}
+          ${nudge('גובה +', 'הגבה ב־8 פיקסלים', { h: it.h + 1 }, 'taller')}
+          ${nudge('גובה −', 'הנמך ב־8 פיקסלים', { h: it.h - 1 }, 'shorter')}
+        </div></div>
+      ${this.renderEntities(key, it)}
+      <label class="lay-check"><input type="checkbox" data-layout-hidden .checked=${it.hidden} @change=${(e: Event) => this.patch(key, { hidden: (e.target as HTMLInputElement).checked })} />מוסתר לכולם</label>
+      <div class="lay-hint">הצבעים הם תפקידים בערכת הצבעים של האזור (הגדרות › חשמל והתקנים), כך שהפריסה נראית נכון בכל ערכה, בהיר או כהה. הגובה הוא מינימום: כרטיס לא חותך את ההתקנים שבו.</div>
+    </aside>`;
+  }
+}
+
+/** An area card's entities without the ones its layout hides (the card still counts them). */
+export function shownEntities<T extends { entity_id: string }>(it: LayoutItem | null, rows: T[]): T[] {
+  const hide = it?.hidden_entities;
+  return hide && hide.length ? rows.filter((r) => !hide.includes(r.entity_id)) : rows;
+}
+
+/** The title an item shows: the layout's own, else the screen's. */
+export function titleOf(it: LayoutItem | null, fallback: string): string {
+  return it?.title ?? fallback;
+}

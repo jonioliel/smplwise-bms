@@ -22,6 +22,8 @@ import { STATUS_KIND, STATUS_LABEL, fmtUptime, healthReport, type HealthReport }
 import { applyWiskeyUi, applyWiskeyHidden, type WiskeyScreen } from '../shell/nav';
 import { getSkinsStatus, runSkinsTest, type SkinsStatus, type SkinsTestResult } from '../api/skins';
 import { devicesPrefsOf, type DevicesStyle } from './devices-style';
+import './devices-theme-picker';
+import type { DevicesPick } from './devices-theme-picker';
 
 /** הגדרות › בקרות כניסה: the SMPLWISE WisKey screens that can show either WisKey's own panel or the screen built here. */
 const ACCESS_SCREENS: { screen: WiskeyScreen; label: string; href: string; detail: string }[] = [
@@ -813,7 +815,7 @@ export class SystemDiagnostics extends LitElement {
   private renderDevices() {
     const api = isApi();
     const ro = !api || !this.canEdit;
-    const keys = ['devices.style', 'devices.default_view', 'devices.density', 'devices.show_sensors', 'devices.show_climate_strip'] as const;
+    const keys = ['devices.style', 'devices.default_view', 'devices.density', 'devices.show_sensors', 'devices.show_climate_strip', 'devices.theme', 'devices.scheme'] as const;
     const dirty = keys.some((k) => k in this.draft);
     const p = devicesPrefsOf({ ...(this.settings ?? {}), ...this.draft });
     const pick = (style: DevicesStyle) => this.set('devices.style', style);
@@ -831,6 +833,7 @@ export class SystemDiagnostics extends LitElement {
           ${swatch('smplwise', 'SMPLWISE', 'לבן, קווים דקים')}
           ${swatch('glass', 'זכוכית', 'שקוף, מעוגל, אייקונים')}
         </div>
+        <devices-theme-picker data-devices-theme-picker .theme=${p.theme} .scheme=${p.scheme} ?disabled=${ro} @devices-pick=${(e: CustomEvent<DevicesPick>) => this.set(e.detail.key, e.detail.value as never)}></devices-theme-picker>
         <div class="row"><span class="lbl">תצוגת הפתיחה של המבנה<span class="muted">מה שמשתמש רואה בפעם הראשונה. מי שבחר בעצמו "כרטיסים" או "אריחים" ממשיך עם הבחירה שלו.</span></span>
           <sw-field class="ctl"><select data-set-devices-view ?disabled=${ro} @change=${(e: Event) => this.set('devices.default_view', (e.target as HTMLSelectElement).value === 'tiles' ? 'tiles' : 'cards')}>
             <option value="cards" ?selected=${p.defaultView === 'cards'}>כרטיסים: עץ המבנה וכרטיסי קומה</option><option value="tiles" ?selected=${p.defaultView === 'tiles'}>אריחים: אריח לכל אזור</option>
@@ -847,7 +850,7 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-devices-climate ?disabled=${ro} @change=${(e: Event) => this.set('devices.show_climate_strip', (e.target as HTMLSelectElement).value === 'false' ? 'false' : 'true')}>
             <option value="true" ?selected=${p.showClimateStrip}>מוצגת</option><option value="false" ?selected=${!p.showClimateStrip}>מוסתרת</option>
           </select></sw-field></div>
-        <div class="muted" data-devices-layout-next style="margin-block-start:8px">עריכת הפריסה של כל אזור (סדר הכרטיסים, גודל, כותרות, גודל טקסט וצבעים) תגיע בשלב הבא.</div>
+        <div class="muted" data-devices-layout-next style="margin-block-start:8px">הפריסה עצמה (מיקום וגודל של כרטיסים ואריחים, כותרת, אייקון, גודל טקסט וצבע לפי תפקיד) נערכת במסך המבנה ובמסך האזור, בכפתור "ערוך פריסה".</div>
         ${this.canEdit && api
           ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-devices ?disabled=${!dirty || this.busy} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'devices' ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error && this.tab === 'devices' ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>`
           : html`<div class="muted" data-devices-readonly>${api ? 'שינוי ההגדרות דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
