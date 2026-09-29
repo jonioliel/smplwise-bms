@@ -68,7 +68,7 @@ REF_SIDES = 3  # ... unless it has this many sides of REF_SIDE_M or more in two 
 REF_SIDE_M = 1.0
 REF_STRAIGHT_SHARE = 0.3  # ... one that runs one way (a stroke of the sheet, or one line of a fragmented outline) from this share
 REF_CROSS_MIN_M = 2.0  # a section-cut stroke crossing into the building (detector 1.4, section_lines) is at least this long
-REF_CROSS_REACH_M = 0.75  # ... and passes within this of a structure wall's body (half the widest door: through an opening)
+REF_CROSS_GAP_M = 2.4  # ... and crosses a structure wall's body or an opening of it: a gap up to this between collinear pieces
 JOIN_GAP_M = 0.3  # a white gap narrower than this between pieces of one line, no symbol in it, is one wall (1.4, join_gaps) ...
 JOIN_THICK_RATIO = 1.5  # ... when the two pieces are about as thick (the thicker at most this many times the thinner)
 LINE_INK = 0.6  # a drawn line beside a segment: ink on this share of the samples along it
@@ -826,8 +826,9 @@ def drop_reference_strokes(segs: list[Seg], t_med: float, s: float, crossing: bo
         # outer end belongs to its own group), it is no shape (not REF_SIDES sides in two directions), a stroke of it of
         # at least REF_CROSS_MIN_M is longer than the rest of its group together, and that stroke has one end inside the
         # structure's bounding box and the other beyond the grown box, and its body crosses the body of a structure
-        # segment or passes within REF_CROSS_REACH_M of one (review M1: it cuts the envelope - or passes through a door
-        # opening of it, as the owner's floor -1 "ב" line does). A free-standing wall inside the building never leaves the box; a
+        # segment or the gap between two collinear structure pieces up to REF_CROSS_GAP_M apart (review M1: it cuts the
+        # envelope - or passes through an opening of it, as the owner's floor -1 "ב" line does through a door). A
+        # free-standing wall inside the building never leaves the box; a
         # garden wall leaving the envelope touches it (structure); a wall parallel to the envelope outside it has no
         # end inside the box; a detached fence that starts in the notch of an L-shaped building (inside the box, outside
         # the building) and leaves it crosses no wall.
@@ -835,11 +836,26 @@ def drop_reference_strokes(segs: list[Seg], t_med: float, s: float, crossing: bo
         long_px = REF_CROSS_MIN_M / s
         crossed: set[int] = set()
         struct_segs = [h for j, h in enumerate(segs) if find(j) in structure]
-
-        reach = REF_CROSS_REACH_M / s
+        # the openings of the structure's walls: the gap between the facing ends of two collinear pieces up to
+        # REF_CROSS_GAP_M apart (a door, a passage, a window the wall pass left open), as thick as the thinner piece
+        openings_: list[tuple[np.ndarray, np.ndarray, float]] = []
+        gap_px = REF_CROSS_GAP_M / s
+        for group in line_groups(struct_segs):
+            if len(group) < 2:
+                continue
+            base = struct_segs[group[0]]
+            spans = sorted((min(base.project(struct_segs[i].a)[0], base.project(struct_segs[i].b)[0]), max(base.project(struct_segs[i].a)[0], base.project(struct_segs[i].b)[0]), i) for i in group)
+            hi_end, hi_i = spans[0][1], spans[0][2]
+            for lo_k, hi_k, k in spans[1:]:
+                if 0 < lo_k - hi_end <= gap_px:
+                    openings_.append((base.a + base.dir * hi_end, base.a + base.dir * lo_k, min(struct_segs[hi_i].thick, struct_segs[k].thick)))
+                if hi_k > hi_end:
+                    hi_end, hi_i = hi_k, k
 
         def cuts_structure(g: Seg) -> bool:
-            return any(_seg_seg_dist(g.a, g.b, h.a, h.b) <= (g.thick + h.thick) / 2 + reach for h in struct_segs)
+            if any(_seg_seg_dist(g.a, g.b, h.a, h.b) <= (g.thick + h.thick) / 2 for h in struct_segs):
+                return True
+            return any(_seg_seg_dist(g.a, g.b, p, q) <= (g.thick + t) / 2 for p, q, t in openings_)
 
         for i, g in enumerate(segs):
             r = find(i)

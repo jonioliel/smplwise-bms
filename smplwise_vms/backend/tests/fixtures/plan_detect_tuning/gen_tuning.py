@@ -181,8 +181,9 @@ def facade() -> Plan:
 
 
 def lnotch() -> Plan:
-    """Review M1: an L-shaped building with a detached fence that starts in the notch (inside the building's box, outside
-    the building), touches no wall and leaves the box: a wall, kept. A section-cut line that cuts the envelope below is
+    """Review M1: an L-shaped building with detached strokes that start in the notch (inside the building's box, outside
+    the building), touch no wall and leave the box: a fence 2.4 m from the notch wall, a fence 0.4 m from it, and a
+    railing parallel to the notch wall 0.5 m from it - walls, kept. A section-cut line that cuts the envelope below is
     dropped."""
     p = _plan("lnotch")
     pts = [(200, 200), (1000, 200), (1000, 600), (1400, 600), (1400, 1000), (200, 1000)]
@@ -190,6 +191,8 @@ def lnotch() -> Plan:
         p.wall(a, b, OUTER, "exterior")
     p.wall((600, 206), (600, 994), INNER)
     p.wall((1200, 480), (1200, 60), 8, "exterior")  # the fence: 0.16 m, 8.4 m long, from the notch out of the box
+    p.wall((1100, 570), (1100, 60), 8, "exterior")  # a fence 0.4 m clear of the notch wall's face (closer, the closing joins them)
+    p.wall((1130, 575), (1560, 575), 8, "exterior")  # a railing parallel to the notch wall, 0.5 m from it, out of the box
     _stroke(p, (800, 850), (800, 1150), 6)  # a section-cut line through the bottom wall, arrow bar outside
     _stroke(p, (760, 1153), (840, 1153), 7)
     return p

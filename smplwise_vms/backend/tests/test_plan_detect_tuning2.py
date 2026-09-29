@@ -90,22 +90,43 @@ def test_drop_reference_strokes_crossing_rule_on_segments():
     fence = [sg((2500, 700), (2500, -250), 8.0)]
     kept, _outside, dropped = pd.drop_reference_strokes(ell + fence, t_med, s, crossing=True)
     assert dropped == 0 and len(kept) == len(ell) + 1
+    # re-review: a fence starting 0.4 m (20 px) from the notch wall, and a railing parallel to it 0.5 m away, stay too
+    near = [sg((2300, 980), (2300, -250), 8.0)]
+    parallel = [sg((2200, 975), (3400, 975), 8.0)]
+    for extra in (near, parallel):
+        kept, _outside, dropped = pd.drop_reference_strokes(ell + extra, t_med, s, crossing=True)
+        assert dropped == 0 and len(kept) == len(ell) + 1, extra[0].a
+    # a section line that runs out through a 1 m door of the envelope (a gap between two collinear pieces) goes
+    doored = [sg((0, 0), (1200, 0)), sg((1250, 0), (3000, 0))] + hall[1:]
+    through = [sg((1225, 150), (1225, -250), 4.0), sg((1205, -250), (1245, -250), 4.0)]
+    kept, _outside, dropped = pd.drop_reference_strokes(doored + through, t_med, s, crossing=True)
+    assert dropped == 2 and len(kept) == len(doored)
     assert pd._seg_seg_dist(np.array([0.0, 0.0]), np.array([10.0, 0.0]), np.array([5.0, -5.0]), np.array([5.0, 5.0])) == 0.0
     assert pd._seg_seg_dist(np.array([0.0, 0.0]), np.array([10.0, 0.0]), np.array([15.0, -5.0]), np.array([15.0, 5.0])) == 5.0
 
 
 def test_a_fence_in_the_notch_of_an_l_shaped_building_stays_a_wall(monkeypatch):
-    """Review M1 on a picture: the fence (8.4 m, from the notch out of the building's box, touching nothing) stays; the
-    section-cut line through the bottom wall goes. Without the body test (every stroke 'cuts' the structure) the fence
-    went too."""
+    """Review M1 on a picture: three detached strokes from the notch out of the building's box, touching nothing - a
+    fence 2.4 m from the notch wall, a fence 0.4 m from it (re-review), a railing parallel to it 0.5 m away (re-review) -
+    stay walls; the section-cut line through the bottom wall goes. Without the crossing test (every stroke 'cuts' the
+    structure) the fence went too."""
+    def strokes(r: dict) -> dict[str, list]:
+        px = [[(p[0] * 1600, p[1] * 1200) for p in w["polyline"]] for w in r["walls"]]
+        return {
+            "fence 2.4 m": [q for q in px if all(abs(x - 1200) < 8 for x, _ in q) and min(y for _, y in q) < 100],
+            "fence 0.4 m": [q for q in px if all(abs(x - 1100) < 8 for x, _ in q) and min(y for _, y in q) < 100],
+            "railing 0.5 m": [q for q in px if all(abs(y - 575) < 8 for _, y in q) and max(x for x, _ in q) > 1500],
+        }
+
     for calibrated in (True, False):
         _gt, r, e = _run("lnotch", calibrated)
-        fence = [w for w in r["walls"] if all(abs(p[0] * 1600 - 1200) < 8 for p in w["polyline"]) and min(p[1] for p in w["polyline"]) * 1200 < 100]
-        assert fence and e["walls"]["recall"] >= 0.99 and e["walls"]["precision"] >= 0.99, (calibrated, e["walls"], [w["polyline"] for w in r["walls"]])
+        found = strokes(r)
+        assert all(found.values()), (calibrated, found)
+        assert e["walls"]["recall"] >= 0.99 and e["walls"]["precision"] >= 0.99, (calibrated, e["walls"], [w["polyline"] for w in r["walls"]])
         assert r["stats"]["dropped_crossing"] >= 1
     monkeypatch.setattr(pd, "_seg_seg_dist", lambda *a: 0.0)
     _gt, r, _e = _run("lnotch")
-    assert not [w for w in r["walls"] if all(abs(p[0] * 1600 - 1200) < 8 for p in w["polyline"])], "the body test is what keeps the fence"
+    assert not any(strokes(r).values()), ("the crossing test is what keeps them", strokes(r))
 
 
 def test_short_gaps_join_and_are_no_passages():

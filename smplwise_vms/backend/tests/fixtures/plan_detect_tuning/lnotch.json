@@ -99,6 +99,30 @@
    ],
    "thickness_px": 8,
    "kind": "exterior"
+  },
+  {
+   "a": [
+    1100,
+    570
+   ],
+   "b": [
+    1100,
+    60
+   ],
+   "thickness_px": 8,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1130,
+    575
+   ],
+   "b": [
+    1560,
+    575
+   ],
+   "thickness_px": 8,
+   "kind": "exterior"
   }
  ],
  "doors": [],
