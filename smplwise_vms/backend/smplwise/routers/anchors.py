@@ -240,7 +240,8 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
         "ha_history": ha_hist,
         "permissions": {"edit": can_edit, "publish": can_publish, "import": authorize(conn, principal, "map.import", ("floor", floor_id)).allowed,
                         "structure": can_structure},
-        "cameras": list(cameras.values()) if can_edit else [c for c in cameras.values() if any(a["resource_id"] == c["id"] for a in anchors)],
+        # the placement editor's list: exactly the cameras it may place (placement.edit on their chain, T055 re-review)
+        "cameras": [c for c in cameras.values() if placeable.allows(c["id"])] if placeable is not None else [c for c in cameras.values() if any(a["resource_id"] == c["id"] for a in anchors)],
     }
 
 

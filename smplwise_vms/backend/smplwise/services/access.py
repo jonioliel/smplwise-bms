@@ -104,19 +104,21 @@ def row_scope(conn: sqlite3.Connection, principal: Principal, permission: str) -
 def camera_reach_for_placement(conn: sqlite3.Connection, principal: Principal) -> CameraScope:
     """The cameras an editor may place, move or remove on a map (security review T055 B1): placing a camera on a floor
     widens who reaches it (every reader of that floor, and its camera-scoped users get that floor's drawing), so the
-    actor must already reach the camera on its CURRENT chain (map.read) - or hold placement.edit installation-wide,
-    minus the cameras explicitly denied to them."""
-    reads = camera_scope(conn, principal, "map.read")
-    if authorize(conn, principal, "placement.edit", INSTALLATION).allowed:
-        every = frozenset(r[0] for r in conn.execute("SELECT id FROM cameras").fetchall())
-        return CameraScope("placement.edit", False, every - reads.denied, reads.denied)
-    return reads
+    actor must already hold placement.edit on the camera's CURRENT chain (a floor / building / site it hangs on, the
+    installation, or the camera itself) - reading it is not enough (re-review: a viewer of one camera could otherwise
+    carry it onto a floor they edit). An unanchored camera is therefore placed only by an installation-wide holder.
+    Cameras explicitly denied to the actor for map.read or placement.edit are never theirs to place."""
+    place = camera_scope(conn, principal, "placement.edit")
+    reads_denied = camera_scope(conn, principal, "map.read").denied
+    ids = frozenset(r[0] for r in conn.execute("SELECT id FROM cameras").fetchall()) if place.everything else place.ids
+    denied = place.denied | reads_denied
+    return CameraScope("placement.edit", False, ids - denied, denied)
 
 
 def require_camera_placement(conn: sqlite3.Connection, principal: Principal, camera_id: str) -> None:
     if not camera_reach_for_placement(conn, principal).allows(camera_id):
         require(conn, principal, "map.read", ("camera", camera_id))  # the audited 403 (an explicit deny names itself)
-        require(conn, principal, "placement.edit", INSTALLATION)
+        require(conn, principal, "placement.edit", ("camera", camera_id))
 
 
 def visible_camera_ids(conn: sqlite3.Connection, principal: Principal, permission: str = "map.read") -> set[str] | None:

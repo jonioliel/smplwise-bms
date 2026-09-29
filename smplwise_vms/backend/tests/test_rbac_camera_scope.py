@@ -481,8 +481,21 @@ def test_placing_moving_and_removing_a_camera_needs_reach(tmp_path):
     assert c.patch(f"/api/v1/map-anchors/{split['id']}", json={"revision": split["revision"], "x": 0.1}, headers=h).status_code == 403
     assert c.delete(f"/api/v1/map-anchors/{split['id']}", headers=h).status_code == 403
     assert cams["cam_split"] not in {x["id"] for x in c.get(f"/api/v1/floors/{w['floor2']}/map", headers=h).json()["cameras"]}
-    # an installation-wide placement editor (the system administrator) places any camera
-    assert c.post(f"/api/v1/floors/{w['floor2']}/anchors", json={**body, "resource_id": cams["cam_far"]}).status_code == 201
+    # re-review probe: reading a camera is not reach for placing it - vic edits floor 2 and VIEWS cam_far (site B)
+    c.get("/api/v1/me", headers=as_user("vic2"))
+    _binding(settings, "vic2", "editor", "floor", w["floor2"])
+    _binding(settings, "vic2", "viewer", "camera", cams["cam_far"])
+    assert c.get(f"/api/v1/media/live/{cams['cam_far']}", headers=as_user("vic2")).status_code == 200
+    assert c.post(f"/api/v1/floors/{w['floor2']}/anchors", json={**body, "resource_id": cams["cam_far"]}, headers=as_user("vic2")).status_code == 403
+    m_vic = c.get(f"/api/v1/floors/{w['floor2']}/map", headers=as_user("vic2")).json()
+    assert {x["id"] for x in m_vic["cameras"]} == {cams["cam2"], cams["cam_split"]}, "the editor's list: placement reach only"
+    # someone holding placement.edit on cam_far's chain (an editor of floor B1) may bring it to floor 2 as well
+    c.get("/api/v1/me", headers=as_user("sue"))
+    _binding(settings, "sue", "editor", "floor", w["floor2"])
+    _binding(settings, "sue", "editor", "floor", w["floor_b"])
+    assert c.post(f"/api/v1/floors/{w['floor2']}/anchors", json={**body, "resource_id": cams["cam_far"]}, headers=as_user("sue")).status_code == 201
+    # an installation-wide placement editor (the system administrator) places any camera, even one on no map
+    assert c.post(f"/api/v1/floors/{w['floor2']}/anchors", json={**body, "resource_id": cams["cam_free"]}).status_code == 201
 
 
 def test_anchor_placed_on_a_new_floor_after_binding(tmp_path):
