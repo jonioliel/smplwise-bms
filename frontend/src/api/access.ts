@@ -36,6 +36,8 @@ export interface DirectoryUser {
   groups: { id: string; name: string }[];
   bindings: AccessBinding[];
   is_self: boolean;
+  /** CR-008: the per-user remote-access flag (SmplWise Arx, remote.policy = flag). */
+  remote_access?: boolean;
 }
 
 export interface ScopeRef {
@@ -161,6 +163,10 @@ export interface AuditRow {
 }
 
 export const listUsers = () => get<DirectoryResponse>('identity/users');
+/** CR-008: turn a user's remote access (SmplWise Arx) on or off - system administrators; turning it off ends the user's
+ * remote sessions at once. */
+export const setRemoteAccess = (userId: string, enabled: boolean) =>
+  put<{ user_id: string; remote_access: boolean; sessions_ended: number }>(`access/users/${encodeURIComponent(userId)}/remote-access`, { enabled });
 export const syncDirectory = () => post<{ requested: boolean; note?: string; result?: unknown }>('identity/sync');
 export const listRoles = () => get<RolesResponse>('access/roles');
 export const listBindings = () => get<{ bindings: AccessBinding[]; revision: number }>('access/bindings');

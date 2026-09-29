@@ -72,6 +72,13 @@ export interface ProductSettings {
   'devices.density'?: 'comfortable' | 'compact';
   /** CR-007 6b: the device area's colour scheme - light (default), dark, or auto (the viewer's operating system). */
   'devices.scheme'?: 'light' | 'dark' | 'auto';
+  /** CR-008 SmplWise Arx remote access (הגדרות › גישה מרחוק). */
+  'remote.policy'?: 'flag' | 'any_role';
+  'remote.session'?: 'rolling_90d' | 'browser_session' | 'rolling_90d_idle_lock';
+  'remote.idle_lock_minutes'?: number;
+  'remote.default_profile'?: 'main' | 'sub';
+  'remote.mse_fallback'?: 'true' | 'false';
+  'remote.require_mfa_admin'?: 'true' | 'false';
 }
 
 export const getSettings = () => get<{ settings: ProductSettings; can_edit: boolean }>('settings');

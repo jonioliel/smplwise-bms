@@ -33,10 +33,18 @@ export function resourceUrl(path: string): string {
   return new URL(path.replace(/^\/+/, ''), document.baseURI).toString();
 }
 
+/** CR-008 remote channel: on a 401 the Arx sign-in refreshes its HA token and re-exchanges the session cookie; true =
+ * retry the request once. Unset under Ingress (a 401 there is final). */
+let onUnauthorized: (() => Promise<boolean>) | null = null;
+export function setUnauthorizedHandler(fn: (() => Promise<boolean>) | null): void {
+  onUnauthorized = fn;
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
-  const res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
+  let res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
+  if (res.status === 401 && onUnauthorized && (await onUnauthorized())) res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
   if (res.status === 204) return undefined as T;
   const text = await res.text();
   let data: unknown = null;

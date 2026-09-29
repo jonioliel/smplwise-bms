@@ -1,0 +1,437 @@
+/**
+ * CR-008 SmplWise Arx: sign-in against Home Assistant's own auth endpoints on the same origin, exactly as HA's login
+ * page does (src/data/auth.ts): `/auth/providers` → `/auth/login_flow` (PKCE S256) → `/auth/login_flow/<id>` (username
+ * and password, then the MFA code when HA asks) → `/auth/token`. The password goes to HA only, never to the add-on.
+ *
+ * Tokens are kept under our own key `arx.auth.v1` (localStorage, or sessionStorage in the `browser_session` mode) and
+ * seeded into HA's `hassTokens` (hass-tokens.ts). The access token is exchanged for the Arx session cookie
+ * (`POST api/v1/auth/session`) after sign-in and after every refresh (5 minutes before expiry, or on a 401).
+ */
+import { clientId, redirectUri } from './channel';
+import { clearHassTokens, readHassTokens, seedHassTokens } from './hass-tokens';
+
+export const TOKENS_KEY = 'arx.auth.v1';
+const ACTIVITY_KEY = 'arx.activity.v1';
+const REFRESH_BEFORE_MS = 5 * 60_000;
+
+export type SessionMode = 'rolling_90d' | 'browser_session' | 'rolling_90d_idle_lock';
+
+export interface RemoteConfig {
+  path: string;
+  session: SessionMode;
+  idle_lock_minutes: number;
+}
+
+export interface ArxTokens {
+  hassUrl: string;
+  clientId: string;
+  access_token: string;
+  refresh_token: string;
+  expires: number;
+  expires_in: number;
+  user_id?: string;
+}
+
+export class ArxAuthError extends Error {
+  constructor(public code: string, message: string, public status = 0) {
+    super(message);
+  }
+}
+
+// ---------------------------------------------------------------- remote config
+
+let config: RemoteConfig = { path: '/arx/', session: 'rolling_90d', idle_lock_minutes: 720 };
+
+export async function loadRemoteConfig(): Promise<RemoteConfig> {
+  try {
+    const res = await fetch('api/v1/auth/remote-config', { credentials: 'same-origin' });
+    if (res.ok) config = (await res.json()) as RemoteConfig;
+  } catch {
+    /* keep the defaults: the sign-in still works */
+  }
+  return config;
+}
+
+export const remoteConfig = () => config;
+
+// ---------------------------------------------------------------- token store
+
+function store(): Storage {
+  return config.session === 'browser_session' ? window.sessionStorage : window.localStorage;
+}
+
+export function loadTokens(): ArxTokens | null {
+  try {
+    const raw = store().getItem(TOKENS_KEY);
+    const t = raw ? (JSON.parse(raw) as ArxTokens) : null;
+    return t && t.clientId === clientId() && t.refresh_token ? t : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveTokens(t: ArxTokens): void {
+  try {
+    store().setItem(TOKENS_KEY, JSON.stringify(t));
+    // the other storage never keeps a stale copy (a mode switch in the settings)
+    (store() === window.localStorage ? window.sessionStorage : window.localStorage).removeItem(TOKENS_KEY);
+  } catch {
+    /* private mode: the session lasts as long as this page */
+  }
+  memory = t;
+}
+
+let memory: ArxTokens | null = null;
+export const currentTokens = () => memory ?? loadTokens();
+
+function clearTokens(): void {
+  memory = null;
+  for (const s of [window.localStorage, window.sessionStorage]) {
+    try {
+      s.removeItem(TOKENS_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/** `browser_session`: HA's seed lives in localStorage and would outlive the browser session - a start without our own
+ * (session) tokens removes it. */
+export function dropOrphanSeed(): void {
+  if (config.session === 'browser_session' && !loadTokens()) clearHassTokens(clientId());
+}
+
+// ---------------------------------------------------------------- PKCE + HA's endpoints
+
+function b64url(bytes: Uint8Array): string {
+  let s = '';
+  bytes.forEach((b) => (s += String.fromCharCode(b)));
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function pkcePair(): Promise<{ verifier: string; challenge: string }> {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  return { verifier, challenge: b64url(digest) };
+}
+
+async function haJson(path: string, init: RequestInit): Promise<{ status: number; data: Record<string, unknown> | null }> {
+  let res: Response;
+  try {
+    res = await fetch(path, { ...init, credentials: 'same-origin', cache: 'no-store' });
+  } catch {
+    throw new ArxAuthError('network', 'אין חיבור ל־Home Assistant. בדוק את החיבור ונסה שוב.');
+  }
+  let data: Record<string, unknown> | null = null;
+  try {
+    data = (await res.json()) as Record<string, unknown>;
+  } catch {
+    data = null;
+  }
+  return { status: res.status, data };
+}
+
+/** HA's own error texts (frontend translations ui.panel.page-authorize.form.providers.homeassistant.*), in Hebrew. */
+const HA_ERRORS: Record<string, string> = {
+  invalid_auth: 'שם משתמש או סיסמה לא תקינים',
+  invalid_code: 'קוד אימות לא תקין',
+  too_many_retry: 'יותר מדי ניסיונות שגויים. התחל את הכניסה מחדש.',
+  login_expired: 'פג תוקף הכניסה, התחל מחדש.',
+  no_mfa_module: 'מודול האימות הדו־שלבי אינו זמין.',
+  invalid_flow: 'תהליך הכניסה פג. התחל מחדש.',
+  unknown_error: 'שגיאה לא צפויה ב־Home Assistant.',
+};
+
+export function haErrorText(code: string, fallback?: string): string {
+  return HA_ERRORS[code] ?? fallback ?? HA_ERRORS.unknown_error;
+}
+
+export type FlowStep =
+  | { kind: 'form'; flowId: string; step: 'init' | 'mfa' | string; error: string | null; mfaName?: string }
+  | { kind: 'done'; code: string };
+
+export interface LoginFlow {
+  verifier: string;
+  flowId: string;
+  handler: [string, string | null];
+}
+
+function httpError(status: number, data: Record<string, unknown> | null): ArxAuthError {
+  const msg = typeof data?.message === 'string' ? data.message : '';
+  if (status === 403 || status === 429) return new ArxAuthError('banned', 'Home Assistant חסם את הכתובת שממנה ניסית להתחבר (יותר מדי ניסיונות כושלים). פנה למנהל המערכת.', status);
+  if (status === 404) return new ArxAuthError('invalid_flow', haErrorText('invalid_flow'), status);
+  if (status >= 500) return new ArxAuthError('ha_unavailable', 'Home Assistant אינו זמין כרגע. נסה שוב בעוד רגע.', status);
+  return new ArxAuthError('ha_error', msg ? `Home Assistant: ${msg}` : haErrorText('unknown_error'), status);
+}
+
+function stepOf(data: Record<string, unknown>): FlowStep {
+  if (data.type === 'create_entry') return { kind: 'done', code: String(data.result ?? '') };
+  if (data.type === 'abort') {
+    const reason = String(data.reason ?? 'unknown_error');
+    throw new ArxAuthError(reason, haErrorText(reason));
+  }
+  const errors = (data.errors ?? {}) as Record<string, string>;
+  const base = errors.base ?? Object.values(errors)[0] ?? null;
+  const placeholders = (data.description_placeholders ?? {}) as Record<string, string>;
+  return { kind: 'form', flowId: String(data.flow_id ?? ''), step: String(data.step_id ?? 'init'), error: base ? haErrorText(base) : null, mfaName: placeholders.mfa_module_name };
+}
+
+/** Start HA's login flow for its user store (`homeassistant` provider), with PKCE. */
+export async function startFlow(): Promise<{ flow: LoginFlow; step: FlowStep }> {
+  const providers = await haJson('/auth/providers', { method: 'GET' });
+  if (providers.status !== 200 || !providers.data) throw httpError(providers.status, providers.data);
+  const list = (Array.isArray(providers.data) ? providers.data : (providers.data.providers as unknown[])) as { type: string; id: string | null }[];
+  const local = (list ?? []).find((p) => p.type === 'homeassistant');
+  if (!local) throw new ArxAuthError('no_provider', 'ספק הכניסה של Home Assistant (משתמשים וסיסמאות) אינו פעיל.');
+  const { verifier, challenge } = await pkcePair();
+  const handler: [string, string | null] = [local.type, local.id ?? null];
+  const r = await haJson('/auth/login_flow', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ client_id: clientId(), handler, redirect_uri: redirectUri(), code_challenge: challenge, code_challenge_method: 'S256' }),
+  });
+  if (r.status !== 200 || !r.data) throw httpError(r.status, r.data);
+  const step = stepOf(r.data);
+  if (step.kind !== 'form') throw new ArxAuthError('unknown_error', haErrorText('unknown_error'));
+  return { flow: { verifier, flowId: step.flowId, handler }, step };
+}
+
+/** Submit one step (`{username, password}` or `{code}`). */
+export async function submitStep(flow: LoginFlow, values: Record<string, string>): Promise<FlowStep> {
+  const r = await haJson(`/auth/login_flow/${encodeURIComponent(flow.flowId)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ client_id: clientId(), ...values }),
+  });
+  if (r.status !== 200 || !r.data) throw httpError(r.status, r.data);
+  const step = stepOf(r.data);
+  if (step.kind === 'form' && step.flowId) flow.flowId = step.flowId;
+  return step;
+}
+
+async function tokenRequest(form: Record<string, string>): Promise<Record<string, unknown>> {
+  const r = await haJson('/auth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: clientId(), ...form }).toString(),
+  });
+  if (r.status !== 200 || !r.data) {
+    const err = String((r.data as Record<string, unknown> | null)?.error ?? '');
+    throw new ArxAuthError(err === 'invalid_grant' ? 'invalid_grant' : 'token_failed', 'הכניסה פגה. יש להיכנס מחדש.', r.status);
+  }
+  return r.data;
+}
+
+function tokensFrom(data: Record<string, unknown>, refreshToken?: string): ArxTokens {
+  const expiresIn = Number(data.expires_in ?? 1800);
+  return {
+    hassUrl: `${window.location.protocol}//${window.location.host}`,
+    clientId: clientId(),
+    access_token: String(data.access_token),
+    refresh_token: String(refreshToken ?? data.refresh_token),
+    expires: Date.now() + expiresIn * 1000,
+    expires_in: expiresIn,
+  };
+}
+
+// ---------------------------------------------------------------- the Arx session (cookie)
+
+export interface ExchangeResult {
+  user: { id: string; username: string; display_name: string };
+  session_expires_in: number;
+}
+
+async function exchange(t: ArxTokens): Promise<ExchangeResult> {
+  let res: Response;
+  try {
+    res = await fetch('api/v1/auth/session', { method: 'POST', headers: { Authorization: `Bearer ${t.access_token}` }, credentials: 'same-origin', cache: 'no-store' });
+  } catch {
+    throw new ArxAuthError('network', 'אין חיבור לשרת.');
+  }
+  const data = (await res.json().catch(() => null)) as { code?: string; user_message?: string } & Partial<ExchangeResult> | null;
+  if (!res.ok) throw new ArxAuthError(data?.code ?? `http_${res.status}`, data?.user_message || 'השרת דחה את הכניסה.', res.status);
+  return data as ExchangeResult;
+}
+
+/** Sign-in finished at HA (an authorization code): tokens, the HA seed, the Arx session. */
+export async function completeSignIn(flow: LoginFlow, code: string): Promise<ExchangeResult> {
+  const t = tokensFrom(await tokenRequest({ grant_type: 'authorization_code', code, code_verifier: flow.verifier }));
+  try {
+    const r = await exchange(t);
+    t.user_id = r.user.id;
+    saveTokens(t);
+    seedHassTokens(t); // D6: the WisKey frame opens signed in
+    markActivity();
+    return r;
+  } catch (err) {
+    // refused by Arx (no remote access, inactive, MFA required): do not leave a valid HA sign-in behind
+    await revoke(t.refresh_token);
+    throw err;
+  }
+}
+
+// ---------------------------------------------------------------- refresh loop
+
+let refreshTimer = 0;
+let refreshing: Promise<boolean> | null = null;
+
+/** Refresh the HA access token (our client id), re-seed HA's entry when it is still ours, re-exchange the cookie. */
+export function refreshNow(): Promise<boolean> {
+  if (refreshing) return refreshing;
+  refreshing = (async () => {
+    const t = currentTokens();
+    if (!t) return false;
+    try {
+      const fresh = tokensFrom(await tokenRequest({ grant_type: 'refresh_token', refresh_token: t.refresh_token }), t.refresh_token);
+      fresh.user_id = t.user_id;
+      await exchange(fresh);
+      saveTokens(fresh);
+      seedHassTokens(fresh, true);
+      schedule();
+      return true;
+    } catch (err) {
+      if (err instanceof ArxAuthError && err.code === 'network') {
+        window.clearTimeout(refreshTimer);
+        refreshTimer = window.setTimeout(() => void refreshNow(), 30_000);
+        return false;
+      }
+      if (err instanceof ArxAuthError && err.status === 403) await revoke(t.refresh_token); // the policy refused this user
+      clearTokens();
+      clearHassTokens(clientId(), t.refresh_token);
+      return false;
+    } finally {
+      refreshing = null;
+    }
+  })();
+  return refreshing;
+}
+
+function schedule(): void {
+  const t = currentTokens();
+  window.clearTimeout(refreshTimer);
+  if (!t) return;
+  const wait = Math.max(10_000, t.expires - Date.now() - REFRESH_BEFORE_MS);
+  refreshTimer = window.setTimeout(() => {
+    void refreshNow().then((ok) => {
+      if (!ok && !currentTokens()) onSignedOut?.('expired');
+    });
+  }, wait);
+}
+
+let onSignedOut: ((reason: 'expired' | 'idle' | 'logout') => void) | null = null;
+
+/** Resume a stored sign-in: refresh when the access token is near its end, then (re-)exchange the cookie. False = show
+ * the sign-in page; an ArxAuthError = show it with that message (the policy refused this user). */
+export async function resume(): Promise<boolean> {
+  const t = loadTokens();
+  if (!t) return false;
+  memory = t;
+  if (idleExpired()) {
+    await logout('idle');
+    return false;
+  }
+  if (t.expires - Date.now() < REFRESH_BEFORE_MS) return refreshNow();
+  try {
+    await exchange(t);
+    seedHassTokens(t, true);
+    schedule();
+    return true;
+  } catch (err) {
+    if (err instanceof ArxAuthError && err.status === 403) {
+      await logout('logout'); // no remote access (any more): the stored sign-in is revoked
+      throw err;
+    }
+    if (err instanceof ArxAuthError && err.status === 401) return refreshNow();
+    throw err;
+  }
+}
+
+/** Once the app runs: the refresh loop, the idle lock, and what to do when the sign-in ends. */
+export function startBackground(signedOut: (reason: 'expired' | 'idle' | 'logout') => void): void {
+  onSignedOut = signedOut;
+  schedule();
+  startIdleWatch();
+}
+
+// ---------------------------------------------------------------- idle lock (rolling_90d_idle_lock)
+
+let lastMark = 0;
+
+function markActivity(): void {
+  const now = Date.now();
+  if (now - lastMark < 30_000) return;
+  lastMark = now;
+  try {
+    window.localStorage.setItem(ACTIVITY_KEY, String(now));
+  } catch {
+    /* ignore */
+  }
+}
+
+function idleExpired(): boolean {
+  if (config.session !== 'rolling_90d_idle_lock') return false;
+  const last = Number(window.localStorage.getItem(ACTIVITY_KEY) ?? '0');
+  return last > 0 && Date.now() - last > Math.max(5, config.idle_lock_minutes) * 60_000;
+}
+
+let idleTimer = 0;
+
+function startIdleWatch(): void {
+  if (config.session !== 'rolling_90d_idle_lock' || idleTimer) return;
+  for (const ev of ['pointerdown', 'keydown', 'wheel', 'touchstart']) window.addEventListener(ev, markActivity, { passive: true, capture: true });
+  markActivity();
+  idleTimer = window.setInterval(() => {
+    if (idleExpired()) void logout('idle');
+  }, 60_000);
+}
+
+// ---------------------------------------------------------------- sign-out
+
+async function revoke(refreshToken: string): Promise<void> {
+  try {
+    await fetch('/auth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ action: 'revoke', token: refreshToken }).toString(),
+      credentials: 'same-origin',
+    });
+  } catch {
+    /* HA unreachable: the token still dies with its 90 days, and the user can delete it in the HA profile */
+  }
+}
+
+/** Revoke the refresh token at HA, end the Arx session, clear both storages (ours and HA's seed when it is ours). */
+export async function logout(reason: 'expired' | 'idle' | 'logout' = 'logout'): Promise<void> {
+  const t = currentTokens();
+  window.clearTimeout(refreshTimer);
+  window.clearInterval(idleTimer);
+  idleTimer = 0;
+  if (t) await revoke(t.refresh_token);
+  try {
+    await fetch('api/v1/auth/session', { method: 'DELETE', credentials: 'same-origin' });
+  } catch {
+    /* the cookie ends with its access token anyway */
+  }
+  clearTokens();
+  clearHassTokens(clientId(), t?.refresh_token);
+  try {
+    window.localStorage.removeItem(ACTIVITY_KEY);
+    window.sessionStorage.setItem('arx.signout', reason);
+  } catch {
+    /* ignore */
+  }
+  onSignedOut?.(reason);
+}
+
+/** The reason of the last sign-out (shown once on the sign-in page). */
+export function takeSignOutReason(): string | null {
+  try {
+    const r = window.sessionStorage.getItem('arx.signout');
+    window.sessionStorage.removeItem('arx.signout');
+    return r;
+  } catch {
+    return null;
+  }
+}
+
+export { readHassTokens };

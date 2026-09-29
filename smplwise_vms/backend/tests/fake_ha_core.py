@@ -228,7 +228,7 @@ class FakeHaCore:
                     self._reply(200, core.providers())
                 elif path == "/fake/state":
                     with core.lock:
-                        self._reply(200, {"refresh_tokens": [{"user_id": r.user_id, "client_id": r.client_id, "revoked": r.revoked} for r in core._refresh.values()],
+                        self._reply(200, {"refresh_tokens": [{"user_id": r.user_id, "client_id": r.client_id, "revoked": r.revoked, "tail": r.token[-8:]} for r in core._refresh.values()],
                                           "requests": core.requests[-50:]})
                 else:
                     self._reply(404, {"message": "not found"})
