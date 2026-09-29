@@ -891,7 +891,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await expect(dialog.locator('[data-bulk-count]')).toHaveAttribute('data-bulk-count', '2');
     await expect(dialog.locator('[data-bulk-domains] [data-domain="light"]')).toContainText('2');
     // re-review: a lights action no longer lists the locks / alarm as "not included" (only "כבה הכל" does)
-    await expect(dialog.locator('[data-bulk-never]')).not.toContainText('מנעולים');
+    await expect(dialog.locator('[data-bulk-never]')).not.toContainText('נמצאים כאן ואינם נכללים');
     await expect.poll(() => focusedBulkButton(page)).toBe('cancel');
     expect(posted).toHaveLength(0); // opening the dialog sends nothing
     await dialog.locator('sw-button[data-bulk-cancel]').click();

@@ -24,7 +24,7 @@ import './devices-tiles-panel';
 import { ITEMS_FILTERS, type ItemsFilter } from './devices-tiles-panel';
 import { TILE_KINDS, type ItemsScope, type TileKind } from '../api/devices';
 import { TileLayoutController } from '../api/tile-layout';
-import { onRouteChange, pushRoute, replaceRoute } from '../router';
+import { onRouteChange, parseRoute, pushRoute, replaceRoute } from '../router';
 
 /** The count pills' keys that open the tiles' panel (cameras and sensors are counts only). */
 const PILL_KIND: Partial<Record<keyof DeviceCounts, TileKind>> = { lights: 'lights', switches: 'switches', covers: 'covers', climate: 'climate', media: 'media', locks: 'locks' };
@@ -580,11 +580,12 @@ export class DevicesBuilding extends LitElement {
   }
 
   private closePanel = () => {
+    const was = this.panel;
     this.panel = null;
     if (this.pushedPanel) {
       this.pushedPanel = false;
       history.back(); // the entry this screen pushed; the route listener sees the address without the panel
-    } else replaceRoute('/devices/building'); // a deep link: no entry of ours to go back over
+    } else if (was && panelFromParams(parseRoute().params)?.kind === was.kind) replaceRoute('/devices/building'); // a deep link: no entry of ours - but never over an address that already moved on
   };
 
   /** Re-review M3: the panel leaves for another screen - the panel's own entry is REPLACED by the target, so no Back
