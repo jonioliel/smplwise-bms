@@ -6,6 +6,8 @@ import './sw-scene';
 import './sw-live-player';
 import type { StateKind } from './sw-badge';
 import type { SceneKind } from './sw-scene';
+import type { CameraEncoding } from '../api/types';
+import { playerPlan } from '../api/video-policy';
 
 export type { SceneKind } from './sw-scene';
 
@@ -34,6 +36,8 @@ export class SwCameraTile extends LitElement {
   @property() transport: 'auto' | 'webrtc' | 'mse' = 'auto';
   /** Passed through to sw-live-player's `fit` (contain | cover | fill) - see there. */
   @property() fit: 'contain' | 'cover' | 'fill' = 'contain';
+  /** CR-008 D7: the camera's stream encodings (a remote plan skips WebRTC for a stream the NVR says cannot play there). */
+  @property({ attribute: false }) encoding: CameraEncoding | null = null;
 
   static styles = css`
     :host {
@@ -196,9 +200,11 @@ export class SwCameraTile extends LitElement {
       </div>`;
     }
     const real = this.live && this.cameraId ? 'live' : this.poster ? 'poster' : 'scene';
+    // CR-008 D7: on the remote channel the tile keeps its own profile (the wall's) but plays it by the remote policy
+    const plan = real === 'live' ? playerPlan(this.profile, this.encoding) : { plan: '', preferred: '' as const };
     return html`
       ${real === 'live'
-        ? html`<sw-live-player .cameraId=${this.cameraId} .profile=${this.profile} .mode=${this.transport} .poster=${this.poster} .fit=${this.fit} compact></sw-live-player>`
+        ? html`<sw-live-player .cameraId=${this.cameraId} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .poster=${this.poster} .fit=${this.fit} compact></sw-live-player>`
         : real === 'poster'
           ? html`<img class="poster" src=${this.poster} alt="" />`
           : html`<sw-scene kind=${this.scene}></sw-scene>`}

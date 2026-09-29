@@ -1,5 +1,6 @@
 /** Media, settings and snapshots against the add-on backend. */
 import { apiUrl, get, patch, post } from './client';
+import type { CameraEncoding } from './types';
 
 export type Transport = 'auto' | 'webrtc' | 'mse';
 
@@ -191,6 +192,8 @@ export interface CameraCapabilities {
   cached: boolean;
   ptz: { state: 'supported' | 'unsupported' | 'unknown'; reason: string | null; presets: { id: string; name: string }[] | null; preset_count: number | null };
   audio: { state: 'available' | 'disabled' | 'unsupported' | 'unknown'; reason: string | null; channel_id: string | null; codec: string | null };
+  /** CR-008 D7: the stream encodings from the capability registry (the last discovery), with the settings hint. */
+  video?: CameraEncoding | null;
 }
 export const cameraCapabilities = (cameraId: string, refresh = false) => get<CameraCapabilities>(`cameras/${cameraId}/capabilities${refresh ? '?refresh=true' : ''}`);
 
