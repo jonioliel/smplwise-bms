@@ -16,6 +16,8 @@ from __future__ import annotations
 import datetime as dt
 import json
 import sqlite3
+import threading
+import time
 import uuid
 from typing import Any, Literal
 
@@ -226,17 +228,52 @@ class _Act:
         return exc
 
 
-def _code_gate(act: _Act, plan: dict[str, str], typed: Any, panel: dict[str, Any], stored_code: str | None, *, disarm: bool) -> str | None:
-    """Checks the code the user typed against the plan. Returns the code to SEND to the panel (None = none). Raises the
-    refusals: code needed, wrong code (lockout), locked out, typed-code rate limit. `typed` is never quoted."""
+# Typed pass-through codes (no stored panel code) whose outcome is not known yet: action id -> (lockout keys, sent at).
+# A panel such as Risco ignores a wrong code silently, so an attempt the panel never confirmed counts as a wrong code
+# when the next code is typed (security review M2: failures only - a confirmed action never counts).
+_PASS_THROUGH: dict[str, tuple[list[str], float]] = {}
+_PASS_THROUGH_LOCK = threading.Lock()
+
+
+def _settle_pass_through(conn: sqlite3.Connection) -> None:
+    now = time.monotonic()
+    with _PASS_THROUGH_LOCK:
+        items = list(_PASS_THROUGH.items())
+    for aid, (keys, at) in items:
+        row = conn.execute("SELECT * FROM ha_actions WHERE id = ?", (aid,)).fetchone()
+        if row is None:
+            with _PASS_THROUGH_LOCK:
+                _PASS_THROUGH.pop(aid, None)
+            continue
+        a = ha_actions.as_dict(row)
+        if a["status"] == "pending" and now - at > ha_actions.CONFIRM_WINDOW_S:
+            ha_actions.refresh(conn, a)
+            a = ha_actions.action_row(conn, aid)
+        if a["status"] == "pending":
+            continue
+        with _PASS_THROUGH_LOCK:
+            _PASS_THROUGH.pop(aid, None)
+        if a["status"] in ("unknown", "failed") and (a.get("error") in (None, "invalid_code")):
+            codes.LOCKOUT.fail(keys)
+
+
+def _code_gate(act: _Act, plan: dict[str, str], typed: Any, panel: dict[str, Any], stored_code: str | None, *, disarm: bool) -> tuple[str | None, list[str]]:
+    """Checks the code the user typed against the plan. Returns (the code to SEND to the panel - None = none, the lockout
+    keys of a typed pass-through code). Raises the refusals: code needed, wrong code, locked out. `typed` is never quoted.
+
+    Lockout keys (security review M2): a personal PIN counts against its USER only - otherwise an arm-only user could
+    lock disarming for everyone with five wrong PINs; the panel's own code (panel_code mode) and a typed pass-through
+    code count against the user AND the panel. Only failures count."""
     uid = act.principal.user_id
-    keys = [f"user:{uid}", f"panel:{panel['entity_id']}"]
     prompt = plan["prompt"]
+    keys = [f"user:{uid}"] + ([f"panel:{panel['entity_id']}"] if prompt == "panel" else [])
     if prompt == "unverifiable":
         raise act.refuse(ApiError(409, "code_unverifiable", "לא הוגדר קוד לוח לאימות. מנהל המערכת מגדיר אותו בהגדרות › מערכת › אזעקה.", details={"prompt": prompt}))
     if prompt == "pin_missing":
-        raise act.refuse(ApiError(409, "pin_not_set", "עדיין אין לך קוד אישי לאזעקה. הגדירו אותו במסך האזעקה או בקשו ממנהל המערכת.", details={"prompt": prompt}))
+        raise act.refuse(ApiError(409, "pin_not_set", "עדיין אין לך קוד אישי לאזעקה. פנה למנהל המערכת לקבלת קוד אישי.", details={"prompt": prompt}))
     if prompt in ("pin", "panel"):
+        if plan["send"] == "typed":
+            _settle_pass_through(act.conn)
         locked = codes.LOCKOUT.locked_for(keys)
         if locked > 0:
             raise act.refuse(ApiError(429, "code_locked", "יותר מדי ניסיונות קוד שגויים. נסו שוב מאוחר יותר.", retryable=True, details={"retry_after_s": int(locked) + 1}))
@@ -254,16 +291,8 @@ def _code_gate(act: _Act, plan: dict[str, str], typed: Any, panel: dict[str, Any
     if plan["send"] == "typed":
         if not svc.valid_code(typed, panel.get("code_format")):
             raise act.refuse(ApiError(422, "wrong_code", "קוד שגוי."))
-        wait = svc.LIMITER.try_acquire_keys(keys)
-        if wait is not None:
-            raise act.refuse(ApiError(429, "rate_limited", "יותר מדי ניסיונות. נסו שוב בעוד כמה דקות.", retryable=True, details={"retry_after_s": int(wait) + 1}))
-        return typed
-    if disarm:
-        wait = svc.LIMITER.try_acquire_keys(keys[:1])
-        if wait is not None:
-            raise act.refuse(ApiError(429, "rate_limited", "יותר מדי ניסיונות נטרול. נסו שוב בעוד כמה דקות.", retryable=True, details={"retry_after_s": int(wait) + 1}))
-    return stored_code if plan["send"] == "stored" else None
-
+        return typed, keys
+    return (stored_code if plan["send"] == "stored" else None), keys
 
 def _send(act: _Act, request: Request, entity_id: str, action_id: str, args: dict[str, Any], send_code: str | None, client_request_id: str, attributes: dict[str, Any] | None) -> dict[str, Any]:
     """The device-action path: allow-list, ha_actions record (never the code), signed bridge call, honest status."""
@@ -351,12 +380,16 @@ def panel_action(entity_id: str, request: Request, principal: Principal = Depend
             stored_code = codes.panel_code(conn, settings_of(request), entity_id)
         except codes.CodeError:
             raise act.refuse(ApiError(503, "code_unreadable", "קוד הלוח השמור אינו קריא. מנהל המערכת יגדיר אותו מחדש בהגדרות › מערכת › אזעקה.")) from None
-    send_code = _code_gate(act, plan, typed, panel, stored_code, disarm=disarm)
+    send_code, keys = _code_gate(act, plan, typed, panel, stored_code, disarm=disarm)
     typed = stored_code = None  # noqa: F841
     out = _send(act, request, entity_id, svc.ACTIONS[body.action], {}, send_code, body.client_request_id, {"state": panel["state"]})
+    if plan["send"] == "typed" and out["status"] == "pending":
+        with _PASS_THROUGH_LOCK:
+            _PASS_THROUGH[out["id"]] = (keys, time.monotonic())
     if out["status"] == "failed" and out.get("error") in CODE_REFUSALS:
-        if plan["send"] == "typed":
-            codes.LOCKOUT.fail([f"user:{principal.user_id}", f"panel:{entity_id}"])
+        # review L3: only the panel's real refusal of a code counts as a wrong code (not any ServiceValidationError)
+        if plan["send"] == "typed" and out.get("error") == "invalid_code":
+            codes.LOCKOUT.fail(keys)
         raise ApiError(422, "code_rejected", "הלוח דחה את הקוד או את הפקודה.", details={"action_id": out["id"]})
     return out
 
@@ -409,7 +442,7 @@ def zone_bypass(zone_entity_id: str, request: Request, principal: Principal = De
             stored_code = codes.panel_code(conn, settings_of(request), panel["entity_id"])
         except codes.CodeError:
             raise act.refuse(ApiError(503, "code_unreadable", "קוד הלוח השמור אינו קריא. מנהל המערכת יגדיר אותו מחדש בהגדרות › מערכת › אזעקה.")) from None
-    _code_gate(act, plan, typed, panel, stored_code, disarm=False)
+    _code_gate(act, plan, typed, panel, stored_code, disarm=False)  # bypass sends no code; the gate only verifies
     typed = stored_code = None  # noqa: F841
     if ctl["domain"] == "switch":
         action_id, args = ("switch.turn_on" if body.bypassed else "switch.turn_off"), {}

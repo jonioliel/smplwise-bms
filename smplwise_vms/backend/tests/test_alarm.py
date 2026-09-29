@@ -47,11 +47,13 @@ def _rid() -> str:
 
 @pytest.fixture(autouse=True)
 def _fresh_limits():
+    from smplwise.routers import alarm as alarm_router
+
     codes.LOCKOUT.reset()
-    svc.LIMITER.reset()
+    alarm_router._PASS_THROUGH.clear()
     yield
     codes.LOCKOUT.reset()
-    svc.LIMITER.reset()
+    alarm_router._PASS_THROUGH.clear()
 
 
 @pytest.fixture()
@@ -480,47 +482,79 @@ def test_no_code_user_sends_the_stored_code_and_the_remote_rules(alarm_app):
         app.dependency_overrides.clear()
 
 
-def test_wrong_codes_lock_out_the_user_and_the_panel(alarm_app, caplog):
+def test_wrong_pins_lock_out_the_user_only(alarm_app, caplog):
+    """Security review M2: in personal_pin mode five wrong PINs lock out that USER only - an arm-only user must not be able
+    to lock disarming for everyone. Only failures count."""
     app, s, c, calls, _ = alarm_app
     caplog.set_level(logging.DEBUG)
     _set_code(c)
     c.put("/api/v1/alarm/users/dev-joni/pin", json={"pin": PIN})
+    for _ in range(6):  # successes never count toward a lockout
+        assert _act(c, "alarm_control_panel.risco_house", "arm_away", code=PIN).status_code == 202
     for i in range(5):
         r = _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=f"000{i}")
         assert r.status_code == 403 and r.json()["code"] == "wrong_code"
     assert r.json()["details"]["locked_s"] > 0
     r = _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=PIN)  # even the right PIN, now
     assert r.status_code == 429 and r.json()["code"] == "code_locked"
-    # the panel is locked for another user too
+    # another user on the SAME panel is not locked
     bind(c, s, "sara", "site_admin", "installation", "*")
-    c.put("/api/v1/alarm/users/dev-sara/pin", json={"pin": "7777"})
-    assert _act(c, "alarm_control_panel.risco_house", "disarm", as_user("sara"), confirmed=True, code="7777").json()["code"] == "code_locked"
-    # ...but not another panel for that other user
-    _set_code(c, "alarm_control_panel.risco_garden")
-    assert _act(c, "alarm_control_panel.risco_garden", "disarm", as_user("sara"), confirmed=True, code="7777").status_code == 202
+    c.put("/api/v1/alarm/users/dev-sara/pin", json={"pin": "77777777"})
+    assert _act(c, "alarm_control_panel.risco_house", "disarm", as_user("sara"), confirmed=True, code="77777777").status_code == 202
     with app.state.db.connection() as conn:
         assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'alarm.disarm' AND reason = 'wrong_code'").fetchone()[0] == 5
     _assert_code_nowhere(app, s, caplog, [])
 
 
-def test_pass_through_code_is_rate_limited_and_refusal_is_generic(alarm_app, caplog):
+def test_panel_code_mode_locks_out_user_and_panel(alarm_app):
+    """In panel_code mode a wrong panel code counts against the user AND the panel."""
+    app, s, c, calls, _ = alarm_app
+    _set_code(c)
+    assert c.patch("/api/v1/settings", json={"alarm.code_mode": "panel_code"}).status_code == 200
+    for i in range(5):
+        assert _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=f"1111000{i}").json()["code"] == "wrong_code"
+    bind(c, s, "sara", "site_admin", "installation", "*")
+    assert _act(c, "alarm_control_panel.risco_house", "disarm", as_user("sara"), confirmed=True, code=CODE).json()["code"] == "code_locked"
+    _set_code(c, "alarm_control_panel.risco_garden")
+    assert _act(c, "alarm_control_panel.risco_garden", "disarm", as_user("sara"), confirmed=True, code=CODE).status_code == 202
+
+
+def test_pass_through_counts_only_failures(alarm_app, caplog):
+    """No stored code: the typed panel code is passed through. The panel's refusal (invalid_code) and an attempt the
+    panel never confirmed count as wrong codes (Risco ignores a wrong code silently); confirmed actions never count
+    (review M2); a generic ServiceValidationError is not a wrong code (review L3)."""
     app, s, c, calls, answer = alarm_app
     caplog.set_level(logging.DEBUG)
-    _no_code(c)  # no stored code: the panel's own code is typed and passed through
+    _no_code(c)
     assert _panel(_panels(c), "alarm_control_panel.risco_house")["code"]["disarm"] == "panel"
     assert _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code="12ab").json()["code"] == "wrong_code"  # number format
-    r = _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE)
-    assert r.status_code == 202 and calls[-1]["data"]["code"] == CODE
-    answer.update(ok=False, error="invalid_code")
-    r = _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE)
-    assert r.status_code == 422 and r.json()["code"] == "code_rejected" and CODE not in r.text
-    answer.update(ok=True, error=None)
     for _ in range(3):
         assert _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE).status_code == 202
+    answer.update(ok=False, error="ServiceValidationError")
+    for _ in range(5):
+        assert _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE).json()["code"] == "code_rejected"
+    answer.update(ok=False, error="invalid_code")
+    for _ in range(5):
+        r = _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE)
+        assert r.status_code == 422 and r.json()["code"] == "code_rejected" and CODE not in r.text
     r = _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE)
-    assert r.status_code == 429 and r.json()["code"] == "rate_limited"
+    assert r.status_code == 429 and r.json()["code"] == "code_locked"
     _assert_code_nowhere(app, s, caplog, [r.text])
 
+
+def test_unconfirmed_pass_through_counts_as_a_wrong_code(alarm_app, monkeypatch):
+    app, s, c, calls, answer = alarm_app
+    from smplwise.routers import alarm as alarm_router
+    from smplwise.services import ha_actions
+
+    _no_code(c)
+    monkeypatch.setattr(ha_actions, "CONFIRM_WINDOW_S", 0.0)  # the panel never reports the change: "unknown" at once
+    for i in range(5):
+        r = _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE)
+        assert r.status_code == 202, (i, r.text)
+    alarm_router._settle_pass_through  # noqa: B018 - settled on the next typed attempt
+    r = _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE)
+    assert r.status_code == 429 and r.json()["code"] == "code_locked"
 
 def test_bridge_failure_text_never_carries_the_code(alarm_app, monkeypatch, caplog):
     app, s, c, calls, _ = alarm_app
@@ -640,11 +674,7 @@ def _assert_code_nowhere(app, s, caplog, texts: list[str]) -> None:
         assert CODE.encode() not in raw and PIN.encode() not in raw, f.name
 
 
-def test_attempt_limiter_and_lockout_units():
-    lim = svc.AttemptLimiter(limit=2, window_s=10)
-    assert lim.try_acquire_keys(["u", "p"], now=0) is None and lim.try_acquire_keys(["u", "p"], now=1) is None
-    assert lim.try_acquire_keys(["u"], now=2) is not None and lim.try_acquire_keys(["p2"], now=2) is None
-    assert lim.try_acquire_keys(["u"], now=11) is None
+def test_lockout_units():
     lo = codes.Lockout(limit=2, window_s=10, lock_s=30)
     assert lo.fail(["u", "p"], now=0) == 0 and lo.fail(["u", "p"], now=1) > 0
     assert lo.locked_for(["p"], now=20) > 0 and lo.locked_for(["p"], now=40) == 0

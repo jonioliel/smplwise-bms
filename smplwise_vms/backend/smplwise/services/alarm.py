@@ -22,8 +22,6 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
-import threading
-import time
 import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Iterable
@@ -581,52 +579,6 @@ def scrub(text: Any, code: str | None) -> str:
     if code:
         s = s.replace(code, "•••")
     return s
-
-
-# ---------------------------------------------------------------- attempts (codes and disarms), per user
-
-class AttemptLimiter:
-    """At most `limit` attempts per user in `window_s` seconds (in memory, per process - the add-on runs one worker)."""
-
-    def __init__(self, limit: int = 5, window_s: float = 300.0) -> None:
-        self.limit, self.window_s = limit, window_s
-        self._lock = threading.Lock()
-        self._seen: dict[str, list[float]] = {}
-
-    def try_acquire(self, user_id: str, now: float | None = None) -> float | None:
-        """Record one attempt; None when allowed, else the seconds to wait (the attempt is NOT recorded)."""
-        now = time.monotonic() if now is None else now
-        with self._lock:
-            recent = [t for t in self._seen.get(user_id, []) if now - t < self.window_s]
-            if len(recent) >= self.limit:
-                self._seen[user_id] = recent
-                return max(1.0, self.window_s - (now - recent[0]))
-            recent.append(now)
-            self._seen[user_id] = recent
-            return None
-
-    def try_acquire_keys(self, keys: list[str], now: float | None = None) -> float | None:
-        """try_acquire for several keys at once (a user AND a panel): recorded on all of them only when all allow it."""
-        now = time.monotonic() if now is None else now
-        with self._lock:
-            waits = []
-            for k in keys:
-                recent = [t for t in self._seen.get(k, []) if now - t < self.window_s]
-                self._seen[k] = recent
-                if len(recent) >= self.limit:
-                    waits.append(max(1.0, self.window_s - (now - recent[0])))
-            if waits:
-                return max(waits)
-            for k in keys:
-                self._seen[k].append(now)
-            return None
-
-    def reset(self) -> None:
-        with self._lock:
-            self._seen.clear()
-
-
-LIMITER = AttemptLimiter()
 
 
 def summary_counts(panels: list[dict[str, Any]]) -> dict[str, Any]:
