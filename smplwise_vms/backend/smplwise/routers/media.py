@@ -72,6 +72,31 @@ def remote_live_by_chain() -> dict[str, int]:
     return out
 
 
+REMOTE_CAP_HE = "הגעת למכסת הזרמים החיים בגישה מרחוק ({cap} במקביל לכל כניסה). סגור צפייה אחרת ונסה שוב."
+
+
+def _remote_chain(conn) -> str | None:
+    """The remote sign-in (session chain) a remote request / WebSocket runs under; None on the local channel."""
+    from ..remote_channel import is_remote
+
+    if not is_remote(conn):
+        return None
+    from ..services import ha_user_auth
+
+    s = ha_user_auth.session_of(conn)
+    return (s.chain or s.sid) if s is not None else None
+
+
+def remote_cap_refusal(chain: str | None, cap: int) -> ApiError | None:
+    """CR-008 P2 `remote.max_live_streams`: the N+1st live stream of one remote sign-in is refused (429)."""
+    if chain is None:
+        return None
+    active = remote_live_by_chain().get(chain, 0)
+    if active < cap:
+        return None
+    return ApiError(429, "remote_live_cap", REMOTE_CAP_HE.format(cap=cap), retryable=True, details={"max": cap, "active": active})
+
+
 def _stream_for(conn: sqlite3.Connection, camera_id: str) -> sqlite3.Row:
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam:
@@ -127,6 +152,12 @@ def live_info(camera_id: str, request: Request, principal: Principal = Depends(c
     ensure_nvr(settings_of(request))  # NVR-less mode: 409 after the permission check
     cam = _stream_for(conn, camera_id)
     s = read_settings(conn)
+    chain = _remote_chain(request)
+    refusal = remote_cap_refusal(chain, s["remote.max_live_streams"])
+    if refusal is not None:
+        audit(conn, actor=principal, action="video.live", decision="denied", resource_type="camera", resource_id=camera_id, reason="remote_live_cap",
+              details={"max": s["remote.max_live_streams"]})
+        raise refusal
     return {
         "camera_id": cam["id"],
         "profile": profile,
@@ -135,6 +166,7 @@ def live_info(camera_id: str, request: Request, principal: Principal = Depends(c
         "max_live_sessions": s["media.max_live_sessions"],
         "active_sessions": REGISTRY.count(),
         "media_configured": bool(settings_of(request).go2rtc_url),
+        **({"remote_live": {"max": s["remote.max_live_streams"], "active": remote_live_by_chain().get(chain, 0)}} if chain else {}),
     }
 
 
@@ -172,6 +204,26 @@ async def _principal_for_ws(websocket: WebSocket) -> Principal | None:
     return principal
 
 
+async def _refuse_remote_cap(websocket: WebSocket, db: Database, principal: Principal, camera_id: str, refusal: ApiError) -> None:
+    """The remote live cap on the socket: accepted first so the browser sees the reason (a close before accept is a
+    bare handshake failure), then `{"type":"error","value":"remote_live_cap","message":…}` and close 4429 (the player
+    shows its "stream quota reached" state for 4429). Audited like the HTTP refusal."""
+    import json as _json
+
+    def _write() -> None:
+        with db.connection() as conn:
+            audit(conn, actor=principal, action="video.live", decision="denied", resource_type="camera", resource_id=camera_id, reason="remote_live_cap",
+                  details={"max": refusal.details.get("max")})
+
+    with contextlib.suppress(Exception):
+        await run_in_threadpool(_write)
+    with contextlib.suppress(Exception):
+        if websocket.client_state.name == "CONNECTING":
+            await websocket.accept()
+        await websocket.send_text(_json.dumps({"type": "error", "value": "remote_live_cap", "message": refusal.user_message}, ensure_ascii=False))
+        await websocket.close(code=4429)
+
+
 @router.websocket("/media/live/{camera_id}/ws")
 async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("sub", pattern="^(sub|main)$")) -> None:
     settings: Settings = websocket.app.state.settings
@@ -182,23 +234,29 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
         await websocket.close(code=4401)
         return
 
-    def _authorize() -> tuple[Decision | None, sqlite3.Row | None, int]:
+    def _authorize() -> tuple[Decision | None, sqlite3.Row | None, int, int]:
         with db.connection() as conn:
             cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
             if not cam or not cam["enabled"]:
-                return None, None, 0
+                return None, None, 0, 0
             decision = camera_decision(conn, principal, camera_id, "video.live")
             if not decision.allowed:
                 audit(conn, actor=principal, action="video.live", decision="denied", resource_type="camera", resource_id=camera_id, reason=decision.reason, under=decision)
-            return decision, cam, read_settings(conn)["media.max_live_sessions"]
+            s = read_settings(conn)
+            return decision, cam, s["media.max_live_sessions"], s["remote.max_live_streams"]
 
-    decision, cam, cap = await run_in_threadpool(_authorize)
+    decision, cam, cap, remote_cap = await run_in_threadpool(_authorize)
     allowed = bool(decision and decision.allowed)
     if not allowed or cam is None:
         await websocket.close(code=4403)
         return
     if REGISTRY.count() >= cap:
         await websocket.close(code=4429)
+        return
+    chain = _remote_chain(websocket)  # CR-008 P2: the remote sign-in's own budget (remote.max_live_streams)
+    refusal = remote_cap_refusal(chain, remote_cap)
+    if refusal is not None:
+        await _refuse_remote_cap(websocket, db, principal, camera_id, refusal)
         return
 
     try:
@@ -209,7 +267,8 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
         return
 
     client = g2.Go2rtc(settings)
-    session = LiveSession(id=uuid.uuid4().hex[:10], camera_id=camera_id, stream=name, user_id=principal.user_id, username=principal.username)
+    session = LiveSession(id=uuid.uuid4().hex[:10], camera_id=camera_id, stream=name, user_id=principal.user_id, username=principal.username,
+                          remote_chain=chain)
 
     # T055: the relay keeps the camera only while the viewer still holds video.live on it (re-checked on every access
     # change of the user and every leases.RECHECK_S) - a revoke of an unrelated camera no longer ends this stream
@@ -226,6 +285,11 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
             log.error("audit %s for live session %s failed: %s", action, session.id, exc)
 
     await websocket.accept()
+    # re-checked with nothing awaited before the registration: two starts of one sign-in cannot both pass the cap
+    refusal = remote_cap_refusal(chain, remote_cap)
+    if refusal is not None:
+        await _refuse_remote_cap(websocket, db, principal, camera_id, refusal)
+        return
     REGISTRY.sessions[session.id] = session
 
     def on_down(n: int) -> None:

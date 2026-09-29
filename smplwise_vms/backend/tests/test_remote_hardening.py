@@ -323,6 +323,59 @@ def test_audit_channel_filters_and_remote_views(arx, monkeypatch):
     assert viewer.get("/api/v1/audit", params={"view": "remote_refusals"}).status_code == 403
 
 
+# ---------------------------------------------------------------- 4. the live-stream cap per remote sign-in
+
+def test_remote_live_cap_per_sign_in(arx):
+    from smplwise.routers import media
+
+    admin = TestClient(arx.app)
+    cam = admin.post("/api/v1/cameras", json={"channel": 1, "alias": "a"}).json()
+    assert admin.get("/api/v1/settings").json()["settings"]["remote.max_live_streams"] == 4
+    phone, laptop = browser(arx), browser(arx)
+    sign_in(phone, arx, arx.viewer)
+    sign_in(laptop, arx, arx.viewer)
+    info = phone.get(f"/arx/api/v1/media/live/{cam['id']}")
+    assert info.status_code == 200, info.text
+    assert info.json()["remote_live"] == {"max": 4, "active": 0}
+    phone_row = next(x for x in phone.get("/arx/api/v1/auth/sessions").json()["sessions"] if x["current"])
+    chain = next(e["chain"] for e in hua.STORE.chains("u-viewer") if hua.public_id(e["chain"]) == phone_row["id"])
+    try:
+        for i in range(4):  # four streams already running under the phone's sign-in
+            media.REGISTRY.sessions[f"t{i}"] = media.LiveSession(id=f"t{i}", camera_id=cam["id"], stream="s", user_id="u-viewer", username="dana", remote_chain=chain)
+        r = phone.get(f"/arx/api/v1/media/live/{cam['id']}")
+        assert r.status_code == 429 and r.json()["code"] == "remote_live_cap"
+        assert "מכסת הזרמים החיים בגישה מרחוק" in r.json()["user_message"] and r.json()["details"] == {"max": 4, "active": 4}
+        # the WebSocket start: accepted, told why in Hebrew, closed 4429 - before any upstream connection
+        with phone.websocket_connect(f"/arx/api/v1/media/live/{cam['id']}/ws?profile=sub", headers=ORIGIN) as ws:
+            msg = json.loads(ws.receive_text())
+            assert msg["type"] == "error" and msg["value"] == "remote_live_cap" and "4 במקביל" in msg["message"]
+            with pytest.raises(WebSocketDisconnect) as exc:
+                ws.receive_text()
+            assert exc.value.code == 4429
+        denied = [a for a in arx.audit("video.live") if a["reason"] == "remote_live_cap"]
+        assert len(denied) == 2 and all(json.loads(a["details_json"])["channel"] == "remote" for a in denied)
+        # the sessions list and /health count them
+        assert next(x for x in phone.get("/arx/api/v1/auth/sessions").json()["sessions"] if x["current"])["live_streams"] == 4
+        remote = admin.get("/api/v1/health").json()["remote"]
+        assert remote["live_streams"] == 4 and remote["max_live_streams_per_sign_in"] == 4 and remote["sign_ins"] == 2 and remote["cookie"] == 2
+        assert "chain" not in json.dumps(remote) and chain not in json.dumps(remote)
+        # another sign-in of the same user has its own budget; the local channel is not capped by it
+        assert laptop.get(f"/arx/api/v1/media/live/{cam['id']}").status_code == 200
+        assert admin.get(f"/api/v1/media/live/{cam['id']}").status_code == 200
+        # a higher cap lets the next one through
+        assert admin.patch("/api/v1/settings", json={"remote.max_live_streams": 5}).status_code == 200
+        assert phone.get(f"/arx/api/v1/media/live/{cam['id']}").status_code == 200
+        assert admin.patch("/api/v1/settings", json={"remote.max_live_streams": 0}).status_code == 422
+    finally:
+        media.REGISTRY.sessions.clear()
+
+
+def test_health_remote_block_is_for_administrators_only(arx):
+    arx.bind("dev-dana", "viewer")
+    assert "remote" not in TestClient(arx.app, headers={"X-SW-Dev-User": "dana"}).get("/api/v1/health").json()
+    assert TestClient(arx.app).get("/api/v1/health").json()["remote"]["enabled"] is True
+
+
 def test_sign_in_record_masks_the_address(arx):
     sign_in(browser(arx), arx, arx.viewer, **{"CF-Connecting-IP": "203.0.113.5", "CF-IPCountry": "IL"})
     with arx.db.connection(mode="read") as conn:
