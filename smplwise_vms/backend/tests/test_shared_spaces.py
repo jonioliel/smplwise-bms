@@ -1,4 +1,4 @@
-"""Shared space (CR-009, T093): the owner's double-height sports hall, drawn twice today (floor 2 holds the court, floor 3
+"""Shared space (CR-009, T097): the owner's double-height sports hall, drawn twice today (floor 2 holds the court, floor 3
 the tribunes' top), becomes ONE room that belongs to both floors. The home floor (the court's) keeps everything; the
 other floor shows it whole on every read - computed, never stored or hashed - edits it (routed to the home draft), and
 its readers reach the hall's cameras and devices, and nothing else of the home floor. Deny still wins."""
@@ -607,7 +607,7 @@ def test_owner_answer_1_publishing_the_other_floor_publishes_only_the_rooms_pend
 
 
 def test_review_l8_a_backup_from_before_shared_spaces_restores_and_a_new_one_round_trips(settings):
-    """Review L8: a backup taken before migration 0037 (no shared_spaces / shared_space_members in it) restores cleanly -
+    """Review L8: a backup taken before migration 0038 (no shared_spaces / shared_space_members in it) restores cleanly -
     the replace empties both tables, the room is again drawn on its own floor only - and a backup of a shared room
     brings the share and its members back."""
     import io

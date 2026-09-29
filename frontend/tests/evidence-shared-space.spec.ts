@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Shared space (CR-009, T093, owner 2026-09-29), the owner's flow against a running developer backend: the sports hall is
+// Shared space (CR-009, T097, owner 2026-09-29), the owner's flow against a running developer backend: the sports hall is
 // drawn twice today - on floor -1 (the court) and on floor 0 (the tribunes' top, WIDER than the court) - as two unrelated
 // rooms. From floor 0's editor "הפוך לחלל משותף" converts them (two-outline model): floor 0 keeps its own wider outline
 // and its walls, only the duplicate content leaves it; the court's content shows on both floors with the chip "רצפה

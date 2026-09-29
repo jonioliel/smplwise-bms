@@ -1,7 +1,7 @@
-"""Shared space (CR-009, T093): one room (a spatial zone) that belongs to two floors - the owner's double-height sports
+"""Shared space (CR-009, T097): one room (a spatial zone) that belongs to two floors - the owner's double-height sports
 hall, reachable from floor 0 and from the court on floor -1. The zone's own floor is the HOME floor: its plan document
 keeps the room's walls, openings, objects (tribunes), labels, connectors, circuits and groups, and its anchors are the
-room's cameras and devices. The OTHER floor stores nothing but a `shared_spaces` row (migration 0037).
+room's cameras and devices. The OTHER floor stores nothing but a `shared_spaces` row (migration 0038).
 
 This module is the only place that knows about shares:
 
@@ -64,7 +64,7 @@ def _rows(conn: sqlite3.Connection, where: str, args: Iterable[Any], at: str | N
             "JOIN spatial_zones z ON z.id = s.zone_id AND z.floor_id = s.home_floor_id AND z.deleted_at IS NULL "
             "JOIN floors hf ON hf.id = s.home_floor_id AND hf.deleted_at IS NULL JOIN floors of ON of.id = s.floor_id AND of.deleted_at IS NULL "
             f"WHERE {live}{' AND ' + where if where else ''} ORDER BY s.created_at, s.id", (*((at, at) if at else ()), *args)).fetchall()
-    except sqlite3.OperationalError:  # a database from before migration 0037 (tests keep older schemas on purpose)
+    except sqlite3.OperationalError:  # a database from before migration 0038 (tests keep older schemas on purpose)
         return []
     out: list[Share] = []
     for r in rows:
@@ -82,8 +82,8 @@ def _rows(conn: sqlite3.Connection, where: str, args: Iterable[Any], at: str | N
 
 
 def ensure_schema(conn: sqlite3.Connection) -> list[str]:
-    """Re-review low: migration 0037 changed while the branch was open (other_zone_id inside CREATE TABLE, the members
-    table). A database that already recorded the first 0037 never runs it again, so this idempotent guard, run at start
+    """Re-review low: migration 0038 changed while the branch was open (other_zone_id inside CREATE TABLE, the members
+    table). A database that already recorded the first 0038 never runs it again, so this idempotent guard, run at start
     after the migrations, adds what is missing. Returns what it added."""
     added: list[str] = []
     try:
@@ -91,7 +91,7 @@ def ensure_schema(conn: sqlite3.Connection) -> list[str]:
     except sqlite3.OperationalError:
         return added
     if not cols:
-        return added  # before 0037: the migration itself creates everything
+        return added  # before 0038: the migration itself creates everything
     if "other_zone_id" not in cols:
         conn.execute("ALTER TABLE shared_spaces ADD COLUMN other_zone_id TEXT REFERENCES spatial_zones(id)")
         added.append("shared_spaces.other_zone_id")
@@ -1147,7 +1147,7 @@ def member_rows(conn: sqlite3.Connection, zone_id: str | None = None, at: str | 
     try:
         return conn.execute(f"SELECT * FROM shared_space_members WHERE {live}{' AND zone_id = ?' if zone_id else ''} ORDER BY resource_type, resource_id",
                             (*((at, at) if at else ()), *((zone_id,) if zone_id else ()))).fetchall()
-    except sqlite3.OperationalError:  # before migration 0037
+    except sqlite3.OperationalError:  # before migration 0038
         return []
 
 

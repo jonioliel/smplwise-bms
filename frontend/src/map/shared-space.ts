@@ -1,5 +1,5 @@
 /**
- * Shared space (CR-009, T093): one room that belongs to two floors - the owner's double-height sports hall, wider at the
+ * Shared space (CR-009, T097): one room that belongs to two floors - the owner's double-height sports hall, wider at the
  * upper level. Two-outline model: each floor keeps its own outline and walls of the room; the room's CONTENT (tribunes,
  * court markings, objects, lighting circuits) lives on its home floor and every read of the other floor attaches it
  * (ids "<home floor>:<id>", marked `shared`) - the server routes an edit of it back home. Cameras and devices are shared

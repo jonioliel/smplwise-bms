@@ -5131,58 +5131,6 @@
     "actual_cost_usd": null
   },
   {
-    "id": "T094",
-    "title": "חלל משותף לשתי קומות (CR-009) — אולם בגובה כפול, שלם בכל קומה",
-    "epic": "MAP",
-    "phase": "V1",
-    "dependencies": [
-      "T085"
-    ],
-    "chapters": [],
-    "screens": [],
-    "owner_role": "frontend",
-    "requires_hardware": false,
-    "acceptance": [
-      "A room (spatial zone) can be shared with a second floor of its building (shared_spaces row, migration 0036; placement same_frame or fit): the HOME floor's plan document keeps the room's walls, openings, objects (tribunes), labels, connectors and circuits and its anchors keep the room's cameras and devices; every read of the other floor (draft, published, ?at=, export, map bundle, 3D, building page) attaches that subset transformed by the placement with namespaced ids, computed on read and never stored or hashed (ETag and bundle view_hash follow it); an edit of the room made from the other floor (map.edit on either floor) is routed to the home floor's draft in the same request, only inside the room's polygon, with a 409 + rebase when the home draft moved, and audited naming both floors (CR-009 §3-§5).",
-      "A principal whose scope includes EITHER floor of a shared room reaches its zone, its cameras (live, playback, snapshots, events, push) and its entities and device actions exactly as if the room were on their floor, and nothing else of the home floor; one helper (services/shared_spaces.py) extends every reach site (rbac.camera_floors/scope_chain, access._chains/floor_cameras, ha_scope.placements, events place filter, search, site tree); an explicit deny still wins; sharing needs map.edit + placement.edit on both floors and placement reach on every camera of the room; an un-share removes the reach on the next request (CR-009 §6).",
-      "\"הפוך לחלל משותף\" converts the owner's two drawings of one room: choose the other floor and the duplicate room (auto-detected by name and overlap), the source floor (default the lower one), a preview of what is removed on the other floor and of the anchors re-bound to the shared room (never lost), then an atomic apply; the room renders identically on both floors' live map, editor, history map and 3D with a small chip naming the floor of its surface; the editor on the other floor edits the room's items with the hint 'חלל משותף · השינוי יופיע גם בקומה X'; in 3D the upper plate is cut around the room, the walls rise through both floors and the court sits at the home datum (CR-009 §7-§8)."
-    ],
-    "requirement_ids": [
-      "R190",
-      "R191",
-      "R192"
-    ],
-    "test_ids": [
-      "AT190",
-      "AT191",
-      "AT192"
-    ],
-    "status": "BACKLOG",
-    "blocker": null,
-    "priority": "P1",
-    "model_policy": {
-      "implementation": "deep",
-      "review": "deep",
-      "effort": "large",
-      "escalation": "Widens reach (a floor-scoped user reaches another floor's cameras): security review of the permission helper and its call sites before merge; the owner's real plans stay in private-evidence (counts only in evidence)."
-    },
-    "deliverables": [
-      "docs/changes/CR-009-SHARED-SPACE.md (+ _HE mirror): data model, read/write paths, permissions, 3D, migration, out of scope, build status",
-      "Backend: migration 0036_shared_spaces.sql, services/shared_spaces.py (attach, routing, conversion, reach helper), routes, tests",
-      "Frontend: mirrored rendering and the floor chip on every map, editing from the other floor, conversion dialog, 3D opening and volume; unit and live specs",
-      "PLAN_STUDIO_DESIGN_HE.md subsection and user guide section 'חלל משותף לשתי קומות'",
-      "Security review fixes (B1-L8) and the owner's answers 1-3: CR-009 section 11, settings 'מפה' (80-settings_HE.md)"
-    ],
-    "evidence": [
-      "2026-09-29: owner requirement approved from a mockup (the sports hall exists on floors 0 and -1; decisions: edit from either floor, same look on both maps with a floor chip, a user of one floor sees the whole hall incl. cameras and devices, source floor = the lower one). Design note CR-009 written before the build.",
-      "2026-09-29 (branch pilot/CR009-shared-space, commits bc0fe93 1f979cf ebab091; not merged, no version bump): built as designed - migration 0036_shared_spaces.sql, services/shared_spaces.py (attach on read, edit routing planned before any write, conversion preview/apply, the one reach helper for rbac/access/ha_scope/events/search/site tree), share/unshare/placement routes, UI (chip, editing from the other floor with guardShared, share dialog, 3D plate hole and wall volume, view_hash cache key, search on the current floor). Tests: backend test_shared_spaces 14 passed, 20 targeted modules 252 passed; tsc clean; npm run build OK; unit-shared-space 6 passed, unit set 219 passed; live evidence-shared-space 1 passed on a throwaway backend. Full backend suite not run here.",
-      "2026-09-29/30 (same branch, commits 7cf6e5b merge of g0/intake, 74ee105, 1c5fde5, 7eef429, fe2d380, docs a57d01f 9e44d06; not merged, no version bump): the security review's CHANGES_REQUIRED (B1 explicit members table shared_space_members, B2 write hardening, M1-M6, L1, L3, L5, L7, L8) and the owner's answers (1: publishing the other floor publishes the room's pending changes home; 2: settings section 'מפה' with map.default_view and map.shared_levels; 3: two-outline model - each floor keeps its outline and walls, content shared, overlays 'מפלס עליון' / 'מפלס תחתון', 3D volume from two outlines with the step ring, alignment warning). Tests run: tests/test_shared_spaces.py 21 passed; with 23 related backend modules 288 passed; frontend tsc clean, build OK, unit-shared-space 9 passed, all unit-* 237 passed; live evidence-shared-space 2 passed on a throwaway backend (screenshots wide-* kept outside the repository). Full backend suite not run here. CR-009 section 11."
-    ],
-    "owner": null,
-    "commit": null,
-    "actual_cost_usd": null
-  },
-  {
     "id": "T095",
     "title": "גורם אימות שני ל-Arx (CR-011) — מדיניות כניסה, step-up לפעולות רגישות, passkeys",
     "epic": "SECURITY",
@@ -5273,6 +5221,58 @@
     ],
     "evidence": [
       "2026-09-30: design record CR-012 written (branch pilot/design-2fa-push): WebView has no Web Push; FCM high priority is Android's way to wake a dozing app and must end in a visible notification; FCM is not end-to-end encrypted, so a content-less wake + fetch from the customer's Arx server; recommendation A through a central SmplWise relay (≈7-9 d) with UnifiedPush as the fallback (≈3-4 d, push.py already speaks Web Push); foreground-socket option documented with Android 14/15 limits. Owner decisions Q1-Q8 open."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T097",
+    "title": "חלל משותף לשתי קומות (CR-009) — אולם בגובה כפול, שלם בכל קומה",
+    "epic": "MAP",
+    "phase": "V1",
+    "dependencies": [
+      "T085"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "frontend",
+    "requires_hardware": false,
+    "acceptance": [
+      "A room (spatial zone) can be shared with a second floor of its building (shared_spaces row, migration 0036; placement same_frame or fit): the HOME floor's plan document keeps the room's walls, openings, objects (tribunes), labels, connectors and circuits and its anchors keep the room's cameras and devices; every read of the other floor (draft, published, ?at=, export, map bundle, 3D, building page) attaches that subset transformed by the placement with namespaced ids, computed on read and never stored or hashed (ETag and bundle view_hash follow it); an edit of the room made from the other floor (map.edit on either floor) is routed to the home floor's draft in the same request, only inside the room's polygon, with a 409 + rebase when the home draft moved, and audited naming both floors (CR-009 §3-§5).",
+      "A principal whose scope includes EITHER floor of a shared room reaches its zone, its cameras (live, playback, snapshots, events, push) and its entities and device actions exactly as if the room were on their floor, and nothing else of the home floor; one helper (services/shared_spaces.py) extends every reach site (rbac.camera_floors/scope_chain, access._chains/floor_cameras, ha_scope.placements, events place filter, search, site tree); an explicit deny still wins; sharing needs map.edit + placement.edit on both floors and placement reach on every camera of the room; an un-share removes the reach on the next request (CR-009 §6).",
+      "\"הפוך לחלל משותף\" converts the owner's two drawings of one room: choose the other floor and the duplicate room (auto-detected by name and overlap), the source floor (default the lower one), a preview of what is removed on the other floor and of the anchors re-bound to the shared room (never lost), then an atomic apply; the room renders identically on both floors' live map, editor, history map and 3D with a small chip naming the floor of its surface; the editor on the other floor edits the room's items with the hint 'חלל משותף · השינוי יופיע גם בקומה X'; in 3D the upper plate is cut around the room, the walls rise through both floors and the court sits at the home datum (CR-009 §7-§8)."
+    ],
+    "requirement_ids": [
+      "R199",
+      "R200",
+      "R201"
+    ],
+    "test_ids": [
+      "AT199",
+      "AT200",
+      "AT201"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "Widens reach (a floor-scoped user reaches another floor's cameras): security review of the permission helper and its call sites before merge; the owner's real plans stay in private-evidence (counts only in evidence)."
+    },
+    "deliverables": [
+      "docs/changes/CR-009-SHARED-SPACE.md (+ _HE mirror): data model, read/write paths, permissions, 3D, migration, out of scope, build status",
+      "Backend: migration 0036_shared_spaces.sql, services/shared_spaces.py (attach, routing, conversion, reach helper), routes, tests",
+      "Frontend: mirrored rendering and the floor chip on every map, editing from the other floor, conversion dialog, 3D opening and volume; unit and live specs",
+      "PLAN_STUDIO_DESIGN_HE.md subsection and user guide section 'חלל משותף לשתי קומות'",
+      "Security review fixes (B1-L8) and the owner's answers 1-3: CR-009 section 11, settings 'מפה' (80-settings_HE.md)"
+    ],
+    "evidence": [
+      "2026-09-29: owner requirement approved from a mockup (the sports hall exists on floors 0 and -1; decisions: edit from either floor, same look on both maps with a floor chip, a user of one floor sees the whole hall incl. cameras and devices, source floor = the lower one). Design note CR-009 written before the build.",
+      "2026-09-29 (branch pilot/CR009-shared-space, commits bc0fe93 1f979cf ebab091; not merged, no version bump): built as designed - migration 0036_shared_spaces.sql, services/shared_spaces.py (attach on read, edit routing planned before any write, conversion preview/apply, the one reach helper for rbac/access/ha_scope/events/search/site tree), share/unshare/placement routes, UI (chip, editing from the other floor with guardShared, share dialog, 3D plate hole and wall volume, view_hash cache key, search on the current floor). Tests: backend test_shared_spaces 14 passed, 20 targeted modules 252 passed; tsc clean; npm run build OK; unit-shared-space 6 passed, unit set 219 passed; live evidence-shared-space 1 passed on a throwaway backend. Full backend suite not run here.",
+      "2026-09-29/30 (same branch, commits 7cf6e5b merge of g0/intake, 74ee105, 1c5fde5, 7eef429, fe2d380, docs a57d01f 9e44d06; not merged, no version bump): the security review's CHANGES_REQUIRED (B1 explicit members table shared_space_members, B2 write hardening, M1-M6, L1, L3, L5, L7, L8) and the owner's answers (1: publishing the other floor publishes the room's pending changes home; 2: settings section 'מפה' with map.default_view and map.shared_levels; 3: two-outline model - each floor keeps its outline and walls, content shared, overlays 'מפלס עליון' / 'מפלס תחתון', 3D volume from two outlines with the step ring, alignment warning). Tests run: tests/test_shared_spaces.py 21 passed; with 23 related backend modules 288 passed; frontend tsc clean, build OK, unit-shared-space 9 passed, all unit-* 237 passed; live evidence-shared-space 2 passed on a throwaway backend (screenshots wide-* kept outside the repository). Full backend suite not run here. CR-009 section 11."
     ],
     "owner": null,
     "commit": null,

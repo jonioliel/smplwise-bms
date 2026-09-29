@@ -1,4 +1,4 @@
--- CR-009 (T093, owner 2026-09-29): a shared space - one room (spatial zone) shown whole on a second floor of its
+-- CR-009 (T097, owner 2026-09-29): a shared space - one room (spatial zone) shown whole on a second floor of its
 -- building, the double-height sports hall. The zone's own floor is the HOME floor: its plan document and its anchors keep
 -- everything inside the room; the other floor stores nothing but this row. Every read of the other floor attaches the
 -- home floor's subset (services/shared_spaces.py), and reach is computed from these rows on every request. An un-share
