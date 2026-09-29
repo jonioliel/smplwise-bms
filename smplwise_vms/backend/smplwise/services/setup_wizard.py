@@ -77,6 +77,8 @@ LINKS = {
     "remote": ("#/system/diagnostics?tab=remote", "הגדרות › גישה מרחוק"),
 }
 
+# CR-008 D7: the streaming-channels GET inside the wizard's NVR check (CHECK_DEADLINE_S covers the whole check)
+STREAMING_TIMEOUT_S = 3.0
 # CR-008 D7: at most this many per-camera "main stream will not play over WebRTC" warnings; the rest are counted
 MAX_CODEC_WARNINGS = 4
 
@@ -330,7 +332,7 @@ def nvr_background(settings: Settings, conn: sqlite3.Connection) -> dict[str, An
     return _step("nvr", "todo", p["message"], facts=facts, evidence=evidence, settings_link=link, problem=p, warnings=warnings, source="background")
 
 
-def nvr_probe(settings: Settings, tz_name: str, now: dt.datetime | None = None) -> dict[str, Any]:
+def nvr_probe(settings: Settings, tz_name: str, now: dt.datetime | None = None, disabled: set[int] | frozenset[int] = frozenset()) -> dict[str, Any]:
     """deviceInfo, the channel / track list (the capabilities the rest of the add-on relies on) and the clock - read-only,
     device calls only (no database). The caller checks that the NVR is configured."""
     link = _link("connections")
@@ -358,18 +360,20 @@ def nvr_probe(settings: Settings, tz_name: str, now: dt.datetime | None = None) 
     online = sum(1 for c in channels if c.online)
     offline = sum(1 for c in channels if c.online is False)
     with_tracks = sum(1 for c in channels if c.main_track and c.sub_track)
-    # CR-008 D7: the main / sub stream encodings (a read-only GET) - which main streams will not play over WebRTC
+    # CR-008 D7: the main / sub stream encodings (a read-only GET with a short timeout inside the check's budget) -
+    # which main streams will not play over WebRTC; counted over the enabled cameras, as /health and the report do
     codec_items: list[dict[str, Any]] = []
     codec_main = {"ok": 0, "no": 0, "unknown": 0}
     codec_error = None
-    if channels:
+    codec_channels = [c for c in channels if c.channel not in disabled]
+    if codec_channels:
         try:
-            encodings = nvr.fetch_stream_encodings(settings)
+            encodings = nvr.fetch_stream_encodings(settings, timeout=STREAMING_TIMEOUT_S)
         except ApiError as exc:
             encodings, codec_error = {}, exc.code
         except Exception as exc:  # noqa: BLE001
             encodings, codec_error = {}, type(exc).__name__
-        for c in channels:
+        for c in codec_channels:
             enc = stream_codecs.build(c, encodings.get(c.channel), None, error=codec_error, now=now_iso()) or {}
             main = enc.get("main")
             verdict = str((main or {}).get("webrtc") or "unknown")
@@ -403,7 +407,7 @@ def nvr_probe(settings: Settings, tz_name: str, now: dt.datetime | None = None) 
         _fact("ערוצים", f"{len(channels)} · {online} מקוונים" + (f" · {offline} לא מקוונים" if offline else ""), "ok" if channels else "err"),
         _fact("ערוצים עם זרם ראשי ומשני", f"{with_tracks} מתוך {len(channels)}", "ok" if channels and with_tracks == len(channels) else "warn"),
         _fact("פרופילי וידאו שנמצאו", " · ".join(profiles[:4]) if profiles else "—"),
-        *([_codec_fact(codec_main, len(channels))] if channels else []),
+        *([_codec_fact(codec_main, len(codec_channels))] if codec_channels else []),
         _drift_fact("שעון ה־NVR מול ה־Add-on", time_check),
         _fact("אזור זמן (היסט)", f"{time_check.get('offset') or '?'} · צפוי {time_check.get('expected_offset')} ({tz.key})",
               {"ok": "ok", "mismatch": "err"}.get(time_check.get("dst"), "warn")),
@@ -870,12 +874,13 @@ def configured(settings: Settings, step_id: str) -> bool:
 
 def prepare(conn: sqlite3.Connection, step_id: str) -> dict[str, Any]:
     """What a probe needs from the database, read before the device calls so that no read transaction spans them."""
-    return {"tz": _tz_name(conn), "expected": _expected_streams(conn) if step_id == "go2rtc" else []}
+    disabled = {int(r[0]) for r in conn.execute("SELECT channel FROM cameras WHERE enabled = 0").fetchall()} if step_id == "nvr" else set()
+    return {"tz": _tz_name(conn), "expected": _expected_streams(conn) if step_id == "go2rtc" else [], "disabled": disabled}
 
 
 def _probe(settings: Settings, step_id: str, inputs: dict[str, Any]) -> dict[str, Any]:
     if step_id == "nvr":
-        return nvr_probe(settings, inputs["tz"])
+        return nvr_probe(settings, inputs["tz"], disabled=frozenset(inputs.get("disabled") or ()))
     if step_id == "go2rtc":
         return go2rtc_probe(settings, [] if is_ha_only(settings) else inputs["expected"])  # NVR-less: no camera streams expected
     return ha_probe(settings, inputs["tz"])

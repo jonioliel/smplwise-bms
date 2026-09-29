@@ -70,7 +70,7 @@ def _ssl_context():
     return _SSL_CONTEXT
 
 
-def _client(settings: Settings) -> httpx.Client:
+def _client(settings: Settings, timeout: float = 8.0) -> httpx.Client:
     from ..mode import ensure_nvr
 
     ensure_nvr(settings)  # NVR-less mode: 409 nvr_not_configured, reached only after the caller's permission check
@@ -79,7 +79,7 @@ def _client(settings: Settings) -> httpx.Client:
     return httpx.Client(
         base_url=f"http://{settings.nvr_host}:{settings.nvr_http_port}",
         auth=httpx.DigestAuth(settings.nvr_user, settings.nvr_password),
-        timeout=8.0,
+        timeout=timeout,
         verify=_ssl_context(),
     )
 
@@ -656,11 +656,15 @@ def fetch_capabilities(settings: Settings, channel: int) -> dict[str, object]:
 # ---------------------------------------------------------------- stream encodings (CR-008 D7, read-only)
 #
 # Which of a camera's streams a browser can decode over WebRTC. Browsers decode H.264 over WebRTC, but not H.265 (most
-# browsers), MJPEG, or H.264 with B-frames. Lab evidence (the read-only NVR probe of 2026-09-14, firmware V4.84): every
-# MAIN stream (N01) had `<SVC><enabled>true` and none decoded over WebRTC, while every SUB stream (N02, H.264 without
-# SVC) did - so H.264 with SVC (temporal scalability) is treated as not WebRTC-safe as well. The streaming document has
-# no B-frame element on the lab firmware: an element whose name says B-frames is read where a device exposes one, and an
-# H.264 Baseline profile has none by definition. Anything else is "unknown" - the player then simply tries WebRTC.
+# browsers), MJPEG, or H.264 with B-frames. Lab evidence (the read-only NVR probe of 2026-09-14, firmware V4.84, ten
+# cameras): seven cameras have an H.264 main stream (N01) with `<SVC><enabled>true` and an H.264 sub stream (N02)
+# without SVC; three cameras are H.265 in both streams (SVC on in their mains and in one sub). In the lab WebRTC decoded
+# only the sub profile - so H.264 with SVC (temporal scalability) is treated as not WebRTC-safe as well (an inference
+# from that correlation, not a proof). The streaming document has no B-frame element on the lab firmware: an element
+# whose name says B-frames is read where a device exposes one, and an H.264 Baseline profile has none by definition.
+# A reading from a recording track's Description alone never says "plays": the lab's tracks say H.264-BP for all ten
+# cameras while the streaming document shows SVC mains and H.265 streams. Anything else is "unknown" - the player then
+# simply tries WebRTC.
 
 _BFRAME_TAGS = {"bframe", "bframes", "bframeenabled", "enablebframe", "bframenum", "bframecount", "bframeinterval"}
 
@@ -709,6 +713,10 @@ def webrtc_verdict(enc: dict[str, object]) -> tuple[str, str]:
         return "no", "mjpeg"
     if codec != "H.264":
         return "unknown", "codec_other"
+    if enc.get("source") != "isapi":
+        # a recording track's Description (codecType=H.264-BP) says nothing reliable about the live stream's SVC or
+        # B-frames: at most "unknown", never "plays"
+        return "unknown", "track_description_only"
     if enc.get("b_frames") is True:
         return "no", "b_frames"
     if enc.get("svc") is True:
@@ -716,9 +724,7 @@ def webrtc_verdict(enc: dict[str, object]) -> tuple[str, str]:
     profile = str(enc.get("profile") or "").lower()
     if enc.get("b_frames") is False or profile.startswith(("baseline", "bp", "constrained")):
         return "ok", "h264_no_b_frames"
-    if enc.get("source") == "isapi":
-        return "ok", "h264"  # the device's own encoding document: H.264, SVC off, no B-frame setting on the device
-    return "unknown", "b_frames_not_reported"
+    return "ok", "h264"  # the device's own encoding document: H.264, SVC off, no B-frame setting on the device
 
 
 def _with_verdict(enc: dict[str, object]) -> dict[str, object]:
@@ -786,9 +792,10 @@ def encoding_from_track(desc: dict[str, object] | None) -> dict[str, object] | N
     return _with_verdict(enc)
 
 
-def fetch_stream_encodings(settings: Settings) -> dict[int, dict[str, dict[str, object]]]:
-    """One read-only GET of the NVR's streaming channels: codec, profile, SVC, smart codec, B-frames where exposed."""
-    with _client(settings) as client:
+def fetch_stream_encodings(settings: Settings, timeout: float = 8.0) -> dict[int, dict[str, dict[str, object]]]:
+    """One read-only GET of the NVR's streaming channels: codec, profile, SVC, smart codec, B-frames where exposed.
+    `timeout`: the setup wizard passes a short one (its whole NVR check has a 20 s budget)."""
+    with _client(settings, timeout=timeout) as client:
         xml = _get(client, "/ISAPI/Streaming/channels")
     return parse_streaming_channels(xml)
 

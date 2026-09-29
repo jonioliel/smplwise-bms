@@ -67,10 +67,29 @@ def test_parse_streaming_channels_codec_svc_b_frames_and_verdicts():
 def test_track_description_fallback_and_unknowns():
     assert nvr.encoding_from_track(None) is None and nvr.encoding_from_track({}) is None
     bp = nvr.encoding_from_track(nvr.parse_track_description("trackType=standard,contentType=video,codecType=H.264-BP,resolution=2560x1440,framerate=25.0 fps"))
-    assert (bp["codec"], bp["profile"], bp["source"], bp["webrtc"]) == ("H.264", "BP", "track", "ok")
+    assert (bp["codec"], bp["profile"], bp["source"]) == ("H.264", "BP", "track")
+    assert (bp["webrtc"], bp["reason"]) == ("unknown", "track_description_only"), "a track Description never says 'plays' (review M1)"
     hp = nvr.encoding_from_track({"codec": "H.264"})
-    assert (hp["webrtc"], hp["reason"]) == ("unknown", "b_frames_not_reported"), "a track Description says nothing about B-frames / SVC"
-    assert nvr.encoding_from_track({"codec": "H.265"})["webrtc"] == "no"
+    assert (hp["webrtc"], hp["reason"]) == ("unknown", "track_description_only"), "a track Description says nothing about B-frames / SVC"
+    assert nvr.encoding_from_track({"codec": "H.265"})["webrtc"] == "no", "H.265 / MJPEG from a track Description: will not play"
+    assert nvr.encoding_from_track({"codec": "MJPEG"})["webrtc"] == "no"
+
+
+def test_lab_shaped_track_vs_streaming_mismatch():
+    """Synthetic, in the lab's shape: every recording track says H.264-BP, while the streaming document shows an H.264
+    main with SVC on (7 lab cameras) or H.265 (3 lab cameras). The streaming document decides; without it the track's
+    BP yields "unknown", never "plays"."""
+    track = nvr.parse_track_description("trackType=standard,contentType=video,codecType=H.264-BP,resolution=2560x1440,framerate=25.0 fps")
+    ch = nvr.DiscoveredChannel(channel=1, name="כניסה", online=True, main_track=101, sub_track=102, stream=track, sub_stream=track)
+    streaming = nvr.parse_streaming_channels(LAB_SHAPED)
+    enc = stream_codecs.build(ch, streaming[1], None, error=None, now="2026-09-29T00:00:00Z")
+    assert (enc["main"]["source"], enc["main"]["webrtc"], enc["main"]["reason"]) == ("isapi", "no", "svc")
+    enc = stream_codecs.build(dataclasses.replace(ch, channel=2), streaming[2], None, error=None, now="2026-09-29T00:00:00Z")
+    assert (enc["main"]["webrtc"], enc["main"]["reason"]) == ("no", "h265")
+    # the streaming document cannot be read (and no earlier reading): the tracks' BP is "unknown", and no hint claims either way
+    enc = stream_codecs.build(ch, None, None, error="source_error", now="2026-09-29T00:00:00Z")
+    assert (enc["main"]["source"], enc["main"]["webrtc"], enc["sub"]["webrtc"]) == ("track", "unknown", "unknown")
+    assert stream_codecs.main_hint("כניסה", 1, enc["main"], None) is None
     assert nvr.webrtc_verdict({"codec": None}) == ("unknown", "codec_unknown")
     assert nvr.webrtc_verdict({"codec": "VP8"}) == ("unknown", "codec_other")
 
@@ -210,3 +229,23 @@ def test_setup_wizard_nvr_step_shows_the_hints(settings, fake):
     assert bg["source"] == "background" and "main_not_webrtc" in {w["code"] for w in bg["warnings"]}
     assert bg["evidence"]["video_codecs"]["main"]["no"] == 7
     assert fake.writes == []
+
+
+def test_wizard_counts_enabled_cameras_and_uses_a_short_timeout(settings, fake, monkeypatch):
+    """Review nits: the wizard's live NVR check counts the enabled cameras (as /health and the report do), and its
+    streaming-channels GET has a short timeout inside the check's 20 s budget."""
+    s = _devices(settings)
+    c = TestClient(create_app(s))
+    _sync(c)
+    cams = c.get("/api/v1/cameras").json()["cameras"]
+    assert c.patch(f"/api/v1/cameras/{cams[0]['id']}", json={"enabled": False}).status_code == 200
+    seen: list[float] = []
+    real = nvr.fetch_stream_encodings
+    monkeypatch.setattr(nvr, "fetch_stream_encodings", lambda settings, timeout=8.0: seen.append(timeout) or real(settings, timeout=timeout))
+    step = next(x for x in c.post("/api/v1/setup/check/nvr").json()["steps"] if x["id"] == "nvr")
+    assert seen == [wizard.STREAMING_TIMEOUT_S] and wizard.STREAMING_TIMEOUT_S <= 5
+    assert step["evidence"]["channels"] == 4, "the channel facts still describe the whole NVR"
+    assert step["evidence"]["video_codecs"]["main"] == {"ok": 0, "no": 3, "unknown": 0}
+    assert next(f for f in step["facts"] if f["label"] == "זרם ראשי ב־WebRTC")["value"] == "0 מתוך 3 · 3 לא יתנגנו"
+    assert c.get("/api/v1/health").json()["video_codecs"]["main"]["no"] == 3, "the same count as /health"
+    assert len([w for w in step["warnings"] if w["code"] == "main_not_webrtc"]) == 3
