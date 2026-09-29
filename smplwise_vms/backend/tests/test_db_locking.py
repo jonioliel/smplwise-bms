@@ -248,10 +248,12 @@ def test_connection_settings_and_idle_checkpoint(tmp_path):
 
 def test_health_reports_write_lock_counters(client):
     body = client.get("/api/v1/health").json()
-    assert {"holds", "slow_holds", "max_hold_s", "busy_errors", "max_hold_by", "last_busy"} <= set(body["db"]["write_lock"])
+    assert {"holds", "slow_holds", "max_hold_s", "busy_errors", "max_hold_by", "last_busy", "gate_timeouts", "waits_over_1s", "max_wait_s", "max_wait_recent_s", "max_wait_by", "write_gate", "gate"} <= set(body["db"]["write_lock"])
+    assert set(body["db"]["write_lock"]["gate"]) == {"held", "waiting"}
     # who held the lock (request paths with other users' ids) only for a system.configure holder; counters for everyone
     other = client.get("/api/v1/health", headers=as_user("viewer1")).json()["db"]["write_lock"]
-    assert {"holds", "slow_holds", "max_hold_s", "busy_errors"} <= set(other) and "max_hold_by" not in other and "last_busy" not in other
+    assert {"holds", "slow_holds", "max_hold_s", "busy_errors", "max_wait_s", "gate_timeouts"} <= set(other)
+    assert not {"max_hold_by", "max_wait_by", "last_busy"} & set(other)
 
 
 def test_audit_row_of_a_refusal_survives_release(client):

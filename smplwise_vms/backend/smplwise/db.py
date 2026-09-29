@@ -107,7 +107,19 @@ class WriteGate:
                 return self._holder
             entry: list[Any] = [threading.Event(), None]
             self._queue.append(entry)
-        entry[0].wait(timeout)
+        try:
+            entry[0].wait(max(0.0, timeout))
+        except BaseException:
+            # interrupted while waiting: leave the queue, or hand on a turn that arrived meanwhile - never keep either
+            with self._lock:
+                if entry[1] is None:
+                    self._queue.remove(entry)
+                    handed = None
+                else:
+                    handed = entry[1]
+            if handed is not None:
+                self.release(handed)
+            raise
         with self._lock:
             if entry[1] is None:  # timed out before its turn came
                 self._queue.remove(entry)
@@ -167,13 +179,38 @@ def _release_gate(conn: sqlite3.Connection) -> None:
 _holders: dict[int, tuple[str, float]] = {}  # id(conn) -> (label, monotonic time the write lock was taken)
 _stats_lock = threading.Lock()
 LOCK_STATS: dict[str, Any] = {"holds": 0, "slow_holds": 0, "max_hold_s": 0.0, "max_hold_by": None, "busy_errors": 0, "last_busy": None,
-                              "max_wait_s": 0.0, "max_wait_by": None}
+                              "gate_timeouts": 0, "waits_over_1s": 0, "max_wait_s": 0.0, "max_wait_by": None}
+WAIT_WINDOW_S = 600  # max_wait_recent_s: the longest wait of the last ten minutes
+_recent_waits: deque[tuple[int, float]] = deque()  # (minute, longest wait in that minute), oldest first
+
+
+def _note_wait(waited: float, label: str) -> None:
+    minute = int(time.monotonic() // 60)
+    with _stats_lock:
+        if waited > 1.0:
+            LOCK_STATS["waits_over_1s"] += 1
+        if waited > LOCK_STATS["max_wait_s"]:
+            LOCK_STATS["max_wait_s"] = round(waited, 3)
+            LOCK_STATS["max_wait_by"] = label
+        if _recent_waits and _recent_waits[-1][0] == minute:
+            if waited > _recent_waits[-1][1]:
+                _recent_waits[-1] = (minute, waited)
+        else:
+            _recent_waits.append((minute, waited))
+        while _recent_waits and _recent_waits[0][0] <= minute - WAIT_WINDOW_S // 60:
+            _recent_waits.popleft()
 
 
 def lock_stats() -> dict[str, Any]:
-    """A copy of the write-lock counters (/health and the contention load test)."""
+    """A copy of the write-lock counters (/health and the load tests). busy_errors: every "database is locked" (SQLite's
+    busy timeout or the gate's); gate_timeouts: those of them that timed out in the gate queue; waits_over_1s: write
+    transactions that waited more than a second to start; max_wait_recent_s: the longest wait of the last ten minutes."""
+    minute = int(time.monotonic() // 60)
     with _stats_lock:
-        return dict(LOCK_STATS)
+        out = dict(LOCK_STATS)
+        out["max_wait_recent_s"] = round(max((w for m, w in _recent_waits if m > minute - WAIT_WINDOW_S // 60), default=0.0), 3)
+        out["write_gate"] = WRITE_GATE
+        return out
 
 
 def is_busy(exc: BaseException) -> bool:
@@ -239,9 +276,17 @@ def _begin_immediate(conn: sqlite3.Connection, label: str) -> None:
             _report_stray_holders(gate, label)
             token = gate.acquire(BUSY_TIMEOUT_S - (time.monotonic() - started))
         if token is None:
+            with _stats_lock:
+                LOCK_STATS["gate_timeouts"] += 1
             raise _busy(label, sqlite3.OperationalError("database is locked"))
         _gate_tokens[id(conn)] = (gate, token, conn)
+    # one attempt never waits longer than BUSY_TIMEOUT_S in total: SQLite gets what the gate queue left of it
+    remaining_ms = max(1, int((BUSY_TIMEOUT_S - (time.monotonic() - started)) * 1000))
+    full_ms = int(BUSY_TIMEOUT_S * 1000)
+    shortened = remaining_ms < full_ms
     try:
+        if shortened:
+            conn.execute(f"PRAGMA busy_timeout={remaining_ms}")
         conn.execute("BEGIN IMMEDIATE")
     except sqlite3.OperationalError as exc:
         _release_gate(conn)
@@ -251,14 +296,15 @@ def _begin_immediate(conn: sqlite3.Connection, label: str) -> None:
     except BaseException:
         _release_gate(conn)
         raise
+    finally:
+        if shortened:
+            try:
+                conn.execute(f"PRAGMA busy_timeout={full_ms}")
+            except sqlite3.Error:
+                pass
     now = time.monotonic()
     _holders[id(conn)] = (label, now)
-    waited = now - started
-    if waited > LOCK_STATS["max_wait_s"]:
-        with _stats_lock:
-            if waited > LOCK_STATS["max_wait_s"]:
-                LOCK_STATS["max_wait_s"] = round(waited, 3)
-                LOCK_STATS["max_wait_by"] = label
+    _note_wait(now - started, label)
 
 
 def _end_hold(conn: sqlite3.Connection) -> None:

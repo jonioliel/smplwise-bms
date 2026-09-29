@@ -65,6 +65,87 @@ def test_gate_times_out_leaves_the_queue_and_try_acquire_needs_quiet():
     gate.release(quiet)
 
 
+def test_an_interrupted_waiter_leaves_no_trace(monkeypatch):
+    """Review L1: an exception while waiting (KeyboardInterrupt, SystemExit) removes the entry, or hands on a turn that
+    arrived meanwhile - the gate never stays held by nobody."""
+    gate = WriteGate()
+    first = gate.acquire(1)
+
+    class Interrupted:
+        def __init__(self) -> None:
+            self._flag = False
+
+        def set(self) -> None:
+            self._flag = True
+
+        def wait(self, timeout=None):
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(db_mod.threading, "Event", Interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        gate.acquire(5)
+    assert gate.state() == {"held": True, "waiting": 0}
+
+    class TurnThenInterrupted(Interrupted):
+        def wait(self, timeout=None):
+            gate.release(first)  # the turn arrives ...
+            raise KeyboardInterrupt  # ... and the waiter dies before it sees it
+
+    monkeypatch.setattr(db_mod.threading, "Event", TurnThenInterrupted)
+    with pytest.raises(KeyboardInterrupt):
+        gate.acquire(5)
+    assert gate.state() == {"held": False, "waiting": 0}
+
+
+def test_one_attempt_never_waits_longer_than_the_busy_timeout(db, monkeypatch):
+    """Review M3: the gate queue and SQLite's busy wait share one BUSY_TIMEOUT_S budget, and busy_timeout is restored."""
+    monkeypatch.setattr(db_mod, "BUSY_TIMEOUT_S", 1.0)
+    outside = sqlite3.connect(db.path, isolation_level=None, check_same_thread=False)  # another process's writer: SQLite's busy wait applies
+    holding, done = threading.Event(), threading.Event()
+
+    def hold_gate() -> None:
+        with db.connection(label="in-process holder") as conn:
+            holding.set()
+            done.wait(5)
+            conn.execute("COMMIT")  # SQLite's lock is free, the gate is still held ...
+            outside.execute("BEGIN IMMEDIATE")  # ... and the lock is taken outside the gate before it is handed on
+
+    t = threading.Thread(target=hold_gate)
+    t.start()
+    holding.wait(5)
+    threading.Timer(0.6, done.set).start()
+    before = db_mod.lock_stats()
+    started = time.monotonic()
+    try:
+        with pytest.raises(sqlite3.OperationalError, match="locked"):
+            with db.connection(label="waiter"):
+                pass
+        assert time.monotonic() - started < 1.5  # not 0.6 s in the gate + a full 1 s in SQLite
+    finally:
+        t.join(5)
+        if outside.in_transaction:
+            outside.execute("ROLLBACK")
+        outside.close()
+    after = db_mod.lock_stats()
+    assert after["busy_errors"] == before["busy_errors"] + 1 and after["gate_timeouts"] == before["gate_timeouts"]
+    with db.connection() as conn:
+        assert conn.execute("PRAGMA busy_timeout").fetchone()[0] == 1000
+
+
+def test_a_gate_timeout_is_counted_apart_and_long_waits_are_counted(db, monkeypatch):
+    monkeypatch.setattr(db_mod, "BUSY_TIMEOUT_S", 0.2)
+    before = db_mod.lock_stats()
+    with db.connection(label="holder"):
+        with pytest.raises(sqlite3.OperationalError, match="locked"):
+            with db.write_aside(label="victim"):
+                pass
+    after = db_mod.lock_stats()
+    assert after["gate_timeouts"] == before["gate_timeouts"] + 1 and after["busy_errors"] == before["busy_errors"] + 1
+    db_mod._note_wait(1.5, "slow waiter")
+    stats = db_mod.lock_stats()
+    assert stats["waits_over_1s"] >= 1 and stats["max_wait_recent_s"] >= 1.5 and stats["write_gate"] is True
+
+
 def test_one_gate_per_database_file(tmp_path):
     a, b = Database(tmp_path / "x.db"), Database(tmp_path / "x.db")
     assert a.gate is b.gate
