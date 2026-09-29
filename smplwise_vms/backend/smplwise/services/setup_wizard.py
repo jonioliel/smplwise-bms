@@ -463,7 +463,7 @@ def ha_step(settings: Settings, conn: sqlite3.Connection, *, live: dict[str, Any
     if tc and tc.get("level") == "warn":
         warnings.append(_warning("ha_clock_drift", f"שעון Home Assistant סוטה ב־{_signed(tc['drift_s'])} שניות מה־Add-on.", link))
     if tc and tc.get("zone_match") is False:
-        warnings.append(_warning("ha_zone_mismatch", f"אזור הזמן ב־Home Assistant ({tc['ha_zone']}) שונה מזה של ההתקנה ({tc['zone']}); שעות בהיסטוריית HA יוצגו אחרת מזמני האירועים.", _link("general")))
+        warnings.append(_warning("ha_zone_mismatch", f"אזור הזמן ב־Home Assistant ({tc['ha_zone']}) שונה מזה של ההתקנה ({tc['zone']}); שעות בהיסטוריית HA יוצגו אחרת מזמני האירועים. אזור הזמן של ההתקנה נקבע ב־" + LINKS["media"][1] + ".", _link("media")))
     if tc and tc.get("nvr_ha_s") is not None and drift_level(tc["nvr_ha_s"]) in ("warn", "fail"):
         warnings.append(_warning("nvr_ha_drift", f"שעון ה־NVR ושעון Home Assistant רחוקים זה מזה ב־{abs(tc['nvr_ha_s'])} שניות; התאמת דלת–מצלמה עלולה לפספס.", _link("connections")))
     return _step("ha", "done", f"Home Assistant {evidence['ha_version'] or ''} · הגשר פעיל ומצומד · {evidence['entities']} ישויות".replace("  ", " "), facts=facts,
@@ -649,8 +649,8 @@ def camera_step(conn: sqlite3.Connection, nvr_status: str) -> dict[str, Any]:
         if nvr_status != "done":
             p = _problem("waiting_for_nvr", "אין עדיין מצלמות, כי שלב ה־NVR לא הושלם.", "השלימו את שלב ה־NVR; המצלמות מתגלות ממנו לבד תוך דקה.", _link("connections"))
             return _step("camera", "skipped", p["message"], facts=facts, evidence=evidence, settings_link=editor, problem=p)
-        p = _problem("no_cameras", "ה־NVR מחובר אבל עוד אין מצלמות רשומות.", "גילוי המצלמות רץ בהפעלה וכל 10 דקות; להפעלה מיידית לחצו \"סנכרון מצלמות\" ב"
-                     + LINKS["media"][1] + ".", _link("media"))
+        p = _problem("no_cameras", "ה־NVR מחובר אבל עוד אין מצלמות רשומות.", "גילוי המצלמות רץ בהפעלה וכל 10 דקות; להפעלה מיידית לחצו \"סנכרון מה־NVR\" ב"
+                     + LINKS["devices"][1] + ".", _link("devices"))
         return _step("camera", "todo", p["message"], facts=facts, evidence=evidence, settings_link=editor, problem=p)
     if not published:
         p = _problem("waiting_for_floor", "אין עדיין קומה עם תוכנית מפורסמת להציב עליה מצלמות.", "השלימו את שלב הקומה, ואז הציבו מצלמה בעורך התוכנית.", _link("sites"))

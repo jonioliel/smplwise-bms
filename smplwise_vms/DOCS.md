@@ -42,6 +42,41 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
    appear by themselves within a minute (discovery at start-up and every 10 minutes); הגדרות → מצלמות
    → "סנכרון מה־NVR" refreshes immediately. If the list stays empty, check the add-on log and
    `/api/v1/health` (`discovery.cameras_last_error`).
+5. Open הגדרות → **אשף התקנה** and work down the six steps until it says "מוכן לעבודה" (next section).
+
+## Setup wizard (T071)
+
+הגדרות → אשף התקנה (`#/system/wizard`, system administrators: `system.configure` at installation scope) checks the
+installation in six steps and says, for each one that is not done, what is wrong, what to do next and where:
+
+| Step | Done when | Evidence shown |
+|---|---|---|
+| 1. התקנת ה-Add-on | the database answers (the step's own check runs SQLite `quick_check`), `/data` is writable with at least 512 MB free | version, free space, system administrators, identity source, installation time zone |
+| 2. חיבור ל-NVR | `deviceInfo` answers, the channel list is not empty, the clock drift is at most 30 s and the NVR's UTC offset matches the installation time zone now | model, firmware, channels (online / offline), channels with a main and a sub track, video profiles, clock drift, offset vs expected |
+| 3. Home Assistant והגשר | the add-on's HA connection is live, the SMPLWISE Bridge is paired and loaded (no HA restart pending), HA's clock within 30 s | HA version, entities, bridge state and version, pending restart, HA clock drift and time zone, NVR-HA clock gap |
+| 4. go2rtc | `/api` and `/api/streams` answer and, once cameras exist, `smplwise_` streams are present | version, our streams (active now), expected streams and the missing ones, the number of other products' streams (never their names) |
+| 5. קומה ותוכנית | at least one floor has a published plan | sites / buildings / floors, floors with a published plan, floors without one |
+| 6. מצלמה על המפה | at least one camera is placed on a plan | cameras (enabled), placed, with a known stream profile, unplaced ones |
+
+- Status: **הושלם** (done), **לביצוע** (todo: configuration work remains, or a device step was not checked yet),
+  **נכשל** (failed: a check found a problem) and **ממתין לשלב קודם** (skipped: the camera step waits for the NVR or
+  the floor step). A step that is not done shows the problem, "מה עושים" (the concrete next action) and a link to the
+  settings screen that fixes it; warnings (a clock a few seconds off, channels offline, streams missing, floors
+  without a plan) do not stop a step from passing.
+- Clock thresholds: a device clock within 2 s of the add-on's is fine, up to 30 s is a warning, beyond that the step
+  fails. The NVR's UTC offset is compared with the installation time zone (הגדרות → כללי → וידאו ומדיה, "אזור זמן של האתר וה־NVR") at this moment: a wrong
+  daylight-saving rule on the NVR fails the NVR step, because recording searches are made in the NVR's wall clock and
+  would be an hour off. HA's clock is read from its API's `Date` header (one-second resolution).
+- Reading the wizard (`GET /api/v1/setup/state`) never contacts a device: device steps show the last on-demand check
+  for 10 minutes, otherwise what the add-on's own jobs know (camera discovery, the stream sync, the HA connection),
+  labelled "לפי עבודות הרקע". Opening the screen checks each such step once; "בדוק שוב" on a step (or "בדוק הכול")
+  runs `POST /api/v1/setup/check/{step}` - read-only calls to the NVR, go2rtc and Home Assistant, at most once per
+  user and step every 5 seconds (429 otherwise, and the screen says how long to wait). Every check is audited as
+  `setup.check` with its outcome. Nothing in the wizard writes to the NVR, go2rtc or Home Assistant; the fixes it
+  links to are the existing screens, with their own permissions and confirmations.
+- While steps remain, a system administrator sees "השלם את ההתקנה · n מתוך 6 שלבים הושלמו" above every screen, with a
+  link to the wizard; × hides it until the browser session ends.
+- Without a backend (the design preview) the wizard shows fixture data.
 
 ## Identity and access
 
