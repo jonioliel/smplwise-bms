@@ -247,9 +247,40 @@ export class SwDrawer extends LitElement {
     (el ?? dlg).focus({ preventScroll: true });
   }
 
+  private nestedDialogOpen(): boolean {
+    const dlg = this.dialog;
+    if (!dlg) return false;
+    const walk = (root: Node): boolean => {
+      for (const el of Array.from((root as ParentNode).querySelectorAll?.('*') ?? [])) {
+        if (el.tagName === 'SW-DIALOG' && el.hasAttribute('open')) return true;
+        if (el instanceof HTMLSlotElement && el.assignedElements({ flatten: true }).some((a) => (a.tagName === 'SW-DIALOG' && a.hasAttribute('open')) || walk(a) || (a.shadowRoot ? walk(a.shadowRoot) : false))) return true;
+        if (el.shadowRoot && walk(el.shadowRoot)) return true;
+      }
+      return false;
+    };
+    return walk(dlg);
+  }
+
+  /** Escape is handled here, not by the browser's close request (which it may even skip after a prevented one): with a
+   * confirmation open inside, the key is left to that confirmation (review B1); otherwise it closes the drawer. */
+  private onKeyCapture = (e: KeyboardEvent) => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault(); // no native cancel / close for this key
+    if (this.nestedDialogOpen()) return;
+    this.close();
+  };
+
   private onCancel = (e: Event) => {
     e.preventDefault(); // the dialog closes through `open`, so the opener gets its focus back and `close` is raised
+    if (this.nestedDialogOpen()) return;
     this.close();
+  };
+
+  /** The browser may close a modal dialog itself (a second Escape without a user activation in between skips the
+   * cancel event): keep `open` and the `close` event in step. */
+  private onNativeClose = (e: Event) => {
+    // only the <dialog>'s own close - a nested confirmation's composed `close` bubbles through here too
+    if (e.target === e.currentTarget && this.open) this.close();
   };
 
   /** A press on the dimmed backdrop (outside the panel's box) closes it. */
@@ -275,7 +306,7 @@ export class SwDrawer extends LitElement {
 
   render() {
     if (this.modal) {
-      return html`<dialog class="panel" aria-labelledby="dh" @cancel=${this.onCancel} @click=${this.onDialogClick}>
+      return html`<dialog class="panel" aria-labelledby="dh" @cancel=${this.onCancel} @close=${this.onNativeClose} @click=${this.onDialogClick} @keydown=${{ handleEvent: this.onKeyCapture, capture: true }}>
         <span class="trap" tabindex="0" aria-hidden="true" @focus=${() => this.focusEdge('end')}></span>
         ${this.renderInner()}
         <span class="trap" tabindex="0" aria-hidden="true" @focus=${() => this.focusEdge('start')}></span>

@@ -73,6 +73,15 @@ export class SwDialog extends LitElement {
     }
   `;
 
+  /** Review B1: the control that had focus when the dialog opened - focus returns there when it closes. */
+  private opener: HTMLElement | null = null;
+
+  private restoreFocus() {
+    const back = this.opener;
+    this.opener = null;
+    if (back?.isConnected) requestAnimationFrame(() => back.focus({ preventScroll: true }));
+  }
+
   private close() {
     this.open = false;
     this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
@@ -85,7 +94,11 @@ export class SwDialog extends LitElement {
   /** Keyboard focus moves into the dialog when it opens (the first field, else the first button, else the box):
    * until 0.1.80 it stayed on the page behind, so a keyboard user had to tab through the whole page. */
   updated(changed: Map<string, unknown>) {
+    if (changed.has('open') && !this.open && changed.get('open') === true) this.restoreFocus();
     if (!changed.has('open') || !this.open) return;
+    let a: Element | null = document.activeElement;
+    while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;
+    if (a && !this.contains(a) && !this.shadowRoot?.contains(a)) this.opener = a as HTMLElement;
     requestAnimationFrame(() => {
       const pick = (root: ParentNode): HTMLElement | null => {
         for (const el of root.querySelectorAll<HTMLElement>('[autofocus], input, textarea, select, sw-button, button')) {
@@ -114,6 +127,7 @@ export class SwDialog extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    if (this.open) this.restoreFocus();
     window.removeEventListener('keydown', this.onKey);
   }
 

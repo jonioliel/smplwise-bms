@@ -317,4 +317,49 @@ test.describe('overview tiles against the devices fixture backend', () => {
     await expect(panel.locator('.row[data-entity="lock.cr007t_front"] [data-row-state]')).toHaveText('נעול', { timeout: 10000 });
     await expect(all).toBeDisabled(); // everything is locked now
   });
+
+  test('review B1: Escape, ✕ and the backdrop of a nested confirmation close only that confirmation - the panel stays open and focus returns', async ({ page, request }) => {
+    await seed(request);
+    await request.post('/api/v1/ha/dev/states', { data: { states: [{ entity_id: 'lock.cr007t_front', state: 'unlocked', attributes: { friendly_name: 'דלת כניסה', device_class: 'lock' } }] } });
+    await open(page, '/devices/building?domain=lights');
+    const panel = page.locator('devices-building devices-tiles-panel');
+    const master = panel.locator('button[data-panel-master="lights"]');
+    const question = panel.locator('devices-bulk-dialog [data-bulk-question]');
+    const focusedMaster = () => page.evaluate(() => {
+      let a: Element | null = document.activeElement;
+      while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;
+      return a?.getAttribute('data-panel-master') ?? a?.tagName ?? null;
+    });
+    // Escape
+    await master.click();
+    await expect(question).toBeVisible({ timeout: 10000 });
+    await page.keyboard.press('Escape');
+    await expect(question).toHaveCount(0);
+    await expect(panel).toHaveAttribute('open', '');
+    await expect.poll(focusedMaster).toBe('lights');
+    // ✕
+    await master.click();
+    await expect(question).toBeVisible({ timeout: 10000 });
+    await panel.locator('devices-bulk-dialog sw-dialog sw-button[label="סגור"]').click();
+    await expect(question).toHaveCount(0);
+    await expect(panel).toHaveAttribute('open', '');
+    // the confirmation's own backdrop
+    await master.click();
+    await expect(question).toBeVisible({ timeout: 10000 });
+    await page.mouse.click(4, 4);
+    await expect(question).toHaveCount(0);
+    await expect(panel).toHaveAttribute('open', '');
+    // the lock-all confirmation, the same
+    await page.evaluate(() => (location.hash = '#/devices/building?domain=locks'));
+    const all = panel.locator('button[data-panel-master="locks"]');
+    await all.click({ timeout: 15000 });
+    await expect(panel.locator('sw-dialog[data-lock-all-dialog="confirm"]')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await expect(panel.locator('sw-dialog[data-lock-all-dialog="confirm"]')).toHaveCount(0);
+    await expect(panel).toHaveAttribute('open', '');
+    // and the panel's own Escape still closes it
+    await page.keyboard.press('Escape');
+    await expect(panel).not.toHaveAttribute('open', '');
+    await seed(request);
+  });
 });
