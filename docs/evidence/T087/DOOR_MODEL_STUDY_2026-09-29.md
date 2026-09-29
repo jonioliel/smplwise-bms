@@ -149,3 +149,28 @@ false ones. In order of expected value:
    in 1) to mark doors on real plans first; those marks are the training set.
 
 The DXF path does not apply: the owner's PDFs carry only a raster.
+
+## 6. Follow-up: recommendation 1 built - the "סמן דלת" tool (branch `pilot/T087-door-tool`)
+
+The editor's structure tool gained a "סמן דלת" mode: one click on a door symbol, and `POST
+/plan-versions/{id}/door-proposal` (`smplwise/services/plan_door_tool.py`) proposes the door from a crop of the picture
+at its upload resolution - anchored on the ink near the click, not on detected walls; walls told from symbol lines by
+darkness (on these scans a wall bottoms out at grey 50-120 and is 8-13 px wide below 150, a leaf, chord or arc bottoms
+out at 135-200 and is at most 3 px wide there); templates for the conventions of section 1.1 (arc, chord triangle,
+30-60 degree leaf, arc or "V" double) scored with plan_detect_doors' arc / line pieces plus the jambs; the person
+adjusts width, hinge and swing on a ghost and accepts. Design and decisions: `docs/changes/CR-003-PLAN-STUDIO.md`.
+
+Measured locally on the same 24 sampled doors (the renders at 3000 px; one click per door on the middle of its symbol,
+no walls drawn - the same numbers with a hand-drawn wall through the door). "Right without adjustment": width within
+15 %, centre within a quarter width, the hinge at the right jamb and the swing to the right side (a double door: found
+as double, opening to the right side).
+
+| Floor | Calibrated | Uncalibrated | Per convention (calibrated) |
+|---|---|---|---|
+| 0 | 2 / 8 | 2 / 8 | both single arc doors right (their blurred arcs read as chords); the 4 stall leaves misplaced (one as a bogus double); the 2 "V" doubles wrong (one on the wrong side, one not read as double) |
+| -1 | 2 / 8 | 2 / 8 | both arc doubles right; the single arc doors and the 45 degree leaf with the hinge on the wrong jamb (one of them otherwise right); the 3 "V" / curved doubles not read as double |
+| -2 | 6 / 8 | 6 / 8 | the chord doors, the single arc door and the arc double right (one chord door 26 % narrow); the "V" double on the wrong side |
+| **All** | **10 / 24** | **10 / 24** | no click refused; 2 more need one handle (a hinge flip, a width drag); 12 are misplaced or read as the wrong kind |
+
+Time per click on this workstation while other jobs ran (8 logical cores at ~80 % load, 2.5 GB free): median 435 ms,
+p95 700 ms, max 950 ms - over the 0.3 s target; not measured on a quiet machine.

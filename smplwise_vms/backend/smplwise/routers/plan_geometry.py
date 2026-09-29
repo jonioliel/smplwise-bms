@@ -32,6 +32,8 @@ from .zones import floor_zones
 router = APIRouter()
 NO_CACHE = {"Cache-Control": "private, no-cache"}
 DETECT_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="plan-detect")
+# the door tool's clicks (T087) have a worker of their own: a 60 s detection by another editor never makes them wait
+DOOR_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="door-proposal")
 
 
 def shutdown_detect_pool() -> None:
@@ -39,9 +41,11 @@ def shutdown_detect_pool() -> None:
     running worker: it goes on until it finishes or its own deadline passes, so at most detect_timeout_s after its
     request. A fresh pool takes the old one's place (threads start only on the first submit), so an app created again
     in the same process - the test suite - still detects."""
-    global DETECT_POOL
+    global DETECT_POOL, DOOR_POOL
     old, DETECT_POOL = DETECT_POOL, concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="plan-detect")
     old.shutdown(wait=False, cancel_futures=True)
+    old_door, DOOR_POOL = DOOR_POOL, concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="door-proposal")
+    old_door.shutdown(wait=False, cancel_futures=True)
 
 
 def _layers(raw: str | None) -> set[str] | None:
@@ -408,6 +412,75 @@ def accept_detection(version_id: str, body: AcceptIn, request: Request, principa
     audit(conn, actor=principal, action="geometry.detect.accept", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
           details={"version_id": v["id"], **counts, "edits": len(body.edits), "replace_auto": body.replace_auto, "detector": body.detector.name if body.detector is not None else None})
     return {**_payload(conn, v, saved, store.load_doc(saved)), "merge": counts}
+
+
+# ---------------------------------------------------------------- the door tool (T087, "סמן דלת")
+
+DOOR_PROPOSAL_TIMEOUT_S = 5.0  # a click waits at most this long (or detect_timeout_s, if lower); the target is 0.3 s
+DOOR_DEBUG_KEYS = ("scores", "stats", "hinge_point", "leaf_tip")  # the analysis' own readings: only with ?debug=1
+
+
+class DoorProposalIn(BaseModel):
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    wall_id: str | None = Field(default=None, min_length=1, max_length=64)
+    level_id: str | None = Field(default=None, min_length=1, max_length=64)
+
+
+def _door_job(path: Any, x: float, y: float, walls: list[dict[str, Any]], scale: float, calibrated: bool, wall_id: str | None, deadline: float) -> dict[str, Any]:
+    from ..services import plan_door_tool as pdt  # numpy work in the pool thread, like the detector
+
+    return pdt.propose(pdt.picture(path), x, y, walls, scale, calibrated, wall_id=wall_id, deadline=deadline)
+
+
+@router.post("/plan-versions/{version_id}/door-proposal")
+def door_proposal(version_id: str, body: DoorProposalIn, request: Request, debug: bool = False, principal: Principal = Depends(current_principal_ro),
+                  conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The "סמן דלת" tool: one click (x, y in the picture's 0..1 space) on a door symbol or on the wall where a door is,
+    and the door the local analysis proposes there - the draft wall it sits on and its position (t), or a short wall
+    piece of its own when no draft wall runs along it, the width in version pixels (the client turns it into metres
+    with the document's effective scale), hinge side, swing, what was found and how sure. The analysis reads a small
+    crop of the version's picture at its own resolution (services/plan_door_tool.py) under
+    a short deadline, in a worker of its own. `?debug=1` adds the analysis' readings (scores, stats, the hinge point and
+    leaf tip it read). Nothing is stored, nothing is audited (nothing changes) and no picture leaves the server; the
+    client adds the door to the draft like any other opening once the person accepts it. Needs map.edit on the floor."""
+    settings = settings_of(request)
+    v = _editable(conn, principal, version_id)
+    doc, _row = store.working_doc(conn, v)
+    default_level = next((lv["id"] for lv in doc["levels"] if lv.get("is_default")), pg.DEFAULT_LEVEL_ID)
+    if body.level_id is not None and body.level_id not in {lv["id"] for lv in doc["levels"]}:
+        raise ApiError(422, "unknown_level", "המפלס לא קיים בטיוטת המבנה.")
+    walls = [w for w in doc.get("walls") or [] if isinstance(w, dict) and (body.level_id is None or (w.get("level_id") or default_level) == body.level_id)]
+    if body.wall_id is not None and not any(w.get("id") == body.wall_id for w in walls):
+        raise ApiError(422, "unknown_wall", "הקיר לא נמצא בטיוטה השמורה; שמור וחזור.", details={"wall_id": body.wall_id})
+    src = settings.data_dir / v["image_path"]
+    if not src.exists():
+        raise not_found("תמונת התוכנית חסרה בדיסק.")
+    # the document's effective scale (as the editor turns pixels into metres); a calibration - measured, or the
+    # door-width estimate - also bounds the leaf sizes searched, the bare wall estimate does not
+    scale, _estimated = pg.effective_scale(doc)
+    cal = (doc.get("dimensions") or {}).get("calibration")
+    calibrated = isinstance(cal, dict) and cal.get("status") in ("measured", "estimated")
+    timeout = min(DOOR_PROPOSAL_TIMEOUT_S, float(settings.detect_timeout_s))
+    deadline = time.monotonic() + timeout
+    future = DOOR_POOL.submit(_door_job, src, body.x, body.y, walls, scale, calibrated, body.wall_id, deadline)
+    try:
+        result = future.result(timeout=timeout)
+    except (concurrent.futures.TimeoutError, TimeoutError):
+        future.cancel()
+        raise ApiError(504, "door_proposal_timeout", "ההצעה לא חושבה בזמן; נסה שוב.", retryable=True, details={"timeout_s": timeout})
+    except ValueError as exc:
+        from ..services import plan_door_tool as pdt
+
+        if isinstance(exc, pdt.NoWall):
+            raise ApiError(422, "no_wall", "לא נמצאו סמל דלת או קיר ליד הלחיצה. לחץ על סמל הדלת עצמו, או צייר קודם את הקיר.")
+        raise ApiError(500, "door_proposal_failed", "חישוב ההצעה נכשל.", details={"error": type(exc).__name__})
+    except (OSError, MemoryError, RuntimeError) as exc:
+        raise ApiError(500, "door_proposal_failed", "חישוב ההצעה נכשל.", details={"error": type(exc).__name__})
+    if not debug:
+        for k in DOOR_DEBUG_KEYS:
+            result.pop(k, None)
+    return {**result, "version_id": v["id"], "level_id": body.level_id or default_level}
 
 
 def _export_doc(conn: sqlite3.Connection, principal: Principal, version_id: str, draft: bool) -> tuple[sqlite3.Row, dict[str, Any]]:

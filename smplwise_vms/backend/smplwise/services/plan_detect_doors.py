@@ -58,7 +58,7 @@ def line_mask(an: dict[str, Any]) -> np.ndarray:
     return ps.dilate(an["light"] & ~ps.dilate(an["walls"], 1), 1)
 
 
-def _sample(mask: np.ndarray, pts: np.ndarray) -> np.ndarray:
+def sample(mask: np.ndarray, pts: np.ndarray) -> np.ndarray:
     """mask at the points (..., 2) -> bool (...)."""
     h, w = mask.shape
     xs = np.clip(np.rint(pts[..., 0]).astype(np.int64), 0, w - 1)
@@ -66,7 +66,7 @@ def _sample(mask: np.ndarray, pts: np.ndarray) -> np.ndarray:
     return mask[ys, xs]
 
 
-def _arc_pts(c: np.ndarray, r: np.ndarray, u: np.ndarray, n: np.ndarray, lo: float, hi: float, count: int) -> np.ndarray:
+def arc_pts(c: np.ndarray, r: np.ndarray, u: np.ndarray, n: np.ndarray, lo: float, hi: float, count: int) -> np.ndarray:
     """Points on the circles about the centres c (k x 2) with radii r (k) from direction u (k x 2, angle 0) toward
     n (k x 2, angle 90 degrees), fractions lo..hi of the quarter (may pass 1 or go below 0): k x count x 2."""
     th = np.linspace(lo, hi, count) * (math.pi / 2)
@@ -74,13 +74,13 @@ def _arc_pts(c: np.ndarray, r: np.ndarray, u: np.ndarray, n: np.ndarray, lo: flo
     return c[:, None, :] + (cs * u[:, None, :] + sn * n[:, None, :]) * r[:, None, None]
 
 
-def _line_pts(a: np.ndarray, b: np.ndarray, lo: float, hi: float, count: int) -> np.ndarray:
+def line_pts(a: np.ndarray, b: np.ndarray, lo: float, hi: float, count: int) -> np.ndarray:
     t = np.linspace(lo, hi, count)[None, :, None]
     return a[:, None, :] + (b - a)[:, None, :] * t
 
 
 def _ratio(mask: np.ndarray, pts: np.ndarray) -> np.ndarray:
-    return _sample(mask, pts).mean(axis=1)
+    return sample(mask, pts).mean(axis=1)
 
 
 def _anchors(walls: list[Any], reach: float = 0.0):
@@ -123,22 +123,22 @@ def find_doors(walls: list[Any], an: dict[str, Any], s: float, calibrated: bool,
         stats["templates"] += len(H)
         tip = H + N * R[:, None]
         latch = H + U * R[:, None]
-        leaf = _ratio(leaf_mask, _line_pts(H, tip, 0.25, 0.85, 10))
+        leaf = _ratio(leaf_mask, line_pts(H, tip, 0.25, 0.85, 10))
         ok = leaf >= V2_LEAF_MIN
         if not ok.any():
             continue
         H, R, U, N, tip, latch, leaf = H[ok], R[ok], U[ok], N[ok], tip[ok], latch[ok], leaf[ok]
-        arc = _ratio(m, _arc_pts(H, R, U, N, 0.15, 0.85, 20))
-        chord = _ratio(m, _line_pts(tip, latch, 0.2, 0.8, 12))
+        arc = _ratio(m, arc_pts(H, R, U, N, 0.15, 0.85, 20))
+        chord = _ratio(m, line_pts(tip, latch, 0.2, 0.8, 12))
         ok = (arc >= V2_ARC_MIN) | (chord >= V2_CHORD_MIN)
         if not ok.any():
             continue
         H, R, U, N, leaf, arc, chord = H[ok], R[ok], U[ok], N[ok], leaf[ok], arc[ok], chord[ok]
         stats["shape_pass"] += int(ok.sum())
-        ring_in = _ratio(m, _arc_pts(H, R * 0.7, U, N, 0.25, 0.75, 20))
-        ring_out = _ratio(m, _arc_pts(H, R * 1.3, U, N, 0.25, 0.75, 20))
-        past_leaf = _ratio(m, _arc_pts(H, R, U, N, 1.15, 1.6, 10))  # beyond the open leaf, away from the latch
-        far_side = _ratio(m, _arc_pts(H, R, U, -N, 0.3, 0.8, 10))  # the same quarter on the other side of the wall
+        ring_in = _ratio(m, arc_pts(H, R * 0.7, U, N, 0.25, 0.75, 20))
+        ring_out = _ratio(m, arc_pts(H, R * 1.3, U, N, 0.25, 0.75, 20))
+        past_leaf = _ratio(m, arc_pts(H, R, U, N, 1.15, 1.6, 10))  # beyond the open leaf, away from the latch
+        far_side = _ratio(m, arc_pts(H, R, U, -N, 0.3, 0.8, 10))  # the same quarter on the other side of the wall
         ok = (ring_in <= V2_RING_MAX) & (ring_out <= V2_RING_MAX) & (past_leaf <= V2_BEYOND_MAX) & (far_side <= V2_BEYOND_MAX)
         # a chord symbol is a straight line: without the arc it must also be clear of the arc itself (a filled or
         # hatched triangle is not a door)

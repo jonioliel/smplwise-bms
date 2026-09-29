@@ -12,7 +12,8 @@ import '../components/sw-toggle';
 import '../components/sw-dialog';
 import '../components/sw-chip';
 import '../map/sw-plan-canvas';
-import type { GeomDragDetail, GeomDragMode, PlanMarker, MarkerSelectDetail, PlanZone, RulerOverlay, SwPlanCanvas } from '../map/sw-plan-canvas';
+import type { GeomDragDetail, GeomDragMode, GhostHandleDetail, PlanMarker, MarkerSelectDetail, PlanZone, RulerOverlay, SwPlanCanvas } from '../map/sw-plan-canvas';
+import { acceptGhost, defaultGhost, existingOpening, flipHinge, flipSwing, ghostDoc, ghostFromProposal, ghostHandles, ghostWall, ghostWidthTo, onGhost, type DoorGhost } from '../map/door-tool';
 import type { IconName } from '../components/sw-icon';
 import { navigate } from '../router';
 import { cameraState, createAnchor, deleteAnchor, listVersions, loadMap, publishVersion, rollbackVersion, updateAnchor, versionDiff, type MapBundle, type VersionDiff, realignAnchors } from '../api/maps';
@@ -21,6 +22,7 @@ import type { Anchor, Camera, PlanVersion } from '../api/types';
 import { domainLabel, entityMarkerKind, listEntities, stateLabel, type HaEntity } from '../api/ha';
 import { ROOM_FILL_LABEL, setRenderMode, stylizeVersion, type RoomFill, type StylizeResult } from '../api/plans';
 import { ZONE_KINDS, acceptZones, createZone, deleteZone, detectZones, pointInPolygon, updateZone, zoneKindLabel, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
+import { proposeDoor } from '../api/geometry';
 import { acceptDetection, calibrate, calibrateEstimate, copyGeometryFrom, detectStructure, exportUrl, geometryDiff, linkConnector, publishGeometry, type DetectResult, type DetectTarget, type GeometryDiffResponse } from '../api/geometry';
 import { allIds, byConfidence, byKind, defaultStates, fromResult, moveVertex as moveCandidateVertex, rescale, takeDxfCandidates, withParents, type CandidateSet, type CandKind, type CandState } from '../map/candidates';
 import { loadTree, type CatalogTree } from '../api/catalog';
@@ -187,6 +189,11 @@ export class ExplorePlanEditor extends LitElement {
   private studio = new StudioController(this);
   private studioVersion: string | null = null;
   @state() private studioMode: StudioMode = 'wall';
+  /** The "סמן דלת" tool (T087): the door proposed for the last click, shown as a ghost until accepted or cancelled. */
+  @state() private doorGhost: DoorGhost | null = null;
+  @state() private doorAsking = false;
+  /** Every proposal request takes a token; only the answer of the latest one becomes the ghost. */
+  private doorToken = 0;
   @state() private wallDefaults: WallDefaults = { thickness_m: 0.2, kind: 'interior' };
   @state() private geomSel: GeomSel | null = null;
   /** T085 multi-select (owner report 2026-09-26): two or more walls, objects and zones selected together in the select
@@ -1074,6 +1081,7 @@ export class ExplorePlanEditor extends LitElement {
     const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
     if (e.key === 'Escape') {
       if (this.shortcutsOpen) { this.shortcutsOpen = false; return; }
+      if (this.doorGhost || this.doorAsking) { this.dropDoorGhost(); return; } // the proposal first; a second Esc clears the selection
       if (this.arrayDialog || this.groupDelete || this.customDialog) { this.arrayDialog = null; this.groupDelete = null; this.customDialog = null; return; }
       if (this.connStart) { this.connStart = null; return; }
       if (this.tool === 'circuits' && this.circuitPlacing) { this.circuitPlacing = null; return; } // first Esc: the armed lamp type
@@ -1114,6 +1122,12 @@ export class ExplorePlanEditor extends LitElement {
     // key it answers, exactly like the panel and drawing shortcuts it is standing in for
     if (this.panMode) return;
     if (this.multiOn && this.handleMultiKey(e)) return;
+    // D: the "סמן דלת" tool (the physical key, so the Hebrew layout's "ג" works too); structure editors on a desktop
+    if (e.code === 'KeyD' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && this.bundle?.permissions.structure && this.studio.doc && !this.phone.matches && !this.detectBusy) {
+      e.preventDefault();
+      this.startMarkDoor();
+      return;
+    }
     if ((this.studioOn || this.selectGeomOn) && this.handleStudioKey(e)) return;
     if (e.key === 'Enter' && this.drawing) {
       e.preventDefault();
@@ -1511,6 +1525,7 @@ export class ExplorePlanEditor extends LitElement {
 
   private pickTool(tool: Tool) {
     if (this.detectBusy && tool !== this.tool) return;
+    this.dropDoorGhost();
     this.tool = tool;
     this.placing = null;
     this.wallDraft = null;
@@ -2105,6 +2120,7 @@ export class ExplorePlanEditor extends LitElement {
       this.geomSel = null;
       this.multi = []; // like a single selection: the undone document may not have the members any more
       this.lastEdit = 'structure';
+      this.dropOrphanGhost();
     } else if (t === 'pins') {
       this.doUndo();
       this.lastEdit = 'pins'; // a fallback undo moves the domain, so the next redo mirrors it
@@ -2118,6 +2134,7 @@ export class ExplorePlanEditor extends LitElement {
       this.geomSel = null;
       this.multi = [];
       this.lastEdit = 'structure';
+      this.dropOrphanGhost();
     } else if (t === 'pins') {
       this.doRedo();
       this.lastEdit = 'pins';
@@ -2187,6 +2204,7 @@ export class ExplorePlanEditor extends LitElement {
     else if (this.tool === 'measure') this.hover = this.snap(p, this.measurePts.at(-1) ?? null, shift);
     else if (this.studioMode === 'wall') this.hover = this.snapDraw(p, this.wallDraft ?? [], shift);
     else if (this.studioMode === 'label') this.hover = p;
+    else if (this.studioMode === 'markdoor') this.hover = null;
     else {
       // no dot where a click would take an existing opening rather than place a new one
       const hit = nearestWall(p, this.shownWalls(doc), b.width, b.height, WALL_PICK_PX / (this.canvas?.zoom ?? 1));
@@ -2265,6 +2283,10 @@ export class ExplorePlanEditor extends LitElement {
       return;
     }
     if (mode === 'select') return;
+    if (mode === 'markdoor') {
+      void this.markDoorClick(p);
+      return;
+    }
     const hit = nearestWall(p, this.shownWalls(doc), b.width, b.height, WALL_PICK_PX / zoom);
     if (!hit) {
       this.info = 'לחץ על קיר כדי להציב פתח';
@@ -2282,6 +2304,143 @@ export class ExplorePlanEditor extends LitElement {
     this.studio.commit(r.doc);
     this.lastEdit = 'structure';
     this.geomSel = { id: r.id, kind: 'opening' };
+  }
+
+  /** The "סמן דלת" tool (T087): the structure tool in its mark-door mode (the D key, or the mode's button). */
+  private startMarkDoor() {
+    const draft = this.wallDraft;
+    if (draft && draft.length >= 2) {
+      this.finishWall(); // a wall being drawn is kept, not thrown away by the shortcut
+      this.flash('הקיר שבציור נשמר; סמן דלת פעיל');
+    } else if (draft) {
+      this.flash('נקודת הקיר שהתחלת בוטלה; סמן דלת פעיל');
+    }
+    if (this.tool !== 'structure') this.pickTool('structure');
+    this.studioMode = 'markdoor';
+    this.wallDraft = null;
+    this.hover = null;
+  }
+
+  private flash(text: string, ms = 3500) {
+    this.info = text;
+    setTimeout(() => {
+      if (this.info === text) this.info = '';
+    }, ms);
+  }
+
+  /** An undo / redo that took the ghost's wall away (the draft wall it stood on) takes the ghost too, and says so. */
+  private dropOrphanGhost() {
+    const doc = this.studio.doc;
+    if (this.doorGhost && doc && !ghostWall(doc, this.doorGhost)) {
+      this.dropDoorGhost();
+      this.flash('הקיר של ההצעה הוסר; ההצעה בוטלה');
+    }
+  }
+
+  /** Clicking an accepted door's symbol again: that door is selected, no second one stacked on it. */
+  private selectExisting(g: DoorGhost): boolean {
+    const doc = this.studio.doc;
+    const b = this.bundle;
+    const o = doc && b ? existingOpening(doc, g, b.width, b.height) : null;
+    if (!o) return false;
+    this.doorGhost = null;
+    this.geomSel = { id: o.id, kind: 'opening' };
+    this.flash('כאן כבר יש דלת: היא נבחרה');
+    return true;
+  }
+
+  private dropDoorGhost() {
+    this.doorToken++; // an answer still on its way is not shown any more
+    this.doorGhost = null;
+    this.doorAsking = false;
+  }
+
+  /** A click in the mark-door mode: on the ghost it accepts it; elsewhere the ghost shown is accepted (consecutive
+   * clicks add doors quickly) and the server proposes the door at the new click from the plan's drawing. The saved draft
+   * is what the server reads, so a pending save goes first. The demo plan has no server: the default door on the wall
+   * clicked, as the door tool places it. */
+  private async markDoorClick(p: Pt) {
+    const b = this.bundle;
+    if (!b || !this.studio.doc || this.doorAsking) return;
+    const W = b.width;
+    const H = b.height;
+    if (this.doorGhost) {
+      const onIt = onGhost(this.studio.doc, this.doorGhost, p, W, H);
+      this.acceptDoorGhost();
+      if (onIt) return;
+    }
+    const doc = this.studio.doc;
+    const zoom = this.canvas?.zoom ?? 1;
+    const hit = nearestWall(p, this.shownWalls(doc), W, H, WALL_PICK_PX / zoom);
+    if (b.source !== 'api' || !b.planVersionId) {
+      if (!hit) {
+        this.info = 'לחץ על קיר כדי להציב דלת';
+        setTimeout(() => (this.info = ''), 2500);
+        return;
+      }
+      const dg = defaultGhost(doc, hit.wall, hit.t, p, W, H);
+      if (!this.selectExisting(dg)) this.doorGhost = dg;
+      return;
+    }
+    const token = ++this.doorToken;
+    this.doorAsking = true;
+    try {
+      await this.studio.flush();
+      const level = this.activeLevel;
+      const r = await proposeDoor(b.planVersionId, { x: +p[0].toFixed(5), y: +p[1].toFixed(5), ...(hit ? { wall_id: hit.wall.id } : {}), ...(level ? { level_id: level } : {}) });
+      const cur = this.studio.doc;
+      if (token !== this.doorToken || !cur || this.tool !== 'structure' || this.studioMode !== 'markdoor') return;
+      const g = ghostFromProposal(cur, r, W, H, this.wallDefaults);
+      if (!ghostWall(cur, g)) {
+        this.info = 'הקיר של ההצעה לא נמצא בטיוטה; שמור ונסה שוב';
+        setTimeout(() => (this.info = ''), 4000);
+        return;
+      }
+      if (!this.selectExisting(g)) this.doorGhost = g;
+    } catch (err) {
+      if (token !== this.doorToken) return;
+      this.info = err instanceof ApiError && err.code === 'door_proposal_timeout' ? 'ההצעה לא חושבה בזמן; לחץ שוב' : describeError(err);
+      setTimeout(() => (this.info = ''), 4500);
+    } finally {
+      if (token === this.doorToken) this.doorAsking = false;
+    }
+  }
+
+  /** The ghost becomes an ordinary opening (with the wall piece it brings, if any): one undo step, selected. */
+  private acceptDoorGhost() {
+    const g = this.doorGhost;
+    const doc = this.studio.doc;
+    const b = this.bundle;
+    this.doorGhost = null;
+    if (!g || !doc || !b) return;
+    if (this.selectExisting(g)) return;
+    const r = acceptGhost(doc, g, b.width, b.height, this.wallDefaults, this.placeOpts(doc).levelId);
+    if (!r) return;
+    this.studio.commit(r.doc);
+    this.lastEdit = 'structure';
+    this.geomSel = { id: r.openingId, kind: 'opening' };
+  }
+
+  private onGhostHandle(d: GhostHandleDetail) {
+    const g = this.doorGhost;
+    const doc = this.studio.doc;
+    const b = this.bundle;
+    if (!g || !doc || !b) return;
+    if (d.id === 'accept') this.acceptDoorGhost();
+    else if (d.id === 'hinge') this.doorGhost = flipHinge(g);
+    else if (d.id === 'swing') this.doorGhost = flipSwing(g);
+    else if (d.id === 'width' && d.x !== undefined && d.y !== undefined) this.doorGhost = ghostWidthTo(doc, g, [d.x, d.y], b.width, b.height);
+  }
+
+  /** The mark-door hint line over the canvas (T087): what to do, then - with a proposal shown - what was found, its
+   * warning and the accept / cancel buttons (the same as Enter and Esc). */
+  private renderMarkDoorHint() {
+    const g = this.doorGhost;
+    if (this.doorAsking) return html`<div class="placing-hint" data-mark-door-hint="asking"><span>מחפש את הדלת בשרטוט…</span></div>`;
+    if (!g) return html`<div class="placing-hint" data-mark-door-hint="idle"><span>סמן דלת: לחץ על סמל הדלת בתוכנית · Esc לביטול</span></div>`;
+    const width = fmtMetres(g.width_m, effectiveScale(this.studio.doc!).estimated, this.showEstimates);
+    return html`<div class="placing-hint bindbar" data-mark-door-hint="ghost" data-ghost-found=${g.found}><span><b data-ghost-note-text>${g.note}</b> · ${width}${g.warning ? html` · <span data-ghost-warning>${g.warning}</span>` : nothing}
+      <button data-ghost-accept-btn @click=${() => this.acceptDoorGhost()}>אשר (Enter)</button><button data-ghost-cancel-btn @click=${() => this.dropDoorGhost()}>בטל (Esc)</button></span></div>`;
   }
 
   private finishWall() {
@@ -3032,6 +3191,11 @@ export class ExplorePlanEditor extends LitElement {
   private handleStudioKey(e: KeyboardEvent): boolean {
     const mod = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
+    if (e.key === 'Enter' && this.doorGhost) {
+      e.preventDefault();
+      this.acceptDoorGhost();
+      return true;
+    }
     if (e.key === 'Enter' && this.wallDraft) {
       e.preventDefault();
       this.finishWall();
@@ -3591,6 +3755,7 @@ export class ExplorePlanEditor extends LitElement {
             return;
           }
           this.studioMode = m;
+          this.dropDoorGhost();
           this.wallDraft = null;
           this.hover = null;
           // corner handles live in select mode only: elsewhere the wall itself stays selected
@@ -4155,6 +4320,8 @@ export class ExplorePlanEditor extends LitElement {
                   .geometry=${this.geomPreview ?? this.studio.doc} .geomDrag=${this.geomDragMode} .structureLevel=${this.activeLevel} .selectedGeomId=${this.geomSel?.id ?? null} .highlightIds=${this.geomSel?.kind === 'group' ? (this.studio.doc?.groups.find((g) => g.id === this.geomSel!.id)?.member_ids ?? []) : this.tool === 'circuits' && this.circuitSel ? (this.studio.doc?.circuits.find((k) => k.id === this.circuitSel)?.member_ids ?? []) : this.multiShown.map((i) => i.id)} .selectedVertex=${this.geomSel?.vertex ?? null} .issueIds=${this.issueIds}
                   .cornerSnapPx=${this.tool === 'structure' && this.studioMode === 'wall' ? CORNER_SNAP_PX : 0}
                   .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null} .rulers=${this.rulers} .gridStep=${this.studio.doc ? this.gridPx(this.studio.doc) : 0} .guides=${this.guides} .catalog=${this.catalogLookup}
+                  .ghost=${this.doorGhost && this.studio.doc ? ghostDoc(this.studio.doc, this.doorGhost, this.wallDefaults) : null} .ghostNote=${this.doorGhost?.note ?? ''} .ghostWarn=${!!this.doorGhost && (this.doorGhost.found === 'default' || !!this.doorGhost.warning)}
+                  .ghostHandles=${this.doorGhost && this.studio.doc ? ghostHandles(this.studio.doc, this.doorGhost, b.width, b.height) : []} @ghost-handle=${(e: CustomEvent<GhostHandleDetail>) => this.onGhostHandle(e.detail)}
                   .candidates=${this.tool === 'detect' && this.cands ? this.cands.set : null} .candidateStates=${this.candStates} .selectedCandidateId=${this.candSel} .candidateEditable=${this.tool === 'detect' && !this.narrow && !this.busy}
                   @candidate-select=${(e: CustomEvent<{ id: string }>) => this.toggleCandidate(e.detail.id)}
                   @candidate-drag=${(e: CustomEvent<{ id: string; index: number; x: number; y: number }>) => this.onCandidateDrag(e.detail)} .anchorPositions=${this.anchorPositions}
@@ -4184,6 +4351,7 @@ export class ExplorePlanEditor extends LitElement {
                   : nothing}
                 ${this.bindOffer ? html`<div class="placing-hint bindbar" data-bind-offer><span>העצם ליד ${this.anchorName(this.bindOffer.anchor)} — להפוך אותו לגוף של הישות?
                     <button data-bind-accept @click=${() => this.bindObject(this.bindOffer!.objectId, this.bindOffer!.anchor)}>הצמד לישות</button><button data-bind-dismiss @click=${() => { this.bindRefused.add(this.bindOffer!.objectId); this.bindOffer = null; }}>לא</button></span></div>` : nothing}
+                ${this.tool === 'structure' && this.studioMode === 'markdoor' && this.studio.doc ? this.renderMarkDoorHint() : nothing}
                 ${this.wallDraft ? html`<div class="placing-hint"><span>ציור קיר: ${this.wallDraft.length} נקודות · Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים · לחיצה על הנקודה הראשונה סוגרת מתאר · Esc לביטול</span></div>` : nothing}
                 <div class="legend"><span><i></i>מצלמות · ${cams}</span><span><i class="ent"></i>ישויות HA · ${ents}</span><span><i class="zone"></i>אזורים · ${this.zones.length}</span></div>
               </div>
