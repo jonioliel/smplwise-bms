@@ -172,7 +172,12 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
     share_at = at_iso if share_mode == "at" else None
     can_attach = lambda hf: authorize(conn, principal, "map.read", ("floor", hf)).reason != "explicit_deny"  # noqa: E731
     mirrored_zones, mirrored = shared_spaces.bundle_parts(conn, floor_id, version, share_at, can_attach=can_attach)
-    mirrored = [(a, o) for a, o in mirrored if (cam_scope.allows(a["resource_id"]) if a["resource_type"] == "camera" else not camera_only)]
+    # owner 2026-09-30: a member shows through the shared space only as far as the reader's OWN permissions allow that
+    # member - a camera through camera_scope, a device through its entity's visibility (a deny on it hides it)
+    from .ha import _entity_allowed as _member_entity_ok
+
+    mirrored = [(a, o) for a, o in mirrored if (cam_scope.allows(a["resource_id"]) if a["resource_type"] == "camera"
+                                                else (not camera_only and _member_entity_ok(conn, principal, a["resource_id"], "entity.state.read")))]
     if not camera_only:
         from ..services import plan_geometry as _pg
 

@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field, field_validator
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, require
@@ -331,18 +331,76 @@ class MemberIn(BaseModel):
     resource_id: str = Field(min_length=1, max_length=120)
 
 
+def _can_manage_members(conn: sqlite3.Connection, principal: Principal, floors: tuple[str, ...] | list[str]) -> bool:
+    """The share rights without raising: map.edit and placement.edit on every floor of the room (the per-anchor action's
+    rule; a camera additionally needs placement reach, checked when it is added)."""
+    from ..rbac import authorize
+
+    return all(authorize(conn, principal, p, ("floor", f)).allowed for f in floors for p in ("map.edit", "placement.edit"))
+
+
+def _member_kind(resource_type: str, resource_id: str) -> str:
+    if resource_type == "camera":
+        return "camera"
+    domain = resource_id.split(".", 1)[0]
+    return "door" if domain in ("lock", "doorbell", "intercom", "event") or "door" in resource_id else "device"
+
+
 @router.get("/zones/{zone_id}/share/members")
-def list_members(zone_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_members(zone_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """"חברים בחלל המשותף" (owner 2026-09-30): whoever reaches ANY floor that shows the room sees, of its members, exactly
+    what their own permissions allow per member - a camera through camera_scope (a deny on the camera, and later the
+    per-person camera permissions, hide it), a device through its entity's visibility - never more because it is shared.
+    Each member names the floors it is anchored on (a floor the reader may not read is "קומה אחרת"). `can_manage`: the
+    share rights on every floor (add / remove); then `candidates` lists the anchors of the room's floors that are not
+    members yet (the ones the reader sees)."""
     z = _get_zone(conn, zone_id)
     group = shared_spaces.group_of_zone(conn, zone_id)
     if group is None:
         raise not_found("החדר אינו משותף.")
-    from ..rbac import authorize
+    from ..services.access import camera_scope, floor_reach
+    from .ha import _entity_allowed
 
-    if not any(authorize(conn, principal, "map.edit", ("floor", f)).allowed for f in group.floors):
-        require(conn, principal, "map.edit", ("floor", z["floor_id"]))
-    return {"zone_id": zone_id, "floors": list(group.floors),
-            "members": [{"resource_type": m["resource_type"], "resource_id": m["resource_id"], "added_at": m["added_at"]} for m in shared_spaces.member_rows(conn, zone_id)]}
+    reach = {f: floor_reach(conn, principal, f) for f in group.floors}
+    if not any(r is not None for r in reach.values()):
+        require(conn, principal, "map.read", ("floor", z["floor_id"]))  # the audited 403
+    cams = camera_scope(conn, principal, "map.read")
+    names = {r["id"]: r["name"] for r in conn.execute(f"SELECT id, name FROM floors WHERE id IN ({','.join('?' * len(group.floors))})", group.floors).fetchall()}
+
+    def visible(rtype: str, rid: str) -> bool:
+        return cams.allows(rid) if rtype == "camera" else _entity_allowed(conn, principal, rid, "entity.state.read")
+
+    def label(rtype: str, rid: str) -> str:
+        if rtype == "camera":
+            r = conn.execute("SELECT alias, name_source, channel FROM cameras WHERE id = ?", (rid,)).fetchone()
+            return (r["alias"] or r["name_source"] or f"ערוץ {r['channel']}") if r is not None else rid
+        r = conn.execute("SELECT name FROM ha_entities WHERE entity_id = ?", (rid,)).fetchone()
+        return (r["name"] or rid) if r is not None else rid
+
+    q = ",".join("?" * len(group.floors))
+    live = conn.execute(f"SELECT id, floor_id, resource_type, resource_id FROM map_anchors WHERE effective_to IS NULL AND floor_id IN ({q}) ORDER BY floor_id, resource_type, resource_id",
+                        group.floors).fetchall()
+    placed: dict[tuple[str, str], list[str]] = {}
+    for a in live:
+        placed.setdefault((a["resource_type"], a["resource_id"]), [])
+        if a["floor_id"] not in placed[(a["resource_type"], a["resource_id"])]:
+            placed[(a["resource_type"], a["resource_id"])].append(a["floor_id"])
+    fl = lambda fid: {"floor_id": fid, "name": names.get(fid, "") if reach.get(fid) is not None else shared_spaces.OTHER_FLOOR}  # noqa: E731
+    members = []
+    keys: set[tuple[str, str]] = set()
+    for m in shared_spaces.member_rows(conn, zone_id):
+        key = (m["resource_type"], m["resource_id"])
+        keys.add(key)
+        if not visible(*key):
+            continue
+        members.append({"resource_type": key[0], "resource_id": key[1], "kind": _member_kind(*key), "name": label(*key), "added_at": m["added_at"],
+                        "floors": [fl(f) for f in placed.get(key, [])]})
+    manage = _can_manage_members(conn, principal, group.floors)
+    out: dict[str, Any] = {"zone_id": zone_id, "floors": [fl(f) for f in group.floors], "members": members, "can_manage": manage}
+    if manage:
+        out["candidates"] = [{"resource_type": k[0], "resource_id": k[1], "kind": _member_kind(*k), "name": label(*k), "floors": [fl(f) for f in fs]}
+                             for k, fs in sorted(placed.items()) if k not in keys and visible(*k)]
+    return out
 
 
 @router.post("/zones/{zone_id}/share/members", status_code=201)
@@ -370,15 +428,14 @@ def add_member(zone_id: str, body: MemberIn, request: Request, principal: Princi
 @router.delete("/zones/{zone_id}/share/members/{resource_type}/{resource_id}", status_code=204)
 def remove_member(zone_id: str, resource_type: str, resource_id: str, request: Request, principal: Principal = Depends(current_principal),
                   conn: sqlite3.Connection = Depends(get_conn)) -> None:
-    """"הסר מהחלל המשותף": narrows reach at once (revocation.mark) - placement.edit on any floor of the room."""
+    """"הסר מהחלל המשותף": narrows reach at once (revocation.mark). Owner 2026-09-30: the same rights as adding - the
+    share rights on every floor of the room (map.edit + placement.edit), from the members list or the anchor alike."""
     z = _get_zone(conn, zone_id)
     group = shared_spaces.group_of_zone(conn, zone_id)
-    from ..rbac import authorize
     from ..services import revocation
 
     floors = group.floors if group is not None else (z["floor_id"],)
-    if not any(authorize(conn, principal, "placement.edit", ("floor", f)).allowed for f in floors):
-        require(conn, principal, "placement.edit", ("floor", z["floor_id"]))
+    _share_rights(conn, principal, floors, apply=True)
     if not shared_spaces.remove_member(conn, zone_id, resource_type, resource_id, principal.user_id, now_iso()):
         raise not_found("הפריט אינו חלק מהחלל המשותף.")
     audit(conn, actor=principal, action="zone.share.member_remove", decision="allowed", resource_type="zone", resource_id=zone_id, request_id=_rid(request),

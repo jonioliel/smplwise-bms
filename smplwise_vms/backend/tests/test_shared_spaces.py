@@ -380,12 +380,45 @@ def test_an_alarm_managed_member_stays_read_only_on_every_floor_of_the_room(sett
     assert ent["alarm_managed"] is True and ent["actions"] == []
 
 
+def test_owner_members_list_filters_each_member_by_the_readers_own_permissions(settings):
+    """Owner 2026-09-30, "חברים בחלל המשותף": whoever reaches any floor of the room sees the members their own permissions
+    allow, each with the floors it is anchored on; the share rights (both floors) add and remove, others read only."""
+    w = _world(settings)
+    c, cams = w["c"], w["cams"]
+    _share(w)
+    for u in ("dana", "noa", "ofer", "zed"):
+        c.get("/api/v1/me", headers=as_user(u))
+    _binding(settings, "dana", "viewer", "floor", w["f3"])
+    _binding(settings, "noa", "viewer", "floor", w["f3"])
+    _binding(settings, "noa", "viewer", "camera", cams["camH"], effect="deny")
+    _binding(settings, "ofer", "editor", "floor", w["f3"])
+    url = f"/api/v1/zones/{w['hall']}/share/members"
+    admin = c.get(url).json()
+    ids = {(m["resource_type"], m["resource_id"]) for m in admin["members"]}
+    assert ids == {("camera", cams["camH"]), ("camera", cams["camD"]), ("ha_entity", "light.hall")} and admin["can_manage"] is True
+    camh = next(m for m in admin["members"] if m["resource_id"] == cams["camH"])
+    assert camh["kind"] == "camera" and camh["name"] == "camH" and [f["floor_id"] for f in camh["floors"]] == [w["f2"]]
+    assert {x["resource_id"] for x in admin["candidates"]} >= {cams["camA"], cams["cam3"], "light.corridor"}
+    d = c.get(url, headers=as_user("dana"))
+    assert d.status_code == 200 and d.json()["can_manage"] is False and "candidates" not in d.json()
+    assert {m["resource_id"] for m in d.json()["members"]} == {cams["camH"], cams["camD"], "light.hall"}
+    assert next(m for m in d.json()["members"] if m["resource_id"] == cams["camH"])["floors"][0]["name"] == "קומה אחרת", "floor 2 is not hers to name"
+    # a deny on the hall camera hides it from her list AND from her map, though the room is shared
+    n = c.get(url, headers=as_user("noa")).json()
+    assert cams["camH"] not in {m["resource_id"] for m in n["members"]}
+    assert cams["camH"] not in {a["resource_id"] for a in c.get(f"/api/v1/floors/{w['f3']}/map", headers=as_user("noa")).json()["anchors"]}
+    assert c.get(url, headers=as_user("zed")).status_code == 403  # no floor of the room
+    # removing needs the share rights on BOTH floors, like adding
+    assert c.delete(f"{url}/camera/{cams['camD']}", headers=as_user("ofer")).status_code == 403
+    assert c.delete(f"{url}/camera/{cams['camD']}").status_code == 204
+
+
 def test_a_misplaced_placement_warns_to_check_the_alignment(settings):
     w = _wide(settings)
     c = w["c"]
     _share(w)
     s = c.get(f"/api/v1/zones/{w['hall']}/share/members").json()
-    assert s["floors"] == [w["f2"], w["f3"]]
+    assert [f["floor_id"] for f in s["floors"]] == [w["f2"], w["f3"]]
     r = c.patch(f"/api/v1/zones/{w['hall']}/share/{w['f3']}", json={"revision": 1, "mode": "fit", "from": [0.4, 0.4], "to": [0.8, 0.8], "rotation_deg": 0, "scale": 1})
     assert r.status_code == 200, r.text
     d3 = _draft(c, w["v3"])
