@@ -5120,7 +5120,8 @@
       "PLAN_STUDIO_DESIGN_HE.md subsection and user guide section '׳—׳׳ ׳׳©׳•׳×׳£ ׳׳©׳×׳™ ׳§׳•׳׳•׳×'"
     ],
     "evidence": [
-      "2026-09-29: owner requirement approved from a mockup (the sports hall exists on floors 0 and -1; decisions: edit from either floor, same look on both maps with a floor chip, a user of one floor sees the whole hall incl. cameras and devices, source floor = the lower one). Design note CR-009 written before the build."
+      "2026-09-29: owner requirement approved from a mockup (the sports hall exists on floors 0 and -1; decisions: edit from either floor, same look on both maps with a floor chip, a user of one floor sees the whole hall incl. cameras and devices, source floor = the lower one). Design note CR-009 written before the build.",
+      "2026-09-29 (branch pilot/CR009-shared-space, commits bc0fe93 1f979cf ebab091; not merged, no version bump): built as designed - migration 0036_shared_spaces.sql, services/shared_spaces.py (attach on read, edit routing planned before any write, conversion preview/apply, the one reach helper for rbac/access/ha_scope/events/search/site tree), share/unshare/placement routes, UI (chip, editing from the other floor with guardShared, share dialog, 3D plate hole and wall volume, view_hash cache key, search on the current floor). Tests: backend test_shared_spaces 14 passed, 20 targeted modules 252 passed; tsc clean; npm run build OK; unit-shared-space 6 passed, unit set 219 passed; live evidence-shared-space 1 passed on a throwaway backend. Full backend suite not run here."
     ],
     "owner": null,
     "commit": null,

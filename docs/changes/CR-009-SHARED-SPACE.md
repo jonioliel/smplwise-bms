@@ -226,4 +226,52 @@ The preview answers the same lists without writing. `DELETE /zones/{zone_id}/sha
 
 ## 10. Build status
 
-Not built yet (design only).
+Built on branch `pilot/CR009-shared-space` (from `g0/intake` 6e8a86a), 2026-09-29; not merged, no version bump.
+
+| Commit | What |
+|---|---|
+| 41dc766 / 058242c | this note, its Hebrew mirror, T093 (R187-R189, AT187-AT189) |
+| bc0fe93 | backend: migration `0036_shared_spaces.sql`, `services/shared_spaces.py`, the routes and every reach site |
+| 1f979cf | frontend: `map/shared-space.ts`, chip, editing from the other floor, share dialog, 3D, search, building page |
+| ebab091 | live spec; the editor reloads its structure after a share / un-share |
+
+As designed, with these precisions:
+
+- `PUT …/geometry` plans every home-floor write before the first write (an API error still commits the request's
+  transaction): 409 `stale_revision` with `details.shared`, 422 `shared_outside`, 422 `geometry_structure` for a
+  malformed shared item, and a client that does not echo `shared_spaces` routes nothing (it can never delete the
+  room by omission). An untouched mirror writes nothing home (integral floats compared as a browser sends them).
+- Reach for the drawing: `access.camera_reach_floors` is the one rule behind `floor_reach` "cameras" and the site
+  tree. A camera in a shared room opens the OTHER floor's drawing only for a binding on the camera itself - a user of
+  floor 0 reaches the hall's cameras but not floor -1's map (§6 "nothing else of the home floor").
+- Deny: a camera's chain holds both floors (deny on either floor or on the camera wins); entities and the drawing honour
+  an explicit deny on the home floor (`ha_scope.FloorSet.denied`, `_can_attach`).
+- Read-only pieces are also `locked`; a new opening on one is dropped in the editor (`guardShared`).
+- Shared items show on every level filter (2D, anchors, 3D); the home levels appear in the level bar as
+  "<level> · <home floor>".
+- The share dialog lists the floors the person may edit (`…/geometry/link-targets`), nearest first; the source floor
+  defaults to the lower one (decision 4).
+
+Tests (all run on 2026-09-29, workstation, Python 3.12 / Node 24):
+
+- Backend: `tests/test_shared_spaces.py` 14 passed (placement maths, membership and clipping, conversion preview and
+  apply with audit, attach on draft / published / ETag / bundle / export never stored or hashed, edit routing incl.
+  add / delete / read-only / moved-out / stale / malformed / echo-less, anchors and zone through the placement,
+  permissions matrix: floor-B-only user, deny on the home floor, deny on the hall camera, share rights, the other
+  floor's editor, un-share at once, history, camera-only reader). Targeted modules around it (rbac camera scope,
+  stairs, geometry integration and binding, zones, search, anchor 3D, circuits search, backup, HA, devices, events,
+  events cache, correlation, rbac, rbac matrix, access, push, catalog images) with it: 252 passed. The full suite was
+  not run here (the coordinator's run).
+- Frontend: `tsc --noEmit` clean; `npm run build` OK; `tests/unit-shared-space.spec.ts` 6 passed; all `unit-*` specs
+  219 passed (at 1f979cf).
+- Live: `tests/evidence-shared-space.spec.ts` 1 passed (`SW_LIVE=1`, a throwaway backend on its own port and data
+  directory, preview on its own port): convert from floor 0, the hall whole on both floors with the chip, the tribune
+  moved on floor 0 lands in floor -1's draft, floor 0's live map shows it after publishing. The owner's real plans
+  were not used.
+
+Known limits (besides §9): the room's hole in the upper plate is its bounding box; the placement is in the current
+plan versions' coordinates (a new version with another crop needs "יישור", which has an API but no UI yet); the
+historical map shows a shared room as it was when the floor's structure was published; an edit from the other floor
+raises the home draft's revision, so an editor open on the home floor reloads on its next save (as with the stairs'
+twin sync); B's editor lists the home floor's levels in its level bar; the devices area (HA areas) has no per-room
+"משותף" badge - the building page's floor card counts the shared cameras instead.
