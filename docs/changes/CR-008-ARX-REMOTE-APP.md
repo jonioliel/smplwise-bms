@@ -7,6 +7,7 @@ are in progress). Task card: T092 (requirements R184-R186, acceptance tests AT18
 full plan after; §4 is the fastest path, §5 the phases, §6 the decisions only the owner can take. Nothing here changes
 the identity contract (`docs/security/HA_IDENTITY_RBAC_HE.md`) until the owner approves it: this CR *adds* a second,
 server-validated entry channel next to Ingress (§3b) and records that as a proposed amendment of its §4.
+Owner answers of 2026-09-29 are recorded in §7 (D1, D3-D7, D10 decided; D2, D8, D9 pending).
 
 ## 1. The request (owner, 2026-09-29, translated)
 
@@ -207,13 +208,19 @@ HA frontend `src/data/auth.ts`, `src/common/auth/token_storage.ts`, `src/entrypo
 ### 3c. What stays identical
 
 - **RBAC and scopes**: the principal is the same HA user id, so bindings, groups, scopes and audit attribution are
-  unchanged. Optional extra gate: a `remote.access` permission (D4).
+  unchanged. The remote gate on top is `remote.policy` (§3f, D4).
 - **WisKey embed**: same origin, same `/hikvision-intercom?embed=1` frame, same message contract; signed in via the
   seeded `hassTokens` (D6). HA's default `X-Frame-Options: SAMEORIGIN` allows the frame.
 - **Video**: the live and playback WebSockets go through the tunnel to our backend and on to go2rtc exactly as under
   Ingress; WebRTC media flows directly between the browser and go2rtc (the same path the owner already uses for
-  WisKey), MSE is the fallback and then the video itself travels through the tunnel - keep that to the sub profile
-  by default (D7; heavy video through Cloudflare's network is also a terms-of-service consideration).
+  WisKey). The remote default stream is `remote.default_profile` (default `main`) **over WebRTC whenever the
+  connection allows**; MSE - where the video itself travels through the tunnel - is only an explicit last-resort
+  fallback (`remote.mse_fallback`, can be switched off; heavy video through Cloudflare's network is also a
+  terms-of-service consideration). Known lab fact, stated honestly: in the lab WebRTC decoded only the sub profile and
+  the main profile needed MSE (the main stream's encoding - codec / B-frames). WebRTC in browsers takes H.264 without
+  B-frames; H.265 does not play over WebRTC in most browsers. So the MVP checks the main stream's encoding (go2rtc's
+  stream info) and shows a settings hint when main cannot go over WebRTC ("set the NVR main stream to H.264 without
+  B-frames, or choose `sub` as the remote default") - D7.
 - **Device control** (CR-007), maps, events, Plan Studio: unchanged; they are API calls under the same principal.
 
 ### 3d. The app
@@ -236,7 +243,23 @@ HA frontend `src/data/auth.ts`, `src/common/auth/token_storage.ts`, `src/entrypo
    and cannot ship in every customer's add-on, so native push needs a small **SmplWise push relay** (as HA's
    Companion apps use a relay): the add-on signs a request with its installation key, the relay forwards to FCM/APNs.
    Store accounts, privacy labels and review (Apple asks wrappers for real native value - push and biometrics provide
-   it).
+   it). Native push is deferred to a later version (D10).
+
+### 3f. Settings (owner decisions of 2026-09-29, §7)
+
+Two families of product settings (the settings screen, stored like the existing `media.*` keys; system-admin only),
+next to the add-on options `remote_access` (default `false`) and `remote_path` (default `/arx`):
+
+| Key | Values | Default | Meaning |
+|---|---|---|---|
+| `remote.policy` | `flag` \| `any_role` | `flag` | `flag`: only users whose explicit per-user `remote.access` flag is on may sign in remotely; `any_role`: every HA user holding any Arx role may (D4) |
+| `remote.session` | `rolling_90d` \| `browser_session` \| `rolling_90d_idle_lock` | `rolling_90d` | `rolling_90d`: HA's sliding 90-day refresh token in `localStorage`; `browser_session`: tokens in `sessionStorage`, gone with the browser (HA can only read `hassTokens` from `localStorage`, so the seed is written there and removed at logout and at the next Arx start without a session); `rolling_90d_idle_lock`: as the first, plus an idle lock that asks for the password again (D5) |
+| `remote.idle_lock_minutes` | integer ≥ 5 | `720` | idle time before the lock, used by `rolling_90d_idle_lock` |
+| `remote.default_profile` | `main` \| `sub` | `main` | the stream a remote viewer gets first, over WebRTC (D7) |
+| `remote.mse_fallback` | `true` \| `false` | `true` | allow MSE through the tunnel as an explicit last resort when WebRTC cannot connect or decode; the player says so when it happens (D7) |
+
+The server enforces `remote.policy` at the session exchange and at every revalidation (turning the flag off ends the
+user's remote sessions within 60 s); the other keys are delivered to the client in `/me` on the remote channel.
 
 ### 3e. Security threats specific to public exposure
 
@@ -297,16 +320,19 @@ the SMPLWISE sidebar entry (Ingress). This is the fallback while the MVP is buil
 | 2 | ASGI prefix middleware (strip, `308 /arx`, channel flag, 404 when off, header stripping), security headers on the remote channel | 1.5 h |
 | 3 | `services/ha_user_auth.py` (HA core WS `auth` + `auth/current_user`, JWT pre-check, `X-Forwarded-For`, 60 s revalidation task), in-memory session store, `POST/DELETE api/v1/auth/session`, `resolve_principal` remote branch (cookie or bearer; WS Origin check), rate limits, audit, no bootstrap remotely; unit/contract tests incl. header forgery and route enumeration | 4 h |
 | 4 | Frontend: channel detection, Arx login screen (username/password, MFA step, HA error texts), PKCE, token store + `hassTokens` seed, refresh loop + re-exchange, 401 → login, logout; a no-op `/arx/sw.js` registered with scope `/arx/` | 4 h |
-| 5 | Review round, release, owner check on the lab site | 1.5 h |
-| | **Total** | **≈ 11-12 h** |
+| 5 | Settings `remote.policy` / `remote.session` / `remote.idle_lock_minutes` (§3f) with the per-user `remote.access` flag toggle in the users screen, enforcement at exchange and revalidation, the three session modes incl. the idle lock | 2 h |
+| 6 | Remote video: `remote.default_profile` / `remote.mse_fallback` in the player (WebRTC first, MSE only as the announced last resort), check of the main stream's encoding from go2rtc stream info + settings hint when main cannot go over WebRTC | 1.5 h |
+| 7 | Review round, release, owner check on the lab site (incl. main over WebRTC remotely on the lab NVR) | 1.5 h |
+| | **Total** | **≈ 14-15 h** |
 
 Realistic delivery: the same day only if the work starts in the morning; otherwise the next morning. Step 0 covers
 the gap.
 
 **"Working" for the first check (AT185 subset):** (1) `https://ecc.smplwise.com/arx` shows the Arx login, not HA;
 (2) an HA user with a VMS role signs in (and a user with MFA gets the code step); (3) the map, devices and events load
-with that user's permissions; (4) the WisKey area opens already signed in; (5) live video plays (WebRTC; MSE fallback
-if UDP is blocked); (6) `https://ecc.smplwise.com` still opens HA; (7) deleting the "…/arx/" refresh token in the HA
+with that user's permissions; (4) the WisKey area opens already signed in; (5) live video plays over WebRTC with the default `main` profile (lab
+check: main over WebRTC remotely on the lab NVR - if its encoding prevents it, the settings hint appears and MSE is used
+only as the announced last resort); (6) `https://ecc.smplwise.com` still opens HA; (7) deleting the "…/arx/" refresh token in the HA
 profile logs Arx out within a minute; (8) a request to `/arx/api/v1/me` with forged `X-Remote-User-Id` returns 401.
 
 ## 5. Phases and estimates
@@ -314,8 +340,8 @@ profile logs Arx out within a minute; (8) a request to `/arx/api/v1/me` with for
 | Phase | Content | Estimate |
 |---|---|---|
 | P0 | Remote use through HA Ingress (exists) | 0 |
-| P1 MVP | §4 | ≈ 11-12 h |
-| P2 Hardening | full CSP report pass, `remote.access` permission + per-user flag UI, remote sessions list + "sign out everywhere", per-user live caps, remote video profile policy, Cloudflare Access / rate-limit guide in DOCS, pen-test checklist run on the lab, audit filters | ≈ 8-10 h |
+| P1 MVP | §4, including the §3f settings | ≈ 14-15 h |
+| P2 Hardening | full CSP report pass, remote sessions list + "sign out everywhere", per-user live caps, rate-limit guide in DOCS, pen-test checklist run on the lab, audit filters; future options kept on the roadmap (D3): Cloudflare Access on `/arx` with an email one-time code, or Access only for admin roles | ≈ 8-10 h |
 | P3 PWA + Web Push | manifest, icons, real service worker, install prompt / iOS guide, VAPID + subscriptions + notify path from rules, per-user notification preferences, tests | ≈ 14-18 h |
 | P4 Native app | Capacitor shell (multi-site, biometrics, native push), SmplWise push relay service, store accounts and review | ≈ 30-45 h + relay 10-15 h + store lead time |
 
@@ -335,3 +361,32 @@ profile logs Arx out within a minute; (8) a request to `/arx/api/v1/me` with for
 - **D8 MFA:** required for remote users holding admin roles, or optional.
 - **D9 HA ban threshold:** set `login_attempts_threshold` (e.g. 10) or keep HA's default (no bans).
 - **D10 Native push** (P4): SmplWise-hosted relay, or Web Push only.
+
+## 7. Decisions recorded (owner, 2026-09-29)
+
+| # | Decision | Status |
+|---|---|---|
+| D1 | (a) path `/arx` on the HA hostname (token-managed tunnel, same origin). | Decided |
+| D2 | Current tunnel mode: the owner will send the Cloudflared add-on log (§4 step 1). | Pending |
+| D3 | (a) no Cloudflare Access for now. (b) email one-time code and (c) Access only for admin roles stay on the roadmap as future options (P2), not dropped. | Decided |
+| D4 | Default (b): an explicit per-user `remote.access` flag; a settings switch allows (a) every HA user with an Arx role: `remote.policy: flag \| any_role`, default `flag` (§3f). | Decided |
+| D5 | All three options available in settings: `remote.session: rolling_90d \| browser_session \| rolling_90d_idle_lock`, default `rolling_90d`; idle-lock minutes configurable (`remote.idle_lock_minutes`) (§3f). | Decided |
+| D6 | (a) yes. The owner's goal is that Arx and WisKey work together with one login; seeding `hassTokens` is our means to it. | Decided |
+| D7 | MSE is not the norm. `remote.default_profile: main \| sub`, default `main`, delivered over WebRTC whenever the connection allows; MSE only as an explicit last-resort fallback that can be disabled (`remote.mse_fallback`). Known lab fact: WebRTC decoded only the sub profile and main needed MSE (main stream encoding - codec / B-frames); the MVP therefore checks the main stream's encoding (H.264 without B-frames works in WebRTC, H.265 does not in most browsers) and shows a settings hint. Lab acceptance check: main over WebRTC remotely on the lab NVR. | Decided |
+| D8 | Recommendation kept: (a) MFA required remotely for users holding admin roles. The owner asked for an explanation before deciding. | Pending |
+| D9 | Recommendation kept: `login_attempts_threshold: 10`. The owner asked for an explanation before deciding. | Pending |
+| D10 | Native push deferred to later versions: P4 stays as planned, Web Push stays in P3. | Decided |
+
+### 7.1 Possible WisKey requests for Arx remote (placeholder)
+
+The owner may forward a request document to the WisKey side if something there would make the remote / app
+integration easier. None of these is required for the MVP; candidates only:
+
+1. An app-aware embed mode: the panel knows it runs inside Arx remote / the future app (compact layout, no HA chrome
+   assumptions, deep links that return to Arx).
+2. An event feed for the future app: door-station calls, access events and alarms published in a form Arx can turn
+   into Web Push / native push (with the permission filter on our side).
+3. A signed-in / session-state message in the embed API, so Arx can tell "needs HA login" from "loading" without
+   guessing when the seeded tokens expire or are revoked.
+4. Remote media guidance: which WisKey streams are WebRTC-safe (codec / B-frames), so the same profile policy applies
+   to intercom video.
