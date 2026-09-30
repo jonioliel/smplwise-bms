@@ -123,3 +123,17 @@ def test_delegated_site_admin_limits(settings):
     with app.state.db.connection() as conn:
         denied = {r[0] for r in conn.execute("SELECT reason FROM audit_log WHERE decision = 'denied' AND actor_username = 'sara'").fetchall()}
     assert {"role_not_delegable", "delegation_escalation", "delegation_group_scope"} <= denied
+
+
+def test_custom_role_select_all_regular_and_sensitive(settings):
+    """0.1.148 follow-up: the owner pressed "select all" in both lists and the body guard (20 sensitive grants) refused
+    the 28 that exist. A custom role may carry every regular permission and every sensitive grant of the catalogue."""
+    app, c, ids, cam = _setup(settings)
+    catalogue = c.get("/api/v1/access/roles").json()
+    system = set(catalogue["system_permissions"])
+    sensitive = list(catalogue["sensitive"])
+    regular = sorted(p for p in catalogue["labels"] if p not in system and p not in sensitive)
+    assert len(sensitive) > 20 and regular, (len(sensitive), len(regular))
+    r = c.post("/api/v1/access/roles", json={"name": "מנהל על", "description": "הכול", "permissions": regular, "sensitive": sensitive})
+    assert r.status_code == 201, r.text
+    assert set(r.json()["sensitive_included"]) == set(sensitive) and r.json()["sensitive_missing"] == []
