@@ -170,7 +170,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await expect(screen.locator('input, sw-toggle')).toHaveCount(0);
     // (CR-007 HA refresh adds "רענן מ־Home Assistant", which re-reads HA's registries and controls no device; 6b adds
     // "ערוך פריסה" for a system.configure holder - the layout, not a device)
-    await expect(screen.locator('sw-button:visible:not([data-bulk-kind]):not([data-bulk-trigger]):not([data-devices-refresh]):not([data-layout-edit])')).toHaveCount(0);
+    await expect(screen.locator('sw-button:visible:not([data-bulk-kind]):not([data-bulk-trigger]):not([data-devices-refresh]):not([data-layout-edit]):not([data-quick-off])')).toHaveCount(0); // (the tree's hover "כבה אזור" is a bulk action; the tiles view shows the tree too since 2026-09-30)
     // a tile opens the area screen
     await lobby.click();
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/devices/areas/cr007_lobby');
@@ -365,7 +365,12 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await open(page, '/devices/building', 'a');
     const button = page.locator('devices-building sw-button[data-devices-refresh]');
     await expect(button).toBeVisible({ timeout: 30000 });
-    await expect(page.locator('devices-building [data-devices-refreshed]')).toContainText('המבנה');
+    // owner notes 2026-09-30: one small icon-only button - its accessible name / tooltip carries "רענן" and when the
+    // structure was last read; no standing text line and no "מסונכרן" chip while the state is fine
+    await expect(button).toHaveAttribute('icononly', '');
+    await expect(button).toHaveAttribute('label', /^רענן · המבנה/);
+    await expect(button.locator('button')).toHaveAttribute('aria-label', /המבנה/);
+    await expect(page.locator('devices-building [data-devices-refreshed], devices-building [data-devices-checked], devices-building [data-devices-sync]')).toHaveCount(0);
     if (!FIXTURE) {
       // no Home Assistant behind a plain developer backend: an honest refusal, nothing pretended
       await button.click();
@@ -389,8 +394,8 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     expect((await answer).status()).toBe(200);
     await expect(storageTile).toHaveAttribute('data-counts', /lights:0\/1/, { timeout: 5000 });
     await expect(page.locator('devices-building [data-structure-changed]')).toBeVisible();
-    await expect(page.locator('devices-building [data-devices-refreshed]')).toContainText('המבנה עודכן עכשיו');
-    await expect(page.locator('devices-building [data-devices-checked]')).toContainText('נבדק עכשיו');
+    await expect(button).toHaveAttribute('label', /המבנה עודכן עכשיו/);
+    await expect(button).toHaveAttribute('label', /נבדק עכשיו/);
     // one tree fetch for the button, not a second one for its own structure_changed echo
     await page.waitForTimeout(1500);
     expect(treeFetches.length).toBe(1);
@@ -978,10 +983,12 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
         await expect(row.locator('[data-bulk-panel="popover"] a[data-open-area]')).toBeVisible();
         await expect(row.locator('[data-bulk-panel] button[data-bulk-kind]')).toHaveCount(0);
         await p.keyboard.press('Escape');
-        // the tiles: no "⋯" at all
+        // the tiles: no "⋯" on a tile, no building buttons, no dialog (owner notes 2026-09-30: the tiles view shows the
+        // tree too, whose area rows only inform - the same summary popovers as in the cards view, no action)
         await scr.locator('button[data-layout="tiles"]').click();
         await expect(scr.locator('a.tile[data-area="cr007_hall"]')).toBeVisible({ timeout: 30000 });
-        await expect(scr.locator('devices-bulk-menu, [data-bulk-building], devices-bulk-dialog')).toHaveCount(0);
+        await expect(scr.locator('.floors devices-bulk-menu, [data-bulk-building], [data-quick-off], [data-bulk-floor], devices-bulk-dialog')).toHaveCount(0);
+        await expect(scr.locator('nav.tree devices-bulk-menu [data-bulk-panel] button[data-bulk-kind]')).toHaveCount(0);
         await scr.locator('button[data-layout="cards"]').click();
         await open(p, '/devices/areas/cr007_hall', design);
         await expect(p.locator('devices-area sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
@@ -1003,7 +1010,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
         const scr = page.locator('devices-building');
         await expect(scr.locator('[data-bulk-building] sw-button[data-bulk-kind="lights_off"]')).toBeVisible({ timeout: 30000 });
         await expect(scr.locator('[data-bulk-building] sw-button[data-bulk-kind="all_off"]')).toBeVisible();
-        await expect(scr.locator('devices-bulk-menu[data-bulk-floor="cr007_annex"]')).toBeVisible();
+        await expect(scr.locator('.floors devices-bulk-menu[data-bulk-floor="cr007_annex"]')).toBeVisible(); // (the tiles view also has the tree's own floor menu)
         await expect(scr.locator('devices-bulk-menu[data-bulk-area="cr007_hall"]')).toBeVisible();
         await expect(scr.locator('devices-bulk-menu[data-bulk-area="unassigned"]')).toHaveCount(0); // the bucket is not an area
         // a building button opens the confirmation dialog; nothing is sent until its own confirm button
@@ -1073,7 +1080,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await open(p, '/devices/building', 'a');
       await scr.locator('button[data-layout="tiles"]').click();
       await expect(scr.locator('a.tile[data-area="cr007_lobby"]')).toBeVisible();
-      await expect(scr.locator('nav[data-devices-tree]')).toHaveCount(0);
+      await expect(scr.locator('nav[data-devices-tree]')).toHaveCount(1); // owner notes 2026-09-30: the tiles view shows the floors tree too
       await p.reload();
       await expect(p.locator('devices-building a.tile[data-area="cr007_lobby"]')).toBeVisible({ timeout: 30000 });
       await expect(p.locator('devices-building button[data-layout="tiles"]')).toHaveAttribute('aria-pressed', 'true');
@@ -1086,7 +1093,10 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       // RTL: the title on the right, the chips right after it (not pushed to the section's left edge)
       if ((p.viewportSize()?.width ?? 1280) >= 900) {
         expect(title!.x - (sum!.x + sum!.width)).toBeLessThan(260);
-        expect(sum!.x - section!.x).toBeGreaterThan(120);
+        // owner notes 2026-09-30: the floors are packed sections now (a floor with two areas is not page-wide), so the chips
+        // may fill their section; they stay inside it and are never pushed out to the page's far edge
+        expect(sum!.x).toBeGreaterThanOrEqual(section!.x - 1);
+        expect(section!.width).toBeLessThan(900);
       }
       await p.locator('devices-building button[data-layout="cards"]').click();
       await expect(p.locator('devices-building nav[data-devices-tree]')).toBeVisible();
@@ -1543,6 +1553,14 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
   }
 
   /** An item's layout in edit mode: "x,y,w,h" in grid units. */
+  /** Owner notes 2026-09-30: the home screen's edit mode opens by address (the user menu's "עריכת המסך הראשי"), not by a button. */
+  async function editBuilding(page: Page) {
+    await page.evaluate(() => {
+      location.hash = '#/devices/building?edit=1';
+    });
+    await expect(page.locator('devices-building [data-layout-bar]')).toBeVisible({ timeout: 15000 });
+  }
+
   async function pos(item: Locator): Promise<{ x: number; y: number; w: number; h: number }> {
     const [x, y, w, h] = ((await item.getAttribute('data-lay-pos')) ?? '').split(',').map(Number);
     return { x, y, w, h };
@@ -1574,9 +1592,12 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await open(page, '/devices/areas/cr007_lobby', 'a');
       await expect(page.locator('devices-area sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
       await expect(page.locator('devices-area [data-layout-edit]')).toHaveCount(1);
+      // owner notes 2026-09-30: the home screen has no button at all - its edit mode is `?edit=1` (the user menu)
       await open(page, '/devices/building', 'a');
       await expect(page.locator('devices-building a.tile[data-area="cr007_lobby"]')).toBeVisible({ timeout: 30000 });
-      await expect(page.locator('devices-building [data-layout-edit]')).toHaveCount(1);
+      await expect(page.locator('devices-building [data-layout-edit]')).toHaveCount(0);
+      await open(page, '/devices/building?edit=1', 'a');
+      await expect(page.locator('devices-building [data-layout-bar]')).toBeVisible({ timeout: 30000 });
 
       bindings.push(await bindUser(request, user, 'viewer'));
       const ctx = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': user } });
@@ -1587,6 +1608,11 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await open(p, '/devices/building', 'a');
       await expect(p.locator('devices-building section[data-floor-card="cr007_ground"]')).toBeVisible({ timeout: 30000 }); // a fresh viewer: the cards view
       await expect(p.locator('devices-building [data-layout-edit]')).toHaveCount(0);
+      // ?edit=1 gives a viewer no edit mode and leaves a clean address
+      await open(p, '/devices/building?edit=1', 'a');
+      await expect(p.locator('devices-building section[data-floor-card="cr007_ground"]')).toBeVisible({ timeout: 30000 });
+      await expect(p.locator('devices-building [data-layout-bar], devices-building [data-home-edit]')).toHaveCount(0);
+      await expect.poll(() => p.evaluate(() => location.hash)).toBe('#/devices/building');
       // the viewer reads the layout (it is shown to everyone) but every write is refused
       const got = await p.request.get('/api/v1/devices/layouts/area/cr007_lobby');
       expect(got.status()).toBe(200);
@@ -1790,7 +1816,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       const b = page.locator('devices-building');
       await b.locator('button[data-layout="cards"]').click();
       await expect(b.locator('section[data-floor-card="cr007_ground"]')).toBeVisible({ timeout: 30000 });
-      await b.locator('[data-layout-edit]').click();
+      await editBuilding(page);
       await expect(b.locator('button[data-layout="tiles"]')).toBeDisabled(); // one view at a time while editing
       const ground = b.locator('.lay-item[data-lay-key="floor:cr007_ground"]');
       const g0 = await pos(ground);
@@ -2099,7 +2125,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await open(page, '/devices/building', 'a');
       const b = page.locator('devices-building');
       await expect(b.locator('a.tile[data-area="cr007_lobby"]')).toBeVisible({ timeout: 30000 });
-      await b.locator('[data-layout-edit]').click();
+      await editBuilding(page);
       const lobby = b.locator('.lay-item[data-lay-key="area:cr007_lobby"]');
       const l0 = await pos(lobby);
       await lobby.focus();
