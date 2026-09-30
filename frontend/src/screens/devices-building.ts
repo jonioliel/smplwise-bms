@@ -23,8 +23,35 @@ import { DevicesLayoutController, titleOf, type LayoutGrid, type MeasuredGrid } 
 import './devices-tiles-panel';
 import { ITEMS_FILTERS, type ItemsFilter } from './devices-tiles-panel';
 import { TILE_KINDS, type ItemsScope, type TileKind } from '../api/devices';
-import { TileLayoutController } from '../api/tile-layout';
+import { effectiveTileSetting, TileLayoutController } from '../api/tile-layout';
 import { onRouteChange, parseRoute, pushRoute, replaceRoute } from '../router';
+import './home-widgets';
+import { HomeWidgetsView } from './home-widgets';
+import {
+  CLOCK_LABEL, CLOCK_MODES, getHomeCandidates, HOME_DEFAULT, HOME_TITLE_DEFAULT, HOME_TITLE_MAX, loadHomeSettings, moveId, NO_WIDGETS, orderFloors, saveHomeSettings,
+  type ClockMode, type HomeCandidates, type HomeSettings, type HomeWidgets,
+} from '../api/home';
+
+/** Owner notes 2026-09-30: the home route's edit mode is entered by the address (`#/devices/building?edit=1`, from the
+ * user menu's "עריכת המסך הראשי"), not by a button on the screen. */
+export const EDIT_PARAM = 'edit';
+
+/** How tight the screen is packed to fit the viewport without a vertical scroll (owner notes 2026-09-30, item 7): 0 = as
+ * designed, 1 = smaller tiles / rows, 2 = the smallest (and the secondary strips drop). Stepped up by measuring. */
+export type FitLevel = 0 | 1 | 2;
+/** The packed layout is for a desktop-width screen; a phone scrolls. */
+export const FIT_MIN_WIDTH = 900;
+
+/** The nearest ancestor that scrolls vertically (crossing shadow roots) - the shell's page area. */
+export function scrollParentOf(el: Element): HTMLElement | null {
+  let node: Node | null = el;
+  while (node) {
+    const parent: Node | null = (node as Element).assignedSlot ?? node.parentNode ?? (node as ShadowRoot).host ?? null;
+    if (parent instanceof HTMLElement && ['auto', 'scroll'].includes(getComputedStyle(parent).overflowY)) return parent;
+    node = parent;
+  }
+  return null;
+}
 
 /** The count pills' keys that open the tiles' panel (cameras and sensors are counts only). */
 const PILL_KIND: Partial<Record<keyof DeviceCounts, TileKind>> = { lights: 'lights', switches: 'switches', covers: 'covers', climate: 'climate', media: 'media', locks: 'locks' };
@@ -407,6 +434,274 @@ const TILE_LAYOUT = css`
   }
 `;
 
+/** Owner notes 2026-09-30: the home screen's own compact layout - the header row, the small summary tiles, the packed
+ * "אריחים" view beside the tree, the fit steps (`data-fit`) and edit mode's card. Declared after the glass / density /
+ * tile-shape rules on purpose: at equal specificity it wins over them. */
+const HOME_LAYOUT = css`
+  .hdr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px 10px;
+    min-inline-size: 0;
+  }
+  .ha-refresh {
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+  /* the summary tiles: small rectangles, the icon at the end of the text */
+  :host .kpis[data-kpis] {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    grid-auto-rows: auto;
+    gap: 8px;
+  }
+  :host .kpis[data-kpis] > sw-kpi[data-kpi][layout='compact'] {
+    --sw-kpi-compact-icon: 28px;
+    --sw-kpi-compact-value-fs: 16px;
+    min-block-size: 44px;
+    padding-block: 5px;
+    padding-inline: 10px;
+    column-gap: 8px;
+    row-gap: 0;
+  }
+  /* "אריחים": the floors as packed sections beside the tree - floors with few areas share a row */
+  .floors {
+    --tw: 172px;
+    --th: 78px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    align-content: flex-start;
+    gap: 8px 14px;
+    min-inline-size: 0;
+  }
+  .floors > section.floor {
+    margin: 0;
+    gap: 6px;
+    flex: var(--n, 3) 1 calc(var(--n, 3) * var(--tw) + (var(--n, 3) - 1) * 8px);
+    min-inline-size: min(100%, var(--tw));
+    max-inline-size: 100%;
+  }
+  .floors > section.floor.laid {
+    flex: 1 1 100%;
+  }
+  :host .floors .areas:not(.lay-grid) {
+    grid-template-columns: repeat(auto-fill, minmax(var(--tw), 1fr));
+    gap: 8px;
+  }
+  :host .floors a.tile {
+    min-block-size: var(--th);
+    padding-block: var(--tpad, 10px);
+    padding-inline: 10px;
+    gap: 4px;
+  }
+  :host([data-devices-density='compact']) .floors {
+    --tpad: 6px;
+    --th: 62px;
+  }
+  .floors .floor-head h2 {
+    font-size: var(--sw-fs-md);
+  }
+  .split[data-layout-view='tiles'] > .floors {
+    align-self: start;
+  }
+  /* fit step 1: smaller tiles and rows */
+  .split[data-fit='1'] .floors {
+    --tw: 156px;
+    --th: 60px;
+    gap: 6px 12px;
+  }
+  .split[data-fit='1'] .floors a.tile {
+    padding-block: 6px;
+    padding-inline: 8px;
+    gap: 2px;
+  }
+  .split[data-fit='1'] .floor-head .level {
+    display: none;
+  }
+  .split[data-fit='1'] .fcard header {
+    padding-block: 8px 4px;
+  }
+  .split[data-fit='1'] .arow {
+    padding-block: 4px;
+  }
+  .split[data-fit='1'] .fcard footer {
+    padding-block: 4px 8px;
+  }
+  .split[data-fit='1'] .tree-row {
+    padding-block: 3px;
+  }
+  /* fit step 2: the smallest (the climate strips are dropped in the markup) */
+  .split[data-fit='2'] .floors {
+    --tw: 140px;
+    --th: 0px;
+    gap: 4px 10px;
+  }
+  .split[data-fit='2'] .floors a.tile {
+    padding-block: 4px;
+    padding-inline: 8px;
+    gap: 0;
+  }
+  .split[data-fit='2'] .fcard footer,
+  .split[data-fit='2'] .floor-head .level {
+    display: none;
+  }
+  .split[data-fit='2'] .arow {
+    padding-block: 2px;
+  }
+  /* edit mode's card: the title, the widgets, the floor order */
+  .home-edit {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    gap: 12px 24px;
+    padding: 12px 14px;
+    border: 1px dashed var(--sw-border-strong);
+    border-radius: var(--sw-r-md);
+    background: var(--sw-surface);
+  }
+  .he-col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-inline-size: 0;
+  }
+  .he-f,
+  .he-lbl {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: var(--sw-fs-xs);
+    color: var(--sw-text-2);
+  }
+  .home-edit input[type='text'],
+  .home-edit select {
+    box-sizing: border-box;
+    min-block-size: 32px;
+    max-inline-size: 100%;
+    padding-inline: 8px;
+    border: 1px solid var(--sw-border-strong);
+    border-radius: 7px;
+    background: var(--sw-surface);
+    color: var(--sw-text);
+    font: inherit;
+    font-size: var(--sw-fs-sm);
+  }
+  .home-edit select:disabled {
+    opacity: 0.5;
+  }
+  .he-seg {
+    display: inline-flex;
+    align-self: flex-start;
+    border: 1px solid var(--sw-border-strong);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .he-seg button {
+    border: 0;
+    padding: 5px 12px;
+    background: var(--sw-surface);
+    color: var(--sw-text);
+    font: inherit;
+    font-size: var(--sw-fs-sm);
+    cursor: pointer;
+  }
+  .he-seg button + button {
+    border-inline-start: 1px solid var(--sw-border-strong);
+  }
+  .he-seg button[aria-pressed='true'] {
+    background: var(--sw-accent);
+    color: var(--sw-on-accent, #fff);
+  }
+  .he-grp {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 6px 10px;
+    align-items: end;
+    padding: 8px 10px;
+    border: 1px solid var(--sw-border);
+    border-radius: 8px;
+  }
+  .he-grp > .he-check {
+    grid-column: 1 / -1;
+  }
+  .he-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--sw-fs-sm);
+    color: var(--sw-text);
+  }
+  .he-err {
+    color: var(--sw-danger);
+    font-size: var(--sw-fs-xs);
+  }
+  .home-edit ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .he-floor {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    border: 1px solid var(--sw-border);
+    border-radius: 8px;
+    background: var(--sw-surface-2);
+  }
+  .he-floor.dragging {
+    opacity: 0.5;
+  }
+  .he-grip {
+    color: var(--sw-text-3);
+    cursor: grab;
+    display: inline-flex;
+  }
+  .he-name {
+    flex: 1;
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--sw-fs-sm);
+  }
+  .he-floor button {
+    display: inline-grid;
+    place-items: center;
+    inline-size: 28px;
+    block-size: 28px;
+    padding: 0;
+    border: 1px solid var(--sw-border-strong);
+    border-radius: 7px;
+    background: var(--sw-surface);
+    color: var(--sw-text);
+    cursor: pointer;
+  }
+  .he-floor button:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  .he-floor button:focus-visible {
+    outline: 2px solid var(--sw-focus, var(--sw-accent));
+    outline-offset: 2px;
+  }
+  @media (max-width: 899px) {
+    .home-edit {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .floors {
+      --tw: 150px;
+    }
+    .floors > section.floor {
+      flex: 1 1 100%;
+    }
+  }
+`;
+
 function anythingOn(c: DeviceCounts): boolean {
   return c.lights_on + c.switches_on + c.covers_open + c.climate_active + c.media_on > 0;
 }
@@ -478,6 +773,22 @@ export class DevicesBuilding extends LitElement {
   private offRoute: (() => void) | null = null;
   /** The panel's history entry was pushed by this screen (Back / close go back over it). */
   private pushedPanel = false;
+  /** Owner notes 2026-09-30: the installation's home settings (title, floor order, widgets) as saved, and - only while the
+   * layout editor is open - the draft being edited next to the layout (saved together by "שמור"). */
+  @state() private homeSaved: HomeSettings = HOME_DEFAULT;
+  @state() private homeDraft: HomeSettings | null = null;
+  /** What the draft started from (its floor order is the full current order, so a reorder is a plain comparison). */
+  private homeBase: HomeSettings = HOME_DEFAULT;
+  @state() private candidates: HomeCandidates | null = null;
+  @state() private candidatesError = '';
+  /** How tight the tiles / rows are packed so the whole screen fits the viewport (FitLevel). */
+  @state() private fit: FitLevel = 0;
+  /** `?edit=1` was seen and acted on (entered, or refused): not again until the parameter goes and comes back. */
+  private editHandled = false;
+  private wasEditing = false;
+  private fitTimer = 0;
+  /** The floor being dragged in the order list (edit mode). */
+  @state() private dragFloor = '';
 
   /** CR-007 6b: the building screen's layout (one per installation: floor cards and area tiles; system.configure edits). */
   private lay = new DevicesLayoutController(this, {
@@ -490,6 +801,14 @@ export class DevicesBuilding extends LitElement {
     compact: () => this.prefs.density === 'compact',
     onEnter: () => {
       this.selected = 'all';
+      this.beginHomeEdit();
+    },
+    extras: {
+      dirty: () => this.homeDirty,
+      save: () => this.saveHome(),
+      discard: () => {
+        this.homeDraft = null;
+      },
     },
   });
 
@@ -606,6 +925,216 @@ export class DevicesBuilding extends LitElement {
   private isOpen(kind: TileKind, scope: ItemsScope = 'building', id = ''): boolean {
     const p = this.panel;
     return !!p && p.kind === kind && p.scope === scope && (scope === 'building' || p.id === id);
+  }
+
+  // ---------------------------------------------------------------------------------- home settings (owner notes 2026-09-30)
+
+  /** Edit mode's own edits (title, widgets, floor order) differ from what the session started with. */
+  private get homeDirty(): boolean {
+    return !!this.homeDraft && JSON.stringify(this.homeDraft) !== JSON.stringify(this.homeBase);
+  }
+
+  /** The layout editor opened: the draft starts from the saved settings, with the floor order as the screen shows it now. */
+  private beginHomeEdit() {
+    const order = this.tree ? this.tree.floors.map((f) => f.floor_id) : this.homeSaved.floorOrder;
+    this.homeBase = { ...this.homeSaved, floorOrder: order };
+    this.homeDraft = { ...this.homeBase };
+    this.candidates = null;
+    this.candidatesError = '';
+    getHomeCandidates().then(
+      (c) => (this.candidates = c),
+      (err) => (this.candidatesError = describeError(err)),
+    );
+  }
+
+  private patchHome(change: Partial<HomeSettings>) {
+    if (this.homeDraft) this.homeDraft = { ...this.homeDraft, ...change };
+  }
+
+  /** "שמור" in edit mode: the changed keys go to PATCH /settings (system.configure, audited); the tree is refetched so the
+   * order and the widgets are the server's. A floor order equal to the one the session started with is not written. */
+  private async saveHome(): Promise<void> {
+    const d = this.homeDraft;
+    if (!d) return;
+    const orderChanged = JSON.stringify(d.floorOrder) !== JSON.stringify(this.homeBase.floorOrder);
+    const to: HomeSettings = { ...d, title: d.title.trim(), floorOrder: orderChanged ? d.floorOrder : this.homeSaved.floorOrder };
+    this.homeSaved = await saveHomeSettings(this.homeSaved, to);
+    this.homeBase = { ...d, title: d.title.trim() };
+    this.homeDraft = { ...this.homeBase };
+    await this.load();
+  }
+
+  /** The widgets as drawn: what the server resolved, and - while editing - the draft's choices previewed from the
+   * candidate list (the clock at once; a weather / Jewish-calendar entity with the state it has now). */
+  private widgetsView(t: DeviceTree): HomeWidgets {
+    const w = t.home ?? NO_WIDGETS;
+    const d = this.homeDraft;
+    if (!d || !this.lay.editing) return w;
+    const c = this.candidates;
+    const weather = d.weatherOn && d.weatherEntity ? c?.weather.find((x) => x.entity_id === d.weatherEntity) : undefined;
+    const sensor = (id: string) => (id ? c?.sensors.find((x) => x.entity_id === id) : undefined);
+    const jewish: NonNullable<HomeWidgets['jewish']> = {};
+    if (d.jewishOn) {
+      for (const [part, id] of [['parsha', d.parsha], ['candles', d.candles], ['havdalah', d.havdalah]] as const) {
+        const s = sensor(id);
+        if (s?.state && s.state !== 'unavailable' && s.state !== 'unknown') jewish[part] = { entity_id: s.entity_id, state: s.state, device_class: s.device_class };
+      }
+    }
+    return {
+      clock: d.clock,
+      time_zone: w.time_zone,
+      weather: weather?.state && weather.state !== 'unavailable' && weather.state !== 'unknown' ? { entity_id: weather.entity_id, condition: weather.state, temperature: w.weather?.entity_id === weather.entity_id ? w.weather.temperature : null, unit: w.weather?.unit ?? '°C', humidity: w.weather?.entity_id === weather.entity_id ? w.weather.humidity : null } : null,
+      jewish: Object.keys(jewish).length ? jewish : null,
+    };
+  }
+
+  /** Edit mode's card beside the layout bar: the page title, the three optional widgets and the floor order. */
+  private renderHomeEdit(t: DeviceTree) {
+    const d = this.homeDraft;
+    if (!d) return nothing;
+    const c = this.candidates;
+    const ids = this.floorsOf(t).map((f) => f.floor_id);
+    const names = new Map(t.floors.map((f) => [f.floor_id, f.name]));
+    const opt = (list: { entity_id: string; name: string }[], current: string) => [
+      html`<option value="" ?selected=${!current}>לא נבחר</option>`,
+      ...(current && !list.some((x) => x.entity_id === current) ? [html`<option value=${current} selected>${current}</option>`] : []),
+      ...list.map((x) => html`<option value=${x.entity_id} ?selected=${x.entity_id === current}>${x.name} · ${x.entity_id}</option>`),
+    ];
+    const sensors = c?.sensors ?? [];
+    const suggested = sensors.filter((s) => s.suggested);
+    const others = sensors.filter((s) => !s.suggested);
+    const sensorOpts = (current: string) => [
+      html`<option value="" ?selected=${!current}>לא נבחר</option>`,
+      ...(current && !sensors.some((x) => x.entity_id === current) ? [html`<option value=${current} selected>${current}</option>`] : []),
+      ...(suggested.length ? [html`<optgroup label="לוח שנה עברי">${suggested.map((x) => html`<option value=${x.entity_id} ?selected=${x.entity_id === current}>${x.name} · ${x.entity_id}</option>`)}</optgroup>`] : []),
+      html`<optgroup label="כל החיישנים">${others.map((x) => html`<option value=${x.entity_id} ?selected=${x.entity_id === current}>${x.name} · ${x.entity_id}</option>`)}</optgroup>`,
+    ];
+    const pick = (field: 'parsha' | 'candles' | 'havdalah', label: string, id: string) => html`<label class="he-f">${label}<select data-home-jewish=${field} ?disabled=${!d.jewishOn} @change=${(e: Event) => this.patchHome({ [field]: (e.target as HTMLSelectElement).value })}>${sensorOpts(id)}</select></label>`;
+    return html`<section class="home-edit" data-home-edit aria-label="הגדרות המסך הראשי">
+      <div class="he-col">
+        <label class="he-f he-title">כותרת המסך
+          <input type="text" data-home-title maxlength=${HOME_TITLE_MAX} .value=${d.title} placeholder=${HOME_TITLE_DEFAULT} @input=${(e: Event) => this.patchHome({ title: (e.target as HTMLInputElement).value })} />
+        </label>
+        <div class="he-f" role="group" aria-label="שעון">שעון
+          <span class="he-seg">
+            ${CLOCK_MODES.map((m: ClockMode) => html`<button type="button" data-home-clock=${m} aria-pressed=${String(d.clock === m)} @click=${() => this.patchHome({ clock: m })}>${CLOCK_LABEL[m]}</button>`)}
+          </span>
+        </div>
+        <div class="he-grp">
+          <label class="he-check"><input type="checkbox" data-home-weather .checked=${d.weatherOn} @change=${(e: Event) => this.patchHome({ weatherOn: (e.target as HTMLInputElement).checked })} />מזג אוויר</label>
+          <select data-home-weather-entity aria-label="ישות מזג האוויר" ?disabled=${!d.weatherOn} @change=${(e: Event) => this.patchHome({ weatherEntity: (e.target as HTMLSelectElement).value })}>${opt(c?.weather ?? [], d.weatherEntity)}</select>
+        </div>
+        <div class="he-grp">
+          <label class="he-check"><input type="checkbox" data-home-jewish .checked=${d.jewishOn} @change=${(e: Event) => this.patchHome({ jewishOn: (e.target as HTMLInputElement).checked })} />לוח שנה עברי</label>
+          ${pick('parsha', 'פרשת השבוע', d.parsha)}${pick('candles', 'הדלקת נרות', d.candles)}${pick('havdalah', 'צאת שבת', d.havdalah)}
+        </div>
+        ${this.candidatesError ? html`<div class="he-err" role="alert">${this.candidatesError}</div>` : nothing}
+      </div>
+      <div class="he-col he-floors">
+        <span class="he-lbl" id="he-floors-lbl">סדר הקומות</span>
+        <ol data-home-floors aria-labelledby="he-floors-lbl">
+          ${ids.map(
+            (id, i) => html`<li class=${classMap({ 'he-floor': true, dragging: this.dragFloor === id })} data-home-floor=${id} draggable="true"
+              @dragstart=${(e: DragEvent) => this.onFloorDrag(e, id)} @dragend=${() => (this.dragFloor = '')} @dragover=${(e: DragEvent) => this.dragFloor && e.preventDefault()} @drop=${(e: DragEvent) => this.onFloorDrop(e, ids, i)}>
+              <span class="he-grip" aria-hidden="true"><sw-icon name="grip" size=${14}></sw-icon></span>
+              <span class="he-name">${bidi(names.get(id) ?? id)}</span>
+              <button type="button" data-home-floor-up=${id} aria-label=${`העבר את ${names.get(id) ?? id} למעלה`} title="למעלה" ?disabled=${i === 0} @click=${() => this.moveFloor(ids, id, i - 1)}><sw-icon name="arrowUp" size=${13}></sw-icon></button>
+              <button type="button" data-home-floor-down=${id} aria-label=${`העבר את ${names.get(id) ?? id} למטה`} title="למטה" ?disabled=${i === ids.length - 1} @click=${() => this.moveFloor(ids, id, i + 1)}><sw-icon name="arrowDown" size=${13}></sw-icon></button>
+            </li>`,
+          )}
+        </ol>
+      </div>
+    </section>`;
+  }
+
+  private moveFloor(ids: string[], id: string, to: number) {
+    const up = to < ids.indexOf(id);
+    this.patchHome({ floorOrder: moveId(ids, id, to) });
+    // keyboard users keep their place: focus stays on the same direction's button of the moved floor (or the other one at an end)
+    void this.updateComplete.then(() => {
+      const root = this.renderRoot as ParentNode;
+      const li = `[data-home-floor="${CSS.escape(id)}"]`;
+      const btn = root.querySelector<HTMLButtonElement>(`${li} [data-home-floor-${up ? 'up' : 'down'}]:not([disabled])`) ?? root.querySelector<HTMLButtonElement>(`${li} button:not([disabled])`);
+      btn?.focus();
+    });
+  }
+
+  private onFloorDrag(e: DragEvent, id: string) {
+    this.dragFloor = id;
+    e.dataTransfer?.setData('text/plain', id);
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+  }
+
+  private onFloorDrop(e: DragEvent, ids: string[], index: number) {
+    e.preventDefault();
+    const id = this.dragFloor;
+    this.dragFloor = '';
+    if (id) this.patchHome({ floorOrder: moveId(ids, id, index) });
+  }
+
+  // ---------------------------------------------------------------------------------- edit by address, and the fit
+
+  private get wantsEdit(): boolean {
+    return parseRoute().params.get(EDIT_PARAM) === '1';
+  }
+
+  /** The address without `edit` (the URL stays clean once edit mode ends, or is refused). */
+  private dropEditParam() {
+    const r = parseRoute();
+    const p = new URLSearchParams(r.params);
+    p.delete(EDIT_PARAM);
+    replaceRoute(r.path, p);
+  }
+
+  /** `#/devices/building?edit=1` opens the layout editor (the same permission as always - the server checks it again on
+   * every write); the parameter goes when the session ends, or at once for a viewer who may not edit. */
+  private syncEditFromRoute() {
+    const want = this.wantsEdit;
+    const editing = this.lay.editing;
+    if (!want) this.editHandled = false;
+    else if (!this.editHandled && this.tree && !this.forbidden && (this.lay.loaded || !isApi())) {
+      this.editHandled = true;
+      if (this.lay.canEdit) void this.lay.enter();
+      else this.dropEditParam();
+    }
+    if (this.wasEditing && !editing && want) this.dropEditParam();
+    this.wasEditing = editing;
+  }
+
+  private fitKey = '';
+
+  /** Owner notes 2026-09-30, item 7: on a desktop-width screen the whole screen should fit the viewport without a vertical
+   * scroll (for the owner's site: 3 floors, 8 areas, ~150 devices). The tiles and rows are packed tighter one step at a
+   * time while the page area still scrolls; the packing restarts from the loosest whenever the viewport, the view or the
+   * building's shape changes. A phone (under FIT_MIN_WIDTH) scrolls as usual, and so does the layout editor. */
+  private measureFit = () => {
+    this.fitTimer = 0;
+    const t = this.tree;
+    if (!t || !this.isConnected) return;
+    const eligible = window.innerWidth >= FIT_MIN_WIDTH && !this.lay.editing && !this.panel;
+    if (!eligible) {
+      if (this.fit !== 0) this.fit = 0;
+      return;
+    }
+    const key = [window.innerWidth, window.innerHeight, this.layout, this.selected, t.floors.length, t.floors.reduce((n, f) => n + f.areas.length, 0), HomeWidgetsView.hasAny(t.home) ? 'w' : '-'].join('|');
+    if (key !== this.fitKey) {
+      this.fitKey = key;
+      if (this.fit !== 0) {
+        this.fit = 0; // measured again after this render
+        return;
+      }
+    }
+    const sc = scrollParentOf(this);
+    if (sc && sc.scrollHeight - sc.clientHeight > 1 && this.fit < 2) this.fit = (this.fit + 1) as FitLevel;
+  };
+
+  private onResize = () => {
+    this.requestUpdate();
+  };
+
+  protected updated() {
+    this.syncEditFromRoute();
+    if (!this.fitTimer) this.fitTimer = window.requestAnimationFrame(this.measureFit);
   }
 
   static styles = [devicesStyleTokens, css`
@@ -1193,18 +1722,25 @@ export class DevicesBuilding extends LitElement {
         padding-inline: 10px;
       }
     }
-  `, BUILDING_GLASS, TILE_LAYOUT];
+  `, BUILDING_GLASS, TILE_LAYOUT, HOME_LAYOUT];
 
   connectedCallback() {
     super.connectedCallback();
-    this.prefsReady = loadDevicesPrefs().then((p) => {
-      this.prefs = p;
-      applyDevicesPrefs(this, p);
-      if (!this.layoutChosen) this.layout = p.defaultView;
-    });
+    this.prefsReady = Promise.all([
+      loadDevicesPrefs().then((p) => {
+        this.prefs = p;
+        applyDevicesPrefs(this, p);
+        if (!this.layoutChosen) this.layout = p.defaultView;
+      }),
+      loadHomeSettings().then((h) => {
+        if (!this.lay.editing) this.homeSaved = h;
+      }),
+    ]).then(() => undefined);
+    window.addEventListener('resize', this.onResize);
     // the tiles' panel follows the address (a deep link from search or the Live overview, or this screen's own tiles)
     this.offRoute = onRouteChange((r) => {
       if (r.segments[0] !== 'devices' || (r.segments[1] ?? 'building') !== 'building') return;
+      this.requestUpdate(); // `?edit=1` comes and goes with the address (syncEditFromRoute, in updated())
       const want = panelFromParams(r.params);
       if (!want) {
         this.panel = null;
@@ -1259,6 +1795,19 @@ export class DevicesBuilding extends LitElement {
     window.clearTimeout(this.flashTimer);
     window.clearInterval(this.tickTimer);
     this.flashTimer = this.tickTimer = 0;
+    window.clearTimeout(this.noteTimer);
+    window.cancelAnimationFrame(this.fitTimer);
+    this.noteTimer = this.fitTimer = 0;
+    window.removeEventListener('resize', this.onResize);
+  }
+
+  private noteTimer = 0;
+
+  /** The outcome of a refresh press, for a few seconds (a short confirmation, not a standing line). */
+  private noteRefresh(text: string) {
+    this.refreshNote = text;
+    window.clearTimeout(this.noteTimer);
+    if (text) this.noteTimer = window.setTimeout(() => (this.refreshNote = ''), 6000);
   }
 
   private flashStructure() {
@@ -1272,16 +1821,16 @@ export class DevicesBuilding extends LitElement {
   private async refreshFromHa() {
     if (this.refreshing) return;
     this.refreshing = true;
-    this.refreshNote = '';
+    this.noteRefresh('');
     this.manualUntil = Number.POSITIVE_INFINITY; // the push this request causes may arrive before its answer
     try {
       const r = await refreshDevicesFromHa();
       this.sync = r.sync;
       if (r.changed) this.flashStructure();
-      else this.refreshNote = 'אין שינויים במבנה';
+      else this.noteRefresh('אין שינויים במבנה');
       await this.load();
     } catch (err) {
-      this.refreshNote = describeError(err);
+      this.noteRefresh(describeError(err));
       // No answer (429, 502, 503 ...): nothing was refetched here, so a real HA change pushed meanwhile must not be
       // lost - stop skipping pushes at once and refetch the tree (re-review leftover).
       this.manualUntil = 0;
@@ -1329,7 +1878,8 @@ export class DevicesBuilding extends LitElement {
   }
 
   render() {
-    const heading = 'חשמל והתקנים';
+    // owner notes 2026-09-30: the title is the installation's own text (edit mode), empty = the default; shown live while editing
+    const heading = ((this.lay.editing && this.homeDraft ? this.homeDraft.title : this.homeSaved.title).trim() || HOME_TITLE_DEFAULT);
     if (this.forbidden) {
       return html`<sw-page heading=${heading} subheading="המבנה"><sw-state-panel data-devices-state="no_permission" state="forbidden" heading="אין לך הרשאת צפייה בחשמל והתקנים" hint="נדרשת ההרשאה צפייה בחשמל והתקנים. פנה למנהל המערכת."></sw-state-panel></sw-page>`;
     }
@@ -1345,16 +1895,18 @@ export class DevicesBuilding extends LitElement {
     const connected = this.sync?.connected ?? false;
     const bulkBuilding = this.bulkAllowed && t.can_bulk === true;
     this.lay.prepare(this.layGrids(t));
+    // owner notes 2026-09-30: no "ערוך פריסה" button here (the user menu's "עריכת המסך הראשי" opens `?edit=1`); the header
+    // row carries only the optional widgets, a "not synced" chip when the state is NOT fine, and a small refresh icon
     return html`<sw-page heading=${heading} subheading=${sub} wide @bulk-request=${this.onBulkRequest}>
-      <div slot="actions">
-        ${this.lay.renderEditButton()}
+      <div slot="actions" class="hdr">
+        <home-widgets .data=${this.widgetsView(t)}></home-widgets>
         ${t.scoped ? html`<sw-badge kind="partial" label="לפי הקומות שלך"></sw-badge>` : nothing}
-        ${isApi() ? html`<sw-badge data-devices-sync kind=${connected ? 'live' : 'stale'} label=${connected ? 'מסונכרן' : 'לא מסונכרן'}></sw-badge>` : nothing}
+        ${isApi() && !connected ? html`<sw-badge data-devices-sync kind="stale" label="לא מסונכרן"></sw-badge>` : nothing}
         ${isApi() ? this.renderRefresh() : nothing}
       </div>
       ${this.error ? html`<sw-state-panel compact state="error" heading="הרענון האחרון נכשל" hint=${this.error}></sw-state-panel>` : nothing}
       ${this.renderKpis(t.building)}
-      ${this.renderClimateStrip(t.building_climate, 'מזגנים בבניין')}
+      ${this.fit >= 2 ? nothing : this.renderClimateStrip(t.building_climate, 'מזגנים בבניין')}
       <div class="toolbar">
         <span class="seg" role="group" aria-label="פריסה">פריסה:
           <span class="opts">
@@ -1373,10 +1925,8 @@ export class DevicesBuilding extends LitElement {
         ? html`<sw-state-panel data-devices-state="empty" state="empty" heading=${t.scoped ? 'אין התקנים בקומות שלך' : 'אין קומות ואזורים'} hint=${t.scoped ? 'רק ישויות שהוצבו על המפה של הקומות שבהרשאתך מופיעות כאן.' : 'צרו קומות ואזורים ושייכו אליהם התקנים; העץ יתעדכן מעצמו אחרי סנכרון הרישום.'}></sw-state-panel>`
         : nothing}
       ${this.lay.renderBar()}
+      ${this.lay.editing ? this.renderHomeEdit(t) : nothing}
       ${this.layout === 'cards' ? this.renderCards(t) : this.renderTiles(t)}
-      <div class="note">${this.bulkAllowed
-        ? 'מצב ההתקנים כפי שדווח. לחיצה על אריח סיכום מציגה את ההתקנים מהסוג הזה ומאפשרת לשלוט בהם. פעולות מרוכזות (⋯ בקומה או באזור, והכפתורים למעלה) נפתחות תמיד בחלון אישור שמפרט מה יישלח; מנעולים, אזעקה ושחרור דלתות אינם נכללים לעולם.'
-        : 'מצב ההתקנים כפי שדווח. לחיצה על אריח סיכום מציגה את ההתקנים מהסוג הזה; שליטה בהם לפי ההרשאות שלך.'}</div>
       ${this.bulkAllowed ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
       ${this.lay.renderPanel()}
       <devices-tiles-panel ?open=${!!this.panel} .kind=${this.panel?.kind ?? 'lights'} .scope=${this.panel?.scope ?? 'building'} .scopeId=${this.panel?.id ?? ''} .scopeName=${this.panel?.name || this.scopeName(this.panel?.scope ?? 'building', this.panel?.id ?? '')} .filter=${this.panel?.filter ?? 'all'} @panel-close=${this.closePanel} @panel-filter=${this.onPanelFilter} @panel-changed=${() => this.scheduleReload()} @panel-navigate=${this.onPanelNavigate}></devices-tiles-panel>
@@ -1387,34 +1937,52 @@ export class DevicesBuilding extends LitElement {
   private renderRefresh() {
     void this.tick; // re-rendered every 15 s so the "לפני …" lines keep up
     const timing = structureTiming(this.sync);
+    // owner notes 2026-09-30: one small icon-only button; when the structure was last read is only its tooltip. A short
+    // outcome (an error / "no change") shows for a few seconds after a press, and "מבנה עודכן" after a real change.
+    const tip = [this.refreshing ? 'מרענן…' : 'רענן', timing.changed, timing.checked].filter(Boolean).join(' · ');
     return html`<span class="ha-refresh">
       ${this.structureFlash ? html`<sw-badge data-structure-changed kind="live" label="מבנה עודכן"></sw-badge>` : nothing}
-      <sw-button size="sm" icon="refresh" data-devices-refresh ?disabled=${this.refreshing} @click=${() => void this.refreshFromHa()}
-        >${this.refreshing ? 'מרענן…' : 'רענן'}</sw-button
-      >
-      <span class="refreshed" data-devices-refreshed>${timing.changed}</span>
-      ${timing.checked ? html`<span class="refreshed" data-devices-checked>· ${timing.checked}</span>` : nothing}
       ${this.refreshNote ? html`<span class="refreshed" role="status" data-devices-refresh-note>${this.refreshNote}</span>` : nothing}
+      <sw-button size="sm" variant="ghost" icon="refresh" iconOnly label=${tip} data-devices-refresh ?disabled=${this.refreshing} @click=${() => void this.refreshFromHa()}></sw-button>
     </span>`;
   }
 
-  /** The slice-1 presentation: floor sections with area tiles (the "⋯" popover on each tile for a bulk holder). */
+  /** The floors as this render shows them: the tree's own order (the installation's floor order, applied by the server),
+   * or - while the order is being edited - the draft's, so the tree and the cards / tiles preview it. */
+  private floorsOf(t: DeviceTree): DeviceFloor[] {
+    return this.lay.editing && this.homeDraft ? orderFloors(t.floors, this.homeDraft.floorOrder) : t.floors;
+  }
+
+  /** The slice-1 presentation: floor sections with area tiles (the "⋯" popover on each tile for a bulk holder) - now beside
+   * the floors tree, as in the cards view, and packed side by side so the whole screen fits the viewport (owner notes
+   * 2026-09-30, item 7). */
   private renderTiles(t: DeviceTree) {
-    return html`${repeat(t.floors, (f) => f.floor_id, (f) => this.renderFloor(f))}
-      ${t.unassigned.counts.entities || !t.scoped
-        ? html`<section class="floor" data-floor="unassigned">
-            <div class="floor-head"><h2>ללא שיוך</h2><span class="level">התקנים שאינם משויכים לאזור</span></div>
-            ${this.renderAreasGrid('areas:unassigned', html`${this.lay.wrap('area:unassigned', this.renderTile({ area_id: 'unassigned', name: t.unassigned.name, icon: null, floor_id: null, counts: t.unassigned.counts, has_camera: false }, true))}`)}
-          </section>`
-        : nothing}`;
+    if (!t.floors.length && !t.unassigned.counts.entities) return nothing;
+    const all = this.floorsOf(t);
+    const shown = this.selected === 'all' ? all : all.filter((f) => f.floor_id === this.selected);
+    const floors = shown.length ? shown : all; // a floor that vanished from the tree: back to everything
+    const loose = (this.selected === 'all' || !shown.length) && (t.unassigned.counts.entities || !t.scoped);
+    return html`<div class="split" data-layout-view="tiles" data-fit=${this.fit}>
+      ${this.renderTreePanel(t)}
+      <div class="floors" data-floors>
+        ${repeat(floors, (f) => f.floor_id, (f) => this.renderFloor(f))}
+        ${loose
+          ? html`<section class=${classMap({ floor: true, laid: this.lay.gridOn('areas:unassigned') })} style="--n:1" data-floor="unassigned">
+              <div class="floor-head"><h2>ללא שיוך</h2><span class="level">התקנים שאינם משויכים לאזור</span></div>
+              ${this.renderAreasGrid('areas:unassigned', html`${this.lay.wrap('area:unassigned', this.renderTile({ area_id: 'unassigned', name: t.unassigned.name, icon: null, floor_id: null, counts: t.unassigned.counts, has_camera: false }, true))}`)}
+            </section>`
+          : nothing}
+      </div>
+    </div>`;
   }
 
   /** The approved mockup's presentation: the tree panel and the floor cards. */
   private renderCards(t: DeviceTree) {
     if (!t.floors.length && !t.unassigned.counts.entities) return nothing;
-    const shown = this.selected === 'all' ? t.floors : t.floors.filter((f) => f.floor_id === this.selected);
-    const floors = shown.length ? shown : t.floors; // a floor that vanished from the tree: back to everything
-    return html`<div class="split" data-layout-view="cards">
+    const all = this.floorsOf(t);
+    const shown = this.selected === 'all' ? all : all.filter((f) => f.floor_id === this.selected);
+    const floors = shown.length ? shown : all; // a floor that vanished from the tree: back to everything
+    return html`<div class="split" data-layout-view="cards" data-fit=${this.fit}>
       ${this.renderTreePanel(t)}
       <div class=${classMap({ fcards: true, 'lay-grid': this.gridAttrs('fcards').on })} data-lay-grid="fcards" data-lay-cols=${this.gridAttrs('fcards').cols} ?data-lay-phone-preview=${this.gridAttrs('fcards').phone}>
         ${repeat(floors, (f) => f.floor_id, (f) => this.lay.wrap(`floor:${f.floor_id}`, this.renderFloorCard(f)))}
@@ -1436,7 +2004,7 @@ export class DevicesBuilding extends LitElement {
         <sw-icon name="building" size=${15}></sw-icon><span class="nm" title="כל המבנה">כל המבנה</span>${lit(t.building)}
       </button>
       ${repeat(
-        t.floors,
+        this.floorsOf(t),
         (f) => f.floor_id,
         (f) => html`<div class="tree-group" data-tree-floor=${f.floor_id}>
           <div class="tree-floor">
@@ -1480,7 +2048,7 @@ export class DevicesBuilding extends LitElement {
           ? html`<devices-bulk-menu scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${c} variant="menu" triggerLabel="כבה קומה" data-floor-menu=${f.floor_id}></devices-bulk-menu>`
           : nothing}
       </header>
-      ${this.renderClimateStrip(f.climate, 'מזגני הקומה')}
+      ${this.fit >= 2 ? nothing : this.renderClimateStrip(f.climate, 'מזגני הקומה')}
       <div class="rows">
         ${f.areas.length ? repeat(f.areas, (a) => a.area_id, (a) => this.renderAreaRow(a, 'card')) : html`<div class="arow" style="cursor:default">אין אזורים בקומה</div>`}
       </div>
@@ -1526,21 +2094,24 @@ export class DevicesBuilding extends LitElement {
   /** The building's summary tiles. Owner 2026-09-29: each is a real button (aria-expanded) opening the tiles' panel for
    * its kind across the building, in the installation's tile shape (ui.tile_layout: cards or compact). */
   private renderKpis(c: DeviceCounts) {
-    const layout = this.tiles.layout;
+    // owner notes 2026-09-30: small rectangles with the icon at the END of the text (the left side in Hebrew) - the
+    // installation's tile shape only decides whether an explicit "כרטיסים" (tall cards) is kept
+    void this.tiles.layout; // the controller re-renders this screen when the tile shape changes
+    const layout = effectiveTileSetting() === 'cards' ? 'cards' : 'compact';
     const open = (kind: TileKind) => () => this.openPanel(kind);
     // owner feedback 2026-09-29: a domain the installation has nothing of is not a counter at all (no "0/0 אין במבנה")
     const kpi = (label: string, on: number, total: number, icon: IconName, kind: TileKind, warm = true) =>
       total === 0
         ? nothing
-        : html`<sw-kpi data-kpi=${label} data-tile-kind=${kind} data-value=${`${on}/${total}`} label=${label} value=${`${on}/${total}`} .icon=${icon} tone=${warm && on > 0 ? 'live' : 'neutral'} layout=${layout} action ?expanded=${this.isOpen(kind)} hint="הצג ושלוט" @click=${open(kind)}></sw-kpi>`;
+        : html`<sw-kpi data-kpi=${label} data-tile-kind=${kind} data-value=${`${on}/${total}`} label=${label} value=${`${on}/${total}`} .icon=${icon} tone=${warm && on > 0 ? 'live' : 'neutral'} layout=${layout} icon-end action ?expanded=${this.isOpen(kind)} hint="הצג ושלוט" @click=${open(kind)}></sw-kpi>`;
     return html`<div class="kpis" data-kpis>
       ${kpi('תאורה דולקת', c.lights_on, c.lights, 'light', 'lights')}
       ${kpi('מתגים פעילים', c.switches_on, c.switches, 'bolt', 'switches')}
       ${kpi('תריסים פתוחים', c.covers_open, c.covers, 'layers', 'covers')}
       ${kpi('מיזוג פעיל', c.climate_active, c.climate, 'activity', 'climate')}
       ${kpi('מסכים דולקים', c.media_on, c.media, 'play', 'media')}
-      ${c.locks ? html`<sw-kpi data-kpi="נעולים" data-tile-kind="locks" data-value=${`${c.locks_locked}/${c.locks}`} label="מנעולים נעולים" value=${`${c.locks_locked}/${c.locks}`} icon="lock" tone=${c.locks_locked === c.locks ? 'live' : 'stale'} detail=${c.locks_locked === c.locks ? 'הכול נעול' : 'יש מנעול פתוח'} layout=${layout} action ?expanded=${this.isOpen('locks')} hint="הצג ושלוט" @click=${open('locks')}></sw-kpi>` : nothing}
-      ${c.alarm ? html`<sw-kpi data-kpi="אזעקה" data-tile-kind="alarm" label="אזעקה" value=${ALARM_HE[c.alarm] ?? c.alarm} icon="shield" tone=${alarmTone(c.alarm)} layout=${layout} action ?expanded=${this.isOpen('alarm')} hint="הצג" @click=${open('alarm')}></sw-kpi>` : nothing}
+      ${c.locks ? html`<sw-kpi data-kpi="נעולים" data-tile-kind="locks" data-value=${`${c.locks_locked}/${c.locks}`} label="מנעולים נעולים" value=${`${c.locks_locked}/${c.locks}`} icon="lock" tone=${c.locks_locked === c.locks ? 'live' : 'stale'} detail=${c.locks_locked === c.locks ? 'הכול נעול' : 'יש מנעול פתוח'} layout=${layout} icon-end action ?expanded=${this.isOpen('locks')} hint="הצג ושלוט" @click=${open('locks')}></sw-kpi>` : nothing}
+      ${c.alarm ? html`<sw-kpi data-kpi="אזעקה" data-tile-kind="alarm" label="אזעקה" value=${ALARM_HE[c.alarm] ?? c.alarm} icon="shield" tone=${alarmTone(c.alarm)} layout=${layout} icon-end action ?expanded=${this.isOpen('alarm')} hint="הצג" @click=${open('alarm')}></sw-kpi>` : nothing}
     </div>`;
   }
 
@@ -1559,7 +2130,7 @@ export class DevicesBuilding extends LitElement {
   }
 
   private renderFloor(f: DeviceFloor) {
-    return html`<section class="floor" data-floor=${f.floor_id}>
+    return html`<section class=${classMap({ floor: true, laid: this.lay.gridOn(`areas:${f.floor_id}`) })} style=${`--n:${Math.min(4, Math.max(1, f.areas.length))}`} data-floor=${f.floor_id}>
       <div class="floor-head">
         <h2>${bidi(f.name)}</h2>
         ${f.level !== null && f.floor_id !== 'none' ? html`<span class="level">מפלס ${ltrNum(f.level)}</span>` : nothing}
@@ -1569,7 +2140,7 @@ export class DevicesBuilding extends LitElement {
           : nothing}
         <div class="floor-sum" data-floor-sum=${f.floor_id}>${this.renderFloorChips(f, 13)}</div>
       </div>
-      ${this.renderClimateStrip(f.climate, 'מזגני הקומה')}
+      ${this.fit >= 2 ? nothing : this.renderClimateStrip(f.climate, 'מזגני הקומה')}
       ${this.renderAreasGrid(`areas:${f.floor_id}`, html`${repeat(f.areas, (a) => a.area_id, (a) => this.lay.wrap(`area:${a.area_id}`, this.renderTile(a)))}`)}
     </section>`;
   }
