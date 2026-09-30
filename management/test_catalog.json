@@ -5657,5 +5657,83 @@
     "evidence": [],
     "executed_at": null,
     "notes": "Planned in CR-009 (2026-09-29)."
+  },
+  {
+    "id": "AT205",
+    "requirement_ids": [
+      "R205"
+    ],
+    "task_ids": [
+      "T099"
+    ],
+    "title": "מולטימדיה שלב 2 - מודל נגנים ופקודות",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fake HA media fixture (media_fake_ha.py) with Music Assistant entities; no real device"
+    ],
+    "procedure": [
+      "Backend: tests/test_media_model.py (audio kinds, music role, primaries), test_media_players_commands.py (every new command -> exact service; refusals; clamp; play_item never changes volume), test_media_query.py (trimmed shapes, cache, item_ref), test_bridge_media_policy.py additions, test_media_api.py, test_access.py, test_migrations.py.",
+      "Live spec evidence-media-players-live.spec.ts (SW_LIVE=1) against media_fake_ha.py: one card per speaker, now playing, transport confirms, ceilings."
+    ],
+    "expected": "Players and speakers model and commands (CR-016 §4-§6, §8-§11), through Home Assistant only (no direct Music Assistant connection, no MA token): kinds speaker/player/receiver/group detected and approved like screens, one card per physical device after the CR-015 dedupe ladder (MA/Cast/DLNA duplicates), the MA-created entity as the `music` primary for transport, now playing, up next, favourites/stations/playlists and grouping; new commands seek, shuffle, repeat, play_item (server-issued item_ref only, never a URL), transfer, and announce only if approved; bridge 0.5.0 allow-list + media_policy (no URL media ids, no URL announcements, announce volume <= 60) and the read-only media_query service (get_queue / get_library, trimmed); every volume write clamped to the device ceiling (new speakers and groups default 80); permissions media.group (and sensitive media.announce if approved); migration 0044_media_players.sql.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-016 (2026-10-01)."
+  },
+  {
+    "id": "AT206",
+    "requirement_ids": [
+      "R206"
+    ],
+    "task_ids": [
+      "T099"
+    ],
+    "title": "מולטימדיה שלב 2 - קבוצות",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fake HA media fixture (media_fake_ha.py) with Music Assistant entities; no real device"
+    ],
+    "procedure": [
+      "Backend tests/test_media_groups.py (authority rule, party confirmation, bulk for building-wide, per-member permission, join read-back outcomes, relative/absolute group volume with ceilings and skips, presets revision and diff apply, players_pause).",
+      "Live spec: group join with a member that refuses (not_joined), group volume clamps, preset apply, floor pause skips."
+    ],
+    "expected": "Groups (CR-016 §5.3, §6.2): live groups from group_members with leader/member roles (member transport acts on the leader), static MA groups as group cards, join/leave as a diff under one grouping authority (MA or one vendor platform, never mixed, never Cast), outcomes read back per member (joined / not_joined / unknown), group volume relative (balance kept) or absolute as a per-member fan-out with per-room outcome and ceilings, saved presets with revision and diff apply, confirmation for >= 4 devices or more than one floor and media.bulk for building-wide; floor 'עצור מוזיקה' (players_pause) through the bulk engine.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-016 (2026-10-01)."
+  },
+  {
+    "id": "AT207",
+    "requirement_ids": [
+      "R207"
+    ],
+    "task_ids": [
+      "T099"
+    ],
+    "title": "מולטימדיה שלב 2 - לשוניות, כרטיסים וחלונית הנגן",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fake HA media fixture (media_fake_ha.py) with Music Assistant entities; no real device"
+    ],
+    "procedure": [
+      "Frontend unit specs (group volume math, join diff batching, up-next states, player state text); evidence-media-players.spec.ts and evidence-media-player-panel.spec.ts in demo mode at 1440/820/390 (loading, empty, error, ready, view-only, playing, grouped, member, static group, receiver, unavailable, not confirmed, partial outcome), RTL.",
+      "Live spec: area card and home widget open the player panel; no HA/MA names on operator screens."
+    ],
+    "expected": "Players UI (CR-016 §7): tabs 'מסכים' · 'נגנים ורמקולים' · 'קבוצות' on the מולטימדיה page with the CR-015 editor per tab; <media-player-card> (artwork, name/room, state line, play/pause, volume) on the pages, the area card and the home widget; the player panel in the existing drawer with artwork, progress, transport, seek, shuffle/repeat, volume with a members pop-out, 'הבא בתור' (honest 'לא זמין' when unconfirmed), favourites/stations/playlists tabs, group section with batched join and 'העבר את המוזיקה לכאן'; receivers with power, volume, sources and sound mode; settings: approve players, favourites curation, presets; clean operator screens with no HA/MA names.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-016 (2026-10-01)."
   }
 ]
