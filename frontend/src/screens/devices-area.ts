@@ -44,7 +44,7 @@ const SENSOR_GROUP_ORDER = ['temperature', 'humidity', 'power', 'illuminance', '
 /** The cards whose devices are two-up tiles (the others are full-width rows). */
 const TILE_CARDS = new Set<CardId>(['lighting', 'switches', 'sensors']);
 
-const CARD_ICON: Record<CardId, IconName> = { lighting: 'light', switches: 'bolt', climate: 'activity', covers: 'layers', security: 'shield', media: 'play', sensors: 'sensor' };
+const CARD_ICON: Record<CardId, IconName> = { lighting: 'light', switches: 'bolt', climate: 'activity', heating: 'activity', covers: 'layers', security: 'shield', media: 'play', sensors: 'sensor' };
 
 /** CR-007 6a: the area screen's own element rules for the "glass" style (tokens: devices-style.ts) and the compact
  * density - the approved mockup's board 6: glass cards, icon-forward tiles, a blue glow for a lit light and a green
@@ -714,7 +714,7 @@ export class DevicesArea extends LitElement {
     const ents = shownEntities(it, c.entities);
     // CR-007 6c: an arranged card (or the one being arranged) draws its tiles in the saved order / span / size
     const tiles = c.count ? this.lay.tiles(`card:${c.id}`, this.displayRows(c).map((r) => r.entity_id)) : null;
-    return html`<sw-card data-card=${c.id} data-lay-key=${`card:${c.id}`} ?data-empty=${c.count === 0} heading=${titleOf(it, c.label)} subheading=${c.count ? `${c.count} התקנים${c.id === 'lighting' || c.id === 'switches' || c.id === 'climate' || c.id === 'covers' || c.id === 'media' ? ` · ${c.active} פעילים` : ''}` : ''}>
+    return html`<sw-card data-card=${c.id} data-lay-key=${`card:${c.id}`} ?data-empty=${c.count === 0} heading=${titleOf(it, c.label)} subheading=${c.count ? `${c.count} התקנים${c.id === 'lighting' || c.id === 'switches' || c.id === 'climate' || c.id === 'heating' || c.id === 'covers' || c.id === 'media' ? ` · ${c.active} פעילים` : ''}` : ''}>
       <sw-icon slot="actions" .name=${it?.icon ?? CARD_ICON[c.id]} size=${18}></sw-icon>
       ${c.count === 0
         ? html`<sw-state-panel compact data-card-empty state="empty" heading=${e.heading} hint=${e.hint}></sw-state-panel>`
@@ -936,12 +936,12 @@ export class DevicesArea extends LitElement {
   }
 
   private renderRow(raw: DeviceRow, card: CardId) {
-    const controllable = raw.can_control && raw.available && raw.state !== 'unavailable' && (card === 'climate' || card === 'covers' || card === 'media');
+    const controllable = raw.can_control && raw.available && raw.state !== 'unavailable' && (card === 'climate' || card === 'heating' || card === 'covers' || card === 'media');
     const r = raw; // the row's text is always what HA last reported; only the controls show a pending target
     const unavailable = !r.available || r.state === 'unavailable';
     const on = r.active && !unavailable;
     const pendingCls = controllable && this.ctl.rowPending(r.entity_id);
-    if (card === 'climate') {
+    if (card === 'climate' || card === 'heating') {
       const isClimate = r.domain === 'climate';
       return html`<div class=${classMap({ row: true, on, unavailable, pending: pendingCls })} data-entity=${r.entity_id} data-active=${String(r.active)} ?data-can-control=${controllable} title=${r.entity_id}>
         <span class="n">${bidi(r.name)}</span>

@@ -44,6 +44,7 @@ export const KIND_META: Record<TileKind, KindMeta> = {
   switches: { noun: 'מתגים', icon: 'bolt', active: 'פעילים', inactive: 'כבויים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], master: { on: 'switches_on', off: 'switches_off', onLabel: 'הדלק את כל המתגים', offLabel: 'כבה את כל המתגים' }, emptyHint: 'מתגים ודגלים המשויכים לאזורים יופיעו כאן.' },
   covers: { noun: 'תריסים', icon: 'layers', active: 'פתוחים', inactive: 'סגורים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], master: { open: 'covers_open', close: 'covers_close', openLabel: 'פתח את כל התריסים', closeLabel: 'סגור את כל התריסים' }, emptyHint: 'תריסים, וילונות ושערים המשויכים לאזורים יופיעו כאן.' },
   climate: { noun: 'התקני מיזוג', icon: 'activity', active: 'פעילים', inactive: 'כבויים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], emptyHint: 'מזגנים, תרמוסטטים, מאווררים ומייבשים יופיעו כאן.' },
+  heating: { noun: 'התקני חימום', icon: 'activity', active: 'פעילים', inactive: 'כבויים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], emptyHint: 'תרמוסטטים, משאבות חום וחימום תת־רצפתי יופיעו כאן.' },
   media: { noun: 'מסכים ונגנים', icon: 'play', active: 'דולקים', inactive: 'כבויים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], master: { on: 'screens_on', off: 'screens_off', onLabel: 'הדלק את כל המסכים', offLabel: 'כבה את כל המסכים' }, emptyHint: 'טלוויזיות, מקרנים ורמקולים יופיעו כאן.' },
   locks: { noun: 'מנעולים', icon: 'lock', active: 'נעולים', inactive: 'לא נעולים', unavailable: 'לא זמינים', order: ['all', 'inactive', 'active', 'unavailable'], emptyHint: 'מנעולים המשויכים לאזורים יופיעו כאן.' },
   alarm: { noun: 'לוחות אזעקה', icon: 'shield', active: 'דרוכים', inactive: 'מנוטרלים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], emptyHint: 'לוח אזעקה המשויך לאזור יופיע כאן.' },
@@ -104,6 +105,7 @@ const DEMO_ROWS: Record<TileKind, DeviceItem[]> = {
     demoRow('cover.office_2', 'וילון משרד', OFFICE, 'open', { position: 40 }),
   ],
   climate: [demoRow('climate.lobby', 'מזגן לובי', LOBBY, 'cool', { hvac_mode: 'cool', current_temperature: 24.5, target_temperature: 22 })],
+  heating: [],
   media: [demoRow('media_player.kitchen_tv', 'מסך מטבח', KITCHEN, 'off')],
   locks: [demoRow('lock.lobby_door', 'דלת ראשית', LOBBY, 'locked', { kind: 'lock', locked: true })],
   alarm: [demoRow('alarm_control_panel.house', 'אזעקת הבניין', LOBBY, 'armed_home', { kind: 'alarm', armed: true })],
@@ -566,7 +568,7 @@ export class DevicesTilesPanel extends LitElement {
   }
 
   private domains(): string[] {
-    return { lights: ['light'], switches: ['switch', 'input_boolean'], covers: ['cover'], climate: ['climate', 'fan', 'humidifier'], media: ['media_player'], locks: ['lock'], alarm: ['alarm_control_panel'] }[this.kind];
+    return { lights: ['light'], switches: ['switch', 'input_boolean'], covers: ['cover'], climate: ['climate', 'fan', 'humidifier'], heating: ['climate'], media: ['media_player'], locks: ['lock'], alarm: ['alarm_control_panel'] }[this.kind];
   }
 
   /** Throttled like the building screen: one refetch per window while pushes keep coming, one more after. */
@@ -796,7 +798,7 @@ export class DevicesTilesPanel extends LitElement {
     const on = st === 'active' && this.kind !== 'locks' && this.kind !== 'alarm';
     const m = KIND_META[this.kind];
     const icon: IconName = this.kind === 'locks' ? (r.locked ? 'lock' : 'unlock') : m.icon;
-    const stateText = this.kind === 'alarm' ? (st === 'unavailable' ? 'לא זמין' : (ALARM_HE[r.state ?? ''] ?? r.state ?? 'לא ידוע')) : this.kind === 'locks' ? (st === 'unavailable' ? 'לא זמין' : r.locked ? 'נעול' : r.state === 'unlocked' ? 'לא נעול' : (r.state ?? 'לא ידוע')) : this.kind === 'climate' && r.domain === 'climate' && st !== 'unavailable' ? `${rowLabel(r)}${r.current_temperature !== null && r.current_temperature !== undefined ? ` · ${ltrNum(r.current_temperature)}°` : ''}${r.target_temperature !== null && r.target_temperature !== undefined ? ` · יעד ${ltrNum(r.target_temperature)}°` : ''}` : rowLabel(r);
+    const stateText = this.kind === 'alarm' ? (st === 'unavailable' ? 'לא זמין' : (ALARM_HE[r.state ?? ''] ?? r.state ?? 'לא ידוע')) : this.kind === 'locks' ? (st === 'unavailable' ? 'לא זמין' : r.locked ? 'נעול' : r.state === 'unlocked' ? 'לא נעול' : (r.state ?? 'לא ידוע')) : (this.kind === 'climate' || this.kind === 'heating') && r.domain === 'climate' && st !== 'unavailable' ? `${rowLabel(r)}${r.current_temperature !== null && r.current_temperature !== undefined ? ` · ${ltrNum(r.current_temperature)}°` : ''}${r.target_temperature !== null && r.target_temperature !== undefined ? ` · יעד ${ltrNum(r.target_temperature)}°` : ''}` : rowLabel(r);
     const toggleKinds = this.kind === 'lights' || this.kind === 'switches';
     const dimmable = this.kind === 'lights' && r.color_mode !== 'onoff' && (on || this.ctl.live<boolean>(r.entity_id, 'power') === true);
     return html`<div class=${classMap({ row: true, on, unavailable: st === 'unavailable', pending: controllable && this.ctl.rowPending(r.entity_id) })}
@@ -816,7 +818,7 @@ export class DevicesTilesPanel extends LitElement {
       ${!controllable && this.why === r.entity_id ? html`<div class="why" data-readonly-why role="note">${reason}</div>` : nothing}
       ${controllable && dimmable ? this.ctl.renderBrightnessSlider(r) : nothing}
       ${controllable && this.kind === 'covers' ? this.ctl.renderCoverControls(r) : nothing}
-      ${controllable && this.kind === 'climate' ? this.ctl.renderClimateControls(r) : nothing}
+      ${controllable && (this.kind === 'climate' || this.kind === 'heating') ? this.ctl.renderClimateControls(r) : nothing}
       ${controllable && this.kind === 'media' ? this.ctl.renderMediaControls(r) : nothing}
       ${controllable ? this.ctl.renderCmdStatus(r.entity_id) : nothing}
     </div>`;

@@ -15,7 +15,7 @@ export const CARDS_VERSION = 3;
 
 /** The library's card types (keep in step with CUSTOM_TYPES in routers/device_layouts.py - a backend test compares them):
  * the seven built-in domain cards, plus locks and gates, energy and the free card. */
-export const CARD_TYPE_IDS = ['lighting', 'switches', 'climate', 'covers', 'security', 'media', 'sensors', 'locks', 'energy', 'free', 'camera'] as const;
+export const CARD_TYPE_IDS = ['lighting', 'switches', 'climate', 'heating', 'covers', 'security', 'media', 'sensors', 'locks', 'energy', 'free', 'camera'] as const;
 export type CardTypeId = (typeof CARD_TYPE_IDS)[number];
 
 /** A device of the area as the editor lists it (from the area's own cards - already what this caller may see). */
@@ -48,6 +48,7 @@ export const CARD_TYPES: Record<CardTypeId, CardTypeInfo> = {
   lighting: { id: 'lighting', label: 'תאורה', desc: 'מנורות וספוטים: הדלקה, כיבוי ועוצמה', icon: 'light', tiles: true, match: (e) => e.card === 'lighting' },
   switches: { id: 'switches', label: 'מתגים', desc: 'שקעים, מתגים ומעגלים חשמליים', icon: 'bolt', tiles: true, match: (e) => e.card === 'switches' },
   climate: { id: 'climate', label: 'אקלים', desc: 'מזגנים, מאווררים ומכשירי לחות', icon: 'activity', tiles: false, match: (e) => e.card === 'climate' },
+  heating: { id: 'heating', label: 'חימום', desc: 'תרמוסטטים, משאבות חום וחימום תת־רצפתי', icon: 'activity', tiles: false, match: (e) => e.card === 'heating' },
   covers: { id: 'covers', label: 'תריסים', desc: 'תריסים, וילונות ושליטה במיקום', icon: 'layers', tiles: false, match: (e) => e.card === 'covers' && !e.door },
   security: { id: 'security', label: 'מצלמות ואבטחה', desc: 'מצלמות, אזעקה וחיישני מגע ותנועה', icon: 'shield', tiles: false, match: (e) => e.card === 'security' && e.domain !== 'lock' },
   media: { id: 'media', label: 'מדיה', desc: 'טלוויזיות ונגנים: מצב, מקור ועוצמה', icon: 'play', tiles: false, match: (e) => e.card === 'media' },

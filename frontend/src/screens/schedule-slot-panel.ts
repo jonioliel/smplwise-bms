@@ -447,7 +447,7 @@ export class ScheduleSlotPanel extends LitElement {
       return html`<div class="arg" data-arg=${spec.name}>
         <label for=${key}>${label}</label>
         <div class="row">
-          <input id=${key} type="number" step=${spec.type === 'float' ? '0.5' : '1'} min=${spec.min ?? nothing} max=${spec.max ?? nothing} ?disabled=${ro} .value=${v === undefined ? '' : String(v)} @change=${(e: Event) => this.setArg(group, spec.name, (e.target as HTMLInputElement).value === '' ? undefined : Number((e.target as HTMLInputElement).value))} />
+          <input id=${key} type="number" step=${spec.type === 'float' && spec.name !== 'temperature' ? '0.5' : '1'} min=${spec.min ?? nothing} max=${spec.max ?? nothing} ?disabled=${ro} .value=${v === undefined ? '' : String(v)} @change=${(e: Event) => this.setArg(group, spec.name, (e.target as HTMLInputElement).value === '' ? undefined : Number((e.target as HTMLInputElement).value))} />
           <span class="unit">${spec.name === 'temperature' ? '°' : ''}</span>
         </div>
       </div>`;

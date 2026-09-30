@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { stateLabel } from '../src/api/ha';
 import { climateRange } from '../src/api/devices';
+import { BULK_KINDS, BULK_KIND_LABEL } from '../src/api/device-bulk';
 import { emptyDraft, type ConditionView, type DraftSlot, type ScheduleDraft } from '../src/api/schedules';
 import {
   activePreset,
@@ -476,8 +477,15 @@ test.describe('the slot panel and the conflict dialog', () => {
   test('the climate controls keep to the own target range of the entity', () => {
     expect(climateRange({ min_temp: 5, max_temp: 95, target_temp_step: 0.5 })).toEqual({ min: 5, max: 95, step: 0.5 }); // a heating thermostat: 45 is reachable
     expect(climateRange({ min_temp: 5, max_temp: 43, target_temp_step: 1 })).toEqual({ min: 5, max: 43, step: 1 }); // a heat pump targeting 36
-    expect(climateRange({ min_temp: 18, max_temp: 30, target_temp_step: null })).toEqual({ min: 18, max: 30, step: 0.5 });
-    expect(climateRange({})).toEqual({ min: 5, max: 35, step: 0.5 });
+    expect(climateRange({ min_temp: 18, max_temp: 30, target_temp_step: null })).toEqual({ min: 18, max: 30, step: 1 }); // no step reported: one degree
+    expect(climateRange({ min_temp: 5, max_temp: 45, target_temp_step: undefined })).toEqual({ min: 5, max: 45, step: 1 }); // a wide range keeps the one-degree step
+    expect(climateRange({})).toEqual({ min: 5, max: 35, step: 1 });
+  });
+
+  test('heating has its own off action, next to (not inside) the air-conditioning one', () => {
+    expect(BULK_KIND_LABEL.climate_off).toBe('כבה מיזוג');
+    expect(BULK_KIND_LABEL.heating_off).toBe('כבה חימום');
+    expect(BULK_KINDS.indexOf('heating_off')).toBe(BULK_KINDS.indexOf('climate_off') + 1);
   });
 
   test('a climate in heat_cool reads in words, not as the raw mode', () => {

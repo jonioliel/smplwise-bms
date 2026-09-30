@@ -83,7 +83,7 @@ TileSize = Literal["s", "m", "l"]
 
 # Slice 6c: the tile columns of each area card (a tile spans 1 or all of them). Keep in step with TILE_COLS in
 # frontend/src/screens/devices-layout.ts (tests/test_device_layouts.py compares the two).
-TILE_COLS = {"lighting": 2, "switches": 2, "climate": 2, "covers": 2, "security": 2, "media": 2, "sensors": 2}
+TILE_COLS = {"lighting": 2, "switches": 2, "climate": 2, "heating": 2, "covers": 2, "security": 2, "media": 2, "sensors": 2}
 MAX_TILES = 200
 MAX_CAMERA_CARDS = 12  # per area screen: more than a screen can stream anyway (media.max_live_sessions)
 CAMERA_KEY_RE = re.compile(r"^camera:[A-Za-z0-9_-]{1,32}$")

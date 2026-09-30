@@ -1872,7 +1872,7 @@ export class ExploreFloorMap extends LitElement {
     if (arg.type === 'int' || arg.type === 'float') {
       const min = arg.name === 'volume_level' ? 0 : arg.name === 'value' ? ((at.min as number) ?? arg.min) : arg.name === 'temperature' ? ((at.min_temp as number) ?? 5) : arg.min;
       const max = arg.name === 'volume_level' ? 100 : arg.name === 'value' ? ((at.max as number) ?? arg.max) : arg.name === 'temperature' ? ((at.max_temp as number) ?? 35) : arg.max;
-      const step = arg.name === 'value' ? ((at.step as number) ?? 1) : arg.name === 'temperature' ? 0.5 : 1;
+      const step = arg.name === 'value' ? ((at.step as number) ?? 1) : arg.name === 'temperature' ? ((at.target_temp_step as number) || 1) : 1;
       const unit = arg.name === 'volume_level' || arg.name === 'brightness_pct' || arg.name === 'percentage' ? '%' : arg.name === 'temperature' ? '°' : '';
       return html`<span class="argwrap"><input class="arg" type="number" data-action-arg=${key} aria-label=${arg.name} .value=${value} min=${String(min ?? '')} max=${String(max ?? '')} step=${String(step)} data-ltr @change=${(ev: Event) => set((ev.target as HTMLInputElement).value)} />${unit ? html`<span class="unit">${unit}</span>` : nothing}</span>`;
     }

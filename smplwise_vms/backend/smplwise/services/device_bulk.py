@@ -71,6 +71,7 @@ KIND_LABELS = {
     "covers_stop": "עצירת תריסים",
     "covers_position": "מיקום תריסים",
     "climate_off": "כיבוי מיזוג",
+    "heating_off": "כיבוי חימום",
     "screens_off": "כיבוי מסכים",
     "all_off": "כיבוי הכל",
     # owner 2026-09-29 (the tiles' panel master control): turn a kind's shown devices on / off together
@@ -91,6 +92,9 @@ _COVERS_OPEN = (("cover", "cover.open_cover"),)
 _COVERS_STOP = (("cover", "cover.stop_cover"),)
 _COVERS_POSITION = (("cover", "cover.set_cover_position"),)
 _CLIMATE = (("climate", "climate.turn_off"), ("fan", "fan.turn_off"))  # fans live on the climate card (מיזוג ואקלים)
+# owner 2026-09-30: heating (a climate entity that cannot cool - services/devices.py climate_kind_auto, or an administrator's
+# override) is its own group with its own off action; "כיבוי מיזוג" never reaches it, "כיבוי הכל" does (it is everything).
+_HEATING = (("climate", "climate.turn_off"),)
 _SCREENS = (("media_player", "media_player.turn_off"),)
 # owner 2026-09-29: the tiles' panel master control. Switches only through the same SwitchPolicy (an administrator's
 # bulk-safe mark is the only way in; never input_boolean, never the door layer) - turning ON is guarded exactly like off.
@@ -105,6 +109,7 @@ KINDS: dict[str, tuple[tuple[str, str], ...]] = {
     "covers_stop": _COVERS_STOP,
     "covers_position": _COVERS_POSITION,
     "climate_off": _CLIMATE,
+    "heating_off": _HEATING,
     "screens_off": _SCREENS,
     "all_off": _LIGHTS + _SWITCHES + _COVERS_CLOSE + _CLIMATE + _SCREENS,
     "switches_off": _SWITCHES,
@@ -112,6 +117,8 @@ KINDS: dict[str, tuple[tuple[str, str], ...]] = {
     "lights_on": _LIGHTS_ON,
     "screens_on": _SCREENS_ON,
 }
+# the kinds that reach only one of the two climate groups (air conditioning / heating); every other kind that names climate takes both
+CLIMATE_SPLIT_KINDS = frozenset({"climate_off", "heating_off"})
 # kinds that turn something ON: an entity is sent when it is off (the reverse of _needs' "off" rule)
 ON_KINDS = frozenset({"switches_on", "lights_on", "screens_on"})
 # kinds whose targets carry a request argument (validated the same way as the single-entity action, ha_bridge.ACTIONS)
@@ -384,6 +391,8 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
             continue
         if domain not in actions:
             continue
+        if domain == "climate" and kind in CLIMATE_SPLIT_KINDS and (e.get("climate_kind") == "heating") != (kind == "heating_off"):
+            continue  # the other group's entity: neither sent nor described
         reason = policy.excluded_reason(e)
         if reason:
             excluded.append({"entity_id": e["entity_id"], "name": _name(e), "domain": domain, "reason": reason, "reason_label": excluded_label(reason, kind)})
@@ -424,7 +433,7 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
         "count": len(targets),
         "targets": targets,
         "by_domain": by_domain,
-        "domain_labels": {d: DOMAIN_LABELS.get(d, d) for d in set(by_domain) | set(never)},
+        "domain_labels": {d: ("חימום" if (d == "climate" and kind == "heating_off") else DOMAIN_LABELS.get(d, d)) for d in set(by_domain) | set(never)},
         "skipped": {"already": already, "unavailable": unavailable},
         "excluded": excluded,
         "never_included": never,

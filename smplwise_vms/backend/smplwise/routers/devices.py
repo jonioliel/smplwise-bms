@@ -167,7 +167,7 @@ def area(area_id: str, principal: Principal = Depends(current_principal_ro), con
     return body
 
 
-ItemKind = Literal["lights", "switches", "covers", "climate", "media", "locks", "alarm"]
+ItemKind = Literal["lights", "switches", "covers", "climate", "heating", "media", "locks", "alarm"]
 
 
 @router.get("/devices/items")
@@ -368,6 +368,55 @@ def set_bulk_safe(entity_id: str, body: BulkSafeBody, request: Request, principa
     return {"entity_id": entity_id, "bulk_safe": ok, "bulk_reason": reason, "marked": body.bulk_safe}
 
 
+# ---------------------------------------------------------------- heating versus air conditioning (owner 2026-09-30)
+
+class ClimateKindBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["auto", "ac", "heating"]
+
+
+@router.get("/devices/climate-kinds")
+def list_climate_kinds(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """Every climate entity with the group it is in, the group its own modes say and the administrator's override (the
+    settings screen's list; system.configure, like the override itself)."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    out = []
+    for e in svc.load_entities(conn):
+        if e["domain"] != "climate":
+            continue
+        a = e.get("attributes") or {}
+        out.append({
+            "entity_id": e["entity_id"], "name": e.get("name") or e.get("original_name") or e["entity_id"], "area_name": e.get("area_name"),
+            "state": e.get("state"), "available": bool(e.get("available")), "hvac_modes": svc._str_list(a.get("hvac_modes")),
+            "kind": e["climate_kind"], "auto": e["climate_kind_auto"], "set": e["climate_kind_set"],
+        })
+    out.sort(key=lambda r: (r["name"].casefold(), r["entity_id"]))
+    return {"climate": out}
+
+
+@router.put("/devices/entities/{entity_id}/climate-kind")
+def set_climate_kind(entity_id: str, body: ClimateKindBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Override the group of a climate entity - air conditioning (ac) or heating - or return it to automatic (its own
+    hvac_modes decide). system.configure; audited. Only a climate entity has a group."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    row = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
+    if not row:
+        raise ApiError(404, "not_found", "הישות לא נמצאה בקטלוג.")
+    if row["domain"] != "climate":
+        raise ApiError(422, "validation", "רק התקן אקלים (climate) משויך למיזוג או לחימום.")
+    if body.kind == "auto":
+        conn.execute("DELETE FROM device_climate_kind WHERE entity_id = ?", (entity_id,))
+    else:
+        conn.execute(
+            "INSERT INTO device_climate_kind(entity_id, kind, set_by, set_by_username, set_at) VALUES (?,?,?,?,?) ON CONFLICT(entity_id) DO UPDATE SET kind = excluded.kind, set_by = excluded.set_by, set_by_username = excluded.set_by_username, set_at = excluded.set_at",
+            (entity_id, body.kind, principal.user_id, principal.username, now_iso()),
+        )
+    audit(conn, actor=principal, action="devices.climate_kind", decision="allowed", resource_type="ha_entity", resource_id=entity_id,
+          request_id=getattr(request.state, "correlation_id", None), details={"kind": body.kind})
+    e = next((x for x in svc.load_entities(conn) if x["entity_id"] == entity_id), None)
+    return {"entity_id": entity_id, "kind": e["climate_kind"] if e else None, "auto": e["climate_kind_auto"] if e else None, "set": e["climate_kind_set"] if e else None}
+
+
 # ---------------------------------------------------------------- slice 4: assign an unassigned entity to an area
 
 
@@ -456,7 +505,7 @@ def assign_area(entity_id: str, request: Request, principal: Principal = Depends
 
 COMMAND_ID = r"^[A-Za-z0-9-]{8,64}$"
 Scope = Literal["building", "floor", "area"]
-Kind = Literal["lights_off", "covers_close", "covers_open", "covers_stop", "covers_position", "climate_off", "screens_off", "all_off", "switches_off", "switches_on", "lights_on", "screens_on"]
+Kind = Literal["lights_off", "covers_close", "covers_open", "covers_stop", "covers_position", "climate_off", "heating_off", "screens_off", "all_off", "switches_off", "switches_on", "lights_on", "screens_on"]
 
 
 class BulkBody(BaseModel):

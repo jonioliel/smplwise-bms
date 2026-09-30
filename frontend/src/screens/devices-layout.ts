@@ -85,7 +85,7 @@ export interface TileEntry {
 }
 
 /** The tile columns of each area card (keep in step with TILE_COLS in routers/device_layouts.py - a backend test compares them). */
-export const TILE_COLS: Record<string, number> = { lighting: 2, switches: 2, climate: 2, covers: 2, security: 2, media: 2, sensors: 2 };
+export const TILE_COLS: Record<string, number> = { lighting: 2, switches: 2, climate: 2, heating: 2, covers: 2, security: 2, media: 2, sensors: 2 };
 /** The layout schema this editor writes (1 = 6b; 2 = 6c, device tiles). routers/device_layouts.py LAYOUT_VERSION. */
 export const LAYOUT_VERSION = 2;
 export const SIZE_HE: Record<TileSize, string> = { s: 'קטן', m: 'רגיל', l: 'גדול' };

@@ -68,7 +68,11 @@ def test_the_climate_rows_carry_each_entitys_own_modes_range_and_step(app_with_d
     ha_sync.store_states(db, _snapshot(), T)
     with db.connection(mode="read") as conn:
         entities = [e for e in dsvc.load_entities(conn) if e["domain"] == "climate"]
-    rows = {r["entity_id"]: r for r in dsvc.build_cards(entities, lambda _eid: True)["cards"]["climate"]["entities"]}
+    cards = dsvc.build_cards(entities, lambda _eid: True)["cards"]
+    # thermostats and the heat pump cannot cool: the heating card; the duct units stay air conditioning
+    assert {r["entity_id"] for r in cards["heating"]["entities"]} == {"climate.thermostat_1", "climate.thermostat_2", "climate.heat_pump"}
+    assert {r["entity_id"] for r in cards["climate"]["entities"]} == {"climate.duct_1", "climate.duct_2"}
+    rows = {r["entity_id"]: r for c in ("climate", "heating") for r in cards[c]["entities"]}
     t1, hp, d1 = rows["climate.thermostat_1"], rows["climate.heat_pump"], rows["climate.duct_1"]
     assert (t1["hvac_modes"], t1["target_temperature"], t1["min_temp"], t1["max_temp"], t1["target_temp_step"]) == (["off", "heat_cool"], 45.0, 5.0, 95.0, 0.5)
     assert (hp["target_temperature"], hp["max_temp"], hp["target_temp_step"]) == (36.0, 43.0, 1.0)
@@ -110,3 +114,15 @@ def test_the_target_temperature_follows_the_entitys_own_range():
     # a thermostat that offers only heat_cool is switched on with that mode
     _, d = ha_bridge.validate_action("climate.set_hvac_mode", "climate.thermostat_1", {"hvac_mode": "heat_cool"})
     assert d["hvac_mode"] == "heat_cool"
+
+
+def test_the_group_of_a_climate_comes_from_its_own_modes():
+    kind = dsvc.climate_kind_auto
+    assert kind({"hvac_modes": ["off", "heat_cool"]}) == "heating"
+    assert kind({"hvac_modes": ["off", "heat"]}) == "heating"
+    assert kind({"hvac_modes": ["off", "heat", "auto"]}) == "heating"
+    assert kind({"hvac_modes": ["off", "auto", "cool", "dry", "fan_only"]}) == "ac"
+    assert kind({"hvac_modes": ["off", "heat", "cool"]}) == "ac"
+    assert kind({"hvac_modes": ["off", "fan_only"]}) == "ac"  # a fan coil is not heating
+    # nothing reported (an unavailable entity, only "off"): it stays air conditioning, never guessed into heating
+    assert kind({}) == kind(None) == kind({"hvac_modes": []}) == kind({"hvac_modes": ["off"]}) == kind({"hvac_modes": "heat"}) == "ac"
