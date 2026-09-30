@@ -356,7 +356,9 @@ def learn(w: W, resp: dict[str, Any], expected: dict[str, Any], before: set[str]
     before the call and whose content (name, days, slots, conditions) is what Arx sent; anything else is `id_unknown` and
     is never used to record an owner, disable, roll back or show a schedule (review M2)."""
     sid = resp.get("schedule_id")
-    if not isinstance(sid, str) or not sid or sid in before:
+    if not sid:
+        return _learn_by_diff(w, expected, before)
+    if not isinstance(sid, str) or sid in before:
         return None
     try:
         item = store.MIRROR.fetch_item(sid, w.conn)
@@ -366,6 +368,21 @@ def learn(w: W, resp: dict[str, Any], expected: dict[str, Any], before: set[str]
         return None
     entity = item.get("entity_id") if isinstance(item.get("entity_id"), str) else resp.get("entity_id")
     return sid, entity
+
+
+def _learn_by_diff(w: W, expected: dict[str, Any], before: set[str]) -> tuple[str, str | None] | None:
+    """The component's add / copy return nothing (no `return_response`, verified), so a new id is learned by DIFF: the
+    component's own list (WS `scheduler`) shows the new item immediately, faster than the registry. The ONE new item whose
+    content is what Arx sent is that schedule; none or several is `id_unknown`."""
+    try:
+        store.MIRROR.pull(w.conn, "learn")
+    except ApiError:
+        return None
+    fp = model.fingerprint(expected)
+    found = [r for r in store.cache_rows(w.conn) if r["schedule_id"] not in before and model.fingerprint(store.item_of(r)) == fp]
+    if len(found) != 1:
+        return None
+    return found[0]["schedule_id"], found[0]["entity_id"]
 
 
 def _unknown(w: W, op_id: str, meta: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -723,6 +740,8 @@ def run(w: W, schedule_id: str, slot_index: int | None, skip_conditions: bool, c
             if last is not None and now - last < RUN_MIN_GAP_S:
                 raise ApiError(429, "run_too_soon", "התזמון הורץ ממש עכשיו; נסו שוב בעוד כמה שניות.", retryable=True)
             _LAST_RUN[schedule_id] = now
+        if not str(core["entity_id"] or "").startswith("switch."):
+            raise ApiError(422, "validation", "לתזמון אין מתג; אי אפשר להריץ אותו.")  # the component answers a run of a missing entity with a silent success
         at = _slot_time(core, slot_index, w)
         op_id, again = _begin(w, client_request_id, "run", schedule_id, "run")
         if again:
@@ -796,7 +815,7 @@ def split(w: W, schedule_id: str, base_revision: str, days: list[str], name: str
         check_lowering(ev.lowering, confirm_lowering)
         verify_creator_codes(w, ev.pairs, alarm_code)
         alarm_code = None
-        new_payload = {"weekdays": moving, "timeslots": json.loads(json.dumps(item.get("timeslots") or [])), "repeat_type": core["repeat"], "name": new_name}
+        new_payload = {"weekdays": moving, "timeslots": [model.component_slot(t) for t in item.get("timeslots") or [] if isinstance(t, dict)], "repeat_type": core["repeat"], "name": new_name}
         if core["start_date"]:
             new_payload["start_date"] = core["start_date"]
         if core["end_date"]:
@@ -815,7 +834,7 @@ def split(w: W, schedule_id: str, base_revision: str, days: list[str], name: str
             raise ApiError(502, "split_incomplete", "הפיצול לא הושלם; בדקו את שני התזמונים.", details={"original_id": schedule_id, "created_id": None})
         new_id, new_entity = learned
         try:
-            bridge_call(w, "edit", op_id, schedule_id=schedule_id, schedule_entity_id=core["entity_id"], payload={"weekdays": remaining}, sensitive=cls["sensitive"])
+            bridge_call(w, "edit", op_id, schedule_id=schedule_id, schedule_entity_id=core["entity_id"], payload={"weekdays": remaining, "start_date": core["start_date"], "end_date": core["end_date"]}, sensitive=cls["sensitive"])  # an edit without the dates wipes them
         except ApiError as exc:
             try:
                 bridge_call(w, "remove", op_id, schedule_id=new_id, schedule_entity_id=new_entity, sensitive=cls["sensitive"])

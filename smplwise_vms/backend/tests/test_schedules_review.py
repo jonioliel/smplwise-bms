@@ -141,8 +141,9 @@ def test_a_bridge_id_naming_different_content_is_unknown_and_a_failed_split_remo
     assert other in fake.items
 
 
-def test_adoption_needs_the_name_and_the_content(sched_app):
+def test_adoption_needs_the_name_and_the_content(sched_app, monkeypatch):
     app, s, c, fake, tr = sched_app
+    monkeypatch.setattr(schedule_ops, "_learn_by_diff", lambda w, expected, before: None)  # the diff finds nothing: the op stays unknown
     fake.hide_new_id = True
     r = c.post(f"{API}/schedules", json={"draft": draft_of("Adopt me"), "enabled": True, "client_request_id": rid()})
     assert r.status_code == 202

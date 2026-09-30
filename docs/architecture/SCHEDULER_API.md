@@ -73,12 +73,69 @@ mitigation and a phase-0 id (P0-n, §11).
 | P0-12 | `match_type` `not` / `above` / `below` and non-`state` attributes in real use | Accepted (V-SRC); presets use only the V-LIVE form (`is` + `state`) |
 | P0-13 | `switch.turn_on/off` emits `item_updated`; `copy` naming without `name`; `single` repeat behaviour | Arx refetches after writes, always sends a name, warns on `single` |
 
+**Phase-0 write verification (VERIFIED 2026-09-30 on the lab HA 2026.9.4 (real component; write probes with throwaway schedules)).** P0-1 (weekday forms), P0-3 (tags), P0-4 (ids), P0-5
+(rename keeps the entity id), P0-7 (negative sun offsets), P0-9 (unknown keys are rejected), P0-10 (overlapping, gapped and
+wrapping slots are ACCEPTED - the component validates nothing of the kind, Arx's own overlap refusal is the only guard), P0-11
+(empty condition forms, see §1.4), P0-12 (match types) and P0-13 (events, copy naming, `single`) are closed by §1.4. Still open
+(needs a non-admin token): P0-2 partly closed (frame shapes known; §6.2), P0-6 closed below, P0-8 (the bridge's `check_entity`).
+P0-6 is VERIFIED with a non-admin HA user: every scheduler WebSocket READ (`scheduler`, `scheduler/item`, `scheduler/tags`, the
+component's own `{"type": "scheduler_updated"}` subscription, `get_states`, `get_services`, `config/entity_registry/list`) works;
+only the bus form `subscribe_events scheduler_updated` is denied (`unauthorized`).
+
 ### 1.3 Capability flags
 
-`GET /schedules/status` → `capabilities: {tags: bool, negative_sun_offset: bool}`, both `false` until P0-3 / P0-7 are
-verified; backend constants in `services/schedule_policy.py` (code, not settings) flip in the release after
-verification. With `tags=false` a draft may carry tags only when equal to the current ones, else 422
-`tags_not_supported`.
+`GET /schedules/status` → `capabilities: {tags: bool, negative_sun_offset: bool}`, BOTH `true` since VERIFIED 2026-09-30 on the lab HA 2026.9.4 (real component; write probes with throwaway schedules):
+`add` / `edit` accept `tags` (edit replaces, `[]` clears, a string is coerced to a list) and `sunrise-00:15:00` works as start
+and stop (`sunset` without an offset, upper case and `24:00:00` are rejected - Arx always writes `sunrise|sunset±HH:MM:SS`).
+Backend constants in `services/schedule_policy.py` (code, not settings). With a flag `false` (an older component) a draft may
+carry tags only when equal to the current ones, else 422 `tags_not_supported`, and negative offsets are refused.
+
+### 1.4 What the component really accepts and does (verified 2026-09-30, lab HA 2026.9.4)
+
+**Write schema** - errors are `invalid_format` "... at '<path>'" (a TypeError is `unknown_error`); unknown keys are rejected at
+EVERY level (`not a valid option at '<path>'`), including `enabled` and `schedule_id`:
+
+- `stop: null` crashes (`unknown_error`); omit `stop` for a point action. An action `entity_id` of null / "" is rejected: omit it
+  (a script action has none). `service_data: null` is rejected. `conditions: []` is rejected ("length must be at least 1"),
+  `condition_type: null` and `track_conditions: null` are rejected: omit all three when a slot has no conditions.
+- A slot with no conditions READS BACK as `conditions: []`, `condition_type: null`, `track_conditions: false`, `stop: null`,
+  `entity_id: null`, `service_data: {}` - so an untouched slot can never be re-sent byte-identical. Arx builds a WRITE
+  NORMALISER (`schedule_model.component_slot`: drop nulls and empties) and relies on round-trip EQUIVALENCE (read → normalise →
+  write → read is the same slot), tested against the fake.
+- Times: `HH:MM` and `HH:MM:SS` are stored as sent (`03:15` may be read back) and both are read; `sunrise|sunset±HH:MM:SS`; a bare
+  `sunset`, upper case and `24:00:00` are rejected. Weekdays: `['daily']`, explicit days, `['workday']`, `['weekend']` and mixes;
+  omitted → `['daily']`; `[]`, null, duplicates and upper case are rejected.
+- Conditions: `is` / `not` / `above` / `below` all work, values of type str / int / float / bool are kept, `attribute` is optional
+  (null), `match_type` is required, the condition entity is NOT validated, `condition_type` `and` / `or` is stored verbatim,
+  `track_conditions: true` is accepted without a `stop`. An unknown action service and a nonexistent action entity are ACCEPTED:
+  Arx's own allow-list validation is the only guard - it stays strict.
+- **Every `scheduler.edit` must also send `start_date` and `end_date`** (current values or null): an edit that omits them RESETS
+  both to null, even for a name-only edit (weekdays, repeat_type, tags, name and slots survive omission). Editing `timeslots`
+  replaces the whole list. Rename keeps the entity id (the switch's friendly_name follows).
+- `copy` keeps everything, `enabled` and `tags` included; with a name the new entity id is derived from it, without one the
+  source's name is duplicated; collisions get `_2`, `_3`.
+- `add`, `edit`, `copy`, `remove` do NOT support `return_response` (service_validation_error) and `add` / `copy` return nothing:
+  a new id is learned by DIFF - the WS `scheduler` list shows the new item immediately (the entity registry lags ~0.35 s);
+  creates stay serialised.
+- `run_action`: `time` accepts `HH:MM:SS` or `HH:MM` ONLY (never a sun form: the add-on resolves sun times for today); a `time`
+  outside every slot (start inclusive, stop exclusive, wrap-aware) is a SILENT no-op, a nonexistent entity a silent success (the
+  add-on checks the slot and the switch itself; the bridge keeps its registry check); it works on a disabled schedule; failing
+  conditions block unless `skip_conditions`.
+
+**Read side**: `scheduler/item` for an unknown id answers `success: true, result: null` (not `not_found`). A schedule whose
+conditions FAIL still goes to state `triggered` in its slot: `triggered` does NOT prove the actions ran. `single` deletes itself
+~60 s after the slot start; `pause` = `enabled: false` and the switch `off` (~60 s after).
+
+**Events** (§6.2): the component's own `{"type": "scheduler_updated"}` command yields frames
+`{"id", "type": "event", "event": {"event": "scheduler_item_created" | "scheduler_item_updated" | "scheduler_item_removed" |
+"scheduler_timer_updated" | "scheduler_timer_finished", "schedule_id"}}`. Sequences: create → item_created + timer_updated;
+edit / toggle → item_updated + timer_updated; remove → item_removed only; a slot start → timer_finished, then timer_updated and
+item_removed (`single`) or item_updated (`pause`) ~+60 s. A NAME-CHANGING edit emits `item_created` + `timer_updated` (not
+item_updated) and keeps the entity id: **an `item_created` event is never proof of a NEW schedule id** - events are refresh
+triggers only; new ids, adoption and the mirror use list diffs. The bus event `scheduler_updated` (`subscribe_events`, denied to
+non-admins) carries `data: {}` - no id, none on remove - only a "something changed" signal.
+
+
 
 ## 2. The Schedule model
 
@@ -196,7 +253,7 @@ Field rules:
 - `conditions` apply to **every** slot (the component's own rule); `items: []` = no conditions.
 - `weekdays`: explicit tokens or `["daily"]`; `workday` / `weekend` only when unchanged (P0-1).
 - `name` required on create; on edit it may stay empty only if it was empty.
-- pydantic-closed (`extra="forbid"`). Mapping to the component payload: §8.2.
+- pydantic-closed (`extra="forbid"`). Mapping to the component payload: §8.2 (the write normaliser of §1.4: no nulls, no empties).
 
 ### 2.3 Day tokens
 
@@ -406,7 +463,7 @@ Body `{ "client_request_id": "…", "confirm_lowering": false, "alarm_code": nul
 Body `{ "slot_index": 0 | null, "skip_conditions": false, "confirm": true, "client_request_id": "…", "alarm_code": null }`.
 
 - `confirm` required when the slot has an `attention`-risk (`ha_bridge.ACTIONS`) or sensitive action → 409.
-- `slot_index` → bridge `run` with `time` = the slot's start (sun times resolved for today); null → only for a
+- `slot_index` → bridge `run` with `time` = the slot's start as `HH:MM:SS` (sun times resolved for today - the component accepts no sun form; the add-on refuses a schedule without a switch); null → only for a
   one-slot schedule, else 422 `slot_required`. `skip_conditions: true` needs `schedule.manage` at installation scope
   when the schedule has locked conditions for the caller.
 - One run per schedule per 10 s installation-wide (429 `run_too_soon`). 202 `{ "run_id": "…", "note": "הבקשה נשלחה; התוצאה תופיע בהרצות." }`.
@@ -601,6 +658,14 @@ conflicting schedule blind). Create: the draft alone is evaluated; restore: the 
 A `source == "remote"` principal follows `alarm.remote_control` / `alarm.remote_disarm` for drafts, enables, restores
 and runs with alarm actions (the alarm router's refusals). Everything else is identical.
 
+### 4.5b Known limit of the component (verified 2026-09-30, non-admin lab user)
+
+A NON-admin HA user can call `scheduler.add` / `edit` / `copy` / `remove` / `run_action` directly through the component: HA does
+not restrict it. Arx's permission model therefore governs only what goes THROUGH Arx. Schedules created or edited directly in
+HA by any HA user are picked up as `external` schedules; the mitigations are the review list (a sensitive external schedule is
+listed prominently as `no_owner_sensitive`) and the `schedule.changed_outside` audit rows (§4.6). "Arx restrictions do not
+restrict the original HA UI" (AGENTS.md) applies to the component as well.
+
 ### 4.6 Audit (`audit.audit`, resource_type `schedule`, resource_id = schedule_id or trash_id)
 
 Actions: `schedule.create`, `schedule.update`, `schedule.enable`, `schedule.disable`, `schedule.run`,
@@ -749,10 +814,13 @@ restrictions do not restrict the original HA UI").
 
 - **Full pull** at every session start (after the state snapshot, in `HaSync.on_ready`) and after each periodic
   registry refresh (600 s).
-- **Subscription**: `on_ready` sends `{"type": "scheduler_updated"}`; `on_message` forwards frames with that
-  subscription's `id` to `MIRROR.on_component_event`: `item_created|item_updated` → fetch the item; `item_removed` →
-  drop from cache, `schedule_meta.gone_at`; `timer_*` → ignored. Debounce 1 s per id. A refused subscription is logged;
-  the other layers remain.
+- **Subscription**: `on_ready` sends the component's own command `{"type": "scheduler_updated"}` (NOT `subscribe_events`: the bus
+  form is denied to non-admins); `on_message` forwards frames with that subscription's `id` to `MIRROR.on_component_event`. The
+  frame names carry the prefix `scheduler_` (§1.4, verified): `scheduler_item_created|item_updated` → fetch the item;
+  `scheduler_item_removed` → drop from cache, `schedule_meta.gone_at`; `scheduler_timer_*` → ignored. A frame without an id
+  (the bus signal) → a full pull. Debounce 1 s per id. Events are refresh triggers only: a name-changing edit emits
+  `item_created` for an existing schedule, so a new id is never inferred from an event. A refused subscription is logged; the
+  other layers remain. `scheduler/item` for an unknown id answers `success: true, result: null` → the cache row is dropped.
 - **State layer**: `ha_sync` calls `MIRROR.on_entity_state(row)` for entity ids starting `switch.schedule_`; an
   unknown entity or a change of `state` / `next_trigger` triggers an item fetch (debounced), and `triggered` feeds §6.6.
 - Cache `schedule_cache` (persisted). Every cache change publishes `{"type": "schedules_changed"}` (no ids) through
@@ -790,8 +858,10 @@ are never evaluated** by the component's timestamps or by Arx: every upcoming ru
 `MIRROR.on_entity_state`: a schedule switch entering `triggered` creates a `schedule_runs` row (`pending`, slot from
 `current_slot`); 20 s later each action entity is settled with the product's confirmation logic
 (`ha_bridge.ACTIONS` `expect` / `attribute_reached`): all confirmed → `confirmed`; any unavailable → `skipped`; else
-`not_confirmed`. Sensitive schedules also write audit `schedule.executed`. A slot skipped by its conditions produces no
-`triggered` state and therefore no row (the UI never claims it ran). Retention `schedules.runs_retention_days`.
+`not_confirmed`. Sensitive schedules also write audit `schedule.executed`. VERIFIED 2026-09-30 (§1.4): a slot whose conditions
+FAIL still sets the switch to `triggered`, so `triggered` never proves the actions ran. When the mirrored sensor states say the
+slot's conditions do not hold (and it does not track them), the derived run is `skipped` at once and writes no `executed` row
+(the UI never claims it ran). Retention `schedules.runs_retention_days`.
 
 ## 7. Storage — migration `0039_schedules.sql`
 
@@ -911,12 +981,17 @@ Writes need bridge ≥ 0.3.0 (`bridge.integration_version`) → else 503 `bridge
 | `run` | schedule_entity_id, schedule_id, time?, skip_conditions | `scheduler.run_action` |
 | `enable` / `disable` | schedule_entity_id, schedule_id | `switch.turn_on` / `turn_off` |
 
-Draft → payload: `repeat` → `repeat_type`; each slot → `{start, stop, conditions, condition_type, track_conditions,
-actions}` with the schedule's conditions copied into **every** slot (`[]`, `null`, `false` when none — the stored form,
-P0-11); `actions[].data` → `service_data` (`{}` when empty) with `entity_id` beside it; `tags` only with
-`capabilities.tags`. Untouched slots are re-sent byte-identical to what was read.
+Draft → payload (VERIFIED forms, §1.4): `repeat` → `repeat_type`; each slot → `{start, stop?, conditions?, condition_type?,
+track_conditions?, actions}` built by the WRITE NORMALISER (`schedule_model.component_slot`): `stop` is omitted when null, an
+action's `entity_id` when null / "", `service_data` when empty, and `conditions` / `condition_type` / `track_conditions` when the
+slot has no conditions (the component rejects or crashes on `stop: null`, `conditions: []` and null `condition_type`); the
+schedule's conditions are copied into **every** slot that has any. `tags` are written (verified; `[]` clears). Untouched slots
+are re-sent in their equivalent write form - byte-identical re-send is impossible because a slot reads back with
+`conditions: []`, `condition_type: null`, `track_conditions: false`; what is tested is round-trip equivalence. **Every `edit`
+also carries `start_date` and `end_date`** (current values or null): an edit that omits them resets both to null. The
+component's `add` / `edit` / `copy` / `remove` do not support `return_response` and `add` / `copy` return nothing.
 
-Response: `{ "ok": true, "request_id", "context_id", "schedule_id": "d4e5f6", "entity_id": "switch.schedule_…" }` or
+Response (the id is learned by diff, §8.4 - the component returns none): `{ "ok": true, "request_id", "context_id", "schedule_id": "d4e5f6", "entity_id": "switch.schedule_…" }` or
 `{ "ok": false, "request_id", "error": "service_not_allowed", "path": "timeslots[0].actions[0]" }`. Errors:
 `bad_signature | stale | replay`, `unknown_user`, `op_not_allowed`, `invalid_payload`, `service_not_allowed`,
 `argument_not_allowed`, `code_not_allowed`, `sensitive_flag_mismatch`, `entity_not_found`, `not_a_schedule`,
@@ -940,6 +1015,13 @@ exception class name only. The add-on maps `ok:false` to 502 `scheduler_refused`
    schedule_id` (V-LIVE) → else `not_a_schedule`.
 
 ### 8.4 New id for add / copy
+
+VERIFIED 2026-09-30 (§1.4): the component returns no id and does not support `return_response` for `add` / `copy`, so the new id
+is always learned by DIFF - the WS `scheduler` list shows a new item immediately, faster than the entity registry (~0.35 s lag);
+creates stay serialised. The add-on trusts an id only for a schedule that did not exist before the call and whose content
+(name, days, slots, conditions) is what it sent; when the bridge answers without an id the add-on diffs the component's list
+itself and takes the ONE new item with that content (none or several → `id_unknown`). The paragraph below is the bridge's
+registry-based form.
 
 Snapshot registry entries with platform `scheduler` before the blocking call; poll every 0.25 s up to 5 s after it;
 exactly one new → its `unique_id` and entity id; else `{ok: true, error: "id_unknown"}`.
@@ -968,9 +1050,9 @@ unique_id = schedule_id, a device id, no area), `events`, `calls` (for assertion
 | Command | Answer (not installed → `{"success": false, "error": {"code": "unknown_command", "message": "Unknown command."}}`) |
 |---|---|
 | `scheduler` | list of items (V-LIVE shape, §9.3) |
-| `scheduler/item` {schedule_id} | the item, or `success:false` code `not_found` |
+| `scheduler/item` {schedule_id} | the item; an unknown id → `success:true, result:null` (VERIFIED 2026-09-30) |
 | `scheduler/tags` | `[{"name": tag, "schedules": [ids]}]` (V-LIVE) |
-| `scheduler_updated` | `success:true`; events `{"id": <sub>, "type": "event", "event": {"event": "item_updated", "schedule_id": "…"}}`; `event_mode="bus"` → `{"event_type": "scheduler_updated", "data": {...}}`; `"none"` → no events (P0-2) |
+| `scheduler_updated` | `success:true`; events `{"id": <sub>, "type": "event", "event": {"event": "scheduler_item_created" \| "scheduler_item_updated" \| "scheduler_item_removed" \| "scheduler_timer_updated" \| "scheduler_timer_finished", "schedule_id": "…"}}` with the verified sequences (create → item_created + timer_updated; edit / toggle → item_updated + timer_updated; remove → item_removed; a NAME-CHANGING edit → item_created + timer_updated); `event_mode="bus"` → `{"event_type": "scheduler_updated", "data": {}}` without id, none on remove; `"none"` → no events |
 | `manifest/get` {integration: "scheduler"} | `{"domain": "scheduler", "version": "3.3.8"}` |
 | `get_services` | the V-LAB field lists (no `reload_storage`) |
 
@@ -1020,19 +1102,27 @@ tag). Mirror entities (states, device classes, the shabbat binary_sensor, a `gat
 
 ### 9.5 Services: `fake.call_service(domain, service, data, user=None)`
 
-- `scheduler.add`: V-SRC schema + V-LIVE keys (unknown keys → `FakeInvalid` when `strict_keys`; `tags` refused when
-  `accept_tags=False`; `repeat_type` required); new id (6 hex); entity id per §9.3; switch `on`; `timestamps` /
-  `next_entries` computed from the fake clock; emits `item_created`.
-- `scheduler.edit` (entity_id required; given fields replaced, timeslots whole; rename keeps the entity id unless
-  `rename_changes_entity_id`) → `item_updated`. `remove` → `item_removed`. `copy` {entity_id, name} → `item_created`.
-- `scheduler.run_action` {entity_id, time?, skip_conditions?}: evaluates the slot's conditions against the fake's
-  entity states unless `skip_conditions`; when they pass: switch `triggered` for `trigger_hold_s`, `on_action(service,
-  entity_id, data)` per action; when they fail: nothing (no `triggered`).
+- `scheduler.add`: the VERIFIED write schema of §1.4 (unknown keys → `FakeInvalid` when `strict_keys`; nulls and empties rejected:
+  `stop: null` → `FakeCrash` = `unknown_error`, empty conditions / null `condition_type` / null or empty entity id → `invalid_format`;
+  `tags` refused when `accept_tags=False`, a string coerced; `repeat_type` required; weekdays `[]` / duplicates / upper case rejected;
+  times `HH:MM[:SS]` and signed sun offsets only); NO response (add / copy / edit / remove return nothing - ids are learned by diff);
+  new id (6 hex); entity id per §9.3 (collisions `_2`); switch `on`; `timestamps` / `next_entries` from the fake clock; emits
+  item_created + timer_updated.
+- `scheduler.edit` (entity_id required; given fields replaced, timeslots whole; **`start_date` / `end_date` reset to null when
+  omitted**; rename keeps the entity id unless `rename_changes_entity_id`) → `item_updated` + `timer_updated`, or `item_created` +
+  `timer_updated` for a name-changing edit. `remove` → `item_removed`; a missing entity → `invalid_format` "Entity not found".
+  `copy` {entity_id, name?} keeps everything (enabled, tags); a name derives the new entity id, no name duplicates the source's
+  name; collisions `_2`.
+- `scheduler.run_action` {entity_id, time?, skip_conditions?}: `time` is `HH:MM[:SS]` (a sun form → `FakeInvalid`); the slot
+  containing it (start inclusive, stop exclusive, wrap-aware) is run, none → a SILENT no-op; a nonexistent entity → a silent
+  success; works on a disabled schedule; conditions block unless `skip_conditions`; when they pass: switch `triggered` for
+  `trigger_hold_s`, `on_action(service, entity_id, data)` per action.
 - `enable_all` / `disable_all` exist and are recorded (a test asserts the product never calls them);
   `reload_storage` → `ServiceNotFound`.
 - `switch.turn_on/off` on a schedule entity flips `enabled` and state; emits `item_updated`.
-- `fake.tick(seconds)`: a slot start that passes fires like `run_action` **with** condition evaluation (tests: a Shabbat
-  schedule does not trigger while the sensor is `off`; it triggers when `on`; `track_conditions` re-checks inside the
+- `fake.tick(seconds)`: a slot start that passes sets the switch `triggered` EVEN WHEN the conditions fail (verified) and runs the
+  actions only when they hold; `single` deletes itself and `pause` disables itself ~60 s later (tests: a Shabbat schedule is
+  `triggered` but does not act while the sensor is `off`; it acts when `on`; `track_conditions` re-checks inside the
   window when the sensor turns on; an `unavailable` sensor never satisfies `is on` or `is off`).
 
 ### 9.6 Bridge: `fake.bridge_schedule(signed_payload, secret) -> service_response`
@@ -1089,7 +1179,7 @@ registry platform / unique_id, services and fields (V-LIVE / V-LAB). Open:
 
 | P0 | Check | Needs write approval |
 |---|---|---|
-| 1 | A card schedule with explicit days (e.g. א׳–ה׳) and one with "ימי עבודה"; probe | no (card edit by the owner) |
+| 1 | **VERIFIED 2026-09-30** (write probes on the lab component): weekday forms daily / days / workday / weekend / mixes | no (card edit by the owner) |
 | 2 | Probe listening while the owner toggles / edits a schedule in the card | no |
 | 3 | One Arx edit with tags through bridge 0.3.0 on the lab | yes |
 | 4 | One Arx create on the lab; the bridge returns the id | yes |
@@ -1102,6 +1192,8 @@ registry platform / unique_id, services and fields (V-LIVE / V-LAB). Open:
 | 11 | Arx edit that writes `conditions: []` on a slot; probe | yes |
 | 12 | A card condition with "not" / "above"; probe | no |
 | 13 | Toggle the switch in HA while the probe listens; copy without a name | toggle no / copy yes |
+
+**Status 2026-09-30 (lab HA 2026.9.4):** rows 1-5, 7 and 9-13 are VERIFIED by write probes with throwaway schedules (results in §1.4; the lab was left clean); P0-6 (non-admin WS access) is VERIFIED (§1). Still open: P0-8 (the bridge's `check_entity` as a non-admin HA user).
 
 Every write step needs the owner's explicit, task-specific approval; the probe writes nothing.
 

@@ -304,12 +304,13 @@ class Mirror:
         with (unlocked(conn) if conn is not None and not _read_only(conn) else nullcontext()):
             reply = tr.ws("scheduler/item", schedule_id=schedule_id)
         ok, code = is_json_error(reply)
+        gone = (not ok and code in ("not_found", "invalid_format")) or (ok and reply.get("result") is None)  # verified: an unknown id answers success:true, result:null
+        if gone:
+            with self._use(conn) as c:
+                if self.drop(c, schedule_id):
+                    ha_sync.publish({"type": "schedules_changed"})
+            return None
         if not ok:
-            if code == "not_found":
-                with self._use(conn) as c:
-                    if self.drop(c, schedule_id):
-                        ha_sync.publish({"type": "schedules_changed"})
-                return None
             raise ApiError(503, "scheduler_unavailable", "התזמונים אינם זמינים כרגע.", retryable=True, details={"error": code})
         item = reply.get("result")
         item = model.mask_codes(item) if isinstance(item, dict) else item
@@ -349,7 +350,7 @@ class Mirror:
                 if sid not in meta:
                     self._new_meta(conn, sid, now)
                     self._maybe_adopt(conn, sid, item, now)
-                    if not baseline:
+                    if not baseline and not self._arx_create_in_flight(conn):
                         self._audit_outside(conn, sid, item, "created")
                 else:
                     conn.execute("UPDATE schedule_meta SET last_seen_at = ?, gone_at = NULL WHERE schedule_id = ?", (now, sid))
@@ -395,6 +396,31 @@ class Mirror:
         conn.execute("UPDATE schedule_meta SET created_via = 'arx', created_by = ?, created_by_username = ?, created_at = ?, updated_by = ?, updated_by_username = ?, updated_at = ? WHERE schedule_id = ?",
                      (op["principal_user_id"], op["principal_username"], now, op["principal_user_id"], op["principal_username"], now, sid))
 
+    def _arx_create_in_flight(self, conn: sqlite3.Connection) -> bool:
+        """A create / copy / split / restore of Arx's own is pending or was requested a moment ago: what just appeared is
+        probably its result (the op then claims it), not a change made outside."""
+        cutoff = _iso(self.now() - dt.timedelta(seconds=120))
+        return conn.execute("SELECT 1 FROM schedule_ops WHERE op IN ('create', 'copy', 'split', 'restore') AND (status = 'pending' OR requested_at >= ?) LIMIT 1", (cutoff,)).fetchone() is not None
+
+    def _conditions_fail(self, conn: sqlite3.Connection, item: dict[str, Any], slot: int | None) -> bool:
+        """The component sets a schedule to `triggered` at a slot start EVEN WHEN its conditions fail (verified), so
+        `triggered` never proves the actions ran. When the mirrored states say the slot's conditions do not hold (and it does
+        not track them for later), the derived run is `skipped`, never left to be confirmed by devices that may already be
+        in the target state."""
+        core = model.normalize(item)
+        target = next((sl for sl in core["slots"] if sl["index"] == slot), core["slots"][0] if len(core["slots"]) == 1 else None)
+        if target is None or not target["conditions"] or target["track"]:
+            return False
+        results = []
+        for c in target["conditions"]:
+            r = conn.execute("SELECT state, attributes_json FROM ha_entities WHERE entity_id = ?", (c["entity_id"],)).fetchone()
+            try:
+                attrs = json.loads(r["attributes_json"] or "{}") if r else {}
+            except ValueError:
+                attrs = {}
+            results.append(_cond_holds(r["state"] if r else None, attrs, c))
+        return not (all(results) if target["condition_type"] == "and" else any(results))
+
     def _recent_arx_op(self, conn: sqlite3.Connection, sid: str) -> bool:
         cutoff = _iso(self.now() - dt.timedelta(seconds=120))
         return conn.execute("SELECT 1 FROM schedule_ops WHERE schedule_id = ? AND (status = 'pending' OR requested_at >= ?) LIMIT 1", (sid, cutoff)).fetchone() is not None
@@ -416,17 +442,20 @@ class Mirror:
     # -- deferred fetches (component events, switch states)
 
     def on_component_event(self, frame: dict[str, Any]) -> None:
-        """A frame of the component's own subscription. Both shapes are accepted (P0-2): `{"event": {"event":
-        "item_updated", "schedule_id": ...}}` and a bus-style `{"event": {"event_type": "scheduler_updated", "data":
-        {...}}}`. `item_*` -> fetch the item; `item_removed` -> drop; `timer_*` ignored; unknown shape -> a full pull."""
+        """A frame of the component's own `scheduler_updated` command (verified 2026-09-30): `{"event": {"event":
+        "scheduler_item_created" | "scheduler_item_updated" | "scheduler_item_removed" | "scheduler_timer_updated" |
+        "scheduler_timer_finished", "schedule_id": ...}}`. `item_*` -> fetch the item; `item_removed` -> drop; `timer_*`
+        ignored. The bus event `scheduler_updated` (subscribe_events) has `data: {}` - no id, none on remove - and is only a
+        "something changed" signal: a full pull. The un-prefixed names stay accepted."""
         event = frame.get("event") if isinstance(frame, dict) else None
         if not isinstance(event, dict):
             return
         data = event.get("data") if isinstance(event.get("data"), dict) else event
         name = str(data.get("event") or data.get("type") or event.get("event") or "")
+        name = name.removeprefix("scheduler_")  # the component's frames: scheduler_item_created | _item_updated | _item_removed | _timer_updated | _timer_finished
         sid = data.get("schedule_id") if isinstance(data.get("schedule_id"), str) else None
         if name.startswith("timer"):
-            return
+            return  # a timer moved: the schedule itself did not change (its switch state carries `triggered`)
         if name == "item_removed" and sid:
             if self.db is not None:
                 with self.db.connection(label="schedules event") as conn:
@@ -510,10 +539,28 @@ class Mirror:
                 sensitive = 1 if cls["sensitive"] else 0
             except Exception:  # noqa: BLE001
                 log.exception("could not classify the run of %s", sid)
-        cur = conn.execute("INSERT OR IGNORE INTO schedule_runs(id, schedule_id, slot_index, started_at, result, sensitive, via) VALUES (?,?,?,?, 'pending', ?, 'component')", (run_id, sid, slot, _iso(now), sensitive))
-        if sensitive and cur.rowcount:
+        skipped = cached is not None and self._conditions_fail(conn, item_of(cached), slot)
+        cur = conn.execute("INSERT OR IGNORE INTO schedule_runs(id, schedule_id, slot_index, started_at, settled_at, result, sensitive, via, detail_json) VALUES (?,?,?,?,?,?,?, 'component', ?)",
+                           (run_id, sid, slot, _iso(now), _iso(now) if skipped else None, "skipped" if skipped else "pending", sensitive, json.dumps({"entities": [], "conditions": False}) if skipped else None))
+        if sensitive and cur.rowcount and not skipped:
             audit(conn, actor=None, action="schedule.executed", decision="allowed", resource_type="schedule", resource_id=sid, details={"slot_index": slot, "run_id": run_id})
         ha_sync.publish({"type": "schedules_changed"})
+
+
+def _cond_holds(state: str | None, attrs: dict[str, Any], c: dict[str, Any]) -> bool:
+    if state in (None, "unavailable", "unknown"):
+        return False  # an unavailable sensor satisfies neither `is on` nor `is off` (verified behaviour of the component)
+    actual: Any = state if (c.get("attribute") or "state") == "state" else attrs.get(c["attribute"])
+    want, kind = c.get("value"), c.get("match_type") or "is"
+    if kind == "is":
+        return str(actual) == str(want)
+    if kind == "not":
+        return str(actual) != str(want)
+    try:
+        a, b = float(actual), float(want)
+    except (TypeError, ValueError):
+        return False
+    return a > b if kind == "above" else a < b
 
 
 def stamp() -> str:
