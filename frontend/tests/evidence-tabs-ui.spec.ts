@@ -274,12 +274,20 @@ test.describe('tabs configuration, the map default floor and the device catalogu
     await expect(ed.locator('[data-tabs-announce]')).toContainText('לייב הועבר למקום 2 מתוך 3');
     await expect(ed.locator('li[data-sec="security"][data-tab="live"] .handle')).toBeFocused();
     // drag: the third live tab to the top
-    const h = await ed.locator('li[data-sec="security.live"][data-tab="views"] .handle').boundingBox();
-    const first = await ed.locator('li[data-sec="security.live"][data-tab="overview"]').boundingBox();
-    await page.mouse.move(h!.x + h!.width / 2, h!.y + h!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(h!.x + h!.width / 2, first!.y + 4, { steps: 8 });
-    await page.mouse.up();
+    if (info.project.name === 'mobile') {
+      // a touch device: the rows can lie below the fold and a mouse drag on the emulated phone is a no-op - use the buttons
+      const up = ed.locator('li[data-sec="security.live"][data-tab="views"] .mv[data-move="up"]');
+      await up.scrollIntoViewIfNeeded();
+      await up.click();
+      await ed.locator('li[data-sec="security.live"][data-tab="views"] .mv[data-move="up"]').click();
+    } else {
+      const h = await ed.locator('li[data-sec="security.live"][data-tab="views"] .handle').boundingBox();
+      const first = await ed.locator('li[data-sec="security.live"][data-tab="overview"]').boundingBox();
+      await page.mouse.move(h!.x + h!.width / 2, h!.y + h!.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(h!.x + h!.width / 2, first!.y + 4, { steps: 8 });
+      await page.mouse.up();
+    }
     expect((await rows('security.live')).map((s) => s.trim())).toEqual(['תצוגות שמורות', 'תמונת מצב', 'כל המצלמות']);
 
     // hide: the map's tabs - the last visible one cannot be hidden

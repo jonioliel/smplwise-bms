@@ -231,8 +231,8 @@ test.describe('PWA shell (CR-008 P3)', () => {
     const head = page.locator('head');
     await expect(head.locator('meta[name="apple-mobile-web-app-capable"]')).toHaveAttribute('content', 'yes');
     await expect(head.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute('content', 'Arx');
-    // "default": the shell's top bar does not add safe-area-inset-top padding, so it relies on the opaque status bar
-    // iOS reserves in that mode; switching to black-translucent needs the top bar to handle the inset first (CR-008 P4)
+    // "default": the shell does not add safe-area-inset-top padding of its own on iOS, so it relies on the opaque status bar
+    // iOS reserves in that mode; switching to black-translucent needs the shell to handle the inset first (CR-008 P4)
     await expect(head.locator('meta[name="apple-mobile-web-app-status-bar-style"]')).toHaveAttribute('content', 'default');
     await expect(head.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', './icons/arx-180.png');
     await expect(head.locator('meta[name="viewport"]')).toHaveAttribute('content', /viewport-fit=cover/);
@@ -241,7 +241,7 @@ test.describe('PWA shell (CR-008 P3)', () => {
     expect(icon.length).toBeGreaterThan(0);
   });
 
-  test('the shell reserves the safe area on the top bar, the side rail and the bottom nav', async ({ page }, info) => {
+  test('the shell reserves the safe area on the side rail and the bottom nav', async ({ page }, info) => {
     test.skip(info.project.name !== 'mobile', 'safe-area-inset only matters on the phone layout');
     await page.goto('/#/live');
     await page.waitForFunction(() => !!document.querySelector('sw-app')?.shadowRoot);
@@ -252,7 +252,6 @@ test.describe('PWA shell (CR-008 P3)', () => {
       return texts;
     });
     const withInset = (selectorPart: string) => rules.filter((r) => r.includes(selectorPart) && r.includes('safe-area-inset'));
-    expect(withInset('header.topbar').length, rules.join('\n')).toBeGreaterThan(0);
     expect(withInset('nav.rail').length, rules.join('\n')).toBeGreaterThan(0);
     expect(withInset('nav.bottom').length, rules.join('\n')).toBeGreaterThan(0);
     // CR-013: without a top bar on the phone the shell keeps the status-bar inset itself (--sw-safe-top), and the

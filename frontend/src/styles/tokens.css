@@ -157,9 +157,10 @@
 
 /* ---------------------------------------------------------------------------------------------
    Design "SW A": the 50-screen handoff (docs/design/mockups-v1.3). Same token names, different values;
-   the shell (sw-app) and the page header read the layout tokens. Switched by data-design on <html>.
+   the shell (sw-app) and the page header read the layout tokens. The only design since 0.1.148 (the earlier "SW B" and the
+   data-design switch on <html> were removed): this block overrides the base values above and no longer depends on an attribute.
    --------------------------------------------------------------------------------------------- */
-:root[data-design="a"] {
+:root {
   --sw-bg: #f5f7fb;
   --sw-surface: #ffffff;
   --sw-surface-2: #f7f9fc;

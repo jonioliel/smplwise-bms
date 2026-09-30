@@ -210,9 +210,23 @@ def test_devices_theme_and_scheme_6b(settings):
         assert c.get("/api/v1/settings", headers=as_user("dana")).json()["settings"]["devices.scheme"] == "light"
 
 
+def test_ui_design_is_deprecated_but_still_accepted(settings):
+    """0.1.148: design "SW B" was removed and SW A is the only design. `ui.design` / `ui.design_names` stay accepted and stored so an
+    old client or a restored backup does not fail, but nothing reads them any more: the value 'b' changes nothing (the frontend has
+    no design switch; `?design=b` on the URL is ignored)."""
+    app = create_app(settings)
+    with TestClient(app) as c:
+        assert c.get("/api/v1/settings").json()["settings"]["ui.design"] == "a"
+        for value in ("b", "a"):
+            r = c.patch("/api/v1/settings", json={"ui.design": value})
+            assert r.status_code == 200, (value, r.text)
+            assert r.json()["settings"]["ui.design"] == value
+        assert c.patch("/api/v1/settings", json={"ui.design": "c"}).status_code == 422
+
+
 def test_ui_tile_layout_setting(settings):
     """Owner 2026-09-29 (overview tiles): ui.tile_layout - the summary tiles' shape on the Live overview and the devices
-    screens - auto (the default: compact under 600 px, cards above) | cards | compact. Per installation like ui.design
+    screens - auto (the default: compact under 600 px, cards above) | cards | compact. Per installation
     (a browser can override it for itself, in the browser only); the frontend lists the same three values."""
     import re
     from pathlib import Path

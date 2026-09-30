@@ -96,6 +96,12 @@ const TICK_MS = 400;
 const IN_FLIGHT_MS = 3000; // v1: a navigation with no wiskey:location by then is taken as not acted on
 const KEEP_MS = 2000; // after everything is settled: re-apply cheaply, Home Assistant may re-render
 
+/** WisKey rc.37 leaves a UA focus ring on `<main tabindex="-1">` after an in-panel navigation (panel.ts:6137), which shows
+ * as a dark frame at the edge of the frame; Arx cannot style a cross-origin document, so the frame is enlarged by this many
+ * pixels on every side and the stage clips the overflow (the ring sits on the frame's own edge). 2 px on a phone. */
+export const WISKEY_EDGE_CROP_PX = 3;
+export const WISKEY_EDGE_CROP_PHONE_PX = 2;
+
 const TOP_SWITCH_MS = 1000; // "פתח ב-WisKey": Home Assistant's router gets this long before a full page load
 
 export type EmbedPhase = 'loading' | 'waiting' | 'ready' | 'unsupported' | 'login_required' | 'not_installed' | 'unreachable' | 'blocked';
@@ -397,6 +403,7 @@ export class WiskeyEmbed extends LitElement {
     /* the framed screen: the stage fills the host, the frame fills the stage - no border, outline, padding, margin,
        minimum height or darker canvas anywhere around it */
     .stage {
+      --wk-crop: ${WISKEY_EDGE_CROP_PX}px;
       position: relative;
       flex: 1 1 0;
       min-block-size: 0;
@@ -405,15 +412,21 @@ export class WiskeyEmbed extends LitElement {
       margin: 0;
       padding: 0;
       border: 0;
+      overflow: hidden; /* clips the frame's outermost --wk-crop pixels (a focus ring drawn at its edge) */
       background: var(--sw-surface);
     }
+    @media (max-width: 767px) {
+      .stage {
+        --wk-crop: ${WISKEY_EDGE_CROP_PHONE_PX}px;
+      }
+    }
     iframe {
-      flex: 1 1 auto;
-      inline-size: 100%;
-      block-size: 100%;
+      flex: 0 0 auto;
+      inline-size: calc(100% + 2 * var(--wk-crop));
+      block-size: calc(100% + 2 * var(--wk-crop));
       min-inline-size: 0;
       min-block-size: 0;
-      margin: 0;
+      margin: calc(-1 * var(--wk-crop));
       padding: 0;
       display: block;
       border: 0;
@@ -443,17 +456,15 @@ export class WiskeyEmbed extends LitElement {
     /* size "מותאם" (ui.wiskey_size = fit): the frame is rendered 1/scale larger and scaled down from its top-left corner
        (physical, so RTL does not matter), so the wrapper - and the box WisKey lays out in - is bigger than what is
        shown and the visible result still fills the stage exactly. Pointer coordinates follow the transform. */
-    .stage[data-fit] {
-      overflow: hidden;
-    }
     .stage[data-fit] iframe {
       position: absolute;
-      inset-block-start: 0;
-      left: 0;
+      inset-block-start: calc(-1 * var(--wk-crop));
+      left: calc(-1 * var(--wk-crop));
+      margin: 0;
       inline-size: auto;
       block-size: auto;
-      width: calc(100% / var(--wk-scale));
-      height: calc(100% / var(--wk-scale));
+      width: calc((100% + 2 * var(--wk-crop)) / var(--wk-scale));
+      height: calc((100% + 2 * var(--wk-crop)) / var(--wk-scale));
       transform: scale(var(--wk-scale));
       transform-origin: 0 0;
     }

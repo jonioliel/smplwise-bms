@@ -7,7 +7,6 @@ import '../components/sw-button';
 import '../components/sw-badge';
 import '../components/sw-tabs';
 import '../components/sw-avatar';
-import './sw-profile-menu';
 import './sw-user-menu';
 import './sw-nav-order';
 import { openAlertsText } from './sw-user-menu';
@@ -63,23 +62,18 @@ import { onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
-import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, visibleGroups, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, isHomeEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, type LegacyAccess, tabAllowed, type NavTabId } from './nav';
+import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, isHomeEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, type LegacyAccess, tabAllowed, type NavTabId } from './nav';
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
-import { currentDesign, onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
 import { can, canNav, isApi, loadSession, nvrLess, onSession, watchPermissions, type Session } from '../api/session';
 import { productSettings } from '../api/prefs';
-import { REMOTE } from '../arx/pre-gate';
-import { logout as arxLogout } from '../arx/auth';
 import '../components/sw-state-panel';
 import '../components/sw-page';
 
 /**
- * Application shell in the boards' language: a compact white side nav (brand mark, six flat entries,
- * active entry as a soft-blue pill), a white top bar with a small search field, alerts and the HA
- * identity avatar, and the section's pages as a quiet pill-tab row above the content. Phones use a
- * bottom bar; narrow tablets collapse the side nav to icons.
- * UI round 1 (design SW A): no top bar at all - a small search button and the system-status dot float in the content's
+ * Application shell (design SW A, the only design since 0.1.148 - the earlier "SW B" with a top bar was removed): a compact
+ * side rail (phones: a bottom bar) of the areas, and the section's pages as a quiet pill-tab row above the content.
+ * UI round 1: no top bar at all - a small search button and the system-status dot float in the content's
  * corner (RTL: the top left; Ctrl/Cmd+K opens the same search popover), the breadcrumb is gone, the security sections are
  * a segmented control at the head of the page, and the rail / bottom bar are ~20% smaller.
  * CR-013 (design SW A): the user avatar is the navigation's last item - the side rail's foot and the phone bottom
@@ -91,7 +85,6 @@ import '../components/sw-page';
 export class SwApp extends LitElement {
   @state() private route: RouteState | null = null;
   @state() private session: Session = { mode: 'loading', me: null, error: null };
-  @state() private design: DesignId = currentDesign();
   @state() private sys: HealthSummary | null = null;
   private sysTimer = 0;
   /** T071: "complete the setup" for a system administrator while wizard steps remain; dismissed per browser session. */
@@ -103,9 +96,6 @@ export class SwApp extends LitElement {
   @state() private searchBusy = false;
   /** UI round 1 (design A, no top bar): the search popover that opens from the corner button or Ctrl/Cmd+K. */
   @state() private searchPanel = false;
-  /** Design B's phone bottom nav "עוד" (more) overflow sheet: opens the groups that do not fit the fixed 4 icon
-   * slots (0.1.103: a real menu, not a single hardcoded settings link, now that WisKey made the group count 7). */
-  @state() private moreOpen = false;
   private searchTimer = 0;
   private searchSeq = 0;
   private stopRouter?: () => void;
@@ -115,7 +105,6 @@ export class SwApp extends LitElement {
   @state() private permEpoch = 0;
   @state() private permToast = '';
   private permToastTimer = 0;
-  private stopDesign?: () => void;
   private stopWiskeyNav?: () => void;
   private stopAlarmPresence?: () => void;
   /** CR-013: the user menu (from the avatar, the navigation's last item), the tab-order dialog, the open alerts
@@ -168,24 +157,6 @@ export class SwApp extends LitElement {
       overflow: auto;
       scrollbar-width: none;
     }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 4px 6px 14px;
-      min-block-size: 44px;
-    }
-    .brand img {
-      block-size: 26px;
-      inline-size: auto;
-    }
-    .brand .name {
-      font-weight: var(--sw-fw-bold);
-      font-size: 13px;
-      color: var(--sw-text);
-      white-space: nowrap;
-      letter-spacing: -0.01em;
-    }
     a.item {
       display: flex;
       align-items: center;
@@ -217,23 +188,6 @@ export class SwApp extends LitElement {
     .rail .grow {
       flex: 1;
     }
-    a.item.small {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
-      min-block-size: 26px;
-      font-weight: var(--sw-fw-regular);
-    }
-    header.topbar {
-      grid-area: topbar;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      /* RTL always: inline-start is the visual right, inline-end the visual left */
-      padding-inline: max(20px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-left, 0px));
-      background: var(--sw-surface);
-      border-block-end: 1px solid var(--sw-border);
-      z-index: var(--sw-z-topbar);
-    }
     .search {
       inline-size: 280px;
       display: flex;
@@ -261,31 +215,6 @@ export class SwApp extends LitElement {
       color: var(--sw-text);
       outline: none;
       min-inline-size: 0;
-    }
-    .topbar .spacer {
-      flex: 1;
-    }
-    .brand-mobile {
-      display: none;
-      align-items: center;
-    }
-    .brand-mobile img {
-      block-size: 24px;
-      inline-size: auto;
-    }
-    .bell {
-      position: relative;
-    }
-    .bell::after {
-      content: '';
-      position: absolute;
-      inset-inline-end: 6px;
-      inset-block-start: 5px;
-      inline-size: 6px;
-      block-size: 6px;
-      border-radius: 50%;
-      background: var(--sw-danger);
-      border: 1.5px solid var(--sw-surface);
     }
     main {
       grid-area: main;
@@ -316,41 +245,22 @@ export class SwApp extends LitElement {
     nav.bottom {
       display: none;
     }
-    .bottom-overflow {
-      display: none;
-    }
     .gate {
       flex: 1;
       display: grid;
       place-items: center;
       padding: 24px;
     }
-    .who {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-2);
-    }
-    .who b {
-      color: var(--sw-text);
-      font-weight: var(--sw-fw-semibold);
-    }
     @media (max-width: 1023px) {
       :host {
         grid-template-columns: var(--sw-rail-w) minmax(0, 1fr);
       }
-      .brand .name,
       a.item span {
         display: none;
       }
       a.item {
         justify-content: center;
         padding: 0;
-      }
-      .brand {
-        justify-content: center;
-        padding-inline: 0;
       }
       .subnav {
         padding: 10px 16px 0;
@@ -369,9 +279,6 @@ export class SwApp extends LitElement {
       }
       nav.rail {
         display: none;
-      }
-      header.topbar {
-        padding-inline: max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-left, 0px));
       }
       .subnav {
         padding: 8px 12px 0;
@@ -407,38 +314,6 @@ export class SwApp extends LitElement {
       nav.bottom a.active,
       nav.bottom button.active {
         color: var(--sw-accent-text);
-      }
-      .bottom-overflow {
-        display: flex;
-        flex-direction: column;
-        position: fixed;
-        inset-inline: 12px;
-        inset-block-end: calc(var(--sw-bottomnav-h) + env(safe-area-inset-bottom) + 8px);
-        background: var(--sw-surface);
-        border: 1px solid var(--sw-border);
-        border-radius: 12px;
-        box-shadow: var(--sw-shadow-3);
-        overflow: hidden;
-        z-index: var(--sw-z-drawer);
-      }
-      .bottom-overflow a {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 12px 16px;
-        color: var(--sw-text);
-        text-decoration: none;
-        font-size: var(--sw-fs-sm);
-        font-weight: var(--sw-fw-medium);
-      }
-      .bottom-overflow a + a {
-        border-block-start: 1px solid var(--sw-border);
-      }
-      .bottom-overflow a.active {
-        color: var(--sw-accent-text);
-      }
-      .brand-mobile {
-        display: inline-flex;
       }
       .search {
         display: none;
@@ -510,10 +385,6 @@ export class SwApp extends LitElement {
       border-radius: 3px;
       background: var(--sw-accent);
     }
-    a.item.a.small {
-      min-block-size: 44px;
-      font-size: 10.5px;
-    }
     .secure {
       display: flex;
       flex-direction: column;
@@ -524,10 +395,6 @@ export class SwApp extends LitElement {
       padding: 8px 0 4px;
       text-align: center;
       line-height: 1.25;
-    }
-    .searchwrap {
-      position: relative;
-      display: inline-flex;
     }
     .results {
       position: absolute;
@@ -597,46 +464,6 @@ export class SwApp extends LitElement {
     }
     .search.a input {
       font-size: 14px;
-    }
-    .status-a {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12.5px;
-      color: #15803d;
-      white-space: nowrap;
-    }
-    .status-a i {
-      inline-size: 8px;
-      block-size: 8px;
-      border-radius: 50%;
-      background: var(--sw-live);
-    }
-    button.status-a.sys {
-      border: 0;
-      background: transparent;
-      font: inherit;
-      cursor: pointer;
-      padding: 4px 8px;
-      border-radius: var(--sw-r-pill);
-    }
-    button.status-a.sys:hover {
-      background: var(--sw-surface-3);
-    }
-    .status-a.sys.warn {
-      color: #b45309;
-    }
-    .status-a.sys.warn i {
-      background: var(--sw-stale);
-    }
-    .status-a.sys.error {
-      color: var(--sw-danger);
-    }
-    .status-a.sys.error i {
-      background: var(--sw-danger);
-    }
-    .status-a.sys.b {
-      font-size: var(--sw-fs-xs);
     }
 
     /* ---- UI round 1: no top bar. Search and the system status float in the content's corner (RTL: the top left) ---- */
@@ -858,7 +685,7 @@ export class SwApp extends LitElement {
     }
     :host([data-design='a']) nav.bottom {
       /* 0.1.103: WisKey made this 5 areas (was 4); CR-007 made it 6 (חשמל); CR-010 folded לייב and חקירה into אבטחה (5).
-         visibleAreas() renders unsliced here (unlike design B's fixed 4 + overflow), so the grid follows the item count. */
+         visibleAreas() renders unsliced here, so the grid follows the item count. */
       grid-auto-flow: column;
       grid-auto-columns: 1fr;
       grid-template-columns: none;
@@ -937,9 +764,6 @@ export class SwApp extends LitElement {
           'topbar'
           'main'
           'bottom';
-      }
-      .status-a {
-        display: none;
       }
     }
 
@@ -1227,6 +1051,7 @@ export class SwApp extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.toggleAttribute('data-android-shell', inAndroidShell()); // the app reserves the status bar itself (CR-013)
+    this.setAttribute('data-design', 'a'); // the one design: the attribute stays as the styling hook of the shell's CSS
     this.phoneMq.addEventListener('change', this.onPhoneMq);
     window.addEventListener('popstate', this.onPopState);
     this.stopNavOrder = onNavOrder((o) => (this.navOrder = o));
@@ -1247,7 +1072,6 @@ export class SwApp extends LitElement {
       if (s.mode !== 'loading') void this.pollAlerts();
       // the static demo has no start-screen setting: the bare address opens "ראשי"
       if (s.mode === 'demo' && this.landedDefault) this.land(START_ROUTES.devices);
-      if (s.mode !== 'loading') void resolveDesign();
       if (s.mode === 'api' && this.route) this.redirectDemo(this.route);
       if (s.mode === 'api') void refreshAlarmPresence(); // one answer per session, kept 10 minutes (no request per screen)
       if ((s.mode === 'api' || s.mode === 'no_access') && !this.stopPermissions) this.stopPermissions = watchPermissions(() => void this.onPermissionsChanged());
@@ -1289,10 +1113,6 @@ export class SwApp extends LitElement {
       }
     });
     window.addEventListener('sw-setup-state', this.onSetupState);
-    this.stopDesign = onDesign((d) => {
-      this.design = d;
-      this.setAttribute('data-design', d);
-    });
     void loadSession();
     window.addEventListener('keydown', this.onGlobalKey);
     // WisKey embed API v1: the tab row follows the panel's catalog and its confirmed location
@@ -1305,10 +1125,8 @@ export class SwApp extends LitElement {
     });
     this.stopRouter = onRouteChange((route, replaced) => {
       this.route = route;
-      // T054 review: any navigation closes the bottom-nav overflow sheet, not just its own links - but not the WisKey
-      // embed mirroring the panel's own moves into the address (replaced)
+      // not the WisKey embed mirroring the panel's own moves into the address (replaced)
       if (!replaced) {
-        this.moreOpen = false;
         // CR-013: a menu item (or any navigation) closes the user menu and the tab-order dialog; their history entry
         // is behind the new one now and simply stays (Back returns to the same screen)
         this.overlayEntry = false;
@@ -1343,18 +1161,13 @@ export class SwApp extends LitElement {
   private bannerObs: ResizeObserver | null = null;
   private observedBanner: HTMLElement | null = null;
 
-  /** The navigation's sizes onto the host as CSS variables (design A only), the rail's real width into --sw-rail-w (the
+  /** The navigation's sizes onto the host as CSS variables (the one design), the rail's real width into --sw-rail-w (the
    * user menu and the alert banner sit beside it), and whether labels show at all. */
   private applyNavSize() {
-    const a = this.design === 'a';
-    for (const [k, v] of Object.entries(navCssVars(this.nav))) {
-      if (a) this.style.setProperty(k, v);
-      else this.style.removeProperty(k);
-    }
-    if (a) this.style.setProperty('--sw-bottomnav-h', `${this.nav.bar}px`);
-    else this.style.removeProperty('--sw-bottomnav-h');
-    this.toggleAttribute('data-nolabels', a && !this.nav.labels);
-    const rail = a ? this.renderRoot.querySelector<HTMLElement>('nav.rail') : null;
+    for (const [k, v] of Object.entries(navCssVars(this.nav))) this.style.setProperty(k, v);
+    this.style.setProperty('--sw-bottomnav-h', `${this.nav.bar}px`);
+    this.toggleAttribute('data-nolabels', !this.nav.labels);
+    const rail = this.renderRoot.querySelector<HTMLElement>('nav.rail');
     if (rail !== this.observedRail) {
       this.railObs?.disconnect();
       this.railObs = null;
@@ -1396,7 +1209,6 @@ export class SwApp extends LitElement {
     this.stopPermissions?.();
     this.stopPermissions = undefined;
     window.clearTimeout(this.permToastTimer);
-    this.stopDesign?.();
     this.stopWiskeyNav?.();
     this.stopAlarmPresence?.();
     this.stopNavOrder?.();
@@ -1430,15 +1242,6 @@ export class SwApp extends LitElement {
     const text = s.status === 'ok' ? 'מערכת תקינה' : s.status === 'warn' ? 'יש מה לבדוק' : `תקלה: ${first?.label.split(' — ')[0] ?? ''}`;
     const title = s.items.length ? s.items.map((i) => `• ${i.label}`).join('\n') : 'כל הרכיבים שהמערכת רואה עובדים';
     return { text, title };
-  }
-
-  /** Design B's top-bar pill. */
-  private renderSysPill() {
-    const s = this.sys;
-    if (!s) return nothing;
-    const { text, title } = this.sysWords(s);
-    if (!this.canOpenHealth()) return html`<span class="status-a sys ${s.status} b" data-sys-pill data-sys-static data-status=${s.status} role="img" title=${title} aria-label=${`מצב המערכת: ${text}`}><i></i>${text}</span>`;
-    return html`<button class="status-a sys ${s.status} b" data-sys-pill data-status=${s.status} title=${title} aria-label=${`מצב המערכת: ${text}`} @click=${() => (window.location.hash = '#/system/diagnostics?tab=health')}><i></i>${text}</button>`;
   }
 
   /** UI round 1 (design A): the system status as a small dot in the floating corner - the state is its accessible name
@@ -1517,17 +1320,10 @@ export class SwApp extends LitElement {
   private onGlobalKey = (e: KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
-      if (this.design === 'a') {
-        this.openSearch();
-        return;
-      }
-      const input = this.renderRoot.querySelector<HTMLInputElement>('.search input');
-      input?.focus();
-      input?.select();
-      if (this.searchQ.trim() && this.searchResults.length) this.searchOpen = true;
+      this.openSearch();
+      return;
     }
     if (e.key === 'Escape' && this.searchPanel) this.closeSearchPanel();
-    if (e.key === 'Escape' && this.moreOpen) this.moreOpen = false; // T054 review: Escape dismisses the bottom-nav overflow sheet
   };
 
   private onSearchInput(e: Event) {
@@ -1594,13 +1390,8 @@ export class SwApp extends LitElement {
 
   private onSearchKey(e: KeyboardEvent) {
     if (e.key === 'Escape') {
-      if (this.design === 'a') {
-        e.stopPropagation();
-        this.closeSearchPanel();
-        return;
-      }
-      this.closeSearch();
-      (e.target as HTMLInputElement).blur();
+      e.stopPropagation();
+      this.closeSearchPanel();
       return;
     }
     if (!this.searchOpen || !this.searchResults.length) {
@@ -1675,7 +1466,7 @@ export class SwApp extends LitElement {
     return this.session.mode === 'no_access' || this.session.mode === 'unauthenticated';
   }
 
-  /** The result list shared by design B's dropdown and design A's popover. */
+  /** The result list of the search popover. */
   private renderResults() {
     return html`<div class="results" id="search-results" role="listbox" aria-label="תוצאות חיפוש">
       ${!isApi() && !this.searchResults.length
@@ -1686,16 +1477,6 @@ export class SwApp extends LitElement {
             ? this.searchResults.map((r, i) => html`<div class="row ${i === this.searchIndex ? 'on' : ''}" role="option" aria-selected=${i === this.searchIndex} @mousedown=${(e: Event) => e.preventDefault()} @click=${() => this.openResult(r)}><sw-icon .name=${KIND_ICON[r.kind]} size=${16}></sw-icon><span class="txt"><span class="t">${r.title}</span><span class="s">${r.subtitle}</span></span><span class="kind">${KIND_LABEL[r.kind]}</span></div>`)
             : html`<div class="empty">לא נמצא דבר עבור "${this.searchQ}". חדרים מופיעים רק אם סומנו "הכללה בחיפוש מרחבי"; אירועים מסוננים במרכז האירועים.</div>`}
     </div>`;
-  }
-
-  /** Design B: the search field in the top bar. */
-  private renderSearch() {
-    if (this.gated) return nothing;
-    const open = this.searchOpen && !!this.searchQ.trim();
-    return html`<span class="searchwrap">
-      <label class="search"><sw-icon name="search" size=${14}></sw-icon><input type="search" placeholder=${t('app.search')} aria-label=${t('app.search')} autocomplete="off" role="combobox" aria-expanded=${open} aria-controls="search-results" .value=${this.searchQ} @input=${this.onSearchInput} @keydown=${this.onSearchKey} @focus=${() => { if (this.searchResults.length) this.searchOpen = true; }} @blur=${() => setTimeout(() => this.closeSearch(), 150)} /></label>
-      ${open ? this.renderResults() : nothing}
-    </span>`;
   }
 
   /** Design A: the floating corner - the system status dot and the search button (the popover opens under them). */
@@ -1726,13 +1507,6 @@ export class SwApp extends LitElement {
       return html`<div class="gate"><sw-state-panel state="forbidden" heading="אין לך עדיין תפקיד במערכת" hint="המשתמש ${s.me?.user.display_name || s.me?.user.username || ''} מזוהה במערכת, אך מנהל המערכת טרם שייך לו תפקיד והיקף. פנה למנהל המערכת."></sw-state-panel></div>${this.renderPermToast()}`;
     }
     return null;
-  }
-
-  /** CR-008 remote channel (SmplWise Arx): sign out - revokes the HA refresh token, ends the Arx session, clears both
-   * token stores; the page then shows the Arx sign-in again. Under Ingress HA owns the sign-in, so nothing here. */
-  private renderArxSignOut() {
-    if (!REMOTE) return nothing;
-    return html`<sw-button class="arx-signout" variant="ghost" size="sm" iconOnly icon="logout" label="יציאה" title="יציאה מ־SmplWise Arx" data-arx-signout @click=${() => void arxLogout('logout')}></sw-button>`;
   }
 
   private renderPermToast() {
@@ -2129,90 +1903,9 @@ export class SwApp extends LitElement {
   }
 
   render() {
-    const base = import.meta.env.BASE_URL;
     if (this.route?.segments[0] === 'kiosk') return html`<main style="block-size:100dvh">${this.renderScreen()}</main>`;
     if (this.embedded()) return html`<main class="embed" style="block-size:100dvh;overflow:auto">${this.renderScreen()}</main>`;
-    if (this.design === 'a') return this.renderA();
-    const group = groupOf(this.route);
-    const tabs = group ? visibleTabs(GROUP_TABS[group], this.session.mode === 'api', canNav) : [];
-    const editor = this.route?.segments[3] === 'edit' || this.route?.segments[3] === 'import' || isHomeEditRoute(this.route);
-    return html`
-      <nav class="rail" aria-label="ניווט ראשי">
-        <div class="brand">
-          <img src="${base}brand/smplwise-mark.png" alt="SmplWise" />
-          <span class="name">SmplWise</span>
-        </div>
-        ${visibleGroups(this.session.mode === 'api', canNav).map(
-          (n) => html`<a class=${classMap({ item: true, active: group === n.id })} href=${n.href} title=${n.label} aria-current=${group === n.id ? 'page' : 'false'}>
-            <sw-icon .name=${n.icon} size=${16}></sw-icon><span>${n.label}</span>
-          </a>`,
-        )}
-        <div class="grow"></div>
-        ${this.gated ? nothing : html`<a class=${classMap({ item: true, small: true, active: this.route?.segments[0] === 'screens' })} href="#/screens" title="כל המסכים">
-          <sw-icon name="list" size=${14}></sw-icon><span>כל המסכים</span>
-        </a>
-        <a class=${classMap({ item: true, small: true, active: this.route?.segments[0] === 'styleguide' })} href="#/styleguide" title=${t('nav.styleguide')}>
-          <sw-icon name="layers" size=${14}></sw-icon><span>${t('nav.styleguide')}</span>
-        </a>`}
-      </nav>
-      <header class="topbar">
-        <span class="brand-mobile"><img src="${base}brand/smplwise-mark.png" alt="SmplWise" /></span>
-        ${this.renderSearch()}
-        <span class="spacer"></span>
-        ${this.session.mode === 'api' || this.session.mode === 'no_access'
-          ? html`${this.renderSysPill()}<span class="who"><b>${this.session.me?.user.display_name || this.session.me?.user.username}</b>${this.session.me?.bindings[0] ? html`<span>· ${this.session.me.bindings[0].role_name}</span>` : nothing}</span>`
-          : this.session.mode === 'demo'
-            ? html`<sw-badge kind="neutral" label="נתוני הדגמה"></sw-badge>`
-            : nothing}
-        <sw-button class="bell" variant="ghost" size="sm" iconOnly icon="bell" label=${t('app.notifications')}></sw-button>${this.renderArxSignOut()}
-        <sw-profile-menu .name=${this.session.me?.user.display_name || this.session.me?.user.username || 'יוני'} .size=${28} .role=${this.session.me?.bindings[0]?.role_name ?? ''} .api=${this.session.mode === 'api'}></sw-profile-menu>
-      </header>
-      <main>
-        ${this.renderSetupHint()}
-        ${this.renderGate() || html`
-          <div class="subnav">${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeTabOf(this.route)}></sw-tabs>` : nothing}</div>
-          <div class="screen">${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}
-      </main>
-      ${this.renderBottomB(group)}
-    `;
-  }
-
-  /** Design B's phone bottom nav: the first 4 visible groups as direct icons, everything else (since 0.1.103's
-   * WisKey addition made this 7 groups, not 6) behind a real "עוד" menu - not a passive label pointing at
-   * settings, a genuine list of the remaining groups the phone has no direct icon slot for. */
-  private renderBottomB(group: ReturnType<typeof groupOf>) {
-    const all = visibleGroups(this.session.mode === 'api', canNav);
-    // five slots: five groups fit as they are (the NVR-less mode with the alarm, CR-010); more share four + "עוד"
-    const shown = all.length <= 5 ? all : all.slice(0, 4);
-    const overflow = all.length <= 5 ? [] : all.slice(4);
-    const moreActive = overflow.some((n) => n.id === group);
-    // five slots (four groups + "עוד") in the full product; the NVR-less mode has only four groups, which fill the bar
-    const slots = shown.length + (overflow.length ? 1 : 0);
-    return html`
-      <nav class="bottom" aria-label="ניווט ראשי" style=${slots && slots !== 5 ? `grid-template-columns: repeat(${slots}, 1fr)` : ''}>
-        ${shown.map((n) => html`<a class=${classMap({ active: group === n.id })} href=${n.href}><sw-icon .name=${n.icon} size=${20}></sw-icon>${n.label}</a>`)}
-        ${overflow.length
-          ? html`<button
-              type="button"
-              class=${classMap({ active: moreActive })}
-              aria-haspopup="true"
-              aria-expanded=${this.moreOpen}
-              @click=${() => { this.moreOpen = !this.moreOpen; }}
-            >
-              <sw-icon name="more" size=${20}></sw-icon>עוד
-            </button>`
-          : nothing}
-      </nav>
-      ${this.moreOpen && overflow.length
-        ? html`<div class="bottom-overflow" role="menu">
-            ${overflow.map(
-              (n) => html`<a role="menuitem" class=${classMap({ active: group === n.id })} href=${n.href} @click=${() => { this.moreOpen = false; }}>
-                <sw-icon .name=${n.icon} size=${18}></sw-icon>${n.label}
-              </a>`,
-            )}
-          </div>`
-        : nothing}
-    `;
+    return this.renderA();
   }
 }
 

@@ -309,9 +309,9 @@ test.describe('overview tiles against the devices fixture backend', () => {
     await page.locator('devices-building sw-kpi[data-tile-kind="alarm"] button.hit').click({ timeout: 30000 });
     const panel = page.locator('devices-building devices-tiles-panel');
     await panel.locator('a[data-alarm-link]').click();
-    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/system/security/alarm');
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/security/alarm');
     await page.waitForTimeout(800);
-    expect(await page.evaluate(() => location.hash)).toBe('#/system/security/alarm'); // no queued Back reopening the panel
+    expect(await page.evaluate(() => location.hash)).toBe('#/security/alarm'); // no queued Back reopening the panel
     await expect(page.locator('sw-app security-alarm')).toHaveCount(1);
     await expect(panel).toHaveCount(0);
     // M2: the dialog's `locked` - a running lock-all ignores ✕ / Escape / the backdrop
@@ -528,7 +528,14 @@ test.describe('overview tiles against the devices fixture backend', () => {
     await expect(admin.locator('[data-bulk-safe-counts]')).toContainText(/^\u200e?3 מתוך/);
     // remove from one: select it alone
     await admin.locator('input[data-bulk-safe-search]').fill('cr007t_pump');
-    await admin.locator('input[data-bulk-safe-row="switch.cr007t_pump"]:visible').click();
+    const pumpBox = admin.locator('input[data-bulk-safe-row="switch.cr007t_pump"]:visible');
+    await pumpBox.click();
+    await expect(pumpBox).toBeChecked(); // the box shows what the counter says (a cancelled click used to leave it unmarked)
+    await expect(admin.locator('[data-bulk-safe-selected]')).toContainText(/1/);
+    await pumpBox.click();
+    await expect(pumpBox).not.toBeChecked();
+    await pumpBox.click();
+    await expect(pumpBox).toBeChecked();
     await admin.locator('sw-button[data-bulk-safe-remove]').click();
     await expect(admin.locator('[data-bulk-safe-question]')).toHaveText(/להסיר את האישור מ־\u200e?1 מתגים\?/);
     await admin.locator('sw-button[data-bulk-safe-confirm]').click();
