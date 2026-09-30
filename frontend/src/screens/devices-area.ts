@@ -25,6 +25,7 @@ import { navigate } from '../router';
 import { bidi, ltrNum } from '../i18n/bidi';
 import { applyDevicesPrefs, DEVICES_PREFS_DEFAULT, devicesStyleTokens, loadDevicesPrefs, type DevicesPrefs } from './devices-style';
 import { DevicesLayoutController, shownEntities, TILE_COLS, titleOf, type MeasuredGrid, type TileEntry } from './devices-layout';
+import { CARD_TYPES, isCardType, type AreaEntity } from './devices-layout-cards';
 import { deg, DeviceControls, deviceControlStyles, rowLabel } from './devices-controls';
 
 export { rowLabel };
@@ -216,21 +217,49 @@ export class DevicesArea extends LitElement {
   @state() private prefs: DevicesPrefs = DEVICES_PREFS_DEFAULT;
   private prefsReady: Promise<void> = Promise.resolve();
   /** CR-007 6b: the area's card layout (one per installation and area; edited with system.configure). */
-  private lay = new DevicesLayoutController(this, {
+  private lay: DevicesLayoutController = new DevicesLayoutController(this, {
     scope: 'area',
     id: () => this.areaId,
     screenName: () => `מסך האזור › ${this.detail?.area.name ?? ''}`,
     measure: () => this.measureCards(),
     defaultH: () => 30,
-    label: (key) => (this.detail ? (this.detail.cards[key.slice(5) as CardId]?.label ?? key) : key),
+    label: (key) => (key.startsWith('card:c-') ? this.lay.customTitle(key) : this.detail ? (this.detail.cards[key.slice(5) as CardId]?.label ?? key) : key),
     compact: () => this.prefs.density === 'compact',
     entities: (key) => {
+      if (key.startsWith('card:c-')) return this.customRows(key).map((r) => ({ id: r.entity_id, name: r.name }));
       const c = this.detail?.cards[key.slice(5) as CardId];
-      return c ? this.displayRows(c).map((r) => ({ id: r.entity_id, name: r.name })) : [];
+      return c ? this.displayRows(c).map((r) => ({ id: r.entity_id, name: r.name, group: c.id === 'sensors' ? SENSOR_GROUP_LABELS[r.group ?? 'other'] : undefined })) : [];
     },
     // 6c: lighting, switches and sensors are two-up tiles; the other cards' rows are the card's full width
-    tileSpan: (key) => (TILE_CARDS.has(key.slice(5) as CardId) ? 1 : (TILE_COLS[key.slice(5)] ?? 1)),
+    tileSpan: (key) => {
+      const type = this.lay.customOf(key)?.type;
+      if (type) return CARD_TYPES[type as keyof typeof CARD_TYPES]?.tiles ? 1 : (TILE_COLS[type] ?? 2);
+      return TILE_CARDS.has(key.slice(5) as CardId) ? 1 : (TILE_COLS[key.slice(5)] ?? 1);
+    },
+    // owner request 2026-09-30 (card library): every device of the area, for a custom card's picker and the starting picks
+    pool: () => this.areaPool(),
   });
+
+  /** Every device of the area (all the built-in cards' devices the screen shows this caller), as the library lists them. */
+  private areaPool(): AreaEntity[] {
+    const d = this.detail;
+    if (!d) return [];
+    return CARD_IDS.filter((id) => this.prefs.showSensors || id !== 'sensors').flatMap((id) => d.cards[id].entities.map((r) => ({ id: r.entity_id, name: r.name, card: id, domain: r.domain, group: r.group, door: r.door_class })));
+  }
+
+  private rowIndex(): Map<string, { row: DeviceRow; card: CardId }> {
+    const out = new Map<string, { row: DeviceRow; card: CardId }>();
+    const d = this.detail;
+    if (!d) return out;
+    for (const id of CARD_IDS) for (const r of d.cards[id].entities) out.set(r.entity_id, { row: r, card: id });
+    return out;
+  }
+
+  /** A custom card's devices: the rows of the area it lists (one that left the area is skipped), in the order it lists. */
+  private customRows(key: string): DeviceRow[] {
+    const idx = this.rowIndex();
+    return (this.lay.customOf(key)?.entities ?? []).flatMap((id) => (idx.has(id) ? [idx.get(id)!.row] : []));
+  }
 
   /** A card's devices in the order it draws them automatically (the sensors card: grouped by device class). */
   private displayRows(c: DeviceCard): DeviceRow[] {
@@ -603,12 +632,18 @@ export class DevicesArea extends LitElement {
     // Owner feedback 2026-09-29 ("hide empty domains"): a domain this area has nothing of is not a card at all. Its saved
     // layout slot stays in the record; a viewer's layout packs its rows away (devices-layout.ts, as for an item gone
     // from Home Assistant), and the card comes back in its saved place when the domain appears.
-    const ordered = cards.filter((c) => c.count > 0);
+    const withDevices = cards.filter((c) => c.count > 0);
+    // owner request 2026-09-30 (card library): a built-in card the editor deleted is not drawn (its slot stays a grid key so
+    // a viewer's layout packs it away), and the area's custom cards join the grid
+    const ordered = withDevices.filter((c) => !this.lay.isRemoved(`card:${c.id}`));
+    const customKeys = this.lay.customKeys();
+    const gridKeys = [...withDevices.map((c) => `card:${c.id}`), ...customKeys, ...this.lay.removedKeys().filter((k) => !withDevices.some((c) => `card:${c.id}` === k))];
     const anyControllable = cards.some((c) => c.entities.some((r) => r.can_control));
     const bulk = this.bulkAllowed;
-    this.lay.prepare([{ id: 'cards', keys: ordered.map((c) => `card:${c.id}`) }]);
+    this.lay.prepare([{ id: 'cards', keys: gridKeys }]);
     // 6c: "סידור התקנים" - the editor shows the card being arranged alone
     const arranging = this.lay.tileCard ? ordered.find((c) => this.lay.arranging(`card:${c.id}`)) : undefined;
+    const arrangingCustom = this.lay.tileCard && customKeys.includes(this.lay.tileCard) && this.lay.arranging(this.lay.tileCard) ? this.lay.tileCard : '';
     return html`<sw-page heading=${bidi(d.area.name)} subheading=${sub} backHref="/devices/building" crumbs=${crumbs} wide @bulk-request=${this.onBulkRequest}>
       <div slot="actions">
         ${this.lay.renderEditButton()}
@@ -629,9 +664,12 @@ export class DevicesArea extends LitElement {
       ${this.lay.renderBar()}
       ${arranging
         ? this.lay.stage(`card:${arranging.id}`, this.renderCard(arranging))
-        : ordered.length
+        : arrangingCustom
+        ? this.lay.stage(arrangingCustom, this.renderCustomCard(arrangingCustom))
+        : ordered.length || customKeys.length || (this.lay.editing && withDevices.length > 0)
         ? html`<div class=${classMap({ grid: true, 'lay-grid': this.lay.gridOn('cards') })} data-lay-grid="cards" data-lay-cols=${this.lay.gridCols('cards')} ?data-lay-phone-preview=${this.lay.phonePreview('cards')}>
             ${repeat(ordered, (c) => c.id, (c) => this.lay.wrap(`card:${c.id}`, this.renderCard(c)))}
+            ${repeat(customKeys, (k) => k, (k) => this.lay.wrap(k, this.renderCustomCard(k)))}
           </div>`
         : html`<sw-state-panel data-devices-state="area_empty" state="empty" heading="אין התקנים באזור הזה" hint="שייכו התקנים לאזור (או מ״ללא שיוך״); כרטיס של תאורה, מתגים, מיזוג, תריסים, אבטחה, מסכים או חיישנים מופיע כשיש באזור התקן מהסוג הזה."></sw-state-panel>`}
       <div class="note">
@@ -670,19 +708,51 @@ export class DevicesArea extends LitElement {
   /** CR-007 6c: a card's devices as arranged - one grid of TILE_COLS columns in the saved order, each tile with its
    * span, size and title (the device's own row / tile inside; its controls unchanged). The card's numbers (heading,
    * the floor chips) still count every device, hidden or not; a sensors card arranged by hand is one list. */
-  private renderArranged(c: DeviceCard, tiles: TileEntry[]) {
+  private renderArranged(c: DeviceCard, tiles: TileEntry[], custom?: { key: string; cardOf: (id: string) => CardId }) {
     if (!tiles.length) return html`<div class="count" data-card-all-hidden>כל ההתקנים בכרטיס הוסתרו בעורך הפריסה.</div>`;
-    const key = `card:${c.id}`;
+    const key = custom?.key ?? `card:${c.id}`;
     const byId = new Map(c.entities.map((r) => [r.entity_id, r]));
-    return html`${c.id === 'covers' && !this.lay.arranging(key) ? this.renderCoverGroupControl() : nothing}<div class="tiles lay-tgrid" data-lay-tiles=${c.id}>${repeat(
+    return html`${!custom && c.id === 'covers' && !this.lay.arranging(key) ? this.renderCoverGroupControl() : nothing}<div class="tiles lay-tgrid" data-lay-tiles=${custom ? key : c.id}>${repeat(
       tiles,
       (x) => x.id,
       (x, i) => {
         const raw = byId.get(x.id)!;
         const r = x.t.title ? { ...raw, name: x.t.title } : raw; // the custom title is text only (Lit escapes it)
-        return this.lay.wrapTile(key, x, i, tiles.length, TILE_CARDS.has(c.id) ? this.renderTile(r, c.id) : this.renderRow(r, c.id));
+        const style = custom ? custom.cardOf(x.id) : c.id; // a custom card draws each device the way its own card does
+        return this.lay.wrapTile(key, x, i, tiles.length, TILE_CARDS.has(style) ? this.renderTile(r, style) : this.renderRow(r, style));
       },
     )}</div>`;
+  }
+
+  /**
+   * Owner request 2026-09-30 (card library): a custom card - its own name, colours, size and device list (any devices of
+   * the area, several cards of one type), drawn with the same tiles / rows as the built-in cards, each device the way its
+   * own card draws it (a lighting device as a tile with its switch, a climate device as its row ...). The controls are the
+   * same single-entity controls with the same permission checks.
+   */
+  private renderCustomCard(key: string) {
+    const custom = this.lay.customOf(key);
+    if (!custom || !isCardType(custom.type)) return html``;
+    const info = CARD_TYPES[custom.type];
+    const it = this.lay.item(key);
+    const idx = this.rowIndex();
+    const cardOf = (id: string): CardId => idx.get(id)?.card ?? 'sensors';
+    const rows = shownEntities(it, this.customRows(key));
+    const all = this.customRows(key);
+    const pseudo: DeviceCard = { id: 'sensors', label: info.label, entities: all, count: all.length, active: all.filter((r) => r.active).length };
+    const tiles = all.length ? this.lay.tiles(key, all.map((r) => r.entity_id)) : null;
+    const tileRows = rows.filter((r) => TILE_CARDS.has(cardOf(r.entity_id)));
+    const listRows = rows.filter((r) => !TILE_CARDS.has(cardOf(r.entity_id)));
+    return html`<sw-card data-custom-card=${key.slice(5)} data-card-type=${custom.type} data-lay-key=${key} ?data-empty=${all.length === 0} heading=${titleOf(it, info.label)} subheading=${all.length ? `${all.length} התקנים` : ''}>
+      <sw-icon slot="actions" .name=${it?.icon ?? info.icon} size=${18}></sw-icon>
+      ${!all.length
+        ? html`<div class="count" data-card-empty>אין בכרטיס התקנים. בחרו התקנים בחלונית המאפיינים של הכרטיס.</div>`
+        : tiles
+          ? this.renderArranged(pseudo, tiles, { key, cardOf })
+          : !rows.length
+            ? html`<div class="count" data-card-all-hidden>כל ההתקנים בכרטיס הוסתרו בעורך הפריסה.</div>`
+            : html`${tileRows.length ? html`<div class="tiles">${repeat(tileRows, (r) => r.entity_id, (r) => this.renderTile(r, cardOf(r.entity_id)))}</div>` : nothing}${listRows.length ? html`<div class="rows">${repeat(listRows, (r) => r.entity_id, (r) => this.renderRow(r, cardOf(r.entity_id)))}</div>` : nothing}`}
+    </sw-card>`;
   }
 
   /** CR-007 slice 4: the sensors card grouped by device class, compact - temperature, humidity, power/energy,

@@ -8,6 +8,7 @@ import type { IconName } from '../components/sw-icon';
 import { api, ApiError, describeError, post, put } from '../api/client';
 import { can, isApi } from '../api/session';
 import { LAYOUT_ROLE_IDS, type LayoutRoleId } from '../styles/devices-palettes';
+import { bulkSelect, CARD_TYPES, CARDS_VERSION, findSlot, groupPicks, isCardType, libraryTypes, newCardKey, nextTitle, type AreaEntity, type PickEntity } from './devices-layout-cards';
 
 /**
  * CR-007 slice 6b: the layout editor of the device screens (owner decisions 7.11; docs/design/DEVICE_THEMES.md §7).
@@ -100,10 +101,14 @@ export interface LayoutItem {
   hidden_entities: string[];
   /** Slice 6c, area cards: the card's device-tile arrangement (absent or empty: the automatic order). */
   tiles?: Record<string, TileLayout>;
+  /** Layout v 3 (card library): a custom card's type and devices (keys `card:c-<id>`; read from the DESKTOP layout). */
+  custom?: { type: string; entities: string[] };
+  /** Layout v 3: a built-in card the editor deleted (its devices simply show in no card of that name). */
+  removed?: boolean;
 }
 
 export interface Layout {
-  v: 1 | 2;
+  v: 1 | 2 | 3;
   cols: number;
   items: Record<string, LayoutItem>;
 }
@@ -349,7 +354,10 @@ export interface LayoutOptions {
   compact?: () => boolean;
   /** Area cards: the entities a card can show, in the order the card draws them automatically - the panel's "visible
    * entities" checklist and (6c) the card's tiles. */
-  entities?: (key: string) => { id: string; name: string }[];
+  entities?: (key: string) => { id: string; name: string; group?: string }[];
+  /** Area screen, card library (layout v 3): every device of the area (all the built-in cards' devices), for the device
+   * picker of a custom card, the library's starting selections and the "unplaced" count. */
+  pool?: () => AreaEntity[];
   /** Slice 6c: a card's automatic tile span (a two-up tile card: 1; a card of full-width rows: its TILE_COLS). */
   tileSpan?: (key: string) => number;
   /** The screen's own edits that live next to the layout in one edit session (the home screen's title, widgets and floor
@@ -400,6 +408,12 @@ export class DevicesLayoutController implements ReactiveController {
   note = '';
   confirm: 'reset' | 'copy' | null = null;
   live = '';
+  /** Card library (owner request 2026-09-30): the device picker's search, the library dialog, and the last deleted card
+   * (an undo toast in the bar, until the next change of the card set, a save or a cancel). */
+  entFilter = '';
+  libOpen = false;
+  libAll = false;
+  undo: { label: string; snapshot: Record<string, LayoutItem> } | null = null;
   /** Slice 6c: the card whose device tiles are being arranged ("סידור התקנים"), and its selected tile. */
   tileCard: string | null = null;
   tileSel: string | null = null;
@@ -521,9 +535,140 @@ export class DevicesLayoutController implements ReactiveController {
   private viewerLayout(v: LayoutVariant): Layout | null {
     if (v === 'desktop') return this.stored('desktop');
     const phone = this.stored('phone');
-    if (phone) return phone;
+    if (phone) return this.dropStale(phone);
     const desk = this.stored('desktop');
     return desk ? derivePhone(desk, this.gridKeys()) : null;
+  }
+
+  /** What the editor calls an item: the screen's label, or a custom card's own name. */
+  labelOf(key: string): string {
+    return key.startsWith('card:c-') ? this.customTitle(key) : this.opts.label(key);
+  }
+
+  /** The title of a custom card as the editor names it (its own, else its type's). */
+  customTitle(key: string): string {
+    const it = this.desktopLayout()?.items[key] ?? this.draft?.items[key];
+    return it?.title ?? (it?.custom ? (CARD_TYPES[it.custom.type as keyof typeof CARD_TYPES]?.label ?? 'כרטיס') : 'כרטיס');
+  }
+
+  // -------------------------------------------------------------------------------------------- card library (v 3)
+
+  /** The desktop layout the card set lives in (custom and deleted cards are defined once, there; the phone layout only
+   * places them): the draft while the desktop is edited, else the stored one. */
+  private desktopLayout(): Layout | null {
+    return this.editing && this.variant === 'desktop' ? this.draft : this.stored('desktop');
+  }
+
+  /** The custom cards' keys in reading order of the desktop layout. */
+  customKeys(): string[] {
+    const items = this.desktopLayout()?.items ?? {};
+    const keys = Object.keys(items).filter((k) => !!items[k].custom);
+    return keys.sort((a, b) => items[a].y - items[b].y || items[a].x - items[b].x);
+  }
+
+  customOf(key: string): { type: string; entities: string[] } | undefined {
+    return this.desktopLayout()?.items[key]?.custom;
+  }
+
+  /** A built-in card the editor deleted (desktop layout). */
+  isRemoved(key: string): boolean {
+    return !!this.desktopLayout()?.items[key]?.removed;
+  }
+
+  removedKeys(): string[] {
+    const items = this.desktopLayout()?.items ?? {};
+    return Object.keys(items).filter((k) => items[k].removed);
+  }
+
+  /** A saved phone layout may still hold a custom card that was deleted on the desktop: it is not part of the screen. */
+  private dropStale(layout: Layout): Layout {
+    const stale = Object.keys(layout.items).filter((k) => k.startsWith('card:c-') && !this.customOf(k));
+    if (!stale.length) return layout;
+    const items = { ...layout.items };
+    for (const k of stale) delete items[k];
+    return { ...layout, items };
+  }
+
+  /** Every variant carries the same card set: each custom card with its definition, each deleted card flagged, a card
+   * that no longer exists dropped (the desktop layout is the source; the phone layout only places them). */
+  private withCards(layout: Layout, source: Layout | null): Layout {
+    const src = source?.items ?? {};
+    const items: Record<string, LayoutItem> = {};
+    for (const [k, it] of Object.entries(layout.items)) {
+      if (k.startsWith('card:c-')) {
+        if (!src[k]?.custom) continue;
+        items[k] = { ...it, custom: src[k].custom, removed: undefined };
+      } else if (src[k]?.removed) items[k] = { ...it, removed: true };
+      else items[k] = { ...it, removed: undefined, custom: undefined };
+    }
+    // a device-less draft item may hold `undefined` keys: JSON drops them, the comparison against the base must too
+    return JSON.parse(JSON.stringify({ ...layout, items })) as Layout;
+  }
+
+  /** The area's devices that no card shows now: their built-in card is deleted or hides them, and no custom card lists
+   * them. A deleted card's devices are "unplaced", never gone from the platform. */
+  unplaced(pool: AreaEntity[] = this.opts.pool?.() ?? []): AreaEntity[] {
+    const items = this.desktopLayout()?.items ?? {};
+    const inCustom = new Set<string>();
+    for (const it of Object.values(items)) {
+      if (!it.custom) continue;
+      const hide = new Set(it.hidden_entities ?? []);
+      for (const id of it.custom.entities) if (!hide.has(id)) inCustom.add(id);
+    }
+    return pool.filter((e) => {
+      const b = items[`card:${e.card}`];
+      const shownBuiltin = !b?.removed && !(b?.hidden_entities ?? []).includes(e.id) && !b?.hidden;
+      return !shownBuiltin && !inCustom.has(e.id);
+    });
+  }
+
+  /** "מחק כרטיס": a custom card is dropped, a built-in one flagged; the rows under it move up. Nothing leaves the
+   * platform - the devices join the unplaced pool. An undo toast in the bar brings the card back. */
+  removeCard(key: string) {
+    if (!this.draft || this.variant !== 'desktop' || this.opts.scope !== 'area') return;
+    const it = this.draft.items[key];
+    if (!it) return;
+    const label = this.labelOf(key);
+    const keys = Object.keys(this.draft.items).filter((k) => !this.draft!.items[k].removed);
+    const packed = pack(this.draft.items, keys, new Set([key]), false, GAP_ROWS);
+    const items = { ...packed };
+    if (key.startsWith('card:c-')) delete items[key];
+    else items[key] = { ...packed[key], removed: true };
+    this.undo = { label, snapshot: this.draft.items };
+    this.draft = { ...this.draft, items };
+    this.selected = null;
+    if (this.tileCard === key) this.leaveTiles();
+    this.live = `הכרטיס "${label}" נמחק. ההתקנים שבו חזרו למאגר ההתקנים הלא ממוקמים.`;
+    this.update();
+  }
+
+  undoRemove() {
+    if (!this.undo || !this.draft) return;
+    this.draft = { ...this.draft, items: this.undo.snapshot };
+    this.live = `הכרטיס "${this.undo.label}" חזר.`;
+    this.undo = null;
+    this.update();
+  }
+
+  /** "הוסף כרטיס": a card of a library type, named, with its starting devices, placed in the first free slot. */
+  addCard(typeId: string) {
+    if (!this.draft || this.variant !== 'desktop' || this.opts.scope !== 'area' || !isCardType(typeId)) return;
+    const info = CARD_TYPES[typeId];
+    const pool = this.opts.pool?.() ?? [];
+    const entities = (typeId === 'free' ? this.unplaced(pool) : pool.filter(info.match)).map((e) => e.id);
+    const key = newCardKey(Object.keys(this.draft.items));
+    const titles = [...Object.entries(this.draft.items)].filter(([, it]) => !it.removed).map(([k, it]) => it.title ?? this.labelOf(k));
+    const w = Math.floor(this.draft.cols / 2);
+    const h = 30;
+    const { x, y } = findSlot(this.draft.items, this.draft.cols, w, h, GAP_ROWS);
+    const item: LayoutItem = { ...newItem(x, y, w, h), title: nextTitle(info.label, titles), icon: (LAYOUT_ICONS as readonly string[]).includes(info.icon) ? (info.icon as LayoutIcon) : null, custom: { type: typeId, entities } };
+    this.draft = { ...this.draft, items: { ...this.draft.items, [key]: item } };
+    this.undo = null;
+    this.libOpen = false;
+    this.selected = key;
+    this.entFilter = '';
+    this.live = `נוסף כרטיס "${item.title}" עם ${entities.length} התקנים.`;
+    this.update();
   }
 
   /** Called at the top of the screen's render with the grids it is about to draw. */
@@ -533,7 +678,7 @@ export class DevicesLayoutController implements ReactiveController {
     // 6c review: the card being arranged lost its last device (a structure refresh): back to the cards, and say why
     // (its arrangement stays in the draft - the card returns with it when the domain does)
     if (this.tileCard && !this.gridOf.has(this.tileCard)) {
-      const label = this.opts.label(this.tileCard);
+      const label = this.labelOf(this.tileCard);
       this.endTileDrag();
       this.tileCard = null;
       this.tileSel = null;
@@ -556,7 +701,7 @@ export class DevicesLayoutController implements ReactiveController {
     let out = items;
     for (const g of grids) {
       if (!this.activeGrids.has(g.id)) continue;
-      const gone = new Set(g.keys.filter((k) => out[k]?.hidden));
+      const gone = new Set(g.keys.filter((k) => out[k]?.hidden || this.isRemoved(k)));
       const all = compact || !!this.record?.narrowed || g.keys.some((k) => strayPrefixes.has(prefix(k)));
       if (!gone.size && !all) continue;
       out = pack(out, g.keys, gone, all, compact ? 1 : GAP_ROWS);
@@ -593,6 +738,7 @@ export class DevicesLayoutController implements ReactiveController {
   wrap(key: string, content: TemplateResult | typeof nothing): TemplateResult | typeof nothing {
     const it = this.item(key);
     if (!it) return content;
+    if (this.isRemoved(key)) return nothing; // a deleted built-in card (v 3) is not drawn, in the editor either
     if (it.hidden && !this.editing) return nothing;
     const style = { gridColumn: `${it.x + 1} / span ${it.w}`, gridRow: `${it.y + 1} / span ${it.h}` };
     const attrs = {
@@ -604,7 +750,7 @@ export class DevicesLayoutController implements ReactiveController {
       return html`<div class="lay-item" data-lay-key=${key} data-lay-bg=${attrs.bg} data-lay-border=${attrs.border} data-lay-text=${attrs.text} style=${styleMap(style)}>${content}</div>`;
     }
     const sel = this.selected === key;
-    const label = this.opts.label(key);
+    const label = this.labelOf(key);
     const pos = `${label}: ${it.w} × ${it.h} · עמודה ${it.x + 1}, שורה ${it.y + 1}${it.hidden ? ' · מוסתר' : ''}`;
     return html`<div
       class=${classMap({ 'lay-item': true, 'lay-edit': true, 'lay-sel': sel, 'lay-hidden': it.hidden, 'lay-drag': this.drag?.key === key && this.drag.started })}
@@ -650,6 +796,8 @@ export class DevicesLayoutController implements ReactiveController {
   }
 
   private tileCols(key: string): number {
+    const c = this.customOf(key); // a custom card's columns follow its type (the free card, locks and energy: two)
+    if (c) return TILE_COLS[c.type] ?? 2;
     return TILE_COLS[key.slice(key.indexOf(':') + 1)] ?? 1;
   }
 
@@ -722,7 +870,7 @@ export class DevicesLayoutController implements ReactiveController {
     this.tileCard = key;
     this.tileSel = null;
     this.selected = key;
-    this.live = `סידור התקנים: ${this.opts.label(key)}`;
+    this.live = `סידור התקנים: ${this.labelOf(key)}`;
     this.update();
   }
 
@@ -790,7 +938,7 @@ export class DevicesLayoutController implements ReactiveController {
   resetTiles(key: string) {
     this.patch(key, { tiles: {} });
     this.tileSel = null;
-    this.live = `${this.opts.label(key)}: הסדר האוטומטי`;
+    this.live = `${this.labelOf(key)}: הסדר האוטומטי`;
     this.update();
   }
 
@@ -924,7 +1072,7 @@ export class DevicesLayoutController implements ReactiveController {
     let layout: Layout;
     if (variant === 'desktop') layout = desk;
     else {
-      layout = clone(this.stored('phone') ?? derivePhone(desk, keysNow));
+      layout = this.dropStale(clone(this.stored('phone') ?? derivePhone(desk, keysNow)));
       for (const m of measured) {
         const keys = m.items.map((i) => i.key);
         if (!keys.some((k) => layout.items[k])) Object.assign(layout.items, derivePhone({ v: 1, cols: 12, items: deriveFromDom(m, COLS.desktop) }, [keys]).items);
@@ -953,6 +1101,9 @@ export class DevicesLayoutController implements ReactiveController {
     this.tileCard = null;
     this.tileSel = null;
     this.confirm = null;
+    this.undo = null;
+    this.libOpen = false;
+    this.entFilter = '';
     this.host.removeAttribute('data-lay-editing');
     this.opts.extras?.discard(); // after a save the extras have already taken their saved values: discarding is then a no-op
   }
@@ -982,8 +1133,11 @@ export class DevicesLayoutController implements ReactiveController {
       // the automatic layout); without them a save with nothing stored keeps storing the measured one, as before
       const storeLayout = !extras || this.layoutDirty;
       if (storeLayout) {
-        // written in the current schema (v 2: device tiles allowed); a 6b record is upgraded on its next save
-        this.record = await putLayout(this.opts.scope, this.opts.id(), this.variant, rev, { ...this.draft, v: LAYOUT_VERSION });
+        // written in the current schema (v 2: device tiles allowed; v 3 only when a custom / deleted card is in the set);
+        // a 6b record is upgraded on its next save. Every variant carries the desktop layout's card set.
+        const out = this.opts.scope === 'area' ? this.withCards(this.draft, this.desktopLayout()) : this.draft;
+        const cards = Object.values(out.items).some((i) => i.custom || i.removed);
+        this.record = await putLayout(this.opts.scope, this.opts.id(), this.variant, rev, { ...out, v: cards ? CARDS_VERSION : LAYOUT_VERSION });
       }
       const phone = this.variant === 'phone';
       this.close();
@@ -1066,24 +1220,25 @@ export class DevicesLayoutController implements ReactiveController {
   private select(key: string | null, announce = true) {
     if (this.selected === key) return;
     this.selected = key;
+    this.entFilter = '';
     if (announce && key) this.announce(key);
     this.update();
   }
 
   private announce(key: string) {
     const it = this.draft?.items[key];
-    if (it) this.live = `${this.opts.label(key)}: עמודה ${it.x + 1}, שורה ${it.y + 1}, רוחב ${it.w}, גובה ${it.h}`;
+    if (it) this.live = `${this.labelOf(key)}: עמודה ${it.x + 1}, שורה ${it.y + 1}, רוחב ${it.w}, גובה ${it.h}`;
   }
 
   private peers(key: string): string[] {
     const g = this.gridOf.get(key);
-    const keys = this.grids.find((x) => x.id === g)?.keys ?? [key];
+    const keys = (this.grids.find((x) => x.id === g)?.keys ?? [key]).filter((k) => !this.draft?.items[k]?.removed); // a deleted card leaves no slot
     // Owner feedback 2026-09-29: an item the screen does not draw now (a domain card whose area has nothing of it)
     // keeps its saved slot; on a one-grid screen it stays a peer, so a drawn card moved onto that slot pushes it down
     // instead of overlapping it (the server refuses overlapping items of one grid)
     if (this.grids.length !== 1 || !this.draft) return keys;
     const drawn = new Set(keys);
-    return [...keys, ...Object.keys(this.draft.items).filter((k) => !drawn.has(k))];
+    return [...keys, ...Object.keys(this.draft.items).filter((k) => !drawn.has(k) && !this.draft!.items[k].removed)];
   }
 
   /** Changes one item; a position or size change pushes the peers it now covers down. */
@@ -1231,20 +1386,22 @@ export class DevicesLayoutController implements ReactiveController {
           ${this.variant === 'phone' ? html`<sw-button size="sm" data-layout-phone-auto ?disabled=${this.busy || (!this.record?.phone && !dirty)} @click=${() => void this.phoneAuto()}>חזור לאוטומטי</sw-button>` : nothing}
           <sw-button size="sm" data-layout-reset ?disabled=${this.busy || (!this.record?.desktop && !this.record?.phone)} @click=${() => this.ask('reset')}>אפס לברירת מחדל</sw-button>
           ${areaScope ? html`<sw-button size="sm" icon="layers" data-layout-copy ?disabled=${this.busy || dirty || !this.record?.desktop} title=${dirty ? 'שמרו קודם' : !this.record?.desktop ? 'אין עדיין פריסה שמורה להעתקה' : ''} @click=${() => this.ask('copy')}>העתק לכל האזורים</sw-button>` : nothing}
+          ${areaScope && this.variant === 'desktop' ? html`<sw-button size="sm" icon="plus" data-layout-add-card ?disabled=${this.busy} @click=${() => { this.libOpen = true; this.update(); }}>הוסף כרטיס</sw-button>` : nothing}
           <sw-button size="sm" variant="primary" icon="check" data-layout-save ?disabled=${this.busy || (!dirty && (!!stored || !!this.opts.extras))} @click=${() => void this.save()}>שמור</sw-button>
         </span>
         ${this.error ? html`<span class="lay-msg err" role="alert" data-layout-error>${this.error}${this.conflict ? html` <sw-button size="sm" variant="ghost" data-layout-reload @click=${() => void this.reloadAfterConflict()}>טען מחדש</sw-button>` : nothing}</span>` : nothing}
         ${this.note ? html`<span class="lay-msg" role="status">${this.note}</span>` : nothing}
+        ${this.undo ? html`<span class="lay-msg" role="status" data-layout-undo-msg>הכרטיס "${this.undo.label}" נמחק · ההתקנים חזרו למאגר <button type="button" class="lay-undo" data-layout-undo @click=${() => this.undoRemove()}>בטל מחיקה</button></span>` : nothing}
         ${this.tileCard
           ? html`<nav class="lay-crumb" data-layout-tiles-crumb aria-label="מיקום בעורך">
               <button type="button" data-layout-tiles-back @click=${() => this.leaveTiles()}><span aria-hidden="true">→</span> כל הכרטיסים</button>
               <span aria-hidden="true">›</span>
-              <span class="here" aria-current="page">${this.opts.label(this.tileCard)} · סידור התקנים</span>
+              <span class="here" aria-current="page">${this.labelOf(this.tileCard)} · סידור התקנים</span>
             </nav>`
           : nothing}
         <span class="lay-live" aria-live="polite" data-layout-live>${this.live}</span>
       </div>
-      ${this.renderConfirm()}`;
+      ${this.renderConfirm()}${areaScope ? this.renderLibrary() : nothing}`;
   }
 
   private ask(what: 'reset' | 'copy') {
@@ -1272,23 +1429,93 @@ export class DevicesLayoutController implements ReactiveController {
   }
 
   /** Review ruling 4: which entities an area card shows - a checklist; a hidden one still counts in the card's numbers. */
+  /**
+   * The device picker of an area card (owner request 2026-09-30): which devices the card shows - for a built-in card its
+   * own devices (a hidden one still counts in the card's numbers), for a custom card any device of the area. A search box,
+   * "בחר הכל" / "הסר הכל" / "הפוך בחירה" over the filtered results (the whole list when the box is empty), the list grouped
+   * under type headers with a select box each, and a header count that stays live. The list itself never scrolls: the
+   * panel does, and the search / buttons row sticks to its top.
+   */
   private renderEntities(key: string, it: LayoutItem): TemplateResult | typeof nothing {
-    const list = this.opts.entities?.(key) ?? [];
-    if (!list.length) return nothing;
-    const hide = new Set(it.hidden_entities ?? []);
-    const toggle = (id: string, show: boolean) => {
-      const next = new Set(hide);
-      if (show) next.delete(id);
-      else next.add(id);
-      // 6c: an arranged tile's own "hidden" follows (one set)
-      const tiles = arranged(it) ? Object.fromEntries(Object.entries(it.tiles!).map(([k, t]) => [k, k === id ? { ...t, hidden: !show } : t])) : it.tiles;
-      this.patch(key, { hidden_entities: [...next].sort(), ...(tiles ? { tiles } : {}) });
+    const custom = key.startsWith('card:c-') ? this.customOf(key) : undefined;
+    if (custom && this.variant !== 'desktop') return html`<div class="lay-hint" data-layout-picker-desktop-only>בחירת ההתקנים של כרטיס נערכת בפריסת המחשב.</div>`;
+    let list: PickEntity[];
+    let selected: Set<string>;
+    let apply: (next: Set<string>) => void;
+    if (custom) {
+      list = (this.opts.pool?.() ?? []).map((e) => ({ id: e.id, name: e.name, group: CARD_TYPES[e.card as keyof typeof CARD_TYPES]?.label ?? '' }));
+      selected = new Set(custom.entities);
+      apply = (next) => this.patch(key, { custom: { ...custom, entities: [...next].sort() } });
+    } else {
+      list = this.opts.entities?.(key) ?? [];
+      const hide = new Set(it.hidden_entities ?? []);
+      selected = new Set(list.filter((e) => !hide.has(e.id)).map((e) => e.id));
+      apply = (next) => {
+        // the hidden set: what is not selected, plus what the list no longer holds (a device gone from the card)
+        const listed = new Set(list.map((e) => e.id));
+        const nextHide = new Set([...(it.hidden_entities ?? []).filter((id) => !listed.has(id)), ...list.filter((e) => !next.has(e.id)).map((e) => e.id)]);
+        // 6c: an arranged tile's own "hidden" follows (one set)
+        const tiles = arranged(it) ? Object.fromEntries(Object.entries(it.tiles!).map(([k, t]) => [k, listed.has(k) ? { ...t, hidden: nextHide.has(k) } : t])) : it.tiles;
+        this.patch(key, { hidden_entities: [...nextHide].sort(), ...(tiles ? { tiles } : {}) });
+      };
+    }
+    if (!list.length && !custom) return nothing;
+    const groups = groupPicks(list, this.entFilter);
+    const scope = groups.flatMap((g) => g.items.map((e) => e.id));
+    const filtered = this.entFilter.trim() !== '';
+    const chosen = list.filter((e) => selected.has(e.id)).length;
+    const act = (mode: 'all' | 'none' | 'invert') => apply(bulkSelect(selected, scope, mode));
+    const toggle = (id: string, on: boolean) => apply(bulkSelect(selected, [id], on ? 'all' : 'none'));
+    const groupBox = (label: string, ids: string[]) => {
+      const on = ids.filter((id) => selected.has(id)).length;
+      return html`<label class="lay-check lay-ghead"><input type="checkbox" data-layout-ent-group=${label} .checked=${on === ids.length} .indeterminate=${on > 0 && on < ids.length} @change=${(ev: Event) => apply(bulkSelect(selected, ids, (ev.target as HTMLInputElement).checked ? 'all' : 'none'))} /><span>${label}</span><span class="cnt">${on}/${ids.length}</span></label>`;
     };
-    return html`<div class="lay-f"><span class="lbl">ישויות מוצגות בכרטיס (${list.length - list.filter((e) => hide.has(e.id)).length} מתוך ${list.length})</span>
-      <div class="lay-ents" data-layout-entities>
-        ${list.map((e) => html`<label class="lay-check"><input type="checkbox" data-layout-entity=${e.id} .checked=${!hide.has(e.id)} @change=${(ev: Event) => toggle(e.id, (ev.target as HTMLInputElement).checked)} />${e.name}</label>`)}
+    return html`<div class="lay-f lay-picker" data-layout-picker><span class="lbl" data-layout-ent-count>${custom ? 'התקנים בכרטיס' : 'ישויות מוצגות בכרטיס'} (${chosen} מתוך ${list.length})</span>
+      <div class="lay-ptool">
+        <input type="search" data-layout-ent-filter placeholder="חיפוש התקן" aria-label="חיפוש התקן" .value=${this.entFilter} @input=${(ev: Event) => { this.entFilter = (ev.target as HTMLInputElement).value; this.update(); }} />
+        <div class="lay-pbtns" role="group" aria-label=${filtered ? `פעולות על ${scope.length} תוצאות` : 'פעולות על כל ההתקנים'}>
+          <button type="button" data-layout-ent-all ?disabled=${!scope.length} @click=${() => act('all')}>בחר הכל</button>
+          <button type="button" data-layout-ent-none ?disabled=${!scope.length} @click=${() => act('none')}>הסר הכל</button>
+          <button type="button" data-layout-ent-invert ?disabled=${!scope.length} @click=${() => act('invert')}>הפוך בחירה</button>
+        </div>
+        ${filtered ? html`<span class="lay-hint" data-layout-ent-scope>הפעולות חלות על ${scope.length} התוצאות בלבד.</span>` : nothing}
       </div>
-      <span class="lay-hint">ישות מוסתרת עדיין נספרת במונים של הכרטיס.</span></div>`;
+      <div class="lay-ents" data-layout-entities>
+        ${groups.length
+          ? groups.map((g) => html`<div class="lay-pgroup" data-layout-group=${g.label}>
+              ${g.label ? groupBox(g.label, g.items.map((e) => e.id)) : nothing}
+              ${g.items.map((e) => html`<label class="lay-check"><input type="checkbox" data-layout-entity=${e.id} .checked=${selected.has(e.id)} @change=${(ev: Event) => toggle(e.id, (ev.target as HTMLInputElement).checked)} />${e.name}</label>`)}
+            </div>`)
+          : html`<span class="lay-hint" data-layout-ent-none-found>${list.length ? 'לא נמצאו התקנים.' : 'אין התקנים באזור.'}</span>`}
+      </div>
+      ${custom ? nothing : html`<span class="lay-hint">ישות מוסתרת עדיין נספרת במונים של הכרטיס.</span>`}</div>`;
+  }
+
+  /** The library dialog: every card type that makes sense for the area's devices (all of them on request), each with a
+   * one-line description and a small preview; choosing one adds the card (any number, several of a type). */
+  private renderLibrary(): TemplateResult {
+    if (!this.libOpen) return html`<sw-dialog data-layout-library="closed"></sw-dialog>`;
+    const pool = this.opts.pool?.() ?? [];
+    const types = libraryTypes(pool, this.libAll);
+    const free = this.unplaced(pool).length;
+    const close = () => {
+      this.libOpen = false;
+      this.update();
+    };
+    return html`<sw-dialog open data-layout-library="open" heading="הוספת כרטיס" subheading=${free ? `${free} התקנים לא ממוקמים באף כרטיס` : 'בחרו סוג כרטיס'} @close=${close}>
+      <div class="lay-lib">
+        <label class="lay-check lay-libAll"><input type="checkbox" data-layout-library-all .checked=${this.libAll} @change=${(ev: Event) => { this.libAll = (ev.target as HTMLInputElement).checked; this.update(); }} />הצג את כל סוגי הכרטיסים</label>
+        <div class="lay-libList" role="list">
+          ${types.map(({ type, count, sample }) => html`<button type="button" role="listitem" class="lay-libItem" data-layout-add=${type.id} @click=${() => this.addCard(type.id)}>
+            <span class="lay-libIcon"><sw-icon .name=${type.icon} size=${20}></sw-icon></span>
+            <span class="lay-libTxt"><b>${type.label}</b><span>${type.desc}</span>
+              <span class="lay-libPrev" aria-hidden="true">${type.id === 'free' ? (free ? `${free} התקנים לא ממוקמים` : 'כרטיס ריק') : sample.length ? sample.join(' · ') : 'אין באזור התקן מהסוג הזה'}</span></span>
+            <span class="lay-libCnt">${type.id === 'free' ? free : count}</span>
+          </button>`)}
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end"><sw-button data-layout-library-close @click=${close}>סגור</sw-button></div>
+    </sw-dialog>`;
   }
 
   /** The panel of the selected item (a bottom sheet on a phone). */
@@ -1301,9 +1528,10 @@ export class DevicesLayoutController implements ReactiveController {
       return html`<aside class="lay-panel" data-layout-panel="none" aria-label="מאפייני הכרטיס">
         <div class="ph">מאפייני הכרטיס</div>
         <div class="lay-hint">בחרו כרטיס כדי לערוך אותו (בטלפון: לחיצה ארוכה). גררו כרטיס כדי להזיז אותו והידית בפינה משנה את גודלו, בקפיצות של עמודה ו־8 פיקסלים. במקלדת: Tab לכרטיס, חיצים מזיזים, Shift עם חיצים משנה גודל.</div>
+        ${this.opts.scope === 'area' && this.variant === 'desktop' ? html`<button type="button" class="btn" data-layout-add-card-panel @click=${() => { this.libOpen = true; this.update(); }}>הוסף כרטיס…</button>` : nothing}
       </aside>`;
     }
-    const label = this.opts.label(key);
+    const label = this.labelOf(key);
     // attribute NAMES cannot be bound in a Lit template: one swatch template per field
     const swatch = (field: 'bg' | 'border', r: LayoutRoleId | null) => {
       const name = r ? ROLE_HE[r] : 'ללא';
@@ -1350,13 +1578,16 @@ export class DevicesLayoutController implements ReactiveController {
       ${this.renderEntities(key, it)}
       ${this.canArrange(key) ? html`<button type="button" class="btn" data-layout-tiles-open @click=${() => this.enterTiles(key)}>סידור התקנים בכרטיס${arranged(it) ? ' (מסודר)' : ''}…</button>` : nothing}
       <label class="lay-check"><input type="checkbox" data-layout-hidden .checked=${it.hidden} @change=${(e: Event) => this.patch(key, { hidden: (e.target as HTMLInputElement).checked })} />מוסתר לכולם</label>
+      ${this.opts.scope === 'area' && this.variant === 'desktop'
+        ? html`<button type="button" class="btn lay-del" data-layout-delete-card @click=${() => this.removeCard(key)}>מחק כרטיס</button><div class="lay-hint">מחיקה מוציאה את הכרטיס מהמסך בלבד: ההתקנים לא נמחקים מהמערכת, אלא חוזרים למאגר ההתקנים הלא ממוקמים, ואפשר לצרף אותם לכרטיס אחר. "בטל מחיקה" מחזיר את הכרטיס.</div>`
+        : nothing}
       <div class="lay-hint">הצבעים הם תפקידים בערכת הצבעים של האזור (הגדרות › חשמל והתקנים), כך שהפריסה נראית נכון בכל ערכה, בהיר או כהה. הגובה הוא מינימום: כרטיס לא חותך את ההתקנים שבו.</div>
     </aside>`;
   }
 
   /** 6c: the panel while a card's tiles are arranged - the selected tile's span, size, place, hidden and title. */
   private renderTilePanel(key: string): TemplateResult {
-    const label = this.opts.label(key);
+    const label = this.labelOf(key);
     const list = this.tileList(key);
     const cols = this.tileCols(key);
     const isArranged = arranged(this.draft?.items[key]);

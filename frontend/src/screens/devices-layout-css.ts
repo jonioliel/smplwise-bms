@@ -416,12 +416,159 @@ export const devicesLayoutCss = [
       font: inherit;
       cursor: pointer;
     }
+    /* the device picker: the list itself never scrolls (the panel does); its search / buttons row sticks to the panel's top */
     .lay-ents {
       display: flex;
       flex-direction: column;
       gap: 4px;
-      max-block-size: 160px;
+    }
+    .lay-ptool {
+      position: sticky;
+      inset-block-start: -14px;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-block: 0 4px;
+      padding-block: 8px 6px;
+      background: var(--dv-surface-solid, var(--sw-surface));
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .lay-ptool input[type='search'] {
+      box-sizing: border-box;
+      inline-size: 100%;
+      min-block-size: 32px;
+      padding: 5px 8px;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: 8px;
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+    }
+    .lay-pbtns {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 4px;
+    }
+    .lay-pbtns button {
+      min-block-size: 30px;
+      padding-inline: 4px;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: 7px;
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      cursor: pointer;
+    }
+    .lay-pbtns button:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+    .lay-pgroup {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      padding-block-end: 6px;
+    }
+    .lay-ghead {
+      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      padding-block: 4px 2px;
+      border-block-end: 1px dashed var(--sw-border);
+    }
+    .lay-ghead .cnt {
+      margin-inline-start: auto;
+      font-weight: var(--sw-fw-medium);
+      color: var(--sw-text-3);
+      font-variant-numeric: tabular-nums;
+    }
+    .lay-panel .lay-del {
+      color: var(--sw-danger);
+      border-color: var(--sw-danger);
+    }
+    .lay-undo {
+      margin-inline-start: 6px;
+      padding: 2px 8px;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: 7px;
+      background: var(--sw-surface);
+      color: var(--sw-accent);
+      font: inherit;
+      font-weight: var(--sw-fw-semibold);
+      cursor: pointer;
+    }
+    /* the card library dialog */
+    .lay-lib {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 4px 16px 12px;
+    }
+    .lay-libList {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-block-size: min(60vh, 460px);
       overflow: auto;
+    }
+    .lay-libItem {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+      text-align: start;
+      cursor: pointer;
+    }
+    .lay-libItem:hover,
+    .lay-libItem:focus-visible {
+      border-color: var(--sw-accent);
+      background: var(--sw-surface-2);
+      outline: none;
+    }
+    .lay-libIcon {
+      display: grid;
+      place-items: center;
+      flex: none;
+      inline-size: 38px;
+      block-size: 38px;
+      border-radius: 10px;
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent);
+    }
+    .lay-libTxt {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-inline-size: 0;
+      flex: 1;
+    }
+    .lay-libTxt > span {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .lay-libTxt .lay-libPrev {
+      color: var(--sw-text-3);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .lay-libCnt {
+      flex: none;
+      min-inline-size: 26px;
+      padding: 1px 8px;
+      border-radius: 999px;
+      background: var(--sw-surface-2);
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-xs);
+      text-align: center;
+      font-variant-numeric: tabular-nums;
     }
     .lay-check {
       display: flex;
