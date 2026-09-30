@@ -12,6 +12,7 @@ import '../components/sw-state-panel';
 import '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-dialog';
+import './devices-media-card';
 import type { StateKind } from '../components/sw-badge';
 import type { IconName } from '../components/sw-icon';
 import { can, canAnywhere, isApi } from '../api/session';
@@ -517,6 +518,8 @@ export class DevicesArea extends LitElement {
   @state() private design: AreaDesign = 'tiles';
   @state() private installationDesign: AreaDesign = 'tiles';
   @state() private extra = new Map<string, EntityRow>();
+  /** CR-015: per media card key, how many screens its `<media-area-card>` drew (undefined = not known yet). */
+  @state() private mediaCount = new Map<string, { n: number; off: boolean }>();
   @state() private sensOpen = new Set<string>();
   @state() private foldState = new Map<string, boolean>();
   @state() private phone = false;
@@ -1100,6 +1103,8 @@ export class DevicesArea extends LitElement {
           ? this.renderArranged(c, tiles)
           : !ents.length
           ? html`<div class="count" data-card-all-hidden>כל ההתקנים בכרטיס הוסתרו בעורך הפריסה.</div>`
+          : c.id === 'media' && this.mediaHook
+          ? this.renderMedia(key, null, ents)
           : c.id === 'sensors'
             ? this.renderSensorsSection(key, ents)
             : c.id === 'lighting' || c.id === 'switches'
@@ -1220,6 +1225,40 @@ export class DevicesArea extends LitElement {
     )}</div>`;
   }
 
+  // ---------------------------------------------------------------- CR-015: the media card draws screens, not entities
+
+  /** The media card (built-in or from the library) is drawn by `<media-area-card>` when the caller may see media at all
+   * (media.read; the demo has the mock). Without it - or with the feature off, or no approved screen in the area - the
+   * card keeps its rows exactly as before. */
+  private get mediaHook(): boolean {
+    return !isApi() || canAnywhere('media.read');
+  }
+
+  /** A row the screens' cards replace: a media player that is not a speaker or a receiver (those keep their row until the
+   * players and speakers of 0.1.150; the server dedupes the endpoints of one screen into one card). */
+  private isScreenRow(r: DeviceRow): boolean {
+    return r.domain === 'media_player' && r.device_class !== 'speaker' && r.device_class !== 'receiver';
+  }
+
+  private renderMedia(key: string, entityIds: string[] | null, rows: DeviceRow[]) {
+    const d = this.detail!;
+    const st = this.mediaCount.get(key);
+    const rest = st?.n ? rows.filter((r) => !this.isScreenRow(r)) : st === undefined ? [] : rows;
+    const look: BulkLook = this.lay.bulkLookOf(key);
+    const ask = () => this.renderRoot.querySelector<HTMLElement & { ask: () => Promise<void> }>(`media-area-card[data-media-card="${key}"]`)?.ask();
+    return html`${st?.off && !this.lay.arranging(key)
+        ? html`<span slot="actions" class="sec-bulk" data-section-bulk="media" data-bulk-look=${look}>${look === 'icon'
+            ? html`<sw-button size="sm" iconOnly icon="power" label="כבה הכל" data-section-bulk-kind="screens_off" @click=${ask}></sw-button>`
+            : html`<sw-button size="sm" icon=${look === 'both' ? 'power' : undefined} data-section-bulk-kind="screens_off" @click=${ask}>כבה הכל</sw-button>`}</span>`
+        : nothing}
+      <media-area-card external data-media-card=${key} .areaId=${d.area.area_id} .areaName=${d.area.name} .entityIds=${entityIds}
+        @media-area-state=${(e: CustomEvent<{ screens: number; canOff: boolean }>) => {
+          if (st?.n === e.detail.screens && st.off === e.detail.canOff) return;
+          this.mediaCount = new Map(this.mediaCount).set(key, { n: e.detail.screens, off: e.detail.canOff });
+        }}></media-area-card>
+      ${rest.length ? html`<div class="rows">${repeat(rest, (r) => r.entity_id, (r) => this.renderRow(r, 'media'))}</div>` : nothing}`;
+  }
+
   /**
    * Owner request 2026-09-30 (card library): a custom card - its own name, colours, size and device list (any devices of
    * the area, several cards of one type), drawn with the same tiles / rows as the built-in cards, each device the way its
@@ -1247,6 +1286,8 @@ export class DevicesArea extends LitElement {
           ? this.renderArranged(pseudo, tiles, { key, cardOf })
           : !rows.length
             ? html`<div class="count" data-card-all-hidden>כל ההתקנים בכרטיס הוסתרו בעורך הפריסה.</div>`
+            : custom.type === 'media' && this.mediaHook
+            ? this.renderMedia(key, custom.entities ?? null, rows)
             : html`${tileRows.length ? html`<div class="tiles">${repeat(tileRows, (r) => r.entity_id, (r) => this.renderTile(r, cardOf(r.entity_id)))}</div>` : nothing}${listRows.length ? html`<div class="rows">${repeat(listRows, (r) => r.entity_id, (r) => this.renderRow(r, cardOf(r.entity_id)))}</div>` : nothing}`}
     </sw-card>`;
   }
