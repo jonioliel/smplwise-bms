@@ -275,6 +275,8 @@ def bulk_scope(conn: Any, principal: Principal) -> tuple[bool, Any, Any]:
     from . import alarm as alarm_svc
 
     managed = alarm_svc.managed_controls(conn)  # CR-010 review B1
+    # CR-014: the Scheduler component's switches are not devices - never reached by a bulk action, whatever a request names
+    schedulers = {r[0] for r in conn.execute("SELECT entity_id FROM ha_entities WHERE " + dsvc.IS_SCHEDULER_SQL).fetchall()}
 
     def in_scope(entity_id: str) -> bool:
         return ha_scope.entity_visible(wide, floors, placed, entity_id)
@@ -285,6 +287,8 @@ def bulk_scope(conn: Any, principal: Principal) -> tuple[bool, Any, Any]:
         # excludes those, honestly, with a reason the dialog states - a second, silent exclusion here would hide them
         # from "excluded" instead.
         # CR-010 review B1: what the alarm section owns (a zone's bypass switch) is never reached from here either
+        if entity_id in schedulers or dsvc.is_scheduler_entity(entity_id, None):
+            return False
         return entity_id.split(".", 1)[0] in ha_scope.DEVICES_CONTROL_DOMAINS and entity_id not in managed and in_scope(entity_id)
 
     return wide, in_scope, permitted
