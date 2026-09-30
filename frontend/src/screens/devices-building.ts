@@ -25,6 +25,8 @@ import { ITEMS_FILTERS, type ItemsFilter } from './devices-tiles-panel';
 import { TILE_KINDS, type ItemsScope, type TileKind } from '../api/devices';
 import { effectiveTileSetting, TileLayoutController } from '../api/tile-layout';
 import { onRouteChange, parseRoute, pushRoute, replaceRoute } from '../router';
+import { notifyScreenViews, registerScreenView } from '../shell/screen-view';
+import { currentDesign } from '../api/design';
 import './home-widgets';
 import './home-edit-panel';
 import type { QuickInfo } from './home-widgets';
@@ -814,6 +816,7 @@ export class DevicesBuilding extends LitElement {
     this.layout = l;
     this.layoutChosen = true;
     writeLayout(l);
+    notifyScreenViews();
   }
 
   /** The count pills a tile / row / floor shows (the sensors count hides with devices.show_sensors = false). */
@@ -1078,8 +1081,16 @@ export class DevicesBuilding extends LitElement {
     this.requestUpdate();
   };
 
+  private viewKey = '';
+  private offView: (() => void) | null = null;
+
   protected updated() {
     this.syncEditFromRoute();
+    const vk = `${this.layout}|${this.lay.editing}`;
+    if (vk !== this.viewKey) {
+      this.viewKey = vk;
+      notifyScreenViews(); // the user menu's view choice re-reads the value (and hides itself while the layout editor is open)
+    }
     if (!this.fitTimer) this.fitTimer = window.requestAnimationFrame(this.measureFit);
   }
 
@@ -1684,6 +1695,15 @@ export class DevicesBuilding extends LitElement {
     ]).then(() => undefined);
     window.addEventListener('resize', this.onResize);
     window.addEventListener(HOME_PERSONAL_EVENT, this.onPersonal);
+    // the view choice (cards | tiles) lives in the user menu, not on the page (home redesign follow-up)
+    this.offView = registerScreenView({
+      id: 'devices-building-view',
+      label: 'תצוגה',
+      options: [{ value: 'cards', label: 'כרטיסים' }, { value: 'tiles', label: 'אריחים' }],
+      value: () => this.layout,
+      set: (v) => this.setLayout(v === 'tiles' ? 'tiles' : 'cards'),
+      can: () => !this.lay.editing && !this.forbidden,
+    });
     // the tiles' panel follows the address (a deep link from search or the Live overview, or this screen's own tiles)
     this.offRoute = onRouteChange((r) => {
       if (r.segments[0] !== 'devices' || (r.segments[1] ?? 'building') !== 'building') return;
@@ -1747,6 +1767,8 @@ export class DevicesBuilding extends LitElement {
     this.noteTimer = this.fitTimer = 0;
     window.removeEventListener('resize', this.onResize);
     window.removeEventListener(HOME_PERSONAL_EVENT, this.onPersonal);
+    this.offView?.();
+    this.offView = null;
   }
 
   private noteTimer = 0;
@@ -1888,14 +1910,22 @@ export class DevicesBuilding extends LitElement {
   private renderToolbar(t: DeviceTree, showBulk: boolean, floorFilter: boolean) {
     const bulkBuilding = showBulk && this.bulkAllowed && t.can_bulk === true;
     const floors = this.floorsOf(t);
+    const filter = floorFilter && floors.length > 1;
+    // the view choice (cards | tiles) is in the user menu now (registerScreenView): with neither the floor filter nor the
+    // bulk buttons there is nothing to put in this row, so it is not drawn at all
+    // (the earlier design B has no user menu: it keeps the segmented control on the page)
+    const legacyView = currentDesign() === 'b';
+    if (!filter && !bulkBuilding && !legacyView) return nothing;
     return html`<div class="toolbar" data-toolbar>
-      <span class="seg" role="group" aria-label="פריסה">פריסה:
-        <span class="opts">
-          <button data-layout="cards" aria-pressed=${String(this.layout === 'cards')} ?disabled=${this.lay.editing} @click=${() => this.setLayout('cards')}>כרטיסים</button>
-          <button data-layout="tiles" aria-pressed=${String(this.layout === 'tiles')} ?disabled=${this.lay.editing} @click=${() => this.setLayout('tiles')}>אריחים</button>
-        </span>
-      </span>
-      ${floorFilter && floors.length > 1
+      ${legacyView
+        ? html`<span class="seg" role="group" aria-label="פריסה">פריסה:
+            <span class="opts">
+              <button data-layout="cards" aria-pressed=${String(this.layout === 'cards')} ?disabled=${this.lay.editing} @click=${() => this.setLayout('cards')}>כרטיסים</button>
+              <button data-layout="tiles" aria-pressed=${String(this.layout === 'tiles')} ?disabled=${this.lay.editing} @click=${() => this.setLayout('tiles')}>אריחים</button>
+            </span>
+          </span>`
+        : nothing}
+      ${filter
         ? html`<span class="floor-filter" role="group" aria-label="קומה" data-floor-filter>קומה:
             <span class="opts">
               <button type="button" data-floor-filter-btn="all" aria-pressed=${String(this.selected === 'all')} @click=${() => (this.selected = 'all')}>כל המבנה</button>

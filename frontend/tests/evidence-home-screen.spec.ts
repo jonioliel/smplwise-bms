@@ -751,6 +751,84 @@ test.describe('the home screen against the devices fixture backend', () => {
     }
   });
 
+  // ------------------------------------------------------------------------------------------------ the view choice in the user menu
+
+  test('the view choice (cards | tiles) is a compact "תצוגה" item of the user menu, not a row of the page; it keeps its per-browser persistence and only exists on this screen', async ({ page, request }, testInfo) => {
+    await seed(request);
+    await resetHome(request);
+    const phone = testInfo.project.name === 'mobile';
+    const me = phone ? 'sw-app [data-nav-me]' : 'sw-app [data-profile-menu]';
+    const item = 'sw-app sw-user-menu [data-menu-screen-view]';
+    await open(page, '/devices/building', 'cards');
+    const b = page.locator('devices-building');
+    // no row on the page: neither the segmented control nor an empty toolbar
+    await expect(b.locator('button[data-layout]')).toHaveCount(0);
+    await expect(b.locator('[data-toolbar]')).toHaveCount(0); // the quick-actions card carries the building buttons: nothing else to put in a row
+    await expect(b.locator('[data-layout-view="cards"]')).toBeVisible();
+    await page.locator(me).click();
+    await expect(page.locator(item)).toHaveCount(1);
+    await expect(page.locator(`${item} .txt`)).toHaveText('תצוגה');
+    await expect(page.locator(`${item} [data-menu-view-option]`)).toHaveText(['כרטיסים', 'אריחים']);
+    await expect(page.locator(`${item} [data-menu-view-option="cards"]`)).toHaveAttribute('aria-pressed', 'true');
+    await shot(page, 'home-menu-view', testInfo);
+    // a pick changes the screen at once and the menu stays open; the choice is this browser's own (localStorage), as before
+    await page.locator(`${item} [data-menu-view-option="tiles"]`).click();
+    await expect(b.locator('[data-layout-view="tiles"]')).toBeVisible();
+    await expect(page.locator('sw-app sw-user-menu [data-user-menu]')).toBeVisible();
+    await expect(page.locator(`${item} [data-menu-view-option="tiles"]`)).toHaveAttribute('aria-pressed', 'true');
+    expect(await page.evaluate(() => localStorage.getItem('sw.devices.layout'))).toBe('tiles');
+    await page.keyboard.press('Escape');
+    // only on a screen that has such a choice: gone when the screen leaves, back when it returns
+    await page.evaluate(() => (location.hash = '#/system/diagnostics'));
+    await expect(page.locator('system-diagnostics')).toBeVisible({ timeout: 30000 });
+    await page.locator(me).click();
+    await expect(page.locator(item)).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => (location.hash = '#/devices/building'));
+    await expect(b.locator('[data-layout-view="tiles"]')).toBeVisible({ timeout: 30000 }); // the screen came back on the remembered view
+    await page.locator(me).click();
+    await expect(page.locator(item)).toHaveCount(1);
+    await expect(page.locator(`${item} [data-menu-view-option="tiles"]`)).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('Escape');
+    if (!phone) {
+      // not offered while the layout editor is open (one view at a time)
+      await page.evaluate(() => (location.hash = '#/devices/building?edit=1'));
+      await expect(b.locator('home-edit-panel')).toBeVisible({ timeout: 30000 });
+      await page.locator(me).click();
+      await expect(page.locator(item)).toHaveCount(0);
+      await page.keyboard.press('Escape');
+      await b.locator('sw-button[data-layout-cancel]').click();
+    }
+    await page.evaluate(() => localStorage.removeItem('sw.devices.layout'));
+  });
+
+  test('phone: with the view choice in the menu the first floor starts higher above the fold, and the refresh icon sits in the title line (no empty row)', async ({ page, request }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the phone layout');
+    await seed(request);
+    await resetHome(request);
+    for (const view of ['cards', 'tiles'] as const) {
+      await open(page, '/devices/building', view);
+      const m = await page.evaluate(() => {
+        const b = document.querySelector('sw-app')!.shadowRoot!.querySelector('devices-building')!.shadowRoot!;
+        const y = (el: Element | null) => (el ? Math.round(el.getBoundingClientRect().top) : null);
+        const first = b.querySelector('section.fcard h2, .floor-head h2');
+        const refresh = b.querySelector('sw-button[data-devices-refresh]');
+        const page = b.querySelector('sw-page')!.shadowRoot!;
+        const kp = b.querySelector('.kpis')!.getBoundingClientRect();
+        return { gap: Math.round((first?.getBoundingClientRect().top ?? 0) - kp.bottom), first: y(first), refresh: y(refresh), h1: y(page.querySelector('h1')), sub: y(page.querySelector('.sub')), header: Math.round(page.querySelector('header')!.getBoundingClientRect().height) };
+      });
+      testInfo.annotations.push({ type: `first-floor-y-${view}`, description: String(m.first) });
+      testInfo.annotations.push({ type: `kpis-to-first-floor-`, description: String(m.gap) });
+      // measured on the same 390x844 site before / after this change (the seeded 3-floor site): the first floor heading at y=508 / 465 (cards) and 497 / 454 (tiles);
+      // the row that held the view choice (about 43 px with its gap) is gone, so the floors start right under the summary tiles
+      expect(m.gap, `${view}: the first floor starts right under the summary tiles`).toBeLessThanOrEqual(view === 'cards' ? 40 : 30);
+      expect(Math.abs(m.refresh! - m.sub!), 'the refresh icon is on the subtitle line').toBeLessThanOrEqual(30);
+      expect(m.header, 'the header is the title and the subtitle only').toBeLessThanOrEqual(90);
+      await expect(page.locator('devices-building [data-toolbar]')).toHaveCount(0);
+      await shot(page, `home-phone-${view}`, testInfo);
+    }
+  });
+
   test('the navigation rail is large by default (the installation default is the "l" preset); nothing forces it', async ({ page, request }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'desktop');
     await seed(request);
