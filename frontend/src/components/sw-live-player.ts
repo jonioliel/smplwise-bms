@@ -16,7 +16,7 @@ import { badgeLabel, decodeLadder, lanLadder, orderLadder, rememberStep, remembe
  * replaces `profile` and `mode`: the player walks the steps in order - a WebRTC step that does not connect or render a
  * frame in time moves on to the next one - announces a fallback on the picture, shows a `main·WebRTC` badge, and ends
  * with the "cannot be decoded over WebRTC" message when no step is left. `preferred` is the profile the plan was built
- * for (the one the viewer asked for).
+ * for (the one the viewer asked for). One exception: `mode` `webrtc` (WebRTC only) drops every MSE step of a plan.
  *
  * 0.1.148 (LAN / Ingress, no plan): a live camera player walks `lanLadder(profile, mode, autoProfile)` the same way -
  * a WebRTC step that connects but decodes nothing moves on (MSE on `auto`; the other profile only when `autoProfile`
@@ -445,7 +445,10 @@ export class SwLivePlayer extends LitElement {
   }
 
   private steps(): VideoStep[] {
-    return this.laddered ? decodeLadder(this.plan) : [];
+    if (!this.laddered) return [];
+    const steps = decodeLadder(this.plan);
+    // an explicit WebRTC choice never plays MSE, whatever plan a screen handed over (owner bug 2026-10-01)
+    return this.mode === 'webrtc' ? steps.filter((s) => s.transport === 'webrtc') : steps;
   }
 
   /** The step being played or tried (null outside a plan, or when the plan has none left). */
@@ -621,7 +624,8 @@ export class SwLivePlayer extends LitElement {
     const preferredSkipped = !first || first.profile !== pref || first.transport !== 'webrtc';
     const decode = preferredSkipped || this.decodeFailed || !this.steps().length;
     // decoding: the owner's wording; never connected: UDP to go2rtc is likely blocked, and MSE (the tunnel) is off
-    const message = decode ? undecodableMessage(pref) : `${reason || 'WebRTC לא התחבר (ייתכן ש-UDP חסום)'} · MSE דרך המנהרה כבוי בהגדרות › גישה מרחוק`;
+    const why = this.mode === 'webrtc' ? 'הוגדר WebRTC בלבד' : 'MSE דרך המנהרה כבוי בהגדרות › גישה מרחוק';
+    const message = decode ? undecodableMessage(pref) : `${reason || 'WebRTC לא התחבר (ייתכן ש-UDP חסום)'} · ${why}`;
     this.fail(message, !decode);
   }
 

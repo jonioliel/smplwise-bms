@@ -620,7 +620,7 @@ export class DevicesCameraCard extends LitElement {
     this.bigHost = host;
     this.expanded = true;
     cardBudget.drop(this.budgetId); // one stream, not two: the card's own lets go while the big view plays
-    const plan = r.state === 'live' ? playerPlan('main', r.encoding ?? null) : { plan: '', preferred: '' as const, gop: '' };
+    const plan = r.state === 'live' ? playerPlan('main', r.encoding ?? null, effectiveTransport(this.settings)) : { plan: '', preferred: '' as const, gop: '' };
     const name = this.displayName || 'מצלמה';
     render(
       html`<style>

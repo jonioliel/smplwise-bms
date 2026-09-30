@@ -21,7 +21,7 @@ import { cameraCapabilities, cameraZones, snapshotUrl, setTransportOverride, tra
 import '../components/sw-chip';
 import { listCameras, updateCamera } from '../api/maps';
 import { effectiveTransport, productSettings } from '../api/prefs';
-import { playerPlan, remoteVideo } from '../api/video-policy';
+import { playerPlan, remoteVideo, remoteVideoFor } from '../api/video-policy';
 import { describeError } from '../api/client';
 import type { Camera } from '../api/types';
 
@@ -971,8 +971,8 @@ export class LiveCamera extends LitElement {
     const canView = cam.can_view_live !== false && cam.status !== 'offline';
     const poster = snapshotUrl(cam.id, this.posterBust);
     const stream = cam.stream;
-    const remote = remoteVideo();
-    const plan = playerPlan(this.profile, cam.encoding);
+    const remote = remoteVideoFor(this.transport);
+    const plan = playerPlan(this.profile, cam.encoding, this.transport);
     return html`
       <div class="video ${canView ? '' : 'off'}">
         ${canView
