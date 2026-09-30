@@ -25,5 +25,11 @@
       "invalid_discovery": "הודעת הגילוי לא הכילה קוד צימוד.",
       "single_instance_allowed": "אפשר להגדיר גשר אחד בלבד."
     }
+  },
+  "services": {
+    "schedule": {
+      "name": "תזמון (ל־Add-on של SmplWise בלבד)",
+      "description": "כתיבה חתומה לרכיב התזמונים בשם משתמש VMS. לא מיועד לקריאה מאוטומציות."
+    }
   }
 }

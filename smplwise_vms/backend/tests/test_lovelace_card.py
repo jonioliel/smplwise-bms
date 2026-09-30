@@ -28,11 +28,11 @@ def test_card_is_shipped_and_the_copies_agree():
         assert (SRC / name).read_bytes() == (COPY / name).read_bytes(), name
     manifest = json.loads((SRC / "manifest.json").read_text(encoding="utf-8"))
     const = (SRC / "const.py").read_text(encoding="utf-8")
-    assert manifest["version"] == "0.2.6" and 'VERSION = "0.2.6"' in const
+    assert manifest["version"] == "0.3.0" and 'VERSION = "0.3.0"' in const
     py_compile.compile(str(SRC / "__init__.py"), doraise=True)
     src = card.read_text(encoding="utf-8")
     assert "customElements.define('smplwise-card'" in src and "'/ingress/session'" in src and "embed=1" in src
-    assert "const VERSION = '0.2.6'" in src, "the card reports the bridge version it ships with"
+    assert "const VERSION = '0.3.0'" in src, "the card reports the bridge version it ships with"
     code = "\n".join(l for l in src.splitlines() if not l.strip().startswith(("*", "/*", "//")))  # the doc comment may name the ingress token placeholder
     assert "pairing" not in code.lower() and "token" not in code.lower() and "password" not in code.lower(), "the card carries no secret"
     init = (SRC / "__init__.py").read_text(encoding="utf-8")
@@ -54,7 +54,7 @@ def test_installer_carries_the_card(settings, ha_cfg, monkeypatch):
     app = create_app(settings)
     st = bridge_install.install(app.state.db, settings)
     target = ha_cfg / "custom_components" / "smplwise_bridge"
-    assert (target / "www" / "smplwise-card.js").is_file() and st["source_version"] == "0.2.6"
+    assert (target / "www" / "smplwise-card.js").is_file() and st["source_version"] == "0.3.0"
 
 
 def test_card_discovers_the_addon_and_has_a_visual_editor():

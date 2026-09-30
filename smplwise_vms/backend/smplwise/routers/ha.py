@@ -23,6 +23,7 @@ from ..db import unlocked, Database, bump_permission_revision, get_setting, now_
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
 from ..services import bridge_install, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync
+from ..services import devices as dsvc
 from ..services.timeutil import iso_utc, parse_utc
 from .media import _principal_for_ws
 
@@ -114,7 +115,9 @@ def list_entities(
         r["placements"] = pl
         # CR-010 review B1: what the alarm section owns is listed read-only here (flag + no actions)
         r["alarm_managed"] = r["entity_id"] in managed
-        r["actions"] = [] if r["alarm_managed"] else ha_bridge.actions_for(r["domain"])
+        # CR-014: a scheduler switch is listed read-only - the schedules screen is where it is operated
+        r["schedule_entity"] = dsvc.is_scheduler_entity(r["entity_id"], r.get("platform"))
+        r["actions"] = [] if (r["alarm_managed"] or r["schedule_entity"]) else ha_bridge.actions_for(r["domain"])
         out.append(r)
     domains: dict[str, int] = {}
     areas: list[dict[str, Any]] = []
@@ -145,7 +148,8 @@ def get_entity(entity_id: str, principal: Principal = Depends(current_principal)
     from ..services import alarm as alarm_svc
 
     e["alarm_managed"] = alarm_svc.is_managed_control(conn, entity_id)  # CR-010 review B1: read-only here
-    e["actions"] = [] if e["alarm_managed"] else [{**a, "granted": e["can_control"] and (not a["grant"] or _entity_allowed(conn, principal, entity_id, a["grant"]))} for a in ha_bridge.actions_for(e["domain"])]
+    e["schedule_entity"] = dsvc.is_scheduler_entity(entity_id, e.get("platform"))  # CR-014: read-only here
+    e["actions"] = [] if (e["alarm_managed"] or e["schedule_entity"]) else [{**a, "granted": e["can_control"] and (not a["grant"] or _entity_allowed(conn, principal, entity_id, a["grant"]))} for a in ha_bridge.actions_for(e["domain"])]
     e["recent_actions"] = [] if not (e["can_control"] or authorize(conn, principal, "system.configure", INSTALLATION).allowed) else [dict(r) for r in conn.execute("SELECT id, action_id, status, requested_at, confirmed_at, principal_username, error FROM ha_actions WHERE entity_id = ? ORDER BY requested_at DESC, rowid DESC LIMIT 5", (entity_id,)).fetchall()]
     return e
 
@@ -181,6 +185,7 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
     # CR-010 review B1 / M1: after the permission check (a caller holding no control keeps its audited 403), refused
     # for everyone who does hold it
     _refuse_alarm_managed(conn, principal, request, entity_id, body.allowed_action_id)
+    _refuse_scheduler_switch(conn, principal, request, entity_id, body.allowed_action_id)
     e = _entity(conn, entity_id)
     if e["removed_at"] or e["disabled"]:
         raise ApiError(409, "entity_unavailable", "ההתקן אינו זמין.")
@@ -251,6 +256,18 @@ def _refuse_alarm_managed(conn: sqlite3.Connection, principal: Principal, reques
     audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="use_alarm_screen",
           request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
     raise ApiError(409, "use_alarm_screen", "הפעולה נעשית ממסך האזעקה (הגדרות › אבטחה › אזעקה).", details={"action": action_id, "route": f"/security/alarm"})
+
+
+def _refuse_scheduler_switch(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:
+    """CR-014 (SCHEDULER_API.md 5.5): a schedule's own switch (`switch.schedule_*`, platform scheduler) is operated only
+    from the schedules screen, where enabling, disabling and running carry their own permissions, confirmations and
+    audit rows. This general route refuses it with 409 use_schedules_screen, audited, after the permission check (a
+    caller holding no control keeps its audited 403)."""
+    if not dsvc.is_scheduler(conn, entity_id):
+        return
+    audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="use_schedules_screen",
+          request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
+    raise ApiError(409, "use_schedules_screen", "התזמון מנוהל במסך התזמונים.", details={"action": action_id, "route": "/devices/schedules"})
 
 
 @router.get("/ha/actions/{action_id}")

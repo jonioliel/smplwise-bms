@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..rbac import INSTALLATION, Principal, authorize
 from ..errors import ApiError
+from ..services import devices as dsvc
 from ..services import semantic
 from ..services.access import camera_scope, visible_camera_ids
 from .settings import read_settings
@@ -130,7 +131,7 @@ def search(
             ok = next((fid for fid, home in pairs if fid in ent_floors and home not in denied_homes), None)
             if ok:
                 ent_placed[rid] = ok
-    for e in conn.execute("SELECT entity_id, name, original_name, domain, area_name FROM ha_entities WHERE disabled = 0 ORDER BY name, entity_id").fetchall():
+    for e in conn.execute("SELECT entity_id, name, original_name, domain, area_name FROM ha_entities WHERE disabled = 0 AND " + dsvc.NOT_SCHEDULER_SQL + " ORDER BY name, entity_id").fetchall():
         if not (_contains(e["name"], needle) or _contains(e["original_name"], needle) or _contains(e["entity_id"], needle) or _contains(e["area_name"], needle)):
             continue
         fid = ent_placed.get(e["entity_id"])

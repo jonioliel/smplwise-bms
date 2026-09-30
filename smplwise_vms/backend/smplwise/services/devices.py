@@ -44,10 +44,32 @@ DOOR_LAYER = "doors"
 SENSOR_GROUP_CLASSES = {"temperature": "temperature", "humidity": "humidity", "power": "power", "energy": "power", "illuminance": "illuminance", "carbon_dioxide": "co2", "battery": "battery"}
 OFF_STATES = {"off", "unavailable", "unknown", None, ""}
 MEDIA_OFF_STATES = {"off", "standby", "unavailable", "unknown", None, ""}
+# CR-014 (SCHEDULER_API.md 5.5): the Scheduler component's own switches (`switch.schedule_*`) are not devices. They have an
+# HA device and could otherwise be placed in the devices area, marked bulk-safe, bulk-controlled or dropped on a map.
+# platform `scheduler` is the truth (V-LIVE); an entity id starting `switch.schedule_` with no platform yet (before the
+# first registry refresh) is treated the same, so a fresh sync cannot leak one in for ten minutes.
+SCHEDULER_PLATFORM = "scheduler"
+SCHEDULER_SWITCH_PREFIX = "switch.schedule_"
+IS_SCHEDULER_SQL = "(COALESCE(platform, '') = 'scheduler' OR (platform IS NULL AND entity_id LIKE 'switch.schedule\\_%' ESCAPE '\\'))"
+NOT_SCHEDULER_SQL = f"NOT {IS_SCHEDULER_SQL}"  # both terms are never NULL, so NOT is safe in a WHERE clause
 UNASSIGNED = "unassigned"  # the pseudo area id of "ללא שיוך"
 NO_FLOOR = "none"  # the pseudo floor id of "ללא קומה"
 UNASSIGNED_NAME = "ללא שיוך"
 NO_FLOOR_NAME = "ללא קומה"
+
+
+def is_scheduler_entity(entity_id: str, platform: str | None) -> bool:
+    """True for a switch of the Scheduler component: platform `scheduler`, or - platform still unknown - the
+    `switch.schedule_` id prefix. The same rule as IS_SCHEDULER_SQL."""
+    if platform == SCHEDULER_PLATFORM:
+        return True
+    return platform is None and entity_id.startswith(SCHEDULER_SWITCH_PREFIX)
+
+
+def is_scheduler(conn: sqlite3.Connection, entity_id: str) -> bool:
+    """`is_scheduler_entity` for a catalogue entity id (one lookup; an unknown id falls back to the prefix rule)."""
+    row = conn.execute("SELECT platform FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
+    return is_scheduler_entity(entity_id, row["platform"] if row else None)
 
 
 def card_of(domain: str, device_class: str | None) -> str | None:
@@ -158,7 +180,7 @@ def count_into(counts: dict[str, Any], e: dict[str, Any]) -> None:
 def load_entities(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     """Every entity this area can show, in a stable order (domain, name)."""
     rows = conn.execute(
-        "SELECT * FROM ha_entities WHERE removed_at IS NULL AND disabled = 0 AND hidden = 0 AND (entity_category IS NULL OR entity_category = '') ORDER BY domain, name, entity_id"
+        "SELECT * FROM ha_entities WHERE removed_at IS NULL AND disabled = 0 AND hidden = 0 AND (entity_category IS NULL OR entity_category = '') AND " + NOT_SCHEDULER_SQL + " ORDER BY domain, name, entity_id"
     ).fetchall()
     out = []
     for r in rows:

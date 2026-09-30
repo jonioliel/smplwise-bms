@@ -35,7 +35,7 @@
  * re-attached after a view switch validates at once and reconnects when its session expired meanwhile.
  */
 (function () {
-  const VERSION = '0.2.6';
+  const VERSION = '0.3.0';
   const VIEWS = ['camera', 'map', 'events', 'health', 'wall'];
   const MIN_HEIGHT = 100;
   const VIEW_LABELS = { camera: 'מצלמה', map: 'מפה', events: 'אירועים', health: 'בריאות המערכת', wall: 'קיר מצלמות' };

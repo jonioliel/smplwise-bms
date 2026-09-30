@@ -316,6 +316,9 @@ def set_bulk_safe_many(request: Request, principal: Principal = Depends(_configu
         if not row or row["domain"] != "switch":
             results.append({"entity_id": eid, "ok": False, "reason": "not_switch"})
             continue
+        if svc.is_scheduler(conn, eid):  # CR-014: a schedule's switch is not a device
+            results.append({"entity_id": eid, "ok": False, "reason": "not_markable"})
+            continue
         if eid in policy.alarm_managed:
             results.append({"entity_id": eid, "ok": False, "reason": "alarm_managed"})
             continue
@@ -345,6 +348,8 @@ def set_bulk_safe(entity_id: str, body: BulkSafeBody, request: Request, principa
         raise ApiError(404, "not_found", "הישות לא נמצאה בקטלוג.")
     if row["domain"] != "switch":
         raise ApiError(422, "validation", "רק מתג (switch) מסומן כבטוח לכיבוי מרוכז; שאר הסוגים נקבעים לפי הכללים.")
+    if svc.is_scheduler(conn, entity_id):  # CR-014: the Scheduler component's switch is not a device
+        raise ApiError(422, "not_markable", "תזמון אינו התקן ואינו מסומן כבטוח.")
     from ..services import alarm as alarm_svc
 
     if body.bulk_safe and alarm_svc.is_managed_control(conn, entity_id):  # CR-010 review B1
