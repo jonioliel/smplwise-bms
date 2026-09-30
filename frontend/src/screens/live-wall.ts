@@ -726,6 +726,7 @@ export class LiveWall extends LitElement {
             ?snapshotOnly=${streamable(c) && !isLive}
             cameraId=${c.id}
             profile=${profile}
+            ?autoProfile=${this.stream === 'auto'}
             transport=${transport}
             .encoding=${c.encoding ?? null}
             poster=${c.status === 'offline' ? '' : snapshotUrl(c.id, streamable(c) && !isLive && this.inView.has(c.id) ? this.snapBust : this.posterBust)}

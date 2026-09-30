@@ -112,6 +112,91 @@ export function encodeGop(encoding: CameraEncoding | null | undefined): string {
     .join(',');
 }
 
+/**
+ * 0.1.148 fix (owner, the 'oliel' wall: two panoramic cameras stuck on "WebRTC התחבר אך הדפדפן לא מפענח את הזרם הזה"
+ * while the camera page played their main stream over WebRTC) - the LAN / Ingress fallback chain of a live camera
+ * player (no remote plan). The steps are walked in order; a later step with the OTHER profile is taken only after a
+ * step proved the stream undecodable (connected, nothing decoded) - never after a mere connection failure:
+ *  - `webrtc` (a transport choice, never overridden): the profile over WebRTC; with `autoProfile` then the other profile
+ *    over WebRTC;
+ *  - `mse` (never overridden): the profile over MSE; with `autoProfile` then the other profile over MSE;
+ *  - `auto`: the profile over WebRTC, then over MSE; with `autoProfile` then the other profile on the transport the lab
+ *    found works for it first (main: MSE, sub: WebRTC), then the remaining one.
+ * `autoProfile` is set only where the profile is not the viewer's own choice (the wall's "ברירת מחדל" quality).
+ */
+export function lanLadder(profile: Profile, mode: 'auto' | 'webrtc' | 'mse', autoProfile: boolean): VideoStep[] {
+  const other = otherProfile(profile);
+  if (mode === 'webrtc' || mode === 'mse') {
+    const steps: VideoStep[] = [{ profile, transport: mode }];
+    if (autoProfile) steps.push({ profile: other, transport: mode });
+    return steps;
+  }
+  const steps: VideoStep[] = [{ profile, transport: 'webrtc' }, { profile, transport: 'mse' }];
+  if (autoProfile) {
+    const first: StepTransport = other === 'main' ? 'mse' : 'webrtc';
+    steps.push({ profile: other, transport: first }, { profile: other, transport: first === 'mse' ? 'webrtc' : 'mse' });
+  }
+  return steps;
+}
+
+export function sameStep(a: VideoStep | null | undefined, b: VideoStep | null | undefined): boolean {
+  return !!a && !!b && a.profile === b.profile && a.transport === b.transport;
+}
+
+/** The remembered step first (when the chain allows it at all), the rest in their own order. */
+export function orderLadder(steps: VideoStep[], remembered: VideoStep | null): VideoStep[] {
+  if (!remembered || !steps.some((s) => sameStep(s, remembered))) return steps;
+  return [remembered, ...steps.filter((s) => !sameStep(s, remembered))];
+}
+
+/** Per camera (and the profile + transport it was asked for): the step that last played when it was not the first of
+ * the chain. A per-browser convenience (localStorage); it expires after a day so a camera whose first step was fixed
+ * returns to it, and a remembered step that fails is forgotten on the spot. */
+export const LIVE_WORKS_KEY = 'sw.live.works';
+export const LIVE_WORKS_TTL_MS = 24 * 3600 * 1000;
+type WorksStore = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+
+function localStore(): WorksStore | null {
+  try {
+    return typeof window === 'undefined' ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function readWorks(store: WorksStore | null): Record<string, { step: string; at: number }> {
+  try {
+    const v = JSON.parse(store?.getItem(LIVE_WORKS_KEY) ?? '{}');
+    return v && typeof v === 'object' ? v : {};
+  } catch {
+    return {};
+  }
+}
+
+const worksKey = (cameraId: string, profile: Profile, mode: string) => `${cameraId}|${profile}|${mode}`;
+
+export function rememberedStep(cameraId: string, profile: Profile, mode: string, now = Date.now(), store: WorksStore | null = localStore()): VideoStep | null {
+  const hit = readWorks(store)[worksKey(cameraId, profile, mode)];
+  if (!hit || typeof hit.at !== 'number' || now - hit.at > LIVE_WORKS_TTL_MS) return null;
+  return decodeLadder(String(hit.step))[0] ?? null;
+}
+
+/** Remembers `step` (null forgets the camera's entry). */
+export function rememberStep(cameraId: string, profile: Profile, mode: string, step: VideoStep | null, now = Date.now(), store: WorksStore | null = localStore()): void {
+  if (!store) return;
+  const all = readWorks(store);
+  const key = worksKey(cameraId, profile, mode);
+  if (step) all[key] = { step: encodeLadder([step]), at: now };
+  else if (key in all) delete all[key];
+  else return;
+  try {
+    if (Object.keys(all).length) store.setItem(LIVE_WORKS_KEY, JSON.stringify(all));
+    else store.removeItem(LIVE_WORKS_KEY);
+  } catch {
+    /* private mode / quota: the chain simply starts from its first step next time */
+  }
+}
+
 /** The player badge: `main·WebRTC`, `sub·WebRTC`, `main·MSE`. */
 export function badgeLabel(step: VideoStep): string {
   return `${step.profile}·${step.transport === 'webrtc' ? 'WebRTC' : 'MSE'}`;
