@@ -10,7 +10,8 @@ day) supersedes §3-§8 and §10 wherever they differ, and §12 (the security re
 the room's content is what lies in its home outline or is explicitly marked as its content, cameras and devices are
 shared by an explicit member list (reach only while anchored on the room's floors), publishing the other floor
 publishes the room's pending changes on its home floor, and one tribune rises from the court through the upper floor's
-level with an entry row (no slab ring).
+level with an entry row (no slab ring). **§13 and §14 (owner decisions of 2026-09-30, later that day) add WisKey stations as
+members of a shared space and one-step deletion of a shared room; §13 supersedes the last sentence of §12.2 item 3.**
 
 ## 1. The request (owner, 2026-09-29, translated)
 
@@ -438,7 +439,7 @@ and five lows. The owner answered three more questions the same night. All built
    contains the shared space sees, of its members, exactly what their own permissions allow per member - a camera
    through `camera_scope` (a deny on it hides it), a device through its entity's visibility - in the list and on the
    maps alike (`GET /zones/{id}/share/members`, the map bundle). Door stations are members when they are placed on the
-   map as entities; WisKey stations are installation-scoped and have no anchor, so they cannot be members.
+   map as entities; WisKey stations are installation-scoped and have no anchor, so they cannot be members (superseded by §13: they are listed members, without reach).
 
 ### 12.3 Future work (not built)
 
@@ -471,3 +472,93 @@ Tests (run 2026-09-30, workstation): backend `tests/test_shared_spaces.py` 27 pa
 Known limits: the entry row's landing is drawn across the row (1.6 m wide, centred on the door when there is one); the
 2D symbol of a tribune still draws `params.rows` lines, not the derived rows; the tribune's rows are derived only when it
 stands on the lower floor of a shared space; door stations only as placed entities.
+
+## 13. WisKey stations as members of a shared space (owner decision, 2026-09-30)
+
+**Decision.** Every WisKey station (door station / intercom) may be a member of a shared space, like cameras and HA
+entities. `resource_type` is now `camera | ha_entity | wiskey_station`; for a station `resource_id` is WisKey's station id
+(the `id` of the served overview, at most 128 characters).
+
+**What "member" means for a station - precisely, because this is the security-relevant part.** A station has no map
+anchor and no floor (`access.read` is installation-scoped, T054), so unlike a camera or an entity a station member adds
+**no reach at all**. The room only *lists* it. Nothing in `services/access.py` (`_chains`, `camera_scope`, `floor_reach`),
+`rbac.camera_floors`, `services/ha_scope.py`, the map bundle or the events / search / catalog filters reads a station
+member: the reach helpers (`mirrored_anchor_floors`, `member_share_floors`) skip every type outside `ANCHORED_TYPES`
+(`camera`, `ha_entity`), and the anchor rules (N1 "reach only while anchored", `end_unplaced_memberships`) never apply to a
+station. What a reader gets through a room, per station member, is exactly this and nothing more:
+
+| Through the room | Yes / no |
+|---|---|
+| The fact "this station belongs to this space", its WisKey id and its display name (`name` of the served overview) | yes, in `GET /zones/{id}/share/members` and the members lists (editor room panel, live map) |
+| Online / ringing / call state, last access, people, cards, events, the station's camera still or stream, host / model / firmware, lock names | **no** - none of it is in the members answer; each stays behind its own WisKey route (`/intercom/...`, `access.read` at installation scope), which a membership never changes |
+| Any command: door release (`access.release`), answering / rejecting / hanging up, an announcement, card capture, people writes | **no** - a member grants no control; those routes authorise on their own permissions, at installation scope, exactly as before |
+| An icon / marker on the map | no map marker (a station has no position); the members list shows an icon per kind |
+
+**Who sees a station member.** Only a reader who holds `access.read` at installation scope - the WisKey model, reused
+through one helper (`shared_spaces.station_visible`, the same check as `routers/access_control._reader`). It fails closed:
+an inactive user, a deny, any error, an empty or over-long id is "not visible". Because `access.read` has no floor or
+site scope, a floor-scoped reader who reaches the room's cameras never sees its station members (the rest of the list is
+unchanged for them); an installation-wide viewer sees the stations by name, which the entry center already shows them. If
+WisKey later gets a per-station or per-area scope, it composes in that one helper. A station that WisKey no longer
+reports (served copy present, id absent) is listed only for a manager, as "עמדה שאינה קיימת עוד ב־WisKey", so it can be
+removed.
+
+**Who may add and remove.** The same share rights as a camera - `map.edit` + `placement.edit` on **every** floor of the
+room (`_share_rights`) - and, to add, also `access.read` at installation scope (the audited 403 names it) and a station
+that exists in WisKey's served copy (404 for an unknown id, 503 `intercom_unavailable` when WisKey has no honest copy).
+No anchor is needed (`not_placed` applies to cameras and entities only). Removing needs the share rights only (it
+narrows). `candidates` lists the stations of the served copy that are not members yet, for a manager who holds
+`access.read`.
+
+**Revocation and audit.** A station member ends with the last un-share (`unshare`), with the room's deletion (§14), with a
+floor delete (`end_for_floor` - its SQL is type-blind, so the hardening path already ends station members) and by
+`DELETE /zones/{id}/share/members/wiskey_station/{id}`; each marks revocation like other members. Audit rows are the
+existing ones: `zone.share.member_add` / `zone.share.member_remove` with `resource: "wiskey_station:<id>"`.
+
+**UI.** `sw-share-members` (room panel of either floor, live map): an icon per kind (camera, door station, device,
+WisKey station), the chip "עמדת WisKey", the line "מוצג בכל קומות החלל" (a station has no floor), a search box over the
+picker for whoever may manage, and "הסר" per row.
+
+**Schema.** The CHECK of `shared_space_members.resource_type` grows by `'wiskey_station'`. SQLite cannot alter a CHECK: the
+text of `0038_shared_spaces.sql` carries the wider CHECK for new databases and `shared_spaces.ensure_schema` (run at start,
+after the migrations) rebuilds the table of a database that ran the earlier text (rows copied, indexes and triggers
+recreated, one transaction; idempotent). No new migration number was taken, so this cannot collide with another branch's.
+
+**Tests.** `tests/test_shared_space_stations.py` (backend: list / add / remove, exact answer shape, no reach in any helper,
+a floor-scoped reader does not see them, an installation reader does, the fail-closed helper, the rights and 404 / 503 /
+422 paths, a stale member, un-share and floor delete end them, the schema widening keeps rows and constraints);
+`frontend/tests/evidence-shared-space-stations.spec.ts` (live, against the real backend with the WisKey fixture
+`tests/fixtures/wiskey_fake_ha.py`: search, add, icon in the editor and on the live map, remove).
+
+**Open point for the owner.** Because `access.read` is installation-only, floor-scoped users never see station members. If
+the owner wants a floor-scoped reader to see the door stations of a room she reaches, that needs a per-station scope in
+the WisKey permission model first - not a change here.
+
+## 14. Deleting a shared room in one step (owner decision, 2026-09-30)
+
+**Before.** `DELETE /zones/{id}` on a shared room answered 409 `zone_shared` ("בטל את השיתוף לפני מחיקתו") and a mirror
+floor showed no delete button and no explanation.
+
+**Server.** `DELETE /zones/{id}?with_unshare=true` on the room's **home** zone ends every share of the room, its members
+and the room itself in one request - one transaction, all or nothing: every right is checked before the first write
+(`map.edit` + `placement.edit` on **all** floors of the room, like un-share; a deny on any floor answers 403 and writes
+nothing), the writes cannot fail halfway, and an unexpected error rolls the whole request back (tested). Audit as the two
+steps would have written: `zone.unshare` per floor (`reason: "zone_deleted"`), then `zone.delete` (`unshared_floors`);
+`revocation.mark` so the other floors lose reach on the next request. Cameras, entities and their anchors are not touched
+(they are the room's members, not its content), nor is anything else in the plan documents; a floor's own outline of the
+room stays as an ordinary room on that floor. Without the flag a shared room still answers 409 `zone_shared`, now with
+`details.home_zone_id`, `home_floor_id`, `home_floor_name` and `floors`; a call for another floor's outline zone, with the
+flag, also answers 409 (it is deleted from the home floor).
+
+**Home floor UI.** "מחק אזור" on a shared room opens ONE confirmation - "החדר משותף עם <floors>. המחיקה תבטל את השיתוף,
+תסיר את חברי החלל ותמחק את האזור. המצלמות והישויות לא נמחקות." - and on confirm sends the one call, then reloads the floor.
+
+**Mirror floor UI.** The delete button stays hidden. The zone panel shows the note "האזור נוצר בקומה X — מחק אותו שם, או
+בטל שיתוף כאן" and a button "עבור לקומה X" (not shown when the reader may not read the home floor: the server names it
+"קומה אחרת") that saves pending edits and opens the home floor's editor with the room selected
+(`#/explore/floors/<home>/edit?zone=<id>`; the shell keys the editor by floor). "בטל שיתוף" stays.
+
+**Tests.** `tests/test_shared_space_stations.py` (the plain 409 with the home floor, the flag from the home zone, an outline
+zone refused, rights on every floor and nothing written on a refusal, a deny on one floor, rollback on failure, an ordinary
+room unchanged); `frontend/tests/evidence-shared-space-stations.spec.ts` (the mirror note and the jump, the single
+confirmation text, refuse then confirm, the API state after).
