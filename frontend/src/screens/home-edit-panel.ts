@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
+import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-icon';
 import '../components/sw-button';
 import { bidi } from '../i18n/bidi';
@@ -306,7 +307,8 @@ export class HomeEditPanel extends LitElement {
 
   private moveW(id: WidgetId, to: number) {
     this.setConfig((c) => (c.order = moveWidget(c.order, id, to)));
-    void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(`[data-home-wmove="${id}"]:not([disabled])`)?.focus());
+    // the draft is re-rendered by the screen: focus the same row's button (or the other one at an end) once that is done
+    void this.updateComplete.then(() => requestAnimationFrame(() => this.renderRoot.querySelector<HTMLElement>(`[data-home-wrow="${id}"] [data-home-wmove]:not([disabled])`)?.focus()));
   }
 
   // ------------------------------------------------------------------------------------------------ render
@@ -337,7 +339,7 @@ export class HomeEditPanel extends LitElement {
             : nothing}
         </div>
         <h3>ווידג׳טים</h3>
-        ${d.config.order.map((id, i) => this.widgetRow(id, i))}
+        ${repeat(d.config.order, (id) => id, (id, i) => this.widgetRow(id, i))}
         ${this.candidatesError ? html`<div class="err" role="alert">${this.candidatesError}</div>` : nothing}
       </div>
       <div class="col" data-home-floors-col>
@@ -428,16 +430,16 @@ export class HomeEditPanel extends LitElement {
     });
   }
 
-  /** Choosing another entity keeps the fields it also offers; if none is left, the default set it can show. */
+  /** Choosing another entity keeps the owner's field wishes (the card shows only what the entity offers, and a wish comes back
+   * when an entity that offers it is chosen again); when none of them is offered by the new entity, the default set it can show. */
   private pickWeather(entity: string) {
     this.setConfig((c) => {
       c.weather.entity = entity;
       c.weather.sources = {};
       const cand = this.candidates?.weather.find((x) => x.entity_id === entity);
       const offers = (cand?.offers ?? []) as WeatherField[];
-      if (entity && offers.length) {
-        const keep = c.weather.fields.filter((f) => offers.includes(f));
-        c.weather.fields = keep.length ? keep : (['temperature', 'condition', 'humidity', 'wind', 'forecast'] as WeatherField[]).filter((f) => offers.includes(f));
+      if (entity && offers.length && !c.weather.fields.some((f) => offers.includes(f))) {
+        c.weather.fields = (['temperature', 'condition', 'humidity', 'wind', 'forecast'] as WeatherField[]).filter((f) => offers.includes(f));
       }
     });
   }
@@ -526,11 +528,14 @@ export class HomeEditPanel extends LitElement {
     const up = to < ids.indexOf(id);
     this.change({ floorOrder: moveId(ids, id, to) });
     // keyboard users keep their place: focus stays on the same direction's button of the moved floor (or the other one at an end)
-    void this.updateComplete.then(() => {
-      const root = this.renderRoot as ParentNode;
-      const li = `[data-home-floor="${CSS.escape(id)}"]`;
-      root.querySelector<HTMLButtonElement>(`${li} [data-home-floor-${up ? 'up' : 'down'}]:not([disabled])`)?.focus() ?? root.querySelector<HTMLButtonElement>(`${li} button:not([disabled])`)?.focus();
-    });
+    void this.updateComplete.then(() =>
+      requestAnimationFrame(() => {
+        // (the screen re-renders the draft first, so the list is read one frame later)
+        const root = this.renderRoot as ParentNode;
+        const li = `[data-home-floor="${CSS.escape(id)}"]`;
+        root.querySelector<HTMLButtonElement>(`${li} [data-home-floor-${up ? 'up' : 'down'}]:not([disabled])`)?.focus() ?? root.querySelector<HTMLButtonElement>(`${li} button:not([disabled])`)?.focus();
+      }),
+    );
   }
 
   private onFloorDrag(e: DragEvent, id: string) {

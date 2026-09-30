@@ -469,7 +469,9 @@ const HOME_LAYOUT = css`
   }
   @media (max-width: 599px) {
     /* a phone: the building's climate chips would fill the screen (16 rooms = 10 lines); they live on the area screens */
-    .page-body > .climate-strip {
+    .page-body > .climate-strip,
+    .fcard .climate-strip,
+    .floor > .climate-strip {
       display: none;
     }
   }
@@ -482,6 +484,9 @@ const HOME_LAYOUT = css`
   }
   .bgrid[data-side='start'] {
     grid-template-columns: var(--side-w, 300px) minmax(0, 1fr);
+  }
+  .bgrid[data-side='start'] > .bside {
+    order: -1;
   }
   .bmain {
     display: flex;
@@ -1868,7 +1873,7 @@ export class DevicesBuilding extends LitElement {
         ${sideLayout
           ? html`<div class="bgrid" data-side=${h.side} data-fit=${this.fit} data-bgrid>
               <div class="bmain">${this.renderToolbar(t, !quickShown, true)}${body}</div>
-              <div class="bside" data-home-side>${widgets}</div>
+              <div class="bside" data-home-column>${widgets}</div>
             </div>`
           : html`${this.renderToolbar(t, !quickShown, false)}${body}`}
       </div>

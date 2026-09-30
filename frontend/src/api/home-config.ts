@@ -406,10 +406,32 @@ export function safeZone(zone: string): string {
   }
 }
 
-/** The Hebrew date computed in the browser (the fallback when no sensor is chosen): "כ״ט באלול תשפ״ו". */
+/** A whole number 1-999 in Hebrew letters: 19 = "י״ט", 15 = "ט״ו", 3 = "ג׳", 787 = "תשפ״ז". */
+export function gematria(n: number): string {
+  if (!Number.isInteger(n) || n < 1 || n > 999) return String(n);
+  const ones = ['', 'א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט'];
+  const tens = ['', 'י', 'כ', 'ל', 'מ', 'נ', 'ס', 'ע', 'פ', 'צ'];
+  const hundreds = ['', 'ק', 'ר', 'ש', 'ת', 'תק', 'תר', 'תש', 'תת', 'תתק'];
+  const rest = n % 100;
+  let letters = hundreds[Math.floor(n / 100)];
+  if (rest === 15 || rest === 16) letters += rest === 15 ? 'טו' : 'טז'; // never the divine name
+  else letters += tens[Math.floor(rest / 10)] + ones[rest % 10];
+  const chars = [...letters];
+  return chars.length === 1 ? `${letters}׳` : `${chars.slice(0, -1).join('')}״${chars[chars.length - 1]}`;
+}
+
+/** The Hebrew date computed in the browser (the fallback when no sensor is chosen): "י״ט בתשרי התשפ״ז". The day and the year
+ * are written in letters like the Jewish Calendar sensors do; anything Intl cannot format is ''. */
 export function hebrewDate(now: Date, zone: string): string {
   try {
-    return new Intl.DateTimeFormat('he-u-ca-hebrew', { timeZone: safeZone(zone), day: 'numeric', month: 'long', year: 'numeric' }).format(now);
+    const parts = new Intl.DateTimeFormat('he-u-ca-hebrew', { timeZone: safeZone(zone), day: 'numeric', month: 'long', year: 'numeric' }).formatToParts(now);
+    const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+    const day = Number(get('day'));
+    const year = Number(get('year'));
+    const month = get('month');
+    if (!day || !year || !month) return '';
+    const between = parts.find((p) => p.type === 'literal')?.value ?? ' ב';
+    return `${gematria(day)}${between}${month} ה${gematria(year % 1000)}`;
   } catch {
     return '';
   }
@@ -529,4 +551,31 @@ export function calendarText(field: CalendarField | 'extra', s: SensorData | und
   if (field === 'parsha') return parshaText(s.state);
   if (field === 'extra') return s.state === 'on' ? 'כן' : s.state === 'off' ? 'לא' : (timeOfState(s.state, zone) || s.state);
   return s.state;
+}
+
+/** "עוד יומיים ו־12 שעות": how long until a future ISO timestamp; '' for anything else. */
+export function untilText(iso: string | null | undefined, now: Date): string {
+  const t = new Date(iso ?? '').getTime();
+  if (!iso || !/^\d{4}-\d{2}-\d{2}T/.test(iso) || Number.isNaN(t) || t <= now.getTime()) return '';
+  const mins = Math.round((t - now.getTime()) / 60_000);
+  if (mins < 60) return `עוד ${mins} דקות`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `עוד ${hours === 1 ? 'שעה' : `${hours} שעות`}`;
+  const days = Math.floor(hours / 24);
+  const rest = hours % 24;
+  const d = days === 1 ? 'יום' : days === 2 ? 'יומיים' : `${days} ימים`;
+  return rest ? `עוד ${d} ו־${rest === 1 ? 'שעה' : `${rest} שעות`}` : `עוד ${d}`;
+}
+
+/** "שונה לפני 3 שעות" from an ISO time; '' for none. */
+export function sinceText(iso: string | null | undefined, now: Date): string {
+  const t = new Date(iso ?? '').getTime();
+  if (!iso || Number.isNaN(t)) return '';
+  const mins = Math.max(0, Math.round((now.getTime() - t) / 60_000));
+  if (mins < 2) return 'שונה עכשיו';
+  if (mins < 60) return `שונה לפני ${mins} דקות`;
+  const h = Math.round(mins / 60);
+  if (h < 24) return h === 1 ? 'שונה לפני שעה' : `שונה לפני ${h} שעות`;
+  const d = Math.round(h / 24);
+  return d === 1 ? 'שונה אתמול' : `שונה לפני ${d} ימים`;
 }

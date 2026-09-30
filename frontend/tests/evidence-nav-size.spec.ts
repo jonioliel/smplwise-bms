@@ -91,12 +91,12 @@ test.describe('navigation size on the demo data', () => {
     await open(page, '/system/diagnostics');
     await expect(page.locator(CARD)).toBeVisible();
     await page.evaluate(() => ((window as unknown as { __noReload: number }).__noReload = 1));
-    // the default is "בינוני", marked as the current size
+    // the default is "גדול" (owner decision 2026-09-30, home redesign), marked as the current size
     await expect(page.locator(`${CARD} [data-nav-mode="rel"]`)).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator(`${CARD} [data-nav-preset="m"] [data-nav-current]`)).toHaveCount(1);
+    await expect(page.locator(`${CARD} [data-nav-preset="l"] [data-nav-current]`)).toHaveCount(1);
     await expect(page.locator(`${CARD} [data-nav-preset]`)).toHaveText([/קטן/, /בינוני/, /גדול/, /גדול מאוד/]);
     const base = await measure(page, info);
-    expect(base.icon).toBe(iconOf(info, PRESETS.m.icon));
+    expect(base.icon).toBe(iconOf(info, PRESETS.l.icon));
     for (const p of ['s', 'l', 'xl', 'm'] as const) {
       const want = PRESETS[p];
       await page.locator(`${CARD} [data-nav-preset="${p}"]`).click();
@@ -206,12 +206,12 @@ test.describe('navigation size on the demo data', () => {
   test('"ברירת מחדל של המערכת" clears the personal size', async ({ page }, info) => {
     await open(page, '/system/diagnostics');
     await expect(page.locator(`${CARD} [data-nav-reset]`)).toHaveAttribute('disabled', '');
-    await page.locator(`${CARD} [data-nav-preset="l"]`).click();
+    await page.locator(`${CARD} [data-nav-preset="xl"]`).click();
     await page.locator(`${CARD} [data-nav-save]`).click();
-    expect((await measure(page, info)).icon).toBe(iconOf(info, PRESETS.l.icon));
+    expect((await measure(page, info)).icon).toBe(iconOf(info, PRESETS.xl.icon));
     await page.locator(`${CARD} [data-nav-reset]`).click();
-    expect((await measure(page, info)).icon).toBe(iconOf(info, PRESETS.m.icon));
-    await expect(page.locator(`${CARD} [data-nav-preset="m"] [data-nav-current]`)).toHaveCount(1);
+    expect((await measure(page, info)).icon).toBe(iconOf(info, PRESETS.l.icon)); // the system default is the large preset
+    await expect(page.locator(`${CARD} [data-nav-preset="l"] [data-nav-current]`)).toHaveCount(1);
     await expect(page.locator(`${CARD} [data-nav-reset]`)).toHaveAttribute('disabled', '');
     expect(await page.evaluate(() => localStorage.getItem('sw.nav.size'))).toBeNull();
   });

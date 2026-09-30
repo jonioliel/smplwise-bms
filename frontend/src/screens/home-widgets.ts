@@ -1,10 +1,11 @@
 import { LitElement, html, css, nothing, svg, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
+import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-icon';
 import { ALARM_HE } from '../api/devices';
 import {
-  calendarText, clockParts, forecastIsDaily, forecastLabel, forecastShown, hasValue, hebrewDate, NO_DATA, QUICK_ACTION_LABEL, SIZE_LABEL, SIZES, valueText, WEATHER_FIELD_LABEL, WEATHER_HE, weatherGlyph,
+  calendarText, clockParts, forecastIsDaily, sinceText, untilText, forecastLabel, forecastShown, hasValue, hebrewDate, NO_DATA, QUICK_ACTION_LABEL, SIZE_LABEL, SIZES, valueText, WEATHER_FIELD_LABEL, WEATHER_HE, weatherGlyph,
   type Avail, type HomeConfig, type HomeData, type QuickAction, type Size, type WeatherField, type WeatherGlyph, type WidgetId, type WidgetItem,
 } from '../api/home-config';
 import { ltrNum } from '../i18n/bidi';
@@ -45,33 +46,6 @@ export interface QuickInfo {
   allowed: Partial<Record<QuickAction, boolean>>;
   lightsOn: number;
   switchesOn: number;
-}
-
-/** "עוד יומיים ו־12 שעות": how long until a future ISO timestamp; '' for anything else. */
-export function untilText(iso: string | null | undefined, now: Date): string {
-  const t = new Date(iso ?? '').getTime();
-  if (!iso || !/^\d{4}-\d{2}-\d{2}T/.test(iso) || Number.isNaN(t) || t <= now.getTime()) return '';
-  const mins = Math.round((t - now.getTime()) / 60_000);
-  if (mins < 60) return `עוד ${mins} דקות`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `עוד ${hours === 1 ? 'שעה' : `${hours} שעות`}`;
-  const days = Math.floor(hours / 24);
-  const rest = hours % 24;
-  const d = days === 1 ? 'יום' : days === 2 ? 'יומיים' : `${days} ימים`;
-  return rest ? `עוד ${d} ו־${rest === 1 ? 'שעה' : `${rest} שעות`}` : `עוד ${d}`;
-}
-
-/** "שונה לפני 3 שעות" from an ISO time; '' for none. */
-export function sinceText(iso: string | null | undefined, now: Date): string {
-  const t = new Date(iso ?? '').getTime();
-  if (!iso || Number.isNaN(t)) return '';
-  const mins = Math.max(0, Math.round((now.getTime() - t) / 60_000));
-  if (mins < 2) return 'שונה עכשיו';
-  if (mins < 60) return `שונה לפני ${mins} דקות`;
-  const h = Math.round(mins / 60);
-  if (h < 24) return h === 1 ? 'שונה לפני שעה' : `שונה לפני ${h} שעות`;
-  const d = Math.round(h / 24);
-  return d === 1 ? 'שונה אתמול' : `שונה לפני ${d} ימים`;
 }
 
 const GHOST_MSG: Record<Exclude<Avail, 'ok'>, string> = {
@@ -1042,7 +1016,7 @@ export class HomeWidgetsView extends LitElement {
     const items = this.items;
     this.toggleAttribute('hidden', !items.length);
     if (!items.length || !this.config) return nothing;
-    return html`<div class="wrap" data-home-widgets role=${this.layout === 'snap' ? 'list' : 'group'} aria-label="ווידג׳טים">${items.map((it) => (it.avail === 'ok' ? this.card(it) : this.ghost(it)))}</div>`;
+    return html`<div class="wrap" data-home-widgets role=${this.layout === 'snap' ? 'list' : 'group'} aria-label="ווידג׳טים">${repeat(items, (it) => it.id, (it) => (it.avail === 'ok' ? this.card(it) : this.ghost(it)))}</div>`;
   }
 
   // ------------------------------------------------------------------------------------------------ edit chrome
@@ -1076,7 +1050,8 @@ export class HomeWidgetsView extends LitElement {
     if (!earlier && !later) return;
     e.preventDefault();
     this.emit('home-widget-move', { id, to: pos + (earlier ? -1 : 1) });
-    void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(`[data-home-grip="${id}"]`)?.focus());
+    // the screen re-orders the cards on the event: focus the moved card's grip once that render is done
+    void this.updateComplete.then(() => requestAnimationFrame(() => this.renderRoot.querySelector<HTMLElement>(`[data-home-grip="${id}"]`)?.focus()));
   }
 
   private drag(it: WidgetItem) {
@@ -1213,7 +1188,7 @@ export class HomeWidgetsView extends LitElement {
     const since = sinceText(a.since, this.now);
     return this.shell(it, 'wg-alarm', { tone }, html`<span class="aic"><svg viewBox="0 0 24 24" aria-hidden="true">${SHIELD}</svg></span>
       <div class="al-t"><span class="al-l">${it.title}</span><span class="al-s" data-home-alarm-state>${ALARM_HE[state] ?? state}</span>${since ? html`<span class="al-x ge-m">${since}</span>` : nothing}
-        ${this.alarmLink && !this.editing ? html`<a class="al-go only-l" href="#/system/security/alarm" data-home-alarm-link>לפרטי האזעקה <svg viewBox="0 0 24 24" aria-hidden="true">${CHEV}</svg></a>` : nothing}</div>`);
+        ${this.alarmLink && !this.editing && it.size === 'l' ? html`<a class="al-go only-l" href="#/system/security/alarm" data-home-alarm-link>לפרטי האזעקה <svg viewBox="0 0 24 24" aria-hidden="true">${CHEV}</svg></a>` : nothing}</div>`);
   }
 
   private quickCard(it: WidgetItem) {

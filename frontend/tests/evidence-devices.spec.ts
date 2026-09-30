@@ -181,7 +181,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     const b = tree.building as Record<string, number>;
     await expect(screen.locator('sw-kpi[data-kpi="תאורה דולקת"]')).toHaveAttribute('data-value', `${b.lights_on}/${b.lights}`);
     await expect(screen.locator('sw-kpi[data-kpi="תריסים פתוחים"]')).toHaveAttribute('data-value', `${b.covers_open}/${b.covers}`);
-    await expect(screen.locator('sw-kpi[data-kpi="אזעקה"]')).toBeVisible();
+    await expect(screen.locator('home-widgets [data-home-widget="alarm"]')).toBeVisible(); // home redesign: the alarm is a read-only status card of the control-centre band, no longer a tile
     // nothing on this screen controls one device; the only buttons are the bulk actions (slice 3: the header buttons
     // and the "⋯" triggers, each of which opens the confirmation dialog - the admin holds devices.control_bulk)
     await expect(screen.locator('input, sw-toggle')).toHaveCount(0);
