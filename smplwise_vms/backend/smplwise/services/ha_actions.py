@@ -25,6 +25,8 @@ CONFIRM_WINDOW_S = 20.0  # a pending action is "unknown" after this long without
 # (services/devices.py MEDIA_OFF_STATES already reads standby as off) - review round 1 of CR-007 slice 3.
 EQUIVALENT_STATES: dict[str, frozenset[str]] = {
     "media_player.turn_off": frozenset({"off", "standby"}),
+    # CR-015: a screen that was turned on reports "on" OR - the moment it plays or sits idle - its play state
+    "media_player.turn_on": frozenset({"on", "playing", "paused", "idle", "buffering"}),
     # CR-010: a panel with an exit delay reports "arming" first and the armed state only after the delay (often longer
     # than CONFIRM_WINDOW_S) - "arming" is the panel's own report that it accepted the command. The alarm screen keeps
     # showing the live state, so "בהשהיית יציאה" is never shown as "armed".

@@ -55,6 +55,8 @@ log = logging.getLogger(__name__)
 
 PERMISSION = "devices.control_bulk"
 AUDIT_ACTION = "devices.bulk"
+MEDIA_AUDIT_ACTION = "media.bulk"  # CR-015: the screens page's floor / area "כבה מסכים" (origin 'media')
+MEDIA_KINDS = frozenset({"screens_off", "all_off", "screens_on"})  # the kinds that reach media_player entities: through the media resolver only
 SCOPES = ("building", "floor", "area")
 BUILDING_ID = "*"
 BULK_MAX_IN_FLIGHT = 8  # bridge calls in flight across every running bulk
@@ -252,6 +254,10 @@ EXCLUDED_LABELS = {
     "switch_not_marked": "לא סומן כבטוח לכיבוי קבוצתי",
     "circuit_not_marked": "לא סומן כבטוח לכיבוי קבוצתי (מפסק של מעגל תאורה - מומלץ לסמן כבטוח)",
     "no_position": "התריס אינו מדווח מיקום ואינו תומך בקביעת מיקום",
+    # CR-015 (decision 8a): what the devices area's screens kinds leave out of a player list
+    "not_a_screen": "לא מוגדר כמסך",
+    "screen_not_approved": "מסך שטרם אושר בהגדרות המולטימדיה",
+    "no_power": "אין למסך בקרת הפעלה",
 }
 # re-review: the same reasons in words that fit a kind that turns something ON (the "off" wording would be false)
 EXCLUDED_LABELS_ON = {
@@ -362,10 +368,11 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
         raise ApiError(403, "forbidden", "אין לך הרשאה לפעולות מרוכזות בהיקף הזה: אף התקן בו אינו מוצב בקומות שבהרשאתך.", details={"permission": PERMISSION})
     actions = dict(KINDS[kind])
     policy = SwitchPolicy(conn)
+    mv = _media_verdicts(conn, kind) if kind in MEDIA_KINDS else None  # CR-015 decision 8a: a screens kind reaches approved screens only
     targets: list[dict[str, Any]] = []
     excluded: list[dict[str, Any]] = []
     never: dict[str, int] = {}
-    already = unavailable = 0
+    already = unavailable = not_confirmed = 0
     for e in in_scope:
         domain = e["domain"]
         if not held(e["entity_id"]):
@@ -383,6 +390,23 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
         if not permitted(e["entity_id"]):
             continue
         if domain not in actions:
+            continue
+        if domain == "media_player" and mv is not None:
+            verdict = mv.get(e["entity_id"], "unclassified")
+            if verdict == "skip":  # a receiver / speaker, or another endpoint of a screen: never reached, never described
+                continue
+            if verdict in ("unclassified", "unapproved", "no_power"):
+                why = {"unclassified": "not_a_screen", "unapproved": "screen_not_approved", "no_power": "no_power"}[verdict]
+                excluded.append({"entity_id": e["entity_id"], "name": _name(e), "domain": domain, "reason": why, "reason_label": excluded_label(why, kind)})
+                continue
+            if verdict == "unavailable":
+                unavailable += 1
+            elif verdict == "already":
+                already += 1
+            elif verdict == "not_confirmed":
+                not_confirmed += 1
+            else:
+                targets.append({"entity_id": e["entity_id"], "name": _name(e), "domain": domain, "action_id": actions[domain], "state": e.get("state"), "area_id": e.get("area_id"), "area_name": e.get("area_name"), "args": {}})
             continue
         reason = policy.excluded_reason(e)
         if reason:
@@ -425,7 +449,7 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
         "targets": targets,
         "by_domain": by_domain,
         "domain_labels": {d: DOMAIN_LABELS.get(d, d) for d in set(by_domain) | set(never)},
-        "skipped": {"already": already, "unavailable": unavailable},
+        "skipped": {"already": already, "unavailable": unavailable, **({"not_confirmed": not_confirmed} if not_confirmed else {})},
         "excluded": excluded,
         "never_included": never,
         "digest": digest([t["entity_id"] for t in targets], kind, position),
@@ -438,6 +462,102 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
 
 def _name(e: dict[str, Any]) -> str:
     return e.get("name") or e.get("original_name") or e["entity_id"]
+
+
+def _media_verdicts(conn: Any, kind: str) -> dict[str, str]:
+    """CR-015 decision 8a: how the devices area's screens kinds treat every media_player endpoint. Only the POWER endpoint of an APPROVED
+    screen is ever sent to, and only a screen CONFIRMED on (or in art mode) for an "off" kind, one that is off for `screens_on`:
+    target | already | unavailable | not_confirmed | no_power (a screen that cannot be switched) | unapproved (a detected screen not
+    approved yet) | unclassified (not a media device we know as a screen) | skip (a receiver / speaker, or another endpoint of a screen).
+    A receiver may feed other rooms and is never included."""
+    from . import media_store as ms
+
+    cat = ms.load_catalog(conn, approved_only=False, kind=None)
+    out: dict[str, str] = {}
+    for item in cat.items.values():
+        live = caps = None
+        for ep in item.model.endpoints:
+            if ep.domain != "media_player":
+                continue
+            if item.row["kind"] != "screen":
+                out[ep.ref] = "skip" if item.row["kind"] in ("receiver", "speaker") else "unclassified"
+            elif ep.ref != item.view.prim.get("power"):
+                out[ep.ref] = "skip"  # another endpoint of the same screen: never reached, never described
+            elif not item.row["approved"]:
+                out[ep.ref] = "unapproved"
+            else:
+                live = live or ms.live_of(cat, item, key_url=False)
+                caps = caps or ms.caps_of(cat, item)
+                out[ep.ref] = screen_verdict(live, caps, kind in ON_KINDS)
+    return out
+
+
+def screen_verdict(live: dict[str, Any], caps: dict[str, Any], turning_on: bool) -> str:
+    """One approved screen's verdict for a bulk "off" (or "on") of its power endpoint - shared by both bulk entry points."""
+    power = live["power"]
+    if power in ("unavailable", "unknown"):
+        return "unavailable"
+    if turning_on:
+        if power in ("on", "art"):
+            return "already"
+        return "target" if caps["power_on"] else "no_power"
+    if power in ("off", "standby"):
+        return "already"
+    if power == "on" and not live["confirmed"]:
+        return "not_confirmed"
+    return "target" if caps["power_off"] else "no_power"
+
+
+def resolve_media(conn: Any, principal: Principal, scope: str, scope_id: str) -> dict[str, Any]:
+    """CR-015 (MEDIA_API.md 3.9): the screens page's floor / area "כבה מסכים" - approved screens of one HA floor or area the caller may
+    read, `media.bulk` at each screen's anchor, their POWER endpoint only, only screens confirmed on (or in art mode). Same plan shape
+    as `resolve` (so `record` / `run` / `load` and the poll route are shared) plus `devices`, the per-screen preview rows. 422 for the
+    building (7b was not taken), 404 when the caller sees no screen there, 403 when none of them may be switched off in bulk by them."""
+    from . import media_store as ms
+
+    if scope not in ("floor", "area"):
+        raise ApiError(422, "validation", "כיבוי מסכים מרוכז זמין לקומה או לאזור בלבד.", details={"fields": ["scope"]})
+    cat = ms.load_catalog(conn)
+    access = ms.Access(conn, principal, (ms.PERM_READ, ms.PERM_BULK))
+    if not access.anywhere(ms.PERM_BULK):
+        from ..rbac import INSTALLATION, require
+
+        require(conn, principal, ms.PERM_BULK, INSTALLATION)
+    field = "floor_id" if scope == "floor" else "area_id"
+    inside = [i for i in ms.visible_items(cat, access) if ms.floor_area(i)[field] == scope_id]
+    if not inside:
+        raise ApiError(404, "not_found", "הקומה או האזור לא נמצאו.")
+    inside.sort(key=lambda i: (i.name, i.key))
+    label = ms.floor_area(inside[0])["floor_name" if scope == "floor" else "area_name"] or scope_id
+    devices: list[dict[str, Any]] = []
+    targets: list[dict[str, Any]] = []
+    counts = {"send": 0, "already_off": 0, "not_confirmed": 0, "unavailable": 0, "not_allowed": 0}
+    for item in inside:
+        anchor = item.row.get("anchor_entity_id")
+        power = item.view.prim.get("power")
+        reason: str | None
+        if not access.has(ms.PERM_BULK, anchor) or not power:
+            reason = "not_allowed"
+        else:
+            verdict = screen_verdict(ms.live_of(cat, item, key_url=False), ms.caps_of(cat, item), False)
+            reason = {"target": None, "already": "already_off", "unavailable": "unavailable", "not_confirmed": "not_confirmed", "no_power": "not_allowed"}[verdict]
+        devices.append({"key": item.key, "name": item.name, "will": "skip" if reason else "off", "reason": reason})
+        if reason is None:
+            counts["send"] += 1
+            e = cat.ents.get(power or "") or {}
+            targets.append({"entity_id": power, "name": item.name, "domain": "media_player", "action_id": "media_player.turn_off", "state": e.get("state"),
+                            "area_id": e.get("area_id"), "area_name": e.get("area_name"), "args": {}, "device_key": item.key})
+        else:
+            counts[reason] += 1
+    if not counts["send"] and counts["not_allowed"] == len(devices):
+        raise ApiError(403, "forbidden", "אין לך הרשאה לכיבוי מרוכז של מסכים בהיקף הזה.", details={"permission": ms.PERM_BULK})
+    return {
+        "scope": scope, "id": scope_id, "name": label, "floor_name": None, "kind": "screens_off", "kind_label": KIND_LABELS["screens_off"], "count": len(targets), "targets": targets,
+        "by_domain": {"media_player": len(targets)} if targets else {}, "domain_labels": {"media_player": DOMAIN_LABELS["media_player"]},
+        "skipped": {"already": counts["already_off"], "unavailable": counts["unavailable"]}, "excluded": [], "never_included": {},
+        "digest": digest([t["entity_id"] for t in targets], "screens_off"), "narrowed": False, "server_time_ms": int(time.time() * 1000), "position": None, "note": "",
+        "origin": "media", "devices": devices, "counts": counts,
+    }
 
 
 def digest(entity_ids: list[str], kind: str, position: int | None = None) -> str:
@@ -518,8 +638,8 @@ def record(conn: Any, principal: Principal, bulk_id: str, plan: dict[str, Any], 
     with the attempt audit row, before anything is sent)."""
     now = now_iso()
     conn.execute(
-        "INSERT INTO device_bulk_actions(id, scope, scope_id, scope_name, kind, principal_user_id, principal_username, client_request_id, entity_count, status, requested_at, not_after) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-        (bulk_id, plan["scope"], plan["id"], plan["name"], plan["kind"], principal.user_id, principal.username, client_request_id, plan["count"], "sending", now, iso_utc(not_after)),
+        "INSERT INTO device_bulk_actions(id, scope, scope_id, scope_name, kind, principal_user_id, principal_username, client_request_id, entity_count, status, requested_at, not_after, origin) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (bulk_id, plan["scope"], plan["id"], plan["name"], plan["kind"], principal.user_id, principal.username, client_request_id, plan["count"], "sending", now, iso_utc(not_after), plan.get("origin", "devices")),
     )
     attrs = {r["entity_id"]: r["attributes_json"] for r in conn.execute("SELECT entity_id, attributes_json FROM ha_entities WHERE entity_id IN (%s)" % ",".join("?" * len(plan["targets"])), [t["entity_id"] for t in plan["targets"]]).fetchall()} if plan["targets"] else {}
     for n, t in enumerate(plan["targets"]):
@@ -714,7 +834,7 @@ def load(conn: Any, bulk_id: str) -> dict[str, Any]:
     return {
         "id": b["id"], "scope": b["scope"], "scope_id": b["scope_id"], "scope_name": b["scope_name"], "kind": b["kind"], "kind_label": KIND_LABELS.get(b["kind"], b["kind"]),
         "status": b["status"], "requested_at": b["requested_at"], "not_after": b["not_after"], "sent_at": b["sent_at"], "done_at": b["done_at"],
-        "principal_user_id": b["principal_user_id"], "principal_username": b["principal_username"],
+        "principal_user_id": b["principal_user_id"], "principal_username": b["principal_username"], "origin": b["origin"],
         "done": done, "all_confirmed": done and counts["total"] > 0 and counts["confirmed"] == counts["total"], "counts": counts, "items": items,
         "note": "הצלחה נקבעת רק לפי מה שדווח לכל התקן; התקן שלא דיווח אינו נחשב כבוי.",
     }
@@ -734,7 +854,7 @@ def finish(db: Database, bulk_id: str, request_id: str | None = None) -> None:
         def ids(outcome: str) -> list[str]:
             return [i["entity_id"] for i in body["items"] if i["outcome"] == outcome][:100]
 
-        audit(w, actor=actor, action=AUDIT_ACTION, decision="allowed", resource_type=f"devices_{body['scope']}", resource_id=body["scope_id"],
+        audit(w, actor=actor, action=MEDIA_AUDIT_ACTION if body["origin"] == "media" else AUDIT_ACTION, decision="allowed", resource_type=f"devices_{body['scope']}", resource_id=body["scope_id"],
               reason=None if c["confirmed"] == c["total"] else ("partial" if c["confirmed"] else "none_confirmed"), request_id=request_id,
               details={"phase": "outcome", "bulk_id": bulk_id, "kind": body["kind"], "scope": body["scope"], "scope_name": body["scope_name"], "counts": c,
                        "not_confirmed": ids("not_confirmed"), "unknown": ids("unknown"), "refused": ids("refused")})

@@ -15,7 +15,7 @@ from ..auth import current_principal, get_conn
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import home_config, home_screen, mobile_options, nav_size
+from ..services import home_config, home_screen, media_layout, mobile_options, nav_size
 
 router = APIRouter()
 
@@ -198,6 +198,12 @@ DEFAULTS: dict[str, str] = {
     "schedules.default_repeat": "repeat",
     "schedules.runs_retention_days": "90",
     "schedules.shabbat_sensor": "",
+    # CR-015 (מולטימדיה · מסכים ושלט, docs/architecture/MEDIA_API.md 9): the feature and its rail entry; `multimedia.remote_default` is the
+    # installation default of the remote's sections (a JSON object, read back as an object; "" = the built-in default), written from the
+    # settings page and from "עריכת השלט" (PUT /multimedia/remote-default). The safety rules (no power key, rate limits, confirmations)
+    # are not settings.
+    "multimedia.enabled": "true",
+    "multimedia.remote_default": "",
 }
 
 SCHEDULE_CLASSES = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door")
@@ -219,7 +225,16 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out["ui.mobile"] = _stored_mobile(out["ui.mobile"])
     out["schedules.classes"] = stored_schedule_classes(out["schedules.classes"])
     out["home.widgets"] = home_screen.effective_config(conn)
+    out["multimedia.remote_default"] = _stored_remote_default(out["multimedia.remote_default"])
     return out
+
+
+def _stored_remote_default(raw: Any) -> dict[str, Any]:
+    """The stored `multimedia.remote_default` as an object; nothing stored, or a corrupt value, reads as the built-in default."""
+    try:
+        return media_layout.normalise_remote_config(json.loads(raw) if isinstance(raw, str) and raw else media_layout.default_remote())
+    except ValueError:
+        return media_layout.default_remote()
 
 
 def _stored_nav_size(raw: Any) -> dict[str, Any]:
@@ -429,6 +444,8 @@ class SettingsPatch(BaseModel):
     schedules_runs_retention_days: int | None = Field(default=None, ge=7, le=365, alias="schedules.runs_retention_days")
     schedules_shabbat_sensor: str | None = Field(default=None, pattern=r"^(|binary_sensor\.[a-z0-9_]{1,100})$", alias="schedules.shabbat_sensor")
     schedules_shabbat_sensor_force: bool | None = Field(default=None, alias="schedules.shabbat_sensor_force")  # an explicit override; never stored
+    multimedia_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="multimedia.enabled")
+    multimedia_remote_default: dict[str, Any] | None = Field(default=None, alias="multimedia.remote_default")  # validated in full by services/media_layout.py
 
     model_config = {"populate_by_name": True}
 
@@ -466,6 +483,11 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if bad:
             raise ApiError(422, "validation", "סוגי התקנים בתזמונים: ערך לא מוכר.", details={"schedules.classes": bad})
         changes["schedules.classes"] = [c for c in SCHEDULE_CLASSES if c in changes["schedules.classes"]]
+    if "multimedia.remote_default" in changes:
+        try:
+            changes["multimedia.remote_default"] = media_layout.normalise_remote_config(changes["multimedia.remote_default"])
+        except ValueError as exc:
+            raise ApiError(422, "validation", "הגדרת השלט: ערך לא תקין.", details={"multimedia.remote_default": str(exc)})
     force_sensor = bool(changes.pop("schedules.shabbat_sensor_force", False))
     forced = False
     if changes.get("schedules.shabbat_sensor"):
@@ -517,7 +539,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if key == "home.widgets":
             set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value else "")
             continue
-        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.mobile", "schedules.classes") else str(value))
+        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.mobile", "schedules.classes", "multimedia.remote_default") else str(value))
     if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now
         from ..services import schedules as schedules_svc
 

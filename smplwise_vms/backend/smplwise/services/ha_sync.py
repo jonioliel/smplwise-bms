@@ -67,7 +67,15 @@ ATTR_ALLOW = {
     # (the preview of a schedule that starts at sunrise or sunset). The switch's `actions` / `timeslots` are not kept:
     # the definitions come from the scheduler component itself (services/schedules.py).
     "next_trigger", "current_slot", "next_slot", "next_rising", "next_setting",
+    # CR-015 (multimedia, MEDIA_API.md 11): what a screen card and the remote draw - the TV's sources and apps, what is playing, the
+    # sound output, Samsung Frame's art mode, an Android remote's activities - and, for 0.1.150, MA's grouping facts. Never
+    # `ip_address`, never `entity_picture` (a tokenised HA proxy URL: kept server-side in memory for the artwork proxy only,
+    # services/media_store.note_picture).
+    "source_list", "app_id", "app_name", "media_content_type", "media_channel", "media_duration", "media_position", "media_position_updated_at",
+    "sound_output", "sound_mode", "art_mode_status", "activity_list", "current_activity", "group_members", "mass_player_type", "active_queue",
 }
+MEDIA_LIST_KEYS = {"source_list": 80, "activity_list": 200}  # attribute -> the longest item kept; 100 items at most (MAX_MEDIA_LIST)
+MAX_MEDIA_LIST = 100
 STATE_DOMAINS_SKIP = {"update", "image", "conversation", "zone", "person", "device_tracker", "notify", "tts", "stt", "wake_word", "assist_satellite"}
 
 
@@ -146,14 +154,38 @@ def trim_forecast(raw: Any) -> list[dict[str, Any]]:
     return [{k: item[k] for k in FORECAST_FIELDS if k in item} for item in raw[:FORECAST_KEEP] if isinstance(item, dict)]
 
 
+def _media_list(raw: Any, longest: int) -> list[str]:
+    """A TV's own source / activity strings: text only, at most MAX_MEDIA_LIST of them, none longer than `longest` (an item is dropped,
+    never cut - a cut string would no longer be the TV's own)."""
+    if not isinstance(raw, list):
+        return []
+    out: list[str] = []
+    for item in raw:
+        if isinstance(item, str) and 0 < len(item) <= longest and item not in out:
+            out.append(item)
+        if len(out) >= MAX_MEDIA_LIST:
+            break
+    return out
+
+
 def trim_attributes(attrs: dict[str, Any]) -> str:
     kept = {k: v for k, v in (attrs or {}).items() if k in ATTR_ALLOW}
     if "forecast" in kept:
         kept["forecast"] = trim_forecast(kept["forecast"])
+    # CR-015: a TV's source / activity lists are far larger than the 4000-character budget of the other attributes and must reach
+    # the model whole (they are bounded above instead): taken out first, put back after the budget rule ran on the rest
+    media_lists = {k: _media_list(kept.pop(k), n) for k, n in MEDIA_LIST_KEYS.items() if k in kept}
     text = json.dumps(kept, ensure_ascii=False, default=str)
     if len(text) > 4000:
         kept = {k: kept[k] for k in list(kept)[:10]}
         text = json.dumps(kept, ensure_ascii=False, default=str)[:4000]
+    if media_lists:
+        try:
+            merged = json.loads(text)
+        except ValueError:
+            merged = {}
+        merged.update(media_lists)
+        text = json.dumps(merged, ensure_ascii=False, default=str)
     return text
 
 
@@ -191,6 +223,10 @@ def upsert_state(conn: sqlite3.Connection, st: dict[str, Any], seen: str | None 
     if state is not None and not isinstance(state, str):
         state = str(state)
     available = 0 if state in ("unavailable", None) else 1
+    if domain == "media_player":
+        from . import media_store  # CR-015: the picture URL stays in memory for the artwork proxy, never in the attributes
+
+        media_store.note_picture(eid, attrs)
     row = conn.execute("SELECT entity_id FROM ha_entities WHERE entity_id = ?", (eid,)).fetchone()
     common = (
         scalar_text(attrs.get("friendly_name")) or "",
@@ -594,6 +630,10 @@ class HaSync:
             STATE.sequence += 1
             STATE.last_event_at = now_iso()
             publish({"type": "entity_state_changed", "sequence": STATE.sequence, "entity": row})
+            if eid.startswith(("media_player.", "remote.")):
+                from . import media_store  # CR-015: a screen's own `media_state` frame (throttled, scoped by media.read in /ha/ws)
+
+                media_store.on_state_event(db, eid)
 
         def on_message(msg: dict[str, Any]) -> None:
             if self._sched_sub_id is not None and msg.get("id") == self._sched_sub_id:
@@ -834,6 +874,19 @@ class HaSync:
                     device_bulk.clear_stale_marks(conn, set(maps))
                     STATE.entities = count_entities(conn)
             _busy_retry(_tombstone)
+
+            def _media() -> None:
+                from . import media_store  # CR-015: the device mirror and the media device model follow every registry refresh
+
+                with db.connection(durable=False) as conn:
+                    media_store.apply_devices(conn, devs)
+                    result["media_changed"] = media_store.rebuild(conn)
+            try:
+                _busy_retry(_media)
+            except Exception:  # noqa: BLE001 - a media-model failure never costs the registry refresh itself
+                log.exception("media device model rebuild failed")
+            if result.get("media_changed"):
+                publish({"type": "media_devices_changed", "reason": "registry"})
             with db.connection(mode="read") as conn:
                 result["changed"] = mirror_fingerprint(conn) != before
 

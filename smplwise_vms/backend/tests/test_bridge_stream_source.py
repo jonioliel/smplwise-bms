@@ -353,7 +353,7 @@ def test_description_translations_version_and_mirror():
     for rel in ("strings.json", "translations/en.json", "translations/he.json"):
         data = json.loads((SRC / rel).read_text(encoding="utf-8"))
         assert data["services"]["stream_source"]["name"] and data["services"]["stream_source"]["description"], rel
-    assert const.VERSION == "0.3.1" and json.loads((SRC / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.3.1"
+    assert const.VERSION == "0.4.0" and json.loads((SRC / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.4.0"
     import sync_integration
 
     assert sync_integration.differences() == [], "run python scripts/sync_integration.py"

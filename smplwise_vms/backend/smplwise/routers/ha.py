@@ -12,7 +12,7 @@ import time
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Request, WebSocket
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, WebSocket
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -22,7 +22,7 @@ from ..config import Settings
 from ..db import unlocked, Database, bump_permission_revision, get_setting, now_iso, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
-from ..services import bridge_install, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync
+from ..services import bridge_install, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, media_store
 from ..services import devices as dsvc
 from ..services.timeutil import iso_utc, parse_utc
 from .media import _principal_for_ws
@@ -103,6 +103,7 @@ def list_entities(
     from ..services import alarm as alarm_svc
 
     managed = alarm_svc.managed_controls(conn)
+    media_managed = media_store.managed_entities(conn)  # CR-015: the endpoints of an approved screen are operated from "מולטימדיה"
     out = []
     for r in rows:
         pl = placements.get(r["entity_id"], [])
@@ -117,7 +118,8 @@ def list_entities(
         r["alarm_managed"] = r["entity_id"] in managed
         # CR-014: a scheduler switch is listed read-only - the schedules screen is where it is operated
         r["schedule_entity"] = dsvc.is_scheduler_entity(r["entity_id"], r.get("platform"))
-        r["actions"] = [] if (r["alarm_managed"] or r["schedule_entity"]) else ha_bridge.actions_for(r["domain"])
+        r["media_managed"] = r["entity_id"] in media_managed
+        r["actions"] = [] if (r["alarm_managed"] or r["schedule_entity"] or r["media_managed"]) else ha_bridge.actions_for(r["domain"])
         out.append(r)
     domains: dict[str, int] = {}
     areas: list[dict[str, Any]] = []
@@ -149,7 +151,8 @@ def get_entity(entity_id: str, principal: Principal = Depends(current_principal)
 
     e["alarm_managed"] = alarm_svc.is_managed_control(conn, entity_id)  # CR-010 review B1: read-only here
     e["schedule_entity"] = dsvc.is_scheduler_entity(entity_id, e.get("platform"))  # CR-014: read-only here
-    e["actions"] = [] if (e["alarm_managed"] or e["schedule_entity"]) else [{**a, "granted": e["can_control"] and (not a["grant"] or _entity_allowed(conn, principal, entity_id, a["grant"]))} for a in ha_bridge.actions_for(e["domain"])]
+    e["media_managed"] = media_store.is_managed(conn, entity_id)  # CR-015: read-only here, operated from "מולטימדיה"
+    e["actions"] = [] if (e["alarm_managed"] or e["schedule_entity"] or e["media_managed"]) else [{**a, "granted": e["can_control"] and (not a["grant"] or _entity_allowed(conn, principal, entity_id, a["grant"]))} for a in ha_bridge.actions_for(e["domain"])]
     e["recent_actions"] = [] if not (e["can_control"] or authorize(conn, principal, "system.configure", INSTALLATION).allowed) else [dict(r) for r in conn.execute("SELECT id, action_id, status, requested_at, confirmed_at, principal_username, error FROM ha_actions WHERE entity_id = ? ORDER BY requested_at DESC, rowid DESC LIMIT 5", (entity_id,)).fetchall()]
     return e
 
@@ -186,6 +189,7 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
     # for everyone who does hold it
     _refuse_alarm_managed(conn, principal, request, entity_id, body.allowed_action_id)
     _refuse_scheduler_switch(conn, principal, request, entity_id, body.allowed_action_id)
+    _refuse_media_managed(conn, principal, request, entity_id, body.allowed_action_id)
     e = _entity(conn, entity_id)
     if e["removed_at"] or e["disabled"]:
         raise ApiError(409, "entity_unavailable", "ההתקן אינו זמין.")
@@ -270,6 +274,20 @@ def _refuse_scheduler_switch(conn: sqlite3.Connection, principal: Principal, req
     raise ApiError(409, "use_schedules_screen", "התזמון מנוהל במסך התזמונים.", details={"action": action_id, "route": "/devices/schedules"})
 
 
+def _refuse_media_managed(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:
+    """CR-015 (MEDIA_API.md 5.2): a `route: "media"` action - a key, a typed text, a source or app pick, a step, a sound output - is sent
+    only by the multimedia commands route, and every media_player / remote entity that is an endpoint of an APPROVED screen is
+    operated only there too (the alarm / scheduler precedent): the media permissions, rate limits and audit are the one authority
+    for a managed screen, so this general route can never send an arbitrary `play_media` or a key. 409 use_media_screen, audited,
+    after the permission check (a caller holding no control keeps its audited 403)."""
+    spec = ha_bridge.ACTIONS.get(action_id) or {}
+    if spec.get("route") != "media" and not media_store.is_managed(conn, entity_id):
+        return
+    audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="use_media_screen",
+          request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
+    raise ApiError(409, "use_media_screen", "המסך נשלט ממסך המולטימדיה.", details={"action": action_id, "route": "/multimedia/screens"})
+
+
 @router.get("/ha/actions/{action_id}")
 def get_action(action_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Poll a pending action: confirmed when the entity reached the expected state after the request, unknown after 20 s."""
@@ -278,6 +296,10 @@ def get_action(action_id: str, request: Request, principal: Principal = Depends(
         raise ApiError(403, "forbidden", "הפעולה שייכת למשתמש אחר.")
     if ha_actions.refresh(conn, a):  # the confirmation rules live in services/ha_actions.py (shared with bulk actions)
         a = _action_row(conn, action_id)
+        if a["status"] == "confirmed":
+            from ..services import media_commands
+
+            media_commands.on_action_confirmed(conn, action_id)  # CR-015: a confirmed source / app pick joins the screen's "recent" list
     return a
 
 
@@ -312,7 +334,7 @@ def _dev_only(settings: Settings) -> None:
 
 
 @dev_router.post("/ha/dev/states")
-def dev_states(body: DevStatesIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def dev_states(body: DevStatesIn, request: Request, background: BackgroundTasks, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Inject entity states as if Home Assistant sent them (the same upsert and the same push the sync uses), for live
     specs and manual checks without a Home Assistant. Developer identity mode only; system.configure; audited."""
     _dev_only(settings_of(request))
@@ -324,6 +346,7 @@ def dev_states(body: DevStatesIn, request: Request, principal: Principal = Depen
         ha_sync.STATE.sequence += 1
         ha_sync.publish({"type": "entity_state_changed", "sequence": ha_sync.STATE.sequence, "entity": row})
         rows.append(row)
+        background.add_task(media_store.on_state_event, request.app.state.db, st.entity_id)  # CR-015: the same `media_state` frame a real state event sends, after the commit
     audit(conn, actor=principal, action="ha.dev.states", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None),
           details={"entities": [r["entity_id"] for r in rows]})
     return {"entities": rows}
@@ -367,12 +390,16 @@ def dev_registry(body: DevRegistryIn, request: Request, principal: Principal = D
         n = ha_sync.apply_registry(wconn, maps)
         ha_sync.apply_structure(wconn, body.areas, body.floors)
         device_bulk.clear_stale_marks(wconn, set(maps))
+        media_store.apply_devices(wconn, body.devices)  # CR-015: the device mirror and the media model, as the sync's refresh does
+        media_changed = media_store.rebuild(wconn)
         changed = ha_sync.mirror_fingerprint(wconn) != before
         audit(wconn, actor=principal, action="ha.dev.registry", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None),
               details={"entities": n, "areas": len(body.areas), "floors": len(body.floors)})
     ha_sync.STATE.last_registry_at = now_iso()
     if changed:
         ha_sync.STATE.last_structure_at = ha_sync.STATE.last_registry_at
+    if media_changed:
+        ha_sync.publish({"type": "media_devices_changed", "reason": "registry"})
     if changed:  # the same notice the sync's refresh sends, after the commit
         ha_sync.publish({"type": "structure_changed", "reason": "dev", "changed": True, "last_registry_at": ha_sync.STATE.last_registry_at})
     return {"entities": n, "areas": len(body.areas), "floors": len(body.floors), "changed": changed}
@@ -482,10 +509,15 @@ async def ha_ws(websocket: WebSocket) -> None:
             wide, floors = _visible_floors(conn, principal, "entity.state.read")
             return wide, floors, _placements(conn)
 
+    def _media_scope() -> tuple[bool, set[str]]:
+        with db.connection() as conn:
+            return ha_scope.visible_floors(conn, principal, media_store.PERM_READ)
+
     wide, floors, placements = await run_in_threadpool(_scope)
     if not wide and not floors:
         await websocket.close(code=4403)
         return
+    mwide, mfloors = await run_in_threadpool(_media_scope)  # CR-015: media frames follow media.read, not entity.state.read
     await websocket.accept()
     from ..services import revocation
 
@@ -504,12 +536,23 @@ async def ha_ws(websocket: WebSocket) -> None:
             if time.time() - last_scope > 60 or revocation.generation(principal.user_id) != access_gen:  # T055: at once on an access change
                 access_gen = revocation.generation(principal.user_id)
                 wide, floors, placements = await run_in_threadpool(_scope)
+                mwide, mfloors = await run_in_threadpool(_media_scope)
                 last_scope = time.time()
+            payload = msg
             if msg.get("type") == "entity_state_changed":
                 if not ha_scope.entity_visible(wide, floors, placements, msg["entity"]["entity_id"]):
                     continue
+            elif msg.get("type") == "media_state":
+                # CR-015: only to a subscriber who sees the screen's anchor under media.read (contract 4: payload {device_key, entity_id, live})
+                if not ha_scope.entity_visible(mwide, mfloors, placements, msg["entity_id"]):
+                    continue
+                payload = {k: v for k, v in msg.items() if k != "type"}
+            elif msg.get("type") == "media_devices_changed":
+                if not mwide and not mfloors:
+                    continue
+                payload = {"reason": msg.get("reason")}
             seq += 1
-            await websocket.send_text(json.dumps({"version": 1, "type": msg.get("type"), "sequence": seq, "subscription_id": principal.user_id, "occurred_at": now_iso(), "received_at": now_iso(), "payload": msg}, ensure_ascii=False, default=str))
+            await websocket.send_text(json.dumps({"version": 1, "type": msg.get("type"), "sequence": seq, "subscription_id": principal.user_id, "occurred_at": now_iso(), "received_at": now_iso(), "payload": payload}, ensure_ascii=False, default=str))
     except Exception:
         pass
     finally:
