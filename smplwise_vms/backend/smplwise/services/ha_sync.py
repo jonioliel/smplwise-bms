@@ -56,6 +56,9 @@ ATTR_ALLOW = {
     "code_arm_required", "changed_by", "open_sensors", "bypassed_sensors", "arm_mode", "next_state", "delay",
     "zone_id", "zone", "zone_number", "zone_name", "bypassed", "bypass", "tamper", "device_tamper", "zone_tamper", "zone_trouble",
     "zone_open", "last_tripped_time", "battery_low",
+    # owner 2026-09-30 (the home screen's weather widget): a weather entity's temperature unit (its temperature and
+    # humidity are allowed above)
+    "temperature_unit",
 }
 STATE_DOMAINS_SKIP = {"update", "image", "conversation", "zone", "person", "device_tracker", "notify", "tts", "stt", "wake_word", "assist_satellite"}
 

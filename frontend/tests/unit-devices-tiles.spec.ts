@@ -143,7 +143,7 @@ test.describe('overview tiles (demo data)', () => {
     await expect(chip).toHaveAttribute('aria-expanded', 'true');
   });
 
-  test('compact tiles: a rectangle 56-80 px tall, two columns at 390 px; cards above 600 px with auto; an override wins', async ({ page }, testInfo) => {
+  test('compact tiles: a rectangle 44-80 px tall, two columns at 390 px, the icon at the end of the text (the left in Hebrew); cards above 600 px with auto; an override wins', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'the phone layout');
     await open(page, '/devices/building');
     const b = page.locator('devices-building');
@@ -152,18 +152,18 @@ test.describe('overview tiles (demo data)', () => {
     await expect(kpis.first()).toHaveAttribute('layout', 'compact');
     const boxes = await kpis.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ x: Math.round(r.x), h: r.height, w: r.width })));
     for (const bx of boxes) {
-      expect(bx.h).toBeGreaterThanOrEqual(56);
+      expect(bx.h).toBeGreaterThanOrEqual(44); // owner notes 2026-09-30: smaller than before, still a whole-tile tap target
       expect(bx.h).toBeLessThanOrEqual(80);
       expect(bx.w).toBeGreaterThanOrEqual(150);
     }
     expect(new Set(boxes.map((bx) => bx.x)).size).toBe(2); // two columns
-    // the icon beside the value (RTL: the icon at the inline start = the right)
+    // owner notes 2026-09-30: the icon beside the text block, at its END (RTL: the left), not above it
     const side = await kpis.first().evaluate((k) => {
       const icon = k.shadowRoot!.querySelector('.icon')!.getBoundingClientRect();
       const val = k.shadowRoot!.querySelector('.value')!.getBoundingClientRect();
-      return { iconLeft: icon.left, valRight: val.right, sameRow: Math.abs(icon.top + icon.height / 2 - (val.top + val.height / 2)) < 14 };
+      return { iconRight: icon.right, valLeft: val.left, sameRow: Math.abs(icon.top + icon.height / 2 - (val.top + val.height / 2)) < 14 };
     });
-    expect(side.iconLeft).toBeGreaterThanOrEqual(side.valRight - 1);
+    expect(side.iconRight).toBeLessThanOrEqual(side.valLeft + 1);
     expect(side.sameRow).toBe(true);
     // numbers in tabular figures
     expect(await kpis.first().evaluate((k) => getComputedStyle(k.shadowRoot!.querySelector('.value')!).fontVariantNumeric)).toContain('tabular-nums');
@@ -191,10 +191,19 @@ test.describe('overview tiles (demo data)', () => {
     await shot(page, 'building-cards-390');
   });
 
-  test('desktop: cards by default (auto), compact on request; the Live tiles link to their screens', async ({ page }, testInfo) => {
+  test('desktop: the home screen\'s summary tiles are small rectangles by default (auto), tall cards only on an explicit choice; the Live tiles link to their screens', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'the desktop layout');
     await open(page, '/devices/building');
+    // owner notes 2026-09-30: the installation's "auto" (cards on a desktop) no longer makes this screen's tiles tall
     await expect(page.locator('devices-building')).toHaveAttribute('data-tile-layout', 'cards');
+    const first = page.locator('devices-building sw-kpi').first();
+    await expect(first).toHaveAttribute('layout', 'compact');
+    await expect(first).toHaveAttribute('icon-end', '');
+    expect(await first.evaluate((e) => e.getBoundingClientRect().height)).toBeLessThanOrEqual(64);
+    await shot(page, 'building-compact-auto-desktop');
+    await open(page, '/devices/building', 'cards');
+    await expect(page.locator('devices-building sw-kpi').first()).toHaveAttribute('layout', 'cards');
+    expect(await page.locator('devices-building sw-kpi').first().evaluate((e) => e.getBoundingClientRect().height)).toBeGreaterThan(90);
     await shot(page, 'building-cards-desktop');
     await open(page, '/devices/building', 'compact');
     const kpis = page.locator('devices-building sw-kpi');

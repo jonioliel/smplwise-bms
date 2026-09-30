@@ -352,6 +352,16 @@ export interface LayoutOptions {
   entities?: (key: string) => { id: string; name: string }[];
   /** Slice 6c: a card's automatic tile span (a two-up tile card: 1; a card of full-width rows: its TILE_COLS). */
   tileSpan?: (key: string) => number;
+  /** The screen's own edits that live next to the layout in one edit session (the home screen's title, widgets and floor
+   * order, owner notes 2026-09-30): they count for "unsaved", are saved with "שמור" (before the layout) and are dropped
+   * with the session. Without them, saving with nothing changed still stores the measured layout, as before. */
+  extras?: {
+    dirty: () => boolean;
+    /** Persists the edits; rejects (with a readable message) when the server refuses. */
+    save: () => Promise<void>;
+    /** The session ended without saving. */
+    discard: () => void;
+  };
 }
 
 interface TileDrag {
@@ -379,6 +389,8 @@ interface Drag {
 
 export class DevicesLayoutController implements ReactiveController {
   record: LayoutRecord | null = null;
+  /** The first read of the record has answered (a record, or none): the editor may start from what is stored. */
+  loaded = false;
   editing = false;
   variant: LayoutVariant = 'desktop';
   selected: string | null = null;
@@ -474,6 +486,7 @@ export class DevicesLayoutController implements ReactiveController {
     } catch {
       this.record = null; // no layout (or no permission to read one): the automatic layout
     }
+    this.loaded = true;
     this.update();
   }
 
@@ -482,8 +495,14 @@ export class DevicesLayoutController implements ReactiveController {
     return isApi() && can('system.configure');
   }
 
-  get dirty(): boolean {
+  /** The layout itself was changed in this session. */
+  private get layoutDirty(): boolean {
     return this.editing && !!this.draft && JSON.stringify(this.draft) !== this.base;
+  }
+
+  /** Anything of this session is unsaved: the layout, or the screen's own edits (`extras`). */
+  get dirty(): boolean {
+    return this.layoutDirty || (this.editing && !!this.opts.extras?.dirty());
   }
 
   private viewVariant(): LayoutVariant {
@@ -935,6 +954,7 @@ export class DevicesLayoutController implements ReactiveController {
     this.tileSel = null;
     this.confirm = null;
     this.host.removeAttribute('data-lay-editing');
+    this.opts.extras?.discard(); // after a save the extras have already taken their saved values: discarding is then a no-op
   }
 
   cancel() {
@@ -954,11 +974,20 @@ export class DevicesLayoutController implements ReactiveController {
     this.error = '';
     this.update();
     const rev = this.record?.[this.variant]?.revision ?? 0;
+    const extras = this.opts.extras;
     try {
-      // written in the current schema (v 2: device tiles allowed); a 6b record is upgraded on its next save
-      this.record = await putLayout(this.opts.scope, this.opts.id(), this.variant, rev, { ...this.draft, v: LAYOUT_VERSION });
+      // the screen's own edits first; a refusal keeps the session open with its message
+      if (extras?.dirty()) await extras.save();
+      // a screen with its own edits stores the layout only when the layout itself changed (a title change must not pin
+      // the automatic layout); without them a save with nothing stored keeps storing the measured one, as before
+      const storeLayout = !extras || this.layoutDirty;
+      if (storeLayout) {
+        // written in the current schema (v 2: device tiles allowed); a 6b record is upgraded on its next save
+        this.record = await putLayout(this.opts.scope, this.opts.id(), this.variant, rev, { ...this.draft, v: LAYOUT_VERSION });
+      }
+      const phone = this.variant === 'phone';
       this.close();
-      this.note = this.variant === 'phone' ? 'פריסת הטלפון נשמרה לכל המשתמשים.' : 'הפריסה נשמרה לכל המשתמשים.';
+      this.note = !storeLayout ? 'השינויים נשמרו לכל המשתמשים.' : phone ? 'פריסת הטלפון נשמרה לכל המשתמשים.' : 'הפריסה נשמרה לכל המשתמשים.';
     } catch (err) {
       this.conflict = err instanceof ApiError && err.status === 409;
       this.error = this.conflict ? 'מישהו אחר שמר את הפריסה בינתיים. טענו אותה מחדש וערכו שוב.' : describeError(err);
@@ -1198,11 +1227,11 @@ export class DevicesLayoutController implements ReactiveController {
           <button type="button" data-layout-variant="phone" aria-pressed=${String(this.variant === 'phone')} ?disabled=${dirty && this.variant !== 'phone'} title=${dirty ? 'שמרו או בטלו קודם' : ''} @click=${() => this.switchVariant('phone')}>טלפון</button>
         </span>
         <span class="acts">
-          <sw-button size="sm" data-layout-cancel ?disabled=${this.busy} @click=${() => this.cancel()}>בטל</sw-button>
+          <sw-button size="sm" data-layout-cancel ?disabled=${this.busy} @click=${() => this.cancel()}>${dirty ? 'בטל' : 'סיום עריכה'}</sw-button>
           ${this.variant === 'phone' ? html`<sw-button size="sm" data-layout-phone-auto ?disabled=${this.busy || (!this.record?.phone && !dirty)} @click=${() => void this.phoneAuto()}>חזור לאוטומטי</sw-button>` : nothing}
           <sw-button size="sm" data-layout-reset ?disabled=${this.busy || (!this.record?.desktop && !this.record?.phone)} @click=${() => this.ask('reset')}>אפס לברירת מחדל</sw-button>
           ${areaScope ? html`<sw-button size="sm" icon="layers" data-layout-copy ?disabled=${this.busy || dirty || !this.record?.desktop} title=${dirty ? 'שמרו קודם' : !this.record?.desktop ? 'אין עדיין פריסה שמורה להעתקה' : ''} @click=${() => this.ask('copy')}>העתק לכל האזורים</sw-button>` : nothing}
-          <sw-button size="sm" variant="primary" icon="check" data-layout-save ?disabled=${this.busy || (!dirty && !!stored)} @click=${() => void this.save()}>שמור</sw-button>
+          <sw-button size="sm" variant="primary" icon="check" data-layout-save ?disabled=${this.busy || (!dirty && (!!stored || !!this.opts.extras))} @click=${() => void this.save()}>שמור</sw-button>
         </span>
         ${this.error ? html`<span class="lay-msg err" role="alert" data-layout-error>${this.error}${this.conflict ? html` <sw-button size="sm" variant="ghost" data-layout-reload @click=${() => void this.reloadAfterConflict()}>טען מחדש</sw-button>` : nothing}</span>` : nothing}
         ${this.note ? html`<span class="lay-msg" role="status">${this.note}</span>` : nothing}

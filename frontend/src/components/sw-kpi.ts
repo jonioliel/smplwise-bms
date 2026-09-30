@@ -30,6 +30,8 @@ export class SwKpi extends LitElement {
   /** A button: the whole tile is a button (the host's own click event carries the press). */
   @property({ type: Boolean }) action = false;
   @property({ type: Boolean }) expanded = false;
+  /** Compact layout: the icon sits at the END of the text block (the left side in Hebrew) instead of the start. */
+  @property({ type: Boolean, reflect: true, attribute: 'icon-end' }) iconEnd = false;
   /** Words added to the control's accessible name ("הצג ושלוט", "פתח"). */
   @property() hint = '';
 
@@ -136,6 +138,22 @@ export class SwKpi extends LitElement {
     :host([layout='compact']) .icon {
       inline-size: var(--sw-kpi-compact-icon, 32px);
       block-size: var(--sw-kpi-compact-icon, 32px);
+    }
+    /* owner 2026-09-30 (home screen): the icon at the end of the text block - the left side in Hebrew */
+    :host([layout='compact'][icon-end]) {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    :host([layout='compact'][icon-end]) .icon {
+      order: 2;
+    }
+    /* the value above its label: the text block stays narrow enough for a small tile */
+    :host([layout='compact'][icon-end]) .value,
+    :host([layout='compact'][icon-end]) .label {
+      display: block;
+      margin: 0;
+    }
+    :host([layout='compact'][icon-end]) .label {
+      line-height: 1.25;
     }
     /* the value and the label on one line; a long label wraps once, then ellipsis (the full text is the host's title) */
     :host([layout='compact']) .line {
