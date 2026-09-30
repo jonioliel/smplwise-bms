@@ -639,7 +639,9 @@ export class LiveWall extends LitElement {
     let fit: { cols: number; tile: number } | null = autoFit && !this.colsOverride ? autoFit : null;
     if (this.box.w && (this.colsOverride || !fit)) {
       // the same sizing as bestFit()'s own search (fitTile), only at the column count chosen above
-      const tile = this.fitTile(shown.map((c) => Math.min(spanOf(c), gridCols)), cols, this.box.w, this.box.h);
+      // a phone scrolls: with a manual column choice the tile is sized by WIDTH only (fitting the whole wall into the
+      // viewport height made a one-column wall of 11 cameras render as a narrow strip of small tiles - owner 2026-09-30)
+      const tile = this.fitTile(shown.map((c) => Math.min(spanOf(c), gridCols)), cols, this.box.w, window.innerWidth < 768 ? 0 : this.box.h);
       if (tile > 80 && Number.isFinite(tile)) fit = { cols, tile: Math.floor(tile) };
     }
     // The fitted tile width is what the browser really renders only when `.grid.fit`'s fixed columns apply - on a
