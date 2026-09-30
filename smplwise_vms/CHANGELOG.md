@@ -29,6 +29,11 @@
 - The embedded WisKey crops 3 px of its own edge so a focus ring inside it is not seen (the real fix is a WisKey change: the request is in docs/integrations/wiskey).
 - **WisKey stations can be members of a shared space** (visibility only, for holders of access.read); deleting a shared room is one confirmation
   ("בטל שיתוף ומחק"), and a mirror floor explains where to delete.
+### Standalone platform cameras (live)
+- **A platform camera that is not an NVR channel can be shown live** on a camera card, per camera and only after you opt it in (the picker offers it): the stream is
+  fetched through the platform's `stream_source` and served by go2rtc under the `smplwise_ha_` namespace, with the same slots and limits as the wall. If the stream
+  fails the card shows its picture and tries again after a minute. Sources are checked against an address policy before go2rtc is given them.
+- **After the update restart the platform once**: the bridge integration is 0.3.1 (the `stream_source` service).
 ### Other
 - **The legacy design B is removed**; design A is the only design (the `ui.design` setting is still accepted and ignored).
 - The bulk-safe checkbox (הגדרות › חשמל והתקנים › פעולה קבוצתית) shows the state it selects.
