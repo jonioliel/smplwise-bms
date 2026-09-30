@@ -2,8 +2,8 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { describeError } from '../api/client';
 import {
-  DIRECTION_LABEL, DIRECTION_LETTER, DIRECTIONS, HOME_PERSONAL_EVENT, loadHomeSettings, loadPersonal, moveWidget, PERSONAL_EMPTY, personalIsEmpty, savePersonal, SIZE_LABEL, SIZES, WIDGET_NAME,
-  type Direction, type HomeConfig, type HomePersonal, type Size, type WidgetId,
+  DIRECTION_LABEL, DIRECTION_LETTER, DIRECTIONS, HOME_PERSONAL_EVENT, PHONE_LAYOUT_LABEL, PHONE_LAYOUTS, loadHomeSettings, loadPersonal, moveWidget, PERSONAL_EMPTY, personalIsEmpty, savePersonal, SIZE_LABEL, SIZES, WIDGET_NAME,
+  type Direction, type HomeConfig, type HomePersonal, type PhoneLayout, type Size, type WidgetId,
 } from '../api/home';
 
 
@@ -156,6 +156,10 @@ export class SwHomePersonal extends LitElement {
     this.commit({ ...this.personal, direction: d });
   }
 
+  private setPhoneLayout(p: PhoneLayout | null) {
+    this.commit({ ...this.personal, phone_layout: p });
+  }
+
   private setOn(id: WidgetId, on: boolean) {
     const cur = { ...(this.personal.widgets[id] ?? {}) };
     if (on === this.base?.config[id].on) delete cur.on;
@@ -193,6 +197,13 @@ export class SwHomePersonal extends LitElement {
         <span class="seg" role="group" aria-labelledby="hp-dir">
           <button type="button" data-home-personal-dir="" aria-pressed=${String(this.personal.direction === null)} ?disabled=${this.busy} @click=${() => this.setDirection(null)}>ברירת מחדל</button>
           ${DIRECTIONS.map((x) => html`<button type="button" data-home-personal-dir=${x} aria-pressed=${String(this.personal.direction === x)} ?disabled=${this.busy} title=${DIRECTION_LABEL[x]} @click=${() => this.setDirection(x)}>${DIRECTION_LETTER[x]} · ${DIRECTION_LABEL[x]}</button>`)}
+        </span>
+      </div>
+      <div class="row" data-home-personal-phone>
+        <span class="lbl" id="hp-phone">בנייד</span>
+        <span class="seg" role="group" aria-labelledby="hp-phone">
+          <button type="button" data-home-personal-phone-layout="" aria-pressed=${String(this.personal.phone_layout === null)} ?disabled=${this.busy} @click=${() => this.setPhoneLayout(null)}>ברירת מחדל</button>
+          ${PHONE_LAYOUTS.map((p) => html`<button type="button" data-home-personal-phone-layout=${p} aria-pressed=${String(this.personal.phone_layout === p)} ?disabled=${this.busy} @click=${() => this.setPhoneLayout(p)}>${PHONE_LAYOUT_LABEL[p]}</button>`)}
         </span>
       </div>
       ${order.map((id, i) => {

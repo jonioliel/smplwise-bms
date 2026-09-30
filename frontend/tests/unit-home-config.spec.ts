@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   calendarText, clockParts, configBody, configOf, defaultConfig, forecastCount, gematria, forecastIsDaily, forecastLabel, forecastShown, hasValue, hebrewDate, homeViewOf, moveWidget, NO_DATA, previewData, resolveWidgets,
-  sameConfig, sinceText, suggestConfig, timeOfState, untilText, valueText, WIDGET_IDS,
+  sameConfig, sinceText, suggestConfig, timeOfState, untilText, valueText, WIDGET_IDS, widgetOn, widgetSize, PHONE_LAYOUT_DEFAULT,
   type HomeCandidates, type HomeData,
 } from '../src/api/home-config';
 import { moveId, orderFloors, personalBody, personalIsEmpty, personalOf, PERSONAL_EMPTY, homeSettingsOf, homePatch, HOME_DEFAULT } from '../src/api/home';
@@ -231,7 +231,63 @@ test.describe('home config', () => {
     expect(p.direction).toBe('c');
     expect(p.order).toEqual(['quick', 'clock', 'weather', 'shabbat', 'alarm']);
     expect(p.widgets).toEqual({ clock: { size: 's', on: false } });
-    expect(personalBody(p)).toEqual({ direction: 'c', order: p.order, widgets: p.widgets });
+    expect(personalBody(p)).toEqual({ direction: 'c', phone_layout: null, order: p.order, widgets: p.widgets });
+    expect(personalOf({ phone_layout: 'two' }).phone_layout).toBe('two');
+    expect(personalOf({ phone_layout: 'grid' }).phone_layout).toBeNull();
+    expect(personalIsEmpty(personalOf({ phone_layout: 'snap' }))).toBe(false);
     expect(personalOf({ direction: 'z' }).direction).toBeNull();
+  });
+
+
+  test('the phone: its own layout, on / off and size per widget, defaulting to the desktop capped at medium; old configs read with the defaults', () => {
+    const c = cfg();
+    expect(c.phone_layout).toBe(PHONE_LAYOUT_DEFAULT);
+    expect(PHONE_LAYOUT_DEFAULT).toBe('stack');
+    expect(WIDGET_IDS.every((w) => c[w].phone_on === null && c[w].phone_size === null)).toBe(true);
+    // an old config (saved before the phone keys) and a foreign value read as the defaults
+    const old = configOf({ order: [...WIDGET_IDS], clock: { on: true, sizes: { a: 'l', b: 'm', c: 'm' } } });
+    expect(old.phone_layout).toBe('stack');
+    expect(old.clock.phone_on).toBeNull();
+    expect(configOf({ phone_layout: 'grid', clock: { phone_on: 'yes', phone_size: 'xl' } }).clock.phone_size).toBeNull();
+    expect(configOf({ phone_layout: 'two', clock: { phone_on: false, phone_size: 's' } })).toMatchObject({ phone_layout: 'two', clock: { phone_on: false, phone_size: 's' } });
+    expect(configOf(configBody({ ...c, phone_layout: 'snap' })).phone_layout).toBe('snap');
+    // sizes: the desktop size of the direction, at most medium; an explicit phone size wins
+    expect(widgetSize(c.clock, 'a', false)).toBe('l');
+    expect(widgetSize(c.clock, 'a', true)).toBe('m'); // large on the desktop band, medium on a phone
+    expect(widgetSize(c.alarm, 'b', true)).toBe('s');
+    c.clock.phone_size = 'l';
+    expect(widgetSize(c.clock, 'a', true)).toBe('l');
+    expect(widgetSize(c.clock, 'a', false)).toBe('l');
+    c.clock.phone_size = 's';
+    expect(widgetSize(c.clock, 'a', true)).toBe('s');
+    expect(widgetSize(c.clock, 'a', false)).toBe('l'); // independent of the desktop
+    // on / off: the phone follows the desktop until it has its own
+    c.weather.on = false;
+    expect(widgetOn(c.weather, true)).toBe(false);
+    c.weather.phone_on = true;
+    expect(widgetOn(c.weather, true)).toBe(true);
+    expect(widgetOn(c.weather, false)).toBe(false); // a phone-only widget
+    c.alarm.phone_on = false;
+    expect(widgetOn(c.alarm, false)).toBe(true);
+    expect(widgetOn(c.alarm, true)).toBe(false); // a desktop-only widget
+  });
+
+  test('resolveWidgets on a phone: a widget hidden there takes no room, the sizes are the phone\'s, edit mode explains the hidden one', () => {
+    const c = cfg();
+    c.alarm.phone_on = false;
+    c.quick.phone_on = false;
+    c.weather.phone_size = 's';
+    const allowed = { lights_off: true, all_off: true };
+    const desktop = resolveWidgets(c, 'a', DATA, { quickAllowed: allowed });
+    expect(desktop.map((i) => `${i.id}:${i.size}`)).toEqual(['clock:l', 'weather:l', 'shabbat:m', 'alarm:m', 'quick:m']);
+    const phone = resolveWidgets(c, 'a', DATA, { quickAllowed: allowed, phone: true });
+    expect(phone.map((i) => `${i.id}:${i.size}`)).toEqual(['clock:m', 'weather:s', 'shabbat:m']); // no alarm, no quick, weather at its own size
+    const edit = resolveWidgets(c, 'a', DATA, { quickAllowed: allowed, phone: true, editing: true });
+    expect(edit.map((i) => `${i.id}:${i.avail}`)).toEqual(['clock:ok', 'weather:ok', 'shabbat:ok', 'alarm:off', 'quick:off']);
+    // a widget that is off on the desktop but on for the phone is drawn there only
+    c.shabbat.on = false;
+    c.shabbat.phone_on = true;
+    expect(resolveWidgets(c, 'a', DATA, { phone: true }).some((i) => i.id === 'shabbat')).toBe(true);
+    expect(resolveWidgets(c, 'a', DATA, {}).some((i) => i.id === 'shabbat')).toBe(false);
   });
 });

@@ -115,22 +115,18 @@ test.describe('home screen (demo data)', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   });
 
-  test('phone: the widgets are a horizontal snap row, the tiles view scrolls, has no tree and no horizontal overflow', async ({ page }, testInfo) => {
+  test('phone: the widgets are one card under the other (the phone default), the tiles view scrolls, has no tree and no horizontal overflow', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'the phone layout');
     await open(page, '/devices/building');
     await expect(page.locator('devices-building nav.tree')).toBeHidden();
     await expect(page.locator('devices-building a.tile[data-area="lobby"]')).toBeVisible();
     const hw = page.locator('devices-building home-widgets');
-    await expect(hw).toHaveAttribute('layout', 'snap');
-    const snap = await hw.locator('.wrap').evaluate((el) => {
-      const cs = getComputedStyle(el);
-      return { overflowX: cs.overflowX, snap: cs.scrollSnapType, canScroll: el.scrollWidth > el.clientWidth };
-    });
-    expect(snap.overflowX).toBe('auto');
-    expect(snap.snap).toContain('x');
-    expect(snap.canScroll).toBe(true);
+    await expect(hw).toHaveAttribute('layout', 'stack');
+    const boxes = await hw.locator('.wg').evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) })));
+    expect(boxes.length).toBeGreaterThanOrEqual(3);
+    for (let i = 1; i < boxes.length; i++) expect(boxes[i].y).toBeGreaterThan(boxes[i - 1].y + boxes[i - 1].h - 2); // one under the other
+    for (const b of boxes) expect(b.w).toBeGreaterThanOrEqual(340); // full width
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(0);
     await shot(page, 'home-tiles-390');
-  });
-});
+  });});
