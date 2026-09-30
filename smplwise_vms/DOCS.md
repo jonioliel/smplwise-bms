@@ -520,6 +520,15 @@ picture is sent anywhere yet.
   SMPLWISE screens, the other WisKey tabs show a short note, and "פתח ב-WisKey" switches the app itself to the WisKey
   panel. The same happens in a browser when Home Assistant asks for a login inside the
   embedded frame (for example after signing in without "keep me logged in").
+- WisKey start choices (WisKey 2.0.0-rc.37 and later): two options say how many cards the WisKey overview shows and how
+  many streams its camera wall opens with. Personal, per user and on every device: החשבון שלי › WisKey (overview cards:
+  default / automatic / 4 / 6 / 8 / 9 / 12; camera wall: default / 4 / 9 / 12). Installation defaults, administrator
+  only: הגדרות › מדיה, next to "גודל תצוגת WisKey" (`ui.wiskey_density`, `ui.wiskey_wall`). A personal choice wins over
+  the installation default; with neither, WisKey chooses (automatic overview, wall of 4). They are start choices: WisKey
+  reports nothing back when you change the count inside the panel, so that change lasts only until the panel is
+  loaded again; a change made in Arx reloads an open WisKey once. A wall of 12 needs enough active cameras and a
+  go2rtc, network and browser that carry that many streams (WisKey refuses a connection beyond 12). The framed panel
+  is also asked for a transparent, padding-free layout (`chrome=none`) so no dark border shows around it.
 - WisKey (access control) permissions: `access.read` (viewer and above) shows the entry center, the activity log and
   the people directory; `access.release` (site_admin and system_admin only, sensitive) covers the physical actions -
   door release, call answer / reject / hang up, announcements; `access.people.manage` (site_admin and system_admin

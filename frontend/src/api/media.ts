@@ -76,6 +76,10 @@ export interface ProductSettings {
    * 'fit' (rendered larger and scaled down by ui.wiskey_scale percent) or 'full' (the whole viewport, small exit). */
   'ui.wiskey_size'?: 'normal' | 'fit' | 'full';
   'ui.wiskey_scale'?: '100' | '90' | '80' | '70';
+  /** WisKey rc.37 installation defaults for the panel's `density` (overview cards) and `wall` (camera-wall streams)
+   * parameters; 'auto' (default) leaves the parameter out. A user's own choice (החשבון שלי) wins. */
+  'ui.wiskey_density'?: 'auto' | '4' | '6' | '8' | '9' | '12';
+  'ui.wiskey_wall'?: 'auto' | '4' | '9' | '12';
   /** 'true' (experimental, default 'false') embeds WisKey inside the Home Assistant Companion app too, relaying the
    * app's sign-in bridge into the frame (wiskey/companion-bridge.ts). */
   'access.phone_embed'?: string;

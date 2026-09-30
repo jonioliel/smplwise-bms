@@ -61,6 +61,24 @@ def test_wiskey_size_defaults_to_normal_validates_audits_and_is_admin_only(setti
         assert c.patch("/api/v1/settings", json={"ui.wiskey_size": "fit"}, headers=as_user("ron")).status_code == 403
 
 
+def test_wiskey_density_and_wall_installation_defaults_validate_and_are_admin_only(settings):
+    """WisKey rc.37: the installation's start choices for the embedded panel (`density` cards, `wall` streams)."""
+    app = create_app(settings)
+    with TestClient(app) as c:
+        s = c.get("/api/v1/settings").json()["settings"]
+        assert s["ui.wiskey_density"] == "auto" and s["ui.wiskey_wall"] == "auto"
+        r = c.patch("/api/v1/settings", json={"ui.wiskey_density": "12", "ui.wiskey_wall": "9"})
+        assert r.status_code == 200, r.text
+        assert r.json()["settings"]["ui.wiskey_density"] == "12" and r.json()["settings"]["ui.wiskey_wall"] == "9"
+        for ok in ("auto", "4", "6", "8", "9", "12"):
+            assert c.patch("/api/v1/settings", json={"ui.wiskey_density": ok}).status_code == 200
+        for bad in ({"ui.wiskey_density": "5"}, {"ui.wiskey_density": ""}, {"ui.wiskey_density": "12%"}, {"ui.wiskey_wall": "6"}, {"ui.wiskey_wall": "8"}, {"ui.wiskey_wall": "13"}):
+            assert c.patch("/api/v1/settings", json=bad).status_code == 422, bad
+        assert c.get("/api/v1/settings").json()["settings"]["ui.wiskey_density"] == "12"
+        bind(c, settings, "ron", "viewer", "installation", "*")
+        assert c.patch("/api/v1/settings", json={"ui.wiskey_wall": "12"}, headers=as_user("ron")).status_code == 403
+
+
 def test_access_ui_screen_choice_defaults_to_the_embedded_panel_and_is_audited(settings):
     """CR-005 recorded decision 2026-09-28 (embedded panel): הגדרות › בקרות כניסה chooses, per SMPLWISE WisKey screen,
     between WisKey's own panel embedded as-is ("wiskey", the default) and the SMPLWISE screen ("smplwise")."""

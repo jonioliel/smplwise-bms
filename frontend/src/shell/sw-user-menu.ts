@@ -3,6 +3,9 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-avatar';
 import '../components/sw-icon';
 import '../components/sw-remote-sessions';
+import './sw-wiskey-prefs';
+import { can } from '../api/session';
+import { WISKEY_HIDDEN } from './nav';
 import { REMOTE } from '../arx/pre-gate';
 import { logout as arxLogout } from '../arx/auth';
 import { inAndroidApp, switchServer } from '../arx/android-app';
@@ -46,6 +49,8 @@ export class SwUserMenu extends LitElement {
   @state() private level: 'main' | 'account' = 'main';
   /** The sign-ins list loads only while its section is open (it asks the server). */
   @state() private sessionsOpen = false;
+  /** The WisKey start choices section (WisKey rc.37) loads only while it is open. */
+  @state() private wiskeyOpen = false;
 
   static styles = css`
     :host {
@@ -361,6 +366,7 @@ export class SwUserMenu extends LitElement {
     if (changed.has('open') && this.open) {
       this.level = 'main';
       this.sessionsOpen = false;
+      this.wiskeyOpen = false;
     }
   }
 
@@ -373,13 +379,15 @@ export class SwUserMenu extends LitElement {
 
   private accountItems() {
     const android = inAndroidApp();
-    return { order: !this.gated, prefs: !this.gated, sessions: this.api, android };
+    // WisKey rc.37: the user's own start choices of the embedded panel - only for a user who may see the WisKey area
+    const wiskey = this.api && !this.gated && !WISKEY_HIDDEN && can('access.read');
+    return { order: !this.gated, prefs: !this.gated, sessions: this.api, android, wiskey };
   }
 
   private renderMain() {
     const alerts = this.alerts;
     const acc = this.accountItems();
-    const hasAccount = acc.order || acc.prefs || acc.sessions || acc.android;
+    const hasAccount = acc.order || acc.prefs || acc.sessions || acc.android || acc.wiskey;
     return html`
       <header data-user-menu-header>
         <sw-avatar name=${this.name} size=${40}></sw-avatar>
@@ -429,6 +437,12 @@ export class SwUserMenu extends LitElement {
         ${acc.prefs
           ? html`<li><a href="#/system/notifications" data-menu-notify-prefs @click=${(e: MouseEvent) => this.go(e)}>
               <span class="ic"><sw-icon name="bellSettings" size=${18}></sw-icon></span><span class="txt">הגדרות התראות</span></a></li>`
+          : nothing}
+        ${acc.wiskey
+          ? html`<li><details data-my-wiskey @toggle=${(e: Event) => (this.wiskeyOpen = (e.currentTarget as HTMLDetailsElement).open)}>
+              <summary><span class="ic"><sw-icon name="door" size=${18}></sw-icon></span><span class="txt">WisKey</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
+              <div class="sessions">${this.open && this.wiskeyOpen ? html`<sw-wiskey-prefs></sw-wiskey-prefs>` : nothing}</div>
+            </details></li>`
           : nothing}
         ${acc.sessions
           ? html`<li><details data-my-sessions @toggle=${(e: Event) => (this.sessionsOpen = (e.currentTarget as HTMLDetailsElement).open)}>

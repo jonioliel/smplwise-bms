@@ -25,6 +25,7 @@ import { KIND_LABEL, TABLE_LABEL, backupDownloadUrl, createBackup, deleteBackup,
 import '../components/sw-dialog';
 import { STATUS_KIND, STATUS_LABEL, fmtUptime, healthReport, type HealthReport } from '../api/health';
 import { applyWiskeyUi, applyWiskeyHidden, applySnapshotHidden, type WiskeyScreen } from '../shell/nav';
+import { setInstallWiskeyView } from '../wiskey/wiskey-prefs';
 import { getSkinsStatus, runSkinsTest, type SkinsStatus, type SkinsTestResult } from '../api/skins';
 import { devicesPrefsOf, type DevicesStyle } from './devices-style';
 import './devices-theme-picker';
@@ -595,6 +596,7 @@ export class SystemDiagnostics extends LitElement {
       this.draft = {};
       invalidateSettings();
       applyWiskeyUi(r.settings as unknown as Record<string, unknown>); // the WisKey tabs follow at once, no reload
+      setInstallWiskeyView(r.settings as unknown as Record<string, unknown>); // WisKey rc.37: the installation's density / wall defaults
       applyWiskeyHidden(r.settings as unknown as Record<string, unknown>); // ditto for a direct URL landing on "not available"
       applySnapshotHidden(r.settings as unknown as Record<string, unknown>); // ui.security_snapshot: the live overview tab follows
       this.message = 'ההגדרות נשמרו';
@@ -727,6 +729,14 @@ export class SystemDiagnostics extends LitElement {
                 ${(['100', '90', '80', '70'] as const).map((v) => html`<option value=${v} ?selected=${String(this.value('ui.wiskey_scale') ?? '90') === v}>${v}%</option>`)}
               </select></sw-field></div>`
           : nothing}
+        <div class="row"><span class="lbl">מספר כרטיסים בסקירת WisKey<span class="muted">נקודת הפתיחה בכל טעינה; משתמש יכול לבחור אחרת בחשבון שלו. שינוי בתוך WisKey אינו נשמר. אוטומטי: WisKey מחליט לפי הגודל הפנוי</span></span>
+          <sw-field class="ctl"><select data-set-wiskey-density ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.wiskey_density', (e.target as HTMLSelectElement).value as ProductSettings['ui.wiskey_density'])}>
+            ${(['auto', '4', '6', '8', '9', '12'] as const).map((v) => html`<option value=${v} ?selected=${String(this.value('ui.wiskey_density') ?? 'auto') === v}>${v === 'auto' ? 'אוטומטי' : v}</option>`)}
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">מספר מצלמות בקיר WisKey<span class="muted">נקודת הפתיחה של קיר המצלמות; משתמש יכול לבחור אחרת בחשבון שלו. ברירת מחדל: 4 (12 דורש מספיק מצלמות פעילות ורוחב פס)</span></span>
+          <sw-field class="ctl"><select data-set-wiskey-wall ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.wiskey_wall', (e.target as HTMLSelectElement).value as ProductSettings['ui.wiskey_wall'])}>
+            ${(['auto', '4', '9', '12'] as const).map((v) => html`<option value=${v} ?selected=${String(this.value('ui.wiskey_wall') ?? 'auto') === v}>${v === 'auto' ? 'ברירת מחדל' : v}</option>`)}
+          </select></sw-field></div>
         ${NVR ? nothing : html`<div class="row"><span class="lbl">HA recorder כמקור משני להיסטוריה<span class="muted">במפה ההיסטורית: כשההיסטוריה המקומית לא יודעת מצב של ישות, הוא נקרא מה־recorder של Home Assistant ומסומן כמקור משני</span></span>
           <sw-field class="ctl"><select data-set-ha-secondary ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('history.ha_secondary', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('history.ha_secondary') ?? 'false') !== 'true'}>כבוי</option><option value="true" ?selected=${String(this.value('history.ha_secondary') ?? 'false') === 'true'}>פעיל</option>

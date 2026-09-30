@@ -65,3 +65,61 @@ def test_unreadable_row_is_the_default(settings):
         conn.execute("INSERT INTO user_prefs(user_id, key, value_json, updated_at) VALUES (?, 'nav.order', '{broken', '2026-09-30T00:00:00Z')", (me,))
     body = c.get("/api/v1/me/prefs").json()
     assert body["prefs"]["nav.order"] == DEFAULT and body["stored"] == []
+
+
+def test_wiskey_start_choices_default_null_validate_normalize_and_reset(client: TestClient):
+    """WisKey rc.37: `wiskey.density` (auto|4|6|8|9|12) and `wiskey.wall` (4|9|12) are the user's own start choices for the
+    embedded panel; null = follow the installation's default."""
+    body = client.get("/api/v1/me/prefs").json()
+    assert body["prefs"]["wiskey.density"] is None and body["prefs"]["wiskey.wall"] is None and body["stored"] == []
+
+    r = client.put("/api/v1/me/prefs", json={"wiskey.density": 12, "wiskey.wall": "9"})  # a number and a string are the same value
+    assert r.status_code == 200, r.text
+    assert r.json()["prefs"]["wiskey.density"] == "12" and r.json()["prefs"]["wiskey.wall"] == "9"
+    assert sorted(r.json()["stored"]) == ["wiskey.density", "wiskey.wall"]
+    assert client.put("/api/v1/me/prefs", json={"wiskey.density": "auto"}).json()["prefs"]["wiskey.density"] == "auto"
+    for ok in ("4", "6", "8", "9", "12", "auto"):
+        assert client.put("/api/v1/me/prefs", json={"wiskey.density": ok}).json()["prefs"]["wiskey.density"] == ok
+    for ok in ("4", "9", "12"):
+        assert client.put("/api/v1/me/prefs", json={"wiskey.wall": ok}).json()["prefs"]["wiskey.wall"] == ok
+
+    # a partial update does not touch the other keys; an empty body changes nothing
+    client.put("/api/v1/me/prefs", json={"nav.order": ["wiskey"]})
+    assert client.put("/api/v1/me/prefs", json={"wiskey.wall": "4"}).json()["prefs"]["wiskey.density"] == "auto"
+    assert client.put("/api/v1/me/prefs", json={}).json()["prefs"]["wiskey.wall"] == "4"
+
+    # reset one key: back to the installation's default (null); the others stay
+    r = client.put("/api/v1/me/prefs", json={"wiskey.density": None})
+    assert r.json()["prefs"]["wiskey.density"] is None and r.json()["prefs"]["wiskey.wall"] == "4"
+    assert "wiskey.density" not in r.json()["stored"] and "wiskey.wall" in r.json()["stored"]
+
+
+def test_wiskey_start_choices_reject_anything_else(client: TestClient):
+    for bad in ({"wiskey.density": "5"}, {"wiskey.density": 3}, {"wiskey.density": ""}, {"wiskey.density": "12px"}, {"wiskey.density": True},
+                {"wiskey.density": ["12"]}, {"wiskey.density": {"n": 12}}, {"wiskey.wall": "auto"}, {"wiskey.wall": "6"}, {"wiskey.wall": "8"},
+                {"wiskey.wall": 16}, {"wiskey.wall": "9 "+"x"}, {"wiskey.wall": [9]}):
+        assert client.put("/api/v1/me/prefs", json=bad).status_code == 422, bad
+    assert client.get("/api/v1/me/prefs").json()["stored"] == []  # nothing was stored
+
+
+def test_wiskey_start_choices_are_per_user(settings):
+    c = TestClient(create_app(settings))
+    c.get("/api/v1/me")
+    bind(c, settings, "dana", "viewer", "installation", "*")
+    assert c.put("/api/v1/me/prefs", json={"wiskey.density": "8", "wiskey.wall": "12"}).status_code == 200
+    dana = c.get("/api/v1/me/prefs", headers=as_user("dana")).json()
+    assert dana["prefs"]["wiskey.density"] is None and dana["prefs"]["wiskey.wall"] is None
+    assert c.put("/api/v1/me/prefs", headers=as_user("dana"), json={"wiskey.density": "4"}).json()["prefs"]["wiskey.density"] == "4"
+    joni = c.get("/api/v1/me/prefs").json()["prefs"]
+    assert joni["wiskey.density"] == "8" and joni["wiskey.wall"] == "12"
+
+
+def test_an_unreadable_stored_wiskey_choice_is_the_default_not_an_error(settings):
+    app = create_app(settings)
+    with TestClient(app) as c:
+        me = c.get("/api/v1/me").json()
+        uid = me["user_id"] if "user_id" in me else me["user"]["id"]
+        with app.state.db.connection() as conn:
+            conn.execute("INSERT INTO user_prefs(user_id, key, value_json, updated_at) VALUES (?,?,?,?)", (uid, "wiskey.density", '"7"', "2026-01-01T00:00:00Z"))
+        body = c.get("/api/v1/me/prefs").json()
+        assert body["prefs"]["wiskey.density"] is None and "wiskey.density" not in body["stored"]

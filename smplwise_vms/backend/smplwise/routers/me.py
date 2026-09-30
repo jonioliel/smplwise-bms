@@ -76,6 +76,8 @@ class PrefsPatch(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     nav_order: list[Any] | None = Field(default=None, alias="nav.order", max_length=user_prefs.MAX_LIST)
+    wiskey_density: str | int | None = Field(default=None, alias="wiskey.density")  # WisKey rc.37 overview card count
+    wiskey_wall: str | int | None = Field(default=None, alias="wiskey.wall")  # WisKey rc.37 camera-wall stream budget
 
 
 @router.get("/me/prefs")

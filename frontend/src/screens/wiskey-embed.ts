@@ -10,6 +10,8 @@ import { parseRoute, pushRoute, replaceRoute } from '../router';
 import { WISKEY_PHONE_EMBED, WISKEY_SCALE, WISKEY_SCREENS, WISKEY_SIZE, WISKEY_SIZE_EVENT, WISKEY_UI, isWiskeyHref, setWiskeyEmbedNav, wiskeyPath, wiskeyRequest, wiskeyRoute, wiskeySegmentOf, type WiskeyScreen } from '../shell/nav';
 import { attachWiskey, WISKEY_PANEL_PATH, WISKEY_PANEL_TAG, type WiskeyCatalog, type WiskeyConnector, type WiskeyLocation } from '../wiskey/embed-connector';
 import { attachCompanionBridge, bridgeWindow, type CompanionBridge, type ShimState } from '../wiskey/companion-bridge';
+import { currentWiskeyView, refreshWiskeyView, whenWiskeyViewLoaded, wiskeyViewLoaded, WISKEY_VIEW_EVENT } from '../wiskey/wiskey-prefs';
+import { sameWiskeyView, type WiskeyView } from '../wiskey/embed-view';
 import './wiskey-overview';
 import './wiskey-events';
 import './wiskey-people';
@@ -24,7 +26,11 @@ import './wiskey-people';
  * session - WisKey's permissions and audit apply inside it, not SMPLWISE's. HA sends `X-Frame-Options: SAMEORIGIN`.
  *
  * WisKey embed API v1 (WisKey 2.0.0-rc.19+, `docs/integrations/wiskey/embed-api-v1/WISKEY_EMBED_API_V1.md`) first:
- * the frame opens `/hikvision-intercom?embed=1&tab=<tab>[&tool=<tool>]` through the typed connector
+ * the frame opens `/hikvision-intercom?embed=1&chrome=none&tab=<tab>[&tool=<tool>][&density=<n>][&wall=<n>]` (WisKey rc.37:
+ * `chrome=none` = transparent, zero main padding; `density` / `wall` = the user's, else the installation's start choice of
+ * the overview cards / camera-wall streams, wiskey/wiskey-prefs.ts - WisKey stores nothing and does not report a change
+ * made inside the panel, so a change made in Arx reloads the frame once and a change inside the panel lasts until the
+ * next load) through the typed connector
  * (`wiskey/embed-connector.ts`, the reference adapter ported). WisKey omits its own toolbar and handles Home Assistant's
  * sidebar itself; this screen dispatches NO `hass-kiosk-mode` and calls NO panel method on that path. `wiskey:ready`
  * brings the catalog the WisKey tab row is built from (nav.ts `setWiskeyEmbedNav`), a SMPLWISE tab click becomes a
@@ -269,6 +275,11 @@ export class WiskeyEmbed extends LitElement {
   @state() private unsupportedVersion = '';
   /** A new value renders a fresh iframe element (a retry, or coming back after the module was left). */
   @state() private frameKey = 0;
+  /** WisKey rc.37 `density` / `wall` start choices (user, else installation): the frame opens only once they are known
+   * (or after a short wait), so it is never loaded twice for them. */
+  @state() private viewReady = wiskeyViewLoaded();
+  /** The view the frame's address carried when it was last opened or reloaded. */
+  private loadedView: WiskeyView | null = null;
   /** Set when this tab does not nest Home Assistant (reflected for the evidence specs and the host style). */
   @property({ reflect: true, attribute: 'data-direct' }) direct: DirectReason = '';
   private forbidden = false;
@@ -496,6 +507,9 @@ export class WiskeyEmbed extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     window.addEventListener(WISKEY_SIZE_EVENT, this.onSize);
+    window.addEventListener(WISKEY_VIEW_EVENT, this.onView);
+    if (!this.viewReady) void whenWiskeyViewLoaded().then(() => (this.viewReady = true));
+    else void refreshWiskeyView(); // known already: a change made elsewhere reloads the frame once (onView)
     if (isApi() && !can('access.read')) {
       this.forbidden = true;
       return;
@@ -523,6 +537,7 @@ export class WiskeyEmbed extends LitElement {
     super.disconnectedCallback();
     window.removeEventListener('click', this.onClick, true);
     window.removeEventListener(WISKEY_SIZE_EVENT, this.onSize);
+    window.removeEventListener(WISKEY_VIEW_EVENT, this.onView);
     this.fullLeft = false;
     this.setFullActive(false);
     this.dropFrame();
@@ -532,6 +547,13 @@ export class WiskeyEmbed extends LitElement {
   // ------------------------------------------------------------------ size (ui.wiskey_size)
 
   private onSize = () => this.requestUpdate();
+
+  /** The user's (or the installation's) start choice changed while the frame is open: WisKey reads `density` / `wall`
+   * from its address only, so the panel is reopened once, on the tab/tool it shows now (the connector's refresh). */
+  private onView = () => {
+    if (this.forbidden || this.direct || !this.connector || !this.loadedView) return;
+    if (!sameWiskeyView(this.loadedView, currentWiskeyView())) this.reload();
+  };
 
   /** The size in force: only a framed embed is ever resized; "מסך מלא" left for this visit is the normal size. */
   private size(): 'normal' | 'fit' | 'full' {
@@ -606,8 +628,10 @@ export class WiskeyEmbed extends LitElement {
     // the relay watches the frame from before its address is assigned (the connector assigns it right away)
     this.bridge?.dispose();
     this.bridge = this.phoneRelay ? attachCompanionBridge(f, (s) => this.onShim(s)) : null;
+    this.loadedView = currentWiskeyView();
     this.connector = attachWiskey(f, {
       initial: this.opened,
+      view: () => (this.loadedView = currentWiskeyView()), // asked again on every refresh: a reload carries the newest choice
       extraParams: this.bridge ? { external_auth: '1' } : undefined,
       onReady: (c) => this.onReady(c),
       onLocation: (l) => this.onLocation(l),
@@ -1155,25 +1179,27 @@ export class WiskeyEmbed extends LitElement {
         : nothing}
       ${this.renderTools()}
       <div class="stage" ?data-fit=${size === 'fit'} style=${size === 'fit' ? `--wk-scale:${WISKEY_SCALE / 100}` : ''}>
-        ${keyed(
-          this.frameKey,
-          html`<iframe
-            data-wiskey-embed-frame
-            data-phase=${this.phase}
-            data-embed-mode=${this.mode}
-            data-chrome=${this.chrome}
-            data-tab-applied=${this.tabApplied === null ? '' : String(this.tabApplied)}
-            data-confirmed-tab=${confirmed?.tab ?? ''}
-            data-confirmed-tool=${confirmed?.tool ?? ''}
-            data-companion-shim=${this.shim}
-            title=${`WisKey · ${heading}`}
-            data-wiskey-embed-title=${heading}
-            ?data-hidden=${failed}
-            allow="autoplay; microphone; camera; fullscreen; clipboard-write"
-            allowfullscreen
-            @load=${() => this.onLoad()}
-          ></iframe>`,
-        )}
+        ${!this.viewReady
+          ? nothing
+          : keyed(
+              this.frameKey,
+              html`<iframe
+                data-wiskey-embed-frame
+                data-phase=${this.phase}
+                data-embed-mode=${this.mode}
+                data-chrome=${this.chrome}
+                data-tab-applied=${this.tabApplied === null ? '' : String(this.tabApplied)}
+                data-confirmed-tab=${confirmed?.tab ?? ''}
+                data-confirmed-tool=${confirmed?.tool ?? ''}
+                data-companion-shim=${this.shim}
+                title=${`WisKey · ${heading}`}
+                data-wiskey-embed-title=${heading}
+                ?data-hidden=${failed}
+                allow="autoplay; microphone; camera; fullscreen; clipboard-write"
+                allowfullscreen
+                @load=${() => this.onLoad()}
+              ></iframe>`,
+            )}
         ${notes.length ? html`<div class="status" role="status" data-wiskey-embed-status>${notes}</div>` : nothing}
         ${this.phase === 'loading' ? html`<div class="over"><sw-state-panel state="loading" heading="טוען את WisKey…" hint="הלוח נטען בתוך המסך; בפעם הראשונה זה לוקח כמה שניות."></sw-state-panel></div>` : nothing}
         ${failed ? this.renderError() : nothing}

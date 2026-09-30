@@ -1,4 +1,4 @@
-import { test, expect, type Frame, type Page, type Route } from '@playwright/test';
+import { test, expect, request as pwRequest, type Frame, type Page, type Route } from '@playwright/test';
 import { setAccessUi, setWiskeySize, type AccessUi, type WiskeySizeSetting } from './wiskey-ui-mode';
 import { FAKE_CATALOG, PANEL_URL, stubPanel, type FakeCatalog } from './wiskey-fake-ha';
 
@@ -7,7 +7,7 @@ import { FAKE_CATALOG, PANEL_URL, stubPanel, type FakeCatalog } from './wiskey-f
 // the three screens SMPLWISE built back to its own screen, and WisKey's other screens are embedded-only tabs.
 //
 // WisKey embed API v1 (WisKey 2.0.0-rc.19, docs/integrations/wiskey/embed-api-v1/): the frame opens
-// `/hikvision-intercom?embed=1&tab=…&tool=…`, the tab row is built from `wiskey:ready`, a tab click is a
+// `/hikvision-intercom?embed=1&chrome=none&tab=…&tool=…`, the tab row is built from `wiskey:ready`, a tab click is a
 // `wiskey:navigate` message, the tab row and SMPLWISE's address follow the CONFIRMED `wiskey:location`, and SMPLWISE
 // dispatches no kiosk event and calls no panel method. The older adapter runs only when the panel carries no
 // `data-embed-api` marker 12 s after the load.
@@ -182,7 +182,7 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     const origin = new URL(page.url()).origin;
     await expect(frame).toHaveAttribute('data-embed-mode', 'v1', { timeout: 15000 });
     await expect(frame).toHaveAttribute('data-phase', 'ready');
-    expect(hits).toEqual([`${origin}/hikvision-intercom?embed=1&tab=users`]); // the origin, never the Ingress path
+    expect(hits).toEqual([`${origin}/hikvision-intercom?embed=1&chrome=none&tab=users`]); // the origin, never the Ingress path
     await expect(frame).toHaveAttribute('data-confirmed-tab', 'users');
     await expect(page.locator('wiskey-people')).toHaveCount(0);
 
@@ -243,7 +243,7 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await expect(activeTab(page)).toHaveAttribute('href', '#/wiskey/tools');
     await expect(page.locator('wiskey-embed nav[data-wiskey-tools] a[aria-current="page"]')).toHaveAttribute('data-wiskey-tool', 'media_options');
     st = await frameState(page);
-    expect(st.search).toBe('?embed=1&tab=tools&tool=media_options'); // WisKey keeps its own URL canonical
+    expect(st.search).toBe('?embed=1&chrome=none&tab=tools&tool=media_options'); // WisKey keeps its own URL canonical
     const sent = st.received.filter((m) => m.type === 'wiskey:navigate').length;
 
     // back / forward in SMPLWISE re-send the navigation; the mirror itself never does (no echo)
@@ -441,7 +441,7 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     // Home Assistant reloads its frontend inside the frame: the remounted panel's ready is accepted
     await panelFrame(page).evaluate(() => location.reload()).catch(() => undefined);
     await expect.poll(() => hits.length).toBe(2);
-    expect(hits[1]).toMatch(/\/hikvision-intercom\?embed=1&tab=sync$/); // WisKey's own replaced URL
+    expect(hits[1]).toMatch(/\/hikvision-intercom\?embed=1&chrome=none&tab=sync$/); // WisKey's own replaced URL
     await expect.poll(async () => { try { return (await frameState(page)).loads; } catch { return 0; } }).toBe(1);
     await expect(frame).toHaveAttribute('data-embed-mode', 'v1', { timeout: 15000 });
     await expect(frame).toHaveAttribute('data-confirmed-tab', 'sync');
@@ -473,7 +473,7 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await page.goBack();
     await expect(frame).toHaveAttribute('data-embed-mode', 'v1', { timeout: 15000 });
     expect(hits).toHaveLength(2);
-    expect(hits[1]).toMatch(/\/hikvision-intercom\?embed=1&tab=tools&tool=media_options$/);
+    expect(hits[1]).toMatch(/\/hikvision-intercom\?embed=1&chrome=none&tab=tools&tool=media_options$/);
     expect((await frameState(page)).loads).toBe(1);
   });
 
@@ -520,7 +520,7 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
 
     await open(page, '/wiskey/overview');
     const frame = page.locator(FRAME);
-    await expect(frame).toHaveAttribute('src', /\/hikvision-intercom\?embed=1&tab=overview$/, { timeout: 30000 });
+    await expect(frame).toHaveAttribute('src', /\/hikvision-intercom\?embed=1&chrome=none&tab=overview$/, { timeout: 30000 });
     await expect(page.locator('wiskey-overview')).toHaveCount(0);
     // before the discovery: nothing is done to the frame
     await page.waitForTimeout(5000);
@@ -567,13 +567,13 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
 
     // a direct address: the frame carries the tab, the adapter applies it once the discovery said "older WisKey"
     await open(page, '/wiskey/people');
-    await expect(page.locator(FRAME)).toHaveAttribute('src', /\/hikvision-intercom\?embed=1&tab=users$/, { timeout: 30000 });
+    await expect(page.locator(FRAME)).toHaveAttribute('src', /\/hikvision-intercom\?embed=1&chrome=none&tab=users$/, { timeout: 30000 });
     // (the frame's address commits a moment after its src is assigned: a poll that throws on "no frame yet" is a race)
     await expect.poll(async () => { try { return (await frameState(page)).tab; } catch { return null; } }, { timeout: LEGACY_MS }).toBe('users');
     expect((await frameState(page)).navigates).toBe(1); // one call, after the panel's session loaded - no retry storm
     for (const [seg, tab] of [['events', 'events'], ['devices', 'devices'], ['health', 'health'], ['audit', 'audit'], ['tools', 'tools']]) {
       await open(page, `/wiskey/${seg}`);
-      await expect(page.locator(FRAME)).toHaveAttribute('src', new RegExp(`/hikvision-intercom\\?embed=1&tab=${tab}$`), { timeout: 30000 });
+      await expect(page.locator(FRAME)).toHaveAttribute('src', new RegExp(`/hikvision-intercom\\?embed=1&chrome=none&tab=${tab}$`), { timeout: 30000 });
     }
   });
 
@@ -903,6 +903,33 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await setWiskeySize(testInfo.project.use.baseURL, { 'ui.wiskey_size': 'normal', 'ui.wiskey_scale': '90' });
   });
 
+  test('rc.37 הגדרות › מדיה: the installation defaults for the overview cards and the camera wall (default: automatic), saved installation-wide', async ({ page, request }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop only');
+    const base = testInfo.project.use.baseURL;
+    await setWiskeyView(base, { install: ['auto', 'auto'], own: [null, null] });
+    try {
+      await open(page, '/system/diagnostics?tab=media');
+      const density = page.locator('system-diagnostics [data-set-wiskey-density]');
+      const wall = page.locator('system-diagnostics [data-set-wiskey-wall]');
+      await expect(density).toBeVisible({ timeout: 30000 });
+      expect(await density.locator('option').allTextContents()).toEqual(['אוטומטי', '4', '6', '8', '9', '12']);
+      expect(await wall.locator('option').allTextContents()).toEqual(['ברירת מחדל', '4', '9', '12']);
+      await expect(density).toHaveValue('auto');
+      await expect(wall).toHaveValue('auto');
+      await density.selectOption('9');
+      await wall.selectOption('12');
+      await page.locator('system-diagnostics .foot sw-button[variant="primary"] button').first().click();
+      await expect.poll(async () => { const s = (await (await request.get('/api/v1/settings')).json()).settings; return `${s['ui.wiskey_density']}/${s['ui.wiskey_wall']}`; }).toBe('9/12');
+      // and the next opening of WisKey carries them (no choice of the user's own)
+      const { hits } = await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
+      await open(page, '/wiskey/camera_wall');
+      await expect(page.locator(FRAME)).toHaveAttribute('data-embed-mode', 'v1', { timeout: 15000 });
+      expect(new URL(hits[hits.length - 1]).search).toBe('?embed=1&chrome=none&tab=camera_wall&density=9&wall=12');
+    } finally {
+      await setWiskeyView(base, { install: ['auto', 'auto'], own: [null, null] });
+    }
+  });
+
   test('הגדרות › בקרות כניסה switches one tab between the embed and the SMPLWISE screen', async ({ page, request }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'desktop only');
     await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
@@ -1092,4 +1119,114 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await expect.poll(() => hash(page)).toBe('#/wiskey/devices?wiskey_tab=devices');
     await expect(page.locator('sw-app .bottom-overflow')).toBeVisible();
   });
+
+  // ------------------------------------------------------------------ WisKey rc.37: chrome=none, density and wall
+
+  test('rc.37: the address carries chrome=none and the start choices - the user\'s own, else the installation\'s, else none', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop only');
+    const base = testInfo.project.use.baseURL;
+    const { hits } = await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
+    const last = () => new URL(hits[hits.length - 1]);
+    const cases: { install: [string, string]; own: [string | null, string | null]; expected: string }[] = [
+      { install: ['auto', 'auto'], own: [null, null], expected: '?embed=1&chrome=none&tab=overview' },
+      { install: ['12', '9'], own: [null, null], expected: '?embed=1&chrome=none&tab=overview&density=12&wall=9' },
+      { install: ['12', '9'], own: ['6', null], expected: '?embed=1&chrome=none&tab=overview&density=6&wall=9' },
+      { install: ['12', '9'], own: ['auto', '4'], expected: '?embed=1&chrome=none&tab=overview&wall=4' }, // "אוטומטי" leaves the density out
+      { install: ['12', 'auto'], own: [null, null], expected: '?embed=1&chrome=none&tab=overview&density=12' },
+      { install: ['auto', '12'], own: ['9', '9'], expected: '?embed=1&chrome=none&tab=overview&density=9&wall=9' },
+    ];
+    try {
+      for (const c of cases) {
+        await setWiskeyView(base, { install: c.install, own: c.own });
+        const before = hits.length;
+        await open(page, '/wiskey/overview');
+        await expect(page.locator(FRAME)).toHaveAttribute('data-embed-mode', 'v1', { timeout: 15000 });
+        expect(hits.length).toBe(before + 1); // the frame is opened once, with the choices already in its address
+        expect(last().search).toBe(c.expected);
+        expect(last().origin).toBe(new URL(page.url()).origin);
+      }
+    } finally {
+      await setWiskeyView(base, { install: ['auto', 'auto'], own: [null, null] });
+    }
+  });
+
+  test('rc.37: החשבון שלי › WisKey keeps the choice on the server per user and reloads an open frame once, on the tab it shows', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop only');
+    const base = testInfo.project.use.baseURL;
+    await setWiskeyView(base, { install: ['auto', 'auto'], own: [null, null] });
+    const { hits } = await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
+    try {
+      await open(page, '/wiskey/people');
+      const frame = page.locator(FRAME);
+      await expect(frame).toHaveAttribute('data-embed-mode', 'v1', { timeout: 15000 });
+      await expect(frame).toHaveAttribute('data-confirmed-tab', 'users');
+      expect(hits.length).toBe(1);
+      expect(new URL(hits[0]).search).toBe('?embed=1&chrome=none&tab=users');
+
+      await page.locator('sw-app [data-profile-menu]').click();
+      const menu = page.locator('sw-app sw-user-menu [data-profile-menu-panel]');
+      await expect(menu).toBeVisible();
+      await menu.locator('[data-menu-account]').click();
+      await menu.locator('[data-my-wiskey] summary').click();
+      const density = menu.locator('[data-my-wiskey-density]');
+      const wall = menu.locator('[data-my-wiskey-wall]');
+      await expect(density).toBeVisible();
+      await expect(menu.locator('[data-my-wiskey-note]')).toHaveText('נקודת פתיחה בכל טעינה. שינוי בתוך WisKey אינו נשמר.');
+      expect(await density.locator('option').allTextContents()).toEqual(['ברירת מחדל (אוטומטי)', 'אוטומטי', '4', '6', '8', '9', '12']);
+      expect(await wall.locator('option').allTextContents()).toEqual(['ברירת מחדל', '4', '9', '12']);
+      await page.screenshot({ path: testInfo.outputPath('account-wiskey-block.png') });
+
+      await density.selectOption('8');
+      await expect.poll(() => hits.length).toBe(2); // the open frame is reopened once ...
+      expect(new URL(hits[1]).search).toBe('?embed=1&chrome=none&tab=users&density=8'); // ... on the tab it shows
+      expect((await myPrefs(base))['wiskey.density']).toBe('8');
+      await wall.selectOption('12');
+      await expect.poll(() => hits.length).toBe(3);
+      expect(new URL(hits[2]).search).toBe('?embed=1&chrome=none&tab=users&density=8&wall=12');
+      expect(await myPrefs(base)).toMatchObject({ 'wiskey.density': '8', 'wiskey.wall': '12' });
+
+      await density.selectOption('auto'); // an explicit "אוטומטי": the parameter is left out
+      await expect.poll(() => hits.length).toBe(4);
+      expect(new URL(hits[3]).search).toBe('?embed=1&chrome=none&tab=users&wall=12');
+      await wall.selectOption(''); // back to the installation's default (none): nothing changes in the address of the wall
+      await expect.poll(() => hits.length).toBe(5);
+      expect(new URL(hits[4]).search).toBe('?embed=1&chrome=none&tab=users');
+      await page.waitForTimeout(1500);
+      expect(hits.length).toBe(5); // no reload storm
+      expect(await myPrefs(base)).toMatchObject({ 'wiskey.density': 'auto', 'wiskey.wall': null });
+
+      // it is the user's own: another user sees the default (the server keeps it per user)
+      const other = await pwRequest.newContext({ baseURL: base, extraHTTPHeaders: { 'x-sw-dev-user': 'wiskey-view-check' } });
+      try {
+        const r = await other.get('/api/v1/me/prefs');
+        if (r.ok()) expect(((await r.json()) as { prefs: Record<string, unknown> }).prefs['wiskey.density']).toBeNull();
+      } finally {
+        await other.dispose();
+      }
+    } finally {
+      await setWiskeyView(base, { install: ['auto', 'auto'], own: [null, null] });
+    }
+  });
 });
+
+/** Sets the installation defaults (`ui.wiskey_density` / `ui.wiskey_wall`) and the signed-in user's own choices (null = none). */
+async function setWiskeyView(baseURL: string | undefined, v: { install: [string, string]; own: [string | null, string | null] }) {
+  const ctx = await pwRequest.newContext({ baseURL });
+  try {
+    const s = await ctx.patch('/api/v1/settings', { data: { 'ui.wiskey_density': v.install[0], 'ui.wiskey_wall': v.install[1] } });
+    if (!s.ok()) throw new Error(`PATCH /settings ${s.status()}: ${await s.text()}`);
+    const p = await ctx.put('/api/v1/me/prefs', { data: { 'wiskey.density': v.own[0], 'wiskey.wall': v.own[1] } });
+    if (!p.ok()) throw new Error(`PUT /me/prefs ${p.status()}: ${await p.text()}`);
+  } finally {
+    await ctx.dispose();
+  }
+}
+
+async function myPrefs(baseURL: string | undefined): Promise<Record<string, unknown>> {
+  const ctx = await pwRequest.newContext({ baseURL });
+  try {
+    return ((await (await ctx.get('/api/v1/me/prefs')).json()) as { prefs: Record<string, unknown> }).prefs;
+  } finally {
+    await ctx.dispose();
+  }
+}
