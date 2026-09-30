@@ -343,7 +343,10 @@ export type HaPush =
   | { type: 'entity_state_changed'; entity: HaEntity }
   | { type: 'ha_sync_state'; connected: boolean }
   | { type: 'heartbeat'; sync: HaSyncState }
-  | { type: 'structure_changed'; reason: string; last_registry_at: string | null };
+  | { type: 'structure_changed'; reason: string; last_registry_at: string | null }
+  /** CR-014: the schedules changed (the component's read model moved; no ids) - the schedules screens refetch
+   * (api/schedules.ts `subscribeSchedules` opens its own socket for this). */
+  | { type: 'schedules_changed' };
 
 /** Subscribe to entity state pushes scoped to what the user may see; returns a stop function. */
 export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connected: boolean) => void): () => void {
@@ -374,6 +377,7 @@ export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connecte
         else if (env.type === 'heartbeat') onMessage({ type: 'heartbeat', sync: env.payload.sync as HaSyncState });
         else if (env.type === 'structure_changed')
           onMessage({ type: 'structure_changed', reason: String(env.payload.reason ?? ''), last_registry_at: (env.payload.last_registry_at as string | null) ?? null });
+        else if (env.type === 'schedules_changed') onMessage({ type: 'schedules_changed' });
       } catch {
         /* ignore malformed frames */
       }
