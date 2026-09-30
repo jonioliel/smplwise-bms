@@ -87,6 +87,14 @@ PERMISSION_LABELS: dict[str, str] = {
     "alarm.arm": "דריכת אזעקה",
     "alarm.disarm": "ניטרול אזעקה",
     "alarm.bypass": "עקיפת חיישן אזעקה (הוצאת אזור מהגנה)",
+    # CR-014 (תזמונים, owner decision 2026-09-30): who edits schedules is a permission the owner grants to any user or role.
+    # schedule.view reads them (site_admin, system_admin); schedule.manage creates / edits / enables / runs / deletes /
+    # restores (site_admin, system_admin; sensitive - a custom role names it among its sensitive permissions);
+    # schedule.sensitive adds the sensitive classes - alarm, locks, doors and gates (system_admin only; sensitive). All
+    # three are scoped like devices.control (the action entity's own placement) and never implied by another permission.
+    "schedule.view": "צפייה בתזמונים",
+    "schedule.manage": "ניהול תזמונים: יצירה, עריכה, הפעלה והשבתה, הרצה מיידית, מחיקה ושחזור",
+    "schedule.sensitive": "תזמון פעולות רגישות: אזעקה, מנעולים, דלתות ושערים",
     "nvr.config.write": "כתיבה להגדרות ה־NVR",
     "nvr.config.events": "NVR: הפעלת התראות (Notify Surveillance Center) ולוחות זימון",
     "nvr.config.detection": "NVR: עריכת אזורי זיהוי תנועה ורגישות",
