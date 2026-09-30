@@ -478,7 +478,8 @@
       }
     ],
     "caption_he": "מסך המסכים: כרטיס אחד לכל מסך פיזי, מקובצים לפי קומה, עם שבבי חדרים, חיפוש וסינון מצב, הפעלה, עוצמה ומקור בכרטיס, וכפתור \"כבה מסכים\" לקומה. פרטים ב-42-multimedia_HE.md.",
-    "source": "demo"
+    "source": "demo",
+    "data": "static"
   },
   {
     "id": "multimedia-remote",
@@ -495,7 +496,7 @@
     "setup": [
       {
         "type": "waitFor",
-        "selector": "media-remote"
+        "selector": "media-remote [data-mr-state=\"on\"]"
       },
       {
         "type": "waitMs",
@@ -503,7 +504,8 @@
       }
     ],
     "caption_he": "השלט של מסך: הפעלה, מקור ואפליקציות בראש, חצים ואישור, עוצמה, ערוצים וניגון, ומאחורי \"עוד מקשים\" מספרים, מקשי צבע והקלדה. בטלפון הוא גיליון שעולה מלמטה. פרטים ב-42-multimedia_HE.md.",
-    "source": "demo"
+    "source": "demo",
+    "data": "static"
   },
   {
     "id": "multimedia-edit",
@@ -527,7 +529,8 @@
       }
     ],
     "caption_he": "עריכת מסך המולטימדיה מתפריט המשתמש: סדר, מועדפים, גודל, נראות בדסקטופ ובטלפון וקיבוץ לפי קומה או אזור. פרטים ב-42-multimedia_HE.md.",
-    "source": "demo"
+    "source": "demo",
+    "data": "static"
   },
   {
     "id": "settings-multimedia",
@@ -547,6 +550,235 @@
       }
     ],
     "caption_he": "הגדרות · מדיה: אישור מסכים, שם, סימון ציבורי, פרופיל מקשים, מגבר מקושר, תקרת עוצמה, רשימת החיבורים ואיחוד ידני, וברירת המחדל של השלט. פרטים ב-80-settings_HE.md.",
-    "source": "demo"
+    "source": "demo",
+    "data": "static"
+  },
+  {
+    "id": "multimedia-bulk-off",
+    "name_he": "מולטימדיה · כיבוי מסכים בקומה",
+    "section": "multimedia",
+    "route": "#/multimedia/screens",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitFor",
+        "selector": "media-screen-card"
+      },
+      {
+        "type": "click",
+        "selector": "[data-bulk-off='g']"
+      },
+      {
+        "type": "waitFor",
+        "selector": "media-bulk-dialog [data-bulk-confirm]"
+      },
+      {
+        "type": "waitMs",
+        "ms": 500
+      }
+    ],
+    "caption_he": "כיבוי מסכים בקומה: שאלה קצרה עם מספר המסכים שיכובו, הפירוט מקופל, ואחרי האישור תוצאה לכל מסך בנפרד. מסכים כבויים, לא זמינים או שלא אושר שהם דולקים מדולגים. פרטים ב-42-multimedia_HE.md.",
+    "source": "demo",
+    "data": "static"
+  },
+  {
+    "id": "multimedia-user-menu",
+    "name_he": "מולטימדיה · פעולות העריכה בתפריט המשתמש",
+    "section": "multimedia",
+    "route": "#/multimedia/screens",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitFor",
+        "selector": "media-screen-card"
+      },
+      {
+        "type": "click",
+        "selector": "sw-app [data-profile-menu]"
+      },
+      {
+        "type": "waitFor",
+        "selector": "sw-user-menu [data-menu-screen-edit='multimedia-layout']"
+      },
+      {
+        "type": "waitMs",
+        "ms": 500
+      }
+    ],
+    "caption_he": "תפריט המשתמש למי שיש לו עריכת מסך המולטימדיה והשלט: \"עריכת מסך המולטימדיה\"; כששלט פתוח מתווספת לידה \"עריכת השלט\". פעולות העריכה נמצאות רק בתפריט, לא על המסך עצמו. פרטים ב-42-multimedia_HE.md.",
+    "source": "demo",
+    "data": "static"
+  },
+  {
+    "id": "multimedia-remote-edit",
+    "name_he": "מולטימדיה · עריכת השלט",
+    "section": "multimedia",
+    "route": "#/multimedia/screens?remote=md-living",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitFor",
+        "selector": "media-remote [data-mr-state=\"on\"]"
+      },
+      {
+        "type": "waitMs",
+        "ms": 600
+      },
+      {
+        "type": "domClick",
+        "selector": "sw-app [data-profile-menu]"
+      },
+      {
+        "type": "domClick",
+        "selector": "sw-user-menu [data-menu-screen-edit='multimedia-remote']"
+      },
+      {
+        "type": "waitFor",
+        "selector": "media-remote [data-mr-editor]"
+      },
+      {
+        "type": "waitMs",
+        "ms": 500
+      }
+    ],
+    "caption_he": "עריכת השלט: היקף (למסך הזה או ברירת מחדל לכל המסכים), הפעלה וכיבוי של חלקי השלט, סדר, מה מאחורי \"עוד מקשים\", ושינוי שם, הסתרה וסמל למקורות ולאפליקציות. פרטים ב-42-multimedia_HE.md.",
+    "source": "demo",
+    "data": "static"
+  },
+  {
+    "id": "multimedia-area-card",
+    "name_he": "מולטימדיה · כרטיס המסכים באזור (וחימום ומיזוג)",
+    "section": "multimedia",
+    "route": "#/devices/areas/living",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitFor",
+        "selector": "media-area-card [data-media-tile]"
+      },
+      {
+        "type": "waitMs",
+        "ms": 800
+      }
+    ],
+    "caption_he": "מסך האזור: כרטיס \"מסכים\" עם כרטיס קטן לכל מסך בחדר (טלוויזיה ומכשירי השידור שלה הם כרטיס אחד), הפעלה, עוצמה, השתקה ו\"שלט\", וכפתור \"כבה הכל\"; לצידו הכרטיסים \"מיזוג\" ו\"חימום\" נפרדים. פרטים ב-42-multimedia_HE.md וב-40-devices_HE.md.",
+    "source": "demo",
+    "data": "mock-area"
+  },
+  {
+    "id": "devices-area-row",
+    "name_he": "חשמל והתקנים · מה שמופיע ליד שם האזור",
+    "section": "devices",
+    "route": "#/devices/building",
+    "viewports": [
+      "desktop",
+      "phone"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitFor",
+        "selector": "devices-building section[data-floor-card]"
+      },
+      {
+        "type": "waitMs",
+        "ms": 500
+      }
+    ],
+    "caption_he": "מסך המבנה: ליד שם כל אזור סימן מזגן אחד והמונים החשובים בשורה אחת; בטלפון עד שלושה פריטים והשאר נאספים ל-\"+N\". פרטים ב-40-devices_HE.md.",
+    "source": "demo",
+    "data": "static"
+  },
+  {
+    "id": "settings-devices-area-row",
+    "name_he": "הגדרות · חשמל והתקנים · מה מוצג ליד שם האזור",
+    "section": "settings",
+    "route": "#/system/diagnostics?tab=devices",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitFor",
+        "selector": "area-row-editor"
+      },
+      {
+        "type": "scrollTo",
+        "selector": "[data-area-row-setting]"
+      },
+      {
+        "type": "waitMs",
+        "ms": 500
+      }
+    ],
+    "caption_he": "עורך שתי הרשימות של המסך הראשי: מה מוצג אחרי שם האזור ומה בכותרת הקומה, בסדר שנקבע בחצים; הקו המקווקו מראה מה נכנס בטלפון. פרטים ב-40-devices_HE.md וב-80-settings_HE.md.",
+    "source": "demo",
+    "data": "mock-settings"
+  },
+  {
+    "id": "cameras-wall-arrange",
+    "name_he": "מצלמות · סידור הקיר (מוצגת)",
+    "section": "cameras",
+    "route": "#/live/wall",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitFor",
+        "selector": "live-wall sw-camera-tile[data-cam]"
+      },
+      {
+        "type": "click",
+        "selector": "sw-app [data-profile-menu]"
+      },
+      {
+        "type": "click",
+        "selector": "sw-user-menu [data-menu-screen-edit='wall-arrange']"
+      },
+      {
+        "type": "waitFor",
+        "selector": "live-wall [data-wall-settings-row]"
+      },
+      {
+        "type": "click",
+        "selector": "live-wall [data-wall-show='c3']"
+      },
+      {
+        "type": "waitMs",
+        "ms": 500
+      }
+    ],
+    "caption_he": "סידור הקיר (מתפריט המשתמש): לכל מצלמה סדר, רוחב אריח ותיבת \"מוצגת\". מצלמה שהוסרה ממנה עוברת לסוף הרשימה ועמומה, ונעלמת מהקיר ומהמונה שבתחתיתו. פרטים ב-30-cameras_HE.md.",
+    "source": "demo",
+    "data": "mock-wall"
   }
 ]
