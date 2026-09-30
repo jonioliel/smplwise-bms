@@ -436,6 +436,19 @@ test.describe('multimedia screens (mocked backend)', () => {
     await install(page, st);
     await open(page, '/multimedia/screens', '390');
     await expect(page$(page).locator('media-screen-card').first()).toHaveAttribute('compact', '');
+    // every control of a card and of the header is a 44 px touch target
+    const small = await page.evaluate(() => {
+      const out: string[] = [];
+      const host = document.querySelector('sw-app')!.shadowRoot!.querySelector('multimedia-screens')!;
+      const check = (root: ParentNode, sel: string) => root.querySelectorAll<HTMLElement>(sel).forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.width && (r.width < 43.5 || r.height < 43.5)) out.push(`${el.className || el.tagName} ${Math.round(r.width)}x${Math.round(r.height)}`);
+      });
+      host.shadowRoot!.querySelectorAll('media-screen-card').forEach((c) => check(c.shadowRoot!, '.pw, .rb, .rbtn, .vrock button'));
+      check(host.shadowRoot!, '.rc, .floorbtn, .search, .seg button');
+      return out;
+    });
+    expect(small).toEqual([]);
     await page$(page).locator('[data-floor-menu]').click();
     await shot(page, 'floor-menu', '390');
     await expect(page$(page).locator('[data-floor-pick]')).toHaveCount(4);
@@ -665,6 +678,10 @@ test.describe('multimedia screens (mocked backend)', () => {
     await sys.locator('[data-mm-volmax="md-kitchen"]').press('Enter');
     await sys.locator('[data-mm-name="md-kitchen"]').focus();
     await expect.poll(() => st.calls.filter((c) => c.path === 'multimedia/admin/devices/md-kitchen').map((c) => c.body)).toContainEqual({ volume_max: 55 });
+    // model extras are enabled per screen (never guessed); a generic screen has no key vocabulary to extend
+    await sys.locator('[data-mm-extra-keys="md-living"] label', { hasText: 'מידע' }).locator('input').check();
+    await expect.poll(() => st.calls.filter((c) => c.path === 'multimedia/admin/devices/md-living').map((c) => c.body)).toContainEqual({ model_keys: ['info'] });
+    await expect(sys.locator('[data-mm-extra-keys="md-kids"]')).toHaveCount(0);
     // connections: the endpoints of the living-room TV (one answers, three are hidden duplicates); ignore one
     await sys.locator('[data-mm-toggle-endpoints="md-living"]').click();
     await expect(sys.locator('[data-mm-endpoints="md-living"] [data-mm-endpoint]')).toHaveCount(4);
@@ -695,5 +712,25 @@ test.describe('multimedia screens (mocked backend)', () => {
     await open(page, '/system/multimedia');
     await expect(page.locator('sw-app system-multimedia [data-mm-admin-state="forbidden"]')).toHaveCount(1);
     await expect(page.locator('sw-app system-multimedia [data-mm-admin-device]')).toHaveCount(0);
+  });
+
+  test('the static demo (no backend): the mock adapter answers, editing is kept in memory, personal included', async ({ page }) => {
+    await page.addInitScript(() => sessionStorage.clear());
+    await page.setViewportSize(SIZES['1440']);
+    await page.goto('about:blank');
+    await page.goto('/?design=a#/multimedia/screens');
+    await page.waitForSelector('sw-app');
+    await expect(cards(page)).toHaveCount(8);
+    await expect(page$(page).locator('section[data-group] h2')).toHaveText(['קומת קרקע', 'קומה 1', 'מרתף']); // the demo's own floor order
+    await shot(page, 'demo-ready', '1440');
+    await page.locator('sw-app [data-profile-menu]').click();
+    await page.locator('sw-app sw-user-menu [data-menu-screen-edit="multimedia-layout"]').click();
+    await page$(page).locator('[data-scope="me"]').click();
+    await page$(page).locator('[data-mm-on="md-gym"]').uncheck();
+    await page$(page).locator('[data-mm-save]').click();
+    await expect(cards(page)).toHaveCount(7);
+    // a command reaches the mock
+    await page$(page).locator('media-screen-card[data-screen-card="md-kitchen"] .pw').click();
+    await expect(page$(page).locator('media-screen-card[data-screen-card="md-kitchen"] .pw.on')).toHaveCount(0);
   });
 });

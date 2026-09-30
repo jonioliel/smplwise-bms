@@ -11,7 +11,7 @@ import { ApiError, describeError, patch } from '../api/client';
 import { can, isApi } from '../api/session';
 import { invalidateSettings, productSettings } from '../api/prefs';
 import { applyMultimediaHidden } from '../shell/nav';
-import { SECTION_LABEL, media, type MediaStatus, type ProfileId, type RemoteConfig, type RemoteSection } from '../api/media-screens';
+import { SECTION_LABEL, media, type KeyId, type MediaStatus, type ProfileId, type RemoteConfig, type RemoteSection } from '../api/media-screens';
 import {
   CONFIDENCE_LABEL, CONTROL_LABEL, KIND_LABEL, PROFILE_LABEL, ROLE_LABEL, mediaAdmin,
   type AdminDevice, type AdminDevicePatch, type AdminList,
@@ -19,6 +19,14 @@ import {
 
 const PROFILES = Object.keys(PROFILE_LABEL) as ProfileId[];
 const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
+
+/** The keys a model may add on top of its profile (CR-015 section 4: "model-specific extras are enabled per screen in settings, never
+ * guessed"); the server keeps only those the profile allows. */
+const EXTRA_KEYS: { id: KeyId; label: string }[] = [
+  { id: 'blue', label: 'כחול' }, { id: 'rew', label: 'אחורה מהירה' }, { id: 'ff', label: 'קדימה מהירה' }, { id: 'stop', label: 'עצור' },
+  { id: 'exit', label: 'יציאה' }, { id: 'info', label: 'מידע' }, { id: 'guide', label: 'מדריך' }, { id: 'source', label: 'מקור' },
+  { id: 'tools', label: 'כלים' }, { id: 'settings', label: 'הגדרות' }, { id: 'chlist', label: 'רשימת ערוצים' }, { id: 'prech', label: 'ערוץ קודם' },
+];
 
 /**
  * CR-015 הגדרות › מדיה (`#/system/multimedia`, system.configure, installation scope; the server checks it again on every
@@ -402,6 +410,7 @@ export class SystemMultimedia extends LitElement {
         </label>
       </div>
       ${d.also_turns_on.length ? html`<div class="muted" data-mm-also>גם מדליק: ${d.also_turns_on.join(', ')}</div>` : nothing}
+      ${d.kind === 'screen' && d.profile !== 'generic' ? html`<div class="line" data-mm-extra-keys=${d.key}><span class="f">מקשים נוספים למסך זה</span>${EXTRA_KEYS.map((k) => html`<label class="f inline"><input type="checkbox" .checked=${d.model_keys.includes(k.id)} @change=${(e: Event) => void this.updateDevice(d, { model_keys: EXTRA_KEYS.filter((x) => (x.id === k.id ? (e.target as HTMLInputElement).checked : d.model_keys.includes(x.id))).map((x) => x.id) })} />${k.label}</label>`)}</div>` : nothing}
       <div><button type="button" class="link" data-mm-toggle-endpoints=${d.key} aria-expanded=${String(open)} @click=${() => { const s = new Set(this.open); if (open) s.delete(d.key); else s.add(d.key); this.open = s; }}>חיבורים (${visibleEps}) ${open ? '▴' : '◂'}</button></div>
       ${open ? html`<div data-mm-endpoints=${d.key}>${d.endpoints.map((e) => html`<div class="ep" data-mm-endpoint=${e.endpoint_id}>
         <span class="mono">${e.platform}</span>
