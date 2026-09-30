@@ -5382,5 +5382,53 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "T099",
+    "title": "מולטימדיה שלב 2 - נגנים, רמקולים וקבוצות (CR-016): כרטיסים, חלונית נגן, קבוצות, מועדפים ותחנות",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Players and speakers model and commands (CR-016 §4-§6, §8-§11), through Home Assistant only (no direct Music Assistant connection, no MA token): kinds speaker/player/receiver/group detected and approved like screens, one card per physical device after the CR-015 dedupe ladder (MA/Cast/DLNA duplicates), the MA-created entity as the `music` primary for transport, now playing, up next, favourites/stations/playlists and grouping; new commands seek, shuffle, repeat, play_item (server-issued item_ref only, never a URL), transfer, and announce only if approved; bridge 0.5.0 allow-list + media_policy (no URL media ids, no URL announcements, announce volume <= 60) and the read-only media_query service (get_queue / get_library, trimmed); every volume write clamped to the device ceiling (new speakers and groups default 80); permissions media.group (and sensitive media.announce if approved); migration 0044_media_players.sql.",
+      "Groups (CR-016 §5.3, §6.2): live groups from group_members with leader/member roles (member transport acts on the leader), static MA groups as group cards, join/leave as a diff under one grouping authority (MA or one vendor platform, never mixed, never Cast), outcomes read back per member (joined / not_joined / unknown), group volume relative (balance kept) or absolute as a per-member fan-out with per-room outcome and ceilings, saved presets with revision and diff apply, confirmation for >= 4 devices or more than one floor and media.bulk for building-wide; floor 'עצור מוזיקה' (players_pause) through the bulk engine.",
+      "Players UI (CR-016 §7): tabs 'מסכים' · 'נגנים ורמקולים' · 'קבוצות' on the מולטימדיה page with the CR-015 editor per tab; <media-player-card> (artwork, name/room, state line, play/pause, volume) on the pages, the area card and the home widget; the player panel in the existing drawer with artwork, progress, transport, seek, shuffle/repeat, volume with a members pop-out, 'הבא בתור' (honest 'לא זמין' when unconfirmed), favourites/stations/playlists tabs, group section with batched join and 'העבר את המוזיקה לכאן'; receivers with power, volume, sources and sound mode; settings: approve players, favourites curation, presets; clean operator screens with no HA/MA names."
+    ],
+    "requirement_ids": [
+      "R205",
+      "R206",
+      "R207"
+    ],
+    "test_ids": [
+      "AT205",
+      "AT206",
+      "AT207"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "Builds on T098 (CR-015, 0.1.149) - start only after it is merged into g0/intake. Owner decisions first (docs/design/mockups/media/players-decisions-HE.md) and a players/groups mockup; Opus review of the command path (media_commands additions, media_groups.py, media_query.py, ha_bridge ACTIONS, the bridge's media_policy and media_query, device_bulk group kinds) before the merge; live acceptance only with bridge 0.5.0 and after a read-only check of the owner's MA/HA versions."
+    },
+    "deliverables": [
+      "docs/research/MUSIC_ASSISTANT_API_NOTES.md section 8: MA org repos, the HA path, volume/announcement semantics, the r11a (HOMEii) repos, corrections",
+      "docs/changes/CR-016-MEDIA-PLAYERS.md: scope, connection model (HA only for 0.1.150), reuse vs new, model, commands, groups, permissions, storage, safety, events, tests, risks",
+      "docs/architecture/MEDIA_PLAYERS_API.md: contract delta (types, routes, errors) and the parallel plan P0 + S1-S4 with estimates and calendar",
+      "docs/design/mockups/media/players-decisions-HE.md: 8 owner questions with recommendations",
+      "P0 mockup + S0 client, S1 backend + bridge 0.5.0, S2 pages/settings, S3 player panel/area card/widget, S4 fixture/evidence/guide (MEDIA_PLAYERS_API.md §5)"
+    ],
+    "evidence": [
+      "2026-10-01: architecture proposed on branch pilot/CR016-media-players-arch (public web research only; no device, HA, MA or lab contact; nothing implemented or run). Awaiting the owner's answers."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]
