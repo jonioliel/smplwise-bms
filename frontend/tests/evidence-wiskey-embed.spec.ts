@@ -664,7 +664,7 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
         embedBottom: e.bottom,
         bannerOnTop: !!hit && !!hit.closest('[data-sys-banner]'),
         shellMarked: (sr.host as HTMLElement).hasAttribute('data-wiskey-expanded'),
-        inert: ['nav.rail', 'header.topbar', 'main > .subnav', 'sw-user-menu', 'sw-nav-order'].map((s) => (sr.querySelector(s) as HTMLElement | null)?.inert ?? null),
+        inert: ['nav.rail', '.float', 'main > .subnav', 'sw-user-menu', 'sw-nav-order'].map((s) => (sr.querySelector(s) as HTMLElement | null)?.inert ?? null),
         screenInert: (sr.querySelector('main > .screen') as HTMLElement).inert,
       };
     });
@@ -685,12 +685,12 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
       const sr = embed.getRootNode() as ShadowRoot;
       return {
         shellMarked: (sr.host as HTMLElement).hasAttribute('data-wiskey-expanded'),
-        inert: ['nav.rail', 'header.topbar', 'main > .subnav', 'sw-user-menu', 'sw-nav-order'].map((s) => (sr.querySelector(s) as HTMLElement | null)?.inert ?? null),
+        inert: ['nav.rail', '.float', 'main > .subnav', 'sw-user-menu', 'sw-nav-order'].map((s) => (sr.querySelector(s) as HTMLElement | null)?.inert ?? null),
         bannerTop: sr.querySelector('[data-sys-banner]')!.getBoundingClientRect().top,
       };
     });
     expect(after).toEqual({ shellMarked: false, inert: [false, false, false, false, false], bannerTop: expect.any(Number) });
-    expect(after.bannerTop).toBeGreaterThan(0); // back under the top bar
+    expect(after.bannerTop).toBeGreaterThanOrEqual(0); // back at the content column's top edge (UI round 1: no top bar)
   });
 
   test('הגדרות › בקרות כניסה switches one tab between the embed and the SMPLWISE screen', async ({ page, request }, testInfo) => {

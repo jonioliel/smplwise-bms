@@ -637,6 +637,7 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     const hit = hits.find((h) => h.kind === 'object' && h.id === extId)!;
     expect(hit.title).toBe('מטף כניסה');
     await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    await page.locator('sw-app [data-search-open]').click(); // UI round 1: the search is a corner button that opens a popover
     await page.locator('sw-app .search input').fill('מטף');
     await expect(page.locator('sw-app .results .row', { hasText: 'מטף כניסה' })).toBeVisible();
     await page.locator('sw-app .results .row', { hasText: 'מטף כניסה' }).click();

@@ -209,8 +209,11 @@
   --sw-r-lg: 14px;
   --sw-shadow-2: 0 6px 18px rgba(34, 49, 76, 0.06);
   --sw-shadow-3: 0 14px 36px rgba(34, 49, 76, 0.14);
-  --sw-rail-w: 86px;
-  --sw-rail-w-wide: 86px;
-  --sw-topbar-h: 72px;
+  /* UI round 1: the white top bar is gone (search and status float in the content's corner) and the navigation is
+     ~20% smaller: a 70px rail, a 50px phone bottom bar */
+  --sw-rail-w: 70px;
+  --sw-rail-w-wide: 70px;
+  --sw-topbar-h: 0px;
+  --sw-bottomnav-h: 50px;
   --sw-content-max: none;
 }

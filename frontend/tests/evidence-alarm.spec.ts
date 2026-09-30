@@ -16,7 +16,8 @@ import { fileURLToPath } from 'node:url';
 const EVIDENCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/evidence/CR010');
 const RAIL = 'sw-app nav.rail';
 const BOTTOM = 'sw-app nav.bottom';
-const SECTIONS = 'sw-app nav[data-security-sections]';
+// UI round 1: the sections are a segmented control at the head of the page (wide) or the phone's sticky row
+const SECTIONS = 'sw-app nav[data-security-sections], sw-app nav[data-security-row]';
 const LIVE = process.env.SW_LIVE === '1' && process.env.SW_ALARM_FIXTURE === '1';
 
 async function open(page: Page, hash: string, design: 'a' | 'b' = 'a') {
@@ -45,7 +46,7 @@ test.describe('CR-010 navigation: אבטחה › לייב | חקירה | אזע�
     const hrefs = await page.locator(`${nav} a[data-nav]`).evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''));
     expect(hrefs).toEqual(['#/devices/building', '#/security', '#/explore/sites', '#/wiskey/overview']);
     await expect(page.locator(`${nav} a[href="#/security"]`)).toHaveClass(/active/);
-    // the sections: a segmented control in the top bar; on the phone (no top bar since CR-013) a sticky row above the tabs
+    // the sections: a segmented control at the head of the page; on the phone a sticky row above the tabs
     const sections = page.locator(phone ? 'sw-app nav[data-security-row]' : SECTIONS);
     await expect(sections).toBeVisible();
     await expect(sections.locator('a')).toHaveText(['לייב', 'חקירה', 'אזעקה']);
@@ -68,7 +69,7 @@ test.describe('CR-010 navigation: אבטחה › לייב | חקירה | אזע�
     ] as const) {
       await open(page, hash);
       await expect(page.locator(`sw-app ${tag}`), hash).toHaveCount(1);
-      await expect(page.locator(`${SECTIONS} a[data-section="${section}"]`), hash).toHaveAttribute('aria-current', 'page');
+      await expect(page.locator(`sw-app nav[data-security-sections] a[data-section="${section}"], sw-app nav[data-security-row] a[data-section="${section}"]`).first(), hash).toHaveAttribute('aria-current', 'page');
     }
   });
 
@@ -84,12 +85,11 @@ test.describe('CR-010 navigation: אבטחה › לייב | חקירה | אזע�
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/security/alarm');
   });
 
-  test('breadcrumbs name area › section › page', async ({ page }, info) => {
-    test.skip(info.project.name !== 'desktop', 'the crumbs show from 1280 px');
+  test('no breadcrumb bar (UI round 1): the pages keep their own titles', async ({ page }) => {
     await open(page, '/live/wall');
-    await expect(page.locator('sw-app .crumbs-a')).toHaveText(/אבטחה.*לייב.*כל המצלמות/);
+    await expect(page.locator('sw-app .crumbs-a')).toHaveCount(0);
     await open(page, '/security/alarm');
-    await expect(page.locator('sw-app .crumbs-a')).toHaveText(/אבטחה.*אזעקה/);
+    await expect(page.locator('sw-app .crumbs-a')).toHaveCount(0);
   });
 
   test('the Lovelace card view and the kiosk carry no chrome', async ({ page }) => {
@@ -103,7 +103,7 @@ test.describe('CR-010 navigation: אבטחה › לייב | חקירה | אזע�
   });
 
   test('Ctrl+K offers the alarm section', async ({ page }, info) => {
-    test.skip(info.project.name === 'mobile', 'the search field is hidden on the phone');
+    test.skip(info.project.name === 'mobile', 'a keyboard shortcut (the phone opens the same search from its corner button)');
     await open(page, '/explore/sites');
     await page.keyboard.press('Control+k');
     await page.keyboard.type('אזעקה');
