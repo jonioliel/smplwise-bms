@@ -157,6 +157,30 @@ def trim_attributes(attrs: dict[str, Any]) -> str:
     return text
 
 
+def feature_bits(value: Any) -> int:
+    """HA's `supported_features` is an int bit-mask, but an integration may put anything there (one installation's switches
+    carry a list of feature names). A number is kept; anything else carries no bits: 0, never an exception - one odd
+    attribute must not cost the whole snapshot (the owner's 2026-09-30 report: 130 switches "not available")."""
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except ValueError:
+            return 0
+    return 0
+
+
+def scalar_text(value: Any) -> str | None:
+    """A catalogue text column (name, device class, unit, icon) out of an attribute: text as is, other scalars as text,
+    a list / dict (which SQLite cannot bind) as None."""
+    if value is None or isinstance(value, (list, dict, tuple, set)):
+        return None
+    return value if isinstance(value, str) else str(value)
+
+
 def upsert_state(conn: sqlite3.Connection, st: dict[str, Any], seen: str | None = None) -> dict[str, Any]:
     """Insert or update one HA state object. Returns the stored row as a dict."""
     seen = seen or now_iso()
@@ -164,15 +188,17 @@ def upsert_state(conn: sqlite3.Connection, st: dict[str, Any], seen: str | None 
     domain = eid.split(".", 1)[0]
     attrs = st.get("attributes") or {}
     state = st.get("state")
+    if state is not None and not isinstance(state, str):
+        state = str(state)
     available = 0 if state in ("unavailable", None) else 1
     row = conn.execute("SELECT entity_id FROM ha_entities WHERE entity_id = ?", (eid,)).fetchone()
     common = (
-        attrs.get("friendly_name") or "",
+        scalar_text(attrs.get("friendly_name")) or "",
         domain,
-        attrs.get("device_class"),
-        attrs.get("unit_of_measurement"),
-        attrs.get("icon"),
-        int(attrs.get("supported_features") or 0),
+        scalar_text(attrs.get("device_class")),
+        scalar_text(attrs.get("unit_of_measurement")),
+        scalar_text(attrs.get("icon")),
+        feature_bits(attrs.get("supported_features")),
         state,
         trim_attributes(attrs),
         st.get("last_changed"),
@@ -417,14 +443,27 @@ def count_entities(conn: sqlite3.Connection) -> int:
     return conn.execute("SELECT COUNT(*) FROM ha_entities WHERE removed_at IS NULL AND disabled = 0").fetchone()[0]
 
 
+DATA_ERRORS = (TypeError, ValueError, sqlite3.InterfaceError, sqlite3.DataError)  # a state's own shape, never a busy database
+
+
 def store_states(db: Database, states: list[dict[str, Any]], seen: str) -> set[str]:
+    """Write a full state snapshot in chunks. One state that cannot be stored (a shape the catalogue does not know) is
+    skipped and logged, never the chunk or the snapshot with it: a failed snapshot kept the session from ever
+    connecting ("not synced") and left every entity the registry had created marked unavailable."""
     present: set[str] = set()
     rows = [st for st in states if st["entity_id"].split(".", 1)[0] not in STATE_DOMAINS_SKIP]
     for chunk in _chunks(rows):
         def _write(chunk=chunk) -> None:
             with db.connection(durable=False) as conn:
                 for st in chunk:
-                    upsert_state(conn, st, seen)
+                    conn.execute("SAVEPOINT state_row")
+                    try:
+                        upsert_state(conn, st, seen)
+                    except DATA_ERRORS as exc:
+                        conn.execute("ROLLBACK TO state_row")
+                        log.warning("state of %s not stored: %s", st.get("entity_id"), type(exc).__name__)
+                    finally:
+                        conn.execute("RELEASE state_row")
         _busy_retry(_write)
         present.update(st["entity_id"] for st in chunk)
     with db.connection(mode="read") as conn:
