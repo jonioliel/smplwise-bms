@@ -5,19 +5,21 @@ import { same, lt } from '../src/token-helpers.mjs';
 export const groups = [
   {
     id: 'surface', title: 'Canvas and surfaces', tokens: {
-      '--sw-bg': lt('#eef1f7', '#0c1018'),
+      '--sw-bg': lt('#d9e1f0', '#0c1018'),
+      // light: a coloured canvas the glass visibly sits on (warm bloom at the start-top, cool bloom at the end-bottom, a
+      // soft white pool in the middle, lavender-blue base); dark: the same blooms, dimmed, over blue-black
       '--sw-canvas': lt(
-        'radial-gradient(900px 560px at 92% -6%, rgba(255,176,80,.30), transparent 62%), radial-gradient(1100px 700px at 4% 104%, rgba(80,140,255,.26), transparent 64%), linear-gradient(180deg, #f1f3f8 0%, #eaeef6 100%)',
-        'radial-gradient(900px 560px at 92% -6%, rgba(255,150,40,.13), transparent 62%), radial-gradient(1100px 700px at 4% 104%, rgba(80,140,255,.18), transparent 64%), linear-gradient(180deg, #0e131c 0%, #0a0d14 100%)'),
-      '--sw-surface': lt('rgba(255,255,255,.62)', 'rgba(22,27,38,.66)'),
+        'radial-gradient(1100px 680px at 90% -8%, rgba(255,168,60,.62), transparent 62%), radial-gradient(1300px 820px at 4% 108%, rgba(72,124,255,.58), transparent 64%), radial-gradient(820px 560px at 52% 50%, rgba(255,255,255,.42), transparent 70%), linear-gradient(170deg, #e4e9f4 0%, #d6dfef 55%, #dce1ee 100%)',
+        'radial-gradient(900px 560px at 92% -6%, rgba(255,150,40,.16), transparent 62%), radial-gradient(1100px 700px at 4% 104%, rgba(80,140,255,.22), transparent 64%), linear-gradient(180deg, #0e131c 0%, #0a0d14 100%)'),
+      '--sw-surface': lt('rgba(255,255,255,.52)', 'rgba(22,27,38,.66)'),
       '--sw-surface-solid': lt('#fbfcfe', '#161b26'),
-      '--sw-surface-2': lt('rgba(255,255,255,.72)', 'rgba(255,255,255,.06)'),
+      '--sw-surface-2': lt('rgba(255,255,255,.66)', 'rgba(255,255,255,.06)'),
       '--sw-surface-2-solid': lt('#ffffff', '#1e2432'),
-      '--sw-surface-3': lt('rgba(20,30,50,.07)', 'rgba(255,255,255,.09)'),
-      '--sw-surface-3-solid': lt('#e5e9f1', '#273043'),
-      '--sw-border': lt('rgba(20,30,50,.10)', 'rgba(255,255,255,.10)'),
-      '--sw-border-strong': lt('rgba(20,30,50,.18)', 'rgba(255,255,255,.18)'),
-      '--sw-highlight': lt('rgba(255,255,255,.85)', 'rgba(255,255,255,.10)'),
+      '--sw-surface-3': lt('rgba(20,30,50,.08)', 'rgba(255,255,255,.09)'),
+      '--sw-surface-3-solid': lt('#e3e8f1', '#273043'),
+      '--sw-border': lt('rgba(255,255,255,.72)', 'rgba(255,255,255,.10)'),
+      '--sw-border-strong': lt('rgba(20,30,50,.20)', 'rgba(255,255,255,.18)'),
+      '--sw-highlight': lt('rgba(255,255,255,.95)', 'rgba(255,255,255,.10)'),
       '--sw-overlay': lt('rgba(10,16,30,.40)', 'rgba(0,0,0,.60)'),
       '--sw-video-bg': lt('#0f1729', '#05070c'),
     },
@@ -26,8 +28,8 @@ export const groups = [
     id: 'text', title: 'Text', tokens: {
       '--sw-text': lt('#172033', '#eef2f8'),
       '--sw-heading': lt('#0f1727', '#ffffff'),
-      '--sw-text-2': lt('#46536b', '#aab5c9'),
-      '--sw-text-3': lt('#59667c', '#8998af'),
+      '--sw-text-2': lt('#3f4c63', '#aab5c9'),
+      '--sw-text-3': lt('#56637a', '#8998af'),
       '--sw-text-inverse': lt('#ffffff', '#0c1018'),
     },
   },
@@ -57,7 +59,7 @@ export const groups = [
       '--sw-purple': lt('#7c5cf0', '#a78bfa'),
       '--sw-live-text': lt('#14703c', '#3ddc84'), '--sw-recorded-text': lt('#1d51d2', '#8fb8ff'),
       '--sw-offline-text': lt('#4f5a6d', '#b4bdcc'), '--sw-stale-text': lt('#7a4c00', '#f5b043'),
-      '--sw-unknown-text': lt('#5f6c82', '#aab5c9'), '--sw-danger-text': lt('#a82525', '#ff6b62'),
+      '--sw-unknown-text': lt('#525f77', '#aab5c9'), '--sw-danger-text': lt('#a82525', '#ff6b62'),
       '--sw-warning-text': lt('#7a4c00', '#f5b043'), '--sw-success-text': lt('#14703c', '#3ddc84'),
       '--sw-forbidden-text': lt('#a51818', '#ff7a70'), '--sw-purple-text': lt('#5b3fd0', '#c4b0ff'),
       '--sw-toggle-on': lt('#22a55b', '#34c76a'),
@@ -137,6 +139,19 @@ export const groups = [
     },
   },
   {
+    // Component knobs from TOKEN_CONTRACT.md §4.4 that only one component reads. Same names in every skin; values
+    // equal the product's current defaults unless the skin says otherwise, so the layout does not shift.
+    id: 'knobs', title: 'Component knobs (KPI compact, tree, minimum sizes, icon ring)', tokens: {
+      '--sw-kpi-compact-pad-block': same('8px'), '--sw-kpi-compact-pad-inline': same('12px'), '--sw-kpi-compact-gap': same('10px'),
+      '--sw-kpi-compact-icon': same('32px'), '--sw-kpi-compact-value-fs': same('17px'), '--sw-kpi-compact-col-min': same('168px'),
+      '--sw-kpi-compact-cols-phone': same('2'), '--sw-kpi-compact-grid-gap': same('8px'),
+      '--sw-tree-inline': same('270px'), '--sw-tree-inline-max': same('340px'), '--sw-tree-count-w': same('44px'), '--sw-tree-menu-w': same('30px'),
+      '--sw-area-tile-min': same('210px'), '--sw-area-card-min': same('320px'), '--sw-floor-card-min': same('360px'), '--sw-entity-tile-min': same('220px'),
+      '--sw-tile-min-block': same('96px'),
+      '--sw-icon-ring-pad': same('9px'), '--sw-icon-ring-on-bg': lt('rgba(255,255,255,.34)', 'rgba(255,255,255,.18)'),
+    },
+  },
+  {
     id: 'radius', title: 'Radii', tokens: {
       '--sw-r-sm': same('10px'), '--sw-r-md': same('16px'), '--sw-r-lg': same('24px'), '--sw-r-xl': same('28px'), '--sw-r-pill': same('999px'),
     },
@@ -156,6 +171,8 @@ export const groups = [
       '--sw-glass-blur-sheet': same('blur(32px) saturate(1.6)'),
       '--sw-glass-nested': same('none'),
       '--sw-glass-contrast-a': same('.94'),
+      // top sheen layered over --sw-surface on L1 glass (the "light catching the glass"); flat in skins without glass
+      '--sw-glass-sheen': lt('linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,.08) 46%)', 'linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,0) 46%)'),
     },
   },
   {
@@ -176,15 +193,17 @@ export const groups = [
 // Per-skin component rules: only the material and the shape of the "on" state, the rail, the controls.
 // Everything else (layout, sizes, states, information architecture) is the shared base CSS.
 export const rules = `
-/* domus · glass material: blur on L1, highlight hairline, nested glass without blur */
-.glass{-webkit-backdrop-filter:var(--sw-glass-blur);backdrop-filter:var(--sw-glass-blur)}
+/* domus · glass material: blur on L1, a top sheen layered over the surface, highlight hairline, nested glass without blur */
+.glass{background:var(--sw-glass-sheen),var(--sw-surface);-webkit-backdrop-filter:var(--sw-glass-blur);backdrop-filter:var(--sw-glass-blur)}
+.solid .glass,.solid.glass{background:var(--sw-surface-solid)}
 .glass::before{content:"";position:absolute;inset:0 12px auto 12px;height:1px;background:var(--sw-highlight);border-radius:1px;pointer-events:none}
 .glass .glass,.glass .glass-2{-webkit-backdrop-filter:var(--sw-glass-nested);backdrop-filter:var(--sw-glass-nested)}
 .rail-in,.bar,.corner{-webkit-backdrop-filter:var(--sw-glass-blur-nav);backdrop-filter:var(--sw-glass-blur-nav)}
 .sheet{-webkit-backdrop-filter:var(--sw-glass-blur-sheet);backdrop-filter:var(--sw-glass-blur-sheet)}
-/* domus · floating rail: a glass panel 12px off the edges */
+/* domus · floating rail: a glass panel 12px off the edges, with a real shadow */
 .rail{padding:var(--sw-rail-gap) 0;padding-inline-start:var(--sw-rail-gap)}
-.rail-in{border-radius:var(--sw-r-lg);border-inline-end:0}
+.rail-in{border-radius:var(--sw-r-lg);border-inline-end:0;box-shadow:var(--sw-shadow-2)}
+.corner{box-shadow:var(--sw-shadow-2)}
 .brand{background:linear-gradient(145deg,var(--sw-accent),var(--sw-accent-hover));box-shadow:0 8px 18px rgb(var(--sw-role-accent) / .28),inset 0 1px 0 rgba(255,255,255,.35)}
 .rail-item.active::before{content:"";position:absolute;inset-inline-start:-6px;top:50%;translate:0 -50%;width:3px;height:26px;border-radius:2px;background:var(--sw-accent)}
 .bar-item.active .pill{background:var(--sw-accent-soft)}

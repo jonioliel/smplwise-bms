@@ -1,5 +1,7 @@
 // Builds the entrant-claude deliverable for one or more skins: token exports, self-contained HTML boards, PNG renders.
 // Usage: node build.mjs [filter] [--no-render] [--skin=domus|ios|tesla|all]   (default skin: all)
+// Every skin also gets full-board LTR mirrors (boards/<skin>/mirrors/, renders/<skin>/mirrors/) and the optional-widget
+// home boards (home-kpi-1440-*). Filter examples: "mirrors/", "home-kpi", "wall-390".
 // Skin "domus" writes to boards/, renders/, tokens*.css|json (the round-1 layout); the other skins write to
 // boards/<skin>/, renders/<skin>/, tokens-<skin>.json|css.
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -8,7 +10,7 @@ import { dirname, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { setSkin, skinIds, stats } from './src/skin.mjs';
 import { cssBlock, tokensJson, tokenMap } from './src/tokens.mjs';
-import { homeBoard, areaBoard, wallBoard, homeListBoard, areaListBoard, wallListBoard } from './src/screens.mjs';
+import { homeBoard, areaBoard, wallBoard, homeListBoard, areaListBoard, wallListBoard, homeKpiBoard, setFontPrefix } from './src/screens.mjs';
 import { foundationsColor, foundationsType, foundationsShape, foundationsMotion, componentsSheet, areaStatesBoard, indexPage } from './src/boards.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -27,19 +29,19 @@ for (const id of todoSkins) {
   const root = id === 'domus';
   const boardsDir = root ? join(here, 'boards') : join(here, 'boards', id);
   const rendersDir = root ? join(here, 'renders') : join(here, 'renders', id);
-  mkdirSync(boardsDir, { recursive: true });
-  mkdirSync(rendersDir, { recursive: true });
+  mkdirSync(join(boardsDir, 'mirrors'), { recursive: true });
+  mkdirSync(join(rendersDir, 'mirrors'), { recursive: true });
 
-  // ---- tokens ----
+  // ---- tokens: one JSON + both-schemes CSS + a separate light and dark CSS per skin ----
   const sfx = root ? '' : `-${id}`;
   const lightCss = `:root, [data-scheme="light"] {\n  color-scheme: light;\n${cssBlock('light')}\n}\n`;
   const darkCss = `[data-scheme="dark"] {\n  color-scheme: dark;\n${cssBlock('dark')}\n}\n@media (prefers-color-scheme: dark) {\n  [data-scheme="auto"] {\n    color-scheme: dark;\n${cssBlock('dark').replace(/^/gm, '  ')}\n  }\n}\n`;
   writeFileSync(join(here, `tokens${sfx}.json`), tokensJson());
   writeFileSync(join(here, `tokens${sfx}.css`), `/* Arx · skin "${skin.name}" · both schemes. Switch: data-scheme="light|dark|auto" on <html>. Generated from skins/${id}.mjs */\n${lightCss}${darkCss}`);
-  if (root) {
-    writeFileSync(join(here, 'tokens-light.css'), `/* Arx · skin "${skin.name}" · light scheme. Generated from skins/${id}.mjs */\n${lightCss}`);
-    writeFileSync(join(here, 'tokens-dark.css'), `/* Arx · skin "${skin.name}" · dark scheme (+ auto). Generated from skins/${id}.mjs */\n${darkCss}`);
-  }
+  writeFileSync(join(here, `tokens${sfx}-light.css`), `/* Arx · skin "${skin.name}" · light scheme. Generated from skins/${id}.mjs */\n${lightCss}`);
+  writeFileSync(join(here, `tokens${sfx}-dark.css`), `/* Arx · skin "${skin.name}" · dark scheme (+ auto). Generated from skins/${id}.mjs */\n${darkCss}`);
+  const fonts = root ? 'fonts/' : '../fonts/';
+  setFontPrefix(fonts);
 
   // ---- boards ----
   const boards = [];
@@ -62,6 +64,13 @@ for (const id of todoSkins) {
     add(`area-list-390-${scheme}.html`, areaListBoard({ scheme, phone: true }), 390, 844, true);
     add(`wall-list-1440-${scheme}.html`, wallListBoard({ scheme, phone: false }), 1440, 900);
     add(`wall-list-390-${scheme}.html`, wallListBoard({ scheme, phone: true }), 390, 844, true);
+    // optional home widgets (KPI strip + climate strip + building tree), 1440 only
+    add(`home-kpi-1440-${scheme}.html`, homeKpiBoard({ scheme }), 1440, 900);
+    // full-board LTR mirrors of home and area (dir="ltr" on <html>; nothing else changes)
+    add(`mirrors/home-1440-${scheme}-ltr.html`, homeBoard({ scheme, phone: false, dir: 'ltr', fontPrefix: `../${fonts}` }), 1440, 900);
+    add(`mirrors/home-390-${scheme}-ltr.html`, homeBoard({ scheme, phone: true, dir: 'ltr', fontPrefix: `../${fonts}` }), 390, 844, true);
+    add(`mirrors/area-1440-${scheme}-ltr.html`, areaBoard({ scheme, phone: false, dir: 'ltr', fontPrefix: `../${fonts}` }), 1440, 900);
+    add(`mirrors/area-390-${scheme}-ltr.html`, areaBoard({ scheme, phone: true, dir: 'ltr', fontPrefix: `../${fonts}` }), 390, 844, true);
   }
   add('area-states.html', areaStatesBoard(), 1440, 900, true, 1);
 

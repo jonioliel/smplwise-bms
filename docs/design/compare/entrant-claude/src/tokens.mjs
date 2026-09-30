@@ -49,6 +49,13 @@ export const tokenMap = [
   ['--sw-r-sm', '--sw-r-sm (8 → 10 domus · 8 ios · 4 tesla)'], ['--sw-r-md', '--sw-r-md · --dv-radius-sm (16 · 12 · 6)'], ['--sw-r-lg', '--sw-r-lg · --dv-radius-md (24 · 16 · 8)'], ['--sw-r-xl', '--dv-radius-lg (28 · 20 · 8)'], ['--sw-r-pill', '--sw-r-pill · --dv-radius-control (999 · 999 · 6)'],
   ['--sw-shadow-1/2/3', '--sw-shadow-1/2/3 · --dv-shadow-1/2/3 (top highlight moved to --sw-highlight)'], ['--sw-shadow-thumb', '--dv-shadow-control'],
   ['--sw-glass-blur / -nav / -sheet / --sw-glass-nested / --sw-glass-contrast-a', '--dv-surface-blur (+ new; "none" in the skins without glass)'],
+  ['--sw-glass-sheen', 'new: top sheen gradient layered over --sw-surface on L1 (flat transparent gradient in iOS / Tesla)'],
+  ['--sw-kpi-compact-pad-block / -pad-inline / -gap / -icon / -value-fs / -col-min / -cols-phone / -grid-gap', '--dv-kpi-compact-* and --lv-tile-compact-* of the same suffix; --sw-kpi-compact-* (min-block = --sw-row-h-compact)'],
+  ['--sw-tree-inline / -inline-max / -count-w / -menu-w', '--dv-tree-inline · --dv-tree-inline-max · --dv-tree-count-w · --dv-tree-menu-w'],
+  ['--sw-area-tile-min / --sw-area-card-min / --sw-floor-card-min / --sw-entity-tile-min', '--dv-area-tile-min · --dv-area-card-min · --dv-floor-card-min · --dv-entity-tile-min'],
+  ['--sw-tile-min-block', '--dv-tile-min-block (the compact area tile; --dv-item-min-block = --sw-row-h)'],
+  ['--sw-icon-ring-pad / --sw-icon-ring-on-bg', '--dv-icon-ring-pad · --dv-icon-ring-on-bg (--dv-icon-ring-bg = --sw-surface-3, --dv-icon-ring-fg = --sw-text)'],
+  ['color-scheme (emitted with every scheme block)', '--dv-color-scheme: the CSS color-scheme value is written at the top of tokens-light.css / tokens-dark.css; engineering aliases --dv-color-scheme to it'],
   ['--sw-t-fast / -med / -slow', '--sw-t-fast · --sw-t-med (+ slow)'], ['--sw-ease / -enter / -exit / -thumb', '--sw-ease (+ new)'], ['--sw-hover-lift', '--dv-hover-lift'],
   ['--sw-z-*', '--sw-z-*'],
 ];

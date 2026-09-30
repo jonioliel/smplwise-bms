@@ -2,7 +2,7 @@
 [data-scheme="dark"] {
   color-scheme: dark;
   --sw-bg: #0c1018;
-  --sw-canvas: radial-gradient(900px 560px at 92% -6%, rgba(255,150,40,.13), transparent 62%), radial-gradient(1100px 700px at 4% 104%, rgba(80,140,255,.18), transparent 64%), linear-gradient(180deg, #0e131c 0%, #0a0d14 100%);
+  --sw-canvas: radial-gradient(900px 560px at 92% -6%, rgba(255,150,40,.16), transparent 62%), radial-gradient(1100px 700px at 4% 104%, rgba(80,140,255,.22), transparent 64%), linear-gradient(180deg, #0e131c 0%, #0a0d14 100%);
   --sw-surface: rgba(22,27,38,.66);
   --sw-surface-solid: #161b26;
   --sw-surface-2: rgba(255,255,255,.06);
@@ -176,6 +176,25 @@
   --sw-row-h-compact: 48px;
   --sw-icon-ring: 36px;
   --sw-icon-ring-lg: 44px;
+  --sw-kpi-compact-pad-block: 8px;
+  --sw-kpi-compact-pad-inline: 12px;
+  --sw-kpi-compact-gap: 10px;
+  --sw-kpi-compact-icon: 32px;
+  --sw-kpi-compact-value-fs: 17px;
+  --sw-kpi-compact-col-min: 168px;
+  --sw-kpi-compact-cols-phone: 2;
+  --sw-kpi-compact-grid-gap: 8px;
+  --sw-tree-inline: 270px;
+  --sw-tree-inline-max: 340px;
+  --sw-tree-count-w: 44px;
+  --sw-tree-menu-w: 30px;
+  --sw-area-tile-min: 210px;
+  --sw-area-card-min: 320px;
+  --sw-floor-card-min: 360px;
+  --sw-entity-tile-min: 220px;
+  --sw-tile-min-block: 96px;
+  --sw-icon-ring-pad: 9px;
+  --sw-icon-ring-on-bg: rgba(255,255,255,.18);
   --sw-r-sm: 10px;
   --sw-r-md: 16px;
   --sw-r-lg: 24px;
@@ -190,6 +209,7 @@
   --sw-glass-blur-sheet: blur(32px) saturate(1.6);
   --sw-glass-nested: none;
   --sw-glass-contrast-a: .94;
+  --sw-glass-sheen: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,0) 46%);
   --sw-t-fast: 120ms;
   --sw-t-med: 220ms;
   --sw-t-slow: 360ms;
@@ -209,7 +229,7 @@
   [data-scheme="auto"] {
     color-scheme: dark;
     --sw-bg: #0c1018;
-    --sw-canvas: radial-gradient(900px 560px at 92% -6%, rgba(255,150,40,.13), transparent 62%), radial-gradient(1100px 700px at 4% 104%, rgba(80,140,255,.18), transparent 64%), linear-gradient(180deg, #0e131c 0%, #0a0d14 100%);
+    --sw-canvas: radial-gradient(900px 560px at 92% -6%, rgba(255,150,40,.16), transparent 62%), radial-gradient(1100px 700px at 4% 104%, rgba(80,140,255,.22), transparent 64%), linear-gradient(180deg, #0e131c 0%, #0a0d14 100%);
     --sw-surface: rgba(22,27,38,.66);
     --sw-surface-solid: #161b26;
     --sw-surface-2: rgba(255,255,255,.06);
@@ -383,6 +403,25 @@
     --sw-row-h-compact: 48px;
     --sw-icon-ring: 36px;
     --sw-icon-ring-lg: 44px;
+    --sw-kpi-compact-pad-block: 8px;
+    --sw-kpi-compact-pad-inline: 12px;
+    --sw-kpi-compact-gap: 10px;
+    --sw-kpi-compact-icon: 32px;
+    --sw-kpi-compact-value-fs: 17px;
+    --sw-kpi-compact-col-min: 168px;
+    --sw-kpi-compact-cols-phone: 2;
+    --sw-kpi-compact-grid-gap: 8px;
+    --sw-tree-inline: 270px;
+    --sw-tree-inline-max: 340px;
+    --sw-tree-count-w: 44px;
+    --sw-tree-menu-w: 30px;
+    --sw-area-tile-min: 210px;
+    --sw-area-card-min: 320px;
+    --sw-floor-card-min: 360px;
+    --sw-entity-tile-min: 220px;
+    --sw-tile-min-block: 96px;
+    --sw-icon-ring-pad: 9px;
+    --sw-icon-ring-on-bg: rgba(255,255,255,.18);
     --sw-r-sm: 10px;
     --sw-r-md: 16px;
     --sw-r-lg: 24px;
@@ -397,6 +436,7 @@
     --sw-glass-blur-sheet: blur(32px) saturate(1.6);
     --sw-glass-nested: none;
     --sw-glass-contrast-a: .94;
+    --sw-glass-sheen: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,0) 46%);
     --sw-t-fast: 120ms;
     --sw-t-med: 220ms;
     --sw-t-slow: 360ms;

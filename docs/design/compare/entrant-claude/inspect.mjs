@@ -1,8 +1,10 @@
 // Dev helper. node inspect.mjs contrast [--skin=id]            → dump every computed contrast pair of the colour board
+//                                                                 and save contrast-report-<skin>.json next to the tokens
 //             node inspect.mjs clip <board> <y> <h> <out> [--skin=id]  → clip a region of a board to a PNG
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
+import { writeFileSync } from 'node:fs';
 const here = dirname(fileURLToPath(import.meta.url));
 const req = createRequire(resolve(here, '../../../../frontend/node_modules/'));
 const { chromium } = req('playwright');
@@ -16,13 +18,20 @@ await page.goto(pathToFileURL(join(dir, board && mode !== 'contrast' ? board : '
 await page.evaluate(() => document.fonts.ready);
 await page.waitForTimeout(200);
 if (mode === 'contrast') {
-  const rows = await page.evaluate(() => [...document.querySelectorAll('[data-pair]')].map((el) => {
+  const pairs = await page.evaluate(() => [...document.querySelectorAll('[data-pair]')].map((el) => {
     const scheme = el.closest('.scheme-light') ? 'light' : 'dark';
-    return `${scheme}\t${el.querySelector('.lbl').textContent}\t${el.querySelector('.val').textContent}`;
+    const [fg, bg] = el.getAttribute('data-pair').split('|');
+    const val = el.querySelector('.val').textContent;
+    const box = el.querySelector('.cc');
+    return { scheme, label: el.querySelector('.lbl').textContent, fg, bg, fgComputed: box.style.color, bgComputed: box.style.background, ratio: +val.split(':')[0], target: +el.getAttribute('data-min') || 4.5, result: val.replace(/^[\d.]+:1 /, ''), pass: !/FAIL|3:1 only/.test(val) };
   }));
+  const rows = pairs.map((p) => `${p.scheme}\t${p.label}\t${p.ratio.toFixed(2)}:1 ${p.result}`);
   console.log(rows.join('\n'));
-  const bad = rows.filter((r) => /FAIL|3:1 only/.test(r));
-  console.log(`\n[${skin}] ${rows.length} pairs · ${bad.length} below target`);
+  const bad = pairs.filter((p) => !p.pass);
+  const min = Math.min(...pairs.map((p) => p.ratio));
+  const report = { skin, generated: new Date().toISOString().slice(0, 10), pairs: pairs.length, failures: bad.length, minRatio: +min.toFixed(2), note: 'Computed by boards/foundations-color.html from the skin tokens; surfaces composited over the real canvas (worst case: the brightest bloom), L2 over L1. Targets: 4.5 text, 3 indicators.', rows: pairs };
+  writeFileSync(join(here, `contrast-report-${skin}.json`), JSON.stringify(report, null, 2));
+  console.log(`\n[${skin}] ${pairs.length} pairs · ${bad.length} below target · min ${min.toFixed(2)} → contrast-report-${skin}.json`);
 } else {
   await page.screenshot({ path: out, fullPage: true, clip: { x: 0, y: +y, width: 1440, height: +h } });
   console.log('clipped', out);

@@ -21,7 +21,7 @@ export const groups = derive(base, {
   '--sw-video-bg': lt('#111111', '#000000'),
   // text: near-black / light grey; secondary greys hold 4.5:1 on every surface level
   '--sw-text': lt('#171a20', '#e7e7e7'), '--sw-heading': lt('#000000', '#ffffff'),
-  '--sw-text-2': lt('#5c5e62', '#a6a6a6'), '--sw-text-3': lt('#5f6268', '#8f8f8f'),
+  '--sw-text-2': lt('#3f4247', '#a6a6a6'), '--sw-text-3': lt('#606368', '#8f8f8f'),
   '--sw-text-inverse': lt('#ffffff', '#000000'),
   // one cold accent
   '--sw-accent': ACC, '--sw-accent-hover': lt('#1d52d1', '#5f97ff'),
@@ -43,7 +43,7 @@ export const groups = derive(base, {
   '--sw-unknown-text': lt('#5c5e62', '#a6a6a6'), '--sw-danger-text': lt('#b01f1f', '#ff5a5a'),
   '--sw-warning-text': lt('#7a4c00', '#f2b134'), '--sw-success-text': lt('#0a7a44', '#2fd070'),
   '--sw-forbidden-text': lt('#a51818', '#ff6b6b'), '--sw-purple-text': lt('#5238b8', '#c9adff'),
-  '--sw-toggle-on': lt('#171a20', '#e7e7e7'),
+  '--sw-toggle-on': ACC, // on = accent track + white thumb (the monochrome track of round 1 was hard to read at a glance)
   // "on": one accent for every domain; a 3px rule at the start edge and an accent icon, no gradient, no halo
   '--sw-on-warm': ACC3, '--sw-on-cool': ACC3, '--sw-on-switch': ACC3,
   '--sw-glow-fill-start': same('0'), '--sw-glow-fill-end': same('0'), '--sw-glow-border': same('1'), '--sw-glow-halo': same('0'),
@@ -76,6 +76,7 @@ export const groups = derive(base, {
   '--sw-shadow-3': lt('0 0 0 1px rgba(0,0,0,.28)', '0 0 0 1px rgba(255,255,255,.26)'),
   '--sw-shadow-thumb': same('none'),
   '--sw-glass-blur': same('none'), '--sw-glass-blur-nav': same('none'), '--sw-glass-blur-sheet': same('none'), '--sw-glass-contrast-a': same('1'),
+  '--sw-glass-sheen': same('linear-gradient(transparent, transparent)'), '--sw-icon-ring-on-bg': same('transparent'),
   // motion: short, no spring, no lift
   '--sw-t-fast': same('100ms'), '--sw-t-med': same('180ms'), '--sw-t-slow': same('260ms'),
   '--sw-ease': same('cubic-bezier(.4, 0, .2, 1)'), '--sw-ease-enter': same('cubic-bezier(.4, 0, .2, 1)'), '--sw-ease-exit': same('cubic-bezier(.4, 0, 1, 1)'),
@@ -116,7 +117,7 @@ h1,h2,h3,.h1,.h2,.dialog .q,.kpi .kv,.sens .sv,.widget.alarm .word{font-weight:5
 .btn.primary{box-shadow:none} .btn.secondary{background:transparent} .btn.danger{background:transparent}
 .btn.round,.master{border-radius:var(--sw-r-md)}
 .tg .tr{border-radius:999px;border-color:var(--sw-border-strong);background:transparent} .tg .tr::after{background:var(--sw-text-2);box-shadow:none}
-.tg.on .tr{border-color:transparent} .tg.on .tr::after{background:var(--sw-text-inverse)}
+.tg.on .tr{border-color:transparent;background:var(--sw-accent)} .tg.on .tr::after{background:#fff}
 .slider .track{height:2px} .slider .thumb{width:18px;height:18px;background:var(--sw-heading);box-shadow:none}
 .stepper{background:transparent;border:1px solid var(--sw-border-strong)} .stepper .btn{background:transparent;box-shadow:none;border-radius:var(--sw-r-sm)}
 .cover-ctl .btn{background:transparent;border:1px solid var(--sw-border)}

@@ -60,11 +60,11 @@
     "dark": "#ffffff"
   },
   "--sw-text-2": {
-    "light": "#5c5c61",
+    "light": "#48484d",
     "dark": "#aeaeb2"
   },
   "--sw-text-3": {
-    "light": "#66666b",
+    "light": "#6a6a70",
     "dark": "#98989d"
   },
   "--sw-text-inverse": {
@@ -699,21 +699,97 @@
     "light": "40px",
     "dark": "40px"
   },
+  "--sw-kpi-compact-pad-block": {
+    "light": "8px",
+    "dark": "8px"
+  },
+  "--sw-kpi-compact-pad-inline": {
+    "light": "12px",
+    "dark": "12px"
+  },
+  "--sw-kpi-compact-gap": {
+    "light": "10px",
+    "dark": "10px"
+  },
+  "--sw-kpi-compact-icon": {
+    "light": "32px",
+    "dark": "32px"
+  },
+  "--sw-kpi-compact-value-fs": {
+    "light": "17px",
+    "dark": "17px"
+  },
+  "--sw-kpi-compact-col-min": {
+    "light": "168px",
+    "dark": "168px"
+  },
+  "--sw-kpi-compact-cols-phone": {
+    "light": "2",
+    "dark": "2"
+  },
+  "--sw-kpi-compact-grid-gap": {
+    "light": "8px",
+    "dark": "8px"
+  },
+  "--sw-tree-inline": {
+    "light": "270px",
+    "dark": "270px"
+  },
+  "--sw-tree-inline-max": {
+    "light": "340px",
+    "dark": "340px"
+  },
+  "--sw-tree-count-w": {
+    "light": "44px",
+    "dark": "44px"
+  },
+  "--sw-tree-menu-w": {
+    "light": "30px",
+    "dark": "30px"
+  },
+  "--sw-area-tile-min": {
+    "light": "210px",
+    "dark": "210px"
+  },
+  "--sw-area-card-min": {
+    "light": "320px",
+    "dark": "320px"
+  },
+  "--sw-floor-card-min": {
+    "light": "360px",
+    "dark": "360px"
+  },
+  "--sw-entity-tile-min": {
+    "light": "220px",
+    "dark": "220px"
+  },
+  "--sw-tile-min-block": {
+    "light": "96px",
+    "dark": "96px"
+  },
+  "--sw-icon-ring-pad": {
+    "light": "9px",
+    "dark": "9px"
+  },
+  "--sw-icon-ring-on-bg": {
+    "light": "rgba(255,255,255,.22)",
+    "dark": "rgba(255,255,255,.22)"
+  },
   "--sw-r-sm": {
     "light": "8px",
     "dark": "8px"
   },
   "--sw-r-md": {
+    "light": "10px",
+    "dark": "10px"
+  },
+  "--sw-r-lg": {
     "light": "12px",
     "dark": "12px"
   },
-  "--sw-r-lg": {
+  "--sw-r-xl": {
     "light": "16px",
     "dark": "16px"
-  },
-  "--sw-r-xl": {
-    "light": "20px",
-    "dark": "20px"
   },
   "--sw-r-pill": {
     "light": "999px",
@@ -754,6 +830,10 @@
   "--sw-glass-contrast-a": {
     "light": "1",
     "dark": "1"
+  },
+  "--sw-glass-sheen": {
+    "light": "linear-gradient(transparent, transparent)",
+    "dark": "linear-gradient(transparent, transparent)"
   },
   "--sw-t-fast": {
     "light": "150ms",

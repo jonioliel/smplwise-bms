@@ -181,7 +181,7 @@ export function foundationsType() {
     ['ספרות טבלאיות', '<span class="num">16/48 · 08:15 · 24.5°</span>', 'font-variant-numeric: tabular-nums · direction ltr', 'font-size:22px;font-weight:700;color:var(--sw-heading)'],
     ['קריאה גדולה (שעון)', '<span class="num">15:33</span><small style="font-size:.42em;color:var(--sw-text-3);font-weight:500;letter-spacing:0">38</small>', `--sw-fs-reading ${px('--sw-fs-reading')} (phone ${px('--sw-fs-reading-phone')}) · ${px('--sw-fw-reading')} · tracking ${px('--sw-reading-tracking')}`, 'font-size:var(--sw-fs-reading);font-weight:var(--sw-fw-reading);letter-spacing:var(--sw-reading-tracking);line-height:1;color:var(--sw-heading)'],
     ['קריאה גדולה (טמפרטורה)', '<span class="num">23°</span>', `--sw-fs-reading · ${px('--sw-fw-reading')}`, 'font-size:var(--sw-fs-reading);font-weight:var(--sw-fw-reading);letter-spacing:var(--sw-reading-tracking);line-height:1;color:var(--sw-heading)'],
-    ['מונו (מזהים, תעבורה)', '<span class="mono">MSE · cam-014 · 192.0.2.10</span>', '--sw-font-mono 12.5px', 'font-size:12.5px'],
+    ['מונו (מזהים, חותמות זמן — מסכי הגדרות בלבד)', '<span class="mono">cam-014 · 2026-10-01 08:15:32</span>', '--sw-font-mono 12.5px', 'font-size:12.5px'],
   ];
   const body = `<div class="sheet-wrap">
   ${sheetHead('יסודות · טיפוגרפיה', `${skin.nameHe} · משפחה: Heebo (SIL OFL 1.1; עברית + לטינית, מגיע עם המוצר) — משקלים 400 / 500 / 600 / 700. מספרים תמיד tabular ו-LTR.`, 'foundations-type')}
@@ -296,7 +296,7 @@ export function componentsSheet() {
       <div class="lrow on cool"><span class="lname"><span class="ring">${I('bulb')}</span><span>תאורת תקרה</span></span><span class="lc on"><b>דולק · 60%</b></span><span class="lc">בהירות <span class="num">60%</span></span><span class="ctl">${tg(true)}</span></div>
       <div class="lrow"><span class="lname"><span class="ring">${I('bulb')}</span><span>מנורת קריאה</span></span><span class="lc"><b>כבוי</b></span><span class="lc">—</span><span class="ctl">${tg(false)}</span></div>
       <div class="lrow unavail"><span class="lname"><span class="ring">${I('fan')}</span><span>מאוורר תקרה</span></span><span class="lc"><b>לא זמין</b></span><span class="lc">אין תקשורת · <span class="num">14</span> דק׳</span><span class="ctl">${tg(false, ' disabled')}</span></div>
-      <div class="lrow"><span class="lname"><span class="thumb"><span class="scene s1"></span></span><span>כניסה ראשית</span></span><span class="lc"><span class="badge live"><span class="dot"></span>חי</span></span><span class="lc"><span class="mono">MSE · 1920×1080</span></span><span class="ctl"><button class="btn ghost icon">${I('play')}</button></span></div></div></div>`;
+      <div class="lrow"><span class="lname"><span class="thumb"><span class="scene s1"></span></span><span>כניסה ראשית</span></span><span class="lc"><span class="badge live"><span class="dot"></span>חי</span></span><span class="lc"><span class="num">1920×1080</span></span><span class="ctl"><button class="btn ghost icon">${I('play')}</button></span></div></div></div>`;
 
   const kpiDemo = () => `<div class="demo col"><div class="lbl-s">compact · tone neutral / live / stale / forbidden · badge · expanded</div>
     <div class="demo" style="display:grid;grid-template-columns:repeat(3,1fr)">${kpi({ ic: 'bolt', v: '0/32', l: 'מתגים פעילים' }).replace('class="kpi', 'class="kpi glass')}${kpi({ ic: 'lock', v: '1/1', l: 'מנעולים נעולים', d: 'הכול נעול', tone: 'live' }).replace('class="kpi', 'class="kpi glass')}${kpi({ ic: 'camera', v: '14/16', l: 'מצלמות · 2 לא מעודכנות', tone: 'stale' }).replace('class="kpi', 'class="kpi glass')}${kpi({ ic: 'eyeOff', v: '2', l: 'ללא הרשאה', tone: 'forbidden' }).replace('class="kpi', 'class="kpi glass')}
@@ -328,7 +328,7 @@ export function componentsSheet() {
     <div class="field focus" style="width:200px"><label>focus</label><div class="in">קיר כניסה</div></div>
     <div class="field error" style="width:200px"><label>error</label><div class="in">קיר כניסה!</div><span class="hint">השם כבר קיים</span></div>
     <div class="field disabled" style="width:200px"><label>disabled</label><div class="in">לא ניתן לערוך</div></div>
-    <div class="field ro" style="width:200px"><label>read-only</label><div class="in">Hikvision DS-7616</div></div>
+    <div class="field ro" style="width:200px"><label>read-only</label><div class="in">מקליט ראשי</div></div>
     <div class="field inline" style="width:320px"><label>inline</label><div class="in grow">360</div></div></div>`;
 
   const tileDemo = () => `<div class="demo col"><div class="lbl-s">אריח התקן · off / on קר (תאורה) / on חם (תריס) / on ירוק (מתג) / לא זמין / pending</div>
@@ -364,7 +364,7 @@ export function areaStatesBoard() {
   const body = `<div style="padding:26px 30px 40px;display:flex;flex-direction:column;gap:22px">
     <header class="sheet-head"><div><h1 class="h1" style="font-size:34px">מסך האזור · לוח מצבים</h1><div class="sub">loading · empty · error · unavailable · read-only — 1440, light. כל מצב בצורה + טקסט, לא בצבע בלבד.</div></div><span class="tag faint" style="direction:ltr">area-states · 1440 · light · ${current().id}</span></header>
     ${frame('loading', 'loading', 'שלד של 4 כרטיסי תחום; הכותרת, כפתור הקומה ושורת החדרים כבר מוצגים')}
-    ${frame('empty', 'empty', 'אזור בלי התקנים — פאנל מצב אחד, שורת רמז אחת, בלי שם פלטפורמה')}
+    ${frame('empty', 'empty', 'אזור בלי התקנים — פאנל מצב אחד, בלי שורת רמז, בלי שם פלטפורמה')}
     ${frame('error', 'error', 'שגיאת טעינה עם "נסה שוב"')}
     ${frame('unavailable', 'unavailable', 'תחום שלם לא זמין (תריסים: מסגרת compact עם אייקון וסיבה) + התקן בודד לא זמין (מאוורר תקרה: מקווקו, פקד מושבת, סיבה ב-tooltip)')}
     ${frame('readonly', 'read-only (צופה)', 'אריחים ללא פקדים, "כבה הכל" ופקדי המיזוג לא מוצגים (לא אפורים) — נראות לפי הרשאות')}
@@ -378,13 +378,15 @@ export function indexPage(boards, rendersRel = '../renders/') {
   const groupsIdx = [
     ['יסודות', boards.filter((b) => b.file.startsWith('foundations'))],
     ['רכיבים', boards.filter((b) => b.file.startsWith('components'))],
-    ['הבית — כרטיסים', boards.filter((b) => b.file.startsWith('home-') && !b.file.startsWith('home-list'))],
+    ['הבית — כרטיסים', boards.filter((b) => b.file.startsWith('home-') && !b.file.startsWith('home-list') && !b.file.startsWith('home-kpi'))],
+    ['הבית — ווידג׳טים אופציונליים (שורת KPI · רצועת מזגנים · עץ המבנה)', boards.filter((b) => b.file.startsWith('home-kpi'))],
     ['הבית — רשימה', boards.filter((b) => b.file.startsWith('home-list'))],
     ['מסך אזור — כרטיסים', boards.filter((b) => b.file.startsWith('area-') && !b.file.startsWith('area-states') && !b.file.startsWith('area-list'))],
     ['מסך אזור — רשימה', boards.filter((b) => b.file.startsWith('area-list'))],
     ['קיר מצלמות — רשת', boards.filter((b) => b.file.startsWith('wall-') && !b.file.startsWith('wall-list'))],
     ['קיר מצלמות — רשימה', boards.filter((b) => b.file.startsWith('wall-list'))],
     ['לוח מצבים', boards.filter((b) => b.file.startsWith('area-states'))],
+    ['מראות LTR — לוחות מלאים (בית · אזור)', boards.filter((b) => b.file.startsWith('mirrors/'))],
   ];
   const skinLinks = skinIds.map((id) => `<a class="btn ${id === skin.id ? 'primary' : 'secondary'}" href="${id === 'domus' ? (skin.id === 'domus' ? '' : '../') : (skin.id === 'domus' ? `${id}/` : `../${id}/`)}index.html">${skins[id].nameHe}</a>`).join('');
   const body = `<div class="sheet-wrap">

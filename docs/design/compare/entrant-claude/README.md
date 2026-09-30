@@ -5,22 +5,34 @@ direction departs from today's card grid (DomusUI-style room screen and building
 mode** next to its card mode, and the whole shell is delivered as **three switchable skins** with an identical
 structure (`SKINS_HE.md`).
 
-| Skin | Boards | Renders | Tokens |
-|---|---|---|---|
-| 1 · hi-tech Domus (`skins/domus.mjs`) | `boards/` | `renders/` | `tokens.json`, `tokens.css`, `tokens-light.css`, `tokens-dark.css` |
-| 2 · iOS / Apple (`skins/ios.mjs`) | `boards/ios/` | `renders/ios/` | `tokens-ios.json`, `tokens-ios.css` |
-| 3 · Tesla clean hi-tech (`skins/tesla.mjs`) | `boards/tesla/` | `renders/tesla/` | `tokens-tesla.json`, `tokens-tesla.css` |
+| Skin | Boards | Renders | Tokens | Contrast report |
+|---|---|---|---|---|
+| 1 · hi-tech Domus (`skins/domus.mjs`) | `boards/` | `renders/` | `tokens.json`, `tokens.css`, `tokens-light.css`, `tokens-dark.css` | `contrast-report-domus.json` |
+| 2 · iOS / Apple (`skins/ios.mjs`) | `boards/ios/` | `renders/ios/` | `tokens-ios.json`, `tokens-ios.css`, `tokens-ios-light.css`, `tokens-ios-dark.css` | `contrast-report-ios.json` |
+| 3 · Tesla clean hi-tech (`skins/tesla.mjs`) | `boards/tesla/` | `renders/tesla/` | `tokens-tesla.json`, `tokens-tesla.css`, `tokens-tesla-light.css`, `tokens-tesla-dark.css` | `contrast-report-tesla.json` |
 
-Per skin, 30 boards: 4 foundations + component sheet + home / area / wall × cards and list × 1440×900 and 390×full
-height × light and dark (24) + the area states board. `boards/index.html` switches between skins and boards.
+Per skin, 40 boards: 4 foundations + component sheet + home / area / wall × cards and list × 1440×900 and 390×full
+height × light and dark (24) + the area states board + **`home-kpi-1440-{light,dark}`** (the home with the optional
+widgets: KPI strip, climate strip, building tree) + **8 full-board LTR mirrors** of home and area
+(`boards/<skin>/mirrors/*-ltr.html`, `renders/<skin>/mirrors/*-ltr.png`; `dir="ltr"` on `<html>`, nothing else
+changes). `boards/index.html` switches between skins and boards.
 
-- `TOKEN_MAP.md` — one map for all skins (same 203 names; new semantic name → old `--sw-*` / `--dv-*` names).
+Round-1 judge fixes (2026-10-01): LTR mirrors rendered; the 20 contract knobs that had no value or mapping now have
+values in every skin (`skins/domus.mjs` group `knobs`) and rows in `TOKEN_MAP.md`; iOS and Tesla ship separate
+light/dark token CSS; Domus light and iOS light were reworked to be distinguishable at a glance (coloured canvas +
+real glass + floating rail vs flat grey canvas + white grouped containers without outline); no engineering terms
+(`MSE`, stream quota, NVR model) on operator boards; live camera tiles carry a text chip "חי"; offline / no-permission
+tiles put the camera name on its own row (no collision on the 390 wall); saved contrast reports per skin (0 below
+target); text-2 / text-3 are distinguishable in every skin and scheme.
+
+- `TOKEN_MAP.md` — one map for all skins (same 223 names; new semantic name → old `--sw-*` / `--dv-*` names).
 - `RATIONALE_HE.md`, `SKINS_HE.md`, `CHECKLIST.md` — rationale, the skin layer, self-scores per skin.
 - `src/` — the shared structure (`screens.mjs`, `boards.mjs`, `css.mjs`, `icons.mjs`), token access (`tokens.mjs`),
   skin registry (`skin.mjs`), helpers (`token-helpers.mjs`). `skins/` — one file per skin: full token set (light +
   dark) + bounded component rules + copy for the foundation boards.
-- Rebuild: `node build.mjs [filter] [--no-render] [--skin=domus|ios|tesla|all]`. Contrast dump:
-  `node inspect.mjs contrast --skin=<id>` (all pairs computed from the skin's tokens over its real canvas; the run
-  ends with "N below target"). Rendering uses the frontend's Playwright; fonts are local (`boards/fonts/`).
+- Rebuild: `node build.mjs [filter] [--no-render] [--skin=domus|ios|tesla|all]` (filters: `mirrors/`, `home-kpi`,
+  `wall-390`, …). Contrast: `node inspect.mjs contrast --skin=<id>` prints every pair computed from the skin's tokens
+  over its real canvas, ends with "N below target" and writes `contrast-report-<id>.json`. Rendering uses the
+  frontend's Playwright; fonts are local (`boards/fonts/`).
 
 No product code, no Lit components, nothing outside this folder.

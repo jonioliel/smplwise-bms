@@ -25,8 +25,8 @@ export const groups = derive(base, {
   // text: label / secondary / tertiary — tertiary darkened to hold 4.5:1 on white and on the grouped grey
   '--sw-text': lt('#000000', '#ffffff'),
   '--sw-heading': lt('#000000', '#ffffff'),
-  '--sw-text-2': lt('#5c5c61', '#aeaeb2'),
-  '--sw-text-3': lt('#66666b', '#98989d'),
+  '--sw-text-2': lt('#48484d', '#aeaeb2'),
+  '--sw-text-3': lt('#6a6a70', '#98989d'),
   '--sw-text-inverse': lt('#ffffff', '#000000'),
   // accent: system blue
   '--sw-accent': BLUE, '--sw-accent-hover': lt('#0062c4', '#0a84ff'),
@@ -76,8 +76,8 @@ export const groups = derive(base, {
   // space: rows 52, icon squares 32, tighter card padding
   '--sw-page-pad': same('24px'), '--sw-tile-gap': same('8px'), '--sw-card-gap': same('16px'), '--sw-card-pad': same('16px'),
   '--sw-row-h': same('52px'), '--sw-row-h-compact': same('44px'), '--sw-icon-ring': same('32px'), '--sw-icon-ring-lg': same('40px'),
-  // radii: 8 / 12 / 16 / 20
-  '--sw-r-sm': same('8px'), '--sw-r-md': same('12px'), '--sw-r-lg': same('16px'), '--sw-r-xl': same('20px'),
+  // radii: 8 / 10 / 12 / 16 — grouped-list containers, not panels
+  '--sw-r-sm': same('8px'), '--sw-r-md': same('10px'), '--sw-r-lg': same('12px'), '--sw-r-xl': same('16px'),
   // elevation: grouped cards carry no shadow; popovers and sheets do; the switch thumb has the classic drop
   '--sw-shadow-1': same('none'),
   '--sw-shadow-2': lt('0 6px 20px rgba(0,0,0,.10)', '0 8px 24px rgba(0,0,0,.60)'),
@@ -85,7 +85,8 @@ export const groups = derive(base, {
   '--sw-shadow-thumb': lt('0 3px 8px rgba(0,0,0,.15), 0 3px 1px rgba(0,0,0,.06)', '0 3px 8px rgba(0,0,0,.45), 0 3px 1px rgba(0,0,0,.2)'),
   // material: cards opaque; only the rail, the bar and the corner are translucent
   '--sw-glass-blur': same('none'), '--sw-glass-blur-nav': same('blur(20px) saturate(1.8)'), '--sw-glass-blur-sheet': same('blur(20px) saturate(1.8)'),
-  '--sw-glass-contrast-a': same('1'),
+  '--sw-glass-contrast-a': same('1'), '--sw-glass-sheen': same('linear-gradient(transparent, transparent)'),
+  '--sw-icon-ring-on-bg': same('rgba(255,255,255,.22)'),
   // motion: a touch slower, spring on thumbs, no hover lift
   '--sw-t-fast': same('150ms'), '--sw-t-med': same('250ms'), '--sw-t-slow': same('400ms'),
   '--sw-ease': same('cubic-bezier(.25, .1, .25, 1)'), '--sw-ease-thumb': same('cubic-bezier(.34, 1.56, .64, 1)'),
@@ -93,15 +94,20 @@ export const groups = derive(base, {
 });
 
 export const rules = `
-/* ios · cards are opaque grouped containers; only the rail, bar and corner are translucent material */
-.glass{background:var(--sw-surface-solid)}
+/* ios · cards are opaque grouped containers without an outline; only the rail, bar and corner are translucent material */
+.glass{background:var(--sw-surface-solid);border-color:transparent}
 .rail-in,.bar,.corner,.sheet{background:var(--sw-surface);-webkit-backdrop-filter:var(--sw-glass-blur-nav);backdrop-filter:var(--sw-glass-blur-nav)}
 /* ios · sidebar: flush, hairline at the end edge, rounded selection, no indicator bar */
 .rail-in{border-inline-end:1px solid var(--sw-border);border-radius:0;padding-inline:8px}
 .rail-item{border-radius:10px}
 .brand{border-radius:12px;background:linear-gradient(180deg,var(--sw-accent-hover),var(--sw-accent));box-shadow:0 1px 2px rgba(0,0,0,.18)}
 .bar-item.active{color:var(--sw-accent)}
-.corner{box-shadow:none}
+.corner{box-shadow:0 1px 3px rgba(0,0,0,.10);border-color:transparent}
+/* ios · grouped-list rhythm: grey filled pills, blue text buttons, small grey group headers with the facts in grey */
+.chip,.room .amb .chip{background:var(--sw-surface-3);border-color:transparent}
+.fbtn{background:var(--sw-surface-solid);border-color:transparent;color:var(--sw-accent-text)} .fbtn .ic{color:var(--sw-accent-text)}
+.floor .fh .facts,.floor .fh .facts b{color:var(--sw-text-3);font-weight:var(--sw-fw-regular)}
+.room .rn{font-size:var(--sw-fs-xl);font-weight:var(--sw-fw-semibold);letter-spacing:0}
 /* ios · grouped inset lists: rows without fills, hairline separators, last row clean */
 .tile,.sens,.lrow{background:transparent;border:0;border-radius:0;border-bottom:1px solid var(--sw-border);padding-inline:2px}
 .tiles1 > .tile:last-child,.tiles2 > .tile:last-child,.tiles2 > .tile:nth-last-child(2):nth-child(odd),.sens2 > .sens:nth-last-child(-n+2),.lgroup .lrow:last-child{border-bottom:0}
@@ -110,7 +116,7 @@ export const rules = `
 .ring,.dbadge{border-radius:8px}
 .tile.on .ring,.lrow.on .ring{background:rgb(var(--g));color:#fff}
 .atile{background:var(--sw-surface-3);border-color:transparent}
-.atile.on,.room.on{background:rgb(var(--g) / var(--sw-glow-fill-start));border-color:transparent;box-shadow:none}
+.atile.on,.room.on{background:rgb(var(--g) / calc(var(--sw-glow-fill-start) * .6));border-color:transparent;box-shadow:none}
 .atile.on .dbadge,.room.on .dbadge{background:rgb(var(--g));color:#fff}
 .kpi .ring{background:rgb(var(--tone,var(--sw-role-neutral)));color:#fff}
 .dbadge{background:rgb(var(--role,var(--sw-role-accent)));color:#fff}

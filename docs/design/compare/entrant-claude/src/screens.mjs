@@ -3,7 +3,10 @@ import { fontFace, tokensCss, baseCss, phoneCss, skinRules } from './css.mjs';
 import { current } from './skin.mjs';
 
 // ---------- document + shell ----------
-export function doc({ title, scheme = 'light', dir = 'rtl', body, css = '', label = '', width, fontPrefix = 'fonts/' }) {
+// Fonts live in boards/fonts/ only; boards of the non-root skins (boards/<skin>/) reach them with '../fonts/'.
+let defaultFontPrefix = 'fonts/';
+export const setFontPrefix = (p) => { defaultFontPrefix = p; };
+export function doc({ title, scheme = 'light', dir = 'rtl', body, css = '', label = '', width, fontPrefix = defaultFontPrefix }) {
   return `<!doctype html>
 <html lang="he" dir="${dir}" data-scheme="${scheme}" data-skin="${current().id}">
 <head>
@@ -78,7 +81,7 @@ const homeCss = `
 .floor .fh .h2{font-size:var(--sw-fs-xl);white-space:nowrap}
 .floor .fh .facts{font-size:var(--sw-fs-sm)}
 .floor .fh .act{margin-inline-start:auto}
-.rooms{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sw-card-gap)}
+.rooms{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--sw-card-gap)}
 .room{padding:12px 14px;gap:8px;min-height:0}
 .room .amb{flex-wrap:nowrap;overflow:hidden}
 .room .amb .chip{height:28px;padding:0 9px;font-size:var(--sw-fs-xs)}
@@ -87,7 +90,14 @@ const homeCss = `
 .room.unassigned{justify-content:center}
 .strip{display:flex;gap:8px;overflow:hidden;position:relative;align-items:center}
 .strip .lbl{font-size:var(--sw-fs-sm);color:var(--sw-text-3);white-space:nowrap;margin-inline-end:4px}
-.strip::after{content:"";position:absolute;inset:0 auto 0 0;width:56px;background:linear-gradient(to right,var(--sw-bg),transparent);pointer-events:none}
+.strip::after{content:"";position:absolute;inset-block:0;inset-inline-end:0;width:56px;background:linear-gradient(to right,var(--sw-bg),transparent);pointer-events:none}
+/* optional home widgets (home-kpi variant): KPI strip, climate strip, building tree beside the floors */
+.hbody{display:flex;gap:var(--sw-card-gap);align-items:flex-start}
+.hbody .floors{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px}
+.hbody .room .amb .chip:nth-child(n+4){display:none} /* narrower cards beside the tree: three ambient chips */
+.tree-panel{padding:10px}
+.tree-panel .tree .trow.tfloor:first-child{margin-top:0}
+.strip.climate{gap:8px} .strip.climate .chip{height:34px}
 @media (max-width:767px){
   .widgets{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;margin-inline:-16px;padding-inline:16px;scrollbar-width:none}
   .widget{flex:0 0 78%;scroll-snap-align:start;min-height:128px}
@@ -142,17 +152,42 @@ function widgets() {
 
 const unassigned = () => `<a class="glass room unassigned lift" href="#"><div class="rh"><span class="dbadge lg">${I('inbox')}</span><span class="grow"><div class="rn">ללא שיוך</div><div class="rs"><span class="num">4</span> התקנים</div></span>${I('chevron', { mirror: true, cls: 'faint' })}</div></a>`;
 
-export function homeContent({ phone = false, view = 'cards' } = {}) {
+// optional widgets (owner decision: KPI strip, building tree and climate strip are widgets, not structure)
+const KPIS = [
+  { ic: 'bulb', v: '16/48', l: 'תאורה דולקת', tone: 'warm' }, { ic: 'bolt', v: '0/32', l: 'מתגים פעילים' }, { ic: 'layers', v: '8/16', l: 'תריסים פתוחים', tone: 'accent' },
+  { ic: 'wave', v: '8/8', l: 'מיזוג פעיל', tone: 'cool' }, { ic: 'monitor', v: '1/1', l: 'מסכים דולקים' }, { ic: 'lock', v: '1/1', l: 'מנעולים', d: 'הכול נעול', tone: 'live' },
+  { ic: 'camera', v: '14/16', l: 'מצלמות', d: '2 לא מעודכנות', tone: 'stale' },
+];
+const kpiStrip = () => `<section class="kpis">${KPIS.map((k) => kpi(k).replace('class="kpi', 'class="kpi glass')).join('')}</section>`;
+const climateStrip = () => `<div class="strip climate"><span class="lbl">${I('wave', { size: 15 })} מזגנים</span>${[['סלון', 'קירור 22°', true], ['חדר ילדים', 'קירור 23°', true], ['חדר שינה הורים', 'קירור 21°', true], ['משרד', 'קירור 22°', true], ['לובי', 'כבוי'], ['מטבח', 'כבוי'], ['חדר ישיבות', 'קירור 24°', true], ['מחסן', 'כבוי']].map(([n, s, on]) => `<span class="chip${on ? ' warm' : ''}">${n} · <span class="num">${s}</span></span>`).join('')}</div>`;
+const treePanel = () => `<aside class="glass tree-panel"><div class="tree">
+  <div class="trow sel">${I('building')}<span>כל המבנה</span><span class="lit"><span class="num">111</span></span><span class="menu">${I('dots', { size: 16 })}</span></div>
+  ${ROOMS.map((f) => `<div class="trow tfloor">${I('layers')}<span>${f.floor}</span><span class="lit${f.floorFacts[0][2] ? ' on' : ''}">${I('bulb')}<span class="num">${f.floorFacts[0][1]}</span></span><span class="menu">${I('dots', { size: 16 })}</span></div>
+  ${f.rooms.map((r) => `<div class="trow area">${I(r.ic)}<span>${r.name}</span><span class="lit${r.on ? ' on' : ''}"><span class="num">${r.act || 0}</span>/<span class="num">${r.n}</span></span><span class="menu">${I('dots', { size: 16 })}</span></div>`).join('')}`).join('')}
+  <div class="trow area">${I('inbox')}<span>ללא שיוך</span><span class="lit"><span class="num">4</span></span></div>
+</div></aside>`;
+
+export function homeContent({ phone = false, view = 'cards', widgetsExtra = false } = {}) {
   const floors = ROOMS.map((f, i) => `<section class="floor"><div class="fh"><h2 class="h2">${f.floor}</h2><span class="facts"><span><b class="num">${f.rooms.length}</b> אזורים</span>${f.floorFacts.map(([ic, v, on]) => fact(ic, v, on)).join('')}</span><span class="act">${offAll('כבה קומה')}</span></div>
     <div class="rooms">${f.rooms.map(roomCard).join('')}${i === ROOMS.length - 1 ? unassigned() : ''}</div></section>`).join('');
+  if (widgetsExtra) return `<div class="page home">${homeHead({ phone, view })}${widgets()}${kpiStrip()}${climateStrip()}<div class="hbody">${treePanel()}<div class="floors">${floors}</div></div></div>`;
   return `<div class="page home">${homeHead({ phone, view })}${widgets()}${floors}</div>`;
 }
 
-export function homeBoard({ scheme, phone }) {
+export function homeBoard({ scheme, phone, dir = 'rtl', fontPrefix = defaultFontPrefix }) {
   return doc({
-    title: `Arx · הבית · ${phone ? 390 : 1440} · ${scheme}`, scheme, css: homeCss + listCss,
+    title: `Arx · הבית · ${phone ? 390 : 1440} · ${scheme}${dir === 'ltr' ? ' · LTR' : ''}`, scheme, dir, css: homeCss + listCss, fontPrefix,
     body: shell({ active: 'home', phone, content: homeContent({ phone }) }),
-    label: `home · ${phone ? '390×844' : '1440×900'} · ${scheme}`,
+    label: `home · ${phone ? '390×844' : '1440×900'} · ${scheme}${dir === 'ltr' ? ' · ltr mirror' : ''}`,
+  });
+}
+
+// home with the optional widgets (KPI strip + climate strip + building tree). 1440 only; the default home stays the facts row.
+export function homeKpiBoard({ scheme }) {
+  return doc({
+    title: `Arx · הבית · ווידג׳טים אופציונליים · 1440 · ${scheme}`, scheme, css: homeCss + listCss,
+    body: shell({ active: 'home', phone: false, content: homeContent({ widgetsExtra: true }) }),
+    label: `home-kpi · 1440×900 · ${scheme} · optional widgets: KPI strip + climate strip + building tree`,
   });
 }
 
@@ -286,7 +321,7 @@ export function areaContent({ phone = false, state = 'ready', view = 'cards' } =
     return `<div class="page area">${head}<div class="domains">${[0, 1, 2, 3].map(() => `<section class="glass dcard"><div class="row" style="gap:10px;margin-bottom:12px"><span class="skeleton" style="width:36px;height:36px;border-radius:12px"></span><span class="skeleton" style="width:120px;height:16px"></span></div><div class="tiles1">${[0, 1, 2].map(() => `<span class="skeleton" style="height:52px;border-radius:var(--sw-r-md)"></span>`).join('')}</div></section>`).join('')}</div></div>`;
   }
   if (state === 'empty') {
-    return `<div class="page area">${head}<section class="glass"><div class="state"><span class="sic">${I('inbox')}</span><div class="st">אין התקנים באזור הזה</div><div class="sh">התקנים שישויכו לאזור יופיעו כאן</div></div></section></div>`;
+    return `<div class="page area">${head}<section class="glass"><div class="state"><span class="sic">${I('inbox')}</span><div class="st">אין התקנים באזור הזה</div></div></section></div>`;
   }
   if (state === 'error') {
     return `<div class="page area">${head}<section class="glass"><div class="state error"><span class="sic">${I('alert')}</span><div class="st">לא ניתן לטעון את האזור</div><div class="sh">תשתית המערכת לא הגיבה</div><button class="btn secondary" style="margin-top:6px">${I('refresh')}נסה שוב</button></div></section></div>`;
@@ -330,11 +365,11 @@ export function areaContent({ phone = false, state = 'ready', view = 'cards' } =
   return `<div class="page area${ro ? ' ro' : ''}">${head}<div class="domains">${grid}</div>${empties}</div>`;
 }
 
-export function areaBoard({ scheme, phone }) {
+export function areaBoard({ scheme, phone, dir = 'rtl', fontPrefix = defaultFontPrefix }) {
   return doc({
-    title: `Arx · אזור · ${phone ? 390 : 1440} · ${scheme}`, scheme, css: areaCss,
+    title: `Arx · אזור · ${phone ? 390 : 1440} · ${scheme}${dir === 'ltr' ? ' · LTR' : ''}`, scheme, dir, css: areaCss, fontPrefix,
     body: shell({ active: 'home', phone, content: areaContent({ phone }) }),
-    label: `area · ${phone ? '390×844' : '1440×900'} · ${scheme}`,
+    label: `area · ${phone ? '390×844' : '1440×900'} · ${scheme}${dir === 'ltr' ? ' · ltr mirror' : ''}`,
   });
 }
 
@@ -389,7 +424,7 @@ const wallCss = `
   .wall .grid{grid-template-columns:1fr 1fr;grid-auto-rows:auto}
   .wall .cam{aspect-ratio:16/9}
   .segwrap{overflow:hidden;position:relative;margin-inline:-16px;padding-inline:16px}
-  .segwrap::after{content:"";position:absolute;inset:0 auto 0 0;width:40px;background:linear-gradient(to right,var(--sw-bg),transparent)}
+  .segwrap::after{content:"";position:absolute;inset-block:0;inset-inline-end:0;width:40px;background:linear-gradient(to right,var(--sw-bg),transparent);pointer-events:none}
   .segwrap .seg{flex-wrap:nowrap}
 }`;
 
@@ -400,7 +435,7 @@ const CAMS = [
   ['חדר מכונות', 'snapshot', 's2', 'מרתף'], ['מרפסת', 'live', 's6', 'סלון'], ['חדר ישיבות', 'live', 's4', 'קומה 1'], ['כניסה צדדית', 'live', 's1', 'חוץ'],
 ];
 export function camTile([name, st, scene], opts = {}) {
-  if (st === 'live') return `<div class="cam live${opts.sel ? ' selected' : ''}"><div class="scene ${scene}"></div><div class="nm"><span class="dot live"></span>${name}</div></div>`;
+  if (st === 'live') return `<div class="cam live${opts.sel ? ' selected' : ''}"><div class="scene ${scene}"></div><span class="tag badge live"><span class="dot"></span>חי</span><div class="nm"><span class="dot live"></span>${name}</div></div>`;
   if (st === 'snapshot') return `<div class="cam snapshot"><div class="scene ${scene}"></div><span class="tag badge image">${I('snapshot')}צילום</span><div class="nm"><span class="dot live"></span>${name}</div></div>`;
   if (st === 'offline') return `<div class="cam offline">${I('wifiOff', { cls: 'big' })}<div class="st">מנותקת</div><div class="rs">אין תגובה · <span class="num">4</span> דק׳</div><div class="nm plain"><span class="dot"></span>${name}</div></div>`;
   if (st === 'connecting') return `<div class="cam connecting">${I('loader', { cls: 'big spin' })}<div class="st">מתחברת…</div><div class="nm plain"><span class="dot unknown"></span>${name}</div></div>`;
@@ -426,7 +461,7 @@ function wallHead({ phone, view }) {
 export function wallContent({ phone = false } = {}) {
   return `<div class="page wall">${wallHead({ phone, view: 'gridv' })}
   <div class="grid">${CAMS.map((c) => camTile(c)).join('')}</div>
-  <div class="wfacts"><span><span class="num">12</span> חי</span>·<span><span class="num">2</span> צילום</span>·<span><span class="num">1</span> מנותקת</span>·<span><span class="num">1</span> ללא הרשאה</span>·<span>תעבורה <span class="mono">MSE</span></span>·<span>מכסת זרמים <span class="num">16</span></span>·<span>צילומים מתרעננים כל דקה</span></div>
+  <div class="wfacts"><span><span class="num">12</span> חי</span>·<span><span class="num">2</span> צילום</span>·<span><span class="num">1</span> מנותקת</span>·<span><span class="num">1</span> ללא הרשאה</span>·<span>צילומים מתרעננים כל דקה</span></div>
 </div>`;
 }
 
@@ -441,19 +476,19 @@ export function wallBoard({ scheme, phone }) {
 // ---------- WALL · list view: cameras as a table ----------
 export function wallListContent({ phone = false } = {}) {
   const badge = { live: ['live', 'חי'], snapshot: ['recorded', 'צילום'], offline: ['offline', 'מנותקת'], forbidden: ['forbidden', 'אין הרשאה'] };
-  const head = `<div class="lhead"><span>מצלמה</span><span>אזור</span><span>מצב</span><span>תעבורה</span><span>רזולוציה</span><span>צילום אחרון</span><span></span></div>`;
+  const head = `<div class="lhead"><span>מצלמה</span><span>אזור</span><span>מצב</span><span>איכות</span><span>רזולוציה</span><span>צילום אחרון</span><span></span></div>`;
   const rows = CAMS.map(([name, st, scene, area], i) => {
     const [b, t] = badge[st];
     const thumb = st === 'live' || st === 'snapshot' ? `<span class="thumb"><span class="scene ${scene}"></span></span>` : `<span class="thumb" style="display:grid;place-items:center;background:var(--sw-surface-3-solid);color:var(--sw-text-3)${st === 'offline' ? ';border:1.5px dashed var(--sw-border-strong)' : ''}">${I(st === 'offline' ? 'wifiOff' : 'eyeOff', { size: 16 })}</span>`;
     return `<div class="lrow${st === 'offline' ? ' unavail' : ''}"><span class="lname">${thumb}<span>${name}</span></span>
       <span class="lc ph-hide">${area}</span><span class="lc"><span class="badge ${b}"><span class="dot"></span>${t}</span></span>
-      <span class="lc ph-hide">${st === 'live' ? '<span class="mono">MSE</span>' : st === 'snapshot' ? '<span class="mono">JPEG</span>' : '—'}</span>
+      <span class="lc ph-hide">${st === 'live' ? (i % 3 ? 'רגילה' : 'גבוהה') : st === 'snapshot' ? 'צילום' : '—'}</span>
       <span class="lc ph-hide">${st === 'live' || st === 'snapshot' ? `<span class="mono">${i % 3 ? '1920×1080' : '2560×1440'}</span>` : '—'}</span>
       <span class="lc ph-hide">${st === 'forbidden' ? '—' : `<span class="num">15:3${i % 4}</span>`}</span>
       <span class="lact"><button class="btn ghost icon${st === 'live' ? '' : ' disabled'}" aria-label="צפה">${I('play')}</button><button class="btn ghost icon ph-hide" aria-label="הרחב">${I('expand')}</button></span></div>`;
   }).join('');
   return `<div class="page wall">${wallHead({ phone, view: 'list' })}<section class="glass ltable cams">${head}${rows}</section>
-  <div class="wfacts"><span><span class="num">12</span> חי</span>·<span><span class="num">2</span> צילום</span>·<span><span class="num">1</span> מנותקת</span>·<span><span class="num">1</span> ללא הרשאה</span>·<span>מכסת זרמים <span class="num">16</span></span></div></div>`;
+  <div class="wfacts"><span><span class="num">12</span> חי</span>·<span><span class="num">2</span> צילום</span>·<span><span class="num">1</span> מנותקת</span>·<span><span class="num">1</span> ללא הרשאה</span></div></div>`;
 }
 
 export function wallListBoard({ scheme, phone }) {
