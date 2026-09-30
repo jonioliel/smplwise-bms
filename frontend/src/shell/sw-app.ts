@@ -1,3 +1,7 @@
+// CR-015 load order: api/media-screens.ts and its MOCK (api/media-screens-mock.ts) import each other, and the mock's tables read the
+// client's constants while it loads - so the mock must be the FIRST of the two to load (the client first = "Cannot access ... before
+// initialization", the page never starts). Everything below may import either.
+import '../api/media-screens-mock';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
@@ -31,6 +35,8 @@ import '../screens/devices-building';
 import '../screens/devices-area';
 import '../screens/devices-schedules';
 import '../screens/system-schedules';
+import '../screens/multimedia-screens'; // CR-015: the screens page (the remote, <media-remote>, is S3's and registers itself where it is imported)
+import '../screens/system-multimedia';
 import '../screens/security-alarm';
 import '../screens/schedule-editor';
 import '../screens/live-overview';
@@ -63,7 +69,7 @@ import { onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
-import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, isHomeEditRoute, isHomeRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaRowSection, tabStyleOf, type LegacyAccess, tabAllowed, type NavTabId } from './nav';
+import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyMultimediaHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaRowSection, tabStyleOf, type LegacyAccess, tabAllowed, type NavTabId } from './nav';
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { t } from '../i18n/he';
 import { can, canNav, isApi, loadSession, nvrLess, onSession, watchPermissions, type Session } from '../api/session';
@@ -1123,6 +1129,7 @@ export class SwApp extends LitElement {
           applyWiskeyUi(ps as unknown as Record<string, unknown>); // הגדרות › בקרות כניסה: embed or SMPLWISE per WisKey screen
           applySnapshotHidden(ps as unknown as Record<string, unknown>); // ui.security_snapshot: the live overview leaves the navigation
           applySchedulesHidden(ps as unknown as Record<string, unknown>); // schedules.enabled (CR-014): the "תזמונים" tab of the home area
+          applyMultimediaHidden(ps as unknown as Record<string, unknown>); // multimedia.enabled (CR-015): the "מולטימדיה" area
           applyTabsConfig(ps as unknown as Record<string, unknown>); // ui.tabs: the installation's tab order and hidden tabs (before the landing target below)
           // the start screen (0.1.68): only when the address carried no route of its own. CR-013: "ראשי" (the device
           // overview) by default; a start screen this user does not see falls back to their first tab
@@ -1610,6 +1617,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'security') return html`<system-security .sub=${s[2] ?? ''} .panelId=${r.params.get('panel') ?? ''}></system-security>`;
         if (s[1] === 'storage') return html`<system-storage></system-storage>`;
         if (s[1] === 'schedules') return html`<system-schedules></system-schedules>`; // הגדרות › תזמונים (CR-014)
+        if (s[1] === 'multimedia') return html`<system-multimedia></system-multimedia>`; // הגדרות › מדיה (CR-015)
         if (s[1] === 'entities') return html`<explore-entities></explore-entities>`; // the device catalogue, formerly the map's "התקנים" tab (system.configure only: the screen checks it too)
         if (s[1] === 'access') return html`<system-access></system-access>`;
         if (s[1] === 'notifications') return html`<arx-notifications-settings></arx-notifications-settings>`;
@@ -1657,6 +1665,12 @@ export class SwApp extends LitElement {
         }
         if (s[1] === 'schedules') return html`<devices-schedules></devices-schedules>`;
         return html`<devices-building></devices-building>`;
+      case 'multimedia':
+        // CR-015: the screens page. Players / groups (0.1.150) have an address but no tab yet: a plain "soon" state.
+        if (s[1] === 'players' || s[1] === 'groups') {
+          return html`<sw-page heading=${s[1] === 'players' ? 'נגנים ורמקולים' : 'קבוצות'}><sw-state-panel data-multimedia-state="later" state="empty" heading="בקרוב"></sw-state-panel></sw-page>`;
+        }
+        return html`<multimedia-screens .remoteKey=${r.params.get('remote') ?? ''}></multimedia-screens>`;
       case 'explore':
       default: {
         if (s[1] === 'sites') return html`<explore-sites></explore-sites>`;
@@ -1891,7 +1905,7 @@ export class SwApp extends LitElement {
     const section = area === 'security' ? sectionOf(this.route) : null;
     const tabs = section ? visibleTabs(SECTION_TABS[section], api, canNav) : area && area !== 'security' ? visibleTabs(AREA_TABS[area], api, canNav) : [];
     // the plan editors' and the schedule editor's routes, and the home layout editor (`?edit=1`, CR-014): no tab row
-    const editor = this.route?.segments[3] === 'edit' || this.route?.segments[3] === 'import' || isHomeEditRoute(this.route);
+    const editor = this.route?.segments[3] === 'edit' || this.route?.segments[3] === 'import' || isHomeEditRoute(this.route) || isMultimediaEditRoute(this.route);
     const areas = visibleAreas(api, canNav, this.navOrder);
     const showSections = area === 'security' && !this.gated;
     // 0.1.148: the look of this row (pill / underline / compact underline) is the installation's choice per hierarchy level,

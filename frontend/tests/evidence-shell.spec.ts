@@ -15,8 +15,10 @@ import { fileURLToPath } from 'node:url';
 //   SW_BASE_URL=http://127.0.0.1:4391/ npx playwright test tests/evidence-shell.spec.ts
 
 const EVIDENCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/evidence/UIR1-shell');
-const TABS = ['ראשי', 'אבטחה', 'מפה', 'WisKey'];
-const DEFAULT_ORDER = ['devices', 'security', 'explore', 'wiskey'];
+const TABS = ['ראשי', 'אבטחה', 'מפה', 'מולטימדיה', 'WisKey']; // the static demo shows every area (CR-015 added מולטימדיה)
+const DEFAULT_ORDER = ['devices', 'security', 'explore', 'multimedia', 'wiskey']; // the stored order: every tab, hidden ones included
+/** What a user WITHOUT media.read sees: the same order without the multimedia entry (CR-015). */
+const VISIBLE_ORDER = DEFAULT_ORDER.filter((t) => t !== 'multimedia');
 
 function phone(info: { project: { name: string } }) {
   return info.project.name === 'mobile';
@@ -373,26 +375,26 @@ test.describe('CR-013 shell on the demo data', () => {
     await page.evaluate(() => sessionStorage.setItem('cr013-keep', '1'));
     await openOrder(page, info);
     const dlg = page.locator('sw-app sw-nav-order');
-    await expect(dlg.locator('li[data-tab]')).toHaveCount(4);
+    await expect(dlg.locator('li[data-tab]')).toHaveCount(5);
     await expect(dlg.locator('li[data-tab] .name')).toHaveText(TABS);
     await page.waitForTimeout(250);
     if (phone(info)) await shot(page, 'shell-phone-tab-order');
     // WisKey to the top with the ▲ buttons, then אבטחה down one
-    for (let i = 0; i < 3; i++) await dlg.locator('li[data-tab="wiskey"] [data-move="up"]').click();
+    for (let i = 0; i < 4; i++) await dlg.locator('li[data-tab="wiskey"] [data-move="up"]').click();
     await dlg.locator('li[data-tab="security"] [data-move="down"]').click();
-    await expect(dlg.locator('li[data-tab] .name')).toHaveText(['WisKey', 'ראשי', 'מפה', 'אבטחה']);
+    await expect(dlg.locator('li[data-tab] .name')).toHaveText(['WisKey', 'ראשי', 'מפה', 'אבטחה', 'מולטימדיה']);
     await expect(dlg.locator('[data-nav-order-announce]')).toContainText('אבטחה הועבר למקום 4');
     await dlg.locator('[data-nav-order-save]').click();
     await expect(dlg.locator('sw-dialog')).toBeHidden();
-    expect(await navTabs(page, info)).toEqual(['wiskey', 'devices', 'explore', 'security']);
+    expect(await navTabs(page, info)).toEqual(['wiskey', 'devices', 'explore', 'security', 'multimedia']);
     await page.reload();
     await page.waitForTimeout(500);
-    expect(await navTabs(page, info)).toEqual(['wiskey', 'devices', 'explore', 'security']);
+    expect(await navTabs(page, info)).toEqual(['wiskey', 'devices', 'explore', 'security', 'multimedia']);
     // keyboard on the handle
     await openOrder(page, info);
     await dlg.locator('li[data-tab="explore"] .handle').focus();
     await page.keyboard.press('Home');
-    await expect(dlg.locator('li[data-tab] .name')).toHaveText(['מפה', 'WisKey', 'ראשי', 'אבטחה']);
+    await expect(dlg.locator('li[data-tab] .name')).toHaveText(['מפה', 'WisKey', 'ראשי', 'אבטחה', 'מולטימדיה']);
     await dlg.locator('[data-nav-order-reset]').click();
     await expect(dlg.locator('sw-dialog')).toBeHidden();
     expect(await navTabs(page, info)).toEqual(DEFAULT_ORDER);
@@ -505,7 +507,7 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
   test('the bare address lands on ראשי; settings shown only with a settings permission; WisKey only with access.read', async ({ page }, info) => {
     await open(page);
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/devices/building');
-    expect(await navTabs(page, info)).toEqual(DEFAULT_ORDER);
+    expect(await navTabs(page, info)).toEqual(VISIBLE_ORDER);
     await meButton(page, info).click();
     const menu = page.locator('sw-app sw-user-menu [data-user-menu]');
     await expect(menu.locator('[data-user-name]')).toHaveText('יוני אוליאל');
@@ -664,7 +666,7 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     await expect(dlg.locator('li[data-tab] .name')).toHaveText(['מפה', 'ראשי', 'אבטחה', 'WisKey']);
     await dlg.locator('[data-nav-order-save]').click();
     await expect.poll(() => mock.puts.length).toBe(1);
-    expect(mock.puts[0]).toEqual({ user: 'u-admin', body: { 'nav.order': ['explore', 'devices', 'security', 'wiskey'] } });
+    expect(mock.puts[0]).toEqual({ user: 'u-admin', body: { 'nav.order': ['explore', 'devices', 'security', 'multimedia', 'wiskey'] } });
     expect(await navTabs(page, info)).toEqual(['explore', 'devices', 'security', 'wiskey']);
     // another device: no local copy - the server's order applies
     await page.evaluate(() => localStorage.removeItem('sw.nav.order'));
@@ -677,7 +679,7 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     // a second user on the same browser: the default, not the first user's order
     mock.user = { ...ADMIN, id: 'u-second', name: 'מיכל' };
     await open(page, '/devices/building');
-    await expect.poll(() => navTabs(page, info)).toEqual(DEFAULT_ORDER);
+    await expect.poll(() => navTabs(page, info)).toEqual(VISIBLE_ORDER);
     // the first user resets
     mock.user = ADMIN;
     await open(page, '/devices/building');
@@ -685,7 +687,7 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     await openOrder(page, info);
     await dlg.locator('[data-nav-order-reset]').click();
     await expect.poll(() => mock.puts.at(-1)).toEqual({ user: 'u-admin', body: { 'nav.order': null } });
-    expect(await navTabs(page, info)).toEqual(DEFAULT_ORDER);
+    expect(await navTabs(page, info)).toEqual(VISIBLE_ORDER);
     expect(mock.prefs.has('u-second')).toBe(false);
   });
 
@@ -699,6 +701,6 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     await expect(dlg.locator('li[data-tab]')).toHaveCount(3);
     await dlg.locator('li[data-tab="security"] [data-move="up"]').click();
     await dlg.locator('[data-nav-order-save]').click();
-    await expect.poll(() => mock.puts.at(-1)?.body).toEqual({ 'nav.order': ['wiskey', 'explore', 'security', 'devices'] });
+    await expect.poll(() => mock.puts.at(-1)?.body).toEqual({ 'nav.order': ['wiskey', 'explore', 'security', 'devices', 'multimedia'] });
   });
 });

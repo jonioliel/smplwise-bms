@@ -80,7 +80,7 @@ test('a section never ends up empty, and the way back to the editor cannot be hi
 test('every registry section comes from the arrays of nav.ts (nothing duplicated) and the map lost its device tab', () => {
   expect(TAB_SECTIONS.map((s) => s.id)).toEqual(['areas', 'devices', 'security', 'security.live', 'security.investigate', 'explore', 'wiskey', 'system', 'system.security']);
   const byId = Object.fromEntries(TAB_SECTIONS.map((s) => [s.id, ids(s.tabs())]));
-  expect(byId['areas']).toEqual(['devices', 'security', 'explore', 'wiskey']);
+  expect(byId['areas']).toEqual(['devices', 'security', 'explore', 'multimedia', 'wiskey']); // CR-015: multimedia sits between the map and WisKey
   expect(byId['devices']).toEqual(['building', 'schedules']); // CR-014: the home area's tabs
   expect(byId['security']).toEqual(ids(SECURITY_SECTIONS));
   expect(byId['security.live']).toEqual(ids(SECTION_TABS.live));
@@ -122,14 +122,14 @@ test('the security sections: first visible tab of the configured order is where 
 });
 
 test('the rail: the admin order is the default, the user own order wins, hidden areas leave, an area lands on its first visible tab', () => {
-  expect(ids(visibleAreas(true, ALL))).toEqual(['devices', 'security', 'explore', 'wiskey']);
+  expect(ids(visibleAreas(true, ALL))).toEqual(['devices', 'security', 'explore', 'multimedia', 'wiskey']);
   applyTabsConfig({ 'ui.tabs': { areas: { order: ['explore', 'security'], hidden: ['wiskey'] }, explore: { order: ['floors', 'sites'], hidden: [] } } });
-  expect(defaultNavOrder()).toEqual(['explore', 'security', 'devices', 'wiskey']);
+  expect(defaultNavOrder()).toEqual(['explore', 'security', 'devices', 'multimedia', 'wiskey']);
   const rail = visibleAreas(true, ALL); // default order = the admin's
-  expect(ids(rail)).toEqual(['explore', 'security', 'devices']);
+  expect(ids(rail)).toEqual(['explore', 'security', 'devices', 'multimedia']);
   expect(rail[0].href).toBe('#/explore/floors/f0'); // the map lands on the floor map: the order decides
   // a user's own order (passed by the shell) wins over the admin's for that user; the admin's hidden list still applies
-  expect(ids(visibleAreas(true, ALL, ['wiskey', 'devices', 'security', 'explore']))).toEqual(['devices', 'security', 'explore']);
+  expect(ids(visibleAreas(true, ALL, ['wiskey', 'devices', 'security', 'explore']))).toEqual(['devices', 'security', 'explore', 'multimedia']); // an id the order does not name keeps its default place after the named ones
 });
 
 test('the device catalogue is a settings page for system.configure at the installation, not a map tab', () => {

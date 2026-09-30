@@ -44,7 +44,7 @@ test.describe('CR-010 navigation: אבטחה › לייב | חקירה | אזע�
     const phone = info.project.name === 'mobile';
     const nav = phone ? BOTTOM : RAIL;
     const hrefs = await page.locator(`${nav} a[data-nav]`).evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''));
-    expect(hrefs).toEqual(['#/devices/building', '#/security', '#/explore/sites', '#/wiskey/overview']);
+    expect(hrefs).toEqual(['#/devices/building', '#/security', '#/explore/sites', '#/multimedia/screens', '#/wiskey/overview']); // CR-015: the demo also shows מולטימדיה
     await expect(page.locator(`${nav} a[href="#/security"]`)).toHaveClass(/active/);
     // the sections: a segmented control at the head of the page; on the phone a sticky row above the tabs
     const sections = page.locator(phone ? 'sw-app nav[data-security-row]' : SECTIONS);

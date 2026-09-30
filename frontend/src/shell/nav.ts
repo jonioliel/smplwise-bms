@@ -409,6 +409,18 @@ function entryHref(fallback: string, tabs: TabItem[], section: string | null): s
 export const SCHEDULES_HREF = '#/devices/schedules';
 export const SCHEDULES_SETTINGS_HREF = '#/system/schedules';
 
+/** CR-015: the multimedia area ("מולטימדיה", #/multimedia/*) and its settings page. 0.1.149 has one tab, "מסכים"; "נגנים
+ * ורמקולים" and "קבוצות" are declared here so their addresses and the tab registry exist, but stay out of every tab row
+ * until 0.1.150 (`MULTIMEDIA_PHASE2`). With one tab the row is not drawn at all (sw-app shows a row from two tabs). */
+export const MULTIMEDIA_SCREENS_HREF = '#/multimedia/screens';
+export const MULTIMEDIA_SETTINGS_HREF = '#/system/multimedia';
+export const MULTIMEDIA_PHASE2 = false as boolean;
+export const MULTIMEDIA_TABS: TabItem[] = [
+  { id: 'screens', label: 'מסכים', href: MULTIMEDIA_SCREENS_HREF },
+  { id: 'players', label: 'נגנים ורמקולים', href: '#/multimedia/players' },
+  { id: 'groups', label: 'קבוצות', href: '#/multimedia/groups' },
+];
+
 /** The map's tabs: the sites list and the floor map. The device catalogue left the map for הגדרות (2026-09-30). */
 const EXPLORE_TABS: TabItem[] = [
   { id: 'sites', label: 'אתרים ומבנים', href: '#/explore/sites' },
@@ -436,7 +448,7 @@ export const DEVICES_TABS: TabItem[] = [
 // (SECURITY_SETTINGS_TABS; #/security/alarm redirects), and camera health moved from the live pages into the
 // investigation (#/investigate/health; #/system/devices redirects) - see legacyRedirect.
 // ---------------------------------------------------------------------------------------------
-export type AreaId = 'security' | 'explore' | 'system' | 'wiskey' | 'devices';
+export type AreaId = 'security' | 'explore' | 'system' | 'wiskey' | 'devices' | 'multimedia';
 export type SecuritySection = 'live' | 'investigate' | 'alarm';
 
 export interface AreaEntry {
@@ -458,11 +470,13 @@ export const NAV_A: AreaEntry[] = [
   { id: 'devices', icon: 'home', label: 'ראשי', href: '#/devices/building' },
   { id: 'security', icon: 'shield', label: 'אבטחה', href: '#/security' },
   { id: 'explore', icon: 'map', label: 'מפה', href: '#/explore/sites' },
+  // CR-015 (owner decision 2a): "מולטימדיה" between the map and WisKey; shown to holders of media.read (TAB_PERMISSIONS)
+  { id: 'multimedia', icon: 'media', label: 'מולטימדיה', href: '#/multimedia/screens' },
   { id: 'wiskey', icon: 'door', label: 'WisKey', href: '#/wiskey/overview' },
 ];
 
 /** The ids of the movable tabs, in the default order (the server keeps the same list: services/user_prefs.py). */
-export type NavTabId = 'devices' | 'security' | 'explore' | 'wiskey';
+export type NavTabId = 'devices' | 'security' | 'explore' | 'multimedia' | 'wiskey';
 export const NAV_TAB_IDS: NavTabId[] = NAV_A.map((n) => n.id as NavTabId);
 
 /** "מערכת" (the settings area): a route area of its own (crumbs, tabs) but, since CR-013, reached from the user menu. */
@@ -511,6 +525,7 @@ export const SECURITY_SECTIONS: SectionEntry[] = [
 
 export const AREA_TABS: Record<AreaId, TabItem[]> = {
   devices: DEVICES_TABS,
+  multimedia: MULTIMEDIA_TABS,
   /** Every page of the sections: the area stays in the rail while any of them is visible. */
   security: [...SECTION_TABS.live, ...SECTION_TABS.investigate, ...SECTION_TABS.alarm],
   explore: EXPLORE_TABS,
@@ -529,6 +544,8 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'setup', label: 'חיבורים', href: '#/system/setup' },
     { id: 'entities', label: 'קטלוג התקנים', href: ENTITIES_SETTINGS_HREF },
     { id: 'schedules', label: 'תזמונים', href: SCHEDULES_SETTINGS_HREF },
+    // CR-015: the screens' approval, connections and the remote's defaults (system.configure, installation scope)
+    { id: 'multimedia', label: 'מדיה', href: MULTIMEDIA_SETTINGS_HREF },
     /** CR-013 review M10: the screen catalogue left the user menu; a system administrator reaches it from here */
     { id: 'screens', label: 'כל המסכים', href: '#/screens' },
   ],
@@ -568,6 +585,8 @@ export function activeAreaTab(r: RouteState | null): string {
       return wiskeyActiveTab(r);
     case 'devices':
       return s[1] === 'schedules' ? 'schedules' : 'building';
+    case 'multimedia':
+      return s[1] === 'players' ? 'players' : s[1] === 'groups' ? 'groups' : 'screens';
     default:
       return '';
   }
@@ -692,6 +711,12 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   [SCHEDULES_HREF]: ['schedule.view', 'schedule.manage'],
   // its settings page: system.configure at installation scope
   [SCHEDULES_SETTINGS_HREF]: ['system.configure'],
+  // CR-015: media.read at any scope (a floor-scoped holder sees the screens of their floors; the server narrows the list);
+  // the settings page is system.configure at installation scope. No role holds media.read before the backend (S1) lands.
+  [MULTIMEDIA_SCREENS_HREF]: ['media.read'],
+  '#/multimedia/players': ['media.read'],
+  '#/multimedia/groups': ['media.read'],
+  [MULTIMEDIA_SETTINGS_HREF]: ['system.configure'],
   // CR-010, moved to הגדרות › אבטחה 2026-09-30: the alarm screen - alarm.view at any scope: a floor-scoped holder sees the
   // panels placed on their floors (routers/alarm.py), so the entry is not installation-only. Its management is what it
   // always was (routers/alarm.py `_configurer`: system.configure); the NVR page follows הגדרות › חיבורים. The section's own
@@ -724,7 +749,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
-export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
+export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
 
 /** `installationOnly`: the permission must be held at installation scope, not at any scope. */
 export type Can = (permission: string, installationOnly?: boolean) => boolean;
@@ -737,9 +762,11 @@ export function tabAllowed(href: string, can?: Can): boolean {
 }
 
 export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[] {
+  // CR-015: the multimedia players / groups pages are not offered until 0.1.150 (MULTIMEDIA_PHASE2), with or without a backend
+  const offered = items === MULTIMEDIA_TABS && !MULTIMEDIA_PHASE2 ? items.filter((t) => t.id === 'screens') : items;
   // permissions and the fixed rules decide what is offered; ui.tabs (order, hidden) then shapes it (with a backend only:
   // the static demo shows the defaults)
-  return api ? configureTabs(sectionIdOf(items), permittedTabs(items, api, can)) : items;
+  return api ? configureTabs(sectionIdOf(items), permittedTabs(offered, api, can)) : offered;
 }
 
 function permittedTabs(items: TabItem[], api: boolean, can?: Can): TabItem[] {
@@ -799,7 +826,7 @@ export function landingTarget(start: string, api: boolean, can: Can | undefined,
 /** A RouteState for a path, without the router's window dependency (nav.ts stays pure). */
 function parseRouteLite(path: string): RouteState {
   const segments = path.split('?')[0].split('/').filter(Boolean);
-  const modes = ['live', 'explore', 'investigate', 'system', 'wiskey', 'devices', 'security'];
+  const modes = ['live', 'explore', 'investigate', 'system', 'wiskey', 'devices', 'security', 'multimedia'];
   return { path, segments, params: new URLSearchParams(path.split('?')[1] ?? ''), mode: modes.includes(segments[0]) ? (segments[0] as RouteState['mode']) : null };
 }
 
@@ -822,6 +849,25 @@ export function applySchedulesHidden(settings: Record<string, unknown> | null | 
  * is offered only here (owner 2026-09-30: it showed on every screen). */
 export function isHomeRoute(r: RouteState | null): boolean {
   return r?.mode === 'devices' && (r.segments[1] ?? 'building') === 'building';
+}
+
+/** CR-015: `multimedia.enabled` off (הגדרות › מדיה) takes the multimedia area out of the rail and the bottom bar for everyone - the
+ * same "hidden for everyone" shape as applySchedulesHidden (its only visible tab joins HIDDEN_HREFS, so the area has no tab
+ * left). The route is not closed: the screen answers "המולטימדיה כבויה" itself. Called by the shell after HIDDEN_HREFS was
+ * rebuilt from the product settings, and by the settings screen after a save. Returns whether it is hidden. */
+export function applyMultimediaHidden(settings: Record<string, unknown> | null | undefined): boolean {
+  const hidden = String(settings?.['multimedia.enabled'] ?? 'true') === 'false';
+  const was = HIDDEN_HREFS.has(MULTIMEDIA_SCREENS_HREF);
+  if (hidden) HIDDEN_HREFS.add(MULTIMEDIA_SCREENS_HREF);
+  else HIDDEN_HREFS.delete(MULTIMEDIA_SCREENS_HREF);
+  if (was !== hidden) for (const l of tabsListeners) l();
+  return hidden;
+}
+
+/** The screens page's layout editor is entered by `?edit=1` on `#/multimedia/screens` (the user menu's "עריכת מסך המולטימדיה"):
+ * while it is active the area's tab row is hidden, like the home editor's. */
+export function isMultimediaEditRoute(r: RouteState | null): boolean {
+  return r?.mode === 'multimedia' && (r.segments[1] ?? 'screens') === 'screens' && r.params.get('edit') === '1';
 }
 
 /** The home screen's layout editor is entered by `?edit=1` on "מבט על" (the user menu's "עריכת המסך הראשי", devices-layout.ts):

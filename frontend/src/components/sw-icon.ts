@@ -12,6 +12,8 @@ const PATHS: Record<string, ReturnType<typeof svg>> = {
   bell: svg`<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/>`,
   user: svg`<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>`,
   play: svg`<path d="M7 5v14l11-7z"/>`,
+  /* CR-015: the multimedia rail entry (a screen with a play mark) */
+  media: svg`<rect x="2.5" y="4" width="19" height="13" rx="2.5"/><path d="M8.5 21h7M12 17v4"/><path d="m10.2 8.3 4.3 2.2-4.3 2.2z"/>`,
   expand: svg`<path d="M15 4h5v5M9 20H4v-5M20 4l-6 6M4 20l6-6"/>`,
   close: svg`<path d="M6 6l12 12M18 6 6 18"/>`,
   chevron: svg`<path d="m9 6 6 6-6 6"/>`,
