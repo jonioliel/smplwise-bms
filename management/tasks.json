@@ -5335,5 +5335,52 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "T098",
+    "title": "מולטימדיה - מסכים ושלט (CR-015): מסך המסכים, השלט, כרטיסי מדיה באזורים ובמסך הראשי",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Media device model (CR-015 §3-§6): one card per PHYSICAL screen after the dedupe ladder (same HA device, MA loop, MAC, identifiers; name/area only as a suggestion; manual link/unlink/ignore, audited), only approved screens shown; capabilities from the primary endpoint's supported_features plus the brand profile (samsung_smart, lg_webos, android_tv, generic); every command through POST /multimedia/devices/{key}/commands -> the allow-listed signed bridge (0.4.0, media_policy) with the caller's HA context, power only by turn_on/turn_off (never a power key), fixed per-profile keys, server rate limits (keys 5/s burst 8, volume 4/s, one pending power), honest accepted/sent/refused and 'not confirmed' after 8 s; permissions media.read/control/power, sensitive media.public and media.bulk, media.layout, floor-scoped by the device's anchor placement; managed screens refused on the generic action path (use_media_screen); migrations 0041/0042.",
+      "Screens page and editor (CR-015 §7.1, §8, §9): rail entry 'מולטימדיה' between מפה and WisKey (media.read), glass page with floors, room chips, search and state filter, per-floor 'כבה מסכים' (media.bulk, confirmation with count, screens confirmed on only, per-screen outcome; building-wide not offered); edit mode from the user menu (media.layout) for order, pinned row, size s/m/l and desktop/phone visibility per screen, stored in media_layouts with a revision, plus a personal override in /me/prefs multimedia.personal for screen.personalize holders; settings 'מדיה' (system.configure): approval, kinds, public screens, linked receiver, profiles, connections, remote default.",
+      "The remote, area card and home widget (CR-015 §4, §7.2-§7.5): side panel on desktop/tablet and bottom sheet on phone with power/source/apps, sections per decision 5b (numbers, colours, typing behind 'עוד מקשים'), sources/apps tabs with curated names and neutral glyphs, 'אחרונים', receiver switch, states off/art/unavailable/no-wake/view-only/pending/not-confirmed; 'עריכת השלט' (default + per screen); the area card library's media type shows one card per screen of the area with the same remote and area 'כבה הכל'; home widget 'מסכים'; the devices area's bulk kinds reach screens only (decision 8a)."
+    ],
+    "requirement_ids": [
+      "R202",
+      "R203",
+      "R204"
+    ],
+    "test_ids": [
+      "AT202",
+      "AT203",
+      "AT204"
+    ],
+    "status": "READY",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "Physical commands to TVs: Opus review of the command path (routers/multimedia.py, services/media_commands.py, media_profiles.py, ha_bridge ACTIONS, the bridge's media_policy.py, the device_bulk media resolver, the use_media_screen refusal) before the merge; live acceptance only after the read-only media probe and with bridge 0.4.0 installed."
+    },
+    "deliverables": [
+      "docs/changes/CR-015-MEDIA-SCREENS.md: scope, adopted owner decisions, media device model and dedupe ladder, brand profiles, commands, RBAC, editor, settings, audit, events, tests, risks",
+      "docs/architecture/MEDIA_API.md: the binding contract (types, routes, examples, errors) and the parallel work plan S1-S4",
+      "frontend/src/api/media-screens.ts + media-screens-mock.ts (S0 typed client with the MOCK adapter) and frontend/tests/unit-media-screens.spec.ts",
+      "S1 backend + bridge 0.4.0, S2 screens page/editor/settings, S3 remote/area card/home widget, S4 live fixture/evidence/probe/user guide (MEDIA_API.md §5)"
+    ],
+    "evidence": [
+      "2026-09-30: owner approved mockup v2 (branch pilot/media-mockup) for development with two additions (editable screens page like the home editor; media cards on area screens); every recommendation of decisions-HE.md adopted. Architecture on branch pilot/CR015-media-arch: CR-015 + MEDIA_API.md + the S0 client; frontend tsc clean and unit-media-screens.spec.ts 9 passed (mock adapter only). No backend, device, HA or lab contact; nothing else run."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]
