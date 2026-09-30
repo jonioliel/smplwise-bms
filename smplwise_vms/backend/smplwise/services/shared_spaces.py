@@ -131,14 +131,9 @@ def _widen_members(conn: sqlite3.Connection) -> None:
         f"INSERT INTO shared_space_members({cols}) SELECT {cols} FROM shared_space_members_old;\n"
         "DROP TABLE shared_space_members_old;\nCOMMIT;"
     )
-    try:
-        conn.executescript(script)
-    except sqlite3.Error:
-        try:
-            conn.executescript("ROLLBACK;")
-        except sqlite3.Error:
-            pass
-        raise
+    # a failure leaves the script's own BEGIN open and raises through the caller's `db.connection()`, which rolls it back
+    # (the write gate is released there) - nothing is committed half way
+    conn.executescript(script)
 
 
 def any_active(conn: sqlite3.Connection) -> bool:

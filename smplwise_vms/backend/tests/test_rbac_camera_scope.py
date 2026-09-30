@@ -611,7 +611,7 @@ def test_session_downgrade_refuses_and_closes_the_lease(tmp_path, monkeypatch):
     _binding(settings, "cara", "operator", "floor", w["floor3"])  # cam3 stays hers throughout
 
     # the relay: tell the client it is up, then run until the lease says stop (the real relay polls every second)
-    async def fake_relay(websocket, url, headers, on_down, should_stop=None):
+    async def fake_relay(websocket, url, headers, on_down, should_stop=None, on_text=None):
         await websocket.send_text('{"type":"ready"}')
         for _ in range(400):
             if should_stop and should_stop():
