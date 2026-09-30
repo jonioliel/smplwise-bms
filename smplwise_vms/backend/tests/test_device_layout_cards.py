@@ -116,6 +116,22 @@ def test_a_viewer_cannot_write_custom_cards(dev_app):  # noqa: F811
     assert c.get(f"{URL}/area/lobby").json()["desktop"] is None
 
 
+def test_camera_cards_and_custom_cards_share_a_v3_layout_and_stay_out_of_copy_to_all_areas(dev_app):  # noqa: F811
+    app, _ = dev_app
+    c = TestClient(app)
+    cam = {"x": 0, "y": 40, "w": 6, "h": 34, "camera": {"kind": "nvr", "recorder_id": "nvr-1", "channel": 2}}
+    layout = _v3(**{"card:c-abc12345": _custom(6, 0, 6, 20, "free", ["light.lobby"]), "camera:c1": cam, "camera:c2": {**cam, "x": 6, "camera": {"kind": "ha", "entity_id": "camera.lobby"}}})
+    assert _put(c, "area", "lobby", "desktop", 0, layout).status_code == 200
+    got = c.get(f"{URL}/area/lobby").json()["desktop"]["layout"]["items"]
+    assert got["camera:c1"]["camera"]["channel"] == 2 and got["card:c-abc12345"]["custom"]["type"] == "free"
+    # the library's "camera" type is the `camera:<slug>` card, never a custom `card:c-` one
+    assert _put(c, "area", "office", "desktop", 0, _v3(**{"card:c-abc12345": _custom(6, 0, 6, 20, "camera")})).status_code == 422
+    # a camera is area-specific: copy to all areas copies the built-in cards only
+    assert c.post(f"{URL}/area/lobby/copy-to-all-areas", json={"revision": 1}).status_code == 200
+    other = c.get(f"{URL}/area/office").json()["desktop"]["layout"]["items"]
+    assert set(other) == {"card:lighting"}
+
+
 def test_card_types_match_the_frontend_library():
     src = (ROOT / "frontend" / "src" / "screens" / "devices-layout-cards.ts").read_text(encoding="utf-8")
     m = re.search(r"export const CARD_TYPE_IDS = \[([^\]]*)\]", src)

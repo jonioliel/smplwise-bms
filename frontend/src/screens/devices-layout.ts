@@ -6,8 +6,11 @@ import '../components/sw-dialog';
 import '../components/sw-icon';
 import type { IconName } from '../components/sw-icon';
 import { api, ApiError, describeError, post, put } from '../api/client';
-import { can, isApi } from '../api/session';
+import { can, canAnywhere, isApi } from '../api/session';
+import { cameraSources } from '../api/camera-card';
+import { cameraCardDefinition } from './devices-camera-card';
 import { registerScreenEdit } from '../shell/screen-edit';
+import type { CameraSource } from '../api/camera-card';
 import { LAYOUT_ROLE_IDS, type LayoutRoleId } from '../styles/devices-palettes';
 import { bulkSelect, CARD_TYPES, CARDS_VERSION, findSlot, groupPicks, isCardType, libraryTypes, newCardKey, nextTitle, type AreaEntity, type PickEntity } from './devices-layout-cards';
 
@@ -106,6 +109,8 @@ export interface LayoutItem {
   custom?: { type: string; entities: string[] };
   /** Layout v 3: a built-in card the editor deleted (its devices simply show in no card of that name). */
   removed?: boolean;
+  /** Owner 2026-09-30, a `camera:<slug>` card of the area screen: the camera it shows (screens/devices-camera-card.ts). */
+  camera?: CameraSource;
 }
 
 export interface Layout {
@@ -414,6 +419,9 @@ export class DevicesLayoutController implements ReactiveController {
   entFilter = '';
   libOpen = false;
   libAll = false;
+  /** Cameras the library can offer (null until read), and the camera picker's target ('' = a new card, else the card's key). */
+  camCount: number | null = null;
+  camPick: { key: string } | null = null;
   undo: { label: string; snapshot: Record<string, LayoutItem> } | null = null;
   /** Slice 6c: the card whose device tiles are being arranged ("סידור התקנים"), and its selected tile. */
   tileCard: string | null = null;
@@ -608,6 +616,10 @@ export class DevicesLayoutController implements ReactiveController {
       if (k.startsWith('card:c-')) {
         if (!src[k]?.custom) continue;
         items[k] = { ...it, custom: src[k].custom, removed: undefined };
+      } else if (k.startsWith('camera:')) {
+        const camera = src[k]?.camera ?? it.camera; // the source is the card's content: every variant carries it
+        if (!camera) continue;
+        items[k] = { ...it, camera, removed: undefined, custom: undefined };
       } else if (src[k]?.removed) items[k] = { ...it, removed: true };
       else items[k] = { ...it, removed: undefined, custom: undefined };
     }
@@ -642,7 +654,7 @@ export class DevicesLayoutController implements ReactiveController {
     const keys = Object.keys(this.draft.items).filter((k) => !this.draft!.items[k].removed);
     const packed = pack(this.draft.items, keys, new Set([key]), false, GAP_ROWS);
     const items = { ...packed };
-    if (key.startsWith('card:c-')) delete items[key];
+    if (!key.startsWith('card:') || key.startsWith('card:c-')) delete items[key]; // a custom or camera card is dropped, a built-in one flagged
     else items[key] = { ...packed[key], removed: true };
     this.undo = { label, snapshot: this.draft.items };
     this.draft = { ...this.draft, items };
@@ -663,6 +675,13 @@ export class DevicesLayoutController implements ReactiveController {
   /** "הוסף כרטיס": a card of a library type, named, with its starting devices, placed in the first free slot. */
   addCard(typeId: string) {
     if (!this.draft || this.variant !== 'desktop' || this.opts.scope !== 'area' || !isCardType(typeId)) return;
+    if (typeId === 'camera') {
+      // a camera card names one camera: the library hands over to the camera picker (an NVR channel or a Home Assistant camera)
+      this.libOpen = false;
+      this.camPick = { key: '' };
+      this.update();
+      return;
+    }
     const info = CARD_TYPES[typeId];
     const pool = this.opts.pool?.() ?? [];
     const entities = (typeId === 'free' ? this.unplaced(pool) : pool.filter(info.match)).map((e) => e.id);
@@ -679,6 +698,69 @@ export class DevicesLayoutController implements ReactiveController {
     this.entFilter = '';
     this.live = `נוסף כרטיס "${item.title}" עם ${entities.length} התקנים.`;
     this.update();
+  }
+
+  /** The library opens; the number of cameras it can offer is read once from the picker's source list (NVR channels the
+   * user may watch and Home Assistant cameras) - the "מצלמה" type shows only where there is one and the user holds video.live. */
+  openLibrary() {
+    this.libOpen = true;
+    this.update();
+    if (this.camCount === null && canAnywhere('video.live')) {
+      void cameraSources().then(
+        (s) => {
+          this.camCount = s.recorders.reduce((n, r) => n + r.cameras.length, 0) + s.ha_cameras.length;
+          this.update();
+        },
+        () => {
+          this.camCount = 0;
+          this.update();
+        },
+      );
+    }
+  }
+
+  /** A camera was picked: for a new card ('' key) the card is added in the first free slot with the camera's name as its
+   * title (`camera:<slug>` item, layout v 2+); for an existing one the camera is replaced. */
+  private onCameraPicked(source: CameraSource, name: string) {
+    const pick = this.camPick;
+    this.camPick = null;
+    if (!pick || !this.draft || this.variant !== 'desktop') {
+      this.update();
+      return;
+    }
+    if (pick.key) {
+      const it = this.draft.items[pick.key];
+      if (it) this.patch(pick.key, { camera: source, title: it.title ?? (name || null) });
+      return;
+    }
+    const def = cameraCardDefinition();
+    const key = def.layoutKey(Object.keys(this.draft.items));
+    const { x, y } = findSlot(this.draft.items, this.draft.cols, def.defaultSize.w, def.defaultSize.h, GAP_ROWS);
+    const item = def.toLayoutItem(source, { x, y }, name || null) as LayoutItem;
+    this.draft = { ...this.draft, items: { ...this.draft.items, [key]: item } };
+    this.undo = null;
+    this.selected = key;
+    this.live = `נוסף כרטיס מצלמה${name ? `: ${name}` : ''}.`;
+    this.update();
+  }
+
+  /** The camera picker's dialog: choosing a camera for a new card, or replacing the selected card's camera. */
+  private renderCameraPicker(): TemplateResult {
+    if (!this.camPick) return html`<sw-dialog data-layout-camera-pick="closed"></sw-dialog>`;
+    const close = () => {
+      this.camPick = null;
+      this.update();
+    };
+    return html`<sw-dialog open data-layout-camera-pick="open" heading=${this.camPick.key ? 'בחירת מצלמה אחרת' : 'הוספת מצלמה'} subheading="ערוץ של ה־NVR או מצלמה של המערכת" @close=${close}>
+      <div style="padding:0 16px 12px">
+        <devices-camera-picker .value=${this.camPick.key ? (this.cameraOfDraft(this.camPick.key) ?? null) : null} @camera-picked=${(e: CustomEvent<{ source: CameraSource; name: string }>) => this.onCameraPicked(e.detail.source, e.detail.name)}></devices-camera-picker>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end"><sw-button data-layout-camera-pick-close @click=${close}>ביטול</sw-button></div>
+    </sw-dialog>`;
+  }
+
+  private cameraOfDraft(key: string): CameraSource | undefined {
+    return this.draft?.items[key]?.camera;
   }
 
   /** Called at the top of the screen's render with the grids it is about to draw. */
@@ -735,6 +817,26 @@ export class DevicesLayoutController implements ReactiveController {
 
   phonePreview(id: string): boolean {
     return this.gridOn(id) && this.editing && this.variant === 'phone' && !this.phone;
+  }
+
+  /** The keys of the current layout's items that start with `prefix` (the draft while editing, else what the viewer's
+   * variant stores), in reading order: the items a screen draws that its data does not list - the area screen's camera
+   * cards (`camera:`). A phone viewer of a desktop-only layout reads the desktop record's keys. */
+  keysWithPrefix(prefix: string): string[] {
+    const layout = this.editing ? this.draft : (this.stored(this.viewVariant()) ?? this.stored('desktop'));
+    if (!layout) return [];
+    // a phone layout saved before a card was added on the desktop does not list it: the card still shows (appended)
+    const extra = this.editing ? [] : Object.keys(this.stored('desktop')?.items ?? {}).filter((k) => !layout.items[k]);
+    const keys = [...Object.keys(layout.items), ...extra].filter((k) => k.startsWith(prefix));
+    const at = (k: string) => layout.items[k] ?? { x: 0, y: Number.MAX_SAFE_INTEGER };
+    return keys.sort((a, b) => at(a).y - at(b).y || at(a).x - at(b).x || a.localeCompare(b));
+  }
+
+  /** The camera a `camera:` item shows: the item's own source, else the same item's source in the other variant (the
+   * source is the card's content, not its place - a derived phone item copies it, an older one may not). */
+  cameraOf(key: string): CameraSource | undefined {
+    const own = this.editing ? this.draft?.items[key]?.camera : undefined;
+    return own ?? this.stored(this.viewVariant())?.items[key]?.camera ?? this.stored('desktop')?.items[key]?.camera ?? this.stored('phone')?.items[key]?.camera;
   }
 
   /** The item's stored settings (title, icon ...) when its grid is laid out. */
@@ -1390,7 +1492,7 @@ export class DevicesLayoutController implements ReactiveController {
           ${this.variant === 'phone' ? html`<sw-button size="sm" data-layout-phone-auto ?disabled=${this.busy || (!this.record?.phone && !dirty)} @click=${() => void this.phoneAuto()}>חזור לאוטומטי</sw-button>` : nothing}
           <sw-button size="sm" data-layout-reset ?disabled=${this.busy || (!this.record?.desktop && !this.record?.phone)} @click=${() => this.ask('reset')}>אפס לברירת מחדל</sw-button>
           ${areaScope ? html`<sw-button size="sm" icon="layers" data-layout-copy ?disabled=${this.busy || dirty || !this.record?.desktop} title=${dirty ? 'שמרו קודם' : !this.record?.desktop ? 'אין עדיין פריסה שמורה להעתקה' : ''} @click=${() => this.ask('copy')}>העתק לכל האזורים</sw-button>` : nothing}
-          ${areaScope && this.variant === 'desktop' ? html`<sw-button size="sm" icon="plus" data-layout-add-card ?disabled=${this.busy} @click=${() => { this.libOpen = true; this.update(); }}>הוסף כרטיס</sw-button>` : nothing}
+          ${areaScope && this.variant === 'desktop' ? html`<sw-button size="sm" icon="plus" data-layout-add-card ?disabled=${this.busy} @click=${() => { this.openLibrary(); }}>הוסף כרטיס</sw-button>` : nothing}
           <sw-button size="sm" variant="primary" icon="check" data-layout-save ?disabled=${this.busy || (!dirty && (!!stored || !!this.opts.extras))} @click=${() => void this.save()}>שמור</sw-button>
         </span>
         ${this.error ? html`<span class="lay-msg err" role="alert" data-layout-error>${this.error}${this.conflict ? html` <sw-button size="sm" variant="ghost" data-layout-reload @click=${() => void this.reloadAfterConflict()}>טען מחדש</sw-button>` : nothing}</span>` : nothing}
@@ -1405,7 +1507,7 @@ export class DevicesLayoutController implements ReactiveController {
           : nothing}
         <span class="lay-live" aria-live="polite" data-layout-live>${this.live}</span>
       </div>
-      ${this.renderConfirm()}${areaScope ? this.renderLibrary() : nothing}`;
+      ${this.renderConfirm()}${areaScope ? html`${this.renderLibrary()}${this.renderCameraPicker()}` : nothing}`;
   }
 
   private ask(what: 'reset' | 'copy') {
@@ -1500,7 +1602,8 @@ export class DevicesLayoutController implements ReactiveController {
   private renderLibrary(): TemplateResult {
     if (!this.libOpen) return html`<sw-dialog data-layout-library="closed"></sw-dialog>`;
     const pool = this.opts.pool?.() ?? [];
-    const types = libraryTypes(pool, this.libAll);
+    // the camera card is offered where cameras exist and the user may watch them (all types on request)
+    const types = libraryTypes(pool, this.libAll, { camera: canAnywhere('video.live') ? (this.camCount ?? 0) : 0 });
     const free = this.unplaced(pool).length;
     const close = () => {
       this.libOpen = false;
@@ -1532,7 +1635,7 @@ export class DevicesLayoutController implements ReactiveController {
       return html`<aside class="lay-panel" data-layout-panel="none" aria-label="מאפייני הכרטיס">
         <div class="ph">מאפייני הכרטיס</div>
         <div class="lay-hint">בחרו כרטיס כדי לערוך אותו (בטלפון: לחיצה ארוכה). גררו כרטיס כדי להזיז אותו והידית בפינה משנה את גודלו, בקפיצות של עמודה ו־8 פיקסלים. במקלדת: Tab לכרטיס, חיצים מזיזים, Shift עם חיצים משנה גודל.</div>
-        ${this.opts.scope === 'area' && this.variant === 'desktop' ? html`<button type="button" class="btn" data-layout-add-card-panel @click=${() => { this.libOpen = true; this.update(); }}>הוסף כרטיס…</button>` : nothing}
+        ${this.opts.scope === 'area' && this.variant === 'desktop' ? html`<button type="button" class="btn" data-layout-add-card-panel @click=${() => { this.openLibrary(); }}>הוסף כרטיס…</button>` : nothing}
       </aside>`;
     }
     const label = this.labelOf(key);
@@ -1582,6 +1685,7 @@ export class DevicesLayoutController implements ReactiveController {
       ${this.renderEntities(key, it)}
       ${this.canArrange(key) ? html`<button type="button" class="btn" data-layout-tiles-open @click=${() => this.enterTiles(key)}>סידור התקנים בכרטיס${arranged(it) ? ' (מסודר)' : ''}…</button>` : nothing}
       <label class="lay-check"><input type="checkbox" data-layout-hidden .checked=${it.hidden} @change=${(e: Event) => this.patch(key, { hidden: (e.target as HTMLInputElement).checked })} />מוסתר לכולם</label>
+      ${key.startsWith('camera:') && this.variant === 'desktop' ? html`<button type="button" class="btn" data-layout-camera-change @click=${() => { this.camPick = { key }; this.update(); }}>בחר מצלמה אחרת…</button>` : nothing}
       ${this.opts.scope === 'area' && this.variant === 'desktop'
         ? html`<button type="button" class="btn lay-del" data-layout-delete-card @click=${() => this.removeCard(key)}>מחק כרטיס</button><div class="lay-hint">מחיקה מוציאה את הכרטיס מהמסך בלבד: ההתקנים לא נמחקים מהמערכת, אלא חוזרים למאגר ההתקנים הלא ממוקמים, ואפשר לצרף אותם לכרטיס אחר. "בטל מחיקה" מחזיר את הכרטיס.</div>`
         : nothing}

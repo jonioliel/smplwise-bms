@@ -59,7 +59,9 @@ test.describe('the area layout editor: device picker, delete card, card library'
   const area = (page: Page) => page.locator('devices-area');
 
   async function editMode(page: Page) {
-    await area(page).locator('[data-layout-edit]').click();
+    // the shell's user menu offers "עריכת פריסה" for the screen on display (shell/screen-edit.ts); no button in the screen
+    await page.locator('sw-app').getByRole('button', { name: /תפריט המשתמש/ }).click();
+    await page.locator('[data-menu-screen-edit="devices-layout"]').click();
     await expect(area(page).locator('[data-layout-bar]')).toBeVisible();
   }
 
@@ -284,6 +286,66 @@ test.describe('the area layout editor: device picker, delete card, card library'
       expect(Object.keys((await record(request)).items).filter((k) => k.startsWith('card:c-'))).toHaveLength(2);
     } finally {
       if (binding) await request.delete(`/api/v1/access/bindings/${binding}`).catch(() => {});
+      for (const id of [AREA, 'lib1_store']) await request.delete(`/api/v1/devices/layouts/area/${id}`);
+    }
+  });
+
+  test('camera card from the library: offered where cameras exist and the user may watch (all types on request), the picker opens, several cameras per area, delete / undo, saved; "העתק לכל האזורים" leaves camera cards in their area', async ({ page, request }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'the desktop layout');
+    test.setTimeout(120_000);
+    await seed(request);
+    const control = `http://127.0.0.1:${process.env.SW_FAKE_HA_CONTROL_PORT ?? String(Number(process.env.SW_API_PORT ?? '8099') + 1)}`;
+    const rc = await request.post(`${control}/seed-cameras`, {
+      data: { model: 'DS-7616NXI-K2/D', cameras: [1, 2, 3, 4].map((channel) => ({ channel, alias: `מצלמה ${channel}`, status: 'online' })) },
+    });
+    expect(rc.status(), 'the fixture backend seeds the NVR catalogue').toBe(200);
+    try {
+      await open(page);
+      const a = area(page);
+      await expect(a.locator('sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
+      await editMode(page);
+      await a.locator('[data-layout-add-card]').click();
+      const lib = a.locator('[data-layout-library="open"]');
+      await expect(lib.locator('[data-layout-add="camera"]')).toBeVisible({ timeout: 15000 });
+      await expect(lib.locator('[data-layout-add="camera"]')).toContainText('מצלמה');
+      await lib.locator('[data-layout-add="camera"]').click();
+      // the picker: an NVR channel (or a Home Assistant camera)
+      const pick = a.locator('[data-layout-camera-pick="open"] devices-camera-picker');
+      await expect(pick.locator('[data-camera-group="nvr-1"] button.opt')).toHaveCount(4, { timeout: 15000 });
+      await shot(page, 'area-camera-picker', testInfo);
+      await pick.locator('[data-camera-option="nvr:nvr-1:3"]').click();
+      const cams = a.locator('.lay-item[data-lay-key^="camera:"]');
+      await expect(cams).toHaveCount(1);
+      // a second camera card in the same area
+      await a.locator('[data-layout-add-card]').click();
+      await a.locator('[data-layout-library="open"] [data-layout-add="camera"]').click();
+      await a.locator('[data-layout-camera-pick="open"] [data-camera-option="nvr:nvr-1:1"]').click();
+      await expect(cams).toHaveCount(2);
+      expect(overlaps(await boxes(page))).toEqual([]);
+      // delete + undo work for a camera card too
+      const first = (await cams.first().getAttribute('data-lay-key'))!;
+      await selectCard(page, first);
+      await expect(a.locator(`[data-layout-panel="${first}"] [data-layout-camera-change]`)).toBeVisible();
+      await a.locator('[data-layout-delete-card]').click();
+      await expect(cams).toHaveCount(1);
+      await a.locator('[data-layout-undo]').click();
+      await expect(cams).toHaveCount(2);
+      await a.locator('sw-button[data-layout-save]').click();
+      await expect(a.locator('[data-layout-bar]')).toHaveCount(0, { timeout: 15000 });
+      const saved = await record(request);
+      expect(saved.v).toBeGreaterThanOrEqual(2);
+      const cameraKeys = Object.keys(saved.items).filter((k) => k.startsWith('camera:'));
+      expect(cameraKeys).toHaveLength(2);
+      expect(saved.items[cameraKeys[0]].camera.kind).toBe('nvr');
+      await page.reload();
+      await expect(a.locator('sw-card[data-camera-card]')).toHaveCount(2, { timeout: 30000 });
+      // copy to all areas: the other areas get the built-in cards, never this area's cameras
+      const rev = (await (await request.get(`/api/v1/devices/layouts/area/${AREA}`)).json()).desktop.revision;
+      expect((await request.post(`/api/v1/devices/layouts/area/${AREA}/copy-to-all-areas`, { data: { revision: rev } })).status()).toBe(200);
+      const other = await record(request, 'lib1_store');
+      expect(Object.keys(other.items).filter((k) => k.startsWith('camera:'))).toEqual([]);
+      await shot(page, 'area-camera-cards-added', testInfo);
+    } finally {
       for (const id of [AREA, 'lib1_store']) await request.delete(`/api/v1/devices/layouts/area/${id}`);
     }
   });
