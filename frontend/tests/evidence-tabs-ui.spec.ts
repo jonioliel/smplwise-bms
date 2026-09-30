@@ -253,8 +253,8 @@ test.describe('tabs configuration, the map default floor and the device catalogu
     await open(page, '/system/diagnostics?tab=tabs');
     const ed = page.locator('sw-app system-diagnostics system-tabs-config');
     await expect(ed).toBeVisible();
-    await expect(ed.locator('[data-tabs-section]')).toHaveCount(8);
-    expect(await ed.locator('[data-tabs-section]').evaluateAll((els) => els.map((e) => e.getAttribute('data-tabs-section')))).toEqual(['areas', 'security', 'security.live', 'security.investigate', 'explore', 'wiskey', 'system', 'system.security']);
+    await expect(ed.locator('[data-tabs-section]')).toHaveCount(9);
+    expect(await ed.locator('[data-tabs-section]').evaluateAll((els) => els.map((e) => e.getAttribute('data-tabs-section')))).toEqual(['areas', 'devices', 'security', 'security.live', 'security.investigate', 'explore', 'wiskey', 'system', 'system.security']);
     const rows = (sec: string) => ed.locator(`li[data-sec="${sec}"] .name`).allTextContents();
     expect(await rows('explore')).toEqual(['אתרים ומבנים', 'מפת קומה']);
     expect((await rows('security.live')).map((s) => s.trim())).toEqual(['תמונת מצב', 'כל המצלמות', 'תצוגות שמורות']);

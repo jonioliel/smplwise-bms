@@ -77,9 +77,10 @@ test('a section never ends up empty, and the way back to the editor cannot be hi
 });
 
 test('every registry section comes from the arrays of nav.ts (nothing duplicated) and the map lost its device tab', () => {
-  expect(TAB_SECTIONS.map((s) => s.id)).toEqual(['areas', 'security', 'security.live', 'security.investigate', 'explore', 'wiskey', 'system', 'system.security']);
+  expect(TAB_SECTIONS.map((s) => s.id)).toEqual(['areas', 'devices', 'security', 'security.live', 'security.investigate', 'explore', 'wiskey', 'system', 'system.security']);
   const byId = Object.fromEntries(TAB_SECTIONS.map((s) => [s.id, ids(s.tabs())]));
   expect(byId['areas']).toEqual(['devices', 'security', 'explore', 'wiskey']);
+  expect(byId['devices']).toEqual(['building', 'schedules']); // CR-014: the home area's tabs
   expect(byId['security']).toEqual(ids(SECURITY_SECTIONS));
   expect(byId['security.live']).toEqual(ids(SECTION_TABS.live));
   expect(byId['security.investigate']).toEqual(ids(SECTION_TABS.investigate));
