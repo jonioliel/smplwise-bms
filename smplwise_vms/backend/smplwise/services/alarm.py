@@ -573,6 +573,20 @@ def is_managed_control(conn: sqlite3.Connection, entity_id: str) -> bool:
     return entity_id in managed_controls(conn)
 
 
+def schedule_panel_check(conn: sqlite3.Connection, panel_entity_id: str) -> dict[str, Any]:
+    """What the schedules (CR-014) need to know about one alarm panel: whether the alarm section discovers it, the arm
+    modes its `supported_features` offer (`arm_home` ... `arm_custom_bypass`) and whether arming / disarming needs a
+    code (`_panel_view`'s reading of `code_format` / `code_arm_required`). One row is read; nothing is discovered."""
+    from . import ha_sync
+
+    row = conn.execute("SELECT * FROM ha_entities WHERE entity_id = ? AND domain = 'alarm_control_panel' AND removed_at IS NULL", (panel_entity_id,)).fetchone()
+    if row is None:
+        return {"discovered": False, "arm_modes": [], "needs_code_arm": False, "needs_code_disarm": False, "available": False, "name": panel_entity_id}
+    view = _panel_view(ha_sync.entity_row(row))
+    return {"discovered": True, "arm_modes": view["arm_modes"], "needs_code_arm": view["needs_code_arm"], "needs_code_disarm": view["needs_code_disarm"],
+            "available": view["available"], "name": view["name"], "code_format": view["code_format"], "entity_id": view["entity_id"]}
+
+
 MANAGED_LABEL = "נשלט ממסך האזעקה"
 
 def readiness(zones: Iterable[dict[str, Any]]) -> dict[str, Any]:

@@ -151,13 +151,26 @@ DEFAULTS: dict[str, str] = {
     "alarm.code_mode": "personal_pin",
     "alarm.remote_codeless": "true",
     "alarm.pin_min_length": "6",  # personal PIN length: 6-8 digits by default (security review L8); 4-8 allowed
+    # CR-014 (תזמונים, docs/architecture/SCHEDULER_API.md §10.1): the schedules of the scheduler component. `schedules.enabled`
+    # is the feature and its tab - off until an administrator switches it on (coordinator ruling 2026-09-30; the contract's
+    # own default of true is superseded). `schedules.classes` is a JSON array of the classes new schedules may use (read
+    # back as an array, like ui.tabs); the safety rules (trash, confirmations, code refusal, the allow-list ceiling) are
+    # not settings. `schedules.shabbat_sensor` is the "issur melacha in effect" binary_sensor the presets use.
+    "schedules.enabled": "false",
+    "schedules.classes": '["light", "switch", "cover", "climate", "fan", "alarm", "lock", "door"]',
+    "schedules.snap_minutes": "15",
+    "schedules.default_repeat": "repeat",
+    "schedules.runs_retention_days": "90",
+    "schedules.shabbat_sensor": "",
 }
+
+SCHEDULE_CLASSES = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door")
 
 # CR-007 6a/6b: the registered device-screen palettes - keep in step with DEVICE_THEMES in
 # frontend/src/styles/devices-themes.ts (docs/design/DEVICE_THEMES.md, "How to add a theme").
 DEVICE_THEMES = ("default", "sand", "forest", "graphite")
 
-INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams")
+INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days")
 
 
 def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -166,7 +179,20 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
         value = get_setting(conn, key, default) or default
         out[key] = int(value) if key in INT_KEYS else value
     out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
+    out["schedules.classes"] = stored_schedule_classes(out["schedules.classes"])
     return out
+
+
+def stored_schedule_classes(raw: Any) -> list[str]:
+    """The stored `schedules.classes` as an ordered list of known classes; a corrupt value reads as every class (the
+    default) - a schedule can never be allowed a class this build does not know."""
+    try:
+        data = json.loads(raw) if isinstance(raw, str) else raw
+    except ValueError:
+        data = None
+    if not isinstance(data, list):
+        data = list(SCHEDULE_CLASSES)
+    return [c for c in SCHEDULE_CLASSES if c in data]
 
 
 # ui.tabs (owner 2026-09-30): the backend does not know the tab registry (frontend shell/nav.ts); it stores what it is
@@ -300,6 +326,12 @@ class SettingsPatch(BaseModel):
     alarm_code_mode: str | None = Field(default=None, pattern="^(personal_pin|panel_code)$", alias="alarm.code_mode")
     alarm_remote_codeless: str | None = Field(default=None, pattern="^(true|false)$", alias="alarm.remote_codeless")
     alarm_pin_min_length: str | None = Field(default=None, pattern="^[4-8]$", alias="alarm.pin_min_length")
+    schedules_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="schedules.enabled")
+    schedules_classes: list[str] | None = Field(default=None, max_length=8, alias="schedules.classes")  # each one of SCHEDULE_CLASSES (checked in the handler)
+    schedules_snap_minutes: str | None = Field(default=None, pattern="^(5|15|30)$", alias="schedules.snap_minutes")
+    schedules_default_repeat: str | None = Field(default=None, pattern="^(repeat|pause|single)$", alias="schedules.default_repeat")
+    schedules_runs_retention_days: int | None = Field(default=None, ge=7, le=365, alias="schedules.runs_retention_days")
+    schedules_shabbat_sensor: str | None = Field(default=None, pattern=r"^(|binary_sensor\.[a-z0-9_]{1,100})$", alias="schedules.shabbat_sensor")
 
     model_config = {"populate_by_name": True}
 
@@ -322,6 +354,13 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         changes["ui.design_names"] = json.dumps({"a": names.get("a", "SW A").strip(), "b": names.get("b", "SW B").strip()}, ensure_ascii=False)
     if "ui.tabs" in changes:
         changes["ui.tabs"] = normalize_tabs(changes["ui.tabs"])
+    if "schedules.classes" in changes:
+        bad = [c for c in changes["schedules.classes"] if c not in SCHEDULE_CLASSES]
+        if bad:
+            raise ApiError(422, "validation", "סוגי התקנים בתזמונים: ערך לא מוכר.", details={"schedules.classes": bad})
+        changes["schedules.classes"] = [c for c in SCHEDULE_CLASSES if c in changes["schedules.classes"]]
+    if changes.get("schedules.shabbat_sensor") and not conn.execute("SELECT 1 FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (changes["schedules.shabbat_sensor"],)).fetchone():
+        raise ApiError(422, "validation", "חיישן השבת והחג לא נמצא.", details={"schedules.shabbat_sensor": changes["schedules.shabbat_sensor"]})
     if changes.get("map.default_floor") and not conn.execute("SELECT 1 FROM floors WHERE id = ? AND deleted_at IS NULL", (changes["map.default_floor"],)).fetchone():
         raise ApiError(422, "validation", "קומת ברירת המחדל של המפה לא קיימת.", details={"map.default_floor": changes["map.default_floor"]})
     if "home.title" in changes:
@@ -347,7 +386,11 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         # the adapter contract exists (privacy, model version, budget, opt-in) but no provider is bundled: refuse, never pretend
         raise ApiError(422, "provider_not_available", "לא מצורף ספק ניתוח חיצוני; קיים רק חוזה המתאם (פרטיות, גרסת מודל, תקציב, opt-in).", details={"choices": ["none", "local"]})
     for key, value in changes.items():
-        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key == "ui.tabs" else str(value))
+        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "schedules.classes") else str(value))
+    if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now
+        from ..services import schedules as schedules_svc
+
+        schedules_svc.MIRROR.feature_switched_on()
     if "remote.csp_enforce" in changes:  # CR-008 P2: the remote channel's next response already follows
         from ..remote_channel import set_csp_enforce
 

@@ -312,40 +312,80 @@ def _settle_pass_through(conn: sqlite3.Connection) -> None:
 
 def _code_gate(act: _Act, plan: dict[str, str], typed: Any, panel: dict[str, Any], stored_code: str | None, *, disarm: bool) -> tuple[str | None, list[str]]:
     """Checks the code the user typed against the plan. Returns (the code to SEND to the panel - None = none, the lockout
-    keys of a typed pass-through code). Raises the refusals: code needed, wrong code, locked out. `typed` is never quoted.
+    keys of a typed pass-through code). Raises the refusals: code needed, wrong code, locked out. `typed` is never quoted."""
+    return gate_code(act.conn, act.principal, plan, typed, panel, stored_code,
+                     refuse=act.refuse, audit_wrong=lambda locked: act.audit("denied", "wrong_code", locked_s=int(locked)))
+
+
+def gate_code(conn: sqlite3.Connection, principal: Principal, plan: dict[str, str], typed: Any, panel: dict[str, Any], stored_code: str | None, *,
+              refuse: Any, audit_wrong: Any) -> tuple[str | None, list[str]]:
+    """The code gate itself, free of the request (`_code_gate` and `verify_code_for` share it; behaviour unchanged).
+    `refuse(ApiError)` audits a refusal and returns the error to raise; `audit_wrong(locked_s)` audits a wrong code.
 
     Lockout keys (security review M2): a personal PIN counts against its USER only - otherwise an arm-only user could
     lock disarming for everyone with five wrong PINs; the panel's own code (panel_code mode) and a typed pass-through
     code count against the user AND the panel. Only failures count."""
-    uid = act.principal.user_id
+    uid = principal.user_id
     prompt = plan["prompt"]
     keys = [f"user:{uid}"] + ([f"panel:{panel['entity_id']}"] if prompt == "panel" else [])
     if prompt == "unverifiable":
-        raise act.refuse(ApiError(409, "code_unverifiable", "לא הוגדר קוד לוח לאימות. מנהל המערכת מגדיר אותו בהגדרות › מערכת › אזעקה.", details={"prompt": prompt}))
+        raise refuse(ApiError(409, "code_unverifiable", "לא הוגדר קוד לוח לאימות. מנהל המערכת מגדיר אותו בהגדרות › מערכת › אזעקה.", details={"prompt": prompt}))
     if prompt == "pin_missing":
-        raise act.refuse(ApiError(409, "pin_not_set", "עדיין אין לך קוד אישי לאזעקה. פנה למנהל המערכת לקבלת קוד אישי.", details={"prompt": prompt}))
+        raise refuse(ApiError(409, "pin_not_set", "עדיין אין לך קוד אישי לאזעקה. פנה למנהל המערכת לקבלת קוד אישי.", details={"prompt": prompt}))
     if prompt in ("pin", "panel"):
         if plan["send"] == "typed":
-            _settle_pass_through(act.conn)
-        locked = codes.LOCKOUT.locked_for(keys, act.conn)
+            _settle_pass_through(conn)
+        locked = codes.LOCKOUT.locked_for(keys, conn)
         if locked > 0:
-            raise act.refuse(ApiError(429, "code_locked", "יותר מדי ניסיונות קוד שגויים. נסו שוב מאוחר יותר.", retryable=True, details={"retry_after_s": int(locked) + 1}))
+            raise refuse(ApiError(429, "code_locked", "יותר מדי ניסיונות קוד שגויים. נסו שוב מאוחר יותר.", retryable=True, details={"retry_after_s": int(locked) + 1}))
         if typed is None or typed == "":
-            raise act.refuse(ApiError(409, "code_required", "נדרש קוד.", details={"prompt": prompt}))
+            raise refuse(ApiError(409, "code_required", "נדרש קוד.", details={"prompt": prompt}))
         if not isinstance(typed, str) or len(typed) > svc.CODE_MAX:
-            raise act.refuse(ApiError(422, "wrong_code", "קוד שגוי."))
+            raise refuse(ApiError(422, "wrong_code", "קוד שגוי."))
     if prompt == "pin" or (prompt == "panel" and plan["send"] != "typed"):
-        ok = codes.verify_pin(typed, codes.pin_hash_of(act.conn, uid)) if prompt == "pin" else codes.same_code(typed, stored_code)
+        ok = codes.verify_pin(typed, codes.pin_hash_of(conn, uid)) if prompt == "pin" else codes.same_code(typed, stored_code)
         if not ok:
-            locked = codes.LOCKOUT.fail(keys, act.conn)
-            act.audit("denied", "wrong_code", locked_s=int(locked))
+            locked = codes.LOCKOUT.fail(keys, conn)
+            audit_wrong(locked)
             raise ApiError(403, "wrong_code", "קוד שגוי.", details={"locked_s": int(locked)} if locked else {})
         codes.LOCKOUT.succeed(keys[0])
     if plan["send"] == "typed":
         if not svc.valid_code(typed, panel.get("code_format")):
-            raise act.refuse(ApiError(422, "wrong_code", "קוד שגוי."))
+            raise refuse(ApiError(422, "wrong_code", "קוד שגוי."))
         return typed, keys
     return (stored_code if plan["send"] == "stored" else None), keys
+
+
+def code_plan_for(conn: sqlite3.Connection, principal: Principal, panel_entity_id: str, action: str) -> dict[str, str]:
+    """What the caller must type to `arm` / `disarm` this panel (codes.code_plan under the caller's own policy and the
+    installation's code settings) - the schedules (CR-014) ask before they take a code."""
+    cfg = _settings(conn)
+    panel = svc.schedule_panel_check(conn, panel_entity_id)
+    return codes.code_plan(action=action, panel=panel, user_policy=codes.policy(conn, principal.user_id), mode=cfg["code_mode"],
+                           stored=panel_entity_id in codes.stored_panel_codes(conn), remote=principal.source == "remote", remote_codeless=cfg["remote_codeless"])
+
+
+def verify_code_for(conn: sqlite3.Connection, principal: Principal, settings: Any, panel_entity_id: str, action: str, typed: Any, *, refuse: Any = None) -> str:
+    """Verify the caller's OWN alarm code for `action` (`arm` | `disarm`) on a panel with the alarm router's gate (the
+    same policy, PIN / panel-code comparison, lockout keys and `code_locked`), then discard it - the schedules (CR-014)
+    never send or store a code. Returns the plan's `prompt` (`none` = nothing was asked). A panel that itself needs a
+    typed code it cannot verify here (no stored panel code) is not verifiable: nothing is asked, nothing is claimed."""
+    plan = code_plan_for(conn, principal, panel_entity_id, action)
+    if plan["prompt"] == "none" or (plan["prompt"] == "panel" and plan["send"] == "typed"):
+        return "none" if plan["prompt"] == "none" else "unverifiable_typed"
+    panel = {**svc.schedule_panel_check(conn, panel_entity_id), "entity_id": panel_entity_id}
+    stored_code = None
+    if plan["prompt"] == "panel" and panel_entity_id in codes.stored_panel_codes(conn):
+        try:
+            stored_code = codes.panel_code(conn, settings, panel_entity_id)
+        except codes.CodeError:
+            raise ApiError(503, "code_unreadable", "קוד הלוח השמור אינו קריא. מנהל המערכת יגדיר אותו מחדש בהגדרות › מערכת › אזעקה.") from None
+    try:
+        gate_code(conn, principal, plan, typed, panel, stored_code, refuse=refuse or (lambda exc: exc), audit_wrong=lambda locked: None)
+    finally:
+        typed = stored_code = None  # noqa: F841 - the code is discarded as soon as it was compared
+    return plan["prompt"]
+
 
 def _send(act: _Act, request: Request, entity_id: str, action_id: str, args: dict[str, Any], send_code: str | None, client_request_id: str, attributes: dict[str, Any] | None) -> dict[str, Any]:
     """The device-action path: allow-list, ha_actions record (never the code), signed bridge call, honest status."""
