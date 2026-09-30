@@ -131,6 +131,33 @@ def call_bridge_set_area(settings: Settings, payload: dict[str, Any], timeout: f
     return body.get("service_response") or body
 
 
+def call_bridge_schedule(settings: Settings, payload: dict[str, Any], timeout: float = 15.0) -> dict[str, Any]:
+    """POST /api/services/smplwise_bridge/schedule?return_response (CR-014, bridge >= 0.3.0) - the only write path to the
+    scheduler component: the bridge verifies and re-validates the signed payload and calls the component with the
+    caller's own Context. Never retried: a call that timed out may have been applied (504 `scheduler_timeout`, the
+    operation is then recorded as unknown). Same envelope as call_bridge_execute; the answer is the service response."""
+    if not configured(settings):
+        raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
+    try:
+        with httpx.Client(timeout=timeout) as c:
+            r = c.post(_rest_base(settings) + "/services/smplwise_bridge/schedule?return_response", headers=_headers(settings), content=json.dumps(payload))
+    except httpx.TimeoutException as exc:
+        raise ApiError(504, "scheduler_timeout", "רכיב התזמונים לא ענה בזמן; ייתכן שהשינוי נשמר. רעננו לפני ניסיון נוסף.", details={"error": type(exc).__name__}) from exc
+    except httpx.HTTPError as exc:
+        raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+    if r.status_code in (400, 404) and "not found" in r.text.lower():
+        raise ApiError(503, "bridge_too_old", "נדרש עדכון של רכיב החיבור כדי לשמור תזמונים.", details={"status": r.status_code})
+    if r.status_code in (401, 403):
+        raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הקריאה.", details={"status": r.status_code})
+    if r.status_code >= 400:
+        raise ApiError(503, "bridge_error", "הגשר החזיר שגיאה.", retryable=False, details={"status": r.status_code, "body": r.text[:200]})
+    try:
+        body = r.json()
+    except ValueError:
+        return {}
+    return (body.get("service_response") or body) if isinstance(body, dict) else {}
+
+
 async def ws_session(
     settings: Settings,
     on_ready: Callable[[Callable[[str, dict[str, Any]], Any]], Any],

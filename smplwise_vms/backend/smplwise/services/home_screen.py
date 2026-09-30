@@ -139,6 +139,12 @@ def widgets(conn: sqlite3.Connection) -> dict[str, Any]:
 CANDIDATES_MAX = 1500
 
 
+def is_jewish_calendar(e: dict[str, Any]) -> bool:
+    """Whether a mirrored entity looks like one of the Jewish Calendar integration's (platform `jewish_calendar`, or
+    "jewish" in its id) - the home screen's edit mode and the schedules' Shabbat-sensor picker (CR-014) share it."""
+    return (e.get("platform") or "") == "jewish_calendar" or "jewish" in (e.get("entity_id") or "")
+
+
 def candidates(conn: sqlite3.Connection) -> dict[str, Any]:
     """What edit mode offers for the widgets: every mirrored `weather.*` entity and every `sensor.*` entity (the Jewish
     Calendar integration's ones flagged `suggested`, so they come first). Names and current states only."""
@@ -150,7 +156,7 @@ def candidates(conn: sqlite3.Connection) -> dict[str, Any]:
     for r in conn.execute("SELECT * FROM ha_entities WHERE domain = 'sensor' AND removed_at IS NULL AND disabled = 0 ORDER BY name, entity_id LIMIT ?", (CANDIDATES_MAX,)).fetchall():
         e = ha_sync.entity_row(r)
         eid = e["entity_id"]
-        suggested = (e.get("platform") or "") == "jewish_calendar" or "jewish" in eid
+        suggested = is_jewish_calendar(e)
         sensors.append(
             {
                 "entity_id": eid,

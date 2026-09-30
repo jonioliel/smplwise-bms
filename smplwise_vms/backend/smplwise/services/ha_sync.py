@@ -59,6 +59,10 @@ ATTR_ALLOW = {
     # owner 2026-09-30 (the home screen's weather widget): a weather entity's temperature unit (its temperature and
     # humidity are allowed above)
     "temperature_unit",
+    # CR-014 (schedules): a schedule switch's next trigger / current and next slot, and the sun's next rising / setting
+    # (the preview of a schedule that starts at sunrise or sunset). The switch's `actions` / `timeslots` are not kept:
+    # the definitions come from the scheduler component itself (services/schedules.py).
+    "next_trigger", "current_slot", "next_slot", "next_rising", "next_setting",
 }
 STATE_DOMAINS_SKIP = {"update", "image", "conversation", "zone", "person", "device_tracker", "notify", "tts", "stt", "wake_word", "assist_satellite"}
 
@@ -367,6 +371,13 @@ def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) ->
         fired.clear()
         with db.connection(durable=durable) as conn:
             row = upsert_state(conn, new)
+            if str(new.get("entity_id") or "").startswith("switch.schedule_"):
+                from . import schedules as schedules_svc  # CR-014: a schedule switch's state feeds the mirror and the derived runs
+
+                try:
+                    schedules_svc.MIRROR.on_entity_state(conn, row, data.get("old_state"))
+                except Exception:  # noqa: BLE001 - never lose the state update itself
+                    log.exception("schedule state hook failed for %s", new.get("entity_id"))
             transition = record_transition(conn, data.get("old_state"), new)
             if transition:
                 try:
@@ -377,6 +388,10 @@ def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) ->
 
     row = retry_locked(_write, what="HA state update", attempts=attempts, base_s=0.25)
     rules_svc.deliver_pending(fired)
+    if str(new.get("entity_id") or "").startswith("switch.schedule_"):
+        from . import schedules as schedules_svc
+
+        schedules_svc.MIRROR.flush()  # CR-014: after the commit - deferred item fetches (a no-op while the debounce timer runs them)
     return row
 
 
@@ -439,6 +454,8 @@ class HaSync:
         self.mirror_lock = threading.Lock()
         # (monotonic time, changed) of the last refresh that completed, for MANUAL_COALESCE_S
         self._last_done: tuple[float, bool] | None = None
+        # CR-014: the id of this session's `scheduler_updated` subscription (its event frames carry it), None = not subscribed
+        self._sched_sub_id: int | None = None
 
     def start(self, db: Database, settings: Settings) -> None:
         self.db, self.settings = db, settings
@@ -522,6 +539,14 @@ class HaSync:
             publish({"type": "entity_state_changed", "sequence": STATE.sequence, "entity": row})
 
         def on_message(msg: dict[str, Any]) -> None:
+            if self._sched_sub_id is not None and msg.get("id") == self._sched_sub_id:
+                from . import schedules as schedules_svc  # CR-014: a frame of the scheduler component's own subscription
+
+                try:
+                    schedules_svc.MIRROR.on_component_event(msg)
+                except Exception:  # noqa: BLE001
+                    log.exception("scheduler event hook failed")
+                return
             event = msg.get("event")
             if not isinstance(event, dict) or event.get("event_type") not in REGISTRY_EVENTS:
                 return
@@ -558,12 +583,17 @@ class HaSync:
             log.info("HA sync connected: %d entities, HA %s", STATE.entities, STATE.ha_version)
             publish({"type": "ha_sync_state", "connected": True})
             self._session_loop, self._session_call = loop, call  # refresh_now (the manual button) runs on this session from here on
+            self._sched_sub_id = None
+            task = asyncio.create_task(self._schedules_start(call, "connect"))  # CR-014: subscribe + full pull when the feature is on
+            tasks.add(task)
+            task.add_done_callback(tasks.discard)
 
             # periodic registry refresh inside the session: the safety net under the registry events
             async def refresher() -> None:
                 while not stop_evt.is_set():
                     await asyncio.sleep(REGISTRY_REFRESH_S)
                     await self._refresh_and_notify(call, "periodic")
+                    await self._schedules_pull("periodic")  # CR-014: the third refresh layer (§6.2)
 
             refresher_task = asyncio.create_task(refresher(), name="ha-registry-refresher")
 
@@ -571,6 +601,7 @@ class HaSync:
             await ha_client.ws_session(settings, on_ready, on_event, stop_evt, on_message=on_message)
         finally:
             self._session_loop = self._session_call = None
+            self._sched_sub_id = None
             if debouncer is not None:
                 debouncer.cancel()
             for task in list(tasks):
@@ -603,6 +634,58 @@ class HaSync:
             if notify and (changed or force_notice):
                 publish({"type": "structure_changed", "reason": reason, "changed": changed, "last_registry_at": STATE.last_registry_at})
             return changed
+
+    # ------------------------------------------------------------------ CR-014: the scheduler component (read-only WS calls)
+
+    def ws_call(self, msg_type: str, timeout: float = 10.0, **kw: Any) -> dict[str, Any]:
+        """Run one WebSocket command on the live session from a request thread (the refresh_now pattern) and return HA's
+        reply (`{"success": bool, "result" | "error": ...}`). 503 `ha_unavailable` while HA is not connected; an answer
+        that does not come within `timeout` is 503 `scheduler_unavailable` (the call is cancelled, never retried)."""
+        loop, call = self._session_loop, self._session_call
+        if not STATE.connected or loop is None or call is None:
+            raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True)
+        fut = asyncio.run_coroutine_threadsafe(call(msg_type, **kw), loop)
+        try:
+            return fut.result(timeout=timeout)
+        except concurrent.futures.TimeoutError:
+            fut.cancel()
+            raise ApiError(503, "scheduler_unavailable", "התזמונים אינם זמינים כרגע.", retryable=True) from None
+        except (concurrent.futures.CancelledError, asyncio.CancelledError):
+            raise ApiError(503, "ha_unavailable", "החיבור לתשתית המערכת נותק.", retryable=True) from None
+
+    async def _schedules_start(self, call, reason: str) -> None:
+        """When the feature is on: subscribe to `scheduler_updated` (a refusal is logged - the state and periodic layers
+        remain) and do the full pull."""
+        from . import schedules as schedules_svc
+
+        if self.db is None or not schedules_svc.MIRROR.feature_on(self.db):
+            return
+        try:
+            reply = await call("scheduler_updated")
+            if isinstance(reply, dict) and reply.get("success"):
+                self._sched_sub_id = reply.get("id")
+            else:
+                log.info("the scheduler component did not accept the scheduler_updated subscription (%s)", ((reply or {}).get("error") or {}).get("code"))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("scheduler_updated subscription failed: %s", type(exc).__name__)
+        await self._schedules_pull(reason)
+
+    async def _schedules_pull(self, reason: str) -> None:
+        from . import schedules as schedules_svc
+
+        if self.db is None or not schedules_svc.MIRROR.feature_on(self.db):
+            return
+        try:
+            await asyncio.get_event_loop().run_in_executor(None, schedules_svc.MIRROR.pull, None, reason)
+        except Exception as exc:  # noqa: BLE001 - a failed pull keeps the cache (services/schedules.py records why)
+            log.warning("schedules pull (%s) failed: %s", reason, type(exc).__name__)
+
+    def schedules_switched_on(self) -> None:
+        """The feature was just switched on in the settings: subscribe and pull on the live session (thread-safe)."""
+        loop, call = self._session_loop, self._session_call
+        if loop is None or call is None or not STATE.connected:
+            return
+        asyncio.run_coroutine_threadsafe(self._schedules_start(call, "enabled"), loop)
 
     def refresh_now(self) -> dict[str, Any]:
         """Force a registry refresh from a request thread (the "רענן מ-Home Assistant" button): runs on the live

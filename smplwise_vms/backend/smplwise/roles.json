@@ -92,7 +92,9 @@
         "ha.entity.control",
         "cases.manage",
         "rules.manage",
-        "rbac.assign"
+        "rbac.assign",
+        "schedule.view",
+        "schedule.manage"
       ]
     },
     {
@@ -134,6 +136,9 @@
         "ha.entity.control",
         "cases.manage",
         "rules.manage",
+        "schedule.view",
+        "schedule.manage",
+        "schedule.sensitive",
         "nvr.config.write",
         "nvr.config.events",
         "nvr.config.detection",
@@ -164,6 +169,8 @@
     "devices.control_bulk",
     "alarm.disarm",
     "alarm.bypass",
+    "schedule.manage",
+    "schedule.sensitive",
     "nvr.config.write",
     "nvr.config.events",
     "nvr.config.detection",
