@@ -35,7 +35,7 @@ function cfg() {
 test.describe('home config', () => {
   test('the default: control centre sizes per direction, every widget on, the order of the mockup', () => {
     const c = defaultConfig();
-    expect(c.order).toEqual(['clock', 'weather', 'shabbat', 'alarm', 'quick']);
+    expect(c.order).toEqual(['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media']); // media (CR-015) is appended
     expect(WIDGET_IDS.every((w) => c[w].on)).toBe(true);
     expect(c.clock.sizes).toEqual({ a: 'l', b: 'm', c: 'm' });
     expect(c.alarm.sizes).toEqual({ a: 'm', b: 's', c: 'm' });
@@ -45,14 +45,14 @@ test.describe('home config', () => {
 
   test('configOf takes what the server sent, tolerates anything missing or foreign, and round-trips', () => {
     const c = cfg();
-    c.order = ['quick', 'clock', 'weather', 'shabbat', 'alarm'];
+    c.order = ['quick', 'clock', 'weather', 'shabbat', 'alarm', 'media'];
     c.weather.sources = { temperature: 'sensor.outdoor' };
     c.calendar.extras = [{ entity_id: 'binary_sensor.issur', label: 'איסור' }];
     expect(configOf(configBody(c))).toEqual(c);
     expect(sameConfig(configOf(JSON.parse(JSON.stringify(c))), c)).toBe(true);
     // a partial / hand-edited / newer value never breaks: defaults fill in, unknown things are dropped
     const odd = configOf({ order: ['weather', 'nope', 'weather'], clock: { mode: 'analog', sizes: { a: 'huge' } }, weather: { fields: ['humidity', 'sunshine'], forecast: '9', sources: { condition: 'sensor.x', humidity: 'sensor.h' } }, calendar: { extras: [{ entity_id: '' }, 5] } });
-    expect(odd.order).toEqual(['weather', 'clock', 'shabbat', 'alarm', 'quick']);
+    expect(odd.order).toEqual(['weather', 'clock', 'shabbat', 'alarm', 'quick', 'media']);
     expect(odd.clock.mode).toBe('datetime');
     expect(odd.clock.sizes.a).toBe('l');
     expect(odd.weather.fields).toEqual(['humidity']);
@@ -68,9 +68,9 @@ test.describe('home config', () => {
     const c = cfg();
     const allowed = { lights_off: true, all_off: true };
     let items = resolveWidgets(c, 'a', DATA, { quickAllowed: allowed });
-    expect(items.map((i) => `${i.id}:${i.size}`)).toEqual(['clock:l', 'weather:l', 'shabbat:m', 'alarm:m', 'quick:m']);
+    expect(items.map((i) => `${i.id}:${i.size}`)).toEqual(['clock:l', 'weather:l', 'shabbat:m', 'alarm:m', 'quick:m', 'media:m']);
     items = resolveWidgets(c, 'b', DATA, { quickAllowed: allowed });
-    expect(items.map((i) => `${i.id}:${i.size}`)).toEqual(['clock:m', 'weather:m', 'shabbat:m', 'alarm:s', 'quick:s']);
+    expect(items.map((i) => `${i.id}:${i.size}`)).toEqual(['clock:m', 'weather:m', 'shabbat:m', 'alarm:s', 'quick:s', 'media:s']);
     // order and headings
     c.order = moveWidget(c.order, 'quick', 0);
     c.clock.label = 'שעה בבית';
@@ -84,10 +84,10 @@ test.describe('home config', () => {
     const c = cfg();
     c.weather.entity = '';
     c.shabbat.on = false;
-    const view = resolveWidgets(c, 'a', { ...DATA, alarm: null }, { quickAllowed: {} });
-    expect(view.map((i) => i.id)).toEqual(['clock']); // no weather entity, Shabbat off, no alarm panel, no permitted action
-    const edit = resolveWidgets(c, 'a', { ...DATA, alarm: null }, { editing: true, quickAllowed: {} });
-    expect(edit.map((i) => `${i.id}:${i.avail}`)).toEqual(['clock:ok', 'weather:none', 'shabbat:off', 'alarm:noalarm', 'quick:noaction']);
+    const view = resolveWidgets(c, 'a', { ...DATA, alarm: null }, { quickAllowed: {}, mediaAvailable: false });
+    expect(view.map((i) => i.id)).toEqual(['clock']); // no weather entity, Shabbat off, no alarm panel, no permitted action, no screen
+    const edit = resolveWidgets(c, 'a', { ...DATA, alarm: null }, { editing: true, quickAllowed: {}, mediaAvailable: false });
+    expect(edit.map((i) => `${i.id}:${i.avail}`)).toEqual(['clock:ok', 'weather:none', 'shabbat:off', 'alarm:noalarm', 'quick:noaction', 'media:nomedia']);
     // an entity that exists but is not reporting
     const c2 = cfg();
     expect(resolveWidgets(c2, 'a', { ...DATA, weather: { ...DATA.weather!, available: false } }, { editing: true }).find((i) => i.id === 'weather')?.avail).toBe('unavail');
@@ -105,8 +105,8 @@ test.describe('home config', () => {
 
   test('moveWidget and moveId keep the list whole and clamp', () => {
     const o = defaultConfig().order;
-    expect(moveWidget(o, 'alarm', 0)).toEqual(['alarm', 'clock', 'weather', 'shabbat', 'quick']);
-    expect(moveWidget(o, 'clock', 99)).toEqual(['weather', 'shabbat', 'alarm', 'quick', 'clock']);
+    expect(moveWidget(o, 'alarm', 0)).toEqual(['alarm', 'clock', 'weather', 'shabbat', 'quick', 'media']);
+    expect(moveWidget(o, 'clock', 99)).toEqual(['weather', 'shabbat', 'alarm', 'quick', 'media', 'clock']);
     expect(moveWidget(o, 'clock', -5)).toBe(o);
     expect(moveWidget(o, 'clock', 0)).toBe(o);
     expect(moveId(['a', 'b', 'c'], 'a', 2)).toEqual(['b', 'c', 'a']);
@@ -229,7 +229,7 @@ test.describe('home config', () => {
     expect(personalBody(PERSONAL_EMPTY)).toBeNull();
     const p = personalOf({ direction: 'c', order: ['quick', 'nope'], widgets: { clock: { size: 's', on: false }, weather: { size: 'xx' }, nope: { on: true } } });
     expect(p.direction).toBe('c');
-    expect(p.order).toEqual(['quick', 'clock', 'weather', 'shabbat', 'alarm']);
+    expect(p.order).toEqual(['quick', 'clock', 'weather', 'shabbat', 'alarm', 'media']);
     expect(p.widgets).toEqual({ clock: { size: 's', on: false } });
     expect(personalBody(p)).toEqual({ direction: 'c', phone_layout: null, order: p.order, widgets: p.widgets });
     expect(personalOf({ phone_layout: 'two' }).phone_layout).toBe('two');
@@ -279,15 +279,33 @@ test.describe('home config', () => {
     c.weather.phone_size = 's';
     const allowed = { lights_off: true, all_off: true };
     const desktop = resolveWidgets(c, 'a', DATA, { quickAllowed: allowed });
-    expect(desktop.map((i) => `${i.id}:${i.size}`)).toEqual(['clock:l', 'weather:l', 'shabbat:m', 'alarm:m', 'quick:m']);
+    expect(desktop.map((i) => `${i.id}:${i.size}`)).toEqual(['clock:l', 'weather:l', 'shabbat:m', 'alarm:m', 'quick:m', 'media:m']);
     const phone = resolveWidgets(c, 'a', DATA, { quickAllowed: allowed, phone: true });
-    expect(phone.map((i) => `${i.id}:${i.size}`)).toEqual(['clock:m', 'weather:s', 'shabbat:m']); // no alarm, no quick, weather at its own size
+    expect(phone.map((i) => `${i.id}:${i.size}`)).toEqual(['clock:m', 'weather:s', 'shabbat:m', 'media:m']); // no alarm, no quick, weather at its own size
     const edit = resolveWidgets(c, 'a', DATA, { quickAllowed: allowed, phone: true, editing: true });
-    expect(edit.map((i) => `${i.id}:${i.avail}`)).toEqual(['clock:ok', 'weather:ok', 'shabbat:ok', 'alarm:off', 'quick:off']);
+    expect(edit.map((i) => `${i.id}:${i.avail}`)).toEqual(['clock:ok', 'weather:ok', 'shabbat:ok', 'alarm:off', 'quick:off', 'media:ok']);
     // a widget that is off on the desktop but on for the phone is drawn there only
     c.shabbat.on = false;
     c.shabbat.phone_on = true;
     expect(resolveWidgets(c, 'a', DATA, { phone: true }).some((i) => i.id === 'shabbat')).toBe(true);
     expect(resolveWidgets(c, 'a', DATA, {}).some((i) => i.id === 'shabbat')).toBe(false);
+  });
+
+  test('the media widget (CR-015): appended last, the common settings only, absent when the caller has no screen', () => {
+    const c = defaultConfig();
+    expect(WIDGET_IDS[WIDGET_IDS.length - 1]).toBe('media');
+    expect(c.media).toEqual({ on: true, sizes: { a: 'm', b: 's', c: 'm' }, label: '', phone_on: null, phone_size: null });
+    // a config saved before the widget existed reads back with it, last, on
+    const old = configOf({ order: ['quick', 'clock'], clock: { on: false } });
+    expect(old.order).toEqual(['quick', 'clock', 'weather', 'shabbat', 'alarm', 'media']);
+    expect(old.media.on).toBe(true);
+    // no entity of its own: whatever the server sends beyond the common keys is dropped
+    expect(configOf({ media: { on: false, entity: 'media_player.tv', sizes: { b: 'l' } } }).media).toEqual({ ...c.media, on: false, sizes: { a: 'm', b: 'l', c: 'm' } });
+    // drawn unless the caller is known to have no screen; edit mode explains the absence
+    expect(resolveWidgets(c, 'a', DATA, { quickAllowed: { all_off: true } }).some((i) => i.id === 'media')).toBe(true);
+    expect(resolveWidgets(c, 'a', DATA, { mediaAvailable: false }).some((i) => i.id === 'media')).toBe(false);
+    expect(resolveWidgets(c, 'a', DATA, { mediaAvailable: false, editing: true }).find((i) => i.id === 'media')?.avail).toBe('nomedia');
+    c.media.on = false;
+    expect(resolveWidgets(c, 'a', DATA, { editing: true }).find((i) => i.id === 'media')?.avail).toBe('off');
   });
 });

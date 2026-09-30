@@ -6,6 +6,8 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { keyed } from 'lit/directives/keyed.js';
+// CR-015: media-screens.ts and its mock import each other; evaluating the mock first keeps KEY_IDS defined when the mock builds its tables
+import '../api/media-screens-mock';
 import '../components/sw-icon';
 import '../components/sw-button';
 import '../components/sw-badge';
@@ -65,6 +67,7 @@ import '../screens/system-storage';
 import '../pwa/notifications-settings';
 import '../screens/screens-index';
 import '../screens/styleguide-screen';
+import '../components/media-remote';
 import { onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';

@@ -51,7 +51,7 @@ export const CARD_TYPES: Record<CardTypeId, CardTypeInfo> = {
   heating: { id: 'heating', label: 'חימום', desc: 'תרמוסטטים, משאבות חום וחימום תת־רצפתי', icon: 'activity', tiles: false, match: (e) => e.card === 'heating' },
   covers: { id: 'covers', label: 'תריסים', desc: 'תריסים, וילונות ושליטה במיקום', icon: 'layers', tiles: false, match: (e) => e.card === 'covers' && !e.door },
   security: { id: 'security', label: 'מצלמות ואבטחה', desc: 'מצלמות, אזעקה וחיישני מגע ותנועה', icon: 'shield', tiles: false, match: (e) => e.card === 'security' && e.domain !== 'lock' },
-  media: { id: 'media', label: 'מדיה', desc: 'טלוויזיות ונגנים: מצב, מקור ועוצמה', icon: 'play', tiles: false, match: (e) => e.card === 'media' },
+  media: { id: 'media', label: 'מדיה', desc: 'מסכים: מצב, הפעלה, עוצמה ושלט (כרטיס אחד לכל מסך)', icon: 'play', tiles: false, match: (e) => e.card === 'media' },
   sensors: { id: 'sensors', label: 'חיישנים', desc: 'טמפרטורה, לחות, סוללה ושאר החיישנים', icon: 'sensor', tiles: true, match: (e) => e.card === 'sensors' },
   locks: { id: 'locks', label: 'מנעולים ושערים', desc: 'מנעולי דלתות, שערים ודלתות חניה', icon: 'lock', tiles: false, match: (e) => e.domain === 'lock' || (e.card === 'covers' && !!e.door) },
   energy: { id: 'energy', label: 'אנרגיה', desc: 'צריכת חשמל, הספק ומדי אנרגיה', icon: 'bolt', tiles: true, match: (e) => e.card === 'sensors' && e.group === 'power' },

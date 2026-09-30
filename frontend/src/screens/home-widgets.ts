@@ -3,12 +3,15 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-icon';
+import '../components/media-remote';
 import { ALARM_HE } from '../api/devices';
 import {
   calendarText, clockParts, forecastIsDaily, sinceText, untilText, forecastLabel, forecastShown, hasValue, hebrewDate, NO_DATA, QUICK_ACTION_LABEL, SIZE_LABEL, SIZES, valueText, WEATHER_FIELD_LABEL, WEATHER_HE, weatherGlyph,
   type Avail, type HomeConfig, type HomeData, type QuickAction, type Size, type WeatherField, type WeatherGlyph, type WidgetId, type WidgetItem,
 } from '../api/home-config';
-import { ltrNum } from '../i18n/bidi';
+import { ltrNum, bidi } from '../i18n/bidi';
+import { canAnywhere, isApi } from '../api/session';
+import { isOn, media, type MediaDevice } from '../api/media-screens';
 
 const GLYPHS: Record<WeatherGlyph, TemplateResult> = {
   sun: svg`<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>`,
@@ -54,6 +57,7 @@ const GHOST_MSG: Record<Exclude<Avail, 'ok'>, string> = {
   unavail: 'הישות לא זמינה כרגע',
   noalarm: 'אין מערכת אזעקה באתר',
   noaction: 'אין הרשאה לפעולות מהירות',
+  nomedia: 'אין מסכים להצגה',
 };
 
 /**
@@ -82,6 +86,11 @@ export class HomeWidgetsView extends LitElement {
   @property({ type: Boolean }) alarmLink = false;
   @state() private now = new Date();
   @state() private dragId: WidgetId | '' = '';
+  /** CR-015: the screens this user may see (null = not loaded / not allowed) and the one whose remote is open. */
+  @state() private screens: MediaDevice[] | null = null;
+  @state() private remoteKey = '';
+  @state() private remoteOpen = false;
+  private mediaTimer = 0;
   private timer = 0;
 
   static styles = css`
@@ -520,6 +529,90 @@ export class HomeWidgetsView extends LitElement {
       padding: 0 6px;
       font-size: 11.5px;
     }
+    /* ---- media (CR-015): the screens that are on, as chips that open the remote ---- */
+    .wg-media {
+      flex-direction: row;
+      align-items: center;
+      gap: 12px;
+    }
+    .wg-media[data-size='m'],
+    .wg-media[data-size='l'] {
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: center;
+    }
+    .mic {
+      display: grid;
+      place-items: center;
+      inline-size: 36px;
+      block-size: 36px;
+      border-radius: 50%;
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent);
+      flex: none;
+    }
+    .mic svg {
+      inline-size: 18px;
+      block-size: 18px;
+    }
+    .mt {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.2;
+      min-inline-size: 0;
+    }
+    .mt b {
+      font-size: var(--mn, 22px);
+      font-weight: var(--sw-fw-bold);
+      font-variant-numeric: tabular-nums;
+    }
+    .mt span {
+      font-size: 11.5px;
+      color: var(--sw-text-3);
+    }
+    .mchips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-inline-size: 0;
+    }
+    .mchip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-block-size: 36px;
+      max-inline-size: 100%;
+      padding: 0 12px 0 10px;
+      border-radius: 999px;
+      border: 1px solid var(--sw-border-strong);
+      background: var(--sw-surface);
+      font: inherit;
+      font-size: 12.5px;
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-text);
+      cursor: pointer;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .mchip:hover {
+      background: var(--sw-surface-2);
+    }
+    .mchip i {
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      background: var(--sw-success, #16a34a);
+      flex: none;
+    }
+    .mchip.more {
+      color: var(--sw-text-2);
+      cursor: default;
+    }
+    .mchip span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .mchip:focus-visible,
     .qbtn:focus-visible,
     .grip:focus-visible,
     .eb:focus-visible,
@@ -1015,12 +1108,33 @@ export class HomeWidgetsView extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.schedule();
+    void this.loadScreens();
+    this.mediaTimer = window.setInterval(() => document.visibilityState === 'visible' && void this.loadScreens(), 10_000);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     window.clearTimeout(this.timer);
     this.timer = 0;
+    window.clearInterval(this.mediaTimer);
+  }
+
+  /** The screens of the installation that this user may see (media.read; the demo has the mock). Null when there are none. */
+  private async loadScreens() {
+    if (isApi() && !canAnywhere('media.read')) {
+      this.screens = null;
+      return;
+    }
+    try {
+      if (!(await media().status()).enabled) {
+        this.screens = null;
+        return;
+      }
+      const { devices } = await media().list();
+      this.screens = devices.filter((d) => d.kind === 'screen');
+    } catch {
+      this.screens = null;
+    }
   }
 
   /** The clock ticks each second only while a card shows seconds, else every 10 s. */
@@ -1042,7 +1156,16 @@ export class HomeWidgetsView extends LitElement {
     const items = this.items;
     this.toggleAttribute('hidden', !items.length);
     if (!items.length || !this.config) return nothing;
-    return html`<div class="wrap" data-home-widgets role=${this.layout === 'snap' ? 'list' : 'group'} aria-label="ווידג׳טים">${repeat(items, (it) => it.id, (it) => (it.avail === 'ok' ? this.card(it) : this.ghost(it)))}</div>`;
+    return html`<div class="wrap" data-home-widgets role=${this.layout === 'snap' ? 'list' : 'group'} aria-label="ווידג׳טים">${repeat(items, (it) => it.id, (it) => this.item(it))}</div>${this.items.some((i) => i.id === 'media') && this.screens?.length ? html`<media-remote .deviceKey=${this.remoteKey} .open=${this.remoteOpen} @close=${() => (this.remoteOpen = false)} @media-changed=${() => void this.loadScreens()} @media-remote-open=${() => (this.remoteOpen = true)}></media-remote>` : nothing}`;
+  }
+
+  /** A widget card, or its ghost; the media widget (CR-015) asks for itself: without a screen this user may see it is absent
+   * from the screen, and a ghost that says so while editing. */
+  private item(it: WidgetItem) {
+    if (it.id === 'media' && it.avail === 'ok' && !this.screens?.length) {
+      return this.editing ? this.ghost({ ...it, avail: 'nomedia' }) : nothing;
+    }
+    return it.avail === 'ok' ? this.card(it) : this.ghost(it);
   }
 
   // ------------------------------------------------------------------------------------------------ edit chrome
@@ -1132,6 +1255,8 @@ export class HomeWidgetsView extends LitElement {
         return this.shabbat(it);
       case 'alarm':
         return this.alarm(it);
+      case 'media':
+        return this.mediaCard(it);
       default:
         return this.quickCard(it);
     }
@@ -1215,6 +1340,32 @@ export class HomeWidgetsView extends LitElement {
     return this.shell(it, 'wg-alarm', { tone }, html`<span class="aic"><svg viewBox="0 0 24 24" aria-hidden="true">${SHIELD}</svg></span>
       <div class="al-t"><span class="al-l">${it.title}</span><span class="al-s" data-home-alarm-state>${ALARM_HE[state] ?? state}</span>${since ? html`<span class="al-x ge-m">${since}</span>` : nothing}
         ${this.alarmLink && !this.editing && it.size === 'l' ? html`<a class="al-go only-l" href="#/system/security/alarm" data-home-alarm-link>לפרטי האזעקה <svg viewBox="0 0 24 24" aria-hidden="true">${CHEV}</svg></a>` : nothing}</div>`);
+  }
+
+  /** CR-015 §7.5: how many screens are on and - from medium up - those screens as chips; a chip opens the same remote as the
+   * screens page. Tapping anything here only opens a remote: nothing is sent, and nothing powers a screen on. */
+  private mediaCard(it: WidgetItem) {
+    const all = this.screens ?? [];
+    const on = all.filter((d) => isOn(d.live) || d.live.power === 'art');
+    const open = (key: string) => {
+      if (this.editing) return;
+      this.remoteKey = key;
+      this.remoteOpen = true;
+    };
+    const cap = it.size === 'l' ? 6 : 3;
+    const chips = on.slice(0, cap);
+    const rest = on.length - chips.length;
+    const chip = (d: MediaDevice) => html`<button type="button" class="mchip" data-home-media-chip=${d.key} ?disabled=${this.editing} @click=${() => open(d.key)}><i aria-hidden="true"></i><span>${bidi(d.name)}</span></button>`;
+    const first = on[0] ?? all[0];
+    const icon = svg`<rect x="2.5" y="4" width="19" height="13" rx="2.5"/><path d="M8.5 21h7M12 17v4"/><path d="m10.2 8.3 4.3 2.2-4.3 2.2z"/>`;
+    if (it.size === 's') {
+      return this.shell(it, 'wg-media', {}, html`<span class="mic"><svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg></span>
+        <div class="mt"><b data-home-media-count>${ltrNum(on.length)}</b><span>${on.length === 1 ? 'מסך פועל' : 'מסכים פועלים'}</span></div>
+        ${first ? html`<button type="button" class="mchip" style="margin-inline-start:auto" data-home-media-chip=${first.key} aria-label=${`שלט: ${first.name}`} ?disabled=${this.editing} @click=${() => open(first.key)}>שלט</button>` : nothing}`);
+    }
+    return this.shell(it, 'wg-media', {}, html`${this.head(it, icon, all.length ? `${ltrNum(all.length)} מסכים` : '')}
+      <div class="wg-b"><div class="mt" style="--mn:28px"><b data-home-media-count>${ltrNum(on.length)}</b><span>${on.length === 1 ? 'מסך פועל' : 'מסכים פועלים'}</span></div>
+        ${chips.length ? html`<div class="mchips" data-home-media-chips>${chips.map(chip)}${rest > 0 ? html`<span class="mchip more">${ltrNum(`+${rest}`)}</span>` : nothing}</div>` : nothing}</div>`);
   }
 
   private quickCard(it: WidgetItem) {

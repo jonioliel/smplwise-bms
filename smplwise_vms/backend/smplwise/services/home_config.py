@@ -2,8 +2,9 @@
 
 One installation config (setting `home.widgets`, a JSON object read back as an object) plus an optional PERSONAL override
 of the users who hold `screen.personalize` (/me/prefs `home.personal`). The screen has three directions - a: control
-centre (a wide band above everything), b: side panel, c: compact single row - and five widgets: the clock, the weather,
-Shabbat (the Jewish calendar), the alarm status card (read-only) and the quick actions. Everything about a widget is
+centre (a wide band above everything), b: side panel, c: compact single row - and six widgets: the clock, the weather,
+Shabbat (the Jewish calendar), the alarm status card (read-only), the quick actions and the screens (`media`, CR-015: how many
+screens are on and a chip per screen that opens its remote; it has no entity to choose, only the common settings). Everything about a widget is
 editable: on / off, its size (s / m / l - per direction, because the three layouts pack differently), its heading, the
 order, and which entity feeds each field (the weather entity and the fields of it to show, one sensor per Jewish-calendar
 field). Nothing here is a permission: the actions, the alarm and the entities are still authorised by the server on their
@@ -16,12 +17,13 @@ direction, at most medium), edited next to the desktop ones and independent of t
 Canonical config (what `normalise` returns and the setting stores; every key is optional on input and filled with the
 default, an unknown key is refused - this is never free-form client storage):
 
-    {"order": ["clock", "weather", "shabbat", "alarm", "quick"], "phone_layout": "snap|stack|two",
+    {"order": ["clock", "weather", "shabbat", "alarm", "quick", "media"], "phone_layout": "snap|stack|two",
      "clock":    {"on", "sizes": {"a", "b", "c"}, "label", "mode": "time|datetime", "seconds", "hebrew"},
      "weather":  {"on", "sizes", "label", "entity", "fields": [...], "forecast": "3|5|max", "sources": {field: sensor}},
      "shabbat":  {"on", "sizes", "label"},
      "alarm":    {"on", "sizes", "label", "entity"},
      "quick":    {"on", "sizes", "label", "actions": ["lights_off", "all_off"]},
+     "media":    {"on", "sizes", "label", "phone_on", "phone_size"},
      "calendar": {"date", "parsha", "candles", "havdalah", "holiday", "extras": [{"entity_id", "label"}]}}
 """
 from __future__ import annotations
@@ -35,7 +37,8 @@ DIRECTIONS = ("a", "b", "c")
 DEFAULT_DIRECTION = "a"  # owner decision 2026-09-30: the control centre
 SIDES = ("start", "end")
 DEFAULT_SIDE = "end"
-WIDGET_IDS = ("clock", "weather", "shabbat", "alarm", "quick")
+# `media` (CR-015) is appended: a stored order without it keeps its look, the widget lands last like every widget a release adds
+WIDGET_IDS = ("clock", "weather", "shabbat", "alarm", "quick", "media")
 SIZES = ("s", "m", "l")
 PHONE_LAYOUTS = ("snap", "stack", "two")  # a horizontal snap row | one card under the other | two per row (wrapping)
 DEFAULT_PHONE_LAYOUT = "stack"
@@ -47,6 +50,7 @@ DEFAULT_SIZES: dict[str, dict[str, str]] = {
     "shabbat": {"a": "m", "b": "m", "c": "m"},
     "alarm": {"a": "m", "b": "s", "c": "m"},
     "quick": {"a": "m", "b": "s", "c": "m"},
+    "media": {"a": "m", "b": "s", "c": "m"},
 }
 CLOCK_MODES = ("time", "datetime")
 WEATHER_FIELDS = ("condition", "temperature", "apparent", "humidity", "wind", "pressure", "visibility", "uv", "precipitation", "forecast")
@@ -148,7 +152,7 @@ def _ordered_subset(value: Any, allowed: tuple[str, ...], name: str) -> list[str
 
 def _widget(wid: str, value: Any) -> dict[str, Any]:
     common = {"on", "sizes", "label", "phone_on", "phone_size"}
-    extra = {"clock": {"mode", "seconds", "hebrew"}, "weather": {"entity", "fields", "forecast", "sources"}, "shabbat": set(), "alarm": {"entity"}, "quick": {"actions"}}[wid]
+    extra = {"clock": {"mode", "seconds", "hebrew"}, "weather": {"entity", "fields", "forecast", "sources"}, "shabbat": set(), "alarm": {"entity"}, "quick": {"actions"}, "media": set()}[wid]
     given = _obj(value, wid, common | extra)
     out = _default_widget(wid)
     if "on" in given:
