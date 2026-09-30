@@ -20,10 +20,12 @@ CREATE TABLE IF NOT EXISTS shared_spaces (
 -- Members (security review B1): the cameras and devices of the shared space, EXPLICITLY - reach follows this list,
 -- never geometry. Set at share time and changed only by "הוסף לחלל המשותף / הסר", which needs the share rights.
 -- Keyed by the room (its home zone): a member reaches every floor that shows the room, wherever it is anchored.
+-- 'wiskey_station' (CR-009 §13, owner 2026-09-30): a WisKey station listed as a member; it has no anchor and adds no reach.
+-- A database that ran the earlier text of this table gets the wider CHECK from shared_spaces.ensure_schema at start.
 CREATE TABLE IF NOT EXISTS shared_space_members (
   id            TEXT PRIMARY KEY,
   zone_id       TEXT NOT NULL REFERENCES spatial_zones(id),
-  resource_type TEXT NOT NULL CHECK (resource_type IN ('camera', 'ha_entity')),
+  resource_type TEXT NOT NULL CHECK (resource_type IN ('camera', 'ha_entity', 'wiskey_station')),
   resource_id   TEXT NOT NULL,
   added_by      TEXT,
   added_at      TEXT NOT NULL,
