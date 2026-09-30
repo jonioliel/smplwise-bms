@@ -289,6 +289,11 @@ async def ws_session(
                     fut.cancel()
 
 
+def _device_name(device: dict[str, Any] | None) -> str:
+    d = device or {}
+    return str(d.get("name_by_user") or d.get("name") or "")
+
+
 def registry_maps(entities: list[dict[str, Any]], devices: list[dict[str, Any]], areas: list[dict[str, Any]], floors: list[dict[str, Any]]) -> dict[str, Any]:
     """Resolve area/floor names per entity (entity area, else its device's area)."""
     area_by_id = {a["area_id"]: a for a in areas}
@@ -311,7 +316,10 @@ def registry_maps(entities: list[dict[str, Any]], devices: list[dict[str, Any]],
             "area_name": area.get("name") if area else None,
             "ha_floor_id": floor_id,
             "ha_floor_name": (floor_by_id.get(floor_id or "", {}) or {}).get("name") if floor_id else None,
-            "name": e.get("name") or e.get("original_name") or "",
+            # HA names an entity that has neither a name of its own nor an original one (a device's main feature, e.g. a
+            # climate, has_entity_name=True) after its device - so does this, rather than showing the raw entity id
+            # until a state arrives
+            "name": e.get("name") or e.get("original_name") or _device_name(device_by_id.get(e.get("device_id") or "")),
             "original_name": e.get("original_name"),
             "icon": e.get("icon"),
             "entity_category": e.get("entity_category"),

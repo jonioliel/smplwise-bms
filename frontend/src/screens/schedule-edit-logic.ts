@@ -161,6 +161,21 @@ export type Intent =
 
 const allowed = (e: EntityMeta, service: string) => !e.actions.length || e.actions.some((a) => a.service === service);
 
+/** The hvac_mode a climate does for a cool / heat wish: the wanted one when the entity offers it, else the nearest it does
+ * offer (a thermostat with only off + heat_cool takes heat_cool for both), else none - never a mode the entity lacks. */
+export function climateModeFor(want: 'cool' | 'heat', e: EntityMeta): string | undefined {
+  const offered = e.attributes.hvac_modes;
+  if (!Array.isArray(offered) || !offered.length) return want;
+  return (want === 'cool' ? ['cool', 'heat_cool', 'auto'] : ['heat', 'heat_cool', 'auto']).find((m) => offered.includes(m));
+}
+
+const climateData = (mode: string | undefined, temperature: number, e: EntityMeta): Record<string, unknown> => {
+  const min = Number(e.attributes.min_temp ?? NaN);
+  const max = Number(e.attributes.max_temp ?? NaN);
+  const t = Math.min(Number.isFinite(max) ? max : Infinity, Math.max(Number.isFinite(min) ? min : -Infinity, temperature));
+  return mode ? { hvac_mode: mode, temperature: t } : { temperature: t };
+};
+
 /** The action a device does for an intent, or null when its class has no such thing. */
 export function actionForIntent(intent: Intent, e: EntityMeta): DraftAction | null {
   const dom = e.domain;
@@ -168,7 +183,7 @@ export function actionForIntent(intent: Intent, e: EntityMeta): DraftAction | nu
   switch (intent.kind) {
     case 'on':
       if (dom === 'light' || dom === 'switch' || dom === 'fan') return make(`${dom}.turn_on`);
-      if (dom === 'climate') return make('climate.set_temperature', { hvac_mode: 'cool', temperature: 23 });
+      if (dom === 'climate') return make('climate.set_temperature', climateData(climateModeFor('cool', e), 23, e));
       if (dom === 'cover') return make('cover.open_cover');
       return null;
     case 'off':
@@ -188,7 +203,7 @@ export function actionForIntent(intent: Intent, e: EntityMeta): DraftAction | nu
     case 'cover_pos':
       return dom === 'cover' ? make('cover.set_cover_position', { position: intent.pos }) : actionForIntent({ kind: 'on' }, e);
     case 'climate':
-      return dom === 'climate' ? make('climate.set_temperature', { hvac_mode: intent.mode, temperature: intent.temp }) : actionForIntent({ kind: 'on' }, e);
+      return dom === 'climate' ? make('climate.set_temperature', climateData(climateModeFor(intent.mode, e), intent.temp, e)) : actionForIntent({ kind: 'on' }, e);
   }
 }
 
@@ -697,7 +712,7 @@ export function defaultDataFor(specs: ArgSpec[], meta: EntityMeta | undefined): 
       const min = Number(meta?.attributes.min_temp ?? s.min ?? 16);
       const max = Number(meta?.attributes.max_temp ?? s.max ?? 30);
       out.temperature = Math.min(max, Math.max(min, 23));
-    } else if (s.choices?.length) out[s.name] = s.choices.includes('cool') && s.name === 'hvac_mode' ? 'cool' : s.choices[0];
+    } else if (s.choices?.length) out[s.name] = s.name === 'hvac_mode' ? (['cool', 'heat_cool', 'heat', 'auto'].find((m) => s.choices!.includes(m)) ?? s.choices.find((m) => m !== 'off') ?? s.choices[0]) : s.choices[0];
     else if (s.type === 'int' || s.type === 'float') out[s.name] = Math.min(s.max ?? 100, Math.max(s.min ?? 0, 50));
     else if (s.type === 'enum' || s.type === 'str') out[s.name] = '';
   }

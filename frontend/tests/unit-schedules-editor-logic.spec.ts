@@ -1,4 +1,7 @@
 import { test, expect } from '@playwright/test';
+import { stateLabel } from '../src/api/ha';
+import { climateRange } from '../src/api/devices';
+import { BULK_KINDS, BULK_KIND_LABEL } from '../src/api/device-bulk';
 import { emptyDraft, type ConditionView, type DraftSlot, type ScheduleDraft } from '../src/api/schedules';
 import {
   activePreset,
@@ -7,6 +10,8 @@ import {
   applyPreset,
   clearConditions,
   compareDrafts,
+  actionForIntent,
+  climateModeFor,
   defaultDataFor,
   describeCondition,
   serviceWord,
@@ -450,6 +455,43 @@ test.describe('the slot panel and the conflict dialog', () => {
     expect(defaultDataFor([{ name: 'brightness', type: 'int', min: 0, max: 255, required: false }], undefined)).toEqual({});
     const cold = meta('climate.d', 'מזגן ב', { attributes: { min_temp: 25, max_temp: 30 } });
     expect(defaultDataFor([{ name: 'temperature', type: 'float', required: true }], cold)).toEqual({ temperature: 25 });
+  });
+
+  test('a climate that offers only off + heat_cool is never scheduled with a mode it lacks (thermostat with only off + heat_cool)', () => {
+    const thermostat = meta('climate.t', 'תרמוסטט', { attributes: { hvac_modes: ['off', 'heat_cool'], min_temp: 5, max_temp: 95 } });
+    const duct = meta('climate.u', 'מזגן תעלה', { attributes: { hvac_modes: ['off', 'auto', 'cool', 'dry', 'fan_only'], min_temp: 18, max_temp: 30 } });
+    const heatOnly = meta('climate.v', 'חימום', { attributes: { hvac_modes: ['off', 'fan_only'] } });
+    expect(climateModeFor('cool', thermostat)).toBe('heat_cool');
+    expect(climateModeFor('heat', thermostat)).toBe('heat_cool');
+    expect(climateModeFor('cool', duct)).toBe('cool');
+    expect(climateModeFor('heat', duct)).toBe('auto'); // no heat: the entity's own automatic mode, not a mode it lacks
+    expect(climateModeFor('heat', heatOnly)).toBeUndefined();
+    expect(actionForIntent({ kind: 'on' }, thermostat)?.data).toEqual({ hvac_mode: 'heat_cool', temperature: 23 });
+    expect(actionForIntent({ kind: 'climate', mode: 'cool', temp: 23 }, duct)?.data).toEqual({ hvac_mode: 'cool', temperature: 23 });
+    expect(actionForIntent({ kind: 'climate', mode: 'cool', temp: 23 }, meta('climate.w', 'מזגן', { attributes: { min_temp: 25, max_temp: 30 } }))?.data).toEqual({ hvac_mode: 'cool', temperature: 25 });
+    expect(actionForIntent({ kind: 'on' }, heatOnly)?.data).toEqual({ temperature: 23 });
+    // a required hvac_mode starts with a real mode, not "off", when the entity offers one
+    expect(defaultDataFor([{ name: 'hvac_mode', type: 'enum', choices: ['off', 'heat_cool'], required: true }], thermostat)).toEqual({ hvac_mode: 'heat_cool' });
+  });
+
+  test('the climate controls keep to the own target range of the entity', () => {
+    expect(climateRange({ min_temp: 5, max_temp: 95, target_temp_step: 0.5 })).toEqual({ min: 5, max: 95, step: 0.5 }); // a heating thermostat: 45 is reachable
+    expect(climateRange({ min_temp: 5, max_temp: 43, target_temp_step: 1 })).toEqual({ min: 5, max: 43, step: 1 }); // a heat pump targeting 36
+    expect(climateRange({ min_temp: 18, max_temp: 30, target_temp_step: null })).toEqual({ min: 18, max: 30, step: 1 }); // no step reported: one degree
+    expect(climateRange({ min_temp: 5, max_temp: 45, target_temp_step: undefined })).toEqual({ min: 5, max: 45, step: 1 }); // a wide range keeps the one-degree step
+    expect(climateRange({})).toEqual({ min: 5, max: 35, step: 1 });
+  });
+
+  test('heating has its own off action, next to (not inside) the air-conditioning one', () => {
+    expect(BULK_KIND_LABEL.climate_off).toBe('כבה מיזוג');
+    expect(BULK_KIND_LABEL.heating_off).toBe('כבה חימום');
+    expect(BULK_KINDS.indexOf('heating_off')).toBe(BULK_KINDS.indexOf('climate_off') + 1);
+  });
+
+  test('a climate in heat_cool reads in words, not as the raw mode', () => {
+    const climate = (state: string) => ({ domain: 'climate', state, unit: null, device_class: null, attributes: { current_temperature: 24.7 } });
+    expect(stateLabel(climate('heat_cool'))).toBe('חימום/קירור · 24.7°');
+    expect(stateLabel(climate('off'))).toBe('כבוי · 24.7°');
   });
 
   test('service words fall back to the server label', () => {

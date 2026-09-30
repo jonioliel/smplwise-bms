@@ -1,7 +1,7 @@
 import { html, css, nothing, type ReactiveController, type ReactiveControllerHost } from 'lit';
 import '../components/sw-toggle';
 import '../components/sw-button';
-import { ALARM_HE, HVAC_HE, type DeviceRow } from '../api/devices';
+import { ALARM_HE, climateRange, HVAC_HE, type DeviceRow } from '../api/devices';
 import { stateLabel } from '../api/ha';
 import { debouncedCommand, runCommand, supersede, type CommandState } from '../api/device-commands';
 import { bidi, ltrNum } from '../i18n/bidi';
@@ -390,9 +390,7 @@ export class DeviceControls implements ReactiveController {
     const entityId = r.entity_id;
     if (r.domain === 'climate') {
       const tempKey = `${entityId}:temp`;
-      const min = Math.max(5, r.min_temp ?? 5);
-      const max = Math.min(35, r.max_temp ?? 35);
-      const step = r.target_temp_step && r.target_temp_step > 0 ? r.target_temp_step : 0.5;
+      const { min, max, step } = climateRange(r);
       const reported = r.target_temperature;
       const target = this.live<number>(entityId, 'temp') ?? reported;
       const clamp = (n: number) => Math.min(max, Math.max(min, Math.round(n * 10) / 10));

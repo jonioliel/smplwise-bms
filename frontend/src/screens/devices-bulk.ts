@@ -42,8 +42,9 @@ export function activeFor(kind: BulkKind, c: DeviceCounts): number {
   if (kind === 'lights_off') return c.lights_on;
   if (kind === 'covers_close') return c.covers_open;
   if (kind === 'climate_off') return c.climate_active;
+  if (kind === 'heating_off') return c.heating_active;
   if (kind === 'screens_off') return c.media_on;
-  return c.lights_on + c.switches_on + c.covers_open + c.climate_active + c.media_on;
+  return c.lights_on + c.switches_on + c.covers_open + c.climate_active + c.heating_active + c.media_on;
 }
 
 /** Owner feedback 2026-09-29 ("hide empty domains"): a quick action for a domain the scope has no entity of at all
@@ -52,11 +53,12 @@ export function presentFor(kind: BulkKind, c: DeviceCounts): boolean {
   if (kind === 'lights_off') return c.lights > 0;
   if (kind === 'covers_close' || kind === 'covers_open' || kind === 'covers_stop' || kind === 'covers_position') return c.covers > 0;
   if (kind === 'climate_off') return c.climate > 0;
+  if (kind === 'heating_off') return c.heating > 0;
   if (kind === 'screens_off') return c.media > 0;
   return true;
 }
 
-const KIND_ICON: Record<BulkKind, IconName> = { lights_off: 'light', covers_close: 'layers', covers_open: 'layers', covers_stop: 'layers', covers_position: 'layers', climate_off: 'activity', screens_off: 'play', all_off: 'bolt', switches_off: 'power', switches_on: 'power', lights_on: 'light', screens_on: 'play' };
+const KIND_ICON: Record<BulkKind, IconName> = { lights_off: 'light', covers_close: 'layers', covers_open: 'layers', covers_stop: 'layers', covers_position: 'layers', climate_off: 'activity', heating_off: 'activity', screens_off: 'play', all_off: 'bolt', switches_off: 'power', switches_on: 'power', lights_on: 'light', screens_on: 'play' };
 
 /** Owner 2026-09-29: the master control's confirmation asks the question in words ("להדליק 22 מתגים?"). */
 const NOUN: Partial<Record<BulkKind, [string, string, string]>> = {
@@ -82,6 +84,7 @@ function nothingWhy(p: BulkPreview): string {
 function question(kind: BulkKind, n: number, position?: number | null): string {
   const w = NOUN[kind];
   if (w) return n === 1 ? `${w[0]} ${w[1]}?` : `${w[0]} ${ltrNum(n)} ${w[2]}?`;
+  if (kind === 'heating_off') return n === 1 ? 'לכבות התקן חימום אחד?' : `לכבות ${ltrNum(n)} התקני חימום?`;
   if (kind === 'climate_off') return n === 1 ? 'לכבות התקן מיזוג אחד?' : `לכבות ${ltrNum(n)} התקני מיזוג?`;
   if (kind === 'covers_stop') return n === 1 ? 'לעצור תריס אחד?' : `לעצור ${ltrNum(n)} תריסים?`;
   if (kind === 'covers_position') return `להזיז ${n === 1 ? 'תריס אחד' : `${ltrNum(n)} תריסים`} למיקום ${ltrNum(position ?? 0)}%?`;
@@ -474,6 +477,7 @@ export class DevicesBulkMenu extends LitElement {
       ${c.switches ? chip('bolt', `מתגים ${c.switches_on}/${c.switches}`, c.switches_on > 0, 'switches') : nothing}
       ${c.covers ? chip('layers', `תריסים פתוחים ${c.covers_open}/${c.covers}`, c.covers_open > 0, 'covers') : nothing}
       ${c.climate ? chip('activity', `מיזוג ${c.climate_active}/${c.climate}`, c.climate_active > 0, 'climate') : nothing}
+      ${c.heating ? chip('activity', `חימום ${c.heating_active}/${c.heating}`, c.heating_active > 0, 'heating') : nothing}
       ${c.media ? chip('play', `מסכים ${c.media_on}/${c.media}`, c.media_on > 0, 'media') : nothing}
       ${c.locks ? chip('lock', `נעולים ${c.locks_locked}/${c.locks}`, false, 'locks') : nothing}
       ${c.alarm ? chip('shield', `אזעקה: ${ALARM_HE[c.alarm] ?? c.alarm}`, false, 'alarm') : nothing}

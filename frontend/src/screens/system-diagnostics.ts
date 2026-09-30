@@ -28,6 +28,7 @@ import { setInstallWiskeyView } from '../wiskey/wiskey-prefs';
 import { getSkinsStatus, runSkinsTest, type SkinsStatus, type SkinsTestResult } from '../api/skins';
 import { devicesPrefsOf, type DevicesStyle } from './devices-style';
 import './devices-theme-picker';
+import './devices-climate-kind-admin'; // owner 2026-09-30: מיזוג / חימום per climate entity
 import './devices-bulk-safe-admin'; // owner 2026-09-30: הגדרות › חשמל והתקנים › פעולה קבוצתית
 import './system-tabs'; // owner 2026-09-30: הגדרות › כללי › לשוניות
 import './system-nav-size'; // UI round 1b: הגדרות › כללי › גודל הניווט
@@ -1055,6 +1056,7 @@ export class SystemDiagnostics extends LitElement {
           ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-devices ?disabled=${!dirty || this.busy} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'devices' ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error && this.tab === 'devices' ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>`
           : html`<div class="muted" data-devices-readonly>${api ? 'שינוי ההגדרות דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
       </sw-card>
+      ${api && this.canEdit ? html`<devices-climate-kind-admin data-section="climate-kind"></devices-climate-kind-admin>` : nothing}
       ${api && this.canEdit ? html`<devices-bulk-safe-admin data-section="bulk-safe"></devices-bulk-safe-admin>` : nothing}
     </div>`;
   }

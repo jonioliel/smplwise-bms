@@ -20,11 +20,12 @@ from . import ha_sync, home_screen
 
 ControlChecker = Callable[[str], bool]
 
-CARD_IDS = ("lighting", "switches", "climate", "covers", "security", "media", "sensors")
+CARD_IDS = ("lighting", "switches", "climate", "heating", "covers", "security", "media", "sensors")
 CARD_LABELS = {
     "lighting": "תאורה",
     "switches": "מתגים",
     "climate": "מיזוג ואקלים",
+    "heating": "חימום",
     "covers": "תריסים",
     "security": "אבטחה",
     "media": "מסכים והקרנה",
@@ -42,6 +43,11 @@ DOOR_LAYER = "doors"
 # entity's own wording; anything not named here (an illuminance/CO2/generic numeric sensor, or a binary sensor
 # outside the security set) groups under its own device_class, or "other" with none.
 SENSOR_GROUP_CLASSES = {"temperature": "temperature", "humidity": "humidity", "power": "power", "energy": "power", "illuminance": "illuminance", "carbon_dioxide": "co2", "battery": "battery"}
+# Heating versus air conditioning (owner 2026-09-30): a climate entity whose own hvac_modes offer none of these cannot
+# cool, dry or blow - a thermostat, a heat pump, floor / pool / water heating: the "חימום" group. An administrator's
+# override (table device_climate_kind) wins; an entity that reports no modes (unavailable) stays "מיזוג".
+CLIMATE_KINDS = ("ac", "heating")
+AC_ONLY_MODES = frozenset({"cool", "dry", "fan_only"})
 OFF_STATES = {"off", "unavailable", "unknown", None, ""}
 MEDIA_OFF_STATES = {"off", "standby", "unavailable", "unknown", None, ""}
 # CR-014 (SCHEDULER_API.md 5.5): the Scheduler component's own switches (`switch.schedule_*`) are not devices. They have an
@@ -70,6 +76,33 @@ def is_scheduler(conn: sqlite3.Connection, entity_id: str) -> bool:
     """`is_scheduler_entity` for a catalogue entity id (one lookup; an unknown id falls back to the prefix rule)."""
     row = conn.execute("SELECT platform FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
     return is_scheduler_entity(entity_id, row["platform"] if row else None)
+
+
+def climate_kind_auto(attributes: dict[str, Any] | None) -> str:
+    """"heating" when the entity reports modes and none of them is cool / dry / fan_only, else "ac"."""
+    modes = (attributes or {}).get("hvac_modes")
+    if not isinstance(modes, list):
+        return "ac"
+    named = {m for m in modes if isinstance(m, str)} - {"off"}
+    return "heating" if named and not named & AC_ONLY_MODES else "ac"
+
+
+def climate_kind_overrides(conn: sqlite3.Connection) -> dict[str, str]:
+    try:
+        return {r["entity_id"]: r["kind"] for r in conn.execute("SELECT entity_id, kind FROM device_climate_kind").fetchall()}
+    except sqlite3.OperationalError:  # a database from before migration 0040
+        return {}
+
+
+def annotate_climate(e: dict[str, Any], overrides: dict[str, str]) -> None:
+    """Puts `climate_kind` (the effective group), `climate_kind_auto` and `climate_kind_set` (the override or None) on a
+    climate entity row and moves a heating one to the heating card."""
+    auto = climate_kind_auto(e.get("attributes"))
+    set_kind = overrides.get(e["entity_id"])
+    e["climate_kind_auto"], e["climate_kind_set"] = auto, set_kind
+    e["climate_kind"] = set_kind or auto
+    if e["climate_kind"] == "heating":
+        e["card"] = "heating"
 
 
 def card_of(domain: str, device_class: str | None) -> str | None:
@@ -123,6 +156,7 @@ def empty_counts() -> dict[str, Any]:
         "switches": 0, "switches_on": 0,
         "covers": 0, "covers_open": 0,
         "climate": 0, "climate_active": 0,
+        "heating": 0, "heating_active": 0,
         "media": 0, "media_on": 0,
         "locks": 0, "locks_locked": 0,
         "alarm": None,
@@ -158,6 +192,9 @@ def count_into(counts: dict[str, Any], e: dict[str, Any]) -> None:
     elif domain == "cover":
         counts["covers"] += 1
         counts["covers_open"] += is_active(domain, state)
+    elif domain == "climate" and e.get("climate_kind") == "heating":
+        counts["heating"] += 1
+        counts["heating_active"] += is_active(domain, state)
     elif domain in ("climate", "fan", "humidifier"):
         counts["climate"] += 1
         counts["climate_active"] += is_active(domain, state)
@@ -182,11 +219,14 @@ def load_entities(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     rows = conn.execute(
         "SELECT * FROM ha_entities WHERE removed_at IS NULL AND disabled = 0 AND hidden = 0 AND (entity_category IS NULL OR entity_category = '') AND " + NOT_SCHEDULER_SQL + " ORDER BY domain, name, entity_id"
     ).fetchall()
+    overrides = climate_kind_overrides(conn)
     out = []
     for r in rows:
         e = ha_sync.entity_row(r)
         e["card"] = card_of(e["domain"], e.get("device_class"))
         if e["card"]:
+            if e["domain"] == "climate":
+                annotate_climate(e, overrides)
             out.append(e)
     return out
 
@@ -239,7 +279,7 @@ def build_tree(conn: sqlite3.Connection, entities: list[dict[str, Any]], *, scop
     for e in entities:
         count_into(building, e)
         aid = e.get("area_id")
-        if e["domain"] == "climate" and aid:
+        if e["domain"] == "climate" and aid and e.get("climate_kind") != "heating":  # the strip is the A/C one
             climate_by_area.setdefault(aid, []).append(_climate_summary(e))
         if not aid:
             count_into(unassigned, e)
@@ -324,8 +364,9 @@ def card_row(e: dict[str, Any], can_control: bool) -> dict[str, Any]:
     if card == "lighting":
         row["brightness_pct"] = _pct(a.get("brightness"), 100 / 255) if row["state"] == "on" else None
         row["color_mode"] = a.get("color_mode") if isinstance(a.get("color_mode"), str) else None
-    elif card == "climate":
+    elif card in ("climate", "heating"):
         if e["domain"] == "climate":
+            row["climate_kind"] = e.get("climate_kind") or climate_kind_auto(a)
             row["hvac_mode"] = row["state"] if row["state"] not in ("unavailable", "unknown", None) else None
             row["hvac_action"] = a.get("hvac_action") if isinstance(a.get("hvac_action"), str) else None
             row["current_temperature"] = _num(a.get("current_temperature"))
@@ -415,6 +456,7 @@ ITEM_KINDS: dict[str, tuple[str, ...]] = {
     "switches": ("switch", "input_boolean"),
     "covers": ("cover",),
     "climate": ("climate", "fan", "humidifier"),
+    "heating": ("climate",),
     "media": ("media_player",),
     "locks": ("lock",),
     "alarm": ("alarm_control_panel",),
@@ -458,7 +500,7 @@ def build_items(conn: sqlite3.Connection, entities: list[dict[str, Any]], kind: 
             floor_name = hit[0]["name"] if hit[0]["floor_id"] != NO_FLOOR else None
     by_area: dict[str | None, list[dict[str, Any]]] = {}
     for e in entities:
-        if e["domain"] not in domains:
+        if e["domain"] not in domains or (e["domain"] == "climate" and kind in ("climate", "heating") and (e.get("climate_kind") == "heating") != (kind == "heating")):
             continue
         aid = e.get("area_id") or None
         if areas_in is not None and aid not in areas_in:

@@ -17,6 +17,9 @@ export interface DeviceCounts {
   covers_open: number;
   climate: number;
   climate_active: number;
+  /** Heating (a climate entity that cannot cool - a thermostat, a heat pump): its own group, never part of `climate`. */
+  heating: number;
+  heating_active: number;
   media: number;
   media_on: number;
   locks: number;
@@ -80,8 +83,8 @@ export interface DeviceTree {
   home?: HomeView;
 }
 
-export type CardId = 'lighting' | 'switches' | 'climate' | 'covers' | 'security' | 'media' | 'sensors';
-export const CARD_IDS: CardId[] = ['lighting', 'switches', 'climate', 'covers', 'security', 'media', 'sensors'];
+export type CardId = 'lighting' | 'switches' | 'climate' | 'heating' | 'covers' | 'security' | 'media' | 'sensors';
+export const CARD_IDS: CardId[] = ['lighting', 'switches', 'climate', 'heating', 'covers', 'security', 'media', 'sensors'];
 
 export interface DeviceRow {
   entity_id: string;
@@ -114,6 +117,8 @@ export interface DeviceRow {
   // climate (climate.*) and fan / humidifier
   hvac_mode?: string | null;
   hvac_action?: string | null;
+  /** The climate group this entity is in (heating = cannot cool; automatic from its modes, or an administrator's override). */
+  climate_kind?: 'ac' | 'heating';
   current_temperature?: number | null;
   target_temperature?: number | null;
   target_temp_low?: number | null;
@@ -192,8 +197,8 @@ export interface DeviceAreaDetail {
 export const getDevicesTree = () => get<DeviceTree>('devices/tree');
 
 /** The overview tiles' kinds (owner 2026-09-29): one per building / floor counter. */
-export type TileKind = 'lights' | 'switches' | 'covers' | 'climate' | 'media' | 'locks' | 'alarm';
-export const TILE_KINDS: TileKind[] = ['lights', 'switches', 'covers', 'climate', 'media', 'locks', 'alarm'];
+export type TileKind = 'lights' | 'switches' | 'covers' | 'climate' | 'heating' | 'media' | 'locks' | 'alarm';
+export const TILE_KINDS: TileKind[] = ['lights', 'switches', 'covers', 'climate', 'heating', 'media', 'locks', 'alarm'];
 export type ItemsScope = 'building' | 'floor' | 'area';
 
 /** A row of the tiles' panel: the area card's own row plus its place (and, for a lock, whether this caller may unlock). */
@@ -274,11 +279,20 @@ export const CARD_EMPTY: Record<CardId, { heading: string; hint: string }> = {
   lighting: { heading: 'אין תאורה באזור הזה', hint: 'שייכו גופי תאורה לאזור והם יופיעו כאן אוטומטית.' },
   switches: { heading: 'אין מתגים באזור הזה', hint: 'מתגים ודגלים (input_boolean) המשויכים לאזור יופיעו כאן.' },
   climate: { heading: 'אין התקן מיזוג באזור הזה', hint: 'שייכו מזגן, תרמוסטט, מאוורר או מייבש לאזור והם יופיעו כאן.' },
+  heating: { heading: 'אין התקן חימום באזור הזה', hint: 'תרמוסטטים, משאבות חום וחימום תת־רצפתי המשויכים לאזור יופיעו כאן.' },
   covers: { heading: 'אין תריסים באזור הזה', hint: 'תריסים, וילונות ושערים המשויכים לאזור יופיעו כאן.' },
   security: { heading: 'אין התקני אבטחה באזור הזה', hint: 'מנעולים, מצלמות, מערכת אזעקה וחיישני דלת / תנועה המשויכים לאזור יופיעו כאן.' },
   media: { heading: 'אין מסכים או נגנים באזור הזה', hint: 'טלוויזיות, מקרנים ורמקולים המשויכים לאזור יופיעו כאן.' },
   sensors: { heading: 'אין חיישנים באזור הזה', hint: 'טמפרטורה, לחות ושאר חיישני הסביבה של האזור יופיעו כאן.' },
 };
+
+/** A climate row's target range and step: the entity's own (a heating thermostat / heat pump targets 45 and reports
+ * max 95 - never cut to an air conditioner's 35); 5..35 and one degree only for one that reports none; an entity's own step (0.5) is honoured. */
+export function climateRange(r: Pick<DeviceRow, 'min_temp' | 'max_temp' | 'target_temp_step'>): { min: number; max: number; step: number } {
+  const min = r.min_temp ?? 5;
+  const max = r.max_temp ?? 35;
+  return { min, max: max >= min ? max : min, step: r.target_temp_step && r.target_temp_step > 0 ? r.target_temp_step : 1 };
+}
 
 export const HVAC_HE: Record<string, string> = { heat: 'חימום', cool: 'קירור', heat_cool: 'חימום/קירור', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר', off: 'כבוי' };
 export const HVAC_ACTION_HE: Record<string, string> = { heating: 'מחמם', cooling: 'מקרר', drying: 'מייבש', fan: 'מאוורר', idle: 'ממתין', off: 'כבוי', preheating: 'מחמם מראש', defrosting: 'מפשיר' };

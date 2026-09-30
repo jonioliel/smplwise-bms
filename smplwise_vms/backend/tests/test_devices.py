@@ -1708,3 +1708,65 @@ def test_bulk_safe_management_list_and_batch(bulk_app, monkeypatch):
     bind(c, s, "op", "operator", "installation", "*")
     assert c.get("/api/v1/devices/bulk-safe", headers=as_user("op")).status_code == 403
     assert c.post("/api/v1/devices/bulk-safe", content=b"not json", headers={**as_user("op"), "content-type": "text/plain"}).status_code == 403
+
+def test_heating_is_its_own_group_with_its_own_counter_and_off_action(bulk_app):
+    """Owner 2026-09-30: a climate entity that cannot cool (modes without cool / dry / fan_only - a thermostat, a heat
+    pump) is "חימום", not "מיזוג": its own card, counter, items kind and "כיבוי חימום"; "כיבוי מיזוג" never reaches it,
+    "כיבוי הכל" does. An administrator's override (system.configure) wins either way; "auto" goes back to the modes."""
+    app, s, c, fake = bulk_app
+    extra = [
+        {"entity_id": "climate.lobby_heater", "state": "heat_cool", "attributes": {"friendly_name": "Lobby heater", "hvac_modes": ["off", "heat_cool"], "min_temp": 5.0, "max_temp": 95.0, "temperature": 45.0, "current_temperature": 25.5}},
+        {"entity_id": "climate.lobby_ac2", "state": "cool", "attributes": {"friendly_name": "Lobby AC 2", "hvac_modes": ["off", "auto", "cool", "dry", "fan_only"], "temperature": 24, "current_temperature": 26.1}},
+        {"entity_id": "climate.lobby_panel", "state": "heat", "attributes": {"friendly_name": "Lobby panel", "hvac_modes": ["off", "heat", "auto"], "temperature": 21}},
+    ]
+    assert c.post("/api/v1/ha/dev/states", json={"states": extra}).status_code == 200
+    reg = ENTITY_REGISTRY + [_reg(e["entity_id"], "lobby") for e in extra]
+    assert c.post("/api/v1/ha/dev/registry", json={"entities": reg, "devices": [], "areas": AREAS, "floors": FLOORS}).status_code == 200
+
+    def counts() -> dict:
+        return c.get("/api/v1/devices/tree").json()["building"]
+
+    def preview(kind: str) -> set[str]:
+        return {t["entity_id"] for t in c.get("/api/v1/devices/actions/preview", params={"scope": "area", "id": "lobby", "kind": kind}).json()["targets"]}
+
+    # climate.lobby reports no modes (stays air conditioning); the heater and the heat-only panel are heating
+    b = counts()
+    assert (b["climate"], b["climate_active"], b["heating"], b["heating_active"]) == (2, 2, 2, 2)
+    cards = c.get("/api/v1/devices/areas/lobby").json()["cards"]
+    assert {r["entity_id"] for r in cards["heating"]["entities"]} == {"climate.lobby_heater", "climate.lobby_panel"} and cards["heating"]["label"] == "חימום"
+    assert {r["entity_id"] for r in cards["climate"]["entities"]} == {"climate.lobby", "climate.lobby_ac2"}
+    heater = next(r for r in cards["heating"]["entities"] if r["entity_id"] == "climate.lobby_heater")
+    assert (heater["climate_kind"], heater["hvac_modes"], heater["target_temperature"], heater["max_temp"]) == ("heating", ["off", "heat_cool"], 45.0, 95.0)
+    # the items panel of each kind lists its own group only
+    def items(kind: str) -> set[str]:
+        d = c.get("/api/v1/devices/items", params={"kind": kind, "scope": "building", "id": "*"}).json()
+        return {r["entity_id"] for f in d["floors"] for a in f["areas"] for r in a["items"]}
+
+    assert items("heating") == {"climate.lobby_heater", "climate.lobby_panel"} and items("climate") == {"climate.lobby", "climate.lobby_ac2"}
+    # bulk: each off kind reaches its own group; all_off reaches both
+    assert preview("climate_off") == {"climate.lobby", "climate.lobby_ac2"}
+    assert preview("heating_off") == {"climate.lobby_heater", "climate.lobby_panel"}
+    assert {"climate.lobby", "climate.lobby_ac2", "climate.lobby_heater", "climate.lobby_panel"} <= preview("all_off")
+    hp = c.get("/api/v1/devices/actions/preview", params={"scope": "area", "id": "lobby", "kind": "heating_off"}).json()
+    assert hp["kind_label"] == "כיבוי חימום" and hp["domain_labels"]["climate"] == "חימום"
+    # the administrator's override: only system.configure, only a climate entity, audited; "auto" returns to the modes
+    bind(c, s, "sa", "site_admin", "installation", "*")
+    assert c.put("/api/v1/devices/entities/climate.lobby_heater/climate-kind", json={"kind": "ac"}, headers=as_user("sa")).status_code == 403
+    assert c.put("/api/v1/devices/entities/light.lobby/climate-kind", json={"kind": "ac"}).status_code == 422
+    assert c.put("/api/v1/devices/entities/climate.lobby_heater/climate-kind", json={"kind": "both"}).status_code == 422
+    r = c.put("/api/v1/devices/entities/climate.lobby_heater/climate-kind", json={"kind": "ac"})
+    assert r.status_code == 200 and (r.json()["kind"], r.json()["auto"], r.json()["set"]) == ("ac", "heating", "ac")
+    assert (counts()["climate"], counts()["heating"]) == (3, 1)
+    assert preview("climate_off") >= {"climate.lobby_heater"} and preview("heating_off") == {"climate.lobby_panel"}
+    assert c.put("/api/v1/devices/entities/climate.lobby_ac2/climate-kind", json={"kind": "heating"}).status_code == 200
+    assert (counts()["climate"], counts()["heating"]) == (2, 2)
+    listing = {r["entity_id"]: r for r in c.get("/api/v1/devices/climate-kinds").json()["climate"]}
+    assert (listing["climate.lobby_ac2"]["kind"], listing["climate.lobby_ac2"]["auto"], listing["climate.lobby_ac2"]["set"]) == ("heating", "ac", "heating")
+    assert c.get("/api/v1/devices/climate-kinds", headers=as_user("sa")).status_code == 403
+    for eid in ("climate.lobby_heater", "climate.lobby_ac2"):
+        assert c.put(f"/api/v1/devices/entities/{eid}/climate-kind", json={"kind": "auto"}).status_code == 200
+    b = counts()
+    assert (b["climate"], b["heating"]) == (2, 2)
+    with app.state.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM device_climate_kind").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'devices.climate_kind'").fetchone()[0] == 4
