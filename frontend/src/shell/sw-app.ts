@@ -394,10 +394,6 @@ export class SwApp extends LitElement {
       text-align: center;
       line-height: 1.25;
     }
-    .searchwrap {
-      position: relative;
-      display: inline-flex;
-    }
     .results {
       position: absolute;
       inset-inline-start: 0;
@@ -681,7 +677,7 @@ export class SwApp extends LitElement {
     }
     :host([data-design='a']) nav.bottom {
       /* 0.1.103: WisKey made this 5 areas (was 4); CR-007 made it 6 (חשמל); CR-010 folded לייב and חקירה into אבטחה (5).
-         visibleAreas() renders unsliced here (unlike design B's fixed 4 + overflow), so the grid follows the item count. */
+         visibleAreas() renders unsliced here, so the grid follows the item count. */
       grid-auto-flow: column;
       grid-auto-columns: 1fr;
       grid-template-columns: none;

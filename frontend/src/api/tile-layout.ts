@@ -4,7 +4,7 @@
  * the inline-start side, the value and label beside it, one line of secondary text).
  *
  * The product setting `ui.tile_layout` (הגדרות › כללי › עיצוב הממשק) is the installation default: `auto` (compact on a
- * narrow screen - under COMPACT_BELOW_PX - cards above), `cards` or `compact`. Like `ui.design`, a browser can override
+ * narrow screen - under COMPACT_BELOW_PX - cards above), `cards` or `compact`. A browser can override
  * it for itself (localStorage, never sent to the server). The resolved shape is put on a screen's host as
  * `data-tile-layout="cards" | "compact"` and on each tile (`sw-kpi layout=...`); the sizes are theme knobs
  * (docs/design/DEVICE_THEMES.md §9, styles/tile-knobs.ts).
