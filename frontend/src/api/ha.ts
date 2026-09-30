@@ -6,6 +6,7 @@ import { apiUrl, get, post } from './client';
 import { commandId } from './request-id';
 import type { StateKind } from '../components/sw-badge';
 import type { MarkerKind } from '../map/sw-plan-canvas';
+import type { MediaLive } from './media-screens';
 
 export interface HaActionArgSpec {
   name: string;
@@ -346,7 +347,11 @@ export type HaPush =
   | { type: 'structure_changed'; reason: string; last_registry_at: string | null }
   /** CR-014: the schedules changed (the component's read model moved; no ids) - the schedules screens refetch
    * (api/schedules.ts `subscribeSchedules` opens its own socket for this). */
-  | { type: 'schedules_changed' };
+  | { type: 'schedules_changed' }
+  /** CR-015: one media device's live state changed (<= 4/s per device; only for subscribers who see its anchor under media.read). */
+  | { type: 'media_state'; device_key: string; entity_id: string; live: MediaLive }
+  /** CR-015: the media model was rebuilt, or a curation / approval / layout changed (no ids): the multimedia screens refetch. */
+  | { type: 'media_devices_changed'; reason: string };
 
 /** Subscribe to entity state pushes scoped to what the user may see; returns a stop function. */
 export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connected: boolean) => void): () => void {
@@ -378,6 +383,8 @@ export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connecte
         else if (env.type === 'structure_changed')
           onMessage({ type: 'structure_changed', reason: String(env.payload.reason ?? ''), last_registry_at: (env.payload.last_registry_at as string | null) ?? null });
         else if (env.type === 'schedules_changed') onMessage({ type: 'schedules_changed' });
+        else if (env.type === 'media_state') onMessage({ type: 'media_state', device_key: String(env.payload.device_key ?? ''), entity_id: String(env.payload.entity_id ?? ''), live: env.payload.live as unknown as MediaLive });
+        else if (env.type === 'media_devices_changed') onMessage({ type: 'media_devices_changed', reason: String(env.payload?.reason ?? '') });
       } catch {
         /* ignore malformed frames */
       }
