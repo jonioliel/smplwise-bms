@@ -57,7 +57,7 @@ import { onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
-import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, visibleGroups, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, type NavTabId } from './nav';
+import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, visibleGroups, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, type LegacyAccess, type NavTabId } from './nav';
 import { alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { currentDesign, onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
@@ -124,6 +124,7 @@ export class SwApp extends LitElement {
   @state() private phone = this.phoneMq.matches;
   private onPhoneMq = () => (this.phone = this.phoneMq.matches);
   private stopNavOrder?: () => void;
+  private stopTabsConfig?: () => void;
   private navOrderUser: string | null = null;
 
   static styles = css`
@@ -1192,6 +1193,7 @@ export class SwApp extends LitElement {
     this.phoneMq.addEventListener('change', this.onPhoneMq);
     window.addEventListener('popstate', this.onPopState);
     this.stopNavOrder = onNavOrder((o) => (this.navOrder = o));
+    this.stopTabsConfig = onTabsConfig(() => this.requestUpdate()); // הגדרות › כללי › לשוניות: every tab row follows at once
     this.stopSession = onSession((s) => {
       this.session = s;
       applyNvrLess(nvrLess()); // NVR-less mode: the NVR areas leave the navigation for everyone (nav.ts)
@@ -1219,6 +1221,7 @@ export class SwApp extends LitElement {
           if (applyWiskeyHidden(ps as unknown as Record<string, unknown>)) for (const wt of WISKEY_TABS) HIDDEN_HREFS.add(wt.href ?? '');
           applyWiskeyUi(ps as unknown as Record<string, unknown>); // הגדרות › בקרות כניסה: embed or SMPLWISE per WisKey screen
           applySnapshotHidden(ps as unknown as Record<string, unknown>); // ui.security_snapshot: the live overview leaves the navigation
+          applyTabsConfig(ps as unknown as Record<string, unknown>); // ui.tabs: the installation's tab order and hidden tabs (before the landing target below)
           // the start screen (0.1.68): only when the address carried no route of its own. CR-013: "ראשי" (the device
           // overview) by default; a start screen this user does not see falls back to their first tab
           const start = START_ROUTES[String(ps['ui.start_route'] ?? 'devices')] ?? START_ROUTES.devices;
@@ -1323,6 +1326,7 @@ export class SwApp extends LitElement {
     this.stopWiskeyNav?.();
     this.stopAlarmPresence?.();
     this.stopNavOrder?.();
+    this.stopTabsConfig?.();
     this.phoneMq.removeEventListener('change', this.onPhoneMq);
     window.removeEventListener('popstate', this.onPopState);
     window.removeEventListener('keydown', this.onGlobalKey);
@@ -1550,7 +1554,7 @@ export class SwApp extends LitElement {
   private redirectDemo(route: RouteState): boolean {
     if (this.enforceKiosk(route)) return true;
     // routes that moved (the alarm, camera health, the alarm management): with or without a backend, query kept
-    const moved = legacyRedirect(route);
+    const moved = legacyRedirect(route, this.legacyAccess());
     if (moved) {
       window.location.replace(`#${moved}`);
       return true;
@@ -1559,6 +1563,11 @@ export class SwApp extends LitElement {
     if (!target) return false;
     window.location.replace(`#${target}`);
     return true;
+  }
+
+  /** Who is asking, for the redirects that depend on it (the device catalogue: settings for system.configure, else the map). */
+  private legacyAccess(): LegacyAccess {
+    return { api: this.session.mode === 'api', ready: this.session.mode !== 'loading', can: canNav };
   }
 
   /** A user whose only role is the kiosk role belongs on the wall: the shell keeps such a session there (T057).
@@ -1663,7 +1672,7 @@ export class SwApp extends LitElement {
     if (!r) return nothing;
     if (this.landedDefault && this.session.mode === 'api' && !this.startResolved) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     const s = r.segments;
-    const moved = legacyRedirect(r); // safety net: the route handler redirects first
+    const moved = legacyRedirect(r, this.legacyAccess()); // safety net: the route handler redirects first
     if (moved) {
       queueMicrotask(() => window.location.replace(`#${moved}`));
       return html`<sw-state-panel state="loading"></sw-state-panel>`;
@@ -1699,6 +1708,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'wizard') return html`<system-wizard></system-wizard>`;
         if (s[1] === 'security') return html`<system-security .sub=${s[2] ?? ''} .panelId=${r.params.get('panel') ?? ''}></system-security>`;
         if (s[1] === 'storage') return html`<system-storage></system-storage>`;
+        if (s[1] === 'entities') return html`<explore-entities></explore-entities>`; // the device catalogue, formerly the map's "התקנים" tab (system.configure only: the screen checks it too)
         if (s[1] === 'access') return html`<system-access></system-access>`;
         if (s[1] === 'notifications') return html`<arx-notifications-settings></arx-notifications-settings>`;
         return html`<system-diagnostics></system-diagnostics>`;
@@ -1726,6 +1736,8 @@ export class SwApp extends LitElement {
         // CR-010: #/security itself opens the section this browser used last (לייב by default); the alarm moved to
         // הגדרות › אבטחה (#/security/alarm redirects, legacyRedirect)
         if (this.session.mode === 'loading') return html`<sw-state-panel state="loading"></sw-state-panel>`;
+        // ui.tabs decides which section and page open first: wait for the product settings (as the start screen does)
+        if (this.session.mode === 'api' && !this.startResolved) return html`<sw-state-panel state="loading"></sw-state-panel>`;
         const target = securityTarget(this.session.mode === 'api', canNav);
         queueMicrotask(() => window.location.replace(target));
         return html`<sw-state-panel state="loading"></sw-state-panel>`;
@@ -1738,7 +1750,7 @@ export class SwApp extends LitElement {
       default: {
         if (s[1] === 'sites') return html`<explore-sites></explore-sites>`;
         if (s[1] === 'buildings') return html`<explore-floors .buildingId=${s[2] ?? 'bld-a'}></explore-floors>`;
-        if (s[1] === 'entities') return html`<explore-entities></explore-entities>`;
+        if (s[1] === 'entities') return html`<sw-state-panel state="loading"></sw-state-panel>`; // legacyRedirect decides once the session is known
         if (s[1] === 'floors' && s[3] === 'import') return html`<explore-plan-import .floorId=${s[2]}></explore-plan-import>`;
         if (s[1] === 'floors' && s[3] === 'edit') return html`<explore-plan-editor .floorId=${s[2]} .presetEntity=${r.params.get('entity') ?? ''} .presetCandidates=${r.params.get('candidates') ?? ''}></explore-plan-editor>`;
         const floorId = s[1] === 'floors' && s[2] ? s[2] : 'f0';

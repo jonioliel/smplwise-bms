@@ -4,7 +4,20 @@ import type { CameraEncoding } from './types';
 
 export type Transport = 'auto' | 'webrtc' | 'mse';
 
+/** `ui.tabs` (2026-09-30, docs/architecture/TABS_CONFIG.md): per navigation section, the preferred order of its tab ids and
+ * the hidden ones. Keyed by section id (`security`, `security.live`, ...; the registry is shell/nav.ts TAB_SECTIONS). The
+ * whole object is replaced on every PATCH. */
+export interface TabsSectionConfig {
+  order: string[];
+  hidden: string[];
+}
+export type TabsConfig = Record<string, TabsSectionConfig>;
+
 export interface ProductSettings {
+  /** Installation-wide tab order and visibility per navigation section (הגדרות › כללי › לשוניות); `{}` = the built-in tabs. */
+  'ui.tabs'?: TabsConfig;
+  /** The floor the map's floor tab opens first (an existing floor id); '' = the first floor the user may read. */
+  'map.default_floor'?: string;
   'media.transport_default': Transport;
   'media.max_live_sessions': number;
   'media.wall_profile': 'sub' | 'main';

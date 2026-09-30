@@ -12,9 +12,9 @@ import '../components/sw-state-panel';
 import type { TableColumn } from '../components/sw-table';
 import type { StateKind } from '../components/sw-badge';
 import type { IconName } from '../components/sw-icon';
-import { isApi } from '../api/session';
+import { can, isApi } from '../api/session';
 import { describeError } from '../api/client';
-import { navigate } from '../router';
+import { navigate, parseRoute } from '../router';
 import { firstFloor, loadTree } from '../api/catalog';
 import { domainLabel, entityTone, fmtTime, listEntities, stateLabel, subscribeHa, type HaCatalogue, type HaEntity, type HaSyncState } from '../api/ha';
 
@@ -53,6 +53,11 @@ export function domainIcon(domain: string): IconName {
  * SC10 — HA entity catalogue and drawer. Against the backend it is the synced catalogue (read-only mirror of
  * Home Assistant, scoped by placements for floor users); the demo rows remain for the fixture screenshots.
  * Import ≠ placement ≠ control permission.
+ *
+ * 2026-09-30: this is a management page of הגדרות (`#/system/entities`, "קטלוג התקנים"), no longer a tab of the map; the
+ * old address `#/explore/entities` redirects (nav.ts legacyRedirect). The shell offers it only to holders of
+ * system.configure and this screen checks the same permission (the catalogue API itself is shared with other screens -
+ * see docs/architecture/TABS_CONFIG.md). `?q=` from a search result fills the search box.
  */
 @customElement('explore-entities')
 export class ExploreEntities extends LitElement {
@@ -135,9 +140,15 @@ export class ExploreEntities extends LitElement {
     }
   `;
 
+  /** A backend session without system.configure at the installation: nothing is requested and nothing is shown. */
+  private get forbidden(): boolean {
+    return isApi() && !can('system.configure');
+  }
+
   connectedCallback() {
     super.connectedCallback();
-    if (isApi()) {
+    this.q = parseRoute().params.get('q') ?? '';
+    if (isApi() && !this.forbidden) {
       void this.load();
       void loadTree().then((t) => (this.firstFloorId = firstFloor(t)?.id ?? null)).catch(() => undefined);
       this.stopWs = subscribeHa((m) => {
@@ -274,6 +285,7 @@ export class ExploreEntities extends LitElement {
   }
 
   render() {
+    if (this.forbidden) return html`<sw-page heading="קטלוג ההתקנים"><sw-state-panel state="forbidden" data-entities-forbidden></sw-state-panel></sw-page>`;
     if (isApi()) return this.renderApi();
     const domains = ['all', ...new Set(ENTITIES.map((e) => e.domain))];
     const rows = ENTITIES.filter((e) => this.domain === 'all' || e.domain === this.domain);

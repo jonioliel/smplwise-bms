@@ -2,6 +2,7 @@ import type { IconName } from '../components/sw-icon';
 import type { TabItem } from '../components/sw-tabs';
 import type { RouteState } from '../router';
 import type { WiskeyCatalog, WiskeyLocation } from '../wiskey/embed-connector';
+import type { TabsConfig, TabsSectionConfig } from '../api/media';
 
 /**
  * Primary navigation as drawn on the boards: originally six flat entries (Overview, Sites, Cameras,
@@ -250,6 +251,9 @@ function wiskeyPathSegment(r: RouteState | null): string {
  * and the NVR summary. Sub-pages, each with the permission it always had: the alarm screen (alarm.view), its management
  * (system.configure) and the NVR (system.configure / sources.configure, like הגדרות › חיבורים). */
 export const SECURITY_SETTINGS_HREF = '#/system/security';
+/** הגדרות › קטלוג התקנים (2026-09-30): the Home Assistant entity catalogue, formerly the map's "התקנים" tab
+ * (#/explore/entities, which redirects here for holders of system.configure - see legacyRedirect). */
+export const ENTITIES_SETTINGS_HREF = '#/system/entities';
 export const SECURITY_SETTINGS_TABS: TabItem[] = [
   { id: 'alarm', label: 'אזעקה', href: '#/system/security/alarm' },
   { id: 'manage', label: 'ניהול אזעקה', href: '#/system/security/manage' },
@@ -265,16 +269,112 @@ export function applyAlarmPresent(v: boolean | null): void {
 }
 const ALARM_SETTINGS_HREFS = new Set(['#/system/security/alarm', '#/system/security/manage']);
 
+// ---------------------------------------------------------------------------------------------
+// הגדרות › ממשק › לשוניות (owner 2026-09-30, setting `ui.tabs`): the installation-wide choice of which tabs each navigation
+// section shows and in which order. Data-driven from the registries in this file (TAB_SECTIONS below): every tab row, the
+// security sections, the rail and the phone bottom bar go through `configureTabs`. Presentation only: it never grants or
+// removes a permission (tabAllowed still gates first) and never closes a route - a hidden tab's address keeps working for
+// whoever holds its permission. Ids the registry does not know are ignored, ids the stored order does not name keep their
+// default place after the ones it names (a new tab appears), and a section never ends up with nothing to show.
+// ---------------------------------------------------------------------------------------------
+const TAB_ID = /^[a-z0-9][a-z0-9_.-]{0,47}$/;
+let TABS_CONFIG: TabsConfig = {};
+const tabsListeners = new Set<() => void>();
+
+/** A stored `ui.tabs` value (an object; a JSON string is tolerated) as a clean config: only well-formed sections and ids,
+ * duplicates dropped, a section with nothing to say left out. Never throws - a corrupt value is "nothing configured". */
+export function normalizeTabsConfig(raw: unknown): TabsConfig {
+  let value = raw;
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return {};
+    }
+  }
+  const out: TabsConfig = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+  const ids = (list: unknown): string[] => {
+    const seen: string[] = [];
+    if (Array.isArray(list)) for (const v of list) if (typeof v === 'string' && TAB_ID.test(v) && !seen.includes(v)) seen.push(v);
+    return seen;
+  };
+  for (const [section, body] of Object.entries(value as Record<string, unknown>)) {
+    if (!TAB_ID.test(section) || !body || typeof body !== 'object' || Array.isArray(body)) continue;
+    const order = ids((body as { order?: unknown }).order);
+    const hidden = ids((body as { hidden?: unknown }).hidden);
+    if (order.length || hidden.length) out[section] = { order, hidden };
+  }
+  return out;
+}
+
+/** Filled by the shell once the product settings load and by the settings screen after a save. */
+export function applyTabsConfig(settings: Record<string, unknown> | null | undefined): TabsConfig {
+  TABS_CONFIG = normalizeTabsConfig(settings?.['ui.tabs']);
+  for (const l of tabsListeners) l();
+  return TABS_CONFIG;
+}
+
+export function tabsConfig(): TabsConfig {
+  return TABS_CONFIG;
+}
+
+/** The navigation follows a change of the configuration (the shell re-renders; nav-order.ts re-derives the rail's default). */
+export function onTabsConfig(listener: () => void): () => void {
+  tabsListeners.add(listener);
+  return () => tabsListeners.delete(listener);
+}
+
+/** Tabs that stay visible whatever `hidden` says: the way back to the tabs editor itself (הגדרות › כללי). */
+export const LOCKED_TABS: Record<string, readonly string[]> = { system: ['general'] };
+
+export function isSectionConfigured(section: string | null): boolean {
+  const c = section ? TABS_CONFIG[section] : undefined;
+  return !!c && (c.order.length > 0 || c.hidden.length > 0);
+}
+
+/** The items of one section (already limited to what this user may see) in the configured order without the hidden
+ * ones. `reorder: false` keeps the caller's order (the rail: the user's own order wins). A section is never emptied: when
+ * `hidden` would leave nothing, the user's own permitted tabs are shown after all - hiding is not a lock-out. */
+export function configureTabs<T extends { id: string }>(section: string | null, items: T[], reorder = true): T[] {
+  const cfg: TabsSectionConfig | undefined = section ? TABS_CONFIG[section] : undefined;
+  if (!section || !cfg || (!cfg.order.length && !cfg.hidden.length)) return items;
+  let ordered = items;
+  if (reorder) {
+    const byId = new Map(items.map((i) => [i.id, i]));
+    const named: T[] = [];
+    for (const id of cfg.order) {
+      const it = byId.get(id);
+      if (it && !named.includes(it)) named.push(it);
+    }
+    ordered = [...named, ...items.filter((i) => !named.includes(i))];
+  }
+  const locked = LOCKED_TABS[section] ?? [];
+  const shown = ordered.filter((i) => locked.includes(i.id) || !cfg.hidden.includes(i.id));
+  return shown.length ? shown : ordered;
+}
+
+/** The entry href of a section: its first visible tab once the admin configured the section (the order decides where it
+ * lands), otherwise the default entry - kept while it is still one of the tabs, else the first visible tab. */
+function entryHref(fallback: string, tabs: TabItem[], section: string | null): string {
+  const first = tabs[0]?.href;
+  if (!first) return fallback;
+  if (isSectionConfigured(section)) return first;
+  return tabs.some((t) => t.href === fallback) ? fallback : first;
+}
+
+/** The map's tabs (both designs): the sites list and the floor map. The device catalogue left the map for הגדרות (2026-09-30). */
+const EXPLORE_TABS: TabItem[] = [
+  { id: 'sites', label: 'אתרים ומבנים', href: '#/explore/sites' },
+  { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
+];
+
 export const GROUP_TABS: Record<NavGroup, TabItem[]> = {
   overview: [],
   /** The building tree (CR-007 slice 1); an area screen is a drill-down of it (#/devices/areas/<id>), not a tab.
    * Later slices (screens and remotes, layouts) add tabs here the way `wiskey` grew. */
   devices: [{ id: 'building', label: 'המבנה', href: '#/devices/building' }],
-  sites: [
-    { id: 'sites', label: 'אתרים ומבנים', href: '#/explore/sites' },
-    { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
-    { id: 'entities', label: 'התקנים', href: '#/explore/entities' },
-  ],
+  sites: EXPLORE_TABS,
   /** Entry Center, Activity and People (CR-005 phase 1b), plus WisKey's own screens as embedded tabs (2026-09-28). */
   wiskey: WISKEY_TABS,
   cameras: [
@@ -306,6 +406,7 @@ export const GROUP_TABS: Record<NavGroup, TabItem[]> = {
     { id: 'storage', label: 'אחסון', href: '#/system/storage' },
     { id: 'wizard', label: 'אשף התקנה', href: '#/system/wizard' },
     { id: 'setup', label: 'חיבורים', href: '#/system/setup' },
+    { id: 'entities', label: 'קטלוג התקנים', href: ENTITIES_SETTINGS_HREF },
   ],
 };
 
@@ -336,7 +437,7 @@ export function activeTabOf(r: RouteState | null): string {
   const s = r.segments;
   switch (g) {
     case 'sites':
-      return s[1] === 'buildings' || s[1] === 'floors' ? 'floors' : s[1] === 'entities' ? 'entities' : 'sites';
+      return s[1] === 'buildings' || s[1] === 'floors' ? 'floors' : 'sites';
     case 'wiskey':
       return wiskeyActiveTab(r);
     case 'devices':
@@ -439,11 +540,7 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
   devices: [{ id: 'building', label: 'המבנה', href: '#/devices/building' }],
   /** Every page of the sections: the area stays in the rail while any of them is visible. */
   security: [...SECTION_TABS.live, ...SECTION_TABS.investigate],
-  explore: [
-    { id: 'sites', label: 'אתרים ומבנים', href: '#/explore/sites' },
-    { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
-    { id: 'entities', label: 'התקנים', href: '#/explore/entities' },
-  ],
+  explore: EXPLORE_TABS,
   /** Entry Center/overview, Activity/events and People/people (CR-005 phase 1b), plus WisKey's own screens as embedded
    * tabs (CR-005 recorded decision 2026-09-28) - the same list as GROUP_TABS.wiskey. */
   wiskey: WISKEY_TABS,
@@ -457,6 +554,7 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'storage', label: 'אחסון', href: '#/system/storage' },
     { id: 'wizard', label: 'אשף התקנה', href: '#/system/wizard' },
     { id: 'setup', label: 'חיבורים', href: '#/system/setup' },
+    { id: 'entities', label: 'קטלוג התקנים', href: ENTITIES_SETTINGS_HREF },
     /** CR-013 review M10: the screen catalogue left the user menu; a system administrator reaches it from here */
     { id: 'screens', label: 'כל המסכים', href: '#/screens' },
   ],
@@ -488,7 +586,7 @@ export function activeAreaTab(r: RouteState | null): string {
       return '';
     }
     case 'explore':
-      return s[1] === 'buildings' || s[1] === 'floors' ? 'floors' : s[1] === 'entities' ? 'entities' : 'sites';
+      return s[1] === 'buildings' || s[1] === 'floors' ? 'floors' : 'sites';
     case 'system':
       return !s[1] || s[1] === 'diagnostics' ? 'general' : s[1];
     case 'wiskey':
@@ -515,13 +613,14 @@ export function crumbsOf(r: RouteState | null, api = false): string[] {
 
 /** The sections of the security area this user sees, each opening on its first visible page. */
 export function visibleSections(api: boolean, can?: Can): SectionEntry[] {
-  return SECURITY_SECTIONS.flatMap((s) => {
+  const list = SECURITY_SECTIONS.flatMap((s) => {
     const tabs = visibleTabs(SECTION_TABS[s.id], api, can);
     // the live overview needs nothing, so the live section is there whenever the NVR is (visibleTabs keeps it)
     if (api && !tabs.length) return [];
-    const first = tabs[0]?.href;
-    return [first && !tabs.some((t) => t.href === s.href) ? { ...s, href: first } : s];
+    return [{ ...s, href: entryHref(s.href, tabs, `security.${s.id}`) }];
   });
+  // ui.tabs: which section comes first (לייב / חקירה) and whether each is offered at all
+  return api ? configureTabs('security', list) : list;
 }
 
 const LAST_SECTION_KEY = 'sw.security.section';
@@ -589,7 +688,7 @@ export const HIDDEN_HREFS = new Set<string>();
 /** הגדרות › מסך פתיחה (0.1.68): the route the UI lands on when the address carries none. */
 export const START_ROUTES: Record<string, string> = { explore: '/explore/floors/f0', live: '/live', wall: '/live/wall', events: '/investigate/events', playback: '/investigate/playback', devices: '/devices/building' };
 /** The map area's entries, hidden for everyone with הגדרות › הסתרת המפה (0.1.68). */
-export const MAP_HREFS = ['#/explore/sites', '#/explore/floors/f0', '#/explore/entities'];
+export const MAP_HREFS = ['#/explore/sites', '#/explore/floors/f0'];
 
 /** What a tab needs before the shell shows it: any one of the listed permissions, at any scope (owner decision
  * 2026-09-22, 0.1.81 - a viewer used to see every category and land on "אין הרשאה"). Tabs without an entry are
@@ -601,7 +700,8 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   '#/system/devices': ['video.live'],
   '#/explore/sites': ['map.read'],
   '#/explore/floors/f0': ['map.read'],
-  '#/explore/entities': ['entity.state.read'],
+  // the device catalogue: a management page of the settings (it was the map's "התקנים" tab, gated by entity.state.read)
+  [ENTITIES_SETTINGS_HREF]: ['system.configure'],
   '#/wiskey/overview': ['access.read'],
   '#/wiskey/events': ['access.read'],
   '#/wiskey/people': ['access.read'],
@@ -646,7 +746,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
-export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage']); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
+export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', ENTITIES_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
 
 /** `installationOnly`: the permission must be held at installation scope, not at any scope. */
 export type Can = (permission: string, installationOnly?: boolean) => boolean;
@@ -659,6 +759,12 @@ export function tabAllowed(href: string, can?: Can): boolean {
 }
 
 export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[] {
+  // permissions and the fixed rules decide what is offered; ui.tabs (order, hidden) then shapes it (with a backend only:
+  // the static demo shows the defaults)
+  return api ? configureTabs(sectionIdOf(items), permittedTabs(items, api, can)) : items;
+}
+
+function permittedTabs(items: TabItem[], api: boolean, can?: Can): TabItem[] {
   return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !(NVR_LESS && isNvrHref(t.href ?? '')) && !(ALARM_PRESENT !== true && ALARM_SETTINGS_HREFS.has(t.href ?? '')) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
 }
 
@@ -667,19 +773,29 @@ export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[
  * not dropped because its own default page is hidden: with הסתרת המפה the map area used to keep the WisKey tab
  * for this reason (T054); since 0.1.103 WisKey is its own top-level area (not an explore tab) and MAP_HREFS does not
  * name it, so הסתרת המפה has no effect on it at all - moot, confirmed, not stale logic. */
-export function visibleAreas(api: boolean, can?: Can, order: readonly string[] = NAV_TAB_IDS): AreaEntry[] {
-  // CR-013: the user's own order (nav-order.ts); an id the order does not name keeps its default place at the end
+export function visibleAreas(api: boolean, can?: Can, order: readonly string[] = defaultNavOrder()): AreaEntry[] {
+  // CR-013: the user's own order (nav-order.ts; without one, the admin's ui.tabs order); an id the order does not name
+  // keeps its default place at the end
   const rank = (id: string) => (order.includes(id) ? order.indexOf(id) : order.length + NAV_TAB_IDS.indexOf(id as NavTabId));
   const ordered = [...NAV_A].sort((x, y) => rank(x.id) - rank(y.id));
-  return ordered.flatMap((n) => {
+  const list = ordered.flatMap((n) => {
     const tabs = visibleTabs(AREA_TABS[n.id], api, can);
     // the security area stays while any section is visible (the live overview needs nothing; in the NVR-less mode only
     // the alarm section can keep it), and keeps its own #/security href - the shell opens the last used section
     if (api && !tabs.length) return [];
     if (n.id === 'security') return [n];
-    const first = tabs[0]?.href;
-    return [first && !tabs.some((t) => t.href === n.href) ? { ...n, href: first } : n];
+    return [{ ...n, href: entryHref(n.href, tabs, n.id) }];
   });
+  // ui.tabs "areas": areas the admin hid leave the rail and the bottom bar (the order stays the user's)
+  return api ? configureTabs('areas', list, false) : list;
+}
+
+/** The rail's default order for everyone: the admin's `ui.tabs` order of the areas, else the built-in one. A user's own
+ * order (CR-013) overrides it for that user (nav-order.ts). */
+export function defaultNavOrder(): NavTabId[] {
+  const listed = TABS_CONFIG.areas?.order ?? [];
+  const first = listed.filter((id, i): id is NavTabId => (NAV_TAB_IDS as string[]).includes(id) && listed.indexOf(id) === i);
+  return [...first, ...NAV_TAB_IDS.filter((id) => !first.includes(id))];
 }
 
 /** CR-013: the user menu's "מערכת" item - only for a user who holds a settings permission (a settings tab other than the
@@ -695,7 +811,8 @@ export function settingsEntry(api: boolean, can?: Can): AreaEntry | null {
 export function landingTarget(start: string, api: boolean, can: Can | undefined, order: readonly string[]): string {
   const area = areaOf(parseRouteLite(start));
   const tabs = area ? visibleTabs(AREA_TABS[area], api, can) : [];
-  if (tabs.some((t) => t.href === `#${start}`)) return start;
+  // a start screen whose area the admin took out of the rail is not a landing place either (ui.tabs "areas")
+  if (tabs.some((t) => t.href === `#${start}`) && (!api || visibleAreas(api, can, order).some((a) => a.id === area))) return start;
   const first = visibleAreas(api, can, order)[0];
   if (!first) return start;
   return (first.id === 'security' ? securityTarget(api, can) : first.href).replace(/^#/, '');
@@ -717,8 +834,7 @@ export function visibleGroups(api: boolean, can?: Can): NavEntry[] {
     if (n.id === 'overview') return api && (NVR_LESS || HIDDEN_HREFS.has(SNAPSHOT_HREF)) ? [] : [n];
     const tabs = visibleTabs(GROUP_TABS[n.id], api, can);
     if (api && !tabs.length) return [];
-    const first = tabs[0]?.href;
-    return [first && !tabs.some((t) => t.href === n.href) ? { ...n, href: first } : n];
+    return [{ ...n, href: entryHref(n.href, tabs, sectionIdOf(GROUP_TABS[n.id])) }];
   });
 }
 
@@ -749,13 +865,28 @@ export function liveOverviewTarget(api: boolean, can?: Can): string | null {
   return visibleTabs(SECTION_TABS.live, api, can)[0]?.href ?? null;
 }
 
+/** What a redirect that depends on who is asking needs to know (the shell passes its session): with a backend (`api`) the
+ * permission check applies, `ready` is false while the session is still loading. */
+export interface LegacyAccess {
+  api: boolean;
+  ready: boolean;
+  can: Can;
+}
+
 /** Old routes that moved (2026-09-30). Returns the new path (`/system/security/alarm?panel=...`) or null when the route
  * stays. Query parameters travel with the redirect (the alarm panel, the camera-health sort), so links written before the
  * move - the search result, the devices screens, notifications, bookmarks - keep working. Applies with and without a backend. */
-export function legacyRedirect(r: RouteState | null): string | null {
+export function legacyRedirect(r: RouteState | null, access?: LegacyAccess): string | null {
   if (!r?.mode) return null;
   const q = r.params.toString() ? `?${r.params.toString()}` : '';
   const s = r.segments;
+  // the device catalogue left the map for הגדרות › קטלוג התקנים: holders of system.configure land there (the search query
+  // travels), everyone else on the map; while the session is still loading nothing is decided yet
+  if (r.mode === 'explore' && s[1] === 'entities') {
+    if (!access) return `${ENTITIES_SETTINGS_HREF.slice(1)}${q}`;
+    if (!access.ready) return null;
+    return !access.api || access.can('system.configure', true) ? `${ENTITIES_SETTINGS_HREF.slice(1)}${q}` : '/explore/floors/f0';
+  }
   // the intrusion alarm left the security area for הגדרות › אבטחה
   if (r.mode === 'security' && s[1] === 'alarm') return `/system/security/alarm${q}`;
   // camera health left the live pages for the investigation
@@ -767,5 +898,48 @@ export function legacyRedirect(r: RouteState | null): string | null {
     return `/system/security/manage${rest.toString() ? `?${rest.toString()}` : ''}`;
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The tab registry the settings editor (הגדרות › כללי › לשוניות) is built from: one entry per navigation section that has
+// tabs, straight from the arrays above - the single source of ids, labels and default order. Section ids are what
+// `ui.tabs` is keyed by (lower-case slugs; a nested level is `parent.child`).
+// ---------------------------------------------------------------------------------------------
+export interface TabSectionDef {
+  id: string;
+  label: string;
+  /** Where the section shows: the surface the owner recognises it by. */
+  where: string;
+  /** Every tab of the section in its default order (not limited by permissions: the editor is for the whole installation). */
+  tabs: () => TabItem[];
+}
+
+const plain = (items: readonly { id: string; label: string; href?: string }[]): TabItem[] => items.map((i) => ({ id: i.id, label: i.label, href: i.href }));
+
+export const TAB_SECTIONS: TabSectionDef[] = [
+  { id: 'areas', label: 'ניווט ראשי', where: 'סרגל הצד ופס הניווט התחתון', tabs: () => plain(NAV_A) },
+  { id: 'security', label: 'אבטחה', where: 'הבחירה בראש אזור האבטחה', tabs: () => plain(SECURITY_SECTIONS) },
+  { id: 'security.live', label: 'אבטחה › לייב', where: 'לשוניות לייב', tabs: () => plain(SECTION_TABS.live) },
+  { id: 'security.investigate', label: 'אבטחה › חקירה', where: 'לשוניות חקירה', tabs: () => plain(SECTION_TABS.investigate) },
+  { id: 'explore', label: 'מפה', where: 'לשוניות המפה', tabs: () => plain(EXPLORE_TABS) },
+  { id: 'wiskey', label: 'WisKey', where: 'לשוניות WisKey', tabs: () => plain(WISKEY_TABS) },
+  { id: 'system', label: 'הגדרות', where: 'לשוניות ההגדרות', tabs: () => plain(AREA_TABS.system) },
+  { id: 'system.security', label: 'הגדרות › אבטחה', where: 'לשוניות אבטחה בהגדרות', tabs: () => plain(SECURITY_SETTINGS_TABS) },
+];
+
+let ARRAY_SECTIONS: Map<readonly TabItem[], string> | null = null;
+
+/** The section id a registry array belongs to (both designs' copies of it), or null for a row `ui.tabs` does not configure. */
+export function sectionIdOf(items: readonly TabItem[]): string | null {
+  ARRAY_SECTIONS ??= new Map<readonly TabItem[], string>([
+    [SECTION_TABS.live, 'security.live'],
+    [SECTION_TABS.investigate, 'security.investigate'],
+    [EXPLORE_TABS, 'explore'],
+    [WISKEY_TABS, 'wiskey'],
+    [AREA_TABS.system, 'system'],
+    [GROUP_TABS.settings, 'system'],
+    [SECURITY_SETTINGS_TABS, 'system.security'],
+  ]);
+  return ARRAY_SECTIONS.get(items) ?? null;
 }
 
