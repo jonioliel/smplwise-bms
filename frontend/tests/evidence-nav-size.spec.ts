@@ -153,7 +153,7 @@ test.describe('navigation size on the demo data', () => {
     await page.locator(`${CARD} [data-nav-mode="free"]`).click();
     await expect(page.locator(`${CARD} [data-nav-free]`)).toBeVisible();
     // it starts from the size in use
-    await expect(page.locator(`${CARD} [data-free-icon]`)).toHaveValue('20');
+    await expect(page.locator(`${CARD} [data-free-icon]`)).toHaveValue(String(PRESETS.l.icon)); // the large preset is the default now
     await setRange(page, '[data-free-icon]', 34);
     await setRange(page, '[data-free-label]', 9);
     await setRange(page, '[data-free-item]', 60);
