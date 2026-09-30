@@ -49,8 +49,11 @@ top-level deep link ("open in WisKey") is unchanged and carries none of the new 
 
 rc.37's `chrome=none` and transparent document do not remove a dark frame that reappears after navigating inside WisKey
 (cause: the UA focus ring on `<main tabindex="-1">`, `panel.ts:6137`, with no embed rule to remove it). Arx cannot style the
-frame's document, so it crops 3 px (2 px under 768 px) at each edge of the frame (`WISKEY_EDGE_CROP_PX` in
-`wiskey-embed.ts`) as a mitigation. Fix requested from WisKey in `WISKEY_REQUEST_RC38_FOCUS_HE.md`.
+frame's document. 0.1.148 cropped 3 px (2 px under 768 px) at each edge of the frame as a mitigation; that was withdrawn
+(`WISKEY_EDGE_CROP_PX` = 0 in `wiskey-embed.ts`) after the owner reported the embedded screen as cut off: with
+`chrome=none` WisKey's content (title, search field, add button, side panel) is flush with the frame edge, so every
+cropped pixel was WisKey content, not only the ring. The ring is visible again until WisKey ships the fix requested in
+`WISKEY_REQUEST_RC38_FOCUS_HE.md`.
 
 ## What remains
 

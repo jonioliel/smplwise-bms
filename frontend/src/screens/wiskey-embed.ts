@@ -96,11 +96,15 @@ const TICK_MS = 400;
 const IN_FLIGHT_MS = 3000; // v1: a navigation with no wiskey:location by then is taken as not acted on
 const KEEP_MS = 2000; // after everything is settled: re-apply cheaply, Home Assistant may re-render
 
-/** WisKey rc.37 leaves a UA focus ring on `<main tabindex="-1">` after an in-panel navigation (panel.ts:6137), which shows
- * as a dark frame at the edge of the frame; Arx cannot style a cross-origin document, so the frame is enlarged by this many
- * pixels on every side and the stage clips the overflow (the ring sits on the frame's own edge). 2 px on a phone. */
-export const WISKEY_EDGE_CROP_PX = 3;
-export const WISKEY_EDGE_CROP_PHONE_PX = 2;
+/** Edge crop: the frame is enlarged by this many pixels on every side and the stage clips the overflow. It was 3 px
+ * (2 px on a phone) in 0.1.148, to hide the UA focus ring WisKey rc.37 leaves on `<main tabindex="-1">` after an in-panel
+ * navigation (panel.ts:6137). It is 0 since: with `chrome=none` (rc.37: no main padding) WisKey's own content - the
+ * title and search field on the right edge, the add button and the side panel on the left - sits flush with the frame
+ * edge, so every cropped pixel is WisKey content, not only the ring (owner report 2026-09-30: "cut off"). The ring is
+ * WisKey's to remove (docs/integrations/wiskey/WISKEY_REQUEST_RC38_FOCUS_HE.md). The mechanism stays; a crop above 0
+ * must never come back while content can touch the edge. */
+export const WISKEY_EDGE_CROP_PX = 0;
+export const WISKEY_EDGE_CROP_PHONE_PX = 0;
 
 const TOP_SWITCH_MS = 1000; // "פתח ב-WisKey": Home Assistant's router gets this long before a full page load
 
@@ -412,7 +416,7 @@ export class WiskeyEmbed extends LitElement {
       margin: 0;
       padding: 0;
       border: 0;
-      overflow: hidden; /* clips the frame's outermost --wk-crop pixels (a focus ring drawn at its edge) */
+      overflow: hidden; /* clips the frame's outermost --wk-crop pixels (0 now: nothing of WisKey is clipped) */
       background: var(--sw-surface);
     }
     @media (max-width: 767px) {

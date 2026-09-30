@@ -35,6 +35,26 @@ export interface FakeHa {
   externalAuth?: boolean;
   /** The framed document's own `color-scheme` (Home Assistant's dark theme declares one) with a transparent body; unset = none. */
   colorScheme?: string;
+  /** Edge markers flush with the frame's viewport, like rc.37 `chrome=none` (zero main padding) puts WisKey's title and
+   * search field on the right edge and its add button / side panel on the left one: EDGE_MARKER_PX squares in distinct
+   * colours at the right, left, top and bottom edges, so a spec can count how many of their pixels the shell shows. */
+  edges?: boolean;
+}
+
+/** Side of the edge markers (`edges: true`), in the framed document's CSS pixels. */
+export const EDGE_MARKER_PX = 24;
+/** The markers' colours (RGB): right, left, top, bottom. */
+export const EDGE_COLORS = { right: [255, 0, 0], left: [0, 0, 255], top: [0, 160, 0], bottom: [255, 0, 255] } as const;
+
+function edgeMarkers(): string {
+  const box = `position:fixed;width:${EDGE_MARKER_PX}px;height:${EDGE_MARKER_PX}px;margin:0;padding:0;border:0;z-index:5`;
+  const rgb = (c: readonly number[]) => `rgb(${c.join(',')})`;
+  return (
+    `<div data-edge="right" style="${box};right:0;top:120px;background:${rgb(EDGE_COLORS.right)}"></div>` +
+    `<div data-edge="left" style="${box};left:0;top:120px;background:${rgb(EDGE_COLORS.left)}"></div>` +
+    `<div data-edge="top" style="${box};top:0;left:calc(50% - ${EDGE_MARKER_PX / 2}px);background:${rgb(EDGE_COLORS.top)}"></div>` +
+    `<div data-edge="bottom" style="${box};bottom:0;left:calc(50% - ${EDGE_MARKER_PX / 2}px);background:${rgb(EDGE_COLORS.bottom)}"></div>`
+  );
 }
 
 export const PANEL_URL = /\/hikvision-intercom(\?|$)/;
@@ -61,9 +81,9 @@ export const FAKE_CATALOG: FakeCatalog = {
   ],
 };
 
-export function fakeHaPage({ kiosk, panels, api = 'legacy', catalog = FAKE_CATALOG, announce = true, externalAuth = false, colorScheme }: FakeHa): string {
+export function fakeHaPage({ kiosk, panels, api = 'legacy', catalog = FAKE_CATALOG, announce = true, externalAuth = false, colorScheme, edges = false }: FakeHa): string {
   const config = JSON.stringify({ api, catalog, announce, marker: api === 'v1' || api === 'marker-only' ? '1' : api.startsWith('v2') ? '2' : null });
-  return `<!doctype html><html${colorScheme ? ` style="color-scheme:${colorScheme}"` : ''}><body style="margin:0"><home-assistant></home-assistant><script>
+  return `<!doctype html><html${colorScheme ? ` style="color-scheme:${colorScheme}"` : ''}><body style="margin:0"><home-assistant></home-assistant>${edges ? edgeMarkers() : ''}<script>
 function __boot() {
 const CONFIG = ${config};
 window.__loads = (window.__loads || 0) + 1;
