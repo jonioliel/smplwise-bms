@@ -12,7 +12,7 @@ import '../components/sw-state-panel';
 import '../components/sw-schedule-bar';
 import './schedule-drawer';
 import type { ScheduleActions } from './schedule-drawer';
-import { ApiError, describeError } from '../api/client';
+import { ApiError } from '../api/client';
 import { isApi } from '../api/session';
 import { onRouteChange, parseRoute, navigate, pushRoute, replaceRoute, type RouteState } from '../router';
 import type { IconName } from '../components/sw-icon';
@@ -66,6 +66,7 @@ import {
   type ListSort,
   type ListView,
   type StateFilter,
+  scheduleErrorText,
 } from './schedules-logic';
 import { toneColor } from '../components/sw-schedule-bar';
 
@@ -122,6 +123,7 @@ export class DevicesSchedules extends LitElement {
   @state() private status: ScheduleStatus | null = null;
   @state() private items: Schedule[] | null = null;
   @state() private failed = '';
+  @state() private noView = false;
   @state() private filters: ListFilters = { ...NO_FILTERS };
   @state() private view: ListView = 'cards';
   @state() private filtersOpen = false;
@@ -914,7 +916,9 @@ export class DevicesSchedules extends LitElement {
     try {
       this.status = await getScheduleStatus();
     } catch (err) {
-      this.failed = describeError(err);
+      // /schedules/status answers only holders of schedule.view: a refusal is "no permission", not a failure
+      if (err instanceof ApiError && err.status === 403) this.noView = true;
+      else this.failed = scheduleErrorText(err);
       return;
     }
     if (screenState(this.status).kind !== 'ready') {
@@ -932,7 +936,7 @@ export class DevicesSchedules extends LitElement {
       this.failed = '';
       this.selected = new Set([...this.selected].filter((id) => r.items.some((s) => s.id === id)));
     } catch (err) {
-      if (this.items === null) this.failed = describeError(err);
+      if (this.items === null) this.failed = scheduleErrorText(err);
     }
   }
 
@@ -960,7 +964,7 @@ export class DevicesSchedules extends LitElement {
       this.trash = (await listTrash()).items;
       this.subError = '';
     } catch (err) {
-      this.subError = describeError(err);
+      this.subError = scheduleErrorText(err);
     }
   }
 
@@ -969,7 +973,7 @@ export class DevicesSchedules extends LitElement {
       this.review = (await getScheduleReview()).items;
       this.subError = '';
     } catch (err) {
-      this.subError = describeError(err);
+      this.subError = scheduleErrorText(err);
     }
   }
 
@@ -1031,7 +1035,7 @@ export class DevicesSchedules extends LitElement {
         this.trashLowering = item;
         return;
       }
-      this.say(describeError(err), 'error');
+      this.say(scheduleErrorText(err), 'error');
       await this.refresh();
     }
   }
@@ -1050,7 +1054,7 @@ export class DevicesSchedules extends LitElement {
       await this.refresh();
     } catch (err) {
       this.trashLowering = null;
-      this.say(describeError(err), 'error');
+      this.say(scheduleErrorText(err), 'error');
     }
   }
 
@@ -1096,7 +1100,7 @@ export class DevicesSchedules extends LitElement {
       this.say(bad ? `${verb} ${ok} תזמונים; ${bad} לא שונו.` : `${verb} ${ok} תזמונים${skippedLowering ? `; ${skippedLowering} מופעלים אחד־אחד` : ''}.`, bad ? 'error' : 'ok');
       this.selected = new Set();
     } catch (err) {
-      this.say(describeError(err), 'error');
+      this.say(scheduleErrorText(err), 'error');
     } finally {
       this.busy = false;
       await this.refresh();
@@ -1113,7 +1117,7 @@ export class DevicesSchedules extends LitElement {
       this.say(`הושבתו ${ok} תזמונים.`, ok === r.results.length ? 'ok' : 'error');
       this.reviewSel = new Set();
     } catch (err) {
-      this.say(describeError(err), 'error');
+      this.say(scheduleErrorText(err), 'error');
     } finally {
       this.busy = false;
       await this.refresh();
@@ -1131,7 +1135,7 @@ export class DevicesSchedules extends LitElement {
       this.say(`"${item.name || 'תזמון ללא שם'}" נמחק לצמיתות.`);
     } catch (err) {
       this.purging = null;
-      this.say(describeError(err), 'error');
+      this.say(scheduleErrorText(err), 'error');
     }
     await this.loadTrash();
   }
@@ -1378,7 +1382,7 @@ export class DevicesSchedules extends LitElement {
   }
 
   render() {
-    const st = screenState(this.status, !!this.failed && !this.status);
+    const st = this.noView && !this.status ? { ...screenState(null), kind: 'no_view' as const } : screenState(this.status, !!this.failed && !this.status);
     const listFailed = st.kind === 'ready' && this.items === null && !!this.failed;
     const scr = listFailed ? { ...st, kind: 'error' as const } : st.kind === 'ready' && this.items === null ? { ...st, kind: 'loading' as const } : st;
     const sub = this.sub;

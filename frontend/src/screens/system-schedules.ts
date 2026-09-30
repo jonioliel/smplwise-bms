@@ -2,16 +2,18 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-card';
+import '../components/sw-dialog';
 import '../components/sw-button';
 import '../components/sw-field';
 import '../components/sw-icon';
 import '../components/sw-toggle';
 import '../components/sw-badge';
 import '../components/sw-state-panel';
-import { describeError } from '../api/client';
+import { ApiError, patch } from '../api/client';
 import { isApi } from '../api/session';
-import { productSettings } from '../api/prefs';
+import { invalidateSettings, productSettings } from '../api/prefs';
 import { navigate } from '../router';
+import { scheduleErrorText } from './schedules-logic';
 import { applySchedulesHidden } from '../shell/nav';
 import { demoStore } from '../api/schedules-mock';
 import {
@@ -23,6 +25,7 @@ import {
   getScheduleStatus,
   saveScheduleSettings,
   scheduleSettingsOf,
+  scheduleSettingsPatch,
   whenLabel,
   type ConditionCandidate,
   type RepeatType,
@@ -97,6 +100,7 @@ export class SystemSchedules extends LitElement {
   @state() private note = '';
   @state() private busy = false;
   @state() private help = false;
+  @state() private confirmSensor = false;
   @state() private loaded = false;
   private noteTimer = 0;
 
@@ -295,10 +299,34 @@ export class SystemSchedules extends LitElement {
         this.sensors = [];
       }
     } catch (err) {
-      this.error = describeError(err);
+      // /schedules/status answers only holders of schedule.view: without it this page has nothing to read
+      if (err instanceof ApiError && err.status === 403) this.status = null;
+      else this.error = scheduleErrorText(err);
     } finally {
       this.loaded = true;
     }
+  }
+
+  /** The sensor the draft picks is not one of the suggested (Jewish calendar / issur melacha) candidates. */
+  private get unsuggestedPick(): ConditionCandidate | null {
+    const id = this.draft.shabbatSensor;
+    if (!id || id === this.saved.shabbatSensor) return null;
+    const c = this.sensors.find((x) => x.entity_id === id);
+    return !c || !c.suggested_shabbat ? (c ?? { entity_id: id, name: id, domain: 'binary_sensor', device_class: null, state: null, unit: null, numeric: false, suggested_shabbat: false }) : null;
+  }
+
+  /** Save: a sensor that is not a calendar sensor is confirmed first (`schedules.shabbat_sensor_force`, never stored). */
+  private requestSave() {
+    if (this.unsuggestedPick) this.confirmSensor = true;
+    else void this.save(false);
+  }
+
+  /** The PATCH with the override flag: the typed client's `saveScheduleSettings` sends what differs, this adds the flag. */
+  private async persist(force: boolean): Promise<ScheduleSettings> {
+    if (!force || !isApi()) return saveScheduleSettings(this.saved, this.draft);
+    const r = await patch<{ settings: Record<string, unknown> }>('settings', { ...scheduleSettingsPatch(this.saved, this.draft), 'schedules.shabbat_sensor_force': true });
+    invalidateSettings();
+    return scheduleSettingsOf(r.settings);
   }
 
   private get dirty(): boolean {
@@ -319,11 +347,12 @@ export class SystemSchedules extends LitElement {
     this.patch({ classes: ALL_CLASSES.filter((x) => set.has(x)) });
   }
 
-  private async save() {
+  private async save(force: boolean) {
     this.busy = true;
     this.error = '';
+    this.confirmSensor = false;
     try {
-      const to = await saveScheduleSettings(this.saved, this.draft);
+      const to = await this.persist(force);
       this.saved = to;
       this.draft = { ...to, classes: [...to.classes] };
       applySchedulesHidden({ 'schedules.enabled': String(to.enabled) }); // the "תזמונים" tab follows at once
@@ -332,7 +361,9 @@ export class SystemSchedules extends LitElement {
       this.noteTimer = window.setTimeout(() => (this.note = ''), 4000);
       void getScheduleStatus().then((s) => (this.status = s)).catch(() => undefined);
     } catch (err) {
-      this.error = describeError(err);
+      this.error = scheduleErrorText(err);
+      // the server does not take the sensor for a calendar one: the same confirmation, then the override
+      if (err instanceof ApiError && err.code === 'not_calendar_sensor' && !force) this.confirmSensor = true;
     } finally {
       this.busy = false;
     }
@@ -381,6 +412,8 @@ export class SystemSchedules extends LitElement {
     const d = this.draft;
     const sensor = this.sensors.find((c) => c.entity_id === d.shabbatSensor);
     const known = !d.shabbatSensor || !!sensor;
+    const suggested = this.sensors.filter((c) => c.suggested_shabbat);
+    const others = this.sensors.filter((c) => !c.suggested_shabbat);
     return html`<sw-card heading="הפעלה" data-sched-operation>
       <div class="row"><span class="lbl">הצגת הטאב "תזמונים" במסך הראשי<span class="muted">כבוי = הטאב אינו מוצג לאף משתמש והתזמונים ממשיכים לפעול ברכיב</span></span><sw-toggle label="הצגת הטאב תזמונים" labelHidden .checked=${d.enabled} data-set-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => this.patch({ enabled: e.detail.checked })}></sw-toggle></div>
       <div class="row">
@@ -388,7 +421,8 @@ export class SystemSchedules extends LitElement {
         <sw-field class="ctl"><select aria-label="חיישן שבת וחג" data-shabbat-sensor @change=${(e: Event) => this.patch({ shabbatSensor: (e.target as HTMLSelectElement).value })}>
           <option value="" .selected=${!d.shabbatSensor}>ללא חיישן</option>
           ${!known ? html`<option value=${d.shabbatSensor} selected>${d.shabbatSensor} (לא נמצא)</option>` : nothing}
-          ${this.sensors.map((c) => html`<option value=${c.entity_id} .selected=${c.entity_id === d.shabbatSensor}>${c.name}${c.suggested_shabbat ? ' · מומלץ' : ''}</option>`)}
+          ${suggested.length ? html`<optgroup label="לוח שנה יהודי (מומלצים)">${suggested.map((c) => html`<option value=${c.entity_id} .selected=${c.entity_id === d.shabbatSensor}>${c.name}</option>`)}</optgroup>` : nothing}
+          ${others.length ? html`<optgroup label="חיישנים אחרים">${others.map((c) => html`<option value=${c.entity_id} .selected=${c.entity_id === d.shabbatSensor}>${c.name}</option>`)}</optgroup>` : nothing}
         </select></sw-field>
       </div>
     </sw-card>`;
@@ -429,7 +463,15 @@ export class SystemSchedules extends LitElement {
     if (this.error && !this.status) return html`<sw-page heading="תזמונים"><sw-state-panel state="error" hint=${this.error} actionLabel="נסו שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     const s = this.status;
     if (!s || !s.can.configure) return html`<sw-page heading="תזמונים"><sw-state-panel state="forbidden" data-schedules-settings-forbidden></sw-state-panel></sw-page>`;
+    const pick = this.unsuggestedPick;
     return html`<sw-page heading="הגדרות › תזמונים" subheading="רק למנהל מערכת. מסך התזמונים של המשתמשים אינו מציג הגדרות אלה." wide data-schedules-settings>
+      ${this.confirmSensor
+        ? html`<sw-dialog open heading="חיישן שבת וחג" data-sensor-confirm @close=${() => (this.confirmSensor = false)}>
+            <p style="margin:0;font-size:var(--sw-fs-sm)">חיישן שאינו לוח שנה יהודי - להשתמש בו בכל זאת?${pick ? html`<br /><b>${pick.name}</b> <code>${pick.entity_id}</code>` : nothing}</p>
+            <sw-button slot="footer" variant="ghost" data-sensor-cancel @click=${() => (this.confirmSensor = false)}>ביטול</sw-button>
+            <sw-button slot="footer" variant="primary" data-sensor-force @click=${() => void this.save(true)}>כן, להשתמש בו</sw-button>
+          </sw-dialog>`
+        : nothing}
       <div class="cols">
         <div class="col">${this.renderConnection(s)}${this.renderOperation()}${this.renderClasses()}</div>
         <div class="col">${this.renderDefaults()}${this.renderRoles()}</div>
@@ -438,7 +480,7 @@ export class SystemSchedules extends LitElement {
         ? html`<div class="bar" data-settings-bar>
             ${this.error ? html`<span class="err" role="alert" data-settings-error>${this.error}</span>` : this.note ? html`<span class="ok" role="status" data-settings-saved>${this.note}</span>` : html`<span class="muted">יש שינויים שלא נשמרו.</span>`}
             <span style="flex:1"></span>
-            ${this.dirty ? html`<sw-button variant="ghost" data-settings-cancel @click=${() => this.cancel()}>ביטול</sw-button><sw-button variant="primary" data-settings-save ?disabled=${this.busy} @click=${() => void this.save()}>${this.busy ? 'שומר…' : 'שמירה'}</sw-button>` : nothing}
+            ${this.dirty ? html`<sw-button variant="ghost" data-settings-cancel @click=${() => this.cancel()}>ביטול</sw-button><sw-button variant="primary" data-settings-save ?disabled=${this.busy} @click=${() => this.requestSave()}>${this.busy ? 'שומר…' : 'שמירה'}</sw-button>` : nothing}
           </div>`
         : nothing}
     </sw-page>`;

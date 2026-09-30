@@ -7,7 +7,7 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-toggle';
 import '../components/sw-schedule-bar';
-import { ApiError, describeError } from '../api/client';
+import { ApiError } from '../api/client';
 import { isApi } from '../api/session';
 import { DEMO_SUN } from '../api/schedules-mock';
 import {
@@ -36,6 +36,7 @@ import {
   slotChips,
   windowText,
   type LoweringSummary,
+  scheduleErrorText,
 } from './schedules-logic';
 import { toneColor } from '../components/sw-schedule-bar';
 
@@ -161,7 +162,7 @@ export class ScheduleActions extends LitElement {
     } catch (err) {
       this.emit('changed', { schedule: null });
       if (err instanceof ApiError && err.code === 'schedule_changed') this.result('התזמון שונה במקום אחר. הרשימה עודכנה.', 'error');
-      else this.result(describeError(err), 'error');
+      else this.result(scheduleErrorText(err), 'error');
       return false;
     }
   }
@@ -190,7 +191,7 @@ export class ScheduleActions extends LitElement {
       const stale = err instanceof ApiError && err.code === 'schedule_changed';
       if (stale) this.emit('changed', { schedule: null });
       const cur = this.dialog;
-      if (cur) this.dialog = { ...cur, busy: false, error: stale ? 'התזמון שונה במקום אחר. הגרסה העדכנית נטענה; בדקו ונסו שוב.' : describeError(err) } as Dialog;
+      if (cur) this.dialog = { ...cur, busy: false, error: stale ? 'התזמון שונה במקום אחר. הגרסה העדכנית נטענה; בדקו ונסו שוב.' : scheduleErrorText(err) } as Dialog;
     }
   }
 
@@ -216,12 +217,12 @@ export class ScheduleActions extends LitElement {
       // the panel wants (or refused) a code: the dialog stays, now with the code field
       if (err instanceof ApiError && (err.code === 'code_required' || err.code === 'wrong_code')) {
         this.dialog = { ...d, busy: false, needsCode: true };
-        this.result(describeError(err), 'error');
+        this.result(scheduleErrorText(err), 'error');
         return;
       }
       this.dialog = null;
       this.emit('changed', { schedule: null });
-      this.result(describeError(err), 'error');
+      this.result(scheduleErrorText(err), 'error');
     }
   }
 
