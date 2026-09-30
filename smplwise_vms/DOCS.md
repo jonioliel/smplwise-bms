@@ -939,18 +939,22 @@ the offline fallback).
 ## Security area and the intrusion alarm (CR-010)
 
 **Navigation.** Design A's rail and phone bar are אבטחה · מפה · חשמל · WisKey · מערכת. "אבטחה" (security) holds two
-sections - לייב (live) and חקירה (investigation) - shown as a segmented control in the top bar; each section's own pages
-stay the tab row under it, and `#/security` opens the section the browser used last. Since 2026-09-30 the intrusion
-alarm is **not** a section there: its screen is a page of **הגדרות › אבטחה** (`#/system/security/alarm`), next to its
-management (`#/system/security/manage`, `system.configure`) and an NVR summary (`#/system/security/nvr`, the NVR
-connection and recorder settings stay in הגדרות › חיבורים). The section is offered to the holders of the permission each
-page always needed - `alarm.view` (at any scope) for the alarm screen, `system.configure` for its management,
-`system.configure` / `sources.configure` for the NVR - even without general settings access (the user menu's "מערכת"
-opens it), and the alarm pages are not offered at all while the platform has no alarm panel (one cached request to the
-alarm endpoints per session, refreshed as the alarm screens load). Old addresses keep working and redirect with their
-query: `#/security/alarm[?panel=...]` → `#/system/security/alarm[?panel=...]`, `#/system/devices` → `#/investigate/health`
-(camera health is now the last tab of חקירה, still `video.live`), `#/system/diagnostics?tab=alarm` →
-`#/system/security/manage`; the Lovelace card views and the kiosk are unchanged. Design B has no flat "אזעקה" entry.
+sections - לייב (live), חקירה (investigation) and אזעקה (the alarm) - shown as a segmented control at the head of the page;
+each section's own pages stay the tab row under it, and `#/security` opens the section the browser used last. The alarm
+section (`#/security/alarm[?panel=...]`, canonical, last by default; `ui.tabs` orders / hides it like the others) renders
+the same screen as **הגדרות › אבטחה › אזעקה** (`#/system/security/alarm`), which also holds the alarm management
+(`#/system/security/manage`, `system.configure`) and an NVR summary (`#/system/security/nvr`; the NVR connection and
+recorder settings stay in הגדרות › חיבורים). Any of `alarm.view` / `alarm.arm` / `alarm.disarm` / `alarm.bypass` (any
+scope) or `system.configure` shows the alarm section and the Settings page (the screen itself lists panels with
+`alarm.view`; the server checks every call), and the Settings section is offered even without general settings access
+(the user menu's "מערכת" opens it). "There is an alarm" = any enabled `alarm_control_panel` in the mirror, whatever it
+has (no zones, no bypass switches, no code format): only a positive "no panel" answer hides the tab, so loading, an error
+or an unknown answer never do. The answer is cached (10 minutes when yes, 60 seconds when no) and re-asked when the
+mirror changes (`structure_changed`, the sync reconnecting, an alarm panel appearing) and when the security area is
+entered; a saved link to `#/security/alarm` on a system without a panel shows the screen's own "no alarm panel" state.
+`#/system/devices` → `#/investigate/health` (camera health is the last tab of חקירה, still `video.live`) and
+`#/system/diagnostics?tab=alarm` → `#/system/security/manage` redirect with their query; the Lovelace card views and the
+kiosk are unchanged. Design B has no flat "אזעקה" entry.
 The live overview ("תמונת מצב") can be hidden for everyone with הגדרות › וידאו ומדיה › תמונת מצב באבטחה
 (`ui.security_snapshot`, default shown); the live section then opens on "כל המצלמות" and `#/live` redirects there.
 
