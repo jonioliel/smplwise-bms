@@ -125,6 +125,38 @@ def test_camera_card_validation_refuses(dev_app, items, v, needle):  # noqa: F81
     assert c.get(f"{LAYOUT}/area/lobby").json()["desktop"] is None  # nothing was written
 
 
+def test_camera_card_stream_profile_is_stored_and_an_older_layout_loads_as_auto(dev_app):  # noqa: F811
+    app, _ = dev_app
+    c = TestClient(app)
+    items = {"camera:c1": {**NVR_CARD, "profile": "main"}, "camera:c2": {**HA_CARD, "profile": "sub"}, "camera:c3": {"x": 0, "y": 40, "w": 6, "h": 30, "camera": NVR_CARD["camera"], "profile": "auto"}}
+    assert _put(c, "lobby", _layout(items)).status_code == 200
+    got = c.get(f"{LAYOUT}/area/lobby").json()["desktop"]["layout"]["items"]
+    assert (got["camera:c1"]["profile"], got["camera:c2"]["profile"], got["camera:c3"]["profile"]) == ("main", "sub", "auto")
+    # a layout saved before the choice has no `profile` at all: nothing is stored for it, and it reads as auto
+    old = {"camera:c1": NVR_CARD}
+    assert _put(c, "lobby", _layout(old), revision=c.get(f"{LAYOUT}/area/lobby").json()["desktop"]["revision"]).status_code == 200
+    with app.state.db.connection() as conn:
+        stored = json.loads(conn.execute("SELECT layout_json FROM device_layouts WHERE scope = 'area' AND scope_id = 'lobby' AND variant = 'desktop'").fetchone()["layout_json"])
+    assert "profile" not in stored["items"]["camera:c1"]
+
+
+@pytest.mark.parametrize(
+    "items, needle",
+    [
+        ({"camera:c1": {**NVR_CARD, "profile": "ultra"}}, "profile"),
+        ({"camera:c1": {**NVR_CARD, "profile": 1}}, "profile"),
+        ({"card:lighting": {"x": 0, "y": 0, "w": 6, "h": 30, "profile": "main"}}, "only a camera card"),
+    ],
+)
+def test_camera_card_stream_profile_validation_refuses(dev_app, items, needle):  # noqa: F811
+    app, _ = dev_app
+    c = TestClient(app)
+    r = _put(c, "lobby", _layout(items))
+    assert r.status_code == 422, r.text
+    assert needle in json.dumps(r.json(), ensure_ascii=False), r.text
+    assert c.get(f"{LAYOUT}/area/lobby").json()["desktop"] is None
+
+
 def test_camera_cards_belong_to_the_area_screen_and_are_capped(dev_app):  # noqa: F811
     app, _ = dev_app
     c = TestClient(app)

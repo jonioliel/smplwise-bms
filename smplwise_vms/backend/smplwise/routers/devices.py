@@ -119,6 +119,50 @@ def home_candidates(principal: Principal = Depends(current_principal_ro), conn: 
     return home_screen.candidates(conn)
 
 
+ENTITY_ROWS_MAX = 80
+ENTITY_POOL_MAX = 3000
+
+
+@router.get("/devices/entities")
+def entity_rows(
+    ids: str = Query(..., min_length=1, max_length=8000),
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),
+) -> dict[str, Any]:
+    """Owner 2026-09-30 (area redesign): the card rows of up to ENTITY_ROWS_MAX entities by id - what a custom card or the
+    sensors card's main strip draws for a device that is NOT one of the area's own (the owner may pick any sensor of the
+    installation). Same visibility as every other devices route (`devices.read`; a floor-scoped caller gets only what is
+    placed on their floors - an id they cannot see is simply absent) and the same `can_control`; nothing here writes."""
+    want = list(dict.fromkeys(i for i in (x.strip() for x in ids.split(",")) if i))[:ENTITY_ROWS_MAX]
+    entities, _scoped = _visible_entities(conn, principal)
+    control_of = ha_scope.control_checker(conn, principal)
+    by_id = {e["entity_id"]: e for e in entities}
+    rows = []
+    for eid in want:
+        e = by_id.get(eid)
+        if e is None:
+            continue
+        row = svc.card_row(e, control_of(eid))
+        row["card"] = e["card"]
+        row["area_id"], row["area_name"] = e.get("area_id"), e.get("area_name")
+        rows.append(row)
+    return {"entities": rows}
+
+
+@router.get("/devices/entity-pool")
+def entity_pool(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """Every entity the area screens can show, compactly (id, name, card, domain, sensor group, area) - the layout editor's
+    "all the installation's devices" list for a custom card and for the sensors card's main strip, including devices that
+    belong to no area or to another one. system.configure (the layout editor's own permission)."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    entities, _scoped = _visible_entities(conn, principal)
+    out = []
+    for e in entities[:ENTITY_POOL_MAX]:
+        row = svc.card_row(e, False)
+        out.append({"entity_id": e["entity_id"], "name": row["name"], "card": e["card"], "domain": e["domain"], "group": row.get("group"), "door": bool(row.get("door_class")), "area_id": e.get("area_id"), "area_name": e.get("area_name"), "state": e.get("state")})
+    return {"entities": out, "truncated": len(entities) > ENTITY_POOL_MAX}
+
+
 @router.get("/devices/building")
 def building(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     entities, scoped = _visible_entities(conn, principal)

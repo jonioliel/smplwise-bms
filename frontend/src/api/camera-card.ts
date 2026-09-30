@@ -110,8 +110,19 @@ export function liveCapOf(settings: ProductSettings | null, me?: Me | null): num
   return effectiveLiveCap(Number(settings?.['media.max_live_sessions'] ?? 16), remoteCap);
 }
 
-/** The profile a card plays: a large card plays the main stream, else the installation's wall profile (this channel's). */
-export function cardProfile(size: 's' | 'm' | 'l', wallProfile: 'sub' | 'main'): 'sub' | 'main' {
+/** A card's own stream quality (owner 2026-09-30, stored in the layout item as `profile`): auto = today's rule below. */
+export type CardQuality = 'auto' | 'sub' | 'main';
+export const CARD_QUALITIES: CardQuality[] = ['auto', 'sub', 'main'];
+export const CARD_QUALITY_LABEL: Record<CardQuality, string> = { auto: 'אוטומטי', sub: 'משני', main: 'ראשי' };
+
+export function isCardQuality(v: unknown): v is CardQuality {
+  return v === 'auto' || v === 'sub' || v === 'main';
+}
+
+/** The profile a card plays: its own choice when it made one (`sub` / `main`, at any size); otherwise (auto, or none - an
+ * older layout) a large card plays the main stream, else the installation's wall profile (this channel's). */
+export function cardProfile(size: 's' | 'm' | 'l', wallProfile: 'sub' | 'main', quality: CardQuality | null | undefined = 'auto'): 'sub' | 'main' {
+  if (quality === 'sub' || quality === 'main') return quality;
   return size === 'l' ? 'main' : wallProfile;
 }
 

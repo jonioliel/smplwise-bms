@@ -13,10 +13,12 @@ import '../components/sw-button';
 import '../components/sw-dialog';
 import type { StateKind } from '../components/sw-badge';
 import type { IconName } from '../components/sw-icon';
-import { canAnywhere, isApi } from '../api/session';
+import { can, canAnywhere, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { fmtTime, subscribeHa, type HaSyncState } from '../api/ha';
-import { ALARM_HE, assignEntityArea, CARD_EMPTY, CARD_IDS, HVAC_ACTION_HE, getDevicesArea, getDevicesTree, type CardId, type DeviceAreaDetail, type DeviceCard, type DeviceRow, type DeviceTree } from '../api/devices';
+import { productSettings } from '../api/prefs';
+import { ALARM_HE, assignEntityArea, CARD_EMPTY, CARD_IDS, HVAC_ACTION_HE, getDevicesArea, getDevicesTree, getEntityRows, type CardId, type DeviceAreaDetail, type DeviceCard, type DeviceRow, type DeviceTree, type EntityRow } from '../api/devices';
+import { AREA_DESIGN_KEY, AREA_DESIGN_LABEL, AREA_DESIGNS, mainSlotOf, mainStrip, PERSONALIZE_PERMISSION, resolveAreaDesign, SECTION_BULK, type AreaDesign, type BulkLook } from './devices-area-design';
 import type { BulkKind } from '../api/device-bulk';
 import { alarmTone, REFRESH_WINDOW_MS, STRUCTURE_FLASH_MS } from './devices-building';
 import './devices-bulk';
@@ -45,6 +47,297 @@ const SENSOR_GROUP_ORDER = ['temperature', 'humidity', 'power', 'illuminance', '
 const TILE_CARDS = new Set<CardId>(['lighting', 'switches', 'sensors']);
 
 const CARD_ICON: Record<CardId, IconName> = { lighting: 'light', switches: 'bolt', climate: 'activity', covers: 'layers', security: 'shield', media: 'play', sensors: 'sensor' };
+
+/** Owner decisions 2026-09-30 (area redesign; mockup docs/design/mockups/home/index.html): the two directions of the automatic
+ * layout - "tiles" (section cards in columns, dense tiles) and "sections" (one section after the other, title at the side, the
+ * sensors beside them) - the security strip, the main sensors strip and the sections' bulk button. A stored layout (the grid)
+ * still wins: every rule here is for `.grid:not(.lay-grid)` or for the elements themselves. Declared after the glass rules. */
+const AREA_DESIGN = css`
+  /* a tighter page: the header, the room tabs, the security strip and the sections sit closer */
+  sw-page {
+    gap: 8px;
+  }
+  .sec-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    padding: 8px 12px;
+    border: 1px solid var(--sw-border);
+    border-radius: var(--sw-r-md);
+    background: var(--sw-surface);
+    box-shadow: var(--sw-shadow-1);
+  }
+  .sec-lbl {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-inline-end: 6px;
+    color: var(--sw-accent);
+    font-size: var(--sw-fs-sm);
+    font-weight: var(--sw-fw-semibold);
+  }
+  .sec-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border: 1px solid var(--sw-border);
+    border-radius: 999px;
+    background: var(--sw-surface);
+    color: var(--sw-text-2);
+    font-size: var(--sw-fs-xs);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .sec-chip b {
+    color: var(--sw-text);
+    font-weight: var(--sw-fw-medium);
+  }
+  .sec-chip.ok span {
+    color: var(--sw-success, #16a34a);
+    font-weight: var(--sw-fw-medium);
+  }
+  .sec-chip.warn span {
+    color: var(--sw-warning);
+    font-weight: var(--sw-fw-medium);
+  }
+  .sec-chip.bad span {
+    color: var(--sw-danger);
+    font-weight: var(--sw-fw-semibold);
+  }
+  .sec-chip.off {
+    opacity: 0.6;
+  }
+  a.sec-chip:hover {
+    border-color: var(--sw-border-strong);
+  }
+  /* the main sensors strip and its fold */
+  .main-sensors {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .msens {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-inline-size: 0;
+    padding: 6px 10px;
+    border: 1px solid var(--sw-border);
+    border-radius: var(--sw-r-sm);
+    background: var(--sw-surface);
+  }
+  .msens sw-icon {
+    flex: none;
+    color: var(--sw-accent);
+  }
+  .msens.hot {
+    background: var(--sw-warning-soft);
+    border-color: color-mix(in srgb, var(--sw-warning) 40%, var(--sw-border));
+  }
+  .msens.unavailable {
+    opacity: 0.6;
+  }
+  .msens .mv {
+    display: flex;
+    flex-direction: column;
+    min-inline-size: 0;
+    line-height: 1.2;
+  }
+  .msens .mv b {
+    font-size: var(--sw-fs-md);
+    font-weight: var(--sw-fw-semibold);
+    font-variant-numeric: tabular-nums;
+  }
+  .msens .mv span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--sw-text-3);
+    font-size: var(--sw-fs-xs);
+  }
+  .more-sens {
+    inline-size: 100%;
+    margin-block-start: 6px;
+    padding: 5px 10px;
+    border: 1px dashed var(--sw-border-strong);
+    border-radius: var(--sw-r-sm);
+    background: transparent;
+    color: var(--sw-accent);
+    font: inherit;
+    font-size: var(--sw-fs-xs);
+    cursor: pointer;
+  }
+  .more-sens + .sensor-groups {
+    margin-block-start: 8px;
+  }
+  .sec-bulk {
+    display: inline-flex;
+    gap: 6px;
+  }
+  .design-personal label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--sw-fs-xs);
+    color: var(--sw-text-2);
+  }
+  .design-personal select {
+    font: inherit;
+    font-size: var(--sw-fs-xs);
+    padding: 3px 6px;
+    border: 1px solid var(--sw-border-strong);
+    border-radius: 7px;
+    background: var(--sw-surface);
+    color: var(--sw-text);
+  }
+  /* dense tiles: icon, name and state on the start side, the switch at the end - one short row; a slider or a status line
+     takes the whole row under it */
+  .tile {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'ic nm tg' 'ic st tg';
+    column-gap: 8px;
+    row-gap: 0;
+    align-items: center;
+    padding: 6px 9px;
+  }
+  .tile .t {
+    display: contents;
+  }
+  .tile .t > sw-icon {
+    grid-area: ic;
+  }
+  .tile .t > span {
+    grid-area: nm;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: var(--sw-fw-medium);
+    font-size: var(--sw-fs-sm);
+  }
+  .tile .t > sw-toggle {
+    grid-area: tg;
+    margin-inline-start: 0;
+  }
+  .tile .s {
+    grid-area: st;
+  }
+  .tile > :not(.t):not(.s) {
+    grid-column: 1 / -1;
+  }
+  .rows {
+    gap: 4px;
+  }
+  .row {
+    padding: 6px 9px;
+    row-gap: 2px;
+  }
+  .row .v.big {
+    font-size: var(--sw-fs-lg);
+  }
+  .tiles {
+    gap: 6px;
+  }
+  /* compact controls: the buttons and the slider share one line; a brightness slider is a thin line under its tile */
+  .ctl-row {
+    gap: 4px;
+  }
+  .ctl-row input[type='range'].ctl-range {
+    flex: 1 1 90px;
+    inline-size: auto;
+    min-inline-size: 90px;
+    margin: 0;
+  }
+  .tile input[type='range'].ctl-range {
+    margin: 0;
+    block-size: 14px;
+  }
+  .row .d {
+    gap: 4px 8px;
+  }
+  /* the section's header has "פתח" / "סגור" now (with the confirmation): the group control keeps only what it adds -
+     stop all and the position for all - on one short line */
+  :host([data-area-design]) .grid:not(.lay-grid) .cover-group {
+    padding: 4px 8px;
+    margin-block-end: 4px;
+  }
+  :host([data-area-design]) .grid:not(.lay-grid) .cover-group .lbl,
+  :host([data-area-design]) .grid:not(.lay-grid) .cover-group [data-cover-group-kind='covers_open'],
+  :host([data-area-design]) .grid:not(.lay-grid) .cover-group [data-cover-group-kind='covers_close'] {
+    display: none;
+  }
+  /* tiles: section cards flow in columns (top to bottom, then the next column) */
+  :host([data-area-design='tiles']) .grid:not(.lay-grid) {
+    display: block;
+    column-width: 360px;
+    column-gap: 10px;
+  }
+  /* the dense direction: a position bar repeats what the slider under it already shows */
+  :host([data-area-design]) .grid:not(.lay-grid) .row .bar {
+    display: none;
+  }
+  :host([data-area-design='tiles']) .grid:not(.lay-grid) > sw-card {
+    display: block;
+    break-inside: avoid;
+    margin-block-end: 10px;
+    padding: 10px 12px;
+  }
+  :host([data-area-design='tiles']) .grid:not(.lay-grid) > sw-card > header {
+    margin-block-end: 8px;
+  }
+  /* sections: one section after the other, its title at the side; the sensors card stands beside them */
+  :host([data-area-design='sections']) .grid:not(.lay-grid) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 264px;
+    grid-auto-flow: row dense;
+    gap: 8px 12px;
+    align-items: start;
+  }
+  :host([data-area-design='sections']) .grid:not(.lay-grid) > sw-card {
+    grid-column: 1;
+    padding: 10px 14px;
+  }
+  :host([data-area-design='sections']) .grid:not(.lay-grid) > sw-card[data-card='sensors'],
+  :host([data-area-design='sections']) .grid:not(.lay-grid) > sw-card[data-card='media'] {
+    grid-column: 2;
+    grid-row: span 2;
+    display: block;
+  }
+  :host([data-area-design='sections']) .grid:not(.lay-grid) > sw-card:not([data-card='sensors']) .tiles {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+  :host([data-area-design='sections']) .grid:not(.lay-grid) > sw-card:not([data-card='sensors']):not([data-card='media']) .rows {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+    gap: 6px;
+  }
+  :host([data-area-design='sections']) .grid:not(.lay-grid) > sw-card .cover-group {
+    grid-column: 1 / -1;
+  }
+  /* a phone: one column of folding sections */
+  @media (max-width: 599px) {
+    :host([data-area-design]) .grid:not(.lay-grid) {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    :host([data-area-design]) .grid:not(.lay-grid) > sw-card {
+      display: block;
+      grid-column: auto;
+      grid-row: auto;
+      margin: 0;
+      padding: 10px 12px;
+    }
+    :host([data-area-design]) .grid:not(.lay-grid) > sw-card .tiles {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    :host([data-area-design]) .grid:not(.lay-grid) > sw-card .rows {
+      display: flex;
+    }
+  }
+`;
 
 /** CR-007 6a: the area screen's own element rules for the "glass" style (tokens: devices-style.ts) and the compact
  * density - the approved mockup's board 6: glass cards, icon-forward tiles, a blue glow for a lit light and a green
@@ -218,6 +511,17 @@ export class DevicesArea extends LitElement {
   /** CR-007 6a: style, density and the sensors card (הגדרות › חשמל והתקנים). */
   @state() private prefs: DevicesPrefs = DEVICES_PREFS_DEFAULT;
   private prefsReady: Promise<void> = Promise.resolve();
+  /** Owner decisions 2026-09-30 (area redesign): the direction in force (the installation's `devices.area_design`, or a
+   * personaliser's own), the installation's value, devices of the layout that are not this area's own, the sensors sections
+   * unfolded, the phone's folded sections and whether this is a phone. */
+  @state() private design: AreaDesign = 'tiles';
+  @state() private installationDesign: AreaDesign = 'tiles';
+  @state() private extra = new Map<string, EntityRow>();
+  @state() private sensOpen = new Set<string>();
+  @state() private foldState = new Map<string, boolean>();
+  @state() private phone = false;
+  private phoneMq: MediaQueryList | null = null;
+  private extraKey = '';
   /** CR-007 6b: the area's card layout (one per installation and area; edited with system.configure). */
   private lay: DevicesLayoutController = new DevicesLayoutController(this, {
     scope: 'area',
@@ -240,6 +544,7 @@ export class DevicesArea extends LitElement {
     },
     // owner request 2026-09-30 (card library): every device of the area, for a custom card's picker and the starting picks
     pool: () => this.areaPool(),
+    barExtra: () => this.renderDesignPersonal(),
   });
 
   /** Every device of the area (all the built-in cards' devices the screen shows this caller), as the library lists them. */
@@ -254,7 +559,17 @@ export class DevicesArea extends LitElement {
     const d = this.detail;
     if (!d) return out;
     for (const id of CARD_IDS) for (const r of d.cards[id].entities) out.set(r.entity_id, { row: r, card: id });
+    for (const [id, r] of this.extra) if (!out.has(id)) out.set(id, { row: r, card: r.card }); // devices of other areas the layout lists
     return out;
+  }
+
+  protected updated() {
+    // the layout arrives after the area: fetch what its custom cards / main strips list that is not this area's own
+    const d = this.detail;
+    if (!d) return;
+    const own = new Set(CARD_IDS.flatMap((id) => d.cards[id].entities.map((r) => r.entity_id)));
+    const want = this.lay.listedEntityIds().filter((id) => !own.has(id)).join(',');
+    if (want !== this.extraKey && !(want === '' && this.extra.size === 0)) void this.loadExtra();
   }
 
   /** A custom card's devices: the rows of the area it lists (one that left the area is skipped), in the order it lists. */
@@ -525,14 +840,24 @@ export class DevicesArea extends LitElement {
     .lay-item > sw-card[data-camera-card] > devices-camera-card {
       flex: 1 1 auto;
     }
-  `, AREA_GLASS];
+  `, AREA_GLASS, AREA_DESIGN];
 
   connectedCallback() {
     super.connectedCallback();
-    this.prefsReady = loadDevicesPrefs().then((p) => {
-      this.prefs = p;
-      applyDevicesPrefs(this, p);
-    });
+    this.prefsReady = Promise.all([
+      loadDevicesPrefs().then((p) => {
+        this.prefs = p;
+        applyDevicesPrefs(this, p);
+      }),
+      this.loadDesign(),
+    ]).then(() => undefined);
+    try {
+      this.phoneMq = window.matchMedia('(max-width: 599px)');
+      this.phone = this.phoneMq.matches;
+      this.phoneMq.addEventListener('change', this.onPhone);
+    } catch {
+      this.phoneMq = null;
+    }
     if (!isApi()) return;
     if (!canAnywhere('devices.read')) {
       this.forbidden = true;
@@ -566,12 +891,80 @@ export class DevicesArea extends LitElement {
     this.stop = null;
     window.clearTimeout(this.timer);
     this.timer = 0;
+    this.phoneMq?.removeEventListener('change', this.onPhone);
+  }
+
+  private onPhone = () => {
+    this.phone = this.phoneMq?.matches ?? false;
+  };
+
+  /** The direction: the installation's setting, then - for a holder of screen.personalize - this browser's own choice. */
+  private async loadDesign() {
+    let installation: unknown = 'tiles';
+    if (isApi()) {
+      try {
+        installation = (await productSettings())['devices.area_design' as keyof Awaited<ReturnType<typeof productSettings>>];
+      } catch {
+        /* the default */
+      }
+    }
+    this.installationDesign = resolveAreaDesign(installation, null, false);
+    this.applyDesign();
+  }
+
+  private get mayPersonalize(): boolean {
+    return isApi() && can(PERSONALIZE_PERMISSION);
+  }
+
+  private personalDesign(): string | null {
+    try {
+      return localStorage.getItem(AREA_DESIGN_KEY);
+    } catch {
+      return null;
+    }
+  }
+
+  private applyDesign() {
+    this.design = resolveAreaDesign(this.installationDesign, this.personalDesign(), this.mayPersonalize);
+    this.setAttribute('data-area-design', this.design);
+  }
+
+  private setPersonalDesign(v: AreaDesign | '') {
+    try {
+      if (v) localStorage.setItem(AREA_DESIGN_KEY, v);
+      else localStorage.removeItem(AREA_DESIGN_KEY);
+    } catch {
+      /* private mode: this visit only */
+    }
+    this.applyDesign();
   }
 
   /** The loaded area's entity ids (all cards), for the push filter. */
   private get entityIds(): Set<string> {
     if (!this.detail) return new Set();
-    return new Set(CARD_IDS.flatMap((id) => this.detail!.cards[id].entities.map((r) => r.entity_id)));
+    return new Set([...CARD_IDS.flatMap((id) => this.detail!.cards[id].entities.map((r) => r.entity_id)), ...this.extra.keys()]);
+  }
+
+  /** Devices a custom card or a main strip lists that are not this area's own are fetched by id (same visibility as the
+   * tree); refetched with every load so their state is live. */
+  private async loadExtra() {
+    const d = this.detail;
+    if (!d) return;
+    const own = new Set(CARD_IDS.flatMap((id) => d.cards[id].entities.map((r) => r.entity_id)));
+    const want = this.lay.listedEntityIds().filter((id) => !own.has(id));
+    const key = want.join(',');
+    if (!want.length) {
+      if (this.extra.size) this.extra = new Map();
+      this.extraKey = '';
+      return;
+    }
+    try {
+      const r = await getEntityRows(want);
+      this.extra = new Map(r.entities.map((e) => [e.entity_id, e]));
+      this.extraKey = key;
+    } catch {
+      this.extraKey = key; // no retry storm: the strip simply shows what it has until the next load
+    }
   }
 
   protected willUpdate(changed: PropertyValues<this>) {
@@ -608,6 +1001,7 @@ export class DevicesArea extends LitElement {
       this.sync = d.sync;
       this.error = '';
       this.notFound = false;
+      void this.loadExtra();
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) this.forbidden = true;
       else if (err instanceof ApiError && err.status === 404) this.notFound = true;
@@ -649,7 +1043,10 @@ export class DevicesArea extends LitElement {
     const withDevices = cards.filter((c) => c.count > 0);
     // owner request 2026-09-30 (card library): a built-in card the editor deleted is not drawn (its slot stays a grid key so
     // a viewer's layout packs it away), and the area's custom cards join the grid
-    const ordered = withDevices.filter((c) => !this.lay.isRemoved(`card:${c.id}`));
+    // the security state is a strip above the sections now; its own section is drawn only where the owner laid the screen
+    // out (a stored layout, or the editor) - the strip is what a room shows by default
+    const showSecuritySection = this.lay.gridOn('cards') || this.lay.editing;
+    const ordered = withDevices.filter((c) => !this.lay.isRemoved(`card:${c.id}`) && (c.id !== 'security' || showSecuritySection));
     const customKeys = this.lay.customKeys();
     const gridKeys = [...withDevices.map((c) => `card:${c.id}`), ...customKeys, ...this.lay.removedKeys().filter((k) => !withDevices.some((c) => `card:${c.id}` === k))];
     const anyControllable = cards.some((c) => c.entities.some((r) => r.can_control));
@@ -677,6 +1074,7 @@ export class DevicesArea extends LitElement {
         : nothing}
       ${this.error ? html`<sw-state-panel compact state="error" heading="הרענון האחרון נכשל" hint=${this.error}></sw-state-panel>` : nothing}
       ${this.lay.renderBar()}
+      ${this.lay.editing ? nothing : this.renderSecurityStrip(d)}
       ${arranging
         ? this.lay.stage(`card:${arranging.id}`, this.renderCard(arranging))
         : arrangingCustom
@@ -688,11 +1086,7 @@ export class DevicesArea extends LitElement {
             ${repeat(cameraKeys, (k) => k, (k) => this.lay.wrap(k, this.renderCameraCard(k)))}
           </div>`
         : html`<sw-state-panel data-devices-state="area_empty" state="empty" heading="אין התקנים באזור הזה" hint="שייכו התקנים לאזור (או מ״ללא שיוך״); כרטיס של תאורה, מתגים, מיזוג, תריסים, אבטחה, מסכים או חיישנים מופיע כשיש באזור התקן מהסוג הזה."></sw-state-panel>`}
-      <div class="note">
-        ${anyControllable
-          ? 'הקשה על מתג, כפתור או החלקה לשליטה בהתקן. המצב המוצג בשורה הוא תמיד המצב שדווח; פקודה שנשלחה מסומנת "ממתין לאישור" עד שהדיווח מגיע, ומתבטלת אם הוא לא מגיע בזמן. תנועת תריס (פתיחה, סגירה או מיקום) דורשת הקשת אישור נוספת.'
-          : 'תצוגה לקריאה בלבד: מצב ההתקנים כפי שדווח.'}
-      </div>
+      ${anyControllable ? nothing : html`<div class="note" data-readonly-note>תצוגה לקריאה בלבד: מצב ההתקנים כפי שדווח.</div>`}
       ${bulk ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
       ${this.canAssignArea ? this.renderAssignDialog() : nothing}
       ${this.lay.renderPanel()}
@@ -704,7 +1098,7 @@ export class DevicesArea extends LitElement {
   private renderCameraCard(key: string) {
     const it = this.lay.item(key);
     return html`<sw-card flush data-camera-card=${key} data-lay-key=${key}>
-      <devices-camera-card .source=${this.lay.cameraOf(key) ?? null} .title=${it?.title ?? ''} ?fill=${this.lay.gridOn('cards')}></devices-camera-card>
+      <devices-camera-card .source=${this.lay.cameraOf(key) ?? null} .title=${it?.title ?? ''} .quality=${this.lay.qualityOf(key)} ?showQuality=${this.lay.editing} ?fill=${this.lay.gridOn('cards')}></devices-camera-card>
     </sw-card>`;
   }
 
@@ -714,7 +1108,9 @@ export class DevicesArea extends LitElement {
     const ents = shownEntities(it, c.entities);
     // CR-007 6c: an arranged card (or the one being arranged) draws its tiles in the saved order / span / size
     const tiles = c.count ? this.lay.tiles(`card:${c.id}`, this.displayRows(c).map((r) => r.entity_id)) : null;
-    return html`<sw-card data-card=${c.id} data-lay-key=${`card:${c.id}`} ?data-empty=${c.count === 0} heading=${titleOf(it, c.label)} subheading=${c.count ? `${c.count} התקנים${c.id === 'lighting' || c.id === 'switches' || c.id === 'climate' || c.id === 'covers' || c.id === 'media' ? ` · ${c.active} פעילים` : ''}` : ''}>
+    const key = `card:${c.id}`;
+    return html`<sw-card data-card=${c.id} data-lay-key=${key} ?data-empty=${c.count === 0} ?row=${this.rowSections && c.id !== 'sensors' && c.id !== 'media'} ?collapsible=${this.phone && !this.lay.editing} ?collapsed=${this.phone && !this.lay.editing && this.folded(key, c.id === 'sensors')} @sw-card-toggle=${(ev: CustomEvent<{ collapsed: boolean }>) => this.fold(key, ev.detail.collapsed)} heading=${titleOf(it, c.label)} subheading=${c.count ? `${c.count} התקנים${c.id === 'lighting' || c.id === 'switches' || c.id === 'climate' || c.id === 'covers' || c.id === 'media' ? ` · ${c.active} פעילים` : ''}` : ''}>
+      ${this.renderSectionBulk(c, key)}
       <sw-icon slot="actions" .name=${it?.icon ?? CARD_ICON[c.id]} size=${18}></sw-icon>
       ${c.count === 0
         ? html`<sw-state-panel compact data-card-empty state="empty" heading=${e.heading} hint=${e.hint}></sw-state-panel>`
@@ -723,11 +1119,104 @@ export class DevicesArea extends LitElement {
           : !ents.length
           ? html`<div class="count" data-card-all-hidden>כל ההתקנים בכרטיס הוסתרו בעורך הפריסה.</div>`
           : c.id === 'sensors'
-            ? this.renderSensorGroups(ents)
+            ? this.renderSensorsSection(key, ents)
             : c.id === 'lighting' || c.id === 'switches'
               ? html`<div class="tiles">${repeat(ents, (r) => r.entity_id, (r) => this.renderTile(r, c.id))}</div>`
               : html`${c.id === 'covers' ? this.renderCoverGroupControl() : nothing}<div class="rows">${repeat(ents, (r) => r.entity_id, (r) => this.renderRow(r, c.id))}</div>`}
     </sw-card>`;
+  }
+
+  // ---------------------------------------------------------------- owner decisions 2026-09-30: the area redesign
+
+  /** The "sequential sections" direction draws each section as a row (title at the side) - only in the automatic layout. */
+  private get rowSections(): boolean {
+    return this.design === 'sections' && !this.phone && !this.lay.gridOn('cards');
+  }
+
+  /** A phone folds its sections (the sensors section starts folded); a section the user opened or closed stays so. */
+  private folded(key: string, byDefault: boolean): boolean {
+    return this.foldState.has(key) ? this.foldState.get(key)! : byDefault;
+  }
+
+  private fold(key: string, collapsed: boolean) {
+    this.foldState = new Map(this.foldState).set(key, collapsed);
+  }
+
+  /** The section's "כבה הכל" button(s): the registry (devices-area-design.ts SECTION_BULK) decides which sections have one
+   * and what it sends; the section's `bulk_look` (edit mode) decides icon / text / both. Every press opens the bulk flow's
+   * confirmation dialog - nothing is sent from here. A holder of devices.control_bulk only (`can_bulk` of the area). */
+  private renderSectionBulk(c: DeviceCard, key: string) {
+    const actions = SECTION_BULK[c.id];
+    if (!actions || !this.bulkAllowed || !c.count || this.lay.arranging(key)) return nothing;
+    const look: BulkLook = this.lay.bulkLookOf(key);
+    return html`<span slot="actions" class="sec-bulk" data-section-bulk=${c.id} data-bulk-look=${look}>${actions.map((a) =>
+      look === 'icon'
+        ? html`<sw-button size="sm" iconOnly icon=${a.icon} label=${a.label} data-section-bulk-kind=${a.kind} @click=${() => this.openCoverGroupBulk(a.kind)}></sw-button>`
+        : html`<sw-button size="sm" icon=${look === 'both' ? a.icon : undefined} data-section-bulk-kind=${a.kind} @click=${() => this.openCoverGroupBulk(a.kind)}>${a.label}</sw-button>`,
+    )}</span>`;
+  }
+
+  /** The strip above the sections: the security state at a glance (locks, the alarm, cameras, doors), read-only - the way in
+   * to the alarm is its own screen. Only what the area has; absent when it has none of it. */
+  private renderSecurityStrip(d: DeviceAreaDetail) {
+    const rows = d.cards.security.entities;
+    if (!rows.length) return nothing;
+    const chip = (r: DeviceRow) => {
+      const unavailable = !r.available || r.state === 'unavailable';
+      const icon: IconName = r.kind === 'lock' ? (r.locked ? 'lock' : 'unlock') : r.kind === 'alarm' ? 'shield' : r.kind === 'camera' ? 'camera' : 'door';
+      const tone = unavailable ? 'off' : r.kind === 'lock' ? (r.locked ? 'ok' : 'warn') : r.kind === 'alarm' ? (r.state === 'triggered' ? 'bad' : r.armed ? 'ok' : 'warn') : r.kind === 'camera' ? 'ok' : r.state === 'on' ? 'warn' : 'ok';
+      const text = r.kind === 'camera' ? 'מקוון' : rowLabel(r);
+      const inner = html`<sw-icon .name=${icon} size=${14}></sw-icon><b>${bidi(r.name)}</b><span>${text}</span>`;
+      return r.kind === 'alarm'
+        ? html`<a class="sec-chip ${tone}" href="#/security/alarm" data-sec-chip=${r.entity_id} title="לאזעקה">${inner}</a>`
+        : html`<span class="sec-chip ${tone}" data-sec-chip=${r.entity_id}>${inner}</span>`;
+    };
+    return html`<div class="sec-strip" data-security-strip role="group" aria-label="אבטחה"><span class="sec-lbl"><sw-icon name="shield" size=${15}></sw-icon>אבטחה</span>${rows.map(chip)}</div>`;
+  }
+
+  /**
+   * The sensors section (owner 2026-09-30): the MAIN strip on top - temperature, humidity, motion and door, only those the
+   * area has, or the owner's own pick of any sensors of the installation (edit mode) - and "עוד N חיישנים" folding the rest
+   * away. A room whose sensors are none of those four shows them all, as before.
+   */
+  private renderSensorsSection(key: string, ents: DeviceRow[]) {
+    const idx = this.rowIndex();
+    const byId = new Map([...idx].map(([id, x]) => [id, x.row]));
+    const areaRows = [...idx.values()].filter((x) => !this.extra.has(x.row.entity_id)).map((x) => x.row);
+    const { rows: main } = mainStrip(this.lay.mainOf(key), byId, areaRows);
+    const mainIds = new Set(main.map((r) => r.entity_id));
+    const rest = ents.filter((r) => !mainIds.has(r.entity_id));
+    if (!main.length) return this.renderSensorGroups(ents);
+    const open = this.sensOpen.has(key);
+    const toggle = () => {
+      const next = new Set(this.sensOpen);
+      if (open) next.delete(key);
+      else next.add(key);
+      this.sensOpen = next;
+    };
+    return html`<div class="main-sensors" data-main-sensors>${main.map((r) => this.renderMainSensor(r))}</div>
+      ${rest.length ? html`<button type="button" class="more-sens" data-sensors-more aria-expanded=${String(open)} @click=${toggle}>${open ? 'הסתר חיישנים' : `עוד ${rest.length} חיישנים`}</button>${open ? this.renderSensorGroups(rest) : nothing}` : nothing}`;
+  }
+
+  private renderMainSensor(r: DeviceRow) {
+    const slot = mainSlotOf(r);
+    const icon: IconName = slot === 'temperature' ? 'sensor' : slot === 'humidity' ? 'sensor' : slot === 'motion' ? 'activity' : slot === 'door' ? 'door' : 'sensor';
+    const unavailable = !r.available || r.state === 'unavailable';
+    const value = unavailable ? 'לא זמין' : r.domain === 'sensor' && r.value !== null && r.value !== undefined ? `${ltrNum(Number.isInteger(r.value) ? r.value : r.value.toFixed(1))}${r.unit ? (r.unit.startsWith('°') || r.unit === '%' ? r.unit : ` ${r.unit}`) : ''}` : rowLabel(r);
+    return html`<div class=${classMap({ msens: true, unavailable, hot: r.domain === 'binary_sensor' && r.state === 'on' })} data-main-sensor=${r.entity_id} data-slot=${slot ?? ''} title=${r.entity_id}>
+      <sw-icon .name=${icon} size=${16}></sw-icon><div class="mv"><b>${value}</b><span>${bidi(r.name)}</span></div>
+    </div>`;
+  }
+
+  /** The edit bar's own control (a holder of screen.personalize only): this browser's direction, over the installation's. */
+  private renderDesignPersonal() {
+    if (!this.mayPersonalize) return nothing;
+    const own = this.personalDesign();
+    return html`<span class="design-personal" data-design-personal><label>כיוון תצוגה (רק אצלי)
+      <select data-design-personal-select @change=${(ev: Event) => this.setPersonalDesign(((ev.target as HTMLSelectElement).value as AreaDesign | ''))}>
+        <option value="" ?selected=${!own}>ברירת המערכת · ${AREA_DESIGN_LABEL[this.installationDesign]}</option>
+        ${AREA_DESIGNS.map((k) => html`<option value=${k} ?selected=${own === k}>${AREA_DESIGN_LABEL[k]}</option>`)}
+      </select></label></span>`;
   }
 
   /** CR-007 6c: a card's devices as arranged - one grid of TILE_COLS columns in the saved order, each tile with its
