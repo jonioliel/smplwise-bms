@@ -174,11 +174,12 @@ test.describe('CR-013 shell on the demo data', () => {
     await expect(menu.locator('[data-menu-screen-edit]')).toHaveCount(0);
   });
 
-  test('the navigation is smaller: a slim rail, a 50 px bottom bar with 44 px targets', async ({ page }, info) => {
+  // 0.1.148 (owner 2026-09-30): the "l" preset is the navigation's default (shell/nav-size.ts NAV_DEFAULT): item 64 x 68, bar 62 px.
+  test('the navigation is compact: a rail sized by the large preset, a 62 px bottom bar with 44 px targets', async ({ page }, info) => {
     await open(page, '/devices/building');
     if (phone(info)) {
       const bar = (await page.locator('sw-app nav.bottom').boundingBox())!;
-      expect(bar.height).toBeLessThanOrEqual(52);
+      expect(bar.height).toBeLessThanOrEqual(66);
       for (const el of await page.locator('sw-app nav.bottom > a, sw-app nav.bottom > button').all()) {
         const r = (await el.boundingBox())!;
         expect(r.height).toBeGreaterThanOrEqual(44);
@@ -186,15 +187,15 @@ test.describe('CR-013 shell on the demo data', () => {
       }
     } else {
       const rail = (await page.locator('sw-app nav.rail').boundingBox())!;
-      expect(rail.width).toBeLessThanOrEqual(72);
+      expect(rail.width).toBeLessThanOrEqual(86);
       for (const el of await page.locator('sw-app nav.rail > a[data-nav]').all()) {
         const r = (await el.boundingBox())!;
-        expect(r.width).toBeLessThanOrEqual(58);
-        expect(r.height).toBeLessThanOrEqual(54);
+        expect(r.width).toBeLessThanOrEqual(70);
+        expect(r.height).toBeLessThanOrEqual(66);
         expect(r.height).toBeGreaterThanOrEqual(44);
       }
       const av = (await page.locator('sw-app nav.rail sw-avatar').boundingBox())!;
-      expect(av.width).toBeLessThanOrEqual(32);
+      expect(av.width).toBeLessThanOrEqual(36);
     }
   });
 
@@ -247,7 +248,8 @@ test.describe('CR-013 shell on the demo data', () => {
     await expect(me).toHaveAttribute('aria-expanded', 'true');
     await expect(menu.locator('[data-user-name]')).toHaveText('יוני');
     // first level: exactly התראות · מערכת · החשבון שלי, one line each, no count chip without open alerts
-    await expect(menu.locator('ul[data-menu-level="main"] > li')).toHaveText(['התראות', 'מערכת', 'החשבון שלי']);
+    // 0.1.148: the cards | tiles view choice sits in the user menu ("תצוגה"), between the alerts and the system
+    await expect(menu.locator('ul[data-menu-level="main"] > li')).toHaveText([/^\s*התראות\s*$/, /^\s*תצוגה\s*כרטיסים\s*אריחים\s*$/, /^\s*מערכת\s*$/, /^\s*החשבון שלי\s*$/]);
     await expect(menu.locator('[data-alert-count]')).toHaveCount(0);
     await expect(menu.locator('small')).toHaveCount(0);
     await expect(menu.locator('[data-menu-settings]')).toHaveAttribute('href', '#/system/diagnostics');
@@ -613,7 +615,7 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     await meButton(page, info).click();
     await expect(menu.locator('[data-menu-edit-home]')).toHaveCount(0);
     // the viewer holds alarm.view: הגדרות › אבטחה › אזעקה is theirs, so the user menu offers "מערכת" (2026-09-30)
-    await expect(menu.locator('ul[data-menu-level="main"] > li')).toHaveText([/התראות/, /מערכת/, /החשבון שלי/]);
+    await expect(menu.locator('ul[data-menu-level="main"] > li')).toHaveText([/התראות/, /תצוגה/, /מערכת/, /החשבון שלי/]);
   });
 
   test('a user without rules.manage: the alerts inbox only - no rules request, no rules tab, no "חוק חדש"', async ({ page }) => {

@@ -45,6 +45,8 @@ async function selectRoom(page: Page, floor: string) {
 
 test.describe.serial('shared space: WisKey stations as members, and deleting a shared room in one step (CR-009 13 / 14)', () => {
   test.skip(process.env.SW_LIVE !== '1' || process.env.SW_WISKEY_FIXTURE !== '1', 'set SW_LIVE=1 SW_WISKEY_FIXTURE=1 with the WisKey fixture backend running');
+  // 0.1.148 (ui.mobile): the plan editor (structure management) is hidden on a phone by default; the header names the desktop project only.
+  test.skip(({ hasTouch }) => hasTouch, 'the plan editor is not offered on a phone (אפשרויות נייד) - desktop project only');
 
   test.beforeAll(async ({ playwright, browser }) => {
     api = await playwright.request.newContext({ baseURL: process.env.SW_BASE_URL || 'http://127.0.0.1:4173/' });

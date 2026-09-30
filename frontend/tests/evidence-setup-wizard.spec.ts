@@ -107,6 +107,8 @@ test.describe('setup wizard against the fixture backend (fake NVR / go2rtc)', ()
   });
 
   test('the shell hint "השלם את ההתקנה" shows while steps remain and is dismissed for the session', async ({ page }, testInfo) => {
+    // on a phone the setup progress moved into the user menu's header (sw-app: `.setuphint { display: none }` under 768 px), so the row is desktop only
+    test.skip(testInfo.project.name === 'mobile', 'the phone shows the setup progress in the user menu, not as a row');
     await page.goto('/?design=a#/live');
     await page.waitForSelector('sw-app');
     const hint = page.locator('sw-app [data-setup-hint]');
