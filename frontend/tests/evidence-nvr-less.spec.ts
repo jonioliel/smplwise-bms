@@ -38,7 +38,7 @@ const STATES = [
 /** What the navigation must offer - and nothing else - in the NVR-less mode. Since 2026-09-30 the alarm lives in
  * הגדרות › אבטחה (not in the security area), so with no NVR the security area has no page left and leaves the rail. */
 // CR-013: ראשי (the device overview) first; מערכת lives in the user menu, not the bar
-const NAV_A = ['#/devices/building', '#/explore/sites', '#/wiskey/overview'];
+const NAV_A = ['#/devices/building', '#/explore/sites', '#/multimedia/screens', '#/wiskey/overview'];
 const NVR_HREFS = ['#/live', '#/live/wall', '#/investigate/events', '#/investigate/playback'];
 
 test.describe('NVR-less mode (Home Assistant only)', () => {
@@ -100,7 +100,7 @@ test.describe('NVR-less mode (Home Assistant only)', () => {
     await shot(page, 'health', testInfo.project.name);
   });
 
-  test('the rail (and the phone bottom nav) offer only ראשי (devices), map and WisKey (no security area without an NVR); settings in the user menu', async ({ page }, testInfo) => {
+  test('the rail (and the phone bottom nav) offer only ראשי (devices), map, multimedia and WisKey (no security area without an NVR); settings in the user menu', async ({ page }, testInfo) => {
     await open(page, '/explore/sites', 'a');
     const phone = testInfo.project.name === 'mobile';
     const sel = phone ? BOTTOM : RAIL;

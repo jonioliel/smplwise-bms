@@ -1,13 +1,7 @@
-// CR-015 load order: api/media-screens.ts and its MOCK (api/media-screens-mock.ts) import each other, and the mock's tables read the
-// client's constants while it loads - so the mock must be the FIRST of the two to load (the client first = "Cannot access ... before
-// initialization", the page never starts). Everything below may import either.
-import '../api/media-screens-mock';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { keyed } from 'lit/directives/keyed.js';
-// CR-015: media-screens.ts and its mock import each other; evaluating the mock first keeps KEY_IDS defined when the mock builds its tables
-import '../api/media-screens-mock';
 import '../components/sw-icon';
 import '../components/sw-button';
 import '../components/sw-badge';

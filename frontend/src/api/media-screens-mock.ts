@@ -15,12 +15,16 @@ import {
   type NowShowing, type ProfileId, type RecentItem, type RemoteConfig, type SourceItem,
 } from './media-screens';
 
-const PROFILE_KEYS: Record<ProfileId, KeyId[]> = {
-  samsung_smart: KEY_IDS.filter((k) => !['settings', 'blue', 'rew', 'ff'].includes(k)),
-  lg_webos: KEY_IDS.filter((k) => !['tools', 'source', 'settings', 'chlist', 'prech', 'stop', 'rew', 'ff'].includes(k)),
-  android_tv: KEY_IDS.filter((k) => !['exit', 'tools', 'chlist', 'prech'].includes(k)),
-  generic: [],
-};
+/** Built on first use, never at module load: media-screens.ts and this file import each other, so reading KEY_IDS while the
+ * module evaluates would hit the temporal dead zone when this file is the one loaded first. */
+function profileKeys(p: ProfileId): KeyId[] {
+  switch (p) {
+    case 'samsung_smart': return KEY_IDS.filter((k) => !['settings', 'blue', 'rew', 'ff'].includes(k));
+    case 'lg_webos': return KEY_IDS.filter((k) => !['tools', 'source', 'settings', 'chlist', 'prech', 'stop', 'rew', 'ff'].includes(k));
+    case 'android_tv': return KEY_IDS.filter((k) => !['exit', 'tools', 'chlist', 'prech'].includes(k));
+    default: return [];
+  }
+}
 
 type Feat = 'on' | 'off' | 'vset' | 'vstep' | 'mute' | 'src' | 'play' | 'pause' | 'stop' | 'next' | 'prev';
 interface Seed {
@@ -74,7 +78,7 @@ const app = (a: string): SourceItem => ({ id: a, label: a, kind: 'app', glyph: A
 
 function caps(s: Seed): MediaCaps {
   const f = (x: Feat) => s.feat.includes(x);
-  const keys = PROFILE_KEYS[s.profile];
+  const keys = profileKeys(s.profile);
   return {
     power_on: f('on'), power_on_reason: f('on') ? null : 'no_remote_wake', power_off: f('off'),
     volume_set: f('vset') && !s.link, volume_step: f('vstep') || !!s.link, mute: f('mute'),

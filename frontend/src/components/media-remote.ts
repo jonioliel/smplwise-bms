@@ -6,11 +6,11 @@ import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
 import './sw-drawer';
 import './media-remote-pad';
 import '../screens/multimedia-remote-editor';
-import { ApiError, resourceUrl, apiUrl } from '../api/client';
+import { ApiError } from '../api/client';
 import { getAction } from '../api/ha';
 import { isApi } from '../api/session';
 import {
-  ERROR_LABEL, CONFIRM_TIMEOUT_MS, commandOffered, media, sendCommand,
+  ERROR_LABEL, CONFIRM_TIMEOUT_MS, artworkUrl, commandOffered, media, sendCommand,
   type KeyId, type MediaCommand, type MediaDeviceDetail, type MediaStatus, type RemoteSection, type SourceItem, type TransportAction,
 } from '../api/media-screens';
 import { applyDevicesScheme, loadDevicesPrefs } from '../screens/devices-style';
@@ -542,7 +542,7 @@ export class MediaRemote extends LitElement {
     const off = remoteMode(d) !== 'on' && d.live.power !== 'art';
     if (off) return html`<div class="thumb plain" aria-hidden="true">${ic(d.live.power === 'unavailable' ? 'wifiOff' : 'power')}</div>`;
     if (n.artwork) {
-      const src = /^https?:/.test(n.artwork) ? n.artwork : n.artwork.startsWith('api/') ? resourceUrl(n.artwork) : apiUrl(n.artwork);
+      const src = artworkUrl(n.artwork);
       return html`<div class="thumb" style="--art:${tint(n.hue).rgb}" aria-hidden="true"><img src=${src} alt="" loading="lazy" /></div>`;
     }
     if (n.kind === 'art') {

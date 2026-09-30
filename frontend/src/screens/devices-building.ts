@@ -35,6 +35,7 @@ import {
   type Direction, type HomeCandidates, type HomeSettings, type HomeView, type QuickAction, type WidgetId, type WidgetItem,
 } from '../api/home';
 import { demoHome } from './home-demo';
+import { media } from '../api/media-screens';
 import { areaIndicators, effectiveRows, floorKinds, loadPersonalRow, ROW_MAX_PHONE, ROW_MAX_WIDE, splitRow, type AreaRowPersonal, type FloorItem, type Indicator } from '../api/area-row';
 
 /** Owner notes 2026-09-30: the home route's edit mode is entered by the address (`#/devices/building?edit=1`, from the
@@ -721,6 +722,8 @@ export class DevicesBuilding extends LitElement {
   @state() private tree: DeviceTree | null = null;
   @state() private error = '';
   @state() private forbidden = false;
+  /** CR-015: how many approved screens this user may see (media.read); null = not known yet / not readable. Feeds `resolveWidgets`. */
+  @state() private mediaScreens: number | null = null;
   @state() private sync: HaSyncState | null = null;
   private stop: (() => void) | null = null;
   private timer = 0;
@@ -986,7 +989,25 @@ export class DevicesBuilding extends LitElement {
 
   /** The widget cards this render draws (edit mode adds the ghosts that say why a widget is not shown). */
   private widgetItems(t: DeviceTree, h: HomeView): WidgetItem[] {
-    return resolveWidgets(h.config, h.direction, h.data, { editing: this.lay.editing, quickAllowed: this.quickInfo(t).allowed, phone: this.isPhone });
+    return resolveWidgets(h.config, h.direction, h.data, { editing: this.lay.editing, quickAllowed: this.quickInfo(t).allowed, phone: this.isPhone, mediaAvailable: this.mediaScreens === null ? undefined : this.mediaScreens > 0 });
+  }
+
+  /** CR-015: whether the home's media widget has anything to show - the approved screens of this user (the same question the widget
+   * asks for itself); a failure or a missing permission leaves it to the widget. */
+  private async loadMediaScreens() {
+    if (isApi() && !canAnywhere('media.read')) {
+      this.mediaScreens = 0;
+      return;
+    }
+    try {
+      if (!(await media().status()).enabled) {
+        this.mediaScreens = 0;
+        return;
+      }
+      this.mediaScreens = (await media().list()).devices.filter((d) => d.kind === 'screen').length;
+    } catch {
+      this.mediaScreens = null;
+    }
   }
 
   /** A phone (under 600 px): the widgets have their own presentation there - layout, size and on / off (home redesign). */
@@ -1757,6 +1778,7 @@ export class DevicesBuilding extends LitElement {
     ]).then(() => undefined);
     window.addEventListener('resize', this.onResize);
     window.addEventListener(HOME_PERSONAL_EVENT, this.onPersonal);
+    void this.loadMediaScreens();
     // the view choice (cards | tiles) lives in the user menu, not on the page (home redesign follow-up)
     this.offView = registerScreenView({
       id: 'devices-building-view',

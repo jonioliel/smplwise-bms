@@ -42,6 +42,8 @@ export interface AdminDevice {
   audio_default: 'screen' | 'linked';
   volume_max: number | null;
   model_keys: KeyId[];
+  /** The keys the server accepts in `model_keys` for this profile (absent in the static demo: every extra key is offered). */
+  model_key_options?: KeyId[];
   /** Read-only: what else turns this screen on (an integration's own sync), by name. */
   also_turns_on: string[];
   endpoints: AdminEndpoint[];
@@ -52,6 +54,8 @@ export interface AdminSuggestion {
   device_key: string;
   rule: 'weak';
   reason: string;
+  /** The merge target's name, when the server resolves it. */
+  device_name?: string | null;
 }
 
 export interface AdminList {
@@ -85,7 +89,11 @@ export interface AdminAdapter {
 const http: AdminAdapter = {
   list: () => get('multimedia/admin/devices'),
   update: (key, patch) => put(`multimedia/admin/devices/${encodeURIComponent(key)}`, patch),
-  link: (op) => post('multimedia/admin/links', op),
+  // the server answers {devices} only (no suggestions): the page wants both, so the list is read again after the write
+  link: async (op) => {
+    await post('multimedia/admin/links', op);
+    return get<AdminList>('multimedia/admin/devices');
+  },
   approve: (device_keys, approved) => post('multimedia/admin/approve', { device_keys, approved }),
 };
 

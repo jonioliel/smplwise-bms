@@ -1,9 +1,8 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
-import { resourceUrl } from '../api/client';
 import {
-  KeyThrottle, commandOffered, isDead, isLit, isOn, media,
+  KeyThrottle, artworkUrl, commandOffered, isDead, isLit, isOn, media,
   type MediaCommand, type MediaDevice, type MediaDeviceDetail, type Size,
 } from '../api/media-screens';
 import { applyMediaGlass, mediaGlassStyles } from '../styles/media-glass';
@@ -524,12 +523,8 @@ export class MediaScreenCard extends LitElement {
     }
     if (v.kind === 'saver') return html`<div class="art saver">${mIcon('moon', undefined, 'gl')}</div>`;
     if (v.kind === 'un' || v.kind === 'off') return nothing;
-    const img = v.artwork ? html`<img src=${this.artworkSrc(v.artwork)} alt="" loading="lazy" />` : nothing;
+    const img = v.artwork ? html`<img src=${artworkUrl(v.artwork)} alt="" loading="lazy" />` : nothing;
     return html`<div class="art" style=${`--a1:${v.a1};--a2:${v.a2}`}>${v.channel ? html`<span class="ch">${v.channel}</span>` : glyphIcon(v.glyph, undefined, 'gl')}${img}</div>`;
-  }
-
-  private artworkSrc(u: string): string {
-    return /^https?:/.test(u) ? u : resourceUrl(u.startsWith('api/') ? u : `api/v1/${u.replace(/^\/+/, '')}`);
   }
 
   private shotButton(d: MediaDevice, v: NowView) {
