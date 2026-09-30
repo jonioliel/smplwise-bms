@@ -4,40 +4,6 @@ import type { RouteState } from '../router';
 import type { WiskeyCatalog, WiskeyLocation } from '../wiskey/embed-connector';
 import type { TabsConfig, TabsSectionConfig } from '../api/media';
 
-/**
- * Primary navigation as drawn on the boards: originally six flat entries (Overview, Sites, Cameras,
- * Events, Playback, Settings); WisKey became a 7th flat entry 2026-09-27 by explicit owner override, an
- * intentional exception to that count (see the ADR-009 "Recorded deviation" note in DECISIONS.md, and the
- * newer note there for this WisKey change specifically). The kit's five modes (live / explore /
- * investigate / system / wiskey) remain the route structure; each entry maps onto one of them, and the
- * section's pages appear as pill tabs under the top bar. Recorded as a design-asset-driven deviation
- * pending owner sign-off (see DECISIONS.md).
- */
-export type NavGroup = 'overview' | 'sites' | 'cameras' | 'events' | 'playback' | 'settings' | 'wiskey' | 'devices';
-
-export interface NavEntry {
-  id: NavGroup;
-  icon: IconName;
-  label: string;
-  href: string;
-}
-
-/** 7th flat entry (0.1.103): owner override 2026-09-27 - WisKey moved from a "sites" sub-tab to a true
- * top-level peer, breaking ADR-009's six-flat-entries count for this design on purpose. See the
- * "Recorded deviation" note on the ADR-009 row in docs/architecture/DECISIONS.md.
- * 8th flat entry (CR-007, 2026-09-28): "חשמל והתקנים" (devices), the electricity / device control area the owner
- * approved from the mockup - the same kind of recorded exception, see the CR-007 note in DECISIONS.md. */
-export const NAV: NavEntry[] = [
-  { id: 'overview', icon: 'dashboard', label: 'סקירה', href: '#/live' },
-  { id: 'sites', icon: 'building', label: 'אתרים', href: '#/explore/sites' },
-  { id: 'cameras', icon: 'camera', label: 'מצלמות', href: '#/live/wall' },
-  { id: 'events', icon: 'bell', label: 'אירועים', href: '#/investigate/events' },
-  { id: 'playback', icon: 'history', label: 'הקלטות', href: '#/investigate/playback' },
-  { id: 'devices', icon: 'bolt', label: 'חשמל והתקנים', href: '#/devices/building' },
-  { id: 'wiskey', icon: 'door', label: 'WisKey', href: '#/wiskey/overview' },
-  { id: 'settings', icon: 'system', label: 'הגדרות', href: '#/system/diagnostics' },
-];
-
 /** The WisKey area's tabs before (or without) a WisKey embed API handshake: the older panel's tabs. The first three are
  * the screens SMPLWISE built (CR-005 phase 1b and 2); each renders either that screen or WisKey's own Home Assistant
  * panel embedded as-is, by הגדרות › בקרות כניסה (CR-005 recorded decision 2026-09-28, embedded panel - the embed is the
@@ -53,8 +19,7 @@ const STATIC_WISKEY_TABS: readonly TabItem[] = [
   { id: 'tools', label: 'ניהול', href: '#/wiskey/tools' },
 ];
 
-/** The WisKey area's tabs, shared by both designs (GROUP_TABS.wiskey and AREA_TABS.wiskey are this same array, so the
- * phone bottom nav and its overflow follow too). WisKey embed API v1 (rc.19+): once the embedded panel's `wiskey:ready`
+/** The WisKey area's tabs (AREA_TABS.wiskey is this same array, so the phone bottom bar follows too). WisKey embed API v1 (rc.19+): once the embedded panel's `wiskey:ready`
  * arrives, `setWiskeyEmbedNav` rebuilds it IN PLACE from the catalog - the user's permitted top-level screens with
  * WisKey's own labels (ids kept apart from labels; WisKey's `users` stays SMPLWISE's `people` segment, so the per-screen
  * choice and old bookmarks keep working). Until then, and for an older WisKey, the static list above. */
@@ -200,7 +165,7 @@ export function applyWiskeyUi(settings: Record<string, unknown> | null | undefin
  * map area, but for a top-level area rather than a group of sub-tabs. Filled by the shell once settings load and by
  * the settings screen after a save (`applyWiskeyUi`'s sibling); read by `sw-app.ts` to route a direct URL to the
  * same "not available" panel a missing permission shows, and to drop every WISKEY_TABS href from HIDDEN_HREFS so the
- * area disappears from both nav designs, the phone bottom nav and its overflow. */
+ * area disappears from the navigation, the phone bottom bar included. */
 export let WISKEY_HIDDEN = false;
 export function applyWiskeyHidden(settings: Record<string, unknown> | null | undefined): boolean {
   WISKEY_HIDDEN = String(settings?.['ui.hide_wiskey'] ?? 'false') === 'true';
@@ -388,14 +353,13 @@ function entryHref(fallback: string, tabs: TabItem[], section: string | null): s
 export const SCHEDULES_HREF = '#/devices/schedules';
 export const SCHEDULES_SETTINGS_HREF = '#/system/schedules';
 
-/** The map's tabs (both designs): the sites list and the floor map. The device catalogue left the map for הגדרות (2026-09-30). */
+/** The map's tabs: the sites list and the floor map. The device catalogue left the map for הגדרות (2026-09-30). */
 const EXPLORE_TABS: TabItem[] = [
   { id: 'sites', label: 'אתרים ומבנים', href: '#/explore/sites' },
   { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
 ];
 
-/** CR-014 (2026-09-30): the home area's tabs, shared by both designs (AREA_TABS.devices and GROUP_TABS.devices are this same
- * array, so `ui.tabs` (section `devices`) and the phone bottom bar follow). "מבט על" is the home screen as it always was (the
+/** CR-014 (2026-09-30): the home area's tabs (`ui.tabs` (section `devices`) and the phone bottom bar follow). "מבט על" is the home screen as it always was (the
  * building tree, `#/devices/building`; an area screen is a drill-down of it, #/devices/areas/<id>, not a tab); "תזמונים" is
  * the schedules list (`#/devices/schedules`), shown to holders of schedule.view / schedule.manage while the feature is on
  * (`schedules.enabled`, applySchedulesHidden). With only one of them visible the tab row does not appear at all, so a user
@@ -404,91 +368,6 @@ export const DEVICES_TABS: TabItem[] = [
   { id: 'building', label: 'מבט על', href: '#/devices/building' },
   { id: 'schedules', label: 'תזמונים', href: SCHEDULES_HREF },
 ];
-
-export const GROUP_TABS: Record<NavGroup, TabItem[]> = {
-  overview: [],
-  devices: DEVICES_TABS,
-  sites: EXPLORE_TABS,
-  /** Entry Center, Activity and People (CR-005 phase 1b), plus WisKey's own screens as embedded tabs (2026-09-28). */
-  wiskey: WISKEY_TABS,
-  cameras: [
-    { id: 'wall', label: 'כל המצלמות', href: '#/live/wall' },
-    { id: 'views', label: 'תצוגות שמורות', href: '#/live/views' },
-  ],
-  events: [
-    { id: 'events', label: 'מרכז אירועים', href: '#/investigate/events' },
-    { id: 'reviews', label: 'Review', href: '#/investigate/reviews' },
-    { id: 'search', label: 'חיפוש', href: '#/investigate/search' },
-    { id: 'cases', label: 'תיקים', href: '#/investigate/cases' },
-    { id: 'rules', label: 'חוקים והתראות', href: '#/investigate/rules' },
-    { id: 'exports', label: 'ייצוא', href: '#/investigate/exports' },
-    /** 2026-09-30: camera health moved out of the live pages into the investigation (was #/system/devices). */
-    { id: 'health', label: 'בריאות מצלמות', href: '#/investigate/health' },
-  ],
-  playback: [
-    { id: 'playback', label: 'הקלטות', href: '#/investigate/playback' },
-    { id: 'sync', label: 'ניגון מסונכרן', href: '#/investigate/playback/sync' },
-    { id: 'history', label: 'מפה היסטורית', href: '#/investigate/floors/f0/history' },
-  ],
-  settings: [
-    { id: 'general', label: 'כללי', href: '#/system/diagnostics' },
-    // CR-008 P3: per-user push notifications - every signed-in user may set their own (no TAB_PERMISSIONS entry)
-    { id: 'notifications', label: 'התראות', href: '#/system/notifications' },
-    { id: 'access', label: 'משתמשים והרשאות', href: '#/system/access' },
-    { id: 'security', label: 'אבטחה', href: SECURITY_SETTINGS_HREF },
-    { id: 'audit', label: 'אודיט', href: '#/system/audit' },
-    { id: 'storage', label: 'אחסון', href: '#/system/storage' },
-    { id: 'wizard', label: 'אשף התקנה', href: '#/system/wizard' },
-    { id: 'setup', label: 'חיבורים', href: '#/system/setup' },
-    { id: 'entities', label: 'קטלוג התקנים', href: ENTITIES_SETTINGS_HREF },
-    { id: 'schedules', label: 'תזמונים', href: SCHEDULES_SETTINGS_HREF },
-  ],
-};
-
-export function groupOf(r: RouteState | null): NavGroup | null {
-  if (!r?.mode) return null;
-  const s = r.segments;
-  switch (r.mode) {
-    case 'live':
-      return s.length === 1 ? 'overview' : 'cameras';
-    case 'explore':
-      return 'sites';
-    case 'investigate':
-      return !s[1] || s[1] === 'playback' || s[1] === 'floors' ? 'playback' : 'events';
-    case 'system':
-      return 'settings';
-    case 'wiskey':
-      return 'wiskey';
-    case 'devices':
-      return 'devices';
-    default:
-      return null;
-  }
-}
-
-export function activeTabOf(r: RouteState | null): string {
-  const g = groupOf(r);
-  if (!g || !r) return '';
-  const s = r.segments;
-  switch (g) {
-    case 'sites':
-      return s[1] === 'buildings' || s[1] === 'floors' ? 'floors' : 'sites';
-    case 'wiskey':
-      return wiskeyActiveTab(r);
-    case 'devices':
-      return s[1] === 'schedules' ? 'schedules' : 'building';
-    case 'cameras':
-      return s[1] === 'views' ? 'views' : 'wall';
-    case 'events':
-      return s[1] ?? 'events';
-    case 'playback':
-      return s[1] === 'floors' ? 'history' : s[2] === 'sync' ? 'sync' : 'playback';
-    case 'settings':
-      return !s[1] || s[1] === 'diagnostics' ? 'general' : s[1];
-    default:
-      return '';
-  }
-}
 
 // ---------------------------------------------------------------------------------------------
 // Design "SW A" (mockups v1.3): originally exactly the kit's four areas as a right icon rail; WisKey
@@ -580,7 +459,7 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
   security: [...SECTION_TABS.live, ...SECTION_TABS.investigate, ...SECTION_TABS.alarm],
   explore: EXPLORE_TABS,
   /** Entry Center/overview, Activity/events and People/people (CR-005 phase 1b), plus WisKey's own screens as embedded
-   * tabs (CR-005 recorded decision 2026-09-28) - the same list as GROUP_TABS.wiskey. */
+   * tabs (CR-005 recorded decision 2026-09-28) - the same list as WISKEY_TABS. */
   wiskey: WISKEY_TABS,
   system: [
     { id: 'general', label: 'כללי', href: '#/system/diagnostics' },
@@ -868,19 +747,6 @@ function parseRouteLite(path: string): RouteState {
   return { path, segments, params: new URLSearchParams(path.split('?')[1] ?? ''), mode: modes.includes(segments[0]) ? (segments[0] as RouteState['mode']) : null };
 }
 
-/** Design B's flat entries (seven since 0.1.103, see the NAV comment), by the same rule as visibleAreas: a group
- * stays while one of its tabs is visible (the overview always) and opens on its first visible tab - it used to be
- * filtered by its own default page only, so a hidden map left "אתרים" pointing at a hidden page. WisKey is now its
- * own group, not a sites sub-tab, so הסתרת המפה no longer interacts with it at all. */
-export function visibleGroups(api: boolean, can?: Can): NavEntry[] {
-  return NAV.flatMap((n) => {
-    if (n.id === 'overview') return api && (NVR_LESS || HIDDEN_HREFS.has(SNAPSHOT_HREF)) ? [] : [n];
-    const tabs = visibleTabs(GROUP_TABS[n.id], api, can);
-    if (api && !tabs.length) return [];
-    return [{ ...n, href: entryHref(n.href, tabs, sectionIdOf(GROUP_TABS[n.id])) }];
-  });
-}
-
 /** CR-014: `schedules.enabled` off (הגדרות › תזמונים) takes the "תזמונים" tab out of the home area for everyone - the same "hidden
  * for everyone" shape as applySnapshotHidden: its href joins HIDDEN_HREFS, so the tab row (and with it the row itself, which
  * shows only with two tabs) follows. The route is not closed: the screen answers "התזמונים כבויים" itself. Called by the shell
@@ -909,7 +775,7 @@ export function demoRedirect(path: string, api: boolean): string | null {
 }
 
 /** The live overview, "תמונת מצב" - the first live page, hidden with הגדרות › ממשק › `ui.security_snapshot` (owner 2026-09-30):
- * its href joins HIDDEN_HREFS, so it leaves both navigation designs, and its route lands on the next live page
+ * its href joins HIDDEN_HREFS, so it leaves the navigation, and its route lands on the next live page
  * (liveOverviewTarget). The screen is not otherwise gated - hiding is navigation, not access control. */
 export const SNAPSHOT_HREF = '#/live';
 
@@ -992,7 +858,7 @@ export const TAB_SECTIONS: TabSectionDef[] = [
 
 let ARRAY_SECTIONS: Map<readonly TabItem[], string> | null = null;
 
-/** The section id a registry array belongs to (both designs' copies of it), or null for a row `ui.tabs` does not configure. */
+/** The section id a registry array belongs to, or null for a row `ui.tabs` does not configure. */
 export function sectionIdOf(items: readonly TabItem[]): string | null {
   ARRAY_SECTIONS ??= new Map<readonly TabItem[], string>([
     [DEVICES_TABS, 'devices'],
@@ -1001,7 +867,6 @@ export function sectionIdOf(items: readonly TabItem[]): string | null {
     [EXPLORE_TABS, 'explore'],
     [WISKEY_TABS, 'wiskey'],
     [AREA_TABS.system, 'system'],
-    [GROUP_TABS.settings, 'system'],
     [SECURITY_SETTINGS_TABS, 'system.security'],
   ]);
   return ARRAY_SECTIONS.get(items) ?? null;

@@ -10,7 +10,7 @@ useSmplwiseWiskeyScreens();
 // site-scoped binding, shown for a plain installation-wide viewer and the admin.
 //
 // 0.1.103: owner override 2026-09-27 moved WisKey from a "sites"/"explore" sub-tab to its own top-level nav entry, a
-// peer of Map/Investigate/System (design A) and a 7th flat entry (design B) - see docs/architecture/DECISIONS.md
+// peer of Map/Investigate/System - see docs/architecture/DECISIONS.md
 // (ADR-009 note) and docs/changes/CR-005-ACCESS-CONTROL-INTEGRATION.md. New href: #/wiskey/overview.
 // Runs only with SW_LIVE=1.
 
@@ -70,26 +70,12 @@ test.describe('WisKey entry center (T054, top-level nav since 0.1.103)', () => {
     await page.screenshot({ path: testInfo.outputPath('wiskey-not-configured.png') });
   });
 
-  test('WisKey is also its own top-level rail entry in design B (the six-flat-entries board), not a sites sub-tab', async ({ page }) => {
-    await open(page, '/live', 'b');
-    const link = page.locator(`${RAIL} a[href="${HREF}"]`);
-    await expect(link).toHaveCount(1, { timeout: 30000 });
-    await expect(link).toContainText('WisKey');
-    // the sites entry keeps its own tabs, none of them WisKey any more
-    await open(page, '/wiskey/overview', 'b');
-    expect(await page.evaluate(() => location.hash)).toBe(HREF);
-    await expect(page.locator('sw-tabs a[href="#/explore/sites"]')).toHaveCount(0);
-    await expect(page.locator('wiskey-overview')).toHaveCount(1);
-  });
-
   // Re-review (0.1.104): the rail assertions above only ever proved WisKey exists somewhere in the DOM - nav.rail
   // is CSS-hidden below 768px (see the `@media (max-width: 767px)` rule in sw-app.ts), so a real phone shows
-  // nav.bottom instead, and that element was never queried here. Design B's bottom bar hardcoded ".slice(0, 4)"
-  // plus a dead "עוד" link to #/system/diagnostics, so with the 7th (WisKey) NAV entry there was genuinely no path
-  // to it from a phone; design A's bottom bar CSS grid was still hardcoded to 4 columns although visibleAreas() now
-  // renders 5 unsliced items. Both are now fixed; these tests exercise the actual nav.bottom element a phone shows,
-  // restricted to the `mobile` project (the only one narrow enough to trigger the phone layout).
-  test('the phone bottom nav (design A) reaches WisKey directly - a real 5th icon, not clipped by the old 4-column grid', async ({ page }, testInfo) => {
+  // nav.bottom instead; the bottom bar's CSS grid was hardcoded to 4 columns although visibleAreas() renders 5 unsliced
+  // items. Fixed; this test exercises the actual nav.bottom element a phone shows, restricted to the `mobile` project
+  // (the only one narrow enough to trigger the phone layout).
+  test('the phone bottom nav reaches WisKey directly - a real 5th icon, not clipped by the old 4-column grid', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'nav.bottom only renders below the 768px breakpoint; other projects are wider');
     await open(page, '/live', 'a');
     const bottom = page.locator(BOTTOM);
@@ -101,28 +87,7 @@ test.describe('WisKey entry center (T054, top-level nav since 0.1.103)', () => {
     await expect.poll(() => page.evaluate(() => location.hash)).toBe(HREF);
   });
 
-  test('the phone bottom nav (design B) reaches WisKey through a real "עוד" overflow menu, not a dead settings-only link', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'nav.bottom only renders below the 768px breakpoint; other projects are wider');
-    await open(page, '/live', 'b');
-    const bottom = page.locator(BOTTOM);
-    await expect(bottom).toBeVisible({ timeout: 30000 });
-    // the 4 direct icons do not include WisKey (it is the 6th of 7 groups) - it must be reachable through "עוד"
-    await expect(bottom.locator(`a[href="${HREF}"]`)).toHaveCount(0);
-    const more = bottom.locator('button');
-    await expect(more).toBeVisible();
-    await expect(more).toContainText('עוד');
-    await more.click();
-    const overflowLink = page.locator(`sw-app .bottom-overflow a[href="${HREF}"]`);
-    await expect(overflowLink).toBeVisible({ timeout: 5000 });
-    await expect(overflowLink).toContainText('WisKey');
-    await overflowLink.click();
-    await expect.poll(() => page.evaluate(() => location.hash)).toBe(HREF);
-    // the menu closes after navigating, and the "עוד" pill now shows the active state for the group it opened into
-    await expect(page.locator('sw-app .bottom-overflow')).toHaveCount(0);
-    await expect(bottom.locator('button')).toHaveClass(/active/);
-  });
-
-  test('the WisKey rail entry is gated on access.read, in both designs', async ({ page, browser, request }, testInfo) => {
+  test('the WisKey rail entry is gated on access.read', async ({ page, browser, request }, testInfo) => {
     const bindings: string[] = [];
     let roleId: string | undefined;
     // Unique per project: the 3 viewport projects run this same-named test concurrently under the default
@@ -147,9 +112,6 @@ test.describe('WisKey entry center (T054, top-level nav since 0.1.103)', () => {
       await open(p1, '/wiskey/overview', 'a');
       await expect(p1.locator('wiskey-overview sw-state-panel[data-wiskey-state="no_permission"]')).toBeVisible({ timeout: 30000 });
       expect((await p1.request.get('/api/v1/intercom/overview')).status()).toBe(403);
-      // same story in design B
-      await open(p1, '/live', 'b');
-      await expect(p1.locator(`${RAIL} a[href="${HREF}"]`)).toHaveCount(0);
       await without.close();
 
       // a plain viewer holds access.read
@@ -215,7 +177,7 @@ test.describe('WisKey entry center (T054, top-level nav since 0.1.103)', () => {
     }
   });
 
-  test('hiding the map has no effect on WisKey any more, in either design (it is no longer a map/sites sub-tab)', async ({ page, request }) => {
+  test('hiding the map has no effect on WisKey any more (it is no longer a map/sites sub-tab)', async ({ page, request }) => {
     // re-review 1 (T054) taught that הסתרת המפה must not take the WisKey tab down with the map; since 0.1.103 WisKey
     // is not part of the map/sites area at all, so this is now a non-interaction, confirmed explicitly rather than
     // left as stale logic.
@@ -225,22 +187,16 @@ test.describe('WisKey entry center (T054, top-level nav since 0.1.103)', () => {
 
       await open(page, '/wiskey/overview', 'a');
       await expect(page.locator('wiskey-overview sw-state-panel[data-wiskey-state="ha_not_configured"]')).toBeVisible({ timeout: 30000 });
-      const railA = page.locator(RAIL);
-      await expect(railA.locator(`a[href="${HREF}"]`)).toHaveCount(1, { timeout: 30000 });
+      const rail = page.locator(RAIL);
+      await expect(rail.locator(`a[href="${HREF}"]`)).toHaveCount(1, { timeout: 30000 });
       // the map area itself is the one that disappears
-      await expect(railA.locator('a[href="#/explore/sites"]')).toHaveCount(0);
-
-      await open(page, '/wiskey/overview', 'b');
-      const railB = page.locator(RAIL);
-      await expect(railB.locator(`a[href="${HREF}"]`)).toHaveCount(1, { timeout: 30000 });
-      await expect(railB.locator('a[href="#/explore/sites"]')).toHaveCount(0);
-      await expect(page.locator('wiskey-overview sw-state-panel[data-wiskey-state="ha_not_configured"]')).toBeVisible({ timeout: 30000 });
+      await expect(rail.locator('a[href="#/explore/sites"]')).toHaveCount(0);
     } finally {
       await request.patch('/api/v1/settings', { data: { 'ui.hide_map': String(before['ui.hide_map'] ?? 'false') } });
     }
   });
 
-  test('settings: hiding WisKey entirely removes it from both nav designs, and a direct URL lands on the same "not available" panel a missing permission shows', async ({ page, request }) => {
+  test('settings: hiding WisKey entirely removes it from the navigation, and a direct URL lands on the same "not available" panel a missing permission shows', async ({ page, request }) => {
     // T054 follow-up (owner request): הגדרות › בקרות כניסה's third control, ui.hide_wiskey - the same "hidden for
     // everyone" shape ui.hide_map uses for the map area, but for the whole WisKey top-level area.
     const before = (await (await request.get('/api/v1/settings')).json()).settings as Record<string, unknown>;
@@ -252,9 +208,7 @@ test.describe('WisKey entry center (T054, top-level nav since 0.1.103)', () => {
       await open(page, '/wiskey/overview', 'a');
       await expect(page.locator('sw-app [data-wiskey-state="hidden"]')).toBeVisible({ timeout: 30000 });
 
-      await open(page, '/live', 'b');
-      await expect(page.locator(`${RAIL} a[href="${HREF}"]`)).toHaveCount(0, { timeout: 30000 });
-      await open(page, '/wiskey/events', 'b');
+      await open(page, '/wiskey/events', 'a');
       await expect(page.locator('sw-app [data-wiskey-state="hidden"]')).toBeVisible({ timeout: 30000 });
 
       // toggled back: the rail entry and the real screen both return
@@ -269,26 +223,16 @@ test.describe('WisKey entry center (T054, top-level nav since 0.1.103)', () => {
     }
   });
 
-  test('hiding WisKey also drops it from the phone bottom nav (design A) and the design B overflow menu', async ({ page, request }, testInfo) => {
+  test('hiding WisKey also drops it from the phone bottom nav', async ({ page, request }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'nav.bottom only renders below the 768px breakpoint; other projects are wider');
     const before = (await (await request.get('/api/v1/settings')).json()).settings as Record<string, unknown>;
     try {
       expect((await request.patch('/api/v1/settings', { data: { 'ui.hide_wiskey': 'true' } })).status()).toBe(200);
 
       await open(page, '/live', 'a');
-      const bottomA = page.locator(BOTTOM);
-      await expect(bottomA).toBeVisible({ timeout: 30000 });
-      await expect(bottomA.locator(`a[href="${HREF}"]`)).toHaveCount(0);
-
-      await open(page, '/live', 'b');
-      const bottomB = page.locator(BOTTOM);
-      await expect(bottomB).toBeVisible({ timeout: 30000 });
-      await expect(bottomB.locator(`a[href="${HREF}"]`)).toHaveCount(0);
-      const more = bottomB.locator('button');
-      if (await more.count()) {
-        await more.click();
-        await expect(page.locator(`sw-app .bottom-overflow a[href="${HREF}"]`)).toHaveCount(0);
-      }
+      const bottom = page.locator(BOTTOM);
+      await expect(bottom).toBeVisible({ timeout: 30000 });
+      await expect(bottom.locator(`a[href="${HREF}"]`)).toHaveCount(0);
     } finally {
       await request.patch('/api/v1/settings', { data: { 'ui.hide_wiskey': String(before['ui.hide_wiskey'] ?? 'false') } });
     }

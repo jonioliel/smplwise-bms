@@ -28,6 +28,8 @@ DEFAULTS: dict[str, str] = {
     "snapshots.max_age_s": "60",
     # IANA zone of the site/NVR wall clock (chapter 20). The lab NVR reports windowsZone "Israel Standard Time".
     "time.zone": "Asia/Jerusalem",
+    # DEPRECATED since 0.1.148: the earlier design "SW B" was removed, SW A is the only design. Both keys stay accepted and stored
+    # (an old client or a backup may still send them) but nothing reads them: the value 'b' changes nothing.
     "ui.design": "a",
     "ui.design_names": '{"a": "SW A", "b": "SW B"}',
     "ui.wall_count": "4",  # tiles the camera wall opens with (a browser can override it for itself)
@@ -43,7 +45,7 @@ DEFAULTS: dict[str, str] = {
     "ui.security_snapshot": "true",
     # owner 2026-09-29 (overview tiles): the summary tiles' shape on the Live overview and the devices screens -
     # auto (compact under 600 px wide, cards above) | cards (tall, icon above) | compact (a rectangle, icon beside the
-    # value). Per installation, like ui.design; a browser may override it for itself (frontend/src/api/tile-layout.ts).
+    # value). Per installation; a browser may override it for itself (frontend/src/api/tile-layout.ts).
     "ui.tile_layout": "auto",
     # UI round 1 (owner 2026-09-30): the size of the side rail / phone bottom bar - a JSON object, shape and ranges in
     # services/nav_size.py ({"mode":"rel","preset":"m"} or {"mode":"free","icon":..,"label":..,"item":..}); a user's own
@@ -299,6 +301,7 @@ class SettingsPatch(BaseModel):
     audit_retention_days: int | None = Field(default=None, ge=30, le=3650, alias="audit.retention_days")
     cases_import_max_mb: int | None = Field(default=None, ge=16, le=4096, alias="cases.import_max_mb")
     storage_min_free_mb: int | None = Field(default=None, ge=0, le=102400, alias="storage.min_free_mb")
+    # deprecated (0.1.148): accepted for compatibility, ignored by the app
     ui_design: str | None = Field(default=None, pattern="^(a|b)$", alias="ui.design")
     ui_design_names: str | None = Field(default=None, max_length=200, alias="ui.design_names")
     ui_wall_count: int | None = Field(default=None, ge=1, le=32, alias="ui.wall_count")

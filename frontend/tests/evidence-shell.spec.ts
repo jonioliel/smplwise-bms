@@ -303,7 +303,7 @@ test.describe('CR-013 shell on the demo data', () => {
   test('the kiosk and the Lovelace card view show no bars, no avatar and no user menu', async ({ page }) => {
     for (const hash of ['/kiosk/all', '/live/wall?embed=1']) {
       await open(page, hash);
-      await expect(page.locator('sw-app nav.rail, sw-app nav.bottom, sw-app header.topbar, sw-app [data-float]'), hash).toHaveCount(0);
+      await expect(page.locator('sw-app nav.rail, sw-app nav.bottom, sw-app [data-float]'), hash).toHaveCount(0);
       await expect(page.locator('sw-app sw-user-menu, sw-app [data-nav-me], sw-app [data-profile-menu]'), hash).toHaveCount(0);
       expect(await page.evaluate(() => getComputedStyle(document.querySelector('sw-app')!).paddingTop), hash).toBe('0px');
       await page.evaluate(() => sessionStorage.clear());

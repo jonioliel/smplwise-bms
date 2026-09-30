@@ -26,7 +26,6 @@ import { TILE_KINDS, type ItemsScope, type TileKind } from '../api/devices';
 import { effectiveTileSetting, TileLayoutController } from '../api/tile-layout';
 import { onRouteChange, parseRoute, pushRoute, replaceRoute } from '../router';
 import { notifyScreenViews, registerScreenView } from '../shell/screen-view';
-import { currentDesign } from '../api/design';
 import './home-widgets';
 import './home-edit-panel';
 import type { QuickInfo } from './home-widgets';
@@ -1913,18 +1912,8 @@ export class DevicesBuilding extends LitElement {
     const filter = floorFilter && floors.length > 1;
     // the view choice (cards | tiles) is in the user menu now (registerScreenView): with neither the floor filter nor the
     // bulk buttons there is nothing to put in this row, so it is not drawn at all
-    // (the earlier design B has no user menu: it keeps the segmented control on the page)
-    const legacyView = currentDesign() === 'b';
-    if (!filter && !bulkBuilding && !legacyView) return nothing;
+    if (!filter && !bulkBuilding) return nothing;
     return html`<div class="toolbar" data-toolbar>
-      ${legacyView
-        ? html`<span class="seg" role="group" aria-label="פריסה">פריסה:
-            <span class="opts">
-              <button data-layout="cards" aria-pressed=${String(this.layout === 'cards')} ?disabled=${this.lay.editing} @click=${() => this.setLayout('cards')}>כרטיסים</button>
-              <button data-layout="tiles" aria-pressed=${String(this.layout === 'tiles')} ?disabled=${this.lay.editing} @click=${() => this.setLayout('tiles')}>אריחים</button>
-            </span>
-          </span>`
-        : nothing}
       ${filter
         ? html`<span class="floor-filter" role="group" aria-label="קומה" data-floor-filter>קומה:
             <span class="opts">

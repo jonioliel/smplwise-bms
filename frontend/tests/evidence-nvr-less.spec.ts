@@ -35,12 +35,10 @@ const STATES = [
   { entity_id: 'light.nvrless_office', state: 'off', attributes: { friendly_name: 'תאורת משרד' } },
 ];
 
-/** What each design's navigation must offer - and nothing else - in the NVR-less mode. Since 2026-09-30 the alarm lives in
- * הגדרות › אבטחה (not in the security area), so with no NVR the security area has no page left and leaves the rail; design B
- * has no flat alarm entry any more. */
+/** What the navigation must offer - and nothing else - in the NVR-less mode. Since 2026-09-30 the alarm lives in
+ * הגדרות › אבטחה (not in the security area), so with no NVR the security area has no page left and leaves the rail. */
 // CR-013: ראשי (the device overview) first; מערכת lives in the user menu, not the bar
 const NAV_A = ['#/devices/building', '#/explore/sites', '#/wiskey/overview'];
-const NAV_B = ['#/explore/sites', '#/devices/building', '#/wiskey/overview', '#/system/diagnostics'];
 const NVR_HREFS = ['#/live', '#/live/wall', '#/investigate/events', '#/investigate/playback'];
 
 test.describe('NVR-less mode (Home Assistant only)', () => {
@@ -102,7 +100,7 @@ test.describe('NVR-less mode (Home Assistant only)', () => {
     await shot(page, 'health', testInfo.project.name);
   });
 
-  test('design A: the rail (and the phone bottom nav) offer only ראשי (devices), map and WisKey (no security area without an NVR); settings in the user menu', async ({ page }, testInfo) => {
+  test('the rail (and the phone bottom nav) offer only ראשי (devices), map and WisKey (no security area without an NVR); settings in the user menu', async ({ page }, testInfo) => {
     await open(page, '/explore/sites', 'a');
     const phone = testInfo.project.name === 'mobile';
     const sel = phone ? BOTTOM : RAIL;
@@ -115,16 +113,6 @@ test.describe('NVR-less mode (Home Assistant only)', () => {
     await page.keyboard.press('Escape');
     if (phone) expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     await shot(page, 'nav-a', testInfo.project.name);
-  });
-
-  test('design B: the flat entries are the same four; on the phone they all fit without the "עוד" overflow', async ({ page }, testInfo) => {
-    await open(page, '/explore/sites', 'b');
-    const phone = testInfo.project.name === 'mobile';
-    const sel = phone ? BOTTOM : RAIL;
-    await expect(page.locator(`${sel} a[href="#/devices/building"]`)).toBeVisible({ timeout: 30000 });
-    expect(await navHrefs(page, sel)).toEqual(NAV_B);
-    if (phone) await expect(page.locator(`${BOTTOM} button`)).toHaveCount(0);
-    await shot(page, 'nav-b', testInfo.project.name);
   });
 
   test('a direct URL to an NVR area answers with the "מצב ללא NVR" panel, pointing at the options', async ({ page }, testInfo) => {
