@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { attachWiskey, wiskeyPanelUrl, WISKEY_DISCOVERY_MS, WISKEY_DISCOVERY_RETRIES, WISKEY_DISCOVERY_RETRY_MS, type WiskeyConnectorOptions, type WiskeyFrame, type WiskeyHost } from '../src/wiskey/embed-connector';
+import { cleanWiskeyView, parseWiskeyDensity, parseWiskeyWall, resolveWiskeyView, sameWiskeyView } from '../src/wiskey/embed-view';
 
 // T054 / WisKey embed API v1 (WisKey 2.0.0-rc.19): the typed connector ported from the WisKey developers' reference
 // adapter (docs/integrations/wiskey/embed-api-v1/examples/wiskey-embed-client.mjs). Node only: a fake window with a
@@ -150,14 +151,14 @@ function setup(options: WiskeyConnectorOptions = {}) {
   return { host, frame, calls, connector, fromPanel, kinds };
 }
 
-test('the panel URL is built from the origin, with embed=1 and the initial tab/tool, after the listener is registered', () => {
+test('the panel URL is built from the origin, with embed=1 and chrome=none and the initial tab/tool, after the listener is registered', () => {
   const { frame } = setup({ initial: { tab: 'tools', tool: 'media_options' } });
-  expect(frame.srcs).toEqual([`${ORIGIN}/hikvision-intercom?embed=1&tab=tools&tool=media_options`]);
+  expect(frame.srcs).toEqual([`${ORIGIN}/hikvision-intercom?embed=1&chrome=none&tab=tools&tool=media_options`]);
   expect(frame.listenerCountAtSrc).toEqual([1]); // the message listener was in place before the src was assigned
   expect(frame.loadListeners).toBe(1);
-  expect(setup().frame.src).toBe(`${ORIGIN}/hikvision-intercom?embed=1&tab=overview`);
+  expect(setup().frame.src).toBe(`${ORIGIN}/hikvision-intercom?embed=1&chrome=none&tab=overview`);
   expect(wiskeyPanelUrl(ORIGIN, { tab: 'users' }, false)).toBe(`${ORIGIN}/hikvision-intercom?tab=users`);
-  expect(wiskeyPanelUrl(ORIGIN, { tab: 'users', tool: null })).toBe(`${ORIGIN}/hikvision-intercom?embed=1&tab=users`);
+  expect(wiskeyPanelUrl(ORIGIN, { tab: 'users', tool: null })).toBe(`${ORIGIN}/hikvision-intercom?embed=1&chrome=none&tab=users`);
 });
 
 test('only same-origin messages from the frame itself count', () => {
@@ -259,12 +260,12 @@ test('location is the confirmed location (also when the panel keeps the old one)
   ]);
 });
 
-test('refresh reopens the last confirmed tab/tool with embed=1', () => {
+test('refresh reopens the last confirmed tab/tool with embed=1 and chrome=none', () => {
   const { frame, connector, fromPanel } = setup({ initial: { tab: 'users', tool: null } });
   fromPanel(ready());
   fromPanel({ type: 'wiskey:location', tab: 'tools', tool: 'media_options' });
   connector.refresh();
-  expect(frame.src).toBe(`${ORIGIN}/hikvision-intercom?embed=1&tab=tools&tool=media_options`);
+  expect(frame.src).toBe(`${ORIGIN}/hikvision-intercom?embed=1&chrome=none&tab=tools&tool=media_options`);
 });
 
 test('12 s discovery: marker "1" without ready = waiting, no marker = legacy, another value = unsupported, no root = waiting', () => {
@@ -378,4 +379,93 @@ test('dispose detaches everything: no callbacks, no navigation, no timers', () =
   connector.refresh();
   expect(frame.srcs.length).toBe(1);
   expect(frame.win.posted).toEqual([]);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// WisKey rc.37 (docs/integrations/wiskey/embed-api-v1/WISKEY_EMBED_API_V1.md §2): `chrome=none` (embed only) and the
+// optional `density` / `wall` start choices. Which value is sent: the user's, else the installation's, else none.
+
+test('chrome=none is sent only in embed mode; the normal deep link carries neither chrome, density nor wall', () => {
+  expect(wiskeyPanelUrl(ORIGIN, { tab: 'overview' }, true)).toBe(`${ORIGIN}/hikvision-intercom?embed=1&chrome=none&tab=overview`);
+  expect(wiskeyPanelUrl(ORIGIN, { tab: 'overview' }, false)).toBe(`${ORIGIN}/hikvision-intercom?tab=overview`);
+  expect(wiskeyPanelUrl(ORIGIN, { tab: 'camera_wall' }, false, undefined, { density: '12', wall: '12' })).toBe(`${ORIGIN}/hikvision-intercom?tab=camera_wall`);
+  expect(new URL(wiskeyPanelUrl(ORIGIN, { tab: 'tools', tool: 'health' }, false)).searchParams.has('chrome')).toBe(false);
+});
+
+test('the address keeps every existing parameter next to chrome=none, density and wall (extra params too)', () => {
+  const url = new URL(wiskeyPanelUrl(ORIGIN, { tab: 'tools', tool: 'media_options' }, true, { external_auth: '1' }, { density: '8', wall: '9' }));
+  expect(Object.fromEntries(url.searchParams)).toEqual({ embed: '1', chrome: 'none', tab: 'tools', tool: 'media_options', density: '8', wall: '9', external_auth: '1' });
+  expect(url.origin + url.pathname).toBe(`${ORIGIN}/hikvision-intercom`);
+  // the handoff's own examples
+  expect(wiskeyPanelUrl(ORIGIN, { tab: 'camera_wall' }, true, undefined, { density: null, wall: '12' })).toBe(`${ORIGIN}/hikvision-intercom?embed=1&chrome=none&tab=camera_wall&wall=12`);
+  expect(wiskeyPanelUrl(ORIGIN, { tab: 'overview' }, true, undefined, { density: '12', wall: null })).toBe(`${ORIGIN}/hikvision-intercom?embed=1&chrome=none&tab=overview&density=12`);
+});
+
+test('density accepts 4, 6, 8, 9, 12 and wall 4, 9, 12; anything else is left out of the address', () => {
+  const search = (view: Record<string, unknown>) => new URL(wiskeyPanelUrl(ORIGIN, { tab: 'overview' }, true, undefined, view)).searchParams;
+  for (const d of ['4', '6', '8', '9', '12']) expect(search({ density: d }).get('density')).toBe(d);
+  for (const w of ['4', '9', '12']) expect(search({ wall: w }).get('wall')).toBe(w);
+  for (const bad of ['', 'auto', '5', '10', '16', '012', '12 ', '12px', '-4', 'x', null, undefined, {}, [], true, 3, 0]) {
+    const p = search({ density: bad, wall: bad });
+    expect(p.has('density')).toBe(false);
+    expect(p.has('wall')).toBe(false);
+  }
+  // 6 and 8 are overview counts, not wall budgets
+  expect(search({ wall: '6' }).has('wall')).toBe(false);
+  expect(search({ wall: '8' }).has('wall')).toBe(false);
+  // a whole number is the same as its string
+  expect(new URL(wiskeyPanelUrl(ORIGIN, { tab: 'overview' }, true, undefined, { density: 12, wall: 9 })).search).toBe('?embed=1&chrome=none&tab=overview&density=12&wall=9');
+});
+
+test('the parsers and the cleaner: only values WisKey accepts survive', () => {
+  expect(parseWiskeyDensity('12')).toBe('12');
+  expect(parseWiskeyDensity(6)).toBe('6');
+  expect(parseWiskeyDensity('auto')).toBeNull();
+  expect(parseWiskeyDensity(7)).toBeNull();
+  expect(parseWiskeyWall('9')).toBe('9');
+  expect(parseWiskeyWall(8)).toBeNull();
+  expect(cleanWiskeyView({ density: '4', wall: 'x' })).toEqual({ density: '4', wall: null });
+  expect(cleanWiskeyView(null)).toEqual({ density: null, wall: null });
+  expect(sameWiskeyView({ density: '4', wall: null }, { density: '4', wall: null })).toBe(true);
+  expect(sameWiskeyView({ density: '4', wall: null }, { density: '4', wall: '9' })).toBe(false);
+});
+
+test('precedence per parameter: the user, else the installation, else omitted', () => {
+  // nothing anywhere: WisKey chooses
+  expect(resolveWiskeyView({}, {})).toEqual({ density: null, wall: null });
+  expect(resolveWiskeyView(null, undefined)).toEqual({ density: null, wall: null });
+  expect(resolveWiskeyView({ density: null, wall: null }, { density: 'auto', wall: 'auto' })).toEqual({ density: null, wall: null });
+  // the installation's default applies when the user chose nothing
+  expect(resolveWiskeyView({}, { density: '9', wall: '12' })).toEqual({ density: '9', wall: '12' });
+  expect(resolveWiskeyView({ density: null, wall: null }, { density: 9, wall: 12 })).toEqual({ density: '9', wall: '12' });
+  // the user's own choice wins, each parameter on its own
+  expect(resolveWiskeyView({ density: '4', wall: '9' }, { density: '12', wall: '12' })).toEqual({ density: '4', wall: '9' });
+  expect(resolveWiskeyView({ density: '4' }, { density: '12', wall: '12' })).toEqual({ density: '4', wall: '12' });
+  expect(resolveWiskeyView({ wall: '9' }, { density: '12', wall: '12' })).toEqual({ density: '12', wall: '9' });
+  // the user's explicit "אוטומטי" leaves the density out even when the installation set one
+  expect(resolveWiskeyView({ density: 'auto' }, { density: '12', wall: '12' })).toEqual({ density: null, wall: '12' });
+  // an invalid value is ignored (WisKey ignores it too): it falls through to the next layer
+  expect(resolveWiskeyView({ density: '7', wall: '6' }, { density: '8', wall: '4' })).toEqual({ density: '8', wall: '4' });
+  expect(resolveWiskeyView({ density: '7', wall: '6' }, { density: '13', wall: 'auto' })).toEqual({ density: null, wall: null });
+  expect(resolveWiskeyView({ density: 'wide' }, { density: 'auto' })).toEqual({ density: null, wall: null });
+});
+
+test('the connector puts the view on the first address and asks again on every refresh (a reload carries the newest choice)', () => {
+  let view: { density: string | null; wall: string | null } = { density: '6', wall: null };
+  const { frame, connector, fromPanel } = setup({ initial: { tab: 'overview', tool: null }, view: () => view });
+  expect(frame.srcs).toEqual([`${ORIGIN}/hikvision-intercom?embed=1&chrome=none&tab=overview&density=6`]);
+  fromPanel(ready());
+  fromPanel({ type: 'wiskey:location', tab: 'users', tool: null });
+  view = { density: '12', wall: '9' };
+  connector.refresh();
+  expect(frame.src).toBe(`${ORIGIN}/hikvision-intercom?embed=1&chrome=none&tab=users&density=12&wall=9`);
+  view = { density: null, wall: null };
+  connector.refresh();
+  expect(frame.src).toBe(`${ORIGIN}/hikvision-intercom?embed=1&chrome=none&tab=users`);
+});
+
+test('a fixed view (no function) and an unusable view are both fine', () => {
+  expect(setup({ view: { density: '4', wall: '12' } }).frame.src).toBe(`${ORIGIN}/hikvision-intercom?embed=1&chrome=none&tab=overview&density=4&wall=12`);
+  expect(setup({ view: { density: 'huge' as never, wall: '5' as never } }).frame.src).toBe(`${ORIGIN}/hikvision-intercom?embed=1&chrome=none&tab=overview`);
+  expect(setup({ view: () => ({ density: '9', wall: null }), extraParams: { external_auth: '1' } }).frame.src).toBe(`${ORIGIN}/hikvision-intercom?embed=1&chrome=none&tab=overview&density=9&external_auth=1`);
 });

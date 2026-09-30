@@ -7,6 +7,7 @@ policy, `to_component_payload` turns a draft back into what the bridge sends (un
 `validate_draft` checks a draft. Instants are UTC ISO-8601 with `Z`; the component's strings are kept as stored."""
 from __future__ import annotations
 
+import copy
 import datetime as dt
 import hashlib
 import json
@@ -436,23 +437,54 @@ def _core_slot_form(slot: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def component_slot(raw: dict[str, Any]) -> dict[str, Any]:
+    """A slot in the form the component ACCEPTS on write (verified on a real component, 2026-09-30, P0-11): the component
+    rejects or crashes on nulls and empties, so `stop` is omitted when null, an action's `entity_id` when null / "",
+    `service_data` when empty, and `conditions` / `condition_type` / `track_conditions` when the slot has no conditions
+    (`conditions: []` is rejected: "length must be at least 1"; a null `condition_type` too). It reads back as `stop: null`,
+    `conditions: []`, `condition_type: null`, `track_conditions: false`, `entity_id: null`, `service_data: {}` - so a slot
+    can never be re-sent byte-identical; what holds is round-trip EQUIVALENCE: read -> component_slot -> write -> read is the
+    same slot. `raw` is a stored slot or a draft slot in stored form (`start`, `stop`, `conditions`, ..., `actions`)."""
+    out: dict[str, Any] = {"start": raw["start"]}
+    if raw.get("stop"):
+        out["stop"] = raw["stop"]
+    conds = []
+    for c in raw.get("conditions") or []:
+        cond = {"entity_id": c["entity_id"], "match_type": c.get("match_type") or "is", "value": c.get("value")}
+        if c.get("attribute"):
+            cond["attribute"] = c["attribute"]  # optional on write (null reads back)
+        conds.append(cond)
+    if conds:
+        out["conditions"] = conds
+        out["condition_type"] = raw.get("condition_type") or "or"
+        out["track_conditions"] = bool(raw.get("track_conditions"))
+    actions = []
+    for a in raw.get("actions") or []:
+        act: dict[str, Any] = {"service": a["service"]}
+        if a.get("entity_id"):
+            act["entity_id"] = a["entity_id"]
+        if a.get("service_data"):
+            act["service_data"] = copy.deepcopy(a["service_data"])
+        actions.append(act)
+    out["actions"] = actions
+    return out
+
+
 def to_component_payload(draft: dict[str, Any], current_item: dict[str, Any] | None, *, tags_supported: bool | None = None) -> dict[str, Any]:
-    """The payload the bridge sends the component. Create (`current_item` None): every field. Edit: only the changed
-    top-level fields, `timeslots` whole when any slot or the conditions changed, with every untouched slot re-sent
-    byte-identical to what was read (P0-11). Conditions are copied into EVERY slot (`[]`, `null`, `false` when none - the
-    stored form). Tags only with capabilities.tags (or unchanged)."""
+    """The payload the bridge sends the component (verified forms, see `component_slot`). Create (`current_item` None): the
+    fields that are set. Edit: only the changed top-level fields, `timeslots` whole when any slot or the conditions changed
+    (untouched slots re-sent in their equivalent write form) - and, whenever anything is sent, ALWAYS `start_date` and
+    `end_date` (current values or null): an edit that omits them resets both to null, even a name-only edit (verified). Tags
+    replace (`[]` clears). The schedule's conditions are copied into EVERY slot that has any."""
     if tags_supported is None:
         tags_supported = policy.CAPABILITIES["tags"]
     cond_items, cond_type, cond_track = _draft_conditions(draft)
-    weekdays = list(draft.get("weekdays") or ["daily"])
+    weekdays = list(dict.fromkeys(draft.get("weekdays") or ["daily"]))
     name = draft.get("name") or ""
 
     def build_slot(slot: dict[str, Any]) -> dict[str, Any]:
         form = draft_slot_form(slot)
-        return {
-            "start": form["start"], "stop": form["stop"], "conditions": [dict(c) for c in cond_items], "condition_type": cond_type, "track_conditions": cond_track,
-            "actions": [{"service": a["service"], "entity_id": a["entity_id"], "service_data": a["service_data"]} for a in form["actions"]],
-        }
+        return component_slot({"start": form["start"], "stop": form["stop"], "conditions": cond_items, "condition_type": cond_type, "track_conditions": cond_track, "actions": form["actions"]})
 
     if current_item is None:
         payload: dict[str, Any] = {"weekdays": weekdays, "timeslots": [build_slot(s) for s in draft.get("slots") or []], "repeat_type": draft.get("repeat") or "repeat", "name": name}
@@ -470,10 +502,9 @@ def to_component_payload(draft: dict[str, Any], current_item: dict[str, Any] | N
         payload["name"] = name
     if set(weekdays) != set(core["weekdays"]):
         payload["weekdays"] = weekdays
-    if (draft.get("start_date") or None) != core["start_date"]:
-        payload["start_date"] = draft.get("start_date")
-    if (draft.get("end_date") or None) != core["end_date"]:
-        payload["end_date"] = draft.get("end_date")
+    if (draft.get("start_date") or None) != core["start_date"] or (draft.get("end_date") or None) != core["end_date"]:
+        payload["start_date"] = draft.get("start_date") or None
+        payload["end_date"] = draft.get("end_date") or None
     if (draft.get("repeat") or "repeat") != core["repeat"]:
         payload["repeat_type"] = draft.get("repeat") or "repeat"
     if tags_supported and list(draft.get("tags") or []) != core["tags"]:
@@ -488,8 +519,11 @@ def to_component_payload(draft: dict[str, Any], current_item: dict[str, Any] | N
         out = []
         for i, d in enumerate(draft_slots):
             same = i < len(core["slots"]) and draft_slot_form(d) == _core_slot_form(core["slots"][i]) and not conditions_changed and isinstance(raw_slots[i], dict)
-            out.append(json.loads(json.dumps(raw_slots[i])) if same else build_slot(d))
+            out.append(component_slot(raw_slots[i]) if same else build_slot(d))
         payload["timeslots"] = out
+    if payload:
+        payload.setdefault("start_date", draft.get("start_date") or None)  # an edit that leaves them out wipes them
+        payload.setdefault("end_date", draft.get("end_date") or None)
     return payload
 
 
@@ -567,8 +601,8 @@ def validate_draft(draft: dict[str, Any], ctx: DraftContext, *, old: dict[str, A
     elif not creating and not name and old is not None and (old["name"] or ""):
         errors.append(_problem("validation", "אי אפשר להשאיר תזמון בלי שם.", "name"))
     tokens = draft.get("weekdays") or []
-    if not tokens or any(t not in DAY_TOKENS for t in tokens):
-        errors.append(_problem("validation", "ימים לא תקינים.", "weekdays"))
+    if not tokens or any(t not in DAY_TOKENS for t in tokens) or len(set(tokens)) != len(tokens):
+        errors.append(_problem("validation", "ימים לא תקינים.", "weekdays"))  # (the component refuses [], duplicates and upper case)
     elif ("workday" in tokens or "weekend" in tokens) and (list(tokens) != (old["weekdays"] if old is not None else inherited_days)):
         errors.append(_problem("validation", "ימי עבודה וסוף שבוע אפשריים רק כשלא שונו; בחרו ימים מפורשים.", "weekdays"))
     for key in ("start_date", "end_date"):

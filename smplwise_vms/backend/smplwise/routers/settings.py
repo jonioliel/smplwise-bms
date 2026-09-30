@@ -97,6 +97,11 @@ DEFAULTS: dict[str, str] = {
     # percent (WisKey then sees a bigger frame and shows more cards) | full = covers the whole viewport with a small exit.
     "ui.wiskey_size": "normal",
     "ui.wiskey_scale": "90",  # the scale of "fit": 100 | 90 | 80 | 70
+    # WisKey rc.37 start choices per installation (a user's own choice, /me/prefs wiskey.density / wiskey.wall, wins):
+    # the `density` (overview cards: auto | 4 | 6 | 8 | 9 | 12) and `wall` (camera-wall streams: auto | 4 | 9 | 12) query
+    # parameters of the embedded panel's address. "auto" leaves the parameter out (WisKey's own choice).
+    "ui.wiskey_density": "auto",
+    "ui.wiskey_wall": "auto",
     # T054 follow-up (owner request 2026-09-29, experimental): embed WisKey inside the Home Assistant Companion app too,
     # by relaying the app's sign-in bridge from Home Assistant's top document into the nested frame
     # (frontend/src/wiskey/companion-bridge.ts). "false" (the default) keeps the 0.1.123 behaviour: no frame in the app,
@@ -317,6 +322,8 @@ class SettingsPatch(BaseModel):
     ui_hide_wiskey: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_wiskey")
     ui_wiskey_size: str | None = Field(default=None, pattern="^(normal|fit|full)$", alias="ui.wiskey_size")
     ui_wiskey_scale: str | None = Field(default=None, pattern="^(100|90|80|70)$", alias="ui.wiskey_scale")
+    ui_wiskey_density: str | None = Field(default=None, pattern="^(auto|4|6|8|9|12)$", alias="ui.wiskey_density")
+    ui_wiskey_wall: str | None = Field(default=None, pattern="^(auto|4|9|12)$", alias="ui.wiskey_wall")
     access_phone_embed: str | None = Field(default=None, pattern="^(true|false)$", alias="access.phone_embed")
     devices_style: str | None = Field(default=None, pattern="^(smplwise|glass)$", alias="devices.style")
     devices_theme: str | None = Field(default=None, pattern="^(" + "|".join(DEVICE_THEMES) + ")$", alias="devices.theme")
@@ -393,6 +400,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             raise ApiError(422, "validation", "סוגי התקנים בתזמונים: ערך לא מוכר.", details={"schedules.classes": bad})
         changes["schedules.classes"] = [c for c in SCHEDULE_CLASSES if c in changes["schedules.classes"]]
     force_sensor = bool(changes.pop("schedules.shabbat_sensor_force", False))
+    forced = False
     if changes.get("schedules.shabbat_sensor"):
         row = conn.execute("SELECT entity_id, platform FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (changes["schedules.shabbat_sensor"],)).fetchone()
         if not row:
@@ -401,7 +409,9 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
 
         # the sensor's state is shown to schedule viewers and decides the presets: only a calendar sensor, unless an
         # administrator says explicitly that this one is right (`schedules.shabbat_sensor_force`)
-        if not force_sensor and not (home_screen.is_jewish_calendar(dict(row)) or "issur_melacha" in row["entity_id"]):
+        calendar_sensor = home_screen.is_jewish_calendar(dict(row)) or "issur_melacha" in row["entity_id"]
+        forced = force_sensor and not calendar_sensor
+        if not force_sensor and not calendar_sensor:
             raise ApiError(422, "not_calendar_sensor", "זה לא נראה כחיישן של לוח השנה היהודי. לבחירה מפורשת שלחו schedules.shabbat_sensor_force.",
                            details={"schedules.shabbat_sensor": changes["schedules.shabbat_sensor"]})
     if changes.get("map.default_floor") and not conn.execute("SELECT 1 FROM floors WHERE id = ? AND deleted_at IS NULL", (changes["map.default_floor"],)).fetchone():
@@ -439,5 +449,5 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
 
         set_csp_enforce(changes["remote.csp_enforce"] == "true")
     audit(conn, actor=principal, action="settings.update", decision="allowed", resource_type="installation", resource_id="*",
-          request_id=getattr(request.state, "correlation_id", None), details=changes)
+          request_id=getattr(request.state, "correlation_id", None), details={**changes, "forced": True} if forced else changes)  # an override of the calendar-sensor check is on the record
     return {"settings": read_settings(conn), "can_edit": True}
