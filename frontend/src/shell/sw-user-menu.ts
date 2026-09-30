@@ -22,7 +22,7 @@ export function openAlertsText(n: number): string {
  * last item of the side rail (a popover beside the rail's foot) and of the phone bottom bar (a bottom sheet). Two
  * levels in the same panel, no explanatory text:
  * - first: a header (avatar, name, role; on the phone the status pills that lived in the top bar), התראות (a count chip
- *   only when there are open alerts), מערכת (a user holding a settings permission), החשבון שלי, and a destructive-styled
+ *   only when there are open alerts), עריכת המסך הראשי (the home screen's layout editor: system.configure only), מערכת (a user holding a settings permission), החשבון שלי, and a destructive-styled
  *   יציאה at the foot (the remote channel only: under the local entry the platform owns the sign-in);
  * - החשבון שלי: סדר הלשוניות, הגדרות התראות, הכניסות שלי, החלף שרת (inside the Android app).
  * The shell owns the open state; this element reports `close` and `nav-order` (open the tab-order dialog).
@@ -41,6 +41,8 @@ export class SwUserMenu extends LitElement {
   @property() alertsHref = '#/investigate/rules?tab=alerts';
   /** "מערכת" for a user with a settings permission (nav.ts settingsEntry); '' = no item. */
   @property() settingsHref = '';
+  /** "עריכת המסך הראשי": the home screen in its layout-edit mode (the shell decides who may; '' = no item). */
+  @property() editHomeHref = '';
   @state() private level: 'main' | 'account' = 'main';
   /** The sign-ins list loads only while its section is open (it asks the server). */
   @state() private sessionsOpen = false;
@@ -390,6 +392,10 @@ export class SwUserMenu extends LitElement {
           ? html`<li class="alerts ${alerts ? 'hot' : ''}"><a href=${this.alertsHref} data-menu-alerts @click=${(e: MouseEvent) => this.go(e)}>
               <span class="ic"><sw-icon name="bell" size=${18}></sw-icon></span><span class="txt">התראות</span>
               ${alerts ? html`<span class="count" data-alert-count aria-label=${openAlertsText(alerts)}>${alertCountText(alerts)}</span>` : nothing}</a></li>`
+          : nothing}
+        ${this.editHomeHref
+          ? html`<li><a href=${this.editHomeHref} data-menu-edit-home @click=${(e: MouseEvent) => this.go(e)}>
+              <span class="ic"><sw-icon name="edit" size=${18}></sw-icon></span><span class="txt">עריכת המסך הראשי</span></a></li>`
           : nothing}
         ${this.settingsHref
           ? html`<li><a href=${this.settingsHref} data-menu-settings @click=${(e: MouseEvent) => this.go(e)}>

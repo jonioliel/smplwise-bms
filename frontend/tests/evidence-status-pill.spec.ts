@@ -2,9 +2,9 @@ import { test, expect, type Page } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Evidence for the system status in the top bar (T035): the pill reflects /health/summary (green / amber /
-// red with the first problem named), clicking it opens הגדרות → בריאות ועבודות, and a degraded banner
-// appears under the top bar only when something is failing. Runs only with SW_LIVE=1.
+// Evidence for the system status (T035; UI round 1: a small dot in the content's corner instead of a top-bar pill): the dot
+// reflects /health/summary (green / amber / red, the first problem named in its accessible name), clicking it opens
+// הגדרות → בריאות ועבודות, and a degraded banner appears at the top only when something is failing. Runs only with SW_LIVE=1.
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.resolve(HERE, '..', '..', 'private-evidence', 'T033-health-live');
 
@@ -21,17 +21,14 @@ test.describe('system status pill (SW A)', () => {
     const summary = await (await request.get('/api/v1/health/summary')).json();
     expect(['ok', 'warn', 'error']).toContain(summary.status);
     await open(page, '/explore/sites');
-    // CR-013: the phone has no top bar - the pill is in the user menu's header (its own attribute), shown while the
-    // sheet is open; a wide screen keeps it in the top bar
-    const phone = testInfo.project.name === 'mobile';
+    // UI round 1: no top bar - the status is a small dot in the corner on every width (its state is the accessible name)
     await expect(page.locator('sw-app [data-sys-pill]')).toHaveCount(1);
-    if (phone) await page.locator('sw-app [data-nav-me]').click();
-    const pill = page.locator(phone ? 'sw-app [data-menu-sys-pill]' : 'sw-app [data-sys-pill]');
+    const pill = page.locator('sw-app [data-sys-pill]');
     await expect(pill).toBeVisible({ timeout: 10000 });
     await expect(pill).toHaveAttribute('data-status', summary.status);
-    if (summary.status === 'ok') await expect(pill).toContainText('תקינה');
-    else if (summary.status === 'warn') await expect(pill).toContainText('לבדוק');
-    else await expect(pill).toContainText('תקלה');
+    if (summary.status === 'ok') await expect(pill).toHaveAttribute('aria-label', /תקינה/);
+    else if (summary.status === 'warn') await expect(pill).toHaveAttribute('aria-label', /לבדוק/);
+    else await expect(pill).toHaveAttribute('aria-label', /תקלה/);
     const banner = page.locator('sw-app [data-sys-banner]');
     if (summary.status === 'error') await expect(banner).toBeVisible();
     else await expect(banner).toHaveCount(0);

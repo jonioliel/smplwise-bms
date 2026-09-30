@@ -43,9 +43,13 @@ export class SwPage extends LitElement {
       align-items: flex-end;
       justify-content: space-between;
       gap: 10px 12px;
+      /* the shell's floating search / status corner (sw-app, no top bar) sits over the far end of the first row when
+         nothing else is above the page; the shell sets this only then (0 elsewhere) */
+      padding-inline-end: var(--sw-float-reserve, 0px);
     }
     :host([flush]) header {
       padding: 12px 16px 0;
+      padding-inline-end: calc(16px + var(--sw-float-reserve, 0px));
     }
     .titlebar {
       display: flex;

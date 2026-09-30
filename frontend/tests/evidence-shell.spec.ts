@@ -4,15 +4,17 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // CR-013 (docs/changes/CR-013-SHELL.md): the app shell - the user avatar as the navigation's last item (side rail on a
-// wide screen, bottom bar on the phone) with the user menu (התראות, סדר הלשוניות, מערכת, sign-out), no top bar on the
-// phone, the security sections as a sticky row, a horizontally scrolling tab row, and a per-user tab order stored on
-// the server. Two parts, both against the static preview (npm run build first):
+// wide screen, bottom bar on the phone) with the user menu (התראות, סדר הלשוניות, מערכת, sign-out), the security
+// sections as a sticky row, a horizontally scrolling tab row, and a per-user tab order stored on the server.
+// UI round 1 (docs/evidence/UIR1-shell): no top bar on any width - a search button and the system-status dot float in the
+// content's corner, the security sections are a segmented control at the head of the page, the navigation is ~20% smaller,
+// and "עריכת המסך הראשי" joins the user menu for who may edit the home layout. Two parts, both against the static preview (npm run build first):
 //   1. the demo data (no backend);
 //   2. a mocked backend (page.route on api/v1): users with and without permissions, open alerts, and GET/PUT /me/prefs
 //      kept per user in the test - what the client does with them. The endpoint itself: backend tests/test_user_prefs.py.
 //   SW_BASE_URL=http://127.0.0.1:4391/ npx playwright test tests/evidence-shell.spec.ts
 
-const EVIDENCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/evidence/CR013');
+const EVIDENCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/evidence/UIR1-shell');
 const TABS = ['ראשי', 'אבטחה', 'מפה', 'WisKey'];
 const DEFAULT_ORDER = ['devices', 'security', 'explore', 'wiskey'];
 
@@ -43,6 +45,11 @@ async function openOrder(page: Page, info: { project: { name: string } }) {
 async function shot(page: Page, name: string) {
   fs.mkdirSync(EVIDENCE, { recursive: true });
   await page.screenshot({ path: path.join(EVIDENCE, `${name}.png`) });
+}
+
+/** Bars of the shell itself (a direct child <header> of <sw-app>'s shadow root), not the pages' own headers. */
+function shellHeaders(page: Page): Promise<number> {
+  return page.locator('sw-app').evaluate((el) => Array.from(el.shadowRoot!.children).filter((c) => c.tagName === 'HEADER').length);
 }
 
 async function open(page: Page, hash = '') {
@@ -81,17 +88,93 @@ test.describe('CR-013 shell on the demo data', () => {
       return (kids[kids.length - 1] as HTMLElement).className;
     });
     expect(last).toContain('me');
-    // no bell anywhere; on the phone no top bar at all
+    // no bell anywhere; no top bar on any width: the content starts at the very top
     await expect(page.locator('sw-app sw-button.bell')).toHaveCount(0);
-    if (phone(info)) {
-      await expect(page.locator('sw-app header.topbar')).toBeHidden();
-      await shot(page, 'shell-phone-home');
-    } else {
-      await expect(page.locator('sw-app header.topbar')).toBeVisible();
-      await expect(page.locator('sw-app header.topbar sw-avatar')).toHaveCount(0);
-      if (info.project.name === 'desktop') await shot(page, 'shell-desktop-rail');
-    }
+    expect(await shellHeaders(page)).toBe(0);
+    expect((await page.locator('sw-app main').boundingBox())!.y).toBe(0);
+    if (phone(info)) await shot(page, 'shell-phone-home');
+    else if (info.project.name === 'desktop') await shot(page, 'shell-desktop-rail');
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  });
+
+  test('no top bar: the search is a corner button (Ctrl+K too) and an area page has one navigation only', async ({ page }, info) => {
+    await open(page, '/devices/areas/none');
+    expect(await shellHeaders(page)).toBe(0);
+    // exactly one navigation is visible (the rail, or the bottom bar on the phone), nothing above the content
+    const navs = await page.locator('sw-app nav[aria-label="ניווט ראשי"]').evaluateAll((els) => els.filter((e) => getComputedStyle(e).display !== 'none').length);
+    expect(navs).toBe(1);
+    expect((await page.locator('sw-app main').boundingBox())!.y).toBe(0);
+    // a small icon button in the top left corner (RTL), no field until it is opened
+    const btn = page.locator('sw-app [data-search-open]');
+    await expect(btn).toBeVisible();
+    await expect(page.locator('sw-app .search input')).toHaveCount(0);
+    const b = (await btn.boundingBox())!;
+    expect(b.x).toBeLessThan(110);
+    expect(b.y).toBeLessThan(30);
+    expect(b.width).toBeLessThanOrEqual(32);
+    if (phone(info)) {
+      // still a 44 px tap target: the hit area reaches 22 px around the centre
+      const hit = await page.evaluate(([x, y]) => (document.querySelector('sw-app')!.shadowRoot!.elementFromPoint(x, y) as HTMLElement | null)?.closest('[data-search-open]') !== null, [b.x + b.width / 2 - 21, b.y + b.height / 2]);
+      expect(hit).toBe(true);
+    }
+    await btn.click();
+    const input = page.locator('sw-app [data-search-panel] .search input');
+    await expect(input).toBeFocused();
+    await expect(btn).toHaveAttribute('aria-expanded', 'true');
+    await input.fill('חדר');
+    await expect(page.locator('sw-app [data-search-panel] .results')).toBeVisible();
+    if (info.project.name === 'desktop') await shot(page, 'shell-desktop-search-open');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('sw-app [data-search-panel]')).toHaveCount(0);
+    await expect(btn).toBeFocused();
+    // the shortcut opens the same popover, the field focused
+    await page.keyboard.press('Control+k');
+    await expect(input).toBeFocused();
+    await page.mouse.click(5, 400); // outside: closes
+    await expect(page.locator('sw-app [data-search-panel]')).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  });
+
+  test('the navigation is smaller: a slim rail, a 50 px bottom bar with 44 px targets', async ({ page }, info) => {
+    await open(page, '/devices/building');
+    if (phone(info)) {
+      const bar = (await page.locator('sw-app nav.bottom').boundingBox())!;
+      expect(bar.height).toBeLessThanOrEqual(52);
+      for (const el of await page.locator('sw-app nav.bottom > a, sw-app nav.bottom > button').all()) {
+        const r = (await el.boundingBox())!;
+        expect(r.height).toBeGreaterThanOrEqual(44);
+        expect(r.width).toBeGreaterThanOrEqual(44);
+      }
+    } else {
+      const rail = (await page.locator('sw-app nav.rail').boundingBox())!;
+      expect(rail.width).toBeLessThanOrEqual(72);
+      for (const el of await page.locator('sw-app nav.rail > a[data-nav]').all()) {
+        const r = (await el.boundingBox())!;
+        expect(r.width).toBeLessThanOrEqual(58);
+        expect(r.height).toBeLessThanOrEqual(54);
+        expect(r.height).toBeGreaterThanOrEqual(44);
+      }
+      const av = (await page.locator('sw-app nav.rail sw-avatar').boundingBox())!;
+      expect(av.width).toBeLessThanOrEqual(32);
+    }
+  });
+
+  test('desktop: the security sections sit at the head of the page and switch the section', async ({ page }, info) => {
+    test.skip(phone(info), 'the phone has the sticky row (next test)');
+    await open(page, '/live');
+    const sec = page.locator('sw-app main nav[data-security-sections]');
+    await expect(sec).toBeVisible();
+    await expect(sec.locator('a')).toHaveText(['לייב', 'חקירה', 'אזעקה']);
+    await expect(sec.locator('a[data-section="live"]')).toHaveAttribute('aria-current', 'page');
+    expect(await shellHeaders(page)).toBe(0);
+    // it shares the row with the page's tab row, on the right (RTL start), clear of the corner
+    const sb = (await sec.boundingBox())!;
+    expect(sb.y).toBeGreaterThan(0);
+    expect(sb.x).toBeGreaterThan(500);
+    if (info.project.name === 'desktop') await shot(page, 'shell-desktop-security');
+    await sec.locator('a[data-section="investigate"]').click();
+    await expect.poll(() => page.evaluate(() => location.hash)).toMatch(/^#\/investigate\//);
+    await expect(page.locator('sw-app main nav[data-security-sections] a[data-section="investigate"]')).toHaveAttribute('aria-current', 'page');
   });
 
   test('old deep links still open their screens (no redirect to ראשי)', async ({ page }) => {
@@ -188,7 +271,7 @@ test.describe('CR-013 shell on the demo data', () => {
   test('the kiosk and the Lovelace card view show no bars, no avatar and no user menu', async ({ page }) => {
     for (const hash of ['/kiosk/all', '/live/wall?embed=1']) {
       await open(page, hash);
-      await expect(page.locator('sw-app nav.rail, sw-app nav.bottom, sw-app header.topbar'), hash).toHaveCount(0);
+      await expect(page.locator('sw-app nav.rail, sw-app nav.bottom, sw-app header.topbar, sw-app [data-float]'), hash).toHaveCount(0);
       await expect(page.locator('sw-app sw-user-menu, sw-app [data-nav-me], sw-app [data-profile-menu]'), hash).toHaveCount(0);
       expect(await page.evaluate(() => getComputedStyle(document.querySelector('sw-app')!).paddingTop), hash).toBe('0px');
       await page.evaluate(() => sessionStorage.clear());
@@ -388,9 +471,9 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     await page.mouse.move(1, 1);
     const menu = page.locator('sw-app sw-user-menu [data-user-menu]');
     await expect(menu.locator('[data-menu-alerts] [data-alert-count]')).toHaveText('3');
-    // one status pill on the page: the top bar's (wide) or the sheet's own (phone)
+    // one status indicator on the page, the corner dot (every width); the phone sheet keeps no copy of it
     await expect(page.locator('sw-app [data-sys-pill]')).toHaveCount(1);
-    await expect(page.locator('sw-app [data-menu-sys-pill]')).toHaveCount(phone(info) ? 1 : 0);
+    await expect(page.locator('sw-app [data-menu-sys-pill]')).toHaveCount(0);
     await page.waitForTimeout(300);
     if (phone(info)) await shot(page, 'shell-phone-user-menu-alerts');
     else if (info.project.name === 'desktop') await shot(page, 'shell-desktop-user-menu-alerts');
@@ -421,6 +504,46 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     await expect(meButton(page, info).locator('[data-alert-dot]')).toHaveCount(0);
     await meButton(page, info).click();
     await expect(menu.locator('[data-menu-alerts]')).toHaveCount(0);
+  });
+
+  test('the system status is a small dot: its state is the accessible name; a failure raises the banner', async ({ page }, info) => {
+    await page.route('**/api/v1/health/summary', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'error', items: [{ id: 'nvr', status: 'error', label: 'מקליט לא זמין' }], checked_at: '2026-09-30T00:00:00Z', version: 'test' }) }),
+    );
+    await open(page, '/devices/building');
+    const dot = page.locator('sw-app [data-sys-pill]');
+    await expect(dot).toHaveCount(1);
+    await expect(dot).toHaveAttribute('data-status', 'error');
+    await expect(dot).toHaveAttribute('aria-label', /מצב המערכת: תקלה/);
+    expect(((await dot.textContent()) ?? '').trim()).toBe('');
+    expect((await dot.boundingBox())!.width).toBeLessThanOrEqual(32);
+    await expect(page.locator('sw-app [data-sys-banner]')).toBeVisible();
+    // the banner keeps the top edge and the corner drops below it
+    const bb = (await page.locator('sw-app [data-sys-banner]').boundingBox())!;
+    const fb = (await page.locator('sw-app [data-float]').boundingBox())!;
+    expect(fb.y).toBeGreaterThanOrEqual(bb.y + bb.height);
+    if (info.project.name === 'desktop') await shot(page, 'shell-desktop-status-error');
+    await dot.click();
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/system/diagnostics?tab=health');
+  });
+
+  test('"עריכת המסך הראשי": only for who may edit the home layout; it opens the home with edit=1', async ({ page }, info) => {
+    await open(page, '/explore/floors/f0');
+    const menu = page.locator('sw-app sw-user-menu [data-user-menu]');
+    await meButton(page, info).click();
+    await expect(menu.locator('ul[data-menu-level="main"] > li')).toHaveText(['התראות', 'עריכת המסך הראשי', 'מערכת', 'החשבון שלי']);
+    const item = menu.locator('[data-menu-edit-home]');
+    await expect(item).toHaveAttribute('href', '#/devices/building?edit=1');
+    if (phone(info)) await page.waitForTimeout(300);
+    await item.click();
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/devices/building?edit=1');
+    await expect(menu).toBeHidden();
+    // no system.configure (the home's edit button needs it): no item
+    mock.user = VIEWER;
+    await open(page, '/devices/building');
+    await meButton(page, info).click();
+    await expect(menu.locator('[data-menu-edit-home]')).toHaveCount(0);
+    await expect(menu.locator('ul[data-menu-level="main"] > li')).toHaveText(['התראות', 'החשבון שלי']);
   });
 
   test('a user without rules.manage: the alerts inbox only - no rules request, no rules tab, no "חוק חדש"', async ({ page }) => {

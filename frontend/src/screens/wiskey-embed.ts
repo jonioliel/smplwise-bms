@@ -1061,7 +1061,7 @@ export class WiskeyEmbed extends LitElement {
     const shell = root instanceof ShadowRoot ? (root.host as HTMLElement) : null;
     shell?.toggleAttribute('data-wiskey-expanded', on);
     if (on) {
-      const covered = root instanceof ShadowRoot ? Array.from(root.querySelectorAll<HTMLElement>('nav.rail, header.topbar, nav.bottom, main > :not(.screen), sw-user-menu, sw-nav-order')) : [];
+      const covered = root instanceof ShadowRoot ? Array.from(root.querySelectorAll<HTMLElement>('nav.rail, header.topbar, .float, .searchscrim, nav.bottom, main > :not(.screen), sw-user-menu, sw-nav-order')) : [];
       this.inerted = covered.filter((el) => !el.inert);
       for (const el of this.inerted) el.inert = true;
       window.addEventListener('keydown', this.onEsc);
