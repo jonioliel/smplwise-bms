@@ -9,10 +9,14 @@ order, and which entity feeds each field (the weather entity and the fields of i
 field). Nothing here is a permission: the actions, the alarm and the entities are still authorised by the server on their
 own routes; this only shapes what is drawn.
 
+On a phone the widgets have a presentation of their own: `phone_layout` (a horizontal snap row, one card under the other -
+the default - or two per row) and, per widget, `phone_on` (null = the same as `on`) and `phone_size` (null = the desktop size of the
+direction, at most medium), edited next to the desktop ones and independent of them.
+
 Canonical config (what `normalise` returns and the setting stores; every key is optional on input and filled with the
 default, an unknown key is refused - this is never free-form client storage):
 
-    {"order": ["clock", "weather", "shabbat", "alarm", "quick"],
+    {"order": ["clock", "weather", "shabbat", "alarm", "quick"], "phone_layout": "snap|stack|two",
      "clock":    {"on", "sizes": {"a", "b", "c"}, "label", "mode": "time|datetime", "seconds", "hebrew"},
      "weather":  {"on", "sizes", "label", "entity", "fields": [...], "forecast": "3|5|max", "sources": {field: sensor}},
      "shabbat":  {"on", "sizes", "label"},
@@ -33,6 +37,8 @@ SIDES = ("start", "end")
 DEFAULT_SIDE = "end"
 WIDGET_IDS = ("clock", "weather", "shabbat", "alarm", "quick")
 SIZES = ("s", "m", "l")
+PHONE_LAYOUTS = ("snap", "stack", "two")  # a horizontal snap row | one card under the other | two per row (wrapping)
+DEFAULT_PHONE_LAYOUT = "stack"
 LEGACY_SIZES = {"chip": "s", "medium": "m", "large": "l"}  # the 0.1.146 sizes (home.clock_size ...)
 # what each direction packs well: the hero band of a takes the big cards, the side column of b the small ones (the mockup)
 DEFAULT_SIZES: dict[str, dict[str, str]] = {
@@ -61,7 +67,7 @@ _ALARM = re.compile(r"^alarm_control_panel\.[a-z0-9_]{1,100}$")
 
 
 def _default_widget(wid: str) -> dict[str, Any]:
-    base: dict[str, Any] = {"on": True, "sizes": dict(DEFAULT_SIZES[wid]), "label": ""}
+    base: dict[str, Any] = {"on": True, "sizes": dict(DEFAULT_SIZES[wid]), "label": "", "phone_on": None, "phone_size": None}
     if wid == "clock":
         base.update({"mode": "datetime", "seconds": False, "hebrew": True})
     elif wid == "weather":
@@ -75,7 +81,7 @@ def _default_widget(wid: str) -> dict[str, Any]:
 
 def default_config() -> dict[str, Any]:
     """The built-in configuration (no entities: `home_screen.default_config` adds the suggestions the catalogue offers)."""
-    cfg: dict[str, Any] = {"order": list(WIDGET_IDS)}
+    cfg: dict[str, Any] = {"order": list(WIDGET_IDS), "phone_layout": DEFAULT_PHONE_LAYOUT}
     for wid in WIDGET_IDS:
         cfg[wid] = _default_widget(wid)
     cfg["calendar"] = {**{f: "" for f in CALENDAR_FIELDS}, "extras": []}
@@ -141,7 +147,7 @@ def _ordered_subset(value: Any, allowed: tuple[str, ...], name: str) -> list[str
 
 
 def _widget(wid: str, value: Any) -> dict[str, Any]:
-    common = {"on", "sizes", "label"}
+    common = {"on", "sizes", "label", "phone_on", "phone_size"}
     extra = {"clock": {"mode", "seconds", "hebrew"}, "weather": {"entity", "fields", "forecast", "sources"}, "shabbat": set(), "alarm": {"entity"}, "quick": {"actions"}}[wid]
     given = _obj(value, wid, common | extra)
     out = _default_widget(wid)
@@ -151,6 +157,11 @@ def _widget(wid: str, value: Any) -> dict[str, Any]:
         out["sizes"] = _sizes(given["sizes"], wid)
     if "label" in given:
         out["label"] = _label(given["label"], f"{wid}.label")
+    # the phone presentation: null = follow the desktop (old configs have neither key)
+    if given.get("phone_on") is not None:
+        out["phone_on"] = _bool(given["phone_on"], f"{wid}.phone_on")
+    if given.get("phone_size") is not None:
+        out["phone_size"] = _choice(given["phone_size"], SIZES, f"{wid}.phone_size")
     if wid == "clock":
         if "mode" in given:
             out["mode"] = _choice(given["mode"], CLOCK_MODES, "clock.mode")
@@ -199,7 +210,7 @@ def _calendar(value: Any) -> dict[str, Any]:
 
 def normalise(value: Any) -> dict[str, Any]:
     """A config coming from a client or from storage in its canonical form, or ValueError. Missing parts take the default."""
-    given = _obj(value, "home.widgets", {"order", "calendar", *WIDGET_IDS})
+    given = _obj(value, "home.widgets", {"order", "calendar", "phone_layout", *WIDGET_IDS})
     cfg = default_config()
     if "order" in given:
         raw = given["order"]
@@ -212,6 +223,8 @@ def normalise(value: Any) -> dict[str, Any]:
             if item not in seen:
                 seen.append(item)
         cfg["order"] = seen + [w for w in WIDGET_IDS if w not in seen]
+    if "phone_layout" in given:
+        cfg["phone_layout"] = _choice(given["phone_layout"], PHONE_LAYOUTS, "phone_layout")
     for wid in WIDGET_IDS:
         if wid in given:
             cfg[wid] = _widget(wid, given[wid])
@@ -304,8 +317,10 @@ PERSONAL_WIDGET_KEYS = {"on", "size"}
 def normalise_personal(value: Any) -> dict[str, Any]:
     """`home.personal` of /me/prefs: {"direction": a|b|c|null, "order": [ids]|null, "widgets": {id: {"on": bool|null,
     "size": s|m|l|null}}}. Canonical form: entries that say nothing are dropped; ValueError for anything else."""
-    given = _obj(value, "home.personal", {"direction", "order", "widgets"})
-    out: dict[str, Any] = {"direction": None, "order": None, "widgets": {}}
+    given = _obj(value, "home.personal", {"direction", "order", "widgets", "phone_layout"})
+    out: dict[str, Any] = {"direction": None, "order": None, "widgets": {}, "phone_layout": None}
+    if given.get("phone_layout") is not None:
+        out["phone_layout"] = _choice(given["phone_layout"], PHONE_LAYOUTS, "home.personal.phone_layout")
     if given.get("direction") is not None:
         out["direction"] = _choice(given["direction"], DIRECTIONS, "home.personal.direction")
     if given.get("order") is not None:
@@ -333,7 +348,7 @@ def normalise_personal(value: Any) -> dict[str, Any]:
 
 
 def personal_is_empty(p: dict[str, Any] | None) -> bool:
-    return not p or (p.get("direction") is None and p.get("order") is None and not p.get("widgets"))
+    return not p or (p.get("direction") is None and p.get("order") is None and not p.get("widgets") and p.get("phone_layout") is None)
 
 
 def apply_personal(cfg: dict[str, Any], direction: str, personal: dict[str, Any] | None) -> tuple[dict[str, Any], str]:
@@ -348,11 +363,14 @@ def apply_personal(cfg: dict[str, Any], direction: str, personal: dict[str, Any]
         direction = personal["direction"]
     if personal.get("order"):
         out["order"] = list(personal["order"])
+    if personal.get("phone_layout") in PHONE_LAYOUTS:
+        out["phone_layout"] = personal["phone_layout"]
     for wid, e in (personal.get("widgets") or {}).items():
         if wid not in WIDGET_IDS:
             continue
         if "on" in e:
             out[wid]["on"] = bool(e["on"])
+            out[wid]["phone_on"] = None  # a personal on / off is for every screen, the phone included
         if e.get("size") in SIZES:
             out[wid]["sizes"][direction] = e["size"]
     return out, direction

@@ -172,7 +172,7 @@ def test_widget_configuration_round_trips_in_canonical_form_and_partial_input_ta
         assert r.status_code == 200, r.text
         cfg = r.json()["settings"]["home.widgets"]
         assert cfg["order"] == ["quick", "clock", "weather", "shabbat", "alarm"]  # what is missing is appended in the default order
-        assert cfg["clock"] == {"on": True, "sizes": {"a": "l", "b": "m", "c": "m"}, "label": "שעה", "mode": "time", "seconds": True, "hebrew": True}
+        assert cfg["clock"] == {"on": True, "sizes": {"a": "l", "b": "m", "c": "m"}, "label": "שעה", "phone_on": None, "phone_size": None, "mode": "time", "seconds": True, "hebrew": True}
         assert cfg["weather"]["on"] is False and cfg["weather"]["fields"] == ["humidity", "temperature"] and cfg["weather"]["forecast"] == "3"
         assert cfg["weather"]["sources"] == {"temperature": "sensor.kitchen_temp"}
         # saved: the catalogue's suggestions no longer fill an empty entity (the owner's explicit choice stands, even "none")
@@ -431,9 +431,9 @@ def test_the_permission_is_registered_granted_to_system_admin_only_and_not_sensi
 
 
 def test_normalise_personal_keeps_only_what_it_says_and_refuses_the_rest():
-    assert home_config.normalise_personal({}) == {"direction": None, "order": None, "widgets": {}}
+    assert home_config.normalise_personal({}) == {"direction": None, "order": None, "widgets": {}, "phone_layout": None}
     p = home_config.normalise_personal({"direction": "b", "order": ["alarm"], "widgets": {"clock": {"on": None, "size": "l"}, "weather": {}}})
-    assert p == {"direction": "b", "order": ["alarm", "clock", "weather", "shabbat", "quick"], "widgets": {"clock": {"size": "l"}}}
+    assert p == {"direction": "b", "order": ["alarm", "clock", "weather", "shabbat", "quick"], "widgets": {"clock": {"size": "l"}}, "phone_layout": None}
     for bad in ({"direction": "z"}, {"order": ["nope"]}, {"order": "clock"}, {"widgets": {"nope": {}}}, {"widgets": {"clock": {"size": "xl"}}}, {"widgets": {"clock": {"on": "yes"}}},
                 {"widgets": {"clock": {"label": "x"}}}, {"extra": 1}, [], "a"):
         with pytest.raises(ValueError):
@@ -612,3 +612,45 @@ def test_put_prefs_is_all_or_nothing(app_c):
             assert c.get("/api/v1/me/prefs").json() == before, bad  # nothing of the request was stored
         ok = c.put("/api/v1/me/prefs", json={"nav.order": ["explore", "devices"], "home.personal": {"direction": "b"}})
         assert ok.status_code == 200 and ok.json()["prefs"]["nav.order"][0] == "explore" and ok.json()["prefs"]["home.personal"]["direction"] == "b"
+
+# ------------------------------------------------------------------------------------------------ the phone presentation
+
+
+def test_phone_settings_default_and_old_configs_read_with_defaults(app_c):
+    app, _ = app_c
+    cfg = home_config.default_config()
+    assert cfg["phone_layout"] == "stack"  # owner: one card under the other by default
+    assert all(cfg[w]["phone_on"] is None and cfg[w]["phone_size"] is None for w in home_config.WIDGET_IDS)
+    # a config saved before the phone keys existed reads with the defaults (nothing is refused, nothing changes on the desktop)
+    old = {"order": ["clock", "weather", "shabbat", "alarm", "quick"], "clock": {"on": True, "sizes": {"a": "l", "b": "m", "c": "m"}, "label": "", "mode": "datetime", "seconds": False, "hebrew": True}}
+    got = home_config.normalise(old)
+    assert got["phone_layout"] == "stack" and got["clock"]["phone_on"] is None and got["clock"]["phone_size"] is None
+    with TestClient(app) as c:
+        r = _patch(c, {"home.widgets": {"phone_layout": "two", "clock": {"phone_size": "s"}, "weather": {"phone_on": False, "phone_size": "l"}, "alarm": {"phone_on": True, "on": False}}})
+        assert r.status_code == 200, r.text
+        cfg = r.json()["settings"]["home.widgets"]
+        assert cfg["phone_layout"] == "two" and cfg["clock"]["phone_size"] == "s" and cfg["weather"]["phone_on"] is False and cfg["weather"]["phone_size"] == "l"
+        assert cfg["alarm"]["on"] is False and cfg["alarm"]["phone_on"] is True  # a widget can be phone-only
+        assert _home(c)["config"] == cfg  # the tree carries them to the screen
+        for bad in ({"phone_layout": "grid"}, {"phone_layout": ""}, {"phone_layout": 1}, {"clock": {"phone_size": "xl"}}, {"clock": {"phone_size": "chip"}}, {"clock": {"phone_on": "yes"}}, {"weather": {"phone_on": 1}}, {"clock": {"phone_layout": "snap"}}):
+            assert _patch(c, {"home.widgets": bad}).status_code == 422, bad
+        # null = follow the desktop again
+        back = _patch(c, {"home.widgets": {"phone_layout": "snap", "clock": {"phone_size": None}}}).json()["settings"]["home.widgets"]
+        assert back["phone_layout"] == "snap" and back["clock"]["phone_size"] is None
+
+
+def test_the_personal_phone_layout_and_a_personal_on_off_reaches_the_phone_too():
+    p = home_config.normalise_personal({"phone_layout": "snap", "widgets": {"clock": {"on": False}}})
+    assert p["phone_layout"] == "snap"
+    assert home_config.normalise_personal({"phone_layout": None})["phone_layout"] is None
+    for bad in ({"phone_layout": "grid"}, {"phone_layout": 3}):
+        with pytest.raises(ValueError):
+            home_config.normalise_personal(bad)
+    cfg = home_config.default_config()
+    cfg["clock"]["phone_on"] = True  # an installation "phone-only" choice ...
+    cfg["clock"]["on"] = False
+    out, _ = home_config.apply_personal(cfg, "a", home_config.normalise_personal({"widgets": {"clock": {"on": True}}}))
+    assert out["clock"]["on"] is True and out["clock"]["phone_on"] is None  # ... is replaced by the person's own on / off
+    out, _ = home_config.apply_personal(cfg, "a", p)
+    assert out["phone_layout"] == "snap" and out["clock"]["on"] is False and out["clock"]["phone_on"] is None
+    assert not home_config.personal_is_empty({"direction": None, "order": None, "widgets": {}, "phone_layout": "two"})
