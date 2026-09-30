@@ -379,17 +379,30 @@ function entryHref(fallback: string, tabs: TabItem[], section: string | null): s
   return tabs.some((t) => t.href === fallback) ? fallback : first;
 }
 
+/** CR-014: the schedules list (a tab of the home area) and its settings page (a tab of הגדרות). */
+export const SCHEDULES_HREF = '#/devices/schedules';
+export const SCHEDULES_SETTINGS_HREF = '#/system/schedules';
+
 /** The map's tabs (both designs): the sites list and the floor map. The device catalogue left the map for הגדרות (2026-09-30). */
 const EXPLORE_TABS: TabItem[] = [
   { id: 'sites', label: 'אתרים ומבנים', href: '#/explore/sites' },
   { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
 ];
 
+/** CR-014 (2026-09-30): the home area's tabs, shared by both designs (AREA_TABS.devices and GROUP_TABS.devices are this same
+ * array, so `ui.tabs` (section `devices`) and the phone bottom bar follow). "מבט על" is the home screen as it always was (the
+ * building tree, `#/devices/building`; an area screen is a drill-down of it, #/devices/areas/<id>, not a tab); "תזמונים" is
+ * the schedules list (`#/devices/schedules`), shown to holders of schedule.view / schedule.manage while the feature is on
+ * (`schedules.enabled`, applySchedulesHidden). With only one of them visible the tab row does not appear at all, so a user
+ * without schedule rights sees the home screen exactly as before. */
+export const DEVICES_TABS: TabItem[] = [
+  { id: 'building', label: 'מבט על', href: '#/devices/building' },
+  { id: 'schedules', label: 'תזמונים', href: SCHEDULES_HREF },
+];
+
 export const GROUP_TABS: Record<NavGroup, TabItem[]> = {
   overview: [],
-  /** The building tree (CR-007 slice 1); an area screen is a drill-down of it (#/devices/areas/<id>), not a tab.
-   * Later slices (screens and remotes, layouts) add tabs here the way `wiskey` grew. */
-  devices: [{ id: 'building', label: 'המבנה', href: '#/devices/building' }],
+  devices: DEVICES_TABS,
   sites: EXPLORE_TABS,
   /** Entry Center, Activity and People (CR-005 phase 1b), plus WisKey's own screens as embedded tabs (2026-09-28). */
   wiskey: WISKEY_TABS,
@@ -423,6 +436,7 @@ export const GROUP_TABS: Record<NavGroup, TabItem[]> = {
     { id: 'wizard', label: 'אשף התקנה', href: '#/system/wizard' },
     { id: 'setup', label: 'חיבורים', href: '#/system/setup' },
     { id: 'entities', label: 'קטלוג התקנים', href: ENTITIES_SETTINGS_HREF },
+    { id: 'schedules', label: 'תזמונים', href: SCHEDULES_SETTINGS_HREF },
   ],
 };
 
@@ -457,7 +471,7 @@ export function activeTabOf(r: RouteState | null): string {
     case 'wiskey':
       return wiskeyActiveTab(r);
     case 'devices':
-      return 'building';
+      return s[1] === 'schedules' ? 'schedules' : 'building';
     case 'cameras':
       return s[1] === 'views' ? 'views' : 'wall';
     case 'events':
@@ -553,7 +567,7 @@ export const SECURITY_SECTIONS: SectionEntry[] = [
 ];
 
 export const AREA_TABS: Record<AreaId, TabItem[]> = {
-  devices: [{ id: 'building', label: 'המבנה', href: '#/devices/building' }],
+  devices: DEVICES_TABS,
   /** Every page of the sections: the area stays in the rail while any of them is visible. */
   security: [...SECTION_TABS.live, ...SECTION_TABS.investigate],
   explore: EXPLORE_TABS,
@@ -571,6 +585,7 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'wizard', label: 'אשף התקנה', href: '#/system/wizard' },
     { id: 'setup', label: 'חיבורים', href: '#/system/setup' },
     { id: 'entities', label: 'קטלוג התקנים', href: ENTITIES_SETTINGS_HREF },
+    { id: 'schedules', label: 'תזמונים', href: SCHEDULES_SETTINGS_HREF },
     /** CR-013 review M10: the screen catalogue left the user menu; a system administrator reaches it from here */
     { id: 'screens', label: 'כל המסכים', href: '#/screens' },
   ],
@@ -608,7 +623,7 @@ export function activeAreaTab(r: RouteState | null): string {
     case 'wiskey':
       return wiskeyActiveTab(r);
     case 'devices':
-      return 'building';
+      return s[1] === 'schedules' ? 'schedules' : 'building';
     default:
       return '';
   }
@@ -731,6 +746,11 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   // devices.read at any scope: a floor-scoped holder gets the tree narrowed to their floors (routers/devices.py),
   // so unlike WisKey the entry is NOT installation-only.
   '#/devices/building': ['devices.read'],
+  // CR-014: the schedules list - schedule.view or schedule.manage at any scope (the server hides what a caller may not see:
+  // a floor-scoped holder gets only the schedules whose devices are all on their floors)
+  [SCHEDULES_HREF]: ['schedule.view', 'schedule.manage'],
+  // its settings page: system.configure at installation scope
+  [SCHEDULES_SETTINGS_HREF]: ['system.configure'],
   // CR-010, moved to הגדרות › אבטחה 2026-09-30: the alarm screen - alarm.view at any scope: a floor-scoped holder sees the
   // panels placed on their floors (routers/alarm.py), so the entry is not installation-only. Its management is what it
   // always was (routers/alarm.py `_configurer`: system.configure); the NVR page follows הגדרות › חיבורים. The section's own
@@ -762,7 +782,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
-export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', ENTITIES_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
+export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
 
 /** `installationOnly`: the permission must be held at installation scope, not at any scope. */
 export type Can = (permission: string, installationOnly?: boolean) => boolean;
@@ -854,6 +874,26 @@ export function visibleGroups(api: boolean, can?: Can): NavEntry[] {
   });
 }
 
+/** CR-014: `schedules.enabled` off (הגדרות › תזמונים) takes the "תזמונים" tab out of the home area for everyone - the same "hidden
+ * for everyone" shape as applySnapshotHidden: its href joins HIDDEN_HREFS, so the tab row (and with it the row itself, which
+ * shows only with two tabs) follows. The route is not closed: the screen answers "התזמונים כבויים" itself. Called by the shell
+ * after HIDDEN_HREFS was rebuilt from the product settings, and by the settings screen after a save (the navigation
+ * re-renders through the tabs listeners). Returns whether the tab is hidden. */
+export function applySchedulesHidden(settings: Record<string, unknown> | null | undefined): boolean {
+  const hidden = String(settings?.['schedules.enabled'] ?? 'true') === 'false';
+  const was = HIDDEN_HREFS.has(SCHEDULES_HREF);
+  if (hidden) HIDDEN_HREFS.add(SCHEDULES_HREF);
+  else HIDDEN_HREFS.delete(SCHEDULES_HREF);
+  if (was !== hidden) for (const l of tabsListeners) l();
+  return hidden;
+}
+
+/** The home screen's layout editor is entered by `?edit=1` on "מבט על" (the user menu's "עריכת המסך הראשי", devices-layout.ts):
+ * while it is active the home area's tab row is hidden (like the plan editors'), so the editor is never left by a tab click. */
+export function isHomeEditRoute(r: RouteState | null): boolean {
+  return r?.mode === 'devices' && (r.segments[1] ?? 'building') === 'building' && r.params.get('edit') === '1';
+}
+
 /** Route → real screen for the demo-only routes when a backend exists; null when the route is fine. */
 export function demoRedirect(path: string, api: boolean): string | null {
   if (!api) return null;
@@ -934,6 +974,7 @@ const plain = (items: readonly { id: string; label: string; href?: string }[]): 
 
 export const TAB_SECTIONS: TabSectionDef[] = [
   { id: 'areas', label: 'ניווט ראשי', where: 'סרגל הצד ופס הניווט התחתון', tabs: () => plain(NAV_A) },
+  { id: 'devices', label: 'ראשי', where: 'לשוניות המסך הראשי', tabs: () => plain(DEVICES_TABS) },
   { id: 'security', label: 'אבטחה', where: 'הבחירה בראש אזור האבטחה', tabs: () => plain(SECURITY_SECTIONS) },
   { id: 'security.live', label: 'אבטחה › לייב', where: 'לשוניות לייב', tabs: () => plain(SECTION_TABS.live) },
   { id: 'security.investigate', label: 'אבטחה › חקירה', where: 'לשוניות חקירה', tabs: () => plain(SECTION_TABS.investigate) },
@@ -948,6 +989,7 @@ let ARRAY_SECTIONS: Map<readonly TabItem[], string> | null = null;
 /** The section id a registry array belongs to (both designs' copies of it), or null for a row `ui.tabs` does not configure. */
 export function sectionIdOf(items: readonly TabItem[]): string | null {
   ARRAY_SECTIONS ??= new Map<readonly TabItem[], string>([
+    [DEVICES_TABS, 'devices'],
     [SECTION_TABS.live, 'security.live'],
     [SECTION_TABS.investigate, 'security.investigate'],
     [EXPLORE_TABS, 'explore'],
