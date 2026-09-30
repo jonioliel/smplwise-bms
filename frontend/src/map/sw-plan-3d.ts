@@ -129,6 +129,7 @@ export class SwPlan3d extends LitElement {
   @query('.stage') private stage!: HTMLDivElement;
   private view: SceneView | null = null;
   private ro?: ResizeObserver;
+  private barRo?: ResizeObserver;
   /** The preset is applied once with the first description (the screen's choice), then only when the property changes:
    * a live state push replaces the description and must not snap the camera back. */
   private presetApplied = false;
@@ -206,7 +207,7 @@ export class SwPlan3d extends LitElement {
     .strip {
       position: absolute;
       inset-inline-start: 12px;
-      inset-block-end: 52px;
+      inset-block-end: max(52px, calc(20px + var(--bar-h, 0px)));
       z-index: var(--sw-z-map-ui);
       display: flex;
       flex-direction: column;
@@ -403,7 +404,7 @@ export class SwPlan3d extends LitElement {
       /* the phone: a row of small thumbnails above the bar instead of a column up the side */
       .strip {
         inset-inline-start: 8px;
-        inset-block-end: 44px;
+        inset-block-end: max(44px, calc(12px + var(--bar-h, 0px)));
         flex-direction: row;
         max-inline-size: calc(100% - 16px);
         max-block-size: none;
@@ -421,7 +422,21 @@ export class SwPlan3d extends LitElement {
   `;
 
   protected firstUpdated(): void {
+    this.watchBar();
     this.init();
+  }
+
+  /** The bar wraps and grows on a phone (touch-sized controls): the thumbnail strip stands on top of it, so the bar's real
+   * height goes to the strip as --bar-h (the strip never sits under a wrapped bar row). */
+  private watchBar(): void {
+    const bar = this.renderRoot.querySelector<HTMLElement>('.bar');
+    if (!bar || typeof ResizeObserver === 'undefined') return;
+    this.barRo?.disconnect();
+    this.barRo = new ResizeObserver(() => {
+      const h = Math.ceil(bar.getBoundingClientRect().height);
+      if (h > 0) this.style.setProperty('--bar-h', `${h}px`);
+    });
+    this.barRo.observe(bar);
   }
 
   connectedCallback(): void {
@@ -434,6 +449,7 @@ export class SwPlan3d extends LitElement {
     super.disconnectedCallback();
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.ro?.disconnect();
+    this.barRo?.disconnect();
     cancelAnimationFrame(this.thumbPass);
     this.thumbPass = 0;
     this.endProbe(false);
