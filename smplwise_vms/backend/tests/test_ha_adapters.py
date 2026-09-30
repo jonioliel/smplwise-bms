@@ -67,7 +67,7 @@ def test_catalogue_carries_risk_and_argument_specs(paired):
         "climate.set_preset_mode", "climate.set_swing_mode", "climate.set_humidity",  # CR-007 slice 4
     }
     assert by["climate.set_hvac_mode"]["risk"] == "routine" and by["climate.set_hvac_mode"]["argument_specs"][0]["choices"][:3] == ["off", "heat", "cool"]
-    assert by["climate.set_temperature"]["argument_specs"] == [{"name": "temperature", "type": "float", "min": 5, "max": 35}]
+    assert by["climate.set_temperature"]["argument_specs"] == [{"name": "temperature", "type": "float", "min": -30, "max": 120}]
     # CR-010 review M1: the alarm panel is operated only from the alarm section - the catalogue offers no action on it
     alarm = c.get("/api/v1/ha/entities/alarm_control_panel.home", headers=as_user("omer")).json()
     assert alarm["actions"] == [] and alarm["alarm_managed"] is True

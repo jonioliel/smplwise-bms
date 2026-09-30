@@ -257,6 +257,14 @@ export const CARD_EMPTY: Record<CardId, { heading: string; hint: string }> = {
   sensors: { heading: 'אין חיישנים באזור הזה', hint: 'טמפרטורה, לחות ושאר חיישני הסביבה של האזור יופיעו כאן.' },
 };
 
+/** A climate row's target range and step: the entity's own (a heating thermostat / heat pump targets 45 and reports
+ * max 95 - never cut to an air conditioner's 35); 5..35 and 0.5 only for one that reports none. */
+export function climateRange(r: Pick<DeviceRow, 'min_temp' | 'max_temp' | 'target_temp_step'>): { min: number; max: number; step: number } {
+  const min = r.min_temp ?? 5;
+  const max = r.max_temp ?? 35;
+  return { min, max: max >= min ? max : min, step: r.target_temp_step && r.target_temp_step > 0 ? r.target_temp_step : 0.5 };
+}
+
 export const HVAC_HE: Record<string, string> = { heat: 'חימום', cool: 'קירור', heat_cool: 'חימום/קירור', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר', off: 'כבוי' };
 export const HVAC_ACTION_HE: Record<string, string> = { heating: 'מחמם', cooling: 'מקרר', drying: 'מייבש', fan: 'מאוורר', idle: 'ממתין', off: 'כבוי', preheating: 'מחמם מראש', defrosting: 'מפשיר' };
 export const ALARM_HE: Record<string, string> = {

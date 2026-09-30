@@ -199,6 +199,7 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
     if existing:
         return _action_row(conn, existing["id"])  # idempotent: a duplicate click never sends twice
     spec, data = ha_bridge.validate_action(body.allowed_action_id, entity_id, body.arguments)
+    ha_bridge.check_entity_range(body.allowed_action_id, data, e.get("attributes"))
     grant = spec.get("grant")
     if grant and not _entity_allowed(conn, principal, entity_id, grant):
         # unlock and its kind need their own grant; general entity control never implies them (T079)

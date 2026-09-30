@@ -83,6 +83,8 @@ def verify(secret: str | None, message: dict[str, Any], now: float | None = None
 # True for attention and sensitive alike.
 RISK_LABEL = {"routine": "שגרתית", "attention": "דורשת אישור", "sensitive": "רגישה — הרשאה נפרדת"}
 HVAC_MODES = ["off", "heat", "cool", "heat_cool", "auto", "dry", "fan_only"]
+TEMPERATURE_BOUNDS = (-30, 120)  # outer sanity bounds of a climate target (either unit); the entity's own range decides
+TEMPERATURE_DEFAULT_RANGE = (5.0, 35.0)  # for a climate entity that reports no min_temp / max_temp
 
 
 def _a(domain: str, service: str, label: str, *, args: dict[str, Any] | None = None, expect: str | None = None, risk: str = "routine", grant: str | None = None, expect_from: str | None = None,
@@ -124,7 +126,10 @@ ACTIONS: dict[str, dict[str, Any]] = {
     "scene.turn_on": _a("scene", "turn_on", "הפעלת סצנה", risk="attention"),
     # T040: more adapters
     "climate.set_hvac_mode": _a("climate", "set_hvac_mode", "מצב פעולה", args={"hvac_mode": ("enum", HVAC_MODES)}, expect_from="hvac_mode"),
-    "climate.set_temperature": _a("climate", "set_temperature", "טמפרטורת יעד", args={"temperature": ("float", 5, 35)}, expect_attr=("temperature", "temperature", 0.05)),
+    # The static bounds are only an outer sanity check: a climate entity is not always an air conditioner (a heating
+    # thermostat, a boiler or a heat pump targets 45 C and its own max_temp says 95), so the real range is the
+    # entity's own min_temp / max_temp (check_entity_range), with TEMPERATURE_DEFAULT_RANGE for one that reports none.
+    "climate.set_temperature": _a("climate", "set_temperature", "טמפרטורת יעד", args={"temperature": ("float", TEMPERATURE_BOUNDS[0], TEMPERATURE_BOUNDS[1])}, expect_attr=("temperature", "temperature", 0.05)),
     # CR-007 slice 2: the devices area's climate card (mode/target already covered by set_hvac_mode/set_temperature above)
     "climate.set_fan_mode": _a("climate", "set_fan_mode", "מצב מאוורר", args={"fan_mode": ("str", 1, 40)}, expect_attr=("fan_mode", "fan_mode", None)),
     "climate.turn_off": _a("climate", "turn_off", "כיבוי מיזוג", expect="off"),
@@ -241,6 +246,23 @@ def validate_action(action_id: str, entity_id: str, arguments: dict[str, Any]) -
         # entity does not report that attribute at all, and the action is then honestly "sent", not "confirmed"
         spec = {**spec, "expect": f"{ea['attribute']}={_fmt(data[ea['argument']])}"}
     return spec, data
+
+
+def check_entity_range(action_id: str, data: dict[str, Any], attributes: dict[str, Any] | None) -> None:
+    """A climate target must lie in the entity's own min_temp..max_temp (TEMPERATURE_DEFAULT_RANGE where it reports
+    none): a heat pump that targets 36 is not an air conditioner limited to 35, and a 25-degree request to a unit
+    whose range ends at 30 stays fine. Raises 422 like validate_action."""
+    if action_id != "climate.set_temperature" or "temperature" not in data:
+        return
+    attrs = attributes or {}
+
+    def num(key: str, fallback: float) -> float:
+        v = attrs.get(key)
+        return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and v == v else fallback
+
+    lo, hi = num("min_temp", TEMPERATURE_DEFAULT_RANGE[0]), num("max_temp", TEMPERATURE_DEFAULT_RANGE[1])
+    if lo <= hi and not lo <= float(data["temperature"]) <= hi:
+        raise ApiError(422, "validation", f"temperature מחוץ לטווח {_fmt(lo)}–{_fmt(hi)}.", details={"min": lo, "max": hi})
 
 
 def _fmt(v: Any) -> str:

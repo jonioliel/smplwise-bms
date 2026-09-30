@@ -235,6 +235,7 @@ const STATE_HE: Record<string, string> = {
   standby: 'המתנה',
   heat: 'חימום',
   cool: 'קירור',
+  heat_cool: 'חימום/קירור',
   auto: 'אוטומטי',
   dry: 'ייבוש',
   fan_only: 'מאוורר',

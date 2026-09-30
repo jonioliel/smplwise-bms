@@ -1870,8 +1870,8 @@ export class ExploreFloorMap extends LitElement {
     const choices = this.argChoices(e, arg);
     if (choices.length) return html`<select class="arg" data-action-arg=${key} aria-label=${arg.name} @change=${(ev: Event) => set((ev.target as HTMLSelectElement).value)}>${choices.map((c) => html`<option value=${c} ?selected=${c === value}>${ARG_CHOICE_HE[c] ?? c}</option>`)}</select>`;
     if (arg.type === 'int' || arg.type === 'float') {
-      const min = arg.name === 'volume_level' ? 0 : arg.name === 'value' ? ((at.min as number) ?? arg.min) : arg.name === 'temperature' ? ((at.min_temp as number) ?? arg.min) : arg.min;
-      const max = arg.name === 'volume_level' ? 100 : arg.name === 'value' ? ((at.max as number) ?? arg.max) : arg.name === 'temperature' ? ((at.max_temp as number) ?? arg.max) : arg.max;
+      const min = arg.name === 'volume_level' ? 0 : arg.name === 'value' ? ((at.min as number) ?? arg.min) : arg.name === 'temperature' ? ((at.min_temp as number) ?? 5) : arg.min;
+      const max = arg.name === 'volume_level' ? 100 : arg.name === 'value' ? ((at.max as number) ?? arg.max) : arg.name === 'temperature' ? ((at.max_temp as number) ?? 35) : arg.max;
       const step = arg.name === 'value' ? ((at.step as number) ?? 1) : arg.name === 'temperature' ? 0.5 : 1;
       const unit = arg.name === 'volume_level' || arg.name === 'brightness_pct' || arg.name === 'percentage' ? '%' : arg.name === 'temperature' ? '°' : '';
       return html`<span class="argwrap"><input class="arg" type="number" data-action-arg=${key} aria-label=${arg.name} .value=${value} min=${String(min ?? '')} max=${String(max ?? '')} step=${String(step)} data-ltr @change=${(ev: Event) => set((ev.target as HTMLInputElement).value)} />${unit ? html`<span class="unit">${unit}</span>` : nothing}</span>`;
