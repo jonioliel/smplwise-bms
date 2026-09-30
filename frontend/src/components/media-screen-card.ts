@@ -596,7 +596,7 @@ export class MediaScreenCard extends LitElement {
   }
 
   private controls(d: MediaDevice, v: NowView) {
-    if (v.kind === 'un') return html`<span class="unl">${mIcon('wifiOff')}${d.live.since ? html`לא זמין מאז <span class="n">${hhmm(d.live.since)}</span>` : 'לא זמין'}</span>`;
+    if (v.kind === 'un') return html`<span class="unl">${mIcon('wifiOff')}${d.live.power === 'unknown' ? 'מצב לא ידוע' : d.live.since ? html`לא זמין מאז <span class="n">${hhmm(d.live.since)}</span>` : 'לא זמין'}</span>`;
     const ro = !d.can.control && !d.can.power;
     if (ro) return nothing;
     const remote = html`<button type="button" class="rbtn" aria-label=${`שלט · ${d.name}`} @click=${() => this.openRemote()}>${mIcon('remote')}שלט</button>`;
