@@ -27,7 +27,7 @@ test.describe('home assistant bridge evidence', () => {
     const cat = await (await request.get('/api/v1/ha/entities?limit=5')).json();
     expect(Object.keys(cat.domains).length).toBeGreaterThan(3);
     expect(cat.entities[0]).toHaveProperty('fresh', true);
-    await open(page, '/explore/entities');
+    await open(page, '/system/entities'); // the catalogue is a settings page since 2026-09-30 (it was the map's "התקנים" tab)
     await page.waitForTimeout(1500);
     const shell = page.locator('explore-entities');
     await expect(shell.locator('sw-table tbody tr').first()).toBeVisible();

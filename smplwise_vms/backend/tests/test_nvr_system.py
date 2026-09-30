@@ -3,6 +3,7 @@ output pulse, S.M.A.R.T. test, reboot with the typed word, and the VMS-side conn
 from __future__ import annotations
 
 import datetime as dt
+from zoneinfo import ZoneInfo
 import json
 
 import httpx
@@ -66,6 +67,10 @@ def test_xml_helpers():
     assert "<enabled>true</enabled>" in d.split("<channelNameOverlay")[0], "the DateTimeOverlay block keeps its own enabled flag"
     t = nvr_system.time_document(TIME, mode="manual", at=dt.datetime(2026, 9, 18, 0, 40, 5, tzinfo=dt.timezone.utc))
     assert "<localTime>2026-09-18T02:40:05+02:00</localTime>" in t and "<timeMode>manual</timeMode>" in t
+    # with the installation zone the clock is written as the wall clock (summer time applied) under the device's own tag
+    tz = ZoneInfo("Asia/Jerusalem")
+    t = nvr_system.time_document(TIME, mode=None, at=dt.datetime(2026, 9, 18, 0, 40, 5, tzinfo=dt.timezone.utc), tz=tz)
+    assert "<localTime>2026-09-18T03:40:05+02:00</localTime>" in t
     n = nvr_system.ntp_document(NTP, host="192.0.2.5", port=123, interval_min=60)
     assert "<addressingFormatType>ipaddress</addressingFormatType>" in n and "<synchronizeInterval>60</synchronizeInterval>" in n
 
@@ -149,3 +154,58 @@ def test_connection_edit_tests_first_then_saves(settings, monkeypatch, tmp_path)
         # keeping the password: absent field
         r = c.put("/api/v1/nvr/connection", json={"host": "nvr.local", "http_port": 8080, "user": "writer"})
         assert r.status_code == 200 and seen[-1].endswith(":writer:s3cret")
+
+
+def test_device_instant_reads_the_wall_clock_in_the_installation_zone():
+    tz = ZoneInfo("Asia/Jerusalem")
+    utc = dt.timezone.utc
+    # September (summer time, +03:00): the NVR shows the right wall clock with the standard tag +02:00
+    assert nvr_system.device_instant("2026-09-30T12:04:09+02:00", tz) == dt.datetime(2026, 9, 30, 9, 4, 9, tzinfo=utc)
+    assert nvr_system.device_instant("2026-09-30T12:04:09+03:00", tz) == dt.datetime(2026, 9, 30, 9, 4, 9, tzinfo=utc)
+    # winter: tag and zone agree
+    assert nvr_system.device_instant("2026-12-01T09:00:00+02:00", tz) == dt.datetime(2026, 12, 1, 7, 0, 0, tzinfo=utc)
+    # another zone is honoured; a naive value is the zone's wall clock; without a zone the old reading stays
+    assert nvr_system.device_instant("2026-09-30T12:04:09+05:00", tz) == dt.datetime(2026, 9, 30, 7, 4, 9, tzinfo=utc)
+    assert nvr_system.device_instant("2026-09-30T12:04:09", tz) == dt.datetime(2026, 9, 30, 9, 4, 9, tzinfo=utc)
+    assert nvr_system.device_instant("2026-09-30T12:04:09+02:00") == dt.datetime(2026, 9, 30, 10, 4, 9, tzinfo=utc)
+    assert nvr_system.device_instant(None, tz) is None and nvr_system.device_instant("garbage", tz) is None
+
+
+def test_time_status_has_no_phantom_hour_of_drift_in_summer(monkeypatch):
+    """The reported bug: a correct NVR clock (12:04 Israel, tag +02:00) showed +3599 s of drift."""
+    tz = ZoneInfo("Asia/Jerusalem")
+    xml = TIME.replace("2026-09-18T02:35:00+02:00", "2026-09-30T12:04:09+02:00")
+    monkeypatch.setattr(nvr_system, "_get", lambda c, path: xml if path == nvr_system.TIME_PATH else "")
+    now = dt.datetime(2026, 9, 30, 9, 4, 10, tzinfo=dt.timezone.utc)
+    fixed = nvr_system.time_status(None, client=object(), now=now, tz=tz)
+    assert fixed["drift_s"] == -1
+    assert nvr_system.time_status(None, client=object(), now=now)["drift_s"] == 3599, "the literal reading, kept without a zone"
+
+
+def test_time_document_survives_an_unreadable_or_offsetless_clock_value():
+    tz = ZoneInfo("Asia/Jerusalem")
+    at = dt.datetime(2026, 9, 30, 9, 4, 9, tzinfo=dt.timezone.utc)
+    junk = TIME.replace("2026-09-18T02:35:00+02:00", "2026-09-30 12:04 junk")
+    assert "<localTime>2026-09-30T09:04:09+00:00</localTime>" in nvr_system.time_document(junk, mode=None, at=at, tz=tz), "no 500, UTC digits"
+    naive = TIME.replace("2026-09-18T02:35:00+02:00", "2026-09-30T12:04:09")
+    assert "<localTime>2026-09-30T12:04:09</localTime>" in nvr_system.time_document(naive, mode=None, at=at, tz=tz), "an offsetless device gets the zone's wall clock, as the read assumes"
+
+
+def test_a_clock_write_that_leaves_the_device_off_is_reported(monkeypatch):
+    import pytest as _pytest
+
+    from smplwise.errors import ApiError
+
+    calls: list[str] = []
+    monkeypatch.setattr(nvr_system, "_get", lambda c, path: TIME)
+    monkeypatch.setattr(nvr_system, "apply_change", lambda *a, **k: calls.append(k["target"]) or {"status": "applied"})
+    monkeypatch.setattr(nvr_system, "time_status", lambda *a, **k: {"drift_s": 3600})
+    audited: list[str] = []
+    monkeypatch.setattr(nvr_system, "audit", lambda conn, **k: audited.append(k["action"]))
+    with _pytest.raises(ApiError) as e:
+        nvr_system.sync_clock(None, None, None, client=object(), tz=ZoneInfo("Asia/Jerusalem"))
+    assert e.value.code == "clock_verify_failed" and e.value.details["drift_s"] == 3600
+    assert calls == ["clock", "time-mode"], "the mode is still put back"
+    assert audited == ["nvr.clock.verify_failed"]
+    monkeypatch.setattr(nvr_system, "time_status", lambda *a, **k: {"drift_s": 2})
+    assert nvr_system.sync_clock(None, None, None, client=object(), tz=ZoneInfo("Asia/Jerusalem"))["status"] == "applied"

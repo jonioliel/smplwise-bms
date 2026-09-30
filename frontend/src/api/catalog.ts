@@ -94,3 +94,12 @@ export function firstFloor(tree: CatalogTree): Floor | null {
   for (const site of tree.sites) for (const building of site.buildings ?? []) for (const floor of building.floors ?? []) return floor;
   return null;
 }
+
+/** Where the map's floor entry (`#/explore/floors/f0`, the "מפת קומה" tab, the start screen) opens: the installation's
+ * default floor (`map.default_floor`) when it is in THIS user's tree, otherwise the user's first readable floor. The
+ * setting never grants access - a floor the user may not read is simply not in their tree - and one that was deleted is
+ * cleared by the server, so a stale id falls back the same way. */
+export function entryFloor(tree: CatalogTree, defaultFloorId?: string | null): Floor | null {
+  const preferred = defaultFloorId ? findFloor(tree, defaultFloorId)?.floor : undefined;
+  return preferred ?? firstFloor(tree);
+}

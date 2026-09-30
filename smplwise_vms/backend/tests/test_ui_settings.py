@@ -42,6 +42,25 @@ def test_hide_wiskey_round_trip_and_audited(settings):
         assert {"ui.hide_wiskey": "false"} in rows
 
 
+def test_wiskey_size_defaults_to_normal_validates_audits_and_is_admin_only(settings):
+    """Owner 2026-09-30: the embedded WisKey panel's size is an installation-wide choice (normal | fit + scale | full)."""
+    app = create_app(settings)
+    with TestClient(app) as c:
+        s = c.get("/api/v1/settings").json()["settings"]
+        assert s["ui.wiskey_size"] == "normal" and s["ui.wiskey_scale"] == "90"
+        r = c.patch("/api/v1/settings", json={"ui.wiskey_size": "fit", "ui.wiskey_scale": "80"})
+        assert r.status_code == 200, r.text
+        assert r.json()["settings"]["ui.wiskey_size"] == "fit" and r.json()["settings"]["ui.wiskey_scale"] == "80"
+        for bad in ({"ui.wiskey_size": "huge"}, {"ui.wiskey_size": ""}, {"ui.wiskey_scale": "60"}, {"ui.wiskey_scale": "110"}, {"ui.wiskey_scale": "90%"}):
+            assert c.patch("/api/v1/settings", json=bad).status_code == 422
+        assert c.patch("/api/v1/settings", json={"ui.wiskey_size": "full"}).json()["settings"]["ui.wiskey_size"] == "full"
+        with app.state.db.connection() as conn:
+            rows = [json.loads(r[0] or "{}") for r in conn.execute("SELECT details_json FROM audit_log WHERE action = 'settings.update' AND decision = 'allowed' ORDER BY rowid").fetchall()]
+        assert {"ui.wiskey_size": "fit", "ui.wiskey_scale": "80"} in rows and {"ui.wiskey_size": "full"} in rows
+        bind(c, settings, "ron", "viewer", "installation", "*")
+        assert c.patch("/api/v1/settings", json={"ui.wiskey_size": "fit"}, headers=as_user("ron")).status_code == 403
+
+
 def test_access_ui_screen_choice_defaults_to_the_embedded_panel_and_is_audited(settings):
     """CR-005 recorded decision 2026-09-28 (embedded panel): הגדרות › בקרות כניסה chooses, per SMPLWISE WisKey screen,
     between WisKey's own panel embedded as-is ("wiskey", the default) and the SMPLWISE screen ("smplwise")."""
@@ -205,3 +224,24 @@ def test_ui_tile_layout_setting(settings):
         assert seen.status_code == 200 and seen.json()["settings"]["ui.tile_layout"] == "compact"
         assert c.patch("/api/v1/settings", json={"ui.tile_layout": "cards"}, headers=as_user("dana")).status_code == 403
         assert c.get("/api/v1/settings").json()["settings"]["ui.tile_layout"] == "compact"
+
+
+def test_security_snapshot_defaults_to_shown_round_trips_and_needs_system_configure(settings):
+    """Owner 2026-09-30: הגדרות › ממשק › "תמונת מצב באבטחה" (ui.security_snapshot) hides the live overview sub-screen of the
+    security area for everyone. Shown by default; true/false only; audited; read by any user, written only with system.configure."""
+    app = create_app(settings)
+    with TestClient(app) as c:
+        assert c.get("/api/v1/settings").json()["settings"]["ui.security_snapshot"] == "true"
+        r = c.patch("/api/v1/settings", json={"ui.security_snapshot": "false"})
+        assert r.status_code == 200, r.text
+        assert r.json()["settings"]["ui.security_snapshot"] == "false"
+        assert c.get("/api/v1/settings").json()["settings"]["ui.security_snapshot"] == "false"
+        for bad in ("yes", "", "False", "0", "hidden"):
+            assert c.patch("/api/v1/settings", json={"ui.security_snapshot": bad}).status_code == 422, bad
+        with app.state.db.connection() as conn:
+            rows = [json.loads(r[0] or "{}") for r in conn.execute("SELECT details_json FROM audit_log WHERE action = 'settings.update' AND decision = 'allowed' ORDER BY rowid").fetchall()]
+        assert {"ui.security_snapshot": "false"} in rows
+        bind(c, settings, "dana", "viewer", "installation", "*")
+        assert c.get("/api/v1/settings", headers=as_user("dana")).json()["settings"]["ui.security_snapshot"] == "false"
+        assert c.patch("/api/v1/settings", json={"ui.security_snapshot": "true"}, headers=as_user("dana")).status_code == 403
+        assert c.get("/api/v1/settings").json()["settings"]["ui.security_snapshot"] == "false"

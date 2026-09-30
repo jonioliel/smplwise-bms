@@ -938,11 +938,21 @@ the offline fallback).
 
 ## Security area and the intrusion alarm (CR-010)
 
-**Navigation.** Design A's rail and phone bar are אבטחה · מפה · חשמל · WisKey · מערכת. "אבטחה" (security) holds three
-sections - לייב (live), חקירה (investigation) and אזעקה (the alarm) - shown as a segmented control in the top bar; each
-section's own pages stay the tab row under it. Every old address still works (`#/live/...`, `#/investigate/...`,
-`#/system/devices`, the Lovelace card views, the kiosk); the alarm is `#/security/alarm`, and `#/security` opens the
-section the browser used last. Design B adds a flat "אזעקה" entry. The alarm section needs `alarm.view`.
+**Navigation.** Design A's rail and phone bar are אבטחה · מפה · חשמל · WisKey · מערכת. "אבטחה" (security) holds two
+sections - לייב (live) and חקירה (investigation) - shown as a segmented control in the top bar; each section's own pages
+stay the tab row under it, and `#/security` opens the section the browser used last. Since 2026-09-30 the intrusion
+alarm is **not** a section there: its screen is a page of **הגדרות › אבטחה** (`#/system/security/alarm`), next to its
+management (`#/system/security/manage`, `system.configure`) and an NVR summary (`#/system/security/nvr`, the NVR
+connection and recorder settings stay in הגדרות › חיבורים). The section is offered to the holders of the permission each
+page always needed - `alarm.view` (at any scope) for the alarm screen, `system.configure` for its management,
+`system.configure` / `sources.configure` for the NVR - even without general settings access (the user menu's "מערכת"
+opens it), and the alarm pages are not offered at all while the platform has no alarm panel (one cached request to the
+alarm endpoints per session, refreshed as the alarm screens load). Old addresses keep working and redirect with their
+query: `#/security/alarm[?panel=...]` → `#/system/security/alarm[?panel=...]`, `#/system/devices` → `#/investigate/health`
+(camera health is now the last tab of חקירה, still `video.live`), `#/system/diagnostics?tab=alarm` →
+`#/system/security/manage`; the Lovelace card views and the kiosk are unchanged. Design B has no flat "אזעקה" entry.
+The live overview ("תמונת מצב") can be hidden for everyone with הגדרות › וידאו ומדיה › תמונת מצב באבטחה
+(`ui.security_snapshot`, default shown); the live section then opens on "כל המצלמות" and `#/live` redirects there.
 
 **What the alarm shows.** Every `alarm_control_panel` entity is a panel: its state, the arm modes it reports
 (`supported_features`), whether it needs a code (`code_format`, `code_arm_required`) and who changed it last. Its zones
@@ -951,7 +961,7 @@ are the `binary_sensor` entities of the same integration and config entry (auxil
 integration key (Risco: the system and zone number of the unique id - the owner's system, never paired by name), then
 the entity or unique id with the property words removed, the name, the zone number. Visonic's bypass is a select
 (`bypass` / `armed`); Alarmo reports the sensors it watches while they are open or bypassed, and others are assigned
-by hand. Unpaired bypass switches are listed ("ללא שיוך"). הגדרות › מערכת › אזעקה shows every panel, its integration and
+by hand. Unpaired bypass switches are listed ("ללא שיוך"). הגדרות › אבטחה › ניהול אזעקה shows every panel, its integration and
 the pairing table with manual overrides (pair, no bypass, assign to one partition, exclude).
 
 **Control.** Arm (`alarm.arm`: operator, site_admin, system_admin), disarm (`alarm.disarm`: site_admin, system_admin;
@@ -961,7 +971,7 @@ Trigger is never offered. Scope: installation-wide holders see every panel, a fl
 floors. The bridge must be 0.2.6 (restart Home Assistant once after the update) for arm_night, arm_vacation,
 arm_custom_bypass and the "code refused" answer.
 
-**Codes (owner decisions 2026-09-29).** An administrator stores each panel's code once (הגדרות › מערכת › אזעקה,
+**Codes (owner decisions 2026-09-29).** An administrator stores each panel's code once (הגדרות › אבטחה › ניהול אזעקה,
 `system.configure`); it is encrypted (AES-256-GCM) with a key in `/data/keys/alarm-codes.key` (mode 0600) and is never
 shown again, logged, audited or returned. Per user (משתמשים והרשאות › user): arming and disarming each either "ללא קוד"
 (Arx sends the stored code) or "חייב קוד" (default). What a "חייב קוד" user types is `alarm.code_mode`: a personal Arx
@@ -971,7 +981,7 @@ user after typing a stored panel code correctly); changing it needs the current 
 and PIN are changed by another administrator or with their current PIN. Without a stored code the panel's code is
 typed and passed through each time. Wrong codes: 5 in 5 minutes lock code entry for 10 minutes - per user for a PIN,
 per user and panel for a panel code; the lock survives a restart. The panel and every bypass control are operated
-only from the alarm section: map cards, the devices screens and bulk actions show them read-only ("נשלט ממסך
+only from the alarm screen: map cards, the devices screens and bulk actions show them read-only ("נשלט ממסך
 האזעקה"), and a zone shared by two partitions is visible and bypassable only for someone who holds both. There is no
 key rotation, and renaming a panel's entity id requires entering its code again.
 

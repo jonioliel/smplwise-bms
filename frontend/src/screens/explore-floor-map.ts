@@ -20,7 +20,7 @@ import { t } from '../i18n/he';
 import { navigate } from '../router';
 import { cameraState, entityName, loadMap, updateAnchor, type MapBundle } from '../api/maps';
 import { snapshotUrl } from '../api/media';
-import { findFloor, firstFloor, loadTree, type CatalogTree } from '../api/catalog';
+import { entryFloor, findFloor, loadTree, type CatalogTree } from '../api/catalog';
 import { isApi, nvrLess } from '../api/session';
 import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
@@ -997,9 +997,10 @@ export class ExploreFloorMap extends LitElement {
       // a floor created after the tree was cached (a hash navigation to it): read the tree again before redirecting
       if (isApi() && this.tree && !findFloor(tree, this.floorId)) tree = await loadTree();
       this.tree = tree;
-      // Links such as the nav entry point at the fixture floor "f0"; with a backend, open the first real floor.
+      // Links such as the nav entry point at the fixture floor "f0"; with a backend, open the installation's default floor
+      // (הגדרות › כללי › מפה › קומת ברירת מחדל) when this user may read it, else their first real floor.
       if (isApi() && !findFloor(tree, this.floorId)) {
-        const first = firstFloor(tree);
+        const first = entryFloor(tree, (await productSettings().catch(() => null))?.['map.default_floor']);
         if (first && first.id !== this.floorId) {
           navigate(`/explore/floors/${first.id}`);
           return;

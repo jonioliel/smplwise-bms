@@ -43,7 +43,7 @@ test.describe('live backend evidence', () => {
     await page.waitForTimeout(1500);
     await page.screenshot({ path: path.join(OUT, `editor-${testInfo.project.name}.png`) });
 
-    await open(page, '/system/devices');
+    await open(page, '/investigate/health');
     await page.screenshot({ path: path.join(OUT, `cameras-${testInfo.project.name}.png`) });
   });
 });

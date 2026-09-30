@@ -17,9 +17,9 @@ const SCREENS: { sc: string; route: string; full?: boolean }[] = [
   { sc: 'sc03-floors', route: '/explore/buildings/bld-a/floors' },
   { sc: 'sc05-plan-import', route: '/explore/floors/f-2/import' },
   { sc: 'sc06-plan-editor', route: '/explore/floors/f0/edit' },
-  { sc: 'sc10-entities', route: '/explore/entities' },
+  { sc: 'sc10-entities', route: '/system/entities' }, // הגדרות › קטלוג התקנים (was the map's "התקנים" tab until 2026-09-30)
   { sc: 'sc23-access', route: '/wiskey/overview' },
-  { sc: 'sc34-alarm', route: '/security/alarm', full: true }, // CR-010: אבטחה › אזעקה
+  { sc: 'sc34-alarm', route: '/system/security/alarm', full: true }, // CR-010: הגדרות › אבטחה › אזעקה (moved 2026-09-30)
   { sc: 'sc12-playback', route: '/investigate/playback', full: true },
   { sc: 'sc13-sync', route: '/investigate/playback/sync', full: true },
   { sc: 'sc11-history-map', route: '/investigate/floors/f0/history' },
@@ -35,7 +35,7 @@ const SCREENS: { sc: string; route: string; full?: boolean }[] = [
   { sc: 'sc25-audit', route: '/system/audit' },
   { sc: 'sc26-setup', route: '/system/wizard' },
   { sc: 'sc26-connections', route: '/system/setup' },
-  { sc: 'sc27-devices', route: '/system/devices' },
+  { sc: 'sc27-devices', route: '/investigate/health' }, // camera health, a tab of חקירה since 2026-09-30
   { sc: 'sc28-diagnostics', route: '/system/diagnostics', full: true },
   { sc: 'sc20-storage', route: '/system/storage', full: true },
   // owner 2026-09-29: the devices building (compact tiles on a phone) and the tiles' panel open (drawer / bottom sheet)

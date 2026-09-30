@@ -324,8 +324,10 @@ test.describe('experimental: WisKey embedded inside the Companion app through th
     await app.locator('sw-tabs a[href="#/wiskey/sync"]').click();
     await expect(frame).toHaveAttribute('data-confirmed-tab', 'sync');
 
-    // "רענן": the new document in the frame is caught again and signs in with a fresh answer
-    await app.locator('sw-button[data-wiskey-embed-refresh]').click();
+    // a new document in the frame (HA reloading itself; there is no "רענן" control any more - owner notes 2026-09-30):
+    // it is caught again and signs in with a fresh answer
+    await expect(app.locator('wiskey-embed [data-wiskey-embed-refresh]')).toHaveCount(0);
+    await wiskeyFrame(page)!.evaluate(() => location.reload());
     await expect.poll(async () => (await frameAuth(page))?.token?.access_token ?? null, { timeout: 20000 }).toBe('tok-4');
     await expect(frame).toHaveAttribute('data-embed-mode', 'v1', { timeout: 15000 });
     await expect(frame).toHaveAttribute('data-companion-shim', 'early');

@@ -1,4 +1,3 @@
-import './system-alarm'; // CR-010: הגדרות › מערכת › אזעקה
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
@@ -25,11 +24,14 @@ import { TILE_LAYOUT_LABEL, TILE_LAYOUTS, resolveTileLayout, setInstallationTile
 import { KIND_LABEL, TABLE_LABEL, backupDownloadUrl, createBackup, deleteBackup, fmtBytes, listBackups, restoreBackup, uploadBackup, type BackupEntry } from '../api/backup';
 import '../components/sw-dialog';
 import { STATUS_KIND, STATUS_LABEL, fmtUptime, healthReport, type HealthReport } from '../api/health';
-import { applyWiskeyUi, applyWiskeyHidden, type WiskeyScreen } from '../shell/nav';
+import { applyWiskeyUi, applyWiskeyHidden, applySnapshotHidden, type WiskeyScreen } from '../shell/nav';
 import { getSkinsStatus, runSkinsTest, type SkinsStatus, type SkinsTestResult } from '../api/skins';
 import { devicesPrefsOf, type DevicesStyle } from './devices-style';
 import './devices-theme-picker';
 import './devices-bulk-safe-admin'; // owner 2026-09-30: הגדרות › חשמל והתקנים › פעולה קבוצתית
+import './system-tabs'; // owner 2026-09-30: הגדרות › כללי › לשוניות
+import { loadTree } from '../api/catalog';
+import type { Site } from '../api/types';
 import type { DevicesPick } from './devices-theme-picker';
 import { inAndroidApp, switchServer } from '../arx/android-app';
 
@@ -51,12 +53,12 @@ interface VideoCodecs {
 
 const TABS = [
   { id: 'general', label: 'כללי' },
+  { id: 'tabs', label: 'לשוניות' }, // 2026-09-30: which tabs each navigation section shows and in which order (ui.tabs)
   { id: 'media', label: 'וידאו ומדיה' },
   { id: 'map', label: 'מפה' },
   { id: 'ha', label: 'גשר Home Assistant' },
   { id: 'access-control', label: 'בקרות כניסה' },
   { id: 'devices', label: 'חשמל והתקנים' },
-  { id: 'alarm', label: 'אזעקה' }, // CR-010
   { id: 'remote', label: 'גישה מרחוק' },
   { id: 'health', label: 'בריאות ועבודות' },
   { id: 'backup', label: 'גיבוי ושחזור' },
@@ -69,6 +71,7 @@ export class SystemDiagnostics extends LitElement {
   @state() private tab = 'general';
   @state() private settings: ProductSettings | null = null;
   @state() private canEdit = false;
+  @state() private floorTree: Site[] = [];
   @state() private draft: Partial<ProductSettings> = {};
   @state() private streams: { name: string; online: boolean }[] | null = null;
   @state() private go2rtc: Record<string, unknown> | null = null;
@@ -441,6 +444,8 @@ export class SystemDiagnostics extends LitElement {
     } catch (err) {
       this.error = describeError(err);
     }
+    // the floors for הגדרות › מפה › קומת ברירת מחדל (grouped by site and building)
+    void loadTree().then((t) => (this.floorTree = t.sites)).catch(() => undefined);
   }
 
   private async loadMedia() {
@@ -545,7 +550,7 @@ export class SystemDiagnostics extends LitElement {
           : html`
             <div class="row"><span class="lbl">גישה ל־API של Home Assistant<span class="muted">${h.configured ? 'דרך ה־Supervisor (homeassistant_api) או HA_URL בפיתוח' : 'לא מוגדר — ה־Add-on לא קיבל SUPERVISOR_TOKEN'}</span></span><sw-badge kind=${h.configured ? 'live' : 'offline'}></sw-badge></div>
             <div class="row"><span class="lbl">סנכרון מצבים (WebSocket)<span class="muted">${s?.connected ? `מחובר · HA ${s.ha_version ?? '?'} · ${s.entities} ישויות · אירוע אחרון ${fmtTime(s.last_event_at)}` : `מנותק${s?.last_error ? ` · ${s.last_error}` : ''} · ${s?.reconnects ?? 0} חיבורים מחדש`}</span></span><sw-badge kind=${s?.connected ? 'live' : 'offline'}></sw-badge></div>
-            <div class="row"><span class="lbl">רישום ישויות (registry)<span class="muted">עודכן ${fmtTime(s?.last_registry_at)} · תמונת מצב ${fmtTime(s?.last_snapshot_at)}</span></span><sw-button size="sm" @click=${() => navigate('/explore/entities')}>לקטלוג</sw-button></div>`}
+            <div class="row"><span class="lbl">רישום ישויות (registry)<span class="muted">עודכן ${fmtTime(s?.last_registry_at)} · תמונת מצב ${fmtTime(s?.last_snapshot_at)}</span></span><sw-button size="sm" @click=${() => navigate('/system/entities')}>לקטלוג</sw-button></div>`}
       </sw-card>
       <sw-card heading="גשר Arx (אינטגרציה ב־Home Assistant)" subheading="פעולות על ישויות רצות רק דרך הגשר, בזהות המשתמש, לפי ההרשאות של Home Assistant">
         ${h
@@ -591,6 +596,7 @@ export class SystemDiagnostics extends LitElement {
       invalidateSettings();
       applyWiskeyUi(r.settings as unknown as Record<string, unknown>); // the WisKey tabs follow at once, no reload
       applyWiskeyHidden(r.settings as unknown as Record<string, unknown>); // ditto for a direct URL landing on "not available"
+      applySnapshotHidden(r.settings as unknown as Record<string, unknown>); // ui.security_snapshot: the live overview tab follows
       this.message = 'ההגדרות נשמרו';
       setTimeout(() => (this.message = ''), 2500);
     } catch (err) {
@@ -711,6 +717,16 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-hide-map ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_map', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('ui.hide_map') ?? 'false') !== 'true'}>מוצגת</option><option value="true" ?selected=${String(this.value('ui.hide_map') ?? 'false') === 'true'}>מוסתרת</option>
           </select></sw-field></div>
+        <div class="row"><span class="lbl">גודל תצוגת WisKey<span class="muted">רגיל: ממלא את אזור התוכן. מותאם: WisKey מוצג בגודל וירטואלי גדול יותר ומוקטן, כך שנכנסים בו יותר כרטיסים ואריחים. מסך מלא: מכסה את כל החלון (יציאה: כפתור קטן בפינה, Esc או חזרה)</span></span>
+          <sw-field class="ctl"><select data-set-wiskey-size ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.wiskey_size', (e.target as HTMLSelectElement).value as ProductSettings['ui.wiskey_size'])}>
+            ${([['normal', 'רגיל'], ['fit', 'מותאם'], ['full', 'מסך מלא']] as const).map(([v, l]) => html`<option value=${v} ?selected=${(this.value('ui.wiskey_size') ?? 'normal') === v}>${l}</option>`)}
+          </select></sw-field></div>
+        ${(this.value('ui.wiskey_size') ?? 'normal') === 'fit'
+          ? html`<div class="row"><span class="lbl">קנה מידה במצב מותאם<span class="muted">100% זהה לרגיל; ככל שהמספר נמוך יותר WisKey מציג יותר, בכתב קטן יותר</span></span>
+              <sw-field class="ctl"><select data-set-wiskey-scale ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.wiskey_scale', (e.target as HTMLSelectElement).value as ProductSettings['ui.wiskey_scale'])}>
+                ${(['100', '90', '80', '70'] as const).map((v) => html`<option value=${v} ?selected=${String(this.value('ui.wiskey_scale') ?? '90') === v}>${v}%</option>`)}
+              </select></sw-field></div>`
+          : nothing}
         ${NVR ? nothing : html`<div class="row"><span class="lbl">HA recorder כמקור משני להיסטוריה<span class="muted">במפה ההיסטורית: כשההיסטוריה המקומית לא יודעת מצב של ישות, הוא נקרא מה־recorder של Home Assistant ומסומן כמקור משני</span></span>
           <sw-field class="ctl"><select data-set-ha-secondary ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('history.ha_secondary', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('history.ha_secondary') ?? 'false') !== 'true'}>כבוי</option><option value="true" ?selected=${String(this.value('history.ha_secondary') ?? 'false') === 'true'}>פעיל</option>
@@ -734,6 +750,10 @@ export class SystemDiagnostics extends LitElement {
         ${NVR ? nothing : html`<div class="row"><span class="lbl">הסתרת חיפוש AI<span class="muted">מסיר את הלשונית מהניווט; המסך עצמו נשאר זמין בכתובת</span></span>
           <sw-field class="ctl"><select data-set-hide-search ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_search', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('ui.hide_search') ?? 'false') !== 'true'}>מוצג</option><option value="true" ?selected=${String(this.value('ui.hide_search') ?? 'false') === 'true'}>מוסתר</option>
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">תמונת מצב באבטחה<span class="muted">העמוד הראשון בלייב; כשהוא מוסתר, לייב נפתח על כל המצלמות והכתובת הישנה מפנה אליהן</span></span>
+          <sw-field class="ctl"><select data-set-security-snapshot ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.security_snapshot', (e.target as HTMLSelectElement).value)}>
+            <option value="true" ?selected=${String(this.value('ui.security_snapshot') ?? 'true') !== 'false'}>מוצגת</option><option value="false" ?selected=${String(this.value('ui.security_snapshot') ?? 'true') === 'false'}>מוסתרת</option>
           </select></sw-field></div>
         <div class="row"><span class="lbl">מקסימום זרמים חיים במקביל<span class="muted">מגן על ה־NVR; מעבר למכסה מוצג צילום בלבד</span></span><sw-field class="ctl"><input type="number" min="1" max="32" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('media.max_live_sessions') ?? 16)} @change=${(e: Event) => this.set('media.max_live_sessions', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         <div class="row"><span class="lbl">רעננות צילום (שניות)<span class="muted">snapshot מה־NVR לאריחים; cache בשרת</span></span><sw-field class="ctl"><input type="number" min="5" max="3600" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('snapshots.max_age_s') ?? 60)} @change=${(e: Event) => this.set('snapshots.max_age_s', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
@@ -764,6 +784,19 @@ export class SystemDiagnostics extends LitElement {
     </div>`;
   }
 
+  /** "קומת ברירת מחדל במפה" (owner 2026-09-30, `map.default_floor`): the floor the map's floor tab opens first, chosen
+   * from the tree grouped by site and building; "אוטומטי" (empty) = the first floor each user may read. A user who may not
+   * read the chosen floor gets their own first floor (the setting never grants access); deleting the floor clears it. */
+  private renderDefaultFloor(api: boolean) {
+    const current = String(this.value('map.default_floor') ?? '');
+    const groups = this.floorTree.flatMap((s) => (s.buildings ?? []).map((b) => ({ label: `${s.name} › ${b.name}`, floors: b.floors ?? [] }))).filter((g) => g.floors.length);
+    return html`<div class="row"><span class="lbl">קומת ברירת מחדל במפה<span class="muted">הקומה שנפתחת ראשונה כשנכנסים ללשונית "מפת קומה"; אוטומטי: הקומה הראשונה שהמשתמש רשאי לראות. משתמש שאינו רשאי לראות את הקומה שנבחרה מקבל את הקומה הראשונה שלו</span></span>
+      <sw-field class="ctl"><select data-set-default-floor ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('map.default_floor', (e.target as HTMLSelectElement).value)}>
+        <option value="" ?selected=${current === ''}>אוטומטי</option>
+        ${groups.map((g) => html`<optgroup label=${g.label}>${g.floors.map((f) => html`<option value=${f.id} ?selected=${f.id === current}>${f.name}</option>`)}</optgroup>`)}
+      </select></sw-field></div>`;
+  }
+
   /** "מפה" (owner 2026-09-29): how the floor maps open and what the level bar lists. plan.levels also stays on the
    * media tab (the same key, mirrored), so nothing that pointed there moves. */
   private renderMap() {
@@ -773,6 +806,7 @@ export class SystemDiagnostics extends LitElement {
         @change=${(e: Event) => this.set(key, (e.target as HTMLSelectElement).value as never)}>${options.map(([v, l]) => html`<option value=${v} ?selected=${String(this.value(key) ?? dflt) === v}>${l}</option>`)}</select></sw-field>`;
     return html`<div class="sections">
       <sw-card heading="מפה" subheading="איך מפות הקומה נפתחות ומה מוצג בסרגל המפלסים" data-settings-map>
+        ${this.renderDefaultFloor(api)}
         <div class="row"><span class="lbl">תצוגת פתיחה של מפה<span class="muted">המפה החיה, המפה ההיסטורית ודף האירוע נפתחים בתצוגה הזו כשלקומה יש מבנה; הכפתור 2D / 3D ממשיך להחליף בכל ביקור</span></span>
           ${sel('map.default_view', '2d', 'map-default-view', [['2d', 'דו-ממד (2D)'], ['3d', 'תלת-ממד (3D)']])}</div>
         <div class="row"><span class="lbl">מפלסים בפתיחת מפה<span class="muted">המפלס שמוצג כברירת מחדל בכל מפה; שבבי המפלסים ממשיכים לאפשר מעבר בין מפלסים</span></span>
@@ -1213,7 +1247,7 @@ export class SystemDiagnostics extends LitElement {
         <sw-tabs underline .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'media') void this.loadMedia(); if (this.tab === 'ha') void this.loadHa(); if (this.tab === 'backup') void this.loadBackups(); if (this.tab === 'health') void this.loadReport(); }}></sw-tabs>
         ${this.message && this.tab === 'ha' ? html`<div class="muted" style="color:#15803d">${this.message}</div>` : nothing}
         ${this.error && this.tab === 'ha' ? html`<div class="muted" style="color:var(--sw-error)">${this.error}</div>` : nothing}
-        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'alarm' ? html`<system-alarm-settings ?canEdit=${this.canEdit}></system-alarm-settings>` : this.tab === 'remote' ? this.renderRemote() : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
+        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'tabs' ? html`<system-tabs-config></system-tabs-config>` : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
       </sw-page>
     `;
   }

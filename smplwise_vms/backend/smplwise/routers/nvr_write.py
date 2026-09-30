@@ -15,6 +15,8 @@ from ..errors import ApiError
 from ..mode import ensure_nvr, installation_mode, is_ha_only  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import nvr, nvr_schedule, nvr_system, nvr_write
+from ..services.timeutil import zone
+from .settings import read_settings
 
 router = APIRouter()
 NOTIFY_PERMISSION = "nvr.config.events"
@@ -220,10 +222,11 @@ def system_status(request: Request, principal: Principal = Depends(current_princ
     _require_read(conn, principal)
     settings = settings_of(request)
     out: dict[str, Any] = {"time": None, "disks": [], "outputs": [], "errors": {}, "can": _can(conn, principal)}
+    tz = zone(read_settings(conn)["time.zone"])
     with unlocked(conn):
         client = nvr_write._client(settings)
         try:
-            for key, fn in (("time", lambda: nvr_system.time_status(settings, client=client)), ("disks", lambda: nvr_system.hdd_list(settings, client=client)), ("outputs", lambda: nvr_system.alarm_outputs(settings, client=client))):
+            for key, fn in (("time", lambda: nvr_system.time_status(settings, client=client, tz=tz)), ("disks", lambda: nvr_system.hdd_list(settings, client=client)), ("outputs", lambda: nvr_system.alarm_outputs(settings, client=client))):
                 try:
                     out[key] = fn()
                 except ApiError as exc:
@@ -243,9 +246,10 @@ def set_time(body: TimeIn, request: Request, principal: Principal = Depends(curr
     require(conn, principal, "nvr.config.time", INSTALLATION)
     if not body.sync_now and not body.mode:
         raise ApiError(422, "validation", "אין מה לכתוב: סנכרון או מצב.")
+    tz = zone(read_settings(conn)["time.zone"])
     with unlocked(conn):
         if body.sync_now:
-            return nvr_system.sync_clock(settings_of(request), conn, principal, mode=body.mode, request_id=_rid(request))
+            return nvr_system.sync_clock(settings_of(request), conn, principal, mode=body.mode, request_id=_rid(request), tz=tz)
         return nvr_system.set_time_mode(settings_of(request), conn, principal, mode=body.mode or "NTP", request_id=_rid(request))
 
 

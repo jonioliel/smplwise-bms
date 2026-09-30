@@ -34,7 +34,7 @@ const SCREENS: { mode: string; items: Entry[] }[] = [
       { sc: 'SC04', name: 'מפת קומה חיה', route: '#/explore/floors/f0', phase: 'PILOT', board: '1:04' },
       { sc: 'SC05', name: 'ייבוא ותיקון תוכנית', route: '#/explore/floors/f-2/import', phase: 'PILOT', board: '2:13' },
       { sc: 'SC06', name: 'עורך תוכנית ועוגנים', route: '#/explore/floors/f0/edit', phase: 'PILOT', board: '2:13' },
-      { sc: 'SC10', name: 'קטלוג ההתקנים', route: '#/explore/entities', phase: 'PILOT', board: 'new' },
+      { sc: 'SC10', name: 'קטלוג ההתקנים', route: '#/system/entities', phase: 'PILOT', board: 'new' },
     ],
   },
   {

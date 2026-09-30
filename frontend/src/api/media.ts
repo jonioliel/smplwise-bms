@@ -4,7 +4,20 @@ import type { CameraEncoding } from './types';
 
 export type Transport = 'auto' | 'webrtc' | 'mse';
 
+/** `ui.tabs` (2026-09-30, docs/architecture/TABS_CONFIG.md): per navigation section, the preferred order of its tab ids and
+ * the hidden ones. Keyed by section id (`security`, `security.live`, ...; the registry is shell/nav.ts TAB_SECTIONS). The
+ * whole object is replaced on every PATCH. */
+export interface TabsSectionConfig {
+  order: string[];
+  hidden: string[];
+}
+export type TabsConfig = Record<string, TabsSectionConfig>;
+
 export interface ProductSettings {
+  /** Installation-wide tab order and visibility per navigation section (הגדרות › כללי › לשוניות); `{}` = the built-in tabs. */
+  'ui.tabs'?: TabsConfig;
+  /** The floor the map's floor tab opens first (an existing floor id); '' = the first floor the user may read. */
+  'map.default_floor'?: string;
   'media.transport_default': Transport;
   'media.max_live_sessions': number;
   'media.wall_profile': 'sub' | 'main';
@@ -47,6 +60,8 @@ export interface ProductSettings {
   'ui.start_route'?: string;
   /** 'true' hides the map area from the navigation for everyone (0.1.68). */
   'ui.hide_map'?: string;
+  /** 'false' hides the security area's "תמונת מצב" (the live overview) from the navigation for everyone (2026-09-30); default 'true'. */
+  'ui.security_snapshot'?: string;
   /** S2: 'true' lets the Home Assistant recorder fill entity states the local history does not know (marked as secondary). */
   'history.ha_secondary'?: string;
   /** הגדרות › בקרות כניסה (CR-005 recorded decision 2026-09-28): per SMPLWISE WisKey screen, 'wiskey' = WisKey's own
@@ -57,6 +72,10 @@ export interface ProductSettings {
   /** 'true' hides the whole WisKey area from the navigation for everyone, regardless of role (T054 follow-up); the
    * access.ui.* choices above apply only while this is false. */
   'ui.hide_wiskey'?: string;
+  /** Owner 2026-09-30: how much of the screen the embedded WisKey panel uses - 'normal' (the content area, default),
+   * 'fit' (rendered larger and scaled down by ui.wiskey_scale percent) or 'full' (the whole viewport, small exit). */
+  'ui.wiskey_size'?: 'normal' | 'fit' | 'full';
+  'ui.wiskey_scale'?: '100' | '90' | '80' | '70';
   /** 'true' (experimental, default 'false') embeds WisKey inside the Home Assistant Companion app too, relaying the
    * app's sign-in bridge into the frame (wiskey/companion-bridge.ts). */
   'access.phone_embed'?: string;
