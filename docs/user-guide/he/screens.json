@@ -458,5 +458,95 @@
     "setup": [],
     "caption_he": "סרגל הניווט התחתון בתצוגת טלפון — אותם אזורי ניווט כמו הדסקטופ, מסודרים לרוחב מסך צר. פרטים ב-10-getting-started_HE.md.",
     "source": "live"
+  },
+  {
+    "id": "multimedia-screens",
+    "name_he": "מולטימדיה · מסכים",
+    "section": "multimedia",
+    "route": "#/multimedia/screens",
+    "viewports": [
+      "desktop",
+      "phone"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitFor",
+        "selector": "media-screen-card"
+      }
+    ],
+    "caption_he": "מסך המסכים: כרטיס אחד לכל מסך פיזי, מקובצים לפי קומה, עם שבבי חדרים, חיפוש וסינון מצב, הפעלה, עוצמה ומקור בכרטיס, וכפתור \"כבה מסכים\" לקומה. פרטים ב-42-multimedia_HE.md.",
+    "source": "demo"
+  },
+  {
+    "id": "multimedia-remote",
+    "name_he": "מולטימדיה · השלט",
+    "section": "multimedia",
+    "route": "#/multimedia/screens?remote=md-living",
+    "viewports": [
+      "desktop",
+      "phone"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitFor",
+        "selector": "media-remote"
+      },
+      {
+        "type": "waitMs",
+        "ms": 600
+      }
+    ],
+    "caption_he": "השלט של מסך: הפעלה, מקור ואפליקציות בראש, חצים ואישור, עוצמה, ערוצים וניגון, ומאחורי \"עוד מקשים\" מספרים, מקשי צבע והקלדה. בטלפון הוא גיליון שעולה מלמטה. פרטים ב-42-multimedia_HE.md.",
+    "source": "demo"
+  },
+  {
+    "id": "multimedia-edit",
+    "name_he": "מולטימדיה · עריכת המסך",
+    "section": "multimedia",
+    "route": "#/multimedia/screens?edit=1",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitFor",
+        "selector": "media-screen-card"
+      },
+      {
+        "type": "waitMs",
+        "ms": 600
+      }
+    ],
+    "caption_he": "עריכת מסך המולטימדיה מתפריט המשתמש: סדר, מועדפים, גודל, נראות בדסקטופ ובטלפון וקיבוץ לפי קומה או אזור. פרטים ב-42-multimedia_HE.md.",
+    "source": "demo"
+  },
+  {
+    "id": "settings-multimedia",
+    "name_he": "הגדרות · מדיה (מסכים ושלט)",
+    "section": "settings",
+    "route": "#/system/multimedia",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitMs",
+        "ms": 800
+      }
+    ],
+    "caption_he": "הגדרות · מדיה: אישור מסכים, שם, סימון ציבורי, פרופיל מקשים, מגבר מקושר, תקרת עוצמה, רשימת החיבורים ואיחוד ידני, וברירת המחדל של השלט. פרטים ב-80-settings_HE.md.",
+    "source": "demo"
   }
 ]
