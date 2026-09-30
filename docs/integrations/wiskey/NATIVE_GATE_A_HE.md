@@ -4,6 +4,8 @@ Status 2026-09-30 · branch `pilot/wiskey-native-gateA` · input: WisKey `2.0.0-
 (`private-evidence/wiskey-native-rc37/`, reference only, not copied) · no code changed · no live system contacted.
 **Updated 2026-10-01:** WisKey's reply `rc37-contract.1` and the owner's decisions are folded in (sections 7-8). The plan in
 section 4 is superseded by section 8. Our reply to Codex: `ARX_DECISIONS_REPLY_HE.md`.
+**Updated 2026-10-01 (2):** WisKey's `rc37-contract.2` is folded in (section 9; B0/B1 in section 8 adjusted). Our second
+reply: `ARX_DECISIONS_REPLY_2_HE.md`.
 
 ## Summary for the coordinator (English)
 
@@ -31,6 +33,9 @@ section 4 is superseded by section 8. Our reply to Codex: `ARX_DECISIONS_REPLY_H
 10. 2026-10-01 update: WisKey confirms (b) works today and prefers (a+) long term, but (a+) is a new WisKey release (audit
     `via` changes storage/export; a delegated session is not an `ActiveConnection`), not a half-day patch. Owner decided:
     media first, (a+) as the target, no delegated writes until it is built and tested. Revised plan in section 8.
+11. contract.2 (section 9): D-001 agreed-with-amendments, DELEGATION v0.2 design in hand (not an API), D-006 privacy
+    finding (station `last_access` carries person identity even for a non-admin `overview:view` account; Arx caches and
+    shows it today, B0 strips it), one adapter over (b) first, MIT catalog reuse allowed.
 
 ## 1. סיווג הפריסה ומה כבר קיים
 
@@ -278,8 +283,8 @@ WisKey. מאמץ: אפס. החיסרון המוצרי: iframe נשאר בליב�
 
 | פרוסה | תוכן | מאמץ | תלוי ב |
 |---|---|---|---|
-| B0 אבחון | מסך הגדרות לקריאה בלבד "WisKey רואה את Arx כ־": ‏`authorization/session` של ערוץ השירות (actor, admin, areas, ‏`station_ids`, ‏`security`), ובזהות המפעיל ב־`/arx` | 1-2 ימים | מדיה הושלמה |
-| B1 מסכים לקריאה על (b) | מתאם לכל מפעיל ב־`/arx` (WS ל־HA core עם ה־access token שכבר מוחזק; נפתח מחדש בכל החלפת טוקן; נסגר עם הסשן), allowlist לקריאה + `users/get` + `subscribe`, טיפול ב־placeholders, fallback ל־iframe בסשן נעול. מסכים: מרכז כניסה, פעילות, אנשים, לקריאה בלבד | 5-8 ימים | B0 |
+| B0 אבחון | מסך הגדרות לקריאה בלבד "WisKey רואה את Arx כ־": ‏`authorization/session` של ערוץ השירות (actor, admin, areas, ‏`station_ids`, ‏`security`), ובזהות המפעיל ב־`/arx`; אימות `subscribe` ומצב הנעילה. **D-006:** ההקרנה של ערוץ הרקע מפסיקה לשמור `last_access` (שם, מספר עובד, זהות אירוע) + מבחנים למטמון, ל־API וללוג; פיצול ערוץ הרקע מערוץ הכתיבות (D-004). אחרי B0 בעל המוצר יוצר את חשבון הרקע (לא admin, ‏`overview: view`, עמדות מפורשות, השאר `none`) | 2-3 ימים | מדיה הושלמה |
+| B1 מסכים לקריאה על (b) | adapter יחיד (`getAuthorization`, ‏`listStations`, ‏`getUser`, ‏`queryUsers`, ‏`listEvents`, ‏`subscribeChanges`), מימוש ראשון על (b): WS לכל מפעיל ב־`/arx` ובאפליקציה שלנו (ה־access token שכבר מוחזק; נפתח מחדש בכל החלפת טוקן; נסגר עם הסשן). טיפול ב־placeholders ו־enum לא מוכר, fallback ל־iframe בסשן נעול. "כניסות אחרונות" עם שם אדם רק בזהות המפעיל. מסכים: מרכז כניסה, פעילות, אנשים, לקריאה בלבד. במקביל: ממשק פנימי בגשר ומבחני חוזה מול DELEGATION v0.2, **בלי הפעלה**; קטלוג מוצמד תחת `catalog/rc37-contract.2/` + diff ב־CI | 6-9 ימים | B0 |
 | B2 הערכת זהות ב־Ingress | מסמך: כניסה שנייה בתוך Ingress (UX, MFA, אחסון refresh token, ביטול) מול (a+). השתתפות בתכנון המשותף של DELEGATION v0.2 (צד הגשר ו־1.11). ללא קוד ייצור | 2-4 ימים | B0; WisKey זמין לתכנון |
 | C מדיה לעמדות | תכנון lease: RBAC של Arx בחיתוך scope של WisKey, fail closed, בדיקה חוזרת ב־`refresh` ולפחות כל 20 ש'. מדידות באתר: סשני RTSP לכל דגם, Arx ו־WisKey יחד, זמן צלצול. אחר כך מימוש ב־`/arx`; ב־Ingress רק אחרי (a+) | תכנון 2-3 ימים; מדידות חצי יום עם בעל המוצר; מימוש 1-1.5 שבועות | B1; מדידות |
 | D כתיבות | רק אחרי ש־WisKey משחרר את ה־API המואצל ואת הסכמות המלאות: גשר ומתאם מואצלים (1-1.5 שבועות), העברת הכתיבות הקיימות (D-004) אחת־אחת (3-5 ימים), כל תהליך חדש 2-5 ימים. idle ו־reauth נבדקים לפני כל כתיבה | לפי מועד WisKey | גרסת WisKey עם האצלה |
@@ -289,3 +294,31 @@ WisKey. מאמץ: אפס. החיסרון המוצרי: iframe נשאר בליב�
 ה־iframe (`access.ui.*`) ו־embed-api-v1 נשארים נתיב חזרה עד קבלה בשטח. הכתיבות הקיימות נשארות כמו שהן (D-004).
 כל בדיקה מול המערכת החיה מתחילה בקריאה בלבד (רשימת האימות ב־`ARX_DECISIONS_REPLY_HE.md` סעיף 7.4), וכל פעולה פיזית
 או כתיבה דורשת אישור מפורש של בעל המוצר.
+
+## 9. contract.2 (WisKey, ‏`rc37-contract.2`)
+
+חבילת תיעוד (`private-evidence/wiskey-arx-contract-rc37-2/`), לא גרסת runtime; המקור עדיין `2.0.0-rc.37` ‏(`909579e`).
+הקטלוגים זהים byte-for-byte ל־contract.1 (238 פקודות, 301 שגיאות; חישבנו SHA-256 מחדש). התשובה שלנו:
+`ARX_DECISIONS_REPLY_2_HE.md`. היומן `DECISIONS_WISKEY_ARX.md` שלהם הוא היומן היחיד.
+
+**מה השתנה:**
+- **D-001: agreed-with-amendments.** (b) לקריאה ב־`/arx`, iframe לתהליכים מורשים ול־Ingress/Companion, (a+) יעד קבוע.
+  מימוש ההאצלה `planned`, בלי מועד ובלי התחייבות ל־rc.38.
+- **DELEGATION v0.2 בידינו** כטיוטת תכנון, לא API: registration ואישור (`smplwise_bridge`, ‏`entry_id`), מחזור סשן
+  (`open-locked / open-unlocked / closing / closed`), תחבורת מנויים עם תורים תחומים, דף הוכחה של WisKey באותו origin
+  (טיוטה: 120 ש' לאתגר), `via` באודיט, מתג כיבוי, ושמונה שערי קבלה. נבנה מולה ממשק בגשר ומבחני חוזה רק ב־B0/B1,
+  בלי הפעלה לפני סכמות, מימוש ושערים.
+- **D-006 (ממצא פרטיות):** גם חשבון לא־admin עם `overview: view` מקבל `station.last_access` עם `person_name`
+  ו־`employee_no`. הפתרון המוסכם: הקרנת רקע מצומצמת בצד WisKey. **אצלנו היום:** `intercom_sync._station()` שומר את
+  השדות האלה במטמון בזיכרון, ו־`GET /intercom/overview` ומסך מרכז הכניסה מציגים אותם. לא בלוג ולא בדיסק. ב־B0
+  ההקרנה של ערוץ הרקע מפסיקה לשמור `last_access`.
+- **adapter יחיד:** שש פונקציות, מימוש ראשון על (b), (a+) מחליף תחבורה בלבד.
+- **קטלוגים:** מותר להכניס ל־repo תחת MIT עם provenance ומגבלות. התוכנית: `catalog/rc37-contract.2/` + ‏`LICENSE`
+  + הערת `CONTRACT_DIFF` (עוד לא בוצע).
+- **תקרות** (4 / 32 / 20) הן תקרות טיוטה לבדיקת עומס, עם חסם כולל להתקנה ודלי rate משותף לפאנל.
+- **D-002 נשאר open;** עד descriptor, מקורות העמדה שלנו תחת בדיקות מפעיל. **D-004** agreed-with-amendments,
+  **D-005** agreed.
+
+**עובדות מבעל המוצר:** הגדרות האבטחה של WisKey במערכות שלו בברירת מחדל (`idle_minutes = 0`, reauth כבוי, אישור כפול
+כבוי). הגישה מהטלפון היום היא גם Companion וגם האפליקציה שלנו, ובקרוב רק האפליקציה שלנו. לכן זהות בטלפון נפתרת קודם
+באפליקציה שלנו וב־`/arx`; ‏Companion הוא מסלול מעבר ונשאר על ה־iframe.

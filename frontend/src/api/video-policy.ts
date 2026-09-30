@@ -5,7 +5,8 @@
  *   1. the preferred profile over WebRTC - skipped when the NVR says that stream cannot play there (H.265, MJPEG,
  *      H.264 with B-frames or SVC: the camera registry's `encoding.<profile>.webrtc === 'no'`);
  *   2. `remote.mse_fallback` true  → the same profile over MSE (the video itself through the tunnel: the last resort,
- *                                    announced on the player);
+ *                                    announced on the player) - unless the transport choice is WebRTC only, which
+ *                                    never falls back to MSE (owner bug 2026-10-01): then as with false;
  *      `remote.mse_fallback` false → the other profile over WebRTC (announced), then the message
  *                                    "הזרם הראשי אינו ניתן לפענוח ב-WebRTC - ראה הגדרות › וידאו".
  *
@@ -46,6 +47,15 @@ export function remoteVideo(me: Me | null | undefined = session.me): RemoteVideo
   };
 }
 
+/** Owner bug 2026-10-01: the remote policy for a player whose transport choice is `transport` (the installation's
+ * `media.transport_default`, or the viewer's own override). An explicit WebRTC choice never falls back to MSE, on any
+ * channel: remotely it walks the other profile over WebRTC instead (as with `remote.mse_fallback` false). `auto` / `mse`
+ * keep `remote.mse_fallback` as it is. */
+export function remoteVideoFor(transport: string | null | undefined, me: Me | null | undefined = session.me): RemoteVideo | null {
+  const policy = remoteVideo(me);
+  return policy && transport === 'webrtc' ? { ...policy, mseFallback: false } : policy;
+}
+
 export function otherProfile(p: Profile): Profile {
   return p === 'main' ? 'sub' : 'main';
 }
@@ -82,9 +92,10 @@ export function decodeLadder(value: string): VideoStep[] {
 }
 
 /** What a screen hands its `sw-live-player` (`plan` + `preferred`): '' outside the remote channel (today's behaviour),
- * `none` when nothing may play under the policy (the player shows the message). */
-export function playerPlan(preferred: Profile, encoding?: CameraEncoding | null, me: Me | null | undefined = session.me): { plan: string; preferred: Profile | ''; gop: string } {
-  const policy = remoteVideo(me);
+ * `none` when nothing may play under the policy (the player shows the message). `transport` is the player's `mode`: an
+ * explicit `webrtc` leaves MSE out of the plan (remoteVideoFor). */
+export function playerPlan(preferred: Profile, encoding?: CameraEncoding | null, transport = '', me: Me | null | undefined = session.me): { plan: string; preferred: Profile | ''; gop: string } {
+  const policy = remoteVideoFor(transport, me);
   if (!policy) return { plan: '', preferred: '', gop: '' };
   const steps = videoLadder(preferred, policy.mseFallback, encoding);
   return { plan: steps.length ? encodeLadder(steps) : 'none', preferred, gop: encodeGop(encoding) };
