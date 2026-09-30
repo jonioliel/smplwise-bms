@@ -49,6 +49,10 @@ class FakeInvalid(Exception):
     """The component rejected the call (unknown key, missing field, ...)."""
 
 
+class FakeCrash(Exception):
+    """A TypeError inside the component (`unknown_error`), e.g. a null `stop`."""
+
+
 class FakeNotFound(Exception):
     """The schedule / entity does not exist."""
 
@@ -88,7 +92,8 @@ class FakeScheduler:
         self.bridge_version = "0.3.0"
         self.sun = {"sunrise": 6 * 3600 + 30 * 60, "sunset": 18 * 3600 + 15 * 60}  # local seconds since midnight
         self.subscription_id: int | None = None
-        self._fired: set[tuple[str, int, str]] = set()  # (schedule, slot, local date) already fired
+        self._started: set[tuple[str, int, str]] = set()  # (schedule, slot, local date) whose slot has started (the switch went `triggered`)
+        self._acted: set[tuple[str, int, str]] = set()  # ... and whose actions ran (the conditions held)
         self._triggered_until: dict[str, dt.datetime] = {}
 
     # ------------------------------------------------------------------ clock
@@ -113,22 +118,35 @@ class FakeScheduler:
                     if start is None:
                         continue
                     key = (sid, index, day.isoformat())
-                    if key in self._fired:
+                    if key in self._acted:
                         continue
-                    if prev < start <= now:  # the slot starts inside this step: conditions are evaluated NOW
-                        if self._conditions_pass(slot):
-                            self._fired.add(key)
-                            self._fire(sid, slot, index)
+                    if prev < start <= now and key not in self._started:  # the slot starts inside this step
+                        # VERIFIED (lab component): the switch goes `triggered` at a slot start EVEN WHEN the conditions fail;
+                        # the conditions decide only whether the actions run - so `triggered` does not prove they ran
+                        self._started.add(key)
+                        ok = self._conditions_pass(slot)
+                        if ok:
+                            self._acted.add(key)
+                        self._fire(sid, slot, index, run_actions=ok)
                     elif start <= now and slot.get("track_conditions") and self._window_open(item, slot, start, now):
                         if self._conditions_pass(slot):  # `track_conditions`: keep checking until the window ends
-                            self._fired.add(key)
-                            self._fire(sid, slot, index)
+                            self._acted.add(key)
+                            self._fire(sid, slot, index, run_actions=True)
         self._last_tick = now
         for sid in self.items:
             self._refresh(sid)  # the next occurrences moved on
         for sid, until in list(self._triggered_until.items()):
             if now >= until:
                 del self._triggered_until[sid]
+                item = self.items.get(sid)
+                if item is not None and item["repeat_type"] == "single":  # `single` deletes itself ~60 s after the slot start
+                    self.items.pop(sid)
+                    self.registry = [r for r in self.registry if r["unique_id"] != sid]
+                    self._emit("item_removed", sid)
+                elif item is not None and item["repeat_type"] == "pause":  # `pause` = disabled, switch off
+                    item["enabled"] = False
+                    self._emit("item_updated", sid)
+                    self._emit("timer_updated", sid)
                 self._sync_state(sid)
 
     def _window_open(self, item: dict[str, Any], slot: dict[str, Any], start: dt.datetime, now: dt.datetime) -> bool:
@@ -199,7 +217,13 @@ class FakeScheduler:
 
     def _entity_id_for(self, sid: str, name: str) -> str:
         s = slug(name)
-        return f"switch.schedule_{s}" if s and f"switch.schedule_{s}" not in {i["entity_id"] for i in self.items.values()} else f"switch.schedule_{sid}"
+        if not s:
+            return f"switch.schedule_{sid}"
+        taken = {i["entity_id"] for i in self.items.values()}
+        candidate, n = f"switch.schedule_{s}", 2
+        while candidate in taken:
+            candidate, n = f"switch.schedule_{s}_{n}", n + 1  # collisions get _2, _3 ...
+        return candidate
 
     def _refresh(self, sid: str) -> None:
         item = self.items[sid]
@@ -241,15 +265,19 @@ class FakeScheduler:
         self.events.append((name, sid))
 
     def pop_events(self) -> list[dict[str, Any]]:
-        """The frames the component's subscription would have delivered since the last call (per `event_mode`)."""
+        """The frames the component's subscription would have delivered since the last call. Verified sequences: create ->
+        item_created + timer_updated; edit / toggle -> item_updated + timer_updated; remove -> item_removed only; a slot
+        start -> timer_finished, then timer_updated. `subscription`: the component's own command frames, names prefixed
+        `scheduler_`; `bus`: the `scheduler_updated` bus event (`data: {}`, no id, none on remove) - only "something changed"."""
         out: list[dict[str, Any]] = []
         for name, sid in self.events:
             if self.event_mode == "none":
                 continue
             if self.event_mode == "bus":
-                out.append({"id": self.subscription_id, "type": "event", "event": {"event_type": "scheduler_updated", "data": {"event": name, "schedule_id": sid}}})
+                if name in ("item_created", "item_updated"):
+                    out.append({"id": self.subscription_id, "type": "event", "event": {"event_type": "scheduler_updated", "data": {}, "origin": "LOCAL"}})
             else:
-                out.append({"id": self.subscription_id, "type": "event", "event": {"event": name, "schedule_id": sid}})
+                out.append({"id": self.subscription_id, "type": "event", "event": {"event": f"scheduler_{name}", "schedule_id": sid}})
         self.events = []
         return out
 
@@ -282,12 +310,14 @@ class FakeScheduler:
         results = [self._cond_ok(c) for c in conds]
         return all(results) if slot.get("condition_type") == "and" else any(results)
 
-    def _fire(self, sid: str, slot: dict[str, Any], index: int) -> None:
+    def _fire(self, sid: str, slot: dict[str, Any], index: int, run_actions: bool = True) -> None:
         if not hasattr(self, "_last_slot"):
             self._last_slot: dict[str, int] = {}
         self._last_slot[sid] = index
         self._triggered_until[sid] = self.now() + dt.timedelta(seconds=self.trigger_hold_s)
-        for a in slot["actions"]:
+        self._emit("timer_finished", sid)
+        self._emit("timer_updated", sid)
+        for a in slot["actions"] if run_actions else []:
             fired = {"service": a["service"], "entity_id": a.get("entity_id"), "data": dict(a.get("service_data") or {}), "schedule_id": sid, "slot": index}
             self.actions_fired.append(fired)
             if self.on_action and a.get("entity_id"):
@@ -320,7 +350,7 @@ class FakeScheduler:
             return ok([copy.deepcopy(i) for i in self.items.values()])
         if kind == "scheduler/item":
             item = self.items.get(msg.get("schedule_id") or "")
-            return ok(copy.deepcopy(item)) if item else fail("not_found", "Schedule not found.")
+            return ok(copy.deepcopy(item) if item else None)  # verified: an unknown id answers success:true, result:null
         if kind == "scheduler/tags":
             tags: dict[str, list[str]] = {}
             for sid, item in self.items.items():
@@ -334,21 +364,30 @@ class FakeScheduler:
 
     # ------------------------------------------------------------------ services (§9.5)
 
-    def _check_slots(self, slots: Any) -> list[dict[str, Any]]:
+    # -- the write schema of the real component (verified 2026-09-30 on the lab HA): errors are `invalid_format` "... at 'path'",
+    # a TypeError is `unknown_error`; nulls and empties are rejected or crash, unknown keys are rejected at every level
+
+    def _time_ok(self, value: Any) -> bool:
+        return isinstance(value, str) and re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?|(sunrise|sunset)[+-]([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?", value) is not None
+
+    def _check_slots(self, slots: Any, validate: bool = False) -> list[dict[str, Any]]:
         if not isinstance(slots, list):
             raise FakeInvalid("timeslots must be a list")
         out = []
-        for s in slots:
+        for si, s in enumerate(slots):
+            path = f"timeslots[{si}]"
             if not isinstance(s, dict) or "start" not in s or "actions" not in s:
-                raise FakeInvalid("a timeslot needs start and actions")
+                raise FakeInvalid(f"a timeslot needs start and actions at '{path}'")
             if self.strict_keys and set(s) - SLOT_KEYS:
-                raise FakeInvalid(f"unknown timeslot key {sorted(set(s) - SLOT_KEYS)[0]}")
+                raise FakeInvalid(f"not a valid option at '{path}.{sorted(set(s) - SLOT_KEYS)[0]}'")
             for a in s["actions"]:
                 if self.strict_keys and (not isinstance(a, dict) or set(a) - ACTION_KEYS):
-                    raise FakeInvalid("unknown action key")
+                    raise FakeInvalid(f"not a valid option at '{path}.actions'")
             for c in s.get("conditions") or []:
                 if self.strict_keys and (not isinstance(c, dict) or set(c) - COND_KEYS):
-                    raise FakeInvalid("unknown condition key")
+                    raise FakeInvalid(f"not a valid option at '{path}.conditions'")
+            if validate:
+                self._validate_slot(s, path)
             out.append({
                 "start": s["start"], "stop": s.get("stop"), "conditions": copy.deepcopy(s.get("conditions") or []), "condition_type": s.get("condition_type"),
                 "track_conditions": bool(s.get("track_conditions", False)),
@@ -356,13 +395,96 @@ class FakeScheduler:
             })
         return out
 
+    def _validate_slot(self, s: dict[str, Any], path: str) -> None:
+        if not self._time_ok(s["start"]):
+            raise FakeInvalid(f"invalid time at '{path}.start'")
+        if "stop" in s:
+            if s["stop"] is None:
+                raise FakeCrash("TypeError: stop is None")  # verified: `stop: null` -> unknown_error
+            if not self._time_ok(s["stop"]):
+                raise FakeInvalid(f"invalid time at '{path}.stop'")
+        if "conditions" in s:
+            if not isinstance(s["conditions"], list) or len(s["conditions"]) < 1:
+                raise FakeInvalid(f"length must be at least 1 at '{path}.conditions'")  # verified: `conditions: []` is rejected
+            for ci, c in enumerate(s["conditions"]):
+                if not isinstance(c.get("entity_id"), str) or not c["entity_id"] or c.get("match_type") not in ("is", "not", "above", "below") or "value" not in c:
+                    raise FakeInvalid(f"invalid condition at '{path}.conditions[{ci}]'")  # entity_id, match_type and value are required
+                if c.get("attribute") is not None and not isinstance(c["attribute"], str):
+                    raise FakeInvalid(f"invalid attribute at '{path}.conditions[{ci}].attribute'")
+        if "condition_type" in s and s["condition_type"] not in ("and", "or"):
+            raise FakeInvalid(f"value must be one of ['and', 'or'] at '{path}.condition_type'")  # verified: null is rejected
+        if "track_conditions" in s and not isinstance(s["track_conditions"], bool):
+            raise FakeInvalid(f"expected bool at '{path}.track_conditions'")
+        if not isinstance(s["actions"], list) or not s["actions"]:
+            raise FakeInvalid(f"length must be at least 1 at '{path}.actions'")
+        for ai, a in enumerate(s["actions"]):
+            ap = f"{path}.actions[{ai}]"
+            if not isinstance(a.get("service"), str) or "." not in a["service"]:
+                raise FakeInvalid(f"invalid service at '{ap}.service'")
+            if "entity_id" in a and (not isinstance(a["entity_id"], str) or not a["entity_id"]):
+                raise FakeInvalid(f"invalid entity id at '{ap}.entity_id'")  # verified: null and "" are rejected
+            if "service_data" in a and not isinstance(a["service_data"], dict):
+                raise FakeInvalid(f"expected dict at '{ap}.service_data'")  # verified: null is rejected
+            # (an unknown service or a nonexistent entity is ACCEPTED by the component: Arx's own allow-list is the only guard)
+
+    def _validate_write(self, data: dict[str, Any], creating: bool) -> dict[str, Any]:
+        """Top-level schema; returns the data with `tags` coerced (a string becomes a list)."""
+        data = dict(data)
+        if self.strict_keys and set(data) - TOP_KEYS:
+            raise FakeInvalid(f"not a valid option at '{sorted(set(data) - TOP_KEYS)[0]}'")  # also `enabled` and `schedule_id`
+        if creating and "repeat_type" not in data:
+            raise FakeInvalid("required key not provided at 'repeat_type'")
+        if "repeat_type" in data and data["repeat_type"] not in ("repeat", "pause", "single"):
+            raise FakeInvalid("value must be one of ['pause', 'repeat', 'single'] at 'repeat_type'")
+        if "weekdays" in data:
+            w = data["weekdays"]
+            valid = {"mon", "tue", "wed", "thu", "fri", "sat", "sun", "workday", "weekend", "daily"}
+            if not isinstance(w, list) or not w or len(set(w)) != len(w) or any(x not in valid for x in w):
+                raise FakeInvalid("invalid weekdays at 'weekdays'")  # verified: [] / null / duplicates / upper case are rejected
+        for key in ("start_date", "end_date"):
+            if data.get(key) is not None:
+                try:
+                    dt.date.fromisoformat(data[key])
+                except (TypeError, ValueError):
+                    raise FakeInvalid(f"invalid date at '{key}'") from None
+        if "tags" in data:
+            if not self.accept_tags:
+                raise FakeInvalid("tags are not accepted")
+            if isinstance(data["tags"], str):
+                data["tags"] = [data["tags"]]  # verified: a string is coerced to a list
+            if not isinstance(data["tags"], list) or any(not isinstance(t, str) for t in data["tags"]):
+                raise FakeInvalid("invalid tags at 'tags'")
+        if "timeslots" in data:
+            self._check_slots(data["timeslots"], validate=True)
+        return data
+
     def _find(self, entity_id: str | None) -> str:
         for sid, item in self.items.items():
             if item["entity_id"] == entity_id:
                 return sid
-        raise FakeNotFound(entity_id)
+        raise FakeInvalid("Entity not found")  # verified: edit / remove / copy on a missing entity
+
+    def _local_seconds_now(self) -> int:
+        n = self.now().astimezone(TZ)
+        return n.hour * 3600 + n.minute * 60 + n.second
+
+    def _slot_contains(self, slot: dict[str, Any], seconds: int) -> bool:
+        """Start inclusive, stop exclusive, wrap-aware; a point slot only at its own start."""
+        a = self._seconds_of(slot["start"])
+        if a is None:
+            return False
+        if not slot.get("stop"):
+            return seconds == a
+        b = self._seconds_of(slot["stop"])
+        if b is None:
+            return False
+        if b == 0:
+            b = 86400
+        return a <= seconds < b if a < b else (seconds >= a or seconds < b)
 
     def call_service(self, domain: str, service: str, data: dict[str, Any] | None = None, user: str | None = None) -> dict[str, Any] | None:
+        """The component's services. VERIFIED: add / edit / copy / remove do NOT support `return_response` and add / copy
+        return nothing - a new id is learned by DIFF (the list of items shows it at once)."""
         data = copy.deepcopy(data or {})
         self.calls.append({"domain": domain, "service": service, "data": copy.deepcopy(data), "user": user})
         if domain == "switch" and service in ("turn_on", "turn_off"):
@@ -370,6 +492,7 @@ class FakeScheduler:
             self.items[sid]["enabled"] = service == "turn_on"
             self._sync_state(sid)
             self._emit("item_updated", sid)
+            self._emit("timer_updated", sid)
             return None
         if domain != "scheduler" or not self.installed:
             raise ServiceNotFound(f"{domain}.{service}")
@@ -381,10 +504,11 @@ class FakeScheduler:
                 self._sync_state(sid)
             return None
         if service == "add":
-            return {"schedule_id": self._add(data)}
+            self._add(data, validate=True)
+            return None
         if service == "edit":
             sid = self._find(data.pop("entity_id", None))
-            self._edit(sid, data)
+            self._edit(sid, data, validate=True)
             return None
         if service == "remove":
             sid = self._find(data.get("entity_id"))
@@ -396,24 +520,40 @@ class FakeScheduler:
         if service == "copy":
             sid = self._find(data.get("entity_id"))
             src = self.items[sid]
-            new = self._add({"name": data.get("name") or src["name"], "weekdays": src["weekdays"], "start_date": src["start_date"], "end_date": src["end_date"], "repeat_type": src["repeat_type"],
-                             "timeslots": copy.deepcopy(src["timeslots"]), **({"tags": list(src["tags"])} if src["tags"] else {})}, event="item_created")
-            return {"schedule_id": new}
+            name = data.get("name") or src["name"]  # no name: the source's name is duplicated
+            new = self._add({"name": name, "weekdays": src["weekdays"], "start_date": src["start_date"], "end_date": src["end_date"], "repeat_type": src["repeat_type"],
+                             "timeslots": copy.deepcopy(src["timeslots"]), "tags": list(src["tags"])})
+            self.items[new]["enabled"] = src["enabled"]  # copy keeps everything, enabled and tags included
+            self._sync_state(new)
+            return None
         if service == "run_action":
-            sid = self._find(data.get("entity_id"))
-            item = self.items[sid]
+            entity = data.get("entity_id")
+            sid = next((i for i, it in self.items.items() if it["entity_id"] == entity), None)
+            if sid is None:
+                return None  # verified: a nonexistent entity is a SILENT success
             wanted = data.get("time")
-            index = next((i for i, s in enumerate(item["timeslots"]) if wanted is None or self._seconds_of(s["start"]) == self._seconds_of(wanted)), None)
+            if wanted is None:
+                seconds = self._local_seconds_now()
+            elif isinstance(wanted, str) and re.fullmatch(r"\d{1,2}:\d{2}(:\d{2})?", wanted):
+                seconds = self._seconds_of(wanted) or 0
+            else:
+                raise FakeInvalid("invalid time at 'time'")  # verified: HH:MM:SS or HH:MM only, never a sun form
+            item = self.items[sid]
+            index = next((i for i, sl in enumerate(item["timeslots"]) if self._slot_contains(sl, seconds)), None)
             if index is None:
-                raise FakeInvalid("no timeslot starts at that time")
+                return None  # verified: a time outside every slot is a SILENT no-op
             slot = item["timeslots"][index]
-            if data.get("skip_conditions") or self._conditions_pass(slot):
+            if data.get("skip_conditions") or self._conditions_pass(slot):  # works on a disabled schedule too
                 self._fire(sid, slot, index)
             return None
         raise ServiceNotFound(f"scheduler.{service}")
 
-    def _add(self, data: dict[str, Any], event: str = "item_created") -> str:
-        if self.strict_keys and set(data) - TOP_KEYS:
+    def _add(self, data: dict[str, Any], event: str = "item_created", validate: bool = False) -> str:
+        """`validate` = a write through the component's schema (call_service); without it the data is taken as already
+        stored (the seed, an item made 'in the card' by a test)."""
+        if validate:
+            data = self._validate_write(data, creating=True)
+        elif self.strict_keys and set(data) - TOP_KEYS:
             raise FakeInvalid(f"unknown key {sorted(set(data) - TOP_KEYS)[0]}")
         if "repeat_type" not in data:
             raise FakeInvalid("repeat_type is required")
@@ -430,19 +570,26 @@ class FakeScheduler:
         self.registry.append({"entity_id": item["entity_id"], "unique_id": sid, "platform": "scheduler", "device_id": f"dev-{sid}", "area_id": None})
         self._refresh(sid)
         self._emit(event, sid)
+        self._emit("timer_updated", sid)
         return sid
 
-    def _edit(self, sid: str, data: dict[str, Any]) -> None:
+    def _edit(self, sid: str, data: dict[str, Any], validate: bool = False) -> None:
         item = self.items[sid]
-        if self.strict_keys and set(data) - TOP_KEYS:
+        if validate:
+            data = self._validate_write(data, creating=False)
+        elif self.strict_keys and set(data) - TOP_KEYS:
             raise FakeInvalid(f"unknown key {sorted(set(data) - TOP_KEYS)[0]}")
         if "tags" in data and not self.accept_tags:
             raise FakeInvalid("tags are not accepted")
         if "timeslots" in data:
-            item["timeslots"] = self._check_slots(data["timeslots"])
-        for src, dst in (("weekdays", "weekdays"), ("start_date", "start_date"), ("end_date", "end_date"), ("repeat_type", "repeat_type"), ("tags", "tags")):
-            if src in data:
-                item[dst] = copy.deepcopy(data[src])
+            item["timeslots"] = self._check_slots(data["timeslots"])  # replaces the whole list
+        for key in ("weekdays", "repeat_type", "tags"):
+            if key in data:
+                item[key] = copy.deepcopy(data[key])
+        # VERIFIED: an edit that omits `start_date` / `end_date` RESETS both to null - even a name-only edit
+        item["start_date"] = data.get("start_date")
+        item["end_date"] = data.get("end_date")
+        renamed = "name" in data and data["name"] != item["name"]
         if "name" in data:
             item["name"] = data["name"]
             if self.rename_changes_entity_id:
@@ -451,7 +598,10 @@ class FakeScheduler:
                     if r["unique_id"] == sid:
                         r["entity_id"] = item["entity_id"]
         self._refresh(sid)
-        self._emit("item_updated", sid)
+        # VERIFIED (non-admin lab run): a NAME-CHANGING edit emits item_created (+ timer_updated) and keeps the entity id;
+        # one that keeps the name emits item_updated - an `item_created` frame is never proof of a NEW schedule id
+        self._emit("item_created" if renamed else "item_updated", sid)
+        self._emit("timer_updated", sid)
 
     # ------------------------------------------------------------------ the bridge (§9.6, §8)
 
@@ -549,8 +699,12 @@ class FakeScheduler:
                 self.call_service("scheduler", "run_action", {"entity_id": entity, "time": msg.get("time"), "skip_conditions": bool(msg.get("skip_conditions"))}, user)
             else:
                 self.call_service("switch", "turn_on" if op == "enable" else "turn_off", {"entity_id": entity}, user)
-        except (FakeInvalid, FakeNotFound, ServiceNotFound) as exc:
-            return self._bridge_error(msg, type(exc).__name__)
+        except FakeCrash:
+            return self._bridge_error(msg, "unknown_error")
+        except (FakeInvalid, FakeNotFound):
+            return self._bridge_error(msg, "invalid_format")
+        except ServiceNotFound:
+            return self._bridge_error(msg, "service_not_found")
         out: dict[str, Any] = {"ok": True, "request_id": msg.get("request_id"), "context_id": "ctx-fake", "schedule_id": sid, "entity_id": entity}
         if op in ("add", "copy"):
             new = [r for r in self.registry if r["unique_id"] not in before]

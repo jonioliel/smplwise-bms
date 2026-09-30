@@ -69,7 +69,7 @@ def test_the_trash_lists_restores_and_expires(sched_app):
     back = r.json()["schedule"]
     assert back["id"] != sch["id"] and back["name"] == "Hall lights on rest days" and back["source"] == "arx" and len(fake.items) == n + 1
     assert [x["service"] for sl in back["slots"] for x in sl["actions"]] == [x["service"] for sl in sch["slots"] for x in sl["actions"]]
-    assert back["conditions"]["items"][0]["entity_id"] == SHABBAT and back["tags"] == []  # tags are not written until verified (P0-3)
+    assert back["conditions"]["items"][0]["entity_id"] == SHABBAT and back["tags"] == ["shabbat"]  # tags are written (verified 2026-09-30)
     assert (back["folder_id"], back["order"], back["pinned"]) == ("lights", 4, True)  # the meta moves with it
     assert c.get(f"{API}/schedules/trash").json()["items"] == []
     r = post_json(c, f"/schedules/trash/{out['trash_id']}/restore", {"client_request_id": rid()})
@@ -162,19 +162,27 @@ def test_trash_visibility_follows_the_action_entities(sched_app):
 
 # ---------------------------------------------------------------- runs
 
-def test_a_slot_skipped_by_its_conditions_produces_no_run(sched_app):
+def test_a_slot_whose_conditions_fail_is_triggered_but_its_run_is_skipped(sched_app):
+    """VERIFIED on the lab component: the switch goes `triggered` at the slot start even when the conditions fail, so
+    `triggered` never proves the actions ran. The derived run is `skipped` (the mirrored sensor says the conditions do not
+    hold), never left to be "confirmed" by a device that may already be in the target state; no `executed` audit row."""
     app, s, c, fake, tr = sched_app
     fake.world[SHABBAT]["state"] = "off"
     sid = next(i for i, it in fake.items.items() if it["name"] == "Hall lights on rest days")
     assert c.get(f"{API}/schedules").status_code == 200
     fake.tick(6 * 3600)  # the slot at 18:00 (local) passes
-    assert [f for f in fake.actions_fired if f["schedule_id"] == sid] == [] and fake.states[sid]["state"] == "on"  # never `triggered`: nothing for the mirror to see
-    assert _runs(c) == []
+    assert [f for f in fake.actions_fired if f["schedule_id"] == sid] == [] and fake.states[sid]["state"] == "triggered"
+    _trigger(app, fake, sid)
+    runs = _runs(c)
+    assert len(runs) == 1 and runs[0]["result"] == "skipped" and runs[0]["settled_at"] and runs[0]["detail"]["entities"] == []
+    with app.state.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'schedule.executed'").fetchone()[0] == 0
 
 
 def test_a_triggered_switch_starts_a_run_that_is_settled_by_what_the_devices_report(sched_app):
     app, s, c, fake, tr = sched_app
     fake.world[SHABBAT]["state"] = "on"
+    _set_state(app, SHABBAT, "on")  # (the mirror follows the sensor)
     sid = next(i for i, it in fake.items.items() if it["name"] == "Living room cooling on rest days")
     assert c.get(f"{API}/schedules").status_code == 200
     fake.tick(3 * 3600 + 60)  # 16:00 local: the slot starting at 16:00 fires (set temperature 25 - slot index 3? see below)
@@ -201,6 +209,7 @@ def test_a_triggered_switch_starts_a_run_that_is_settled_by_what_the_devices_rep
 def test_run_results_not_confirmed_skipped_and_unknown(sched_app):
     app, s, c, fake, tr = sched_app
     fake.world[SHABBAT]["state"] = "on"
+    _set_state(app, SHABBAT, "on")
     sid = next(i for i, it in fake.items.items() if it["name"] == "Hall lights on rest days")
     assert c.get(f"{API}/schedules").status_code == 200
     fake.tick(5 * 3600 + 60)  # 18:00 local: switch.turn_on

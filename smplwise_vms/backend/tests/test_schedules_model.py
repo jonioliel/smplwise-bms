@@ -164,15 +164,17 @@ def test_an_unchanged_draft_makes_an_empty_edit():
     assert m.to_component_payload(draft_from(item), item) == {}
 
 
-def test_untouched_slots_are_resent_byte_identical():
+def test_untouched_slots_are_resent_in_their_equivalent_write_form():
+    """The component rejects nulls and empties on write, so a slot can never be re-sent byte-identical: it is re-sent as
+    `component_slot(stored slot)` (equivalence, verified by the round-trip test with the fake)."""
     item = live_item()
     d = draft_from(item)
     d["slots"][1]["actions"][0]["service"] = "climate.set_hvac_mode"
     d["slots"][1]["actions"][0]["data"] = {"hvac_mode": "heat"}
     payload = m.to_component_payload(d, item)
-    assert set(payload) == {"timeslots"} and len(payload["timeslots"]) == 3
-    assert payload["timeslots"][0] == item["timeslots"][0] and payload["timeslots"][2] == item["timeslots"][2]
-    assert json.dumps(payload["timeslots"][2], sort_keys=True) == json.dumps(item["timeslots"][2], sort_keys=True)
+    assert set(payload) == {"timeslots", "start_date", "end_date"} and len(payload["timeslots"]) == 3
+    assert payload["start_date"] is None and payload["end_date"] is None  # an edit without the dates would wipe them
+    assert payload["timeslots"][0] == m.component_slot(item["timeslots"][0]) and payload["timeslots"][2] == m.component_slot(item["timeslots"][2])
     assert payload["timeslots"][1]["actions"] == [{"service": "climate.set_hvac_mode", "entity_id": "climate.lr", "service_data": {"hvac_mode": "heat"}}]
     assert payload["timeslots"][1]["conditions"] == item["timeslots"][1]["conditions"] and payload["timeslots"][1]["condition_type"] == "or"
     assert payload["timeslots"][0] is not item["timeslots"][0]  # a copy, never the cached object
@@ -185,12 +187,28 @@ def test_changing_conditions_rewrites_every_slot_and_top_level_changes_are_parti
     d["name"] = "Renamed"
     d["weekdays"] = ["mon", "tue"]
     payload = m.to_component_payload(d, item)
-    assert set(payload) == {"name", "weekdays", "timeslots"} and payload["name"] == "Renamed" and payload["weekdays"] == ["mon", "tue"]
+    assert set(payload) == {"name", "weekdays", "timeslots", "start_date", "end_date"} and payload["name"] == "Renamed" and payload["weekdays"] == ["mon", "tue"]
     assert all(s["conditions"][0]["value"] == "off" and s["track_conditions"] is True and s["condition_type"] == "or" for s in payload["timeslots"])
-    # removing them writes the stored empty form
+    # removing them writes NO conditions keys at all: `conditions: []` and a null condition_type are rejected by the component
     d["conditions"] = {"items": [], "type": None, "track": False}
     empty = m.to_component_payload(d, item)["timeslots"]
-    assert all(s["conditions"] == [] and s["condition_type"] is None and s["track_conditions"] is False for s in empty)
+    assert all("conditions" not in s and "condition_type" not in s and "track_conditions" not in s for s in empty)
+
+
+def test_the_write_normaliser_drops_nulls_and_empties():
+    """Verified on the lab component: stop:null crashes, an action entity_id null / "" is rejected, conditions:[] is rejected,
+    condition_type / track_conditions null are rejected, service_data null is rejected."""
+    raw = {"start": "03:15", "stop": None, "conditions": [], "condition_type": None, "track_conditions": False,
+           "actions": [{"service": "script.turn_on", "entity_id": None, "service_data": {}}, {"service": "light.turn_off", "entity_id": "", "service_data": {}}, {"service": "light.turn_on", "entity_id": "light.a", "service_data": {"brightness": 5}}]}
+    assert m.component_slot(raw) == {"start": "03:15", "actions": [{"service": "script.turn_on"}, {"service": "light.turn_off"}, {"service": "light.turn_on", "entity_id": "light.a", "service_data": {"brightness": 5}}]}
+    with_cond = {"start": "03:15:00", "stop": "04:00:00", "conditions": [{"entity_id": "sun.sun", "attribute": None, "value": True, "match_type": "is"}], "condition_type": None, "track_conditions": None, "actions": []}
+    assert m.component_slot(with_cond) == {"start": "03:15:00", "stop": "04:00:00", "conditions": [{"entity_id": "sun.sun", "match_type": "is", "value": True}], "condition_type": "or", "track_conditions": False, "actions": []}
+    assert m.normalize({"schedule_id": "aaaaaa", "timeslots": [{"start": "03:15", "actions": []}]})["slots"][0]["start"]["time"] == "03:15"  # a stored time without seconds is read
+    assert m.to_component_payload(draft("D"), None)["timeslots"][0].keys() == {"start", "stop", "actions"}
+    dates = m.to_component_payload({**draft("D"), "name": "Renamed", "start_date": "2026-10-31", "end_date": "2027-03-31"},
+                                   {"schedule_id": "aaaaaa", "name": "D", "weekdays": ["daily"], "start_date": "2026-10-31", "end_date": "2027-03-31", "repeat_type": "repeat", "timeslots": [], "tags": []})
+    assert dates == {"name": "Renamed", "timeslots": [{"start": "08:00:00", "stop": "09:00:00", "actions": [{"service": "light.turn_on", "entity_id": "light.office", "service_data": {"brightness": 80}}]}],
+                     "start_date": "2026-10-31", "end_date": "2027-03-31"}
 
 
 def test_create_payload_maps_the_draft():
@@ -198,10 +216,10 @@ def test_create_payload_maps_the_draft():
               conditions={"items": [{"entity_id": SENSOR, "attribute": "state", "match_type": "is", "value": "on"}], "type": None, "track": False})
     payload = m.to_component_payload(d, None)
     assert payload["repeat_type"] == "pause" and payload["name"] == "Evening" and payload["weekdays"] == ["daily"] and payload["start_date"] == "2026-11-01" and "end_date" not in payload
-    assert "tags" not in payload  # tags are written only with capabilities.tags (P0-3)
+    assert payload["tags"] == ["x"]  # verified 2026-09-30: add / edit accept tags
     slot = payload["timeslots"][0]
-    assert slot["start"] == "18:00:00" and slot["stop"] is None and slot["condition_type"] == "or" and slot["conditions"] == [{"entity_id": SENSOR, "attribute": "state", "value": "on", "match_type": "is"}]
-    assert m.to_component_payload(d, None, tags_supported=True)["tags"] == ["x"]
+    assert slot["start"] == "18:00:00" and "stop" not in slot and slot["condition_type"] == "or"  # a point action has no stop key on write and slot["conditions"] == [{"entity_id": SENSOR, "attribute": "state", "value": "on", "match_type": "is"}]
+    assert "tags" not in m.to_component_payload(d, None, tags_supported=False)
 
 
 def test_diff_summary_names_what_changed_never_values():
@@ -343,7 +361,8 @@ def test_times_and_overlaps():
     assert errs(draft("V", slots(("22:00:00", "00:00:00"))))[0] == []  # "00:00:00" as stop = end of day
     e, w = errs(draft("V", slots(("sunset+00:00:00", "23:00:00"), ("18:00:00", "19:00:00"))))
     assert e == [] and codes(w) == ["sun_overlap_possible"]  # sun slots overlap only as a warning
-    assert "validation" in codes(errs(draft("V", slots(("sunset-00:10:00", None))))[0])  # negative offsets await P0-7
+    assert errs(draft("V", slots(("sunset-00:10:00", None))))[0] == []  # negative offsets: verified 2026-09-30 (`sunrise-00:15:00` works as start and stop)
+    assert "validation" in codes(errs(draft("V", slots(("24:00:00", None))))[0]) and "validation" in codes(errs(draft("V", slots(("SUNSET+00:10:00", None))))[0])
     assert errs(draft("V", slots(("sunrise+01:00:00", None))))[0] == []
     assert "validation" in codes(errs(draft("V", []))[0])
     assert "validation" in codes(errs(draft("V", slots(*([("08:00:00", None)] * 49))))[0])  # more than 48 slots
@@ -358,9 +377,15 @@ def test_name_days_dates_tags_repeat():
     assert "weekdays" not in [x["path"] for x in errs(draft("V", weekdays=["workday"]), old=old, creating=False)[0]]
     assert "validation" in codes(errs(draft("V", start_date="2026-13-40"))[0])
     assert "validation" in codes(errs(draft("V", start_date="2026-12-01", end_date="2026-11-01"))[0])
-    assert codes(errs(draft("V", tags=["a"]))[0]) == ["tags_not_supported"] and errs(draft("V", tags=[]))[0] == []
-    old_t = m.normalize({"schedule_id": "aaaaaa", "name": "V", "tags": ["a"], "timeslots": []})
-    assert "tags_not_supported" not in codes(errs(draft("V", tags=["a"]), old=old_t, creating=False)[0])
+    assert errs(draft("V", tags=["a"]))[0] == [] and errs(draft("V", tags=[]))[0] == []  # tags are written: verified 2026-09-30
+    assert "validation" in codes(errs(draft("V", weekdays=["mon", "mon"]))[0])  # the component refuses duplicates
+    p.CAPABILITIES["tags"] = False  # (the capability flag stays honoured for an older component)
+    try:
+        assert codes(errs(draft("V", tags=["a"]))[0]) == ["tags_not_supported"]
+        old_t = m.normalize({"schedule_id": "aaaaaa", "name": "V", "tags": ["a"], "timeslots": []})
+        assert "tags_not_supported" not in codes(errs(draft("V", tags=["a"]), old=old_t, creating=False)[0])
+    finally:
+        p.CAPABILITIES["tags"] = True
     assert codes(errs(draft("V", repeat="single"))[1]) == ["single_deletes"]
 
 
@@ -447,7 +472,7 @@ def test_policy_tables():
     assert set(p.SCHEDULE_ACTIONS["lock"]) == {"lock.lock", "lock.unlock"} and set(p.SCHEDULE_ACTIONS["switch"]) == {"switch.turn_on", "switch.turn_off"}
     assert "button.press" in p.SCHEDULE_ACTIONS["door"] and "button.press" not in p.SCHEDULE_ACTIONS["switch"]
     assert p.SENSITIVE_CLASSES == {"alarm", "lock", "door"} and p.ALL_CLASSES == ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door")
-    assert p.CAPABILITIES == {"tags": False, "negative_sun_offset": False}
+    assert p.CAPABILITIES == {"tags": True, "negative_sun_offset": True}  # both verified on the lab component, 2026-09-30
 
 
 def test_classification_of_entities():

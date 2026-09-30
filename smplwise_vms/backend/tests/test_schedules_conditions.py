@@ -167,7 +167,7 @@ def test_the_fake_skips_a_slot_whose_conditions_fail_and_fires_when_they_hold():
     fake.world = fake_scheduler.world_states()
     sid = _fresh_fake(fake, "Cond", [_slot("13:30:00", "14:00:00")])  # the clock is 13:00 in Israel
     fake.tick(31 * 60)
-    assert fake.actions_fired == [] and fake.states[sid]["state"] == "on"  # no `triggered`: the slot was skipped by its condition
+    assert fake.actions_fired == [] and fake.states[sid]["state"] == "triggered"  # verified: `triggered` even though the condition failed - and nothing ran
     fake.world[SHABBAT]["state"] = "on"
     sid2 = _fresh_fake(fake, "Cond 2", [_slot("13:45:00", "14:15:00")])
     fake.tick(31 * 60)
@@ -228,7 +228,8 @@ def test_the_fake_component_contract():
     assert set(item["timeslots"][0]) == {"start", "stop", "conditions", "condition_type", "track_conditions", "actions"} and item["timeslots"][-1]["stop"] == "00:00:00"
     assert len(item["timestamps"]) == len(item["timeslots"]) and sorted(item["next_entries"]) == list(range(len(item["timeslots"])))
     assert all(ts.endswith("+03:00") for ts in item["timestamps"])
-    assert a.ws({"id": 2, "type": "scheduler/item", "schedule_id": "nope00"})[0]["error"]["code"] == "not_found"
+    unknown = a.ws({"id": 2, "type": "scheduler/item", "schedule_id": "nope00"})[0]
+    assert unknown["success"] is True and unknown["result"] is None  # verified: an unknown id is success:true, result:null
     tags = a.ws({"id": 3, "type": "scheduler/tags"})[0]["result"]
     assert {t["name"]: len(t["schedules"]) for t in tags} == {"offices": 2, "outdoor": 2, "shabbat": 4}
     assert a.ws({"id": 4, "type": "manifest/get", "integration": "scheduler"})[0]["result"] == {"domain": "scheduler", "version": "3.3.8"}
@@ -260,13 +261,29 @@ def test_the_fake_component_contract():
 
 
 def test_the_fake_event_modes():
-    for mode, shape in (("subscription", lambda e: e["event"]["event"] == "item_created"), ("bus", lambda e: e["event"]["event_type"] == "scheduler_updated" and e["event"]["data"]["event"] == "item_created")):
-        fake = fake_scheduler.FakeScheduler(event_mode=mode)
-        assert fake.ws({"id": 9, "type": "scheduler_updated"})[0]["success"] is True
-        sid = fake._add({"name": "x", "repeat_type": "repeat", "timeslots": []})
-        frames = fake.pop_events()
-        assert len(frames) == 1 and frames[0]["id"] == 9 and shape(frames[0]) and frames[0]["type"] == "event" and fake.pop_events() == []
-        assert (frames[0]["event"].get("schedule_id") or frames[0]["event"]["data"]["schedule_id"]) == sid
+    fake = fake_scheduler.FakeScheduler()
+    assert fake.ws({"id": 9, "type": "scheduler_updated"})[0]["success"] is True
+    sid = fake._add({"name": "x", "repeat_type": "repeat", "timeslots": []})
+    frames = fake.pop_events()
+    # verified sequences: create -> item_created + timer_updated (prefixed `scheduler_`), the subscription's id on every frame
+    assert [f["event"]["event"] for f in frames] == ["scheduler_item_created", "scheduler_timer_updated"] and all(f["id"] == 9 and f["type"] == "event" and f["event"]["schedule_id"] == sid for f in frames)
+    entity = fake.items[sid]["entity_id"]
+    fake.call_service("switch", "turn_off", {"entity_id": entity})
+    assert [f["event"]["event"] for f in fake.pop_events()] == ["scheduler_item_updated", "scheduler_timer_updated"]  # toggle
+    fake.call_service("scheduler", "edit", {"entity_id": entity, "weekdays": ["mon"], "start_date": None, "end_date": None})
+    assert [f["event"]["event"] for f in fake.pop_events()] == ["scheduler_item_updated", "scheduler_timer_updated"]  # an edit that keeps the name
+    fake.call_service("scheduler", "edit", {"entity_id": entity, "name": "y", "start_date": None, "end_date": None})
+    assert [f["event"]["event"] for f in fake.pop_events()] == ["scheduler_item_created", "scheduler_timer_updated"]  # a RENAME looks like a creation, with the same entity id
+    assert fake.items[sid]["entity_id"] == entity
+    fake.call_service("scheduler", "remove", {"entity_id": entity})
+    assert [f["event"]["event"] for f in fake.pop_events()] == ["scheduler_item_removed"] and fake.pop_events() == []
+    bus = fake_scheduler.FakeScheduler(event_mode="bus")
+    bus.ws({"id": 3, "type": "scheduler_updated"})
+    bsid = bus._add({"name": "x", "repeat_type": "repeat", "timeslots": []})
+    frames = bus.pop_events()
+    assert len(frames) == 1 and frames[0]["event"]["event_type"] == "scheduler_updated" and frames[0]["event"]["data"] == {}  # the bus event carries no id
+    bus.call_service("scheduler", "remove", {"entity_id": bus.items[bsid]["entity_id"]})
+    assert bus.pop_events() == []  # and none on remove
     none = fake_scheduler.FakeScheduler(event_mode="none")
     none.ws({"id": 9, "type": "scheduler_updated"})
     none._add({"name": "x", "repeat_type": "repeat", "timeslots": []})

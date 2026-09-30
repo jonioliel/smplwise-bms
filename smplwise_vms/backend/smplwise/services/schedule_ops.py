@@ -356,7 +356,9 @@ def learn(w: W, resp: dict[str, Any], expected: dict[str, Any], before: set[str]
     before the call and whose content (name, days, slots, conditions) is what Arx sent; anything else is `id_unknown` and
     is never used to record an owner, disable, roll back or show a schedule (review M2)."""
     sid = resp.get("schedule_id")
-    if not isinstance(sid, str) or not sid or sid in before:
+    if not sid:
+        return _learn_by_diff(w, expected, before)
+    if not isinstance(sid, str) or sid in before:
         return None
     try:
         item = store.MIRROR.fetch_item(sid, w.conn)
@@ -368,8 +370,26 @@ def learn(w: W, resp: dict[str, Any], expected: dict[str, Any], before: set[str]
     return sid, entity
 
 
-def _unknown(w: W, op_id: str, meta: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+def _learn_by_diff(w: W, expected: dict[str, Any], before: set[str]) -> tuple[str, str | None] | None:
+    """The component's add / copy return nothing (no `return_response`, verified), so a new id is learned by DIFF: the
+    component's own list (WS `scheduler`) shows the new item immediately, faster than the registry. The ONE new item whose
+    content is what Arx sent is that schedule; none or several is `id_unknown`."""
+    try:
+        store.MIRROR.pull(w.conn, "learn")
+    except ApiError:
+        return None
+    fp = model.fingerprint(expected)
+    found = [r for r in store.cache_rows(w.conn) if r["schedule_id"] not in before and model.fingerprint(store.item_of(r)) == fp]
+    if len(found) != 1:
+        return None
+    return found[0]["schedule_id"], found[0]["entity_id"]
+
+
+def _unknown(w: W, op_id: str, meta: dict[str, Any], action: str) -> tuple[int, dict[str, Any]]:
+    """The outcome is unknown (no id the add-on can verify): the op keeps what it asked for (`meta`, `enabled` included, so an
+    adoption can finish it), and the attempt is audited like any other write (review R1)."""
     store.finish_op(w.conn, op_id, "unknown", error=json.dumps({**meta, "error": "id_unknown"}, ensure_ascii=False))
+    w.audit(action, "allowed", None, "id_unknown", op_id=op_id)
     return 202, {"status": "unknown", "op_id": op_id, "message": "התזמון נשלח; יופיע ברשימה לאחר אישור."}
 
 
@@ -546,7 +566,7 @@ def create(w: W, draft: dict[str, Any], enabled: bool, client_request_id: str, c
         verify_creator_codes(w, ev.pairs, alarm_code)
         alarm_code = None
         payload = model.to_component_payload(draft, None)
-        meta = {"name": draft.get("name") or "", "fp": model.fingerprint(payload)}
+        meta = {"name": draft.get("name") or "", "fp": model.fingerprint(payload), "enabled": bool(enabled)}
         op_id, again = _begin(w, client_request_id, "create", None, "create", meta)
         if again:
             return again
@@ -554,8 +574,7 @@ def create(w: W, draft: dict[str, Any], enabled: bool, client_request_id: str, c
         resp = bridge_call(w, "add", op_id, payload=payload, sensitive=ev.sensitive)
         learned = learn(w, resp, payload, before)
         if learned is None:
-            w.audit("schedule.create", "allowed", None, "id_unknown", **op_details(w, op_id, ev, None, None, cond_entities(draft), model.diff_summary(None, draft)))
-            return _unknown(w, op_id, meta)
+            return _unknown(w, op_id, meta, "schedule.create")
         sid, entity = learned
         warnings: list[dict[str, str]] = []
         if not enabled:
@@ -723,6 +742,8 @@ def run(w: W, schedule_id: str, slot_index: int | None, skip_conditions: bool, c
             if last is not None and now - last < RUN_MIN_GAP_S:
                 raise ApiError(429, "run_too_soon", "התזמון הורץ ממש עכשיו; נסו שוב בעוד כמה שניות.", retryable=True)
             _LAST_RUN[schedule_id] = now
+        if not str(core["entity_id"] or "").startswith("switch."):
+            raise ApiError(422, "validation", "לתזמון אין מתג; אי אפשר להריץ אותו.")  # the component answers a run of a missing entity with a silent success
         at = _slot_time(core, slot_index, w)
         op_id, again = _begin(w, client_request_id, "run", schedule_id, "run")
         if again:
@@ -742,6 +763,15 @@ def run(w: W, schedule_id: str, slot_index: int | None, skip_conditions: bool, c
 
 
 # ---------------------------------------------------------------- split (§3.10)
+
+def _no_locked_conditions(w: W, core: dict[str, Any], verb: str) -> None:
+    """A new schedule cannot carry a condition its creator may not read (review L5), so a copy / split / restore of a schedule with
+    a locked condition is refused with the reason the caller can act on - the condition is visible to them by name."""
+    for c in core["conditions"]["items"]:
+        eid = c.get("entity_id")
+        if eid and not (eid == w.ctx.shabbat_sensor or w.ctx.access.can_read_state(eid)):
+            raise ApiError(403, "condition_locked", f"התנאי \"{w.ctx.name_of(eid)}\" מחוץ להרשאתך, ולכן אי אפשר {verb} את התזמון. פנו למי שמורשה לקרוא אותו.", details={"entity_id": eid})
+
 
 def _same_op(prev: sqlite3.Row, op: str, schedule_id: str | None) -> None:
     if prev["op"] != op or (schedule_id is not None and prev["schedule_id"] != schedule_id):
@@ -783,6 +813,7 @@ def split(w: W, schedule_id: str, base_revision: str, days: list[str], name: str
         remaining = [d for d in resolved if d not in moving]
         new_name = ((name or "").strip() or f"{core['name'] or view.display_name(core, w.ctx)} · {' '.join(DAY_SHORT[d] for d in moving)}")[:model.MAX_NAME]
         # the new schedule is a CREATE: the same checks, code and confirmation as any other (review M1)
+        _no_locked_conditions(w, core, "לפצל")
         nd = draft_from_core(core)
         nd.update(name=new_name, weekdays=moving)
         if not policy.CAPABILITIES["tags"]:
@@ -796,14 +827,15 @@ def split(w: W, schedule_id: str, base_revision: str, days: list[str], name: str
         check_lowering(ev.lowering, confirm_lowering)
         verify_creator_codes(w, ev.pairs, alarm_code)
         alarm_code = None
-        new_payload = {"weekdays": moving, "timeslots": json.loads(json.dumps(item.get("timeslots") or [])), "repeat_type": core["repeat"], "name": new_name}
+        new_payload = {"weekdays": moving, "timeslots": [model.component_slot(t) for t in item.get("timeslots") or [] if isinstance(t, dict)], "repeat_type": core["repeat"], "name": new_name}
         if core["start_date"]:
             new_payload["start_date"] = core["start_date"]
         if core["end_date"]:
             new_payload["end_date"] = core["end_date"]
         if core["tags"] and policy.CAPABILITIES["tags"]:
             new_payload["tags"] = list(core["tags"])
-        meta = {"name": new_name, "fp": model.fingerprint(new_payload)}
+        meta = {"name": new_name, "fp": model.fingerprint(new_payload), "enabled": bool(core["enabled"]), "original": schedule_id, "before": list(core["weekdays"]), "remaining": remaining,
+                "start_date": core["start_date"], "end_date": core["end_date"]}
         op_id, again = _begin(w, client_request_id, "split", schedule_id, "update", meta)
         if again:
             return again
@@ -811,11 +843,11 @@ def split(w: W, schedule_id: str, base_revision: str, days: list[str], name: str
         added = bridge_call(w, "add", op_id, payload=new_payload, sensitive=cls["sensitive"])
         learned = learn(w, added, new_payload, before)
         if learned is None:
-            store.finish_op(w.conn, op_id, "unknown", error=json.dumps({**meta, "error": "id_unknown"}, ensure_ascii=False))
+            _unknown(w, op_id, meta, "schedule.split")
             raise ApiError(502, "split_incomplete", "הפיצול לא הושלם; בדקו את שני התזמונים.", details={"original_id": schedule_id, "created_id": None})
         new_id, new_entity = learned
         try:
-            bridge_call(w, "edit", op_id, schedule_id=schedule_id, schedule_entity_id=core["entity_id"], payload={"weekdays": remaining}, sensitive=cls["sensitive"])
+            bridge_call(w, "edit", op_id, schedule_id=schedule_id, schedule_entity_id=core["entity_id"], payload={"weekdays": remaining, "start_date": core["start_date"], "end_date": core["end_date"]}, sensitive=cls["sensitive"])  # an edit without the dates wipes them
         except ApiError as exc:
             try:
                 bridge_call(w, "remove", op_id, schedule_id=new_id, schedule_entity_id=new_entity, sensitive=cls["sensitive"])
@@ -907,6 +939,7 @@ def copy(w: W, schedule_id: str, name: str, client_request_id: str, confirm_lowe
             raise ApiError(422, "validation", f"שם: 1–{model.MAX_NAME} תווים, בלי תווי בקרה.", details={"path": "name"})
         # the copy is a CREATE: judged as a new schedule, with the creator's confirmation and code (review M1) - a legacy
         # disarm on a panel that needs a code cannot be copied into a new one
+        _no_locked_conditions(w, core, "להעתיק")
         nd = draft_from_core(core)
         nd["name"] = name
         if not policy.CAPABILITIES["tags"]:
@@ -921,7 +954,7 @@ def copy(w: W, schedule_id: str, name: str, client_request_id: str, confirm_lowe
         verify_creator_codes(w, ev.pairs, alarm_code)
         alarm_code = None
         expected = {**item, "name": name}
-        meta = {"name": name, "fp": model.fingerprint(expected), "source": schedule_id}
+        meta = {"name": name, "fp": model.fingerprint(expected), "source": schedule_id, "enabled": bool(core["enabled"])}
         op_id, again = _begin(w, client_request_id, "copy", None, "create", meta, {"source": schedule_id})
         if again:
             return again
@@ -929,7 +962,7 @@ def copy(w: W, schedule_id: str, name: str, client_request_id: str, confirm_lowe
         resp = bridge_call(w, "copy", op_id, schedule_id=schedule_id, schedule_entity_id=core["entity_id"], name=name, sensitive=cls["sensitive"])
         learned = learn(w, resp, expected, before)
         if learned is None:
-            return _unknown(w, op_id, meta)
+            return _unknown(w, op_id, meta, "schedule.copy")
         sid, _entity = learned
         new_row = reread(w, sid)
         store.finish_op(w.conn, op_id, "ok", schedule_id=sid)
@@ -1002,7 +1035,8 @@ def restore(w: W, trash_id: str, client_request_id: str, confirm_lowering: bool,
         draft = draft_from_core(core)
         if not policy.CAPABILITIES["tags"]:
             draft["tags"] = []  # the component's tag writing is unverified (P0-3): a restored schedule comes back without its tags
-        ev = evaluate(w, draft, None, creating=True)
+        _no_locked_conditions(w, core, "לשחזר")
+        ev = evaluate(w, draft, None, creating=True, inherited_days=list(core["weekdays"]))
         if ev.errors:
             raise problem_error(ev.errors)
         if ev.denials:
@@ -1012,24 +1046,24 @@ def restore(w: W, trash_id: str, client_request_id: str, confirm_lowering: bool,
         verify_creator_codes(w, ev.pairs, alarm_code)
         alarm_code = None
         payload = model.to_component_payload(draft, None)
-        meta = {"name": draft.get("name") or "", "fp": model.fingerprint(payload), "trash": trash_id}
+        meta = {"name": draft.get("name") or "", "fp": model.fingerprint(payload), "trash": trash_id, "enabled": bool(core["enabled"])}
         op_id, again = _begin(w, client_request_id, "restore", None, "create", meta, {"trash": trash_id})
         if again:
             return again
         # claim the trash item BEFORE the bridge is called: a second restore (another key) finds it gone (review L4)
-        if w.conn.execute("UPDATE schedule_trash SET restored_at = '~restoring' WHERE id = ? AND restored_at IS NULL", (trash_id,)).rowcount != 1:
+        if w.conn.execute("UPDATE schedule_trash SET restored_at = ? WHERE id = ? AND restored_at IS NULL", (f"~restoring:{store.stamp()}", trash_id)).rowcount != 1:
             store.finish_op(w.conn, op_id, "failed", error="trash_not_found")
             raise ApiError(404, "trash_not_found", "הפריט אינו בסל המחזור (ייתכן שפג תוקפו).")
         before = _known_ids(w)
         try:
             resp = bridge_call(w, "add", op_id, payload=payload, sensitive=ev.sensitive)
         except ApiError as exc:
-            w.conn.execute("UPDATE schedule_trash SET restored_at = ? WHERE id = ?", (None if exc.code != "scheduler_timeout" else "~unknown", trash_id))
+            w.conn.execute("UPDATE schedule_trash SET restored_at = ? WHERE id = ?", (None if exc.code != "scheduler_timeout" else f"~unknown:{store.stamp()}", trash_id))
             raise
         learned = learn(w, resp, payload, before)
         if learned is None:
-            w.conn.execute("UPDATE schedule_trash SET restored_at = '~unknown' WHERE id = ?", (trash_id,))
-            return _unknown(w, op_id, meta)
+            w.conn.execute("UPDATE schedule_trash SET restored_at = ? WHERE id = ?", (f"~unknown:{store.stamp()}", trash_id))  # released after the adoption window, or finalised by an adoption
+            return _unknown(w, op_id, meta, "schedule.restore")
         sid, entity = learned
         if not core["enabled"]:
             try:
