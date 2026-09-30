@@ -99,7 +99,7 @@ test.describe('CR-013 shell on the demo data', () => {
       ['/explore/floors/f0', 'explore-floor-map'],
       ['/live/wall', 'live-wall'],
       ['/investigate/events', 'investigate-events'],
-      ['/security/alarm', 'security-alarm'],
+      ['/system/security/alarm', 'security-alarm'], // the alarm moved from #/security/alarm (redirect: evidence-alarm.spec.ts)
       ['/system/diagnostics', 'system-diagnostics'],
       ['/system/notifications', 'arx-notifications-settings'],
       ['/wiskey/overview', 'wiskey-overview'],
@@ -200,11 +200,13 @@ test.describe('CR-013 shell on the demo data', () => {
     await open(page, '/live');
     const row = page.locator('sw-app nav[data-security-row]');
     await expect(row).toBeVisible();
-    await expect(row.locator('a')).toHaveText(['לייב', 'חקירה', 'אזעקה']);
+    await expect(row.locator('a')).toHaveText(['לייב', 'חקירה']);
     await expect(row.locator('a[data-section="live"]')).toHaveAttribute('aria-current', 'page');
     for (const a of await row.locator('a').all()) expect((await a.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['תמונת מצב', 'כל המצלמות', 'תצוגות שמורות']);
+    // the investigation's row is the long one (camera health is its last tab since 2026-09-30)
+    await open(page, '/investigate/events');
     const tabs = page.locator('sw-app .subnav sw-tabs');
-    await expect(tabs.locator('a')).toHaveText(['תמונת מצב', 'כל המצלמות', 'תצוגות שמורות', 'בריאות מצלמות']);
     // the second level: the underline variant, 44 px targets
     await expect(tabs).toHaveAttribute('underline', '');
     for (const a of await tabs.locator('a').all()) expect((await a.boundingBox())!.height).toBeGreaterThanOrEqual(44);
@@ -218,17 +220,18 @@ test.describe('CR-013 shell on the demo data', () => {
     await page.waitForTimeout(300);
     const box = (await tabs.boundingBox())!;
     const lb = (await last.boundingBox())!;
-    expect(lb.x).toBeGreaterThanOrEqual(box.x - 0.5);
-    expect(lb.x + lb.width).toBeLessThanOrEqual(box.x + box.width + 0.5);
+    // 1 px: the investigation row (ten tabs) ends a sub-pixel outside the box after the snap; a clipped word would be far more
+    expect(lb.x).toBeGreaterThanOrEqual(box.x - 1);
+    expect(lb.x + lb.width).toBeLessThanOrEqual(box.x + box.width + 1);
     // the active tab is revealed on its own when it sits at the far end
-    await open(page, '/system/devices');
+    await open(page, '/investigate/health');
     const on = page.locator('sw-app .subnav sw-tabs a.on');
     await expect(on).toHaveText('בריאות מצלמות');
     await page.waitForTimeout(200);
     const tb = (await page.locator('sw-app .subnav sw-tabs').boundingBox())!;
     const ob = (await on.boundingBox())!;
-    expect(ob.x).toBeGreaterThanOrEqual(tb.x - 0.5);
-    expect(ob.x + ob.width).toBeLessThanOrEqual(tb.x + tb.width + 0.5);
+    expect(ob.x).toBeGreaterThanOrEqual(tb.x - 1); // sub-pixel: the scroll extent is rounded to whole pixels
+    expect(ob.x + ob.width).toBeLessThanOrEqual(tb.x + tb.width + 1);
     // only the section row stays at the top while the content scrolls; the tab row scrolls away with it
     await open(page, '/live');
     const sticky = (await page.locator('sw-app nav[data-security-row]').boundingBox())!;
@@ -362,8 +365,8 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     await expect(menu.locator('[data-user-name]')).toHaveText('יוני אוליאל');
     await expect(menu.locator('[data-user-role]')).toHaveText('מנהל מערכת');
     await expect(menu.locator('[data-menu-settings]')).toHaveCount(1);
-    // a viewer: no settings item (their own notification preferences stay), no WisKey tab
-    mock.user = VIEWER;
+    // a viewer without the alarm: no settings item (their own notification preferences stay), no WisKey tab
+    mock.user = { ...VIEWER, perms: VIEWER.perms.filter((p) => p !== 'alarm.view') };
     await open(page);
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/devices/building');
     expect(await navTabs(page, info)).toEqual(['devices', 'security', 'explore']);
@@ -372,6 +375,11 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     await expect(menu.locator('[data-menu-settings]')).toHaveCount(0);
     await menu.locator('[data-menu-account]').click();
     await expect(menu.locator('[data-menu-notify-prefs]')).toHaveAttribute('href', '#/system/notifications');
+    // a viewer who holds alarm.view: the alarm lives in הגדרות › אבטחה (2026-09-30), so the menu offers "מערכת" opening there
+    mock.user = VIEWER;
+    await open(page);
+    await meButton(page, info).click();
+    await expect(menu.locator('[data-menu-settings]')).toHaveAttribute('href', '#/system/security');
     // a start screen the user does not see falls back to their first tab
     mock.user = { ...NO_ALERTS_VIEWER, perms: ['video.live'] };
     await open(page);
