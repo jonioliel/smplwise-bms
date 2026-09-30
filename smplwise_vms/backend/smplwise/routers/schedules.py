@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, get_conn, read_gate, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import schedule_model as model
@@ -189,6 +189,21 @@ def _manager(request: Request, principal: Principal = Depends(current_principal)
     return principal
 
 
+def _check_viewer(conn: sqlite3.Connection, principal: Principal) -> None:
+    view.require_view(conn, principal)
+
+
+def _check_manager(conn: sqlite3.Connection, principal: Principal) -> None:
+    if view.MANAGE not in set(view.permissions_anywhere(conn, principal)):
+        require(conn, principal, view.MANAGE, INSTALLATION)
+
+
+# The same two permission checks on the READ connection, for the routes that read a body (auth.read_gate): the audited 403
+# comes before the body is read and the write lock opens only after the body has arrived.
+_viewer_gate = read_gate(_check_viewer)
+_manager_gate = read_gate(_check_manager)
+
+
 def _ctx(request: Request, conn: sqlite3.Connection, principal: Principal, *, sync: bool = True) -> view.Ctx:
     if sync:
         store.MIRROR.ensure(conn)
@@ -196,6 +211,7 @@ def _ctx(request: Request, conn: sqlite3.Connection, principal: Principal, *, sy
 
 
 def _writer(request: Request, conn: sqlite3.Connection, principal: Principal) -> ops.W:
+    _bind(request)
     return ops.W(conn, principal, settings_of(request), _rid(request))
 
 
@@ -259,7 +275,7 @@ def condition_candidates(request: Request, principal: Principal = Depends(curren
 
 
 @router.post("/schedules/preview")
-def preview(request: Request, principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def preview(request: Request, principal: Principal = Depends(_viewer_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.5 - always 200 for a well-formed body; problems are data."""
     body, _ = _parse(request, raw, PreviewBody)
     w = _writer(request, conn, principal)
@@ -269,7 +285,7 @@ def preview(request: Request, principal: Principal = Depends(_viewer), conn: sql
 # ---------------------------------------------------------------- writes: create, trash, bulk, organisation (static paths first)
 
 @router.post("/schedules")
-def create_schedule(request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> JSONResponse:
+def create_schedule(request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, CreateBody, ("alarm_code",))
     code = _code_ok(secret.get("alarm_code"))
     return _reply(ops.create(_writer(request, conn, principal), body.draft.model_dump(), body.enabled, body.client_request_id, body.confirm_lowering, code))
@@ -282,20 +298,20 @@ def list_trash(request: Request, principal: Principal = Depends(_viewer), conn: 
 
 
 @router.post("/schedules/trash/{trash_id}/restore")
-def restore_trash(trash_id: str, request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> JSONResponse:
+def restore_trash(trash_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, RestoreBody, ("alarm_code",))
     code = _code_ok(secret.get("alarm_code"))
     return _reply(ops.restore(_writer(request, conn, principal), trash_id, body.client_request_id, body.confirm_lowering, code))
 
 
 @router.post("/schedules/trash/{trash_id}/purge")
-def purge_trash(trash_id: str, request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def purge_trash(trash_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body, _ = _parse(request, raw, PurgeBody)
     return ops.purge(_writer(request, conn, principal), trash_id, body.confirm)
 
 
 @router.post("/schedules/bulk")
-def bulk_schedules(request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def bulk_schedules(request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body, _ = _parse(request, raw, BulkBody)
     return ops.bulk(_writer(request, conn, principal), body.op, body.ids, body.confirm, body.client_request_id)
 
@@ -308,7 +324,7 @@ def get_organisation(request: Request, principal: Principal = Depends(_viewer), 
 
 
 @router.put("/schedules/organisation")
-def put_organisation(request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def put_organisation(request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body, _ = _parse(request, raw, OrgBody)
     return ops.org_put(_writer(request, conn, principal), [f.model_dump() for f in body.folders], [i.model_dump() for i in body.items])
 
@@ -358,43 +374,43 @@ def get_schedule(schedule_id: str, request: Request, principal: Principal = Depe
 
 
 @router.put("/schedules/{schedule_id}")
-def update_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> JSONResponse:
+def update_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, UpdateBody, ("alarm_code",))
     code = _code_ok(secret.get("alarm_code"))
     return _reply(ops.update(_writer(request, conn, principal), schedule_id, body.draft.model_dump(), body.base_revision, body.client_request_id, body.confirm_lowering, code))
 
 
 @router.post("/schedules/{schedule_id}/enable")
-def enable_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> JSONResponse:
+def enable_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, ToggleBody, ("alarm_code",))
     return _reply(ops.set_enabled(_writer(request, conn, principal), schedule_id, True, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))))
 
 
 @router.post("/schedules/{schedule_id}/disable")
-def disable_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> JSONResponse:
+def disable_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, ToggleBody, ("alarm_code",))
     return _reply(ops.set_enabled(_writer(request, conn, principal), schedule_id, False, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))))
 
 
 @router.post("/schedules/{schedule_id}/run")
-def run_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> JSONResponse:
+def run_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, RunBody, ("alarm_code",))
     return _reply(ops.run(_writer(request, conn, principal), schedule_id, body.slot_index, body.skip_conditions, body.confirm, body.client_request_id, _code_ok(secret.get("alarm_code"))))
 
 
 @router.post("/schedules/{schedule_id}/split")
-def split_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> JSONResponse:
+def split_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, SplitBody, ("alarm_code",))
     return _reply(ops.split(_writer(request, conn, principal), schedule_id, body.base_revision, list(body.days), body.name, body.confirm, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))))
 
 
 @router.post("/schedules/{schedule_id}/delete")
-def delete_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> JSONResponse:
+def delete_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, _ = _parse(request, raw, DeleteBody)
     return _reply(ops.delete(_writer(request, conn, principal), schedule_id, body.base_revision, body.confirm, body.client_request_id))
 
 
 @router.post("/schedules/{schedule_id}/copy")
-def copy_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> JSONResponse:
+def copy_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, secret = _parse(request, raw, CopyBody, ("alarm_code",))
     return _reply(ops.copy(_writer(request, conn, principal), schedule_id, body.name, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))))
