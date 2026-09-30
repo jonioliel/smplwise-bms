@@ -29,6 +29,7 @@ const WEATHER = 'weather.home1_wx';
 const PARSHA = 'sensor.home1_jewish_calendar_parshat_hashavua';
 const CANDLES = 'sensor.home1_jewish_calendar_upcoming_candle_lighting';
 const HAVDALAH = 'sensor.home1_jewish_calendar_upcoming_havdalah';
+const HEBDATE = 'sensor.home1_jewish_calendar_date';
 
 const ENTITIES: { entity_id: string; area_id: string | null }[] = [];
 const STATES: { entity_id: string; state: string; attributes: Record<string, unknown> }[] = [];
@@ -46,13 +47,16 @@ for (const a of AREAS) {
 add('lock.home1_front', 'home1_lobby', 'locked', { friendly_name: 'דלת כניסה', device_class: 'lock' });
 add('alarm_control_panel.home1_house', 'home1_lobby', 'armed_away', { friendly_name: 'אזעקה' });
 add('media_player.home1_tv', 'home1_living', 'playing', { friendly_name: 'טלוויזיה סלון' });
-add(WEATHER, null, 'partlycloudy', { friendly_name: 'מזג אוויר בית', temperature: 27.5, humidity: 61, temperature_unit: '°C' });
+const FORECAST = [14, 15, 16, 17, 18, 19].map((h, i) => ({ datetime: `2026-09-30T${h}:00:00+03:00`, condition: ['sunny', 'partlycloudy', 'cloudy', 'rainy', 'rainy', 'clear-night'][i], temperature: 29 - i }));
+const WEATHER_ATTRS = { friendly_name: 'מזג אוויר בית', temperature: 27.5, humidity: 61, temperature_unit: '°C', wind_speed: 14, wind_speed_unit: 'km/h', forecast: FORECAST };
+add(WEATHER, null, 'partlycloudy', WEATHER_ATTRS);
+add(HEBDATE, null, 'כ״ט באלול ה׳תשפ״ו', { friendly_name: 'תאריך עברי' });
 add(PARSHA, null, 'בראשית', { friendly_name: 'פרשת השבוע' });
 add(CANDLES, null, '2026-10-02T17:32:00+03:00', { friendly_name: 'הדלקת נרות', device_class: 'timestamp' });
 add(HAVDALAH, null, '2026-10-03T18:30:00+03:00', { friendly_name: 'צאת שבת', device_class: 'timestamp' });
 
-const HOME_KEYS = ['home.title', 'home.floor_order', 'home.clock', 'home.weather', 'home.weather_entity', 'home.jewish', 'home.jewish_parsha', 'home.jewish_candles', 'home.jewish_havdalah'];
-const HOME_DEFAULTS: Record<string, string> = { 'home.title': '', 'home.floor_order': '[]', 'home.clock': 'off', 'home.weather': 'false', 'home.weather_entity': '', 'home.jewish': 'false', 'home.jewish_parsha': '', 'home.jewish_candles': '', 'home.jewish_havdalah': '' };
+const HOME_KEYS = ['home.title', 'home.floor_order', 'home.clock', 'home.weather', 'home.weather_entity', 'home.jewish', 'home.jewish_parsha', 'home.jewish_candles', 'home.jewish_havdalah', 'home.clock_size', 'home.clock_seconds', 'home.weather_size', 'home.jewish_size', 'home.jewish_date'];
+const HOME_DEFAULTS: Record<string, string> = { 'home.title': '', 'home.floor_order': '[]', 'home.clock': 'off', 'home.weather': 'false', 'home.weather_entity': '', 'home.jewish': 'false', 'home.jewish_parsha': '', 'home.jewish_candles': '', 'home.jewish_havdalah': '', 'home.clock_size': 'medium', 'home.clock_seconds': 'false', 'home.weather_size': 'medium', 'home.jewish_size': 'medium', 'home.jewish_date': '' };
 
 test.describe('the home screen against the devices fixture backend', () => {
   test.skip(process.env.SW_LIVE !== '1' || process.env.SW_DEVICES_FIXTURE !== '1', 'needs tests/fixtures/devices_fake_ha.py (SW_LIVE=1 SW_DEVICES_FIXTURE=1)');
@@ -124,7 +128,7 @@ test.describe('the home screen against the devices fixture backend', () => {
     const b = page.locator('devices-building');
     await expect(b.locator('sw-page')).toHaveAttribute('heading', 'חשמל והתקנים');
     await expect(b.locator('[data-layout-edit]')).toHaveCount(0);
-    await expect(b.locator('home-widgets')).toBeHidden();
+    await expect(b.locator('home-widgets:visible')).toHaveCount(0);
     await expect(b.locator('home-widgets [data-home-widget]')).toHaveCount(0);
     const refresh = b.locator('sw-button[data-devices-refresh]');
     await expect(refresh).toBeVisible();
@@ -261,7 +265,7 @@ test.describe('the home screen against the devices fixture backend', () => {
       await expect(weatherSel).toBeEnabled();
       await expect(weatherSel.locator(`option[value="${WEATHER}"]`)).toHaveCount(1, { timeout: 15000 });
       // switched on but no entity chosen: still nothing shown, no room taken
-      await expect(b.locator('home-widgets')).toBeHidden();
+      await expect(b.locator('home-widgets:visible')).toHaveCount(0);
       await weatherSel.selectOption(WEATHER);
       await b.locator('[data-home-clock="datetime"]').click();
       await b.locator('input[data-home-jewish]').check();
@@ -290,7 +294,7 @@ test.describe('the home screen against the devices fixture backend', () => {
       await page.reload();
       await expect(w.locator('[data-home-widget="clock"]')).toBeVisible({ timeout: 30000 });
       await expect(w.locator('[data-home-widget="clock"]')).toContainText(/\d{2}:\d{2}/);
-      await expect(w.locator('[data-home-widget="clock"]')).toContainText(/\d+\.\d+/); // the date
+      await expect(w.locator('[data-home-widget="clock"]')).toContainText(/\d+ ב/); // the date (a medium card: "30 בספטמבר")
       const wx = w.locator('[data-home-widget="weather"]');
       await expect(wx).toContainText('מעונן חלקית');
       await expect(wx).toContainText('28'); // 27.5 rounded, in the entity's own unit
@@ -313,9 +317,121 @@ test.describe('the home screen against the devices fixture backend', () => {
       await resetHome(request);
       await page.reload();
       await expect(b.locator('sw-kpi').first()).toBeVisible({ timeout: 30000 });
-      await expect(b.locator('home-widgets')).toBeHidden();
+      await expect(b.locator('home-widgets:visible')).toHaveCount(0);
     } finally {
       await request.post('/api/v1/ha/dev/states', { data: { states: [{ entity_id: WEATHER, state: 'partlycloudy', attributes: { friendly_name: 'מזג אוויר בית', temperature: 27.5, humidity: 61, temperature_unit: '°C' } }] } });
+      await resetHome(request);
+    }
+  });
+
+  test('widget sizes: a small chip, or a medium / large glass card beside the summary tiles - chosen per widget in edit mode, saved, fitting the viewport; the phone scrolls the cards sideways', async ({ page, request }, testInfo) => {
+    test.setTimeout(120_000);
+    await seed(request);
+    await resetHome(request);
+    const all = { 'home.clock': 'datetime', 'home.clock_seconds': 'true', 'home.weather': 'true', 'home.weather_entity': WEATHER, 'home.jewish': 'true', 'home.jewish_parsha': PARSHA, 'home.jewish_candles': CANDLES, 'home.jewish_havdalah': HAVDALAH, 'home.jewish_date': HEBDATE };
+    const phone = testInfo.project.name === 'mobile';
+    const numbers: Record<string, unknown> = {};
+    try {
+      expect((await request.patch('/api/v1/settings', { data: all })).status()).toBe(200);
+      // newly enabled widgets are medium cards (the default), not chips
+      await open(page, '/devices/building', 'tiles');
+      const b = page.locator('devices-building');
+      const cards = b.locator('home-widgets[data-mode="cards"] .card');
+      await expect(cards).toHaveCount(3, { timeout: 30000 });
+      for (const c of await cards.all()) await expect(c).toHaveAttribute('data-size', 'medium');
+      await expect(b.locator('home-widgets[data-mode="chips"] [data-home-widget]')).toHaveCount(0);
+      await expect(b.locator('home-widgets[data-mode="cards"] [data-home-widget="clock"]')).toContainText('בספטמבר');
+      await expect(b.locator('home-widgets[data-mode="cards"] [data-home-hebrew-date]')).toContainText('תשפ');
+      await expect(b.locator('home-widgets[data-mode="cards"] [data-home-widget="parsha"]')).toContainText('פרשת בראשית');
+      await expect(b.locator('home-widgets[data-mode="cards"] [data-home-widget="candles"]')).toContainText('17:32');
+      await expect(b.locator('home-widgets[data-mode="cards"] [data-home-widget="havdalah"]')).toContainText('18:30');
+      // medium weather: big temperature, condition, humidity and wind (no forecast row)
+      const wx = b.locator('home-widgets[data-mode="cards"] .card.weather');
+      await expect(wx).toContainText('28');
+      await expect(wx).toContainText('מעונן חלקית');
+      await expect(wx).toContainText('61%');
+      await expect(wx).toContainText('14');
+      await expect(wx.locator('[data-home-forecast]')).toHaveCount(0);
+      // seconds tick while a card shows them
+      const sec1 = await b.locator('.card.clock .digits small').innerText();
+      await expect.poll(() => b.locator('.card.clock .digits small').innerText(), { timeout: 5000 }).not.toBe(sec1);
+      const measure = () =>
+        page.evaluate(() => {
+          const b = document.querySelector('sw-app')!.shadowRoot!.querySelector('devices-building')!;
+          const r = (el: Element | null) => (el ? el.getBoundingClientRect() : null);
+          const cardEls = [...b.shadowRoot!.querySelectorAll('home-widgets[data-mode="cards"]')].flatMap((h) => [...h.shadowRoot!.querySelectorAll('.card')]);
+          const kpis = [...b.shadowRoot!.querySelectorAll('sw-kpi[data-kpi]')];
+          const top = r(b.shadowRoot!.querySelector('.top'));
+          return {
+            cardH: cardEls.map((c) => Math.round(r(c)!.height)),
+            cardW: cardEls.map((c) => Math.round(r(c)!.width)),
+            kpiH: kpis.map((k) => Math.round(r(k)!.height)),
+            kpiW: Math.min(...kpis.map((k) => Math.round(r(k)!.width))),
+            topH: Math.round(top?.height ?? 0),
+            fit: b.shadowRoot!.querySelector('.split')?.getAttribute('data-fit'),
+          };
+        });
+      if (!phone) {
+        for (const [w, h] of [[1440, 900], [1920, 1080]]) {
+          await page.setViewportSize({ width: w, height: h });
+          await open(page, '/devices/building', 'tiles');
+          await expect(cards).toHaveCount(3, { timeout: 30000 });
+          await page.waitForTimeout(700);
+          const m = await measure();
+          numbers[`medium ${w}x${h}`] = m;
+          expect(await scrolls(page), `medium ${w}x${h}`).toEqual([]);
+          expect(m.kpiW, 'the summary tiles are not squeezed').toBeGreaterThanOrEqual(130);
+          expect(Math.max(...m.cardH) - Math.min(...m.cardH), 'the cards of a row are equally tall').toBeLessThanOrEqual(2);
+          await shot(page, `home-cards-medium-${w}`, testInfo);
+        }
+      }
+      // edit mode: a size per widget - large weather gets the forecast row, small ones become chips in the header
+      await open(page, '/devices/building?edit=1', 'tiles');
+      await expect(b.locator('[data-home-edit]')).toBeVisible({ timeout: 30000 });
+      await expect(b.locator('[data-home-size="weather:medium"]')).toHaveAttribute('aria-pressed', 'true');
+      await b.locator('[data-home-size="weather:large"]').click();
+      await b.locator('[data-home-size="clock:large"]').click();
+      await b.locator('[data-home-size="jewish:chip"]').click();
+      await expect(b.locator('home-widgets[data-mode="cards"] .card.weather[data-size="large"] [data-home-forecast] .fc')).toHaveCount(5);
+      await expect(b.locator('home-widgets[data-mode="cards"] .card.clock[data-size="large"]')).toBeVisible();
+      await expect(b.locator('home-widgets[data-mode="chips"] [data-home-widget="parsha"]')).toBeVisible(); // a chip in the header row
+      await expect(b.locator('home-widgets[data-mode="cards"] .card.jewish')).toHaveCount(0);
+      expect((await homeSettings(request))['home.weather_size']).toBe('medium'); // not saved yet
+      await b.locator('sw-button[data-layout-save]').click();
+      await expect(b.locator('[data-layout-bar]')).toHaveCount(0, { timeout: 15000 });
+      const saved = await homeSettings(request);
+      expect([saved['home.weather_size'], saved['home.clock_size'], saved['home.jewish_size']]).toEqual(['large', 'large', 'chip']);
+      // large: every widget a big card; the page still fits
+      expect((await request.patch('/api/v1/settings', { data: { 'home.jewish_size': 'large' } })).status()).toBe(200);
+      const sizes = phone ? [[390, 844]] : [[1440, 900], [1920, 1080]];
+      for (const [w, h] of sizes) {
+        await page.setViewportSize({ width: w, height: h });
+        await open(page, '/devices/building', 'tiles');
+        await expect(cards).toHaveCount(3, { timeout: 30000 });
+        await expect(b.locator('.card.weather [data-home-forecast] .fc')).toHaveCount(5);
+        await expect(b.locator('.card.weather')).toContainText('קמ״ש');
+        await page.waitForTimeout(700);
+        const m = await measure();
+        numbers[`large ${w}x${h}`] = m;
+        if (!phone) {
+          expect(await scrolls(page), `large ${w}x${h}`).toEqual([]);
+          expect(m.kpiW).toBeGreaterThanOrEqual(130);
+        } else {
+          // a phone: one row of cards that scrolls sideways and snaps; the page itself has no horizontal overflow
+          const row = await b.locator('home-widgets[data-mode="cards"]').evaluate((h) => ({ sw: h.scrollWidth, cw: h.clientWidth, snap: getComputedStyle(h).scrollSnapType }));
+          expect(row.sw).toBeGreaterThan(row.cw);
+          expect(row.snap).toContain('x');
+          expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+        }
+        await shot(page, `home-cards-large-${w}`, testInfo);
+      }
+      // unavailable / unconfigured: no card, no room
+      await resetHome(request);
+      await open(page, '/devices/building', 'tiles');
+      await expect(b.locator('sw-kpi').first()).toBeVisible({ timeout: 30000 });
+      await expect(b.locator('home-widgets:visible')).toHaveCount(0);
+      testInfo.annotations.push({ type: 'layout-numbers', description: JSON.stringify(numbers) });
+    } finally {
       await resetHome(request);
     }
   });

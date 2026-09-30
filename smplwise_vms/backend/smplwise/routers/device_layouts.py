@@ -80,6 +80,16 @@ TILE_COLS = {"lighting": 2, "switches": 2, "climate": 2, "covers": 2, "security"
 MAX_TILES = 200
 MAX_TILE_ORDER = 999
 LAYOUT_VERSION = 2  # the schema version this server writes tiles with; 1 = the 6b layout (no tiles)
+# Owner request 2026-09-30 (the area layout editor's card library): `v: 3` adds custom cards and deleted built-in cards.
+# A custom card is an item whose key is `card:c-<id>` and whose `custom` = {type, entities}: a card of a library type with
+# its own explicit device list (any number, several of one type, each with its own title / colours / size); a built-in
+# card the editor deleted stays as an item with `removed: true` (its devices simply show in no card of that name). Keep the
+# types in step with CARD_TYPES in frontend/src/screens/devices-layout-cards.ts (tests/test_device_layouts.py compares).
+CARDS_VERSION = 3
+CUSTOM_TYPES = (*svc.CARD_IDS, "locks", "energy", "free")
+CUSTOM_KEY_RE = re.compile(r"^card:c-[a-z0-9]{6,12}$")
+MAX_CUSTOM_CARDS = 40
+MAX_CUSTOM_ENTITIES = 300
 
 
 def _clean_title(v: str | None) -> str | None:
@@ -108,6 +118,27 @@ class TileLayout(BaseModel):
         return _clean_title(v)
 
 
+class CustomCard(BaseModel):
+    """A custom area card (v 3): its library type and the devices it shows (entity ids, in no particular order)."""
+    model_config = ConfigDict(extra="forbid", strict=True)
+    type: str
+    entities: list[str] = Field(default_factory=list, max_length=MAX_CUSTOM_ENTITIES)
+
+    @field_validator("type")
+    @classmethod
+    def _type(cls, v: str) -> str:
+        if v not in CUSTOM_TYPES:
+            raise ValueError("unknown card type")
+        return v
+
+    @field_validator("entities")
+    @classmethod
+    def _entities(cls, v: list[str]) -> list[str]:
+        if any(not ENTITY_ID_RE.fullmatch(e) for e in v):
+            raise ValueError("not an entity id")
+        return sorted(set(v))
+
+
 class LayoutItem(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)  # no "yes" for true, no "3" for 3
     x: int = Field(ge=0, le=11)
@@ -124,6 +155,9 @@ class LayoutItem(BaseModel):
     hidden_entities: list[str] = Field(default_factory=list, max_length=MAX_HIDDEN_ENTITIES)
     # slice 6c: the card's own device-tile arrangement (area cards only; empty = the automatic order)
     tiles: dict[str, TileLayout] = Field(default_factory=dict, max_length=MAX_TILES)
+    # v 3: a custom card's type and devices; a built-in card the editor deleted
+    custom: CustomCard | None = None
+    removed: bool = False
 
     @field_validator("title")
     @classmethod
@@ -166,7 +200,7 @@ class LayoutItem(BaseModel):
 
 class Layout(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
-    v: Literal[1, 2] = 1  # the layout schema version: 1 = 6b, 2 = 6c (device tiles inside the area cards)
+    v: Literal[1, 2, 3] = 1  # the layout schema version: 1 = 6b, 2 = 6c (device tiles inside the area cards), 3 = custom / deleted cards
     cols: int
     items: dict[str, LayoutItem] = Field(max_length=MAX_ITEMS)
 
@@ -178,6 +212,10 @@ def _dump(layout: Layout) -> str:
     for it in data["items"].values():
         if not it.get("tiles"):
             it.pop("tiles", None)
+        if it.get("custom") is None:  # v 3 fields cost nothing on an older layout
+            it.pop("custom", None)
+        if not it.get("removed"):
+            it.pop("removed", None)
     return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
 
 
@@ -229,6 +267,8 @@ def _overlaps(layout: Layout, grid_of: Any) -> list[str]:
     for items in groups.values():
         for i, (ka, a) in enumerate(items):
             for kb, b in items[i + 1:]:
+                if a.removed or b.removed:
+                    continue  # a deleted card leaves no slot behind
                 if a.x < b.x + b.w and b.x < a.x + a.w and a.y < b.y + b.h and b.y < a.y + a.h:
                     out.append(f"{ka[:40]} / {kb[:40]}")
     return out
@@ -243,14 +283,25 @@ def _validate_semantics(scope: str, variant: str, layout: Layout) -> list[str]:
     for key, it in layout.items.items():
         if scope == "building" and not BUILDING_KEY_RE.fullmatch(key):
             errors.append(f"layout.items.{key[:40]}: the building screen lays out floor:<id> and area:<id> only")
-        if scope == "area" and key not in {f"card:{c}" for c in svc.CARD_IDS}:
+        builtin = key in {f"card:{c}" for c in svc.CARD_IDS}
+        if scope == "area" and not builtin and not CUSTOM_KEY_RE.fullmatch(key):
             errors.append(f"layout.items.{key[:40]}: the area screen lays out its cards (card:<id>) only")
+        if scope == "area" and CUSTOM_KEY_RE.fullmatch(key) and it.custom is None:
+            errors.append(f"layout.items.{key[:40]}: a custom card needs its type and devices")
+        if it.custom is not None and (scope != "area" or builtin):
+            errors.append(f"layout.items.{key[:40]}: only a custom area card (card:c-<id>) carries custom")
+        if it.removed and (scope != "area" or not builtin):
+            errors.append(f"layout.items.{key[:40]}: only a built-in area card can be removed")
+        if (it.custom is not None or it.removed) and layout.v < CARDS_VERSION:
+            errors.append(f"layout.items.{key[:40]}: custom and removed cards need layout v {CARDS_VERSION}")
         if it.x + it.w > cols:
             errors.append(f"layout.items.{key[:40]}: x + w exceeds the {cols} columns")
         if it.hidden_entities and scope != "area":
             errors.append(f"layout.items.{key[:40]}: hidden_entities belong to the area screen's cards")
         if it.tiles:
             errors.extend(_tile_errors(scope, key, it, layout.v))
+    if sum(1 for it in layout.items.values() if it.custom is not None) > MAX_CUSTOM_CARDS:
+        errors.append(f"layout.items: at most {MAX_CUSTOM_CARDS} custom cards")
     return errors
 
 
@@ -262,7 +313,7 @@ def _tile_errors(scope: str, key: str, it: LayoutItem, version: int) -> list[str
     errors: list[str] = []
     if version < LAYOUT_VERSION:
         errors.append(f"{where}: device tiles need layout v {LAYOUT_VERSION}")
-    cols = TILE_COLS.get(key[5:], 1)
+    cols = TILE_COLS.get(key[5:], 1) if key[5:] in TILE_COLS else (TILE_COLS.get(it.custom.type, 2) if it.custom else 1)
     orders = [t.order for t in it.tiles.values()]
     if len(set(orders)) != len(orders):
         errors.append(f"{where}: each tile needs its own order")
@@ -270,6 +321,17 @@ def _tile_errors(scope: str, key: str, it: LayoutItem, version: int) -> list[str
         if t.span > cols:
             errors.append(f"{where}.{entity_id[:60]}: span {t.span} exceeds the card's {cols} tile columns")
     return errors
+
+
+def _portable(layout_json: str) -> str:
+    """A layout as another area can take it: a custom card lists THIS area's devices, so it stays here; the built-in
+    cards' arrangement (and a built-in card the editor deleted) is what "העתק לכל האזורים" copies."""
+    data = json.loads(layout_json)
+    items = data.get("items", {})
+    if not any(isinstance(it, dict) and it.get("custom") for it in items.values()):
+        return layout_json
+    data["items"] = {k: it for k, it in items.items() if not (isinstance(it, dict) and it.get("custom"))}
+    return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
 
 
 def _parse(request: Request, raw: bytes, model: type[BaseModel]) -> BaseModel:
@@ -447,9 +509,9 @@ def copy_to_all_areas(scope_id: str, request: Request, principal: Principal = De
     _prune_vanished(conn, principal, request)
     targets = [a for a in [*_known_areas(conn), svc.UNASSIGNED] if a != scope_id]
     for area_id in targets:
-        _write(conn, principal, "area", area_id, "desktop", src["desktop"])
+        _write(conn, principal, "area", area_id, "desktop", _portable(src["desktop"]))
         if "phone" in src:
-            _write(conn, principal, "area", area_id, "phone", src["phone"])
+            _write(conn, principal, "area", area_id, "phone", _portable(src["phone"]))
         else:
             conn.execute("DELETE FROM device_layouts WHERE scope = 'area' AND scope_id = ? AND variant = 'phone'", (area_id,))
     audit(conn, actor=principal, action="devices.layout.copy", decision="allowed", resource_type="device_layout_area", resource_id=scope_id,

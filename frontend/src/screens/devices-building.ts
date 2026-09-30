@@ -28,9 +28,11 @@ import { onRouteChange, parseRoute, pushRoute, replaceRoute } from '../router';
 import './home-widgets';
 import { HomeWidgetsView } from './home-widgets';
 import {
-  CLOCK_LABEL, CLOCK_MODES, getHomeCandidates, HOME_DEFAULT, HOME_TITLE_DEFAULT, HOME_TITLE_MAX, loadHomeSettings, moveId, NO_WIDGETS, orderFloors, saveHomeSettings,
-  type ClockMode, type HomeCandidates, type HomeSettings, type HomeWidgets,
+  CLOCK_LABEL, CLOCK_MODES, getHomeCandidates, HOME_DEFAULT, HOME_TITLE_DEFAULT, HOME_TITLE_MAX, loadHomeSettings, moveId, NO_WIDGETS, orderFloors, saveHomeSettings, SIZE_LABEL, WIDGET_SIZES,
+  type ClockMode, type HomeCandidates, type HomeSettings, type HomeWidgets, type WidgetKind, type WidgetSize,
 } from '../api/home';
+
+const SIZE_KIND_HE: Record<WidgetKind, string> = { clock: 'שעון', weather: 'מזג אוויר', jewish: 'לוח שנה עברי' };
 
 /** Owner notes 2026-09-30: the home route's edit mode is entered by the address (`#/devices/building?edit=1`, from the
  * user menu's "עריכת המסך הראשי"), not by a button on the screen. */
@@ -449,6 +451,28 @@ const HOME_LAYOUT = css`
   .ha-refresh {
     gap: 6px;
     flex-wrap: nowrap;
+  }
+  /* the top row: the widget cards (medium / large) and the summary tiles. The cards keep their own width; the tiles take
+     what is left and wrap under them when it is under 560 px, so the tiles are never squeezed */
+  .top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 8px;
+    min-inline-size: 0;
+  }
+  .top > home-widgets[data-mode='cards'] {
+    flex: 1 1 auto;
+    max-inline-size: 100%;
+  }
+  .top > .kpis[data-kpis] {
+    flex: 1 1 560px;
+    min-inline-size: 0;
+    align-content: stretch;
+    grid-auto-rows: minmax(44px, 1fr);
+  }
+  .he-grp > .he-half {
+    grid-column: auto;
   }
   /* the summary tiles: small rectangles, the icon at the end of the text */
   :host .kpis[data-kpis] {
@@ -975,15 +999,18 @@ export class DevicesBuilding extends LitElement {
     const sensor = (id: string) => (id ? c?.sensors.find((x) => x.entity_id === id) : undefined);
     const jewish: NonNullable<HomeWidgets['jewish']> = {};
     if (d.jewishOn) {
-      for (const [part, id] of [['parsha', d.parsha], ['candles', d.candles], ['havdalah', d.havdalah]] as const) {
+      for (const [part, id] of [['parsha', d.parsha], ['candles', d.candles], ['havdalah', d.havdalah], ['date', d.jewishDate]] as const) {
         const s = sensor(id);
         if (s?.state && s.state !== 'unavailable' && s.state !== 'unknown') jewish[part] = { entity_id: s.entity_id, state: s.state, device_class: s.device_class };
       }
     }
+    const same = w.weather && weather && w.weather.entity_id === weather.entity_id ? w.weather : null; // the saved entity's numbers
     return {
       clock: d.clock,
+      clock_seconds: d.clockSeconds,
       time_zone: w.time_zone,
-      weather: weather?.state && weather.state !== 'unavailable' && weather.state !== 'unknown' ? { entity_id: weather.entity_id, condition: weather.state, temperature: w.weather?.entity_id === weather.entity_id ? w.weather.temperature : null, unit: w.weather?.unit ?? '°C', humidity: w.weather?.entity_id === weather.entity_id ? w.weather.humidity : null } : null,
+      sizes: { clock: d.clockSize, weather: d.weatherSize, jewish: d.jewishSize },
+      weather: weather?.state && weather.state !== 'unavailable' && weather.state !== 'unknown' ? { entity_id: weather.entity_id, condition: weather.state, temperature: same?.temperature ?? null, unit: w.weather?.unit ?? '°C', humidity: same?.humidity ?? null, wind_speed: same?.wind_speed ?? null, wind_unit: same?.wind_unit ?? null, forecast: same?.forecast ?? [] } : null,
       jewish: Object.keys(jewish).length ? jewish : null,
     };
   }
@@ -1009,24 +1036,34 @@ export class DevicesBuilding extends LitElement {
       ...(suggested.length ? [html`<optgroup label="לוח שנה עברי">${suggested.map((x) => html`<option value=${x.entity_id} ?selected=${x.entity_id === current}>${x.name} · ${x.entity_id}</option>`)}</optgroup>`] : []),
       html`<optgroup label="כל החיישנים">${others.map((x) => html`<option value=${x.entity_id} ?selected=${x.entity_id === current}>${x.name} · ${x.entity_id}</option>`)}</optgroup>`,
     ];
-    const pick = (field: 'parsha' | 'candles' | 'havdalah', label: string, id: string) => html`<label class="he-f">${label}<select data-home-jewish=${field} ?disabled=${!d.jewishOn} @change=${(e: Event) => this.patchHome({ [field]: (e.target as HTMLSelectElement).value })}>${sensorOpts(id)}</select></label>`;
+    // a widget's size (owner feedback 2026-09-30): a small chip, or a medium / large card in the summary tiles' family
+    const sizeSeg = (kind: WidgetKind, current: WidgetSize, field: 'clockSize' | 'weatherSize' | 'jewishSize') => html`<span class="he-seg" role="group" aria-label=${`גודל: ${SIZE_KIND_HE[kind]}`}>
+      ${WIDGET_SIZES.map((s) => html`<button type="button" data-home-size=${`${kind}:${s}`} aria-pressed=${String(current === s)} @click=${() => this.patchHome({ [field]: s })}>${SIZE_LABEL[s]}</button>`)}
+    </span>`;
+    const pick = (field: 'parsha' | 'candles' | 'havdalah' | 'jewishDate', label: string, id: string) => html`<label class="he-f">${label}<select data-home-jewish=${field} ?disabled=${!d.jewishOn} @change=${(e: Event) => this.patchHome({ [field]: (e.target as HTMLSelectElement).value })}>${sensorOpts(id)}</select></label>`;
     return html`<section class="home-edit" data-home-edit aria-label="הגדרות המסך הראשי">
       <div class="he-col">
         <label class="he-f he-title">כותרת המסך
           <input type="text" data-home-title maxlength=${HOME_TITLE_MAX} .value=${d.title} placeholder=${HOME_TITLE_DEFAULT} @input=${(e: Event) => this.patchHome({ title: (e.target as HTMLInputElement).value })} />
         </label>
-        <div class="he-f" role="group" aria-label="שעון">שעון
-          <span class="he-seg">
-            ${CLOCK_MODES.map((m: ClockMode) => html`<button type="button" data-home-clock=${m} aria-pressed=${String(d.clock === m)} @click=${() => this.patchHome({ clock: m })}>${CLOCK_LABEL[m]}</button>`)}
-          </span>
+        <div class="he-grp">
+          <div class="he-f" role="group" aria-label="שעון">שעון
+            <span class="he-seg">
+              ${CLOCK_MODES.map((m: ClockMode) => html`<button type="button" data-home-clock=${m} aria-pressed=${String(d.clock === m)} @click=${() => this.patchHome({ clock: m })}>${CLOCK_LABEL[m]}</button>`)}
+            </span>
+          </div>
+          <div class="he-f">גודל ${sizeSeg('clock', d.clockSize, 'clockSize')}</div>
+          <label class="he-check he-half"><input type="checkbox" data-home-clock-seconds ?disabled=${d.clock === 'off'} .checked=${d.clockSeconds} @change=${(e: Event) => this.patchHome({ clockSeconds: (e.target as HTMLInputElement).checked })} />עם שניות</label>
         </div>
         <div class="he-grp">
           <label class="he-check"><input type="checkbox" data-home-weather .checked=${d.weatherOn} @change=${(e: Event) => this.patchHome({ weatherOn: (e.target as HTMLInputElement).checked })} />מזג אוויר</label>
+          <div class="he-f">גודל ${sizeSeg('weather', d.weatherSize, 'weatherSize')}</div>
           <select data-home-weather-entity aria-label="ישות מזג האוויר" ?disabled=${!d.weatherOn} @change=${(e: Event) => this.patchHome({ weatherEntity: (e.target as HTMLSelectElement).value })}>${opt(c?.weather ?? [], d.weatherEntity)}</select>
         </div>
         <div class="he-grp">
           <label class="he-check"><input type="checkbox" data-home-jewish .checked=${d.jewishOn} @change=${(e: Event) => this.patchHome({ jewishOn: (e.target as HTMLInputElement).checked })} />לוח שנה עברי</label>
-          ${pick('parsha', 'פרשת השבוע', d.parsha)}${pick('candles', 'הדלקת נרות', d.candles)}${pick('havdalah', 'צאת שבת', d.havdalah)}
+          <div class="he-f">גודל ${sizeSeg('jewish', d.jewishSize, 'jewishSize')}</div>
+          ${pick('parsha', 'פרשת השבוע', d.parsha)}${pick('candles', 'הדלקת נרות', d.candles)}${pick('havdalah', 'צאת שבת', d.havdalah)}${pick('jewishDate', 'תאריך עברי (לא חובה)', d.jewishDate)}
         </div>
         ${this.candidatesError ? html`<div class="he-err" role="alert">${this.candidatesError}</div>` : nothing}
       </div>
@@ -1116,7 +1153,7 @@ export class DevicesBuilding extends LitElement {
       if (this.fit !== 0) this.fit = 0;
       return;
     }
-    const key = [window.innerWidth, window.innerHeight, this.layout, this.selected, t.floors.length, t.floors.reduce((n, f) => n + f.areas.length, 0), HomeWidgetsView.hasAny(t.home) ? 'w' : '-'].join('|');
+    const key = [window.innerWidth, window.innerHeight, this.layout, this.selected, t.floors.length, t.floors.reduce((n, f) => n + f.areas.length, 0), HomeWidgetsView.shown(t.home, 'cards').join(','), HomeWidgetsView.shown(t.home, 'chips').join(',')].join('|');
     if (key !== this.fitKey) {
       this.fitKey = key;
       if (this.fit !== 0) {
@@ -1895,17 +1932,21 @@ export class DevicesBuilding extends LitElement {
     const connected = this.sync?.connected ?? false;
     const bulkBuilding = this.bulkAllowed && t.can_bulk === true;
     this.lay.prepare(this.layGrids(t));
+    const widgets = this.widgetsView(t);
     // owner notes 2026-09-30: no "ערוך פריסה" button here (the user menu's "עריכת המסך הראשי" opens `?edit=1`); the header
     // row carries only the optional widgets, a "not synced" chip when the state is NOT fine, and a small refresh icon
     return html`<sw-page heading=${heading} subheading=${sub} wide @bulk-request=${this.onBulkRequest}>
       <div slot="actions" class="hdr">
-        <home-widgets .data=${this.widgetsView(t)}></home-widgets>
+        <home-widgets data-mode="chips" .data=${widgets}></home-widgets>
         ${t.scoped ? html`<sw-badge kind="partial" label="לפי הקומות שלך"></sw-badge>` : nothing}
         ${isApi() && !connected ? html`<sw-badge data-devices-sync kind="stale" label="לא מסונכרן"></sw-badge>` : nothing}
         ${isApi() ? this.renderRefresh() : nothing}
       </div>
       ${this.error ? html`<sw-state-panel compact state="error" heading="הרענון האחרון נכשל" hint=${this.error}></sw-state-panel>` : nothing}
-      ${this.renderKpis(t.building)}
+      <div class="top" data-top>
+        <home-widgets data-mode="cards" .fit=${this.fit} .data=${widgets}></home-widgets>
+        ${this.renderKpis(t.building)}
+      </div>
       ${this.fit >= 2 ? nothing : this.renderClimateStrip(t.building_climate, 'מזגנים בבניין')}
       <div class="toolbar">
         <span class="seg" role="group" aria-label="פריסה">פריסה:

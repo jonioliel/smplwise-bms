@@ -139,7 +139,7 @@ def test_validation(dev_app):  # noqa: F811
     assert bad({"v": 1, "cols": 4, "items": {}}) == 422  # a desktop layout has 12 columns
     assert bad({"v": 1, "cols": 12, "items": {}}, variant="phone") == 422  # a phone layout has 4
     assert bad({"v": 1, "cols": 4, "items": {"card:lighting": {"x": 2, "y": 0, "w": 4, "h": 5}}}, variant="phone") == 422
-    assert bad({"v": 3, "cols": 12, "items": {}}) == 422  # 1 (6b) and 2 (6c, device tiles) only
+    assert bad({"v": 4, "cols": 12, "items": {}}) == 422  # 1 (6b), 2 (6c, device tiles) and 3 (custom / deleted cards) only
     assert bad({"v": 1, "cols": 12, "items": {"floor:ground": item}}) == 422  # an area screen lays out its cards only
     assert bad({"v": 1, "cols": 12, "items": {"card:garage": item}}) == 422
     assert bad({"v": 1, "cols": 12, "items": {"card:lighting": item}}, scope="building", sid="main") == 422  # and the building its floors / areas

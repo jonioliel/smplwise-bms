@@ -17,6 +17,7 @@ from ..db import get_setting
 from . import ha_sync
 
 CLOCK_MODES = ("off", "time", "datetime")
+SIZES = ("chip", "medium", "large")
 ORDER_MAX = 100
 ID_MAX = 100
 
@@ -103,14 +104,41 @@ def _num(v: Any) -> float | None:
     return f if f == f and abs(f) < 1e6 else None
 
 
+FORECAST_MAX = 6
+
+
+def _forecast(raw: Any) -> list[dict[str, Any]]:
+    """The next few entries of a weather entity's own `forecast` attribute (what Home Assistant already reported; no
+    request is made): time, condition, temperature. Absent or malformed = no forecast row."""
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        when, cond = item.get("datetime"), item.get("condition")
+        if not isinstance(when, str) or not isinstance(cond, str):
+            continue
+        out.append({"datetime": when[:40], "condition": cond[:40], "temperature": _num(item.get("temperature"))})
+        if len(out) >= FORECAST_MAX:
+            break
+    return out
+
+
 def widgets(conn: sqlite3.Connection) -> dict[str, Any]:
     """What the header widgets show right now. A widget that is off, not configured or whose entity is gone / has no
     state is null - the screen then draws nothing and gives it no room. The clock has no data of its own: the browser
     draws it in the site's time zone (`time_zone`)."""
     clock = get_setting(conn, "home.clock", "off") or "off"
+    def size(key: str) -> str:
+        v = get_setting(conn, key, "medium") or "medium"
+        return v if v in SIZES else "medium"
+
     out: dict[str, Any] = {
         "clock": clock if clock in CLOCK_MODES else "off",
+        "clock_seconds": _flag(conn, "home.clock_seconds"),
         "time_zone": get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem",
+        "sizes": {"clock": size("home.clock_size"), "weather": size("home.weather_size"), "jewish": size("home.jewish_size")},
         "weather": None,
         "jewish": None,
     }
@@ -124,10 +152,13 @@ def widgets(conn: sqlite3.Connection) -> dict[str, Any]:
                 "temperature": _num(a.get("temperature")),
                 "unit": a.get("temperature_unit") if isinstance(a.get("temperature_unit"), str) else "°C",
                 "humidity": _num(a.get("humidity")),
+                "wind_speed": _num(a.get("wind_speed")),
+                "wind_unit": a.get("wind_speed_unit") if isinstance(a.get("wind_speed_unit"), str) else None,
+                "forecast": _forecast(a.get("forecast")),
             }
     if _flag(conn, "home.jewish"):
         parts: dict[str, Any] = {}
-        for part, key in (("parsha", "home.jewish_parsha"), ("candles", "home.jewish_candles"), ("havdalah", "home.jewish_havdalah")):
+        for part, key in (("parsha", "home.jewish_parsha"), ("candles", "home.jewish_candles"), ("havdalah", "home.jewish_havdalah"), ("date", "home.jewish_date")):
             s = _entity(conn, get_setting(conn, key, "") or "", "sensor")
             if s and s["available"]:
                 parts[part] = {"entity_id": s["entity_id"], "state": str(s["state"]), "device_class": s["device_class"]}
