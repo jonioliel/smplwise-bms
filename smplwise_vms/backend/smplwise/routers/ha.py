@@ -117,9 +117,20 @@ def list_entities(
         r["actions"] = [] if r["alarm_managed"] else ha_bridge.actions_for(r["domain"])
         out.append(r)
     domains: dict[str, int] = {}
-    for r in conn.execute("SELECT domain, COUNT(*) AS n FROM ha_entities WHERE removed_at IS NULL AND disabled = 0 GROUP BY domain").fetchall():
-        domains[r["domain"]] = r["n"]
-    areas = [dict(r) for r in conn.execute("SELECT DISTINCT area_id, area_name FROM ha_entities WHERE area_id IS NOT NULL ORDER BY area_name").fetchall()]
+    areas: list[dict[str, Any]] = []
+    if wide:
+        for r in conn.execute("SELECT domain, COUNT(*) AS n FROM ha_entities WHERE removed_at IS NULL AND disabled = 0 GROUP BY domain").fetchall():
+            domains[r["domain"]] = r["n"]
+        areas = [dict(r) for r in conn.execute("SELECT DISTINCT area_id, area_name FROM ha_entities WHERE removed_at IS NULL AND area_id IS NOT NULL ORDER BY area_name").fetchall()]
+    else:  # floor-scoped readers: the filter chips describe only what they may see (review of 2026-09-30, F1)
+        seen_areas: dict[Any, dict[str, Any]] = {}
+        for r in conn.execute("SELECT entity_id, domain, area_id, area_name FROM ha_entities WHERE removed_at IS NULL AND disabled = 0").fetchall():
+            if not ha_scope.entity_visible(wide, floors, placements, r["entity_id"]):
+                continue
+            domains[r["domain"]] = domains.get(r["domain"], 0) + 1
+            if r["area_id"] is not None:
+                seen_areas[r["area_id"]] = {"area_id": r["area_id"], "area_name": r["area_name"]}
+        areas = sorted(seen_areas.values(), key=lambda a: a["area_name"] or "")
     return {"entities": out, "domains": domains, "areas": areas, "sync": ha_sync.STATE.as_dict(), "can_control": authorize(conn, principal, "ha.entity.control", INSTALLATION).allowed or bool(_visible_floors(conn, principal, "ha.entity.control")[1])}
 
 
@@ -135,7 +146,7 @@ def get_entity(entity_id: str, principal: Principal = Depends(current_principal)
 
     e["alarm_managed"] = alarm_svc.is_managed_control(conn, entity_id)  # CR-010 review B1: read-only here
     e["actions"] = [] if e["alarm_managed"] else [{**a, "granted": e["can_control"] and (not a["grant"] or _entity_allowed(conn, principal, entity_id, a["grant"]))} for a in ha_bridge.actions_for(e["domain"])]
-    e["recent_actions"] = [dict(r) for r in conn.execute("SELECT id, action_id, status, requested_at, confirmed_at, principal_username, error FROM ha_actions WHERE entity_id = ? ORDER BY requested_at DESC, rowid DESC LIMIT 5", (entity_id,)).fetchall()]
+    e["recent_actions"] = [] if not (e["can_control"] or authorize(conn, principal, "system.configure", INSTALLATION).allowed) else [dict(r) for r in conn.execute("SELECT id, action_id, status, requested_at, confirmed_at, principal_username, error FROM ha_actions WHERE entity_id = ? ORDER BY requested_at DESC, rowid DESC LIMIT 5", (entity_id,)).fetchall()]
     return e
 
 
@@ -239,7 +250,7 @@ def _refuse_alarm_managed(conn: sqlite3.Connection, principal: Principal, reques
         return
     audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="use_alarm_screen",
           request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
-    raise ApiError(409, "use_alarm_screen", "הפעולה נעשית ממסך האזעקה (אבטחה › אזעקה).", details={"action": action_id, "route": f"/security/alarm"})
+    raise ApiError(409, "use_alarm_screen", "הפעולה נעשית ממסך האזעקה (הגדרות › אבטחה › אזעקה).", details={"action": action_id, "route": f"/security/alarm"})
 
 
 @router.get("/ha/actions/{action_id}")

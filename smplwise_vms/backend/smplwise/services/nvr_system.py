@@ -28,6 +28,7 @@ IO_OUTPUTS = "/ISAPI/System/IO/outputs"
 HDD_LIST = "/ISAPI/ContentMgmt/Storage/hdd"
 REBOOT_PATH = "/ISAPI/System/reboot"
 CONNECTION_FILE = "nvr_connection.json"
+CLOCK_VERIFY_S = 120  # a clock write that leaves the device further off than this is reported as failed
 XMLNS = 'xmlns="http://www.hikvision.com/ver20/XMLSchema"'
 
 
@@ -60,7 +61,7 @@ def blocks(xml: str, name: str) -> list[str]:
 def device_instant(local: str | None, tz: ZoneInfo | None = None) -> dt.datetime | None:
     """The instant an NVR's `localTime` stands for. Hikvision reports the WALL clock (already moved by its own summer
     time rule) but tags it with the zone's STANDARD offset, e.g. `12:04:09+02:00` at 12:04 in Israel in September
-    (+03:00). Taken literally that is an hour behind. When the installation zone is known and the tag is that zone's
+    (+03:00). Taken literally that is an hour ahead of the real time (+3599 s of drift). When the installation zone is known and the tag is that zone's
     standard or current offset, the digits are read as the zone's wall clock; any other tag (a device set to another
     zone) is honoured as written, and a naive value is the zone's wall clock (UTC without a zone)."""
     if not local:
@@ -117,7 +118,15 @@ def time_document(xml: str, *, mode: str | None, at: dt.datetime | None, tz: Zon
         current = device_instant(tag(xml, "localTime"))
         offset = current.utcoffset() if current else dt.timedelta(0)
         stamp = tag(xml, "localTime")
-        tag_offset = dt.datetime.fromisoformat(stamp.replace("Z", "+00:00")).utcoffset() if stamp else None
+        try:
+            parsed_stamp = dt.datetime.fromisoformat(stamp.strip().replace("Z", "+00:00")) if stamp else None
+        except ValueError:  # an unreadable clock value: fall back to UTC digits, never a 500
+            parsed_stamp = None
+        tag_offset = parsed_stamp.utcoffset() if parsed_stamp else None
+        if tz is not None and parsed_stamp is not None and tag_offset is None:
+            # no offset reported: the read treats the value as the zone's wall clock, so write it the same way
+            out = set_tag(out, "localTime", at.astimezone(tz).strftime("%Y-%m-%dT%H:%M:%S"))
+            return out
         if tz is not None and tag_offset is not None and device_instant(stamp, tz) != current:
             wall = at.astimezone(tz).replace(tzinfo=None)  # the zone's wall clock, tagged with the device's own offset
             offset = tag_offset
@@ -138,10 +147,22 @@ def sync_clock(settings: Settings, conn: sqlite3.Connection, principal: Any, *, 
         at = now or dt.datetime.now(dt.timezone.utc)
         rec = apply_change(settings, conn, principal, kind="time", permission="nvr.config.time", target="clock", path=TIME_PATH,
                            mutate=lambda x: time_document(x, mode="manual", at=at, tz=tz), note="סנכרון השעון לשעון השרת", request_id=request_id, client=c, keep_before=False)
+        # read the clock back: the write's encoding (wall clock under the device's own offset tag) is inferred from how the
+        # device reports its time, so a device that reads the tag literally would end up an hour off - say so instead of
+        # leaving it unseen (a check against the real time only when the caller did not fix `now`)
+        drift = None
+        if now is None:
+            try:
+                drift = time_status(settings, client=c, tz=tz).get("drift_s")
+            except ApiError:
+                drift = None
         final = mode or before_mode
         if final != "manual":
             apply_change(settings, conn, principal, kind="time", permission="nvr.config.time", target="time-mode", path=TIME_PATH,
                          mutate=lambda x: time_document(x, mode=final, at=None), note=f"מצב שעון: {final}", request_id=request_id, client=c, keep_before=False)
+        if drift is not None and abs(drift) > CLOCK_VERIFY_S:
+            audit(conn, actor=principal, action="nvr.clock.verify_failed", decision="denied", resource_type="nvr", resource_id="clock", request_id=request_id, details={"drift_s": drift})
+            raise ApiError(502, "clock_verify_failed", f"אחרי הסנכרון שעון ה־NVR סוטה ב־{drift} שניות. בדקו את השעון במסך המערכת; במצב NTP הוא יתוקן בסנכרון הבא.", details={"drift_s": drift})
     finally:
         if own:
             c.close()

@@ -180,3 +180,32 @@ def test_time_status_has_no_phantom_hour_of_drift_in_summer(monkeypatch):
     fixed = nvr_system.time_status(None, client=object(), now=now, tz=tz)
     assert fixed["drift_s"] == -1
     assert nvr_system.time_status(None, client=object(), now=now)["drift_s"] == 3599, "the literal reading, kept without a zone"
+
+
+def test_time_document_survives_an_unreadable_or_offsetless_clock_value():
+    tz = ZoneInfo("Asia/Jerusalem")
+    at = dt.datetime(2026, 9, 30, 9, 4, 9, tzinfo=dt.timezone.utc)
+    junk = TIME.replace("2026-09-18T02:35:00+02:00", "2026-09-30 12:04 junk")
+    assert "<localTime>2026-09-30T09:04:09+00:00</localTime>" in nvr_system.time_document(junk, mode=None, at=at, tz=tz), "no 500, UTC digits"
+    naive = TIME.replace("2026-09-18T02:35:00+02:00", "2026-09-30T12:04:09")
+    assert "<localTime>2026-09-30T12:04:09</localTime>" in nvr_system.time_document(naive, mode=None, at=at, tz=tz), "an offsetless device gets the zone's wall clock, as the read assumes"
+
+
+def test_a_clock_write_that_leaves_the_device_off_is_reported(monkeypatch):
+    import pytest as _pytest
+
+    from smplwise.errors import ApiError
+
+    calls: list[str] = []
+    monkeypatch.setattr(nvr_system, "_get", lambda c, path: TIME)
+    monkeypatch.setattr(nvr_system, "apply_change", lambda *a, **k: calls.append(k["target"]) or {"status": "applied"})
+    monkeypatch.setattr(nvr_system, "time_status", lambda *a, **k: {"drift_s": 3600})
+    audited: list[str] = []
+    monkeypatch.setattr(nvr_system, "audit", lambda conn, **k: audited.append(k["action"]))
+    with _pytest.raises(ApiError) as e:
+        nvr_system.sync_clock(None, None, None, client=object(), tz=ZoneInfo("Asia/Jerusalem"))
+    assert e.value.code == "clock_verify_failed" and e.value.details["drift_s"] == 3600
+    assert calls == ["clock", "time-mode"], "the mode is still put back"
+    assert audited == ["nvr.clock.verify_failed"]
+    monkeypatch.setattr(nvr_system, "time_status", lambda *a, **k: {"drift_s": 2})
+    assert nvr_system.sync_clock(None, None, None, client=object(), tz=ZoneInfo("Asia/Jerusalem"))["status"] == "applied"

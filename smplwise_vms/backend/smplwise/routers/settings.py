@@ -161,6 +161,7 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
 TABS_SLUG = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,47}$")
 TABS_MAX_SECTIONS = 64
 TABS_MAX_PER_LIST = 64
+TABS_MAX_JSON = 16 * 1024  # the serialised value is copied into every audit row and read on every GET /settings
 
 
 def _stored_tabs(raw: Any) -> dict[str, Any]:
@@ -183,7 +184,7 @@ def normalize_tabs(value: Any) -> dict[str, dict[str, list[str]]]:
         raise bad(f"עד {TABS_MAX_SECTIONS} מקטעים.")
     out: dict[str, dict[str, list[str]]] = {}
     for section, cfg in value.items():
-        if not isinstance(section, str) or not TABS_SLUG.match(section):
+        if not isinstance(section, str) or not TABS_SLUG.fullmatch(section):
             raise bad("מזהה מקטע לא תקין.")
         if not isinstance(cfg, dict):
             raise bad("כל מקטע הוא אובייקט עם order ו-hidden.")
@@ -196,12 +197,14 @@ def normalize_tabs(value: Any) -> dict[str, dict[str, list[str]]]:
                 raise bad(f"{name} חייב להיות רשימה של עד {TABS_MAX_PER_LIST} מזהים.")
             seen: list[str] = []
             for tab in items:
-                if not isinstance(tab, str) or not TABS_SLUG.match(tab):
+                if not isinstance(tab, str) or not TABS_SLUG.fullmatch(tab):
                     raise bad("מזהה לשונית לא תקין.")
                 if tab not in seen:
                     seen.append(tab)
             norm[name] = seen
         out[section] = norm
+    if len(json.dumps(out, ensure_ascii=False)) > TABS_MAX_JSON:
+        raise bad("ההגדרה גדולה מדי.")
     return out
 
 

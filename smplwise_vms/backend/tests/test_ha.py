@@ -85,6 +85,12 @@ def test_scope_placement_and_map_bundle(ha_app):
     bind(c, s, "ron", "viewer", "floor", ids["floor2"])
     mine = c.get("/api/v1/ha/entities", headers=as_user("ron")).json()
     assert [e["entity_id"] for e in mine["entities"]] == ["lock.front"] and mine["can_control"] is False
+    # the filter chips of a floor-scoped reader describe only what they may see (review 2026-09-30, F1); the installation-wide answer keeps all
+    assert mine["domains"] == {"lock": 1} and all(a["area_id"] for a in mine["areas"])
+    assert c.get("/api/v1/ha/entities").json()["domains"] == {"light": 1, "lock": 1, "sensor": 1}
+    # F2: who acted on an entity is shown only to those who can control it or configure the system
+    assert c.get("/api/v1/ha/entities/lock.front", headers=as_user("ron")).json()["recent_actions"] == []
+    assert isinstance(c.get("/api/v1/ha/entities/lock.front").json()["recent_actions"], list)
     assert c.get("/api/v1/ha/entities/light.lobby", headers=as_user("ron")).status_code == 403
     bind(c, s, "vi", "viewer", "floor", ids["floor3"])
     assert c.get("/api/v1/ha/entities", headers=as_user("vi")).json()["entities"] == []

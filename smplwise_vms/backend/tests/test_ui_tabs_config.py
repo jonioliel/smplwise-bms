@@ -86,7 +86,7 @@ def test_ui_tabs_rejects_bad_shapes_with_422(settings):
 def test_ui_tabs_size_caps(settings):
     app = create_app(settings)
     with TestClient(app) as c:
-        ok = {f"s{i}": {"order": [f"t{j}" for j in range(64)], "hidden": [f"t{j}" for j in range(64)]} for i in range(64)}
+        ok = {f"s{i}": {"order": [f"t{j}" for j in range(6)], "hidden": [f"t{j}" for j in range(6)]} for i in range(64)}  # 64 sections, within the 16 KB total cap
         assert c.patch(URL, json={"ui.tabs": ok}).status_code == 200
         assert c.patch(URL, json={"ui.tabs": {f"s{i}": {} for i in range(65)}}).status_code == 422
         assert c.patch(URL, json={"ui.tabs": {"s": {"order": [f"t{j}" for j in range(65)]}}}).status_code == 422
@@ -195,3 +195,18 @@ def test_deleting_the_default_floor_with_anchors_via_force_clears_it_too(setting
         assert c.get(URL).json()["settings"]["map.default_floor"] == ids["floor2"]
         assert c.delete(f"/api/v1/floors/{ids['floor2']}?force=true").status_code == 204
         assert c.get(URL).json()["settings"]["map.default_floor"] == ""
+
+
+def test_tab_ids_refuse_a_trailing_newline_and_an_oversized_value():
+    import pytest as _pytest
+
+    from smplwise.errors import ApiError
+    from smplwise.routers.settings import normalize_tabs
+
+    with _pytest.raises(ApiError):
+        normalize_tabs({"system": {"hidden": ["general\n"]}})
+    with _pytest.raises(ApiError):
+        normalize_tabs({"a\n": {"order": []}})
+    big = {f"s{i}": {"order": [f"tab-number-{j:02d}-padding-padding-padding" for j in range(40)], "hidden": []} for i in range(64)}
+    with _pytest.raises(ApiError):
+        normalize_tabs(big)
