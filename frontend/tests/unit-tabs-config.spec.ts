@@ -105,7 +105,7 @@ test('tab rows follow the order and the hidden list; permissions still apply fir
 });
 
 test('the security sections: first visible tab of the configured order is where each section lands; the order of לייב / חקירה is configurable', () => {
-  expect(visibleSections(true, ALL).map((s) => [s.id, s.href])).toEqual([['live', '#/live'], ['investigate', '#/investigate/events']]);
+  expect(visibleSections(true, ALL).map((s) => [s.id, s.href])).toEqual([['live', '#/live'], ['investigate', '#/investigate/events'], ['alarm', '#/security/alarm']]); // the alarm is a section of the security area again (0.1.147)
   applyTabsConfig({
     'ui.tabs': {
       security: { order: ['investigate', 'live'], hidden: [] },
@@ -114,11 +114,11 @@ test('the security sections: first visible tab of the configured order is where 
     },
   });
   const sections = visibleSections(true, ALL);
-  expect(sections.map((s) => [s.id, s.href])).toEqual([['investigate', '#/investigate/playback'], ['live', '#/live/wall']]);
+  expect(sections.map((s) => [s.id, s.href])).toEqual([['investigate', '#/investigate/playback'], ['live', '#/live/wall'], ['alarm', '#/security/alarm']]); // the alarm keeps its default place (last) when not configured
   expect(securityTarget(true, ALL)).toBe('#/investigate/playback'); // no last-used section in node: the first visible one
   // hiding a whole section removes it from the control; the other stays
   applyTabsConfig({ 'ui.tabs': { security: { order: [], hidden: ['investigate'] } } });
-  expect(visibleSections(true, ALL).map((s) => s.id)).toEqual(['live']);
+  expect(visibleSections(true, ALL).map((s) => s.id)).toEqual(['live', 'alarm']);
 });
 
 test('the rail: the admin order is the default, the user own order wins, hidden areas leave, an area lands on its first visible tab', () => {
@@ -153,7 +153,7 @@ test('#/explore/entities redirects: settings for holders of system.configure (qu
   expect(legacyRedirect(r, { api: false, ready: true, can: () => false })).toBe('/system/entities?q=light.hall'); // the demo shows everything
   expect(legacyRedirect(route('/explore/entities'), { ...ready, can: only('system.configure') })).toBe('/system/entities');
   // the older moves still work, and other routes stay
-  expect(legacyRedirect(route('/security/alarm?panel=p1'))).toBe('/system/security/alarm?panel=p1');
+  expect(legacyRedirect(route('/security/alarm?panel=p1'))).toBeNull(); // canonical again: no redirect (0.1.147)
   expect(legacyRedirect(route('/explore/floors/f0'))).toBeNull();
 });
 
