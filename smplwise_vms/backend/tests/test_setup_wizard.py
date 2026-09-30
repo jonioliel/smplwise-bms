@@ -217,9 +217,15 @@ def test_nvr_time_check_offset_dst_and_naive_clock():
     now = dt.datetime(2026, 9, 29, 7, 0, 0, tzinfo=UTC)  # Israel is on summer time (+03:00) on this date
     ok = wizard.nvr_time_check("2026-09-29T10:00:01+03:00", TZ, now)
     assert ok["drift_s"] == 1 and ok["level"] == "ok" and ok["dst"] == "ok" and ok["offset"] == "+03:00" and ok["expected_offset"] == "+03:00"
-    # the right instant with the winter offset: the NVR's DST rule is wrong (searches in wall clock would be an hour off)
+    # Hikvision: the WALL clock (summer time applied) tagged with the zone's STANDARD offset - a correct clock, no drift
+    base_tag = wizard.nvr_time_check("2026-09-29T10:00:01+02:00", TZ, now)
+    assert base_tag["drift_s"] == 1 and base_tag["level"] == "ok" and base_tag["dst"] == "ok" and base_tag["offset"] == "+02:00"
+    # a wall clock that shows winter time in summer: an hour behind, and the summer-time rule is what is wrong
     wrong = wizard.nvr_time_check("2026-09-29T09:00:00+02:00", TZ, now)
-    assert wrong["drift_s"] == 0 and wrong["dst"] == "mismatch" and wrong["offset"] == "+02:00"
+    assert wrong["drift_s"] == -3600 and wrong["level"] == "fail" and wrong["dst"] == "mismatch" and wrong["offset"] == "+02:00"
+    # a device kept in another zone is honoured as written
+    other = wizard.nvr_time_check("2026-09-29T12:00:00+05:00", TZ, now)
+    assert other["drift_s"] == 0 and other["dst"] == "mismatch"
     winter = wizard.nvr_time_check("2026-12-01T09:00:00+02:00", TZ, dt.datetime(2026, 12, 1, 7, 0, 0, tzinfo=UTC))
     assert winter["dst"] == "ok" and winter["expected_offset"] == "+02:00"
     naive = wizard.nvr_time_check("2026-09-29T10:00:40", TZ, now)

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from zoneinfo import ZoneInfo
 
 from ..audit import audit
 from ..config import Settings
@@ -56,17 +57,33 @@ def blocks(xml: str, name: str) -> list[str]:
 
 # ---------------------------------------------------------------- D2: clock and NTP
 
-def _parse_device_time(local: str | None) -> dt.datetime | None:
+def device_instant(local: str | None, tz: ZoneInfo | None = None) -> dt.datetime | None:
+    """The instant an NVR's `localTime` stands for. Hikvision reports the WALL clock (already moved by its own summer
+    time rule) but tags it with the zone's STANDARD offset, e.g. `12:04:09+02:00` at 12:04 in Israel in September
+    (+03:00). Taken literally that is an hour behind. When the installation zone is known and the tag is that zone's
+    standard or current offset, the digits are read as the zone's wall clock; any other tag (a device set to another
+    zone) is honoured as written, and a naive value is the zone's wall clock (UTC without a zone)."""
     if not local:
         return None
     try:
-        d = dt.datetime.fromisoformat(local)
+        d = dt.datetime.fromisoformat(local.strip().replace("Z", "+00:00"))
     except ValueError:
         return None
-    return d if d.tzinfo else d.replace(tzinfo=dt.timezone.utc)
+    if tz is None:
+        return d if d.tzinfo else d.replace(tzinfo=dt.timezone.utc)
+    wall = d.replace(tzinfo=tz)
+    if d.tzinfo is None:
+        return wall
+    off = d.utcoffset()
+    cur = wall.utcoffset()
+    std = cur - (wall.dst() or dt.timedelta(0)) if cur is not None else None
+    return wall if off in (cur, std) else d
 
 
-def time_status(settings: Settings, *, client: httpx.Client | None = None, now: dt.datetime | None = None) -> dict[str, Any]:
+_parse_device_time = device_instant  # the previous name; the zone is optional
+
+
+def time_status(settings: Settings, *, client: httpx.Client | None = None, now: dt.datetime | None = None, tz: ZoneInfo | None = None) -> dict[str, Any]:
     """The NVR clock as it reports it, its drift from this server's clock, and the first NTP server."""
     own = client is None
     c = client or _client(settings)
@@ -80,7 +97,7 @@ def time_status(settings: Settings, *, client: httpx.Client | None = None, now: 
         if own:
             c.close()
     local = tag(t, "localTime")
-    device = _parse_device_time(local)
+    device = device_instant(local, tz)
     ref = now or dt.datetime.now(dt.timezone.utc)
     drift = round((device - ref).total_seconds()) if device else None
     return {
@@ -89,21 +106,30 @@ def time_status(settings: Settings, *, client: httpx.Client | None = None, now: 
     }
 
 
-def time_document(xml: str, *, mode: str | None, at: dt.datetime | None) -> str:
-    """Set the mode and / or the clock; the clock is written in the device's own offset (taken from its localTime)."""
+def time_document(xml: str, *, mode: str | None, at: dt.datetime | None, tz: ZoneInfo | None = None) -> str:
+    """Set the mode and / or the clock. The clock is written the way the device reports it: the wall clock in the
+    installation zone (summer time included) when `tz` is given and the device's tag is that zone's standard or
+    current offset, otherwise the device's own offset applied to UTC (taken from its localTime)."""
     out = xml
     if mode:
         out = set_tag(out, "timeMode", mode)
     if at:
-        current = _parse_device_time(tag(xml, "localTime"))
+        current = device_instant(tag(xml, "localTime"))
         offset = current.utcoffset() if current else dt.timedelta(0)
-        local = (at.astimezone(dt.timezone.utc) + (offset or dt.timedelta(0))).replace(tzinfo=dt.timezone(offset or dt.timedelta(0)))
+        stamp = tag(xml, "localTime")
+        tag_offset = dt.datetime.fromisoformat(stamp.replace("Z", "+00:00")).utcoffset() if stamp else None
+        if tz is not None and tag_offset is not None and device_instant(stamp, tz) != current:
+            wall = at.astimezone(tz).replace(tzinfo=None)  # the zone's wall clock, tagged with the device's own offset
+            offset = tag_offset
+        else:
+            wall = (at.astimezone(dt.timezone.utc) + (offset or dt.timedelta(0))).replace(tzinfo=None)
+        local = wall.replace(tzinfo=dt.timezone(offset or dt.timedelta(0)))
         out = set_tag(out, "localTime", local.strftime("%Y-%m-%dT%H:%M:%S%z")[:-2] + ":" + local.strftime("%z")[-2:])
     return out
 
 
 def sync_clock(settings: Settings, conn: sqlite3.Connection, principal: Any, *, mode: str | None = None, request_id: str | None = None,
-               client: httpx.Client | None = None, now: dt.datetime | None = None) -> dict[str, Any]:
+               client: httpx.Client | None = None, now: dt.datetime | None = None, tz: ZoneInfo | None = None) -> dict[str, Any]:
     """Write this server's time to the NVR (manual mode for the write), then put the mode back (NTP stays NTP)."""
     own = client is None
     c = client or _client(settings)
@@ -111,7 +137,7 @@ def sync_clock(settings: Settings, conn: sqlite3.Connection, principal: Any, *, 
         before_mode = tag(_get(c, TIME_PATH), "timeMode") or "manual"
         at = now or dt.datetime.now(dt.timezone.utc)
         rec = apply_change(settings, conn, principal, kind="time", permission="nvr.config.time", target="clock", path=TIME_PATH,
-                           mutate=lambda x: time_document(x, mode="manual", at=at), note="סנכרון השעון לשעון השרת", request_id=request_id, client=c, keep_before=False)
+                           mutate=lambda x: time_document(x, mode="manual", at=at, tz=tz), note="סנכרון השעון לשעון השרת", request_id=request_id, client=c, keep_before=False)
         final = mode or before_mode
         if final != "manual":
             apply_change(settings, conn, principal, kind="time", permission="nvr.config.time", target="time-mode", path=TIME_PATH,

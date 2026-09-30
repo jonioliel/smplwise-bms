@@ -174,9 +174,11 @@ def nvr_time_check(local_time: str | None, tz: ZoneInfo, now: dt.datetime) -> di
     if parsed.tzinfo is None:
         instant = parsed.replace(tzinfo=tz)
     else:
-        instant = parsed
+        # the device reports its wall clock (summer time applied) tagged with the zone's STANDARD offset: read the
+        # digits in the installation zone (nvr_system.device_instant); the tag alone is then no longer evidence
+        instant = nvr_system.device_instant(local_time, tz) or parsed
         out["offset"] = _fmt_offset(parsed.utcoffset())
-        out["dst"] = "ok" if parsed.utcoffset() == expected else "mismatch"
+        out["dst"] = "ok" if parsed.utcoffset() == expected or (instant != parsed and abs((instant - now).total_seconds()) <= DRIFT_FAIL_S) else "mismatch"
     out["drift_s"] = round((instant - now).total_seconds())
     out["level"] = drift_level(out["drift_s"])
     return out
