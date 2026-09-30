@@ -12,6 +12,7 @@ import { healthSummary, STATUS_LABEL, type HealthSummary } from '../api/health';
 import { parseRoute } from '../router';
 import type { Camera } from '../api/types';
 import { PhoneWidth, isPhoneWidth } from '../shell/phone';
+import { isOnWall } from './wall-arrangement';
 
 /** Saved view = the URL: #/kiosk/all?cameras=a,b,c&cols=3&rows=2&rotate=30 (seconds per page; 0 = no rotation).
  * Default 3×2: with nine sub streams at once the lab NVR / relay let the last tiles stall (live review F15). */
@@ -375,7 +376,9 @@ export class KioskWall extends LitElement {
   }
 
   private get selected(): Camera[] {
-    const all = (this.cams ?? []).filter((c) => this.view.cameras.length === 0 || this.view.cameras.includes(c.id));
+    // the address's own camera list (a saved view, a map selection) is an explicit choice and shows a camera hidden in the wall
+    // ("לא להציג" in סידור הקיר); "all" follows the wall arrangement and leaves those out
+    const all = (this.cams ?? []).filter((c) => (this.view.cameras.length === 0 ? isOnWall(c) : this.view.cameras.includes(c.id)));
     return this.view.cameras.length ? this.view.cameras.map((id) => all.find((c) => c.id === id)).filter((c): c is Camera => !!c) : all;
   }
 

@@ -206,7 +206,7 @@ export const deleteAnchor = (id: string, fromFloorId?: string) => del(`map-ancho
 export const listCameras = () => get<{ cameras: Camera[]; recorder: { id: string; name: string; model: string | null; firmware: string | null; last_seen_at: string | null } | null; can_sync: boolean }>('cameras');
 export const syncCameras = () => post<{ channels: number; created: number; updated: number; recorder: { model: string | null; firmware: string | null } }>('cameras/sync');
 export const registerCamera = (body: { channel: number; alias: string }) => post<Camera>('cameras', body);
-export const updateCamera = (id: string, body: { alias?: string; sort_order?: number; enabled?: boolean; grid_col_span?: number }) => patch<Camera>(`cameras/${id}`, body);
+export const updateCamera = (id: string, body: { alias?: string; sort_order?: number; enabled?: boolean; grid_col_span?: number; wall_hidden?: boolean }) => patch<Camera>(`cameras/${id}`, body);
 
 /** Plain white plan area (used only where no raster and no synthetic plan exist). */
 export const blankPlan = (w: number, h: number): SVGTemplateResult => svg`<rect x="0" y="0" width=${w} height=${h} fill="var(--sw-map-bg)" />`;

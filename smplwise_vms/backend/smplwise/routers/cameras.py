@@ -121,6 +121,9 @@ class CameraPatch(BaseModel):
     # grid_col_span (T091): how many columns wide this camera's tile is on the all-cameras grid; a hard cap
     # of 4 is a deliberate, sane bound - not configurable.
     grid_col_span: int | None = Field(default=None, ge=1, le=4)
+    # wall_hidden: "לא להציג" - the camera is left out of the all-cameras wall and the kiosk pages derived from it;
+    # true and false are both real values (false shows it again), None leaves the field alone.
+    wall_hidden: bool | None = None
 
 
 @router.patch("/cameras/{camera_id}")

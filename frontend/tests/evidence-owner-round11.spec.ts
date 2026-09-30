@@ -169,7 +169,7 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
     await page.waitForTimeout(1200);
   }
 
-  type ApiCamera = { id: string; enabled: boolean; channel: number; sort_order: number; grid_col_span: number };
+  type ApiCamera = { id: string; enabled: boolean; channel: number; sort_order: number; grid_col_span: number; wall_hidden?: boolean };
   type Req = import('@playwright/test').APIRequestContext;
 
   /** At least `need` enabled cameras to reorder/span; this repo has no existing fixture/seed for cameras (they
@@ -398,6 +398,46 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
     } finally {
       for (const c of snapshot) {
         await request.patch(`/api/v1/cameras/${c.id}`, { data: { sort_order: c.sort_order, grid_col_span: c.grid_col_span } }).catch(() => {});
+      }
+      await cleanupSeeded(request, seededIds);
+    }
+  });
+
+  test('"לא להציג" (owner 2026-09-30): a camera hidden in סידור הקיר leaves the wall and its footer, stays in the dialog (last, dimmed) and in the camera API; showing it again restores it', async ({ page, request }) => {
+    const { cams, seededIds } = await ensureTwoCameras(request);
+    const cam = cams[0];
+    const snapshot = (await (await request.get('/api/v1/cameras')).json()).cameras as (ApiCamera & { wall_hidden?: boolean })[];
+    try {
+      await page.setViewportSize({ width: 1600, height: 900 });
+      await open(page, '/live/wall');
+      const wall = page.locator('live-wall');
+      await wall.locator('.layouts button', { hasText: /^32$/ }).click();
+      await expect(wall.locator(`sw-camera-tile[cameraid="${cam.id}"]`)).toBeVisible({ timeout: 30000 });
+
+      await enterWallArrange(page);
+      const dialog = page.locator('[data-wall-settings-dialog]');
+      await expect(dialog.locator('[data-wall-settings-rows]')).toBeVisible();
+      await dialog.locator(`[data-wall-show="${cam.id}"]`).uncheck();
+      const rows = await dialog.locator('[data-wall-settings-row]').evaluateAll((els) => els.map((e) => e.getAttribute('data-wall-settings-row')));
+      expect(rows.at(-1)).toBe(cam.id); // hidden cameras are listed last
+      await dialog.locator('[data-wall-settings-save]').click();
+      await expect(dialog).toHaveCount(0, { timeout: 20000 });
+
+      await expect(wall.locator(`sw-camera-tile[cameraid="${cam.id}"]`)).toHaveCount(0);
+      await expect(wall).toContainText(/מוצגות \d+ מתוך \d+ מצלמות/);
+      const after = ((await (await request.get('/api/v1/cameras')).json()).cameras as (ApiCamera & { wall_hidden?: boolean })[]).find((c) => c.id === cam.id);
+      expect(after?.wall_hidden).toBe(true); // still listed for the single-camera page, saved views and investigation
+      await page.screenshot({ path: test.info().outputPath('wall-hide-live.png') });
+
+      await enterWallArrange(page);
+      await expect(dialog.locator('[data-wall-settings-rows]')).toBeVisible();
+      await dialog.locator(`[data-wall-show="${cam.id}"]`).check();
+      await dialog.locator('[data-wall-settings-save]').click();
+      await expect(dialog).toHaveCount(0, { timeout: 20000 });
+      await expect(wall.locator(`sw-camera-tile[cameraid="${cam.id}"]`)).toBeVisible({ timeout: 30000 });
+    } finally {
+      for (const c of snapshot) {
+        await request.patch(`/api/v1/cameras/${c.id}`, { data: { sort_order: c.sort_order, grid_col_span: c.grid_col_span, wall_hidden: !!c.wall_hidden } }).catch(() => {});
       }
       await cleanupSeeded(request, seededIds);
     }

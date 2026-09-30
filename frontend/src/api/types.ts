@@ -136,6 +136,8 @@ export interface Camera {
   sort_order: number;
   /** T091: how many grid columns wide this camera's tile is on the all-cameras grid (1-4, default 1). */
   grid_col_span: number;
+  /** Wall arrangement: "לא להציג" - left out of the all-cameras wall and the kiosk pages derived from it (absent = shown). */
+  wall_hidden?: boolean;
   main_track: number | null;
   sub_track: number | null;
   status: 'online' | 'offline' | 'unknown';
