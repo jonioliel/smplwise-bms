@@ -1,5 +1,50 @@
 # Changelog — SmplWise Arx add-on
 
+## 0.1.145 (pilot) — "אבטחה" with the intrusion alarm; a new shell with the user at the end of the navigation; device tiles that open a panel; one room shared by two floors
+**After the update restart the platform once**: the bridge integration is 0.2.6 (the alarm's arm modes and bypass
+switches need its allow-list). Database migrations 0036 (alarm), 0037 (per-user interface preferences) and 0038
+(shared spaces) are applied on the first start.
+### אבטחה: לייב | חקירה | אזעקה (CR-010)
+- Live and investigation sit under one "אבטחה" area with a new **אזעקה** section: the alarm panels found on the
+  platform (Risco first), their partitions, sensors and bypass switches, arm / disarm from the screen.
+- Code policy per panel: no code, the panel's own code stored **encrypted**, or a **personal PIN** per user. A
+  lockout counts failures only (per user for PINs, persisted across restarts); one unsettled typed code per user
+  and panel; a first PIN by panel code needs the disarm permission there.
+- The alarm's controls are reached **only through the alarm section**: refused on the general device route, left
+  out of bulk actions and of the bulk-safe list, and rows of alarm entities in the devices tree, area cards and
+  item lists need `alarm.view`. A zone shared by several partitions needs every partition that lists it.
+- New permissions `alarm.view`, `alarm.arm`, `alarm.disarm`, `alarm.bypass`. Guide page "אזעקה".
+### The app shell (CR-013)
+- **Phone: no top bar.** The bottom bar is ראשי · אבטחה · מפה · WisKey · the user; the desktop rail has the same
+  order with the user at its foot. The user menu holds התראות · מערכת · החשבון שלי · יציאה; the bell is gone.
+- "ראשי" is the default start screen. **The tab order is personal** and stored on the server (`GET/PUT /me/prefs`,
+  `nav.order`), so it follows the user to every device.
+- Tab rows scroll with snap and an edge fade; one status pill; Back closes an open sheet, panel or overlay before
+  it leaves the screen; the alerts inbox works without `rules.manage` and counts only what the user may see.
+### Devices (CR-007)
+- A summary tile **opens a panel** that lists and controls its devices (keyboard, deep link, Back closes it); an
+  **icon-only master control** acts on what the panel shows. Compact tile layout (`ui.tile_layout`, הגדרות › עיצוב
+  הממשק › "פריסת אריחים" with a live preview); floor cards with lighter chips; the full camera list.
+- **הגדרות › חשמל והתקנים › "פעולה קבוצתית"**: the bulk-safe mark of every switch is managed in one place
+  (`GET/POST /devices/bulk-safe`). Eligibility for a bulk action is deliberately narrow.
+- Tree rows: the area name gets the row, the count and the menu sit in fixed end columns. `sw-drawer` no longer
+  bleeds scroll, closes on a drag or shows an empty footer.
+### One room on two floors (CR-009)
+- A double-height space (a sports hall with a tribune) is **one room shared by two floors**: an outline per floor,
+  explicit members and explicit content, published from either floor, whole on the map and in 3D of both. No slab
+  ring; the tribune rises through the upper floor's level.
+- "חברים בחלל המשותף" in the room panel and on the live map, filtered per member by what the reader may see. A
+  member reaches the room only while anchored on its floors; alarm controls are never members and a shared mirror
+  gives no alarm reach; an alarm-managed switch cannot be taken by a circuit from the other floor.
+### Remote access and hardening
+- Remote requests are authenticated **before** the write transaction opens; request body size limits are enforced
+  while the body streams.
+- Backup export leaves every keep-on-this-installation settings key out; `alarm_zone_overrides` travels with a
+  project backup; the start-up guard verifies the objects of migrations 0036 and 0037.
+### Documents
+- Design records CR-011 (second factor: sign-in policy, step-up, passkeys) and CR-012 (notifications in the Android
+  app), each with a Hebrew mirror and open questions for the owner; findings note on door detection in real scans.
+
 ## 0.1.144 (pilot) — The camera wall from outside plays every camera and lets you choose the quality; a fair write queue for the database; the Android app's side of the add-on; the product is "Arx" everywhere
 ### Camera wall from outside (owner report, 2026-09-29)
 - **Only 4 cameras played on the wall from outside, the rest said "שגיאה בזרם הווידאו"**: the remote live cap

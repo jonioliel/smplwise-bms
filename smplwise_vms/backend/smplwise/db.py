@@ -421,6 +421,7 @@ class Database:
         conn = self._open()
         try:
             tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()}
+            recorded = {r[0] for r in conn.execute("SELECT version FROM schema_migrations").fetchall()} if "schema_migrations" in tables else set()
             for prefix in GUARDED_MIGRATIONS:
                 for file in sorted(MIGRATIONS_DIR.glob(f"{prefix}_*.sql")):
                     sql = file.read_text(encoding="utf-8")
@@ -431,7 +432,8 @@ class Database:
                     body = re.sub(r"^CREATE (TABLE|INDEX) (?!IF NOT EXISTS)", r"CREATE \1 IF NOT EXISTS ", body, flags=re.M)
                     conn.executescript(body)
                     added.extend(missing)
-            if "ha_entities" in tables and "config_entry_id" not in {r[1] for r in conn.execute("PRAGMA table_info(ha_entities)").fetchall()}:
+            # only when 0036 is recorded as applied: on a database below 0036 the migration itself adds the column
+            if 36 in recorded and "ha_entities" in tables and "config_entry_id" not in {r[1] for r in conn.execute("PRAGMA table_info(ha_entities)").fetchall()}:
                 conn.execute("ALTER TABLE ha_entities ADD COLUMN config_entry_id TEXT")
                 added.append("ha_entities.config_entry_id")
         finally:
