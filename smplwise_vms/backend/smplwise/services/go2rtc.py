@@ -4,6 +4,12 @@ The product owns only streams whose name starts with `smplwise_`; everything els
 go2rtc (intercom, other projects) is never listed as ours, modified or deleted. Source URLs carry the
 NVR credentials and therefore never leave the server: they are written to go2rtc's API and nothing
 else. Browser media goes through the add-on's WebSocket relay (see routers/media.py).
+
+Known limit (to be verified on the lab's go2rtc version): go2rtc may persist a stream created through `PUT /api/streams` -
+its source, credentials included - into its own configuration file on the go2rtc host, and this adapter cannot see or remove
+that. Deleting the stream through the API is what `delete_stream` does; whether the file entry goes with it depends on the
+go2rtc version. The credentials of every source written here (NVR, WisKey stations, Home Assistant cameras) therefore also live
+on the go2rtc host, which is the owner's own machine; protect that file like the secrets it holds.
 """
 from __future__ import annotations
 
@@ -12,6 +18,7 @@ import logging
 import re
 import threading
 from dataclasses import dataclass
+from typing import Callable
 from urllib.parse import quote, urlsplit, urlunsplit
 
 import httpx
@@ -185,11 +192,14 @@ class Go2rtc:
             out[name] = StreamInfo(name=name, sources=sources, online=online)
         return out
 
-    def ensure_stream(self, name: str, src: str) -> str:
-        """Create or update one of our streams. Returns 'unchanged' | 'created' | 'updated'."""
+    def ensure_stream(self, name: str, src: str, check: Callable[[dict[str, StreamInfo]], None] | None = None) -> str:
+        """Create or update one of our streams. Returns 'unchanged' | 'created' | 'updated'. `check` (optional) is called with the
+        stream listing this call fetches anyway, before anything is written; it raises to refuse the write."""
         if not name.startswith(STREAM_PREFIX):
             raise ValueError("refusing to write a stream outside the smplwise_ namespace")
         streams = self.list_streams()
+        if check is not None:
+            check(streams)
         existing = streams.get(name)
         if existing and existing.sources == [src]:
             return "unchanged"

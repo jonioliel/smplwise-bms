@@ -59,6 +59,18 @@ class FakeCamera:
         return answer
 
 
+_RESOLVES = {"127.0.0.1.nip.io": ["127.0.0.1"], "metadata.example": ["169.254.169.254"]}
+_REAL_RESOLVE = svc._resolve
+
+
+@pytest.fixture(autouse=True)
+def _no_real_dns(monkeypatch):
+    async def resolve(host):
+        return list(_RESOLVES.get(host, []))
+
+    monkeypatch.setattr(svc, "_resolve", resolve)
+
+
 @pytest.fixture()
 def cam(monkeypatch):
     fake = FakeCamera()
@@ -169,10 +181,42 @@ def test_a_source_that_is_not_a_plain_streaming_url_is_refused_and_never_repeate
     assert PASSWORD not in json.dumps(out) and PASSWORD not in caplog.text and "192.0.2.50" not in caplog.text
 
 
-@pytest.mark.parametrize("source", ["rtsp://u:p@192.0.2.50:554/s", "rtsps://u:p@192.0.2.50/s", "http://192.0.2.50:8080/video.mjpg", "https://cam.local/stream?x=1&y=2"])
-def test_the_four_streaming_schemes_pass(cam, source):
+@pytest.mark.parametrize("source", ["rtsp://u:p@192.0.2.50:554/s", "rtsps://u:p@192.0.2.50/s", "rtsp://cam.local/stream?x=1&y=2"])
+def test_only_the_two_rtsp_schemes_pass(cam, source):
     cam.answers["camera.garden"] = source
     assert ask(FakeHass())["stream_source"] == source
+
+
+@pytest.mark.parametrize("source", ["http://u:cam-pass-9f3@192.0.2.50:8080/video.mjpg", "https://cam.local/stream?x=1&y=2", "http://127.0.0.1:1984/api/streams"])
+def test_an_http_source_is_refused_as_not_supported(cam, caplog, source):
+    cam.answers["camera.garden"] = source
+    with caplog.at_level(logging.DEBUG):
+        out = ask(FakeHass())
+    assert out == {"ok": False, "request_id": "r1", "error": "source_not_supported"}
+    assert PASSWORD not in caplog.text and "192.0.2.50" not in caplog.text
+
+
+@pytest.mark.parametrize("source", ["rtsp://cam-user:cam-pass-9f3@127.0.0.1.nip.io/live", "rtsps://metadata.example:322/x"])
+def test_a_name_that_resolves_to_a_refused_address_is_refused_without_repeating_it(cam, caplog, source):
+    cam.answers["camera.garden"] = source
+    with caplog.at_level(logging.DEBUG):
+        out = ask(FakeHass())
+    assert out == {"ok": False, "request_id": "r1", "error": "source_not_allowed"}
+    assert PASSWORD not in caplog.text and "nip.io" not in caplog.text and "metadata" not in caplog.text
+
+
+def test_a_name_is_resolved_off_the_event_loop_with_a_timeout(cam, monkeypatch):
+    seen = {}
+
+    async def spy(self, host, *a, **k):
+        seen["host"] = host
+        return [(2, 1, 6, "", ("127.0.0.1", 0))]
+
+    monkeypatch.setattr(svc, "_resolve", _REAL_RESOLVE)
+    monkeypatch.setattr(asyncio.BaseEventLoop, "getaddrinfo", spy)
+    cam.answers["camera.garden"] = "rtsp://rebind.example/x"
+    assert ask(FakeHass())["error"] == "source_not_allowed" and seen["host"] == "rebind.example"
+    assert svc.RESOLVE_TIMEOUT_S <= 5
 
 
 def test_an_exception_answers_its_class_name_only_and_its_text_is_never_logged_or_returned(cam, caplog):
@@ -238,7 +282,7 @@ def test_all_cameras_together_have_a_larger_window(cam):
 
 
 def test_a_source_that_points_back_at_go2rtc_or_the_host_is_refused_by_the_bridge(cam, caplog):
-    for source in ("http://127.0.0.1:1984/api/frame.jpeg?src=rtsp://evil&name=smplwise_x", "rtsp://127.0.0.1/x", "rtsp://cam-user:cam-pass-9f3@localhost/x", "rtsp://192.0.2.50/s?src=x"):
+    for source in ("rtsp://127.0.0.1:8554/api/frame.jpeg?src=rtsp://evil&name=smplwise_x", "rtsp://127.0.0.1/x", "rtsp://cam-user:cam-pass-9f3@localhost/x", "rtsp://192.0.2.50/s?src=x"):
         svc._calls.clear()
         svc._calls_by_entity.clear()
         cam.answers["camera.garden"] = source

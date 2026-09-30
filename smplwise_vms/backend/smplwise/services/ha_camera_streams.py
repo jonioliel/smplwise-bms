@@ -23,7 +23,17 @@ Secrets: the source may carry the camera's credentials (`rtsp://user:pass@host/.
 go2rtc's API and nowhere else: never in a log line (go2rtc's own line, ours, an exception), an audit row, an API answer, an
 error message or the database. Audit rows name the entity and the outcome only; API answers say `enabled` and the outcome; the
 go2rtc listing of `GET /media/streams` shows the scheme (go2rtc.redact_ha_source); go2rtc's error frames to a viewer are
-replaced by a fixed code (`sanitize_frame`)."""
+replaced by a fixed code (`sanitize_frame`).
+
+What it does NOT do: go2rtc may persist a stream created through its API - source and credentials included - into its own
+configuration file (known limit, to be verified on the lab's go2rtc version; see services/go2rtc.py). Deleting the stream here
+removes it from go2rtc's running state; whether the file entry goes too depends on the go2rtc version.
+
+What a source may be (services/source_policy.py): rtsp / rtsps only, never go2rtc itself or a loopback / link-local host (also by a
+name that resolves there). On top of that, `_write_stream` refuses - with the stream listing go2rtc's adapter fetches anyway - an
+rtsp source whose first path segment is the name of a go2rtc stream outside `smplwise_ha_` (`rtsp://<any alias of go2rtc>/door-1`:
+the restream of another project's stream, or an NVR / WisKey stream of ours, cannot be re-exposed as a camera's source). A stream
+created on go2rtc AFTER the check is not known to it; the host / port and name checks of source_policy are the other layers."""
 from __future__ import annotations
 
 import json
@@ -32,9 +42,11 @@ import re
 import sqlite3
 import threading
 import time
+import posixpath
 import uuid
 from collections import deque
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
+from urllib.parse import unquote, urlsplit
 
 from ..audit import audit
 from ..config import Settings
@@ -206,12 +218,38 @@ _STREAM_LOCK = threading.Lock()
 _WRITTEN: dict[str, float] = {}
 
 
-def _write_stream(settings: Settings, entity_id: str, src: str) -> str:
+def names_foreign_stream(src: str, stream_names: Any) -> bool:
+    """True when the first path segment of `src` (raw and percent-decoded, dot segments resolved, case-insensitive) is the name of a
+    go2rtc stream that is not one of this feature's (`smplwise_ha_*`): `rtsp://<go2rtc, by any name>:8554/<that stream>`."""
+    try:
+        path = urlsplit(src).path
+    except ValueError:
+        return True
+    decoded = unquote(unquote(path))
+    normal = posixpath.normpath("/" + decoded.lstrip("/"))
+    first = {seg.lower() for seg in (path.lstrip("/").split("/", 1)[0], decoded.lstrip("/").split("/", 1)[0], normal.lstrip("/").split("/", 1)[0]) if seg}
+    return bool(first & {n.lower() for n in stream_names if not n.startswith(g2.HA_STREAM_PREFIX)})
+
+
+def _refuse_foreign(src: str) -> Callable[[dict[str, g2.StreamInfo]], None]:
+    def check(streams: dict[str, g2.StreamInfo]) -> None:
+        if names_foreign_stream(src, streams):
+            status, code, message = _BRIDGE_REFUSALS["source_not_allowed"]
+            raise ApiError(status, code, message)
+
+    return check
+
+
+def _write_stream(settings: Settings, entity_id: str, src: str, still_wanted: Callable[[], bool] | None = None) -> str:
+    """Write ONE `smplwise_ha_` stream. `still_wanted` (a viewer's re-read): asked inside the lock, right before the write, so a
+    camera disabled while its source was being read is not written back (ApiError 404 `not_found`, nothing written)."""
     name = stream_name(entity_id)
     if not name.startswith(g2.HA_STREAM_PREFIX):  # the narrower namespace of this feature, on top of go2rtc's own guard
         raise ValueError("refusing to write a stream outside the smplwise_ha_ namespace")
     with _STREAM_LOCK:
-        out = g2.Go2rtc(settings).ensure_stream(name, src)
+        if still_wanted is not None and not still_wanted():
+            raise ApiError(404, "not_found", "המצלמה לא מופעלת לשידור חי.")
+        out = g2.Go2rtc(settings).ensure_stream(name, src, check=_refuse_foreign(src))
         _WRITTEN[name] = time.monotonic()
     return out
 
@@ -417,9 +455,20 @@ def ensure_ready(db: Database, settings: Settings, entity_id: str) -> str:
             # credential any more. The stream stays as it is; the picker says so, and enabling it again (by someone who may) resumes.
             code = "sources_configure_lost"
         else:
+            switched_off: list[bool] = []
+
+            def still_wanted() -> bool:  # asked under the stream lock, right before the write (like reconcile's delete)
+                with db.connection(mode="read", label="ha live ready") as conn:
+                    ok = name in _wanted_names(conn)
+                if not ok:
+                    switched_off.append(True)
+                return ok
+
             try:
-                outcome = _write_stream(settings, entity_id, _fetch_source(settings, _payload(secret, str(rec.get("enabled_by") or ""), entity_id)))
+                outcome = _write_stream(settings, entity_id, _fetch_source(settings, _payload(secret, str(rec.get("enabled_by") or ""), entity_id)), still_wanted)
             except ApiError as exc:
+                if switched_off:  # switched off while it was being read: nothing was written, nothing to keep alive
+                    raise
                 code = exc.code
         try:
             with db.connection() as conn:
