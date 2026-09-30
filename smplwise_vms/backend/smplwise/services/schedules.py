@@ -312,6 +312,7 @@ class Mirror:
                 return None
             raise ApiError(503, "scheduler_unavailable", "התזמונים אינם זמינים כרגע.", retryable=True, details={"error": code})
         item = reply.get("result")
+        item = model.mask_codes(item) if isinstance(item, dict) else item
         if not isinstance(item, dict) or item.get("schedule_id") != schedule_id:
             raise ApiError(503, "scheduler_unavailable", "התזמונים אינם זמינים כרגע.", retryable=True, details={"error": "bad_item"})
         with self._use(conn) as c:
@@ -333,7 +334,8 @@ class Mirror:
         existing = {r["schedule_id"]: r for r in conn.execute("SELECT * FROM schedule_cache").fetchall()}
         meta = meta_rows(conn)
         seen: set[str] = set()
-        for item in items:
+        for raw_item in items:
+            item = model.mask_codes(raw_item)  # a code typed in Home Assistant never reaches Arx's database
             sid = item["schedule_id"]
             seen.add(sid)
             rev = model.revision(item)
@@ -378,12 +380,14 @@ class Mirror:
         conn.execute("INSERT OR IGNORE INTO schedule_meta(schedule_id, created_via, first_seen_at, last_seen_at) VALUES (?, 'external', ?, ?)", (sid, now, now))
 
     def _maybe_adopt(self, conn: sqlite3.Connection, sid: str, item: dict[str, Any], now: str) -> None:
-        """A create the bridge answered `id_unknown` (§3.6): the first new schedule with the same name, within the hour,
-        is that one - the op is settled and the schedule becomes Arx's. Never re-sent."""
+        """A create / copy / restore the bridge could not name (`id_unknown`, or a timeout, §3.6): the ONE new schedule whose
+        name AND content fingerprint (days, slots, conditions) equal what that op sent, appearing within the hour, is that
+        one - the op is settled and the schedule becomes Arx's. Never re-sent, never guessed from a name alone (review M2)."""
         name = item.get("name") or ""
+        fp = model.fingerprint(item)
         cutoff = _iso(self.now() - dt.timedelta(hours=1))
-        candidates = [r for r in conn.execute("SELECT * FROM schedule_ops WHERE status = 'unknown' AND op = 'create' AND schedule_id IS NULL AND requested_at >= ?", (cutoff,)).fetchall()
-                      if _op_name(r) == name]
+        candidates = [r for r in conn.execute("SELECT * FROM schedule_ops WHERE status = 'unknown' AND op IN ('create', 'copy', 'restore') AND schedule_id IS NULL AND requested_at >= ?", (cutoff,)).fetchall()
+                      if _op_name(r) == name and _op_field(r, "fp") == fp]
         if len(candidates) != 1:
             return
         op = candidates[0]
@@ -531,11 +535,16 @@ def _parse(value: Any) -> dt.datetime | None:
         return None
 
 
-def _op_name(row: sqlite3.Row) -> str:
+def _op_field(row: sqlite3.Row, key: str) -> Any:
     try:
-        return str((json.loads(row["error"] or "{}") or {}).get("name") or "")
+        data = json.loads(row["error"] or "{}")
     except ValueError:
-        return ""
+        return None
+    return data.get(key) if isinstance(data, dict) else None
+
+
+def _op_name(row: sqlite3.Row) -> str:
+    return str(_op_field(row, "name") or "")
 
 
 MIRROR = Mirror()
@@ -657,6 +666,7 @@ def owner_of(meta: sqlite3.Row | None) -> dict[str, Any] | None:
 
 def trash_put(conn: sqlite3.Connection, item: dict[str, Any], meta: sqlite3.Row | None, entities: list[dict[str, Any]], sensitive: bool, principal: Any, now: dt.datetime | None = None) -> tuple[str, str]:
     now = now or MIRROR.now()
+    item = model.mask_codes(item)
     trash_id = "tr" + uuid.uuid4().hex[:12]
     expires = _iso(now + dt.timedelta(days=TRASH_DAYS))
     meta_json = json.dumps({k: meta[k] for k in meta.keys()}, ensure_ascii=False) if meta is not None else None

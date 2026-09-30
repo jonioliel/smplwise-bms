@@ -74,7 +74,7 @@ def test_presets_need_the_configured_sensor(sched_app):
     # a sensor that is not a binary_sensor is refused by the setting; an unknown one too
     assert c.patch(f"{API}/settings", json={"schedules.shabbat_sensor": "light.office"}).status_code == 422
     assert c.patch(f"{API}/settings", json={"schedules.shabbat_sensor": "binary_sensor.nowhere"}).status_code == 422
-    assert c.patch(f"{API}/settings", json={"schedules.shabbat_sensor": SHABBAT}).status_code == 200
+    assert c.patch(f"{API}/settings", json={"schedules.shabbat_sensor": SHABBAT, "schedules.shabbat_sensor_force": True}).status_code == 200
 
 
 def test_next_run_of_a_conditional_schedule_is_conditional(sched_app):

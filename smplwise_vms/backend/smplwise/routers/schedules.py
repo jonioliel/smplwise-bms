@@ -72,6 +72,7 @@ class SplitBody(_Body):
     name: str | None = Field(default=None, max_length=80)
     confirm: bool = False
     client_request_id: str = RID
+    confirm_lowering: bool = False
 
 
 class DeleteBody(_Body):
@@ -83,6 +84,7 @@ class DeleteBody(_Body):
 class CopyBody(_Body):
     name: str = Field(min_length=1, max_length=80)
     client_request_id: str = RID
+    confirm_lowering: bool = False
 
 
 class RestoreBody(_Body):
@@ -382,8 +384,8 @@ def run_schedule(schedule_id: str, request: Request, principal: Principal = Depe
 
 @router.post("/schedules/{schedule_id}/split")
 def split_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> JSONResponse:
-    body, _ = _parse(request, raw, SplitBody)
-    return _reply(ops.split(_writer(request, conn, principal), schedule_id, body.base_revision, list(body.days), body.name, body.confirm, body.client_request_id))
+    body, secret = _parse(request, raw, SplitBody, ("alarm_code",))
+    return _reply(ops.split(_writer(request, conn, principal), schedule_id, body.base_revision, list(body.days), body.name, body.confirm, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))))
 
 
 @router.post("/schedules/{schedule_id}/delete")
@@ -394,5 +396,5 @@ def delete_schedule(schedule_id: str, request: Request, principal: Principal = D
 
 @router.post("/schedules/{schedule_id}/copy")
 def copy_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> JSONResponse:
-    body, _ = _parse(request, raw, CopyBody)
-    return _reply(ops.copy(_writer(request, conn, principal), schedule_id, body.name, body.client_request_id))
+    body, secret = _parse(request, raw, CopyBody, ("alarm_code",))
+    return _reply(ops.copy(_writer(request, conn, principal), schedule_id, body.name, body.client_request_id, body.confirm_lowering, _code_ok(secret.get("alarm_code"))))

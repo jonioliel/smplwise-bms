@@ -82,6 +82,29 @@ class ScheduleDraftModel(BaseModel):
     slots: list[DraftSlotModel] = Field(default_factory=list)
 
 
+# ---------------------------------------------------------------- codes never stored, content fingerprint
+
+def mask_codes(value: Any, depth: int = 0) -> Any:
+    """`value` with the value of every code-like key replaced by "***" (keys kept, so the schedule still reads as one that
+    carries a code: read-only, never re-sent). What Arx caches or snapshots never holds a code typed in Home Assistant."""
+    if depth > 8:
+        return value
+    if isinstance(value, dict):
+        return {k: ("***" if isinstance(k, str) and k.lower() in policy._CODE_KEYS else mask_codes(v, depth + 1)) for k, v in value.items()}
+    if isinstance(value, list):
+        return [mask_codes(v, depth + 1) for v in value]
+    return value
+
+
+def fingerprint(item: dict[str, Any]) -> str:
+    """What identifies a schedule's content (name, days, slots, conditions), from the component's item OR from the payload
+    Arx sent: the bridge's answer is trusted only when the schedule it names has this fingerprint (review M2)."""
+    core = normalize(item)
+    body = {"name": core["name"] or "", "days": sorted(core["weekdays"]), "slots": [_core_slot_form(sl) for sl in core["slots"]],
+            "conditions": [core["conditions"]["items"], core["conditions"]["type"], core["conditions"]["track"]]}
+    return hashlib.sha256(canonical(body).encode("utf-8")).hexdigest()[:16]
+
+
 # ---------------------------------------------------------------- revision (§2.5)
 
 def canonical(value: Any) -> str:
@@ -530,7 +553,7 @@ def _slot_span(slot: dict[str, Any], sun: dict[str, int] | None) -> tuple[int, i
     return start, start + 60  # a point action occupies one minute
 
 
-def validate_draft(draft: dict[str, Any], ctx: DraftContext, *, old: dict[str, Any] | None = None, creating: bool = True) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+def validate_draft(draft: dict[str, Any], ctx: DraftContext, *, old: dict[str, Any] | None = None, creating: bool = True, inherited_days: list[str] | None = None) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     """Structural (§5.7), action (§5.2 / §5.4, §5.6) and condition (§5.8) validation of a draft. Returns
     (errors, warnings), each `{"path", "code", "message"}`. `old` is the schedule's current normalised core: actions
     unchanged from it are exempt from the dynamic checks and from the alarm-code refusal (§5.6)."""
@@ -546,7 +569,7 @@ def validate_draft(draft: dict[str, Any], ctx: DraftContext, *, old: dict[str, A
     tokens = draft.get("weekdays") or []
     if not tokens or any(t not in DAY_TOKENS for t in tokens):
         errors.append(_problem("validation", "ימים לא תקינים.", "weekdays"))
-    elif ("workday" in tokens or "weekend" in tokens) and (old is None or list(tokens) != old["weekdays"]):
+    elif ("workday" in tokens or "weekend" in tokens) and (list(tokens) != (old["weekdays"] if old is not None else inherited_days)):
         errors.append(_problem("validation", "ימי עבודה וסוף שבוע אפשריים רק כשלא שונו; בחרו ימים מפורשים.", "weekdays"))
     for key in ("start_date", "end_date"):
         if draft.get(key) and _date(draft[key]) is None:
@@ -588,7 +611,7 @@ def validate_draft(draft: dict[str, Any], ctx: DraftContext, *, old: dict[str, A
             errors.append(_problem("validation", f"עד {MAX_ACTIONS} פעולות במשבצת.", f"{sp}.actions"))
         for ai, act in enumerate(acts[: MAX_ACTIONS + 1]):
             ap = f"{sp}.actions[{ai}]"
-            errors.extend(_check_action(act, ap, ctx, enabled_classes, old_actions, warnings, entities_seen))
+            errors.extend(_check_action(act, ap, ctx, enabled_classes, old_actions.get((si, ai)), warnings, entities_seen))
     if len(entities_seen) > MAX_ENTITIES:
         errors.append(_problem("validation", f"עד {MAX_ENTITIES} התקנים שונים בתזמון.", "slots"))
     errors.extend(_overlaps(slots, ctx))
@@ -600,16 +623,18 @@ def validate_draft(draft: dict[str, Any], ctx: DraftContext, *, old: dict[str, A
     return errors, warnings
 
 
-def _old_action_keys(old: dict[str, Any] | None) -> set[str]:
+def _old_action_keys(old: dict[str, Any] | None) -> dict[tuple[int, int], str]:
+    """The current actions by (slot index, action position): an action is "unchanged" only when the SAME position of the
+    same slot holds the same action (review L8: an action equal to some other action of the old schedule is a new one)."""
     if old is None:
-        return set()
-    return {canonical([a["service"], a["entity_id"], a["data"]]) for s in old["slots"] for a in s["actions"]}
+        return {}
+    return {(si, ai): canonical([a["service"], a["entity_id"], a["data"]]) for si, s in enumerate(old["slots"]) for ai, a in enumerate(s["actions"])}
 
 
-def _check_action(act: dict[str, Any], path: str, ctx: DraftContext, enabled: set[str], old_actions: set[str], warnings: list[dict[str, str]], seen: list[str]) -> list[dict[str, str]]:
+def _check_action(act: dict[str, Any], path: str, ctx: DraftContext, enabled: set[str], old_key: str | None, warnings: list[dict[str, str]], seen: list[str]) -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     service, eid, data = act.get("service") or "", act.get("entity_id"), act.get("data") or {}
-    unchanged = canonical([service, eid, data]) in old_actions
+    unchanged = old_key is not None and canonical([service, eid, data]) == old_key
     if policy.contains_code(data) or policy.contains_code(service):
         return [_problem("code_not_allowed", "אסור לשמור קוד בתוך תזמון.", f"{path}.data")]
     if len(data) > MAX_DATA:
@@ -721,6 +746,7 @@ def _check_conditions(draft: dict[str, Any], ctx: DraftContext, old: dict[str, A
         errors.append(_problem("validation", f"עד {MAX_CONDITIONS} תנאים.", "conditions.items"))
         items = items[:MAX_CONDITIONS]
     old_keys = {canonical(c) for c in (old["conditions"]["items"] if old else [])}
+    cond_entity = getattr(ctx, "condition_entity", ctx.entity)  # a scoped context answers only for what the caller may read
     has_sensitive = False
     for slot in draft.get("slots") or []:
         for a in slot.get("actions") or []:
@@ -735,7 +761,7 @@ def _check_conditions(draft: dict[str, Any], ctx: DraftContext, old: dict[str, A
         if not ENTITY_ID.match(eid):
             errors.append(_problem("validation", "מזהה התקן לא תקין.", f"{path}.entity_id"))
             continue
-        info = ctx.entity(eid)
+        info = cond_entity(eid)
         if not existing and eid.split(".", 1)[0] not in CONDITION_DOMAINS:
             errors.append(_problem("condition_domain_not_allowed", "אפשר להתנות רק בחיישנים, חיישנים בינאריים, מתגי עזר או מצב השמש.", f"{path}.entity_id"))
             continue

@@ -129,6 +129,39 @@ _ENTITY_COLS = ("entity_id, name, original_name, domain, device_class, unit, sup
                 "area_id, area_name, ha_floor_id, ha_floor_name, removed_at, disabled, entity_category")
 
 
+class ScopedCtx:
+    """A draft is judged as the CALLER sees the world (review L5 / L10): an entity they cannot read is `entity_unknown` -
+    no existence, availability, arm modes, code needs, state or name leaks through a preview - and a NEW action entity must
+    be one they would still see the schedule through (schedule.view or manage + a state read + alarm.view for a panel), so a
+    manager can neither create a schedule they cannot see nor learn about entities outside their scope."""
+
+    def __init__(self, ctx: "Ctx") -> None:
+        self._ctx = ctx
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._ctx, name)
+
+    def entity(self, entity_id: str) -> dict[str, Any] | None:
+        info = self._ctx.entity(entity_id)
+        if info is None:
+            return None
+        a = self._ctx.access
+        if not a.can_read_state(entity_id):
+            return None  # (a caller who reads it but may not manage it gets the ordinary 403 from the manage rule)
+        if info["domain"] == "alarm_control_panel" and not a.allowed("alarm.view", entity_id, own=True):
+            return None
+        return info
+
+    def resolver(self, entity_id: str) -> dict[str, Any] | None:
+        return self.entity(entity_id)
+
+    def condition_entity(self, entity_id: str) -> dict[str, Any] | None:
+        info = self._ctx.entity(entity_id)
+        if info is None:
+            return None
+        return info if (entity_id == self._ctx.shabbat_sensor or self._ctx.access.can_read_state(entity_id)) else None
+
+
 class Ctx:
     """Per-request facts: settings, entities (batched), classes, panels, sun, write state. `principal` may be None (the
     mirror classifies for its audit rows without a caller)."""
@@ -149,6 +182,7 @@ class Ctx:
         self._access: Access | None = None
         self._write: tuple[bool, str | None] | None = None
         self._sun: dict[str, int] | None | bool = False
+        self._owners: dict[str, "Ctx"] = {}  # the review's owner contexts, one per user per request (review L6)
 
     @property
     def access(self) -> Access:
@@ -574,7 +608,7 @@ def status_payload(conn: sqlite3.Connection, principal: Principal) -> dict[str, 
         if can["configure"]:
             counts["hidden"] = total - len(visible)
     shabbat = None
-    if ctx.shabbat_sensor:
+    if ctx.shabbat_sensor and can["view"]:  # a calendar fact for schedule viewers, not for every signed-in user
         info = ctx.entity(ctx.shabbat_sensor)
         shabbat = {"entity_id": ctx.shabbat_sensor, "name": info["name"] if info else ctx.shabbat_sensor, "state": info["state"] if info else None, "available": bool(info and info["available"])}
     out: dict[str, Any] = {
@@ -668,8 +702,10 @@ def _issues(ctx: Ctx, r: Row, cls: dict[str, Any]) -> list[str]:
 def _owner_still_holds(ctx: Ctx, owner: dict[str, Any], core: dict[str, Any], cls: dict[str, Any]) -> bool:
     """Re-evaluate §4.4 for the owner of record (their bindings, not the caller's) over the schedule's supported actions."""
     principal = Principal(user_id=owner["user_id"], username=owner["username"], display_name=owner["display_name"], source="ingress")
-    octx = Ctx(ctx.conn, principal)
-    octx._entities = ctx._entities  # the same mirrored entities and classification
+    octx = ctx._owners.get(owner["user_id"])
+    if octx is None:
+        octx = ctx._owners[owner["user_id"]] = Ctx(ctx.conn, principal)
+        octx._entities = ctx._entities  # the same mirrored entities and classification
     for si, slot in enumerate(core["slots"]):
         for ai, a in enumerate(slot["actions"]):
             res = cls["slots"][si]["actions"][ai]
@@ -811,6 +847,8 @@ def candidates_payload(ctx: Ctx, q: str | None, domain: str | None) -> dict[str,
 
     a = ctx.access
     wide_config = authorize(ctx.conn, ctx.principal, "system.configure", INSTALLATION).allowed if ctx.principal else False
+    if ctx.cfg["schedules.enabled"] != "true" and not wide_config:
+        return {"entities": [], "truncated": False}  # the feature is off: only the administrator setting it up may look
     domains = [domain] if domain else list(COND_DOMAINS)
     rows = ctx.conn.execute(
         f"SELECT * FROM ha_entities WHERE removed_at IS NULL AND disabled = 0 AND domain IN ({','.join('?' * len(domains))}) ORDER BY domain, name, entity_id", domains).fetchall()
