@@ -510,15 +510,16 @@ async def ha_ws(websocket: WebSocket) -> None:
             wide, floors = _visible_floors(conn, principal, "entity.state.read")
             return wide, floors, _placements(conn)
 
-    def _media_scope() -> tuple[bool, set[str]]:
+    def _media_scope() -> tuple[bool, set[str], bool]:
         with db.connection() as conn:
-            return ha_scope.visible_floors(conn, principal, media_store.PERM_READ)
+            mw, mf = ha_scope.visible_floors(conn, principal, media_store.PERM_READ)
+            return mw, mf, authorize(conn, principal, media_store.CONFIGURE, INSTALLATION).allowed  # the anchor entity id is an administrator's detail
 
     wide, floors, placements = await run_in_threadpool(_scope)
     if not wide and not floors:
         await websocket.close(code=4403)
         return
-    mwide, mfloors = await run_in_threadpool(_media_scope)  # CR-015: media frames follow media.read, not entity.state.read
+    mwide, mfloors, madmin = await run_in_threadpool(_media_scope)  # CR-015: media frames follow media.read, not entity.state.read
     await websocket.accept()
     from ..services import revocation
 
@@ -537,7 +538,7 @@ async def ha_ws(websocket: WebSocket) -> None:
             if time.time() - last_scope > 60 or revocation.generation(principal.user_id) != access_gen:  # T055: at once on an access change
                 access_gen = revocation.generation(principal.user_id)
                 wide, floors, placements = await run_in_threadpool(_scope)
-                mwide, mfloors = await run_in_threadpool(_media_scope)
+                mwide, mfloors, madmin = await run_in_threadpool(_media_scope)
                 last_scope = time.time()
             payload = msg
             if msg.get("type") == "entity_state_changed":
@@ -547,7 +548,7 @@ async def ha_ws(websocket: WebSocket) -> None:
                 # CR-015: only to a subscriber who sees the screen's anchor under media.read (contract 4: payload {device_key, entity_id, live})
                 if not ha_scope.entity_visible(mwide, mfloors, placements, msg["entity_id"]):
                     continue
-                payload = {k: v for k, v in msg.items() if k != "type"}
+                payload = {k: v for k, v in msg.items() if k != "type" and (k != "entity_id" or madmin)}  # review L5: the anchor entity id only for system.configure
             elif msg.get("type") == "media_devices_changed":
                 if not mwide and not mfloors:
                     continue

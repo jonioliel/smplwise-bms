@@ -66,14 +66,22 @@ def normalise_mac(value: Any) -> str | None:
     return text if len(text) == 12 else None
 
 
+_UUID_SHAPE = re.compile(r"^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$")
+_MAC_SHAPE = re.compile(r"^(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}$")
+_SERIAL_SHAPE = re.compile(r"^(?=(?:.*\d){4})[0-9a-z]{8,64}$")  # a vendor serial: letters and digits only, at least four digits
+
+
 def normalise_identifier(value: Any) -> str | None:
-    """A UUID / serial / Cast UUID for the identifier rung: lower-case, the `uuid:` prefix and dashes stripped; None when it is
-    too short to be unique (under 8 characters)."""
+    """A UUID / serial / MAC-shaped identifier for the identifier rung: lower-case, the `uuid:` prefix and dashes stripped. Only three
+    shapes are an identity (CR-015 review L1): a UUID (32 hex digits, dashed or not), a MAC, or a serial (letters and digits only, eight
+    or more characters with at least four digits). An IPv4 / IPv6 address, a host name (dots, dashed words, plain letters), a URL or
+    anything shorter is None: two TVs handed the same address by DHCP, or named the same, are never one screen."""
     text = str(value or "").strip().lower()
     if text.startswith("uuid:"):
         text = text[5:]
-    text = text.replace("-", "").replace(" ", "")
-    return text if len(text) >= 8 else None
+    if _UUID_SHAPE.match(text) or _MAC_SHAPE.match(text) or _SERIAL_SHAPE.match(text):
+        return text.replace("-", "").replace(":", "")
+    return None
 
 
 def normalise_connections(raw: Any) -> list[list[str]]:
