@@ -15,8 +15,12 @@ class names or fixed codes; payloads, names, values and exception texts are neve
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import math
+import re
+import time
+import weakref
 from types import SimpleNamespace
 from typing import Any, Mapping
 
@@ -43,6 +47,33 @@ ID_POLL_INTERVAL_S = 0.25
 ID_POLL_TIMEOUT_S = 5.0
 
 _PERMISSION_UNAVAILABLE = "permission_check_unavailable"
+
+# After an add / copy whose new id could not be learned the component may still register that switch a moment later;
+# a following create would then see it as its own. For this long every learned id is answered id_unknown instead.
+SUSPECT_WINDOW_S = 30.0
+
+
+class _CreateState:
+    """Per Home Assistant instance: one lock for the whole add / copy (snapshot -> component call -> id learning), so two
+    creates can never interleave, and the moment of the last unresolved create."""
+
+    def __init__(self) -> None:
+        self.lock = asyncio.Lock()
+        self.unresolved_at: float | None = None
+
+
+_STATES: "weakref.WeakKeyDictionary[Any, _CreateState]" = weakref.WeakKeyDictionary()
+_STATES_BY_ID: dict[int, _CreateState] = {}  # only for a hass object that cannot be weakly referenced
+
+
+def _create_state(hass: Any) -> _CreateState:
+    try:
+        state = _STATES.get(hass)
+        if state is None:
+            state = _STATES[hass] = _CreateState()
+        return state
+    except TypeError:
+        return _STATES_BY_ID.setdefault(id(hass), _CreateState())
 
 
 def _ha() -> SimpleNamespace:
@@ -102,18 +133,44 @@ def _check_permissions(user: Any, ha: SimpleNamespace, entity_ids: list[str]) ->
     return None
 
 
-async def _learn_new_id(registry: Any, before: dict[str, str]) -> tuple[str | None, str | None]:
-    """The one schedule that appeared in the registry since `before` -> (schedule_id, entity_id); (None, None) when none
-    or more than one appeared within the window (another schedule may have been created at the same time: never guess)."""
+def payload_fingerprint(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """What the new switch's state attributes must say about a schedule created from `payload`: the weekdays, the
+    timeslot strings ("HH:MM:SS - HH:MM:SS", or just "HH:MM:SS" for a point action) and the service of each slot's first
+    action (the `actions` attribute). None of it is a name: the switch's friendly name is not the schedule's name."""
+    slots = payload.get("timeslots") or []
+    return {
+        "weekdays": sorted(str(d) for d in (payload.get("weekdays") or [])),
+        "timeslots": [f"{t['start']} - {t['stop']}" if t.get("stop") else str(t["start"]) for t in slots],
+        "actions": [str(((t.get("actions") or [{}])[0]).get("service")) for t in slots],
+    }
+
+
+def attributes_fingerprint(attributes: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """The same three facts read from a schedule switch's state attributes; None when they are not all there."""
+    a = attributes or {}
+    weekdays, timeslots, actions = a.get("weekdays"), a.get("timeslots"), a.get("actions")
+    if not isinstance(weekdays, (list, tuple)) or not isinstance(timeslots, (list, tuple)) or not isinstance(actions, (list, tuple)):
+        return None
+    services = [str(x.get("service")) if isinstance(x, Mapping) else "None" for x in actions]
+    return {"weekdays": sorted(str(d) for d in weekdays), "timeslots": [str(t) for t in timeslots], "actions": services}
+
+
+async def _learn_new_id(hass: Any, registry: Any, before: dict[str, str], expected: dict[str, Any] | None) -> tuple[str | None, str | None]:
+    """The one schedule that appeared in the registry since `before` and whose switch says what was created ->
+    (schedule_id, entity_id); (None, None) when none, more than one, or one whose content does not match `expected` appears
+    within the window (never guess: a create of another person may be registering at the same time)."""
     attempts = max(1, math.ceil(ID_POLL_TIMEOUT_S / ID_POLL_INTERVAL_S)) if ID_POLL_INTERVAL_S > 0 else 1
     for attempt in range(attempts + 1):
         now = _scheduler_entries(registry)
         new = {sid: eid for sid, eid in now.items() if sid not in before}
-        if len(new) == 1:
-            sid, eid = next(iter(new.items()))
-            return sid, eid
         if len(new) > 1:
             return None, None
+        if len(new) == 1:
+            sid, eid = next(iter(new.items()))
+            state = hass.states.get(eid)
+            if state is not None:  # a registered switch whose state is not there yet is waited for
+                seen = attributes_fingerprint(getattr(state, "attributes", None))
+                return (sid, eid) if (expected is not None and seen == expected) else (None, None)
         if attempt < attempts:
             await asyncio.sleep(ID_POLL_INTERVAL_S)
     return None, None
@@ -187,20 +244,69 @@ async def async_handle_schedule(hass: Any, verifier: Any, msg: dict[str, Any]) -
     if not hass.services.has_service(domain, service):
         return _refuse(msg, "scheduler_missing")
 
-    before = _scheduler_entries(registry) if op in ("add", "copy") else {}
     context = ha.Context(user_id=user.id)
-    try:
-        await hass.services.async_call(domain, service, _component_data(msg, op), blocking=True, context=context)
-    except ha.Unauthorized:
-        return _refuse(msg, "unauthorized")
-    except Exception as exc:  # noqa: BLE001 - class name only: the text may carry names or values
-        _LOGGER.warning("smplwise_bridge.schedule %s failed: %s", op, type(exc).__name__)
-        return _refuse(msg, type(exc).__name__)
+    creating = op in ("add", "copy")
+    state = _create_state(hass)
+    # add / copy: one at a time per instance, from the snapshot to the learned id (the component registers the new
+    # switch AFTER its service returns, so an interleaved create would otherwise be mistaken for ours)
+    async with (state.lock if creating else contextlib.nullcontext()):
+        before = _scheduler_entries(registry) if creating else {}
+        if op == "add":
+            expected: dict[str, Any] | None = payload_fingerprint(msg["payload"])
+        elif op == "copy":
+            source = hass.states.get(schedule_entity)
+            expected = attributes_fingerprint(getattr(source, "attributes", None)) if source is not None else None
+        else:
+            expected = None
+        try:
+            await hass.services.async_call(domain, service, _component_data(msg, op), blocking=True, context=context)
+        except ha.Unauthorized:
+            return _refuse(msg, "unauthorized")
+        except Exception as exc:  # noqa: BLE001 - class name only: the text may carry names or values
+            _LOGGER.warning("smplwise_bridge.schedule %s failed: %s", op, type(exc).__name__)
+            return _refuse(msg, type(exc).__name__)
 
-    out: dict[str, Any] = {"ok": True, "request_id": msg["request_id"], "context_id": context.id, "schedule_id": msg.get("schedule_id"), "entity_id": schedule_entity}
-    if op in ("add", "copy"):
-        sid, eid = await _learn_new_id(registry, before)
-        out["schedule_id"], out["entity_id"] = sid, eid
-        if sid is None:
-            out["error"] = "id_unknown"
+        out: dict[str, Any] = {"ok": True, "request_id": msg["request_id"], "context_id": context.id, "schedule_id": msg.get("schedule_id"), "entity_id": schedule_entity}
+        if creating:
+            sid, eid = await _learn_new_id(hass, registry, before, expected)
+            suspect = state.unresolved_at is not None and time.monotonic() - state.unresolved_at < SUSPECT_WINDOW_S
+            if sid is None or suspect:
+                sid = eid = None
+            out["schedule_id"], out["entity_id"] = sid, eid
+            if sid is None:
+                out["error"] = "id_unknown"
+                state.unresolved_at = time.monotonic()
     return out
+
+
+_PLAIN_ENTITY_RE = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
+
+
+def execute_refusal(hass: Any, entity_id: Any) -> str | None:
+    """Defence in depth for `smplwise_bridge.execute`: the Scheduler component's own switches are operated only through
+    the schedule service. Returns the refusal code, or None when every named entity may go on. Fails closed: a registry
+    that cannot be read, a target that is not a plain entity id ("all", a template, a nested value) and a state-only
+    `switch.schedule_*` all refuse."""
+    if isinstance(entity_id, str):
+        targets: list[Any] = [x.strip() for x in entity_id.split(",")]
+    elif isinstance(entity_id, (list, tuple)):
+        targets = list(entity_id)
+    else:
+        return "invalid_entity_id"
+    if not targets:
+        return "invalid_entity_id"
+    try:
+        registry = _registry(hass)
+    except Exception:  # noqa: BLE001
+        return "entity_registry_unavailable"
+    for target in targets:
+        if not isinstance(target, str) or not _PLAIN_ENTITY_RE.match(target):
+            return "invalid_entity_id"
+        entry = registry.async_get(target)
+        if entry is None:
+            if target.startswith("switch.schedule_"):
+                return "scheduler_switch_not_allowed"
+            continue
+        if getattr(entry, "platform", None) == SCHEDULER_PLATFORM:
+            return "scheduler_switch_not_allowed"
+    return None

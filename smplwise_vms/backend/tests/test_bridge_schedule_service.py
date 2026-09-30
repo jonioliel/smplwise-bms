@@ -93,8 +93,10 @@ class FakeStates:
 class FakeServices:
     """The registered services, recorded calls, and a FAKE scheduler component behind `scheduler.*`."""
 
-    def __init__(self, registry: FakeRegistry, *, installed=True):
+    def __init__(self, registry: FakeRegistry, states: "FakeStates", *, installed=True):
         self.registry = registry
+        self.states = states
+        self.attr_override: dict | None = None  # a component that writes other content than it was given (mismatch tests)
         self.calls: list[dict] = []
         self.handlers: dict[tuple[str, str], object] = {}
         self.fail: dict[tuple[str, str], Exception] = {}
@@ -111,7 +113,7 @@ class FakeServices:
         return (domain, service) in self.handlers
 
     async def async_call(self, domain, service, data, blocking=False, context=None):
-        self.calls.append({"domain": domain, "service": service, "data": copy.deepcopy(data), "blocking": blocking, "context": context})
+        self.calls.append({"domain": domain, "service": service, "data": copy.deepcopy(data), "blocking": blocking, "context": context, "registry_len": len(self.registry.entities)})
         if (domain, service) in self.fail:
             raise self.fail[(domain, service)]
         result = self.handlers[(domain, service)](data)
@@ -123,22 +125,30 @@ class FakeServices:
         self.counter += 1
         return f"{0xa1b2c0 + self.counter:06x}"
 
-    def _create(self):
-        sid = self._new_id()
-        if self.late_s:
-            asyncio.get_running_loop().call_later(self.late_s, lambda: self.registry.add(sid))
-        else:
+    def _register(self, sid, attrs):
+        def do():
             self.registry.add(sid)
+            self.states.set(f"switch.schedule_{sid}", "on", **attrs)
+
+        if self.late_s:
+            asyncio.get_running_loop().call_later(self.late_s, do)  # the component registers AFTER the service returned
+        else:
+            do()
+
+    def _create(self, attrs):
+        self._register(self._new_id(), self.attr_override if self.attr_override is not None else attrs)
         for _ in range(self.extra_new):
-            self.registry.add(self._new_id())
+            self._register(self._new_id(), {"weekdays": ["sat"], "timeslots": ["01:00:00"], "actions": [{"service": "switch.turn_on", "data": {}}]})
 
     def _add(self, data):
         assert "entity_id" not in data
-        self._create()
+        slots = data["timeslots"]
+        self._create({"weekdays": list(data["weekdays"]), "timeslots": [f"{t['start']} - {t['stop']}" if t.get("stop") else t["start"] for t in slots],
+                      "actions": [{"service": t["actions"][0]["service"], "data": {}} for t in slots]})
 
     def _copy(self, data):
         assert set(data) == {"entity_id", "name"}
-        self._create()
+        self._create(dict(getattr(self.states.get(data["entity_id"]), "attributes", {})))
 
     def _edit(self, data):
         assert "entity_id" in data
@@ -159,11 +169,12 @@ class FakeHass:
     def __init__(self, user: FakeUser | None, *, installed=True):
         self.registry = FakeRegistry()
         self.states = FakeStates()
-        self.services = FakeServices(self.registry, installed=installed)
+        self.services = FakeServices(self.registry, self.states, installed=installed)
         self.user = user
         self.auth = SimpleNamespace(async_get_user=self._get_user)
         self.registry.add("3f9a1c", "switch.schedule_shbt_slvn")
-        self.states.set("switch.schedule_shbt_slvn", "on")
+        self.states.set("switch.schedule_shbt_slvn", "on", weekdays=["daily"], timeslots=["00:00:00 - 06:00:00", "06:00:00 - 00:00:00"],
+                        actions=[{"service": "climate.set_temperature", "data": {}}, {"service": "climate.turn_off", "data": {}}])
         for eid, attrs in (("climate.living_room", {}), ("light.hall", {}), ("cover.gym_shutter", {"device_class": "shutter"}), ("cover.main_gate", {"device_class": "gate"}),
                            ("switch.sockets", {}), ("lock.front", {}), ("alarm_control_panel.house", {}), ("button.door_release", {}), ("fan.office", {})):
             self.states.set(eid, "on", **attrs)
@@ -570,3 +581,125 @@ def test_service_description_and_translations_exist():
     for rel in ("strings.json", "translations/en.json", "translations/he.json"):
         data = json.loads((SRC / rel).read_text(encoding="utf-8"))
         assert data["services"]["schedule"]["name"] and data["services"]["schedule"]["description"] and "config" in data, rel
+
+
+# ---------------------------------------------------------------- CR-014 security review: concurrent creates, content check, execute guard
+
+
+def _slot_payload(start, stop, service_id, entity, name):
+    p = payload()
+    p["name"] = name
+    p["timeslots"] = [slot(start, stop, [act(service_id, entity)])]
+    return p
+
+
+def test_two_concurrent_adds_each_learn_their_own_id_even_when_registration_interleaves():
+    hass = FakeHass(FakeUser())
+    hass.services.late_s = 0.05  # each switch is registered well after its add returned, while the other add is starting
+    verifier = signing.Verifier(SECRET)
+    a = signing.sign(SECRET, body("add", request_id="op-A", payload=_slot_payload("07:00:00", "08:00:00", "light.turn_on", "light.hall", "Alpha")))
+    b = signing.sign(SECRET, body("add", request_id="op-B", payload=_slot_payload("21:00:00", "22:00:00", "switch.turn_on", "switch.sockets", "Beta")))
+
+    async def both():
+        return await asyncio.gather(service.async_handle_schedule(hass, verifier, a), service.async_handle_schedule(hass, verifier, b))
+
+    out_a, out_b = asyncio.run(both())
+    assert out_a["ok"] and out_b["ok"] and "error" not in out_a and "error" not in out_b
+    assert out_a["schedule_id"] != out_b["schedule_id"]
+    for out, want in ((out_a, ("07:00:00 - 08:00:00", "light.turn_on")), (out_b, ("21:00:00 - 22:00:00", "switch.turn_on"))):
+        attrs = hass.states.get(out["entity_id"]).attributes
+        assert (attrs["timeslots"][0], attrs["actions"][0]["service"]) == want, "each caller got the id of ITS OWN schedule"
+    adds = [c for c in hass.services.calls if c["service"] == "add"]
+    assert len(adds) == 2 and adds[1]["registry_len"] == adds[0]["registry_len"] + 1, "the second add started only after the first switch was registered and its id learned"
+
+
+def test_a_new_switch_whose_content_does_not_match_the_payload_is_never_adopted():
+    hass = FakeHass(FakeUser())
+    hass.services.attr_override = {"weekdays": ["daily"], "timeslots": ["05:00:00 - 06:00:00"], "actions": [{"service": "light.turn_off", "data": {}}]}
+    out = call(hass, body("add"))
+    assert out["ok"] is True and out["error"] == "id_unknown" and out["schedule_id"] is None and out["entity_id"] is None
+    # a copy is checked against its source
+    hass2 = FakeHass(FakeUser())
+    hass2.services.attr_override = {"weekdays": ["mon"], "timeslots": ["01:00:00"], "actions": [{"service": "light.turn_on", "data": {}}]}
+    out = call(hass2, body("copy"))
+    assert out["error"] == "id_unknown" and out["schedule_id"] is None
+    # a copy whose source state is unknown cannot be verified: id_unknown
+    hass3 = FakeHass(FakeUser())
+    hass3.states.data.pop("switch.schedule_shbt_slvn")
+    assert call(hass3, body("copy"))["error"] == "id_unknown"
+
+
+def test_a_registered_switch_without_a_state_is_waited_for_then_refused():
+    hass = FakeHass(FakeUser())
+    hass.services._register = lambda sid, attrs: hass.registry.add(sid)  # registered, never gets a state
+    out = call(hass, body("add"))
+    assert out["error"] == "id_unknown" and out["schedule_id"] is None
+
+
+def test_after_an_unresolved_create_the_next_learned_id_is_not_trusted_for_a_while(monkeypatch):
+    hass = FakeHass(FakeUser())
+    hass.services.attr_override = {"weekdays": ["daily"], "timeslots": ["05:00:00"], "actions": [{"service": "light.turn_off", "data": {}}]}
+    first = call(hass, body("add", request_id="op-1"))  # unresolved: the component wrote something else
+    assert first["error"] == "id_unknown"
+    # a second create finds a new entry that matches, but the first one's switch could still be arriving: not trusted yet
+    hass.services.attr_override = None
+    second = call(hass, body("add", request_id="op-2"))
+    assert second["error"] == "id_unknown" and second["schedule_id"] is None
+    monkeypatch.setattr(service, "SUSPECT_WINDOW_S", 0.0)
+    third = call(hass, body("add", request_id="op-3"))
+    assert third["ok"] and "error" not in third and third["schedule_id"]
+
+
+def test_fingerprints_read_the_same_facts_from_a_payload_and_from_switch_attributes():
+    p = payload()
+    fp = service.payload_fingerprint(p)
+    assert fp == {"weekdays": ["daily"], "timeslots": ["00:00:00 - 06:00:00", "06:00:00 - 00:00:00"], "actions": ["climate.set_temperature", "climate.turn_off"]}
+    point = {"weekdays": ["sat", "mon"], "timeslots": [slot("22:00:00", None, [act("alarm_control_panel.alarm_arm_home", "alarm_control_panel.house")])]}
+    assert service.payload_fingerprint(point) == {"weekdays": ["mon", "sat"], "timeslots": ["22:00:00"], "actions": ["alarm_control_panel.alarm_arm_home"]}
+    assert service.attributes_fingerprint({"weekdays": ["mon", "sat"], "timeslots": ["22:00:00"], "actions": [{"service": "alarm_control_panel.alarm_arm_home", "data": {}}]}) == service.payload_fingerprint(point)
+    assert service.attributes_fingerprint({}) is None and service.attributes_fingerprint(None) is None and service.attributes_fingerprint({"weekdays": [], "timeslots": []}) is None
+
+
+def _execute_hass(**platforms):
+    hass = FakeHass(FakeUser())
+    for eid, platform in platforms.items():
+        hass.registry.entities[eid] = FakeEntry(eid, "uid-" + eid, platform)
+    return hass
+
+
+def test_execute_refuses_the_scheduler_components_switches():
+    hass = FakeHass(FakeUser())
+    assert service.execute_refusal(hass, "switch.schedule_shbt_slvn") == "scheduler_switch_not_allowed"
+    assert service.execute_refusal(hass, ["switch.sockets", "switch.schedule_shbt_slvn"]) == "scheduler_switch_not_allowed"
+    assert service.execute_refusal(hass, "switch.sockets, switch.schedule_shbt_slvn") == "scheduler_switch_not_allowed"
+    # a switch whose registry row says scheduler, whatever its id looks like
+    other = _execute_hass(**{"switch.renamed_thing": "scheduler", "switch.template_one": "template"})
+    assert service.execute_refusal(other, "switch.renamed_thing") == "scheduler_switch_not_allowed"
+    assert service.execute_refusal(other, "switch.template_one") is None
+    # state-only prefix (no registry row): refused too; an unknown ordinary entity is left to Home Assistant
+    assert service.execute_refusal(other, "switch.schedule_a1b2c3") == "scheduler_switch_not_allowed"
+    assert service.execute_refusal(other, "light.not_in_registry") is None
+    assert service.execute_refusal(other, "switch.schedulexfoo") is None and service.execute_refusal(other, "switch.lobby_schedule_lamp") is None
+
+
+@pytest.mark.parametrize("target", ["all", "none", "", ",", "switch.*", "{{ states.switch }}", "Switch.Sockets", 5, None, {"a": 1}, [], ["all"], [["switch.a"]]])
+def test_execute_refuses_targets_that_are_not_plain_entity_ids(target):
+    assert service.execute_refusal(FakeHass(FakeUser()), target) == "invalid_entity_id"
+
+
+def test_execute_fails_closed_when_the_registry_cannot_be_read(monkeypatch):
+    def boom(hass):
+        raise RuntimeError("registry not loaded")
+
+    monkeypatch.setattr(service, "_registry", boom)
+    assert service.execute_refusal(FakeHass(FakeUser()), "light.hall") == "entity_registry_unavailable"
+
+
+def test_the_execute_service_calls_the_guard_before_it_calls_home_assistant():
+    tree = init_tree()
+    setup = next(n for n in ast.walk(tree) if isinstance(n, ast.AsyncFunctionDef) and n.name == "async_setup_entry")
+    execute = next(n for n in ast.walk(setup) if isinstance(n, ast.AsyncFunctionDef) and n.name == "execute")
+    text = ast.unparse(execute)
+    guard, call_at = text.index("execute_refusal(hass, data['entity_id'])"), text.index("hass.services.async_call(domain, service, data")
+    assert text.index("'entity_required'") < guard < call_at
+    assert "from .schedule_service import async_handle_schedule, execute_refusal" in (SRC / "__init__.py").read_text(encoding="utf-8")

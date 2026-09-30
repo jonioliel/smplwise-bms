@@ -30,7 +30,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 
 from .const import CONF_ADDON_URL, CONF_PAIRING_CODE, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_EXECUTE, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_SYNC, VERSION
-from .schedule_service import async_handle_schedule
+from .schedule_service import async_handle_schedule, execute_refusal
 from .signing import Verifier, sign
 
 _LOGGER = logging.getLogger(__name__)
@@ -188,6 +188,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         data = dict(msg["data"])
         if not data.get("entity_id"):
             return {"ok": False, "error": "entity_required"}
+        # 0.3.0 (CR-014 review): a schedule's own switch is never operated through here (only the add-on refused it before)
+        blocked = execute_refusal(hass, data["entity_id"])
+        if blocked:
+            _LOGGER.warning("smplwise_bridge.execute %s.%s refused: %s", domain, service, blocked)
+            return {"ok": False, "error": blocked}
         context = Context(user_id=user.id)
         try:
             await hass.services.async_call(domain, service, data, blocking=True, context=context)
