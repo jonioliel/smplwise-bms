@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import socket
 import sqlite3
 from dataclasses import replace
 from types import SimpleNamespace
@@ -43,6 +44,7 @@ URL = f"rtsp://{USER}:{PASSWORD}@{HOST}:554/h264/ch1/main/av_stream?token={TOKEN
 URL2 = f"rtsp://{USER}:{PASSWORD}-new@{HOST}:554/h264/ch1/main/av_stream?token={TOKEN}-new"
 SECRETS = (URL, PASSWORD, HOST, TOKEN, USER)
 GO2RTC = "http://go2rtc.test:1984"
+DNS = {"127.0.0.1.nip.io": ["127.0.0.1"], "alias.rebind.example": ["169.254.169.254"], "cam.lan": ["192.0.2.61"]}  # what the made-up names resolve to
 FOREIGN = {
     "door-1": "rtsp://intercom:pw@203.0.113.5/1",  # the other project's streams
     "smplwise_nvr-1_ch1_sub": "rtsp://nvr-user:nvr-pw@203.0.113.9/Streaming/Channels/102",
@@ -130,6 +132,11 @@ class Live:
     pass
 
 
+@pytest.fixture(autouse=True)
+def _no_real_dns(monkeypatch):
+    monkeypatch.setattr(sp, "resolve_host", lambda host, timeout=2.0: list(DNS.get(host, [])))
+
+
 @pytest.fixture()
 def live(cam_app, monkeypatch):  # noqa: F811
     app, s, c, ids = cam_app
@@ -161,6 +168,12 @@ def live(cam_app, monkeypatch):  # noqa: F811
     monkeypatch.setattr(hls, "REREAD_MIN_INTERVAL_S", 0.0)
     monkeypatch.setattr(hls, "WRITE_GRACE_S", 0.0)  # the tests that are about the grace set their own
     sp._RESOLVED.clear()
+    monkeypatch.setattr(sp, "resolve_host", lambda host, timeout=2.0: list(DNS.get(host, [])))  # no test resolves a real name
+
+    async def bridge_resolve(host):
+        return list(DNS.get(host, []))
+
+    monkeypatch.setattr(svc, "_resolve", bridge_resolve)
     out = Live()
     out.app, out.s, out.c, out.ids, out.go, out.bridge = app, app.state.settings, c, ids, go, bridge
     yield out
@@ -291,7 +304,12 @@ def test_the_streams_listing_shows_the_scheme_only(live):
         (f"{URL}#video=copy", 422, "source_not_supported"),
         (f"rtmp://{USER}:{PASSWORD}@{HOST}/live", 422, "source_not_supported"),
         # M1: a source that points go2rtc back at itself or at the host it runs on (refused by the real bridge policy)
-        ("http://127.0.0.1:1984/api/frame.jpeg?src=rtsp://evil&name=smplwise_wiskey_gate", 422, "source_not_allowed"),
+        ("rtsp://127.0.0.1:1984/api/frame.jpeg?src=rtsp://evil&name=smplwise_wiskey_gate", 422, "source_not_allowed"),
+        (f"rtsp://{USER}:{PASSWORD}@127.0.0.1.nip.io/live", 422, "source_not_allowed"),  # M1-residual: a name that resolves to loopback
+        # M1-residual: only rtsp / rtsps; an http(s) source is an indirect route back into go2rtc
+        ("http://127.0.0.1:1984/api/frame.jpeg?src=rtsp://evil&name=smplwise_wiskey_gate", 422, "source_not_supported"),
+        (f"http://{USER}:{PASSWORD}@{HOST}:8080/video.mjpg", 422, "source_not_supported"),
+        (f"https://{HOST}/stream?token={TOKEN}", 422, "source_not_supported"),
         (f"rtsp://{USER}:{PASSWORD}@localhost/live", 422, "source_not_allowed"),
         (f"rtsp://{USER}:{PASSWORD}@{HOST}/live?src=rtsp://evil", 422, "source_not_allowed"),
     ],
@@ -322,7 +340,7 @@ def test_the_add_on_checks_the_source_again_even_if_the_bridge_answers_something
     assert live.go.writes() == []
 
 
-@pytest.mark.parametrize("source", ["rtsp://go2rtc.test:8554/smplwise_wiskey_gate", "rtsp://go2rtc.test:1984/x", "http://go2rtc.test:8555/x", "rtsp://GO2RTC.TEST:8554/door-1"])
+@pytest.mark.parametrize("source", ["rtsp://go2rtc.test:8554/smplwise_wiskey_gate", "rtsp://go2rtc.test:1984/x", "rtsps://go2rtc.test:8555/x", "rtsp://GO2RTC.TEST:8554/door-1"])
 def test_the_add_on_refuses_go2rtcs_own_host_which_the_bridge_cannot_know(live, source):
     """M1: `rtsp://<go2rtc host>:8554/<foreign stream>` would restream another project's door station to every viewer. The real
     bridge does not know where go2rtc runs and lets it through; the add-on's own check does not."""
@@ -663,7 +681,10 @@ def test_disabling_ends_the_access_of_open_and_new_viewers(live, monkeypatch):
     "value, code",
     [
         (URL, None),
-        ("https://cam.local/stream?x=1", None),
+        ("rtsps://cam.local/stream?x=1", None),
+        ("https://cam.local/stream?x=1", "source_not_supported"),
+        ("http://192.0.2.60/x", "source_not_supported"),
+        ("rtsp://127.0.0.1.nip.io/x", "source_not_allowed"),
         (None, "no_stream_source"),
         ("", "no_stream_source"),
         ("exec:x", "source_not_supported"),
@@ -834,3 +855,98 @@ def test_a_reread_is_not_made_on_behalf_of_someone_who_lost_sources_configure(li
     live.bridge.entities[ENTITY] = URL2
     hls.ensure_ready(live.app.state.db, live.s, ENTITY)
     assert live.go.store[STREAM] == [URL2]
+
+
+# ---------------------------------------------------------------- Opus review round 2: M1-residual and L1
+
+def test_the_add_on_refuses_a_name_that_resolves_to_a_refused_address_even_if_the_bridge_lets_it_through(live):
+    """M1-residual: the add-on resolves the host itself (the bridge may be old, modified or resolving differently)."""
+    class Loose:
+        def stream_source(self, settings, payload):
+            return {"ok": True, "request_id": payload["request_id"], "stream_source": f"rtsp://{USER}:{PASSWORD}@alias.rebind.example/live"}
+
+    hls.set_transport(Loose())
+    r = enable(live)
+    assert r.status_code == 422 and r.json()["code"] == "source_not_allowed", r.text
+    assert_no_secret(r.text, "in the refusal")
+    assert live.go.writes() == []
+
+
+def test_a_name_that_resolves_to_go2rtcs_own_host_is_refused_on_go2rtcs_rtsp_port(live, monkeypatch):
+    """The other alias route: a different NAME for the go2rtc machine, on go2rtc's restream port."""
+    real = socket.getaddrinfo
+    monkeypatch.setattr(socket, "getaddrinfo", lambda host, *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.0.2.77", 0))] if host == "go2rtc.test" else real(host, *a, **k))
+    monkeypatch.setitem(DNS, "go2rtc-alias.lan", ["192.0.2.77"])
+    sp._RESOLVED.clear()
+    live.bridge.entities[ENTITY] = "rtsp://go2rtc-alias.lan:8554/door-1"
+    r = enable(live)
+    assert r.status_code == 422 and r.json()["code"] == "source_not_allowed", r.text
+    assert live.go.writes() == []
+    live.bridge.entities[ENTITY] = f"rtsp://{USER}:{PASSWORD}@go2rtc-alias.lan:554/cam"
+    assert enable(live).status_code == 200
+
+
+@pytest.mark.parametrize("path", ["/door-1", "/Door-1", "//door-1", "/./door-1", "/x/../door-1", "/%64oor-1", "/%2564oor-1", "/door-1/", "/door-1?x=1", "/smplwise_nvr-1_ch1_sub", "/smplwise_wiskey_gate"])
+def test_an_rtsp_source_named_after_a_foreign_go2rtc_stream_is_refused(live, path):
+    """M1-residual: `rtsp://<any alias of go2rtc>/<stream>` would re-expose another project's (or our NVR's) stream as a camera."""
+    live.bridge.entities[ENTITY] = f"rtsp://{USER}:{PASSWORD}@{HOST}:554{path}"
+    r = enable(live)
+    assert r.status_code == 422 and r.json()["code"] == "source_not_allowed", r.text
+    assert_no_secret(r.text, "in the refusal")
+    assert live.go.writes() == [] and all(v == [FOREIGN[k]] for k, v in live.go.store.items() if k in FOREIGN)
+    with live.app.state.db.connection(mode="read") as conn:
+        assert hls.enabled(conn) == {}
+
+
+def test_a_source_whose_path_is_not_a_go2rtc_stream_name_is_written(live):
+    for path in ("/garden", "/h264/ch1/main/av_stream", "/door-10", "/smplwise_ha_other"):  # the last is one of this feature's own: not foreign
+        live.bridge.entities[ENTITY] = f"rtsp://{USER}:{PASSWORD}@{HOST}:554{path}"
+        assert enable(live).status_code == 200, path
+
+
+def test_the_foreign_stream_check_also_holds_for_a_viewers_reread(live):
+    enable(live)
+    hls.mark_stale(ENTITY)
+    live.bridge.entities[ENTITY] = f"rtsp://{USER}:{PASSWORD}@{HOST}:554/door-1"  # the camera now reports a source that names a foreign stream
+    hls.ensure_ready(live.app.state.db, live.s, ENTITY)
+    assert live.go.store[STREAM] == [URL]  # the old stream is kept, the new source was not written
+    refresh = _audit(live.app, "camera_card.ha_live.refresh")
+    assert refresh[-1]["decision"] == "denied" and refresh[-1]["reason"] == "source_not_allowed"
+
+
+def test_names_foreign_stream_on_its_own():
+    names = ["door-1", "smplwise_nvr-1_ch1_sub", "smplwise_ha_garden_cam"]
+    assert hls.names_foreign_stream("rtsp://h/door-1", names) and hls.names_foreign_stream("rtsp://h/SMPLWISE_NVR-1_CH1_SUB", names)
+    assert not hls.names_foreign_stream("rtsp://h/smplwise_ha_garden_cam", names)  # ours, not foreign
+    assert not hls.names_foreign_stream("rtsp://h", names) and not hls.names_foreign_stream("rtsp://h/", names) and not hls.names_foreign_stream("rtsp://h/door", names)
+    assert not hls.names_foreign_stream("rtsp://h/x/door-1", names)  # only the first segment names a stream
+
+
+def test_a_camera_switched_off_while_its_source_is_being_read_is_not_written_back(live):
+    """L1: ensure_ready re-checks the opt-in inside the stream lock, right before the write (like reconcile before a delete)."""
+    enable(live)
+    hls.mark_stale(ENTITY)
+    live.go.store.pop(STREAM)  # go2rtc forgot it: a viewer opens, the source is read again ...
+    real = live.bridge.stream_source
+
+    def read_then_disabled(settings, payload):
+        answer = real(settings, payload)
+        with live.app.state.db.connection() as conn:  # ... and the administrator switches the camera off before the write
+            cams = hls._load(conn)
+            cams.pop(ENTITY)
+            hls._save(conn, cams)
+        return answer
+
+    hls.set_transport(SimpleNamespace(stream_source=read_then_disabled))
+    writes_before = len(live.go.writes())
+    with pytest.raises(ApiError) as e:
+        hls.ensure_ready(live.app.state.db, live.s, ENTITY)
+    assert e.value.code == "not_found" and e.value.status == 404
+    assert STREAM not in live.go.store and len(live.go.writes()) == writes_before  # nothing came back to life
+
+
+def test_a_camera_that_is_still_enabled_is_written_by_a_reread(live):
+    enable(live)
+    hls.mark_stale(ENTITY)
+    live.go.store.pop(STREAM)
+    assert hls.ensure_ready(live.app.state.db, live.s, ENTITY) == STREAM and live.go.store[STREAM] == [URL]

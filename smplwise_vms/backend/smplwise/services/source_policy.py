@@ -1,36 +1,55 @@
 """What a camera's stream source may be before go2rtc is pointed at it (services/ha_camera_streams.py).
 
-A source Home Assistant reports for a camera is device-controlled data (an ONVIF `GetStreamUri` answer, a cloud API's reply): it is
-not the owner's word. go2rtc pulls whatever it is given, and it can be pointed back at itself, so a source must not be able to
-reach go2rtc's own API (`http://127.0.0.1:1984/api/frame.jpeg?src=...&name=<a stream we do not own>` repoints another stream) or its
-RTSP restream (`rtsp://<go2rtc host>:8554/<another project's door station>`).
+A source Home Assistant reports for a camera is device-controlled data (an ONVIF `GetStreamUri` answer, a cloud API's reply): it
+is not the owner's word. go2rtc pulls whatever it is given, and it can be pointed back at itself, so a source must not be able to
+reach go2rtc's own API (`http://127.0.0.1:1984/api/frame.jpeg?src=...&name=<a stream we do not own>` repoints another stream) or
+its RTSP restream (`rtsp://<go2rtc host>:8554/<another project's door station>`).
+
+Only `rtsp://` and `rtsps://` sources are accepted. An http(s) source is `source_not_supported`: go2rtc would fetch it with a GET,
+and an http(s) URL can reach go2rtc's own API or any internal service (indirect SSRF, also through a redirect or a name that
+points at go2rtc), while a camera that has only an HTTP/MJPEG stream stays a still picture. That removes the whole class rather
+than trying to recognise go2rtc's API path in every spelling.
 
 Refused (`source_not_allowed`): `localhost`; loopback / unspecified / link-local / multicast hosts in ANY spelling (`127.1`,
-`0x7f.1`, `2130706433`, `017700000001`, `[::1]`, `[::ffff:127.0.0.1]`, `[::127.0.0.1]`, a zone id); a host that looks numeric but is
-not a valid address; a query with a `src` or `name` key (any case, any percent-encoding, `&` or `;` separated); an http(s) source on
-port 1984 whose path is go2rtc's API; and go2rtc's own host on go2rtc's ports (1984 / 8554 / 8555 and the port of its configured
-URL). Private LAN addresses stay allowed: cameras live there. Anything that is not a plain streaming URL is `source_not_supported`.
+`0x7f.1`, `2130706433`, `017700000001`, `[::1]`, `[::ffff:127.0.0.1]`, `[::127.0.0.1]`, a zone id); a host that looks numeric but
+is not a valid address; a query with a `src` or `name` key (any case, any percent-encoding, `&` or `;` separated); go2rtc's own
+host on go2rtc's ports (1984 / 8554 / 8555 and the port of its configured URL) - this is the answer to `rtsp://<go2rtc>:8554/
+<any stream>`: the restream is refused by host and port whatever the path, so no stream name needs to be known; and a host NAME
+that resolves (`resolve_host`, short timeout, off the caller's thread) to any such address - `127.0.0.1.nip.io`-style names - or
+to go2rtc's own host on go2rtc's ports. services/ha_camera_streams.py adds the last layer where go2rtc's stream list is at hand: an
+rtsp source whose first path segment is the name of a go2rtc stream outside `smplwise_ha_` is refused too (an alias of go2rtc that
+neither the address nor the name check knows). Private LAN addresses stay allowed: cameras live there. Anything that is not a
+plain streaming URL is `source_not_supported`.
+
+Residual risk, stated plainly: the name is resolved HERE, go2rtc resolves it again later. A DNS answer that changes between the two
+(DNS rebinding) is not caught, and a name that does not resolve here (mDNS `cam.local`, the add-on's resolver differs from go2rtc's)
+is allowed, because its answer is unknown rather than bad. The real boundary against an internal target is the camera's own
+network segmentation; this policy makes the obvious routes fail.
 
 This is the same policy as the bridge's (`custom_components/smplwise_bridge/stream_source_service.py`, which does not know where
-go2rtc runs); a test runs one corpus through both and fails when they disagree."""
+go2rtc runs and resolves names with the event loop's own resolver); a test runs one corpus through both and fails when they
+disagree."""
 from __future__ import annotations
 
 import ipaddress
-import posixpath
 import re
 import socket
 import time
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 from typing import Any, Iterable
-from urllib.parse import parse_qsl, unquote, urlsplit
+from urllib.parse import parse_qsl, urlsplit
 
-ALLOWED_SCHEMES = ("rtsp://", "rtsps://", "http://", "https://")
+ALLOWED_SCHEMES = ("rtsp://", "rtsps://")
 MAX_SOURCE_LEN = 2048
+RESOLVE_TIMEOUT_S = 2.0  # a name that is not answered in this time counts as unresolved
 GO2RTC_PORTS = frozenset({1984, 8554, 8555})  # go2rtc's API / RTSP restream / WebRTC: never a camera's
 FORBIDDEN_QUERY_KEYS = frozenset({"src", "name"})  # go2rtc's own API takes its source and stream name from these
 _BAD_CHARS_RE = re.compile(r"[\s\x00-\x1f\x7f#]")
 _NUMERIC_HOST_RE = re.compile(r"^[0-9xX.]+$")
 _IPV4_PART_RE = re.compile(r"^(0[xX][0-9a-fA-F]+|[0-9]+)$")
-_DEFAULT_PORTS = {"rtsp": 554, "rtsps": 322, "http": 80, "https": 443}
+_DEFAULT_PORTS = {"rtsp": 554, "rtsps": 322}
+_DNS_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="source-dns")
 
 
 def _ipv4_literal(host: str) -> ipaddress.IPv4Address | None:
@@ -71,28 +90,37 @@ def address_of(host: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | Non
     return ip
 
 
+def address_refused(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """An address go2rtc must never be pointed at (loopback, unspecified, link-local, multicast, 0.0.0.0/8). Private LAN addresses
+    are fine: cameras live there."""
+    return ip.is_loopback or ip.is_unspecified or ip.is_link_local or ip.is_multicast or (ip.version == 4 and int(ip) >> 24 == 0)
+
+
 def host_refused(host: str) -> bool:
-    """A source host go2rtc must never be pointed at: `localhost`, a loopback / unspecified / link-local / multicast address (any
-    spelling), 0.0.0.0/8, or something that looks like a numeric address but is not a valid one. Private LAN addresses are fine:
-    cameras live there."""
+    """A source host go2rtc must never be pointed at: `localhost`, a refused address (any spelling), or something that looks like
+    a numeric address but is not a valid one. A name is judged by what it resolves to in `source_refusal`, not here."""
     h = host.lower().rstrip(".")
     if h == "localhost" or h.endswith(".localhost"):
         return True
     ip = address_of(h)
     if ip is None:
         return bool(_NUMERIC_HOST_RE.match(h))  # `1.2.3.4.5`, `0x`, `08.1`: not a name, not an address - refused, not guessed at
-    return ip.is_loopback or ip.is_unspecified or ip.is_link_local or ip.is_multicast or (ip.version == 4 and int(ip) >> 24 == 0)
+    return address_refused(ip)
 
 
-def _api_path(path: str) -> bool:
-    p = unquote(unquote(path)).lower()
-    p = posixpath.normpath("/" + p.lstrip("/"))
-    return p == "/api" or p.startswith("/api/")
+def resolve_host(host: str, timeout: float = RESOLVE_TIMEOUT_S) -> list[str]:
+    """The addresses a host NAME resolves to (text, as the resolver answers), or [] when it does not resolve, the resolver fails or
+    does not answer within `timeout` (the lookup runs on a worker thread and is abandoned, not waited for). Never raises."""
+    try:
+        future = _DNS_POOL.submit(socket.getaddrinfo, host, None, 0, socket.SOCK_STREAM)
+        return [str(info[4][0]) for info in future.result(timeout=timeout)]
+    except (OSError, UnicodeError, FutureTimeout, RuntimeError):
+        return []
 
 
 def source_refusal(value: Any, extra_hosts: Iterable[tuple[frozenset[str], frozenset[int]]] = ()) -> str | None:
     """None when `value` may be handed to go2rtc, else the refusal code (`no_stream_source`, `source_not_supported`,
-    `source_not_allowed`). Never includes the value. `extra_hosts`: (hosts, ports) pairs that are go2rtc itself (`hosts`: normalized
+    `source_not_allowed`). Never includes the value. A host name is resolved (`resolve_host`; blocking for at most RESOLVE_TIMEOUT_S: call from a thread, never from an event loop). `extra_hosts`: (hosts, ports) pairs that are go2rtc itself (`hosts`: normalized
     addresses and lower-case names, see `go2rtc_targets`) - that host on those ports is refused."""
     if not isinstance(value, str) or not value:
         return "no_stream_source"
@@ -114,13 +142,19 @@ def source_refusal(value: Any, extra_hosts: Iterable[tuple[frozenset[str], froze
     query_keys = {k.lower() for k, _ in parse_qsl(parts.query.replace(";", "&"), keep_blank_values=True)}
     if query_keys & FORBIDDEN_QUERY_KEYS:
         return "source_not_allowed"
-    if scheme in ("http", "https") and port == 1984 and _api_path(parts.path):
-        return "source_not_allowed"
     ip = address_of(host)
     normalized = str(ip) if ip is not None else host.lower().rstrip(".")
-    for hosts, ports in extra_hosts:
+    targets = list(extra_hosts)
+    for hosts, ports in targets:
         if normalized in hosts and port in ports:
             return "source_not_allowed"
+    if ip is None:  # a name: every address it resolves to is judged like a literal (a nip.io-style name cannot hide 127.0.0.1)
+        for answer in resolve_host(normalized):
+            found = address_of(answer)
+            if found is None:
+                continue
+            if address_refused(found) or any(str(found) in hosts and port in ports for hosts, ports in targets):
+                return "source_not_allowed"
     return None
 
 
