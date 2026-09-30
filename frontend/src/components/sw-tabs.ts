@@ -37,6 +37,8 @@ export class SwTabs extends LitElement {
       scrollbar-width: none;
       max-inline-size: 100%;
       box-sizing: border-box;
+      /* the hit height: the host's --sw-tab-min-h, else 44 px on a phone (coarse pointer, below), else none */
+      --_h: var(--sw-tab-min-h, 0px);
     }
     :host::-webkit-scrollbar {
       display: none;
@@ -105,9 +107,12 @@ export class SwTabs extends LitElement {
     }
     /* touch targets (mobile audit 2026-09-30): page-level tab strips were 29-37 px high on a phone; a host may still ask for more */
     @media (max-width: 767px) and (pointer: coarse) {
+      :host {
+        --_h: var(--sw-tab-min-h, 44px);
+      }
       a,
       button {
-        min-block-size: var(--sw-tab-min-h, 44px);
+        min-block-size: var(--_h);
       }
     }
     .on {
@@ -129,13 +134,13 @@ export class SwTabs extends LitElement {
       content: '';
       position: absolute;
       inset-inline: 0;
-      inset-block: max(0px, calc((var(--sw-tab-min-h, 0px) - 34px) / 2));
+      inset-block: max(0px, calc((var(--_h) - 34px) / 2));
       background: var(--sw-surface-3);
       border-radius: 12px;
     }
     :host([data-variant='pill']) a,
     :host([data-variant='pill']) button {
-      min-block-size: max(34px, var(--sw-tab-min-h, 0px));
+      min-block-size: max(34px, var(--_h));
       padding-inline: 1px;
     }
     :host([data-variant='pill']) .lbl {
@@ -165,7 +170,7 @@ export class SwTabs extends LitElement {
     :host([data-variant='underline']) a,
     :host([data-variant='underline']) button {
       padding: 8px 12px;
-      min-block-size: var(--sw-tab-min-h, auto);
+      min-block-size: var(--_h);
       border-block-end: 2px solid transparent;
       margin-block-end: -1px;
       box-sizing: border-box;
@@ -180,7 +185,7 @@ export class SwTabs extends LitElement {
     :host([data-variant='underline-compact']) {
       position: relative;
       z-index: 1;
-      margin-block-end: calc(32px - max(32px, var(--sw-tab-min-h, 32px)));
+      margin-block-end: calc(32px - max(32px, var(--_h)));
     }
     :host([data-variant='underline-compact']) .row {
       flex: 1 0 auto;
@@ -198,7 +203,7 @@ export class SwTabs extends LitElement {
     :host([data-variant='underline-compact']) button {
       align-items: flex-start;
       padding: 0 10px;
-      min-block-size: max(32px, var(--sw-tab-min-h, 0px));
+      min-block-size: max(32px, var(--_h));
       box-sizing: border-box;
     }
     :host([data-variant='underline-compact']) .lbl {

@@ -668,8 +668,9 @@ export class SwApp extends LitElement {
         margin: 8px 12px 0;
       }
     }
-    /* a phone held sideways (>= 768 px) has the floating search / status corner over the far end of this first row (mobile audit 2026-09-30) */
-    @media (min-width: 768px) and (max-height: 600px) {
+    /* from 768 px up the floating search / status corner sits over the far end of this first row (a phone held sideways; and at
+       desktop widths the hint's dismiss button, release stage 0.1.148): the row leaves room for it at every height */
+    @media (min-width: 768px) {
       .setuphint {
         padding-inline-end: 86px;
       }
