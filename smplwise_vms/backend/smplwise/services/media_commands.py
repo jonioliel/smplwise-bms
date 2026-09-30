@@ -349,7 +349,7 @@ def run(conn: sqlite3.Connection, settings: Settings, principal: Principal, requ
     # 2. idempotent: the same request id of the same caller never sends twice
     again = _stored(conn, principal, crid)
     if again is not None:
-        return 202, again
+        return (200 if again["status"] == "refused" else 202), again
     # 3. permission at the device's anchor, then the public-screen rule
     perm = store.PERM_POWER if name in POWER_COMMANDS else store.PERM_CONTROL
     if not access.has(perm, anchor):
@@ -420,7 +420,7 @@ def run(conn: sqlite3.Connection, settings: Settings, principal: Principal, requ
     except sqlite3.IntegrityError:
         again = _stored(conn, principal, crid)
         if again is not None:
-            return 202, again
+            return (200 if again["status"] == "refused" else 202), again
         raise
     if aid is not None:
         conn.execute(

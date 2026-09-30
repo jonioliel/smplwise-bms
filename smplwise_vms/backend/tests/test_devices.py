@@ -1195,6 +1195,7 @@ def test_media_player_standby_confirms_turn_off(bulk_app):
     """Review round 1 (MEDIUM): a TV turned off often reports standby; that confirms turn_off (single and bulk), as the
     devices area already reads standby as off."""
     app, s, c, fake = bulk_app
+    assert c.post("/api/v1/multimedia/admin/approve", json={"approved": False}).status_code == 200  # CR-015: a managed screen is not operated through this route
     fake.stuck = {"media_player.lobby_tv"}
     r = c.post("/api/v1/ha/entities/media_player.lobby_tv/actions", json={"allowed_action_id": "media_player.turn_off", "arguments": {}, "client_request_id": "tv-off-1", "expires_at": "2099-01-01T00:00:00Z"})
     assert r.status_code == 202

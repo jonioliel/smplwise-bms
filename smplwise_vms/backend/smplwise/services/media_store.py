@@ -368,7 +368,12 @@ def load_catalog(conn: sqlite3.Connection, *, approved_only: bool = True, kind: 
         for r in conn.execute(f"SELECT * FROM ha_entities WHERE entity_id IN ({','.join('?' * len(chunk))})", chunk).fetchall():
             ents[r["entity_id"]] = _entity(r)
     cat.ents = ents
-    hdev = {r["device_id"]: dict(r) for r in conn.execute("SELECT device_id, name, name_by_user FROM ha_devices WHERE removed_at IS NULL").fetchall()}
+    device_ids = sorted({e["device_id"] for e in ents.values() if e.get("device_id")})
+    hdev: dict[str, dict[str, Any]] = {}
+    for i in range(0, len(device_ids), 400):
+        chunk = device_ids[i:i + 400]
+        for r in conn.execute(f"SELECT device_id, name, name_by_user FROM ha_devices WHERE removed_at IS NULL AND device_id IN ({','.join('?' * len(chunk))})", chunk).fetchall():
+            hdev[r["device_id"]] = dict(r)
     for row in rows:
         key = row["device_key"]
         endpoints = [mm.Endpoint(e["endpoint_id"], e["ref"], e["ref"].split(".", 1)[0], e["platform"], (ents.get(e["ref"]) or {}).get("device_id"), e["role"], e["rule"], e["link_source"], bool(e["hidden"]))
