@@ -17,6 +17,12 @@ span (1 | 2 of the card's two tile columns), size (s | m | l), hidden, title}}. 
 the card's `hidden_entities` are one set: the server merges them both ways on every write, so an older screen that
 reads only `hidden_entities` still hides the same devices. A card without `tiles` keeps the automatic tile order.
 
+Camera cards (owner 2026-09-30): an area screen may also lay out cameras - an item keyed `camera:<slug>` (slug
+`[A-Za-z0-9_-]{1,32}`) carrying `camera` = {kind: 'nvr', recorder_id, channel} or {kind: 'ha', entity_id: 'camera.*'}.
+It needs a `v: 2` layout, sits on the same grid as the domain cards, and has no tiles / hidden entities; the source names
+a camera, nothing more - who may watch it is decided when the card resolves and when the stream opens
+(routers/device_cameras.py, routers/media.py), never by the layout. At most MAX_CAMERA_CARDS per area.
+
 Routes: `GET /devices/layouts/{scope}/{id}` (devices.read anywhere), `PUT` (one variant, optimistic `revision`, 409
 when stale), `DELETE` (reset: one variant or both), `POST /devices/layouts/area/{id}/copy-to-all-areas`. Every write
 checks `system.configure` BEFORE the body is read (the permission-first, JSON-only envelope of routers/devices.py) and
@@ -27,7 +33,7 @@ import json
 import logging
 import re
 import sqlite3
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
@@ -37,6 +43,7 @@ from ..auth import current_principal_ro, get_conn, get_read_conn
 from ..db import now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize
+from ..services import camera_cards
 from ..services import devices as svc
 from ..services import ha_scope
 from .devices import READ, _configure_holder, _is_json, _raw_body
@@ -78,6 +85,8 @@ TileSize = Literal["s", "m", "l"]
 # frontend/src/screens/devices-layout.ts (tests/test_device_layouts.py compares the two).
 TILE_COLS = {"lighting": 2, "switches": 2, "climate": 2, "covers": 2, "security": 2, "media": 2, "sensors": 2}
 MAX_TILES = 200
+MAX_CAMERA_CARDS = 12  # per area screen: more than a screen can stream anyway (media.max_live_sessions)
+CAMERA_KEY_RE = re.compile(r"^camera:[A-Za-z0-9_-]{1,32}$")
 MAX_TILE_ORDER = 999
 LAYOUT_VERSION = 2  # the schema version this server writes tiles with; 1 = the 6b layout (no tiles)
 
@@ -108,6 +117,25 @@ class TileLayout(BaseModel):
         return _clean_title(v)
 
 
+class NvrSource(BaseModel):
+    """A camera card's source: one channel of the NVR catalogue."""
+    model_config = ConfigDict(extra="forbid", strict=True)
+    kind: Literal["nvr"]
+    recorder_id: str = Field(pattern=camera_cards.RECORDER_ID_RE.pattern)
+    channel: int = Field(ge=1, le=256)
+
+
+class HaSource(BaseModel):
+    """A camera card's source: a Home Assistant camera entity (an NVR channel of the Hikvision integration streams as that
+    channel, any other camera shows a still picture)."""
+    model_config = ConfigDict(extra="forbid", strict=True)
+    kind: Literal["ha"]
+    entity_id: str = Field(pattern=camera_cards.HA_CAMERA_RE.pattern)
+
+
+CameraSource = Annotated[NvrSource | HaSource, Field(discriminator="kind")]
+
+
 class LayoutItem(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)  # no "yes" for true, no "3" for 3
     x: int = Field(ge=0, le=11)
@@ -124,6 +152,8 @@ class LayoutItem(BaseModel):
     hidden_entities: list[str] = Field(default_factory=list, max_length=MAX_HIDDEN_ENTITIES)
     # slice 6c: the card's own device-tile arrangement (area cards only; empty = the automatic order)
     tiles: dict[str, TileLayout] = Field(default_factory=dict, max_length=MAX_TILES)
+    # owner 2026-09-30: a camera card's source (`camera:<slug>` keys of the area screen only; None on every other item)
+    camera: CameraSource | None = None
 
     @field_validator("title")
     @classmethod
@@ -178,6 +208,8 @@ def _dump(layout: Layout) -> str:
     for it in data["items"].values():
         if not it.get("tiles"):
             it.pop("tiles", None)
+        if it.get("camera") is None:
+            it.pop("camera", None)
     return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
 
 
@@ -240,17 +272,38 @@ def _validate_semantics(scope: str, variant: str, layout: Layout) -> list[str]:
     cols = COLUMNS[variant]
     if layout.cols != cols:
         errors.append(f"layout.cols must be {cols} for the {variant} layout")
+    if sum(1 for k in layout.items if CAMERA_KEY_RE.fullmatch(k)) > MAX_CAMERA_CARDS:
+        errors.append(f"layout.items: at most {MAX_CAMERA_CARDS} camera cards per area")
     for key, it in layout.items.items():
         if scope == "building" and not BUILDING_KEY_RE.fullmatch(key):
             errors.append(f"layout.items.{key[:40]}: the building screen lays out floor:<id> and area:<id> only")
-        if scope == "area" and key not in {f"card:{c}" for c in svc.CARD_IDS}:
-            errors.append(f"layout.items.{key[:40]}: the area screen lays out its cards (card:<id>) only")
+        if scope == "area" and key not in {f"card:{c}" for c in svc.CARD_IDS} and not CAMERA_KEY_RE.fullmatch(key):
+            errors.append(f"layout.items.{key[:40]}: the area screen lays out its cards (card:<id>) and camera cards (camera:<id>) only")
+        errors.extend(_camera_errors(scope, key, it, layout.v))
         if it.x + it.w > cols:
             errors.append(f"layout.items.{key[:40]}: x + w exceeds the {cols} columns")
         if it.hidden_entities and scope != "area":
             errors.append(f"layout.items.{key[:40]}: hidden_entities belong to the area screen's cards")
         if it.tiles:
             errors.extend(_tile_errors(scope, key, it, layout.v))
+    return errors
+
+
+def _camera_errors(scope: str, key: str, it: LayoutItem, version: int) -> list[str]:
+    """A `camera:<slug>` item is an area screen's camera card of a v2 layout with a source and nothing a domain card has;
+    no other item carries a source."""
+    where = f"layout.items.{key[:40]}"
+    if not CAMERA_KEY_RE.fullmatch(key):
+        return [f"{where}.camera: only a camera:<id> card has a camera source"] if it.camera is not None else []
+    if scope != "area":
+        return [f"{where}: camera cards belong to the area screen"]
+    errors: list[str] = []
+    if it.camera is None:
+        errors.append(f"{where}.camera: a camera card needs its source")
+    if version < LAYOUT_VERSION:
+        errors.append(f"{where}: camera cards need layout v {LAYOUT_VERSION}")
+    if it.tiles or it.hidden_entities:
+        errors.append(f"{where}: a camera card has no device tiles")
     return errors
 
 
