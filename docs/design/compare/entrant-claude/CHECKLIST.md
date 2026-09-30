@@ -1,22 +1,23 @@
-# CHECKLIST — self-assessment against COMPARISON_TASK_HE.md §5 (entrant-claude)
+# CHECKLIST — self-assessment against COMPARISON_TASK_HE.md §5 (entrant-claude, three skins)
 
-Scores 1–5, one line of reasoning each. Honest: where the boards fall short, it is written here.
+Scores 1–5, one line of reasoning each. Honest: where a skin falls short, it is written here. R1 reads "fidelity to
+the skin's own direction" for skins 2 and 3.
 
-| # | Criterion | Self | Reasoning |
-|---|---|---|---|
-| R1 | Direction fidelity ("hi-tech Domus") | 4 | Canvas with warm/cool blooms, three glass levels with a nesting rule, 40 px titles, iOS controls, warm/cool/green glows — one system in every board. Not 5: the canvas is a gradient only; a wallpaper option (ocean/forest) was not designed. |
-| R2 | Consistency across the 3 screens | 5 | The same rail, corner, tabs, segmented, card, tile, badge and dot appear in all three; KPI tile and camera tile share radius, name typography and status dot; only the material differs (by rule). |
-| R3 | RTL | 4 | All CSS logical; numbers/IDs isolated LTR; chevrons mirror; LTR mirror shown for rail, bottom bar, tabs, segmented, toggle. Not 5: LTR mirrors of the full home/area boards are not rendered (only component-level). |
-| R4 | Dark + contrast | 5 | Dark designed on its own (blue-black base, softer blooms, highlight .10, deeper shadows); 34 computed pairs printed on the colour board, all ≥ 4.5:1 (text) / ≥ 3:1 (icons), composited over the real canvas; solid fallback per level. |
-| R5 | Phone + touch targets | 4 | 390 boards for all three screens, bottom bar, 44 px targets, widgets as a snap row, one-column area, 2-column wall. Not 5: the widget row hides the quick actions behind a scroll; the count segmented on the phone scrolls. |
-| R6 | State coverage | 4 | Area board: loading · empty · error · unavailable (domain + device) · read-only; camera tile ×7 states; component states as listed. Not 5: no "connecting/stale" tile inside the 16-wall itself (they are on the sheet), no pending/optimistic device tile in the area board (on the sheet). |
-| R7 | Implementability vs token contract | 5 | Every `--sw-*` and `--dv-*` colour has a light+dark value or a mapping row; motion/easing/focus specified; no component uses a value outside the tokens (checked by construction: all CSS reads `var(--sw-*)`). |
-| R8 | Restraint and clarity | 4 | No paragraphs on operator screens; row = thing + state + control; confirmation = question + count + one caveat + 2 buttons + collapsed details; no platform names. Not 5: the home is dense at 1440×900 (fits exactly); the state panels carry a one-line hint each. |
-| R9 | Originality within constraints | 4 | Own answers: floating glass rail, cheap opaque video tiles that stay in the family, `-text` state companions, shape-coded tile states, bulk-off as a widget + per-domain ghost. Not 5: the page anatomy follows the approved mockups closely, by brief. |
-| R10 | Export completeness | 5 | `tokens.json` (light+dark, no nulls), `tokens-light.css`, `tokens-dark.css` (+ auto), `tokens.css`, `TOKEN_MAP.md`, `RATIONALE_HE.md`, this checklist; boards open from disk; contrast check runs automatically in the colour board. |
+| # | Criterion | Domus | iOS | Tesla | Reasoning |
+|---|---|---|---|---|---|
+| R1 | Direction fidelity | 4 | 4 | 4 | Domus: blooms, three glass levels, floating rail, 44px titles, warm/cool/green glows; the structure now departs from today's grid (room screen, building view). iOS: grouped inset lists with hairlines, opaque cards on `#f2f2f7` / true black, 34px title, segmented + 51×31 switch, filled icon squares, spring motion. Tesla: black canvas, 1px rules, no shadow/blur, one cold accent, 48px/500 titles, 72px numerals, inverted segmented. Not 5 anywhere: Domus canvas is gradient-only (no wallpaper); iOS keeps Heebo (no SF-like face) and its dark home is a grey-card layout that needs the orange fills to be read as iOS in one second; Tesla's phone boards are less "in-car" than the desktop. |
+| R2 | Consistency across screens | 5 | 5 | 5 | One structure file for all skins: the same rail, corner, view switch, floor button, section header, tile, row, badge and dot in every screen and mode; a skin cannot change one screen without changing all. |
+| R3 | RTL | 4 | 4 | 4 | All CSS logical; numbers/IDs isolated LTR; chevrons mirror; the "on" edge rule (Tesla) and the active rail bar sit at the start edge; LTR mirror shown for rail, bottom bar, tabs, segmented, toggle. Not 5: LTR mirrors of full boards are not rendered. |
+| R4 | Dark + contrast | 5 | 5 | 5 | Dark designed per skin (blue-black + softer blooms / true black + elevated greys / pure black + light grey); 72 · 68 · 68 computed pairs per skin, all ≥ 4.5:1 (text) / ≥ 3:1 (indicators, toggle track, accent, focus), composited over the real canvas; solid fallback per level (already opaque in skins 2–3). |
+| R5 | Phone + touch targets | 4 | 4 | 4 | 390 boards for all 6 screen×mode combinations; bottom bar; 44px targets (list-row controls, room power, floor button); widgets as a snap row; one-column area; two-column wall; list rows collapse to name+state / control. Not 5: the view switch drops its icons on the phone; long list boards scroll (by design). |
+| R6 | State coverage | 4 | 4 | 4 | Area states board (loading · empty · error · unavailable domain + device · read-only) in the new structure; camera tile ×7; list rows: on / off / unavailable / offline camera; component sheet states. Not 5: no pending row in the list boards (tile only), no stale tile inside the 16-wall itself. |
+| R7 | Implementability vs token contract | 5 | 5 | 5 | Same 203 names in every skin, full light+dark values, one TOKEN_MAP; base CSS has no literal colour/radius/shadow/blur; skin rules are counted (16 / 40 / 46) and bounded to material, "on" shape, rail and controls; `derive()` refuses unknown names. |
+| R8 | Restraint and clarity | 4 | 4 | 5 | No paragraphs on operator screens; row = thing + state + control; empty domains are one quiet chip line; confirmation unchanged. Domus/iOS not 5: the home carries widgets + facts + room cards and fits 900px only with ~20px to spare. Tesla's whitespace makes the same content read calmer. |
+| R9 | Originality within constraints | 4 | 3 | 4 | Own answers: skin layer with counted rules, room cards with ambient chips, three list modes, `-text` state companions, one-accent "on" for Tesla. iOS is by nature the least original (it is meant to feel like the platform); Domus/Tesla add their own moves (floating glass rail; inverted segmented, monochrome toggle). |
+| R10 | Export completeness | 5 | 5 | 5 | JSON + CSS per skin (+ light/dark split for Domus), one TOKEN_MAP, RATIONALE, SKINS, this checklist; boards open from disk; contrast check per skin ends with a count below target (0 / 0 / 0). |
 
-**Total (self): 44 / 50**
+**Totals (self): Domus 44 / 50 · iOS 43 / 50 · Tesla 45 / 50**
 
-Constraint check (§3): 1 RTL ✓ · 2 rail, no top bar ✓ · 3 44 px ✓ · 4 no paragraphs/badges ✓ · 5 no platform names ✓ (the phrase "תשתית המערכת" appears once, in an error state) · 6 permission-driven visibility ✓ (read-only board) · 7 WisKey area present in the rail, frame untouched ✓ · 8 cheap wall ✓ (no blur/shadow/animation on tiles) · 9 light+dark, contrast, fallback, reduced-motion ✓ · 10 geometry not mirrored, no copied code ✓.
+Constraint check (§3), all skins: 1 RTL ✓ · 2 rail, no top bar ✓ · 3 44px ✓ · 4 no paragraphs/badges ✓ · 5 no platform names ✓ ("תשתית המערכת" once, in an error state) · 6 permission-driven visibility ✓ (read-only board) · 7 WisKey in the rail, frame untouched ✓ · 8 cheap wall ✓ · 9 light+dark, contrast, fallback, reduced-motion ✓ · 10 geometry not mirrored, no copied code ✓ (DomusUI: structure ideas only).
 
-Not done: nothing from §1. Known gaps are listed under "מה פתוח" in `RATIONALE_HE.md`.
+Not done: nothing from §1 or from the round-1a feedback. Known gaps are under "מה פתוח" in `RATIONALE_HE.md`.

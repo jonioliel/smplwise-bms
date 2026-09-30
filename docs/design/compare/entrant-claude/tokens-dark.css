@@ -1,4 +1,4 @@
-/* Arx · hi-tech Domus · dark scheme (+ auto). Generated from src/tokens.mjs */
+/* Arx · skin "hi-tech Domus" · dark scheme (+ auto). Generated from skins/domus.mjs */
 [data-scheme="dark"] {
   color-scheme: dark;
   --sw-bg: #0c1018;
@@ -17,7 +17,7 @@
   --sw-text: #eef2f8;
   --sw-heading: #ffffff;
   --sw-text-2: #aab5c9;
-  --sw-text-3: #8391a8;
+  --sw-text-3: #8998af;
   --sw-text-inverse: #0c1018;
   --sw-accent: #6ea2ff;
   --sw-accent-hover: #8ab5ff;
@@ -124,11 +124,11 @@
   --sw-fs-xl: 17px;
   --sw-fs-2xl: 21px;
   --sw-fs-3xl: 26px;
-  --sw-h1: 40px;
-  --sw-h1-phone: 30px;
+  --sw-h1: 44px;
+  --sw-h1-phone: 32px;
   --sw-h1-weight: 700;
-  --sw-h1-tracking: -0.8px;
-  --sw-h1-lh: 1.1;
+  --sw-h1-tracking: -1px;
+  --sw-h1-lh: 1.05;
   --sw-h2: 24px;
   --sw-h2-tracking: -0.3px;
   --sw-fs-section: 16px;
@@ -224,7 +224,7 @@
     --sw-text: #eef2f8;
     --sw-heading: #ffffff;
     --sw-text-2: #aab5c9;
-    --sw-text-3: #8391a8;
+    --sw-text-3: #8998af;
     --sw-text-inverse: #0c1018;
     --sw-accent: #6ea2ff;
     --sw-accent-hover: #8ab5ff;
@@ -331,11 +331,11 @@
     --sw-fs-xl: 17px;
     --sw-fs-2xl: 21px;
     --sw-fs-3xl: 26px;
-    --sw-h1: 40px;
-    --sw-h1-phone: 30px;
+    --sw-h1: 44px;
+    --sw-h1-phone: 32px;
     --sw-h1-weight: 700;
-    --sw-h1-tracking: -0.8px;
-    --sw-h1-lh: 1.1;
+    --sw-h1-tracking: -1px;
+    --sw-h1-lh: 1.05;
     --sw-h2: 24px;
     --sw-h2-tracking: -0.3px;
     --sw-fs-section: 16px;

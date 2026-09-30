@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="he" dir="rtl" data-scheme="dark">
+<html lang="he" dir="rtl" data-scheme="dark" data-skin="domus">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -13,7 +13,6 @@
 @font-face{font-family:"Heebo";font-style:normal;font-weight:600;font-display:swap;src:url("fonts/heebo-latin-600.woff2") format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 @font-face{font-family:"Heebo";font-style:normal;font-weight:700;font-display:swap;src:url("fonts/heebo-hebrew-700.woff2") format("woff2");unicode-range:U+0307-0308,U+0590-05FF,U+200C-2010,U+20AA,U+25CC,U+FB1D-FB4F}
 @font-face{font-family:"Heebo";font-style:normal;font-weight:700;font-display:swap;src:url("fonts/heebo-latin-700.woff2") format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
-
 :root, [data-scheme="light"], .scheme-light { color-scheme: light;
   --sw-bg: #eef1f7;
   --sw-canvas: radial-gradient(900px 560px at 92% -6%, rgba(255,176,80,.30), transparent 62%), radial-gradient(1100px 700px at 4% 104%, rgba(80,140,255,.26), transparent 64%), linear-gradient(180deg, #f1f3f8 0%, #eaeef6 100%);
@@ -31,7 +30,7 @@
   --sw-text: #172033;
   --sw-heading: #0f1727;
   --sw-text-2: #46536b;
-  --sw-text-3: #5f6c82;
+  --sw-text-3: #59667c;
   --sw-text-inverse: #ffffff;
   --sw-accent: #2a63f0;
   --sw-accent-hover: #1f52d6;
@@ -138,11 +137,11 @@
   --sw-fs-xl: 17px;
   --sw-fs-2xl: 21px;
   --sw-fs-3xl: 26px;
-  --sw-h1: 40px;
-  --sw-h1-phone: 30px;
+  --sw-h1: 44px;
+  --sw-h1-phone: 32px;
   --sw-h1-weight: 700;
-  --sw-h1-tracking: -0.8px;
-  --sw-h1-lh: 1.1;
+  --sw-h1-tracking: -1px;
+  --sw-h1-lh: 1.05;
   --sw-h2: 24px;
   --sw-h2-tracking: -0.3px;
   --sw-fs-section: 16px;
@@ -236,7 +235,7 @@
   --sw-text: #eef2f8;
   --sw-heading: #ffffff;
   --sw-text-2: #aab5c9;
-  --sw-text-3: #8391a8;
+  --sw-text-3: #8998af;
   --sw-text-inverse: #0c1018;
   --sw-accent: #6ea2ff;
   --sw-accent-hover: #8ab5ff;
@@ -343,11 +342,11 @@
   --sw-fs-xl: 17px;
   --sw-fs-2xl: 21px;
   --sw-fs-3xl: 26px;
-  --sw-h1: 40px;
-  --sw-h1-phone: 30px;
+  --sw-h1: 44px;
+  --sw-h1-phone: 32px;
   --sw-h1-weight: 700;
-  --sw-h1-tracking: -0.8px;
-  --sw-h1-lh: 1.1;
+  --sw-h1-tracking: -1px;
+  --sw-h1-lh: 1.05;
   --sw-h2: 24px;
   --sw-h2-tracking: -0.3px;
   --sw-fs-section: 16px;
@@ -439,10 +438,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .muted{color:var(--sw-text-2)} .faint{color:var(--sw-text-3)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 
-/* ---------- glass material ---------- */
-.glass{position:relative;background:var(--sw-surface);border:1px solid var(--sw-border);border-radius:var(--sw-r-lg);box-shadow:var(--sw-shadow-1);-webkit-backdrop-filter:var(--sw-glass-blur);backdrop-filter:var(--sw-glass-blur)}
-.glass::before{content:"";position:absolute;inset:0 12px auto 12px;height:1px;background:var(--sw-highlight);border-radius:1px;pointer-events:none}
-.glass .glass,.glass .glass-2{-webkit-backdrop-filter:var(--sw-glass-nested);backdrop-filter:var(--sw-glass-nested)}
+/* ---------- surfaces: L1 panel, L2 nested, L3 inset (material per skin) ---------- */
+.glass{position:relative;background:var(--sw-surface);border:1px solid var(--sw-border);border-radius:var(--sw-r-lg);box-shadow:var(--sw-shadow-1)}
 .glass-2{background:var(--sw-surface-2);border:1px solid var(--sw-border);border-radius:var(--sw-r-md)}
 .inset{background:var(--sw-surface-3);border-radius:var(--sw-r-sm)}
 .solid .glass,.solid.glass{background:var(--sw-surface-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
@@ -459,16 +456,15 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .focus,:focus-visible{outline:var(--sw-focus-w) solid var(--sw-focus);outline-offset:var(--sw-focus-offset)}
 .focus-video{outline:0;box-shadow:0 0 0 2px var(--sw-text-inverse),0 0 0 4px var(--sw-focus)}
 
-/* ---------- shell: rail ---------- */
+/* ---------- shell: rail (a flush column by default; skins float it or rule it) ---------- */
 .app{display:grid;grid-template-columns:var(--sw-rail-w) 1fr;min-height:100vh}
-.rail{position:sticky;top:0;height:100vh;padding:var(--sw-rail-gap) 0 var(--sw-rail-gap) 0;padding-inline-start:var(--sw-rail-gap)}
-.rail-in{height:100%;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 6px;border-radius:var(--sw-r-lg);-webkit-backdrop-filter:var(--sw-glass-blur-nav);backdrop-filter:var(--sw-glass-blur-nav)}
-.brand{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;margin-bottom:10px;color:#fff;font-weight:800;font-size:20px;letter-spacing:-.5px;background:linear-gradient(145deg,var(--sw-accent),var(--sw-accent-hover));box-shadow:0 8px 18px rgba(42,99,240,.28),inset 0 1px 0 rgba(255,255,255,.35)}
+.rail{position:sticky;top:0;height:100vh;padding:0}
+.rail-in{height:100%;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 6px;border-radius:0;border-inline-end:1px solid var(--sw-border)}
+.brand{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;margin-bottom:10px;color:#fff;font-weight:800;font-size:20px;letter-spacing:-.5px;background:var(--sw-accent)}
 .rail-item{position:relative;width:100%;min-height:var(--nav-item-h,64px);padding:8px 4px 6px;border-radius:var(--sw-r-md);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--sw-text-2);font-size:var(--nav-label,12px);font-weight:var(--sw-fw-medium);line-height:1;transition:background var(--sw-t-fast) var(--sw-ease),color var(--sw-t-fast) var(--sw-ease)}
 .rail-item .ic{width:var(--nav-icon,25px);height:var(--nav-icon,25px)}
 .rail-item:hover,.rail-item.hover{background:var(--sw-surface-3);color:var(--sw-text)}
 .rail-item.active{background:var(--sw-accent-soft);color:var(--sw-accent-text)}
-.rail-item.active::before{content:"";position:absolute;inset-inline-start:-6px;top:50%;translate:0 -50%;width:3px;height:26px;border-radius:2px;background:var(--sw-accent)}
 .rail-item.nolabel{gap:0}
 .rail-spacer{flex:1}
 .avatar{position:relative;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-weight:var(--sw-fw-semibold);font-size:var(--sw-fs-sm);color:var(--sw-accent-text);background:var(--sw-accent-soft);border:1px solid var(--sw-border)}
@@ -478,16 +474,15 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .rail-s{--nav-item-h:46px;--nav-icon:18px;--nav-label:10px}.rail-m{--nav-item-h:52px;--nav-icon:20px;--nav-label:10.5px}.rail-l{--nav-item-h:64px;--nav-icon:25px;--nav-label:12px}.rail-xl{--nav-item-h:76px;--nav-icon:30px;--nav-label:13.5px}
 
 /* ---------- shell: phone bottom bar ---------- */
-.bar{position:sticky;bottom:0;z-index:var(--sw-z-topbar);display:flex;align-items:stretch;justify-content:space-around;padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));min-height:var(--sw-bottomnav-h);border-top:1px solid var(--sw-border);background:var(--sw-surface);-webkit-backdrop-filter:var(--sw-glass-blur-nav);backdrop-filter:var(--sw-glass-blur-nav)}
+.bar{position:sticky;bottom:0;z-index:var(--sw-z-topbar);display:flex;align-items:stretch;justify-content:space-around;padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));min-height:var(--sw-bottomnav-h);border-top:1px solid var(--sw-border);background:var(--sw-surface)}
 .solid .bar{background:var(--sw-surface-solid)}
 .bar-item{flex:1;min-width:44px;min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sw-text-2);font-size:11.5px;font-weight:var(--sw-fw-medium);border-radius:var(--sw-r-md)}
 .bar-item .pill{width:52px;height:30px;border-radius:var(--sw-r-pill);display:grid;place-items:center;transition:background var(--sw-t-fast) var(--sw-ease)}
 .bar-item.active{color:var(--sw-accent-text)}
-.bar-item.active .pill{background:var(--sw-accent-soft)}
 .bar-item .avatar{width:30px;height:30px;font-size:11px}
 
 /* ---------- corner float ---------- */
-.corner{position:absolute;top:14px;inset-inline-end:16px;z-index:var(--sw-z-map-ui);display:flex;align-items:center;gap:2px;padding:4px;border-radius:var(--sw-r-pill);background:var(--sw-surface);border:1px solid var(--sw-border);box-shadow:var(--sw-shadow-1);-webkit-backdrop-filter:var(--sw-glass-blur-nav);backdrop-filter:var(--sw-glass-blur-nav)}
+.corner{position:absolute;top:14px;inset-inline-end:16px;z-index:var(--sw-z-map-ui);display:flex;align-items:center;gap:2px;padding:4px;border-radius:var(--sw-r-pill);background:var(--sw-surface);border:1px solid var(--sw-border);box-shadow:var(--sw-shadow-1)}
 .corner .cbtn{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;color:var(--sw-text)}
 .corner .cbtn:hover{background:var(--sw-surface-3)}
 .corner .health{width:36px;height:36px;display:grid;place-items:center}
@@ -501,6 +496,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .crumbs{display:flex;align-items:center;gap:6px;font-size:var(--sw-fs-sm);color:var(--sw-text-3)}
 .crumbs .ic{width:14px;height:14px;opacity:.7}
 .head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.page > .head:first-child,.ahead .top,.page > .sections{padding-inline-end:132px} /* room for the floating corner */
 .h1{font-size:var(--sw-h1);font-weight:var(--sw-h1-weight);letter-spacing:var(--sw-h1-tracking);line-height:var(--sw-h1-lh)}
 .sub{margin-top:6px;font-size:var(--sw-fs-lg);color:var(--sw-text-2)}
 .h2{font-size:var(--sw-h2);letter-spacing:var(--sw-h2-tracking)}
@@ -508,15 +504,27 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .row.between{justify-content:space-between}
 .grow{flex:1;min-width:0}
+/* ambient facts line under a title: glyph + number pairs */
+.facts{display:flex;gap:6px 14px;flex-wrap:wrap;font-size:var(--sw-fs-sm);color:var(--sw-text-2);font-variant-numeric:tabular-nums}
+.facts span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.facts .ic{width:15px;height:15px;color:var(--sw-text-3)}
+.facts b{color:var(--sw-text);font-weight:var(--sw-fw-semibold)}
+.facts .on b{color:var(--sw-role-warm-fg)}
+/* floor / view switch button with chevron */
+.fbtn{display:inline-flex;align-items:center;gap:6px;min-height:var(--sw-touch);padding:0 14px 0 10px;border-radius:var(--sw-r-sm);border:1px solid var(--sw-border-strong);background:var(--sw-surface-2);color:var(--sw-heading);font-size:var(--sw-fs-lg);font-weight:var(--sw-fw-semibold)}
+.fbtn .ic{width:18px;height:18px;rotate:90deg;color:var(--sw-text-3)}
 
 /* ---------- card / tile ---------- */
 .card{padding:var(--sw-card-pad)}
 .card.flush{padding:0;overflow:hidden}
 .card-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-.card-head .sec-title{flex:1;min-width:0}
-.card-head .count{color:var(--sw-text-2);font-size:var(--sw-fs-sm);font-weight:var(--sw-fw-regular)}
-.dbadge{width:var(--sw-icon-ring);height:var(--sw-icon-ring);border-radius:12px;display:grid;place-items:center;color:var(--role-fg,var(--sw-accent-text));background:rgb(var(--role,var(--sw-role-accent)) / var(--sw-role-fill-a))}
+.card-head .sec-title{flex:1;min-width:0;display:flex;align-items:center;gap:6px}
+.card-head .count{color:var(--sw-text-2);font-size:var(--sw-fs-sm);font-weight:var(--sw-fw-regular);white-space:nowrap}
+.card-head .sec-title > span:first-child,.card-head .sec-title .tt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-head .disc{width:16px;height:16px;color:var(--sw-text-3)}
+.dbadge{width:var(--sw-icon-ring);height:var(--sw-icon-ring);border-radius:12px;display:grid;place-items:center;color:var(--role-fg,var(--sw-accent-text));background:rgb(var(--role,var(--sw-role-accent)) / var(--sw-role-fill-a));flex:none}
 .dbadge .ic{width:20px;height:20px}
+.dbadge.lg{width:var(--sw-icon-ring-lg);height:var(--sw-icon-ring-lg);border-radius:14px} .dbadge.lg .ic{width:24px;height:24px}
 .ring{width:var(--sw-icon-ring);height:var(--sw-icon-ring);border-radius:50%;display:grid;place-items:center;background:var(--sw-surface-3);color:var(--sw-text);flex:none}
 .ring .ic{width:19px;height:19px}
 .card.interactive{cursor:pointer}
@@ -542,12 +550,11 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 /* ---------- buttons ---------- */
 .btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;height:var(--sw-control-h);padding:0 14px;border-radius:var(--sw-r-sm);font-weight:var(--sw-fw-medium);font-size:var(--sw-fs-md);white-space:nowrap;border:1px solid transparent;transition:background var(--sw-t-fast) var(--sw-ease),color var(--sw-t-fast) var(--sw-ease),box-shadow var(--sw-t-fast) var(--sw-ease)}
 .btn .ic{width:18px;height:18px}
-.btn.sm{height:var(--sw-control-h-sm);padding:0 10px;font-size:var(--sw-fs-sm);border-radius:8px} .btn.sm .ic{width:16px;height:16px}
-.btn.lg{height:var(--sw-control-h-lg);padding:0 18px;font-size:var(--sw-fs-lg);border-radius:12px}
+.btn.sm{height:var(--sw-control-h-sm);padding:0 10px;font-size:var(--sw-fs-sm)} .btn.sm .ic{width:16px;height:16px}
+.btn.lg{height:var(--sw-control-h-lg);padding:0 18px;font-size:var(--sw-fs-lg);border-radius:var(--sw-r-md)}
 .btn.touch::after{content:"";position:absolute;inset:50% auto auto 50%;translate:-50% -50%;width:max(100%,44px);height:max(100%,44px)}
-.btn.primary{background:var(--sw-accent);color:#fff;box-shadow:0 6px 16px rgba(42,99,240,.25),inset 0 1px 0 rgba(255,255,255,.25)}
+.btn.primary{background:var(--sw-accent);color:var(--sw-text-inverse)}
 .btn.primary:hover,.btn.primary.hover{background:var(--sw-accent-hover)}
-[data-scheme="dark"] .btn.primary,.scheme-dark .btn.primary{color:#0c1018}
 .btn.secondary{background:var(--sw-surface-2);border-color:var(--sw-border-strong);color:var(--sw-text)}
 .btn.secondary:hover,.btn.secondary.hover{background:var(--sw-surface-3)}
 .btn.ghost{color:var(--sw-text-2)} .btn.ghost:hover,.btn.ghost.hover{background:var(--sw-surface-3);color:var(--sw-text)}
@@ -560,14 +567,14 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .btn.active{background:var(--sw-accent-soft);color:var(--sw-accent-text)}
 
 /* master control */
-.master{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;border:1.5px solid var(--sw-accent);color:var(--sw-accent-text);position:relative;background:var(--sw-surface-2)}
-.master.on{background:var(--sw-accent);color:#fff;border-color:transparent}
+.master{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;border:1.5px solid var(--sw-accent);color:var(--sw-accent-text);position:relative;background:var(--sw-surface-2);flex:none}
+.master.on{background:var(--sw-accent);color:var(--sw-text-inverse);border-color:transparent}
 .master .badge.count{position:absolute;top:-4px;inset-inline-end:-4px}
 
 /* ---------- segmented / tabs / chips ---------- */
 .seg{display:inline-flex;padding:3px;border-radius:var(--sw-r-pill);background:var(--sw-surface-3);gap:2px;position:relative}
 .seg > *{min-height:32px;padding:0 14px;border-radius:var(--sw-r-pill);display:inline-flex;align-items:center;gap:6px;font-size:var(--sw-fs-sm);font-weight:var(--sw-fw-medium);color:var(--sw-text-2);transition:color var(--sw-t-fast) var(--sw-ease);white-space:nowrap}
-.seg > .on{background:var(--sw-surface-2-solid);color:var(--sw-heading);box-shadow:var(--sw-shadow-thumb)}
+.seg > .on{background:var(--sw-surface-2-solid);color:var(--sw-heading)}
 .seg > *:hover:not(.on){color:var(--sw-text)}
 .seg.lg > *{min-height:38px;padding:0 16px;font-size:var(--sw-fs-md)}
 .seg.disabled{opacity:.45}
@@ -575,13 +582,14 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .tabs{display:flex;gap:4px;align-items:center;overflow:hidden;position:relative}
 .tabs .tab{min-height:36px;padding:0 14px;border-radius:var(--sw-r-pill);display:inline-flex;align-items:center;gap:6px;font-size:var(--sw-fs-md);font-weight:var(--sw-fw-medium);color:var(--sw-text-2);white-space:nowrap;transition:background var(--sw-t-fast) var(--sw-ease)}
 .tabs .tab:hover,.tabs .tab.hover{background:var(--sw-surface-3);color:var(--sw-text)}
-.tabs .tab.on{background:var(--sw-surface-2);color:var(--sw-accent-text);border:1px solid var(--sw-border);box-shadow:var(--sw-shadow-thumb)}
+.tabs .tab.on{background:var(--sw-surface-2);color:var(--sw-accent-text)}
 .tabs .tab .n{font-size:var(--sw-fs-xs);color:var(--sw-text-3);font-variant-numeric:tabular-nums}
 .tabs.fade::after{content:"";position:absolute;inset:0 auto 0 0;width:48px;background:linear-gradient(to right,var(--sw-bg),transparent);pointer-events:none}
 .tabs.underline{gap:0;border-bottom:1px solid var(--sw-border)}
 .tabs.underline .tab{border-radius:0;min-height:44px;padding:0 12px;position:relative}
 .tabs.underline .tab.on{background:none;border:0;box-shadow:none;color:var(--sw-accent-text)}
 .tabs.underline .tab.on::after{content:"";position:absolute;inset-inline:10px;bottom:-1px;height:2px;border-radius:1px;background:var(--sw-accent)}
+.tabs.rooms .tab{min-height:40px;font-size:var(--sw-fs-lg)}
 .chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:var(--sw-r-pill);font-size:var(--sw-fs-sm);font-weight:var(--sw-fw-medium);color:var(--sw-text);background:var(--sw-surface-2);border:1px solid var(--sw-border);white-space:nowrap}
 .chip .ic{width:15px;height:15px;color:var(--sw-text-2)}
 .chip.sel{background:var(--sw-accent-soft);border-color:color-mix(in srgb,var(--sw-accent) 40%,transparent);color:var(--sw-accent-text)}
@@ -589,6 +597,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .chip .n{color:var(--sw-text-3);font-variant-numeric:tabular-nums}
 .chip.warm{background:rgb(var(--sw-role-warm) / var(--sw-role-fill-a));border-color:rgb(var(--sw-role-warm) / .35);color:var(--sw-role-warm-fg)} .chip.warm .ic{color:inherit}
 .chip.disabled{opacity:.45}
+.chip.ghost{background:transparent;border-style:dashed;color:var(--sw-text-3)} .chip.ghost .ic{color:inherit}
 
 /* ---------- toggle ---------- */
 .tg{position:relative;display:inline-flex;align-items:center;gap:10px;min-height:44px;cursor:pointer}
@@ -606,9 +615,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .tile .tstate{font-size:var(--sw-fs-sm);color:var(--sw-text-2);margin-top:2px;white-space:nowrap}
 .tile .tbody{flex:1;min-width:0}
 .tile .tctl{margin-inline-start:auto;display:flex;align-items:center;gap:6px}
-.tile.on{--g:var(--sw-on-cool);background:linear-gradient(135deg,rgb(var(--g) / var(--sw-glow-fill-start)),rgb(var(--g) / var(--sw-glow-fill-end)) 70%),var(--sw-surface-2);border-color:rgb(var(--g) / var(--sw-glow-border));box-shadow:0 0 0 1px rgb(var(--g) / .08),0 10px 28px -10px rgb(var(--g) / var(--sw-glow-halo))}
+.tile.on{--g:var(--sw-on-cool);border-color:rgb(var(--g) / var(--sw-glow-border))}
 .tile.on.warm{--g:var(--sw-on-warm)} .tile.on.switch{--g:var(--sw-on-switch)}
-.tile.on .ring{background:rgb(var(--g) / .22);color:var(--sw-heading)}
 .tile.on .tstate{color:var(--sw-text)}
 .tile.unavail{border-style:dashed;background:transparent}
 .tile.unavail .tname{color:var(--sw-text-2)} .tile.unavail .tstate{color:var(--sw-text-3)} .tile.unavail .ring{opacity:.6}
@@ -624,7 +632,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .stepper .btn{width:36px;height:36px;padding:0;border-radius:50%;background:var(--sw-surface-2-solid);box-shadow:var(--sw-shadow-thumb)}
 .stepper .val{min-width:56px;text-align:center;font-weight:var(--sw-fw-bold);font-size:var(--sw-fs-lg);color:var(--sw-heading);font-variant-numeric:tabular-nums}
 .cover-ctl{display:inline-flex;gap:4px}
-.cover-ctl .btn{width:36px;height:36px;padding:0;border-radius:10px;background:var(--sw-surface-3)}
+.cover-ctl .btn{width:36px;height:36px;padding:0;border-radius:var(--sw-r-sm);background:var(--sw-surface-3)}
 .cover-ctl .btn.on{background:var(--sw-accent-soft);color:var(--sw-accent-text)}
 .bar-ind{height:4px;border-radius:2px;background:var(--sw-surface-3);flex-basis:100%;overflow:hidden;margin-top:2px}
 .bar-ind i{display:block;height:100%;background:var(--sw-accent);border-radius:2px}
@@ -634,15 +642,48 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .sens .sv{font-size:20px;font-weight:var(--sw-fw-bold);color:var(--sw-heading);line-height:1.1;font-variant-numeric:tabular-nums}
 .sens .sl{font-size:var(--sw-fs-xs);color:var(--sw-text-2)}
 
-/* area tile (home) */
+/* area tile (compact, tiles view) */
 .atile{position:relative;display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:var(--sw-r-md);background:var(--sw-surface-2);border:1px solid var(--sw-border);min-height:96px}
 .atile .an{font-weight:var(--sw-fw-semibold);color:var(--sw-heading);display:flex;align-items:center;gap:8px}
 .atile .ac{display:flex;gap:10px;flex-wrap:wrap;font-size:var(--sw-fs-sm);color:var(--sw-text-2);font-variant-numeric:tabular-nums}
 .atile .ac span{display:inline-flex;align-items:center;gap:4px}
 .atile .ac .ic{width:14px;height:14px}
-.atile.on{--g:var(--sw-on-warm);background:linear-gradient(135deg,rgb(var(--g) / var(--sw-glow-fill-start)),rgb(var(--g) / var(--sw-glow-fill-end)) 70%),var(--sw-surface-2);border-color:rgb(var(--g) / var(--sw-glow-border));box-shadow:0 12px 30px -12px rgb(var(--g) / var(--sw-glow-halo))}
-.atile.on .dbadge{background:rgb(var(--g) / .25);color:var(--sw-heading)}
+.atile.on{--g:var(--sw-on-warm);border-color:rgb(var(--g) / var(--sw-glow-border))}
 .atile .dots{position:absolute;top:8px;inset-inline-end:8px;color:var(--sw-text-3)}
+
+/* room card (home, cards view): a room, not a KPI — name, ambient facts, master */
+.room{position:relative;display:flex;flex-direction:column;gap:12px;padding:var(--sw-card-pad);min-height:150px;color:inherit}
+.room .rh{display:flex;align-items:center;gap:12px}
+.room .rn{font-size:var(--sw-fs-2xl);font-weight:var(--sw-fw-bold);color:var(--sw-heading);letter-spacing:var(--sw-h2-tracking);line-height:1.1;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.room .rs{font-size:var(--sw-fs-sm);color:var(--sw-text-2);margin-top:2px}
+.room .amb{display:flex;flex-wrap:wrap;gap:6px}
+.room .amb .chip{height:30px;padding:0 10px;font-size:var(--sw-fs-sm)}
+.room .rf{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:auto;font-size:var(--sw-fs-sm);color:var(--sw-text-2)}
+.room .rf .more{display:inline-flex;align-items:center;gap:4px;color:var(--sw-text-2);min-height:44px}
+.room .rf .more .ic{width:16px;height:16px}
+.room.on{--g:var(--sw-on-warm);border-color:rgb(var(--g) / var(--sw-glow-border))}
+.room .dbadge{--role:var(--sw-role-neutral);--role-fg:var(--sw-role-neutral-fg)}
+
+/* list rows (list view): one line = thing + facts + state + control */
+.ltable{display:flex;flex-direction:column;padding:0;overflow:hidden}
+.lhead{display:grid;align-items:center;gap:12px;min-height:40px;padding:0 var(--sw-card-pad);font-size:var(--sw-fs-xs);font-weight:var(--sw-fw-semibold);color:var(--sw-text-3);letter-spacing:.3px;border-bottom:1px solid var(--sw-border)}
+.lgroup{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 var(--sw-card-pad);background:var(--sw-surface-3);color:var(--sw-heading);font-weight:var(--sw-fw-semibold);font-size:var(--sw-fs-md);border-bottom:1px solid var(--sw-border);white-space:nowrap}
+.lgroup .count{color:var(--sw-text-2);font-weight:var(--sw-fw-regular);font-size:var(--sw-fs-sm)}
+.lgroup .act{margin-inline-start:auto}
+.lrow{display:grid;align-items:center;gap:12px;min-height:var(--sw-row-h-compact);padding:4px var(--sw-card-pad);border-bottom:1px solid var(--sw-border);background:var(--sw-surface-2);color:inherit;font-size:var(--sw-fs-md)}
+.lrow:last-child{border-bottom:0}
+.lrow .lname{display:flex;align-items:center;gap:10px;min-width:0;font-weight:var(--sw-fw-semibold);color:var(--sw-heading)}
+.lrow .lname span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lrow .lname .ring{width:30px;height:30px} .lrow .lname .ring .ic{width:16px;height:16px}
+.lrow .lc{display:inline-flex;align-items:center;gap:5px;color:var(--sw-text-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.lrow .lc .ic{width:14px;height:14px;color:var(--sw-text-3)}
+.lrow .lc b{color:var(--sw-text);font-weight:var(--sw-fw-semibold)}
+.lrow .lc.on b{color:var(--sw-role-warm-fg)}
+.lrow .lact{display:flex;justify-content:flex-end;gap:2px}
+.lrow.on{--g:var(--sw-on-cool)} .lrow.on.warm{--g:var(--sw-on-warm)} .lrow.on.switch{--g:var(--sw-on-switch)}
+.lrow.unavail .lname,.lrow.unavail .lc{color:var(--sw-text-3)} .lrow.unavail .ring{opacity:.6;border:1px dashed var(--sw-border-strong);background:transparent}
+.lrow .thumb{width:64px;height:36px;border-radius:var(--sw-r-sm);overflow:hidden;position:relative;background:var(--sw-video-bg);flex:none}
+.lrow .thumb .scene::after{display:none}
 
 /* tree */
 .tree{display:flex;flex-direction:column;gap:2px}
@@ -700,7 +741,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .dialog .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
 .dialog .details{margin-top:14px;font-size:var(--sw-fs-sm);color:var(--sw-text-2);display:flex;align-items:center;gap:6px}
 .drawer{width:var(--sw-drawer-w);border-radius:var(--sw-r-lg);box-shadow:var(--sw-shadow-3);padding:18px;display:flex;flex-direction:column;gap:12px}
-.sheet{width:100%;border-radius:var(--sw-r-lg) var(--sw-r-lg) 0 0;box-shadow:var(--sw-shadow-3);padding:8px 16px 16px;-webkit-backdrop-filter:var(--sw-glass-blur-sheet);backdrop-filter:var(--sw-glass-blur-sheet)}
+.sheet{width:100%;border-radius:var(--sw-r-lg) var(--sw-r-lg) 0 0;box-shadow:var(--sw-shadow-3);padding:8px 16px 16px}
 .handle{width:40px;height:5px;border-radius:3px;background:var(--sw-border-strong);margin:4px auto 14px}
 
 /* ---------- field ---------- */
@@ -734,6 +775,29 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 /* ---------- board chrome (not product) ---------- */
 .board-label{position:absolute;top:4px;left:50%;translate:-50% 0;z-index:99;font:600 10px/1 var(--sw-font);color:var(--sw-text-3);opacity:.7;pointer-events:none;direction:ltr;white-space:nowrap}
 
+/* ---------- skin rules: domus ---------- */
+
+/* domus · glass material: blur on L1, highlight hairline, nested glass without blur */
+.glass{-webkit-backdrop-filter:var(--sw-glass-blur);backdrop-filter:var(--sw-glass-blur)}
+.glass::before{content:"";position:absolute;inset:0 12px auto 12px;height:1px;background:var(--sw-highlight);border-radius:1px;pointer-events:none}
+.glass .glass,.glass .glass-2{-webkit-backdrop-filter:var(--sw-glass-nested);backdrop-filter:var(--sw-glass-nested)}
+.rail-in,.bar,.corner{-webkit-backdrop-filter:var(--sw-glass-blur-nav);backdrop-filter:var(--sw-glass-blur-nav)}
+.sheet{-webkit-backdrop-filter:var(--sw-glass-blur-sheet);backdrop-filter:var(--sw-glass-blur-sheet)}
+/* domus · floating rail: a glass panel 12px off the edges */
+.rail{padding:var(--sw-rail-gap) 0;padding-inline-start:var(--sw-rail-gap)}
+.rail-in{border-radius:var(--sw-r-lg);border-inline-end:0}
+.brand{background:linear-gradient(145deg,var(--sw-accent),var(--sw-accent-hover));box-shadow:0 8px 18px rgb(var(--sw-role-accent) / .28),inset 0 1px 0 rgba(255,255,255,.35)}
+.rail-item.active::before{content:"";position:absolute;inset-inline-start:-6px;top:50%;translate:0 -50%;width:3px;height:26px;border-radius:2px;background:var(--sw-accent)}
+.bar-item.active .pill{background:var(--sw-accent-soft)}
+/* domus · primary button with an inner highlight and a coloured shadow */
+.btn.primary{box-shadow:0 6px 16px rgb(var(--sw-role-accent) / .25),inset 0 1px 0 rgba(255,255,255,.25)}
+/* domus · "on" = diagonal glow + coloured border + soft halo (warm for rooms and covers, cool for lights, green for switches) */
+.tile.on,.atile.on,.room.on,.lrow.on{background:linear-gradient(135deg,rgb(var(--g) / var(--sw-glow-fill-start)),rgb(var(--g) / var(--sw-glow-fill-end)) 70%),var(--sw-surface-2);border-color:rgb(var(--g) / var(--sw-glow-border));box-shadow:0 0 0 1px rgb(var(--g) / .08),0 12px 30px -12px rgb(var(--g) / var(--sw-glow-halo))}
+.room.on{background:linear-gradient(135deg,rgb(var(--g) / var(--sw-glow-fill-start)),rgb(var(--g) / var(--sw-glow-fill-end)) 60%),var(--sw-surface)}
+.tile.on .ring,.atile.on .dbadge,.room.on .dbadge{background:rgb(var(--g) / .24);color:var(--sw-heading)}
+.seg > .on,.tabs .tab.on{box-shadow:var(--sw-shadow-thumb)}
+.tabs .tab.on{border:1px solid var(--sw-border)}
+
 @media (max-width:767px){
   .app{grid-template-columns:1fr}
   .rail{display:none}
@@ -743,63 +807,77 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   .reading{font-size:var(--sw-fs-reading-phone)}
   .corner{top:12px;inset-inline-end:12px}
   .tabs.fade::after{width:36px}
+  .room{min-height:0}
+  .page > .head:first-child,.ahead .top,.page > .sections{padding-inline-end:96px}
 }
-.domains{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:start}
-.dcol{display:flex;flex-direction:column;gap:14px}
-.dcard{padding:14px}
-.dcard .card-head{margin-bottom:10px}
-.tiles2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.tiles1{display:grid;gap:8px}
-.climate{display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:var(--sw-r-md);background:var(--sw-surface-2);border:1px solid var(--sw-border)}
-.climate .big{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.climate .temp{font-size:44px;font-weight:var(--sw-fw-medium);letter-spacing:-1.5px;line-height:1;color:var(--sw-heading);font-variant-numeric:tabular-nums}
+.page.area{gap:10px;padding-block-start:12px}
+.ahead{display:flex;flex-direction:column;gap:6px}
+.ahead .tabs.rooms .tab{min-height:34px}
+.dcard .tile{min-height:var(--sw-touch)}
+.dcard .tiles1,.dcard .tiles2,.dcard .sens2{gap:8px}
+.tiles2 .tile.col{grid-column:auto}
+.ahead .top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ahead .top .end{margin-inline-start:auto;display:flex;align-items:center;gap:10px}
+.ahead .title{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.ahead .title .facts{padding-bottom:8px}
+.domains{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sw-card-gap);align-items:stretch}
+.dcard{padding:12px;display:flex;flex-direction:column}
+.dcard .card-head{margin-bottom:8px}
+.dcard.tall{grid-row:span 2}
+.dcard.wide{grid-column:span 2}
+.dcol{display:flex;flex-direction:column;gap:12px}
+.tiles1{display:grid;gap:var(--sw-tile-gap)}
+.tiles2{display:grid;grid-template-columns:1fr 1fr;gap:var(--sw-tile-gap)}
+.climate{display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:var(--sw-r-md);background:var(--sw-surface-2);border:1px solid var(--sw-border);flex:1}
+.climate .big{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
+.climate .temp{font-size:var(--sw-fs-reading);font-weight:var(--sw-fw-reading);letter-spacing:var(--sw-reading-tracking);line-height:1;color:var(--sw-heading);font-variant-numeric:tabular-nums}
 .climate .temp small{font-size:14px;letter-spacing:0;color:var(--sw-text-2);font-weight:var(--sw-fw-regular)}
-.climate .seg{align-self:stretch;display:flex} .climate .seg>*{flex:1;justify-content:center;padding:0 8px}
-.snap{position:relative;height:120px;border-radius:var(--sw-r-md);overflow:hidden;border:1px solid var(--sw-border);color:#fff}
+.climate .seg{align-self:stretch;display:flex} .climate .seg>*{flex:1;justify-content:center;padding:0 6px}
+.climate .aux{display:grid;grid-template-columns:1fr 1fr;gap:var(--sw-tile-gap);margin-top:auto}
+.snap{position:relative;height:84px;border-radius:var(--sw-r-md);overflow:hidden;border:1px solid var(--sw-border);color:#fff}
 .snap .nm{position:absolute;inset-inline:0;bottom:0;padding:18px 10px 8px;font-size:var(--sw-fs-sm);font-weight:var(--sw-fw-semibold);background:linear-gradient(to top,rgba(4,8,16,.75),transparent);display:flex;align-items:center;gap:6px}
 .snap .tag{position:absolute;top:8px;inset-inline-start:8px}
 .snap .exp{position:absolute;top:6px;inset-inline-end:6px;width:32px;height:32px;border-radius:50%;background:rgba(8,12,20,.6);color:#fff;display:grid;place-items:center}
-.sens2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.ro .tctl,.ro .slider,.ro .bar-ind,.ro .offall,.ro .stepper,.ro .cover-ctl,.ro .climate .seg,.ro .master{display:none!important}
+.sens2{display:grid;grid-template-columns:1fr 1fr;gap:var(--sw-tile-gap)}
+.empties{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:var(--sw-fs-sm);color:var(--sw-text-3);padding-top:2px}
+.ro .tctl,.ro .slider,.ro .bar-ind,.ro .offall,.ro .stepper,.ro .cover-ctl,.ro .climate .seg,.ro .master,.ro .ctl{display:none!important}
 .ro .tile.col .tbody{flex:1}
-@media (max-width:767px){.domains{grid-template-columns:1fr}.tiles2{grid-template-columns:1fr}.sens2{grid-template-columns:1fr 1fr}}
-</style>
+@media (max-width:767px){
+  .domains{grid-template-columns:1fr}.tiles2{grid-template-columns:1fr}.sens2{grid-template-columns:1fr 1fr}
+  .dcard.tall,.dcard.wide{grid-row:auto;grid-column:auto}
+  .ahead .top{padding-inline-end:0} .ahead .top .end{margin-inline-start:0;width:100%} .ahead .top .end .seg{flex:1;min-width:0} .ahead .top .end .seg > *{flex:1;justify-content:center;padding:0 6px;min-width:0} .ahead .top .end .seg .ic,.home .hctl .seg .ic{display:none}
+  .climate .aux{margin-top:0}
+}</style>
 </head>
 <body class="canvas">
-<div class="app phone"><main class="content"><div class="corner"><button class="cbtn" aria-label="חיפוש"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.3-4.3"/></svg></button><span class="health" title="מצב המערכת"><span class="dot lg ok"></span></span></div><div class="page"><div class="crumbs"><span>ראשי</span><svg class="ic ic-dir" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg><span>קומה 1</span></div>
-  <header class="head"><div class="row" style="gap:8px;align-items:center"><button class="btn icon ghost sm" aria-label="חזרה"><svg class="ic ic-dir" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></button><div><h1 class="h1">סלון</h1><div class="sub"><span class="num">13</span> התקנים · <span class="num">5</span> פעילים</div></div></div></header>
-  <div class="tabs fade" role="tablist"><span class="tab on">סלון <span class="n">13</span></span><span class="tab">מטבח <span class="n">8</span></span><span class="tab">חדר ילדים <span class="n">6</span></span><span class="tab">חדר שינה הורים <span class="n">7</span></span><span class="tab">משרד <span class="n">5</span></span><span class="tab">מחסן <span class="n">0</span></span></div><div class="domains"><div class="dcol"><section class="glass dcard"><div class="card-head"><span class="dbadge" style="--role:var(--sw-role-warm);--role-fg:var(--sw-role-warm-fg)"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg></span><h3 class="sec-title">תאורה <span class="count">2 מתוך 6</span></h3><span class="offall"><button class="btn ghost sm"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v8"/><path d="M6.6 7.4a7.5 7.5 0 1 0 10.8 0"/></svg>כבה הכל</button></span></div><div class="tiles2">
-    <div class="tile on cool"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg></span><span class="tbody"><div class="tname">ספוט סלון</div><div class="tstate">דולק · 100%</div></span><span class="tctl"><span class="tg small on" role="switch" aria-checked="true"><span class="tr"></span></span></span></div>
-    <div class="tile on cool col"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg></span><span class="tbody"><div class="tname">תאורת תקרה</div><div class="tstate">דולק · 60%</div></span><span class="tctl"><span class="tg small on" role="switch" aria-checked="true"><span class="tr"></span></span></span><div class="slider"><div class="track"><div class="fill" style="width:60%"></div></div><span class="thumb" style="inset-inline-start:60%"></span></div></div>
-    <div class="tile"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg></span><span class="tbody"><div class="tname">מנורת קריאה</div><div class="tstate">כבוי</div></span><span class="tctl"><span class="tg small" role="switch" aria-checked="false"><span class="tr"></span></span></span></div>
-    <div class="tile"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg></span><span class="tbody"><div class="tname">פס לד</div><div class="tstate">כבוי</div></span><span class="tctl"><span class="tg small" role="switch" aria-checked="false"><span class="tr"></span></span></span></div>
-    <div class="tile"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg></span><span class="tbody"><div class="tname">תאורת מרפסת</div><div class="tstate">כבוי</div></span><span class="tctl"><span class="tg small" role="switch" aria-checked="false"><span class="tr"></span></span></span></div>
-    <div class="tile"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg></span><span class="tbody"><div class="tname">מנורת פינה</div><div class="tstate">כבוי</div></span><span class="tctl"><span class="tg small" role="switch" aria-checked="false"><span class="tr"></span></span></span></div>
-  </div></section><section class="glass dcard"><div class="card-head"><span class="dbadge" style="--role:var(--sw-role-warm);--role-fg:var(--sw-role-warm-fg)"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h3l2.5-6 3 12 3-9 2 3h4.5"/></svg></span><h3 class="sec-title">מיזוג <span class="count">1 מתוך 1</span></h3><span class="offall"><button class="btn ghost sm"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v8"/><path d="M6.6 7.4a7.5 7.5 0 1 0 10.8 0"/></svg>כבה הכל</button></span></div><div class="climate">
-    <div class="big"><div><div class="tname" style="font-weight:600;color:var(--sw-heading)">מזגן סלון</div><div class="muted" style="font-size:var(--sw-fs-sm)">קירור · כעת <span class="num">24.5°</span></div></div><div class="temp num">23°<small> יעד</small></div></div>
-    <div class="row between"><span class="stepper"><button class="btn" aria-label="הנמך"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button><span class="val num">23°</span><button class="btn" aria-label="הגבה"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></span><span class="tg small on" role="switch" aria-checked="true"><span class="tr"></span></span></div>
-    <div class="seg"><button class="on">קירור</button><button>חימום</button><button>אוטו</button><button>מאוורר</button></div>
-    <div class="seg"><button>נמוך</button><button class="on">בינוני</button><button>גבוה</button><button>אוטו</button></div>
-  </div></section><section class="glass dcard"><div class="card-head"><span class="dbadge" style="--role:var(--sw-role-success);--role-fg:var(--sw-role-success-fg)"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3 5.5 13.5H12l-1 7.5 7.5-10.5H12z"/></svg></span><h3 class="sec-title">מתגים <span class="count">1 מתוך 3</span></h3><span class="offall"><button class="btn ghost sm"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v8"/><path d="M6.6 7.4a7.5 7.5 0 1 0 10.8 0"/></svg>כבה הכל</button></span></div><div class="tiles1">
-    <div class="tile on switch"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3 5.5 13.5H12l-1 7.5 7.5-10.5H12z"/></svg></span><span class="tbody"><div class="tname">מערכת הגברה</div><div class="tstate">פעיל</div></span><span class="tctl"><span class="tg small on" role="switch" aria-checked="true"><span class="tr"></span></span></span></div>
-    <div class="tile unavail" title="אין תקשורת עם ההתקן"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.8"/><path d="M12 10.2c0-3.5 1.5-6.2 4-6.2 1.6 0 2 1.8 0 3.4-1.5 1.2-2.8 2-4 2.8z"/><path d="M13.6 12.9c3-1.7 6.1-1.8 7.3.4.8 1.4-.7 2.5-3.1 2-1.9-.4-3.3-1.3-4.2-2.4z"/><path d="M10.4 12.9c-3 1.7-4.6 4.5-3.4 6.6.8 1.4 2.6.7 3.1-1.5.4-1.9.2-3.5.3-5.1z"/></svg></span><span class="tbody"><div class="tname">מאוורר תקרה</div><div class="tstate">לא זמין</div></span><span class="tctl"><span class="tg small disabled" role="switch" aria-checked="false"><span class="tr"></span></span></span></div>
-    <div class="tile"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3 5.5 13.5H12l-1 7.5 7.5-10.5H12z"/></svg></span><span class="tbody"><div class="tname">שקע יציע</div><div class="tstate">כבוי</div></span><span class="tctl"><span class="tg small" role="switch" aria-checked="false"><span class="tr"></span></span></span></div>
-  </div></section><section class="glass dcard"><div class="card-head"><span class="dbadge" style="--role:var(--sw-role-accent);--role-fg:var(--sw-role-accent-fg)"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 4 8 4.5-8 4.5-8-4.5z"/><path d="m4 13 8 4.5 8-4.5"/><path d="m4 16.5 8 4.5 8-4.5"/></svg></span><h3 class="sec-title">תריסים <span class="count">1 מתוך 2</span></h3><span class="offall"><button class="btn ghost sm"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v8"/><path d="M6.6 7.4a7.5 7.5 0 1 0 10.8 0"/></svg>סגור הכל</button></span></div><div class="tiles1">
+<div class="app phone"><main class="content"><div class="corner"><button class="cbtn" aria-label="חיפוש"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.3-4.3"/></svg></button><span class="health" title="מצב המערכת"><span class="dot lg ok"></span></span></div><div class="page area"><header class="ahead">
+    <div class="top"><button class="btn icon ghost" aria-label="חזרה"><svg class="ic ic-dir" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></button><button class="fbtn">קומה 1<svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></button><div class="end"><div class="seg" role="tablist" aria-label="תצוגה"><button class=""><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/></svg>אריחים</button><button class="on"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="6" rx="1.8"/><rect x="3.5" y="13" width="17" height="6" rx="1.8"/></svg>כרטיסים</button><button class=""><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>רשימה</button></div><span class="offall"><button class="btn ghost sm"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v8"/><path d="M6.6 7.4a7.5 7.5 0 1 0 10.8 0"/></svg>כבה הכל באזור</button></span></div></div>
+    <div class="title"><h1 class="h1">סלון</h1><div class="facts"><span><b class="num">13</b> התקנים</span><span><b class="num">5</b> פעילים</span><span><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14.2V5.5a2 2 0 0 1 4 0v8.7a3.5 3.5 0 1 1-4 0z"/><path d="M12 10v6"/></svg><b class="num">24.5°</b></span><span><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5c-3 4-6 7-6 10.5a6 6 0 0 0 12 0c0-3.5-3-6.5-6-10.5z"/></svg><b class="num">48%</b></span><span><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="14" cy="5" r="1.8"/><path d="m8 21 3-6 3 2 2 4"/><path d="m6 13 4-3 4 1 3 3 3-1"/><path d="m10 10-1 5"/></svg><b>אין תנועה</b></span></div></div>
+    <div class="tabs rooms fade" role="tablist"><span class="tab on">סלון <span class="n">13</span></span><span class="tab">מטבח <span class="n">8</span></span><span class="tab">לובי <span class="n">9</span></span><span class="tab">חדר ילדים <span class="n">6</span></span><span class="tab">חדר שינה הורים <span class="n">7</span></span><span class="tab">משרד <span class="n">5</span></span><span class="tab">חניון <span class="n">6</span></span></div>
+  </header><div class="domains"><section class="glass dcard wide"><div class="card-head"><span class="dbadge" style="--role:var(--sw-role-warm);--role-fg:var(--sw-role-warm-fg)"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg></span><h3 class="sec-title"><span class="tt">תאורה</span><svg class="ic disc ic-dir" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg><span class="count"><span class="num">6</span> התקנים</span></h3><span class="offall"><button class="btn ghost sm"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v8"/><path d="M6.6 7.4a7.5 7.5 0 1 0 10.8 0"/></svg>כבה הכל</button></span></div><div class="tiles2">
+    <div class="tile on cool"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg></span><span class="tbody"><div class="tname">ספוט סלון</div><div class="tstate">דולק · 100%</div></span><span class="tctl"><span class="tg small on" role="switch" aria-checked="true"><span class="tr"></span></span></span></div><div class="tile on cool col"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg></span><span class="tbody"><div class="tname">תאורת תקרה</div><div class="tstate">דולק · 60%</div></span><span class="tctl"><span class="tg small on" role="switch" aria-checked="true"><span class="tr"></span></span></span><div class="slider"><div class="track"><div class="fill" style="width:60%"></div></div><span class="thumb" style="inset-inline-start:60%"></span></div></div><div class="tile"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg></span><span class="tbody"><div class="tname">מנורת קריאה</div><div class="tstate">כבוי</div></span><span class="tctl"><span class="tg small" role="switch" aria-checked="false"><span class="tr"></span></span></span></div><div class="tile"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg></span><span class="tbody"><div class="tname">פס לד</div><div class="tstate">כבוי</div></span><span class="tctl"><span class="tg small" role="switch" aria-checked="false"><span class="tr"></span></span></span></div><div class="tile"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg></span><span class="tbody"><div class="tname">תאורת מרפסת</div><div class="tstate">כבוי</div></span><span class="tctl"><span class="tg small" role="switch" aria-checked="false"><span class="tr"></span></span></span></div><div class="tile"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg></span><span class="tbody"><div class="tname">מנורת פינה</div><div class="tstate">כבוי</div></span><span class="tctl"><span class="tg small" role="switch" aria-checked="false"><span class="tr"></span></span></span></div></div></section><section class="glass dcard tall"><div class="card-head"><span class="dbadge" style="--role:var(--sw-role-warm);--role-fg:var(--sw-role-warm-fg)"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h3l2.5-6 3 12 3-9 2 3h4.5"/></svg></span><h3 class="sec-title"><span class="tt">מיזוג</span><svg class="ic disc ic-dir" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg><span class="count"><span class="num">1</span> התקנים</span></h3><span class="offall"><button class="btn ghost sm"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v8"/><path d="M6.6 7.4a7.5 7.5 0 1 0 10.8 0"/></svg>כבה הכל</button></span></div><div class="climate">
+    <div class="row between"><span><div class="tname" style="font-weight:600;color:var(--sw-heading)">מזגן סלון</div><div class="muted" style="font-size:var(--sw-fs-sm)">קירור · כעת <span class="num">24.5°</span></div></span><span class="badge live"><span class="dot"></span>פעיל</span></div>
+    <div class="big"><div class="temp num">23°<small> יעד</small></div><span class="tg small on" role="switch" aria-checked="true"><span class="tr"></span></span></div>
+    <div class="row between"><span class="stepper"><button class="btn" aria-label="הנמך"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button><span class="val num">23°</span><button class="btn" aria-label="הגבה"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></span><span class="muted" style="font-size:var(--sw-fs-sm)">יעד</span></div>
+    <div><div class="wlabel" style="margin-bottom:6px">מצב</div><div class="seg"><button class="on">קירור</button><button>חימום</button><button>אוטו</button><button>מאוורר</button></div></div>
+    <div><div class="wlabel" style="margin-bottom:6px">מאוורר</div><div class="seg"><button>נמוך</button><button class="on">בינוני</button><button>גבוה</button><button>אוטו</button></div></div>
+    <div class="aux"><div class="sens"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5c-3 4-6 7-6 10.5a6 6 0 0 0 12 0c0-3.5-3-6.5-6-10.5z"/></svg></span><span><div class="sv num">48%</div><div class="sl">לחות</div></span></div><div class="sens"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18.5h9a3.5 3.5 0 0 0 .4-7 5 5 0 0 0-9.6 1.5A2.8 2.8 0 0 0 7 18.5z"/><path d="M15 4.5v1.5"/><path d="m19.5 6.3-1 1"/><path d="M21 11h-1.5"/></svg></span><span><div class="sv num">28°</div><div class="sl">בחוץ</div></span></div></div>
+  </div></section><section class="glass dcard "><div class="card-head"><span class="dbadge" style="--role:var(--sw-role-success);--role-fg:var(--sw-role-success-fg)"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3 5.5 13.5H12l-1 7.5 7.5-10.5H12z"/></svg></span><h3 class="sec-title"><span class="tt">מתגים</span><svg class="ic disc ic-dir" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg><span class="count"><span class="num">3</span> התקנים</span></h3><span class="offall"><button class="btn ghost sm"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v8"/><path d="M6.6 7.4a7.5 7.5 0 1 0 10.8 0"/></svg>כבה הכל</button></span></div><div class="tiles1">
+    <div class="tile on switch"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3 5.5 13.5H12l-1 7.5 7.5-10.5H12z"/></svg></span><span class="tbody"><div class="tname">מערכת הגברה</div><div class="tstate">פעיל</div></span><span class="tctl"><span class="tg small on" role="switch" aria-checked="true"><span class="tr"></span></span></span></div><div class="tile unavail" title="אין תקשורת עם ההתקן"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.8"/><path d="M12 10.2c0-3.5 1.5-6.2 4-6.2 1.6 0 2 1.8 0 3.4-1.5 1.2-2.8 2-4 2.8z"/><path d="M13.6 12.9c3-1.7 6.1-1.8 7.3.4.8 1.4-.7 2.5-3.1 2-1.9-.4-3.3-1.3-4.2-2.4z"/><path d="M10.4 12.9c-3 1.7-4.6 4.5-3.4 6.6.8 1.4 2.6.7 3.1-1.5.4-1.9.2-3.5.3-5.1z"/></svg></span><span class="tbody"><div class="tname">מאוורר תקרה</div><div class="tstate">לא זמין</div></span><span class="tctl"><span class="tg small disabled" role="switch" aria-checked="false"><span class="tr"></span></span></span></div><div class="tile"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3 5.5 13.5H12l-1 7.5 7.5-10.5H12z"/></svg></span><span class="tbody"><div class="tname">שקע יציע</div><div class="tstate">כבוי</div></span><span class="tctl"><span class="tg small" role="switch" aria-checked="false"><span class="tr"></span></span></span></div></div></section><section class="glass dcard "><div class="card-head"><span class="dbadge" style="--role:var(--sw-role-accent);--role-fg:var(--sw-role-accent-fg)"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 4 8 4.5-8 4.5-8-4.5z"/><path d="m4 13 8 4.5 8-4.5"/><path d="m4 16.5 8 4.5 8-4.5"/></svg></span><h3 class="sec-title"><span class="tt">תריסים</span><svg class="ic disc ic-dir" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg><span class="count"><span class="num">2</span> התקנים</span></h3><span class="offall"><button class="btn ghost sm"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v8"/><path d="M6.6 7.4a7.5 7.5 0 1 0 10.8 0"/></svg>סגור הכל</button></span></div><div class="tiles1">
     <div class="tile on warm col"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 4 8 4.5-8 4.5-8-4.5z"/><path d="m4 13 8 4.5 8-4.5"/><path d="m4 16.5 8 4.5 8-4.5"/></svg></span><span class="tbody"><div class="tname">וילון סלון</div><div class="tstate">פתוח · 60%</div></span><span class="tctl"><span class="cover-ctl"><button class="btn" aria-label="פתח"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V6"/><path d="m6.5 11.5 5.5-5.5 5.5 5.5"/><path d="M5 4h14"/></svg></button><button class="btn" aria-label="עצור"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg></button><button class="btn" aria-label="סגור"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v13"/><path d="m6.5 12.5 5.5 5.5 5.5-5.5"/><path d="M5 20h14"/></svg></button></span></span><span class="bar-ind"><i style="width:60%"></i></span></div>
-    <div class="tile"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 4 8 4.5-8 4.5-8-4.5z"/><path d="m4 13 8 4.5 8-4.5"/><path d="m4 16.5 8 4.5 8-4.5"/></svg></span><span class="tbody"><div class="tname">תריס מרפסת</div><div class="tstate">סגור</div></span><span class="tctl"><span class="cover-ctl"><button class="btn" aria-label="פתח"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V6"/><path d="m6.5 11.5 5.5-5.5 5.5 5.5"/><path d="M5 4h14"/></svg></button><button class="btn" aria-label="עצור"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg></button><button class="btn on" aria-label="סגור"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v13"/><path d="m6.5 12.5 5.5 5.5 5.5-5.5"/><path d="M5 20h14"/></svg></button></span></span></div>
-  </div></section><section class="glass dcard"><div class="card-head"><span class="dbadge" style="--role:var(--sw-role-success);--role-fg:var(--sw-role-success-fg)"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 5 6.2v5.3c0 4.2 3 7.4 7 8.9 4-1.5 7-4.7 7-8.9V6.2z"/><path d="m9.3 12 1.9 1.9 3.6-3.8"/></svg></span><h3 class="sec-title">אבטחה <span class="count">3</span></h3></div><div class="tiles1">
+    <div class="tile"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 4 8 4.5-8 4.5-8-4.5z"/><path d="m4 13 8 4.5 8-4.5"/><path d="m4 16.5 8 4.5 8-4.5"/></svg></span><span class="tbody"><div class="tname">תריס מרפסת</div><div class="tstate">סגור</div></span><span class="tctl"><span class="cover-ctl"><button class="btn" aria-label="פתח"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V6"/><path d="m6.5 11.5 5.5-5.5 5.5 5.5"/><path d="M5 4h14"/></svg></button><button class="btn" aria-label="עצור"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg></button><button class="btn on" aria-label="סגור"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v13"/><path d="m6.5 12.5 5.5 5.5 5.5-5.5"/><path d="M5 20h14"/></svg></button></span></span></div></div></section><section class="glass dcard "><div class="card-head"><span class="dbadge" style="--role:var(--sw-role-cool);--role-fg:var(--sw-role-cool-fg)"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="11.5" rx="2"/><path d="M9 20h6"/><path d="M12 16.5V20"/></svg></span><h3 class="sec-title"><span class="tt">מסכים</span><svg class="ic disc ic-dir" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg><span class="count"><span class="num">1</span> התקנים</span></h3><span class="offall"><button class="btn ghost sm"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v8"/><path d="M6.6 7.4a7.5 7.5 0 1 0 10.8 0"/></svg>כבה הכל</button></span></div><div class="tiles1"><div class="tile"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="11.5" rx="2"/><path d="M9 20h6"/><path d="M12 16.5V20"/></svg></span><span class="tbody"><div class="tname">טלוויזיה סלון</div><div class="tstate">כבוי</div></span><span class="tctl"><span class="tg small" role="switch" aria-checked="false"><span class="tr"></span></span></span></div></div></section><section class="glass dcard "><div class="card-head"><span class="dbadge" style="--role:var(--sw-role-success);--role-fg:var(--sw-role-success-fg)"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 5 6.2v5.3c0 4.2 3 7.4 7 8.9 4-1.5 7-4.7 7-8.9V6.2z"/><path d="m9.3 12 1.9 1.9 3.6-3.8"/></svg></span><h3 class="sec-title"><span class="tt">אבטחה</span><svg class="ic disc ic-dir" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg><span class="count"><span class="num">3</span> התקנים</span></h3></div><div class="tiles1">
     <div class="tile"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg></span><span class="tbody"><div class="tname">דלת מרפסת</div><div class="tstate">נעול</div></span><span class="tctl"><button class="btn secondary sm"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 7.6-1.8"/></svg>פתח</button></span></div>
     <div class="tile"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V5.5a1.5 1.5 0 0 1 1.5-1.5h11A1.5 1.5 0 0 1 19 5.5V20"/><path d="M3.5 20h17"/><circle cx="15" cy="12.5" r=".9"/></svg></span><span class="tbody"><div class="tname">מגע דלת כניסה</div><div class="tstate">סגורה</div></span><span class="tctl"><span class="badge live"><span class="dot"></span>סגורה</span></span></div>
     <div class="snap"><div class="scene s4"></div><span class="tag badge image"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="7" width="17" height="12" rx="2"/><circle cx="12" cy="13" r="3.2"/><path d="M9 7 10.2 4.5h3.6L15 7"/></svg>צילום</span><button class="exp" aria-label="הרחב"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"/><path d="m20 4-7 7"/><path d="M10 20H4v-6"/><path d="m4 20 7-7"/></svg></button><div class="nm"><span class="dot live" style="border:1.5px solid rgba(255,255,255,.8)"></span>מצלמת סלון</div></div>
-  </div></section><section class="glass dcard"><div class="card-head"><span class="dbadge" style="--role:var(--sw-role-cool);--role-fg:var(--sw-role-cool-fg)"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="11.5" rx="2"/><path d="M9 20h6"/><path d="M12 16.5V20"/></svg></span><h3 class="sec-title">מסכים <span class="count">0 מתוך 1</span></h3><span class="offall"><button class="btn ghost sm"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v8"/><path d="M6.6 7.4a7.5 7.5 0 1 0 10.8 0"/></svg>כבה הכל</button></span></div><div class="tiles1"><div class="tile"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="11.5" rx="2"/><path d="M9 20h6"/><path d="M12 16.5V20"/></svg></span><span class="tbody"><div class="tname">טלוויזיה סלון</div><div class="tstate">כבוי</div></span><span class="tctl"><span class="tg small" role="switch" aria-checked="false"><span class="tr"></span></span></span></div></div></section><section class="glass dcard"><div class="card-head"><span class="dbadge" style="--role:var(--sw-role-neutral);--role-fg:var(--sw-role-neutral-fg)"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.8"/><path d="M8.5 15.5a5 5 0 0 1 0-7"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M6 18a8.5 8.5 0 0 1 0-12"/><path d="M18 6a8.5 8.5 0 0 1 0 12"/></svg></span><h3 class="sec-title">חיישנים <span class="count">4 עיקריים · 6</span></h3></div><div class="sens2">
+  </div></section><section class="glass dcard "><div class="card-head"><span class="dbadge" style="--role:var(--sw-role-neutral);--role-fg:var(--sw-role-neutral-fg)"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.8"/><path d="M8.5 15.5a5 5 0 0 1 0-7"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M6 18a8.5 8.5 0 0 1 0-12"/><path d="M18 6a8.5 8.5 0 0 1 0 12"/></svg></span><h3 class="sec-title"><span class="tt">חיישנים</span><svg class="ic disc ic-dir" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg><span class="count"><span class="num">6</span> התקנים</span></h3></div><div class="sens2">
     <div class="sens"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14.2V5.5a2 2 0 0 1 4 0v8.7a3.5 3.5 0 1 1-4 0z"/><path d="M12 10v6"/></svg></span><span><div class="sv num">24.5°</div><div class="sl">טמפרטורה</div></span></div>
     <div class="sens"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5c-3 4-6 7-6 10.5a6 6 0 0 0 12 0c0-3.5-3-6.5-6-10.5z"/></svg></span><span><div class="sv num">48%</div><div class="sl">לחות</div></span></div>
-    <div class="sens"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="14" cy="5" r="1.8"/><path d="m8 21 3-6 3 2 2 4"/><path d="m6 13 4-3 4 1 3 3 3-1"/><path d="m10 10-1 5"/></svg></span><span><div class="sv" style="font-size:16px">אין תנועה</div><div class="sl">תנועה · לפני <span class="num">12</span> דק׳</div></span></div>
+    <div class="sens"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="14" cy="5" r="1.8"/><path d="m8 21 3-6 3 2 2 4"/><path d="m6 13 4-3 4 1 3 3 3-1"/><path d="m10 10-1 5"/></svg></span><span><div class="sv" style="font-size:16px">אין תנועה</div><div class="sl">לפני <span class="num">12</span> דק׳</div></span></div>
     <div class="sens"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V5.5a1.5 1.5 0 0 1 1.5-1.5h11A1.5 1.5 0 0 1 19 5.5V20"/><path d="M3.5 20h17"/><circle cx="15" cy="12.5" r=".9"/></svg></span><span><div class="sv" style="font-size:16px">סגורה</div><div class="sl">דלת מרפסת</div></span></div>
-  </div><button class="btn ghost sm" style="margin-top:8px;width:100%"><svg class="ic faint" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg>עוד <span class="num">2</span> חיישנים</button></section></div></div></div></main></div><nav class="bar" aria-label="אזורים">
+  </div><button class="btn ghost sm" style="margin-top:8px;width:100%"><svg class="ic faint" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg>עוד <span class="num">2</span> חיישנים</button></section></div><div class="empties"><span>ללא התקנים באזור:</span><span class="chip ghost"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5.5v13l10-6.5z"/></svg>מדיה</span><span class="chip ghost"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5c-3 4-6 7-6 10.5a6 6 0 0 0 12 0c0-3.5-3-6.5-6-10.5z"/></svg>השקיה</span><span class="chip ghost"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V5.5a1.5 1.5 0 0 1 1.5-1.5h11A1.5 1.5 0 0 1 19 5.5V20"/><path d="M3.5 20h17"/><circle cx="15" cy="12.5" r=".9"/></svg>שערים</span></div></div></main></div><nav class="bar" aria-label="אזורים">
   <a class="bar-item active" href="#"><span class="pill"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.5 12 5l8 6.5"/><path d="M6.5 10v9h11v-9"/><path d="M10 19v-5h4v5"/></svg></span><span>ראשי</span></a><a class="bar-item" href="#"><span class="pill"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 5 6.2v5.3c0 4.2 3 7.4 7 8.9 4-1.5 7-4.7 7-8.9V6.2z"/><path d="m9.3 12 1.9 1.9 3.6-3.8"/></svg></span><span>אבטחה</span></a><a class="bar-item" href="#"><span class="pill"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.5v13l5-2 6 2 5-2v-13l-5 2-6-2z"/><path d="M9 4.5v13"/><path d="M15 6.5v13"/></svg></span><span>מפה</span></a><a class="bar-item" href="#"><span class="pill"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="3.5" width="10" height="17" rx="2.2"/><circle cx="12" cy="9" r="1.6"/><path d="M12 10.6v4"/></svg></span><span>WisKey</span></a>
   <button class="bar-item"><span class="pill"><span class="avatar">יו<i class="adot"></i></span></span><span>יוני</span></button>
 </nav>
-<div class="board-label">area · 390×844 · dark</div>
+<div class="board-label">area · 390×844 · dark · domus</div>
 </body>
 </html>

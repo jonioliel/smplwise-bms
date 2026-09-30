@@ -1,6 +1,6 @@
 # Token map — new semantic name → old names
 
-Generated from `src/tokens.mjs`. One semantic palette under `--sw-*`; engineering aliases the old `--sw-*` and `--dv-*` names onto it. Every name below has a light and a dark value in `tokens.json`.
+Generated from `src/tokens.mjs`. One semantic palette under `--sw-*`, the same names in every skin (`skins/*.mjs`); engineering aliases the old `--sw-*` and `--dv-*` names onto it. Every name below has a light and a dark value in `tokens.json` (domus), `tokens-ios.json` and `tokens-tesla.json`.
 
 | New name | Old names / note |
 |---|---|
@@ -14,7 +14,7 @@ Generated from `src/tokens.mjs`. One semantic palette under `--sw-*`; engineerin
 | `--sw-surface-3-solid` | new |
 | `--sw-border` | --sw-border · --dv-border |
 | `--sw-border-strong` | --sw-border-strong · --dv-border-strong |
-| `--sw-highlight` | new (glass top hairline; the inset line inside --dv-shadow-1/2) |
+| `--sw-highlight` | new (glass top hairline; the inset line inside --dv-shadow-1/2; transparent in the iOS and Tesla skins) |
 | `--sw-overlay` | --sw-overlay · --dv-overlay |
 | `--sw-video-bg` | --sw-video-bg |
 | `--sw-text` | --sw-text · --dv-text · --dv-icon-ring-fg |
@@ -41,11 +41,11 @@ Generated from `src/tokens.mjs`. One semantic palette under `--sw-*`; engineerin
 | `--sw-purple` | --sw-purple |
 | `--sw-<state>-text (×10)` | new: the text colour of a state on its -soft fill (badge, chip, KPI detail); the bare state colour stays for dots, bars and icons |
 | `--sw-toggle-on` | --dv-toggle-on |
-| `--sw-on-warm / -cool / -switch` | --dv-tile-on-warm · --dv-tile-on-cool · --dv-tile-on-switch |
-| `--sw-glow-fill-start / -end / --sw-glow-border / --sw-glow-halo` | --dv-glow-fill-start · --dv-glow-fill-end · --dv-glow-border · --dv-glow-halo |
+| `--sw-on-warm / -cool / -switch` | --dv-tile-on-warm · --dv-tile-on-cool · --dv-tile-on-switch (one accent triplet for all three in the Tesla skin) |
+| `--sw-glow-fill-start / -end / --sw-glow-border / --sw-glow-halo` | --dv-glow-fill-start · --dv-glow-fill-end · --dv-glow-border · --dv-glow-halo (iOS: flat tint, no halo; Tesla: rule only) |
 | `--sw-role-<role> / -fg / --sw-role-fill-a / --sw-role-border-a` | --dv-role-<role>-bg · -border · -fg (bg = rgb(triplet / fill-a), border = rgb(triplet / border-a)) |
 | `--sw-map-* · --sw-obj-* · --sw-circuit-* · --sw-fov` | same names (dark values added) |
-| `--sw-font` | --sw-font · --dv-font (Heebo leads in both) |
+| `--sw-font` | --sw-font · --dv-font (Heebo leads in every skin) |
 | `--sw-font-mono` | --sw-font-mono |
 | `--sw-fs-xs … --sw-fs-3xl` | --sw-fs-* ; --dv-fs-item-name = --sw-fs-sm, --dv-fs-tile-name = --sw-fs-md, --dv-fs-title = --sw-fs-section, --dv-fs-value-big = --sw-fs-3xl |
 | `--sw-h1 / --sw-h1-phone / -weight / -tracking / -lh` | --sw-h1 · --sw-h1-weight · --sw-h1-tracking (phone value new) |
@@ -68,14 +68,14 @@ Generated from `src/tokens.mjs`. One semantic palette under `--sw-*`; engineerin
 | `--sw-card-pad / --sw-tile-pad` | --dv-card-pad-* · --dv-tile-pad-* · --dv-item-pad-* |
 | `--sw-row-h / --sw-row-h-compact` | --dv-item-min-block · --dv-kpi-compact-min-block |
 | `--sw-icon-ring / -lg` | --dv-icon-ring-size · --dv-icon-ring-size-lg · --dv-card-badge-size |
-| `--sw-r-sm` | --sw-r-sm (8 → 10) |
-| `--sw-r-md` | --sw-r-md · --dv-radius-sm (12/14 → 16) |
-| `--sw-r-lg` | --sw-r-lg · --dv-radius-md (14/22 → 24) |
-| `--sw-r-xl` | --dv-radius-lg (28) |
-| `--sw-r-pill` | --sw-r-pill · --dv-radius-control |
+| `--sw-r-sm` | --sw-r-sm (8 → 10 domus · 8 ios · 4 tesla) |
+| `--sw-r-md` | --sw-r-md · --dv-radius-sm (16 · 12 · 6) |
+| `--sw-r-lg` | --sw-r-lg · --dv-radius-md (24 · 16 · 8) |
+| `--sw-r-xl` | --dv-radius-lg (28 · 20 · 8) |
+| `--sw-r-pill` | --sw-r-pill · --dv-radius-control (999 · 999 · 6) |
 | `--sw-shadow-1/2/3` | --sw-shadow-1/2/3 · --dv-shadow-1/2/3 (top highlight moved to --sw-highlight) |
 | `--sw-shadow-thumb` | --dv-shadow-control |
-| `--sw-glass-blur / -nav / -sheet / --sw-glass-nested / --sw-glass-contrast-a` | --dv-surface-blur (+ new) |
+| `--sw-glass-blur / -nav / -sheet / --sw-glass-nested / --sw-glass-contrast-a` | --dv-surface-blur (+ new; "none" in the skins without glass) |
 | `--sw-t-fast / -med / -slow` | --sw-t-fast · --sw-t-med (+ slow) |
 | `--sw-ease / -enter / -exit / -thumb` | --sw-ease (+ new) |
 | `--sw-hover-lift` | --dv-hover-lift |

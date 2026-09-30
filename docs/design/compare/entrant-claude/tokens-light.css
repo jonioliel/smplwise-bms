@@ -1,4 +1,4 @@
-/* Arx · hi-tech Domus · light scheme. Generated from src/tokens.mjs */
+/* Arx · skin "hi-tech Domus" · light scheme. Generated from skins/domus.mjs */
 :root, [data-scheme="light"] {
   color-scheme: light;
   --sw-bg: #eef1f7;
@@ -17,7 +17,7 @@
   --sw-text: #172033;
   --sw-heading: #0f1727;
   --sw-text-2: #46536b;
-  --sw-text-3: #5f6c82;
+  --sw-text-3: #59667c;
   --sw-text-inverse: #ffffff;
   --sw-accent: #2a63f0;
   --sw-accent-hover: #1f52d6;
@@ -124,11 +124,11 @@
   --sw-fs-xl: 17px;
   --sw-fs-2xl: 21px;
   --sw-fs-3xl: 26px;
-  --sw-h1: 40px;
-  --sw-h1-phone: 30px;
+  --sw-h1: 44px;
+  --sw-h1-phone: 32px;
   --sw-h1-weight: 700;
-  --sw-h1-tracking: -0.8px;
-  --sw-h1-lh: 1.1;
+  --sw-h1-tracking: -1px;
+  --sw-h1-lh: 1.05;
   --sw-h2: 24px;
   --sw-h2-tracking: -0.3px;
   --sw-fs-section: 16px;
