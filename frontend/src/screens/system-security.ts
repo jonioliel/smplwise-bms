@@ -136,8 +136,10 @@ export class SystemSecurity extends LitElement {
       }
       return html`<sw-page heading="אבטחה"><sw-state-panel state="forbidden" data-security-settings-forbidden></sw-state-panel></sw-page>`;
     }
-    // the page being viewed stays in the row even when the presence answer would hide it (a saved link)
-    const items = SECURITY_SETTINGS_TABS.filter((t) => offered.some((o) => o.id === t.id) || t.id === this.sub);
+    // the page being viewed stays in the row even when the presence answer would hide it (a saved link); the row follows
+    // the order and visibility the admin set (ui.tabs, "system.security") through `offered`
+    const current = SECURITY_SETTINGS_TABS.find((t) => t.id === this.sub);
+    const items = current && !offered.some((o) => o.id === current.id) ? [...offered, current] : offered;
     return html`${items.length > 1
         ? html`<div class="tabs" data-security-settings-tabs><sw-tabs underline .items=${items} .active=${this.sub}></sw-tabs></div>`
         : nothing}

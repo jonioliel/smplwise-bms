@@ -17,7 +17,7 @@ const SCREENS: { sc: string; route: string; full?: boolean }[] = [
   { sc: 'sc03-floors', route: '/explore/buildings/bld-a/floors' },
   { sc: 'sc05-plan-import', route: '/explore/floors/f-2/import' },
   { sc: 'sc06-plan-editor', route: '/explore/floors/f0/edit' },
-  { sc: 'sc10-entities', route: '/explore/entities' },
+  { sc: 'sc10-entities', route: '/system/entities' }, // הגדרות › קטלוג התקנים (was the map's "התקנים" tab until 2026-09-30)
   { sc: 'sc23-access', route: '/wiskey/overview' },
   { sc: 'sc34-alarm', route: '/system/security/alarm', full: true }, // CR-010: הגדרות › אבטחה › אזעקה (moved 2026-09-30)
   { sc: 'sc12-playback', route: '/investigate/playback', full: true },

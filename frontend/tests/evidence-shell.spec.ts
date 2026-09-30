@@ -164,7 +164,7 @@ test.describe('CR-013 shell on the demo data', () => {
     await open(page, '/live');
     const sec = page.locator('sw-app main nav[data-security-sections]');
     await expect(sec).toBeVisible();
-    await expect(sec.locator('a')).toHaveText(['לייב', 'חקירה', 'אזעקה']);
+    await expect(sec.locator('a')).toHaveText(['לייב', 'חקירה']); // the alarm left for הגדרות › אבטחה (2026-09-30)
     await expect(sec.locator('a[data-section="live"]')).toHaveAttribute('aria-current', 'page');
     expect(await shellHeaders(page)).toBe(0);
     // it shares the row with the page's tab row, on the right (RTL start), clear of the corner
@@ -551,7 +551,8 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     await open(page, '/devices/building');
     await meButton(page, info).click();
     await expect(menu.locator('[data-menu-edit-home]')).toHaveCount(0);
-    await expect(menu.locator('ul[data-menu-level="main"] > li')).toHaveText(['התראות', 'החשבון שלי']);
+    // the viewer holds alarm.view: הגדרות › אבטחה › אזעקה is theirs, so the user menu offers "מערכת" (2026-09-30)
+    await expect(menu.locator('ul[data-menu-level="main"] > li')).toHaveText([/התראות/, /מערכת/, /החשבון שלי/]);
   });
 
   test('a user without rules.manage: the alerts inbox only - no rules request, no rules tab, no "חוק חדש"', async ({ page }) => {

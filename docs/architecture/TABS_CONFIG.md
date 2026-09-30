@@ -63,6 +63,29 @@ The floor the map's floor tab opens first when the installation has several buil
   the user's first readable floor (from `GET /sites`) when the default is not in the tree it received; the setting never
   grants access to a floor. No new endpoint was added: the frontend already has the tree (`GET /sites`) and the settings.
 
+## Frontend (agent E2, 2026-09-30)
+
+- **Registry:** `frontend/src/shell/nav.ts` `TAB_SECTIONS` lists the configurable sections and their ids: `areas` (the rail and
+  phone bottom bar: devices / security / explore / wiskey), `security` (the sections לייב / חקירה), `security.live`,
+  `security.investigate`, `explore` (sites, floors), `wiskey`, `system` (settings tabs), `system.security`. Every tab row goes
+  through `visibleTabs` -> `configureTabs`; the security sections through `visibleSections`; the rail through `visibleAreas`.
+  Design B's flat entries share the explore / wiskey / settings arrays, so they follow too (its cameras / events / playback groups
+  are not configurable). Demo mode (no backend) always shows the defaults.
+- **Editor:** הגדרות › כללי › לשוניות (`screens/system-tabs.ts`, tab `tabs` of `system-diagnostics`): show / hide switch, drag handle,
+  up / down buttons and arrow keys per tab, "אפס לברירת המחדל" per section, one Save (`PATCH /settings {"ui.tabs": ...}`).
+  The last visible tab of a section cannot be hidden and `system.general` (the way back to the editor) is locked. Ids the browser
+  does not know right now (WisKey's catalogue before the panel loaded) keep their stored place.
+- **Shell rules:** permissions gate first; hidden = not offered, the route keeps working by deep link for holders of the permission
+  (no tab is the only way in: every configurable tab is also reachable by address). If hiding would leave a user with no tab in a
+  section, their permitted tabs are shown after all. A configured section lands on its first visible tab (the section entry, the
+  rail entry, a bare `#/security` still opens the section this browser used last). The admin's `areas` order is the rail's default;
+  a user's own `nav.order` (`/me/prefs`, `stored`) wins for that user, and a user without one follows the admin's.
+- **Map default floor:** `api/catalog.ts entryFloor(tree, id)`: the setting when it is in the user's own tree (`GET /sites`), else the
+  user's first floor; used where the map resolves its `f0` alias. Set in הגדרות › כללי › מפה (grouped by site and building).
+- **Device catalogue:** now הגדרות › קטלוג התקנים (`#/system/entities`, `system.configure` at installation scope, checked by the shell
+  and by the screen). `#/explore/entities[?q=]` redirects (`legacyRedirect`) to it for holders and to the map for the rest.
+  The backend endpoints are unchanged (see the audit below); they are still readable by any `entity.state.read` holder.
+
 ## Entities screen exposure (audit for the coordinator, 2026-09-30)
 
 The map's "התקנים" tab (`frontend/src/screens/explore-entities.ts`, `#/explore/entities`) must become settings-only. This is a
