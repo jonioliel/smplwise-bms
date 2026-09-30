@@ -29,6 +29,7 @@ import '../screens/devices-area';
 import '../screens/devices-schedules';
 import '../screens/system-schedules';
 import '../screens/security-alarm';
+import '../screens/schedule-editor';
 import '../screens/live-overview';
 import '../screens/live-wall';
 import '../screens/live-camera';

@@ -163,7 +163,9 @@ test.describe('the schedules list (demo mode)', () => {
     await open(page, '/devices/schedules');
     await ready(page);
     await scr(page).locator('[data-new-schedule]').first().click();
-    await expect.poll(() => hashOf(page)).toBe('#/devices/schedules/new/edit');
+    // S4's real dialog is registered by the bundle since the merge: it opens (the editor route is only the fallback for a
+    // missing tag, which the product no longer has)
+    await expect(scr(page).locator('schedule-create-dialog')).toHaveAttribute('open', '');
 
     await installDoubles(page);
     await open(page, '/devices/schedules');
