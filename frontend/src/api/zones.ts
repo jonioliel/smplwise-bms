@@ -98,18 +98,19 @@ export const shareZone = (zoneId: string, body: ShareRequest) => post<SharePrevi
 export const unshareZone = (zoneId: string, floorId: string) => del(`zones/${zoneId}/share/${floorId}`);
 /** Members of a shared room (security review B1): reach follows this list, never where an anchor lies. Adding one needs
  * the share rights on every floor of the room. */
-export const addShareMember = (zoneId: string, resourceType: 'camera' | 'ha_entity', resourceId: string) =>
+export const addShareMember = (zoneId: string, resourceType: ShareMember['resource_type'], resourceId: string) =>
   post<{ zone_id: string; added: boolean }>(`zones/${zoneId}/share/members`, { resource_type: resourceType, resource_id: resourceId });
-export const removeShareMember = (zoneId: string, resourceType: 'camera' | 'ha_entity', resourceId: string) =>
+export const removeShareMember = (zoneId: string, resourceType: ShareMember['resource_type'], resourceId: string) =>
   del(`zones/${zoneId}/share/members/${resourceType}/${encodeURIComponent(resourceId)}`);
 
 /** One member of a shared space as the READER may see it (owner 2026-09-30: each member filtered by the reader's own
  * permissions - a camera they may not view is not listed). `floors`: where it is anchored ("קומה אחרת" for a floor the
  * reader may not read). */
 export interface ShareMember {
-  resource_type: 'camera' | 'ha_entity';
+  /** 'wiskey_station' (CR-009 §13): a WisKey station listed by name - not placed on any map, it grants no reach. */
+  resource_type: 'camera' | 'ha_entity' | 'wiskey_station';
   resource_id: string;
-  kind: 'camera' | 'door' | 'device';
+  kind: 'camera' | 'door' | 'device' | 'station';
   name: string;
   added_at?: string;
   floors: { floor_id: string; name: string }[];
@@ -124,7 +125,12 @@ export interface ShareMembers {
   candidates?: ShareMember[];
 }
 export const listShareMembers = (zoneId: string) => get<ShareMembers>(`zones/${zoneId}/share/members`);
-export const deleteZone = (id: string, signal?: AbortSignal) => (signal ? api<void>(`zones/${id}`, { method: 'DELETE', signal }) : del(`zones/${id}`));
+/** `withUnshare` (CR-009 §14): a shared room, from its HOME floor - ends every share and its members and deletes the room in one
+ * server transaction. Without it a shared room answers 409 `zone_shared`. */
+export const deleteZone = (id: string, signal?: AbortSignal, withUnshare = false) => {
+  const path = withUnshare ? `zones/${id}?with_unshare=true` : `zones/${id}`;
+  return signal ? api<void>(path, { method: 'DELETE', signal }) : del(path);
+};
 export const detectZones = (floorId: string, strength: 'light' | 'medium' | 'strong' = 'medium') => post<DetectResult>(`floors/${floorId}/zones/detect`, { strength });
 export const acceptZones = (floorId: string, candidates: { polygon: ZonePoint[]; name?: string; kind?: ZoneKind }[], replaceAuto: boolean) =>
   post<{ zones: SpatialZone[]; created: string[] }>(`floors/${floorId}/zones/accept`, { candidates, replace_auto: replaceAuto });
