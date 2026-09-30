@@ -54,10 +54,6 @@ PERMISSION_LABELS: dict[str, str] = {
     # sensitive permissions. Floor-scoped like devices.control (the entity's own placement): a floor binding runs floor
     # and area actions over the entities placed on its floors; a building action needs installation scope.
     "devices.control_bulk": "פעולות מרוכזות בחשמל והתקנים: כיבוי תאורה / מיזוג / מסכים וסגירת תריסים לאזור, קומה או מבנה",
-    # screen.personalize (owner 2026-09-30, area redesign): a user's OWN choice of the area screens' direction
-    # (dense tiles / sequential sections), kept in that browser only. System_admin only by default, listed in
-    # sensitive_permissions_not_implied like the other opt-in permissions; the installation's direction is a setting.
-    "screen.personalize": "התאמה אישית של מסכי החשמל והתקנים (כיוון תצוגה של מסך האזור)",
     "video.live": "שידור חי",
     "video.playback": "ניגון הקלטות",
     "events.read": "צפייה באירועים",

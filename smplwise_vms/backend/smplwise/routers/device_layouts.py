@@ -46,7 +46,7 @@ from ..rbac import INSTALLATION, Principal, authorize
 from ..services import camera_cards
 from ..services import devices as svc
 from ..services import ha_scope
-from .devices import READ, _configure_holder, _configure_holder_ro, _is_json, _raw_body
+from .devices import READ, _configure_holder, _configure_holder_ro, _is_json, _raw_body, _visible_entities
 
 router = APIRouter()
 log = logging.getLogger("smplwise.device_layouts")
@@ -448,10 +448,12 @@ def _row(conn: sqlite3.Connection, scope: str, scope_id: str, variant: str) -> d
     return {"layout": json.loads(r["layout_json"]), "revision": r["revision"], "updated_by": r["display_name"] or r["username"] or r["updated_by"], "updated_at": r["updated_at"]}
 
 
-def _record(conn: sqlite3.Connection, principal: Principal, scope: str, scope_id: str, visible: tuple[set[str], set[str]] | None = None) -> dict[str, Any]:
+def _record(conn: sqlite3.Connection, principal: Principal, scope: str, scope_id: str, visible: tuple[set[str], set[str]] | None = None, seen: set[str] | None = None) -> dict[str, Any]:
     """The record. `visible` (floor ids, area ids) narrows it for a floor-scoped caller (review MEDIUM 1): only the
     keys of floors / areas they can see, nothing of an area they cannot, and `narrowed: true` so the screen packs the
-    rows those items leave. Who saved it is shown to system.configure holders only."""
+    rows those items leave. `seen` (the entity ids the caller may see, the same set as GET /devices/entities) drops from a
+    card's `main` sensors and a custom card's devices the ids of devices placed elsewhere - a layout may name a device of
+    any floor, its GET must not tell a floor-scoped caller which. Who saved it is shown to system.configure holders only."""
     can_edit = authorize(conn, principal, "system.configure", INSTALLATION).allowed
     out: dict[str, Any] = {"scope": scope, "id": scope_id, "can_edit": can_edit, "narrowed": False}
     for variant in VARIANTS:
@@ -467,6 +469,14 @@ def _record(conn: sqlite3.Connection, principal: Principal, scope: str, scope_id
                 keep = {k: v for k, v in items.items() if (k[6:] in floors if k.startswith("floor:") else k[5:] in areas)}
                 out["narrowed"] = out["narrowed"] or len(keep) != len(items)
                 rec["layout"]["items"] = keep
+        if rec and seen is not None:
+            for it in rec["layout"]["items"].values():
+                if it.get("main"):
+                    it["main"] = [e for e in it["main"] if e in seen]
+                    if not it["main"]:
+                        it.pop("main")
+                if it.get("custom"):
+                    it["custom"] = {**it["custom"], "entities": [e for e in it["custom"].get("entities", []) if e in seen]}
         out[variant] = rec
     return out
 
@@ -524,7 +534,12 @@ def get_layout(scope: str, scope_id: str, principal: Principal = Depends(current
     """The screen's stored layout (desktop and phone; null = automatic) - everyone who reads the device screens."""
     ha_scope.scoped_rows(conn, principal, READ, [])  # the audited 403 without devices.read anywhere
     _check_scope(scope, scope_id)
-    return _record(conn, principal, scope, scope_id, _visible(conn, principal))  # a read never writes
+    visible = _visible(conn, principal)
+    seen = None
+    if visible is not None:  # a floor-scoped caller: the ids of devices they cannot see are dropped from main / custom lists
+        entities, _scoped = _visible_entities(conn, principal)
+        seen = {e["entity_id"] for e in entities}
+    return _record(conn, principal, scope, scope_id, visible, seen)  # a read never writes
 
 
 @router.put("/devices/layouts/{scope}/{scope_id}")

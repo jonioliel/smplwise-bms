@@ -275,6 +275,33 @@ def test_floor_scoped_viewer_sees_only_their_floors_keys(dev_app):  # noqa: F811
     assert set(c.get(f"{URL}/building/main").json()["desktop"]["layout"]["items"]) == set(layout["items"])
 
 
+def test_floor_scoped_viewer_gets_main_and_custom_lists_without_devices_they_cannot_see(dev_app):  # noqa: F811
+    """A layout may name a device of any floor (the sensors card's main strip, a custom card's devices): the GET a
+    floor-scoped caller makes drops the ids of devices placed elsewhere; an installation-wide caller gets them whole."""
+    app, s = dev_app
+    c = TestClient(app)
+    ids = seed_tree(c)
+    _publish_plan(c, ids["floor2"])
+    _place(c, ids["floor2"], "light.office")  # HA area "office" on HA floor "second"; sensor.lobby_temp / light.garden are elsewhere
+    layout = {"v": 3, "cols": 12, "items": {
+        "card:sensors": {"x": 0, "y": 0, "w": 6, "h": 12, "main": ["sensor.lobby_temp", "light.office"]},
+        "card:c-abcdef1": {"x": 6, "y": 0, "w": 6, "h": 12, "custom": {"type": "lighting", "entities": ["light.garden", "light.office"]}},
+        "card:c-abcdef2": {"x": 0, "y": 14, "w": 6, "h": 12, "custom": {"type": "lighting", "entities": ["light.garden"]}},
+    }}
+    r = _put(c, "area", "office", "desktop", 0, layout)
+    assert r.status_code == 200, r.text
+    bind(c, s, "flo", "viewer", "floor", ids["floor2"])
+    items = c.get(f"{URL}/area/office", headers=as_user("flo")).json()["desktop"]["layout"]["items"]
+    assert items["card:sensors"]["main"] == ["light.office"]
+    assert items["card:c-abcdef1"]["custom"]["entities"] == ["light.office"]
+    assert items["card:c-abcdef2"]["custom"]["entities"] == []
+    text = c.get(f"{URL}/area/office", headers=as_user("flo")).text
+    assert "sensor.lobby_temp" not in text and "light.garden" not in text
+    whole = c.get(f"{URL}/area/office").json()["desktop"]["layout"]["items"]
+    assert whole["card:sensors"]["main"] == ["sensor.lobby_temp", "light.office"]
+    assert whole["card:c-abcdef1"]["custom"]["entities"] == ["light.garden", "light.office"]
+
+
 def test_layouts_of_areas_gone_from_home_assistant_are_pruned_on_writes_only(dev_app):  # noqa: F811
     """Review nit 8 (re-review): a layout row of an HA area that no longer exists goes on the next WRITE of a
     system.configure holder, audited (scope, id, count); a read - by anyone - never writes."""
