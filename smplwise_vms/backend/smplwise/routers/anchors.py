@@ -14,7 +14,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import new_id, now_iso
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, authorize, require
-from ..services.access import camera_reach_for_placement, camera_scope, require_camera_placement, require_floor_read
+from ..services.access import camera_reach_for_placement, camera_scope, floor_reach, require_camera_placement, require_floor_read
 from .catalog import building_row, floor_row, get_building, get_floor, get_site, site_row
 from ..services.timeutil import parse_utc
 from .plans import needs_alignment, version_at, version_row
@@ -105,12 +105,12 @@ def _zones_for(conn: sqlite3.Connection, floor_id: str) -> list[dict[str, Any]]:
     return floor_zones(conn, floor_id)
 
 
-def _marked_zones(conn: sqlite3.Connection, floor_id: str) -> list[dict[str, Any]]:
+def _marked_zones(conn: sqlite3.Connection, floor_id: str, can_name: Any = None) -> list[dict[str, Any]]:
     """The floor's rooms; one that other floors show too carries `shared` (role "home"; CR-009: the floor chip is drawn
     on the home map as well)."""
     from ..services import shared_spaces
 
-    marks = shared_spaces.home_zone_marks(conn, floor_id)
+    marks = shared_spaces.home_zone_marks(conn, floor_id, can_name)
     return [dict(z, shared=marks[z["id"]]) if z["id"] in marks else z for z in _zones_for(conn, floor_id)]
 
 
@@ -171,7 +171,8 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
     share_mode = "at" if (at_iso and history == "exact") else ("draft" if geometry_row is not None and geometry_row["status"] == "draft" else "published")
     share_at = at_iso if share_mode == "at" else None
     can_attach = lambda hf: authorize(conn, principal, "map.read", ("floor", hf)).reason != "explicit_deny"  # noqa: E731
-    mirrored_zones, mirrored = shared_spaces.bundle_parts(conn, floor_id, version, share_at, can_attach=can_attach)
+    can_name = lambda fid: floor_reach(conn, principal, fid) is not None  # noqa: E731 - review L1: names of readable floors only
+    mirrored_zones, mirrored = shared_spaces.bundle_parts(conn, floor_id, version, share_at, can_attach=can_attach, can_name=can_name)
     # owner 2026-09-30: a member shows through the shared space only as far as the reader's OWN permissions allow that
     # member - a camera through camera_scope, a device through its entity's visibility (a deny on it hides it)
     from .ha import _entity_allowed as _member_entity_ok
@@ -283,7 +284,7 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
                    + [dict(anchor_row(a), **over, camera=cameras.get(a["resource_id"]) if a["resource_type"] == "camera" else None, entity=entities.get(a["resource_id"]) if a["resource_type"] == "ha_entity" else None)
                       for a, over in mirrored],
         "ha_sync": ha_sync.STATE.as_dict(),
-        "zones": [] if camera_only else _marked_zones(conn, floor_id) + mirrored_zones,
+        "zones": [] if camera_only else _marked_zones(conn, floor_id, can_name) + mirrored_zones,
         "reach": reach,
         "needs_alignment": needs_alignment(conn, version, anchors),
         "at": at_iso,

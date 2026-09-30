@@ -55,6 +55,9 @@ export interface SharedSpaceEntry {
   other_floor_name?: string;
 }
 
+/** What the server names a home floor the reader may not read (services/shared_spaces.OTHER_FLOOR): no jump to it. */
+export const OTHER_FLOOR = 'קומה אחרת';
+
 /** The `shared` mark of a zone in the map bundle (api/types SpatialZone.shared). */
 export interface SharedZoneMark {
   role: 'mirror' | 'home';

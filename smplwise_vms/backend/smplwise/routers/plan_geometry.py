@@ -701,7 +701,7 @@ def _export_doc(conn: sqlite3.Connection, principal: Principal, version_id: str,
 
 def _export_zones(conn: sqlite3.Connection, principal: Principal, v: sqlite3.Row) -> list[dict[str, Any]]:
     """The floor's rooms and the rooms other floors share with it (CR-009), in this plan's coordinates."""
-    mirrored, _anchors = shared_spaces.bundle_parts(conn, v["floor_id"], v, can_attach=_can_attach(conn, principal))
+    mirrored, _anchors = shared_spaces.bundle_parts(conn, v["floor_id"], v, can_attach=_can_attach(conn, principal), can_name=lambda fid: floor_reach(conn, principal, fid) is not None)
     return floor_zones(conn, v["floor_id"]) + mirrored
 
 

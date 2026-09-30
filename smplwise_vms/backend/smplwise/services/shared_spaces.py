@@ -36,6 +36,13 @@ SHARED_COLLECTIONS = ("objects", "labels", "connectors", "circuits", "groups")
 # every collection an attached item could be marked in (split / strip never let a marked item through)
 MARKED_COLLECTIONS = ("walls", "openings", *SHARED_COLLECTIONS)
 LABEL_PREFIX = "רצפה בקומה"
+# Members (B1, CR-009 §13): what a shared space lists. Cameras and HA entities are ANCHORED resources (reach follows a live
+# anchor on one of the room's floors, N1); a WisKey station has no anchor and no floor (installation-scoped), so it is a
+# member of the room's LIST only - it adds no reach anywhere (see `station_visible`).
+ANCHORED_TYPES = ("camera", "ha_entity")
+STATION = "wiskey_station"
+MEMBER_TYPES = (*ANCHORED_TYPES, STATION)
+MAX_STATION_ID = 128  # WisKey's own limit (routers/access_control.MAX_STATION_ID)
 
 
 # ---------------------------------------------------------------- rows
@@ -101,7 +108,37 @@ def ensure_schema(conn: sqlite3.Connection) -> list[str]:
         sql = next(iter(sorted((Path(__file__).resolve().parent.parent / "migrations").glob("*_shared_spaces.sql")))).read_text(encoding="utf-8")
         conn.executescript(sql)  # every statement there is IF NOT EXISTS
         added.append("shared_space_members")
+    row = conn.execute("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'shared_space_members'").fetchone()
+    if row is not None and STATION not in (row[0] or ""):
+        _widen_members(conn)  # CR-009 §13: a database that ran 0038 before WisKey stations could be members
+        added.append("shared_space_members.wiskey_station")
     return added
+
+
+def _widen_members(conn: sqlite3.Connection) -> None:
+    """SQLite cannot alter a CHECK: the members table is rebuilt (rows copied, its indexes and triggers recreated from the
+    migration text, every statement IF NOT EXISTS) in one transaction, all or nothing."""
+    from pathlib import Path
+
+    sql = next(iter(sorted((Path(__file__).resolve().parent.parent / "migrations").glob("*_shared_spaces.sql")))).read_text(encoding="utf-8")
+    cols = "id, zone_id, resource_type, resource_id, added_by, added_at, removed_at, removed_by"
+    script = (
+        "BEGIN;\n"
+        "DROP TRIGGER IF EXISTS trg_cv_shared_members_ins;\nDROP TRIGGER IF EXISTS trg_cv_shared_members_upd;\nDROP TRIGGER IF EXISTS trg_cv_shared_members_del;\n"
+        "DROP INDEX IF EXISTS ux_shared_members_active;\nDROP INDEX IF EXISTS idx_shared_members_resource;\n"
+        "ALTER TABLE shared_space_members RENAME TO shared_space_members_old;\n"
+        f"{sql}\n"
+        f"INSERT INTO shared_space_members({cols}) SELECT {cols} FROM shared_space_members_old;\n"
+        "DROP TABLE shared_space_members_old;\nCOMMIT;"
+    )
+    try:
+        conn.executescript(script)
+    except sqlite3.Error:
+        try:
+            conn.executescript("ROLLBACK;")
+        except sqlite3.Error:
+            pass
+        raise
 
 
 def any_active(conn: sqlite3.Connection) -> bool:
@@ -1158,6 +1195,35 @@ def alarm_owned(conn: sqlite3.Connection, entity_ids: list[str]) -> list[str]:
     return [e for e in ids if e.split(".", 1)[0] == "alarm_control_panel" or e in owned]
 
 
+def station_visible(conn: sqlite3.Connection, principal: Any, station_id: str) -> bool:
+    """CR-009 §13: may THIS reader see a WisKey station that is a member of a shared space? The existing WisKey model, reused
+    as it is: `access.read` at installation scope (routers/access_control._reader - stations have no site or floor, so there
+    is no narrower scope; a floor-scoped reader never holds it). Fail closed: any error, an inactive user or a deny is
+    "not visible". Membership adds nothing to this - the room never widens who may read a station, it only lists it."""
+    if not isinstance(station_id, str) or not station_id or len(station_id) > MAX_STATION_ID:
+        return False
+    try:
+        from ..rbac import INSTALLATION, authorize
+
+        return authorize(conn, principal, "access.read", INSTALLATION).allowed
+    except Exception:  # noqa: BLE001 - fail closed
+        return False
+
+
+def served_stations(settings: Any) -> dict[str, dict[str, Any]] | None:
+    """The stations of the served WisKey copy, by id (intercom_sync.served: the last-known copy or nothing), or None when
+    there is no honest copy. Only id and name are ever taken from it for a member."""
+    try:
+        from . import intercom_sync
+
+        _state, overview = intercom_sync.SYNC.served(settings)
+    except Exception:  # noqa: BLE001
+        return None
+    if not isinstance(overview, dict):
+        return None
+    return {s["id"]: s for s in overview.get("stations") or [] if isinstance(s, dict) and isinstance(s.get("id"), str) and s["id"]}
+
+
 def member_rows(conn: sqlite3.Connection, zone_id: str | None = None, at: str | None = None) -> list[sqlite3.Row]:
     live = "added_at <= ? AND (removed_at IS NULL OR removed_at > ?)" if at else "removed_at IS NULL"
     try:
@@ -1181,13 +1247,13 @@ def mirrored_anchor_floors(conn: sqlite3.Connection, at: str | None = None) -> d
         return {}
     cond = "effective_from <= ? AND (effective_to IS NULL OR effective_to > ?)" if at else "effective_to IS NULL"
     anchored: dict[tuple[str, str], set[str]] = {}
-    keys = sorted({(m["resource_type"], m["resource_id"]) for m in members})
+    keys = sorted({(m["resource_type"], m["resource_id"]) for m in members if m["resource_type"] in ANCHORED_TYPES})
     for rtype, rid in keys:
         anchored[(rtype, rid)] = {r[0] for r in conn.execute(f"SELECT floor_id FROM map_anchors WHERE resource_type = ? AND resource_id = ? AND {cond}", (rtype, rid, *((at, at) if at else ()))).fetchall()}
     for m in members:
         g = gs.get(m["zone_id"])
-        if g is None:
-            continue
+        if g is None or m["resource_type"] not in ANCHORED_TYPES:
+            continue  # a station member has no anchor and reaches no floor
         key = (m["resource_type"], m["resource_id"])
         on = [f for f in g.floors if f in anchored.get(key, set())]
         if not on:
@@ -1212,7 +1278,7 @@ def member_share_floors(conn: sqlite3.Connection) -> dict[tuple[str, str], set[s
     placed: dict[tuple[str, str], set[str]] = {}
     for m in member_rows(conn):
         g = gs.get(m["zone_id"])
-        if g is None:
+        if g is None or m["resource_type"] not in ANCHORED_TYPES:
             continue
         key = (m["resource_type"], m["resource_id"])
         if key not in placed:
@@ -1377,7 +1443,7 @@ def transfer(conn: sqlite3.Connection, g: Group, from_floor: str, to_floor: str)
 
 
 def bundle_parts(conn: sqlite3.Connection, floor_id: str, version: sqlite3.Row | None, at: str | None = None, *,
-                 can_attach: Callable[[str], bool] | None = None) -> tuple[list[dict[str, Any]], list[tuple[sqlite3.Row, dict[str, Any]]]]:
+                 can_attach: Callable[[str], bool] | None = None, can_name: Callable[[str], bool] | None = None) -> tuple[list[dict[str, Any]], list[tuple[sqlite3.Row, dict[str, Any]]]]:
     """What the map bundle of a floor adds for the shared rooms it shows: the room's zone when the floor has no outline
     of its own (polygon in this plan's coordinates, `shared`), and the MEMBERS anchored on the room's other floors (row,
     overrides: position, rotation, coverage, level, `shared`). A reader explicitly denied on the floor an anchor is on
@@ -1404,7 +1470,7 @@ def bundle_parts(conn: sqlite3.Connection, floor_id: str, version: sqlite3.Row |
             z = conn.execute("SELECT * FROM spatial_zones WHERE id = ?", (g.zone_id,)).fetchone()
             zr = zone_row(z)
             zr.update({"polygon": [{"x": _r6(q[0]), "y": _r6(q[1])} for q in (pt(p["x"], p["y"]) for p in share.zone_polygon)], "level_id": ns(g.home_floor_id, z["level_id"] or "L0"),
-                       "shared": {"role": "mirror", "zone_id": g.zone_id, "home_floor_id": g.home_floor_id, "home_floor_name": hfloor["name"], "home_floor_level": hfloor["level"],
+                       "shared": {"role": "mirror", "zone_id": g.zone_id, "home_floor_id": g.home_floor_id, "home_floor_name": hfloor["name"] if can_name is None or can_name(g.home_floor_id) else OTHER_FLOOR, "home_floor_level": hfloor["level"],
                                   "label": surface_label(hfloor["level"])}})
             zones.append(zr)
         for m in member_rows(conn, g.zone_id, at):
@@ -1430,7 +1496,7 @@ def bundle_parts(conn: sqlite3.Connection, floor_id: str, version: sqlite3.Row |
                 anchors.append((a, {"position": {"x": _r6(x), "y": _r6(y)}, "rotation_degrees": round(ang(a["rotation_degrees"] or 0) % 360, 3),
                                     "coverage_polygon": cov, "coverage_radius": round(min(1.0, a["coverage_radius"] * k), 6) if a["coverage_radius"] else a["coverage_radius"],
                                     "level_id": ns(a["floor_id"], a["level_id"] or "L0"),
-                                    "shared": {"zone_id": g.zone_id, "home_floor_id": a["floor_id"], "home_floor_name": src["name"] if src else "", "label": surface_label(hfloor["level"])}}))
+                                    "shared": {"zone_id": g.zone_id, "home_floor_id": a["floor_id"], "home_floor_name": (src["name"] if can_name is None or can_name(a["floor_id"]) else OTHER_FLOOR) if src else "", "label": surface_label(hfloor["level"])}}))
     return zones, anchors
 
 def editor_placement(conn: sqlite3.Connection, share: Share) -> Placement:
@@ -1472,19 +1538,21 @@ def mirrored_circuits(conn: sqlite3.Connection, floor_id: str, mode: str, at: st
     return out
 
 
-def home_zone_marks(conn: sqlite3.Connection, floor_id: str) -> dict[str, dict[str, Any]]:
+def home_zone_marks(conn: sqlite3.Connection, floor_id: str, can_name: Callable[[str], bool] | None = None) -> dict[str, dict[str, Any]]:
     """zone id -> the `shared` mark of this floor's rooms that are part of a shared space: its own room on the home
     floor (role "home", the floors that show it), its own outline of the room on another floor (role "mirror") - the
-    chip "רצפה בקומה -1" on both maps."""
+    chip "רצפה בקומה -1" on both maps. `can_name(floor)`: whether the reader may read that floor's name - a floor they
+    may not read is "קומה אחרת" (review L1 pattern; the editor then offers no jump to it)."""
+    name_of = lambda f: f["name"] if can_name is None or can_name(f["id"]) else OTHER_FLOOR  # noqa: E731
     out: dict[str, dict[str, Any]] = {}
     for g in groups(conn).values():
         if floor_id not in g.floors:
             continue
         home = _floor(conn, g.home_floor_id)
-        base = {"zone_id": g.zone_id, "home_floor_id": g.home_floor_id, "home_floor_name": home["name"] if home else "", "home_floor_level": home["level"] if home else None,
+        base = {"zone_id": g.zone_id, "home_floor_id": g.home_floor_id, "home_floor_name": name_of(home) if home else "", "home_floor_level": home["level"] if home else None,
                 "label": surface_label(home["level"] if home else "")}
         if floor_id == g.home_floor_id:
-            out[g.zone_id] = {**base, "role": "home", "floors": [{"floor_id": s.floor_id, "name": f["name"], "level": f["level"]} for s in g.shares for f in [_floor(conn, s.floor_id)] if f]}
+            out[g.zone_id] = {**base, "role": "home", "floors": [{"floor_id": s.floor_id, "name": name_of(f), "level": f["level"]} for s in g.shares for f in [_floor(conn, s.floor_id)] if f]}
         else:
             s = g.share_to(floor_id)
             if s is not None and s.other_zone_id:

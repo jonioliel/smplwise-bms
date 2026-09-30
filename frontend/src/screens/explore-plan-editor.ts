@@ -22,7 +22,7 @@ import type { Anchor, Camera, PlanVersion } from '../api/types';
 import { domainLabel, entityMarkerKind, listEntities, stateLabel, type HaEntity } from '../api/ha';
 import { ROOM_FILL_LABEL, setRenderMode, stylizeVersion, type RoomFill, type StylizeResult } from '../api/plans';
 import { ZONE_KINDS, acceptZones, addShareMember, createZone, deleteZone, detectZones, listZones, pointInPolygon, previewShare, removeShareMember, shareZone, unshareZone, updateZone, zoneKindLabel, type SharePreview, type ShareRequest, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
-import { findGeomItem, geomIds, geomItemPoint, overhangZone, sharedChip, sharedHint } from '../map/shared-space';
+import { OTHER_FLOOR, findGeomItem, geomIds, geomItemPoint, overhangZone, sharedChip, sharedHint } from '../map/shared-space';
 import { bidi } from '../i18n/bidi';
 import '../components/sw-share-members';
 import { proposeDoor } from '../api/geometry';
@@ -133,6 +133,8 @@ export class ExplorePlanEditor extends LitElement {
   @property() presetEntity = '';
   /** `?candidates=dxf`: the import screen stashed DXF candidates for this version; the detect tool opens on them. */
   @property() presetCandidates = '';
+  /** CR-009 §14: a zone to select once the floor is loaded (the mirror floor's "עבור לקומה X" jumps here with `?zone=`). */
+  @property() presetZone = '';
   @state() private bundle: MapBundle | null = null;
   @state() private anchors: Anchor[] = [];
   @state() private dirty = new Set<string>();
@@ -882,6 +884,11 @@ export class ExplorePlanEditor extends LitElement {
       this.zones = b.zones;
       void this.loadVersions();
       if (this.selectedZoneId && !this.zones.some((z) => z.id === this.selectedZoneId)) this.selectedZoneId = null;
+      if (this.presetZone && this.zones.some((z) => z.id === this.presetZone)) {
+        this.selectedZoneId = this.presetZone; // arrived by "עבור לקומה X": the room is selected here
+        this.selectedId = null;
+      }
+      this.presetZone = '';
       this.dirty = new Set();
       this.undo = [];
       this.redo = [];
@@ -1069,12 +1076,18 @@ export class ExplorePlanEditor extends LitElement {
   private async removeZone(z: SpatialZone) {
     if (this.bundle?.source === 'demo') return;
     if (z.shared?.role === 'mirror') return this.unshare(z, this.bundle!.floorId);
-    if (!window.confirm(`למחוק את "${z.name}"? המצלמות והישויות בקומה לא מושפעות.`)) return;
+    // CR-009 §14: a shared room, on its home floor - ONE confirmation that says what happens, then one server call that
+    // ends every share and its members and deletes the room (all or nothing)
+    const home = z.shared?.role === 'home';
+    const names = (z.shared?.floors ?? []).map((f) => bidi(f.name)).join(', ');
+    if (!window.confirm(home ? `למחוק את "${z.name}"?
+החדר משותף עם ${names}. המחיקה תבטל את השיתוף, תסיר את חברי החלל ותמחק את האזור. המצלמות והישויות לא נמחקות.` : `למחוק את "${z.name}"? המצלמות והישויות בקומה לא מושפעות.`)) return;
     this.zoneBusy = true;
     this.error = '';
     try {
-      const r = await this.sendZoneDelete(z);
+      const r = await this.sendZoneDelete(z, home);
       if (r !== 'ok') this.error = r;
+      else if (home) await this.reloadShared();
     } finally {
       this.zoneBusy = false;
     }
@@ -1082,9 +1095,9 @@ export class ExplorePlanEditor extends LitElement {
 
   /** One zone DELETE, the zone taken out of the list (and of the single selection): 'ok' or the error text. It never
    * touches `error` (see sendZonePatch). */
-  private async sendZoneDelete(z: SpatialZone): Promise<string> {
+  private async sendZoneDelete(z: SpatialZone, withUnshare = false): Promise<string> {
     try {
-      await deleteZone(z.id, AbortSignal.timeout(ZONE_SAVE_TIMEOUT_MS));
+      await deleteZone(z.id, AbortSignal.timeout(ZONE_SAVE_TIMEOUT_MS), withUnshare);
       this.zones = this.zones.filter((x) => x.id !== z.id);
       if (this.selectedZoneId === z.id) this.selectedZoneId = null;
       return 'ok';
@@ -1111,6 +1124,16 @@ export class ExplorePlanEditor extends LitElement {
     } finally {
       this.zoneBusy = false;
     }
+  }
+
+  /** CR-009 §14: the shared room's zone panel on a MIRROR floor has no "מחק אזור" - "עבור לקומה X" opens the room on the floor
+   * that owns it (unsaved edits are saved first), selected, where the delete is. */
+  private async gotoHomeFloor(z: SpatialZone) {
+    const s = z.shared;
+    if (!s || s.role !== 'mirror' || !s.home_floor_id) return;
+    if (this.dirty.size && !(await this.save())) return;
+    if (!(await this.studio.flush())) return;
+    navigate(`/explore/floors/${s.home_floor_id}/edit`, { zone: s.zone_id });
   }
 
   /** "הוסף לחלל המשותף" / "הסר מהחלל המשותף" (security review B1): a camera or device is shown on both floors of a
@@ -1275,6 +1298,8 @@ export class ExplorePlanEditor extends LitElement {
     const s = z.shared;
     if (s?.role === 'mirror') {
       return html`<div class="shared-box" data-zone-shared="mirror"><span class="chip">${sharedChip(s)}</span>
+        <div class="note" data-zone-created-on>האזור נוצר ב${bidi(s.home_floor_name)} — מחק אותו שם, או בטל שיתוף כאן</div>
+        ${s.home_floor_name === OTHER_FLOOR ? nothing : html`<sw-button size="sm" variant="ghost" data-zone-goto-home ?disabled=${this.zoneBusy} @click=${() => this.gotoHomeFloor(z)}>עבור ל${bidi(s.home_floor_name)}</sw-button>`}
         <div class="note">חלל משותף עם ${bidi(s.home_floor_name)}: המתאר והקירות כאן הם של הקומה הזו; התוכן (טריבונות, סימונים, עצמים) נשמר שם ומוצג בשתי הקומות, ועריכה שלו כאן מופיעה בשתיהן.</div>
         <sw-share-members .zoneId=${s.zone_id} @members-changed=${() => void this.reloadShared()}></sw-share-members>
         ${b.permissions.structure ? html`<sw-button size="sm" variant="ghost" data-zone-unshare ?disabled=${this.zoneBusy} @click=${() => this.unshare(z, b.floorId)}>בטל שיתוף</sw-button>` : nothing}</div>`;

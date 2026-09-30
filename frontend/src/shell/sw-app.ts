@@ -1628,7 +1628,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'buildings') return html`<explore-floors .buildingId=${s[2] ?? 'bld-a'}></explore-floors>`;
         if (s[1] === 'entities') return html`<sw-state-panel state="loading"></sw-state-panel>`; // legacyRedirect decides once the session is known
         if (s[1] === 'floors' && s[3] === 'import') return html`<explore-plan-import .floorId=${s[2]}></explore-plan-import>`;
-        if (s[1] === 'floors' && s[3] === 'edit') return html`<explore-plan-editor .floorId=${s[2]} .presetEntity=${r.params.get('entity') ?? ''} .presetCandidates=${r.params.get('candidates') ?? ''}></explore-plan-editor>`;
+        if (s[1] === 'floors' && s[3] === 'edit') return keyed(s[2], html`<explore-plan-editor .floorId=${s[2]} .presetEntity=${r.params.get('entity') ?? ''} .presetCandidates=${r.params.get('candidates') ?? ''} .presetZone=${r.params.get('zone') ?? ''}></explore-plan-editor>`); // keyed: another floor is another editor (CR-009 section 14 jump)
         const floorId = s[1] === 'floors' && s[2] ? s[2] : 'f0';
         const screenState = (r.params.get('state') ?? 'ready') as 'ready';
         const focus = r.params.get('focus') ?? '';
