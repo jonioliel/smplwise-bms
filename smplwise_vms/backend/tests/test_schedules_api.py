@@ -305,7 +305,7 @@ def test_bridge_refusal_timeout_and_errors(sched_app):
     assert r.status_code == 504 and r.json()["code"] == "scheduler_timeout"
     assert r.json()["user_message"] == "רכיב התזמונים לא ענה בזמן; ייתכן שהשינוי נשמר. רעננו לפני ניסיון נוסף."
     with app.state.db.connection() as conn:
-        assert conn.execute("SELECT status FROM schedule_ops WHERE op = 'create' ORDER BY requested_at DESC LIMIT 1").fetchone()[0] == "unknown"
+        assert conn.execute("SELECT status FROM schedule_ops WHERE op = 'create' ORDER BY rowid DESC LIMIT 1").fetchone()[0] == "unknown"
     tr.up = False
     r = c.post(f"{API}/schedules", json={"draft": draft_of("Down"), "enabled": True, "client_request_id": rid()})
     assert r.status_code == 503 and r.json()["code"] == "ha_unavailable"
