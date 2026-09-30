@@ -150,6 +150,7 @@ class Mirror:
         self._lock = threading.Lock()
         self._pending: set[str] = set()
         self._timer: threading.Timer | None = None
+        self._followups: list[dict[str, Any]] = []  # what an ADOPTED op still owes (disable it, finish the split), done after the commit
 
     # -- wiring
 
@@ -162,6 +163,7 @@ class Mirror:
         """Tests: forget deferred work and rewire nothing else."""
         with self._lock:
             self._pending.clear()
+            self._followups = []
             if self._timer is not None:
                 self._timer.cancel()
             self._timer = None
@@ -265,6 +267,7 @@ class Mirror:
             self._save(c, st)
         if changed:
             ha_sync.publish({"type": "schedules_changed"})
+        self.run_followups(conn)
         return {"items": len(items), "changed": changed}
 
     def _component_version(self, tr: SchedulerTransport) -> str | None:
@@ -320,6 +323,7 @@ class Mirror:
             changed = self.apply_items(c, [item], full=False)
         if changed:
             ha_sync.publish({"type": "schedules_changed"})
+        self.run_followups(conn)
         return item
 
     # -- cache
@@ -381,20 +385,80 @@ class Mirror:
         conn.execute("INSERT OR IGNORE INTO schedule_meta(schedule_id, created_via, first_seen_at, last_seen_at) VALUES (?, 'external', ?, ?)", (sid, now, now))
 
     def _maybe_adopt(self, conn: sqlite3.Connection, sid: str, item: dict[str, Any], now: str) -> None:
-        """A create / copy / restore the bridge could not name (`id_unknown`, or a timeout, §3.6): the ONE new schedule whose
-        name AND content fingerprint (days, slots, conditions) equal what that op sent, appearing within the hour, is that
-        one - the op is settled and the schedule becomes Arx's. Never re-sent, never guessed from a name alone (review M2)."""
+        """A create / copy / split / restore the bridge could not name (`id_unknown`, or a timeout, §3.6): the ONE new
+        schedule whose name AND content fingerprint (days, slots, conditions) equal what that op sent, appearing within the
+        hour, is that one - the op is settled, the schedule becomes Arx's and the adoption is audited. What the op still owes
+        is queued (review R1): a schedule requested DISABLED is disabled now, a split completes by taking the moved days off
+        the original. Never re-sent, never guessed from a name alone (review M2)."""
         name = item.get("name") or ""
         fp = model.fingerprint(item)
         cutoff = _iso(self.now() - dt.timedelta(hours=1))
-        candidates = [r for r in conn.execute("SELECT * FROM schedule_ops WHERE status = 'unknown' AND op IN ('create', 'copy', 'restore') AND schedule_id IS NULL AND requested_at >= ?", (cutoff,)).fetchall()
+        candidates = [r for r in conn.execute("SELECT * FROM schedule_ops WHERE status = 'unknown' AND op IN ('create', 'copy', 'restore', 'split') AND (schedule_id IS NULL OR op = 'split') AND requested_at >= ?", (cutoff,)).fetchall()
                       if _op_name(r) == name and _op_field(r, "fp") == fp]
         if len(candidates) != 1:
             return
         op = candidates[0]
-        conn.execute("UPDATE schedule_ops SET status = 'ok', schedule_id = ?, responded_at = ? WHERE id = ?", (sid, now, op["id"]))
+        try:
+            meta_json = json.loads(op["error"] or "{}") or {}
+        except ValueError:
+            meta_json = {}
+        if op["op"] == "split":
+            conn.execute("UPDATE schedule_ops SET status = 'ok', error = ?, responded_at = ? WHERE id = ?", (json.dumps({**meta_json, "created": sid}, ensure_ascii=False), now, op["id"]))
+        else:
+            conn.execute("UPDATE schedule_ops SET status = 'ok', schedule_id = ?, responded_at = ? WHERE id = ?", (sid, now, op["id"]))
         conn.execute("UPDATE schedule_meta SET created_via = 'arx', created_by = ?, created_by_username = ?, created_at = ?, updated_by = ?, updated_by_username = ?, updated_at = ? WHERE schedule_id = ?",
                      (op["principal_user_id"], op["principal_username"], now, op["principal_user_id"], op["principal_username"], now, sid))
+        if op["op"] == "restore" and meta_json.get("trash"):  # the claim on the trash item is finalised
+            conn.execute("UPDATE schedule_trash SET restored_at = ?, restored_schedule_id = ? WHERE id = ? AND restored_at LIKE '~%'", (now, sid, meta_json["trash"]))
+        audit(conn, actor=None, action="schedule.adopted", decision="allowed", resource_type="schedule", resource_id=sid,
+              details={"op_id": op["id"], "op": op["op"], "requested_by": op["principal_username"], "requested_disabled": meta_json.get("enabled") is False})
+        if meta_json.get("enabled") is False and item.get("enabled", True):
+            self._followups.append({"kind": "disable", "sid": sid, "item": item, "op": dict(op)})
+        if op["op"] == "split" and meta_json.get("original") and meta_json.get("remaining"):
+            self._followups.append({"kind": "split_original", "sid": sid, "item": item, "op": dict(op), "meta": meta_json})
+
+    def run_followups(self, conn: sqlite3.Connection | None) -> None:
+        """Do what adopted ops still owe, through the same signed bridge path (as the requesting user), after the write that
+        found them has committed. A failure is audited and never retried here: the review list keeps naming it."""
+        todo, self._followups = self._followups, []
+        for f in todo:
+            try:
+                self._followup(conn, f)
+            except Exception as exc:  # noqa: BLE001 - one follow-up failing never stops the others or the pull
+                log.warning("adoption follow-up %s of %s failed: %s", f["kind"], f["sid"], type(exc).__name__)
+                try:
+                    with self._use(conn) as c:
+                        audit(c, actor=None, action="schedule.adoption_followup", decision="denied", resource_type="schedule", resource_id=f["sid"], reason=getattr(exc, "code", type(exc).__name__), details={"kind": f["kind"], "op_id": f["op"]["id"]})
+                except Exception:  # noqa: BLE001
+                    log.debug("could not audit the failed follow-up", exc_info=True)
+
+    def _followup(self, conn: sqlite3.Connection | None, f: dict[str, Any]) -> None:
+        op = f["op"]
+        with self._use(conn) as c:
+            secret = ha_bridge.signing_key(c)
+            core = model.normalize(f["item"])
+            from .schedule_view import Ctx
+
+            sensitive = bool(model.classify(core, Ctx(c, None).resolver)["sensitive"])
+            if f["kind"] == "disable":
+                target, entity, payload, kind = f["sid"], f["item"].get("entity_id"), {}, "disable"
+            else:
+                meta = f["meta"]
+                original = cache_row(c, meta["original"])
+                if original is None or model.normalize(item_of(original))["weekdays"] != meta.get("before"):
+                    return  # the original moved on (or is gone): nothing to complete blindly
+                target, entity, kind = meta["original"], original["entity_id"], "edit"
+                payload = {"weekdays": meta["remaining"], "start_date": meta.get("start_date"), "end_date": meta.get("end_date")}
+        body = {"user_id": op["principal_user_id"], "op": kind, "request_id": "adopt" + op["id"], "schedule_id": target, "schedule_entity_id": entity, "payload": payload, "name": None, "time": None,
+                "skip_conditions": False, "sensitive": sensitive}
+        signed = ha_bridge.sign(secret or "", body)
+        with (unlocked(conn) if conn is not None and not _read_only(conn) else nullcontext()):
+            resp = get_transport().bridge(signed)
+        if not isinstance(resp, dict) or not resp.get("ok"):
+            raise ApiError(502, "scheduler_refused", "רכיב התזמונים דחה את השינוי.", details={"error": str((resp or {}).get("error"))[:60] if isinstance(resp, dict) else "bad_answer"})
+        self.fetch_item(target, conn)
+        with self._use(conn) as c:
+            audit(c, actor=None, action="schedule.adoption_followup", decision="allowed", resource_type="schedule", resource_id=target, details={"kind": f["kind"], "op_id": op["id"]})
 
     def _arx_create_in_flight(self, conn: sqlite3.Connection) -> bool:
         """A create / copy / split / restore of Arx's own is pending or was requested a moment ago: what just appeared is
@@ -735,10 +799,12 @@ def trash_rows(conn: sqlite3.Connection, now: dt.datetime | None = None) -> list
 def janitor(db: Database, settings: dict[str, Any]) -> dict[str, int]:
     """The janitor pass (main.janitor_tick): expired trash rows, runs past their retention, settled ops past 30 days, and
     the pending runs that are due. Nothing here talks to Home Assistant."""
-    out = {"trash": 0, "runs": 0, "ops": 0, "settled": 0}
+    out = {"trash": 0, "runs": 0, "ops": 0, "settled": 0, "released": 0}
     with db.connection(label="schedules janitor") as conn:
         now = MIRROR.now()
         out["trash"] = conn.execute("DELETE FROM schedule_trash WHERE expires_at <= ?", (_iso(now),)).rowcount
+        # a claim ('~restoring:<stamp>' / '~unknown:<stamp>') that nothing finished or adopted within the hour goes back to the trash
+        out["released"] = conn.execute("UPDATE schedule_trash SET restored_at = NULL WHERE restored_at LIKE '~%' AND substr(restored_at, instr(restored_at, ':') + 1) < ?", (_iso(now - dt.timedelta(hours=1)),)).rowcount
         days = int(settings.get("schedules.runs_retention_days") or 90)
         out["runs"] = conn.execute("DELETE FROM schedule_runs WHERE started_at < ? AND result != 'pending'", (_iso(now - dt.timedelta(days=days)),)).rowcount
         out["ops"] = conn.execute("DELETE FROM schedule_ops WHERE requested_at < ? AND status != 'pending'", (_iso(now - dt.timedelta(days=OP_KEEP_DAYS)),)).rowcount

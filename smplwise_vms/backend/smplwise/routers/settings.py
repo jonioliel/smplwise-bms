@@ -361,6 +361,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             raise ApiError(422, "validation", "סוגי התקנים בתזמונים: ערך לא מוכר.", details={"schedules.classes": bad})
         changes["schedules.classes"] = [c for c in SCHEDULE_CLASSES if c in changes["schedules.classes"]]
     force_sensor = bool(changes.pop("schedules.shabbat_sensor_force", False))
+    forced = False
     if changes.get("schedules.shabbat_sensor"):
         row = conn.execute("SELECT entity_id, platform FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (changes["schedules.shabbat_sensor"],)).fetchone()
         if not row:
@@ -369,7 +370,9 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
 
         # the sensor's state is shown to schedule viewers and decides the presets: only a calendar sensor, unless an
         # administrator says explicitly that this one is right (`schedules.shabbat_sensor_force`)
-        if not force_sensor and not (home_screen.is_jewish_calendar(dict(row)) or "issur_melacha" in row["entity_id"]):
+        calendar_sensor = home_screen.is_jewish_calendar(dict(row)) or "issur_melacha" in row["entity_id"]
+        forced = force_sensor and not calendar_sensor
+        if not force_sensor and not calendar_sensor:
             raise ApiError(422, "not_calendar_sensor", "זה לא נראה כחיישן של לוח השנה היהודי. לבחירה מפורשת שלחו schedules.shabbat_sensor_force.",
                            details={"schedules.shabbat_sensor": changes["schedules.shabbat_sensor"]})
     if changes.get("map.default_floor") and not conn.execute("SELECT 1 FROM floors WHERE id = ? AND deleted_at IS NULL", (changes["map.default_floor"],)).fetchone():
@@ -407,5 +410,5 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
 
         set_csp_enforce(changes["remote.csp_enforce"] == "true")
     audit(conn, actor=principal, action="settings.update", decision="allowed", resource_type="installation", resource_id="*",
-          request_id=getattr(request.state, "correlation_id", None), details=changes)
+          request_id=getattr(request.state, "correlation_id", None), details={**changes, "forced": True} if forced else changes)  # an override of the calendar-sensor check is on the record
     return {"settings": read_settings(conn), "can_edit": True}

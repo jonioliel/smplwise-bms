@@ -686,6 +686,8 @@ def _issues(ctx: Ctx, r: Row, cls: dict[str, Any]) -> list[str]:
                     break
         if "alarm_may_need_code" in issues:
             break
+    if core["enabled"] and _requested_disabled(ctx, core["id"]):
+        issues.append("requested_disabled")
     owner = store.owner_of(r.meta)
     if owner is None:
         if cls["sensitive"]:
@@ -697,6 +699,24 @@ def _issues(ctx: Ctx, r: Row, cls: dict[str, Any]) -> list[str]:
         elif not _owner_still_holds(ctx, owner, core, cls):
             issues.append("owner_lost_rights")
     return issues
+
+
+def _requested_disabled(ctx: Ctx, sid: str) -> bool:
+    """The schedule was created / copied / restored / split as DISABLED, yet it is enabled now and nobody enabled it through Arx
+    since (an unknown outcome the disable never reached, or a failed disable): listed for the administrator (review R1)."""
+    rows = ctx.conn.execute("SELECT id, op, schedule_id, status, error, requested_at FROM schedule_ops WHERE op IN ('create', 'copy', 'restore', 'split', 'enable') ORDER BY requested_at").fetchall()
+    asked_at = None
+    for r in rows:
+        try:
+            meta = json.loads(r["error"] or "{}") or {}
+        except ValueError:
+            meta = {}
+        made = r["schedule_id"] == sid if r["op"] != "split" else meta.get("created") == sid
+        if r["op"] == "enable" and r["schedule_id"] == sid and asked_at is not None and r["requested_at"] >= asked_at and r["status"] == "ok":
+            return False
+        if made and r["op"] != "enable" and meta.get("enabled") is False and r["status"] in ("ok", "unknown"):
+            asked_at = r["requested_at"]
+    return asked_at is not None
 
 
 def _owner_still_holds(ctx: Ctx, owner: dict[str, Any], core: dict[str, Any], cls: dict[str, Any]) -> bool:
