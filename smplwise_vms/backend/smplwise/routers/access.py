@@ -101,6 +101,19 @@ PERMISSION_LABELS: dict[str, str] = {
     # system_admin - the owner grants it to one person through a custom role plus a binding. The server checks it on every
     # write AND every read: a stored value of a user who lost it is ignored (services/home_screen.py apply_personal).
     "screen.personalize": "התאמה אישית של המסך שלי",
+    # CR-015 (מולטימדיה · מסכים ושלט, docs/architecture/MEDIA_API.md 6 / CR 6.1): six permissions, all scoped like devices.control (the
+    # screen's anchor entity placement; HA areas and floors are never a scope). media.read (viewer and above, not kiosk) sees the
+    # page, the cards and the state; media.control (operator and above) sends volume, keys, transport and text; media.power (operator
+    # and above) turns a screen on / off and changes its source, app or sound output; media.public (site_admin and system_admin;
+    # SENSITIVE - a custom role names it among its sensitive permissions) also lets a caller change content on a screen marked public;
+    # media.bulk (same default roles; SENSITIVE) is the floor / area "כבה מסכים"; media.layout (site_admin and system_admin) edits the
+    # screens page and the remote. Merging devices, kinds, approval, the public flag, audio links and profiles are system.configure.
+    "media.read": "צפייה במסכים ובמולטימדיה",
+    "media.control": "שליטה במסכים: עוצמה, מקשים וניגון",
+    "media.power": "הדלקה וכיבוי של מסכים והחלפת מקור",
+    "media.public": "מסכים ציבוריים: החלפת מקור ואפליקציה והקלדה",
+    "media.bulk": "כיבוי מרוכז של מסכים בקומה או באזור",
+    "media.layout": "עריכת מסך המולטימדיה והשלט",
     "nvr.config.write": "כתיבה להגדרות ה־NVR",
     "nvr.config.events": "NVR: הפעלת התראות (Notify Surveillance Center) ולוחות זימון",
     "nvr.config.detection": "NVR: עריכת אזורי זיהוי תנועה ורגישות",

@@ -81,6 +81,7 @@ class PrefsPatch(BaseModel):
     wiskey_wall: str | int | None = Field(default=None, alias="wiskey.wall")  # WisKey rc.37 camera-wall stream budget
     devices_area_row: dict[str, Any] | None = Field(default=None, alias="devices.area_row")  # release 0.1.149: what shows next to an area name; needs screen.personalize (services/area_row.py)
     home_personal: dict[str, Any] | None = Field(default=None, alias="home.personal")  # home redesign: needs screen.personalize (validated by services/home_config.py)
+    multimedia_personal: dict[str, Any] | None = Field(default=None, alias="multimedia.personal")  # CR-015: needs screen.personalize (validated by services/media_layout.py)
 
 
 PERSONALIZE = "screen.personalize"
@@ -117,6 +118,13 @@ def put_my_prefs(body: PrefsPatch, principal: Principal = Depends(current_princi
 
         audit(conn, actor=principal, action=PERSONALIZE, decision="denied", resource_type=INSTALLATION[0], resource_id=INSTALLATION[1], reason="permission_missing")
         raise forbidden(permission=PERSONALIZE)
+    if patch.get(user_prefs.PERSONAL_MEDIA_KEY) is not None and not allowed:
+        # CR-015 (MEDIA_API.md 3.15): the personal screens page is for holders of screen.personalize only (clearing it is always allowed)
+        from ..audit import audit
+        from ..errors import ApiError
+
+        audit(conn, actor=principal, action=PERSONALIZE, decision="denied", resource_type=INSTALLATION[0], resource_id=INSTALLATION[1], reason="permission_missing")
+        raise ApiError(403, "personalize_required", "התאמה אישית של המסך דורשת הרשאה.", details={"permission": PERSONALIZE})
     try:
         user_prefs.set_prefs(conn, principal.user_id, patch)
     except ValueError as exc:

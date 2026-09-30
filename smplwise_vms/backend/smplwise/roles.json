@@ -11,7 +11,8 @@
         "devices.read",
         "alarm.view",
         "entity.state.read",
-        "video.live"
+        "video.live",
+        "media.read"
       ]
     },
     {
@@ -39,7 +40,10 @@
         "events.ack",
         "video.export",
         "ha.entity.control",
-        "cases.manage"
+        "cases.manage",
+        "media.read",
+        "media.control",
+        "media.power"
       ]
     },
     {
@@ -57,7 +61,8 @@
         "map.publish",
         "placement.edit",
         "views.edit",
-        "catalog.manage"
+        "catalog.manage",
+        "media.read"
       ]
     },
     {
@@ -94,7 +99,13 @@
         "rules.manage",
         "rbac.assign",
         "schedule.view",
-        "schedule.manage"
+        "schedule.manage",
+        "media.read",
+        "media.control",
+        "media.power",
+        "media.public",
+        "media.bulk",
+        "media.layout"
       ]
     },
     {
@@ -153,7 +164,13 @@
         "nvr.record.lock",
         "nvr.alarm_output",
         "nvr.storage.test",
-        "nvr.system.reboot"
+        "nvr.system.reboot",
+        "media.read",
+        "media.control",
+        "media.power",
+        "media.public",
+        "media.bulk",
+        "media.layout"
       ]
     }
   ],
@@ -168,6 +185,8 @@
     "access.people.manage",
     "access.cards.capture",
     "devices.control_bulk",
+    "media.bulk",
+    "media.public",
     "alarm.disarm",
     "alarm.bypass",
     "schedule.manage",

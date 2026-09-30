@@ -14,6 +14,10 @@ It does two things and nothing else:
 5. `smplwise_bridge.stream_source` (0.3.1): a signed READ-ONLY answer - the stream source Home Assistant reports for ONE
    camera entity the owner chose to show as live video (stream_source_service.py). The URL may carry credentials: it is
    returned only to the add-on and never logged.
+6. `smplwise_bridge.execute` grows the media services of the multimedia area (0.4.0, CR-015): volume steps, play / pause, next /
+   previous, `select_source`, `play_media` (send_key / send_text only), `remote.send_command`, `remote.turn_on` with an activity,
+   `webostv.button`, `webostv.select_sound_output` - each independently re-checked by media_policy.py (no power key anywhere, a source
+   or activity only from the entity's current lists, no extra arguments, never `remote.turn_off` or `webostv.command`).
 """
 from __future__ import annotations
 
@@ -33,6 +37,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 
 from .const import CONF_ADDON_URL, CONF_PAIRING_CODE, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_EXECUTE, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION
+from . import media_policy
 from .schedule_service import async_handle_schedule, execute_refusal
 from .signing import Verifier, sign
 from .stream_source_service import async_handle_stream_source
@@ -127,6 +132,11 @@ ALLOWED_SERVICES = {
     ("cover", "open_cover_tilt"), ("cover", "close_cover_tilt"), ("cover", "stop_cover_tilt"), ("cover", "set_cover_tilt_position"),
     # 0.2.6 (CR-010, the alarm section): the other arm modes a panel may offer. Never alarm_trigger.
     ("alarm_control_panel", "alarm_arm_night"), ("alarm_control_panel", "alarm_arm_vacation"), ("alarm_control_panel", "alarm_arm_custom_bypass"),
+    # 0.4.0 (CR-015, the multimedia area): what the remote needs. Each is re-validated by media_policy.py before it runs - no power key,
+    # no free-form play_media, no list a caller could smuggle a command through.
+    ("media_player", "volume_up"), ("media_player", "volume_down"), ("media_player", "media_play_pause"), ("media_player", "media_next_track"),
+    ("media_player", "media_previous_track"), ("media_player", "select_source"), ("media_player", "play_media"),
+    ("remote", "send_command"), ("remote", "turn_on"), ("webostv", "button"), ("webostv", "select_sound_output"),
 }
 
 # 0.2.6 (CR-010): Home Assistant's own translation keys for a refused alarm code (alarm_control_panel and the
@@ -211,6 +221,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if blocked:
             _LOGGER.warning("smplwise_bridge.execute %s.%s refused: %s", domain, service, blocked)
             return {"ok": False, "error": blocked}
+        if media_policy.is_media(domain, service):
+            # 0.4.0 (CR-015): the media services are judged here independently of the add-on (media_policy.py); the answer names the refusal only
+            def _attributes(entity_id: str) -> Any:
+                state = hass.states.get(entity_id)
+                return dict(state.attributes) if state is not None else None
+
+            media_blocked = media_policy.refusal(domain, service, data, _attributes)
+            if media_blocked:
+                _LOGGER.warning("smplwise_bridge.execute %s.%s refused: %s", domain, service, media_blocked)
+                return {"ok": False, "error": media_blocked}
         context = Context(user_id=user.id)
         try:
             await hass.services.async_call(domain, service, data, blocking=True, context=context)

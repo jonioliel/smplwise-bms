@@ -189,12 +189,18 @@ def area(area_id: str, principal: Principal = Depends(current_principal_ro), con
     from ..services import alarm as alarm_svc
 
     managed = alarm_svc.managed_controls(conn)
+    from ..services import media_store
+
+    media_managed = media_store.managed_entities(conn)  # CR-015: the endpoints of an approved screen are operated from "מולטימדיה" only
     for card in body["cards"].values():
         for r in card.get("entities", []):
             r["alarm_managed"] = r["entity_id"] in managed
             if r["alarm_managed"]:
                 r["can_control"] = False
                 r["managed_label"] = alarm_svc.MANAGED_LABEL
+            if r["entity_id"] in media_managed:
+                r["media_managed"] = True
+                r["can_control"] = False
     flags = _bulk_flags(conn, principal)
     body["can_bulk"] = area_id != svc.UNASSIGNED and (flags["all"] or area_id in flags["areas"])
     # review round 1: whether each switch may enter a bulk action (a lighting circuit's switch, or marked bulk-safe
@@ -249,9 +255,15 @@ def items(
     # re-review M1: which rows a bulk action would reach (the same SwitchPolicy the bulk resolves with - the bulk-safe
     # mark, the door layer, door covers, alarm-managed), so the master control counts only those
     policy = bulk.SwitchPolicy(conn)
+    from ..services import media_store
+
+    media_managed = media_store.managed_entities(conn) if kind == "media" else set()
     for f in body["floors"]:
         for a in f["areas"]:
             for r in a["items"]:
+                if r["entity_id"] in media_managed:  # CR-015: operated from "מולטימדיה" only
+                    r["media_managed"] = True
+                    r["can_control"] = False
                 # CR-010: what the alarm section owns is listed read-only here too, and never counted by the master control
                 r["alarm_managed"] = r["entity_id"] in policy.alarm_managed
                 if r["alarm_managed"]:

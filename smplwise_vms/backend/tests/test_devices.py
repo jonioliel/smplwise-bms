@@ -31,7 +31,7 @@ STATES = [
     {"entity_id": "lock.front", "state": "locked", "attributes": {"friendly_name": "Front door", "device_class": "lock"}, "last_changed": "2026-09-28T09:00:00+00:00", "last_updated": "2026-09-28T09:00:00+00:00"},
     {"entity_id": "binary_sensor.front_contact", "state": "off", "attributes": {"friendly_name": "Front contact", "device_class": "door"}, "last_changed": "2026-09-28T09:00:00+00:00", "last_updated": "2026-09-28T09:00:00+00:00"},
     {"entity_id": "camera.lobby", "state": "idle", "attributes": {"friendly_name": "Lobby cam"}, "last_changed": "2026-09-28T09:00:00+00:00", "last_updated": "2026-09-28T09:00:00+00:00"},
-    {"entity_id": "media_player.lobby_tv", "state": "playing", "attributes": {"friendly_name": "Lobby TV", "media_title": "News", "source": "HDMI 1", "volume_level": 0.4}, "last_changed": "2026-09-28T09:00:00+00:00", "last_updated": "2026-09-28T09:00:00+00:00"},
+    {"entity_id": "media_player.lobby_tv", "state": "playing", "attributes": {"friendly_name": "Lobby TV", "media_title": "News", "source": "HDMI 1", "volume_level": 0.4, "device_class": "tv", "supported_features": 384}, "last_changed": "2026-09-28T09:00:00+00:00", "last_updated": "2026-09-28T09:00:00+00:00"},
     {"entity_id": "sensor.lobby_temp", "state": "23.5", "attributes": {"friendly_name": "Lobby temp", "unit_of_measurement": "°C", "device_class": "temperature"}, "last_changed": "2026-09-28T10:30:00+00:00", "last_updated": "2026-09-28T10:30:00+00:00"},
     {"entity_id": "binary_sensor.lobby_battery", "state": "off", "attributes": {"friendly_name": "Lobby battery", "device_class": "battery"}, "last_changed": "2026-09-28T10:30:00+00:00", "last_updated": "2026-09-28T10:30:00+00:00"},
     {"entity_id": "alarm_control_panel.house", "state": "armed_away", "attributes": {"friendly_name": "House alarm"}, "last_changed": "2026-09-28T10:30:00+00:00", "last_updated": "2026-09-28T10:30:00+00:00"},
@@ -539,7 +539,9 @@ def test_new_allow_list_actions_validate_and_have_expected_risk(dev_app, monkeyp
     r = c.post("/api/v1/ha/entities/media_player.lobby_tv/actions", json=body(allowed_action_id="media_player.volume_mute", arguments={"is_volume_muted": True}, client_request_id="p8"))
     assert r.status_code == 202 and r.json()["confirmation"] == "none" and r.json()["expected_state"] is None
     assert c.post("/api/v1/ha/entities/media_player.lobby_tv/actions", json=body(allowed_action_id="media_player.turn_off", client_request_id="p10")).status_code == 202
-    assert "light.toggle" not in ha_bridge.ACTIONS and "media_player.media_play_pause" not in ha_bridge.ACTIONS
+    # CR-015: play / pause exists now, but only as a `route: "media"` action of the multimedia commands route (never offered here)
+    assert "light.toggle" not in ha_bridge.ACTIONS and ha_bridge.ACTIONS["media_player.media_play_pause"]["route"] == "media"
+    assert "media_player.media_play_pause" not in {a["id"] for a in ha_bridge.actions_for("media_player")}
     new_ids = {
         "cover.set_cover_position": ("cover", "set_cover_position", "attention"),
         "climate.set_fan_mode": ("climate", "set_fan_mode", "routine"),
@@ -575,7 +577,7 @@ def test_every_allow_listed_action_is_allowed_by_the_bridge():
         have = _bridge_allowed_services(copy / "__init__.py")
         assert not want - have, f"{copy}: missing in the bridge allow-list: {sorted(want - have)}"
     manifest = json.loads((ROOT / "custom_components" / "smplwise_bridge" / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == "0.3.1", "a new bridge allow-list ships as a new bridge version (HA must restart to load it)"
+    assert manifest["version"] == "0.4.0", "a new bridge allow-list ships as a new bridge version (HA must restart to load it)"
 
 
 def test_attribute_confirmation_never_compares_the_state_to_the_argument(dev_app, monkeypatch):
@@ -746,6 +748,12 @@ def bulk_app(dev_app, monkeypatch):
 
     monkeypatch.setattr(intercom_sync.SYNC, "action", no_wiskey)
     device_bulk.RUNNER.clear()
+    # CR-015 decision 8a: the devices area's "screens" kinds reach APPROVED screens only (their power endpoint) - the lobby TV is one
+    from smplwise.services import media_store
+
+    with app.state.db.connection() as conn:
+        media_store.rebuild(conn)
+    assert c.post("/api/v1/multimedia/admin/approve", json={}).status_code == 200
     yield app, s, c, fake
     fake.release.set()
     device_bulk.RUNNER.clear()
@@ -1187,6 +1195,7 @@ def test_media_player_standby_confirms_turn_off(bulk_app):
     """Review round 1 (MEDIUM): a TV turned off often reports standby; that confirms turn_off (single and bulk), as the
     devices area already reads standby as off."""
     app, s, c, fake = bulk_app
+    assert c.post("/api/v1/multimedia/admin/approve", json={"approved": False}).status_code == 200  # CR-015: a managed screen is not operated through this route
     fake.stuck = {"media_player.lobby_tv"}
     r = c.post("/api/v1/ha/entities/media_player.lobby_tv/actions", json={"allowed_action_id": "media_player.turn_off", "arguments": {}, "client_request_id": "tv-off-1", "expires_at": "2099-01-01T00:00:00Z"})
     assert r.status_code == 202

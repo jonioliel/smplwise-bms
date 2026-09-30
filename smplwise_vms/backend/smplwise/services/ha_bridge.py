@@ -23,6 +23,7 @@ from typing import Any
 
 from ..db import get_setting, set_setting
 from ..errors import ApiError
+from . import media_profiles
 
 SIGNATURE_WINDOW_S = 60
 _recent_nonces: dict[str, float] = {}
@@ -88,10 +89,18 @@ TEMPERATURE_DEFAULT_RANGE = (5.0, 35.0)  # for a climate entity that reports no 
 
 
 def _a(domain: str, service: str, label: str, *, args: dict[str, Any] | None = None, expect: str | None = None, risk: str = "routine", grant: str | None = None, expect_from: str | None = None,
-       expect_attr: tuple[str, str, float | str | None] | None = None) -> dict[str, Any]:
+       expect_attr: tuple[str, str, float | str | None] | None = None, route: str | None = None, entity_domain: str | None = None, required: tuple[str, ...] = ()) -> dict[str, Any]:
     d: dict[str, Any] = {"domain": domain, "service": service, "args": args or {}, "expect": expect, "sensitive": risk != "routine", "risk": risk, "label": label}
     if grant:
         d["grant"] = grant
+    if route:
+        # CR-015: `route: "media"` actions are sent ONLY by the multimedia commands route (services/media_commands.py); the generic
+        # entity-action route and the entity catalogue never offer them (routers/ha.py use_media_screen)
+        d["route"] = route
+    if entity_domain:
+        d["entity_domain"] = entity_domain  # the service's domain differs from its target entity's (webostv.* targets a media_player)
+    if required:
+        d["required"] = list(required)
     if expect_from:
         d["expect_from"] = expect_from
     if expect_attr:
@@ -175,6 +184,23 @@ ACTIONS: dict[str, dict[str, Any]] = {
     "alarm_control_panel.alarm_arm_night": _a("alarm_control_panel", "alarm_arm_night", "דריכת לילה", expect="armed_night", risk="attention"),
     "alarm_control_panel.alarm_arm_vacation": _a("alarm_control_panel", "alarm_arm_vacation", "דריכת חופשה", expect="armed_vacation", risk="attention"),
     "alarm_control_panel.alarm_arm_custom_bypass": _a("alarm_control_panel", "alarm_arm_custom_bypass", "דריכה עם עקיפה", expect="armed_custom_bypass", risk="attention"),
+    # CR-015 (multimedia, MEDIA_API.md 5.2): what the remote needs beyond the rows above. Every one is `route: "media"`: it is
+    # sent only by POST /multimedia/devices/{key}/commands, which resolves the endpoint, the profile code and the permission;
+    # the generic route refuses them (409 use_media_screen) and the catalogue never lists them. No power key, no
+    # `remote.turn_off`, no `webostv.command`, no other `play_media` type exists here.
+    "media_player.volume_up": _a("media_player", "volume_up", "עוצמה למעלה", route="media"),
+    "media_player.volume_down": _a("media_player", "volume_down", "עוצמה למטה", route="media"),
+    "media_player.media_play_pause": _a("media_player", "media_play_pause", "נגן / השהה", route="media"),
+    "media_player.media_next_track": _a("media_player", "media_next_track", "הבא", route="media"),
+    "media_player.media_previous_track": _a("media_player", "media_previous_track", "הקודם", route="media"),
+    "media_player.select_source": _a("media_player", "select_source", "החלפת מקור", args={"source": ("str", 1, 120)}, expect_attr=("source", "source", None), route="media", required=("source",)),
+    "media_player.play_media": _a("media_player", "play_media", "שליחת מקש / טקסט", args={"media_content_type": ("enum", ["send_key", "send_text"]), "media_content_id": ("str", 1, 200)}, route="media",
+                                  required=("media_content_type", "media_content_id")),
+    "remote.send_command": _a("remote", "send_command", "שליחת מקש", args={"command": ("str", 1, 205)}, route="media", required=("command",)),
+    "remote.turn_on": _a("remote", "turn_on", "הפעלת אפליקציה", args={"activity": ("str", 1, 200)}, expect_attr=("current_activity", "activity", None), route="media", required=("activity",)),
+    "webostv.button": _a("webostv", "button", "שליחת מקש", args={"button": ("enum", sorted(media_profiles.ALL_LG))}, route="media", entity_domain="media_player", required=("button",)),
+    "webostv.select_sound_output": _a("webostv", "select_sound_output", "יציאת שמע", args={"sound_output": ("str", 1, 40)}, expect_attr=("sound_output", "sound_output", None), route="media",
+                                      entity_domain="media_player", required=("sound_output",)),
 }
 
 
@@ -193,7 +219,7 @@ def actions_for(domain: str) -> list[dict[str, Any]]:
     return [
         {"id": aid, "label": a["label"], "sensitive": a["sensitive"], "risk": a["risk"], "risk_label": RISK_LABEL[a["risk"]], "arguments": list(a["args"]),
          "argument_specs": [_arg_spec(n, sc) for n, sc in a["args"].items()], "grant": a.get("grant")}
-        for aid, a in ACTIONS.items() if a["domain"] == domain
+        for aid, a in ACTIONS.items() if a["domain"] == domain and not a.get("route")  # CR-015: a `route` action is never offered generically
     ]
 
 
@@ -202,7 +228,7 @@ def validate_action(action_id: str, entity_id: str, arguments: dict[str, Any]) -
     spec = ACTIONS.get(action_id)
     if not spec:
         raise ApiError(422, "action_not_allowed", "פעולה זו אינה ברשימת הפעולות המאושרות.", details={"action": action_id})
-    if entity_id.split(".", 1)[0] != spec["domain"]:
+    if entity_id.split(".", 1)[0] != spec.get("entity_domain", spec["domain"]):
         raise ApiError(422, "action_domain_mismatch", "הפעולה אינה מתאימה לסוג הישות.", details={"action": action_id, "entity": entity_id})
     data: dict[str, Any] = {"entity_id": entity_id}
     for name, value in (arguments or {}).items():
@@ -234,9 +260,13 @@ def validate_action(action_id: str, entity_id: str, arguments: dict[str, Any]) -
                 raise ApiError(422, "validation", f"{name} חייב להיות אמת/שקר.")
             data[name] = value
     ea = spec.get("expect_attr")
-    missing = [n for n in spec["args"] if n not in data and (spec.get("expect_from") == n or (ea and ea["argument"] == n))]
+    missing = [n for n in spec["args"] if n not in data and (spec.get("expect_from") == n or (ea and ea["argument"] == n) or n in spec.get("required", ()))]
     if missing:
         raise ApiError(422, "validation", f"חסר ארגומנט: {missing[0]}", details={"argument": missing[0]})
+    if spec.get("route") == "media":
+        reason = media_profiles.static_refusal(action_id, data)  # CR-015: a key code outside the profile tables (a power key) never passes
+        if reason:
+            raise ApiError(422, "not_supported", "הפעולה אינה ברשימת המקשים המאושרים.", details={"action": action_id, "reason": reason})
     if spec.get("expect_from") and spec["expect_from"] in data:
         # the state Home Assistant reports after success is the value we asked for (a mode, an option, a number)
         v = data[spec["expect_from"]]

@@ -98,6 +98,46 @@ def camera_image(settings: Settings, entity_id: str) -> tuple[bytes, str]:
     return data, "image/jpeg" if data.startswith(JPEG_MAGIC) else "image/png"
 
 
+MEDIA_ART_MAX = 512 * 1024  # content art of a screen card; more than that is not a thumbnail
+_MEDIA_ART_PATH = re.compile(r"^/api/media_player_proxy/media_player\.[A-Za-z0-9_]{1,200}(\?[A-Za-z0-9_=&.%:-]{0,400})?$")
+WEBP_MAGIC = b"RIFF"
+
+
+def media_artwork(settings: Settings, path: str) -> tuple[bytes, str]:
+    """One content picture of a media_player (CR-015, `entity_picture`, read-only): (bytes, media type), JPEG / PNG / WebP only, at most
+    MEDIA_ART_MAX. `path` is the path HA reported (`/api/media_player_proxy/media_player.<id>?token=...`): it is fetched from HA's own
+    host through the add-on's session and from nowhere else - an absolute URL or another path is refused (never a fetch of an
+    address a device named). The token inside the path and the add-on's own token never leave this function: not stored, not logged,
+    not returned, not put in an error."""
+    if not configured(settings):
+        raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת (SUPERVISOR_TOKEN חסר).")
+    if not isinstance(path, str) or not _MEDIA_ART_PATH.fullmatch(path):
+        raise ApiError(404, "not_found", "אין תמונה.")
+    base = (settings.ha_url or "").rstrip("/")
+    body = bytearray()
+    try:
+        with httpx.Client(timeout=10) as c:
+            with c.stream("GET", base + path, headers=_headers(settings)) as r:
+                status = r.status_code
+                if status == 200:
+                    for chunk in r.iter_bytes():
+                        body += chunk
+                        if len(body) > MEDIA_ART_MAX:
+                            raise ApiError(404, "not_found", "אין תמונה.", details={"reason": "too_large"})
+    except httpx.HTTPError as exc:
+        raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+    data = bytes(body)
+    if status != 200:
+        raise ApiError(404, "not_found", "אין תמונה.")
+    if data.startswith(JPEG_MAGIC):
+        return data, "image/jpeg"
+    if data.startswith(PNG_MAGIC):
+        return data, "image/png"
+    if data.startswith(WEBP_MAGIC) and data[8:12] == b"WEBP":
+        return data, "image/webp"
+    raise ApiError(404, "not_found", "אין תמונה.")
+
+
 def get_config(settings: Settings) -> tuple[dict[str, Any], str | None]:
     """GET /api/config (read-only): Home Assistant's version and time zone, plus the response's `Date` header - HA's own
     clock at one-second resolution, which the setup wizard compares with the add-on's (T071)."""

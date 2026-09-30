@@ -11,7 +11,8 @@
         "devices.read",
         "alarm.view",
         "entity.state.read",
-        "video.live"
+        "video.live",
+        "media.read"
       ]
     },
     {
@@ -30,7 +31,10 @@
         "events.read",
         "events.ack",
         "video.export",
-        "ha.entity.control"
+        "ha.entity.control",
+        "media.read",
+        "media.control",
+        "media.power"
       ]
     },
     {
@@ -48,7 +52,8 @@
         "map.publish",
         "placement.edit",
         "views.edit",
-        "catalog.manage"
+        "catalog.manage",
+        "media.read"
       ]
     },
     {
@@ -82,7 +87,13 @@
         "video.export",
         "ha.entity.control",
         "schedule.view",
-        "schedule.manage"
+        "schedule.manage",
+        "media.read",
+        "media.control",
+        "media.power",
+        "media.public",
+        "media.bulk",
+        "media.layout"
       ]
     },
     {
@@ -125,7 +136,13 @@
         "schedule.view",
         "schedule.manage",
         "schedule.sensitive",
-        "screen.personalize"
+        "screen.personalize",
+        "media.read",
+        "media.control",
+        "media.power",
+        "media.public",
+        "media.bulk",
+        "media.layout"
       ]
     }
   ],
@@ -139,6 +156,8 @@
     "access.people.manage",
     "access.cards.capture",
     "devices.control_bulk",
+    "media.bulk",
+    "media.public",
     "alarm.disarm",
     "alarm.bypass",
     "schedule.manage",
