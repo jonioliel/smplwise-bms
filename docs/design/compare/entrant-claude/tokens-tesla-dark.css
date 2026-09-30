@@ -167,6 +167,7 @@
   --sw-drawer-w: 360px;
   --sw-drawer-modal-w: 480px;
   --sw-dialog-w: 440px;
+  --sw-panel-w: 300px;
   --sw-content-max: none;
   --sw-tile-gap: 10px;
   --sw-card-gap: 20px;
@@ -394,6 +395,7 @@
     --sw-drawer-w: 360px;
     --sw-drawer-modal-w: 480px;
     --sw-dialog-w: 440px;
+    --sw-panel-w: 300px;
     --sw-content-max: none;
     --sw-tile-gap: 10px;
     --sw-card-gap: 20px;

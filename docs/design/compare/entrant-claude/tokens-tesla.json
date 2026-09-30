@@ -663,6 +663,10 @@
     "light": "440px",
     "dark": "440px"
   },
+  "--sw-panel-w": {
+    "light": "300px",
+    "dark": "300px"
+  },
   "--sw-content-max": {
     "light": "none",
     "dark": "none"

@@ -87,3 +87,139 @@ Generated from `src/tokens.mjs`. One semantic palette under `--sw-*`, the same n
 | `--sw-ease / -enter / -exit / -thumb` | --sw-ease (+ new) |
 | `--sw-hover-lift` | --dv-hover-lift |
 | `--sw-z-*` | --sw-z-* |
+
+## Contract coverage — every `--dv-*`, `--lv-*`, `--nav-*` and component-local name in TOKEN_CONTRACT.md §4–§5, one row each
+
+All 122 `--sw-*` names of §3 exist directly in `tokens*.json`. The names below are aliased by engineering onto the tokens on the right. `node contract-check.mjs` parses TOKEN_CONTRACT.md and confirms that every name has a direct value or a row here (129 rows).
+
+| Contract name | Value source |
+|---|---|
+| `--dv-color-scheme` | the `color-scheme` declaration at the top of tokens*-light.css / tokens*-dark.css |
+| `--dv-backdrop` | `--sw-canvas layered over --sw-bg` |
+| `--dv-surface` | `--sw-surface` |
+| `--dv-surface-2` | `--sw-surface-2` |
+| `--dv-surface-3` | `--sw-surface-3` |
+| `--dv-surface-solid` | `--sw-surface-solid` |
+| `--dv-surface-2-solid` | `--sw-surface-2-solid` |
+| `--dv-surface-3-solid` | `--sw-surface-3-solid` |
+| `--dv-surface-blur` | `--sw-glass-blur` |
+| `--dv-border` | `--sw-border` |
+| `--dv-border-strong` | `--sw-border-strong` |
+| `--dv-overlay` | `--sw-overlay` |
+| `--dv-font` | `--sw-font` |
+| `--dv-text` | `--sw-text` |
+| `--dv-text-2` | `--sw-text-2` |
+| `--dv-text-3` | `--sw-text-3` |
+| `--dv-accent` | `--sw-accent` |
+| `--dv-accent-hover` | `--sw-accent-hover` |
+| `--dv-accent-soft` | `--sw-accent-soft` |
+| `--dv-accent-text` | `--sw-accent-text` |
+| `--dv-focus` | `--sw-focus` |
+| `--dv-success` | `--sw-success` |
+| `--dv-success-soft` | `--sw-success-soft` |
+| `--dv-warning` | `--sw-warning` |
+| `--dv-warning-soft` | `--sw-warning-soft` |
+| `--dv-danger` | `--sw-danger` |
+| `--dv-danger-soft` | `--sw-danger-soft` |
+| `--dv-neutral-soft` | `--sw-surface-3` |
+| `--dv-offline` | `--sw-offline` |
+| `--dv-toggle-on` | `--sw-toggle-on` |
+| `--dv-radius-sm` | `--sw-r-md (tiles, rows, inputs)` |
+| `--dv-radius-md` | `--sw-r-lg (panels)` |
+| `--dv-radius-lg` | `--sw-r-xl (dialog)` |
+| `--dv-radius-control` | `--sw-r-pill` |
+| `--dv-shadow-1` | `--sw-shadow-1 + inset 0 1px 0 --sw-highlight` |
+| `--dv-shadow-2` | `--sw-shadow-2 + inset 0 1px 0 --sw-highlight` |
+| `--dv-shadow-3` | `--sw-shadow-3` |
+| `--dv-shadow-control` | `--sw-shadow-thumb` |
+| `--dv-hover-lift` | `--sw-hover-lift` |
+| `--dv-tile-on-warm` | `--sw-on-warm` |
+| `--dv-tile-on-cool` | `--sw-on-cool` |
+| `--dv-tile-on-switch` | `--sw-on-switch` |
+| `--dv-glow-fill-start` | `--sw-glow-fill-start` |
+| `--dv-glow-fill-end` | `--sw-glow-fill-end` |
+| `--dv-glow-border` | `--sw-glow-border` |
+| `--dv-glow-halo` | `--sw-glow-halo` |
+| `--dv-icon-ring-size` | `--sw-icon-ring` |
+| `--dv-icon-ring-size-lg` | `--sw-icon-ring-lg` |
+| `--dv-icon-ring-pad` | `--sw-icon-ring-pad` |
+| `--dv-icon-ring-bg` | `--sw-surface-3` |
+| `--dv-icon-ring-on-bg` | `--sw-icon-ring-on-bg` |
+| `--dv-icon-ring-fg` | `--sw-text` |
+| `--dv-card-badge-size` | `--sw-icon-ring` |
+| `--dv-fs-title` | `--sw-fs-section` |
+| `--dv-fw-title` | `--sw-fw-section` |
+| `--dv-fs-tile-name` | `--sw-fs-md` |
+| `--dv-fs-item-name` | `--sw-fs-sm` |
+| `--dv-fs-value-big` | `--sw-fs-3xl` |
+| `--dv-gap-lg` | `--sw-card-gap` |
+| `--dv-gap` | `--sw-tile-gap` |
+| `--dv-gap-sm` | `--sw-s-2` |
+| `--dv-card-pad-block` | `--sw-card-pad` |
+| `--dv-card-pad-inline` | `--sw-card-pad` |
+| `--dv-item-pad-block` | `--sw-s-3` |
+| `--dv-item-pad-inline` | `--sw-s-4` |
+| `--dv-tile-pad-block` | `--sw-tile-pad` |
+| `--dv-tile-pad-inline` | `--sw-tile-pad` |
+| `--dv-tile-min-block` | `--sw-tile-min-block` |
+| `--dv-item-min-block` | `--sw-row-h` |
+| `--dv-area-tile-min` | `--sw-area-tile-min` |
+| `--dv-floor-card-min` | `--sw-floor-card-min` |
+| `--dv-area-card-min` | `--sw-area-card-min` |
+| `--dv-entity-tile-min` | `--sw-entity-tile-min` |
+| `--dv-tree-inline` | `--sw-tree-inline` |
+| `--dv-tree-inline-max` | `--sw-tree-inline-max` |
+| `--dv-tree-count-w` | `--sw-tree-count-w` |
+| `--dv-tree-menu-w` | `--sw-tree-menu-w` |
+| `--dv-kpi-compact-min-block` | `--sw-row-h-compact` |
+| `--lv-tile-compact-min-block` | `--sw-row-h-compact` |
+| `--sw-kpi-compact-min-block` | `--sw-row-h-compact` |
+| `--dv-kpi-compact-pad-block` | `--sw-kpi-compact-pad-block` |
+| `--lv-tile-compact-pad-block` | `--sw-kpi-compact-pad-block` |
+| `--dv-kpi-compact-pad-inline` | `--sw-kpi-compact-pad-inline` |
+| `--lv-tile-compact-pad-inline` | `--sw-kpi-compact-pad-inline` |
+| `--dv-kpi-compact-gap` | `--sw-kpi-compact-gap` |
+| `--lv-tile-compact-gap` | `--sw-kpi-compact-gap` |
+| `--dv-kpi-compact-icon` | `--sw-kpi-compact-icon` |
+| `--lv-tile-compact-icon` | `--sw-kpi-compact-icon` |
+| `--dv-kpi-compact-value-fs` | `--sw-kpi-compact-value-fs` |
+| `--lv-tile-compact-value-fs` | `--sw-kpi-compact-value-fs` |
+| `--dv-kpi-compact-col-min` | `--sw-kpi-compact-col-min` |
+| `--lv-tile-compact-col-min` | `--sw-kpi-compact-col-min` |
+| `--dv-kpi-compact-cols-phone` | `--sw-kpi-compact-cols-phone` |
+| `--lv-tile-compact-cols-phone` | `--sw-kpi-compact-cols-phone` |
+| `--dv-kpi-compact-grid-gap` | `--sw-kpi-compact-grid-gap` |
+| `--lv-tile-compact-grid-gap` | `--sw-kpi-compact-grid-gap` |
+| `--dv-role-accent-bg` | rgb(--sw-role-accent / --sw-role-fill-a) |
+| `--dv-role-accent-border` | rgb(--sw-role-accent / --sw-role-border-a) |
+| `--dv-role-accent-fg` | `--sw-role-accent-fg` |
+| `--dv-role-warm-bg` | rgb(--sw-role-warm / --sw-role-fill-a) |
+| `--dv-role-warm-border` | rgb(--sw-role-warm / --sw-role-border-a) |
+| `--dv-role-warm-fg` | `--sw-role-warm-fg` |
+| `--dv-role-cool-bg` | rgb(--sw-role-cool / --sw-role-fill-a) |
+| `--dv-role-cool-border` | rgb(--sw-role-cool / --sw-role-border-a) |
+| `--dv-role-cool-fg` | `--sw-role-cool-fg` |
+| `--dv-role-success-bg` | rgb(--sw-role-success / --sw-role-fill-a) |
+| `--dv-role-success-border` | rgb(--sw-role-success / --sw-role-border-a) |
+| `--dv-role-success-fg` | `--sw-role-success-fg` |
+| `--dv-role-warning-bg` | rgb(--sw-role-warning / --sw-role-fill-a) |
+| `--dv-role-warning-border` | rgb(--sw-role-warning / --sw-role-border-a) |
+| `--dv-role-warning-fg` | `--sw-role-warning-fg` |
+| `--dv-role-danger-bg` | rgb(--sw-role-danger / --sw-role-fill-a) |
+| `--dv-role-danger-border` | rgb(--sw-role-danger / --sw-role-border-a) |
+| `--dv-role-danger-fg` | `--sw-role-danger-fg` |
+| `--dv-role-neutral-bg` | rgb(--sw-role-neutral / --sw-role-fill-a) |
+| `--dv-role-neutral-border` | rgb(--sw-role-neutral / --sw-role-border-a) |
+| `--dv-role-neutral-fg` | `--sw-role-neutral-fg` |
+| `--nav-icon` | rail preset (l: 25px); the design fixes the look, not the numbers |
+| `--nav-label` | rail preset (l: 12px = --sw-fs-xs) |
+| `--nav-item-h` | rail preset (l: 64px) |
+| `--nav-item-w` | `--sw-rail-w − 2 × --sw-rail-gap − 12px (item fills the rail panel)` |
+| `--nav-avatar` | `--sw-icon-ring (36px)` |
+| `--nav-bar-h` | `--sw-bottomnav-h` |
+| `--nav-p-label` | `--sw-fs-xs` |
+| `--nav-pill-w` | 52px (bar pill; fixed by nav-size.ts) |
+| `--nav-pill-h` | 30px (bar pill; fixed by nav-size.ts) |
+| `--nav-p-icon` | 22px (bar icon; fixed by nav-size.ts) |
+| `--sw-tab-min-h` | `--sw-control-h (desktop) / --sw-touch (phone underline tabs)` |
+| `--sw-icon-size` | 20px = --sw-icon-ring − 2 × --sw-icon-ring-pad + 2px |

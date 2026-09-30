@@ -117,7 +117,7 @@
   --sw-circuit-6: #2dd4bf;
   --sw-font: "Heebo", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Hebrew", Roboto, Arial, sans-serif;
   --sw-font-mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
-  --sw-fs-xs: 11.5px;
+  --sw-fs-xs: 12px;
   --sw-fs-sm: 12.5px;
   --sw-fs-md: 14px;
   --sw-fs-lg: 15.5px;
@@ -167,6 +167,7 @@
   --sw-drawer-w: 360px;
   --sw-drawer-modal-w: 480px;
   --sw-dialog-w: 440px;
+  --sw-panel-w: 300px;
   --sw-content-max: none;
   --sw-tile-gap: 10px;
   --sw-card-gap: 16px;
@@ -344,7 +345,7 @@
     --sw-circuit-6: #2dd4bf;
     --sw-font: "Heebo", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Hebrew", Roboto, Arial, sans-serif;
     --sw-font-mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
-    --sw-fs-xs: 11.5px;
+    --sw-fs-xs: 12px;
     --sw-fs-sm: 12.5px;
     --sw-fs-md: 14px;
     --sw-fs-lg: 15.5px;
@@ -394,6 +395,7 @@
     --sw-drawer-w: 360px;
     --sw-drawer-modal-w: 480px;
     --sw-dialog-w: 440px;
+    --sw-panel-w: 300px;
     --sw-content-max: none;
     --sw-tile-gap: 10px;
     --sw-card-gap: 16px;

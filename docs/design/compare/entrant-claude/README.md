@@ -11,11 +11,18 @@ structure (`SKINS_HE.md`).
 | 2 · iOS / Apple (`skins/ios.mjs`) | `boards/ios/` | `renders/ios/` | `tokens-ios.json`, `tokens-ios.css`, `tokens-ios-light.css`, `tokens-ios-dark.css` | `contrast-report-ios.json` |
 | 3 · Tesla clean hi-tech (`skins/tesla.mjs`) | `boards/tesla/` | `renders/tesla/` | `tokens-tesla.json`, `tokens-tesla.css`, `tokens-tesla-light.css`, `tokens-tesla-dark.css` | `contrast-report-tesla.json` |
 
-Per skin, 40 boards: 4 foundations + component sheet + home / area / wall × cards and list × 1440×900 and 390×full
-height × light and dark (24) + the area states board + **`home-kpi-1440-{light,dark}`** (the home with the optional
-widgets: KPI strip, climate strip, building tree) + **8 full-board LTR mirrors** of home and area
-(`boards/<skin>/mirrors/*-ltr.html`, `renders/<skin>/mirrors/*-ltr.png`; `dir="ltr"` on `<html>`, nothing else
-changes). `boards/index.html` switches between skins and boards.
+Per skin, 42 boards (Domus 43): 4 foundations + component sheet + home / area / wall × cards and list × 1440×900 and
+390×full height × light and dark (24) + the area states board + **`home-kpi-1440-{light,dark}`** (the home with the
+optional widgets: KPI strip, climate strip, building tree) + **`home-panel-1440-{light,dark}`** (home direction ב,
+"לוח צד": widgets column + KPI strip — the status-panel composition, Tesla-styled in the Tesla skin) + **8 full-board
+LTR mirrors** of home and area (`boards/<skin>/mirrors/*-ltr.html`, `renders/<skin>/mirrors/*-ltr.png`; `dir="ltr"`
+on `<html>`, nothing else changes) + Domus only: `area-1440-dark-opaque` (opaque-fallback proof). `boards/index.html`
+switches between skins and boards.
+
+This is the **final Claude design package** (owner decision 2026-10-01: no round 2 for the outside designer). The
+strongest assets of entrant A were imported as ideas, rewritten in our tokens and rules; the list with sources is in
+`SKINS_HE.md` ("מה נלקח מהתוצר של Astra"). `node contract-check.mjs` confirms every TOKEN_CONTRACT.md name has a direct
+value or an alias row (0 missing).
 
 Round-1 judge fixes (2026-10-01): LTR mirrors rendered; the 20 contract knobs that had no value or mapping now have
 values in every skin (`skins/domus.mjs` group `knobs`) and rows in `TOKEN_MAP.md`; iOS and Tesla ship separate
@@ -25,7 +32,8 @@ real glass + floating rail vs flat grey canvas + white grouped containers withou
 tiles put the camera name on its own row (no collision on the 390 wall); saved contrast reports per skin (0 below
 target); text-2 / text-3 are distinguishable in every skin and scheme.
 
-- `TOKEN_MAP.md` — one map for all skins (same 223 names; new semantic name → old `--sw-*` / `--dv-*` names).
+- `TOKEN_MAP.md` — one map for all skins (same 224 names; new semantic name → old `--sw-*` / `--dv-*` names) + an
+  explicit contract-coverage table (one row per `--dv-*` / `--lv-*` / `--nav-*` / component-local name).
 - `RATIONALE_HE.md`, `SKINS_HE.md`, `CHECKLIST.md` — rationale, the skin layer, self-scores per skin.
 - `src/` — the shared structure (`screens.mjs`, `boards.mjs`, `css.mjs`, `icons.mjs`), token access (`tokens.mjs`),
   skin registry (`skin.mjs`), helpers (`token-helpers.mjs`). `skins/` — one file per skin: full token set (light +

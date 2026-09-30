@@ -113,7 +113,7 @@ export const groups = [
     id: 'type', title: 'Typography', tokens: {
       '--sw-font': same('"Heebo", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Hebrew", Roboto, Arial, sans-serif'),
       '--sw-font-mono': same('ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace'),
-      '--sw-fs-xs': same('11.5px'), '--sw-fs-sm': same('12.5px'), '--sw-fs-md': same('14px'), '--sw-fs-lg': same('15.5px'),
+      '--sw-fs-xs': same('12px'), '--sw-fs-sm': same('12.5px'), '--sw-fs-md': same('14px'), '--sw-fs-lg': same('15.5px'),
       '--sw-fs-xl': same('17px'), '--sw-fs-2xl': same('21px'), '--sw-fs-3xl': same('26px'),
       '--sw-h1': same('44px'), '--sw-h1-phone': same('32px'), '--sw-h1-weight': same('700'), '--sw-h1-tracking': same('-1px'), '--sw-h1-lh': same('1.05'),
       '--sw-h2': same('24px'), '--sw-h2-tracking': same('-0.3px'),
@@ -132,6 +132,7 @@ export const groups = [
       '--sw-touch': same('44px'), '--sw-control-h': same('36px'), '--sw-control-h-lg': same('44px'), '--sw-control-h-sm': same('30px'),
       '--sw-rail-w': same('92px'), '--sw-rail-w-wide': same('108px'), '--sw-rail-gap': same('12px'),
       '--sw-topbar-h': same('0px'), '--sw-bottomnav-h': same('62px'), '--sw-drawer-w': same('360px'), '--sw-drawer-modal-w': same('480px'), '--sw-dialog-w': same('440px'),
+      '--sw-panel-w': same('300px'), // home direction ב: the widgets column beside the floors
       '--sw-content-max': same('none'),
       '--sw-tile-gap': same('10px'), '--sw-card-gap': same('16px'), '--sw-card-pad': same('18px'), '--sw-tile-pad': same('12px'),
       '--sw-row-h': same('56px'), '--sw-row-h-compact': same('48px'),

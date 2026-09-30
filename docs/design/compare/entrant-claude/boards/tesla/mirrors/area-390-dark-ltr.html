@@ -180,6 +180,7 @@
   --sw-drawer-w: 360px;
   --sw-drawer-modal-w: 480px;
   --sw-dialog-w: 440px;
+  --sw-panel-w: 300px;
   --sw-content-max: none;
   --sw-tile-gap: 10px;
   --sw-card-gap: 20px;
@@ -405,6 +406,7 @@
   --sw-drawer-w: 360px;
   --sw-drawer-modal-w: 480px;
   --sw-dialog-w: 440px;
+  --sw-panel-w: 300px;
   --sw-content-max: none;
   --sw-tile-gap: 10px;
   --sw-card-gap: 20px;
@@ -500,7 +502,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .app{display:grid;grid-template-columns:var(--sw-rail-w) 1fr;min-height:100vh}
 .rail{position:sticky;top:0;height:100vh;padding:0}
 .rail-in{height:100%;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 6px;border-radius:0;border-inline-end:1px solid var(--sw-border)}
-.brand{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;margin-bottom:10px;color:#fff;font-weight:800;font-size:20px;letter-spacing:-.5px;background:var(--sw-accent)}
+.brand{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;margin-bottom:10px;color:#fff;font-weight:800;font-size:var(--sw-fs-xl);letter-spacing:-.5px;background:var(--sw-accent)}
 .rail-item{position:relative;width:100%;min-height:var(--nav-item-h,64px);padding:8px 4px 6px;border-radius:var(--sw-r-md);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--sw-text-2);font-size:var(--nav-label,12px);font-weight:var(--sw-fw-medium);line-height:1;transition:background var(--sw-t-fast) var(--sw-ease),color var(--sw-t-fast) var(--sw-ease)}
 .rail-item .ic{width:var(--nav-icon,25px);height:var(--nav-icon,25px)}
 .rail-item:hover,.rail-item.hover{background:var(--sw-surface-3);color:var(--sw-text)}
@@ -516,10 +518,10 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 /* ---------- shell: phone bottom bar ---------- */
 .bar{position:sticky;bottom:0;z-index:var(--sw-z-topbar);display:flex;align-items:stretch;justify-content:space-around;padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));min-height:var(--sw-bottomnav-h);border-top:1px solid var(--sw-border);background:var(--sw-surface)}
 .solid .bar{background:var(--sw-surface-solid)}
-.bar-item{flex:1;min-width:44px;min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sw-text-2);font-size:11.5px;font-weight:var(--sw-fw-medium);border-radius:var(--sw-r-md)}
+.bar-item{flex:1;min-width:44px;min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sw-text-2);font-size:var(--sw-fs-xs);font-weight:var(--sw-fw-medium);border-radius:var(--sw-r-md)}
 .bar-item .pill{width:52px;height:30px;border-radius:var(--sw-r-pill);display:grid;place-items:center;transition:background var(--sw-t-fast) var(--sw-ease)}
 .bar-item.active{color:var(--sw-accent-text)}
-.bar-item .avatar{width:30px;height:30px;font-size:11px}
+.bar-item .avatar{width:30px;height:30px;font-size:var(--sw-fs-xs)}
 
 /* ---------- corner float ---------- */
 .corner{position:absolute;top:14px;inset-inline-end:16px;z-index:var(--sw-z-map-ui);display:flex;align-items:center;gap:2px;padding:4px;border-radius:var(--sw-r-pill);background:var(--sw-surface);border:1px solid var(--sw-border);box-shadow:var(--sw-shadow-1)}
@@ -572,7 +574,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 /* KPI */
 .kpi{display:flex;align-items:center;gap:12px;min-height:64px;padding:10px 14px;border-radius:var(--sw-r-md);text-align:start;width:100%}
 .kpi .ring{background:rgb(var(--tone,var(--sw-role-neutral)) / var(--sw-role-fill-a));color:var(--tone-fg,var(--sw-text))}
-.kpi .kv{font-size:22px;font-weight:var(--sw-fw-bold);color:var(--sw-heading);line-height:1.1;font-variant-numeric:tabular-nums}
+.kpi .kv{font-size:var(--sw-fs-2xl);font-weight:var(--sw-fw-bold);color:var(--sw-heading);line-height:1.1;font-variant-numeric:tabular-nums}
 /* compact KPI strip (optional home widget): the --sw-kpi-compact-* knobs */
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(var(--sw-kpi-compact-col-min),1fr));gap:var(--sw-kpi-compact-grid-gap)}
 .kpis .kpi{min-height:var(--sw-row-h-compact);padding:var(--sw-kpi-compact-pad-block) var(--sw-kpi-compact-pad-inline);gap:var(--sw-kpi-compact-gap)}
@@ -582,7 +584,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .kpi .kl{font-size:var(--sw-fs-sm);color:var(--sw-text-2);margin-top:2px}
 .kpi .kd{font-size:var(--sw-fs-xs);color:var(--sw-live-text);font-weight:var(--sw-fw-semibold)}
 .kpi.cards{flex-direction:column;align-items:flex-start;min-height:120px;padding:16px}
-.kpi.cards .kv{font-size:28px}
+.kpi.cards .kv{font-size:var(--sw-fs-3xl)}
 .kpi .badge{margin-inline-start:auto}
 .kpi.live{--tone:var(--sw-role-success);--tone-fg:var(--sw-role-success-fg)} .kpi.stale{--tone:var(--sw-role-warning);--tone-fg:var(--sw-role-warning-fg)} .kpi.forbidden{--tone:var(--sw-role-danger);--tone-fg:var(--sw-role-danger-fg)} .kpi.accent{--tone:var(--sw-role-accent);--tone-fg:var(--sw-role-accent-fg)} .kpi.warm{--tone:var(--sw-role-warm);--tone-fg:var(--sw-role-warm-fg)} .kpi.cool{--tone:var(--sw-role-cool);--tone-fg:var(--sw-role-cool-fg)}
 
@@ -686,7 +688,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 
 /* sensor tile */
 .sens{display:flex;align-items:center;gap:10px;min-height:56px;padding:8px 12px;border-radius:var(--sw-r-md);background:var(--sw-surface-2);border:1px solid var(--sw-border)}
-.sens .sv{font-size:20px;font-weight:var(--sw-fw-bold);color:var(--sw-heading);line-height:1.1;font-variant-numeric:tabular-nums}
+.sens .sv{font-size:var(--sw-fs-2xl);font-weight:var(--sw-fw-bold);color:var(--sw-heading);line-height:1.1;font-variant-numeric:tabular-nums}
+.sens .sv.word{font-size:var(--sw-fs-lg)}
 .sens .sl{font-size:var(--sw-fs-xs);color:var(--sw-text-2)}
 
 /* area tile (compact, tiles view) */
@@ -827,8 +830,44 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 @keyframes sk{to{background-position:-200% 0}}
 .spin{animation:sp 1s linear infinite}@keyframes sp{to{rotate:360deg}}
 
+/* ---------- further component families (popover · table · timeline · week grid · steps · banner) ---------- */
+.pop{position:relative;width:280px;padding:8px;border-radius:var(--sw-r-md);box-shadow:var(--sw-shadow-2)}
+.pop::before{content:"";position:absolute;top:-6px;inset-inline-end:22px;width:12px;height:12px;rotate:45deg;background:inherit;border-inline-start:1px solid var(--sw-border);border-top:1px solid var(--sw-border)}
+.pop .prow{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 10px;border-radius:var(--sw-r-sm);color:var(--sw-text);font-size:var(--sw-fs-md)}
+.pop .prow:hover,.pop .prow.hover{background:var(--sw-surface-3)}
+.pop .prow .ic{width:18px;height:18px;color:var(--sw-text-2)} .pop .prow .end{margin-inline-start:auto;color:var(--sw-text-3);font-size:var(--sw-fs-sm)}
+.pop .psep{height:1px;background:var(--sw-border);margin:6px 4px}
+.pop .pwho{display:flex;align-items:center;gap:10px;padding:8px 10px 10px} .pop .pwho b{display:block;color:var(--sw-heading)} .pop .pwho span{font-size:var(--sw-fs-sm);color:var(--sw-text-2)}
+.tbl{display:flex;flex-direction:column;overflow:hidden;padding:0}
+.tbl .th,.tbl .tr{display:grid;grid-template-columns:var(--cols,1fr 1fr 1fr);align-items:center;gap:12px;padding:0 var(--sw-card-pad);border-bottom:1px solid var(--sw-border)}
+.tbl .th{min-height:40px;font-size:var(--sw-fs-xs);font-weight:var(--sw-fw-semibold);color:var(--sw-text-3);letter-spacing:.3px}
+.tbl .tr{min-height:var(--sw-row-h-compact);font-size:var(--sw-fs-md);color:var(--sw-text)} .tbl .tr:last-child{border-bottom:0}
+.tbl .tr:hover,.tbl .tr.hover{background:var(--sw-surface-3)} .tbl .tr.sel{background:var(--sw-accent-soft)}
+.tbl .tr .thumb{width:56px;height:32px;border-radius:var(--sw-r-sm);overflow:hidden;position:relative;background:var(--sw-video-bg)}
+.tl{direction:ltr;display:flex;flex-direction:column;gap:6px}
+.tl .ticks{display:flex;justify-content:space-between;font-size:var(--sw-fs-xs);color:var(--sw-text-3);font-variant-numeric:tabular-nums}
+.tl .track{position:relative;height:36px;border-radius:var(--sw-r-sm);background:var(--sw-surface-3);overflow:hidden}
+.tl .seg{position:absolute;top:8px;bottom:8px;border-radius:2px;background:var(--sw-recorded)} .tl .seg.gap{background:transparent;border:1px dashed var(--sw-border-strong)} .tl .seg.est{opacity:.45}
+.tl .ev{position:absolute;bottom:2px;width:6px;height:6px;border-radius:50%;background:var(--sw-stale)} .tl .bm{position:absolute;top:2px;width:2px;height:8px;background:var(--sw-purple)}
+.tl .now{position:absolute;top:0;bottom:0;width:2px;background:var(--sw-danger)} .tl .now::after{content:"";position:absolute;top:-1px;left:-5px;width:12px;height:12px;border-radius:50%;background:var(--sw-danger)}
+.tl .scrub{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--sw-heading)} .tl .scrub::after{content:attr(data-t);position:absolute;top:-22px;left:50%;translate:-50% 0;padding:1px 6px;border-radius:var(--sw-r-sm);background:var(--sw-heading);color:var(--sw-text-inverse);font-size:var(--sw-fs-xs);font-variant-numeric:tabular-nums;white-space:nowrap}
+.wg{direction:ltr;display:grid;grid-template-columns:auto repeat(24,1fr);gap:2px;font-size:var(--sw-fs-xs);color:var(--sw-text-3);font-variant-numeric:tabular-nums}
+.wg .h{text-align:center;min-height:14px} .wg .d{direction:rtl;text-align:end;padding-inline-end:6px;color:var(--sw-text-2);align-self:center}
+.wg .c{height:22px;border-radius:2px;background:var(--sw-surface-3)} .wg .c.on{background:var(--sw-accent)} .wg .c.motion{background:var(--sw-stale)} .wg .c.paint{background:var(--sw-accent-hover);outline:2px solid var(--sw-focus);outline-offset:-1px}
+.wg.ro .c{opacity:.7}
+.steps{display:flex;align-items:center;gap:8px;font-size:var(--sw-fs-sm)}
+.steps .st{display:flex;align-items:center;gap:8px;color:var(--sw-text-3)} .steps .st i{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;border:1.5px solid var(--sw-border-strong);font-size:var(--sw-fs-xs);font-style:normal;font-weight:var(--sw-fw-semibold);font-variant-numeric:tabular-nums}
+.steps .st.done{color:var(--sw-text-2)} .steps .st.done i{background:var(--sw-success);border-color:transparent;color:#fff}
+.steps .st.cur{color:var(--sw-heading);font-weight:var(--sw-fw-semibold)} .steps .st.cur i{background:var(--sw-accent);border-color:transparent;color:var(--sw-text-inverse)}
+.steps .ln{flex:1;height:1px;background:var(--sw-border-strong);min-width:24px}
+.banner{display:flex;align-items:center;gap:12px;min-height:52px;padding:8px 14px;border-radius:var(--sw-r-md);border:1px solid var(--sw-border);background:var(--sw-surface-2);font-size:var(--sw-fs-md)}
+.banner .ic{width:20px;height:20px;flex:none} .banner .grow b{color:var(--sw-heading)} .banner .acts{display:flex;gap:4px;margin-inline-start:auto}
+.banner.error{border-color:color-mix(in srgb,var(--sw-danger) 45%,transparent);background:var(--sw-danger-soft)} .banner.error .ic{color:var(--sw-danger)}
+.banner.setup{border-color:color-mix(in srgb,var(--sw-accent) 40%,transparent);background:var(--sw-accent-soft)} .banner.setup .ic{color:var(--sw-accent)}
+.banner.stale{background:var(--sw-stale-soft)} .banner.stale .ic{color:var(--sw-stale)}
+
 /* ---------- board chrome (not product) ---------- */
-.board-label{position:absolute;top:4px;left:50%;translate:-50% 0;z-index:99;font:600 10px/1 var(--sw-font);color:var(--sw-text-3);opacity:.7;pointer-events:none;direction:ltr;white-space:nowrap}
+.board-label{position:absolute;top:4px;left:50%;translate:-50% 0;z-index:99;font:600 var(--sw-fs-xs)/1 var(--sw-font);color:var(--sw-text-3);opacity:.7;pointer-events:none;direction:ltr;white-space:nowrap}
 
 /* ---------- skin rules: tesla ---------- */
 
@@ -842,7 +881,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .avatar{background:transparent;border-color:var(--sw-border-strong);color:var(--sw-text)}
 /* tesla · titles in medium weight, big numerals */
 h1,h2,h3,.h1,.h2,.dialog .q,.kpi .kv,.sens .sv,.widget.alarm .word{font-weight:500}
-.kpi .kv{font-size:28px} .sens .sv{font-size:24px}
+.kpi .kv{font-size:var(--sw-fs-3xl)} .sens .sv{font-size:var(--sw-fs-2xl)}
 /* tesla · icon rings are outlines, not fills */
 .ring,.dbadge,.state .sic{background:transparent;border:1px solid var(--sw-border-strong)}
 .dbadge{border-color:rgb(var(--role,var(--sw-role-accent)) / var(--sw-role-border-a))}
@@ -869,6 +908,9 @@ h1,h2,h3,.h1,.h2,.dialog .q,.kpi .kv,.sens .sv,.widget.alarm .word{font-weight:5
 .stepper{background:transparent;border:1px solid var(--sw-border-strong)} .stepper .btn{background:transparent;box-shadow:none;border-radius:var(--sw-r-sm)}
 .cover-ctl .btn{background:transparent;border:1px solid var(--sw-border)}
 .field .in{background:transparent}
+/* tesla · home direction ב ("status panel"): the widgets column is a hairline-separated panel, KPIs are hairline rows without cards (inspired by entrant A's Tesla) */
+.panel{border-inline-end:1px solid var(--sw-border);padding-inline-end:var(--sw-card-gap)} .panel .widget.glass{background:transparent;border:0;border-radius:0;border-bottom:1px solid var(--sw-border);padding-inline:0}
+.kpis .kpi.glass{background:transparent;border:0;border-radius:0;border-inline-start:1px solid var(--sw-border-strong)}
 /* tesla · camera caption as a solid strip, not a gradient scrim */
 .cam .nm{background:rgba(0,0,0,.62);padding:8px 10px;text-shadow:none}
 .handle{border-radius:1px}
@@ -906,7 +948,7 @@ h1,h2,h3,.h1,.h2,.dialog .q,.kpi .kv,.sens .sv,.widget.alarm .word{font-weight:5
 .climate{display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:var(--sw-r-md);background:var(--sw-surface-2);border:1px solid var(--sw-border);flex:1}
 .climate .big{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
 .climate .temp{font-size:var(--sw-fs-reading);font-weight:var(--sw-fw-reading);letter-spacing:var(--sw-reading-tracking);line-height:1;color:var(--sw-heading);font-variant-numeric:tabular-nums}
-.climate .temp small{font-size:14px;letter-spacing:0;color:var(--sw-text-2);font-weight:var(--sw-fw-regular)}
+.climate .temp small{font-size:var(--sw-fs-md);letter-spacing:0;color:var(--sw-text-2);font-weight:var(--sw-fw-regular)}
 .climate .seg{align-self:stretch;display:flex} .climate .seg>*{flex:1;justify-content:center;padding:0 6px}
 .climate .aux{display:grid;grid-template-columns:1fr 1fr;gap:var(--sw-tile-gap);margin-top:auto}
 .snap{position:relative;height:84px;border-radius:var(--sw-r-md);overflow:hidden;border:1px solid var(--sw-border);color:#fff}
@@ -925,7 +967,7 @@ h1,h2,h3,.h1,.h2,.dialog .q,.kpi .kv,.sens .sv,.widget.alarm .word{font-weight:5
 }</style>
 </head>
 <body class="canvas">
-<div class="app phone"><main class="content"><div class="corner"><button class="cbtn" aria-label="חיפוש"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.3-4.3"/></svg></button><span class="health" title="מצב המערכת"><span class="dot lg ok"></span></span></div><div class="page area"><header class="ahead">
+<div class=""><div class="app phone"><main class="content"><div class="corner"><button class="cbtn" aria-label="חיפוש"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.3-4.3"/></svg></button><span class="health" title="מצב המערכת"><span class="dot lg ok"></span></span></div><div class="page area"><header class="ahead">
     <div class="top"><button class="btn icon ghost" aria-label="חזרה"><svg class="ic ic-dir" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></button><button class="fbtn">קומה 1<svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></button><div class="end"><div class="seg" role="tablist" aria-label="תצוגה"><button class=""><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/></svg>אריחים</button><button class="on"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="6" rx="1.8"/><rect x="3.5" y="13" width="17" height="6" rx="1.8"/></svg>כרטיסים</button><button class=""><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>רשימה</button></div><span class="offall"><button class="btn ghost sm"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v8"/><path d="M6.6 7.4a7.5 7.5 0 1 0 10.8 0"/></svg>כבה הכל באזור</button></span></div></div>
     <div class="title"><h1 class="h1">סלון</h1><div class="facts"><span><b class="num">13</b> התקנים</span><span><b class="num">5</b> פעילים</span><span><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14.2V5.5a2 2 0 0 1 4 0v8.7a3.5 3.5 0 1 1-4 0z"/><path d="M12 10v6"/></svg><b class="num">24.5°</b></span><span><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5c-3 4-6 7-6 10.5a6 6 0 0 0 12 0c0-3.5-3-6.5-6-10.5z"/></svg><b class="num">48%</b></span><span><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="14" cy="5" r="1.8"/><path d="m8 21 3-6 3 2 2 4"/><path d="m6 13 4-3 4 1 3 3 3-1"/><path d="m10 10-1 5"/></svg><b>אין תנועה</b></span></div></div>
     <div class="tabs rooms fade" role="tablist"><span class="tab on">סלון <span class="n">13</span></span><span class="tab">מטבח <span class="n">8</span></span><span class="tab">לובי <span class="n">9</span></span><span class="tab">חדר ילדים <span class="n">6</span></span><span class="tab">חדר שינה הורים <span class="n">7</span></span><span class="tab">משרד <span class="n">5</span></span><span class="tab">חניון <span class="n">6</span></span></div>
@@ -947,12 +989,12 @@ h1,h2,h3,.h1,.h2,.dialog .q,.kpi .kv,.sens .sv,.widget.alarm .word{font-weight:5
   </div></section><section class="glass dcard "><div class="card-head"><span class="dbadge" style="--role:var(--sw-role-neutral);--role-fg:var(--sw-role-neutral-fg)"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.8"/><path d="M8.5 15.5a5 5 0 0 1 0-7"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M6 18a8.5 8.5 0 0 1 0-12"/><path d="M18 6a8.5 8.5 0 0 1 0 12"/></svg></span><h3 class="sec-title"><span class="tt">חיישנים</span><svg class="ic disc ic-dir" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg><span class="count"><span class="num">6</span> התקנים</span></h3></div><div class="sens2">
     <div class="sens"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14.2V5.5a2 2 0 0 1 4 0v8.7a3.5 3.5 0 1 1-4 0z"/><path d="M12 10v6"/></svg></span><span><div class="sv num">24.5°</div><div class="sl">טמפרטורה</div></span></div>
     <div class="sens"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5c-3 4-6 7-6 10.5a6 6 0 0 0 12 0c0-3.5-3-6.5-6-10.5z"/></svg></span><span><div class="sv num">48%</div><div class="sl">לחות</div></span></div>
-    <div class="sens"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="14" cy="5" r="1.8"/><path d="m8 21 3-6 3 2 2 4"/><path d="m6 13 4-3 4 1 3 3 3-1"/><path d="m10 10-1 5"/></svg></span><span><div class="sv" style="font-size:16px">אין תנועה</div><div class="sl">לפני <span class="num">12</span> דק׳</div></span></div>
-    <div class="sens"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V5.5a1.5 1.5 0 0 1 1.5-1.5h11A1.5 1.5 0 0 1 19 5.5V20"/><path d="M3.5 20h17"/><circle cx="15" cy="12.5" r=".9"/></svg></span><span><div class="sv" style="font-size:16px">סגורה</div><div class="sl">דלת מרפסת</div></span></div>
+    <div class="sens"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="14" cy="5" r="1.8"/><path d="m8 21 3-6 3 2 2 4"/><path d="m6 13 4-3 4 1 3 3 3-1"/><path d="m10 10-1 5"/></svg></span><span><div class="sv word">אין תנועה</div><div class="sl">לפני <span class="num">12</span> דק׳</div></span></div>
+    <div class="sens"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V5.5a1.5 1.5 0 0 1 1.5-1.5h11A1.5 1.5 0 0 1 19 5.5V20"/><path d="M3.5 20h17"/><circle cx="15" cy="12.5" r=".9"/></svg></span><span><div class="sv word">סגורה</div><div class="sl">דלת מרפסת</div></span></div>
   </div><button class="btn ghost sm" style="margin-top:8px;width:100%"><svg class="ic faint" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg>עוד <span class="num">2</span> חיישנים</button></section></div><div class="empties"><span>ללא התקנים באזור:</span><span class="chip ghost"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5.5v13l10-6.5z"/></svg>מדיה</span><span class="chip ghost"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5c-3 4-6 7-6 10.5a6 6 0 0 0 12 0c0-3.5-3-6.5-6-10.5z"/></svg>השקיה</span><span class="chip ghost"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V5.5a1.5 1.5 0 0 1 1.5-1.5h11A1.5 1.5 0 0 1 19 5.5V20"/><path d="M3.5 20h17"/><circle cx="15" cy="12.5" r=".9"/></svg>שערים</span></div></div></main></div><nav class="bar" aria-label="אזורים">
   <a class="bar-item active" href="#"><span class="pill"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.5 12 5l8 6.5"/><path d="M6.5 10v9h11v-9"/><path d="M10 19v-5h4v5"/></svg></span><span>ראשי</span></a><a class="bar-item" href="#"><span class="pill"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 5 6.2v5.3c0 4.2 3 7.4 7 8.9 4-1.5 7-4.7 7-8.9V6.2z"/><path d="m9.3 12 1.9 1.9 3.6-3.8"/></svg></span><span>אבטחה</span></a><a class="bar-item" href="#"><span class="pill"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.5v13l5-2 6 2 5-2v-13l-5 2-6-2z"/><path d="M9 4.5v13"/><path d="M15 6.5v13"/></svg></span><span>מפה</span></a><a class="bar-item" href="#"><span class="pill"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="3.5" width="10" height="17" rx="2.2"/><circle cx="12" cy="9" r="1.6"/><path d="M12 10.6v4"/></svg></span><span>WisKey</span></a>
   <button class="bar-item"><span class="pill"><span class="avatar">יו<i class="adot"></i></span></span><span>יוני</span></button>
-</nav>
+</nav></div>
 <div class="board-label">area · 390×844 · dark · ltr mirror · tesla</div>
 </body>
 </html>

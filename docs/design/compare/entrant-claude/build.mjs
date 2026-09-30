@@ -9,8 +9,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { setSkin, skinIds, stats } from './src/skin.mjs';
-import { cssBlock, tokensJson, tokenMap } from './src/tokens.mjs';
-import { homeBoard, areaBoard, wallBoard, homeListBoard, areaListBoard, wallListBoard, homeKpiBoard, setFontPrefix } from './src/screens.mjs';
+import { cssBlock, tokensJson, tokenMap, contractAliases } from './src/tokens.mjs';
+import { homeBoard, areaBoard, wallBoard, homeListBoard, areaListBoard, wallListBoard, homeKpiBoard, homePanelBoard, setFontPrefix } from './src/screens.mjs';
 import { foundationsColor, foundationsType, foundationsShape, foundationsMotion, componentsSheet, areaStatesBoard, indexPage } from './src/boards.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -21,7 +21,7 @@ const skinArg = (args.find((a) => a.startsWith('--skin=')) || '--skin=all').slic
 const todoSkins = skinArg === 'all' ? skinIds : [skinArg];
 
 // TOKEN_MAP.md is shared by every skin
-writeFileSync(join(here, 'TOKEN_MAP.md'), `# Token map — new semantic name → old names\n\nGenerated from \`src/tokens.mjs\`. One semantic palette under \`--sw-*\`, the same names in every skin (\`skins/*.mjs\`); engineering aliases the old \`--sw-*\` and \`--dv-*\` names onto it. Every name below has a light and a dark value in \`tokens.json\` (domus), \`tokens-ios.json\` and \`tokens-tesla.json\`.\n\n| New name | Old names / note |\n|---|---|\n${tokenMap.map(([a, b]) => `| \`${a}\` | ${b} |`).join('\n')}\n`);
+writeFileSync(join(here, 'TOKEN_MAP.md'), `# Token map — new semantic name → old names\n\nGenerated from \`src/tokens.mjs\`. One semantic palette under \`--sw-*\`, the same names in every skin (\`skins/*.mjs\`); engineering aliases the old \`--sw-*\` and \`--dv-*\` names onto it. Every name below has a light and a dark value in \`tokens.json\` (domus), \`tokens-ios.json\` and \`tokens-tesla.json\`.\n\n| New name | Old names / note |\n|---|---|\n${tokenMap.map(([a, b]) => `| \`${a}\` | ${b} |`).join('\n')}\n\n## Contract coverage — every \`--dv-*\`, \`--lv-*\`, \`--nav-*\` and component-local name in TOKEN_CONTRACT.md §4–§5, one row each\n\nAll 122 \`--sw-*\` names of §3 exist directly in \`tokens*.json\`. The names below are aliased by engineering onto the tokens on the right. \`node contract-check.mjs\` parses TOKEN_CONTRACT.md and confirms that every name has a direct value or a row here (${contractAliases.length} rows).\n\n| Contract name | Value source |\n|---|---|\n${contractAliases.map(([a, b]) => `| \`${a}\` | ${b.startsWith('--') ? `\`${b}\`` : b} |`).join('\n')}\n`);
 
 const allBoards = [];
 for (const id of todoSkins) {
@@ -66,6 +66,8 @@ for (const id of todoSkins) {
     add(`wall-list-390-${scheme}.html`, wallListBoard({ scheme, phone: true }), 390, 844, true);
     // optional home widgets (KPI strip + climate strip + building tree), 1440 only
     add(`home-kpi-1440-${scheme}.html`, homeKpiBoard({ scheme }), 1440, 900);
+    // home direction ב (widgets column + KPI strip) — the "status panel" composition as a home variant, 1440 only
+    add(`home-panel-1440-${scheme}.html`, homePanelBoard({ scheme }), 1440, 900);
     // full-board LTR mirrors of home and area (dir="ltr" on <html>; nothing else changes)
     add(`mirrors/home-1440-${scheme}-ltr.html`, homeBoard({ scheme, phone: false, dir: 'ltr', fontPrefix: `../${fonts}` }), 1440, 900);
     add(`mirrors/home-390-${scheme}-ltr.html`, homeBoard({ scheme, phone: true, dir: 'ltr', fontPrefix: `../${fonts}` }), 390, 844, true);
@@ -73,6 +75,8 @@ for (const id of todoSkins) {
     add(`mirrors/area-390-${scheme}-ltr.html`, areaBoard({ scheme, phone: true, dir: 'ltr', fontPrefix: `../${fonts}` }), 390, 844, true);
   }
   add('area-states.html', areaStatesBoard(), 1440, 900, true, 1);
+  // proof board: the opaque fallback of the area screen (only meaningful for a skin with real glass)
+  if (skin.bloom) add('area-1440-dark-opaque.html', areaBoard({ scheme: 'dark', phone: false, solid: true }), 1440, 900);
 
   for (const b of boards) writeFileSync(join(boardsDir, b.file), b.html);
   writeFileSync(join(boardsDir, 'index.html'), indexPage(boards, root ? '../renders/' : `../../renders/${id}/`));

@@ -339,6 +339,33 @@ export function componentsSheet() {
 
   const stateDemo = () => `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">${[['loading', 'loader', 'טוען…', ''], ['empty', 'inbox', 'אין התקנים באזור', 'התקנים שישויכו יופיעו כאן'], ['error', 'alert', 'לא ניתן לטעון', 'תשתית המערכת לא הגיבה'], ['forbidden', 'eyeOff', 'אין הרשאה למסך הזה', ''], ['stale', 'clockHistory', 'הנתונים לא מעודכנים', 'עדכון אחרון לפני 6 דק׳'], ['partial', 'info', 'חלק מהמקורות לא זמינים', '2 מתוך 3 מקורות']].map(([s, ic, t, h]) => `<div class="glass"><div class="state ${s}" style="padding:22px 12px"><span class="sic">${I(ic, { cls: s === 'loading' ? 'spin' : '' })}</span><div class="st" style="font-size:15px">${t}</div>${h ? `<div class="sh" style="font-size:12.5px">${h}</div>` : ''}</div></div>`).join('')}</div>`;
 
+  // further families from COMPONENT_INVENTORY (coverage inspired by entrant A's COMPONENT_COVERAGE): popover / user menu, table,
+  // recordings timeline, 24-hour week grid, steps, banners. Geometry (timeline, hours) stays LTR.
+  const popDemo = () => `<div class="demo" style="align-items:flex-start;gap:24px">
+    <div class="glass pop"><div class="pwho"><span class="avatar lg">יו<i class="adot"></i></span><span><b>יוני</b><span>מנהל · <span class="num">3</span> התראות</span></span></div><div class="psep"></div>
+      <div class="prow">${I('layers')}גודל תפריט הצד<span class="end">גדול</span></div><div class="prow hover">${I('home')}עריכת המסך הראשי</div><div class="prow">${I('settings')}הגדרות</div><div class="psep"></div><div class="prow">${I('door')}יציאה</div></div>
+    <div class="glass pop" style="width:240px"><div class="prow">${I('expand')}הרחב</div><div class="prow">${I('snapshot')}שמור צילום</div><div class="prow" style="color:var(--sw-danger-text)">${I('eyeOff')}הסתר מהקיר</div></div>
+    <div><div class="lbl-s" style="margin-bottom:6px">banners · error / setup / stale</div><div class="demo col" style="width:520px">
+      <div class="banner error">${I('alert')}<span class="grow"><b>אין חיבור לתשתית המערכת</b> · מנסה שוב</span><span class="acts"><button class="btn ghost sm">פרטים</button><button class="btn ghost icon sm" aria-label="סגור">${I('x')}</button></span></div>
+      <div class="banner setup">${I('info')}<span class="grow"><b>ההתקנה לא הושלמה</b> · <span class="num">2</span> צעדים נותרו</span><span class="acts"><button class="btn primary sm">המשך</button></span></div>
+      <div class="banner stale">${I('clockHistory')}<span class="grow">הנתונים מלפני <span class="num">6</span> דק׳</span><span class="acts"><button class="btn ghost sm">${I('refresh')}רענן</button></span></div></div></div></div>`;
+
+  const tableDemo = () => `<div class="demo col"><div class="lbl-s">טבלה · rest / hover / selected · תמונה ממוזערת · ספרות טבלאיות</div>
+    <div class="glass tbl" style="--cols:100px minmax(160px,1fr) 120px 90px 64px 44px">
+      <div class="th"><span>שעה</span><span>מצלמה</span><span>סוג</span><span>משך</span><span></span><span></span></div>
+      ${[['15:32', 'כניסה ראשית', 'תנועה', '0:42', 's1', ''], ['15:18', 'חניון', 'תנועה', '1:05', 's3', 'hover'], ['14:51', 'שער', 'דלת נפתחה', '0:12', 's6', 'sel'], ['14:20', 'לובי', 'תנועה', '0:31', 's2', '']].map(([t, c, k, d, s, cls]) => `<div class="tr ${cls}"><span class="num">${t}</span><span>${c}</span><span class="badge ${k === 'תנועה' ? 'stale' : 'recorded'}"><span class="dot"></span>${k}</span><span class="num muted">${d}</span><span class="thumb"><span class="scene ${s}"></span></span><button class="btn ghost icon sm" aria-label="צפה">${I('play')}</button></div>`).join('')}</div>
+    <div class="lbl-s">empty · loading</div><div class="demo"><div class="glass tbl" style="width:300px"><div class="state compact"><span class="sic">${I('inbox')}</span><div class="st" style="font-size:var(--sw-fs-md)">אין אירועים היום</div></div></div><div class="glass tbl" style="width:300px;padding:10px;gap:8px"><span class="skeleton" style="height:14px;width:80%"></span><span class="skeleton" style="height:14px;width:60%"></span><span class="skeleton" style="height:14px;width:70%"></span></div></div></div>`;
+
+  const timelineDemo = () => `<div class="demo col"><div class="lbl-s">ציר זמן הקלטות · LTR תמיד · מוקלט / פער / משוער · אירועים · סימניות · עכשיו · scrubbing</div>
+    <div class="glass card"><div class="tl"><div class="ticks">${['12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'].map((t) => `<span>${t}</span>`).join('')}</div>
+      <div class="track"><span class="seg" style="left:0;width:34%"></span><span class="seg gap" style="left:34%;width:7%"></span><span class="seg" style="left:41%;width:31%"></span><span class="seg est" style="left:72%;width:12%"></span>
+        ${[8, 19, 27, 46, 58, 66].map((x) => `<span class="ev" style="left:${x}%"></span>`).join('')}<span class="bm" style="left:22%"></span><span class="bm" style="left:61%"></span><span class="scrub" data-t="15:32:10" style="left:59%"></span><span class="now" style="left:84%"></span></div>
+      <div class="ticks"><span class="badge recorded"><span class="dot"></span>מוקלט</span><span class="badge stale"><span class="dot"></span>אירוע תנועה</span><span class="badge partial"><span class="dot"></span>סימנייה</span><span class="badge unknown"><span class="dot"></span>משוער</span><span class="badge offline"><span class="dot"></span>פער</span></div></div></div>
+    <div class="lbl-s">רשת שבועית 24 שעות · שעות LTR, ימים RTL · rest / painting / read-only</div>
+    <div class="glass card"><div class="wg"><span></span>${Array.from({ length: 24 }, (_, h) => `<span class="h">${h % 3 === 0 ? String(h).padStart(2, '0') : ''}</span>`).join('')}
+      ${['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'].map((d, di) => `<span class="d">${d}</span>${Array.from({ length: 24 }, (_, h) => `<span class="c${(h >= 7 && h <= 9) || (h >= 17 && h <= 22) ? ' on' : ''}${di === 5 && h >= 14 && h <= 16 ? ' motion' : ''}${di === 2 && h === 12 ? ' paint' : ''}"></span>`).join('')}`).join('')}</div></div>
+    <div class="lbl-s">steps · done / current / upcoming (RTL, מתהפך ב-LTR)</div><div class="demo"><div class="steps" style="width:460px"><span class="st done"><i>${I('check', { size: 14 })}</i>חיבור</span><span class="ln"></span><span class="st cur"><i>2</i>מצלמות</span><span class="ln"></span><span class="st"><i>3</i>הרשאות</span></div></div></div>`;
+
   const body = `<div class="sheet-wrap" style="max-width:1400px">
   ${sheetHead('גיליון רכיבים', `${skin.nameHe} · כל רכיב בכל מצב · light ו-dark זה לצד זה · RTL (+ LTR לכיווניים)`, 'components · RTL first')}
   ${sec('סרגל צד · פינה · אווטאר · כפתור קומה · פס תחתון', railDemo, skin.copy.railNote)}
@@ -354,6 +381,9 @@ export function componentsSheet() {
   ${sec('Drawer · bottom sheet · modal', drawerDemo)}
   ${sec('שדה טופס', fieldDemo)}
   ${sec('פאנל מצב ×6', stateDemo)}
+  ${sec('Popover · תפריט משתמש · banners', popDemo, 'popover = L1 עם shadow-2 וחץ; שורות 44px; פעולה מסוכנת בצבע danger-text. banner = שורה אחת: אייקון + משפט + פעולה + סגירה; אין פסקאות.')}
+  ${sec('טבלה', tableDemo, 'שורה = 48px compact, כותרת 40px ב-text-3; hover = L3, נבחר = accent-soft; thumbnail 56×32; ספרות tabular.')}
+  ${sec('ציר זמן · רשת שבועית · steps', timelineDemo, 'גאומטריה שרצה משמאל לימין גם ב-RTL: ציר הזמן ושעות הרשת. הימים (א–ש) נשארים RTL בעמודת התוויות. מצבים בצורה + צבע + תווית.')}
   </div>`;
   return doc({ title: 'Arx · גיליון רכיבים', css: sheetCss + areaCss + listCss, body, label: 'components', fontPrefix: fontPrefixFor() });
 }
@@ -378,10 +408,11 @@ export function indexPage(boards, rendersRel = '../renders/') {
   const groupsIdx = [
     ['יסודות', boards.filter((b) => b.file.startsWith('foundations'))],
     ['רכיבים', boards.filter((b) => b.file.startsWith('components'))],
-    ['הבית — כרטיסים', boards.filter((b) => b.file.startsWith('home-') && !b.file.startsWith('home-list') && !b.file.startsWith('home-kpi'))],
+    ['הבית — כרטיסים', boards.filter((b) => b.file.startsWith('home-') && !b.file.startsWith('home-list') && !b.file.startsWith('home-kpi') && !b.file.startsWith('home-panel'))],
     ['הבית — ווידג׳טים אופציונליים (שורת KPI · רצועת מזגנים · עץ המבנה)', boards.filter((b) => b.file.startsWith('home-kpi'))],
+    ['הבית — כיוון ב "לוח צד" (עמודת ווידג׳טים + שורת KPI)', boards.filter((b) => b.file.startsWith('home-panel'))],
     ['הבית — רשימה', boards.filter((b) => b.file.startsWith('home-list'))],
-    ['מסך אזור — כרטיסים', boards.filter((b) => b.file.startsWith('area-') && !b.file.startsWith('area-states') && !b.file.startsWith('area-list'))],
+    ['מסך אזור — כרטיסים (+ fallback אטום)', boards.filter((b) => b.file.startsWith('area-') && !b.file.startsWith('area-states') && !b.file.startsWith('area-list'))],
     ['מסך אזור — רשימה', boards.filter((b) => b.file.startsWith('area-list'))],
     ['קיר מצלמות — רשת', boards.filter((b) => b.file.startsWith('wall-') && !b.file.startsWith('wall-list'))],
     ['קיר מצלמות — רשימה', boards.filter((b) => b.file.startsWith('wall-list'))],

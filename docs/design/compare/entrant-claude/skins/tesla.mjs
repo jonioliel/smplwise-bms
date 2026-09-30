@@ -95,7 +95,7 @@ export const rules = `
 .avatar{background:transparent;border-color:var(--sw-border-strong);color:var(--sw-text)}
 /* tesla · titles in medium weight, big numerals */
 h1,h2,h3,.h1,.h2,.dialog .q,.kpi .kv,.sens .sv,.widget.alarm .word{font-weight:500}
-.kpi .kv{font-size:28px} .sens .sv{font-size:24px}
+.kpi .kv{font-size:var(--sw-fs-3xl)} .sens .sv{font-size:var(--sw-fs-2xl)}
 /* tesla · icon rings are outlines, not fills */
 .ring,.dbadge,.state .sic{background:transparent;border:1px solid var(--sw-border-strong)}
 .dbadge{border-color:rgb(var(--role,var(--sw-role-accent)) / var(--sw-role-border-a))}
@@ -122,6 +122,9 @@ h1,h2,h3,.h1,.h2,.dialog .q,.kpi .kv,.sens .sv,.widget.alarm .word{font-weight:5
 .stepper{background:transparent;border:1px solid var(--sw-border-strong)} .stepper .btn{background:transparent;box-shadow:none;border-radius:var(--sw-r-sm)}
 .cover-ctl .btn{background:transparent;border:1px solid var(--sw-border)}
 .field .in{background:transparent}
+/* tesla · home direction ב ("status panel"): the widgets column is a hairline-separated panel, KPIs are hairline rows without cards (inspired by entrant A's Tesla) */
+.panel{border-inline-end:1px solid var(--sw-border);padding-inline-end:var(--sw-card-gap)} .panel .widget.glass{background:transparent;border:0;border-radius:0;border-bottom:1px solid var(--sw-border);padding-inline:0}
+.kpis .kpi.glass{background:transparent;border:0;border-radius:0;border-inline-start:1px solid var(--sw-border-strong)}
 /* tesla · camera caption as a solid strip, not a gradient scrim */
 .cam .nm{background:rgba(0,0,0,.62);padding:8px 10px;text-shadow:none}
 .handle{border-radius:1px}

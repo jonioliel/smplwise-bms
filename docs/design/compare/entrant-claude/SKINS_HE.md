@@ -4,11 +4,11 @@
 
 | סקין | קובץ | טוקנים ששונים מהבסיס | כללי רכיב | תיקיות |
 |---|---|---|---|---|
-| 1 · הייטק Domus | `skins/domus.mjs` | בסיס (223 טוקנים, light + dark) | 18 | `boards/`, `renders/`, `tokens.json` / `tokens.css` / `tokens-light.css` / `tokens-dark.css`, `contrast-report-domus.json` |
-| 2 · iOS / Apple | `skins/ios.mjs` | 127 / 223 | 45 | `boards/ios/`, `renders/ios/`, `tokens-ios.json` / `tokens-ios.css` / `tokens-ios-light.css` / `tokens-ios-dark.css`, `contrast-report-ios.json` |
-| 3 · הייטק נקי (Tesla) | `skins/tesla.mjs` | 126 / 223 | 46 | `boards/tesla/`, `renders/tesla/`, `tokens-tesla.json` / `tokens-tesla.css` / `tokens-tesla-light.css` / `tokens-tesla-dark.css`, `contrast-report-tesla.json` |
+| 1 · הייטק Domus | `skins/domus.mjs` | בסיס (224 טוקנים, light + dark) | 18 | `boards/`, `renders/`, `tokens.json` / `tokens.css` / `tokens-light.css` / `tokens-dark.css`, `contrast-report-domus.json` |
+| 2 · iOS / Apple | `skins/ios.mjs` | 126 / 224 | 45 | `boards/ios/`, `renders/ios/`, `tokens-ios.json` / `tokens-ios.css` / `tokens-ios-light.css` / `tokens-ios-dark.css`, `contrast-report-ios.json` |
+| 3 · הייטק נקי (Tesla) | `skins/tesla.mjs` | 125 / 224 | 49 | `boards/tesla/`, `renders/tesla/`, `tokens-tesla.json` / `tokens-tesla.css` / `tokens-tesla-light.css` / `tokens-tesla-dark.css`, `contrast-report-tesla.json` |
 
-לכל סקין גם `boards/<skin>/mirrors/` + `renders/<skin>/mirrors/` — 8 מראות LTR של לוחות מלאים (בית + אזור × 1440/390 × light/dark), ו-`home-kpi-1440-*` — הבית עם הווידג׳טים האופציונליים (שורת KPI, רצועת מזגנים, עץ המבנה).
+לכל סקין גם `boards/<skin>/mirrors/` + `renders/<skin>/mirrors/` — 8 מראות LTR של לוחות מלאים (בית + אזור × 1440/390 × light/dark), `home-kpi-1440-*` — הבית עם הווידג׳טים האופציונליים (שורת KPI, רצועת מזגנים, עץ המבנה), ו-`home-panel-1440-*` — הבית בכיוון ב ("לוח צד": עמודת ווידג׳טים + שורת KPI). ל-Domus גם `area-1440-dark-opaque` (הוכחת ה-fallback האטום).
 
 המספרים מודפסים בזמן build (`node build.mjs --no-render` → `skin stats`). "כלל" = בלוק `{…}` אחד ב-CSS של הסקין.
 
@@ -16,7 +16,7 @@
 
 - **המבנה כולו** — `src/screens.mjs` + `src/boards.mjs`: מעטפת (סרגל צד בקצה ההתחלה / פס תחתון, פינת חיפוש+בריאות), הבית (כותרת גדולה + שורת עובדות + כפתור קומה + מתג אריחים·כרטיסים·רשימה, ווידג׳טים, כרטיסי חדר לפי קומה), מסך האזור (כפתור קומה עם chevron, שם חדר גדול, שורת החדרים האחרים, רשת 4 עמודות של כרטיסי תחום עם עמודת מיזוג גבוהה, כותרות מקטע עם › ו-"N התקנים", תחומים ריקים אחרי הרשת), קיר המצלמות, שלוש תצוגות הרשימה, לוח המצבים, גיליון הרכיבים.
 - **ה-CSS הבסיסי** (`src/css.mjs`): כל הגדלים, המרווחים, המצבים, ה-RTL, יעדי המגע (44), reduced-motion, fallback אטום, prefers-contrast. כל ערך בו הוא טוקן — אין צבע, רדיוס, צל או blur קשיחים. רינדור בלי כללי סקין נותן גרסה שטוחה ותקינה של כל הלוחות.
-- **שמות הטוקנים** — 223 שמות זהים בכל סקין (`TOKEN_MAP.md` אחד לכולם), כולל 20 ה-knobs של החוזה (KPI compact, עץ, גדלי מינימום, icon ring; קבוצת `knobs` ב-`domus.mjs`) ו-`--sw-glass-sheen`. סקין לא מוסיף ולא מוריד שם; `derive()` זורק שגיאה על שם לא מוכר.
+- **שמות הטוקנים** — 224 שמות זהים בכל סקין (`TOKEN_MAP.md` אחד לכולם), כולל 20 ה-knobs של החוזה (KPI compact, עץ, גדלי מינימום, icon ring; קבוצת `knobs` ב-`domus.mjs`), `--sw-glass-sheen` ו-`--sw-panel-w`. כל שם בחוזה מכוסה ישירות או בשורת alias (`node contract-check.mjs` → 0 חסרים). סקין לא מוסיף ולא מוריד שם; `derive()` זורק שגיאה על שם לא מוכר.
 - **הגופן** (Heebo), **סט האייקונים** (`src/icons.mjs`), **הטקסטים**, **בדיקת הניגודיות** (אותם ~34 צמדים × 2 סכמות לכל סקין, מחושבים מהטוקנים של הסקין).
 
 ## מה שונה בכל סקין
@@ -40,6 +40,26 @@
 
 כל "דולק"/"פעיל" בכל סקין נשאר **צורה + טקסט** (נקודה, פס, אייקון, מילה) — לא צבע בלבד.
 
+## מה נלקח מהתוצר של Astra (מתמודד A, סבב 1) — "inspired by"
+
+הבעלים החליט (2026-10-01) לא לשלוח סבב 2 ל-Astra ולהפוך את החבילה הזו לחבילת העיצוב הסופית, עם יבוא של הנכסים החזקים שלה. הקריאה
+מ-`docs/design/compare/entrant-astra/smplwise-arx-three-styles/` הייתה לקריאה בלבד; **לא הועתק קובץ, CSS, SVG או ערך** — רעיונות
+ומבנה בלבד, כתובים מחדש בטוקנים ובכללים שלנו.
+
+| מה | ממנה | אצלנו |
+|---|---|---|
+| כיסוי מלא של חוזה הטוקנים, שם-שם, ובדיקת שמות אוטומטית | `01-domus/tokens.json` (228/228), `TOKEN_MAP.md`, `contrast-report.json` | קבוצת `knobs` + `--sw-panel-w`; טבלת "Contract coverage" ב-`TOKEN_MAP.md` (85 שורות, שורה לכל שם `--dv-*` / `--lv-*` / `--nav-*`); `node contract-check.mjs` → 0 חסרים; `contrast-report-<skin>.json` שמור |
+| מראות LTR של לוחות מלאים | `png/mirrors/`, `?dir=ltr` | `renders/<skin>/mirrors/` (8 לסקין) דרך `dir` ב-`build.mjs` |
+| אריח מצלמה: צ׳יפ טקסט "חי", תווית מצב שלא מתנגשת בשם | אנטומיית `sw-camera-tile` שלה | `.cam .tag.badge.live` (pill כהה + נקודה ירוקה); שם המצלמה בשורה משלו באריחים שאינם וידאו |
+| בורר כמות בטלפון: רשת 2 שורות, כל 11 הערכים גלויים | `02-ios/png/wall-390-dark-viewport.png` | `.segwrap .seg` = grid 6 עמודות ב-≤767px (מבנה, לכל הסקינים) |
+| קומפוזיציית Tesla: לוח סטטוס + משטח עבודה | `03-tesla` | **לא כפריסה של סקין** — זה כיוון ב של הבית ("לוח צד"). מיושם כוריאנט מבנה `home-panel-1440-*` לכל הסקינים (עמודת ווידג׳טים 300px בקצה ההתחלה + שורת KPI מעל הקומות); סקין Tesla מעצב אותו: פאנל מופרד בקו שיער, ווידג׳טים בלי כרטיס, KPI כשורות קו-שיער בלי כרטיסים (3 כללים) |
+| toggle כחול קריא ב-Tesla | `03-tesla` | `.tg.on .tr` = accent + אגודל לבן |
+| לוח הוכחה של fallback אטום | `png/details/area-1440-dark-opaque.png` | `area-1440-dark-opaque` (Domus; `.solid` על העטיפה) |
+| היקף גיליון הרכיבים | `COMPONENT_COVERAGE.md` (33 משפחות) | נוספו: popover + תפריט משתמש, banners ×3, טבלה (rest/hover/selected/empty/loading), ציר זמן הקלטות (מוקלט/פער/משוער/אירוע/סימנייה/עכשיו/scrub), רשת שבועית 24 שעות (rest/painting/read-only), steps. עדיין לא: live-player, schedule-grid/bar, case-picker, share-members, remote-sessions, csp-reports, floor-iso |
+| הימנעות משתי החולשות שהשופט מצא אצלה ואצלנו | — | אפס `font-size` קשיח בלוחות המוצר (הכול `--sw-fs-*`; Domus `xs` = 12px); text-2/text-3 מובחנים בבהיר ובכהה בכל סקין (≥ 4.5:1 כל אחד) |
+
+לא נלקח: חוגת הטמפרטורה (העמודה הגבוהה נשמרה — נשקל במימוש), איורי המצלמות (אצלנו placeholder גרדיאנט), הפלטה (אבן/זית/ירוק — הבעלים: כחול), עמודת הפקדים בקיר של iOS שלה (שינוי פריסה).
+
 ## איך מוסיפים סקין רביעי
 
 1. **קובץ אחד:** `skins/<id>.mjs`. מייבאים `groups` מ-`domus.mjs` ו-`derive` מ-`src/token-helpers.mjs`; מייצאים `groups = derive(base, {...})` עם ערכי light+dark לכל טוקן שרוצים לשנות (שם לא מוכר = שגיאת build), `rules` (מחרוזת CSS של כללי הרכיב), ו-`skin = { id, name, nameHe, groups, rules, primaryText, copy, bloom? }`.
@@ -49,8 +69,8 @@
 2. **רישום:** שורה אחת ב-`src/skin.mjs` (`skins = { domus, ios, tesla, <id> }`).
 3. **build:** `node build.mjs --skin=<id>` → `boards/<id>/`, `renders/<id>/`, `tokens-<id>.json|css`. `node inspect.mjs contrast --skin=<id>` מדפיס את כל הצמדים ומסכם כמה מתחת ליעד.
 4. **לא נוגעים** ב-`src/screens.mjs`, `src/boards.mjs`, `src/css.mjs`. אם סקין "צריך" שינוי שם — זה שינוי מבנה, והוא חל על כל הסקינים.
-5. **גבול הכללים:** כללי סקין נוגעים בחומר, בצורת ה"דולק", בסרגל, בפקדים (segmented / toggle / כפתור / badge / chip) ובכתובית המצלמה. כלל שמשנה גודל, מרווח, סדר או מצב — עובר לבסיס. יעד: ≤ 50 כללים לסקין (היום 18 / 45 / 46).
-6. **מראות LTR והווידג׳טים האופציונליים** נוצרים אוטומטית לכל סקין (`build.mjs`): `mirrors/*-ltr` (בית + אזור) ו-`home-kpi-1440-*`. אין מה לכתוב בסקין בשבילם.
+5. **גבול הכללים:** כללי סקין נוגעים בחומר, בצורת ה"דולק", בסרגל, בפקדים (segmented / toggle / כפתור / badge / chip), בכתובית המצלמה ובחומר של וריאנט הלוח הצדדי. כלל שמשנה גודל, מרווח, סדר או מצב — עובר לבסיס. יעד: ≤ 50 כללים לסקין (היום 18 / 45 / 49).
+6. **מראות LTR והוריאנטים של הבית** נוצרים אוטומטית לכל סקין (`build.mjs`): `mirrors/*-ltr` (בית + אזור), `home-kpi-1440-*`, `home-panel-1440-*`. אין מה לכתוב בסקין בשבילם (Tesla בוחר לעצב את הפאנל — 3 כללים).
 
 במוצר: `data-skin="<id>"` על `<html>` לצד `data-scheme`, קובץ טוקנים לסקין, וכללי הסקין כבלוק `:root[data-skin="<id>"] …`. הבחירה בהגדרות › עיצוב הממשק (לכל ההתקנה), כמו `devices.theme` היום.
 
@@ -58,7 +78,7 @@
 
 | מה | עלות לסקין | הערה |
 |---|---|---|
-| לוחות עיצוב | 40 לוחות (5 יסודות/רכיבים + 24 מסכים + מצבים + 2 home-kpi + 8 מראות LTR) — נוצרים אוטומטית, ~3 דק׳ רינדור | חינם כמעט; הסתכלות אנושית על ~10 לוחות מפתח |
+| לוחות עיצוב | 42–43 לוחות (5 יסודות/רכיבים + 24 מסכים + מצבים + 2 home-kpi + 2 home-panel + 8 מראות LTR + fallback אטום) — נוצרים אוטומטית, ~3 דק׳ רינדור | חינם כמעט; הסתכלות אנושית על ~10 לוחות מפתח |
 | ניגודיות | 68–72 צמדים × 2 סכמות — אוטומטי, נשמר ב-`contrast-report-<skin>.json` | סקין חדש נופל בדרך כלל על 3–6 צמדים בסבב הראשון (text-3 על L3, טקסט מצב על soft, כפתור ראשי) — כ-1–2 שעות כיול |
 | Playwright במוצר | לכל ספק: screens × {skin} × {light, dark} × {desktop, phone} | היום המטריצה היא ~2 סכמות × 2 מכשירים. סקין נוסף **מכפיל** את צילומי ה-evidence (לא את בדיקות ההתנהגות). מומלץ: בדיקות התנהגות רק על הסקין הראשי; לסקינים אחרים — screenshot smoke (הבית, אזור, קיר, רשימה) × 2 סכמות × 2 מכשירים = 16 צילומים, ~1 דק׳ |
 | בדיקות ידניות של הבעלים | ~30 דק׳ לסקין לסבב | הסקין לא משנה זרימות, רק מראה |

@@ -74,7 +74,16 @@ const homeCss = `
 .home .hctl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:6px}
 .widgets{display:grid;grid-template-columns:1.15fr 1.5fr 1.1fr 1fr 1.05fr;gap:14px}
 .widget{padding:12px 16px;display:flex;flex-direction:column;gap:4px;min-height:104px}
-.widget.alarm .word{font-size:22px;font-weight:var(--sw-fw-bold);color:var(--sw-heading);letter-spacing:-.3px}
+.widget.alarm .word{font-size:var(--sw-fs-2xl);font-weight:var(--sw-fw-bold);color:var(--sw-heading);letter-spacing:-.3px}
+.widget .reading.sm{font-size:calc(var(--sw-fs-reading) * .8)}
+.widget .chip.sm{height:26px;font-size:var(--sw-fs-xs)}
+/* home direction ב ("לוח צד"): summary KPIs on top, floors in the centre, the widgets as a column at the start edge */
+.hpanel{display:flex;gap:var(--sw-card-gap);align-items:flex-start}
+.hpanel .panel{width:var(--sw-panel-w);flex:none;display:flex;flex-direction:column;gap:12px;position:sticky;top:14px}
+.hpanel .panel .widgets{display:flex;flex-direction:column;gap:12px}
+.hpanel .panel .widget{min-height:0}
+.hpanel .main{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px}
+.hpanel .room .amb .chip:nth-child(n+4){display:none}
 .widget.quick{gap:8px;justify-content:center}
 .floor{display:flex;flex-direction:column;gap:10px}
 .floor .fh{display:flex;align-items:center;gap:12px;min-height:36px}
@@ -142,10 +151,10 @@ function homeHead({ phone, view }) {
 function widgets() {
   return `<section class="widgets">
     <div class="glass widget"><div class="wlabel">${I('clock')}שעה</div><div class="reading num">15:33<small>38</small></div><div class="muted" style="margin-top:auto">יום רביעי · 30 בספטמבר<br><span class="faint">כ״ט באלול התשפ״ו</span></div></div>
-    <div class="glass widget"><div class="wlabel">${I('cloudSun')}מזג אוויר</div><div class="row" style="gap:12px"><span class="reading num" style="font-size:44px">28°</span><span>${I('cloudSun', { size: 34 })}<div class="muted">מעונן חלקית</div></span><span class="faint" style="margin-inline-start:auto;font-size:var(--sw-fs-sm);text-align:end">לחות <span class="num">61%</span><br>רוח <span class="num">14</span> קמ״ש</span></div>
+    <div class="glass widget"><div class="wlabel">${I('cloudSun')}מזג אוויר</div><div class="row" style="gap:12px"><span class="reading sm num">28°</span><span>${I('cloudSun', { size: 34 })}<div class="muted">מעונן חלקית</div></span><span class="faint" style="margin-inline-start:auto;font-size:var(--sw-fs-sm);text-align:end">לחות <span class="num">61%</span><br>רוח <span class="num">14</span> קמ״ש</span></div>
       <div class="forecast">${[['14:00', 'sun', '29°'], ['15:00', 'cloudSun', '28°'], ['16:00', 'cloud', '27°'], ['17:00', 'rain', '26°'], ['18:00', 'rain', '25°']].map(([h, i, t]) => `<div><span class="num">${h}</span>${I(i)}<b class="num">${t}</b></div>`).join('')}</div></div>
-    <div class="glass widget"><div class="wlabel">${I('star')}שבת</div><div class="h2" style="font-size:22px">פרשת בראשית</div><div class="muted" style="margin-top:auto;display:grid;gap:2px"><span>${I('candle', { size: 15 })} הדלקת נרות <b class="num">17:32</b></span><span>${I('moon', { size: 15 })} צאת שבת <b class="num">18:30</b></span></div></div>
-    <div class="glass widget alarm"><div class="wlabel">${I('shield')}אזעקה</div><div class="row" style="gap:10px"><span class="ring" style="background:var(--sw-live-soft);color:var(--sw-live)">${I('shield')}</span><span class="word">דרוכה (חוץ)</span></div><div class="row" style="margin-top:auto;gap:6px"><span class="chip" style="height:26px;font-size:11.5px">קומת כניסה</span><span class="chip" style="height:26px;font-size:11.5px">חוץ</span></div></div>
+    <div class="glass widget"><div class="wlabel">${I('star')}שבת</div><div class="h2" style="font-size:var(--sw-fs-2xl)">פרשת בראשית</div><div class="muted" style="margin-top:auto;display:grid;gap:2px"><span>${I('candle', { size: 15 })} הדלקת נרות <b class="num">17:32</b></span><span>${I('moon', { size: 15 })} צאת שבת <b class="num">18:30</b></span></div></div>
+    <div class="glass widget alarm"><div class="wlabel">${I('shield')}אזעקה</div><div class="row" style="gap:10px"><span class="ring" style="background:var(--sw-live-soft);color:var(--sw-live)">${I('shield')}</span><span class="word">דרוכה (חוץ)</span></div><div class="row" style="margin-top:auto;gap:6px"><span class="chip sm">קומת כניסה</span><span class="chip sm">חוץ</span></div></div>
     <div class="glass widget quick"><div class="wlabel">${I('bolt')}פעולות מהירות</div><button class="btn danger lg">${I('power')}כבה הכל בבניין</button><button class="btn secondary lg">${I('bulb')}כבה תאורה בלבד</button></div>
   </section>`;
 }
@@ -170,8 +179,19 @@ const treePanel = () => `<aside class="glass tree-panel"><div class="tree">
 export function homeContent({ phone = false, view = 'cards', widgetsExtra = false } = {}) {
   const floors = ROOMS.map((f, i) => `<section class="floor"><div class="fh"><h2 class="h2">${f.floor}</h2><span class="facts"><span><b class="num">${f.rooms.length}</b> אזורים</span>${f.floorFacts.map(([ic, v, on]) => fact(ic, v, on)).join('')}</span><span class="act">${offAll('כבה קומה')}</span></div>
     <div class="rooms">${f.rooms.map(roomCard).join('')}${i === ROOMS.length - 1 ? unassigned() : ''}</div></section>`).join('');
+  if (widgetsExtra === 'panel') return `<div class="page home">${homeHead({ phone, view })}<div class="hpanel"><aside class="panel">${widgets()}</aside><div class="main">${kpiStrip()}${floors}</div></div></div>`;
   if (widgetsExtra) return `<div class="page home">${homeHead({ phone, view })}${widgets()}${kpiStrip()}${climateStrip()}<div class="hbody">${treePanel()}<div class="floors">${floors}</div></div></div>`;
   return `<div class="page home">${homeHead({ phone, view })}${widgets()}${floors}</div>`;
+}
+
+// home direction ב ("לוח צד", owner decision 2026-09-30): KPI strip on top of the floors, the widgets as a 300px column at
+// the start edge. Entrant A's Tesla "status panel + work surface" is this direction; the Tesla skin styles the panel.
+export function homePanelBoard({ scheme }) {
+  return doc({
+    title: `Arx · הבית · כיוון ב · לוח צד · 1440 · ${scheme}`, scheme, css: homeCss + listCss,
+    body: shell({ active: 'home', phone: false, content: homeContent({ widgetsExtra: 'panel' }) }),
+    label: `home-panel · 1440×900 · ${scheme} · direction ב: widgets column + KPI strip`,
+  });
 }
 
 export function homeBoard({ scheme, phone, dir = 'rtl', fontPrefix = defaultFontPrefix }) {
@@ -257,7 +277,7 @@ const areaCss = `
 .climate{display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:var(--sw-r-md);background:var(--sw-surface-2);border:1px solid var(--sw-border);flex:1}
 .climate .big{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
 .climate .temp{font-size:var(--sw-fs-reading);font-weight:var(--sw-fw-reading);letter-spacing:var(--sw-reading-tracking);line-height:1;color:var(--sw-heading);font-variant-numeric:tabular-nums}
-.climate .temp small{font-size:14px;letter-spacing:0;color:var(--sw-text-2);font-weight:var(--sw-fw-regular)}
+.climate .temp small{font-size:var(--sw-fs-md);letter-spacing:0;color:var(--sw-text-2);font-weight:var(--sw-fw-regular)}
 .climate .seg{align-self:stretch;display:flex} .climate .seg>*{flex:1;justify-content:center;padding:0 6px}
 .climate .aux{display:grid;grid-template-columns:1fr 1fr;gap:var(--sw-tile-gap);margin-top:auto}
 .snap{position:relative;height:84px;border-radius:var(--sw-r-md);overflow:hidden;border:1px solid var(--sw-border);color:#fff}
@@ -353,8 +373,8 @@ export function areaContent({ phone = false, state = 'ready', view = 'cards' } =
   const sensors = domainCard({ title: 'חיישנים', count: 6, ic: 'sensor', role: 'neutral', bulk: false, body: `<div class="sens2">
     <div class="sens"><span class="ring">${I('thermo')}</span><span><div class="sv num">24.5°</div><div class="sl">טמפרטורה</div></span></div>
     <div class="sens"><span class="ring">${I('droplet')}</span><span><div class="sv num">48%</div><div class="sl">לחות</div></span></div>
-    <div class="sens"><span class="ring">${I('motion')}</span><span><div class="sv" style="font-size:16px">אין תנועה</div><div class="sl">לפני <span class="num">12</span> דק׳</div></span></div>
-    <div class="sens"><span class="ring">${I('door')}</span><span><div class="sv" style="font-size:16px">סגורה</div><div class="sl">דלת מרפסת</div></span></div>
+    <div class="sens"><span class="ring">${I('motion')}</span><span><div class="sv word">אין תנועה</div><div class="sl">לפני <span class="num">12</span> דק׳</div></span></div>
+    <div class="sens"><span class="ring">${I('door')}</span><span><div class="sv word">סגורה</div><div class="sl">דלת מרפסת</div></span></div>
   </div><button class="btn ghost sm" style="margin-top:8px;width:100%">${I('chevron', { cls: 'faint' })}עוד <span class="num">2</span> חיישנים</button>` });
   const empties = `<div class="empties"><span>ללא התקנים באזור:</span><span class="chip ghost">${I('play')}מדיה</span><span class="chip ghost">${I('droplet')}השקיה</span><span class="chip ghost">${I('door')}שערים</span></div>`;
 
@@ -365,11 +385,12 @@ export function areaContent({ phone = false, state = 'ready', view = 'cards' } =
   return `<div class="page area${ro ? ' ro' : ''}">${head}<div class="domains">${grid}</div>${empties}</div>`;
 }
 
-export function areaBoard({ scheme, phone, dir = 'rtl', fontPrefix = defaultFontPrefix }) {
+// solid = the opaque fallback (no backdrop-filter / prefers-reduced-transparency): every glass level shows its -solid value
+export function areaBoard({ scheme, phone, dir = 'rtl', fontPrefix = defaultFontPrefix, solid = false }) {
   return doc({
-    title: `Arx · אזור · ${phone ? 390 : 1440} · ${scheme}${dir === 'ltr' ? ' · LTR' : ''}`, scheme, dir, css: areaCss, fontPrefix,
-    body: shell({ active: 'home', phone, content: areaContent({ phone }) }),
-    label: `area · ${phone ? '390×844' : '1440×900'} · ${scheme}${dir === 'ltr' ? ' · ltr mirror' : ''}`,
+    title: `Arx · אזור · ${phone ? 390 : 1440} · ${scheme}${dir === 'ltr' ? ' · LTR' : ''}${solid ? ' · fallback אטום' : ''}`, scheme, dir, css: areaCss, fontPrefix,
+    body: `<div class="${solid ? 'solid' : ''}">${shell({ active: 'home', phone, content: areaContent({ phone }) })}</div>`,
+    label: `area · ${phone ? '390×844' : '1440×900'} · ${scheme}${dir === 'ltr' ? ' · ltr mirror' : ''}${solid ? ' · opaque fallback (no backdrop-filter)' : ''}`,
   });
 }
 
@@ -423,9 +444,9 @@ const wallCss = `
   .wall .sections{flex-direction:column;align-items:stretch;gap:6px}
   .wall .grid{grid-template-columns:1fr 1fr;grid-auto-rows:auto}
   .wall .cam{aspect-ratio:16/9}
-  .segwrap{overflow:hidden;position:relative;margin-inline:-16px;padding-inline:16px}
-  .segwrap::after{content:"";position:absolute;inset-block:0;inset-inline-end:0;width:40px;background:linear-gradient(to right,var(--sw-bg),transparent);pointer-events:none}
-  .segwrap .seg{flex-wrap:nowrap}
+  /* count picker on the phone: a two-row grid that shows all 11 counts (inspired by entrant A), no clipped scroll */
+  .segwrap .seg{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;border-radius:var(--sw-r-md);padding:4px}
+  .segwrap .seg > *{min-height:40px;min-width:0;padding:0;justify-content:center;border-radius:var(--sw-r-sm)}
 }`;
 
 const CAMS = [
