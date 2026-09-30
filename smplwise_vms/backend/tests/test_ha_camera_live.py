@@ -31,6 +31,7 @@ from smplwise.routers import media
 from smplwise.services import go2rtc as g2
 from smplwise.services import ha_bridge, ha_client
 from smplwise.services import ha_camera_streams as hls
+from smplwise.services import source_policy as sp
 
 svc = load("stream_source_service")
 signing = load("signing")
@@ -150,11 +151,16 @@ def live(cam_app, monkeypatch):  # noqa: F811
     bridge = LiveBridge(secret)
     hls.set_transport(SimpleNamespace(stream_source=bridge.stream_source))
     svc._calls.clear()
+    svc._calls_by_entity.clear()
     with hls._LOCK:
         hls._LAST_READ.clear()
         hls._STALE.clear()
+        hls._REREADS.clear()
+    hls._WRITTEN.clear()
     hls._last_reconcile = 0.0
     monkeypatch.setattr(hls, "REREAD_MIN_INTERVAL_S", 0.0)
+    monkeypatch.setattr(hls, "WRITE_GRACE_S", 0.0)  # the tests that are about the grace set their own
+    sp._RESOLVED.clear()
     out = Live()
     out.app, out.s, out.c, out.ids, out.go, out.bridge = app, app.state.settings, c, ids, go, bridge
     yield out
@@ -284,6 +290,10 @@ def test_the_streams_listing_shows_the_scheme_only(live):
         (f"ffmpeg:{URL}#video=h264", 422, "source_not_supported"),
         (f"{URL}#video=copy", 422, "source_not_supported"),
         (f"rtmp://{USER}:{PASSWORD}@{HOST}/live", 422, "source_not_supported"),
+        # M1: a source that points go2rtc back at itself or at the host it runs on (refused by the real bridge policy)
+        ("http://127.0.0.1:1984/api/frame.jpeg?src=rtsp://evil&name=smplwise_wiskey_gate", 422, "source_not_allowed"),
+        (f"rtsp://{USER}:{PASSWORD}@localhost/live", 422, "source_not_allowed"),
+        (f"rtsp://{USER}:{PASSWORD}@{HOST}/live?src=rtsp://evil", 422, "source_not_allowed"),
     ],
 )
 def test_a_missing_or_unusable_source_refuses_and_writes_nothing(live, answer, status, code):
@@ -310,6 +320,19 @@ def test_the_add_on_checks_the_source_again_even_if_the_bridge_answers_something
     r = enable(live)
     assert r.status_code == 422 and r.json()["code"] == "source_not_supported"
     assert live.go.writes() == []
+
+
+@pytest.mark.parametrize("source", ["rtsp://go2rtc.test:8554/smplwise_wiskey_gate", "rtsp://go2rtc.test:1984/x", "http://go2rtc.test:8555/x", "rtsp://GO2RTC.TEST:8554/door-1"])
+def test_the_add_on_refuses_go2rtcs_own_host_which_the_bridge_cannot_know(live, source):
+    """M1: `rtsp://<go2rtc host>:8554/<foreign stream>` would restream another project's door station to every viewer. The real
+    bridge does not know where go2rtc runs and lets it through; the add-on's own check does not."""
+    live.bridge.entities[ENTITY] = source
+    r = enable(live)
+    assert r.status_code == 422 and r.json()["code"] == "source_not_allowed", r.text
+    assert live.go.writes() == []
+    # the same host on a camera's port is fine (another add-on on the machine)
+    live.bridge.entities[ENTITY] = f"rtsp://{USER}:{PASSWORD}@go2rtc.test:554/cam"
+    assert enable(live).status_code == 200
 
 
 def test_a_home_assistant_user_who_is_not_an_administrator_is_refused_by_the_bridge(live):
@@ -699,3 +722,115 @@ def test_the_bridge_client_keeps_only_the_answer_and_never_forwards_a_body(setti
         ha_client.call_bridge_stream_source(s, {})
     assert e.value.code == "ha_unavailable" and e.value.details == {"error": "ConnectError"}
     assert_no_secret(json.dumps(e.value.details))
+
+
+# ---------------------------------------------------------------- Opus review L2 - L5
+
+def test_viewer_triggered_rereads_share_one_budget_over_all_cameras(live, monkeypatch):
+    """L2: a set of failing cameras cannot spend the bridge's budget: the add-on asks at most REREAD_GLOBAL_MAX times a minute."""
+    enable(live)
+    monkeypatch.setattr(hls, "REREAD_GLOBAL_MAX", 2)
+    before = len(live.bridge.calls)
+    for _ in range(4):
+        hls.mark_stale(ENTITY)
+        assert hls.ensure_ready(live.app.state.db, live.s, ENTITY) == STREAM  # the existing stream is served meanwhile
+    assert len(live.bridge.calls) - before == 2
+    # the owner's own enable is not part of that budget
+    assert enable(live).status_code == 200
+
+
+def test_reconcile_leaves_a_stream_written_a_moment_ago_alone(live, monkeypatch):
+    """L3: an enable writes the stream first and its opt-in commits when the request ends; reconcile must not delete in between."""
+    monkeypatch.setattr(hls, "WRITE_GRACE_S", 120.0)
+    hls._write_stream(live.s, "camera.new_cam", URL)  # written, opt-in not stored yet
+    assert hls.reconcile(live.app.state.db, live.s, force=True) == {"dropped": 0, "deleted": 0}
+    assert "smplwise_ha_new_cam" in live.go.store
+    monkeypatch.setattr(hls, "WRITE_GRACE_S", 0.0)  # once the grace has passed and there is still no opt-in, it goes
+    assert hls.reconcile(live.app.state.db, live.s, force=True)["deleted"] == 1 and "smplwise_ha_new_cam" not in live.go.store
+
+
+def test_reconcile_asks_the_opt_in_list_again_right_before_each_delete(live, monkeypatch):
+    _seed_entity(live.app, "camera.late_cam", platform="generic", device_id="dev-late", area=None)
+    live.go.store["smplwise_ha_late_cam"] = ["rtsp://old.example/x"]  # a stray as far as the first look can tell
+    original = live.go.handler
+    seen = []
+
+    def handler(request):
+        response = original(request)
+        if request.method == "GET" and request.url.path == "/api/streams" and not seen:
+            seen.append(1)  # an administrator enables the camera just after reconcile listed the streams
+            with live.app.state.db.connection() as conn:
+                cams = hls._load(conn)
+                cams["camera.late_cam"] = {"enabled_at": now_iso(), "enabled_by": "dev-joni"}
+                hls._save(conn, cams)
+        return response
+
+    monkeypatch.setattr(live.go, "handler", handler)
+    assert hls.reconcile(live.app.state.db, live.s, force=True)["deleted"] == 0
+    assert "smplwise_ha_late_cam" in live.go.store and seen
+
+
+def test_enable_and_reconcile_write_under_one_lock(live):
+    import threading
+    import time
+
+    live.go.store["smplwise_ha_stray"] = ["rtsp://old.example/x"]
+    hls._STREAM_LOCK.acquire()
+    done = threading.Event()
+    worker = threading.Thread(target=lambda: (hls.reconcile(live.app.state.db, live.s, force=True), done.set()))
+    try:
+        worker.start()
+        time.sleep(0.4)
+        assert not done.is_set() and "smplwise_ha_stray" in live.go.store  # waiting for the writer that holds the lock
+    finally:
+        hls._STREAM_LOCK.release()
+    worker.join(10)
+    assert done.is_set() and "smplwise_ha_stray" not in live.go.store
+
+
+def test_a_name_that_only_looks_like_ours_is_never_deleted(live):
+    """L5: reconcile deletes exactly the shape ha_stream_name builds; a recorder id cannot produce a `smplwise_ha_` name."""
+    odd = {"smplwise_ha_": "x", "smplwise_ha_UPPER": "x", "smplwise_ha_a.b": "x", "smplwise_ha_a-b": "x", "smplwise_ha_" + "a" * 101: "x", "smplwise_hax": "x", "smplwise_ha": "x"}
+    for name in odd:
+        live.go.store[name] = ["rtsp://old.example/x"]
+    live.go.store["smplwise_ha_ok_cam"] = ["rtsp://old.example/x"]
+    assert hls.reconcile(live.app.state.db, live.s, force=True)["deleted"] == 1
+    assert all(n in live.go.store for n in odd) and "smplwise_ha_ok_cam" not in live.go.store
+    assert g2.stream_name("nvr-1", 4, "sub") == "smplwise_nvr-1_ch4_sub"
+    for bad in ("ha", "ha_x", "ha_"):
+        with pytest.raises(ValueError):
+            g2.stream_name(bad, 1, "sub")
+    assert g2.stream_name("hb", 1, "sub") == "smplwise_hb_ch1_sub" and g2.stream_name("hax", 1, "sub") == "smplwise_hax_ch1_sub"
+
+
+def test_a_reread_is_not_made_on_behalf_of_someone_who_lost_sources_configure(live, monkeypatch):
+    """L4: the stream keeps playing, nothing is asked of the bridge, the picker says so, and enabling it again resumes."""
+    enable(live)
+    bind(live.c, live.s, "vera", "viewer", "installation", "*")
+    with live.app.state.db.connection() as conn:  # the person who enabled it is (now) someone without sources.configure
+        cams = hls._load(conn)
+        cams[ENTITY]["enabled_by"] = "dev-vera"
+        hls._save(conn, cams)
+    row = next(h for h in live.c.get(f"{CARD}/sources").json()["ha_cameras"] if h["entity_id"] == ENTITY)
+    assert row["live_enabled"] is True and row["live_issue"] == "reread_blocked"
+    viewer_row = next(h for h in live.c.get(f"{CARD}/sources", headers=as_user("vera")).json()["ha_cameras"] if h["entity_id"] == ENTITY)
+    assert viewer_row["live_issue"] is None  # only for who may act on it
+    calls = len(live.bridge.calls)
+    hls.mark_stale(ENTITY)
+    live.go.store.pop(STREAM)  # even a stream go2rtc lost is not re-created with that identity: nothing is asked
+    with pytest.raises(ApiError) as e:
+        hls.ensure_ready(live.app.state.db, live.s, ENTITY)
+    assert e.value.code == "ha_live_unavailable" and len(live.bridge.calls) == calls
+    live.go.store[STREAM] = [URL]
+    hls.mark_stale(ENTITY)
+    assert hls.ensure_ready(live.app.state.db, live.s, ENTITY) == STREAM and len(live.bridge.calls) == calls and live.go.store[STREAM] == [URL]
+    refresh = [r for r in _audit(live.app, "camera_card.ha_live.refresh") if r["decision"] == "denied"]
+    assert refresh and refresh[-1]["reason"] == "sources_configure_lost"
+    # enabling it again (by an administrator) resumes: the record is theirs
+    assert enable(live).status_code == 200
+    row = next(h for h in live.c.get(f"{CARD}/sources").json()["ha_cameras"] if h["entity_id"] == ENTITY)
+    assert row["live_issue"] is None
+    hls.mark_stale(ENTITY)
+    live.bridge.entities[ENTITY] = URL2
+    hls.ensure_ready(live.app.state.db, live.s, ENTITY)
+    assert live.go.store[STREAM] == [URL2]

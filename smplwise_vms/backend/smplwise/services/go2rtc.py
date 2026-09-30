@@ -28,6 +28,8 @@ def stream_name(recorder_id: str, channel: int, profile: str) -> str:
     """Deterministic, readable and namespaced: smplwise_nvr-1_ch4_sub."""
     if profile not in ("main", "sub"):
         raise ValueError(profile)
+    if f"{recorder_id}_".startswith("ha_"):  # `smplwise_ha_` is the namespace of the Home Assistant camera streams (ha_stream_name)
+        raise ValueError("a recorder id must not start with ha_")
     name = f"{STREAM_PREFIX}{recorder_id}_ch{channel}_{profile}"
     if not NAME_RE.match(name):
         raise ValueError(name)

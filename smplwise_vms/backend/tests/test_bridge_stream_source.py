@@ -64,8 +64,10 @@ def cam(monkeypatch):
     fake = FakeCamera()
     monkeypatch.setattr(svc, "_ha", lambda: SimpleNamespace(get_stream_source=fake.get_stream_source))
     svc._calls.clear()
+    svc._calls_by_entity.clear()
     yield fake
     svc._calls.clear()
+    svc._calls_by_entity.clear()
 
 
 def body(entity="camera.garden", user="u1", **extra):
@@ -207,10 +209,47 @@ def test_no_log_line_on_any_path_carries_the_url_or_its_parts(cam, caplog):
         assert part not in caplog.text, part
 
 
-def test_it_is_rate_limited(cam):
+def test_one_camera_has_its_own_small_budget(cam):
     hass = FakeHass()
-    codes = [ask(hass).get("error") for _ in range(svc.RATE_MAX + 3)]
-    assert codes[: svc.RATE_MAX] == [None] * svc.RATE_MAX and codes[svc.RATE_MAX :] == ["rate_limited"] * 3
+    codes = [ask(hass).get("error") for _ in range(svc.RATE_MAX_PER_ENTITY + 3)]
+    assert codes[: svc.RATE_MAX_PER_ENTITY] == [None] * svc.RATE_MAX_PER_ENTITY and codes[svc.RATE_MAX_PER_ENTITY :] == ["rate_limited"] * 3
+    assert len(cam.asked) == svc.RATE_MAX_PER_ENTITY  # a refused call reads nothing
+
+
+def test_a_failing_camera_cannot_use_up_the_budget_of_the_others(cam):
+    """Opus review L2: viewers of one failing camera trigger re-reads; the other cameras (and the owner's enable) still get through."""
+    entities = [f"camera.cam{i}" for i in range(svc.RATE_MAX // svc.RATE_MAX_PER_ENTITY)]
+    hass = FakeHass(entities=("camera.garden", *entities))
+    cam.answers.update({e: URL for e in entities})
+    assert [ask(hass).get("error") for _ in range(svc.RATE_MAX_PER_ENTITY + 5)][-1] == "rate_limited"  # camera.garden is spent
+    for e in entities:
+        assert ask(hass, body(entity=e)).get("ok") is True, e
+    later = [ask(hass, body(entity=entities[0])).get("error") for _ in range(svc.RATE_MAX_PER_ENTITY)]
+    assert later[: svc.RATE_MAX_PER_ENTITY - 1] == [None] * (svc.RATE_MAX_PER_ENTITY - 1) and later[-1] == "rate_limited"  # each has its own budget
+    assert ask(hass, body(entity="camera.garden")).get("error") == "rate_limited"
+
+
+def test_all_cameras_together_have_a_larger_window(cam):
+    entities = [f"camera.c{i}" for i in range(svc.RATE_MAX // svc.RATE_MAX_PER_ENTITY + 2)]
+    hass = FakeHass(entities=tuple(entities))
+    cam.answers.update({e: URL for e in entities})
+    codes = [ask(hass, body(entity=e)).get("error") for e in entities for _ in range(svc.RATE_MAX_PER_ENTITY)]
+    assert codes.count(None) == svc.RATE_MAX and codes.count("rate_limited") == len(codes) - svc.RATE_MAX
+
+
+def test_a_source_that_points_back_at_go2rtc_or_the_host_is_refused_by_the_bridge(cam, caplog):
+    for source in ("http://127.0.0.1:1984/api/frame.jpeg?src=rtsp://evil&name=smplwise_x", "rtsp://127.0.0.1/x", "rtsp://cam-user:cam-pass-9f3@localhost/x", "rtsp://192.0.2.50/s?src=x"):
+        svc._calls.clear()
+        svc._calls_by_entity.clear()
+        cam.answers["camera.garden"] = source
+        with caplog.at_level(logging.DEBUG):
+            out = ask(FakeHass())
+        assert out == {"ok": False, "request_id": "r1", "error": "source_not_allowed"}, source
+    assert PASSWORD not in caplog.text and "127.0.0.1" not in caplog.text
+    cam.answers["camera.garden"] = "rtsp://user:pass@192.0.2.10:554/stream1"
+    svc._calls.clear()
+    svc._calls_by_entity.clear()
+    assert ask(FakeHass())["ok"] is True
 
 
 def test_the_service_reads_only_and_has_no_network_or_write_calls():

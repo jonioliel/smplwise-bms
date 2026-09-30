@@ -61,6 +61,9 @@ export interface PickerHaCamera {
   channel: number | null;
   /** A picture-only camera the owner already chose to show as live video (off by default). */
   live_enabled?: boolean;
+  /** Only for someone who may configure sources: the stream keeps playing but its source will not be re-read (the person who
+   * enabled it no longer holds the permission); enabling it again resumes. */
+  live_issue?: 'reread_blocked' | null;
 }
 
 export interface CameraSources {

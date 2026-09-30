@@ -194,6 +194,7 @@ def eligible(conn: sqlite3.Connection, principal: Principal, *, ha_live_ready: b
     from . import ha_camera_streams as hls
 
     live_on = hls.enabled(conn) if ha_live_ready else {}
+    can_configure = ha_live_ready and authorize(conn, principal, "sources.configure", INSTALLATION).allowed
     scope = camera_scope(conn, principal, LIVE)
     names = _names(conn)
     recorders = {r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM recorders").fetchall()}
@@ -216,7 +217,8 @@ def eligible(conn: sqlite3.Connection, principal: Principal, *, ha_live_ready: b
             ha.append({"entity_id": e["entity_id"], "name": e["name"] or e["entity_id"], "area_id": e.get("area_id"), "area_name": e.get("area_name"), "mode": LIVE_STATE, "recorder_id": link["recorder_id"], "channel": link["channel"]})
         elif still_ok:
             ha.append({"entity_id": e["entity_id"], "name": e["name"] or e["entity_id"], "area_id": e.get("area_id"), "area_name": e.get("area_name"), "mode": STILL_ONLY, "recorder_id": None, "channel": None,
-                       "live_enabled": e["entity_id"] in live_on})
+                       "live_enabled": e["entity_id"] in live_on,
+                       # only for who may act on it: the person who enabled it can no longer authorize a re-read of its source
+                       "live_issue": "reread_blocked" if can_configure and e["entity_id"] in live_on and hls.reread_blocked(conn, live_on[e["entity_id"]]) else None})
     ha.sort(key=lambda x: (x["name"], x["entity_id"]))
-    can_configure = ha_live_ready and authorize(conn, principal, "sources.configure", INSTALLATION).allowed
     return {"recorders": list(groups.values()), "ha_cameras": ha, "ha_live": {"ready": ha_live_ready, "can_configure": can_configure}}

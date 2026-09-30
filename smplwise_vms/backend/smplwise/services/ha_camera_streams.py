@@ -33,6 +33,7 @@ import sqlite3
 import threading
 import time
 import uuid
+from collections import deque
 from typing import Any, Protocol
 
 from ..audit import audit
@@ -42,7 +43,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize
 from . import camera_cards as cc
 from . import go2rtc as g2
-from . import ha_bridge, ha_client
+from . import ha_bridge, ha_client, source_policy
 from .leases import CameraLease
 
 log = logging.getLogger("smplwise.ha_live")
@@ -52,9 +53,10 @@ BRIDGE_REQUIRED = "0.3.1"
 REREAD_MIN_INTERVAL_S = 30.0  # a camera's source is read again at most this often (a failing stream must not become a request loop)
 RECONCILE_EVERY_S = 300.0
 STALE_WITHIN_S = 15.0
-MAX_SOURCE_LEN = 2048
-SOURCE_SCHEMES = ("rtsp://", "rtsps://", "http://", "https://")
-_BAD_SOURCE_CHARS = re.compile(r"[\s\x00-\x1f\x7f#]")
+REREAD_GLOBAL_MAX = 10  # re-reads for viewers, all cameras together, per REREAD_WINDOW_S (the bridge has its own limits on top)
+REREAD_WINDOW_S = 60.0
+WRITE_GRACE_S = 120.0  # reconcile leaves a stream alone this long after we wrote it (its opt-in may not be committed yet)
+STREAM_SHAPE_RE = re.compile(r"^smplwise_ha_[a-z0-9_]{1,100}$")  # exactly what ha_stream_name builds; reconcile deletes nothing else
 CODE_RE = re.compile(r"^[A-Za-z0-9_]{1,64}$")
 LIVE_ERROR_FRAME = json.dumps({"type": "error", "value": "upstream_unavailable"})
 
@@ -65,6 +67,7 @@ _BRIDGE_REFUSALS: dict[str, tuple[int, str, str]] = {
     "entity_not_found": (404, "not_found", "המצלמה לא נמצאה בתשתית המערכת."),
     "no_stream_source": (422, "no_stream_source", "למצלמה אין מקור לשידור חי; היא תישאר כתמונה בלבד."),
     "source_not_supported": (422, "source_not_supported", "סוג מקור השידור של המצלמה אינו נתמך."),
+    "source_not_allowed": (422, "source_not_allowed", "כתובת מקור השידור של המצלמה אינה מותרת."),
     "rate_limited": (429, "rate_limited", "יותר מדי בקשות; נסו שוב בעוד דקה."),
 }
 
@@ -153,14 +156,11 @@ def _version_tuple(text: str) -> tuple[int, ...]:
     return tuple(int(p) for p in re.findall(r"\d+", text or "")[:3])
 
 
-def source_error(value: Any) -> str | None:
-    """None when `value` may go to go2rtc (a plain streaming URL), else a code. Never includes the value. The bridge checks the
-    same; this is the add-on's own check of what it is about to write (go2rtc reads `exec:`, `ffmpeg:` and `#options`)."""
-    if not isinstance(value, str) or not value:
-        return "no_stream_source"
-    if len(value) > MAX_SOURCE_LEN or _BAD_SOURCE_CHARS.search(value) or not value.lower().startswith(SOURCE_SCHEMES):
-        return "source_not_supported"
-    return None
+def source_error(value: Any, go2rtc_url: str | None = None) -> str | None:
+    """None when `value` may go to go2rtc, else a code. Never includes the value. The bridge checks the same policy
+    (services/source_policy.py); this is the add-on's own check of what it is about to write, with go2rtc's own host on top
+    (`go2rtc_url`): a plain streaming URL that cannot point go2rtc back at itself or at another project's streams."""
+    return source_policy.source_refusal(value, source_policy.go2rtc_targets(go2rtc_url))
 
 
 def _ready(conn: sqlite3.Connection, settings: Settings) -> str:
@@ -192,24 +192,36 @@ def _fetch_source(settings: Settings, payload: dict[str, Any]) -> str:
         details = {"error": code if CODE_RE.fullmatch(code) else "unknown"} if out == "bridge_error" else None
         raise ApiError(status, out, message, details=details)
     src = answer.get("stream_source")
-    bad = source_error(src)
+    bad = source_error(src, settings.go2rtc_url)
     if bad:
         status, out, message = _BRIDGE_REFUSALS[bad]
         raise ApiError(status, out, message)
     return src  # type: ignore[return-value]
 
 
+# Every write and delete of one of our streams goes through this lock (enable, disable, a viewer's re-read, reconcile), and
+# `_WRITTEN` says when. It is never taken while the caller holds the database write lock (they all run inside `unlocked` or
+# outside a connection), so it cannot deadlock with it; reconcile only reads the database while it holds it.
+_STREAM_LOCK = threading.Lock()
+_WRITTEN: dict[str, float] = {}
+
+
 def _write_stream(settings: Settings, entity_id: str, src: str) -> str:
     name = stream_name(entity_id)
     if not name.startswith(g2.HA_STREAM_PREFIX):  # the narrower namespace of this feature, on top of go2rtc's own guard
         raise ValueError("refusing to write a stream outside the smplwise_ha_ namespace")
-    return g2.Go2rtc(settings).ensure_stream(name, src)
+    with _STREAM_LOCK:
+        out = g2.Go2rtc(settings).ensure_stream(name, src)
+        _WRITTEN[name] = time.monotonic()
+    return out
 
 
 def _delete_stream(settings: Settings, name: str) -> None:
     if not name.startswith(g2.HA_STREAM_PREFIX):
         raise ValueError("refusing to delete a stream outside the smplwise_ha_ namespace")
-    g2.Go2rtc(settings).delete_stream(name)
+    with _STREAM_LOCK:
+        g2.Go2rtc(settings).delete_stream(name)
+        _WRITTEN.pop(name, None)
 
 
 # ---------------------------------------------------------------- enable / disable
@@ -327,6 +339,35 @@ def note_session_end(entity_id: str, reason: str, seconds: float) -> None:
         mark_stale(entity_id)
 
 
+_REREADS: deque[float] = deque()
+
+
+def _reread_budget() -> bool:
+    """A viewer-triggered re-read may go to the bridge: at most REREAD_GLOBAL_MAX per REREAD_WINDOW_S over all cameras, so a set
+    of failing cameras cannot use up the bridge's own limits (and the administrator's owner-triggered enable)."""
+    now = time.monotonic()
+    with _LOCK:
+        while _REREADS and now - _REREADS[0] > REREAD_WINDOW_S:
+            _REREADS.popleft()
+        if len(_REREADS) >= REREAD_GLOBAL_MAX:
+            return False
+        _REREADS.append(now)
+        return True
+
+
+def reread_blocked(conn: sqlite3.Connection, rec: dict[str, Any]) -> bool:
+    """A viewer-triggered re-read runs as the administrator who enabled the camera (the bridge needs an HA administrator's
+    identity). It is blocked when that person no longer holds `sources.configure` (or is inactive): a source is never read on
+    behalf of someone who could not enable the camera today. Stateless: enabling it again by an authorized person, or the
+    permission coming back, lifts it."""
+    who = str(rec.get("enabled_by") or "")
+    if not who:
+        return True
+    row = conn.execute("SELECT username, display_name FROM users WHERE id = ?", (who,)).fetchone()
+    principal = Principal(user_id=who, username=(row["username"] if row else "") or "", display_name=(row["display_name"] if row else "") or "", source="system")
+    return not authorize(conn, principal, "sources.configure", INSTALLATION).allowed
+
+
 def ensure_ready(db: Database, settings: Settings, entity_id: str) -> str:
     """The go2rtc stream name of an enabled camera, re-creating the stream when it is missing or was seen failing (sources
     change). Sync (thread pool). Refuses (ApiError) a camera that is not enabled; a source that cannot be read leaves the
@@ -340,6 +381,7 @@ def ensure_ready(db: Database, settings: Settings, entity_id: str) -> str:
             secret: str | None = _ready(conn, settings)
         except ApiError:
             secret = None
+        blocked = reread_blocked(conn, rec)
     client = g2.Go2rtc(settings)
 
     def present() -> bool:
@@ -362,17 +404,23 @@ def ensure_ready(db: Database, settings: Settings, entity_id: str) -> str:
             return name
         with _LOCK:
             recent = time.monotonic() - _LAST_READ.get(entity_id, -1e9) < REREAD_MIN_INTERVAL_S
-        if recent or secret is None:
-            # read a moment ago (a failing source is not asked for in a loop) or no way to ask: the old stream, if any
+        if recent or secret is None or (not blocked and not _reread_budget()):
+            # read a moment ago (a failing source is not asked for in a loop), no way to ask, or every camera together asked
+            # too often: the old stream, if any
             if have:
                 return name
             raise unavailable
         _mark_read(entity_id)  # the attempt counts, success or not
         outcome, code = None, None
-        try:
-            outcome = _write_stream(settings, entity_id, _fetch_source(settings, _payload(secret, str(rec.get("enabled_by") or ""), entity_id)))
-        except ApiError as exc:
-            code = exc.code
+        if blocked:
+            # the administrator who enabled it no longer holds sources.configure: their identity is not used to read a
+            # credential any more. The stream stays as it is; the picker says so, and enabling it again (by someone who may) resumes.
+            code = "sources_configure_lost"
+        else:
+            try:
+                outcome = _write_stream(settings, entity_id, _fetch_source(settings, _payload(secret, str(rec.get("enabled_by") or ""), entity_id)))
+            except ApiError as exc:
+                code = exc.code
         try:
             with db.connection() as conn:
                 audit(conn, actor=None, action="camera_card.ha_live.refresh", decision="allowed" if outcome else "denied", resource_type="ha_entity", resource_id=entity_id,
@@ -411,27 +459,45 @@ def reconcile(db: Database, settings: Settings, *, force: bool = False) -> dict[
         for entity_id in gone:
             cams.pop(entity_id, None)
             _forget(entity_id)
+            if g2.HA_SLUG_RE.fullmatch(entity_id.partition(".")[2]):
+                _WRITTEN.pop(stream_name(entity_id), None)  # the opt-in is removed: nothing to protect any more
             audit(conn, actor=None, action="camera_card.ha_live.disable", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason="camera_gone",
                   details={"stream": stream_name(entity_id) if g2.HA_SLUG_RE.fullmatch(entity_id.partition(".")[2]) else None})
         if gone:
             _save(conn, cams)
         out["dropped"] = len(gone)
-        wanted = set()
-        for entity_id in cams:
-            ent = conn.execute("SELECT 1 FROM ha_entities WHERE entity_id = ? AND domain = 'camera' AND removed_at IS NULL AND disabled = 0", (entity_id,)).fetchone()
-            if ent is not None:
-                try:
-                    wanted.add(stream_name(entity_id))
-                except ValueError:
-                    pass
     try:
         client = g2.Go2rtc(settings)
-        streams = client.list_streams()
-        for name in sorted(n for n in streams if n.startswith(g2.HA_STREAM_PREFIX) and n not in wanted):
-            client.delete_stream(name)
+        with db.connection(mode="read", label="ha live reconcile") as conn:
+            wanted = _wanted_names(conn)
+        # ours only, and only the exact shape ha_stream_name builds (the prefix alone would also match an NVR stream of a recorder
+        # whose id starts with `ha_` - go2rtc.stream_name refuses such an id, this is the second guard)
+        stray = sorted(n for n in client.list_streams() if STREAM_SHAPE_RE.fullmatch(n) and n not in wanted)
+        for name in stray:
+            with _STREAM_LOCK:  # enable / disable / a viewer's re-read write under the same lock
+                if time.monotonic() - _WRITTEN.get(name, -1e9) < WRITE_GRACE_S:
+                    continue  # written a moment ago: its opt-in may not be committed yet
+                with db.connection(mode="read", label="ha live reconcile") as conn:
+                    if name in _wanted_names(conn):  # asked again right before the delete: an opt-in that appeared meanwhile keeps it
+                        continue
+                client.delete_stream(name)
+                _WRITTEN.pop(name, None)
             out["deleted"] += 1
             with db.connection() as conn:
                 audit(conn, actor=None, action="camera_card.ha_live.stream_removed", decision="allowed", resource_type="go2rtc_stream", resource_id=name, reason="not_enabled")
     except ApiError as exc:
         log.warning("ha live reconcile: go2rtc unavailable: %s", exc.code)
     return out
+
+
+def _wanted_names(conn: sqlite3.Connection) -> set[str]:
+    """The go2rtc stream names the enabled cameras want right now: opted in and still a usable (present, enabled) entity."""
+    wanted: set[str] = set()
+    for entity_id in _load(conn):
+        ent = conn.execute("SELECT 1 FROM ha_entities WHERE entity_id = ? AND domain = 'camera' AND removed_at IS NULL AND disabled = 0", (entity_id,)).fetchone()
+        if ent is not None:
+            try:
+                wanted.add(stream_name(entity_id))
+            except ValueError:
+                pass
+    return wanted

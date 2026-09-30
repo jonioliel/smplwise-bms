@@ -241,8 +241,11 @@ export class DevicesCameraPicker extends LitElement {
                   <button type="button" class="opt" role="option" data-camera-option=${`ha:${h.entity_id}`} aria-selected=${String(sameSource(this.value, source))} @click=${() => this.pick(source, h.name)}>
                     <sw-icon name=${h.live_enabled ? 'camera' : 'image'} size=${14}></sw-icon>
                     <span class="name">${bidi(h.name)}</span>
-                    <span class="meta">${h.area_name ? `${bidi(h.area_name)} · ` : ''}${h.live_enabled ? 'שידור חי' : 'תמונה בלבד'}</span>
+                    <span class="meta">${h.area_name ? `${bidi(h.area_name)} · ` : ''}${h.live_enabled ? (h.live_issue ? 'שידור חי · לא יתעדכן' : 'שידור חי') : 'תמונה בלבד'}</span>
                   </button>
+                  ${canToggle && h.live_issue
+                    ? html`<button type="button" class="act" data-camera-live-refresh=${h.entity_id} ?disabled=${this.busy === h.entity_id} @click=${() => void this.toggleLive({ ...h, live_enabled: false })}>רענן</button>`
+                    : nothing}
                   ${canToggle
                     ? html`<button type="button" class="act" data-camera-live-toggle=${h.entity_id} ?disabled=${this.busy === h.entity_id} @click=${() => void this.toggleLive(h)}>${h.live_enabled ? 'בטל שידור חי' : 'הצג בזרם חי'}</button>`
                     : nothing}
