@@ -9,8 +9,13 @@
 - `GET /devices/camera-card/still?entity_id=` - a picture of a Home Assistant camera that is NOT an NVR channel (the
   card's `still_only` state), through HA's camera proxy, cached for max(10 s, snapshots.max_age_s).
 
-The stream itself is never served here: it stays behind `WS /media/live/{camera_id}/ws` (authorized, capped, audited).
-Nothing here writes to go2rtc or exposes a token, a source URL or a host."""
+- `PUT|DELETE /devices/camera-card/ha-live/{entity_id}` - show ONE standalone Home Assistant camera as live video / stop
+  (`sources.configure`; owner-triggered per camera, off by default; services/ha_camera_streams.py). Such a camera resolves to
+  `ha_live` and plays through `WS /media/live-ha/{entity_id}/ws`.
+
+The stream itself is never served here: it stays behind `WS /media/live/{camera_id}/ws` (NVR channels) or
+`WS /media/live-ha/{entity_id}/ws` (enabled standalone cameras) - authorized, capped, audited. The only go2rtc write here is
+the enable / disable of one `smplwise_ha_<slug>` stream; no answer exposes a token, a source URL or a host."""
 from __future__ import annotations
 
 import hashlib
@@ -18,7 +23,7 @@ import sqlite3
 import time
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import Response
 
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
@@ -26,6 +31,7 @@ from ..db import unlocked
 from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, require
 from ..services import camera_cards as cc
+from ..services import ha_camera_streams as hls
 from ..services import ha_client, ha_scope
 from .settings import read_settings
 
@@ -34,13 +40,14 @@ STILL_MIN_AGE_S = 10
 
 
 @router.get("/devices/camera-card/sources")
-def sources(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+def sources(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     ha_scope.scoped_rows(conn, principal, cc.READ, [])  # the audited 403 without devices.read anywhere
-    return cc.eligible(conn, principal)
+    return cc.eligible(conn, principal, ha_live_ready=bool(settings_of(request).go2rtc_url))
 
 
 @router.get("/devices/camera-card/resolve")
 def resolve(
+    request: Request,
     kind: Literal["nvr", "ha"],
     recorder_id: str | None = Query(None, pattern=cc.RECORDER_ID_RE.pattern),
     channel: int | None = Query(None, ge=1, le=256),
@@ -54,7 +61,26 @@ def resolve(
     if kind == "ha" and entity_id is None:
         raise ApiError(422, "validation", "מקור מצלמה חסר.", details={"fields": ["entity_id"]})
     source = {"kind": kind, "recorder_id": recorder_id, "channel": channel} if kind == "nvr" else {"kind": kind, "entity_id": entity_id}
-    return cc.resolve(conn, principal, source)
+    return cc.resolve(conn, principal, source, ha_live=bool(settings_of(request).go2rtc_url))
+
+
+@router.put("/devices/camera-card/ha-live/{entity_id}")
+def enable_ha_live(request: Request, entity_id: str = Path(..., pattern=cc.HA_CAMERA_RE.pattern), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Show ONE standalone Home Assistant camera as live video (owner-triggered, per camera; nothing is enabled by default).
+    Least privilege: `sources.configure` - the permission that already governs writing go2rtc streams (`POST /media/streams/sync`);
+    the layout permission (`system.configure`) is not enough, so someone who only arranges screens cannot turn a camera's
+    credentials into a stream. The source is read through the bridge and written to go2rtc; the answer never carries it."""
+    require(conn, principal, "sources.configure", INSTALLATION)
+    if not cc.entity_visible(conn, principal, entity_id):
+        raise not_found("המצלמה לא נמצאה.")
+    return hls.enable(conn, settings_of(request), principal, entity_id, getattr(request.state, "correlation_id", None))
+
+
+@router.delete("/devices/camera-card/ha-live/{entity_id}")
+def disable_ha_live(request: Request, entity_id: str = Path(..., pattern=cc.HA_CAMERA_RE.pattern), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Stop showing the camera live: the opt-in is removed and its go2rtc stream deleted (`sources.configure`, like enabling)."""
+    require(conn, principal, "sources.configure", INSTALLATION)
+    return hls.disable(conn, settings_of(request), principal, entity_id, getattr(request.state, "correlation_id", None))
 
 
 @router.get("/devices/camera-card/still")

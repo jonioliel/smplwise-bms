@@ -55,6 +55,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         schedules_svc.janitor(db, s)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("schedules janitor failed", exc_info=True)
+    try:  # a standalone HA camera shown live: drop the opt-in of a camera that is gone, delete go2rtc streams nobody wants (throttled)
+        from .services import ha_camera_streams
+
+        ha_camera_streams.reconcile(db, settings)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("ha live reconcile failed", exc_info=True)
     from .services import storage
 
     if not is_ha_only(settings):  # NVR-less mode: no NVR storage report to keep warm, no NVR recording to stop
