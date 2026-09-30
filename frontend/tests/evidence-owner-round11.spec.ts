@@ -3,6 +3,22 @@ import { simulateStrictPlacement, simulateStrictRows } from '../src/screens/wall
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+/** UI round 1c (shell/screen-edit.ts): "סידור הקיר" is an item of the user menu, not a button in the wall's header. */
+async function openUserMenu(page: Page) {
+  await page.locator('sw-app [data-profile-menu]:visible, sw-app [data-nav-me]:visible').first().click();
+}
+async function enterWallArrange(page: Page) {
+  await openUserMenu(page);
+  await page.locator('sw-app sw-user-menu [data-menu-screen-edit="wall-arrange"]').click();
+}
+async function wallArrangeOffered(page: Page): Promise<boolean> {
+  await openUserMenu(page);
+  await page.waitForTimeout(300);
+  const offered = (await page.locator('sw-app sw-user-menu [data-menu-screen-edit="wall-arrange"]').count()) > 0;
+  await page.keyboard.press('Escape');
+  return offered;
+}
+
 // Evidence for 0.1.74 (owner round 3) against the running developer backend: the system administrator writes to the
 // NVR without a custom role, a new custom role is assigned to its creator, "מבנה" button on a site, floor quick
 // buttons, jump without zoom, wall column override, coverage sliders. Runs only with SW_LIVE=1.
@@ -308,12 +324,12 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       const restricted = await ctx.newPage();
       await open(restricted, '/live/wall');
       await expect(restricted.locator('live-wall sw-camera-tile').first()).toBeVisible({ timeout: 30000 });
-      await expect(restricted.locator('[data-wall-settings-open]')).toHaveCount(0);
+      expect(await wallArrangeOffered(restricted)).toBe(false);
       await ctx.close();
 
-      // the admin (dev-mode default identity) holds sources.configure and sees the button
+      // the admin (dev-mode default identity) holds sources.configure and sees the user menu's item
       await open(page, '/live/wall');
-      await expect(page.locator('[data-wall-settings-open]')).toBeVisible({ timeout: 30000 });
+      await expect.poll(() => wallArrangeOffered(page), { timeout: 30000 }).toBe(true);
     } finally {
       if (bindingId) await request.delete(`/api/v1/access/bindings/${bindingId}`).catch(() => {});
       await cleanupSeeded(request, seededIds);
@@ -341,7 +357,7 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       await wall.locator('[data-wall-cols-set="2"]').click();
       await expect(wall.locator('[data-wall-cols]')).toHaveAttribute('data-wall-cols', '2');
 
-      await wall.locator('[data-wall-settings-open]').click();
+      await enterWallArrange(page);
       const dialog = page.locator('[data-wall-settings-dialog]');
       await expect(dialog.locator('[data-wall-settings-rows]')).toBeVisible(); // the sw-dialog host itself has no box of its own
       // move cam1 down past cam2, and set cam1 to span 2 columns
@@ -416,7 +432,7 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       await wall.locator('[data-wall-cols-set="0"]').click(); // automatic column fit, the owner's mode
       await expect(wall.locator(`sw-camera-tile[cameraid="${hallA}"]`)).toBeVisible({ timeout: 30000 });
 
-      await wall.locator('[data-wall-settings-open]').click();
+      await enterWallArrange(page);
       const dialog = page.locator('[data-wall-settings-dialog]');
       await expect(dialog.locator('[data-wall-settings-rows]')).toBeVisible();
       const listed = await dialog.locator('[data-wall-settings-row]').evaluateAll((els) => els.map((el) => el.getAttribute('data-wall-settings-row')));
@@ -527,7 +543,7 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       await wall.locator('[data-wall-cols-set="4"]').click();
       await expect(wall.locator('[data-wall-cols]')).toHaveAttribute('data-wall-cols', '4');
 
-      await wall.locator('[data-wall-settings-open]').click();
+      await enterWallArrange(page);
       const dialog = page.locator('[data-wall-settings-dialog]');
       await expect(dialog.locator('[data-wall-settings-rows]')).toBeVisible();
       for (const c of [c1, c2, c3, c4]) await dialog.locator(`[data-wall-span="${c.id}"]`).selectOption('3');

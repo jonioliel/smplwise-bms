@@ -9,6 +9,7 @@ import '../components/sw-state-panel';
 import '../components/sw-dialog';
 import { demoScene, demoWall } from '../fixtures/catalog';
 import { navigate } from '../router';
+import { registerScreenEdit } from '../shell/screen-edit';
 import { isApi } from '../api/session';
 import { snapshotUrl, type ProductSettings, type Transport } from '../api/media';
 import { listCameras, updateCamera } from '../api/maps';
@@ -433,8 +434,13 @@ export class LiveWall extends LitElement {
     }
   }
 
+  /** UI round 1c: "סידור הקיר" (order and column widths) is entered from the user menu (shell/screen-edit.ts), not from a
+   * button in the page - for who may manage the cameras (the same check the button had). */
+  private offScreenEdit: (() => void) | null = null;
+
   connectedCallback() {
     super.connectedCallback();
+    this.offScreenEdit = registerScreenEdit({ id: 'wall-arrange', label: 'סידור הקיר', icon: 'grid', can: () => isApi() && this.canManage && !!this.cams?.length, run: () => this.openSettings() });
     void this.load();
     this.posterTimer = window.setInterval(() => {
       if (!document.hidden) this.posterBust = Date.now();
@@ -444,6 +450,8 @@ export class LiveWall extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    this.offScreenEdit?.();
+    this.offScreenEdit = null;
     window.clearInterval(this.posterTimer);
     window.clearInterval(this.snapTimer);
     this.io?.disconnect();
@@ -733,7 +741,6 @@ export class LiveWall extends LitElement {
         <div slot="actions" class="layouts" role="group" aria-label="פריסה">
           ${COUNTS.map((n) => html`<button class=${n === this.count && !this.cameras ? 'on' : ''} @click=${() => { this.setCount(n); if (this.cameras) navigate('/live/wall'); }} aria-pressed=${n === this.count && !this.cameras}>${n}</button>`)}
         </div>
-        ${api && this.canManage && this.cams?.length ? html`<sw-button slot="actions" variant="ghost" icon="grid" data-wall-settings-open title="סדר הופעה ורוחב עמודות" @click=${() => this.openSettings()}>סידור הקיר</sw-button>` : nothing}
         <sw-button slot="actions" variant="ghost" icon="expand" data-open-kiosk title="פותח את הקיוסק בלשונית חדשה" @click=${() => this.openKiosk()}>קיוסק</sw-button>
         ${body}
         ${this.renderSettingsDialog()}

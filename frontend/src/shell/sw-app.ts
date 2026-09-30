@@ -12,6 +12,7 @@ import './sw-user-menu';
 import './sw-nav-order';
 import { openAlertsText } from './sw-user-menu';
 import { loadNavOrder, navOrder, onNavOrder, resetNavOrder, saveNavOrder } from './nav-order';
+import { findScreenEdit, onScreenEdits, screenEdits } from './screen-edit';
 import { loadNavSize, navCssVars, navDims, navSize, onNavSize, setInstallationNavSize, type NavDims } from './nav-size';
 import { listAlerts } from '../api/rules';
 import { inAndroidShell } from '../arx/android-app';
@@ -130,6 +131,7 @@ export class SwApp extends LitElement {
   /** UI round 1b: the navigation's size (shell/nav-size.ts: the user's own over the installation's), as pixel sizes. */
   @state() private nav: NavDims = navDims(navSize());
   private stopNavSize?: () => void;
+  private stopScreenEdits?: () => void;
   private railObs: ResizeObserver | null = null;
   private observedRail: HTMLElement | null = null;
   private stopTabsConfig?: () => void;
@@ -1212,6 +1214,7 @@ export class SwApp extends LitElement {
     window.addEventListener('popstate', this.onPopState);
     this.stopNavOrder = onNavOrder((o) => (this.navOrder = o));
     this.stopNavSize = onNavSize((sz) => (this.nav = navDims(sz)));
+    this.stopScreenEdits = onScreenEdits(() => this.requestUpdate()); // a screen registered / dropped its edit mode
     this.stopTabsConfig = onTabsConfig(() => this.requestUpdate()); // הגדרות › כללי › לשוניות: every tab row follows at once
     this.stopSession = onSession((s) => {
       this.session = s;
@@ -1376,6 +1379,7 @@ export class SwApp extends LitElement {
     this.stopAlarmPresence?.();
     this.stopNavOrder?.();
     this.stopNavSize?.();
+    this.stopScreenEdits?.();
     this.railObs?.disconnect();
     this.railObs = null;
     this.stopTabsConfig?.();
@@ -1901,8 +1905,8 @@ export class SwApp extends LitElement {
     if ((window.history.state as { swOverlay?: boolean } | null)?.swOverlay) window.history.back();
   }
 
-  /** Where a menu item leads once its overlay entry is gone (navigateFromOverlay). */
-  private pendingHref: string | null = null;
+  /** What a menu item does once its overlay entry is gone (navigateFromOverlay / runFromOverlay). */
+  private pendingRun: (() => void) | null = null;
 
   /** A menu item's navigation: close the overlay, drop its history entry first (Back then returns to the screen the
    * user was on, not to a duplicate of it), then go. */
@@ -1912,18 +1916,33 @@ export class SwApp extends LitElement {
     const own = this.overlayEntry && (window.history.state as { swOverlay?: boolean } | null)?.swOverlay;
     this.overlayEntry = false;
     if (own) {
-      this.pendingHref = href;
+      this.pendingRun = () => (window.location.hash = href);
       window.history.back();
     } else {
       window.location.hash = href;
     }
   }
 
+  /** A menu item that acts on the screen instead of leaving it (a screen's edit mode): the same order as a navigation -
+   * close the menu, drop its history entry (Back then still means "leave the screen"), then run. */
+  private runFromOverlay(run: () => void) {
+    this.closeMenu(false, false);
+    this.orderOpen = false;
+    const own = this.overlayEntry && (window.history.state as { swOverlay?: boolean } | null)?.swOverlay;
+    this.overlayEntry = false;
+    if (own) {
+      this.pendingRun = run;
+      window.history.back();
+    } else {
+      run();
+    }
+  }
+
   private onPopState = (e: PopStateEvent) => {
-    if (this.pendingHref) {
-      const href = this.pendingHref;
-      this.pendingHref = null;
-      window.location.hash = href;
+    if (this.pendingRun) {
+      const run = this.pendingRun;
+      this.pendingRun = null;
+      run();
       return;
     }
     if (!this.overlayEntry || (e.state as { swOverlay?: boolean } | null)?.swOverlay) return;
@@ -1982,6 +2001,8 @@ export class SwApp extends LitElement {
     const noTabs = this.gated || !visibleAreas(api, canNav, this.navOrder).length;
     return html`<sw-user-menu .open=${this.menuOpen} .name=${this.userName} .role=${this.userRole} .api=${api} .gated=${noTabs} .alerts=${this.gated ? null : this.alertCount}
         .settingsHref=${settings?.href ?? ''} .editHomeHref=${this.canEditHome() ? '#/devices/building?edit=1' : ''}
+        .screenEdits=${this.gated ? [] : screenEdits().map((a) => ({ id: a.id, label: a.label, icon: a.icon ?? 'edit' }))}
+        @screen-edit=${(e: CustomEvent<{ id: string }>) => { const a = findScreenEdit(e.detail.id); if (a) this.runFromOverlay(() => a.run()); }}
         @close=${() => this.closeMenu()} @navigate=${(e: CustomEvent<{ href: string }>) => this.navigateFromOverlay(e.detail.href)} @nav-order=${() => {
           // the sheet hands over to the dialog: its history entry now stands for the dialog
           this.closeMenu(false, false);
