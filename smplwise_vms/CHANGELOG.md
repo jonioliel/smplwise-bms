@@ -37,6 +37,7 @@
 - **After the update restart the platform once**: the bridge integration is 0.3.1 (the `stream_source` service).
 ### Other
 - **The legacy design B is removed**; design A is the only design (the `ui.design` setting is still accepted and ignored).
+- **State sync no longer stops on an odd attribute**: an integration that reports `supported_features` as a list (not a number) made the whole snapshot fail on every attempt, so the sync never connected ("לא מסונכרן") and entities showed as unavailable; such values are now tolerated and one bad state can no longer drop the rest.
 - The bulk-safe checkbox (הגדרות › חשמל והתקנים › פעולה קבוצתית) shows the state it selects.
 - Review hardening: widget sensors respect the viewer's scope; `/me/prefs` writes are all-or-nothing; layouts list only visible entities;
   shared-space membership and revocation fixes.
