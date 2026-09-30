@@ -210,3 +210,71 @@ def test_tab_ids_refuse_a_trailing_newline_and_an_oversized_value():
     big = {f"s{i}": {"order": [f"tab-number-{j:02d}-padding-padding-padding" for j in range(40)], "hidden": []} for i in range(64)}
     with _pytest.raises(ApiError):
         normalize_tabs(big)
+
+
+# ---- 0.1.148: tab bar styles - a `style` per section and the reserved `styles` defaults per hierarchy level ----
+
+
+def test_ui_tabs_styles_round_trip(settings):
+    app = create_app(settings)
+    with TestClient(app) as c:
+        body = {
+            "styles": {"level1": "underline", "level2": "pill"},
+            "security.live": {"style": "underline", "order": ["wall"]},
+            "explore": {"style": "underline-compact"},  # a section with only a style
+            "wiskey": {"style": None, "hidden": ["tools"]},  # null = follow the level's default: dropped
+        }
+        r = c.patch(URL, json={"ui.tabs": body})
+        assert r.status_code == 200, r.text
+        want = {
+            "styles": {"level1": "underline", "level2": "pill"},
+            "security.live": {"order": ["wall"], "hidden": [], "style": "underline"},
+            "explore": {"order": [], "hidden": [], "style": "underline-compact"},
+            "wiskey": {"order": [], "hidden": ["tools"]},
+        }
+        assert r.json()["settings"]["ui.tabs"] == want
+        assert c.get(URL).json()["settings"]["ui.tabs"] == want
+        assert {"ui.tabs": want} in _audit_details(app)
+        # a partial defaults object keeps only what it names; an empty one disappears; old configs (no style anywhere) are unchanged
+        assert c.patch(URL, json={"ui.tabs": {"styles": {"level2": "pill"}}}).json()["settings"]["ui.tabs"] == {"styles": {"level2": "pill"}}
+        assert c.patch(URL, json={"ui.tabs": {"styles": {}}}).json()["settings"]["ui.tabs"] == {}
+        assert c.patch(URL, json={"ui.tabs": {"explore": {"hidden": ["floors"]}}}).json()["settings"]["ui.tabs"] == {"explore": {"order": [], "hidden": ["floors"]}}
+
+
+def test_ui_tabs_styles_reject_values_outside_the_allow_list(settings):
+    app = create_app(settings)
+    with TestClient(app) as c:
+        bad = [
+            {"styles": []},
+            {"styles": "pill"},
+            {"styles": {"level3": "pill"}},  # only level1 / level2
+            {"styles": {"level1": "Pill"}},
+            {"styles": {"level1": "rounded"}},
+            {"styles": {"level2": 1}},
+            {"styles": {"level2": None}},
+            {"styles": {"level1": ["pill"]}},
+            {"styles": {"level1": "pill", "extra": "pill"}},
+            {"explore": {"style": "bold"}},
+            {"explore": {"style": ""}},
+            {"explore": {"style": 7}},
+            {"explore": {"style": ["pill"]}},
+            {"explore": {"style": "PILL"}},
+            {"explore": {"styling": "pill"}},  # unknown key
+        ]
+        for value in bad:
+            r = c.patch(URL, json={"ui.tabs": value})
+            assert r.status_code == 422, (value, r.status_code)
+        assert c.get(URL).json()["settings"]["ui.tabs"] == {}, "nothing was stored by the refused patches"
+
+
+def test_ui_tabs_styles_same_permission_and_corrupt_style_reads_as_default(settings):
+    app = create_app(settings)
+    with TestClient(app) as c:
+        bind(c, settings, "ron", "viewer", "installation", "*")
+        assert c.patch(URL, json={"ui.tabs": {"styles": {"level1": "pill"}}}, headers=as_user("ron")).status_code == 403
+        assert c.patch(URL, json={"ui.tabs": {"styles": {"level1": "underline"}}}).status_code == 200
+        assert c.get(URL, headers=as_user("ron")).json()["settings"]["ui.tabs"] == {"styles": {"level1": "underline"}}
+        # a stored value written by some other build with a style this one does not know reads as nothing configured
+        with app.state.db.connection() as conn:
+            conn.execute("UPDATE settings SET value = ? WHERE key = 'ui.tabs'", ('{"explore": {"style": "glass"}}',))
+        assert c.get(URL).json()["settings"]["ui.tabs"] == {}

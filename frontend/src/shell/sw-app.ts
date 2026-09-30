@@ -61,7 +61,7 @@ import { onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
-import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, isHomeEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, type LegacyAccess, tabAllowed, type NavTabId } from './nav';
+import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, isHomeEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaRowSection, tabStyleOf, type LegacyAccess, tabAllowed, type NavTabId } from './nav';
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { t } from '../i18n/he';
 import { can, canNav, isApi, loadSession, nvrLess, onSession, watchPermissions, type Session } from '../api/session';
@@ -775,6 +775,16 @@ export class SwApp extends LitElement {
     nav.secrow {
       display: none;
     }
+    nav.sectabs {
+      display: inline-flex;
+      flex: none;
+      max-inline-size: 100%;
+      min-inline-size: 0;
+    }
+    /* the phone's copy exists only on the phone (renderSections builds it there), and hides on wider screens like .secrow */
+    nav.sectabs.phone {
+      display: none;
+    }
     button.me {
       all: unset;
       box-sizing: border-box;
@@ -898,6 +908,26 @@ export class SwApp extends LitElement {
       }
       :host([data-design='a']) .subnav sw-tabs {
         align-self: stretch;
+      }
+      /* 0.1.148: a segmented (pill) row keeps its natural width at the start of the row (the pill's 44 px tap area already
+         holds 5 px of air around the 34 px track); the compact underline row takes no more room than its 32 px (its 44 px tap
+         targets overlap the empty space below it) */
+      :host([data-design='a']) .subnav[data-tabstyle='pill'] sw-tabs {
+        align-self: flex-start;
+      }
+      /* the sections as an underline row (the installation's choice): sticky like the segmented row, tap targets of 44 px */
+      :host([data-design='a']) nav.sectabs.phone {
+        position: sticky;
+        inset-block-start: var(--sw-banner-h, 0px);
+        z-index: 4;
+        display: flex;
+        flex: none;
+        padding-inline: 12px 84px;
+        background: var(--sw-bg);
+        --sw-tab-min-h: 44px;
+      }
+      :host([data-design='a']) nav.sectabs.phone sw-tabs {
+        flex: 1;
       }
       /* the floating search / status corner sits over the first row's far end: that row keeps clear of it */
       :host([data-design='a'][data-top='tabs']) .subnav {
@@ -1176,7 +1206,7 @@ export class SwApp extends LitElement {
     this.applyNavSize();
     // what the floating corner (search, status) sits above: the phone's sticky section row, a tab / section row, or
     // the page's own header (sw-page reads --sw-float-reserve to keep its actions clear)
-    const top = this.renderRoot.querySelector('nav.secrow') ? 'secrow' : this.renderRoot.querySelector('.subnav > *') ? 'tabs' : 'page';
+    const top = this.renderRoot.querySelector('nav.secrow, nav.sectabs.phone') ? 'secrow' :this.renderRoot.querySelector('.subnav > *') ? 'tabs' : 'page';
     if (this.getAttribute('data-top') !== top) this.setAttribute('data-top', top);
     const banner = this.renderRoot.querySelector<HTMLElement>('[data-sys-banner]');
     if (banner === this.observedBanner) return;
@@ -1827,6 +1857,9 @@ export class SwApp extends LitElement {
     const editor = this.route?.segments[3] === 'edit' || this.route?.segments[3] === 'import' || isHomeEditRoute(this.route);
     const areas = visibleAreas(api, canNav, this.navOrder);
     const showSections = area === 'security' && !this.gated;
+    // 0.1.148: the look of this row (pill / underline / compact underline) is the installation's choice per hierarchy level,
+    // overridable per section (הגדרות › כללי › לשוניות) - one helper for every row (nav.ts tabStyleOf)
+    const rowStyle = tabStyleOf(areaRowSection(area, section));
     return html`
       <nav class="rail" aria-label="ניווט ראשי">
         <span class="brand-tile" aria-hidden="true"><span>S</span></span>
@@ -1843,7 +1876,7 @@ export class SwApp extends LitElement {
       <main>
         ${this.renderSetupHint()}
         ${this.renderGate() || html`
-          ${showSections && this.phone ? this.renderSections(section, true) : nothing}<div class="subnav">${showSections && !this.phone ? this.renderSections(section) : nothing}${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeAreaTab(this.route)} ?underline=${this.phone}></sw-tabs>` : nothing}</div>
+          ${showSections && this.phone ? this.renderSections(section, true) : nothing}<div class="subnav" data-tabstyle=${rowStyle}>${showSections && !this.phone ? this.renderSections(section) : nothing}${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeAreaTab(this.route)} .variant=${rowStyle} data-area-tabs></sw-tabs>` : nothing}</div>
           <div class="screen">${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}
       </main>
       <nav class="bottom" aria-label="ניווט ראשי">
@@ -1860,6 +1893,11 @@ export class SwApp extends LitElement {
   private renderSections(active: ReturnType<typeof sectionOf>, row = false) {
     const sections = visibleSections(this.session.mode === 'api', canNav);
     if (sections.length < 2) return nothing;
+    const style = tabStyleOf('security');
+    if (style !== 'pill') {
+      // the installation chose an underline look for the sections: the same items as a tab row (sw-tabs draws it)
+      return html`<nav class=${row ? 'sectabs phone' : 'sectabs'} aria-label="אבטחה" ?data-security-sections=${!row} ?data-security-row=${row}><sw-tabs .items=${sections.map((s) => ({ id: s.id, label: s.label, href: s.href }))} .active=${active ?? ''} .variant=${style} data-section-tabs></sw-tabs></nav>`;
+    }
     return html`<nav class=${row ? 'sections secrow' : 'sections'} aria-label="אבטחה" ?data-security-sections=${!row} ?data-security-row=${row}>${sections.map(
       (s) => html`<a href=${s.href} class=${classMap({ on: s.id === active })} aria-current=${s.id === active ? 'page' : 'false'} data-section=${s.id}><span class="pill">${row ? nothing : html`<sw-icon .name=${s.icon} size=${15}></sw-icon>`}<span>${s.label}</span></span></a>`,
     )}</nav>`;

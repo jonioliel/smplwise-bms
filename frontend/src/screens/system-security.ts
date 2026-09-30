@@ -10,7 +10,7 @@ import './system-alarm';
 import { alarmPresence, onAlarmPresence, refreshAlarmPresence } from '../api/alarm-presence';
 import { describeError, get } from '../api/client';
 import { canNav, isApi, nvrLess } from '../api/session';
-import { SECURITY_SETTINGS_TABS, applyAlarmPresent, tabAllowed, visibleTabs } from '../shell/nav';
+import { SECURITY_SETTINGS_TABS, applyAlarmPresent, tabAllowed, tabStyleOf, visibleTabs } from '../shell/nav';
 
 /** GET /api/v1/health - the connection facts, for every signed-in user (the same read הגדרות › חיבורים starts from). */
 interface RawHealth {
@@ -54,7 +54,7 @@ export class SystemSecurity extends LitElement {
     .tabs {
       padding: 14px var(--sw-page-pad, 24px) 0;
     }
-    .tabs sw-tabs {
+    .tabs sw-tabs[data-variant^='underline'] {
       inline-size: 100%;
     }
     .rows {
@@ -145,7 +145,7 @@ export class SystemSecurity extends LitElement {
     const current = SECURITY_SETTINGS_TABS.find((t) => t.id === this.sub);
     const items = current && !offered.some((o) => o.id === current.id) ? [...offered, current] : offered;
     return html`${items.length > 1
-        ? html`<div class="tabs" data-security-settings-tabs><sw-tabs underline .items=${items} .active=${this.sub}></sw-tabs></div>`
+        ? html`<div class="tabs" data-security-settings-tabs><sw-tabs .variant=${tabStyleOf('system.security')} .items=${items} .active=${this.sub}></sw-tabs></div>`
         : nothing}
       ${this.sub === 'alarm'
         ? html`<security-alarm .panelId=${this.panelId}></security-alarm>`

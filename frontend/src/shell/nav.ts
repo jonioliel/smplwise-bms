@@ -2,7 +2,7 @@ import type { IconName } from '../components/sw-icon';
 import type { TabItem } from '../components/sw-tabs';
 import type { RouteState } from '../router';
 import type { WiskeyCatalog, WiskeyLocation } from '../wiskey/embed-connector';
-import type { TabsConfig, TabsSectionConfig } from '../api/media';
+import type { TabsConfig, TabsSectionConfig, TabStyle, TabStyleDefaults } from '../api/media';
 
 /** The WisKey area's tabs before (or without) a WisKey embed API handshake: the older panel's tabs. The first three are
  * the screens SMPLWISE built (CR-005 phase 1b and 2); each renders either that screen or WisKey's own Home Assistant
@@ -286,19 +286,75 @@ export function normalizeTabsConfig(raw: unknown): TabsConfig {
     return seen;
   };
   for (const [section, body] of Object.entries(value as Record<string, unknown>)) {
+    if (section === TAB_STYLES_KEY) continue; // the per-level defaults, not a section (normalizeTabStyles)
     if (!TAB_ID.test(section) || !body || typeof body !== 'object' || Array.isArray(body)) continue;
     const order = ids((body as { order?: unknown }).order);
     const hidden = ids((body as { hidden?: unknown }).hidden);
-    if (order.length || hidden.length) out[section] = { order, hidden };
+    const style = asTabStyle((body as { style?: unknown }).style);
+    if (order.length || hidden.length || style) out[section] = style ? { order, hidden, style } : { order, hidden };
   }
   return out;
 }
 
+// ---- 0.1.148: the look of the tab bars (sw-tabs `variant`), per hierarchy level with a per-section override ----
+
+/** The reserved key of `ui.tabs` that holds the defaults per level (`{ level1, level2 }`); it is not a section. */
+export const TAB_STYLES_KEY = 'styles';
+export const TAB_STYLE_VALUES: readonly TabStyle[] = ['pill', 'underline', 'underline-compact'];
+/** What a level looks like when nothing is configured (owner 2026-09-30): the first bar of an area is the narrow segmented
+ * pill, the sub-tabs inside the security sections are the compact underline row. */
+export const TAB_STYLE_DEFAULTS: Required<TabStyleDefaults> = { level1: 'pill', level2: 'underline-compact' };
+/** Which hierarchy level a bar belongs to when its section is not in the registry (nothing today). */
+export type TabLevel = 1 | 2;
+
+function asTabStyle(v: unknown): TabStyle | undefined {
+  return (TAB_STYLE_VALUES as readonly unknown[]).includes(v) ? (v as TabStyle) : undefined;
+}
+
+/** The stored per-level defaults (`ui.tabs.styles`), reduced to known values; an unknown or missing value is left out
+ * so the built-in default of that level applies. Never throws. */
+export function normalizeTabStyles(raw: unknown): TabStyleDefaults {
+  let value = raw;
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return {};
+    }
+  }
+  const styles = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>)[TAB_STYLES_KEY] : undefined;
+  const out: TabStyleDefaults = {};
+  if (styles && typeof styles === 'object' && !Array.isArray(styles)) {
+    const l1 = asTabStyle((styles as Record<string, unknown>).level1);
+    const l2 = asTabStyle((styles as Record<string, unknown>).level2);
+    if (l1) out.level1 = l1;
+    if (l2) out.level2 = l2;
+  }
+  return out;
+}
+
+let TAB_STYLES: TabStyleDefaults = {};
+
 /** Filled by the shell once the product settings load and by the settings screen after a save. */
 export function applyTabsConfig(settings: Record<string, unknown> | null | undefined): TabsConfig {
   TABS_CONFIG = normalizeTabsConfig(settings?.['ui.tabs']);
+  TAB_STYLES = normalizeTabStyles(settings?.['ui.tabs']);
   for (const l of tabsListeners) l();
   return TABS_CONFIG;
+}
+
+/** The installation's stored per-level defaults (not resolved: an unset level is absent). */
+export function tabStyleDefaults(): TabStyleDefaults {
+  return TAB_STYLES;
+}
+
+/** THE helper every tab row asks (the shell's area rows and sections, the settings sub-rows): the style of one section's
+ * bar - its own override, else the installation's default for its hierarchy level, else the built-in default. `level`
+ * comes from the registry (TAB_SECTIONS) unless a caller names it. */
+export function tabStyleOf(sectionId: string | null, level?: TabLevel): TabStyle {
+  const lvl: TabLevel = level ?? TAB_SECTIONS.find((s) => s.id === sectionId)?.level ?? 1;
+  const own = sectionId ? TABS_CONFIG[sectionId]?.style : undefined;
+  return own ?? TAB_STYLES[lvl === 1 ? 'level1' : 'level2'] ?? TAB_STYLE_DEFAULTS[lvl === 1 ? 'level1' : 'level2'];
 }
 
 export function tabsConfig(): TabsConfig {
@@ -840,21 +896,35 @@ export interface TabSectionDef {
   where: string;
   /** Every tab of the section in its default order (not limited by permissions: the editor is for the whole installation). */
   tabs: () => TabItem[];
+  /** The hierarchy level of its bar: 1 = the first bar of an area (the security sections, the tab row of home, map, WisKey and
+   * settings), 2 = the sub-tabs below it (the pages of לייב and חקירה, the pages of הגדרות › אבטחה). */
+  level: TabLevel;
+  /** False for the rail / bottom bar: it has no tab-bar style. */
+  bar?: boolean;
 }
 
 const plain = (items: readonly { id: string; label: string; href?: string }[]): TabItem[] => items.map((i) => ({ id: i.id, label: i.label, href: i.href }));
 
 export const TAB_SECTIONS: TabSectionDef[] = [
-  { id: 'areas', label: 'ניווט ראשי', where: 'סרגל הצד ופס הניווט התחתון', tabs: () => plain(NAV_A) },
-  { id: 'devices', label: 'ראשי', where: 'לשוניות המסך הראשי', tabs: () => plain(DEVICES_TABS) },
-  { id: 'security', label: 'אבטחה', where: 'הבחירה בראש אזור האבטחה', tabs: () => plain(SECURITY_SECTIONS) },
-  { id: 'security.live', label: 'אבטחה › לייב', where: 'לשוניות לייב', tabs: () => plain(SECTION_TABS.live) },
-  { id: 'security.investigate', label: 'אבטחה › חקירה', where: 'לשוניות חקירה', tabs: () => plain(SECTION_TABS.investigate) },
-  { id: 'explore', label: 'מפה', where: 'לשוניות המפה', tabs: () => plain(EXPLORE_TABS) },
-  { id: 'wiskey', label: 'WisKey', where: 'לשוניות WisKey', tabs: () => plain(WISKEY_TABS) },
-  { id: 'system', label: 'הגדרות', where: 'לשוניות ההגדרות', tabs: () => plain(AREA_TABS.system) },
-  { id: 'system.security', label: 'הגדרות › אבטחה', where: 'לשוניות אבטחה בהגדרות', tabs: () => plain(SECURITY_SETTINGS_TABS) },
+  { id: 'areas', label: 'ניווט ראשי', where: 'סרגל הצד ופס הניווט התחתון', tabs: () => plain(NAV_A), level: 1, bar: false },
+  { id: 'devices', label: 'ראשי', where: 'לשוניות המסך הראשי', tabs: () => plain(DEVICES_TABS), level: 1 },
+  { id: 'security', label: 'אבטחה', where: 'הבחירה בראש אזור האבטחה', tabs: () => plain(SECURITY_SECTIONS), level: 1 },
+  { id: 'security.live', label: 'אבטחה › לייב', where: 'לשוניות לייב', tabs: () => plain(SECTION_TABS.live), level: 2 },
+  { id: 'security.investigate', label: 'אבטחה › חקירה', where: 'לשוניות חקירה', tabs: () => plain(SECTION_TABS.investigate), level: 2 },
+  { id: 'explore', label: 'מפה', where: 'לשוניות המפה', tabs: () => plain(EXPLORE_TABS), level: 1 },
+  { id: 'wiskey', label: 'WisKey', where: 'לשוניות WisKey', tabs: () => plain(WISKEY_TABS), level: 1 },
+  { id: 'system', label: 'הגדרות', where: 'לשוניות ההגדרות', tabs: () => plain(AREA_TABS.system), level: 1 },
+  { id: 'system.security', label: 'הגדרות › אבטחה', where: 'לשוניות אבטחה בהגדרות', tabs: () => plain(SECURITY_SETTINGS_TABS), level: 2 },
 ];
+
+/** The `ui.tabs` section of the tab row the shell draws under an area's head: in the security area the row is the current
+ * section's pages (`security.live` / `security.investigate`, level 2 - the sections themselves are `security`, level 1),
+ * elsewhere the area's own tabs (home, map, WisKey, settings: level 1). null when the area has no configurable row. */
+export function areaRowSection(area: AreaId | null, section: SecuritySection | null): string | null {
+  if (!area) return null;
+  if (area === 'security') return section ? `security.${section}` : null;
+  return TAB_SECTIONS.some((s) => s.id === area) ? area : null;
+}
 
 let ARRAY_SECTIONS: Map<readonly TabItem[], string> | null = null;
 

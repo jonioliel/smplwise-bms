@@ -281,7 +281,8 @@ test.describe('tabs configuration, the map default floor and the device catalogu
       await up.click();
       await ed.locator('li[data-sec="security.live"][data-tab="views"] .mv[data-move="up"]').click();
     } else {
-      const h = await ed.locator('li[data-sec="security.live"][data-tab="views"] .handle').boundingBox();
+      await ed.locator('[data-tabs-section="security.live"]').scrollIntoViewIfNeeded(); // the style card above made the page longer: keep the rows on screen
+    const h = await ed.locator('li[data-sec="security.live"][data-tab="views"] .handle').boundingBox();
       const first = await ed.locator('li[data-sec="security.live"][data-tab="overview"]').boundingBox();
       await page.mouse.move(h!.x + h!.width / 2, h!.y + h!.height / 2);
       await page.mouse.down();

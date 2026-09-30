@@ -1,0 +1,44 @@
+{
+  "pill": {
+    "variant": "pill",
+    "hostH": 44,
+    "layoutH": 44,
+    "hitH": 44,
+    "visibleH": 28,
+    "subnavH": 46,
+    "pageTop": 46,
+    "rowW": 188,
+    "hostW": 188,
+    "scrolls": false,
+    "fade": "",
+    "activeInView": true
+  },
+  "underline": {
+    "variant": "underline",
+    "hostH": 44,
+    "layoutH": 44,
+    "hitH": 44,
+    "visibleH": 19,
+    "subnavH": 46,
+    "pageTop": 46,
+    "rowW": 176,
+    "hostW": 176,
+    "scrolls": false,
+    "fade": "",
+    "activeInView": true
+  },
+  "underline-compact": {
+    "variant": "underline-compact",
+    "hostH": 44,
+    "layoutH": 32,
+    "hitH": 44,
+    "visibleH": 30,
+    "subnavH": 34,
+    "pageTop": 34,
+    "rowW": 166,
+    "hostW": 166,
+    "scrolls": false,
+    "fade": "",
+    "activeInView": true
+  }
+}

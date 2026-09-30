@@ -322,8 +322,8 @@ test.describe('CR-013 shell on the demo data', () => {
     // the investigation's row is the long one (camera health is its last tab since 2026-09-30)
     await open(page, '/investigate/events');
     const tabs = page.locator('sw-app .subnav sw-tabs');
-    // the second level: the underline variant, 44 px targets
-    await expect(tabs).toHaveAttribute('underline', '');
+    // the second level: the compact underline variant (0.1.148), still 44 px targets
+    await expect(tabs).toHaveAttribute('data-variant', 'underline-compact');
     for (const a of await tabs.locator('a').all()) expect((await a.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     // wider than the phone: it scrolls, and the hidden side fades
     expect(await tabs.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
