@@ -71,8 +71,8 @@ the unique id - never by a name; zones are shown as "open / closed" (the motion 
   it with the alarm section only.
 - Breadcrumbs: אבטחה › <section> › <page>. Ctrl+K: the search offers the three sections as page targets, and an alarm
   panel found by name opens `#/security/alarm?panel=<id>`.
-- Design B (flat entries) gets one more flat entry, "אזעקה", next to its existing security groups; it lands in the
-  phone's "עוד" menu.
+- Design B (flat entries) got one more flat entry, "אזעקה", next to its existing security groups; it landed in the
+  phone's "עוד" menu. (Design B was removed in 0.1.148; this bullet is historical.)
 
 ## 4. Alarm discovery (backend, services/alarm.py)
 

@@ -99,7 +99,7 @@ leftover camera gets no thumbnail request (the list marks it `unavailable`, the 
 the add-on) answers `mode` and `restart_required` - the NVR routes answer at once, the background work starts with the
 next start.
 
-**Shell.** `nav.ts`: `NVR_LESS` (set from the session) filters every NVR href out of both designs' tabs, rail and phone
+**Shell.** `nav.ts`: `NVR_LESS` (set from the session) filters every NVR href out of the tabs, rail and phone
 bottom nav, and drops the live area / overview group that are otherwise always kept - the navigation is מפה, חשמל
 והתקנים, WisKey, הגדרות (plus the "מסכים" index). `sw-app.ts` answers an NVR route (live, investigate, camera health,
 kiosk) with a "מצב ללא NVR" panel pointing at the options and at הגדרות › חיבורים; inside the Lovelace card

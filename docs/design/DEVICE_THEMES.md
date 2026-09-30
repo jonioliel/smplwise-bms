@@ -353,7 +353,7 @@ desktop, a tile selected), `devices-layout-tiles-phone.png` (tile arrangement on
 
 Owner request 2026-09-29: the summary tiles (the building's counters, the area tiles of the "אריחים" view, the Live
 overview's "תמונת מצב" tiles) were too tall on a phone. `ui.tile_layout` (הגדרות › כללי › עיצוב הממשק, per installation,
-with a per-browser override like `ui.design`) picks their shape:
+with a per-browser override) picks their shape:
 
 | Value | Shape |
 |---|---|
