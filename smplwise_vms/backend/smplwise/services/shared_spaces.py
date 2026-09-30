@@ -1142,6 +1142,22 @@ def group_of_zone(conn: sqlite3.Connection, zone_id: str) -> Group | None:
     return groups(conn).get(zone_id)
 
 
+ALARM_MEMBER_MESSAGE = "רכיבי אזעקה אינם משותפים בין קומות"
+
+
+def alarm_owned(conn: sqlite3.Connection, entity_ids: list[str]) -> list[str]:
+    """Review M1: of `entity_ids`, the alarm panels and every control the alarm section owns (services/alarm.managed_controls).
+    Reach to those comes only from their own anchors and areas - a shared room must never widen an alarm permission to
+    another floor, so they are never members."""
+    ids = sorted(set(entity_ids))
+    if not ids:
+        return []
+    from . import alarm
+
+    owned = alarm.managed_controls(conn)
+    return [e for e in ids if e.split(".", 1)[0] == "alarm_control_panel" or e in owned]
+
+
 def member_rows(conn: sqlite3.Connection, zone_id: str | None = None, at: str | None = None) -> list[sqlite3.Row]:
     live = "added_at <= ? AND (removed_at IS NULL OR removed_at > ?)" if at else "removed_at IS NULL"
     try:
@@ -1739,6 +1755,9 @@ def plan_conversion(conn: sqlite3.Connection, zone: sqlite3.Row, other_floor_id:
         # floor keeps its anchor here and is not made a member (it would show twice)
         action = "drop_duplicate" if key in home_in else ("kept" if on_home else "member")
         anchors.append({"anchor_id": a["id"], "floor_id": other_floor_id, "resource_type": key[0], "resource_id": key[1], "name": _anchor_name(names, a), "action": action})
+    banned = alarm_owned(conn, [x["resource_id"] for x in anchors if x["action"] == "member" and x["resource_type"] == "ha_entity"])
+    if banned:  # review M1: the alarm's own controls are never shared between floors
+        raise SharedEditError(409, "alarm_managed", ALARM_MEMBER_MESSAGE, entity_ids=banned)
     hsub = room_subset(hdoc, zpoly)
     aligned = alignment_ok(lower_on_other, outline, odims) if dup is not None else True
     return {

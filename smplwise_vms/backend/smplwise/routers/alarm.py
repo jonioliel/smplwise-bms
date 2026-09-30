@@ -47,7 +47,9 @@ class _Scope:
 
     def __init__(self, conn: sqlite3.Connection, principal: Principal) -> None:
         self.conn, self.principal = conn, principal
-        self.placed = ha_scope.placements(conn)
+        # review M1: a shared room's mirror (`shared_from`) is a placement for every other entity, never for the alarm - reach
+        # to a panel or a bypass control comes only from its own anchors and circuits
+        self.placed = ha_scope.own_placements(conn)
         self.reach = {p: ha_scope.visible_floors(conn, principal, p) for p in (VIEW, ARM, DISARM, BYPASS)}
 
     def allowed(self, perm: str, entity_id: str) -> bool:

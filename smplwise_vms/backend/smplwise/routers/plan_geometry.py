@@ -218,10 +218,11 @@ def put_geometry(version_id: str, body: GeometryPut, principal: Principal = Depe
         return all(authorize(conn, principal, perm, ("floor", home_floor_id)).reason != "explicit_deny" for perm in ("map.edit", "map.read"))
 
     try:
-        from ..services import ha_scope
+        from ..services import alarm, ha_scope
 
+        # review L1: what the alarm section owns is never a circuit's switch from the other floor, whoever holds ha.entity.control
         planned = shared_spaces.plan_edits(conn, v["floor_id"], shared_items, echoed, deleted, can_write=can_write,
-                                           can_control=lambda eid: ha_scope.entity_allowed(conn, principal, eid, "ha.entity.control"))
+                                           can_control=lambda eid: ha_scope.entity_allowed(conn, principal, eid, "ha.entity.control") and not alarm.is_managed_control(conn, eid))
     except shared_spaces.SharedEditError as exc:
         raise ApiError(exc.status, exc.code, exc.message, details=exc.details)
     synced: list[str] = []

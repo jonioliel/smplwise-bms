@@ -172,7 +172,13 @@ test.describe('CR-010 alarm against the real backend (fake Home Assistant side)'
 
   test('the panels, the switcher and the Risco zones with their bypass switches', async ({ page }, info) => {
     await open(page, `/security/alarm?panel=${HOUSE}`);
-    await expect(page.locator('security-alarm [data-alarm-switcher] button')).toHaveCount(3, { timeout: 30000 });
+    // The three panels this fixture seeds (two Risco partitions + one PAI area). Not an exact count: live specs share one
+    // backend, and evidence-devices*.spec.ts seed their own alarm_control_panel.cr007_house through the same developer
+    // endpoints, which discovery rightly lists too (a run after them shows 4).
+    for (const p of [HOUSE, 'alarm_control_panel.risco_garden', 'alarm_control_panel.paradox_partition_area_1']) {
+      await expect(page.locator(`security-alarm [data-alarm-switcher] button[data-panel="${p}"]`), p).toHaveCount(1, { timeout: 30000 });
+    }
+    expect(await page.locator('security-alarm [data-alarm-switcher] button').count()).toBeGreaterThanOrEqual(3);
     await expect(page.locator(`security-alarm section.hero[data-alarm-panel="${HOUSE}"]`)).toBeVisible();
     await expect(page.locator('security-alarm article.zone')).toHaveCount(8);
     await expect(page.locator('security-alarm article.zone [data-bypass]')).toHaveCount(8);

@@ -21,7 +21,7 @@ from ..db import Database, bump_permission_revision, get_setting, set_setting
 log = logging.getLogger("smplwise.backup")
 
 FORMAT = 1
-PROJECT_TABLES = ["settings", "sites", "buildings", "floors", "plan_assets", "plan_versions", "plan_geometry", "catalog_items", "map_anchors", "recorders", "cameras", "spatial_zones", "shared_spaces", "shared_space_members", "cases", "case_items", "saved_views", "device_layouts"]
+PROJECT_TABLES = ["settings", "sites", "buildings", "floors", "plan_assets", "plan_versions", "plan_geometry", "catalog_items", "map_anchors", "recorders", "cameras", "spatial_zones", "shared_spaces", "shared_space_members", "cases", "case_items", "saved_views", "device_layouts", "alarm_zone_overrides"]
 ACCESS_TABLES = ["users", "groups", "group_members", "bindings", "custom_roles"]
 OPTIONAL_TABLES = {"audit": ["audit_log"], "events": ["events"]}
 FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path", "stylized_path"]}
@@ -56,7 +56,10 @@ def schema_version(conn: sqlite3.Connection) -> int:
 def snapshot(conn: sqlite3.Connection, include_access: bool = True, include_audit: bool = False, include_events: bool = False) -> dict[str, list[dict[str, Any]]]:
     existing = _tables(conn)
     tables = PROJECT_TABLES + (ACCESS_TABLES if include_access else []) + (OPTIONAL_TABLES["audit"] if include_audit else []) + (OPTIONAL_TABLES["events"] if include_events else [])
-    return {t: [dict(r) for r in conn.execute(f"SELECT * FROM {t}").fetchall()] for t in tables if t in existing}
+    out = {t: [dict(r) for r in conn.execute(f"SELECT * FROM {t}").fetchall()] for t in tables if t in existing}
+    if "settings" in out:  # review M3: what a restore never writes back (secrets, identity, pairing) never leaves in an archive either
+        out["settings"] = [r for r in out["settings"] if r.get("key") not in SETTINGS_KEEP]
+    return out
 
 
 def _file_refs(data: dict[str, list[dict[str, Any]]]) -> list[str]:
