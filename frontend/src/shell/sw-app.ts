@@ -27,6 +27,7 @@ import '../screens/wiskey-embed';
 import '../screens/devices-building';
 import '../screens/devices-area';
 import '../screens/security-alarm';
+import '../screens/schedule-editor';
 import '../screens/live-overview';
 import '../screens/live-wall';
 import '../screens/live-camera';

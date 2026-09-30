@@ -627,3 +627,107 @@ export function slotSummary(slot: DraftSlot, meta: MetaMap): string {
   const who = names.length > 1 ? `${names.length} התקנים` : names[0] ?? '';
   return `${actionLabel({ service: first.service, data: first.data })}${who ? ` · ${who}` : ''}${g.length > 1 ? ` (+${g.length - 1})` : ''}`;
 }
+
+// ------------------------------------------------------------------------------------------------ the editor's slot and defaults
+
+/** A slot in the editor: the draft slot plus an identity that survives re-sorting (selection, focus). */
+export interface EditSlot extends IntentSlot {
+  uid: string;
+}
+
+let uidSeq = 0;
+export const newUid = (): string => `s${Date.now().toString(36)}${(++uidSeq).toString(36)}`;
+
+export const withUid = (s: DraftSlot | IntentSlot): EditSlot => ({ ...s, uid: (s as EditSlot).uid ?? newUid() });
+
+/** A copy with fresh identities (the split override starts from the linked slots). */
+export function cloneSlots(slots: EditSlot[]): EditSlot[] {
+  return slots.map((s) => ({ ...s, uid: newUid(), actions: s.actions.map((a) => ({ ...a, data: { ...a.data } })) }));
+}
+
+/** The plain draft slots: no identity, no intent. */
+export function plainSlots(slots: EditSlot[]): DraftSlot[] {
+  return slots.map((s) => ({ start: s.start, stop: s.stop, actions: s.actions.map((a) => ({ service: a.service, entity_id: a.entity_id, data: { ...a.data } })) }));
+}
+
+/** The arguments a service starts with when chosen (required ones get a sensible value). */
+export function defaultDataFor(specs: ArgSpec[], meta: EntityMeta | undefined): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const s of specs) {
+    if (!s.required) continue;
+    if (s.name === 'temperature') {
+      const min = Number(meta?.attributes.min_temp ?? s.min ?? 16);
+      const max = Number(meta?.attributes.max_temp ?? s.max ?? 30);
+      out.temperature = Math.min(max, Math.max(min, 23));
+    } else if (s.choices?.length) out[s.name] = s.choices.includes('cool') && s.name === 'hvac_mode' ? 'cool' : s.choices[0];
+    else if (s.type === 'int' || s.type === 'float') out[s.name] = Math.min(s.max ?? 100, Math.max(s.min ?? 0, 50));
+    else if (s.type === 'enum' || s.type === 'str') out[s.name] = '';
+  }
+  return out;
+}
+
+// ------------------------------------------------------------------------------------------------ time parts (the slot panel)
+
+export type TimeKind = 'fixed' | 'sunrise' | 'sunset' | 'end' | 'none';
+
+export interface TimeParts {
+  kind: TimeKind;
+  /** "HH:MM" for a fixed time. */
+  time: string;
+  /** Minutes after (positive) or before (negative) the sun. */
+  offset: number;
+}
+
+/** A stored time as the slot panel's controls read it (a stop of "00:00:00" is "end of day", a null stop is none). */
+export function timeParts(raw: string | null, isStop = false): TimeParts {
+  if (raw == null) return { kind: 'none', time: '08:00', offset: 0 };
+  if (isStop && raw === '00:00:00') return { kind: 'end', time: '00:00', offset: 0 };
+  const spec = parseTime(raw);
+  if (!spec) return { kind: 'fixed', time: '00:00', offset: 0 };
+  if (spec.kind === 'sun') return { kind: spec.event, time: '00:00', offset: spec.offset_min };
+  return { kind: 'fixed', time: spec.time, offset: 0 };
+}
+
+/** The stored form of the panel's controls: "HH:MM:00", "sunset+HH:MM:00", "00:00:00" (end of day), null (none). */
+export function timeFromParts(p: TimeParts): string | null {
+  if (p.kind === 'none') return null;
+  if (p.kind === 'end') return '00:00:00';
+  if (p.kind === 'fixed') {
+    const m = /^(\d{1,2}):(\d{2})/.exec(p.time);
+    return m ? `${m[1].padStart(2, '0')}:${m[2]}:00` : '00:00:00';
+  }
+  const a = Math.abs(Math.round(p.offset));
+  return `${p.kind}${p.offset < 0 ? '-' : '+'}${String(Math.floor(a / 60)).padStart(2, '0')}:${String(a % 60).padStart(2, '0')}:00`;
+}
+
+// ------------------------------------------------------------------------------------------------ comparing two versions (the conflict dialog)
+
+export interface DraftDifference {
+  label: string;
+  mine: string;
+  theirs: string;
+}
+
+const REPEAT_WORDS = { repeat: 'חוזר', pause: 'פעם אחת, מושהה', single: 'פעם אחת, נמחק' } as const;
+
+/** What differs between the person's draft and the version that arrived (for "השוואה"): a short line per field. */
+export function compareDrafts(mine: ScheduleDraft, theirs: ScheduleDraft, names: (id: string | null) => string, daysLabel: (d: ScheduleDraft['weekdays']) => string): DraftDifference[] {
+  const out: DraftDifference[] = [];
+  const push = (label: string, a: string, b: string) => {
+    if (a !== b) out.push({ label, mine: a, theirs: b });
+  };
+  push('שם', (mine.name ?? '').trim() || 'ללא שם', (theirs.name ?? '').trim() || 'ללא שם');
+  push('ימים', daysLabel(mine.weekdays), daysLabel(theirs.weekdays));
+  push('תקופה', `${mine.start_date ?? '—'} – ${mine.end_date ?? '—'}`, `${theirs.start_date ?? '—'} – ${theirs.end_date ?? '—'}`);
+  push('חזרה', REPEAT_WORDS[mine.repeat], REPEAT_WORDS[theirs.repeat]);
+  const cond = (d: ScheduleDraft) => (d.conditions.items.length ? `${d.conditions.items.map((c) => describeCondition(c, names(c.entity_id))).join(d.conditions.type === 'and' ? ' וגם ' : ' או ')}${d.conditions.track ? ' (בדיקה מתמשכת)' : ''}` : 'ללא');
+  push('תנאים', cond(mine), cond(theirs));
+  const slots = (d: ScheduleDraft) =>
+    d.slots.length
+      ? d.slots
+          .map((s) => `${formatTime(parseTime(s.start))}${s.stop ? `–${formatTime(parseTime(s.stop))}` : ''}: ${s.actions.map((a) => `${actionLabel(a)} · ${names(a.entity_id)}`).join(', ') || '—'}`)
+          .join('\n')
+      : 'ללא משבצות';
+  push('משבצות', slots(mine), slots(theirs));
+  return out;
+}

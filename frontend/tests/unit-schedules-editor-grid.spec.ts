@@ -34,6 +34,7 @@ import {
 const SUN = { sunrise: 390, sunset: 1095 }; // 06:30, 18:15
 const o = (step = 15, extra: Partial<OpOptions> = {}): OpOptions => ({ step, sun: SUN, ...extra });
 const slot = (start: string, stop: string | null, service = 'light.turn_on'): DraftSlot => ({ start, stop, actions: [{ service, entity_id: 'light.a', data: {} }] });
+const NONE: DraftSlot[] = [];
 
 test.describe('snapping and geometry', () => {
   test('snap rounds to the step and stays inside the day', () => {
@@ -84,17 +85,17 @@ test.describe('snapping and geometry', () => {
 
 test.describe('creating slots by dragging', () => {
   test('a drag on an empty track makes a snapped slot with no actions', () => {
-    const r = createSlot([], 483, 571, o())!;
+    const r = createSlot(NONE, 483, 571, o())!;
     expect(r.slots).toHaveLength(1);
     expect(r.slots[0]).toEqual({ start: '08:00:00', stop: '09:30:00', actions: [] });
     expect(r.index).toBe(0);
   });
 
   test('a backwards drag is the same slot; a tiny drag is one step long', () => {
-    expect(createSlot([], 570, 480, o())!.slots[0].start).toBe('08:00:00');
-    const t = createSlot([], 481, 482, o())!;
+    expect(createSlot(NONE, 570, 480, o())!.slots[0].start).toBe('08:00:00');
+    const t = createSlot(NONE, 481, 482, o())!;
     expect(t.slots[0]).toMatchObject({ start: '08:00:00', stop: '08:15:00' });
-    const t5 = createSlot([], 481, 482, o(5))!;
+    const t5 = createSlot(NONE, 481, 482, o(5))!;
     expect(t5.slots[0]).toMatchObject({ start: '08:00:00', stop: '08:05:00' });
   });
 
@@ -111,7 +112,7 @@ test.describe('creating slots by dragging', () => {
   });
 
   test('"+ משבצת" takes an hour in the first free gap, or splits the longest slot when the day is full', () => {
-    const r = addSlot([], o())!;
+    const r = addSlot(NONE, o())!;
     expect(r.slots[0]).toMatchObject({ start: '08:00:00', stop: '09:00:00' });
     const full = [slot('00:00:00', '06:00:00'), slot('06:00:00', '00:00:00', 'light.turn_off')];
     const s = addSlot(full, o())!;
