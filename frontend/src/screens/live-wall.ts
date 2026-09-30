@@ -10,6 +10,7 @@ import '../components/sw-dialog';
 import { demoScene, demoWall } from '../fixtures/catalog';
 import { navigate } from '../router';
 import { registerScreenEdit } from '../shell/screen-edit';
+import { PhoneWidth, phoneRestricted } from '../shell/phone';
 import { isApi } from '../api/session';
 import { snapshotUrl, type ProductSettings, type Transport } from '../api/media';
 import { listCameras, updateCamera } from '../api/maps';
@@ -54,6 +55,8 @@ const VIEWS = [
 /** SC07 — multi-camera grid (board 1 screen 6): real streams (sub profile) with snapshot posters, or the demo grid. */
 @customElement('live-wall')
 export class LiveWall extends LitElement {
+  /** Below 768 px the toolbar is one short row of compact selects (mobile audit 2026-09-30). */
+  private readonly phone = new PhoneWidth(this);
   /** Comma-separated camera ids chosen on a floor map (T043); empty = all cameras. */
   @property() cameras = '';
   @state() private count = 4;
@@ -206,6 +209,36 @@ export class LiveWall extends LitElement {
     .settings-name {
       flex: 1;
       font-size: var(--sw-fs-sm);
+    }
+    /* the phone's toolbar (mobile audit 2026-09-30): quality, count and columns as three compact selects and the kiosk button, one row */
+    .pbar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      inline-size: 100%;
+    }
+    .pbar sw-field {
+      flex: 1 1 0;
+      inline-size: auto;
+      min-inline-size: 0;
+    }
+    .pbar select {
+      min-block-size: 40px;
+      padding-inline: 8px;
+      font-size: var(--sw-fs-xs);
+    }
+    .pbar .kiosk {
+      flex: none;
+      inline-size: 40px;
+      block-size: 40px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface);
+      color: var(--sw-text-2);
+      cursor: pointer;
+      padding: 0;
     }
     @media (max-width: 767px) {
       .grid {
@@ -440,7 +473,7 @@ export class LiveWall extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.offScreenEdit = registerScreenEdit({ id: 'wall-arrange', label: 'סידור הקיר', icon: 'grid', can: () => isApi() && this.canManage && !!this.cams?.length, run: () => this.openSettings() });
+    this.offScreenEdit = registerScreenEdit({ id: 'wall-arrange', label: 'סידור הקיר', icon: 'grid', can: () => isApi() && this.canManage && !!this.cams?.length && !phoneRestricted('wall_arrange'), run: () => this.openSettings() }); // hidden on a phone with the option "הסתרת סידור קיר המצלמות בנייד" (UX guard, not security)
     void this.load();
     this.posterTimer = window.setInterval(() => {
       if (!document.hidden) this.posterBust = Date.now();
@@ -704,10 +737,10 @@ export class LiveWall extends LitElement {
         })}
       </div>
       ${wanted.length ? html`<div class="note" data-wall-picked>מפה: ${shown.length} מצלמות שנבחרו${shown.length < wanted.length ? ` (${wanted.length - shown.length} לא זמינות)` : ''} · <a href="#/live/wall">כל המצלמות</a></div>` : nothing}
-      <div class="note" data-wall-cols-row style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">עמודות:
+      ${this.phone.matches ? nothing : html`<div class="note" data-wall-cols-row style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">עמודות:
         ${[0, 1, 2, 3, 4, 5, 6].map((n) => html`<button class="colbtn ${this.colsOverride === n ? 'on' : ''}" data-wall-cols-set=${n} @click=${() => this.setCols(n)}>${n === 0 ? 'אוטו' : n}</button>`)}
-      </div>
-      <div class="note">${shown.length} מתוך ${cams.length} מצלמות · פרופיל ${profile === 'sub' ? 'משני' : 'ראשי'} · תעבורה ${transport} · מכסת זרמים ${cap}${shown.length > cap ? ` — מעבר למכסה מוצג צילום בלבד` : ''} · צילומים מתרעננים כל דקה</div>
+      </div>`}
+      <div class="note">${shown.length} מתוך ${cams.length} מצלמות · פרופיל ${profile === 'sub' ? 'משני' : 'ראשי'} · תעבורה ${transport} · מכסת זרמים ${cap}${shown.length > cap ? ` — מעבר למכסה מוצג צילום בלבד` : ''} · צילומים מתרעננים כל דקה${this.phone.matches && this.capNote ? html`<br /><span data-wall-cap-note>מוצגות ${this.capNote.live} מצלמות חיות מתוך ${this.capNote.of} · המכסה: הגדרות › ${this.capNote.where}</span>` : nothing}</div>
     `;
   }
 
@@ -731,19 +764,40 @@ export class LiveWall extends LitElement {
     window.open(url, '_blank', 'noopener');
   }
 
+  /** The phone's one-row toolbar: quality, camera count and columns as native selects (two taps to change any of them), and the
+   * kiosk button. The cap note lives in the footer line on a phone (renderApi). */
+  private renderPhoneBar(api: boolean) {
+    const short = (p: 'sub' | 'main') => (p === 'sub' ? 'רגילה' : 'גבוהה');
+    return html`<div slot="actions" class="pbar" data-wall-phone-bar>
+      <sw-field><select aria-label="איכות" data-wall-quality title="איכות הקיר במכשיר הזה (נשמרת בדפדפן)" @change=${(e: Event) => this.setQuality((e.target as HTMLSelectElement).value)}>
+        <option value="auto" ?selected=${this.stream === 'auto'}>איכות: אוטו</option>
+        ${(['sub', 'main'] as const).map((p) => html`<option value=${p} ?selected=${this.stream === p}>איכות: ${short(p)}</option>`)}
+      </select></sw-field>
+      <sw-field><select aria-label="מספר מצלמות" data-wall-count-select @change=${(e: Event) => { this.setCount(Number((e.target as HTMLSelectElement).value)); if (this.cameras) navigate('/live/wall'); }}>
+        ${this.cameras ? html`<option value="" selected disabled>נבחרו במפה</option>` : nothing}
+        ${COUNTS.map((n) => html`<option value=${n} ?selected=${n === this.count && !this.cameras}>${n} מצלמות</option>`)}
+      </select></sw-field>
+      ${api ? html`<sw-field><select aria-label="עמודות" data-wall-cols-select @change=${(e: Event) => this.setCols(Number((e.target as HTMLSelectElement).value))}>
+        ${[0, 1, 2, 3, 4, 5, 6].map((n) => html`<option value=${n} ?selected=${this.colsOverride === n}>עמודות: ${n === 0 ? 'אוטו' : n}</option>`)}
+      </select></sw-field>` : nothing}
+      <button type="button" class="kiosk" data-open-kiosk aria-label="קיוסק" title="פותח את הקיוסק בלשונית חדשה" @click=${() => this.openKiosk()}><sw-icon name="expand" size=${18}></sw-icon></button>
+    </div>`;
+  }
+
   render() {
     const api = isApi();
     const total = api ? this.cams?.length ?? 0 : demoWall.length;
     const body = api ? this.renderApi() : this.renderDemo(); // first: it works out the budget note the toolbar shows
     return html`
       <sw-page heading="כל המצלמות" subheading="${total} מצלמות${api ? '' : ` · תצוגה: ${VIEWS.find((v) => v.id === this.view)?.label} · נתוני הדגמה`}" wide>
-        ${api ? nothing : html`<sw-field slot="actions"><select aria-label="תצוגה" @change=${(e: Event) => (this.view = (e.target as HTMLSelectElement).value)}>${VIEWS.map((v) => html`<option value=${v.id} ?selected=${v.id === this.view}>${v.label}</option>`)}</select></sw-field>`}
-        <sw-field slot="actions"><select aria-label="איכות" data-wall-quality title="איכות הקיר במכשיר הזה (נשמרת בדפדפן)" @change=${(e: Event) => this.setQuality((e.target as HTMLSelectElement).value)}><option value="auto" ?selected=${this.stream === 'auto'}>איכות: ברירת מחדל (${this.stream === 'auto' ? (this.wallProfile() === 'sub' ? 'רגילה' : 'גבוהה') : this.defaultProfile() === 'sub' ? 'רגילה' : 'גבוהה'})</option>${(['sub', 'main'] as const).map((p) => html`<option value=${p} ?selected=${this.stream === p}>איכות: ${p === 'sub' ? 'רגילה' : 'גבוהה'}</option>`)}</select></sw-field>
-        ${api && this.capNote ? html`<span slot="actions" class="note" data-wall-cap-note>מוצגות ${this.capNote.live} מצלמות חיות מתוך ${this.capNote.of} · המכסה: הגדרות › ${this.capNote.where}</span>` : nothing}
-        <div slot="actions" class="layouts" role="group" aria-label="פריסה">
+        ${this.phone.matches ? this.renderPhoneBar(api) : nothing}
+        ${api || this.phone.matches ? nothing : html`<sw-field slot="actions"><select aria-label="תצוגה" @change=${(e: Event) => (this.view = (e.target as HTMLSelectElement).value)}>${VIEWS.map((v) => html`<option value=${v.id} ?selected=${v.id === this.view}>${v.label}</option>`)}</select></sw-field>`}
+        ${this.phone.matches ? nothing : html`<sw-field slot="actions"><select aria-label="איכות" data-wall-quality title="איכות הקיר במכשיר הזה (נשמרת בדפדפן)" @change=${(e: Event) => this.setQuality((e.target as HTMLSelectElement).value)}><option value="auto" ?selected=${this.stream === 'auto'}>איכות: ברירת מחדל (${this.stream === 'auto' ? (this.wallProfile() === 'sub' ? 'רגילה' : 'גבוהה') : this.defaultProfile() === 'sub' ? 'רגילה' : 'גבוהה'})</option>${(['sub', 'main'] as const).map((p) => html`<option value=${p} ?selected=${this.stream === p}>איכות: ${p === 'sub' ? 'רגילה' : 'גבוהה'}</option>`)}</select></sw-field>`}
+        ${api && this.capNote && !this.phone.matches ? html`<span slot="actions" class="note" data-wall-cap-note>מוצגות ${this.capNote.live} מצלמות חיות מתוך ${this.capNote.of} · המכסה: הגדרות › ${this.capNote.where}</span>` : nothing}
+        ${this.phone.matches ? nothing : html`<div slot="actions" class="layouts" role="group" aria-label="פריסה">
           ${COUNTS.map((n) => html`<button class=${n === this.count && !this.cameras ? 'on' : ''} @click=${() => { this.setCount(n); if (this.cameras) navigate('/live/wall'); }} aria-pressed=${n === this.count && !this.cameras}>${n}</button>`)}
         </div>
-        <sw-button slot="actions" variant="ghost" icon="expand" data-open-kiosk title="פותח את הקיוסק בלשונית חדשה" @click=${() => this.openKiosk()}>קיוסק</sw-button>
+        <sw-button slot="actions" variant="ghost" icon="expand" data-open-kiosk title="פותח את הקיוסק בלשונית חדשה" @click=${() => this.openKiosk()}>קיוסק</sw-button>`}
         ${body}
         ${this.renderSettingsDialog()}
       </sw-page>

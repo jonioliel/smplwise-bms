@@ -259,7 +259,8 @@ test.describe.serial('plan studio phase 3 (SW A)', () => {
     expect((await draftOf()).doc.walls.every((w) => w.source === 'auto')).toBe(true);
   });
 
-  test('phone: detection is available, candidate editing is not', async ({ page }) => {
+  // Owner decision 2026-09-30: the plan editor is not offered on a phone (evidence-mobile-structure.spec.ts): skipped, not deleted.
+  test.skip('phone: detection is available, candidate editing is not', async ({ page }) => {
     test.setTimeout(180_000);
     await page.setViewportSize({ width: 390, height: 844 });
     await openDetect(page);

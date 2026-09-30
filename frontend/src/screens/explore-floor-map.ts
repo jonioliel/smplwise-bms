@@ -19,6 +19,7 @@ import { demoScene } from '../fixtures/catalog';
 import { t } from '../i18n/he';
 import { navigate } from '../router';
 import { registerScreenEdit } from '../shell/screen-edit';
+import { PhoneWidth, phoneRestricted } from '../shell/phone';
 import { cameraState, entityName, loadMap, updateAnchor, type MapBundle } from '../api/maps';
 import { snapshotUrl } from '../api/media';
 import { entryFloor, findFloor, loadTree, type CatalogTree } from '../api/catalog';
@@ -106,6 +107,8 @@ function floorShort(name: string): string {
 
 @customElement('explore-floor-map')
 export class ExploreFloorMap extends LitElement {
+  /** The phone options (ui.mobile): re-render when the width crosses 768 px or an option changes. */
+  private readonly phone = new PhoneWidth(this);
   @property() floorId = 'f0';
   @property() screenState: ScreenState = 'ready';
   /** Search hits: zone id to highlight and zoom to; camera / entity id whose pin to open. */
@@ -477,6 +480,14 @@ export class ExploreFloorMap extends LitElement {
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-3);
       padding: 12px 14px;
+      /* owner bug 2026-09-30: on a phone the stage is shorter than the list and clips it (.stage is overflow: hidden), so
+         the toggles at the bottom were unreachable. The panel is capped to the stage and scrolls itself; the swipe
+         stays inside it (no chaining to the page or the map behind). */
+      max-block-size: calc(100% - 50px); /* the 12 px gap above and below, plus this box's own padding and border (content-box) */
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      touch-action: pan-y;
+      -webkit-overflow-scrolling: touch;
     }
     .panel h3 {
       margin: 0;
@@ -519,6 +530,15 @@ export class ExploreFloorMap extends LitElement {
       display: flex;
       gap: 6px;
       align-items: center;
+    }
+    .panel .pexport {
+      margin-block-start: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
     }
     .pickbar {
       position: absolute;
@@ -902,7 +922,7 @@ export class ExploreFloorMap extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.offScreenEdit = registerScreenEdit({ id: 'floor-map-edit', label: 'עריכת המפה', icon: 'edit', can: () => (this.bundle ? this.bundle.permissions.edit : !isApi()), run: () => navigate(`/explore/floors/${this.floorId}/edit`) });
+    this.offScreenEdit = registerScreenEdit({ id: 'floor-map-edit', label: 'עריכת המפה', icon: 'edit', can: () => !phoneRestricted('structure') && (this.bundle ? this.bundle.permissions.edit : !isApi()), run: () => navigate(`/explore/floors/${this.floorId}/edit`) });
     this.narrow = this.mq.matches;
     this.mq.addEventListener('change', this.onMq);
     window.addEventListener('keydown', this.onKey);
@@ -1582,6 +1602,10 @@ export class ExploreFloorMap extends LitElement {
     this.saveView = null;
     this.savedView = null;
     if (on) this.close();
+    if (on && this.narrow) {
+      this.sideList = false; // a phone shows one floating sheet at a time (they share the same corner)
+      this.panel = false;
+    }
   }
 
   /** Rectangle selection from the canvas: the cameras inside the box join the selection (T043). */
@@ -1612,8 +1636,18 @@ export class ExploreFloorMap extends LitElement {
   }
 
   /** Side list (2.10): cameras and HA entities on this plan; a click zooms to the pin and opens its card. */
+  /** The layers panel, the side list and the camera picker float over the same part of the map: on a phone only one is open. */
+  private togglePanel() {
+    this.panel = !this.panel;
+    if (this.panel && this.narrow) this.sideList = false;
+  }
+
   private toggleSideList() {
     this.sideList = !this.sideList;
+    if (this.sideList && this.narrow) {
+      this.panel = false;
+      if (this.multi) this.setMulti(false);
+    }
     try {
       localStorage.setItem('sw.map.sidelist', this.sideList ? '1' : '0');
     } catch {
@@ -2071,7 +2105,7 @@ export class ExploreFloorMap extends LitElement {
             <sw-button size="sm" icon="history" ?disabled=${!a.camera} @click=${() => a.camera && navigate('/investigate/playback', { camera: a.camera.id })}>${t('camera.recordings')}</sw-button>`
           : nothing}
         ${a.resource_type === 'ha_entity' && b.permissions.edit && a.entity ? html`<sw-button variant="ghost" size="sm" icon="edit" data-rename @click=${() => (this.renaming = { id: a.id, value: a.label ?? '' })}>שנה שם</sw-button>` : nothing}
-        ${b.permissions.edit ? html`<sw-button variant="ghost" size="sm" icon="edit" @click=${() => navigate(`/explore/floors/${b.floorId}/edit`)}>עריכה</sw-button>` : nothing}`;
+        ${b.permissions.edit && !this.phone.restricted('structure') ? html`<sw-button variant="ghost" size="sm" icon="edit" @click=${() => navigate(`/explore/floors/${b.floorId}/edit`)}>עריכה</sw-button>` : nothing}`;
     }
     if (this.narrow || !this.anchor || this.shows3d) { // over the 3D a 2D pin position means nothing: always the drawer
       return html`<sw-drawer open heading=${heading} subheading=${sub} @close=${this.close}>${body}<div slot="footer">${footer}</div></sw-drawer>`;
@@ -2116,6 +2150,18 @@ export class ExploreFloorMap extends LitElement {
         ? html`<div class="prow"><span class="lbl">תמונת התוכנית<span class="cnt">${this.planImage ? 'הקובץ שנטען, מתחת למבנה' : 'מוסתרת · המבנה על רקע נקי'}</span></span><sw-toggle ?checked=${this.planImage} label="תמונת התוכנית" labelHidden data-plan-background @change=${(e: CustomEvent<{ checked: boolean }>) => this.setPlanImage(e.detail.checked)}></sw-toggle></div>`
         : nothing}
       <div class="pnote"><sw-icon name="shield" size=${14}></sw-icon><span>מתג משנה תצוגה בלבד; ייבוא ישות אינו מעניק הרשאת שליטה בה.</span></div>
+      ${this.renderSkinExport()}
+    </div>`;
+  }
+
+  /** The floor's control images for a future skin (an admin export, not an everyday tool): out of the main toolbar since
+   * 2026-09-30 - a small ghost button at the foot of the layers panel, only in the 3D view, only for editors, and not on a phone while the option "הסתרת כפתור תמונות בקרה בנייד" is on (the default). */
+  private renderSkinExport() {
+    const b = this.bundle;
+    if (!this.shows3d || b?.source !== 'api' || !b.permissions.edit || this.phone.restricted('control_images')) return nothing;
+    return html`<div class="pexport">
+      <sw-button variant="ghost" size="sm" icon="image" data-skin-controls-export ?disabled=${this.skinBusy} title="תמונות הבקרה של הקומה לסקין עתידי (אורות כבויים / דולקים), מהמבנה המפורסם, בלי תוויות — נשמרות במתקן בלבד" @click=${() => this.exportControlImages()}>${this.skinBusy ? 'מצלם…' : 'תמונות בקרה'}</sw-button>
+      ${this.skinNote ? html`<span class="note" data-skin-note>${this.skinNote}</span>` : nothing}
     </div>`;
   }
 
@@ -2164,9 +2210,9 @@ export class ExploreFloorMap extends LitElement {
     }
     if (this.screenState === 'empty' || b.planStatus === 'none') {
       return html`<div class="cover">
-        <sw-state-panel state="empty" heading=${t('floor.noPlan')} hint=${b.permissions.import ? t('floor.noPlanHint') : 'עורך המפות של הקומה יכול להעלות תוכנית.'}>
+        <sw-state-panel state="empty" heading=${t('floor.noPlan')} hint=${this.phone.restricted('structure') ? 'העלאת תוכנית זמינה במחשב.' : b.permissions.import ? t('floor.noPlanHint') : 'עורך המפות של הקומה יכול להעלות תוכנית.'}>
           <div style="display:flex;gap:8px;margin-block-start:10px;justify-content:center;flex-wrap:wrap">
-            ${b.permissions.import ? html`<sw-button variant="primary" icon="upload" @click=${() => navigate(`/explore/floors/${b.floorId}/import`)}>${t('floor.uploadPlan')}</sw-button>` : nothing}
+            ${b.permissions.import && !this.phone.restricted('structure') ? html`<sw-button variant="primary" icon="upload" @click=${() => navigate(`/explore/floors/${b.floorId}/import`)}>${t('floor.uploadPlan')}</sw-button>` : nothing}
             <sw-button icon="list" @click=${() => navigate('/live/wall')}>${t('floor.listView')}</sw-button>
           </div>
         </sw-state-panel>
@@ -2264,10 +2310,7 @@ export class ExploreFloorMap extends LitElement {
           <sw-button icon="cube" aria-pressed=${this.shows3d} data-view-3d ?disabled=${!this.shows3d && (!this.can3d || this.threeState === 'loading')}
             title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? 'אין מבנה מפורסם לקומה הזו' : 'מקש 3'} @click=${() => this.toggle3d()}>${this.shows3d ? '2D' : '3D'}</sw-button>
           ${webglAvailable() ? nothing : html`<span class="note" data-3d-unavailable>${WEBGL_UNAVAILABLE_HE}</span>`}
-          ${this.shows3d && b?.source === 'api' && b.permissions.edit
-            ? html`<sw-button icon="image" data-skin-controls-export ?disabled=${this.skinBusy} title="תמונות הבקרה של הקומה לסקין עתידי (אורות כבויים / דולקים), מהמבנה המפורסם, בלי תוויות — נשמרות במתקן בלבד" @click=${() => this.exportControlImages()}>${this.skinBusy ? 'מצלם…' : 'תמונות בקרה'}</sw-button>${this.skinNote ? html`<span class="note" data-skin-note>${this.skinNote}</span>` : nothing}`
-            : nothing}
-          <sw-button icon="layers" aria-pressed=${this.panel} @click=${() => (this.panel = !this.panel)}>${t('floor.layers')}</sw-button>
+          <sw-button icon="layers" aria-pressed=${this.panel} @click=${() => this.togglePanel()}>${t('floor.layers')}</sw-button>
           ${b && b.source === 'api' ? html`<sw-button icon="list" aria-pressed=${this.sideList} data-sidelist-toggle @click=${() => this.toggleSideList()}>רשימה</sw-button>${nvrLess() ? nothing : html`<sw-button icon="grid" aria-pressed=${this.multi} data-multi-toggle @click=${() => this.setMulti(!this.multi)}>בחירת מצלמות</sw-button>`}` : nothing}
           <sw-field style="min-inline-size:280px"><select aria-label=${t('floor.switcher')} @change=${(e: Event) => navigate(`/explore/floors/${(e.target as HTMLSelectElement).value}`)}>${floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${bidi(f.name)} · ${f.cameraCount} מצלמות${f.hasPlan ? '' : ' · אין תוכנית'}</option>`)}</select></sw-field>
         </div>

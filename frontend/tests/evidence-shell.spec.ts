@@ -142,6 +142,14 @@ test.describe('CR-013 shell on the demo data', () => {
     await expect(page.locator('sw-app explore-floor-map sw-button', { hasText: 'עריכת תוכנית' })).toHaveCount(0);
     const menu = page.locator('sw-app sw-user-menu [data-user-menu]');
     const item = menu.locator('[data-menu-screen-edit="floor-map-edit"]');
+    if (phone(info)) {
+      // owner decision 2026-09-30: no structure management on a phone - "עריכת המפה" is not offered (evidence-mobile-structure.spec.ts)
+      await page.waitForTimeout(1500); // the map has registered its edit mode by now (it just does not pass the phone check)
+      await meButton(page, info).click();
+      await expect(menu).toBeVisible();
+      await expect(menu.locator('[data-menu-screen-edit]')).toHaveCount(0);
+      return;
+    }
     await expect.poll(async () => {
       await meButton(page, info).click();
       const n = await item.count();

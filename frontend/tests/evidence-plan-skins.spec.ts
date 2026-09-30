@@ -92,7 +92,10 @@ test.describe.serial('plan skins 2a (SW A)', () => {
     await toggle.click();
     const el = host.locator('sw-plan-3d[data-floor-3d]');
     await expect(el).toHaveAttribute('data-ready', '', { timeout: 30000 });
-    const button = host.locator('[data-skin-controls-export]');
+    // since 2026-09-30 the export is not in the main toolbar: it sits at the foot of the layers panel
+    await expect(host.locator('.tools [data-skin-controls-export]')).toHaveCount(0);
+    await host.getByRole('button', { name: 'שכבות' }).click();
+    const button = host.locator('[data-layers-panel] [data-skin-controls-export]');
     await expect(button).toBeVisible();
     await button.click();
     await expect(host.locator('[data-skin-note]')).toContainText('נשמרו במתקן בלבד', { timeout: 30000 });

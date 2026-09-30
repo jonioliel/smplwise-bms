@@ -88,6 +88,13 @@ export class SwTabs extends LitElement {
     button:hover {
       color: var(--sw-text);
     }
+    /* touch targets (mobile audit 2026-09-30): page-level tab strips were 29-37 px high on a phone; a host may still ask for more */
+    @media (max-width: 767px) and (pointer: coarse) {
+      a,
+      button {
+        min-block-size: var(--sw-tab-min-h, 44px);
+      }
+    }
     .on {
       background: var(--sw-surface);
       color: var(--sw-accent-text);

@@ -19,6 +19,8 @@ export interface ProductSettings {
   'ui.nav_size'?: NavSizeWire;
   /** Installation-wide tab order and visibility per navigation section (הגדרות › כללי › לשוניות); `{}` = the built-in tabs. */
   'ui.tabs'?: TabsConfig;
+  /** The phone UX guards (הגדרות › כללי › אפשרויות נייד, owner 2026-09-30): which kinds of management the phone UI hides - shell/phone.ts. */
+  'ui.mobile'?: Record<string, boolean>;
   /** The floor the map's floor tab opens first (an existing floor id); '' = the first floor the user may read. */
   'map.default_floor'?: string;
   'media.transport_default': Transport;

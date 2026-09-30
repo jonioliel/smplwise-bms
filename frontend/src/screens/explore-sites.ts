@@ -14,12 +14,15 @@ import { navigate } from '../router';
 import { createBuilding, createSite, deleteBuilding, deleteImage, deleteSite, imageSrc, loadTree, updateBuilding, updateSite, uploadImage, type CatalogTree } from '../api/catalog';
 import { describeError } from '../api/client';
 import type { Building, Site } from '../api/types';
+import { PhoneWidth } from '../shell/phone';
 
 const SITE_SCENE = ['house', 'building', 'warehouse'] as const;
 
 /** SC02 — sites & buildings (board 1 screen 2) on real catalogue data; create sites and buildings. */
 @customElement('explore-sites')
 export class ExploreSites extends LitElement {
+  /** Owner decision 2026-09-30 (option ui.mobile hide_structure, default on): no structure management on a phone (create / edit / delete of sites and buildings). A UX guard only; the server enforces permissions. */
+  private readonly phone = new PhoneWidth(this);
   @state() private tab = 'all';
   @state() private tree: CatalogTree | null = null;
   @state() private dialog: { kind: 'site' } | { kind: 'building'; site: Site } | { kind: 'edit-site'; site: Site } | { kind: 'edit-building'; building: Building; site: Site } | { kind: 'delete-site'; site: Site } | { kind: 'delete-building'; building: Building; site: Site } | null = null;
@@ -187,6 +190,7 @@ export class ExploreSites extends LitElement {
   }
 
   private open(d: typeof this.dialog) {
+    if (this.phone.restricted('structure')) return;
     this.formName = d && d.kind === 'edit-site' ? d.site.name : d && d.kind === 'edit-building' ? d.building.name : '';
     this.formAddress = d && d.kind === 'edit-site' ? d.site.address : '';
     this.error = '';
@@ -282,7 +286,7 @@ export class ExploreSites extends LitElement {
   private openSite(s: Site) {
     const first = s.buildings?.[0];
     if (first) navigate(`/explore/buildings/${first.id}/floors`);
-    else this.open({ kind: 'building', site: s });
+    else this.open({ kind: 'building', site: s }); // (a no-op on a phone)
   }
 
   private renderSites(tree: CatalogTree) {
@@ -294,12 +298,12 @@ export class ExploreSites extends LitElement {
           <div class="pic">${s.image_url ? html`<img class="photo" src=${imageSrc(s.image_url)} alt="" />` : html`<sw-scene kind=${SITE_SCENE[i % 3]}></sw-scene>${tree.source === 'demo' ? html`<span class="demo">דמו</span>` : html`<span class="demo">איור</span>`}`}</div>
           <div class="info">
             <div><b>${s.name}</b><small>${buildings.length} ${buildings.length === 1 ? 'מבנה' : 'מבנים'} · ${cams} מצלמות${s.address ? ` · ${s.address}` : ''}</small></div>
-            ${tree.source === 'api' ? this.renderMenu('site', s) : nothing}
-            <sw-button variant="ghost" size="sm" iconOnly icon="plus" label="מבנה חדש" @click=${(e: Event) => { e.stopPropagation(); this.open({ kind: 'building', site: s }); }}></sw-button>
+            ${tree.source === 'api' && !this.phone.restricted('structure') ? this.renderMenu('site', s) : nothing}
+            ${this.phone.restricted('structure') ? nothing : html`<sw-button variant="ghost" size="sm" iconOnly icon="plus" label="מבנה חדש" @click=${(e: Event) => { e.stopPropagation(); this.open({ kind: 'building', site: s }); }}></sw-button>`}
           </div>
         </sw-card>`;
       })}
-      ${tree.canCreateSite
+      ${tree.canCreateSite && !this.phone.restricted('structure')
         ? html`<button class="add" @click=${() => this.open({ kind: 'site' })}><div><div class="ic"><sw-icon name="plus" size=${18}></sw-icon></div><strong>הוספת אתר חדש</strong><small>יצירת מיקום חדש כדי להתחיל</small></div></button>`
         : nothing}
     </div>`;
@@ -312,7 +316,7 @@ export class ExploreSites extends LitElement {
         ({ s, b }, i) => html`<sw-card class="brow" data-building-card=${b.id} @click=${() => navigate(`/explore/buildings/${b.id}/floors`)}>
           ${b.image_url ? html`<img class="photo small" src=${imageSrc(b.image_url)} alt="" />` : html`<sw-scene kind=${i % 2 ? 'house' : 'building'}></sw-scene>`}
           <div><b>${b.name}</b><small>${s.name} · ${(b.floors ?? []).length} קומות · ${(b.floors ?? []).reduce((n, f) => n + f.camera_count, 0)} מצלמות</small></div>
-          ${tree.source === 'api' ? this.renderMenu('building', s, b) : nothing}
+          ${tree.source === 'api' && !this.phone.restricted('structure') ? this.renderMenu('building', s, b) : nothing}
           <sw-icon name="chevron" size=${14}></sw-icon>
         </sw-card>`,
       )}
@@ -323,13 +327,14 @@ export class ExploreSites extends LitElement {
   render() {
     const tree = this.tree;
     if (!tree) return html`<sw-page heading="אתרים ומבנים"><sw-state-panel state=${this.error ? 'error' : 'loading'} hint=${this.error}></sw-state-panel></sw-page>`;
-    const d = this.dialog;
+    const d = this.phone.restricted('structure') ? null : this.dialog;
+    const canCreate = tree.canCreateSite && !this.phone.restricted('structure');
     return html`
       <sw-page heading="אתרים ומבנים" subheading=${`ניהול המיקומים והמבנים שלך${tree.source === 'demo' ? ' · נתוני הדגמה' : ''}`}>
-        ${tree.canCreateSite ? html`<sw-button slot="actions" variant="primary" icon="plus" @click=${() => this.open({ kind: 'site' })}>אתר חדש</sw-button>` : nothing}
+        ${canCreate ? html`<sw-button slot="actions" variant="primary" icon="plus" @click=${() => this.open({ kind: 'site' })}>אתר חדש</sw-button>` : nothing}
         <sw-tabs .items=${[{ id: 'all', label: 'כל האתרים', count: tree.sites.length }, { id: 'buildings', label: 'מבנים', count: tree.sites.reduce((n, s) => n + (s.buildings?.length ?? 0), 0) }, { id: 'map', label: 'מפה' }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
         ${tree.sites.length === 0 && this.tab === 'all'
-          ? html`<sw-state-panel state="empty" heading="עוד אין אתרים" hint="התחל ביצירת האתר הראשון; אחר כך מבנה, קומות ותוכניות.">${tree.canCreateSite ? html`<div style="margin-block-start:10px"><sw-button variant="primary" icon="plus" @click=${() => this.open({ kind: 'site' })}>אתר חדש</sw-button></div>` : nothing}</sw-state-panel>`
+          ? html`<sw-state-panel state="empty" heading="עוד אין אתרים" hint=${this.phone.restricted('structure') ? 'יצירת אתרים ומבנים זמינה במחשב.' : 'התחל ביצירת האתר הראשון; אחר כך מבנה, קומות ותוכניות.'}>${canCreate ? html`<div style="margin-block-start:10px"><sw-button variant="primary" icon="plus" @click=${() => this.open({ kind: 'site' })}>אתר חדש</sw-button></div>` : nothing}</sw-state-panel>`
           : this.tab === 'all' ? this.renderSites(tree) : this.tab === 'buildings' ? this.renderBuildings(tree) : html`<div class="map">מפת אתרים (לוח 3 · מסך 17) תצטרף עם שכבת מיקום גאוגרפי · Beta</div>`}
         ${this.notice ? html`<div class="err" data-sites-notice style="margin-block:8px">${this.notice}</div>` : nothing}
         ${d && (d.kind === 'delete-site' || d.kind === 'delete-building')

@@ -11,11 +11,17 @@ import { effectiveTransport, productSettings } from '../api/prefs';
 import { healthSummary, STATUS_LABEL, type HealthSummary } from '../api/health';
 import { parseRoute } from '../router';
 import type { Camera } from '../api/types';
+import { PhoneWidth, isPhoneWidth } from '../shell/phone';
 
 /** Saved view = the URL: #/kiosk/all?cameras=a,b,c&cols=3&rows=2&rotate=30 (seconds per page; 0 = no rotation).
  * Default 3×2: with nine sub streams at once the lab NVR / relay let the last tiles stall (live review F15). */
 const LAYOUT_KEY = 'sw.kiosk.layout';
 const LAYOUTS = [[2, 2], [3, 2], [3, 3], [4, 3], [4, 4], [5, 4], [6, 4]] as const;
+/** The choices on a phone (mobile audit 2026-09-30): a single column at the tile's own 16:9 height is the natural phone view. */
+const PHONE_LAYOUTS = [[1, 1], [1, 2], [1, 3], [1, 4], [2, 2], [2, 3]] as const;
+/** What a phone opens with when this browser has not chosen a layout and the address carries none: one column, three tiles
+ * a page. The installation's default (ui.kiosk_cols x ui.kiosk_rows) is for a wall display, not for a phone. */
+const PHONE_DEFAULT = { cols: 1, rows: 3 };
 
 /** cols x rows for a kiosk page: the URL wins, then this browser's last pick, then the owner's default (0.1.61). */
 function defaultLayout(settings?: { 'ui.kiosk_cols'?: number | string; 'ui.kiosk_rows'?: number | string } | null): { cols: number; rows: number } {
@@ -28,6 +34,7 @@ function defaultLayout(settings?: { 'ui.kiosk_cols'?: number | string; 'ui.kiosk
   } catch {
     /* private mode */
   }
+  if (isPhoneWidth()) return { ...PHONE_DEFAULT };
   const c = Number(settings?.['ui.kiosk_cols'] ?? 0);
   const r = Number(settings?.['ui.kiosk_rows'] ?? 0);
   return { cols: c >= 1 ? c : 3, rows: r >= 1 ? r : 2 };
@@ -43,6 +50,7 @@ function viewParams(def = defaultLayout()) {
 /** SC31 — wall display / kiosk (board 3 screen 24): dark navy, 3×3 tiles (real sub streams when a backend exists), big stat tiles, no admin controls. */
 @customElement('kiosk-wall')
 export class KioskWall extends LitElement {
+  private readonly phone = new PhoneWidth(this);
   @state() private cams: Camera[] | null = null;
   @state() private settings: ProductSettings | null = null;
   @state() private clock = '';
@@ -237,10 +245,59 @@ export class KioskWall extends LitElement {
       font-size: 10px;
       color: rgba(255, 255, 255, 0.4);
     }
+    /* the phone (mobile audit 2026-09-30): the header wraps instead of running off the screen, the tiles keep their own 16:9
+       height and pack from the top (no dead space between rows), the summary tiles become one scrolling row, the targets
+       are 44 px and the page keeps clear of the device's safe areas */
     @media (max-width: 767px) {
-      .grid,
+      :host {
+        padding-block: 10px max(14px, env(safe-area-inset-bottom, 0px));
+        padding-inline: max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-left, 0px));
+        gap: 10px;
+      }
+      header {
+        flex-wrap: wrap;
+        row-gap: 8px;
+      }
+      h1 {
+        font-size: var(--sw-fs-lg);
+      }
+      header select.layout {
+        flex: 1 1 150px;
+        min-inline-size: 0;
+        min-block-size: 44px;
+        font-size: var(--sw-fs-sm);
+      }
+      header a.exit {
+        display: inline-flex;
+        align-items: center;
+        min-block-size: 44px;
+        padding-inline: 14px;
+        font-size: var(--sw-fs-sm);
+      }
+      .clock {
+        order: 10;
+        flex: 1 1 100%;
+        font-size: var(--sw-fs-xs);
+      }
+      .grid {
+        flex: none;
+        align-content: start;
+        grid-auto-rows: max-content;
+      }
       .stats {
-        grid-template-columns: repeat(2, 1fr);
+        display: flex;
+        overflow-x: auto;
+        gap: 8px;
+        scrollbar-width: none;
+      }
+      .stat {
+        flex: 0 0 auto;
+        min-inline-size: 140px;
+        padding: 8px 10px;
+        gap: 8px;
+      }
+      .stat b {
+        font-size: var(--sw-fs-xl);
       }
     }
   `;
@@ -289,6 +346,12 @@ export class KioskWall extends LitElement {
       this.failures += 1;
       if (this.failures >= 3) this.disconnected = true;
     }
+  }
+
+  /** The layout choices: the phone's own list on a phone; the layout in force is always one of them (an address may carry another). */
+  private layoutChoices(): readonly (readonly [number, number])[] {
+    const base: readonly (readonly [number, number])[] = this.phone.matches ? PHONE_LAYOUTS : LAYOUTS;
+    return base.some(([c, r]) => c === this.view.cols && r === this.view.rows) ? base : [[this.view.cols, this.view.rows], ...base];
   }
 
   private get pageSize() {
@@ -353,7 +416,7 @@ export class KioskWall extends LitElement {
         <sw-badge kind="live" label=${`${api ? this.selected.length : demo.length} מצלמות · ${online} חיות`}></sw-badge>
         ${api && this.pages > 1 ? html`<span class="pill" data-kiosk-page>עמוד ${pageIndex + 1}/${this.pages}${this.view.rotate ? ` · כל ${this.view.rotate} שנ׳` : ''}</span>` : nothing}
         ${api ? html`<select class="layout" data-kiosk-layout aria-label="פריסה" @change=${(e: Event) => this.setLayout((e.target as HTMLSelectElement).value)}>
-          ${LAYOUTS.map(([c, r]) => html`<option value=${`${c}x${r}`} ?selected=${c === this.view.cols && r === this.view.rows}>${c}×${r} · ${c * r} מצלמות בעמוד</option>`)}
+          ${this.layoutChoices().map(([c, r]) => html`<option value=${`${c}x${r}`} ?selected=${c === this.view.cols && r === this.view.rows}>${c}×${r} · ${c * r} מצלמות בעמוד</option>`)}
         </select>` : nothing}
         ${api && this.health ? html`<span class="pill" data-kiosk-health data-status=${this.health.status}>מערכת: ${STATUS_LABEL[this.health.status]}${this.health.items.filter((i) => i.status !== 'ok').length ? ` · ${this.health.items.filter((i) => i.status !== 'ok').map((i) => i.label).join(', ')}` : ''}</span>` : nothing}
         <span class="clock">${this.clock || '—'}</span>

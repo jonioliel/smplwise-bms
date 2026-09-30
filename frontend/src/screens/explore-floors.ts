@@ -21,12 +21,15 @@ import { getGeometry } from '../api/geometry';
 import { buildScene, isoPoint, isoProjection, keepIsos, type IsoScene } from '../map/scene-builder';
 import { floorLinks, type FloorLinkDoc } from '../map/connector-targets';
 import { DEFAULT_FLOOR_HEIGHT_M, floorHeight } from '../map/geometry';
+import { PhoneWidth } from '../shell/phone';
 
 type Dialog = { kind: 'floor' } | { kind: 'rename'; floor: Floor } | { kind: 'delete'; floor: Floor; force: boolean } | { kind: 'building' } | null;
 
 /** SC03 — floor browser (board 1 screen 3) on real catalogue data: add / rename / delete floors, add buildings. */
 @customElement('explore-floors')
 export class ExploreFloors extends LitElement {
+  /** Owner decision 2026-09-30 (option ui.mobile hide_structure, default on): no structure management on a phone (new floor / building, rename, delete, plan upload). A UX guard only; the server enforces permissions. */
+  private readonly phone = new PhoneWidth(this);
   @property() buildingId = 'bld-a';
   @state() private tree: CatalogTree | null = null;
   @state() private selected: string | null = null;
@@ -300,6 +303,7 @@ export class ExploreFloors extends LitElement {
   }
 
   private openDialog(d: Dialog) {
+    if (this.phone.restricted('structure')) return;
     this.error = '';
     this.formName = d?.kind === 'rename' ? d.floor.name : '';
     this.formLevel = d?.kind === 'rename' ? d.floor.level : 0;
@@ -308,7 +312,7 @@ export class ExploreFloors extends LitElement {
 
   private renderDialog(building: Building) {
     const d = this.dialog;
-    if (!d) return nothing;
+    if (!d || this.phone.restricted('structure')) return nothing;
     const demo = this.tree?.source === 'demo';
     const nameField = html`<sw-field label="שם"><input .value=${this.formName} @input=${(e: Event) => (this.formName = (e.target as HTMLInputElement).value)} placeholder="למשל: קומה 1" autofocus /></sw-field>`;
     const levelField = html`<sw-field label="מפלס (0 = קרקע, שלילי = מרתף)" hint="קובע את סדר התצוגה בין הקומות"><input type="number" data-ltr .value=${String(this.formLevel)} @input=${(e: Event) => (this.formLevel = Number((e.target as HTMLInputElement).value))} /></sw-field>`;
@@ -364,7 +368,7 @@ export class ExploreFloors extends LitElement {
         <sw-tabs .items=${[{ id: 'floors', label: 'קומות', count: floors.length }, { id: 'cameras', label: 'מצלמות', count: totalCams }, { id: 'details', label: 'פרטים' }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
         ${this.tab === 'floors'
           ? html`<div class="list">
-              ${floors.length ? nothing : html`<div class="empty">למבנה הזה אין עדיין קומות. הוסף קומה, ואז העלה תוכנית (PDF או תמונה).</div>`}
+              ${floors.length ? nothing : html`<div class="empty">${this.phone.restricted('structure') ? 'למבנה הזה אין עדיין קומות. הוספת קומות ותוכניות זמינה במחשב.' : 'למבנה הזה אין עדיין קומות. הוסף קומה, ואז העלה תוכנית (PDF או תמונה).'}</div>`}
               ${floors.map(
                 (f) => html`<button class="floor ${sel?.id === f.id ? 'on' : ''}" @click=${() => (sel?.id === f.id ? navigate(`/explore/floors/${f.id}`) : (this.selected = f.id))} aria-pressed=${sel?.id === f.id}>
                   <div class="txt">
@@ -377,16 +381,20 @@ export class ExploreFloors extends LitElement {
               )}
               ${this.renderLinks(floors)}
               ${this.error && !this.dialog ? html`<div class="err">${this.error}</div>` : nothing}
-              <div class="actions">
-                <div>
-                  <sw-button icon="plus" @click=${() => this.openDialog({ kind: 'floor' })}>קומה חדשה</sw-button>
-                  <sw-button variant="ghost" icon="building" @click=${() => this.openDialog({ kind: 'building' })}>מבנה חדש</sw-button>
-                </div>
+              <div class="actions" data-floor-actions>
+                ${this.phone.restricted('structure')
+                  ? nothing
+                  : html`<div>
+                      <sw-button icon="plus" @click=${() => this.openDialog({ kind: 'floor' })}>קומה חדשה</sw-button>
+                      <sw-button variant="ghost" icon="building" @click=${() => this.openDialog({ kind: 'building' })}>מבנה חדש</sw-button>
+                    </div>`}
                 ${sel
                   ? html`<div>
-                      <sw-button variant="ghost" icon="edit" @click=${() => this.openDialog({ kind: 'rename', floor: sel })}>עריכה</sw-button>
-                      <sw-button variant="ghost" icon="trash" @click=${() => this.openDialog({ kind: 'delete', floor: sel, force: false })}>מחיקה</sw-button>
-                      <sw-button icon="upload" @click=${() => navigate(`/explore/floors/${sel.id}/import`)}>${sel.has_plan ? 'תוכנית חדשה' : 'העלאת תוכנית'}</sw-button>
+                      ${this.phone.restricted('structure')
+                        ? nothing
+                        : html`<sw-button variant="ghost" icon="edit" @click=${() => this.openDialog({ kind: 'rename', floor: sel })}>עריכה</sw-button>
+                          <sw-button variant="ghost" icon="trash" @click=${() => this.openDialog({ kind: 'delete', floor: sel, force: false })}>מחיקה</sw-button>
+                          <sw-button icon="upload" @click=${() => navigate(`/explore/floors/${sel.id}/import`)}>${sel.has_plan ? 'תוכנית חדשה' : 'העלאת תוכנית'}</sw-button>`}
                       <sw-button variant="primary" icon="map" @click=${() => navigate(`/explore/floors/${sel.id}`)}>פתח את ${sel.name}</sw-button>
                     </div>`
                   : nothing}

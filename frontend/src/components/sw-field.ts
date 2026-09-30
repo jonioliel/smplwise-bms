@@ -52,6 +52,14 @@ export class SwField extends LitElement {
       border-color: var(--sw-accent);
       box-shadow: 0 0 0 3px var(--sw-accent-soft);
     }
+    /* touch targets (mobile audit 2026-09-30): fields were 30-33 px high on a phone */
+    @media (max-width: 767px) and (pointer: coarse) {
+      ::slotted(input:not([type='checkbox']):not([type='radio']):not([type='range'])),
+      ::slotted(select),
+      ::slotted(textarea) {
+        min-block-size: 40px;
+      }
+    }
     ::slotted([data-ltr]) {
       direction: ltr;
       text-align: left;

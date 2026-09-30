@@ -111,6 +111,27 @@ export class SwButton extends LitElement {
     :host([round]) button {
       border-radius: 50%;
     }
+    /* touch targets (mobile audit 2026-09-30): a finger on a phone needs 40-44 px, not the desktop's 26-36 px */
+    @media (max-width: 767px) and (pointer: coarse) {
+      button {
+        min-block-size: 40px;
+      }
+      :host([size='sm']) button {
+        min-block-size: 36px;
+      }
+      :host([size='lg']) button {
+        min-block-size: 44px;
+      }
+      :host([icononly]) button {
+        inline-size: 40px;
+      }
+      :host([icononly][size='sm']) button {
+        inline-size: 36px;
+      }
+      :host([icononly][size='lg']) button {
+        inline-size: 44px;
+      }
+    }
   `;
 
   render() {
