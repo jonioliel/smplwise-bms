@@ -7,6 +7,7 @@ import '../components/sw-icon';
 import type { IconName } from '../components/sw-icon';
 import { api, ApiError, describeError, post, put } from '../api/client';
 import { can, isApi } from '../api/session';
+import { registerScreenEdit } from '../shell/screen-edit';
 import { LAYOUT_ROLE_IDS, type LayoutRoleId } from '../styles/devices-palettes';
 
 /**
@@ -423,7 +424,14 @@ export class DevicesLayoutController implements ReactiveController {
     host.addController(this);
   }
 
+  /** UI round 1c: the area screen's layout editor is entered from the user menu (shell/screen-edit.ts), not from a button in
+   * the page; the home screen's editor keeps its own `?edit=1` address (devices-building.ts). */
+  private offScreenEdit: (() => void) | null = null;
+
   hostConnected() {
+    if (this.opts.scope === 'area') {
+      this.offScreenEdit = registerScreenEdit({ id: 'devices-layout', label: 'עריכת פריסה', icon: 'edit', can: () => this.canEdit && !this.editing, run: () => void this.enter() });
+    }
     try {
       this.mq = window.matchMedia(PHONE_MQ);
       this.phone = this.mq.matches;
@@ -457,6 +465,8 @@ export class DevicesLayoutController implements ReactiveController {
   }
 
   hostDisconnected() {
+    this.offScreenEdit?.();
+    this.offScreenEdit = null;
     this.mq?.removeEventListener('change', this.onMq);
     window.clearTimeout(this.pressTimer);
     this.endTileDrag();
@@ -1203,12 +1213,6 @@ export class DevicesLayoutController implements ReactiveController {
   }
 
   // -------------------------------------------------------------------------------------------- rendering the chrome
-
-  /** "ערוך פריסה", for a system.configure holder only (in the page's actions). */
-  renderEditButton(): TemplateResult | typeof nothing {
-    if (!this.canEdit || this.editing) return nothing;
-    return html`<sw-button size="sm" icon="edit" data-layout-edit @click=${() => void this.enter()}>ערוך פריסה</sw-button>`;
-  }
 
   /** The edit bar at the top of the screen, and the confirmations; the saved / reset note otherwise. */
   renderBar(): TemplateResult | typeof nothing {

@@ -76,6 +76,7 @@ class PrefsPatch(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     nav_order: list[Any] | None = Field(default=None, alias="nav.order", max_length=user_prefs.MAX_LIST)
+    ui_nav_size: dict[str, Any] | None = Field(default=None, alias="ui.nav_size")  # validated in full by services/nav_size.py
 
 
 @router.get("/me/prefs")

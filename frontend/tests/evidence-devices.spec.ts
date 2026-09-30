@@ -120,6 +120,23 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await page.waitForTimeout(1200);
   }
 
+  /** UI round 1c (shell/screen-edit.ts): the area screen has no "ערוך פריסה" button - its layout editor is an item of the user
+   * menu ("עריכת פריסה", the corner avatar: the rail's on a wide screen, the bottom bar's on the phone). */
+  async function openUserMenu(page: Page) {
+    await page.locator('sw-app [data-profile-menu]:visible, sw-app [data-nav-me]:visible').first().click();
+  }
+  async function enterLayoutEdit(page: Page) {
+    await openUserMenu(page);
+    await page.locator('sw-app sw-user-menu [data-menu-screen-edit="devices-layout"]').click();
+  }
+  async function layoutEditOffered(page: Page): Promise<boolean> {
+    await openUserMenu(page);
+    await page.waitForTimeout(300);
+    const offered = (await page.locator('sw-app sw-user-menu [data-menu-screen-edit="devices-layout"]').count()) > 0;
+    await page.keyboard.press('Escape');
+    return offered;
+  }
+
   async function bindUser(request: APIRequestContext, username: string, roleId: string): Promise<string> {
     const me = await (await request.get('/api/v1/me', { headers: { 'X-SW-Dev-User': username } })).json();
     const r = await request.post('/api/v1/access/bindings', { data: { subject_kind: 'user', subject_id: me.user.id, role_id: roleId, scope_type: 'installation', scope_id: '*' } });
@@ -170,7 +187,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await expect(screen.locator('input, sw-toggle')).toHaveCount(0);
     // (CR-007 HA refresh adds "רענן מ־Home Assistant", which re-reads HA's registries and controls no device; 6b adds
     // "ערוך פריסה" for a system.configure holder - the layout, not a device)
-    await expect(screen.locator('sw-button:visible:not([data-bulk-kind]):not([data-bulk-trigger]):not([data-devices-refresh]):not([data-layout-edit]):not([data-quick-off])')).toHaveCount(0); // (the tree's hover "כבה אזור" is a bulk action; the tiles view shows the tree too since 2026-09-30)
+    await expect(screen.locator('sw-button:visible:not([data-bulk-kind]):not([data-bulk-trigger]):not([data-devices-refresh]):not([data-quick-off])')).toHaveCount(0); // (the tree's hover "כבה אזור" is a bulk action; the tiles view shows the tree too since 2026-09-30)
     // a tile opens the area screen
     await lobby.click();
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/devices/areas/cr007_lobby');
@@ -1581,7 +1598,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await page.mouse.up();
   }
 
-  test('6b: "ערוך פריסה" is offered only with system.configure, and a viewer\'s layout writes are refused by the server', async ({ page, browser, request }, testInfo) => {
+  test('6b: "עריכת פריסה" (a user menu item) is offered only with system.configure, and a viewer\'s layout writes are refused by the server', async ({ page, browser, request }, testInfo) => {
     test.setTimeout(180_000);
     await seed(request);
     await resetLayouts(request);
@@ -1591,7 +1608,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       // the administrator (system.configure from the session) sees the button on both screens
       await open(page, '/devices/areas/cr007_lobby', 'a');
       await expect(page.locator('devices-area sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
-      await expect(page.locator('devices-area [data-layout-edit]')).toHaveCount(1);
+      expect(await layoutEditOffered(page)).toBe(true);
       // owner notes 2026-09-30: the home screen has no button at all - its edit mode is `?edit=1` (the user menu)
       await open(page, '/devices/building', 'a');
       await expect(page.locator('devices-building a.tile[data-area="cr007_lobby"]')).toBeVisible({ timeout: 30000 });
@@ -1604,7 +1621,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       const p = await ctx.newPage();
       await open(p, '/devices/areas/cr007_lobby', 'a');
       await expect(p.locator('devices-area sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
-      await expect(p.locator('devices-area [data-layout-edit]')).toHaveCount(0);
+      expect(await layoutEditOffered(p)).toBe(false);
       await open(p, '/devices/building', 'a');
       await expect(p.locator('devices-building section[data-floor-card="cr007_ground"]')).toBeVisible({ timeout: 30000 }); // a fresh viewer: the cards view
       await expect(p.locator('devices-building [data-layout-edit]')).toHaveCount(0);
@@ -1642,7 +1659,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       const a = page.locator('devices-area');
       await expect(a.locator('sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
       await expect(a.locator('.lay-grid')).toHaveCount(0); // nothing stored: the automatic grid
-      await a.locator('[data-layout-edit]').click();
+      await enterLayoutEdit(page);
       await expect(a.locator('[data-layout-bar]')).toBeVisible();
       const grid = a.locator('.lay-grid[data-lay-cols="12"]');
       await expect(grid).toHaveCount(1);
@@ -1731,7 +1748,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       const va = p.locator('devices-area');
       await expect(va.locator('.lay-item[data-lay-key="card:lighting"] sw-card')).toHaveAttribute('heading', 'תאורה ראשית', { timeout: 30000 });
       await expect(va.locator('sw-card[data-card="sensors"]')).toHaveCount(0);
-      await expect(va.locator('[data-layout-edit]')).toHaveCount(0);
+      expect(await layoutEditOffered(p)).toBe(false);
       // an LTR viewer gets the mirror image of the same record: column 1 on the left
       await p.evaluate(() => document.documentElement.setAttribute('dir', 'ltr'));
       await p.waitForTimeout(300);
@@ -1747,7 +1764,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await page.reload();
       await page.waitForSelector('sw-app');
       await expect(a.locator('.lay-item[data-lay-key="card:lighting"] sw-card')).toHaveAttribute('heading', 'תאורה ראשית', { timeout: 30000 });
-      await a.locator('[data-layout-edit]').click();
+      await enterLayoutEdit(page);
       await a.locator('.lay-item[data-lay-key="card:lighting"]').focus();
       await page.keyboard.press('ArrowDown');
       const bump = await request.put('/api/v1/devices/layouts/area/cr007_lobby', { data: { variant: 'desktop', revision: 1, layout: rec.desktop.layout } });
@@ -1758,7 +1775,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await expect(a.locator('[data-layout-bar]')).toHaveCount(0);
 
       // "אפס לברירת מחדל": a confirmation, then the automatic grid again - for everyone
-      await a.locator('[data-layout-edit]').click();
+      await enterLayoutEdit(page);
       await a.locator('sw-button[data-layout-reset]').click();
       const dlg = a.locator('sw-dialog[data-layout-confirm="reset"]');
       await expect(dlg).toHaveAttribute('open', '');
@@ -1786,7 +1803,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await open(page, '/devices/areas/cr007_lobby', 'a');
       const a = page.locator('devices-area');
       await expect(a.locator('.lay-item[data-lay-key="card:climate"]')).toHaveAttribute('data-lay-bg', 'cool', { timeout: 30000 });
-      await a.locator('[data-layout-edit]').click();
+      await enterLayoutEdit(page);
       await a.locator('sw-button[data-layout-copy]').click();
       const dlg = a.locator('sw-dialog[data-layout-confirm="copy"]');
       await expect(dlg).toHaveAttribute('open', '');
@@ -1858,7 +1875,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
         expect(order.slice(0, 3)).toEqual(['card:covers', 'card:climate', 'card:lighting']);
         const gw = (await grid.boundingBox())!.width;
         expect((await a.locator('.lay-item[data-lay-key="card:climate"]').boundingBox())!.width).toBeGreaterThan(gw - 2);
-        await a.locator('[data-layout-edit]').click();
+        await enterLayoutEdit(page);
         await expect(a.locator('[data-layout-variant="phone"]')).toHaveAttribute('aria-pressed', 'true');
         await expect(a.locator('[data-layout-bar]')).toContainText('אוטומטית עד שתישמר');
         // a long press picks the card (a plain touch scrolls); the panel's arrows then move and resize it
@@ -1872,7 +1889,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
         await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
         await expect(a.locator('[data-layout-panel="card:lighting"]')).toBeVisible();
       } else {
-        await a.locator('[data-layout-edit]').click();
+        await enterLayoutEdit(page);
         await a.locator('[data-layout-variant="phone"]').click();
         await expect(a.locator('.lay-grid[data-lay-cols="4"][data-lay-phone-preview]')).toHaveCount(1);
         const order = await a.locator('.lay-item').evaluateAll((els) => els.map((e) => [e.getAttribute('data-lay-key'), e.getBoundingClientRect().top] as [string, number]).sort((x, y) => x[1] - y[1]).map((x) => x[0]));
@@ -1899,7 +1916,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       expect(rec.desktop.layout.items['card:lighting']).toMatchObject({ x: 0, w: 12 }); // the desktop layout is its own
       if (mobile) expect(await a.locator('.lay-item[data-lay-key="card:lighting"]').evaluate((e) => (e as HTMLElement).style.gridColumn)).toBe('2 / span 2');
       // "חזור לאוטומטי": the phone layout goes, derived from the desktop one again
-      await a.locator('[data-layout-edit]').click();
+      await enterLayoutEdit(page);
       if (!mobile) await a.locator('[data-layout-variant="phone"]').click();
       await a.locator('sw-button[data-layout-phone-auto]').click();
       await expect.poll(async () => (await (await request.get('/api/v1/devices/layouts/area/cr007_lobby')).json()).phone).toBeNull();
@@ -2061,7 +2078,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await expect(lighting).toHaveAttribute('subheading', /^2 התקנים/); // still counted
       // the editor still shows the hidden card in place, and the checklist lists both lights
       if (tag === 'desktop') {
-        await a.locator('[data-layout-edit]').click();
+        await enterLayoutEdit(page);
         await expect(a.locator('.lay-item.lay-hidden[data-lay-key="card:climate"]')).toHaveCount(1);
         await a.locator('.lay-item[data-lay-key="card:lighting"]').click();
         const checklist = a.locator('[data-layout-panel="card:lighting"] [data-layout-entities]');
@@ -2094,7 +2111,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await open(page, '/devices/areas/cr007_lobby', 'a');
       const a = page.locator('devices-area');
       await expect(a.locator('sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
-      await a.locator('[data-layout-edit]').click();
+      await enterLayoutEdit(page);
       const body = a.locator('.lay-item[data-lay-key="card:lighting"] > sw-card');
       await expect(body).toHaveAttribute('inert', '');
       await expect(body).toHaveAttribute('aria-hidden', 'true');
@@ -2257,7 +2274,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
         expect(await rowOf(lighting)).toBe(1);
         expect(await rowOf(a.locator('.lay-item[data-lay-key="card:climate"]'))).toBe(23);
         // the editor keeps the covers slot: moving the lighting card onto it pushes the slot down, and the save is not an overlap
-        await a.locator('[data-layout-edit]').click();
+        await enterLayoutEdit(page);
         await a.locator('.lay-item[data-lay-key="card:lighting"]').focus();
         for (let i = 0; i < 6; i++) await page.keyboard.press('ArrowUp');
         const saved = page.waitForResponse((r) => r.url().includes('/api/v1/devices/layouts/area/cr007_den') && r.request().method() === 'PUT');
@@ -2321,7 +2338,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await expect(lightingCard).toBeVisible({ timeout: 30000 });
       await expect(lightingCard).toHaveAttribute('subheading', /^2 התקנים · 1 פעילים/);
       const chipCount = await a.locator('sw-chip[data-area-chip="cr007_lobby"]').evaluate((e) => (e as unknown as { count: number }).count);
-      await a.locator('[data-layout-edit]').click();
+      await enterLayoutEdit(page);
       await expect(a.locator(`[data-layout-variant="${variant}"]`)).toHaveAttribute('aria-pressed', 'true');
       // the card's own "סידור התקנים": the card alone, a breadcrumb back, the tiles panel
       await a.locator('[data-lay-tiles-enter="card:lighting"]').click();
@@ -2427,12 +2444,13 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       expect(await tileOrder(vcard)).toEqual(['light.cr007_lobby']);
       await expect(vcard).toContainText('תאורה <b>ראשית</b>');
       await expect(vcard).toHaveAttribute('subheading', /^2 התקנים/);
-      await expect(p.locator('devices-area [data-layout-edit], devices-area [data-lay-tiles-enter]')).toHaveCount(0);
+      expect(await layoutEditOffered(p)).toBe(false);
+      await expect(p.locator('devices-area [data-lay-tiles-enter]')).toHaveCount(0);
       expect((await p.request.put('/api/v1/devices/layouts/area/cr007_lobby', { data: { variant, revision: rec[variant].revision, layout: rec[variant].layout } })).status()).toBe(403);
       await ctx.close();
 
       // "אפס סידור": the card's automatic order again, its hidden light stays hidden; the change is only a draft until saved
-      await a.locator('[data-layout-edit]').click();
+      await enterLayoutEdit(page);
       await a.locator('[data-lay-tiles-enter="card:lighting"]').click();
       expect(await tileOrder(stage)).toEqual(['light.cr007_lobby', 'light.cr007_lobby_2']);
       await a.locator('[data-layout-panel="tiles:card:lighting"] [data-layout-tiles-reset]').click();
@@ -2477,7 +2495,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
         expect((await card.locator('.lay-tile').first().boundingBox())!.width).toBeGreaterThan(gw - 4);
       }
       // the phone layout, arranged on its own
-      await a.locator('[data-layout-edit]').click();
+      await enterLayoutEdit(page);
       if (!mobile) await a.locator('[data-layout-variant="phone"]').click();
       await expect(a.locator('[data-layout-variant="phone"]')).toHaveAttribute('aria-pressed', 'true');
       await a.locator('[data-lay-tiles-enter="card:lighting"]').click();
@@ -2516,7 +2534,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await open(page, '/devices/areas/cr007_den', 'a');
       const a = page.locator('devices-area');
       await expect(a.locator('sw-card[data-card="climate"]')).toBeVisible({ timeout: 30000 });
-      await a.locator('[data-layout-edit]').click();
+      await enterLayoutEdit(page);
       await a.locator('[data-lay-tiles-enter="card:climate"]').click();
       await expect(a.locator('[data-lay-stage="card:climate"]')).toBeVisible();
       // Home Assistant moves the den's only climate device to the hall (the fixture's registry control)

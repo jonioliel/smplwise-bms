@@ -18,6 +18,7 @@ import { demoCameras, demoEntities, demoFloors, demoRooms, type DemoCamera, type
 import { demoScene } from '../fixtures/catalog';
 import { t } from '../i18n/he';
 import { navigate } from '../router';
+import { registerScreenEdit } from '../shell/screen-edit';
 import { cameraState, entityName, loadMap, updateAnchor, type MapBundle } from '../api/maps';
 import { snapshotUrl } from '../api/media';
 import { entryFloor, findFloor, loadTree, type CatalogTree } from '../api/catalog';
@@ -895,8 +896,13 @@ export class ExploreFloorMap extends LitElement {
     return target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
   }
 
+  /** UI round 1c: the plan editor is entered from the user menu ("עריכת המפה", shell/screen-edit.ts), not from a button here.
+   * The same permission the button had: the floor's own edit right (the static demo has no bundle and offers it too). */
+  private offScreenEdit: (() => void) | null = null;
+
   connectedCallback() {
     super.connectedCallback();
+    this.offScreenEdit = registerScreenEdit({ id: 'floor-map-edit', label: 'עריכת המפה', icon: 'edit', can: () => (this.bundle ? this.bundle.permissions.edit : !isApi()), run: () => navigate(`/explore/floors/${this.floorId}/edit`) });
     this.narrow = this.mq.matches;
     this.mq.addEventListener('change', this.onMq);
     window.addEventListener('keydown', this.onKey);
@@ -905,6 +911,8 @@ export class ExploreFloorMap extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    this.offScreenEdit?.();
+    this.offScreenEdit = null;
     window.removeEventListener('keydown', this.onKey);
     this.mq.removeEventListener('change', this.onMq);
     window.clearTimeout(this.sceneTimer);
@@ -2262,7 +2270,6 @@ export class ExploreFloorMap extends LitElement {
           <sw-button icon="layers" aria-pressed=${this.panel} @click=${() => (this.panel = !this.panel)}>${t('floor.layers')}</sw-button>
           ${b && b.source === 'api' ? html`<sw-button icon="list" aria-pressed=${this.sideList} data-sidelist-toggle @click=${() => this.toggleSideList()}>רשימה</sw-button>${nvrLess() ? nothing : html`<sw-button icon="grid" aria-pressed=${this.multi} data-multi-toggle @click=${() => this.setMulti(!this.multi)}>בחירת מצלמות</sw-button>`}` : nothing}
           <sw-field style="min-inline-size:280px"><select aria-label=${t('floor.switcher')} @change=${(e: Event) => navigate(`/explore/floors/${(e.target as HTMLSelectElement).value}`)}>${floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${bidi(f.name)} · ${f.cameraCount} מצלמות${f.hasPlan ? '' : ' · אין תוכנית'}</option>`)}</select></sw-field>
-          ${!b || b.permissions.edit ? html`<sw-button icon="edit" @click=${() => navigate(`/explore/floors/${this.floorId}/edit`)}>עריכת תוכנית</sw-button>` : nothing}
         </div>
       </div>
       <div class="stage">${this.renderStage()}</div>

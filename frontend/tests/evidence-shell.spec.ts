@@ -135,6 +135,37 @@ test.describe('CR-013 shell on the demo data', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   });
 
+  test('a screen\'s edit mode is an item of the user menu, not a button in the page (shell/screen-edit.ts)', async ({ page }, info) => {
+    await open(page, '/explore/floors/f0');
+    await expect(page.locator('sw-app explore-floor-map')).toHaveCount(1);
+    // no edit-mode button in the page any more
+    await expect(page.locator('sw-app explore-floor-map sw-button', { hasText: 'עריכת תוכנית' })).toHaveCount(0);
+    const menu = page.locator('sw-app sw-user-menu [data-user-menu]');
+    const item = menu.locator('[data-menu-screen-edit="floor-map-edit"]');
+    await expect.poll(async () => {
+      await meButton(page, info).click();
+      const n = await item.count();
+      if (!n) await page.keyboard.press('Escape');
+      return n;
+    }, { timeout: 15000 }).toBe(1); // the map registers it once its floor has loaded
+    await expect(item).toHaveText('עריכת המפה');
+    await expect(menu.locator('ul[data-menu-level="main"] > li')).toHaveText(['התראות', 'עריכת המפה', 'מערכת', 'החשבון שלי']); // right after the alerts, before the system
+    if (phone(info)) await page.waitForTimeout(300);
+    await page.mouse.move(1, 1);
+    await page.waitForTimeout(300);
+    await shot(page, phone(info) ? 'shell-phone-screen-edit-item' : 'shell-desktop-screen-edit-item');
+    await item.click();
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/explore/floors/f0/edit');
+    await expect(menu).toBeHidden();
+    // Back returns to the map (the menu's own history entry is gone), and the item goes with the screen
+    await page.goBack();
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/explore/floors/f0');
+    await page.goto('/?design=a#/devices/building');
+    await page.waitForTimeout(500);
+    await meButton(page, info).click();
+    await expect(menu.locator('[data-menu-screen-edit]')).toHaveCount(0);
+  });
+
   test('the navigation is smaller: a slim rail, a 50 px bottom bar with 44 px targets', async ({ page }, info) => {
     await open(page, '/devices/building');
     if (phone(info)) {
