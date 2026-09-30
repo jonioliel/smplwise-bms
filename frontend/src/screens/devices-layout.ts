@@ -7,6 +7,7 @@ import '../components/sw-icon';
 import type { IconName } from '../components/sw-icon';
 import { api, ApiError, describeError, post, put } from '../api/client';
 import { can, isApi } from '../api/session';
+import type { CameraSource } from '../api/camera-card';
 import { LAYOUT_ROLE_IDS, type LayoutRoleId } from '../styles/devices-palettes';
 
 /**
@@ -100,6 +101,8 @@ export interface LayoutItem {
   hidden_entities: string[];
   /** Slice 6c, area cards: the card's device-tile arrangement (absent or empty: the automatic order). */
   tiles?: Record<string, TileLayout>;
+  /** Owner 2026-09-30, a `camera:<slug>` card of the area screen: the camera it shows (screens/devices-camera-card.ts). */
+  camera?: CameraSource;
 }
 
 export interface Layout {
@@ -580,6 +583,26 @@ export class DevicesLayoutController implements ReactiveController {
 
   phonePreview(id: string): boolean {
     return this.gridOn(id) && this.editing && this.variant === 'phone' && !this.phone;
+  }
+
+  /** The keys of the current layout's items that start with `prefix` (the draft while editing, else what the viewer's
+   * variant stores), in reading order: the items a screen draws that its data does not list - the area screen's camera
+   * cards (`camera:`). A phone viewer of a desktop-only layout reads the desktop record's keys. */
+  keysWithPrefix(prefix: string): string[] {
+    const layout = this.editing ? this.draft : (this.stored(this.viewVariant()) ?? this.stored('desktop'));
+    if (!layout) return [];
+    // a phone layout saved before a card was added on the desktop does not list it: the card still shows (appended)
+    const extra = this.editing ? [] : Object.keys(this.stored('desktop')?.items ?? {}).filter((k) => !layout.items[k]);
+    const keys = [...Object.keys(layout.items), ...extra].filter((k) => k.startsWith(prefix));
+    const at = (k: string) => layout.items[k] ?? { x: 0, y: Number.MAX_SAFE_INTEGER };
+    return keys.sort((a, b) => at(a).y - at(b).y || at(a).x - at(b).x || a.localeCompare(b));
+  }
+
+  /** The camera a `camera:` item shows: the item's own source, else the same item's source in the other variant (the
+   * source is the card's content, not its place - a derived phone item copies it, an older one may not). */
+  cameraOf(key: string): CameraSource | undefined {
+    const own = this.editing ? this.draft?.items[key]?.camera : undefined;
+    return own ?? this.stored(this.viewVariant())?.items[key]?.camera ?? this.stored('desktop')?.items[key]?.camera ?? this.stored('phone')?.items[key]?.camera;
   }
 
   /** The item's stored settings (title, icon ...) when its grid is laid out. */
