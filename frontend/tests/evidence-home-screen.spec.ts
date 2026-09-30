@@ -102,6 +102,15 @@ test.describe('the home screen against the devices fixture backend', () => {
   test.skip(process.env.SW_LIVE !== '1' || process.env.SW_DEVICES_FIXTURE !== '1', 'needs tests/fixtures/devices_fake_ha.py (SW_LIVE=1 SW_DEVICES_FIXTURE=1)');
 
   async function seed(request: APIRequestContext) {
+    // The dev registry seed only upserts entities: what an earlier spec file left on the shared fixture backend (its rooms and
+    // devices) would still be counted and drawn, and the "fits without a scroll" checks measure the owner's site size. So first
+    // disable every foreign entity (a registry listing with disabled_by, as Home Assistant reports one), then seed this site last.
+    const mine = new Set([...ENTITIES.map((e) => e.entity_id), ...STATES.map((s) => s.entity_id)]);
+    const foreign = ((await (await request.get('/api/v1/ha/entities?limit=2000')).json()).entities as { entity_id: string }[]).map((e) => e.entity_id).filter((id) => !mine.has(id));
+    for (let i = 0; i < foreign.length; i += 400) {
+      const entities = foreign.slice(i, i + 400).map((entity_id) => ({ entity_id, area_id: null, disabled_by: 'user' }));
+      expect((await request.post('/api/v1/ha/dev/registry', { data: { entities, devices: [], areas: AREAS, floors: FLOORS } })).status()).toBe(200);
+    }
     expect((await request.post('/api/v1/ha/dev/registry', { data: { entities: ENTITIES, devices: [], areas: AREAS, floors: FLOORS } })).status()).toBe(200);
     for (let i = 0; i < STATES.length; i += 50) expect((await request.post('/api/v1/ha/dev/states', { data: { states: STATES.slice(i, i + 50) } })).status()).toBe(200);
   }

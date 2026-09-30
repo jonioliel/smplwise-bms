@@ -292,8 +292,14 @@ export function deriveFromDom(grid: MeasuredGrid, cols: number): Record<string, 
   const g = grid.el.getBoundingClientRect();
   const cs = getComputedStyle(grid.el);
   const rtl = cs.direction === 'rtl';
-  const tracks = Math.max(1, cs.gridTemplateColumns.split(/\s+/).filter((t) => /px$/.test(t)).length);
   const gap = parseFloat(cs.columnGap) || 0;
+  let tracks = cs.gridTemplateColumns.split(/\s+/).filter((t) => /px$/.test(t)).length;
+  if (!tracks) {
+    // not a CSS grid: the area screen's "tiles" direction is CSS multi-column (each card one column wide), so the columns
+    // are as many of the narrowest card as fit the width - without this every card measured as one full-width row
+    const widths = grid.items.map((i) => i.el.getBoundingClientRect().width).filter((w) => w > 0);
+    tracks = widths.length ? Math.max(1, Math.round((g.width + gap) / (Math.min(...widths) + gap))) : 1;
+  }
   const step = (g.width + gap) / tracks;
   const out: Record<string, LayoutItem> = {};
   const keys: string[] = [];
