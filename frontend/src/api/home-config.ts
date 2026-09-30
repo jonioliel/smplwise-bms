@@ -20,9 +20,10 @@ export const SIDES: Side[] = ['start', 'end'];
 /** The side of b's widget column, as the person sees it: "end" is the left edge of the screen in Hebrew. */
 export const SIDE_LABEL: Record<Side, string> = { end: 'שמאל', start: 'ימין' };
 
-export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick';
-export const WIDGET_IDS: WidgetId[] = ['clock', 'weather', 'shabbat', 'alarm', 'quick'];
-export const WIDGET_NAME: Record<WidgetId, string> = { clock: 'שעון', weather: 'מזג אוויר', shabbat: 'שבת', alarm: 'אזעקה', quick: 'פעולות מהירות' };
+export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick' | 'media';
+/** `media` (CR-015 §7.5) is appended, so a saved order without it keeps its look: it lands last, like every widget a release adds. */
+export const WIDGET_IDS: WidgetId[] = ['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media'];
+export const WIDGET_NAME: Record<WidgetId, string> = { clock: 'שעון', weather: 'מזג אוויר', shabbat: 'שבת', alarm: 'אזעקה', quick: 'פעולות מהירות', media: 'מסכים' };
 
 export type Size = 's' | 'm' | 'l';
 export const SIZES: Size[] = ['s', 'm', 'l'];
@@ -102,6 +103,8 @@ export interface AlarmCfg extends CommonCfg {
 export interface QuickCfg extends CommonCfg {
   actions: QuickAction[];
 }
+/** The media widget (CR-015): the screens that are on, as chips that open the remote - no entity to choose, so only the common settings. */
+export type MediaCfg = CommonCfg;
 export interface CalendarCfg {
   date: string;
   parsha: string;
@@ -118,6 +121,7 @@ export interface HomeConfig {
   shabbat: ShabbatCfg;
   alarm: AlarmCfg;
   quick: QuickCfg;
+  media: MediaCfg;
   calendar: CalendarCfg;
 }
 
@@ -127,6 +131,7 @@ export const DEFAULT_SIZES: Record<WidgetId, Sizes> = {
   shabbat: { a: 'm', b: 'm', c: 'm' },
   alarm: { a: 'm', b: 's', c: 'm' },
   quick: { a: 'm', b: 's', c: 'm' },
+  media: { a: 'm', b: 's', c: 'm' },
 };
 
 export function defaultConfig(): HomeConfig {
@@ -139,6 +144,7 @@ export function defaultConfig(): HomeConfig {
     shabbat: base('shabbat'),
     alarm: { ...base('alarm'), entity: '' },
     quick: { ...base('quick'), actions: [...QUICK_ACTIONS] },
+    media: base('media'),
     calendar: { date: '', parsha: '', candles: '', havdalah: '', holiday: '', extras: [] },
   };
 }
@@ -188,6 +194,7 @@ export function configOf(raw: unknown): HomeConfig {
     shabbat: commonOf(o.shabbat, 'shabbat'),
     alarm: { ...commonOf(o.alarm, 'alarm'), entity: str(alarm.entity) },
     quick: { ...commonOf(o.quick, 'quick'), actions: listOf(quick.actions, QUICK_ACTIONS, QUICK_ACTIONS) },
+    media: commonOf(o.media, 'media'),
     calendar: {
       date: str(cal.date),
       parsha: str(cal.parsha),
@@ -342,8 +349,8 @@ export function previewData(cfg: HomeConfig, base: HomeData, cands: HomeCandidat
 // ------------------------------------------------------------------------------------------------ what the screen draws
 
 /** Why a widget is not drawn: off (the switch), none (nothing chosen to feed it), unavail (the entity is not reporting),
- * noalarm (no alarm panel this user may see), noaction (no quick action this user may run). 'ok' = drawn. */
-export type Avail = 'ok' | 'off' | 'none' | 'unavail' | 'noalarm' | 'noaction';
+ * noalarm (no alarm panel this user may see), noaction (no quick action this user may run), nomedia (no screen this user may see - the media widget). 'ok' = drawn. */
+export type Avail = 'ok' | 'off' | 'none' | 'unavail' | 'noalarm' | 'noaction' | 'nomedia';
 
 export interface WidgetItem {
   id: WidgetId;
@@ -360,6 +367,8 @@ export interface ResolveOpts {
   phone?: boolean;
   /** Which quick actions this user may run (devices.control_bulk on the building); none = the quick card is absent. */
   quickAllowed?: Partial<Record<QuickAction, boolean>>;
+  /** Whether the media widget has anything to show for this user (media.read and at least one screen); unset = the widget decides itself. */
+  mediaAvailable?: boolean;
 }
 
 /** Whether a widget is shown on this kind of screen: the phone has its own switch, defaulting to the desktop's. */
@@ -392,6 +401,8 @@ export function resolveWidgets(cfg: HomeConfig, direction: Direction, data: Home
     } else if (id === 'quick') {
       const allowed = cfg.quick.actions.filter((a) => opts.quickAllowed?.[a]);
       avail = allowed.length ? 'ok' : 'noaction';
+    } else if (id === 'media') {
+      avail = opts.mediaAvailable === false ? 'nomedia' : 'ok';
     }
     if (avail === 'ok' || opts.editing) out.push({ id, avail, size: widgetSize(w, direction, !!opts.phone), title: w.label.trim() || WIDGET_NAME[id] });
   }
