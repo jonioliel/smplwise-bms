@@ -71,14 +71,16 @@ VALIDATORS[PERSONAL_HOME_KEY] = home_config.normalise_personal
 DEFAULTS[PERSONAL_HOME_KEY] = None
 
 
-def get_prefs(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
-    """Every known key, the stored value (re-normalized: the known ids may have grown since) or the default."""
+def get_prefs(conn: sqlite3.Connection, user_id: str, hide: tuple[str, ...] = ()) -> dict[str, Any]:
+    """Every known key, the stored value (re-normalized: the known ids may have grown since) or the default. A key in `hide` is
+    read as if it were not stored at all - neither its value, nor `stored`, nor `updated_at` shows it (a personal value the caller
+    may no longer have: routers/me.py)."""
     rows = {r["key"]: r for r in conn.execute("SELECT key, value_json, updated_at FROM user_prefs WHERE user_id = ?", (user_id,)).fetchall()}
     prefs: dict[str, Any] = {}
     stored: list[str] = []
     updated: str | None = None
     for key, default in DEFAULTS.items():
-        row = rows.get(key)
+        row = None if key in hide else rows.get(key)
         value = default
         if row is not None:
             try:
@@ -94,11 +96,12 @@ def get_prefs(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
 def set_prefs(conn: sqlite3.Connection, user_id: str, patch: dict[str, Any]) -> dict[str, Any]:
     """Apply a partial update: a validated value replaces the key, null deletes it (back to the default)."""
     now = now_iso()
-    for key, raw in patch.items():
-        if raw is None:
+    # every value is validated BEFORE anything is written: one bad key refuses the whole update and nothing of it commits
+    values = {key: (None if raw is None else VALIDATORS[key](raw)) for key, raw in patch.items()}
+    for key, value in values.items():
+        if value is None:
             conn.execute("DELETE FROM user_prefs WHERE user_id = ? AND key = ?", (user_id, key))
             continue
-        value = VALIDATORS[key](raw)
         conn.execute(
             "INSERT INTO user_prefs(user_id, key, value_json, updated_at) VALUES (?,?,?,?) "
             "ON CONFLICT(user_id, key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at",

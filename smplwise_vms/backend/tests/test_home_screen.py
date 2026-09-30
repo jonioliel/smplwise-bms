@@ -44,6 +44,9 @@ STATES = [
     _st("binary_sensor.jewish_calendar_issur_melacha_in_effect", "off", friendly_name="Issur melacha"),
     _st("sensor.kitchen_temp", "22", friendly_name="Kitchen", unit_of_measurement="°C", device_class="temperature"),
     _st("alarm_control_panel.house", "armed_away", friendly_name="House"),
+    _st("sensor.floor_temp", "21.5", friendly_name="Floor temp", unit_of_measurement="°C", device_class="temperature"),
+    _st("sensor.other_floor_temp", "33.3", friendly_name="Other floor temp", unit_of_measurement="°C", device_class="temperature"),
+    _st("binary_sensor.zone_door", "on", friendly_name="Zone door", device_class="door"),
     _st("alarm_control_panel.annex", "disarmed", friendly_name="Annex"),
 ]
 FLOORS = [
@@ -76,6 +79,9 @@ REGISTRY = [
     _reg("sensor.jewish_calendar_date", None, "jewish_calendar"),
     _reg("alarm_control_panel.house", "a0"),
     _reg("alarm_control_panel.annex", "a1"),
+    _reg("sensor.floor_temp", None),
+    _reg("sensor.other_floor_temp", None),
+    _reg("binary_sensor.zone_door", None),
 ]
 
 
@@ -518,3 +524,91 @@ def test_normalise_is_idempotent_and_the_stored_json_is_bounded():
     assert home_config.normalise(cfg) == cfg and home_config.normalise(copy.deepcopy(cfg)) == cfg
     assert home_config.parse_stored("") is None and home_config.parse_stored("garbage") is None and home_config.parse_stored('{"order": ["x"]}') is None
     assert home_config.parse_stored(json.dumps(cfg)) == cfg
+
+# ------------------------------------------------------------------------------------------------ scope of the widgets' data
+
+
+def _floor_scoped_viewer(app, s, c) -> str:
+    """A viewer bound to ONE floor, with `sensor.floor_temp` placed on it; `sensor.other_floor_temp` and the alarm zone's door
+    sensor are placed nowhere the viewer can see."""
+    from conftest import png_bytes, seed_tree
+
+    ids = seed_tree(c)
+    asset = c.post(f"/api/v1/floors/{ids['floor2']}/plan-assets", files={"file": ("p.png", png_bytes(), "image/png")}).json()
+    v = c.post(f"/api/v1/floors/{ids['floor2']}/plan-versions", json={"asset_id": asset["id"]}).json()
+    c.post(f"/api/v1/plan-versions/{v['id']}/publish")
+    assert c.post(f"/api/v1/floors/{ids['floor2']}/anchors", json={"resource_type": "ha_entity", "resource_id": "sensor.floor_temp", "x": 0.2, "y": 0.2}).status_code == 201
+    bind(c, s, "floorviewer", "viewer", "floor", ids["floor2"])
+    return ids["floor2"]
+
+
+def test_a_floor_scoped_caller_gets_no_state_of_a_sensor_outside_their_floors(app_c):
+    """Review finding: the widgets' sensors used to be read straight from the catalogue. An administrator may point the extra
+    fields / the weather field sources at any sensor (an alarm zone's, another floor's); a caller whose tree is narrowed to their
+    floors must not receive that state. The Jewish Calendar's sensors and the weather entity stay the whole site's."""
+    app, s = app_c
+    with TestClient(app) as c:
+        _floor_scoped_viewer(app, s, c)
+        _patch(c, {"home.widgets": {"calendar": {"parsha": "sensor.jewish_calendar_weekly_portion", "candles": "sensor.jewish_calendar_upcoming_candle_lighting",
+                                              "extras": [{"entity_id": "binary_sensor.zone_door", "label": "דלת"}, {"entity_id": "sensor.other_floor_temp", "label": "אחרת"}, {"entity_id": "sensor.floor_temp", "label": "שלי"}]},
+                                 "weather": {"entity": "weather.home", "sources": {"temperature": "sensor.other_floor_temp", "humidity": "sensor.floor_temp"}}}})
+        admin = _home(c)["data"]
+        assert {"binary_sensor.zone_door", "sensor.other_floor_temp", "sensor.floor_temp"} <= set(admin["sensors"])  # an unscoped caller reads them all
+        mine = c.get("/api/v1/devices/tree", headers=as_user("floorviewer")).json()
+        assert mine["scoped"] is True
+        d = mine["home"]["data"]
+        assert set(d["sensors"]) == {"sensor.jewish_calendar_weekly_portion", "sensor.jewish_calendar_upcoming_candle_lighting", "sensor.floor_temp"}
+        assert "33.3" not in json.dumps(mine["home"]["data"]) and "zone_door" not in json.dumps(d)
+        assert d["weather"]["entity_id"] == "weather.home"  # the weather entity is the site's, as before
+
+
+def test_widgets_that_are_off_compute_no_data():
+    cfg = home_config.default_config()
+    cfg["weather"].update({"entity": "weather.home", "sources": {"temperature": "sensor.kitchen_temp"}})
+    cfg["calendar"].update({"parsha": "sensor.p", "date": "sensor.d", "extras": [{"entity_id": "sensor.x", "label": ""}]})
+    assert home_screen._config_sensor_ids(cfg) == ["sensor.d", "sensor.p", "sensor.x", "sensor.kitchen_temp"]
+    cfg["shabbat"]["on"] = False
+    assert home_screen._config_sensor_ids(cfg) == ["sensor.d", "sensor.kitchen_temp"]  # the clock still shows the Hebrew date
+    cfg["clock"]["on"] = False
+    cfg["weather"]["on"] = False
+    assert home_screen._config_sensor_ids(cfg) == []
+
+
+def test_a_widget_switched_off_sends_no_weather_alarm_or_sensor_state(app_c):
+    app, _ = app_c
+    with TestClient(app) as c:
+        _patch(c, {"home.widgets": {"weather": {"on": False, "entity": "weather.home"}, "alarm": {"on": False}, "shabbat": {"on": False}, "calendar": {"parsha": "sensor.jewish_calendar_weekly_portion"}}})
+        d = _home(c)["data"]
+        assert d["weather"] is None and d["alarm"] is None and d["sensors"] == {}  # the calendar's Hebrew date is unset here
+        _patch(c, {"home.widgets": {"weather": {"entity": "weather.home"}}})
+        assert _home(c)["data"]["weather"]["entity_id"] == "weather.home"
+
+# ------------------------------------------------------------------------------------------------ /me/prefs review findings
+
+
+def test_a_hidden_personal_value_does_not_leak_through_updated_at(app_c):
+    """Review finding: GET /me/prefs hid `home.personal` but `updated_at` still moved with the hidden row."""
+    app, s = app_c
+    with TestClient(app) as c:
+        bind(c, s, "ron", "viewer", "installation", "*")
+        with app.state.db.connection() as conn:
+            conn.execute("INSERT INTO user_prefs(user_id, key, value_json, updated_at) VALUES ('dev-ron', 'home.personal', ?, '2026-09-30T09:00:00+00:00')", (json.dumps({"direction": "c", "order": None, "widgets": {}}),))
+        got = c.get("/api/v1/me/prefs", headers=as_user("ron")).json()
+        assert got["prefs"]["home.personal"] is None and got["stored"] == [] and got["updated_at"] is None
+        # a visible key still reports its own time, the hidden row never counts
+        r = c.put("/api/v1/me/prefs", headers=as_user("ron"), json={"nav.order": ["security"]}).json()
+        assert r["stored"] == ["nav.order"] and r["updated_at"] and r["updated_at"] != "2026-09-30T09:00:00+00:00" and r["prefs"]["home.personal"] is None
+
+
+def test_put_prefs_is_all_or_nothing(app_c):
+    """Review finding: PUT /me/prefs wrote key by key, so an invalid later key returned 422 after an earlier one had committed."""
+    app, _ = app_c
+    with TestClient(app) as c:
+        c.put("/api/v1/me/prefs", json={"home.personal": None, "nav.order": None})
+        before = c.get("/api/v1/me/prefs").json()
+        for bad in ({"home.personal": {"direction": "z"}}, {"ui.nav_size": {"mode": "rel", "preset": "huge"}}, {"wiskey.density": "7"}):
+            r = c.put("/api/v1/me/prefs", json={"nav.order": ["explore", "devices"], **bad})
+            assert r.status_code == 422, (bad, r.text)
+            assert c.get("/api/v1/me/prefs").json() == before, bad  # nothing of the request was stored
+        ok = c.put("/api/v1/me/prefs", json={"nav.order": ["explore", "devices"], "home.personal": {"direction": "b"}})
+        assert ok.status_code == 200 and ok.json()["prefs"]["nav.order"][0] == "explore" and ok.json()["prefs"]["home.personal"]["direction"] == "b"

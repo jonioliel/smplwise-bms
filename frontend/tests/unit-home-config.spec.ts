@@ -148,6 +148,10 @@ test.describe('home config', () => {
     expect(d.sensors['sensor.parsha'].state).toBe('נח'); // what the server sent for a saved entity is kept
     expect(d.sensors['sensor.out'].unit).toBe('°C');
     expect(d.alarm?.state).toBe('disarmed');
+    // "automatic" while the server sent no alarm (the card was off when the tree was read): the most urgent candidate previews
+    c.alarm.entity = '';
+    expect(previewData(c, { ...DATA, alarm: null }, { ...cands, alarms: [{ entity_id: 'alarm_control_panel.a', name: 'א', state: 'disarmed' }, { entity_id: 'alarm_control_panel.b', name: 'ב', state: 'triggered' }] }).alarm?.entity_id).toBe('alarm_control_panel.b');
+    expect(previewData(c, { ...DATA, alarm: null }, null).alarm).toBeNull();
     // the saved entity is used as is; an unavailable candidate is a ghost's "unavail"; no candidates = nothing to preview
     c.weather.entity = 'weather.wx';
     expect(previewData(c, DATA, cands).weather).toBe(DATA.weather);

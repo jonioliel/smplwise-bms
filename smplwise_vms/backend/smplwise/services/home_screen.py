@@ -144,6 +144,7 @@ def _trim(e: dict[str, Any]) -> dict[str, Any]:
         "state": state,
         "available": bool(e.get("available")) and state not in (None, "", "unavailable", "unknown"),
         "device_class": e.get("device_class"),
+        "platform": e.get("platform"),
         "unit": e.get("unit"),
         "last_changed": e.get("last_changed"),
         "attributes": e.get("attributes") or {},
@@ -238,16 +239,22 @@ def _sensor_data(s: dict[str, Any]) -> dict[str, Any]:
 
 
 def _config_sensor_ids(cfg: dict[str, Any]) -> list[str]:
-    """Every sensor the configuration reads (the Jewish-calendar fields and extras, the weather field sources)."""
-    ids = [cfg["calendar"][f] for f in home_config.CALENDAR_FIELDS]
-    ids += [x["entity_id"] for x in cfg["calendar"]["extras"]]
-    ids += list(cfg["weather"]["sources"].values())
+    """Every sensor the configuration reads FOR A WIDGET THAT IS ON: the Jewish-calendar fields and extras (Shabbat; the Hebrew
+    date also feeds the clock) and the weather field sources. A widget that is off computes nothing."""
+    ids: list[str] = []
+    cal = cfg["calendar"]
+    if cfg["clock"]["on"] or cfg["shabbat"]["on"]:
+        ids.append(cal["date"])
+    if cfg["shabbat"]["on"]:
+        ids += [cal[f] for f in ("parsha", "candles", "havdalah", "holiday")]
+        ids += [x["entity_id"] for x in cal["extras"]]
+    if cfg["weather"]["on"]:
+        ids += list(cfg["weather"]["sources"].values())
     out: list[str] = []
     for i in ids:
         if i and i not in out:
             out.append(i)
     return out
-
 
 _ALARM_RANK = {"triggered": 0, "pending": 1, "arming": 2, "disarming": 3, "armed_away": 4, "armed_home": 5, "armed_night": 6, "armed_vacation": 7, "armed_custom_bypass": 8, "disarmed": 9}
 
@@ -265,18 +272,27 @@ def alarm_data(cfg: dict[str, Any], entities: list[dict[str, Any]] | None) -> di
     return {"entity_id": best["entity_id"], "name": best.get("name") or best["entity_id"], "state": best.get("state"), "since": best.get("last_changed"), "available": bool(best.get("available")) and best.get("state") not in (None, "", "unavailable", "unknown")}
 
 
+def _may_read(sensor: dict[str, Any], visible: set[str]) -> bool:
+    """A configured sensor's state reaches the caller only when it is in the caller's visible entity set (the tree's own, narrowed
+    to their floors), except the Jewish Calendar integration's sensors - the calendar is the whole site's, not a place - which
+    is what the widgets showed before the redesign."""
+    return sensor["entity_id"] in visible or (sensor.get("platform") or "") == "jewish_calendar"
+
+
 def widget_data(conn: sqlite3.Connection, cfg: dict[str, Any], entities: list[dict[str, Any]] | None) -> dict[str, Any]:
-    """What the widgets show right now, for the entities `cfg` points at. A missing entity is absent (null / not in the map):
-    the screen draws no card for it and gives it no room. `entities` = the alarm panels the caller may see (the tree's own
-    entity set); None reads none, so the alarm card is absent."""
-    w = _entity(conn, cfg["weather"]["entity"], "weather")
+    """What the widgets show right now, for the entities `cfg` points at and the widgets that are on. A missing, out-of-scope or
+    switched-off source is absent (null / not in the map): the screen draws no card for it and gives it no room. `entities` =
+    the entities the caller may see (the tree's own set, narrowed to a floor-scoped caller's floors); None means none, so the
+    alarm card is absent and only the weather entity and the Jewish Calendar's sensors are read. The `weather.*` entity is the
+    one other exception (the site's weather, as before)."""
+    visible = {e["entity_id"] for e in (entities or [])}
+    w = _entity(conn, cfg["weather"]["entity"], "weather") if cfg["weather"]["on"] else None
     sensors: dict[str, Any] = {}
     for sid in _config_sensor_ids(cfg):
         s = _entity(conn, sid, "sensor", "binary_sensor")
-        if s is not None:
+        if s is not None and _may_read(s, visible):
             sensors[sid] = _sensor_data(s)
-    return {"weather": weather_data(w) if w else None, "sensors": sensors, "alarm": alarm_data(cfg, entities)}
-
+    return {"weather": weather_data(w) if w else None, "sensors": sensors, "alarm": alarm_data(cfg, entities) if cfg["alarm"]["on"] else None}
 
 def payload(conn: sqlite3.Connection, entities: list[dict[str, Any]] | None, *, personalize: bool = False, personal: dict[str, Any] | None = None) -> dict[str, Any]:
     """The `home` block of GET /devices/tree: the direction, the widget configuration as THIS caller sees it (the personal

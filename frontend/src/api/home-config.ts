@@ -315,6 +315,10 @@ export function previewData(cfg: HomeConfig, base: HomeData, cands: HomeCandidat
   if (cfg.alarm.entity && base.alarm?.entity_id !== cfg.alarm.entity) {
     const c = cands?.alarms.find((a) => a.entity_id === cfg.alarm.entity);
     alarm = c ? { entity_id: c.entity_id, name: c.name, state: c.state, since: null, available: !UNAVAILABLE.has(c.state ?? '') } : null;
+  } else if (!alarm && !cfg.alarm.entity && cands?.alarms.length) {
+    // no panel chosen ("automatic") and the server sent none (the card was off when the tree was read): the most urgent candidate
+    const c = cands.alarms.find((a) => a.state === 'triggered') ?? cands.alarms[0];
+    alarm = { entity_id: c.entity_id, name: c.name, state: c.state, since: null, available: !UNAVAILABLE.has(c.state ?? '') };
   }
   return { weather, sensors, alarm };
 }
