@@ -74,11 +74,13 @@ async function frameGeometry(page: Page) {
     const s = stage.getBoundingClientRect();
     const f = frame.getBoundingClientRect();
     const cs = getComputedStyle(frame);
+    // the frame is enlarged by --wk-crop on every side and the stage clips it (focus-ring crop): compare the VISIBLE part
+    const crop = parseFloat(getComputedStyle(stage).getPropertyValue('--wk-crop')) || 0;
     return {
-      dLeft: Math.abs(s.left - f.left),
-      dTop: Math.abs(s.top - f.top),
-      dWidth: Math.abs(s.width - f.width),
-      dHeight: Math.abs(s.height - f.height),
+      dLeft: Math.abs(s.left - (f.left + crop)),
+      dTop: Math.abs(s.top - (f.top + crop)),
+      dWidth: Math.abs(s.width - (f.width - 2 * crop)),
+      dHeight: Math.abs(s.height - (f.height - 2 * crop)),
       borderWidth: cs.borderTopWidth,
       outlineStyle: cs.outlineStyle,
       stageBg: getComputedStyle(stage).backgroundColor,
@@ -116,7 +118,10 @@ async function layoutOf(page: Page) {
     const main = sr.querySelector('main')!;
     const screen = main.querySelector(':scope > .screen')!;
     const f = embed.shadowRoot!.querySelector('iframe')!;
-    const fr = f.getBoundingClientRect();
+    const fr0 = f.getBoundingClientRect();
+    // the frame is enlarged by --wk-crop on every side and the stage clips it (focus-ring crop): `frame` is the VISIBLE box
+    const crop = parseFloat(getComputedStyle(embed.shadowRoot!.querySelector('.stage')!).getPropertyValue('--wk-crop')) || 0;
+    const fr = { left: fr0.left + crop, right: fr0.right - crop, top: fr0.top + crop, bottom: fr0.bottom - crop, width: fr0.width - 2 * crop, height: fr0.height - 2 * crop };
     const mr = main.getBoundingClientRect();
     const sc = screen.getBoundingClientRect();
     const bottom = sr.querySelector('nav.bottom') as HTMLElement | null;
@@ -125,6 +130,7 @@ async function layoutOf(page: Page) {
     return {
       vw: window.innerWidth,
       vh: window.innerHeight,
+      crop,
       frame: { left: fr.left, right: fr.right, top: fr.top, bottom: fr.bottom, width: fr.width, height: fr.height },
       screen: { top: sc.top, bottom: sc.bottom },
       main: { left: mr.left, right: mr.right, bottom: mr.bottom, scrolls: main.scrollHeight > main.clientHeight + 1 },
@@ -145,8 +151,8 @@ async function expectFrameFillsContentArea(page: Page, scale = 1) {
   near(l.frame.bottom, l.bottomTop ?? l.vh); // ... which is the bottom edge, or the top of the phone's bottom bar
   expect(l.frame.top).toBeGreaterThanOrEqual(l.screen.top - 1);
   // the panel's own viewport is the whole frame - or, in the scaled size, the frame's box before the scale (1/scale larger)
-  near(l.inner.h * scale, l.frame.height, scale < 1 ? 2 : 1);
-  near(l.inner.w * scale, l.frame.width, scale < 1 ? 2 : 1);
+  near(l.inner.h * scale, l.frame.height + 2 * l.crop, scale < 1 ? 2 : 1); // (WisKey's box = the visible box + the crop on each side)
+  near(l.inner.w * scale, l.frame.width + 2 * l.crop, scale < 1 ? 2 : 1);
   expect(l.main.scrolls).toBe(false); // no scroll container gives the frame less than it shows
   expect(l.pageScrolls).toBe(false);
   return l;
@@ -746,7 +752,7 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
         await expectNothingAroundFrame(page);
         if (scale !== '100') {
           expect(l.inner.h).toBeGreaterThan(l.frame.height); // WisKey's box is bigger than what is shown
-          expect(Math.abs(l.inner.h - Math.round(l.frame.height / s))).toBeLessThanOrEqual(2);
+          expect(Math.abs(l.inner.h - Math.round((l.frame.height + 2 * l.crop) / s))).toBeLessThanOrEqual(2);
           // pointer coordinates: a press at (x, y) in the wrapper is (x / scale, y / scale) inside WisKey's own document
           await recordClicks(page);
           const box = (await page.locator(FRAME).boundingBox())!;
@@ -780,13 +786,15 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
         const r = embed.getBoundingClientRect();
         const f = embed.shadowRoot!.querySelector('iframe')!;
         const fr = f.getBoundingClientRect();
+        const crop = parseFloat(getComputedStyle(embed.shadowRoot!.querySelector('.stage')!).getPropertyValue('--wk-crop')) || 0;
         const ex = embed.shadowRoot!.querySelectorAll('button.exit');
         const eb = ex[0]?.getBoundingClientRect();
         // what is on top at the rail, the top bar and the corner: always the embed
         const on = (x: number, y: number) => !!sr.elementFromPoint(x, y)?.closest('wiskey-embed');
         return {
           embed: [r.left, r.top, r.width, r.height],
-          frame: [fr.left, fr.top, fr.width, fr.height],
+          crop,
+          frame: [fr.left + crop, fr.top + crop, fr.width - 2 * crop, fr.height - 2 * crop], // the visible box (the frame is enlarged by the crop)
           inner: [f.contentWindow!.innerWidth, f.contentWindow!.innerHeight],
           exits: ex.length,
           exit: eb ? [eb.left, eb.top, eb.width, eb.height] : null,
@@ -803,7 +811,7 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
       }, SHELL_PARTS);
       expect(g.embed).toEqual([0, 0, w, h]);
       expect(g.frame).toEqual([0, 0, w, h]);
-      expect(g.inner).toEqual([w, h]);
+      expect(g.inner).toEqual([w + 2 * g.crop, h + 2 * g.crop]); // WisKey's box = the viewport + the crop on each side (clipped)
       expect(g.exits).toBe(1); // one control, nothing else
       expect(g.exit![2]).toBeLessThanOrEqual(32);
       expect(g.exit![3]).toBeLessThanOrEqual(32);
@@ -872,7 +880,9 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await expect(page.locator('wiskey-embed')).toHaveAttribute('data-size', 'full', { timeout: 15000 });
     const g = await page.locator('wiskey-embed').evaluate((embed: HTMLElement) => {
       const sr = embed.getRootNode() as ShadowRoot;
-      const f = embed.shadowRoot!.querySelector('iframe')!.getBoundingClientRect();
+      const f0 = embed.shadowRoot!.querySelector('iframe')!.getBoundingClientRect();
+      const c = parseFloat(getComputedStyle(embed.shadowRoot!.querySelector('.stage')!).getPropertyValue('--wk-crop')) || 0;
+      const f = { left: f0.left + c, top: f0.top + c, width: f0.width - 2 * c, height: f0.height - 2 * c }; // the visible box
       const bn = sr.querySelector('nav.bottom')!.getBoundingClientRect();
       return { frame: [f.left, f.top, f.width, f.height], vw: innerWidth, vh: innerHeight, bottomCovered: !!sr.elementFromPoint(bn.left + bn.width / 2, bn.top + bn.height / 2)?.closest('wiskey-embed') };
     });
@@ -1122,6 +1132,67 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
 
   // ------------------------------------------------------------------ WisKey rc.37: chrome=none, density and wall
 
+  test('rc.37 known issue (focus ring on WisKey\'s <main tabindex="-1">): a ring drawn at the frame edge is cropped in every size, without a scrollbar or a click offset', async ({ page }, testInfo) => {
+    test.setTimeout(150_000);
+    const base = testInfo.project.use.baseURL;
+    await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
+    const sizes: { size: WiskeySizeSetting['ui.wiskey_size']; scale: WiskeySizeSetting['ui.wiskey_scale'] }[] = [{ size: 'normal', scale: '90' }, { size: 'fit', scale: '80' }, { size: 'full', scale: '90' }];
+    try {
+      for (const { size, scale } of sizes) {
+        await setWiskeySize(base, { 'ui.wiskey_size': size, 'ui.wiskey_scale': scale });
+        await open(page, '/wiskey/people');
+        await expect(page.locator(FRAME)).toHaveAttribute('data-confirmed-tab', 'users', { timeout: 15000 });
+        await expect(page.locator('wiskey-embed')).toHaveAttribute('data-size', size === 'fit' && scale === '100' ? 'normal' : size!);
+        const crop = await page.locator('wiskey-embed').evaluate((e: HTMLElement) => parseFloat(getComputedStyle(e.shadowRoot!.querySelector('.stage')!).getPropertyValue('--wk-crop')));
+        expect(crop).toBe(testInfo.project.name === 'mobile' ? 2 : 3); // 3 px, 2 px under 768 px
+        // WisKey's <main tabindex="-1"> after an in-panel navigation: a dark ring on the outermost `crop` px of its viewport,
+        // plus a button to press
+        await panelFrame(page).evaluate((ring: number) => {
+          const m = document.createElement('main');
+          m.tabIndex = -1;
+          m.style.cssText = `position:fixed;inset:0;box-sizing:border-box;outline:${ring}px solid #000;outline-offset:-${ring}px;background:transparent`;
+          const b = document.createElement('button');
+          b.id = 'wk-btn';
+          b.style.cssText = 'position:absolute;left:100px;top:100px;width:60px;height:40px';
+          b.onclick = () => ((window as unknown as { __hit: number }).__hit = ((window as unknown as { __hit?: number }).__hit ?? 0) + 1);
+          m.append(b);
+          document.body.append(m);
+          m.focus();
+        }, crop);
+        const edges = async () => {
+          const r = await page.locator('wiskey-embed').evaluate((e: HTMLElement) => { const b = e.shadowRoot!.querySelector('.stage')!.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom }; });
+          const cx = (r.l + r.r) / 2;
+          const cy = (r.t + r.b) / 2;
+          return edgePixels(page, [[r.l + 1, cy], [r.r - 2, cy], [r.r - 30, r.t + 1], [cx, r.b - 2], [r.r - 2, r.b - 2]]); // (not the top-left corner: the fake panel draws its own dark bar there)
+        };
+        await page.screenshot({ path: testInfo.outputPath(`focus-ring-cropped-${size}.png`) });
+        for (const px of await edges()) expect(Math.min(px[0], px[1], px[2]), `edge pixel ${px.join(',')} (${size})`).toBeGreaterThan(200); // no dark frame
+        if (size === 'normal') {
+          // control: without the crop the same ring IS visible at the edge
+          await page.locator('wiskey-embed').evaluate((e: HTMLElement) => (e.shadowRoot!.querySelector('.stage') as HTMLElement).style.setProperty('--wk-crop', '0px'));
+          for (const px of await edges()) expect(Math.max(px[0], px[1], px[2]), 'the uncropped ring is dark').toBeLessThan(80);
+          await page.locator('wiskey-embed').evaluate((e: HTMLElement) => (e.shadowRoot!.querySelector('.stage') as HTMLElement).style.removeProperty('--wk-crop'));
+        }
+        await page.screenshot({ path: testInfo.outputPath(`focus-ring-cropped-${size}.png`) });
+        // no scrollbar, and a press where the button is lands on it (pointer coordinates follow the frame, scaled or not)
+        const l = await layoutOf(page);
+        expect(l.pageScrolls).toBe(false);
+        expect(l.main.scrolls).toBe(false);
+        const at = await page.locator('wiskey-embed').evaluate((e: HTMLElement) => {
+          const f = e.shadowRoot!.querySelector('iframe')!;
+          const fr = f.getBoundingClientRect();
+          const s = fr.width / f.offsetWidth;
+          const bb = f.contentDocument!.getElementById('wk-btn')!.getBoundingClientRect();
+          return { x: fr.left + (bb.left + bb.width / 2) * s, y: fr.top + (bb.top + bb.height / 2) * s };
+        });
+        await page.mouse.click(at.x, at.y);
+        expect(await panelFrame(page).evaluate(() => (window as unknown as { __hit?: number }).__hit ?? 0), `the press reached the button (${size})`).toBe(1);
+      }
+    } finally {
+      await setWiskeySize(base, { 'ui.wiskey_size': 'normal', 'ui.wiskey_scale': '90' });
+    }
+  });
+
   test('rc.37: the address carries chrome=none and the start choices - the user\'s own, else the installation\'s, else none', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'desktop only');
     const base = testInfo.project.use.baseURL;
@@ -1208,6 +1279,30 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     }
   });
 });
+
+/** The pixels of a screenshot of the page (CSS pixels) at the given points, decoded in a scratch page. */
+async function edgePixels(page: Page, points: [number, number][]): Promise<number[][]> {
+  const png = await page.screenshot({ scale: 'css' });
+  const other = await page.context().newPage();
+  try {
+    return await other.evaluate(
+      async ({ b64, pts }) => {
+        const img = new Image();
+        img.src = `data:image/png;base64,${b64}`;
+        await img.decode();
+        const c = document.createElement('canvas');
+        c.width = img.width;
+        c.height = img.height;
+        const g = c.getContext('2d')!;
+        g.drawImage(img, 0, 0);
+        return pts.map(([x, y]) => Array.from(g.getImageData(Math.round(x), Math.round(y), 1, 1).data));
+      },
+      { b64: png.toString('base64'), pts: points },
+    );
+  } finally {
+    await other.close();
+  }
+}
 
 /** Sets the installation defaults (`ui.wiskey_density` / `ui.wiskey_wall`) and the signed-in user's own choices (null = none). */
 async function setWiskeyView(baseURL: string | undefined, v: { install: [string, string]; own: [string | null, string | null] }) {
