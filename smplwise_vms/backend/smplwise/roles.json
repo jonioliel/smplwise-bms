@@ -113,7 +113,6 @@
         "devices.control",
         "access.cards.capture",
         "devices.control_bulk",
-        "screen.personalize",
         "entity.state.read",
         "video.live",
         "video.playback",
@@ -185,7 +184,6 @@
     "nvr.record.manual",
     "nvr.record.lock",
     "nvr.alarm_output",
-    "screen.personalize",
     "nvr.storage.test",
     "nvr.system.reboot"
   ],

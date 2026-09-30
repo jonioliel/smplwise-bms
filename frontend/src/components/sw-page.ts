@@ -113,6 +113,7 @@ export class SwPage extends LitElement {
       <header>
         <div>
           ${crumbs.length ? html`<div class="crumbs">${crumbs.map((c, i) => html`${i ? html`<sw-icon name="chevron" size=${11}></sw-icon>` : ''}<span>${c}</span>`)}</div>` : ''}
+          <slot name="crumbs"></slot>
           <div class="titlebar">
             ${this.backHref ? html`<sw-button class="back" data-page-back variant="ghost" size="sm" iconOnly icon="chevronBack" label=${t('actions.back')} @click=${() => navigate(this.backHref)}></sw-button>` : ''}
             <h1>${this.heading}</h1>

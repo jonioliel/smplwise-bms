@@ -148,7 +148,8 @@ def test_devices_settings_defaults_validation_audit_and_gate(settings):
     with TestClient(app) as c:
         before = c.get("/api/v1/settings").json()["settings"]
         assert {k: before[k] for k in DEVICES_DEFAULTS} == DEVICES_DEFAULTS
-        assert sorted(k for k in before if k.startswith("devices.")) == sorted(DEVICES_DEFAULTS)
+        # (devices.area_design - the area screens' direction, owner 2026-09-30 - has its own tests: test_area_redesign.py)
+        assert sorted(k for k in before if k.startswith("devices.") and k != "devices.area_design") == sorted(DEVICES_DEFAULTS)
         change = {"devices.style": "glass", "devices.default_view": "tiles", "devices.show_sensors": "false", "devices.show_climate_strip": "false", "devices.density": "compact"}
         r = c.patch("/api/v1/settings", json=change)
         assert r.status_code == 200, r.text

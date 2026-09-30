@@ -120,6 +120,15 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await page.waitForTimeout(1200);
   }
 
+  /** The area screen's switcher (devices-area-nav.ts): the area crumb's list on a wide screen, chips on a phone - both carry
+   * `data-nav-option`. Opens the list when it is closed; `close` puts it away again. */
+  async function areaOption(page: Page, id: string) {
+    const nav = page.locator('devices-area devices-area-nav');
+    const opt = nav.locator(`[data-nav-option="${id}"]`);
+    if (!(await opt.count()) && (await nav.locator('[data-crumb="area"]').count())) await nav.locator('[data-crumb="area"]').click();
+    return { opt, close: async () => { if (await nav.locator('[data-nav-menu]').count()) await page.keyboard.press('Escape'); } };
+  }
+
   /** UI round 1c (shell/screen-edit.ts): the area screen has no "ערוך פריסה" button - its layout editor is an item of the user
    * menu ("עריכת פריסה", the corner avatar: the rail's on a wide screen, the bottom bar's on the phone). */
   async function openUserMenu(page: Page) {
@@ -194,7 +203,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await expect(page.locator('devices-area sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
   });
 
-  test('the area screen: cards per domain with the fields each needs, empty states after the filled cards, sibling chips, one-tap controls for a devices.control holder', async ({ page, request }) => {
+  test('the area screen: cards per domain with the fields each needs, empty states after the filled cards, sibling chips, one-tap controls for a devices.control holder', async ({ page, request }, testInfo) => {
     await seed(request);
     await open(page, '/devices/areas/cr007_lobby', 'a');
     const screen = page.locator('devices-area');
@@ -252,14 +261,18 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await expect(temp).toContainText('23.5');
     await expect(temp.locator('sw-toggle, sw-button, input')).toHaveCount(0);
     // chips of the same floor, the current one selected; the empty storage area is one of them
-    await expect(screen.locator('sw-chip[data-area-chip="cr007_lobby"]')).toHaveAttribute('selected', '');
-    await expect(screen.locator('sw-chip[data-area-chip="cr007_storage"]')).toHaveCount(1);
-    await expect(screen.locator('sw-chip[data-area-chip="cr007_office"]')).toHaveCount(0); // another floor
-    // breadcrumb back to the tree
-    await expect(page.locator('devices-area sw-page')).toHaveAttribute('crumbs', /חשמל והתקנים \| קרקע \| לובי/);
+    const lobby = await areaOption(page, 'cr007_lobby');
+    const phone = testInfo.project.name === 'mobile';
+    await expect(lobby.opt).toHaveAttribute(phone ? 'selected' : 'aria-checked', phone ? '' : 'true');
+    await expect(screen.locator('[data-nav-option="cr007_storage"]')).toHaveCount(1);
+    await expect(screen.locator('[data-nav-option="cr007_office"]')).toHaveCount(0); // another floor
+    // the breadcrumb is a set of controls (owner 2026-09-30): home, the floor, the area
+    await expect(screen.locator('devices-area-nav [data-crumb="home"]')).toContainText('חשמל והתקנים');
+    await expect(screen.locator('devices-area-nav [data-crumb="floor"]')).toContainText('קרקע');
+    await expect(page.locator('devices-area sw-page h1')).toHaveText('לובי');
 
     // the empty area (owner feedback 2026-09-29, "hide empty domains"): no card at all, one honest empty state
-    await screen.locator('sw-chip[data-area-chip="cr007_storage"]').click();
+    await screen.locator('devices-area-nav [data-nav-option="cr007_storage"]').click();
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/devices/areas/cr007_storage');
     await expect(screen.locator('sw-state-panel[data-devices-state="area_empty"]')).toBeVisible({ timeout: 30000 });
     await expect(screen.locator('sw-state-panel[data-devices-state="area_empty"]')).toHaveAttribute('heading', 'אין התקנים באזור הזה');
@@ -1245,6 +1258,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     const card = page.locator('devices-area sw-card[data-card="sensors"]');
     await expect(card).toBeVisible({ timeout: 30000 });
     // owner 2026-09-30 (area redesign): the main strip (temperature first) on top, the rest behind "עוד N חיישנים"
+    if ((await card.getAttribute('collapsed')) !== null) await card.locator('button.fold').click(); // a phone starts the sensors section folded
     await expect(card.locator('[data-main-sensor="sensor.cr007_temp"]')).toContainText('23.5');
     await card.locator('[data-sensors-more]').click();
     const groups = await card.locator('[data-sensor-group]').evaluateAll((els) => els.map((e) => e.getAttribute('data-sensor-group')));
@@ -2316,7 +2330,13 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       const lightingCard = a.locator('sw-card[data-card="lighting"]');
       await expect(lightingCard).toBeVisible({ timeout: 30000 });
       await expect(lightingCard).toHaveAttribute('subheading', /^2 התקנים · 1 פעילים/);
-      const chipCount = await a.locator('sw-chip[data-area-chip="cr007_lobby"]').evaluate((e) => (e as unknown as { count: number }).count);
+      const areaCount = async () => {
+        const o = await areaOption(page, 'cr007_lobby');
+        const n = await o.opt.getAttribute('data-count');
+        await o.close();
+        return n;
+      };
+      const chipCount = await areaCount();
       await enterLayoutEdit(page);
       await expect(a.locator(`[data-layout-variant="${variant}"]`)).toHaveAttribute('aria-pressed', 'true');
       // the card's own "סידור התקנים": the card alone, a breadcrumb back, the tiles panel
@@ -2408,7 +2428,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await expect(card.locator('.lay-tile[data-lay-tile="light.cr007_lobby"]')).toHaveAttribute('style', /span 2/);
       await expect(card.locator('.tile[data-entity="light.cr007_lobby"]')).toContainText('תאורה <b>ראשית</b>');
       await expect(card).toHaveAttribute('subheading', /^2 התקנים · 1 פעילים/);
-      expect(await a.locator('sw-chip[data-area-chip="cr007_lobby"]').evaluate((e) => (e as unknown as { count: number }).count)).toBe(chipCount);
+      expect(await areaCount()).toBe(chipCount);
       // the tile's controls work again outside the editor
       await expect(card.locator('.tile[data-entity="light.cr007_lobby"] sw-toggle[data-control="power"]')).toBeVisible();
       await expect(a.locator('[data-lay-inert]')).toHaveCount(0);
