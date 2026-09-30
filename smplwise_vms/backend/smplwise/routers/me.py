@@ -112,19 +112,20 @@ def put_my_prefs(body: PrefsPatch, principal: Principal = Depends(current_princi
     unknown ids and appends the missing ones in the default order. Presentation only: no permission changes."""
     patch = {user_prefs_key(name): value for name, value in body.model_dump(by_alias=False).items() if name in body.model_fields_set}
     allowed = may_personalize(conn, principal)
+    if patch.get(user_prefs.PERSONAL_MEDIA_KEY) is not None and not allowed:
+        # CR-015 (MEDIA_API.md 3.15): the personal screens page is for holders of screen.personalize only (clearing it is always allowed);
+        # its own refusal code, checked before the generic one below (review L7)
+        from ..audit import audit
+        from ..errors import ApiError
+
+        audit(conn, actor=principal, action=PERSONALIZE, decision="denied", resource_type=INSTALLATION[0], resource_id=INSTALLATION[1], reason="permission_missing")
+        raise ApiError(403, "personalize_required", "התאמה אישית של המסך דורשת הרשאה.", details={"permission": PERSONALIZE})
     if any(patch.get(k) is not None for k in user_prefs.PERSONAL_KEYS if k != user_prefs.PERSONAL_MEDIA_KEY) and not allowed:
         # home redesign / area rows: the personal home screen is for holders of screen.personalize only (clearing it is always allowed)
         from ..audit import audit
 
         audit(conn, actor=principal, action=PERSONALIZE, decision="denied", resource_type=INSTALLATION[0], resource_id=INSTALLATION[1], reason="permission_missing")
         raise forbidden(permission=PERSONALIZE)
-    if patch.get(user_prefs.PERSONAL_MEDIA_KEY) is not None and not allowed:
-        # CR-015 (MEDIA_API.md 3.15): the personal screens page is for holders of screen.personalize only (clearing it is always allowed)
-        from ..audit import audit
-        from ..errors import ApiError
-
-        audit(conn, actor=principal, action=PERSONALIZE, decision="denied", resource_type=INSTALLATION[0], resource_id=INSTALLATION[1], reason="permission_missing")
-        raise ApiError(403, "personalize_required", "התאמה אישית של המסך דורשת הרשאה.", details={"permission": PERSONALIZE})
     try:
         user_prefs.set_prefs(conn, principal.user_id, patch)
     except ValueError as exc:

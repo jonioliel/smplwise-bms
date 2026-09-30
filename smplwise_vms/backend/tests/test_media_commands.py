@@ -27,6 +27,7 @@ def m(settings, monkeypatch):
     calls = seed.pair(c, monkeypatch)
     media_commands.BUCKETS.clear()
     media_commands._KEY_WINDOWS.clear()
+    media_commands._LIMIT_WINDOWS.clear()
     keys = {n: seed.key_of(c, e) for n, e in {"samsung": "media_player.tv_living", "kitchen": "media_player.tv_kitchen", "lg": "media_player.lg_office", "lg_off": "media_player.lg_storage",
                                                "android": "media_player.tv_bedroom", "generic": "media_player.generic_tv"}.items()}
     return app, c, calls, keys, settings
@@ -149,8 +150,10 @@ def test_volume_set_converts_to_ha_units_and_clamps_to_the_ceiling(m, monkeypatc
     send(c, keys["samsung"], "volume_set", level=90)
     assert calls[-1]["data"]["volume_level"] == 0.4, "the ceiling clamps, it does not refuse"
     for bad in (-1, 101, "x", True, None):
+        media_commands.BUCKETS.clear()  # a malformed request counts against the rate limits too (they run before validation)
         r = send(c, keys["samsung"], "volume_set", level=bad) if bad is not None else send(c, keys["samsung"], "volume_set")
         assert r.status_code == 422, bad
+    media_commands.BUCKETS.clear()
     assert send(c, keys["samsung"], "volume_set", level=5.5).status_code == 202
 
 
@@ -320,9 +323,11 @@ def test_text_is_sent_per_profile_and_never_stored_or_logged(m):
     assert service_of(calls[-1]) == ("remote", "send_command", {"entity_id": "remote.tv_bedroom", "command": "text:hello"})
     assert code(send(c, keys["lg"], "text", text="hello")) == "not_supported"
     assert code(send(c, keys["generic"], "text", text="hello")) == "not_supported"
-    assert code(send(c, keys["samsung"], "text", text="")) == "validation" and code(send(c, keys["samsung"], "text", text="x" * 201)) == "validation"
-    assert code(send(c, keys["samsung"], "text", text="a\nb")) == "validation"
-    assert send(c, keys["samsung"], "text", text="x" * 200).status_code == 429 or True  # the 1/s text limit may apply here; covered below
+    for bad in ("", "x" * 201, "a\nb"):
+        media_commands.BUCKETS.clear()  # (a malformed request counts against the rate limits too: they run before validation)
+        assert code(send(c, keys["samsung"], "text", text=bad)) == "validation"
+    media_commands.BUCKETS.clear()
+    assert send(c, keys["samsung"], "text", text="x" * 200).status_code == 202
     with app.state.db.connection(mode="read") as conn:
         for table in ("audit_log", "media_commands", "ha_actions"):
             dump = json.dumps([dict(r) for r in conn.execute(f"SELECT * FROM {table}").fetchall()], ensure_ascii=False)
@@ -601,3 +606,189 @@ def test_a_confirmed_source_pick_joins_the_recent_list(m):
     c.get(f"/api/v1/ha/actions/{out['action_id']}")
     recent = c.get(f"/api/v1/multimedia/devices/{keys['samsung']}").json()["recent"]
     assert [(r["kind"], r["id"]) for r in recent] == [("app", "YouTube"), ("source", "HDMI2")]
+
+
+# ------------------------------------------------------------------------------------------------ CR-015 review fixes (M1, L3, L8, L9, L11)
+
+
+def _frozen(monkeypatch) -> dict[str, float]:
+    clock = {"t": 500.0}
+    monkeypatch.setattr(media_commands, "MONO", lambda: clock["t"])
+    media_commands.BUCKETS.clear()
+    return clock
+
+
+def test_every_non_power_command_has_a_device_bucket_and_a_user_bucket(m, monkeypatch):
+    """M1: transport, mute, source, app and sound output were unlimited; now 3/s burst 6 per device, all commands 10/s burst 10 per user."""
+    app, c, calls, keys, _ = m
+    clock = _frozen(monkeypatch)
+    statuses = [send(c, keys["samsung"], "transport", action="pause").status_code for _ in range(7)]
+    assert statuses == [202] * 6 + [429], "burst of 6 per device for the other commands"
+    for cmd, fields in (("mute", {"muted": True}), ("source", {"source_id": "TV"}), ("app", {"app_id": "YouTube"}), ("sound_output", {"output": "tv_speaker"}), ("transport", {"action": "play"})):
+        r = send(c, keys["samsung"], cmd, **fields)
+        assert (r.status_code, code(r)) == (429, "rate_limited") and r.json()["details"]["scope"] == "device", cmd
+    assert send(c, keys["generic"], "mute", muted=True).status_code == 202, "another device has its own bucket"
+    assert len(calls) == 7
+    clock["t"] += 1.0  # 3 tokens a second
+    assert [send(c, keys["samsung"], "transport", action="pause").status_code for _ in range(4)] == [202] * 3 + [429]
+    # the user's bucket spans every non-power command and every device: 10 a second
+    media_commands.BUCKETS.clear()
+    out = [send(c, keys[k], "mute", muted=True).status_code for k in ("samsung",) * 5 + ("generic",) * 5 + ("android",) * 2]
+    assert out.count(202) == 10 and out[-2:] == [429, 429]
+    r = send(c, keys["generic"], "mute", muted=True)
+    assert r.status_code == 429 and r.json()["details"]["scope"] == "user"
+    # volume and text draw from the user's bucket too
+    media_commands.BUCKETS.clear()
+    assert [send(c, keys["samsung"], "transport", action="pause").status_code for _ in range(6)] == [202] * 6
+    assert [send(c, keys["generic"], "mute", muted=True).status_code for _ in range(4)] == [202] * 4
+    assert send(c, keys["samsung"], "volume_set", level=5).status_code == 429
+    assert send(c, keys["android"], "text", text="a").status_code == 429
+
+
+def test_power_commands_are_not_rate_limited_but_gated_by_the_power_gate(m, monkeypatch):
+    app, c, calls, keys, _ = m
+    _frozen(monkeypatch)
+    for _ in range(12):
+        media_commands.BUCKETS.take("user", "dev-joni", media_commands.USER_ALL)  # the user's bucket is empty
+    assert send(c, keys["kitchen"], "power_on").status_code == 202, "power never draws from the buckets"
+
+
+def test_dropped_commands_are_one_audit_row_per_user_and_device_per_window_never_one_per_429(m, monkeypatch):
+    app, c, calls, keys, _ = m
+    clock = _frozen(monkeypatch)
+    for _ in range(6):
+        send(c, keys["samsung"], "transport", action="pause")
+    dropped = [send(c, keys["samsung"], "transport", action="play") if i % 2 else send(c, keys["samsung"], "mute", muted=True) for i in range(10)]
+    assert {r.status_code for r in dropped} == {429}
+    rows = audit_rows(app, "media.rate_limited")
+    assert len(rows) == 1, "ten dropped presses, one row"
+    row = rows[0]
+    assert row["decision"] == "denied" and row["reason"] == "rate_limited" and row["resource_id"] == keys["samsung"] and row["actor_user_id"] == "dev-joni"
+    assert json.loads(row["details_json"])["counts"] == {"mute": 5, "transport": 5}
+    assert [r for r in audit_rows(app, "media.command") if r["reason"] == "rate_limited"] == [], "no per-429 media.command row"
+    # another device gets its own row; the same device after the window gets a fresh one
+    media_commands.BUCKETS.clear()
+    for _ in range(7):
+        send(c, keys["generic"], "mute", muted=True)
+    assert len(audit_rows(app, "media.rate_limited")) == 2
+    clock["t"] += 61.0
+    media_commands.BUCKETS.clear()
+    for _ in range(7):
+        send(c, keys["samsung"], "transport", action="pause")
+    assert len(audit_rows(app, "media.rate_limited")) == 3
+
+
+def test_permission_and_rate_limit_are_decided_before_the_catalogue_is_loaded(m, monkeypatch):
+    """M1: a refused or dropped command never loads the catalogue (and so never does that work under the write lock)."""
+    from smplwise.services import media_store
+
+    app, c, calls, keys, settings = m
+    _frozen(monkeypatch)
+    viewer = as_role(c, settings, "vera", "viewer")
+    loads: list[int] = []
+    real = media_store.load_catalog
+    monkeypatch.setattr(media_store, "load_catalog", lambda *a, **k: (loads.append(1), real(*a, **k))[1])
+    assert code(send(c, keys["samsung"], "key", headers=viewer, key="up")) == "forbidden"
+    assert code(send(c, keys["samsung"], "power_off", headers=viewer)) == "forbidden"
+    assert loads == [], "403 before the catalogue"
+    for _ in range(6):
+        assert send(c, keys["samsung"], "transport", action="pause").status_code == 202
+    n = len(loads)
+    assert code(send(c, keys["samsung"], "transport", action="pause")) == "rate_limited"
+    assert len(loads) == n, "429 before the catalogue"
+
+
+def test_the_permission_comes_before_the_body_403_before_422_and_415(m):
+    """L8: a caller without control / power at the anchor gets the audited 403 whatever the body holds."""
+    app, c, calls, keys, settings = m
+    viewer = as_role(c, settings, "vera", "viewer")
+    url = f"/api/v1/multimedia/devices/{keys['samsung']}/commands"
+    assert c.post(url, json={"command": "bogus"}, headers=viewer).status_code == 403
+    assert c.post(url, content="not json", headers={**viewer, "content-type": "text/plain"}).status_code == 403, "403 before 415"
+    assert c.post(url, content=b"{broken", headers={**viewer, "content-type": "application/json"}).status_code == 403
+    assert c.post(url, json={"command": "bogus"}).status_code == 422, "the administrator's malformed body is a 422"
+    assert c.post(f"/api/v1/multimedia/devices/{'0' * 32}/commands", json={"command": "bogus"}).status_code == 404, "an unknown screen is a 404 before anything about the body"
+    denied = [r for r in audit_rows(app, "media.command") if r["decision"] == "denied" and r["reason"] == "forbidden"]
+    assert len(denied) == 3 and all(r["resource_id"] == keys["samsung"] for r in denied)
+    # control without power: the permission of THIS command is checked once the body is known
+    role = c.post("/api/v1/access/roles", json={"name": "שליטה בלבד", "permissions": ["devices.read", "media.read", "media.control"]}).json()["id"]
+    bind(c, settings, "carl", role, "installation", "*")
+    carl = as_user("carl")
+    assert c.post(url, json={"command": "bogus"}, headers=carl).status_code == 422
+    assert code(send(c, keys["samsung"], "source", headers=carl, source_id="TV")) == "forbidden"
+
+
+def test_the_device_remote_route_checks_layout_before_reading_the_body(m):
+    app, c, calls, keys, settings = m
+    viewer = as_role(c, settings, "vera", "viewer")
+    url = f"/api/v1/multimedia/devices/{keys['samsung']}/remote"
+    assert c.put(url, json={"bogus": 1}, headers=viewer).status_code == 403
+    assert c.put(url, content="x", headers={**viewer, "content-type": "text/plain"}).status_code == 403, "403 before 415"
+    assert c.put(url, json={"bogus": 1}).status_code == 422
+    assert c.put(f"/api/v1/multimedia/devices/{'0' * 32}/remote", json={"bogus": 1}).status_code == 404
+    assert [r["reason"] for r in audit_rows(app, "media.remote.update") if r["decision"] == "denied"] == ["forbidden", "forbidden"]
+
+
+def _insert_command(app, key: str, crid: str, status: str, action_id: str | None, user: str = "dev-joni") -> str:
+    import uuid
+
+    cid = uuid.uuid4().hex
+    with app.state.db.connection() as conn:
+        conn.execute("INSERT INTO media_commands(id, device_key, principal_user_id, client_request_id, command, status, action_id, created_ms, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                     (cid, key, user, crid, "volume_set", status, action_id, media_commands.NOW_MS(), "2026-10-01T00:00:00Z"))
+    return cid
+
+
+def test_a_duplicate_request_id_while_the_first_is_in_flight_gets_a_documented_status(m):
+    """L11: the in-flight row is `pending` internally; the caller is told `accepted` (or `sent` when nothing can be confirmed), never `pending`."""
+    app, c, calls, keys, _ = m
+    first = _insert_command(app, keys["samsung"], "dup-request-0001", "pending", "a1b2c3d4e5f6")
+    r = send(c, keys["samsung"], "volume_set", client_request_id="dup-request-0001", level=10)
+    assert r.status_code == 202 and r.json()["status"] == "accepted" and r.json()["command_id"] == first and r.json()["action_id"] == "a1b2c3d4e5f6", r.text
+    second = _insert_command(app, keys["samsung"], "dup-request-0002", "pending", None)
+    r = send(c, keys["samsung"], "volume_set", client_request_id="dup-request-0002", level=10)
+    assert r.status_code == 202 and r.json()["status"] == "sent" and r.json()["command_id"] == second and r.json()["action_id"] is None
+    assert calls == [], "nothing is sent twice"
+    # a settled duplicate keeps its real outcome
+    done = send(c, keys["generic"], "mute", client_request_id="dup-request-0003", muted=True).json()
+    again = send(c, keys["generic"], "mute", client_request_id="dup-request-0003", muted=True)
+    assert again.json() == done and len(calls) == 1
+    # another user's identical request id is a different request
+    other = _insert_command(app, keys["samsung"], "dup-request-0004", "pending", "zzzzzzzzzzzz", user="dev-somebody")
+    r = send(c, keys["samsung"], "volume_set", client_request_id="dup-request-0004", level=10)
+    assert r.json()["command_id"] != other and len(calls) == 2
+
+
+def test_the_generic_route_also_refuses_the_power_and_input_controls_of_a_managed_screens_device(m):
+    """L3: a switch / button / select / number / remote of the HA device of an approved screen is operated from Multimedia only."""
+    app, c, calls, keys, settings = m
+    extra = [{"entity_id": "switch.tv_living_power", "id": "reg-sw1", "platform": "samsungtv_smart", "device_id": "d_sam", "unique_id": "u-sw1"},
+             {"entity_id": "select.tv_living_input", "id": "reg-sel1", "platform": "samsungtv_smart", "device_id": "d_sam", "unique_id": "u-sel1"},
+             {"entity_id": "number.tv_living_level", "id": "reg-num1", "platform": "samsungtv_smart", "device_id": "d_sam", "unique_id": "u-num1"},
+             {"entity_id": "button.tv_living_menu", "id": "reg-btn1", "platform": "samsungtv_smart", "device_id": "d_sam", "unique_id": "u-btn1"},
+             {"entity_id": "light.tv_living_backlight", "id": "reg-lt1", "platform": "samsungtv_smart", "device_id": "d_sam", "unique_id": "u-lt1"},
+             {"entity_id": "switch.garden_pump", "id": "reg-sw2", "platform": "template", "device_id": None, "unique_id": "u-sw2"},
+             {"entity_id": "switch.tv_kitchen_power", "id": "reg-sw3", "platform": "samsungtv_smart", "device_id": "d_sam2", "unique_id": "u-sw3"}]
+    st = [{"entity_id": e["entity_id"], "state": "on" if e["entity_id"].startswith(("switch", "light")) else "idle",
+           "attributes": {"friendly_name": e["entity_id"], **({"options": ["a", "b"]} if e["entity_id"].startswith("select") else {})}} for e in extra]
+    assert c.post("/api/v1/ha/dev/states", json={"states": st}).status_code == 200
+    assert c.post("/api/v1/ha/dev/registry", json={"entities": [*seed.ENTITY_REGISTRY, *extra], "devices": seed.DEVICES, "areas": seed.AREAS, "floors": seed.FLOORS}).status_code == 200
+
+    def act(entity: str, action: str, args: dict[str, Any] | None = None, headers=None):
+        return c.post(f"/api/v1/ha/entities/{entity}/actions", json={"allowed_action_id": action, "arguments": args or {}, "client_request_id": f"g-{action}-{entity}"[:80], "expires_at": "2099-01-01T00:00:00Z"}, headers=headers or {})
+
+    for entity, action, args in (("switch.tv_living_power", "switch.turn_off", None), ("select.tv_living_input", "select.select_option", {"option": "a"}), ("number.tv_living_level", "number.set_value", {"value": 5}),
+                                 ("button.tv_living_menu", "button.press", None), ("switch.tv_kitchen_power", "switch.turn_on", None)):
+        r = act(entity, action, args)
+        assert (r.status_code, r.json()["code"]) == (409, "use_media_screen"), entity
+    assert calls == []
+    # not a power / input domain, and not a device of a screen: the ordinary route
+    assert act("light.tv_living_backlight", "light.turn_off").status_code == 202
+    assert act("switch.garden_pump", "switch.turn_off").status_code == 202
+    # read-only listing: the catalogue still lists them, flagged, without offering actions
+    listing = {e["entity_id"]: e for e in c.get("/api/v1/ha/entities").json()["entities"]}
+    assert listing["switch.tv_living_power"]["media_managed"] is True and listing["switch.garden_pump"]["media_managed"] is False
+    assert c.get("/api/v1/ha/entities/switch.tv_living_power").json()["actions"] == []
+    # withdrawing the approval gives them back
+    assert c.put(f"/api/v1/multimedia/admin/devices/{keys['samsung']}", json={"approved": False}).status_code == 200
+    assert act("switch.tv_living_power", "switch.turn_off").status_code == 202

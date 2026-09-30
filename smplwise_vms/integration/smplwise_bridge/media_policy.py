@@ -12,7 +12,11 @@ media_commands.py); this module is the independent second check. It refuses, wha
 - `remote.turn_off`, `remote.turn_on` without an `activity`, `webostv.command` and every service not listed here;
 - a `source` that is not in the entity's CURRENT `source_list` and an `activity` that is not in its CURRENT `activity_list` (the
   caller supplies the entity's attributes; an entity that cannot be read is a refusal);
-- typed text longer than 200 characters or carrying control characters.
+- typed text longer than 200 characters or carrying control characters;
+- `remote.send_command` / `remote.turn_on` on an entity whose registry platform is known and is not `androidtv_remote` (a Harmony hub, an
+  IR blaster or any other remote platform has activities and commands this policy cannot know), and - whether or not the platform is
+  known - an `activity` or a `command` that is a power word (`poweroff`, `power_off`, `standby`, `off`, `turn off`, `shutdown` ... compared
+  without case, spaces, dashes and underscores): a Harmony "PowerOff" activity must never ride on an app pick.
 
 Pure functions: they never read Home Assistant state themselves."""
 from __future__ import annotations
@@ -64,7 +68,16 @@ ALLOWED_ARGS: dict[tuple[str, str], frozenset[str]] = {
 # the entity domain each service's target must have (webostv.* targets a media_player)
 TARGET_DOMAIN: dict[str, str] = {"media_player": "media_player", "remote": "remote", "webostv": "media_player"}
 
+ANDROID_REMOTE_PLATFORM = "androidtv_remote"
+POWER_WORDS = frozenset({"poweroff", "powerdown", "poweroffall", "shutdown", "standby", "sleep", "off", "turnoff", "allof", "alloff", "switchoff"})
+
 Attrs = Callable[[str], "Mapping[str, Any] | None"]
+Platform = Callable[[str], "str | None"]
+
+
+def _power_word(value: Any) -> bool:
+    """A name that means "switch off" (activity or command): compared lower-case without separators."""
+    return isinstance(value, str) and re.sub(r"[\s_\-.]+", "", value.lower()) in POWER_WORDS
 
 
 def _text_problem(text: Any) -> bool:
@@ -76,10 +89,11 @@ def _listed(value: Any, attrs: Mapping[str, Any] | None, key: str, longest: int)
     return isinstance(value, str) and 0 < len(value) <= longest and isinstance(items, (list, tuple)) and value in items
 
 
-def refusal(domain: str, service: str, data: Any, attributes_of: Attrs) -> str | None:
+def refusal(domain: str, service: str, data: Any, attributes_of: Attrs, platform_of: Platform | None = None) -> str | None:
     """None when a media call may go on, else a fixed refusal code. `data` is the service data of the signed call (with `entity_id`);
-    `attributes_of(entity_id)` returns that entity's CURRENT state attributes (None when it cannot be read). Services outside the media
-    set are not judged here (returns None): the caller checks `is_media` first."""
+    `attributes_of(entity_id)` returns that entity's CURRENT state attributes (None when it cannot be read); `platform_of(entity_id)` (optional)
+    its registry platform - when given and known, `remote.*` calls are bound to `androidtv_remote`. Services outside the media set are
+    not judged here (returns None): the caller checks `is_media` first."""
     pair = (domain, service)
     if pair in NEVER_SERVICES:
         return "media_service_refused"
@@ -100,12 +114,18 @@ def refusal(domain: str, service: str, data: Any, attributes_of: Attrs) -> str |
         if kind == "send_text":
             return "media_text_refused" if _text_problem(content) else None
         return "media_play_media_type"
+    if domain == "remote" and platform_of is not None:
+        platform = platform_of(entity_id)
+        if platform is not None and platform != ANDROID_REMOTE_PLATFORM:
+            return "media_entity"  # only an Android TV remote has the closed command table and activity list this policy knows
     if pair == ("remote", "send_command"):
         command = data.get("command")
         if not isinstance(command, str):  # a list of commands could carry a power key
             return "media_key_refused"
         if command.startswith("text:"):
             return "media_text_refused" if _text_problem(command[5:]) else None
+        if _power_word(command):
+            return "media_key_refused"
         return None if command in ANDROID_KEYS else "media_key_refused"
     if pair == ("webostv", "button"):
         return None if isinstance(data.get("button"), str) and data["button"] in LG_BUTTONS else "media_key_refused"
@@ -117,6 +137,8 @@ def refusal(domain: str, service: str, data: Any, attributes_of: Attrs) -> str |
     if pair == ("remote", "turn_on"):
         if "activity" not in data:
             return "media_arguments"  # a bare remote.turn_on is a power-on of the device: never through this service
+        if _power_word(data.get("activity")):
+            return "media_activity_not_listed"  # an activity that switches things off is not an app pick, listed or not
         return None if _listed(data.get("activity"), attributes_of(entity_id), "activity_list", ACTIVITY_MAX) else "media_activity_not_listed"
     return None  # the argument-free steps (volume_up / down, play_pause, next, previous)
 

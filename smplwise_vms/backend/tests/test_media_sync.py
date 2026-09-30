@@ -208,9 +208,93 @@ def test_media_frames_follow_media_read_not_entity_state_read(app_c):
             if msg["type"] == "media_state":
                 got.append(msg)
         frame = got[0]
-        assert frame["payload"]["device_key"] == living and frame["payload"]["entity_id"] == "media_player.tv_living"
+        assert frame["payload"]["device_key"] == living and "entity_id" not in frame["payload"], "review L5: the anchor entity id is for system.configure holders only"
         assert frame["payload"]["live"]["play"] == "paused" and "type" not in frame["payload"]
         assert office != frame["payload"]["device_key"]
+
+
+def _wait_subscribed(before: int) -> None:
+    for _ in range(200):  # the socket subscribes to the bus just after it accepts
+        if len(ha_sync._subscribers) > before:
+            return
+        time.sleep(0.01)
+
+
+def test_the_administrators_media_state_frame_carries_the_anchor_entity_id_and_a_disabled_feature_sends_none(app_c):
+    app, c = app_c
+    seed.install(c)
+    seed.approve_all(c)
+    living = seed.key_of(c, "media_player.tv_living")
+    media_store.INDEX.last_sent.clear()
+    subscribers = len(ha_sync._subscribers)
+    with c.websocket_connect("/api/v1/ha/ws") as ws:  # the developer identity is the bootstrap administrator
+        _wait_subscribed(subscribers)
+        seed.set_state(c, "media_player.tv_living", "paused")
+        while True:
+            msg = json.loads(ws.receive_text())
+            if msg["type"] == "media_state":
+                break
+        assert msg["payload"]["device_key"] == living and msg["payload"]["entity_id"] == "media_player.tv_living"
+    # multimedia.enabled = false: no media_state frame is produced at all
+    assert c.patch("/api/v1/settings", json={"multimedia.enabled": "false"}).status_code == 200
+    media_store.INDEX.last_sent.clear()
+    q = ha_sync.subscribe()
+    try:
+        seed.set_state(c, "media_player.tv_living", "playing")
+        frames = []
+        while True:
+            try:
+                frames.append(q.get_nowait())
+            except queue.Empty:
+                break
+        assert [f for f in frames if f.get("type") == "media_state"] == [] and any(f.get("type") == "entity_state_changed" for f in frames), "the ordinary state feed is untouched"
+    finally:
+        ha_sync.unsubscribe(q)
+    assert c.patch("/api/v1/settings", json={"multimedia.enabled": "true"}).status_code == 200
+    media_store.INDEX.last_sent.clear()
+    q = ha_sync.subscribe()
+    try:
+        seed.set_state(c, "media_player.tv_living", "paused")
+        frames = []
+        while True:
+            try:
+                frames.append(q.get_nowait())
+            except queue.Empty:
+                break
+        assert len([f for f in frames if f.get("type") == "media_state"]) == 1, "back on: frames again"
+    finally:
+        ha_sync.unsubscribe(q)
+
+
+def test_a_tokenised_picture_url_reaches_no_browser_payload_not_even_entity_picture_local(app_c):
+    """M2: HA puts `/api/media_player_proxy/...?token=` in `entity_picture_local` too: dropped on the way in, scrubbed on the way out."""
+    app, c = app_c
+    seed.install(c)
+    seed.approve_all(c)
+    leak = "/api/media_player_proxy/media_player.tv_living_cast?token=abcdef0123456789&cache=1"
+    media_store.INDEX.last_sent.clear()
+    subscribers = len(ha_sync._subscribers)
+    with c.websocket_connect("/api/v1/ha/ws") as ws:
+        _wait_subscribed(subscribers)
+        seed.set_state(c, "media_player.tv_living_cast", "playing", entity_picture=leak, entity_picture_local=leak, media_content_type="movie", media_title="Film", token_note="x?token=zzzz")
+        seen = []
+        while len(seen) < 2:
+            msg = json.loads(ws.receive_text())
+            if msg["type"] in ("entity_state_changed", "media_state"):
+                seen.append(msg)
+            assert "token=" not in json.dumps(msg) and "abcdef0123456789" not in json.dumps(msg), msg["type"]
+    assert "entity_picture" not in ha_sync.ATTR_ALLOW and "entity_picture_local" not in ha_sync.ATTR_ALLOW
+    stored = rows(app, "SELECT attributes_json FROM ha_entities WHERE entity_id = 'media_player.tv_living_cast'")[0]["attributes_json"]
+    assert "token" not in stored and "abcdef0123456789" not in stored and "entity_picture" not in stored
+    for url in ("/api/v1/ha/entities", "/api/v1/ha/entities/media_player.tv_living_cast", "/api/v1/multimedia/devices"):
+        r = c.get(url)
+        assert r.status_code == 200 and "token=" not in r.text and "abcdef0123456789" not in r.text and "entity_picture" not in r.text, url
+    # a row stored before the fix (the attribute is already in the database) is scrubbed on the way out
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE ha_entities SET attributes_json = ? WHERE entity_id = 'media_player.tv_living_cast'", (json.dumps({"friendly_name": "x", "entity_picture_local": leak, "other": "y?token=1"}),))
+    body = c.get("/api/v1/ha/entities/media_player.tv_living_cast").json()
+    assert body["attributes"] == {"friendly_name": "x"} and "token=" not in json.dumps(body)
+    assert json.loads(ha_sync.trim_attributes({"friendly_name": "x", "entity_picture_local": leak, "source": "a?token=1", "volume_level": 0.3})) == {"friendly_name": "x", "volume_level": 0.3}
 
 
 def test_media_state_is_throttled_per_device_and_never_raises(app_c, monkeypatch):

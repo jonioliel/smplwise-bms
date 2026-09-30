@@ -174,9 +174,26 @@ def test_a_second_bulk_on_the_same_screens_is_refused_while_the_first_runs(m):
     effects["apply"] = False
     first = c.post(UP, json=body("area", "living", client_request_id="bulk-one-0001"))
     assert first.status_code == 202
-    second = c.post(UP, json=body("floor", "ground", client_request_id="bulk-two-0002"))
-    assert second.status_code == 409 and second.json()["code"] == "bulk_in_progress"
+    # review L9: the first bulk armed the power gate, so the screen is "not confirmed" until it reports: a second bulk over it has nothing to send
+    again = c.post(UP, json=body("area", "living", client_request_id="bulk-two-0002"))
+    assert again.status_code == 409 and again.json()["code"] == "nothing_to_do" and again.json()["details"]["counts"]["not_confirmed"] == 1
+    # a wider bulk sends only to the screens the first one does not touch
+    wider = c.post(UP, json=body("floor", "ground", client_request_id="bulk-three-0003"))
+    assert wider.status_code == 202
+    finish(c, wider.json()["bulk_id"])
     finish(c, first.json()["bulk_id"])
+    assert sorted(p["data"]["entity_id"] for p in calls) == ["media_player.generic_tv", "media_player.tv_living"]
+
+
+def test_a_second_bulk_is_refused_while_the_in_flight_bound_holds_the_same_entities(m):
+    app, c, calls, settings, effects = m
+    from smplwise.services import device_bulk as bulk
+
+    assert bulk.RUNNER.reserve("floor:other", "held-by-another", {"media_player.tv_living"}) is None
+    r = c.post(UP, json=body("area", "living", client_request_id="bulk-held-0001"))
+    assert r.status_code == 409 and r.json()["code"] == "bulk_in_progress"
+    bulk.RUNNER.release("held-by-another")
+    assert calls == []
 
 
 def test_bridge_not_paired_is_refused_before_anything_is_recorded(settings):
@@ -268,3 +285,25 @@ def test_media_managed_rows_are_read_only_in_the_devices_area(m):
     items = c.get("/api/v1/devices/items", params={"kind": "media", "scope": "building"}).json()
     flat = {i["entity_id"]: i for f in items["floors"] for a in f["areas"] for i in a["items"]}
     assert flat["media_player.tv_living"]["media_managed"] is True and flat["media_player.tv_living"]["can_control"] is False and flat["media_player.receiver_living"]["can_control"] is True
+
+
+def test_a_bulk_power_off_arms_the_remote_power_gate(m):
+    """CR-015 review L9: the floor / area "turn off" writes one media_commands row per screen, so a remote power command right after it
+    is `power_pending` (it used to go through: the gate never saw the bulk)."""
+    app, c, calls, settings, _ = m
+    r = c.post(UP, json=body("area", "living"))
+    assert r.status_code == 202, r.text
+    finish(c, r.json()["bulk_id"])
+    key = seed.key_of(c, "media_player.tv_living")
+    with app.state.db.connection(mode="read") as conn:
+        rows = [dict(x) for x in conn.execute("SELECT * FROM media_commands WHERE device_key = ?", (key,)).fetchall()]
+        ha = conn.execute("SELECT id, via FROM ha_actions WHERE bulk_id = ?", (r.json()["bulk_id"],)).fetchone()
+    assert [x["command"] for x in rows] == ["power_off"] and rows[0]["status"] == "accepted" and rows[0]["principal_user_id"] == "dev-joni"
+    assert rows[0]["action_id"] == ha["id"] and ha["via"] == "bulk", "the row points at the bulk's own ha_actions record"
+    blocked = seed.send(c, key, "power_on")
+    assert (blocked.status_code, blocked.json()["code"]) == (409, "power_pending")
+    # a screen the bulk skipped (already off) has no row and is not blocked
+    kitchen = seed.key_of(c, "media_player.tv_kitchen")
+    assert seed.send(c, kitchen, "power_on").status_code == 202
+    # the bulk's rows also keep the screen's state "not confirmed" until it reports (the same window as a remote power command)
+    assert c.get(f"/api/v1/multimedia/devices/{key}").json()["live"]["power"] in ("off", "on")

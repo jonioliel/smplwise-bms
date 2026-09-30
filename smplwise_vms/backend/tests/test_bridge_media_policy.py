@@ -95,7 +95,7 @@ def test_version_and_mirror_are_consistent():
 
 def test_execute_calls_the_policy_before_the_service():
     src = (SRC / "__init__.py").read_text(encoding="utf-8")
-    assert "media_policy.is_media(domain, service)" in src and "media_policy.refusal(domain, service, data, _attributes)" in src
+    assert "media_policy.is_media(domain, service)" in src and "media_policy.refusal(domain, service, data, _attributes, _platform)" in src
     assert src.index("media_policy.refusal(") < src.index("hass.services.async_call(domain, service, data, blocking=True, context=context)")
     assert "from . import media_policy" in src
 
@@ -152,6 +152,44 @@ def test_an_activity_must_be_in_the_remotes_current_activity_list_and_is_require
     assert check("remote", "turn_on", {"entity_id": "remote.tv"}) == "media_arguments", "a bare remote.turn_on is a power-on"
     assert check("remote", "turn_on", {"entity_id": "remote.tv", "activity": None}) == "media_activity_not_listed"
     assert check("remote", "turn_on", {"entity_id": "remote.tv", "activity": "netflix://", "device": "x"}) == "media_arguments"
+
+
+PLATFORMS = {"remote.tv": "androidtv_remote", "remote.hub": "harmony", "remote.ir": "broadlink", "media_player.tv": "androidtv_remote"}
+
+
+def check_on(domain: str, service: str, data: Any, platforms: dict[str, str] | None = PLATFORMS) -> str | None:
+    return policy.refusal(domain, service, data, attrs, (lambda e: platforms.get(e)) if platforms is not None else None)
+
+
+def test_remote_calls_are_bound_to_the_android_remote_platform_when_the_platform_is_known():
+    ATTRS["remote.hub"] = {"activity_list": ["Watch TV", "PowerOff"], "current_activity": "Watch TV"}
+    ATTRS["remote.ir"] = {"activity_list": ["netflix://"]}
+    try:
+        assert check_on("remote", "turn_on", {"entity_id": "remote.tv", "activity": "netflix://"}) is None
+        assert check_on("remote", "send_command", {"entity_id": "remote.tv", "command": "DPAD_UP"}) is None
+        assert check_on("remote", "turn_on", {"entity_id": "remote.hub", "activity": "Watch TV"}) == "media_entity", "a Harmony hub is not an Android TV remote"
+        assert check_on("remote", "send_command", {"entity_id": "remote.hub", "command": "DPAD_UP"}) == "media_entity"
+        assert check_on("remote", "turn_on", {"entity_id": "remote.ir", "activity": "netflix://"}) == "media_entity"
+        # an entity the registry does not know (None) is judged by the rest of the policy only; no platform function: same
+        assert check_on("remote", "turn_on", {"entity_id": "remote.tv", "activity": "netflix://"}, {}) is None
+        assert check_on("remote", "turn_on", {"entity_id": "remote.tv", "activity": "netflix://"}, None) is None
+        # a media_player is not bound by the remote rule
+        assert check_on("media_player", "select_source", {"entity_id": "media_player.tv", "source": "HDMI1"}, {"media_player.tv": "samsungtv_smart"}) is None
+    finally:
+        ATTRS.pop("remote.hub", None), ATTRS.pop("remote.ir", None)
+
+
+@pytest.mark.parametrize("word", ["PowerOff", "poweroff", "power_off", "Power Off", "power-off", "Standby", "STANDBY", "off", "Off", "turn off", "Shutdown", "Sleep", "power.off"])
+def test_a_power_like_activity_or_command_is_refused_with_or_without_platform_info(word):
+    ATTRS["remote.tv"]["activity_list"].append(word)  # even an activity the entity itself lists
+    try:
+        for platforms in (PLATFORMS, None, {}):
+            assert check_on("remote", "turn_on", {"entity_id": "remote.tv", "activity": word}, platforms) == "media_activity_not_listed", (word, platforms)
+            assert check_on("remote", "send_command", {"entity_id": "remote.tv", "command": word}, platforms) == "media_key_refused", (word, platforms)
+    finally:
+        ATTRS["remote.tv"]["activity_list"].remove(word)
+    assert check_on("remote", "send_command", {"entity_id": "remote.tv", "command": "text:off"}, None) is None, "typed text is text, not a power command"
+    assert check_on("remote", "turn_on", {"entity_id": "remote.tv", "activity": "netflix://"}, None) is None
 
 
 def test_typed_text_is_short_and_plain():

@@ -560,16 +560,21 @@ def test_the_migrations_apply_on_a_0_1_148_database_and_give_custom_roles_the_me
         conn.execute("INSERT INTO ha_entities(entity_id, domain, state, state_seen_at, first_seen_at, updated_at) VALUES ('media_player.old', 'media_player', 'on', ?, ?, ?)", (now, now, now))
         conn.execute("INSERT INTO device_bulk_actions(id, scope, scope_id, kind, principal_user_id, client_request_id, entity_count, status, requested_at, not_after) VALUES ('b1', 'floor', 'f', 'screens_off', 'u', 'r', 1, 'done', ?, ?)", (now, now))
         for rid, perms, sens in (("r-read", ["devices.read", "map.read"], []), ("r-ctl", ["devices.read", "devices.control", "video.live"], []), ("r-none", ["map.read"], []), ("r-already", ["devices.read", "media.read"], []),
-                                 ("r-sens", ["devices.read", "devices.control"], ["devices.control_bulk"])):
+                                 ("r-sens", ["devices.read", "devices.control"], ["devices.control_bulk"]), ("r-ctl-only", ["devices.control", "map.read"], []), ("r-pow-only", ["media.power"], [])):
             conn.execute("INSERT INTO custom_roles(id, name_he, permissions_json, sensitive_json, created_at, updated_at) VALUES (?,?,?,?,?,?)", (rid, rid, json.dumps(perms), json.dumps(sens), now, now))
         rev = dbmod.permission_revision(conn)
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
-    assert database.migrate() == [40, 41, 42, 43], "0040 climate kind, 0041 / 0042 multimedia, 0043 camera wall hidden"
+    assert database.migrate() == [40, 41, 42, 43], "0040 (climate) and 0043 (camera wall) are in the real set too"
     with database.connection() as conn:
         roles = {r["id"]: (json.loads(r["permissions_json"]), json.loads(r["sensitive_json"])) for r in conn.execute("SELECT * FROM custom_roles")}
         assert roles["r-read"][0] == ["devices.read", "map.read", "media.read"]
         assert roles["r-ctl"][0] == ["devices.read", "devices.control", "video.live", "media.read", "media.control", "media.power"]
         assert roles["r-none"][0] == ["map.read"] and roles["r-already"][0] == ["devices.read", "media.read"]
+        # review L10: a grant must be usable - a role that gains control / power gains media.read even without devices.read
+        assert roles["r-ctl-only"][0] == ["devices.control", "map.read", "media.control", "media.power", "media.read"]
+        assert roles["r-pow-only"][0] == ["media.power", "media.read"]
+        revisions = {r["id"]: r["revision"] for r in conn.execute("SELECT id, revision FROM custom_roles")}
+        assert revisions == {"r-read": 2, "r-ctl": 2, "r-none": 1, "r-already": 1, "r-sens": 2, "r-ctl-only": 2, "r-pow-only": 2}, "only the roles the migration touched move their revision"
         assert roles["r-sens"][1] == ["devices.control_bulk"], "the sensitive permissions are never granted by the migration"
         assert not any(p in ("media.public", "media.bulk", "media.layout") for perms, _s in roles.values() for p in perms)
         assert dbmod.permission_revision(conn) == rev + 1
@@ -582,16 +587,21 @@ def test_the_migrations_apply_on_a_0_1_148_database_and_give_custom_roles_the_me
 
     sql = (real / "0042_media_role_grants.sql").read_text(encoding="utf-8")
     raw = sqlite3.connect(settings.db_path)
-    before = [r[0] for r in raw.execute("SELECT permissions_json FROM custom_roles ORDER BY id")]
+    snapshot = "SELECT permissions_json, revision, updated_at FROM custom_roles ORDER BY id"
+    before = [tuple(r) for r in raw.execute(snapshot)]
+    rev_before = raw.execute("SELECT value FROM settings WHERE key = 'permission_revision'").fetchone()[0]
     raw.executescript(sql)
-    assert [r[0] for r in raw.execute("SELECT permissions_json FROM custom_roles ORDER BY id")] == before
+    assert [tuple(r) for r in raw.execute(snapshot)] == before, "a second run adds nothing and moves no revision"
+    assert raw.execute("SELECT value FROM settings WHERE key = 'permission_revision'").fetchone()[0] == rev_before
+    assert raw.execute("SELECT name FROM sqlite_temp_master WHERE name = 'media_grants_before'").fetchone() is None, "the working table does not outlive the script"
     raw.close()
 
 
 def test_the_migration_numbers_are_unique_and_0041_0042_are_ours():
     names = sorted(f.name for f in dbmod.MIGRATIONS_DIR.glob("004*.sql"))
-    assert names == ["0040_climate_kind.sql", "0041_media_devices.sql", "0042_media_role_grants.sql", "0043_camera_wall_hidden.sql"]
-    assert len({n.split("_", 1)[0] for n in names}) == len(names), "no two migrations share a number"
+    assert names == ["0040_climate_kind.sql", "0041_media_devices.sql", "0042_media_role_grants.sql", "0043_camera_wall_hidden.sql"], "the real contiguous 0040-0043 set"
+    numbers = [int(n.split("_", 1)[0]) for n in names]
+    assert numbers == list(range(40, 44)) and len(set(numbers)) == len(numbers)
 
 
 # ------------------------------------------------------------------------------------------------ settings
@@ -611,3 +621,84 @@ def test_the_settings_keys_default_validate_and_need_system_configure(m):
     assert c.get("/api/v1/settings", headers=viewer).json()["settings"]["multimedia.remote_default"] == good, "everyone reads the default; only system.configure changes it"
     changes = [json.loads(r["details_json"]) for r in audit(app, "settings.update")]
     assert any("multimedia.remote_default" in x for x in changes)
+
+
+# ------------------------------------------------------------------------------------------------ CR-015 review fixes (L2, L4, L7)
+
+
+def _place(c, ids, placements: dict[str, str]) -> None:
+    for fid in (ids["floor2"], ids["floor3"]):
+        asset = c.post(f"/api/v1/floors/{fid}/plan-assets", files={"file": ("p.png", png_bytes(), "image/png")}).json()
+        v = c.post(f"/api/v1/floors/{fid}/plan-versions", json={"asset_id": asset["id"]}).json()
+        c.post(f"/api/v1/plan-versions/{v['id']}/publish")
+    for eid, floor in placements.items():
+        assert c.post(f"/api/v1/floors/{ids[floor]}/anchors", json={"resource_type": "ha_entity", "resource_id": eid, "x": 0.2, "y": 0.2}).status_code == 201
+
+
+def test_the_layout_route_returns_only_the_device_keys_and_floors_the_caller_may_see(m):
+    """L4: no key, floor id or card of a screen outside the caller's scope - installation and personal layouts alike."""
+    app, c, calls, keys, settings = m
+    ids = seed_tree(c)
+    _place(c, ids, {"media_player.tv_living": "floor2", "media_player.lg_office": "floor3"})
+    everything = [keys["samsung"], keys["lg"], keys["kitchen"], keys["generic"]]
+    layout = {"version": 1, "group_by": "floor", "floor_order": ["upper", "ground", "elsewhere"], "pinned": [keys["lg"], keys["samsung"]], "order": everything,
+              "cards": {k: {"on": True, "size": "m", "phone_on": None, "phone_size": None} for k in everything}}
+    saved = c.put("/api/v1/multimedia/layout", json={"layout": layout, "base_revision": 0})
+    assert saved.status_code == 200 and saved.json()["installation"]["order"] == everything, "the editor gets the whole layout back (a save replaces it)"
+    assert c.get("/api/v1/multimedia/layout").json()["installation"]["cards"].keys() == set(everything)
+    ron = role(c, settings, "ron", "operator", ("floor", ids["floor2"]))
+    lay = c.get("/api/v1/multimedia/layout", headers=ron).json()
+    assert lay["can_edit"] is False
+    assert lay["installation"]["order"] == [keys["samsung"]] and lay["installation"]["pinned"] == [keys["samsung"]] and list(lay["installation"]["cards"]) == [keys["samsung"]]
+    assert lay["installation"]["floor_order"] == ["ground"], "only the floors of the screens the caller sees"
+    blob = json.dumps(lay)
+    assert all(k not in blob for k in (keys["lg"], keys["kitchen"], keys["generic"], "elsewhere", "upper"))
+    # the personal override is filtered too
+    custom = c.post("/api/v1/access/roles", json={"name": "צפייה אישית", "permissions": ["media.read", "screen.personalize"]}).json()["id"]
+    pia = role(c, settings, "pia", custom, ("floor", ids["floor2"]))
+    mine = {"group_by": "floor", "order": [keys["lg"], keys["samsung"]], "cards": {keys["lg"]: {"on": False}, keys["samsung"]: {"size": "l"}}}
+    assert c.put("/api/v1/me/prefs", json={"multimedia.personal": mine}, headers=pia).status_code == 200
+    got = c.get("/api/v1/multimedia/layout", headers=pia).json()
+    assert got["personal"] == {"group_by": "floor", "order": [keys["samsung"]], "cards": {keys["samsung"]: {"size": "l"}}}
+    assert keys["lg"] not in json.dumps(got) and got["installation"]["order"] == [keys["samsung"]]
+    # the personal layout still reads back whole for its owner where the owner sees everything
+    assert c.put("/api/v1/me/prefs", json={"multimedia.personal": mine}).status_code == 200
+    assert c.get("/api/v1/multimedia/layout").json()["personal"]["order"] == [keys["lg"], keys["samsung"]]
+
+
+def test_a_linked_receiver_needs_its_own_scope_for_control_and_for_its_name(m):
+    """L2: volume / mute routed to a linked receiver need media.control at the RECEIVER's anchor; its name shows only to a caller who may read it."""
+    app, c, calls, keys, settings = m
+    ids = seed_tree(c)
+    _place(c, ids, {"media_player.tv_living": "floor2"})  # the receiver is placed nowhere: outside a floor-scoped caller's scope
+    rcv = seed.key_of(c, "media_player.receiver_living")
+    assert c.put(f"/api/v1/multimedia/admin/devices/{keys['samsung']}", json={"audio_link_key": rcv, "audio_default": "linked"}).status_code == 200
+    assert c.get(f"/api/v1/multimedia/devices/{keys['samsung']}").json()["audio_link"]["name"] == "מגבר סלון"
+    ron = role(c, settings, "ron", "operator", ("floor", ids["floor2"]))
+    d = c.get(f"/api/v1/multimedia/devices/{keys['samsung']}", headers=ron).json()
+    assert d["audio_link"] is None, "the receiver's name is not shown to a caller who may not read the receiver"
+    assert "מגבר סלון" not in json.dumps(d) and rcv not in json.dumps(d)
+    r = seed.send(c, keys["samsung"], "volume_set", headers=ron, level=20)  # the effective target is the linked receiver
+    assert (r.status_code, r.json()["code"]) == (403, "forbidden") and r.json()["details"]["permission"] == "media.control"
+    assert seed.send(c, keys["samsung"], "mute", headers=ron, muted=True).status_code == 403
+    assert seed.send(c, keys["samsung"], "volume_set", headers=ron, level=20, target="screen").status_code == 202, "the screen's own speakers stay in scope"
+    # the receiver on the caller's floor: name shown, control allowed
+    assert c.post(f"/api/v1/floors/{ids['floor2']}/anchors", json={"resource_type": "ha_entity", "resource_id": "media_player.receiver_living", "x": 0.4, "y": 0.4}).status_code == 201
+    assert c.get(f"/api/v1/multimedia/devices/{keys['samsung']}", headers=ron).json()["audio_link"]["name"] == "מגבר סלון"
+    media_seed_calls = len(calls)
+    assert seed.send(c, keys["samsung"], "volume_set", headers=ron, level=25).status_code == 202 and calls[media_seed_calls]["data"]["entity_id"] == "media_player.receiver_living"
+
+
+def test_a_personal_layout_without_screen_personalize_is_personalize_required_not_forbidden(m):
+    """L7: the dedicated refusal is reachable (the generic `forbidden` branch used to win); clearing stays allowed; audited."""
+    app, c, calls, keys, settings = m
+    viewer = role(c, settings, "vera", "viewer")
+    r = c.put("/api/v1/me/prefs", json={"multimedia.personal": {"group_by": "area", "order": None, "cards": {}}}, headers=viewer)
+    assert (r.status_code, r.json()["code"]) == (403, "personalize_required") and r.json()["details"]["permission"] == "screen.personalize"
+    assert c.put("/api/v1/me/prefs", json={"multimedia.personal": None}, headers=viewer).status_code == 200
+    # the other personal keys keep the generic refusal (and every one of them stays gated)
+    for key in ("home.personal", "devices.area_row"):
+        assert c.put("/api/v1/me/prefs", json={key: {}}, headers=viewer).status_code in (403, 422), key
+    with app.state.db.connection(mode="read") as conn:
+        denied = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'screen.personalize' AND decision = 'denied' AND actor_user_id = 'dev-vera'").fetchone()[0]
+    assert denied >= 1

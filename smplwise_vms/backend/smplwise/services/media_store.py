@@ -115,16 +115,32 @@ def ensure_index(conn: sqlite3.Connection) -> None:
         _refresh_index(conn)
 
 
+# entities of the HA device(s) of an approved screen that could power it, switch its input or set its level (CR-015 review L3): they
+# are listed read-only like its endpoints, and the generic action route refuses them too (409 use_media_screen)
+SCREEN_CONTROL_DOMAINS = ("switch", "button", "select", "number", "remote", "media_player")
+_DOMAINS_SQL = ",".join(f"'{d}'" for d in SCREEN_CONTROL_DOMAINS)
+_SCREEN_DEVICES_SQL = (
+    "SELECT ev.device_id FROM media_device_endpoints e JOIN media_devices d ON d.device_key = e.device_key JOIN ha_entities ev ON ev.entity_id = e.ref "
+    "WHERE d.approved = 1 AND d.removed_at IS NULL AND e.source = 'ha' AND ev.device_id IS NOT NULL")
+
+
 def managed_entities(conn: sqlite3.Connection) -> set[str]:
-    """The media_player / remote entities that are endpoints of an APPROVED screen: operated only from "מולטימדיה" (the generic
-    action route answers 409 use_media_screen; the catalogue lists them read-only)."""
-    return {r[0] for r in conn.execute(
+    """The entities operated only from "מולטימדיה": the media_player / remote endpoints of an APPROVED screen and every switch, button,
+    select, number, remote or media_player entity of the HA device(s) those endpoints belong to (the generic action route answers 409
+    use_media_screen; the catalogue lists them read-only)."""
+    out = {r[0] for r in conn.execute(
         "SELECT e.ref FROM media_device_endpoints e JOIN media_devices d ON d.device_key = e.device_key WHERE d.approved = 1 AND d.removed_at IS NULL AND e.source = 'ha'").fetchall()}
+    out.update(r[0] for r in conn.execute(
+        f"SELECT entity_id FROM ha_entities WHERE removed_at IS NULL AND domain IN ({_DOMAINS_SQL}) AND device_id IN ({_SCREEN_DEVICES_SQL})").fetchall())
+    return out
 
 
 def is_managed(conn: sqlite3.Connection, entity_id: str) -> bool:
+    if conn.execute(
+            "SELECT 1 FROM media_device_endpoints e JOIN media_devices d ON d.device_key = e.device_key WHERE e.ref = ? AND e.source = 'ha' AND d.approved = 1 AND d.removed_at IS NULL", (entity_id,)).fetchone() is not None:
+        return True
     return conn.execute(
-        "SELECT 1 FROM media_device_endpoints e JOIN media_devices d ON d.device_key = e.device_key WHERE e.ref = ? AND e.source = 'ha' AND d.approved = 1 AND d.removed_at IS NULL", (entity_id,)).fetchone() is not None
+        f"SELECT 1 FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL AND domain IN ({_DOMAINS_SQL}) AND device_id IN ({_SCREEN_DEVICES_SQL})", (entity_id,)).fetchone() is not None
 
 
 # ------------------------------------------------------------------------------------------------ the ha_devices mirror
@@ -445,7 +461,8 @@ def device_item(cat: Catalog, item: Item, access: Access) -> dict[str, Any]:
     return {
         "key": item.key, "name": item.name, "kind": item.row["kind"], "profile": item.profile, **floor_area(item), "public": public,
         "live": live_of(cat, item), "caps": caps_of(cat, item),
-        "audio_link": {"key": linked.key, "name": linked.name, "default": item.row.get("audio_default") or "screen"} if linked else None,
+        # the receiver's name only for a caller who may read the receiver itself (review L2): it is a device of its own, possibly on another floor
+        "audio_link": {"key": linked.key, "name": linked.name, "default": item.row.get("audio_default") or "screen"} if linked and access.has(PERM_READ, linked.row.get("anchor_entity_id")) else None,
         "can": {"control": access.has(PERM_CONTROL, anchor), "power": access.has(PERM_POWER, anchor), "public_ok": (not public) or access.has(PERM_PUBLIC, anchor), "bulk": access.has(PERM_BULK, anchor)},
     }
 
@@ -486,7 +503,9 @@ THROTTLE_S = 0.25  # media_state: at most 4 frames per second per device
 
 def on_state_event(db: Any, entity_id: str) -> None:
     """`ha_sync`, after a state event of an entity: when it is an endpoint of an approved screen, recompute that device's `live`
-    from the stored states and publish `media_state` (throttled per device). Never raises."""
+    from the stored states and publish `media_state` (throttled per device; none while the feature is off). The frame carries the anchor
+    `entity_id` only for the `/ha/ws` scope filter: the socket removes it before sending unless the subscriber holds system.configure.
+    Never raises."""
     if not (entity_id.startswith("media_player.") or entity_id.startswith("remote.")):
         return
     try:
@@ -501,6 +520,8 @@ def on_state_event(db: Any, entity_id: str) -> None:
             return
         INDEX.last_sent[key] = now
         with db.connection(mode="read") as conn:
+            if not enabled(conn):  # multimedia.enabled = false: no frames at all (CR-015 review L5)
+                return
             cat = load_catalog(conn, only=key)
             item = cat.items.get(key)
             if item is None:

@@ -103,6 +103,30 @@ def test_a_short_or_widely_shared_identifier_is_not_an_identity():
     assert len(build(ents[:2], short).devices) == 2
 
 
+@pytest.mark.parametrize("shared", ["192.0.2.50", "198.51.100.7", "fe80::1", "2001:db8::7", "192.0.2.50:8001", "tv-living-room", "tv-living.local", "livingroomtv", "http://tv.local/desc.xml", "samsung-tv-02"])
+def test_rung_4_never_merges_on_an_ip_or_hostname_shaped_identifier(shared):
+    assert mm.normalise_identifier(shared) is None
+    ents = [ent("media_player.tv_a", "samsungtv_smart", "d1", device_class="tv"), ent("media_player.tv_b", "cast", "d2", device_class="tv")]
+    for kind in ("identifiers", "connections"):
+        devices = [dev("d1", **{("idents" if kind == "identifiers" else "conns"): [("upnp", shared)]}), dev("d2", **{("idents" if kind == "identifiers" else "conns"): [("upnp", shared)]})]
+        assert len(build(ents, devices).devices) == 2, (kind, shared)
+
+
+def test_rung_4_still_merges_on_uuid_serial_and_mac_shaped_identifiers():
+    ents = [ent("media_player.tv_a", "samsungtv_smart", "d1", device_class="tv"), ent("media_player.tv_b", "cast", "d2", device_class="tv")]
+    for value in ("uuid:11111111-2222-3333-4444-555555555555", "11111111222233334444555555555555", "0AB12CD3EF4567", "AA:BB:CC:00:00:77"):
+        m = build(ents, [dev("d1", idents=[("upnp", value)]), dev("d2", idents=[("cast", value)])])
+        assert len(m.devices) == 1, value
+    assert mm.normalise_identifier("uuid:AAAAAAAA-1111-2222-3333-444444444444") == "aaaaaaaa111122223333444444444444"
+    assert mm.normalise_identifier("AA:BB:CC:00:00:77") == "aabbcc000077"
+
+
+def test_two_tvs_sharing_an_ip_like_identifier_with_the_same_platform_stay_two_screens():
+    ents = [ent("media_player.tv_a", "samsungtv_smart", "d1", device_class="tv"), ent("media_player.tv_b", "samsungtv_smart", "d2", device_class="tv")]
+    devices = [dev("d1", idents=[("samsungtv_smart", "192.0.2.50")], conns=[("ip", "192.0.2.50")]), dev("d2", idents=[("samsungtv_smart", "192.0.2.50")], conns=[("ip", "192.0.2.50")])]
+    assert len(build(ents, devices).devices) == 2
+
+
 def test_the_two_samsung_guard_never_merges_two_devices_of_one_platform_even_on_a_shared_mac():
     ents = [ent("media_player.tv_a", "samsungtv_smart", "d1", device_class="tv"), ent("media_player.tv_b", "samsungtv_smart", "d2", device_class="tv")]
     m = build(ents, [dev("d1", macs=["AA:BB:CC:00:00:09"]), dev("d2", macs=["AA:BB:CC:00:00:09"])])
