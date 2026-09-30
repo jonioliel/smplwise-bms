@@ -16,7 +16,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Callable
 
-from . import ha_sync
+from . import ha_sync, home_screen
 
 ControlChecker = Callable[[str], bool]
 
@@ -249,6 +249,8 @@ def build_tree(conn: sqlite3.Connection, entities: list[dict[str, Any]], *, scop
         loose.extend(rest)
     if loose:
         out_floors.append({"floor_id": NO_FLOOR, "name": NO_FLOOR_NAME, "level": None, "icon": None, "areas": loose, "counts": _sum_counts([a["counts"] for a in loose]), "climate": _climate_strip(loose)})
+    # owner 2026-09-30: the installation's own floor order (home.floor_order) - listed floors first, the rest after in level order
+    out_floors = home_screen.order_floors(out_floors, home_screen.floor_order(conn))
     building_climate = [cs for lst in climate_by_area.values() for cs in lst]
     building_climate.sort(key=lambda c: (c["area_name"] or "", c["name"]))
     return {

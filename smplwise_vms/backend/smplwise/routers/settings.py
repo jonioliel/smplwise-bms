@@ -96,6 +96,20 @@ DEFAULTS: dict[str, str] = {
     # CR-007 6b: the device area's colour scheme - light (default) | dark | auto (the viewer's operating-system scheme).
     # Light by default while the app shell is light only: dark never applies by itself (docs/design/DEVICE_THEMES.md).
     "devices.scheme": "light",
+    # Owner notes 2026-09-30 (the home screen "ראשי" › חשמל והתקנים, edited in its edit mode by a system.configure holder):
+    # the page title (empty = "חשמל והתקנים"), the installation's floor order (a JSON list of floor ids; floors not listed
+    # follow in level order) and three optional read-only header widgets, all off by default - a clock (off | time |
+    # datetime), the weather of one `weather.*` entity, and the weekly parsha / candle-lighting / havdalah of three
+    # `sensor.*` entities (the Jewish Calendar integration's). Values come from the mirrored catalogue; no network, no keys.
+    "home.title": "",
+    "home.floor_order": "[]",
+    "home.clock": "off",
+    "home.weather": "false",
+    "home.weather_entity": "",
+    "home.jewish": "false",
+    "home.jewish_parsha": "",
+    "home.jewish_candles": "",
+    "home.jewish_havdalah": "",
     # CR-008 SmplWise Arx remote access (owner decisions 2026-09-29, CR-008 §3f / §7). The channel itself is the add-on
     # option remote_access; these shape who may use it and how the browser keeps its sign-in.
     "remote.policy": "flag",  # flag: only users with the per-user remote-access flag (D4) | any_role: every HA user holding an Arx role
@@ -191,6 +205,15 @@ class SettingsPatch(BaseModel):
     devices_show_climate_strip: str | None = Field(default=None, pattern="^(true|false)$", alias="devices.show_climate_strip")
     devices_density: str | None = Field(default=None, pattern="^(comfortable|compact)$", alias="devices.density")
     devices_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="devices.scheme")
+    home_title: str | None = Field(default=None, max_length=60, alias="home.title")
+    home_floor_order: str | None = Field(default=None, max_length=6000, alias="home.floor_order")
+    home_clock: str | None = Field(default=None, pattern="^(off|time|datetime)$", alias="home.clock")
+    home_weather: str | None = Field(default=None, pattern="^(true|false)$", alias="home.weather")
+    home_weather_entity: str | None = Field(default=None, pattern=r"^(|weather\.[a-z0-9_]{1,100})$", alias="home.weather_entity")
+    home_jewish: str | None = Field(default=None, pattern="^(true|false)$", alias="home.jewish")
+    home_jewish_parsha: str | None = Field(default=None, pattern=r"^(|sensor\.[a-z0-9_]{1,100})$", alias="home.jewish_parsha")
+    home_jewish_candles: str | None = Field(default=None, pattern=r"^(|sensor\.[a-z0-9_]{1,100})$", alias="home.jewish_candles")
+    home_jewish_havdalah: str | None = Field(default=None, pattern=r"^(|sensor\.[a-z0-9_]{1,100})$", alias="home.jewish_havdalah")
     remote_policy: str | None = Field(default=None, pattern="^(flag|any_role)$", alias="remote.policy")
     remote_session: str | None = Field(default=None, pattern="^(rolling_90d|browser_session|rolling_90d_idle_lock)$", alias="remote.session")
     remote_idle_lock_minutes: int | None = Field(default=None, ge=5, le=10080, alias="remote.idle_lock_minutes")
@@ -225,6 +248,18 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         except (ValueError, AssertionError):
             raise ApiError(422, "validation", "שמות העיצובים: אובייקט עם a ו־b, עד 24 תווים לכל שם.")
         changes["ui.design_names"] = json.dumps({"a": names.get("a", "SW A").strip(), "b": names.get("b", "SW B").strip()}, ensure_ascii=False)
+    if "home.title" in changes:
+        title = changes["home.title"].strip()
+        if any(ord(c) < 32 or ord(c) == 127 for c in title):
+            raise ApiError(422, "validation", "כותרת המסך: טקסט רגיל בלבד.", details={"home.title": "control_characters"})
+        changes["home.title"] = title
+    if "home.floor_order" in changes:
+        from ..services import home_screen
+
+        order = home_screen.normalise_floor_order(changes["home.floor_order"])
+        if order is None:
+            raise ApiError(422, "validation", "סדר הקומות: רשימה של מזהי קומות שונים זה מזה.", details={"home.floor_order": "invalid"})
+        changes["home.floor_order"] = json.dumps(order, ensure_ascii=False)
     if "time.zone" in changes:
         from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 

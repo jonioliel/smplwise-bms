@@ -37,7 +37,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import device_bulk as bulk
 from ..services import devices as svc
-from ..services import ha_bridge, ha_client, ha_scope, ha_sync
+from ..services import ha_bridge, ha_client, ha_scope, ha_sync, home_screen
 from ..services.timeutil import parse_utc
 
 router = APIRouter()
@@ -97,7 +97,18 @@ def tree(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Con
         for a in f["areas"]:
             a["can_bulk"] = flags["all"] or a["area_id"] in flags["areas"]
     body["sync"] = ha_sync.STATE.as_dict()
+    # owner 2026-09-30: the header widgets (clock / weather / Jewish-calendar times) as the home screen shows them - read-only
+    # values of the entities the owner picked, off unless switched on in edit mode
+    body["home"] = home_screen.widgets(conn)
     return body
+
+
+@router.get("/devices/home-candidates")
+def home_candidates(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """Edit mode of the home screen: the mirrored `weather.*` and `sensor.*` entities the widgets can be pointed at.
+    system.configure (the setting's own permission) - a viewer gets no entity list."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    return home_screen.candidates(conn)
 
 
 @router.get("/devices/building")
