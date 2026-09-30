@@ -150,6 +150,13 @@ export function liveWsUrl(cameraId: string, profile: 'sub' | 'main'): string {
   return u.toString();
 }
 
+/** ws(s):// URL of a live relay path the server named (`live_path` of a resolved camera card: a standalone camera shown live). */
+export function relayWsUrl(path: string): string {
+  const u = new URL(apiUrl(path));
+  u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+  return u.toString();
+}
+
 const TRANSPORT_KEY = 'sw.transport';
 
 /** Per-browser override of the transport (set from the player); '' = follow the product default. */

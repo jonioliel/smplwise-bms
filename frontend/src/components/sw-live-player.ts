@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import './sw-icon';
-import { liveWsUrl, type Transport } from '../api/media';
+import { liveWsUrl, relayWsUrl, type Transport } from '../api/media';
 import { can } from '../api/session';
 import { badgeLabel, decodeLadder, undecodableMessage, type Profile, type VideoStep } from '../api/video-policy';
 
@@ -69,6 +69,10 @@ export class SwLivePlayer extends LitElement {
   @property({ reflect: true }) fit: 'contain' | 'cover' | 'fill' = 'contain';
   /** Playback: relay socket of a session generation instead of the live endpoint (MSE only). */
   @property() wsUrl = '';
+  /** A live relay path the server named for a source that is not a catalogue camera (a standalone Home Assistant camera shown
+   * live, `live_path` of the camera card's resolve): opened instead of `media/live/<cameraId>/ws`, with the transport, the
+   * retry and the budget of any live stream (unlike `wsUrl`, which is a playback session and plays MSE only). */
+  @property() livePath = '';
   /** Playback streams end when the NVR reaches the requested end time: no automatic reconnect then. */
   @property({ type: Boolean }) retry = true;
   /** Recorded playback (T066): no live-edge catch-up — a paused or slowed playhead may lag the buffer; the look-ahead
@@ -297,8 +301,8 @@ export class SwLivePlayer extends LitElement {
 
   /** The first render (properties set) and every later change of camera/profile/mode/active (re)connects. */
   protected updated(changed: Map<string, unknown>) {
-    if (changed.has('active') || changed.has('cameraId') || changed.has('profile') || changed.has('mode') || changed.has('wsUrl') || changed.has('plan') || changed.has('preferred')) {
-      if (!this.active || (!this.cameraId && !this.wsUrl)) this.disconnect();
+    if (changed.has('active') || changed.has('cameraId') || changed.has('livePath') || changed.has('profile') || changed.has('mode') || changed.has('wsUrl') || changed.has('plan') || changed.has('preferred')) {
+      if (!this.active || (!this.cameraId && !this.wsUrl && !this.livePath)) this.disconnect();
       else this.reconnect();
     }
   }
@@ -391,7 +395,7 @@ export class SwLivePlayer extends LitElement {
 
   /** Public: open the stream. `preferMse` is set internally after a WebRTC failure in auto mode. */
   connect(preferMse = false) {
-    if ((!this.cameraId && !this.wsUrl) || !this.active) return;
+    if ((!this.cameraId && !this.wsUrl && !this.livePath) || !this.active) return;
     if (this.laddered && !this.currentStep) {
       this.planExhausted();
       return;
@@ -407,7 +411,7 @@ export class SwLivePlayer extends LitElement {
     const step = this.currentStep;
     let ws: WebSocket;
     try {
-      ws = new WebSocket(this.wsUrl || liveWsUrl(this.cameraId, this.effectiveProfile));
+      ws = new WebSocket(this.wsUrl || (this.livePath && !this.cameraId ? relayWsUrl(this.livePath) : liveWsUrl(this.cameraId, this.effectiveProfile)));
     } catch (err) {
       this.fail('לא ניתן לפתוח חיבור');
       return;
@@ -516,7 +520,7 @@ export class SwLivePlayer extends LitElement {
     this.status = 'error';
     this.error = message;
     this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'error', error: message }, bubbles: true, composed: true }));
-    if (retryable && this.retry && this.active && (this.cameraId || this.wsUrl)) {
+    if (retryable && this.retry && this.active && (this.cameraId || this.wsUrl || this.livePath)) {
       const delay = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** Math.min(this.attempts, 6));
       this.attempts += 1;
       this.retryTimer = window.setTimeout(() => {
