@@ -37,6 +37,11 @@ async function countPanelLoads(page: Page): Promise<{ n: number }> {
   return hits;
 }
 
+// A production build registers the app's service worker, which answers a top-level navigation itself: its network fetch
+// is invisible to `page.route`, so the panel-address stubs below would count 0 loads although the page did navigate
+// (measured on a `vite build` + preview; the dev server never registers it). These specs are about WisKey, not the worker.
+test.use({ serviceWorkers: 'block' });
+
 let saved: AccessUi | null = null;
 
 test.describe('WisKey on the Home Assistant Companion app and on a sign-in inside the frame', () => {
