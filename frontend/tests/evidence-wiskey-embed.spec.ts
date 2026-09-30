@@ -100,6 +100,57 @@ async function expectFrameFillsStage(page: Page) {
   expect(g!.frameBg).toBe('rgb(255, 255, 255)');
 }
 
+/** Owner notes 2026-09-30: the embed is the frame and nothing else - no bar, no refresh / enlarge / new-window controls,
+ * no title strip, no status row while the panel is healthy. (The tools row of ניהול is a strip of its own, counted apart.) */
+async function expectNothingAroundFrame(page: Page) {
+  await expect(page.locator('wiskey-embed [data-wiskey-embed-bar], wiskey-embed [data-wiskey-embed-refresh], wiskey-embed [data-wiskey-expand], wiskey-embed [data-wiskey-embed-full], wiskey-embed [data-wiskey-embed-title]:not(iframe)')).toHaveCount(0);
+  const n = await page.locator('wiskey-embed').evaluate((embed: HTMLElement) => embed.shadowRoot!.querySelectorAll('.bar, sw-button, a.full, sw-tabs, [data-wiskey-embed-status]').length);
+  expect(n).toBe(0);
+}
+
+/** The frame against the shell's content area: `<main>`'s edges, the `.screen` box, the bottom edge / the phone's bottom
+ * bar, and every scroll container that could give a second scrollbar. */
+async function layoutOf(page: Page) {
+  return page.locator('wiskey-embed').evaluate((embed: HTMLElement) => {
+    const sr = embed.getRootNode() as ShadowRoot;
+    const main = sr.querySelector('main')!;
+    const screen = main.querySelector(':scope > .screen')!;
+    const f = embed.shadowRoot!.querySelector('iframe')!;
+    const fr = f.getBoundingClientRect();
+    const mr = main.getBoundingClientRect();
+    const sc = screen.getBoundingClientRect();
+    const bottom = sr.querySelector('nav.bottom') as HTMLElement | null;
+    const bottomShown = !!bottom && getComputedStyle(bottom).display !== 'none';
+    const root = document.documentElement;
+    return {
+      vw: window.innerWidth,
+      vh: window.innerHeight,
+      frame: { left: fr.left, right: fr.right, top: fr.top, bottom: fr.bottom, width: fr.width, height: fr.height },
+      screen: { top: sc.top, bottom: sc.bottom },
+      main: { left: mr.left, right: mr.right, bottom: mr.bottom, scrolls: main.scrollHeight > main.clientHeight + 1 },
+      bottomTop: bottomShown ? bottom!.getBoundingClientRect().top : null,
+      pageScrolls: root.scrollHeight > window.innerHeight + 1 || root.scrollWidth > window.innerWidth + 1,
+      inner: { w: f.contentWindow!.innerWidth, h: f.contentWindow!.innerHeight }, // what WisKey's layout reads
+      bars: embed.shadowRoot!.querySelectorAll('.bar, sw-button, a.full, sw-tabs, [data-wiskey-embed-status]').length,
+    };
+  });
+}
+
+async function expectFrameFillsContentArea(page: Page) {
+  const l = await layoutOf(page);
+  const near = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThanOrEqual(1);
+  near(l.frame.left, l.main.left); // edge to edge, both sides
+  near(l.frame.right, l.main.right);
+  near(l.frame.bottom, l.screen.bottom); // down to the end of the shell's screen box ...
+  near(l.frame.bottom, l.bottomTop ?? l.vh); // ... which is the bottom edge, or the top of the phone's bottom bar
+  expect(l.frame.top).toBeGreaterThanOrEqual(l.screen.top - 1);
+  near(l.inner.h, l.frame.height); // the panel's own viewport is the whole frame
+  near(l.inner.w, l.frame.width);
+  expect(l.main.scrolls).toBe(false); // no scroll container gives the frame less than it shows
+  expect(l.pageScrolls).toBe(false);
+  return l;
+}
+
 let saved: AccessUi | null = null;
 
 test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)', () => {
@@ -138,7 +189,9 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     expect(await tabs.allTextContents()).toEqual(FAKE_CATALOG.tabs.map((t) => t.label));
     await expect(activeTab(page)).toHaveAttribute('href', '#/wiskey/people');
     // the panel's title, as text; the confirmed location mirrored into SMPLWISE's own address
-    await expect(page.locator('wiskey-embed [data-wiskey-embed-title]')).toHaveText('אנשים ב-WisKey');
+    // (owner notes 2026-09-30: no visible title strip; the title is the frame's accessible name and a data attribute)
+    await expect(frame).toHaveAttribute('data-wiskey-embed-title', 'אנשים ב-WisKey');
+    await expect(frame).toHaveAttribute('title', 'WisKey · אנשים ב-WisKey');
     await expect.poll(() => hash(page)).toBe('#/wiskey/people?wiskey_tab=users');
     // WisKey handles HA's sidebar itself: SMPLWISE dispatched nothing, injected nothing, called no panel method
     const st = await frameState(page);
@@ -147,9 +200,9 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     expect(st.navigates).toBe(0);
     expect(st.marker).toBe('1');
     await expect(page.locator('wiskey-embed [data-wiskey-embed-note="legacy"]')).toHaveCount(0);
-    // the full-window link is the normal deep link (no embed=1)
-    await expect(page.locator('wiskey-embed a[data-wiskey-embed-full]').first()).toHaveAttribute('href', '/hikvision-intercom?tab=users');
-    await expect(frame).toHaveAttribute('allow', 'autoplay; microphone; camera; fullscreen; clipboard-write');
+    // nothing above the frame (owner notes 2026-09-30): no bar, no refresh / enlarge / new-window controls, no title strip
+    await expectNothingAroundFrame(page);
+    await expect(frame).toHaveAttribute('allow','autoplay; microphone; camera; fullscreen; clipboard-write');
     // the frame fills its box exactly: no border/outline, no darker background behind it (owner report 2026-09-29)
     await expectFrameFillsStage(page);
     await page.screenshot({ path: testInfo.outputPath('wiskey-embed-v1-people.png') });
@@ -182,10 +235,9 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await page.locator('wiskey-embed nav[data-wiskey-tools] a[data-wiskey-tool="media_options"]').click();
     await expect(frame).toHaveAttribute('data-confirmed-tool', 'media_options');
     await expect.poll(() => hash(page)).toBe('#/wiskey/tools/media_options?wiskey_tab=tools&wiskey_tool=media_options');
-    await expect(page.locator('wiskey-embed [data-wiskey-embed-title]')).toHaveText('וידאו, שמע והכרזות');
+    await expect(frame).toHaveAttribute('data-wiskey-embed-title', 'וידאו, שמע והכרזות');
     await expect(activeTab(page)).toHaveAttribute('href', '#/wiskey/tools');
     await expect(page.locator('wiskey-embed nav[data-wiskey-tools] a[aria-current="page"]')).toHaveAttribute('data-wiskey-tool', 'media_options');
-    await expect(page.locator('wiskey-embed a[data-wiskey-embed-full]').first()).toHaveAttribute('href', '/hikvision-intercom?tab=tools&tool=media_options');
     st = await frameState(page);
     expect(st.search).toBe('?embed=1&tab=tools&tool=media_options'); // WisKey keeps its own URL canonical
     const sent = st.received.filter((m) => m.type === 'wiskey:navigate').length;
@@ -307,7 +359,7 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     }, `${other}/wiskey-evil`);
     await page.waitForTimeout(1500);
     await expect(frame).toHaveAttribute('data-confirmed-tab', 'devices');
-    await expect(page.locator('wiskey-embed [data-wiskey-embed-title]')).toHaveText('עמדות');
+    await expect(frame).toHaveAttribute('data-wiskey-embed-title', 'עמדות');
     expect(await hash(page)).toBe('#/wiskey/devices?wiskey_tab=devices');
   });
 
@@ -398,22 +450,16 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     expect(authLoads).toBe(1);
     await expect(page.locator(FRAME)).toHaveCount(0);
   });
-  test('v1: leaving the module removes the frame; coming back and "רענן" reopen the last confirmed location', async ({ page }, testInfo) => {
+  test('v1: leaving the module removes the frame; coming back reopens the last confirmed location (there is no refresh control any more)', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'desktop only');
     const { hits } = await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
     await open(page, '/wiskey/tools/media_options');
     const frame = page.locator(FRAME);
     await expect(frame).toHaveAttribute('data-embed-mode', 'v1', { timeout: 15000 });
     await expect(frame).toHaveAttribute('data-confirmed-tool', 'media_options');
-    await panelFrame(page).evaluate(() => ((window as unknown as { __marker: number }).__marker = 42));
-
-    // "רענן": the same URL, a fresh document and a fresh handshake
-    await page.locator('wiskey-embed sw-button[data-wiskey-embed-refresh] button').click();
-    await expect.poll(() => hits.length).toBe(2);
-    expect(hits[1]).toMatch(/\/hikvision-intercom\?embed=1&tab=tools&tool=media_options$/);
-    await expect.poll(async () => { try { return await panelFrame(page).evaluate(() => (window as unknown as { __marker?: number }).__marker ?? 'fresh'); } catch { return 'navigating'; } }).toBe('fresh');
-    await expect(frame).toHaveAttribute('data-embed-mode', 'v1', { timeout: 15000 });
-    await expect(frame).toHaveAttribute('data-confirmed-tool', 'media_options');
+    // owner notes 2026-09-30: "רענן" is gone from the embed (a deliberate reload is only offered by the failure states)
+    await expect(page.locator('wiskey-embed [data-wiskey-embed-refresh]')).toHaveCount(0);
+    expect(hits).toHaveLength(1);
 
     // module exit: the frame is gone (WisKey's page unloaded)
     await page.evaluate(() => (location.hash = '#/live'));
@@ -422,7 +468,8 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     // back: a new frame on the last confirmed location (the address carries the mirror)
     await page.goBack();
     await expect(frame).toHaveAttribute('data-embed-mode', 'v1', { timeout: 15000 });
-    expect(hits[2]).toMatch(/\/hikvision-intercom\?embed=1&tab=tools&tool=media_options$/);
+    expect(hits).toHaveLength(2);
+    expect(hits[1]).toMatch(/\/hikvision-intercom\?embed=1&tab=tools&tool=media_options$/);
     expect((await frameState(page)).loads).toBe(1);
   });
 
@@ -480,13 +527,13 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await expect(frame).toHaveAttribute('data-phase', 'ready', { timeout: 30000 });
     await expect(frame).toHaveAttribute('data-chrome', 'kiosk');
     await expect(frame).toHaveAttribute('data-tab-applied', 'true', { timeout: 20000 });
-    await expect(page.locator('wiskey-embed [data-wiskey-embed-note="legacy"]')).toBeVisible();
+    await expect(page.locator('wiskey-embed [data-wiskey-embed-note]')).toHaveCount(0); // a healthy older build: nothing shown over the frame
     st = await frameState(page);
     expect(st.kiosk).toBe(true);
     expect(st.injected).toBe(false); // the official lever took, so no DOM hack
     expect(st.tab).toBe('overview');
     expect(st.received).toEqual([]); // nothing was posted to an older panel
-    await expect(page.locator('wiskey-embed a[data-wiskey-embed-full]').first()).toHaveAttribute('href', '/hikvision-intercom?tab=overview');
+    await expect(page.locator('wiskey-embed a[data-wiskey-embed-full]')).toHaveCount(0); // only the failure states offer the new-window link
     await expect(page.locator('sw-tabs a[href^="#/wiskey/"]')).toHaveCount(8); // the static tab row
     // the panel's own menu button would open Home Assistant's drawer over it: swallowed while the chrome is hidden
     await panelFrame(page).evaluate(() => (document.querySelector('home-assistant')!.shadowRoot!.querySelector('home-assistant-main')!.shadowRoot!.querySelector('hikvision-intercom-panel') as HTMLElement & { menu(): void }).menu());
@@ -560,87 +607,38 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await expect(page.locator('wiskey-embed [data-wiskey-embed-error="not_installed"] sw-state-panel')).toHaveAttribute('heading', 'לוח WisKey לא נמצא');
   });
 
-  test('height: at 1440×900 the frame gets the whole viewport below SMPLWISE\'s chrome; "הגדל" gives it the viewport minus the embed bar', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'desktop', 'desktop only (the owner report is a desktop one)');
+  // WisKey rc.25 panel.ts fitWall (wiskey appearance): the cards per page for a frame of this size (their step function,
+  // not ours - recorded only to show what the frame's size means to the panel)
+  const wiskeyCapacity = (w: number, hgt: number) => (w < 700 ? 4 : w < 980 ? (hgt < 760 ? 4 : 6) : w < 1200 ? (hgt < 820 ? 6 : 9) : hgt < 800 ? 4 : hgt < 880 ? 8 : 12);
+
+  test('layout: the frame is the whole content area at 1440×900 and 1920×1080, follows a window resize, and has no second scrollbar (owner notes 2026-09-30)', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop only; the phone layout is in the phone test below');
     await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
-    await open(page, '/wiskey/overview');
+    await open(page, '/wiskey/camera_wall');
     const frame = page.locator(FRAME);
-    await expect(frame).toHaveAttribute('data-confirmed-tab', 'overview', { timeout: 15000 });
-    expect(page.viewportSize()).toEqual({ width: 1440, height: 900 });
+    await expect(frame).toHaveAttribute('data-confirmed-tab', 'camera_wall', { timeout: 15000 });
+    await expectNothingAroundFrame(page);
 
-    // the chrome, measured from the DOM: the top bar, <main>'s banner padding, everything in <main> before the screen
-    // (setup hint, tab row), and the embed's own bar (+ the tools row when it shows)
-    const measure = () =>
-      page.locator('wiskey-embed').evaluate((embed: HTMLElement) => {
-        const shell = (embed.getRootNode() as ShadowRoot).host as HTMLElement;
-        const sr = shell.shadowRoot!;
-        const h = (el: Element | null | undefined) => (el ? el.getBoundingClientRect().height : 0);
-        const main = sr.querySelector('main')!;
-        const screen = main.querySelector(':scope > .screen')!;
-        // <main>'s banner padding plus everything before the screen, margins included (setup hint, tab row)
-        const beforeScreen = screen.getBoundingClientRect().top - main.getBoundingClientRect().top;
-        const root = embed.shadowRoot!;
-        const f = root.querySelector('iframe')!;
-        const fr = f.getBoundingClientRect();
-        const expanded = embed.hasAttribute('data-expanded');
-        const shellChrome = expanded ? 0 : h(sr.querySelector('header.topbar')) + beforeScreen;
-        const embedChrome = h(root.querySelector('.bar')) + h(root.querySelector('nav.tools'));
-        return {
-          viewport: window.innerHeight,
-          chrome: shellChrome + embedChrome,
-          top: fr.top,
-          bottom: fr.bottom,
-          height: fr.height,
-          width: fr.width,
-          inner: f.contentWindow!.innerHeight, // what WisKey's fitWall reads (visualViewport.height = the frame's)
-          mainScrolls: main.scrollHeight > main.clientHeight + 1,
-          barTabs: root.querySelectorAll('.bar sw-tabs').length,
-        };
-      });
-    // WisKey rc.25 panel.ts fitWall (wiskey appearance): the cards per page for a frame of this size
-    const wiskeyCapacity = (w: number, hgt: number) => (w < 700 ? 4 : w < 980 ? (hgt < 760 ? 4 : 6) : w < 1200 ? (hgt < 820 ? 6 : 9) : hgt < 800 ? 4 : hgt < 880 ? 8 : 12);
-
-    const base = await measure();
-    testInfo.annotations.push({ type: 'default layout', description: `frame ${Math.round(base.width)}×${Math.round(base.height)} (chrome ${Math.round(base.chrome)} px) → WisKey rc.25 capacity ${wiskeyCapacity(base.width, base.height)}` });
-    expect(base.height).toBeGreaterThanOrEqual(base.viewport - base.chrome - 1);
-    expect(Math.abs(base.bottom - base.viewport)).toBeLessThanOrEqual(1); // down to the bottom edge, no max-height
-    expect(Math.abs(base.inner - base.height)).toBeLessThanOrEqual(1); // the panel's own viewport is the whole frame
-    expect(base.mainScrolls).toBe(false); // no scroll container gives the frame less than it shows
-    expect(base.barTabs).toBe(0);
+    for (const [w, h] of [
+      [1440, 900],
+      [1920, 1080],
+      [1440, 900],
+    ] as const) {
+      await page.setViewportSize({ width: w, height: h });
+      // the frame follows the window: poll until the stage has taken the new size
+      await expect.poll(async () => Math.round((await layoutOf(page)).frame.bottom), { timeout: 5000 }).toBe(h);
+      const l = await expectFrameFillsContentArea(page);
+      expect(l.frame.width).toBeGreaterThanOrEqual(w - 260); // the rail is the only thing beside it (72-256 px)
+      expect(l.frame.top).toBeGreaterThan(0); // below the tab row, never over the shell
+      expect(Math.abs(l.frame.top - l.screen.top)).toBeLessThanOrEqual(1); // nothing between the tab row and the frame
+      testInfo.annotations.push({ type: `frame ${w}×${h}`, description: `frame ${Math.round(l.frame.width)}×${Math.round(l.frame.height)} at y=${Math.round(l.frame.top)} → WisKey rc.25 capacity ${wiskeyCapacity(l.frame.width, l.frame.height)}` });
+      if (w === 1920) await page.screenshot({ path: testInfo.outputPath('wiskey-embed-layout-1920.png') });
+    }
+    await page.screenshot({ path: testInfo.outputPath('wiskey-embed-layout-1440.png') });
     await expectFrameFillsStage(page);
-
-    // "הגדל": over the shell's top bar and tab row; the WisKey tabs move into the embed's bar
-    await page.locator('wiskey-embed sw-button[data-wiskey-expand]').click();
-    await expect(page.locator('wiskey-embed')).toHaveAttribute('data-expanded', '');
-    const big = await measure();
-    testInfo.annotations.push({ type: 'expanded', description: `frame ${Math.round(big.width)}×${Math.round(big.height)} (chrome ${Math.round(big.chrome)} px) → WisKey rc.25 capacity ${wiskeyCapacity(big.width, big.height)}` });
-    expect(big.height).toBeGreaterThanOrEqual(big.viewport - big.chrome - 1);
-    expect(Math.abs(big.top - big.chrome)).toBeLessThanOrEqual(1);
-    expect(Math.abs(big.bottom - big.viewport)).toBeLessThanOrEqual(1);
-    expect(big.width).toBeGreaterThanOrEqual(1439);
-    expect(big.height).toBeGreaterThan(base.height + 100);
-    expect(big.height).toBeGreaterThanOrEqual(800); // WisKey's 8-card step at this width
-    await expectFrameFillsStage(page);
-    const barTabs = page.locator('wiskey-embed .bar sw-tabs a[href^="#/wiskey/"]');
-    await expect(barTabs).toHaveCount(FAKE_CATALOG.tabs.length);
-    await page.screenshot({ path: testInfo.outputPath('wiskey-embed-expanded.png') });
-    // a tab in the embed's bar is a wiskey:navigate message like the shell's row
-    await page.locator('wiskey-embed .bar sw-tabs a[href="#/wiskey/devices"]').click();
-    await expect(frame).toHaveAttribute('data-confirmed-tab', 'devices');
-    expect((await frameState(page)).received).toContainEqual({ type: 'wiskey:navigate', tab: 'devices', tool: null });
-    await expect(page.locator('wiskey-embed .bar sw-tabs a[aria-current="page"]')).toHaveAttribute('href', '#/wiskey/devices');
-
-    // remembered by this browser; "צמצם" restores the layout
-    await open(page, '/wiskey/overview');
-    await expect(page.locator('wiskey-embed')).toHaveAttribute('data-expanded', '', { timeout: 15000 });
-    await page.locator('wiskey-embed sw-button[data-wiskey-expand]').click();
-    await expect(page.locator('wiskey-embed')).not.toHaveAttribute('data-expanded', '');
-    const back = await measure();
-    expect(Math.abs(back.height - base.height)).toBeLessThanOrEqual(1);
-    expect(await page.evaluate(() => localStorage.getItem('sw-wiskey-expanded'))).toBeNull();
   });
 
-  test('"הגדל" keeps the system alert banner visible above it, makes the covered shell inert, and Esc leaves it', async ({ page }, testInfo) => {
+  test('layout: the alert banner takes its own strip and the frame still reaches the bottom edge without a scrollbar', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'desktop only');
     await page.route('**/api/v1/health/summary', (route: Route) =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'error', items: [{ id: 'nvr', status: 'error', label: 'מקליט לא זמין' }], checked_at: new Date().toISOString(), version: 'test' }) }),
@@ -650,47 +648,21 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await expect(page.locator(FRAME)).toHaveAttribute('data-confirmed-tab', 'overview', { timeout: 15000 });
     const banner = page.locator('sw-app [data-sys-banner]');
     await expect(banner).toBeVisible();
-    await page.locator('wiskey-embed sw-button[data-wiskey-expand]').click();
-    await expect(page.locator('wiskey-embed')).toHaveAttribute('data-expanded', '');
-    const g = await page.locator('wiskey-embed').evaluate((embed: HTMLElement) => {
-      const sr = (embed.getRootNode() as ShadowRoot);
-      const b = sr.querySelector('[data-sys-banner]')!.getBoundingClientRect();
-      const e = embed.getBoundingClientRect();
-      const hit = sr.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-      return {
-        bannerTop: b.top,
-        bannerBottom: b.bottom,
-        embedTop: e.top,
-        embedBottom: e.bottom,
-        bannerOnTop: !!hit && !!hit.closest('[data-sys-banner]'),
-        shellMarked: (sr.host as HTMLElement).hasAttribute('data-wiskey-expanded'),
-        inert: ['nav.rail', 'header.topbar', 'main > .subnav', 'sw-user-menu', 'sw-nav-order'].map((s) => (sr.querySelector(s) as HTMLElement | null)?.inert ?? null),
-        screenInert: (sr.querySelector('main > .screen') as HTMLElement).inert,
-      };
-    });
-    expect(g.bannerTop).toBe(0);
-    expect(g.bannerOnTop).toBe(true); // the layer never covers the alert
-    expect(Math.abs(g.embedTop - g.bannerBottom)).toBeLessThanOrEqual(1); // the layer starts right below it
-    expect(Math.abs(g.embedBottom - 900)).toBeLessThanOrEqual(1);
-    expect(g.shellMarked).toBe(true);
-    expect(g.inert).toEqual([true, true, true, true, true]); // Tab cannot reach the covered shell (CR-013: nor the user menu / tab-order dialog)
-    expect(g.screenInert).toBe(false);
-    await page.screenshot({ path: testInfo.outputPath('wiskey-embed-expanded-banner.png') });
+    const l = await expectFrameFillsContentArea(page);
+    const b = await banner.boundingBox();
+    expect(l.frame.top).toBeGreaterThanOrEqual(b!.y + b!.height - 1); // the frame never sits under the banner
+    await page.screenshot({ path: testInfo.outputPath('wiskey-embed-layout-banner.png') });
+  });
 
-    // Esc leaves "הגדל" and gives the shell back
-    await page.locator('wiskey-embed sw-button[data-wiskey-expand]').focus();
-    await page.keyboard.press('Escape');
-    await expect(page.locator('wiskey-embed')).not.toHaveAttribute('data-expanded', '');
-    const after = await page.locator('wiskey-embed').evaluate((embed: HTMLElement) => {
-      const sr = embed.getRootNode() as ShadowRoot;
-      return {
-        shellMarked: (sr.host as HTMLElement).hasAttribute('data-wiskey-expanded'),
-        inert: ['nav.rail', 'header.topbar', 'main > .subnav', 'sw-user-menu', 'sw-nav-order'].map((s) => (sr.querySelector(s) as HTMLElement | null)?.inert ?? null),
-        bannerTop: sr.querySelector('[data-sys-banner]')!.getBoundingClientRect().top,
-      };
-    });
-    expect(after).toEqual({ shellMarked: false, inert: [false, false, false, false, false], bannerTop: expect.any(Number) });
-    expect(after.bannerTop).toBeGreaterThan(0); // back under the top bar
+  test('layout: the WisKey tools row (ניהול) is the only strip above the frame, and the frame still fills the rest', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop only');
+    await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
+    await open(page, '/wiskey/tools');
+    await expect(page.locator(FRAME)).toHaveAttribute('data-confirmed-tab', 'tools', { timeout: 15000 });
+    await expect(page.locator('wiskey-embed nav[data-wiskey-tools]')).toBeVisible();
+    await expectFrameFillsContentArea(page);
+    const l = await layoutOf(page);
+    expect(l.bars).toBe(0); // no bar, no refresh / enlarge / new-window controls, even with the tools row
   });
 
   test('הגדרות › בקרות כניסה switches one tab between the embed and the SMPLWISE screen', async ({ page, request }, testInfo) => {
@@ -844,7 +816,21 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await expect(page.locator(FRAME)).toHaveAttribute('data-confirmed-tab', 'sync');
     expect((await frameState(page)).tab).toBe('sync');
     await expectFrameFillsStage(page); // the frame fills its box exactly on mobile too
+    // owner notes 2026-09-30: edge to edge, down to the top of the bottom bar, nothing above it, no second scrollbar
+    await expectNothingAroundFrame(page);
+    const pl = await expectFrameFillsContentArea(page);
+    expect(pl.bottomTop).not.toBeNull();
+    expect(Math.abs(pl.frame.top - pl.screen.top)).toBeLessThanOrEqual(1);
+    expect(Math.abs(pl.frame.width - pl.vw)).toBeLessThanOrEqual(1);
+    testInfo.annotations.push({ type: 'phone frame', description: `frame ${Math.round(pl.frame.width)}×${Math.round(pl.frame.height)} at y=${Math.round(pl.frame.top)} of ${pl.vh}, bottom bar at y=${Math.round(pl.bottomTop!)}` });
     await page.screenshot({ path: testInfo.outputPath('wiskey-embed-phone-a.png') });
+    // a short window (a phone on its side, the keyboard up): the frame shrinks with it - no minimum height, no scrollbar
+    const full = page.viewportSize()!;
+    await page.setViewportSize({ width: 700, height: 340 });
+    await expect.poll(async () => Math.round((await layoutOf(page)).vh), { timeout: 5000 }).toBe(340);
+    await expect.poll(async () => (await layoutOf(page)).frame.height, { timeout: 5000 }).toBeLessThan(340);
+    await expectFrameFillsContentArea(page);
+    await page.setViewportSize(full);
 
     // design B: WisKey sits behind "עוד"
     await open(page, '/live', 'b');

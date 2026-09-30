@@ -5,10 +5,9 @@ import '../components/sw-page';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
-import '../components/sw-tabs';
-import { can, canNav, isApi } from '../api/session';
+import { can, isApi } from '../api/session';
 import { parseRoute, pushRoute, replaceRoute } from '../router';
-import { WISKEY_PHONE_EMBED, WISKEY_SCREENS, WISKEY_TABS, WISKEY_UI, activeTabOf, isWiskeyHref, setWiskeyEmbedNav, visibleTabs, wiskeyPath, wiskeyRequest, wiskeyRoute, wiskeySegmentOf, type WiskeyScreen } from '../shell/nav';
+import { WISKEY_PHONE_EMBED, WISKEY_SCREENS, WISKEY_UI, isWiskeyHref, setWiskeyEmbedNav, wiskeyPath, wiskeyRequest, wiskeyRoute, wiskeySegmentOf, type WiskeyScreen } from '../shell/nav';
 import { attachWiskey, WISKEY_PANEL_PATH, WISKEY_PANEL_TAG, type WiskeyCatalog, type WiskeyConnector, type WiskeyLocation } from '../wiskey/embed-connector';
 import { attachCompanionBridge, bridgeWindow, type CompanionBridge, type ShimState } from '../wiskey/companion-bridge';
 import './wiskey-overview';
@@ -64,17 +63,21 @@ import './wiskey-people';
  * frontend still cannot sign in (a login redirect, or no connection within the panel timeout) the tab falls back to the
  * screen above, with a note that the phone embed did not work. Off: exactly the behaviour above.
  *
- * On module exit the frame is disposed and removed, so WisKey cleans up its listeners and media; a deliberate refresh
- * (the bar's "רענן", or "נסה שוב") reopens the panel on the last confirmed tab/tool.
+ * On module exit the frame is disposed and removed, so WisKey cleans up its listeners and media; "נסה שוב" in a failure
+ * state reopens the panel on the last confirmed tab/tool.
  *
- * Height (owner report 2026-09-29, "only 4 cameras even after choosing 12"): the frame already fills the viewport below
- * SMPLWISE's chrome (a flex column down to the bottom edge, no max-height), but WisKey's rc.25 overview sizes its page
- * from the frame's own viewport in fixed steps (`panel.ts` `fitWall`: 1200 px or wider and under 800 px high = 4 cards,
- * under 880 = 8, else 12) and caps the "תחנות בתצוגה" choice by that (`Math.min(density || 12, capacity)`). At 1440×900
- * the frame is ~720-750 px high, so 4. "הגדל" (desktop) lifts the embed over SMPLWISE's top bar, rail and tab row - the
- * WisKey tab row moves into the embed's own bar - so the frame gets the viewport minus that one bar; remembered per
- * browser. WisKey's own full-screen button works inside the frame too (`allow="fullscreen"`). The cap itself is a
- * request to the WisKey developers (docs/integrations/wiskey/WISKEY_FOLLOWUP_REQUESTS.md).
+ * Layout (owner notes 2026-09-30): the framed screen is the frame and nothing else. No bar, no title strip, no refresh /
+ * enlarge / new-window controls above it, no border, outline, padding or darker canvas around it: the host is a flex
+ * item of the shell's `.screen` (which fills `<main>` between the tab row and the bottom edge / bottom bar), the stage
+ * fills the host and the frame fills the stage (percent sizes, so it follows the window; the shell's `100dvh` grid gives
+ * the phone its bottom bar). There is no minimum height, so a short window never makes a second scrollbar. The embed
+ * API v1 defines no viewport / resize message: WisKey lays itself out from the frame's own viewport (`ResizeObserver`
+ * on its host and `visualViewport`), which is exactly the stage. Only failure states show controls (inside the error
+ * state: retry, "פתח ב-WisKey", the new-window link) and a floating status line when the panel is waiting or an older
+ * build is degraded. What the frame's height means to WisKey (rc.25 `fitWall`: 1200 px or wider and under 800 px high =
+ * 4 cards, under 880 = 8, else 12, capped by the "תחנות בתצוגה" choice; the camera wall tab offers 4 or 9 streams only)
+ * is WisKey's own and is listed in docs/integrations/wiskey/WISKEY_FOLLOWUP_REQUESTS.md. WisKey's own full-screen
+ * button works inside the frame (`allow="fullscreen"`).
  */
 
 export { WISKEY_PANEL_PATH };
@@ -88,24 +91,6 @@ const IN_FLIGHT_MS = 3000; // v1: a navigation with no wiskey:location by then i
 const KEEP_MS = 2000; // after everything is settled: re-apply cheaply, Home Assistant may re-render
 
 const TOP_SWITCH_MS = 1000; // "פתח ב-WisKey": Home Assistant's router gets this long before a full page load
-const EXPANDED_KEY = 'sw-wiskey-expanded'; // "הגדל": a per-browser convenience (localStorage), never a setting
-
-function readExpanded(): boolean {
-  try {
-    return localStorage.getItem(EXPANDED_KEY) === '1';
-  } catch {
-    return false; // storage blocked: the default layout
-  }
-}
-
-function writeExpanded(on: boolean): void {
-  try {
-    if (on) localStorage.setItem(EXPANDED_KEY, '1');
-    else localStorage.removeItem(EXPANDED_KEY);
-  } catch {
-    /* storage blocked: this page view only */
-  }
-}
 
 export type EmbedPhase = 'loading' | 'waiting' | 'ready' | 'unsupported' | 'login_required' | 'not_installed' | 'unreachable' | 'blocked';
 /** Which adapter drives the frame: before the handshake / discovery, the embed API v1, the older panel, or neither. */
@@ -286,8 +271,6 @@ export class WiskeyEmbed extends LitElement {
   @state() private frameKey = 0;
   /** Set when this tab does not nest Home Assistant (reflected for the evidence specs and the host style). */
   @property({ reflect: true, attribute: 'data-direct' }) direct: DirectReason = '';
-  /** "הגדל" (desktop only, see the header): the embed covers SMPLWISE's top bar, rail and tab row. */
-  @property({ type: Boolean, reflect: true, attribute: 'data-expanded' }) expanded = readExpanded();
   private forbidden = false;
   private connector: WiskeyConnector | null = null;
   /** v1: the location the frame was opened on (its URL) - asked for, never taken as confirmed. */
@@ -316,11 +299,6 @@ export class WiskeyEmbed extends LitElement {
   @state() private shim: ShimState = '';
   /** The relay could not guarantee "no bus, no revoke" for a document (native / late / failed): the frame was dropped. */
   @state() private relayRefused: ShimState = '';
-  /** "הגדל" actually in force (desktop, framed): the shell is covered and inert, Esc leaves it. */
-  private expandedActive = false;
-  private inerted: HTMLElement[] = [];
-  private desktopMq = window.matchMedia('(min-width: 768px)');
-
   static styles = css`
     :host {
       display: flex;
@@ -356,10 +334,6 @@ export class WiskeyEmbed extends LitElement {
     }
     .bar .grow {
       flex: 1;
-    }
-    .title {
-      color: var(--sw-text);
-      font-weight: 600;
     }
     .note {
       color: var(--sw-text-2);
@@ -404,45 +378,51 @@ export class WiskeyEmbed extends LitElement {
       color: var(--sw-accent-text);
       font-weight: 600;
     }
-    /* "הגדל" (desktop, framed only): over SMPLWISE's top bar, rail and tab row; the frame gets the viewport minus the
-       embed's own bar, which then carries the WisKey tab row */
-    .bar sw-tabs {
-      display: none;
-    }
-    @media (min-width: 768px) {
-      :host([data-expanded][data-direct='']) {
-        position: fixed;
-        /* below the system alert banner, which sw-app raises to the top edge while expanded */
-        inset: var(--sw-banner-h, 0px) 0 0 0;
-        z-index: calc(var(--sw-z-topbar) + 1);
-        block-size: auto;
-        background: var(--sw-surface);
-      }
-      :host([data-expanded][data-direct='']) .bar sw-tabs {
-        display: block;
-      }
-    }
-    @media (max-width: 767px) {
-      [data-wiskey-expand] {
-        display: none;
-      }
-    }
+    /* the framed screen: the stage fills the host, the frame fills the stage - no border, outline, padding, margin,
+       minimum height or darker canvas anywhere around it */
     .stage {
       position: relative;
-      flex: 1 1 auto;
-      min-block-size: 360px;
+      flex: 1 1 0;
+      min-block-size: 0;
+      min-inline-size: 0;
       display: flex;
+      margin: 0;
+      padding: 0;
+      border: 0;
       background: var(--sw-surface);
     }
     iframe {
-      flex: 1;
+      flex: 1 1 auto;
       inline-size: 100%;
       block-size: 100%;
+      min-inline-size: 0;
       min-block-size: 0;
+      margin: 0;
+      padding: 0;
       display: block;
       border: 0;
       outline: none;
       background: var(--sw-surface);
+    }
+    /* waiting / older build: one floating status line over the top edge of the frame, never a row that takes height */
+    .status {
+      position: absolute;
+      inset-block-start: 8px;
+      inset-inline: 12px;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      pointer-events: none;
+    }
+    .status .note {
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      box-shadow: var(--sw-shadow-1);
+      font-size: var(--sw-fs-sm);
     }
     iframe[data-hidden] {
       visibility: hidden;
@@ -485,18 +465,11 @@ export class WiskeyEmbed extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('click', this.onClick, true);
-    this.desktopMq.removeEventListener('change', this.onMq);
-    this.setExpandedActive(false);
     this.dropFrame();
     this.detached = true;
   }
 
-  protected firstUpdated() {
-    this.desktopMq.addEventListener('change', this.onMq);
-  }
-
   protected updated(changed: PropertyValues<this>) {
-    this.syncExpanded();
     this.ensureConnector();
     const moved = (changed.has('tab') && changed.get('tab') !== undefined) || (changed.has('tool') && changed.get('tool') !== undefined);
     if (moved && !this.forbidden && !this.direct) this.onRequest();
@@ -1034,65 +1007,15 @@ export class WiskeyEmbed extends LitElement {
     `;
   }
 
-  private toggleExpanded() {
-    this.expanded = !this.expanded;
-    writeExpanded(this.expanded);
-  }
-
-  private onMq = () => this.syncExpanded();
-
-  private onEsc = (e: KeyboardEvent) => {
-    if (e.key !== 'Escape' || !this.expandedActive || e.defaultPrevented) return;
-    this.toggleExpanded(); // Esc leaves "הגדל" (inside the frame the key belongs to WisKey)
-  };
-
-  /** "הגדל" is in force only on a desktop width with a frame (see the host style). */
-  private syncExpanded() {
-    this.setExpandedActive(this.isConnected && this.expanded && this.direct === '' && !this.forbidden && this.desktopMq.matches);
-  }
-
-  /** While expanded: the shell's rail, top bar, tab row, bottom nav, user menu and tab-order dialog (CR-013) are inert (Tab never reaches what is covered),
-   * the system alert banner is raised above the layer (sw-app `:host([data-wiskey-expanded]) .sysbanner`, and the layer
-   * starts below it), and Esc leaves. Everything is undone when it ends or the module is left. */
-  private setExpandedActive(on: boolean) {
-    if (on === this.expandedActive) return;
-    this.expandedActive = on;
-    const root = this.getRootNode();
-    const shell = root instanceof ShadowRoot ? (root.host as HTMLElement) : null;
-    shell?.toggleAttribute('data-wiskey-expanded', on);
-    if (on) {
-      const covered = root instanceof ShadowRoot ? Array.from(root.querySelectorAll<HTMLElement>('nav.rail, header.topbar, nav.bottom, main > :not(.screen), sw-user-menu, sw-nav-order')) : [];
-      this.inerted = covered.filter((el) => !el.inert);
-      for (const el of this.inerted) el.inert = true;
-      window.addEventListener('keydown', this.onEsc);
-    } else {
-      for (const el of this.inerted) el.inert = false;
-      this.inerted = [];
-      window.removeEventListener('keydown', this.onEsc);
-    }
-  }
-
-  /** "הגדל" / "צמצם" (desktop; hidden on a phone, where the frame already has the screen below the top bar). */
-  private expandButton() {
-    const on = this.expanded;
-    return html`<sw-button size="sm" variant="ghost" icon=${on ? 'close' : 'expand'} data-wiskey-expand aria-pressed=${String(on)} title=${on ? 'החזר את סרגל Arx ואת שורת הלשוניות' : 'הגדל את WisKey לכל גובה החלון; שורת הלשוניות עוברת לסרגל הזה'} @click=${() => this.toggleExpanded()}>${on ? 'צמצם' : 'הגדל'}</sw-button>`;
-  }
-
-  /** Expanded, the shell's tab row is covered: the same WisKey tabs, in the embed's bar (hidden by CSS otherwise). */
-  private expandedTabs() {
-    if (!this.expanded) return nothing;
-    return html`<sw-tabs data-wiskey-bar-tabs .items=${visibleTabs(WISKEY_TABS, isApi(), canNav)} .active=${activeTabOf(parseRoute())}></sw-tabs>`;
-  }
-
   private fullLink() {
     return html`<a class="full" data-wiskey-embed-full href=${wiskeyDeepLink(this.shown())} target="_blank" rel="noopener"><sw-icon name="expand" size=${14}></sw-icon>פתח בחלון מלא</a>`;
   }
 
+  /** The floating status line over the frame: only when the panel is waiting for its handshake or an older build could
+   * not be tidied up. A healthy embed (v1, or an older build that took the chrome and the tab) shows nothing at all. */
   private statusNote() {
-    if (this.phase === 'loading') return html`<span class="note" data-wiskey-embed-note="loading">טוען את WisKey…</span>`;
-    if (this.phase === 'waiting') return html`<span class="note warn" data-wiskey-embed-note="waiting">WisKey עדיין לא אישר את החיבור - ממתין לטעינה או להזדהות בתוך WisKey</span>`;
+    if (this.phase === 'waiting') return [html`<span class="note warn" data-wiskey-embed-note="waiting">WisKey עדיין לא אישר את החיבור - ממתין לטעינה או להזדהות בתוך WisKey</span>`];
     const notes = [];
-    if (this.mode === 'legacy') notes.push(html`<span class="note" data-wiskey-embed-note="legacy">גרסת WisKey ללא ממשק ההטמעה (לפני rc.19) - ההטמעה בשיטה הקודמת</span>`);
     if (this.phase === 'ready' && this.mode === 'legacy' && this.chrome === 'visible') notes.push(html`<span class="note" data-wiskey-embed-note="chrome">תפריט נוסף מוצג סביב WisKey (ההסתרה לא נתמכת בגרסה הזו).</span>`);
     if (this.phase === 'ready' && this.mode === 'legacy' && this.tabApplied === false) notes.push(html`<span class="note" data-wiskey-embed-note="tab">לא ניתן לפתוח ישירות את "${TAB_LABELS[this.tab] ?? this.tab}"; WisKey נפתח במסך שלו.</span>`);
     return notes;
@@ -1120,20 +1043,11 @@ export class WiskeyEmbed extends LitElement {
     if (this.direct) return this.renderDirect();
     const failed = this.phase === 'not_installed' || this.phase === 'unreachable' || this.phase === 'blocked' || this.phase === 'unsupported';
     const shown = this.shown();
+    // the panel's own title (wiskey:title, shown as text) is the frame's accessible name; no visible title strip
     const heading = this.mode === 'v1' && this.panelTitle ? this.panelTitle : this.labelOf(shown.tab);
     const confirmed = this.mode === 'v1' ? this.confirmed : null;
+    const notes = this.statusNote();
     return html`
-      <div class="bar" data-wiskey-embed-bar>
-        <span class="note">WisKey · <span class="title" data-wiskey-embed-title>${heading}</span></span>
-        ${this.expandedTabs()}
-        ${this.statusNote()}
-        <span class="grow"></span>
-        ${this.phase === 'ready' || this.phase === 'waiting'
-          ? html`<sw-button size="sm" variant="ghost" icon="refresh" data-wiskey-embed-refresh title="טען מחדש את WisKey במסך הנוכחי (שינויים שלא נשמרו בתוך WisKey יאבדו)" @click=${() => this.reload()}>רענן</sw-button>`
-          : nothing}
-        ${this.expandButton()}
-        ${this.fullLink()}
-      </div>
       ${this.renderTools()}
       <div class="stage">
         ${keyed(
@@ -1147,13 +1061,15 @@ export class WiskeyEmbed extends LitElement {
             data-confirmed-tab=${confirmed?.tab ?? ''}
             data-confirmed-tool=${confirmed?.tool ?? ''}
             data-companion-shim=${this.shim}
-            title="WisKey"
+            title=${`WisKey · ${heading}`}
+            data-wiskey-embed-title=${heading}
             ?data-hidden=${failed}
             allow="autoplay; microphone; camera; fullscreen; clipboard-write"
             allowfullscreen
             @load=${() => this.onLoad()}
           ></iframe>`,
         )}
+        ${notes.length ? html`<div class="status" role="status" data-wiskey-embed-status>${notes}</div>` : nothing}
         ${this.phase === 'loading' ? html`<div class="over"><sw-state-panel state="loading" heading="טוען את WisKey…" hint="הלוח נטען בתוך המסך; בפעם הראשונה זה לוקח כמה שניות."></sw-state-panel></div>` : nothing}
         ${failed ? this.renderError() : nothing}
       </div>
