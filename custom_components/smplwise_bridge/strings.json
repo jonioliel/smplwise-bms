@@ -25,5 +25,11 @@
       "invalid_discovery": "The discovery message had no pairing code.",
       "single_instance_allowed": "Only one bridge can be configured."
     }
+  },
+  "services": {
+    "schedule": {
+      "name": "Schedule (SMPLWISE add-on only)",
+      "description": "Signed write to the Scheduler component on behalf of a VMS user. Not meant to be called from automations."
+    }
   }
 }

@@ -9,6 +9,8 @@ It does two things and nothing else:
 3. Serves the Lovelace card `custom:smplwise-card` (www/smplwise-card.js) and registers it as a dashboard
    resource, so a dashboard can embed a VMS screen through the add-on's Ingress page — the person's own HA
    identity, the VMS's own roles, no secret in YAML, no entities (T056).
+4. `smplwise_bridge.schedule` (0.3.0, CR-014): signed writes to the Scheduler component (add / edit / remove / copy /
+   run / enable / disable), independently re-validated by schedule_policy.py and schedule_service.py.
 """
 from __future__ import annotations
 
@@ -27,7 +29,8 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 
-from .const import CONF_ADDON_URL, CONF_PAIRING_CODE, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_EXECUTE, SERVICE_SET_AREA, SERVICE_SYNC, VERSION
+from .const import CONF_ADDON_URL, CONF_PAIRING_CODE, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_EXECUTE, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_SYNC, VERSION
+from .schedule_service import async_handle_schedule
 from .signing import Verifier, sign
 
 _LOGGER = logging.getLogger(__name__)
@@ -56,6 +59,28 @@ SET_AREA_SCHEMA = vol.Schema(
         vol.Required("entity_id"): cv.string,
         vol.Required("area_id"): vol.All(cv.string, vol.Length(min=1)),
         vol.Required("request_id"): cv.string,
+        vol.Required("ts"): vol.Coerce(int),
+        vol.Required("nonce"): cv.string,
+        vol.Required("sig"): cv.string,
+    },
+    extra=vol.ALLOW_EXTRA,
+)
+
+# 0.3.0 (CR-014): the schedule service. NO defaults here: Home Assistant would add the defaulted keys to call.data after
+# the add-on signed it, and the signature (over every key but ts / nonce / sig) would no longer match. Optional keys
+# are absent or null exactly as signed; schedule_policy.py checks every value and refuses unknown keys.
+SCHEDULE_SCHEMA = vol.Schema(
+    {
+        vol.Required("user_id"): cv.string,
+        vol.Required("op"): cv.string,
+        vol.Required("request_id"): cv.string,
+        vol.Optional("schedule_id"): vol.Any(None, str),
+        vol.Optional("schedule_entity_id"): vol.Any(None, str),
+        vol.Optional("payload"): vol.Any(None, dict),
+        vol.Optional("name"): vol.Any(None, str),
+        vol.Optional("time"): vol.Any(None, str),
+        vol.Optional("skip_conditions"): bool,
+        vol.Optional("sensitive"): bool,
         vol.Required("ts"): vol.Coerce(int),
         vol.Required("nonce"): cv.string,
         vol.Required("sig"): cv.string,
@@ -213,6 +238,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.services.async_register(DOMAIN, SERVICE_SET_AREA, set_entity_area, schema=SET_AREA_SCHEMA, supports_response=SupportsResponse.ONLY)
 
+    async def schedule(call: ServiceCall) -> ServiceResponse:
+        """0.3.0 (CR-014): a signed write to the Scheduler component as the VMS user (see schedule_service.py)."""
+        return await async_handle_schedule(hass, verifier, dict(call.data))
+
+    hass.services.async_register(DOMAIN, SERVICE_SCHEDULE, schedule, schema=SCHEDULE_SCHEMA, supports_response=SupportsResponse.ONLY)
+
     async def push_directory(_now: Any = None) -> int:
         users = []
         for u in await hass.auth.async_get_users():
@@ -247,5 +278,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_remove(DOMAIN, SERVICE_EXECUTE)
     hass.services.async_remove(DOMAIN, SERVICE_SET_AREA)
+    hass.services.async_remove(DOMAIN, SERVICE_SCHEDULE)
     hass.services.async_remove(DOMAIN, SERVICE_SYNC)
     return True

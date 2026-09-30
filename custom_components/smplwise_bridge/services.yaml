@@ -53,6 +53,47 @@ set_entity_area:
     sig:
       description: HMAC-SHA256 signature computed by the add-on with the pairing secret.
 
+schedule:
+  name: Schedule (SMPLWISE add-on only)
+  description: >-
+    Adds, edits, removes, copies, runs, enables or disables one schedule of the Scheduler component on behalf of a
+    VMS user. Called by the SMPLWISE add-on with a signed request; the bridge re-validates every action, refuses codes
+    and unlisted services, and checks the user's own entity permissions. Never enable_all or disable_all. Not meant
+    to be called from automations.
+  fields:
+    user_id:
+      description: Home Assistant user id the change runs as.
+      example: "12d05a26b0214c9eac77ac26f6cd652c"
+    op:
+      description: One of add, edit, remove, copy, run, enable, disable.
+      example: edit
+    request_id:
+      description: Add-on operation id (for the audit trail).
+      example: "a1b2c3"
+    schedule_id:
+      description: The component's schedule id (every op but add).
+      example: "3f9a1c"
+    schedule_entity_id:
+      description: The schedule's own switch entity (every op but add); must be a Scheduler switch whose unique id is schedule_id.
+      example: switch.schedule_3f9a1c
+    payload:
+      description: The component's fields for add / edit (weekdays, timeslots, repeat_type, name, start_date, end_date, tags). Never a code.
+    name:
+      description: Name of the copy (op copy).
+    time:
+      description: Slot start to run (op run), HH:MM:SS.
+      example: "07:00:00"
+    skip_conditions:
+      description: Run ignoring the slot's conditions (op run).
+    sensitive:
+      description: True when any action locks, unlocks, arms, disarms or moves a door. The bridge refuses a false flag on what it can recognise.
+    ts:
+      description: Unix timestamp of the signature.
+    nonce:
+      description: Random nonce.
+    sig:
+      description: HMAC-SHA256 signature computed by the add-on with the pairing secret.
+
 sync_directory:
   name: Sync user directory (SMPLWISE add-on only)
   description: Pushes the Home Assistant user directory (ids, names, active/admin flags, groups) to the SMPLWISE add-on now instead of waiting for the next minute.
