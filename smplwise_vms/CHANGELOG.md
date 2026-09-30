@@ -1,5 +1,9 @@
 # Changelog — SmplWise Arx add-on
 
+## 0.1.148.1 (pilot) — Hotfix: the embedded WisKey is whole again; a custom role may hold every permission
+- **WisKey**: the 3 px edge crop of 0.1.148 cut WisKey's own content (with `chrome=none` its title, search and buttons touch the frame edge). The crop is withdrawn; the frame equals its stage again. The focus ring at WisKey's edge returns until WisKey ships the rc.38 change (docs/integrations/wiskey).
+- **Roles**: the custom-role editor refused more than 20 sensitive grants ("List should have at most 20 items") - 28 exist. The body guards are wide enough for "select all" in both lists.
+
 ## 0.1.148 (pilot) — Three home screens and two area screens you choose and edit; narrow tab bars; the phone UI audited; the old design is gone
 ### Home screen (חשמל והתקנים)
 - **Three directions, chosen in הגדרות › חשמל והתקנים › מסך ראשי**: א control centre (default), ב side panel, ג compact row. Every widget is
