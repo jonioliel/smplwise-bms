@@ -1,78 +1,38 @@
 /**
- * The home screen's own settings (owner notes 2026-09-30; backend: services/home_screen.py, `home.*` product settings):
- * an editable page title, the installation's floor order and three optional, read-only header widgets - a clock, the
- * weather of one `weather.*` entity and the Jewish-calendar times of three `sensor.*` entities. All widgets are off
- * until switched on in the screen's edit mode. Values come from the platform's mirrored entity list; nothing here
- * reaches the network.
+ * The home screen's own settings (owner notes 2026-09-30, and the home redesign of the same day; backend:
+ * services/home_screen.py + services/home_config.py, `home.*` product settings): an editable page title, the
+ * installation's floor order, the direction of the layout (a: control centre - the default, b: side panel, c: compact
+ * row), the side of b's column, and the widget configuration (api/home-config.ts). Values come from the platform's mirrored
+ * entity list; nothing here reaches the network.
+ *
+ * Two owners of the direction and the widgets: the installation (an administrator: הגדרות › מסך ראשי, or the screen's edit
+ * mode) and - only for a user who holds `screen.personalize` - the user themselves (החשבון שלי › המסך שלי, /me/prefs
+ * `home.personal`). The server applies the personal override to the tree it sends; the screen just draws what it is given.
  */
 import { get, patch } from './client';
+import { getMyPrefs, putMyPrefs } from './me-prefs';
 import { invalidateSettings, productSettings } from './prefs';
 import { isApi } from './session';
+import {
+  configBody, configOf, DIRECTION_DEFAULT, DIRECTIONS, SIDES, SIZES, WIDGET_IDS, sameConfig, defaultConfig,
+  type Direction, type HomeCandidates, type HomeConfig, type Side, type Size, type WidgetId,
+} from './home-config';
+
+export * from './home-config';
 
 export const HOME_TITLE_DEFAULT = 'חשמל והתקנים';
 export const HOME_TITLE_MAX = 60;
-
-export type ClockMode = 'off' | 'time' | 'datetime';
-export const CLOCK_MODES: ClockMode[] = ['off', 'time', 'datetime'];
-export const CLOCK_LABEL: Record<ClockMode, string> = { off: 'כבוי', time: 'שעה', datetime: 'שעה ותאריך' };
-
-/** How a widget is drawn (owner feedback 2026-09-30): a small chip in the header row, or a medium / large dashboard card
- * in the same family as the summary tiles. */
-export type WidgetSize = 'chip' | 'medium' | 'large';
-export const WIDGET_SIZES: WidgetSize[] = ['chip', 'medium', 'large'];
-export const SIZE_LABEL: Record<WidgetSize, string> = { chip: 'תג קטן', medium: 'בינוני', large: 'גדול' };
-export type WidgetKind = 'clock' | 'weather' | 'jewish';
-
-export interface ForecastEntry {
-  datetime: string;
-  condition: string;
-  temperature: number | null;
-}
-
-/** What the widgets show right now (GET /devices/tree `home`): null = off / not configured / no value. */
-export interface HomeWidgets {
-  clock: ClockMode;
-  clock_seconds?: boolean;
-  time_zone: string;
-  sizes?: Record<WidgetKind, WidgetSize>;
-  weather: { entity_id: string; condition: string; temperature: number | null; unit: string; humidity: number | null; wind_speed?: number | null; wind_unit?: string | null; forecast?: ForecastEntry[] } | null;
-  jewish: Partial<Record<'parsha' | 'candles' | 'havdalah' | 'date', { entity_id: string; state: string; device_class: string | null }>> | null;
-}
-
-export const NO_WIDGETS: HomeWidgets = { clock: 'off', time_zone: 'Asia/Jerusalem', weather: null, jewish: null };
-
-export function sizeOf(d: HomeWidgets | null | undefined, kind: WidgetKind): WidgetSize {
-  return d?.sizes?.[kind] ?? 'medium';
-}
 
 /** The settings, as edit mode edits them (and as the screen reads them). */
 export interface HomeSettings {
   title: string;
   floorOrder: string[];
-  clock: ClockMode;
-  weatherOn: boolean;
-  weatherEntity: string;
-  jewishOn: boolean;
-  parsha: string;
-  candles: string;
-  havdalah: string;
-  /** Owner feedback 2026-09-30: each widget's size, the clock's seconds, the Hebrew-date sensor. */
-  clockSize: WidgetSize;
-  clockSeconds: boolean;
-  weatherSize: WidgetSize;
-  jewishSize: WidgetSize;
-  jewishDate: string;
+  direction: Direction;
+  side: Side;
+  config: HomeConfig;
 }
 
-export const HOME_DEFAULT: HomeSettings = { title: '', floorOrder: [], clock: 'off', weatherOn: false, weatherEntity: '', jewishOn: false, parsha: '', candles: '', havdalah: '', clockSize: 'medium', clockSeconds: false, weatherSize: 'medium', jewishSize: 'medium', jewishDate: '' };
-
-function sizeSetting(v: unknown): WidgetSize {
-  return WIDGET_SIZES.includes(v as WidgetSize) ? (v as WidgetSize) : 'medium';
-}
-
-function str(v: unknown): string {
-  return typeof v === 'string' ? v : '';
-}
+export const HOME_DEFAULT: HomeSettings = { title: '', floorOrder: [], direction: DIRECTION_DEFAULT, side: 'end', config: defaultConfig() };
 
 export function parseFloorOrder(v: unknown): string[] {
   let data: unknown = v;
@@ -90,22 +50,14 @@ export function parseFloorOrder(v: unknown): string[] {
 }
 
 export function homeSettingsOf(s: Record<string, unknown> | null | undefined): HomeSettings {
-  const clock = s?.['home.clock'];
+  const dir = s?.['home.direction'];
+  const side = s?.['home.side'];
   return {
-    title: str(s?.['home.title']).trim(),
+    title: typeof s?.['home.title'] === 'string' ? (s['home.title'] as string).trim() : '',
     floorOrder: parseFloorOrder(s?.['home.floor_order']),
-    clock: CLOCK_MODES.includes(clock as ClockMode) ? (clock as ClockMode) : 'off',
-    weatherOn: s?.['home.weather'] === 'true',
-    weatherEntity: str(s?.['home.weather_entity']),
-    jewishOn: s?.['home.jewish'] === 'true',
-    parsha: str(s?.['home.jewish_parsha']),
-    candles: str(s?.['home.jewish_candles']),
-    havdalah: str(s?.['home.jewish_havdalah']),
-    clockSize: sizeSetting(s?.['home.clock_size']),
-    clockSeconds: s?.['home.clock_seconds'] === 'true',
-    weatherSize: sizeSetting(s?.['home.weather_size']),
-    jewishSize: sizeSetting(s?.['home.jewish_size']),
-    jewishDate: str(s?.['home.jewish_date']),
+    direction: DIRECTIONS.includes(dir as Direction) ? (dir as Direction) : DIRECTION_DEFAULT,
+    side: SIDES.includes(side as Side) ? (side as Side) : 'end',
+    config: configOf(s?.['home.widgets']),
   };
 }
 
@@ -119,23 +71,14 @@ export async function loadHomeSettings(force = false): Promise<HomeSettings> {
   }
 }
 
-/** The PATCH /settings body for what differs between two states (only the changed keys). */
-export function homePatch(from: HomeSettings, to: HomeSettings): Record<string, string> {
-  const body: Record<string, string> = {};
+/** The PATCH /settings body for what differs between two states (only the changed keys; the widget configuration whole). */
+export function homePatch(from: HomeSettings, to: HomeSettings): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
   if (to.title.trim() !== from.title) body['home.title'] = to.title.trim();
   if (JSON.stringify(to.floorOrder) !== JSON.stringify(from.floorOrder)) body['home.floor_order'] = JSON.stringify(to.floorOrder);
-  if (to.clock !== from.clock) body['home.clock'] = to.clock;
-  if (to.weatherOn !== from.weatherOn) body['home.weather'] = String(to.weatherOn);
-  if (to.weatherEntity !== from.weatherEntity) body['home.weather_entity'] = to.weatherEntity;
-  if (to.jewishOn !== from.jewishOn) body['home.jewish'] = String(to.jewishOn);
-  if (to.parsha !== from.parsha) body['home.jewish_parsha'] = to.parsha;
-  if (to.candles !== from.candles) body['home.jewish_candles'] = to.candles;
-  if (to.havdalah !== from.havdalah) body['home.jewish_havdalah'] = to.havdalah;
-  if (to.clockSize !== from.clockSize) body['home.clock_size'] = to.clockSize;
-  if (to.clockSeconds !== from.clockSeconds) body['home.clock_seconds'] = String(to.clockSeconds);
-  if (to.weatherSize !== from.weatherSize) body['home.weather_size'] = to.weatherSize;
-  if (to.jewishSize !== from.jewishSize) body['home.jewish_size'] = to.jewishSize;
-  if (to.jewishDate !== from.jewishDate) body['home.jewish_date'] = to.jewishDate;
+  if (to.direction !== from.direction) body['home.direction'] = to.direction;
+  if (to.side !== from.side) body['home.side'] = to.side;
+  if (!sameConfig(to.config, from.config)) body['home.widgets'] = configBody(to.config);
   return body;
 }
 
@@ -148,9 +91,11 @@ export async function saveHomeSettings(from: HomeSettings, to: HomeSettings): Pr
   return homeSettingsOf(r.settings);
 }
 
-export interface HomeCandidates {
-  weather: { entity_id: string; name: string; state: string | null }[];
-  sensors: { entity_id: string; name: string; state: string | null; device_class: string | null; suggested: boolean }[];
+/** "אפס לברירת מחדל": the widget configuration back to "never saved" (the built-in default with the catalogue's suggestions). */
+export async function resetHomeWidgets(): Promise<HomeSettings> {
+  const r = await patch<{ settings: Record<string, unknown> }>('settings', { 'home.widgets': {} });
+  invalidateSettings();
+  return homeSettingsOf(r.settings);
 }
 
 export const getHomeCandidates = () => get<HomeCandidates>('devices/home-candidates');
@@ -167,7 +112,7 @@ export function orderFloors<T extends { floor_id: string }>(floors: T[], order: 
     .map((x) => x.f);
 }
 
-/** Moves one id by `by` places inside the full ordered list of ids (edit mode's up / down buttons and drop target). */
+/** Moves one id to a place inside the full ordered list of ids (edit mode's up / down buttons and drop target). */
 export function moveId(ids: string[], id: string, to: number): string[] {
   const from = ids.indexOf(id);
   if (from < 0) return ids;
@@ -179,101 +124,60 @@ export function moveId(ids: string[], id: string, to: number): string[] {
   return out;
 }
 
-// ------------------------------------------------------------------------------------------------ widget text
+// ------------------------------------------------------------------------------------------------ the personal override
 
-/** Home Assistant's weather conditions, in Hebrew (an unknown condition shows as reported). */
-export const WEATHER_HE: Record<string, string> = {
-  'clear-night': 'לילה בהיר',
-  cloudy: 'מעונן',
-  exceptional: 'חריג',
-  fog: 'ערפל',
-  hail: 'ברד',
-  lightning: 'ברקים',
-  'lightning-rainy': 'סופת רעמים',
-  partlycloudy: 'מעונן חלקית',
-  pouring: 'גשם שוטף',
-  rainy: 'גשם',
-  snowy: 'שלג',
-  'snowy-rainy': 'שלג וגשם',
-  sunny: 'שמשי',
-  windy: 'סוער',
-  'windy-variant': 'סוער ומעונן',
-};
+/** `home.personal` of /me/prefs (services/home_config.py normalise_personal): null = follow the installation. */
+export interface HomePersonal {
+  direction: Direction | null;
+  order: WidgetId[] | null;
+  widgets: Partial<Record<WidgetId, { on?: boolean; size?: Size }>>;
+}
 
-export type WeatherGlyph = 'sun' | 'moon' | 'cloud' | 'partly' | 'rain' | 'snow' | 'storm' | 'fog' | 'wind';
+export const PERSONAL_EMPTY: HomePersonal = { direction: null, order: null, widgets: {} };
 
-export function weatherGlyph(condition: string): WeatherGlyph {
-  switch (condition) {
-    case 'sunny':
-      return 'sun';
-    case 'clear-night':
-      return 'moon';
-    case 'partlycloudy':
-      return 'partly';
-    case 'rainy':
-    case 'pouring':
-    case 'hail':
-      return 'rain';
-    case 'snowy':
-    case 'snowy-rainy':
-      return 'snow';
-    case 'lightning':
-    case 'lightning-rainy':
-      return 'storm';
-    case 'fog':
-      return 'fog';
-    case 'windy':
-    case 'windy-variant':
-      return 'wind';
-    default:
-      return 'cloud';
+/** Fired on `window` after the personal home screen changed: an open home screen refetches (screens/devices-building.ts). */
+export const HOME_PERSONAL_EVENT = 'sw-home-personal';
+
+export function personalOf(raw: unknown): HomePersonal {
+  if (!raw || typeof raw !== 'object') return { ...PERSONAL_EMPTY, widgets: {} };
+  const o = raw as Record<string, unknown>;
+  const widgets: HomePersonal['widgets'] = {};
+  const w = o.widgets && typeof o.widgets === 'object' ? (o.widgets as Record<string, unknown>) : {};
+  for (const id of WIDGET_IDS) {
+    const e = w[id];
+    if (!e || typeof e !== 'object') continue;
+    const x = e as Record<string, unknown>;
+    const entry: { on?: boolean; size?: Size } = {};
+    if (typeof x.on === 'boolean') entry.on = x.on;
+    if (SIZES.includes(x.size as Size)) entry.size = x.size as Size;
+    if (Object.keys(entry).length) widgets[id] = entry;
   }
+  const order = Array.isArray(o.order) ? (o.order.filter((x) => WIDGET_IDS.includes(x as WidgetId)) as WidgetId[]) : null;
+  return { direction: DIRECTIONS.includes(o.direction as Direction) ? (o.direction as Direction) : null, order: order && order.length ? [...order, ...WIDGET_IDS.filter((i) => !order.includes(i))] : null, widgets };
 }
 
-/** The clock's text in the site's zone: "14:05", or "יום ד׳ · 30.9 · 14:05" with the date. */
-export function clockText(now: Date, mode: ClockMode, zone: string): { time: string; date: string } {
-  const tz = safeZone(zone);
-  const time = new Intl.DateTimeFormat('he-IL', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
-  const date = mode === 'datetime' ? new Intl.DateTimeFormat('he-IL', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'numeric' }).format(now) : '';
-  return { time, date };
+export function personalIsEmpty(p: HomePersonal): boolean {
+  return !p.direction && !p.order && !Object.keys(p.widgets).length;
 }
 
-/** The clock card's parts in the site's zone: big "14:05" (+ ":07" when seconds are on), the weekday and the long date
- * ("יום רביעי" / "30 בספטמבר"; the date parts only with the date mode). */
-export function clockCard(now: Date, mode: ClockMode, zone: string, seconds = false): { hm: string; sec: string; weekday: string; date: string } {
-  const tz = safeZone(zone);
-  const hm = new Intl.DateTimeFormat('he-IL', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
-  const sec = seconds ? new Intl.DateTimeFormat('he-IL', { timeZone: tz, second: '2-digit' }).format(now).padStart(2, '0') : '';
-  const weekday = mode === 'datetime' ? new Intl.DateTimeFormat('he-IL', { timeZone: tz, weekday: 'long' }).format(now) : '';
-  const date = mode === 'datetime' ? new Intl.DateTimeFormat('he-IL', { timeZone: tz, day: 'numeric', month: 'long' }).format(now) : '';
-  return { hm, sec, weekday, date };
+export function personalBody(p: HomePersonal): Record<string, unknown> | null {
+  return personalIsEmpty(p) ? null : { direction: p.direction, order: p.order, widgets: p.widgets };
 }
 
-/** A forecast entry's hour ("14:00") in the site's zone; '' for a bad time. */
-export function hourOf(iso: string, zone: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return new Intl.DateTimeFormat('he-IL', { timeZone: safeZone(zone), hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
-}
-
-function safeZone(zone: string): string {
+/** This user's stored personal choices (empty when none, or when the server hides them because the permission is missing). */
+export async function loadPersonal(): Promise<HomePersonal> {
+  if (!isApi()) return personalOf(null);
   try {
-    new Intl.DateTimeFormat('he-IL', { timeZone: zone });
-    return zone;
+    const r = await getMyPrefs();
+    return personalOf(r.prefs['home.personal']);
   } catch {
-    return 'Asia/Jerusalem';
+    return personalOf(null);
   }
 }
 
-/** A Jewish-calendar time sensor's value as "HH:mm" in the site's zone: an ISO timestamp is converted; anything else
- * (a sensor that already reports "17:32") is shown as reported. '' for no value. */
-export function timeOfState(state: string | null | undefined, zone: string): string {
-  const s = (state ?? '').trim();
-  if (!s || s === 'unknown' || s === 'unavailable') return '';
-  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
-    const d = new Date(s);
-    if (Number.isNaN(d.getTime())) return '';
-    return new Intl.DateTimeFormat('he-IL', { timeZone: safeZone(zone), hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
-  }
-  return s;
+/** Saves (or clears, with an empty value) the user's personal choices; the server refuses it without the permission. */
+export async function savePersonal(p: HomePersonal): Promise<HomePersonal> {
+  const r = await putMyPrefs({ 'home.personal': personalBody(p) });
+  return personalOf(r.prefs['home.personal']);
 }
+

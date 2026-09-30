@@ -34,10 +34,10 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..db import Database, commit_now, get_setting, now_iso, rollback_and_restart, unlocked
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, authorize, require
+from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import device_bulk as bulk
 from ..services import devices as svc
-from ..services import ha_bridge, ha_client, ha_scope, ha_sync, home_screen
+from ..services import ha_bridge, ha_client, ha_scope, ha_sync, home_screen, user_prefs
 from ..services.timeutil import parse_utc
 
 router = APIRouter()
@@ -102,9 +102,12 @@ def tree(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Con
         for a in f["areas"]:
             a["can_bulk"] = flags["all"] or a["area_id"] in flags["areas"]
     body["sync"] = ha_sync.STATE.as_dict()
-    # owner 2026-09-30: the header widgets (clock / weather / Jewish-calendar times) as the home screen shows them - read-only
-    # values of the entities the owner picked, off unless switched on in edit mode
-    body["home"] = home_screen.widgets(conn)
+    # owner 2026-09-30 (home redesign): the home screen's direction, widget configuration and what the widgets show - read-only
+    # values of the entities the owner picked. The caller's personal override applies only while they hold
+    # screen.personalize (checked here on every read: a stored value of a user who lost it is ignored).
+    personalize = "screen.personalize" in permissions_anywhere(conn, principal)
+    personal = user_prefs.get_prefs(conn, principal.user_id)["prefs"].get(user_prefs.PERSONAL_HOME_KEY) if personalize else None
+    body["home"] = home_screen.payload(conn, entities, personalize=personalize, personal=personal)
     return body
 
 

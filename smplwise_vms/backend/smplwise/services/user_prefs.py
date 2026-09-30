@@ -8,7 +8,7 @@ import sqlite3
 from typing import Any, Callable
 
 from ..db import now_iso
-from . import nav_size
+from . import home_config, nav_size
 
 # The navigation tabs of the app shell in their default order (frontend/src/shell/nav.ts, NAV_A): ראשי (the device
 # overview), אבטחה, מפה, WisKey. The user avatar is always last and is not a tab. A new tab is appended to every stored
@@ -61,6 +61,14 @@ VALIDATORS["wiskey.density"] = _choice("wiskey.density", WISKEY_DENSITIES)
 VALIDATORS["wiskey.wall"] = _choice("wiskey.wall", WISKEY_WALLS)
 DEFAULTS["wiskey.density"] = None
 DEFAULTS["wiskey.wall"] = None
+
+# `home.personal` (home redesign, owner 2026-09-30): the user's own home-screen direction and widget on / off / size / order
+# (services/home_config.py). The keys are stored for everyone who sends them past the permission check, but the value only
+# EXISTS for a holder of `screen.personalize`: routers/me.py refuses a write without it and hides the stored value on a read,
+# and services/home_screen.py ignores it when the tree is built (a user who lost the permission gets the installation's screen).
+PERSONAL_HOME_KEY = "home.personal"
+VALIDATORS[PERSONAL_HOME_KEY] = home_config.normalise_personal
+DEFAULTS[PERSONAL_HOME_KEY] = None
 
 
 def get_prefs(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:

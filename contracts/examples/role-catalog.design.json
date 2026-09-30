@@ -124,7 +124,8 @@
         "ha.entity.control",
         "schedule.view",
         "schedule.manage",
-        "schedule.sensitive"
+        "schedule.sensitive",
+        "screen.personalize"
       ]
     }
   ],

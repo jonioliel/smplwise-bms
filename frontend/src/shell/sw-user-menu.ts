@@ -4,7 +4,8 @@ import '../components/sw-avatar';
 import '../components/sw-icon';
 import '../components/sw-remote-sessions';
 import './sw-wiskey-prefs';
-import { can } from '../api/session';
+import './sw-home-personal';
+import { can, canAnywhere } from '../api/session';
 import { WISKEY_HIDDEN } from './nav';
 import { REMOTE } from '../arx/pre-gate';
 import { logout as arxLogout } from '../arx/auth';
@@ -53,6 +54,8 @@ export class SwUserMenu extends LitElement {
   @state() private sessionsOpen = false;
   /** The WisKey start choices section (WisKey rc.37) loads only while it is open. */
   @state() private wiskeyOpen = false;
+  /** The personal home screen section (screen.personalize) loads only while it is open. */
+  @state() private homeOpen = false;
 
   static styles = css`
     :host {
@@ -369,6 +372,7 @@ export class SwUserMenu extends LitElement {
       this.level = 'main';
       this.sessionsOpen = false;
       this.wiskeyOpen = false;
+      this.homeOpen = false;
     }
   }
 
@@ -383,13 +387,15 @@ export class SwUserMenu extends LitElement {
     const android = inAndroidApp();
     // WisKey rc.37: the user's own start choices of the embedded panel - only for a user who may see the WisKey area
     const wiskey = this.api && !this.gated && !WISKEY_HIDDEN && can('access.read');
-    return { order: !this.gated, prefs: !this.gated, sessions: this.api, android, wiskey };
+    // home redesign: the personal home screen - only for a holder of screen.personalize (the server checks it again)
+    const home = this.api && !this.gated && canAnywhere('screen.personalize');
+    return { order: !this.gated, prefs: !this.gated, sessions: this.api, android, wiskey, home };
   }
 
   private renderMain() {
     const alerts = this.alerts;
     const acc = this.accountItems();
-    const hasAccount = acc.order || acc.prefs || acc.sessions || acc.android || acc.wiskey;
+    const hasAccount = acc.order || acc.prefs || acc.sessions || acc.android || acc.wiskey || acc.home;
     return html`
       <header data-user-menu-header>
         <sw-avatar name=${this.name} size=${40}></sw-avatar>
@@ -443,6 +449,12 @@ export class SwUserMenu extends LitElement {
         ${acc.prefs
           ? html`<li><a href="#/system/notifications" data-menu-notify-prefs @click=${(e: MouseEvent) => this.go(e)}>
               <span class="ic"><sw-icon name="bellSettings" size=${18}></sw-icon></span><span class="txt">הגדרות התראות</span></a></li>`
+          : nothing}
+        ${acc.home
+          ? html`<li><details data-my-home @toggle=${(e: Event) => (this.homeOpen = (e.currentTarget as HTMLDetailsElement).open)}>
+              <summary><span class="ic"><sw-icon name="dashboard" size=${18}></sw-icon></span><span class="txt">המסך שלי</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
+              <div class="sessions">${this.open && this.homeOpen ? html`<sw-home-personal></sw-home-personal>` : nothing}</div>
+            </details></li>`
           : nothing}
         ${acc.wiskey
           ? html`<li><details data-my-wiskey @toggle=${(e: Event) => (this.wiskeyOpen = (e.currentTarget as HTMLDetailsElement).open)}>

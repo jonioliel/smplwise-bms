@@ -59,6 +59,10 @@ ATTR_ALLOW = {
     # owner 2026-09-30 (the home screen's weather widget): a weather entity's temperature unit (its temperature and
     # humidity are allowed above)
     "temperature_unit", "wind_speed", "wind_speed_unit", "forecast",
+    # home redesign (owner 2026-09-30, decision 5): what else a weather entity can offer - the widget lists exactly the fields
+    # the chosen entity reports (pressure, visibility, UV, precipitation, wind bearing / gust, feels-like) with their units
+    "pressure", "pressure_unit", "visibility", "visibility_unit", "uv_index", "wind_bearing", "wind_gust_speed", "apparent_temperature",
+    "dew_point", "cloud_coverage", "precipitation", "precipitation_unit",
     # CR-014 (schedules): a schedule switch's next trigger / current and next slot, and the sun's next rising / setting
     # (the preview of a schedule that starts at sunrise or sunset). The switch's `actions` / `timeslots` are not kept:
     # the definitions come from the scheduler component itself (services/schedules.py).
@@ -130,8 +134,22 @@ def publish(msg: dict[str, Any]) -> None:
             pass
 
 
+FORECAST_KEEP = 14  # a weather entity's own `forecast` attribute: the first entries only (a week of days, or half a day of hours)
+FORECAST_FIELDS = ("datetime", "condition", "temperature", "templow", "precipitation_probability", "precipitation")
+
+
+def trim_forecast(raw: Any) -> list[dict[str, Any]]:
+    """The compact form of a `forecast` attribute: the fields the home widget reads, the first FORECAST_KEEP entries. A
+    48-hour hourly forecast used to blow the 4000-character attribute budget and cut the stored JSON in half."""
+    if not isinstance(raw, list):
+        return []
+    return [{k: item[k] for k in FORECAST_FIELDS if k in item} for item in raw[:FORECAST_KEEP] if isinstance(item, dict)]
+
+
 def trim_attributes(attrs: dict[str, Any]) -> str:
     kept = {k: v for k, v in (attrs or {}).items() if k in ATTR_ALLOW}
+    if "forecast" in kept:
+        kept["forecast"] = trim_forecast(kept["forecast"])
     text = json.dumps(kept, ensure_ascii=False, default=str)
     if len(text) > 4000:
         kept = {k: kept[k] for k in list(kept)[:10]}

@@ -1,18 +1,19 @@
 /** CR-013: the signed-in user's own interface preferences on the server (GET/PUT /me/prefs, routers/me.py). A closed
  * list of keys: `nav.order` (the navigation tabs' order), `ui.nav_size` (the size of the rail / bottom bar - shape in
- * shell/nav-size.ts) and, from WisKey rc.37, the user's `wiskey.density` / `wiskey.wall` start choices (wiskey/wiskey-prefs.ts).
- * Null resets a key to its default. */
+ * shell/nav-size.ts), from WisKey rc.37 the user's `wiskey.density` / `wiskey.wall` start choices (wiskey/wiskey-prefs.ts)
+ * and, for a holder of `screen.personalize` only, `home.personal` - the user's own home-screen direction and widgets
+ * (api/home.ts). Null resets a key to its default. */
 import { get, put } from './client';
 
 /** The wire shape of a navigation size (validated in the backend, services/nav_size.py; parsed by shell/nav-size.ts). */
 export type NavSizeWire = { mode: 'rel'; preset: 's' | 'm' | 'l' | 'xl' } | { mode: 'free'; icon: number; label: number; item: number };
 
 export interface MyPrefs {
-  prefs: { 'nav.order': string[]; 'ui.nav_size'?: NavSizeWire; 'wiskey.density'?: string | null; 'wiskey.wall'?: string | null };
+  prefs: { 'nav.order': string[]; 'ui.nav_size'?: NavSizeWire; 'wiskey.density'?: string | null; 'wiskey.wall'?: string | null; 'home.personal'?: unknown };
   /** The keys the user set themselves (the rest are defaults). */
   stored: string[];
   updated_at: string | null;
 }
 
 export const getMyPrefs = () => get<MyPrefs>('me/prefs');
-export const putMyPrefs = (patch: { 'nav.order'?: string[] | null; 'ui.nav_size'?: NavSizeWire | null; 'wiskey.density'?: string | null; 'wiskey.wall'?: string | null }) => put<MyPrefs>('me/prefs', patch);
+export const putMyPrefs = (patch: { 'nav.order'?: string[] | null; 'ui.nav_size'?: NavSizeWire | null; 'wiskey.density'?: string | null; 'wiskey.wall'?: string | null; 'home.personal'?: Record<string, unknown> | null }) => put<MyPrefs>('me/prefs', patch);

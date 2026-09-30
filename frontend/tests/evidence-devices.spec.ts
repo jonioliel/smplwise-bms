@@ -181,7 +181,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     const b = tree.building as Record<string, number>;
     await expect(screen.locator('sw-kpi[data-kpi="תאורה דולקת"]')).toHaveAttribute('data-value', `${b.lights_on}/${b.lights}`);
     await expect(screen.locator('sw-kpi[data-kpi="תריסים פתוחים"]')).toHaveAttribute('data-value', `${b.covers_open}/${b.covers}`);
-    await expect(screen.locator('sw-kpi[data-kpi="אזעקה"]')).toBeVisible();
+    await expect(screen.locator('home-widgets [data-home-widget="alarm"]')).toBeVisible(); // home redesign: the alarm is a read-only status card of the control-centre band, no longer a tile
     // nothing on this screen controls one device; the only buttons are the bulk actions (slice 3: the header buttons
     // and the "⋯" triggers, each of which opens the confirmation dialog - the admin holds devices.control_bulk)
     await expect(screen.locator('input, sw-toggle')).toHaveCount(0);
@@ -1022,6 +1022,8 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       page.on('request', (req) => {
         if (req.method() === 'POST' && /\/api\/v1\/devices\/actions$/.test(req.url())) posted.push(req.url());
       });
+      // home redesign: with the quick-actions card on, the building buttons live in that card; switched off they are in the toolbar row
+      await request.patch('/api/v1/settings', { data: { 'home.widgets': { quick: { on: false } } } });
       for (const design of ['a', 'b'] as const) {
         await open(page, '/devices/building', design);
         const scr = page.locator('devices-building');
@@ -1042,6 +1044,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       }
       expect(posted).toHaveLength(0);
     } finally {
+      await request.patch('/api/v1/settings', { data: { 'home.widgets': {} } }).catch(() => {});
       await request.delete(`/api/v1/access/bindings/${binding}`).catch(() => {});
     }
   });
@@ -1456,7 +1459,8 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
   test('6a: devices.default_view opens a new viewer on that view (their own toggle wins after), devices.density tightens the screens, and the sensors card / climate strip can be hidden', async ({ browser, request }) => {
     await seed(request);
     await devicesSettings(request, DEVICES_DEFAULTS);
-    let ctx = await browser.newContext(); // a fresh viewer (the dev default identity): no stored layout
+    // (a tall window: the home screen drops the climate strips first when it has to fit a shorter one - home redesign)
+    let ctx = await browser.newContext({ viewport: { width: 1920, height: 1700 } }); // a fresh viewer (the dev default identity): no stored layout
     try {
       let p = await ctx.newPage();
       await open(p, '/devices/building', 'a');

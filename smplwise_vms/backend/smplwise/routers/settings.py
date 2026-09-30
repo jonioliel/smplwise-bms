@@ -15,7 +15,7 @@ from ..auth import current_principal, get_conn
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import nav_size
+from ..services import home_config, home_screen, nav_size
 
 router = APIRouter()
 
@@ -48,7 +48,9 @@ DEFAULTS: dict[str, str] = {
     # UI round 1 (owner 2026-09-30): the size of the side rail / phone bottom bar - a JSON object, shape and ranges in
     # services/nav_size.py ({"mode":"rel","preset":"m"} or {"mode":"free","icon":..,"label":..,"item":..}); a user's own
     # value (/me/prefs) wins. Read back as an object.
-    "ui.nav_size": '{"mode":"rel","preset":"m"}',
+    # Home redesign (owner decision 2026-09-30): the installation default is the large preset "l"; a size an administrator or
+    # a user saved earlier is a stored value and is never touched by the new default.
+    "ui.nav_size": '{"mode":"rel","preset":"l"}',
     # owner 2026-09-30 (tabs per section): installation-wide tab order / visibility per navigation section, a JSON object
     # {section_id: {"order": [tab_id...], "hidden": [tab_id...]}}; read back as an object, not a string. "{}" = nothing
     # configured = the built-in tabs. Contract: docs/architecture/TABS_CONFIG.md.
@@ -140,6 +142,14 @@ DEFAULTS: dict[str, str] = {
     "home.weather_size": "medium",
     "home.jewish_size": "medium",
     "home.jewish_date": "",
+    # home redesign (owner decisions 2026-09-30): the direction of the layout - a control centre (default) | b side panel |
+    # c compact row; the side of b's widget column; and `home.widgets`, the whole widget configuration (order, per widget
+    # on / sizes per direction / heading / entities and fields; services/home_config.py) - read back as an OBJECT, "" = never
+    # saved = the 0.1.146 keys above if they were used, else the built-in default with the catalogue's suggestions. A user's
+    # own direction and widget choices (screen.personalize) live in /me/prefs `home.personal`, never here.
+    "home.direction": "a",
+    "home.side": "end",
+    "home.widgets": "",
     # CR-008 SmplWise Arx remote access (owner decisions 2026-09-29, CR-008 §3f / §7). The channel itself is the add-on
     # option remote_access; these shape who may use it and how the browser keeps its sign-in.
     "remote.policy": "flag",  # flag: only users with the per-user remote-access flag (D4) | any_role: every HA user holding an Arx role
@@ -198,6 +208,7 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
     out["ui.nav_size"] = _stored_nav_size(out["ui.nav_size"])
     out["schedules.classes"] = stored_schedule_classes(out["schedules.classes"])
+    out["home.widgets"] = home_screen.effective_config(conn)
     return out
 
 
@@ -346,6 +357,9 @@ class SettingsPatch(BaseModel):
     home_weather_size: str | None = Field(default=None, pattern="^(chip|medium|large)$", alias="home.weather_size")
     home_jewish_size: str | None = Field(default=None, pattern="^(chip|medium|large)$", alias="home.jewish_size")
     home_jewish_date: str | None = Field(default=None, pattern=r"^(|sensor\.[a-z0-9_]{1,100})$", alias="home.jewish_date")
+    home_direction: str | None = Field(default=None, pattern="^(a|b|c)$", alias="home.direction")
+    home_side: str | None = Field(default=None, pattern="^(start|end)$", alias="home.side")
+    home_widgets: dict[str, Any] | None = Field(default=None, alias="home.widgets")  # validated in full by services/home_config.py
     remote_policy: str | None = Field(default=None, pattern="^(flag|any_role)$", alias="remote.policy")
     remote_session: str | None = Field(default=None, pattern="^(rolling_90d|browser_session|rolling_90d_idle_lock)$", alias="remote.session")
     remote_idle_lock_minutes: int | None = Field(default=None, ge=5, le=10080, alias="remote.idle_lock_minutes")
@@ -428,6 +442,14 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if order is None:
             raise ApiError(422, "validation", "סדר הקומות: רשימה של מזהי קומות שונים זה מזה.", details={"home.floor_order": "invalid"})
         changes["home.floor_order"] = json.dumps(order, ensure_ascii=False)
+    if "home.widgets" in changes:
+        # the whole widget configuration, validated in full; an empty object puts the setting back to "never saved" (the
+        # default with the catalogue's suggestions)
+        try:
+            cfg = home_config.normalise(changes["home.widgets"]) if changes["home.widgets"] else None
+        except ValueError as exc:
+            raise ApiError(422, "validation", "הגדרות הווידג׳טים: ערך לא תקין.", details={"home.widgets": str(exc)})
+        changes["home.widgets"] = cfg
     if "time.zone" in changes:
         from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -439,6 +461,9 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         # the adapter contract exists (privacy, model version, budget, opt-in) but no provider is bundled: refuse, never pretend
         raise ApiError(422, "provider_not_available", "לא מצורף ספק ניתוח חיצוני; קיים רק חוזה המתאם (פרטיות, גרסת מודל, תקציב, opt-in).", details={"choices": ["none", "local"]})
     for key, value in changes.items():
+        if key == "home.widgets":
+            set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value else "")
+            continue
         set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "schedules.classes") else str(value))
     if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now
         from ..services import schedules as schedules_svc

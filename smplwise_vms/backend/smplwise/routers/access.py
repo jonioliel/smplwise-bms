@@ -95,6 +95,12 @@ PERMISSION_LABELS: dict[str, str] = {
     "schedule.view": "צפייה בתזמונים",
     "schedule.manage": "ניהול תזמונים: יצירה, עריכה, הפעלה והשבתה, הרצה מיידית, מחיקה ושחזור",
     "schedule.sensitive": "תזמון פעולות רגישות: אזעקה, מנעולים, דלתות ושערים",
+    # screen.personalize (home redesign, owner decision 2026-09-30): the home screen's PERSONAL override - a direction of
+    # its own and the user's own widget on / off / size / order (frontend החשבון שלי › המסך שלי, /me/prefs `home.personal`).
+    # Presentation only, so it is not sensitive and is never implied by another permission; held by no default role except
+    # system_admin - the owner grants it to one person through a custom role plus a binding. The server checks it on every
+    # write AND every read: a stored value of a user who lost it is ignored (services/home_screen.py apply_personal).
+    "screen.personalize": "התאמה אישית של המסך שלי",
     "nvr.config.write": "כתיבה להגדרות ה־NVR",
     "nvr.config.events": "NVR: הפעלת התראות (Notify Surveillance Center) ולוחות זימון",
     "nvr.config.detection": "NVR: עריכת אזורי זיהוי תנועה ורגישות",

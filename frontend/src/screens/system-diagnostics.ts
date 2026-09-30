@@ -32,6 +32,7 @@ import './devices-theme-picker';
 import './devices-bulk-safe-admin'; // owner 2026-09-30: הגדרות › חשמל והתקנים › פעולה קבוצתית
 import './system-tabs'; // owner 2026-09-30: הגדרות › כללי › לשוניות
 import './system-nav-size'; // UI round 1b: הגדרות › כללי › גודל הניווט
+import './system-home-screen'; // home redesign: הגדרות › חשמל והתקנים › מסך ראשי
 import { loadTree } from '../api/catalog';
 import type { Site } from '../api/types';
 import type { DevicesPick } from './devices-theme-picker';
@@ -1025,6 +1026,7 @@ export class SystemDiagnostics extends LitElement {
       <span class="cap">${name}<span class="muted">${hint}</span></span>
     </button>`;
     return html`<div class="sections">
+      <system-home-screen></system-home-screen>
       <sw-card data-devices-settings heading="חשמל והתקנים" subheading="המראה של מסכי החשמל וההתקנים לכל המשתמשים במתקן. תצוגה בלבד: כללי הבטיחות של פעולות מרוכזות (חלון אישור, תוקף, בלי מנעולים, אזעקה ושחרור דלתות) אינם הגדרה.">
         <div class="row"><span class="lbl">סגנון<span class="muted">Arx הוא המראה של שאר המערכת; זכוכית היא הסגנון מהמוקאפ שאושר: משטחים שקופים ומטושטשים, אריחים מעוגלים עם אייקון. שניהם מימין לשמאל.</span></span>
           <sw-field class="ctl"><select data-set-devices-style ?disabled=${ro} @change=${(e: Event) => pick((e.target as HTMLSelectElement).value === 'glass' ? 'glass' : 'smplwise')}>
