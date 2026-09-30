@@ -1831,6 +1831,33 @@ def unshare(conn: sqlite3.Connection, zone_id: str, floor_id: str, actor_id: str
     return cur.rowcount > 0
 
 
+def end_for_floor(conn: sqlite3.Connection, floor_id: str, actor_id: str | None, now: str) -> dict[str, list[str]]:
+    """Review L5, a floor is being deleted: every live share it takes part in ends (as the home floor: all of that
+    room's shares, the room has nowhere to live; as another floor: only its own), and a room left with no live share
+    loses its members - no orphan member row stays, and a room shared with three floors keeps its two remaining ones.
+    Plain SQL on purpose: `_rows` already hides shares of a deleted floor, which is exactly what leaves the orphans.
+    Returns {"shares": [share ids ended], "zones": [zone ids whose members ended]}; the caller marks revocation."""
+    out: dict[str, list[str]] = {"shares": [], "zones": []}
+    try:
+        rows = conn.execute("SELECT id, zone_id FROM shared_spaces WHERE removed_at IS NULL AND (floor_id = ? OR home_floor_id = ?)", (floor_id, floor_id)).fetchall()
+        home_zones = [r[0] for r in conn.execute("SELECT DISTINCT zone_id FROM shared_spaces WHERE removed_at IS NULL AND home_floor_id = ?", (floor_id,)).fetchall()]
+        if home_zones:
+            rows = [*rows, *conn.execute(f"SELECT id, zone_id FROM shared_spaces WHERE removed_at IS NULL AND zone_id IN ({','.join('?' * len(home_zones))})", home_zones).fetchall()]
+        ids = list(dict.fromkeys(r[0] for r in rows))
+        zones = list(dict.fromkeys(r[1] for r in rows))
+        for sid in ids:
+            conn.execute("UPDATE shared_spaces SET removed_at = ?, removed_by = ?, updated_at = ?, revision = revision + 1 WHERE id = ? AND removed_at IS NULL", (now, actor_id, now, sid))
+        for zid in zones:
+            if conn.execute("SELECT 1 FROM shared_spaces WHERE zone_id = ? AND removed_at IS NULL LIMIT 1", (zid,)).fetchone() is None:
+                cur = conn.execute("UPDATE shared_space_members SET removed_at = ?, removed_by = ? WHERE zone_id = ? AND removed_at IS NULL", (now, actor_id, zid))
+                if cur.rowcount:
+                    out["zones"].append(zid)
+        out["shares"] = ids
+    except sqlite3.OperationalError:  # before migration 0038
+        return {"shares": [], "zones": []}
+    return out
+
+
 def set_placement(conn: sqlite3.Connection, zone_id: str, floor_id: str, placement: dict[str, Any], now: str) -> bool:
     cur = conn.execute("UPDATE shared_spaces SET placement_json = ?, updated_at = ?, revision = revision + 1 WHERE zone_id = ? AND floor_id = ? AND removed_at IS NULL",
                        (json.dumps(placement), now, zone_id, floor_id))

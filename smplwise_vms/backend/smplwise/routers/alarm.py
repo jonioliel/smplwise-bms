@@ -25,7 +25,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, get_conn, read_gate, settings_of
 from ..db import get_setting, now_iso, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Decision, Principal, authorize, note_grant, permissions_anywhere, require
@@ -217,19 +217,31 @@ class BypassBody(BaseModel):
     expires_at: str = Field(min_length=1, max_length=40)
 
 
+def _check_control(conn: sqlite3.Connection, principal: Principal) -> None:
+    if not set(permissions_anywhere(conn, principal)) & {ARM, DISARM}:
+        require(conn, principal, ARM, INSTALLATION)
+
+
+def _check_bypass(conn: sqlite3.Connection, principal: Principal) -> None:
+    if BYPASS not in set(permissions_anywhere(conn, principal)):
+        require(conn, principal, BYPASS, INSTALLATION)
+
+
 def _control_holder(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
     """The permission before the body: a caller holding neither alarm.arm nor alarm.disarm anywhere gets the audited
     403 before anything they sent is read."""
-    held = set(permissions_anywhere(conn, principal))
-    if not held & {ARM, DISARM}:
-        require(conn, principal, ARM, INSTALLATION)
+    _check_control(conn, principal)
     return principal
 
 
 def _bypass_holder(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
-    if BYPASS not in set(permissions_anywhere(conn, principal)):
-        require(conn, principal, BYPASS, INSTALLATION)
+    _check_bypass(conn, principal)
     return principal
+
+
+# review L7: the raw-body routes check the permission on a READ connection, read the body, and only then open the write one
+_control_holder_ro = read_gate(_check_control)
+_bypass_holder_ro = read_gate(_check_bypass)
 
 
 class _Act:
@@ -431,7 +443,7 @@ def _send(act: _Act, request: Request, entity_id: str, action_id: str, args: dic
 
 
 @router.post("/alarm/panels/{entity_id}/actions", status_code=202)
-def panel_action(entity_id: str, request: Request, principal: Principal = Depends(_control_holder), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def panel_action(entity_id: str, request: Request, principal: Principal = Depends(_control_holder_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body, secret = _parse(request, raw, ActionBody, ("code",))
     typed = secret.get("code")
     disarm = body.action == "disarm"
@@ -517,7 +529,7 @@ def panel_action(entity_id: str, request: Request, principal: Principal = Depend
 
 
 @router.post("/alarm/zones/{zone_entity_id}/bypass", status_code=202)
-def zone_bypass(zone_entity_id: str, request: Request, principal: Principal = Depends(_bypass_holder), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def zone_bypass(zone_entity_id: str, request: Request, principal: Principal = Depends(_bypass_holder_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body, secret = _parse(request, raw, BypassBody, ("code",))
     typed = secret.get("code")
     act = _Act(request, conn, principal, BYPASS, "alarm_zone", zone_entity_id)
@@ -595,9 +607,16 @@ def me(principal: Principal = Depends(current_principal), conn: sqlite3.Connecti
 
 def _alarm_actor(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
     """A caller who may use a code at all: alarm.arm, alarm.disarm or alarm.bypass anywhere (review L7)."""
+    _check_actor(conn, principal)
+    return principal
+
+
+def _check_actor(conn: sqlite3.Connection, principal: Principal) -> None:
     if not set(permissions_anywhere(conn, principal)) & {ARM, DISARM, BYPASS}:
         require(conn, principal, ARM, INSTALLATION)
-    return principal
+
+
+_alarm_actor_ro = read_gate(_check_actor)  # review L7
 
 
 def _check_pin_shape(act: "_Act", pin: Any, conn: sqlite3.Connection) -> None:
@@ -619,7 +638,7 @@ def _verify_current_pin(act: "_Act", conn: sqlite3.Connection, user_id: str, cur
 
 
 @router.put("/alarm/me/pin")
-def set_my_pin(request: Request, principal: Principal = Depends(_alarm_actor), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def set_my_pin(request: Request, principal: Principal = Depends(_alarm_actor_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Change the caller's own PIN. Security review M3: changing an existing PIN needs the current one; the FIRST PIN is
     set by an administrator (משתמשים והרשאות) - or here, by a user who types the stored code of a panel they may see
     correctly (constant-time; failures count toward the lockout of the user and that panel). Audited without values."""
@@ -666,6 +685,9 @@ def _configurer(principal: Principal = Depends(current_principal), conn: sqlite3
     return principal
 
 
+_configurer_ro = read_gate(lambda conn, principal: require(conn, principal, "system.configure", INSTALLATION))  # review L7
+
+
 @router.get("/alarm/config")
 def config(request: Request, principal: Principal = Depends(_configurer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ents = svc.load(conn)
@@ -704,7 +726,7 @@ class OverrideBody(BaseModel):
 
 
 @router.put("/alarm/overrides/{zone_entity_id}")
-def put_override(zone_entity_id: str, request: Request, principal: Principal = Depends(_configurer), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def put_override(zone_entity_id: str, request: Request, principal: Principal = Depends(_configurer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body, _ = _parse(request, raw, OverrideBody)
     act = _Act(request, conn, principal, "alarm.mapping", "alarm_zone", zone_entity_id)
     zone = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (zone_entity_id,)).fetchone()
@@ -740,7 +762,7 @@ class NotAlarmBody(BaseModel):
 
 
 @router.put("/alarm/controls/{entity_id}/not-alarm")
-def put_not_alarm(entity_id: str, request: Request, principal: Principal = Depends(_configurer), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def put_not_alarm(entity_id: str, request: Request, principal: Principal = Depends(_configurer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Final review item 3: release a bypass-like switch / select that is not part of the alarm (e.g. a boiler bypass
     valve on the same MQTT broker) - it leaves the unpaired list and the fail-closed fallback, and becomes an ordinary
     entity again for the other screens. system.configure, audited; `not_alarm: false` takes the mark back."""
@@ -776,7 +798,7 @@ class EmptyBody(BaseModel):
 
 
 @router.put("/alarm/panels/{entity_id}/code")
-def put_panel_code(entity_id: str, request: Request, principal: Principal = Depends(_configurer), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def put_panel_code(entity_id: str, request: Request, principal: Principal = Depends(_configurer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Store the panel's own code (write-only, encrypted). The reply says only that it is set."""
     _, secret = _parse(request, raw, EmptyBody, ("code",))
     act = _Act(request, conn, principal, "alarm.panel_code", "alarm_panel", entity_id)
@@ -840,7 +862,7 @@ class PolicyBody(BaseModel):
 
 
 @router.put("/alarm/users/{user_id}/policy")
-def put_user_policy(user_id: str, request: Request, principal: Principal = Depends(_configurer), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def put_user_policy(user_id: str, request: Request, principal: Principal = Depends(_configurer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body, secret = _parse(request, raw, PolicyBody, ("current_pin",))
     act = _Act(request, conn, principal, "alarm.user_policy", "user", user_id)
     if not conn.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone():
@@ -853,7 +875,7 @@ def put_user_policy(user_id: str, request: Request, principal: Principal = Depen
 
 
 @router.put("/alarm/users/{user_id}/pin")
-def put_user_pin(user_id: str, request: Request, principal: Principal = Depends(_configurer), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def put_user_pin(user_id: str, request: Request, principal: Principal = Depends(_configurer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """An administrator sets a user's PIN (e.g. for someone who never opens the screen); the user may change it later."""
     _, secret = _parse(request, raw, PinBody, ("pin", "current_pin"))
     act = _Act(request, conn, principal, "alarm.pin", "user", user_id)

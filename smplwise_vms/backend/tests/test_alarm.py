@@ -19,7 +19,7 @@ from conftest import as_user, bind, png_bytes, seed_tree
 from fastapi.testclient import TestClient
 
 import fake_alarm
-from smplwise.auth import current_principal
+from smplwise.auth import current_principal, current_principal_ro
 from smplwise.rbac import ROLES, Principal
 from smplwise.routers.access import PERMISSION_LABELS, SENSITIVE
 from smplwise.services import alarm as svc
@@ -111,7 +111,9 @@ def _no_code(c, user_id: str = "dev-joni") -> None:
 
 
 def _as_remote(app, user_id: str = "dev-joni", username: str = "joni") -> None:
-    app.dependency_overrides[current_principal] = lambda: Principal(user_id=user_id, username=username, display_name=username, source="remote", via="cookie")
+    remote = lambda: Principal(user_id=user_id, username=username, display_name=username, source="remote", via="cookie")  # noqa: E731
+    app.dependency_overrides[current_principal] = remote
+    app.dependency_overrides[current_principal_ro] = remote  # review L7: the raw-body routes gate on the read connection
 
 
 # ---------------------------------------------------------------- permissions registered

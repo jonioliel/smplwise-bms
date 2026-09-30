@@ -400,6 +400,13 @@ def delete_floor(floor_id: str, request: Request, principal: Principal = Depends
         conn.execute("UPDATE map_anchors SET effective_to = ?, updated_at = ?, updated_by = ? WHERE floor_id = ? AND effective_to IS NULL", (now, now, principal.user_id, floor_id))
     conn.execute("UPDATE plan_versions SET status = 'archived', archived_at = ? WHERE floor_id = ? AND status != 'archived'", (now, floor_id))
     conn.execute("UPDATE floors SET deleted_at = ?, updated_at = ? WHERE id = ?", (now, now, floor_id))
+    from ..services import revocation, shared_spaces
+
+    ended = shared_spaces.end_for_floor(conn, floor_id, principal.user_id, now)  # review L5: no live share or member row outlives the floor
+    if ended["shares"]:
+        revocation.mark([r[0] for r in conn.execute("SELECT id FROM users").fetchall()])  # reach through the room narrows now
+        audit(conn, actor=principal, action="zone.unshare", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
+              details={"reason": "floor_deleted", "shares_ended": len(ended["shares"]), "rooms_without_members": ended["zones"]})
     from ..services.skins import store as skins_store
 
     controls = skins_store.delete_floor(settings_of(request), conn, floor_id)  # CR-006 2a: the floor's control images go with it

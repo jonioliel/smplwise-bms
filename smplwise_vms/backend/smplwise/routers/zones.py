@@ -311,14 +311,13 @@ def share_zone(zone_id: str, body: ShareIn, request: Request, principal: Princip
 @router.delete("/zones/{zone_id}/share/{floor_id}", status_code=204)
 def unshare_zone(zone_id: str, floor_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> None:
     """"בטל שיתוף": the other floor stops showing the room, and its readers stop reaching the room's members at once - the
-    next request, and the open streams and push sockets now (revocation.mark, review M5). Narrows reach, so map.edit
-    on either floor is enough; a deny on either floor still refuses."""
+    next request, and the open streams and push sockets now (revocation.mark, review M5). It drops the room's members
+    with its last share, so it takes the share rights (map.edit + placement.edit) on BOTH floors of the pair (review
+    L4, like removing a member); a deny on either floor refuses."""
     z = _get_zone(conn, zone_id)
-    from ..rbac import authorize
     from ..services import revocation
 
-    if not (authorize(conn, principal, "map.edit", ("floor", z["floor_id"])).allowed or authorize(conn, principal, "map.edit", ("floor", floor_id)).allowed):
-        require(conn, principal, "map.edit", ("floor", z["floor_id"]))  # the audited 403
+    _share_rights(conn, principal, (z["floor_id"], floor_id), apply=True)
     if not shared_spaces.unshare(conn, zone_id, floor_id, principal.user_id, now_iso()):
         raise not_found("החדר לא משותף עם הקומה הזו.")
     audit(conn, actor=principal, action="zone.unshare", decision="allowed", resource_type="zone", resource_id=zone_id, request_id=_rid(request),
@@ -451,8 +450,7 @@ def share_placement(zone_id: str, floor_id: str, body: PlacementIn, request: Req
                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """"יישור": where the room sits on the other plan (same_frame, or fit: from / to points, rotation, scale)."""
     z = _get_zone(conn, zone_id)
-    for fid in (z["floor_id"], floor_id):
-        require(conn, principal, "map.edit", ("floor", fid))
+    _share_rights(conn, principal, (z["floor_id"], floor_id), apply=True)  # review L4: the share rights on BOTH floors
     share = next((s for s in shared_spaces.shares_of_zone(conn, zone_id) if s.floor_id == floor_id), None)
     if share is None:
         raise not_found("החדר לא משותף עם הקומה הזו.")
