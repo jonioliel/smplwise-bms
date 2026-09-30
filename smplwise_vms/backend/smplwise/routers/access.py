@@ -886,11 +886,17 @@ def list_audit(
 
 # ---------------------------------------------------------------- custom roles and delegation (T082)
 
+# body-size guards only (the catalogue decides what is valid): wide enough for "select all" of the regular and of the
+# sensitive lists, which the 20 / 40 of T082 no longer were (28 sensitive grants by 0.1.148 - owner hit the limit)
+ROLE_PERMISSIONS_MAX = 120
+ROLE_SENSITIVE_MAX = 60
+
+
 class CustomRoleBody(BaseModel):
     name: str = Field(min_length=1, max_length=60)
     description: str = Field(default="", max_length=300)
-    permissions: list[str] = Field(default_factory=list, max_length=40)
-    sensitive: list[str] = Field(default_factory=list, max_length=20)
+    permissions: list[str] = Field(default_factory=list, max_length=ROLE_PERMISSIONS_MAX)
+    sensitive: list[str] = Field(default_factory=list, max_length=ROLE_SENSITIVE_MAX)
     delegable: bool = False
 
 
@@ -900,8 +906,8 @@ class CustomRolePatch(CustomRoleBody):
 
 class RolePreviewBody(BaseModel):
     role_id: str | None = Field(default=None, max_length=60)
-    permissions: list[str] = Field(default_factory=list, max_length=40)
-    sensitive: list[str] = Field(default_factory=list, max_length=20)
+    permissions: list[str] = Field(default_factory=list, max_length=ROLE_PERMISSIONS_MAX)
+    sensitive: list[str] = Field(default_factory=list, max_length=ROLE_SENSITIVE_MAX)
 
 
 class DelegationBody(BaseModel):
