@@ -311,7 +311,7 @@ def _pair() -> None:
                             break
                         time.sleep(0.5)
                     mark = c.put(f"{BASE}/devices/entities/switch.hall_lights/bulk-safe", json={"bulk_safe": True})
-                    s = c.patch(f"{BASE}/settings", json={"schedules.enabled": "true", "schedules.shabbat_sensor": fake_scheduler.SHABBAT})
+                    s = c.patch(f"{BASE}/settings", json={"schedules.enabled": "true", "schedules.shabbat_sensor": fake_scheduler.SHABBAT, "schedules.shabbat_sensor_force": True})
                     print(f"schedules_fake_ha: feature on ({s.status_code}), bulk-safe switch ({mark.status_code})", flush=True)
                     return
         except httpx.HTTPError:

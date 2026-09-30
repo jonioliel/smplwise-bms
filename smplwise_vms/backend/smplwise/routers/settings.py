@@ -332,6 +332,7 @@ class SettingsPatch(BaseModel):
     schedules_default_repeat: str | None = Field(default=None, pattern="^(repeat|pause|single)$", alias="schedules.default_repeat")
     schedules_runs_retention_days: int | None = Field(default=None, ge=7, le=365, alias="schedules.runs_retention_days")
     schedules_shabbat_sensor: str | None = Field(default=None, pattern=r"^(|binary_sensor\.[a-z0-9_]{1,100})$", alias="schedules.shabbat_sensor")
+    schedules_shabbat_sensor_force: bool | None = Field(default=None, alias="schedules.shabbat_sensor_force")  # an explicit override; never stored
 
     model_config = {"populate_by_name": True}
 
@@ -359,8 +360,18 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if bad:
             raise ApiError(422, "validation", "סוגי התקנים בתזמונים: ערך לא מוכר.", details={"schedules.classes": bad})
         changes["schedules.classes"] = [c for c in SCHEDULE_CLASSES if c in changes["schedules.classes"]]
-    if changes.get("schedules.shabbat_sensor") and not conn.execute("SELECT 1 FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (changes["schedules.shabbat_sensor"],)).fetchone():
-        raise ApiError(422, "validation", "חיישן השבת והחג לא נמצא.", details={"schedules.shabbat_sensor": changes["schedules.shabbat_sensor"]})
+    force_sensor = bool(changes.pop("schedules.shabbat_sensor_force", False))
+    if changes.get("schedules.shabbat_sensor"):
+        row = conn.execute("SELECT entity_id, platform FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (changes["schedules.shabbat_sensor"],)).fetchone()
+        if not row:
+            raise ApiError(422, "validation", "חיישן השבת והחג לא נמצא.", details={"schedules.shabbat_sensor": changes["schedules.shabbat_sensor"]})
+        from ..services import home_screen
+
+        # the sensor's state is shown to schedule viewers and decides the presets: only a calendar sensor, unless an
+        # administrator says explicitly that this one is right (`schedules.shabbat_sensor_force`)
+        if not force_sensor and not (home_screen.is_jewish_calendar(dict(row)) or "issur_melacha" in row["entity_id"]):
+            raise ApiError(422, "not_calendar_sensor", "זה לא נראה כחיישן של לוח השנה היהודי. לבחירה מפורשת שלחו schedules.shabbat_sensor_force.",
+                           details={"schedules.shabbat_sensor": changes["schedules.shabbat_sensor"]})
     if changes.get("map.default_floor") and not conn.execute("SELECT 1 FROM floors WHERE id = ? AND deleted_at IS NULL", (changes["map.default_floor"],)).fetchone():
         raise ApiError(422, "validation", "קומת ברירת המחדל של המפה לא קיימת.", details={"map.default_floor": changes["map.default_floor"]})
     if "home.title" in changes:

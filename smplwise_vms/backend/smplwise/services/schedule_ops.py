@@ -9,6 +9,7 @@ anything is sent (idempotent per `client_request_id`), the bridge call (never re
 record and the audit row. A call whose outcome is unknown is recorded as such and never re-sent."""
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sqlite3
@@ -178,22 +179,27 @@ class Evaluation:
         self.pairs: list[tuple[str, str, str]] = []  # (service, entity, class)
 
 
-def evaluate(w: W, draft: dict[str, Any], old_core: dict[str, Any] | None, *, creating: bool) -> Evaluation:
+def evaluate(w: W, draft: dict[str, Any], old_core: dict[str, Any] | None, *, creating: bool, inherited_days: list[str] | None = None) -> Evaluation:
     """Validation (422 problems as data) then the caller's rights over the draft's actions and the locked-condition rule
-    (403 denials as ApiErrors). Nothing is raised here: the caller chooses (POST raises, preview reports)."""
+    (403 denials as ApiErrors). Nothing is raised here: the caller chooses (POST raises, preview reports). Entities are
+    looked up as the CALLER sees them (`view.ScopedCtx`): one they cannot read is `entity_unknown`."""
     ctx = w.ctx
+    sctx = view.ScopedCtx(ctx)
     ev = Evaluation()
     for slot in draft.get("slots") or []:
         for a in slot.get("actions") or []:
             if a.get("entity_id"):
                 ctx.preload([a["entity_id"]])
     ctx.preload([c["entity_id"] for c in (draft.get("conditions") or {}).get("items") or [] if c.get("entity_id")])
-    ev.errors, ev.warnings = model.validate_draft(draft, ctx, old=old_core, creating=creating)
+    ev.errors, ev.warnings = model.validate_draft(draft, sctx, old=old_core, creating=creating, inherited_days=inherited_days)
+    lock = condition_lock(ctx, old_core, draft)
+    if lock is not None:  # a locked / unreadable condition is a 403 of its own, not "unknown entity"
+        ev.errors = [e for e in ev.errors if not (e["code"] == "entity_unknown" and e["path"].startswith("conditions.items"))]
     classes: list[str] = []
     for slot in draft.get("slots") or []:
         for a in slot.get("actions") or []:
             eid = a.get("entity_id")
-            info = ctx.entity(eid) if eid else None
+            info = sctx.entity(eid) if eid else None
             cls = info["class"] if info else None
             if not eid or cls is None or not policy.service_allowed(cls, a.get("service") or ""):
                 continue
@@ -219,14 +225,8 @@ def evaluate(w: W, draft: dict[str, Any], old_core: dict[str, Any] | None, *, cr
             if key not in seen:
                 seen.add(key)
                 ev.denials.append(reason_error(r))
-    if old_core is not None:
-        lock = condition_lock(ctx, old_core, draft)
-        if lock is not None:
-            ev.denials.append(lock)
-    else:
-        add = condition_lock(ctx, None, draft)
-        if add is not None:
-            ev.denials.append(add)
+    if lock is not None:
+        ev.denials.append(lock)
     return ev
 
 
@@ -236,8 +236,8 @@ def _cond_key(c: dict[str, Any]) -> str:
 
 def condition_lock(ctx: view.Ctx, old_core: dict[str, Any] | None, draft: dict[str, Any]) -> ApiError | None:
     """§4.4: a condition whose entity the caller may not read is locked - it must reach the bridge unchanged (and `type` /
-    `track` with it), else 403 `condition_locked`; a NEW condition needs its entity readable, else 403
-    `condition_not_readable`."""
+    `track` with it), else 403 `condition_locked`, and while one exists a condition may only be ADDED under "all of them"
+    (review L7). A new condition needs a readable entity: for the caller anything else is an unknown entity (review L5)."""
     a = ctx.access
 
     def readable(eid: str) -> bool:
@@ -257,10 +257,14 @@ def condition_lock(ctx: view.Ctx, old_core: dict[str, Any] | None, draft: dict[s
             new_type = block.get("type") or ("or" if new_items else None)
             if new_type != old_core["conditions"]["type"] or bool(block.get("track")) != bool(old_core["conditions"]["track"]):  # type: ignore[index]
                 return ApiError(403, "condition_locked", msg, details={"entity_id": c["entity_id"]})
-    for c in new_items:
-        if _cond_key(c) not in old_keys and c.get("entity_id") and not readable(c["entity_id"]):
-            name = ctx.name_of(c["entity_id"])
-            return ApiError(403, "condition_not_readable", f"אין לך הרשאה לקרוא את {name}, ולכן אי אפשר להוסיף אותו כתנאי.", details={"entity_id": c["entity_id"]})
+    added = [c for c in new_items if _cond_key(c) not in old_keys]
+    # a NEW condition on an entity the caller cannot read is `entity_unknown` (validate_draft, review L5): no 403 that
+    # confirms the entity exists and no friendly name for it
+    locked = next((c for c in old_items if c.get("entity_id") and not readable(c["entity_id"])), None)
+    if locked is not None and added and (block.get("type") or "or") != "and":
+        # review L7: with "any of them" a readable condition that is always true (the sun) would defeat the locked one
+        name = ctx.name_of(locked["entity_id"])
+        return ApiError(403, "condition_locked", f"התנאי \"{name}\" מחוץ להרשאתך ואי אפשר לשנות או להסיר אותו.", details={"entity_id": locked["entity_id"]})
     return None
 
 
@@ -329,7 +333,10 @@ def bridge_call(w: W, op: str, op_id: str, *, schedule_id: str | None = None, sc
         with unlocked(w.conn):
             resp = tr.bridge(signed)
     except ApiError as exc:
-        store.finish_op(w.conn, op_id, "unknown" if exc.code == "scheduler_timeout" else "failed", error=exc.code)
+        if exc.code == "scheduler_timeout":
+            store.finish_op(w.conn, op_id, "unknown")  # the op keeps its name / fingerprint: the next pull may adopt what was made
+        else:
+            store.finish_op(w.conn, op_id, "failed", error=exc.code)
         raise
     finally:
         signed = None  # noqa: F841
@@ -338,6 +345,32 @@ def bridge_call(w: W, op: str, op_id: str, *, schedule_id: str | None = None, sc
         store.finish_op(w.conn, op_id, "failed", error=err)
         raise ApiError(502, "scheduler_refused", "רכיב התזמונים דחה את השינוי.", details={"error": err, "path": (resp or {}).get("path") if isinstance(resp, dict) else None})
     return resp
+
+
+def _known_ids(w: W) -> set[str]:
+    return {r[0] for r in w.conn.execute("SELECT schedule_id FROM schedule_cache").fetchall()}
+
+
+def learn(w: W, resp: dict[str, Any], expected: dict[str, Any], before: set[str]) -> tuple[str, str | None] | None:
+    """The id the bridge reports for a schedule it just made is trusted only when it names a schedule that did not exist
+    before the call and whose content (name, days, slots, conditions) is what Arx sent; anything else is `id_unknown` and
+    is never used to record an owner, disable, roll back or show a schedule (review M2)."""
+    sid = resp.get("schedule_id")
+    if not isinstance(sid, str) or not sid or sid in before:
+        return None
+    try:
+        item = store.MIRROR.fetch_item(sid, w.conn)
+    except ApiError:
+        return None
+    if item is None or model.fingerprint(item) != model.fingerprint(expected):
+        return None
+    entity = item.get("entity_id") if isinstance(item.get("entity_id"), str) else resp.get("entity_id")
+    return sid, entity
+
+
+def _unknown(w: W, op_id: str, meta: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    store.finish_op(w.conn, op_id, "unknown", error=json.dumps({**meta, "error": "id_unknown"}, ensure_ascii=False))
+    return 202, {"status": "unknown", "op_id": op_id, "message": "התזמון נשלח; יופיע ברשימה לאחר אישור."}
 
 
 def reread(w: W, schedule_id: str) -> sqlite3.Row | None:
@@ -427,8 +460,26 @@ def draft_from_core(core: dict[str, Any]) -> dict[str, Any]:
 
 # ---------------------------------------------------------------- replays (idempotency)
 
-def replay(w: W, prev: sqlite3.Row, shape: str) -> tuple[int, dict[str, Any]]:
-    """A repeated client_request_id answers as the first request did."""
+MISMATCH = ApiError(409, "idempotency_conflict", "מפתח הבקשה כבר שימש לפעולה אחרת; שלחו בקשה עם מפתח חדש.")
+
+
+def visible_view(w: W, row: sqlite3.Row) -> dict[str, Any]:
+    """The schedule as the caller may see it - 404 when a reduced-rights caller (or a schedule that turned out hidden) may not."""
+    core = model.normalize(store.item_of(row))
+    w.ctx.preload(model.action_entities(core) + [c["entity_id"] for c in core["conditions"]["items"] if c["entity_id"]])
+    if not view.is_visible(w.ctx, core):
+        raise ApiError(404, "schedule_not_found", "התזמון לא נמצא.")
+    return schedule_view_of(w, row)
+
+
+def replay(w: W, prev: sqlite3.Row, shape: str, op: str, schedule_id: str | None = None, meta: dict[str, Any] | None = None) -> tuple[int, dict[str, Any]]:
+    """A repeated client_request_id answers as the first request did - but only for the SAME operation on the SAME schedule
+    (`op`, `schedule_id`, and `meta` fields of the op's record), and never shows more than the caller may see NOW."""
+    if prev["op"] != op or (schedule_id is not None and prev["schedule_id"] != schedule_id):
+        raise MISMATCH
+    for key, value in (meta or {}).items():
+        if store._op_field(prev, key) != value:
+            raise MISMATCH
     status = prev["status"]
     if status == "pending":
         raise ApiError(409, "op_pending", "הבקשה הקודמת עדיין מתבצעת.", retryable=True)
@@ -436,13 +487,25 @@ def replay(w: W, prev: sqlite3.Row, shape: str) -> tuple[int, dict[str, Any]]:
         raise ApiError(409, "op_failed", "הבקשה הקודמת נכשלה; שלחו בקשה חדשה.", details={"error": _safe(prev["error"])})
     if status == "unknown":
         return 202, {"status": "unknown", "op_id": prev["id"], "message": "התזמון נשלח; יופיע ברשימה לאחר אישור."}
+    if shape == "run":
+        return 202, {"run_id": prev["id"], "note": "הבקשה נשלחה; התוצאה תופיע בהרצות."}
     row = store.cache_row(w.conn, prev["schedule_id"]) if prev["schedule_id"] else None
     if row is None:
         return 200, {"status": "ok", "op_id": prev["id"]}
-    sched = schedule_view_of(w, row)
+    sched = visible_view(w, row)
     if shape == "enable":
         return 200, {"schedule": sched, "changed": True}
     return (201 if shape == "create" else 200), {"schedule": sched, "op_id": prev["id"]}
+
+
+def _begin(w: W, client_request_id: str, op: str, schedule_id: str | None, shape: str, error: dict[str, Any] | None = None, meta: dict[str, Any] | None = None) -> tuple[str, tuple[int, dict[str, Any]] | None]:
+    """Record the operation before anything is sent. When another request with this key got in between the first look and
+    now (the write lock is released around the fresh read), its answer is this request's: (op id, that answer) - the bridge
+    is never called twice for one key (review L4)."""
+    op_id, prev = store.begin_op(w.conn, w.principal, client_request_id, op, schedule_id, error=json.dumps(error, ensure_ascii=False) if error else None)
+    if prev is not None:
+        return op_id, replay(w, prev, shape, op, schedule_id, meta)
+    return op_id, None
 
 
 def _prev(w: W, client_request_id: str) -> sqlite3.Row | None:
@@ -451,13 +514,26 @@ def _prev(w: W, client_request_id: str) -> sqlite3.Row | None:
 
 # ---------------------------------------------------------------- create (§3.6)
 
+def _created(w: W, row: sqlite3.Row | None, op_id: str, warnings: list[dict[str, str]] | None = None) -> tuple[int, dict[str, Any]]:
+    """The 201 answer for a schedule Arx made: shown only when the caller may see it (else the outcome is `unknown`)."""
+    if row is not None:
+        try:
+            sched = visible_view(w, row)
+        except ApiError:
+            row = None
+    if row is None:
+        return 202, {"status": "unknown", "op_id": op_id, "message": "התזמון נשלח; יופיע ברשימה לאחר אישור."}
+    sched["warnings"] = sched["warnings"] + (warnings or [])
+    return 201, {"schedule": sched, "op_id": op_id}
+
+
 def create(w: W, draft: dict[str, Any], enabled: bool, client_request_id: str, confirm_lowering: bool, alarm_code: Any) -> tuple[int, dict[str, Any]]:
     w.require_manage()
     with w.audited("schedule.create"):
         w.feature_on()
         prev = _prev(w, client_request_id)
         if prev is not None:
-            return replay(w, prev, "create")
+            return replay(w, prev, "create", "create")
         w.rate()
         w.writable()
         ev = evaluate(w, draft, None, creating=True)
@@ -469,31 +545,30 @@ def create(w: W, draft: dict[str, Any], enabled: bool, client_request_id: str, c
         check_lowering(ev.lowering, confirm_lowering)
         verify_creator_codes(w, ev.pairs, alarm_code)
         alarm_code = None
-        op_id, _ = store.begin_op(w.conn, w.principal, client_request_id, "create", None, error=json.dumps({"name": draft.get("name") or ""}, ensure_ascii=False))
         payload = model.to_component_payload(draft, None)
+        meta = {"name": draft.get("name") or "", "fp": model.fingerprint(payload)}
+        op_id, again = _begin(w, client_request_id, "create", None, "create", meta)
+        if again:
+            return again
+        before = _known_ids(w)
         resp = bridge_call(w, "add", op_id, payload=payload, sensitive=ev.sensitive)
-        sid = resp.get("schedule_id")
-        if not sid:
-            store.finish_op(w.conn, op_id, "unknown", error=json.dumps({"error": "id_unknown", "name": draft.get("name") or ""}, ensure_ascii=False))
+        learned = learn(w, resp, payload, before)
+        if learned is None:
             w.audit("schedule.create", "allowed", None, "id_unknown", **op_details(w, op_id, ev, None, None, cond_entities(draft), model.diff_summary(None, draft)))
-            return 202, {"status": "unknown", "op_id": op_id, "message": "התזמון נשלח; יופיע ברשימה לאחר אישור."}
+            return _unknown(w, op_id, meta)
+        sid, entity = learned
         warnings: list[dict[str, str]] = []
         if not enabled:
             try:
-                bridge_call(w, "disable", op_id, schedule_id=sid, schedule_entity_id=resp.get("entity_id"), sensitive=ev.sensitive)
+                bridge_call(w, "disable", op_id, schedule_id=sid, schedule_entity_id=entity, sensitive=ev.sensitive)
             except ApiError as exc:
                 warnings.append({"path": "enabled", "code": "not_disabled", "message": "התזמון נוצר אך לא הושבת; השביתו אותו ידנית."})
                 w.audit("schedule.disable", "denied", sid, exc.code)
         row = reread(w, sid)
         store.finish_op(w.conn, op_id, "ok", schedule_id=sid)
         store.note_arx_write(w.conn, sid, w.principal, created=True)
-        after = row["revision"] if row is not None else None
-        w.audit("schedule.create", "allowed", sid, **op_details(w, op_id, ev, None, after, cond_entities(draft), model.diff_summary(None, draft)))
-        if row is None:
-            return 202, {"status": "unknown", "op_id": op_id, "message": "התזמון נשלח; יופיע ברשימה לאחר אישור."}
-        sched = schedule_view_of(w, row)
-        sched["warnings"] = sched["warnings"] + warnings
-        return 201, {"schedule": sched, "op_id": op_id}
+        w.audit("schedule.create", "allowed", sid, **op_details(w, op_id, ev, None, row["revision"] if row is not None else None, cond_entities(draft), model.diff_summary(None, draft)))
+        return _created(w, row, op_id, warnings)
 
 
 # ---------------------------------------------------------------- update (§3.7)
@@ -505,7 +580,7 @@ def update(w: W, schedule_id: str, draft: dict[str, Any], base_revision: str, cl
         find_visible(w, schedule_id)
         prev = _prev(w, client_request_id)
         if prev is not None:
-            return replay(w, prev, "update")
+            return replay(w, prev, "update", "update", schedule_id)
         w.rate()
         w.writable()
         item, row, core = fresh(w, schedule_id)
@@ -531,7 +606,9 @@ def update(w: W, schedule_id: str, draft: dict[str, Any], base_revision: str, cl
         payload = model.to_component_payload(draft, item)
         if not payload:
             return 200, {"schedule": schedule_view_of(w, row), "op_id": None}
-        op_id, _ = store.begin_op(w.conn, w.principal, client_request_id, "update", schedule_id)
+        op_id, again = _begin(w, client_request_id, "update", schedule_id, "update")
+        if again:
+            return again
         bridge_call(w, "edit", op_id, schedule_id=schedule_id, schedule_entity_id=core["entity_id"], payload=payload, sensitive=ev.sensitive)
         new_row = reread(w, schedule_id)
         store.finish_op(w.conn, op_id, "ok", schedule_id=schedule_id)
@@ -550,7 +627,7 @@ def set_enabled(w: W, schedule_id: str, enable: bool, client_request_id: str, co
         find_visible(w, schedule_id)
         prev = _prev(w, client_request_id)
         if prev is not None:
-            return replay(w, prev, "enable")
+            return replay(w, prev, "enable", "enable" if enable else "disable", schedule_id)
         if not bulk:
             w.rate()  # a bulk request is counted once, by bulk()
         w.writable()
@@ -572,7 +649,9 @@ def set_enabled(w: W, schedule_id: str, enable: bool, client_request_id: str, co
             check_lowering(cls["lowering"], confirm_lowering)
             verify_creator_codes(w, pairs, alarm_code)
             alarm_code = None
-        op_id, _ = store.begin_op(w.conn, w.principal, client_request_id, "enable" if enable else "disable", schedule_id)
+        op_id, again = _begin(w, client_request_id, "enable" if enable else "disable", schedule_id, "enable")
+        if again:
+            return again
         bridge_call(w, "enable" if enable else "disable", op_id, schedule_id=schedule_id, schedule_entity_id=core["entity_id"], sensitive=cls["sensitive"])
         new_row = reread(w, schedule_id)
         store.finish_op(w.conn, op_id, "ok", schedule_id=schedule_id)
@@ -612,9 +691,7 @@ def run(w: W, schedule_id: str, slot_index: int | None, skip_conditions: bool, c
         find_visible(w, schedule_id)
         prev = _prev(w, client_request_id)
         if prev is not None:
-            if prev["status"] == "ok":
-                return 202, {"run_id": prev["id"], "note": "הבקשה נשלחה; התוצאה תופיע בהרצות."}
-            return replay(w, prev, "run")
+            return replay(w, prev, "run", "run", schedule_id)
         w.rate()
         w.writable()
         item, row, core = fresh(w, schedule_id)
@@ -647,7 +724,11 @@ def run(w: W, schedule_id: str, slot_index: int | None, skip_conditions: bool, c
                 raise ApiError(429, "run_too_soon", "התזמון הורץ ממש עכשיו; נסו שוב בעוד כמה שניות.", retryable=True)
             _LAST_RUN[schedule_id] = now
         at = _slot_time(core, slot_index, w)
-        op_id, _ = store.begin_op(w.conn, w.principal, client_request_id, "run", schedule_id)
+        op_id, again = _begin(w, client_request_id, "run", schedule_id, "run")
+        if again:
+            with _RATE_LOCK:
+                _LAST_RUN.pop(schedule_id, None)
+            return again
         try:
             bridge_call(w, "run", op_id, schedule_id=schedule_id, schedule_entity_id=core["entity_id"], time_=at, skip_conditions=skip_conditions, sensitive=cls["sensitive"])
         except ApiError:
@@ -662,19 +743,25 @@ def run(w: W, schedule_id: str, slot_index: int | None, skip_conditions: bool, c
 
 # ---------------------------------------------------------------- split (§3.10)
 
-def split(w: W, schedule_id: str, base_revision: str, days: list[str], name: str | None, confirm: bool, client_request_id: str) -> tuple[int, dict[str, Any]]:
+def _same_op(prev: sqlite3.Row, op: str, schedule_id: str | None) -> None:
+    if prev["op"] != op or (schedule_id is not None and prev["schedule_id"] != schedule_id):
+        raise MISMATCH
+
+
+def split(w: W, schedule_id: str, base_revision: str, days: list[str], name: str | None, confirm: bool, client_request_id: str, confirm_lowering: bool = False, alarm_code: Any = None) -> tuple[int, dict[str, Any]]:
     w.require_manage()
     with w.audited("schedule.split", schedule_id):
         w.feature_on()
         find_visible(w, schedule_id)
         prev = _prev(w, client_request_id)
         if prev is not None:
+            _same_op(prev, "split", schedule_id)
             if prev["status"] == "ok":
-                created = (json.loads(prev["error"] or "{}") or {}).get("created")
+                created = store._op_field(prev, "created")
                 orig, new = store.cache_row(w.conn, schedule_id), store.cache_row(w.conn, created) if created else None
                 if orig is not None and new is not None:
-                    return 200, {"original": schedule_view_of(w, orig), "created": schedule_view_of(w, new)}
-            return replay(w, prev, "update")
+                    return 200, {"original": visible_view(w, orig), "created": visible_view(w, new)}
+            return replay(w, prev, "update", "split", schedule_id)
         w.rate()
         w.writable()
         item, row, core = fresh(w, schedule_id)
@@ -694,9 +781,21 @@ def split(w: W, schedule_id: str, base_revision: str, days: list[str], name: str
         if confirm is not True:
             raise ApiError(409, "confirmation_required", "פעולה זו דורשת אישור מפורש.")
         remaining = [d for d in resolved if d not in moving]
-        new_name = (name or "").strip() or f"{core['name'] or view.display_name(core, w.ctx)} · {' '.join(DAY_SHORT[d] for d in moving)}"
-        w.details.update(entities=model.action_entities(core), classes=cls["sensitive_classes"], sensitive=cls["sensitive"], lowering=cls["lowering"], moved_days=moving)
-        op_id, _ = store.begin_op(w.conn, w.principal, client_request_id, "split", schedule_id)
+        new_name = ((name or "").strip() or f"{core['name'] or view.display_name(core, w.ctx)} · {' '.join(DAY_SHORT[d] for d in moving)}")[:model.MAX_NAME]
+        # the new schedule is a CREATE: the same checks, code and confirmation as any other (review M1)
+        nd = draft_from_core(core)
+        nd.update(name=new_name, weekdays=moving)
+        if not policy.CAPABILITIES["tags"]:
+            nd["tags"] = []
+        ev = evaluate(w, nd, None, creating=True)
+        if ev.errors:
+            raise problem_error(ev.errors)
+        if ev.denials:
+            raise ev.denials[0]
+        w.details.update(entities=ev.entities, classes=ev.classes, sensitive=ev.sensitive, lowering=ev.lowering, moved_days=moving)
+        check_lowering(ev.lowering, confirm_lowering)
+        verify_creator_codes(w, ev.pairs, alarm_code)
+        alarm_code = None
         new_payload = {"weekdays": moving, "timeslots": json.loads(json.dumps(item.get("timeslots") or [])), "repeat_type": core["repeat"], "name": new_name}
         if core["start_date"]:
             new_payload["start_date"] = core["start_date"]
@@ -704,16 +803,22 @@ def split(w: W, schedule_id: str, base_revision: str, days: list[str], name: str
             new_payload["end_date"] = core["end_date"]
         if core["tags"] and policy.CAPABILITIES["tags"]:
             new_payload["tags"] = list(core["tags"])
+        meta = {"name": new_name, "fp": model.fingerprint(new_payload)}
+        op_id, again = _begin(w, client_request_id, "split", schedule_id, "update", meta)
+        if again:
+            return again
+        before = _known_ids(w)
         added = bridge_call(w, "add", op_id, payload=new_payload, sensitive=cls["sensitive"])
-        new_id = added.get("schedule_id")
-        if not new_id:
-            store.finish_op(w.conn, op_id, "unknown", error=json.dumps({"error": "id_unknown"}))
+        learned = learn(w, added, new_payload, before)
+        if learned is None:
+            store.finish_op(w.conn, op_id, "unknown", error=json.dumps({**meta, "error": "id_unknown"}, ensure_ascii=False))
             raise ApiError(502, "split_incomplete", "הפיצול לא הושלם; בדקו את שני התזמונים.", details={"original_id": schedule_id, "created_id": None})
+        new_id, new_entity = learned
         try:
             bridge_call(w, "edit", op_id, schedule_id=schedule_id, schedule_entity_id=core["entity_id"], payload={"weekdays": remaining}, sensitive=cls["sensitive"])
         except ApiError as exc:
             try:
-                bridge_call(w, "remove", op_id, schedule_id=new_id, schedule_entity_id=added.get("entity_id"), sensitive=cls["sensitive"])
+                bridge_call(w, "remove", op_id, schedule_id=new_id, schedule_entity_id=new_entity, sensitive=cls["sensitive"])
                 store.finish_op(w.conn, op_id, "failed", error=exc.code)
                 reread(w, new_id)
             except ApiError:
@@ -722,17 +827,17 @@ def split(w: W, schedule_id: str, base_revision: str, days: list[str], name: str
             raise
         if not core["enabled"]:
             try:
-                bridge_call(w, "disable", op_id, schedule_id=new_id, schedule_entity_id=added.get("entity_id"), sensitive=cls["sensitive"])
+                bridge_call(w, "disable", op_id, schedule_id=new_id, schedule_entity_id=new_entity, sensitive=cls["sensitive"])
             except ApiError:
                 pass
         orig_row, new_row = reread(w, schedule_id), reread(w, new_id)
         store.finish_op(w.conn, op_id, "ok", error=json.dumps({"created": new_id}), schedule_id=schedule_id)
         store.note_arx_write(w.conn, schedule_id, w.principal)
         store.note_arx_write(w.conn, new_id, w.principal, created=True)
-        w.audit("schedule.split", "allowed", schedule_id, **op_details(w, op_id, None, row["revision"], orig_row["revision"] if orig_row is not None else None), created_id=new_id)
+        w.audit("schedule.split", "allowed", schedule_id, **op_details(w, op_id, ev, row["revision"], orig_row["revision"] if orig_row is not None else None), created_id=new_id)
         if orig_row is None or new_row is None:
             raise ApiError(502, "split_incomplete", "הפיצול לא הושלם; בדקו את שני התזמונים.", details={"original_id": schedule_id, "created_id": new_id})
-        return 200, {"original": schedule_view_of(w, orig_row), "created": schedule_view_of(w, new_row)}
+        return 200, {"original": visible_view(w, orig_row), "created": visible_view(w, new_row)}
 
 
 # ---------------------------------------------------------------- delete, copy (§3.11, §3.12)
@@ -744,11 +849,12 @@ def delete(w: W, schedule_id: str, base_revision: str, confirm: bool, client_req
         find_visible(w, schedule_id)
         prev = _prev(w, client_request_id)
         if prev is not None:
+            _same_op(prev, "delete", schedule_id)
             if prev["status"] == "ok":
                 t = w.conn.execute("SELECT id, expires_at FROM schedule_trash WHERE schedule_id = ? AND deleted_by = ? ORDER BY deleted_at DESC LIMIT 1", (schedule_id, w.principal.user_id)).fetchone()
                 if t is not None:
                     return 200, {"trash_id": t["id"], "expires_at": t["expires_at"]}
-            return replay(w, prev, "update")
+            return replay(w, prev, "update", "delete", schedule_id)
         w.rate()
         w.writable()
         item, row, core = fresh(w, schedule_id)
@@ -764,8 +870,10 @@ def delete(w: W, schedule_id: str, base_revision: str, confirm: bool, client_req
             raise ApiError(409, "confirmation_required", "פעולה זו דורשת אישור מפורש.")
         w.details.update(entities=model.action_entities(core), classes=cls["sensitive_classes"], sensitive=cls["sensitive"], lowering=cls["lowering"])
         meta = store.meta_rows(w.conn).get(schedule_id)
+        op_id, again = _begin(w, client_request_id, "delete", schedule_id, "update")
+        if again:
+            return again
         trash_id, expires = store.trash_put(w.conn, item, meta, snapshot_entities(w, core), cls["sensitive"], w.principal)
-        op_id, _ = store.begin_op(w.conn, w.principal, client_request_id, "delete", schedule_id)
         try:
             bridge_call(w, "remove", op_id, schedule_id=schedule_id, schedule_entity_id=core["entity_id"], sensitive=cls["sensitive"])
         except ApiError as exc:
@@ -779,14 +887,14 @@ def delete(w: W, schedule_id: str, base_revision: str, confirm: bool, client_req
         return 200, {"trash_id": trash_id, "expires_at": expires}
 
 
-def copy(w: W, schedule_id: str, name: str, client_request_id: str) -> tuple[int, dict[str, Any]]:
+def copy(w: W, schedule_id: str, name: str, client_request_id: str, confirm_lowering: bool = False, alarm_code: Any = None) -> tuple[int, dict[str, Any]]:
     w.require_manage()
     with w.audited("schedule.copy", schedule_id):
         w.feature_on()
         find_visible(w, schedule_id)
         prev = _prev(w, client_request_id)
         if prev is not None:
-            return replay(w, prev, "create")
+            return replay(w, prev, "create", "copy", None, {"source": schedule_id})
         w.rate()
         w.writable()
         item, row, core = fresh(w, schedule_id)
@@ -797,20 +905,38 @@ def copy(w: W, schedule_id: str, name: str, client_request_id: str) -> tuple[int
         name = (name or "").strip()
         if not name or len(name) > model.MAX_NAME or any(ord(c) < 32 for c in name):
             raise ApiError(422, "validation", f"שם: 1–{model.MAX_NAME} תווים, בלי תווי בקרה.", details={"path": "name"})
-        w.details.update(entities=model.action_entities(core), classes=cls["sensitive_classes"], sensitive=cls["sensitive"], lowering=cls["lowering"])
-        op_id, _ = store.begin_op(w.conn, w.principal, client_request_id, "copy", None, error=json.dumps({"name": name}, ensure_ascii=False))
+        # the copy is a CREATE: judged as a new schedule, with the creator's confirmation and code (review M1) - a legacy
+        # disarm on a panel that needs a code cannot be copied into a new one
+        nd = draft_from_core(core)
+        nd["name"] = name
+        if not policy.CAPABILITIES["tags"]:
+            nd["tags"] = []
+        ev = evaluate(w, nd, None, creating=True, inherited_days=list(core["weekdays"]))
+        if ev.errors:
+            raise problem_error(ev.errors)
+        if ev.denials:
+            raise ev.denials[0]
+        w.details.update(entities=ev.entities, classes=ev.classes, sensitive=ev.sensitive, lowering=ev.lowering)
+        check_lowering(ev.lowering, confirm_lowering)
+        verify_creator_codes(w, ev.pairs, alarm_code)
+        alarm_code = None
+        expected = {**item, "name": name}
+        meta = {"name": name, "fp": model.fingerprint(expected), "source": schedule_id}
+        op_id, again = _begin(w, client_request_id, "copy", None, "create", meta, {"source": schedule_id})
+        if again:
+            return again
+        before = _known_ids(w)
         resp = bridge_call(w, "copy", op_id, schedule_id=schedule_id, schedule_entity_id=core["entity_id"], name=name, sensitive=cls["sensitive"])
-        sid = resp.get("schedule_id")
-        if not sid:
-            store.finish_op(w.conn, op_id, "unknown", error=json.dumps({"error": "id_unknown", "name": name}, ensure_ascii=False))
-            return 202, {"status": "unknown", "op_id": op_id, "message": "התזמון נשלח; יופיע ברשימה לאחר אישור."}
+        learned = learn(w, resp, expected, before)
+        if learned is None:
+            return _unknown(w, op_id, meta)
+        sid, _entity = learned
         new_row = reread(w, sid)
         store.finish_op(w.conn, op_id, "ok", schedule_id=sid)
         store.note_arx_write(w.conn, sid, w.principal, created=True)
-        w.audit("schedule.copy", "allowed", sid, **op_details(w, op_id, None, row["revision"], new_row["revision"] if new_row is not None else None), source_id=schedule_id)
-        if new_row is None:
-            return 202, {"status": "unknown", "op_id": op_id, "message": "התזמון נשלח; יופיע ברשימה לאחר אישור."}
-        return 201, {"schedule": schedule_view_of(w, new_row)}
+        w.audit("schedule.copy", "allowed", sid, **op_details(w, op_id, ev, row["revision"], new_row["revision"] if new_row is not None else None), source_id=schedule_id)
+        status, body = _created(w, new_row, op_id)
+        return (status, {"schedule": body["schedule"]}) if status == 201 else (status, body)
 
 
 # ---------------------------------------------------------------- trash (§3.13)
@@ -831,6 +957,8 @@ def trash_visible(w: W, t: sqlite3.Row) -> bool:
 
 def trash_list(w: W) -> dict[str, Any]:
     items = []
+    if not view.cache_shown(w.ctx):
+        return {"items": items}  # the feature is off (or the component confirmed missing): nothing is listed
     for t in store.trash_rows(w.conn):
         if not trash_visible(w, t):
             continue
@@ -861,7 +989,7 @@ def restore(w: W, trash_id: str, client_request_id: str, confirm_lowering: bool,
         w.feature_on()
         prev = _prev(w, client_request_id)
         if prev is not None:
-            return replay(w, prev, "create")
+            return replay(w, prev, "create", "restore", None, {"trash": trash_id})
         t = w.conn.execute("SELECT * FROM schedule_trash WHERE id = ? AND restored_at IS NULL AND expires_at > ?", (trash_id, store.stamp())).fetchone()
         if t is None or not trash_visible(w, t):
             raise ApiError(404, "trash_not_found", "הפריט אינו בסל המחזור (ייתכן שפג תוקפו).")
@@ -883,15 +1011,29 @@ def restore(w: W, trash_id: str, client_request_id: str, confirm_lowering: bool,
         check_lowering(ev.lowering, confirm_lowering)
         verify_creator_codes(w, ev.pairs, alarm_code)
         alarm_code = None
-        op_id, _ = store.begin_op(w.conn, w.principal, client_request_id, "restore", None, error=json.dumps({"name": draft.get("name") or ""}, ensure_ascii=False))
-        resp = bridge_call(w, "add", op_id, payload=model.to_component_payload(draft, None), sensitive=ev.sensitive)
-        sid = resp.get("schedule_id")
-        if not sid:
-            store.finish_op(w.conn, op_id, "unknown", error=json.dumps({"error": "id_unknown", "name": draft.get("name") or ""}, ensure_ascii=False))
-            return 202, {"status": "unknown", "op_id": op_id, "message": "התזמון נשלח; יופיע ברשימה לאחר אישור."}
+        payload = model.to_component_payload(draft, None)
+        meta = {"name": draft.get("name") or "", "fp": model.fingerprint(payload), "trash": trash_id}
+        op_id, again = _begin(w, client_request_id, "restore", None, "create", meta, {"trash": trash_id})
+        if again:
+            return again
+        # claim the trash item BEFORE the bridge is called: a second restore (another key) finds it gone (review L4)
+        if w.conn.execute("UPDATE schedule_trash SET restored_at = '~restoring' WHERE id = ? AND restored_at IS NULL", (trash_id,)).rowcount != 1:
+            store.finish_op(w.conn, op_id, "failed", error="trash_not_found")
+            raise ApiError(404, "trash_not_found", "הפריט אינו בסל המחזור (ייתכן שפג תוקפו).")
+        before = _known_ids(w)
+        try:
+            resp = bridge_call(w, "add", op_id, payload=payload, sensitive=ev.sensitive)
+        except ApiError as exc:
+            w.conn.execute("UPDATE schedule_trash SET restored_at = ? WHERE id = ?", (None if exc.code != "scheduler_timeout" else "~unknown", trash_id))
+            raise
+        learned = learn(w, resp, payload, before)
+        if learned is None:
+            w.conn.execute("UPDATE schedule_trash SET restored_at = '~unknown' WHERE id = ?", (trash_id,))
+            return _unknown(w, op_id, meta)
+        sid, entity = learned
         if not core["enabled"]:
             try:
-                bridge_call(w, "disable", op_id, schedule_id=sid, schedule_entity_id=resp.get("entity_id"), sensitive=ev.sensitive)
+                bridge_call(w, "disable", op_id, schedule_id=sid, schedule_entity_id=entity, sensitive=ev.sensitive)
             except ApiError:
                 pass
         row = reread(w, sid)
@@ -906,9 +1048,8 @@ def restore(w: W, trash_id: str, client_request_id: str, confirm_lowering: bool,
         w.conn.execute("UPDATE schedule_meta SET folder_id = ?, sort_key = ?, pinned = ? WHERE schedule_id = ?", (folder, m.get("sort_key"), int(m.get("pinned") or 0), sid))
         w.conn.execute("UPDATE schedule_trash SET restored_at = ?, restored_schedule_id = ? WHERE id = ?", (store.stamp(), sid, trash_id))
         w.audit("schedule.restore", "allowed", trash_id, **op_details(w, op_id, ev, None, row["revision"] if row is not None else None), restored_schedule_id=sid)
-        if row is None:
-            return 202, {"status": "unknown", "op_id": op_id, "message": "התזמון נשלח; יופיע ברשימה לאחר אישור."}
-        return 201, {"schedule": schedule_view_of(w, row)}
+        status, body = _created(w, row, op_id)
+        return (status, {"schedule": body["schedule"]}) if status == 201 else (status, body)
 
 
 def purge(w: W, trash_id: str, confirm: bool) -> dict[str, Any]:
@@ -947,7 +1088,8 @@ def bulk(w: W, op: str, ids: list[str], confirm: bool, client_request_id: str) -
                         core = model.normalize(store.item_of(row))
                         if model.classify(core, w.ctx.resolver)["lowering"]:
                             raise ApiError(409, "lowering_confirmation_required", "תזמון שמנטרל אזעקה, פותח נעילה, דלת או שער דורש אישור מפורש.")
-                _, out = set_enabled(w, sid, enable, f"{client_request_id}:{i}"[:80], False, None, bulk=True)
+                key = hashlib.sha256(f"{client_request_id}|{i}|{sid}".encode("utf-8")).hexdigest()[:48]  # never truncated into a collision (review L3)
+                _, out = set_enabled(w, sid, enable, key, False, None, bulk=True)
                 results.append({"id": sid, "ok": True, "changed": bool(out.get("changed"))})
             except ApiError as exc:
                 results.append({"id": sid, "ok": False, "code": exc.code, "message": exc.user_message})
@@ -958,6 +1100,8 @@ def bulk(w: W, op: str, ids: list[str], confirm: bool, client_request_id: str) -
 # ---------------------------------------------------------------- organisation (§3.15)
 
 def org_get(w: W) -> dict[str, Any]:
+    if not view.cache_shown(w.ctx):
+        return {"folders": [], "items": []}  # the feature is off: no folder names either
     rows, _ = view.visible_rows(w.ctx)
     folders = [{"id": f["id"], "name": f["name"], "position": f["position"]} for f in w.conn.execute("SELECT * FROM schedule_folders ORDER BY position, name").fetchall()]
     meta = store.meta_rows(w.conn)
@@ -1023,6 +1167,7 @@ def org_put(w: W, folders: list[dict[str, Any]], items: list[dict[str, Any]]) ->
 
 def preview(w: W, draft: dict[str, Any], schedule_id: str | None, count: int) -> dict[str, Any]:
     """Always data: problems are returned, never raised (a well-formed body is always 200)."""
+    w.feature_on()
     rate_limit(w.principal.user_id, "preview", PREVIEWS_PER_MIN)
     old_core = None
     if schedule_id:
@@ -1050,7 +1195,9 @@ def _run_summary(w: W, slot: dict[str, Any]) -> str:
     if not acts:
         return ""
     a = acts[0]
-    info = w.ctx.entity(a["entity_id"]) if a.get("entity_id") else None
+    info = view.ScopedCtx(w.ctx).entity(a["entity_id"]) if a.get("entity_id") else None  # an entity the caller cannot read is never named
+    if info is None:
+        return ""
     label = ""
     if info and info["class"]:
         label = (policy.SCHEDULE_ACTIONS.get(info["class"], {}).get(a["service"]) or {}).get("label") or ""

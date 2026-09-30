@@ -164,10 +164,10 @@ def test_conditions_never_hide_a_schedule_and_locked_conditions_stay_put(sched_a
     cur, d = draft_now()
     d["conditions"]["items"].append(cond("on", "sensor.outdoor_temperature"))  # adding one the editor cannot read
     r = put_draft(c, made["id"], d, cur["revision"], OMER)
-    assert r.status_code == 403 and r.json()["code"] == "condition_not_readable" and r.json()["user_message"] == "אין לך הרשאה לקרוא את Outdoor temperature, ולכן אי אפשר להוסיף אותו כתנאי."
+    assert r.status_code == 403 and r.json()["code"] == "condition_locked"  # beside a locked condition, "any of them" is refused (review L7)
     # a new schedule may not be conditioned on an entity the caller cannot read either
     r = c.post(f"{API}/schedules", json={"draft": draft_of("Nope", [slot("08:00:00", None, act("light.turn_off", "light.office"))], conditions=[motion]), "enabled": True, "client_request_id": rid()}, headers=OMER)
-    assert r.status_code == 403 and r.json()["code"] == "condition_not_readable"
+    assert r.status_code == 422 and r.json()["details"]["errors"][0]["code"] == "entity_unknown"  # unreadable: unknown to the caller
 
 
 # ---------------------------------------------------------------- change rights
@@ -181,7 +181,10 @@ def test_a_floor_scoped_editor_edits_only_where_every_action_entity_is_in_scope(
     assert r.status_code == 201, r.text
     sch = r.json()["schedule"]
     assert sch["owner"]["username"] == "omer" and sch["can"]["edit"] is True
-    # an entity of another floor (climate.living_room is not placed at all)
+    # an entity the caller cannot read at all is unknown to them (review L5 / L10): no 403 that confirms it exists
+    r = c.post(f"{API}/schedules", json={"draft": draft_of("Other", [slot("08:00:00", None, act("climate.turn_off", "climate.living_room"))]), "enabled": True, "client_request_id": rid()}, headers=OMER)
+    assert r.status_code == 422 and r.json()["code"] == "validation" and r.json()["details"]["errors"][0]["code"] == "entity_unknown"
+    _grant(c, "omer", "קורא הכול", ["entity.state.read", "devices.read"], [], "installation", "*")  # now readable, but managed only on floor 2
     r = c.post(f"{API}/schedules", json={"draft": draft_of("Other", [slot("08:00:00", None, act("climate.turn_off", "climate.living_room"))]), "enabled": True, "client_request_id": rid()}, headers=OMER)
     assert r.status_code == 403 and r.json()["code"] == "forbidden"
     # an existing schedule can be edited only when NEW content stays inside the scope too
@@ -251,8 +254,11 @@ def test_control_door_and_alarm_rules(sched_app):
     # the alarm: the alarm section's own authority, not control_allowed
     arm = draft_of("A", [slot("23:00:00", None, act("alarm_control_panel.alarm_arm_away", "alarm_control_panel.shed_panel"))])
     r = c.post(f"{API}/schedules", json={"draft": arm, "enabled": True, "client_request_id": rid()}, headers=OMER)
+    assert r.status_code == 422 and r.json()["details"]["errors"][0]["code"] == "entity_unknown"  # without alarm.view the panel does not exist for them
+    _grant(c, "omer", "צפייה באזעקה", ["alarm.view"], [], "installation", "*")
+    r = c.post(f"{API}/schedules", json={"draft": arm, "enabled": True, "client_request_id": rid()}, headers=OMER)
     assert r.status_code == 403 and r.json()["code"] == "grant_required" and "דריכת אזעקה" in r.json()["user_message"]
-    _grant(c, "omer", "אזעקה", ["alarm.view", "alarm.arm"], [], "installation", "*")
+    _grant(c, "omer", "אזעקה", ["alarm.arm"], [], "installation", "*")
     assert c.put(f"{API}/alarm/users/dev-omer/policy", json={"arm_policy": "no_code", "disarm_policy": "no_code"}).status_code == 200  # no code to verify: this test is about the rights
     assert c.post(f"{API}/schedules", json={"draft": arm, "enabled": True, "client_request_id": rid()}, headers=OMER).status_code == 201
     disarm = draft_of("D", [slot("06:00:00", None, act("alarm_control_panel.alarm_disarm", "alarm_control_panel.shed_panel"))])
@@ -413,6 +419,7 @@ def test_denials_and_grants_are_audited_with_the_scope(sched_app):
     _place(c, ids["floor2"], "light.office")
     _grant(c, "omer", "עורך תזמונים", READ + ["devices.control"], ["schedule.manage"], "floor", ids["floor2"])
     assert c.post(f"{API}/schedules", json={"draft": draft_of("Mine"), "enabled": True, "client_request_id": rid()}, headers=OMER).status_code == 201
+    _grant(c, "omer", "קורא הכול", ["entity.state.read", "devices.read"], [], "installation", "*")
     bad = c.post(f"{API}/schedules", json={"draft": draft_of("Other", [slot("08:00:00", None, act("climate.turn_off", "climate.living_room"))]), "enabled": True, "client_request_id": rid()}, headers=OMER)
     assert bad.status_code == 403
     with app.state.db.connection() as conn:

@@ -51,7 +51,7 @@ def sched_app(settings, monkeypatch):
     schedules.MIRROR.bind(app.state.db, s)
     schedule_ops.reset_limits()
     codes.LOCKOUT.reset()
-    assert c.patch("/api/v1/settings", json={"schedules.enabled": "true", "schedules.shabbat_sensor": SHABBAT}).status_code == 200
+    assert c.patch("/api/v1/settings", json={"schedules.enabled": "true", "schedules.shabbat_sensor": SHABBAT, "schedules.shabbat_sensor_force": True}).status_code == 200
     yield app, s, c, fake, tr
     import datetime as dt
 
