@@ -997,3 +997,138 @@ whoever holds it can decrypt the panel codes - the same policy as the VAPID and 
 private, and after a leak change the code at the panel and store it again. Anyone with shell access to the Home
 Assistant host can read `/data`. Home Assistant sees the panel code in the service call, as it does for its own alarm
 card. Threat model: docs/changes/CR-010-SECURITY-ALARM.md §5a.
+
+## Schedules (CR-014)
+
+The home area (חשמל והתקנים) has two tabs: **מבט על** (the former home screen) and **תזמונים**
+(`#/devices/schedules`). The tab row is shown only when more than one tab is visible, and "תזמונים" only to a holder of
+`schedule.view` or `schedule.manage` (at any scope) while `schedules.enabled` is on (default **off**; switched on in
+הגדרות › תזמונים, `system.configure`). Contract: `docs/architecture/SCHEDULER_API.md`; design record:
+`docs/design/CR-014-scheduler.md`; user guide: `docs/user-guide/he/41-schedules_HE.md`.
+
+**The component is the authority.** Schedules live and run in the third-party *Scheduler* integration
+(`scheduler` by nielsfaber, GPL-3.0, minimum Home Assistant 2024.11.0; installed by the administrator through HACS or
+by hand, never bundled). Arx keeps a read model: a full pull from the component's WebSocket commands (`scheduler`,
+`scheduler/item`, `scheduler/tags`) at every session start and every 10 minutes, the `scheduler_updated` subscription
+and the mirrored `switch.schedule_*` states as two more refresh layers, and a cache in `schedule_cache`. Definitions are
+keyed by `schedule_id`, never by entity id; every read carries a `revision` (SHA-256 of the canonical item without the
+volatile keys). A missing component (`unknown_command`, confirmed by two answers at least 5 minutes apart) shows "אין
+תזמונים להצגה" to users and the installation steps to `system.configure`; an unreachable platform shows the cached
+list as stale and refuses writes. The schedule switches themselves are not devices: they are excluded from the devices
+area, tiles, bulk actions and `POST /ha/entities/{id}/actions` (409 `use_schedules_screen`).
+
+**Writes** go through the bridge, version **0.3.0** or newer (restart Home Assistant once after the add-on update; until
+then the list is read-only and writes answer 503 `bridge_too_old`): the signed service `smplwise_bridge.schedule` with the
+operations add, edit, remove, copy, run, enable and disable, in the acting user's own Home Assistant identity. The bridge
+re-validates independently of the add-on (signature, the action allow-list, argument specs, no code key at any depth, a
+sensitive flag that must match the entities, and - for a non-administrator - Home Assistant's own control check on every
+action entity). Arx never calls `scheduler.*` directly and never `enable_all` / `disable_all`. A write carries
+`base_revision` and `client_request_id`: a moved revision answers 409 `schedule_changed` with the current version (there
+is no compare-and-set in the component, so a window of a few milliseconds remains); a bridge timeout is never retried
+(504 `scheduler_timeout`, "the change may have been saved").
+
+**Permissions** (in `roles.json` and the access catalogue): `schedule.view` (site_admin, system_admin), `schedule.manage`
+(site_admin at its scope, system_admin; sensitive) and `schedule.sensitive` (system_admin; sensitive); none is implied by
+another, and `system.configure` grants none of them. Reads accept view or manage. A caller **sees** a schedule only when
+every *action* entity passes `schedule.view`/`schedule.manage`, a state read and (an alarm panel) `alarm.view` at the
+entity's own placement; a condition entity never hides a schedule (an unreadable one is shown without its state and
+locked). A caller **changes** a schedule only when, for the old and the new content, every action entity passes
+`schedule.manage`, the control rule of its class (`devices.control` / `ha.entity.control`; locks and doors
+`ha.entity.control`, unlock also `door.unlock`; alarm `alarm.arm` / `alarm.disarm` at the panel), `schedule.sensitive` for
+the classes alarm, lock and door, and the class must be enabled in `schedules.classes`. A locked condition must reach the
+bridge unchanged (403 `condition_locked`). Otherwise the schedule is read-only with the reasons listed per entity. The
+recipe for an editor limited to a floor is a custom role (ordinary: `schedule.view`, `devices.read`, `devices.control`;
+sensitive: `schedule.manage`; `entity.state.read` can stand in for `devices.read`) bound at that floor.
+
+**Classes and safety rules** (server-enforced, not settings): light, switch (only entities marked safe for bulk actions),
+cover (not door / garage / gate, not on the map's door layer), climate and fan; and, with `schedule.sensitive`, alarm
+(arming modes and disarm), lock and door (door covers, door-layer switches and buttons). Never schedulable: alarm-managed
+bypass controls, scripts, scenes, plain buttons, sirens, `input_*`, media players and every other domain. **No code is ever
+written into a schedule** (Home Assistant stores service data in clear text): a new or changed alarm action whose panel
+needs a code for it is refused (422 `alarm_code_needed`, likewise `lock_code_needed`); an unchanged existing one is kept with
+a warning and appears in the review list; when the creator's own alarm policy is "code required" the code is asked once,
+verified with the alarm gate's lockout rules and discarded. A schedule that opens or disarms something (unlock, disarm,
+door covers and door-layer controls) needs an explicit confirmation (`confirm_lowering`) to be created, edited, enabled
+or restored, and a run-now confirmation. Delete = confirmation, then a snapshot in `schedule_trash` for **30 days** with
+restore (a restore re-creates it under the current rules and a new id; purge is installation-wide `schedule.manage`
+only). Audit actions: `schedule.create|update|enable|disable|run|split|copy|delete|restore|purge|bulk|organise`, plus
+system rows `schedule.executed` (a sensitive run observed) and `schedule.changed_outside` (a sensitive schedule changed
+without an Arx operation); a code, `raw` content or free service data never enters the log.
+
+**What the screen shows and does.** List as cards, table or a read-only week board, search, filters (area, floor, state,
+day, tag, "רק בשבת ובחג" / "לא בשבת ובחג" / has a condition), grouping and sorting, a detail drawer with the upcoming and
+the last runs, bulk enable / disable (a schedule that opens or disarms is enabled one at a time), run now (one run per
+schedule per 10 s), copy, delete, trash and, for installation-wide managers, the review list ("לבדיקה"). The editor
+(`#/devices/schedules/<id>/edit`) has a 7 × 24 h week grid (00:00 at the left, LTR axis in the RTL page), a day view, a table
+view over the same model, snapping to 5 / 15 / 30 minutes, drag / resize / move and keyboard equivalents, the "כיבוי בסיום
+החלון" helper, copy to other days, a split of one day into its own schedule (server `split`, with compensation when the
+second write fails: 502 `split_incomplete`), conditions with presets and an unsaved-changes guard with a conflict banner.
+The create dialog offers templates and a three-tap quick create. Defaults come from `schedules.*` (below).
+
+**Conditions.** A schedule has one condition block applied to every slot (the component's own rule: identical conditions in
+each slot): entity state or attribute with `is` / `not` / `above` / `below`, `and` / `or`, and "keep checking until the window
+ends" (`track_conditions`). With `schedules.shabbat_sensor` set (the "issur melacha in effect" binary sensor of the Jewish
+calendar) the presets "רק בשבת ובחג", "לא בשבת ובחג" and the template "מוצאי שבת" (sunset + 40 minutes, only when the
+sensor is off) are offered. Neither the component's `timestamps` nor Arx evaluate conditions: a schedule with conditions
+shows "· בתנאי" instead of a promised next run.
+
+**Settings** (`GET/PATCH /settings`, `system.configure`, audited): `schedules.enabled` (`false`), `schedules.classes`
+(a JSON array, all eight classes), `schedules.snap_minutes` (`15`; 5 / 15 / 30), `schedules.default_repeat` (`repeat`;
+`repeat` / `pause` / `single`), `schedules.runs_retention_days` (`90`; 7-365) and `schedules.shabbat_sensor` (`''` or a
+`binary_sensor.*`; the server refuses one that does not look like a Jewish-calendar sensor unless
+`schedules.shabbat_sensor_force` is sent).
+
+**Limits.** (1) A schedule created or edited directly in Home Assistant - by any user who can reach the component, for
+example through the original scheduler card - bypasses every Arx rule (permissions, scope, the class allow-list,
+confirmations, audit); Arx cannot prevent it ("Arx restrictions do not restrict the original Home Assistant UI"). Such a
+schedule appears as external ("נוצר מחוץ למערכת"), is editable only when fully understood and is never rewritten
+otherwise; a sensitive one is flagged in the review list (`no_owner_sensitive`) and a later change to it is audited as
+`schedule.changed_outside`. (2) An action fires at the slot's **start** only; the end of a slot is a window end and does
+nothing, so "on until 19:00" needs two slots. (3) Weekdays, dates and repeat belong to the whole schedule; a day with
+other hours is a split into two schedules; `workday` / `weekend` schedules cannot be split and are not computed in the
+week board or the preview. (4) Conditions are not evaluated in "next run". (5) The component has no run history: Arx
+derives one (a switch entering `triggered`, the entities' states 20 s later: confirmed / not confirmed / skipped, never
+"failed"; a slot skipped by its conditions leaves no row). (6) An alarm or lock action that needs a code cannot be
+scheduled; a design for it (an Arx relay with the stored code, phase 2b, 16-22 agent-hours) needs a separate approval.
+(7) A schedule keeps running after its creator loses a right or is removed; the review list (`GET /schedules/review`,
+installation-wide `schedule.manage`) shows it, and Arx never disables anything on its own. (8) Not yet available: tag
+editing (`capabilities.tags` is false until a real write is verified), negative sun offsets, folders / manual order /
+import and export, the full activity screen and conflict detection between schedules. (9) The phase-0 read-only
+verification on a real component (2026-09-30) confirmed the data shapes; the checks that need a write (a restricted
+user's control check in the bridge, a live create / edit / delete through Arx) are listed in
+`docs/operations/SCHEDULER_PHASE0_CHECKLIST_HE.md` and have not run yet.
+
+## Tabs, home screen and other settings (0.1.146)
+
+**Tabs (הגדרות › לשוניות, `ui.tabs`).** For every navigation section - the main navigation, the home area, security and
+its live / investigation pages, the map, WisKey, the settings and its security pages - an administrator shows or hides
+each tab and sets its order; a section lands on its first visible tab, at least one tab stays visible, and the settings
+entry that leads to the editor is locked. Hiding is presentation only: permissions gate first, the address of a hidden tab
+keeps working for those who hold the permission. The administrator's order of the main navigation is the default; a user's
+own order (user menu › "סדר הלשוניות", stored per user) wins, and a user without one follows the administrator's.
+`GET/PATCH /settings` carries the whole object (`{}` clears it). Details: `docs/architecture/TABS_CONFIG.md`.
+
+**Map default floor (`map.default_floor`, הגדרות › מפה).** The floor the map opens first (`""` = the user's first readable
+floor). A user who may not read it gets their own first floor; deleting the floor clears the setting.
+
+**Device catalogue.** The map's "התקנים" tab is now **הגדרות › קטלוג התקנים** (`#/system/entities`,
+`system.configure`); the old address redirects. The endpoints behind it are unchanged.
+
+**Home screen.** "עריכת המסך הראשי" (user menu, `system.configure`) edits the layout, the title (`home.title`), optional
+header widgets - a clock (`home.clock`), weather from a weather entity and the parsha / candle-lighting / Shabbat end from
+sensors you choose (`home.weather*`, `home.jewish*`; all off by default, read from the mirrored entities, no external
+service) - and the floor order (`home.floor_order`, applied to the tree, the cards and the tiles).
+
+**Start screen (`ui.start_route`, הגדרות › וידאו ומדיה › מסך פתיחה).** The screen Arx opens on when the address names no
+screen. The default is **"ראשי"** (`devices`); a value an administrator stored earlier overrides the default (an
+installation that saved "מפת קומה" keeps opening on the map until it is changed). A start screen the user may not see falls
+back to their first tab; settings that cannot be read fall back to "ראשי".
+
+**WisKey size (`ui.wiskey_size`, `ui.wiskey_scale`, הגדרות › וידאו ומדיה).** The embedded WisKey is the frame alone (no
+strip, refresh / enlarge / new-window buttons or border). `normal` fills the content area, `fit` renders the frame larger
+and scales it down (100 / 90 / 80 / 70 %), `full` covers the whole window (Esc or the corner button leaves).
+
+**NVR clock.** The NVR reports its wall clock, summer time applied, tagged with the standard offset; read literally it
+looked an hour off (+3599 s). The clock is now read in the installation's time zone, so the system screen and the setup
+wizard show no phantom drift. "סנכרן לשעון השרת עכשיו" writes the same way, reads the clock back and, when the device is
+still more than 2 minutes off, answers 502 `clock_verify_failed` (audited). That write has not been tried on a real device.
