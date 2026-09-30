@@ -262,8 +262,8 @@ function wiskeyPathSegment(r: RouteState | null): string {
   return r?.segments[1] ? safeDecode(r.segments[1]) : 'overview';
 }
 
-/** הגדרות › אבטחה (2026-09-30): everything about the alarm system and the NVR. The intrusion alarm left the security area
- * (its screen, `#/security/alarm`, redirects here - see legacyRedirect) and lives in Settings, next to its management
+/** הגדרות › אבטחה (2026-09-30): everything about the alarm system and the NVR. The intrusion alarm has a page here (and, since 0.1.147, a tab of the security area too)
+ * - the same screen as `#/security/alarm` - next to its management
  * and the NVR summary. Sub-pages, each with the permission it always had: the alarm screen (alarm.view), its management
  * (system.configure) and the NVR (system.configure / sources.configure, like הגדרות › חיבורים). */
 export const SECURITY_SETTINGS_HREF = '#/system/security';
@@ -283,7 +283,12 @@ export let ALARM_PRESENT: boolean | null = null;
 export function applyAlarmPresent(v: boolean | null): void {
   ALARM_PRESENT = v;
 }
-const ALARM_SETTINGS_HREFS = new Set(['#/system/security/alarm', '#/system/security/manage']);
+/** The alarm pages (the security area's tab and two pages of הגדרות › אבטחה): hidden only when the platform positively has
+ * no panel (`ALARM_PRESENT === false`) - unknown, loading and error never hide them (owner: "if there is an alarm it MUST show"). */
+const ALARM_HREFS = new Set(['#/security/alarm', '#/system/security/alarm', '#/system/security/manage']);
+/** Any of these opens the alarm pages (the server still decides what each may do): the screen needs alarm.view to list
+ * panels, but a holder of only arm / disarm / bypass gets the tab too (owner 2026-09-30), and a system administrator always. */
+const ALARM_PERMISSIONS = ['alarm.view', 'alarm.arm', 'alarm.disarm', 'alarm.bypass', 'system.configure'];
 
 // ---------------------------------------------------------------------------------------------
 // הגדרות › ממשק › לשוניות (owner 2026-09-30, setting `ui.tabs`): the installation-wide choice of which tabs each navigation
@@ -492,12 +497,12 @@ export function activeTabOf(r: RouteState | null): string {
 // CR-010 (owner request 2026-09-29): "לייב" and "חקירה" are no longer areas of their own: they are the first two SECTIONS
 // of one area "אבטחה" (security). The rail / phone bottom bar shows the area, the top bar a segmented control of the
 // sections, and the tab row under it the section's own pages - three levels, each on its own row. #/security opens the
-// section this browser used last. 2026-09-30: the third section, the intrusion alarm, left for הגדרות › אבטחה
+// section this browser used last. 2026-09-30: the third section, the intrusion alarm, is a tab again (0.1.147: #/security/alarm, also a page of הגדרות › אבטחה)
 // (SECURITY_SETTINGS_TABS; #/security/alarm redirects), and camera health moved from the live pages into the
 // investigation (#/investigate/health; #/system/devices redirects) - see legacyRedirect.
 // ---------------------------------------------------------------------------------------------
 export type AreaId = 'security' | 'explore' | 'system' | 'wiskey' | 'devices';
-export type SecuritySection = 'live' | 'investigate';
+export type SecuritySection = 'live' | 'investigate' | 'alarm';
 
 export interface AreaEntry {
   id: AreaId;
@@ -552,6 +557,8 @@ export const SECTION_TABS: Record<SecuritySection, TabItem[]> = {
     /** 2026-09-30: camera health lives in the investigation (it was the fourth live page, #/system/devices). */
     { id: 'health', label: 'בריאות מצלמות', href: '#/investigate/health' },
   ],
+  /** The intrusion alarm, a section of its own again (0.1.147) - the same screen as הגדרות › אבטחה › אזעקה. */
+  alarm: [{ id: 'alarm', label: 'אזעקה', href: '#/security/alarm' }],
 };
 
 export interface SectionEntry {
@@ -564,12 +571,13 @@ export interface SectionEntry {
 export const SECURITY_SECTIONS: SectionEntry[] = [
   { id: 'live', label: 'לייב', icon: 'camera', href: '#/live' },
   { id: 'investigate', label: 'חקירה', icon: 'search', href: '#/investigate/events' },
+  { id: 'alarm', label: 'אזעקה', icon: 'shield', href: '#/security/alarm' },
 ];
 
 export const AREA_TABS: Record<AreaId, TabItem[]> = {
   devices: DEVICES_TABS,
   /** Every page of the sections: the area stays in the rail while any of them is visible. */
-  security: [...SECTION_TABS.live, ...SECTION_TABS.investigate],
+  security: [...SECTION_TABS.live, ...SECTION_TABS.investigate, ...SECTION_TABS.alarm],
   explore: EXPLORE_TABS,
   /** Entry Center/overview, Activity/events and People/people (CR-005 phase 1b), plus WisKey's own screens as embedded
    * tabs (CR-005 recorded decision 2026-09-28) - the same list as GROUP_TABS.wiskey. */
@@ -596,6 +604,7 @@ export function sectionOf(r: RouteState | null): SecuritySection | null {
   if (!r?.mode) return null;
   if (r.mode === 'live') return 'live';
   if (r.mode === 'investigate') return 'investigate';
+  if (r.mode === 'security' && r.segments[1] === 'alarm') return 'alarm';
   return null;
 }
 
@@ -614,7 +623,7 @@ export function activeAreaTab(r: RouteState | null): string {
       const sec = sectionOf(r);
       if (sec === 'live') return s[1] === 'views' ? 'views' : s[1] === 'wall' || s[1] === 'cameras' ? 'wall' : 'overview';
       if (sec === 'investigate') return s[1] === 'floors' ? 'history' : s[1] === 'playback' ? (s[2] === 'sync' ? 'sync' : 'playback') : (s[1] ?? 'events');
-      return '';
+      return sec === 'alarm' ? 'alarm' : '';
     }
     case 'explore':
       return s[1] === 'buildings' || s[1] === 'floors' ? 'floors' : 'sites';
@@ -668,7 +677,7 @@ export function rememberSection(s: SecuritySection): void {
 export function lastSection(): SecuritySection | null {
   try {
     const v = localStorage.getItem(LAST_SECTION_KEY);
-    return v === 'live' || v === 'investigate' ? v : null; // a stored 'alarm' (before 2026-09-30) is ignored
+    return v === 'live' || v === 'investigate' || v === 'alarm' ? v : null;
   } catch {
     return null;
   }
@@ -695,13 +704,10 @@ export function pageTargets(q: string, api: boolean, can?: Can): PageTarget[] {
   const sections = visibleSections(api, can);
   const all: PageTarget[] = sections.map((s) => ({
     label: `אבטחה › ${s.label}`,
-    subtitle: s.id === 'live' ? 'תמונת מצב ומצלמות' : 'אירועים, הקלטות ותיקים',
+    subtitle: s.id === 'alarm' ? 'מצב האזעקה, דריכה ונטרול, חיישנים ועקיפה' : s.id === 'live' ? 'תמונת מצב ומצלמות' : 'אירועים, הקלטות ותיקים',
     href: s.href,
-    keywords: s.id === 'live' ? ['לייב', 'מצלמות', 'live'] : ['חקירה', 'אירועים', 'הקלטות'],
+    keywords: s.id === 'alarm' ? ['אזעקה', 'דריכה', 'נטרול', 'עקיפה', 'חיישנים', 'alarm'] : s.id === 'live' ? ['לייב', 'מצלמות', 'live'] : ['חקירה', 'אירועים', 'הקלטות'],
   }));
-  // the intrusion alarm lives in הגדרות › אבטחה (2026-09-30); offered only to those who see that page (permission + a panel exists)
-  const alarm = visibleTabs(SECURITY_SETTINGS_TABS, api, can).find((t) => t.id === 'alarm');
-  if (alarm?.href) all.push({ label: 'הגדרות › אבטחה › אזעקה', subtitle: 'מצב האזעקה, דריכה ונטרול, חיישנים ועקיפה', href: alarm.href, keywords: ['אזעקה', 'דריכה', 'נטרול', 'עקיפה', 'חיישנים', 'alarm'] });
   return all.filter((t) => t.label.toLowerCase().includes(needle) || t.keywords.some((k) => k.toLowerCase().startsWith(needle) || needle.startsWith(k.toLowerCase())));
 }
 
@@ -755,10 +761,11 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   // panels placed on their floors (routers/alarm.py), so the entry is not installation-only. Its management is what it
   // always was (routers/alarm.py `_configurer`: system.configure); the NVR page follows הגדרות › חיבורים. The section's own
   // entry (SECURITY_SETTINGS_HREF) is listed for completeness: tabAllowed shows it when any of its pages is visible.
-  '#/system/security/alarm': ['alarm.view'],
+  '#/security/alarm': ALARM_PERMISSIONS,
+  '#/system/security/alarm': ALARM_PERMISSIONS,
   '#/system/security/manage': ['system.configure'],
   '#/system/security/nvr': ['system.configure', 'sources.configure'],
-  [SECURITY_SETTINGS_HREF]: ['alarm.view', 'system.configure', 'sources.configure'],
+  [SECURITY_SETTINGS_HREF]: [...ALARM_PERMISSIONS, 'sources.configure'],
   '#/investigate/events': ['events.read'],
   '#/investigate/playback': ['video.playback'],
   '#/investigate/playback/sync': ['video.playback'],
@@ -801,7 +808,7 @@ export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[
 }
 
 function permittedTabs(items: TabItem[], api: boolean, can?: Can): TabItem[] {
-  return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !(NVR_LESS && isNvrHref(t.href ?? '')) && !(ALARM_PRESENT !== true && ALARM_SETTINGS_HREFS.has(t.href ?? '')) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
+  return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !(NVR_LESS && isNvrHref(t.href ?? '')) && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
 }
 
 /** The rail entries the user gets: an area stays while one of its tabs is visible (the live area always - the
@@ -929,7 +936,7 @@ export interface LegacyAccess {
   can: Can;
 }
 
-/** Old routes that moved (2026-09-30). Returns the new path (`/system/security/alarm?panel=...`) or null when the route
+/** Old routes that moved (2026-09-30). Returns the new path (`/investigate/health?sort=...`) or null when the route
  * stays. Query parameters travel with the redirect (the alarm panel, the camera-health sort), so links written before the
  * move - the search result, the devices screens, notifications, bookmarks - keep working. Applies with and without a backend. */
 export function legacyRedirect(r: RouteState | null, access?: LegacyAccess): string | null {
@@ -943,8 +950,7 @@ export function legacyRedirect(r: RouteState | null, access?: LegacyAccess): str
     if (!access.ready) return null;
     return !access.api || access.can('system.configure', true) ? `${ENTITIES_SETTINGS_HREF.slice(1)}${q}` : '/explore/floors/f0';
   }
-  // the intrusion alarm left the security area for הגדרות › אבטחה
-  if (r.mode === 'security' && s[1] === 'alarm') return `/system/security/alarm${q}`;
+  // (the intrusion alarm is #/security/alarm again since 0.1.147: a tab of the security area, and a page of הגדרות › אבטחה)
   // camera health left the live pages for the investigation
   if (r.mode === 'system' && s[1] === 'devices') return `/investigate/health${q}`;
   // the alarm management was הגדרות › כללי › אזעקה (?tab=alarm)

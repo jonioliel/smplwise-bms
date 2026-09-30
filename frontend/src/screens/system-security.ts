@@ -45,6 +45,7 @@ export class SystemSecurity extends LitElement {
   @property() panelId = '';
   @state() private presenceKnown = alarmPresence() !== null;
   private stopPresence?: () => void;
+  private giveUp = 0;
 
   static styles = css`
     :host {
@@ -96,11 +97,14 @@ export class SystemSecurity extends LitElement {
       this.requestUpdate();
     });
     void refreshAlarmPresence();
+    // never wait on the probe for long: an unknown answer shows the alarm pages (they fail toward showing)
+    this.giveUp = window.setTimeout(() => (this.presenceKnown = true), 2500);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     this.stopPresence?.();
+    window.clearTimeout(this.giveUp);
   }
 
   private get api(): boolean {

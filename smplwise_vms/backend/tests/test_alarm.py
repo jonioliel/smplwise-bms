@@ -203,6 +203,31 @@ def test_pai_pairs_by_stem_and_lists_the_unpaired_switch():
     assert [u["entity_id"] for u in p["unpaired_controls"]] == ["switch.paradox_zone_shed_bypassed"]
 
 
+def test_a_bare_panel_without_zones_or_bypass_is_still_a_listed_panel():
+    """Owner 2026-09-30: the alarm tab shows for ANY alarm_control_panel in the mirror (a Tuya / generic panel with no
+    zones, no bypass switches, no features and no code format) - it is listed with its state and the default arm modes."""
+    panel = _ent("alarm_control_panel.tuya_house", "tuya", "ce-tuya", None, "tuya-1", "disarmed", name="Tuya alarm")
+    disc = svc.discover(None, [panel], {})  # type: ignore[arg-type]
+    assert [p["entity_id"] for p in disc["panels"]] == ["alarm_control_panel.tuya_house"]
+    p = disc["panels"][0]
+    assert p["zones"] == [] and p["unpaired_controls"] == [] and p["state"] == "disarmed"
+    assert p["arm_modes"] == ["arm_home", "arm_away"] and p["features_reported"] is False and p["code_format"] is None
+
+
+def test_a_bare_panel_is_served_by_the_panels_and_config_endpoints(alarm_app):
+    app, s, c, _calls, _ = alarm_app
+    with app.state.db.connection() as conn:
+        conn.execute("DELETE FROM ha_entities WHERE domain IN ('binary_sensor', 'switch', 'select')")
+        conn.execute("DELETE FROM ha_entities WHERE domain = 'alarm_control_panel' AND entity_id != 'alarm_control_panel.risco_house'")
+        conn.commit()
+    bind(c, s, "vera", "viewer", "installation", "*")
+    body = _panels(c, as_user("vera"))
+    p = _panel(body, "alarm_control_panel.risco_house")
+    assert body["panels"] and p["zones"] == []  # no zones and still listed to a plain viewer
+    cfg = c.get("/api/v1/alarm/config")
+    assert cfg.status_code == 200 and [x["entity_id"] for x in cfg.json()["panels"]] == ["alarm_control_panel.risco_house"]
+
+
 def test_visonic_select_pima_zone_number_and_alarmo_override():
     ents = [
         _ent("alarm_control_panel.visonic_alarm", "visonic", "ce-v", "dev-v", "visonic_panel", "disarmed", supported_features=3, code_format="number"),

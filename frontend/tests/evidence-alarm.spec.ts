@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// CR-010 (אבטחה › לייב | חקירה; the alarm moved to הגדרות › אבטחה › אזעקה 2026-09-30). Two parts:
+// CR-010 (אבטחה › לייב | חקירה | אזעקה; the alarm is #/security/alarm again and also a page of הגדרות › אבטחה › אזעקה). Two parts:
 //
 // 1. Navigation and the alarm screen on the demo data (no backend - the static preview, like screens.spec.ts):
 //      npx playwright test tests/evidence-alarm.spec.ts
@@ -36,7 +36,7 @@ async function noOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 }
 
-test.describe('CR-010 navigation: אבטחה › לייב | חקירה, the alarm in הגדרות › אבטחה (demo data)', () => {
+test.describe('CR-010 navigation: אבטחה › לייב | חקירה | אזעקה, and the alarm in הגדרות › אבטחה (demo data)', () => {
   test.skip(process.env.SW_LIVE === '1', 'demo-data part: runs against the static preview');
 
   test('the rail / bottom bar: ראשי · אבטחה · מפה · WisKey (CR-013; מערכת moved into the user menu) - live and investigate are sections, not areas', async ({ page }, info) => {
@@ -49,7 +49,7 @@ test.describe('CR-010 navigation: אבטחה › לייב | חקירה, the alar
     // the sections: a segmented control at the head of the page; on the phone a sticky row above the tabs
     const sections = page.locator(phone ? 'sw-app nav[data-security-row]' : SECTIONS);
     await expect(sections).toBeVisible();
-    await expect(sections.locator('a')).toHaveText(['לייב', 'חקירה']); // the alarm is no section any more
+    await expect(sections.locator('a')).toHaveText(['לייב', 'חקירה', 'אזעקה']); // the alarm section is last by default
     await expect(sections.locator('a[data-section="live"]')).toHaveAttribute('aria-current', 'page');
     // the section's own pages stay the tab row under it
     await expect(page.locator('sw-app .subnav sw-tabs')).toBeVisible();
@@ -65,6 +65,7 @@ test.describe('CR-010 navigation: אבטחה › לייב | חקירה, the alar
       ['/investigate/events', 'investigate-events', 'investigate'],
       ['/investigate/playback', 'investigate-playback', 'investigate'],
       ['/investigate/floors/f0/history', 'investigate-history-map', 'investigate'],
+      ['/security/alarm', 'security-alarm', 'alarm'],
     ] as const) {
       await open(page, hash);
       await expect(page.locator(`sw-app ${tag}`), hash).toHaveCount(1);
@@ -72,12 +73,13 @@ test.describe('CR-010 navigation: אבטחה › לייב | חקירה, the alar
     }
   });
 
-  test('moved routes redirect and keep their query: camera health, the alarm (with its panel), the alarm management', async ({ page }) => {
+  test('moved routes redirect and keep their query: camera health, the alarm management; #/security/alarm stays canonical (panel kept)', async ({ page }) => {
     for (const [from, to, tag] of [
       ['/system/devices', '#/investigate/health', 'system-devices'],
       ['/system/devices?sort=offline', '#/investigate/health?sort=offline', 'system-devices'],
-      ['/security/alarm', '#/system/security/alarm', 'security-alarm'],
-      ['/security/alarm?panel=alarm_control_panel.demo_house', '#/system/security/alarm?panel=alarm_control_panel.demo_house', 'security-alarm'],
+      ['/security/alarm', '#/security/alarm', 'security-alarm'],
+      ['/security/alarm?panel=alarm_control_panel.demo_house', '#/security/alarm?panel=alarm_control_panel.demo_house', 'security-alarm'],
+      ['/system/security/alarm?panel=alarm_control_panel.demo_house', '#/system/security/alarm?panel=alarm_control_panel.demo_house', 'security-alarm'],
       ['/system/diagnostics?tab=alarm', '#/system/security/manage', 'system-alarm-settings'],
       ['/system/security', '#/system/security/alarm', 'security-alarm'],
     ] as const) {
@@ -122,11 +124,9 @@ test.describe('CR-010 navigation: אבטחה › לייב | חקירה, the alar
     await open(page, '/investigate/events');
     await page.goto('/#/security');
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/investigate/events');
-    // a section remembered before the alarm left (2026-09-30) is ignored
-    await page.evaluate(() => localStorage.setItem('sw.security.section', 'alarm'));
-    await page.goto('about:blank');
+    await open(page, '/security/alarm');
     await page.goto('/#/security');
-    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/live');
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/security/alarm');
   });
 
   test('no breadcrumb bar (UI round 1): the pages keep their own titles', async ({ page }) => {
@@ -146,27 +146,26 @@ test.describe('CR-010 navigation: אבטחה › לייב | חקירה, the alar
     await expect(page.locator(SECTIONS)).toHaveCount(0);
   });
 
-  test('Ctrl+K offers the alarm (now under הגדרות › אבטחה)', async ({ page }, info) => {
+  test('Ctrl+K offers the alarm section', async ({ page }, info) => {
     test.skip(info.project.name === 'mobile', 'a keyboard shortcut (the phone opens the same search from its corner button)');
     await open(page, '/explore/sites');
     await page.keyboard.press('Control+k');
     await page.keyboard.type('אזעקה');
     const row = page.locator('sw-app .results .row').first();
-    await expect(row).toContainText('הגדרות › אבטחה › אזעקה');
+    await expect(row).toContainText('אבטחה › אזעקה');
     await page.keyboard.press('Enter');
-    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/system/security/alarm');
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/security/alarm');
   });
 
-  test('design B: no flat אזעקה entry; the old alarm address opens inside הגדרות', async ({ page }, info) => {
+  test('design B: no flat אזעקה entry; the alarm address still opens the screen', async ({ page }) => {
     await open(page, '/security/alarm', 'b');
     await expect(page.locator('sw-app security-alarm')).toHaveCount(1);
-    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/system/security/alarm');
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/security/alarm');
     await expect(page.locator(`${RAIL} a[href="#/security/alarm"]`)).toHaveCount(0);
-    if (info.project.name !== 'mobile') await expect(page.locator(`${RAIL} a[href="#/system/diagnostics"]`)).toHaveClass(/active/);
   });
 
   test('the alarm screen on demo data: state card, ready-to-arm, zones by area, filters, keypad', async ({ page }, info) => {
-    await open(page, '/system/security/alarm');
+    await open(page, '/security/alarm');
     const hero = page.locator('security-alarm section.hero');
     await expect(hero).toHaveAttribute('data-alarm-state', 'disarmed');
     await expect(hero.locator('.state-label')).toHaveText('מנוטרלת');
@@ -217,7 +216,7 @@ test.describe('CR-010 alarm against the real backend (fake Home Assistant side)'
   });
 
   test('the panels, the switcher and the Risco zones with their bypass switches', async ({ page }, info) => {
-    await open(page, `/system/security/alarm?panel=${HOUSE}`);
+    await open(page, `/security/alarm?panel=${HOUSE}`);
     // The three panels this fixture seeds (two Risco partitions + one PAI area). Not an exact count: live specs share one
     // backend, and evidence-devices*.spec.ts seed their own alarm_control_panel.cr007_house through the same developer
     // endpoints, which discovery rightly lists too (a run after them shows 4).
@@ -234,7 +233,7 @@ test.describe('CR-010 alarm against the real backend (fake Home Assistant side)'
   });
 
   test('arm without a code (no_code), disarm with the PIN: a wrong PIN is refused, the right one disarms', async ({ page }, info) => {
-    await open(page, `/system/security/alarm?panel=${HOUSE}`);
+    await open(page, `/security/alarm?panel=${HOUSE}`);
     const hero = page.locator('security-alarm section.hero');
     await expect(hero).toHaveAttribute('data-alarm-state', /disarmed|armed_away/, { timeout: 30000 });
     if ((await hero.getAttribute('data-alarm-state')) !== 'disarmed') test.skip(true, 'the fixture panel is not disarmed (a rerun on the same backend)');
@@ -254,7 +253,7 @@ test.describe('CR-010 alarm against the real backend (fake Home Assistant side)'
   });
 
   test('bypass a zone: confirmation with the PIN, then the zone shows עקוף', async ({ page }) => {
-    await open(page, `/system/security/alarm?panel=${HOUSE}`);
+    await open(page, `/security/alarm?panel=${HOUSE}`);
     const zone = page.locator('security-alarm article.zone[data-zone="binary_sensor.back_door"]');
     await expect(zone).toBeVisible({ timeout: 30000 });
     const wasBypassed = (await zone.getAttribute('data-tone')) === 'bypassed';
