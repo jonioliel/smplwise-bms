@@ -1,5 +1,6 @@
 import type { CardId } from '../api/devices';
 import type { IconName } from '../components/sw-icon';
+import { cameraCardDefinition } from './devices-camera-card';
 
 /**
  * The area screen's card library (owner request 2026-09-30, layout schema v 3): what the layout editor offers when a card
@@ -14,7 +15,7 @@ export const CARDS_VERSION = 3;
 
 /** The library's card types (keep in step with CUSTOM_TYPES in routers/device_layouts.py - a backend test compares them):
  * the seven built-in domain cards, plus locks and gates, energy and the free card. */
-export const CARD_TYPE_IDS = ['lighting', 'switches', 'climate', 'covers', 'security', 'media', 'sensors', 'locks', 'energy', 'free'] as const;
+export const CARD_TYPE_IDS = ['lighting', 'switches', 'climate', 'covers', 'security', 'media', 'sensors', 'locks', 'energy', 'free', 'camera'] as const;
 export type CardTypeId = (typeof CARD_TYPE_IDS)[number];
 
 /** A device of the area as the editor lists it (from the area's own cards - already what this caller may see). */
@@ -41,6 +42,8 @@ export interface CardTypeInfo {
   match: (e: AreaEntity) => boolean;
 }
 
+const cameraDef = cameraCardDefinition();
+
 export const CARD_TYPES: Record<CardTypeId, CardTypeInfo> = {
   lighting: { id: 'lighting', label: 'תאורה', desc: 'מנורות וספוטים: הדלקה, כיבוי ועוצמה', icon: 'light', tiles: true, match: (e) => e.card === 'lighting' },
   switches: { id: 'switches', label: 'מתגים', desc: 'שקעים, מתגים ומעגלים חשמליים', icon: 'bolt', tiles: true, match: (e) => e.card === 'switches' },
@@ -52,6 +55,9 @@ export const CARD_TYPES: Record<CardTypeId, CardTypeInfo> = {
   locks: { id: 'locks', label: 'מנעולים ושערים', desc: 'מנעולי דלתות, שערים ודלתות חניה', icon: 'lock', tiles: false, match: (e) => e.domain === 'lock' || (e.card === 'covers' && !!e.door) },
   energy: { id: 'energy', label: 'אנרגיה', desc: 'צריכת חשמל, הספק ומדי אנרגיה', icon: 'bolt', tiles: true, match: (e) => e.card === 'sensors' && e.group === 'power' },
   free: { id: 'free', label: 'כרטיס חופשי', desc: 'כרטיס ריק שבוחרים לו התקנים ושם בעצמכם', icon: 'grid', tiles: false, match: () => false },
+  // the camera card (screens/devices-camera-card.ts) is added as a `camera:<slug>` layout item with a picked camera, not as a
+  // `card:c-` custom card; it is in the library like every type, and offered where cameras exist and the user may watch
+  camera: { id: 'camera', label: cameraDef.label, desc: cameraDef.description, icon: cameraDef.icon, tiles: false, match: () => false },
 };
 
 export function isCardType(v: string): v is CardTypeId {
@@ -60,11 +66,12 @@ export function isCardType(v: string): v is CardTypeId {
 
 /** The types worth offering for this area's devices: those with a matching device, plus the free card; all of them with
  * `all`. Each carries how many of the area's devices it would start with. */
-export function libraryTypes(pool: AreaEntity[], all: boolean): { type: CardTypeInfo; count: number; sample: string[] }[] {
+export function libraryTypes(pool: AreaEntity[], all: boolean, counts: Partial<Record<CardTypeId, number>> = {}): { type: CardTypeInfo; count: number; sample: string[] }[] {
   return CARD_TYPE_IDS.map((id) => CARD_TYPES[id])
     .map((type) => {
       const hits = pool.filter(type.match);
-      return { type, count: hits.length, sample: hits.slice(0, 3).map((e) => e.name) };
+      // a type the area's devices cannot tell (the camera card: cameras come from the NVR catalogue) gets its count from the caller
+      return { type, count: counts[type.id] ?? hits.length, sample: hits.slice(0, 3).map((e) => e.name) };
     })
     .filter((x) => all || x.type.id === 'free' || x.count > 0);
 }

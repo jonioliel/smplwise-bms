@@ -26,6 +26,12 @@ What the fake bridge does with `POST /api/services/smplwise_bridge/execute` (the
   Risco (2 partitions, 8 zones) and PAI shapes of smplwise_vms/backend/tests/fake_alarm.py through the developer
   endpoints, for tests/evidence-alarm.spec.ts.
 
+Camera card (owner 2026-09-30, tests/evidence-camera-card.spec.ts): `GET /api/camera_proxy/camera.*` on the fake HA host
+answers a generated JPEG (and counts the calls: `GET /camera-proxy` on the control server), and `POST /seed-cameras
+{model, cameras: [{channel, alias, status}]}` on the control server registers NVR channels in the camera catalogue and
+stores the recorder model the Hikvision integration names its entities after - what a discovery against a real NVR
+would have stored. No stream exists here: the spec fakes the browser's media stack, as the wall's live specs do.
+
 On start it pairs the bridge (signed ping with the pairing code, as the integration's config flow does).
 
 Run it (a fresh data dir each time):
@@ -197,6 +203,28 @@ def _set_entity_area(request: httpx.Request) -> httpx.Response:
     return httpx.Response(200, json={"service_response": {"ok": True, "context_id": None, "request_id": body.get("request_id")}}, request=request)
 
 
+_camera_proxy_calls: dict[str, int] = {}
+
+
+def _camera_proxy(request: httpx.Request) -> httpx.Response:
+    """HA's `GET /api/camera_proxy/<entity>`: a generated JPEG (a colour per entity, the entity id written on it)."""
+    import io
+
+    from PIL import Image, ImageDraw
+
+    entity = request.url.path.rsplit("/", 1)[-1]
+    _camera_proxy_calls[entity] = _camera_proxy_calls.get(entity, 0) + 1
+    hue = sum(entity.encode()) % 200
+    im = Image.new("RGB", (640, 360), (40 + hue // 2, 90 + hue // 3, 140))
+    draw = ImageDraw.Draw(im)
+    for y in range(0, 360, 40):
+        draw.line([(0, y), (640, y + 40)], fill=(255, 255, 255), width=1)
+    draw.text((20, 20), entity, fill=(255, 255, 255))
+    buf = io.BytesIO()
+    im.save(buf, "JPEG", quality=80)
+    return httpx.Response(200, content=buf.getvalue(), headers={"Content-Type": "image/jpeg"}, request=request)
+
+
 _real_handle = httpx.HTTPTransport.handle_request
 
 
@@ -206,6 +234,8 @@ def handle_request(self: httpx.HTTPTransport, request: httpx.Request) -> httpx.R
             return _execute(request)
         if request.method == "POST" and request.url.path == "/api/services/smplwise_bridge/set_entity_area":
             return _set_entity_area(request)
+        if request.method == "GET" and request.url.path.startswith("/api/camera_proxy/camera."):
+            return _camera_proxy(request)
         raise httpx.ConnectError(f"devices_fake_ha: no answer for {request.url.path}", request=request)
     return _real_handle(self, request)
 
@@ -347,6 +377,9 @@ class _Control(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self) -> None:  # noqa: N802
+        if self.path == "/camera-proxy":
+            self._reply(200, {"calls": dict(_camera_proxy_calls)})
+            return
         with WORLD.lock:
             self._reply(200, {"sockets": len(WORLD.sockets), "subscriptions": sorted({et for s in WORLD.sockets for et in s.subs.values()})})
 
@@ -354,6 +387,9 @@ class _Control(BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
         if self.path == "/seed-alarm":
             self._reply(200, _seed_alarm())
+            return
+        if self.path == "/seed-cameras":
+            self._reply(200, _seed_cameras(body))
             return
         if self.path != "/move" or not isinstance(body.get("entity_id"), str):
             self._reply(404, {"error": "unknown"})
@@ -368,6 +404,27 @@ class _Control(BaseHTTPRequestHandler):
             entry["area_id"] = area
         delivered = 0 if body.get("silent") else WORLD.emit("entity_registry_updated", {"action": "update", "entity_id": eid, "changes": {"area_id": old}})
         self._reply(200, {"ok": True, "delivered": delivered})
+
+
+def _seed_cameras(body: dict[str, Any]) -> dict[str, Any]:
+    """The camera card's NVR: the channels through the backend's own registration route, then what only a discovery
+    stores - the recorder's model and each channel's status - straight into the throwaway database of this fixture."""
+    import sqlite3
+
+    ids: dict[str, str] = {}
+    with httpx.Client(timeout=30) as c:
+        for cam in body.get("cameras", []):
+            r = c.post(f"{BASE}/cameras", json={"channel": int(cam["channel"]), "alias": str(cam["alias"])})
+            ids[str(cam["channel"])] = r.json()["id"]
+    db = sqlite3.connect(str(Path(os.environ["SW_DATA_DIR"]) / "smplwise.db"), timeout=30)
+    try:
+        db.execute("UPDATE recorders SET model = ? WHERE id = 'nvr-1'", (str(body.get("model") or ""),))
+        for cam in body.get("cameras", []):
+            db.execute("UPDATE cameras SET status = ?, enabled = ? WHERE id = ?", (cam.get("status", "online"), 0 if cam.get("enabled") is False else 1, ids[str(cam["channel"])]))
+        db.commit()
+    finally:
+        db.close()
+    return {"ok": True, "cameras": ids}
 
 
 def _seed_alarm() -> dict[str, Any]:

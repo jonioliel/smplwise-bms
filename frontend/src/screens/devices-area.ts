@@ -20,10 +20,12 @@ import { ALARM_HE, assignEntityArea, CARD_EMPTY, CARD_IDS, HVAC_ACTION_HE, getDe
 import type { BulkKind } from '../api/device-bulk';
 import { alarmTone, REFRESH_WINDOW_MS, STRUCTURE_FLASH_MS } from './devices-building';
 import './devices-bulk';
+import './devices-camera-card';
 import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
 import { navigate } from '../router';
 import { bidi, ltrNum } from '../i18n/bidi';
 import { applyDevicesPrefs, DEVICES_PREFS_DEFAULT, devicesStyleTokens, loadDevicesPrefs, type DevicesPrefs } from './devices-style';
+import { isCameraSource } from '../api/camera-card';
 import { DevicesLayoutController, shownEntities, TILE_COLS, titleOf, type MeasuredGrid, type TileEntry } from './devices-layout';
 import { CARD_TYPES, isCardType, type AreaEntity } from './devices-layout-cards';
 import { deg, DeviceControls, deviceControlStyles, rowLabel } from './devices-controls';
@@ -223,7 +225,7 @@ export class DevicesArea extends LitElement {
     screenName: () => `מסך האזור › ${this.detail?.area.name ?? ''}`,
     measure: () => this.measureCards(),
     defaultH: () => 30,
-    label: (key) => (key.startsWith('card:c-') ? this.lay.customTitle(key) : this.detail ? (this.detail.cards[key.slice(5) as CardId]?.label ?? key) : key),
+    label: (key: string): string => (key.startsWith('card:c-') ? this.lay.customTitle(key) : key.startsWith('camera:') ? this.lay.item(key)?.title || 'מצלמה' : this.detail ? (this.detail.cards[key.slice(5) as CardId]?.label ?? key) : key),
     compact: () => this.prefs.density === 'compact',
     entities: (key) => {
       if (key.startsWith('card:c-')) return this.customRows(key).map((r) => ({ id: r.entity_id, name: r.name }));
@@ -511,6 +513,18 @@ export class DevicesArea extends LitElement {
       color: var(--sw-text-2);
       font-size: var(--sw-fs-sm);
     }
+    /* owner 2026-09-30: a camera card is the picture edge to edge (the glass style's card padding does not apply to it) */
+    :host sw-card[data-camera-card] {
+      padding: 0 !important;
+      overflow: hidden;
+    }
+    .lay-item > sw-card[data-camera-card] {
+      display: flex;
+      flex-direction: column;
+    }
+    .lay-item > sw-card[data-camera-card] > devices-camera-card {
+      flex: 1 1 auto;
+    }
   `, AREA_GLASS];
 
   connectedCallback() {
@@ -640,7 +654,9 @@ export class DevicesArea extends LitElement {
     const gridKeys = [...withDevices.map((c) => `card:${c.id}`), ...customKeys, ...this.lay.removedKeys().filter((k) => !withDevices.some((c) => `card:${c.id}` === k))];
     const anyControllable = cards.some((c) => c.entities.some((r) => r.can_control));
     const bulk = this.bulkAllowed;
-    this.lay.prepare([{ id: 'cards', keys: gridKeys }]);
+    // owner 2026-09-30: camera cards (`camera:<slug>` items of the layout) sit on the same grid as the domain cards
+    const cameraKeys = this.lay.keysWithPrefix('camera:').filter((k) => isCameraSource(this.lay.cameraOf(k)));
+    this.lay.prepare([{ id: 'cards', keys: [...gridKeys, ...cameraKeys] }]);
     // 6c: "סידור התקנים" - the editor shows the card being arranged alone
     const arranging = this.lay.tileCard ? ordered.find((c) => this.lay.arranging(`card:${c.id}`)) : undefined;
     const arrangingCustom = this.lay.tileCard && customKeys.includes(this.lay.tileCard) && this.lay.arranging(this.lay.tileCard) ? this.lay.tileCard : '';
@@ -665,10 +681,11 @@ export class DevicesArea extends LitElement {
         ? this.lay.stage(`card:${arranging.id}`, this.renderCard(arranging))
         : arrangingCustom
         ? this.lay.stage(arrangingCustom, this.renderCustomCard(arrangingCustom))
-        : ordered.length || customKeys.length || (this.lay.editing && withDevices.length > 0)
+        : ordered.length || customKeys.length || cameraKeys.length || (this.lay.editing && withDevices.length > 0)
         ? html`<div class=${classMap({ grid: true, 'lay-grid': this.lay.gridOn('cards') })} data-lay-grid="cards" data-lay-cols=${this.lay.gridCols('cards')} ?data-lay-phone-preview=${this.lay.phonePreview('cards')}>
             ${repeat(ordered, (c) => c.id, (c) => this.lay.wrap(`card:${c.id}`, this.renderCard(c)))}
             ${repeat(customKeys, (k) => k, (k) => this.lay.wrap(k, this.renderCustomCard(k)))}
+            ${repeat(cameraKeys, (k) => k, (k) => this.lay.wrap(k, this.renderCameraCard(k)))}
           </div>`
         : html`<sw-state-panel data-devices-state="area_empty" state="empty" heading="אין התקנים באזור הזה" hint="שייכו התקנים לאזור (או מ״ללא שיוך״); כרטיס של תאורה, מתגים, מיזוג, תריסים, אבטחה, מסכים או חיישנים מופיע כשיש באזור התקן מהסוג הזה."></sw-state-panel>`}
       <div class="note">
@@ -680,6 +697,15 @@ export class DevicesArea extends LitElement {
       ${this.canAssignArea ? this.renderAssignDialog() : nothing}
       ${this.lay.renderPanel()}
     </sw-page>`;
+  }
+
+  /** Owner 2026-09-30: a camera card - one camera as a live picture (screens/devices-camera-card.ts); its title is the
+   * layout's own, else the camera's name. Placed by the layout like every card, so it fills the grid item it is given. */
+  private renderCameraCard(key: string) {
+    const it = this.lay.item(key);
+    return html`<sw-card flush data-camera-card=${key} data-lay-key=${key}>
+      <devices-camera-card .source=${this.lay.cameraOf(key) ?? null} .title=${it?.title ?? ''} ?fill=${this.lay.gridOn('cards')}></devices-camera-card>
+    </sw-card>`;
   }
 
   private renderCard(c: DeviceCard) {
