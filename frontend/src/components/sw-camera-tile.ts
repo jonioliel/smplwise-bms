@@ -7,7 +7,7 @@ import './sw-live-player';
 import type { StateKind } from './sw-badge';
 import type { SceneKind } from './sw-scene';
 import type { CameraEncoding } from '../api/types';
-import { playerPlan } from '../api/video-policy';
+import { encodeGop, playerPlan } from '../api/video-policy';
 
 export type { SceneKind } from './sw-scene';
 
@@ -42,6 +42,9 @@ export class SwCameraTile extends LitElement {
   @property() fit: 'contain' | 'cover' | 'fill' = 'contain';
   /** CR-008 D7: the camera's stream encodings (a remote plan skips WebRTC for a stream the NVR says cannot play there). */
   @property({ attribute: false }) encoding: CameraEncoding | null = null;
+  /** The profile is the installation's default, not the viewer's choice: the player may fall back to the other profile
+   * when this one proves undecodable (sw-live-player `autoProfile`, LAN / Ingress only). */
+  @property({ type: Boolean }) autoProfile = false;
 
   static styles = css`
     :host {
@@ -208,7 +211,7 @@ export class SwCameraTile extends LitElement {
     const plan = real === 'live' ? playerPlan(this.profile, this.encoding) : { plan: '', preferred: '' as const, gop: '' };
     return html`
       ${real === 'live'
-        ? html`<sw-live-player .cameraId=${this.cameraId} .livePath=${this.livePath} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop} .poster=${this.poster} .fit=${this.fit} compact></sw-live-player>`
+        ? html`<sw-live-player .cameraId=${this.cameraId} .livePath=${this.livePath} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop || encodeGop(this.encoding)} .autoProfile=${this.autoProfile} .poster=${this.poster} .fit=${this.fit} compact></sw-live-player>`
         : real === 'poster'
           ? html`<img class="poster" src=${this.poster} alt="" loading="lazy" />`
           : html`<sw-scene kind=${this.scene}></sw-scene>`}

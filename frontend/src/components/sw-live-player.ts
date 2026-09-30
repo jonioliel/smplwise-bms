@@ -3,7 +3,7 @@ import { customElement, property, state, query } from 'lit/decorators.js';
 import './sw-icon';
 import { liveWsUrl, relayWsUrl, type Transport } from '../api/media';
 import { can } from '../api/session';
-import { badgeLabel, decodeLadder, undecodableMessage, type Profile, type VideoStep } from '../api/video-policy';
+import { badgeLabel, decodeLadder, lanLadder, orderLadder, rememberStep, rememberedStep, sameStep, undecodableMessage, type Profile, type VideoStep } from '../api/video-policy';
 
 /**
  * Live player over the add-on's WebSocket relay (go2rtc signalling behind it).
@@ -17,6 +17,10 @@ import { badgeLabel, decodeLadder, undecodableMessage, type Profile, type VideoS
  * frame in time moves on to the next one - announces a fallback on the picture, shows a `main·WebRTC` badge, and ends
  * with the "cannot be decoded over WebRTC" message when no step is left. `preferred` is the profile the plan was built
  * for (the one the viewer asked for).
+ *
+ * 0.1.148 (LAN / Ingress, no plan): a live camera player walks `lanLadder(profile, mode, autoProfile)` the same way -
+ * a WebRTC step that connects but decodes nothing moves on (MSE on `auto`; the other profile only when `autoProfile`
+ * and a step proved the stream undecodable) - and remembers per camera the step that played (api/video-policy).
  */
 export type PlayerStatus = 'idle' | 'connecting' | 'playing' | 'ended' | 'error';
 
@@ -83,6 +87,14 @@ export class SwLivePlayer extends LitElement {
   @property() preferred: Profile | '' = '';
   /** CR-008 review M2: the GOP per profile in ms when the registry knows it (`main:2000,sub:2500`, api/video-policy). */
   @property() gop = '';
+  /** LAN / Ingress: the profile is not the viewer's own choice (the wall's default quality) - a stream proven
+   * undecodable may fall back to the other profile. Never set where the viewer picked the profile. */
+  @property({ type: Boolean }) autoProfile = false;
+  /** LAN / Ingress fallback chain of a live camera (no plan) and the step being tried */
+  private chain: VideoStep[] = [];
+  private chainIndex = 0;
+  /** chain[0] is a remembered step (not the chain's own first): forgotten when it fails */
+  private chainRemembered = false;
   /** True once fragments were dropped because the look-ahead buffer was full: the media after the buffer is gone. */
   stale = false;
   @state() status: PlayerStatus = 'idle';
@@ -301,7 +313,7 @@ export class SwLivePlayer extends LitElement {
 
   /** The first render (properties set) and every later change of camera/profile/mode/active (re)connects. */
   protected updated(changed: Map<string, unknown>) {
-    if (changed.has('active') || changed.has('cameraId') || changed.has('livePath') || changed.has('profile') || changed.has('mode') || changed.has('wsUrl') || changed.has('plan') || changed.has('preferred')) {
+    if (changed.has('active') || changed.has('cameraId') || changed.has('livePath') || changed.has('profile') || changed.has('mode') || changed.has('wsUrl') || changed.has('plan') || changed.has('preferred') || changed.has('autoProfile')) {
       if (!this.active || (!this.cameraId && !this.wsUrl && !this.livePath)) this.disconnect();
       else this.reconnect();
     }
@@ -371,7 +383,60 @@ export class SwLivePlayer extends LitElement {
     this.disconnect();
     this.step = 0;
     this.decodeFailed = false;
+    this.buildChain();
     this.connect();
+  }
+
+  /** LAN / Ingress: the fallback chain of a live catalogue camera, a remembered working step first. */
+  private buildChain() {
+    this.chainIndex = 0;
+    this.chainRemembered = false;
+    if (this.laddered || this.wsUrl || !this.cameraId) {
+      this.chain = [];
+      return;
+    }
+    const natural = lanLadder(this.profile, this.mode, this.autoProfile);
+    const remembered = rememberedStep(this.cameraId, this.profile, this.mode);
+    this.chain = orderLadder(natural, remembered);
+    this.chainRemembered = !!remembered && sameStep(this.chain[0], remembered) && !sameStep(natural[0], remembered);
+  }
+
+  /** A LAN / Ingress chain is in force (live catalogue camera, no remote plan). */
+  get lanChained(): boolean {
+    return !this.laddered && !this.wsUrl && !!this.cameraId && this.chain.length > 0;
+  }
+
+  /** The LAN chain step being played or tried. */
+  get lanStep(): VideoStep | null {
+    return this.lanChained ? (this.chain[this.chainIndex] ?? null) : null;
+  }
+
+  /** Another step of the LAN chain is left after the current one. */
+  private hasChainStep(): boolean {
+    return this.lanChained && this.chainIndex + 1 < this.chain.length;
+  }
+
+  /** The current LAN step failed before its first frame: the next allowed step, or the end of the chain. */
+  private chainNext(reason: string, decode = false) {
+    if (decode) this.decodeFailed = true;
+    if (this.chainRemembered && this.chainIndex === 0) rememberStep(this.cameraId, this.profile, this.mode, null);
+    this.chainRemembered = false;
+    for (let j = this.chainIndex + 1; j < this.chain.length; j++) {
+      // the other profile only once a step proved the stream undecodable - not after a mere connection failure
+      if (this.chain[j].profile === this.profile || this.decodeFailed) {
+        this.chainIndex = j;
+        this.connect(); // a fresh socket: go2rtc must not keep the dead consumer of the old one
+        return;
+      }
+    }
+    const message = this.decodeFailed && this.mode === 'webrtc' ? 'WebRTC התחבר אך הדפדפן לא מפענח את הזרם הזה — בחר MSE או אוטומטי' : reason;
+    this.fail(message, !this.decodeFailed); // undecodable everywhere: retrying the same chain cannot help
+  }
+
+  /** An MSE step failed before its first frame: the next LAN step, else the error (plans and playback: unchanged). */
+  private mseFailed(reason: string, decode = false) {
+    if (this.lanChained && this.status !== 'playing') this.chainNext(reason, decode);
+    else this.fail(reason);
   }
 
   /** CR-008 D7: a remote plan is in force (live video only; recorded playback keeps its own MSE socket). */
@@ -390,7 +455,7 @@ export class SwLivePlayer extends LitElement {
 
   /** The profile the socket opens: the current step's under a plan, else the `profile` property. */
   get effectiveProfile(): Profile {
-    return this.currentStep?.profile ?? this.profile;
+    return this.currentStep?.profile ?? this.lanStep?.profile ?? this.profile;
   }
 
   /** Public: open the stream. `preferMse` is set internally after a WebRTC failure in auto mode. */
@@ -408,7 +473,7 @@ export class SwLivePlayer extends LitElement {
     this.transport = '';
     this.triedWebrtc = preferMse;
     this.lastPreferMse = preferMse;
-    const step = this.currentStep;
+    const step = this.currentStep ?? this.lanStep;
     let ws: WebSocket;
     try {
       ws = new WebSocket(this.wsUrl || (this.livePath && !this.cameraId ? relayWsUrl(this.livePath) : liveWsUrl(this.cameraId, this.effectiveProfile)));
@@ -442,7 +507,7 @@ export class SwLivePlayer extends LitElement {
         return;
       }
       // go2rtc drops the socket when its WebRTC consumer dies: in auto mode that is a transport failure, not the end.
-      if ((this.mode === 'auto' || this.laddered) && this.transport === 'webrtc' && this.status !== 'playing' && ev.code < 4000) {
+      if ((this.mode === 'auto' || this.laddered || this.hasChainStep()) && this.transport === 'webrtc' && this.status !== 'playing' && ev.code < 4000) {
         this.webrtcFailed('WebRTC נכשל');
         return;
       }
@@ -528,6 +593,10 @@ export class SwLivePlayer extends LitElement {
           this.step = 0; // a plan starts over: WebRTC first again whenever the connection allows
           this.decodeFailed = false;
         }
+        if (this.lanChained) {
+          this.buildChain(); // a LAN chain starts over too (a remembered step first again)
+          this.decodeFailed = false;
+        }
         this.connect(this.lastPreferMse);
       }, delay);
     }
@@ -603,7 +672,7 @@ export class SwLivePlayer extends LitElement {
       return;
     }
     window.clearTimeout(this.timer);
-    if (this.laddered) {
+    if (this.laddered || this.lanChained) {
       this.watchFirstFrame(gen, pc, started);
       return;
     }
@@ -633,6 +702,9 @@ export class SwLivePlayer extends LitElement {
    */
   private watchFirstFrame(gen: number, pc: RTCPeerConnection, started: number) {
     this.stopFirstFrameWatch?.();
+    // LAN / Ingress keeps its shorter first-frame bound (no mobile link to wait for); a stream whose bytes arrive
+    // undecoded is judged by the decode grace on both channels
+    const cap = this.laddered ? FIRST_FRAME_CAP_MS : WEBRTC_TIMEOUT_MS;
     let firstBytesAt = 0;
     let lastTickAt = performance.now();
     // re-review: a background tab defers play() and throttles timers - no judgement while hidden, and a fresh clock
@@ -701,11 +773,13 @@ export class SwLivePlayer extends LitElement {
         this.webrtcFailed('WebRTC התחבר אך הדפדפן לא מפענח את הזרם', true);
         return;
       }
-      if (now - started >= FIRST_FRAME_CAP_MS && !(bytes > 0 && decoded === 0)) {
+      if (now - started >= cap && !(bytes > 0 && decoded === 0)) {
         stop();
         // no counter and nothing rendered although bytes arrive (or no statistics while connected): the cap calls it
-        // a decode failure; no bytes at all: a connection failure
-        const decode = (bytes > 0 && decoded < 0) || (bytes < 0 && (pc.connectionState === 'connected' || this.webrtcConnected));
+        // a decode failure; no bytes at all: a connection failure. LAN keeps its earlier rule: connected at the cap
+        // with nothing rendered is a decode failure.
+        const connected = pc.connectionState === 'connected' || this.webrtcConnected;
+        const decode = (bytes > 0 && decoded < 0) || (bytes < 0 && connected) || (!this.laddered && connected);
         this.webrtcFailed(decode ? 'WebRTC התחבר אך הדפדפן לא מפענח את הזרם' : 'WebRTC לא התחבר (ייתכן ש-UDP חסום)', decode);
         return;
       }
@@ -755,6 +829,10 @@ export class SwLivePlayer extends LitElement {
       this.nextStep(reason, decode);
       return;
     }
+    if (this.lanChained) {
+      this.chainNext(reason, decode);
+      return;
+    }
     if (this.mode === 'auto' && !this.triedWebrtc) {
       this.fail(reason);
       return;
@@ -792,7 +870,7 @@ export class SwLivePlayer extends LitElement {
       if (this.pendingMime) this.openSourceBuffer(this.pendingMime);
     }, { once: true });
     this.timer = window.setTimeout(() => {
-      if (this.status !== 'playing') this.fail(`לא התקבל וידאו (${this.mseTrace()})`);
+      if (this.status !== 'playing') this.mseFailed(`לא התקבל וידאו (${this.mseTrace()})`);
     }, MSE_TIMEOUT_MS);
   }
 
@@ -816,7 +894,7 @@ export class SwLivePlayer extends LitElement {
       void this.video.play().catch(() => undefined);
       this.flush();
     } catch {
-      this.fail('הדפדפן לא תומך ב־codec של המצלמה');
+      this.mseFailed('הדפדפן לא תומך ב־codec של המצלמה', true);
     }
   }
 
@@ -844,7 +922,12 @@ export class SwLivePlayer extends LitElement {
       case 'error':
         if (this.laddered && msg.value === 'upstream_unavailable') this.fail(VIDEO_SERVER_DOWN); // no step can help; retried later
         else if (this.laddered && this.transport === 'webrtc' && msg.value !== 'access_lost') this.webrtcFailed('WebRTC נכשל'); // never a raw code on screen
-        else if (!this.laddered && this.transport === 'webrtc' && this.mode === 'auto') this.webrtcFailed(msg.value ?? 'WebRTC');
+        else if (!this.laddered && this.transport === 'webrtc' && this.mode === 'auto') this.webrtcFailed(msg.value ?? 'WebRTC', msg.value !== 'upstream_unavailable' && msg.value !== 'access_lost');
+        // a LAN chain with a step left: go2rtc refused this stream (e.g. no common codec) - the next step, never a loop
+        else if (this.hasChainStep() && this.status !== 'playing' && msg.value !== 'upstream_unavailable' && msg.value !== 'access_lost') {
+          if (this.transport === 'webrtc') this.webrtcFailed(`שגיאת זרם: ${msg.value ?? ''}`, true);
+          else this.mseFailed(`שגיאת זרם: ${msg.value ?? ''}`, true);
+        }
         else if (this.laddered && msg.value !== 'access_lost') this.fail(`שגיאה בזרם הווידאו`);
         else this.fail(msg.value === 'upstream_unavailable' ? 'go2rtc לא זמין' : msg.value === 'access_lost' ? 'ההרשאה לצפייה במצלמה הזו הוסרה' : `שגיאת זרם: ${msg.value ?? ''}`, msg.value !== 'access_lost');
         break;
@@ -917,6 +1000,12 @@ export class SwLivePlayer extends LitElement {
     this.needsTap = false;
     this.attempts = 0;
     this.status = 'playing';
+    if (this.lanChained) {
+      // remember the step that plays when it is not the chain's own first (and forget the camera when that one plays)
+      const step = this.chain[this.chainIndex];
+      const first = lanLadder(this.profile, this.mode, this.autoProfile)[0];
+      rememberStep(this.cameraId, this.profile, this.mode, step && !sameStep(step, first) ? step : null);
+    }
     this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'playing', transport: this.transport, profile: this.effectiveProfile }, bubbles: true, composed: true }));
   }
 
