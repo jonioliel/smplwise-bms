@@ -31,6 +31,8 @@
  * `host` defaults to `window`; the unit spec passes a fake window with a manual clock.
  */
 
+import { cleanWiskeyView, type WiskeyView } from './embed-view';
+
 /** The WisKey panel's address on the Home Assistant origin (hikvision_intercom panel.py `frontend_url_path`). */
 export const WISKEY_PANEL_PATH = '/hikvision-intercom';
 /** The only contract version this connector speaks. */
@@ -95,6 +97,9 @@ export interface WiskeyConnectorOptions {
   /** Extra query parameters for Home Assistant's frontend on every frame address (not WisKey's; e.g. `external_auth=1`
    * for the experimental Companion-app relay, `companion-bridge.ts`). */
   extraParams?: Readonly<Record<string, string>>;
+  /** WisKey rc.37 `density` / `wall` start choices for every frame address (embed-view.ts); a function is asked again
+   * on every `refresh()`, so a reload picks up the newest choice. Values WisKey does not accept are left out. */
+  view?: WiskeyView | (() => WiskeyView);
   onReady?(catalog: WiskeyCatalog): void;
   onLocation?(location: WiskeyLocation): void;
   onTitle?(text: string): void;
@@ -121,13 +126,23 @@ export interface WiskeyConnector {
   readonly confirmed: WiskeyLocation;
 }
 
-/** The panel address on `origin`: `/hikvision-intercom?embed=1&tab=<tab>[&tool=<tool>]`; `embed: false` = the normal
- * (top-level) deep link, which WisKey rc.19 honours as well. */
-export function wiskeyPanelUrl(origin: string, location: WiskeyTarget, embed = true, extra?: Readonly<Record<string, string>>): string {
+/** The panel address on `origin`: `/hikvision-intercom?embed=1&chrome=none&tab=<tab>[&tool=<tool>][&density=<n>][&wall=<n>]`.
+ * `embed: false` = the normal (top-level) deep link, which WisKey rc.19 honours as well: no `chrome`, no `density`, no
+ * `wall`. With `embed`, `chrome=none` is always sent (WisKey rc.37: the frame is transparent with zero main padding; an
+ * older WisKey ignores it) and so are the `density` / `wall` start choices of `view`, when WisKey accepts them. */
+export function wiskeyPanelUrl(origin: string, location: WiskeyTarget, embed = true, extra?: Readonly<Record<string, string>>, view?: Partial<Record<keyof WiskeyView, unknown>> | null): string {
   const url = new URL(WISKEY_PANEL_PATH, origin);
-  if (embed) url.searchParams.set('embed', '1');
+  if (embed) {
+    url.searchParams.set('embed', '1');
+    url.searchParams.set('chrome', 'none');
+  }
   url.searchParams.set('tab', location.tab);
   if (location.tool) url.searchParams.set('tool', location.tool);
+  if (embed) {
+    const v = cleanWiskeyView(view);
+    if (v.density) url.searchParams.set('density', v.density);
+    if (v.wall) url.searchParams.set('wall', v.wall);
+  }
   for (const [k, v] of Object.entries(extra ?? {})) url.searchParams.set(k, v);
   return url.href;
 }
@@ -268,7 +283,7 @@ export function attachWiskey(iframe: WiskeyFrame, options: WiskeyConnectorOption
     host.clearTimeout(timer);
     catalog = null;
     loads = 0;
-    iframe.src = wiskeyPanelUrl(origin, confirmed, true, options.extraParams);
+    iframe.src = wiskeyPanelUrl(origin, confirmed, true, options.extraParams, typeof options.view === 'function' ? options.view() : options.view);
   }
 
   // Listener ordering is intentional: the child may initialise before the iframe's load event.

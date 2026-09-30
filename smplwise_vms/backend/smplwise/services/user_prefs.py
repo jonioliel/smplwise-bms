@@ -37,6 +37,32 @@ VALIDATORS: dict[str, Callable[[Any], Any]] = {"nav.order": normalize_nav_order,
 DEFAULTS: dict[str, Any] = {"nav.order": list(NAV_TAB_IDS), "ui.nav_size": dict(nav_size.DEFAULT)}
 
 
+def _choice(name: str, allowed: tuple[str, ...]) -> Callable[[Any], str]:
+    """A validator for a small closed set of values, given as a string or a whole number ("12" and 12 are the same)."""
+
+    def validate(value: Any) -> str:
+        if isinstance(value, bool) or not isinstance(value, (int, str)):
+            raise ValueError(f"{name} must be one of {', '.join(allowed)}")
+        text = str(value).strip()
+        if text not in allowed:
+            raise ValueError(f"{name} must be one of {', '.join(allowed)}")
+        return text
+
+    return validate
+
+
+# WisKey (the embedded intercom panel) start choices, WisKey rc.37: the overview's card count and the camera wall's stream
+# budget. They only become the `density` / `wall` query parameters of the panel's address (frontend/src/wiskey/), so
+# WisKey stores nothing itself. No stored value (null) = follow the installation's default (`ui.wiskey_density` /
+# `ui.wiskey_wall`); "auto" for the density is an explicit "let WisKey size the overview by itself".
+WISKEY_DENSITIES: tuple[str, ...] = ("auto", "4", "6", "8", "9", "12")
+WISKEY_WALLS: tuple[str, ...] = ("4", "9", "12")
+VALIDATORS["wiskey.density"] = _choice("wiskey.density", WISKEY_DENSITIES)
+VALIDATORS["wiskey.wall"] = _choice("wiskey.wall", WISKEY_WALLS)
+DEFAULTS["wiskey.density"] = None
+DEFAULTS["wiskey.wall"] = None
+
+
 def get_prefs(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
     """Every known key, the stored value (re-normalized: the known ids may have grown since) or the default."""
     rows = {r["key"]: r for r in conn.execute("SELECT key, value_json, updated_at FROM user_prefs WHERE user_id = ?", (user_id,)).fetchall()}
