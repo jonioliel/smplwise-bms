@@ -1317,6 +1317,8 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
 
   test('6a: הגדרות › חשמל והתקנים switches the device screens to the glass style - the attribute and the glass material on the building, the area and the bulk dialog, the shell untouched; RTL first, mirrored for an LTR viewer', async ({ page, request }, testInfo) => {
     await seed(request);
+    // home redesign: the building buttons are asserted in the toolbar row, so the quick-actions card (which carries them) is off here
+    await request.patch('/api/v1/settings', { data: { 'home.widgets': { quick: { on: false } } } });
     await devicesSettings(request, DEVICES_DEFAULTS);
     const project = testInfo.project.name;
     const posted: string[] = [];
@@ -1444,6 +1446,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       }
       await cdp.send('Emulation.setEmulatedMedia', { features: [] });
     } finally {
+      await request.patch('/api/v1/settings', { data: { 'home.widgets': {} } }).catch(() => {});
       await devicesSettings(request, DEVICES_DEFAULTS);
     }
   });
