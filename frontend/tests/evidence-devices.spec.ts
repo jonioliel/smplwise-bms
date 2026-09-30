@@ -20,7 +20,7 @@ const HREF = '#/devices/building';
 // Home redesign follow-up: the building screen's cards | tiles choice is a compact item of the user menu ("תצוגה"), not a row of the page.
 const MENU = 'sw-app sw-user-menu';
 async function openViewMenu(page: Page) {
-  await page.locator('sw-app [data-profile-menu], sw-app [data-nav-me]').first().click();
+  await page.locator('sw-app [data-profile-menu]:visible, sw-app [data-nav-me]:visible').first().click(); // the rail's button is hidden on a phone, the bottom bar's is not
   await expect(page.locator(`${MENU} [data-user-menu]`)).toBeVisible();
 }
 async function closeMenu(page: Page) {
@@ -608,8 +608,12 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await lobby.click();
     await expect(page.locator('devices-area sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
-    // the explicit way back (sw-page backHref) exists on the phone, where the browser's own back is not at hand
-    await expect(page.locator('devices-area sw-page')).toHaveAttribute('backHref', '/devices/building');
+    // the explicit way back exists on the phone, where the browser's own back is not at hand: since the area redesign it is the
+    // header navigation bar's home crumb (an icon on the phone), not sw-page's backHref
+    const home = page.locator('devices-area devices-area-nav [data-crumb="home"]');
+    await expect(home).toBeVisible();
+    await home.click();
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe(HREF);
   });
 
   // ---------------------------------------------------------------- CR-007 slice 2: single-entity control
@@ -1233,8 +1237,9 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     const group = screen.locator('[data-cover-group]');
     await expect(group).toBeVisible({ timeout: 30000 });
     const dialog = screen.locator('devices-bulk-dialog sw-dialog[data-bulk-dialog="confirm"]');
-    // open all: the office's one closed cover
-    await group.locator('sw-button[data-cover-group-kind="covers_open"]').click();
+    // open all: the office's one closed cover. Area redesign (2026-09-30): "פתח" / "סגור" are the section header's bulk buttons now
+    // (the group control under it keeps stop-all and the position for all), and they open the same confirmation dialog
+    await screen.locator('[data-section-bulk="covers"] sw-button[data-section-bulk-kind="covers_open"]').click();
     await expect(dialog.locator('[data-bulk-count]')).toHaveAttribute('data-bulk-count', '1', { timeout: 10000 });
     await dialog.locator('sw-button[data-bulk-confirm]').click();
     await expect(screen.locator('devices-bulk-dialog [data-bulk-result="ok"]')).toContainText('בוצע', { timeout: 30000 });
@@ -1518,7 +1523,9 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       const area = p.locator('devices-area');
       await expect(area.locator('sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
       await expect(area.locator('sw-card[data-card="sensors"]')).toHaveCount(0);
-      await expect(area.locator('sw-card[data-card="security"]')).toHaveCount(1);
+      // the security state is a read-only strip above the sections (area redesign 2026-09-30), not a card, until the owner lays the screen out
+      await expect(area.locator('[data-security-strip]')).toHaveCount(1);
+      await expect(area.locator('sw-card[data-card="security"]')).toHaveCount(0);
       await expect(area).toHaveAttribute('data-devices-density', 'compact');
       expect(await area.locator('sw-card[data-card="lighting"]').evaluate((e) => parseFloat(getComputedStyle(e).paddingTop))).toBe(10);
     } finally {
@@ -1538,10 +1545,11 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       const p = await ctx.newPage();
       await open(p, '/live', 'a');
       await expect(p.locator(`sw-app a[href="${HREF}"]`).first()).toBeAttached({ timeout: 30000 });
-      // the settings entry needs system.configure: CR-013 moved it into the user menu, where a viewer has none
+      // the settings entry lives in the user menu (CR-013). A viewer holds alarm.view (since 2026-09-30), which opens exactly one
+      // settings page - the alarm page of הגדרות › אבטחה (the section's address) - so the entry is offered but leads only there
       await p.locator(testInfo.project.name === 'mobile' ? 'sw-app [data-nav-me]' : 'sw-app [data-profile-menu]').click();
       await expect(p.locator('sw-app sw-user-menu [data-user-menu]')).toBeVisible();
-      await expect(p.locator('sw-app sw-user-menu [data-menu-settings]')).toHaveCount(0);
+      await expect(p.locator('sw-app sw-user-menu [data-menu-settings]')).toHaveAttribute('href', /^#\/system\/security(\/alarm)?$/);
       await expect(p.locator('sw-app nav a[href^="#/system/"]')).toHaveCount(0);
       await p.keyboard.press('Escape');
       // reached directly: the section shows the installation's choices, every control disabled, no save

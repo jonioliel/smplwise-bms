@@ -305,6 +305,11 @@ test.describe('overview tiles against the devices fixture backend', () => {
 
   test('re-review M2 / M3: a running lock-all cannot be closed away; the alarm link lands on the alarm route (a tile click, not a deep link)', async ({ page, request }) => {
     await seed(request);
+    // home redesign (0.1.148): while the home screen's alarm card is on, the alarm status is that read-only card and NOT also a
+    // summary tile; the tile (and its panel with the alarm link) is what the screen shows when the card is off
+    const cfg = (await (await request.get('/api/v1/settings')).json()).settings['home.widgets'];
+    cfg.alarm.on = false;
+    expect((await request.patch('/api/v1/settings', { data: { 'home.widgets': cfg } })).status()).toBe(200);
     await open(page, '/devices/building');
     await page.locator('devices-building sw-kpi[data-tile-kind="alarm"] button.hit').click({ timeout: 30000 });
     const panel = page.locator('devices-building devices-tiles-panel');
@@ -325,6 +330,7 @@ test.describe('overview tiles against the devices fixture backend', () => {
     await expect(panel.locator('sw-dialog[data-lock-all-dialog="done"]')).toHaveCount(1, { timeout: 15000 });
     await panel.locator('sw-button[data-lock-all-close]').click();
     await expect(panel.locator('sw-dialog[data-lock-all-dialog="closed"]')).toHaveCount(1);
+    await request.patch('/api/v1/settings', { data: { 'home.widgets': {} } }); // back to the default widgets (the alarm card on)
     await seed(request);
   });
 

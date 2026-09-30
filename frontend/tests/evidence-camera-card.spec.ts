@@ -166,7 +166,13 @@ async function seed(request: APIRequestContext) {
     { entity_id: E_GARDEN, id: 'reg-cc-garden', platform: 'generic', device_id: 'dev-garden', area_id: AREA, name: 'מצלמת גינה' },
     { entity_id: 'light.cc_hall', id: 'reg-cc-light', platform: 'demo', device_id: null, area_id: AREA, name: 'תאורת אולם' },
   ];
-  const reg = await request.post('/api/v1/ha/dev/registry', { data: { entities, devices: [], areas: [{ area_id: AREA, name: 'אולם מצלמות', floor_id: 'cc_ground' }], floors: [{ floor_id: 'cc_ground', name: 'קרקע', level: 0 }] } });
+  const areas = [{ area_id: AREA, name: 'אולם מצלמות', floor_id: 'cc_ground' }];
+  const floors = [{ floor_id: 'cc_ground', name: 'קרקע', level: 0 }];
+  // the dev registry seed only upserts: a camera an earlier spec file left on the shared fixture backend (e.g. the area
+  // redesign's camera.ar2_cam) would be one more picker option, so disable the foreign cameras first (as HA's disabled_by)
+  const foreign = ((await (await request.get('/api/v1/ha/entities?domain=camera&limit=2000')).json()).entities as { entity_id: string }[]).map((e) => e.entity_id).filter((id) => ![E_MAIN, E_SUB, E_GARDEN].includes(id));
+  if (foreign.length) expect((await request.post('/api/v1/ha/dev/registry', { data: { entities: foreign.map((entity_id) => ({ entity_id, area_id: null, disabled_by: 'user' })), devices: [], areas, floors } })).status()).toBe(200);
+  const reg = await request.post('/api/v1/ha/dev/registry', { data: { entities, devices: [], areas, floors } });
   expect(reg.status()).toBe(200);
   const st = await request.post('/api/v1/ha/dev/states', {
     data: {
