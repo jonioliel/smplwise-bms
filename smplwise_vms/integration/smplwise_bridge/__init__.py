@@ -189,7 +189,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if not data.get("entity_id"):
             return {"ok": False, "error": "entity_required"}
         # 0.3.0 (CR-014 review): a schedule's own switch is never operated through here (only the add-on refused it before)
-        blocked = execute_refusal(hass, data["entity_id"])
+        blocked = execute_refusal(hass, data)
         if blocked:
             _LOGGER.warning("smplwise_bridge.execute %s.%s refused: %s", domain, service, blocked)
             return {"ok": False, "error": blocked}

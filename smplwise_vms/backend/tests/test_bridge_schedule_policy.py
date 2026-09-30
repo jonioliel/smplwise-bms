@@ -79,12 +79,12 @@ def test_unnamed_schedule_is_editable_but_not_creatable():
     p = shabbat_cooling()
     p["name"] = ""
     assert refused(policy.validate_payload, p, op="add").path == "payload.name"
-    assert policy.validate_payload({"name": ""}, op="edit") == []
+    assert policy.validate_payload({"start_date": None, "end_date": None, "name": ""}, op="edit") == []
 
 
 def test_edit_takes_any_non_empty_subset_and_add_needs_the_full_shape():
-    assert policy.validate_payload({"weekdays": ["mon", "tue"]}, op="edit") == []
-    assert policy.validate_payload({"repeat_type": "single", "end_date": "2027-01-01"}, op="edit") == []
+    assert policy.validate_payload({"start_date": None, "end_date": None, "weekdays": ["mon", "tue"]}, op="edit") == []
+    assert policy.validate_payload({"repeat_type": "single", "start_date": None, "end_date": "2027-01-01"}, op="edit") == []
     assert refused(policy.validate_payload, {}, op="edit").path == "payload"
     for missing in ("weekdays", "timeslots", "repeat_type", "name"):
         p = shabbat_cooling()
@@ -94,9 +94,9 @@ def test_edit_takes_any_non_empty_subset_and_add_needs_the_full_shape():
 
 def test_optional_slot_keys_may_be_omitted_the_stored_form_is_accepted_either_way():
     s = {"start": "07:00:00", "actions": [act("switch.turn_on", "switch.sockets")]}  # no stop / conditions / condition_type / track
-    assert len(policy.validate_payload({"timeslots": [s]}, op="edit")) == 1
+    assert len(policy.validate_payload({"start_date": None, "end_date": None, "timeslots": [s]}, op="edit")) == 1
     s2 = {"start": "07:00:00", "stop": None, "conditions": [], "condition_type": None, "track_conditions": False, "actions": [act("switch.turn_on", "switch.sockets")]}
-    assert len(policy.validate_payload({"timeslots": [s2]}, op="edit")) == 1
+    assert len(policy.validate_payload({"start_date": None, "end_date": None, "timeslots": [s2]}, op="edit")) == 1
 
 
 # ---------------------------------------------------------------- closed schemas
@@ -125,7 +125,7 @@ def test_message_level_unknown_keys_and_ops():
 
 
 def test_message_field_rules_per_op():
-    assert policy.validate_message(msg("edit", payload={"weekdays": ["daily"]})) == []
+    assert policy.validate_message(msg("edit", payload={"start_date": None, "end_date": None, "weekdays": ["daily"]})) == []
     assert policy.validate_message(msg("remove")) == [] and policy.validate_message(msg("enable")) == [] and policy.validate_message(msg("disable")) == []
     assert policy.validate_message(msg("copy", name="Copy of it")) == []
     assert refused(policy.validate_message, msg("copy")).path == "name"
@@ -141,7 +141,7 @@ def test_message_field_rules_per_op():
     del m["schedule_id"]
     assert refused(policy.validate_message, m).path == "schedule_id"
     assert refused(policy.validate_message, msg("add", schedule_id="3f9a1c")).path == "schedule_id", "add names no existing schedule"
-    assert refused(policy.validate_message, msg("edit", payload={"weekdays": ["daily"]}, sensitive="yes")).path == "sensitive"
+    assert refused(policy.validate_message, msg("edit", payload={"start_date": None, "end_date": None, "weekdays": ["daily"]}, sensitive="yes")).path == "sensitive"
 
 
 # ---------------------------------------------------------------- the allow-list and the arguments
@@ -253,9 +253,9 @@ def test_sensitive_actions_never_take_a_code_or_pin(service, entity, key):
 # ---------------------------------------------------------------- times, days, dates, tags, caps, conditions
 
 
-@pytest.mark.parametrize("field,value", [("start", "6:00"), ("start", "06:00"), ("start", "24:00:00"), ("start", "07:60:00"), ("start", "sunset"),
+@pytest.mark.parametrize("field,value", [("start", "6:00"), ("start", "24:00:00"), ("start", "07:60:00"), ("start", "sunset"),
                                          ("start", "noon"), ("start", "sunset+25:00:00"), ("start", "sunset*00:30:00"), ("start", 600), ("start", None),
-                                         ("stop", "06:00"), ("stop", "later")])
+                                         ("stop", "6:00"), ("stop", "later"), ("start", "sunset+00:30"), ("start", "sunset+30")])
 def test_times_must_be_in_the_stored_form(field, value):
     p = shabbat_cooling()
     p["timeslots"][0][field] = value
@@ -395,3 +395,63 @@ def test_policy_module_is_dependency_free():
         elif isinstance(node, ast.ImportFrom):
             raise AssertionError("schedule_policy.py must not import its siblings")
     assert imported <= set(sys.stdlib_module_names) | {"__future__"}, imported - set(sys.stdlib_module_names)
+
+
+# ---------------------------------------------------------------- phase-0 write verification (real component, lab)
+
+
+def test_an_edit_must_name_both_dates_or_the_component_wipes_them():
+    """`scheduler.edit` resets start_date / end_date to null when they are omitted: a name-only edit would erase a season."""
+    for payload in ({"name": "x"}, {"start_date": None, "name": "x"}, {"end_date": "2027-01-01", "name": "x"}, {"weekdays": ["mon"]}, {"timeslots": shabbat_cooling()["timeslots"]}):
+        e = refused(policy.validate_payload, payload, op="edit")
+        assert e.code == "dates_required" and e.path in ("payload.start_date", "payload.end_date"), payload
+    assert refused(policy.validate_payload, {"name": "x", "end_date": None}, op="edit").path == "payload.start_date"
+    assert refused(policy.validate_payload, {"name": "x", "start_date": None}, op="edit").path == "payload.end_date"
+    # both named: a value keeps, null clears - both are the caller's explicit statement
+    assert policy.validate_payload({"name": "x", "start_date": "2026-10-31", "end_date": "2027-03-31"}, op="edit") == []
+    assert policy.validate_payload({"name": "x", "start_date": None, "end_date": None}, op="edit") == []
+    e = refused(policy.validate_message, msg("edit", payload={"name": "x"}))
+    assert e.code == "dates_required"
+    # add takes them or leaves them out (the component defaults to none)
+    assert len(policy.validate_payload(shabbat_cooling(), op="add")) == 5
+    p = shabbat_cooling()
+    p["start_date"] = p["end_date"] = None
+    policy.validate_payload(p, op="add")
+
+
+def test_real_write_forms_are_accepted_without_any_null():
+    slot_omitting_everything = {"start": "03:15:00", "actions": [act("light.turn_on", "light.hall", {"brightness": 51})]}
+    p = {"weekdays": ["daily"], "repeat_type": "repeat", "name": "n", "timeslots": [slot_omitting_everything, {"start": "03:15", "stop": "03:45", "actions": [act("light.turn_off", "light.hall")]},
+                                                                                   {"start": "sunset-00:15:00", "stop": "sunrise-00:15:00", "actions": [act("light.turn_off", "light.hall")]},
+                                                                                   {"start": "22:00:00", "stop": "02:00:00", "actions": [act("light.turn_off", "light.hall")]},
+                                                                                   {"start": "05:00:00", "condition_type": "or", "actions": [act("light.turn_off", "light.hall")]}]}
+    assert len(policy.validate_payload(p, op="add")) == 5
+    assert policy.validate_message(msg("run", time="07:30")) == [] and policy.validate_message(msg("run", time="07:30:00")) == []
+    assert refused(policy.validate_message, msg("run", time="sunset+00:30:00")).path == "time"
+    assert refused(policy.validate_message, msg("run", time="7:30")).path == "time"
+    for bare in ("sunset", "sunrise", "sunset+30", "sunset+00:30"):
+        q = shabbat_cooling()
+        q["timeslots"][0]["start"] = bare
+        assert refused(policy.validate_payload, q, op="add").path == "timeslots[0].start", bare
+
+
+def test_normalize_omits_what_the_component_rejects_and_forwards_the_rest_exactly():
+    p = shabbat_cooling()
+    p["start_date"], p["end_date"] = None, None
+    p["timeslots"][0]["stop"] = None
+    p["timeslots"][1]["conditions"], p["timeslots"][1]["condition_type"], p["timeslots"][1]["track_conditions"] = [], None, False
+    p["timeslots"][2]["conditions"], p["timeslots"][2]["condition_type"], p["timeslots"][2]["track_conditions"] = [], "or", False
+    p["timeslots"][3]["track_conditions"] = True  # with conditions: kept as sent
+    before = copy.deepcopy(p)
+    out = policy.normalize_payload(p)
+    assert p == before, "the input is not mutated"
+    s = out["timeslots"]
+    assert "stop" not in s[0] and s[0]["conditions"] == before["timeslots"][0]["conditions"] and s[0]["start"] == "00:00:00"
+    assert set(s[1]) == {"start", "stop", "actions"}, "no conditions: conditions, condition_type and track_conditions are all omitted"
+    assert set(s[2]) == {"start", "stop", "actions", "condition_type"}, "condition_type 'or' without conditions is a form the component accepts"
+    assert s[3]["track_conditions"] is True and s[3]["conditions"] and s[3]["condition_type"] == "or"
+    assert out["start_date"] is None and out["end_date"] is None, "null dates are forwarded as sent (null clears on an edit)"
+    assert {k: v for k, v in out.items() if k != "timeslots"} == {k: v for k, v in before.items() if k != "timeslots"}
+    assert s[4] == before["timeslots"][4]
+    policy.validate_payload(out, op="add")
+    assert policy.normalize_payload({"name": "x", "start_date": None, "end_date": None}) == {"name": "x", "start_date": None, "end_date": None}
