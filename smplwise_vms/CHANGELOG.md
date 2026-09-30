@@ -6,7 +6,7 @@
   indicator (snowflake / flame / fan by the dominant mode, dimmed when off, optional temperature or mode, the number working when several) followed by
   the counters worth a glance, on one line; a phone shows three and collapses the rest into "+N". An unknown temperature is hidden, never a dash.
 - **Several A/C in one area**: "ממוצע" (default: mean of the running ones and their number) or "מוביל" (one unit's own temperature and mode; the unit is
-  chosen per area in the editor, else the first running one). **Open doors / windows and unlocked locks** show only while something is open / unlocked
+  chosen per area in the editor - also in the personal editor, from the areas the user can see - else the first running one). **Open doors / windows and unlocked locks** show only while something is open / unlocked
   ("רק כשפתוח", per item). The item order is free (arrows); a dashed line in the editor marks the three a phone shows.
 - **Editable** (הגדרות › חשמל והתקנים › "מה מוצג ליד שם האזור"): which items, in which order, what the A/C says, whether zero counters show, and the
   floor header's chips; new keys `devices.area_row` / `devices.floor_row`. A user with `screen.personalize` may choose their own (החשבון שלי › המסך שלי).

@@ -88,9 +88,9 @@ export function areaRowOf(raw: unknown): AreaRow {
   };
 }
 
-function leadOf(raw: unknown): Record<string, string> {
+function leadOf(raw: unknown, blank = false): Record<string, string> {
   const out: Record<string, string> = {};
-  if (raw && typeof raw === 'object') for (const [k, v] of Object.entries(raw as Record<string, unknown>)) if (typeof v === 'string' && v.startsWith('climate.')) out[k] = v;
+  if (raw && typeof raw === 'object') for (const [k, v] of Object.entries(raw as Record<string, unknown>)) if (typeof v === 'string' && (v.startsWith('climate.') || (blank && v === ''))) out[k] = v;
   return out;
 }
 
@@ -120,7 +120,7 @@ export function personalRowOf(raw: unknown): AreaRowPersonal {
   if (CLIMATE_DISPLAYS.includes(o.climate as ClimateDisplay)) out.climate = o.climate as ClimateDisplay;
   if (typeof o.show_empty === 'boolean') out.show_empty = o.show_empty;
   if (CLIMATE_MODES.includes(o.climate_mode as ClimateMode)) out.climate_mode = o.climate_mode as ClimateMode;
-  if (o.climate_lead && typeof o.climate_lead === 'object') out.climate_lead = leadOf(o.climate_lead);
+  if (o.climate_lead && typeof o.climate_lead === 'object') out.climate_lead = leadOf(o.climate_lead, true); // a personal "" = no leading unit here, over the installation's choice
   if (Array.isArray(o.only_active)) out.only_active = listOf(o.only_active, ACTIVE_ITEMS, []);
   if (Array.isArray(o.floor_items)) out.floor_items = listOf(o.floor_items, FLOOR_ITEMS, []);
   return out;
@@ -135,7 +135,7 @@ export function effectiveRows(area: AreaRow, floor: FloorRow, personal: AreaRowP
       climate: personal.climate ?? area.climate,
       show_empty: personal.show_empty ?? area.show_empty,
       climate_mode: personal.climate_mode ?? area.climate_mode,
-      climate_lead: personal.climate_lead ?? area.climate_lead,
+      climate_lead: { ...area.climate_lead, ...(personal.climate_lead ?? {}) }, // per area: the user's choice wins where they made one
       only_active: personal.only_active ?? area.only_active,
     },
     floor: { items: personal.floor_items ?? floor.items },
@@ -150,7 +150,13 @@ export function personalDiff(area: AreaRow, floor: FloorRow, baseArea: AreaRow, 
   if (area.climate !== baseArea.climate) out.climate = area.climate;
   if (area.show_empty !== baseArea.show_empty) out.show_empty = area.show_empty;
   if (area.climate_mode !== baseArea.climate_mode) out.climate_mode = area.climate_mode;
-  if (JSON.stringify(area.climate_lead) !== JSON.stringify(baseArea.climate_lead)) out.climate_lead = area.climate_lead;
+  // per area, only what differs from the installation's leads ("" = the user chose "first running" where the installation names a unit)
+  const lead: Record<string, string> = {};
+  for (const id of new Set([...Object.keys(area.climate_lead), ...Object.keys(baseArea.climate_lead)])) {
+    const mine = area.climate_lead[id] ?? '';
+    if (mine !== (baseArea.climate_lead[id] ?? '')) lead[id] = mine;
+  }
+  if (Object.keys(lead).length) out.climate_lead = lead;
   if (JSON.stringify([...area.only_active].sort()) !== JSON.stringify([...baseArea.only_active].sort())) out.only_active = area.only_active;
   if (JSON.stringify(floor.items) !== JSON.stringify(baseFloor.items)) out.floor_items = floor.items;
   return Object.keys(out).length ? out : null;

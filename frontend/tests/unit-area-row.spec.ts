@@ -168,6 +168,15 @@ test('the personal override lays over the installation key by key and stores onl
   expect(personalDiff({ ...base2, only_active: ['locks', 'openings'] }, FLOOR_ROW_DEFAULT, base2, FLOOR_ROW_DEFAULT)).toBeNull(); // the same set in another order is no change
   expect(effectiveRows(base2, FLOOR_ROW_DEFAULT, { climate_mode: 'lead', only_active: [] }).area).toMatchObject({ climate_mode: 'lead', only_active: [], items: base2.items });
   expect(personalRowOf({ climate_mode: 'lead', climate_lead: { a: 'climate.x', b: 'light.y' }, only_active: ['media', 'climate'] })).toEqual({ climate_mode: 'lead', climate_lead: { a: 'climate.x' }, only_active: ['media'] });
+  // personal leads merge per area over the installation's: the user's choice wins where they made one, "" = "first running"
+  const inst = { ...base2, climate_mode: 'lead' as const, climate_lead: { living: 'climate.a', bed: 'climate.b' } };
+  expect(effectiveRows(inst, FLOOR_ROW_DEFAULT, { climate_lead: { living: 'climate.c', bed: '' } }).area.climate_lead).toEqual({ living: 'climate.c', bed: '' });
+  expect(effectiveRows(inst, FLOOR_ROW_DEFAULT, { climate_lead: { living: 'climate.c' } }).area.climate_lead).toEqual({ living: 'climate.c', bed: 'climate.b' });
+  expect(personalDiff({ ...inst, climate_lead: { living: 'climate.c', bed: 'climate.b' } }, FLOOR_ROW_DEFAULT, inst, FLOOR_ROW_DEFAULT)).toEqual({ climate_lead: { living: 'climate.c' } });
+  expect(personalDiff({ ...inst, climate_lead: { living: 'climate.a' } }, FLOOR_ROW_DEFAULT, inst, FLOOR_ROW_DEFAULT)).toEqual({ climate_lead: { bed: '' } }); // dropped = "first running"
+  expect(personalDiff({ ...inst, climate_lead: { ...inst.climate_lead } }, FLOOR_ROW_DEFAULT, inst, FLOOR_ROW_DEFAULT)).toBeNull();
+  expect(personalRowOf({ climate_lead: { a: '', b: 'climate.x', c: 'light.y' } })).toEqual({ climate_lead: { a: '', b: 'climate.x' } });
+  expect(areaRowOf({ climate_lead: { a: '' } }).climate_lead).toEqual({}); // the installation's value never holds ""
   expect(areaRowOf({ climate_mode: 'first', climate_lead: 5, only_active: 'x' })).toMatchObject({ climate_mode: 'mean', climate_lead: {}, only_active: ['openings', 'locks'] });
 });
 

@@ -337,6 +337,42 @@ test.describe('the area row against the devices fixture backend', () => {
     }
   });
 
+  test('the personal editor also picks the leading A/C per area (only areas with several A/C), stored in the user\'s own prefs', async ({ page, request }) => {
+    test.skip(page.viewportSize()!.width < 1000, 'desktop');
+    await seed(request);
+    await reset(request);
+    try {
+      await open(page, '/devices/building');
+      await page.locator('sw-app [data-profile-menu]').click();
+      await page.locator('sw-app sw-user-menu [data-menu-account]').click();
+      await page.locator('sw-app sw-user-menu [data-my-home] summary').click();
+      const mine = page.locator('sw-app sw-user-menu sw-home-personal [data-home-personal-area-row] area-row-editor');
+      await expect(mine.locator('[data-area-climate-mode]')).toHaveValue('mean', { timeout: 15000 });
+      await mine.locator('[data-area-climate-mode]').selectOption('lead');
+      const lead = mine.locator('[data-climate-lead="arow1_living"]');
+      await expect(lead).toBeVisible({ timeout: 15000 });
+      await expect(mine.locator('[data-climate-lead-area]')).toHaveCount(1); // compact: only areas with more than one A/C
+      const unit = (await lead.locator('option').nth(2).getAttribute('value'))!;
+      await lead.selectOption(unit);
+      await expect.poll(async () => (await (await request.get('/api/v1/me/prefs')).json()).prefs['devices.area_row']).toEqual({ climate_mode: 'lead', climate_lead: { arow1_living: unit } });
+      // the installation's own setting is untouched
+      const inst = (await (await request.get('/api/v1/settings')).json()).settings['devices.area_row'];
+      expect(inst.climate_mode).toBe('mean');
+      expect(inst.climate_lead).toEqual({});
+      await page.keyboard.press('Escape');
+      await open(page, '/devices/building');
+      await expect(row(page, 'living').locator('[data-ind="climate"]')).not.toContainText('('); // the leading unit alone: no count
+      // "ברירת מחדל של המערכת" clears it
+      await page.locator('sw-app [data-profile-menu]').click();
+      await page.locator('sw-app sw-user-menu [data-menu-account]').click();
+      await page.locator('sw-app sw-user-menu [data-my-home] summary').click();
+      await page.locator('sw-app sw-user-menu sw-home-personal [data-home-personal-reset]').click();
+      await expect.poll(async () => (await (await request.get('/api/v1/me/prefs')).json()).prefs['devices.area_row']).toBeNull();
+    } finally {
+      await reset(request);
+    }
+  });
+
   test('the personal override: a holder of screen.personalize (the administrator) picks their own list; the installation\'s is untouched', async ({ page, request }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'desktop');
     await seed(request);

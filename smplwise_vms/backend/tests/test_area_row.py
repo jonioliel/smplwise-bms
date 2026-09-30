@@ -69,6 +69,10 @@ def test_personal_override_keeps_only_what_the_user_set():
     assert got == {"items": ["climate"], "climate": "icon", "show_empty": True, "floor_items": ["lights"]}
     more = area_row.normalise_personal({"climate_mode": "lead", "climate_lead": {"a": "climate.x"}, "only_active": ["media"]})
     assert more == {"climate_mode": "lead", "climate_lead": {"a": "climate.x"}, "only_active": ["media"]}
+    # a personal "" for an area means "no leading unit there" (over the installation's choice); the installation's own value never may
+    assert area_row.normalise_personal({"climate_lead": {"a": "climate.x", "b": ""}}) == {"climate_lead": {"a": "climate.x", "b": ""}}
+    with pytest.raises(ValueError):
+        area_row.normalize_area({"climate_lead": {"a": ""}})
     for bad in ({"climate_mode": "x"}, {"only_active": ["climate"]}, {"climate_lead": {"a": "light.x"}}, {"items": ["x"]}, {"climate": "x"}, {"show_empty": "no"}, {"floor_items": ["temperature"]}, {"other": 1}):
         with pytest.raises(ValueError):
             area_row.normalise_personal(bad)

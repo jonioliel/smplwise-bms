@@ -64,12 +64,13 @@ def _climate(value: Any, name: str) -> str:
     return value
 
 
-def _lead(value: Any, name: str) -> dict[str, str]:
+def _lead(value: Any, name: str, blank: bool = False) -> dict[str, str]:
     if not isinstance(value, dict) or len(value) > LEAD_MAX:
         raise ValueError(f"{name} must be an object of area id to climate entity id")
     out: dict[str, str] = {}
     for area, entity in value.items():
-        if not isinstance(area, str) or not 0 < len(area) <= 120 or not isinstance(entity, str) or not _ENTITY.match(entity):
+        # a personal override may say "" for an area: no leading unit there (the first running one), over the installation's choice
+        if not isinstance(area, str) or not 0 < len(area) <= 120 or not isinstance(entity, str) or not ((blank and entity == "") or _ENTITY.match(entity)):
             raise ValueError(f"{name}: bad entry {area!r}")
         out[area] = entity
     return out
@@ -136,7 +137,7 @@ def normalise_personal(value: Any) -> dict[str, Any]:
     if given.get("climate_mode") is not None:
         out["climate_mode"] = _mode(given["climate_mode"], "home.personal.area_row.climate_mode")
     if given.get("climate_lead") is not None:
-        out["climate_lead"] = _lead(given["climate_lead"], "home.personal.area_row.climate_lead")
+        out["climate_lead"] = _lead(given["climate_lead"], "home.personal.area_row.climate_lead", blank=True)
     if given.get("only_active") is not None:
         out["only_active"] = _items(given["only_active"], ACTIVE_ITEMS, "home.personal.area_row.only_active")
     if given.get("floor_items") is not None:
