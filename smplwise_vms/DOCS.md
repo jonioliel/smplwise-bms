@@ -252,13 +252,14 @@ Design note: `docs/operations/NVR_LESS_MODE.md`.
   verified PTS↔UTC anchor this is labelled best effort (chapter 25); a camera without a recording at that
   time is shown as such, never as a frozen frame.
 
-## Designs "SW A" and "SW B"
+## Design "SW A"
 
-- Two designs ship: **SW A** (the 50-screen handoff v1.3: right icon rail with the four areas, 72 px
-  top bar with breadcrumbs/search/user, 26 px page titles, the SW A tokens) and **SW B** (the earlier
-  boards). הגדרות → כללי → "עיצוב הממשק" sets the installation default (`ui.design`), renames both
-  (`ui.design_names`) and lets each browser keep its own choice. `?design=a|b` on the URL forces one.
-  Without a backend (design preview) the page stays on SW B.
+- One design ships: **SW A** (the 50-screen handoff v1.3: an icon rail with the areas, a phone bottom bar,
+  a floating search and status corner, 26 px page titles, the SW A tokens). The earlier design "SW B" (the
+  first boards, with a top bar) was removed in 0.1.148, and so was the switch: הגדרות → כללי → "עיצוב הממשק"
+  keeps only the tile layout. The settings `ui.design` and `ui.design_names` are **deprecated**: the server
+  still accepts and stores them (an old client or a restored backup does not fail) but nothing reads them, so
+  the value `b` changes nothing. `?design=a|b` on the URL is ignored. The static demo (no backend) opens on SW A too.
 
 ## Search
 

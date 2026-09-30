@@ -194,10 +194,11 @@ export class DevicesBulkSafeAdmin extends LitElement {
     return out.sort((a, b) => key(a).localeCompare(key(b), 'he'));
   }
 
-  private toggle(id: string, e: MouseEvent | KeyboardEvent, list: SwitchRow[]) {
+  /** `on` is the box's state AFTER the native toggle (the click is not cancelled: cancelling a checkbox click makes the
+   * browser restore the old `checked` after Lit re-rendered, so a marked row showed an unmarked box). */
+  private toggle(id: string, on: boolean, shift: boolean, list: SwitchRow[]) {
     const next = new Set(this.selected);
-    const on = !next.has(id);
-    if (e.shiftKey && this.last) {
+    if (shift && this.last) {
       // Shift+click: the range between the last row clicked and this one, in the list's current order
       const a = list.findIndex((r) => r.entity_id === this.last);
       const b = list.findIndex((r) => r.entity_id === id);
@@ -237,7 +238,7 @@ export class DevicesBulkSafeAdmin extends LitElement {
     const place = (r: SwitchRow) => [r.floor_name, r.area_name].filter(Boolean).join(' › ') || 'ללא שיוך';
     const status = (r: SwitchRow) => (r.alarm_managed ? html`<span class="no" title="נשלט ממסך האזעקה">נשלט ממסך האזעקה</span>` : r.marked ? html`<span class="yes">כן</span>` : html`<span class="no">לא</span>`);
     const when = (r: SwitchRow) => (r.marked_at ? `${r.marked_by ?? ''} · ${new Date(r.marked_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}` : '');
-    const box = (r: SwitchRow) => html`<input type="checkbox" data-bulk-safe-row=${r.entity_id} aria-label=${`בחר ${r.name}`} .checked=${this.selected.has(r.entity_id)} ?disabled=${r.alarm_managed} @click=${(e: MouseEvent) => { e.preventDefault(); this.toggle(r.entity_id, e, list); }} />`;
+    const box = (r: SwitchRow) => html`<input type="checkbox" data-bulk-safe-row=${r.entity_id} aria-label=${`בחר ${r.name}`} .checked=${this.selected.has(r.entity_id)} ?disabled=${r.alarm_managed} @click=${(e: MouseEvent) => this.toggle(r.entity_id, (e.currentTarget as HTMLInputElement).checked, e.shiftKey, list)} />`;
     return html`<sw-card heading="פעולה קבוצתית" subheading="אילו מתגים נכללים בכפתור הראשי ובפעולות המרוכזות (כבה הכל). הסימון קיים למתגים בלבד: תאורה, תריסים, מיזוג ומסכים נכללים לפי סוגם; מנעולים, אזעקה ושחרור דלתות לעולם לא." data-bulk-safe-admin>
       <div class="bar">
         <input type="search" data-bulk-safe-search placeholder="חיפוש לפי שם, אזור או מזהה…" aria-label="חיפוש מתגים" .value=${this.q} @input=${(e: Event) => { this.q = (e.target as HTMLInputElement).value; this.shown = PAGE; }} />

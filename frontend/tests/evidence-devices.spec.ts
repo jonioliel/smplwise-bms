@@ -501,7 +501,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     }
   });
 
-  test('the devices entry is gated on devices.read in both designs; the screen refuses without it', async ({ page, browser, request }, testInfo) => {
+  test('the devices entry is gated on devices.read; the screen refuses without it', async ({ page, browser, request }, testInfo) => {
     await seed(request);
     const tag = testInfo.project.name;
     const bindings: string[] = [];
@@ -524,8 +524,6 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await expect(p1.locator('devices-area sw-state-panel[data-devices-state="no_permission"]')).toBeVisible({ timeout: 30000 });
       expect((await p1.request.get('/api/v1/devices/tree')).status()).toBe(403);
       expect((await p1.request.get('/api/v1/devices/areas/cr007_lobby')).status()).toBe(403);
-      await open(p1, '/live', 'b');
-      await expect(p1.locator(`${RAIL} a[href="${HREF}"]`)).toHaveCount(0);
       await without.close();
 
       // a plain viewer holds devices.read (like map.read)
@@ -536,16 +534,12 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await open(p2, '/live', 'a');
       await expect(p2.locator(`${RAIL} a[href="${HREF}"]`)).toHaveCount(1, { timeout: 30000 });
       await expect(p2.locator(`${RAIL} a[href="${HREF}"]`)).toContainText('ראשי'); // CR-013: the device overview is "ראשי"
-      await open(p2, '/live', 'b');
-      await expect(p2.locator(`${RAIL} a[href="${HREF}"]`)).toContainText('חשמל והתקנים');
-      await open(p2, '/devices/building', 'b');
+      await open(p2, '/devices/building', 'a');
       await expect(p2.locator('devices-building a.tile[data-area="cr007_lobby"]')).toBeVisible({ timeout: 30000 });
       await viewer.close();
 
-      // the admin (dev-mode default identity) sees it in both designs
+      // the admin (dev-mode default identity) sees it
       await open(page, '/live', 'a');
-      await expect(page.locator(`${RAIL} a[href="${HREF}"]`)).toHaveCount(1, { timeout: 30000 });
-      await open(page, '/live', 'b');
       await expect(page.locator(`${RAIL} a[href="${HREF}"]`)).toHaveCount(1, { timeout: 30000 });
     } finally {
       for (const id of bindings) await request.delete(`/api/v1/access/bindings/${id}`).catch(() => {});
@@ -553,7 +547,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     }
   });
 
-  test('the phone bottom nav (design A) reaches the devices area directly, and the tree then the area screen fit the phone', async ({ page, request }, testInfo) => {
+  test('the phone bottom nav reaches the devices area directly, and the tree then the area screen fit the phone', async ({ page, request }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'nav.bottom only renders below the 768px breakpoint; other projects are wider');
     await seed(request);
     await open(page, '/live', 'a');
@@ -578,26 +572,6 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     // the explicit way back (sw-page backHref) exists on the phone, where the browser's own back is not at hand
     await expect(page.locator('devices-area sw-page')).toHaveAttribute('backHref', '/devices/building');
-  });
-
-  test('the phone bottom nav (design B) reaches the devices area through the "עוד" overflow', async ({ page, request }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'nav.bottom only renders below the 768px breakpoint; other projects are wider');
-    await seed(request);
-    await open(page, '/live', 'b');
-    const bottom = page.locator(BOTTOM);
-    await expect(bottom).toBeVisible({ timeout: 30000 });
-    await expect(bottom.locator(`a[href="${HREF}"]`)).toHaveCount(0); // the 6th of 8 groups: behind "עוד"
-    const more = bottom.locator('button');
-    await expect(more).toContainText('עוד');
-    await more.click();
-    const overflowLink = page.locator(`sw-app .bottom-overflow a[href="${HREF}"]`);
-    await expect(overflowLink).toBeVisible({ timeout: 5000 });
-    await expect(overflowLink).toContainText('חשמל והתקנים');
-    await overflowLink.click();
-    await expect.poll(() => page.evaluate(() => location.hash)).toBe(HREF);
-    await expect(page.locator('sw-app .bottom-overflow')).toHaveCount(0);
-    await expect(bottom.locator('button')).toHaveClass(/active/);
-    await expect(page.locator('devices-building a.tile[data-area="cr007_lobby"]')).toBeVisible({ timeout: 30000 });
   });
 
   // ---------------------------------------------------------------- CR-007 slice 2: single-entity control
@@ -982,64 +956,60 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await seed(request);
   });
 
-  test('bulk controls are gated on devices.control_bulk in both designs: an operator (devices.control) sees none and is refused; the admin sees the building buttons, floor menus and area popovers', async ({ page, browser, request }, testInfo) => {
+  test('bulk controls are gated on devices.control_bulk: an operator (devices.control) sees none and is refused; the admin sees the building buttons, floor menus and area popovers', async ({ page, browser, request }, testInfo) => {
     await seed(request);
     const user = `cr007opbulk${testInfo.project.name}`;
     const binding = await bindUser(request, user, 'operator');
     try {
       const ctx = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': user } });
       const p = await ctx.newPage();
-      for (const design of ['a', 'b'] as const) {
-        // the default (tree + floor cards): the area popover informs (chips, "פתח אזור"), it offers no action
-        await open(p, '/devices/building', design);
-        const scr = p.locator('devices-building');
-        const row = scr.locator('devices-bulk-menu[data-card-area="cr007_hall"]');
-        await expect(row).toBeVisible({ timeout: 30000 });
-        await expect(scr.locator('[data-bulk-floor], [data-floor-menu], [data-bulk-building], [data-quick-off], devices-bulk-dialog')).toHaveCount(0);
-        await row.locator('[data-area-more]').click();
-        await expect(row.locator('[data-bulk-panel="popover"] a[data-open-area]')).toBeVisible();
-        await expect(row.locator('[data-bulk-panel] button[data-bulk-kind]')).toHaveCount(0);
-        await p.keyboard.press('Escape');
-        // the tiles: no "⋯" on a tile, no building buttons, no dialog (owner notes 2026-09-30: the tiles view shows the
-        // tree too, whose area rows only inform - the same summary popovers as in the cards view, no action)
-        await scr.locator('button[data-layout="tiles"]').click();
-        await expect(scr.locator('a.tile[data-area="cr007_hall"]')).toBeVisible({ timeout: 30000 });
-        await expect(scr.locator('.floors devices-bulk-menu, [data-bulk-building], [data-quick-off], [data-bulk-floor], devices-bulk-dialog')).toHaveCount(0);
-        await expect(scr.locator('nav.tree devices-bulk-menu [data-bulk-panel] button[data-bulk-kind]')).toHaveCount(0);
-        await scr.locator('button[data-layout="cards"]').click();
-        await open(p, '/devices/areas/cr007_hall', design);
-        await expect(p.locator('devices-area sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
-        await expect(p.locator('devices-area devices-bulk-menu, devices-area devices-bulk-dialog')).toHaveCount(0);
-        await expect(p.locator('devices-area .tile[data-entity="light.cr007_hall_a"] sw-toggle[data-control="power"]')).toBeVisible(); // single-entity control stays
-      }
+      // the default (tree + floor cards): the area popover informs (chips, "פתח אזור"), it offers no action
+      await open(p, '/devices/building');
+      const scr = p.locator('devices-building');
+      const row = scr.locator('devices-bulk-menu[data-card-area="cr007_hall"]');
+      await expect(row).toBeVisible({ timeout: 30000 });
+      await expect(scr.locator('[data-bulk-floor], [data-floor-menu], [data-bulk-building], [data-quick-off], devices-bulk-dialog')).toHaveCount(0);
+      await row.locator('[data-area-more]').click();
+      await expect(row.locator('[data-bulk-panel="popover"] a[data-open-area]')).toBeVisible();
+      await expect(row.locator('[data-bulk-panel] button[data-bulk-kind]')).toHaveCount(0);
+      await p.keyboard.press('Escape');
+      // the tiles: no "⋯" on a tile, no building buttons, no dialog (owner notes 2026-09-30: the tiles view shows the
+      // tree too, whose area rows only inform - the same summary popovers as in the cards view, no action)
+      await scr.locator('button[data-layout="tiles"]').click();
+      await expect(scr.locator('a.tile[data-area="cr007_hall"]')).toBeVisible({ timeout: 30000 });
+      await expect(scr.locator('.floors devices-bulk-menu, [data-bulk-building], [data-quick-off], [data-bulk-floor], devices-bulk-dialog')).toHaveCount(0);
+      await expect(scr.locator('nav.tree devices-bulk-menu [data-bulk-panel] button[data-bulk-kind]')).toHaveCount(0);
+      await scr.locator('button[data-layout="cards"]').click();
+      await open(p, '/devices/areas/cr007_hall');
+      await expect(p.locator('devices-area sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
+      await expect(p.locator('devices-area devices-bulk-menu, devices-area devices-bulk-dialog')).toHaveCount(0);
+      await expect(p.locator('devices-area .tile[data-entity="light.cr007_hall_a"] sw-toggle[data-control="power"]')).toBeVisible(); // single-entity control stays
       const expires = new Date(Date.now() + 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
       const r = await p.request.post('/api/v1/devices/actions', { data: { scope: 'area', id: 'cr007_hall', kind: 'lights_off', confirmed: true, client_request_id: crypto.randomUUID(), expires_at: expires } });
       expect(r.status()).toBe(403);
       expect((await p.request.get('/api/v1/devices/actions/preview?scope=area&id=cr007_hall&kind=all_off')).status()).toBe(403);
       await ctx.close();
-      // the admin (the dev-mode default identity holds devices.control_bulk installation-wide), in both designs
+      // the admin (the dev-mode default identity holds devices.control_bulk installation-wide)
       const posted: string[] = [];
       page.on('request', (req) => {
         if (req.method() === 'POST' && /\/api\/v1\/devices\/actions$/.test(req.url())) posted.push(req.url());
       });
-      for (const design of ['a', 'b'] as const) {
-        await open(page, '/devices/building', design);
-        const scr = page.locator('devices-building');
-        await expect(scr.locator('[data-bulk-building] sw-button[data-bulk-kind="lights_off"]')).toBeVisible({ timeout: 30000 });
-        await expect(scr.locator('[data-bulk-building] sw-button[data-bulk-kind="all_off"]')).toBeVisible();
-        await expect(scr.locator('.floors devices-bulk-menu[data-bulk-floor="cr007_annex"]')).toBeVisible(); // (the tiles view also has the tree's own floor menu)
-        await expect(scr.locator('devices-bulk-menu[data-bulk-area="cr007_hall"]')).toBeVisible();
-        await expect(scr.locator('devices-bulk-menu[data-bulk-area="unassigned"]')).toHaveCount(0); // the bucket is not an area
-        // a building button opens the confirmation dialog; nothing is sent until its own confirm button
-        await scr.locator('[data-bulk-building] sw-button[data-bulk-kind="all_off"]').click();
-        await expect(scr.locator('devices-bulk-dialog sw-dialog[open] sw-button[data-bulk-cancel]')).toBeVisible({ timeout: 10000 });
-        await expect(scr.locator('devices-bulk-dialog sw-dialog[open]')).toHaveAttribute('heading', /כבה הכל · המבנה/);
-        await expect.poll(() => focusedBulkButton(page)).toBe('cancel');
-        await scr.locator('devices-bulk-dialog sw-button[data-bulk-cancel]').click();
-        await expect(scr.locator('devices-bulk-dialog sw-dialog[open]')).toHaveCount(0);
-        await open(page, '/devices/areas/cr007_hall', design);
-        await expect(page.locator('devices-area devices-bulk-menu[data-bulk-area="cr007_hall"]')).toBeVisible({ timeout: 30000 });
-      }
+      await open(page, '/devices/building');
+      const adminScr = page.locator('devices-building');
+      await expect(adminScr.locator('[data-bulk-building] sw-button[data-bulk-kind="lights_off"]')).toBeVisible({ timeout: 30000 });
+      await expect(adminScr.locator('[data-bulk-building] sw-button[data-bulk-kind="all_off"]')).toBeVisible();
+      await expect(adminScr.locator('.floors devices-bulk-menu[data-bulk-floor="cr007_annex"]')).toBeVisible(); // (the tiles view also has the tree's own floor menu)
+      await expect(adminScr.locator('devices-bulk-menu[data-bulk-area="cr007_hall"]')).toBeVisible();
+      await expect(adminScr.locator('devices-bulk-menu[data-bulk-area="unassigned"]')).toHaveCount(0); // the bucket is not an area
+      // a building button opens the confirmation dialog; nothing is sent until its own confirm button
+      await adminScr.locator('[data-bulk-building] sw-button[data-bulk-kind="all_off"]').click();
+      await expect(adminScr.locator('devices-bulk-dialog sw-dialog[open] sw-button[data-bulk-cancel]')).toBeVisible({ timeout: 10000 });
+      await expect(adminScr.locator('devices-bulk-dialog sw-dialog[open]')).toHaveAttribute('heading', /כבה הכל · המבנה/);
+      await expect.poll(() => focusedBulkButton(page)).toBe('cancel');
+      await adminScr.locator('devices-bulk-dialog sw-button[data-bulk-cancel]').click();
+      await expect(adminScr.locator('devices-bulk-dialog sw-dialog[open]')).toHaveCount(0);
+      await open(page, '/devices/areas/cr007_hall');
+      await expect(page.locator('devices-area devices-bulk-menu[data-bulk-area="cr007_hall"]')).toBeVisible({ timeout: 30000 });
       expect(posted).toHaveLength(0);
     } finally {
       await request.delete(`/api/v1/access/bindings/${binding}`).catch(() => {});

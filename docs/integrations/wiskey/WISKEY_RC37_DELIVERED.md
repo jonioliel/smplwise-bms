@@ -45,6 +45,13 @@ top-level deep link ("open in WisKey") is unchanged and carries none of the new 
   rc.37 handoff verified layout with fake data only (12 camera elements and 10 tiles fitting a 1354x729 frame); **no ten real
   video streams were shown**, and the bridge tests did not run for lack of a Home Assistant Python environment.
 
+## Known issue: dark frame after in-panel navigation
+
+rc.37's `chrome=none` and transparent document do not remove a dark frame that reappears after navigating inside WisKey
+(cause: the UA focus ring on `<main tabindex="-1">`, `panel.ts:6137`, with no embed rule to remove it). Arx cannot style the
+frame's document, so it crops 3 px (2 px under 768 px) at each edge of the frame (`WISKEY_EDGE_CROP_PX` in
+`wiskey-embed.ts`) as a mitigation. Fix requested from WisKey in `WISKEY_REQUEST_RC38_FOCUS_HE.md`.
+
 ## What remains
 
 1. **Companion app** (request 5): waiting for the result of Arx's own Companion experiment (`access.phone_embed`), then a

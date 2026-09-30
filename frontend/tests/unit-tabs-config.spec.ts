@@ -2,7 +2,6 @@ import { test, expect } from '@playwright/test';
 import {
   AREA_TABS,
   ENTITIES_SETTINGS_HREF,
-  GROUP_TABS,
   LOCKED_TABS,
   MAP_HREFS,
   SECTION_TABS,
@@ -16,7 +15,6 @@ import {
   securityTarget,
   tabAllowed,
   visibleAreas,
-  visibleGroups,
   visibleSections,
   visibleTabs,
   type Can,
@@ -85,7 +83,6 @@ test('every registry section comes from the arrays of nav.ts (nothing duplicated
   expect(byId['security.live']).toEqual(ids(SECTION_TABS.live));
   expect(byId['security.investigate']).toEqual(ids(SECTION_TABS.investigate));
   expect(byId['explore']).toEqual(['sites', 'floors']);
-  expect(ids(GROUP_TABS.sites)).toEqual(['sites', 'floors']); // design B shares the map's tabs
   expect(MAP_HREFS).not.toContain('#/explore/entities');
   expect(AREA_TABS.system.some((t) => t.href === ENTITIES_SETTINGS_HREF)).toBe(true);
   for (const s of TAB_SECTIONS) expect(s.tabs().length, s.id).toBeGreaterThan(1 - (s.id === 'wiskey' ? 1 : 0));
@@ -130,8 +127,6 @@ test('the rail: the admin order is the default, the user own order wins, hidden 
   expect(rail[0].href).toBe('#/explore/floors/f0'); // the map lands on the floor map: the order decides
   // a user's own order (passed by the shell) wins over the admin's for that user; the admin's hidden list still applies
   expect(ids(visibleAreas(true, ALL, ['wiskey', 'devices', 'security', 'explore']))).toEqual(['devices', 'security', 'explore']);
-  // the design B groups follow the same map tabs
-  expect(visibleGroups(true, ALL).find((g) => g.id === 'sites')?.href).toBe('#/explore/floors/f0');
 });
 
 test('the device catalogue is a settings page for system.configure at the installation, not a map tab', () => {
