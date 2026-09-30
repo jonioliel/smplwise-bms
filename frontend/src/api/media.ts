@@ -120,6 +120,9 @@ export interface ProductSettings {
   'devices.scheme'?: 'light' | 'dark' | 'auto';
   /** Owner 2026-09-30 (area redesign): the direction every area screen opens in - dense tiles | sequential sections. */
   'devices.area_design'?: 'tiles' | 'sections';
+  /** Release 0.1.149: what shows next to an area's name / in a floor's header (api/area-row.ts), read back as objects. */
+  'devices.area_row'?: { items: string[]; climate: 'icon' | 'temp' | 'mode'; show_empty: boolean };
+  'devices.floor_row'?: { items: string[] };
   /** CR-008 SmplWise Arx remote access (הגדרות › גישה מרחוק). */
   'remote.policy'?: 'flag' | 'any_role';
   'remote.session'?: 'rolling_90d' | 'browser_session' | 'rolling_90d_idle_lock';

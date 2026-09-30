@@ -39,6 +39,11 @@ export interface DeviceArea {
   has_camera: boolean;
   /** CR-007 slice 3: the caller may start a bulk action here (devices.control_bulk over something placed on their floors). */
   can_bulk?: boolean;
+  /** Release 0.1.149 (the area row's indicators, api/area-row.ts): this area's own climate.* units, the room temperature
+   * (the area's temperature sensor, else the air conditioners' own reading; null = unknown) and the open doors / windows. */
+  climate?: ClimateSummary[];
+  temperature?: number | null;
+  open_count?: number;
 }
 
 /** CR-007 slice 4: the building/floor "מזגני הקומה" strip - mode + target only, never the full card. */

@@ -39,6 +39,8 @@ SECURITY_BINARY_CLASSES = {"door", "window", "opening", "garage_door", "motion",
 # the same exclusion, by placement rather than by class.
 DOOR_COVER_CLASSES = frozenset({"door", "garage", "gate"})
 DOOR_LAYER = "doors"
+# the binary sensors an area row counts as "open" when on (devices.area_row item `openings`)
+OPENING_CLASSES = frozenset({"door", "window", "opening", "garage_door"})
 # Sensor card grouping (CR-007 slice 4): a device_class bucket label, compact and predictable regardless of the
 # entity's own wording; anything not named here (an illuminance/CO2/generic numeric sensor, or a binary sensor
 # outside the security set) groups under its own device_class, or "other" with none.
@@ -267,6 +269,18 @@ def _climate_summary(e: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _area_indicators(climate: list[dict[str, Any]], temps: list[float], open_count: int) -> dict[str, Any]:
+    """What an area's row on the home screen can show next to its name (release 0.1.149, devices.area_row): the area's own
+    climate.* summaries (one indicator is drawn from them), the room temperature - the area's temperature sensor(s), else the
+    air conditioners' own current temperature - and how many doors / windows are open. Read only; nothing here classifies anything."""
+    if temps:
+        temperature: float | None = round(sum(temps) / len(temps), 1)
+    else:
+        own = [c["current_temperature"] for c in climate if c["available"] and c["current_temperature"] is not None]
+        temperature = round(sum(own) / len(own), 1) if own else None
+    return {"climate": climate, "temperature": temperature, "open_count": open_count}
+
+
 def build_tree(conn: sqlite3.Connection, entities: list[dict[str, Any]], *, scoped: bool) -> dict[str, Any]:
     """Floors → areas with counts over `entities` (already filtered to what the caller may see). A scoped caller gets
     only the floors and areas that hold something visible - an empty area would say more than they may know."""
@@ -274,6 +288,8 @@ def build_tree(conn: sqlite3.Connection, entities: list[dict[str, Any]], *, scop
     area_counts: dict[str, dict[str, Any]] = {}
     area_has_camera: dict[str, bool] = {}
     climate_by_area: dict[str, list[dict[str, Any]]] = {}
+    temp_by_area: dict[str, list[float]] = {}
+    open_by_area: dict[str, int] = {}
     unassigned = empty_counts()
     building = empty_counts()
     for e in entities:
@@ -281,6 +297,13 @@ def build_tree(conn: sqlite3.Connection, entities: list[dict[str, Any]], *, scop
         aid = e.get("area_id")
         if e["domain"] == "climate" and aid and e.get("climate_kind") != "heating":  # the strip is the A/C one
             climate_by_area.setdefault(aid, []).append(_climate_summary(e))
+        if aid:
+            if e["domain"] == "sensor" and (e.get("device_class") or "") == "temperature" and e.get("available"):
+                t = _num(e.get("state"))
+                if t is not None and -60 <= t <= 100:
+                    temp_by_area.setdefault(aid, []).append(t)
+            elif e["domain"] == "binary_sensor" and (e.get("device_class") or "") in OPENING_CLASSES and e.get("state") == "on":
+                open_by_area[aid] = open_by_area.get(aid, 0) + 1
         if not aid:
             count_into(unassigned, e)
             continue
@@ -293,7 +316,8 @@ def build_tree(conn: sqlite3.Connection, entities: list[dict[str, Any]], *, scop
         if scoped and counts is None:
             continue
         by_floor.setdefault(a.get("floor_id") or None, []).append(
-            {"area_id": a["area_id"], "name": a["name"], "icon": a.get("icon"), "floor_id": a.get("floor_id") or None, "counts": counts or empty_counts(), "has_camera": area_has_camera.get(a["area_id"], False)}
+            {"area_id": a["area_id"], "name": a["name"], "icon": a.get("icon"), "floor_id": a.get("floor_id") or None, "counts": counts or empty_counts(), "has_camera": area_has_camera.get(a["area_id"], False),
+             **_area_indicators(climate_by_area.get(a["area_id"], []), temp_by_area.get(a["area_id"], []), open_by_area.get(a["area_id"], 0))}
         )
     def _climate_strip(fl_areas: list[dict[str, Any]]) -> list[dict[str, Any]]:
         out = [cs for a in fl_areas for cs in climate_by_area.get(a["area_id"], [])]

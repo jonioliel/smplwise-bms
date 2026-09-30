@@ -14,7 +14,7 @@ import type { IconName } from '../components/sw-icon';
 import { canAnywhere, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { subscribeHa, type HaSyncState } from '../api/ha';
-import { ALARM_HE, getDevicesTree, HVAC_HE, refreshDevicesFromHa, type ClimateSummary, type DeviceArea, type DeviceCounts, type DeviceFloor, type DeviceTree } from '../api/devices';
+import { ALARM_HE, getDevicesTree, refreshDevicesFromHa, type DeviceArea, type DeviceCounts, type DeviceFloor, type DeviceTree } from '../api/devices';
 import { bidi, ltrNum } from '../i18n/bidi';
 import type { BulkKind } from '../api/device-bulk';
 import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
@@ -35,6 +35,7 @@ import {
   type Direction, type HomeCandidates, type HomeSettings, type HomeView, type QuickAction, type WidgetId, type WidgetItem,
 } from '../api/home';
 import { demoHome } from './home-demo';
+import { areaIndicators, effectiveRows, floorKinds, loadPersonalRow, ROW_MAX_PHONE, ROW_MAX_WIDE, splitRow, type AreaRowPersonal, type FloorItem, type Indicator } from '../api/area-row';
 
 /** Owner notes 2026-09-30: the home route's edit mode is entered by the address (`#/devices/building?edit=1`, from the
  * user menu's "עריכת המסך הראשי"), not by a button on the screen. */
@@ -129,8 +130,8 @@ export function pillsOf(c: DeviceCounts): CountPill[] {
   if (c.lights) out.push({ key: 'lights', icon: 'light', label: 'תאורה', total: c.lights, on: c.lights_on, warm: c.lights_on > 0 });
   if (c.switches) out.push({ key: 'switches', icon: 'bolt', label: 'מתגים', total: c.switches, on: c.switches_on, warm: c.switches_on > 0 });
   if (c.covers) out.push({ key: 'covers', icon: 'layers', label: 'תריסים פתוחים', total: c.covers, on: c.covers_open, warm: c.covers_open > 0 });
-  if (c.climate) out.push({ key: 'climate', icon: 'activity', label: 'מיזוג פעיל', total: c.climate, on: c.climate_active, warm: c.climate_active > 0 });
-  if (c.heating) out.push({ key: 'heating', icon: 'activity', label: 'חימום פעיל', total: c.heating, on: c.heating_active, warm: c.heating_active > 0 });
+  if (c.climate) out.push({ key: 'climate', icon: 'snow', label: 'מיזוג פעיל', total: c.climate, on: c.climate_active, warm: c.climate_active > 0 });
+  if (c.heating) out.push({ key: 'heating', icon: 'flame', label: 'חימום פעיל', total: c.heating, on: c.heating_active, warm: c.heating_active > 0 });
   if (c.media) out.push({ key: 'media', icon: 'play', label: 'מסכים דולקים', total: c.media, on: c.media_on, warm: c.media_on > 0 });
   if (c.locks) out.push({ key: 'locks', icon: 'lock', label: 'נעולים', total: c.locks, on: c.locks_locked, warm: false });
   if (c.cameras) out.push({ key: 'cameras', icon: 'camera', label: 'מצלמות', total: c.cameras, on: null, warm: false });
@@ -154,15 +155,19 @@ const DEMO: DeviceTree = {
       floor_id: 'ground', name: 'קרקע', level: 0, icon: null,
       counts: { entities: 14, lights: 6, lights_on: 3, switches: 2, switches_on: 1, covers: 2, covers_open: 1, climate: 1, climate_active: 1, heating: 0, heating_active: 0, media: 1, media_on: 0, locks: 1, locks_locked: 1, alarm: 'armed_home', cameras: 1, sensors: 2 },
       areas: [
-        { area_id: 'lobby', name: 'לובי', icon: null, floor_id: 'ground', has_camera: true, counts: { entities: 8, lights: 4, lights_on: 3, switches: 1, switches_on: 1, covers: 1, covers_open: 1, climate: 1, climate_active: 1, heating: 0, heating_active: 0, media: 0, media_on: 0, locks: 1, locks_locked: 1, alarm: 'armed_home', cameras: 1, sensors: 1 } },
-        { area_id: 'kitchen', name: 'מטבח', icon: null, floor_id: 'ground', has_camera: false, counts: { entities: 6, lights: 2, lights_on: 0, switches: 1, switches_on: 0, covers: 1, covers_open: 0, climate: 0, climate_active: 0, heating: 0, heating_active: 0, media: 1, media_on: 0, locks: 0, locks_locked: 0, alarm: null, cameras: 0, sensors: 1 } },
+        { area_id: 'lobby', name: 'לובי', icon: null, floor_id: 'ground', has_camera: true, counts: { entities: 8, lights: 4, lights_on: 3, switches: 1, switches_on: 1, covers: 1, covers_open: 1, climate: 1, climate_active: 1, heating: 0, heating_active: 0, media: 0, media_on: 0, locks: 1, locks_locked: 1, alarm: 'armed_home', cameras: 1, sensors: 1 }, climate: DEMO_CLIMATE, temperature: 23.5, open_count: 0 },
+        { area_id: 'kitchen', name: 'מטבח', icon: null, floor_id: 'ground', has_camera: false, counts: { entities: 6, lights: 2, lights_on: 0, switches: 1, switches_on: 0, covers: 1, covers_open: 0, climate: 0, climate_active: 0, heating: 0, heating_active: 0, media: 1, media_on: 0, locks: 0, locks_locked: 0, alarm: null, cameras: 0, sensors: 1 }, climate: [], temperature: 26, open_count: 1 },
       ],
       climate: DEMO_CLIMATE,
     },
     {
       floor_id: 'first', name: 'קומה 1', level: 1, icon: null,
       counts: { entities: 5, lights: 3, lights_on: 0, switches: 0, switches_on: 0, covers: 2, covers_open: 2, climate: 0, climate_active: 0, heating: 0, heating_active: 0, media: 0, media_on: 0, locks: 0, locks_locked: 0, alarm: null, cameras: 0, sensors: 0 },
-      areas: [{ area_id: 'office', name: 'משרד', icon: null, floor_id: 'first', has_camera: false, counts: { entities: 5, lights: 3, lights_on: 0, switches: 0, switches_on: 0, covers: 2, covers_open: 2, climate: 0, climate_active: 0, heating: 0, heating_active: 0, media: 0, media_on: 0, locks: 0, locks_locked: 0, alarm: null, cameras: 0, sensors: 0 } }],
+      areas: [{ area_id: 'office', name: 'משרד', icon: null, floor_id: 'first', has_camera: false, counts: { entities: 6, lights: 3, lights_on: 0, switches: 0, switches_on: 0, covers: 2, covers_open: 2, climate: 2, climate_active: 1, heating: 0, heating_active: 0, media: 0, media_on: 0, locks: 0, locks_locked: 0, alarm: null, cameras: 0, sensors: 0 },
+        climate: [
+          { entity_id: 'climate.office_1', name: 'מזגן משרד 1', area_name: 'משרד', hvac_mode: 'heat', hvac_action: 'heating', current_temperature: 20.5, target_temperature: 23, unit: '°C', available: true },
+          { entity_id: 'climate.office_2', name: 'מזגן משרד 2', area_name: 'משרד', hvac_mode: 'off', hvac_action: 'off', current_temperature: 21, target_temperature: null, unit: '°C', available: true },
+        ], temperature: null, open_count: 0 }],
       climate: [],
     },
   ],
@@ -288,10 +293,6 @@ const BUILDING_GLASS = css`
   :host([data-devices-style='glass']) .fcard footer {
     border-block-start: 0;
     padding-block: 4px var(--dv-card-pad-block);
-    padding-inline: var(--dv-card-pad-inline);
-  }
-  :host([data-devices-style='glass']) .climate-strip {
-    padding-block: 2px var(--dv-gap-sm);
     padding-inline: var(--dv-card-pad-inline);
   }
   /* icon-forward area tiles */
@@ -470,14 +471,6 @@ const HOME_LAYOUT = css`
   .page-body[data-fit='2'] {
     gap: 8px;
   }
-  @media (max-width: 599px) {
-    /* a phone: the building's climate chips would fill the screen (16 rooms = 10 lines); they live on the area screens */
-    .page-body > .climate-strip,
-    .fcard .climate-strip,
-    .floor > .climate-strip {
-      display: none;
-    }
-  }
   .bgrid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) var(--side-w, 300px);
@@ -599,6 +592,7 @@ const HOME_LAYOUT = css`
   /* the floor card's header is two rows: the title with the floor action, then the counts (home redesign) */
   .fcard header {
     flex-direction: column;
+    flex-wrap: nowrap; /* a wrapping column sizes its one line by the widest row: a long chip row then pushed the floor action out of the card */
     align-items: stretch;
     gap: 6px;
   }
@@ -609,6 +603,24 @@ const HOME_LAYOUT = css`
     gap: 8px;
     flex-wrap: wrap;
     min-inline-size: 0;
+  }
+  @media (max-width: 767px) {
+    /* the floor header's chips stay on one line (release 0.1.149); a long list scrolls sideways instead of wrapping */
+    .fh-chips {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .fh-chips::-webkit-scrollbar {
+      display: none;
+    }
+    .fh-chips > *,
+    .fchips {
+      flex: none;
+    }
+    .fchips {
+      flex-wrap: nowrap;
+    }
   }
   .fh-top .lay-title-icon {
     flex: none;
@@ -642,7 +654,7 @@ const HOME_LAYOUT = css`
   .split[data-fit='1'] .tree-row {
     padding-block: 3px;
   }
-  /* fit step 2: the smallest (the climate strips are dropped in the markup) */
+  /* fit step 2: the smallest */
   .split[data-fit='2'] .floors {
     --tw: 140px;
     --th: 0px;
@@ -720,6 +732,8 @@ export class DevicesBuilding extends LitElement {
   private layoutChosen = readLayout() !== null;
   /** CR-007 6a: style, density, sensors count, climate strip (הגדרות › חשמל והתקנים). */
   @state() private prefs: DevicesPrefs = DEVICES_PREFS_DEFAULT;
+  /** Release 0.1.149: the user's own choice of what shows next to an area's name (a holder of screen.personalize), over prefs.areaRow. */
+  @state() private personalRow: AreaRowPersonal | null = null;
   private prefsReady: Promise<void> = Promise.resolve();
   /** The tree's selection in the cards layout: every floor, or one floor id. */
   @state() private selected = 'all';
@@ -824,6 +838,22 @@ export class DevicesBuilding extends LitElement {
   private pillsShown(c: DeviceCounts): CountPill[] {
     const all = pillsOf(c);
     return this.prefs.showSensors ? all : all.filter((p) => p.key !== 'sensors');
+  }
+
+  /** Release 0.1.149: the installation's choice of what shows next to an area's name and in a floor's header, with the user's own
+   * (screen.personalize) laid over it. */
+  private get rows() {
+    return effectiveRows(this.prefs.areaRow, this.prefs.floorRow, this.personalRow);
+  }
+
+  /** The floor header's chips in the floor row's order: pills of the kinds the row lists (cameras are a pill of their own). */
+  private floorPills(c: DeviceCounts): CountPill[] {
+    const all = new Map(pillsOf(c).map((p) => [p.key as string, p]));
+    return floorKinds(c, this.rows.floor.items, this.prefs.showSensors).map((k) => all.get(k)).filter((p): p is CountPill => !!p);
+  }
+
+  private hasFloorItem(k: FloorItem): boolean {
+    return this.rows.floor.items.includes(k);
   }
 
   /** CR-007 slice 3: a bulk action may be offered at all (the permission somewhere; the tree's can_bulk says where). */
@@ -1085,6 +1115,9 @@ export class DevicesBuilding extends LitElement {
   /** The user's own home screen changed (החשבון שלי › המסך שלי): fetch the tree again, the server applies it. */
   private onPersonal = () => {
     void this.load();
+    void loadPersonalRow().then((p) => {
+      this.personalRow = Object.keys(p).length ? p : null;
+    });
   };
 
   private onResize = () => {
@@ -1460,33 +1493,6 @@ export class DevicesBuilding extends LitElement {
       flex-direction: column;
       padding: 0 6px 6px;
     }
-    /* CR-007 slice 4: the building/floor "מזגני הקומה" strip */
-    .climate-strip {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
-      padding: 4px 10px 8px;
-      font-size: var(--sw-fs-xs);
-    }
-    .climate-strip .lbl {
-      color: var(--sw-text-3);
-      flex: none;
-    }
-    .climate-strip .chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 2px 8px;
-      border-radius: 999px;
-      background: var(--sw-surface-2);
-      color: var(--sw-text-2);
-      white-space: nowrap;
-    }
-    .climate-strip .chip.warm {
-      background: var(--sw-warning-soft);
-      color: var(--sw-text);
-    }
     .arow {
       display: flex;
       align-items: center;
@@ -1501,7 +1507,7 @@ export class DevicesBuilding extends LitElement {
       font-size: var(--sw-fs-sm);
       text-align: start;
       cursor: pointer;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
     }
     .arow:hover,
     .arow:focus-visible {
@@ -1510,10 +1516,53 @@ export class DevicesBuilding extends LitElement {
     }
     .arow .nm {
       font-weight: var(--sw-fw-medium);
-      min-inline-size: 90px;
+      flex: 1 1 auto;
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
-    .arow .pills {
-      flex: 1;
+    /* release 0.1.149: what sits after an area's name - one line, never wrapping; at most three on a phone, the rest as "+N" */
+    .ind {
+      display: inline-flex;
+      align-items: center;
+      min-block-size: 20px; /* an empty row is as tall as one with indicators */
+      flex: none;
+      gap: 10px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .ind.none {
+      color: var(--sw-text-3);
+    }
+    .ind .i {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .ind .i.warm {
+      color: var(--sw-text);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .ind .i.warm sw-icon {
+      color: var(--sw-warning);
+    }
+    .ind .i[data-ind='climate'].warm sw-icon {
+      color: var(--sw-accent);
+    }
+    .ind .i[data-ind='climate'].warm.heat sw-icon {
+      color: var(--sw-warning);
+    }
+    .ind .i.dim {
+      opacity: 0.5;
+    }
+    .ind .i.more {
+      padding-inline: 6px;
+      border-radius: 999px;
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
     }
     .fcard footer {
       display: flex;
@@ -1701,6 +1750,9 @@ export class DevicesBuilding extends LitElement {
       }),
       loadHomeSettings().then((h) => {
         if (!this.lay.editing) this.homeSaved = h;
+      }),
+      loadPersonalRow().then((p) => {
+        this.personalRow = Object.keys(p).length ? p : null;
       }),
     ]).then(() => undefined);
     window.addEventListener('resize', this.onResize);
@@ -1901,7 +1953,6 @@ export class DevicesBuilding extends LitElement {
         ${this.lay.renderBar()}
         ${sideLayout ? nothing : widgets}
         ${this.renderKpis(t.building, alarmShown)}
-        ${this.fit >= 1 ? nothing : this.renderClimateStrip(t.building_climate, 'מזגנים בבניין')}
         ${sideLayout
           ? html`<div class="bgrid" data-side=${h.side} data-fit=${this.fit} data-bgrid>
               <div class="bmain">${this.renderToolbar(t, !quickShown, true)}${body}</div>
@@ -2030,20 +2081,6 @@ export class DevicesBuilding extends LitElement {
     </nav>`;
   }
 
-  /** CR-007 slice 4: "מזגני הקומה" / the building's own strip - mode + target only, never the full climate card
-   * (that lives on the area screen). Compact chips, read-only here. */
-  private renderClimateStrip(list: ClimateSummary[], label: string) {
-    if (!list.length || !this.prefs.showClimateStrip) return nothing;
-    return html`<div class="climate-strip" data-climate-strip>
-      <span class="lbl">${label}:</span>
-      ${list.map(
-        (c) => html`<span class=${classMap({ chip: true, warm: c.hvac_mode !== null && c.hvac_mode !== 'off' })} data-climate=${c.entity_id} title=${c.name}>
-          <sw-icon name="activity" size=${12}></sw-icon>${bidi(c.name)} · ${c.hvac_mode ? (HVAC_HE[c.hvac_mode] ?? c.hvac_mode) : '—'}${c.target_temperature !== null && c.target_temperature !== undefined ? ` · ${ltrNum(c.target_temperature)}°` : ''}
-        </span>`,
-      )}
-    </div>`;
-  }
-
   private renderFloorCard(f: DeviceFloor) {
     const c = f.counts;
     const it = this.lay.item(`floor:${f.floor_id}`); // CR-007 6b: the layout's own title and icon
@@ -2057,11 +2094,10 @@ export class DevicesBuilding extends LitElement {
             : nothing}
         </div>
         <div class="fh-chips">
-          ${c.lights ? html`<button type="button" class=${classMap({ lit: true, chip: true, warm: c.lights_on > 0 })} data-lit=${c.lights_on} data-floor-chip="lights" aria-haspopup="dialog" aria-expanded=${String(this.isOpen('lights', 'floor', f.floor_id))} title=${`תאורה · ${f.name}`} @click=${() => this.openPanel('lights', 'floor', f.floor_id)}><sw-icon name="light" size=${13}></sw-icon>${ltrNum(c.lights_on)} דולקות מתוך ${ltrNum(c.lights)}</button>` : nothing}
+          ${c.lights && this.hasFloorItem('lights') ? html`<button type="button" class=${classMap({ lit: true, chip: true, warm: c.lights_on > 0 })} data-lit=${c.lights_on} data-floor-chip="lights" aria-haspopup="dialog" aria-expanded=${String(this.isOpen('lights', 'floor', f.floor_id))} title=${`תאורה · ${f.name}`} @click=${() => this.openPanel('lights', 'floor', f.floor_id)}><sw-icon name="light" size=${13}></sw-icon>${ltrNum(c.lights_on)} דולקות מתוך ${ltrNum(c.lights)}</button>` : nothing}
           <span class="fchips" data-floor-chips=${f.floor_id}>${this.renderFloorChips(f, 12, true)}</span>
         </div>
       </header>
-      ${this.fit >= 1 ? nothing : this.renderClimateStrip(f.climate, 'מזגני הקומה')}
       <div class="rows">
         ${f.areas.length ? repeat(f.areas, (a) => a.area_id, (a) => this.renderAreaRow(a, 'card')) : html`<div class="arow" style="cursor:default">אין אזורים בקומה</div>`}
       </div>
@@ -2069,6 +2105,17 @@ export class DevicesBuilding extends LitElement {
         ? html`<footer><sw-button size="sm" icon="floor" data-open-floor=${f.floor_id} @click=${() => (this.selected = f.floor_id)}>פתח קומה</sw-button></footer>`
         : html`<footer><sw-button size="sm" variant="ghost" data-open-floor="all" @click=${() => (this.selected = 'all')}>כל המבנה</sw-button></footer>`}
     </section>`;
+  }
+
+  /** What sits after an area's name on its row (release 0.1.149): the indicators of the installation's / the user's list, on ONE line
+   * - a phone shows at most three, a wider screen six - and the rest as "+N"; a tap anywhere on the row opens the area. */
+  private renderIndicators(a: DeviceArea) {
+    const c = a.counts;
+    if (c.entities === 0) return html`<span class="ind none" data-area-indicators="">אין התקנים</span>`;
+    const list = areaIndicators(a, this.rows.area);
+    const { shown, hidden } = splitRow(list, this.isPhone ? ROW_MAX_PHONE : ROW_MAX_WIDE);
+    const one = (i: Indicator) => html`<span class=${classMap({ i: true, warm: i.warm, dim: i.dim, heat: i.icon === 'flame' })} data-ind=${i.id} title=${i.title}><sw-icon name=${i.icon} size=${14}></sw-icon>${i.text ? html`<span class="t">${i.text}</span>` : nothing}</span>`;
+    return html`<span class="ind" data-area-indicators=${list.map((i) => i.id).join(' ')}>${shown.map(one)}${hidden.length ? html`<span class="i more" data-ind-more=${hidden.length} title=${hidden.map((i) => i.title).join(' · ')}>${ltrNum(`+${hidden.length}`)}</span>` : nothing}</span>`;
   }
 
   /** One area as a row (tree panel or floor card): a link into the area, with the area popover as its hover / focus
@@ -2083,10 +2130,7 @@ export class DevicesBuilding extends LitElement {
     const body =
       where === 'tree'
         ? html`<span class=${classMap({ sdot: true, on })}></span><span class="nm" title=${a.name}>${bidi(a.name)}</span>${c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>` : html`<span class="lit" aria-hidden="true"></span>`}`
-        : html`<span class=${classMap({ sdot: true, on })}></span><span class="nm" title=${a.name}>${bidi(a.name)}</span>
-            <span class="pills">${pills.length
-              ? pills.map((p) => html`<span class=${classMap({ warm: p.warm })} title=${p.label}><sw-icon .name=${p.icon} size=${12}></sw-icon>${p.on === null ? p.total : `${p.on}/${p.total}`}</span>`)
-              : html`<span class="none">אין התקנים</span>`}${c.alarm ? html`<span class=${classMap({ warm: c.alarm !== 'disarmed' })} title="אזעקה"><sw-icon name="shield" size=${12}></sw-icon>${ALARM_HE[c.alarm] ?? c.alarm}</span>` : nothing}</span>`;
+        : html`<span class=${classMap({ sdot: true, on })}></span><span class="nm" title=${a.name}>${bidi(a.name)}</span>${this.renderIndicators(a)}`;
     const attrs = { area: a.area_id, on: String(on), counts: countsAttr(pills) };
     if (unassigned) {
       return html`<a class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style="text-decoration:none">${body}</a>`;
@@ -2121,8 +2165,8 @@ export class DevicesBuilding extends LitElement {
       ${kpi('תאורה דולקת', c.lights_on, c.lights, 'light', 'lights')}
       ${kpi('מתגים פעילים', c.switches_on, c.switches, 'bolt', 'switches')}
       ${kpi('תריסים פתוחים', c.covers_open, c.covers, 'layers', 'covers')}
-      ${kpi('מיזוג פעיל', c.climate_active, c.climate, 'activity', 'climate')}
-      ${kpi('חימום פעיל', c.heating_active, c.heating, 'activity', 'heating')}
+      ${kpi('מיזוג פעיל', c.climate_active, c.climate, 'snow', 'climate')}
+      ${kpi('חימום פעיל', c.heating_active, c.heating, 'flame', 'heating')}
       ${kpi('מסכים דולקים', c.media_on, c.media, 'play', 'media')}
       ${c.locks ? html`<sw-kpi data-kpi="נעולים" data-tile-kind="locks" data-value=${`${c.locks_locked}/${c.locks}`} label="מנעולים נעולים" value=${`${c.locks_locked}/${c.locks}`} icon="lock" tone=${c.locks_locked === c.locks ? 'live' : 'stale'} detail=${c.locks_locked === c.locks ? 'הכול נעול' : 'יש מנעול פתוח'} layout=${layout} icon-end action ?expanded=${this.isOpen('locks')} hint="הצג ושלוט" @click=${open('locks')}></sw-kpi>` : nothing}
       ${c.alarm && !hideAlarm ? html`<sw-kpi data-kpi="אזעקה" data-tile-kind="alarm" label="אזעקה" value=${ALARM_HE[c.alarm] ?? c.alarm} icon="shield" tone=${alarmTone(c.alarm)} layout=${layout} icon-end action ?expanded=${this.isOpen('alarm')} hint="הצג" @click=${open('alarm')}></sw-kpi>` : nothing}
@@ -2134,7 +2178,7 @@ export class DevicesBuilding extends LitElement {
   private renderFloorChips(f: DeviceFloor, size: number, card = false) {
     // the floor card (owner 2026-09-29): switches / covers / climate / locks / screens next to its own lights count
     // (the card's lit count is the lights chip), icon + number only - the words in the tooltip and the aria-label
-    const pills = this.pillsShown(f.counts).filter((p) => !card || (p.key !== 'lights' && PILL_KIND[p.key]));
+    const pills = this.floorPills(f.counts).filter((p) => !card || (p.key !== 'lights' && PILL_KIND[p.key]));
     const chip = (kind: TileKind | undefined, key: string, icon: IconName, text: string, title: string, warm: boolean) =>
       kind
         ? html`<button type="button" class=${classMap({ chip: true, warm })} data-floor-chip=${kind} aria-haspopup="dialog" aria-expanded=${String(this.isOpen(kind, 'floor', f.floor_id))} title=${`${title} · ${f.name}`} aria-label=${`${title}: ${text} · ${f.name}`} @click=${() => this.openPanel(kind, 'floor', f.floor_id)}><sw-icon .name=${icon} size=${size}></sw-icon>${text}</button>`
@@ -2154,7 +2198,6 @@ export class DevicesBuilding extends LitElement {
           : nothing}
         <div class="floor-sum" data-floor-sum=${f.floor_id}>${this.renderFloorChips(f, 13)}</div>
       </div>
-      ${this.fit >= 1 ? nothing : this.renderClimateStrip(f.climate, 'מזגני הקומה')}
       ${this.renderAreasGrid(`areas:${f.floor_id}`, html`${repeat(f.areas, (a) => a.area_id, (a) => this.lay.wrap(`area:${a.area_id}`, this.renderTile(a)))}`)}
     </section>`;
   }
@@ -2184,12 +2227,7 @@ export class DevicesBuilding extends LitElement {
         <span class="name">${bidi(titleOf(it, a.name))}</span>
         ${on ? html`<span class="dot" title="יש התקן פעיל"></span>` : nothing}
       </div>
-      <div class="pills">
-        ${pills.length
-          ? pills.map((p) => html`<span class=${classMap({ warm: p.warm })} title=${p.label}><sw-icon .name=${p.icon} size=${12}></sw-icon>${p.on === null ? p.total : `${p.on}/${p.total}`}</span>`)
-          : html`<span class="none">אין התקנים</span>`}
-        ${c.alarm ? html`<span class=${classMap({ warm: c.alarm !== 'disarmed' })} title="אזעקה"><sw-icon name="shield" size=${12}></sw-icon>${ALARM_HE[c.alarm] ?? c.alarm}</span>` : nothing}
-      </div>
+      <div class="pills">${this.renderIndicators(a)}</div>
     </a>${bulk
       ? html`<devices-bulk-menu scope="area" .targetId=${a.area_id} .targetName=${a.name} .counts=${c} variant="popover" label="פעולות לאזור" data-bulk-area=${a.area_id}></devices-bulk-menu>`
       : nothing}</div>`;

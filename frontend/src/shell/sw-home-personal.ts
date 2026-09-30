@@ -5,6 +5,11 @@ import {
   DIRECTION_LABEL, DIRECTION_LETTER, DIRECTIONS, HOME_PERSONAL_EVENT, PHONE_LAYOUT_LABEL, PHONE_LAYOUTS, loadHomeSettings, loadPersonal, moveWidget, PERSONAL_EMPTY, personalIsEmpty, savePersonal, SIZE_LABEL, SIZES, WIDGET_NAME,
   type Direction, type HomeConfig, type HomePersonal, type PhoneLayout, type Size, type WidgetId,
 } from '../api/home';
+import { effectiveRows, loadPersonalRow, personalDiff, savePersonalRow, type AreaRowPersonal } from '../api/area-row';
+import { productSettings } from '../api/prefs';
+import { devicesPrefsOf } from '../screens/devices-style';
+import '../screens/area-row-editor';
+import type { AreaRowChange } from '../screens/area-row-editor';
 
 
 /**
@@ -20,6 +25,9 @@ export class SwHomePersonal extends LitElement {
   @state() private personal: HomePersonal = PERSONAL_EMPTY;
   @state() private base: { direction: Direction; config: HomeConfig } | null = null;
   @state() private busy = false;
+  /** Release 0.1.149: the user's own choice of what shows next to an area's name, and the installation's it is laid over. */
+  @state() private row: AreaRowPersonal = {};
+  @state() private rowBase: ReturnType<typeof devicesPrefsOf> | null = null;
   @state() private failed = '';
 
   static styles = css`
@@ -121,9 +129,11 @@ export class SwHomePersonal extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    void Promise.all([loadPersonal(), loadHomeSettings(true)]).then(([p, h]) => {
+    void Promise.all([loadPersonal(), loadHomeSettings(true), loadPersonalRow(), productSettings().catch(() => null)]).then(([p, h, r, s]) => {
       this.personal = p;
       this.base = { direction: h.direction, config: h.config };
+      this.row = r;
+      this.rowBase = devicesPrefsOf(s);
     });
   }
 
@@ -146,6 +156,25 @@ export class SwHomePersonal extends LitElement {
       window.dispatchEvent(new CustomEvent(HOME_PERSONAL_EVENT));
     } catch (err) {
       this.personal = before;
+      this.failed = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /** An area-row choice: only what differs from the installation's is stored (null = follow it entirely). */
+  private async commitRow(change: AreaRowChange | null) {
+    if (!this.rowBase) return;
+    const before = this.row;
+    const next = change ? personalDiff(change.area, change.floor, this.rowBase.areaRow, this.rowBase.floorRow) : null;
+    this.row = next ?? {};
+    this.busy = true;
+    this.failed = '';
+    try {
+      this.row = await savePersonalRow(next);
+      window.dispatchEvent(new CustomEvent(HOME_PERSONAL_EVENT));
+    } catch (err) {
+      this.row = before;
       this.failed = describeError(err);
     } finally {
       this.busy = false;
@@ -226,7 +255,13 @@ export class SwHomePersonal extends LitElement {
           </div>
         </div>`;
       })}
-      <button type="button" class="reset" data-home-personal-reset ?disabled=${this.busy || personalIsEmpty(this.personal)} @click=${() => this.commit({ ...PERSONAL_EMPTY, widgets: {} })}>ברירת מחדל של המערכת</button>
+      ${this.rowBase
+        ? html`<div class="w" data-home-personal-area-row>
+            <div class="row"><span class="lbl">ליד שם האזור</span></div>
+            <area-row-editor .area=${effectiveRows(this.rowBase.areaRow, this.rowBase.floorRow, this.row).area} .floor=${effectiveRows(this.rowBase.areaRow, this.rowBase.floorRow, this.row).floor} ?disabled=${this.busy} @area-row-change=${(e: CustomEvent<AreaRowChange>) => void this.commitRow(e.detail)}></area-row-editor>
+          </div>`
+        : nothing}
+      <button type="button" class="reset" data-home-personal-reset ?disabled=${this.busy || (personalIsEmpty(this.personal) && !Object.keys(this.row).length)} @click=${async () => { await this.commit({ ...PERSONAL_EMPTY, widgets: {} }); if (Object.keys(this.row).length) await this.commitRow(null); }}>ברירת מחדל של המערכת</button>
       ${this.failed ? html`<p class="err" role="alert" data-home-personal-error>${this.failed}</p>` : nothing}
       <span hidden data-home-personal-direction-now=${d}></span>
     `;

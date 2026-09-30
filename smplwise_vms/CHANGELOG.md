@@ -1,5 +1,19 @@
 # Changelog — SmplWise Arx add-on
 
+## 0.1.149 (pilot) — (in progress)
+### Home screen
+- **A calm area row**: the per-A/C chip lists (floor "מזגני הקומה", building "מזגנים בבניין") are gone. Each area row carries ONE air-conditioning
+  indicator (snowflake / flame / fan by the dominant mode, dimmed when off, optional temperature or mode, the number working when several) followed by
+  the counters worth a glance, on one line; a phone shows three and collapses the rest into "+N". An unknown temperature is hidden, never a dash.
+- **Several A/C in one area**: "ממוצע" (default: mean of the running ones and their number) or "מוביל" (one unit's own temperature and mode; the unit is
+  chosen per area in the editor - also in the personal editor, from the areas the user can see - else the first running one). **Open doors / windows and unlocked locks** show only while something is open / unlocked
+  ("רק כשפתוח", per item). The item order is free (arrows); a dashed line in the editor marks the three a phone shows.
+- **Editable** (הגדרות › חשמל והתקנים › "מה מוצג ליד שם האזור"): which items, in which order, what the A/C says, whether zero counters show, and the
+  floor header's chips; new keys `devices.area_row` / `devices.floor_row`. A user with `screen.personalize` may choose their own (החשבון שלי › המסך שלי).
+- The floor card's header chips stay on one line on a phone (scrolling sideways), and the floor action no longer slides out of the card.
+- The devices tree now carries each area's own climate units, room temperature and open doors / windows (additive fields).
+- `devices.show_climate_strip` is deprecated (accepted, no effect).
+
 ## 0.1.148.1 (pilot) — Hotfix: the embedded WisKey is whole again; a custom role may hold every permission
 - **WisKey**: the 3 px edge crop of 0.1.148 cut WisKey's own content (with `chrome=none` its title, search and buttons touch the frame edge). The crop is withdrawn; the frame equals its stage again. The focus ring at WisKey's edge returns until WisKey ships the rc.38 change (docs/integrations/wiskey).
 - **Roles**: the custom-role editor refused more than 20 sensitive grants ("List should have at most 20 items") - 28 exist. The body guards are wide enough for "select all" in both lists.

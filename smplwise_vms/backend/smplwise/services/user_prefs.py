@@ -8,7 +8,7 @@ import sqlite3
 from typing import Any, Callable
 
 from ..db import now_iso
-from . import home_config, nav_size
+from . import area_row, home_config, nav_size
 
 # The navigation tabs of the app shell in their default order (frontend/src/shell/nav.ts, NAV_A): ראשי (the device
 # overview), אבטחה, מפה, WisKey. The user avatar is always last and is not a tab. A new tab is appended to every stored
@@ -69,6 +69,14 @@ DEFAULTS["wiskey.wall"] = None
 PERSONAL_HOME_KEY = "home.personal"
 VALIDATORS[PERSONAL_HOME_KEY] = home_config.normalise_personal
 DEFAULTS[PERSONAL_HOME_KEY] = None
+
+# `devices.area_row` (release 0.1.149): what the user wants next to an area's name and in a floor's header, over the installation's
+# `devices.area_row` / `devices.floor_row` (services/area_row.py). Same rule as `home.personal`: the value exists only for a holder of
+# `screen.personalize`.
+PERSONAL_AREA_ROW_KEY = "devices.area_row"
+VALIDATORS[PERSONAL_AREA_ROW_KEY] = area_row.normalise_personal
+DEFAULTS[PERSONAL_AREA_ROW_KEY] = None
+PERSONAL_KEYS: tuple[str, ...] = (PERSONAL_HOME_KEY, PERSONAL_AREA_ROW_KEY)
 
 
 def get_prefs(conn: sqlite3.Connection, user_id: str, hide: tuple[str, ...] = ()) -> dict[str, Any]:

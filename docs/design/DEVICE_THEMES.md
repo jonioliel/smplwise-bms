@@ -16,7 +16,9 @@ listed below. Slice 6b adds the colour themes (`frontend/src/styles/devices-pale
 | `devices.density` | `comfortable` (default), `compact` | `data-devices-density` | Tighter tiles, rows and gaps, in either style. |
 | `devices.default_view` | `cards` (default), `tiles` | none | The building screen's first view. A viewer's own toggle wins (localStorage `sw.devices.layout`). |
 | `devices.show_sensors` | `true` / `false` | none | The sensors card on the area screen and the sensors count on the building screen. |
-| `devices.show_climate_strip` | `true` / `false` | none | The "מזגנים" strip on the building screen and on each floor. |
+| `devices.show_climate_strip` | `true` / `false` | none | **Deprecated since 0.1.149**: the per-A/C strips are gone; accepted and stored, nothing reads it. |
+| `devices.area_row` | object `{items, climate, show_empty, climate_mode, climate_lead, only_active}` | none | What sits after an area's name on the home screen, one line, in order (`services/area_row.py`, `frontend/src/api/area-row.ts`). A user with `screen.personalize` may override it in `/me/prefs` `devices.area_row`. |
+| `devices.floor_row` | object `{items}` | none | The count chips of a floor card's header, in order. |
 
 These settings are per installation. Everyone reads them through `GET /settings`. Changing them needs
 `system.configure`, and every change is audited as `settings.update`.

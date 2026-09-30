@@ -29,6 +29,8 @@ import { getSkinsStatus, runSkinsTest, type SkinsStatus, type SkinsTestResult } 
 import { devicesPrefsOf, type DevicesStyle } from './devices-style';
 import './devices-theme-picker';
 import './devices-climate-kind-admin'; // owner 2026-09-30: מיזוג / חימום per climate entity
+import './area-row-editor'; // release 0.1.149: הגדרות › חשמל והתקנים › מה מוצג ליד שם האזור
+import type { AreaRowChange } from './area-row-editor';
 import './devices-bulk-safe-admin'; // owner 2026-09-30: הגדרות › חשמל והתקנים › פעולה קבוצתית
 import './system-tabs'; // owner 2026-09-30: הגדרות › כללי › לשוניות
 import './system-nav-size'; // UI round 1b: הגדרות › כללי › גודל הניווט
@@ -1010,7 +1012,7 @@ export class SystemDiagnostics extends LitElement {
   private renderDevices() {
     const api = isApi();
     const ro = !api || !this.canEdit;
-    const keys = ['devices.style', 'devices.default_view', 'devices.density', 'devices.show_sensors', 'devices.show_climate_strip', 'devices.theme', 'devices.scheme', 'devices.area_design'] as const;
+    const keys = ['devices.style', 'devices.default_view', 'devices.density', 'devices.show_sensors', 'devices.area_row', 'devices.floor_row', 'devices.theme', 'devices.scheme', 'devices.area_design'] as const;
     const areaDesign = ({ ...(this.settings ?? {}), ...this.draft })['devices.area_design'] === 'sections' ? 'sections' : 'tiles';
     const dirty = keys.some((k) => k in this.draft);
     const p = devicesPrefsOf({ ...(this.settings ?? {}), ...this.draft });
@@ -1047,10 +1049,10 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-devices-sensors ?disabled=${ro} @change=${(e: Event) => this.set('devices.show_sensors', (e.target as HTMLSelectElement).value === 'false' ? 'false' : 'true')}>
             <option value="true" ?selected=${p.showSensors}>מוצג</option><option value="false" ?selected=${!p.showSensors}>מוסתר</option>
           </select></sw-field></div>
-        <div class="row"><span class="lbl">רצועת המזגנים<span class="muted">מצב המזגנים בראש מסך המבנה ובכל קומה</span></span>
-          <sw-field class="ctl"><select data-set-devices-climate ?disabled=${ro} @change=${(e: Event) => this.set('devices.show_climate_strip', (e.target as HTMLSelectElement).value === 'false' ? 'false' : 'true')}>
-            <option value="true" ?selected=${p.showClimateStrip}>מוצגת</option><option value="false" ?selected=${!p.showClimateStrip}>מוסתרת</option>
-          </select></sw-field></div>
+        <div data-area-row-setting style="margin-block:12px">
+          <div class="lbl" style="margin-block-end:8px"><strong>מה מוצג ליד שם האזור</strong><span class="muted">בשורת כל אזור ובכותרת הקומה, שורה אחת בלי גלישה. הסדר קובע: בטלפון מוצגים רק הפריטים שמעל הקו, השאר נאספים ל־+N. כל השאר תמיד בתוך האזור. מי שמוגדרת לו התאמה אישית של המסך יכול לבחור אחרת לעצמו.</span></div>
+          <area-row-editor style="display:block;max-inline-size:460px" data-area-row-editor-settings .area=${p.areaRow} .floor=${p.floorRow} ?disabled=${ro} @area-row-change=${(e: CustomEvent<AreaRowChange>) => { this.set('devices.area_row', e.detail.area); this.set('devices.floor_row', e.detail.floor); }}></area-row-editor>
+        </div>
         <div class="muted" data-devices-layout-next style="margin-block-start:8px">הפריסה עצמה (מיקום וגודל של כרטיסים ואריחים, כותרת, אייקון, גודל טקסט וצבע לפי תפקיד) נערכת במסך המבנה ובמסך האזור, בכפתור "ערוך פריסה".</div>
         ${this.canEdit && api
           ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-devices ?disabled=${!dirty || this.busy} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'devices' ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error && this.tab === 'devices' ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>`

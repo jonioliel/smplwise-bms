@@ -149,7 +149,7 @@ def test_devices_settings_defaults_validation_audit_and_gate(settings):
         before = c.get("/api/v1/settings").json()["settings"]
         assert {k: before[k] for k in DEVICES_DEFAULTS} == DEVICES_DEFAULTS
         # (devices.area_design - the area screens' direction, owner 2026-09-30 - has its own tests: test_area_redesign.py)
-        assert sorted(k for k in before if k.startswith("devices.") and k != "devices.area_design") == sorted(DEVICES_DEFAULTS)
+        assert sorted(k for k in before if k.startswith("devices.") and k not in ("devices.area_design", "devices.area_row", "devices.floor_row")) == sorted(DEVICES_DEFAULTS)  # (area_row / floor_row: test_area_row.py)
         change = {"devices.style": "glass", "devices.default_view": "tiles", "devices.show_sensors": "false", "devices.show_climate_strip": "false", "devices.density": "compact"}
         r = c.patch("/api/v1/settings", json=change)
         assert r.status_code == 200, r.text

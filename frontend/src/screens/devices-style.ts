@@ -4,6 +4,7 @@ import { isApi } from '../api/session';
 import { DEVICE_THEMES, devicesThemes, type DeviceThemeId } from '../styles/devices-themes';
 import { devicesPalettes } from '../styles/devices-palettes';
 import { devicesLayoutCss } from './devices-layout-css';
+import { areaRowOf, AREA_ROW_DEFAULT, FLOOR_ROW_DEFAULT, floorRowOf, type AreaRow, type FloorRow } from '../api/area-row';
 
 /**
  * CR-007 slice 6a: the presentation settings of the device-control screens (הגדרות › חשמל והתקנים, `devices.*`, per
@@ -31,12 +32,14 @@ export interface DevicesPrefs {
   theme: DeviceThemeId;
   defaultView: DevicesView;
   showSensors: boolean;
-  showClimateStrip: boolean;
+  /** Release 0.1.149: what shows next to an area's name and in a floor's header (installation default; api/area-row.ts). */
+  areaRow: AreaRow;
+  floorRow: FloorRow;
   density: DevicesDensity;
   scheme: DevicesScheme;
 }
 
-export const DEVICES_PREFS_DEFAULT: DevicesPrefs = { style: 'smplwise', theme: 'default', defaultView: 'cards', showSensors: true, showClimateStrip: true, density: 'comfortable', scheme: 'light' };
+export const DEVICES_PREFS_DEFAULT: DevicesPrefs = { style: 'smplwise', theme: 'default', defaultView: 'cards', showSensors: true, areaRow: AREA_ROW_DEFAULT, floorRow: FLOOR_ROW_DEFAULT, density: 'comfortable', scheme: 'light' };
 
 /** The `devices.*` settings as the screens use them; anything unknown falls back to today's look / the default palette. */
 export function devicesPrefsOf(s: Partial<ProductSettings> | null | undefined): DevicesPrefs {
@@ -46,7 +49,8 @@ export function devicesPrefsOf(s: Partial<ProductSettings> | null | undefined): 
     theme: (DEVICE_THEMES as readonly string[]).includes(theme ?? '') ? (theme as DeviceThemeId) : 'default',
     defaultView: s?.['devices.default_view'] === 'tiles' ? 'tiles' : 'cards',
     showSensors: s?.['devices.show_sensors'] !== 'false',
-    showClimateStrip: s?.['devices.show_climate_strip'] !== 'false',
+    areaRow: areaRowOf(s?.['devices.area_row']),
+    floorRow: floorRowOf(s?.['devices.floor_row']),
     density: s?.['devices.density'] === 'compact' ? 'compact' : 'comfortable',
     scheme: s?.['devices.scheme'] === 'dark' || s?.['devices.scheme'] === 'auto' ? s['devices.scheme'] : 'light',
   };
