@@ -1,6 +1,7 @@
 /** Media, settings and snapshots against the add-on backend. */
 import { apiUrl, get, patch, post } from './client';
 import type { CameraEncoding } from './types';
+import type { NavSizeWire } from './me-prefs';
 
 export type Transport = 'auto' | 'webrtc' | 'mse';
 
@@ -14,6 +15,8 @@ export interface TabsSectionConfig {
 export type TabsConfig = Record<string, TabsSectionConfig>;
 
 export interface ProductSettings {
+  /** The installation's default size of the navigation rail / bottom bar (UI round 1; הגדרות › כללי › גודל הניווט). */
+  'ui.nav_size'?: NavSizeWire;
   /** Installation-wide tab order and visibility per navigation section (הגדרות › כללי › לשוניות); `{}` = the built-in tabs. */
   'ui.tabs'?: TabsConfig;
   /** The floor the map's floor tab opens first (an existing floor id); '' = the first floor the user may read. */

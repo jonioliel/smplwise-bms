@@ -12,6 +12,7 @@ import './sw-user-menu';
 import './sw-nav-order';
 import { openAlertsText } from './sw-user-menu';
 import { loadNavOrder, navOrder, onNavOrder, resetNavOrder, saveNavOrder } from './nav-order';
+import { loadNavSize, navCssVars, navDims, navSize, onNavSize, setInstallationNavSize, type NavDims } from './nav-size';
 import { listAlerts } from '../api/rules';
 import { inAndroidShell } from '../arx/android-app';
 import '../screens/explore-floor-map';
@@ -126,6 +127,11 @@ export class SwApp extends LitElement {
   @state() private phone = this.phoneMq.matches;
   private onPhoneMq = () => (this.phone = this.phoneMq.matches);
   private stopNavOrder?: () => void;
+  /** UI round 1b: the navigation's size (shell/nav-size.ts: the user's own over the installation's), as pixel sizes. */
+  @state() private nav: NavDims = navDims(navSize());
+  private stopNavSize?: () => void;
+  private railObs: ResizeObserver | null = null;
+  private observedRail: HTMLElement | null = null;
   private stopTabsConfig?: () => void;
   private navOrderUser: string | null = null;
 
@@ -439,13 +445,19 @@ export class SwApp extends LitElement {
       /* UI round 1: no top bar - the content owns the whole column; search and status float in its corner (.float) */
       grid-template-rows: minmax(0, 1fr);
       grid-template-areas: 'rail main';
+      /* UI round 1b (shell/nav-size.ts): the rail is as wide as its widest label needs (never clipped); sw-app measures it
+         into --sw-rail-w for what is placed beside it (the user menu, the alert banner) */
+      grid-template-columns: auto minmax(0, 1fr);
     }
     :host([data-design='a']) nav.rail {
       padding-block: 12px 10px;
       padding-inline-start: max(7px, env(safe-area-inset-right, 0px));
       padding-inline-end: max(7px, env(safe-area-inset-left, 0px));
       gap: 4px;
-      align-items: center;
+      align-items: stretch;
+    }
+    :host([data-design='a']) nav.rail .brand-tile {
+      align-self: center;
     }
     .brand-tile {
       display: grid;
@@ -466,16 +478,23 @@ export class SwApp extends LitElement {
       justify-content: center;
       gap: 3px;
       box-sizing: border-box;
-      inline-size: 56px;
-      min-block-size: 52px;
-      padding: 6px 0;
+      min-inline-size: var(--nav-item-w, 56px);
+      min-block-size: var(--nav-item-h, 52px);
+      padding: 6px 4px;
       line-height: 1.3;
       border-radius: 10px;
-      font-size: 10.5px;
+      font-size: var(--nav-label, 10.5px);
+      white-space: nowrap;
       position: relative;
     }
     a.item.a span {
       display: inline;
+    }
+    /* labels off (a free size with no label): the icon alone; the link keeps its aria-label */
+    :host([data-nolabels]) a.item.a span,
+    :host([data-nolabels]) button.me .lbl,
+    :host([data-nolabels]) nav.bottom .lbl {
+      display: none;
     }
     a.item.a.active::after {
       content: '';
@@ -877,10 +896,13 @@ export class SwApp extends LitElement {
     }
     @media (max-width: 1023px) {
       :host([data-design='a']) {
-        grid-template-columns: var(--sw-rail-w) minmax(0, 1fr);
+        grid-template-columns: auto minmax(0, 1fr);
       }
       :host([data-design='a']) a.item.a span {
         display: inline;
+      }
+      :host([data-design='a'][data-nolabels]) a.item.a span {
+        display: none;
       }
       :host([data-design='a']) .subnav {
         padding: 10px 16px 0;
@@ -970,19 +992,19 @@ export class SwApp extends LitElement {
       box-sizing: border-box;
     }
     button.me .lbl {
-      max-inline-size: 100%;
+      max-inline-size: 8em;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
     button.me.rail {
-      inline-size: 56px;
-      min-block-size: 52px;
-      padding: 5px 0 3px;
+      min-inline-size: var(--nav-item-w, 56px);
+      min-block-size: var(--nav-item-h, 52px);
+      padding: 5px 4px 3px;
       border-radius: 10px;
       gap: 2px;
       line-height: 1.3;
-      font-size: 10.5px;
+      font-size: var(--nav-label, 10.5px);
       font-weight: var(--sw-fw-medium);
     }
     button.me.rail.open {
@@ -1116,7 +1138,7 @@ export class SwApp extends LitElement {
         min-block-size: var(--sw-bottomnav-h);
         min-inline-size: 44px;
         padding: 3px 2px 4px;
-        font-size: 10px;
+        font-size: var(--nav-p-label, 10px);
         font-weight: var(--sw-fw-medium);
         color: var(--sw-text-3);
         -webkit-tap-highlight-color: transparent;
@@ -1124,9 +1146,9 @@ export class SwApp extends LitElement {
       :host([data-design='a']) nav.bottom .ic {
         display: grid;
         place-items: center;
-        inline-size: 44px;
-        block-size: 26px;
-        border-radius: 13px;
+        inline-size: var(--nav-pill-w, 44px);
+        block-size: var(--nav-pill-h, 26px);
+        border-radius: 999px;
         transition: background var(--sw-t-med) var(--sw-ease), color var(--sw-t-med) var(--sw-ease);
       }
       :host([data-design='a']) nav.bottom a.active {
@@ -1161,7 +1183,7 @@ export class SwApp extends LitElement {
         border-width: 1.5px;
       }
       :host([data-design='a']) nav.bottom .lbl {
-        max-inline-size: 72px;
+        max-inline-size: 100%;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -1189,6 +1211,7 @@ export class SwApp extends LitElement {
     this.phoneMq.addEventListener('change', this.onPhoneMq);
     window.addEventListener('popstate', this.onPopState);
     this.stopNavOrder = onNavOrder((o) => (this.navOrder = o));
+    this.stopNavSize = onNavSize((sz) => (this.nav = navDims(sz)));
     this.stopTabsConfig = onTabsConfig(() => this.requestUpdate()); // הגדרות › כללי › לשוניות: every tab row follows at once
     this.stopSession = onSession((s) => {
       this.session = s;
@@ -1198,6 +1221,7 @@ export class SwApp extends LitElement {
       if (who && who !== this.navOrderUser) {
         this.navOrderUser = who;
         void loadNavOrder(who, s.mode === 'api' || s.mode === 'no_access');
+        void loadNavSize(who, s.mode === 'api' || s.mode === 'no_access');
       }
       if (s.mode !== 'loading') void this.pollAlerts();
       // the static demo has no start-screen setting: the bare address opens "ראשי"
@@ -1209,6 +1233,7 @@ export class SwApp extends LitElement {
       if (s.mode === 'api' && !this.sysTimer) {
         void productSettings().then((ps) => {
           HIDDEN_HREFS.clear();
+          setInstallationNavSize(ps['ui.nav_size']); // the installation's default size of the navigation
           if (String(ps['ui.hide_search'] ?? 'false') === 'true') HIDDEN_HREFS.add('#/investigate/search');
           const hideMap = String(ps['ui.hide_map'] ?? 'false') === 'true';
           if (hideMap) for (const h of MAP_HREFS) HIDDEN_HREFS.add(h);
@@ -1293,7 +1318,34 @@ export class SwApp extends LitElement {
   private bannerObs: ResizeObserver | null = null;
   private observedBanner: HTMLElement | null = null;
 
+  /** The navigation's sizes onto the host as CSS variables (design A only), the rail's real width into --sw-rail-w (the
+   * user menu and the alert banner sit beside it), and whether labels show at all. */
+  private applyNavSize() {
+    const a = this.design === 'a';
+    for (const [k, v] of Object.entries(navCssVars(this.nav))) {
+      if (a) this.style.setProperty(k, v);
+      else this.style.removeProperty(k);
+    }
+    if (a) this.style.setProperty('--sw-bottomnav-h', `${this.nav.bar}px`);
+    else this.style.removeProperty('--sw-bottomnav-h');
+    this.toggleAttribute('data-nolabels', a && !this.nav.labels);
+    const rail = a ? this.renderRoot.querySelector<HTMLElement>('nav.rail') : null;
+    if (rail !== this.observedRail) {
+      this.railObs?.disconnect();
+      this.railObs = null;
+      this.observedRail = rail;
+      if (rail) {
+        this.railObs = new ResizeObserver(() => {
+          const w = rail.offsetWidth;
+          if (w > 0) this.style.setProperty('--sw-rail-w', `${w}px`);
+        });
+        this.railObs.observe(rail);
+      } else this.style.removeProperty('--sw-rail-w');
+    }
+  }
+
   protected updated() {
+    this.applyNavSize();
     // what the floating corner (search, status) sits above: the phone's sticky section row, a tab / section row, or
     // the page's own header (sw-page reads --sw-float-reserve to keep its actions clear)
     const top = this.renderRoot.querySelector('nav.secrow') ? 'secrow' : this.renderRoot.querySelector('.subnav > *') ? 'tabs' : 'page';
@@ -1323,6 +1375,9 @@ export class SwApp extends LitElement {
     this.stopWiskeyNav?.();
     this.stopAlarmPresence?.();
     this.stopNavOrder?.();
+    this.stopNavSize?.();
+    this.railObs?.disconnect();
+    this.railObs = null;
     this.stopTabsConfig?.();
     this.phoneMq.removeEventListener('change', this.onPhoneMq);
     window.removeEventListener('popstate', this.onPopState);
@@ -1899,7 +1954,7 @@ export class SwApp extends LitElement {
     return html`<button type="button" class=${classMap({ me: true, [where]: true, open: this.menuOpen, active: here })} ?data-profile-menu=${where === 'rail'} ?data-nav-me=${where === 'bottom'} data-has-alerts=${n ? 'true' : 'false'}
       aria-current=${here ? 'page' : 'false'} aria-haspopup="dialog" aria-expanded=${this.menuOpen ? 'true' : 'false'} aria-label=${this.userLabel()} title=${this.userLabel()}
       @click=${(e: Event) => (this.menuOpen ? this.closeMenu(false) : this.openMenu(e.currentTarget as HTMLElement))}>
-      <span class="ic"><span class="av"><sw-avatar name=${this.userName} size=${where === 'rail' ? 28 : 22}></sw-avatar>${n ? html`<i class="dot" data-alert-dot aria-hidden="true"></i>` : nothing}</span></span><span class="lbl">${first}</span>
+      <span class="ic"><span class="av"><sw-avatar name=${this.userName} size=${where === 'rail' ? this.nav.avatar : this.nav.pAvatar}></sw-avatar>${n ? html`<i class="dot" data-alert-dot aria-hidden="true"></i>` : nothing}</span></span><span class="lbl">${first}</span>
     </button>`;
   }
 
@@ -1958,8 +2013,8 @@ export class SwApp extends LitElement {
       <nav class="rail" aria-label="ניווט ראשי">
         <span class="brand-tile" aria-hidden="true"><span>S</span></span>
         ${areas.map(
-          (n) => html`<a class=${classMap({ item: true, a: true, active: area === n.id })} href=${n.href} title=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}>
-            <sw-icon .name=${n.icon} size=${20}></sw-icon><span>${n.label}</span>
+          (n) => html`<a class=${classMap({ item: true, a: true, active: area === n.id })} href=${n.href} title=${n.label} aria-label=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}>
+            <sw-icon .name=${n.icon} size=${this.nav.icon}></sw-icon><span>${n.label}</span>
           </a>`,
         )}
         <div class="grow"></div>
@@ -1974,7 +2029,7 @@ export class SwApp extends LitElement {
           <div class="screen">${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}
       </main>
       <nav class="bottom" aria-label="ניווט ראשי">
-        ${areas.map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}><span class="ic"><sw-icon .name=${n.icon} size=${19}></sw-icon></span><span class="lbl">${n.label}</span></a>`)}
+        ${areas.map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href} aria-label=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}><span class="ic"><sw-icon .name=${n.icon} size=${this.nav.pIcon}></sw-icon></span><span class="lbl">${n.label}</span></a>`)}
         ${this.renderMe('bottom')}
       </nav>
       ${this.renderUserMenu()}

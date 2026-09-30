@@ -15,6 +15,7 @@ from ..auth import current_principal, get_conn
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
+from ..services import nav_size
 
 router = APIRouter()
 
@@ -44,6 +45,10 @@ DEFAULTS: dict[str, str] = {
     # auto (compact under 600 px wide, cards above) | cards (tall, icon above) | compact (a rectangle, icon beside the
     # value). Per installation, like ui.design; a browser may override it for itself (frontend/src/api/tile-layout.ts).
     "ui.tile_layout": "auto",
+    # UI round 1 (owner 2026-09-30): the size of the side rail / phone bottom bar - a JSON object, shape and ranges in
+    # services/nav_size.py ({"mode":"rel","preset":"m"} or {"mode":"free","icon":..,"label":..,"item":..}); a user's own
+    # value (/me/prefs) wins. Read back as an object.
+    "ui.nav_size": '{"mode":"rel","preset":"m"}',
     # owner 2026-09-30 (tabs per section): installation-wide tab order / visibility per navigation section, a JSON object
     # {section_id: {"order": [tab_id...], "hidden": [tab_id...]}}; read back as an object, not a string. "{}" = nothing
     # configured = the built-in tabs. Contract: docs/architecture/TABS_CONFIG.md.
@@ -179,8 +184,17 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
         value = get_setting(conn, key, default) or default
         out[key] = int(value) if key in INT_KEYS else value
     out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
+    out["ui.nav_size"] = _stored_nav_size(out["ui.nav_size"])
     out["schedules.classes"] = stored_schedule_classes(out["schedules.classes"])
     return out
+
+
+def _stored_nav_size(raw: Any) -> dict[str, Any]:
+    """The stored ui.nav_size as an object; a corrupt or foreign value reads as the default size."""
+    try:
+        return nav_size.normalize(json.loads(raw) if isinstance(raw, str) else raw)
+    except ValueError:
+        return dict(nav_size.DEFAULT)
 
 
 def stored_schedule_classes(raw: Any) -> list[str]:
@@ -273,6 +287,7 @@ class SettingsPatch(BaseModel):
     ui_security_snapshot: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.security_snapshot")
     ui_tile_layout: str | None = Field(default=None, pattern="^(auto|cards|compact)$", alias="ui.tile_layout")
     ui_tabs: dict[str, Any] | None = Field(default=None, alias="ui.tabs")  # validated in full by normalize_tabs
+    ui_nav_size: dict[str, Any] | None = Field(default=None, alias="ui.nav_size")  # validated in full by services/nav_size.py
     history_ha_secondary: str | None = Field(default=None, pattern="^(true|false)$", alias="history.ha_secondary")
     plan_estimates: str | None = Field(default=None, pattern="^(true|false)$", alias="plan.estimates")
     plan_levels: str | None = Field(default=None, pattern="^(all|default)$", alias="plan.levels")
@@ -354,6 +369,11 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         changes["ui.design_names"] = json.dumps({"a": names.get("a", "SW A").strip(), "b": names.get("b", "SW B").strip()}, ensure_ascii=False)
     if "ui.tabs" in changes:
         changes["ui.tabs"] = normalize_tabs(changes["ui.tabs"])
+    if "ui.nav_size" in changes:
+        try:
+            changes["ui.nav_size"] = nav_size.normalize(changes["ui.nav_size"])
+        except ValueError as exc:
+            raise ApiError(422, "validation", "גודל הניווט: ערך לא תקין.", details={"ui.nav_size": str(exc)})
     if "schedules.classes" in changes:
         bad = [c for c in changes["schedules.classes"] if c not in SCHEDULE_CLASSES]
         if bad:
@@ -386,7 +406,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         # the adapter contract exists (privacy, model version, budget, opt-in) but no provider is bundled: refuse, never pretend
         raise ApiError(422, "provider_not_available", "לא מצורף ספק ניתוח חיצוני; קיים רק חוזה המתאם (פרטיות, גרסת מודל, תקציב, opt-in).", details={"choices": ["none", "local"]})
     for key, value in changes.items():
-        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "schedules.classes") else str(value))
+        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "schedules.classes") else str(value))
     if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now
         from ..services import schedules as schedules_svc
 

@@ -30,6 +30,7 @@ import { devicesPrefsOf, type DevicesStyle } from './devices-style';
 import './devices-theme-picker';
 import './devices-bulk-safe-admin'; // owner 2026-09-30: הגדרות › חשמל והתקנים › פעולה קבוצתית
 import './system-tabs'; // owner 2026-09-30: הגדרות › כללי › לשוניות
+import './system-nav-size'; // UI round 1b: הגדרות › כללי › גודל הניווט
 import { loadTree } from '../api/catalog';
 import type { Site } from '../api/types';
 import type { DevicesPick } from './devices-theme-picker';
@@ -664,6 +665,7 @@ export class SystemDiagnostics extends LitElement {
     const NVR = nvrLess();
     return html`<div class="sections">
       ${this.renderDesign()}
+      <system-nav-size></system-nav-size>
       <sw-card heading="זמן ומיקום">
         <div class="row"><span class="lbl">אזור זמן לתצוגה<span class="muted">פנימית הכל UTC; שעון קיץ לפי התאריך המבוקש</span></span><sw-field class="ctl"><select><option>(UTC+02:00) Asia/Jerusalem</option></select></sw-field></div>
         ${NVR ? nothing : html`<div class="row"><span class="lbl">פרופיל זמן של ה־NVR<span class="muted">נקבע לפי ראיות לדגם ולקושחה</span></span><sw-field class="ctl"><select><option>hikvision · ds-76xx · שעון מקומי</option></select></sw-field></div>`}
