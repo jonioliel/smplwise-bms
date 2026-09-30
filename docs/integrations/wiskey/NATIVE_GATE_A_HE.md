@@ -2,6 +2,8 @@
 
 Status 2026-09-30 · branch `pilot/wiskey-native-gateA` · input: WisKey `2.0.0-rc.37` package "native integration"
 (`private-evidence/wiskey-native-rc37/`, reference only, not copied) · no code changed · no live system contacted.
+**Updated 2026-10-01:** WisKey's reply `rc37-contract.1` and the owner's decisions are folded in (sections 7-8). The plan in
+section 4 is superseded by section 8. Our reply to Codex: `ARX_DECISIONS_REPLY_HE.md`.
 
 ## Summary for the coordinator (English)
 
@@ -26,6 +28,9 @@ Status 2026-09-30 · branch `pilot/wiskey-native-gateA` · input: WisKey `2.0.0-
    for stills) with Arx RBAC intersected with the operator's WisKey station scope read through (a+).
 8. Nothing here is proven live: actual actor, WisKey security settings, 10 streams, unlock, audio, Companion.
 9. Six owner questions at the end; recommended: keep 0.1.149 media first, run only the identity spike in parallel.
+10. 2026-10-01 update: WisKey confirms (b) works today and prefers (a+) long term, but (a+) is a new WisKey release (audit
+    `via` changes storage/export; a delegated session is not an `ActiveConnection`), not a half-day patch. Owner decided:
+    media first, (a+) as the target, no delegated writes until it is built and tested. Revised plan in section 8.
 
 ## 1. סיווג הפריסה ומה כבר קיים
 
@@ -167,6 +172,8 @@ WisKey. מאמץ: אפס. החיסרון המוצרי: iframe נשאר בליב�
 
 ## 4. תוכנית בפרוסות (מול שערים B-E)
 
+> **הוחלפה (01.10.2026)** בתוכנית המתוקנת בסעיף 8. הטבלה נשארת כאן לתיעוד בלבד.
+
 | פרוסה | תוכן | מאמץ | תלוי ב |
 |---|---|---|---|
 | B0 אבחון זהות | מסך הגדרות לקריאה בלבד "WisKey רואה את Arx כ־": תוצאת `authorization/session` של ערוץ השירות (actor, admin, areas, security.locked) + ב־`/arx` אותה קריאה עם טוקן המפעיל | 1-2 ימים | שאלה 6 |
@@ -232,3 +239,53 @@ WisKey. מאמץ: אפס. החיסרון המוצרי: iframe נשאר בליב�
    ב. שתריץ בעצמך סקריפט קריאה־בלבד מתוך התוסף.
    ג. לדחות לשער B.
    **המלצה: א.**
+
+## 7. תשובת WisKey (rc37-contract.1)
+
+חבילת תיעוד מ־30.09.2026 (`private-evidence/wiskey-arx-contract-rc37/`), לא גרסת runtime. ההחלטות D-001..D-003 בה
+מסומנות "proposed, awaiting Arx agreement". התשובה שלנו: `ARX_DECISIONS_REPLY_HE.md`.
+
+**החלטות בעל המוצר (01.10.2026):**
+1. המדיה (CR-015) קודמת, ו־WisKey מקורי אחריה.
+2. יעד הזהות: (a+) כפתרון קבוע, בתכנון משותף עם WisKey. **אין כתיבות דרך האצלה** עד שהיא ממומשת ונבדקה, כולל idle ו־reauth.
+3. הכתיבות המקוריות הקיימות בזהות Supervisor נשארות כמו שהן. אין כתיבות מקוריות חדשות.
+4. וידאו עמדות בקיר מקורי עובר ב־relay של go2rtc שלנו.
+5. לפני כל viewer lease, Arx בודק גם את ה־RBAC שלו וגם את ה־station scope הנוכחי של המפעיל ב־WisKey.
+
+**מה השתנה בהערכה שלנו:**
+- **(a+) לא זמין, והוא לא "חצי יום".** אין היום API של act-as או האצלה. זו תהיה גרסת WisKey חדשה: pipeline פקודות משותף,
+  תחבורת מנויים משלה, מדיניות idle/reauth, ביטול, ובדיקות. ההערכה בסעיף 2.3 ("WisKey כחצי יום עד יום") שגויה.
+- **(b) זמין עכשיו.** חיבור HA WS לכל משתמש אוכף את ההרשאות שלו בלי שינוי ב־WisKey. אצלנו זה אפשרי ב־`/arx` בלבד,
+  ולקריאה בלבד. הסתייגות: אם במתקן מוגדר `idle_minutes`, חיבור חדש נפתח נעול, ו־`security/touch` לא פותח אותו.
+- **`via` דורש שינוי אחסון.** `audit_actor` שומר היום הקשר של 4 שדות, ויומן הדחיות נפרד ודגום. ההנחה "בלי שינוי אחסון"
+  בטיוטה שלנו (סעיף 2.3, (a+)) שגויה.
+- **סשן מואצל אינו `ActiveConnection`.** ‏`PanelSecurity`, מנויים, בעלות על אודיו/TTS ו־capture קשורים לחיבור. בגרסה
+  הראשונה של ההאצלה ייחסמו media/audio/TTS/capture.
+- **`stream_source()` אינו חוזה.** זו מתודת מצלמה של HA (ערוץ 101, עם פרטי גישה), לא API יציב של WisKey. נבקש descriptor
+  תוספתי בשרת בלבד. ערוץ 102 לא חשוף, ואין לו מועד.
+- **denylist לגרסה הראשונה:** `security/reauth_*`, ‏`authorization/settings_*`, ‏`backups/*`, ‏`platform/*`, ‏`jobs/*`,
+  ייבוא, CSV ו־bulk, ייצוא אודיט, support, ו־media/audio/capture. allowlist התחלתי: `authorization/session`,
+  ‏`overview/summary`, ‏`stations/list`, ‏`users/query`, ‏`events/list`.
+- **הקטלוגים של 238 הפקודות ו־301 השגיאות סטטיים.** הם חילוץ של הרישום העליון ושל מחרוזות בקוד, ולא oracle הרשאות, לא
+  סכמות מקוננות ולא מיפוי שגיאה לפקודה. אסור לאפשר כתיבה על סמכם. סכמות מלאות הן משימת P1 של WisKey.
+- **תיקונים קטנים:** `audio/stop` לא קיים (מבטלים את המנוי). ‏`capture_status` נשאל. ל־`test_unlock` אין readback.
+  ל־`refresh` אין `topics`. אין replay אחרי ניתוק. ה־placeholders נראים כמו ערכים ריקים.
+- **חשבון שירות:** WisKey ממליץ על משתמש HA ייעודי שאינו admin לערוץ הרקע. יצירתו היא החלטה של בעל המוצר, אחרי B0.
+
+## 8. תוכנית מתוקנת (מחליפה את סעיף 4)
+
+כל הפרוסות מתחילות **אחרי** עבודת המדיה (CR-015), חוץ מ־D, שתלויה ב־WisKey.
+
+| פרוסה | תוכן | מאמץ | תלוי ב |
+|---|---|---|---|
+| B0 אבחון | מסך הגדרות לקריאה בלבד "WisKey רואה את Arx כ־": ‏`authorization/session` של ערוץ השירות (actor, admin, areas, ‏`station_ids`, ‏`security`), ובזהות המפעיל ב־`/arx` | 1-2 ימים | מדיה הושלמה |
+| B1 מסכים לקריאה על (b) | מתאם לכל מפעיל ב־`/arx` (WS ל־HA core עם ה־access token שכבר מוחזק; נפתח מחדש בכל החלפת טוקן; נסגר עם הסשן), allowlist לקריאה + `users/get` + `subscribe`, טיפול ב־placeholders, fallback ל־iframe בסשן נעול. מסכים: מרכז כניסה, פעילות, אנשים, לקריאה בלבד | 5-8 ימים | B0 |
+| B2 הערכת זהות ב־Ingress | מסמך: כניסה שנייה בתוך Ingress (UX, MFA, אחסון refresh token, ביטול) מול (a+). השתתפות בתכנון המשותף של DELEGATION v0.2 (צד הגשר ו־1.11). ללא קוד ייצור | 2-4 ימים | B0; WisKey זמין לתכנון |
+| C מדיה לעמדות | תכנון lease: RBAC של Arx בחיתוך scope של WisKey, fail closed, בדיקה חוזרת ב־`refresh` ולפחות כל 20 ש'. מדידות באתר: סשני RTSP לכל דגם, Arx ו־WisKey יחד, זמן צלצול. אחר כך מימוש ב־`/arx`; ב־Ingress רק אחרי (a+) | תכנון 2-3 ימים; מדידות חצי יום עם בעל המוצר; מימוש 1-1.5 שבועות | B1; מדידות |
+| D כתיבות | רק אחרי ש־WisKey משחרר את ה־API המואצל ואת הסכמות המלאות: גשר ומתאם מואצלים (1-1.5 שבועות), העברת הכתיבות הקיימות (D-004) אחת־אחת (3-5 ימים), כל תהליך חדש 2-5 ימים. idle ו־reauth נבדקים לפני כל כתיבה | לפי מועד WisKey | גרסת WisKey עם האצלה |
+| E הוכחות שטח | 10 זרמים, פתיחה פיזית, אודיו ו־TTS, Companion, בזהות המפעיל | 1-2 מפגשים באתר | בעל המוצר; D |
+
+**לאורך כל הדרך:** כלי contract-diff מול הקטלוג המוצמד בכל מסירה של WisKey (חצי יום בהקמה, ואז חלק מכל מסירה).
+ה־iframe (`access.ui.*`) ו־embed-api-v1 נשארים נתיב חזרה עד קבלה בשטח. הכתיבות הקיימות נשארות כמו שהן (D-004).
+כל בדיקה מול המערכת החיה מתחילה בקריאה בלבד (רשימת האימות ב־`ARX_DECISIONS_REPLY_HE.md` סעיף 7.4), וכל פעולה פיזית
+או כתיבה דורשת אישור מפורש של בעל המוצר.
