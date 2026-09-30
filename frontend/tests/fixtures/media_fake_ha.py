@@ -10,7 +10,9 @@ add-on.
 The synthetic house (`build_world()`; 7 physical screens, 1 receiver, 1 speaker - 19 entities on 15 HA devices):
 
   living   Samsung (ha-samsungtv-smart) + remote + SmartThings + Cast + DLNA + a Music Assistant export: ONE screen.
-           SmartThings and DLNA share the MAC of the vendor device (ladder rung 3), the Cast device shares only the UUID
+           SmartThings and DLNA share the MAC of the vendor device (ladder rung 3; the SmartThings one is written
+           02-00-00-C0-15-01, to exercise the backend's normalisation - Home Assistant's own registry would normally have
+           merged two devices that share a MAC, so this is a deliberate stress of rung 3), the Cast device shares only the UUID
            (rung 4, written differently: upper case, dashes, no `uuid:` prefix), the MA export is ("music_assistant",
            <the vendor entity id>) (rung 2). Linked receiver: the living room amplifier (+ its own Cast entity, same MAC).
   kitchen  a second Samsung of the SAME platform and model on another HA device: never merged with `living`.
@@ -139,9 +141,10 @@ PLATFORM_PROFILE = {"samsungtv_smart": "samsung_smart", "webostv": "lg_webos", "
 # ------------------------------------------------------------------------------------------------ the synthetic world
 
 
-def _mac(n: int) -> str:
-    """Locally administered, obviously synthetic: 02:00:00:c0:15:NN."""
-    return f"02:00:00:c0:15:{n:02x}"
+def _mac(n: int, style: str = "colon") -> str:
+    """Locally administered, obviously synthetic: 02:00:00:c0:15:NN ("dash_upper": 02-00-00-C0-15-NN, to exercise normalisation)."""
+    m = f"02:00:00:c0:15:{n:02x}"
+    return m.replace(":", "-").upper() if style == "dash_upper" else m
 
 
 def _uuid(n: int, upper: bool = False) -> str:
@@ -177,11 +180,11 @@ def build_world() -> dict[str, Any]:
     entities: list[dict[str, Any]] = []
     n_reg = [0]
 
-    def device(key: str, name: str, manufacturer: str, model: str, area: str | None, mac: int | None, ident: tuple[str, str] | None) -> str:
+    def device(key: str, name: str, manufacturer: str, model: str, area: str | None, mac: int | None, ident: tuple[str, str] | None, mac_style: str = "colon") -> str:
         did = f"cr015_dev_{key}"
         devices.append({
             "id": did, "name": name, "name_by_user": None, "manufacturer": manufacturer, "model": model, "via_device_id": None, "area_id": area,
-            "connections": [["mac", _mac(mac)]] if mac is not None else [],
+            "connections": [["mac", _mac(mac, mac_style)]] if mac is not None else [],
             "identifiers": [list(ident)] if ident else [], "sw_version": "synthetic", "config_entries": [f"cr015_ce_{key}"], "disabled_by": None,
         })
         return did
@@ -208,7 +211,7 @@ def build_world() -> dict[str, Any]:
 
     # ---- living: one Samsung, six endpoints (five of them duplicates or siblings)
     living_mp, living_rm = ssv("living", "טלוויזיה סלון", "cr015_living", 1, 1, source="Netflix", volume=0.32)
-    d_st = device("st_living", "Samsung living (SmartThings)", "Samsung", "SYNTH-QE55", "cr015_living", 1, ("smartthings", "00000000-0000-4000-8000-5700000000a1"))
+    d_st = device("st_living", "Samsung living (SmartThings)", "Samsung", "SYNTH-QE55", "cr015_living", 1, ("smartthings", "00000000-0000-4000-8000-5700000000a1"), mac_style="dash_upper")
     entity("media_player.cr015_living_tv_st", "smartthings", d_st, "on", {
         "friendly_name": "טלוויזיה סלון (ST)", "supported_features": SMARTTHINGS_FEATURES, "volume_level": 0.32, "is_volume_muted": False, "source": "HDMI1", "source_list": ["TV", "HDMI1", "HDMI2"],
     })

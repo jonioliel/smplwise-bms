@@ -115,7 +115,7 @@ def test_world_counts_and_identity(world):
 def test_everything_is_synthetic(world):
     blob = json.dumps(world, ensure_ascii=False)
     macs = set(re.findall(r"(?i)\b(?:[0-9a-f]{2}:){5}[0-9a-f]{2}\b", blob))
-    assert macs and all(m.lower().startswith("02:00:00:c0:15:") for m in macs)  # locally administered, obviously fake
+    assert macs and all(m.lower().replace("-", ":").startswith("02:00:00:c0:15:") for m in macs)  # locally administered, obviously fake
     ips = set(re.findall(r"\b\d{1,3}(?:\.\d{1,3}){3}\b", blob))
     assert ips and all(i.startswith("192.0.2.") for i in ips)  # RFC 5737 documentation range
     uuids = set(re.findall(r"(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", blob))
@@ -131,6 +131,10 @@ def test_private_attributes_are_present_in_the_model_so_the_backend_must_drop_th
 
 
 # ------------------------------------------------------------------------------------------------ an independent dedupe ladder
+
+
+def _norm_mac(v: str) -> str:
+    return re.sub(r"[^0-9a-f]", "", v.lower())
 
 
 def _norm_id(v: str) -> str:
@@ -176,7 +180,7 @@ def ladder(world):
             if not cross(a, b) or a["platform"] == "music_assistant" or b["platform"] == "music_assistant":
                 continue
             da, db = dev[a["device_id"]], dev[b["device_id"]]
-            macs_a, macs_b = {c[1].lower().replace(":", "") for c in da["connections"] if c[0] == "mac"}, {c[1].lower().replace(":", "") for c in db["connections"] if c[0] == "mac"}
+            macs_a, macs_b = {_norm_mac(c[1]) for c in da["connections"] if c[0] == "mac"}, {_norm_mac(c[1]) for c in db["connections"] if c[0] == "mac"}
             ids_a, ids_b = {_norm_id(i[1]) for i in da["identifiers"]}, {_norm_id(i[1]) for i in db["identifiers"]}
             if (macs_a & macs_b) or (ids_a & ids_b):
                 union(a["entity_id"], b["entity_id"])
@@ -208,9 +212,11 @@ def test_each_rung_is_exercised_by_a_different_duplicate(world):
     by = {e["entity_id"]: e for e in world["entities"]}
     dev = {d["id"]: d for d in world["devices"]}
     vendor_dev = dev[by["media_player.cr015_living_tv"]["device_id"]]
-    vmac = {c[1] for c in vendor_dev["connections"]}
-    mac = lambda eid: {c[1] for c in dev[by[eid]["device_id"]]["connections"]}  # noqa: E731
+    vmac = {_norm_mac(c[1]) for c in vendor_dev["connections"]}
+    mac = lambda eid: {_norm_mac(c[1]) for c in dev[by[eid]["device_id"]]["connections"]}  # noqa: E731
     assert mac("media_player.cr015_living_tv_st") & vmac and mac("media_player.cr015_living_tv_dlna") & vmac  # rung 3
+    raw = lambda eid: {c[1] for c in dev[by[eid]["device_id"]]["connections"]}  # noqa: E731
+    assert raw("media_player.cr015_living_tv_st") == {"02-00-00-C0-15-01"} and raw("media_player.cr015_living_tv_dlna") == {"02:00:00:c0:15:01"}  # written differently: the backend must normalise
     cast = dev[by["media_player.cr015_living_tv_cast"]["device_id"]]
     assert not cast["connections"]  # rung 4 only: no MAC ...
     cast_id, vendor_id = cast["identifiers"][0][1], vendor_dev["identifiers"][0][1]
