@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
  * Screenshots (1440 / 390) go to docs/evidence/UIR1-camera-card/.
  */
 const EVIDENCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/evidence/UIR1-camera-card');
+const EVIDENCE2 = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/evidence/UIR2-area');
 const CONTROL = `http://127.0.0.1:${process.env.SW_FAKE_HA_CONTROL_PORT ?? String(Number(process.env.SW_API_PORT ?? '8099') + 1)}`;
 const AREA = 'cc_hall';
 const MODEL = 'DS-7616NXI-K2/D';
@@ -180,12 +181,12 @@ async function seed(request: APIRequestContext) {
   expect(st.status()).toBe(200);
 }
 
-type Card = { key: string; y?: number; x?: number; w?: number; h?: number; title?: string; camera: unknown };
+type Card = { key: string; y?: number; x?: number; w?: number; h?: number; title?: string; camera: unknown; profile?: string };
 
 async function putLayout(request: APIRequestContext, cards: Card[]) {
   await request.delete(`/api/v1/devices/layouts/area/${AREA}?variant=all`);
   const items: Record<string, unknown> = {};
-  for (const c of cards) items[c.key] = { x: c.x ?? 0, y: c.y ?? 0, w: c.w ?? 6, h: c.h ?? 34, text: 'md', bg: null, border: null, title: c.title ?? null, icon: null, hidden: false, hidden_entities: [], camera: c.camera };
+  for (const c of cards) items[c.key] = { x: c.x ?? 0, y: c.y ?? 0, w: c.w ?? 6, h: c.h ?? 34, text: 'md', bg: null, border: null, title: c.title ?? null, icon: null, hidden: false, hidden_entities: [], camera: c.camera, ...(c.profile ? { profile: c.profile } : {}) };
   const r = await request.put(`/api/v1/devices/layouts/area/${AREA}`, { data: { variant: 'desktop', revision: 0, layout: { v: 2, cols: 12, items } } });
   expect(r.status(), await r.text()).toBe(200);
 }
@@ -267,6 +268,59 @@ test.describe('the camera card in an area screen (real backend, fake media stack
     await expect.poll(async () => (await active(page)).length, { timeout: 20000 }).toBe(2);
     await expect.poll(async () => (await active(page)).every((x) => x.profile === 'main' && x.kind === 'mse'), { timeout: 10000 }).toBe(true);
     await setSettings(request, { 'media.transport_default': 'webrtc', 'media.wall_profile': 'sub' });
+  });
+
+  test('owner 2026-09-30, "איכות הזרם": each card has its own stream quality (auto | sub | main), chosen in the properties panel, stored in the layout, and it is the profile the relay is asked for', async ({ page, request }, testInfo) => {
+    test.setTimeout(90000);
+    await seed(request);
+    await setSettings(request, { 'media.transport_default': 'mse', 'media.wall_profile': 'sub', 'media.max_live_sessions': 16 });
+    // c1 main, c2 sub, c3 auto (no choice stored, as an older layout)
+    await putLayout(request, [
+      { key: 'camera:c1', x: 0, y: 0, title: 'כניסה', camera: nvr(1), profile: 'main' },
+      { key: 'camera:c2', x: 6, y: 0, camera: nvr(2), profile: 'sub' },
+      { key: 'camera:c3', x: 0, y: 36, camera: nvr(3) },
+    ]);
+    await open(page);
+    await expect.poll(async () => (await active(page)).length, { timeout: 20000 }).toBe(3);
+    const byCam = async () => Object.fromEntries((await active(page)).map((s) => [s.camera, `${s.profile}:${s.kind}`]));
+    // the requested profile reaches the relay at any size; the transport is the installation's (MSE) for all three
+    expect(await byCam()).toEqual({ [cameraIds['1']]: 'main:mse', [cameraIds['2']]: 'sub:mse', [cameraIds['3']]: 'sub:mse' });
+    await expect(card(page, 'camera:c1').locator('[data-camera-id]')).toHaveAttribute('data-quality', 'main');
+    await expect(card(page, 'camera:c3').locator('[data-camera-id]')).toHaveAttribute('data-quality', 'auto');
+    await expect(card(page, 'camera:c1').locator('[data-camera-quality-badge]')).toHaveCount(0); // nothing new outside edit mode
+    // auto follows the wall's profile (main here); a card's own choice does not
+    await setSettings(request, { 'media.wall_profile': 'main' });
+    await page.reload();
+    await expect.poll(async () => (await active(page)).length, { timeout: 20000 }).toBe(3);
+    expect(await byCam()).toEqual({ [cameraIds['1']]: 'main:mse', [cameraIds['2']]: 'sub:mse', [cameraIds['3']]: 'main:mse' });
+    await setSettings(request, { 'media.wall_profile': 'sub' });
+    test.skip(testInfo.project.name !== 'desktop', 'the properties panel is the desktop editor');
+    // the editor: the panel offers the three choices for a camera card, the badge names the choice in edit mode only
+    await page.reload();
+    await page.locator('devices-area sw-card[data-camera-card="camera:c3"]').waitFor({ timeout: 30000 });
+    await page.locator('sw-app').getByRole('button', { name: /תפריט המשתמש/ }).click();
+    await page.locator('[data-menu-screen-edit="devices-layout"]').click();
+    await expect(page.locator('devices-area [data-layout-bar]')).toBeVisible();
+    await expect(card(page, 'camera:c1').locator('[data-camera-quality-badge]')).toHaveText('איכות: ראשי');
+    await expect(card(page, 'camera:c3').locator('[data-camera-quality-badge]')).toHaveText('איכות: אוטומטי');
+    await page.locator('devices-area .lay-item[data-lay-key="camera:c3"]').focus();
+    const panel = page.locator('devices-area [data-layout-panel="camera:c3"]');
+    await expect(panel.locator('[data-layout-quality]')).toHaveCount(3);
+    await expect(panel.locator('[data-layout-quality="auto"]')).toHaveAttribute('aria-pressed', 'true');
+    await panel.locator('[data-layout-quality="main"]').click();
+    await expect(card(page, 'camera:c3').locator('[data-camera-quality-badge]')).toHaveText('איכות: ראשי');
+    fs.mkdirSync(EVIDENCE2, { recursive: true });
+    await page.screenshot({ path: path.join(EVIDENCE2, 'camera-quality-panel-1440.png') });
+    await page.locator('devices-area sw-button[data-layout-save]').click();
+    await expect(page.locator('devices-area [data-layout-bar]')).toHaveCount(0, { timeout: 15000 });
+    const saved = (await (await request.get(`/api/v1/devices/layouts/area/${AREA}`)).json()).desktop.layout.items;
+    expect([saved['camera:c1'].profile, saved['camera:c2'].profile, saved['camera:c3'].profile]).toEqual(['main', 'sub', 'main']);
+    // and back to auto stores nothing
+    await page.reload();
+    await expect.poll(async () => (await active(page)).length, { timeout: 20000 }).toBe(3);
+    expect(await byCam()).toEqual({ [cameraIds['1']]: 'main:mse', [cameraIds['2']]: 'sub:mse', [cameraIds['3']]: 'main:mse' });
+    await expect(card(page, 'camera:c3').locator('[data-camera-quality-badge]')).toHaveCount(0);
+    await request.delete(`/api/v1/devices/layouts/area/${AREA}?variant=all`);
   });
 
   test('the live cap: two live cards under a cap of one - one streams, the other shows its snapshot', async ({ page, request }) => {

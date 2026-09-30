@@ -1098,7 +1098,7 @@ export class DevicesArea extends LitElement {
   private renderCameraCard(key: string) {
     const it = this.lay.item(key);
     return html`<sw-card flush data-camera-card=${key} data-lay-key=${key}>
-      <devices-camera-card .source=${this.lay.cameraOf(key) ?? null} .title=${it?.title ?? ''} ?fill=${this.lay.gridOn('cards')}></devices-camera-card>
+      <devices-camera-card .source=${this.lay.cameraOf(key) ?? null} .title=${it?.title ?? ''} .quality=${this.lay.qualityOf(key)} ?showQuality=${this.lay.editing} ?fill=${this.lay.gridOn('cards')}></devices-camera-card>
     </sw-card>`;
   }
 

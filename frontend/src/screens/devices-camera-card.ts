@@ -13,7 +13,7 @@ import { snapshotRefreshMs } from '../api/live-budget';
 import { playerPlan } from '../api/video-policy';
 import { navigate } from '../router';
 import { bidi } from '../i18n/bidi';
-import { cardBudget, cardProfile, isCameraSource, liveCapOf, resolveCameraSource, sameSource, stillUrl, wallProfileOf, type CameraResolved, type CameraSource } from '../api/camera-card';
+import { CARD_QUALITY_LABEL, cardBudget, cardProfile, isCameraSource, liveCapOf, resolveCameraSource, sameSource, stillUrl, wallProfileOf, type CameraResolved, type CameraSource, type CardQuality } from '../api/camera-card';
 
 /** `camera-open`: the card was pressed (`detail.source`, `detail.cameraId` - absent for a picture-only card). Cancelable: the
  * default action opens the single-camera view (#/live/cameras/<id>). */
@@ -68,6 +68,8 @@ export interface CameraLayoutItem {
   hidden: false;
   hidden_entities: [];
   camera: CameraSource;
+  /** The stream quality (absent = auto; older layouts have none). */
+  profile?: CardQuality;
 }
 
 const KEY_PREFIX = 'camera:';
@@ -124,7 +126,13 @@ export class DevicesCameraCard extends LitElement {
   @property() size: 's' | 'm' | 'l' = 'm';
   /** Fill the parent's height (a card placed on the layout grid) instead of a 16:9 box. */
   @property({ type: Boolean, reflect: true }) fill = false;
+  /** The card's own stream quality (layout item `profile`): auto = the rule of `cardProfile`; sub / main at any size. The
+   * transport is the installation's (media.transport_default) either way, with the player's own fallback. */
+  @property() quality: CardQuality = 'auto';
+  /** Layout edit mode: a small badge names the chosen quality (nothing new on the card otherwise). */
+  @property({ type: Boolean }) showQuality = false;
 
+  @state() private played = '';
   @state() private resolved: CameraResolved | null = null;
   @state() private phase: 'loading' | 'ready' | 'error' = 'loading';
   @state() private error = '';
@@ -256,6 +264,18 @@ export class DevicesCameraCard extends LitElement {
       color: #fff;
       border-radius: 4px;
       padding: 1px 6px;
+    }
+    .qbadge {
+      position: absolute;
+      inset-inline-start: 8px;
+      inset-block-start: 8px;
+      z-index: 3;
+      font-size: 9.5px;
+      background: rgba(17, 24, 39, 0.55);
+      color: #fff;
+      border-radius: 4px;
+      padding: 1px 6px;
+      pointer-events: none;
     }
     .label {
       position: absolute;
@@ -431,8 +451,10 @@ export class DevicesCameraCard extends LitElement {
   }
 
   private onPlayerStatus(e: Event) {
-    const d = (e as CustomEvent<{ code?: string }>).detail;
+    const d = (e as CustomEvent<{ code?: string; status?: string; profile?: string; transport?: string }>).detail;
     if (d?.code === 'remote_live_cap') cardBudget.refuse(this.budgetId);
+    // what really plays (profile:transport) after the player's own fallbacks - for the page's checks, nothing on the card
+    this.played = d?.status === 'playing' && d.profile && d.transport ? `${d.profile}:${d.transport}` : '';
   }
 
   // ------------------------------------------------------------------------------------------ render
@@ -503,10 +525,11 @@ export class DevicesCameraCard extends LitElement {
     const state = r.status === 'online' ? 'live' : r.status === 'offline' ? 'offline' : 'unknown';
     const streamable = r.status !== 'offline' && r.status !== 'unknown';
     const live = this.streaming;
-    const profile = cardProfile(this.size, wallProfileOf(this.settings));
+    const profile = cardProfile(this.size, wallProfileOf(this.settings), this.quality);
     const transport = effectiveTransport(this.settings);
     const poster = r.status === 'offline' ? '' : snapshotUrl(id, streamable && !live ? this.snapBust : this.posterBust);
-    return html`<div data-camera-state=${live ? 'live' : streamable ? 'snapshot' : state} data-camera-id=${id} data-profile=${profile} style="display:contents">
+    return html`<div data-camera-state=${live ? 'live' : streamable ? 'snapshot' : state} data-camera-id=${id} data-profile=${profile} data-quality=${this.quality} data-played=${live ? this.played : ''} style="display:contents">
+      ${this.showQuality ? html`<span class="qbadge" data-camera-quality-badge>איכות: ${CARD_QUALITY_LABEL[this.quality]}</span>` : nothing}
       <sw-camera-tile
         name=${bidi(this.displayName)}
         state=${state}

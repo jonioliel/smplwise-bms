@@ -7,7 +7,7 @@ import '../components/sw-icon';
 import type { IconName } from '../components/sw-icon';
 import { api, ApiError, describeError, post, put } from '../api/client';
 import { can, canAnywhere, isApi } from '../api/session';
-import { cameraSources } from '../api/camera-card';
+import { CARD_QUALITIES, CARD_QUALITY_LABEL, cameraSources, isCardQuality, type CardQuality } from '../api/camera-card';
 import { cameraCardDefinition } from './devices-camera-card';
 import { registerScreenEdit } from '../shell/screen-edit';
 import type { CameraSource } from '../api/camera-card';
@@ -115,6 +115,8 @@ export interface LayoutItem {
   camera?: CameraSource;
   /** Area redesign (owner 2026-09-30): how the section's "כבה הכל" button looks (absent = icon + text). */
   bulk_look?: BulkLook;
+  /** Owner 2026-09-30, a camera card's stream quality: auto (absent) | sub | main - the desktop layout's. */
+  profile?: CardQuality;
   /** Area redesign: the sensors section's main strip - any sensors of the installation, in this order (absent = the
    * automatic choice: temperature, humidity, motion, door where the area has them). */
   main?: string[];
@@ -597,6 +599,12 @@ export class DevicesLayoutController implements ReactiveController {
     return this.desktopLayout()?.items[key]?.bulk_look ?? 'both';
   }
 
+  /** A camera card's stream quality (the desktop layout's; absent = auto). */
+  qualityOf(key: string): CardQuality {
+    const q = this.desktopLayout()?.items[key]?.profile;
+    return isCardQuality(q) ? q : 'auto';
+  }
+
   mainOf(key: string): string[] | undefined {
     const m = this.desktopLayout()?.items[key]?.main;
     return m && m.length ? m : undefined;
@@ -654,7 +662,7 @@ export class DevicesLayoutController implements ReactiveController {
       } else if (k.startsWith('camera:')) {
         const camera = src[k]?.camera ?? it.camera; // the source is the card's content: every variant carries it
         if (!camera) continue;
-        items[k] = { ...it, camera, removed: undefined, custom: undefined };
+        items[k] = { ...it, camera, profile: src[k]?.profile ?? it.profile, removed: undefined, custom: undefined };
       } else {
         // the section settings (bulk look, main strip) are the desktop layout's: every variant carries them
         const own = { bulk_look: src[k]?.bulk_look, main: src[k]?.main?.length ? src[k].main : undefined };
@@ -1620,6 +1628,17 @@ export class DevicesLayoutController implements ReactiveController {
     });
   }
 
+  /** A camera card's stream quality "איכות הזרם": auto (the wall's profile, main when large / enlarged) | sub | main. Stored
+   * on the desktop layout; nothing is stored for auto. */
+  private renderQuality(key: string, it: LayoutItem): TemplateResult | typeof nothing {
+    if (!key.startsWith('camera:') || this.variant !== 'desktop') return nothing;
+    const cur = isCardQuality(it.profile) ? it.profile : 'auto';
+    return html`<div class="lay-f"><span class="lbl">איכות הזרם</span>
+      <span class="lay-seg" role="group" aria-label="איכות הזרם">
+        ${CARD_QUALITIES.map((q) => html`<button type="button" data-layout-quality=${q} aria-pressed=${String(cur === q)} @click=${() => this.patch(key, { profile: q === 'auto' ? undefined : q })}>${CARD_QUALITY_LABEL[q]}</button>`)}
+      </span></div>`;
+  }
+
   /** The look of a section's "כבה הכל" button (icon only / text only / icon + text), for the built-in sections that have one
    * (the registry: devices-area-design.ts SECTION_BULK). Stored on the desktop layout. */
   private renderBulkLook(key: string, it: LayoutItem): TemplateResult | typeof nothing {
@@ -1838,6 +1857,7 @@ export class DevicesLayoutController implements ReactiveController {
           ${nudge('גובה −', 'הנמך ב־8 פיקסלים', { h: it.h - 1 }, 'shorter')}
         </div></div>
       ${this.renderBulkLook(key, it)}
+      ${this.renderQuality(key, it)}
       ${this.renderEntities(key, it)}
       ${this.renderMainPicker(key, it)}
       ${this.canArrange(key) ? html`<button type="button" class="btn" data-layout-tiles-open @click=${() => this.enterTiles(key)}>סידור התקנים בכרטיס${arranged(it) ? ' (מסודר)' : ''}…</button>` : nothing}

@@ -182,6 +182,15 @@ test.describe('profile and cap of this channel', () => {
     expect(wallProfileOf(null, local)).toBe('sub');
   });
 
+  test('the card\'s own quality (איכות הזרם) wins at any size; auto or none (an older layout) is the rule above', () => {
+    expect(cardProfile('m', 'sub', 'main')).toBe('main');
+    expect(cardProfile('l', 'main', 'sub')).toBe('sub');
+    expect(cardProfile('s', 'sub', 'auto')).toBe('sub');
+    expect(cardProfile('l', 'sub', 'auto')).toBe('main');
+    expect(cardProfile('m', 'main', undefined)).toBe('main');
+    expect(cardProfile('m', 'sub', null)).toBe('sub');
+  });
+
   test('the live cap is the installation cap, and remotely also the sign-in cap (the smaller)', () => {
     const s = { 'media.max_live_sessions': 8, 'remote.max_live_streams': 4 } as never;
     expect(liveCapOf(s, local)).toBe(8);

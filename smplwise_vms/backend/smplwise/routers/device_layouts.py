@@ -196,6 +196,9 @@ class LayoutItem(BaseModel):
     # empty = the automatic choice: temperature, humidity, motion, door where they exist)
     bulk_look: Literal["icon", "text", "both"] | None = None
     main: list[str] = Field(default_factory=list, max_length=MAX_MAIN_SENSORS)
+    # owner 2026-09-30: a camera card's stream quality - auto (today's rule: the installation's wall profile, main when large
+    # or enlarged) | sub | main; None = auto (an older layout). `camera:<slug>` items only.
+    profile: Literal["auto", "sub", "main"] | None = None
 
     @field_validator("main")
     @classmethod
@@ -267,6 +270,8 @@ def _dump(layout: Layout) -> str:
             it.pop("bulk_look", None)
         if not it.get("main"):
             it.pop("main", None)
+        if it.get("profile") is None:
+            it.pop("profile", None)
     return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
 
 
@@ -368,7 +373,10 @@ def _camera_errors(scope: str, key: str, it: LayoutItem, version: int) -> list[s
     no other item carries a source."""
     where = f"layout.items.{key[:40]}"
     if not CAMERA_KEY_RE.fullmatch(key):
-        return [f"{where}.camera: only a camera:<id> card has a camera source"] if it.camera is not None else []
+        errors0 = [f"{where}.camera: only a camera:<id> card has a camera source"] if it.camera is not None else []
+        if it.profile is not None:
+            errors0.append(f"{where}.profile: only a camera card has a stream quality")
+        return errors0
     if scope != "area":
         return [f"{where}: camera cards belong to the area screen"]
     errors: list[str] = []
