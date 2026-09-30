@@ -10,6 +10,7 @@ import '../components/sw-dialog';
 import { demoScene, demoWall } from '../fixtures/catalog';
 import { navigate } from '../router';
 import { registerScreenEdit } from '../shell/screen-edit';
+import { phoneRestricted } from '../shell/phone';
 import { isApi } from '../api/session';
 import { snapshotUrl, type ProductSettings, type Transport } from '../api/media';
 import { listCameras, updateCamera } from '../api/maps';
@@ -440,7 +441,7 @@ export class LiveWall extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.offScreenEdit = registerScreenEdit({ id: 'wall-arrange', label: 'סידור הקיר', icon: 'grid', can: () => isApi() && this.canManage && !!this.cams?.length, run: () => this.openSettings() });
+    this.offScreenEdit = registerScreenEdit({ id: 'wall-arrange', label: 'סידור הקיר', icon: 'grid', can: () => isApi() && this.canManage && !!this.cams?.length && !phoneRestricted('wall_arrange'), run: () => this.openSettings() }); // hidden on a phone with the option "הסתרת סידור קיר המצלמות בנייד" (UX guard, not security)
     void this.load();
     this.posterTimer = window.setInterval(() => {
       if (!document.hidden) this.posterBust = Date.now();

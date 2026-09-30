@@ -21,7 +21,7 @@ import '../screens/explore-sites';
 import '../screens/explore-floors';
 import '../screens/explore-plan-import';
 import '../screens/explore-plan-editor';
-import { STRUCTURE_DESKTOP_ONLY } from './phone';
+import { DESKTOP_ONLY, STRUCTURE_DESKTOP_ONLY, phoneRestricted, routeGuardKind, onMobileOptions, setInstallationMobileOptions, type MobileKind } from './phone';
 import '../screens/explore-entities';
 import '../screens/wiskey-overview';
 import '../screens/wiskey-events';
@@ -137,6 +137,7 @@ export class SwApp extends LitElement {
   private railObs: ResizeObserver | null = null;
   private observedRail: HTMLElement | null = null;
   private stopTabsConfig?: () => void;
+  private stopMobileOptions?: () => void;
   private navOrderUser: string | null = null;
 
   static styles = css`
@@ -1226,6 +1227,7 @@ export class SwApp extends LitElement {
     this.stopNavSize = onNavSize((sz) => (this.nav = navDims(sz)));
     this.stopScreenEdits = onScreenEdits(() => this.requestUpdate()); // a screen registered / dropped its edit mode
     this.stopTabsConfig = onTabsConfig(() => this.requestUpdate()); // הגדרות › כללי › לשוניות: every tab row follows at once
+    this.stopMobileOptions = onMobileOptions(() => this.requestUpdate()); // הגדרות › כללי › אפשרויות נייד: the phone guards follow at once
     this.stopSession = onSession((s) => {
       this.session = s;
       applyNvrLess(nvrLess()); // NVR-less mode: the NVR areas leave the navigation for everyone (nav.ts)
@@ -1247,6 +1249,7 @@ export class SwApp extends LitElement {
         void productSettings().then((ps) => {
           HIDDEN_HREFS.clear();
           setInstallationNavSize(ps['ui.nav_size']); // the installation's default size of the navigation
+          setInstallationMobileOptions(ps['ui.mobile']); // the phone UX guards (הגדרות › כללי › אפשרויות נייד)
           if (String(ps['ui.hide_search'] ?? 'false') === 'true') HIDDEN_HREFS.add('#/investigate/search');
           const hideMap = String(ps['ui.hide_map'] ?? 'false') === 'true';
           if (hideMap) for (const h of MAP_HREFS) HIDDEN_HREFS.add(h);
@@ -1396,6 +1399,7 @@ export class SwApp extends LitElement {
     this.railObs?.disconnect();
     this.railObs = null;
     this.stopTabsConfig?.();
+    this.stopMobileOptions?.();
     this.phoneMq.removeEventListener('change', this.onPhoneMq);
     window.removeEventListener('popstate', this.onPopState);
     window.removeEventListener('keydown', this.onGlobalKey);
@@ -1756,6 +1760,10 @@ export class SwApp extends LitElement {
       return html`<sw-state-panel state="loading"></sw-state-panel>`;
     }
     if (this.session.mode === 'api' && NVR_LESS && isNvrRoute(r)) return this.renderNvrLess();
+    // Mobile options (owner 2026-09-30, הגדרות › כללי › אפשרויות נייד): a screen that creates, edits or deletes things is not
+    // offered on a phone while its option is on. A UX guard, NOT a security boundary: the server still enforces every permission.
+    const guarded = routeGuardKind(s);
+    if (guarded && phoneRestricted(guarded)) return this.desktopOnly(guarded, s);
     if (s[0] === 'styleguide') return html`<styleguide-screen></styleguide-screen>`;
     if (s[0] === 'screens') return html`<screens-index></screens-index>`;
     if (s[0] === 'kiosk') return html`<kiosk-wall></kiosk-wall>`;
@@ -1839,9 +1847,6 @@ export class SwApp extends LitElement {
         if (s[1] === 'sites') return html`<explore-sites></explore-sites>`;
         if (s[1] === 'buildings') return html`<explore-floors .buildingId=${s[2] ?? 'bld-a'}></explore-floors>`;
         if (s[1] === 'entities') return html`<sw-state-panel state="loading"></sw-state-panel>`; // legacyRedirect decides once the session is known
-        // Owner decision 2026-09-30: structure management (plan import, plan editor, and the site / building / floor forms) is not
-        // offered on a phone. A UX guard, NOT a security boundary: the server still enforces every permission on every write.
-        if (s[1] === 'floors' && (s[3] === 'import' || s[3] === 'edit') && this.phone) return this.structureDesktopOnly(s[2]);
         if (s[1] === 'floors' && s[3] === 'import') return html`<explore-plan-import .floorId=${s[2]}></explore-plan-import>`;
         if (s[1] === 'floors' && s[3] === 'edit') return html`<explore-plan-editor .floorId=${s[2]} .presetEntity=${r.params.get('entity') ?? ''} .presetCandidates=${r.params.get('candidates') ?? ''}></explore-plan-editor>`;
         const floorId = s[1] === 'floors' && s[2] ? s[2] : 'f0';
@@ -1854,11 +1859,13 @@ export class SwApp extends LitElement {
 
   /** The phone's answer to #/explore/floors/<id>/edit and /import: a short clean state and a way back to the map (viewing, layers, tools
    * and the read-only map stay fully available on a phone). */
-  private structureDesktopOnly(floorId: string | undefined) {
-    const back = floorId ? `#/explore/floors/${encodeURIComponent(floorId)}` : '#/explore/sites';
-    return html`<div data-desktop-only="structure">
-      <sw-state-panel state="empty" heading=${STRUCTURE_DESKTOP_ONLY} hint="">
-        <div style="margin-block-start:10px"><sw-button variant="primary" size="lg" icon="map" data-desktop-only-back @click=${() => { window.location.hash = back; }}>${floorId ? 'חזרה למפת הקומה' : 'חזרה לאתרים'}</sw-button></div>
+  private desktopOnly(kind: MobileKind, s: readonly string[]) {
+    const floorId = kind === 'structure' ? s[2] : undefined;
+    const back = floorId ? `#/explore/floors/${encodeURIComponent(floorId)}` : kind === 'structure' ? '#/explore/sites' : '#/system/diagnostics';
+    const label = floorId ? 'חזרה למפת הקומה' : kind === 'structure' ? 'חזרה לאתרים' : 'חזרה להגדרות';
+    return html`<div data-desktop-only=${kind}>
+      <sw-state-panel state="empty" heading=${kind === 'structure' ? STRUCTURE_DESKTOP_ONLY : DESKTOP_ONLY} hint="">
+        <div style="margin-block-start:10px"><sw-button variant="primary" size="lg" icon="chevron" data-desktop-only-back @click=${() => { window.location.hash = back; }}>${label}</sw-button></div>
       </sw-state-panel>
     </div>`;
   }
@@ -2030,7 +2037,7 @@ export class SwApp extends LitElement {
   /** "עריכת המסך הראשי": the same people who may edit the home screen's layout - devices-layout.ts `canEdit` (a backend
    * answers and the user holds system.configure at the installation) - and only while the home area is in their navigation. */
   private canEditHome(): boolean {
-    return !this.gated && isApi() && can('system.configure') && visibleAreas(true, canNav, this.navOrder).some((a) => a.id === 'devices');
+    return !this.gated && isApi() && can('system.configure') && !phoneRestricted('layout_editor') && visibleAreas(true, canNav, this.navOrder).some((a) => a.id === 'devices');
   }
 
   private renderUserMenu() {

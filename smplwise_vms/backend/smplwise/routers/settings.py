@@ -15,7 +15,7 @@ from ..auth import current_principal, get_conn
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import nav_size
+from ..services import mobile_options, nav_size
 
 router = APIRouter()
 
@@ -53,6 +53,9 @@ DEFAULTS: dict[str, str] = {
     # {section_id: {"order": [tab_id...], "hidden": [tab_id...]}}; read back as an object, not a string. "{}" = nothing
     # configured = the built-in tabs. Contract: docs/architecture/TABS_CONFIG.md.
     "ui.tabs": "{}",
+    # owner 2026-09-30 (phone UX guards): which kinds of management the phone UI (< 768 px) hides - a JSON object of booleans,
+    # shape and defaults in services/mobile_options.py; read back as an object. A UX guard only: permissions are unchanged.
+    "ui.mobile": '{"hide_structure":true,"hide_layout_editor":false,"hide_wall_arrange":false,"hide_settings_writes":false,"hide_permissions":false,"hide_control_images":true}',
     "history.ha_secondary": "false",  # S2: the HA recorder fills entity states the local history does not know (marked as secondary)
     "plan.estimates": "true",  # Plan Studio: show estimated metres (≈) before a plan is calibrated; false hides metres until calibration (owner decision 2026-09-23)
     "plan.levels": "all",  # default levels view on every map: all levels together, or the floor's default level only (owner decision 2026-09-26)
@@ -197,6 +200,7 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
         out[key] = int(value) if key in INT_KEYS else value
     out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
     out["ui.nav_size"] = _stored_nav_size(out["ui.nav_size"])
+    out["ui.mobile"] = _stored_mobile(out["ui.mobile"])
     out["schedules.classes"] = stored_schedule_classes(out["schedules.classes"])
     return out
 
@@ -207,6 +211,14 @@ def _stored_nav_size(raw: Any) -> dict[str, Any]:
         return nav_size.normalize(json.loads(raw) if isinstance(raw, str) else raw)
     except ValueError:
         return dict(nav_size.DEFAULT)
+
+
+def _stored_mobile(raw: Any) -> dict[str, bool]:
+    """The stored ui.mobile as an object with every key; a corrupt or foreign value reads as the defaults."""
+    try:
+        return mobile_options.normalize(json.loads(raw) if isinstance(raw, str) else raw)
+    except ValueError:
+        return dict(mobile_options.DEFAULT)
 
 
 def stored_schedule_classes(raw: Any) -> list[str]:
@@ -299,6 +311,7 @@ class SettingsPatch(BaseModel):
     ui_security_snapshot: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.security_snapshot")
     ui_tile_layout: str | None = Field(default=None, pattern="^(auto|cards|compact)$", alias="ui.tile_layout")
     ui_tabs: dict[str, Any] | None = Field(default=None, alias="ui.tabs")  # validated in full by normalize_tabs
+    ui_mobile: dict[str, Any] | None = Field(default=None, alias="ui.mobile")  # validated in full by services/mobile_options.py
     ui_nav_size: dict[str, Any] | None = Field(default=None, alias="ui.nav_size")  # validated in full by services/nav_size.py
     history_ha_secondary: str | None = Field(default=None, pattern="^(true|false)$", alias="history.ha_secondary")
     plan_estimates: str | None = Field(default=None, pattern="^(true|false)$", alias="plan.estimates")
@@ -394,6 +407,11 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             changes["ui.nav_size"] = nav_size.normalize(changes["ui.nav_size"])
         except ValueError as exc:
             raise ApiError(422, "validation", "גודל הניווט: ערך לא תקין.", details={"ui.nav_size": str(exc)})
+    if "ui.mobile" in changes:
+        try:
+            changes["ui.mobile"] = mobile_options.normalize(changes["ui.mobile"])
+        except ValueError as exc:
+            raise ApiError(422, "validation", "אפשרויות נייד: ערך לא תקין.", details={"ui.mobile": str(exc)})
     if "schedules.classes" in changes:
         bad = [c for c in changes["schedules.classes"] if c not in SCHEDULE_CLASSES]
         if bad:
@@ -439,7 +457,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         # the adapter contract exists (privacy, model version, budget, opt-in) but no provider is bundled: refuse, never pretend
         raise ApiError(422, "provider_not_available", "לא מצורף ספק ניתוח חיצוני; קיים רק חוזה המתאם (פרטיות, גרסת מודל, תקציב, opt-in).", details={"choices": ["none", "local"]})
     for key, value in changes.items():
-        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "schedules.classes") else str(value))
+        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.mobile", "schedules.classes") else str(value))
     if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now
         from ..services import schedules as schedules_svc
 

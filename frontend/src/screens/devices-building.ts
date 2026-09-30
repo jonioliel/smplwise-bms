@@ -25,6 +25,7 @@ import { ITEMS_FILTERS, type ItemsFilter } from './devices-tiles-panel';
 import { TILE_KINDS, type ItemsScope, type TileKind } from '../api/devices';
 import { effectiveTileSetting, TileLayoutController } from '../api/tile-layout';
 import { onRouteChange, parseRoute, pushRoute, replaceRoute } from '../router';
+import { phoneRestricted } from '../shell/phone';
 import './home-widgets';
 import { HomeWidgetsView } from './home-widgets';
 import {
@@ -1131,7 +1132,7 @@ export class DevicesBuilding extends LitElement {
     if (!want) this.editHandled = false;
     else if (!this.editHandled && this.tree && !this.forbidden && (this.lay.loaded || !isApi())) {
       this.editHandled = true;
-      if (this.lay.canEdit) void this.lay.enter();
+      if (this.lay.canEdit && !phoneRestricted('layout_editor')) void this.lay.enter(); // (the phone option is a UX guard; the server checks the permission again)
       else this.dropEditParam();
     }
     if (this.wasEditing && !editing && want) this.dropEditParam();

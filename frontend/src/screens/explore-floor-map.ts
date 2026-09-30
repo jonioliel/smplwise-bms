@@ -19,7 +19,7 @@ import { demoScene } from '../fixtures/catalog';
 import { t } from '../i18n/he';
 import { navigate } from '../router';
 import { registerScreenEdit } from '../shell/screen-edit';
-import { isPhoneWidth } from '../shell/phone';
+import { PhoneWidth, phoneRestricted } from '../shell/phone';
 import { cameraState, entityName, loadMap, updateAnchor, type MapBundle } from '../api/maps';
 import { snapshotUrl } from '../api/media';
 import { entryFloor, findFloor, loadTree, type CatalogTree } from '../api/catalog';
@@ -107,6 +107,8 @@ function floorShort(name: string): string {
 
 @customElement('explore-floor-map')
 export class ExploreFloorMap extends LitElement {
+  /** The phone options (ui.mobile): re-render when the width crosses 768 px or an option changes. */
+  private readonly phone = new PhoneWidth(this);
   @property() floorId = 'f0';
   @property() screenState: ScreenState = 'ready';
   /** Search hits: zone id to highlight and zoom to; camera / entity id whose pin to open. */
@@ -920,7 +922,7 @@ export class ExploreFloorMap extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.offScreenEdit = registerScreenEdit({ id: 'floor-map-edit', label: 'עריכת המפה', icon: 'edit', can: () => !isPhoneWidth() && (this.bundle ? this.bundle.permissions.edit : !isApi()), run: () => navigate(`/explore/floors/${this.floorId}/edit`) });
+    this.offScreenEdit = registerScreenEdit({ id: 'floor-map-edit', label: 'עריכת המפה', icon: 'edit', can: () => !phoneRestricted('structure') && (this.bundle ? this.bundle.permissions.edit : !isApi()), run: () => navigate(`/explore/floors/${this.floorId}/edit`) });
     this.narrow = this.mq.matches;
     this.mq.addEventListener('change', this.onMq);
     window.addEventListener('keydown', this.onKey);
@@ -2089,7 +2091,7 @@ export class ExploreFloorMap extends LitElement {
             <sw-button size="sm" icon="history" ?disabled=${!a.camera} @click=${() => a.camera && navigate('/investigate/playback', { camera: a.camera.id })}>${t('camera.recordings')}</sw-button>`
           : nothing}
         ${a.resource_type === 'ha_entity' && b.permissions.edit && a.entity ? html`<sw-button variant="ghost" size="sm" icon="edit" data-rename @click=${() => (this.renaming = { id: a.id, value: a.label ?? '' })}>שנה שם</sw-button>` : nothing}
-        ${b.permissions.edit && !this.narrow ? html`<sw-button variant="ghost" size="sm" icon="edit" @click=${() => navigate(`/explore/floors/${b.floorId}/edit`)}>עריכה</sw-button>` : nothing}`;
+        ${b.permissions.edit && !this.phone.restricted('structure') ? html`<sw-button variant="ghost" size="sm" icon="edit" @click=${() => navigate(`/explore/floors/${b.floorId}/edit`)}>עריכה</sw-button>` : nothing}`;
     }
     if (this.narrow || !this.anchor || this.shows3d) { // over the 3D a 2D pin position means nothing: always the drawer
       return html`<sw-drawer open heading=${heading} subheading=${sub} @close=${this.close}>${body}<div slot="footer">${footer}</div></sw-drawer>`;
@@ -2139,10 +2141,10 @@ export class ExploreFloorMap extends LitElement {
   }
 
   /** The floor's control images for a future skin (an admin export, not an everyday tool): out of the main toolbar since
-   * 2026-09-30 - a small ghost button at the foot of the layers panel, only in the 3D view, only for editors, never on a phone. */
+   * 2026-09-30 - a small ghost button at the foot of the layers panel, only in the 3D view, only for editors, and not on a phone while the option "הסתרת כפתור תמונות בקרה בנייד" is on (the default). */
   private renderSkinExport() {
     const b = this.bundle;
-    if (!this.shows3d || b?.source !== 'api' || !b.permissions.edit || this.narrow) return nothing;
+    if (!this.shows3d || b?.source !== 'api' || !b.permissions.edit || this.phone.restricted('control_images')) return nothing;
     return html`<div class="pexport">
       <sw-button variant="ghost" size="sm" icon="image" data-skin-controls-export ?disabled=${this.skinBusy} title="תמונות הבקרה של הקומה לסקין עתידי (אורות כבויים / דולקים), מהמבנה המפורסם, בלי תוויות — נשמרות במתקן בלבד" @click=${() => this.exportControlImages()}>${this.skinBusy ? 'מצלם…' : 'תמונות בקרה'}</sw-button>
       ${this.skinNote ? html`<span class="note" data-skin-note>${this.skinNote}</span>` : nothing}
@@ -2194,9 +2196,9 @@ export class ExploreFloorMap extends LitElement {
     }
     if (this.screenState === 'empty' || b.planStatus === 'none') {
       return html`<div class="cover">
-        <sw-state-panel state="empty" heading=${t('floor.noPlan')} hint=${this.narrow ? 'העלאת תוכנית זמינה במחשב.' : b.permissions.import ? t('floor.noPlanHint') : 'עורך המפות של הקומה יכול להעלות תוכנית.'}>
+        <sw-state-panel state="empty" heading=${t('floor.noPlan')} hint=${this.phone.restricted('structure') ? 'העלאת תוכנית זמינה במחשב.' : b.permissions.import ? t('floor.noPlanHint') : 'עורך המפות של הקומה יכול להעלות תוכנית.'}>
           <div style="display:flex;gap:8px;margin-block-start:10px;justify-content:center;flex-wrap:wrap">
-            ${b.permissions.import && !this.narrow ? html`<sw-button variant="primary" icon="upload" @click=${() => navigate(`/explore/floors/${b.floorId}/import`)}>${t('floor.uploadPlan')}</sw-button>` : nothing}
+            ${b.permissions.import && !this.phone.restricted('structure') ? html`<sw-button variant="primary" icon="upload" @click=${() => navigate(`/explore/floors/${b.floorId}/import`)}>${t('floor.uploadPlan')}</sw-button>` : nothing}
             <sw-button icon="list" @click=${() => navigate('/live/wall')}>${t('floor.listView')}</sw-button>
           </div>
         </sw-state-panel>

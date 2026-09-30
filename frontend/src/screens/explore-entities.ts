@@ -15,7 +15,7 @@ import type { IconName } from '../components/sw-icon';
 import { can, isApi } from '../api/session';
 import { describeError } from '../api/client';
 import { navigate, parseRoute } from '../router';
-import { isPhoneWidth } from '../shell/phone';
+import { phoneRestricted } from '../shell/phone';
 import { firstFloor, loadTree } from '../api/catalog';
 import { domainLabel, entityTone, fmtTime, listEntities, stateLabel, subscribeHa, type HaCatalogue, type HaEntity, type HaSyncState } from '../api/ha';
 
@@ -244,7 +244,7 @@ export class ExploreEntities extends LitElement {
       <div slot="footer">
         ${e.placements?.length
           ? html`<sw-button variant="primary" icon="map" @click=${() => navigate(`/explore/floors/${e.placements![0].floor_id}`)}>הצג במפה</sw-button>`
-          : isPhoneWidth() ? nothing /* placing on the map opens the plan editor: desktop only (owner decision 2026-09-30) */ : html`<sw-button variant="primary" icon="map" ?disabled=${!this.firstFloorId} title=${this.firstFloorId ? 'פותח את עורך התוכנית עם הישות מוכנה להצבה' : 'אין קומות עדיין'} @click=${() => this.firstFloorId && navigate(`/explore/floors/${this.firstFloorId}/edit`, { entity: e.entity_id })}>הצב במפה</sw-button>`}
+          : phoneRestricted('structure') ? nothing /* placing on the map opens the plan editor: hidden on a phone with the structure option (owner decision 2026-09-30) */ : html`<sw-button variant="primary" icon="map" ?disabled=${!this.firstFloorId} title=${this.firstFloorId ? 'פותח את עורך התוכנית עם הישות מוכנה להצבה' : 'אין קומות עדיין'} @click=${() => this.firstFloorId && navigate(`/explore/floors/${this.firstFloorId}/edit`, { entity: e.entity_id })}>הצב במפה</sw-button>`}
       </div>
     </sw-drawer>`;
   }

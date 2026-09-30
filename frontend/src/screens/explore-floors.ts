@@ -28,7 +28,7 @@ type Dialog = { kind: 'floor' } | { kind: 'rename'; floor: Floor } | { kind: 'de
 /** SC03 — floor browser (board 1 screen 3) on real catalogue data: add / rename / delete floors, add buildings. */
 @customElement('explore-floors')
 export class ExploreFloors extends LitElement {
-  /** Owner decision 2026-09-30: no structure management on a phone (new floor / building, rename, delete, plan upload). A UX guard only; the server enforces permissions. */
+  /** Owner decision 2026-09-30 (option ui.mobile hide_structure, default on): no structure management on a phone (new floor / building, rename, delete, plan upload). A UX guard only; the server enforces permissions. */
   private readonly phone = new PhoneWidth(this);
   @property() buildingId = 'bld-a';
   @state() private tree: CatalogTree | null = null;
@@ -303,7 +303,7 @@ export class ExploreFloors extends LitElement {
   }
 
   private openDialog(d: Dialog) {
-    if (this.phone.matches) return;
+    if (this.phone.restricted('structure')) return;
     this.error = '';
     this.formName = d?.kind === 'rename' ? d.floor.name : '';
     this.formLevel = d?.kind === 'rename' ? d.floor.level : 0;
@@ -312,7 +312,7 @@ export class ExploreFloors extends LitElement {
 
   private renderDialog(building: Building) {
     const d = this.dialog;
-    if (!d || this.phone.matches) return nothing;
+    if (!d || this.phone.restricted('structure')) return nothing;
     const demo = this.tree?.source === 'demo';
     const nameField = html`<sw-field label="שם"><input .value=${this.formName} @input=${(e: Event) => (this.formName = (e.target as HTMLInputElement).value)} placeholder="למשל: קומה 1" autofocus /></sw-field>`;
     const levelField = html`<sw-field label="מפלס (0 = קרקע, שלילי = מרתף)" hint="קובע את סדר התצוגה בין הקומות"><input type="number" data-ltr .value=${String(this.formLevel)} @input=${(e: Event) => (this.formLevel = Number((e.target as HTMLInputElement).value))} /></sw-field>`;
@@ -368,7 +368,7 @@ export class ExploreFloors extends LitElement {
         <sw-tabs .items=${[{ id: 'floors', label: 'קומות', count: floors.length }, { id: 'cameras', label: 'מצלמות', count: totalCams }, { id: 'details', label: 'פרטים' }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
         ${this.tab === 'floors'
           ? html`<div class="list">
-              ${floors.length ? nothing : html`<div class="empty">${this.phone.matches ? 'למבנה הזה אין עדיין קומות. הוספת קומות ותוכניות זמינה במחשב.' : 'למבנה הזה אין עדיין קומות. הוסף קומה, ואז העלה תוכנית (PDF או תמונה).'}</div>`}
+              ${floors.length ? nothing : html`<div class="empty">${this.phone.restricted('structure') ? 'למבנה הזה אין עדיין קומות. הוספת קומות ותוכניות זמינה במחשב.' : 'למבנה הזה אין עדיין קומות. הוסף קומה, ואז העלה תוכנית (PDF או תמונה).'}</div>`}
               ${floors.map(
                 (f) => html`<button class="floor ${sel?.id === f.id ? 'on' : ''}" @click=${() => (sel?.id === f.id ? navigate(`/explore/floors/${f.id}`) : (this.selected = f.id))} aria-pressed=${sel?.id === f.id}>
                   <div class="txt">
@@ -382,7 +382,7 @@ export class ExploreFloors extends LitElement {
               ${this.renderLinks(floors)}
               ${this.error && !this.dialog ? html`<div class="err">${this.error}</div>` : nothing}
               <div class="actions" data-floor-actions>
-                ${this.phone.matches
+                ${this.phone.restricted('structure')
                   ? nothing
                   : html`<div>
                       <sw-button icon="plus" @click=${() => this.openDialog({ kind: 'floor' })}>קומה חדשה</sw-button>
@@ -390,7 +390,7 @@ export class ExploreFloors extends LitElement {
                     </div>`}
                 ${sel
                   ? html`<div>
-                      ${this.phone.matches
+                      ${this.phone.restricted('structure')
                         ? nothing
                         : html`<sw-button variant="ghost" icon="edit" @click=${() => this.openDialog({ kind: 'rename', floor: sel })}>עריכה</sw-button>
                           <sw-button variant="ghost" icon="trash" @click=${() => this.openDialog({ kind: 'delete', floor: sel, force: false })}>מחיקה</sw-button>

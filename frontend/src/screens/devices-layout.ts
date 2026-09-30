@@ -10,6 +10,7 @@ import { can, canAnywhere, isApi } from '../api/session';
 import { cameraSources } from '../api/camera-card';
 import { cameraCardDefinition } from './devices-camera-card';
 import { registerScreenEdit } from '../shell/screen-edit';
+import { phoneRestricted } from '../shell/phone';
 import type { CameraSource } from '../api/camera-card';
 import { LAYOUT_ROLE_IDS, type LayoutRoleId } from '../styles/devices-palettes';
 import { bulkSelect, CARD_TYPES, CARDS_VERSION, findSlot, groupPicks, isCardType, libraryTypes, newCardKey, nextTitle, type AreaEntity, type PickEntity } from './devices-layout-cards';
@@ -452,7 +453,7 @@ export class DevicesLayoutController implements ReactiveController {
 
   hostConnected() {
     if (this.opts.scope === 'area') {
-      this.offScreenEdit = registerScreenEdit({ id: 'devices-layout', label: 'עריכת פריסה', icon: 'edit', can: () => this.canEdit && !this.editing, run: () => void this.enter() });
+      this.offScreenEdit = registerScreenEdit({ id: 'devices-layout', label: 'עריכת פריסה', icon: 'edit', can: () => this.canEdit && !this.editing && !phoneRestricted('layout_editor'), run: () => void this.enter() }); // hidden on a phone with the option "הסתרת עורך פריסת האזור בנייד" (UX guard, not security)
     }
     try {
       this.mq = window.matchMedia(PHONE_MQ);
