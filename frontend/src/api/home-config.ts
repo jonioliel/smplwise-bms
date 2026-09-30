@@ -29,6 +29,15 @@ export const SIZES: Size[] = ['s', 'm', 'l'];
 export const SIZE_LABEL: Record<Size, string> = { s: 'קטן', m: 'בינוני', l: 'גדול' };
 export type Sizes = Record<Direction, Size>;
 
+/** How the widgets are presented on a PHONE (under 600 px), edited apart from the desktop: a horizontal snap row, one card under the
+ * other (the default) or two per row. */
+export type PhoneLayout = 'snap' | 'stack' | 'two';
+export const PHONE_LAYOUTS: PhoneLayout[] = ['stack', 'two', 'snap'];
+export const PHONE_LAYOUT_LABEL: Record<PhoneLayout, string> = { snap: 'בשורה גוללת', stack: 'אחד מתחת לשני', two: 'שתיים בשורה' };
+export const PHONE_LAYOUT_DEFAULT: PhoneLayout = 'stack';
+/** The widest viewport that is a phone (the tiles' breakpoint: under 600 px). */
+export const PHONE_MAX_WIDTH = 599;
+
 export type ClockMode = 'time' | 'datetime';
 export const CLOCK_MODES: ClockMode[] = ['time', 'datetime'];
 export const CLOCK_MODE_LABEL: Record<ClockMode, string> = { time: 'שעה', datetime: 'שעה ותאריך' };
@@ -70,6 +79,10 @@ export interface CommonCfg {
   sizes: Sizes;
   /** The widget's own heading ('' = its name). */
   label: string;
+  /** On a phone: shown (null = the same as on) ... */
+  phone_on: boolean | null;
+  /** ... and at this size (null = the desktop size of the direction, at most medium). */
+  phone_size: Size | null;
 }
 export interface ClockCfg extends CommonCfg {
   mode: ClockMode;
@@ -99,6 +112,7 @@ export interface CalendarCfg {
 }
 export interface HomeConfig {
   order: WidgetId[];
+  phone_layout: PhoneLayout;
   clock: ClockCfg;
   weather: WeatherCfg;
   shabbat: ShabbatCfg;
@@ -116,9 +130,10 @@ export const DEFAULT_SIZES: Record<WidgetId, Sizes> = {
 };
 
 export function defaultConfig(): HomeConfig {
-  const base = (id: WidgetId): CommonCfg => ({ on: true, sizes: { ...DEFAULT_SIZES[id] }, label: '' });
+  const base = (id: WidgetId): CommonCfg => ({ on: true, sizes: { ...DEFAULT_SIZES[id] }, label: '', phone_on: null, phone_size: null });
   return {
     order: [...WIDGET_IDS],
+    phone_layout: PHONE_LAYOUT_DEFAULT,
     clock: { ...base('clock'), mode: 'datetime', seconds: false, hebrew: true },
     weather: { ...base('weather'), entity: '', fields: [...WEATHER_FIELDS_DEFAULT], forecast: '5', sources: {} },
     shabbat: base('shabbat'),
@@ -142,7 +157,7 @@ function sizesOf(v: unknown, id: WidgetId): Sizes {
 
 function commonOf(v: unknown, id: WidgetId): CommonCfg {
   const o = isObj(v) ? v : {};
-  return { on: bool(o.on, true), sizes: sizesOf(o.sizes, id), label: str(o.label) };
+  return { on: bool(o.on, true), sizes: sizesOf(o.sizes, id), label: str(o.label), phone_on: typeof o.phone_on === 'boolean' ? o.phone_on : null, phone_size: SIZES.includes(o.phone_size as Size) ? (o.phone_size as Size) : null };
 }
 
 function listOf<T extends string>(v: unknown, allowed: readonly T[], fallback: readonly T[]): T[] {
@@ -167,6 +182,7 @@ export function configOf(raw: unknown): HomeConfig {
   if (isObj(weather.sources)) for (const f of WEATHER_SOURCE_FIELDS) if (typeof weather.sources[f] === 'string' && weather.sources[f]) sources[f] = weather.sources[f] as string;
   return {
     order: [...order, ...WIDGET_IDS.filter((w) => !order.includes(w))],
+    phone_layout: pick(o.phone_layout, PHONE_LAYOUTS, PHONE_LAYOUT_DEFAULT),
     clock: { ...commonOf(o.clock, 'clock'), mode: pick(clock.mode, CLOCK_MODES, d.clock.mode), seconds: bool(clock.seconds, false), hebrew: bool(clock.hebrew, true) },
     weather: { ...commonOf(o.weather, 'weather'), entity: str(weather.entity), fields: listOf(weather.fields, WEATHER_FIELDS, WEATHER_FIELDS_DEFAULT), forecast: pick(weather.forecast, FORECAST_LENS, '5'), sources },
     shabbat: commonOf(o.shabbat, 'shabbat'),
@@ -315,6 +331,10 @@ export function previewData(cfg: HomeConfig, base: HomeData, cands: HomeCandidat
   if (cfg.alarm.entity && base.alarm?.entity_id !== cfg.alarm.entity) {
     const c = cands?.alarms.find((a) => a.entity_id === cfg.alarm.entity);
     alarm = c ? { entity_id: c.entity_id, name: c.name, state: c.state, since: null, available: !UNAVAILABLE.has(c.state ?? '') } : null;
+  } else if (!alarm && !cfg.alarm.entity && cands?.alarms.length) {
+    // no panel chosen ("automatic") and the server sent none (the card was off when the tree was read): the most urgent candidate
+    const c = cands.alarms.find((a) => a.state === 'triggered') ?? cands.alarms[0];
+    alarm = { entity_id: c.entity_id, name: c.name, state: c.state, since: null, available: !UNAVAILABLE.has(c.state ?? '') };
   }
   return { weather, sensors, alarm };
 }
@@ -336,8 +356,21 @@ export interface WidgetItem {
 export interface ResolveOpts {
   /** Edit mode: widgets that are not shown come back too (as ghosts that say why). */
   editing?: boolean;
+  /** A phone: each widget's phone_on / phone_size apply instead of the desktop's on / size. */
+  phone?: boolean;
   /** Which quick actions this user may run (devices.control_bulk on the building); none = the quick card is absent. */
   quickAllowed?: Partial<Record<QuickAction, boolean>>;
+}
+
+/** Whether a widget is shown on this kind of screen: the phone has its own switch, defaulting to the desktop's. */
+export const widgetOn = (w: CommonCfg, phone: boolean): boolean => (phone ? w.phone_on ?? w.on : w.on);
+
+/** A widget's size on this kind of screen: on a phone its own, else the desktop size of the direction capped at medium. */
+export function widgetSize(w: CommonCfg, direction: Direction, phone: boolean): Size {
+  if (!phone) return w.sizes[direction];
+  if (w.phone_size) return w.phone_size;
+  const d = w.sizes[direction];
+  return d === 'l' ? 'm' : d;
 }
 
 export const hasValue = (s: SensorData | undefined): s is SensorData => !!s && s.available && !UNAVAILABLE.has(s.state);
@@ -348,7 +381,7 @@ export function resolveWidgets(cfg: HomeConfig, direction: Direction, data: Home
   for (const id of cfg.order) {
     const w = cfg[id];
     let avail: Avail = 'ok';
-    if (!w.on) avail = 'off';
+    if (!widgetOn(w, !!opts.phone)) avail = 'off';
     else if (id === 'weather') {
       avail = !cfg.weather.entity || !data.weather ? 'none' : !data.weather.available ? 'unavail' : 'ok';
     } else if (id === 'shabbat') {
@@ -360,7 +393,7 @@ export function resolveWidgets(cfg: HomeConfig, direction: Direction, data: Home
       const allowed = cfg.quick.actions.filter((a) => opts.quickAllowed?.[a]);
       avail = allowed.length ? 'ok' : 'noaction';
     }
-    if (avail === 'ok' || opts.editing) out.push({ id, avail, size: w.sizes[direction], title: w.label.trim() || WIDGET_NAME[id] });
+    if (avail === 'ok' || opts.editing) out.push({ id, avail, size: widgetSize(w, direction, !!opts.phone), title: w.label.trim() || WIDGET_NAME[id] });
   }
   return out;
 }

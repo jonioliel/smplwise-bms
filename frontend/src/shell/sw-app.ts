@@ -12,6 +12,7 @@ import './sw-nav-order';
 import { openAlertsText } from './sw-user-menu';
 import { loadNavOrder, navOrder, onNavOrder, resetNavOrder, saveNavOrder } from './nav-order';
 import { findScreenEdit, onScreenEdits, screenEdits } from './screen-edit';
+import { findScreenView, onScreenViews, screenViews } from './screen-view';
 import { loadNavSize, navCssVars, navDims, navSize, onNavSize, setInstallationNavSize, type NavDims } from './nav-size';
 import { listAlerts } from '../api/rules';
 import { inAndroidShell } from '../arx/android-app';
@@ -123,6 +124,7 @@ export class SwApp extends LitElement {
   @state() private nav: NavDims = navDims(navSize());
   private stopNavSize?: () => void;
   private stopScreenEdits?: () => void;
+  private stopScreenViews?: () => void;
   private railObs: ResizeObserver | null = null;
   private observedRail: HTMLElement | null = null;
   private stopTabsConfig?: () => void;
@@ -1087,6 +1089,7 @@ export class SwApp extends LitElement {
     this.stopNavOrder = onNavOrder((o) => (this.navOrder = o));
     this.stopNavSize = onNavSize((sz) => (this.nav = navDims(sz)));
     this.stopScreenEdits = onScreenEdits(() => this.requestUpdate()); // a screen registered / dropped its edit mode
+    this.stopScreenViews = onScreenViews(() => this.requestUpdate()); // a screen registered / dropped / changed its view choice
     this.stopTabsConfig = onTabsConfig(() => this.requestUpdate()); // הגדרות › כללי › לשוניות: every tab row follows at once
     this.stopMobileOptions = onMobileOptions(() => this.requestUpdate()); // הגדרות › כללי › אפשרויות נייד: the phone guards follow at once
     this.stopSession = onSession((s) => {
@@ -1244,6 +1247,7 @@ export class SwApp extends LitElement {
     this.stopNavOrder?.();
     this.stopNavSize?.();
     this.stopScreenEdits?.();
+    this.stopScreenViews?.();
     this.railObs?.disconnect();
     this.railObs = null;
     this.stopTabsConfig?.();
@@ -1857,6 +1861,8 @@ export class SwApp extends LitElement {
     return html`<sw-user-menu .open=${this.menuOpen} .name=${this.userName} .role=${this.userRole} .api=${api} .gated=${noTabs} .alerts=${this.gated ? null : this.alertCount}
         .settingsHref=${settings?.href ?? ''} .editHomeHref=${this.canEditHome() ? '#/devices/building?edit=1' : ''}
         .screenEdits=${this.gated ? [] : screenEdits().map((a) => ({ id: a.id, label: a.label, icon: a.icon ?? 'edit' }))}
+        .screenViews=${this.gated ? [] : screenViews()}
+        @screen-view=${(e: CustomEvent<{ id: string; value: string }>) => findScreenView(e.detail.id)?.set(e.detail.value)}
         @screen-edit=${(e: CustomEvent<{ id: string }>) => { const a = findScreenEdit(e.detail.id); if (a) this.runFromOverlay(() => a.run()); }}
         @close=${() => this.closeMenu()} @navigate=${(e: CustomEvent<{ href: string }>) => this.navigateFromOverlay(e.detail.href)} @nav-order=${() => {
           // the sheet hands over to the dialog: its history entry now stands for the dialog

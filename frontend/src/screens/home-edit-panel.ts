@@ -7,8 +7,8 @@ import '../components/sw-button';
 import { bidi } from '../i18n/bidi';
 import {
   CALENDAR_FIELD_LABEL, CALENDAR_FIELDS, CLOCK_MODE_LABEL, CLOCK_MODES, DIRECTION_LABEL, DIRECTION_LETTER, DIRECTIONS, EXTRAS_MAX, FORECAST_LENS, forecastCount, HOME_TITLE_DEFAULT, HOME_TITLE_MAX, LABEL_MAX, moveId,
-  moveWidget, previewData, QUICK_ACTION_LABEL, QUICK_ACTIONS, SIDE_LABEL, SIDES, SIZE_LABEL, SIZES, WEATHER_FIELD_LABEL, WEATHER_FIELDS, WEATHER_SOURCE_FIELDS, WIDGET_NAME,
-  type CalendarField, type Direction, type ForecastLen, type HomeCandidates, type HomeConfig, type HomeData, type HomeSettings, type QuickAction, type Side, type Size, type WeatherField, type WidgetId,
+  moveWidget, PHONE_LAYOUT_LABEL, PHONE_LAYOUTS, previewData, widgetOn, widgetSize, QUICK_ACTION_LABEL, QUICK_ACTIONS, SIDE_LABEL, SIDES, SIZE_LABEL, SIZES, WEATHER_FIELD_LABEL, WEATHER_FIELDS, WEATHER_SOURCE_FIELDS, WIDGET_NAME,
+  type CalendarField, type Direction, type ForecastLen, type PhoneLayout, type HomeCandidates, type HomeConfig, type HomeData, type HomeSettings, type QuickAction, type Side, type Size, type WeatherField, type WidgetId,
 } from '../api/home';
 
 /** One place of the panel to open: a widget's row (from a card's "הגדרות" button). */
@@ -165,6 +165,24 @@ export class HomeEditPanel extends LitElement {
       gap: 8px 12px;
       flex-wrap: wrap;
     }
+    .w-phone {
+      display: flex;
+      align-items: center;
+      gap: 6px 12px;
+      flex-wrap: wrap;
+      padding-block-start: 6px;
+      border-block-start: 1px dashed var(--sw-border);
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .w-phone .pl {
+      font-weight: var(--sw-fw-semibold);
+      min-inline-size: 44px;
+    }
+    .w-phone select {
+      min-block-size: 30px;
+      max-inline-size: 100%;
+    }
     .w-name {
       font-weight: var(--sw-fw-semibold);
       font-size: var(--sw-fs-sm);
@@ -301,6 +319,11 @@ export class HomeEditPanel extends LitElement {
     this.setConfig((c) => Object.assign(c[id], patch));
   }
 
+  /** The phone's own on / off: stored only when it differs from the desktop's (null = follow it). */
+  private setPhoneOn(id: WidgetId, on: boolean) {
+    this.setConfig((c) => (c[id].phone_on = on === c[id].on ? null : on));
+  }
+
   private toggleOpen(id: WidgetId) {
     this.dispatchEvent(new CustomEvent('home-edit-open', { detail: { id: this.open === id ? '' : id }, bubbles: true, composed: true }));
   }
@@ -338,6 +361,11 @@ export class HomeEditPanel extends LitElement {
               </div>`
             : nothing}
         </div>
+        <div class="lbl" id="he-phone">בנייד: איך הווידג׳טים מוצגים
+          <span class="seg" role="group" aria-labelledby="he-phone" data-home-phone-layouts>
+            ${PHONE_LAYOUTS.map((p: PhoneLayout) => html`<button type="button" data-home-phone-layout=${p} aria-pressed=${String(d.config.phone_layout === p)} @click=${() => this.setConfig((c) => (c.phone_layout = p))}>${PHONE_LAYOUT_LABEL[p]}</button>`)}
+          </span>
+        </div>
         <h3>ווידג׳טים</h3>
         ${repeat(d.config.order, (id) => id, (id, i) => this.widgetRow(id, i))}
         ${this.candidatesError ? html`<div class="err" role="alert">${this.candidatesError}</div>` : nothing}
@@ -373,6 +401,14 @@ export class HomeEditPanel extends LitElement {
         <button type="button" class="ib" data-home-wmove=${id} data-home-wearlier=${id} aria-label=${`הקדם את ${WIDGET_NAME[id]}`} title="הקדם" ?disabled=${index === 0} @click=${() => this.moveW(id, index - 1)}><sw-icon name="arrowUp" size=${13}></sw-icon></button>
         <button type="button" class="ib" data-home-wmove=${id} data-home-wlater=${id} aria-label=${`אחר את ${WIDGET_NAME[id]}`} title="אחר" ?disabled=${index === last} @click=${() => this.moveW(id, index + 1)}><sw-icon name="arrowDown" size=${13}></sw-icon></button>
         <button type="button" class="ib" data-home-wopen=${id} aria-expanded=${String(open)} aria-label=${`הגדרות: ${WIDGET_NAME[id]}`} title="הגדרות" @click=${() => this.toggleOpen(id)}><sw-icon name=${open ? 'chevronDown' : 'chevronBack'} size=${14}></sw-icon></button>
+      </div>
+      <div class="w-phone" data-home-wphone=${id}>
+        <span class="pl">בנייד</span>
+        <label class="check"><input type="checkbox" data-home-phone-on=${id} .checked=${widgetOn(w, true)} aria-label=${`הצג בנייד: ${WIDGET_NAME[id]}`} @change=${(e: Event) => this.setPhoneOn(id, (e.target as HTMLInputElement).checked)} />הצג</label>
+        <select data-home-phone-size=${id} aria-label=${`גודל בנייד: ${WIDGET_NAME[id]}`} ?disabled=${!widgetOn(w, true)} @change=${(e: Event) => this.setWidget(id, { phone_size: ((e.target as HTMLSelectElement).value || null) as Size | null } as never)}>
+          <option value="" ?selected=${!w.phone_size}>אוטומטי (${SIZE_LABEL[widgetSize({ ...w, phone_size: null }, d.direction, true)]})</option>
+          ${SIZES.map((s: Size) => html`<option value=${s} ?selected=${w.phone_size === s}>${SIZE_LABEL[s]}</option>`)}
+        </select>
       </div>
       ${open
         ? html`<div class="w-body" data-home-wbody=${id}>

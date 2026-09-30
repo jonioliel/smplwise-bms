@@ -75,7 +75,7 @@ export class HomeWidgetsView extends LitElement {
   @property({ attribute: false }) data: HomeData = NO_DATA;
   @property({ attribute: false }) quick: QuickInfo = { allowed: {}, lightsOn: 0, switchesOn: 0 };
   @property() zone = 'Asia/Jerusalem';
-  @property({ reflect: true }) layout: 'hero' | 'side' | 'row' | 'snap' = 'hero';
+  @property({ reflect: true }) layout: 'hero' | 'side' | 'row' | 'snap' | 'stack' | 'two' = 'hero';
   @property({ type: Boolean, reflect: true }) editing = false;
   /** The screen's fit step (0-2): the cards get shorter so the page still fits the viewport. */
   @property({ type: Number, reflect: true, attribute: 'data-fit' }) fit = 0;
@@ -946,7 +946,33 @@ export class HomeWidgetsView extends LitElement {
       scroll-snap-align: start;
       min-block-size: var(--sh, 150px);
     }
-    :host([layout='snap']) .wg[data-size='s'] {
+    /* one card under the other: every card the full width (the phone default) */
+    :host([layout='stack']) .wrap {
+      flex-direction: column;
+      gap: 10px;
+    }
+    :host([layout='stack']) .wg {
+      flex: none;
+      min-block-size: var(--sh, 96px);
+    }
+    /* two per row (wrapping): small and medium cards share a row, a large one takes the whole row */
+    :host([layout='two']) .wrap {
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    :host([layout='two']) .wg {
+      flex: 1 1 calc(50% - 5px);
+      min-inline-size: 0;
+      min-block-size: var(--sh, 96px);
+    }
+    :host([layout='two']) .wg[data-size='l'],
+    :host([layout='two']) .wg.ghost {
+      flex-basis: 100%;
+    }
+    :host([layout='two']) .wg[data-size='m'] {
+      padding-inline: 12px;
+    }
+    :host(:is([layout='snap'], [layout='stack'], [layout='two'])) .wg[data-size='s'] {
       --sw: 46%;
       --sh: 96px;
       --hm: 32px;
@@ -956,7 +982,7 @@ export class HomeWidgetsView extends LitElement {
       --ali: 30px;
       --als: 14px;
     }
-    :host([layout='snap']) .wg[data-size='m'] {
+    :host(:is([layout='snap'], [layout='stack'], [layout='two'])) .wg[data-size='m'] {
       --sw: 66%;
       --sh: 140px;
       --hm: 48px;
@@ -966,7 +992,7 @@ export class HomeWidgetsView extends LitElement {
       --ali: 38px;
       --als: 16px;
     }
-    :host([layout='snap']) .wg[data-size='l'] {
+    :host(:is([layout='snap'], [layout='stack'], [layout='two'])) .wg[data-size='l'] {
       --sw: 86%;
       --sh: 184px;
       --hm: 66px;
@@ -976,7 +1002,7 @@ export class HomeWidgetsView extends LitElement {
       --ali: 46px;
       --als: 18px;
     }
-    :host([layout='snap'][editing]) .wg:not(.ghost) {
+    :host(:is([layout='snap'], [layout='stack'], [layout='two'])[editing]) .wg:not(.ghost) {
       padding-block-end: 52px;
     }
     @media (prefers-reduced-motion: reduce) {

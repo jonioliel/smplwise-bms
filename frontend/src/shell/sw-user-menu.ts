@@ -49,6 +49,8 @@ export class SwUserMenu extends LitElement {
   @property() editHomeHref = '';
   /** UI round 1c (shell/screen-edit.ts): the edit modes the CURRENT screen registered that this user may enter ("עריכת פריסה", ...). */
   @property({ attribute: false }) screenEdits: { id: string; label: string; icon: string }[] = [];
+  /** shell/screen-view.ts: the CURRENT screen's view choices (the home screen's cards | tiles), each an inline two-option control. */
+  @property({ attribute: false }) screenViews: { id: string; label: string; icon?: string; options: { value: string; label: string }[]; current: string }[] = [];
   @state() private level: 'main' | 'account' = 'main';
   /** The sign-ins list loads only while its section is open (it asks the server). */
   @state() private sessionsOpen = false;
@@ -246,6 +248,46 @@ export class SwUserMenu extends LitElement {
       outline: 2px solid var(--sw-focus);
       outline-offset: -2px;
     }
+    /* a view choice: the label and, at the end, a compact two-option control (the menu stays open when it is used) */
+    li.view {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-block-size: 48px;
+      padding: 6px 10px;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-medium);
+      color: var(--sw-text);
+    }
+    li.view .seg {
+      display: inline-flex;
+      padding: 2px;
+      gap: 1px;
+      background: var(--sw-surface-3);
+      border-radius: 999px;
+      flex: none;
+    }
+    li.view .seg button {
+      border: 0;
+      background: transparent;
+      min-block-size: 32px;
+      padding: 0 12px;
+      border-radius: 999px;
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+      cursor: pointer;
+    }
+    li.view .seg button[aria-pressed='true'] {
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font-weight: var(--sw-fw-semibold);
+      box-shadow: var(--sw-shadow-1);
+    }
+    li.view .seg button:focus-visible {
+      outline: 2px solid var(--sw-focus);
+      outline-offset: 1px;
+    }
     .ic {
       display: grid;
       place-items: center;
@@ -412,6 +454,12 @@ export class SwUserMenu extends LitElement {
         ${this.screenEdits.map(
           (a) => html`<li><button type="button" data-menu-screen-edit=${a.id} @click=${() => this.dispatchEvent(new CustomEvent('screen-edit', { detail: { id: a.id }, bubbles: true, composed: true }))}>
             <span class="ic"><sw-icon name=${a.icon} size=${18}></sw-icon></span><span class="txt">${a.label}</span></button></li>`,
+        )}
+        ${this.screenViews.map(
+          (v) => html`<li class="view" data-menu-screen-view=${v.id}>
+            <span class="ic"><sw-icon name=${v.icon ?? 'layers'} size=${18}></sw-icon></span><span class="txt" id=${`mv-${v.id}`}>${v.label}</span>
+            <span class="seg" role="group" aria-labelledby=${`mv-${v.id}`}>${v.options.map((o) => html`<button type="button" data-menu-view-option=${o.value} aria-pressed=${String(v.current === o.value)} @click=${() => this.dispatchEvent(new CustomEvent('screen-view', { detail: { id: v.id, value: o.value }, bubbles: true, composed: true }))}>${o.label}</button>`)}</span>
+          </li>`,
         )}
         ${this.editHomeHref
           ? html`<li><a href=${this.editHomeHref} data-menu-edit-home @click=${(e: MouseEvent) => this.go(e)}>

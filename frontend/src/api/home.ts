@@ -14,8 +14,8 @@ import { getMyPrefs, putMyPrefs } from './me-prefs';
 import { invalidateSettings, productSettings } from './prefs';
 import { isApi } from './session';
 import {
-  configBody, configOf, DIRECTION_DEFAULT, DIRECTIONS, SIDES, SIZES, WIDGET_IDS, sameConfig, defaultConfig,
-  type Direction, type HomeCandidates, type HomeConfig, type Side, type Size, type WidgetId,
+  configBody, configOf, DIRECTION_DEFAULT, DIRECTIONS, PHONE_LAYOUTS, SIDES, SIZES, WIDGET_IDS, sameConfig, defaultConfig,
+  type Direction, type HomeCandidates, type HomeConfig, type PhoneLayout, type Side, type Size, type WidgetId,
 } from './home-config';
 
 export * from './home-config';
@@ -129,11 +129,13 @@ export function moveId(ids: string[], id: string, to: number): string[] {
 /** `home.personal` of /me/prefs (services/home_config.py normalise_personal): null = follow the installation. */
 export interface HomePersonal {
   direction: Direction | null;
+  /** The phone presentation of the widgets (null = the installation's). */
+  phone_layout: PhoneLayout | null;
   order: WidgetId[] | null;
   widgets: Partial<Record<WidgetId, { on?: boolean; size?: Size }>>;
 }
 
-export const PERSONAL_EMPTY: HomePersonal = { direction: null, order: null, widgets: {} };
+export const PERSONAL_EMPTY: HomePersonal = { direction: null, phone_layout: null, order: null, widgets: {} };
 
 /** Fired on `window` after the personal home screen changed: an open home screen refetches (screens/devices-building.ts). */
 export const HOME_PERSONAL_EVENT = 'sw-home-personal';
@@ -153,15 +155,15 @@ export function personalOf(raw: unknown): HomePersonal {
     if (Object.keys(entry).length) widgets[id] = entry;
   }
   const order = Array.isArray(o.order) ? (o.order.filter((x) => WIDGET_IDS.includes(x as WidgetId)) as WidgetId[]) : null;
-  return { direction: DIRECTIONS.includes(o.direction as Direction) ? (o.direction as Direction) : null, order: order && order.length ? [...order, ...WIDGET_IDS.filter((i) => !order.includes(i))] : null, widgets };
+  return { direction: DIRECTIONS.includes(o.direction as Direction) ? (o.direction as Direction) : null, phone_layout: PHONE_LAYOUTS.includes(o.phone_layout as PhoneLayout) ? (o.phone_layout as PhoneLayout) : null, order: order && order.length ? [...order, ...WIDGET_IDS.filter((i) => !order.includes(i))] : null, widgets };
 }
 
 export function personalIsEmpty(p: HomePersonal): boolean {
-  return !p.direction && !p.order && !Object.keys(p.widgets).length;
+  return !p.direction && !p.phone_layout && !p.order && !Object.keys(p.widgets).length;
 }
 
 export function personalBody(p: HomePersonal): Record<string, unknown> | null {
-  return personalIsEmpty(p) ? null : { direction: p.direction, order: p.order, widgets: p.widgets };
+  return personalIsEmpty(p) ? null : { direction: p.direction, phone_layout: p.phone_layout, order: p.order, widgets: p.widgets };
 }
 
 /** This user's stored personal choices (empty when none, or when the server hides them because the permission is missing). */

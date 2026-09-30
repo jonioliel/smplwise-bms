@@ -90,20 +90,18 @@ def may_personalize(conn: sqlite3.Connection, principal: Principal) -> bool:
     return PERSONALIZE in permissions_anywhere(conn, principal)
 
 
-def _mask_personal(prefs: dict[str, Any], allowed: bool) -> dict[str, Any]:
-    """`home.personal` exists only for a holder of screen.personalize: a stored value of a user who lost the permission is
-    neither returned nor counted as stored (it stays in the table and comes back if the permission is granted again)."""
-    if allowed:
-        return prefs
-    key = user_prefs.PERSONAL_HOME_KEY
-    return {**prefs, "prefs": {**prefs["prefs"], key: None}, "stored": [k for k in prefs["stored"] if k != key]}
-
+def _prefs_of(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
+    """The caller's preferences as they may see them: `home.personal` exists only for a holder of screen.personalize - without it
+    the stored row is read as absent (no value, not in `stored`, not in `updated_at`; it stays in the table and comes back if the
+    permission is granted again)."""
+    hide = () if may_personalize(conn, principal) else (user_prefs.PERSONAL_HOME_KEY,)
+    return user_prefs.get_prefs(conn, principal.user_id, hide)
 
 @router.get("/me/prefs")
 def get_my_prefs(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The caller's own interface preferences - every known key with its value or default (`stored` names the keys the
     user set). Another user's preferences are never readable."""
-    return _mask_personal(user_prefs.get_prefs(conn, principal.user_id), may_personalize(conn, principal))
+    return _prefs_of(conn, principal)
 
 
 @router.put("/me/prefs")
@@ -119,9 +117,10 @@ def put_my_prefs(body: PrefsPatch, principal: Principal = Depends(current_princi
         audit(conn, actor=principal, action=PERSONALIZE, decision="denied", resource_type=INSTALLATION[0], resource_id=INSTALLATION[1], reason="permission_missing")
         raise forbidden(permission=PERSONALIZE)
     try:
-        return _mask_personal(user_prefs.set_prefs(conn, principal.user_id, patch), allowed)
+        user_prefs.set_prefs(conn, principal.user_id, patch)
     except ValueError as exc:
         raise validation("ההעדפה שנשלחה אינה תקינה.", reason=str(exc)) from exc
+    return _prefs_of(conn, principal)
 
 
 def user_prefs_key(field: str) -> str:

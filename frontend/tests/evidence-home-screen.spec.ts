@@ -285,7 +285,11 @@ test.describe('the home screen against the devices fixture backend', () => {
     await resetHome(request);
   });
 
-  test('phone: every direction shows the widgets as a horizontal snap row above the tiles, and nothing overflows sideways', async ({ page, request }, testInfo) => {
+  /** The widget cards of the phone's widget area with their boxes. */
+  const phoneBoxes = (page: Page) =>
+    page.locator('devices-building home-widgets .wg').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { id: e.getAttribute('data-w'), size: e.getAttribute('data-size'), x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }; }));
+
+  test('phone: the default presentation is one card under the other for every direction, full width, above the tiles, with nothing overflowing sideways', async ({ page, request }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'the phone layout');
     await seed(request);
     await resetHome(request);
@@ -293,15 +297,13 @@ test.describe('the home screen against the devices fixture backend', () => {
       await request.patch('/api/v1/settings', { data: { 'home.direction': dir } });
       await open(page, '/devices/building', 'cards');
       const hw = page.locator('devices-building home-widgets');
-      await expect(hw).toHaveAttribute('layout', 'snap');
-      const snap = await hw.locator('.wrap').evaluate((el) => {
-        const cs = getComputedStyle(el);
-        return { overflowX: cs.overflowX, snap: cs.scrollSnapType, canScroll: el.scrollWidth > el.clientWidth, rows: new Set([...el.children].map((c) => Math.round(c.getBoundingClientRect().top))).size };
-      });
-      expect(snap.overflowX).toBe('auto');
-      expect(snap.snap).toContain('x');
-      expect(snap.canScroll).toBe(true);
-      expect(snap.rows, 'one row').toBe(1);
+      await expect(hw).toHaveAttribute('layout', 'stack');
+      const boxes = await phoneBoxes(page);
+      expect(boxes.length).toBeGreaterThanOrEqual(4);
+      for (let i = 1; i < boxes.length; i++) expect(boxes[i].y, 'one under the other').toBeGreaterThan(boxes[i - 1].y + boxes[i - 1].h - 2);
+      for (const b of boxes) expect(b.w, `${b.id} full width`).toBeGreaterThanOrEqual(340);
+      // the desktop size capped at medium: nothing is large on a phone by default
+      expect(boxes.every((b) => b.size !== 'l')).toBe(true);
       const box = (await hw.boundingBox())!;
       const kpis = (await page.locator('devices-building .kpis').boundingBox())!;
       expect(box.y + box.height).toBeLessThanOrEqual(kpis.y + 1);
@@ -309,6 +311,171 @@ test.describe('the home screen against the devices fixture backend', () => {
       await shot(page, `home-${dir}`, testInfo);
     }
     await resetHome(request);
+  });
+
+  test('phone: the three presentations - a snap row, one under the other, two per row - each fits 390 px without sideways overflow', async ({ page, request }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the phone layout');
+    await seed(request);
+    await resetHome(request);
+    for (const layout of ['snap', 'stack', 'two'] as const) {
+      await setWidgets(request, (c) => (c.phone_layout = layout));
+      await open(page, '/devices/building', 'cards');
+      const hw = page.locator('devices-building home-widgets');
+      await expect(hw).toHaveAttribute('layout', layout);
+      const boxes = await phoneBoxes(page);
+      if (layout === 'snap') {
+        expect(new Set(boxes.map((b) => b.y)).size, 'one row').toBe(1);
+        const wrap = await hw.locator('.wrap').evaluate((el) => ({ overflowX: getComputedStyle(el).overflowX, snap: getComputedStyle(el).scrollSnapType, canScroll: el.scrollWidth > el.clientWidth }));
+        expect(wrap).toMatchObject({ overflowX: 'auto', canScroll: true });
+        expect(wrap.snap).toContain('x');
+      } else if (layout === 'stack') {
+        expect(new Set(boxes.map((b) => b.y)).size, 'every card its own row').toBe(boxes.length);
+        for (const b of boxes) expect(b.w).toBeGreaterThanOrEqual(340);
+      } else {
+        // two per row: medium cards share a row (about half the width each), the rest wraps
+        const rows = new Map<number, number>();
+        for (const b of boxes) rows.set(b.y, (rows.get(b.y) ?? 0) + 1);
+        expect([...rows.values()].some((n) => n === 2), 'two cards in a row').toBe(true);
+        expect(Math.max(...[...rows.values()])).toBe(2);
+        for (const b of boxes.filter((x) => rows.get(x.y) === 2)) expect(b.w).toBeLessThanOrEqual(200);
+      }
+      for (const b of boxes) expect(b.x >= 0 && b.x + b.w <= 391 || layout === 'snap', `${b.id} inside the screen`).toBe(true);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), layout).toBeLessThanOrEqual(0);
+      await shot(page, `home-phone-${layout}`, testInfo);
+    }
+    await resetHome(request);
+  });
+
+  test('phone: a widget hidden on the phone takes no room there, and each widget has a phone size of its own - the desktop keeps its own', async ({ page, request }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the phone layout');
+    await seed(request);
+    await resetHome(request);
+    await setWidgets(request, (c) => {
+      c.alarm.phone_on = false;
+      c.quick.phone_on = false;
+      c.clock.phone_size = 'l';
+      c.weather.phone_size = 's';
+      c.shabbat.phone_size = 'm';
+    });
+    await open(page, '/devices/building', 'cards');
+    const boxes = await phoneBoxes(page);
+    expect(boxes.map((b) => `${b.id}:${b.size}`)).toEqual(['clock:l', 'weather:s', 'shabbat:m']); // the alarm and the quick actions are gone, no gap where they were
+    const kpis = (await page.locator('devices-building .kpis').boundingBox())!;
+    const last = boxes[boxes.length - 1];
+    expect(kpis.y - (last.y + last.h), 'the tiles follow the last card directly').toBeLessThanOrEqual(24);
+    await expect(page.locator('devices-building sw-kpi[data-kpi="אזעקה"]')).toHaveCount(1); // the alarm card is off on the phone, so its status is the summary tile again (no widget, no lost information)
+    // a widget that is off on the desktop but on for the phone is drawn on the phone
+    await setWidgets(request, (c) => {
+      c.alarm.phone_on = null;
+      c.quick.phone_on = null;
+      c.shabbat.on = false;
+      c.shabbat.phone_on = true;
+    });
+    await open(page, '/devices/building', 'cards');
+    expect((await phoneBoxes(page)).map((b) => b.id)).toContain('shabbat');
+    await shot(page, 'home-phone-hidden', testInfo);
+    // every widget hidden on the phone: the widget area takes no room at all
+    await setWidgets(request, (c) => {
+      for (const id of ['clock', 'weather', 'shabbat', 'alarm', 'quick']) c[id].phone_on = false;
+    });
+    await open(page, '/devices/building', 'cards');
+    await expect(page.locator('devices-building home-widgets')).toBeHidden();
+    await resetHome(request);
+  });
+
+  test('desktop: the phone settings never change the desktop - a widget hidden on the phone shows here, a phone-only widget does not, and the sizes are the direction\'s own', async ({ page, request }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop');
+    await seed(request);
+    await resetHome(request);
+    await setWidgets(request, (c) => {
+      c.alarm.phone_on = false;
+      c.clock.phone_size = 's';
+      c.shabbat.on = false;
+      c.shabbat.phone_on = true;
+      c.phone_layout = 'two';
+    });
+    await open(page, '/devices/building', 'cards');
+    const boxes = await phoneBoxes(page);
+    expect(boxes.map((b) => `${b.id}:${b.size}`)).toEqual(['clock:l', 'weather:l', 'alarm:m', 'quick:m']);
+    await expect(page.locator('devices-building home-widgets')).toHaveAttribute('layout', 'hero');
+    await resetHome(request);
+  });
+
+
+  test('phone: the edit mode works at 390 px - the phone layout, a phone size and "הצג בנייד" per widget beside the desktop ones, the card controls edit the phone values - and saves', async ({ page, request }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the phone layout');
+    test.setTimeout(120_000);
+    await seed(request);
+    await resetHome(request);
+    try {
+      await open(page, '/devices/building?edit=1', 'cards');
+      const b = page.locator('devices-building');
+      await expect(b.locator('home-edit-panel')).toBeVisible({ timeout: 30000 });
+      // usable at 390 px: the phone controls are inside the screen, the page does not scroll sideways
+      const inside = async (sel: string) => {
+        const r = (await b.locator(sel).first().boundingBox())!;
+        expect(r.x, sel).toBeGreaterThanOrEqual(-1);
+        expect(r.x + r.width, sel).toBeLessThanOrEqual(391);
+      };
+      await inside('[data-home-phone-layouts]');
+      for (const id of ['clock', 'weather', 'shabbat', 'alarm', 'quick']) await inside(`[data-home-wphone="${id}"]`);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+      await expect(b.locator('[data-home-wphone="clock"] .pl')).toHaveText('בנייד'); // clearly labelled
+      await shot(page, 'home-phone-edit', testInfo);
+      // the phone layout, live
+      await expect(b.locator('[data-home-phone-layout="stack"]')).toHaveAttribute('aria-pressed', 'true');
+      await b.locator('[data-home-phone-layout="two"]').click();
+      await expect(b.locator('home-widgets')).toHaveAttribute('layout', 'two');
+      // a phone size beside the desktop one: "אוטומטי" shows what it resolves to (the desktop size capped at medium)
+      await expect(b.locator('[data-home-phone-size="clock"] option[value=""]')).toHaveText('אוטומטי (בינוני)');
+      await b.locator('[data-home-phone-size="weather"]').selectOption('s');
+      await expect(b.locator('[data-home-widget="weather"]')).toHaveAttribute('data-size', 's');
+      // the card's own controls edit the phone values here: size ...
+      await b.locator('[data-home-size="clock:l"]').click();
+      await expect(b.locator('[data-home-widget="clock"]')).toHaveAttribute('data-size', 'l');
+      // ... and hide (the phone only)
+      await b.locator('[data-home-hide="quick"]').click();
+      await expect(b.locator('[data-home-ghost="quick"]')).toHaveAttribute('data-home-avail', 'off');
+      // the row's own switch
+      await b.locator('[data-home-phone-on="alarm"]').uncheck();
+      await expect(b.locator('[data-home-ghost="alarm"]')).toBeVisible();
+      await savedWait(page);
+      const cfg = (await settings(request))['home.widgets'];
+      expect(cfg.phone_layout).toBe('two');
+      expect(cfg.weather.phone_size).toBe('s');
+      expect(cfg.clock.phone_size).toBe('l');
+      expect(cfg.clock.sizes).toEqual({ a: 'l', b: 'm', c: 'm' }); // the desktop sizes are untouched
+      expect(cfg.quick.phone_on).toBe(false);
+      expect(cfg.alarm.phone_on).toBe(false);
+      expect(cfg.quick.on && cfg.alarm.on).toBe(true); // ... so are the desktop switches
+      await page.reload();
+      await expect(b.locator('home-widgets')).toHaveAttribute('layout', 'two', { timeout: 30000 });
+      expect(await cardIds(page)).toEqual(['clock', 'weather', 'shabbat']);
+    } finally {
+      await resetHome(request);
+    }
+  });
+
+  test('the personal phone layout: a holder of screen.personalize chooses how the widgets sit on their phone, and "ברירת מחדל של המערכת" clears it', async ({ page, request }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop');
+    await seed(request);
+    await resetHome(request);
+    try {
+      await open(page, '/devices/building');
+      await page.locator('sw-app [data-profile-menu]').click();
+      await page.locator('sw-app sw-user-menu [data-menu-account]').click();
+      await page.locator('sw-app sw-user-menu [data-my-home] summary').click();
+      const mine = page.locator('sw-app sw-user-menu sw-home-personal');
+      await expect(mine.locator('[data-home-personal-phone-layout]')).toHaveCount(4, { timeout: 15000 }); // "ברירת מחדל" + the three
+      await expect(mine.locator('[data-home-personal-phone-layout=""]')).toHaveAttribute('aria-pressed', 'true');
+      await mine.locator('[data-home-personal-phone-layout="snap"]').click();
+      await expect.poll(async () => (await (await request.get('/api/v1/devices/tree')).json()).home.config.phone_layout).toBe('snap');
+      expect((await settings(request))['home.widgets'].phone_layout).toBe('stack'); // the installation's own is unchanged
+      await mine.locator('[data-home-personal-reset]').click();
+      await expect.poll(async () => (await (await request.get('/api/v1/devices/tree')).json()).home.config.phone_layout).toBe('stack');
+    } finally {
+      await resetHome(request);
+    }
   });
 
   test('a widget that has nothing to show takes no room: no weather entity, an alarm nobody may see, Shabbat with nothing chosen', async ({ page, request }, testInfo) => {
@@ -748,6 +915,84 @@ test.describe('the home screen against the devices fixture backend', () => {
     } finally {
       for (const id of bindings) await request.delete(`/api/v1/access/bindings/${id}`).catch(() => {});
       await resetHome(request);
+    }
+  });
+
+  // ------------------------------------------------------------------------------------------------ the view choice in the user menu
+
+  test('the view choice (cards | tiles) is a compact "תצוגה" item of the user menu, not a row of the page; it keeps its per-browser persistence and only exists on this screen', async ({ page, request }, testInfo) => {
+    await seed(request);
+    await resetHome(request);
+    const phone = testInfo.project.name === 'mobile';
+    const me = phone ? 'sw-app [data-nav-me]' : 'sw-app [data-profile-menu]';
+    const item = 'sw-app sw-user-menu [data-menu-screen-view]';
+    await open(page, '/devices/building', 'cards');
+    const b = page.locator('devices-building');
+    // no row on the page: neither the segmented control nor an empty toolbar
+    await expect(b.locator('button[data-layout]')).toHaveCount(0);
+    await expect(b.locator('[data-toolbar]')).toHaveCount(0); // the quick-actions card carries the building buttons: nothing else to put in a row
+    await expect(b.locator('[data-layout-view="cards"]')).toBeVisible();
+    await page.locator(me).click();
+    await expect(page.locator(item)).toHaveCount(1);
+    await expect(page.locator(`${item} .txt`)).toHaveText('תצוגה');
+    await expect(page.locator(`${item} [data-menu-view-option]`)).toHaveText(['כרטיסים', 'אריחים']);
+    await expect(page.locator(`${item} [data-menu-view-option="cards"]`)).toHaveAttribute('aria-pressed', 'true');
+    await shot(page, 'home-menu-view', testInfo);
+    // a pick changes the screen at once and the menu stays open; the choice is this browser's own (localStorage), as before
+    await page.locator(`${item} [data-menu-view-option="tiles"]`).click();
+    await expect(b.locator('[data-layout-view="tiles"]')).toBeVisible();
+    await expect(page.locator('sw-app sw-user-menu [data-user-menu]')).toBeVisible();
+    await expect(page.locator(`${item} [data-menu-view-option="tiles"]`)).toHaveAttribute('aria-pressed', 'true');
+    expect(await page.evaluate(() => localStorage.getItem('sw.devices.layout'))).toBe('tiles');
+    await page.keyboard.press('Escape');
+    // only on a screen that has such a choice: gone when the screen leaves, back when it returns
+    await page.evaluate(() => (location.hash = '#/system/diagnostics'));
+    await expect(page.locator('system-diagnostics')).toBeVisible({ timeout: 30000 });
+    await page.locator(me).click();
+    await expect(page.locator(item)).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => (location.hash = '#/devices/building'));
+    await expect(b.locator('[data-layout-view="tiles"]')).toBeVisible({ timeout: 30000 }); // the screen came back on the remembered view
+    await page.locator(me).click();
+    await expect(page.locator(item)).toHaveCount(1);
+    await expect(page.locator(`${item} [data-menu-view-option="tiles"]`)).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('Escape');
+    if (!phone) {
+      // not offered while the layout editor is open (one view at a time)
+      await page.evaluate(() => (location.hash = '#/devices/building?edit=1'));
+      await expect(b.locator('home-edit-panel')).toBeVisible({ timeout: 30000 });
+      await page.locator(me).click();
+      await expect(page.locator(item)).toHaveCount(0);
+      await page.keyboard.press('Escape');
+      await b.locator('sw-button[data-layout-cancel]').click();
+    }
+    await page.evaluate(() => localStorage.removeItem('sw.devices.layout'));
+  });
+
+  test('phone: with the view choice in the menu the first floor starts higher above the fold, and the refresh icon sits in the title line (no empty row)', async ({ page, request }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'the phone layout');
+    await seed(request);
+    await resetHome(request);
+    for (const view of ['cards', 'tiles'] as const) {
+      await open(page, '/devices/building', view);
+      const m = await page.evaluate(() => {
+        const b = document.querySelector('sw-app')!.shadowRoot!.querySelector('devices-building')!.shadowRoot!;
+        const y = (el: Element | null) => (el ? Math.round(el.getBoundingClientRect().top) : null);
+        const first = b.querySelector('section.fcard h2, .floor-head h2');
+        const refresh = b.querySelector('sw-button[data-devices-refresh]');
+        const page = b.querySelector('sw-page')!.shadowRoot!;
+        const kp = b.querySelector('.kpis')!.getBoundingClientRect();
+        return { gap: Math.round((first?.getBoundingClientRect().top ?? 0) - kp.bottom), first: y(first), refresh: y(refresh), h1: y(page.querySelector('h1')), sub: y(page.querySelector('.sub')), header: Math.round(page.querySelector('header')!.getBoundingClientRect().height) };
+      });
+      testInfo.annotations.push({ type: `first-floor-y-${view}`, description: String(m.first) });
+      testInfo.annotations.push({ type: `kpis-to-first-floor-`, description: String(m.gap) });
+      // measured on the same 390x844 site before / after this change (the seeded 3-floor site): the first floor heading at y=508 / 465 (cards) and 497 / 454 (tiles);
+      // the row that held the view choice (about 43 px with its gap) is gone, so the floors start right under the summary tiles
+      expect(m.gap, `${view}: the first floor starts right under the summary tiles`).toBeLessThanOrEqual(view === 'cards' ? 40 : 30);
+      expect(Math.abs(m.refresh! - m.sub!), 'the refresh icon is on the subtitle line').toBeLessThanOrEqual(30);
+      expect(m.header, 'the header is the title and the subtitle only').toBeLessThanOrEqual(90);
+      await expect(page.locator('devices-building [data-toolbar]')).toHaveCount(0);
+      await shot(page, `home-phone-${view}`, testInfo);
     }
   });
 
