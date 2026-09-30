@@ -839,6 +839,12 @@ export class SwApp extends LitElement {
         margin: 8px 12px 0;
       }
     }
+    /* a phone held sideways (>= 768 px) has the floating search / status corner over the far end of this first row (mobile audit 2026-09-30) */
+    @media (min-width: 768px) and (max-height: 600px) {
+      .setuphint {
+        padding-inline-end: 86px;
+      }
+    }
     .sysbanner a {
       color: inherit;
       font-weight: var(--sw-fw-semibold);
