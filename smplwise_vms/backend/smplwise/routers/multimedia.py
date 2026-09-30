@@ -171,12 +171,23 @@ COMMAND_FIELDS: dict[str, set[str]] = {
 }
 
 
-@router.post("/multimedia/devices/{key}/commands", status_code=202)
-def send_command(key: str, request: Request, principal: Principal = Depends(_reader_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> Any:
-    """One command of the remote to one screen (contract 3.4): 202 `{command_id, status: "accepted" | "sent", action_id, confirm, error}`;
-    200 with `status: "refused"` when the bridge or Home Assistant said no (audited). Refused before anything is sent, all audited:
-    403 forbidden / public_screen, 404, 409 screen_off / unavailable / power_pending / expired, 422 not_supported / validation,
-    429 rate_limited, 503 bridge_outdated / bridge_not_paired / ha_unavailable."""
+class _Admitted:
+    """A command that passed everything that needs no catalogue: the caller's permission at the anchor, the body's shape, the rate limits."""
+
+    def __init__(self, principal: Principal, cmd: dict[str, Any], body: "CommandBody") -> None:
+        self.principal, self.cmd, self.body = principal, cmd, body
+
+
+def _command_early(key: str, request: Request, principal: Principal = Depends(_reader_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> media_commands.Admission:
+    """The anchor-level check before the body is read (the read-gate pattern): 404 for a screen the caller may not see, 403 without
+    media.control / media.power at its anchor - whatever the body holds."""
+    return media_commands.early(conn, principal, _rid(request), key)
+
+
+def _command_admitted(request: Request, adm: media_commands.Admission = Depends(_command_early), principal: Principal = Depends(_reader_gate), raw: bytes = Depends(_raw_body),
+                      conn: sqlite3.Connection = Depends(get_read_conn)) -> _Admitted:
+    """The body, then the permission this command needs and its rate limits - all on the READ connection, so a refused or dropped
+    command never takes the write lock and never loads the catalogue."""
     body: CommandBody = _parse(request, raw, CommandBody)
     allowed = COMMAND_FIELDS[body.command]
     given = {f for f in ("level", "direction", "muted", "target", "source_id", "app_id", "output", "action", "key", "text") if getattr(body, f) is not None}
@@ -185,8 +196,21 @@ def send_command(key: str, request: Request, principal: Principal = Depends(_rea
     cmd = {"command": body.command, **{f: getattr(body, f) for f in allowed if getattr(body, f) is not None}}
     if cmd.get("target") not in (None, "screen", "linked"):
         raise ApiError(422, "validation", "יעד שמע לא מוכר.", details={"fields": ["target"]})
+    media_commands.admit(conn, principal, _rid(request), adm, cmd)
+    return _Admitted(principal, cmd, body)
+
+
+@router.post("/multimedia/devices/{key}/commands", status_code=202)
+def send_command(key: str, request: Request, admitted: _Admitted = Depends(_command_admitted), conn: sqlite3.Connection = Depends(get_conn)) -> Any:
+    """One command of the remote to one screen (contract 3.4): 202 `{command_id, status: "accepted" | "sent", action_id, confirm, error}`;
+    200 with `status: "refused"` when the bridge or Home Assistant said no (audited). Refused before anything is sent, all audited:
+    403 forbidden / public_screen, 404, 409 screen_off / unavailable / power_pending / expired, 422 not_supported / validation,
+    429 rate_limited, 503 bridge_outdated / bridge_not_paired / ha_unavailable. Order: media.read (404) and media.control | media.power
+    at the anchor (403) before the body is read; then the body (415 / 422), the permission of this command and the rate limits (429)
+    - on the read connection; only then the catalogue and the write lock."""
+    principal = admitted.principal
     cat, item, access = store.find_visible(conn, principal, key)
-    status, result = media_commands.run(conn, settings_of(request), principal, _rid(request), cat, item, access, cmd, body.client_request_id, body.expires_at)
+    status, result = media_commands.run(conn, settings_of(request), principal, _rid(request), cat, item, access, admitted.cmd, admitted.body.client_request_id, admitted.body.expires_at)
     return JSONResponse(status_code=status, content=result)
 
 
@@ -215,11 +239,20 @@ def _layout_response(conn: sqlite3.Connection, principal: Principal) -> dict[str
     layout, revision = store.read_layout(conn)
     held = set(permissions_anywhere(conn, principal))
     personalize = PERSONALIZE in held
+    can_edit = authorize(conn, principal, store.PERM_LAYOUT, INSTALLATION).allowed
     personal = None
     if personalize:
         stored = user_prefs.get_prefs(conn, principal.user_id)["prefs"].get(user_prefs.PERSONAL_MEDIA_KEY)
         personal = stored if stored and not media_layout.personal_is_empty(stored) else None
-    return {"installation": layout, "personal": personal, "revision": revision, "can_edit": authorize(conn, principal, store.PERM_LAYOUT, INSTALLATION).allowed, "can_personalize": personalize}
+    if not can_edit or personal is not None:  # only what the caller may see (the editor's installation layout is whole: a save replaces it)
+        cat = store.load_catalog(conn)
+        seen = store.visible_items(cat, store.Access(conn, principal, (store.PERM_READ,)))
+        keys = {i.key for i in seen}
+        if not can_edit:
+            layout = media_layout.restrict_layout(layout, keys, {f for f in (store.floor_area(i)["floor_id"] for i in seen) if f})
+        if personal is not None:
+            personal = media_layout.restrict_personal(personal, keys)
+    return {"installation": layout, "personal": personal, "revision": revision, "can_edit": can_edit, "can_personalize": personalize}
 
 
 @router.get("/multimedia/layout")
@@ -279,14 +312,25 @@ class DeviceRemoteBody(_Body):
     apps: list[dict[str, Any]] | None = None
 
 
+def _remote_early(key: str, request: Request, principal: Principal = Depends(_reader_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
+    """`media.layout` at the screen's anchor BEFORE the body is read (403 before 422; the read-gate pattern): 404 for a screen the caller may not see."""
+    r = conn.execute("SELECT anchor_entity_id, approved, kind FROM media_devices WHERE device_key = ? AND removed_at IS NULL", (key,)).fetchone()
+    access = store.Access(conn, principal, (store.PERM_READ, store.PERM_LAYOUT))
+    if r is None or not r["approved"] or r["kind"] != "screen" or not access.has(store.PERM_READ, r["anchor_entity_id"]):
+        raise ApiError(404, "not_found", "המסך לא נמצא.")
+    if not access.has(store.PERM_LAYOUT, r["anchor_entity_id"]):
+        audit(conn, actor=principal, action="media.remote.update", decision="denied", resource_type="media_device", resource_id=key, reason="forbidden", request_id=_rid(request))
+        raise ApiError(403, "forbidden", media_commands.MESSAGES["forbidden"], details={"permission": store.PERM_LAYOUT})
+    return principal
+
+
 @router.put("/multimedia/devices/{key}/remote")
-def put_device_remote(key: str, request: Request, background: BackgroundTasks, principal: Principal = Depends(_reader_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """`media.layout` at the screen's anchor: the per-screen remote override (`remote: null` returns it to the default) and the ordered
-    curation of its sources and apps. Returns the new `MediaDeviceDetail`."""
+def put_device_remote(key: str, request: Request, background: BackgroundTasks, principal: Principal = Depends(_remote_early), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """`media.layout` at the screen's anchor (checked before the body is read): the per-screen remote override (`remote: null` returns it
+    to the default) and the ordered curation of its sources and apps. Returns the new `MediaDeviceDetail`."""
     body: DeviceRemoteBody = _parse(request, raw, DeviceRemoteBody)
-    cat, item, _access = store.find_visible(conn, principal, key)
-    access = store.Access(conn, principal, (store.PERM_LAYOUT, store.PERM_READ, store.PERM_CONTROL, store.PERM_POWER, store.PERM_PUBLIC, store.PERM_BULK))
-    if not access.has(store.PERM_LAYOUT, item.row.get("anchor_entity_id")):
+    cat, item, access = store.find_visible(conn, principal, key)
+    if not access.has(store.PERM_LAYOUT, item.row.get("anchor_entity_id")):  # the same check on the write connection (scope may have moved)
         audit(conn, actor=principal, action="media.remote.update", decision="denied", resource_type="media_device", resource_id=key, reason="forbidden", request_id=_rid(request))
         raise ApiError(403, "forbidden", media_commands.MESSAGES["forbidden"], details={"permission": store.PERM_LAYOUT})
     store.save_device_remote(conn, key, {f: getattr(body, f) for f in body.model_fields_set})

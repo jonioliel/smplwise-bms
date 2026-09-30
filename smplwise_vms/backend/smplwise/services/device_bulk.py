@@ -38,6 +38,7 @@ import logging
 import queue
 import threading
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 from typing import Any
@@ -668,6 +669,15 @@ def record(conn: Any, principal: Principal, bulk_id: str, plan: dict[str, Any], 
             "INSERT INTO ha_actions(id, entity_id, action_id, arguments_json, principal_user_id, principal_username, client_request_id, status, requested_at, expected_state, via, bulk_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (t["id"], t["entity_id"], t["action_id"], json.dumps(cleaned, ensure_ascii=False), principal.user_id, principal.username, f"{client_request_id}:{n}", "queued", now, ha_bridge.expectation_for(spec, a), "bulk", bulk_id),
         )
+        if plan.get("origin") == "media" and t.get("device_key"):
+            # CR-015 review L9: the screens page's "turn off" is a power command of that screen like any other - the remote's power gate
+            # (services/media_commands._power_gate: one in flight per screen, 2 s apart) and the "state not confirmed" window read this row
+            from . import media_commands
+
+            conn.execute(
+                "INSERT INTO media_commands(id, device_key, principal_user_id, client_request_id, command, status, action_id, created_ms, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                (uuid.uuid4().hex, t["device_key"], principal.user_id, f"bulk:{client_request_id}:{n}", "power_off", "accepted", t["id"], media_commands.NOW_MS(), now),
+            )
 
 
 UNKNOWN_ERRORS = frozenset({"ha_unavailable", "internal_error"})  # the call may have reached Home Assistant

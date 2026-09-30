@@ -6,11 +6,19 @@ the screen's live state, its capabilities, the profile, the curated sources, the
 through the bridge as the caller's own HA user (`ha_bridge.validate_action` + `smplwise_bridge.execute`, exactly as the generic action
 route does). Nothing is queued and nothing is retried: a dropped press is dropped, a failed call is reported.
 
+Rate limits (MEDIA_API.md 3.4, review M1) are enforced HERE, server side, for every command but power (power has its own
+in-flight gate, `_power_gate`): per DEVICE keys and volume steps 5/s burst 8 (`KEY_DEVICE`), `volume_set` 4/s burst 4, `text` 1/s
+burst 1, and every other command (transport, mute, source, app, sound output) 3/s burst 6 (`OTHER_DEVICE`); per USER all of them
+together 10/s burst 10 (`USER_ALL`). They are checked by `admit()` - right after the permission check and BEFORE the catalogue is
+loaded, so a flood never costs a catalogue load or the write lock. A press over a limit is dropped (429, never queued) and audited
+as ONE `media.rate_limited` row per user and device per 60 s, updated in place with the counts (never one row per 429).
+
 Never here: a power key (power is `media_player.turn_on` / `turn_off` only), `remote.turn_off`, an automatic power-on, a command to a
 screen that is off or unavailable other than power-on, a retry after a reconnect. Typed text is sent but never stored, logged or
 audited (only its length)."""
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 import json
 import sqlite3
@@ -21,7 +29,7 @@ from typing import Any
 
 from ..audit import audit
 from ..config import Settings
-from ..db import get_setting, now_iso, unlocked
+from ..db import database_of, get_setting, now_iso, read_mode, unlocked
 from ..errors import ApiError
 from ..rbac import Principal, note_grant
 from . import ha_actions, ha_bridge, ha_client, media_model as mm, media_profiles as profiles, media_store as store
@@ -33,9 +41,11 @@ POWER_PENDING_MS = 8000  # ... and a power command is "in flight" this long whil
 
 # the server-enforced limits of the UI's own throttles (MEDIA_API.md 5.3); tokens/second and burst
 KEY_DEVICE = (5.0, 8.0)
-KEY_USER = (10.0, 10.0)
+USER_ALL = (10.0, 10.0)  # one bucket per user for every non-power command (keys were 10/s per user already)
+KEY_USER = USER_ALL
 VOLUME_DEVICE = (4.0, 4.0)
 TEXT_DEVICE = (1.0, 1.0)
+OTHER_DEVICE = (3.0, 6.0)  # transport, mute, source, app, sound output: a person taps these, a script floods them
 
 POWER_COMMANDS = frozenset({"power_on", "power_off", "source", "app", "sound_output"})  # media.power; the rest media.control
 # a screen marked public: owner decision 2026-09-30 - every command but volume, mute and play / pause needs media.public too,
@@ -114,6 +124,8 @@ BUCKETS = _Buckets()
 # key presses are audited as one row per user and device per 60 s window (media.keys), updated in place
 _KEY_WINDOWS: dict[tuple[str, str], dict[str, Any]] = {}
 _KEY_WINDOW_S = 60.0
+# ... and so are the commands the rate limits dropped (media.rate_limited): one row per user and device per window, never one per 429
+_LIMIT_WINDOWS: dict[tuple[str, str], dict[str, Any]] = {}
 
 
 # ------------------------------------------------------------------------------------------------ the plan
@@ -141,18 +153,21 @@ def _feat(cat: store.Catalog, entity_id: str | None, bit: int) -> bool:
     return bool(entity_id) and mm._feat(cat.ents.get(entity_id or ""), bit)
 
 
-def _target_view(cat: store.Catalog, item: store.Item, target: str | None, live: dict[str, Any]) -> tuple[store.Item, str]:
-    """The device whose endpoints take volume and mute: the receiver when `target` (or the effective default) is `linked`."""
+def _target_view(cat: store.Catalog, item: store.Item, target: str | None, live: dict[str, Any], access: store.Access | None = None) -> tuple[store.Item, str]:
+    """The device whose endpoints take volume and mute: the receiver when `target` (or the effective default) is `linked`. The receiver is
+    a device of its own that may sit on another floor: sending it a command needs media.control at ITS anchor (review L2)."""
     chosen = target or live["volume"]["target"]
     if chosen == "linked":
         linked = cat.linked(item)
         if linked is None:
             raise err(422, "not_supported", reason="no_linked_device")
+        if access is not None and not access.has(store.PERM_CONTROL, linked.row.get("anchor_entity_id")):
+            raise err(403, "forbidden", permission=store.PERM_CONTROL, reason="linked_device")
         return linked, "linked"
     return item, "screen"
 
 
-def plan(cat: store.Catalog, item: store.Item, cmd: dict[str, Any], caps: dict[str, Any], live: dict[str, Any]) -> Plan:
+def plan(cat: store.Catalog, item: store.Item, cmd: dict[str, Any], caps: dict[str, Any], live: dict[str, Any], access: store.Access | None = None) -> Plan:
     """Resolve `cmd` to one allow-listed call, or refuse it (422 not_supported / validation): the command must be in `caps`, the
     profile must have the key, the source or app must be one of the curated visible ones."""
     name = cmd["command"]
@@ -169,7 +184,7 @@ def plan(cat: store.Catalog, item: store.Item, cmd: dict[str, Any], caps: dict[s
         level = cmd.get("level")
         if isinstance(level, bool) or not isinstance(level, (int, float)) or not 0 <= level <= 100:
             raise err(422, "validation", fields=["level"])
-        view, which = _target_view(cat, item, cmd.get("target"), live)
+        view, which = _target_view(cat, item, cmd.get("target"), live, access)
         endpoint = view.view.prim.get("volume")
         lg_external = view.view.profile == "lg_webos" and which == "screen" and str(mm._attrs(cat.ents.get(view.view.prim.get("power") or "")).get("sound_output") or "").startswith("external")
         if not _feat(cat, endpoint, mm.F_VOLUME_SET) or lg_external:
@@ -183,7 +198,7 @@ def plan(cat: store.Catalog, item: store.Item, cmd: dict[str, Any], caps: dict[s
         direction = cmd.get("direction")
         if direction not in ("up", "down"):
             raise err(422, "validation", fields=["direction"])
-        view, which = _target_view(cat, item, cmd.get("target"), live)
+        view, which = _target_view(cat, item, cmd.get("target"), live, access)
         step = mm.step_endpoint(view.model, cat.ents, view.view.prim)
         if step and _feat(cat, step, mm.F_VOLUME_STEP):
             return Plan(name, f"media_player.volume_{direction}", step, {}, kind="step")
@@ -196,7 +211,7 @@ def plan(cat: store.Catalog, item: store.Item, cmd: dict[str, Any], caps: dict[s
         muted = cmd.get("muted")
         if not isinstance(muted, bool):
             raise err(422, "validation", fields=["muted"])
-        view, _which = _target_view(cat, item, cmd.get("target"), live)
+        view, _which = _target_view(cat, item, cmd.get("target"), live, access)
         endpoint = view.view.prim.get("mute")
         if not _feat(cat, endpoint, mm.F_VOLUME_MUTE):
             raise err(422, "not_supported", reason="mute")
@@ -281,12 +296,15 @@ def _stored(conn: sqlite3.Connection, principal: Principal, crid: str) -> dict[s
         a = conn.execute("SELECT action_id, expected_state FROM ha_actions WHERE id = ?", (r["action_id"],)).fetchone()
         if a:
             confirm = ha_bridge.confirmation_kind(a["action_id"], a["expected_state"])
-    return {"command_id": r["id"], "status": r["status"], "action_id": r["action_id"], "confirm": confirm, "error": r["error"]}
+    # a duplicate that arrives while the first call is still with Home Assistant gets a documented status, never the internal `pending`
+    status = r["status"] if r["status"] != "pending" else ("accepted" if r["action_id"] else "sent")
+    return {"command_id": r["id"], "status": status, "action_id": r["action_id"], "confirm": confirm, "error": r["error"]}
 
 
-def _deny(conn: sqlite3.Connection, principal: Principal, request_id: str | None, item: store.Item, cmd: dict[str, Any], exc: ApiError) -> ApiError:
-    audit(conn, actor=principal, action="media.command", decision="denied", resource_type="media_device", resource_id=item.key, reason=exc.code, request_id=request_id,
-          details={"command": cmd["command"]})
+def _deny(conn: sqlite3.Connection, principal: Principal, request_id: str | None, item: "store.Item | str", cmd: dict[str, Any] | None, exc: ApiError) -> ApiError:
+    """Audit a refusal (`item`: the screen or just its key) and hand the error back to be raised."""
+    audit(conn, actor=principal, action="media.command", decision="denied", resource_type="media_device", resource_id=item if isinstance(item, str) else item.key, reason=exc.code,
+          request_id=request_id, details={"command": cmd["command"]} if cmd else None)
     return exc
 
 
@@ -324,8 +342,100 @@ def _power_gate(conn: sqlite3.Connection, item: store.Item) -> None:
             if d["status"] == "pending":
                 ha_actions.refresh(conn, d)
                 a = conn.execute("SELECT status FROM ha_actions WHERE id = ?", (last["action_id"],)).fetchone()
-            if a is not None and a["status"] == "pending":
+            # `queued` / `sending`: the record of a floor / area "turn off" (services/device_bulk.py) that has not been sent yet
+            if a is not None and a["status"] in ("pending", "queued", "sending"):
                 raise err(409, "power_pending", reason="in_flight")
+
+
+# ------------------------------------------------------------------------------------------------ admission (before the catalogue load)
+
+
+class Admission:
+    """What the router knows about a command before it loads the catalogue: the caller's media permissions and the device's own row."""
+
+    def __init__(self, row: dict[str, Any], access: store.Access) -> None:
+        self.row, self.access = row, access
+
+    @property
+    def key(self) -> str:
+        return self.row["device_key"]
+
+    @property
+    def anchor(self) -> str | None:
+        return self.row.get("anchor_entity_id")
+
+
+def early(conn: sqlite3.Connection, principal: Principal, request_id: str | None, key: str) -> Admission:
+    """Before the body is read (review L8): the screen must exist, be approved and be readable by the caller (else 404, never a 403) and the
+    caller must hold media.control or media.power at its anchor (else the audited 403) - a 422 never reveals more than a 403 would."""
+    r = conn.execute("SELECT device_key, anchor_entity_id, approved, kind, is_public FROM media_devices WHERE device_key = ? AND removed_at IS NULL", (key,)).fetchone()
+    access = store.Access(conn, principal, (store.PERM_READ, store.PERM_CONTROL, store.PERM_POWER))
+    if r is None or not r["approved"] or r["kind"] != "screen" or not access.has(store.PERM_READ, r["anchor_entity_id"]):
+        raise err(404, "not_found")
+    if not (access.has(store.PERM_CONTROL, r["anchor_entity_id"]) or access.has(store.PERM_POWER, r["anchor_entity_id"])):
+        raise _deny(conn, principal, request_id, key, None, err(403, "forbidden", permission=store.PERM_CONTROL))
+    return Admission(dict(r), access)
+
+
+@contextlib.contextmanager
+def _writer(conn: sqlite3.Connection):
+    """A connection that can write: the request's own, or - on a read-mode request (deferred, query-only) - a short side transaction."""
+    db = database_of(conn) if read_mode(conn) else None
+    if db is None:
+        yield conn
+        return
+    with db.write_aside() as w:
+        yield w
+
+
+def _audit_limited(conn: sqlite3.Connection, principal: Principal, request_id: str | None, key: str, command: str, scope: str) -> None:
+    """One `media.rate_limited` row per user and device per 60 s, updated in place with how many presses of each command were dropped."""
+    now = MONO()
+    win = _LIMIT_WINDOWS.get((principal.user_id, key))
+    with _writer(conn) as w:
+        if win is not None and now - win["start"] < _KEY_WINDOW_S:
+            win["counts"][command] = win["counts"].get(command, 0) + 1
+            if w.execute("UPDATE audit_log SET details_json = ? WHERE id = ?", (json.dumps({"counts": win["counts"], "scope": scope, "window_s": int(_KEY_WINDOW_S)}), win["row"])).rowcount:
+                return
+        counts = {command: 1}
+        audit(w, actor=principal, action="media.rate_limited", decision="denied", resource_type="media_device", resource_id=key, reason="rate_limited", request_id=request_id,
+              details={"counts": counts, "scope": scope, "window_s": int(_KEY_WINDOW_S)})
+        row = w.execute("SELECT MAX(id) FROM audit_log WHERE action = 'media.rate_limited' AND actor_user_id = ? AND resource_id = ?", (principal.user_id, key)).fetchone()[0]
+    if row is not None:
+        _LIMIT_WINDOWS[(principal.user_id, key)] = {"start": now, "row": row, "counts": counts}
+    if len(_LIMIT_WINDOWS) > 500:
+        for k in [k for k, v in _LIMIT_WINDOWS.items() if now - v["start"] > _KEY_WINDOW_S]:
+            del _LIMIT_WINDOWS[k]
+
+
+def _device_limit(name: str) -> tuple[str, tuple[float, float]]:
+    if name in ("key", "volume_step"):
+        return "key-device", KEY_DEVICE
+    if name == "volume_set":
+        return "vol-device", VOLUME_DEVICE
+    if name == "text":
+        return "text-device", TEXT_DEVICE
+    return "cmd-device", OTHER_DEVICE
+
+
+def admit(conn: sqlite3.Connection, principal: Principal, request_id: str | None, adm: Admission, cmd: dict[str, Any]) -> None:
+    """After the body, before the catalogue (review M1): the permission this command needs at the anchor (audited 403), then the rate
+    limits of every command but power - per device, then per user (a press over a limit is dropped, never queued; 429, audited as one
+    aggregated row per user and device per 60 s). `run` re-checks the permission with the full scope."""
+    name = cmd["command"]
+    perm = store.PERM_POWER if name in POWER_COMMANDS else store.PERM_CONTROL
+    if not adm.access.has(perm, adm.anchor):
+        raise _deny(conn, principal, request_id, adm.key, cmd, err(403, "forbidden", permission=perm))
+    if name in ("power_on", "power_off"):
+        return  # its own in-flight gate (`_power_gate`) applies in `run`
+    kind, limit = _device_limit(name)
+    if not BUCKETS.take(kind, adm.key, limit):
+        _audit_limited(conn, principal, request_id, adm.key, name, "device")
+        raise err(429, "rate_limited", scope="device")
+    if not BUCKETS.take("user", principal.user_id, USER_ALL):
+        BUCKETS.refund(kind, adm.key, limit)
+        _audit_limited(conn, principal, request_id, adm.key, name, "user")
+        raise err(429, "rate_limited", scope="user")
 
 
 # ------------------------------------------------------------------------------------------------ the command
@@ -385,7 +495,7 @@ def run(conn: sqlite3.Connection, settings: Settings, principal: Principal, requ
     if name == "power_on" and power == "on":
         raise _deny(conn, principal, request_id, item, cmd, err(422, "not_supported", reason="already_on"))
     try:
-        p = plan(cat, item, cmd, caps, live)
+        p = plan(cat, item, cmd, caps, live, access)
         if p.entity_id is None or p.action_id is None:
             raise err(422, "not_supported", reason="no_endpoint")
         spec, data = ha_bridge.validate_action(p.action_id, p.entity_id, p.args)
@@ -393,17 +503,7 @@ def run(conn: sqlite3.Connection, settings: Settings, principal: Principal, requ
         if exc.code in ("action_not_allowed", "action_domain_mismatch", "argument_not_allowed"):
             exc = err(422, "not_supported", reason=exc.code)
         raise _deny(conn, principal, request_id, item, cmd, exc) from None
-    # 7. rate limits (a dropped press is dropped, never queued)
-    if name in ("key", "volume_step"):
-        if not BUCKETS.take("key-device", item.key, KEY_DEVICE):
-            raise _deny(conn, principal, request_id, item, cmd, err(429, "rate_limited", scope="device"))
-        if not BUCKETS.take("key-user", principal.user_id, KEY_USER):
-            BUCKETS.refund("key-device", item.key, KEY_DEVICE)
-            raise _deny(conn, principal, request_id, item, cmd, err(429, "rate_limited", scope="user"))
-    elif name == "volume_set" and not BUCKETS.take("vol-device", item.key, VOLUME_DEVICE):
-        raise _deny(conn, principal, request_id, item, cmd, err(429, "rate_limited", scope="device"))
-    elif name == "text" and not BUCKETS.take("text-device", item.key, TEXT_DEVICE):
-        raise _deny(conn, principal, request_id, item, cmd, err(429, "rate_limited", scope="device"))
+    # 7. (the rate limits were applied by `admit()` before the catalogue was loaded)
     # 8. record, send, settle
     command_id = uuid.uuid4().hex
     entity = cat.ents.get(p.entity_id) or {}
