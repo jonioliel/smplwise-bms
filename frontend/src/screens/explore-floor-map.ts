@@ -1602,6 +1602,10 @@ export class ExploreFloorMap extends LitElement {
     this.saveView = null;
     this.savedView = null;
     if (on) this.close();
+    if (on && this.narrow) {
+      this.sideList = false; // a phone shows one floating sheet at a time (they share the same corner)
+      this.panel = false;
+    }
   }
 
   /** Rectangle selection from the canvas: the cameras inside the box join the selection (T043). */
@@ -1632,8 +1636,18 @@ export class ExploreFloorMap extends LitElement {
   }
 
   /** Side list (2.10): cameras and HA entities on this plan; a click zooms to the pin and opens its card. */
+  /** The layers panel, the side list and the camera picker float over the same part of the map: on a phone only one is open. */
+  private togglePanel() {
+    this.panel = !this.panel;
+    if (this.panel && this.narrow) this.sideList = false;
+  }
+
   private toggleSideList() {
     this.sideList = !this.sideList;
+    if (this.sideList && this.narrow) {
+      this.panel = false;
+      if (this.multi) this.setMulti(false);
+    }
     try {
       localStorage.setItem('sw.map.sidelist', this.sideList ? '1' : '0');
     } catch {
@@ -2296,7 +2310,7 @@ export class ExploreFloorMap extends LitElement {
           <sw-button icon="cube" aria-pressed=${this.shows3d} data-view-3d ?disabled=${!this.shows3d && (!this.can3d || this.threeState === 'loading')}
             title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? 'אין מבנה מפורסם לקומה הזו' : 'מקש 3'} @click=${() => this.toggle3d()}>${this.shows3d ? '2D' : '3D'}</sw-button>
           ${webglAvailable() ? nothing : html`<span class="note" data-3d-unavailable>${WEBGL_UNAVAILABLE_HE}</span>`}
-          <sw-button icon="layers" aria-pressed=${this.panel} @click=${() => (this.panel = !this.panel)}>${t('floor.layers')}</sw-button>
+          <sw-button icon="layers" aria-pressed=${this.panel} @click=${() => this.togglePanel()}>${t('floor.layers')}</sw-button>
           ${b && b.source === 'api' ? html`<sw-button icon="list" aria-pressed=${this.sideList} data-sidelist-toggle @click=${() => this.toggleSideList()}>רשימה</sw-button>${nvrLess() ? nothing : html`<sw-button icon="grid" aria-pressed=${this.multi} data-multi-toggle @click=${() => this.setMulti(!this.multi)}>בחירת מצלמות</sw-button>`}` : nothing}
           <sw-field style="min-inline-size:280px"><select aria-label=${t('floor.switcher')} @change=${(e: Event) => navigate(`/explore/floors/${(e.target as HTMLSelectElement).value}`)}>${floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${bidi(f.name)} · ${f.cameraCount} מצלמות${f.hasPlan ? '' : ' · אין תוכנית'}</option>`)}</select></sw-field>
         </div>

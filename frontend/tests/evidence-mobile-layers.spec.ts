@@ -1,4 +1,9 @@
 import { test, expect, devices, type Page, type Locator } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const EVIDENCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/evidence/UIR2-mobile');
 
 // Owner bug 2026-09-30 (real Android Chrome): on the map's floor screen the "שכבות פעילות" panel could not be
 // scrolled on a phone, so the toggles at the bottom of the list were unreachable (only 8 of ~12 rows). Root cause: the
@@ -79,6 +84,8 @@ test.describe('phone: the map floor sheets scroll', () => {
     await expect.poll(() => last.evaluate((el) => (el as unknown as { checked: boolean }).checked)).toBe(!before);
     // the page itself did not scroll sideways
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+    fs.mkdirSync(EVIDENCE, { recursive: true });
+    await page.screenshot({ path: path.join(EVIDENCE, 'layers-panel-scrolled-phone.png') }); // scrolled to the last toggle
   });
 
   test('side list: the list body scrolls by touch inside the sheet', async ({ page }) => {
