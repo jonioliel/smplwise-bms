@@ -49,7 +49,7 @@ export interface ProductSettings {
   'audit.retention_days'?: number;
   /** T050: the largest evidence bundle accepted for verification / import, in MB (16-4096). */
   'cases.import_max_mb'?: number;
-  /** Design switch: 'a' = mockups v1.3 (SW A), 'b' = the earlier boards (SW B); names are editable. */
+  /** DEPRECATED (0.1.148): the design switch is gone - SW A is the only design; the server still accepts these two keys, nothing reads them. */
   'ui.design'?: 'a' | 'b';
   'ui.design_names'?: string;
   /** Owner 2026-09-29: the summary tiles' shape (Live overview, devices screens) - api/tile-layout.ts. */

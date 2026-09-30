@@ -22,8 +22,8 @@ IP / media_player של HA - לפני שהפרוסה הזו נבנית); עריכ
 כותרות); בחירה בין הסגנון של SMPLWISE לסגנון קרוב לזה של DomusUI, שניהם עם RTL. ההפניה של הבעלים היא
 DomusUI (https://github.com/Mattia2399/DomusUI, GPL-3.0 - רעיונות ומבנה, בלי העתקת קוד); החילוץ שלה הוא
 `docs/integrations/domusui/DOMUSUI_EXTRACTION.md`. הערת ניווט מהבעלים: ל-SMPLWISE יש side rail, לא top bar
-- ה-top bar של ה-mockup הוא placeholder בלבד; המסכים האמיתיים חיים תחת ה-shell הקיים (icon rail בעיצוב א',
-כניסה שטוחה בעיצוב ב', כפי ש-WisKey עושה).
+- ה-top bar של ה-mockup הוא placeholder בלבד; המסכים האמיתיים חיים תחת ה-shell הקיים (כניסה ב-icon rail, כפי ש-WisKey עושה;
+הכניסה השטוחה של "עיצוב ב'" שהערה זו הזכירה הוסרה - עיצוב ב' הוסר ב-0.1.148).
 
 ## 2. עובדות שמעצבות את העיצוב
 

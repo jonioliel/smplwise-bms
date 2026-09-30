@@ -71,8 +71,8 @@ test('the control scene is a pure function of the plan and the synthetic state: 
 
 type El = { captureControl: (d: SceneDescription) => string | null; capture: () => string | null; minFps: number; description: SceneDescription; view: { buildCount: number } };
 
-async function openDemo(page: Page, design: 'a' | 'b' | null = null): Promise<Locator> {
-  await page.goto(design ? `/?design=${design}#/styleguide` : '/#/styleguide');
+async function openDemo(page: Page): Promise<Locator> {
+  await page.goto('/#/styleguide');
   await page.locator('styleguide-screen [data-3d-demo-load]').click();
   const el = page.locator('styleguide-screen sw-plan-3d');
   await expect(el).toHaveAttribute('data-ready', '', { timeout: 30000 });
@@ -147,19 +147,18 @@ test('the control image: fixed size, opaque, the same bytes on every call and at
   expect(await el.evaluate((n) => (n as unknown as El).capture())).toBeTruthy(); // the on-screen view still draws
 });
 
-test('the control image is drawn in one fixed palette: the same bytes in design a and design b', async ({ page }) => {
+test('the control image is drawn in one fixed palette: the page\'s own tokens never reach its bytes', async ({ page }) => {
   test.setTimeout(120_000);
   const off = control(quietInput(), 'all_off');
   const on = control(quietInput(), 'all_on');
-  const shots: Record<string, { off: string | null; on: string | null; structure: string }> = {};
-  for (const design of ['a', 'b'] as const) {
-    const el = await openDemo(page, design);
-    await expect(page.locator('html')).toHaveAttribute('data-design', design);
-    const structure = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--sw-map-structure').trim());
-    shots[design] = { off: await shoot(el, off), on: await shoot(el, on), structure };
-  }
-  expect(shots.a.structure, 'the two designs do differ on the page').not.toBe(shots.b.structure);
-  expect(shots.a.off).toBeTruthy();
-  expect(shots.b.off, 'all_off: identical bytes across designs').toBe(shots.a.off);
-  expect(shots.b.on, 'all_on: identical bytes across designs').toBe(shots.a.on);
+  const el = await openDemo(page);
+  const before = { off: await shoot(el, off), on: await shoot(el, on) };
+  expect(before.off).toBeTruthy();
+  expect(before.on).not.toBe(before.off);
+  // the page's map / accent tokens change (as another theme would): the bytes stay identical
+  await page.evaluate(() => {
+    for (const t of ['map-structure', 'map-wall', 'map-bg', 'map-room-fill', 'map-furniture', 'map-lit', 'accent', 'text', 'surface']) document.documentElement.style.setProperty(`--sw-${t}`, '#ff00ff');
+  });
+  expect(await shoot(el, off), 'all_off: identical bytes whatever the page tokens are').toBe(before.off);
+  expect(await shoot(el, on), 'all_on: identical bytes whatever the page tokens are').toBe(before.on);
 });

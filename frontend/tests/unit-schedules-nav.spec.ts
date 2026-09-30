@@ -2,14 +2,12 @@ import { test, expect } from '@playwright/test';
 import {
   AREA_TABS,
   DEVICES_TABS,
-  GROUP_TABS,
   HIDDEN_HREFS,
   INSTALLATION_ONLY_HREFS,
   SCHEDULES_HREF,
   SCHEDULES_SETTINGS_HREF,
   TAB_SECTIONS,
   activeAreaTab,
-  activeTabOf,
   applySchedulesHidden,
   applyTabsConfig,
   crumbsOf,
@@ -20,7 +18,6 @@ import {
   settingsEntry,
   tabAllowed,
   visibleAreas,
-  visibleGroups,
   visibleTabs,
   type Can,
 } from '../src/shell/nav';
@@ -43,9 +40,8 @@ test.afterEach(() => {
   applySchedulesHidden({});
 });
 
-test('both designs share one tab array; its hrefs and the section registry', () => {
+test('the home area has one tab array; its hrefs and the section registry', () => {
   expect(AREA_TABS.devices).toBe(DEVICES_TABS);
-  expect(GROUP_TABS.devices).toBe(DEVICES_TABS);
   expect(DEVICES_TABS.map((t) => t.href)).toEqual(['#/devices/building', SCHEDULES_HREF]);
   expect(DEVICES_TABS.map((t) => t.label)).toEqual(['מבט על', 'תזמונים']);
   expect(sectionIdOf(DEVICES_TABS)).toBe('devices');
@@ -53,7 +49,6 @@ test('both designs share one tab array; its hrefs and the section registry', () 
   expect(def?.label).toBe('ראשי');
   expect(ids(def!.tabs())).toEqual(['building', 'schedules']);
   expect(ids(AREA_TABS.system)).toContain('schedules');
-  expect(ids(GROUP_TABS.settings)).toContain('schedules');
 });
 
 test('the schedules tab needs schedule.view or schedule.manage at any scope; the settings tab system.configure at the installation', () => {
@@ -84,7 +79,6 @@ test('the home area stays in the rail and opens on the schedules when they are t
   const can = only('schedule.manage');
   const area = visibleAreas(true, can).find((a) => a.id === 'devices');
   expect(area?.href).toBe(SCHEDULES_HREF);
-  expect(visibleGroups(true, can).find((g) => g.id === 'devices')?.href).toBe(SCHEDULES_HREF);
   expect(visibleAreas(true, only('devices.read')).find((a) => a.id === 'devices')?.href).toBe('#/devices/building');
   // nothing of the home area at all: the area leaves the rail
   expect(visibleAreas(true, only('video.live')).some((a) => a.id === 'devices')).toBe(false);
@@ -128,11 +122,9 @@ test('ui.tabs `devices`: order and hidden; "תזמונים" becomes the entry wh
 test('the active tab and the crumbs of the schedule routes (list, drawer, editor)', () => {
   for (const p of ['/devices/schedules', '/devices/schedules/3f9a1c', '/devices/schedules/trash', '/devices/schedules/3f9a1c/edit', '/devices/schedules/new/edit?template=a']) {
     expect(activeAreaTab(route(p)), p).toBe('schedules');
-    expect(activeTabOf(route(p)), p).toBe('schedules');
   }
   for (const p of ['/devices/building', '/devices/areas/a1']) {
     expect(activeAreaTab(route(p)), p).toBe('building');
-    expect(activeTabOf(route(p)), p).toBe('building');
   }
   expect(crumbsOf(route('/devices/schedules'))).toEqual(['ראשי', 'תזמונים']);
   expect(crumbsOf(route('/devices/building'))).toEqual(['ראשי', 'מבט על']);
