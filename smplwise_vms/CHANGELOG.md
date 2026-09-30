@@ -1,5 +1,40 @@
 # Changelog — SmplWise Arx add-on
 
+## 0.1.148 (pilot) — Three home screens and two area screens you choose and edit; narrow tab bars; the phone UI audited; the old design is gone
+### Home screen (חשמל והתקנים)
+- **Three directions, chosen in הגדרות › חשמל והתקנים › מסך ראשי**: א control centre (default), ב side panel, ג compact row. Every widget is
+  editable: size (small / medium / large), order (drag, arrows), heading, on / off, and the entity that feeds it. Clock, weather (only the
+  fields the chosen entity reports, forecast length by what it exposes, a field can come from another sensor), Shabbat (parsha, candle lighting,
+  havdalah, Hebrew date and holiday each from its own sensor; the Hebrew date falls back to the browser), the alarm status card, quick actions.
+- **On the phone** the widgets have their own layout (a snapping row, stacked, or two per row), their own size and an on / off per widget.
+- **A personal screen**: users granted the new permission `screen.personalize` ("התאמה אישית של המסך שלי") may override the direction and their
+  widgets for themselves (החשבון שלי › המסך שלי); without it nothing personal applies.
+- The cards | tiles view choice moved into the user menu ("תצוגה"); the refresh icon sits beside the title.
+### Area screens
+- **Two directions** (הגדרות › חשמל והתקנים): dense tiles (default) and sequential sections; both fully editable (order, sizes, duplicate
+  sections, headings) from the user menu's edit mode, with the card library, select all / none, delete with undo.
+- **Main sensors** (temperature, humidity, motion, door) appear only when they exist; choose among all sensors, even ones not linked to the area.
+  "כבה הכל" per section (lights and switches, blinds, air conditioning; media later) with an icon, a text or both.
+- **A real navigation bar in the header**: home › floor ▾ › area ▾ - jump to another floor or area; the unclear chevron and the repeated floor name are gone.
+- **A camera card chooses its stream**: אוטומטי / משני / ראשי.
+### Tab bars
+- Top-level bars are the narrow segmented pill of the security switch; the sub-tabs of לייב and חקירה stay underlined but compact. Configurable
+  per level and per section (הגדרות › כללי › לשוניות › "סגנון סרגל").
+### The phone
+- A full phone audit (about 55 routes): the map's layers panel scrolls; the camera wall's controls are one compact row; the kiosk has phone
+  layouts (1×1 to 2×3, opens on one column); Chrome's amber focus ring is replaced by one blue keyboard-focus ring; touch targets grow to 40-44 px.
+- **אפשרויות נייד** (הגדרות › כללי): hide site / building / floor / plan management on a phone (on by default), the area editor, the wall
+  arrangement, screens that create or delete, roles and permissions (off by default), and the "תמונות בקרה" export. A UX guard, not security.
+### WisKey and shared spaces
+- The embedded WisKey crops 3 px of its own edge so a focus ring inside it is not seen (the real fix is a WisKey change: the request is in docs/integrations/wiskey).
+- **WisKey stations can be members of a shared space** (visibility only, for holders of access.read); deleting a shared room is one confirmation
+  ("בטל שיתוף ומחק"), and a mirror floor explains where to delete.
+### Other
+- **The legacy design B is removed**; design A is the only design (the `ui.design` setting is still accepted and ignored).
+- The bulk-safe checkbox (הגדרות › חשמל והתקנים › פעולה קבוצתית) shows the state it selects.
+- Review hardening: widget sensors respect the viewer's scope; `/me/prefs` writes are all-or-nothing; layouts list only visible entities;
+  shared-space membership and revocation fixes.
+
 ## 0.1.147 (pilot) — Schedules ("תזמונים", off until you turn it on); a camera card for area screens; the alarm tab is back in the security area; WisKey rc.37; your own navigation size
 **After the update restart the platform once**: the bridge integration is 0.3.0 (the schedule service). Migration 0039 (schedules) is applied on the first start.
 ### Schedules (CR-014) - feature is OFF by default

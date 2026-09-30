@@ -370,7 +370,8 @@
       "design SW A (2026-09-16, 0.1.9): the owner's 50-screen handoff v1.3 (docs/design/mockups-v1.3: handoff document + 12 key screens; full PNGs kept privately) is implemented as a second design behind a switch - tokens in frontend/src/styles/tokens.css (:root[data-design=a]: canvas #F5F7FB, text #22314C, action blue #2767ED, borders #E7EBF2/#E1E6EF, radii 8/12/14, H1 26px/700/-0.6px, rail 86px, topbar 72px), the four-area shell (sw-app renderA: right icon rail לייב/מפה/חקירה/מערכת, breadcrumbs, wide search with ⌘K, status pill, user chip, logo), sw-page reads the heading tokens; product setting ui.design (default a) + editable names ui.design_names + per-browser override (הגדרות → כללי → עיצוב הממשק); demo/fixture mode stays on SW B so the 129 fixture checks are unchanged; ?design=a|b forces one",
       "2026-09-29 (0.1.139, merge of pilot/rename-arx dca209a): product display name changed to SmplWise Arx everywhere user-facing (add-on name/panel_title, shell wordmark, card title, docs EN+HE, guide); technical identifiers unchanged; 91 files; screens spec 32/32 with refreshed evidence captures.",
       "2026-09-29 (0.1.141, merge of pilot/ui-hide-ha-brand): owner rule - Home Assistant is named only inside Settings; ~212 user-facing strings in 55 files replaced with platform-neutral copy (docs/design/UI_COPY_RULES.md); identifiers untouched; Sonnet review 5 fixes; screens spec 32/32, backend touched modules 322/322.",
-      "2026-09-29 (0.1.144, merge of pilot/ui-rename-leftovers a6097a8): remaining 'VMS' / 'SMPLWISE' product names in user-facing strings replaced by Arx / neutral wording; identifiers, the company wordmark and the bridge integration's own name unchanged."
+      "2026-09-29 (0.1.144, merge of pilot/ui-rename-leftovers a6097a8): remaining 'VMS' / 'SMPLWISE' product names in user-facing strings replaced by Arx / neutral wording; identifiers, the company wordmark and the bridge integration's own name unchanged.",
+      "2026-09-30 (0.1.148): the home screen in three directions (home.direction) with editable widgets, a phone layout for the widgets, the personal screen (screen.personalize); the area screens in two directions with an interactive breadcrumb, the sensor picker and per-section bulk-off looks."
     ],
     "owner": "Claude Code; design approver: product owner",
     "commit": null,
@@ -5176,7 +5177,8 @@
       "2026-09-30: owner clarification - every navigation change applies to the desktop too (the avatar at the rail's foot, the same menu as a popover, the top bar without navigation or identity).",
       "2026-09-30 (0.1.145): merged into g0/intake (pilot/CR011-shell) after the review round (B1/B2, M1-M11, lows) and released; per-user tab order through GET/PUT /me/prefs, migration 0037; shell spec (demo + mocked backend) and fresh evidence.",
       "2026-09-30 (0.1.146): owner round - no top bar (corner search + status dot), smaller navigation, one navigation inside an area, user-menu edit item; per-section tab visibility/order (ui.tabs) and the map's default floor; devices catalogue moved to Settings.",
-      "2026-09-30 (0.1.147): navigation size setting (ui.nav_size, personal and system), every screen-level edit mode moved into the user menu, the status dot leads to health only for users who may open it, home widgets as cards."
+      "2026-09-30 (0.1.147): navigation size setting (ui.nav_size, personal and system), every screen-level edit mode moved into the user menu, the status dot leads to health only for users who may open it, home widgets as cards.",
+      "2026-09-30 (0.1.148): design B removed (design A only); tab bar styles per level and section (pill / underline / compact); the phone UI audit with the phone options (ui.mobile); every screen-level view and edit choice in the user menu."
     ],
     "owner": null,
     "commit": null,
