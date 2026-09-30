@@ -29,7 +29,7 @@ def test_status_when_feature_is_off_and_on(sched_app):
     app, s, c, fake, tr = sched_app
     st = c.get(f"{API}/schedules/status").json()
     assert st["available"] == "ok" and st["feature_enabled"] is True and st["writable"] is True and st["write_block"] is None
-    assert st["capabilities"] == {"tags": False, "negative_sun_offset": False}
+    assert st["capabilities"] == {"tags": True, "negative_sun_offset": True}
     assert st["can"] == {"view": True, "manage": True, "sensitive": True, "configure": True}
     assert st["counts"]["visible"] == 12 and st["counts"]["hidden"] == 0
     assert st["settings"]["shabbat_sensor"]["entity_id"] == SHABBAT and st["settings"]["classes"] == ["light", "switch", "cover", "climate", "fan", "alarm", "lock", "door"]
@@ -237,9 +237,12 @@ def test_create_is_idempotent_per_client_request_id(sched_app):
     assert sum(1 for i in fake.items.values() if i["name"] == "Once") == 1
 
 
-def test_create_id_unknown_is_202_and_never_resent(sched_app):
+def test_create_id_unknown_is_202_and_never_resent(sched_app, monkeypatch):
     app, s, c, fake, tr = sched_app
     fake.hide_new_id = True
+    from smplwise.services import schedule_ops
+
+    monkeypatch.setattr(schedule_ops, "_learn_by_diff", lambda w, expected, before: None)  # the diff finds nothing either
     body = {"draft": draft_of("Lost id"), "enabled": True, "client_request_id": rid()}
     r = c.post(f"{API}/schedules", json=body)
     assert r.status_code == 202 and r.json()["status"] == "unknown" and r.json()["message"] == "התזמון נשלח; יופיע ברשימה לאחר אישור."
@@ -273,7 +276,6 @@ def test_create_validation_errors_use_the_contract_codes(sched_app):
     assert code(create(draft_of("x", [slot("18:00:00", "19:00:00", act("alarm_control_panel.alarm_disarm", "alarm_control_panel.home_panel"))]))) == (422, "alarm_code_needed")
     assert code(create(draft_of("x", [slot("18:00:00", None, act("lock.unlock", "lock.side_door"))]))) == (422, "lock_code_needed")
     assert code(create(draft_of("x", [slot("18:00:00", None, act("alarm_control_panel.alarm_arm_vacation", "alarm_control_panel.shed_panel"))]))) == (422, "arm_mode_not_supported")
-    assert code(create(draft_of("x", tags=["new"]))) == (422, "tags_not_supported")
     assert code(create(draft_of(""))) == (422, "validation")
     assert code(create(draft_of("x", [slot("18:00:00", "17:00:00", act("light.turn_on", "light.office"))]))) == (422, "validation")
     assert not any(i["name"] == "x" for i in fake.items.values())
@@ -327,9 +329,11 @@ def test_update_sends_only_changed_fields_and_untouched_slots_verbatim(sched_app
     r = put_draft(c, sid, draft, sch["revision"])
     assert r.status_code == 200, r.text
     call = fake.bridge_calls[-1]
-    assert call["op"] == "edit" and set(call["payload"]) == {"timeslots"}
+    assert call["op"] == "edit" and set(call["payload"]) == {"timeslots", "start_date", "end_date"}
     assert call["payload"]["timeslots"][0]["actions"][0]["service_data"]["temperature"] == 24
-    assert call["payload"]["timeslots"][1:] == original[1:]  # untouched slots re-sent byte-identical
+    from smplwise.services.schedule_model import component_slot
+
+    assert call["payload"]["timeslots"][1:] == [component_slot(t) for t in original[1:]]  # untouched slots re-sent in their equivalent write form
     out = r.json()["schedule"]
     assert out["revision"] != sch["revision"] and out["owner"]["username"] == "joni" and out["slots"][0]["actions"][0]["data"]["temperature"] == 24
     # an edit that changes nothing sends nothing
@@ -411,7 +415,10 @@ def test_split_a_day_out_of_a_daily_schedule(sched_app):
     orig, new = r.json()["original"], r.json()["created"]
     assert orig["days"]["days"] == ["sun", "mon", "wed", "thu"] and new["days"]["days"] == ["tue"] and new["name"] == "Office light on weekdays · ג׳" and new["source"] == "arx"
     assert [x["op"] for x in fake.bridge_calls[n:]] == ["add", "edit"]
-    assert fake.bridge_calls[n]["payload"]["timeslots"] == json.loads(json.dumps(fake.items[new["id"]]["timeslots"]))  # the slots move verbatim
+    from smplwise.services.schedule_model import component_slot
+
+    assert fake.bridge_calls[n]["payload"]["timeslots"] == [component_slot(t) for t in fake.items[new["id"]]["timeslots"]]  # the slots move (in write form)
+    assert fake.bridge_calls[n + 1]["payload"] == {"weekdays": ["sun", "mon", "wed", "thu"], "start_date": None, "end_date": None}  # the original keeps its dates
     assert len(new["slots"]) == len(orig["slots"]) == 2 and new["revision"] != orig["revision"]
 
 

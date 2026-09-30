@@ -44,7 +44,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, Valida
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
-from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..db import Database, commit_now, now_iso, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
@@ -86,6 +86,9 @@ def _reader_ro(principal: Principal = Depends(current_principal_ro), conn: sqlit
 def _credentials_admin(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
     require(conn, principal, CREDENTIALS, INSTALLATION)
     return principal
+
+
+_credentials_admin_ro = read_gate(lambda conn, principal: require(conn, principal, CREDENTIALS, INSTALLATION))  # review L7
 
 
 def _instant(name: str, value: str | None) -> str | None:
@@ -330,10 +333,10 @@ def station_credentials(request: Request, principal: Principal = Depends(_creden
 @router.put("/intercom/stations/{station_id}/credentials")
 def set_station_credentials(
     request: Request,
-    principal: Principal = Depends(_credentials_admin),
+    principal: Principal = Depends(_credentials_admin_ro),
+    raw: bytes = Depends(_credentials_body),
     conn: sqlite3.Connection = Depends(get_conn),
     station_id: str = Path(min_length=1, max_length=MAX_STATION_ID),
-    raw: bytes = Depends(_credentials_body),
 ) -> dict[str, Any]:
     body = _parse_credentials(conn, principal, request, station_id, raw)
     replaced = wiskey_camera.set_override(conn, station_id, body.username, body.password, principal.user_id)
@@ -475,6 +478,10 @@ def _releaser(principal: Principal = Depends(current_principal), conn: sqlite3.C
     audited by `require`). `access.read` alone is not enough: seeing the stations never implies acting on them."""
     require(conn, principal, RELEASE, INSTALLATION)
     return principal
+
+
+# review L7: the raw-body routes check the permission on a READ connection, read the body, and only then open the write one
+_releaser_ro = read_gate(lambda conn, principal: require(conn, principal, RELEASE, INSTALLATION))
 
 
 class _Action:
@@ -637,7 +644,7 @@ def _perform(
 
 
 @router.post("/intercom/stations/{station_id}/release")
-def release(request: Request, station_id: str, principal: Principal = Depends(_releaser), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def release(request: Request, station_id: str, principal: Principal = Depends(_releaser_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Release a station's door relay once (WisKey `stations/test_unlock`). Body: `{lock?, confirmed, client_request_id,
     expires_at}`; `confirmed: true` is sent only by the UI's confirmation dialog. The reply's `release.accepted` means
     WisKey ACCEPTED the command; it does not mean the door moved (the device's own relay time applies, and WisKey
@@ -685,7 +692,7 @@ def release(request: Request, station_id: str, principal: Principal = Depends(_r
 
 
 @router.post("/intercom/stations/{station_id}/call")
-def call_signal(request: Request, station_id: str, principal: Principal = Depends(_releaser), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def call_signal(request: Request, station_id: str, principal: Principal = Depends(_releaser_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Answer / reject a ringing call or hang up a call in progress (WisKey `media/signal`). Body: `{command,
     client_request_id, expires_at}`. WisKey checks the call state on the device itself and refuses a mismatch
     (`device_unavailable`), so SMPLWISE does not second-guess it from its own copy, which can lag a ring by a moment.
@@ -710,7 +717,7 @@ def tts_engines(request: Request, principal: Principal = Depends(_releaser), con
 
 
 @router.post("/intercom/stations/{station_id}/tts")
-def tts_speak(request: Request, station_id: str, principal: Principal = Depends(_releaser), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def tts_speak(request: Request, station_id: str, principal: Principal = Depends(_releaser_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Speak `message` through the station's speaker (WisKey `tts/start`). Body: `{engine_id, language, message,
     client_request_id, expires_at}`. The text goes to the Home Assistant TTS engine `engine_id` - which may be a cloud
     provider, so the text can leave the premises - and is recorded, as spoken, in SMPLWISE's audit log (refused
@@ -896,6 +903,9 @@ def _manager(principal: Principal = Depends(current_principal), conn: sqlite3.Co
     return principal
 
 
+_manager_ro = read_gate(lambda conn, principal: require(conn, principal, MANAGE, INSTALLATION))  # review L7
+
+
 def _draft_summary(data: dict[str, Any]) -> dict[str, Any]:
     """What the audit records about a draft: the field names and counts, never a value that is a secret or personal
     (no PIN, no card number, no phone)."""
@@ -963,7 +973,7 @@ def person_editor(request: Request, principal: Principal = Depends(_manager), co
 
 
 @router.post("/intercom/people/pin-generate")
-def person_pin_generate(request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def person_pin_generate(request: Request, principal: Principal = Depends(_manager_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A free six-digit PIN from WisKey (`users/pin_generate`; body `{user_id}`, "" for a person not saved yet). Not
     reserved: the save still answers `intercom_pin_conflict` if it was taken meanwhile. The value is shown once in
     the form and is never logged or audited by SMPLWISE. Reply: `{state, ..., pin: {pin}}`; a WisKey refusal is
@@ -977,7 +987,7 @@ SAVE_NOTE = "WisKey שמר את הרשומה. הסנכרון לתחנות מתב
 
 
 @router.post("/intercom/people")
-def person_create(request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def person_create(request: Request, principal: Principal = Depends(_manager_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Create a person in WisKey (`users/create`). Body: `{data: PersonData, sync_now, client_request_id, expires_at}`;
     `data` needs at least `display_name` and `employee_no`. Refused before sending (each refusal audited): a malformed
     draft, an expired or duplicate command. WisKey's refusals come back by name (`intercom_employee_conflict`,
@@ -999,7 +1009,7 @@ def person_create(request: Request, principal: Principal = Depends(_manager), co
 
 
 @router.put("/intercom/people/{user_id}")
-def person_update(request: Request, user_id: str, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def person_update(request: Request, user_id: str, principal: Principal = Depends(_manager_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Update a person in WisKey (`users/update`, compare-and-set on `revision`). Body: `{data: PersonData (a patch),
     revision, sync_now, client_request_id, expires_at}`. A stale revision is a 409 `intercom_revision_conflict`
     (reload the person, then retry); the other refusals and the unknown outcome as for create. Reply as create."""
@@ -1016,7 +1026,7 @@ def person_update(request: Request, user_id: str, principal: Principal = Depends
 
 
 @router.post("/intercom/people/{user_id}/delete")
-def person_delete(request: Request, user_id: str, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def person_delete(request: Request, user_id: str, principal: Principal = Depends(_manager_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Delete a person from WisKey (`users/delete`). Body: `{revision, confirmed, client_request_id, expires_at}`;
     `confirmed: true` is sent only by the confirmation dialog (WisKey's own `confirm_delete`, naming the stations the
     removal is scheduled on). WisKey answers `accepted`: the person left its list and the removal from each station
@@ -1110,7 +1120,7 @@ def card_readers(request: Request, station_id: str, principal: Principal = Depen
 
 
 @router.post("/intercom/people/{user_id}/card-capture")
-def card_capture_start(request: Request, user_id: str, principal: Principal = Depends(_capturer), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def card_capture_start(request: Request, user_id: str, principal: Principal = Depends(_capturer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Start reading a card at a station (WisKey `cards/capture_start`, PHYSICAL: the station's reader enters card-
     collection mode). Body: `{station_id, reader_id, revision, confirmed, client_request_id, expires_at}`; `confirmed:
     true` comes only from the dialog's confirmation step. Refused before sending (each audited, `not_sent`): a malformed
@@ -1177,7 +1187,7 @@ def card_capture_status(session_id: str, principal: Principal = Depends(_capture
 
 
 @router.post("/intercom/card-capture/{session_id}/cancel")
-def card_capture_cancel(request: Request, session_id: str, principal: Principal = Depends(_capturer), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def card_capture_cancel(request: Request, session_id: str, principal: Principal = Depends(_capturer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Cancel the caller's own capture (WisKey `cards/capture_cancel`): WisKey stops waiting for a card and drops the
     session. Body `{}` (JSON). WisKey's reader timeout is the firmware's own: cancelling is not proof the reader left
     collection mode (WisKey `capture_limits`). A cancel with no clear answer is 504 unknown (the session is then
@@ -1214,7 +1224,7 @@ def card_capture_cancel(request: Request, session_id: str, principal: Principal 
 
 
 @router.post("/intercom/card-capture/{session_id}/confirm")
-def card_capture_confirm(request: Request, session_id: str, principal: Principal = Depends(_capturer), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def card_capture_confirm(request: Request, session_id: str, principal: Principal = Depends(_capturer_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Add the collected card to the person (WisKey `cards/capture_confirm`, a people write: the card, enabled, goes to
     the person's existing station assignments with WisKey's immediate sync - it opens their doors). Body: `{label,
     confirmed, client_request_id, expires_at}`; `confirmed: true` comes only from the confirmation step naming the

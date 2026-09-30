@@ -590,31 +590,43 @@ LIMITER = RateLimiter()
 
 
 class RefusalAudits:
-    """At most one audit row per key (a refusal reason + the caller's address) per window, for the refusals an
-    anonymous caller can repeat at will: a rate-limited sign-in or bearer request and a cross-site request carrying a
-    cookie of no live session. Each such row is a write transaction - a turn in the database's write queue - so without
-    this a flood from the internet took one turn per request (round-10 §6.1 follow-up, 2026-09-30). The first refusal
-    of a window is written; the rest of the window is counted and the count travels with the next row written."""
+    """At most one audit row per key (a refusal reason + who it concerns) per window, for the refusals an anonymous
+    caller can repeat at will: a rate-limited sign-in or bearer request and a cross-site request carrying a cookie of no
+    live session. Each such row is a write transaction - a turn in the database's write queue - so without this a flood
+    from the internet took one turn per request (round-10 §6.1 follow-up, 2026-09-30). The first refusal of a window is
+    written; the rest of the window is counted, and the count is never dropped (review, audit throttle): it travels with
+    the next row of the same key, or - when the key stays quiet - it is written as an end-of-window summary row by
+    `flush_refusal_summaries` (the next throttled refusal of any key, and the janitor pass)."""
 
     WINDOW_S = 60.0
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._seen: dict[str, tuple[float, int]] = {}  # key -> (window start, refusals suppressed since)
+        # key -> (window start, refusals suppressed since, what a summary row needs: {"reason", "meta", "resource_id"} or None)
+        self._seen: dict[str, tuple[float, int, dict[str, Any] | None]] = {}
 
-    def admit(self, key: str) -> tuple[bool, int]:
+    def admit(self, key: str, info: dict[str, Any] | None = None) -> tuple[bool, int]:
         """(write this one?, how many were suppressed before it)."""
         now = time.time()
         with self._lock:
-            start, suppressed = self._seen.get(key, (0.0, 0))
+            start, suppressed, kept = self._seen.get(key, (0.0, 0, None))
             if now - start >= self.WINDOW_S:
-                self._seen[key] = (now, 0)
-                if len(self._seen) > 20000:
-                    for k in [k for k, (t, _) in self._seen.items() if now - t >= self.WINDOW_S]:
+                self._seen[key] = (now, 0, info)
+                if len(self._seen) > 20000:  # only quiet, fully accounted keys go; a key holding a count waits for its summary
+                    for k in [k for k, (t, n, _) in self._seen.items() if now - t >= self.WINDOW_S and n == 0]:
                         self._seen.pop(k, None)
                 return True, suppressed
-            self._seen[key] = (start, suppressed + 1)
+            self._seen[key] = (start, suppressed + 1, info or kept)
             return False, suppressed + 1
+
+    def expired(self) -> list[tuple[str, int, dict[str, Any] | None]]:
+        """The keys whose window has ended holding a suppressed count, removed from the table: (key, count, info)."""
+        now = time.time()
+        with self._lock:
+            done = [(k, n, info) for k, (t, n, info) in self._seen.items() if n and now - t >= self.WINDOW_S]
+            for k, _n, _i in done:
+                self._seen.pop(k, None)
+        return done
 
     def clear(self) -> None:
         with self._lock:
@@ -625,15 +637,40 @@ REFUSAL_AUDITS = RefusalAudits()
 THROTTLED_REASONS = ("rate_limited_ip", "rate_limited_user")
 
 
-def _audit_refusal(db, *, actor: Principal | None, reason: str, meta: dict[str, Any], action: str = "auth.remote_session.rejected") -> None:
-    """_audit for a refusal; a rate-limited one at most once per reason and address per minute (RefusalAudits)."""
+def _throttle_key(reason: str, meta: dict[str, Any], subject: str | None) -> str:
+    """One row per reason and per WHO it concerns: a per-user limit is keyed by the user (many users behind one address
+    each get their row, and one address walking through several users' tokens does not hide behind a single row); an
+    address limit by the address."""
+    if reason == "rate_limited_user" and subject:
+        return f"{reason}|user:{subject}"
+    return f"{reason}|{meta.get('client_ip', '')}"
+
+
+def flush_refusal_summaries(db) -> int:
+    """Write the end-of-window summary rows of throttled refusals that were counted but never followed by a row of
+    their own key (review, audit throttle). Returns the number written; never raises (an audit failure breaks nothing)."""
+    n = 0
+    for key, count, info in REFUSAL_AUDITS.expired():
+        if not info:
+            continue  # a key admitted without a description (the CSRF sink) carries its count on its own next row
+        _audit(db, actor=None, action=info.get("action", "auth.remote_session.rejected"), decision="denied", reason=info["reason"],
+               meta={**info["meta"], "suppressed": count, "summary": "window_end"}, resource_id=info.get("resource_id"))
+        n += 1
+    return n
+
+
+def _audit_refusal(db, *, actor: Principal | None, reason: str, meta: dict[str, Any], action: str = "auth.remote_session.rejected", subject: str | None = None) -> None:
+    """_audit for a refusal; a rate-limited one at most once per reason and per address (per user for rate_limited_user)
+    per minute (RefusalAudits), with the folded refusals counted, never dropped."""
+    resource_id = subject
     if reason in THROTTLED_REASONS:
-        write, suppressed = REFUSAL_AUDITS.admit(f"{reason}|{meta.get('client_ip', '')}")
+        write, suppressed = REFUSAL_AUDITS.admit(_throttle_key(reason, meta, subject), {"reason": reason, "meta": dict(meta), "action": action, "resource_id": subject})
+        flush_refusal_summaries(db)  # other keys whose window ended quietly (this key was just re-admitted or counted)
         if not write:
             return
         if suppressed:
             meta = {**meta, "suppressed_since_last": suppressed}
-    _audit(db, actor=actor, action=action, decision="denied", reason=reason, meta=meta)
+    _audit(db, actor=actor, action=action, decision="denied", reason=reason, meta=meta, resource_id=resource_id)
 
 
 # ---------------------------------------------------------------- request helpers
@@ -849,8 +886,8 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
     meta = request_meta(conn_like)
     ip = meta["client_ip"]
 
-    async def rejected(reason: str, err: ApiError, actor: Principal | None = None) -> ApiError:
-        await run_in_threadpool(lambda: _audit_refusal(db, actor=actor, reason=reason, meta=meta))
+    async def rejected(reason: str, err: ApiError, actor: Principal | None = None, subject: str | None = None) -> ApiError:
+        await run_in_threadpool(lambda: _audit_refusal(db, actor=actor, reason=reason, meta=meta, subject=subject))
         return err
 
     if not LIMITER.hit(f"ip:{ip}", IP_LIMITS):
@@ -867,7 +904,7 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
         log.warning("remote sign-in: HA core could not validate the token (%s)", exc)
         raise ApiError(503, "ha_unavailable", HA_UNAVAILABLE_HE, retryable=True)
     if not LIMITER.hit(f"user:{ha_user.id}", USER_LIMITS):
-        raise await rejected("rate_limited_user", ApiError(429, "rate_limited", RATE_LIMITED_HE, retryable=True))
+        raise await rejected("rate_limited_user", ApiError(429, "rate_limited", RATE_LIMITED_HE, retryable=True), subject=ha_user.id)
 
     def decide() -> tuple[Principal, ApiError | None]:
         with db.connection(mode="read", label="auth/session") as conn:
@@ -945,10 +982,10 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
     db = request.app.state.db
     meta = {**request_meta(request), "via": "bearer"}
 
-    def rejected(reason: str, err: ApiError, actor: Principal | None = None) -> ApiError:
+    def rejected(reason: str, err: ApiError, actor: Principal | None = None, subject: str | None = None) -> ApiError:
         if s is not None:
             STORE.drop(s.sid)
-        _audit_refusal(db, actor=actor, reason=reason, meta=meta)
+        _audit_refusal(db, actor=actor, reason=reason, meta=meta, subject=subject)
         return err
 
     if not LIMITER.hit(f"ip:{ip}", IP_LIMITS):
@@ -961,7 +998,7 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
     except HaUnavailable:
         raise ApiError(503, "ha_unavailable", HA_UNAVAILABLE_HE, retryable=True)
     if not LIMITER.hit(f"user:{ha_user.id}", USER_LIMITS):
-        raise rejected("rate_limited_user", ApiError(429, "rate_limited", RATE_LIMITED_HE, retryable=True))
+        raise rejected("rate_limited_user", ApiError(429, "rate_limited", RATE_LIMITED_HE, retryable=True), subject=ha_user.id)
     with db.connection(mode="read", label="remote bearer") as conn:
         principal = dataclasses.replace(build_principal(conn, ha_user), via="bearer")
         refusal = unauthenticated("remote_session_revoked", REVOKED_HE) if chain_revoked(conn, token) else policy_refusal(conn, principal, ha_user)

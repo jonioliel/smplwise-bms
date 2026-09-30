@@ -46,7 +46,7 @@ from ..rbac import INSTALLATION, Principal, authorize
 from ..services import camera_cards
 from ..services import devices as svc
 from ..services import ha_scope
-from .devices import READ, _configure_holder, _is_json, _raw_body
+from .devices import READ, _configure_holder, _configure_holder_ro, _is_json, _raw_body
 
 router = APIRouter()
 log = logging.getLogger("smplwise.device_layouts")
@@ -499,7 +499,7 @@ def get_layout(scope: str, scope_id: str, principal: Principal = Depends(current
 
 
 @router.put("/devices/layouts/{scope}/{scope_id}")
-def put_layout(scope: str, scope_id: str, request: Request, principal: Principal = Depends(_configure_holder), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def put_layout(scope: str, scope_id: str, request: Request, principal: Principal = Depends(_configure_holder_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Save one variant. `revision` is the one the editor started from (0 = none); another save in between is a 409
     `layout_conflict` with the current revision, and nothing is written."""
     _check_scope(scope, scope_id)
@@ -549,7 +549,7 @@ def reset_layout(
 
 
 @router.post("/devices/layouts/area/{scope_id}/copy-to-all-areas")
-def copy_to_all_areas(scope_id: str, request: Request, principal: Principal = Depends(_configure_holder), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def copy_to_all_areas(scope_id: str, request: Request, principal: Principal = Depends(_configure_holder_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """This area's STORED layout becomes every other area's (the "ללא שיוך" bucket included): the desktop record and,
     when this area has one, the phone record; an area whose phone layout was edited but whose source has none goes back
     to the derived phone layout. The screens confirm first; one audit row (scope, id, revision, how many areas)."""

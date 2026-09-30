@@ -312,3 +312,63 @@ def test_remote_unauthenticated_cap(arx):
     # the Ingress channel is not capped as anonymous (its identity comes from the Supervisor, not from a session)
     local = TestClient(arx.app)
     assert local.post("/api/v1/floors/f1/plan-assets", files=files).status_code == 404
+
+
+# ---------------------------------------------------------------- odd spellings never bypass a limit (review)
+
+def _scope(path: str, method: str = "POST", root_path: str = "", remote: bool = False) -> dict:
+    from smplwise.remote_channel import CHANNEL_KEY, REMOTE
+
+    return {"type": "http", "method": method, "path": path, "root_path": root_path, "headers": [], "query_string": b"",
+            "state": {CHANNEL_KEY: REMOTE} if remote else {}}
+
+
+def test_odd_spellings_of_a_route_never_get_more_than_the_route_itself(settings):
+    canonical = {
+        "/api/v1/floors/f1/plan-assets": "plan_upload", "/api/v1/backups/upload": "backup_upload", "/api/v1/catalog/import": "catalog_import",
+        "/api/v1/plan-versions/v1/geometry": "geometry_document", "/api/v1/cases/bundles/import": "evidence_bundle",
+    }
+    for path, rule in canonical.items():
+        method = "PUT" if path.endswith("/geometry") else "POST"
+        limit, name = bl.limit_for(_scope(path, method), settings)
+        assert name == rule
+        head, tail = path.rsplit("/", 1)
+        for odd in (path + "/", path + "//", path.replace("/api/v1/", "/api/v1//"), f"{head}/./{tail}", f"{head}/x/../{tail}",
+                    f"{head}/%{ord(tail[0]):02x}{tail[1:]}", f"{head}/%25{ord(tail[0]):02x}{tail[1:]}", path.replace("/v1/", "/%76%31/", 1)):
+            got, _ = bl.limit_for(_scope(odd, method), settings)
+            assert got <= limit, (odd, got, limit)  # never larger; the spelling the router does not know falls to the strictest
+
+
+def test_odd_spellings_of_a_tight_route_keep_its_tight_limit(settings):
+    from smplwise.routers import remote
+
+    for odd in ("/api/v1/csp-report", "/api/v1/csp-report/", "/api/v1//csp-report", "/api/v1/./csp-report", "/api/v1/x/../csp-report",
+                "/api/v1/%63sp-report", "/api/v1/csp%2Dreport", "/api/v1/csp%252Dreport"):
+        assert bl.limit_for(_scope(odd), settings) == (remote.CSP_BODY_MAX, "csp_report"), odd
+    # the remote channel: the sign-in paths keep 4 KiB whether the scope carries a root_path (RemoteChannel) or the whole path
+    for path, root in (("/arx/api/v1/auth/session", "/arx"), ("/arx/api/v1/auth/session/", "/arx"), ("/arx//api/v1/auth/session", "/arx"),
+                       ("/arx/api/v1/auth/%73ession", "/arx"), ("/arx/api/v1/auth/session", ""), ("/arx/api/v1/auth/session/", ""),
+                       ("/arx/.well-known/x", "/arx"), ("/arx/.well-known/x/", "/arx"), ("/api/v1/auth/session", "/arx")):
+        assert bl.limit_for(_scope(path, root_path=root, remote=True), settings) == (bl.REMOTE_PUBLIC_MAX, "remote_public"), (path, root)
+
+
+def test_the_limit_follows_the_routed_path_not_the_raw_one(settings):
+    # RemoteChannel sets root_path; the router matches the path without it, so does the limit
+    assert bl.routed_path({"path": "/arx/api/v1/backups/upload", "root_path": "/arx"}) == "/api/v1/backups/upload"
+    assert bl.routed_path({"path": "/arx", "root_path": "/arx"}) == ""
+    assert bl.routed_path({"path": "/arxiv/x", "root_path": "/arx"}) == "/arxiv/x"  # not a path segment boundary: untouched
+    assert bl.routed_path({"path": "/api/v1/x"}) == "/api/v1/x"
+    # an oddly spelled upload path on the remote channel, no credential: never above the anonymous cap
+    limit, name = bl.limit_for(_scope("/arx/api/v1//backups/upload/", root_path="/arx", remote=True), settings)
+    assert limit <= bl.REMOTE_ANONYMOUS_MAX and name in ("remote_anonymous", "default")
+
+
+def test_the_real_app_cuts_an_oddly_spelled_upload_at_the_strictest_limit(settings):
+    c = TestClient(create_app(settings))
+    big = b"x" * (2 * MiB)  # between the 1 MiB default and the plan upload's 5 MiB + slack
+    # the canonical spelling reaches the route (an unknown floor: 404, or 401/403 - anything but the body limit) ...
+    assert c.post("/api/v1/floors/f1/plan-assets", files={"file": ("p.png", big, "image/png")}).status_code != 413
+    # ... an odd spelling is judged at the strictest: cut at 1 MiB before it is parsed, never routed to the larger limit
+    for odd in ("/api/v1/floors/f1/plan-assets/", "/api/v1//floors/f1/plan-assets"):  # (the HTTP client itself resolves dot segments; those are covered on the scope above)
+        r = c.post(odd, files={"file": ("p.png", big, "image/png")}, follow_redirects=False)
+        assert r.status_code == 413, (odd, r.status_code)

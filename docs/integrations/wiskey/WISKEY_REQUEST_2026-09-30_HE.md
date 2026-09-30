@@ -1,5 +1,7 @@
 # בקשת פיתוח ל‑WisKey מ‑SMPLWISE Arx — 30.09.2026
 
+> **סטטוס 30.09.2026:** נמסר ב־WisKey rc.37 (בקשות 1–4). בקשה 5 (Companion) נשארת פתוחה. ראו `WISKEY_RC37_DELIVERED.md`.
+
 **אל:** צוות הפיתוח של WisKey · **מאת:** SMPLWISE Arx (בעל המוצר) · **בסיס:** קוד המקור של rc.25 (`reference/frontend/src/...`), חוזה
 ההטמעה `embed-api-v1/`, ו‑`WISKEY_FOLLOWUP_REQUESTS.md` (הבקשות המפורטות מ‑29.09, כולל מספרי שורות).
 

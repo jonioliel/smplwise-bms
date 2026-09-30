@@ -20,8 +20,9 @@ from typing import Any
 
 from . import ha_bridge
 
-# §1.3: flipped in the release after phase-0 verification (P0-3 tags accepted by add/edit, P0-7 negative sun offsets).
-CAPABILITIES: dict[str, bool] = {"tags": False, "negative_sun_offset": False}
+# §1.3: both VERIFIED on the lab component (HA 2026.9.4, 2026-09-30): add / edit accept `tags` (edit replaces, [] clears) and
+# `sunrise-00:15:00` works as start and stop (`sunset` without an offset is rejected: canonical_time always writes one).
+CAPABILITIES: dict[str, bool] = {"tags": True, "negative_sun_offset": True}
 
 ALL_CLASSES: tuple[str, ...] = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door")
 SENSITIVE_CLASSES = frozenset({"alarm", "lock", "door"})

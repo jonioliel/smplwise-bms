@@ -117,7 +117,7 @@ def test_component_events_update_the_cache(sched_app, mode):
     for frame in fake.pop_events():
         schedules.MIRROR.on_component_event(frame)
     assert "Created in the card" in _names(c)
-    assert tr.ws_calls[-1] == "scheduler/item"  # one item fetch, not a full pull
+    assert tr.ws_calls[-1] == "scheduler/item" if mode == "subscription" else "scheduler" in tr.ws_calls[-3:]  # an item fetch; the id-less bus signal is a full pull
     fake.call_service("scheduler", "edit", {"entity_id": fake.items[sid]["entity_id"], "name": "Renamed in the card"})
     for frame in fake.pop_events():
         schedules.MIRROR.on_component_event(frame)
@@ -125,6 +125,9 @@ def test_component_events_update_the_cache(sched_app, mode):
     fake.call_service("scheduler", "remove", {"entity_id": fake.items[sid]["entity_id"]})
     for frame in fake.pop_events():
         schedules.MIRROR.on_component_event(frame)
+    if mode == "bus":
+        assert sid in _rows(app)  # the bus event is not sent on remove: only the next pull notices
+        _pull(app)
     assert sid not in _rows(app) and "Renamed in the card" not in _names(c)
 
 

@@ -9,6 +9,7 @@ option `bootstrap_admin_username`; the grant happens once and is recorded in the
 from __future__ import annotations
 
 import sqlite3
+from typing import Callable
 
 from fastapi import Depends, Request
 
@@ -227,3 +228,17 @@ def current_principal(request: Request, conn: sqlite3.Connection = Depends(get_c
 def current_principal_ro(request: Request, conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
     """The same identity resolution on the request's read-mode connection (handlers that only read)."""
     return _principal(request, conn)
+
+
+def read_gate(check: Callable[[sqlite3.Connection, Principal], None]):
+    """A permission dependency on the READ connection, for the raw-body routes (review L7; the pattern access_groups
+    introduced in T082). Such a route declares `principal = Depends(<gate>), raw = Depends(<body reader>), conn =
+    Depends(get_conn)` in this order: the permission is checked (a refusal is audited aside) BEFORE the body is read, and
+    the write connection - BEGIN IMMEDIATE, SQLite's single write lock - is only opened AFTER the body has streamed in,
+    so a slow or stalled client never holds the lock while its body trickles. `check(conn, principal)` raises to refuse."""
+
+    def gate(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
+        check(conn, principal)
+        return principal
+
+    return gate
