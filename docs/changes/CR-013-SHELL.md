@@ -177,7 +177,7 @@ Without the new frontend, the stored orders are simply unused.
   behind the new one - Back then shows the same screen once more.
 - The shell has no dark scheme (the device screens have their own); the new parts use the tokens only, so a shell
   dark theme would cover them.
-- Design B is unchanged (its top bar, bell and "עוד" menu remain).
+- Design B was left unchanged by this change (its top bar, bell and "עוד" menu remained); it was removed in 0.1.148 (owner decision 2026-09-30).
 
 ## 7. Build status
 

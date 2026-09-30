@@ -29,7 +29,6 @@ test.describe('plan editor with the mouse (SW A)', () => {
     expect(cameraAnchor, 'a camera must already be placed on the plan').toBeTruthy();
 
     await open(page, `/explore/floors/${floor.id}/edit`);
-    expect(await page.evaluate(() => document.documentElement.dataset.design)).toBe('a');
     const editor = page.locator('explore-plan-editor');
     const canvas = editor.locator('sw-plan-canvas');
     await expect(canvas).toBeVisible();

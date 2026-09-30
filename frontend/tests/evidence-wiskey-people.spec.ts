@@ -31,73 +31,54 @@ async function open(page: Page, hash: string, design: 'a' | 'b' = 'a') {
 test.describe('WisKey people directory without WisKey (CR-005 phase 1b)', () => {
   test.skip(process.env.SW_LIVE !== '1' || process.env.SW_WISKEY_FIXTURE === '1', 'set SW_LIVE=1 with a plain backend running (no WisKey fixture)');
 
-  test('the people tab is the third WisKey tab and shows the honest not-configured state, in both designs', async ({ page, request }, testInfo) => {
+  test('the people tab is the third WisKey tab and shows the honest not-configured state', async ({ page, request }, testInfo) => {
     const reply = await (await request.get('/api/v1/intercom/people')).json();
     expect(reply.state).toBe('ha_not_configured');
     expect(reply.people).toBeNull();
 
-    for (const design of ['a', 'b'] as const) {
-      await open(page, '/wiskey/overview', design);
-      // the WisKey area's own tab row: entry center, activity, people - in that order, nothing from other areas - then
-      // WisKey's own embedded-only screens (CR-005 recorded decision 2026-09-28; evidence-wiskey-embed.spec.ts)
-      const tabs = page.locator('sw-tabs a[href^="#/wiskey/"]');
-      await expect(tabs).toHaveCount(8, { timeout: 30000 });
-      await expect(tabs.nth(0)).toHaveAttribute('href', '#/wiskey/overview');
-      await expect(tabs.nth(1)).toHaveAttribute('href', '#/wiskey/events');
-      await expect(tabs.nth(2)).toHaveAttribute('href', HREF);
-      const tab = page.locator(`sw-tabs a[href="${HREF}"]`);
-      await expect(tab).toContainText('אנשים');
-      await tab.click();
-      await expect.poll(() => page.evaluate(() => location.hash)).toBe(HREF);
+    await open(page, '/wiskey/overview');
+    // the WisKey area's own tab row: entry center, activity, people - in that order, nothing from other areas - then
+    // WisKey's own embedded-only screens (CR-005 recorded decision 2026-09-28; evidence-wiskey-embed.spec.ts)
+    const tabs = page.locator('sw-tabs a[href^="#/wiskey/"]');
+    await expect(tabs).toHaveCount(8, { timeout: 30000 });
+    await expect(tabs.nth(0)).toHaveAttribute('href', '#/wiskey/overview');
+    await expect(tabs.nth(1)).toHaveAttribute('href', '#/wiskey/events');
+    await expect(tabs.nth(2)).toHaveAttribute('href', HREF);
+    const tab = page.locator(`sw-tabs a[href="${HREF}"]`);
+    await expect(tab).toContainText('אנשים');
+    await tab.click();
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe(HREF);
 
-      const screen = page.locator(SCREEN);
-      const panel = screen.locator('sw-state-panel[data-wiskey-state="ha_not_configured"]');
-      await expect(panel).toBeVisible({ timeout: 30000 });
-      await expect(panel).toHaveAttribute('heading', 'WisKey אינו מחובר בסביבה הזו');
-      await expect(screen.locator('[data-wiskey-feed="ha_not_configured"]')).toBeVisible();
-      // the page says it is not live
-      await expect(screen.locator('[data-wiskey-people-nopush]')).toContainText('אינה מתעדכנת בזמן אמת');
-      // nothing invented: no search, no rows, no paging, no details, and no add / edit affordance anywhere
-      await expect(screen.locator('[data-wiskey-people-filters]')).toHaveCount(0);
-      await expect(screen.locator('[data-wiskey-people-table]')).toHaveCount(0);
-      await expect(screen.locator('[data-wiskey-people-paging]')).toHaveCount(0);
-      await expect(screen.locator('[data-wiskey-person-detail]')).toHaveCount(0);
-      await expect(screen.getByText(/הוספת|עריכה|Edit/)).toHaveCount(0);
-      if (design === 'a') await page.screenshot({ path: testInfo.outputPath('wiskey-people-not-configured.png') });
-    }
+    const screen = page.locator(SCREEN);
+    const panel = screen.locator('sw-state-panel[data-wiskey-state="ha_not_configured"]');
+    await expect(panel).toBeVisible({ timeout: 30000 });
+    await expect(panel).toHaveAttribute('heading', 'WisKey אינו מחובר בסביבה הזו');
+    await expect(screen.locator('[data-wiskey-feed="ha_not_configured"]')).toBeVisible();
+    // the page says it is not live
+    await expect(screen.locator('[data-wiskey-people-nopush]')).toContainText('אינה מתעדכנת בזמן אמת');
+    // nothing invented: no search, no rows, no paging, no details, and no add / edit affordance anywhere
+    await expect(screen.locator('[data-wiskey-people-filters]')).toHaveCount(0);
+    await expect(screen.locator('[data-wiskey-people-table]')).toHaveCount(0);
+    await expect(screen.locator('[data-wiskey-people-paging]')).toHaveCount(0);
+    await expect(screen.locator('[data-wiskey-person-detail]')).toHaveCount(0);
+    await expect(screen.getByText(/הוספת|עריכה|Edit/)).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath('wiskey-people-not-configured.png') });
   });
 
-  test('the phone bottom nav reaches the people tab in both designs (design A: 5th icon; design B: the "עוד" overflow)', async ({ page }, testInfo) => {
+  test('the phone bottom nav reaches the people tab (WisKey is the 5th icon)', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'nav.bottom only renders below the 768px breakpoint; other projects are wider');
-    // design A: WisKey is a direct bottom icon, and the tab row below the top bar carries the third tab
+    // WisKey is a direct bottom icon, and the tab row carries the third tab
     await open(page, '/live', 'a');
-    const bottomA = page.locator(BOTTOM);
-    await expect(bottomA).toBeVisible({ timeout: 30000 });
-    await bottomA.locator('a[href="#/wiskey/overview"]').click();
+    const bottom = page.locator(BOTTOM);
+    await expect(bottom).toBeVisible({ timeout: 30000 });
+    await bottom.locator('a[href="#/wiskey/overview"]').click();
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/wiskey/overview');
-    const tabA = page.locator(`sw-tabs a[href="${HREF}"]`);
-    await expect(tabA).toBeVisible({ timeout: 30000 });
-    await tabA.click();
+    const tab = page.locator(`sw-tabs a[href="${HREF}"]`);
+    await expect(tab).toBeVisible({ timeout: 30000 });
+    await tab.click();
     await expect.poll(() => page.evaluate(() => location.hash)).toBe(HREF);
     await expect(page.locator(`${SCREEN} sw-state-panel[data-wiskey-state="ha_not_configured"]`)).toBeVisible({ timeout: 30000 });
-    await page.screenshot({ path: testInfo.outputPath('wiskey-people-mobile-a.png') });
-
-    // design B: WisKey sits behind the "עוד" overflow menu (the 6th of 7 groups)
-    await open(page, '/live', 'b');
-    const bottomB = page.locator(BOTTOM);
-    await expect(bottomB).toBeVisible({ timeout: 30000 });
-    await bottomB.locator('button').click();
-    const overflowLink = page.locator('sw-app .bottom-overflow a[href="#/wiskey/overview"]');
-    await expect(overflowLink).toBeVisible({ timeout: 5000 });
-    await overflowLink.click();
-    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/wiskey/overview');
-    const tabB = page.locator(`sw-tabs a[href="${HREF}"]`);
-    await expect(tabB).toBeVisible({ timeout: 30000 });
-    await tabB.click();
-    await expect.poll(() => page.evaluate(() => location.hash)).toBe(HREF);
-    await expect(page.locator(`${SCREEN} sw-state-panel[data-wiskey-state="ha_not_configured"]`)).toBeVisible({ timeout: 30000 });
-    await expect(bottomB.locator('button')).toHaveClass(/active/);
-    await page.screenshot({ path: testInfo.outputPath('wiskey-people-mobile-b.png') });
+    await page.screenshot({ path: testInfo.outputPath('wiskey-people-mobile.png') });
   });
 
   test('the people tab is gated on access.read at installation scope, like the entry center and the activity log', async ({ page, browser, request }, testInfo) => {
