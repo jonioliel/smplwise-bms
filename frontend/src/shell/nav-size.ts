@@ -7,7 +7,7 @@
  * Two owners of that value: the installation default (`ui.nav_size` product setting) and the user's own override
  * (`ui.nav_size` of /me/prefs; the personal value wins, resetting it falls back to the installation's). The static demo has
  * no backend: the personal value then lives in this browser only. `navSize()` is the effective value; `navDims()` turns it
- * into the concrete pixel sizes the shell puts on itself as CSS variables (design A only).
+ * into the concrete pixel sizes the shell puts on itself as CSS variables.
  * "m" is the size the shell had before this setting existed.
  */
 import { getMyPrefs, putMyPrefs } from '../api/me-prefs';

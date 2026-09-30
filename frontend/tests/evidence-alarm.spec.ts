@@ -157,13 +157,6 @@ test.describe('CR-010 navigation: אבטחה › לייב | חקירה | אזע�
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/security/alarm');
   });
 
-  test('design B: no flat אזעקה entry; the alarm address still opens the screen', async ({ page }) => {
-    await open(page, '/security/alarm', 'b');
-    await expect(page.locator('sw-app security-alarm')).toHaveCount(1);
-    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/security/alarm');
-    await expect(page.locator(`${RAIL} a[href="#/security/alarm"]`)).toHaveCount(0);
-  });
-
   test('the alarm screen on demo data: state card, ready-to-arm, zones by area, filters, keypad', async ({ page }, info) => {
     await open(page, '/security/alarm');
     const hero = page.locator('security-alarm section.hero');

@@ -20,8 +20,8 @@ easy editing of the screens (positions, sizes, text sizes, colours, titles); a c
 and a style close to DomusUI's, both with RTL. The owner's reference is DomusUI (https://github.com/Mattia2399/DomusUI,
 GPL-3.0 - ideas and structure, no code copying); its extraction is `docs/integrations/domusui/DOMUSUI_EXTRACTION.md`.
 Navigation note from the owner: SMPLWISE has a side rail, not a top bar - the mockup's top bar is only a
-placeholder; the real screens live under the existing shell (icon rail in design A, flat entry in design B, as
-WisKey does).
+placeholder; the real screens live under the existing shell (an icon rail entry, as WisKey does; the flat entry of
+"design B" this note once named is gone - design B was removed in 0.1.148).
 
 ## 2. Facts that shape the design
 
