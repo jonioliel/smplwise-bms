@@ -57,6 +57,10 @@ export interface ProductSettings {
   /** 'true' hides the whole WisKey area from the navigation for everyone, regardless of role (T054 follow-up); the
    * access.ui.* choices above apply only while this is false. */
   'ui.hide_wiskey'?: string;
+  /** Owner 2026-09-30: how much of the screen the embedded WisKey panel uses - 'normal' (the content area, default),
+   * 'fit' (rendered larger and scaled down by ui.wiskey_scale percent) or 'full' (the whole viewport, small exit). */
+  'ui.wiskey_size'?: 'normal' | 'fit' | 'full';
+  'ui.wiskey_scale'?: '100' | '90' | '80' | '70';
   /** 'true' (experimental, default 'false') embeds WisKey inside the Home Assistant Companion app too, relaying the
    * app's sign-in bridge into the frame (wiskey/companion-bridge.ts). */
   'access.phone_embed'?: string;

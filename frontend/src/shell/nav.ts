@@ -174,7 +174,23 @@ export const WISKEY_UI: Record<WiskeyScreen, WiskeyUi> = { overview: 'wiskey', e
  * through the sign-in relay of `wiskey/companion-bridge.ts`. Off = the 0.1.123 behaviour (no frame in the app). */
 export let WISKEY_PHONE_EMBED = false;
 
+/** הגדרות › ממשק › "גודל תצוגת WisKey" (`ui.wiskey_size` / `ui.wiskey_scale`, owner 2026-09-30): how much of the screen the
+ * embedded panel uses. normal = the content area at 100% (default); fit = the frame is rendered 1/scale larger and scaled
+ * down; full = the whole viewport. The embed re-reads it on the `sw-wiskey-size` window event. */
+export type WiskeySize = 'normal' | 'fit' | 'full';
+export const WISKEY_SIZE_EVENT = 'sw-wiskey-size';
+export let WISKEY_SIZE: WiskeySize = 'normal';
+export let WISKEY_SCALE = 90;
+
 export function applyWiskeyUi(settings: Record<string, unknown> | null | undefined): void {
+  const size = String(settings?.['ui.wiskey_size'] ?? 'normal');
+  const scale = Number(settings?.['ui.wiskey_scale'] ?? 90);
+  const nextSize: WiskeySize = size === 'fit' || size === 'full' ? size : 'normal';
+  const nextScale = [100, 90, 80, 70].includes(scale) ? scale : 90;
+  const changed = nextSize !== WISKEY_SIZE || nextScale !== WISKEY_SCALE;
+  WISKEY_SIZE = nextSize;
+  WISKEY_SCALE = nextScale;
+  if (changed && typeof window !== 'undefined') window.dispatchEvent(new Event(WISKEY_SIZE_EVENT));
   WISKEY_PHONE_EMBED = String(settings?.['access.phone_embed'] ?? 'false') === 'true';
   for (const s of WISKEY_SCREENS) WISKEY_UI[s] = String(settings?.[`access.ui.${s}`] ?? 'wiskey') === 'smplwise' ? 'smplwise' : 'wiskey';
   rebuildWiskeyTabs(); // a screen switched to SMPLWISE stays in the row whatever the WisKey catalog lists

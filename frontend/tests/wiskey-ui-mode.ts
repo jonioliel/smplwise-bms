@@ -24,6 +24,27 @@ export async function setAccessUi(baseURL: string | undefined, values: AccessUi)
   }
 }
 
+/** הגדרות › "גודל תצוגת WisKey" (owner 2026-09-30, installation-wide): normal | fit (with a scale) | full. */
+export interface WiskeySizeSetting {
+  'ui.wiskey_size'?: 'normal' | 'fit' | 'full';
+  'ui.wiskey_scale'?: '100' | '90' | '80' | '70';
+}
+
+/** Sets the WisKey size setting on the live backend and returns the previous values (to put back afterwards). */
+export async function setWiskeySize(baseURL: string | undefined, values: WiskeySizeSetting): Promise<WiskeySizeSetting> {
+  const ctx = await pwRequest.newContext({ baseURL });
+  try {
+    const r = await ctx.get('/api/v1/settings');
+    const s = ((await r.json()) as { settings: Record<string, string> }).settings;
+    const before = { 'ui.wiskey_size': s['ui.wiskey_size'] ?? 'normal', 'ui.wiskey_scale': s['ui.wiskey_scale'] ?? '90' } as WiskeySizeSetting;
+    const p = await ctx.patch('/api/v1/settings', { data: values });
+    if (!p.ok()) throw new Error(`PATCH /settings ${p.status()}: ${await p.text()}`);
+    return before;
+  } finally {
+    await ctx.dispose();
+  }
+}
+
 export function useSmplwiseWiskeyScreens(): void {
   let before: AccessUi | null = null;
   test.beforeAll(async ({}, testInfo) => {

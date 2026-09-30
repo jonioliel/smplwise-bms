@@ -1,5 +1,5 @@
 import { test, expect, type Frame, type Page, type Route } from '@playwright/test';
-import { setAccessUi, type AccessUi } from './wiskey-ui-mode';
+import { setAccessUi, setWiskeySize, type AccessUi, type WiskeySizeSetting } from './wiskey-ui-mode';
 import { FAKE_CATALOG, PANEL_URL, stubPanel, type FakeCatalog } from './wiskey-fake-ha';
 
 // Evidence for the embedded WisKey panel (CR-005 recorded decision 2026-09-28): the WisKey area shows WisKey's own
@@ -136,22 +136,24 @@ async function layoutOf(page: Page) {
   });
 }
 
-async function expectFrameFillsContentArea(page: Page) {
+async function expectFrameFillsContentArea(page: Page, scale = 1) {
   const l = await layoutOf(page);
-  const near = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThanOrEqual(1);
+  const near = (a: number, b: number, tol = 1) => expect(Math.abs(a - b)).toBeLessThanOrEqual(tol);
   near(l.frame.left, l.main.left); // edge to edge, both sides
   near(l.frame.right, l.main.right);
   near(l.frame.bottom, l.screen.bottom); // down to the end of the shell's screen box ...
   near(l.frame.bottom, l.bottomTop ?? l.vh); // ... which is the bottom edge, or the top of the phone's bottom bar
   expect(l.frame.top).toBeGreaterThanOrEqual(l.screen.top - 1);
-  near(l.inner.h, l.frame.height); // the panel's own viewport is the whole frame
-  near(l.inner.w, l.frame.width);
+  // the panel's own viewport is the whole frame - or, in the scaled size, the frame's box before the scale (1/scale larger)
+  near(l.inner.h * scale, l.frame.height, scale < 1 ? 2 : 1);
+  near(l.inner.w * scale, l.frame.width, scale < 1 ? 2 : 1);
   expect(l.main.scrolls).toBe(false); // no scroll container gives the frame less than it shows
   expect(l.pageScrolls).toBe(false);
   return l;
 }
 
 let saved: AccessUi | null = null;
+let savedSize: WiskeySizeSetting | null = null;
 
 test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)', () => {
   test.skip(process.env.SW_LIVE !== '1' || process.env.SW_WISKEY_FIXTURE === '1', 'set SW_LIVE=1 with a plain backend running (no WisKey fixture)');
@@ -160,9 +162,11 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
   test.beforeAll(async ({}, testInfo) => {
     // start from the default for every screen (the embed), and put the owner's choice back at the end
     saved = await setAccessUi(testInfo.project.use.baseURL, { 'access.ui.overview': 'wiskey', 'access.ui.events': 'wiskey', 'access.ui.people': 'wiskey' });
+    savedSize = await setWiskeySize(testInfo.project.use.baseURL, { 'ui.wiskey_size': 'normal', 'ui.wiskey_scale': '90' }); // the default size
   });
   test.afterAll(async ({}, testInfo) => {
     if (saved && Object.keys(saved).length) await setAccessUi(testInfo.project.use.baseURL, saved);
+    if (savedSize) await setWiskeySize(testInfo.project.use.baseURL, savedSize);
   });
 
   // ------------------------------------------------------------------ embed API v1
@@ -564,7 +568,8 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     // a direct address: the frame carries the tab, the adapter applies it once the discovery said "older WisKey"
     await open(page, '/wiskey/people');
     await expect(page.locator(FRAME)).toHaveAttribute('src', /\/hikvision-intercom\?embed=1&tab=users$/, { timeout: 30000 });
-    await expect.poll(async () => (await frameState(page)).tab, { timeout: LEGACY_MS }).toBe('users');
+    // (the frame's address commits a moment after its src is assigned: a poll that throws on "no frame yet" is a race)
+    await expect.poll(async () => { try { return (await frameState(page)).tab; } catch { return null; } }, { timeout: LEGACY_MS }).toBe('users');
     expect((await frameState(page)).navigates).toBe(1); // one call, after the panel's session loaded - no retry storm
     for (const [seg, tab] of [['events', 'events'], ['devices', 'devices'], ['health', 'health'], ['audit', 'audit'], ['tools', 'tools']]) {
       await open(page, `/wiskey/${seg}`);
@@ -654,6 +659,36 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await page.screenshot({ path: testInfo.outputPath('wiskey-embed-layout-banner.png') });
   });
 
+  test('a framed document that declares color-scheme: dark is left alone - matching it on the iframe would hide its default-coloured text (measured, not implemented)', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop only');
+    await stubPanel(page, { kiosk: true, panels: true, api: 'v1', colorScheme: 'dark' }); // a dark theme's document with a transparent body
+    await open(page, '/wiskey/overview');
+    await expect(page.locator(FRAME)).toHaveAttribute('data-confirmed-tab', 'overview', { timeout: 15000 });
+    const pixel = async () => {
+      const box = (await page.locator(FRAME).boundingBox())!;
+      const b64 = (await page.screenshot({ clip: { x: box.x + 600, y: box.y + 300, width: 4, height: 4 } })).toString('base64');
+      return page.evaluate(async (data) => {
+        const img = new Image();
+        img.src = `data:image/png;base64,${data}`;
+        await img.decode();
+        const c = document.createElement('canvas');
+        c.width = img.width;
+        c.height = img.height;
+        const g = c.getContext('2d')!;
+        g.drawImage(img, 0, 0);
+        return Array.from(g.getImageData(1, 1, 1, 1).data).slice(0, 3);
+      }, b64);
+    };
+    // the mismatch (light shell, dark document) gives the frame an opaque dark canvas: this is the mechanism behind a
+    // dark area inside the frame, and it is the document's own
+    expect(await pixel()).toEqual([18, 18, 18]);
+    expect(await page.locator(FRAME).evaluate((f: HTMLElement) => f.style.colorScheme)).toBe(''); // we set nothing on the frame (it inherits the light shell's)
+    // matching it would make the canvas transparent (white here) - and the document's default light text vanishes on it
+    await page.locator(FRAME).evaluate((f: HTMLElement) => (f.style.colorScheme = 'dark'));
+    await expect.poll(pixel).toEqual([255, 255, 255]);
+    await page.screenshot({ path: '../docs/evidence/UIR1-wiskey/cs-matched-text-vanishes.png', clip: { x: 0, y: 160, width: 500, height: 120 } });
+  });
+
   test('layout: the WisKey tools row (ניהול) is the only strip above the frame, and the frame still fills the rest', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'desktop only');
     await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
@@ -663,6 +698,191 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await expectFrameFillsContentArea(page);
     const l = await layoutOf(page);
     expect(l.bars).toBe(0); // no bar, no refresh / enlarge / new-window controls, even with the tools row
+  });
+
+  // ------------------------------------------------------------------ "גודל תצוגת WisKey" (ui.wiskey_size, owner 2026-09-30)
+
+  const sizeOf = (page: Page) => page.locator('wiskey-embed').getAttribute('data-size');
+
+  /** A click recorder inside the panel's document: where the panel itself sees a pointer press (its own coordinates). */
+  async function recordClicks(page: Page) {
+    await panelFrame(page).evaluate(() => {
+      const w = window as unknown as { __clicks: number[][] };
+      w.__clicks = [];
+      document.addEventListener('click', (e) => w.__clicks.push([e.clientX, e.clientY]));
+    });
+  }
+  const clicksOf = (page: Page) => panelFrame(page).evaluate(() => (window as unknown as { __clicks: number[][] }).__clicks);
+
+  test('size "מותאם": the frame is rendered 1/scale larger and scaled down; the wrapper still fills the content area, clicks land where they should, WisKey sees a bigger frame', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop only; the phone is below');
+    test.setTimeout(120_000);
+    await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
+    const base = testInfo.project.use.baseURL;
+    const table: string[] = [];
+    // the reference: the normal size at both screens (what WisKey sees today)
+    await setWiskeySize(base, { 'ui.wiskey_size': 'normal' });
+    for (const [w, h] of [[1440, 900], [1920, 1080]] as const) {
+      await page.setViewportSize({ width: w, height: h });
+      await open(page, '/wiskey/overview');
+      await expect(page.locator(FRAME)).toHaveAttribute('data-confirmed-tab', 'overview', { timeout: 15000 });
+      await expect.poll(() => sizeOf(page)).toBe('normal');
+      const l = await expectFrameFillsContentArea(page);
+      table.push(`${w}×${h} normal: wrapper ${Math.round(l.frame.width)}×${Math.round(l.frame.height)}, WisKey sees ${l.inner.w}×${l.inner.h} → ${wiskeyCapacity(l.inner.w, l.inner.h)} cards`);
+    }
+    for (const scale of ['100', '90', '80', '70'] as const) {
+      await setWiskeySize(base, { 'ui.wiskey_size': 'fit', 'ui.wiskey_scale': scale });
+      const s = Number(scale) / 100;
+      for (const [w, h] of [[1440, 900], [1920, 1080]] as const) {
+        await page.setViewportSize({ width: w, height: h });
+        await open(page, '/wiskey/overview');
+        await expect(page.locator(FRAME)).toHaveAttribute('data-confirmed-tab', 'overview', { timeout: 15000 });
+        await expect.poll(() => sizeOf(page)).toBe(scale === '100' ? 'normal' : 'fit'); // 100% is the normal size
+        const l = await expectFrameFillsContentArea(page, s); // the visible wrapper is exactly the content area, no double scrollbar
+        await expectNothingAroundFrame(page);
+        if (scale !== '100') {
+          expect(l.inner.h).toBeGreaterThan(l.frame.height); // WisKey's box is bigger than what is shown
+          expect(Math.abs(l.inner.h - Math.round(l.frame.height / s))).toBeLessThanOrEqual(2);
+          // pointer coordinates: a press at (x, y) in the wrapper is (x / scale, y / scale) inside WisKey's own document
+          await recordClicks(page);
+          const box = (await page.locator(FRAME).boundingBox())!;
+          await page.mouse.click(box.x + 300, box.y + 200);
+          const [[cx, cy]] = await clicksOf(page);
+          expect(Math.abs(cx - 300 / s)).toBeLessThanOrEqual(2);
+          expect(Math.abs(cy - 200 / s)).toBeLessThanOrEqual(2);
+        }
+        table.push(`${w}×${h} fit ${scale}%: wrapper ${Math.round(l.frame.width)}×${Math.round(l.frame.height)}, WisKey sees ${l.inner.w}×${l.inner.h} → ${wiskeyCapacity(l.inner.w, l.inner.h)} cards`);
+        if (scale === '90' && w === 1440) await page.screenshot({ path: '../docs/evidence/UIR1-wiskey/wiskey-embed-fit-90-1440.png' });
+      }
+    }
+    for (const row of table) testInfo.annotations.push({ type: 'cards', description: row });
+    await setWiskeySize(base, { 'ui.wiskey_size': 'normal', 'ui.wiskey_scale': '90' });
+  });
+
+  test('size "מסך מלא": the panel covers the whole viewport with one small exit control; the exit button and Esc leave it for this visit, the next visit is full again', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop only; the phone is below');
+    test.setTimeout(90_000);
+    await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
+    const base = testInfo.project.use.baseURL;
+    await setWiskeySize(base, { 'ui.wiskey_size': 'full' });
+    const cards: string[] = [];
+    for (const [w, h] of [[1440, 900], [1920, 1080]] as const) {
+      await page.setViewportSize({ width: w, height: h });
+      await open(page, '/wiskey/overview');
+      await expect(page.locator(FRAME)).toHaveAttribute('data-confirmed-tab', 'overview', { timeout: 15000 });
+      await expect(page.locator('wiskey-embed')).toHaveAttribute('data-size', 'full');
+      const g = await page.locator('wiskey-embed').evaluate((embed: HTMLElement) => {
+        const sr = embed.getRootNode() as ShadowRoot;
+        const r = embed.getBoundingClientRect();
+        const f = embed.shadowRoot!.querySelector('iframe')!;
+        const fr = f.getBoundingClientRect();
+        const ex = embed.shadowRoot!.querySelectorAll('button.exit');
+        const eb = ex[0]?.getBoundingClientRect();
+        // what is on top at the rail, the top bar and the corner: always the embed
+        const on = (x: number, y: number) => !!sr.elementFromPoint(x, y)?.closest('wiskey-embed');
+        return {
+          embed: [r.left, r.top, r.width, r.height],
+          frame: [fr.left, fr.top, fr.width, fr.height],
+          inner: [f.contentWindow!.innerWidth, f.contentWindow!.innerHeight],
+          exits: ex.length,
+          exit: eb ? [eb.left, eb.top, eb.width, eb.height] : null,
+          covers: [on(window.innerWidth - 30, 200), on(30, 30), on(window.innerWidth / 2, 20), on(window.innerWidth - 30, window.innerHeight - 30)],
+          inert: ['nav.rail', 'header.topbar', 'main > .subnav'].map((s) => (sr.querySelector(s) as HTMLElement | null)?.inert ?? null),
+          scrolls: document.documentElement.scrollHeight > window.innerHeight + 1 || document.documentElement.scrollWidth > window.innerWidth + 1,
+        };
+      });
+      expect(g.embed).toEqual([0, 0, w, h]);
+      expect(g.frame).toEqual([0, 0, w, h]);
+      expect(g.inner).toEqual([w, h]);
+      expect(g.exits).toBe(1); // one control, nothing else
+      expect(g.exit![2]).toBeLessThanOrEqual(32);
+      expect(g.exit![3]).toBeLessThanOrEqual(32);
+      expect(g.exit![1]).toBeLessThan(40); // a top corner
+      expect(g.exit![0] < 60 || g.exit![0] + g.exit![2] > w - 60).toBe(true);
+      expect(g.covers).toEqual([true, true, true, true]); // rail, top bar, tab row, bottom-corner: all covered
+      expect(g.inert).toEqual([true, true, true]); // Tab never reaches the covered shell
+      expect(g.scrolls).toBe(false);
+      await expectNothingAroundFrame(page);
+      cards.push(`${w}×${h} full: WisKey sees ${g.inner[0]}×${g.inner[1]} → ${wiskeyCapacity(g.inner[0], g.inner[1])} cards`);
+      if (w === 1440) await page.screenshot({ path: '../docs/evidence/UIR1-wiskey/wiskey-embed-full-1440.png' });
+    }
+    for (const row of cards) testInfo.annotations.push({ type: 'cards', description: row });
+
+    // the exit control gives the shell back (for this visit)
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await open(page, '/wiskey/overview');
+    await expect(page.locator('wiskey-embed')).toHaveAttribute('data-size', 'full', { timeout: 15000 });
+    await page.locator('wiskey-embed button[data-wiskey-exit]').click();
+    await expect(page.locator('wiskey-embed')).toHaveAttribute('data-size', 'normal');
+    await expect(page.locator('wiskey-embed button[data-wiskey-exit]')).toHaveCount(0);
+    await expectFrameFillsContentArea(page);
+    const inertAfter = await page.locator('wiskey-embed').evaluate((embed: HTMLElement) => ['nav.rail', 'header.topbar', 'main > .subnav'].map((s) => ((embed.getRootNode() as ShadowRoot).querySelector(s) as HTMLElement | null)?.inert ?? null));
+    expect(inertAfter).toEqual([false, false, false]);
+    await expect(page.locator('sw-tabs a[href="#/wiskey/devices"]')).toBeVisible(); // the tab row is back
+    // another tab in the same visit stays normal; leaving the area and coming back is full again
+    await page.locator('sw-tabs a[href="#/wiskey/devices"]').click();
+    await expect(page.locator(FRAME)).toHaveAttribute('data-confirmed-tab', 'devices');
+    await expect(page.locator('wiskey-embed')).toHaveAttribute('data-size', 'normal');
+    await page.evaluate(() => (location.hash = '#/live'));
+    await expect(page.locator('wiskey-embed')).toHaveCount(0);
+    await page.evaluate(() => (location.hash = '#/wiskey/overview'));
+    await expect(page.locator('wiskey-embed')).toHaveAttribute('data-size', 'full', { timeout: 15000 });
+
+    // Esc leaves it too
+    await expect(page.locator(FRAME)).toHaveAttribute('data-confirmed-tab', 'overview', { timeout: 15000 });
+    await page.keyboard.press('Escape');
+    await expect(page.locator('wiskey-embed')).toHaveAttribute('data-size', 'normal');
+    await setWiskeySize(base, { 'ui.wiskey_size': 'normal' });
+  });
+
+  test('size on a phone: "מסך מלא" covers the bottom bar too, "מותאם" still fills the area above it', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'phone only');
+    test.setTimeout(90_000);
+    await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
+    const base = testInfo.project.use.baseURL;
+    await setWiskeySize(base, { 'ui.wiskey_size': 'fit', 'ui.wiskey_scale': '80' });
+    await open(page, '/wiskey/overview');
+    await expect(page.locator(FRAME)).toHaveAttribute('data-confirmed-tab', 'overview', { timeout: 15000 });
+    await expect(page.locator('wiskey-embed')).toHaveAttribute('data-size', 'fit');
+    const l = await expectFrameFillsContentArea(page, 0.8);
+    expect(l.bottomTop).not.toBeNull();
+    testInfo.annotations.push({ type: 'cards', description: `phone fit 80%: wrapper ${Math.round(l.frame.width)}×${Math.round(l.frame.height)}, WisKey sees ${l.inner.w}×${l.inner.h} → ${wiskeyCapacity(l.inner.w, l.inner.h)} cards` });
+    await page.screenshot({ path: '../docs/evidence/UIR1-wiskey/wiskey-embed-fit-phone.png' });
+
+    await setWiskeySize(base, { 'ui.wiskey_size': 'full' });
+    await open(page, '/wiskey/overview');
+    await expect(page.locator('wiskey-embed')).toHaveAttribute('data-size', 'full', { timeout: 15000 });
+    const g = await page.locator('wiskey-embed').evaluate((embed: HTMLElement) => {
+      const sr = embed.getRootNode() as ShadowRoot;
+      const f = embed.shadowRoot!.querySelector('iframe')!.getBoundingClientRect();
+      const bn = sr.querySelector('nav.bottom')!.getBoundingClientRect();
+      return { frame: [f.left, f.top, f.width, f.height], vw: innerWidth, vh: innerHeight, bottomCovered: !!sr.elementFromPoint(bn.left + bn.width / 2, bn.top + bn.height / 2)?.closest('wiskey-embed') };
+    });
+    expect(g.frame).toEqual([0, 0, g.vw, g.vh]); // (a plain browser has no safe-area insets)
+    expect(g.bottomCovered).toBe(true);
+    await page.screenshot({ path: '../docs/evidence/UIR1-wiskey/wiskey-embed-full-phone.png' });
+    await page.locator('wiskey-embed button[data-wiskey-exit]').click();
+    await expect(page.locator('wiskey-embed')).toHaveAttribute('data-size', 'normal');
+    await setWiskeySize(base, { 'ui.wiskey_size': 'normal', 'ui.wiskey_scale': '90' });
+  });
+
+  test('הגדרות › "גודל תצוגת WisKey": three values, the scale choice only with "מותאם" (default 90%), saved installation-wide', async ({ page, request }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop only');
+    await open(page, '/system/diagnostics?tab=media');
+    const size = page.locator('system-diagnostics [data-set-wiskey-size]');
+    await expect(size).toBeVisible({ timeout: 30000 });
+    expect(await size.locator('option').allTextContents()).toEqual(['רגיל', 'מותאם', 'מסך מלא']);
+    await expect(size).toHaveValue('normal'); // the default stays "רגיל"
+    await expect(page.locator('system-diagnostics [data-set-wiskey-scale]')).toHaveCount(0);
+    await size.selectOption('fit');
+    const scale = page.locator('system-diagnostics [data-set-wiskey-scale]');
+    await expect(scale).toBeVisible();
+    expect(await scale.locator('option').allTextContents()).toEqual(['100%', '90%', '80%', '70%']);
+    await expect(scale).toHaveValue('90'); // the default scale
+    await scale.selectOption('80');
+    await page.locator('system-diagnostics .foot sw-button[variant="primary"] button').first().click();
+    await expect.poll(async () => { const s = (await (await request.get('/api/v1/settings')).json()).settings; return `${s['ui.wiskey_size']}/${s['ui.wiskey_scale']}`; }).toBe('fit/80');
+    await setWiskeySize(testInfo.project.use.baseURL, { 'ui.wiskey_size': 'normal', 'ui.wiskey_scale': '90' });
   });
 
   test('הגדרות › בקרות כניסה switches one tab between the embed and the SMPLWISE screen', async ({ page, request }, testInfo) => {
