@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from typing import Any, AsyncIterator, Callable
 
 import httpx
@@ -61,6 +62,40 @@ def get_state(settings: Settings, entity_id: str) -> dict[str, Any] | None:
     except httpx.HTTPError:
         return None
     return r.json() if r.status_code == 200 else None
+
+
+CAMERA_IMAGE_MAX = 4 * 1024 * 1024  # a still of a camera card; more than that is not a snapshot
+_CAMERA_ENTITY_RE = re.compile(r"^camera\.[A-Za-z0-9_]{1,200}$")
+JPEG_MAGIC = bytes([0xFF, 0xD8, 0xFF])
+PNG_MAGIC = bytes([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+
+
+def camera_image(settings: Settings, entity_id: str) -> tuple[bytes, str]:
+    """One picture of a Home Assistant camera entity (`GET /api/camera_proxy/<entity>`, read-only): (bytes, media type),
+    JPEG or PNG only, at most CAMERA_IMAGE_MAX. The add-on's own token authorizes the call and never leaves this
+    function: it is not stored, logged or returned (the camera card's still, docs/design/CAMERA_CARD_HA_SOURCE.md)."""
+    if not configured(settings):
+        raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת (SUPERVISOR_TOKEN חסר).")
+    if not _CAMERA_ENTITY_RE.fullmatch(entity_id or ""):
+        raise ValueError("not a camera entity id")
+    body = bytearray()
+    try:
+        with httpx.Client(timeout=15) as c:
+            with c.stream("GET", _rest_base(settings) + f"/camera_proxy/{entity_id}", headers=_headers(settings)) as r:
+                status = r.status_code
+                if status == 200:
+                    for chunk in r.iter_bytes():
+                        body += chunk
+                        if len(body) > CAMERA_IMAGE_MAX:
+                            raise ApiError(503, "snapshot_unavailable", "המצלמה לא סיפקה תמונה תקינה.", retryable=True, details={"reason": "too_large"})
+    except httpx.HTTPError as exc:
+        raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+    if status in (401, 403):
+        raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הגישה.", details={"status": status})
+    data = bytes(body)
+    if status != 200 or not (data.startswith(JPEG_MAGIC) or data.startswith(PNG_MAGIC)):
+        raise ApiError(503, "snapshot_unavailable", "המצלמה לא סיפקה תמונה תקינה.", retryable=True, details={"status": status})
+    return data, "image/jpeg" if data.startswith(JPEG_MAGIC) else "image/png"
 
 
 def get_config(settings: Settings) -> tuple[dict[str, Any], str | None]:

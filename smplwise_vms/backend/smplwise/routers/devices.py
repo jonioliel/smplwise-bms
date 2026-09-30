@@ -31,7 +31,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..audit import audit
-from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..db import Database, commit_now, get_setting, now_iso, rollback_and_restart, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
@@ -76,6 +76,11 @@ def _configure_holder_early(principal: Principal = Depends(current_principal), c
     """system.configure before the body is read (the same envelope as the slice-4 assign route); the refusal is audited."""
     require(conn, principal, "system.configure", INSTALLATION)
     return principal
+
+
+# review L7: the raw-body routes check the permission on a READ connection, read the body, and only then open the write one
+_configure_holder_early_ro = read_gate(lambda conn, principal: require(conn, principal, "system.configure", INSTALLATION))
+_configure_holder_ro = _configure_holder_early_ro
 
 
 def _is_json(content_type: str | None) -> bool:
@@ -297,7 +302,7 @@ class BulkSafeManyBody(BaseModel):
 
 
 @router.post("/devices/bulk-safe")
-def set_bulk_safe_many(request: Request, principal: Principal = Depends(_configure_holder_early), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def set_bulk_safe_many(request: Request, principal: Principal = Depends(_configure_holder_early_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Mark (or unmark) many switches as bulk-safe in one call - the settings screen's "אשר לנבחרים" / "הסר אישור
     מהנבחרים". system.configure, checked before the body; JSON only; at most BULK_SAFE_MAX ids. Per id: refused when it
     is not a switch in the catalogue, when the alarm section owns it (`alarm_managed`) or - to mark - when it sits on the
@@ -383,7 +388,7 @@ def _configure_holder(principal: Principal = Depends(current_principal), conn: s
 
 
 @router.put("/devices/entities/{entity_id}/area")
-def assign_area(entity_id: str, request: Request, principal: Principal = Depends(_configure_holder), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def assign_area(entity_id: str, request: Request, principal: Principal = Depends(_configure_holder_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """CR-007 slice 4: assign an entity of the "ללא שיוך" bucket (or move any entity) to an HA area - a Home
     Assistant CONFIG write, never a domain service call, through the bridge's own registry-write path
     (services/ha_client.call_bridge_set_area - the bridge accepts exactly this one registry op, nothing else).
@@ -486,6 +491,15 @@ def _bulk_holder(principal: Principal = Depends(current_principal), conn: sqlite
     return principal
 
 
+def _check_bulk(conn: sqlite3.Connection, principal: Principal) -> None:
+    wide, floors = ha_scope.visible_floors(conn, principal, bulk.PERMISSION)
+    if not wide and not floors:
+        require(conn, principal, bulk.PERMISSION, INSTALLATION)
+
+
+_bulk_holder_ro = read_gate(_check_bulk)  # review L7
+
+
 def _bulk_reader(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
     wide, floors = ha_scope.visible_floors(conn, principal, bulk.PERMISSION)
     if not wide and not floors:
@@ -572,7 +586,7 @@ def bulk_preview(
 
 
 @router.post("/devices/actions", status_code=202)
-def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Turn off the lights / close the covers / turn off the climate / turn off the screens / turn everything off for
     the building, an HA floor or an HA area. Body: `{scope, id, kind, confirmed, client_request_id, expires_at,
     preview_digest?}`; `confirmed: true` is sent only by the confirmation dialog's own button. The set is resolved here

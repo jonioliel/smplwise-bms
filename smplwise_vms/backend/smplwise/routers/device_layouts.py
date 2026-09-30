@@ -17,6 +17,12 @@ span (1 | 2 of the card's two tile columns), size (s | m | l), hidden, title}}. 
 the card's `hidden_entities` are one set: the server merges them both ways on every write, so an older screen that
 reads only `hidden_entities` still hides the same devices. A card without `tiles` keeps the automatic tile order.
 
+Camera cards (owner 2026-09-30): an area screen may also lay out cameras - an item keyed `camera:<slug>` (slug
+`[A-Za-z0-9_-]{1,32}`) carrying `camera` = {kind: 'nvr', recorder_id, channel} or {kind: 'ha', entity_id: 'camera.*'}.
+It needs a `v: 2` layout, sits on the same grid as the domain cards, and has no tiles / hidden entities; the source names
+a camera, nothing more - who may watch it is decided when the card resolves and when the stream opens
+(routers/device_cameras.py, routers/media.py), never by the layout. At most MAX_CAMERA_CARDS per area.
+
 Routes: `GET /devices/layouts/{scope}/{id}` (devices.read anywhere), `PUT` (one variant, optimistic `revision`, 409
 when stale), `DELETE` (reset: one variant or both), `POST /devices/layouts/area/{id}/copy-to-all-areas`. Every write
 checks `system.configure` BEFORE the body is read (the permission-first, JSON-only envelope of routers/devices.py) and
@@ -27,7 +33,7 @@ import json
 import logging
 import re
 import sqlite3
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
@@ -37,9 +43,10 @@ from ..auth import current_principal_ro, get_conn, get_read_conn
 from ..db import now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize
+from ..services import camera_cards
 from ..services import devices as svc
 from ..services import ha_scope
-from .devices import READ, _configure_holder, _is_json, _raw_body
+from .devices import READ, _configure_holder, _configure_holder_ro, _is_json, _raw_body
 
 router = APIRouter()
 log = logging.getLogger("smplwise.device_layouts")
@@ -78,6 +85,8 @@ TileSize = Literal["s", "m", "l"]
 # frontend/src/screens/devices-layout.ts (tests/test_device_layouts.py compares the two).
 TILE_COLS = {"lighting": 2, "switches": 2, "climate": 2, "covers": 2, "security": 2, "media": 2, "sensors": 2}
 MAX_TILES = 200
+MAX_CAMERA_CARDS = 12  # per area screen: more than a screen can stream anyway (media.max_live_sessions)
+CAMERA_KEY_RE = re.compile(r"^camera:[A-Za-z0-9_-]{1,32}$")
 MAX_TILE_ORDER = 999
 LAYOUT_VERSION = 2  # the schema version this server writes tiles with; 1 = the 6b layout (no tiles)
 # Owner request 2026-09-30 (the area layout editor's card library): `v: 3` adds custom cards and deleted built-in cards.
@@ -86,7 +95,9 @@ LAYOUT_VERSION = 2  # the schema version this server writes tiles with; 1 = the 
 # card the editor deleted stays as an item with `removed: true` (its devices simply show in no card of that name). Keep the
 # types in step with CARD_TYPES in frontend/src/screens/devices-layout-cards.ts (tests/test_device_layouts.py compares).
 CARDS_VERSION = 3
-CUSTOM_TYPES = (*svc.CARD_IDS, "locks", "energy", "free")
+CUSTOM_TYPES = (*svc.CARD_IDS, "locks", "energy", "free", "camera")
+# The library's "camera" entry adds a `camera:<slug>` camera card (below), never a `card:c-` item: a custom card of that type is refused
+CUSTOM_CARD_TYPES = tuple(t for t in CUSTOM_TYPES if t != "camera")
 CUSTOM_KEY_RE = re.compile(r"^card:c-[a-z0-9]{6,12}$")
 MAX_CUSTOM_CARDS = 40
 MAX_CUSTOM_ENTITIES = 300
@@ -127,7 +138,7 @@ class CustomCard(BaseModel):
     @field_validator("type")
     @classmethod
     def _type(cls, v: str) -> str:
-        if v not in CUSTOM_TYPES:
+        if v not in CUSTOM_CARD_TYPES:
             raise ValueError("unknown card type")
         return v
 
@@ -137,6 +148,25 @@ class CustomCard(BaseModel):
         if any(not ENTITY_ID_RE.fullmatch(e) for e in v):
             raise ValueError("not an entity id")
         return sorted(set(v))
+
+
+class NvrSource(BaseModel):
+    """A camera card's source: one channel of the NVR catalogue."""
+    model_config = ConfigDict(extra="forbid", strict=True)
+    kind: Literal["nvr"]
+    recorder_id: str = Field(pattern=camera_cards.RECORDER_ID_RE.pattern)
+    channel: int = Field(ge=1, le=256)
+
+
+class HaSource(BaseModel):
+    """A camera card's source: a Home Assistant camera entity (an NVR channel of the Hikvision integration streams as that
+    channel, any other camera shows a still picture)."""
+    model_config = ConfigDict(extra="forbid", strict=True)
+    kind: Literal["ha"]
+    entity_id: str = Field(pattern=camera_cards.HA_CAMERA_RE.pattern)
+
+
+CameraSource = Annotated[NvrSource | HaSource, Field(discriminator="kind")]
 
 
 class LayoutItem(BaseModel):
@@ -158,6 +188,8 @@ class LayoutItem(BaseModel):
     # v 3: a custom card's type and devices; a built-in card the editor deleted
     custom: CustomCard | None = None
     removed: bool = False
+    # owner 2026-09-30: a camera card's source (`camera:<slug>` keys of the area screen only; None on every other item)
+    camera: CameraSource | None = None
 
     @field_validator("title")
     @classmethod
@@ -216,6 +248,8 @@ def _dump(layout: Layout) -> str:
             it.pop("custom", None)
         if not it.get("removed"):
             it.pop("removed", None)
+        if it.get("camera") is None:
+            it.pop("camera", None)
     return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
 
 
@@ -280,12 +314,14 @@ def _validate_semantics(scope: str, variant: str, layout: Layout) -> list[str]:
     cols = COLUMNS[variant]
     if layout.cols != cols:
         errors.append(f"layout.cols must be {cols} for the {variant} layout")
+    if sum(1 for k in layout.items if CAMERA_KEY_RE.fullmatch(k)) > MAX_CAMERA_CARDS:
+        errors.append(f"layout.items: at most {MAX_CAMERA_CARDS} camera cards per area")
     for key, it in layout.items.items():
         if scope == "building" and not BUILDING_KEY_RE.fullmatch(key):
             errors.append(f"layout.items.{key[:40]}: the building screen lays out floor:<id> and area:<id> only")
         builtin = key in {f"card:{c}" for c in svc.CARD_IDS}
-        if scope == "area" and not builtin and not CUSTOM_KEY_RE.fullmatch(key):
-            errors.append(f"layout.items.{key[:40]}: the area screen lays out its cards (card:<id>) only")
+        if scope == "area" and not builtin and not CUSTOM_KEY_RE.fullmatch(key) and not CAMERA_KEY_RE.fullmatch(key):
+            errors.append(f"layout.items.{key[:40]}: the area screen lays out its cards (card:<id>) and camera cards (camera:<id>) only")
         if scope == "area" and CUSTOM_KEY_RE.fullmatch(key) and it.custom is None:
             errors.append(f"layout.items.{key[:40]}: a custom card needs its type and devices")
         if it.custom is not None and (scope != "area" or builtin):
@@ -294,6 +330,7 @@ def _validate_semantics(scope: str, variant: str, layout: Layout) -> list[str]:
             errors.append(f"layout.items.{key[:40]}: only a built-in area card can be removed")
         if (it.custom is not None or it.removed) and layout.v < CARDS_VERSION:
             errors.append(f"layout.items.{key[:40]}: custom and removed cards need layout v {CARDS_VERSION}")
+        errors.extend(_camera_errors(scope, key, it, layout.v))
         if it.x + it.w > cols:
             errors.append(f"layout.items.{key[:40]}: x + w exceeds the {cols} columns")
         if it.hidden_entities and scope != "area":
@@ -302,6 +339,24 @@ def _validate_semantics(scope: str, variant: str, layout: Layout) -> list[str]:
             errors.extend(_tile_errors(scope, key, it, layout.v))
     if sum(1 for it in layout.items.values() if it.custom is not None) > MAX_CUSTOM_CARDS:
         errors.append(f"layout.items: at most {MAX_CUSTOM_CARDS} custom cards")
+    return errors
+
+
+def _camera_errors(scope: str, key: str, it: LayoutItem, version: int) -> list[str]:
+    """A `camera:<slug>` item is an area screen's camera card of a v2 layout with a source and nothing a domain card has;
+    no other item carries a source."""
+    where = f"layout.items.{key[:40]}"
+    if not CAMERA_KEY_RE.fullmatch(key):
+        return [f"{where}.camera: only a camera:<id> card has a camera source"] if it.camera is not None else []
+    if scope != "area":
+        return [f"{where}: camera cards belong to the area screen"]
+    errors: list[str] = []
+    if it.camera is None:
+        errors.append(f"{where}.camera: a camera card needs its source")
+    if version < LAYOUT_VERSION:
+        errors.append(f"{where}: camera cards need layout v {LAYOUT_VERSION}")
+    if it.tiles or it.hidden_entities:
+        errors.append(f"{where}: a camera card has no device tiles")
     return errors
 
 
@@ -324,13 +379,15 @@ def _tile_errors(scope: str, key: str, it: LayoutItem, version: int) -> list[str
 
 
 def _portable(layout_json: str) -> str:
-    """A layout as another area can take it: a custom card lists THIS area's devices, so it stays here; the built-in
-    cards' arrangement (and a built-in card the editor deleted) is what "העתק לכל האזורים" copies."""
+    """A layout as another area can take it: a custom card lists THIS area's devices and a camera card names one camera
+    of this area, so both stay here (a deliberate choice: a camera is area-specific); the built-in cards' arrangement
+    (and a built-in card the editor deleted) is what "העתק לכל האזורים" copies."""
     data = json.loads(layout_json)
     items = data.get("items", {})
-    if not any(isinstance(it, dict) and it.get("custom") for it in items.values()):
+    area_bound = lambda it: isinstance(it, dict) and (it.get("custom") or it.get("camera"))  # noqa: E731
+    if not any(area_bound(it) for it in items.values()):
         return layout_json
-    data["items"] = {k: it for k, it in items.items() if not (isinstance(it, dict) and it.get("custom"))}
+    data["items"] = {k: it for k, it in items.items() if not area_bound(it)}
     return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
 
 
@@ -442,7 +499,7 @@ def get_layout(scope: str, scope_id: str, principal: Principal = Depends(current
 
 
 @router.put("/devices/layouts/{scope}/{scope_id}")
-def put_layout(scope: str, scope_id: str, request: Request, principal: Principal = Depends(_configure_holder), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def put_layout(scope: str, scope_id: str, request: Request, principal: Principal = Depends(_configure_holder_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Save one variant. `revision` is the one the editor started from (0 = none); another save in between is a 409
     `layout_conflict` with the current revision, and nothing is written."""
     _check_scope(scope, scope_id)
@@ -492,7 +549,7 @@ def reset_layout(
 
 
 @router.post("/devices/layouts/area/{scope_id}/copy-to-all-areas")
-def copy_to_all_areas(scope_id: str, request: Request, principal: Principal = Depends(_configure_holder), conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def copy_to_all_areas(scope_id: str, request: Request, principal: Principal = Depends(_configure_holder_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """This area's STORED layout becomes every other area's (the "ללא שיוך" bucket included): the desktop record and,
     when this area has one, the phone record; an area whose phone layout was edited but whose source has none goes back
     to the derived phone layout. The screens confirm first; one audit row (scope, id, revision, how many areas)."""
