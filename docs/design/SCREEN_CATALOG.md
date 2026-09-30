@@ -258,3 +258,63 @@ Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and key
 Desktop/tablet/mobile; RTL shell, geometry and video not mirrored; focus and keyboard equivalents.
 **Tasks:** T056
 
+## Addenda after v1.1 (screens added or moved by later change requests)
+
+The 32 entries above are the v1.1 plan and are kept as written. The screens below were added or moved afterwards; their
+authoritative records are the change requests and design records named in each entry. Routes are the product's hash routes.
+States listed are those the implemented screen renders.
+
+### SC10 (moved, 0.1.146) — קטלוג ההתקנים
+The device catalogue is no longer the map's "התקנים" tab: it is **הגדרות › קטלוג התקנים**, route `#/system/entities`, for
+`system.configure` at installation scope only. `#/explore/entities` redirects (to the catalogue for holders, to the map
+otherwise). Record: `docs/architecture/TABS_CONFIG.md`.
+
+### SC28 (extended, 0.1.146) — הגדרות
+New settings tab **לשוניות** (SC37 below), a default floor for the map (tab "מפה"), the start screen (default "ראשי"), the
+WisKey display size and the NVR clock reading ("מערכת ה־NVR" in the connections screen) joined the settings screens; the home
+screen's title, widgets and floor order are edited on the home screen itself ("עריכת המסך הראשי" in the user menu).
+
+## SC33 — תזמונים: רשימה
+**Mode:** Home (חשמל והתקנים) | **Phase:** PILOT | **Route:** `#/devices/schedules` (also `/<id>` drawer, `/trash`, `/review`)
+הלשונית השנייה במסך הראשי, לצד "מבט על": התזמונים שהמשתמש רשאי לראות ככרטיסים, טבלה או לוח שבוע לקריאה בלבד; פס סיכום, חיפוש,
+סינון, קיבוץ, מיון, הפעלה והשבתה מרובות, מגירת פרטים, סל מחזור ל-30 יום, ולמנהלי התקנה רשימת "לבדיקה".
+**Visual reference:** `docs/design/mockups/scheduler/` (screens 01-04, 13-16, 20, 22, 23)
+**States:** loading, empty, ready, filtered-empty, feature off, component missing (operator / administrator), no permission,
+view-only, stale, error
+Desktop/tablet/mobile; RTL shell, the 24 h axis is left-to-right by decision; focus and keyboard equivalents.
+**Record:** CR-014 (`docs/design/CR-014-scheduler.md`, `docs/architecture/SCHEDULER_API.md` §12); user guide `41-schedules_HE.md`.
+
+## SC34 — תזמונים: עורך 24 שעות
+**Mode:** Home | **Phase:** PILOT | **Route:** `#/devices/schedules/<id>/edit`, `#/devices/schedules/new/edit[?template=&preset=]`
+לוח שבועי 7 × 24 שעות (ימים מקושרים), תצוגת יום, תצוגת טבלה על אותו מודל, פאנל משבצת (שעות, פעולות, ארגומנטים, "כיבוי בסיום
+החלון", העתקה לימים), פאנל צד (פרטים, התקנים, ימים, חזרה, תקופה, תנאים עם תנאי שבת וחג, הרצות באות, בדיקות תקינות), פיצול יום,
+באנר קונפליקט, הגנה מיציאה בלי שמירה ואישור לפעולה רגישה. בטלפון: זוג לשוניות (לוח / הגדרות) וציר יום אנכי.
+**Visual reference:** `docs/design/mockups/scheduler/` (screens 05-08, 17-19, 21, 24, 25)
+**States:** loading, ready, read-only (permission, locked slot, unsupported content), conflict, save error, forbidden / not found
+Desktop/tablet/mobile; RTL shell, the axis is left-to-right; focus and keyboard equivalents (arrows, Shift / Ctrl + arrows,
+Delete, Enter).
+**Record:** CR-014.
+
+## SC35 — תזמונים: יצירה
+**Mode:** Home | **Phase:** PILOT | **Route:** dialog over SC33 ("תזמון חדש")
+תבניות (שגרה שבועית, תאורה בשקיעה, תריסים לפי עונה, מזגן בשעות משרד, פעם אחת, שבת: קירור / חימום, מוצאי שבת, ריק) עם תנאי שבת וחג
+אופציונלי, ויצירה מהירה בשלוש הקשות (איפה, מה ומתי, באילו ימים).
+**Visual reference:** `docs/design/mockups/scheduler/` (screens 09, 26)
+**States:** loading, ready, saving, error, sensor not configured (presets disabled)
+**Record:** CR-014.
+
+## SC36 — הגדרות › תזמונים
+**Mode:** System | **Phase:** PILOT | **Route:** `#/system/schedules` (`system.configure`, installation scope)
+חיבור (גרסאות הרכיב והגשר, סנכרון אחרון, הוראות התקנה), מתג ההפעלה (כבוי כברירת מחדל), חיישן שבת וחג, סוגי התקנים מותרים,
+ברירות מחדל לעורך וטבלת "מי רשאי מה" לקריאה בלבד.
+**Visual reference:** `docs/design/mockups/scheduler/` (screen 12, adapted per `SCHEDULER_API.md` §12.4)
+**States:** loading, ready, dirty, saved, error, forbidden
+**Record:** CR-014; user guide `80-settings_HE.md`.
+
+## SC37 — הגדרות › לשוניות
+**Mode:** System | **Phase:** PILOT | **Route:** `#/system/diagnostics?tab=tabs` (element `system-tabs-config`)
+הצגה, הסתרה וסדר של לשוניות בכל אזור ניווט; סדר אישי של הניווט הראשי גובר אצל המשתמש שקבע אותו.
+**Visual reference:** none (a settings form)
+**States:** loading, ready, dirty, saved, error, view-only, demo
+**Record:** `docs/architecture/TABS_CONFIG.md`.
+
