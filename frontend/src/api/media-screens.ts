@@ -142,6 +142,10 @@ export interface SourceItem {
   kind: 'source' | 'app' | 'channel';
   glyph: Glyph;
   hue: number | null;
+  /** Only in the curation read (`get(key, { curation: true })`, media.layout): the administrator hid it from the remote. */
+  hidden?: boolean;
+  /** Only in the curation read: the item's own name (`label` is the custom one, else this). */
+  default_label?: string;
 }
 
 export interface RecentItem {
@@ -294,7 +298,8 @@ export interface BulkPreview {
 export interface MediaAdapter {
   status(): Promise<MediaStatus>;
   list(query?: { floor?: string; area?: string; q?: string }): Promise<{ devices: MediaDevice[] }>;
-  get(key: string): Promise<MediaDeviceDetail>;
+  /** `curation`: the remote editor's read - hidden items included, each with its default name (media.layout only; others get the ordinary detail). */
+  get(key: string, opts?: { curation?: boolean }): Promise<MediaDeviceDetail>;
   command(key: string, body: MediaCommand & { client_request_id: string; expires_at: string }): Promise<CommandResult>;
   layout(): Promise<LayoutResponse>;
   saveLayout(layout: MediaLayout, baseRevision: number): Promise<LayoutResponse>;
@@ -324,7 +329,7 @@ const qs = (q: Record<string, string | undefined>) => {
 export const httpAdapter: MediaAdapter = {
   status: () => get('multimedia/status'),
   list: (q = {}) => get(`multimedia/devices${qs({ kind: 'screen', ...q })}`),
-  get: (key) => get(`multimedia/devices/${enc(key)}`),
+  get: (key, opts) => get(`multimedia/devices/${enc(key)}${opts?.curation ? '?curation=1' : ''}`),
   command: (key, body) => post(`multimedia/devices/${enc(key)}/commands`, body),
   layout: () => get('multimedia/layout'),
   saveLayout: (layout, base_revision) => put('multimedia/layout', { layout, base_revision }),

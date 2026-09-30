@@ -247,6 +247,35 @@ def test_source_and_app_curation_order_hide_rename_and_kind(m):
     assert c.put(f"/api/v1/multimedia/devices/{keys['samsung']}/remote", json={"remote": None, "surprise": 1}).status_code == 422
 
 
+def test_the_curation_read_shows_hidden_items_and_default_names_only_to_media_layout(m):
+    """The remote editor needs the hidden items and each item's own name: without them a re-save would un-hide everything and drop
+    the custom names. `?curation=1` is honoured for media.layout only; everyone else gets the ordinary detail."""
+    app, c, calls, keys, settings = m
+    body = {"remote": None,
+            "sources": [{"id": "HDMI1", "label": "ממיר", "hidden": False, "kind": "source"}, {"id": "HDMI2", "label": None, "hidden": True, "kind": "source"}],
+            "apps": [{"id": "Netflix", "label": None, "hidden": True}]}
+    assert c.put(f"/api/v1/multimedia/devices/{keys['samsung']}/remote", json=body).status_code == 200
+    url = f"/api/v1/multimedia/devices/{keys['samsung']}"
+    plain = c.get(url).json()
+    assert "HDMI2" not in [s["id"] for s in plain["sources"]] and "Netflix" not in [a["id"] for a in plain["apps"]], "hidden items are omitted for everyone"
+    assert all("hidden" not in s and "default_label" not in s for s in plain["sources"] + plain["apps"])
+    full = c.get(url + "?curation=1").json()
+    by = {s["id"]: s for s in full["sources"] + full["apps"]}
+    assert by["HDMI2"]["hidden"] is True and by["Netflix"]["hidden"] is True and by["HDMI1"]["hidden"] is False
+    assert by["HDMI1"]["label"] == "ממיר" and by["HDMI1"]["default_label"] == "HDMI 1", "the custom name and the TV's own name are both there"
+    assert [s["id"] for s in full["sources"]][:2] == ["HDMI1", "HDMI2"]
+    # saving the editor's own list back changes nothing: hidden stays hidden, the custom name stays
+    back = {"remote": None, "sources": [{"id": s["id"], "label": None if s["label"] == s["default_label"] else s["label"], "hidden": s["hidden"], "kind": s["kind"], "glyph": s["glyph"]} for s in full["sources"]],
+            "apps": [{"id": a["id"], "label": None if a["label"] == a["default_label"] else a["label"], "hidden": a["hidden"], "glyph": a["glyph"]} for a in full["apps"]]}
+    assert c.put(url + "/remote", json=back).status_code == 200
+    again = c.get(url + "?curation=1").json()
+    assert {s["id"]: (s["label"], s["hidden"]) for s in again["sources"] + again["apps"]} == {s["id"]: (s["label"], s["hidden"]) for s in full["sources"] + full["apps"]}
+    # an operator (no media.layout) asking for it gets the ordinary answer
+    operator = role(c, settings, "olga", "operator")
+    ops = c.get(url + "?curation=1", headers=operator).json()
+    assert all("hidden" not in s for s in ops["sources"] + ops["apps"]) and "HDMI2" not in [s["id"] for s in ops["sources"]]
+
+
 # ------------------------------------------------------------------------------------------------ artwork
 
 
@@ -535,7 +564,7 @@ def test_the_migrations_apply_on_a_0_1_148_database_and_give_custom_roles_the_me
             conn.execute("INSERT INTO custom_roles(id, name_he, permissions_json, sensitive_json, created_at, updated_at) VALUES (?,?,?,?,?,?)", (rid, rid, json.dumps(perms), json.dumps(sens), now, now))
         rev = dbmod.permission_revision(conn)
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
-    assert database.migrate() == [41, 42]
+    assert database.migrate() == [40, 41, 42, 43], "0040 climate kind, 0041 / 0042 multimedia, 0043 camera wall hidden"
     with database.connection() as conn:
         roles = {r["id"]: (json.loads(r["permissions_json"]), json.loads(r["sensitive_json"])) for r in conn.execute("SELECT * FROM custom_roles")}
         assert roles["r-read"][0] == ["devices.read", "map.read", "media.read"]
@@ -561,7 +590,8 @@ def test_the_migrations_apply_on_a_0_1_148_database_and_give_custom_roles_the_me
 
 def test_the_migration_numbers_are_unique_and_0041_0042_are_ours():
     names = sorted(f.name for f in dbmod.MIGRATIONS_DIR.glob("004*.sql"))
-    assert names == ["0041_media_devices.sql", "0042_media_role_grants.sql"]
+    assert names == ["0040_climate_kind.sql", "0041_media_devices.sql", "0042_media_role_grants.sql", "0043_camera_wall_hidden.sql"]
+    assert len({n.split("_", 1)[0] for n in names}) == len(names), "no two migrations share a number"
 
 
 # ------------------------------------------------------------------------------------------------ settings

@@ -73,8 +73,8 @@ function seeds(): Seed[] {
 
 const srcGlyph = (s: string): Glyph => (/^(tv|live tv)$/i.test(s) ? 'antenna' : /usb/i.test(s) ? 'image' : 'hdmi');
 const srcLabel = (s: string): string => (/^(tv|live tv)$/i.test(s) ? 'טלוויזיה' : s.replace(/^HDMI(\d)$/, 'HDMI $1'));
-const source = (s: string): SourceItem => ({ id: s, label: srcLabel(s), kind: 'source', glyph: srcGlyph(s), hue: null });
-const app = (a: string): SourceItem => ({ id: a, label: a, kind: 'app', glyph: APP_GLYPH[a]?.[0] ?? 'app', hue: APP_GLYPH[a]?.[1] ?? 210 });
+const source = (s: string): SourceItem => ({ id: s, label: srcLabel(s), kind: 'source', glyph: srcGlyph(s), hue: null, hidden: false, default_label: srcLabel(s) });
+const app = (a: string): SourceItem => ({ id: a, label: a, kind: 'app', glyph: APP_GLYPH[a]?.[0] ?? 'app', hue: APP_GLYPH[a]?.[1] ?? 210, hidden: false, default_label: a });
 
 function caps(s: Seed): MediaCaps {
   const f = (x: Feat) => s.feat.includes(x);
@@ -153,8 +153,15 @@ export class MediaMockStore implements MediaAdapter {
     };
   }
 
-  async get(key: string): Promise<MediaDeviceDetail> {
-    return clone(this.row(key).device);
+  /** The ordinary detail leaves hidden items (and the curation-only fields) out, like the server; `curation` keeps them. */
+  async get(key: string, opts: { curation?: boolean } = {}): Promise<MediaDeviceDetail> {
+    const d = clone(this.row(key).device);
+    if (!opts.curation) {
+      const plain = (items: SourceItem[]): SourceItem[] => items.filter((i) => !i.hidden).map(({ hidden: _h, default_label: _d, ...rest }) => rest);
+      d.sources = plain(d.sources);
+      d.apps = plain(d.apps);
+    }
+    return d;
   }
 
   async command(key: string, body: MediaCommand & { client_request_id: string; expires_at: string }): Promise<CommandResult> {
@@ -221,11 +228,14 @@ export class MediaMockStore implements MediaAdapter {
     const curate = (items: SourceItem[], edits: DeviceRemoteBody['sources']) => {
       if (!edits) return items;
       const byId = new Map(items.map((i) => [i.id, i]));
-      return edits.filter((e) => !e.hidden && byId.has(e.id)).map((e) => ({ ...byId.get(e.id)!, label: e.label ?? byId.get(e.id)!.label, glyph: e.glyph ?? byId.get(e.id)!.glyph }));
+      return edits.filter((e) => byId.has(e.id)).map((e) => {
+        const it = byId.get(e.id)!;
+        return { ...it, label: e.label ?? it.default_label ?? it.label, glyph: e.glyph ?? it.glyph, hidden: e.hidden };
+      });
     };
     d.sources = curate(d.sources, body.sources);
     d.apps = curate(d.apps, body.apps);
-    return clone(d);
+    return this.get(key);
   }
 
   async bulkPreview(scope: BulkScope, id: string): Promise<BulkPreview> {

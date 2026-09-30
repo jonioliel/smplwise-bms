@@ -142,8 +142,12 @@ def list_devices(
 
 
 @router.get("/multimedia/devices/{key}")
-def get_device(key: str, principal: Principal = Depends(_reader_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+def get_device(key: str, curation: bool = Query(False), principal: Principal = Depends(_reader_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """`?curation=1` is the remote editor's read: hidden sources / apps included, each with its default name - only for a holder of
+    media.layout at the screen's anchor (anyone else gets the ordinary detail)."""
     cat, item, access = store.find_visible(conn, principal, key)
+    if curation and store.Access(conn, principal, (store.PERM_LAYOUT,)).has(store.PERM_LAYOUT, item.row.get("anchor_entity_id")):
+        return store.device_detail(conn, cat, item, access, curation=True)
     return store.device_detail(conn, cat, item, access)
 
 

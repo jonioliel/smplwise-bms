@@ -10,7 +10,6 @@ import path from 'node:path';
 //   npx vite --host 127.0.0.1 --port 4371   then   SW_BASE_URL=http://127.0.0.1:4371/ npx playwright test evidence-media-remote --project=desktop
 // SW_SHOTS=<dir> saves the screenshots there (docs/design/evidence/CR-015/s3). One project only: the spec sets the three widths itself.
 const SHOTS = process.env.SW_SHOTS ?? '';
-const STUB = fs.readFileSync(new URL('./fixtures/media-screen-card-stub.js', import.meta.url), 'utf8');
 const MOCK_URL = '/src/api/media-screens-mock.ts';
 const EDIT_URL = '/src/shell/screen-edit.ts';
 const HOME_CFG_URL = '/src/api/home-config.ts';
@@ -40,10 +39,9 @@ async function shots(page: Page, name: string) {
 }
 
 /** The app in demo mode with a glass stage behind the remote (what the screens page / area screen would be). */
-async function stage(page: Page, opts: { scheme?: 'light' | 'dark'; stub?: boolean } = {}) {
+async function stage(page: Page, opts: { scheme?: 'light' | 'dark' } = {}) {
   await page.goto('./');
   await page.waitForFunction(() => !!customElements.get('media-remote') && !!customElements.get('sw-drawer'));
-  if (opts.stub) await page.addScriptTag({ content: STUB });
   await page.evaluate(
     async ([scheme, url]) => {
       const mod = await import(/* @vite-ignore */ url);
@@ -226,6 +224,7 @@ test.describe('the remote: sources, apps and the touchpad', () => {
     await R(page).locator('[role="radio"]', { hasText: 'משטח' }).click();
     const tp = R(page).locator('media-remote-pad').locator('.tpad');
     await expect(tp).toBeVisible();
+    await tp.scrollIntoViewIfNeeded(); // the phone's sheet scrolls: the pad may sit below the fold
     const b = (await tp.boundingBox())!;
     const cx = b.x + b.width / 2;
     const cy = b.y + b.height / 2;
@@ -488,7 +487,7 @@ test.describe('the remote editor ("עריכת השלט")', () => {
 // ---------------------------------------------------------------------------------------------------------------------------
 // the area card and the home widget
 
-/** A glass frame like the area screen's media card, with `<media-area-card>` inside (the stub stands for S2's screen card). */
+/** A glass frame like the area screen's media card, with `<media-area-card>` inside (the real S2 screen card). */
 async function mountAreaCard(page: Page) {
   await page.evaluate(() => {
     const st = document.querySelector('#mr-stage') as HTMLElement;
@@ -509,7 +508,7 @@ async function mountAreaCard(page: Page) {
 
 test.describe('the area card (<media-area-card>)', () => {
   test('one compact card per physical screen, every "שלט" opens the same remote; "כבה הכל" asks, sends only to screens confirmed on and reports each one', async ({ page }) => {
-    await stage(page, { stub: true });
+    await stage(page);
     await withMock(page, (m) => {
       const k = m.rows.find((r: any) => r.device.key === 'md-kitchen').device;
       k.area_id = 'living';
@@ -521,7 +520,7 @@ test.describe('the area card (<media-area-card>)', () => {
     await expect(page.locator('[data-media-tile]')).toHaveCount(2);
     await shots(page, 'areacard-light');
     // the tile's "שלט" opens the remote of THAT screen
-    await page.locator('[data-media-tile="md-living"] [data-open-remote]').click();
+    await page.locator('[data-media-tile="md-living"] .rbtn').click();
     await expect(page.locator('media-area-card media-remote[open]')).toHaveCount(1);
     await expect(page.locator('media-area-card media-remote [data-mr-state="on"]')).toBeVisible();
     await expect(page.locator('media-area-card media-remote sw-drawer')).toHaveAttribute('heading', 'טלוויזיה סלון');
@@ -553,7 +552,7 @@ test.describe('the area card (<media-area-card>)', () => {
   });
 
   test('dark at 1440 and 390; the button goes away when no screen is confirmed on', async ({ page }) => {
-    await stage(page, { stub: true, scheme: 'dark' });
+    await stage(page, { scheme: 'dark' });
     await mountAreaCard(page);
     await shot(page, 'areacard-dark-1440');
     await page.setViewportSize({ width: 390, height: 844 });
@@ -643,7 +642,7 @@ function row(entity_id: string, name: string, state: string, extra: Record<strin
   return { entity_id, name, domain: entity_id.split('.')[0], device_class: null, state, available: true, fresh: true, active: state === 'playing' || state === 'on', icon: null, last_changed: '2026-09-30T18:00:00Z', can_control: true, ...extra };
 }
 
-const emptyCounts = { entities: 0, lights: 0, lights_on: 0, switches: 0, switches_on: 0, covers: 0, covers_open: 0, climate: 0, climate_active: 0, media: 0, media_on: 0, locks: 0, locks_locked: 0, alarm: null, cameras: 0, sensors: 0 };
+const emptyCounts = { entities: 0, lights: 0, lights_on: 0, switches: 0, switches_on: 0, covers: 0, covers_open: 0, climate: 0, climate_active: 0, heating: 0, heating_active: 0, media: 0, media_on: 0, locks: 0, locks_locked: 0, alarm: null, cameras: 0, sensors: 0 };
 
 function areaDetail() {
   const card = (id: string, label: string, entities: unknown[]) => ({ id, label, entities, count: entities.length, active: entities.length });
@@ -660,6 +659,7 @@ function areaDetail() {
       lighting: card('lighting', 'תאורה', [row('light.living_ceiling', 'תקרה', 'on', { brightness_pct: 80 })]),
       switches: card('switches', 'מתגים', []),
       climate: card('climate', 'מיזוג', []),
+      heating: card('heating', 'חימום', []),
       covers: card('covers', 'תריסים', []),
       security: card('security', 'אבטחה', []),
       media: card('media', 'מסכים', media),
@@ -731,7 +731,6 @@ async function apiMode(page: Page) {
     }
     return json(404, { code: 'not_found', user_message: 'not_found', retryable: false, correlation_id: 'fake', details: {} });
   });
-  await page.addInitScript(STUB);
   return { holder, calls, mock: <T,>(fn: (m: any) => T | Promise<T>) => withMock(holder, fn) };
 }
 
@@ -749,7 +748,7 @@ test.describe('the area screen in API mode (devices-area.ts hook, HTTP adapter)'
     await expect(card.getByText('רמקול מטבח')).toBeVisible();
     await page.waitForTimeout(400);
     await shots(page, 'area-screen-api-light');
-    await card.locator('[data-media-tile="md-living"] [data-open-remote]').click();
+    await card.locator('[data-media-tile="md-living"] .rbtn').click();
     await expect(card.locator('media-remote [data-mr-state="on"]')).toBeVisible();
     await shots(page, 'area-screen-api-remote-light');
     expect(api.calls.some((c) => c.path === 'multimedia/devices/md-living' && c.method === 'GET')).toBe(true);

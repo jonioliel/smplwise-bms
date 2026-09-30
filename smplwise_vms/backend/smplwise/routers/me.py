@@ -112,8 +112,8 @@ def put_my_prefs(body: PrefsPatch, principal: Principal = Depends(current_princi
     unknown ids and appends the missing ones in the default order. Presentation only: no permission changes."""
     patch = {user_prefs_key(name): value for name, value in body.model_dump(by_alias=False).items() if name in body.model_fields_set}
     allowed = may_personalize(conn, principal)
-    if any(patch.get(k) is not None for k in user_prefs.PERSONAL_KEYS) and not allowed:
-        # home redesign: the personal home screen is for holders of screen.personalize only (clearing it is always allowed)
+    if any(patch.get(k) is not None for k in user_prefs.PERSONAL_KEYS if k != user_prefs.PERSONAL_MEDIA_KEY) and not allowed:
+        # home redesign / area rows: the personal home screen is for holders of screen.personalize only (clearing it is always allowed)
         from ..audit import audit
 
         audit(conn, actor=principal, action=PERSONALIZE, decision="denied", resource_type=INSTALLATION[0], resource_id=INSTALLATION[1], reason="permission_missing")

@@ -7,12 +7,11 @@ import path from 'node:path';
  * tests/fixtures/media_fake_ha.py (the real backend with a fake Home Assistant and a fake bridge; never the lab, never a
  * real Home Assistant). Written against the contract (docs/architecture/MEDIA_API.md) before S1-S3 merged:
  *
- *   part A  "the fixture"       runs on any backend today: seeding, the real action route, confirmation, the stuck TV.
- *   part B  "the multimedia API" needs S1 (routes /multimedia/*). Without them it is SKIPPED with the reason, never green.
- *   part C  "the screens, the remote and the editors" needs S2 and S3 (the rail entry, <media-remote>, the editors).
- *           Skipped with the reason while the rail has no multimedia entry. The UI locators are in SEL below: they are
- *           PROVISIONAL (tag names from the contract, data attributes from the mockup) and are to be aligned with the
- *           merged components; a locator that no longer matches fails with its name, it does not silently pass.
+ *   part A  "the fixture"       runs on any backend: seeding, the real action route, confirmation, the stuck TV.
+ *   part B  "the multimedia API" needs the /multimedia/* routes (S1). Without them it is SKIPPED with the reason, never green.
+ *   part C  "the screens, the remote and the editors" needs the rail entry, <media-remote> and the editors (S2 / S3).
+ *           The UI locators are in SEL below, aligned with the merged components (release 0.1.149); a locator that no longer
+ *           matches fails with its name, it does not silently pass.
  *
  * Run (see the fixture's docstring): SW_LIVE=1 SW_MEDIA_FIXTURE=1 SW_API_PORT=4381 SW_BASE_URL=http://127.0.0.1:4191/ \
  *   npx playwright test tests/evidence-media-live.spec.ts --workers=1        (the control server is SW_API_PORT + 1)
@@ -151,7 +150,7 @@ async function frame(page: Page, info: TestInfo) {
   if (info.project.name === 'tablet') await page.setViewportSize({ width: 820, height: 1180 });
 }
 
-// ------------------------------------------------------------------------------------------------ provisional UI locators (S2 / S3)
+// ------------------------------------------------------------------------------------------------ UI locators (S2 / S3 components)
 
 const SEL = {
   rail: 'sw-app nav.rail a[href="#/multimedia/screens"]',
@@ -164,6 +163,11 @@ const SEL = {
   userMenuButton: 'sw-app [data-profile-menu]:visible, sw-app [data-nav-me]:visible',
   editPanel: 'multimedia-edit-panel',
   cardName: (name: string) => `media-screen-card:has-text("${name}")`,
+  /** The "שלט" button of one card (aria-label "שלט · <name>", components/media-screen-card.ts); the picture opens the remote too. */
+  openRemote: (name: string) => `media-screen-card:has-text("${name}") button[aria-label="שלט · ${name}"]`,
+  power: 'media-remote [data-mr-power]',
+  moveDown: 'multimedia-edit-panel [data-mm-down]:not([disabled])',
+  save: '[data-mm-save]',
 };
 
 // ================================================================================================ part A: the fixture (runs today)
@@ -734,7 +738,7 @@ test.describe('multimedia screens, the remote and the editors on the fixture (ne
     const p = await open(page, request, info, '/multimedia/screens');
     await ctl(request, '/seed-media', {});
     await expect(page.locator(SEL.card)).toHaveCount(7, { timeout: 30_000 });
-    await page.locator(SEL.cardName(SCREENS.living.name)).first().click();
+    await page.locator(SEL.openRemote(SCREENS.living.name)).click();
     await expect(page.locator(SEL.remote)).toBeVisible({ timeout: 15_000 });
     await shot(page, 'media-remote-samsung-live', info);
     const since = await mark(request);
@@ -743,7 +747,7 @@ test.describe('multimedia screens, the remote and the editors on the fixture (ne
     await page.locator(SEL.remoteKey('back')).click();
     await expect.poll(async () => (await callsSince(request, since, 0)).map((c) => c.code)).toContain('KEY_RETURN');
     // volume follows the linked amplifier
-    const vol = page.locator(`${SEL.remote} [data-key="volup"], ${SEL.remote} [data-vol="up"]`).first();
+    const vol = page.locator(SEL.remoteKey('volup')).first();
     await vol.click();
     await expect.poll(async () => (await callsSince(request, since, 0)).some((c) => c.entity_id === RECEIVER.vendor && /volume_up|volume_set/.test(c.service))).toBe(true);
     const all = await callsSince(request, since, 300);
@@ -758,7 +762,7 @@ test.describe('multimedia screens, the remote and the editors on the fixture (ne
     await ctl(request, '/seed-media', {});
     await expect(page.locator(SEL.card)).toHaveCount(7, { timeout: 30_000 });
     for (const [screen, code] of [[SCREENS.bedroom, 'ENTER'], [SCREENS.office, 'DPAD_CENTER']] as const) {
-      await page.locator(SEL.cardName(screen.name)).first().click();
+      await page.locator(SEL.openRemote(screen.name)).click();
       await expect(page.locator(SEL.remote)).toBeVisible({ timeout: 15_000 });
       const since = await mark(request);
       await page.locator(SEL.remoteKey('ok')).click();
@@ -774,9 +778,9 @@ test.describe('multimedia screens, the remote and the editors on the fixture (ne
     await open(page, request, info, '/multimedia/screens');
     await ctl(request, '/seed-media', {});
     await expect(page.locator(SEL.card)).toHaveCount(7, { timeout: 30_000 });
-    await page.locator(SEL.cardName(SCREENS.lounge.name)).first().click();
+    await page.locator(SEL.openRemote(SCREENS.lounge.name)).click();
     await expect(page.locator(SEL.remote)).toBeVisible({ timeout: 15_000 });
-    await page.locator(`${SEL.remote} [data-a="power"], ${SEL.remote} [data-power]`).first().click();
+    await page.locator(SEL.power).first().click();
     await expect(page.locator('sw-app')).toContainText('המסך לא אישר את הפקודה', { timeout: 20_000 });
     await shot(page, 'media-remote-not-confirmed-live', info);
     await ctl(request, '/seed-media', {});
@@ -817,8 +821,8 @@ test.describe('multimedia screens, the remote and the editors on the fixture (ne
     // move the first card down once through the panel, then save
     const order = async () => (await page.locator(SEL.card).evaluateAll((els) => els.map((e) => e.textContent ?? ''))).map((t) => t.slice(0, 40));
     const before = await order();
-    await page.locator(`${SEL.editPanel} [data-move="down"], ${SEL.editPanel} button[aria-label*="למטה"]`).first().click();
-    await page.getByRole('button', { name: /^שמ(ירה|ור)/ }).first().click();
+    await page.locator(SEL.moveDown).first().click();
+    await page.locator(SEL.save).click();
     await expect.poll(async () => ((await (await request.get(`${API}/multimedia/layout`)).json()).installation.order as string[]).length, { timeout: 15_000 }).toBeGreaterThan(0);
     await page.goto(`/?design=a#/multimedia/screens`);
     await expect(page.locator(SEL.card)).toHaveCount(7, { timeout: 30_000 });
@@ -860,7 +864,7 @@ test.describe('multimedia screens, the remote and the editors on the fixture (ne
       const pp = await ctx.newPage();
       await pp.goto(`/?design=a#/multimedia/screens`);
       await expect(pp.locator(SEL.card)).toHaveCount(7, { timeout: 30_000 });
-      await pp.locator(SEL.cardName(SCREENS.living.name)).first().click();
+      await pp.locator(SEL.openRemote(SCREENS.living.name)).click();
       await expect(pp.locator(SEL.remote)).toBeVisible({ timeout: 15_000 });
       await expect(pp.locator(SEL.remoteKey('ok')), 'no key is drawn for a caller without media.control').toHaveCount(0);
       await shot(pp, 'media-remote-view-only-live', info);

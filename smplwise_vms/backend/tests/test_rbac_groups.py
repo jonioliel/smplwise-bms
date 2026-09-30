@@ -299,7 +299,7 @@ def test_last_admin_cannot_leave_through_group_membership(settings):
 def _assigner(c: TestClient, ids: dict) -> dict:
     """mo: a custom role naming rbac.assign plus exactly the viewer permissions, bound on floor 2 - a delegated actor
     whose ceiling is the viewer role."""
-    role = c.post("/api/v1/access/roles", json={"name": "משייך קומה", "permissions": ["rbac.assign", "map.read", "video.live", "entity.state.read", "devices.read", "access.read", "alarm.view"]})
+    role = c.post("/api/v1/access/roles", json={"name": "משייך קומה", "permissions": ["rbac.assign", "map.read", "video.live", "entity.state.read", "devices.read", "media.read", "access.read", "alarm.view"]})
     assert role.status_code == 201, role.text
     c.get("/api/v1/me", headers=as_user("mo"))
     assert c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-mo", "role_id": role.json()["id"], "scope_type": "floor", "scope_id": ids["floor2"]}).status_code == 201

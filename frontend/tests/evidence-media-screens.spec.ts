@@ -176,23 +176,6 @@ async function install(page: Page, st: St) {
   });
 }
 
-/** The remote is S3's component: until it is imported by the shell, a stub proves the wiring (deviceKey / open / close). */
-async function stubRemote(page: Page) {
-  await page.evaluate(() => {
-    if (customElements.get('media-remote')) return;
-    customElements.define('media-remote', class extends HTMLElement {
-      deviceKey = '';
-      open = false;
-      connectedCallback() {
-        this.setAttribute('data-remote-stub', '');
-        this.innerHTML = '<div style="position:fixed;inset-block:0;inset-inline-start:96px;inline-size:360px;background:#fff;color:#111;padding:16px;z-index:200"><b data-stub-key></b><button data-stub-close type="button">סגור</button></div>';
-        this.querySelector('[data-stub-key]')!.textContent = this.deviceKey;
-        this.querySelector('[data-stub-close]')!.addEventListener('click', () => this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true })));
-      }
-    });
-  });
-}
-
 const hashOf = (page: Page) => page.evaluate(() => location.hash);
 
 async function open(page: Page, hash: string, size: Size = '1440') {
@@ -398,17 +381,16 @@ test.describe('multimedia screens (mocked backend)', () => {
   test('the remote opens by tag from the poster and the button; the address carries it; Back and close end it', async ({ page }) => {
     await install(page, st);
     await open(page, '/multimedia/screens');
-    await stubRemote(page);
     await page$(page).locator('media-screen-card[data-screen-card="md-living"] .rbtn').click();
-    await expect(page.locator('media-remote[data-remote-stub]')).toHaveCount(1);
-    await expect(page.locator('media-remote [data-stub-key]')).toHaveText('md-living');
+    const drawer = page.locator('media-remote[open] sw-drawer');
+    await expect(drawer).toHaveAttribute('heading', 'טלוויזיה סלון');
     expect(await hashOf(page)).toContain('remote=md-living');
-    await page.locator('media-remote [data-stub-close]').click();
+    await page.keyboard.press('Escape');
     await expect(page.locator('media-remote')).toHaveCount(0);
     expect(await hashOf(page)).not.toContain('remote=');
     // the poster opens it too, and Back closes it
     await page$(page).locator('media-screen-card[data-screen-card="md-kids"] .shot').click();
-    await expect(page.locator('media-remote [data-stub-key]')).toHaveText('md-kids');
+    await expect(page.locator('media-remote[open] sw-drawer')).toHaveAttribute('heading', 'מסך ילדים');
     await page.goBack();
     await expect(page.locator('media-remote')).toHaveCount(0);
   });

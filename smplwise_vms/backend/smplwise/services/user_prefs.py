@@ -76,15 +76,13 @@ DEFAULTS[PERSONAL_HOME_KEY] = None
 PERSONAL_AREA_ROW_KEY = "devices.area_row"
 VALIDATORS[PERSONAL_AREA_ROW_KEY] = area_row.normalise_personal
 DEFAULTS[PERSONAL_AREA_ROW_KEY] = None
-PERSONAL_KEYS: tuple[str, ...] = (PERSONAL_HOME_KEY, PERSONAL_AREA_ROW_KEY)
-
-
 # `multimedia.personal` (CR-015, MEDIA_API.md 3.15): the same rule for the screens page - the user's own group / order / per card on and
 # size, only for a holder of `screen.personalize` (403 personalize_required on a write without it, hidden on a read; services/media_layout.py).
 PERSONAL_MEDIA_KEY = "multimedia.personal"
 VALIDATORS[PERSONAL_MEDIA_KEY] = media_layout.normalise_personal
 DEFAULTS[PERSONAL_MEDIA_KEY] = None
-PERSONAL_KEYS: tuple[str, ...] = (PERSONAL_HOME_KEY, PERSONAL_MEDIA_KEY)
+# every personal key: hidden on a read and refused on a write without screen.personalize (routers/me.py)
+PERSONAL_KEYS: tuple[str, ...] = (PERSONAL_HOME_KEY, PERSONAL_AREA_ROW_KEY, PERSONAL_MEDIA_KEY)
 
 
 def get_prefs(conn: sqlite3.Connection, user_id: str, hide: tuple[str, ...] = ()) -> dict[str, Any]:

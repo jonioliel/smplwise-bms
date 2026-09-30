@@ -25,6 +25,9 @@ import { remoteStyles } from '../components/media-remote-css';
  * save or a cancel (the remote then shows the pad again). Nothing is sent to a screen from here.
  */
 
+/** One source / app row of the editor: `orig` is the item's own name (what an empty or unchanged name falls back to). */
+const itemOf = (s: SourceItem): Item => ({ id: s.id, orig: s.default_label ?? s.label, label: s.label, hidden: s.hidden === true, kind: s.kind, glyph: s.glyph, hue: s.hue });
+
 type Item = { id: string; orig: string; label: string; hidden: boolean; kind: SourceItem['kind']; glyph: Glyph; hue: number | null };
 
 const GLYPH_NAMES: Partial<Record<Glyph, string>> = {
@@ -58,6 +61,8 @@ export class MediaRemoteEditor extends LitElement {
   @state() private conns: Conn[] | null = null;
   private dragFrom: { list: 'sections' | 'sources' | 'apps'; index: number } | null = null;
   private defaultCfg: RemoteConfig | null = null;
+  /** The source / app lists were changed by the user: a late curation read must not overwrite them. */
+  private listsTouched = false;
 
   static styles = [
     remoteStyles,
@@ -262,7 +267,10 @@ export class MediaRemoteEditor extends LitElement {
   ];
 
   protected willUpdate(changed: Map<string, unknown>) {
-    if (changed.has('device') && this.device) this.fromDevice();
+    if (changed.has('device') && this.device) {
+      this.fromDevice();
+      void this.loadCuration(this.device.key);
+    }
   }
 
   connectedCallback() {
@@ -278,9 +286,22 @@ export class MediaRemoteEditor extends LitElement {
     const d = this.device;
     this.cfg = { sections: d.remote.sections.map((s) => ({ ...s })), more: [...d.remote.more], scope: d.remote.scope };
     this.scope = 'device';
-    const item = (s: SourceItem): Item => ({ id: s.id, orig: s.label, label: s.label, hidden: false, kind: s.kind, glyph: s.glyph, hue: s.hue });
-    this.sources = d.sources.map(item);
-    this.apps = d.apps.map(item);
+    this.listsTouched = false;
+    this.sources = d.sources.map(itemOf);
+    this.apps = d.apps.map(itemOf);
+  }
+
+  /** The editor's own read of the lists: the items the administrator hid (so a save never un-hides them) and each item's default
+   * name (so a save never drops a custom one). Anyone without media.layout gets the ordinary lists back and nothing changes. */
+  private async loadCuration(key: string) {
+    try {
+      const full = await media().get(key, { curation: true });
+      if (key !== this.device?.key || this.listsTouched) return;
+      this.sources = full.sources.map(itemOf);
+      this.apps = full.apps.map(itemOf);
+    } catch {
+      /* the lists of the ordinary read stay */
+    }
   }
 
   /** What the admin route says answers what (system.configure only). Demo mode has no admin route: a sample per profile. */
@@ -346,8 +367,11 @@ export class MediaRemoteEditor extends LitElement {
   private moveIn(list: 'sections' | 'sources' | 'apps', from: number, to: number) {
     if (from === to || to < 0) return;
     if (list === 'sections') this.cfg = moveSection(this.cfg, this.cfg.sections[from].id, to);
-    else if (list === 'sources') this.sources = this.move(this.sources, from, to);
-    else this.apps = this.move(this.apps, from, to);
+    else {
+      this.listsTouched = true;
+      if (list === 'sources') this.sources = this.move(this.sources, from, to);
+      else this.apps = this.move(this.apps, from, to);
+    }
   }
 
   private drag(list: 'sections' | 'sources' | 'apps', index: number) {
@@ -432,7 +456,10 @@ export class MediaRemoteEditor extends LitElement {
 
   private itemRows(list: 'sources' | 'apps') {
     const items = list === 'sources' ? this.sources : this.apps;
-    const set = (next: Item[]) => (list === 'sources' ? (this.sources = next) : (this.apps = next));
+    const set = (next: Item[]) => {
+      this.listsTouched = true;
+      return list === 'sources' ? (this.sources = next) : (this.apps = next);
+    };
     const patch = (i: number, p: Partial<Item>) => set(items.map((x, k) => (k === i ? { ...x, ...p } : x)));
     return repeat(items, (x) => x.id, (x, i) => {
       const d = this.drag(list, i);

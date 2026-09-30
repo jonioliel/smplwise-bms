@@ -185,7 +185,9 @@ test.describe('navigation size on the demo data', () => {
     if (!phone(info)) expect(m.nav.w).toBeLessThanOrEqual(withLabels);
     // the widest label sets the rail width: a big label size grows the rail, the label stays whole
     await page.locator(`${CARD} [data-free-labels]`).check();
-    await setRange(page, '[data-free-label]', 16);
+    // the phone bar shares 390 px between the area tabs (one more since the multimedia entry) and the account: its labels are
+    // ellipsized by design, so the "label stays whole" check uses the largest size that fits there ("מולטימדיה" is the widest label)
+    await setRange(page, '[data-free-label]', phone(info) ? 12 : 16);
     await setRange(page, '[data-free-icon]', 14);
     await setRange(page, '[data-free-item]', 36);
     await page.locator(`${CARD} [data-nav-save]`).click();

@@ -95,7 +95,7 @@ ignored on read; the janitor prunes keys of devices deleted for 30 days.
 |---|---|---|---|
 | 3.1 | GET | `/multimedia/status` | signed in |
 | 3.2 | GET | `/multimedia/devices?kind=screen&floor=&area=&q=` | `media.read` (scoped) |
-| 3.3 | GET | `/multimedia/devices/{key}` | `media.read` at the anchor |
+| 3.3 | GET | `/multimedia/devices/{key}[?curation=1]` | `media.read` at the anchor; `curation=1` (hidden items and `default_label` in `sources` / `apps`, for the remote editor) is honoured for `media.layout` at the anchor only |
 | 3.4 | POST | `/multimedia/devices/{key}/commands` | `media.control` / `media.power` (+ `media.public`) at the anchor |
 | 3.5 | GET | `/multimedia/devices/{key}/artwork?v=` | `media.read` at the anchor |
 | 3.6 | GET / PUT / DELETE | `/multimedia/layout` | GET `media.read`; PUT / DELETE `media.layout` (installation) |

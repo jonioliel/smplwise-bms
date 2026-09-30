@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { resetMediaMock } from '../src/api/media-screens-mock';
 import {
   DEFAULT_REMOTE, EMPTY_LAYOUT, KeyThrottle, artworkUrl, bulkCandidates, commandOffered, effectiveLayout, moveKey, needsPublic, remoteSections, resolveCards, stateText,
-  type MediaLayout,
+  type MediaLayout, type SourceItem,
 } from '../src/api/media-screens';
 
 // CR-015 S0: the typed client's pure helpers and the MOCK adapter (docs/architecture/MEDIA_API.md §4). No browser page.
@@ -67,6 +67,26 @@ test.describe('media-screens client (mock adapter)', () => {
     expect(artworkUrl('/api/v1/multimedia/devices/md-x/artwork')).toBe(`${base}api/v1/multimedia/devices/md-x/artwork`);
     expect(artworkUrl('https://img.example/a.png')).toBe('https://img.example/a.png');
     delete (globalThis as { document?: unknown }).document;
+  });
+
+  test('the curation read keeps hidden items and default names; the ordinary read and a save leave hidden ones out, never un-hiding them', async () => {
+    const m = resetMediaMock();
+    const before = await m.get('md-living');
+    const full0 = await m.get('md-living', { curation: true });
+    expect(before.sources.every((s) => s.hidden === undefined && s.default_label === undefined)).toBe(true);
+    expect(full0.sources.length).toBe(before.sources.length);
+    const edit = (x: SourceItem, hide: boolean) => ({ id: x.id, label: x.id === 'HDMI1' ? 'ממיר' : null, hidden: x.id === 'HDMI2' ? hide : !!x.hidden, kind: x.kind });
+    const saved = await m.saveDeviceRemote('md-living', { remote: null, sources: full0.sources.map((s) => edit(s, true)), apps: full0.apps.map((a) => ({ id: a.id, label: null, hidden: false })) });
+    expect(saved.sources.map((s) => s.id)).not.toContain('HDMI2');
+    expect(saved.sources.find((s) => s.id === 'HDMI1')?.label).toBe('ממיר');
+    const full = await m.get('md-living', { curation: true });
+    expect(full.sources.find((s) => s.id === 'HDMI2')?.hidden).toBe(true);
+    const hdmi1 = full.sources.find((s) => s.id === 'HDMI1');
+    expect([hdmi1?.label, hdmi1?.default_label]).toEqual(['ממיר', 'HDMI 1']);
+    // the editor's own list goes back unchanged (hidden stays hidden, the custom name stays)
+    const again = await m.saveDeviceRemote('md-living', { remote: null, sources: full.sources.map((s) => ({ id: s.id, label: s.label === s.default_label ? null : s.label, hidden: s.hidden === true, kind: s.kind })) });
+    expect(again.sources.find((s) => s.id === 'HDMI1')?.label).toBe('ממיר');
+    expect((await m.get('md-living', { curation: true })).sources.find((s) => s.id === 'HDMI2')?.hidden).toBe(true);
   });
 
   test('a duplicate request id is never sent twice; text is capped at 200 characters', async () => {

@@ -450,9 +450,16 @@ def device_item(cat: Catalog, item: Item, access: Access) -> dict[str, Any]:
     }
 
 
-def device_detail(conn: sqlite3.Connection, cat: Catalog, item: Item, access: Access) -> dict[str, Any]:
+def device_detail(conn: sqlite3.Connection, cat: Catalog, item: Item, access: Access, *, curation: bool = False) -> dict[str, Any]:
+    """`MediaDeviceDetail` (contract 3.3). With `curation` (the remote editor of a media.layout holder, `?curation=1`) the lists also carry
+    the items the administrator hid (`hidden: true`) and each item's own default name (`default_label`), so that saving the editor's
+    lists back never un-hides an item and never drops a custom name."""
     base = device_item(cat, item, access)
     sources, apps = mm.view_lists(item.view)
+    if curation:
+        full = lambda items: [{"id": i["id"], "label": i["label"], "kind": i["kind"], "glyph": i["glyph"], "hue": i["hue"], "hidden": bool(i["hidden"]),  # noqa: E731
+                               "default_label": mm.default_label(i["id"], "source" if i["kind"] in ("source", "channel") else "app")} for i in items]
+        return {**base, "sources": full(sources), "apps": full(apps), "recent": mm.recent_items(item.view), "remote": remote_of(conn, item), "model_keys": list(item.view.model_keys)}
     pub = lambda items: [{"id": i["id"], "label": i["label"], "kind": i["kind"], "glyph": i["glyph"], "hue": i["hue"]} for i in items if not i["hidden"]]  # noqa: E731
     return {**base, "sources": pub(sources), "apps": pub(apps), "recent": mm.recent_items(item.view), "remote": remote_of(conn, item), "model_keys": list(item.view.model_keys)}
 
