@@ -13,11 +13,10 @@ from fastapi.routing import APIRoute
 
 from smplwise import auth
 from smplwise import db as db_mod
-from smplwise.routers import access_control, alarm, devices
+from smplwise.routers import access_control, alarm, devices, schedules
 
 BODY_READERS = {"_raw_body", "_credentials_body", "_capped_body"}
-# not covered here: routers/schedules.py belongs to the CR-014 branch (its own review round)
-SKIPPED_MODULES = {"smplwise.routers.schedules"}
+SKIPPED_MODULES: set[str] = set()  # every router with a body reader is covered, schedules included
 
 
 def _post_order(dep) -> list[Callable]:
@@ -43,13 +42,17 @@ def test_every_raw_body_route_reads_the_body_before_it_takes_the_write_connectio
         checked += 1
         writers = [i for i, c in enumerate(order) if c is auth.get_conn or c is auth.current_principal]
         assert all(i > body_at for i in writers), f"{sorted(route.methods)} {route.path}: takes the write connection before the body is read"
-    assert checked >= 20  # access_control, alarm, devices and access_groups
+    assert checked >= 34  # access_control, alarm, devices, access_groups and the 13 schedules routes
 
 
 @pytest.mark.parametrize("method, path, module", [
     ("PUT", "/api/v1/devices/entities/switch.x/area", devices),
     ("POST", "/api/v1/intercom/stations/s1/release", access_control),
     ("PUT", "/api/v1/alarm/controls/switch.x/not-alarm", alarm),
+    ("POST", "/api/v1/schedules", schedules),
+    ("POST", "/api/v1/schedules/bulk", schedules),
+    ("PUT", "/api/v1/schedules/organisation", schedules),
+    ("POST", "/api/v1/schedules/s1/split", schedules),
 ])
 def test_the_body_is_read_while_no_write_lock_is_held(client, method, path, module):
     from test_db_locking import lock_is_free
@@ -82,6 +85,30 @@ def test_a_refused_caller_gets_the_audited_403_before_the_body_is_read(client):
     client.app.dependency_overrides[devices._raw_body] = spy
     try:
         r = client.put("/api/v1/devices/entities/switch.x/area", content=b"{not json", headers={**as_user("nobody"), "content-type": "application/json"})
+    finally:
+        client.app.dependency_overrides.clear()
+    assert r.status_code == 403 and read == []
+    with client.app.state.db.connection(mode="read") as conn:
+        row = conn.execute("SELECT actor_username, decision FROM audit_log ORDER BY id DESC LIMIT 1").fetchone()
+    assert (row["actor_username"], row["decision"]) == ("nobody", "denied")
+
+
+@pytest.mark.parametrize("method, path", [
+    ("POST", "/api/v1/schedules"), ("POST", "/api/v1/schedules/preview"), ("PUT", "/api/v1/schedules/organisation"),
+    ("PUT", "/api/v1/schedules/s1"), ("POST", "/api/v1/schedules/s1/copy"), ("POST", "/api/v1/schedules/bulk"),
+    ("POST", "/api/v1/schedules/trash/t1/restore"),
+])
+def test_a_refused_schedules_caller_gets_the_audited_403_before_the_body_is_read(client, method, path):
+    read: list[bool] = []
+
+    async def spy(request: Request) -> bytes:
+        read.append(True)
+        return await request.body()
+
+    client.get("/api/v1/me")
+    client.app.dependency_overrides[schedules._raw_body] = spy
+    try:
+        r = client.request(method, path, content=b"{not json", headers={**as_user("nobody"), "content-type": "application/json"})
     finally:
         client.app.dependency_overrides.clear()
     assert r.status_code == 403 and read == []

@@ -11,7 +11,7 @@ import logging
 from schedules_fixture import *  # noqa: F401,F403
 from schedules_fixture import sched_app  # noqa: F401
 from schedules_fixture import grant, place
-from smplwise.auth import current_principal
+from smplwise.auth import current_principal, current_principal_ro
 from smplwise.rbac import Principal
 
 API = "/api/v1"
@@ -384,31 +384,35 @@ def test_an_unchanged_existing_arm_action_is_kept_while_a_new_one_on_a_coded_pan
 
 # ---------------------------------------------------------------- the remote channel (§4.5)
 
+def _remote_joni() -> Principal:
+    return Principal(user_id="dev-joni", username="joni", display_name="joni", source="remote", via="cookie")
+
+
 def test_the_remote_channel_follows_the_alarm_settings(sched_app):
     app, s, c, fake, tr = sched_app
     _boss(c, s)
     assert c.put(f"{API}/alarm/users/dev-joni/policy", json={"arm_policy": "no_code", "disarm_policy": "no_code", "current_pin": None}, headers=BOSS).status_code == 200
-    app.dependency_overrides[current_principal] = lambda: Principal(user_id="dev-joni", username="joni", display_name="joni", source="remote", via="cookie")
+    app.dependency_overrides[current_principal] = app.dependency_overrides[current_principal_ro] = _remote_joni
     try:
         assert c.patch(f"{API}/settings", json={"alarm.remote_control": "false"}, headers=BOSS).status_code in (200, 403)
-        app.dependency_overrides.pop(current_principal)
+        app.dependency_overrides.pop(current_principal); app.dependency_overrides.pop(current_principal_ro)
         assert c.patch(f"{API}/settings", json={"alarm.remote_control": "false"}).status_code == 200
-        app.dependency_overrides[current_principal] = lambda: Principal(user_id="dev-joni", username="joni", display_name="joni", source="remote", via="cookie")
+        app.dependency_overrides[current_principal] = app.dependency_overrides[current_principal_ro] = _remote_joni
         r = c.post(f"{API}/schedules", json={"draft": _arm_draft("Remote arm"), "enabled": True, "client_request_id": rid()})
         assert r.status_code == 403 and r.json()["code"] == "remote_control_disabled"
         ok = c.post(f"{API}/schedules", json={"draft": draft_of("Remote light"), "enabled": True, "client_request_id": rid()})
         assert ok.status_code == 201  # everything but alarm actions is identical to the local channel
         gate = _by_name(c, "Arm the home panel")
         assert gate["can"]["edit"] is False and gate["read_only"]["reasons"][0]["code"] == "entity_not_controllable"
-        app.dependency_overrides.pop(current_principal)
+        app.dependency_overrides.pop(current_principal); app.dependency_overrides.pop(current_principal_ro)
         assert c.patch(f"{API}/settings", json={"alarm.remote_control": "true", "alarm.remote_disarm": "false"}).status_code == 200
-        app.dependency_overrides[current_principal] = lambda: Principal(user_id="dev-joni", username="joni", display_name="joni", source="remote", via="cookie")
+        app.dependency_overrides[current_principal] = app.dependency_overrides[current_principal_ro] = _remote_joni
         assert c.post(f"{API}/schedules", json={"draft": _arm_draft("Remote arm"), "enabled": True, "client_request_id": rid()}).status_code == 201
         disarm = draft_of("Remote disarm", [slot("06:00:00", None, act("alarm_control_panel.alarm_disarm", "alarm_control_panel.shed_panel"))])
         r = c.post(f"{API}/schedules", json={"draft": disarm, "enabled": True, "client_request_id": rid(), "confirm_lowering": True})
         assert r.status_code == 403 and r.json()["code"] == "remote_disarm_disabled"
     finally:
-        app.dependency_overrides.pop(current_principal, None)
+        app.dependency_overrides.pop(current_principal, None); app.dependency_overrides.pop(current_principal_ro, None)
 
 
 # ---------------------------------------------------------------- grants are recorded
