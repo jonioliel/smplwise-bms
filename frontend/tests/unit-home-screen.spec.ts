@@ -53,7 +53,7 @@ test.describe('home screen (demo data)', () => {
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/devices/building'); // the parameter is dropped
     // the default title; the widgets take no room (the host is collapsed)
     await expect(b.locator('sw-page')).toHaveAttribute('heading', 'חשמל והתקנים');
-    await expect(b.locator('home-widgets')).toBeHidden();
+    await expect(b.locator('home-widgets:visible')).toHaveCount(0);
   });
 
   test('"אריחים" shows the floors tree too, and the whole screen fits the viewport without a vertical scroll (1440x900 and 1920x1080)', async ({ page }, testInfo) => {

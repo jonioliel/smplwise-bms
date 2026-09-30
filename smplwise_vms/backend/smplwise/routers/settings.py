@@ -123,6 +123,13 @@ DEFAULTS: dict[str, str] = {
     "home.jewish_parsha": "",
     "home.jewish_candles": "",
     "home.jewish_havdalah": "",
+    # owner feedback 2026-09-30 (widgets as dashboard tiles): each widget is a small chip, a medium or a large card (default
+    # medium); the clock may show seconds; the Jewish widget may also show the Hebrew date of one more sensor
+    "home.clock_size": "medium",
+    "home.clock_seconds": "false",
+    "home.weather_size": "medium",
+    "home.jewish_size": "medium",
+    "home.jewish_date": "",
     # CR-008 SmplWise Arx remote access (owner decisions 2026-09-29, CR-008 §3f / §7). The channel itself is the add-on
     # option remote_access; these shape who may use it and how the browser keeps its sign-in.
     "remote.policy": "flag",  # flag: only users with the per-user remote-access flag (D4) | any_role: every HA user holding an Arx role
@@ -312,6 +319,11 @@ class SettingsPatch(BaseModel):
     home_jewish_parsha: str | None = Field(default=None, pattern=r"^(|sensor\.[a-z0-9_]{1,100})$", alias="home.jewish_parsha")
     home_jewish_candles: str | None = Field(default=None, pattern=r"^(|sensor\.[a-z0-9_]{1,100})$", alias="home.jewish_candles")
     home_jewish_havdalah: str | None = Field(default=None, pattern=r"^(|sensor\.[a-z0-9_]{1,100})$", alias="home.jewish_havdalah")
+    home_clock_size: str | None = Field(default=None, pattern="^(chip|medium|large)$", alias="home.clock_size")
+    home_clock_seconds: str | None = Field(default=None, pattern="^(true|false)$", alias="home.clock_seconds")
+    home_weather_size: str | None = Field(default=None, pattern="^(chip|medium|large)$", alias="home.weather_size")
+    home_jewish_size: str | None = Field(default=None, pattern="^(chip|medium|large)$", alias="home.jewish_size")
+    home_jewish_date: str | None = Field(default=None, pattern=r"^(|sensor\.[a-z0-9_]{1,100})$", alias="home.jewish_date")
     remote_policy: str | None = Field(default=None, pattern="^(flag|any_role)$", alias="remote.policy")
     remote_session: str | None = Field(default=None, pattern="^(rolling_90d|browser_session|rolling_90d_idle_lock)$", alias="remote.session")
     remote_idle_lock_minutes: int | None = Field(default=None, ge=5, le=10080, alias="remote.idle_lock_minutes")

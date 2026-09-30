@@ -16,15 +16,34 @@ export type ClockMode = 'off' | 'time' | 'datetime';
 export const CLOCK_MODES: ClockMode[] = ['off', 'time', 'datetime'];
 export const CLOCK_LABEL: Record<ClockMode, string> = { off: 'כבוי', time: 'שעה', datetime: 'שעה ותאריך' };
 
+/** How a widget is drawn (owner feedback 2026-09-30): a small chip in the header row, or a medium / large dashboard card
+ * in the same family as the summary tiles. */
+export type WidgetSize = 'chip' | 'medium' | 'large';
+export const WIDGET_SIZES: WidgetSize[] = ['chip', 'medium', 'large'];
+export const SIZE_LABEL: Record<WidgetSize, string> = { chip: 'תג קטן', medium: 'בינוני', large: 'גדול' };
+export type WidgetKind = 'clock' | 'weather' | 'jewish';
+
+export interface ForecastEntry {
+  datetime: string;
+  condition: string;
+  temperature: number | null;
+}
+
 /** What the widgets show right now (GET /devices/tree `home`): null = off / not configured / no value. */
 export interface HomeWidgets {
   clock: ClockMode;
+  clock_seconds?: boolean;
   time_zone: string;
-  weather: { entity_id: string; condition: string; temperature: number | null; unit: string; humidity: number | null } | null;
-  jewish: Partial<Record<'parsha' | 'candles' | 'havdalah', { entity_id: string; state: string; device_class: string | null }>> | null;
+  sizes?: Record<WidgetKind, WidgetSize>;
+  weather: { entity_id: string; condition: string; temperature: number | null; unit: string; humidity: number | null; wind_speed?: number | null; wind_unit?: string | null; forecast?: ForecastEntry[] } | null;
+  jewish: Partial<Record<'parsha' | 'candles' | 'havdalah' | 'date', { entity_id: string; state: string; device_class: string | null }>> | null;
 }
 
 export const NO_WIDGETS: HomeWidgets = { clock: 'off', time_zone: 'Asia/Jerusalem', weather: null, jewish: null };
+
+export function sizeOf(d: HomeWidgets | null | undefined, kind: WidgetKind): WidgetSize {
+  return d?.sizes?.[kind] ?? 'medium';
+}
 
 /** The settings, as edit mode edits them (and as the screen reads them). */
 export interface HomeSettings {
@@ -37,9 +56,19 @@ export interface HomeSettings {
   parsha: string;
   candles: string;
   havdalah: string;
+  /** Owner feedback 2026-09-30: each widget's size, the clock's seconds, the Hebrew-date sensor. */
+  clockSize: WidgetSize;
+  clockSeconds: boolean;
+  weatherSize: WidgetSize;
+  jewishSize: WidgetSize;
+  jewishDate: string;
 }
 
-export const HOME_DEFAULT: HomeSettings = { title: '', floorOrder: [], clock: 'off', weatherOn: false, weatherEntity: '', jewishOn: false, parsha: '', candles: '', havdalah: '' };
+export const HOME_DEFAULT: HomeSettings = { title: '', floorOrder: [], clock: 'off', weatherOn: false, weatherEntity: '', jewishOn: false, parsha: '', candles: '', havdalah: '', clockSize: 'medium', clockSeconds: false, weatherSize: 'medium', jewishSize: 'medium', jewishDate: '' };
+
+function sizeSetting(v: unknown): WidgetSize {
+  return WIDGET_SIZES.includes(v as WidgetSize) ? (v as WidgetSize) : 'medium';
+}
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v : '';
@@ -72,6 +101,11 @@ export function homeSettingsOf(s: Record<string, unknown> | null | undefined): H
     parsha: str(s?.['home.jewish_parsha']),
     candles: str(s?.['home.jewish_candles']),
     havdalah: str(s?.['home.jewish_havdalah']),
+    clockSize: sizeSetting(s?.['home.clock_size']),
+    clockSeconds: s?.['home.clock_seconds'] === 'true',
+    weatherSize: sizeSetting(s?.['home.weather_size']),
+    jewishSize: sizeSetting(s?.['home.jewish_size']),
+    jewishDate: str(s?.['home.jewish_date']),
   };
 }
 
@@ -97,6 +131,11 @@ export function homePatch(from: HomeSettings, to: HomeSettings): Record<string, 
   if (to.parsha !== from.parsha) body['home.jewish_parsha'] = to.parsha;
   if (to.candles !== from.candles) body['home.jewish_candles'] = to.candles;
   if (to.havdalah !== from.havdalah) body['home.jewish_havdalah'] = to.havdalah;
+  if (to.clockSize !== from.clockSize) body['home.clock_size'] = to.clockSize;
+  if (to.clockSeconds !== from.clockSeconds) body['home.clock_seconds'] = String(to.clockSeconds);
+  if (to.weatherSize !== from.weatherSize) body['home.weather_size'] = to.weatherSize;
+  if (to.jewishSize !== from.jewishSize) body['home.jewish_size'] = to.jewishSize;
+  if (to.jewishDate !== from.jewishDate) body['home.jewish_date'] = to.jewishDate;
   return body;
 }
 
@@ -197,6 +236,24 @@ export function clockText(now: Date, mode: ClockMode, zone: string): { time: str
   const time = new Intl.DateTimeFormat('he-IL', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
   const date = mode === 'datetime' ? new Intl.DateTimeFormat('he-IL', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'numeric' }).format(now) : '';
   return { time, date };
+}
+
+/** The clock card's parts in the site's zone: big "14:05" (+ ":07" when seconds are on), the weekday and the long date
+ * ("יום רביעי" / "30 בספטמבר"; the date parts only with the date mode). */
+export function clockCard(now: Date, mode: ClockMode, zone: string, seconds = false): { hm: string; sec: string; weekday: string; date: string } {
+  const tz = safeZone(zone);
+  const hm = new Intl.DateTimeFormat('he-IL', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
+  const sec = seconds ? new Intl.DateTimeFormat('he-IL', { timeZone: tz, second: '2-digit' }).format(now).padStart(2, '0') : '';
+  const weekday = mode === 'datetime' ? new Intl.DateTimeFormat('he-IL', { timeZone: tz, weekday: 'long' }).format(now) : '';
+  const date = mode === 'datetime' ? new Intl.DateTimeFormat('he-IL', { timeZone: tz, day: 'numeric', month: 'long' }).format(now) : '';
+  return { hm, sec, weekday, date };
+}
+
+/** A forecast entry's hour ("14:00") in the site's zone; '' for a bad time. */
+export function hourOf(iso: string, zone: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('he-IL', { timeZone: safeZone(zone), hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
 }
 
 function safeZone(zone: string): string {

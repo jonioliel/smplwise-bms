@@ -58,7 +58,7 @@ ATTR_ALLOW = {
     "zone_open", "last_tripped_time", "battery_low",
     # owner 2026-09-30 (the home screen's weather widget): a weather entity's temperature unit (its temperature and
     # humidity are allowed above)
-    "temperature_unit",
+    "temperature_unit", "wind_speed", "wind_speed_unit", "forecast",
     # CR-014 (schedules): a schedule switch's next trigger / current and next slot, and the sun's next rising / setting
     # (the preview of a schedule that starts at sunrise or sunset). The switch's `actions` / `timeslots` are not kept:
     # the definitions come from the scheduler component itself (services/schedules.py).

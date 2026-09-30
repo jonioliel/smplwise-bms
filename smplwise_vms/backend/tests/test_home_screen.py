@@ -24,7 +24,9 @@ STATES = [
     _st("light.a", "on", friendly_name="A"),
     _st("light.b", "off", friendly_name="B"),
     _st("light.c", "off", friendly_name="C"),
-    _st("weather.home", "partlycloudy", friendly_name="Home", temperature=27.5, humidity=61, temperature_unit="°C"),
+    _st("weather.home", "partlycloudy", friendly_name="Home", temperature=27.5, humidity=61, temperature_unit="°C", wind_speed=14, wind_speed_unit="km/h",
+        forecast=[{"datetime": "2026-09-30T14:00:00+03:00", "condition": "sunny", "temperature": 29}, {"datetime": "2026-09-30T15:00:00+03:00", "condition": "cloudy", "temperature": 28, "extra": "dropped"}]),
+    _st("sensor.jewish_calendar_date", "כ״ט באלול ה׳תשפ״ו", friendly_name="Hebrew date"),
     _st("weather.gone", "unavailable", friendly_name="Gone"),
     _st("sensor.jewish_calendar_parshat_hashavua", "Vayechi", friendly_name="Parsha"),
     _st("sensor.jewish_calendar_upcoming_candle_lighting", "2026-10-02T17:32:00+03:00", friendly_name="Candles", device_class="timestamp"),
@@ -56,6 +58,7 @@ REGISTRY = [
     _reg("sensor.jewish_calendar_upcoming_candle_lighting", None, "jewish_calendar"),
     _reg("sensor.jewish_calendar_upcoming_havdalah", None, "jewish_calendar"),
     _reg("sensor.kitchen_temp", "a0"),
+    _reg("sensor.jewish_calendar_date", None, "jewish_calendar"),
 ]
 
 
@@ -86,7 +89,7 @@ def test_defaults_are_all_off_and_the_tree_carries_no_widgets(app_c):
         assert st["home.weather"] == "false" and st["home.jewish"] == "false"
         assert st["home.weather_entity"] == "" and st["home.jewish_parsha"] == ""
         t = c.get("/api/v1/devices/tree").json()
-        assert t["home"] == {"clock": "off", "time_zone": "Asia/Jerusalem", "weather": None, "jewish": None}
+        assert t["home"] == {"clock": "off", "clock_seconds": False, "time_zone": "Asia/Jerusalem", "sizes": {"clock": "medium", "weather": "medium", "jewish": "medium"}, "weather": None, "jewish": None}
         # the level order stays the default one
         assert [f["floor_id"] for f in t["floors"]] == ["fm1", "f0", "f1"]
 
@@ -162,7 +165,10 @@ def test_weather_widget_reads_the_mirrored_entity_only_when_switched_on(app_c):
         assert c.get("/api/v1/devices/tree").json()["home"]["weather"] is None  # configured but off
         _patch(c, {"home.weather": "true"})
         w = c.get("/api/v1/devices/tree").json()["home"]["weather"]
-        assert w == {"entity_id": "weather.home", "condition": "partlycloudy", "temperature": 27.5, "unit": "°C", "humidity": 61.0}
+        assert w == {"entity_id": "weather.home", "condition": "partlycloudy", "temperature": 27.5, "unit": "°C", "humidity": 61.0, "wind_speed": 14.0, "wind_unit": "km/h", "forecast": [
+            {"datetime": "2026-09-30T14:00:00+03:00", "condition": "sunny", "temperature": 29.0},
+            {"datetime": "2026-09-30T15:00:00+03:00", "condition": "cloudy", "temperature": 28.0},
+        ]}
         # unavailable / missing entity: the widget is simply absent
         _patch(c, {"home.weather_entity": "weather.gone"})
         assert c.get("/api/v1/devices/tree").json()["home"]["weather"] is None
@@ -188,7 +194,26 @@ def test_clock_mode_and_zone_reach_the_tree(app_c):
     app, _ = app_c
     with TestClient(app) as c:
         _patch(c, {"home.clock": "time", "time.zone": "Europe/London"})
-        assert c.get("/api/v1/devices/tree").json()["home"] == {"clock": "time", "time_zone": "Europe/London", "weather": None, "jewish": None}
+        assert c.get("/api/v1/devices/tree").json()["home"] == {"clock": "time", "clock_seconds": False, "time_zone": "Europe/London", "sizes": {"clock": "medium", "weather": "medium", "jewish": "medium"}, "weather": None, "jewish": None}
+
+
+def test_widget_sizes_seconds_and_the_hebrew_date_sensor(app_c):
+    app_c_app, _ = app_c
+    with TestClient(app_c_app) as c:
+        assert _patch(c, {"home.clock": "time", "home.clock_size": "large", "home.clock_seconds": "true", "home.weather_size": "chip", "home.jewish_size": "medium"}).status_code == 200
+        h = c.get("/api/v1/devices/tree").json()["home"]
+        assert h["sizes"] == {"clock": "large", "weather": "chip", "jewish": "medium"} and h["clock_seconds"] is True
+        for bad in ({"home.clock_size": "huge"}, {"home.weather_size": ""}, {"home.clock_seconds": "yes"}, {"home.jewish_date": "weather.home"}, {"home.jewish_date": "sensor.A"}):
+            assert _patch(c, bad).status_code == 422, bad
+        _patch(c, {"home.jewish": "true", "home.jewish_date": "sensor.jewish_calendar_date"})
+        assert c.get("/api/v1/devices/tree").json()["home"]["jewish"]["date"]["state"] == "כ״ט באלול ה׳תשפ״ו"
+
+
+def test_the_forecast_is_trimmed_and_malformed_entries_are_dropped():
+    raw = [{"datetime": "2026-09-30T14:00:00+03:00", "condition": "sunny", "temperature": 29}, "x", {"condition": "sunny"}] + [{"datetime": f"2026-09-30T{h:02d}:00:00", "condition": "rainy", "temperature": "n/a"} for h in range(15, 24)]
+    f = home_screen._forecast(raw)
+    assert len(f) == home_screen.FORECAST_MAX and f[0]["temperature"] == 29.0 and f[1]["temperature"] is None
+    assert home_screen._forecast(None) == [] and home_screen._forecast("nope") == []
 
 
 def test_candidates_list_weather_and_sensors_with_the_jewish_calendar_first_and_need_system_configure(app_c, settings):
