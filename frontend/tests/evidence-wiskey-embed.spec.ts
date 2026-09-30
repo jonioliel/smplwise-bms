@@ -708,9 +708,9 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
 
   // ------------------------------------------------------------------ "גודל תצוגת WisKey" (ui.wiskey_size, owner 2026-09-30)
 
-  /** The shell parts the full-screen size must cover and make inert (whichever the design renders): the rail, design B's
-   * top bar, the tab row, design A's floating corner (search button + status dot, and the search scrim), the alert banner. */
-  const SHELL_PARTS = ['nav.rail', 'header.topbar', 'main > .subnav', '.float', '[data-sys-pill]', '[data-search-open]', '[data-search-scrim]', '.sysbanner', 'nav.bottom'];
+  /** The shell parts the full-screen size must cover and make inert: the rail, the tab row, the floating corner (search
+   * button + status dot, and the search scrim), the alert banner, the phone bottom bar. */
+  const SHELL_PARTS = ['nav.rail', 'main > .subnav', '.float', '[data-sys-pill]', '[data-search-open]', '[data-search-scrim]', '.sysbanner', 'nav.bottom'];
 
   const sizeOf = (page: Page) => page.locator('wiskey-embed').getAttribute('data-size');
 
@@ -801,7 +801,7 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
           covers: [on(window.innerWidth - 30, 200), on(30, 30), on(window.innerWidth / 2, 20), on(window.innerWidth - 30, window.innerHeight - 30)],
           shell: parts.flatMap((s) => {
             const el = sr.querySelector(s) as HTMLElement | null;
-            if (!el) return []; // design B has a top bar, design A the floating corner cluster: only what exists is judged
+            if (!el) return []; // only the parts that exist right now are judged
             const b = el.getBoundingClientRect();
             const shown = b.width > 0 && b.height > 0;
             return [{ sel: s, inert: !!el.closest('[inert]'), covered: shown ? !!sr.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)?.closest('wiskey-embed') : null }];
@@ -1077,10 +1077,10 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     void page;
   });
 
-  test('both phone navigations reach the embedded WisKey tabs built from the catalog', async ({ page }, testInfo) => {
+  test('the phone bottom bar reaches the embedded WisKey tabs built from the catalog', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'nav.bottom only renders below the 768px breakpoint');
     await stubPanel(page, { kiosk: true, panels: true, api: 'v1' });
-    // design A: WisKey is a direct icon of the bottom bar; its tab row carries the catalog's tabs
+    // WisKey is a direct icon of the bottom bar; its tab row carries the catalog's tabs
     await open(page, '/live', 'a');
     const bottom = page.locator('sw-app nav.bottom');
     await expect(bottom).toBeVisible({ timeout: 30000 });
@@ -1107,27 +1107,22 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await expectFrameFillsContentArea(page);
     await page.setViewportSize(full);
 
-    // design B: WisKey sits behind "עוד"
-    await open(page, '/live', 'b');
+    // and again from the start: the bar's WisKey icon, then a tab the catalog names
+    await open(page, '/live', 'a');
     await expect(bottom).toBeVisible({ timeout: 30000 });
-    await bottom.locator('button').click();
-    await page.locator('sw-app .bottom-overflow a[href="#/wiskey/overview"]').click();
+    await bottom.locator('a[href="#/wiskey/overview"]').click();
     await expect(page.locator(FRAME)).toHaveAttribute('data-embed-mode', 'v1', { timeout: 15000 });
     await page.locator('sw-tabs a[href="#/wiskey/camera_wall"]').click();
     await expect(page.locator(FRAME)).toHaveAttribute('data-confirmed-tab', 'camera_wall');
     const st = await frameState(page);
     expect(st.tab).toBe('camera_wall');
     expect(st.kioskEvents).toBe(0);
-    await page.screenshot({ path: testInfo.outputPath('wiskey-embed-phone-b.png') });
-    // the "עוד" sheet stays open while WisKey moves by itself (the mirror is not a navigation of the user's)
-    await bottom.locator('button').click();
-    await expect(page.locator('sw-app .bottom-overflow')).toBeVisible();
+    // WisKey moves by itself: the mirror follows into the address (it is not a navigation of the user's)
     await panelFrame(page).evaluate(() => {
       const panel = document.querySelector('home-assistant')!.shadowRoot!.querySelector('home-assistant-main')!.shadowRoot!.querySelector('hikvision-intercom-panel') as HTMLElement & { post(m: unknown): void };
       panel.post({ type: 'wiskey:location', tab: 'devices', tool: null });
     });
     await expect.poll(() => hash(page)).toBe('#/wiskey/devices?wiskey_tab=devices');
-    await expect(page.locator('sw-app .bottom-overflow')).toBeVisible();
   });
 
   // ------------------------------------------------------------------ WisKey rc.37: chrome=none, density and wall

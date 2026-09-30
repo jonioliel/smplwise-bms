@@ -64,13 +64,14 @@ test.describe('all screen skeletons', () => {
     });
   }
 
-  // CR-013: the bare address opens "ראשי" (the device overview) in both designs; an explicit route is kept
+  // CR-013: the bare address opens "ראשי" (the device overview); an explicit route is kept. `?design=b` (the removed design) is ignored.
   test('the bare address opens ראשי', async ({ page }) => {
-    for (const q of ['', '?design=a']) {
+    for (const q of ['', '?design=b']) {
       await page.goto('about:blank');
       await page.goto(`/${q}`);
-      await expect.poll(() => page.evaluate(() => location.hash), q || 'design B').toBe('#/devices/building');
+      await expect.poll(() => page.evaluate(() => location.hash), q || 'bare').toBe('#/devices/building');
       await expect(page.locator('sw-app devices-building')).toHaveCount(1);
+      await expect(page.locator('sw-app nav.rail, sw-app nav.bottom').first()).toBeAttached();
     }
     await open(page, '/explore/floors/f0');
     expect(await page.evaluate(() => location.hash)).toBe('#/explore/floors/f0');
