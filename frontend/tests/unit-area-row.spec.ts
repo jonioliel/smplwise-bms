@@ -17,8 +17,10 @@ const area = (over: Omit<Partial<DeviceArea>, 'counts'> & { counts?: Partial<Dev
 };
 const row = (over: Partial<AreaRow> = {}): AreaRow => ({ ...AREA_ROW_DEFAULT, ...over });
 
+const TAIL = { climate_mode: 'mean', climate_lead: {}, only_active: ['openings', 'locks'] } as const;
+
 test('the defaults are a short list: the A/C, what is lit, what is playing; the room temperature and the rest are opt-in', () => {
-  expect(AREA_ROW_DEFAULT).toEqual({ items: ['climate', 'lights', 'switches', 'media'], climate: 'temp', show_empty: false });
+  expect(AREA_ROW_DEFAULT).toEqual({ items: ['climate', 'lights', 'switches', 'media'], climate: 'temp', show_empty: false, ...TAIL });
   expect(FLOOR_ROW_DEFAULT.items).toEqual(['lights', 'switches', 'covers', 'climate', 'media', 'locks', 'sensors']);
   expect(areaRowOf(undefined)).toEqual(AREA_ROW_DEFAULT);
   expect(areaRowOf({})).toEqual({ ...AREA_ROW_DEFAULT });
@@ -26,8 +28,8 @@ test('the defaults are a short list: the A/C, what is lit, what is playing; the 
 });
 
 test('a stored value is read tolerantly: unknown and repeated ids are dropped, a bad choice falls back', () => {
-  expect(areaRowOf({ items: ['media', 'teapot', 'media', 'climate'], climate: 'snow', show_empty: 'yes' })).toEqual({ items: ['media', 'climate'], climate: 'temp', show_empty: false });
-  expect(areaRowOf({ items: [], climate: 'mode', show_empty: true })).toEqual({ items: [], climate: 'mode', show_empty: true });
+  expect(areaRowOf({ items: ['media', 'teapot', 'media', 'climate'], climate: 'snow', show_empty: 'yes' })).toEqual({ items: ['media', 'climate'], climate: 'temp', show_empty: false, ...TAIL });
+  expect(areaRowOf({ items: [], climate: 'mode', show_empty: true })).toEqual({ items: [], climate: 'mode', show_empty: true, ...TAIL });
   expect(floorRowOf({ items: ['cameras', 'temperature', 'lights'] }).items).toEqual(['cameras', 'lights']);
 });
 
@@ -95,9 +97,44 @@ test('room temperature, open doors, locks and the alarm are items of their own, 
 test('locks: only an unlocked one is news unless show_empty; open doors show a zero only with show_empty and only where sensors exist', () => {
   const locked = area({ counts: { locks: 2, locks_locked: 2, sensors: 1 } });
   expect(areaIndicators(locked, row({ items: ['locks', 'openings'] }))).toEqual([]);
-  const shown = areaIndicators(locked, row({ items: ['locks', 'openings'], show_empty: true }));
+  const shown = areaIndicators(locked, row({ items: ['locks', 'openings'], show_empty: true, only_active: [] }));
   expect(shown.map((i) => [i.id, i.icon, i.text, i.warm])).toEqual([['locks', 'lock', '2/2', false], ['openings', 'door', '0', false]]);
-  expect(areaIndicators(area({ counts: { sensors: 0 } }), row({ items: ['openings'], show_empty: true }))).toEqual([]);
+  expect(areaIndicators(area({ counts: { sensors: 0 } }), row({ items: ['openings'], show_empty: true, only_active: [] }))).toEqual([]);
+});
+
+test('"only when active" (default for open doors and locks): they never draw idle, even with show_empty; counters are not in it by default', () => {
+  const a = area({ open_count: 0, counts: { locks: 1, locks_locked: 1, sensors: 2, lights: 4, lights_on: 0 } });
+  const r = row({ items: ['openings', 'locks', 'lights'], show_empty: true });
+  expect(r.only_active).toEqual(['openings', 'locks']);
+  expect(areaIndicators(a, r).map((i) => i.id)).toEqual(['lights']); // the idle lights show (show_empty), the closed / locked ones do not
+  expect(areaIndicators(a, row({ items: ['lights'], show_empty: true, only_active: ['lights'] }))).toEqual([]); // a counter can be made "only when active" too
+  const open = area({ open_count: 1, counts: { locks: 2, locks_locked: 1, sensors: 2 } });
+  expect(areaIndicators(open, row({ items: ['openings', 'locks'] })).map((i) => [i.id, i.warm])).toEqual([['openings', true], ['locks', true]]); // something open: shown without show_empty
+});
+
+test('several A/C: "ממוצע" (default) is the mean of the running ones and their number; "מוביל" shows ONE unit\'s own temperature and mode', () => {
+  const units = [
+    ac({ entity_id: 'climate.a', name: 'מזגן א', current_temperature: 24 }),
+    ac({ entity_id: 'climate.b', name: 'מזגן ב', hvac_mode: 'heat', hvac_action: 'heating', current_temperature: 20 }),
+    ac({ entity_id: 'climate.c', name: 'מזגן ג', hvac_mode: 'off', current_temperature: 30 }),
+  ];
+  const a = area({ area_id: 'living', climate: units, counts: { climate: 3, climate_active: 2 } });
+  expect(climateIndicator(a, 'temp')).toMatchObject({ text: '22° (2)' }); // the default: the mean
+  expect(climateIndicator(a, 'temp', 'mean')).toMatchObject({ text: '22° (2)' });
+  // no lead chosen: the first running one leads
+  expect(climateIndicator(a, 'temp', 'lead')).toMatchObject({ icon: 'snow', text: '24°', warm: true });
+  // a chosen lead: its own temperature and mode, no count
+  expect(climateIndicator(a, 'mode', 'lead', 'climate.b')).toMatchObject({ icon: 'flame', text: 'חימום' });
+  expect(climateIndicator(a, 'temp', 'lead', 'climate.b')?.title).toContain('מזגן ב');
+  // a lead that is off: dimmed, its own temperature
+  expect(climateIndicator(a, 'temp', 'lead', 'climate.c')).toMatchObject({ dim: true, text: '30°' });
+  // a lead that no longer exists falls back to the first running one; one unit is the same in both modes
+  expect(climateIndicator(a, 'temp', 'lead', 'climate.gone')?.text).toBe('24°');
+  const one = area({ climate: [ac()], counts: { climate: 1, climate_active: 1 } });
+  expect(climateIndicator(one, 'temp', 'lead')?.text).toBe('24.5°');
+  // areaIndicators reads the lead of THIS area from the row
+  const r = row({ items: ['climate'], climate: 'mode', climate_mode: 'lead', climate_lead: { living: 'climate.b', other: 'climate.a' } });
+  expect(areaIndicators(a, r)[0]).toMatchObject({ icon: 'flame', text: 'חימום' });
 });
 
 test('the row collapses what does not fit into "+N": three on a phone, the rest counted', () => {
@@ -124,6 +161,14 @@ test('the personal override lays over the installation key by key and stores onl
   expect(personalDiff({ ...base, climate: 'mode', items: ['lights'] }, FLOOR_ROW_DEFAULT, base, FLOOR_ROW_DEFAULT)).toEqual({ items: ['lights'], climate: 'mode' });
   expect(personalRowOf({ items: ['lights', 'x'], climate: 'nope', show_empty: true, floor_items: ['sensors'] })).toEqual({ items: ['lights'], show_empty: true, floor_items: ['sensors'] });
   expect(personalRowOf(null)).toEqual({});
+  // the new keys: lead mode, the leads, "only when active"
+  const base2 = AREA_ROW_DEFAULT;
+  const mine = { ...base2, climate_mode: 'lead' as const, climate_lead: { living: 'climate.b' }, only_active: ['lights' as const] };
+  expect(personalDiff(mine, FLOOR_ROW_DEFAULT, base2, FLOOR_ROW_DEFAULT)).toEqual({ climate_mode: 'lead', climate_lead: { living: 'climate.b' }, only_active: ['lights'] });
+  expect(personalDiff({ ...base2, only_active: ['locks', 'openings'] }, FLOOR_ROW_DEFAULT, base2, FLOOR_ROW_DEFAULT)).toBeNull(); // the same set in another order is no change
+  expect(effectiveRows(base2, FLOOR_ROW_DEFAULT, { climate_mode: 'lead', only_active: [] }).area).toMatchObject({ climate_mode: 'lead', only_active: [], items: base2.items });
+  expect(personalRowOf({ climate_mode: 'lead', climate_lead: { a: 'climate.x', b: 'light.y' }, only_active: ['media', 'climate'] })).toEqual({ climate_mode: 'lead', climate_lead: { a: 'climate.x' }, only_active: ['media'] });
+  expect(areaRowOf({ climate_mode: 'first', climate_lead: 5, only_active: 'x' })).toMatchObject({ climate_mode: 'mean', climate_lead: {}, only_active: ['openings', 'locks'] });
 });
 
 test('small helpers: degrees and moving an item', () => {

@@ -121,7 +121,7 @@ lights('arow1_bed', 2, 2); ac('arow1_bed', 'fan_only', 23, 'fan'); temp('arow1_b
 lights('arow1_stairs', 6, 0);
 
 const DEFAULT_ROWS = {
-  'devices.area_row': { items: ['climate', 'lights', 'switches', 'media'], climate: 'temp', show_empty: false },
+  'devices.area_row': { items: ['climate', 'lights', 'switches', 'media'], climate: 'temp', show_empty: false, climate_mode: 'mean', climate_lead: {}, only_active: ['openings', 'locks'] },
   'devices.floor_row': { items: ['lights', 'switches', 'covers', 'climate', 'media', 'locks', 'sensors'] },
 };
 
@@ -199,7 +199,7 @@ test.describe('the area row against the devices fixture backend', () => {
     await seed(request);
     await reset(request);
     try {
-      expect((await request.patch('/api/v1/settings', { data: { 'devices.area_row': { items: ['temperature', 'climate', 'openings', 'locks', 'lights', 'covers', 'media', 'switches', 'alarm'], climate: 'mode', show_empty: true } } })).status()).toBe(200);
+      expect((await request.patch('/api/v1/settings', { data: { 'devices.area_row': { items: ['temperature', 'climate', 'openings', 'locks', 'lights', 'covers', 'media', 'switches', 'alarm'], climate: 'mode', show_empty: true, only_active: [] } } })).status()).toBe(200);
       await open(page, '/devices/building');
       const mobile = testInfo.project.name === 'mobile';
       const max = mobile ? 3 : 6;
@@ -266,10 +266,72 @@ test.describe('the area row against the devices fixture backend', () => {
       await sec.locator('sw-button[data-save-devices]').click();
       expect((await saved).status()).toBe(200);
       const s = (await (await request.get('/api/v1/settings')).json()).settings;
-      expect(s['devices.area_row']).toEqual({ items: ['climate', 'lights', 'switches', 'temperature', 'media'], climate: 'icon', show_empty: true });
+      expect(s['devices.area_row']).toEqual({ items: ['climate', 'lights', 'switches', 'temperature', 'media'], climate: 'icon', show_empty: true, climate_mode: 'mean', climate_lead: {}, only_active: ['openings', 'locks'] });
       expect(s['devices.floor_row'].items).not.toContain('sensors');
       // the server refuses what the editor cannot produce
       expect((await request.patch('/api/v1/settings', { data: { 'devices.area_row': { items: ['fridge'] } } })).status()).toBe(422);
+    } finally {
+      await reset(request);
+    }
+  });
+
+  test('several A/C: the editor chooses "מוביל" and which unit leads; "רק כשפתוח" hides idle doors and locks; the phone cut-line marks the first three', async ({ page, request }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop');
+    await seed(request);
+    await reset(request);
+    try {
+      await page.goto('about:blank');
+      await page.goto('/?design=a#/system/diagnostics?tab=devices');
+      const sec = page.locator('system-diagnostics sw-card[data-devices-settings]');
+      await expect(sec).toBeVisible({ timeout: 30000 });
+      const ed = sec.locator('area-row-editor');
+      // the default: the mean, and no cut-line with only four items... (four enabled: the line sits above the fourth)
+      await expect(ed.locator('[data-area-climate-mode]')).toHaveValue('mean');
+      await expect(ed.locator('[data-phone-cut]')).toHaveCount(1);
+      expect(await ed.locator('[data-area-row-items] > li').evaluateAll((els) => els.slice(0, 5).map((e) => e.getAttribute('data-area-item') ?? 'cut'))).toEqual(['climate', 'lights', 'switches', 'cut', 'media']);
+      // "רק כשפתוח": on for open doors and locks, off for counters; only the items that have an idle state carry it
+      await ed.locator('[data-area-item-on="openings"]').check();
+      await ed.locator('[data-area-item-on="locks"]').check();
+      await expect(ed.locator('[data-area-item-only="openings"]')).toBeChecked();
+      await expect(ed.locator('[data-area-item-only="locks"]')).toBeChecked();
+      await expect(ed.locator('[data-area-item-only="lights"]')).not.toBeChecked();
+      await expect(ed.locator('[data-area-item-only="climate"]')).toHaveCount(0);
+      // "מוביל": the areas with several A/C list their units; choose one for the living room
+      await ed.locator('[data-area-climate-mode]').selectOption('lead');
+      const lead = ed.locator('[data-climate-lead="arow1_living"]');
+      await expect(lead).toBeVisible({ timeout: 15000 });
+      await expect(ed.locator('[data-climate-lead-area]')).toHaveCount(1); // only the living room has several A/C
+      const second = await lead.locator('option').nth(2).getAttribute('value');
+      await lead.selectOption(second!);
+      await ed.scrollIntoViewIfNeeded();
+      await shot(page, 'settings-area-row-lead', testInfo);
+      const saved = page.waitForResponse((r) => r.url().endsWith('/api/v1/settings') && r.request().method() === 'PATCH');
+      await sec.locator('sw-button[data-save-devices]').click();
+      expect((await saved).status()).toBe(200);
+      const s = (await (await request.get('/api/v1/settings')).json()).settings['devices.area_row'];
+      expect(s.climate_mode).toBe('lead');
+      expect(s.climate_lead).toEqual({ arow1_living: second });
+      expect(s.only_active).toEqual(['openings', 'locks']);
+      // the row follows: the living room shows its leading unit's own temperature (no "(2)")
+      await open(page, '/devices/building');
+      await expect(row(page, 'living').locator('[data-ind="climate"]')).not.toContainText('(');
+      expect((await request.patch('/api/v1/settings', { data: { 'devices.area_row': { climate_lead: { arow1_living: 'light.x' } } } })).status()).toBe(422);
+    } finally {
+      await reset(request);
+    }
+  });
+
+  test('open doors and unlocked locks show by default ONLY when something is open / unlocked', async ({ page, request }) => {
+    test.skip(page.viewportSize()!.width < 1000, 'desktop and tablet');
+    await seed(request);
+    await reset(request);
+    try {
+      expect((await request.patch('/api/v1/settings', { data: { 'devices.area_row': { items: ['openings', 'locks', 'lights'], show_empty: true } } })).status()).toBe(200);
+      await open(page, '/devices/building');
+      expect(await ids(page, 'kitchen')).toEqual(['openings', 'lights']); // the window is open; no locks here; lights show (show_empty, counters are not "only when active")
+      expect(await ids(page, 'entry')).toEqual(['locks', 'lights']); // the lock is open
+      expect(await ids(page, 'stairs')).toEqual(['lights']); // nothing open, nothing unlocked: only the idle light counter
+      expect(await ids(page, 'yard')).toEqual(['lights']);
     } finally {
       await reset(request);
     }

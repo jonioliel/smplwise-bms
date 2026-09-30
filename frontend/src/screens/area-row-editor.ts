@@ -1,9 +1,11 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import { getDevicesTree, type ClimateSummary } from '../api/devices';
+import { isApi } from '../api/session';
 import {
-  AREA_ITEM_LABEL, AREA_ITEMS, CLIMATE_DISPLAYS, CLIMATE_DISPLAY_LABEL, FLOOR_ITEM_LABEL, FLOOR_ITEMS, moveItem,
-  type AreaItem, type AreaRow, type ClimateDisplay, type FloorItem, type FloorRow,
+  ACTIVE_ITEMS, AREA_ITEM_LABEL, AREA_ITEMS, CLIMATE_DISPLAYS, CLIMATE_DISPLAY_LABEL, CLIMATE_MODES, CLIMATE_MODE_LABEL, FLOOR_ITEM_LABEL, FLOOR_ITEMS, moveItem, ROW_MAX_PHONE,
+  type AreaItem, type AreaRow, type ClimateDisplay, type ClimateMode, type FloorItem, type FloorRow,
 } from '../api/area-row';
 
 export interface AreaRowChange {
@@ -23,6 +25,8 @@ export class AreaRowEditor extends LitElement {
   @property({ attribute: false }) area!: AreaRow;
   @property({ attribute: false }) floor!: FloorRow;
   @property({ type: Boolean }) disabled = false;
+  /** The areas that have several A/C (for choosing which one leads), read from the devices tree when "מוביל" is chosen. */
+  @state() private multi: { area_id: string; name: string; climate: ClimateSummary[] }[] | null = null;
 
   static styles = css`
     :host {
@@ -95,6 +99,28 @@ export class AreaRowEditor extends LitElement {
       background: var(--sw-surface);
       color: var(--sw-text);
     }
+    .cut {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-block: 2px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .cut::before,
+    .cut::after {
+      content: '';
+      flex: 1;
+      border-block-start: 1px dashed var(--sw-border-strong);
+    }
+    .only {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      cursor: pointer;
+    }
     button:focus-visible,
     input:focus-visible,
     select:focus-visible {
@@ -110,6 +136,29 @@ export class AreaRowEditor extends LitElement {
   /** The enabled items in their order, then the rest in the canonical order. */
   private order<T extends string>(on: T[], all: readonly T[]): T[] {
     return [...on, ...all.filter((x) => !on.includes(x))];
+  }
+
+  protected updated() {
+    if (this.area?.climate_mode === 'lead' && this.multi === null && isApi()) {
+      this.multi = [];
+      void getDevicesTree()
+        .then((t) => {
+          this.multi = t.floors.flatMap((f) => f.areas).filter((a) => (a.climate?.length ?? 0) > 1).map((a) => ({ area_id: a.area_id, name: a.name, climate: a.climate ?? [] }));
+        })
+        .catch(() => undefined);
+    }
+  }
+
+  private setLead(areaId: string, entity: string) {
+    const lead = { ...this.area.climate_lead };
+    if (entity) lead[areaId] = entity;
+    else delete lead[areaId];
+    this.emit({ ...this.area, climate_lead: lead }, this.floor);
+  }
+
+  private toggleOnly(id: AreaItem, on: boolean) {
+    const only = on ? [...this.area.only_active, id] : this.area.only_active.filter((x) => x !== id);
+    this.emit({ ...this.area, only_active: only }, this.floor);
   }
 
   private toggleArea(id: AreaItem, on: boolean) {
@@ -131,8 +180,12 @@ export class AreaRowEditor extends LitElement {
         ${this.order(this.area.items, AREA_ITEMS).map((id) => {
           const on = this.area.items.includes(id);
           const i = this.area.items.indexOf(id);
-          return html`<li class=${on ? '' : 'off'} data-area-item=${id}>
+          const cut = on && i === ROW_MAX_PHONE && this.area.items.length > ROW_MAX_PHONE;
+          return html`${cut ? html`<li class="cut" data-phone-cut role="presentation">בטלפון: רק הפריטים שמעל הקו</li>` : nothing}<li class=${on ? '' : 'off'} data-area-item=${id}>
             <label><input type="checkbox" data-area-item-on=${id} .checked=${on} ?disabled=${dis} @change=${(e: Event) => this.toggleArea(id, (e.target as HTMLInputElement).checked)} />${AREA_ITEM_LABEL[id]}</label>
+            ${on && ACTIVE_ITEMS.includes(id)
+              ? html`<label class="only"><input type="checkbox" data-area-item-only=${id} .checked=${this.area.only_active.includes(id)} ?disabled=${dis} @change=${(e: Event) => this.toggleOnly(id, (e.target as HTMLInputElement).checked)} />${id === 'openings' || id === 'locks' ? 'רק כשפתוח' : 'רק כשפעיל'}</label>`
+              : nothing}
             ${on
               ? html`<button type="button" class="ib" data-area-item-earlier=${id} aria-label=${`הקדם: ${AREA_ITEM_LABEL[id]}`} ?disabled=${dis || i === 0} @click=${() => this.emit({ ...this.area, items: moveItem(this.area.items, id, -1) }, this.floor)}><sw-icon name="arrowUp" size=${14}></sw-icon></button>
                 <button type="button" class="ib" data-area-item-later=${id} aria-label=${`אחר: ${AREA_ITEM_LABEL[id]}`} ?disabled=${dis || i === this.area.items.length - 1} @click=${() => this.emit({ ...this.area, items: moveItem(this.area.items, id, 1) }, this.floor)}><sw-icon name="arrowDown" size=${14}></sw-icon></button>`
@@ -146,6 +199,23 @@ export class AreaRowEditor extends LitElement {
           ${CLIMATE_DISPLAYS.map((d) => html`<option value=${d} ?selected=${this.area.climate === d}>${CLIMATE_DISPLAY_LABEL[d]}</option>`)}
         </select>
       </div>
+      <div class="row">
+        <label for="are-cmode">כמה מזגנים באזור</label>
+        <select id="are-cmode" data-area-climate-mode ?disabled=${dis} @change=${(e: Event) => this.emit({ ...this.area, climate_mode: (e.target as HTMLSelectElement).value as ClimateMode }, this.floor)}>
+          ${CLIMATE_MODES.map((m) => html`<option value=${m} ?selected=${this.area.climate_mode === m}>${CLIMATE_MODE_LABEL[m]}</option>`)}
+        </select>
+      </div>
+      ${this.area.climate_mode === 'lead' && this.multi?.length
+        ? html`<ul aria-label="המזגן המוביל" data-climate-leads>
+            ${this.multi.map((a) => html`<li data-climate-lead-area=${a.area_id}>
+              <label for=${`lead-${a.area_id}`} style="flex:1">${a.name}</label>
+              <select id=${`lead-${a.area_id}`} data-climate-lead=${a.area_id} ?disabled=${dis} @change=${(e: Event) => this.setLead(a.area_id, (e.target as HTMLSelectElement).value)}>
+                <option value="" ?selected=${!this.area.climate_lead[a.area_id]}>הפועל הראשון</option>
+                ${a.climate.map((c) => html`<option value=${c.entity_id} ?selected=${this.area.climate_lead[a.area_id] === c.entity_id}>${c.name}</option>`)}
+              </select>
+            </li>`)}
+          </ul>`
+        : nothing}
       <div class="row">
         <label><input type="checkbox" data-area-show-empty .checked=${this.area.show_empty} ?disabled=${dis} @change=${(e: Event) => this.emit({ ...this.area, show_empty: (e.target as HTMLInputElement).checked }, this.floor)} /> הצג גם מונים שערכם אפס</label>
       </div>

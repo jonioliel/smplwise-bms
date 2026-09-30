@@ -1048,8 +1048,10 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-devices-sensors ?disabled=${ro} @change=${(e: Event) => this.set('devices.show_sensors', (e.target as HTMLSelectElement).value === 'false' ? 'false' : 'true')}>
             <option value="true" ?selected=${p.showSensors}>מוצג</option><option value="false" ?selected=${!p.showSensors}>מוסתר</option>
           </select></sw-field></div>
-        <div class="row" style="align-items:flex-start"><span class="lbl">מה מוצג ליד שם האזור<span class="muted">בשורת כל אזור ובכותרת הקומה, שורה אחת בלי גלישה; הטלפון מציג עד שלושה, השאר נאספים ל־+N. כל השאר תמיד בתוך האזור. מי שמוגדרת לו התאמה אישית של המסך יכול לבחור אחרת לעצמו.</span></span>
-          <area-row-editor class="ctl" data-area-row-editor-settings .area=${p.areaRow} .floor=${p.floorRow} ?disabled=${ro} @area-row-change=${(e: CustomEvent<AreaRowChange>) => { this.set('devices.area_row', e.detail.area); this.set('devices.floor_row', e.detail.floor); }}></area-row-editor></div>
+        <div data-area-row-setting style="margin-block:12px">
+          <div class="lbl" style="margin-block-end:8px"><strong>מה מוצג ליד שם האזור</strong><span class="muted">בשורת כל אזור ובכותרת הקומה, שורה אחת בלי גלישה. הסדר קובע: בטלפון מוצגים רק הפריטים שמעל הקו, השאר נאספים ל־+N. כל השאר תמיד בתוך האזור. מי שמוגדרת לו התאמה אישית של המסך יכול לבחור אחרת לעצמו.</span></div>
+          <area-row-editor style="display:block;max-inline-size:460px" data-area-row-editor-settings .area=${p.areaRow} .floor=${p.floorRow} ?disabled=${ro} @area-row-change=${(e: CustomEvent<AreaRowChange>) => { this.set('devices.area_row', e.detail.area); this.set('devices.floor_row', e.detail.floor); }}></area-row-editor>
+        </div>
         <div class="muted" data-devices-layout-next style="margin-block-start:8px">הפריסה עצמה (מיקום וגודל של כרטיסים ואריחים, כותרת, אייקון, גודל טקסט וצבע לפי תפקיד) נערכת במסך המבנה ובמסך האזור, בכפתור "ערוך פריסה".</div>
         ${this.canEdit && api
           ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-devices ?disabled=${!dirty || this.busy} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'devices' ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error && this.tab === 'devices' ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>`

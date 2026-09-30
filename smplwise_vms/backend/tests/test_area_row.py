@@ -16,8 +16,13 @@ from smplwise.services import area_row
 
 # ------------------------------------------------------------------------------------------------ the normalisers
 
+def full(**over):
+    """devices.area_row as the server reads it back: every key present."""
+    return {**area_row.AREA_ROW_DEFAULT, **over}
+
+
 def test_defaults_are_short_and_every_default_item_is_known():
-    assert area_row.normalize_area({}) == {"items": ["climate", "lights", "switches", "media"], "climate": "temp", "show_empty": False}
+    assert area_row.normalize_area({}) == {"items": ["climate", "lights", "switches", "media"], "climate": "temp", "show_empty": False, "climate_mode": "mean", "climate_lead": {}, "only_active": ["openings", "locks"]}
     assert area_row.normalize_floor({}) == {"items": ["lights", "switches", "covers", "climate", "media", "locks", "sensors"]}
     assert set(area_row.AREA_ROW_DEFAULT["items"]) <= set(area_row.AREA_ITEMS)
     assert set(area_row.FLOOR_ROW_DEFAULT["items"]) <= set(area_row.FLOOR_ITEMS)
@@ -25,7 +30,7 @@ def test_defaults_are_short_and_every_default_item_is_known():
 
 def test_area_row_keeps_the_given_order_and_fills_the_missing_keys():
     got = area_row.normalize_area({"items": ["media", "temperature", "climate"], "climate": "mode"})
-    assert got == {"items": ["media", "temperature", "climate"], "climate": "mode", "show_empty": False}
+    assert got == full(items=["media", "temperature", "climate"], climate="mode")
     assert area_row.normalize_area({"items": []})["items"] == []  # an empty row is a valid choice
     assert area_row.normalize_area({"show_empty": True})["show_empty"] is True
 
@@ -36,6 +41,8 @@ def test_area_row_keeps_the_given_order_and_fills_the_missing_keys():
         [], "items", {"items": "lights"}, {"items": ["lights", "lights"]}, {"items": ["lights", "teapot"]}, {"items": [1]},
         {"items": list(area_row.AREA_ITEMS) + ["lights"]},
         {"climate": "snow"}, {"climate": None}, {"show_empty": "true"}, {"show_empty": 1}, {"colour": "red"},
+        {"climate_mode": "first"}, {"climate_lead": []}, {"climate_lead": {"living": "light.lamp"}}, {"climate_lead": {"": "climate.a"}}, {"climate_lead": {"a": "climate.A b"}},
+        {"only_active": ["climate"]}, {"only_active": ["locks", "locks"]}, {"only_active": "locks"},
     ],
 )
 def test_area_row_refuses_anything_else(bad):
@@ -49,12 +56,20 @@ def test_floor_row_refuses_anything_else(bad):
         area_row.normalize_floor(bad)
 
 
+def test_climate_mode_lead_and_only_active_round_trip():
+    got = area_row.normalize_area({"climate_mode": "lead", "climate_lead": {"living": "climate.living_2"}, "only_active": ["lights", "openings"]})
+    assert got == full(climate_mode="lead", climate_lead={"living": "climate.living_2"}, only_active=["lights", "openings"])
+    assert area_row.normalize_area({"only_active": []})["only_active"] == []  # an explicit empty list is a choice: every idle counter may show
+
+
 def test_personal_override_keeps_only_what_the_user_set():
     assert area_row.normalise_personal({}) == {}
     assert area_row.normalise_personal({"items": None, "climate": None}) == {}
     got = area_row.normalise_personal({"items": ["climate"], "climate": "icon", "show_empty": True, "floor_items": ["lights"]})
     assert got == {"items": ["climate"], "climate": "icon", "show_empty": True, "floor_items": ["lights"]}
-    for bad in ({"items": ["x"]}, {"climate": "x"}, {"show_empty": "no"}, {"floor_items": ["temperature"]}, {"other": 1}):
+    more = area_row.normalise_personal({"climate_mode": "lead", "climate_lead": {"a": "climate.x"}, "only_active": ["media"]})
+    assert more == {"climate_mode": "lead", "climate_lead": {"a": "climate.x"}, "only_active": ["media"]}
+    for bad in ({"climate_mode": "x"}, {"only_active": ["climate"]}, {"climate_lead": {"a": "light.x"}}, {"items": ["x"]}, {"climate": "x"}, {"show_empty": "no"}, {"floor_items": ["temperature"]}, {"other": 1}):
         with pytest.raises(ValueError):
             area_row.normalise_personal(bad)
 
@@ -66,13 +81,13 @@ def test_settings_defaults_round_trip_validation_audit_and_gate(settings):
     with TestClient(app) as c:
         before = c.get("/api/v1/settings").json()["settings"]
         assert before["devices.area_row"] == area_row.AREA_ROW_DEFAULT and before["devices.floor_row"] == area_row.FLOOR_ROW_DEFAULT  # read back as objects
-        change = {"devices.area_row": {"items": ["temperature", "climate", "openings"], "climate": "icon", "show_empty": True}, "devices.floor_row": {"items": ["climate", "lights"]}}
+        change = {"devices.area_row": full(items=["temperature", "climate", "openings"], climate="icon", show_empty=True, climate_mode="lead", climate_lead={"living": "climate.living_2"}, only_active=["locks"]), "devices.floor_row": {"items": ["climate", "lights"]}}
         r = c.patch("/api/v1/settings", json=change)
         assert r.status_code == 200, r.text
         assert {k: r.json()["settings"][k] for k in change} == change
         assert {k: c.get("/api/v1/settings").json()["settings"][k] for k in change} == change
         # a partial object keeps the defaults of the keys left out, and is stored canonical
-        assert c.patch("/api/v1/settings", json={"devices.area_row": {"items": ["locks"]}}).json()["settings"]["devices.area_row"] == {"items": ["locks"], "climate": "temp", "show_empty": False}
+        assert c.patch("/api/v1/settings", json={"devices.area_row": {"items": ["locks"]}}).json()["settings"]["devices.area_row"] == full(items=["locks"])
         # nothing outside the lists: refused with the key named, and nothing changes
         for key, bad in (
             ("devices.area_row", {"items": ["lights", "lights"]}), ("devices.area_row", {"items": ["fridge"]}), ("devices.area_row", {"climate": "fan"}),
@@ -81,14 +96,14 @@ def test_settings_defaults_round_trip_validation_audit_and_gate(settings):
             r = c.patch("/api/v1/settings", json={key: bad})
             assert r.status_code == 422, (key, bad)
             assert key in json.dumps(r.json(), ensure_ascii=False)
-        assert c.get("/api/v1/settings").json()["settings"]["devices.area_row"] == {"items": ["locks"], "climate": "temp", "show_empty": False}
+        assert c.get("/api/v1/settings").json()["settings"]["devices.area_row"] == full(items=["locks"])
         # audited like any product setting
         with app.state.db.connection() as conn:
             rows = [json.loads(x[0] or "{}") for x in conn.execute("SELECT details_json FROM audit_log WHERE action = 'settings.update' AND decision = 'allowed' ORDER BY rowid").fetchall()]
         assert change in rows
         # any user reads them; only system.configure writes them
         bind(c, settings, "dana", "viewer", "installation", "*")
-        assert c.get("/api/v1/settings", headers=as_user("dana")).json()["settings"]["devices.area_row"] == {"items": ["locks"], "climate": "temp", "show_empty": False}
+        assert c.get("/api/v1/settings", headers=as_user("dana")).json()["settings"]["devices.area_row"] == full(items=["locks"])
         assert c.patch("/api/v1/settings", json={"devices.area_row": {"items": []}}, headers=as_user("dana")).status_code == 403
         # back to the defaults
         assert c.patch("/api/v1/settings", json={"devices.area_row": area_row.AREA_ROW_DEFAULT, "devices.floor_row": area_row.FLOOR_ROW_DEFAULT}).status_code == 200
