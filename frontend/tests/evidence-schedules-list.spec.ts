@@ -418,7 +418,7 @@ test.describe('the home tabs and the settings page (demo mode)', () => {
     const s = page.locator('sw-app system-schedules');
     await expect(s.locator('[data-schedules-settings]')).toBeVisible();
     await expect(s.locator('[data-component-line]')).toContainText('גרסה 3.3.8');
-    await expect(s.locator('[data-shabbat-sensor] option')).toContainText(['ללא חיישן', 'איסור מלאכה · מומלץ']);
+    await expect(s.locator('[data-shabbat-sensor] option')).toContainText(['ללא חיישן', 'איסור מלאכה']); // the suggested sensor first, in its own group
     await expect(s.locator('[data-class]')).toHaveCount(8);
     await expect(s.locator('[data-sched-roles] tbody tr')).toHaveCount(5);
     await shot(page, '12-settings', info);
@@ -433,6 +433,17 @@ test.describe('the home tabs and the settings page (demo mode)', () => {
     await expect(s.locator('[data-settings-save]')).toHaveCount(0);
     await s.locator('[data-help-toggle]').click();
     await expect(s.locator('[data-help]')).toContainText('2024.11.0');
+  });
+
+  test('הגדרות › תזמונים: a sensor that is not a calendar one is confirmed before it is saved', async ({ page }) => {
+    await open(page, '/system/schedules');
+    const s = page.locator('sw-app system-schedules');
+    await expect(s.locator('[data-shabbat-sensor] optgroup').first()).toHaveAttribute('label', /לוח שנה יהודי/);
+    await s.locator('[data-shabbat-sensor]').selectOption('binary_sensor.office_occupancy');
+    await s.locator('[data-settings-save]').click();
+    await expect(s.locator('[data-sensor-confirm]')).toContainText('להשתמש בו בכל זאת');
+    await s.locator('[data-sensor-force]').click();
+    await expect(s.locator('[data-settings-saved]')).toBeVisible();
   });
 
   test('הגדרות › תזמונים is for the administrator only', async ({ page }) => {
@@ -452,6 +463,10 @@ interface ApiState {
   calls: { method: string; path: string; body: unknown }[];
   listStatus: number;
   refreshes: number;
+  /** PATCH /settings bodies, in order */
+  patches: Record<string, unknown>[];
+  /** enable / disable answers this error instead (the write failures of the real component tests) */
+  failEnable: { status: number; code: string } | null;
 }
 
 async function install(page: Page, st: ApiState) {
@@ -471,13 +486,24 @@ async function install(page: Page, st: ApiState) {
       });
     }
     if (p === 'me/prefs') return json({ prefs: { 'nav.order': ['devices', 'security', 'explore', 'wiskey'] }, stored: [], updated_at: null });
+    if (p === 'settings' && req.method() === 'PATCH') {
+      // the server's rule: a sensor that is not a Jewish-calendar one needs `schedules.shabbat_sensor_force`, which is never stored
+      const body = req.postDataJSON() as Record<string, unknown>;
+      st.patches.push(body);
+      const sensor = String(body['schedules.shabbat_sensor'] ?? '');
+      if (sensor && sensor !== 'binary_sensor.shabbat_mode' && body['schedules.shabbat_sensor_force'] !== true) return err(422, 'not_calendar_sensor', 'זה לא נראה כחיישן של לוח השנה היהודי.');
+      const { 'schedules.shabbat_sensor_force': _force, ...stored } = body;
+      Object.assign(st.settings, stored);
+    }
     if (p === 'settings') return json({ settings: { 'ui.design': 'a', 'ui.start_route': 'devices', 'ui.security_snapshot': 'true', ...st.settings }, can_edit: st.perms.includes('system.configure') });
     if (p.startsWith('schedules')) {
       const body = req.method() === 'GET' ? null : req.postDataJSON();
       st.calls.push({ method: req.method(), path: p + url.search, body });
       const s = st.store;
       try {
-        if (p === 'schedules/status') return json(await s.status());
+        // the status answers only holders of schedule.view
+        if (p === 'schedules/status') return st.perms.includes('schedule.view') ? json(await s.status()) : err(403, 'forbidden', 'אין הרשאה לפעולה זו בהיקף המבוקש.');
+        if (p.startsWith('schedules/condition-candidates')) return json(await s.conditionCandidates({}));
         if (p === 'schedules' && req.method() === 'GET') {
           st.refreshes += 1;
           if (st.listStatus !== 200) return err(st.listStatus, 'internal', 'שגיאה בשרת (בדיקה)');
@@ -489,6 +515,7 @@ async function install(page: Page, st: ApiState) {
         if (p === 'schedules/bulk') return json(await s.bulk((body as { op: 'enable' | 'disable' }).op, (body as { ids: string[] }).ids));
         const m = /^schedules\/([0-9a-f]{6})(?:\/(enable|disable|delete|run))?$/.exec(p);
         if (m && !m[2]) return json(await s.get(m[1]));
+        if ((m?.[2] === 'enable' || m?.[2] === 'disable') && st.failEnable) return err(st.failEnable.status, st.failEnable.code, 'internal wording');
         if (m?.[2] === 'enable' || m?.[2] === 'disable') return json(await s.setEnabled(m[1], m[2] === 'enable', false));
         if (m?.[2] === 'delete') return json(await s.remove(m[1], (body as { base_revision: string }).base_revision));
       } catch (e) {
@@ -518,7 +545,7 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
   let st: ApiState;
 
   test.beforeEach(async ({ page }) => {
-    st = { perms: [...VIEWER_PERMS, 'schedule.view', 'schedule.manage', 'system.configure'], settings: {}, store: new ScheduleDemoStore(), calls: [], listStatus: 200, refreshes: 0 };
+    st = { perms: [...VIEWER_PERMS, 'schedule.view', 'schedule.manage', 'system.configure'], settings: {}, store: new ScheduleDemoStore(), calls: [], listStatus: 200, refreshes: 0, patches: [], failEnable: null };
     await install(page, st);
   });
 
@@ -532,7 +559,7 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
   });
 
   test('schedule.manage without devices.read: the home area opens on the schedules, one tab, no row', async ({ page }) => {
-    st.perms = ['video.live', 'schedule.manage'];
+    st.perms = ['video.live', 'schedule.view', 'schedule.manage'];
     await openApi(page, '/devices/schedules');
     await expect(page.locator('sw-app devices-schedules [data-sched-grid]')).toBeVisible();
     expect(await rowTabs(page)).toEqual([]);
@@ -586,6 +613,54 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
     st.listStatus = 200;
     await panel.locator('sw-button').click();
     await expect(page.locator('sw-app devices-schedules [data-sched-grid]')).toBeVisible();
+  });
+
+  test('the status refuses a caller without schedule.view: the screen says "no permission", not "failed"', async ({ page }) => {
+    st.perms = ['video.live', 'schedule.manage'];
+    await openApi(page, '/devices/schedules');
+    await expect(page.locator('sw-app devices-schedules [data-sched-state="no_permission"]')).toBeVisible();
+  });
+
+  test('write failures: entity_unknown (422) and idempotency_conflict (409) get a sensible Hebrew message', async ({ page }) => {
+    await openApi(page, '/devices/schedules');
+    const toggle = page.locator('sw-app devices-schedules article[data-schedule="8b21d4"] sw-toggle button');
+    const note = page.locator('sw-app devices-schedules [data-sched-note]');
+    st.failEnable = { status: 422, code: 'entity_unknown' };
+    await toggle.click();
+    await expect(note).toContainText('אחד ההתקנים בתזמון אינו מוכר או מחוץ להרשאתך');
+    await expect(note).not.toContainText('internal wording');
+    st.failEnable = { status: 409, code: 'idempotency_conflict' };
+    await toggle.click();
+    await expect(note).toContainText('הבקשה כבר נשלחה בתוכן אחר');
+  });
+
+  test('הגדרות › תזמונים: calendar sensors first; another sensor is confirmed, sent with the override flag, never stored; a refusal shows its message', async ({ page }) => {
+    await openApi(page, '/system/schedules');
+    const s = page.locator('sw-app system-schedules');
+    await expect(s.locator('[data-schedules-settings]')).toBeVisible();
+    const groups = s.locator('[data-shabbat-sensor] optgroup');
+    await expect(groups).toHaveCount(2);
+    await expect(groups.first()).toHaveAttribute('label', /לוח שנה יהודי/);
+    await expect(groups.first().locator('option')).toHaveText(['איסור מלאכה']);
+    // a suggested sensor: no confirmation, no flag
+    await s.locator('[data-shabbat-sensor]').selectOption('');
+    await s.locator('[data-shabbat-sensor]').selectOption('binary_sensor.shabbat_mode');
+    await s.locator('[data-class="fan"] button').click();
+    await s.locator('[data-settings-save]').click();
+    await expect.poll(() => st.patches.length).toBe(1);
+    expect(st.patches[0]).not.toHaveProperty('schedules.shabbat_sensor_force');
+    // another sensor: asked first; cancelling sends nothing
+    await s.locator('[data-shabbat-sensor]').selectOption('binary_sensor.office_occupancy');
+    await s.locator('[data-settings-save]').click();
+    await expect(s.locator('[data-sensor-confirm]')).toContainText('חיישן שאינו לוח שנה יהודי - להשתמש בו בכל זאת?');
+    await s.locator('[data-sensor-cancel]').click();
+    expect(st.patches.length).toBe(1);
+    await s.locator('[data-settings-save]').click();
+    await s.locator('[data-sensor-force]').click();
+    await expect.poll(() => st.patches.length).toBe(2);
+    expect(st.patches[1]).toMatchObject({ 'schedules.shabbat_sensor': 'binary_sensor.office_occupancy', 'schedules.shabbat_sensor_force': true });
+    await expect(s.locator('[data-settings-saved]')).toBeVisible();
+    expect(st.settings).not.toHaveProperty('schedules.shabbat_sensor_force');
   });
 
   test('a schedules_changed push refetches the list', async ({ page }) => {

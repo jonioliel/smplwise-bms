@@ -4,6 +4,7 @@
  * authority for every permission and rule, this module only filters, sorts, groups, summarises and words what the
  * server already decided (§3.2, §4, §12.5 of docs/architecture/SCHEDULER_API.md).
  */
+import { ApiError, describeError } from '../api/client';
 import {
   DAY_ORDER,
   DAY_SHORT,
@@ -503,6 +504,20 @@ export function windowText(slot: ScheduleSlot): string {
   if (!slot.stop) return formatTime(slot.start);
   const stop = slot.stop.kind === 'fixed' && slot.stop.time === '00:00' ? '24:00' : formatTime(slot.stop);
   return `${formatTime(slot.start)}–${stop}`;
+}
+
+// ------------------------------------------------------------------------------------------------ errors
+
+/** Codes whose wording the screens fix themselves (the server's text may be an internal phrase, or absent). */
+const ERROR_TEXT: Record<string, string> = {
+  entity_unknown: 'אחד ההתקנים בתזמון אינו מוכר או מחוץ להרשאתך.',
+  idempotency_conflict: 'הבקשה כבר נשלחה בתוכן אחר. רעננו את המסך ונסו שוב.',
+};
+
+/** The Hebrew message of a failed schedules call: the fixed wording for the codes above, else the server's own user_message. */
+export function scheduleErrorText(err: unknown): string {
+  if (err instanceof ApiError && ERROR_TEXT[err.code]) return ERROR_TEXT[err.code];
+  return describeError(err);
 }
 
 // ------------------------------------------------------------------------------------------------ conditions, trash
