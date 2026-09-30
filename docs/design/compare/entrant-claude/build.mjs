@@ -12,6 +12,7 @@ import { setSkin, skinIds, stats } from './src/skin.mjs';
 import { cssBlock, tokensJson, tokenMap, contractAliases } from './src/tokens.mjs';
 import { homeBoard, areaBoard, wallBoard, homeListBoard, areaListBoard, wallListBoard, homeKpiBoard, homePanelBoard, setFontPrefix } from './src/screens.mjs';
 import { foundationsColor, foundationsType, foundationsShape, foundationsMotion, componentsSheet, areaStatesBoard, indexPage } from './src/boards.mjs';
+import { rtlIssues, formatIssues } from './src/rtl-check.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -86,18 +87,21 @@ for (const id of todoSkins) {
 
 console.log('skin stats:', stats().map((s) => `${s.id}: ${s.changed}/${s.total} tokens changed, ${s.rules} rules`).join(' · '));
 
-// ---- render ----
+// ---- render (+ the reading-direction check on every opened board; any issue fails the build) ----
 if (!noRender) {
   const req = createRequire(resolve(here, '../../../../frontend/node_modules/'));
   const { chromium } = req('playwright');
   const browser = await chromium.launch();
   const todo = allBoards.filter((b) => !filter || b.file.includes(filter));
+  let rtlFailures = 0;
   for (const b of todo) {
     const ctx = await browser.newContext({ viewport: { width: b.w, height: b.h }, deviceScaleFactor: b.scale, locale: 'he-IL', isMobile: b.w < 768, hasTouch: b.w < 768 });
     const page = await ctx.newPage();
     await page.goto(pathToFileURL(join(b.dir, b.file)).href);
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(150);
+    const issues = await rtlIssues(page);
+    if (issues.length) { rtlFailures += issues.length; console.log(formatIssues(`${b.skin}/${b.file}`, issues)); }
     const out = join(b.out, b.file.replace('.html', '.png'));
     const h = await page.evaluate(() => document.documentElement.scrollHeight);
     const wOver = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
@@ -113,4 +117,6 @@ if (!noRender) {
     await ctx.close();
   }
   await browser.close();
+  if (rtlFailures) { console.error(`\nBUILD FAILED: ${rtlFailures} reading-direction issue(s) — a chevron against the reading direction or a fill not from the inline-start (see src/rtl-check.mjs).`); process.exit(1); }
+  console.log(`reading-direction check: ${todo.length} boards, 0 issues`);
 }

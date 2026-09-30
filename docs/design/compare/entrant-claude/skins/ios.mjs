@@ -1,6 +1,7 @@
 // Skin 2 — "iOS / Apple": system-like scale, large titles, grouped inset lists with hairline separators,
-// 12–16px cards on a soft grey canvas (light) / true black with elevated greys (dark), segmented controls and
-// switches, translucent rail/bar materials, spring motion, system blue with semantic green/orange/red.
+// 14/22/28/32 continuous corners on a soft grey canvas (light) / true black with elevated greys (dark), a floating
+// translucent rail and a floating pill bar, segmented controls and switches, spring motion, system blue with
+// semantic green/orange/red. On the phone the same DOM composes as grouped lists and two-column KPI tiles.
 // The feel, not the assets: Heebo stays, icons are ours, no Apple names or glyphs.
 import { same, lt, derive } from '../src/token-helpers.mjs';
 import { groups as base } from './domus.mjs';
@@ -50,8 +51,9 @@ export const groups = derive(base, {
   '--sw-warning-text': lt('#7f4400', '#ff9f0a'), '--sw-success-text': lt('#166d2e', '#30d158'),
   '--sw-forbidden-text': lt('#a8000f', '#ff6482'), '--sw-purple-text': lt('#7d2fa8', '#d69bff'),
   '--sw-toggle-on': lt('#1e9640', '#30d158'),
-  // "on": no glow — a flat tint and a filled icon; the alphas describe the flat tint
-  '--sw-on-warm': same('255 149 0'), '--sw-on-cool': same('0 113 227'), '--sw-on-switch': lt('30 150 64', '48 209 88'),
+  // "on": no glow — a flat warm tint and a filled icon square, the same on a room card, a device row and a list row
+  // (lights are warm too: one "on" language across home and area); switches stay green. The alphas describe the tint.
+  '--sw-on-warm': same('255 149 0'), '--sw-on-cool': same('255 149 0'), '--sw-on-switch': lt('30 150 64', '48 209 88'),
   '--sw-glow-fill-start': lt('.12', '.13'), '--sw-glow-fill-end': lt('.12', '.13'), '--sw-glow-border': same('0'), '--sw-glow-halo': same('0'),
   // roles
   '--sw-role-accent': same('0 113 227'), '--sw-role-accent-fg': lt('#0060c0', '#5aa2ff'),
@@ -76,8 +78,8 @@ export const groups = derive(base, {
   // space: rows 52, icon squares 32, tighter card padding
   '--sw-page-pad': same('24px'), '--sw-tile-gap': same('8px'), '--sw-card-gap': same('16px'), '--sw-card-pad': same('16px'),
   '--sw-row-h': same('52px'), '--sw-row-h-compact': same('44px'), '--sw-icon-ring': same('32px'), '--sw-icon-ring-lg': same('40px'),
-  // radii: 8 / 10 / 12 / 16 — grouped-list containers, not panels
-  '--sw-r-sm': same('8px'), '--sw-r-md': same('10px'), '--sw-r-lg': same('12px'), '--sw-r-xl': same('16px'),
+  // radii: 14 control / 22 tile / 28 panel / 32 dialog — the contemporary continuous-corner scale (judge round 2)
+  '--sw-r-sm': same('14px'), '--sw-r-md': same('22px'), '--sw-r-lg': same('28px'), '--sw-r-xl': same('32px'),
   // elevation: grouped cards carry no shadow; popovers and sheets do; the switch thumb has the classic drop
   '--sw-shadow-1': same('none'),
   '--sw-shadow-2': lt('0 6px 20px rgba(0,0,0,.10)', '0 8px 24px rgba(0,0,0,.60)'),
@@ -94,53 +96,67 @@ export const groups = derive(base, {
 });
 
 export const rules = `
-/* ios · cards are opaque grouped containers without an outline; only the rail, bar and corner are translucent material */
+/* ios · cards are opaque grouped containers without an outline; only the rail, bar, corner and sheet are translucent material */
 .glass{background:var(--sw-surface-solid);border-color:transparent}
 .rail-in,.bar,.corner,.sheet{background:var(--sw-surface);-webkit-backdrop-filter:var(--sw-glass-blur-nav);backdrop-filter:var(--sw-glass-blur-nav)}
-/* ios · sidebar: flush, hairline at the end edge, rounded selection, no indicator bar */
-.rail-in{border-inline-end:1px solid var(--sw-border);border-radius:0;padding-inline:8px}
-.rail-item{border-radius:10px}
-.brand{border-radius:12px;background:linear-gradient(180deg,var(--sw-accent-hover),var(--sw-accent));box-shadow:0 1px 2px rgba(0,0,0,.18)}
-.bar-item.active{color:var(--sw-accent)}
-.corner{box-shadow:0 1px 3px rgba(0,0,0,.10);border-color:transparent}
-/* ios · grouped-list rhythm: grey filled pills, blue text buttons, small grey group headers with the facts in grey */
-.chip,.room .amb .chip{background:var(--sw-surface-3);border-color:transparent}
-.fbtn{background:var(--sw-surface-solid);border-color:transparent;color:var(--sw-accent-text)} .fbtn .ic{color:var(--sw-accent-text)}
+/* ios · floating rail: a rounded translucent column 12px off the edges with a real shadow; rounded selection, no indicator bar */
+.rail{padding:var(--sw-rail-gap) 0;padding-inline-start:var(--sw-rail-gap)}
+.rail-in{border-radius:var(--sw-r-lg);border-inline-end:0;box-shadow:var(--sw-shadow-2);padding-inline:8px}
+.rail-item{border-radius:var(--sw-r-sm)}
+/* ios · phone: the bottom bar floats as a pill 12px off the edges; the active item sits on a tinted pill */
+.bar{bottom:10px;margin-inline:12px;border-radius:var(--sw-r-pill);border-top:0;padding:6px 8px;box-shadow:var(--sw-shadow-2)}
+.bar-item.active .pill{background:var(--sw-accent-soft)}
+/* ios · grouped-list rhythm: grey filled pills, blue text button for the floor, small grey group headers with the facts in grey */
+.chip{background:var(--sw-surface-3);border-color:transparent}
+.chip.warm{border-color:transparent}
+.fbtn{background:var(--sw-surface-solid);border-color:transparent;color:var(--sw-accent-text)} .fbtn .ic{color:inherit}
 .floor .fh .facts,.floor .fh .facts b{color:var(--sw-text-3);font-weight:var(--sw-fw-regular)}
 .room .rn{font-size:var(--sw-fs-xl);font-weight:var(--sw-fw-semibold);letter-spacing:0}
 /* ios · grouped inset lists: rows without fills, hairline separators, last row clean */
-.tile,.sens,.lrow{background:transparent;border:0;border-radius:0;border-bottom:1px solid var(--sw-border);padding-inline:2px}
+.tile,.sens,.lrow{background:transparent;border:0;border-radius:0;border-bottom:1px solid var(--sw-border);padding-inline:10px}
 .tiles1 > .tile:last-child,.tiles2 > .tile:last-child,.tiles2 > .tile:nth-last-child(2):nth-child(odd),.sens2 > .sens:nth-last-child(-n+2),.lgroup .lrow:last-child{border-bottom:0}
 .tile.unavail .ring{border:1.5px dashed var(--sw-border-strong);background:transparent}
-/* ios · "on" = filled icon square, flat tint on room and area tiles, no glow */
-.ring,.dbadge{border-radius:8px}
-.tile.on .ring,.lrow.on .ring{background:rgb(var(--g));color:#fff}
+/* ios · "on" = filled icon square + the same flat warm tint on a room card, a device row, an area tile and a list row; no glow */
+.ring{border-radius:8px}
+.dbadge{border-radius:8px;background:rgb(var(--role,var(--sw-role-accent)));color:#fff}
+.tile.on .ring,.lrow.on .ring,.atile.on .dbadge,.room.on .dbadge{background:rgb(var(--g));color:#fff}
 .atile{background:var(--sw-surface-3);border-color:transparent}
-.atile.on,.room.on{background:rgb(var(--g) / calc(var(--sw-glow-fill-start) * .6));border-color:transparent;box-shadow:none}
-.atile.on .dbadge,.room.on .dbadge{background:rgb(var(--g));color:#fff}
+.atile.on,.room.on,.tile.on,.lrow.on{background:rgb(var(--g) / calc(var(--sw-glow-fill-start) * .6));border-color:transparent;box-shadow:none}
+.tile.on,.lrow.on{border-radius:var(--sw-r-sm)}
 .kpi .ring{background:rgb(var(--tone,var(--sw-role-neutral)));color:#fff}
-.dbadge{background:rgb(var(--role,var(--sw-role-accent)));color:#fff}
 /* ios · segmented control (grey track, white thumb) and switch (51×31) */
 .seg{border-radius:9px;padding:2px;gap:2px}
 .seg > *{border-radius:7px;min-height:28px;font-weight:var(--sw-fw-medium)}
 .seg > .on{box-shadow:var(--sw-shadow-thumb);font-weight:var(--sw-fw-semibold)}
-.seg.lg > *{min-height:34px}
-.tg .tr{width:51px;height:31px;border:0;background:var(--sw-surface-3-solid)}
-.tg .tr::after{width:27px;height:27px}
-.tg.on .tr::after{translate:20px 0} [dir="rtl"] .tg.on .tr::after,.rtl .tg.on .tr::after{translate:-20px 0}
-.tg.small .tr{width:51px;height:31px} .tg.small .tr::after{width:27px;height:27px} .tg.small.on .tr::after{translate:20px 0} [dir="rtl"] .tg.small.on .tr::after{translate:-20px 0}
+.tg .tr,.tg.small .tr{width:51px;height:31px;border:0;background:var(--sw-surface-3-solid)}
+.tg .tr::after,.tg.small .tr::after{width:27px;height:27px}
+.tg.on .tr::after,.tg.small.on .tr::after{translate:20px 0}
+.tg.on .tr:dir(rtl)::after,.tg.small.on .tr:dir(rtl)::after{translate:-20px 0}
 /* ios · buttons: filled / tinted / plain; white text on the filled one in both schemes */
-.btn{border-radius:var(--sw-r-md)}
 .btn.primary{color:#fff;box-shadow:none}
 .btn.secondary{background:var(--sw-accent-soft);border-color:transparent;color:var(--sw-accent-text)}
-.btn.lg{border-radius:14px}
 .tabs .tab.on{border-color:transparent;box-shadow:none;background:var(--sw-accent-soft)}
-.chip.warm{border-color:transparent}
-.master{border-color:var(--sw-accent)}
-.slider .track{height:4px} .slider .thumb{width:28px;height:28px}
+.slider .thumb{width:28px;height:28px}
 /* ios · grouped-list section headers: small, grey, above the group */
 .floor .fh .h2,.lgroup{font-size:var(--sw-fs-sm);color:var(--sw-text-3);font-weight:var(--sw-fw-medium)}
 .lgroup{background:var(--sw-surface-solid);min-height:36px}
+/* ios · phone composition of the same DOM: the building facts as KPI tiles in two columns (Control-Center rhythm, the
+   --sw-kpi-compact-* knobs), each floor as one grouped list — a white container of area rows with hairlines and a disclosure */
+@media (max-width:767px){
+  .home .head .facts{display:grid;grid-template-columns:repeat(var(--sw-kpi-compact-cols-phone),1fr);gap:var(--sw-kpi-compact-grid-gap);margin-top:12px}
+  .home .head .facts span{background:var(--sw-surface-solid);border-radius:var(--sw-r-md);min-height:var(--sw-row-h);padding:var(--sw-kpi-compact-pad-block) var(--sw-kpi-compact-pad-inline);gap:var(--sw-kpi-compact-gap);white-space:normal;color:var(--sw-text-2)}
+  .home .head .facts span:last-child:nth-child(odd){grid-column:1 / -1}
+  .home .head .facts b{font-size:var(--sw-kpi-compact-value-fs);color:var(--sw-heading)}
+  .home .head .facts .ic{width:22px;height:22px}
+  .rooms{gap:0;background:var(--sw-surface-solid);border-radius:var(--sw-r-lg);overflow:hidden}
+  .room{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 8px;padding:10px 14px;border-radius:0;border-bottom:1px solid var(--sw-border)}
+  .rooms > .room:last-child{border-bottom:0}
+  .room .amb{gap:6px 10px}
+  .room .rf{grid-column:2;grid-row:1 / span 2;margin:0;flex-direction:row-reverse;gap:0}
+  .room .rf .more{color:transparent;width:24px;justify-content:center}
+  .room .rf .more .ic{color:var(--sw-text-3);width:18px;height:18px}
+  .room .amb .chip{height:auto;padding:0;background:transparent}
+}
 `;
 
 export const skin = {
@@ -150,9 +166,9 @@ export const skin = {
     material: 'משטחים אטומים על קנבס מקובץ',
     materialNote: 'הכרטיסים הם מכלים אטומים (לבן / אפור מוגבה) על קנבס אפור-רך (light) או שחור אמיתי (dark). חומר שקוף רק בסרגל, בפס התחתון ובפינה. אין קו שיער עליון, אין צל לכרטיס במנוחה.',
     canvasNote: 'הקנבס שטוח: #f2f2f7 ב-light, #000000 ב-dark. העומק מגיע מרמות האפור (1c/2c/3a) ולא מצל או blur.',
-    onNote: 'אין glow: אריח "דולק" מקבל ריבוע אייקון מלא בצבע המצב (כתום לחדר, כחול לתאורה, ירוק למתג) וטינט שטוח על אריחי חדר/אזור.',
-    shadowNote: 'shadow-1 = none. הפרדה בין שורות בקו שיער (separator .24/.65); popover ו-sheet מקבלים צל אמיתי; אגודל ה-toggle מקבל את הצל הקלאסי.',
+    onNote: 'אין glow: "דולק" = ריבוע אייקון מלא בצבע המצב + טינט חם שטוח על השורה/הכרטיס — אותה שפה בכרטיס החדר (בית), בשורת ההתקן (אזור) ובשורת הרשימה. תאורה ותריסים חמים (כתום), מתגים ירוקים.',
+    shadowNote: 'shadow-1 = none. הפרדה בין שורות בקו שיער (separator .24/.65); הסרגל הצף, הפס הצף, popover ו-sheet מקבלים shadow-2/3; אגודל ה-toggle מקבל את הצל הקלאסי.',
     motionNote: 'אגודלים ומתגים בקפיץ (cubic-bezier(.34,1.56,.64,1)); משכים 150/250/400; אין hover lift.',
-    railNote: 'סרגל צד צמוד עם קו שיער בקצה הסוף (כמו sidebar של טאבלט); פריט פעיל = מילוי accent-soft מעוגל 10, בלי פס. בטלפון: פס לשוניות שקוף, פעיל = כחול.',
+    railNote: 'סרגל צד צף: עמודה שקופה-מטושטשת ברדיוס 28, 12px מהקצוות, עם shadow-2; פריט פעיל = מילוי accent-soft מעוגל 14, בלי פס. בטלפון: פס תחתון צף בצורת pill, 12px מהקצוות, פעיל = כחול על pill מוטנט.',
   },
 };

@@ -65,10 +65,14 @@ const P = {
   wind: '<path d="M4 9h10a2.5 2.5 0 1 0-2.4-3.2"/><path d="M3 14h14a2.5 2.5 0 1 1-2.4 3.2"/><path d="M6 19h6"/>',
 };
 
+// Directional glyphs are logical, never physical: `dir: 'fwd'` points to the inline-end (left in RTL, right in LTR —
+// disclosure, "more", next); `dir: 'back'` points to the inline-start (back). The chevron path itself points right
+// (LTR forward); css.mjs flips `.ic-fwd:dir(rtl)` and `.ic-back:dir(ltr)`. A chevron with no `dir` must be rotated
+// (drop-down ▾) — build.mjs fails otherwise (src/rtl-check.mjs).
 export function icon(name, opts = {}) {
   const size = opts.size || 24;
-  const cls = ['ic', opts.cls, opts.mirror ? 'ic-dir' : ''].filter(Boolean).join(' ');
+  const cls = ['ic', opts.cls, opts.dir === 'fwd' ? 'ic-fwd' : opts.dir === 'back' ? 'ic-back' : ''].filter(Boolean).join(' ');
   const body = P[name] || P.info;
-  return `<svg class="${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+  return `<svg class="${cls}" data-ic="${name}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 }
 export const iconNames = Object.keys(P);

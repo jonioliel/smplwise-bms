@@ -71,7 +71,7 @@
   --sw-purple-text: #7d2fa8;
   --sw-toggle-on: #1e9640;
   --sw-on-warm: 255 149 0;
-  --sw-on-cool: 0 113 227;
+  --sw-on-cool: 255 149 0;
   --sw-on-switch: 30 150 64;
   --sw-glow-fill-start: .12;
   --sw-glow-fill-end: .12;
@@ -209,10 +209,10 @@
   --sw-tile-min-block: 96px;
   --sw-icon-ring-pad: 9px;
   --sw-icon-ring-on-bg: rgba(255,255,255,.22);
-  --sw-r-sm: 8px;
-  --sw-r-md: 10px;
-  --sw-r-lg: 12px;
-  --sw-r-xl: 16px;
+  --sw-r-sm: 14px;
+  --sw-r-md: 22px;
+  --sw-r-lg: 28px;
+  --sw-r-xl: 32px;
   --sw-r-pill: 999px;
   --sw-shadow-1: none;
   --sw-shadow-2: 0 6px 20px rgba(0,0,0,.10);
@@ -297,7 +297,7 @@
   --sw-purple-text: #d69bff;
   --sw-toggle-on: #30d158;
   --sw-on-warm: 255 149 0;
-  --sw-on-cool: 0 113 227;
+  --sw-on-cool: 255 149 0;
   --sw-on-switch: 48 209 88;
   --sw-glow-fill-start: .13;
   --sw-glow-fill-end: .13;
@@ -435,10 +435,10 @@
   --sw-tile-min-block: 96px;
   --sw-icon-ring-pad: 9px;
   --sw-icon-ring-on-bg: rgba(255,255,255,.22);
-  --sw-r-sm: 8px;
-  --sw-r-md: 10px;
-  --sw-r-lg: 12px;
-  --sw-r-xl: 16px;
+  --sw-r-sm: 14px;
+  --sw-r-md: 22px;
+  --sw-r-lg: 28px;
+  --sw-r-xl: 32px;
   --sw-r-pill: 999px;
   --sw-shadow-1: none;
   --sw-shadow-2: 0 8px 24px rgba(0,0,0,.60);
@@ -474,7 +474,8 @@ h1,h2,h3{color:var(--sw-heading);line-height:var(--sw-lh-tight);font-weight:var(
 a{color:var(--sw-accent-text);text-decoration:none}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .ic{display:inline-block;vertical-align:middle;flex:none}
-[dir="ltr"] .ic-dir, .ltr .ic-dir{transform:scaleX(-1)}
+/* directional glyphs: the chevron path points right; "forward" (disclosure / more) points to the inline-end, "back" to the inline-start */
+.ic-fwd:dir(rtl),.ic-back:dir(ltr){transform:scaleX(-1)}
 .num,.mono{direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums}
 .mono{font-family:var(--sw-font-mono)}
 .muted{color:var(--sw-text-2)} .faint{color:var(--sw-text-3)}
@@ -669,13 +670,15 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .tile.on .tstate{color:var(--sw-text)}
 .tile.unavail{border-style:dashed;background:transparent}
 .tile.unavail .tname{color:var(--sw-text-2)} .tile.unavail .tstate{color:var(--sw-text-3)} .tile.unavail .ring{opacity:.6}
-.tile.col{flex-wrap:wrap}
+.tile.col{flex-wrap:wrap;align-content:flex-start}
 .tile.col{grid-column:1 / -1}
+.tiles2 > .tile{flex-wrap:wrap;align-content:flex-start} /* a tile beside a slider tile keeps its control on the same line as the neighbour's */
 .tile .slider{flex-basis:100%;margin-top:4px}
 .slider{position:relative;height:28px;display:flex;align-items:center}
 .slider .track{height:6px;width:100%;border-radius:3px;background:var(--sw-surface-3);overflow:hidden}
 .slider .fill{height:100%;background:var(--sw-accent);border-radius:3px}
 .slider .thumb{position:absolute;top:50%;translate:50% -50%;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:var(--sw-shadow-thumb),0 0 0 1px rgba(0,0,0,.05)}
+.slider .thumb:dir(ltr){translate:-50% -50%} /* the fill grows from the inline-start in both directions; the thumb is centred on its end */
 .slider .thumb::after{content:"";position:absolute;inset:-11px}
 .stepper{display:inline-flex;align-items:center;gap:2px;padding:2px;border-radius:var(--sw-r-pill);background:var(--sw-surface-3)}
 .stepper .btn{width:36px;height:36px;padding:0;border-radius:50%;background:var(--sw-surface-2-solid);box-shadow:var(--sw-shadow-thumb)}
@@ -789,8 +792,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .scene.s4{background:linear-gradient(180deg,#f0c98a 0%,#e0a866 45%,#6b5a48 46%,#3b3128 100%)}
 .scene.s5{background:linear-gradient(180deg,#2b3247 0%,#3a4360 50%,#1d2233 51%,#0f1220 100%)}
 .scene.s6{background:linear-gradient(180deg,#a7c7d9 0%,#dbe7ee 48%,#8a8f80 49%,#5a6050 100%)}
-.scene::before{content:"";position:absolute;inset:0;background:radial-gradient(70% 60% at 50% 40%,transparent 50%,rgba(0,0,0,.28) 100%)}
-.scene::after{content:"";position:absolute;inset-inline-start:18%;bottom:14%;width:26%;height:30%;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.14);border-radius:3px}
+/* placeholder scene = sky / horizon / ground bands + a lens vignette + a soft light pool; no shapes that read as UI */
+.scene::before{content:"";position:absolute;inset:0;background:radial-gradient(60% 45% at 50% 44%,rgba(255,255,255,.16),transparent 70%),radial-gradient(70% 60% at 50% 40%,transparent 50%,rgba(0,0,0,.30) 100%)}
 
 /* ---------- dialog / drawer / sheet ---------- */
 .scrim{position:absolute;inset:0;background:var(--sw-overlay)}
@@ -869,56 +872,6 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 /* ---------- board chrome (not product) ---------- */
 .board-label{position:absolute;top:4px;left:50%;translate:-50% 0;z-index:99;font:600 var(--sw-fs-xs)/1 var(--sw-font);color:var(--sw-text-3);opacity:.7;pointer-events:none;direction:ltr;white-space:nowrap}
 
-/* ---------- skin rules: ios ---------- */
-
-/* ios · cards are opaque grouped containers without an outline; only the rail, bar and corner are translucent material */
-.glass{background:var(--sw-surface-solid);border-color:transparent}
-.rail-in,.bar,.corner,.sheet{background:var(--sw-surface);-webkit-backdrop-filter:var(--sw-glass-blur-nav);backdrop-filter:var(--sw-glass-blur-nav)}
-/* ios · sidebar: flush, hairline at the end edge, rounded selection, no indicator bar */
-.rail-in{border-inline-end:1px solid var(--sw-border);border-radius:0;padding-inline:8px}
-.rail-item{border-radius:10px}
-.brand{border-radius:12px;background:linear-gradient(180deg,var(--sw-accent-hover),var(--sw-accent));box-shadow:0 1px 2px rgba(0,0,0,.18)}
-.bar-item.active{color:var(--sw-accent)}
-.corner{box-shadow:0 1px 3px rgba(0,0,0,.10);border-color:transparent}
-/* ios · grouped-list rhythm: grey filled pills, blue text buttons, small grey group headers with the facts in grey */
-.chip,.room .amb .chip{background:var(--sw-surface-3);border-color:transparent}
-.fbtn{background:var(--sw-surface-solid);border-color:transparent;color:var(--sw-accent-text)} .fbtn .ic{color:var(--sw-accent-text)}
-.floor .fh .facts,.floor .fh .facts b{color:var(--sw-text-3);font-weight:var(--sw-fw-regular)}
-.room .rn{font-size:var(--sw-fs-xl);font-weight:var(--sw-fw-semibold);letter-spacing:0}
-/* ios · grouped inset lists: rows without fills, hairline separators, last row clean */
-.tile,.sens,.lrow{background:transparent;border:0;border-radius:0;border-bottom:1px solid var(--sw-border);padding-inline:2px}
-.tiles1 > .tile:last-child,.tiles2 > .tile:last-child,.tiles2 > .tile:nth-last-child(2):nth-child(odd),.sens2 > .sens:nth-last-child(-n+2),.lgroup .lrow:last-child{border-bottom:0}
-.tile.unavail .ring{border:1.5px dashed var(--sw-border-strong);background:transparent}
-/* ios · "on" = filled icon square, flat tint on room and area tiles, no glow */
-.ring,.dbadge{border-radius:8px}
-.tile.on .ring,.lrow.on .ring{background:rgb(var(--g));color:#fff}
-.atile{background:var(--sw-surface-3);border-color:transparent}
-.atile.on,.room.on{background:rgb(var(--g) / calc(var(--sw-glow-fill-start) * .6));border-color:transparent;box-shadow:none}
-.atile.on .dbadge,.room.on .dbadge{background:rgb(var(--g));color:#fff}
-.kpi .ring{background:rgb(var(--tone,var(--sw-role-neutral)));color:#fff}
-.dbadge{background:rgb(var(--role,var(--sw-role-accent)));color:#fff}
-/* ios · segmented control (grey track, white thumb) and switch (51×31) */
-.seg{border-radius:9px;padding:2px;gap:2px}
-.seg > *{border-radius:7px;min-height:28px;font-weight:var(--sw-fw-medium)}
-.seg > .on{box-shadow:var(--sw-shadow-thumb);font-weight:var(--sw-fw-semibold)}
-.seg.lg > *{min-height:34px}
-.tg .tr{width:51px;height:31px;border:0;background:var(--sw-surface-3-solid)}
-.tg .tr::after{width:27px;height:27px}
-.tg.on .tr::after{translate:20px 0} [dir="rtl"] .tg.on .tr::after,.rtl .tg.on .tr::after{translate:-20px 0}
-.tg.small .tr{width:51px;height:31px} .tg.small .tr::after{width:27px;height:27px} .tg.small.on .tr::after{translate:20px 0} [dir="rtl"] .tg.small.on .tr::after{translate:-20px 0}
-/* ios · buttons: filled / tinted / plain; white text on the filled one in both schemes */
-.btn{border-radius:var(--sw-r-md)}
-.btn.primary{color:#fff;box-shadow:none}
-.btn.secondary{background:var(--sw-accent-soft);border-color:transparent;color:var(--sw-accent-text)}
-.btn.lg{border-radius:14px}
-.tabs .tab.on{border-color:transparent;box-shadow:none;background:var(--sw-accent-soft)}
-.chip.warm{border-color:transparent}
-.master{border-color:var(--sw-accent)}
-.slider .track{height:4px} .slider .thumb{width:28px;height:28px}
-/* ios · grouped-list section headers: small, grey, above the group */
-.floor .fh .h2,.lgroup{font-size:var(--sw-fs-sm);color:var(--sw-text-3);font-weight:var(--sw-fw-medium)}
-.lgroup{background:var(--sw-surface-solid);min-height:36px}
-
 @media (max-width:767px){
   .app{grid-template-columns:1fr}
   .rail{display:none}
@@ -930,6 +883,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   .tabs.fade::after{width:36px}
   .room{min-height:0}
   .page > .head:first-child,.ahead .top,.page > .sections{padding-inline-end:96px}
+  .tabs.underline .tab{flex:1;justify-content:center;padding:0 6px;min-width:0}
 }
 body{padding:0}
 .sheet-wrap{max-width:1380px;margin:0 auto;padding:36px 30px 60px;display:flex;flex-direction:column;gap:28px}
@@ -981,6 +935,70 @@ body{padding:0}
 .states-label{display:flex;align-items:center;gap:10px;margin:8px 0 6px}
 .states-label .badge{font-size:var(--sw-fs-sm);height:26px}
 .skinbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* ---------- skin rules: ios ---------- */
+
+/* ios · cards are opaque grouped containers without an outline; only the rail, bar, corner and sheet are translucent material */
+.glass{background:var(--sw-surface-solid);border-color:transparent}
+.rail-in,.bar,.corner,.sheet{background:var(--sw-surface);-webkit-backdrop-filter:var(--sw-glass-blur-nav);backdrop-filter:var(--sw-glass-blur-nav)}
+/* ios · floating rail: a rounded translucent column 12px off the edges with a real shadow; rounded selection, no indicator bar */
+.rail{padding:var(--sw-rail-gap) 0;padding-inline-start:var(--sw-rail-gap)}
+.rail-in{border-radius:var(--sw-r-lg);border-inline-end:0;box-shadow:var(--sw-shadow-2);padding-inline:8px}
+.rail-item{border-radius:var(--sw-r-sm)}
+/* ios · phone: the bottom bar floats as a pill 12px off the edges; the active item sits on a tinted pill */
+.bar{bottom:10px;margin-inline:12px;border-radius:var(--sw-r-pill);border-top:0;padding:6px 8px;box-shadow:var(--sw-shadow-2)}
+.bar-item.active .pill{background:var(--sw-accent-soft)}
+/* ios · grouped-list rhythm: grey filled pills, blue text button for the floor, small grey group headers with the facts in grey */
+.chip{background:var(--sw-surface-3);border-color:transparent}
+.chip.warm{border-color:transparent}
+.fbtn{background:var(--sw-surface-solid);border-color:transparent;color:var(--sw-accent-text)} .fbtn .ic{color:inherit}
+.floor .fh .facts,.floor .fh .facts b{color:var(--sw-text-3);font-weight:var(--sw-fw-regular)}
+.room .rn{font-size:var(--sw-fs-xl);font-weight:var(--sw-fw-semibold);letter-spacing:0}
+/* ios · grouped inset lists: rows without fills, hairline separators, last row clean */
+.tile,.sens,.lrow{background:transparent;border:0;border-radius:0;border-bottom:1px solid var(--sw-border);padding-inline:10px}
+.tiles1 > .tile:last-child,.tiles2 > .tile:last-child,.tiles2 > .tile:nth-last-child(2):nth-child(odd),.sens2 > .sens:nth-last-child(-n+2),.lgroup .lrow:last-child{border-bottom:0}
+.tile.unavail .ring{border:1.5px dashed var(--sw-border-strong);background:transparent}
+/* ios · "on" = filled icon square + the same flat warm tint on a room card, a device row, an area tile and a list row; no glow */
+.ring{border-radius:8px}
+.dbadge{border-radius:8px;background:rgb(var(--role,var(--sw-role-accent)));color:#fff}
+.tile.on .ring,.lrow.on .ring,.atile.on .dbadge,.room.on .dbadge{background:rgb(var(--g));color:#fff}
+.atile{background:var(--sw-surface-3);border-color:transparent}
+.atile.on,.room.on,.tile.on,.lrow.on{background:rgb(var(--g) / calc(var(--sw-glow-fill-start) * .6));border-color:transparent;box-shadow:none}
+.tile.on,.lrow.on{border-radius:var(--sw-r-sm)}
+.kpi .ring{background:rgb(var(--tone,var(--sw-role-neutral)));color:#fff}
+/* ios · segmented control (grey track, white thumb) and switch (51×31) */
+.seg{border-radius:9px;padding:2px;gap:2px}
+.seg > *{border-radius:7px;min-height:28px;font-weight:var(--sw-fw-medium)}
+.seg > .on{box-shadow:var(--sw-shadow-thumb);font-weight:var(--sw-fw-semibold)}
+.tg .tr,.tg.small .tr{width:51px;height:31px;border:0;background:var(--sw-surface-3-solid)}
+.tg .tr::after,.tg.small .tr::after{width:27px;height:27px}
+.tg.on .tr::after,.tg.small.on .tr::after{translate:20px 0}
+.tg.on .tr:dir(rtl)::after,.tg.small.on .tr:dir(rtl)::after{translate:-20px 0}
+/* ios · buttons: filled / tinted / plain; white text on the filled one in both schemes */
+.btn.primary{color:#fff;box-shadow:none}
+.btn.secondary{background:var(--sw-accent-soft);border-color:transparent;color:var(--sw-accent-text)}
+.tabs .tab.on{border-color:transparent;box-shadow:none;background:var(--sw-accent-soft)}
+.slider .thumb{width:28px;height:28px}
+/* ios · grouped-list section headers: small, grey, above the group */
+.floor .fh .h2,.lgroup{font-size:var(--sw-fs-sm);color:var(--sw-text-3);font-weight:var(--sw-fw-medium)}
+.lgroup{background:var(--sw-surface-solid);min-height:36px}
+/* ios · phone composition of the same DOM: the building facts as KPI tiles in two columns (Control-Center rhythm, the
+   --sw-kpi-compact-* knobs), each floor as one grouped list — a white container of area rows with hairlines and a disclosure */
+@media (max-width:767px){
+  .home .head .facts{display:grid;grid-template-columns:repeat(var(--sw-kpi-compact-cols-phone),1fr);gap:var(--sw-kpi-compact-grid-gap);margin-top:12px}
+  .home .head .facts span{background:var(--sw-surface-solid);border-radius:var(--sw-r-md);min-height:var(--sw-row-h);padding:var(--sw-kpi-compact-pad-block) var(--sw-kpi-compact-pad-inline);gap:var(--sw-kpi-compact-gap);white-space:normal;color:var(--sw-text-2)}
+  .home .head .facts span:last-child:nth-child(odd){grid-column:1 / -1}
+  .home .head .facts b{font-size:var(--sw-kpi-compact-value-fs);color:var(--sw-heading)}
+  .home .head .facts .ic{width:22px;height:22px}
+  .rooms{gap:0;background:var(--sw-surface-solid);border-radius:var(--sw-r-lg);overflow:hidden}
+  .room{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 8px;padding:10px 14px;border-radius:0;border-bottom:1px solid var(--sw-border)}
+  .rooms > .room:last-child{border-bottom:0}
+  .room .amb{gap:6px 10px}
+  .room .rf{grid-column:2;grid-row:1 / span 2;margin:0;flex-direction:row-reverse;gap:0}
+  .room .rf .more{color:transparent;width:24px;justify-content:center}
+  .room .rf .more .ic{color:var(--sw-text-3);width:18px;height:18px}
+  .room .amb .chip{height:auto;padding:0;background:transparent}
+}
 </style>
 </head>
 <body class="canvas">

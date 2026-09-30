@@ -28,7 +28,8 @@ h1,h2,h3{color:var(--sw-heading);line-height:var(--sw-lh-tight);font-weight:var(
 a{color:var(--sw-accent-text);text-decoration:none}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .ic{display:inline-block;vertical-align:middle;flex:none}
-[dir="ltr"] .ic-dir, .ltr .ic-dir{transform:scaleX(-1)}
+/* directional glyphs: the chevron path points right; "forward" (disclosure / more) points to the inline-end, "back" to the inline-start */
+.ic-fwd:dir(rtl),.ic-back:dir(ltr){transform:scaleX(-1)}
 .num,.mono{direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums}
 .mono{font-family:var(--sw-font-mono)}
 .muted{color:var(--sw-text-2)} .faint{color:var(--sw-text-3)}
@@ -223,13 +224,15 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .tile.on .tstate{color:var(--sw-text)}
 .tile.unavail{border-style:dashed;background:transparent}
 .tile.unavail .tname{color:var(--sw-text-2)} .tile.unavail .tstate{color:var(--sw-text-3)} .tile.unavail .ring{opacity:.6}
-.tile.col{flex-wrap:wrap}
+.tile.col{flex-wrap:wrap;align-content:flex-start}
 .tile.col{grid-column:1 / -1}
+.tiles2 > .tile{flex-wrap:wrap;align-content:flex-start} /* a tile beside a slider tile keeps its control on the same line as the neighbour's */
 .tile .slider{flex-basis:100%;margin-top:4px}
 .slider{position:relative;height:28px;display:flex;align-items:center}
 .slider .track{height:6px;width:100%;border-radius:3px;background:var(--sw-surface-3);overflow:hidden}
 .slider .fill{height:100%;background:var(--sw-accent);border-radius:3px}
 .slider .thumb{position:absolute;top:50%;translate:50% -50%;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:var(--sw-shadow-thumb),0 0 0 1px rgba(0,0,0,.05)}
+.slider .thumb:dir(ltr){translate:-50% -50%} /* the fill grows from the inline-start in both directions; the thumb is centred on its end */
 .slider .thumb::after{content:"";position:absolute;inset:-11px}
 .stepper{display:inline-flex;align-items:center;gap:2px;padding:2px;border-radius:var(--sw-r-pill);background:var(--sw-surface-3)}
 .stepper .btn{width:36px;height:36px;padding:0;border-radius:50%;background:var(--sw-surface-2-solid);box-shadow:var(--sw-shadow-thumb)}
@@ -343,8 +346,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .scene.s4{background:linear-gradient(180deg,#f0c98a 0%,#e0a866 45%,#6b5a48 46%,#3b3128 100%)}
 .scene.s5{background:linear-gradient(180deg,#2b3247 0%,#3a4360 50%,#1d2233 51%,#0f1220 100%)}
 .scene.s6{background:linear-gradient(180deg,#a7c7d9 0%,#dbe7ee 48%,#8a8f80 49%,#5a6050 100%)}
-.scene::before{content:"";position:absolute;inset:0;background:radial-gradient(70% 60% at 50% 40%,transparent 50%,rgba(0,0,0,.28) 100%)}
-.scene::after{content:"";position:absolute;inset-inline-start:18%;bottom:14%;width:26%;height:30%;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.14);border-radius:3px}
+/* placeholder scene = sky / horizon / ground bands + a lens vignette + a soft light pool; no shapes that read as UI */
+.scene::before{content:"";position:absolute;inset:0;background:radial-gradient(60% 45% at 50% 44%,rgba(255,255,255,.16),transparent 70%),radial-gradient(70% 60% at 50% 40%,transparent 50%,rgba(0,0,0,.30) 100%)}
 
 /* ---------- dialog / drawer / sheet ---------- */
 .scrim{position:absolute;inset:0;background:var(--sw-overlay)}
@@ -436,4 +439,5 @@ export const phoneCss = `
   .tabs.fade::after{width:36px}
   .room{min-height:0}
   .page > .head:first-child,.ahead .top,.page > .sections{padding-inline-end:96px}
+  .tabs.underline .tab{flex:1;justify-content:center;padding:0 6px;min-width:0}
 }`;

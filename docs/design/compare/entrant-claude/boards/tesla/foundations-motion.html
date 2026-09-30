@@ -474,7 +474,8 @@ h1,h2,h3{color:var(--sw-heading);line-height:var(--sw-lh-tight);font-weight:var(
 a{color:var(--sw-accent-text);text-decoration:none}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .ic{display:inline-block;vertical-align:middle;flex:none}
-[dir="ltr"] .ic-dir, .ltr .ic-dir{transform:scaleX(-1)}
+/* directional glyphs: the chevron path points right; "forward" (disclosure / more) points to the inline-end, "back" to the inline-start */
+.ic-fwd:dir(rtl),.ic-back:dir(ltr){transform:scaleX(-1)}
 .num,.mono{direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums}
 .mono{font-family:var(--sw-font-mono)}
 .muted{color:var(--sw-text-2)} .faint{color:var(--sw-text-3)}
@@ -669,13 +670,15 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .tile.on .tstate{color:var(--sw-text)}
 .tile.unavail{border-style:dashed;background:transparent}
 .tile.unavail .tname{color:var(--sw-text-2)} .tile.unavail .tstate{color:var(--sw-text-3)} .tile.unavail .ring{opacity:.6}
-.tile.col{flex-wrap:wrap}
+.tile.col{flex-wrap:wrap;align-content:flex-start}
 .tile.col{grid-column:1 / -1}
+.tiles2 > .tile{flex-wrap:wrap;align-content:flex-start} /* a tile beside a slider tile keeps its control on the same line as the neighbour's */
 .tile .slider{flex-basis:100%;margin-top:4px}
 .slider{position:relative;height:28px;display:flex;align-items:center}
 .slider .track{height:6px;width:100%;border-radius:3px;background:var(--sw-surface-3);overflow:hidden}
 .slider .fill{height:100%;background:var(--sw-accent);border-radius:3px}
 .slider .thumb{position:absolute;top:50%;translate:50% -50%;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:var(--sw-shadow-thumb),0 0 0 1px rgba(0,0,0,.05)}
+.slider .thumb:dir(ltr){translate:-50% -50%} /* the fill grows from the inline-start in both directions; the thumb is centred on its end */
 .slider .thumb::after{content:"";position:absolute;inset:-11px}
 .stepper{display:inline-flex;align-items:center;gap:2px;padding:2px;border-radius:var(--sw-r-pill);background:var(--sw-surface-3)}
 .stepper .btn{width:36px;height:36px;padding:0;border-radius:50%;background:var(--sw-surface-2-solid);box-shadow:var(--sw-shadow-thumb)}
@@ -789,8 +792,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .scene.s4{background:linear-gradient(180deg,#f0c98a 0%,#e0a866 45%,#6b5a48 46%,#3b3128 100%)}
 .scene.s5{background:linear-gradient(180deg,#2b3247 0%,#3a4360 50%,#1d2233 51%,#0f1220 100%)}
 .scene.s6{background:linear-gradient(180deg,#a7c7d9 0%,#dbe7ee 48%,#8a8f80 49%,#5a6050 100%)}
-.scene::before{content:"";position:absolute;inset:0;background:radial-gradient(70% 60% at 50% 40%,transparent 50%,rgba(0,0,0,.28) 100%)}
-.scene::after{content:"";position:absolute;inset-inline-start:18%;bottom:14%;width:26%;height:30%;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.14);border-radius:3px}
+/* placeholder scene = sky / horizon / ground bands + a lens vignette + a soft light pool; no shapes that read as UI */
+.scene::before{content:"";position:absolute;inset:0;background:radial-gradient(60% 45% at 50% 44%,rgba(255,255,255,.16),transparent 70%),radial-gradient(70% 60% at 50% 40%,transparent 50%,rgba(0,0,0,.30) 100%)}
 
 /* ---------- dialog / drawer / sheet ---------- */
 .scrim{position:absolute;inset:0;background:var(--sw-overlay)}
@@ -869,52 +872,6 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 /* ---------- board chrome (not product) ---------- */
 .board-label{position:absolute;top:4px;left:50%;translate:-50% 0;z-index:99;font:600 var(--sw-fs-xs)/1 var(--sw-font);color:var(--sw-text-3);opacity:.7;pointer-events:none;direction:ltr;white-space:nowrap}
 
-/* ---------- skin rules: tesla ---------- */
-
-/* tesla · flat rail column with a 1px rule; monochrome brand mark; active = heading colour + 2px accent rule */
-.rail-in{border-radius:0;border-inline-end:1px solid var(--sw-border);background:var(--sw-bg)}
-.brand{background:transparent;color:var(--sw-heading);border:1px solid var(--sw-border-strong);border-radius:var(--sw-r-md);box-shadow:none;font-weight:600}
-.rail-item.active{background:transparent;color:var(--sw-heading)}
-.rail-item.active::before{content:"";position:absolute;inset-inline-start:0;top:50%;translate:0 -50%;width:2px;height:60%;background:var(--sw-accent)}
-.bar{background:var(--sw-bg)} .bar-item.active{color:var(--sw-heading)}
-.corner{background:var(--sw-surface);border-radius:var(--sw-r-md)} .corner .cbtn{border-radius:var(--sw-r-sm)}
-.avatar{background:transparent;border-color:var(--sw-border-strong);color:var(--sw-text)}
-/* tesla · titles in medium weight, big numerals */
-h1,h2,h3,.h1,.h2,.dialog .q,.kpi .kv,.sens .sv,.widget.alarm .word{font-weight:500}
-.kpi .kv{font-size:var(--sw-fs-3xl)} .sens .sv{font-size:var(--sw-fs-2xl)}
-/* tesla · icon rings are outlines, not fills */
-.ring,.dbadge,.state .sic{background:transparent;border:1px solid var(--sw-border-strong)}
-.dbadge{border-color:rgb(var(--role,var(--sw-role-accent)) / var(--sw-role-border-a))}
-.kpi .ring{border-color:rgb(var(--tone,var(--sw-role-neutral)) / var(--sw-role-border-a))}
-/* tesla · "on" = 3px accent rule at the start edge + accent icon outline; no gradient, no halo */
-.tile.on,.atile.on,.room.on,.lrow.on{border-inline-start:3px solid rgb(var(--g));box-shadow:none;border-color:var(--sw-border);border-inline-start-color:rgb(var(--g))}
-.tile.on .ring,.atile.on .dbadge,.room.on .dbadge,.lrow.on .ring{background:transparent;color:rgb(var(--g));border-color:rgb(var(--g) / .6)}
-.dot.on{background:var(--sw-accent)}
-.facts .on b,.lrow .lc.on b,.tree .trow .lit.on{color:var(--sw-accent-text)}
-/* tesla · segmented = outlined boxes, selected segment inverted */
-.seg{background:transparent;border:1px solid var(--sw-border-strong);padding:0;gap:0;overflow:hidden}
-.seg > *{border-radius:0;min-height:34px} .seg > * + *{border-inline-start:1px solid var(--sw-border)}
-.seg > .on{background:var(--sw-text);color:var(--sw-text-inverse);box-shadow:none}
-.tabs .tab.on{background:none;border:0;box-shadow:none;color:var(--sw-heading);position:relative}
-.tabs .tab.on::after{content:"";position:absolute;inset-inline:12px;bottom:0;height:2px;background:var(--sw-accent)}
-/* tesla · outlined chips, badges, buttons; toggles in monochrome */
-.chip{background:transparent} .chip.warm{background:transparent;border-color:var(--sw-border-strong);color:var(--sw-text)} .chip.warm .ic{color:var(--sw-accent)}
-.badge{background:transparent;border:1px solid color-mix(in srgb,var(--bd,currentColor) 55%,transparent)} .badge.image,.badge.count{border:0}
-.btn.primary{box-shadow:none} .btn.secondary{background:transparent} .btn.danger{background:transparent}
-.btn.round,.master{border-radius:var(--sw-r-md)}
-.tg .tr{border-radius:999px;border-color:var(--sw-border-strong);background:transparent} .tg .tr::after{background:var(--sw-text-2);box-shadow:none}
-.tg.on .tr{border-color:transparent;background:var(--sw-accent)} .tg.on .tr::after{background:#fff}
-.slider .track{height:2px} .slider .thumb{width:18px;height:18px;background:var(--sw-heading);box-shadow:none}
-.stepper{background:transparent;border:1px solid var(--sw-border-strong)} .stepper .btn{background:transparent;box-shadow:none;border-radius:var(--sw-r-sm)}
-.cover-ctl .btn{background:transparent;border:1px solid var(--sw-border)}
-.field .in{background:transparent}
-/* tesla · home direction ב ("status panel"): the widgets column is a hairline-separated panel, KPIs are hairline rows without cards (inspired by entrant A's Tesla) */
-.panel{border-inline-end:1px solid var(--sw-border);padding-inline-end:var(--sw-card-gap)} .panel .widget.glass{background:transparent;border:0;border-radius:0;border-bottom:1px solid var(--sw-border);padding-inline:0}
-.kpis .kpi.glass{background:transparent;border:0;border-radius:0;border-inline-start:1px solid var(--sw-border-strong)}
-/* tesla · camera caption as a solid strip, not a gradient scrim */
-.cam .nm{background:rgba(0,0,0,.62);padding:8px 10px;text-shadow:none}
-.handle{border-radius:1px}
-
 @media (max-width:767px){
   .app{grid-template-columns:1fr}
   .rail{display:none}
@@ -926,6 +883,7 @@ h1,h2,h3,.h1,.h2,.dialog .q,.kpi .kv,.sens .sv,.widget.alarm .word{font-weight:5
   .tabs.fade::after{width:36px}
   .room{min-height:0}
   .page > .head:first-child,.ahead .top,.page > .sections{padding-inline-end:96px}
+  .tabs.underline .tab{flex:1;justify-content:center;padding:0 6px;min-width:0}
 }
 body{padding:0}
 .sheet-wrap{max-width:1380px;margin:0 auto;padding:36px 30px 60px;display:flex;flex-direction:column;gap:28px}
@@ -977,6 +935,52 @@ body{padding:0}
 .states-label{display:flex;align-items:center;gap:10px;margin:8px 0 6px}
 .states-label .badge{font-size:var(--sw-fs-sm);height:26px}
 .skinbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* ---------- skin rules: tesla ---------- */
+
+/* tesla · flat rail column with a 1px rule; monochrome brand mark; active = heading colour + 2px accent rule */
+.rail-in{border-radius:0;border-inline-end:1px solid var(--sw-border);background:var(--sw-bg)}
+.brand{background:transparent;color:var(--sw-heading);border:1px solid var(--sw-border-strong);border-radius:var(--sw-r-md);box-shadow:none;font-weight:600}
+.rail-item.active{background:transparent;color:var(--sw-heading)}
+.rail-item.active::before{content:"";position:absolute;inset-inline-start:0;top:50%;translate:0 -50%;width:2px;height:60%;background:var(--sw-accent)}
+.bar{background:var(--sw-bg)} .bar-item.active{color:var(--sw-heading)}
+.corner{background:var(--sw-surface);border-radius:var(--sw-r-md)} .corner .cbtn{border-radius:var(--sw-r-sm)}
+.avatar{background:transparent;border-color:var(--sw-border-strong);color:var(--sw-text)}
+/* tesla · titles in medium weight, big numerals */
+h1,h2,h3,.h1,.h2,.dialog .q,.kpi .kv,.sens .sv,.widget.alarm .word{font-weight:500}
+.kpi .kv{font-size:var(--sw-fs-3xl)} .sens .sv{font-size:var(--sw-fs-2xl)}
+/* tesla · icon rings are outlines, not fills */
+.ring,.dbadge,.state .sic{background:transparent;border:1px solid var(--sw-border-strong)}
+.dbadge{border-color:rgb(var(--role,var(--sw-role-accent)) / var(--sw-role-border-a))}
+.kpi .ring{border-color:rgb(var(--tone,var(--sw-role-neutral)) / var(--sw-role-border-a))}
+/* tesla · "on" = 3px accent rule at the start edge + accent icon outline; no gradient, no halo */
+.tile.on,.atile.on,.room.on,.lrow.on{border-inline-start:3px solid rgb(var(--g));box-shadow:none;border-color:var(--sw-border);border-inline-start-color:rgb(var(--g))}
+.tile.on .ring,.atile.on .dbadge,.room.on .dbadge,.lrow.on .ring{background:transparent;color:rgb(var(--g));border-color:rgb(var(--g) / .6)}
+.dot.on{background:var(--sw-accent)}
+.facts .on b,.lrow .lc.on b,.tree .trow .lit.on{color:var(--sw-accent-text)}
+/* tesla · segmented = outlined boxes, selected segment inverted */
+.seg{background:transparent;border:1px solid var(--sw-border-strong);padding:0;gap:0;overflow:hidden}
+.seg > *{border-radius:0;min-height:34px} .seg > * + *{border-inline-start:1px solid var(--sw-border)}
+.seg > .on{background:var(--sw-text);color:var(--sw-text-inverse);box-shadow:none}
+.tabs .tab.on{background:none;border:0;box-shadow:none;color:var(--sw-heading);position:relative}
+.tabs .tab.on::after{content:"";position:absolute;inset-inline:12px;bottom:0;height:2px;background:var(--sw-accent)}
+/* tesla · outlined chips, badges, buttons; toggles in monochrome */
+.chip{background:transparent} .chip.warm{background:transparent;border-color:var(--sw-border-strong);color:var(--sw-text)} .chip.warm .ic{color:var(--sw-accent)}
+.badge{background:transparent;border:1px solid color-mix(in srgb,var(--bd,currentColor) 55%,transparent)} .badge.image,.badge.count{border:0}
+.btn.primary{box-shadow:none} .btn.secondary{background:transparent} .btn.danger{background:transparent}
+.btn.round,.master{border-radius:var(--sw-r-md)}
+.tg .tr{border-radius:999px;border-color:var(--sw-border-strong);background:transparent} .tg .tr::after{background:var(--sw-text-2);box-shadow:none}
+.tg.on .tr{border-color:transparent;background:var(--sw-accent)} .tg.on .tr::after{background:#fff}
+.slider .track{height:2px} .slider .thumb{width:18px;height:18px;background:var(--sw-heading);box-shadow:none}
+.stepper{background:transparent;border:1px solid var(--sw-border-strong)} .stepper .btn{background:transparent;box-shadow:none;border-radius:var(--sw-r-sm)}
+.cover-ctl .btn{background:transparent;border:1px solid var(--sw-border)}
+.field .in{background:transparent}
+/* tesla · home direction ב ("status panel"): the widgets column is a hairline-separated panel, KPIs are hairline rows without cards (inspired by entrant A's Tesla) */
+.panel{border-inline-end:1px solid var(--sw-border);padding-inline-end:var(--sw-card-gap)} .panel .widget.glass{background:transparent;border:0;border-radius:0;border-bottom:1px solid var(--sw-border);padding-inline:0}
+.kpis .kpi.glass{background:transparent;border:0;border-radius:0;border-inline-start:1px solid var(--sw-border-strong)}
+/* tesla · camera caption as a solid strip, not a gradient scrim */
+.cam .nm{background:rgba(0,0,0,.62);padding:8px 10px;text-shadow:none}
+.handle{border-radius:1px}
 </style>
 </head>
 <body class="canvas">
@@ -985,7 +989,7 @@ body{padding:0}
   <section class="sec"><h2 class="h2">תנועה</h2><div class="pane"><table class="mo-table"><tr><th style="width:220px">מה</th><th>מפרט</th></tr><tr><td>משכים</td><td><code>--sw-t-fast</code> 100ms · <code>--sw-t-med</code> 180ms · <code>--sw-t-slow</code> 260ms</td></tr><tr><td>Easing</td><td>standard <code>cubic-bezier(.4, 0, .2, 1)</code> · enter <code>cubic-bezier(.4, 0, .2, 1)</code> · exit <code>cubic-bezier(.4, 0, 1, 1)</code> · thumb <code>cubic-bezier(.4, 0, .2, 1)</code></td></tr><tr><td>אופי הסקין</td><td>משכים 100/180/260, easing אחד לכל דבר, בלי קפיץ, בלי hover lift. התנועה היחידה הנראית: מעבר צבע ותנועת אגודל.</td></tr><tr><td>Drawer (פאנל צד 360)</td><td>כניסה: translateX מהקצה ההתחלתי 24px → 0 + opacity, t-slow enter; יציאה t-med exit; scrim 0 → 1 ב-t-med</td></tr><tr><td>Bottom sheet (טלפון)</td><td>כניסה: translateY 100% → 0, t-slow enter; יציאה t-med exit; גרירה בידית עוקבת אחרי האצבע, שחרור מתחת ל-40% סוגר</td></tr><tr><td>Dialog</td><td>כניסה: scale .96 → 1 + opacity, t-med enter; יציאה t-fast exit; scrim במקביל</td></tr><tr><td>Popover / תפריט משתמש</td><td>כניסה: scale .98 + translateY 4px, t-fast enter; יציאה t-fast</td></tr><tr><td>Tab / segmented thumb</td><td>האגודל נע (translate) t-med ב-easing thumb; הטקסט מחליף צבע ב-t-fast</td></tr><tr><td>Toggle</td><td>אגודל t-med thumb-easing; מסילה משנה צבע t-med standard</td></tr><tr><td>אריח "דולק"</td><td>רקע וגבול t-slow standard (מצב אופטימי מתחיל מיד)</td></tr><tr><td>כותרת החדר מתכווצת</td><td>שם החדר 48px → 26px ב-t-med, מופעל ב-scroll ≥ 48px, מבוטל מתחת ל-32px; שורת החדרים והכפתור "קומה" נשארים דבוקים</td></tr><tr><td>סידור רשימה / grid</td><td>פריטים שמשנים מקום: transform t-med standard; פריט נגרר: scale 1.02 + shadow-2 ללא transition</td></tr><tr><td>Hover lift</td><td><code>--sw-hover-lift</code> 0px + shadow-2, t-fast; רק לכרטיסים אינטראקטיביים; אף פעם לא לאריחי וידאו</td></tr><tr><td>Skeleton / loading</td><td>shimmer 1.4s linear, רק בפאנל state=loading; spinner 1s</td></tr><tr><td><code>prefers-reduced-motion</code></td><td>כל המשכים 0ms; hover lift מבוטל; shimmer סטטי; ה-scrim מופיע מיד</td></tr></table></div></section>
   <section class="sec"><h2 class="h2">Focus ring</h2><div class="pair"><div class="pane scheme-light " data-scheme="light"><span class="pl">light</span><div class="demo" style="gap:18px;align-items:flex-start">
       <div><div class="lbl-s">על הקנבס</div><button class="btn secondary focus" style="margin-top:8px">כפתור</button></div>
-      <div class="glass" style="padding:14px"><div class="lbl-s">על פאנל</div><div class="row" style="margin-top:8px;gap:12px"><span class="tg small on focus" style="border-radius:999px"><span class="tr"></span></span><button class="btn primary focus">שמור</button><div class="tile focus" style="width:190px"><svg class="ic ring" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg><span class="tbody"><div class="tname">ספוט סלון</div><div class="tstate">דולק</div></span></div></div></div>
+      <div class="glass" style="padding:14px"><div class="lbl-s">על פאנל</div><div class="row" style="margin-top:8px;gap:12px"><span class="tg small on focus" style="border-radius:999px"><span class="tr"></span></span><button class="btn primary focus">שמור</button><div class="tile focus" style="width:190px"><svg class="ic ring" data-ic="bulb" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg><span class="tbody"><div class="tname">ספוט סלון</div><div class="tstate">דולק</div></span></div></div></div>
       <div><div class="lbl-s">על וידאו (טבעת כפולה)</div><div class="vid focus-video" style="margin-top:8px"><div class="scene s1"></div><div class="nm" style="position:absolute;bottom:0;inset-inline:0;padding:16px 10px 8px;color:#fff;font-size:12.5px;font-weight:600;background:linear-gradient(to top,rgba(4,8,16,.75),transparent)"><span class="dot live" style="border:1.5px solid #fff"></span> כניסה ראשית</div></div></div>
     </div>
     <table class="mo-table" style="margin-top:12px"><tr><th>כלל</th><th>ערך</th></tr>
@@ -993,7 +997,7 @@ body{padding:0}
     <tr><td>רדיוס</td><td>עוקב אחרי רדיוס הרכיב (outline עוקב אחרי border-radius)</td></tr><tr><td>על וידאו / תמונה</td><td>טבעת כפולה: 2px <code>--sw-text-inverse</code> פנימי + 2px <code>--sw-focus</code> חיצוני (box-shadow), כדי שתיראה על כל תמונה</td></tr>
     <tr><td>מתי</td><td><code>:focus-visible</code> בלבד (לא בלחיצת עכבר); בתוך שדה — הגבול הופך ל-focus + הילה <code>--sw-accent-soft</code> 3px</td></tr></table></div><div class="pane scheme-dark " data-scheme="dark"><span class="pl">dark</span><div class="demo" style="gap:18px;align-items:flex-start">
       <div><div class="lbl-s">על הקנבס</div><button class="btn secondary focus" style="margin-top:8px">כפתור</button></div>
-      <div class="glass" style="padding:14px"><div class="lbl-s">על פאנל</div><div class="row" style="margin-top:8px;gap:12px"><span class="tg small on focus" style="border-radius:999px"><span class="tr"></span></span><button class="btn primary focus">שמור</button><div class="tile focus" style="width:190px"><svg class="ic ring" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg><span class="tbody"><div class="tname">ספוט סלון</div><div class="tstate">דולק</div></span></div></div></div>
+      <div class="glass" style="padding:14px"><div class="lbl-s">על פאנל</div><div class="row" style="margin-top:8px;gap:12px"><span class="tg small on focus" style="border-radius:999px"><span class="tr"></span></span><button class="btn primary focus">שמור</button><div class="tile focus" style="width:190px"><svg class="ic ring" data-ic="bulb" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg><span class="tbody"><div class="tname">ספוט סלון</div><div class="tstate">דולק</div></span></div></div></div>
       <div><div class="lbl-s">על וידאו (טבעת כפולה)</div><div class="vid focus-video" style="margin-top:8px"><div class="scene s1"></div><div class="nm" style="position:absolute;bottom:0;inset-inline:0;padding:16px 10px 8px;color:#fff;font-size:12.5px;font-weight:600;background:linear-gradient(to top,rgba(4,8,16,.75),transparent)"><span class="dot live" style="border:1.5px solid #fff"></span> כניסה ראשית</div></div></div>
     </div>
     <table class="mo-table" style="margin-top:12px"><tr><th>כלל</th><th>ערך</th></tr>

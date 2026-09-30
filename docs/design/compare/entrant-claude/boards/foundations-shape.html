@@ -474,7 +474,8 @@ h1,h2,h3{color:var(--sw-heading);line-height:var(--sw-lh-tight);font-weight:var(
 a{color:var(--sw-accent-text);text-decoration:none}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .ic{display:inline-block;vertical-align:middle;flex:none}
-[dir="ltr"] .ic-dir, .ltr .ic-dir{transform:scaleX(-1)}
+/* directional glyphs: the chevron path points right; "forward" (disclosure / more) points to the inline-end, "back" to the inline-start */
+.ic-fwd:dir(rtl),.ic-back:dir(ltr){transform:scaleX(-1)}
 .num,.mono{direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums}
 .mono{font-family:var(--sw-font-mono)}
 .muted{color:var(--sw-text-2)} .faint{color:var(--sw-text-3)}
@@ -669,13 +670,15 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .tile.on .tstate{color:var(--sw-text)}
 .tile.unavail{border-style:dashed;background:transparent}
 .tile.unavail .tname{color:var(--sw-text-2)} .tile.unavail .tstate{color:var(--sw-text-3)} .tile.unavail .ring{opacity:.6}
-.tile.col{flex-wrap:wrap}
+.tile.col{flex-wrap:wrap;align-content:flex-start}
 .tile.col{grid-column:1 / -1}
+.tiles2 > .tile{flex-wrap:wrap;align-content:flex-start} /* a tile beside a slider tile keeps its control on the same line as the neighbour's */
 .tile .slider{flex-basis:100%;margin-top:4px}
 .slider{position:relative;height:28px;display:flex;align-items:center}
 .slider .track{height:6px;width:100%;border-radius:3px;background:var(--sw-surface-3);overflow:hidden}
 .slider .fill{height:100%;background:var(--sw-accent);border-radius:3px}
 .slider .thumb{position:absolute;top:50%;translate:50% -50%;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:var(--sw-shadow-thumb),0 0 0 1px rgba(0,0,0,.05)}
+.slider .thumb:dir(ltr){translate:-50% -50%} /* the fill grows from the inline-start in both directions; the thumb is centred on its end */
 .slider .thumb::after{content:"";position:absolute;inset:-11px}
 .stepper{display:inline-flex;align-items:center;gap:2px;padding:2px;border-radius:var(--sw-r-pill);background:var(--sw-surface-3)}
 .stepper .btn{width:36px;height:36px;padding:0;border-radius:50%;background:var(--sw-surface-2-solid);box-shadow:var(--sw-shadow-thumb)}
@@ -789,8 +792,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .scene.s4{background:linear-gradient(180deg,#f0c98a 0%,#e0a866 45%,#6b5a48 46%,#3b3128 100%)}
 .scene.s5{background:linear-gradient(180deg,#2b3247 0%,#3a4360 50%,#1d2233 51%,#0f1220 100%)}
 .scene.s6{background:linear-gradient(180deg,#a7c7d9 0%,#dbe7ee 48%,#8a8f80 49%,#5a6050 100%)}
-.scene::before{content:"";position:absolute;inset:0;background:radial-gradient(70% 60% at 50% 40%,transparent 50%,rgba(0,0,0,.28) 100%)}
-.scene::after{content:"";position:absolute;inset-inline-start:18%;bottom:14%;width:26%;height:30%;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.14);border-radius:3px}
+/* placeholder scene = sky / horizon / ground bands + a lens vignette + a soft light pool; no shapes that read as UI */
+.scene::before{content:"";position:absolute;inset:0;background:radial-gradient(60% 45% at 50% 44%,rgba(255,255,255,.16),transparent 70%),radial-gradient(70% 60% at 50% 40%,transparent 50%,rgba(0,0,0,.30) 100%)}
 
 /* ---------- dialog / drawer / sheet ---------- */
 .scrim{position:absolute;inset:0;background:var(--sw-overlay)}
@@ -869,31 +872,6 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 /* ---------- board chrome (not product) ---------- */
 .board-label{position:absolute;top:4px;left:50%;translate:-50% 0;z-index:99;font:600 var(--sw-fs-xs)/1 var(--sw-font);color:var(--sw-text-3);opacity:.7;pointer-events:none;direction:ltr;white-space:nowrap}
 
-/* ---------- skin rules: domus ---------- */
-
-/* domus · glass material: blur on L1, a top sheen layered over the surface, highlight hairline, nested glass without blur */
-.glass{background:var(--sw-glass-sheen),var(--sw-surface);-webkit-backdrop-filter:var(--sw-glass-blur);backdrop-filter:var(--sw-glass-blur)}
-.solid .glass,.solid.glass{background:var(--sw-surface-solid)}
-.glass::before{content:"";position:absolute;inset:0 12px auto 12px;height:1px;background:var(--sw-highlight);border-radius:1px;pointer-events:none}
-.glass .glass,.glass .glass-2{-webkit-backdrop-filter:var(--sw-glass-nested);backdrop-filter:var(--sw-glass-nested)}
-.rail-in,.bar,.corner{-webkit-backdrop-filter:var(--sw-glass-blur-nav);backdrop-filter:var(--sw-glass-blur-nav)}
-.sheet{-webkit-backdrop-filter:var(--sw-glass-blur-sheet);backdrop-filter:var(--sw-glass-blur-sheet)}
-/* domus · floating rail: a glass panel 12px off the edges, with a real shadow */
-.rail{padding:var(--sw-rail-gap) 0;padding-inline-start:var(--sw-rail-gap)}
-.rail-in{border-radius:var(--sw-r-lg);border-inline-end:0;box-shadow:var(--sw-shadow-2)}
-.corner{box-shadow:var(--sw-shadow-2)}
-.brand{background:linear-gradient(145deg,var(--sw-accent),var(--sw-accent-hover));box-shadow:0 8px 18px rgb(var(--sw-role-accent) / .28),inset 0 1px 0 rgba(255,255,255,.35)}
-.rail-item.active::before{content:"";position:absolute;inset-inline-start:-6px;top:50%;translate:0 -50%;width:3px;height:26px;border-radius:2px;background:var(--sw-accent)}
-.bar-item.active .pill{background:var(--sw-accent-soft)}
-/* domus · primary button with an inner highlight and a coloured shadow */
-.btn.primary{box-shadow:0 6px 16px rgb(var(--sw-role-accent) / .25),inset 0 1px 0 rgba(255,255,255,.25)}
-/* domus · "on" = diagonal glow + coloured border + soft halo (warm for rooms and covers, cool for lights, green for switches) */
-.tile.on,.atile.on,.room.on,.lrow.on{background:linear-gradient(135deg,rgb(var(--g) / var(--sw-glow-fill-start)),rgb(var(--g) / var(--sw-glow-fill-end)) 70%),var(--sw-surface-2);border-color:rgb(var(--g) / var(--sw-glow-border));box-shadow:0 0 0 1px rgb(var(--g) / .08),0 12px 30px -12px rgb(var(--g) / var(--sw-glow-halo))}
-.room.on{background:linear-gradient(135deg,rgb(var(--g) / var(--sw-glow-fill-start)),rgb(var(--g) / var(--sw-glow-fill-end)) 60%),var(--sw-surface)}
-.tile.on .ring,.atile.on .dbadge,.room.on .dbadge{background:rgb(var(--g) / .24);color:var(--sw-heading)}
-.seg > .on,.tabs .tab.on{box-shadow:var(--sw-shadow-thumb)}
-.tabs .tab.on{border:1px solid var(--sw-border)}
-
 @media (max-width:767px){
   .app{grid-template-columns:1fr}
   .rail{display:none}
@@ -905,6 +883,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   .tabs.fade::after{width:36px}
   .room{min-height:0}
   .page > .head:first-child,.ahead .top,.page > .sections{padding-inline-end:96px}
+  .tabs.underline .tab{flex:1;justify-content:center;padding:0 6px;min-width:0}
 }
 body{padding:0}
 .sheet-wrap{max-width:1380px;margin:0 auto;padding:36px 30px 60px;display:flex;flex-direction:column;gap:28px}
@@ -956,6 +935,31 @@ body{padding:0}
 .states-label{display:flex;align-items:center;gap:10px;margin:8px 0 6px}
 .states-label .badge{font-size:var(--sw-fs-sm);height:26px}
 .skinbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* ---------- skin rules: domus ---------- */
+
+/* domus · glass material: blur on L1, a top sheen layered over the surface, highlight hairline, nested glass without blur */
+.glass{background:var(--sw-glass-sheen),var(--sw-surface);-webkit-backdrop-filter:var(--sw-glass-blur);backdrop-filter:var(--sw-glass-blur)}
+.solid .glass,.solid.glass{background:var(--sw-surface-solid)}
+.glass::before{content:"";position:absolute;inset:0 12px auto 12px;height:1px;background:var(--sw-highlight);border-radius:1px;pointer-events:none}
+.glass .glass,.glass .glass-2{-webkit-backdrop-filter:var(--sw-glass-nested);backdrop-filter:var(--sw-glass-nested)}
+.rail-in,.bar,.corner{-webkit-backdrop-filter:var(--sw-glass-blur-nav);backdrop-filter:var(--sw-glass-blur-nav)}
+.sheet{-webkit-backdrop-filter:var(--sw-glass-blur-sheet);backdrop-filter:var(--sw-glass-blur-sheet)}
+/* domus · floating rail: a glass panel 12px off the edges, with a real shadow */
+.rail{padding:var(--sw-rail-gap) 0;padding-inline-start:var(--sw-rail-gap)}
+.rail-in{border-radius:var(--sw-r-lg);border-inline-end:0;box-shadow:var(--sw-shadow-2)}
+.corner{box-shadow:var(--sw-shadow-2)}
+.brand{background:linear-gradient(145deg,var(--sw-accent),var(--sw-accent-hover));box-shadow:0 8px 18px rgb(var(--sw-role-accent) / .28),inset 0 1px 0 rgba(255,255,255,.35)}
+.rail-item.active::before{content:"";position:absolute;inset-inline-start:-6px;top:50%;translate:0 -50%;width:3px;height:26px;border-radius:2px;background:var(--sw-accent)}
+.bar-item.active .pill{background:var(--sw-accent-soft)}
+/* domus · primary button with an inner highlight and a coloured shadow */
+.btn.primary{box-shadow:0 6px 16px rgb(var(--sw-role-accent) / .25),inset 0 1px 0 rgba(255,255,255,.25)}
+/* domus · "on" = diagonal glow + coloured border + soft halo (warm for rooms and covers, cool for lights, green for switches) */
+.tile.on,.atile.on,.room.on,.lrow.on{background:linear-gradient(135deg,rgb(var(--g) / var(--sw-glow-fill-start)),rgb(var(--g) / var(--sw-glow-fill-end)) 70%),var(--sw-surface-2);border-color:rgb(var(--g) / var(--sw-glow-border));box-shadow:0 0 0 1px rgb(var(--g) / .08),0 12px 30px -12px rgb(var(--g) / var(--sw-glow-halo))}
+.room.on{background:linear-gradient(135deg,rgb(var(--g) / var(--sw-glow-fill-start)),rgb(var(--g) / var(--sw-glow-fill-end)) 60%),var(--sw-surface)}
+.tile.on .ring,.atile.on .dbadge,.room.on .dbadge{background:rgb(var(--g) / .24);color:var(--sw-heading)}
+.seg > .on,.tabs .tab.on{box-shadow:var(--sw-shadow-thumb)}
+.tabs .tab.on{border:1px solid var(--sw-border)}
 </style>
 </head>
 <body class="canvas">
@@ -987,7 +991,7 @@ body{padding:0}
     <tr><td><code>prefers-contrast: more</code></td><td colspan="4">L1 → 94% אטום (--sw-glass-contrast-a), L2 אטום, קווי שיער <code>--sw-border-strong</code></td></tr>
     <tr><td><code>prefers-reduced-transparency</code> / אין backdrop-filter</td><td colspan="4">כל רמה → הערך ה-solid שלה; אין שינוי layout</td></tr>
     <tr><td>אריחי וידאו</td><td colspan="4">לא חומר: <code>--sw-video-bg</code> אטום, קו שיער 1px, בלי blur/צל/אנימציה (עד 32 אריחים)</td></tr></table></section>
-  <section class="sec"><h2 class="h2">"דולק"</h2><p class="muted" style="font-size:12.5px;max-width:900px">glow אלכסוני מ-fill-start ל-fill-end + גבול צבעוני + halo רך מלמטה; חם לחדרים ולתריסים, קר לתאורה, ירוק למתגים.</p><div class="pair"><div class="pane scheme-light " data-scheme="light"><span class="pl">light</span><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px"><div class="tile on cool"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg></span><span class="tbody"><div class="tname">תאורת תקרה</div><div class="tstate">דולק · 60%</div></span><span class="tctl"><span class="tg small on" role="switch" aria-checked="true"><span class="tr"></span></span></span></div><div class="tile on warm"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 4 8 4.5-8 4.5-8-4.5z"/><path d="m4 13 8 4.5 8-4.5"/><path d="m4 16.5 8 4.5 8-4.5"/></svg></span><span class="tbody"><div class="tname">וילון סלון</div><div class="tstate">פתוח · 60%</div></span><span class="tctl"><span class="tg small on" role="switch" aria-checked="true"><span class="tr"></span></span></span></div><div class="tile on switch"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3 5.5 13.5H12l-1 7.5 7.5-10.5H12z"/></svg></span><span class="tbody"><div class="tname">מערכת הגברה</div><div class="tstate">פעיל</div></span><span class="tctl"><span class="tg small on" role="switch" aria-checked="true"><span class="tr"></span></span></span></div></div></div><div class="pane scheme-dark " data-scheme="dark"><span class="pl">dark</span><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px"><div class="tile on cool"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg></span><span class="tbody"><div class="tname">תאורת תקרה</div><div class="tstate">דולק · 60%</div></span><span class="tctl"><span class="tg small on" role="switch" aria-checked="true"><span class="tr"></span></span></span></div><div class="tile on warm"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 4 8 4.5-8 4.5-8-4.5z"/><path d="m4 13 8 4.5 8-4.5"/><path d="m4 16.5 8 4.5 8-4.5"/></svg></span><span class="tbody"><div class="tname">וילון סלון</div><div class="tstate">פתוח · 60%</div></span><span class="tctl"><span class="tg small on" role="switch" aria-checked="true"><span class="tr"></span></span></span></div><div class="tile on switch"><span class="ring"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3 5.5 13.5H12l-1 7.5 7.5-10.5H12z"/></svg></span><span class="tbody"><div class="tname">מערכת הגברה</div><div class="tstate">פעיל</div></span><span class="tctl"><span class="tg small on" role="switch" aria-checked="true"><span class="tr"></span></span></span></div></div></div></div></section>
+  <section class="sec"><h2 class="h2">"דולק"</h2><p class="muted" style="font-size:12.5px;max-width:900px">glow אלכסוני מ-fill-start ל-fill-end + גבול צבעוני + halo רך מלמטה; חם לחדרים ולתריסים, קר לתאורה, ירוק למתגים.</p><div class="pair"><div class="pane scheme-light " data-scheme="light"><span class="pl">light</span><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px"><div class="tile on cool"><span class="ring"><svg class="ic" data-ic="bulb" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg></span><span class="tbody"><div class="tname">תאורת תקרה</div><div class="tstate">דולק · 60%</div></span><span class="tctl"><span class="tg small on" role="switch" aria-checked="true"><span class="tr"></span></span></span></div><div class="tile on warm"><span class="ring"><svg class="ic" data-ic="layers" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 4 8 4.5-8 4.5-8-4.5z"/><path d="m4 13 8 4.5 8-4.5"/><path d="m4 16.5 8 4.5 8-4.5"/></svg></span><span class="tbody"><div class="tname">וילון סלון</div><div class="tstate">פתוח · 60%</div></span><span class="tctl"><span class="tg small on" role="switch" aria-checked="true"><span class="tr"></span></span></span></div><div class="tile on switch"><span class="ring"><svg class="ic" data-ic="bolt" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3 5.5 13.5H12l-1 7.5 7.5-10.5H12z"/></svg></span><span class="tbody"><div class="tname">מערכת הגברה</div><div class="tstate">פעיל</div></span><span class="tctl"><span class="tg small on" role="switch" aria-checked="true"><span class="tr"></span></span></span></div></div></div><div class="pane scheme-dark " data-scheme="dark"><span class="pl">dark</span><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px"><div class="tile on cool"><span class="ring"><svg class="ic" data-ic="bulb" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 13.2A5.5 5.5 0 1 1 15.5 13.2c-.9.9-1.5 1.8-1.5 2.8h-4c0-1-.6-1.9-1.5-2.8z"/></svg></span><span class="tbody"><div class="tname">תאורת תקרה</div><div class="tstate">דולק · 60%</div></span><span class="tctl"><span class="tg small on" role="switch" aria-checked="true"><span class="tr"></span></span></span></div><div class="tile on warm"><span class="ring"><svg class="ic" data-ic="layers" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 4 8 4.5-8 4.5-8-4.5z"/><path d="m4 13 8 4.5 8-4.5"/><path d="m4 16.5 8 4.5 8-4.5"/></svg></span><span class="tbody"><div class="tname">וילון סלון</div><div class="tstate">פתוח · 60%</div></span><span class="tctl"><span class="tg small on" role="switch" aria-checked="true"><span class="tr"></span></span></span></div><div class="tile on switch"><span class="ring"><svg class="ic" data-ic="bolt" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3 5.5 13.5H12l-1 7.5 7.5-10.5H12z"/></svg></span><span class="tbody"><div class="tname">מערכת הגברה</div><div class="tstate">פעיל</div></span><span class="tctl"><span class="tg small on" role="switch" aria-checked="true"><span class="tr"></span></span></span></div></div></div></div></section>
   </div>
 <div class="board-label">foundations-shape · domus</div>
 </body>

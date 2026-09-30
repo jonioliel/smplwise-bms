@@ -228,8 +228,8 @@
     "dark": "255 149 0"
   },
   "--sw-on-cool": {
-    "light": "0 113 227",
-    "dark": "0 113 227"
+    "light": "255 149 0",
+    "dark": "255 149 0"
   },
   "--sw-on-switch": {
     "light": "30 150 64",
@@ -780,20 +780,20 @@
     "dark": "rgba(255,255,255,.22)"
   },
   "--sw-r-sm": {
-    "light": "8px",
-    "dark": "8px"
+    "light": "14px",
+    "dark": "14px"
   },
   "--sw-r-md": {
-    "light": "10px",
-    "dark": "10px"
+    "light": "22px",
+    "dark": "22px"
   },
   "--sw-r-lg": {
-    "light": "12px",
-    "dark": "12px"
+    "light": "28px",
+    "dark": "28px"
   },
   "--sw-r-xl": {
-    "light": "16px",
-    "dark": "16px"
+    "light": "32px",
+    "dark": "32px"
   },
   "--sw-r-pill": {
     "light": "999px",

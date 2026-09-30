@@ -13,7 +13,7 @@ export function doc({ title, scheme = 'light', dir = 'rtl', body, css = '', labe
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
-<style>${fontFace(fontPrefix)}${tokensCss()}${baseCss}${skinRules()}${phoneCss}${css}</style>
+<style>${fontFace(fontPrefix)}${tokensCss()}${baseCss}${phoneCss}${css}${skinRules()}</style>
 </head>
 <body class="canvas"${width ? ` style="width:${width}px"` : ''}>
 ${body}
@@ -55,7 +55,8 @@ export function shell({ active, phone, content, health = 'ok', preset = 'l' }) {
 }
 
 // ---------- shared bits ----------
-const chevBack = `<button class="btn icon ghost" aria-label="חזרה">${I('chevron', { mirror: true })}</button>`;
+const chevBack = `<button class="btn icon ghost" aria-label="חזרה">${I('chevron', { dir: 'back' })}</button>`;
+const disc = (cls = '') => I('chevron', { dir: 'fwd', cls }); // disclosure: points to the inline-end in both directions
 const tg = (on, extra = '') => `<span class="tg small${on ? ' on' : ''}${extra}" role="switch" aria-checked="${on}"><span class="tr"></span></span>`;
 const offAll = (label = 'כבה הכל') => `<button class="btn ghost sm">${I('power')}${label}</button>`;
 const fbtn = (label) => `<button class="fbtn">${label}${I('chevron')}</button>`;
@@ -92,7 +93,7 @@ const homeCss = `
 .floor .fh .act{margin-inline-start:auto}
 .rooms{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--sw-card-gap)}
 .room{padding:12px 14px;gap:8px;min-height:0}
-.room .amb{flex-wrap:nowrap;overflow:hidden}
+.room .amb{flex-wrap:wrap} /* a chip is never cut: on a narrow card the facts take a second line */
 .room .amb .chip{height:28px;padding:0 9px;font-size:var(--sw-fs-xs)}
 .room .rf{min-height:36px} .room .rf .more{min-height:32px}
 .floor .fh{min-height:32px}
@@ -108,12 +109,18 @@ const homeCss = `
 .tree-panel .tree .trow.tfloor:first-child{margin-top:0}
 .strip.climate{gap:8px} .strip.climate .chip{height:34px}
 @media (max-width:767px){
-  .widgets{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;margin-inline:-16px;padding-inline:16px;scrollbar-width:none}
-  .widget{flex:0 0 78%;scroll-snap-align:start;min-height:128px}
-  .widget.quick{flex-basis:60%}
+  /* phone: the widgets are a two-column grid (nothing is cut, nothing scrolls sideways); quick actions are a full row of two buttons */
+  .widgets{grid-template-columns:1fr 1fr;gap:10px}
+  .widget{min-height:0;padding:12px 14px}
+  .widget .forecast,.widget .wx{display:none}
+  .widget.quick{grid-column:1 / -1;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px}
+  .widget.quick .wlabel{flex-basis:100%} .widget.quick .btn{flex:1;min-width:0;padding:0 10px}
+  .widget.alarm .word{font-size:var(--sw-fs-xl)}
   .rooms{grid-template-columns:1fr}
   .home .hctl{padding-top:0}
   .home .hctl .seg{flex:1} .home .hctl .seg > *{flex:1;justify-content:center;padding:0 6px}
+  /* floor header: name + action on the first line, the facts whole on the second — never an orphaned number */
+  .floor .fh{flex-wrap:wrap;row-gap:2px} .floor .fh .facts{order:3;flex-basis:100%}
 }`;
 
 const ROOMS = [
@@ -138,7 +145,7 @@ export function roomCard({ name, ic = 'home', on, n, act, amb }) {
   return `<a class="glass room lift${on ? ' on' : ''}" href="#">
     <div class="rh"><span class="dbadge lg">${I(ic)}</span><span class="grow"><div class="rn">${name}</div><div class="rs"><span class="num">${n}</span> התקנים${act ? ` · <span class="num">${act}</span> פעילים` : ''}</div></span>${on ? '<span class="dot on lg"></span>' : ''}</div>
     <div class="amb">${amb.slice(0, 4).map(([i, v, hot]) => `<span class="chip${hot ? ' warm' : ''}">${I(i)}<span class="num">${v}</span></span>`).join('')}</div>
-    <div class="rf"><span class="more">פרטים ${I('chevron', { mirror: true })}</span><button class="btn ghost icon touch" aria-label="כבה הכל בחדר">${I('power')}</button></div>
+    <div class="rf"><span class="more">פרטים ${disc()}</span><button class="btn ghost icon touch" aria-label="כבה הכל בחדר">${I('power')}</button></div>
   </a>`;
 }
 
@@ -151,7 +158,7 @@ function homeHead({ phone, view }) {
 function widgets() {
   return `<section class="widgets">
     <div class="glass widget"><div class="wlabel">${I('clock')}שעה</div><div class="reading num">15:33<small>38</small></div><div class="muted" style="margin-top:auto">יום רביעי · 30 בספטמבר<br><span class="faint">כ״ט באלול התשפ״ו</span></div></div>
-    <div class="glass widget"><div class="wlabel">${I('cloudSun')}מזג אוויר</div><div class="row" style="gap:12px"><span class="reading sm num">28°</span><span>${I('cloudSun', { size: 34 })}<div class="muted">מעונן חלקית</div></span><span class="faint" style="margin-inline-start:auto;font-size:var(--sw-fs-sm);text-align:end">לחות <span class="num">61%</span><br>רוח <span class="num">14</span> קמ״ש</span></div>
+    <div class="glass widget"><div class="wlabel">${I('cloudSun')}מזג אוויר</div><div class="row" style="gap:12px"><span class="reading sm num">28°</span><span>${I('cloudSun', { size: 34 })}<div class="muted">מעונן חלקית</div></span><span class="faint wx" style="margin-inline-start:auto;font-size:var(--sw-fs-sm);text-align:end">לחות <span class="num">61%</span><br>רוח <span class="num">14</span> קמ״ש</span></div>
       <div class="forecast">${[['14:00', 'sun', '29°'], ['15:00', 'cloudSun', '28°'], ['16:00', 'cloud', '27°'], ['17:00', 'rain', '26°'], ['18:00', 'rain', '25°']].map(([h, i, t]) => `<div><span class="num">${h}</span>${I(i)}<b class="num">${t}</b></div>`).join('')}</div></div>
     <div class="glass widget"><div class="wlabel">${I('star')}שבת</div><div class="h2" style="font-size:var(--sw-fs-2xl)">פרשת בראשית</div><div class="muted" style="margin-top:auto;display:grid;gap:2px"><span>${I('candle', { size: 15 })} הדלקת נרות <b class="num">17:32</b></span><span>${I('moon', { size: 15 })} צאת שבת <b class="num">18:30</b></span></div></div>
     <div class="glass widget alarm"><div class="wlabel">${I('shield')}אזעקה</div><div class="row" style="gap:10px"><span class="ring" style="background:var(--sw-live-soft);color:var(--sw-live)">${I('shield')}</span><span class="word">דרוכה (חוץ)</span></div><div class="row" style="margin-top:auto;gap:6px"><span class="chip sm">קומת כניסה</span><span class="chip sm">חוץ</span></div></div>
@@ -159,7 +166,7 @@ function widgets() {
   </section>`;
 }
 
-const unassigned = () => `<a class="glass room unassigned lift" href="#"><div class="rh"><span class="dbadge lg">${I('inbox')}</span><span class="grow"><div class="rn">ללא שיוך</div><div class="rs"><span class="num">4</span> התקנים</div></span>${I('chevron', { mirror: true, cls: 'faint' })}</div></a>`;
+const unassigned = () => `<a class="glass room unassigned lift" href="#"><div class="rh"><span class="dbadge lg">${I('inbox')}</span><span class="grow"><div class="rn">ללא שיוך</div><div class="rs"><span class="num">4</span> התקנים</div></span>${disc('faint')}</div></a>`;
 
 // optional widgets (owner decision: KPI strip, building tree and climate strip are widgets, not structure)
 const KPIS = [
@@ -215,7 +222,7 @@ export function homeKpiBoard({ scheme }) {
 const listCss = `
 .ltable.areas .lhead,.ltable.areas .lrow{grid-template-columns:minmax(170px,1.4fr) 76px 92px 92px 108px 96px 72px 88px}
 .ltable.devices .lhead,.ltable.devices .lrow{grid-template-columns:minmax(190px,1.3fr) minmax(90px,1fr) minmax(110px,1fr) auto}
-.ltable.cams .lhead,.ltable.cams .lrow{grid-template-columns:minmax(200px,1.5fr) 110px 130px 90px 110px 120px 88px}
+.ltable.cams .lhead,.ltable.cams .lrow{grid-template-columns:minmax(200px,1.5fr) 120px 140px 110px 130px 88px}
 .ltable .ph-only{display:none}
 .lrow .ctl{display:flex;justify-content:flex-end;align-items:center;gap:6px}
 @media (max-width:767px){
@@ -239,7 +246,7 @@ export function homeListContent({ phone = false } = {}) {
       <span class="lc ph-hide">${w ? `${I('wave')}<b class="num">${w[1]}</b>` : '<span class="faint">—</span>'}</span>
       <span class="lc ph-hide">${l ? `${I(l[0])}<b class="num">${l[1]}</b>` : '<span class="faint">—</span>'}</span>
       <span class="lc ph-hide"><b class="num">${r.n}</b></span>
-      <span class="lact"><button class="btn ghost icon" aria-label="כבה הכל בחדר">${I('power')}</button><button class="btn ghost icon ph-hide" aria-label="פרטים">${I('chevron', { mirror: true })}</button></span></a>`;
+      <span class="lact"><button class="btn ghost icon" aria-label="כבה הכל בחדר">${I('power')}</button><button class="btn ghost icon ph-hide" aria-label="פרטים">${disc()}</button></span></a>`;
   };
   const groups = ROOMS.map((f) => `<div class="lgroup">${I('layers', { size: 16, cls: 'faint' })}${f.floor}<span class="count"><span class="num">${f.rooms.length}</span> אזורים · ${f.floorFacts.map(([ic, v]) => `<span class="num">${v}</span>`).join(' · ')}</span><span class="act">${offAll('כבה קומה')}</span></div>${f.rooms.map((r) => row(f.floor, r)).join('')}`).join('');
   const un = `<div class="lgroup">${I('inbox', { size: 16, cls: 'faint' })}ללא שיוך<span class="count"><span class="num">4</span> התקנים</span></div>`;
@@ -285,7 +292,6 @@ const areaCss = `
 .snap .tag{position:absolute;top:8px;inset-inline-start:8px}
 .snap .exp{position:absolute;top:6px;inset-inline-end:6px;width:32px;height:32px;border-radius:50%;background:rgba(8,12,20,.6);color:#fff;display:grid;place-items:center}
 .sens2{display:grid;grid-template-columns:1fr 1fr;gap:var(--sw-tile-gap)}
-.empties{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:var(--sw-fs-sm);color:var(--sw-text-3);padding-top:2px}
 .ro .tctl,.ro .slider,.ro .bar-ind,.ro .offall,.ro .stepper,.ro .cover-ctl,.ro .climate .seg,.ro .master,.ro .ctl{display:none!important}
 .ro .tile.col .tbody{flex:1}
 @media (max-width:767px){
@@ -302,7 +308,7 @@ function tile({ name, state, ic, on, kind = '', unavail, ctl = '', extra = '', c
 const slider = (pct) => `<div class="slider"><div class="track"><div class="fill" style="width:${pct}%"></div></div><span class="thumb" style="inset-inline-start:${pct}%"></span></div>`;
 // section card header: badge · title › · "N התקנים" · bulk action
 function domainCard({ title, count, ic, role, body, bulk = true, bulkLabel = 'כבה הכל', ro, cls = '' }) {
-  return `<section class="glass dcard ${cls}"><div class="card-head"><span class="dbadge" style="--role:var(--sw-role-${role});--role-fg:var(--sw-role-${role}-fg)">${I(ic)}</span><h3 class="sec-title"><span class="tt">${title}</span>${I('chevron', { mirror: true, cls: 'disc' })}<span class="count"><span class="num">${count}</span> התקנים</span></h3>${bulk && !ro ? `<span class="offall">${offAll(bulkLabel)}</span>` : ''}</div>${body}</section>`;
+  return `<section class="glass dcard ${cls}"><div class="card-head"><span class="dbadge" style="--role:var(--sw-role-${role});--role-fg:var(--sw-role-${role}-fg)">${I(ic)}</span><h3 class="sec-title"><span class="tt">${title}</span>${disc('disc')}<span class="count"><span class="num">${count}</span> התקנים</span></h3>${bulk && !ro ? `<span class="offall">${offAll(bulkLabel)}</span>` : ''}</div>${body}</section>`;
 }
 
 function areaHead({ phone, view, ro }) {
@@ -352,7 +358,7 @@ export function areaContent({ phone = false, state = 'ready', view = 'cards' } =
   const switches = domainCard({ title: 'מתגים', count: 3, ic: 'bolt', role: 'success', ro, body: `<div class="tiles1">
     ${DEV.switches.map((d) => tile({ ...d, ctl: tg(!!d.on, d.unavail ? ' disabled' : '') })).join('')}</div>` });
   const covers = un
-    ? `<section class="glass dcard"><div class="card-head"><span class="dbadge" style="--role:var(--sw-role-neutral);--role-fg:var(--sw-role-neutral-fg)">${I('layers')}</span><h3 class="sec-title">תריסים${I('chevron', { mirror: true, cls: 'disc' })}<span class="count"><span class="num">2</span> התקנים</span></h3></div><div class="state compact stale" style="padding:8px 4px"><span class="sic">${I('wifiOff')}</span><div><div class="st" style="font-size:var(--sw-fs-md)">התחום לא זמין</div><div class="sh" style="font-size:var(--sw-fs-sm)">אין תקשורת עם בקר התריסים</div></div></div></section>`
+    ? `<section class="glass dcard"><div class="card-head"><span class="dbadge" style="--role:var(--sw-role-neutral);--role-fg:var(--sw-role-neutral-fg)">${I('layers')}</span><h3 class="sec-title">תריסים${disc('disc')}<span class="count"><span class="num">2</span> התקנים</span></h3></div><div class="state compact stale" style="padding:8px 4px"><span class="sic">${I('wifiOff')}</span><div><div class="st" style="font-size:var(--sw-fs-md)">התחום לא זמין</div><div class="sh" style="font-size:var(--sw-fs-sm)">אין תקשורת עם בקר התריסים</div></div></div></section>`
     : domainCard({ title: 'תריסים', count: 2, ic: 'layers', role: 'accent', ro, bulkLabel: 'סגור הכל', body: `<div class="tiles1">
     ${tile({ ...DEV.covers[0], col: true, ctl: coverCtl(false), extra: `<span class="bar-ind"><i style="width:60%"></i></span>` })}
     ${tile({ ...DEV.covers[1], ctl: coverCtl(true) })}</div>` });
@@ -375,14 +381,14 @@ export function areaContent({ phone = false, state = 'ready', view = 'cards' } =
     <div class="sens"><span class="ring">${I('droplet')}</span><span><div class="sv num">48%</div><div class="sl">לחות</div></span></div>
     <div class="sens"><span class="ring">${I('motion')}</span><span><div class="sv word">אין תנועה</div><div class="sl">לפני <span class="num">12</span> דק׳</div></span></div>
     <div class="sens"><span class="ring">${I('door')}</span><span><div class="sv word">סגורה</div><div class="sl">דלת מרפסת</div></span></div>
-  </div><button class="btn ghost sm" style="margin-top:8px;width:100%">${I('chevron', { cls: 'faint' })}עוד <span class="num">2</span> חיישנים</button>` });
-  const empties = `<div class="empties"><span>ללא התקנים באזור:</span><span class="chip ghost">${I('play')}מדיה</span><span class="chip ghost">${I('droplet')}השקיה</span><span class="chip ghost">${I('door')}שערים</span></div>`;
+  </div><button class="btn ghost sm" style="margin-top:8px;width:100%">עוד <span class="num">2</span> חיישנים${disc('faint')}</button>` });
 
-  // 4 columns: [lighting ×2][climate, tall][switches] / [sensors][covers + screens][climate][security]
+  // 4 columns: [lighting ×2][climate, tall][switches] / [sensors][covers + screens][climate][security].
+  // Domains without devices are simply absent (no "ללא התקנים באזור" hint line — operator screens carry no hints).
   const grid = phone
     ? `${lighting}${climate}${switches}${covers}${screens}${security}${sensors}`
     : `${lighting}${climate}${switches}${sensors}<div class="dcol">${covers}${screens}</div>${security}`;
-  return `<div class="page area${ro ? ' ro' : ''}">${head}<div class="domains">${grid}</div>${empties}</div>`;
+  return `<div class="page area${ro ? ' ro' : ''}">${head}<div class="domains">${grid}</div></div>`;
 }
 
 // solid = the opaque fallback (no backdrop-filter / prefers-reduced-transparency): every glass level shows its -solid value
@@ -419,7 +425,7 @@ export function areaListContent({ phone = false } = {}) {
     ${row({ name: 'לחות', state: '<span class="num">48%</span>', ic: 'droplet', fact: 'לפני <span class="num">2</span> דק׳' })}
     ${row({ name: 'תנועה', state: 'אין תנועה', ic: 'motion', fact: 'לפני <span class="num">12</span> דק׳' })}
     ${row({ name: 'דלת מרפסת', state: 'סגורה', ic: 'door', fact: '—' })}
-    <div class="lrow" style="grid-template-columns:1fr"><button class="btn ghost sm" style="justify-self:start">${I('chevron', { cls: 'faint' })}עוד <span class="num">2</span> חיישנים</button></div>`;
+    <div class="lrow" style="grid-template-columns:1fr"><button class="btn ghost sm" style="justify-self:start">עוד <span class="num">2</span> חיישנים${disc('faint')}</button></div>`;
   return `<div class="page area">${areaHead({ phone, view: 'list' })}<section class="glass ltable devices">${head}${body}</section></div>`;
 }
 
@@ -440,13 +446,23 @@ const wallCss = `
 .wall .grid{flex:1;display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:1fr;gap:8px;min-height:0}
 .wall .wfacts{font-size:var(--sw-fs-sm);color:var(--sw-text-3);display:flex;gap:6px;flex-wrap:wrap}
 .seg.count>*{min-width:36px;justify-content:center;padding:0 8px}
+.wpanel{display:none}
 @media (max-width:767px){
-  .wall .sections{flex-direction:column;align-items:stretch;gap:6px}
+  /* the section switch keeps clear of the floating corner; the tabs row takes the full width so no label is cut */
+  .wall .sections{flex-direction:column;align-items:stretch;gap:6px;padding-inline-end:0}
+  .wall .sections .seg.lg{align-self:flex-start;max-width:calc(100% - 96px)} .wall .sections .seg.lg > *{padding:0 10px}
   .wall .grid{grid-template-columns:1fr 1fr;grid-auto-rows:auto}
   .wall .cam{aspect-ratio:16/9}
-  /* count picker on the phone: a two-row grid that shows all 11 counts (inspired by entrant A), no clipped scroll */
-  .segwrap .seg{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;border-radius:var(--sw-r-md);padding:4px}
-  .segwrap .seg > *{min-height:40px;min-width:0;padding:0;justify-content:center;border-radius:var(--sw-r-sm)}
+  /* grouped control panel: label at the start, control at the end, hairline between rows */
+  .wpanel{display:flex;flex-direction:column;padding:0 14px}
+  .wrow{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:52px;border-bottom:1px solid var(--sw-border)}
+  .wrow:last-child{border-bottom:0}
+  .wrow.col{flex-direction:column;align-items:stretch;gap:6px;padding-block:10px}
+  .wrow .wl{font-size:var(--sw-fs-md);color:var(--sw-text);white-space:nowrap}
+  /* count picker: a two-row grid that shows all 11 counts (inspired by entrant A), no clipped scroll */
+  .wrow .seg.count:not(.cols){display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;border-radius:var(--sw-r-sm);padding:4px}
+  .wrow .seg.count:not(.cols) > *{min-height:40px;min-width:0;padding:0;justify-content:center}
+  .wrow .seg.cols > :nth-child(n+5){display:none} /* four or more columns do not exist on a phone */
 }`;
 
 const CAMS = [
@@ -470,19 +486,23 @@ function wallHead({ phone, view }) {
   const sections = `<div class="seg lg" role="tablist"><button class="on">${I('camera')}לייב</button><button>${I('clockHistory')}חקירה</button><button>${I('siren')}אזעקה</button></div>`;
   const tabs = `<div class="tabs${phone ? ' underline' : ''}" role="tablist"><span class="tab">תמונת מצב</span><span class="tab on">כל המצלמות</span><span class="tab">תצוגות שמורות</span></div>`;
   const countSeg = `<div class="seg count" role="radiogroup" aria-label="כמות">${counts.map((n) => `<button class="num${n === 16 ? ' on' : ''}">${n}</button>`).join('')}</div>`;
-  const cols = `<div class="row" style="gap:6px"><span class="faint">עמודות</span><div class="seg count"><button class="on">אוטו</button>${[1, 2, 3, 4, 5, 6].map((n) => `<button class="num">${n}</button>`).join('')}</div></div>`;
+  const colSeg = `<div class="seg count cols"><button class="on">אוטו</button>${[1, 2, 3, 4, 5, 6].map((n) => `<button class="num">${n}</button>`).join('')}</div>`;
+  const cols = `<div class="row" style="gap:6px"><span class="faint">עמודות</span>${colSeg}</div>`;
+  const quality = `<span class="select">איכות: ברירת מחדל ${I('chevron')}</span>`;
   const vs = viewSeg(view, ['gridv', 'list']);
+  // phone: the wall controls live in one grouped panel (quality · count · columns), each a row with its label at the start
+  const panel = `<section class="glass wpanel"><div class="wrow"><span class="wl">איכות</span><span class="select">ברירת מחדל ${I('chevron')}</span></div><div class="wrow col"><span class="wl">כמות</span>${countSeg}</div><div class="wrow"><span class="wl">עמודות</span>${colSeg}</div></section>`;
   return `<div class="sections">${sections}${tabs}</div>
   <header class="head"><div><h1 class="h1">כל המצלמות</h1><div class="sub"><span class="num">16</span> מצלמות · <span class="num">12</span> חי</div></div>
-    ${phone ? '' : `<div class="toolbar">${vs}<span class="select">איכות: ברירת מחדל ${I('chevron')}</span>${view === 'gridv' ? countSeg + cols : ''}<button class="btn secondary">${I('expand')}קיוסק</button></div>`}
+    ${phone ? '' : `<div class="toolbar">${vs}${quality}${view === 'gridv' ? countSeg + cols : ''}<button class="btn secondary">${I('expand')}קיוסק</button></div>`}
   </header>
-  ${phone ? `<div class="toolbar">${vs}<button class="btn secondary" style="height:40px">${I('expand')}קיוסק</button></div>${view === 'gridv' ? `<div class="segwrap">${countSeg}</div>` : ''}` : ''}`;
+  ${phone ? `<div class="toolbar">${vs}<button class="btn secondary" style="height:40px">${I('expand')}קיוסק</button></div>${view === 'gridv' ? panel : ''}` : ''}`;
 }
 
 export function wallContent({ phone = false } = {}) {
   return `<div class="page wall">${wallHead({ phone, view: 'gridv' })}
   <div class="grid">${CAMS.map((c) => camTile(c)).join('')}</div>
-  <div class="wfacts"><span><span class="num">12</span> חי</span>·<span><span class="num">2</span> צילום</span>·<span><span class="num">1</span> מנותקת</span>·<span><span class="num">1</span> ללא הרשאה</span>·<span>צילומים מתרעננים כל דקה</span></div>
+  <div class="wfacts"><span><span class="num">12</span> חי</span>·<span><span class="num">2</span> צילום</span>·<span><span class="num">1</span> מנותקת</span>·<span><span class="num">1</span> ללא הרשאה</span></div>
 </div>`;
 }
 
@@ -497,14 +517,13 @@ export function wallBoard({ scheme, phone }) {
 // ---------- WALL · list view: cameras as a table ----------
 export function wallListContent({ phone = false } = {}) {
   const badge = { live: ['live', 'חי'], snapshot: ['recorded', 'צילום'], offline: ['offline', 'מנותקת'], forbidden: ['forbidden', 'אין הרשאה'] };
-  const head = `<div class="lhead"><span>מצלמה</span><span>אזור</span><span>מצב</span><span>איכות</span><span>רזולוציה</span><span>צילום אחרון</span><span></span></div>`;
+  const head = `<div class="lhead"><span>מצלמה</span><span>אזור</span><span>מצב</span><span>איכות</span><span>צילום אחרון</span><span></span></div>`;
   const rows = CAMS.map(([name, st, scene, area], i) => {
     const [b, t] = badge[st];
     const thumb = st === 'live' || st === 'snapshot' ? `<span class="thumb"><span class="scene ${scene}"></span></span>` : `<span class="thumb" style="display:grid;place-items:center;background:var(--sw-surface-3-solid);color:var(--sw-text-3)${st === 'offline' ? ';border:1.5px dashed var(--sw-border-strong)' : ''}">${I(st === 'offline' ? 'wifiOff' : 'eyeOff', { size: 16 })}</span>`;
     return `<div class="lrow${st === 'offline' ? ' unavail' : ''}"><span class="lname">${thumb}<span>${name}</span></span>
       <span class="lc ph-hide">${area}</span><span class="lc"><span class="badge ${b}"><span class="dot"></span>${t}</span></span>
       <span class="lc ph-hide">${st === 'live' ? (i % 3 ? 'רגילה' : 'גבוהה') : st === 'snapshot' ? 'צילום' : '—'}</span>
-      <span class="lc ph-hide">${st === 'live' || st === 'snapshot' ? `<span class="mono">${i % 3 ? '1920×1080' : '2560×1440'}</span>` : '—'}</span>
       <span class="lc ph-hide">${st === 'forbidden' ? '—' : `<span class="num">15:3${i % 4}</span>`}</span>
       <span class="lact"><button class="btn ghost icon${st === 'live' ? '' : ' disabled'}" aria-label="צפה">${I('play')}</button><button class="btn ghost icon ph-hide" aria-label="הרחב">${I('expand')}</button></span></div>`;
   }).join('');

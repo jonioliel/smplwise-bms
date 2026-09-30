@@ -474,7 +474,8 @@ h1,h2,h3{color:var(--sw-heading);line-height:var(--sw-lh-tight);font-weight:var(
 a{color:var(--sw-accent-text);text-decoration:none}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .ic{display:inline-block;vertical-align:middle;flex:none}
-[dir="ltr"] .ic-dir, .ltr .ic-dir{transform:scaleX(-1)}
+/* directional glyphs: the chevron path points right; "forward" (disclosure / more) points to the inline-end, "back" to the inline-start */
+.ic-fwd:dir(rtl),.ic-back:dir(ltr){transform:scaleX(-1)}
 .num,.mono{direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums}
 .mono{font-family:var(--sw-font-mono)}
 .muted{color:var(--sw-text-2)} .faint{color:var(--sw-text-3)}
@@ -669,13 +670,15 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .tile.on .tstate{color:var(--sw-text)}
 .tile.unavail{border-style:dashed;background:transparent}
 .tile.unavail .tname{color:var(--sw-text-2)} .tile.unavail .tstate{color:var(--sw-text-3)} .tile.unavail .ring{opacity:.6}
-.tile.col{flex-wrap:wrap}
+.tile.col{flex-wrap:wrap;align-content:flex-start}
 .tile.col{grid-column:1 / -1}
+.tiles2 > .tile{flex-wrap:wrap;align-content:flex-start} /* a tile beside a slider tile keeps its control on the same line as the neighbour's */
 .tile .slider{flex-basis:100%;margin-top:4px}
 .slider{position:relative;height:28px;display:flex;align-items:center}
 .slider .track{height:6px;width:100%;border-radius:3px;background:var(--sw-surface-3);overflow:hidden}
 .slider .fill{height:100%;background:var(--sw-accent);border-radius:3px}
 .slider .thumb{position:absolute;top:50%;translate:50% -50%;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:var(--sw-shadow-thumb),0 0 0 1px rgba(0,0,0,.05)}
+.slider .thumb:dir(ltr){translate:-50% -50%} /* the fill grows from the inline-start in both directions; the thumb is centred on its end */
 .slider .thumb::after{content:"";position:absolute;inset:-11px}
 .stepper{display:inline-flex;align-items:center;gap:2px;padding:2px;border-radius:var(--sw-r-pill);background:var(--sw-surface-3)}
 .stepper .btn{width:36px;height:36px;padding:0;border-radius:50%;background:var(--sw-surface-2-solid);box-shadow:var(--sw-shadow-thumb)}
@@ -789,8 +792,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .scene.s4{background:linear-gradient(180deg,#f0c98a 0%,#e0a866 45%,#6b5a48 46%,#3b3128 100%)}
 .scene.s5{background:linear-gradient(180deg,#2b3247 0%,#3a4360 50%,#1d2233 51%,#0f1220 100%)}
 .scene.s6{background:linear-gradient(180deg,#a7c7d9 0%,#dbe7ee 48%,#8a8f80 49%,#5a6050 100%)}
-.scene::before{content:"";position:absolute;inset:0;background:radial-gradient(70% 60% at 50% 40%,transparent 50%,rgba(0,0,0,.28) 100%)}
-.scene::after{content:"";position:absolute;inset-inline-start:18%;bottom:14%;width:26%;height:30%;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.14);border-radius:3px}
+/* placeholder scene = sky / horizon / ground bands + a lens vignette + a soft light pool; no shapes that read as UI */
+.scene::before{content:"";position:absolute;inset:0;background:radial-gradient(60% 45% at 50% 44%,rgba(255,255,255,.16),transparent 70%),radial-gradient(70% 60% at 50% 40%,transparent 50%,rgba(0,0,0,.30) 100%)}
 
 /* ---------- dialog / drawer / sheet ---------- */
 .scrim{position:absolute;inset:0;background:var(--sw-overlay)}
@@ -869,52 +872,6 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 /* ---------- board chrome (not product) ---------- */
 .board-label{position:absolute;top:4px;left:50%;translate:-50% 0;z-index:99;font:600 var(--sw-fs-xs)/1 var(--sw-font);color:var(--sw-text-3);opacity:.7;pointer-events:none;direction:ltr;white-space:nowrap}
 
-/* ---------- skin rules: tesla ---------- */
-
-/* tesla · flat rail column with a 1px rule; monochrome brand mark; active = heading colour + 2px accent rule */
-.rail-in{border-radius:0;border-inline-end:1px solid var(--sw-border);background:var(--sw-bg)}
-.brand{background:transparent;color:var(--sw-heading);border:1px solid var(--sw-border-strong);border-radius:var(--sw-r-md);box-shadow:none;font-weight:600}
-.rail-item.active{background:transparent;color:var(--sw-heading)}
-.rail-item.active::before{content:"";position:absolute;inset-inline-start:0;top:50%;translate:0 -50%;width:2px;height:60%;background:var(--sw-accent)}
-.bar{background:var(--sw-bg)} .bar-item.active{color:var(--sw-heading)}
-.corner{background:var(--sw-surface);border-radius:var(--sw-r-md)} .corner .cbtn{border-radius:var(--sw-r-sm)}
-.avatar{background:transparent;border-color:var(--sw-border-strong);color:var(--sw-text)}
-/* tesla · titles in medium weight, big numerals */
-h1,h2,h3,.h1,.h2,.dialog .q,.kpi .kv,.sens .sv,.widget.alarm .word{font-weight:500}
-.kpi .kv{font-size:var(--sw-fs-3xl)} .sens .sv{font-size:var(--sw-fs-2xl)}
-/* tesla · icon rings are outlines, not fills */
-.ring,.dbadge,.state .sic{background:transparent;border:1px solid var(--sw-border-strong)}
-.dbadge{border-color:rgb(var(--role,var(--sw-role-accent)) / var(--sw-role-border-a))}
-.kpi .ring{border-color:rgb(var(--tone,var(--sw-role-neutral)) / var(--sw-role-border-a))}
-/* tesla · "on" = 3px accent rule at the start edge + accent icon outline; no gradient, no halo */
-.tile.on,.atile.on,.room.on,.lrow.on{border-inline-start:3px solid rgb(var(--g));box-shadow:none;border-color:var(--sw-border);border-inline-start-color:rgb(var(--g))}
-.tile.on .ring,.atile.on .dbadge,.room.on .dbadge,.lrow.on .ring{background:transparent;color:rgb(var(--g));border-color:rgb(var(--g) / .6)}
-.dot.on{background:var(--sw-accent)}
-.facts .on b,.lrow .lc.on b,.tree .trow .lit.on{color:var(--sw-accent-text)}
-/* tesla · segmented = outlined boxes, selected segment inverted */
-.seg{background:transparent;border:1px solid var(--sw-border-strong);padding:0;gap:0;overflow:hidden}
-.seg > *{border-radius:0;min-height:34px} .seg > * + *{border-inline-start:1px solid var(--sw-border)}
-.seg > .on{background:var(--sw-text);color:var(--sw-text-inverse);box-shadow:none}
-.tabs .tab.on{background:none;border:0;box-shadow:none;color:var(--sw-heading);position:relative}
-.tabs .tab.on::after{content:"";position:absolute;inset-inline:12px;bottom:0;height:2px;background:var(--sw-accent)}
-/* tesla · outlined chips, badges, buttons; toggles in monochrome */
-.chip{background:transparent} .chip.warm{background:transparent;border-color:var(--sw-border-strong);color:var(--sw-text)} .chip.warm .ic{color:var(--sw-accent)}
-.badge{background:transparent;border:1px solid color-mix(in srgb,var(--bd,currentColor) 55%,transparent)} .badge.image,.badge.count{border:0}
-.btn.primary{box-shadow:none} .btn.secondary{background:transparent} .btn.danger{background:transparent}
-.btn.round,.master{border-radius:var(--sw-r-md)}
-.tg .tr{border-radius:999px;border-color:var(--sw-border-strong);background:transparent} .tg .tr::after{background:var(--sw-text-2);box-shadow:none}
-.tg.on .tr{border-color:transparent;background:var(--sw-accent)} .tg.on .tr::after{background:#fff}
-.slider .track{height:2px} .slider .thumb{width:18px;height:18px;background:var(--sw-heading);box-shadow:none}
-.stepper{background:transparent;border:1px solid var(--sw-border-strong)} .stepper .btn{background:transparent;box-shadow:none;border-radius:var(--sw-r-sm)}
-.cover-ctl .btn{background:transparent;border:1px solid var(--sw-border)}
-.field .in{background:transparent}
-/* tesla · home direction ב ("status panel"): the widgets column is a hairline-separated panel, KPIs are hairline rows without cards (inspired by entrant A's Tesla) */
-.panel{border-inline-end:1px solid var(--sw-border);padding-inline-end:var(--sw-card-gap)} .panel .widget.glass{background:transparent;border:0;border-radius:0;border-bottom:1px solid var(--sw-border);padding-inline:0}
-.kpis .kpi.glass{background:transparent;border:0;border-radius:0;border-inline-start:1px solid var(--sw-border-strong)}
-/* tesla · camera caption as a solid strip, not a gradient scrim */
-.cam .nm{background:rgba(0,0,0,.62);padding:8px 10px;text-shadow:none}
-.handle{border-radius:1px}
-
 @media (max-width:767px){
   .app{grid-template-columns:1fr}
   .rail{display:none}
@@ -926,6 +883,7 @@ h1,h2,h3,.h1,.h2,.dialog .q,.kpi .kv,.sens .sv,.widget.alarm .word{font-weight:5
   .tabs.fade::after{width:36px}
   .room{min-height:0}
   .page > .head:first-child,.ahead .top,.page > .sections{padding-inline-end:96px}
+  .tabs.underline .tab{flex:1;justify-content:center;padding:0 6px;min-width:0}
 }
 body{padding:0}
 .sheet-wrap{max-width:1380px;margin:0 auto;padding:36px 30px 60px;display:flex;flex-direction:column;gap:28px}
@@ -977,6 +935,52 @@ body{padding:0}
 .states-label{display:flex;align-items:center;gap:10px;margin:8px 0 6px}
 .states-label .badge{font-size:var(--sw-fs-sm);height:26px}
 .skinbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* ---------- skin rules: tesla ---------- */
+
+/* tesla · flat rail column with a 1px rule; monochrome brand mark; active = heading colour + 2px accent rule */
+.rail-in{border-radius:0;border-inline-end:1px solid var(--sw-border);background:var(--sw-bg)}
+.brand{background:transparent;color:var(--sw-heading);border:1px solid var(--sw-border-strong);border-radius:var(--sw-r-md);box-shadow:none;font-weight:600}
+.rail-item.active{background:transparent;color:var(--sw-heading)}
+.rail-item.active::before{content:"";position:absolute;inset-inline-start:0;top:50%;translate:0 -50%;width:2px;height:60%;background:var(--sw-accent)}
+.bar{background:var(--sw-bg)} .bar-item.active{color:var(--sw-heading)}
+.corner{background:var(--sw-surface);border-radius:var(--sw-r-md)} .corner .cbtn{border-radius:var(--sw-r-sm)}
+.avatar{background:transparent;border-color:var(--sw-border-strong);color:var(--sw-text)}
+/* tesla · titles in medium weight, big numerals */
+h1,h2,h3,.h1,.h2,.dialog .q,.kpi .kv,.sens .sv,.widget.alarm .word{font-weight:500}
+.kpi .kv{font-size:var(--sw-fs-3xl)} .sens .sv{font-size:var(--sw-fs-2xl)}
+/* tesla · icon rings are outlines, not fills */
+.ring,.dbadge,.state .sic{background:transparent;border:1px solid var(--sw-border-strong)}
+.dbadge{border-color:rgb(var(--role,var(--sw-role-accent)) / var(--sw-role-border-a))}
+.kpi .ring{border-color:rgb(var(--tone,var(--sw-role-neutral)) / var(--sw-role-border-a))}
+/* tesla · "on" = 3px accent rule at the start edge + accent icon outline; no gradient, no halo */
+.tile.on,.atile.on,.room.on,.lrow.on{border-inline-start:3px solid rgb(var(--g));box-shadow:none;border-color:var(--sw-border);border-inline-start-color:rgb(var(--g))}
+.tile.on .ring,.atile.on .dbadge,.room.on .dbadge,.lrow.on .ring{background:transparent;color:rgb(var(--g));border-color:rgb(var(--g) / .6)}
+.dot.on{background:var(--sw-accent)}
+.facts .on b,.lrow .lc.on b,.tree .trow .lit.on{color:var(--sw-accent-text)}
+/* tesla · segmented = outlined boxes, selected segment inverted */
+.seg{background:transparent;border:1px solid var(--sw-border-strong);padding:0;gap:0;overflow:hidden}
+.seg > *{border-radius:0;min-height:34px} .seg > * + *{border-inline-start:1px solid var(--sw-border)}
+.seg > .on{background:var(--sw-text);color:var(--sw-text-inverse);box-shadow:none}
+.tabs .tab.on{background:none;border:0;box-shadow:none;color:var(--sw-heading);position:relative}
+.tabs .tab.on::after{content:"";position:absolute;inset-inline:12px;bottom:0;height:2px;background:var(--sw-accent)}
+/* tesla · outlined chips, badges, buttons; toggles in monochrome */
+.chip{background:transparent} .chip.warm{background:transparent;border-color:var(--sw-border-strong);color:var(--sw-text)} .chip.warm .ic{color:var(--sw-accent)}
+.badge{background:transparent;border:1px solid color-mix(in srgb,var(--bd,currentColor) 55%,transparent)} .badge.image,.badge.count{border:0}
+.btn.primary{box-shadow:none} .btn.secondary{background:transparent} .btn.danger{background:transparent}
+.btn.round,.master{border-radius:var(--sw-r-md)}
+.tg .tr{border-radius:999px;border-color:var(--sw-border-strong);background:transparent} .tg .tr::after{background:var(--sw-text-2);box-shadow:none}
+.tg.on .tr{border-color:transparent;background:var(--sw-accent)} .tg.on .tr::after{background:#fff}
+.slider .track{height:2px} .slider .thumb{width:18px;height:18px;background:var(--sw-heading);box-shadow:none}
+.stepper{background:transparent;border:1px solid var(--sw-border-strong)} .stepper .btn{background:transparent;box-shadow:none;border-radius:var(--sw-r-sm)}
+.cover-ctl .btn{background:transparent;border:1px solid var(--sw-border)}
+.field .in{background:transparent}
+/* tesla · home direction ב ("status panel"): the widgets column is a hairline-separated panel, KPIs are hairline rows without cards (inspired by entrant A's Tesla) */
+.panel{border-inline-end:1px solid var(--sw-border);padding-inline-end:var(--sw-card-gap)} .panel .widget.glass{background:transparent;border:0;border-radius:0;border-bottom:1px solid var(--sw-border);padding-inline:0}
+.kpis .kpi.glass{background:transparent;border:0;border-radius:0;border-inline-start:1px solid var(--sw-border-strong)}
+/* tesla · camera caption as a solid strip, not a gradient scrim */
+.cam .nm{background:rgba(0,0,0,.62);padding:8px 10px;text-shadow:none}
+.handle{border-radius:1px}
 </style>
 </head>
 <body class="canvas">

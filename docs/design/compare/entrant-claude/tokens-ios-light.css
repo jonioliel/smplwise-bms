@@ -58,7 +58,7 @@
   --sw-purple-text: #7d2fa8;
   --sw-toggle-on: #1e9640;
   --sw-on-warm: 255 149 0;
-  --sw-on-cool: 0 113 227;
+  --sw-on-cool: 255 149 0;
   --sw-on-switch: 30 150 64;
   --sw-glow-fill-start: .12;
   --sw-glow-fill-end: .12;
@@ -196,10 +196,10 @@
   --sw-tile-min-block: 96px;
   --sw-icon-ring-pad: 9px;
   --sw-icon-ring-on-bg: rgba(255,255,255,.22);
-  --sw-r-sm: 8px;
-  --sw-r-md: 10px;
-  --sw-r-lg: 12px;
-  --sw-r-xl: 16px;
+  --sw-r-sm: 14px;
+  --sw-r-md: 22px;
+  --sw-r-lg: 28px;
+  --sw-r-xl: 32px;
   --sw-r-pill: 999px;
   --sw-shadow-1: none;
   --sw-shadow-2: 0 6px 20px rgba(0,0,0,.10);
