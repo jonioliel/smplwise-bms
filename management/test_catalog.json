@@ -5657,5 +5657,83 @@
     "evidence": [],
     "executed_at": null,
     "notes": "Planned in CR-009 (2026-09-29)."
+  },
+  {
+    "id": "AT202",
+    "requirement_ids": [
+      "R202"
+    ],
+    "task_ids": [
+      "T098"
+    ],
+    "title": "מולטימדיה 1 - מודל התקן, פקודות והרשאות",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fake HA media fixture (media_fake_ha.py); no real device"
+    ],
+    "procedure": [
+      "Backend unit/API: tests/test_media_model.py, test_media_profiles.py, test_media_commands.py, test_media_api.py, test_media_bulk.py, test_media_sync.py, test_bridge_media_policy.py (every route, error code, permission x scope, ladder rungs, no power key, rate limits).",
+      "Live spec evidence-media-live.spec.ts (SW_LIVE=1) against media_fake_ha.py: duplicates collapse to one card per TV, exact key codes per profile, not-confirmed path."
+    ],
+    "expected": "Media device model (CR-015 §3-§6): one card per PHYSICAL screen after the dedupe ladder (same HA device, MA loop, MAC, identifiers; name/area only as a suggestion; manual link/unlink/ignore, audited), only approved screens shown; capabilities from the primary endpoint's supported_features plus the brand profile (samsung_smart, lg_webos, android_tv, generic); every command through POST /multimedia/devices/{key}/commands -> the allow-listed signed bridge (0.4.0, media_policy) with the caller's HA context, power only by turn_on/turn_off (never a power key), fixed per-profile keys, server rate limits (keys 5/s burst 8, volume 4/s, one pending power), honest accepted/sent/refused and 'not confirmed' after 8 s; permissions media.read/control/power, sensitive media.public and media.bulk, media.layout, floor-scoped by the device's anchor placement; managed screens refused on the generic action path (use_media_screen); migrations 0041/0042.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-015 (2026-09-30)."
+  },
+  {
+    "id": "AT203",
+    "requirement_ids": [
+      "R203"
+    ],
+    "task_ids": [
+      "T098"
+    ],
+    "title": "מולטימדיה 2 - מסך המסכים והעורך",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fake HA media fixture (media_fake_ha.py); no real device"
+    ],
+    "procedure": [
+      "Frontend unit unit-media-layout.spec.ts and unit-media-screens.spec.ts; evidence-media-screens.spec.ts in demo mode at 1440/820/390 (loading, empty, error, ready, view-only, editor, RTL).",
+      "Backend test_media_layout.py (revision 409, personal gated and hidden) and the live spec's editor + personal step."
+    ],
+    "expected": "Screens page and editor (CR-015 §7.1, §8, §9): rail entry 'מולטימדיה' between מפה and WisKey (media.read), glass page with floors, room chips, search and state filter, per-floor 'כבה מסכים' (media.bulk, confirmation with count, screens confirmed on only, per-screen outcome; building-wide not offered); edit mode from the user menu (media.layout) for order, pinned row, size s/m/l and desktop/phone visibility per screen, stored in media_layouts with a revision, plus a personal override in /me/prefs multimedia.personal for screen.personalize holders; settings 'מדיה' (system.configure): approval, kinds, public screens, linked receiver, profiles, connections, remote default.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-015 (2026-09-30)."
+  },
+  {
+    "id": "AT204",
+    "requirement_ids": [
+      "R204"
+    ],
+    "task_ids": [
+      "T098"
+    ],
+    "title": "מולטימדיה 3 - השלט, כרטיס האזור והווידג'ט",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fake HA media fixture (media_fake_ha.py); no real device"
+    ],
+    "procedure": [
+      "Frontend unit unit-media-remote.spec.ts; evidence-media-remote.spec.ts in demo mode for the four profiles and every state.",
+      "Live spec: area card opens the same remote; area 'כבה הכל' skips screens not confirmed on; devices-area screens_off reaches screens only."
+    ],
+    "expected": "The remote, area card and home widget (CR-015 §4, §7.2-§7.5): side panel on desktop/tablet and bottom sheet on phone with power/source/apps, sections per decision 5b (numbers, colours, typing behind 'עוד מקשים'), sources/apps tabs with curated names and neutral glyphs, 'אחרונים', receiver switch, states off/art/unavailable/no-wake/view-only/pending/not-confirmed; 'עריכת השלט' (default + per screen); the area card library's media type shows one card per screen of the area with the same remote and area 'כבה הכל'; home widget 'מסכים'; the devices area's bulk kinds reach screens only (decision 8a).",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-015 (2026-09-30)."
   }
 ]
