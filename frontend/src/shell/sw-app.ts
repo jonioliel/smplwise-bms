@@ -21,6 +21,7 @@ import '../screens/explore-sites';
 import '../screens/explore-floors';
 import '../screens/explore-plan-import';
 import '../screens/explore-plan-editor';
+import { STRUCTURE_DESKTOP_ONLY } from './phone';
 import '../screens/explore-entities';
 import '../screens/wiskey-overview';
 import '../screens/wiskey-events';
@@ -1838,6 +1839,9 @@ export class SwApp extends LitElement {
         if (s[1] === 'sites') return html`<explore-sites></explore-sites>`;
         if (s[1] === 'buildings') return html`<explore-floors .buildingId=${s[2] ?? 'bld-a'}></explore-floors>`;
         if (s[1] === 'entities') return html`<sw-state-panel state="loading"></sw-state-panel>`; // legacyRedirect decides once the session is known
+        // Owner decision 2026-09-30: structure management (plan import, plan editor, and the site / building / floor forms) is not
+        // offered on a phone. A UX guard, NOT a security boundary: the server still enforces every permission on every write.
+        if (s[1] === 'floors' && (s[3] === 'import' || s[3] === 'edit') && this.phone) return this.structureDesktopOnly(s[2]);
         if (s[1] === 'floors' && s[3] === 'import') return html`<explore-plan-import .floorId=${s[2]}></explore-plan-import>`;
         if (s[1] === 'floors' && s[3] === 'edit') return html`<explore-plan-editor .floorId=${s[2]} .presetEntity=${r.params.get('entity') ?? ''} .presetCandidates=${r.params.get('candidates') ?? ''}></explore-plan-editor>`;
         const floorId = s[1] === 'floors' && s[2] ? s[2] : 'f0';
@@ -1846,6 +1850,17 @@ export class SwApp extends LitElement {
         return html`<explore-floor-map .floorId=${floorId} .screenState=${screenState} .focusZone=${r.params.get('zone') ?? ''} .focusCamera=${r.params.get('camera') ?? ''} .focusEntity=${r.params.get('entity') ?? ''} .focusObject=${focus.startsWith('object:') ? focus.slice('object:'.length) : ''}></explore-floor-map>`;
       }
     }
+  }
+
+  /** The phone's answer to #/explore/floors/<id>/edit and /import: a short clean state and a way back to the map (viewing, layers, tools
+   * and the read-only map stay fully available on a phone). */
+  private structureDesktopOnly(floorId: string | undefined) {
+    const back = floorId ? `#/explore/floors/${encodeURIComponent(floorId)}` : '#/explore/sites';
+    return html`<div data-desktop-only="structure">
+      <sw-state-panel state="empty" heading=${STRUCTURE_DESKTOP_ONLY} hint="">
+        <div style="margin-block-start:10px"><sw-button variant="primary" size="lg" icon="map" data-desktop-only-back @click=${() => { window.location.hash = back; }}>${floorId ? 'חזרה למפת הקומה' : 'חזרה לאתרים'}</sw-button></div>
+      </sw-state-panel>
+    </div>`;
   }
 
   /** ui.security_snapshot off: the live overview ("תמונת מצב") sends its address to the next live page this user sees

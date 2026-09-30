@@ -1047,7 +1047,9 @@ test.describe.serial('editor: select and move walls, objects and zones (0.1.87)'
     });
   });
 
-  test.describe('on a phone', () => {
+  // Owner decision 2026-09-30: the plan editor is not offered on a phone (a desktop-only state, evidence-mobile-structure.spec.ts).
+  // The editor's touch paths stay in the code but are unreachable at phone width, so this block is skipped, not deleted.
+  test.describe.skip('on a phone', () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
     test('a wall and a small object are selected by a tap and dragged by a finger', async ({ page }) => {

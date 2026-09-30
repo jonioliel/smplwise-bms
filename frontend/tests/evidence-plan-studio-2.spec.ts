@@ -650,7 +650,8 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
     expect(exported.items.some((i: { names: { he: string } }) => i.names.he === 'כיסא אולם')).toBe(true);
   });
 
-  test.describe('on a phone', () => {
+  // Owner decision 2026-09-30: the plan editor is not offered on a phone (evidence-mobile-structure.spec.ts): skipped, not deleted.
+  test.describe.skip('on a phone', () => {
     test.use({ viewport: { width: 390, height: 844 } });
 
     test('viewing, placing and moving a single object work; arrays and wall drawing say they are desktop only', async ({ page }) => {
