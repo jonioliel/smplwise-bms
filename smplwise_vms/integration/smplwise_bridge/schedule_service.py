@@ -133,14 +133,36 @@ def _check_permissions(user: Any, ha: SimpleNamespace, entity_ids: list[str]) ->
     return None
 
 
+_CLOCK_RE = re.compile(r"^(\d{1,2}):(\d{2})(?::(\d{2}))?$")
+_SUN_RE = re.compile(r"^(sunrise|sunset)([+-])(\d{1,2}):(\d{2})(?::(\d{2}))?$")
+_NO_STOP = {"", "none", "null"}
+
+
+def _norm_time(value: Any) -> str:
+    """One spelling for a time: HH:MM and HH:MM:SS are the same, so are sunset+00:30 and sunset+00:30:00."""
+    v = str(value).strip().lower()
+    m = _CLOCK_RE.match(v)
+    if m:
+        return f"{int(m.group(1)):02d}:{m.group(2)}:{m.group(3) or '00'}"
+    m = _SUN_RE.match(v)
+    if m:
+        return f"{m.group(1)}{m.group(2)}{int(m.group(3)):02d}:{m.group(4)}:{m.group(5) or '00'}"
+    return v
+
+
+def _slot_times(start: Any, stop: Any) -> tuple[str, str | None]:
+    no_stop = stop is None or str(stop).strip().lower() in _NO_STOP
+    return _norm_time(start), None if no_stop else _norm_time(stop)
+
+
 def payload_fingerprint(payload: Mapping[str, Any]) -> dict[str, Any]:
-    """What the new switch's state attributes must say about a schedule created from `payload`: the weekdays, the
-    timeslot strings ("HH:MM:SS - HH:MM:SS", or just "HH:MM:SS" for a point action) and the service of each slot's first
-    action (the `actions` attribute). None of it is a name: the switch's friendly name is not the schedule's name."""
+    """What the new switch's state attributes must say about a schedule created from `payload`: the weekdays, each slot's
+    (start, stop) - a slot without a stop is a point action - and the service of each slot's first action (the
+    `actions` attribute). None of it is a name: the switch's friendly name is "Scheduler " + name, not the name."""
     slots = payload.get("timeslots") or []
     return {
         "weekdays": sorted(str(d) for d in (payload.get("weekdays") or [])),
-        "timeslots": [f"{t['start']} - {t['stop']}" if t.get("stop") else str(t["start"]) for t in slots],
+        "timeslots": [_slot_times(t.get("start"), t.get("stop")) for t in slots],
         "actions": [str(((t.get("actions") or [{}])[0]).get("service")) for t in slots],
     }
 
@@ -152,7 +174,11 @@ def attributes_fingerprint(attributes: Mapping[str, Any] | None) -> dict[str, An
     if not isinstance(weekdays, (list, tuple)) or not isinstance(timeslots, (list, tuple)) or not isinstance(actions, (list, tuple)):
         return None
     services = [str(x.get("service")) if isinstance(x, Mapping) else "None" for x in actions]
-    return {"weekdays": sorted(str(d) for d in weekdays), "timeslots": [str(t) for t in timeslots], "actions": services}
+    slots: list[tuple[str, str | None]] = []
+    for t in timeslots:  # "HH:MM:SS - HH:MM:SS", or "HH:MM:SS" alone for a point action
+        start, _sep, stop = str(t).partition(" - ")
+        slots.append(_slot_times(start, stop))
+    return {"weekdays": sorted(str(d) for d in weekdays), "timeslots": slots, "actions": services}
 
 
 async def _learn_new_id(hass: Any, registry: Any, before: dict[str, str], expected: dict[str, Any] | None) -> tuple[str | None, str | None]:
@@ -178,7 +204,7 @@ async def _learn_new_id(hass: Any, registry: Any, before: dict[str, str], expect
 
 def _component_data(msg: Mapping[str, Any], op: str) -> dict[str, Any]:
     """The service data of the one component call. Built from the validated message only."""
-    payload = dict(msg.get("payload") or {})
+    payload = policy.normalize_payload(msg.get("payload") or {}) if op in ("add", "edit") else {}
     if op == "add":
         return payload
     entity_id = msg["schedule_entity_id"]
@@ -269,24 +295,69 @@ async def async_handle_schedule(hass: Any, verifier: Any, msg: dict[str, Any]) -
         out: dict[str, Any] = {"ok": True, "request_id": msg["request_id"], "context_id": context.id, "schedule_id": msg.get("schedule_id"), "entity_id": schedule_entity}
         if creating:
             sid, eid = await _learn_new_id(hass, registry, before, expected)
-            suspect = state.unresolved_at is not None and time.monotonic() - state.unresolved_at < SUSPECT_WINDOW_S
-            if sid is None or suspect:
-                sid = eid = None
+            if sid is None:
+                state.unresolved_at = time.monotonic()  # only a create whose own id could not be learned opens (or renews) the window
+            elif state.unresolved_at is not None and time.monotonic() - state.unresolved_at < SUSPECT_WINDOW_S:
+                sid = eid = None  # learned and matching, but the earlier create's switch may still be arriving: withheld, window NOT renewed
             out["schedule_id"], out["entity_id"] = sid, eid
             if sid is None:
                 out["error"] = "id_unknown"
-                state.unresolved_at = time.monotonic()
     return out
 
 
 _PLAIN_ENTITY_RE = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
+# Home Assistant service targets other than entity_id: each reaches every entity of an area / label / device / floor,
+# scheduler switches included (not filtered for an administrator). The add-on never sends them; the bridge refuses them.
+FORBIDDEN_EXECUTE_TARGET_KEYS = frozenset({"area_id", "label_id", "device_id", "floor_id"})
+GROUP_DEPTH = 5
 
 
-def execute_refusal(hass: Any, entity_id: Any) -> str | None:
+def _is_scheduler_switch(registry: Any, entity_id: str) -> bool:
+    entry = registry.async_get(entity_id)
+    if entry is None:
+        return entity_id.startswith("switch.schedule_")
+    return getattr(entry, "platform", None) == SCHEDULER_PLATFORM
+
+
+def _members_refusal(hass: Any, registry: Any, entity_id: str, depth: int, seen: set[str]) -> str | None:
+    """Refusal when `entity_id` is, or is a group (a state carrying an `entity_id` member list) containing, a scheduler
+    switch. A group that cannot be read (members of a type we do not understand, nesting too deep, a cycle we cannot
+    finish) is refused too: closed."""
+    if _is_scheduler_switch(registry, entity_id):
+        return "scheduler_switch_not_allowed"
+    if entity_id in seen:
+        return None
+    seen.add(entity_id)
+    state = hass.states.get(entity_id)
+    members = (getattr(state, "attributes", None) or {}).get("entity_id") if state is not None else None
+    if members is None:
+        return None
+    if isinstance(members, str):
+        members = [members]
+    if not isinstance(members, (list, tuple)):
+        return "scheduler_group_unverifiable"
+    if depth >= GROUP_DEPTH:
+        return "scheduler_group_unverifiable"
+    for member in members:
+        if not isinstance(member, str) or not _PLAIN_ENTITY_RE.match(member):
+            return "scheduler_group_unverifiable"
+        refusal = _members_refusal(hass, registry, member, depth + 1, seen)
+        if refusal:
+            return refusal
+    return None
+
+
+def execute_refusal(hass: Any, data: Any) -> str | None:
     """Defence in depth for `smplwise_bridge.execute`: the Scheduler component's own switches are operated only through
-    the schedule service. Returns the refusal code, or None when every named entity may go on. Fails closed: a registry
-    that cannot be read, a target that is not a plain entity id ("all", a template, a nested value) and a state-only
-    `switch.schedule_*` all refuse."""
+    the schedule service. `data` is the service data of the signed call. Returns the refusal code, or None when the call
+    may go on. Refuses: an area / label / device / floor target; an entity that is a scheduler switch (registry platform,
+    or a state-only `switch.schedule_*` id) or a group with one among its members; a target that is not a plain entity id
+    ("all", a template, a nested value). Fails closed when the registry cannot be read."""
+    if not isinstance(data, Mapping):
+        return "invalid_entity_id"
+    if FORBIDDEN_EXECUTE_TARGET_KEYS & set(map(str, data)):
+        return "target_not_allowed"
+    entity_id = data.get("entity_id")
     if isinstance(entity_id, str):
         targets: list[Any] = [x.strip() for x in entity_id.split(",")]
     elif isinstance(entity_id, (list, tuple)):
@@ -302,11 +373,10 @@ def execute_refusal(hass: Any, entity_id: Any) -> str | None:
     for target in targets:
         if not isinstance(target, str) or not _PLAIN_ENTITY_RE.match(target):
             return "invalid_entity_id"
-        entry = registry.async_get(target)
-        if entry is None:
-            if target.startswith("switch.schedule_"):
-                return "scheduler_switch_not_allowed"
-            continue
-        if getattr(entry, "platform", None) == SCHEDULER_PLATFORM:
-            return "scheduler_switch_not_allowed"
+        try:
+            refusal = _members_refusal(hass, registry, target, 0, set())
+        except Exception:  # noqa: BLE001 - a state or registry we cannot read is a refusal
+            return "scheduler_group_unverifiable"
+        if refusal:
+            return refusal
     return None

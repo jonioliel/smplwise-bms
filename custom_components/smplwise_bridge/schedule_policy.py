@@ -55,7 +55,9 @@ MAX_CONDITION_VALUE = 100
 MAX_DEPTH = 8  # nesting guard for the "no code at any depth" walk
 
 _HMS = r"(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d"
-FIXED_TIME_RE = re.compile(rf"^{_HMS}$")
+# Phase-0 write verification (lab, real component): a fixed time is accepted as HH:MM:SS and as HH:MM (stored as sent);
+# a sun time only as sunrise|sunset +/- HH:MM:SS (a bare "sunset" or "sunset+30" is refused by the component).
+FIXED_TIME_RE = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$")
 SUN_TIME_RE = re.compile(rf"^(?:sunrise|sunset)[+-]{_HMS}$")
 ENTITY_ID_RE = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
 SCHEDULE_ENTITY_RE = re.compile(r"^switch\.[a-z0-9_]{1,100}$")
@@ -357,6 +359,12 @@ def validate_payload(payload: Any, *, op: str) -> list[ActionRef]:
         for key in ("weekdays", "timeslots", "repeat_type", "name"):
             if key not in payload:
                 raise _bad(f"payload.{key}")
+    if op == "edit":
+        # The component's `edit` resets start_date / end_date to null when they are omitted (phase-0 verification): an
+        # edit must name both, with the values it wants to keep (null clears), so a name-only edit can never wipe a season.
+        for key in ("start_date", "end_date"):
+            if key not in payload:
+                raise PolicyError("dates_required", f"payload.{key}")
     if "weekdays" in payload:
         days = payload["weekdays"]
         if not isinstance(days, (list, tuple)) or not 1 <= len(days) <= 7 or len(set(map(str, days))) != len(days) or any(d not in WEEKDAY_TOKENS for d in days):
@@ -387,6 +395,29 @@ def validate_payload(payload: Any, *, op: str) -> list[ActionRef]:
         if len({r.entity_id for r in refs}) > MAX_ENTITIES:
             raise _bad("payload.timeslots")
     return refs
+
+
+def normalize_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """The payload in the component's real write form (phase-0 verification): the component REJECTS null and empty
+    values it reports back on read - `stop: null`, `conditions: []`, `condition_type: null` - so they are omitted when
+    there is nothing to say (a slot without a stop, without conditions). Everything else is forwarded exactly as sent;
+    in particular start_date / end_date, whose null is meaningful on an edit. Call after validation."""
+    out = {k: v for k, v in payload.items() if k != "timeslots"}
+    if "timeslots" in payload:
+        slots = []
+        for slot in payload["timeslots"]:
+            s = {k: v for k, v in slot.items()}
+            if s.get("stop") is None:
+                s.pop("stop", None)
+            if not s.get("conditions"):
+                s.pop("conditions", None)
+                if not s.get("track_conditions"):
+                    s.pop("track_conditions", None)
+            if s.get("condition_type") is None:
+                s.pop("condition_type", None)
+            slots.append(s)
+        out["timeslots"] = slots
+    return out
 
 
 # ---------------------------------------------------------------- the whole message

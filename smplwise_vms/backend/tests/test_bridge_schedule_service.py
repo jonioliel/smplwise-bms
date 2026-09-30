@@ -140,8 +140,23 @@ class FakeServices:
         for _ in range(self.extra_new):
             self._register(self._new_id(), {"weekdays": ["sat"], "timeslots": ["01:00:00"], "actions": [{"service": "switch.turn_on", "data": {}}]})
 
+    @staticmethod
+    def _real_component_rejects(data):
+        """What the real component refused in the phase-0 lab run: null / empty values in a slot (stop, conditions,
+        condition_type), a null action entity_id, unknown keys."""
+        for t in data.get("timeslots", []):
+            if "stop" in t and t["stop"] is None:
+                raise ValueError("stop null")
+            if "conditions" in t and not t["conditions"]:
+                raise ValueError("conditions []")
+            if "condition_type" in t and t["condition_type"] is None:
+                raise ValueError("condition_type null")
+            if any(a.get("entity_id", "x") is None for a in t["actions"]):
+                raise ValueError("entity_id null")
+
     def _add(self, data):
         assert "entity_id" not in data
+        self._real_component_rejects(data)
         slots = data["timeslots"]
         self._create({"weekdays": list(data["weekdays"]), "timeslots": [f"{t['start']} - {t['stop']}" if t.get("stop") else t["start"] for t in slots],
                       "actions": [{"service": t["actions"][0]["service"], "data": {}} for t in slots]})
@@ -152,6 +167,8 @@ class FakeServices:
 
     def _edit(self, data):
         assert "entity_id" in data
+        self._real_component_rejects(data)
+        assert "start_date" in data and "end_date" in data, "the real component would wipe the dates"
 
     def _remove(self, data):
         self.registry.entities.pop(data["entity_id"], None)
@@ -203,7 +220,7 @@ def slot(start, stop, actions):
 
 
 def payload():
-    return {"weekdays": ["daily"], "repeat_type": "repeat", "name": "Living room Shabbat cooling",
+    return {"weekdays": ["daily"], "repeat_type": "repeat", "name": "Living room Shabbat cooling", "start_date": None, "end_date": None,
             "timeslots": [slot("00:00:00", "06:00:00", [act("climate.set_temperature", "climate.living_room", {"hvac_mode": "cool", "temperature": 25})]),
                           slot("06:00:00", "00:00:00", [act("climate.turn_off", "climate.living_room")])]}
 
@@ -247,11 +264,11 @@ def test_add_creates_and_learns_the_new_id_from_the_registry_diff():
 def test_edit_resends_untouched_slots_byte_identical_and_names_the_switch():
     hass = FakeHass(FakeUser())
     p = payload()
-    out = call(hass, body("edit", payload={"timeslots": p["timeslots"]}))
+    out = call(hass, body("edit", payload={"start_date": "2026-10-31", "end_date": None, "timeslots": p["timeslots"]}))
     assert out["ok"] is True and out["schedule_id"] == "3f9a1c" and out["entity_id"] == "switch.schedule_shbt_slvn"
     (c,) = hass.services.calls
     assert (c["domain"], c["service"]) == ("scheduler", "edit")
-    assert c["data"] == {"entity_id": "switch.schedule_shbt_slvn", "timeslots": p["timeslots"]}
+    assert c["data"] == {"entity_id": "switch.schedule_shbt_slvn", "start_date": "2026-10-31", "end_date": None, "timeslots": p["timeslots"]}, "dates forwarded exactly as sent, null included"
     assert json.dumps(c["data"]["timeslots"], sort_keys=True) == json.dumps(p["timeslots"], sort_keys=True)
 
 
@@ -653,11 +670,16 @@ def test_after_an_unresolved_create_the_next_learned_id_is_not_trusted_for_a_whi
 def test_fingerprints_read_the_same_facts_from_a_payload_and_from_switch_attributes():
     p = payload()
     fp = service.payload_fingerprint(p)
-    assert fp == {"weekdays": ["daily"], "timeslots": ["00:00:00 - 06:00:00", "06:00:00 - 00:00:00"], "actions": ["climate.set_temperature", "climate.turn_off"]}
+    assert fp == {"weekdays": ["daily"], "timeslots": [("00:00:00", "06:00:00"), ("06:00:00", "00:00:00")], "actions": ["climate.set_temperature", "climate.turn_off"]}
     point = {"weekdays": ["sat", "mon"], "timeslots": [slot("22:00:00", None, [act("alarm_control_panel.alarm_arm_home", "alarm_control_panel.house")])]}
-    assert service.payload_fingerprint(point) == {"weekdays": ["mon", "sat"], "timeslots": ["22:00:00"], "actions": ["alarm_control_panel.alarm_arm_home"]}
+    assert service.payload_fingerprint(point) == {"weekdays": ["mon", "sat"], "timeslots": [("22:00:00", None)], "actions": ["alarm_control_panel.alarm_arm_home"]}
     assert service.attributes_fingerprint({"weekdays": ["mon", "sat"], "timeslots": ["22:00:00"], "actions": [{"service": "alarm_control_panel.alarm_arm_home", "data": {}}]}) == service.payload_fingerprint(point)
     assert service.attributes_fingerprint({}) is None and service.attributes_fingerprint(None) is None and service.attributes_fingerprint({"weekdays": [], "timeslots": []}) is None
+
+
+def refuse(hass, entity_id, **extra):
+    """execute_refusal for the service data of a signed execute call."""
+    return service.execute_refusal(hass, {"entity_id": entity_id, **extra})
 
 
 def _execute_hass(**platforms):
@@ -669,22 +691,22 @@ def _execute_hass(**platforms):
 
 def test_execute_refuses_the_scheduler_components_switches():
     hass = FakeHass(FakeUser())
-    assert service.execute_refusal(hass, "switch.schedule_shbt_slvn") == "scheduler_switch_not_allowed"
-    assert service.execute_refusal(hass, ["switch.sockets", "switch.schedule_shbt_slvn"]) == "scheduler_switch_not_allowed"
-    assert service.execute_refusal(hass, "switch.sockets, switch.schedule_shbt_slvn") == "scheduler_switch_not_allowed"
+    assert refuse(hass, "switch.schedule_shbt_slvn") == "scheduler_switch_not_allowed"
+    assert refuse(hass, ["switch.sockets", "switch.schedule_shbt_slvn"]) == "scheduler_switch_not_allowed"
+    assert refuse(hass, "switch.sockets, switch.schedule_shbt_slvn") == "scheduler_switch_not_allowed"
     # a switch whose registry row says scheduler, whatever its id looks like
     other = _execute_hass(**{"switch.renamed_thing": "scheduler", "switch.template_one": "template"})
-    assert service.execute_refusal(other, "switch.renamed_thing") == "scheduler_switch_not_allowed"
-    assert service.execute_refusal(other, "switch.template_one") is None
+    assert refuse(other, "switch.renamed_thing") == "scheduler_switch_not_allowed"
+    assert refuse(other, "switch.template_one") is None
     # state-only prefix (no registry row): refused too; an unknown ordinary entity is left to Home Assistant
-    assert service.execute_refusal(other, "switch.schedule_a1b2c3") == "scheduler_switch_not_allowed"
-    assert service.execute_refusal(other, "light.not_in_registry") is None
-    assert service.execute_refusal(other, "switch.schedulexfoo") is None and service.execute_refusal(other, "switch.lobby_schedule_lamp") is None
+    assert refuse(other, "switch.schedule_a1b2c3") == "scheduler_switch_not_allowed"
+    assert refuse(other, "light.not_in_registry") is None
+    assert refuse(other, "switch.schedulexfoo") is None and refuse(other, "switch.lobby_schedule_lamp") is None
 
 
 @pytest.mark.parametrize("target", ["all", "none", "", ",", "switch.*", "{{ states.switch }}", "Switch.Sockets", 5, None, {"a": 1}, [], ["all"], [["switch.a"]]])
 def test_execute_refuses_targets_that_are_not_plain_entity_ids(target):
-    assert service.execute_refusal(FakeHass(FakeUser()), target) == "invalid_entity_id"
+    assert refuse(FakeHass(FakeUser()), target) == "invalid_entity_id"
 
 
 def test_execute_fails_closed_when_the_registry_cannot_be_read(monkeypatch):
@@ -692,7 +714,7 @@ def test_execute_fails_closed_when_the_registry_cannot_be_read(monkeypatch):
         raise RuntimeError("registry not loaded")
 
     monkeypatch.setattr(service, "_registry", boom)
-    assert service.execute_refusal(FakeHass(FakeUser()), "light.hall") == "entity_registry_unavailable"
+    assert refuse(FakeHass(FakeUser()), "light.hall") == "entity_registry_unavailable"
 
 
 def test_the_execute_service_calls_the_guard_before_it_calls_home_assistant():
@@ -700,6 +722,171 @@ def test_the_execute_service_calls_the_guard_before_it_calls_home_assistant():
     setup = next(n for n in ast.walk(tree) if isinstance(n, ast.AsyncFunctionDef) and n.name == "async_setup_entry")
     execute = next(n for n in ast.walk(setup) if isinstance(n, ast.AsyncFunctionDef) and n.name == "execute")
     text = ast.unparse(execute)
-    guard, call_at = text.index("execute_refusal(hass, data['entity_id'])"), text.index("hass.services.async_call(domain, service, data")
+    guard, call_at = text.index("execute_refusal(hass, data)"), text.index("hass.services.async_call(domain, service, data")
     assert text.index("'entity_required'") < guard < call_at
     assert "from .schedule_service import async_handle_schedule, execute_refusal" in (SRC / "__init__.py").read_text(encoding="utf-8")
+
+
+def _learn(hass_attrs, sent_slots, weekdays=("daily",)):
+    """Add a schedule whose switch reports `hass_attrs` (the forms the real component writes to its state) and return the answer."""
+    hass = FakeHass(FakeUser())
+    hass.services.attr_override = hass_attrs
+    p = payload()
+    p["weekdays"] = list(weekdays)
+    p["timeslots"] = sent_slots
+    return call(hass, body("add", payload=p))
+
+
+def test_the_learned_switch_is_matched_in_every_time_form_the_component_uses():
+    act1 = [act("light.turn_on", "light.hall", {"brightness": 51})]
+    svc1 = [{"service": "light.turn_on", "data": {"brightness": 51}}]
+    cases = [
+        # (what was sent, what the switch's `timeslots` attribute says)
+        ([slot("03:15:00", "03:45:00", act1)], ["03:15:00 - 03:45:00"]),
+        ([slot("03:15", "03:45", act1)], ["03:15 - 03:45"]),  # stored as HH:MM, shown as stored
+        ([slot("03:15", "03:45", act1)], ["03:15:00 - 03:45:00"]),  # or normalised to seconds: same slot
+        ([slot("03:15:00", "03:45:00", act1)], ["03:15 - 03:45"]),
+        ([slot("22:00:00", None, act1)], ["22:00:00"]),  # a point action (stop null on read, omitted on write)
+        ([slot("22:00:00", None, act1)], ["22:00:00 - None"]),
+        ([slot("22:00", None, act1)], ["22:00:00"]),
+        ([slot("sunset+00:30:00", "23:00:00", act1)], ["sunset+00:30:00 - 23:00:00"]),
+        ([slot("sunset+00:30:00", "23:00:00", act1)], ["sunset+00:30 - 23:00"]),
+        ([slot("sunrise-00:15:00", "sunset-00:15:00", act1)], ["sunrise-00:15:00 - sunset-00:15:00"]),
+        ([slot("22:00:00", "02:00:00", act1)], ["22:00:00 - 02:00:00"]),
+    ]
+    for sent, shown in cases:
+        out = _learn({"weekdays": ["daily"], "timeslots": shown, "actions": svc1}, sent)
+        assert out["ok"] and "error" not in out and out["schedule_id"], (sent[0]["start"], sent[0]["stop"], shown)
+    # a different slot is never matched
+    out = _learn({"weekdays": ["daily"], "timeslots": ["03:15:00 - 03:46:00"], "actions": svc1}, [slot("03:15:00", "03:45:00", act1)])
+    assert out["error"] == "id_unknown"
+    out = _learn({"weekdays": ["daily"], "timeslots": ["03:15:00"], "actions": svc1}, [slot("03:15:00", "03:45:00", act1)])
+    assert out["error"] == "id_unknown", "a point action is not a window"
+    out = _learn({"weekdays": ["mon", "tue"], "timeslots": ["03:15:00 - 03:45:00"], "actions": svc1}, [slot("03:15:00", "03:45:00", act1)], weekdays=("tue", "mon"))
+    assert out["ok"] and "error" not in out, "weekday order does not matter"
+
+
+def test_the_component_gets_the_real_write_form_even_from_a_sender_that_uses_the_stored_form():
+    hass = FakeHass(FakeUser())
+    p = payload()
+    p["timeslots"][0]["stop"] = None  # the stored (read) form an older sender uses
+    p["timeslots"][1]["conditions"], p["timeslots"][1]["condition_type"], p["timeslots"][1]["track_conditions"] = [], None, False
+    out = call(hass, body("add", payload=p))
+    assert out["ok"] is True and "error" not in out, "the fake component rejects nulls like the real one, so the bridge must not forward them"
+    sent = hass.services.calls[0]["data"]["timeslots"]
+    assert "stop" not in sent[0] and set(sent[1]) == {"start", "stop", "actions"}
+    out = call(FakeHass(FakeUser()), body("edit", payload=p))
+    assert out["ok"] is True
+
+
+def test_an_edit_without_both_dates_is_refused_before_the_component_is_called():
+    hass = FakeHass(FakeUser())
+    for pl in ({"name": "renamed"}, {"name": "renamed", "start_date": None}, {"name": "renamed", "end_date": None}):
+        out = call(hass, body("edit", payload=pl))
+        assert out["ok"] is False and out["error"] == "dates_required" and out["path"] in ("payload.start_date", "payload.end_date")
+    no_component_call(hass)
+    out = call(hass, body("edit", payload={"name": "renamed", "start_date": "2026-10-31", "end_date": "2027-03-31"}))
+    assert out["ok"] is True and hass.services.calls[0]["data"] == {"entity_id": "switch.schedule_shbt_slvn", "name": "renamed", "start_date": "2026-10-31", "end_date": "2027-03-31"}
+
+
+def test_run_takes_hh_mm_and_the_registry_check_stays():
+    hass = FakeHass(FakeUser())
+    assert call(hass, body("run", time="07:30"))["ok"] is True and hass.services.calls[0]["data"]["time"] == "07:30"
+    assert call(hass, body("run", time="sunset+00:30:00"))["error"] == "invalid_payload"
+    hass.registry.entities.pop("switch.schedule_shbt_slvn")
+    assert call(hass, body("run"))["error"] == "not_a_schedule", "a nonexistent entity would be a silent success in the component: the bridge refuses it"
+
+
+def test_the_bridge_never_asks_the_component_for_a_response():
+    assert "return_response" not in ast.unparse(ast.parse((SRC / "schedule_service.py").read_text(encoding="utf-8")))
+    hass = FakeHass(FakeUser())
+    for op in ("add", "copy", "edit", "remove", "run", "enable", "disable"):
+        assert call(hass, body(op))["ok"] is True
+        hass.registry.add("3f9a1c", "switch.schedule_shbt_slvn")
+
+
+# ---------------------------------------------------------------- re-review: window renewal, area / label / device / floor targets, groups
+
+
+def test_the_suspect_window_is_not_renewed_by_a_create_it_only_withheld(monkeypatch):
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(service.time, "monotonic", lambda: clock["t"])
+    hass = FakeHass(FakeUser())
+    hass.services.attr_override = {"weekdays": ["daily"], "timeslots": ["05:00:00"], "actions": [{"service": "light.turn_off", "data": {}}]}
+    assert call(hass, body("add", request_id="op-1"))["error"] == "id_unknown"  # unresolved at t=1000: the window opens
+    hass.services.attr_override = None
+    for i in range(3):  # creates arriving well inside the window: their ids ARE learned and match, but are withheld
+        clock["t"] += 9.0
+        out = call(hass, body("add", request_id=f"op-in-{i}"))
+        assert out["error"] == "id_unknown" and out["schedule_id"] is None
+    clock["t"] += 9.0  # t = 1036: 36 s after the only real failure; the withheld creates did not push it forward
+    out = call(hass, body("add", request_id="op-after"))
+    assert out["ok"] and "error" not in out and out["schedule_id"] and out["entity_id"], "the window ended 30 s after the one unresolved create"
+    # a genuinely unresolved create renews it
+    hass.services.attr_override = {"weekdays": ["daily"], "timeslots": ["05:00:00"], "actions": [{"service": "light.turn_off", "data": {}}]}
+    assert call(hass, body("add", request_id="op-bad"))["error"] == "id_unknown"
+    hass.services.attr_override = None
+    clock["t"] += 5.0
+    assert call(hass, body("add", request_id="op-again"))["error"] == "id_unknown"
+
+
+@pytest.mark.parametrize("key", ["area_id", "label_id", "device_id", "floor_id"])
+@pytest.mark.parametrize("value", ["kitchen", ["kitchen"], "", None])
+def test_execute_refuses_area_label_device_and_floor_targets(key, value):
+    hass = FakeHass(FakeUser())
+    assert refuse(hass, "switch.sockets", **{key: value}) == "target_not_allowed"
+    assert service.execute_refusal(hass, {key: value}) == "target_not_allowed", "even without an entity_id"
+    assert service.execute_refusal(hass, {"entity_id": "switch.sockets", "brightness": 5}) is None, "ordinary service data goes on"
+
+
+def _group(hass, entity_id, members):
+    hass.states.data[entity_id] = SimpleNamespace(state="on", attributes={"entity_id": members})
+
+
+def test_execute_refuses_a_group_with_a_scheduler_switch_among_its_members():
+    hass = FakeHass(FakeUser())
+    _group(hass, "switch.all_night_things", ["switch.sockets", "switch.schedule_shbt_slvn"])
+    assert refuse(hass, "switch.all_night_things") == "scheduler_switch_not_allowed"
+    _group(hass, "group.outer", ["switch.sockets", "switch.all_night_things"])  # nested
+    assert refuse(hass, "group.outer") == "scheduler_switch_not_allowed"
+    hass.registry.entities["switch.renamed_thing"] = FakeEntry("switch.renamed_thing", "u", "scheduler")
+    _group(hass, "switch.group_two", ["switch.renamed_thing"])
+    assert refuse(hass, "switch.group_two") == "scheduler_switch_not_allowed", "by registry platform, not by id"
+    _group(hass, "switch.group_three", "switch.schedule_a1b2c3")  # a single member given as a string
+    assert refuse(hass, "switch.group_three") == "scheduler_switch_not_allowed"
+    assert refuse(hass, ["light.hall", "switch.all_night_things"]) == "scheduler_switch_not_allowed"
+
+
+def test_execute_lets_harmless_groups_and_entities_with_an_entity_id_attribute_through():
+    hass = FakeHass(FakeUser())
+    _group(hass, "light.hall_lights", ["light.hall", "light.other"])
+    _group(hass, "switch.sockets_group", ["switch.sockets"])
+    _group(hass, "group.empty", [])
+    _group(hass, "group.a", ["group.b"])
+    _group(hass, "group.b", ["group.a", "light.hall"])  # a cycle that ends in nothing schedulable
+    for eid in ("light.hall_lights", "switch.sockets_group", "group.empty", "group.a"):
+        assert refuse(hass, eid) is None, eid
+    assert refuse(hass, "climate.living_room") is None and refuse(hass, "switch.sockets") is None
+
+
+def test_execute_fails_closed_on_groups_it_cannot_read():
+    hass = FakeHass(FakeUser())
+    for bad in ({"a": 1}, 7, ["light.hall", 5], ["light.hall", "not an id"], [["switch.a"]]):
+        _group(hass, "switch.weird_group", bad)
+        assert refuse(hass, "switch.weird_group") == "scheduler_group_unverifiable", bad
+    deep = [f"group.g{i}" for i in range(8)]
+    for i, g in enumerate(deep):
+        _group(hass, g, [deep[i + 1]] if i + 1 < len(deep) else ["light.hall"])
+    assert refuse(hass, "group.g0") == "scheduler_group_unverifiable", "nested deeper than the limit: closed"
+    hass.states.get = lambda _e: (_ for _ in ()).throw(RuntimeError("state machine not ready"))
+    assert refuse(hass, "light.hall") == "scheduler_group_unverifiable"
+
+
+def test_the_addons_execute_callers_never_send_area_label_device_or_floor_targets():
+    """The three callers build `data` from ha_bridge.validate_action: the entity id plus the action's own arguments."""
+    from smplwise.services import ha_bridge
+
+    names = {name for spec in ha_bridge.ACTIONS.values() for name in spec["args"]}
+    assert not names & service.FORBIDDEN_EXECUTE_TARGET_KEYS, names & service.FORBIDDEN_EXECUTE_TARGET_KEYS
+    _spec, data = ha_bridge.validate_action("light.turn_on", "light.hall", {"brightness_pct": 40})
+    assert set(data) == {"entity_id", "brightness_pct"}
