@@ -548,7 +548,7 @@ def test_the_service_is_registered_with_response_and_removed_on_unload():
     assert 'SERVICE_SCHEDULE = "schedule"' in (SRC / "const.py").read_text(encoding="utf-8") and const.SERVICE_SCHEDULE == "schedule"
     unload = next(n for n in ast.walk(init_tree()) if isinstance(n, ast.AsyncFunctionDef) and n.name == "async_unload_entry")
     removed = [ast.unparse(n.args[1]) for n in ast.walk(unload) if isinstance(n, ast.Call) and ast.unparse(n.func) == "hass.services.async_remove"]
-    assert set(removed) == {"SERVICE_EXECUTE", "SERVICE_SET_AREA", "SERVICE_SCHEDULE", "SERVICE_SYNC"}
+    assert set(removed) == {"SERVICE_EXECUTE", "SERVICE_SET_AREA", "SERVICE_SCHEDULE", "SERVICE_STREAM_SOURCE", "SERVICE_SYNC"}
     # the existing services stay as they were
     assert 'hass.services.async_register(DOMAIN, SERVICE_EXECUTE, execute, schema=EXECUTE_SCHEMA' in src and "async_register(DOMAIN, SERVICE_SET_AREA" in src
 
@@ -580,8 +580,8 @@ def test_execute_allow_list_is_intact_and_never_reaches_the_scheduler():
 
 def test_version_is_consistent_in_const_manifest_and_card_and_the_mirror_matches():
     manifest = json.loads((SRC / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == const.VERSION == "0.3.0"
-    assert "const VERSION = '0.3.0'" in (SRC / "www" / "smplwise-card.js").read_text(encoding="utf-8")
+    assert manifest["version"] == const.VERSION == "0.3.1"
+    assert "const VERSION = '0.3.1'" in (SRC / "www" / "smplwise-card.js").read_text(encoding="utf-8")
     import sync_integration
 
     assert sync_integration.differences() == [], "run python scripts/sync_integration.py"

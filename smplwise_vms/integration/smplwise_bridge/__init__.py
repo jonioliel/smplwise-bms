@@ -11,6 +11,9 @@ It does two things and nothing else:
    identity, the VMS's own roles, no secret in YAML, no entities (T056).
 4. `smplwise_bridge.schedule` (0.3.0, CR-014): signed writes to the Scheduler component (add / edit / remove / copy /
    run / enable / disable), independently re-validated by schedule_policy.py and schedule_service.py.
+5. `smplwise_bridge.stream_source` (0.3.1): a signed READ-ONLY answer - the stream source Home Assistant reports for ONE
+   camera entity the owner chose to show as live video (stream_source_service.py). The URL may carry credentials: it is
+   returned only to the add-on and never logged.
 """
 from __future__ import annotations
 
@@ -29,9 +32,10 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 
-from .const import CONF_ADDON_URL, CONF_PAIRING_CODE, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_EXECUTE, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_SYNC, VERSION
+from .const import CONF_ADDON_URL, CONF_PAIRING_CODE, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_EXECUTE, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION
 from .schedule_service import async_handle_schedule, execute_refusal
 from .signing import Verifier, sign
+from .stream_source_service import async_handle_stream_source
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -86,6 +90,20 @@ SCHEDULE_SCHEMA = vol.Schema(
         vol.Required("sig"): cv.string,
     },
     extra=vol.ALLOW_EXTRA,
+)
+
+# 0.3.1: the stream-source question. Exactly these keys, no defaults and no extras (the signature covers every key but
+# ts / nonce / sig): one camera entity id, asked on behalf of one HA user.
+STREAM_SOURCE_SCHEMA = vol.Schema(
+    {
+        vol.Required("user_id"): cv.string,
+        vol.Required("entity_id"): cv.string,
+        vol.Required("request_id"): cv.string,
+        vol.Required("ts"): vol.Coerce(int),
+        vol.Required("nonce"): cv.string,
+        vol.Required("sig"): cv.string,
+    },
+    extra=vol.PREVENT_EXTRA,
 )
 
 # Only these may ever be executed, whatever the add-on asks for (defence in depth: the add-on has the same list).
@@ -249,6 +267,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.services.async_register(DOMAIN, SERVICE_SCHEDULE, schedule, schema=SCHEDULE_SCHEMA, supports_response=SupportsResponse.ONLY)
 
+    async def stream_source(call: ServiceCall) -> ServiceResponse:
+        """0.3.1: a signed READ-ONLY answer - the stream source Home Assistant reports for one camera entity (see
+        stream_source_service.py). The URL leaves only in this response; it is never logged."""
+        return await async_handle_stream_source(hass, verifier, dict(call.data))
+
+    hass.services.async_register(DOMAIN, SERVICE_STREAM_SOURCE, stream_source, schema=STREAM_SOURCE_SCHEMA, supports_response=SupportsResponse.ONLY)
+
     async def push_directory(_now: Any = None) -> int:
         users = []
         for u in await hass.auth.async_get_users():
@@ -284,5 +309,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_remove(DOMAIN, SERVICE_EXECUTE)
     hass.services.async_remove(DOMAIN, SERVICE_SET_AREA)
     hass.services.async_remove(DOMAIN, SERVICE_SCHEDULE)
+    hass.services.async_remove(DOMAIN, SERVICE_STREAM_SOURCE)
     hass.services.async_remove(DOMAIN, SERVICE_SYNC)
     return True

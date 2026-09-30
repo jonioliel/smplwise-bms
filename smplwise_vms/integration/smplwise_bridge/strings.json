@@ -30,6 +30,10 @@
     "schedule": {
       "name": "Schedule (SMPLWISE add-on only)",
       "description": "Signed write to the Scheduler component on behalf of a VMS user. Not meant to be called from automations."
+    },
+    "stream_source": {
+      "name": "Stream source (SMPLWISE add-on only)",
+      "description": "Read-only, signed: the stream source of one camera entity, for the SMPLWISE add-on. Not meant to be called from automations."
     }
   }
 }
