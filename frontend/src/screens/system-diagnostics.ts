@@ -1,4 +1,3 @@
-import './system-alarm'; // CR-010: הגדרות › מערכת › אזעקה
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
@@ -25,7 +24,7 @@ import { TILE_LAYOUT_LABEL, TILE_LAYOUTS, resolveTileLayout, setInstallationTile
 import { KIND_LABEL, TABLE_LABEL, backupDownloadUrl, createBackup, deleteBackup, fmtBytes, listBackups, restoreBackup, uploadBackup, type BackupEntry } from '../api/backup';
 import '../components/sw-dialog';
 import { STATUS_KIND, STATUS_LABEL, fmtUptime, healthReport, type HealthReport } from '../api/health';
-import { applyWiskeyUi, applyWiskeyHidden, type WiskeyScreen } from '../shell/nav';
+import { applyWiskeyUi, applyWiskeyHidden, applySnapshotHidden, type WiskeyScreen } from '../shell/nav';
 import { getSkinsStatus, runSkinsTest, type SkinsStatus, type SkinsTestResult } from '../api/skins';
 import { devicesPrefsOf, type DevicesStyle } from './devices-style';
 import './devices-theme-picker';
@@ -56,7 +55,6 @@ const TABS = [
   { id: 'ha', label: 'גשר Home Assistant' },
   { id: 'access-control', label: 'בקרות כניסה' },
   { id: 'devices', label: 'חשמל והתקנים' },
-  { id: 'alarm', label: 'אזעקה' }, // CR-010
   { id: 'remote', label: 'גישה מרחוק' },
   { id: 'health', label: 'בריאות ועבודות' },
   { id: 'backup', label: 'גיבוי ושחזור' },
@@ -591,6 +589,7 @@ export class SystemDiagnostics extends LitElement {
       invalidateSettings();
       applyWiskeyUi(r.settings as unknown as Record<string, unknown>); // the WisKey tabs follow at once, no reload
       applyWiskeyHidden(r.settings as unknown as Record<string, unknown>); // ditto for a direct URL landing on "not available"
+      applySnapshotHidden(r.settings as unknown as Record<string, unknown>); // ui.security_snapshot: the live overview tab follows
       this.message = 'ההגדרות נשמרו';
       setTimeout(() => (this.message = ''), 2500);
     } catch (err) {
@@ -734,6 +733,10 @@ export class SystemDiagnostics extends LitElement {
         ${NVR ? nothing : html`<div class="row"><span class="lbl">הסתרת חיפוש AI<span class="muted">מסיר את הלשונית מהניווט; המסך עצמו נשאר זמין בכתובת</span></span>
           <sw-field class="ctl"><select data-set-hide-search ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_search', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('ui.hide_search') ?? 'false') !== 'true'}>מוצג</option><option value="true" ?selected=${String(this.value('ui.hide_search') ?? 'false') === 'true'}>מוסתר</option>
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">תמונת מצב באבטחה<span class="muted">העמוד הראשון בלייב; כשהוא מוסתר, לייב נפתח על כל המצלמות והכתובת הישנה מפנה אליהן</span></span>
+          <sw-field class="ctl"><select data-set-security-snapshot ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.security_snapshot', (e.target as HTMLSelectElement).value)}>
+            <option value="true" ?selected=${String(this.value('ui.security_snapshot') ?? 'true') !== 'false'}>מוצגת</option><option value="false" ?selected=${String(this.value('ui.security_snapshot') ?? 'true') === 'false'}>מוסתרת</option>
           </select></sw-field></div>
         <div class="row"><span class="lbl">מקסימום זרמים חיים במקביל<span class="muted">מגן על ה־NVR; מעבר למכסה מוצג צילום בלבד</span></span><sw-field class="ctl"><input type="number" min="1" max="32" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('media.max_live_sessions') ?? 16)} @change=${(e: Event) => this.set('media.max_live_sessions', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         <div class="row"><span class="lbl">רעננות צילום (שניות)<span class="muted">snapshot מה־NVR לאריחים; cache בשרת</span></span><sw-field class="ctl"><input type="number" min="5" max="3600" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('snapshots.max_age_s') ?? 60)} @change=${(e: Event) => this.set('snapshots.max_age_s', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
@@ -1213,7 +1216,7 @@ export class SystemDiagnostics extends LitElement {
         <sw-tabs underline .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'media') void this.loadMedia(); if (this.tab === 'ha') void this.loadHa(); if (this.tab === 'backup') void this.loadBackups(); if (this.tab === 'health') void this.loadReport(); }}></sw-tabs>
         ${this.message && this.tab === 'ha' ? html`<div class="muted" style="color:#15803d">${this.message}</div>` : nothing}
         ${this.error && this.tab === 'ha' ? html`<div class="muted" style="color:var(--sw-error)">${this.error}</div>` : nothing}
-        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'alarm' ? html`<system-alarm-settings ?canEdit=${this.canEdit}></system-alarm-settings>` : this.tab === 'remote' ? this.renderRemote() : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
+        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
       </sw-page>
     `;
   }
