@@ -69,8 +69,11 @@ class FakeScheduler:
     """The component + the bridge in one deterministic object."""
 
     def __init__(self, installed: bool = True, accept_tags: bool = True, strict_keys: bool = True, event_mode: str = "subscription", trigger_hold_s: int = 60,
-                 rename_changes_entity_id: bool = False, now: Callable[[], dt.datetime] | None = None, seed: int = 14) -> None:
+                 rename_changes_entity_id: bool = False, now: Callable[[], dt.datetime] | None = None, seed: int = 14, edit_resets_enabled: bool = False) -> None:
         self.installed, self.accept_tags, self.strict_keys = installed, accept_tags, strict_keys
+        # UNVERIFIED on the lab component: whether an edit of a DISABLED schedule keeps it disabled (the phase-0 edits were all made on
+        # enabled schedules; `copy` of a disabled one stays disabled - verified). The fake keeps the state; `True` simulates the worst case.
+        self.edit_resets_enabled = edit_resets_enabled
         self.event_mode, self.trigger_hold_s, self.rename_changes_entity_id = event_mode, trigger_hold_s, rename_changes_entity_id
         self._t = dt.datetime(2026, 9, 30, 10, 0, 0, tzinfo=UTC)  # a Wednesday, 13:00 in Israel
         self._clock = now
@@ -586,6 +589,8 @@ class FakeScheduler:
         for key in ("weekdays", "repeat_type", "tags"):
             if key in data:
                 item[key] = copy.deepcopy(data[key])
+        if self.edit_resets_enabled:
+            item["enabled"] = True
         # VERIFIED: an edit that omits `start_date` / `end_date` RESETS both to null - even a name-only edit
         item["start_date"] = data.get("start_date")
         item["end_date"] = data.get("end_date")

@@ -393,6 +393,25 @@ def _unknown(w: W, op_id: str, meta: dict[str, Any], action: str) -> tuple[int, 
     return 202, {"status": "unknown", "op_id": op_id, "message": "התזמון נשלח; יופיע ברשימה לאחר אישור."}
 
 
+def keep_disabled(w: W, op_id: str, schedule_id: str, entity_id: str | None, sensitive: bool) -> list[dict[str, str]]:
+    """Owner rule: only a CREATE is enabled by default. A schedule that was disabled before an edit / split / copy must be
+    disabled after it. Whether the component's `edit` keeps a disabled schedule disabled is UNVERIFIED (the phase-0 edits were
+    made on enabled schedules), so the state is read back and, when it is enabled, the disable is re-applied through the
+    ordinary bridge path. A failure is returned as a warning and stays in the review as `requested_disabled`."""
+    row = store.cache_row(w.conn, schedule_id)
+    if row is None or not model.normalize(store.item_of(row))["enabled"]:
+        return []
+    sub_id, _ = store.begin_op(w.conn, w.principal, f"{op_id}:keep-disabled", "keep_disabled", schedule_id)  # its own record: a refusal must not overwrite the parent op
+    try:
+        bridge_call(w, "disable", sub_id, schedule_id=schedule_id, schedule_entity_id=entity_id, sensitive=sensitive)
+        store.finish_op(w.conn, sub_id, "ok", schedule_id=schedule_id)
+        reread(w, schedule_id)
+        return []
+    except ApiError as exc:
+        w.audit("schedule.disable", "denied", schedule_id, exc.code)
+        return [{"path": "enabled", "code": "not_disabled", "message": "התזמון היה מושבת אך נשאר פעיל אחרי השינוי; השביתו אותו ידנית."}]
+
+
 def reread(w: W, schedule_id: str) -> sqlite3.Row | None:
     """A fresh read of the schedule after a write (the cache row); a failed re-read keeps what the cache had."""
     try:
@@ -625,15 +644,19 @@ def update(w: W, schedule_id: str, draft: dict[str, Any], base_revision: str, cl
         payload = model.to_component_payload(draft, item)
         if not payload:
             return 200, {"schedule": schedule_view_of(w, row), "op_id": None}
-        op_id, again = _begin(w, client_request_id, "update", schedule_id, "update")
+        op_id, again = _begin(w, client_request_id, "update", schedule_id, "update", None if core["enabled"] else {"enabled": False})
         if again:
             return again
         bridge_call(w, "edit", op_id, schedule_id=schedule_id, schedule_entity_id=core["entity_id"], payload=payload, sensitive=ev.sensitive)
         new_row = reread(w, schedule_id)
+        warnings = [] if core["enabled"] else keep_disabled(w, op_id, schedule_id, core["entity_id"], ev.sensitive)
+        new_row = store.cache_row(w.conn, schedule_id) or new_row
         store.finish_op(w.conn, op_id, "ok", schedule_id=schedule_id)
         store.note_arx_write(w.conn, schedule_id, w.principal)
         w.audit("schedule.update", "allowed", schedule_id, **op_details(w, op_id, ev, revision, new_row["revision"] if new_row is not None else None, cond_entities(draft), diff))
-        return 200, {"schedule": schedule_view_of(w, new_row if new_row is not None else row), "op_id": op_id}
+        sched = schedule_view_of(w, new_row if new_row is not None else row)
+        sched["warnings"] = sched["warnings"] + warnings
+        return 200, {"schedule": sched, "op_id": op_id}
 
 
 # ---------------------------------------------------------------- enable / disable (§3.8)
@@ -863,7 +886,10 @@ def split(w: W, schedule_id: str, base_revision: str, days: list[str], name: str
             except ApiError:
                 pass
         orig_row, new_row = reread(w, schedule_id), reread(w, new_id)
-        store.finish_op(w.conn, op_id, "ok", error=json.dumps({"created": new_id}), schedule_id=schedule_id)
+        if not core["enabled"]:  # both halves keep the source's state
+            keep_disabled(w, op_id, schedule_id, core["entity_id"], cls["sensitive"])
+            orig_row = store.cache_row(w.conn, schedule_id)
+        store.finish_op(w.conn, op_id, "ok", error=json.dumps({**meta, "created": new_id}), schedule_id=schedule_id)
         store.note_arx_write(w.conn, schedule_id, w.principal)
         store.note_arx_write(w.conn, new_id, w.principal, created=True)
         w.audit("schedule.split", "allowed", schedule_id, **op_details(w, op_id, ev, row["revision"], orig_row["revision"] if orig_row is not None else None), created_id=new_id)
@@ -965,6 +991,8 @@ def copy(w: W, schedule_id: str, name: str, client_request_id: str, confirm_lowe
             return _unknown(w, op_id, meta, "schedule.copy")
         sid, _entity = learned
         new_row = reread(w, sid)
+        warnings = [] if core["enabled"] else keep_disabled(w, op_id, sid, _entity, cls["sensitive"])  # a copy of a disabled schedule stays disabled
+        new_row = store.cache_row(w.conn, sid) or new_row
         store.finish_op(w.conn, op_id, "ok", schedule_id=sid)
         store.note_arx_write(w.conn, sid, w.principal, created=True)
         w.audit("schedule.copy", "allowed", sid, **op_details(w, op_id, ev, row["revision"], new_row["revision"] if new_row is not None else None), source_id=schedule_id)
