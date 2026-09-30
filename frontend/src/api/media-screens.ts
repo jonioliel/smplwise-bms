@@ -345,7 +345,9 @@ export const media = (): MediaAdapter => (isApi() ? httpAdapter : mediaMock());
 /** The URL of `live.now.artwork`: the server sends a path relative to the page (`api/v1/multimedia/devices/<key>/artwork?v=`),
  * resolved like every other server resource so it also works under HA Ingress; an absolute URL is left alone. */
 export function artworkUrl(path: string): string {
-  return /^https?:/.test(path) ? path : resourceUrl(path.startsWith('api/') ? path : `api/v1/${path.replace(/^\/+/, '')}`);
+  if (/^https?:/.test(path)) return path;
+  const rel = path.replace(/^\/+/, '');
+  return resourceUrl(rel.startsWith('api/') ? rel : `api/v1/${rel}`);
 }
 
 const expiry = (ms = 15_000) => new Date(Date.now() + ms).toISOString();

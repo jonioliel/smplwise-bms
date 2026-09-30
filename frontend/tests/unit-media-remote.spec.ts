@@ -282,10 +282,14 @@ test.describe('media remote: the keyboard and the gate', () => {
     expect(g.check(ro, { command: 'key', key: 'ok' })).toBe('not_offered');
     const noWake = await dev('md-office');
     expect(g.check(noWake, { command: 'power_on' })).toBe('not_offered');
-    // a public screen without media.public: source / app / text are not offered
+    // a public screen without media.public: source / app / text, every key but volume / mute / play / pause and transport stop /
+    // next / previous are not offered (the server's needs_public rule); volume, mute and play / pause stay
     const pub = { ...living, public: true, can: { ...living.can, public_ok: false } };
     expect(g.check(pub, { command: 'app', app_id: 'Netflix' })).toBe('not_offered');
-    expect(g.check(pub, { command: 'key', key: 'ok' })).toBe('send');
+    expect(g.check(pub, { command: 'key', key: 'ok' })).toBe('not_offered');
+    expect(g.check(pub, { command: 'transport', action: 'next' })).toBe('not_offered');
+    expect(g.check(pub, { command: 'key', key: 'volup' })).toBe('send');
+    expect(g.check(pub, { command: 'transport', action: 'play_pause' })).toBe('send');
   });
 
   test('one power command in flight, at least 2 s between power commands; text at most once a second', async () => {

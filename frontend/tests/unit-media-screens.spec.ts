@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { resetMediaMock } from '../src/api/media-screens-mock';
 import {
-  DEFAULT_REMOTE, EMPTY_LAYOUT, KeyThrottle, bulkCandidates, commandOffered, effectiveLayout, moveKey, remoteSections, resolveCards, stateText,
+  DEFAULT_REMOTE, EMPTY_LAYOUT, KeyThrottle, artworkUrl, bulkCandidates, commandOffered, effectiveLayout, moveKey, needsPublic, remoteSections, resolveCards, stateText,
   type MediaLayout,
 } from '../src/api/media-screens';
 
@@ -41,6 +41,32 @@ test.describe('media-screens client (mock adapter)', () => {
     expect(office.caps.power_on).toBe(false);
     expect(office.caps.power_on_reason).toBe('no_remote_wake');
     await expect(m.command('md-office', { command: 'power_on', ...req(4) })).rejects.toMatchObject({ status: 422 });
+  });
+
+  test('the public-screen rule mirrors the server: source / app / text, keys but volume / mute / play / pause, transport stop / next / previous', async () => {
+    const m = resetMediaMock();
+    const pub = { ...(await m.get('md-pergola')), can: { control: true, power: true, public_ok: false, bulk: true } };
+    const on = { ...pub, live: { ...pub.live, power: 'on' as const } };
+    expect([
+      needsPublic({ command: 'source', source_id: 'TV' }), needsPublic({ command: 'app', app_id: 'Netflix' }), needsPublic({ command: 'text', text: 'a' }),
+      needsPublic({ command: 'key', key: 'ok' }), needsPublic({ command: 'transport', action: 'stop' }), needsPublic({ command: 'transport', action: 'next' }),
+    ]).toEqual([true, true, true, true, true, true]);
+    expect([
+      needsPublic({ command: 'key', key: 'volup' }), needsPublic({ command: 'key', key: 'mute' }), needsPublic({ command: 'key', key: 'play' }),
+      needsPublic({ command: 'transport', action: 'play_pause' }), needsPublic({ command: 'power_off' }), needsPublic({ command: 'sound_output', output: 'x' }),
+    ]).toEqual([false, false, false, false, false, false]);
+    expect(commandOffered(on, { command: 'key', key: 'ok' })).toBe(false);
+    expect(commandOffered(on, { command: 'key', key: 'volup' })).toBe(true);
+    expect(commandOffered({ ...on, can: { ...on.can, public_ok: true } }, { command: 'key', key: 'ok' })).toBe(true);
+  });
+
+  test('the artwork path the server sends is resolved against the page, an absolute URL is left alone', () => {
+    const base = 'http://127.0.0.1:4401/ingress/abc/';
+    (globalThis as { document?: unknown }).document = { baseURI: base };
+    expect(artworkUrl('api/v1/multimedia/devices/md-x/artwork?v=3')).toBe(`${base}api/v1/multimedia/devices/md-x/artwork?v=3`);
+    expect(artworkUrl('/api/v1/multimedia/devices/md-x/artwork')).toBe(`${base}api/v1/multimedia/devices/md-x/artwork`);
+    expect(artworkUrl('https://img.example/a.png')).toBe('https://img.example/a.png');
+    delete (globalThis as { document?: unknown }).document;
   });
 
   test('a duplicate request id is never sent twice; text is capped at 200 characters', async () => {
