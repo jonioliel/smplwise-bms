@@ -764,15 +764,9 @@ export class SwApp extends LitElement {
       border-block-end: 1px solid #fecaca;
       font-size: var(--sw-fs-sm);
     }
-    /* WisKey "הגדל" (wiskey-embed.ts): the embed covers the top bar; the alert stays visible at the top edge, above
-       the layer, which starts below it (--sw-banner-h) */
-    :host([data-wiskey-expanded]) .sysbanner {
-      inset-block-start: 0;
-      z-index: calc(var(--sw-z-topbar) + 2);
-    }
     /* no top bar (design A): the alert sits over the content column only, not over the rail's brand mark */
     @media (min-width: 768px) {
-      :host([data-design='a']:not([data-wiskey-expanded])) .sysbanner {
+      :host([data-design='a']) .sysbanner {
         inset-inline-start: var(--sw-rail-w);
       }
     }

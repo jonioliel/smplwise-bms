@@ -1,5 +1,47 @@
 # Changelog — SmplWise Arx add-on
 
+## 0.1.146 (pilot) — No top bar; a customisable home screen; the alarm and camera health move; tab order and visibility are yours; WisKey fills the screen; the NVR clock no longer reads an hour off in summer
+### The shell (owner round 2026-09-30)
+- **No white top bar in any screen** (design A). Search is a small icon button in the top corner (Ctrl/Cmd+K still
+  works) and the system status is a small dot beside it (a banner appears only when something is failing). The
+  breadcrumb is gone, and the security switch (לייב | חקירה) sits in the page header. The rail and the phone bar are
+  smaller (touch targets stay 44 px). Entering an area shows one navigation, not two.
+- The user menu has "עריכת המסך הראשי" for people who may edit the layout.
+### The home screen (חשמל והתקנים)
+- The title can be renamed in edit mode. Optional header widgets, all off by default: a clock, weather from a
+  weather entity, and the parsha / Shabbat candle-lighting / Shabbat end from sensors you choose (read from the
+  mirrored entities; no external service).
+- The edit button left the page (it is in the user menu); refresh is one small icon and the sync chip appears only
+  when the state is not fine. **Floor order is editable** (drag or arrows) and applies to the tree, cards and tiles.
+- Summary tiles are compact with the icon beside the text. The tiles view shows the floors tree too and fits the
+  screen without scrolling at desktop sizes.
+### Security area
+- **The alarm is now in הגדרות › אבטחה** (with the NVR summary and the alarm management). It is offered only when the
+  platform has an alarm panel, and to holders of the alarm permissions even without general settings access;
+  permissions are unchanged, and old links (search, alerts) redirect. **Camera health moved to חקירה.** The live
+  "תמונת מצב" screen can be hidden (הגדרות › וידאו ומדיה).
+### Tabs you control
+- **הגדרות › כללי › לשוניות**: for every section (the bars, security, לייב, חקירה, the map, WisKey, Settings) show or
+  hide each tab and set its order; a section lands on its first visible tab. A user's own order (personal) wins for
+  that user. Hiding is presentation only; permissions still gate, and the way back to the editor cannot be hidden.
+- **קומת ברירת מחדל במפה** (הגדרות › כללי › מפה): which floor the map opens first. The map's "התקנים" tab is now
+  **הגדרות › קטלוג התקנים**, for administrators only.
+### WisKey
+- The embedded WisKey is the frame and nothing else: no strip above it, no refresh / enlarge / new-window buttons, no
+  border of ours. New setting **גודל תצוגת WisKey** (הגדרות › מדיה): רגיל / מותאם (scaled 100-70%, so WisKey sees a
+  bigger frame and shows more cards) / מסך מלא (covers the whole screen, Esc or the corner button leaves). A wall of
+  10 cameras needs changes in the WisKey panel itself; the request is in docs/integrations/wiskey.
+### NVR clock
+- The NVR reports its wall clock (summer time applied) tagged with the standard offset; read literally it looked an
+  hour ahead (+3599 s drift). Now read in the installation zone: the system screen and the setup wizard show no
+  phantom drift. "סנכרן לשעון השרת" writes the same way and reads the clock back; when the device is more than 2
+  minutes off it says so (502 clock_verify_failed, audited). That write has not been tried on a real device.
+### Hardening (security review of this round)
+- The entity catalogue's filter chips of a floor-scoped user show only what they may see, and the per-entity action
+  history (who acted, error codes) is shown only to those who can control the entity or configure the system.
+  Tab settings ids and size are validated. New settings: `ui.tabs`, `map.default_floor`, `ui.security_snapshot`,
+  `ui.wiskey_size`, `ui.wiskey_scale`, `home.title`, `home.floor_order`, home widget entities.
+
 ## 0.1.145 (pilot) — "אבטחה" with the intrusion alarm; a new shell with the user at the end of the navigation; device tiles that open a panel; one room shared by two floors
 **After the update restart the platform once**: the bridge integration is 0.2.6 (the alarm's arm modes and bypass
 switches need its allow-list). Database migrations 0036 (alarm), 0037 (per-user interface preferences) and 0038

@@ -238,7 +238,7 @@ def test_not_configured_without_home_assistant(settings):
     """The dev / demo backend has no Home Assistant: a clear state, no station data, never a 5xx."""
     intercom_sync.SYNC.reset()
     intercom_sync.SYNC.start(settings)
-    assert intercom_sync.SYNC.thread is None, "no socket thread without HA access"
+    assert intercom_sync.SYNC.thread is None or not intercom_sync.SYNC.thread.is_alive(), "no socket thread without HA access (a stopped thread left by an earlier test does not count)"
     c = TestClient(create_app(settings))
     r = c.get("/api/v1/intercom/overview")
     assert r.status_code == 200
