@@ -284,7 +284,7 @@ test.describe('the camera card in an area screen (real backend, fake media stack
     await expect.poll(async () => (await active(page)).length, { timeout: 20000 }).toBe(3);
     const byCam = async () => Object.fromEntries((await active(page)).map((s) => [s.camera, `${s.profile}:${s.kind}`]));
     // the requested profile reaches the relay at any size; the transport is the installation's (MSE) for all three
-    expect(await byCam()).toEqual({ [cameraIds['1']]: 'main:mse', [cameraIds['2']]: 'sub:mse', [cameraIds['3']]: 'sub:mse' });
+    await expect.poll(byCam, { timeout: 10000 }).toEqual({ [cameraIds['1']]: 'main:mse', [cameraIds['2']]: 'sub:mse', [cameraIds['3']]: 'sub:mse' });
     await expect(card(page, 'camera:c1').locator('[data-camera-id]')).toHaveAttribute('data-quality', 'main');
     await expect(card(page, 'camera:c3').locator('[data-camera-id]')).toHaveAttribute('data-quality', 'auto');
     await expect(card(page, 'camera:c1').locator('[data-camera-quality-badge]')).toHaveCount(0); // nothing new outside edit mode
@@ -292,7 +292,7 @@ test.describe('the camera card in an area screen (real backend, fake media stack
     await setSettings(request, { 'media.wall_profile': 'main' });
     await page.reload();
     await expect.poll(async () => (await active(page)).length, { timeout: 20000 }).toBe(3);
-    expect(await byCam()).toEqual({ [cameraIds['1']]: 'main:mse', [cameraIds['2']]: 'sub:mse', [cameraIds['3']]: 'main:mse' });
+    await expect.poll(byCam, { timeout: 10000 }).toEqual({ [cameraIds['1']]: 'main:mse', [cameraIds['2']]: 'sub:mse', [cameraIds['3']]: 'main:mse' });
     await setSettings(request, { 'media.wall_profile': 'sub' });
     test.skip(testInfo.project.name !== 'desktop', 'the properties panel is the desktop editor');
     // the editor: the panel offers the three choices for a camera card, the badge names the choice in edit mode only
@@ -318,7 +318,7 @@ test.describe('the camera card in an area screen (real backend, fake media stack
     // and back to auto stores nothing
     await page.reload();
     await expect.poll(async () => (await active(page)).length, { timeout: 20000 }).toBe(3);
-    expect(await byCam()).toEqual({ [cameraIds['1']]: 'main:mse', [cameraIds['2']]: 'sub:mse', [cameraIds['3']]: 'main:mse' });
+    await expect.poll(byCam, { timeout: 10000 }).toEqual({ [cameraIds['1']]: 'main:mse', [cameraIds['2']]: 'sub:mse', [cameraIds['3']]: 'main:mse' });
     await expect(card(page, 'camera:c3').locator('[data-camera-quality-badge]')).toHaveCount(0);
     await request.delete(`/api/v1/devices/layouts/area/${AREA}?variant=all`);
   });

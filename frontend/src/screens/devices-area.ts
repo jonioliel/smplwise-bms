@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-page';
+import './devices-area-nav';
 import '../components/sw-card';
 import '../components/sw-badge';
 import '../components/sw-chip';
@@ -24,7 +25,6 @@ import { alarmTone, REFRESH_WINDOW_MS, STRUCTURE_FLASH_MS } from './devices-buil
 import './devices-bulk';
 import './devices-camera-card';
 import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
-import { navigate } from '../router';
 import { bidi, ltrNum } from '../i18n/bidi';
 import { applyDevicesPrefs, DEVICES_PREFS_DEFAULT, devicesStyleTokens, loadDevicesPrefs, type DevicesPrefs } from './devices-style';
 import { isCameraSource } from '../api/camera-card';
@@ -612,17 +612,6 @@ export class DevicesArea extends LitElement {
     :host {
       display: block;
     }
-    .chips {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-    .chips .lbl {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
-      margin-inline-end: 4px;
-    }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -1033,8 +1022,8 @@ export class DevicesArea extends LitElement {
         : html`<sw-state-panel state="loading"></sw-state-panel>`}</sw-page>`;
     }
     const floorName = d.area.floor_name ?? '';
-    const crumbs = [heading, floorName, d.area.name].filter(Boolean).join(' | ');
-    const sub = `${floorName ? `${bidi(floorName)} · ` : ''}${d.counts.entities} התקנים${d.scoped ? ' · לפי הקומות שלך' : ''}`;
+    // the floor is a crumb now (devices-area-nav.ts): the subtitle keeps only the counts
+    const sub = `${d.counts.entities} התקנים${d.scoped ? ' · לפי הקומות שלך' : ''}`;
     const connected = this.sync?.connected ?? false;
     const cards = CARD_IDS.filter((id) => this.prefs.showSensors || id !== 'sensors').map((id) => d.cards[id]);
     // Owner feedback 2026-09-29 ("hide empty domains"): a domain this area has nothing of is not a card at all. Its saved
@@ -1057,21 +1046,14 @@ export class DevicesArea extends LitElement {
     // 6c: "סידור התקנים" - the editor shows the card being arranged alone
     const arranging = this.lay.tileCard ? ordered.find((c) => this.lay.arranging(`card:${c.id}`)) : undefined;
     const arrangingCustom = this.lay.tileCard && customKeys.includes(this.lay.tileCard) && this.lay.arranging(this.lay.tileCard) ? this.lay.tileCard : '';
-    return html`<sw-page heading=${bidi(d.area.name)} subheading=${sub} backHref="/devices/building" crumbs=${crumbs} wide @bulk-request=${this.onBulkRequest}>
+    return html`<sw-page heading=${bidi(d.area.name)} subheading=${sub} wide @bulk-request=${this.onBulkRequest}>
+      <devices-area-nav slot="crumbs" .areaId=${d.area.area_id} .areaName=${d.area.name} .floorName=${floorName} .areas=${d.floor_areas}></devices-area-nav>
       <div slot="actions">
         ${bulk ? html`<devices-bulk-menu scope="area" .targetId=${d.area.area_id} .targetName=${d.area.name} .counts=${d.counts} variant="popover" label="פעולות לאזור" data-bulk-area=${d.area.area_id}></devices-bulk-menu>` : nothing}
         ${d.counts.alarm ? html`<sw-badge data-area-alarm kind=${alarmTone(d.counts.alarm)} label=${`אזעקה: ${ALARM_HE[d.counts.alarm] ?? d.counts.alarm}`}></sw-badge>` : nothing}
         <sw-badge data-devices-sync kind=${connected ? 'live' : 'stale'} label=${connected ? 'מסונכרן' : 'לא מסונכרן'}></sw-badge>
         ${this.structureFlash ? html`<sw-badge data-structure-changed kind="live" label="מבנה עודכן"></sw-badge>` : nothing}
       </div>
-      ${d.floor_areas.length > 1
-        ? html`<div class="chips" role="navigation" aria-label="אזורים בקומה">
-            <span class="lbl">${floorName ? bidi(floorName) : 'אזורים'}:</span>
-            ${d.floor_areas.map(
-              (a) => html`<sw-chip data-area-chip=${a.area_id} ?selected=${a.area_id === d.area.area_id} .count=${a.counts.entities} @click=${() => navigate(`/devices/areas/${encodeURIComponent(a.area_id)}`)}>${bidi(a.name)}</sw-chip>`,
-            )}
-          </div>`
-        : nothing}
       ${this.error ? html`<sw-state-panel compact state="error" heading="הרענון האחרון נכשל" hint=${this.error}></sw-state-panel>` : nothing}
       ${this.lay.renderBar()}
       ${this.lay.editing ? nothing : this.renderSecurityStrip(d)}
