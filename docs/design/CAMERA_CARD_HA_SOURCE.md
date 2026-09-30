@@ -125,13 +125,15 @@ source such as `http://127.0.0.1:1984/api/frame.jpeg?src=rtsp://evil&name=<a str
 stream outside our namespace, and `rtsp://<go2rtc host>:8554/<another project's door station>` would restream it to every viewer.
 Both sides now parse the URL (`urlsplit`) and refuse (`source_not_allowed`): `localhost`; loopback / unspecified / link-local /
 multicast hosts in ANY spelling (`127.1`, `0x7f.1`, `2130706433`, `017700000001`, `[::1]`, `[::ffff:127.0.0.1]`, `[::127.0.0.1]`); a host
-that looks numeric but is not a valid address; a query with a `src` or `name` key (any case, percent-encoding, `&` or `;`); an
-http(s) source on port 1984 whose path is `/api...` (after decoding and normalizing `//`, `/./`, `/../`); non-ASCII or
-percent-encoded hosts and backslashes (go2rtc's Go parser reads them differently). The add-on additionally refuses go2rtc's OWN
+that looks numeric but is not a valid address; a query with a `src` or `name` key (any case, percent-encoding, `&` or `;`); non-ASCII or
+percent-encoded hosts and backslashes (go2rtc's Go parser reads them differently). Round 2 (review M1-residual): only `rtsp` / `rtsps`
+sources are accepted (an http(s) source is `source_not_supported`: it is an indirect route back into go2rtc's API), and a host NAME is
+resolved (short timeout, off the event loop) and refused when any answer is loopback / link-local / unspecified / multicast or go2rtc's
+own host on go2rtc's ports. The add-on additionally refuses go2rtc's OWN
 host - as written in `go2rtc_url`, and every address it resolves to - on go2rtc's ports (1984 / 8554 / 8555 and the port of the
-configured URL); the bridge cannot know where go2rtc runs. Private LAN addresses stay allowed: cameras live there. Limits: a
-camera name that resolves to loopback at go2rtc's resolver (`evil.example` -> 127.0.0.1) is not caught, because neither side does DNS
-for camera hosts; and the check reads the source once - a camera answering differently later is caught by the re-read, not before.
+configured URL); the bridge cannot know where go2rtc runs. Private LAN addresses stay allowed: cameras live there. The add-on also refuses an rtsp source whose first path segment names a go2rtc stream outside `smplwise_ha_`. Limits: DNS rebinding (the
+name is resolved here and again by go2rtc) and a name this host cannot resolve (mDNS) are not caught; go2rtc may persist a stream created
+through its API, credentials included, in its own config file (to verify on the lab version); and the check reads the source once - a camera answering differently later is caught by the re-read, not before.
 The two policies are one corpus in `tests/test_source_policy.py`, which fails when they disagree.
 
 **Namespace.** Two guards: go2rtc's (`smplwise_`) and this feature's (`smplwise_ha_`, so it can never overwrite an NVR or WisKey
