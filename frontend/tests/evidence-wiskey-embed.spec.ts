@@ -702,6 +702,10 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
 
   // ------------------------------------------------------------------ "גודל תצוגת WisKey" (ui.wiskey_size, owner 2026-09-30)
 
+  /** The shell parts the full-screen size must cover and make inert (whichever the design renders): the rail, design B's
+   * top bar, the tab row, design A's floating corner (search button + status dot, and the search scrim), the alert banner. */
+  const SHELL_PARTS = ['nav.rail', 'header.topbar', 'main > .subnav', '.float', '[data-sys-pill]', '[data-search-open]', '[data-search-scrim]', '.sysbanner', 'nav.bottom'];
+
   const sizeOf = (page: Page) => page.locator('wiskey-embed').getAttribute('data-size');
 
   /** A click recorder inside the panel's document: where the panel itself sees a pointer press (its own coordinates). */
@@ -771,7 +775,7 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
       await open(page, '/wiskey/overview');
       await expect(page.locator(FRAME)).toHaveAttribute('data-confirmed-tab', 'overview', { timeout: 15000 });
       await expect(page.locator('wiskey-embed')).toHaveAttribute('data-size', 'full');
-      const g = await page.locator('wiskey-embed').evaluate((embed: HTMLElement) => {
+      const g = await page.locator('wiskey-embed').evaluate((embed: HTMLElement, parts: string[]) => {
         const sr = embed.getRootNode() as ShadowRoot;
         const r = embed.getBoundingClientRect();
         const f = embed.shadowRoot!.querySelector('iframe')!;
@@ -787,10 +791,16 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
           exits: ex.length,
           exit: eb ? [eb.left, eb.top, eb.width, eb.height] : null,
           covers: [on(window.innerWidth - 30, 200), on(30, 30), on(window.innerWidth / 2, 20), on(window.innerWidth - 30, window.innerHeight - 30)],
-          inert: ['nav.rail', 'header.topbar', 'main > .subnav'].map((s) => (sr.querySelector(s) as HTMLElement | null)?.inert ?? null),
+          shell: parts.flatMap((s) => {
+            const el = sr.querySelector(s) as HTMLElement | null;
+            if (!el) return []; // design B has a top bar, design A the floating corner cluster: only what exists is judged
+            const b = el.getBoundingClientRect();
+            const shown = b.width > 0 && b.height > 0;
+            return [{ sel: s, inert: !!el.closest('[inert]'), covered: shown ? !!sr.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)?.closest('wiskey-embed') : null }];
+          }),
           scrolls: document.documentElement.scrollHeight > window.innerHeight + 1 || document.documentElement.scrollWidth > window.innerWidth + 1,
         };
-      });
+      }, SHELL_PARTS);
       expect(g.embed).toEqual([0, 0, w, h]);
       expect(g.frame).toEqual([0, 0, w, h]);
       expect(g.inner).toEqual([w, h]);
@@ -800,7 +810,14 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
       expect(g.exit![1]).toBeLessThan(40); // a top corner
       expect(g.exit![0] < 60 || g.exit![0] + g.exit![2] > w - 60).toBe(true);
       expect(g.covers).toEqual([true, true, true, true]); // rail, top bar, tab row, bottom-corner: all covered
-      expect(g.inert).toEqual([true, true, true]); // Tab never reaches the covered shell
+      // every shell part that exists is inert (Tab never reaches it) and, when it has a box, under the panel - design A's
+      // floating corner cluster (search + status dot) and the alert banner included, not floating above the panel
+      const present = g.shell.map((x) => x.sel);
+      expect(present).toEqual(expect.arrayContaining(['nav.rail', '.float']));
+      for (const x of g.shell) {
+        expect(x.inert, `${x.sel} is inert`).toBe(true);
+        if (x.covered !== null) expect(x.covered, `${x.sel} is covered by the panel`).toBe(true);
+      }
       expect(g.scrolls).toBe(false);
       await expectNothingAroundFrame(page);
       cards.push(`${w}×${h} full: WisKey sees ${g.inner[0]}×${g.inner[1]} → ${wiskeyCapacity(g.inner[0], g.inner[1])} cards`);
@@ -816,8 +833,9 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     await expect(page.locator('wiskey-embed')).toHaveAttribute('data-size', 'normal');
     await expect(page.locator('wiskey-embed button[data-wiskey-exit]')).toHaveCount(0);
     await expectFrameFillsContentArea(page);
-    const inertAfter = await page.locator('wiskey-embed').evaluate((embed: HTMLElement) => ['nav.rail', 'header.topbar', 'main > .subnav'].map((s) => ((embed.getRootNode() as ShadowRoot).querySelector(s) as HTMLElement | null)?.inert ?? null));
-    expect(inertAfter).toEqual([false, false, false]);
+    const inertAfter = await page.locator('wiskey-embed').evaluate((embed: HTMLElement, parts: string[]) => parts.flatMap((s) => { const el = (embed.getRootNode() as ShadowRoot).querySelector(s) as HTMLElement | null; return el ? [{ sel: s, inert: !!el.closest('[inert]') }] : []; }), SHELL_PARTS);
+    expect(inertAfter.length).toBeGreaterThan(1);
+    expect(inertAfter.filter((x) => x.inert)).toEqual([]); // the shell is given back whole
     await expect(page.locator('sw-tabs a[href="#/wiskey/devices"]')).toBeVisible(); // the tab row is back
     // another tab in the same visit stays normal; leaving the area and coming back is full again
     await page.locator('sw-tabs a[href="#/wiskey/devices"]').click();
