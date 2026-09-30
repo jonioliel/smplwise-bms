@@ -428,7 +428,8 @@ export type ReviewIssue =
   | 'unsupported_content'
   | 'class_disabled'
   | 'sensitive_condition_unavailable'
-  | 'alarm_may_need_code';
+  | 'alarm_may_need_code'
+  | 'requested_disabled';
 
 export const REVIEW_LABEL: Record<ReviewIssue, string> = {
   owner_lost_rights: 'מי שיצר או ערך אחרון כבר אינו מורשה לכל ההתקנים',
@@ -439,6 +440,7 @@ export const REVIEW_LABEL: Record<ReviewIssue, string> = {
   class_disabled: 'סוג התקן שכובה בהגדרות',
   sensitive_condition_unavailable: 'פעולה רגישה תלויה בחיישן לא זמין',
   alarm_may_need_code: 'לוח האזעקה עשוי לדרוש קוד',
+  requested_disabled: 'התזמון התבקש כבוי אך לא נכבה - יש לכבות אותו ידנית',
 };
 
 export interface ReviewItem {
