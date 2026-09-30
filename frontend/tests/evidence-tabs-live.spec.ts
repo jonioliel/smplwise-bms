@@ -37,7 +37,7 @@ test.describe('tabs configuration against a real backend', () => {
     // 1. the editor: hide "תיקים" of the investigation, put the map's floor tab first, and save
     await page.goto('/?design=a#/system/diagnostics?tab=tabs');
     const ed = page.locator('sw-app system-diagnostics system-tabs-config');
-    await expect(ed.locator('[data-tabs-section]')).toHaveCount(8);
+    await expect(ed.locator('[data-tabs-section]')).toHaveCount(9);
     await ed.locator('li[data-sec="security.investigate"][data-tab="cases"] sw-toggle button').click();
     await ed.locator('li[data-sec="explore"][data-tab="floors"] .mv[data-move="up"]').click();
     await ed.locator('[data-tabs-save]').click();

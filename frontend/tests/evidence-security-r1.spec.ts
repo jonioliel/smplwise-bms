@@ -1,5 +1,4 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEMO_ALARM } from '../src/fixtures/alarm-demo';
@@ -24,9 +23,22 @@ interface MockState {
   snapshot: 'true' | 'false';
   panelRequests: number;
   configRequests: number;
+  /** the probe fails (500) */
+  probeError: boolean;
+  /** the listed panel has no zones and no bypass switches (a Tuya / generic panel) */
+  bare: boolean;
+  /** `ui.tabs` of the product settings */
+  uiTabs: Record<string, unknown>;
+  /** the fake Home Assistant push socket, once the page opened it */
+  socket: { send(data: string): void } | null;
 }
 
+const bare = (p: (typeof DEMO_ALARM.panels)[number]) => ({ ...p, zones: [], unpaired_controls: [] });
+
 async function install(page: Page, st: MockState) {
+  await page.routeWebSocket(/\/api\/v1\/ha\/ws/, (ws) => {
+    st.socket = ws;
+  });
   await page.route('**/api/v1/**', (route: Route) => {
     const req = route.request();
     const p = new URL(req.url()).pathname.replace(/^.*\/api\/v1\//, '');
@@ -41,14 +53,15 @@ async function install(page: Page, st: MockState) {
       });
     }
     if (p === 'me/prefs') return json({ prefs: {}, stored: [], updated_at: null });
-    if (p === 'settings') return json({ settings: { 'ui.design': 'a', 'ui.start_route': 'devices', 'ui.hide_map': 'false', 'ui.hide_wiskey': 'false', 'ui.hide_search': 'false', 'ui.security_snapshot': st.snapshot }, can_edit: st.perms.includes('system.configure') });
+    if (p === 'settings') return json({ settings: { 'ui.design': 'a', 'ui.start_route': 'devices', 'ui.hide_map': 'false', 'ui.hide_wiskey': 'false', 'ui.hide_search': 'false', 'ui.security_snapshot': st.snapshot, 'ui.tabs': st.uiTabs }, can_edit: st.perms.includes('system.configure') });
     if (p === 'health/summary') return json({ status: 'ok', items: [], checked_at: '2026-09-30T00:00:00Z', version: 'test' });
     if (p === 'health') return json({ status: 'ok', version: 'test', nvr_configured: true, mode: 'full', discovery: { cameras: 8, cameras_last_ok: '2026-09-30T08:00:00Z', cameras_last_error: null }, events: { ingest: { connected: true, last_error: null } } });
     if (p.startsWith('rules/alerts')) return json({ alerts: [], unacked: 0 });
     if (p === 'alarm/panels') {
       st.panelRequests += 1;
+      if (st.probeError) return json({ code: 'internal', user_message: 'שגיאה (בדיקה)', retryable: true, correlation_id: '', details: {} }, 500);
       if (!st.perms.includes('alarm.view')) return json({ code: 'forbidden', user_message: 'אין הרשאה', retryable: false, correlation_id: '', details: {} }, 403);
-      return json({ ...DEMO_ALARM, panels: DEMO_ALARM.panels.slice(0, st.panels), counts: { ...DEMO_ALARM.counts, panels: st.panels } });
+      return json({ ...DEMO_ALARM, panels: DEMO_ALARM.panels.slice(0, st.panels).map((x) => (st.bare ? bare(x) : x)), counts: { ...DEMO_ALARM.counts, panels: st.panels } });
     }
     if (p === 'alarm/config') {
       st.configRequests += 1;
@@ -75,7 +88,7 @@ test.describe('security area, UI round 1 (mocked backend)', () => {
   let st: MockState;
 
   test.beforeEach(async ({ page }) => {
-    st = { perms: ADMIN, panels: 1, snapshot: 'true', panelRequests: 0, configRequests: 0 };
+    st = { perms: ADMIN, panels: 1, snapshot: 'true', panelRequests: 0, configRequests: 0, probeError: false, bare: false, uiTabs: {}, socket: null };
     await install(page, st);
   });
 
@@ -89,7 +102,7 @@ test.describe('security area, UI round 1 (mocked backend)', () => {
     await expect(page.locator('sw-app live-overview')).toHaveCount(0);
     await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['כל המצלמות', 'תצוגות שמורות']);
     // the section still opens on its first visible page from the switch and from #/security
-    await expect(page.locator('sw-app nav[data-security-sections] a[data-section="live"]')).toHaveAttribute('href', '#/live/wall');
+    await expect(page.locator('sw-app nav.sections a[data-section="live"]')).toHaveAttribute('href', '#/live/wall');
     await open(page, '/security');
     await expect.poll(() => hashOf(page)).toBe('#/live/wall');
     if (info.project.name === 'desktop') await page.screenshot({ path: path.join(EVIDENCE, 'after-snapshot-hidden-desktop.png') });
@@ -99,7 +112,7 @@ test.describe('security area, UI round 1 (mocked backend)', () => {
     await open(page, '/system/devices?sort=offline');
     await expect.poll(() => hashOf(page)).toBe('#/investigate/health?sort=offline');
     await expect(page.locator('sw-app system-devices')).toHaveCount(1);
-    await expect(page.locator('sw-app nav[data-security-sections] a[data-section="investigate"]')).toHaveAttribute('aria-current', 'page');
+    await expect(page.locator('sw-app nav.sections a[data-section="investigate"]')).toHaveAttribute('aria-current', 'page');
     await expect(page.locator(SETTINGS_TABS).last()).toHaveText('בריאות מצלמות');
     // gated by the same permission as before: without video.live the tab is gone
     st.perms = ['events.read', 'devices.read'];
@@ -131,37 +144,98 @@ test.describe('security area, UI round 1 (mocked backend)', () => {
     if (info.project.name === 'desktop') await page.screenshot({ path: path.join(EVIDENCE, 'after-operator-alarm-desktop.png') });
   });
 
-  test('a holder of alarm.arm alone (no alarm.view) sees no alarm page', async ({ page }) => {
-    st.perms = ['video.live', 'alarm.arm', 'alarm.disarm', 'alarm.bypass'];
+  test('a holder of alarm.arm alone (no alarm.view) gets the alarm tab and page (owner 2026-09-30); a user with no alarm permission does not', async ({ page }) => {
+    st.perms = ['alarm.arm'];
+    await open(page, '/live/wall');
+    await expect(page.locator('sw-app nav.sections a')).toHaveText(['לייב', 'אזעקה']); // חקירה: no camera health / events permission here
+    await open(page, '/system/security');
+    await expect.poll(() => hashOf(page)).toBe('#/system/security/alarm');
+    await expect(page.locator('sw-app system-security security-alarm')).toHaveCount(1);
+    st.perms = ['video.live', 'events.read'];
+    await open(page, '/live/wall');
+    await expect(page.locator('sw-app nav.sections a')).toHaveText(['לייב', 'חקירה']);
     await open(page, '/system/security');
     await expect(page.locator('sw-app system-security [data-security-settings-forbidden]')).toHaveCount(1);
-    await expect(page.locator(SETTINGS_TABS).filter({ hasText: 'אבטחה' })).toHaveCount(0);
-    expect(st.panelRequests).toBe(0);
   });
 
-  test('a system administrator without alarm.view: management and NVR only (the discovery config answers "is there a panel")', async ({ page }) => {
+  test('a system administrator without alarm.view always gets the alarm pages when a panel exists (the discovery config answers "is there a panel")', async ({ page }) => {
     st.perms = ['system.configure', 'sources.configure', 'video.live'];
     await open(page, '/system/security');
-    await expect.poll(() => hashOf(page)).toBe('#/system/security/manage');
-    await expect(page.locator(SUB_TABS)).toHaveText(['ניהול אזעקה', 'NVR']);
+    await expect.poll(() => hashOf(page)).toBe('#/system/security/alarm');
+    await expect(page.locator(SUB_TABS)).toHaveText(['אזעקה', 'ניהול אזעקה', 'NVR']);
+    await open(page, '/system/security/manage');
     await expect(page.locator('sw-app system-security system-alarm-settings')).toHaveCount(1);
-    await open(page, '/system/security/alarm'); // not permitted: lands on the first page they may open
-    await expect.poll(() => hashOf(page)).toBe('#/system/security/manage');
-    expect(st.panelRequests).toBe(0);
+    expect(st.configRequests).toBeGreaterThan(0);
   });
 
-  test('no alarm panel on the platform: the alarm pages are not offered at all (no empty state); the NVR page stays for an administrator', async ({ page }) => {
+  test('no alarm panel on the platform: no alarm tab, no alarm pages, no empty state; the NVR page stays for an administrator; a saved link shows the screen\'s own state', async ({ page }) => {
     st.panels = 0;
+    await open(page, '/live/wall');
+    await expect(page.locator('sw-app nav.sections a')).toHaveText(['לייב', 'חקירה']);
     await open(page, '/system/security');
     await expect.poll(() => hashOf(page)).toBe('#/system/security/nvr');
     await expect(page.locator(SETTINGS_TABS).filter({ hasText: 'אבטחה' })).toHaveCount(1);
     await expect(page.locator(SUB_TABS)).toHaveCount(0); // one page left: no row
     await expect(page.locator('sw-app system-security system-security-nvr')).toHaveCount(1);
-    // an operator with no settings permission has nothing left there: no section, no "מערכת" item
+    await open(page, '/security/alarm'); // a saved link: the usual "no alarm panel" state, not a blank page
+    await expect(page.locator('security-alarm [data-alarm-empty]')).toHaveCount(1);
+    // an operator with no settings permission has nothing left in Settings: no section, no "מערכת" item
     st.perms = OPERATOR;
     await open(page, '/system/security');
     await expect(page.locator('sw-app system-security [data-security-settings-forbidden]')).toHaveCount(1);
     await expect(page.locator(SETTINGS_TABS).filter({ hasText: 'אבטחה' })).toHaveCount(0);
+  });
+
+  test('a panel with no zones and no bypass switches (a Tuya / generic panel) still shows the tab and the screen', async ({ page }) => {
+    st.bare = true;
+    await open(page, '/live/wall');
+    await expect(page.locator('sw-app nav.sections a')).toHaveText(['לייב', 'חקירה', 'אזעקה']);
+    await page.locator('sw-app nav.sections a[data-section="alarm"]').click();
+    await expect.poll(() => hashOf(page)).toBe('#/security/alarm');
+    await expect(page.locator('security-alarm section.hero')).toHaveAttribute('data-alarm-panel', PANEL);
+    await expect(page.locator('security-alarm [data-arm]')).toHaveCount(3);
+    await expect(page.locator('security-alarm article.zone')).toHaveCount(0);
+    await expect(page.locator('security-alarm [data-alarm-empty]')).toHaveCount(0);
+  });
+
+  test('the probe fails (500): the alarm tab stays visible - only a positive "no panel" hides it', async ({ page }) => {
+    st.probeError = true;
+    await open(page, '/live/wall');
+    await expect(page.locator('sw-app nav.sections a')).toHaveText(['לייב', 'חקירה', 'אזעקה']);
+    await open(page, '/system/security');
+    await expect.poll(() => hashOf(page)).toBe('#/system/security/alarm');
+  });
+
+  test('a stale "no panel" becomes visible after the platform mirror changes (structure_changed push) and when the security area is entered', async ({ page }) => {
+    st.panels = 0;
+    await open(page, '/live/wall');
+    await expect(page.locator('sw-app nav.sections a')).toHaveText(['לייב', 'חקירה']);
+    await expect.poll(() => st.socket !== null).toBe(true); // the watch is open while the answer is not a yes
+    const before = st.panelRequests;
+    st.panels = 1; // the integration was added in Home Assistant
+    st.socket!.send(JSON.stringify({ type: 'structure_changed', payload: { reason: 'registry', last_registry_at: null } }));
+    await expect(page.locator('sw-app nav.sections a')).toHaveText(['לייב', 'חקירה', 'אזעקה'], { timeout: 10000 });
+    expect(st.panelRequests).toBeGreaterThan(before);
+    // entering the security area re-asks too (no push here): a second stale negative
+    st.panels = 0;
+    await page.locator('sw-app nav.sections a[data-section="alarm"]').click();
+    await expect(page.locator('security-alarm [data-alarm-empty]')).toHaveCount(1); // the screen itself saw no panel
+    await expect(page.locator('sw-app nav.sections a')).toHaveText(['לייב', 'חקירה']);
+    st.panels = 1;
+    await page.waitForTimeout(5300); // the area entry re-asks a negative answer at most every 5 s
+    await page.locator('sw-app nav.sections a[data-section="live"]').click();
+    await expect(page.locator('sw-app nav.sections a')).toHaveText(['לייב', 'חקירה', 'אזעקה'], { timeout: 10000 });
+  });
+
+  test('ui.tabs shapes the alarm section like the others: order and hidden; the tab needs no reload', async ({ page }) => {
+    st.uiTabs = { security: { order: ['alarm', 'live', 'investigate'], hidden: [] } };
+    await open(page, '/live/wall');
+    await expect(page.locator('sw-app nav.sections a')).toHaveText(['אזעקה', 'לייב', 'חקירה']);
+    st.uiTabs = { security: { order: [], hidden: ['alarm'] } };
+    await open(page, '/live/wall');
+    await expect(page.locator('sw-app nav.sections a')).toHaveText(['לייב', 'חקירה']);
+    await open(page, '/security/alarm'); // hidden is presentation only: the address keeps working
+    await expect(page.locator('security-alarm section.hero')).toHaveCount(1);
   });
 
   test('the "is there a panel" answer is one cached request, not one per screen', async ({ page }) => {
@@ -174,19 +248,14 @@ test.describe('security area, UI round 1 (mocked backend)', () => {
     expect(st.panelRequests).toBe(1);
   });
 
-  test('links written before the move keep their panel: #/security/alarm?panel= lands on the same panel in Settings', async ({ page }) => {
+  test('#/security/alarm is canonical: ?panel= is kept, the same screen opens as a page of Settings, both without a breadcrumb bar', async ({ page }) => {
     await open(page, `/security/alarm?panel=${PANEL}`);
-    await expect.poll(() => hashOf(page)).toBe(`#/system/security/alarm?panel=${PANEL}`);
+    await expect.poll(() => hashOf(page)).toBe(`#/security/alarm?panel=${PANEL}`);
+    await expect(page.locator('sw-app security-alarm section.hero')).toHaveAttribute('data-alarm-panel', PANEL);
+    await expect(page.locator('sw-app nav.sections').locator('a[data-section="alarm"]')).toHaveAttribute('aria-current', 'page');
+    await open(page, `/system/security/alarm?panel=${PANEL}`);
     await expect(page.locator('sw-app system-security security-alarm section.hero')).toHaveAttribute('data-alarm-panel', PANEL);
-    await open(page, '/security/alarm');
-    await expect.poll(() => hashOf(page)).toBe('#/system/security/alarm');
-  });
-
-  test('the alarm is no section and no flat entry of the security area', async ({ page }) => {
-    await open(page, '/investigate/events');
-    await expect(page.locator('sw-app nav[data-security-sections] a')).toHaveText(['לייב', 'חקירה']);
-    await expect(page.locator('sw-app nav.rail a[href="#/security/alarm"]')).toHaveCount(0);
-    fs.mkdirSync(EVIDENCE, { recursive: true });
+    await expect(page.locator('sw-app .crumbs-a')).toHaveCount(0);
   });
 });
 

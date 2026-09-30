@@ -63,7 +63,7 @@ import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
 import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, visibleGroups, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, isHomeEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, type LegacyAccess, tabAllowed, type NavTabId } from './nav';
-import { alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
+import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { currentDesign, onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
 import { can, canNav, isApi, loadSession, nvrLess, onSession, watchPermissions, type Session } from '../api/session';
@@ -1309,6 +1309,9 @@ export class SwApp extends LitElement {
       // CR-010: the security section in use, so #/security (the rail entry) reopens it
       const section = sectionOf(route);
       if (section) rememberSection(section);
+      // the alarm tab: entering the security area while the "is there a panel" answer is not a yes asks again (a panel may
+      // have appeared since a negative answer)
+      if (areaOf(route) === 'security' && alarmPresence() !== true) void refreshAlarmPresence(true, ENTER_GAP_MS);
       this.toggleAttribute('data-kiosk', route.segments[0] === 'kiosk');
       // embed=1 (Lovelace card iframe, T056): no chrome for the rest of the session, whatever the in-app navigation does
       if (route.params.get('embed') === '1') {
@@ -1808,8 +1811,10 @@ export class SwApp extends LitElement {
         return html`<wiskey-overview></wiskey-overview>`;
       }
       case 'security': {
-        // CR-010: #/security itself opens the section this browser used last (לייב by default); the alarm moved to
-        // הגדרות › אבטחה (#/security/alarm redirects, legacyRedirect)
+        // CR-010: #/security/alarm is the alarm section again (0.1.147) - the same screen as הגדרות › אבטחה › אזעקה; a link
+        // to it on a system without a panel shows the screen's own "no alarm panel" state, never a blank page.
+        // #/security itself opens the section this browser used last (לייב by default).
+        if (s[1] === 'alarm') return html`<security-alarm .panelId=${r.params.get('panel') ?? ''}></security-alarm>`;
         if (this.session.mode === 'loading') return html`<sw-state-panel state="loading"></sw-state-panel>`;
         // ui.tabs decides which section and page open first: wait for the product settings (as the start screen does)
         if (this.session.mode === 'api' && !this.startResolved) return html`<sw-state-panel state="loading"></sw-state-panel>`;

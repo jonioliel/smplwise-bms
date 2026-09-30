@@ -195,7 +195,7 @@ test.describe('CR-013 shell on the demo data', () => {
     await open(page, '/live');
     const sec = page.locator('sw-app main nav[data-security-sections]');
     await expect(sec).toBeVisible();
-    await expect(sec.locator('a')).toHaveText(['לייב', 'חקירה']); // the alarm left for הגדרות › אבטחה (2026-09-30)
+    await expect(sec.locator('a')).toHaveText(['לייב', 'חקירה', 'אזעקה']); // the alarm section is last by default (back in the area 2026-09-30)
     await expect(sec.locator('a[data-section="live"]')).toHaveAttribute('aria-current', 'page');
     expect(await shellHeaders(page)).toBe(0);
     // it shares the row with the page's tab row, on the right (RTL start), clear of the corner
@@ -213,7 +213,8 @@ test.describe('CR-013 shell on the demo data', () => {
       ['/explore/floors/f0', 'explore-floor-map'],
       ['/live/wall', 'live-wall'],
       ['/investigate/events', 'investigate-events'],
-      ['/system/security/alarm', 'security-alarm'], // the alarm moved from #/security/alarm (redirect: evidence-alarm.spec.ts)
+      ['/security/alarm', 'security-alarm'],
+      ['/system/security/alarm', 'security-alarm'], // the same screen as a page of הגדרות › אבטחה
       ['/system/diagnostics', 'system-diagnostics'],
       ['/system/notifications', 'arx-notifications-settings'],
       ['/wiskey/overview', 'wiskey-overview'],
@@ -314,7 +315,7 @@ test.describe('CR-013 shell on the demo data', () => {
     await open(page, '/live');
     const row = page.locator('sw-app nav[data-security-row]');
     await expect(row).toBeVisible();
-    await expect(row.locator('a')).toHaveText(['לייב', 'חקירה']);
+    await expect(row.locator('a')).toHaveText(['לייב', 'חקירה', 'אזעקה']);
     await expect(row.locator('a[data-section="live"]')).toHaveAttribute('aria-current', 'page');
     for (const a of await row.locator('a').all()) expect((await a.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['תמונת מצב', 'כל המצלמות', 'תצוגות שמורות']);
