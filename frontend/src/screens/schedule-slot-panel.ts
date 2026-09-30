@@ -391,7 +391,8 @@ export class ScheduleSlotPanel extends LitElement {
     const label = ARG_LABEL[spec.name] ?? spec.name;
     const key = `${group.key}:${spec.name}`;
     // brightness: shown as a percentage of the 0..255 the card writes; brightness_pct is used only when it is already there
-    if (spec.name === 'brightness_pct' && group.data.brightness !== undefined) return nothing;
+    // (the server lists both; "brightness" is what the card writes, so the control is that one unless brightness_pct is already set)
+    if (spec.name === 'brightness_pct' && group.data.brightness_pct === undefined) return nothing;
     if (spec.name === 'brightness' && group.data.brightness_pct !== undefined) return nothing;
     if (spec.name === 'brightness' || spec.name === 'brightness_pct') {
       const isRaw = spec.name === 'brightness';
@@ -418,7 +419,19 @@ export class ScheduleSlotPanel extends LitElement {
         </select>
       </div>`;
     }
+    if (spec.type === 'bool') {
+      return html`<div class="arg" data-arg=${spec.name}>
+        <label class="pair"><input type="checkbox" style="inline-size:auto;min-block-size:0" ?disabled=${ro} .checked=${v === true} @change=${(e: Event) => this.setArg(group, spec.name, (e.target as HTMLInputElement).checked)} />${label}</label>
+      </div>`;
+    }
     if (spec.type === 'int' && spec.min !== undefined && spec.max !== undefined) {
+      // an optional number (a fan's speed) is set on purpose: until then the action leaves it out
+      if (!spec.required && typeof v !== 'number') {
+        return html`<div class="arg" data-arg=${spec.name}>
+          <span class="lbl">${label}</span>
+          <div class="row"><sw-button size="sm" ?disabled=${ro} @click=${() => this.setArg(group, spec.name, Math.min(spec.max as number, Math.max(spec.min as number, 50)))}>הגדרת ${label}</sw-button></div>
+        </div>`;
+      }
       const num = typeof v === 'number' ? v : spec.min;
       return html`<div class="arg" data-arg=${spec.name}>
         <label for=${key}>${label}</label>
@@ -426,6 +439,7 @@ export class ScheduleSlotPanel extends LitElement {
           <input id=${key} type="range" min=${spec.min} max=${spec.max} step="1" ?disabled=${ro} .value=${String(num)} @input=${(e: Event) => this.setArg(group, spec.name, Number((e.target as HTMLInputElement).value))} />
           <input type="number" min=${spec.min} max=${spec.max} ?disabled=${ro} aria-label=${label} .value=${String(num)} @change=${(e: Event) => this.setArg(group, spec.name, Number((e.target as HTMLInputElement).value))} />
           <span class="unit">${spec.name === 'position' || spec.name === 'tilt_position' || spec.name === 'percentage' ? '%' : ''}</span>
+          ${ro || spec.required ? nothing : html`<sw-button size="sm" variant="ghost" iconOnly icon="close" label="ללא ${label}" @click=${() => this.setArg(group, spec.name, undefined)}></sw-button>`}
         </div>
       </div>`;
     }

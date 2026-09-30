@@ -333,6 +333,27 @@ test.describe('day view, the slot panel, phone', () => {
     await shot(page, 'editor-table-390');
   });
 
+  test('phone (390): a tap on the empty vertical timeline adds an hour; the bottom edge is dragged with the pointer', async ({ page }) => {
+    await mount(page, '4d6e0a', { width: 390, height: 1700 });
+    await expect(editor(page).locator('sw-schedule-grid')).toHaveAttribute('orientation', 'vertical');
+    const tr = editor(page).locator('sw-schedule-grid .track').first();
+    let tb = await box(tr);
+    const yAt = (min: number) => tb.y + 1 + ((tb.height - 2) * min) / 1440;
+    const x = tb.x + tb.width / 2;
+    const before = await editor(page).locator('sw-schedule-grid .slot').count();
+    await page.mouse.click(x, yAt(122)); // 02:02 → an hour from 02:00
+    await expect(editor(page).locator('sw-schedule-grid .slot')).toHaveCount(before + 1);
+    const created = editor(page).locator('sw-schedule-grid .slot').filter({ hasText: '02:00–03:00' });
+    await expect(created).toHaveCount(1);
+    await page.waitForTimeout(900); // the panel scrolls into view: measure again once the page is still
+    tb = await box(tr);
+    // pull its bottom edge to 04:00
+    const cb = await box(created);
+    await drag(page, { x, y: cb.y + cb.height - 2 }, { x, y: yAt(242) });
+    await expect(editor(page).locator('sw-schedule-grid .slot').filter({ hasText: '02:00–04:00' })).toHaveCount(1);
+    await shot(page, 'editor-day-drag-390');
+  });
+
   test('tablet (820): the week grid fits and the side panel goes below', async ({ page }) => {
     await mount(page, '4d6e0a', { width: 820, height: 1100 });
     await expect(editor(page).locator('sw-schedule-grid')).toBeVisible();
@@ -729,6 +750,36 @@ test.describe('S3 integration: the routes and the shared dialog', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(400);
     await shot(page, 'shell-new-390');
+  });
+
+  test('S3\'s list renders my week view and opens my create dialog (real elements, no doubles)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem('sw.demo.schedules', JSON.stringify({ persona: 'admin' }));
+        localStorage.removeItem('sw.schedules.view');
+      } catch {
+        /* storage unavailable */
+      }
+    });
+    await page.goto('about:blank');
+    await page.goto('/?design=a#/devices/schedules?view=week');
+    const week = page.locator('devices-schedules schedules-week-view');
+    await expect(week.locator('[data-week-pill]').first()).toBeVisible({ timeout: 20000 });
+    await expect(week.locator('[data-week-day]')).toHaveCount(7);
+    await page.waitForTimeout(400);
+    await shot(page, 'list-week-1440');
+    // a bar opens that schedule's drawer (S3's route)
+    await week.locator('[data-week-pill="4d6e0a"]').first().click();
+    await expect.poll(() => page.evaluate(() => window.location.hash)).toContain('/devices/schedules/4d6e0a');
+    // "תזמון חדש" opens the create dialog
+    await page.evaluate(() => (window.location.hash = '#/devices/schedules'));
+    await page.locator('devices-schedules [data-new-schedule]').first().click();
+    await expect(page.locator('devices-schedules schedule-create-dialog [data-create-dialog]')).toBeVisible();
+    await page.locator('devices-schedules schedule-create-dialog [data-template="ac"]').click();
+    await page.locator('devices-schedules schedule-create-dialog [data-create-continue]').click();
+    await expect.poll(() => page.evaluate(() => window.location.hash)).toBe('#/devices/schedules/new/edit?template=ac');
+    await expect(page.locator('schedule-editor [data-editor-name]')).toHaveValue('מזגן בשעות משרד');
   });
 
   test('the lowering dialog takes S3\'s summary ({entities, times[], text}) and asks the alarm code when told to', async ({ page }) => {

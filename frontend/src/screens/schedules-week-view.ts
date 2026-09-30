@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { property, state } from 'lit/decorators.js';
 import { DAY_LONG, DAY_ORDER, SUN_FALLBACK, actionLabel, timeMinutes, type DayId, type Schedule, type SunTimes } from '../api/schedules';
 import { CATEGORY_LABEL, clock, minutesToPercent, slotCategory, type SlotCategory } from './schedule-grid-logic';
 
@@ -21,9 +21,10 @@ interface Pill {
   cond: boolean;
   lane: number;
   w: number;
+  /** Left edge in pixels inside the track. */
+  x: number;
 }
 
-@customElement('schedules-week-view')
 export class SchedulesWeekView extends LitElement {
   @property({ attribute: false }) schedules: Schedule[] = [];
   @property({ attribute: false }) sun: SunTimes | null = null;
@@ -202,7 +203,7 @@ export class SchedulesWeekView extends LitElement {
   /** The pills of one day, laid out in lanes so that no two overlap in pixels. */
   private pillsOf(day: DayId): Pill[] {
     const sun = this.sun ?? SUN_FALLBACK;
-    const raw: Omit<Pill, 'lane' | 'w'>[] = [];
+    const raw: Omit<Pill, 'lane' | 'w' | 'x'>[] = [];
     for (const s of this.schedules) {
       if (!s.enabled) continue;
       const days = s.days.days;
@@ -219,15 +220,16 @@ export class SchedulesWeekView extends LitElement {
     const W = Math.max(this.width, 300);
     const laneEnd: number[] = [];
     return raw.map((p) => {
-      const w = Math.min(230, 54 + p.text.length * 6.2);
-      const x = (p.at / 1440) * W;
+      const w = Math.min(240, 62 + p.text.length * 6.6);
+      // a pill near the end of the day is pulled inside the track BEFORE it is placed in a lane, so the lanes hold true
+      const x = Math.max(0, Math.min((p.at / 1440) * W, W - w - 2));
       let lane = laneEnd.findIndex((end) => end + 4 <= x);
       if (lane < 0) {
         lane = laneEnd.length;
         laneEnd.push(0);
       }
       laneEnd[lane] = x + w;
-      return { ...p, lane, w };
+      return { ...p, lane, w, x };
     });
   }
 
@@ -240,7 +242,6 @@ export class SchedulesWeekView extends LitElement {
     const now = new Date();
     const nowMin = now.getHours() * 60 + now.getMinutes();
     const today = DAY_ORDER[now.getDay()];
-    const W = Math.max(this.width, 300);
     return html`<div data-week-view>
       <div class="head" aria-hidden="true">${Array.from({ length: 9 }, (_, i) => i * 3).map((h) => html`<span class="hour" style="left:${minutesToPercent(h * 60)}%">${String(h).padStart(2, '0')}</span>`)}</div>
       <div class="rows">
@@ -256,8 +257,7 @@ export class SchedulesWeekView extends LitElement {
               <div class="sunl" style="left:${minutesToPercent(sun.sunset)}%"></div>
               ${d === today ? html`<div class="nowl" style="left:${minutesToPercent(nowMin)}%"></div>` : nothing}
               ${pills.map((p) => {
-                const left = Math.min((p.at / 1440) * W, W - p.w - 2);
-                return html`<button type="button" class="pill c-${p.cat} ${p.cond ? 'cond' : ''}" style="left:${Math.max(0, left)}px;top:${4 + p.lane * 21}px;max-inline-size:${p.w}px" title=${p.title} data-week-pill=${p.id} @click=${() => this.openSchedule(p.id)}><b>${clock(p.at)}</b><span>${p.text}</span></button>`;
+                return html`<button type="button" class="pill c-${p.cat} ${p.cond ? 'cond' : ''}" style="left:${p.x}px;top:${4 + p.lane * 21}px;max-inline-size:${p.w}px" title=${p.title} data-week-pill=${p.id} @click=${() => this.openSchedule(p.id)}><b>${clock(p.at)}</b><span>${p.text}</span></button>`;
               })}
             </div>
             <div class="lbl">${DAY_LONG[d]}</div>
@@ -268,6 +268,9 @@ export class SchedulesWeekView extends LitElement {
     </div>`;
   }
 }
+
+// Registered once and only if the tag is free (S3's list spec stands its own double in first; the product never does).
+if (!customElements.get('schedules-week-view')) customElements.define('schedules-week-view', SchedulesWeekView);
 
 declare global {
   interface HTMLElementTagNameMap {

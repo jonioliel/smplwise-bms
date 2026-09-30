@@ -1090,7 +1090,10 @@ export class ScheduleEditor extends LitElement {
     this.reveal();
   }
 
+  /** On a phone the panel sits far below the timeline: bring it into view. On a wide screen it is already next to the board
+   * and the page must not move under a pointer that is still working on the grid. */
   private reveal() {
+    if (!this.phone) return;
     void this.updateComplete.then(() => this.renderRoot.querySelector('[data-panel-card]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
   }
 
@@ -1687,7 +1690,7 @@ export class ScheduleEditor extends LitElement {
         .errors=${errs}
         .paired=${paired}
         .canPair=${!!makeOffSlot(plain[i])}
-        .canCopyDays=${!this.creating && !!resolveDays(this.draft.weekdays) && (this.override ? true : true)}
+        .canCopyDays=${!!resolveDays(this.draft.weekdays)}
         @slot-change=${(e: CustomEvent<{ slot: EditSlot }>) => this.onSlotChange(e.detail.slot)}
         @slot-delete=${() => this.removeAt(i)}
         @slot-duplicate=${() => this.onDuplicate(slot.uid)}

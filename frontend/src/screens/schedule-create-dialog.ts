@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { property, state } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-icon';
 import type { IconName } from '../components/sw-icon';
@@ -23,7 +23,6 @@ export const NEW_DRAFT_KEY = 'sw.schedules.newdraft';
 
 const TPL_ICON: Record<ScheduleTemplate['icon'], IconName> = { calendar: 'calendar', clock: 'clock', light: 'light', coverOpen: 'coverOpen', activity: 'activity', plus: 'plus', history: 'history' };
 
-@customElement('schedule-create-dialog')
 export class ScheduleCreateDialog extends LitElement {
   @property({ type: Boolean, reflect: true }) open = false;
   @state() private tab: 'tpl' | 'quick' = 'tpl';
@@ -439,6 +438,9 @@ export class ScheduleCreateDialog extends LitElement {
     </div>`;
   }
 }
+
+// Registered once and only if the tag is free (S3's list spec stands its own double in first; the product never does).
+if (!customElements.get('schedule-create-dialog')) customElements.define('schedule-create-dialog', ScheduleCreateDialog);
 
 declare global {
   interface HTMLElementTagNameMap {

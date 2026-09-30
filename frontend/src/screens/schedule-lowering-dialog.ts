@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { property, state } from 'lit/decorators.js';
 import '../components/sw-dialog';
 import '../components/sw-button';
 import '../components/sw-icon';
@@ -29,7 +29,6 @@ export interface LoweringDialogSummary {
 }
 export type { LoweringSummary };
 
-@customElement('schedule-lowering-dialog')
 export class ScheduleLoweringDialog extends LitElement {
   @property({ type: Boolean, reflect: true }) open = false;
   @property({ attribute: false }) summary: LoweringDialogSummary = { entities: [], kinds: [], times: '', sensitive: true, lowering: true };
@@ -158,6 +157,9 @@ export class ScheduleLoweringDialog extends LitElement {
     </sw-dialog>`;
   }
 }
+
+// Registered once and only if the tag is free (S3's list spec stands its own double in first; the product never does).
+if (!customElements.get('schedule-lowering-dialog')) customElements.define('schedule-lowering-dialog', ScheduleLoweringDialog);
 
 declare global {
   interface HTMLElementTagNameMap {

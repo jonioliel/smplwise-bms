@@ -268,7 +268,7 @@ export class ScheduleTableView extends LitElement {
       } else if (sp.name === 'temperature') {
         parts.push(html`<input class="num" type="number" step="0.5" min=${sp.min ?? nothing} max=${sp.max ?? nothing} ?disabled=${ro} aria-label="טמפרטורה" .value=${v === undefined ? '' : String(v)} @change=${(e: Event) => this.setArg(slot, 'temperature', (e.target as HTMLInputElement).value === '' ? undefined : Number((e.target as HTMLInputElement).value))} /><span class="unit">°</span>`);
       } else if (sp.name === 'brightness' || sp.name === 'brightness_pct') {
-        if (sp.name === 'brightness_pct' && d.brightness !== undefined) continue;
+        if (sp.name === 'brightness_pct' && d.brightness_pct === undefined) continue; // the server lists both; the card writes "brightness"
         if (sp.name === 'brightness' && d.brightness_pct !== undefined) continue;
         const raw = sp.name === 'brightness';
         const pct = typeof v === 'number' ? (raw ? Math.round((v / 255) * 100) : v) : '';
