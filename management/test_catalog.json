@@ -5657,5 +5657,135 @@
     "evidence": [],
     "executed_at": null,
     "notes": "Planned in CR-009 (2026-09-29)."
+  },
+  {
+    "id": "AT208",
+    "requirement_ids": [
+      "R208"
+    ],
+    "task_ids": [
+      "T100"
+    ],
+    "title": "אוטומציות - מראה, תצוגה והרשאות",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fake HA config API (tests/fake_ha_config.py, seed_probe_like) and fake bridge; no real HA or device"
+    ],
+    "procedure": [
+      "Backend tests/test_automations_mirror.py, test_automations_scope.py (visibility before filters/counts; locked out-of-scope triggers; yaml/no-id/integration read-only), test_automations_api.py (status, list, detail, catalog), test_access.py, test_migrations.py against tests/fake_ha_config.py seed_probe_like().",
+      "Frontend evidence-automations-list.spec.ts in demo mode at 1440/820/390 (loading, empty, error, ready, view-only, yaml, invalid, running), RTL."
+    ],
+    "expected": "Automations/scripts/scenes read model (CR-017 §4.1, §4.6, §6.1, §7, §8.1, §12): mirror of the config files by (kind, config id) read through the config API by id (REST GET, WS automation/config fallback), revision = sha256/16 of canonical JSON, source ui/yaml/integration/dynamic, YAML-managed, no-id and integration items read-only with reasons, availability detected by probing the config API (never the components list); list and detail filtered per viewer (visible iff every action target is visible; trigger/condition entities outside scope shown locked), Hebrew one-line sentence per item, floor/area chips, last run and run count from traces; permissions automation.view/manage, scene.manage, script.run/manage, automation.sensitive, automation.advanced in roles.json with floor scope through placements; refresh from automation_reloaded / scene_reloaded / automation_triggered / script_started / registry / state events + 10-minute pull; migration 0045_automations.sql.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-017 (2026-10-01)."
+  },
+  {
+    "id": "AT209",
+    "requirement_ids": [
+      "R209"
+    ],
+    "task_ids": [
+      "T100"
+    ],
+    "title": "אוטומציות - כתיבה בטוחה דרך רכיב החיבור",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fake HA config API (tests/fake_ha_config.py, seed_probe_like) and fake bridge; no real HA or device"
+    ],
+    "procedure": [
+      "Backend test_automations_api.py (create/replace/advanced/delete/copy/restore, every error code, 409, idempotency), test_automations_trash_versions.py; bridge test_bridge_config_policy.py, test_bridge_config_store.py (temp dir: list/dict, key order, backups, atomic, CAS, reload wait), delegation on/off with admin and non-admin users.",
+      "Phase 0 on the lab only with the owner's approval: W-1/W-2 write checks with throwaway items (scripts/automations_probe.py --write-check)."
+    ],
+    "expected": "Writes (CR-017 §8.2-§8.3, §10; AUTOMATIONS_API §3.2, §4): create / replace / advanced / delete / copy / restore only through bridge 0.6.0 smplwise_bridge.config_item (signed; independent config_policy; CAS on base_revision under the bridge's write lock; HA's own async_validate_config_item; 10-deep file backup ring; atomic write in HA's format and key order; reload of the one item and wait for the entity -> loaded); new schema only (triggers/conditions/actions, trigger:, action:), legacy read; delegation switch in the bridge options flow (default off: upsert/delete need an HA-admin HA user; on: builder profile only), advanced profile always HA admin; 409 item_changed with the current item; 30-day trash with restore under the same id; last 20 versions with restore; idempotent client_request_id; audit without config values; never a blind retry.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-017 (2026-10-01)."
+  },
+  {
+    "id": "AT210",
+    "requirement_ids": [
+      "R210"
+    ],
+    "task_ids": [
+      "T100"
+    ],
+    "title": "אוטומציות - בונה, בלוקים ותבניות",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fake HA config API (tests/fake_ha_config.py, seed_probe_like) and fake bridge; no real HA or device"
+    ],
+    "procedure": [
+      "Backend test_automation_model.py (write(read(c)) == c on every seed item, legacy read, new-schema write), test_automation_text.py (Hebrew sentence golden files), test_automation_policy.py (use_schedule boundary, locked-block fingerprints).",
+      "Frontend unit-automation-builder.spec.ts and evidence-automation-builder.spec.ts (typed and locked blocks, templates, handoff to schedules, conflict banner, advanced editor) at 1440/820/390."
+    ],
+    "expected": "Builder (CR-017 §4.2, §4.4-§4.5, §5, §6.2): כאשר / אם / אז block lists with typed blocks (state, numeric_state, time, time_pattern, sun, HA start triggers with ids; state, numeric_state, time, sun, trigger, and/or/not, Shabbat-preset conditions; device-control services from the allow-list, scene, script with fields, notify to approved targets, delay, choose, if/then/else, repeat count, condition step, stop) and locked blocks (templates, device triggers/actions, purpose-specific triggers, custom or unknown services, wait/parallel/variables, disabled steps, secret-like values) re-sent byte-identical, movable and deletable, editable only with automation.advanced (inline template text, full YAML editor); write(read(c)) == c for every unedited item; live Hebrew sentence from /automations/preview; templates gallery; run now (skip_condition), dry-run without execution, enable/disable; boundary with CR-014: time/sun-only device automations are created as schedules (use_schedule handoff) while the scheduler component is present.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-017 (2026-10-01)."
+  },
+  {
+    "id": "AT211",
+    "requirement_ids": [
+      "R211"
+    ],
+    "task_ids": [
+      "T100"
+    ],
+    "title": "סצנות וסקריפטים",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fake HA config API (tests/fake_ha_config.py, seed_probe_like) and fake bridge; no real HA or device"
+    ],
+    "procedure": [
+      "Backend tests for scene capture (per-domain attributes), scene apply scope and rate, script run with fields and effect scope, integration scenes activate-only.",
+      "Frontend evidence for the scenes panel, capture table and scripts runner; live spec against automations_fake_ha.py."
+    ],
+    "expected": "Scenes and scripts (CR-017 §4.3-§4.4): integration scenes activate-only (grouped by area, favourites, hide), HA-native scenes created by 'צלם מצב נוכחי' of chosen devices with per-domain attribute allow-lists and an editable table, edit and delete of HA-native scenes only; scene activation needs control of every member (or of the scene entity for integration scenes), 1 per scene per 3 s; script runner with a fields form (number, boolean, select, text, scoped entity), running state and stop, run = script.turn_on with variables, script.run + control of every effect entity (unknown effects -> installation-wide + confirm); script editor with fields and the shared action blocks; never lock unlock, alarm disarm or door open inside a scene.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-017 (2026-10-01)."
+  },
+  {
+    "id": "AT212",
+    "requirement_ids": [
+      "R212"
+    ],
+    "task_ids": [
+      "T100"
+    ],
+    "title": "אוטומציות - בטיחות, הרצות ו'למה זה רץ'",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fake HA config API (tests/fake_ha_config.py, seed_probe_like) and fake bridge; no real HA or device"
+    ],
+    "procedure": [
+      "Backend test_automation_policy.py (allow-list, sensitive classes, secret masking at any depth, code refusal, self-trigger and cycle warnings), test_automations_runs.py (trace summaries without variables, storm guard), test_bridge_config_drift.py (bridge allow-list == add-on policy, subset of ALLOWED_SERVICES).",
+      "Live spec: run now, dry-run and 'למה זה רץ' on the fake; no HA names on operator screens."
+    ],
+    "expected": "Safety and runs (CR-017 §4.2.6, §9): builder service allow-list shared with the bridge (drift test) and never homeassistant.*, shell_command.*, rest_command.*, hassio.*, reload services or the bridge's own services; sensitive classes (alarm, lock, door/gate/garage covers, siren, automation control, notify to all) flagged and gated by automation.sensitive with confirmation; secret-like values masked in every answer, log and audit row and alarm codes never stored; static self-trigger and cycle warnings, runtime storm guard (> 20 runs/min per item or > 200/min total -> admin alert, auto-disable off by default); rate limits (writes 30/min/user, run 1 per item per 10 s); preview of affected devices by floor; 'למה זה רץ' run summaries from trace/get without variables or user ids; administrator review list (sensitive external, storm, invalid, missing entities, owner lost rights); clean operator screens without HA/YAML names.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-017 (2026-10-01)."
   }
 ]
