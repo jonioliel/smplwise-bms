@@ -240,3 +240,73 @@ def test_an_ordinary_room_still_deletes_as_before(settings):
     c = w["c"]
     assert c.delete(f"/api/v1/zones/{w['dup']}").status_code == 204
     assert not _zone_alive(w, w["dup"])
+
+
+# ---------------------------------------------------------------- Opus review of the branch
+
+
+def test_review_m1_removing_a_station_member_needs_access_read_before_any_lookup(settings, wiskey):
+    """A both-floors editor without access.read must not learn (404 vs 204) which station ids are members, nor remove one."""
+    w = _world(settings)
+    c = w["c"]
+    _share(w)
+    assert c.post(_members_url(w), json={"resource_type": "wiskey_station", "resource_id": "entry-a"}).status_code == 201
+    c.get("/api/v1/me", headers=as_user("both"))
+    _binding(settings, "both", "editor", "floor", w["f2"])
+    _binding(settings, "both", "editor", "floor", w["f3"])
+    url = _members_url(w)
+    member = c.delete(f"{url}/wiskey_station/entry-a", headers=as_user("both"))
+    stranger = c.delete(f"{url}/wiskey_station/not-a-member", headers=as_user("both"))
+    assert member.status_code == 403 and stranger.status_code == 403, "the same answer for a member and a non-member"
+    assert member.json()["details"]["permission"] == "access.read"
+    with w["app"].state.db.connection() as conn:
+        assert [m["resource_id"] for m in ss.member_rows(conn) if m["resource_type"] == "wiskey_station"] == ["entry-a"]
+    assert c.delete(f"{url}/wiskey_station/entry-a").status_code == 204  # the admin holds access.read
+
+
+def test_review_l2_the_409_names_the_home_floor_only_to_a_caller_who_may_read_it(settings):
+    w = _world(settings)
+    c = w["c"]
+    _share(w)
+    c.get("/api/v1/me", headers=as_user("only3"))
+    _binding(settings, "only3", "editor", "floor", w["f3"])
+    mine = c.delete(f"/api/v1/zones/{w['dup']}", headers=as_user("only3"))  # her own floor's outline of the room
+    assert mine.status_code == 409 and mine.json()["code"] == "zone_shared"
+    assert mine.json()["details"] == {"home_floor_name": ss.OTHER_FLOOR}, "no home floor id, no floors"
+    admin = c.delete(f"/api/v1/zones/{w['dup']}")
+    assert admin.status_code == 409 and admin.json()["details"]["home_floor_id"] == w["f2"] and "floors" not in admin.json()["details"]
+
+
+def test_review_l3_the_map_bundle_hides_the_names_of_floors_the_reader_may_not_read(settings):
+    w = _world(settings)
+    c = w["c"]
+    _share(w)
+    for u in ("only2", "only3"):
+        c.get("/api/v1/me", headers=as_user(u))
+    _binding(settings, "only3", "editor", "floor", w["f3"])
+    _binding(settings, "only2", "editor", "floor", w["f2"])
+    mirror = c.get(f"/api/v1/floors/{w['f3']}/map", headers=as_user("only3")).json()
+    marks = [z["shared"] for z in mirror["zones"] if z.get("shared")]
+    assert marks and all(m["home_floor_name"] == ss.OTHER_FLOOR for m in marks)
+    home = c.get(f"/api/v1/floors/{w['f2']}/map", headers=as_user("only2")).json()
+    hm = next(z["shared"] for z in home["zones"] if z.get("shared") and z["shared"]["role"] == "home")
+    assert hm["home_floor_name"] and hm["floors"] and all(f["name"] == ss.OTHER_FLOOR for f in hm["floors"]), "her own floor is named, the floors she may not read are not"
+    both = c.get(f"/api/v1/floors/{w['f2']}/map").json()  # the admin reads every floor
+    assert all(f["name"] != ss.OTHER_FLOOR for z in both["zones"] if z.get("shared") for f in z["shared"].get("floors", []))
+
+
+def test_review_l4_revocation_is_marked_again_after_the_commit(settings, monkeypatch):
+    w = _world(settings)
+    c = w["c"]
+    _share(w)
+    from smplwise.services import revocation
+
+    seen: list[bool] = []
+
+    def spy(users: Any) -> None:
+        with Database(settings.db_path).connection(mode="read") as other:  # a second connection sees committed state only
+            seen.append(other.execute("SELECT deleted_at FROM spatial_zones WHERE id = ?", (w["hall"],)).fetchone()[0] is not None)
+
+    monkeypatch.setattr(revocation, "mark", spy)
+    assert c.delete(f"/api/v1/zones/{w['hall']}?with_unshare=true").status_code == 204
+    assert seen[0] is False and seen[-1] is True, "once before the commit, and again when the new state is visible to a second reader"

@@ -7,14 +7,14 @@ import json
 import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from pydantic import BaseModel, Field, field_validator
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
-from ..rbac import INSTALLATION, Principal, require
+from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import plan_geometry as pg
 from ..services import plan_zones
 from ..services import shared_spaces
@@ -271,6 +271,16 @@ def _all_users(conn: sqlite3.Connection) -> list[str]:
     return [r[0] for r in conn.execute("SELECT id FROM users").fetchall()]
 
 
+def _revoke(background: BackgroundTasks, users: list[str]) -> None:
+    """Reach narrows now (streams and push sockets are re-checked) AND once more after the request's transaction is committed
+    (main.CommitBeforeSend commits when the response starts; a background task runs after it): a stream that recomputes on the
+    first generation change could otherwise read the still-committed OLD state and keep the old reach up to a minute."""
+    from ..services import revocation
+
+    revocation.mark(users)
+    background.add_task(revocation.mark, users)
+
+
 @router.post("/zones/{zone_id}/share/preview")
 def share_preview(zone_id: str, body: ShareIn, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """"הפוך לחלל משותף" - what sharing this room with the other floor would do, written nowhere: the placement and its
@@ -309,20 +319,19 @@ def share_zone(zone_id: str, body: ShareIn, request: Request, principal: Princip
 
 
 @router.delete("/zones/{zone_id}/share/{floor_id}", status_code=204)
-def unshare_zone(zone_id: str, floor_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> None:
+def unshare_zone(zone_id: str, floor_id: str, request: Request, background: BackgroundTasks, principal: Principal = Depends(current_principal),
+                 conn: sqlite3.Connection = Depends(get_conn)) -> None:
     """"בטל שיתוף": the other floor stops showing the room, and its readers stop reaching the room's members at once - the
     next request, and the open streams and push sockets now (revocation.mark, review M5). It drops the room's members
     with its last share, so it takes the share rights (map.edit + placement.edit) on BOTH floors of the pair (review
     L4, like removing a member); a deny on either floor refuses."""
     z = _get_zone(conn, zone_id)
-    from ..services import revocation
-
     _share_rights(conn, principal, (z["floor_id"], floor_id), apply=True)
     if not shared_spaces.unshare(conn, zone_id, floor_id, principal.user_id, now_iso()):
         raise not_found("החדר לא משותף עם הקומה הזו.")
     audit(conn, actor=principal, action="zone.unshare", decision="allowed", resource_type="zone", resource_id=zone_id, request_id=_rid(request),
           details={"home_floor_id": z["floor_id"], "floor_id": floor_id})
-    revocation.mark(_all_users(conn))
+    _revoke(background, _all_users(conn))
 
 
 class MemberIn(BaseModel):
@@ -456,21 +465,23 @@ def add_member(zone_id: str, body: MemberIn, request: Request, principal: Princi
 
 
 @router.delete("/zones/{zone_id}/share/members/{resource_type}/{resource_id}", status_code=204)
-def remove_member(zone_id: str, resource_type: str, resource_id: str, request: Request, principal: Principal = Depends(current_principal),
+def remove_member(zone_id: str, resource_type: str, resource_id: str, request: Request, background: BackgroundTasks, principal: Principal = Depends(current_principal),
                   conn: sqlite3.Connection = Depends(get_conn)) -> None:
     """"הסר מהחלל המשותף": narrows reach at once (revocation.mark). Owner 2026-09-30: the same rights as adding - the
     share rights on every floor of the room (map.edit + placement.edit), from the members list or the anchor alike."""
     z = _get_zone(conn, zone_id)
     group = shared_spaces.group_of_zone(conn, zone_id)
-    from ..services import revocation
-
     floors = group.floors if group is not None else (z["floor_id"],)
     _share_rights(conn, principal, floors, apply=True)
+    if resource_type == shared_spaces.STATION:
+        # CR-009 §13 (Opus review): a station member is not the caller's to probe or remove without seeing it - the audited
+        # 403 comes BEFORE the lookup, so 404 vs 204 cannot be used to test station ids
+        require(conn, principal, "access.read", INSTALLATION)
     if not shared_spaces.remove_member(conn, zone_id, resource_type, resource_id, principal.user_id, now_iso()):
         raise not_found("הפריט אינו חלק מהחלל המשותף.")
     audit(conn, actor=principal, action="zone.share.member_remove", decision="allowed", resource_type="zone", resource_id=zone_id, request_id=_rid(request),
           details={"resource": f"{resource_type}:{resource_id}"})
-    revocation.mark(_all_users(conn))
+    _revoke(background, _all_users(conn))
 
 @router.patch("/zones/{zone_id}/share/{floor_id}")
 def share_placement(zone_id: str, floor_id: str, body: PlacementIn, request: Request, principal: Principal = Depends(current_principal),
@@ -495,7 +506,8 @@ def share_placement(zone_id: str, floor_id: str, body: PlacementIn, request: Req
 
 
 @router.delete("/zones/{zone_id}", status_code=204)
-def delete_zone(zone_id: str, request: Request, with_unshare: bool = False, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> None:
+def delete_zone(zone_id: str, request: Request, background: BackgroundTasks, with_unshare: bool = False, principal: Principal = Depends(current_principal),
+                conn: sqlite3.Connection = Depends(get_conn)) -> None:
     """Delete a room. A shared room (CR-009 §14) answers 409 `zone_shared` (with the home floor named in `details`) unless
     `?with_unshare=true` on the room's HOME floor: then ONE request ends every share of the room and its members and deletes
     the room - all or nothing. It needs the share rights (map.edit + placement.edit) on EVERY floor of the room, checked
@@ -508,12 +520,14 @@ def delete_zone(zone_id: str, request: Request, with_unshare: bool = False, prin
         conn.execute("UPDATE spatial_zones SET deleted_at = ? WHERE id = ?", (now_iso(), zone_id))
         audit(conn, actor=principal, action="zone.delete", decision="allowed", resource_type="zone", resource_id=zone_id, request_id=_rid(request), details={"name": z["name"]})
         return
+    # the refusal names the home floor only to a caller who may read it (review L1): otherwise "קומה אחרת" and no ids
     home = conn.execute("SELECT id, name FROM floors WHERE id = ?", (group.home_floor_id,)).fetchone()
-    details = {"home_zone_id": group.zone_id, "home_floor_id": group.home_floor_id, "home_floor_name": home["name"] if home else "", "floors": list(group.floors)}
+    if home is not None and authorize(conn, principal, "map.read", ("floor", group.home_floor_id)).allowed:
+        details = {"home_zone_id": group.zone_id, "home_floor_id": group.home_floor_id, "home_floor_name": home["name"]}
+    else:
+        details = {"home_floor_name": shared_spaces.OTHER_FLOOR}
     if not with_unshare or group.zone_id != zone_id:  # review M4: never a silently ignored share; another floor's outline is deleted from the home floor
         raise conflict("zone_shared", "החדר משותף לכמה קומות; מחק אותו בקומה שבה נוצר, או בטל את השיתוף.", **details)
-    from ..services import revocation
-
     _share_rights(conn, principal, group.floors, apply=True)  # every floor, before the first write
     now = now_iso()
     rid = _rid(request)
@@ -523,7 +537,7 @@ def delete_zone(zone_id: str, request: Request, with_unshare: bool = False, prin
                   details={"home_floor_id": group.home_floor_id, "floor_id": s.floor_id, "reason": "zone_deleted"})
     conn.execute("UPDATE spatial_zones SET deleted_at = ? WHERE id = ?", (now, zone_id))
     audit(conn, actor=principal, action="zone.delete", decision="allowed", resource_type="zone", resource_id=zone_id, request_id=rid, details={"name": z["name"], "unshared_floors": [s.floor_id for s in group.shares]})
-    revocation.mark(_all_users(conn))
+    _revoke(background, _all_users(conn))
 
 
 @router.post("/floors/{floor_id}/zones/detect")

@@ -1443,7 +1443,7 @@ def transfer(conn: sqlite3.Connection, g: Group, from_floor: str, to_floor: str)
 
 
 def bundle_parts(conn: sqlite3.Connection, floor_id: str, version: sqlite3.Row | None, at: str | None = None, *,
-                 can_attach: Callable[[str], bool] | None = None) -> tuple[list[dict[str, Any]], list[tuple[sqlite3.Row, dict[str, Any]]]]:
+                 can_attach: Callable[[str], bool] | None = None, can_name: Callable[[str], bool] | None = None) -> tuple[list[dict[str, Any]], list[tuple[sqlite3.Row, dict[str, Any]]]]:
     """What the map bundle of a floor adds for the shared rooms it shows: the room's zone when the floor has no outline
     of its own (polygon in this plan's coordinates, `shared`), and the MEMBERS anchored on the room's other floors (row,
     overrides: position, rotation, coverage, level, `shared`). A reader explicitly denied on the floor an anchor is on
@@ -1470,7 +1470,7 @@ def bundle_parts(conn: sqlite3.Connection, floor_id: str, version: sqlite3.Row |
             z = conn.execute("SELECT * FROM spatial_zones WHERE id = ?", (g.zone_id,)).fetchone()
             zr = zone_row(z)
             zr.update({"polygon": [{"x": _r6(q[0]), "y": _r6(q[1])} for q in (pt(p["x"], p["y"]) for p in share.zone_polygon)], "level_id": ns(g.home_floor_id, z["level_id"] or "L0"),
-                       "shared": {"role": "mirror", "zone_id": g.zone_id, "home_floor_id": g.home_floor_id, "home_floor_name": hfloor["name"], "home_floor_level": hfloor["level"],
+                       "shared": {"role": "mirror", "zone_id": g.zone_id, "home_floor_id": g.home_floor_id, "home_floor_name": hfloor["name"] if can_name is None or can_name(g.home_floor_id) else OTHER_FLOOR, "home_floor_level": hfloor["level"],
                                   "label": surface_label(hfloor["level"])}})
             zones.append(zr)
         for m in member_rows(conn, g.zone_id, at):
@@ -1496,7 +1496,7 @@ def bundle_parts(conn: sqlite3.Connection, floor_id: str, version: sqlite3.Row |
                 anchors.append((a, {"position": {"x": _r6(x), "y": _r6(y)}, "rotation_degrees": round(ang(a["rotation_degrees"] or 0) % 360, 3),
                                     "coverage_polygon": cov, "coverage_radius": round(min(1.0, a["coverage_radius"] * k), 6) if a["coverage_radius"] else a["coverage_radius"],
                                     "level_id": ns(a["floor_id"], a["level_id"] or "L0"),
-                                    "shared": {"zone_id": g.zone_id, "home_floor_id": a["floor_id"], "home_floor_name": src["name"] if src else "", "label": surface_label(hfloor["level"])}}))
+                                    "shared": {"zone_id": g.zone_id, "home_floor_id": a["floor_id"], "home_floor_name": (src["name"] if can_name is None or can_name(a["floor_id"]) else OTHER_FLOOR) if src else "", "label": surface_label(hfloor["level"])}}))
     return zones, anchors
 
 def editor_placement(conn: sqlite3.Connection, share: Share) -> Placement:
@@ -1538,19 +1538,21 @@ def mirrored_circuits(conn: sqlite3.Connection, floor_id: str, mode: str, at: st
     return out
 
 
-def home_zone_marks(conn: sqlite3.Connection, floor_id: str) -> dict[str, dict[str, Any]]:
+def home_zone_marks(conn: sqlite3.Connection, floor_id: str, can_name: Callable[[str], bool] | None = None) -> dict[str, dict[str, Any]]:
     """zone id -> the `shared` mark of this floor's rooms that are part of a shared space: its own room on the home
     floor (role "home", the floors that show it), its own outline of the room on another floor (role "mirror") - the
-    chip "רצפה בקומה -1" on both maps."""
+    chip "רצפה בקומה -1" on both maps. `can_name(floor)`: whether the reader may read that floor's name - a floor they
+    may not read is "קומה אחרת" (review L1 pattern; the editor then offers no jump to it)."""
+    name_of = lambda f: f["name"] if can_name is None or can_name(f["id"]) else OTHER_FLOOR  # noqa: E731
     out: dict[str, dict[str, Any]] = {}
     for g in groups(conn).values():
         if floor_id not in g.floors:
             continue
         home = _floor(conn, g.home_floor_id)
-        base = {"zone_id": g.zone_id, "home_floor_id": g.home_floor_id, "home_floor_name": home["name"] if home else "", "home_floor_level": home["level"] if home else None,
+        base = {"zone_id": g.zone_id, "home_floor_id": g.home_floor_id, "home_floor_name": name_of(home) if home else "", "home_floor_level": home["level"] if home else None,
                 "label": surface_label(home["level"] if home else "")}
         if floor_id == g.home_floor_id:
-            out[g.zone_id] = {**base, "role": "home", "floors": [{"floor_id": s.floor_id, "name": f["name"], "level": f["level"]} for s in g.shares for f in [_floor(conn, s.floor_id)] if f]}
+            out[g.zone_id] = {**base, "role": "home", "floors": [{"floor_id": s.floor_id, "name": name_of(f), "level": f["level"]} for s in g.shares for f in [_floor(conn, s.floor_id)] if f]}
         else:
             s = g.share_to(floor_id)
             if s is not None and s.other_zone_id:

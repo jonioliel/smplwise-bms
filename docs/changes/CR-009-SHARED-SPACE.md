@@ -506,8 +506,9 @@ removed.
 **Who may add and remove.** The same share rights as a camera - `map.edit` + `placement.edit` on **every** floor of the
 room (`_share_rights`) - and, to add, also `access.read` at installation scope (the audited 403 names it) and a station
 that exists in WisKey's served copy (404 for an unknown id, 503 `intercom_unavailable` when WisKey has no honest copy).
-No anchor is needed (`not_placed` applies to cameras and entities only). Removing needs the share rights only (it
-narrows). `candidates` lists the stations of the served copy that are not members yet, for a manager who holds
+No anchor is needed (`not_placed` applies to cameras and entities only). Removing a station member needs the share rights AND `access.read` at installation scope, checked (audited 403)
+before the lookup, so a caller who cannot see stations can neither remove one nor tell a member from a non-member by 404
+vs 204 (Opus review); removing a camera or an entity still needs the share rights only (it narrows). `candidates` lists the stations of the served copy that are not members yet, for a manager who holds
 `access.read`.
 
 **Revocation and audit.** A station member ends with the last un-share (`unshare`), with the room's deletion (§14), with a
@@ -547,7 +548,12 @@ steps would have written: `zone.unshare` per floor (`reason: "zone_deleted"`), t
 `revocation.mark` so the other floors lose reach on the next request. Cameras, entities and their anchors are not touched
 (they are the room's members, not its content), nor is anything else in the plan documents; a floor's own outline of the
 room stays as an ordinary room on that floor. Without the flag a shared room still answers 409 `zone_shared`, now with
-`details.home_zone_id`, `home_floor_id`, `home_floor_name` and `floors`; a call for another floor's outline zone, with the
+`details.home_zone_id`, `home_floor_id` and `home_floor_name` - only for a caller who may read the home floor, otherwise
+`home_floor_name` is "קומה אחרת" and nothing else (no ids, no `floors`); the map bundle and the shared-room marks hide the names of
+floors the reader may not read the same way (`can_name`), so the editor offers no jump to an unreadable home floor and its
+confirmation prints "קומה אחרת" for such floors. Revocation is marked before the commit and once more after it (a background
+task runs after `CommitBeforeSend` commits), so a stream that recomputes on the first mark cannot keep the old reach; the
+same for un-share and member removal; a call for another floor's outline zone, with the
 flag, also answers 409 (it is deleted from the home floor).
 
 **Home floor UI.** "מחק אזור" on a shared room opens ONE confirmation - "החדר משותף עם <floors>. המחיקה תבטל את השיתוף,
