@@ -113,7 +113,10 @@ async function settle(page: Page) {
 }
 
 async function clickCols(page: Page, n: number) {
-  await page.locator(`live-wall [data-wall-cols-set="${n}"]`).click();
+  // the phone toolbar (mobile audit 2026-09-30): the columns are a compact select, not a row of buttons
+  const select = page.locator('live-wall [data-wall-cols-select]');
+  if (await select.count()) await select.selectOption(String(n));
+  else await page.locator(`live-wall [data-wall-cols-set="${n}"]`).click(); // a desktop keeps the row of buttons
   await settle(page);
 }
 
