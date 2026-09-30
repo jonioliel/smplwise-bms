@@ -94,6 +94,30 @@ schedule:
     sig:
       description: HMAC-SHA256 signature computed by the add-on with the pairing secret.
 
+stream_source:
+  name: Stream source (SMPLWISE add-on only)
+  description: >-
+    Read-only. Returns the stream source Home Assistant reports for ONE camera entity, so the SMPLWISE add-on can show
+    that camera as live video. Called by the add-on with a signed request, only for a camera the owner chose to show
+    live and only on behalf of a Home Assistant administrator. The address may carry the camera's credentials: it is
+    returned only to the add-on and never logged. Not meant to be called from automations.
+  fields:
+    user_id:
+      description: Home Assistant user id the request is made for (must be an active administrator).
+      example: "12d05a26b0214c9eac77ac26f6cd652c"
+    entity_id:
+      description: The camera entity.
+      example: camera.garden
+    request_id:
+      description: Add-on request id (for the audit trail).
+      example: "a1b2c3"
+    ts:
+      description: Unix timestamp of the signature.
+    nonce:
+      description: Random nonce.
+    sig:
+      description: HMAC-SHA256 signature computed by the add-on with the pairing secret.
+
 sync_directory:
   name: Sync user directory (SMPLWISE add-on only)
   description: Pushes the Home Assistant user directory (ids, names, active/admin flags, groups) to the SMPLWISE add-on now instead of waiting for the next minute.

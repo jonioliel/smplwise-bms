@@ -193,6 +193,37 @@ def call_bridge_schedule(settings: Settings, payload: dict[str, Any], timeout: f
     return (body.get("service_response") or body) if isinstance(body, dict) else {}
 
 
+STREAM_SOURCE_ANSWER_MAX = 8192  # bytes of the bridge's answer we are willing to read (a source is <= 2048 characters)
+
+
+def call_bridge_stream_source(settings: Settings, payload: dict[str, Any], timeout: float = 15.0) -> dict[str, Any]:
+    """POST /api/services/smplwise_bridge/stream_source?return_response (bridge >= 0.3.1): the stream source Home Assistant
+    reports for ONE camera entity - READ-ONLY. The answer's `stream_source` is a credential-bearing URL: it is returned
+    to the caller and to nobody else (never logged, never put in an error), and only the four keys of the bridge's
+    answer are kept. Errors carry a status or a class name, never the body (a refusal text could echo an address)."""
+    if not configured(settings):
+        raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
+    try:
+        with httpx.Client(timeout=timeout) as c:
+            r = c.post(_rest_base(settings) + "/services/smplwise_bridge/stream_source?return_response", headers=_headers(settings), content=json.dumps(payload))
+    except httpx.HTTPError as exc:
+        raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+    if r.status_code in (400, 404) and "not found" in r.text.lower():
+        raise ApiError(503, "bridge_too_old", "נדרש עדכון של רכיב החיבור כדי להציג מצלמה בזרם חי.", details={"status": r.status_code})
+    if r.status_code in (401, 403):
+        raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הקריאה.", details={"status": r.status_code})
+    if r.status_code >= 400:
+        raise ApiError(503, "bridge_error", "הגשר החזיר שגיאה.", retryable=False, details={"status": r.status_code})
+    if len(r.content) > STREAM_SOURCE_ANSWER_MAX:
+        raise ApiError(503, "bridge_error", "הגשר החזיר תשובה גדולה מדי.", details={"reason": "too_large"})
+    try:
+        body = r.json()
+    except ValueError:
+        return {}
+    answer = (body.get("service_response") or body) if isinstance(body, dict) else {}
+    return {k: answer[k] for k in ("ok", "request_id", "error", "stream_source") if isinstance(answer, dict) and k in answer}
+
+
 async def ws_session(
     settings: Settings,
     on_ready: Callable[[Callable[[str, dict[str, Any]], Any]], Any],

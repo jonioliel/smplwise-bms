@@ -36,3 +36,44 @@ test.describe('cameraCardDefinition (source)', () => {
     expect(Number(size?.[2])).toBeLessThanOrEqual(400); // MAX_SPAN_ROWS
   });
 });
+
+// A standalone Home Assistant camera shown live (owner 2026-09-30, docs/design/CAMERA_CARD_HA_SOURCE.md): the client and the
+// server agree on the state, the routes and the relay path, and the picture stays the fallback. Read as source, like the above.
+test.describe('a standalone camera shown live (source)', () => {
+  const read = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8');
+  const api = read('frontend/src/api/camera-card.ts');
+  const picker = read('frontend/src/screens/devices-camera-picker.ts');
+  const player = read('frontend/src/components/sw-live-player.ts');
+  const cards = read('smplwise_vms/backend/smplwise/services/camera_cards.py');
+  const routes = read('smplwise_vms/backend/smplwise/routers/device_cameras.py');
+  const media = read('smplwise_vms/backend/smplwise/routers/media.py');
+  const streams = read('smplwise_vms/backend/smplwise/services/ha_camera_streams.py');
+
+  test('the state, the toggle routes and the relay path match the backend', () => {
+    expect(cards).toMatch(/HA_LIVE = "ha_live"/);
+    expect(api).toMatch(/'ha_live'/);
+    expect(routes).toMatch(/@router\.put\("\/devices\/camera-card\/ha-live\/\{entity_id\}"\)/);
+    expect(routes).toMatch(/@router\.delete\("\/devices\/camera-card\/ha-live\/\{entity_id\}"\)/);
+    expect(api).toMatch(/`\$\{BASE\}\/ha-live\/\$\{encodeURIComponent\(entityId\)\}`/);
+    expect(api).toMatch(/method: 'PUT'/);
+    expect(api).toMatch(/method: 'DELETE'/);
+    expect(media).toMatch(/@router\.websocket\("\/media\/live-ha\/\{entity_id\}\/ws"\)/);
+    expect(streams).toMatch(/return f"media\/live-ha\/\{entity_id\}\/ws"/);
+  });
+
+  test('the card plays the server-named path through the same player, transport per settings, and falls back to the picture', () => {
+    expect(card).toMatch(/case 'ha_live':/);
+    expect(card).toMatch(/livePath=\$\{r\.live_path/);
+    expect(card).toMatch(/HA_LIVE_RETRY_MS/);
+    expect(card).toMatch(/haFailedAt/);
+    expect(player).toMatch(/@property\(\) livePath = ''/);
+    expect(player).toMatch(/relayWsUrl\(this\.livePath\)/);
+  });
+
+  test('the toggle is offered only to who may configure sources, per camera', () => {
+    expect(picker).toMatch(/d\.ha_live\?\.ready && !!d\.ha_live\.can_configure/);
+    expect(picker).toMatch(/data-camera-live-toggle/);
+    expect(picker).toMatch(/הצג בזרם חי/);
+    expect(routes).toMatch(/require\(conn, principal, "sources\.configure", INSTALLATION\)/);
+  });
+});

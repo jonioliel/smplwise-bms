@@ -4,7 +4,7 @@ import '../components/sw-icon';
 import '../components/sw-state-panel';
 import '../components/sw-badge';
 import { describeError } from '../api/client';
-import { cameraSources, sameSource, type CameraSource, type CameraSources } from '../api/camera-card';
+import { cameraSources, disableHaLive, enableHaLive, sameSource, type CameraSource, type CameraSources, type PickerHaCamera } from '../api/camera-card';
 import { bidi } from '../i18n/bidi';
 
 /** `camera-picked`: the user chose a camera. `detail.name` is the camera's own name (a title for the card, if it has none). */
@@ -23,6 +23,9 @@ const FILTER_FROM = 8;
  *   <devices-camera-picker .value=${source} @camera-picked=${(e) => use(e.detail.source, e.detail.name)}></devices-camera-picker>
  *
  * A Home Assistant camera that is one of the NVR's own channels is not listed twice: it is the channel's card.
+ *
+ * A camera that shows a picture only has a "הצג בזרם חי" button for someone who may configure sources (`sources.configure`;
+ * off by default, per camera): the server reads the camera's stream and starts it; "בטל שידור חי" turns it back into a picture.
  */
 @customElement('devices-camera-picker')
 export class DevicesCameraPicker extends LitElement {
@@ -31,6 +34,9 @@ export class DevicesCameraPicker extends LitElement {
   @state() private data: CameraSources | null = null;
   @state() private error = '';
   @state() private filter = '';
+  /** The entity whose live option is being switched (its button waits), and the last refusal in a few words. */
+  @state() private busy = '';
+  @state() private liveError = '';
 
   static styles = css`
     :host {
@@ -64,6 +70,43 @@ export class DevicesCameraPicker extends LitElement {
       gap: 4px;
       max-block-size: 320px;
       overflow: auto;
+    }
+    .row {
+      display: flex;
+      gap: 6px;
+      align-items: stretch;
+    }
+    .row button.opt {
+      flex: 1;
+      min-inline-size: 0;
+      inline-size: auto;
+    }
+    button.act {
+      flex: none;
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      padding: 0 10px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface);
+      color: var(--sw-text-2);
+      cursor: pointer;
+    }
+    button.act:hover:not(:disabled) {
+      background: var(--sw-surface-2);
+    }
+    button.act:disabled {
+      opacity: 0.6;
+      cursor: progress;
+    }
+    button.act:focus-visible {
+      outline: 2px solid var(--sw-accent);
+      outline-offset: 1px;
+    }
+    .err {
+      margin-block-start: 6px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-danger, #b42318);
     }
     button.opt {
       display: flex;
@@ -135,6 +178,23 @@ export class DevicesCameraPicker extends LitElement {
     }
   }
 
+  /** Show a standalone camera as live video, or stop (the server reads its source and writes / removes its stream; `sources.configure`).
+   * Reloads the list quietly; the cards of the screen resolve again on the `HA_LIVE_CHANGED` event the api module fires. */
+  private async toggleLive(h: PickerHaCamera) {
+    if (this.busy) return;
+    this.busy = h.entity_id;
+    this.liveError = '';
+    try {
+      if (h.live_enabled) await disableHaLive(h.entity_id);
+      else await enableHaLive(h.entity_id);
+      this.data = await cameraSources();
+    } catch (err) {
+      this.liveError = describeError(err);
+    } finally {
+      this.busy = '';
+    }
+  }
+
   private pick(source: CameraSource, name: string) {
     this.dispatchEvent(new CustomEvent<CameraPickedDetail>('camera-picked', { detail: { source, name }, bubbles: true, composed: true }));
   }
@@ -176,13 +236,23 @@ export class DevicesCameraPicker extends LitElement {
             <div role="listbox" aria-label="מצלמות נוספות">
               ${more.map((h) => {
                 const source: CameraSource = { kind: 'ha', entity_id: h.entity_id };
-                return html`<button type="button" class="opt" role="option" data-camera-option=${`ha:${h.entity_id}`} aria-selected=${String(sameSource(this.value, source))} @click=${() => this.pick(source, h.name)}>
-                  <sw-icon name="image" size=${14}></sw-icon>
-                  <span class="name">${bidi(h.name)}</span>
-                  <span class="meta">${h.area_name ? `${bidi(h.area_name)} · ` : ''}תמונה בלבד</span>
-                </button>`;
+                const canToggle = !!d.ha_live?.ready && !!d.ha_live.can_configure;
+                return html`<div class="row">
+                  <button type="button" class="opt" role="option" data-camera-option=${`ha:${h.entity_id}`} aria-selected=${String(sameSource(this.value, source))} @click=${() => this.pick(source, h.name)}>
+                    <sw-icon name=${h.live_enabled ? 'camera' : 'image'} size=${14}></sw-icon>
+                    <span class="name">${bidi(h.name)}</span>
+                    <span class="meta">${h.area_name ? `${bidi(h.area_name)} · ` : ''}${h.live_enabled ? (h.live_issue ? 'שידור חי · לא יתעדכן' : 'שידור חי') : 'תמונה בלבד'}</span>
+                  </button>
+                  ${canToggle && h.live_issue
+                    ? html`<button type="button" class="act" data-camera-live-refresh=${h.entity_id} ?disabled=${this.busy === h.entity_id} @click=${() => void this.toggleLive({ ...h, live_enabled: false })}>רענן</button>`
+                    : nothing}
+                  ${canToggle
+                    ? html`<button type="button" class="act" data-camera-live-toggle=${h.entity_id} ?disabled=${this.busy === h.entity_id} @click=${() => void this.toggleLive(h)}>${h.live_enabled ? 'בטל שידור חי' : 'הצג בזרם חי'}</button>`
+                    : nothing}
+                </div>`;
               })}
             </div>
+            ${this.liveError ? html`<div class="err" role="alert" data-camera-live-error>${this.liveError}</div>` : nothing}
           </div>`
         : nothing}
       ${!groups.length && !more.length ? html`<div class="none" data-camera-no-match>אין מצלמה שמתאימה לחיפוש.</div>` : nothing}

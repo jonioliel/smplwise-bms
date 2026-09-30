@@ -13,7 +13,10 @@ import { snapshotRefreshMs } from '../api/live-budget';
 import { playerPlan } from '../api/video-policy';
 import { navigate } from '../router';
 import { bidi } from '../i18n/bidi';
-import { CARD_QUALITY_LABEL, cardBudget, cardProfile, isCameraSource, liveCapOf, resolveCameraSource, sameSource, stillUrl, wallProfileOf, type CameraResolved, type CameraSource, type CardQuality } from '../api/camera-card';
+import { CARD_QUALITY_LABEL, HA_LIVE_CHANGED, cardBudget, cardProfile, isCameraSource, liveCapOf, resolveCameraSource, sameSource, stillUrl, wallProfileOf, type CameraResolved, type CameraSource, type CardQuality } from '../api/camera-card';
+
+/** A standalone camera shown live whose stream failed shows its picture for this long, then tries the stream again. */
+const HA_LIVE_RETRY_MS = 60_000;
 
 /** `camera-open`: the card was pressed (`detail.source`, `detail.cameraId` - absent for a picture-only card). Cancelable: the
  * default action opens the single-camera view (#/live/cameras/<id>). */
@@ -141,6 +144,8 @@ export class DevicesCameraCard extends LitElement {
   @state() private expanded = false;
   @state() private posterBust = Date.now();
   @state() private snapBust = Date.now();
+  /** When the stream of a standalone camera shown live last failed (0 = it has not): its picture stands in meanwhile. */
+  @state() private haFailedAt = 0;
 
   private budgetId = `cc-${++seq}`;
   private io: IntersectionObserver | undefined;
@@ -305,6 +310,7 @@ export class DevicesCameraCard extends LitElement {
     super.connectedCallback();
     cardBudget.register(this.budgetId, this.onSlot);
     document.addEventListener('visibilitychange', this.onVisibility);
+    window.addEventListener(HA_LIVE_CHANGED, this.onLiveChanged);
     this.snapTimer = window.setInterval(() => this.tick(), 1000);
     this.lastSnap = Date.now();
   }
@@ -312,6 +318,7 @@ export class DevicesCameraCard extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     document.removeEventListener('visibilitychange', this.onVisibility);
+    window.removeEventListener(HA_LIVE_CHANGED, this.onLiveChanged);
     window.clearInterval(this.snapTimer);
     this.io?.disconnect();
     this.io = undefined;
@@ -333,6 +340,12 @@ export class DevicesCameraCard extends LitElement {
   };
 
   private onVisibility = () => this.report();
+
+  /** A standalone camera was switched to / from live video (the picker): a card that shows such a camera resolves again. */
+  private onLiveChanged = (e: Event) => {
+    const d = (e as CustomEvent<{ entityId?: string }>).detail;
+    if (this.source?.kind === 'ha' && (!d?.entityId || d.entityId === this.source.entity_id)) void this.resolve();
+  };
 
   /** The nearest scrolling ancestor (through shadow roots): the observer's margin only widens a scroller that IS the root. */
   private scrollRoot(): Element | null {
@@ -373,6 +386,7 @@ export class DevicesCameraCard extends LitElement {
   /** The card's source is a live NVR channel that is online (what `renderLive` streams). */
   private get canStream(): boolean {
     const r = this.resolved;
+    if (r?.state === 'ha_live') return !!r.live_path && r.status !== 'offline' && !this.haFailedAt;
     return !!r && r.state === 'live' && !!r.camera_id && r.status !== 'offline' && r.status !== 'unknown';
   }
 
@@ -381,11 +395,15 @@ export class DevicesCameraCard extends LitElement {
   /** The picture-only cards (and the snapshots of the cards without a stream) refresh every max(10 s, snapshots.max_age_s),
    * only while in view and the tab is visible - the wall's rule (api/live-budget.ts). */
   private tick() {
+    if (this.haFailedAt && Date.now() - this.haFailedAt >= HA_LIVE_RETRY_MS) {
+      this.haFailedAt = 0; // the stream is tried again (the server re-reads the camera's source when it saw the last one fail)
+      this.report();
+    }
     const every = snapshotRefreshMs(Number(this.settings?.['snapshots.max_age_s'] ?? 60));
     if (Date.now() - this.lastSnap < every) return;
     this.lastSnap = Date.now();
     if (document.hidden || !this.inView) return;
-    if (this.resolved?.state === 'still_only' || (this.resolved?.state === 'live' && !this.streaming)) this.snapBust = Date.now();
+    if (this.resolved?.state === 'still_only' || ((this.resolved?.state === 'live' || this.resolved?.state === 'ha_live') && !this.streaming)) this.snapBust = Date.now();
   }
 
   // ------------------------------------------------------------------------------------------ resolve
@@ -394,6 +412,7 @@ export class DevicesCameraCard extends LitElement {
     const source = this.source;
     const token = ++this.token;
     this.resolved = null;
+    this.haFailedAt = 0;
     this.report();
     this.error = '';
     if (!source || !isCameraSource(source)) {
@@ -455,6 +474,13 @@ export class DevicesCameraCard extends LitElement {
     if (d?.code === 'remote_live_cap') cardBudget.refuse(this.budgetId);
     // what really plays (profile:transport) after the player's own fallbacks - for the page's checks, nothing on the card
     this.played = d?.status === 'playing' && d.profile && d.transport ? `${d.profile}:${d.transport}` : '';
+    if (d?.code === 'remote_live_cap') return;
+    if (this.resolved?.state === 'ha_live') {
+      if (d?.status === 'error' && !this.haFailedAt) {
+        this.haFailedAt = Date.now(); // the picture stands in; the stream is tried again after HA_LIVE_RETRY_MS
+        this.report();
+      } else if (d?.status === 'playing') this.haFailedAt = 0;
+    }
   }
 
   // ------------------------------------------------------------------------------------------ render
@@ -466,6 +492,7 @@ export class DevicesCameraCard extends LitElement {
   /** A stream is actually wanted for this card: live, online, and it holds a slot of the budget. */
   private get streaming(): boolean {
     const r = this.resolved;
+    if (r?.state === 'ha_live') return this.canStream && this.granted && !this.expanded;
     return !!r && r.state === 'live' && r.status !== 'offline' && r.status !== 'unknown' && !!r.camera_id && this.granted && !this.expanded;
   }
 
@@ -500,6 +527,8 @@ export class DevicesCameraCard extends LitElement {
         return this.message('disabled', 'offline', 'המצלמה מושבתת');
       case 'still_only':
         return this.renderStill(r);
+      case 'ha_live':
+        return this.renderHaLive(r);
       default:
         return this.renderLive(r);
     }
@@ -517,6 +546,32 @@ export class DevicesCameraCard extends LitElement {
           ${name ? html`<span class="label">${bidi(name)}</span>` : nothing}
           <button type="button" class="hit" data-camera-hit aria-label=${`תמונה של ${name || 'המצלמה'}`} @click=${() => this.open()}></button>
           <button type="button" class="expand" data-camera-expand aria-label="הגדל" @click=${(e: Event) => this.expand(e)}><sw-icon name="expand" size=${14}></sw-icon></button>`}
+    </div>`;
+  }
+
+  /** A standalone Home Assistant camera the owner chose to show live: the same tile and player as an NVR channel, on the relay
+   * path the server named (`live_path`). Not streaming (no slot in the budget, out of view, or the stream failed): its picture,
+   * refreshed like a picture-only card. There is no camera page to open: the press only raises `camera-open`. */
+  private renderHaLive(r: CameraResolved) {
+    const entity = r.entity_id ?? '';
+    if (r.status === 'offline') return this.message('offline', 'offline', 'המצלמה מנותקת');
+    const live = this.streaming;
+    const transport = effectiveTransport(this.settings);
+    return html`<div data-camera-state=${live ? 'live' : 'snapshot'} data-camera-source="ha-live" data-camera-entity=${entity} style="display:contents">
+      <sw-camera-tile
+        name=${bidi(this.displayName)}
+        state="live"
+        ?live=${live}
+        ?snapshotOnly=${!live}
+        livePath=${r.live_path ?? ''}
+        transport=${transport}
+        fit="cover"
+        ?compact=${this.size === 's'}
+        poster=${stillUrl(entity, live ? this.posterBust : this.snapBust)}
+        @player-status=${(e: Event) => this.onPlayerStatus(e)}
+      ></sw-camera-tile>
+      <button type="button" class="hit" data-camera-hit aria-label=${`פתח את ${this.displayName || 'המצלמה'}`} @click=${() => this.open()}></button>
+      <button type="button" class="expand" data-camera-expand aria-label="הגדל" @click=${(e: Event) => this.expand(e)}><sw-icon name="expand" size=${14}></sw-icon></button>
     </div>`;
   }
 
@@ -582,7 +637,9 @@ export class DevicesCameraCard extends LitElement {
             <div class="view">
               ${r.state === 'live' && r.camera_id
                 ? html`<sw-live-player .cameraId=${r.camera_id} .profile=${'main'} .mode=${effectiveTransport(this.settings)} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop} .poster=${snapshotUrl(r.camera_id, this.snapBust)}></sw-live-player>`
-                : html`<img src=${apiUrl(`devices/camera-card/still?entity_id=${encodeURIComponent(r.entity_id ?? '')}&t=${this.snapBust}`)} alt=${name} />`}
+                : r.state === 'ha_live' && r.live_path && !this.haFailedAt
+                  ? html`<sw-live-player .livePath=${r.live_path} .mode=${effectiveTransport(this.settings)} .poster=${stillUrl(r.entity_id ?? '', this.snapBust)}></sw-live-player>`
+                  : html`<img src=${apiUrl(`devices/camera-card/still?entity_id=${encodeURIComponent(r.entity_id ?? '')}&t=${this.snapBust}`)} alt=${name} />`}
             </div>
           </div>
         </div>`,

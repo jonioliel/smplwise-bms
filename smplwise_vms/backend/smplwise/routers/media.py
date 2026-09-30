@@ -14,7 +14,7 @@ import sqlite3
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from fastapi import APIRouter, Depends, Query, Request, WebSocket
 from starlette.concurrency import run_in_threadpool
@@ -25,8 +25,10 @@ from ..config import Settings
 from ..db import Database, retry_locked, unlocked
 from ..errors import ApiError
 from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
-from ..rbac import INSTALLATION, Decision, Principal, require
+from ..rbac import INSTALLATION, Decision, Principal, authorize, require
 from ..services import autosync
+from ..services import camera_cards as cc
+from ..services import ha_camera_streams as hls
 from ..services import go2rtc as g2
 from ..services.access import camera_decision, require_camera
 from ..services.leases import CameraLease
@@ -226,7 +228,7 @@ async def _principal_for_ws(websocket: WebSocket) -> Principal | None:
     return principal
 
 
-async def _refuse_remote_cap(websocket: WebSocket, db: Database, principal: Principal, camera_id: str, refusal: ApiError, chain: str | None) -> None:
+async def _refuse_remote_cap(websocket: WebSocket, db: Database, principal: Principal, camera_id: str, refusal: ApiError, chain: str | None, resource_type: str = "camera") -> None:
     """The remote live cap on the socket: accepted first so the browser sees the reason (a close before accept is a
     bare handshake failure), then `{"type":"error","value":"remote_live_cap","message":…}` and close 4429 (the player
     shows its "stream quota reached" state for 4429). Audited like the HTTP refusal (throttled per sign-in)."""
@@ -236,7 +238,7 @@ async def _refuse_remote_cap(websocket: WebSocket, db: Database, principal: Prin
 
     def _write() -> None:
         with db.connection() as conn:
-            audit(conn, actor=principal, action="video.live", decision="denied", resource_type="camera", resource_id=camera_id, reason="remote_live_cap",
+            audit(conn, actor=principal, action="video.live", decision="denied", resource_type=resource_type, resource_id=camera_id, reason="remote_live_cap",
                   details=details)
 
     if details is not None:
@@ -248,6 +250,86 @@ async def _refuse_remote_cap(websocket: WebSocket, db: Database, principal: Prin
         await websocket.send_text(_json.dumps({"type": "error", "value": "remote_live_cap", "message": refusal.user_message,
                                               "max": refusal.details.get("max")}, ensure_ascii=False))
         await websocket.close(code=4429)
+
+
+async def _live_relay(
+    websocket: WebSocket,
+    *,
+    settings: Settings,
+    db: Database,
+    principal: Principal,
+    decision: Decision,
+    resource_type: str,
+    resource_id: str,
+    make_stream: Callable[[], str],
+    lease: CameraLease,
+    chain: str | None,
+    remote_cap: int,
+    on_text: Callable[[str], str | None] | None = None,
+    on_end: Callable[[str, float], None] | None = None,
+) -> None:
+    """The part of a live socket that is the same for every source, once the viewer is authorized and both caps passed:
+    make the go2rtc stream (sync, thread pool), register the session in the shared budget, relay, audit start / stop.
+    `lease` (T055) keeps the stream only while the viewer still holds video.live on the resource (re-checked on every access
+    change of the user and every leases.RECHECK_S). `on_text` rewrites go2rtc's text frames, `on_end(reason, seconds)` sees how
+    the session ended - the Home Assistant camera's route uses both (services/ha_camera_streams.py)."""
+    try:
+        name = await run_in_threadpool(make_stream)
+    except ApiError as exc:
+        log.warning("live stream for %s %s refused: %s", resource_type, resource_id, exc.code)
+        await websocket.close(code=4503)
+        return
+
+    client = g2.Go2rtc(settings)
+    session = LiveSession(id=uuid.uuid4().hex[:10], camera_id=resource_id, stream=name, user_id=principal.user_id, username=principal.username,
+                          remote_chain=chain)
+
+    def _audit(action: str, details: dict[str, Any]) -> None:
+        def _write() -> None:
+            with db.connection() as conn:
+                audit(conn, actor=principal, action=action, decision="allowed", resource_type=resource_type, resource_id=resource_id, details=details, under=decision)
+
+        try:
+            retry_locked(_write, what=f"audit {action}")  # a busy database delays the row, it does not lose it
+        except sqlite3.Error as exc:  # never let bookkeeping kill or leak a live session
+            log.error("audit %s for live session %s failed: %s", action, session.id, exc)
+
+    await websocket.accept()
+    # re-checked with nothing awaited before the registration: two starts of one sign-in cannot both pass the cap
+    refusal = remote_cap_refusal(chain, remote_cap)
+    if refusal is not None:
+        await _refuse_remote_cap(websocket, db, principal, resource_id, refusal, chain, resource_type)
+        return
+    REGISTRY.sessions[session.id] = session
+
+    def on_down(n: int) -> None:
+        session.bytes_down += n
+
+    reason = "ended"
+    try:
+        await run_in_threadpool(_audit, "video.live.start", {"session": session.id, "stream": name})
+        reason = await relay_ws(websocket, client.ws_url(name), client.ws_headers(), on_down, should_stop=lease.should_stop, on_text=on_text)
+        if lease.lost:
+            reason = "access_lost"
+        log.info("live session %s ended: %s", session.id, reason)
+    except Exception as exc:  # upstream refused / dropped
+        reason = "upstream_failure"
+        log.warning("live session %s upstream failure: %s", session.id, type(exc).__name__)
+        with contextlib.suppress(Exception):
+            await websocket.send_text('{"type":"error","value":"upstream_unavailable"}')
+    finally:
+        REGISTRY.sessions.pop(session.id, None)
+        with contextlib.suppress(Exception):
+            if reason == "access_lost":
+                await websocket.send_text('{"type":"error","value":"access_lost"}')
+                await websocket.close(code=4403)
+            else:
+                await websocket.close()
+        seconds = time.time() - session.started_at
+        await run_in_threadpool(_audit, "video.live.stop", {"session": session.id, "seconds": int(seconds), "bytes_down": session.bytes_down, "reason": reason})
+        if on_end is not None:
+            with contextlib.suppress(Exception):
+                on_end(reason, seconds)
 
 
 @router.websocket("/media/live/{camera_id}/ws")
@@ -285,60 +367,58 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
         await _refuse_remote_cap(websocket, db, principal, camera_id, refusal, chain)
         return
 
-    try:
-        name = await run_in_threadpool(ensure_camera_stream, settings, cam, profile)
-    except ApiError as exc:
-        log.warning("live stream for camera %s refused: %s", camera_id, exc.code)
-        await websocket.close(code=4503)
+    await _live_relay(
+        websocket, settings=settings, db=db, principal=principal, decision=decision, resource_type="camera", resource_id=camera_id,
+        make_stream=lambda: ensure_camera_stream(settings, cam, profile),
+        # T055: the relay keeps the camera only while the viewer still holds video.live on it (re-checked on every access
+        # change of the user and every leases.RECHECK_S) - a revoke of an unrelated camera no longer ends this stream
+        lease=CameraLease(db, principal, camera_id, "video.live"), chain=chain, remote_cap=remote_cap,
+    )
+
+
+@router.websocket("/media/live-ha/{entity_id}/ws")
+async def live_ha_ws(websocket: WebSocket, entity_id: str) -> None:
+    """Live video of a standalone Home Assistant camera the owner enabled (services/ha_camera_streams.py): the same relay,
+    session budget, remote cap, lease and transport as an NVR camera's socket. Authorization: video.live installation-wide
+    (a non-NVR camera has no camera scope - the rule of its picture), devices.read on the entity, and the camera opted in.
+    go2rtc's error frames never reach the viewer (a fixed code replaces them: their text may carry the camera's address)."""
+    settings: Settings = websocket.app.state.settings
+    db: Database = websocket.app.state.db
+
+    principal = await _principal_for_ws(websocket)
+    if principal is None:
+        await websocket.close(code=4401)
+        return
+    if not cc.HA_CAMERA_RE.fullmatch(entity_id):
+        await websocket.close(code=4403)
         return
 
-    client = g2.Go2rtc(settings)
-    session = LiveSession(id=uuid.uuid4().hex[:10], camera_id=camera_id, stream=name, user_id=principal.user_id, username=principal.username,
-                          remote_chain=chain)
+    def _authorize() -> tuple[Decision | None, int, int]:
+        with db.connection() as conn:
+            decision = authorize(conn, principal, "video.live", INSTALLATION)
+            if not (decision.allowed and hls.viewer_allowed(conn, principal, entity_id)):
+                audit(conn, actor=principal, action="video.live", decision="denied", resource_type="ha_entity", resource_id=entity_id,
+                      reason=decision.reason if not decision.allowed else "not_available", under=decision)
+                return None, 0, 0
+            s = read_settings(conn)
+            return decision, s["media.max_live_sessions"], s["remote.max_live_streams"]
 
-    # T055: the relay keeps the camera only while the viewer still holds video.live on it (re-checked on every access
-    # change of the user and every leases.RECHECK_S) - a revoke of an unrelated camera no longer ends this stream
-    lease = CameraLease(db, principal, camera_id, "video.live")
-
-    def _audit(action: str, details: dict[str, Any]) -> None:
-        def _write() -> None:
-            with db.connection() as conn:
-                audit(conn, actor=principal, action=action, decision="allowed", resource_type="camera", resource_id=camera_id, details=details, under=decision)
-
-        try:
-            retry_locked(_write, what=f"audit {action}")  # a busy database delays the row, it does not lose it
-        except sqlite3.Error as exc:  # never let bookkeeping kill or leak a live session
-            log.error("audit %s for live session %s failed: %s", action, session.id, exc)
-
-    await websocket.accept()
-    # re-checked with nothing awaited before the registration: two starts of one sign-in cannot both pass the cap
+    decision, cap, remote_cap = await run_in_threadpool(_authorize)
+    if decision is None:
+        await websocket.close(code=4403)
+        return
+    if REGISTRY.count() >= cap:
+        await websocket.close(code=4429)
+        return
+    chain = _remote_chain(websocket)
     refusal = remote_cap_refusal(chain, remote_cap)
     if refusal is not None:
-        await _refuse_remote_cap(websocket, db, principal, camera_id, refusal, chain)
+        await _refuse_remote_cap(websocket, db, principal, entity_id, refusal, chain, "ha_entity")
         return
-    REGISTRY.sessions[session.id] = session
 
-    def on_down(n: int) -> None:
-        session.bytes_down += n
-
-    reason = "ended"
-    try:
-        await run_in_threadpool(_audit, "video.live.start", {"session": session.id, "stream": name})
-        reason = await relay_ws(websocket, client.ws_url(name), client.ws_headers(), on_down, should_stop=lease.should_stop)
-        if lease.lost:
-            reason = "access_lost"
-        log.info("live session %s ended: %s", session.id, reason)
-    except Exception as exc:  # upstream refused / dropped
-        reason = "upstream_failure"
-        log.warning("live session %s upstream failure: %s", session.id, type(exc).__name__)
-        with contextlib.suppress(Exception):
-            await websocket.send_text('{"type":"error","value":"upstream_unavailable"}')
-    finally:
-        REGISTRY.sessions.pop(session.id, None)
-        with contextlib.suppress(Exception):
-            if reason == "access_lost":
-                await websocket.send_text('{"type":"error","value":"access_lost"}')
-                await websocket.close(code=4403)
-            else:
-                await websocket.close()
-        await run_in_threadpool(_audit, "video.live.stop", {"session": session.id, "seconds": int(time.time() - session.started_at), "bytes_down": session.bytes_down, "reason": reason})
+    await _live_relay(
+        websocket, settings=settings, db=db, principal=principal, decision=decision, resource_type="ha_entity", resource_id=entity_id,
+        make_stream=lambda: hls.ensure_ready(db, settings, entity_id),
+        lease=hls.HaLiveLease(db, principal, entity_id), chain=chain, remote_cap=remote_cap,
+        on_text=lambda text: hls.sanitize_frame(entity_id, text), on_end=lambda reason, seconds: hls.note_session_end(entity_id, reason, seconds),
+    )

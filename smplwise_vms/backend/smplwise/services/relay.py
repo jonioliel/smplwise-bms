@@ -12,7 +12,10 @@ from typing import Awaitable, Callable
 from fastapi import WebSocket
 
 
-async def relay_ws(websocket: WebSocket, upstream_url: str, headers: dict[str, str], on_down: Callable[[int], None], should_stop: Callable[[], bool] | None = None) -> str:
+async def relay_ws(websocket: WebSocket, upstream_url: str, headers: dict[str, str], on_down: Callable[[int], None], should_stop: Callable[[], bool] | None = None,
+                   on_text: Callable[[str], str | None] | None = None) -> str:
+    """`on_text`: sees every text frame from go2rtc before it reaches the browser and returns the text to send (None drops it) -
+    a source that must not leak its own error texts (a Home Assistant camera's, ha_camera_streams.sanitize_frame) rewrites here."""
     import websockets
 
     async with websockets.connect(upstream_url, additional_headers=headers, max_size=None, open_timeout=8, ping_interval=20) as upstream:
@@ -23,7 +26,9 @@ async def relay_ws(websocket: WebSocket, upstream_url: str, headers: dict[str, s
                     on_down(len(msg))
                     await websocket.send_bytes(bytes(msg))
                 else:
-                    await websocket.send_text(msg)
+                    text = on_text(msg) if on_text else msg
+                    if text is not None:
+                        await websocket.send_text(text)
             return "upstream_closed"
 
         async def pump_up() -> str:

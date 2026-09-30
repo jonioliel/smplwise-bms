@@ -6,7 +6,7 @@
  * routers/media.py, and the server authorizes, caps and audits it. The budget only decides WHICH cards hold a slot,
  * with the arithmetic of the camera wall (api/live-budget.ts).
  */
-import { apiUrl, get } from './client';
+import { api, apiUrl, get } from './client';
 import { RELEASE_MS, REFUSED_MS, allocateLive, effectiveLiveCap, sameSet } from './live-budget';
 import type { ProductSettings } from './media';
 import type { Me } from './types';
@@ -15,7 +15,7 @@ import { remoteVideo } from './video-policy';
 /** A card's source: an NVR channel of the camera catalogue, or a Home Assistant camera entity. */
 export type CameraSource = { kind: 'nvr'; recorder_id: string; channel: number } | { kind: 'ha'; entity_id: string };
 
-export type CameraCardState = 'live' | 'still_only' | 'forbidden' | 'missing' | 'disabled';
+export type CameraCardState = 'live' | 'ha_live' | 'still_only' | 'forbidden' | 'missing' | 'disabled';
 
 /** `GET /devices/camera-card/resolve`: one card's source for THIS caller. `forbidden` names nothing else. */
 export interface CameraResolved {
@@ -30,6 +30,9 @@ export interface CameraResolved {
   entity_id?: string;
   /** A Home Assistant entity that is one NVR channel: which of the channel's two streams the entity is (a hint only). */
   profile_hint?: 'main' | 'sub';
+  /** `ha_live` (a standalone Home Assistant camera the owner chose to show live): the relay path the player opens (a websocket
+   * of the live relay, authorized, capped and audited like an NVR camera's); the picture (`stillUrl`) stays the fallback. */
+  live_path?: string;
 }
 
 export interface PickerNvrCamera {
@@ -56,11 +59,18 @@ export interface PickerHaCamera {
   mode: 'live' | 'still_only';
   recorder_id: string | null;
   channel: number | null;
+  /** A picture-only camera the owner already chose to show as live video (off by default). */
+  live_enabled?: boolean;
+  /** Only for someone who may configure sources: the stream keeps playing but its source will not be re-read (the person who
+   * enabled it no longer holds the permission); enabling it again resumes. */
+  live_issue?: 'reread_blocked' | null;
 }
 
 export interface CameraSources {
   recorders: PickerRecorder[];
   ha_cameras: PickerHaCamera[];
+  /** `ready`: go2rtc is configured, so a standalone camera can be shown live; `can_configure`: this user may turn it on / off (sources.configure). */
+  ha_live?: { ready: boolean; can_configure: boolean };
 }
 
 const BASE = 'devices/camera-card';
@@ -73,6 +83,22 @@ export function resolveQuery(source: CameraSource): string {
 
 export const resolveCameraSource = (source: CameraSource) => get<CameraResolved>(`${BASE}/resolve?${resolveQuery(source)}`);
 export const cameraSources = () => get<CameraSources>(`${BASE}/sources`);
+
+/** Fired on `window` after a standalone camera was switched to / from live video: the cards on screen resolve again. */
+export const HA_LIVE_CHANGED = 'sw-camera-live-changed';
+
+/** Show ONE standalone Home Assistant camera as live video (owner-triggered, per camera; `sources.configure`). The server reads the
+ * camera's source and writes its stream; the answer carries neither. */
+export async function enableHaLive(entityId: string): Promise<void> {
+  await api<unknown>(`${BASE}/ha-live/${encodeURIComponent(entityId)}`, { method: 'PUT' });
+  window.dispatchEvent(new CustomEvent(HA_LIVE_CHANGED, { detail: { entityId, enabled: true } }));
+}
+
+/** Stop showing the camera as live video: its picture stays. */
+export async function disableHaLive(entityId: string): Promise<void> {
+  await api<unknown>(`${BASE}/ha-live/${encodeURIComponent(entityId)}`, { method: 'DELETE' });
+  window.dispatchEvent(new CustomEvent(HA_LIVE_CHANGED, { detail: { entityId, enabled: false } }));
+}
 
 /** A Home Assistant camera that is not an NVR channel: its still picture (`bust` forces the browser past its cache;
  * the server keeps its own window of at least 10 s). */

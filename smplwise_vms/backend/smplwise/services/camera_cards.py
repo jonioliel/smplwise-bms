@@ -44,6 +44,7 @@ LIVE = "video.live"
 # the states a card can be in (the reply's `state`)
 LIVE_STATE = "live"  # a stream through the live relay
 STILL_ONLY = "still_only"  # a Home Assistant camera that is not an NVR channel: a refreshed picture only
+HA_LIVE = "ha_live"  # the same camera when the owner chose to show it live (services/ha_camera_streams.py): a stream of ours
 FORBIDDEN = "forbidden"  # the caller may not watch it (also: may not see the entity) - nothing about it is named
 MISSING = "missing"  # the channel / entity is not (or no longer) in the catalogue
 DISABLED = "disabled"  # the camera is switched off in the product
@@ -141,9 +142,10 @@ def _denied(conn: sqlite3.Connection, principal: Principal, camera_id: str, deci
     return {"state": FORBIDDEN}
 
 
-def resolve(conn: sqlite3.Connection, principal: Principal, source: dict[str, Any]) -> dict[str, Any]:
+def resolve(conn: sqlite3.Connection, principal: Principal, source: dict[str, Any], *, ha_live: bool = False) -> dict[str, Any]:
     """What one card shows for its source, for THIS caller. A caller who may not watch gets `{state: 'forbidden'}` and
-    nothing else (no name, no id); a denied NVR camera is audited like a refused live view."""
+    nothing else (no name, no id); a denied NVR camera is audited like a refused live view. `ha_live`: go2rtc is configured,
+    so a standalone Home Assistant camera the owner enabled resolves to `ha_live` instead of `still_only`."""
     if source.get("kind") == "nvr":
         rid, channel = str(source.get("recorder_id") or ""), int(source.get("channel") or 0)
         row = conn.execute("SELECT id FROM cameras WHERE recorder_id = ? AND channel = ?", (rid, channel)).fetchone()
@@ -173,13 +175,26 @@ def resolve(conn: sqlite3.Connection, principal: Principal, source: dict[str, An
             return _live_reply("ha", cam, entity_id=entity_id, profile_hint=link["profile"])
         if not can_still(conn, principal):
             return {"state": FORBIDDEN}
-        return {"state": STILL_ONLY, "kind": "ha", "entity_id": entity_id, "name": ent["name"] or entity_id, "status": "online" if ent["state"] not in ("unavailable", "unknown", None) else "offline"}
+        reply = {"kind": "ha", "entity_id": entity_id, "name": ent["name"] or entity_id, "status": "online" if ent["state"] not in ("unavailable", "unknown", None) else "offline"}
+        from . import ha_camera_streams as hls
+
+        if ha_live and hls.is_enabled(conn, entity_id):
+            # the owner chose to show this camera live (ha_camera_streams): the same viewing rule as its picture, played
+            # through the live relay at `live_path`; the picture stays the fallback if the stream does not come up
+            return {"state": HA_LIVE, **reply, "live_path": hls.live_path(entity_id)}
+        return {"state": STILL_ONLY, **reply}
     return {"state": MISSING}
 
 
-def eligible(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
+def eligible(conn: sqlite3.Connection, principal: Principal, *, ha_live_ready: bool = False) -> dict[str, Any]:
     """The cameras this caller may offer in a card: NVR channels they may watch (grouped by recorder, catalogue order) and
-    the Home Assistant cameras they may see - each with how it will play. Nothing they may not watch is named."""
+    the Home Assistant cameras they may see - each with how it will play. Nothing they may not watch is named.
+    `ha_live` says whether the live option of a standalone camera can be used at all (go2rtc configured: `ready`) and by this
+    caller (`sources.configure`: `can_configure`); each such camera says whether the owner enabled it (`live_enabled`)."""
+    from . import ha_camera_streams as hls
+
+    live_on = hls.enabled(conn) if ha_live_ready else {}
+    can_configure = ha_live_ready and authorize(conn, principal, "sources.configure", INSTALLATION).allowed
     scope = camera_scope(conn, principal, LIVE)
     names = _names(conn)
     recorders = {r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM recorders").fetchall()}
@@ -201,6 +216,9 @@ def eligible(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
                 continue
             ha.append({"entity_id": e["entity_id"], "name": e["name"] or e["entity_id"], "area_id": e.get("area_id"), "area_name": e.get("area_name"), "mode": LIVE_STATE, "recorder_id": link["recorder_id"], "channel": link["channel"]})
         elif still_ok:
-            ha.append({"entity_id": e["entity_id"], "name": e["name"] or e["entity_id"], "area_id": e.get("area_id"), "area_name": e.get("area_name"), "mode": STILL_ONLY, "recorder_id": None, "channel": None})
+            ha.append({"entity_id": e["entity_id"], "name": e["name"] or e["entity_id"], "area_id": e.get("area_id"), "area_name": e.get("area_name"), "mode": STILL_ONLY, "recorder_id": None, "channel": None,
+                       "live_enabled": e["entity_id"] in live_on,
+                       # only for who may act on it: the person who enabled it can no longer authorize a re-read of its source
+                       "live_issue": "reread_blocked" if can_configure and e["entity_id"] in live_on and hls.reread_blocked(conn, live_on[e["entity_id"]]) else None})
     ha.sort(key=lambda x: (x["name"], x["entity_id"]))
-    return {"recorders": list(groups.values()), "ha_cameras": ha}
+    return {"recorders": list(groups.values()), "ha_cameras": ha, "ha_live": {"ready": ha_live_ready, "can_configure": can_configure}}

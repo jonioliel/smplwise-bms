@@ -33,6 +33,8 @@ export class SwCameraTile extends LitElement {
   /** The wall holds no stream for this tile (over the cap, or out of view): a refreshed snapshot with the hint that a tap opens live. */
   @property({ type: Boolean, reflect: true }) snapshotOnly = false;
   @property() cameraId = '';
+  /** A live relay path the server named for a source that is not a catalogue camera (sw-live-player `livePath`). */
+  @property() livePath = '';
   @property({ type: Boolean }) live = false;
   @property() profile: 'sub' | 'main' = 'sub';
   @property() transport: 'auto' | 'webrtc' | 'mse' = 'auto';
@@ -201,12 +203,12 @@ export class SwCameraTile extends LitElement {
         ${this.name ? html`<span class="label"><span class="dot"></span>${this.name}</span>` : nothing}
       </div>`;
     }
-    const real = this.live && this.cameraId ? 'live' : this.poster ? 'poster' : 'scene';
+    const real = this.live && (this.cameraId || this.livePath) ? 'live' : this.poster ? 'poster' : 'scene';
     // CR-008 D7: on the remote channel the tile keeps its own profile (the wall's) but plays it by the remote policy
     const plan = real === 'live' ? playerPlan(this.profile, this.encoding) : { plan: '', preferred: '' as const, gop: '' };
     return html`
       ${real === 'live'
-        ? html`<sw-live-player .cameraId=${this.cameraId} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop} .poster=${this.poster} .fit=${this.fit} compact></sw-live-player>`
+        ? html`<sw-live-player .cameraId=${this.cameraId} .livePath=${this.livePath} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop} .poster=${this.poster} .fit=${this.fit} compact></sw-live-player>`
         : real === 'poster'
           ? html`<img class="poster" src=${this.poster} alt="" loading="lazy" />`
           : html`<sw-scene kind=${this.scene}></sw-scene>`}

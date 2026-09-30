@@ -28,6 +28,8 @@ def stream_name(recorder_id: str, channel: int, profile: str) -> str:
     """Deterministic, readable and namespaced: smplwise_nvr-1_ch4_sub."""
     if profile not in ("main", "sub"):
         raise ValueError(profile)
+    if f"{recorder_id}_".startswith("ha_"):  # `smplwise_ha_` is the namespace of the Home Assistant camera streams (ha_stream_name)
+        raise ValueError("a recorder id must not start with ha_")
     name = f"{STREAM_PREFIX}{recorder_id}_ch{channel}_{profile}"
     if not NAME_RE.match(name):
         raise ValueError(name)
@@ -92,9 +94,37 @@ def wiskey_rtsp_url(host: str, username: str, password: str) -> str:
     return f"rtsp://{quote(username, safe='')}:{quote(password, safe='')}@{safe_host}:{WISKEY_RTSP_PORT}{WISKEY_RTSP_PATH}"
 
 
+HA_STREAM_PREFIX = "smplwise_ha_"  # streams of standalone Home Assistant cameras the owner chose to show live
+HA_SLUG_RE = re.compile(r"^[a-z0-9_]{1,100}$")
+
+
+def ha_stream_name(entity_id: str) -> str:
+    """smplwise_ha_<slug> for `camera.<slug>` (docs/design/CAMERA_CARD_HA_SOURCE.md): deterministic, one stream per entity, in
+    our namespace and in the narrower one this feature owns. A value that is not a plain lower-case camera entity id is
+    refused (ValueError) - an entity id never becomes a stream name by any other route."""
+    domain, _, slug = (entity_id or "").partition(".")
+    if domain != "camera" or not HA_SLUG_RE.fullmatch(slug):
+        raise ValueError("not a camera entity id")
+    name = f"{HA_STREAM_PREFIX}{slug}"
+    if not NAME_RE.match(name):
+        raise ValueError(name)
+    return name
+
+
+def redact_ha_source(url: str) -> str:
+    """The source of a Home Assistant camera stream, for anything that leaves the server: the scheme only. The address,
+    the credentials (`user:pass@`, but also a bare user, a token in the path or the query) and the path are all hidden -
+    nothing about such a source is safe to show, log or audit."""
+    m = re.match(r"^([A-Za-z][A-Za-z0-9+.-]{0,15})://", url or "")
+    return f"{m.group(1).lower()}://***" if m else "***"
+
+
 def redact_source(name: str, url: str) -> str:
     """A source as `GET /media/streams` may show it: credentials hidden always, and for a WisKey station stream the
-    whole address too (the station host is never served, security review N1): rtsp://***/Streaming/Channels/101."""
+    whole address too (the station host is never served, security review N1): rtsp://***/Streaming/Channels/101. A
+    Home Assistant camera's source shows the scheme only (redact_ha_source)."""
+    if name.startswith(HA_STREAM_PREFIX):
+        return redact_ha_source(url)
     if name.startswith(f"{STREAM_PREFIX}wiskey_"):
         return re.sub(r"://[^/\s]*", "://***", url, count=1)
     return redact_url(url)
@@ -172,7 +202,7 @@ class Go2rtc:
                 raise self._wrap(exc, "put") from exc
         if r.status_code not in (200, 201, 204):
             raise ApiError(503, "media_error", "go2rtc סירב ליצור את הזרם.", details={"status": r.status_code, "stream": name})
-        log.info("go2rtc stream %s %s (%s)", name, "updated" if existing else "created", redact_url(src))
+        log.info("go2rtc stream %s %s (%s)", name, "updated" if existing else "created", redact_source(name, src))
         return "updated" if existing else "created"
 
     def delete_stream(self, name: str) -> None:
