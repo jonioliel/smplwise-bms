@@ -3,7 +3,7 @@ snapshot freshness. Secrets stay in the add-on options."""
 from __future__ import annotations
 
 import json
-
+import re
 import sqlite3
 from typing import Any
 
@@ -41,10 +41,15 @@ DEFAULTS: dict[str, str] = {
     # auto (compact under 600 px wide, cards above) | cards (tall, icon above) | compact (a rectangle, icon beside the
     # value). Per installation, like ui.design; a browser may override it for itself (frontend/src/api/tile-layout.ts).
     "ui.tile_layout": "auto",
+    # owner 2026-09-30 (tabs per section): installation-wide tab order / visibility per navigation section, a JSON object
+    # {section_id: {"order": [tab_id...], "hidden": [tab_id...]}}; read back as an object, not a string. "{}" = nothing
+    # configured = the built-in tabs. Contract: docs/architecture/TABS_CONFIG.md.
+    "ui.tabs": "{}",
     "history.ha_secondary": "false",  # S2: the HA recorder fills entity states the local history does not know (marked as secondary)
     "plan.estimates": "true",  # Plan Studio: show estimated metres (≈) before a plan is calibrated; false hides metres until calibration (owner decision 2026-09-23)
     "plan.levels": "all",  # default levels view on every map: all levels together, or the floor's default level only (owner decision 2026-09-26)
     "map.shared_levels": "show",  # CR-009: the levels of a shared room's home floor in the other floor's level bar ("מפלס ראשי · קומה -1"): show | hide (owner 2026-09-29)
+    "map.default_floor": "",  # owner 2026-09-30: the floor the map's floor tab opens first when several floors exist ("" = the built-in order); an existing floor id, cleared when that floor is deleted
     "map.default_view": "2d",  # the view a floor map opens in - live map, history map, event page: 2d | 3d (owner 2026-09-29); a device's own last choice wins
     "plan.quality": "2",  # CR-006: the 3D quality level a browser opens with (1 schematic, 2 shadows/materials/cutaway); a browser can override it for itself and falls back to 1 on a slow device
     "plan.presence_fade": "3",  # CR-006 1b: the presence tint on the floor map fades this many minutes after the last motion; "off" = the tint only while a sensor is on (owner decision 2026-09-28: on/off + minutes per installation)
@@ -138,6 +143,57 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     for key, default in DEFAULTS.items():
         value = get_setting(conn, key, default) or default
         out[key] = int(value) if key in INT_KEYS else value
+    out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
+    return out
+
+
+# ui.tabs (owner 2026-09-30): the backend does not know the tab registry (frontend shell/nav.ts); it stores what it is
+# given, refuses anything that is not a short slug and caps the size. Nested levels are just other section ids
+# ("security", "security.live").
+TABS_SLUG = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,47}$")
+TABS_MAX_SECTIONS = 64
+TABS_MAX_PER_LIST = 64
+
+
+def _stored_tabs(raw: Any) -> dict[str, Any]:
+    """The stored ui.tabs JSON as an object; a corrupt or foreign value reads as nothing configured."""
+    try:
+        return normalize_tabs(json.loads(raw) if isinstance(raw, str) else raw)
+    except (ValueError, ApiError):
+        return {}
+
+
+def normalize_tabs(value: Any) -> dict[str, dict[str, list[str]]]:
+    """Validate ui.tabs and return it normalised: duplicates removed (first occurrence wins), both lists always present.
+    422 for a non-object, unknown keys, non-slug ids, non-list / non-string entries or a size over the caps."""
+    def bad(msg: str) -> ApiError:
+        return ApiError(422, "validation", f"סדר הלשוניות: {msg}", details={"ui.tabs": msg})
+
+    if not isinstance(value, dict):
+        raise bad("חייב להיות אובייקט של מקטעים.")
+    if len(value) > TABS_MAX_SECTIONS:
+        raise bad(f"עד {TABS_MAX_SECTIONS} מקטעים.")
+    out: dict[str, dict[str, list[str]]] = {}
+    for section, cfg in value.items():
+        if not isinstance(section, str) or not TABS_SLUG.match(section):
+            raise bad("מזהה מקטע לא תקין.")
+        if not isinstance(cfg, dict):
+            raise bad("כל מקטע הוא אובייקט עם order ו-hidden.")
+        if set(cfg) - {"order", "hidden"}:
+            raise bad("מפתחות לא מוכרים במקטע (מותר order ו-hidden בלבד).")
+        norm: dict[str, list[str]] = {}
+        for name in ("order", "hidden"):
+            items = cfg.get(name, [])
+            if not isinstance(items, list) or len(items) > TABS_MAX_PER_LIST:
+                raise bad(f"{name} חייב להיות רשימה של עד {TABS_MAX_PER_LIST} מזהים.")
+            seen: list[str] = []
+            for tab in items:
+                if not isinstance(tab, str) or not TABS_SLUG.match(tab):
+                    raise bad("מזהה לשונית לא תקין.")
+                if tab not in seen:
+                    seen.append(tab)
+            norm[name] = seen
+        out[section] = norm
     return out
 
 
@@ -164,10 +220,12 @@ class SettingsPatch(BaseModel):
     ui_start_route: str | None = Field(default=None, pattern="^(explore|live|wall|events|playback|devices)$", alias="ui.start_route")
     ui_hide_map: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_map")
     ui_tile_layout: str | None = Field(default=None, pattern="^(auto|cards|compact)$", alias="ui.tile_layout")
+    ui_tabs: dict[str, Any] | None = Field(default=None, alias="ui.tabs")  # validated in full by normalize_tabs
     history_ha_secondary: str | None = Field(default=None, pattern="^(true|false)$", alias="history.ha_secondary")
     plan_estimates: str | None = Field(default=None, pattern="^(true|false)$", alias="plan.estimates")
     plan_levels: str | None = Field(default=None, pattern="^(all|default)$", alias="plan.levels")
     map_shared_levels: str | None = Field(default=None, pattern="^(show|hide)$", alias="map.shared_levels")
+    map_default_floor: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9_.\-]*$", alias="map.default_floor")  # "" or an existing floor id (checked in the handler)
     map_default_view: str | None = Field(default=None, pattern="^(2d|3d)$", alias="map.default_view")
     plan_quality: str | None = Field(default=None, pattern="^(1|2)$", alias="plan.quality")
     plan_presence_fade: str | None = Field(default=None, pattern="^(off|[1-9]|[1-9][0-9]|1[01][0-9]|120)$", alias="plan.presence_fade")  # off, or 1-120 minutes
@@ -225,6 +283,10 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         except (ValueError, AssertionError):
             raise ApiError(422, "validation", "שמות העיצובים: אובייקט עם a ו־b, עד 24 תווים לכל שם.")
         changes["ui.design_names"] = json.dumps({"a": names.get("a", "SW A").strip(), "b": names.get("b", "SW B").strip()}, ensure_ascii=False)
+    if "ui.tabs" in changes:
+        changes["ui.tabs"] = normalize_tabs(changes["ui.tabs"])
+    if changes.get("map.default_floor") and not conn.execute("SELECT 1 FROM floors WHERE id = ? AND deleted_at IS NULL", (changes["map.default_floor"],)).fetchone():
+        raise ApiError(422, "validation", "קומת ברירת המחדל של המפה לא קיימת.", details={"map.default_floor": changes["map.default_floor"]})
     if "time.zone" in changes:
         from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -236,7 +298,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         # the adapter contract exists (privacy, model version, budget, opt-in) but no provider is bundled: refuse, never pretend
         raise ApiError(422, "provider_not_available", "לא מצורף ספק ניתוח חיצוני; קיים רק חוזה המתאם (פרטיות, גרסת מודל, תקציב, opt-in).", details={"choices": ["none", "local"]})
     for key, value in changes.items():
-        set_setting(conn, key, str(value))
+        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key == "ui.tabs" else str(value))
     if "remote.csp_enforce" in changes:  # CR-008 P2: the remote channel's next response already follows
         from ..remote_channel import set_csp_enforce
 
