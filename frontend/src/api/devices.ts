@@ -5,7 +5,7 @@
  */
 import { get, post, put } from './client';
 import type { HaSyncState } from './ha';
-import type { HomeWidgets } from './home';
+import type { HomeView } from './home-config';
 
 export interface DeviceCounts {
   entities: number;
@@ -77,7 +77,7 @@ export interface DeviceTree {
   can_bulk?: boolean;
   sync: HaSyncState;
   /** Owner notes 2026-09-30: what the home screen's header widgets (clock / weather / Jewish-calendar times) show now. */
-  home?: HomeWidgets;
+  home?: HomeView;
 }
 
 export type CardId = 'lighting' | 'switches' | 'climate' | 'covers' | 'security' | 'media' | 'sensors';
