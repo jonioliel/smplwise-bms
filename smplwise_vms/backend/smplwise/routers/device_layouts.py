@@ -101,6 +101,7 @@ CUSTOM_CARD_TYPES = tuple(t for t in CUSTOM_TYPES if t != "camera")
 CUSTOM_KEY_RE = re.compile(r"^card:c-[a-z0-9]{6,12}$")
 MAX_CUSTOM_CARDS = 40
 MAX_CUSTOM_ENTITIES = 300
+MAX_MAIN_SENSORS = 16
 
 
 def _clean_title(v: str | None) -> str | None:
@@ -190,6 +191,18 @@ class LayoutItem(BaseModel):
     removed: bool = False
     # owner 2026-09-30: a camera card's source (`camera:<slug>` keys of the area screen only; None on every other item)
     camera: CameraSource | None = None
+    # owner 2026-09-30 (area redesign): how the section's "כבה הכל" button looks (icon / text / both; None = the direction's
+    # default), and - for the sensors card - the sensors of its main strip (any sensor of the installation, in this order;
+    # empty = the automatic choice: temperature, humidity, motion, door where they exist)
+    bulk_look: Literal["icon", "text", "both"] | None = None
+    main: list[str] = Field(default_factory=list, max_length=MAX_MAIN_SENSORS)
+
+    @field_validator("main")
+    @classmethod
+    def _main(cls, v: list[str]) -> list[str]:
+        if any(not ENTITY_ID_RE.fullmatch(e) for e in v) or len(set(v)) != len(v):
+            raise ValueError("main sensors are distinct entity ids")
+        return v
 
     @field_validator("title")
     @classmethod
@@ -250,6 +263,10 @@ def _dump(layout: Layout) -> str:
             it.pop("removed", None)
         if it.get("camera") is None:
             it.pop("camera", None)
+        if it.get("bulk_look") is None:
+            it.pop("bulk_look", None)
+        if not it.get("main"):
+            it.pop("main", None)
     return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
 
 
@@ -331,6 +348,10 @@ def _validate_semantics(scope: str, variant: str, layout: Layout) -> list[str]:
         if (it.custom is not None or it.removed) and layout.v < CARDS_VERSION:
             errors.append(f"layout.items.{key[:40]}: custom and removed cards need layout v {CARDS_VERSION}")
         errors.extend(_camera_errors(scope, key, it, layout.v))
+        if it.main and (scope != "area" or not (key == "card:sensors" or (it.custom is not None and it.custom.type in ("sensors", "energy")))):
+            errors.append(f"layout.items.{key[:40]}.main: only a sensors card has main sensors")
+        if it.bulk_look is not None and (scope != "area" or key.startswith("camera:")):
+            errors.append(f"layout.items.{key[:40]}.bulk_look: only an area section has a bulk button")
         if it.x + it.w > cols:
             errors.append(f"layout.items.{key[:40]}: x + w exceeds the {cols} columns")
         if it.hidden_entities and scope != "area":

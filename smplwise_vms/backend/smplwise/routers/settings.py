@@ -119,6 +119,10 @@ DEFAULTS: dict[str, str] = {
     # CR-007 6b: the device area's colour scheme - light (default) | dark | auto (the viewer's operating-system scheme).
     # Light by default while the app shell is light only: dark never applies by itself (docs/design/DEVICE_THEMES.md).
     "devices.scheme": "light",
+    # Owner decision 2026-09-30 (area screen redesign): the direction every area screen opens in - tiles ("אריחים צפופים":
+    # section cards in columns, dense tiles) | sections ("מקטעים ברצף": one section after the other). A user holding
+    # screen.personalize may override it for their own browser (frontend/src/screens/devices-area.ts).
+    "devices.area_design": "tiles",
     # Owner notes 2026-09-30 (the home screen "ראשי" › חשמל והתקנים, edited in its edit mode by a system.configure holder):
     # the page title (empty = "חשמל והתקנים"), the installation's floor order (a JSON list of floor ids; floors not listed
     # follow in level order) and three optional read-only header widgets, all off by default - a clock (off | time |
@@ -332,6 +336,7 @@ class SettingsPatch(BaseModel):
     devices_show_climate_strip: str | None = Field(default=None, pattern="^(true|false)$", alias="devices.show_climate_strip")
     devices_density: str | None = Field(default=None, pattern="^(comfortable|compact)$", alias="devices.density")
     devices_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="devices.scheme")
+    devices_area_design: str | None = Field(default=None, pattern="^(tiles|sections)$", alias="devices.area_design")
     home_title: str | None = Field(default=None, max_length=60, alias="home.title")
     home_floor_order: str | None = Field(default=None, max_length=6000, alias="home.floor_order")
     home_clock: str | None = Field(default=None, pattern="^(off|time|datetime)$", alias="home.clock")
