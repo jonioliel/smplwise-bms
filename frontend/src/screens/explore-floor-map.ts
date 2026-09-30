@@ -477,6 +477,14 @@ export class ExploreFloorMap extends LitElement {
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-3);
       padding: 12px 14px;
+      /* owner bug 2026-09-30: on a phone the stage is shorter than the list and clips it (.stage is overflow: hidden), so
+         the toggles at the bottom were unreachable. The panel is capped to the stage and scrolls itself; the swipe
+         stays inside it (no chaining to the page or the map behind). */
+      max-block-size: calc(100% - 50px); /* the 12 px gap above and below, plus this box's own padding and border (content-box) */
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      touch-action: pan-y;
+      -webkit-overflow-scrolling: touch;
     }
     .panel h3 {
       margin: 0;
