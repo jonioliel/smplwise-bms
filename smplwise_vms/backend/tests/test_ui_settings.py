@@ -205,3 +205,24 @@ def test_ui_tile_layout_setting(settings):
         assert seen.status_code == 200 and seen.json()["settings"]["ui.tile_layout"] == "compact"
         assert c.patch("/api/v1/settings", json={"ui.tile_layout": "cards"}, headers=as_user("dana")).status_code == 403
         assert c.get("/api/v1/settings").json()["settings"]["ui.tile_layout"] == "compact"
+
+
+def test_security_snapshot_defaults_to_shown_round_trips_and_needs_system_configure(settings):
+    """Owner 2026-09-30: הגדרות › ממשק › "תמונת מצב באבטחה" (ui.security_snapshot) hides the live overview sub-screen of the
+    security area for everyone. Shown by default; true/false only; audited; read by any user, written only with system.configure."""
+    app = create_app(settings)
+    with TestClient(app) as c:
+        assert c.get("/api/v1/settings").json()["settings"]["ui.security_snapshot"] == "true"
+        r = c.patch("/api/v1/settings", json={"ui.security_snapshot": "false"})
+        assert r.status_code == 200, r.text
+        assert r.json()["settings"]["ui.security_snapshot"] == "false"
+        assert c.get("/api/v1/settings").json()["settings"]["ui.security_snapshot"] == "false"
+        for bad in ("yes", "", "False", "0", "hidden"):
+            assert c.patch("/api/v1/settings", json={"ui.security_snapshot": bad}).status_code == 422, bad
+        with app.state.db.connection() as conn:
+            rows = [json.loads(r[0] or "{}") for r in conn.execute("SELECT details_json FROM audit_log WHERE action = 'settings.update' AND decision = 'allowed' ORDER BY rowid").fetchall()]
+        assert {"ui.security_snapshot": "false"} in rows
+        bind(c, settings, "dana", "viewer", "installation", "*")
+        assert c.get("/api/v1/settings", headers=as_user("dana")).json()["settings"]["ui.security_snapshot"] == "false"
+        assert c.patch("/api/v1/settings", json={"ui.security_snapshot": "true"}, headers=as_user("dana")).status_code == 403
+        assert c.get("/api/v1/settings").json()["settings"]["ui.security_snapshot"] == "false"

@@ -48,6 +48,7 @@ import '../screens/system-setup';
 import '../screens/system-wizard';
 import '../screens/system-devices';
 import '../screens/system-diagnostics';
+import '../screens/system-security';
 import '../screens/system-storage';
 import '../pwa/notifications-settings';
 import '../screens/screens-index';
@@ -56,7 +57,8 @@ import { onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
-import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, visibleGroups, demoRedirect, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, type NavTabId } from './nav';
+import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, visibleGroups, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, type NavTabId } from './nav';
+import { alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { currentDesign, onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
 import { can, canNav, isApi, loadSession, nvrLess, onSession, watchPermissions, type Session } from '../api/session';
@@ -109,6 +111,7 @@ export class SwApp extends LitElement {
   private permToastTimer = 0;
   private stopDesign?: () => void;
   private stopWiskeyNav?: () => void;
+  private stopAlarmPresence?: () => void;
   /** CR-013: the user menu (from the avatar, the navigation's last item), the tab-order dialog, the open alerts
    * (the avatar's red dot; null = this user may not read alerts) and this user's tab order. */
   @state() private menuOpen = false;
@@ -1203,6 +1206,7 @@ export class SwApp extends LitElement {
       if (s.mode === 'demo' && this.landedDefault) this.land(START_ROUTES.devices);
       if (s.mode !== 'loading') void resolveDesign();
       if (s.mode === 'api' && this.route) this.redirectDemo(this.route);
+      if (s.mode === 'api') void refreshAlarmPresence(); // one answer per session, kept 10 minutes (no request per screen)
       if ((s.mode === 'api' || s.mode === 'no_access') && !this.stopPermissions) this.stopPermissions = watchPermissions(() => void this.onPermissionsChanged());
       if (s.mode === 'api' && !this.sysTimer) {
         void productSettings().then((ps) => {
@@ -1214,6 +1218,7 @@ export class SwApp extends LitElement {
           // "hidden for everyone" shape as hideMap above, applied to the whole WISKEY_TABS group at once.
           if (applyWiskeyHidden(ps as unknown as Record<string, unknown>)) for (const wt of WISKEY_TABS) HIDDEN_HREFS.add(wt.href ?? '');
           applyWiskeyUi(ps as unknown as Record<string, unknown>); // הגדרות › בקרות כניסה: embed or SMPLWISE per WisKey screen
+          applySnapshotHidden(ps as unknown as Record<string, unknown>); // ui.security_snapshot: the live overview leaves the navigation
           // the start screen (0.1.68): only when the address carried no route of its own. CR-013: "ראשי" (the device
           // overview) by default; a start screen this user does not see falls back to their first tab
           const start = START_ROUTES[String(ps['ui.start_route'] ?? 'devices')] ?? START_ROUTES.devices;
@@ -1245,6 +1250,12 @@ export class SwApp extends LitElement {
     window.addEventListener('keydown', this.onGlobalKey);
     // WisKey embed API v1: the tab row follows the panel's catalog and its confirmed location
     this.stopWiskeyNav = onWiskeyEmbedNav(() => this.requestUpdate());
+    // הגדרות › אבטחה: the alarm pages exist only while the platform has an alarm panel (one cached answer, api/alarm-presence.ts)
+    applyAlarmPresent(alarmPresence());
+    this.stopAlarmPresence = onAlarmPresence((v) => {
+      applyAlarmPresent(v);
+      this.requestUpdate();
+    });
     this.stopRouter = onRouteChange((route, replaced) => {
       this.route = route;
       // T054 review: any navigation closes the bottom-nav overflow sheet, not just its own links - but not the WisKey
@@ -1310,6 +1321,7 @@ export class SwApp extends LitElement {
     window.clearTimeout(this.permToastTimer);
     this.stopDesign?.();
     this.stopWiskeyNav?.();
+    this.stopAlarmPresence?.();
     this.stopNavOrder?.();
     this.phoneMq.removeEventListener('change', this.onPhoneMq);
     window.removeEventListener('popstate', this.onPopState);
@@ -1537,6 +1549,12 @@ export class SwApp extends LitElement {
   /** Demo-only routes land on their real counterpart once a backend is known (F1 F3 F4 F5 F6 F10). */
   private redirectDemo(route: RouteState): boolean {
     if (this.enforceKiosk(route)) return true;
+    // routes that moved (the alarm, camera health, the alarm management): with or without a backend, query kept
+    const moved = legacyRedirect(route);
+    if (moved) {
+      window.location.replace(`#${moved}`);
+      return true;
+    }
     const target = demoRedirect(route.path, this.session.mode === 'api');
     if (!target) return false;
     window.location.replace(`#${target}`);
@@ -1628,6 +1646,7 @@ export class SwApp extends LitElement {
    * the current screen so it re-fetches what it may still see, and tell the user. */
   private async onPermissionsChanged() {
     await loadSession();
+    resetAlarmPresence(); // the alarm pages follow the new permissions (the session listener asks again)
     this.permEpoch += 1;
     this.permToast = 'ההרשאות שלך עודכנו';
     window.clearTimeout(this.permToastTimer);
@@ -1644,6 +1663,11 @@ export class SwApp extends LitElement {
     if (!r) return nothing;
     if (this.landedDefault && this.session.mode === 'api' && !this.startResolved) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     const s = r.segments;
+    const moved = legacyRedirect(r); // safety net: the route handler redirects first
+    if (moved) {
+      queueMicrotask(() => window.location.replace(`#${moved}`));
+      return html`<sw-state-panel state="loading"></sw-state-panel>`;
+    }
     if (this.session.mode === 'api' && NVR_LESS && isNvrRoute(r)) return this.renderNvrLess();
     if (s[0] === 'styleguide') return html`<styleguide-screen></styleguide-screen>`;
     if (s[0] === 'screens') return html`<screens-index></screens-index>`;
@@ -1653,7 +1677,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'wall') return html`<live-wall .cameras=${r.params.get('cameras') ?? ''}></live-wall>`;
         if (s[1] === 'views') return html`<live-views></live-views>`;
         if (s[1] === 'cameras') return html`<live-camera .cameraId=${s[2] ?? 'cam-1'}></live-camera>`;
-        return html`<live-overview></live-overview>`;
+        return this.snapshotHidden() ?? html`<live-overview></live-overview>`;
       case 'investigate':
         if (s[1] === 'playback' && s[2] === 'sync') return html`<investigate-sync></investigate-sync>`;
         if (s[1] === 'playback') return html`<investigate-playback .cameraId=${r.params.get('camera') ?? ''} .at=${r.params.get('t') ?? ''} .extraParam=${r.params.get('extra') ?? ''}></investigate-playback>`;
@@ -1664,6 +1688,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'cases' && s[2]) return html`<investigate-case-detail .caseId=${s[2]}></investigate-case-detail>`;
         if (s[1] === 'cases') return html`<investigate-cases></investigate-cases>`;
         if (s[1] === 'exports') return html`<investigate-exports></investigate-exports>`;
+        if (s[1] === 'health') return html`<system-devices></system-devices>`; // camera health (was #/system/devices)
         if (s[1] === 'search') return html`<investigate-search></investigate-search>`;
         if (s[1] === 'rules' && s[2]) return html`<investigate-rule-editor .ruleId=${s[2]}></investigate-rule-editor>`;
         if (s[1] === 'rules') return html`<investigate-rules .initialTab=${r.params.get('tab') ?? ''}></investigate-rules>`;
@@ -1672,7 +1697,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'audit') return html`<system-audit></system-audit>`;
         if (s[1] === 'setup') return html`<system-setup></system-setup>`;
         if (s[1] === 'wizard') return html`<system-wizard></system-wizard>`;
-        if (s[1] === 'devices') return html`<system-devices></system-devices>`;
+        if (s[1] === 'security') return html`<system-security .sub=${s[2] ?? ''} .panelId=${r.params.get('panel') ?? ''}></system-security>`;
         if (s[1] === 'storage') return html`<system-storage></system-storage>`;
         if (s[1] === 'access') return html`<system-access></system-access>`;
         if (s[1] === 'notifications') return html`<arx-notifications-settings></arx-notifications-settings>`;
@@ -1698,8 +1723,8 @@ export class SwApp extends LitElement {
         return html`<wiskey-overview></wiskey-overview>`;
       }
       case 'security': {
-        // CR-010: אבטחה › אזעקה; #/security itself opens the section this browser used last (לייב by default)
-        if (s[1] === 'alarm') return html`<security-alarm .panelId=${r.params.get('panel') ?? ''}></security-alarm>`;
+        // CR-010: #/security itself opens the section this browser used last (לייב by default); the alarm moved to
+        // הגדרות › אבטחה (#/security/alarm redirects, legacyRedirect)
         if (this.session.mode === 'loading') return html`<sw-state-panel state="loading"></sw-state-panel>`;
         const target = securityTarget(this.session.mode === 'api', canNav);
         queueMicrotask(() => window.location.replace(target));
@@ -1722,6 +1747,17 @@ export class SwApp extends LitElement {
         return html`<explore-floor-map .floorId=${floorId} .screenState=${screenState} .focusZone=${r.params.get('zone') ?? ''} .focusCamera=${r.params.get('camera') ?? ''} .focusEntity=${r.params.get('entity') ?? ''} .focusObject=${focus.startsWith('object:') ? focus.slice('object:'.length) : ''}></explore-floor-map>`;
       }
     }
+  }
+
+  /** ui.security_snapshot off: the live overview ("תמונת מצב") sends its address to the next live page this user sees
+   * (a bookmark keeps working); null when it is shown, or when there is no other live page to go to. */
+  private snapshotHidden() {
+    if (this.session.mode !== 'api') return null;
+    if (!this.startResolved) return html`<sw-state-panel state="loading"></sw-state-panel>`; // the settings decide
+    const target = liveOverviewTarget(true, canNav);
+    if (!target) return null;
+    queueMicrotask(() => window.location.replace(target));
+    return html`<sw-state-panel state="loading"></sw-state-panel>`;
   }
 
   /** NVR-less mode: a URL of an NVR area (a bookmark, an old link, the Lovelace card) lands here instead of a screen that

@@ -37,6 +37,9 @@ DEFAULTS: dict[str, str] = {
     # CR-013 (owner request 2026-09-29): "ראשי" is the default landing screen; an administrator's saved choice still wins.
     "ui.start_route": "devices",
     "ui.hide_map": "false",  # hide the map area from the navigation for everyone (a single user: a role without map.read)
+    # owner 2026-09-30: the security area's "תמונת מצב" (live overview) sub-screen; "false" hides it from the navigation and
+    # redirects its route to the next live page. Per installation; the screen itself stays a normal, permitted route.
+    "ui.security_snapshot": "true",
     # owner 2026-09-29 (overview tiles): the summary tiles' shape on the Live overview and the devices screens -
     # auto (compact under 600 px wide, cards above) | cards (tall, icon above) | compact (a rectangle, icon beside the
     # value). Per installation, like ui.design; a browser may override it for itself (frontend/src/api/tile-layout.ts).
@@ -219,6 +222,7 @@ class SettingsPatch(BaseModel):
     ui_hide_search: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_search")
     ui_start_route: str | None = Field(default=None, pattern="^(explore|live|wall|events|playback|devices)$", alias="ui.start_route")
     ui_hide_map: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_map")
+    ui_security_snapshot: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.security_snapshot")
     ui_tile_layout: str | None = Field(default=None, pattern="^(auto|cards|compact)$", alias="ui.tile_layout")
     ui_tabs: dict[str, Any] | None = Field(default=None, alias="ui.tabs")  # validated in full by normalize_tabs
     history_ha_secondary: str | None = Field(default=None, pattern="^(true|false)$", alias="history.ha_secondary")

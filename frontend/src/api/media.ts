@@ -47,6 +47,8 @@ export interface ProductSettings {
   'ui.start_route'?: string;
   /** 'true' hides the map area from the navigation for everyone (0.1.68). */
   'ui.hide_map'?: string;
+  /** 'false' hides the security area's "תמונת מצב" (the live overview) from the navigation for everyone (2026-09-30); default 'true'. */
+  'ui.security_snapshot'?: string;
   /** S2: 'true' lets the Home Assistant recorder fill entity states the local history does not know (marked as secondary). */
   'history.ha_secondary'?: string;
   /** הגדרות › בקרות כניסה (CR-005 recorded decision 2026-09-28): per SMPLWISE WisKey screen, 'wiskey' = WisKey's own

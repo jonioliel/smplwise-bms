@@ -125,6 +125,12 @@ export class SwTabs extends LitElement {
       this.updateFade();
     });
     this.resizeObs.observe(this);
+    // the web font widens the tabs after the first layout, which the box observer does not see: reveal again once it is
+    // in (a long row - the ten investigation tabs - otherwise kept its active last tab clipped on the phone)
+    void document.fonts?.ready.then(() => {
+      this.revealActive();
+      this.updateFade();
+    });
   }
 
   disconnectedCallback() {

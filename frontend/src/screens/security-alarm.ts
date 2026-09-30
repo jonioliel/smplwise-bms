@@ -22,6 +22,7 @@ import {
 } from '../api/alarm';
 import { ApiError, describeError } from '../api/client';
 import { awaitAction, subscribeHa, type HaActionRecord } from '../api/ha';
+import { noteAlarmPanels } from '../api/alarm-presence';
 import { isApi, onSession } from '../api/session';
 import { navigate, parseRoute } from '../router';
 import { DEMO_ALARM } from '../fixtures/alarm-demo';
@@ -57,7 +58,7 @@ function when(iso: string | null): string {
 }
 
 /**
- * אבטחה › אזעקה (CR-010): the intrusion alarm - per panel a state card with the arm modes it supports and disarm, a
+ * הגדרות › אבטחה › אזעקה (CR-010, moved from אבטחה › אזעקה 2026-09-30): the intrusion alarm - per panel a state card with the arm modes it supports and disarm, a
  * "ready to arm" summary, and its zones grouped by area with live state and the bypass switch of each. Codes are typed
  * into a masked keypad dialog (numeric keypad, no autocomplete) that is cleared when it closes and after sending; the
  * code never leaves this component except in the body of the one request that needs it.
@@ -560,6 +561,7 @@ export class SecurityAlarm extends LitElement {
     if (!quiet) this.loading = !this.data;
     try {
       this.data = isApi() ? await alarmPanels() : DEMO_ALARM;
+      if (isApi()) noteAlarmPanels(this.data.panels.length); // the navigation's "is there a panel" answer, refreshed for free
       this.error = '';
       this.watched = new Set(this.data.panels.flatMap((p) => [p.entity_id, ...p.zones.flatMap((z) => [z.entity_id, ...z.aux, ...(z.bypass ? [z.bypass.entity_id] : [])]), ...p.unpaired_controls.map((c) => c.entity_id)]));
     } catch (err) {
@@ -576,7 +578,7 @@ export class SecurityAlarm extends LitElement {
 
   private choosePanel(id: string) {
     this.panelId = id;
-    navigate('/security/alarm', { panel: id });
+    navigate('/system/security/alarm', { panel: id });
   }
 
   private flash(text: string) {
@@ -720,7 +722,7 @@ export class SecurityAlarm extends LitElement {
     const p = this.panel;
     if (!p) {
       return html`<sw-page heading="אזעקה"><sw-state-panel data-alarm-empty state="empty" heading="לא נמצא לוח אזעקה"
-        hint="המערכת לא מצאה לוח אזעקה מחובר. מתקין או מנהל המערכת יכול לבדוק בהגדרות › מערכת › אזעקה שמערכת האזעקה מחוברת לתשתית המערכת ושההרשאות מאפשרות לראות אותה."></sw-state-panel></sw-page>`;
+        hint="המערכת לא מצאה לוח אזעקה מחובר. מתקין או מנהל המערכת יכול לבדוק בהגדרות › אבטחה › ניהול אזעקה שמערכת האזעקה מחוברת לתשתית המערכת ושההרשאות מאפשרות לראות אותה."></sw-state-panel></sw-page>`;
     }
     const sub = `${d.counts.zones} חיישנים · ${d.counts.open} פתוחים · ${d.counts.bypassed} עקופים${d.counts.faults ? ` · ${d.counts.faults} תקלות` : ''}${d.channel === 'remote' ? ' · מחוץ לרשת המקומית' : ''}`;
     return html`<sw-page heading="אזעקה" subheading=${sub}>
@@ -734,7 +736,7 @@ export class SecurityAlarm extends LitElement {
       ${this.renderHero(p)}
       ${this.renderZones(p)}
       ${p.unpaired_controls.length
-        ? html`<details class="unpaired" data-alarm-unpaired><summary>ללא שיוך · ${p.unpaired_controls.length} מתגי עקיפה שלא שויכו לחיישן</summary><ul>${p.unpaired_controls.map((c) => html`<li>${c.name}${c.bypassed ? ' · עוקף' : ''}</li>`)}</ul><div class="hint">שיוך ידני: הגדרות › מערכת › אזעקה.</div></details>`
+        ? html`<details class="unpaired" data-alarm-unpaired><summary>ללא שיוך · ${p.unpaired_controls.length} מתגי עקיפה שלא שויכו לחיישן</summary><ul>${p.unpaired_controls.map((c) => html`<li>${c.name}${c.bypassed ? ' · עוקף' : ''}</li>`)}</ul><div class="hint">שיוך ידני: הגדרות › אבטחה › ניהול אזעקה.</div></details>`
         : nothing}
     </sw-page>
     ${this.renderKeypad()} ${this.renderPin()} ${this.toast ? html`<div class="toast" role="status" aria-live="polite">${this.toast}</div>` : nothing}`;
@@ -812,7 +814,7 @@ export class SecurityAlarm extends LitElement {
         <span class="counts">${zones.length} מתוך ${p.zones.length} חיישנים</span>
       </div>
       ${!p.zones.length
-        ? html`<sw-state-panel compact state="empty" heading="אין חיישנים ללוח הזה" hint="החיישנים מגיעים מאותה מערכת אזעקה. מנהל המערכת יכול לשייך חיישנים ידנית בהגדרות › מערכת › אזעקה."></sw-state-panel>`
+        ? html`<sw-state-panel compact state="empty" heading="אין חיישנים ללוח הזה" hint="החיישנים מגיעים מאותה מערכת אזעקה. מנהל המערכת יכול לשייך חיישנים ידנית בהגדרות › אבטחה › ניהול אזעקה."></sw-state-panel>`
         : !zones.length
           ? html`<div class="hint" data-alarm-filter-empty>אין חיישנים שמתאימים לסינון.</div>`
           : [...groups.entries()].map(([area, list]) => html`<section data-area=${area}><h3>${area}</h3><div class="grid">${list.map((z) => this.renderZone(p, z))}</div></section>`)}`;

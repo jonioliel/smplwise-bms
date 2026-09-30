@@ -22,6 +22,7 @@ import {
   type UserAlarmPolicy,
 } from '../api/alarm';
 import { ApiError, describeError } from '../api/client';
+import { noteAlarmPanels } from '../api/alarm-presence';
 import { invalidateSettings } from '../api/prefs';
 import { isApi, session } from '../api/session';
 
@@ -103,7 +104,7 @@ const shared = css`
   }
 `;
 
-/** הגדרות › מערכת › אזעקה (CR-010): the discovered panels and their integration, the write-only panel code, the zone ↔
+/** הגדרות › אבטחה › ניהול אזעקה (CR-010): the discovered panels and their integration, the write-only panel code, the zone ↔
  * bypass pairing with manual overrides, the unpaired controls, and the remote / code settings. A settings screen - the
  * technical names are shown here on purpose (docs/design/UI_COPY_RULES.md). */
 @customElement('system-alarm-settings')
@@ -154,6 +155,7 @@ export class SystemAlarmSettings extends LitElement {
     if (!isApi()) return;
     try {
       this.cfg = await alarmConfig();
+      noteAlarmPanels(this.cfg.panels.length); // the navigation's "is there a panel" answer, refreshed for free
       this.error = '';
     } catch (err) {
       this.error = describeError(err);
