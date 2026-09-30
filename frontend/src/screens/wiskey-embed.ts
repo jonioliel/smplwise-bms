@@ -7,7 +7,7 @@ import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { can, isApi } from '../api/session';
 import { parseRoute, pushRoute, replaceRoute } from '../router';
-import { WISKEY_PHONE_EMBED, WISKEY_SCREENS, WISKEY_UI, isWiskeyHref, setWiskeyEmbedNav, wiskeyPath, wiskeyRequest, wiskeyRoute, wiskeySegmentOf, type WiskeyScreen } from '../shell/nav';
+import { WISKEY_PHONE_EMBED, WISKEY_SCALE, WISKEY_SCREENS, WISKEY_SIZE, WISKEY_SIZE_EVENT, WISKEY_UI, isWiskeyHref, setWiskeyEmbedNav, wiskeyPath, wiskeyRequest, wiskeyRoute, wiskeySegmentOf, type WiskeyScreen } from '../shell/nav';
 import { attachWiskey, WISKEY_PANEL_PATH, WISKEY_PANEL_TAG, type WiskeyCatalog, type WiskeyConnector, type WiskeyLocation } from '../wiskey/embed-connector';
 import { attachCompanionBridge, bridgeWindow, type CompanionBridge, type ShimState } from '../wiskey/companion-bridge';
 import './wiskey-overview';
@@ -272,6 +272,11 @@ export class WiskeyEmbed extends LitElement {
   /** Set when this tab does not nest Home Assistant (reflected for the evidence specs and the host style). */
   @property({ reflect: true, attribute: 'data-direct' }) direct: DirectReason = '';
   private forbidden = false;
+  /** Size "מסך מלא" (installation setting `ui.wiskey_size`): left by the exit control / Esc for this visit; the next
+   * visit to the WisKey area (the module was left) is full again. */
+  private fullLeft = false;
+  private fullActive = false;
+  private inerted: HTMLElement[] = [];
   private connector: WiskeyConnector | null = null;
   /** v1: the location the frame was opened on (its URL) - asked for, never taken as confirmed. */
   private opened: WiskeyLocation | null = null;
@@ -424,6 +429,57 @@ export class WiskeyEmbed extends LitElement {
       box-shadow: var(--sw-shadow-1);
       font-size: var(--sw-fs-sm);
     }
+    /* size "מותאם" (ui.wiskey_size = fit): the frame is rendered 1/scale larger and scaled down from its top-left corner
+       (physical, so RTL does not matter), so the wrapper - and the box WisKey lays out in - is bigger than what is
+       shown and the visible result still fills the stage exactly. Pointer coordinates follow the transform. */
+    .stage[data-fit] {
+      overflow: hidden;
+    }
+    .stage[data-fit] iframe {
+      position: absolute;
+      inset-block-start: 0;
+      left: 0;
+      inline-size: auto;
+      block-size: auto;
+      width: calc(100% / var(--wk-scale));
+      height: calc(100% / var(--wk-scale));
+      transform: scale(var(--wk-scale));
+      transform-origin: 0 0;
+    }
+    /* size "מסך מלא" (ui.wiskey_size = full): the whole viewport, over the rail, top bar and bottom bar, with one small
+       floating exit control in a top corner */
+    :host([data-size='full']) {
+      position: fixed;
+      inset: 0;
+      z-index: calc(var(--sw-z-topbar) + 10);
+      block-size: auto;
+      box-sizing: border-box;
+      padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+      background: var(--sw-surface);
+    }
+    button.exit {
+      position: absolute;
+      inset-block-start: max(8px, env(safe-area-inset-top, 0px));
+      inset-inline-end: max(8px, env(safe-area-inset-left, 0px));
+      z-index: 3;
+      display: grid;
+      place-items: center;
+      inline-size: 30px;
+      block-size: 30px;
+      padding: 0;
+      border-radius: 50%;
+      border: 1px solid var(--sw-border);
+      background: color-mix(in srgb, var(--sw-surface) 85%, transparent);
+      color: var(--sw-text-2);
+      box-shadow: var(--sw-shadow-1);
+      cursor: pointer;
+      opacity: 0.7;
+    }
+    button.exit:hover,
+    button.exit:focus-visible {
+      opacity: 1;
+      color: var(--sw-text);
+    }
     iframe[data-hidden] {
       visibility: hidden;
     }
@@ -439,6 +495,7 @@ export class WiskeyEmbed extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    window.addEventListener(WISKEY_SIZE_EVENT, this.onSize);
     if (isApi() && !can('access.read')) {
       this.forbidden = true;
       return;
@@ -465,11 +522,55 @@ export class WiskeyEmbed extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('click', this.onClick, true);
+    window.removeEventListener(WISKEY_SIZE_EVENT, this.onSize);
+    this.fullLeft = false;
+    this.setFullActive(false);
     this.dropFrame();
     this.detached = true;
   }
 
+  // ------------------------------------------------------------------ size (ui.wiskey_size)
+
+  private onSize = () => this.requestUpdate();
+
+  /** The size in force: only a framed embed is ever resized; "מסך מלא" left for this visit is the normal size. */
+  private size(): 'normal' | 'fit' | 'full' {
+    if (this.forbidden || this.direct) return 'normal';
+    if (WISKEY_SIZE === 'full' && this.fullLeft) return 'normal';
+    return WISKEY_SIZE === 'fit' && WISKEY_SCALE >= 100 ? 'normal' : WISKEY_SIZE;
+  }
+
+  private onEsc = (e: KeyboardEvent) => {
+    if (e.key === 'Escape' && !e.defaultPrevented) this.leaveFull(); // (inside the frame the key belongs to WisKey)
+  };
+
+  private leaveFull() {
+    this.fullLeft = true;
+    this.requestUpdate();
+  }
+
+  /** While full: the shell's rail, top bar, tab row, bottom bar, alert banner, user menu and tab-order dialog are inert
+   * (Tab never reaches what is covered) and Esc leaves. Undone when it ends or the module is left. */
+  private setFullActive(on: boolean) {
+    if (on === this.fullActive) return;
+    this.fullActive = on;
+    if (on) {
+      const root = this.getRootNode();
+      const covered = root instanceof ShadowRoot ? Array.from(root.querySelectorAll<HTMLElement>('nav.rail, header.topbar, nav.bottom, .sysbanner, main > :not(.screen), sw-user-menu, sw-nav-order')) : [];
+      this.inerted = covered.filter((el) => !el.inert);
+      for (const el of this.inerted) el.inert = true;
+      window.addEventListener('keydown', this.onEsc);
+    } else {
+      for (const el of this.inerted) el.inert = false;
+      this.inerted = [];
+      window.removeEventListener('keydown', this.onEsc);
+    }
+  }
+
   protected updated(changed: PropertyValues<this>) {
+    const size = this.size();
+    this.setAttribute('data-size', size);
+    this.setFullActive(size === 'full');
     this.ensureConnector();
     const moved = (changed.has('tab') && changed.get('tab') !== undefined) || (changed.has('tool') && changed.get('tool') !== undefined);
     if (moved && !this.forbidden && !this.direct) this.onRequest();
@@ -1047,9 +1148,13 @@ export class WiskeyEmbed extends LitElement {
     const heading = this.mode === 'v1' && this.panelTitle ? this.panelTitle : this.labelOf(shown.tab);
     const confirmed = this.mode === 'v1' ? this.confirmed : null;
     const notes = this.statusNote();
+    const size = this.size();
     return html`
+      ${size === 'full'
+        ? html`<button type="button" class="exit" data-wiskey-exit aria-label="יציאה ממסך מלא" title="יציאה ממסך מלא (Esc)" @click=${() => this.leaveFull()}><sw-icon name="close" size=${16}></sw-icon></button>`
+        : nothing}
       ${this.renderTools()}
-      <div class="stage">
+      <div class="stage" ?data-fit=${size === 'fit'} style=${size === 'fit' ? `--wk-scale:${WISKEY_SCALE / 100}` : ''}>
         ${keyed(
           this.frameKey,
           html`<iframe

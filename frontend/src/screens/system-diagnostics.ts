@@ -710,6 +710,16 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-hide-map ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_map', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('ui.hide_map') ?? 'false') !== 'true'}>מוצגת</option><option value="true" ?selected=${String(this.value('ui.hide_map') ?? 'false') === 'true'}>מוסתרת</option>
           </select></sw-field></div>
+        <div class="row"><span class="lbl">גודל תצוגת WisKey<span class="muted">רגיל: ממלא את אזור התוכן. מותאם: WisKey מוצג בגודל וירטואלי גדול יותר ומוקטן, כך שנכנסים בו יותר כרטיסים ואריחים. מסך מלא: מכסה את כל החלון (יציאה: כפתור קטן בפינה, Esc או חזרה)</span></span>
+          <sw-field class="ctl"><select data-set-wiskey-size ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.wiskey_size', (e.target as HTMLSelectElement).value as ProductSettings['ui.wiskey_size'])}>
+            ${([['normal', 'רגיל'], ['fit', 'מותאם'], ['full', 'מסך מלא']] as const).map(([v, l]) => html`<option value=${v} ?selected=${(this.value('ui.wiskey_size') ?? 'normal') === v}>${l}</option>`)}
+          </select></sw-field></div>
+        ${(this.value('ui.wiskey_size') ?? 'normal') === 'fit'
+          ? html`<div class="row"><span class="lbl">קנה מידה במצב מותאם<span class="muted">100% זהה לרגיל; ככל שהמספר נמוך יותר WisKey מציג יותר, בכתב קטן יותר</span></span>
+              <sw-field class="ctl"><select data-set-wiskey-scale ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.wiskey_scale', (e.target as HTMLSelectElement).value as ProductSettings['ui.wiskey_scale'])}>
+                ${(['100', '90', '80', '70'] as const).map((v) => html`<option value=${v} ?selected=${String(this.value('ui.wiskey_scale') ?? '90') === v}>${v}%</option>`)}
+              </select></sw-field></div>`
+          : nothing}
         ${NVR ? nothing : html`<div class="row"><span class="lbl">HA recorder כמקור משני להיסטוריה<span class="muted">במפה ההיסטורית: כשההיסטוריה המקומית לא יודעת מצב של ישות, הוא נקרא מה־recorder של Home Assistant ומסומן כמקור משני</span></span>
           <sw-field class="ctl"><select data-set-ha-secondary ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('history.ha_secondary', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('history.ha_secondary') ?? 'false') !== 'true'}>כבוי</option><option value="true" ?selected=${String(this.value('history.ha_secondary') ?? 'false') === 'true'}>פעיל</option>

@@ -33,6 +33,8 @@ export interface FakeHa {
   announce?: boolean;
   /** Home Assistant's external (Companion app) sign-in: start only after a token from the app's bridge (FAKE_CORE). */
   externalAuth?: boolean;
+  /** The framed document's own `color-scheme` (Home Assistant's dark theme declares one) with a transparent body; unset = none. */
+  colorScheme?: string;
 }
 
 export const PANEL_URL = /\/hikvision-intercom(\?|$)/;
@@ -59,9 +61,9 @@ export const FAKE_CATALOG: FakeCatalog = {
   ],
 };
 
-export function fakeHaPage({ kiosk, panels, api = 'legacy', catalog = FAKE_CATALOG, announce = true, externalAuth = false }: FakeHa): string {
+export function fakeHaPage({ kiosk, panels, api = 'legacy', catalog = FAKE_CATALOG, announce = true, externalAuth = false, colorScheme }: FakeHa): string {
   const config = JSON.stringify({ api, catalog, announce, marker: api === 'v1' || api === 'marker-only' ? '1' : api.startsWith('v2') ? '2' : null });
-  return `<!doctype html><html><body style="margin:0"><home-assistant></home-assistant><script>
+  return `<!doctype html><html${colorScheme ? ` style="color-scheme:${colorScheme}"` : ''}><body style="margin:0"><home-assistant></home-assistant><script>
 function __boot() {
 const CONFIG = ${config};
 window.__loads = (window.__loads || 0) + 1;

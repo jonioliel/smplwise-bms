@@ -87,6 +87,11 @@ DEFAULTS: dict[str, str] = {
     # the same "hidden for everyone" shape as ui.hide_map, but for the WisKey top-level area. The access.ui.* choices
     # above apply only while this is false.
     "ui.hide_wiskey": "false",
+    # owner 2026-09-30: how much of the screen the embedded WisKey panel uses, per installation (admin-only write).
+    # normal = fills the content area at 100% | fit = the frame is rendered larger and scaled down by ui.wiskey_scale
+    # percent (WisKey then sees a bigger frame and shows more cards) | full = covers the whole viewport with a small exit.
+    "ui.wiskey_size": "normal",
+    "ui.wiskey_scale": "90",  # the scale of "fit": 100 | 90 | 80 | 70
     # T054 follow-up (owner request 2026-09-29, experimental): embed WisKey inside the Home Assistant Companion app too,
     # by relaying the app's sign-in bridge from Home Assistant's top document into the nested frame
     # (frontend/src/wiskey/companion-bridge.ts). "false" (the default) keeps the 0.1.123 behaviour: no frame in the app,
@@ -245,6 +250,8 @@ class SettingsPatch(BaseModel):
     access_ui_events: str | None = Field(default=None, pattern="^(wiskey|smplwise)$", alias="access.ui.events")
     access_ui_people: str | None = Field(default=None, pattern="^(wiskey|smplwise)$", alias="access.ui.people")
     ui_hide_wiskey: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_wiskey")
+    ui_wiskey_size: str | None = Field(default=None, pattern="^(normal|fit|full)$", alias="ui.wiskey_size")
+    ui_wiskey_scale: str | None = Field(default=None, pattern="^(100|90|80|70)$", alias="ui.wiskey_scale")
     access_phone_embed: str | None = Field(default=None, pattern="^(true|false)$", alias="access.phone_embed")
     devices_style: str | None = Field(default=None, pattern="^(smplwise|glass)$", alias="devices.style")
     devices_theme: str | None = Field(default=None, pattern="^(" + "|".join(DEVICE_THEMES) + ")$", alias="devices.theme")
