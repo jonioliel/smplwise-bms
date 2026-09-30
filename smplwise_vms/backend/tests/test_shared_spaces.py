@@ -1040,3 +1040,59 @@ def test_history_and_camera_only_readers(settings):
     _binding(settings, "cam", "viewer", "camera", w["cams"]["camH"])
     m3 = c.get(f"/api/v1/floors/{w['f3']}/map", headers=as_user("cam")).json()
     assert m3["reach"] == "cameras" and m3["zones"] == [] and {a["resource_id"] for a in m3["anchors"]} == {w["cams"]["camH"]}
+
+
+def test_review_l4_alignment_and_unshare_take_the_share_rights_on_both_floors(settings):
+    w = _world(settings)
+    c = w["c"]
+    _share(w)
+    for u in ("only3", "only2", "both"):
+        c.get("/api/v1/me", headers=as_user(u))
+    _binding(settings, "only3", "editor", "floor", w["f3"])
+    _binding(settings, "only2", "editor", "floor", w["f2"])
+    _binding(settings, "both", "editor", "floor", w["f2"])
+    _binding(settings, "both", "editor", "floor", w["f3"])
+    url = f"/api/v1/zones/{w['hall']}/share/{w['f3']}"
+    body = {"revision": 1, "mode": "fit", "from": [0.4, 0.4], "to": [0.8, 0.8], "rotation_deg": 0, "scale": 1}
+    for u in ("only3", "only2"):
+        assert c.patch(url, json=body, headers=as_user(u)).status_code == 403, u
+        assert c.delete(url, headers=as_user(u)).status_code == 403, u  # before L4 either floor was enough
+    with w["app"].state.db.connection() as conn:
+        assert len(ss.shares_of_zone(conn, w["hall"])) == 1
+    deny = _binding(settings, "both", "editor", "floor", w["f3"], effect="deny")  # a deny on one floor wins over the allow on the other
+    assert c.delete(url, headers=as_user("both")).status_code == 403
+    with w["app"].state.db.connection() as conn:
+        conn.execute("DELETE FROM bindings WHERE id = ?", (deny,))
+    assert c.patch(url, json=body, headers=as_user("both")).status_code == 200
+    assert c.delete(url, headers=as_user("both")).status_code == 204
+
+
+def _live_share_rows(w: dict) -> tuple[int, int]:
+    with w["app"].state.db.connection() as conn:
+        return (conn.execute("SELECT COUNT(*) FROM shared_spaces WHERE removed_at IS NULL").fetchone()[0],
+                conn.execute("SELECT COUNT(*) FROM shared_space_members WHERE removed_at IS NULL").fetchone()[0])
+
+
+def test_review_l5_force_deleting_the_other_floor_ends_the_share_and_the_rooms_members(settings):
+    w = _world(settings)
+    c = w["c"]
+    _share(w)
+    shares, members = _live_share_rows(w)
+    assert shares == 1 and members >= 1
+    assert c.delete(f"/api/v1/floors/{w['f3']}").status_code == 409
+    assert c.delete(f"/api/v1/floors/{w['f3']}?force=true").status_code == 204
+    assert _live_share_rows(w) == (0, 0)
+    with w["app"].state.db.connection() as conn:
+        assert ss.member_rows(conn) == [] and ss.mirrored_anchor_floors(conn) == {}
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'zone.unshare' AND resource_id = ?", (w["f3"],)).fetchone()[0] == 1
+    # the home floor stays whole: its room is an ordinary room again, and it can be shared anew later
+    assert not any(a.get("shared") for a in c.get(f"/api/v1/floors/{w['f2']}/map").json()["anchors"])
+
+
+def test_review_l5_force_deleting_the_home_floor_ends_the_room_too(settings):
+    w = _world(settings)
+    c = w["c"]
+    _share(w)
+    assert c.delete(f"/api/v1/floors/{w['f2']}?force=true").status_code == 204
+    assert _live_share_rows(w) == (0, 0)
+    assert not any(a.get("shared") for a in c.get(f"/api/v1/floors/{w['f3']}/map").json()["anchors"])

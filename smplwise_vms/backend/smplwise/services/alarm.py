@@ -519,12 +519,69 @@ def discover(conn: sqlite3.Connection, entities: list[dict[str, Any]] | None = N
 
 # ---------------------------------------------------------------- controls the alarm owns (security review B1)
 
+# review L9: the managed set is an installation-level fact (no user data), and a full discovery per request is wasteful -
+# the entity screens, the map, the bulk routes and the shared-space checks each ask for it. It is kept per database file
+# and valid while the fingerprint of everything discovery reads is unchanged. There is no revision counter on the mirror
+# (timestamps have one-second resolution, so "max(updated_at)" would miss two edits in one second): the fingerprint
+# hashes the discovery inputs themselves (identity, registry, attributes, the administrator's overrides) - never the
+# state, last-changed or seen columns, which discovery does not read - in one query and no JSON parsing, a fraction of
+# the discovery it saves. Any change to those inputs (a registry refresh, a new or removed entity, an attribute, an
+# override write) changes the fingerprint, so the next call recomputes.
+_MANAGED_CACHE: dict[str, tuple[str, frozenset[str]]] = {}
+_MANAGED_CACHE_MAX = 8  # databases per process (one in production; tests open many)
+MANAGED_STATS = {"hits": 0, "misses": 0}
+
+
+def _managed_fingerprint(conn: sqlite3.Connection) -> tuple[str, str] | None:
+    """(database file, fingerprint of the discovery inputs), or None when it cannot be told (in-memory database, a schema
+    from before the alarm migration): the caller then computes without the cache."""
+    import hashlib
+
+    try:
+        file = next((r[2] for r in conn.execute("PRAGMA database_list").fetchall() if r[1] == "main"), "")
+        if not file:
+            return None
+        h = hashlib.sha1()
+        for r in conn.execute(
+            "SELECT entity_id, domain, name, original_name, platform, config_entry_id, entity_category, device_class, device_id, area_id, area_name, "
+            "disabled, removed_at IS NULL, attributes_json FROM ha_entities WHERE domain IN ('alarm_control_panel', 'binary_sensor', 'switch', 'select') ORDER BY entity_id"
+        ):
+            h.update(repr(tuple(r)).encode("utf-8"))
+        h.update(b"|")
+        for r in conn.execute("SELECT zone_entity_id, panel_entity_id, bypass_entity_id, excluded FROM alarm_zone_overrides ORDER BY zone_entity_id"):
+            h.update(repr(tuple(r)).encode("utf-8"))
+        return file, h.hexdigest()
+    except sqlite3.OperationalError:
+        return None
+
+
 def managed_controls(conn: sqlite3.Connection, disc: dict[str, Any] | None = None) -> set[str]:
     """Every entity the alarm section owns and no other path may operate: each panel, each bypass control discover()
     pairs with a zone, each unpaired bypass-like control of a panel's integration, and each override target. The
     general entity route, the bulk actions and the bulk-safe mark refuse them (routers/ha.py, device_bulk.py): bypassing a
     zone or arming / disarming a panel goes through routers/alarm.py only - alarm.* permissions, the code policy, the
-    lockout, the remote settings, the confirmation and the alarm.* audit rows."""
+    lockout, the remote settings, the confirmation and the alarm.* audit rows. Cached per database while its discovery
+    inputs are unchanged (review L9, above); a caller-supplied `disc` is always used as given, never cached. Always a
+    fresh set: a caller may keep or change it."""
+    if disc is not None:
+        return _managed_controls(conn, disc)
+    key = _managed_fingerprint(conn)
+    if key is None:
+        return _managed_controls(conn, None)
+    file, fingerprint = key
+    hit = _MANAGED_CACHE.get(file)
+    if hit is not None and hit[0] == fingerprint:
+        MANAGED_STATS["hits"] += 1
+        return set(hit[1])
+    MANAGED_STATS["misses"] += 1
+    out = _managed_controls(conn, None)
+    if len(_MANAGED_CACHE) >= _MANAGED_CACHE_MAX and file not in _MANAGED_CACHE:
+        _MANAGED_CACHE.pop(next(iter(_MANAGED_CACHE)))
+    _MANAGED_CACHE[file] = (fingerprint, frozenset(out))
+    return out
+
+
+def _managed_controls(conn: sqlite3.Connection, disc: dict[str, Any] | None) -> set[str]:
     ents = load(conn)
     d = disc if disc is not None else discover(conn, ents)
     out: set[str] = set()

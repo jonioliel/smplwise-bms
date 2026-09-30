@@ -26,6 +26,10 @@ The limits (LIMITS below; docs/changes/CR-008-ARX-REMOTE-APP.md §9 has the tabl
   stream the body themselves after authorising the caller and stop at the configured value while it streams;
 - large JSON documents: the Plan Studio geometry document and a detection acceptance 16 MiB, a catalog import 8 MiB;
 - the CSP report sink 16 KiB (its own streaming bound, routers/remote.CSP_BODY_MAX).
+The rule is looked up on the path the router will match (the scope's path minus its root_path: RemoteChannel's remote
+prefix), in its own spelling AND canonicalised (percent escapes decoded, repeated slashes collapsed, dot segments
+resolved, no trailing slash); the STRICTEST of the two applies, so no odd spelling gets a larger limit than the route has
+nor escapes a tight one (the CSP sink, the sign-in paths).
 On the remote channel, the paths that need no sign-in (`auth/session`, `auth/remote-config`, `/.well-known/...`) take
 4 KiB, and a request that names no live session (no Arx cookie of a session this process knows, no bearer token of a
 known bearer session - services/ha_user_auth.holds_live_credential, memory only) takes at most 64 KiB on any path: an
@@ -38,6 +42,7 @@ import re
 import uuid
 from functools import lru_cache
 from typing import Any, Callable
+from urllib.parse import unquote
 
 from .config import Settings
 from .remote_channel import CHANNEL_KEY, REMOTE
@@ -130,18 +135,61 @@ def route_limit(method: str, path: str, settings: Settings) -> tuple[int, str]:
     return DEFAULT_MAX, "default"
 
 
+def routed_path(scope: dict[str, Any]) -> str:
+    """The path Starlette's router will match: the scope's `path` with the `root_path` stripped (the routing scope state -
+    RemoteChannel sets root_path to the remote prefix, so the limit follows the very path the routes see, not a second
+    string parse of the raw one; the same rule as starlette._utils.get_route_path)."""
+    path: str = scope.get("path") or "/"
+    root = scope.get("root_path") or ""
+    if root and path.startswith(root):
+        if path == root:
+            return ""
+        if path[len(root)] == "/":
+            return path[len(root):]
+    return path
+
+
+def canonical_path(path: str) -> str:
+    """The spelling a limit rule is judged on beside the routed one: percent escapes decoded (repeatedly - a doubly encoded
+    slash is still a slash to a proxy in front), repeated slashes collapsed, dot segments resolved, no trailing slash.
+    A request spelled oddly (`/api/v1//backups/upload/`, `/api/v1/backups/%75pload`, `.../x/../backups/upload`) is not
+    routed to a route with a larger limit than its canonical spelling has: the STRICTEST of the two spellings applies."""
+    for _ in range(3):
+        decoded = unquote(path)
+        if decoded == path:
+            break
+        path = decoded
+    out: list[str] = []
+    for seg in path.split("/"):
+        if seg in ("", "."):
+            continue
+        if seg == "..":
+            if out:
+                out.pop()
+            continue
+        out.append(seg)
+    return "/" + "/".join(out)
+
+
+def _spellings(path: str) -> list[str]:
+    canon = canonical_path(path)
+    return [path] if canon == path else [path, canon]
+
+
 def limit_for(scope: dict[str, Any], settings: Settings) -> tuple[int, str]:
     """(max body bytes, rule name) of one HTTP request."""
     method = (scope.get("method") or "GET").upper()
-    path: str = scope.get("path") or "/"
-    if (scope.get("state") or {}).get(CHANNEL_KEY) != REMOTE:
-        return route_limit(method, path, settings)
-    prefix = settings.remote_path
-    rest = path[len(prefix):] if path.startswith(prefix + "/") else path
-    if REMOTE_PUBLIC.fullmatch(rest):
+    remote = (scope.get("state") or {}).get(CHANNEL_KEY) == REMOTE
+    path = routed_path(scope)
+    if remote:
+        prefix = settings.remote_path
+        if not (scope.get("root_path") or "") and path.startswith(prefix + "/"):
+            path = path[len(prefix):]  # a scope that carries the whole path (no root_path): strip the prefix ourselves
+    spellings = _spellings(path)
+    if remote and any(REMOTE_PUBLIC.fullmatch(p) for p in spellings):
         return REMOTE_PUBLIC_MAX, "remote_public"
-    limit, name = route_limit(method, rest, settings)
-    if limit > REMOTE_ANONYMOUS_MAX:
+    limit, name = min((route_limit(method, p, settings) for p in spellings), key=lambda r: r[0])
+    if remote and limit > REMOTE_ANONYMOUS_MAX:
         from starlette.requests import HTTPConnection
 
         from .services.ha_user_auth import holds_live_credential

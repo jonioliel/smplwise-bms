@@ -42,6 +42,9 @@ def janitor_tick(db: Database, settings: Settings) -> None:
     events_derive.prune(db, s["events.retention_days"])
     thumbnails.prune(settings, s["events.retention_days"])
     audit_mod.prune_db(db, s["audit.retention_days"])
+    from .services import ha_user_auth
+
+    ha_user_auth.flush_refusal_summaries(db)  # counted-but-quiet throttled refusals: the end-of-window summary rows
     ha_history.prune_db(db)
     from .services import push as push_svc
 
