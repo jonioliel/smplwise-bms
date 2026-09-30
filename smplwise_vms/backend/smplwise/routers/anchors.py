@@ -85,6 +85,8 @@ def camera_row(r: sqlite3.Row) -> dict[str, Any]:
         # is what that test is about) - camera_row() is called from that same code path. Removing the fallback
         # broke that pre-existing test; keeping it costs nothing once every row genuinely has the column.
         "grid_col_span": r["grid_col_span"] if "grid_col_span" in r.keys() else 1,
+        # wall arrangement: hidden in the all-cameras wall (same old-database fallback as grid_col_span above)
+        "wall_hidden": bool(r["wall_hidden"]) if "wall_hidden" in r.keys() else False,
     }
 
 

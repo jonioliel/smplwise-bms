@@ -598,11 +598,24 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/system/diagnostics?tab=health');
   });
 
-  test('"עריכת המסך הראשי": only for who may edit the home layout; it opens the home with edit=1', async ({ page }, info) => {
-    await open(page, '/explore/floors/f0');
+  test('"עריכת המסך הראשי": only on the home screen, only for who may edit the home layout; it opens the home with edit=1', async ({ page }, info) => {
     const menu = page.locator('sw-app sw-user-menu [data-user-menu]');
+    // owner 2026-09-30: the item is the home screen's own - never on the map, the wall, an area or the schedules
+    for (const away of ['/explore/floors/f0', '/live/wall', '/devices/areas/none', '/devices/schedules']) {
+      await open(page, away);
+      await meButton(page, info).click();
+      await expect(menu.locator('ul[data-menu-level="main"]')).toBeVisible();
+      await expect(menu.locator('[data-menu-edit-home]'), away).toHaveCount(0);
+      await page.keyboard.press('Escape');
+    }
+    // the home, plain and with a query (the panel deep link): the item is there
+    await open(page, '/devices/building?domain=lights');
     await meButton(page, info).click();
-    await expect(menu.locator('ul[data-menu-level="main"] > li')).toHaveText(['התראות', 'עריכת המסך הראשי', 'מערכת', 'החשבון שלי']);
+    await expect(menu.locator('[data-menu-edit-home]')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await open(page, '/devices/building');
+    await meButton(page, info).click();
+    await expect(menu.locator('ul[data-menu-level="main"] > li').filter({ hasText: 'עריכת המסך הראשי' })).toHaveCount(1);
     const item = menu.locator('[data-menu-edit-home]');
     await expect(item).toHaveAttribute('href', '#/devices/building?edit=1');
     if (phone(info)) await page.waitForTimeout(300);

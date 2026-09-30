@@ -18,6 +18,7 @@ import { effectiveTransport, productSettings } from '../api/prefs';
 import { describeError } from '../api/client';
 import type { Camera } from '../api/types';
 import { simulateStrictRows } from './wall-grid';
+import { buildPatches, canMove, moveRow as moveLayoutRow, originalsOf, rowsFromCameras, setHidden as setRowHidden, setSpan as setRowSpan, wallCameras, wallFooterCount, type LayoutRow, type Original } from './wall-arrangement';
 import { remoteVideo } from '../api/video-policy';
 import { repeat } from 'lit/directives/repeat.js';
 import { REFUSED_MS, RELEASE_MS, allocateLive, effectiveLiveCap, sameSet, snapshotRefreshMs } from '../api/live-budget';
@@ -31,14 +32,6 @@ function storedQuality(): 'auto' | 'main' | 'sub' {
   } catch {
     return 'auto';
   }
-}
-
-/** T091 (owner request 2026-09-27): one row of the grid-layout settings dialog - the order the rows are kept
- * in IS the new sort_order (recomputed as 0..N-1 on save); `span` is the camera's grid_col_span. */
-interface LayoutRow {
-  id: string;
-  name: string;
-  span: number;
 }
 
 const COUNTS = [1, 2, 4, 6, 8, 9, 12, 16, 20, 25, 32];
@@ -95,7 +88,7 @@ export class LiveWall extends LitElement {
   @state() private editingRows: LayoutRow[] | null = null;
   @state() private dialogError = '';
   @state() private dialogBusy = false;
-  private editingOriginal = new Map<string, { sort_order: number; grid_col_span: number }>();
+  private editingOriginal = new Map<string, Original>();
   /** Every camera the caller may see, enabled or not (listCameras() already returns both - see cameras.py's
    * `list_cameras`, which filters only by visibility, not by `enabled`). Only used to keep disabled/hidden
    * cameras' sort_order out of the way of the dialog's own 0..N-1 renumbering (T091, review S2); the dialog
@@ -209,6 +202,24 @@ export class LiveWall extends LitElement {
     .settings-name {
       flex: 1;
       font-size: var(--sw-fs-sm);
+    }
+    .settings-show {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    /* "לא להציג": dimmed, but every control of the row stays usable (reorder, width, show again) */
+    .settings-row.is-hidden {
+      opacity: 0.55;
+      background: var(--sw-surface-3);
+    }
+    .settings-row.is-hidden .settings-show {
+      opacity: 1;
+      color: var(--sw-text);
     }
     /* the phone's toolbar (mobile audit 2026-09-30): quality, count and columns as three compact selects and the kiosk button, one row */
     .pbar {
@@ -541,8 +552,8 @@ export class LiveWall extends LitElement {
    * sort_order / grid_col_span so save() only PATCHes what actually changed. */
   private openSettings() {
     const cams = this.cams ?? [];
-    this.editingOriginal = new Map(cams.map((c) => [c.id, { sort_order: c.sort_order, grid_col_span: c.grid_col_span }]));
-    this.editingRows = cams.map((c) => ({ id: c.id, name: c.name, span: c.grid_col_span }));
+    this.editingOriginal = originalsOf(cams);
+    this.editingRows = rowsFromCameras(cams); // the cameras shown in the wall first, the hidden ones ("לא להציג") after them
     this.dialogError = '';
   }
 
@@ -560,21 +571,16 @@ export class LiveWall extends LitElement {
   }
 
   private moveRow(index: number, dir: -1 | 1) {
-    const rows = this.editingRows;
-    if (!rows) return;
-    const j = index + dir;
-    if (j < 0 || j >= rows.length) return;
-    const next = rows.slice();
-    [next[index], next[j]] = [next[j], next[index]];
-    this.editingRows = next;
+    if (this.editingRows) this.editingRows = moveLayoutRow(this.editingRows, index, dir);
   }
 
   private setSpan(index: number, span: number) {
-    const rows = this.editingRows;
-    if (!rows) return;
-    const next = rows.slice();
-    next[index] = { ...next[index], span };
-    this.editingRows = next;
+    if (this.editingRows) this.editingRows = setRowSpan(this.editingRows, index, span);
+  }
+
+  /** "לא להציג": the row moves to / from the hidden group at the end of the list (wall-arrangement.ts). */
+  private setHidden(index: number, hidden: boolean) {
+    if (this.editingRows) this.editingRows = setRowHidden(this.editingRows, index, hidden);
   }
 
   /** Only the cameras that actually changed - new position (0..N-1 from the row order) or column span - are
@@ -592,22 +598,7 @@ export class LiveWall extends LitElement {
     this.dialogBusy = true;
     this.dialogError = '';
     try {
-      const rowIds = new Set(rows.map((r) => r.id));
-      const patches: { id: string; body: { sort_order?: number; grid_col_span?: number } }[] = [];
-      rows.forEach((row, i) => {
-        const original = this.editingOriginal.get(row.id);
-        const body: { sort_order?: number; grid_col_span?: number } = {};
-        if (!original || original.sort_order !== i) body.sort_order = i;
-        if (!original || original.grid_col_span !== row.span) body.grid_col_span = row.span;
-        if (Object.keys(body).length) patches.push({ id: row.id, body });
-      });
-      const others = this.allCams
-        .filter((c) => !rowIds.has(c.id))
-        .sort((a, b) => a.sort_order - b.sort_order || a.channel - b.channel);
-      others.forEach((c, j) => {
-        const target = rows.length + j;
-        if (c.sort_order !== target) patches.push({ id: c.id, body: { sort_order: target } });
-      });
+      const patches = buildPatches(rows, this.editingOriginal, this.allCams);
       await Promise.all(patches.map((p) => updateCamera(p.id, p.body)));
       this.editingRows = null;
       await this.load();
@@ -633,11 +624,14 @@ export class LiveWall extends LitElement {
     ];
     return html`<sw-dialog open heading="סידור הקיר" subheading="סדר הופעה של המצלמות ורוחב אריח בעמודות (למצלמות פנורמיות)" data-wall-settings-dialog @close=${(ev: Event) => this.closeSettings(ev)}>
       <div class="settings-rows" data-wall-settings-rows>
-        ${rows.map(
-          (row, i) => html`<div class="settings-row" data-wall-settings-row=${row.id}>
+        ${repeat(
+          rows,
+          (row) => row.id, // keyed: a row that moves takes its own checkbox and width select with it
+          (row, i) => html`<div class="settings-row ${row.hidden ? 'is-hidden' : ''}" data-wall-settings-row=${row.id} ?data-wall-row-hidden=${row.hidden}>
+            <label class="settings-show"><input type="checkbox" data-wall-show=${row.id} .checked=${!row.hidden} @change=${(ev: Event) => this.setHidden(i, !(ev.target as HTMLInputElement).checked)} />מוצגת</label>
             <div class="settings-move">
-              <button data-wall-move-up=${row.id} ?disabled=${i === 0} @click=${() => this.moveRow(i, -1)} aria-label="הזז למעלה">↑</button>
-              <button data-wall-move-down=${row.id} ?disabled=${i === rows.length - 1} @click=${() => this.moveRow(i, 1)} aria-label="הזז למטה">↓</button>
+              <button data-wall-move-up=${row.id} ?disabled=${!canMove(rows, i, -1)} @click=${() => this.moveRow(i, -1)} aria-label="הזז למעלה">↑</button>
+              <button data-wall-move-down=${row.id} ?disabled=${!canMove(rows, i, 1)} @click=${() => this.moveRow(i, 1)} aria-label="הזז למטה">↓</button>
             </div>
             <div class="settings-name">${row.name}</div>
             <sw-field label="רוחב"><select data-wall-span=${row.id} .value=${String(row.span)} @change=${(ev: Event) => this.setSpan(i, Number((ev.target as HTMLSelectElement).value))}>${spanOptions.map((o) => html`<option value=${o.v} ?selected=${o.v === row.span}>${o.label}</option>`)}</select></sw-field>
@@ -653,12 +647,16 @@ export class LiveWall extends LitElement {
   }
 
   private renderApi() {
-    const cams = this.cams;
+    const enabled = this.cams;
+    const cams = enabled ? wallCameras(enabled) : enabled; // "לא להציג" cameras are out of the wall grid, its stream budget and its footer count
+    const hiddenCount = enabled && cams ? enabled.length - cams.length : 0;
     if (this.error) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
-    if (!cams) return html`<sw-state-panel state="loading"></sw-state-panel>`;
+    if (!cams || !enabled) return html`<sw-state-panel state="loading"></sw-state-panel>`;
+    if (!cams.length && hiddenCount) return html`<sw-state-panel state="empty" heading="כל המצלמות מוסתרות בקיר" data-wall-all-hidden></sw-state-panel>`; // the arrangement dialog (user menu) brings them back
     if (!cams.length) return html`<sw-state-panel state="empty" heading="אין מצלמות זמינות" hint="המצלמות מתגלות אוטומטית מה־NVR בהפעלה ובכל 10 דקות. אם הרשימה ריקה: בדוק את פרטי ה־NVR בהגדרות ה־Add-on ואת יומן ה־Add-on, או הרץ סנכרון ידני; ייתכן גם שאין לך הרשאה למצלמות."><div style="margin-block-start:10px"><sw-button @click=${() => navigate('/system/devices')}>למצלמות</sw-button></div></sw-state-panel>`;
     const wanted = this.cameras ? this.cameras.split(',').filter(Boolean) : [];
-    const pool = wanted.length ? cams.filter((c) => wanted.includes(c.id)) : cams;
+    // a selection from the map is an explicit choice: it still shows a camera hidden in the wall
+    const pool = wanted.length ? enabled.filter((c) => wanted.includes(c.id)) : cams;
     const n = wanted.length ? Math.max(1, pool.length) : this.count;
     const shown = pool.slice(0, n);
     // A span is capped at 4 columns server-side already (CameraPatch), clamped again here defensively.
@@ -741,7 +739,7 @@ export class LiveWall extends LitElement {
       ${this.phone.matches ? nothing : html`<div class="note" data-wall-cols-row style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">עמודות:
         ${[0, 1, 2, 3, 4, 5, 6].map((n) => html`<button class="colbtn ${this.colsOverride === n ? 'on' : ''}" data-wall-cols-set=${n} @click=${() => this.setCols(n)}>${n === 0 ? 'אוטו' : n}</button>`)}
       </div>`}
-      <div class="note">${shown.length} מתוך ${cams.length} מצלמות · פרופיל ${profile === 'sub' ? 'משני' : 'ראשי'} · תעבורה ${transport} · מכסת זרמים ${cap}${shown.length > cap ? ` — מעבר למכסה מוצג צילום בלבד` : ''} · צילומים מתרעננים כל דקה${this.phone.matches && this.capNote ? html`<br /><span data-wall-cap-note>מוצגות ${this.capNote.live} מצלמות חיות מתוך ${this.capNote.of} · המכסה: הגדרות › ${this.capNote.where}</span>` : nothing}</div>
+      <div class="note">${wallFooterCount(shown.length, cams.length)} · פרופיל ${profile === 'sub' ? 'משני' : 'ראשי'} · תעבורה ${transport} · מכסת זרמים ${cap}${shown.length > cap ? ` — מעבר למכסה מוצג צילום בלבד` : ''} · צילומים מתרעננים כל דקה${this.phone.matches && this.capNote ? html`<br /><span data-wall-cap-note>מוצגות ${this.capNote.live} מצלמות חיות מתוך ${this.capNote.of} · המכסה: הגדרות › ${this.capNote.where}</span>` : nothing}</div>
     `;
   }
 
@@ -787,7 +785,7 @@ export class LiveWall extends LitElement {
 
   render() {
     const api = isApi();
-    const total = api ? this.cams?.length ?? 0 : demoWall.length;
+    const total = api ? (this.cams ? wallCameras(this.cams).length : 0) : demoWall.length;
     const body = api ? this.renderApi() : this.renderDemo(); // first: it works out the budget note the toolbar shows
     return html`
       <sw-page heading="כל המצלמות" subheading="${total} מצלמות${api ? '' : ` · תצוגה: ${VIEWS.find((v) => v.id === this.view)?.label} · נתוני הדגמה`}" wide>

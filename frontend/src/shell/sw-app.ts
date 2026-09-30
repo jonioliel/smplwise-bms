@@ -63,7 +63,7 @@ import { onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
-import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, isHomeEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaRowSection, tabStyleOf, type LegacyAccess, tabAllowed, type NavTabId } from './nav';
+import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, isHomeEditRoute, isHomeRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaRowSection, tabStyleOf, type LegacyAccess, tabAllowed, type NavTabId } from './nav';
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { t } from '../i18n/he';
 import { can, canNav, isApi, loadSession, nvrLess, onSession, watchPermissions, type Session } from '../api/session';
@@ -1850,9 +1850,11 @@ export class SwApp extends LitElement {
   }
 
   /** "עריכת המסך הראשי": the same people who may edit the home screen's layout - devices-layout.ts `canEdit` (a backend
-   * answers and the user holds system.configure at the installation) - and only while the home area is in their navigation. */
+   * answers and the user holds system.configure at the installation) - and only while the home area is in their navigation.
+   * Like every screen-level edit item (shell/screen-edit.ts) it is offered only on its own screen: the home (isHomeRoute),
+   * not on the wall, the maps or an area (owner 2026-09-30). */
   private canEditHome(): boolean {
-    return !this.gated && isApi() && can('system.configure') && !phoneRestricted('layout_editor') && visibleAreas(true, canNav, this.navOrder).some((a) => a.id === 'devices');
+    return !this.gated && isHomeRoute(this.route) && isApi() && can('system.configure') && !phoneRestricted('layout_editor') && visibleAreas(true, canNav, this.navOrder).some((a) => a.id === 'devices');
   }
 
   private renderUserMenu() {

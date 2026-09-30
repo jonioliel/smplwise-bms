@@ -817,6 +817,13 @@ export function applySchedulesHidden(settings: Record<string, unknown> | null | 
   return hidden;
 }
 
+/** The home screen of חשמל והתקנים ("מבט על"): `#/devices` and `#/devices/building` with any query (the panel deep link, `?edit=1`).
+ * A drill-down (#/devices/areas/<id>), the schedules and every other area are not the home. The user menu's "עריכת המסך הראשי"
+ * is offered only here (owner 2026-09-30: it showed on every screen). */
+export function isHomeRoute(r: RouteState | null): boolean {
+  return r?.mode === 'devices' && (r.segments[1] ?? 'building') === 'building';
+}
+
 /** The home screen's layout editor is entered by `?edit=1` on "מבט על" (the user menu's "עריכת המסך הראשי", devices-layout.ts):
  * while it is active the home area's tab row is hidden (like the plan editors'), so the editor is never left by a tab click. */
 export function isHomeEditRoute(r: RouteState | null): boolean {

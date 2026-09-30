@@ -91,3 +91,35 @@ def test_a_populated_database_from_before_0023_upgrades(settings, tmp_path, monk
         assert got["grid_col_span"] == 1
         r = c.patch("/api/v1/cameras/old-cam", json={"grid_col_span": 3})
         assert r.status_code == 200 and r.json()["grid_col_span"] == 3
+
+
+def test_wall_hidden_patch_default_and_audit(client):
+    """Wall arrangement: a camera is shown by default, "לא להציג" (wall_hidden) is PATCHable both ways, only the
+    field sent changes, the camera stays in the list (single-camera page / views / investigation still read it)
+    and the change is audited with the same action as every other camera edit."""
+    cam = client.post("/api/v1/cameras", json={"channel": 1, "alias": "חניון"}).json()
+    assert cam["wall_hidden"] is False
+
+    hidden = client.patch(f"/api/v1/cameras/{cam['id']}", json={"wall_hidden": True}).json()
+    assert hidden["wall_hidden"] is True and hidden["grid_col_span"] == 1
+    listed = next(c for c in client.get("/api/v1/cameras").json()["cameras"] if c["id"] == cam["id"])
+    assert listed["wall_hidden"] is True and listed["enabled"] is True
+
+    # an unrelated patch leaves the flag alone; an explicit false shows the camera again
+    assert client.patch(f"/api/v1/cameras/{cam['id']}", json={"grid_col_span": 2}).json()["wall_hidden"] is True
+    assert client.patch(f"/api/v1/cameras/{cam['id']}", json={"wall_hidden": False}).json()["wall_hidden"] is False
+    assert client.patch(f"/api/v1/cameras/{cam['id']}", json={"wall_hidden": "maybe"}).status_code == 422
+
+    from smplwise import db as dbmod
+
+    with dbmod.Database(client.app.state.settings.db_path).connection() as conn:
+        rows = conn.execute("SELECT details_json FROM audit_log WHERE action = 'camera.update' AND resource_id = ? ORDER BY rowid", (cam["id"],)).fetchall()
+    assert any('"wall_hidden": 1' in r[0] for r in rows) and any('"wall_hidden": 0' in r[0] for r in rows)
+
+
+def test_wall_hidden_requires_permission(client, settings):
+    """Hiding a camera on the wall is a wall-arrangement write: sources.configure like sort_order / grid_col_span."""
+    cam = client.post("/api/v1/cameras", json={"channel": 1, "alias": "מצלמה"}).json()
+    bind(client, settings, "ron", "viewer", "installation", "*")
+    assert client.patch(f"/api/v1/cameras/{cam['id']}", json={"wall_hidden": True}, headers=as_user("ron")).status_code == 403
+    assert client.get("/api/v1/cameras").json()["cameras"][0]["wall_hidden"] is False
