@@ -29,7 +29,9 @@ foreach ($b in $boards) { Copy-Item $b.FullName (Join-Path $out 'structure\board
 Copy-Item (Join-Path $Entrant 'boards\fonts\*') (Join-Path $out 'structure\boards\fonts')
 $renders = Get-ChildItem (Join-Path $Entrant 'renders') -Filter *.png -File
 foreach ($r in $renders) { Copy-Item $r.FullName (Join-Path $out 'structure\renders') }
-# the mirrors (if rendered) go along as structure evidence too
+# the full-board LTR mirrors (HTML + PNG) go along as structure evidence too
+$mirrorsB = Join-Path $Entrant 'boards\mirrors'
+if (Test-Path $mirrorsB) { New-Item -ItemType Directory -Force (Join-Path $out 'structure\boards\mirrors') | Out-Null; Copy-Item (Join-Path $mirrorsB '*.html') (Join-Path $out 'structure\boards\mirrors') }
 $mirrors = Join-Path $Entrant 'renders\mirrors'
 if (Test-Path $mirrors) { New-Item -ItemType Directory -Force (Join-Path $out 'structure\renders\mirrors') | Out-Null; Copy-Item (Join-Path $mirrors '*.png') (Join-Path $out 'structure\renders\mirrors') }
 # boards/index.html links ../renders/ — the package keeps boards/ and renders/ side by side, so the links hold as-is

@@ -23,14 +23,21 @@ astra-round2/
       home-{1440,390}-{light,dark}.html      home-list-{1440,390}-{light,dark}.html
       area-{1440,390}-{light,dark}.html      area-list-{1440,390}-{light,dark}.html
       wall-{1440,390}-{light,dark}.html      wall-list-{1440,390}-{light,dark}.html
+      home-kpi-1440-{light,dark}.html          ← the home with the optional widgets (KPI strip, climate strip, tree)
+      mirrors/{home,area}-{1440,390}-{light,dark}-ltr.html
       area-states.html  components.html  foundations-{color,type,shape,motion}.html  index.html
     renders/                         ← the same boards as PNG (the "key PNGs" list in the brief §2)
       home-1440-light.png home-1440-dark.png home-390-light.png home-390-dark.png
       area-1440-light.png area-1440-dark.png area-390-light.png area-390-dark.png
       wall-1440-light.png wall-1440-dark.png wall-390-light.png wall-390-dark.png
       home-list-*.png area-list-*.png wall-list-*.png (12)
+      home-kpi-1440-{light,dark}.png
+      mirrors/*-ltr.png (8)
       area-states.png components.png foundations-color.png foundations-type.png foundations-shape.png foundations-motion.png
 ```
+
+The structure boards are taken after the judge fixes of 2026-10-01 (commit `0278f6a4` on `pilot/design-compare-claude`):
+no engineering terms on operator boards, live tiles with the "חי" chip, LTR mirrors, optional-widget home variant.
 
 ## Sources (repository paths)
 
