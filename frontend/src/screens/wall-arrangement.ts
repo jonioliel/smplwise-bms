@@ -35,9 +35,10 @@ export const isOnWall = (c: Pick<Camera, 'wall_hidden'>): boolean => !c.wall_hid
 /** The cameras of the wall, in their saved order. */
 export const wallCameras = <T extends Pick<Camera, 'wall_hidden'>>(cams: T[]): T[] => cams.filter(isOnWall);
 
-/** The footer of the wall: "N מתוך M מצלמות", or "מוצגות N מתוך M מצלמות" when some cameras are hidden (M counts them). */
-export function wallFooterCount(shown: number, onWall: number, hidden: number): string {
-  return hidden > 0 ? `מוצגות ${shown} מתוך ${onWall + hidden} מצלמות` : `${shown} מתוך ${onWall} מצלמות`;
+/** The footer of the wall (owner 2026-09-30): only the cameras meant to be shown count - hidden ones are out of both numbers.
+ * "N מצלמות" when they are all on screen, "מוצגות N מתוך M מצלמות" when the layout shows fewer (M = cameras not hidden). */
+export function wallFooterCount(shown: number, visible: number): string {
+  return shown >= visible ? `${shown} מצלמות` : `מוצגות ${shown} מתוך ${visible} מצלמות`;
 }
 
 /** The dialog's rows from the cameras in their saved order: shown ones first, hidden ones at the end (stable within each). */

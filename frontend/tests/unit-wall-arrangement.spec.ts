@@ -20,10 +20,12 @@ test.describe('wall arrangement: hiding a camera in the wall', () => {
     expect(wallCameras([cam('x', 0)]).length).toBe(1);
   });
 
-  test('the footer counts the hidden cameras only when there are some: "מוצגות 12 מתוך 14 מצלמות"', () => {
-    expect(wallFooterCount(12, 12, 0)).toBe('12 מתוך 12 מצלמות');
-    expect(wallFooterCount(12, 12, 2)).toBe('מוצגות 12 מתוך 14 מצלמות');
-    expect(wallFooterCount(9, 12, 2)).toBe('מוצגות 9 מתוך 14 מצלמות');
+  test('the footer counts only the cameras meant to be shown: "N מצלמות" when all are on screen, else "מוצגות N מתוך M מצלמות"', () => {
+    expect(wallFooterCount(12, 12)).toBe('12 מצלמות'); // 14 cameras, 2 hidden, all 12 on screen
+    expect(wallFooterCount(9, 12)).toBe('מוצגות 9 מתוך 12 מצלמות'); // a 9-count button, 2 of 14 hidden
+    expect(wallFooterCount(5, 5)).toBe('5 מצלמות');
+    expect(wallFooterCount(0, 0)).toBe('0 מצלמות');
+    expect(wallFooterCount(6, 4)).toBe('6 מצלמות'); // a map selection that includes a camera hidden in the wall
   });
 
   test('the dialog lists the shown cameras first and the hidden ones at the end, each group in its saved order', () => {

@@ -424,7 +424,8 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       await expect(dialog).toHaveCount(0, { timeout: 20000 });
 
       await expect(wall.locator(`sw-camera-tile[cameraid="${cam.id}"]`)).toHaveCount(0);
-      await expect(wall).toContainText(/מוצגות \d+ מתוך \d+ מצלמות/);
+      const visibleNow = ((await (await request.get('/api/v1/cameras')).json()).cameras as (ApiCamera & { wall_hidden?: boolean })[]).filter((c) => c.enabled && !c.wall_hidden).length;
+      await expect(wall).toContainText(`${visibleNow} מצלמות`); // the hidden camera is in neither number of the footer
       const after = ((await (await request.get('/api/v1/cameras')).json()).cameras as (ApiCamera & { wall_hidden?: boolean })[]).find((c) => c.id === cam.id);
       expect(after?.wall_hidden).toBe(true); // still listed for the single-camera page, saved views and investigation
       await page.screenshot({ path: test.info().outputPath('wall-hide-live.png') });

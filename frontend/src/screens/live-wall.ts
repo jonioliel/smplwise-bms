@@ -739,7 +739,7 @@ export class LiveWall extends LitElement {
       ${this.phone.matches ? nothing : html`<div class="note" data-wall-cols-row style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">עמודות:
         ${[0, 1, 2, 3, 4, 5, 6].map((n) => html`<button class="colbtn ${this.colsOverride === n ? 'on' : ''}" data-wall-cols-set=${n} @click=${() => this.setCols(n)}>${n === 0 ? 'אוטו' : n}</button>`)}
       </div>`}
-      <div class="note">${wanted.length ? `${shown.length} מתוך ${enabled.length} מצלמות` : wallFooterCount(shown.length, cams.length, hiddenCount)} · פרופיל ${profile === 'sub' ? 'משני' : 'ראשי'} · תעבורה ${transport} · מכסת זרמים ${cap}${shown.length > cap ? ` — מעבר למכסה מוצג צילום בלבד` : ''} · צילומים מתרעננים כל דקה${this.phone.matches && this.capNote ? html`<br /><span data-wall-cap-note>מוצגות ${this.capNote.live} מצלמות חיות מתוך ${this.capNote.of} · המכסה: הגדרות › ${this.capNote.where}</span>` : nothing}</div>
+      <div class="note">${wallFooterCount(shown.length, cams.length)} · פרופיל ${profile === 'sub' ? 'משני' : 'ראשי'} · תעבורה ${transport} · מכסת זרמים ${cap}${shown.length > cap ? ` — מעבר למכסה מוצג צילום בלבד` : ''} · צילומים מתרעננים כל דקה${this.phone.matches && this.capNote ? html`<br /><span data-wall-cap-note>מוצגות ${this.capNote.live} מצלמות חיות מתוך ${this.capNote.of} · המכסה: הגדרות › ${this.capNote.where}</span>` : nothing}</div>
     `;
   }
 

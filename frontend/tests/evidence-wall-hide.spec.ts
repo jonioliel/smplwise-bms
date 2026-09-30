@@ -64,7 +64,7 @@ test.describe('wall arrangement: "מוצגת" per camera', () => {
     await page.goto('/?design=a#/live/wall');
     await page.waitForSelector('live-wall');
     await expect(page.locator('live-wall sw-camera-tile[data-cam]')).toHaveCount(5);
-    await expect(page.locator('live-wall')).toContainText('5 מתוך 5 מצלמות');
+    await expect(page.locator('live-wall')).toContainText('5 מצלמות');
 
     await openDialog(page);
     expect(await rowIds(page)).toEqual(['c1', 'c2', 'c3', 'c4', 'c5']);
@@ -93,8 +93,14 @@ test.describe('wall arrangement: "מוצגת" per camera', () => {
       { id: 'c2', body: { sort_order: 4, wall_hidden: true } },
     ]);
     await expect.poll(() => tileIds(page)).toEqual(['c1', 'c3', 'c4', 'c5']);
-    await expect(page.locator('live-wall')).toContainText('מוצגות 4 מתוך 5 מצלמות');
+    await expect(page.locator('live-wall')).toContainText('4 מצלמות'); // all 4 visible cameras on screen: the plain form, the hidden one is in neither number
+    await expect(page.locator('live-wall')).not.toContainText('מתוך');
     await page.screenshot({ path: test.info().outputPath('wall-hide-wall.png') });
+    // a smaller layout than the visible cameras: the hidden one is out of both numbers
+    await page.locator('live-wall .layouts button', { hasText: /^2$/ }).click();
+    await expect(page.locator('live-wall sw-camera-tile[data-cam]')).toHaveCount(2);
+    await expect(page.locator('live-wall')).toContainText('מוצגות 2 מתוך 4 מצלמות');
+    await page.locator('live-wall .layouts button', { hasText: /^32$/ }).click();
 
     // the kiosk "all" follows the wall arrangement; an address with its own camera list still reaches the hidden camera
     await page.goto('about:blank');
@@ -121,7 +127,7 @@ test.describe('wall arrangement: "מוצגת" per camera', () => {
     await expect(page.locator('live-wall [data-wall-settings-dialog]')).toHaveCount(0);
     expect(patches).toEqual([{ id: 'c5', body: { sort_order: 3 } }, { id: 'c4', body: { sort_order: 4, wall_hidden: false } }]);
     await expect.poll(() => tileIds(page)).toEqual(['c1', 'c2', 'c3', 'c5', 'c4']);
-    await expect(page.locator('live-wall')).toContainText('5 מתוך 5 מצלמות');
+    await expect(page.locator('live-wall')).toContainText('5 מצלמות');
   });
 
   test('every camera hidden: the wall says so and "סידור הקיר" is still in the menu', async ({ page }) => {
