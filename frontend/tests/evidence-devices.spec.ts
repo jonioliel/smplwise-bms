@@ -229,13 +229,15 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await expect(cover.locator('sw-button[data-control="stop"]')).toBeVisible();
     await expect(cover.locator('sw-button[data-control="close"]')).toBeVisible();
     await expect(cover.locator('input[data-control="position"]')).toBeVisible();
-    // security: lock badge, door contact, alarm, and the HA camera row (no still served here yet) - never a control here
-    await expect(screen.locator('.row[data-entity="lock.cr007_front"] sw-badge')).toHaveAttribute('label', 'נעול');
-    await expect(screen.locator('.row[data-entity="binary_sensor.cr007_door"] sw-badge')).toHaveAttribute('label', 'סגורה');
-    await expect(screen.locator('.row[data-entity="alarm_control_panel.cr007_house"] sw-badge')).toHaveAttribute('label', /דרוכה/);
-    await expect(screen.locator('.row[data-entity="camera.cr007_lobby"]')).toContainText('אין תמונה');
-    await expect(screen.locator('.row[data-entity="lock.cr007_front"] sw-button, .row[data-entity="lock.cr007_front"] sw-toggle')).toHaveCount(0);
-    await expect(screen.locator('.row[data-entity="alarm_control_panel.cr007_house"] sw-button, .row[data-entity="alarm_control_panel.cr007_house"] sw-toggle')).toHaveCount(0);
+    // security (owner 2026-09-30, area redesign): a strip above the sections - lock, door contact, alarm, camera - read-only
+    // chips; the section itself is drawn only where the owner laid the screen out
+    const strip = screen.locator('[data-security-strip]');
+    await expect(strip.locator('[data-sec-chip="lock.cr007_front"]')).toContainText('נעול');
+    await expect(strip.locator('[data-sec-chip="binary_sensor.cr007_door"]')).toContainText('סגור');
+    await expect(strip.locator('[data-sec-chip="alarm_control_panel.cr007_house"]')).toContainText('דרוכה');
+    await expect(strip.locator('[data-sec-chip="camera.cr007_lobby"]')).toContainText('מקוון');
+    await expect(screen.locator('sw-card[data-card="security"]')).toHaveCount(0);
+    await expect(strip.locator('sw-button, sw-toggle, input, button')).toHaveCount(0);
     await expect(screen.locator('sw-badge[data-area-alarm]')).toBeVisible();
     // media and sensors: media gets power/play-pause/mute, sensors never a control
     const tv = screen.locator('.row[data-entity="media_player.cr007_tv"]');
@@ -245,8 +247,9 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await expect(tv.locator('sw-toggle[data-control="power"]')).toBeVisible();
     await expect(tv.locator('sw-button[data-control="playpause"]')).toBeVisible();
     await expect(tv.locator('sw-button[data-control="mute"]')).toBeVisible();
-    const temp = screen.locator('.tile[data-entity="sensor.cr007_temp"]');
-    await expect(temp).toContainText('23.5 °C');
+    // the temperature is one of the sensors' main strip (area redesign 2026-09-30), never a control
+    const temp = screen.locator('[data-main-sensor="sensor.cr007_temp"]');
+    await expect(temp).toContainText('23.5');
     await expect(temp.locator('sw-toggle, sw-button, input')).toHaveCount(0);
     // chips of the same floor, the current one selected; the empty storage area is one of them
     await expect(screen.locator('sw-chip[data-area-chip="cr007_lobby"]')).toHaveAttribute('selected', '');
@@ -1268,13 +1271,15 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await open(page, '/devices/areas/cr007_lobby', 'a');
     const card = page.locator('devices-area sw-card[data-card="sensors"]');
     await expect(card).toBeVisible({ timeout: 30000 });
+    // owner 2026-09-30 (area redesign): the main strip (temperature first) on top, the rest behind "עוד N חיישנים"
+    await expect(card.locator('[data-main-sensor="sensor.cr007_temp"]')).toContainText('23.5');
+    await card.locator('[data-sensors-more]').click();
     const groups = await card.locator('[data-sensor-group]').evaluateAll((els) => els.map((e) => e.getAttribute('data-sensor-group')));
-    expect(groups).toContain('temperature');
+    expect(groups).not.toContain('temperature'); // the only temperature sensor is the main strip's
     expect(groups).toContain('power');
     expect(groups).toContain('moisture'); // a binary sensor outside the security set, grouped by its own device class
-    const temp = card.locator('[data-sensor-group="temperature"] .tile[data-entity="sensor.cr007_temp"]');
-    await expect(temp).toContainText('23.5 °C');
-    await expect(temp.locator('[data-last-changed]')).toBeVisible();
+    const temp = card.locator('[data-main-sensor="sensor.cr007_temp"]');
+    await expect(temp).toContainText('23.5');
     await expect(temp.locator('sw-toggle, sw-button, input')).toHaveCount(0);
     const power = card.locator('[data-sensor-group="power"] .tile[data-entity="sensor.cr007_power"]');
     await expect(power).toContainText('120 W');

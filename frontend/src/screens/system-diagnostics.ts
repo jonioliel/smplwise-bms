@@ -1016,7 +1016,8 @@ export class SystemDiagnostics extends LitElement {
   private renderDevices() {
     const api = isApi();
     const ro = !api || !this.canEdit;
-    const keys = ['devices.style', 'devices.default_view', 'devices.density', 'devices.show_sensors', 'devices.show_climate_strip', 'devices.theme', 'devices.scheme'] as const;
+    const keys = ['devices.style', 'devices.default_view', 'devices.density', 'devices.show_sensors', 'devices.show_climate_strip', 'devices.theme', 'devices.scheme', 'devices.area_design'] as const;
+    const areaDesign = ({ ...(this.settings ?? {}), ...this.draft })['devices.area_design'] === 'sections' ? 'sections' : 'tiles';
     const dirty = keys.some((k) => k in this.draft);
     const p = devicesPrefsOf({ ...(this.settings ?? {}), ...this.draft });
     const pick = (style: DevicesStyle) => this.set('devices.style', style);
@@ -1038,6 +1039,10 @@ export class SystemDiagnostics extends LitElement {
         <div class="row"><span class="lbl">תצוגת הפתיחה של המבנה<span class="muted">מה שמשתמש רואה בפעם הראשונה. מי שבחר בעצמו "כרטיסים" או "אריחים" ממשיך עם הבחירה שלו.</span></span>
           <sw-field class="ctl"><select data-set-devices-view ?disabled=${ro} @change=${(e: Event) => this.set('devices.default_view', (e.target as HTMLSelectElement).value === 'tiles' ? 'tiles' : 'cards')}>
             <option value="cards" ?selected=${p.defaultView === 'cards'}>כרטיסים: עץ המבנה וכרטיסי קומה</option><option value="tiles" ?selected=${p.defaultView === 'tiles'}>אריחים: אריח לכל אזור</option>
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">כיוון מסך האזור<span class="muted">אריחים צפופים: כרטיס לכל סוג התקנים, בעמודות. מקטעים ברצף: קטע אחרי קטע עם הכותרת בצד והחיישנים לצידם. משתמש עם ההרשאה "התאמה אישית של מסכי חשמל והתקנים" יכול לבחור אחרת רק לעצמו.</span></span>
+          <sw-field class="ctl"><select data-set-devices-area-design ?disabled=${ro} @change=${(e: Event) => this.set('devices.area_design', (e.target as HTMLSelectElement).value === 'sections' ? 'sections' : 'tiles')}>
+            <option value="tiles" ?selected=${areaDesign === 'tiles'}>אריחים צפופים</option><option value="sections" ?selected=${areaDesign === 'sections'}>מקטעים ברצף</option>
           </select></sw-field></div>
         <div class="row"><span class="lbl">צפיפות<span class="muted">דחוסה: אריחים, שורות ורווחים קטנים יותר, יותר אזורים במסך אחד</span></span>
           <sw-field class="ctl"><select data-set-devices-density ?disabled=${ro} @change=${(e: Event) => this.set('devices.density', (e.target as HTMLSelectElement).value === 'compact' ? 'compact' : 'comfortable')}>

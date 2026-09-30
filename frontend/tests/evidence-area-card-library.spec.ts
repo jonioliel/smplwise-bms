@@ -94,7 +94,11 @@ test.describe('the area layout editor: device picker, delete card, card library'
       await open(page);
       const a = area(page);
       await expect(a.locator('sw-card[data-card="sensors"]')).toBeVisible({ timeout: 30000 });
-      await expect(a.locator('sw-card[data-card="sensors"] .tile')).toHaveCount(8);
+      // the sensors section is the main strip (temperature, humidity here) plus "עוד N חיישנים" (opened here): 8 in all
+      // (the door contact is a main sensor too, but it is not one of the card's 8 sensors)
+      const shown = a.locator('sw-card[data-card="sensors"] [data-main-sensor^="sensor."], sw-card[data-card="sensors"] [data-entity]');
+      await a.locator('[data-sensors-more]').click();
+      await expect(shown).toHaveCount(8);
       await editMode(page);
       await selectCard(page, 'card:sensors');
       const picker = a.locator('[data-layout-panel="card:sensors"] [data-layout-picker]');
@@ -132,7 +136,9 @@ test.describe('the area layout editor: device picker, delete card, card library'
       const saved = await record(request);
       expect(saved.items['card:sensors'].hidden_entities).toEqual(['sensor.lib1_p1', 'sensor.lib1_p2', 'sensor.lib1_p3']);
       await page.reload();
-      await expect(a.locator('sw-card[data-card="sensors"] .tile')).toHaveCount(5, { timeout: 30000 });
+      await expect(a.locator('[data-sensors-more]')).toBeVisible({ timeout: 30000 });
+      await a.locator('[data-sensors-more]').click();
+      await expect(a.locator('sw-card[data-card="sensors"] [data-main-sensor^="sensor."], sw-card[data-card="sensors"] [data-entity]')).toHaveCount(5);
     } finally {
       await request.delete(`/api/v1/devices/layouts/area/${AREA}`);
     }

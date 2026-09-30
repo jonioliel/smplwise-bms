@@ -240,6 +240,29 @@ export interface DevicesRefreshResult {
 export const refreshDevicesFromHa = () => post<DevicesRefreshResult>('devices/refresh');
 export const getDevicesArea = (areaId: string) => get<DeviceAreaDetail>(`devices/areas/${encodeURIComponent(areaId)}`);
 
+/** A row of a device that is not one of the area's own (owner 2026-09-30, area redesign): the area's card row plus the card
+ * it belongs to and its own area. GET /devices/entities?ids= (same visibility as the tree). */
+export interface EntityRow extends DeviceRow {
+  card: CardId;
+  area_id: string | null;
+  area_name: string | null;
+}
+export const getEntityRows = (ids: string[]) => get<{ entities: EntityRow[] }>(`devices/entities?ids=${encodeURIComponent(ids.slice(0, 80).join(','))}`);
+
+/** One device of the editor's whole-installation list (GET /devices/entity-pool, system.configure). */
+export interface PoolEntity {
+  entity_id: string;
+  name: string;
+  card: CardId;
+  domain: string;
+  group: string | null;
+  door: boolean;
+  area_id: string | null;
+  area_name: string | null;
+  state: string | null;
+}
+export const getEntityPool = () => get<{ entities: PoolEntity[]; truncated: boolean }>('devices/entity-pool');
+
 /** CR-007 slice 4: assign an entity to an HA area (the "ללא שיוך" bucket's own action) - a Home Assistant config
  * write through the bridge, system.configure, audited. */
 export const assignEntityArea = (entityId: string, areaId: string) => put<{ entity_id: string; area_id: string; area_name: string }>(`devices/entities/${encodeURIComponent(entityId)}/area`, { area_id: areaId });

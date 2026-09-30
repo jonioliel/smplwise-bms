@@ -12,6 +12,8 @@ import { cameraCardDefinition } from './devices-camera-card';
 import { registerScreenEdit } from '../shell/screen-edit';
 import type { CameraSource } from '../api/camera-card';
 import { LAYOUT_ROLE_IDS, type LayoutRoleId } from '../styles/devices-palettes';
+import { BULK_LOOK_LABEL, BULK_LOOKS, SECTION_BULK, type BulkLook } from './devices-area-design';
+import { getEntityPool, type PoolEntity } from '../api/devices';
 import { bulkSelect, CARD_TYPES, CARDS_VERSION, findSlot, groupPicks, isCardType, libraryTypes, newCardKey, nextTitle, type AreaEntity, type PickEntity } from './devices-layout-cards';
 
 /**
@@ -111,6 +113,11 @@ export interface LayoutItem {
   removed?: boolean;
   /** Owner 2026-09-30, a `camera:<slug>` card of the area screen: the camera it shows (screens/devices-camera-card.ts). */
   camera?: CameraSource;
+  /** Area redesign (owner 2026-09-30): how the section's "כבה הכל" button looks (absent = icon + text). */
+  bulk_look?: BulkLook;
+  /** Area redesign: the sensors section's main strip - any sensors of the installation, in this order (absent = the
+   * automatic choice: temperature, humidity, motion, door where the area has them). */
+  main?: string[];
 }
 
 export interface Layout {
@@ -361,6 +368,8 @@ export interface LayoutOptions {
   /** Area cards: the entities a card can show, in the order the card draws them automatically - the panel's "visible
    * entities" checklist and (6c) the card's tiles. */
   entities?: (key: string) => { id: string; name: string; group?: string }[];
+  /** Extra controls the screen puts in the edit bar (the area screen's personal direction, for a holder of screen.personalize). */
+  barExtra?: () => TemplateResult | typeof nothing;
   /** Area screen, card library (layout v 3): every device of the area (all the built-in cards' devices), for the device
    * picker of a custom card, the library's starting selections and the "unplaced" count. */
   pool?: () => AreaEntity[];
@@ -417,6 +426,11 @@ export class DevicesLayoutController implements ReactiveController {
   /** Card library (owner request 2026-09-30): the device picker's search, the library dialog, and the last deleted card
    * (an undo toast in the bar, until the next change of the card set, a save or a cancel). */
   entFilter = '';
+  mainFilter = '';
+  /** "הצג התקנים מכל המערכת": the pickers list the whole installation's devices (loaded once when first asked for). */
+  pickAll = false;
+  allPool: PoolEntity[] | null = null;
+  private allPoolBusy = false;
   libOpen = false;
   libAll = false;
   /** Cameras the library can offer (null until read), and the camera picker's target ('' = a new card, else the card's key). */
@@ -577,6 +591,27 @@ export class DevicesLayoutController implements ReactiveController {
     return this.editing && this.variant === 'desktop' ? this.draft : this.stored('desktop');
   }
 
+  /** A section's own settings live in the desktop layout (the phone layout only places the sections): the bulk button's look
+   * and the sensors section's main strip. */
+  bulkLookOf(key: string): BulkLook {
+    return this.desktopLayout()?.items[key]?.bulk_look ?? 'both';
+  }
+
+  mainOf(key: string): string[] | undefined {
+    const m = this.desktopLayout()?.items[key]?.main;
+    return m && m.length ? m : undefined;
+  }
+
+  /** Every device the layout's custom cards and main strips list (the screen fetches the ones that are not the area's own). */
+  listedEntityIds(): string[] {
+    const out = new Set<string>();
+    for (const it of Object.values(this.desktopLayout()?.items ?? {})) {
+      for (const id of it.custom?.entities ?? []) out.add(id);
+      for (const id of it.main ?? []) out.add(id);
+    }
+    return [...out];
+  }
+
   /** The custom cards' keys in reading order of the desktop layout. */
   customKeys(): string[] {
     const items = this.desktopLayout()?.items ?? {};
@@ -620,8 +655,11 @@ export class DevicesLayoutController implements ReactiveController {
         const camera = src[k]?.camera ?? it.camera; // the source is the card's content: every variant carries it
         if (!camera) continue;
         items[k] = { ...it, camera, removed: undefined, custom: undefined };
-      } else if (src[k]?.removed) items[k] = { ...it, removed: true };
-      else items[k] = { ...it, removed: undefined, custom: undefined };
+      } else {
+        // the section settings (bulk look, main strip) are the desktop layout's: every variant carries them
+        const own = { bulk_look: src[k]?.bulk_look, main: src[k]?.main?.length ? src[k].main : undefined };
+        items[k] = src[k]?.removed ? { ...it, ...own, removed: true } : { ...it, ...own, removed: undefined, custom: undefined };
+      }
     }
     // a device-less draft item may hold `undefined` keys: JSON drops them, the comparison against the base must too
     return JSON.parse(JSON.stringify({ ...layout, items })) as Layout;
@@ -1333,6 +1371,7 @@ export class DevicesLayoutController implements ReactiveController {
     if (this.selected === key) return;
     this.selected = key;
     this.entFilter = '';
+    this.mainFilter = '';
     if (announce && key) this.announce(key);
     this.update();
   }
@@ -1488,6 +1527,7 @@ export class DevicesLayoutController implements ReactiveController {
           <button type="button" data-layout-variant="phone" aria-pressed=${String(this.variant === 'phone')} ?disabled=${dirty && this.variant !== 'phone'} title=${dirty ? 'שמרו או בטלו קודם' : ''} @click=${() => this.switchVariant('phone')}>טלפון</button>
         </span>
         <span class="acts">
+          ${this.opts.barExtra?.() ?? nothing}
           <sw-button size="sm" data-layout-cancel ?disabled=${this.busy} @click=${() => this.cancel()}>${dirty ? 'בטל' : 'סיום עריכה'}</sw-button>
           ${this.variant === 'phone' ? html`<sw-button size="sm" data-layout-phone-auto ?disabled=${this.busy || (!this.record?.phone && !dirty)} @click=${() => void this.phoneAuto()}>חזור לאוטומטי</sw-button>` : nothing}
           <sw-button size="sm" data-layout-reset ?disabled=${this.busy || (!this.record?.desktop && !this.record?.phone)} @click=${() => this.ask('reset')}>אפס לברירת מחדל</sw-button>
@@ -1549,7 +1589,9 @@ export class DevicesLayoutController implements ReactiveController {
     let selected: Set<string>;
     let apply: (next: Set<string>) => void;
     if (custom) {
-      list = (this.opts.pool?.() ?? []).map((e) => ({ id: e.id, name: e.name, group: CARD_TYPES[e.card as keyof typeof CARD_TYPES]?.label ?? '' }));
+      list = this.pickAll ? this.systemList() : (this.opts.pool?.() ?? []).map((e) => ({ id: e.id, name: e.name, group: CARD_TYPES[e.card as keyof typeof CARD_TYPES]?.label ?? '' }));
+      // devices the card lists that are not in the list on screen stay listed (a device of another area picked earlier)
+      list = [...list, ...custom.entities.filter((id) => !list.some((e) => e.id === id)).map((id) => ({ id, name: id, group: 'מחוץ לרשימה' }))];
       selected = new Set(custom.entities);
       apply = (next) => this.patch(key, { custom: { ...custom, entities: [...next].sort() } });
     } else {
@@ -1566,9 +1608,121 @@ export class DevicesLayoutController implements ReactiveController {
       };
     }
     if (!list.length && !custom) return nothing;
-    const groups = groupPicks(list, this.entFilter);
+    return this.pickerUi({
+      kind: 'ent',
+      label: custom ? 'התקנים בכרטיס' : 'ישויות מוצגות בכרטיס',
+      list,
+      selected,
+      apply,
+      hint: custom ? undefined : 'ישות מוסתרת עדיין נספרת במונים של הכרטיס.',
+      // a custom card may list any device of the installation, not only the area's own
+      allSystem: custom ? { on: this.pickAll, toggle: (v) => this.setPickAll(v, () => this.systemList()) } : undefined,
+    });
+  }
+
+  /** The look of a section's "כבה הכל" button (icon only / text only / icon + text), for the built-in sections that have one
+   * (the registry: devices-area-design.ts SECTION_BULK). Stored on the desktop layout. */
+  private renderBulkLook(key: string, it: LayoutItem): TemplateResult | typeof nothing {
+    if (this.opts.scope !== 'area' || this.variant !== 'desktop' || !key.startsWith('card:') || key.startsWith('card:c-')) return nothing;
+    if (!SECTION_BULK[key.slice(5) as keyof typeof SECTION_BULK]) return nothing;
+    const cur = it.bulk_look ?? 'both';
+    return html`<div class="lay-f"><span class="lbl">כפתור "כבה הכל" בקטע</span>
+      <span class="lay-seg" role="group" aria-label="מראה כפתור הכיבוי">
+        ${BULK_LOOKS.map((l) => html`<button type="button" data-layout-bulk-look=${l} aria-pressed=${String(cur === l)} @click=${() => this.patch(key, { bulk_look: l === 'both' ? undefined : l })}>${BULK_LOOK_LABEL[l]}</button>`)}
+      </span></div>`;
+  }
+
+  /** "שכפל כרטיס": a copy of the card as a custom card of the same type (built-in cards: with the devices they show now),
+   * the same name with a number, the same colours, size and text, placed in the first free slot; a camera card copies its
+   * camera. The copy is then edited like any card. */
+  duplicateCard(key: string) {
+    if (!this.draft || this.variant !== 'desktop' || this.opts.scope !== 'area') return;
+    const src = this.draft.items[key];
+    if (!src) return;
+    const titles = Object.entries(this.draft.items).filter(([, i]) => !i.removed).map(([k, i]) => i.title ?? this.labelOf(k));
+    const base = src.title ?? this.labelOf(key);
+    const title = nextTitle(base, titles);
+    const { x, y } = findSlot(this.draft.items, this.draft.cols, src.w, src.h, GAP_ROWS);
+    let copyKey: string;
+    let extra: Partial<LayoutItem>;
+    if (key.startsWith('camera:')) {
+      copyKey = cameraCardDefinition().layoutKey(Object.keys(this.draft.items));
+      extra = { camera: src.camera };
+    } else {
+      copyKey = newCardKey(Object.keys(this.draft.items));
+      const type = src.custom?.type ?? key.slice(5);
+      const hide = new Set(src.hidden_entities ?? []);
+      const shown = src.custom ? src.custom.entities : (this.opts.entities?.(key) ?? []).map((e) => e.id).filter((id) => !hide.has(id));
+      extra = { custom: { type, entities: [...shown] }, ...(src.main ? { main: [...src.main] } : {}) };
+    }
+    const copy: LayoutItem = { ...src, ...extra, x, y, title, removed: undefined, hidden_entities: [], tiles: undefined, hidden: false, bulk_look: undefined };
+    this.draft = { ...this.draft, items: { ...this.draft.items, [copyKey]: copy } };
+    this.undo = null;
+    this.selected = copyKey;
+    this.live = `הכרטיס "${base}" שוכפל: "${title}".`;
+    this.update();
+  }
+
+  /** The sensors section's main strip (area redesign): any sensor of the installation, in the order picked; nothing picked =
+   * the automatic choice (temperature, humidity, motion, door - only those the area has). */
+  private renderMainPicker(key: string, it: LayoutItem): TemplateResult | typeof nothing {
+    if (this.variant !== 'desktop') return nothing;
+    const custom = this.customOf(key);
+    if (key !== 'card:sensors' && custom?.type !== 'sensors') return nothing;
+    const own = it.main ?? [];
+    const base: (PickEntity & { sensor?: boolean })[] = this.pickAll
+      ? this.systemList()
+      : (this.opts.pool?.() ?? []).map((e) => ({ id: e.id, name: e.name, group: CARD_TYPES[e.card as keyof typeof CARD_TYPES]?.label ?? '', sensor: e.card === 'sensors' || (e.card === 'security' && e.domain === 'binary_sensor') }));
+    const sensors = base.filter((e) => e.sensor !== false);
+    return this.pickerUi({
+      kind: 'main',
+      label: 'חיישנים ראשיים',
+      list: sensors,
+      selected: new Set(own),
+      apply: (next) => this.patch(key, { main: sensors.filter((e) => next.has(e.id)).map((e) => e.id).concat(own.filter((id) => next.has(id) && !sensors.some((e) => e.id === id))) }),
+      hint: own.length ? 'בחירה ידנית מחליפה את הבחירה האוטומטית (טמפרטורה, לחות, תנועה, דלת - כשקיימים באזור).' : 'ללא בחירה: טמפרטורה, לחות, תנועה ודלת מוצגים אוטומטית, רק אם קיימים באזור.',
+      allSystem: { on: this.pickAll, toggle: (v) => this.setPickAll(v, () => this.systemList()) },
+    });
+  }
+
+  /** The whole installation's devices for the pickers (read once, system.configure): area name as the group. */
+  private systemList(): (PickEntity & { sensor?: boolean })[] {
+    return (this.allPool ?? []).map((e) => ({ id: e.entity_id, name: e.name, group: e.area_name ?? 'ללא אזור', sensor: e.card === 'sensors' || (e.card === 'security' && e.domain === 'binary_sensor') }));
+  }
+
+  private setPickAll(on: boolean, _list: () => PickEntity[]) {
+    this.pickAll = on;
+    this.update();
+    if (on && this.allPool === null && !this.allPoolBusy) {
+      this.allPoolBusy = true;
+      void getEntityPool().then(
+        (r) => {
+          this.allPool = r.entities;
+          this.allPoolBusy = false;
+          this.update();
+        },
+        () => {
+          this.allPool = [];
+          this.allPoolBusy = false;
+          this.update();
+        },
+      );
+    }
+  }
+
+  /** The shared device picker: search, "בחר הכל" / "הסר הכל" / "הפוך בחירה" over the filtered results, type headers with a
+   * select box, a live count. `kind` names its attributes (ent | main) so two pickers can share a panel. */
+  private pickerUi(m: { kind: 'ent' | 'main'; label: string; list: PickEntity[]; selected: Set<string>; apply: (next: Set<string>) => void; hint?: string; allSystem?: { on: boolean; toggle: (v: boolean) => void } }): TemplateResult {
+    const { kind, list, selected, apply } = m;
+    const filterText = kind === 'ent' ? this.entFilter : this.mainFilter;
+    const setFilter = (v: string) => {
+      if (kind === 'ent') this.entFilter = v;
+      else this.mainFilter = v;
+      this.update();
+    };
+    const groups = groupPicks(list, filterText);
     const scope = groups.flatMap((g) => g.items.map((e) => e.id));
-    const filtered = this.entFilter.trim() !== '';
+    const filtered = filterText.trim() !== '';
     const chosen = list.filter((e) => selected.has(e.id)).length;
     const act = (mode: 'all' | 'none' | 'invert') => apply(bulkSelect(selected, scope, mode));
     const toggle = (id: string, on: boolean) => apply(bulkSelect(selected, [id], on ? 'all' : 'none'));
@@ -1576,15 +1730,16 @@ export class DevicesLayoutController implements ReactiveController {
       const on = ids.filter((id) => selected.has(id)).length;
       return html`<label class="lay-check lay-ghead"><input type="checkbox" data-layout-ent-group=${label} .checked=${on === ids.length} .indeterminate=${on > 0 && on < ids.length} @change=${(ev: Event) => apply(bulkSelect(selected, ids, (ev.target as HTMLInputElement).checked ? 'all' : 'none'))} /><span>${label}</span><span class="cnt">${on}/${ids.length}</span></label>`;
     };
-    return html`<div class="lay-f lay-picker" data-layout-picker><span class="lbl" data-layout-ent-count>${custom ? 'התקנים בכרטיס' : 'ישויות מוצגות בכרטיס'} (${chosen} מתוך ${list.length})</span>
+    return html`<div class="lay-f lay-picker" ?data-layout-picker=${kind === 'ent'} ?data-layout-main-picker=${kind === 'main'}><span class="lbl" data-layout-ent-count>${m.label} (${chosen} מתוך ${list.length})</span>
       <div class="lay-ptool">
-        <input type="search" data-layout-ent-filter placeholder="חיפוש התקן" aria-label="חיפוש התקן" .value=${this.entFilter} @input=${(ev: Event) => { this.entFilter = (ev.target as HTMLInputElement).value; this.update(); }} />
+        <input type="search" data-layout-ent-filter placeholder="חיפוש התקן" aria-label="חיפוש התקן" .value=${filterText} @input=${(ev: Event) => setFilter((ev.target as HTMLInputElement).value)} />
         <div class="lay-pbtns" role="group" aria-label=${filtered ? `פעולות על ${scope.length} תוצאות` : 'פעולות על כל ההתקנים'}>
           <button type="button" data-layout-ent-all ?disabled=${!scope.length} @click=${() => act('all')}>בחר הכל</button>
           <button type="button" data-layout-ent-none ?disabled=${!scope.length} @click=${() => act('none')}>הסר הכל</button>
           <button type="button" data-layout-ent-invert ?disabled=${!scope.length} @click=${() => act('invert')}>הפוך בחירה</button>
         </div>
         ${filtered ? html`<span class="lay-hint" data-layout-ent-scope>הפעולות חלות על ${scope.length} התוצאות בלבד.</span>` : nothing}
+        ${m.allSystem ? html`<label class="lay-check"><input type="checkbox" data-layout-all-system .checked=${m.allSystem.on} @change=${(ev: Event) => m.allSystem!.toggle((ev.target as HTMLInputElement).checked)} />הצג התקנים מכל המערכת${m.allSystem.on && this.allPool === null ? ' (טוען…)' : ''}</label>` : nothing}
       </div>
       <div class="lay-ents" data-layout-entities>
         ${groups.length
@@ -1594,7 +1749,7 @@ export class DevicesLayoutController implements ReactiveController {
             </div>`)
           : html`<span class="lay-hint" data-layout-ent-none-found>${list.length ? 'לא נמצאו התקנים.' : 'אין התקנים באזור.'}</span>`}
       </div>
-      ${custom ? nothing : html`<span class="lay-hint">ישות מוסתרת עדיין נספרת במונים של הכרטיס.</span>`}</div>`;
+      ${m.hint ? html`<span class="lay-hint">${m.hint}</span>` : nothing}</div>`;
   }
 
   /** The library dialog: every card type that makes sense for the area's devices (all of them on request), each with a
@@ -1682,10 +1837,13 @@ export class DevicesLayoutController implements ReactiveController {
           ${nudge('גובה +', 'הגבה ב־8 פיקסלים', { h: it.h + 1 }, 'taller')}
           ${nudge('גובה −', 'הנמך ב־8 פיקסלים', { h: it.h - 1 }, 'shorter')}
         </div></div>
+      ${this.renderBulkLook(key, it)}
       ${this.renderEntities(key, it)}
+      ${this.renderMainPicker(key, it)}
       ${this.canArrange(key) ? html`<button type="button" class="btn" data-layout-tiles-open @click=${() => this.enterTiles(key)}>סידור התקנים בכרטיס${arranged(it) ? ' (מסודר)' : ''}…</button>` : nothing}
       <label class="lay-check"><input type="checkbox" data-layout-hidden .checked=${it.hidden} @change=${(e: Event) => this.patch(key, { hidden: (e.target as HTMLInputElement).checked })} />מוסתר לכולם</label>
       ${key.startsWith('camera:') && this.variant === 'desktop' ? html`<button type="button" class="btn" data-layout-camera-change @click=${() => { this.camPick = { key }; this.update(); }}>בחר מצלמה אחרת…</button>` : nothing}
+      ${this.opts.scope === 'area' && this.variant === 'desktop' ? html`<button type="button" class="btn" data-layout-duplicate-card @click=${() => this.duplicateCard(key)}>שכפל כרטיס</button>` : nothing}
       ${this.opts.scope === 'area' && this.variant === 'desktop'
         ? html`<button type="button" class="btn lay-del" data-layout-delete-card @click=${() => this.removeCard(key)}>מחק כרטיס</button><div class="lay-hint">מחיקה מוציאה את הכרטיס מהמסך בלבד: ההתקנים לא נמחקים מהמערכת, אלא חוזרים למאגר ההתקנים הלא ממוקמים, ואפשר לצרף אותם לכרטיס אחר. "בטל מחיקה" מחזיר את הכרטיס.</div>`
         : nothing}
