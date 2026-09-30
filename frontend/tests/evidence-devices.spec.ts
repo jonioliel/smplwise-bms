@@ -1483,7 +1483,8 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await expectView(b1.page(), 'cards');
       await expect(b1).toHaveAttribute('data-devices-style', 'smplwise');
       await expect(b1).toHaveAttribute('data-devices-density', 'comfortable');
-      await expect(b1.locator('[data-climate-strip]').first()).toBeVisible();
+      await expect(b1.locator('[data-climate-strip]')).toHaveCount(0); // 0.1.149: the per-A/C strips are gone; each area row carries its own indicators
+      await expect(b1.locator('[data-area-indicators]').first()).toBeVisible();
       await setView(b1.page(), 'tiles');
       const lobby1 = b1.locator('a.tile[data-area="cr007_lobby"]');
       await expect(lobby1.locator('.pills span[title="חיישנים"]')).toHaveCount(1);
@@ -1550,9 +1551,10 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await expect(sec).toBeVisible({ timeout: 30000 });
       await expect(sec.locator('[data-devices-readonly]')).toContainText('הרשאת מנהל מערכת');
       await expect(sec.locator('sw-button[data-save-devices]')).toHaveCount(0);
-      for (const sel of ['select[data-set-devices-style]', 'select[data-set-devices-view]', 'select[data-set-devices-density]', 'select[data-set-devices-sensors]', 'select[data-set-devices-climate]']) {
+      for (const sel of ['select[data-set-devices-style]', 'select[data-set-devices-view]', 'select[data-set-devices-density]', 'select[data-set-devices-sensors]']) {
         await expect(sec.locator(sel)).toBeDisabled();
       }
+      await expect(sec.locator('area-row-editor').locator('input[data-area-show-empty]')).toBeDisabled();
       await expect(sec.locator('button[data-devices-swatch="smplwise"]')).toBeDisabled();
       await expect(sec.locator('button[data-devices-swatch="glass"]')).toBeDisabled();
       await expect(sec.locator('button[data-devices-swatch="glass"]')).toHaveAttribute('aria-pressed', 'true');

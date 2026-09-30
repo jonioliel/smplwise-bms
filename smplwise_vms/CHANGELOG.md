@@ -1,5 +1,16 @@
 # Changelog — SmplWise Arx add-on
 
+## 0.1.149 (pilot) — (in progress)
+### Home screen
+- **A calm area row**: the per-A/C chip lists (floor "מזגני הקומה", building "מזגנים בבניין") are gone. Each area row carries ONE air-conditioning
+  indicator (snowflake / flame / fan by the dominant mode, dimmed when off, optional temperature or mode, the number working when several) followed by
+  the counters worth a glance, on one line; a phone shows three and collapses the rest into "+N". An unknown temperature is hidden, never a dash.
+- **Editable** (הגדרות › חשמל והתקנים › "מה מוצג ליד שם האזור"): which items, in which order, what the A/C says, whether zero counters show, and the
+  floor header's chips; new keys `devices.area_row` / `devices.floor_row`. A user with `screen.personalize` may choose their own (החשבון שלי › המסך שלי).
+- The floor card's header chips stay on one line on a phone (scrolling sideways), and the floor action no longer slides out of the card.
+- The devices tree now carries each area's own climate units, room temperature and open doors / windows (additive fields).
+- `devices.show_climate_strip` is deprecated (accepted, no effect).
+
 ## 0.1.148 (pilot) — Three home screens and two area screens you choose and edit; narrow tab bars; the phone UI audited; the old design is gone
 ### Home screen (חשמל והתקנים)
 - **Three directions, chosen in הגדרות › חשמל והתקנים › מסך ראשי**: א control centre (default), ב side panel, ג compact row. Every widget is

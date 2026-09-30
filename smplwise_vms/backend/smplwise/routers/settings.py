@@ -15,7 +15,7 @@ from ..auth import current_principal, get_conn
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import home_config, home_screen, mobile_options, nav_size
+from ..services import area_row, home_config, home_screen, mobile_options, nav_size
 
 router = APIRouter()
 
@@ -121,7 +121,7 @@ DEFAULTS: dict[str, str] = {
     "devices.theme": "default",  # the style's palette (frontend/src/styles/devices-themes.ts); default | sand | forest | graphite, picked with swatches (6b)
     "devices.default_view": "cards",  # the building screen's first view: cards (tree panel + floor cards) | tiles; a viewer's own toggle wins
     "devices.show_sensors": "true",  # the sensors card on the area screen and the sensors count on the building screen
-    "devices.show_climate_strip": "true",  # the building / floor "מזגנים" strip
+    "devices.show_climate_strip": "true",  # DEPRECATED since 0.1.149: the per-A/C strips are gone (an A/C indicator sits next to its area, devices.area_row); accepted and stored, nothing reads it
     "devices.density": "comfortable",  # comfortable | compact (tighter tiles, rows and gaps)
     # CR-007 6b: the device area's colour scheme - light (default) | dark | auto (the viewer's operating-system scheme).
     # Light by default while the app shell is light only: dark never applies by itself (docs/design/DEVICE_THEMES.md).
@@ -130,6 +130,11 @@ DEFAULTS: dict[str, str] = {
     # section cards in columns, dense tiles) | sections ("מקטעים ברצף": one section after the other). A user holding
     # screen.personalize may override it for their own browser (frontend/src/screens/devices-area.ts).
     "devices.area_design": "tiles",
+    # Release 0.1.149 (owner 2026-09-30, the big installation's home screen was crowded): what is shown next to an area's name
+    # (devices.area_row) and in a floor's header (devices.floor_row) - two JSON objects read back as objects, validated by
+    # services/area_row.py. A user holding screen.personalize may override them in /me/prefs `devices.area_row`.
+    "devices.area_row": json.dumps(area_row.AREA_ROW_DEFAULT, separators=(",", ":")),
+    "devices.floor_row": json.dumps(area_row.FLOOR_ROW_DEFAULT, separators=(",", ":")),
     # Owner notes 2026-09-30 (the home screen "ראשי" › חשמל והתקנים, edited in its edit mode by a system.configure holder):
     # the page title (empty = "חשמל והתקנים"), the installation's floor order (a JSON list of floor ids; floors not listed
     # follow in level order) and three optional read-only header widgets, all off by default - a clock (off | time |
@@ -217,6 +222,8 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
     out["ui.nav_size"] = _stored_nav_size(out["ui.nav_size"])
     out["ui.mobile"] = _stored_mobile(out["ui.mobile"])
+    out["devices.area_row"] = _stored_area_row(out["devices.area_row"], area_row.normalize_area, area_row.AREA_ROW_DEFAULT)
+    out["devices.floor_row"] = _stored_area_row(out["devices.floor_row"], area_row.normalize_floor, area_row.FLOOR_ROW_DEFAULT)
     out["schedules.classes"] = stored_schedule_classes(out["schedules.classes"])
     out["home.widgets"] = home_screen.effective_config(conn)
     return out
@@ -236,6 +243,14 @@ def _stored_mobile(raw: Any) -> dict[str, bool]:
         return mobile_options.normalize(json.loads(raw) if isinstance(raw, str) else raw)
     except ValueError:
         return dict(mobile_options.DEFAULT)
+
+
+def _stored_area_row(raw: Any, normalize: Any, default: dict[str, Any]) -> dict[str, Any]:
+    """A stored devices.area_row / devices.floor_row as an object with every key; a corrupt value reads as the default."""
+    try:
+        return normalize(json.loads(raw) if isinstance(raw, str) else raw)
+    except ValueError:
+        return json.loads(json.dumps(default))
 
 
 def stored_schedule_classes(raw: Any) -> list[str]:
@@ -391,6 +406,8 @@ class SettingsPatch(BaseModel):
     devices_density: str | None = Field(default=None, pattern="^(comfortable|compact)$", alias="devices.density")
     devices_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="devices.scheme")
     devices_area_design: str | None = Field(default=None, pattern="^(tiles|sections)$", alias="devices.area_design")
+    devices_area_row: dict[str, Any] | None = Field(default=None, alias="devices.area_row")  # validated in full by services/area_row.py
+    devices_floor_row: dict[str, Any] | None = Field(default=None, alias="devices.floor_row")  # validated in full by services/area_row.py
     home_title: str | None = Field(default=None, max_length=60, alias="home.title")
     home_floor_order: str | None = Field(default=None, max_length=6000, alias="home.floor_order")
     home_clock: str | None = Field(default=None, pattern="^(off|time|datetime)$", alias="home.clock")
@@ -461,6 +478,16 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             changes["ui.mobile"] = mobile_options.normalize(changes["ui.mobile"])
         except ValueError as exc:
             raise ApiError(422, "validation", "אפשרויות נייד: ערך לא תקין.", details={"ui.mobile": str(exc)})
+    if "devices.area_row" in changes:
+        try:
+            changes["devices.area_row"] = area_row.normalize_area(changes["devices.area_row"])
+        except ValueError as exc:
+            raise ApiError(422, "validation", "מה מוצג ליד שם האזור: ערך לא תקין.", details={"devices.area_row": str(exc)})
+    if "devices.floor_row" in changes:
+        try:
+            changes["devices.floor_row"] = area_row.normalize_floor(changes["devices.floor_row"])
+        except ValueError as exc:
+            raise ApiError(422, "validation", "מה מוצג בכותרת הקומה: ערך לא תקין.", details={"devices.floor_row": str(exc)})
     if "schedules.classes" in changes:
         bad = [c for c in changes["schedules.classes"] if c not in SCHEDULE_CLASSES]
         if bad:
@@ -517,7 +544,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if key == "home.widgets":
             set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value else "")
             continue
-        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.mobile", "schedules.classes") else str(value))
+        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.mobile", "schedules.classes", "devices.area_row", "devices.floor_row") else str(value))
     if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now
         from ..services import schedules as schedules_svc
 

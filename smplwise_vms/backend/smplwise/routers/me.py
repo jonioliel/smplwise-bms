@@ -79,6 +79,7 @@ class PrefsPatch(BaseModel):
     ui_nav_size: dict[str, Any] | None = Field(default=None, alias="ui.nav_size")  # validated in full by services/nav_size.py
     wiskey_density: str | int | None = Field(default=None, alias="wiskey.density")  # WisKey rc.37 overview card count
     wiskey_wall: str | int | None = Field(default=None, alias="wiskey.wall")  # WisKey rc.37 camera-wall stream budget
+    devices_area_row: dict[str, Any] | None = Field(default=None, alias="devices.area_row")  # release 0.1.149: what shows next to an area name; needs screen.personalize (services/area_row.py)
     home_personal: dict[str, Any] | None = Field(default=None, alias="home.personal")  # home redesign: needs screen.personalize (validated by services/home_config.py)
 
 
@@ -94,7 +95,7 @@ def _prefs_of(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
     """The caller's preferences as they may see them: `home.personal` exists only for a holder of screen.personalize - without it
     the stored row is read as absent (no value, not in `stored`, not in `updated_at`; it stays in the table and comes back if the
     permission is granted again)."""
-    hide = () if may_personalize(conn, principal) else (user_prefs.PERSONAL_HOME_KEY,)
+    hide = () if may_personalize(conn, principal) else user_prefs.PERSONAL_KEYS
     return user_prefs.get_prefs(conn, principal.user_id, hide)
 
 @router.get("/me/prefs")
@@ -110,7 +111,7 @@ def put_my_prefs(body: PrefsPatch, principal: Principal = Depends(current_princi
     unknown ids and appends the missing ones in the default order. Presentation only: no permission changes."""
     patch = {user_prefs_key(name): value for name, value in body.model_dump(by_alias=False).items() if name in body.model_fields_set}
     allowed = may_personalize(conn, principal)
-    if patch.get(user_prefs.PERSONAL_HOME_KEY) is not None and not allowed:
+    if any(patch.get(k) is not None for k in user_prefs.PERSONAL_KEYS) and not allowed:
         # home redesign: the personal home screen is for holders of screen.personalize only (clearing it is always allowed)
         from ..audit import audit
 
