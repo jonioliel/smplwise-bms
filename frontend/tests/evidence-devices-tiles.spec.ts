@@ -528,7 +528,14 @@ test.describe('overview tiles against the devices fixture backend', () => {
     await expect(admin.locator('[data-bulk-safe-counts]')).toContainText(/^\u200e?3 מתוך/);
     // remove from one: select it alone
     await admin.locator('input[data-bulk-safe-search]').fill('cr007t_pump');
-    await admin.locator('input[data-bulk-safe-row="switch.cr007t_pump"]:visible').click();
+    const pumpBox = admin.locator('input[data-bulk-safe-row="switch.cr007t_pump"]:visible');
+    await pumpBox.click();
+    await expect(pumpBox).toBeChecked(); // the box shows what the counter says (a cancelled click used to leave it unmarked)
+    await expect(admin.locator('[data-bulk-safe-selected]')).toContainText(/1/);
+    await pumpBox.click();
+    await expect(pumpBox).not.toBeChecked();
+    await pumpBox.click();
+    await expect(pumpBox).toBeChecked();
     await admin.locator('sw-button[data-bulk-safe-remove]').click();
     await expect(admin.locator('[data-bulk-safe-question]')).toHaveText(/להסיר את האישור מ־\u200e?1 מתגים\?/);
     await admin.locator('sw-button[data-bulk-safe-confirm]').click();
