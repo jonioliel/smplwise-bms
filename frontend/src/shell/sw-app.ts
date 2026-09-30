@@ -62,7 +62,7 @@ import { onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
-import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, visibleGroups, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, isHomeEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, type LegacyAccess, type NavTabId } from './nav';
+import { GROUP_TABS, groupOf, activeTabOf, AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, visibleGroups, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, isHomeEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, type LegacyAccess, tabAllowed, type NavTabId } from './nav';
 import { alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { currentDesign, onDesign, resolveDesign, type DesignId } from '../api/design';
 import { t } from '../i18n/he';
@@ -687,6 +687,14 @@ export class SwApp extends LitElement {
     .float button:focus-visible {
       outline: 2px solid var(--sw-focus);
       outline-offset: 1px;
+    }
+    /* the status dot of a user who may not open הגדרות › בריאות: the same dot, not a button */
+    .float span.sysdot {
+      display: grid;
+      place-items: center;
+      inline-size: 28px;
+      block-size: 28px;
+      cursor: default;
     }
     .float .sysdot i {
       inline-size: 9px;
@@ -1415,6 +1423,7 @@ export class SwApp extends LitElement {
     const s = this.sys;
     if (!s) return nothing;
     const { text, title } = this.sysWords(s);
+    if (!this.canOpenHealth()) return html`<span class="status-a sys ${s.status} b" data-sys-pill data-sys-static data-status=${s.status} role="img" title=${title} aria-label=${`מצב המערכת: ${text}`}><i></i>${text}</span>`;
     return html`<button class="status-a sys ${s.status} b" data-sys-pill data-status=${s.status} title=${title} aria-label=${`מצב המערכת: ${text}`} @click=${() => (window.location.hash = '#/system/diagnostics?tab=health')}><i></i>${text}</button>`;
   }
 
@@ -1427,14 +1436,22 @@ export class SwApp extends LitElement {
     const s = this.sys;
     const status = s?.status ?? 'unknown';
     const { text, title } = s ? this.sysWords(s) : { text: 'מערכת מקומית', title: 'מערכת מקומית' };
+    // only for users who may open הגדרות › בריאות (system.configure); everyone else sees the state without a link that
+    // would end on a refusal
+    if (!this.canOpenHealth()) return html`<span class="sysdot ${status}" data-sys-pill data-sys-static data-status=${status} role="img" title=${`${text}\n${title}`.trim()} aria-label=${`מצב המערכת: ${text}`}><i></i></span>`;
     return html`<button type="button" class="sysdot ${status}" data-sys-pill data-status=${status} title=${`${text}\n${title}`.trim()} aria-label=${`מצב המערכת: ${text}`} @click=${() => (window.location.hash = '#/system/diagnostics?tab=health')}><i></i></button>`;
+  }
+
+  /** The status dot, the legacy pill and the alert banner lead to הגדרות › בריאות: allowed only with system.configure. */
+  private canOpenHealth(): boolean {
+    return tabAllowed('#/system/diagnostics', canNav);
   }
 
   private renderSysBanner() {
     const s = this.sys;
     if (!s || s.status !== 'error') return nothing;
     const errors = s.items.filter((i) => i.status === 'error');
-    return html`<div class="sysbanner" role="alert" data-sys-banner><sw-icon name="warning" size=${16}></sw-icon><span>${errors.map((i) => i.label).join(' · ')}</span><a href="#/system/diagnostics?tab=health">לבריאות המערכת</a></div>`;
+    return html`<div class="sysbanner" role="alert" data-sys-banner><sw-icon name="warning" size=${16}></sw-icon><span>${errors.map((i) => i.label).join(' · ')}</span>${this.canOpenHealth() ? html`<a href="#/system/diagnostics?tab=health">לבריאות המערכת</a>` : nothing}</div>`;
   }
 
   // ---- setup hint (T071) ----

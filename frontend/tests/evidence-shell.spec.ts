@@ -470,6 +470,27 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     await page.route('**/api/v1/**', (r) => mock.handle(r));
   });
 
+  test('the status dot and the failure banner lead to הגדרות › בריאות only for who may open it', async ({ page }) => {
+    await page.route('**/api/v1/health/summary', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'error', items: [{ id: 'nvr', status: 'error', label: 'מקליט לא זמין' }], checked_at: '2026-09-30T10:00:00Z' }) }),
+    );
+    // an administrator: the dot is a button that opens the health tab, and the banner has its link
+    await open(page, '/devices/building');
+    await expect(page.locator('sw-app button[data-sys-pill]')).toHaveCount(1);
+    await expect(page.locator('sw-app [data-sys-banner] a')).toHaveCount(1);
+    // a viewer without system.configure: the same dot, not a button - and no link in the banner
+    mock.user = VIEWER;
+    await open(page, '/devices/building');
+    await expect(page.locator('sw-app [data-sys-pill]')).toHaveCount(1);
+    await expect(page.locator('sw-app button[data-sys-pill]')).toHaveCount(0);
+    await expect(page.locator('sw-app [data-sys-pill][data-sys-static]')).toHaveAttribute('aria-label', /מצב המערכת: תקלה/);
+    await expect(page.locator('sw-app [data-sys-banner]')).toBeVisible();
+    await expect(page.locator('sw-app [data-sys-banner] a')).toHaveCount(0);
+    await page.locator('sw-app [data-sys-pill]').click({ force: true });
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => location.hash)).not.toContain('diagnostics');
+  });
+
   test('the bare address lands on ראשי; settings shown only with a settings permission; WisKey only with access.read', async ({ page }, info) => {
     await open(page);
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/devices/building');
