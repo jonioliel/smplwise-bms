@@ -1,5 +1,30 @@
 # Changelog — SmplWise Arx add-on
 
+## 0.1.147 (pilot) — Schedules ("תזמונים", off until you turn it on); a camera card for area screens; the alarm tab is back in the security area; WisKey rc.37; your own navigation size
+**After the update restart the platform once**: the bridge integration is 0.3.0 (the schedule service). Migration 0039 (schedules) is applied on the first start.
+### Schedules (CR-014) - feature is OFF by default
+- A new tab **"תזמונים"** next to "מבט על" in the home area, over the scheduler component of the platform: list as cards, a table or a week view, a 24-hour week grid and a table (from - to) for editing the same scheme, day view, phone timeline, conditions (presets "רק בשבת ובחג" / "לא בשבת ובחג" / "מוצאי שבת"), create from templates or in three taps, run now, enable / disable, copy, delete with a 30-day trash and restore, a review list. Turn it on in הגדרות › תזמונים.
+- **Permissions you grant** (per user or role, scoped): `schedule.view`, `schedule.manage`, `schedule.sensitive` (alarm, locks, gates). An editor may change a schedule only when their scope covers every device in it. Editing a disabled schedule never turns it on.
+- Alarm / lock / gate actions need the sensitive permission and an explicit confirmation; a panel code is never written to the component (an alarm action that needs a code cannot be scheduled yet).
+- Known limit: anyone with access to the platform can also edit schedules directly in the component, bypassing these permissions; such schedules are shown as external and flagged for review.
+- The scheduler's own switches no longer appear as ordinary switches in the devices area, tiles or bulk actions.
+### Area screens
+- **A camera card**: add a camera to an area (an NVR channel, or a platform camera that is an NVR channel), streamed through the same live path and limits as the wall; other platform cameras show a picture only. The card is offered in the card library of the layout editor.
+- The layout editor got a card library (add any number of cards), select all / none in the entity list, delete a card (with undo).
+### Security area
+- **The alarm tab is back** in אבטחה (next to לייב | חקירה) whenever the platform has an alarm panel and you hold an alarm permission; the management stays in הגדרות › אבטחה.
+### Navigation and screens
+- **Navigation size** (הגדרות › כללי › "גודל הניווט"): four presets or free icon / label / item sizes, a system default and a personal choice.
+- **Every screen's edit mode is an item of the user menu** (area layout, map, camera wall arrangement); the buttons left the screens.
+- Home widgets are dashboard cards (small / medium / large); the status dot opens the health page only for users who may open it.
+- The one-column camera wall on a phone fills the width.
+### WisKey rc.37
+- The embedded WisKey is opened with `chrome=none` (no border or padding of its own). Personal choices in החשבון שלי › WisKey: overview card count and camera wall size; defaults in הגדרות › מדיה.
+### Hardening
+- Request bodies are read before the write lock is taken on 37 routes; unshare and floor deletion in shared spaces are consistent on both floors; body limits hold for odd path spellings; refusal audit rows name the user and keep suppressed counts.
+### Documents
+- User guide page for schedules, settings pages for schedules, tabs, navigation size and the new options; the scheduler phase-0 checklist.
+
 ## 0.1.146 (pilot) — No top bar; a customisable home screen; the alarm and camera health move; tab order and visibility are yours; WisKey fills the screen; the NVR clock no longer reads an hour off in summer
 ### The shell (owner round 2026-09-30)
 - **No white top bar in any screen** (design A). Search is a small icon button in the top corner (Ctrl/Cmd+K still
