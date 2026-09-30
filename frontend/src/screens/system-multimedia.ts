@@ -29,7 +29,7 @@ const EXTRA_KEYS: { id: KeyId; label: string }[] = [
 ];
 
 /**
- * CR-015 הגדרות › מדיה (`#/system/multimedia`, system.configure, installation scope; the server checks it again on every
+ * CR-015 הגדרות › מולטימדיה (`#/system/multimedia`, system.configure, installation scope; the server checks it again on every
  * write): the feature switch, every discovered device with kind, confidence, approval ("אשר את כל המסכים שזוהו" as one
  * action), display name, public flag, profile (detected / pinned), linked receiver, default audio target and volume ceiling,
  * the connections of each device (which integration answers what, hidden duplicates, link / unlink / ignore, merge
@@ -452,13 +452,13 @@ export class SystemMultimedia extends LitElement {
   }
 
   render() {
-    if (this.phase === 'forbidden') return html`<sw-page heading="מדיה"><sw-state-panel data-mm-admin-state="forbidden" state="forbidden" heading="אין לך הרשאה להגדרות המדיה" hint="נדרשת ההרשאה להגדרת המערכת."></sw-state-panel></sw-page>`;
-    if (this.phase === 'loading') return html`<sw-page heading="מדיה"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
-    if (this.phase === 'error') return html`<sw-page heading="מדיה"><sw-state-panel data-mm-admin-state="error" state="error" heading="לא ניתן לטעון את הגדרות המדיה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
+    if (this.phase === 'forbidden') return html`<sw-page heading="מולטימדיה"><sw-state-panel data-mm-admin-state="forbidden" state="forbidden" heading="אין לך הרשאה להגדרות המדיה" hint="נדרשת ההרשאה להגדרת המערכת."></sw-state-panel></sw-page>`;
+    if (this.phase === 'loading') return html`<sw-page heading="מולטימדיה"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    if (this.phase === 'error') return html`<sw-page heading="מולטימדיה"><sw-state-panel data-mm-admin-state="error" state="error" heading="לא ניתן לטעון את הגדרות המדיה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     const st = this.status;
     const pending = this.list.devices.filter((d) => d.kind === 'screen' && !d.approved).length;
     const bridge = st?.bridge;
-    return html`<sw-page heading="מדיה" subheading=${`${this.list.devices.filter((d) => d.approved && d.kind === 'screen').length} מסכים מאושרים${pending ? ` · ${pending} ממתינים לאישור` : ''}`}>
+    return html`<sw-page heading="מולטימדיה" subheading=${`${this.list.devices.filter((d) => d.approved && d.kind === 'screen').length} מסכים מאושרים${pending ? ` · ${pending} ממתינים לאישור` : ''}`}>
       <div class="stack">
         ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
         <sw-card heading="כללי" data-mm-general>

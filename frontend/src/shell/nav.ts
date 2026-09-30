@@ -545,7 +545,7 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'entities', label: 'קטלוג התקנים', href: ENTITIES_SETTINGS_HREF },
     { id: 'schedules', label: 'תזמונים', href: SCHEDULES_SETTINGS_HREF },
     // CR-015: the screens' approval, connections and the remote's defaults (system.configure, installation scope)
-    { id: 'multimedia', label: 'מדיה', href: MULTIMEDIA_SETTINGS_HREF },
+    { id: 'multimedia', label: 'מולטימדיה', href: MULTIMEDIA_SETTINGS_HREF },
     /** CR-013 review M10: the screen catalogue left the user menu; a system administrator reaches it from here */
     { id: 'screens', label: 'כל המסכים', href: '#/screens' },
   ],
@@ -851,7 +851,7 @@ export function isHomeRoute(r: RouteState | null): boolean {
   return r?.mode === 'devices' && (r.segments[1] ?? 'building') === 'building';
 }
 
-/** CR-015: `multimedia.enabled` off (הגדרות › מדיה) takes the multimedia area out of the rail and the bottom bar for everyone - the
+/** CR-015: `multimedia.enabled` off (הגדרות › מולטימדיה) takes the multimedia area out of the rail and the bottom bar for everyone - the
  * same "hidden for everyone" shape as applySchedulesHidden (its only visible tab joins HIDDEN_HREFS, so the area has no tab
  * left). The route is not closed: the screen answers "המולטימדיה כבויה" itself. Called by the shell after HIDDEN_HREFS was
  * rebuilt from the product settings, and by the settings screen after a save. Returns whether it is hidden. */

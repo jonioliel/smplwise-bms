@@ -322,7 +322,7 @@ bottom bar gains the entry (users may reorder/hide as today).
 installation-only). The HTTP API lives under `/api/v1/multimedia/*` because `/api/v1/media/*` is the camera video
 router and the `media.*` settings keys are the video settings.
 
-## 9. Settings (הגדרות › מדיה, `#/system/multimedia`, `system.configure`, audited `settings.update` / `media.device.update`)
+## 9. Settings (הגדרות › מולטימדיה, `#/system/multimedia`, `system.configure`, audited `settings.update` / `media.device.update`)
 
 - **מסכים**: every discovered device with kind, confidence, approval toggle ("אשר את כל המסכים שזוהו" as one action),
   display name, floor/area (read from HA), public flag, profile (detected / pinned), linked receiver, default audio

@@ -8,7 +8,7 @@ import { mediaAdmin, resetMediaAdminDemo } from '../src/api/media-admin';
 import type { MediaDevice } from '../src/api/media-screens';
 
 // CR-015 S2: the multimedia screens page ("מולטימדיה › מסכים"), its card, the layout editor (installation layout and the
-// personal override), the floor "כבה מסכים" confirmation and the settings page "הגדרות › מדיה". Static preview + a MOCKED
+// personal override), the floor "כבה מסכים" confirmation and the settings page "הגדרות › מולטימדיה". Static preview + a MOCKED
 // backend (page.route on api/v1, like evidence-tabs-ui.spec.ts): the routes are answered by the S0 client's own MOCK store
 // (src/api/media-screens-mock.ts, the eight mockup screens), so the shapes are the contract's; what is checked is what the client
 // does with the permissions and answers it is given and what it sends. The server's rules are S1's tests, the real round trip is
@@ -650,14 +650,14 @@ test.describe('multimedia screens (mocked backend)', () => {
     await expect(page.locator('sw-app sw-user-menu [data-menu-screen-edit]')).toHaveCount(0);
   });
 
-  // ---------------------------------------------------------------------------------------------- הגדרות › מדיה
+  // ---------------------------------------------------------------------------------------------- הגדרות › מולטימדיה
 
-  test('settings › מדיה: approval, public flag, connections, merge suggestion, remote default and the feature switch', async ({ page }) => {
+  test('settings › מולטימדיה: approval, public flag, connections, merge suggestion, remote default and the feature switch', async ({ page }) => {
     await install(page, st);
     await open(page, '/system/multimedia');
     const sys = page.locator('sw-app system-multimedia');
     await expect(sys.locator('[data-mm-admin-device]')).toHaveCount(8);
-    await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('מדיה');
+    await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('מולטימדיה');
     await expect(sys.locator('[data-mm-display]')).toHaveText('זכוכית תמיד; בהיר/כהה לפי חשמל והתקנים');
     await expect(sys.locator('[data-mm-bridge]')).toContainText('0.4.0');
     for (const size of ['1440', '390'] as const) {
@@ -706,7 +706,7 @@ test.describe('multimedia screens (mocked backend)', () => {
     await expect(page.locator('sw-app nav.rail a[data-nav="multimedia"]')).toHaveCount(0);
   });
 
-  test('settings › מדיה needs system.configure: anyone else sees the closed state', async ({ page }) => {
+  test('settings › מולטימדיה needs system.configure: anyone else sees the closed state', async ({ page }) => {
     st.perms = EDITOR;
     await install(page, st);
     await open(page, '/system/multimedia');

@@ -1620,7 +1620,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'security') return html`<system-security .sub=${s[2] ?? ''} .panelId=${r.params.get('panel') ?? ''}></system-security>`;
         if (s[1] === 'storage') return html`<system-storage></system-storage>`;
         if (s[1] === 'schedules') return html`<system-schedules></system-schedules>`; // הגדרות › תזמונים (CR-014)
-        if (s[1] === 'multimedia') return html`<system-multimedia></system-multimedia>`; // הגדרות › מדיה (CR-015)
+        if (s[1] === 'multimedia') return html`<system-multimedia></system-multimedia>`; // הגדרות › מולטימדיה (CR-015)
         if (s[1] === 'entities') return html`<explore-entities></explore-entities>`; // the device catalogue, formerly the map's "התקנים" tab (system.configure only: the screen checks it too)
         if (s[1] === 'access') return html`<system-access></system-access>`;
         if (s[1] === 'notifications') return html`<arx-notifications-settings></arx-notifications-settings>`;

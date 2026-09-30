@@ -531,7 +531,7 @@
   },
   {
     "id": "settings-multimedia",
-    "name_he": "הגדרות · מדיה (מסכים ושלט)",
+    "name_he": "הגדרות · מולטימדיה (מסכים ושלט)",
     "section": "settings",
     "route": "#/system/multimedia",
     "viewports": [
