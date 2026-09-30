@@ -243,7 +243,8 @@ export function addEntitiesToSlots<S extends IntentSlot>(slots: S[], adds: Entit
     for (const e of adds) {
       if (have.has(e.entity_id)) continue;
       let a: DraftAction | null = null;
-      if (s.intent) a = actionForIntent(s.intent, e);
+      // a slot that still has no action does the plain "on" for a device that joins (a template says something else)
+      if (s.intent || !s.actions.length) a = actionForIntent(s.intent ?? { kind: 'on' }, e);
       if (!a) {
         const same = s.actions.find((x) => x.entity_id && x.service.split('.')[0] === e.domain);
         a = same ? { service: same.service, entity_id: e.entity_id, data: { ...same.data } } : null;
@@ -263,8 +264,8 @@ export function removeEntityFromSlots<S extends DraftSlot>(slots: S[], entityId:
  * The actions of a newly drawn slot: the opposite of the last slot of the day (an "on" slot is followed by an "off" one),
  * for every device of the schedule; nothing when the schedule has no device yet.
  */
-export function newSlotActions(slots: DraftSlot[], meta: MetaMap, startOf: (s: DraftSlot) => number): DraftAction[] {
-  const ids = entitiesOf(slots);
+export function newSlotActions(slots: DraftSlot[], meta: MetaMap, startOf: (s: DraftSlot) => number, extraIds: string[] = []): DraftAction[] {
+  const ids = [...new Set([...entitiesOf(slots), ...extraIds])];
   if (!ids.length) return [];
   const order = slots.filter((s) => s.actions.length).sort((a, b) => startOf(a) - startOf(b));
   const last = order[order.length - 1];
@@ -626,6 +627,43 @@ export function slotSummary(slot: DraftSlot, meta: MetaMap): string {
   const names = first.entities.map((e) => (e ? meta.get(e)?.name ?? e : 'ללא התקן'));
   const who = names.length > 1 ? `${names.length} התקנים` : names[0] ?? '';
   return `${actionLabel({ service: first.service, data: first.data })}${who ? ` · ${who}` : ''}${g.length > 1 ? ` (+${g.length - 1})` : ''}`;
+}
+
+/**
+ * How a service reads in the action selects. The server's label (the bridge's `ACTIONS[...]["label"]`) is the fallback; these
+ * are the words of the mockup, so the select reads the same whichever catalogue answered.
+ */
+const SERVICE_WORDS: Record<string, string> = {
+  'light.turn_on': 'הדלקה',
+  'light.turn_off': 'כיבוי',
+  'switch.turn_on': 'הדלקה',
+  'switch.turn_off': 'כיבוי',
+  'fan.turn_on': 'הפעלה',
+  'fan.turn_off': 'כיבוי',
+  'fan.set_percentage': 'עוצמת מאוורר',
+  'cover.open_cover': 'פתיחה',
+  'cover.close_cover': 'סגירה',
+  'cover.stop_cover': 'עצירה',
+  'cover.set_cover_position': 'מיקום',
+  'cover.set_cover_tilt_position': 'הטיה',
+  'climate.set_temperature': 'טמפרטורת יעד',
+  'climate.set_hvac_mode': 'מצב פעולה',
+  'climate.set_fan_mode': 'מצב מאוורר',
+  'climate.set_preset_mode': 'מצב מוגדר מראש',
+  'climate.turn_off': 'כיבוי מיזוג',
+  'alarm_control_panel.alarm_arm_home': 'דריכה בבית',
+  'alarm_control_panel.alarm_arm_away': 'דריכה מלאה',
+  'alarm_control_panel.alarm_arm_night': 'דריכת לילה',
+  'alarm_control_panel.alarm_arm_vacation': 'דריכת חופשה',
+  'alarm_control_panel.alarm_arm_custom_bypass': 'דריכה עם עקיפה',
+  'alarm_control_panel.alarm_disarm': 'נטרול',
+  'lock.lock': 'נעילה',
+  'lock.unlock': 'פתיחת נעילה',
+  'button.press': 'לחיצה',
+};
+
+export function serviceWord(service: string, catalogLabel?: string): string {
+  return SERVICE_WORDS[service] ?? (catalogLabel || service);
 }
 
 // ------------------------------------------------------------------------------------------------ the editor's slot and defaults

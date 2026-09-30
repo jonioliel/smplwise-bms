@@ -14,13 +14,25 @@ import type { LoweringSummary } from './schedule-edit-logic';
  * `<schedule-lowering-dialog .open .summary .needsCode .busy .error @confirm={alarm_code} @close>`
  */
 
-/** What the schedule does that lowers protection (produced by `loweringSummary` in schedule-edit-logic.ts). */
+/**
+ * What the schedule does that lowers protection. Two producers, one dialog: the editor's `loweringSummary`
+ * (schedule-edit-logic.ts: kinds and a times string) and S3's (schedules-logic.ts: `{entities, times[], text}`, the sentence
+ * already written). `text`, when given, is shown as is; otherwise the sentence is built from the rest.
+ */
+export interface LoweringDialogSummary {
+  entities: string[];
+  times?: string | string[];
+  text?: string;
+  kinds?: string[];
+  sensitive?: boolean;
+  lowering?: boolean;
+}
 export type { LoweringSummary };
 
 @customElement('schedule-lowering-dialog')
 export class ScheduleLoweringDialog extends LitElement {
   @property({ type: Boolean, reflect: true }) open = false;
-  @property({ attribute: false }) summary: LoweringSummary = { entities: [], kinds: [], times: '', sensitive: true, lowering: true };
+  @property({ attribute: false }) summary: LoweringDialogSummary = { entities: [], kinds: [], times: '', sensitive: true, lowering: true };
   /** The alarm code is asked for (the creator's policy requires it). */
   @property({ type: Boolean }) needsCode = false;
   @property({ type: Boolean }) busy = false;
@@ -119,16 +131,19 @@ export class ScheduleLoweringDialog extends LitElement {
 
   private sentence(): string {
     const s = this.summary;
+    if (s.text) return s.text;
     const who = s.entities.join(', ');
-    if (s.lowering) {
-      const verb = s.kinds.length === 1 ? (s.kinds[0] === 'מנטרל' ? 'ינטרל' : s.kinds[0] === 'פותח נעילה' ? 'יפתח את נעילת' : 'יפתח') : 'יפתח / ינטרל';
-      return `התזמון ${verb} ${who}${s.times ? ` ב־${s.times}` : ''} גם כשאיש אינו נמצא במקום.`;
+    const times = Array.isArray(s.times) ? s.times.join(', ') : s.times ?? '';
+    const kinds = s.kinds ?? [];
+    if (s.lowering !== false) {
+      const verb = kinds.length === 1 ? (kinds[0] === 'מנטרל' ? 'ינטרל' : kinds[0] === 'פותח נעילה' ? 'יפתח את נעילת' : 'יפתח') : 'יפתח / ינטרל';
+      return `התזמון ${verb} ${who}${times ? ` ב־${times}` : ''} גם כשאיש אינו נמצא במקום.`;
     }
-    return `התזמון כולל פעולה רגישה (אזעקה, מנעול, דלת או שער)${s.times ? ` ב־${s.times}` : ''} והוא יפעל גם כשאיש אינו נמצא במקום.`;
+    return `התזמון כולל פעולה רגישה (אזעקה, מנעול, דלת או שער)${times ? ` ב־${times}` : ''} והוא יפעל גם כשאיש אינו נמצא במקום.`;
   }
 
   render() {
-    const lowering = this.summary.lowering;
+    const lowering = this.summary.lowering !== false;
     return html`<sw-dialog ?open=${this.open} heading=${lowering ? 'תזמון שפותח או מנטרל' : 'תזמון של פעולה רגישה'} data-lowering-dialog @close=${this.close}>
       <div class="warn ${lowering ? '' : 'soft'}" role="alert" data-lowering-warning><sw-icon name="warning" size="20"></sw-icon><div>${this.sentence()}</div></div>
       <label class="ack"><input type="checkbox" data-lowering-ack .checked=${this.ack} @change=${(e: Event) => (this.ack = (e.target as HTMLInputElement).checked)} /><span>${lowering ? 'אני מבין שהפעולה תתבצע אוטומטית, ומאשר.' : 'אני מאשר את הפעולה הרגישה.'}</span></label>

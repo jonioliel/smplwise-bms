@@ -20,6 +20,9 @@ interface MountOptions {
   width?: number;
   height?: number;
   tag?: string;
+  /** A new schedule (empty id): the create flow's template and preset, as S3's route passes them. */
+  template?: string;
+  preset?: string;
 }
 
 /** Load the app (for its bundle and the tokens), then replace the shell by the element under test. */
@@ -37,14 +40,17 @@ async function mount(page: Page, id: string, o: MountOptions = {}) {
   await page.goto(`/?design=a#${o.hash ?? '/devices/building'}`);
   await page.waitForFunction(() => !!customElements.get('schedule-editor'));
   await page.evaluate(
-    ([sid, tag]) => {
+    ([sid, tag, template, preset]) => {
       document.querySelector('sw-app')?.remove();
-      const el = document.createElement(tag as string) as HTMLElement & { scheduleId?: string; open?: boolean };
-      if (tag === 'schedule-editor') el.scheduleId = sid as string;
-      else el.open = true;
+      const el = document.createElement(tag) as HTMLElement & { scheduleId?: string; template?: string; preset?: string; open?: boolean };
+      if (tag === 'schedule-editor') {
+        el.scheduleId = sid;
+        el.template = template;
+        el.preset = preset;
+      } else el.open = true;
       document.body.append(el);
     },
-    [id, o.tag ?? 'schedule-editor'],
+    [id, o.tag ?? 'schedule-editor', o.template ?? '', o.preset ?? ''],
   );
   if ((o.tag ?? 'schedule-editor') === 'schedule-editor') await ready(page);
 }
@@ -52,6 +58,17 @@ async function mount(page: Page, id: string, o: MountOptions = {}) {
 async function ready(page: Page) {
   await page.locator('schedule-editor:not(#second) [data-editor], schedule-editor:not(#second) [data-editor-state]:not([data-editor-state="loading"])').first().waitFor({ timeout: 15000 });
   await page.waitForTimeout(400);
+}
+
+/** A fresh editor on the same page (the demo store lives as long as the page): what a later visit sees. */
+async function remount(page: Page, id: string) {
+  await page.evaluate((sid) => {
+    document.querySelector('schedule-editor:not(#second)')?.remove();
+    const el = document.createElement('schedule-editor') as HTMLElement & { scheduleId?: string };
+    el.scheduleId = sid;
+    document.body.append(el);
+  }, id);
+  await ready(page);
 }
 
 /** A second editor on the same page (they share the demo store): a change "made elsewhere". */
@@ -272,7 +289,7 @@ test.describe('day view, the slot panel, phone', () => {
     await expect(panel.locator('[data-offset="stop"]')).toBeVisible();
     await panel.locator('[data-offset="stop"]').fill('30');
     await panel.locator('[data-offset="stop"]').press('Tab');
-    await expect(editor(page).locator('sw-schedule-grid .slot').first()).toHaveAttribute('title', /שקיעה \+00:30/);
+    await expect(editor(page).locator('sw-schedule-grid .slot').first()).toHaveAttribute('title', /שקיעה ‎\+00:30/);
     await shot(page, 'editor-day-1440');
   });
 
@@ -379,7 +396,7 @@ test.describe('sensitive schedules', () => {
   test('a schedule that opens a gate: marker, explicit confirmation with a plain warning, then it saves', async ({ page }) => {
     await mount(page, 'd8e3a7');
     await expect(editor(page).locator('[data-sensitive-badge]')).toBeVisible();
-    await expect(editor(page).locator('sw-schedule-grid .slot .flag.warn').first()).toBeVisible();
+    await expect(editor(page).locator('sw-schedule-grid .slot.lowering').first()).toBeVisible();
     await editor(page).locator('[data-editor-name]').fill('שער חניה – פתיחה בבוקר (מעודכן)');
     await editor(page).locator('[data-editor-save]').click();
     const dialog = editor(page).locator('schedule-lowering-dialog');
@@ -404,20 +421,24 @@ test.describe('sensitive schedules', () => {
     await shot(page, 'editor-readonly-1440');
   });
 
-  test('a lock cannot be saved without the confirmation; cancelling the dialog keeps the edit', async ({ page }) => {
+  test('a lock: renaming saves without asking; turning it into an unlock asks the explicit confirmation', async ({ page }) => {
     await mount(page, 'f45b02');
     await editor(page).locator('[data-editor-name]').fill('נעילה בלילה');
     await editor(page).locator('[data-editor-save]').click();
-    // locking is sensitive but does not lower protection: a lighter confirmation is asked only because the schedule is new to it
-    await page.waitForTimeout(300);
+    await expect(editor(page).locator('[data-note]')).toContainText('נשמרו');
+    await expect(editor(page).locator('schedule-lowering-dialog [data-lowering-dialog]')).not.toHaveAttribute('open', '');
+    // the same schedule, later: the action becomes "unlock" (it now opens something with nobody there)
+    await remount(page, 'f45b02');
+    await editor(page).locator('sw-schedule-grid .slot').first().click();
+    await editor(page).locator('schedule-slot-panel [data-service]').selectOption('lock.unlock');
+    await editor(page).locator('[data-editor-save]').click();
     const dlg = editor(page).locator('schedule-lowering-dialog [data-lowering-dialog]');
-    const asked = await dlg.count();
-    if (asked) {
-      await editor(page).locator('schedule-lowering-dialog [data-lowering-cancel]').click();
-      await expect(editor(page).locator('[data-editor-save]')).toBeEnabled();
-    } else {
-      await expect(editor(page).locator('[data-note]')).toContainText('נשמרו');
-    }
+    await expect(dlg).toHaveAttribute('open', '');
+    await expect(editor(page).locator('schedule-lowering-dialog [data-lowering-warning]')).toContainText('נעילת מנעול דלת ראשית');
+    await editor(page).locator('schedule-lowering-dialog [data-lowering-cancel]').click();
+    await expect(dlg).not.toHaveAttribute('open', '');
+    await expect(editor(page).locator('[data-editor-save]')).toBeEnabled();
+    await expect(editor(page).locator('[data-note]')).toHaveCount(0);
   });
 });
 
@@ -459,9 +480,9 @@ test.describe('unsaved changes, conflicts, split', () => {
     await editor(page).locator('[data-editor-name]').fill('שם חדש');
     await editor(page).locator('[data-editor-cancel]').click();
     const dlg = editor(page).locator('[data-leave-dialog]');
-    await expect(dlg).toBeVisible();
+    await expect(dlg).toHaveAttribute('open', '');
     await editor(page).locator('[data-leave-stay]').click();
-    await expect(dlg).toBeHidden();
+    await expect(dlg).not.toHaveAttribute('open', '');
     await expect(editor(page).locator('[data-editor-name]')).toHaveValue('שם חדש');
     await editor(page).locator('[data-editor-cancel]').click();
     await editor(page).locator('[data-leave-go]').click();
@@ -477,14 +498,14 @@ test.describe('unsaved changes, conflicts, split', () => {
       document.body.append(a);
     });
     await page.locator('#somewhere').click();
-    await expect(editor(page).locator('[data-leave-dialog]')).toBeVisible();
+    await expect(editor(page).locator('[data-leave-dialog]')).toHaveAttribute('open', '');
   });
 
   test('a change made elsewhere while editing: 409 → the banner with compare, latest and keep mine', async ({ page }) => {
     await mount(page, '4d6e0a');
     await mountSecond(page, '4d6e0a');
     await second(page).locator('[data-editor-name]').fill('שונה במקום אחר');
-    await second(page).locator('[data-editor-save]').click();
+    await second(page).locator('[data-editor-save]').dispatchEvent('click');
     await expect(second(page).locator('[data-note]')).toContainText('נשמרו');
     // this editor still holds the old revision
     await editor(page).locator('[data-repeat-btn="pause"]').click();
@@ -507,7 +528,7 @@ test.describe('unsaved changes, conflicts, split', () => {
     await mount(page, '4d6e0a');
     await mountSecond(page, '4d6e0a');
     await second(page).locator('[data-editor-name]').fill('גרסה חדשה');
-    await second(page).locator('[data-editor-save]').click();
+    await second(page).locator('[data-editor-save]').dispatchEvent('click');
     await expect(second(page).locator('[data-note]')).toBeVisible();
     await editor(page).locator('[data-repeat-btn="pause"]').click();
     await editor(page).locator('[data-editor-save]').click();
@@ -526,7 +547,7 @@ test.describe('unsaved changes, conflicts, split', () => {
     await editor(page).locator('[data-split-start]').click();
     await expect(editor(page).locator('[data-override-banner]')).toBeVisible();
     // only Tuesday is editable; the linked days are read-only
-    await expect(editor(page).locator('sw-schedule-grid .row.ro')).toHaveCount(4);
+    await expect(editor(page).locator('sw-schedule-grid .row.ro')).toHaveCount(6); // the four linked days and the two days outside
     const tb = await box(track(page, 'tue'));
     const y = tb.y + tb.height / 2;
     const sb = await box(slots(page, 'tue').first());
@@ -536,14 +557,14 @@ test.describe('unsaved changes, conflicts, split', () => {
     await shot(page, 'editor-split-1440');
     await editor(page).locator('[data-editor-save]').click();
     const dlg = editor(page).locator('[data-split-dialog]');
-    await expect(dlg).toBeVisible();
+    await expect(dlg).toHaveAttribute('open', '');
     await expect(dlg).toContainText('נפצל לשני תזמונים');
     await expect(dlg.locator('[data-split-name]')).toHaveValue('תאורת משרדים – שעות עבודה · ג׳');
     await shot(page, 'editor-split-dialog-1440');
     await dlg.locator('[data-split-ok]').click();
     await expect.poll(() => page.evaluate(() => window.location.hash), { timeout: 8000 }).toContain('/devices/schedules/4d6e0a');
     // the original lost Tuesday; the new schedule is Tuesday alone with the edited slot
-    await mount(page, '4d6e0a');
+    await remount(page, '4d6e0a');
     await expect(editor(page).locator('[data-day-chip="tue"]')).toHaveAttribute('aria-pressed', 'false');
     await expect(editor(page).locator('[data-day-chip="mon"]')).toHaveAttribute('aria-pressed', 'true');
     expect(await labels(page, 'mon')).toHaveLength(2);
@@ -554,7 +575,7 @@ test.describe('unsaved changes, conflicts, split', () => {
     await editor(page).locator('sw-schedule-grid .slot').first().click();
     await editor(page).locator('[data-slot-copy-days]').click();
     const dlg = editor(page).locator('[data-copy-dialog]');
-    await expect(dlg).toBeVisible();
+    await expect(dlg).toHaveAttribute('open', '');
     await expect(dlg.locator('[data-copy-day="sun"]')).toBeDisabled();
     await dlg.locator('[data-copy-day="fri"]').click();
     await dlg.locator('[data-copy-ok]').click();
@@ -615,7 +636,7 @@ test.describe('create flow', () => {
   });
 
   test('a template opens the editor with a draft and the device picker; choosing devices fills the slots; save creates', async ({ page }) => {
-    await mount(page, 'new', { hash: '/devices/schedules/new/edit?template=ac&preset=not_holy_days' });
+    await mount(page, '', { template: 'ac', preset: 'not_holy_days' });
     await expect(editor(page).locator('[data-editor]')).toHaveAttribute('data-editor-mode', 'new');
     await expect(editor(page).locator('[data-editor-name]')).toHaveValue('מזגן בשעות משרד');
     const picker = editor(page).locator('schedule-entity-picker');
@@ -635,8 +656,7 @@ test.describe('create flow', () => {
   });
 
   test('a new blank schedule: the name and a slot are asked for; a failed save shows the error and can be retried', async ({ page }) => {
-    await mount(page, 'new', { hash: '/devices/schedules/new/edit?template=blank' });
-    await editor(page).locator('schedule-entity-picker [data-picker-cancel]').click().catch(() => undefined);
+    await mount(page, '', { template: 'blank' });
     await editor(page).locator('[data-editor-name]').fill('בדיקה');
     await editor(page).locator('[data-editor-save]').click();
     await expect(editor(page).locator('[data-validation-status]')).toContainText('נדרשת לפחות משבצת אחת');
@@ -648,9 +668,7 @@ test.describe('create flow', () => {
     await editor(page).locator('[data-open-picker]').click();
     await editor(page).locator('schedule-entity-picker [data-picker-item="light.lobby"] input').check();
     await editor(page).locator('schedule-entity-picker [data-picker-ok]').click();
-    // the slot had no action to mirror: pick one in the panel via the add-device select
-    await editor(page).locator('sw-schedule-grid .slot').first().click();
-    await editor(page).locator('schedule-slot-panel [data-add-entity]').selectOption('light.lobby');
+    // the empty slot does the plain "on" for the device that joined
     await expect(editor(page).locator('[data-validation-status]')).toContainText('תקין');
     // make the store fail once: the error is shown and "try again" saves
     await page.evaluate(() => {
@@ -683,6 +701,55 @@ test.describe('create flow', () => {
     await dlg.locator('[data-quick-days="work"]').click();
     await expect(dlg.locator('[data-quick-go]')).not.toHaveAttribute('disabled', '');
     await shot(page, 'create-quick-390');
+  });
+});
+
+test.describe('S3 integration: the routes and the shared dialog', () => {
+  test('the shell routes render the editor (existing and new with a template) - 1440 and 390', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem('sw.demo.schedules', JSON.stringify({ persona: 'admin' }));
+      } catch {
+        /* storage unavailable */
+      }
+    });
+    await page.goto('about:blank');
+    await page.goto('/?design=a#/devices/schedules/4d6e0a/edit');
+    await page.locator('schedule-editor [data-editor]').first().waitFor({ timeout: 20000 });
+    await page.waitForTimeout(500);
+    await expect(page.locator('schedule-editor sw-schedule-grid')).toBeVisible();
+    await expect(page.locator('schedule-editor [data-editor-name]')).toHaveValue('תאורת משרדים – שעות עבודה');
+    await shot(page, 'shell-edit-1440');
+    // the create flow's route: no id, a template and a preset as properties
+    await page.evaluate(() => (window.location.hash = '#/devices/schedules/new/edit?template=weekly&preset=only_holy_days'));
+    await expect(page.locator('schedule-editor [data-editor]')).toHaveAttribute('data-editor-mode', 'new');
+    await expect(page.locator('schedule-editor [data-editor-name]')).toHaveValue('שגרה שבועית');
+    await expect(page.locator('schedule-editor schedule-conditions [data-preset="only_holy_days"]')).toHaveAttribute('aria-pressed', 'true');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(400);
+    await shot(page, 'shell-new-390');
+  });
+
+  test('the lowering dialog takes S3\'s summary ({entities, times[], text}) and asks the alarm code when told to', async ({ page }) => {
+    await mount(page, '', { tag: 'schedule-lowering-dialog' });
+    await page.evaluate(() => {
+      const el = document.querySelector('schedule-lowering-dialog') as HTMLElement & { summary: unknown; needsCode: boolean };
+      el.summary = { entities: ['אזעקה – בית'], times: [], text: 'השחזור יחזיר תזמון שמנטרל אזעקה – בית גם כשאיש אינו נמצא במקום.' };
+      el.needsCode = true;
+      (window as unknown as { __confirmed: unknown[] }).__confirmed = [];
+      el.addEventListener('confirm', (e) => (window as unknown as { __confirmed: unknown[] }).__confirmed.push((e as CustomEvent).detail));
+    });
+    const dlg = page.locator('schedule-lowering-dialog');
+    await expect(dlg.locator('[data-lowering-warning]')).toContainText('השחזור יחזיר תזמון שמנטרל אזעקה');
+    await expect(dlg.locator('[data-lowering-code]')).toBeVisible();
+    await dlg.locator('[data-lowering-ack]').check();
+    await expect(dlg.locator('[data-lowering-ok]')).toHaveAttribute('disabled', ''); // the code is still missing
+    await dlg.locator('[data-lowering-code]').fill('1234');
+    await dlg.locator('[data-lowering-ok]').click();
+    expect(await page.evaluate(() => (window as unknown as { __confirmed: unknown[] }).__confirmed)).toEqual([{ alarm_code: '1234' }]);
+    // the code is never shown in clear text
+    await expect(dlg.locator('[data-lowering-code]')).toHaveAttribute('type', 'password');
   });
 });
 

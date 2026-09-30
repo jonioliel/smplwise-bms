@@ -230,7 +230,10 @@ export class ScheduleConditions extends LitElement {
   `;
 
   private emit(c: DraftConditions) {
-    this.dispatchEvent(new CustomEvent('conditions-change', { detail: { conditions: c }, bubbles: true, composed: true }));
+    // the names of the devices in the block travel with it (the header chip of the editor reads them)
+    const names: Record<string, string> = {};
+    for (const it of c.items) names[it.entity_id] = this.nameOf(it.entity_id);
+    this.dispatchEvent(new CustomEvent('conditions-change', { detail: { conditions: c, names }, bubbles: true, composed: true }));
   }
 
   private get lockedIds(): string[] {

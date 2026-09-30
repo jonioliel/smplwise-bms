@@ -3,6 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-toggle';
+import '../components/sw-schedule-bar';
 import { actionLabel, type ArgSpec, type Problem } from '../api/schedules';
 import {
   defaultDataFor,
@@ -11,6 +12,7 @@ import {
   isSensitiveAction,
   mirrorAction,
   removeEntityFromSlot,
+  serviceWord,
   setGroupAction,
   slotSummary,
   timeFromParts,
@@ -135,8 +137,15 @@ export class ScheduleSlotPanel extends LitElement {
     }
     .pair {
       display: flex;
-      gap: 6px;
+      gap: 8px;
       align-items: center;
+    }
+    .pair input {
+      inline-size: 96px;
+      flex: none;
+    }
+    .pair .unit {
+      white-space: nowrap;
     }
     input,
     select {
@@ -453,8 +462,8 @@ export class ScheduleSlotPanel extends LitElement {
         <select id=${id} ?disabled=${this.readOnly || !catalog.length} data-service @change=${(e: Event) => this.onService(group, (e.target as HTMLSelectElement).value)}>
           ${known || !catalog.length ? nothing : html`<option value=${group.service} selected>${actionLabel({ service: group.service })}</option>`}
           ${!catalog.length ? html`<option value=${group.service} selected>${actionLabel({ service: group.service, data: group.data })}</option>` : nothing}
-          ${common.map((a) => html`<option value=${a.service} ?selected=${a.service === group.service}>${a.label}</option>`)}
-          ${advanced.length ? html`<optgroup label="מתקדם">${advanced.map((a) => html`<option value=${a.service} ?selected=${a.service === group.service}>${a.label}</option>`)}</optgroup>` : nothing}
+          ${common.map((a) => html`<option value=${a.service} ?selected=${a.service === group.service}>${serviceWord(a.service, a.label)}</option>`)}
+          ${advanced.length ? html`<optgroup label="מתקדם">${advanced.map((a) => html`<option value=${a.service} ?selected=${a.service === group.service}>${serviceWord(a.service, a.label)}</option>`)}</optgroup>` : nothing}
         </select>
       </div>
       ${specs.map((sp) => this.renderArg(group, sp))}
@@ -477,9 +486,7 @@ export class ScheduleSlotPanel extends LitElement {
       <header>
         <h3>משבצת ${this.index + 1} מתוך ${this.count}</h3>
         <span class="sum">${slotSummary(s, this.meta)}</span>
-        <span class="marks">
-          ${lowering ? html`<span class="chip warn"><sw-icon name="warning" size="12"></sw-icon>פותח / מנטרל</span>` : sensitive ? html`<span class="chip sens"><sw-icon name="shield" size="12"></sw-icon>פעולה רגישה</span>` : nothing}
-        </span>
+        <sw-schedule-markers .sensitive=${sensitive} .lowering=${lowering}></sw-schedule-markers>
         <span class="sp"></span>
         ${this.readOnly
           ? nothing

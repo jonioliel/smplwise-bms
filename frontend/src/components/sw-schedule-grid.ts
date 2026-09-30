@@ -117,6 +117,32 @@ export class SwScheduleGrid extends LitElement {
   @state() private ghost: Ghost | null = null;
   @state() private live = '';
   private drag: Drag | null = null;
+  /** The width of the tracks in pixels (a pin's label goes to the side that has room). */
+  @state() private trackW = 0;
+  private ro: ResizeObserver | null = null;
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.ro = new ResizeObserver(() => {
+      const t = this.renderRoot.querySelector<HTMLElement>('.track');
+      const w = t?.clientWidth ?? 0;
+      if (Math.abs(w - this.trackW) > 2) this.trackW = w;
+    });
+    this.ro.observe(this);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.ro?.disconnect();
+    this.ro = null;
+  }
+
+  /** A point action's label sits right of its pin unless the pin is so near the end of the day that it would not fit. */
+  private pinFlips(s: GridSlotView): boolean {
+    if (!s.point || this.vertical || !this.trackW) return false;
+    const room = ((DAY_MIN - s.start) / DAY_MIN) * this.trackW - 34;
+    return room < 8 * s.title.length + 22;
+  }
 
   static styles = css`
     :host {
@@ -389,6 +415,24 @@ export class SwScheduleGrid extends LitElement {
     .slot.invalid {
       box-shadow: 0 0 0 2px var(--sw-danger);
     }
+    /* the marker of a sensitive / lowering slot stays visible on a narrow bar too (the flags inside hide there) */
+    .slot.lowering::after,
+    .slot.sensitive::after {
+      content: '';
+      position: absolute;
+      inset-block-start: -4px;
+      inset-inline-end: -4px;
+      inline-size: 9px;
+      block-size: 9px;
+      border-radius: 50%;
+      background: var(--sw-danger);
+      border: 2px solid var(--sw-surface);
+      z-index: 3;
+      pointer-events: none;
+    }
+    .slot.sensitive::after {
+      background: var(--sc-secure);
+    }
     .slot.locked {
       cursor: default;
       background-image: repeating-linear-gradient(135deg, transparent 0 5px, rgba(71, 85, 105, 0.1) 5px 7px);
@@ -523,7 +567,9 @@ export class SwScheduleGrid extends LitElement {
     .slot.point .txt {
       display: flex;
       position: absolute;
-      inset-inline-start: calc(100% + 5px);
+      /* physical sides: the bar sits on an LTR axis, its label goes to the later side (the flipped one, near the end of the
+         day, to the earlier side) whatever the direction of the text inside */
+      left: calc(100% + 5px);
       inline-size: max-content;
       max-inline-size: 240px;
       background: color-mix(in srgb, var(--bg) 70%, var(--sw-surface));
@@ -531,8 +577,8 @@ export class SwScheduleGrid extends LitElement {
       border-radius: 6px;
     }
     .slot.point.flip .txt {
-      inset-inline-start: auto;
-      inset-inline-end: calc(100% + 5px);
+      left: auto;
+      right: calc(100% + 5px);
     }
     .slot.point .flags {
       display: none;
@@ -594,8 +640,15 @@ export class SwScheduleGrid extends LitElement {
     }
     :host([orientation='vertical']) .mark {
       inset-block-start: auto;
-      inset-inline-end: 4px;
+      inset-inline: 0 auto;
+      inline-size: 32px;
+      justify-content: flex-end;
       transform: translateY(-100%);
+      font-size: 9.5px;
+    }
+    :host([orientation='vertical']) .mark sw-icon,
+    :host([orientation='vertical']) .mark svg {
+      display: none;
     }
     :host([orientation='vertical']) .tracks {
       flex-direction: row;
@@ -748,8 +801,14 @@ export class SwScheduleGrid extends LitElement {
   // ------------------------------------------------------------------------------------------ pointer
 
   private onDown = (e: PointerEvent) => {
-    if (!this.editable || e.button !== 0) return;
+    if (e.button !== 0) return;
     const target = e.target as HTMLElement;
+    if (!this.editable) {
+      // a view-only board: a press still selects a slot (to read what it does)
+      const el = target.closest<HTMLElement>('.slot');
+      if (el?.dataset.key) this.emit('slot-select', { key: el.dataset.key, row: el.dataset.row ?? '' });
+      return;
+    }
     const trackEl = target.closest<HTMLElement>('.track');
     if (!trackEl) return;
     const row = this.rows.find((r) => r.key === trackEl.dataset.track);
@@ -901,7 +960,7 @@ export class SwScheduleGrid extends LitElement {
 
   private renderSlot(row: GridRowView, s: GridSlotView) {
     const dragging = this.ghost && this.ghost.key === s.key && this.drag?.row === row.key;
-    const cls = ['slot', `cat-${s.category}`, s.point ? 'point' : '', s.key === this.selected ? 'sel' : '', dragging ? 'dragging' : '', s.locked ? 'locked' : '', s.invalid ? 'invalid' : '', s.point && s.start > 1000 ? 'flip' : '']
+    const cls = ['slot', `cat-${s.category}`, s.point ? 'point' : '', s.key === this.selected ? 'sel' : '', dragging ? 'dragging' : '', s.locked ? 'locked' : '', s.invalid ? 'invalid' : '', this.pinFlips(s) ? 'flip' : '', s.lowering ? 'lowering' : s.sensitive ? 'sensitive' : '']
       .filter(Boolean)
       .join(' ');
     return html`<div
@@ -953,8 +1012,8 @@ export class SwScheduleGrid extends LitElement {
     const sun = this.sun ?? SUN_FALLBACK;
     const hours = this.vertical ? Array.from({ length: 24 }, (_, i) => i + 1) : Array.from({ length: 13 }, (_, i) => i * 2);
     const marks = [
-      { min: sun.sunrise, label: `זריחה ${clock(sun.sunrise)}`, cls: '' },
-      { min: sun.sunset, label: `שקיעה ${clock(sun.sunset)}`, cls: '' },
+      { min: sun.sunrise, label: this.vertical ? clock(sun.sunrise) : `זריחה ${clock(sun.sunrise)}`, cls: '' },
+      { min: sun.sunset, label: this.vertical ? clock(sun.sunset) : `שקיעה ${clock(sun.sunset)}`, cls: '' },
     ];
     const posStyle = (m: number) => (this.vertical ? `top:${this.pos(m)}` : `left:${this.pos(m)}`);
     return html`<div class="board">
@@ -962,7 +1021,7 @@ export class SwScheduleGrid extends LitElement {
         <div class="axis">
           ${hours.map((h) => html`<span class="hour" style=${posStyle(h * 60)}>${String(h % 24 === 0 && h > 0 && !this.vertical ? 24 : h).padStart(2, '0')}</span>`)}
           ${marks.map((m) => html`<span class="mark" style=${posStyle(m.min)} title=${this.sunNote}>${icon('sun', 11)}${m.label}</span>`)}
-          ${this.now !== null ? html`<span class="mark now" style=${posStyle(this.now)}>עכשיו ${clock(this.now)}</span>` : nothing}
+          ${this.now !== null ? html`<span class="mark now" style=${posStyle(this.now)}>${this.vertical ? '' : 'עכשיו '}${clock(this.now)}</span>` : nothing}
         </div>
       </div>
       <div class="tracks" @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onCancel} @keydown=${this.onKey}>

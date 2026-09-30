@@ -6,6 +6,7 @@ import { actionLabel, type Problem, type SunTimes } from '../api/schedules';
 import {
   defaultDataFor,
   groupActions,
+  serviceWord,
   setGroupAction,
   type EditSlot,
   type MetaMap,
@@ -313,8 +314,8 @@ export class ScheduleTableView extends LitElement {
               ? html`<span class="chip">${groups.length} פעולות</span>`
               : html`<select ?disabled=${ro || !catalog.length} data-cell="service" aria-label="פעולה, משבצת ${display}" @click=${(e: Event) => e.stopPropagation()} @change=${(e: Event) => this.setService(slot, (e.target as HTMLSelectElement).value)}>
                   ${catalog.length ? nothing : html`<option selected>${actionLabel({ service: g.service, data: g.data })}</option>`}
-                  ${catalog.filter((a) => !ADVANCED.has(a.service)).map((a) => html`<option value=${a.service} ?selected=${a.service === g.service}>${a.label}</option>`)}
-                  ${catalog.some((a) => ADVANCED.has(a.service)) ? html`<optgroup label="מתקדם">${catalog.filter((a) => ADVANCED.has(a.service)).map((a) => html`<option value=${a.service} ?selected=${a.service === g.service}>${a.label}</option>`)}</optgroup>` : nothing}
+                  ${catalog.filter((a) => !ADVANCED.has(a.service)).map((a) => html`<option value=${a.service} ?selected=${a.service === g.service}>${serviceWord(a.service, a.label)}</option>`)}
+                  ${catalog.some((a) => ADVANCED.has(a.service)) ? html`<optgroup label="מתקדם">${catalog.filter((a) => ADVANCED.has(a.service)).map((a) => html`<option value=${a.service} ?selected=${a.service === g.service}>${serviceWord(a.service, a.label)}</option>`)}</optgroup>` : nothing}
                 </select>`}
         ${pair !== null ? html`<span class="chip" title="משבצת כיבוי בסיום">כיבוי בסיום</span>` : nothing}
       </td>

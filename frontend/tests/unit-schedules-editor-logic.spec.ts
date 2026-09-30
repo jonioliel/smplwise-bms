@@ -6,7 +6,12 @@ import {
   addEntitiesToSlots,
   applyPreset,
   clearConditions,
+  compareDrafts,
+  defaultDataFor,
   describeCondition,
+  serviceWord,
+  timeFromParts,
+  timeParts,
   entitiesOf,
   estimateSun,
   groupActions,
@@ -109,6 +114,17 @@ test.describe('action groups and devices in slots', () => {
       ['light.turn_on', {}],
     ]);
     expect(r[1].actions.map((a) => a.service)).toEqual(['climate.turn_off', 'light.turn_off']);
+  });
+
+  test('an empty slot without an intent does the plain "on" for a device that joins', () => {
+    const r = addEntitiesToSlots([{ start: '08:00:00', stop: '09:00:00', actions: [] } as IntentSlot], [M.get('light.a')!, M.get('cover.k')!]);
+    expect(r[0].actions.map((a) => [a.service, a.entity_id])).toEqual([
+      ['light.turn_on', 'light.a'],
+      ['cover.open_cover', 'cover.k'],
+    ]);
+    // devices chosen before any slot has an action count for a slot drawn afterwards
+    const drawn = newSlotActions([], M, () => 0, ['light.a', 'climate.c']);
+    expect(drawn.map((a) => a.service)).toEqual(['light.turn_on', 'climate.set_temperature']);
   });
 
   test('a device whose catalogue does not offer the service gets no such action', () => {
@@ -407,5 +423,52 @@ test.describe('sensitive marks, sun estimate', () => {
     expect(est.sunset).toBe(18 * 60 + 12);
     expect(est.sunrise).toBe(SUN.sunrise);
     expect(estimateSun(d, [], SUN)).toEqual(SUN);
+  });
+});
+
+test.describe('the slot panel and the conflict dialog', () => {
+  test('the panel\'s time controls round-trip the stored strings', () => {
+    expect(timeParts('07:30:00')).toEqual({ kind: 'fixed', time: '07:30', offset: 0 });
+    expect(timeParts('sunset+00:40:00')).toEqual({ kind: 'sunset', time: '00:00', offset: 40 });
+    expect(timeParts('sunrise-00:15:00')).toEqual({ kind: 'sunrise', time: '00:00', offset: -15 });
+    expect(timeParts('00:00:00', true).kind).toBe('end');
+    expect(timeParts('00:00:00', false)).toEqual({ kind: 'fixed', time: '00:00', offset: 0 });
+    expect(timeParts(null, true).kind).toBe('none');
+    expect(timeFromParts({ kind: 'fixed', time: '8:05', offset: 0 })).toBe('08:05:00');
+    expect(timeFromParts({ kind: 'sunset', time: '', offset: 90 })).toBe('sunset+01:30:00');
+    expect(timeFromParts({ kind: 'sunrise', time: '', offset: -15 })).toBe('sunrise-00:15:00');
+    expect(timeFromParts({ kind: 'end', time: '', offset: 0 })).toBe('00:00:00');
+    expect(timeFromParts({ kind: 'none', time: '', offset: 0 })).toBeNull();
+    for (const raw of ['06:45:00', 'sunset+00:30:00', 'sunrise+02:00:00']) expect(timeFromParts(timeParts(raw))).toBe(raw);
+  });
+
+  test('a chosen service starts with sensible arguments', () => {
+    const climate = meta('climate.c', 'מזגן', { attributes: { min_temp: 16, max_temp: 30 } });
+    expect(defaultDataFor([{ name: 'temperature', type: 'float', min: 16, max: 30, required: true }, { name: 'hvac_mode', type: 'enum', choices: ['cool', 'heat'], required: false }], climate)).toEqual({ temperature: 23 });
+    expect(defaultDataFor([{ name: 'hvac_mode', type: 'enum', choices: ['heat', 'cool'], required: true }], climate)).toEqual({ hvac_mode: 'cool' });
+    expect(defaultDataFor([{ name: 'position', type: 'int', min: 0, max: 100, required: true }], undefined)).toEqual({ position: 50 });
+    expect(defaultDataFor([{ name: 'brightness', type: 'int', min: 0, max: 255, required: false }], undefined)).toEqual({});
+    const cold = meta('climate.d', 'מזגן ב', { attributes: { min_temp: 25, max_temp: 30 } });
+    expect(defaultDataFor([{ name: 'temperature', type: 'float', required: true }], cold)).toEqual({ temperature: 25 });
+  });
+
+  test('service words fall back to the server label', () => {
+    expect(serviceWord('climate.set_temperature', 'יעד °')).toBe('טמפרטורת יעד');
+    expect(serviceWord('light.turn_on')).toBe('הדלקה');
+    expect(serviceWord('humidifier.set_humidity', 'לחות')).toBe('לחות');
+    expect(serviceWord('x.y')).toBe('x.y');
+  });
+
+  test('the comparison lists only what differs, in words', () => {
+    const names = (id: string | null) => (id ? M.get(id)?.name ?? id : 'ללא התקן');
+    const days = (d: ScheduleDraft['weekdays']) => d.join(',');
+    const mine = draft({ name: 'שלי', repeat: 'pause', slots: [slot('07:00:00', '08:00:00', act('light.turn_on', 'light.a'))] });
+    const theirs = draft({ name: 'שלהם', slots: [slot('07:00:00', '09:00:00', act('light.turn_on', 'light.a'))] });
+    const diff = compareDrafts(mine, theirs, names, days);
+    expect(diff.map((d) => d.label)).toEqual(['שם', 'חזרה', 'משבצות']);
+    expect(diff[0]).toEqual({ label: 'שם', mine: 'שלי', theirs: 'שלהם' });
+    expect(diff[2].mine).toContain('07:00–08:00');
+    expect(diff[2].theirs).toContain('07:00–09:00');
+    expect(compareDrafts(mine, mine, names, days)).toEqual([]);
   });
 });

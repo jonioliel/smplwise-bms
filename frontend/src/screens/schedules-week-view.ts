@@ -231,7 +231,7 @@ export class SchedulesWeekView extends LitElement {
     });
   }
 
-  private open(id: string) {
+  private openSchedule(id: string) {
     this.dispatchEvent(new CustomEvent('open-schedule', { detail: { id }, bubbles: true, composed: true }));
   }
 
@@ -257,7 +257,7 @@ export class SchedulesWeekView extends LitElement {
               ${d === today ? html`<div class="nowl" style="left:${minutesToPercent(nowMin)}%"></div>` : nothing}
               ${pills.map((p) => {
                 const left = Math.min((p.at / 1440) * W, W - p.w - 2);
-                return html`<button type="button" class="pill c-${p.cat} ${p.cond ? 'cond' : ''}" style="left:${Math.max(0, left)}px;top:${4 + p.lane * 21}px;max-inline-size:${p.w}px" title=${p.title} data-week-pill=${p.id} @click=${() => this.open(p.id)}><b>${clock(p.at)}</b><span>${p.text}</span></button>`;
+                return html`<button type="button" class="pill c-${p.cat} ${p.cond ? 'cond' : ''}" style="left:${Math.max(0, left)}px;top:${4 + p.lane * 21}px;max-inline-size:${p.w}px" title=${p.title} data-week-pill=${p.id} @click=${() => this.openSchedule(p.id)}><b>${clock(p.at)}</b><span>${p.text}</span></button>`;
               })}
             </div>
             <div class="lbl">${DAY_LONG[d]}</div>

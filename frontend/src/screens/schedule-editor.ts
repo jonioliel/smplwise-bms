@@ -16,6 +16,7 @@ import './schedule-conditions';
 import './schedule-lowering-dialog';
 import './schedule-create-dialog';
 import './schedules-week-view';
+import '../components/sw-schedule-bar';
 import { ApiError, describeError } from '../api/client';
 import { isApi } from '../api/session';
 import { DEMO_SUN } from '../api/schedules-mock';
@@ -23,12 +24,13 @@ import {
   DAY_LONG,
   DAY_ORDER,
   DAY_SHORT,
-  REPEAT_LABEL,
   SUN_FALLBACK,
   actionLabel,
   approximateUpcoming,
+  conditionSummary,
   createSchedule,
   daysLabel,
+  detectPreset,
   draftFromSchedule,
   emptyDraft,
   formatTime,
@@ -50,6 +52,7 @@ import {
   type Problem,
   type RepeatType,
   type Schedule,
+  type ScheduleConditions,
   type ScheduleDraft,
   type ScheduleStatus,
   type SunTimes,
@@ -153,8 +156,11 @@ const CAT_ICON: Record<SlotCategory, GridSlotView['icon']> = { on: 'power', off:
 
 @customElement('schedule-editor')
 export class ScheduleEditor extends LitElement {
-  /** The schedule's id, or "new". */
+  /** The schedule's id; empty (or "new") = a new schedule. */
   @property() scheduleId = '';
+  /** A new schedule: the template of the create flow (`?template=`) and the holiday preset laid over it (`?preset=`). */
+  @property() template = '';
+  @property() preset = '';
   /** Today's sunrise / sunset in minutes, when the caller knows them (else the demo / fallback values, marked as estimates). */
   @property({ attribute: false }) sun: SunTimes | null = null;
 
@@ -190,6 +196,8 @@ export class ScheduleEditor extends LitElement {
   @state() private gone = false;
   @state() private stash: { draft: ScheduleDraft } | null = null;
   @state() private nowMin = 0;
+  @state() private condNames: Record<string, string> = {};
+  @state() private chosen: string[] = [];
 
   private baseline: ScheduleDraft = emptyDraft();
   private baseRevision = '';
@@ -199,6 +207,7 @@ export class ScheduleEditor extends LitElement {
   private clockTimer = 0;
   private mq: MediaQueryList | null = null;
   private loadedFor = '';
+  private loadedKey = '\u0000';
   private savedOk = false;
 
   static styles = css`
@@ -770,19 +779,23 @@ export class ScheduleEditor extends LitElement {
     this.nowMin = d.getHours() * 60 + d.getMinutes();
   }
 
-  willUpdate(changed: Map<string, unknown>) {
+  willUpdate() {
     this.valCache = null;
     this.ebuCache = null;
-    if (changed.has('scheduleId') && this.scheduleId && this.scheduleId !== this.loadedFor) {
-      this.loadedFor = this.scheduleId;
+    // the route decides what opens: an id, or nothing / "new" plus the template and preset of the create flow
+    const key = `${this.scheduleId}|${this.template}|${this.preset}`;
+    if (key !== this.loadedKey) {
+      this.loadedKey = key;
+      this.loadedFor = this.creating ? 'new' : this.scheduleId;
       void this.load();
     }
   }
 
   // ------------------------------------------------------------------------------------------------ derived state
 
+  /** No id (S3's `#/devices/schedules/new/edit` passes an empty one) or the word "new": a schedule being created. */
   private get creating() {
-    return this.scheduleId === 'new';
+    return !this.scheduleId || this.scheduleId === 'new';
   }
 
   private get sunBase(): SunTimes {
@@ -874,13 +887,14 @@ export class ScheduleEditor extends LitElement {
     this.preview = null;
     this.stash = null;
     const id = this.scheduleId;
+    const key = this.loadedKey;
     try {
       const [status, sched, cat] = await Promise.all([
         getScheduleStatus().catch(() => null),
         this.creating ? Promise.resolve(null) : getSchedule(id),
         getScheduleCatalog().catch(() => null),
       ]);
-      if (id !== this.scheduleId) return;
+      if (key !== this.loadedKey) return;
       this.status = status;
       this.snap = status?.settings.snap_minutes ?? 15;
       const catalog = cat?.entities ?? [];
@@ -891,7 +905,7 @@ export class ScheduleEditor extends LitElement {
       this.meta = meta;
       if (sched) this.adopt(sched);
       else this.startNew(status, meta);
-      const raw = safeSession('get', STASH_PREFIX + id);
+      const raw = safeSession('get', STASH_PREFIX + this.loadedFor);
       if (raw) {
         try {
           this.stash = JSON.parse(raw) as { draft: ScheduleDraft };
@@ -907,7 +921,7 @@ export class ScheduleEditor extends LitElement {
       // a new schedule from a template starts with the device picker (the template says what, not for which devices)
       if (this.creating && this.draft.slots.length && !entitiesOf(this.draft.slots).length && !this.readOnly) this.pickerOpen = true;
     } catch (e) {
-      if (id !== this.scheduleId) return;
+      if (key !== this.loadedKey) return;
       this.loading = false;
       if (e instanceof ApiError && (e.status === 403 || e.status === 404)) this.forbidden = true;
       this.loadError = describeError(e);
@@ -925,6 +939,7 @@ export class ScheduleEditor extends LitElement {
       if (!sl.supported) locked[slots[i].uid] = sl.unsupported.length ? sl.unsupported : [{ code: 'unsupported_content', message: 'התזמון כולל תוכן שהמערכת אינה מציגה במלואו.' }];
     });
     this.lockedUids = locked;
+    this.chosen = [];
     this.meta = metaFromSchedule(s, new Map(this.meta));
     this.draft = { ...d, slots: sorted(slots, this.sunNow).slots };
     this.baseline = this.currentDraft();
@@ -951,15 +966,17 @@ export class ScheduleEditor extends LitElement {
       }
     }
     if (!td) {
-      const tpl = templateById(params.get('template')) ?? TEMPLATES.find((t) => t.id === 'blank')!;
+      // the properties come from the route (S3); the address is read as well for a page that mounts the element by hand
+      const tpl = templateById(this.template || params.get('template')) ?? TEMPLATES.find((t) => t.id === 'blank')!;
       td = tpl.build({ sensor, defaultRepeat: repeat, now: new Date() });
-      const p = params.get('preset');
+      const p = this.preset || params.get('preset');
       td = withPreset(td, p === 'only_holy_days' || p === 'not_holy_days' ? (p as ConditionPreset) : null, sensor);
     }
     this.schedule = null;
     this.baseRevision = '';
     this.meta = meta;
     this.lockedUids = {};
+    this.chosen = [];
     const slots = td.slots.map(withUid);
     this.draft = { ...td, slots: sorted(slots, this.sunNow).slots };
     this.baseline = this.currentDraft();
@@ -1056,7 +1073,7 @@ export class ScheduleEditor extends LitElement {
     const r = createSlot(work, from, to, this.opts, withUid);
     if (!r) return this.say('אין מקום פנוי כאן.');
     const uid = r.slots[r.index].uid;
-    const actions = newSlotActions(plainSlots(work), this.meta, (s) => spanOf(s, this.sunNow)?.start ?? 0);
+    const actions = newSlotActions(plainSlots(work), this.meta, (s) => spanOf(s, this.sunNow)?.start ?? 0, this.chosen);
     const slots = r.slots.map((s) => (s.uid === uid ? { ...s, actions } : s));
     this.setWork(slots, uid);
     this.reveal();
@@ -1068,7 +1085,7 @@ export class ScheduleEditor extends LitElement {
     const r = addSlot(work, this.opts, 8 * 60, withUid);
     if (!r) return this.say('אין מקום למשבצת נוספת.');
     const uid = r.slots[r.index].uid;
-    const actions = newSlotActions(plainSlots(work), this.meta, (s) => spanOf(s, this.sunNow)?.start ?? 0);
+    const actions = newSlotActions(plainSlots(work), this.meta, (s) => spanOf(s, this.sunNow)?.start ?? 0, this.chosen);
     this.setWork(r.slots.map((s) => (s.uid === uid ? { ...s, actions: s.actions.length ? s.actions : actions } : s)), uid);
     this.reveal();
   }
@@ -1215,24 +1232,32 @@ export class ScheduleEditor extends LitElement {
 
   // ------------------------------------------------------------------------------------------------ devices
 
-  private get entityIds(): string[] {
+  /** The devices in the slots' actions. */
+  private get slotEntityIds(): string[] {
     return [...new Set([...entitiesOf(this.draft.slots), ...(this.override ? entitiesOf(this.override.slots) : [])])];
+  }
+
+  /** The schedule's devices: those in the slots and those chosen before any slot does something with them. */
+  private get entityIds(): string[] {
+    return [...new Set([...this.slotEntityIds, ...this.chosen.filter((id) => this.meta.has(id))])];
   }
 
   private onPicked(ids: string[], entities: CatalogEntity[]) {
     this.pickerOpen = false;
     const meta = metaFromCatalog(entities, new Map(this.meta));
     this.meta = meta;
-    const have = this.entityIds;
+    const have = this.slotEntityIds;
     const adds = ids.filter((id) => !have.includes(id)).map((id) => meta.get(id)).filter((m): m is NonNullable<typeof m> => !!m);
     const drops = have.filter((id) => !ids.includes(id));
     const apply = (slots: EditSlot[]) => drops.reduce((acc, id) => removeEntityFromSlots(acc, id), addEntitiesToSlots(slots, adds));
+    this.chosen = ids;
     this.draft = { ...this.draft, slots: apply(this.draft.slots) };
     if (this.override) this.override = { ...this.override, slots: apply(this.override.slots) };
     this.mark();
   }
 
   private removeEntity(id: string) {
+    this.chosen = this.chosen.filter((x) => x !== id);
     this.draft = { ...this.draft, slots: removeEntityFromSlots(this.draft.slots, id) };
     if (this.override) this.override = { ...this.override, slots: removeEntityFromSlots(this.override.slots, id) };
     this.mark();
@@ -1460,7 +1485,9 @@ export class ScheduleEditor extends LitElement {
     const title = !first ? 'בחרו פעולה' : `${actionLabel({ service: first.service, data: first.data })}${g.length > 1 ? ` +${g.length - 1}` : ''}`;
     const st = parseTime(s.start);
     const sp = s.stop ? parseTime(s.stop) : null;
-    const timeLabel = `${formatTime(st)}${s.stop ? `–${s.stop === '00:00:00' ? '00:00' : formatTime(sp)}` : ''}`;
+    // "שקיעה +00:30" keeps its sign after the offset: an LRM in front of the sign (the word before it is right-to-left)
+    const shown = (t: ReturnType<typeof parseTime>) => formatTime(t).replace(/ ([+−])/, ' ‎$1');
+    const timeLabel = `${shown(st)}${s.stop ? `–${s.stop === '00:00:00' ? '00:00' : shown(sp)}` : ''}`;
     const lowering = s.actions.some((a) => {
       const m = a.entity_id ? this.meta.get(a.entity_id) : undefined;
       return isLoweringAction(a, m?.class ?? null, m?.actions);
@@ -1711,14 +1738,13 @@ export class ScheduleEditor extends LitElement {
           <button type="button" data-days-preset="work" ?disabled=${!!this.override} @click=${() => this.patch({ weekdays: ['sun', 'mon', 'tue', 'wed', 'thu'] })}>א׳–ה׳</button>
           <button type="button" data-days-preset="weekend" ?disabled=${!!this.override} @click=${() => this.patch({ weekdays: ['fri', 'sat'] })}>סוף שבוע</button>
         </div>`}
-        ${this.creating || ro ? nothing : html`<div class="hint">הימים חלים על כל המשבצות של התזמון. יום שונה = תזמון נפרד (פיצול).</div>`}
       </div>
       <div class="sec" data-repeat>
         <h4>חזרה</h4>
         <div class="repeat" role="group" aria-label="חזרה">
           ${(['repeat', 'pause', 'single'] as RepeatType[]).map((r) => html`<button type="button" data-repeat-btn=${r} aria-pressed=${d.repeat === r} ?disabled=${ro} @click=${() => this.patch({ repeat: r })}>${{ repeat: 'חוזר', pause: 'פעם אחת, מושהה', single: 'פעם אחת, נמחק' }[r]}</button>`)}
         </div>
-        ${d.repeat === 'single' ? html`<div class="hint" style="color:#92400e" data-single-warning>התזמון יימחק אחרי ההרצה האחרונה.</div>` : d.repeat === 'pause' ? html`<div class="hint">${REPEAT_LABEL.pause}</div>` : nothing}
+        ${d.repeat === 'single' ? html`<div class="hint" style="color:#92400e" data-single-warning>התזמון יימחק אחרי ההרצה האחרונה.</div>` : nothing}
       </div>
       <div class="sec" data-period>
         <h4>תקופה</h4>
@@ -1736,7 +1762,10 @@ export class ScheduleEditor extends LitElement {
           .canConfigure=${!!this.status?.can.configure}
           .warnings=${condWarn}
           .readOnly=${ro}
-          @conditions-change=${(e: CustomEvent<{ conditions: DraftConditions }>) => this.patch({ conditions: e.detail.conditions })}
+          @conditions-change=${(e: CustomEvent<{ conditions: DraftConditions; names?: Record<string, string> }>) => {
+            if (e.detail.names) this.condNames = { ...this.condNames, ...e.detail.names };
+            this.patch({ conditions: e.detail.conditions });
+          }}
           @preset-motzash=${() => this.applyMotzash()}
         ></schedule-conditions>
       </div>
@@ -1747,6 +1776,23 @@ export class ScheduleEditor extends LitElement {
           : html`<div class="hint">אין הרצה קרובה.</div>`}
       </div>
     </aside>`;
+  }
+
+  /** The draft's conditions in the read model's shape, for S3's condition chip (shared with the list and the drawer). */
+  private condView(): ScheduleConditions {
+    const d = this.draft.conditions;
+    const sensor = this.status?.settings.shabbat_sensor?.entity_id ?? null;
+    const names: Record<string, string> = { ...this.condNames };
+    for (const v of this.schedule?.conditions.items ?? []) names[v.entity_id] = v.name;
+    if (this.status?.settings.shabbat_sensor) names[this.status.settings.shabbat_sensor.entity_id] = this.status.settings.shabbat_sensor.name;
+    return {
+      items: d.items.map((c) => ({ ...c, name: names[c.entity_id] ?? c.entity_id, readable: true, state: null, available: null, locked: false })),
+      type: d.type,
+      track: d.track,
+      uniform: true,
+      summary: conditionSummary(d, names, sensor),
+      preset: detectPreset(d, sensor),
+    };
   }
 
   private slotSummaryText(index: number): string {
@@ -1852,7 +1898,8 @@ export class ScheduleEditor extends LitElement {
     return html`<sw-page wide heading=${title} crumbs=${`תזמונים|${this.creating ? 'חדש' : 'עריכה'}`} data-editor data-editor-mode=${ro ? 'view' : this.creating ? 'new' : 'edit'}>
       <div slot="actions" class="actions">
         ${this.schedule ? html`<span class="ver" title="גרסה">גרסה ${this.schedule.revision.slice(0, 4)}</span>` : nothing}
-        ${sensitive ? html`<span class="chip sens" data-sensitive-badge><sw-icon name="shield" size="12"></sw-icon>רגיש</span>` : nothing}
+        <schedule-condition-chip data-condition-chip .conditions=${this.condView()}></schedule-condition-chip>
+        ${sensitive ? html`<sw-schedule-markers data-sensitive-badge .sensitive=${true} .lowering=${loweringSummary(this.currentDraft(), this.meta).lowering}></sw-schedule-markers>` : nothing}
         <sw-button data-editor-cancel @click=${() => this.cancel()}>${ro ? 'חזרה' : 'ביטול'}</sw-button>
         ${ro ? nothing : html`<sw-button variant="primary" icon="check" data-editor-save ?disabled=${!this.dirty || this.saving} @click=${() => void this.onSave()}>${this.saving ? 'שומר…' : 'שמירה'}</sw-button>`}
       </div>
