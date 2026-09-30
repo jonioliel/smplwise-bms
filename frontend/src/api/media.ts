@@ -11,8 +11,19 @@ export type Transport = 'auto' | 'webrtc' | 'mse';
 export interface TabsSectionConfig {
   order: string[];
   hidden: string[];
+  /** 0.1.148: this section's own bar style (absent = the default of its hierarchy level). */
+  style?: TabStyle;
 }
+/** The sections of `ui.tabs`. The stored object also carries the reserved key `styles` (TabStyleDefaults), which
+ * `normalizeTabsConfig` leaves out - nav.ts parses it apart (`normalizeTabStyles`). */
 export type TabsConfig = Record<string, TabsSectionConfig>;
+/** The look of a tab bar: the segmented pill, the underline row, or the compact underline row (sw-tabs `variant`). */
+export type TabStyle = 'pill' | 'underline' | 'underline-compact';
+/** `ui.tabs.styles`: the default style per hierarchy level (level1 = the first bar of an area, level2 = the sub-tabs). */
+export interface TabStyleDefaults {
+  level1?: TabStyle;
+  level2?: TabStyle;
+}
 
 export interface ProductSettings {
   /** The installation's default size of the navigation rail / bottom bar (UI round 1; הגדרות › כללי › גודל הניווט). */

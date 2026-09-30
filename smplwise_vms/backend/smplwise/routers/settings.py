@@ -255,6 +255,12 @@ def stored_schedule_classes(raw: Any) -> list[str]:
 # ("security", "security.live").
 TABS_SLUG = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,47}$")
 TABS_MAX_SECTIONS = 64
+# Tab bar styles (owner 2026-09-30, 0.1.148): the allow-list of `style` per section and of the per-level defaults kept under
+# the reserved top-level key `styles`. Missing / old values mean the built-in defaults, resolved by the frontend
+# (level 1: pill, level 2: underline-compact - shell/nav.ts tabStyleOf).
+TAB_STYLES = ("pill", "underline", "underline-compact")
+TABS_STYLES_KEY = "styles"
+TABS_LEVELS = ("level1", "level2")
 TABS_MAX_PER_LIST = 64
 TABS_MAX_JSON = 16 * 1024  # the serialised value is copied into every audit row and read on every GET /settings
 
@@ -267,9 +273,11 @@ def _stored_tabs(raw: Any) -> dict[str, Any]:
         return {}
 
 
-def normalize_tabs(value: Any) -> dict[str, dict[str, list[str]]]:
-    """Validate ui.tabs and return it normalised: duplicates removed (first occurrence wins), both lists always present.
-    422 for a non-object, unknown keys, non-slug ids, non-list / non-string entries or a size over the caps."""
+def normalize_tabs(value: Any) -> dict[str, Any]:
+    """Validate ui.tabs and return it normalised: duplicates removed (first occurrence wins), both lists always present,
+    a section's `style` only when set, and the reserved `styles` (per-level defaults) only when it names a level.
+    422 for a non-object, unknown keys, non-slug ids, non-list / non-string entries, a style outside the allow-list or a
+    size over the caps."""
     def bad(msg: str) -> ApiError:
         return ApiError(422, "validation", f"סדר הלשוניות: {msg}", details={"ui.tabs": msg})
 
@@ -277,15 +285,28 @@ def normalize_tabs(value: Any) -> dict[str, dict[str, list[str]]]:
         raise bad("חייב להיות אובייקט של מקטעים.")
     if len(value) > TABS_MAX_SECTIONS:
         raise bad(f"עד {TABS_MAX_SECTIONS} מקטעים.")
-    out: dict[str, dict[str, list[str]]] = {}
+    out: dict[str, Any] = {}
     for section, cfg in value.items():
         if not isinstance(section, str) or not TABS_SLUG.fullmatch(section):
             raise bad("מזהה מקטע לא תקין.")
+        if section == TABS_STYLES_KEY:
+            # the reserved key: the bar style defaults per hierarchy level ({"level1": "pill", "level2": "underline-compact"})
+            if not isinstance(cfg, dict) or set(cfg) - set(TABS_LEVELS):
+                raise bad("styles הוא אובייקט עם level1 ו-level2 בלבד.")
+            styles = {}
+            for level in TABS_LEVELS:
+                if level in cfg:
+                    if cfg[level] not in TAB_STYLES:
+                        raise bad("סגנון סרגל לא מוכר (pill, underline או underline-compact).")
+                    styles[level] = cfg[level]
+            if styles:
+                out[section] = styles
+            continue
         if not isinstance(cfg, dict):
             raise bad("כל מקטע הוא אובייקט עם order ו-hidden.")
-        if set(cfg) - {"order", "hidden"}:
-            raise bad("מפתחות לא מוכרים במקטע (מותר order ו-hidden בלבד).")
-        norm: dict[str, list[str]] = {}
+        if set(cfg) - {"order", "hidden", "style"}:
+            raise bad("מפתחות לא מוכרים במקטע (מותר order, hidden ו-style בלבד).")
+        norm: dict[str, Any] = {}
         for name in ("order", "hidden"):
             items = cfg.get(name, [])
             if not isinstance(items, list) or len(items) > TABS_MAX_PER_LIST:
@@ -297,6 +318,12 @@ def normalize_tabs(value: Any) -> dict[str, dict[str, list[str]]]:
                 if tab not in seen:
                     seen.append(tab)
             norm[name] = seen
+        if "style" in cfg:
+            # a per-section override of the bar style; null / absent = follow the level's default
+            if cfg["style"] is not None and cfg["style"] not in TAB_STYLES:
+                raise bad("סגנון סרגל לא מוכר (pill, underline או underline-compact).")
+            if cfg["style"] is not None:
+                norm["style"] = cfg["style"]
         out[section] = norm
     if len(json.dumps(out, ensure_ascii=False)) > TABS_MAX_JSON:
         raise bad("ההגדרה גדולה מדי.")

@@ -8,7 +8,10 @@ import {
   SECURITY_SECTIONS,
   TAB_SECTIONS,
   applyTabsConfig,
+  areaRowSection,
   configureTabs,
+  normalizeTabStyles,
+  tabStyleOf,
   defaultNavOrder,
   legacyRedirect,
   normalizeTabsConfig,
@@ -150,6 +153,31 @@ test('#/explore/entities redirects: settings for holders of system.configure (qu
   // the older moves still work, and other routes stay
   expect(legacyRedirect(route('/security/alarm?panel=p1'))).toBeNull(); // canonical again: no redirect (0.1.147)
   expect(legacyRedirect(route('/explore/floors/f0'))).toBeNull();
+});
+
+test('tabStyleOf: the section override, else the level default, else the built-in (level 1 pill, level 2 compact underline)', () => {
+  expect(tabStyleOf('explore')).toBe('pill');
+  expect(tabStyleOf('devices')).toBe('pill');
+  expect(tabStyleOf('security')).toBe('pill');
+  expect(tabStyleOf('security.live')).toBe('underline-compact');
+  expect(tabStyleOf('system.security')).toBe('underline-compact');
+  expect(tabStyleOf(null, 2)).toBe('underline-compact');
+  applyTabsConfig({ 'ui.tabs': { styles: { level1: 'underline', level2: 'pill' }, explore: { order: [], hidden: [], style: 'underline-compact' } } });
+  expect(tabStyleOf('wiskey')).toBe('underline');
+  expect(tabStyleOf('security.investigate')).toBe('pill');
+  expect(tabStyleOf('explore')).toBe('underline-compact'); // the override wins over the level default
+  expect(tabStyleOf('unknown-section', 2)).toBe('pill'); // an unknown section takes the level it is asked for
+  // unknown values and the reserved key never break the sections
+  expect(normalizeTabsConfig({ styles: { level1: 'pill' }, explore: { style: 'glass' } })).toEqual({});
+  expect(normalizeTabsConfig({ explore: { style: 'underline' } })).toEqual({ explore: { order: [], hidden: [], style: 'underline' } });
+  expect(normalizeTabStyles({ styles: { level1: 'rounded', level2: 'underline' } })).toEqual({ level2: 'underline' });
+  expect(normalizeTabStyles('not json')).toEqual({});
+  expect(normalizeTabStyles({ styles: [] })).toEqual({});
+  applyTabsConfig({ 'ui.tabs': { explore: { order: ['floors'], hidden: [] } } }); // an old config: the defaults again
+  expect(tabStyleOf('explore')).toBe('pill');
+  expect(tabStyleOf('security.live')).toBe('underline-compact');
+  expect(areaRowSection('security', 'live')).toBe('security.live');
+  expect(areaRowSection('explore', null)).toBe('explore');
 });
 
 test('the map default floor: the setting when it is in the user tree, else the first readable floor', () => {

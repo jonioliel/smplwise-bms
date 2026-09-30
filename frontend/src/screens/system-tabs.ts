@@ -7,10 +7,18 @@ import '../components/sw-icon';
 import '../components/sw-toggle';
 import '../components/sw-state-panel';
 import { describeError } from '../api/client';
-import { getSettings, patchSettings, type TabsConfig } from '../api/media';
+import '../components/sw-tabs';
+import { getSettings, patchSettings, type TabsConfig, type TabStyle, type TabStyleDefaults } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { can, isApi } from '../api/session';
-import { LOCKED_TABS, TAB_SECTIONS, applyTabsConfig, normalizeTabsConfig, type TabSectionDef } from '../shell/nav';
+import { LOCKED_TABS, TAB_SECTIONS, TAB_STYLE_DEFAULTS, applyTabsConfig, normalizeTabStyles, normalizeTabsConfig, type TabSectionDef } from '../shell/nav';
+
+/** The names of the bar styles (הגדרות › לשוניות › סגנון סרגל). */
+const STYLE_LABEL: Record<TabStyle, string> = { pill: 'כמוסבה', underline: 'פס תחתון', 'underline-compact': 'פס תחתון קומפקטי' };
+/** What each hierarchy level offers as its installation default (the owner's list; a section may still pick any of the three). */
+const LEVEL_OPTIONS: Record<1 | 2, TabStyle[]> = { 1: ['pill', 'underline'], 2: ['underline-compact', 'underline', 'pill'] };
+const LEVEL_KEY = { 1: 'level1', 2: 'level2' } as const;
+const SAMPLE = [{ id: 'a', label: 'ראשון' }, { id: 'b', label: 'שני' }, { id: 'c', label: 'שלישי' }];
 
 /**
  * הגדרות › כללי › לשוניות (owner 2026-09-30, setting `ui.tabs`): one card per navigation section that has tabs - the rail,
@@ -26,6 +34,9 @@ import { LOCKED_TABS, TAB_SECTIONS, applyTabsConfig, normalizeTabsConfig, type T
 export class SystemTabsConfig extends LitElement {
   @state() private saved: TabsConfig = {};
   @state() private draft: TabsConfig = {};
+  /** The bar style defaults per hierarchy level (`ui.tabs.styles`), as saved and as edited. */
+  @state() private savedStyles: TabStyleDefaults = {};
+  @state() private draftStyles: TabStyleDefaults = {};
   @state() private canEdit = false;
   @state() private loaded = false;
   @state() private busy = false;
@@ -127,6 +138,48 @@ export class SystemTabsConfig extends LitElement {
       vertical-align: middle;
       margin-inline-start: 6px;
     }
+    .srow {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+      border-block-end: 1px solid var(--sw-border);
+      margin-block-end: 8px;
+      font-size: var(--sw-fs-sm);
+    }
+    .srow .lbl {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .srow .ctl {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+      min-inline-size: 0;
+      max-inline-size: 100%;
+    }
+    .srow select {
+      min-block-size: 40px;
+      max-inline-size: 100%;
+      padding: 0 8px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+    }
+    @media (max-width: 767px) {
+      .srow {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .srow .ctl {
+        align-items: stretch;
+      }
+    }
     .foot {
       display: flex;
       gap: 8px;
@@ -205,6 +258,8 @@ export class SystemTabsConfig extends LitElement {
       const r = await getSettings();
       this.saved = normalizeTabsConfig(r.settings['ui.tabs']);
       this.draft = structuredClone(this.saved);
+      this.savedStyles = normalizeTabStyles(r.settings['ui.tabs']);
+      this.draftStyles = { ...this.savedStyles };
       this.canEdit = r.can_edit && can('system.configure');
       this.error = '';
     } catch (err) {
@@ -240,10 +295,37 @@ export class SystemTabsConfig extends LitElement {
     const extraHidden = prev.hidden.filter((id) => !reg.includes(id));
     const isDefault = ids.every((id, i) => id === reg[i]);
     const next = { ...this.draft };
-    if (isDefault && !hidden.size && !extraOrder.length && !extraHidden.length) delete next[def.id];
-    else next[def.id] = { order: isDefault && !extraOrder.length ? [] : [...ids, ...extraOrder], hidden: [...reg.filter((id) => hidden.has(id)), ...extraHidden] };
+    if (isDefault && !hidden.size && !extraOrder.length && !extraHidden.length && !prev.style) delete next[def.id];
+    else {
+      next[def.id] = { order: isDefault && !extraOrder.length ? [] : [...ids, ...extraOrder], hidden: [...reg.filter((id) => hidden.has(id)), ...extraHidden] };
+      if (prev.style) next[def.id].style = prev.style; // the section's own bar style survives an order / visibility edit
+    }
     this.draft = next;
     this.message = '';
+  }
+
+  /** This section's own bar style (`''` = follow the default of its level). */
+  private setSectionStyle(def: TabSectionDef, style: TabStyle | '') {
+    const next = { ...this.draft };
+    const cur = next[def.id] ?? { order: [], hidden: [] };
+    const { style: _old, ...rest } = cur;
+    void _old;
+    if (style) next[def.id] = { ...rest, style };
+    else if (rest.order.length || rest.hidden.length) next[def.id] = rest;
+    else delete next[def.id];
+    this.draft = next;
+    this.message = '';
+    this.announce = style ? `${def.label}: סגנון ${STYLE_LABEL[style]}` : `${def.label}: הסגנון לפי ברירת המחדל של הרמה`;
+  }
+
+  /** The installation's default style of one hierarchy level; the built-in choice is stored as nothing (easy to flip back). */
+  private setLevelStyle(level: 1 | 2, style: TabStyle) {
+    const next = { ...this.draftStyles };
+    if (style === TAB_STYLE_DEFAULTS[LEVEL_KEY[level]]) delete next[LEVEL_KEY[level]];
+    else next[LEVEL_KEY[level]] = style;
+    this.draftStyles = next;
+    this.message = '';
+    this.announce = `רמה ${level}: סגנון ${STYLE_LABEL[style]}`;
   }
 
   private label(def: TabSectionDef, id: string): string {
@@ -286,19 +368,27 @@ export class SystemTabsConfig extends LitElement {
   }
 
   private get dirty(): boolean {
-    const canon = (c: TabsConfig) => JSON.stringify(Object.keys(c).sort().map((k) => [k, c[k].order, c[k].hidden]));
-    return canon(this.draft) !== canon(this.saved);
+    const canon = (c: TabsConfig, s: TabStyleDefaults) => JSON.stringify([Object.keys(c).sort().map((k) => [k, c[k].order, c[k].hidden, c[k].style ?? null]), s.level1 ?? null, s.level2 ?? null]);
+    return canon(this.draft, this.draftStyles) !== canon(this.saved, this.savedStyles);
+  }
+
+  /** The whole `ui.tabs` value as it is sent: the sections, plus the reserved `styles` key when a level default is set. */
+  private payload(): Record<string, unknown> {
+    const styles = this.draftStyles;
+    return styles.level1 || styles.level2 ? { ...this.draft, styles } : { ...this.draft };
   }
 
   private async save() {
     this.busy = true;
     this.error = '';
     try {
-      const r = await patchSettings({ 'ui.tabs': this.draft });
+      const r = await patchSettings({ 'ui.tabs': this.payload() });
       invalidateSettings();
       applyTabsConfig(r.settings as unknown as Record<string, unknown>); // the shell follows at once, no reload
       this.saved = normalizeTabsConfig(r.settings['ui.tabs']);
       this.draft = structuredClone(this.saved);
+      this.savedStyles = normalizeTabStyles(r.settings['ui.tabs']);
+      this.draftStyles = { ...this.savedStyles };
       this.message = 'הלשוניות נשמרו';
       window.setTimeout(() => (this.message = ''), 2500);
     } catch (err) {
@@ -310,6 +400,7 @@ export class SystemTabsConfig extends LitElement {
 
   private discard() {
     this.draft = structuredClone(this.saved);
+    this.draftStyles = { ...this.savedStyles };
     this.message = '';
     this.error = '';
   }
@@ -362,13 +453,46 @@ export class SystemTabsConfig extends LitElement {
 
   // ---- render ----
 
+  /** "סגנון סרגל" (0.1.148): the installation's default look per hierarchy level - level 1 the first bar of an area (home, the
+   * security sections, map, WisKey, settings), level 2 the sub-tabs below it (the pages of לייב / חקירה) - with a preview. */
+  private renderStyleDefaults() {
+    const level = (lv: 1 | 2, title: string, hint: string) => {
+      const current = this.draftStyles[LEVEL_KEY[lv]] ?? TAB_STYLE_DEFAULTS[LEVEL_KEY[lv]];
+      return html`<div class="srow" data-style-level=${lv}>
+        <span class="lbl">${title}<span class="muted">${hint}</span></span>
+        <span class="ctl">
+          <select data-style-default=${lv} aria-label=${title} ?disabled=${!this.canEdit} @change=${(e: Event) => this.setLevelStyle(lv, (e.target as HTMLSelectElement).value as TabStyle)}>
+            ${LEVEL_OPTIONS[lv].map((s) => html`<option value=${s} ?selected=${s === current}>${STYLE_LABEL[s]}${s === TAB_STYLE_DEFAULTS[LEVEL_KEY[lv]] ? ' (ברירת מחדל)' : ''}</option>`)}
+          </select>
+          <sw-tabs class="preview" .items=${SAMPLE} active="a" .variant=${current} data-style-preview=${lv}></sw-tabs>
+        </span>
+      </div>`;
+    };
+    return html`<sw-card heading="סגנון סרגל" subheading="איך נראים סרגלי הלשוניות; אפשר לקבוע סגנון אחר לכל מקטע בכרטיס שלו" data-tabs-styles>
+      ${level(1, 'רמה 1: הסרגל הראשון של האזור', 'המסך הראשי, הבחירה באבטחה, המפה, WisKey וההגדרות')}
+      ${level(2, 'רמה 2: תת־לשוניות', 'הדפים של לייב ושל חקירה, ואבטחה בהגדרות')}
+    </sw-card>`;
+  }
+
   private renderSection(def: TabSectionDef) {
     const ids = this.orderedIds(def);
     const hidden = this.hiddenSet(def);
     const visibleCount = ids.filter((id) => !hidden.has(id)).length;
     const n = ids.length;
     const configured = !!this.draft[def.id];
+    const own = this.draft[def.id]?.style ?? '';
     return html`<sw-card heading=${def.label} subheading=${def.where} data-tabs-section=${def.id}>
+      ${def.bar === false
+        ? nothing
+        : html`<div class="srow" data-style-row=${def.id}>
+            <span class="lbl">סגנון סרגל<span class="muted">רמה ${def.level}</span></span>
+            <span class="ctl">
+              <select data-style-section=${def.id} aria-label=${`סגנון סרגל: ${def.label}`} ?disabled=${!this.canEdit} @change=${(e: Event) => this.setSectionStyle(def, (e.target as HTMLSelectElement).value as TabStyle | '')}>
+                <option value="" ?selected=${own === ''}>לפי ברירת המחדל של הרמה</option>
+                ${(['pill', 'underline', 'underline-compact'] as TabStyle[]).map((s) => html`<option value=${s} ?selected=${own === s}>${STYLE_LABEL[s]}</option>`)}
+              </select>
+            </span>
+          </div>`}
       <ol aria-label=${`הלשוניות של ${def.label} לפי הסדר`}>
         ${repeat(
           ids,
@@ -402,6 +526,7 @@ export class SystemTabsConfig extends LitElement {
     const api = isApi();
     return html`<div class="sections" data-tabs-config>
       <p class="intro">בחרו אילו לשוניות מוצגות בכל אזור ובאיזה סדר. השינוי חל על כל המשתמשים והלשונית הראשונה המוצגת היא זו שהאזור נפתח עליה. הסדר של הניווט הראשי הוא ברירת המחדל: כל משתמש יכול לסדר אותו לעצמו. הסתרת לשונית אינה מבטלת הרשאות והכתובת שלה ממשיכה לעבוד למי שמורשה; בכל אזור נשארת לפחות לשונית אחת.</p>
+      ${this.renderStyleDefaults()}
       ${TAB_SECTIONS.map((def) => this.renderSection(def))}
       <div class="savebar">
         <sw-button variant="primary" icon="check" data-tabs-save ?disabled=${!this.canEdit || !this.dirty || this.busy || !api} @click=${() => void this.save()}>שמור</sw-button>

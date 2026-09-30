@@ -8,9 +8,19 @@ export interface TabItem {
   count?: number;
 }
 
+/** The look of a tab bar (0.1.148, `ui.tabs` styles - shell/nav.ts tabStyleOf): the narrow segmented pill, the underline row,
+ * or the compact underline row. The first hierarchy level of an area is a pill by default, its sub-tabs the compact row. */
+export type TabVariant = 'pill' | 'underline' | 'underline-compact';
+
 /**
- * Pill tabs as on the boards ("All Sites (3) | Buildings | Map"): a light track, the active item as a
- * white pill with blue text. `underline` switches to the settings-page style (thin blue underline).
+ * Tabs as on the boards ("All Sites (3) | Buildings | Map"). `variant` picks the look:
+ *  - `pill` (default): a light rounded track, the active item as a white pill with blue text - a narrow segmented control;
+ *  - `underline`: the settings-page style (thin blue underline);
+ *  - `underline-compact`: the same underline row with less height and padding.
+ * A row wider than its box scrolls sideways (snapping to tabs) and fades at the edge that hides more tabs; the active tab is
+ * kept in view. The host may ask for taller touch targets with `--sw-tab-min-h` (the shell's phone rows: 44 px): the pill track
+ * and the compact row stay slim and the hit area grows around them (the compact row's extra hit height overlaps the empty
+ * space below it, so the row takes no more room). `underline` (boolean) is the older spelling of `variant="underline"`.
  */
 @customElement('sw-tabs')
 export class SwTabs extends LitElement {
@@ -18,17 +28,15 @@ export class SwTabs extends LitElement {
   @property() active = '';
   @property({ type: Boolean, reflect: true }) segmented = false;
   @property({ type: Boolean, reflect: true }) underline = false;
+  @property() variant: TabVariant | '' = '';
 
   static styles = css`
     :host {
       display: inline-flex;
-      gap: 2px;
       overflow-x: auto;
       scrollbar-width: none;
       max-inline-size: 100%;
-      background: var(--sw-surface-3);
-      border-radius: 8px;
-      padding: 2px;
+      box-sizing: border-box;
     }
     :host::-webkit-scrollbar {
       display: none;
@@ -56,22 +64,20 @@ export class SwTabs extends LitElement {
       -webkit-mask-image: linear-gradient(to right, transparent 0, #000 32px, #000 calc(100% - 32px), transparent 100%);
       mask-image: linear-gradient(to right, transparent 0, #000 32px, #000 calc(100% - 32px), transparent 100%);
     }
-    :host([underline]) {
-      display: flex;
-      background: transparent;
-      padding: 0;
-      border-radius: 0;
-      border-block-end: 1px solid var(--sw-border);
+    .row {
+      position: relative;
+      display: inline-flex;
+      flex: none;
       gap: 2px;
+      min-inline-size: 0;
     }
     a,
     button {
+      position: relative;
       display: inline-flex;
       align-items: center;
-      gap: 5px;
-      padding: 5px 12px;
+      padding: 0;
       border: 0;
-      border-radius: 6px;
       background: transparent;
       color: var(--sw-text-2);
       text-decoration: none;
@@ -80,13 +86,22 @@ export class SwTabs extends LitElement {
       font-weight: var(--sw-fw-medium);
       cursor: pointer;
       white-space: nowrap;
-      /* a host may ask for taller touch targets (the shell's phone tab row, CR-013) */
-      min-block-size: var(--sw-tab-min-h, auto);
       transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease);
     }
     a:hover,
     button:hover {
       color: var(--sw-text);
+    }
+    a:focus-visible,
+    button:focus-visible {
+      outline: 2px solid var(--sw-focus);
+      outline-offset: -2px;
+      border-radius: 6px;
+    }
+    .lbl {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
     }
     /* touch targets (mobile audit 2026-09-30): page-level tab strips were 29-37 px high on a phone; a host may still ask for more */
     @media (max-width: 767px) and (pointer: coarse) {
@@ -96,21 +111,7 @@ export class SwTabs extends LitElement {
       }
     }
     .on {
-      background: var(--sw-surface);
       color: var(--sw-accent-text);
-      box-shadow: var(--sw-shadow-1);
-    }
-    :host([underline]) a,
-    :host([underline]) button {
-      padding: 8px 12px;
-      border-radius: 0;
-      border-block-end: 2px solid transparent;
-      margin-block-end: -1px;
-    }
-    :host([underline]) .on {
-      background: transparent;
-      box-shadow: none;
-      border-block-end-color: var(--sw-accent);
     }
     .count {
       font-size: var(--sw-fs-xs);
@@ -118,6 +119,103 @@ export class SwTabs extends LitElement {
     }
     .on .count {
       color: var(--sw-accent-text);
+    }
+
+    /* ---- pill: the narrow segmented control (the track is 34 px; a taller hit area grows around it) ---- */
+    :host([data-variant='pill']) .row {
+      padding-inline: 3px;
+    }
+    :host([data-variant='pill']) .row::before {
+      content: '';
+      position: absolute;
+      inset-inline: 0;
+      inset-block: max(0px, calc((var(--sw-tab-min-h, 0px) - 34px) / 2));
+      background: var(--sw-surface-3);
+      border-radius: 12px;
+    }
+    :host([data-variant='pill']) a,
+    :host([data-variant='pill']) button {
+      min-block-size: max(34px, var(--sw-tab-min-h, 0px));
+      padding-inline: 1px;
+    }
+    :host([data-variant='pill']) .lbl {
+      min-block-size: 28px;
+      padding: 0 12px;
+      border-radius: 9px;
+      box-sizing: border-box;
+      justify-content: center;
+    }
+    :host([data-variant='pill']) .on .lbl {
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
+      font-weight: var(--sw-fw-semibold);
+    }
+
+    /* ---- underline: the settings-page style (thin accent underline under the active tab) ---- */
+    :host([data-variant='underline']),
+    :host([data-variant='underline-compact']) {
+      display: flex;
+    }
+    :host([data-variant='underline']) {
+      border-block-end: 1px solid var(--sw-border);
+    }
+    :host([data-variant='underline']) .row {
+      flex: 1 0 auto;
+    }
+    :host([data-variant='underline']) a,
+    :host([data-variant='underline']) button {
+      padding: 8px 12px;
+      min-block-size: var(--sw-tab-min-h, auto);
+      border-block-end: 2px solid transparent;
+      margin-block-end: -1px;
+      box-sizing: border-box;
+    }
+    :host([data-variant='underline']) .on {
+      border-block-end-color: var(--sw-accent);
+    }
+
+    /* ---- underline-compact: the same row, 32 px high (the sub-tabs) ----
+       The text sits at the top of the tab, the underline at 30 px; with a taller --sw-tab-min-h the extra hit height lies BELOW
+       the underline, and a negative margin gives that room back to the layout, so the row takes 32 px whatever the target. */
+    :host([data-variant='underline-compact']) {
+      position: relative;
+      z-index: 1;
+      margin-block-end: calc(32px - max(32px, var(--sw-tab-min-h, 32px)));
+    }
+    :host([data-variant='underline-compact']) .row {
+      flex: 1 0 auto;
+      gap: 0;
+    }
+    :host([data-variant='underline-compact']) .row::after {
+      content: '';
+      position: absolute;
+      inset-inline: 0;
+      inset-block-start: 31px;
+      block-size: 1px;
+      background: var(--sw-border);
+    }
+    :host([data-variant='underline-compact']) a,
+    :host([data-variant='underline-compact']) button {
+      align-items: flex-start;
+      padding: 0 10px;
+      min-block-size: max(32px, var(--sw-tab-min-h, 0px));
+      box-sizing: border-box;
+    }
+    :host([data-variant='underline-compact']) .lbl {
+      min-block-size: 30px;
+    }
+    :host([data-variant='underline-compact']) a::after,
+    :host([data-variant='underline-compact']) button::after {
+      content: '';
+      position: absolute;
+      inset-inline: 0;
+      inset-block-start: 29px;
+      block-size: 2px;
+      background: transparent;
+      z-index: 1;
+    }
+    :host([data-variant='underline-compact']) .on::after {
+      background: var(--sw-accent);
     }
   `;
 
@@ -147,8 +245,17 @@ export class SwTabs extends LitElement {
     super.disconnectedCallback();
   }
 
+  /** The look in force: `variant`, else the older `underline` flag, else the pill. */
+  get mode(): TabVariant {
+    return this.variant === 'pill' || this.variant === 'underline' || this.variant === 'underline-compact' ? this.variant : this.underline ? 'underline' : 'pill';
+  }
+
+  protected willUpdate() {
+    if (this.getAttribute('data-variant') !== this.mode) this.setAttribute('data-variant', this.mode);
+  }
+
   protected updated(changed: Map<string, unknown>) {
-    if (changed.has('active') || changed.has('items')) this.revealActive();
+    if (changed.has('active') || changed.has('items') || changed.has('variant') || changed.has('underline')) this.revealActive();
     this.updateFade();
   }
 
@@ -193,11 +300,12 @@ export class SwTabs extends LitElement {
   }
 
   render() {
-    return html`${this.items.map((it) =>
+    const label = (it: TabItem) => html`<span class="lbl">${it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}</span>`;
+    return html`<div class="row">${this.items.map((it) =>
       it.href
-        ? html`<a href=${it.href} class=${it.id === this.active ? 'on' : ''} aria-current=${it.id === this.active ? 'page' : 'false'}>${it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}</a>`
-        : html`<button type="button" class=${it.id === this.active ? 'on' : ''} aria-pressed=${it.id === this.active} @click=${() => this.choose(it)}>${it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}</button>`,
-    )}`;
+        ? html`<a href=${it.href} class=${it.id === this.active ? 'on' : ''} aria-current=${it.id === this.active ? 'page' : 'false'}>${label(it)}</a>`
+        : html`<button type="button" class=${it.id === this.active ? 'on' : ''} aria-pressed=${it.id === this.active} @click=${() => this.choose(it)}>${label(it)}</button>`,
+    )}</div>`;
   }
 }
 
