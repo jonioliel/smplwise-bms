@@ -95,9 +95,10 @@ C:/cloude/smplwisebms/.venv/Scripts/python.exe scripts/build_guide.py
 | `route` | string | Hash route (`#/...`). יכול להכיל placeholders: `{site}` `{building}` `{floor}` `{camera}` `{area}` — מוחלפים בזמן ריצה בערכי הזרעת הדמו. |
 | `viewports` | string[] | `"desktop"` ו/או `"phone"`. |
 | `roles` | string[] | אילו תפקידים לצלם עבורם: `viewer` `operator` `editor` `site_admin` `system_admin`. |
-| `setup` | object[] | צעדים אחרי הניווט ולפני הצילום: `{"type":"click","selector":"..."}`, `{"type":"waitFor","selector":"..."}`, `{"type":"waitMs","ms":N}`. |
+| `setup` | object[] | צעדים אחרי הניווט ולפני הצילום: `{"type":"click","selector":"..."}`, `{"type":"waitFor","selector":"..."}`, `{"type":"waitMs","ms":N}`, `{"type":"scrollTo","selector":"..."}`, ו-`{"type":"domClick","selector":"..."}` (לחיצה שנשלחת ישירות לאלמנט, לפקד ששכבה אחרת מכסה — למשל תפריט המשתמש כששלט פתוח). הסלקטורים חודרים ל-shadow DOM; כל צעד פועל על ההתאמה הראשונה. |
 | `caption_he` | string | כיתוב עברי של המסך (עמוד המדריך שמפרט אותו מצוין בסופו). |
 | `source` | string | `"live"` — הצילום ב־`img/` נלקח מהמערכת החיה; `"demo"` — עדיין צילום הדגמה. |
+| `data` | string | (אופציונלי, ברירת מחדל `backend`) מקור הנתונים של הצילום: `backend` — ה־Backend הזמני שלמעלה; `static` — בלי שרת בכלל (ה־spec חוסם את כל קריאות `api/v1`, והאפליקציה עוברת למצב ההדגמה המובנה שלה, כולל הדמיית המולטימדיה בזיכרון); `mock-wall` ו-`mock-area` — מושב API עם תשובות מדומות מתוך `frontend/tests/guide-mocks.ts` (קיר המצלמות עם סידור הקיר; מסך אזור עם כרטיס מסכים, מיזוג וחימום). `mock-area` מייבא את מודול הדמה של המולטימדיה לפי נתיב, ולכן דורש את שרת הפיתוח של Vite (`npm run dev`, עם `SW_BASE_URL` ו-`SW_GUIDE_BASE_URL` שמצביעים אליו) ולא את ה־preview של ה־build. מסכים שאינם `backend` לא צריכים הזרעה ולא תהליך Backend. |
 | `demo_files` | string[] | (אופציונלי) קבצים של אותו מסך שנשארו מהדגמה כשהשאר חיים — וריאנטים של תפקידים שלא צולמו. |
 
 הוספת מסך חדש = שורה חדשה ב־JSON; אין צורך לגעת ב־spec עצמו אלא אם המסך דורש `setup` שאין לו עוד תמיכה

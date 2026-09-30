@@ -2,6 +2,7 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { installMock, type MockKind } from './guide-mocks';
 
 // T091 (R181/R182/R183) — infrastructure for the Hebrew user guide's screenshots. This spec is data-driven from
 // docs/user-guide/he/screens.json: one entry per screen/area of the product, captured once per (viewport x role)
@@ -35,7 +36,17 @@ const BASE = process.env.SW_GUIDE_BASE_URL || process.env.SW_BASE_URL || 'http:/
 const SESSION_COOKIE = process.env.SW_GUIDE_SESSION || '';
 const PLAN_FIXTURE = path.resolve(HERE, '..', '..', 'smplwise_vms', 'backend', 'tests', 'fixtures', 'plan_detect', 'apartment.png');
 
-type SetupStep = { type: 'click' | 'waitFor'; selector: string } | { type: 'waitMs'; ms: number };
+type SetupStep = { type: 'click' | 'domClick' | 'waitFor' | 'scrollTo'; selector: string } | { type: 'waitMs'; ms: number };
+
+/** Where a screen's data comes from (screens.json `data`, default "backend"):
+ *   backend    - the throwaway demo backend of README_HE.md (seeded, role identities via X-SW-Dev-User);
+ *   static     - no backend at all: every api/v1 call is refused, so the app falls back to its built-in demo data (the same
+ *                answers the static preview gives; the multimedia screens and the remote are drawn from their in-memory mock);
+ *   mock-wall  - an API session with a mocked camera list (the wall arrangement dialog needs an API session);
+ *   mock-settings - an administrator's API session for a settings tab (editable controls instead of the demo's read-only ones);
+ *   mock-area  - an API session with a mocked area screen + multimedia mock (needs the Vite dev server, see guide-mocks.ts).
+ * Screens that are not "backend" need no seeded ids and no backend process. */
+type DataMode = 'backend' | 'static' | 'mock-wall' | 'mock-area' | 'mock-settings';
 
 interface ScreenSpec {
   id: string;
@@ -46,6 +57,7 @@ interface ScreenSpec {
   roles: ('viewer' | 'operator' | 'editor' | 'site_admin' | 'system_admin')[];
   setup: SetupStep[];
   caption_he: string;
+  data?: DataMode;
 }
 
 const VIEWPORT_SIZE: Record<'desktop' | 'phone', { width: number; height: number }> = {
@@ -184,8 +196,10 @@ async function ensureRole(api: APIRequestContext, username: string, roleId: stri
 
 async function runSetup(page: Page, steps: SetupStep[]): Promise<void> {
   for (const step of steps) {
-    if (step.type === 'click') await page.locator(step.selector).click();
-    else if (step.type === 'waitFor') await page.locator(step.selector).waitFor({ state: 'visible', timeout: 30_000 });
+    if (step.type === 'click') await page.locator(step.selector).first().click();
+    else if (step.type === 'domClick') await page.locator(step.selector).first().dispatchEvent('click'); // for a control another layer covers (an open drawer) - the same click event, no hit-testing
+    else if (step.type === 'waitFor') await page.locator(step.selector).first().waitFor({ state: 'visible', timeout: 30_000 });
+    else if (step.type === 'scrollTo') await page.locator(step.selector).first().scrollIntoViewIfNeeded();
     else if (step.type === 'waitMs') await page.waitForTimeout(step.ms);
   }
 }
@@ -194,16 +208,25 @@ test.describe.serial('user guide screenshots (T091 infrastructure)', () => {
   test.skip(process.env.SW_GUIDE !== '1', 'opt-in: set SW_GUIDE=1 with a throwaway demo backend running (see header comment)');
 
   let api: APIRequestContext;
-  let ids: SeedIds;
+  let seeded: Promise<SeedIds> | null = null;
+  const NO_IDS: SeedIds = { site: '', building: '', floor: '', camera: '', area: '' };
 
   test.beforeAll(async ({ playwright }) => {
     fs.mkdirSync(IMG_DIR, { recursive: true });
     api = await playwright.request.newContext({ baseURL: BASE, extraHTTPHeaders: SESSION_COOKIE ? { Cookie: SESSION_COOKIE } : {} });
-    ids = await seedDemoData(api);
-    for (const [role, username] of Object.entries(ROLE_USER)) {
-      await ensureRole(api, username!, role, ids.site);
-    }
   });
+
+  /** Seeds the demo backend the first time a "backend" screen needs it (screens with another `data` mode never touch it). */
+  function backendIds(): Promise<SeedIds> {
+    seeded ??= (async () => {
+      const ids = await seedDemoData(api);
+      for (const [role, username] of Object.entries(ROLE_USER)) {
+        await ensureRole(api, username!, role, ids.site);
+      }
+      return ids;
+    })();
+    return seeded;
+  }
 
   test.afterAll(async () => {
     await api?.dispose();
@@ -214,11 +237,21 @@ test.describe.serial('user guide screenshots (T091 infrastructure)', () => {
       for (const viewport of screen.viewports) {
         test(`${screen.id} [${role}/${viewport}]`, async ({ page }) => {
           await page.setViewportSize(VIEWPORT_SIZE[viewport]);
-          const headers: Record<string, string> = {};
-          if (SESSION_COOKIE) headers.Cookie = SESSION_COOKIE;
-          const username = ROLE_USER[role];
-          if (username) headers['X-SW-Dev-User'] = username;
-          if (Object.keys(headers).length) await page.setExtraHTTPHeaders(headers);
+          const mode = screen.data ?? 'backend';
+          let ids = NO_IDS;
+          let cleanup: (() => Promise<void>) | undefined;
+          if (mode === 'backend') {
+            ids = await backendIds();
+            const headers: Record<string, string> = {};
+            if (SESSION_COOKIE) headers.Cookie = SESSION_COOKIE;
+            const username = ROLE_USER[role];
+            if (username) headers['X-SW-Dev-User'] = username;
+            if (Object.keys(headers).length) await page.setExtraHTTPHeaders(headers);
+          } else if (mode === 'static') {
+            await page.route('**/api/v1/**', (route) => route.abort()); // no backend: the app falls back to its demo data
+          } else {
+            cleanup = await installMock(page, mode.slice('mock-'.length) as MockKind);
+          }
 
           const hash = fillRoute(screen.route, ids);
           await page.goto(`/?design=a${hash}`);
@@ -228,6 +261,7 @@ test.describe.serial('user guide screenshots (T091 infrastructure)', () => {
           await page.waitForTimeout(300);
 
           await page.screenshot({ path: path.join(IMG_DIR, fileNameFor(screen, role, viewport)) });
+          await cleanup?.();
         });
       }
     }
