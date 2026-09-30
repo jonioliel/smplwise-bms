@@ -5657,5 +5657,82 @@
     "evidence": [],
     "executed_at": null,
     "notes": "Planned in CR-009 (2026-09-29)."
+  },
+  {
+    "id": "AT211",
+    "requirement_ids": [
+      "R211"
+    ],
+    "task_ids": [
+      "T101"
+    ],
+    "title": "התראות - ליבה: מודל, נמענים, העדפות, אישור והסלמה",
+    "kind": "integration/e2e/security",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fake HA/NVR/WisKey fixtures and a fake push service; no real device, phone or HA notification"
+    ],
+    "procedure": [
+      "Backend: tests/test_notify_core.py (emit, fold, resolve, severity rise), test_notify_recipients.py (every subject kind allowed/denied, scope revoked between create and retry and before an inbox read), test_notify_prefs.py (quiet hours across midnight and days, critical bypass, mutes, snooze, min severity, push_prefs migration), test_notify_escalation.py, test_notify_tokens.py (single use, expiry, other user, lost reach), test_push.py unchanged, test_access.py (notify.manage), test_migrations.py."
+    ],
+    "expected": "Notification core (CR-018 §4, §7-§12): one store and one entry point notify.emit(Signal) used by every producer (rules, built-in monitors, CR-014 run settlement, bulk completion, CR-017 notify action); fold by dedupe key with count/last_at and re-notify only on a severity rise; resolve signals; recipients decided per subject kind (camera row_scope events.read, entity/area devices.read, alarm.view, access.read, schedule/automation owner or view, bulk initiator, system.configure, own session) and re-checked at every delivery and inbox read; audience scope/managers/initiator; per-user channels per category, minimum push severity, quiet hours with days and critical bypass, mutes (<= 7 days, <= 50) and snooze; shared acknowledge (events.ack / alarm.view) mirrored with rule_alerts; escalation of unacknowledged critical rows (default 5 min, <= 2 steps); one-time action tokens for ack/snooze only; new permission notify.manage; migrations 0050-0052 (renumbered at merge if needed) with push_prefs carried over; retention 30 days, deliveries 14 days.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-018 (2026-10-01)."
+  },
+  {
+    "id": "AT212",
+    "requirement_ids": [
+      "R212"
+    ],
+    "task_ids": [
+      "T101"
+    ],
+    "title": "התראות - מקורות מובנים וערוצים (Push, טלפון, אימייל)",
+    "kind": "integration/e2e/security",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fake HA/NVR/WisKey fixtures and a fake push service; no real device, phone or HA notification"
+    ],
+    "procedure": [
+      "Backend: tests/test_notify_sources.py (each built-in source fires, folds, resolves, and is invisible to a user without scope) with fake HA/NVR/WisKey states, test_notify_ha.py (bridge refuses non-mobile_app targets and non-token action ids; mobile_app_notification_action mapping), test_push.py payload v2 (no names, no images), delivery log reasons and retries, test_notify_email.py only if email is approved.",
+      "Live spec (SW_LIVE=1) on a throwaway backend with a fake push service: leak sensor -> critical row + push + escalation; door left open -> alert then resolved; camera offline folded."
+    ],
+    "expected": "Sources and channels (CR-018 §5-§6, §9-§11): built-in sources with policies (camera/NVR offline and storage, alarm triggered/arm failed, leak/smoke/gas/CO critical, door/window left open after 600 s, device unavailable, battery low, CR-014 not_confirmed and review items, CR-017 automation failures, bulk partial results to the initiator, system health/backup/update, new remote sign-in and lockouts; WisKey ring and HA doorbell event entities behind a setting); motion/person only through rules; Web Push generalised (payload v2 without names or images, tag = notification id, action buttons ack/snooze where supported); HA phones through the bridge allow-list (notify.mobile_app_* only, channels per category, action ids that are one-time tokens, never commands); optional SMTP email if the owner approves; a delivery log with status and reason, per-channel retries that re-check reach, and a failures panel; no door open, disarm, arm, scene or device command from any notification.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-018 (2026-10-01)."
+  },
+  {
+    "id": "AT213",
+    "requirement_ids": [
+      "R213"
+    ],
+    "task_ids": [
+      "T101"
+    ],
+    "title": "התראות - מרכז התראות, הגדרות ומסך מנהל",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fake HA/NVR/WisKey fixtures and a fake push service; no real device, phone or HA notification"
+    ],
+    "procedure": [
+      "Frontend unit: unit-notify-inbox.spec.ts, unit-notify-settings.spec.ts; evidence-notify-center.spec.ts (demo; 1440/820/390; loading/empty/error/ready; RTL) and the service worker action path in evidence-pwa-push.spec.ts additions.",
+      "Live spec: the chip and dot follow /me/ws; a user without scope sees nothing; quiet hours hold a push but the inbox has the row."
+    ],
+    "expected": "Notification center UI (CR-018 §6.1, §8): the inbox opened from the user menu's 'התראות' (count chip = unread, avatar dot = open critical) with severity, place, time, fold count and state; filters all/unread/critical/category; read, snooze 1h/8h/until morning, dismiss, acknowledge when allowed, open; critical safety rows pinned until acknowledged or resolved; live over /me/ws with the 60 s poll as fallback; snapshots only inside Arx after sign-in; settings: channels per category, minimum push severity, quiet hours with days, mutes, my phones; manager page for sources and delivery failures; service worker v2 actions; clean operator screens without HA/Companion names; the user guide 85-notifications_HE.md rewritten.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-018 (2026-10-01)."
   }
 ]
