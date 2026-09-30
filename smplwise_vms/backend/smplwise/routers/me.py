@@ -13,7 +13,7 @@ from starlette.concurrency import run_in_threadpool
 
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import Database, get_setting, now_iso, permission_revision
-from ..errors import validation
+from ..errors import forbidden, validation
 from ..mode import installation_mode
 from ..rbac import INSTALLATION, Principal, bindings_of, effective_permissions, has_any_binding, permissions_anywhere, permissions_fingerprint
 from ..services import revocation
@@ -79,13 +79,31 @@ class PrefsPatch(BaseModel):
     ui_nav_size: dict[str, Any] | None = Field(default=None, alias="ui.nav_size")  # validated in full by services/nav_size.py
     wiskey_density: str | int | None = Field(default=None, alias="wiskey.density")  # WisKey rc.37 overview card count
     wiskey_wall: str | int | None = Field(default=None, alias="wiskey.wall")  # WisKey rc.37 camera-wall stream budget
+    home_personal: dict[str, Any] | None = Field(default=None, alias="home.personal")  # home redesign: needs screen.personalize (validated by services/home_config.py)
+
+
+PERSONALIZE = "screen.personalize"
+
+
+def may_personalize(conn: sqlite3.Connection, principal: Principal) -> bool:
+    """The caller holds `screen.personalize` at some scope (a cosmetic permission: the owner grants it per person)."""
+    return PERSONALIZE in permissions_anywhere(conn, principal)
+
+
+def _mask_personal(prefs: dict[str, Any], allowed: bool) -> dict[str, Any]:
+    """`home.personal` exists only for a holder of screen.personalize: a stored value of a user who lost the permission is
+    neither returned nor counted as stored (it stays in the table and comes back if the permission is granted again)."""
+    if allowed:
+        return prefs
+    key = user_prefs.PERSONAL_HOME_KEY
+    return {**prefs, "prefs": {**prefs["prefs"], key: None}, "stored": [k for k in prefs["stored"] if k != key]}
 
 
 @router.get("/me/prefs")
 def get_my_prefs(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The caller's own interface preferences - every known key with its value or default (`stored` names the keys the
     user set). Another user's preferences are never readable."""
-    return user_prefs.get_prefs(conn, principal.user_id)
+    return _mask_personal(user_prefs.get_prefs(conn, principal.user_id), may_personalize(conn, principal))
 
 
 @router.put("/me/prefs")
@@ -93,8 +111,15 @@ def put_my_prefs(body: PrefsPatch, principal: Principal = Depends(current_princi
     """Set or reset (null) the caller's own preferences; `nav.order` keeps the known tab ids in the given order, drops
     unknown ids and appends the missing ones in the default order. Presentation only: no permission changes."""
     patch = {user_prefs_key(name): value for name, value in body.model_dump(by_alias=False).items() if name in body.model_fields_set}
+    allowed = may_personalize(conn, principal)
+    if patch.get(user_prefs.PERSONAL_HOME_KEY) is not None and not allowed:
+        # home redesign: the personal home screen is for holders of screen.personalize only (clearing it is always allowed)
+        from ..audit import audit
+
+        audit(conn, actor=principal, action=PERSONALIZE, decision="denied", resource_type=INSTALLATION[0], resource_id=INSTALLATION[1], reason="permission_missing")
+        raise forbidden(permission=PERSONALIZE)
     try:
-        return user_prefs.set_prefs(conn, principal.user_id, patch)
+        return _mask_personal(user_prefs.set_prefs(conn, principal.user_id, patch), allowed)
     except ValueError as exc:
         raise validation("ההעדפה שנשלחה אינה תקינה.", reason=str(exc)) from exc
 

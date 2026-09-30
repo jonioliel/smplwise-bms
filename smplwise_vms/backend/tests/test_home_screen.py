@@ -1,37 +1,50 @@
-"""The home screen's own settings (owner notes 2026-09-30): the editable title, the floor order, and the optional
-header widgets (clock, weather, Jewish-calendar times) - validation, defaults (all off), who may change them, what the
-tree carries, and that the widgets read only the mirrored catalogue."""
+"""The home screen's own settings (owner notes 2026-09-30, and the home redesign of the same day): the editable title, the
+floor order, the direction (a / b / c) and the widget configuration - clock, weather, Shabbat, the alarm card, the quick
+actions - validation, defaults (with the catalogue's suggestions), who may change them, what the tree carries, and that the
+widgets read only the mirrored catalogue."""
 from __future__ import annotations
 
+import copy
 import json
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from conftest import as_user, bind
 from fastapi.testclient import TestClient
 
 from smplwise.services import devices as svc
-from smplwise.services import ha_client, ha_sync, home_screen
+from smplwise.services import ha_client, ha_sync, home_config, home_screen
 
 NOW = "2026-09-30T10:00:00+00:00"
+ROOT = Path(__file__).resolve().parents[3]
 
 
 def _st(eid: str, state: str, **attrs) -> dict:
     return {"entity_id": eid, "state": state, "attributes": attrs, "last_changed": NOW, "last_updated": NOW}
 
 
+FORECAST = [
+    {"datetime": "2026-09-30T14:00:00+03:00", "condition": "sunny", "temperature": 29},
+    {"datetime": "2026-09-30T15:00:00+03:00", "condition": "cloudy", "temperature": 28, "extra": "dropped"},
+]
 STATES = [
     _st("light.a", "on", friendly_name="A"),
     _st("light.b", "off", friendly_name="B"),
     _st("light.c", "off", friendly_name="C"),
     _st("weather.home", "partlycloudy", friendly_name="Home", temperature=27.5, humidity=61, temperature_unit="°C", wind_speed=14, wind_speed_unit="km/h",
-        forecast=[{"datetime": "2026-09-30T14:00:00+03:00", "condition": "sunny", "temperature": 29}, {"datetime": "2026-09-30T15:00:00+03:00", "condition": "cloudy", "temperature": 28, "extra": "dropped"}]),
+        wind_bearing=270, pressure=1012.3, pressure_unit="hPa", uv_index=6, visibility=10, visibility_unit="km", forecast=FORECAST),
+    _st("weather.bare", "sunny", friendly_name="Bare", temperature=20),
     _st("sensor.jewish_calendar_date", "כ״ט באלול ה׳תשפ״ו", friendly_name="Hebrew date"),
     _st("weather.gone", "unavailable", friendly_name="Gone"),
-    _st("sensor.jewish_calendar_parshat_hashavua", "Vayechi", friendly_name="Parsha"),
+    _st("sensor.jewish_calendar_weekly_portion", "Vayechi", friendly_name="Parsha"),
     _st("sensor.jewish_calendar_upcoming_candle_lighting", "2026-10-02T17:32:00+03:00", friendly_name="Candles", device_class="timestamp"),
     _st("sensor.jewish_calendar_upcoming_havdalah", "2026-10-03T18:30:00+03:00", friendly_name="Havdalah", device_class="timestamp"),
+    _st("sensor.jewish_calendar_holiday", "Rosh Hashana", friendly_name="Holiday"),
+    _st("binary_sensor.jewish_calendar_issur_melacha_in_effect", "off", friendly_name="Issur melacha"),
     _st("sensor.kitchen_temp", "22", friendly_name="Kitchen", unit_of_measurement="°C", device_class="temperature"),
+    _st("alarm_control_panel.house", "armed_away", friendly_name="House"),
+    _st("alarm_control_panel.annex", "disarmed", friendly_name="Annex"),
 ]
 FLOORS = [
     {"floor_id": "f0", "name": "קרקע", "level": 0, "icon": None},
@@ -54,11 +67,15 @@ REGISTRY = [
     _reg("light.b", "a1"),
     _reg("light.c", "am1"),
     _reg("weather.home", None),
-    _reg("sensor.jewish_calendar_parshat_hashavua", None, "jewish_calendar"),
+    _reg("sensor.jewish_calendar_weekly_portion", None, "jewish_calendar"),
     _reg("sensor.jewish_calendar_upcoming_candle_lighting", None, "jewish_calendar"),
     _reg("sensor.jewish_calendar_upcoming_havdalah", None, "jewish_calendar"),
+    _reg("sensor.jewish_calendar_holiday", None, "jewish_calendar"),
+    _reg("binary_sensor.jewish_calendar_issur_melacha_in_effect", None, "jewish_calendar"),
     _reg("sensor.kitchen_temp", "a0"),
     _reg("sensor.jewish_calendar_date", None, "jewish_calendar"),
+    _reg("alarm_control_panel.house", "a0"),
+    _reg("alarm_control_panel.annex", "a1"),
 ]
 
 
@@ -81,17 +98,36 @@ def _patch(c: TestClient, body: dict, **kw):
     return c.patch("/api/v1/settings", json=body, **kw)
 
 
-def test_defaults_are_all_off_and_the_tree_carries_no_widgets(app_c):
+def _home(c: TestClient, **kw) -> dict:
+    return c.get("/api/v1/devices/tree", **kw).json()["home"]
+
+
+def _cfg(c: TestClient) -> dict:
+    return c.get("/api/v1/settings").json()["settings"]["home.widgets"]
+
+
+# ------------------------------------------------------------------------------------------------ defaults
+
+
+def test_defaults_are_the_control_centre_with_every_widget_on_and_the_catalogues_suggestions(app_c):
     app, _ = app_c
     with TestClient(app) as c:
         st = c.get("/api/v1/settings").json()["settings"]
-        assert st["home.title"] == "" and st["home.floor_order"] == "[]" and st["home.clock"] == "off"
-        assert st["home.weather"] == "false" and st["home.jewish"] == "false"
-        assert st["home.weather_entity"] == "" and st["home.jewish_parsha"] == ""
-        t = c.get("/api/v1/devices/tree").json()
-        assert t["home"] == {"clock": "off", "clock_seconds": False, "time_zone": "Asia/Jerusalem", "sizes": {"clock": "medium", "weather": "medium", "jewish": "medium"}, "weather": None, "jewish": None}
+        assert st["home.title"] == "" and st["home.floor_order"] == "[]"
+        assert st["home.direction"] == "a" and st["home.side"] == "end"  # owner decision: the default direction is the control centre
+        cfg = st["home.widgets"]
+        assert cfg["order"] == ["clock", "weather", "shabbat", "alarm", "quick"]
+        assert all(cfg[w]["on"] for w in home_config.WIDGET_IDS)
+        assert cfg["clock"]["sizes"] == {"a": "l", "b": "m", "c": "m"} and cfg["alarm"]["sizes"]["b"] == "s"
+        # suggestions: the first available weather entity and one sensor per Jewish-calendar field, from the catalogue
+        assert cfg["weather"]["entity"] == "weather.bare" and cfg["weather"]["fields"] == ["temperature", "condition", "humidity", "wind", "forecast"]
+        assert cfg["calendar"] == {"date": "sensor.jewish_calendar_date", "parsha": "sensor.jewish_calendar_weekly_portion", "candles": "sensor.jewish_calendar_upcoming_candle_lighting",
+                                   "havdalah": "sensor.jewish_calendar_upcoming_havdalah", "holiday": "sensor.jewish_calendar_holiday", "extras": []}
+        h = _home(c)
+        assert h["direction"] == "a" and h["side"] == "end" and h["personalize"] is True and h["time_zone"] == "Asia/Jerusalem"  # the dev identity is a system administrator
+        assert h["config"] == cfg
         # the level order stays the default one
-        assert [f["floor_id"] for f in t["floors"]] == ["fm1", "f0", "f1"]
+        assert [f["floor_id"] for f in c.get("/api/v1/devices/tree").json()["floors"]] == ["fm1", "f0", "f1"]
 
 
 def test_title_round_trips_is_trimmed_and_audited(app_c):
@@ -109,18 +145,180 @@ def test_title_round_trips_is_trimmed_and_audited(app_c):
         assert {"home.title": "הבית שלנו"} in rows
 
 
-def test_widget_settings_are_validated(app_c):
+def test_direction_and_side_are_validated(app_c):
     app, _ = app_c
     with TestClient(app) as c:
-        assert _patch(c, {"home.clock": "datetime", "home.weather": "true", "home.weather_entity": "weather.home"}).status_code == 200
-        assert _patch(c, {"home.clock": "analog"}).status_code == 422
-        assert _patch(c, {"home.weather": "yes"}).status_code == 422
-        assert _patch(c, {"home.weather_entity": "sensor.kitchen_temp"}).status_code == 422  # a weather widget takes weather.* only
-        assert _patch(c, {"home.weather_entity": "weather.Home"}).status_code == 422
-        assert _patch(c, {"home.jewish_parsha": "weather.home"}).status_code == 422  # the Jewish widget takes sensor.* only
-        assert _patch(c, {"home.jewish_candles": "sensor.a b"}).status_code == 422
-        assert _patch(c, {"home.jewish_havdalah": "sensor.jewish_calendar_upcoming_havdalah"}).status_code == 200
-        assert _patch(c, {"home.weather_entity": ""}).json()["settings"]["home.weather_entity"] == ""
+        for d in ("a", "b", "c"):
+            assert _patch(c, {"home.direction": d}).json()["settings"]["home.direction"] == d
+            assert _home(c)["direction"] == d
+        assert _patch(c, {"home.side": "start"}).json()["settings"]["home.side"] == "start" and _home(c)["side"] == "start"
+        for bad in ({"home.direction": "d"}, {"home.direction": ""}, {"home.direction": "A"}, {"home.side": "left"}, {"home.side": ""}):
+            assert _patch(c, bad).status_code == 422, bad
+
+
+# ------------------------------------------------------------------------------------------------ the widget configuration
+
+
+def test_widget_configuration_round_trips_in_canonical_form_and_partial_input_takes_the_defaults(app_c):
+    app, _ = app_c
+    with TestClient(app) as c:
+        r = _patch(c, {"home.widgets": {"order": ["quick", "clock"], "clock": {"mode": "time", "seconds": True, "label": " שעה "}, "weather": {"on": False, "fields": ["humidity", "temperature"], "forecast": "3", "sources": {"temperature": "sensor.kitchen_temp"}}}})
+        assert r.status_code == 200, r.text
+        cfg = r.json()["settings"]["home.widgets"]
+        assert cfg["order"] == ["quick", "clock", "weather", "shabbat", "alarm"]  # what is missing is appended in the default order
+        assert cfg["clock"] == {"on": True, "sizes": {"a": "l", "b": "m", "c": "m"}, "label": "שעה", "mode": "time", "seconds": True, "hebrew": True}
+        assert cfg["weather"]["on"] is False and cfg["weather"]["fields"] == ["humidity", "temperature"] and cfg["weather"]["forecast"] == "3"
+        assert cfg["weather"]["sources"] == {"temperature": "sensor.kitchen_temp"}
+        # saved: the catalogue's suggestions no longer fill an empty entity (the owner's explicit choice stands, even "none")
+        assert cfg["weather"]["entity"] == "" and cfg["calendar"]["parsha"] == ""
+        assert _cfg(c) == cfg
+        # an empty object puts it back to "never saved" (the default with suggestions)
+        back = _patch(c, {"home.widgets": {}}).json()["settings"]["home.widgets"]
+        assert back["order"] == list(home_config.WIDGET_IDS) and back["weather"]["entity"] == "weather.bare"
+
+
+def test_widget_configuration_is_refused_when_wrong(app_c):
+    app, _ = app_c
+    with TestClient(app) as c:
+        base = _cfg(c)
+        bads = [
+            {"order": ["clock", "nope"]},
+            {"order": "clock"},
+            {"clock": {"mode": "analog"}},
+            {"clock": {"seconds": "yes"}},
+            {"clock": {"sizes": {"a": "huge"}}},
+            {"clock": {"sizes": {"z": "m"}}},
+            {"clock": {"label": "x" * 31}},
+            {"clock": {"label": "a\nb"}},
+            {"clock": {"unknown": 1}},
+            {"nope": {}},
+            {"weather": {"entity": "sensor.kitchen_temp"}},
+            {"weather": {"entity": "weather.Home"}},
+            {"weather": {"fields": ["temperature", "sunshine"]}},
+            {"weather": {"forecast": "7"}},
+            {"weather": {"sources": {"condition": "sensor.kitchen_temp"}}},
+            {"weather": {"sources": {"temperature": "weather.home"}}},
+            {"alarm": {"entity": "light.a"}},
+            {"quick": {"actions": ["unlock_all"]}},
+            {"calendar": {"parsha": "weather.home"}},
+            {"calendar": {"candles": "sensor.a b"}},
+            {"calendar": {"extras": [{"entity_id": "light.a"}]}},
+            {"calendar": {"extras": [{"entity_id": "sensor.kitchen_temp"}, {"entity_id": "sensor.kitchen_temp"}]}},
+            {"calendar": {"extras": [{"entity_id": f"sensor.x{i}"} for i in range(5)]}},
+            {"calendar": {"extras": [{"entity_id": "sensor.kitchen_temp", "label": "x" * 31}]}},
+            {"calendar": {"colour": "red"}},
+        ]
+        for bad in bads:
+            assert _patch(c, {"home.widgets": bad}).status_code == 422, bad
+        assert _cfg(c) == base  # a refused value stored nothing
+        assert _patch(c, {"home.widgets": {"calendar": {"extras": [{"entity_id": "binary_sensor.jewish_calendar_issur_melacha_in_effect", "label": "איסור מלאכה"}], "holiday": "sensor.jewish_calendar_holiday"}, "alarm": {"entity": "alarm_control_panel.house"}}}).status_code == 200
+
+
+def test_per_field_jewish_calendar_sensors_reach_the_tree_with_their_states(app_c):
+    app, _ = app_c
+    with TestClient(app) as c:
+        _patch(c, {"home.widgets": {"calendar": {"parsha": "sensor.jewish_calendar_weekly_portion", "candles": "sensor.jewish_calendar_upcoming_candle_lighting", "holiday": "sensor.jewish_calendar_holiday",
+                                              "extras": [{"entity_id": "binary_sensor.jewish_calendar_issur_melacha_in_effect", "label": "איסור מלאכה"}]}}})
+        d = _home(c)["data"]["sensors"]
+        assert set(d) == {"sensor.jewish_calendar_weekly_portion", "sensor.jewish_calendar_upcoming_candle_lighting", "sensor.jewish_calendar_holiday", "binary_sensor.jewish_calendar_issur_melacha_in_effect"}
+        assert d["sensor.jewish_calendar_weekly_portion"]["state"] == "Vayechi" and d["sensor.jewish_calendar_upcoming_candle_lighting"]["device_class"] == "timestamp"
+        assert d["binary_sensor.jewish_calendar_issur_melacha_in_effect"]["state"] == "off"
+        # a sensor that is not mirrored (or was removed) is simply absent - the widget then takes no room for that field
+        _patch(c, {"home.widgets": {"calendar": {"parsha": "sensor.jewish_calendar_nowhere"}}})
+        assert _home(c)["data"]["sensors"] == {}
+
+
+def test_weather_offers_exactly_what_the_entity_reports(app_c):
+    app, _ = app_c
+    with TestClient(app) as c:
+        _patch(c, {"home.widgets": {"weather": {"entity": "weather.home"}}})
+        w = _home(c)["data"]["weather"]
+        assert w["entity_id"] == "weather.home" and w["condition"] == "partlycloudy" and w["available"] is True
+        assert w["values"] == {
+            "temperature": {"v": 27.5, "unit": "°C"},
+            "humidity": {"v": 61.0, "unit": "%"},
+            "wind": {"v": 14.0, "unit": "km/h", "bearing": 270.0},
+            "pressure": {"v": 1012.3, "unit": "hPa"},
+            "visibility": {"v": 10.0, "unit": "km"},
+            "uv": {"v": 6.0, "unit": ""},
+        }
+        assert w["offers"] == ["condition", "temperature", "humidity", "wind", "pressure", "visibility", "uv", "forecast"]
+        assert w["forecast_len"] == 2 and w["forecast"] == [
+            {"datetime": "2026-09-30T14:00:00+03:00", "condition": "sunny", "temperature": 29.0},
+            {"datetime": "2026-09-30T15:00:00+03:00", "condition": "cloudy", "temperature": 28.0},
+        ]
+        # an entity that reports little offers little: no humidity, wind, pressure ... and no forecast
+        _patch(c, {"home.widgets": {"weather": {"entity": "weather.bare"}}})
+        w = _home(c)["data"]["weather"]
+        assert w["offers"] == ["condition", "temperature"] and w["forecast_len"] == 0 and set(w["values"]) == {"temperature"}
+        # unavailable: still reported (the editor explains it), with no condition; a missing entity is absent
+        _patch(c, {"home.widgets": {"weather": {"entity": "weather.gone"}}})
+        w = _home(c)["data"]["weather"]
+        assert w["available"] is False and w["condition"] is None and w["offers"] == ["condition"]
+        _patch(c, {"home.widgets": {"weather": {"entity": "weather.nowhere"}}})
+        assert _home(c)["data"]["weather"] is None
+
+
+def test_the_forecast_is_trimmed_and_malformed_entries_are_dropped():
+    raw = [{"datetime": "2026-09-30T14:00:00+03:00", "condition": "sunny", "temperature": 29, "templow": 19, "precipitation_probability": 40}, "x", {"condition": "sunny"}] + [
+        {"datetime": f"2026-09-30T{h:02d}:00:00", "condition": "rainy", "temperature": "n/a"} for h in range(15, 24)
+    ] * 3
+    f = home_screen._forecast(raw)
+    assert len(f) == home_screen.FORECAST_MAX and f[0]["temperature"] == 29.0 and f[0]["templow"] == 19.0 and f[0]["precipitation_probability"] == 40.0 and f[1]["temperature"] is None
+    assert home_screen._forecast(None) == [] and home_screen._forecast("nope") == []
+
+
+def test_the_sync_keeps_the_weather_attributes_the_widget_offers_and_a_long_forecast_stays_valid_json():
+    for k in ("temperature", "temperature_unit", "humidity", "wind_speed", "pressure", "pressure_unit", "visibility", "uv_index", "wind_bearing", "precipitation", "forecast"):
+        assert k in ha_sync.ATTR_ALLOW, k
+    hourly = [{"datetime": f"2026-09-30T{h % 24:02d}:00:00+03:00", "condition": "partlycloudy", "temperature": 20 + h % 5, "templow": 10.5, "precipitation_probability": 30, "wind_speed": 12.3, "extra": "x" * 40} for h in range(48)]
+    kept = json.loads(ha_sync.trim_attributes({"temperature": 20, "forecast": hourly, "pressure": 1000}))  # used to be cut mid-JSON past 4000 characters
+    assert kept["pressure"] == 1000 and len(kept["forecast"]) == ha_sync.FORECAST_KEEP and set(kept["forecast"][0]) <= set(ha_sync.FORECAST_FIELDS)
+
+
+def test_legacy_keys_of_an_installation_that_used_them_become_its_configuration(app_c):
+    """0.1.146 stored the widgets as home.clock / home.weather / home.jewish ...: an installation that switched any on keeps
+    what it had (sizes chip / medium / large -> s / m / l for every direction), until an administrator saves the new config."""
+    app, _ = app_c
+    with TestClient(app) as c:
+        assert _patch(c, {"home.clock": "time", "home.clock_size": "large", "home.clock_seconds": "true", "home.weather": "true", "home.weather_entity": "weather.home", "home.weather_size": "chip",
+                          "home.jewish": "false", "home.jewish_parsha": "sensor.jewish_calendar_weekly_portion"}).status_code == 200
+        cfg = _cfg(c)
+        assert cfg["clock"]["on"] is True and cfg["clock"]["mode"] == "time" and cfg["clock"]["seconds"] is True and cfg["clock"]["sizes"] == {"a": "l", "b": "l", "c": "l"}
+        assert cfg["weather"]["on"] is True and cfg["weather"]["entity"] == "weather.home" and cfg["weather"]["sizes"] == {"a": "s", "b": "s", "c": "s"}
+        assert cfg["shabbat"]["on"] is False and cfg["calendar"]["parsha"] == "sensor.jewish_calendar_weekly_portion" and cfg["calendar"]["candles"] == ""
+        assert cfg["alarm"]["on"] is True and cfg["quick"]["on"] is True  # the new widgets start on
+        # the new setting, once saved, wins over the legacy keys
+        _patch(c, {"home.widgets": {"clock": {"on": False}}})
+        assert _cfg(c)["clock"]["on"] is False and _cfg(c)["weather"]["entity"] == ""
+    # the pure conversion: nothing switched on = no legacy config
+    assert home_config.from_legacy(lambda k, d: d) is None
+
+
+def test_the_alarm_card_shows_only_a_panel_the_caller_may_see(app_c):
+    app, s = app_c
+    with TestClient(app) as c:
+        a = _home(c)["data"]["alarm"]
+        assert a["entity_id"] == "alarm_control_panel.house" and a["state"] == "armed_away" and a["since"] == NOW  # the most urgent of the two panels
+        _patch(c, {"home.widgets": {"alarm": {"entity": "alarm_control_panel.annex"}}})
+        assert _home(c)["data"]["alarm"]["entity_id"] == "alarm_control_panel.annex"
+        _patch(c, {"home.widgets": {"alarm": {"entity": "alarm_control_panel.nowhere"}}})
+        assert _home(c)["data"]["alarm"] is None
+        # no panel at all: nothing (the client draws no card)
+        with app.state.db.connection() as conn:
+            conn.execute("UPDATE ha_entities SET removed_at = '2026-09-30T00:00:00+00:00' WHERE domain = 'alarm_control_panel'")
+        _patch(c, {"home.widgets": {}})
+        assert _home(c)["data"]["alarm"] is None
+
+
+def test_the_alarm_ranking_prefers_the_urgent_state():
+    cfg = home_config.default_config()
+    rows = [{"entity_id": "alarm_control_panel.a", "domain": "alarm_control_panel", "state": "disarmed", "available": 1}, {"entity_id": "alarm_control_panel.b", "domain": "alarm_control_panel", "state": "triggered", "available": 1}, {"entity_id": "light.x", "domain": "light"}]
+    assert home_screen.alarm_data(cfg, rows)["entity_id"] == "alarm_control_panel.b"
+    assert home_screen.alarm_data(cfg, [rows[2]]) is None and home_screen.alarm_data(cfg, None) is None
+
+
+# ------------------------------------------------------------------------------------------------ floor order (unchanged)
 
 
 def test_floor_order_validation_and_normalisation(app_c):
@@ -158,83 +356,150 @@ def test_order_floors_is_stable_and_pure():
     assert home_screen.parse_floor_order("garbage") == [] and home_screen.parse_floor_order(None) == []
 
 
-def test_weather_widget_reads_the_mirrored_entity_only_when_switched_on(app_c):
+def test_clock_zone_reaches_the_tree(app_c):
     app, _ = app_c
     with TestClient(app) as c:
-        _patch(c, {"home.weather_entity": "weather.home"})
-        assert c.get("/api/v1/devices/tree").json()["home"]["weather"] is None  # configured but off
-        _patch(c, {"home.weather": "true"})
-        w = c.get("/api/v1/devices/tree").json()["home"]["weather"]
-        assert w == {"entity_id": "weather.home", "condition": "partlycloudy", "temperature": 27.5, "unit": "°C", "humidity": 61.0, "wind_speed": 14.0, "wind_unit": "km/h", "forecast": [
-            {"datetime": "2026-09-30T14:00:00+03:00", "condition": "sunny", "temperature": 29.0},
-            {"datetime": "2026-09-30T15:00:00+03:00", "condition": "cloudy", "temperature": 28.0},
-        ]}
-        # unavailable / missing entity: the widget is simply absent
-        _patch(c, {"home.weather_entity": "weather.gone"})
-        assert c.get("/api/v1/devices/tree").json()["home"]["weather"] is None
-        _patch(c, {"home.weather_entity": "weather.nowhere"})
-        assert c.get("/api/v1/devices/tree").json()["home"]["weather"] is None
+        _patch(c, {"time.zone": "Europe/London"})
+        assert _home(c)["time_zone"] == "Europe/London"
 
 
-def test_jewish_widget_shows_only_the_configured_available_parts(app_c):
-    app, _ = app_c
-    with TestClient(app) as c:
-        _patch(c, {"home.jewish_parsha": "sensor.jewish_calendar_parshat_hashavua", "home.jewish_candles": "sensor.jewish_calendar_upcoming_candle_lighting", "home.jewish_havdalah": "sensor.jewish_calendar_upcoming_havdalah"})
-        assert c.get("/api/v1/devices/tree").json()["home"]["jewish"] is None  # off
-        _patch(c, {"home.jewish": "true"})
-        j = c.get("/api/v1/devices/tree").json()["home"]["jewish"]
-        assert j["parsha"]["state"] == "Vayechi" and j["candles"]["device_class"] == "timestamp" and j["havdalah"]["state"].startswith("2026-10-03")
-        _patch(c, {"home.jewish_candles": "", "home.jewish_havdalah": ""})
-        assert set(c.get("/api/v1/devices/tree").json()["home"]["jewish"]) == {"parsha"}
-        _patch(c, {"home.jewish_parsha": ""})
-        assert c.get("/api/v1/devices/tree").json()["home"]["jewish"] is None
+# ------------------------------------------------------------------------------------------------ candidates and who may edit
 
 
-def test_clock_mode_and_zone_reach_the_tree(app_c):
-    app, _ = app_c
-    with TestClient(app) as c:
-        _patch(c, {"home.clock": "time", "time.zone": "Europe/London"})
-        assert c.get("/api/v1/devices/tree").json()["home"] == {"clock": "time", "clock_seconds": False, "time_zone": "Europe/London", "sizes": {"clock": "medium", "weather": "medium", "jewish": "medium"}, "weather": None, "jewish": None}
-
-
-def test_widget_sizes_seconds_and_the_hebrew_date_sensor(app_c):
-    app_c_app, _ = app_c
-    with TestClient(app_c_app) as c:
-        assert _patch(c, {"home.clock": "time", "home.clock_size": "large", "home.clock_seconds": "true", "home.weather_size": "chip", "home.jewish_size": "medium"}).status_code == 200
-        h = c.get("/api/v1/devices/tree").json()["home"]
-        assert h["sizes"] == {"clock": "large", "weather": "chip", "jewish": "medium"} and h["clock_seconds"] is True
-        for bad in ({"home.clock_size": "huge"}, {"home.weather_size": ""}, {"home.clock_seconds": "yes"}, {"home.jewish_date": "weather.home"}, {"home.jewish_date": "sensor.A"}):
-            assert _patch(c, bad).status_code == 422, bad
-        _patch(c, {"home.jewish": "true", "home.jewish_date": "sensor.jewish_calendar_date"})
-        assert c.get("/api/v1/devices/tree").json()["home"]["jewish"]["date"]["state"] == "כ״ט באלול ה׳תשפ״ו"
-
-
-def test_the_forecast_is_trimmed_and_malformed_entries_are_dropped():
-    raw = [{"datetime": "2026-09-30T14:00:00+03:00", "condition": "sunny", "temperature": 29}, "x", {"condition": "sunny"}] + [{"datetime": f"2026-09-30T{h:02d}:00:00", "condition": "rainy", "temperature": "n/a"} for h in range(15, 24)]
-    f = home_screen._forecast(raw)
-    assert len(f) == home_screen.FORECAST_MAX and f[0]["temperature"] == 29.0 and f[1]["temperature"] is None
-    assert home_screen._forecast(None) == [] and home_screen._forecast("nope") == []
-
-
-def test_candidates_list_weather_and_sensors_with_the_jewish_calendar_first_and_need_system_configure(app_c, settings):
+def test_candidates_list_what_each_widget_can_be_pointed_at_and_need_system_configure(app_c, settings):
     app, s = app_c
     with TestClient(app) as c:
         cand = c.get("/api/v1/devices/home-candidates").json()
-        assert {w["entity_id"] for w in cand["weather"]} == {"weather.home", "weather.gone"}
+        assert {w["entity_id"] for w in cand["weather"]} == {"weather.home", "weather.bare", "weather.gone"}
+        home = next(w for w in cand["weather"] if w["entity_id"] == "weather.home")
+        assert home["offers"][0] == "condition" and "forecast" in home["offers"] and home["forecast_len"] == 2 and home["values"]["temperature"] == {"v": 27.5, "unit": "°C"}
+        assert next(w for w in cand["weather"] if w["entity_id"] == "weather.bare")["offers"] == ["condition", "temperature"]
+        assert [a["entity_id"] for a in cand["alarms"]] == ["alarm_control_panel.annex", "alarm_control_panel.house"]
         ids = [x["entity_id"] for x in cand["sensors"]]
-        assert ids[:3] and all(i.startswith("sensor.jewish_calendar_") for i in ids[:3]) and "sensor.kitchen_temp" in ids[3:]
-        assert all(x["suggested"] for x in cand["sensors"][:3]) and not cand["sensors"][-1]["suggested"]
+        assert all(i.split(".")[1].startswith("jewish_calendar_") for i in ids[:6]) and "sensor.kitchen_temp" in ids[6:]
+        assert all(x["suggested"] for x in cand["sensors"][:6]) and not cand["sensors"][-1]["suggested"]
+        assert "binary_sensor.jewish_calendar_issur_melacha_in_effect" in ids  # for the extra fields
+        assert cand["suggested_calendar"]["parsha"] == "sensor.jewish_calendar_weekly_portion" and cand["suggested_calendar"]["holiday"] == "sensor.jewish_calendar_holiday"
         bind(c, s, "ron", "viewer", "installation", "*")
         assert c.get("/api/v1/devices/home-candidates", headers=as_user("ron")).status_code == 403
         # a viewer reads the settings and the tree (with the widgets) but cannot change any home.* key
         assert c.get("/api/v1/settings", headers=as_user("ron")).json()["settings"]["home.title"] == ""
-        assert _patch(c, {"home.title": "x"}, headers=as_user("ron")).status_code == 403
-        assert _patch(c, {"home.floor_order": '["f0"]'}, headers=as_user("ron")).status_code == 403
-        assert "home" in c.get("/api/v1/devices/tree", headers=as_user("ron")).json()
+        for body in ({"home.title": "x"}, {"home.floor_order": '["f0"]'}, {"home.direction": "b"}, {"home.side": "start"}, {"home.widgets": {"clock": {"on": False}}}):
+            assert _patch(c, body, headers=as_user("ron")).status_code == 403, body
+        h = c.get("/api/v1/devices/tree", headers=as_user("ron")).json()["home"]
+        assert h["personalize"] is False and h["direction"] == "a"
 
 
-def test_the_weather_unit_attribute_is_kept_by_the_sync_allow_list():
-    assert "temperature_unit" in ha_sync.ATTR_ALLOW and "temperature" in ha_sync.ATTR_ALLOW and "humidity" in ha_sync.ATTR_ALLOW
+def test_suggest_calendar_matches_the_integrations_ids_and_is_deterministic():
+    ids = ["sensor.jewish_calendar_upcoming_shabbat_candle_lighting", "sensor.jewish_calendar_upcoming_candle_lighting", "sensor.jewish_calendar_upcoming_shabbat_havdalah", "sensor.jewish_calendar_weekly_portion",
+           "sensor.jewish_calendar_date", "sensor.jewish_calendar_holiday", "sensor.jewish_calendar_day_of_the_omer"]
+    s = home_config.suggest_calendar(ids)
+    assert s == {"date": "sensor.jewish_calendar_date", "parsha": "sensor.jewish_calendar_weekly_portion", "candles": "sensor.jewish_calendar_upcoming_shabbat_candle_lighting",
+                 "havdalah": "sensor.jewish_calendar_upcoming_shabbat_havdalah", "holiday": "sensor.jewish_calendar_holiday"}
+    assert home_config.suggest_calendar(list(reversed(ids))) == s
+    assert home_config.suggest_calendar(["sensor.kitchen_temp"]) == {f: "" for f in home_config.CALENDAR_FIELDS}
+
+
+# ------------------------------------------------------------------------------------------------ the personal override
+
+
+PERSONAL = {"direction": "c", "order": ["quick", "clock"], "widgets": {"clock": {"size": "s"}, "weather": {"on": False}}}
+
+
+def _custom_role(c: TestClient, name: str, permissions: list[str]) -> str:
+    r = c.post("/api/v1/access/roles", json={"name": name, "permissions": permissions, "sensitive": []})
+    assert r.status_code < 300, r.text
+    return r.json()["id"]
+
+
+def test_the_permission_is_registered_granted_to_system_admin_only_and_not_sensitive():
+    from smplwise.rbac import ROLES
+    from smplwise.routers.access import PERMISSION_LABELS, SENSITIVE
+
+    assert PERMISSION_LABELS["screen.personalize"] == "התאמה אישית של המסך שלי"
+    assert [r for r, perms in ROLES.items() if "screen.personalize" in perms] == ["system_admin"]
+    assert "screen.personalize" not in SENSITIVE  # a cosmetic permission a custom role may simply list
+    contract = json.loads((ROOT / "contracts" / "examples" / "role-catalog.design.json").read_text(encoding="utf-8"))
+    assert [r["id"] for r in contract["roles"] if "screen.personalize" in r["permissions"]] == ["system_admin"]
+    assert "screen.personalize" not in contract["sensitive_permissions_not_implied"]
+
+
+def test_normalise_personal_keeps_only_what_it_says_and_refuses_the_rest():
+    assert home_config.normalise_personal({}) == {"direction": None, "order": None, "widgets": {}}
+    p = home_config.normalise_personal({"direction": "b", "order": ["alarm"], "widgets": {"clock": {"on": None, "size": "l"}, "weather": {}}})
+    assert p == {"direction": "b", "order": ["alarm", "clock", "weather", "shabbat", "quick"], "widgets": {"clock": {"size": "l"}}}
+    for bad in ({"direction": "z"}, {"order": ["nope"]}, {"order": "clock"}, {"widgets": {"nope": {}}}, {"widgets": {"clock": {"size": "xl"}}}, {"widgets": {"clock": {"on": "yes"}}},
+                {"widgets": {"clock": {"label": "x"}}}, {"extra": 1}, [], "a"):
+        with pytest.raises(ValueError):
+            home_config.normalise_personal(bad)
+
+
+def test_apply_personal_lays_the_users_choices_over_the_installation_and_never_touches_entities():
+    cfg = home_config.default_config()
+    cfg["weather"]["entity"] = "weather.home"
+    out, d = home_config.apply_personal(cfg, "a", home_config.normalise_personal(PERSONAL))
+    assert d == "c" and out["order"] == ["quick", "clock", "weather", "shabbat", "alarm"]
+    assert out["clock"]["sizes"] == {"a": "l", "b": "m", "c": "s"}  # the size lands on the direction that is shown
+    assert out["weather"]["on"] is False and out["weather"]["entity"] == "weather.home"
+    assert cfg["clock"]["sizes"]["c"] == "m" and cfg["weather"]["on"] is True  # the input is not modified
+    assert home_config.apply_personal(cfg, "b", None) == (cfg, "b") and home_config.apply_personal(cfg, "b", {"direction": None, "order": None, "widgets": {}}) == (cfg, "b")
+
+
+def test_a_user_without_the_permission_cannot_write_and_never_sees_a_personal_value(app_c):
+    app, s = app_c
+    with TestClient(app) as c:
+        bind(c, s, "ron", "viewer", "installation", "*")
+        r = c.put("/api/v1/me/prefs", headers=as_user("ron"), json={"home.personal": PERSONAL})
+        assert r.status_code == 403 and "screen.personalize" in json.dumps(r.json())
+        got = c.get("/api/v1/me/prefs", headers=as_user("ron")).json()
+        assert got["prefs"]["home.personal"] is None and "home.personal" not in got["stored"]
+        assert _home(c, headers=as_user("ron"))["personalize"] is False
+        # clearing is always allowed (a harmless null)
+        assert c.put("/api/v1/me/prefs", headers=as_user("ron"), json={"home.personal": None}).status_code == 200
+        with app.state.db.connection() as conn:
+            assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'screen.personalize' AND decision = 'denied'").fetchone()[0] == 1
+
+
+def test_a_holder_gets_a_personal_screen_and_losing_the_permission_ignores_the_stored_value(app_c):
+    app, s = app_c
+    with TestClient(app) as c:
+        role = _custom_role(c, "מתאים אישית", ["devices.read", "screen.personalize"])
+        bind(c, s, "dana", role, "installation", "*")
+        hd = {"headers": as_user("dana")}
+        base = _home(c, **hd)
+        assert base["personalize"] is True and base["direction"] == "a"
+        # validated on write: a bad value is a 422 and stores nothing
+        assert c.put("/api/v1/me/prefs", json={"home.personal": {"direction": "x"}}, **hd).status_code == 422
+        r = c.put("/api/v1/me/prefs", json={"home.personal": PERSONAL}, **hd)
+        assert r.status_code == 200, r.text
+        assert r.json()["prefs"]["home.personal"]["direction"] == "c" and "home.personal" in r.json()["stored"]
+        h = _home(c, **hd)
+        assert h["direction"] == "c" and h["config"]["order"][:2] == ["quick", "clock"] and h["config"]["clock"]["sizes"]["c"] == "s" and h["config"]["weather"]["on"] is False
+        # everyone else still sees the installation's screen
+        assert _home(c)["direction"] == "a" and _home(c)["config"]["weather"]["on"] is True
+        # dana loses the permission (her binding is removed): the stored value stays in the table but is ignored on every read
+        with app.state.db.connection() as conn:
+            conn.execute("DELETE FROM bindings WHERE subject_id = 'dev-dana'")
+            conn.execute("UPDATE settings SET value = CAST(value AS INTEGER) + 1 WHERE key = 'permission_revision'")
+        bind(c, s, "dana", "viewer", "installation", "*")
+        h = _home(c, **hd)
+        assert h["personalize"] is False and h["direction"] == "a" and h["config"] == _home(c)["config"]
+        got = c.get("/api/v1/me/prefs", **hd).json()
+        assert got["prefs"]["home.personal"] is None and "home.personal" not in got["stored"]
+        with app.state.db.connection() as conn:
+            assert conn.execute("SELECT COUNT(*) FROM user_prefs WHERE key = 'home.personal'").fetchone()[0] == 1  # kept: it returns with the permission
+
+
+def test_system_admin_holds_it_and_the_personal_value_is_per_user(app_c):
+    app, s = app_c
+    with TestClient(app) as c:  # the dev identity is the bootstrap system administrator
+        assert _home(c)["personalize"] is True
+        assert c.put("/api/v1/me/prefs", json={"home.personal": {"direction": "b"}}).status_code == 200
+        assert _home(c)["direction"] == "b"
+        bind(c, s, "ron", "viewer", "installation", "*")
+        assert _home(c, headers=as_user("ron"))["direction"] == "a"  # another user is untouched
+        assert c.put("/api/v1/me/prefs", json={"home.personal": None}).json()["prefs"]["home.personal"] is None
+        assert _home(c)["direction"] == "a"
 
 
 def test_no_floor_bucket_can_be_ordered_too(app_c):
@@ -246,3 +511,10 @@ def test_no_floor_bucket_can_be_ordered_too(app_c):
         assert [f["floor_id"] for f in c.get("/api/v1/devices/tree").json()["floors"]][-1] == svc.NO_FLOOR
         _patch(c, {"home.floor_order": json.dumps([svc.NO_FLOOR])})
         assert [f["floor_id"] for f in c.get("/api/v1/devices/tree").json()["floors"]][0] == svc.NO_FLOOR
+
+
+def test_normalise_is_idempotent_and_the_stored_json_is_bounded():
+    cfg = home_config.default_config()
+    assert home_config.normalise(cfg) == cfg and home_config.normalise(copy.deepcopy(cfg)) == cfg
+    assert home_config.parse_stored("") is None and home_config.parse_stored("garbage") is None and home_config.parse_stored('{"order": ["x"]}') is None
+    assert home_config.parse_stored(json.dumps(cfg)) == cfg

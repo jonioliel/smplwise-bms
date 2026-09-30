@@ -49,7 +49,7 @@ def test_installation_default_round_trip_validation_and_audit(settings):
     app = create_app(settings)
     with TestClient(app) as c:
         # nothing stored: the built-in preset, read back as an object
-        assert c.get("/api/v1/settings").json()["settings"]["ui.nav_size"] == {"mode": "rel", "preset": "m"}
+        assert c.get("/api/v1/settings").json()["settings"]["ui.nav_size"] == {"mode": "rel", "preset": "l"}
         r = c.patch("/api/v1/settings", json={"ui.nav_size": FREE})
         assert r.status_code == 200, r.text
         assert r.json()["settings"]["ui.nav_size"] == FREE
@@ -68,7 +68,7 @@ def test_installation_default_needs_system_configure(settings):
     c.get("/api/v1/me")
     bind(c, settings, "dana", "viewer", "installation", "*")
     assert c.patch("/api/v1/settings", headers=as_user("dana"), json={"ui.nav_size": REL}).status_code == 403
-    assert c.get("/api/v1/settings").json()["settings"]["ui.nav_size"] == {"mode": "rel", "preset": "m"}
+    assert c.get("/api/v1/settings").json()["settings"]["ui.nav_size"] == {"mode": "rel", "preset": "l"}
 
 
 def test_user_override_is_per_user_validated_and_clearable(settings):
@@ -76,7 +76,7 @@ def test_user_override_is_per_user_validated_and_clearable(settings):
     c.get("/api/v1/me")
     bind(c, settings, "dana", "viewer", "installation", "*")
     body = c.get("/api/v1/me/prefs").json()
-    assert body["prefs"]["ui.nav_size"] == {"mode": "rel", "preset": "m"} and "ui.nav_size" not in body["stored"]
+    assert body["prefs"]["ui.nav_size"] == {"mode": "rel", "preset": "l"} and "ui.nav_size" not in body["stored"]
     r = c.put("/api/v1/me/prefs", json={"ui.nav_size": FREE})
     assert r.status_code == 200 and r.json()["prefs"]["ui.nav_size"] == FREE and "ui.nav_size" in r.json()["stored"]
     # another user is untouched (a viewer may keep their own size: presentation only)
@@ -93,3 +93,18 @@ def test_user_override_is_per_user_validated_and_clearable(settings):
     # null = "ברירת מחדל של המערכת": the key is gone again
     r = c.put("/api/v1/me/prefs", json={"ui.nav_size": None})
     assert r.status_code == 200 and "ui.nav_size" not in r.json()["stored"]
+
+
+def test_the_default_is_the_large_preset_but_an_explicit_choice_stays(settings):
+    """Home redesign (owner 2026-09-30): the installation default is "l" (large); a size somebody saved - the old default
+    "m" included - is a stored value and the new default never overrides it (nothing is forced)."""
+    assert nav_size.DEFAULT == {"mode": "rel", "preset": "l"}
+    app = create_app(settings)
+    with TestClient(app) as c:
+        assert c.get("/api/v1/settings").json()["settings"]["ui.nav_size"] == {"mode": "rel", "preset": "l"}
+        assert c.patch("/api/v1/settings", json={"ui.nav_size": {"mode": "rel", "preset": "m"}}).status_code == 200
+        assert c.get("/api/v1/settings").json()["settings"]["ui.nav_size"] == {"mode": "rel", "preset": "m"}
+        # every preset and the free mode stay selectable
+        for p in nav_size.PRESETS:
+            assert c.patch("/api/v1/settings", json={"ui.nav_size": {"mode": "rel", "preset": p}}).status_code == 200
+        assert c.patch("/api/v1/settings", json={"ui.nav_size": FREE}).status_code == 200

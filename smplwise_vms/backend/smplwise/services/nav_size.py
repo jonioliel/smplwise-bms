@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Any
 
 PRESETS: tuple[str, ...] = ("s", "m", "l", "xl")
-DEFAULT_PRESET = "m"
+DEFAULT_PRESET = "l"  # owner decision 2026-09-30 (home redesign): the large rail is the installation default; "m" is the size the shell had before the setting
 DEFAULT: dict[str, Any] = {"mode": "rel", "preset": DEFAULT_PRESET}
 
 ICON_RANGE = (14, 40)
