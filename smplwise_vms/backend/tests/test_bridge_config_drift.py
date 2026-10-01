@@ -83,6 +83,17 @@ def test_same_canonical_json_fingerprints_and_revisions_on_every_seed_item_and_e
         assert bp.canonical_json(v) == am.canonical_json(v), v
 
 
+def test_the_sensitive_flag_rule_is_the_same_function_on_both_sides():
+    attrs = {"cover.gate": {"device_class": "gate"}, "cover.shutter": {"device_class": "shutter"}, "cover.door": {"device_class": "door"}, "cover.none": {}}
+    cases = [(["alarm_control_panel.alarm_disarm"], []), (["lock.lock"], []), (["siren.turn_on"], []), (["light.turn_on"], ["light.a"]), (["cover.open_cover"], ["cover.gate"]),
+             (["cover.open_cover"], ["cover.shutter"]), (["cover.close_cover"], ["cover.door"]), (["cover.open_cover"], ["cover.none"]), (["cover.open_cover"], ["cover.missing"]),
+             (["switch.turn_on"], ["switch.a"]), ([], []), (["alarm_control_panel.alarm_trigger"], []), (["lock.open"], [])]
+    for services, ents in cases:
+        for lookup in (None, attrs.get):
+            assert bp.sensitive_required(list(services), list(ents), lookup) == pol.sensitive_required(services, ents, lookup), (services, ents)
+    assert bp.SENSITIVE_COVER_CLASSES == pol.SENSITIVE_COVER_CLASSES
+
+
 def test_same_caps():
     for k_bridge, k_addon in (("alias", "alias_max"), ("description", "description_max"), ("triggers", "triggers_max"), ("conditions", "conditions_max"), ("steps", "steps_max"),
                               ("depth", "depth_max"), ("targets", "targets_max"), ("fields", "fields_max"), ("members", "members_max"), ("options", "choose_options_max")):

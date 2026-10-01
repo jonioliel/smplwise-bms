@@ -296,6 +296,18 @@ def test_a_config_that_calls_an_alarm_a_lock_a_siren_or_a_door_cover_must_declar
     assert check(copy.deepcopy(stored), stored=stored, preserved=[fp], sensitive=True).sensitive_services == ["alarm_control_panel.alarm_arm_away"]
 
 
+# ---------------------------------------------------------------- hostile documents
+
+def test_a_hostile_deep_document_is_refused_not_a_recursion_error():
+    deep: object = "x"
+    for _ in range(3000):
+        deep = [deep]
+    for profile in ("builder", "code"):
+        assert code_of(AUTO(variables=deep), profile=profile) == ("invalid_payload", "config")
+    nested_ok = {"a": {"b": {"c": [1, 2, {"d": 3}]}}}
+    assert code_of(AUTO(variables=nested_ok), profile="code") is None
+
+
 # ---------------------------------------------------------------- caps (the builder profile)
 
 def test_caps_triggers_conditions_steps_targets():

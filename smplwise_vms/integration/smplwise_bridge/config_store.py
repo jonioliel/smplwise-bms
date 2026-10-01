@@ -47,13 +47,14 @@ def _dump(data: Any) -> str:
     except ImportError:
         import yaml
 
-        return yaml.dump(data, default_flow_style=False, allow_unicode=True, sort_keys=False, Dumper=yaml.SafeDumper).replace(": null\n", ":\n")
+        dumper = getattr(yaml, "CSafeDumper", yaml.SafeDumper)  # libyaml when it is there, like Home Assistant
+        return yaml.dump(data, default_flow_style=False, allow_unicode=True, sort_keys=False, Dumper=dumper).replace(": null\n", ":\n")
 
 
 def _load_text(text: str) -> Any:
     import yaml
 
-    return yaml.safe_load(text)
+    return yaml.load(text, Loader=getattr(yaml, "CSafeLoader", yaml.SafeLoader))  # nosec - the safe loader (libyaml build when there is one)
 
 
 class ConfigStore:

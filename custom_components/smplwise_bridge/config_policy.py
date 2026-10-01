@@ -902,11 +902,30 @@ def _check_fields(config: Mapping[str, Any], stored: Mapping[str, Any] | None, p
             raise PolicyError("code_not_allowed" if kind == "code" else "secret_not_allowed", p)
 
 
+def _nesting_exceeds(v: Any, limit: int) -> bool:
+    """Whether a JSON value nests deeper than `limit` (iterative: the answer to a hostile document must not be a RecursionError)."""
+    stack: list[tuple[Any, int]] = [(v, 1)]
+    while stack:
+        node, depth = stack.pop()
+        if depth > limit:
+            return True
+        if isinstance(node, dict):
+            stack.extend((x, depth + 1) for x in node.values())
+        elif isinstance(node, list):
+            stack.extend((x, depth + 1) for x in node)
+    return False
+
+
+MAX_NESTING = 48  # deeper than any item a person or the Home Assistant editor writes
+
+
 def validate_config(kind: str, item_id: str, config: Mapping[str, Any], *, profile: str, preserved: frozenset[str], stored: Mapping[str, Any] | None,
                     sensitive: bool, attributes_of: Callable[[str], Mapping[str, Any] | None] | None = None) -> ConfigFacts:
     """Judge the config of an upsert (module docstring). `stored` = the item as it is stored now (None for a create). Raises PolicyError; returns the facts the
     caller needs for the permission check and the sensitive flag (already checked here)."""
     builder = profile == "builder"
+    if _nesting_exceeds(config, MAX_NESTING) or (stored is not None and _nesting_exceeds(stored, MAX_NESTING + 8)):
+        raise _bad("config")
     if len(canonical_json(config).encode("utf-8")) > MAX_CONFIG_BYTES:
         raise _bad("config")
     _check_head(kind, item_id, config, builder)
