@@ -31,6 +31,17 @@ not silently resolved.
 - Home Assistant access is by owner-created Long-Lived Access Tokens and SSH key only. Claude does not log
   in with passwords, create accounts, or change HA users, groups, or admin flags.
 
+## Multi-session coordination
+- Several Claude sessions may work on this project (different accounts, machines, cloud). Session memory does
+  not transfer between them. Read `docs/operations/MULTI_CLAUDE_COORDINATION.md` and
+  `docs/operations/KNOWLEDGE_TRANSFER.md` at the start of every session.
+- Set `COORD_SESSION` to a unique name, then run `py -3.12 scripts/coord.py status`. Read `HANDOFF.md` from the
+  `coord/state` branch (it is checked out under `.git/coord-state`). If the lease is vacant and you hold the most
+  quota, `claim-master`; otherwise `claim-task` one independent side task and work on its own branch.
+- The master heartbeats regularly and, when quota drops below 10%, writes a handoff and releases the lease.
+- Cloud sessions have no `secrets/` or `private-evidence/` and must not take tasks with `requires_hardware: true`.
+- Never put secrets, lab addresses, serials or MAC addresses on `coord/state`.
+
 ## Process
 - `management/tasks.json` and `management/test_catalog.json` are canonical. After editing them run
   `python scripts/project_status.py --write` and commit the regenerated views.
