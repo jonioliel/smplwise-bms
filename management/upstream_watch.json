@@ -1,0 +1,3441 @@
+{
+  "schema_version": 1,
+  "description": "Registry of every external integration, repository, platform and vendor API the SmplWise Arx product depends on or that the owner handed us. Canonical; checked by scripts/upstream_check.py; explained in docs/operations/UPSTREAM_WATCH.md.",
+  "generic_keywords": [
+    "breaking",
+    "removed",
+    "deprecat",
+    "migration",
+    "renamed",
+    "no longer",
+    "incompatible"
+  ],
+  "items": [
+    {
+      "id": "ha-core",
+      "name": "Home Assistant Core",
+      "kind": "platform",
+      "status": "in-use",
+      "priority": "P0",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/home-assistant/core",
+        "releases": "https://github.com/home-assistant/core/releases",
+        "release_notes_feed": "https://www.home-assistant.io/atom.xml",
+        "beta_notes": "https://rc.home-assistant.io/latest-release-notes",
+        "docs": "https://www.home-assistant.io/docs/",
+        "changelog": "https://www.home-assistant.io/blog/categories/release-notes/",
+        "websocket_api": "https://developers.home-assistant.io/docs/api/websocket",
+        "rest_api": "https://developers.home-assistant.io/docs/api/rest",
+        "announcements": "https://www.home-assistant.io/blog/"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "home-assistant/core",
+          "tag_filter": "^\\d{4}\\.\\d+\\.\\d+"
+        },
+        {
+          "type": "ha_release_notes",
+          "url": "https://www.home-assistant.io/atom.xml"
+        },
+        {
+          "type": "ha_beta_notes",
+          "url": "https://rc.home-assistant.io/latest-release-notes"
+        }
+      ],
+      "current": {
+        "version": "2026.9.4",
+        "source": "lab Home Assistant, recorded in services/schedule_policy.py (verified 2026-09-30); the live value is ha_sync.STATE.ha_version / health report",
+        "verify": true
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/ha_client.py",
+        "smplwise_vms/backend/smplwise/services/ha_sync.py",
+        "smplwise_vms/backend/smplwise/services/ha_user_auth.py",
+        "smplwise_vms/backend/smplwise/services/ha_history.py",
+        "smplwise_vms/backend/smplwise/services/ha_actions.py",
+        "smplwise_vms/backend/smplwise/services/ha_bridge.py",
+        "smplwise_vms/backend/smplwise/services/ha_scope.py",
+        "smplwise_vms/backend/smplwise/services/ha_camera_streams.py",
+        "smplwise_vms/backend/smplwise/routers/ha.py",
+        "custom_components/smplwise_bridge/__init__.py",
+        "custom_components/smplwise_bridge/config_flow.py",
+        "custom_components/smplwise_bridge/manifest.json",
+        "hacs.json",
+        "frontend/src/arx/hass-tokens.ts",
+        "frontend/src/arx/auth.ts",
+        "docs/security/HA_IDENTITY_RBAC_HE.md"
+      ],
+      "watch_keywords": [
+        "websocket",
+        "supervisor",
+        "ingress",
+        "long-lived",
+        "refresh token",
+        "auth provider",
+        "entity registry",
+        "area registry",
+        "floor registry",
+        "device registry",
+        "media_player",
+        "alarm_control_panel",
+        "custom integration",
+        "custom component",
+        "lovelace",
+        "custom card",
+        "hacs",
+        "config entry",
+        "rest api",
+        "trusted_proxies",
+        "x-forwarded",
+        "webrtc",
+        "go2rtc",
+        "camera stream",
+        "stream component",
+        "panel_custom",
+        "iframe",
+        "cors",
+        "services.yaml",
+        "service call",
+        "entity_id",
+        "unique id",
+        "hassio",
+        "add-on",
+        "app store",
+        "authentication",
+        "login",
+        "access token",
+        "ip ban",
+        "trusted networks",
+        "reverse proxy",
+        "use_x_forwarded_for",
+        "HassioServiceInfo",
+        "StaticPathConfig",
+        "SupportsResponse",
+        "ServiceValidationError",
+        "POLICY_CONTROL",
+        "async_get_clientsession",
+        "async_register_static_paths",
+        "async_handle_stream_source",
+        "ConfigFlow",
+        "hass.auth"
+      ],
+      "ha_domains": [
+        "hassio",
+        "websocket_api",
+        "http",
+        "auth",
+        "api",
+        "frontend",
+        "lovelace",
+        "camera",
+        "stream",
+        "go2rtc",
+        "media_player",
+        "alarm_control_panel",
+        "schedule",
+        "mqtt",
+        "config",
+        "homeassistant",
+        "history",
+        "recorder",
+        "logbook",
+        "person",
+        "zone",
+        "cover",
+        "climate",
+        "light",
+        "switch",
+        "lock",
+        "fan",
+        "persistent_notification",
+        "notify",
+        "webhook",
+        "cloud",
+        "mobile_app",
+        "discovery",
+        "zeroconf",
+        "ssdp",
+        "ffmpeg",
+        "shopping_list"
+      ],
+      "note": "Monthly releases (first Wednesday-ish) plus weekly patches. We use the WebSocket API (auth, get_states, registries, subscribe_events, auth/current_user, refresh tokens), the REST API (/api/states, /api/services, history), long-lived access tokens, the bridge custom integration (config flow, services, hassio discovery) and entity/area/floor/device registries. The checker parses the 'Backward-incompatible changes' headings of the release notes and the beta notes and matches them against every item's ha_domains.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "ha-supervisor",
+      "name": "Home Assistant Supervisor",
+      "kind": "platform",
+      "status": "in-use",
+      "priority": "P0",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/home-assistant/supervisor",
+        "releases": "https://github.com/home-assistant/supervisor/releases",
+        "docs": "https://developers.home-assistant.io/docs/add-ons/",
+        "api_docs": "https://developers.home-assistant.io/docs/api/supervisor/endpoints",
+        "announcements": "https://developers.home-assistant.io/blog/"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "home-assistant/supervisor"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "not recorded in the repository; read it from the lab with the Supervisor API (/supervisor/info) when approved",
+        "verify": true
+      },
+      "dependents": [
+        "smplwise_vms/config.yaml",
+        "smplwise_vms/build.yaml",
+        "smplwise_vms/Dockerfile",
+        "smplwise_vms/run.sh",
+        "smplwise_vms/backend/smplwise/services/nvr_system.py",
+        "smplwise_vms/backend/smplwise/services/bridge_install.py",
+        "smplwise_vms/backend/smplwise/services/notify_sources.py",
+        "smplwise_vms/backend/smplwise/config.py",
+        "smplwise_vms/backend/smplwise/services/ha_user_auth.py",
+        "scripts/smoke_after_upgrade.py",
+        "docs/operations/HA_INSTALLATION_BOUNDARIES.md"
+      ],
+      "watch_keywords": [
+        "ingress",
+        "hassio_api",
+        "homeassistant_api",
+        "discovery",
+        "addons/self",
+        "build.yaml",
+        "base image",
+        "panel_admin",
+        "app-based",
+        "apps api",
+        "/apps",
+        "v2 api",
+        "api v2",
+        "capabilit",
+        "privilege",
+        "landingpage",
+        "port 80"
+      ],
+      "note": "Add-on runtime: Ingress (ingress, ingress_port, panel_*), hassio_api + homeassistant_api roles, discovery of the bridge, /addons/self/options and /addons/self/restart (settings screen), backup: hot, watchdog, the map: homeassistant_config copy of the bridge. build.yaml is kept only for Supervisors older than 2026.04 (newer ones read the base image from the Dockerfile). HA is moving the name add-ons -> apps (the cloudflared repo is homeassistant-apps/app-cloudflared): watch for config key or API renames.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "ha-addon-spec",
+      "name": "HA add-on / app configuration and Supervisor API announcements",
+      "kind": "platform",
+      "status": "in-use",
+      "priority": "P0",
+      "owner": "Arx platform lead",
+      "urls": {
+        "docs": "https://developers.home-assistant.io/docs/add-ons/configuration",
+        "announcements": "https://developers.home-assistant.io/blog/",
+        "feed": "https://developers.home-assistant.io/blog/atom.xml",
+        "ingress": "https://developers.home-assistant.io/docs/add-ons/presentation/#ingress"
+      },
+      "feeds": [
+        {
+          "type": "atom",
+          "url": "https://developers.home-assistant.io/blog/atom.xml",
+          "title_filter": "add-?on|\\bapps?\\b|supervisor|ingress|hassio|discovery"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "specification, no version; we follow the developer blog posts that mention add-ons/apps/Supervisor/Ingress",
+        "verify": true
+      },
+      "dependents": [
+        "smplwise_vms/config.yaml",
+        "smplwise_vms/build.yaml",
+        "smplwise_vms/Dockerfile",
+        "smplwise_vms/run.sh",
+        "repository.yaml",
+        "docs/architecture/ADR-014-repository-and-deployment.md",
+        "docs/operations/HA_INSTALLATION_BOUNDARIES.md"
+      ],
+      "watch_keywords": [
+        "add-on",
+        "addon",
+        "apps",
+        "config.yaml",
+        "build.yaml",
+        "ingress",
+        "supervisor",
+        "hassio_api",
+        "base image",
+        "rename"
+      ],
+      "note": "The add-on manifest keys we rely on (ingress, ingress_port, panel_icon/title/admin, hassio_api, homeassistant_api, discovery, map, backup, watchdog, options/schema, arch, init: false) and the repository layout (repository.yaml). Developer-blog posts about add-ons, apps, Supervisor, Ingress or hassio are listed here even when they carry no generic breaking keyword.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "ha-dev-blog",
+      "name": "Home Assistant developer blog (platform API changes)",
+      "kind": "platform",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "announcements": "https://developers.home-assistant.io/blog/",
+        "feed": "https://developers.home-assistant.io/blog/atom.xml",
+        "rss": "https://developers.home-assistant.io/blog/rss.xml",
+        "docs": "https://developers.home-assistant.io/docs/"
+      },
+      "feeds": [
+        {
+          "type": "ha_dev_blog",
+          "url": "https://developers.home-assistant.io/blog/atom.xml",
+          "use_generic": false
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "feed, no version",
+        "verify": false,
+        "applicable": false
+      },
+      "dependents": [
+        "custom_components/smplwise_bridge/__init__.py",
+        "custom_components/smplwise_bridge/config_flow.py",
+        "custom_components/smplwise_bridge/manifest.json",
+        "custom_components/smplwise_bridge/services.yaml",
+        "custom_components/smplwise_bridge/strings.json",
+        "smplwise_vms/backend/smplwise/services/ha_client.py",
+        "smplwise_vms/backend/smplwise/services/ha_user_auth.py",
+        "custom_components/smplwise_bridge/www/smplwise-card.js",
+        "hacs.json"
+      ],
+      "watch_keywords": [
+        "websocket",
+        "ingress",
+        "supervisor",
+        "add-on",
+        "hassio",
+        "long-lived",
+        "refresh token",
+        "auth provider",
+        "panel_custom",
+        "iframe",
+        "entity registry",
+        "area registry",
+        "floor registry",
+        "device registry",
+        "lovelace",
+        "custom card",
+        "hacs",
+        "services.yaml",
+        "breaking change",
+        "will be removed",
+        "removed in",
+        "action required",
+        "HassioServiceInfo",
+        "StaticPathConfig",
+        "SupportsResponse",
+        "ServiceResponse",
+        "async_register_static_paths",
+        "register_static_path",
+        "ServiceValidationError",
+        "POLICY_CONTROL",
+        "async_get_clientsession",
+        "async_handle_stream_source",
+        "async_track_time_interval",
+        "ConfigFlow",
+        "async_setup_entry",
+        "hass.auth",
+        "camera",
+        "media_player",
+        "alarm_control_panel"
+      ],
+      "note": "Integration-developer posts: anything about custom integrations (our bridge), WebSocket/REST/auth, camera/media_player/alarm entity platforms, frontend card API, services and translations. Generic words are off here (the blog is about integration internals); only the keywords above flag a post.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "ha-frontend",
+      "name": "Home Assistant frontend (Lovelace card API, panels, auth pages)",
+      "kind": "platform",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/home-assistant/frontend",
+        "releases": "https://github.com/home-assistant/frontend/releases",
+        "docs": "https://developers.home-assistant.io/docs/frontend/",
+        "custom_card": "https://developers.home-assistant.io/docs/frontend/custom-ui/custom-card"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "home-assistant/frontend"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "bundled by HA core, version not recorded; read frontend version from the lab config",
+        "verify": true
+      },
+      "dependents": [
+        "custom_components/smplwise_bridge/www/smplwise-card.js",
+        "smplwise_vms/backend/tests/lovelace_card_behaviour.cjs",
+        "frontend/src/wiskey/companion-bridge.ts",
+        "frontend/src/arx/hass-tokens.ts",
+        "frontend/src/arx/auth.ts",
+        "frontend/src/screens/wiskey-embed.ts"
+      ],
+      "watch_keywords": [
+        "customCards",
+        "getCardSize",
+        "custom card",
+        "hass object",
+        "panel_custom",
+        "iframe",
+        "external bridge",
+        "hassTokens",
+        "ha-card",
+        "custom-element"
+      ],
+      "note": "The smplwise-card Lovelace card (bridge www), the Ingress panel in the HA UI, the WisKey embed host and the Arx remote app which reads HA tokens (hass-tokens.ts). Frontend releases are numerous; only keyword hits are flagged.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "ha-os-base-image",
+      "name": "HA add-on base image (Python on Alpine)",
+      "kind": "platform",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/home-assistant/docker-base",
+        "releases": "https://github.com/home-assistant/docker-base/releases",
+        "docs": "https://developers.home-assistant.io/docs/add-ons/configuration#add-on-dockerfile",
+        "registry": "https://github.com/orgs/home-assistant/packages"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "home-assistant/docker-base"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "floating tag ghcr.io/home-assistant/{amd64,aarch64}-base-python:3.12-alpine3.22 (Dockerfile, build.yaml); the resolved release is whatever the last image build pulled",
+        "verify": true,
+        "constraint": "3.12-alpine3.22"
+      },
+      "dependents": [
+        "smplwise_vms/Dockerfile",
+        "smplwise_vms/build.yaml"
+      ],
+      "watch_keywords": [
+        "python",
+        "alpine",
+        "s6-overlay",
+        "bashio",
+        "tempio",
+        "3.13",
+        "3.14"
+      ],
+      "note": "Our image builds FROM this base: Python 3.12 on Alpine 3.22, plus apk packages poppler-utils, jpeg, zlib, libpng, ffmpeg. A new Python or Alpine series (wheels for numpy, Pillow, cryptography, ezdxf are installed with pip on musl) is the risk.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "hacs",
+      "name": "HACS (Home Assistant Community Store)",
+      "kind": "platform",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/hacs/integration",
+        "releases": "https://github.com/hacs/integration/releases",
+        "docs": "https://hacs.xyz/docs/",
+        "announcements": "https://hacs.xyz/blog/"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "hacs/integration"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "customer HA systems, not recorded; hacs.json declares homeassistant >= 2024.8.0",
+        "verify": true,
+        "constraint": "homeassistant >= 2024.8.0 (hacs.json)"
+      },
+      "dependents": [
+        "hacs.json",
+        "repository.yaml",
+        "docs/architecture/ADR-014-repository-and-deployment.md",
+        "AGENTS.md",
+        "scripts/sync_integration.py"
+      ],
+      "watch_keywords": [
+        "hacs.json",
+        "custom repositories",
+        "min homeassistant",
+        "validation"
+      ],
+      "note": "Only the bridge custom integration is HACS-shaped (hacs.json); HACS is NOT an add-on installer (AGENTS.md). The add-on itself installs through the Supervisor repository (repository.yaml).",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "2.0.5"
+    },
+    {
+      "id": "ha-companion-android",
+      "name": "Home Assistant Companion app (Android)",
+      "kind": "platform",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/home-assistant/android",
+        "releases": "https://github.com/home-assistant/android/releases",
+        "docs": "https://companion.home-assistant.io/"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "home-assistant/android"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "owners' phones, not recorded",
+        "verify": true
+      },
+      "dependents": [
+        "frontend/src/wiskey/companion-bridge.ts",
+        "frontend/src/arx/android-app.ts",
+        "docs/changes/CR-012-ANDROID-PUSH.md",
+        "docs/changes/CR-008-ARX-REMOTE-APP.md",
+        "docs/integrations/wiskey/NATIVE_GATE_A_HE.md"
+      ],
+      "watch_keywords": [
+        "external bridge",
+        "external_app",
+        "webview",
+        "autoplay",
+        "ingress",
+        "webrtc",
+        "fullscreen"
+      ],
+      "note": "Experimental only: the WisKey phone embed relay (access.phone_embed, default off) and the push research (CR-012). The product ships its own WebView app (mobile/android-shell). Releases are very frequent, so only keyword hits are flagged.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "go2rtc",
+      "name": "go2rtc (AlexxIT)",
+      "kind": "platform",
+      "status": "in-use",
+      "priority": "P0",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/AlexxIT/go2rtc",
+        "releases": "https://github.com/AlexxIT/go2rtc/releases",
+        "docs": "https://github.com/AlexxIT/go2rtc#readme",
+        "api": "https://github.com/AlexxIT/go2rtc/blob/master/api/openapi.yaml"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "AlexxIT/go2rtc"
+        }
+      ],
+      "current": {
+        "version": "1.9.14",
+        "source": "lab go2rtc add-on a889bffc_go2rtc-hardware (memory: project-live-ha-access, project-lab-video-facts, 2026-09-14/15)",
+        "verify": true
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/go2rtc.py",
+        "smplwise_vms/backend/smplwise/services/relay.py",
+        "smplwise_vms/backend/smplwise/services/ha_camera_streams.py",
+        "smplwise_vms/backend/smplwise/services/camera_cards.py",
+        "smplwise_vms/backend/smplwise/services/wiskey_camera.py",
+        "smplwise_vms/backend/smplwise/services/intercom_sync.py",
+        "smplwise_vms/backend/smplwise/services/source_policy.py",
+        "smplwise_vms/backend/smplwise/services/playback.py",
+        "smplwise_vms/backend/smplwise/services/playback_groups.py",
+        "smplwise_vms/backend/smplwise/services/stream_codecs.py",
+        "smplwise_vms/backend/smplwise/routers/media.py",
+        "smplwise_vms/backend/smplwise/routers/playback.py",
+        "smplwise_vms/backend/smplwise/routers/playback_groups.py",
+        "smplwise_vms/backend/smplwise/routers/settings.py",
+        "smplwise_vms/backend/smplwise/routers/health.py",
+        "smplwise_vms/backend/smplwise/config.py",
+        "custom_components/smplwise_bridge/stream_source_service.py",
+        "frontend/src/components/sw-live-player.ts",
+        "scripts/lab/go2rtc_persistence_probe.py",
+        "docs/architecture/ADR-013-playback-engine-and-go2rtc-pool.md",
+        "docs/architecture/ADR-011-browser-media-path.md"
+      ],
+      "watch_keywords": [
+        "api/streams",
+        "api/ws",
+        "frame.jpeg",
+        "webrtc",
+        "mse",
+        "rtsp",
+        "persist",
+        "yaml",
+        "config",
+        "ffmpeg",
+        "hls",
+        "ice",
+        "candidates",
+        "authentication",
+        "basic_auth",
+        "origin",
+        "pcm",
+        "opus",
+        "flac",
+        "h265",
+        "hevc",
+        "keyframe",
+        "gop",
+        "api:",
+        "listen",
+        "breaking"
+      ],
+      "note": "External go2rtc adapter: PUT/DELETE /api/streams (smplwise_ namespace only; create/delete can persist config), /api/ws for MSE and WebRTC relay, /api/frame.jpeg for stills. Lab measured: WebRTC decodes the NVR sub profile only, main needs MSE; GOP about 8 s. Never touch foreign streams (the same go2rtc serves the intercom project).",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "v1.9.14"
+    },
+    {
+      "id": "go2rtc-addon",
+      "name": "go2rtc Home Assistant add-on (AlexxIT/hassio-addons)",
+      "kind": "addon",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/AlexxIT/hassio-addons",
+        "config": "https://github.com/AlexxIT/hassio-addons/blob/master/go2rtc-hardware/config.yaml",
+        "commits": "https://github.com/AlexxIT/hassio-addons/commits/master"
+      },
+      "feeds": [
+        {
+          "type": "text_regex",
+          "url": "https://raw.githubusercontent.com/AlexxIT/hassio-addons/master/go2rtc-hardware/config.yaml",
+          "pattern": "^version:\\s*([0-9][0-9.]*[0-9])",
+          "label": "go2rtc add-on"
+        },
+        {
+          "type": "github_commits",
+          "repo": "AlexxIT/hassio-addons"
+        }
+      ],
+      "current": {
+        "version": "1.9.14",
+        "source": "lab add-on a889bffc_go2rtc-hardware",
+        "verify": true
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/go2rtc.py",
+        "smplwise_vms/backend/smplwise/config.py",
+        "docs/operations/HA_INSTALLATION_BOUNDARIES.md",
+        "docs/architecture/ADR-013-playback-engine-and-go2rtc-pool.md"
+      ],
+      "watch_keywords": [
+        "version",
+        "slug",
+        "hardware",
+        "ingress_port",
+        "startup",
+        "map",
+        "host_network",
+        "breaking",
+        "removed",
+        "go2rtc"
+      ],
+      "note": "How go2rtc is installed on the lab and customer systems. The add-on version tracks the go2rtc release; the commit feed has no release tags, so it is informational (flag_dated_hits off).",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "1.9.14"
+    },
+    {
+      "id": "hikvision-isapi-nvr",
+      "name": "Hikvision NVR firmware and ISAPI (DS-7616NXI-K2(D))",
+      "kind": "vendor-api",
+      "status": "in-use",
+      "priority": "P0",
+      "owner": "Product owner (hands-on)",
+      "urls": {
+        "firmware": "https://www.hikvision.com/en/support/download/firmware/",
+        "isapi_portal": "https://tpp.hikvision.com/",
+        "support": "https://www.hikvision.com/en/support/"
+      },
+      "feeds": [],
+      "current": {
+        "version": "V4.84.101 build 251212",
+        "source": "docs/legacy/KNOWN_QUIRKS.md (read-only probe 2026-09-14); model DS-7616NXI-K2(D), ISAPI port 90",
+        "verify": true
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/nvr.py",
+        "smplwise_vms/backend/smplwise/services/nvr_system.py",
+        "smplwise_vms/backend/smplwise/services/nvr_schedule.py",
+        "smplwise_vms/backend/smplwise/services/nvr_write.py",
+        "smplwise_vms/backend/smplwise/services/events_ingest.py",
+        "smplwise_vms/backend/smplwise/services/events_derive.py",
+        "smplwise_vms/backend/smplwise/services/storage.py",
+        "smplwise_vms/backend/smplwise/services/stream_codecs.py",
+        "smplwise_vms/backend/smplwise/services/setup_wizard.py",
+        "smplwise_vms/backend/smplwise/services/autosync.py",
+        "smplwise_vms/backend/smplwise/services/health_report.py",
+        "smplwise_vms/backend/smplwise/routers/cameras.py",
+        "smplwise_vms/backend/smplwise/routers/nvr_write.py",
+        "smplwise_vms/backend/smplwise/mode.py",
+        "docs/legacy/KNOWN_QUIRKS.md",
+        "docs/legacy/LEGACY_AUDIT.md"
+      ],
+      "watch_keywords": [
+        "ISAPI",
+        "firmware",
+        "Streaming/tracks",
+        "ContentMgmt",
+        "downloadRequest",
+        "alertStream",
+        "SDK",
+        "digest",
+        "authentication",
+        "time",
+        "NTP",
+        "security",
+        "HTTPS",
+        "TLS",
+        "RTSP",
+        "H.265",
+        "removed",
+        "deprecat",
+        "incompatible"
+      ],
+      "manual": {
+        "how": "Open the Hikvision firmware download page for DS-7616NXI-K2(D) and the ISAPI developer portal; compare the newest firmware with V4.84.101 build 251212 and read its release notes for ISAPI, RTSP, time, security and digest-auth changes. Ask the owner what the NVR runs now.",
+        "cadence_days": 30
+      },
+      "note": "No machine-readable feed. Capability discovery beats endpoint guesses (AGENTS.md): playback RTSP tracks, ContentMgmt search, downloadRequest by file only, alertStream heartbeats, deviceInfo/time. A firmware change can alter any of these. Check the vendor firmware list for the model and ask the owner before any NVR upgrade (never upgrade from here).",
+      "last_checked": null,
+      "last_seen_version": null
+    },
+    {
+      "id": "hikvision-door-station-firmware",
+      "name": "Hikvision door station firmware (DS-KV6124-E1, via WisKey)",
+      "kind": "vendor-api",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Product owner (hands-on)",
+      "urls": {
+        "firmware": "https://www.hikvision.com/en/support/download/firmware/",
+        "isapi_portal": "https://tpp.hikvision.com/"
+      },
+      "feeds": [],
+      "current": {
+        "version": "V3.9.0 build 260115",
+        "source": "docs/integrations/wiskey/WISKEY_SOURCE_EXTRACTION.md (WisKey identity rule for DS-KV6124-E1)",
+        "verify": true
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/intercom_client.py",
+        "smplwise_vms/backend/smplwise/services/intercom_sync.py",
+        "smplwise_vms/backend/smplwise/services/wiskey_camera.py",
+        "smplwise_vms/backend/smplwise/routers/access_control.py",
+        "docs/integrations/wiskey/WISKEY_SOURCE_EXTRACTION.md"
+      ],
+      "watch_keywords": [
+        "ISAPI",
+        "AcsEvent",
+        "RemoteControl/door",
+        "firmware",
+        "SIP",
+        "RTSP",
+        "security",
+        "time",
+        "authentication",
+        "removed",
+        "deprecat"
+      ],
+      "manual": {
+        "how": "Check the Hikvision firmware list for the door-station model and ask the WisKey developers whether a new firmware changes AcsEvent time zones or RemoteControl.",
+        "cadence_days": 60
+      },
+      "note": "Door stations are driven by the WisKey integration (ISAPI AcsEvent, RemoteControl/door, RTSP Streaming/Channels/101 through go2rtc). We depend on them only through WisKey; this item exists so a firmware change is noticed.",
+      "last_checked": null,
+      "last_seen_version": null
+    },
+    {
+      "id": "wiskey-hikvision-intercom",
+      "name": "WisKey (hikvision_intercom) Home Assistant integration",
+      "kind": "integration",
+      "status": "in-use",
+      "priority": "P0",
+      "owner": "WisKey developers (owner's project)",
+      "urls": {
+        "repo": "https://github.com/jonioliel/home-assistant-hikvision-intercom",
+        "releases": "https://github.com/jonioliel/home-assistant-hikvision-intercom/releases",
+        "docs": "https://github.com/jonioliel/home-assistant-hikvision-intercom#readme"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "jonioliel/home-assistant-hikvision-intercom"
+        }
+      ],
+      "current": {
+        "version": "2.0.0-rc.37",
+        "source": "handoff rc.37 (WisKey commit 4bffe08), docs/integrations/wiskey/WISKEY_RC37_DELIVERED.md; the version installed on the lab was rc.19 at the time of the embed adoption: verify",
+        "verify": true,
+        "embed_api": "1",
+        "api_contract": "1"
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/intercom_client.py",
+        "smplwise_vms/backend/smplwise/services/intercom_sync.py",
+        "smplwise_vms/backend/smplwise/services/intercom_capture.py",
+        "smplwise_vms/backend/smplwise/services/wiskey_camera.py",
+        "smplwise_vms/backend/smplwise/routers/access_control.py",
+        "smplwise_vms/backend/smplwise/routers/access_groups.py",
+        "frontend/src/wiskey/embed-connector.ts",
+        "frontend/src/wiskey/embed-view.ts",
+        "frontend/src/wiskey/companion-bridge.ts",
+        "frontend/src/screens/wiskey-embed.ts",
+        "frontend/src/screens/wiskey-overview.ts",
+        "frontend/src/api/intercom.ts",
+        "docs/integrations/wiskey/embed-api-v1/WISKEY_EMBED_API_V1.md",
+        "docs/integrations/wiskey/WISKEY_RC37_DELIVERED.md",
+        "docs/changes/CR-005-ACCESS-CONTROL-INTEGRATION.md"
+      ],
+      "watch_keywords": [
+        "embed api",
+        "api_contract",
+        "contract",
+        "hikvision_intercom/",
+        "websocket",
+        "unlock",
+        "grants",
+        "audit",
+        "ingress",
+        "iframe",
+        "postMessage",
+        "wiskey:",
+        "auth-required",
+        "rc.",
+        "breaking",
+        "removed",
+        "deprecat",
+        "schema",
+        "readonly",
+        "heartbeat",
+        "D-00"
+      ],
+      "ha_domains": [
+        "hikvision_intercom"
+      ],
+      "note": "The owner's own integration. We call its WebSocket commands (hikvision_intercom/..., api_contract=1) and embed its panel through the embed API v1 (frontend adapter, rc.19 -> rc.37). Gate A (native integration, identity per operator) is open on branch pilot/wiskey-native-gateA. Releases are rc builds: ANY new release is relevant; read the changelog and the handoff for contract changes.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "scheduler-component",
+      "name": "HA scheduler component (nielsfaber/scheduler-component)",
+      "kind": "integration",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/nielsfaber/scheduler-component",
+        "releases": "https://github.com/nielsfaber/scheduler-component/releases",
+        "docs": "https://github.com/nielsfaber/scheduler-component#readme",
+        "card": "https://github.com/nielsfaber/scheduler-card"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "nielsfaber/scheduler-component"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "customer/lab HA custom component, version not recorded; capabilities verified 2026-09-30 on the lab (tags, negative sun offset)",
+        "verify": true
+      },
+      "dependents": [
+        "custom_components/smplwise_bridge/schedule_service.py",
+        "custom_components/smplwise_bridge/schedule_policy.py",
+        "smplwise_vms/backend/smplwise/services/schedules.py",
+        "smplwise_vms/backend/smplwise/services/schedule_ops.py",
+        "smplwise_vms/backend/smplwise/services/schedule_policy.py",
+        "smplwise_vms/backend/smplwise/services/schedule_model.py",
+        "smplwise_vms/backend/smplwise/services/schedule_view.py",
+        "docs/architecture/SCHEDULER_API.md",
+        "docs/design/CR-014-scheduler.md",
+        "scripts/scheduler_phase0_probe.py"
+      ],
+      "watch_keywords": [
+        "scheduler.add",
+        "scheduler.edit",
+        "scheduler.remove",
+        "timeslots",
+        "repeat_type",
+        "schedule_id",
+        "storage",
+        "sunrise",
+        "sunset",
+        "tags"
+      ],
+      "ha_domains": [
+        "scheduler"
+      ],
+      "note": "Arx schedules (CR-014) are a thin layer over this component through the bridge (schedule_service.py): add/edit/remove services, tags, sun offsets, schedule entities. Not a core integration: a breaking release here silently breaks the Schedules screen. Phase 2b (alarm-code relay) is Arx-side.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "music-assistant",
+      "name": "Music Assistant (server, add-on, HA integration)",
+      "kind": "integration",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/music-assistant/server",
+        "releases": "https://github.com/music-assistant/server/releases",
+        "addon": "https://github.com/music-assistant/home-assistant-addon",
+        "docs": "https://www.music-assistant.io/",
+        "ha_integration": "https://www.home-assistant.io/integrations/music_assistant/",
+        "frontend": "https://github.com/music-assistant/frontend"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "music-assistant/server"
+        },
+        {
+          "type": "text_regex",
+          "url": "https://raw.githubusercontent.com/music-assistant/home-assistant-addon/main/music_assistant/config.yaml",
+          "pattern": "^version:\\s*([0-9][0-9.]*[0-9])",
+          "label": "Music Assistant add-on"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "runs on owners' other HA systems (e.g. 11 players on one), version not recorded; the lab has none",
+        "verify": true
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/media_model.py",
+        "smplwise_vms/backend/smplwise/services/media_store.py",
+        "smplwise_vms/backend/smplwise/services/media_commands.py",
+        "smplwise_vms/backend/smplwise/services/media_profiles.py",
+        "custom_components/smplwise_bridge/media_policy.py",
+        "custom_components/smplwise_bridge/media_query_service.py",
+        "custom_components/smplwise_bridge/__init__.py",
+        "docs/architecture/MEDIA_PLAYERS_API.md",
+        "docs/research/MUSIC_ASSISTANT_API_NOTES.md",
+        "docs/changes/CR-016-MEDIA-PLAYERS.md"
+      ],
+      "watch_keywords": [
+        "music_assistant.",
+        "get_library",
+        "get_queue",
+        "play_announcement",
+        "play_media",
+        "transfer_queue",
+        "schema",
+        "api version"
+      ],
+      "ha_domains": [
+        "music_assistant"
+      ],
+      "note": "Used through Home Assistant media_player entities and the music_assistant services (get_library, get_queue, search, play_announcement, play_media, transfer_queue). 0.1.152 plans direct Music Assistant access (phase 2b: full queue/library/search); today it is HA-only (CR-016 decision). The HA integration is a core integration, so HA's backward-incompatible list also matters.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "ha-int-cast",
+      "name": "Google Cast integration",
+      "kind": "integration",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "docs": "https://www.home-assistant.io/integrations/cast/",
+        "releases": "https://www.home-assistant.io/blog/categories/release-notes/",
+        "source": "https://github.com/home-assistant/core/tree/dev/homeassistant/components/cast"
+      },
+      "feeds": [],
+      "current": {
+        "version": null,
+        "source": "core integration: its version is the Home Assistant version (see ha-core)",
+        "verify": false,
+        "applicable": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/media_model.py",
+        "smplwise_vms/backend/smplwise/services/media_commands.py",
+        "smplwise_vms/backend/smplwise/services/media_profiles.py",
+        "docs/changes/CR-016-MEDIA-PLAYERS.md",
+        "docs/changes/CR-015-MEDIA-SCREENS.md"
+      ],
+      "watch_keywords": [
+        "media_player",
+        "cast",
+        "app",
+        "volume",
+        "group",
+        "removed"
+      ],
+      "via": "ha-core",
+      "ha_domains": [
+        "cast"
+      ],
+      "note": "9 players seen on one owner system; duplicates of the same physical device (TV/receiver/speaker) appear via cast and others (dedupe by device). Tracked through the Home Assistant release notes (Backward-incompatible changes are matched on the integration domain).",
+      "last_checked": null,
+      "last_seen_version": null
+    },
+    {
+      "id": "ha-int-wiim",
+      "name": "WiiM integration (and the LinkPlay core integration)",
+      "kind": "integration",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "docs": "https://www.home-assistant.io/integrations/wiim/",
+        "releases": "https://www.home-assistant.io/blog/categories/release-notes/",
+        "source": "https://github.com/home-assistant/core/tree/dev/homeassistant/components/wiim"
+      },
+      "feeds": [],
+      "current": {
+        "version": null,
+        "source": "core integration: its version is the Home Assistant version (see ha-core)",
+        "verify": false,
+        "applicable": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/media_model.py",
+        "smplwise_vms/backend/smplwise/services/media_commands.py",
+        "smplwise_vms/backend/smplwise/services/media_profiles.py",
+        "docs/changes/CR-016-MEDIA-PLAYERS.md",
+        "docs/changes/CR-015-MEDIA-SCREENS.md"
+      ],
+      "watch_keywords": [
+        "media_player",
+        "wiim",
+        "linkplay",
+        "group",
+        "removed"
+      ],
+      "via": "ha-core",
+      "ha_domains": [
+        "wiim",
+        "linkplay"
+      ],
+      "note": "2 speakers seen; grouping; same device also appears through cast and music_assistant. Tracked through the Home Assistant release notes (Backward-incompatible changes are matched on the integration domain).",
+      "last_checked": null,
+      "last_seen_version": null
+    },
+    {
+      "id": "ha-int-onkyo",
+      "name": "Onkyo integration",
+      "kind": "integration",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "docs": "https://www.home-assistant.io/integrations/onkyo/",
+        "releases": "https://www.home-assistant.io/blog/categories/release-notes/",
+        "source": "https://github.com/home-assistant/core/tree/dev/homeassistant/components/onkyo"
+      },
+      "feeds": [],
+      "current": {
+        "version": null,
+        "source": "core integration: its version is the Home Assistant version (see ha-core)",
+        "verify": false,
+        "applicable": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/media_model.py",
+        "smplwise_vms/backend/smplwise/services/media_commands.py",
+        "smplwise_vms/backend/smplwise/services/media_profiles.py",
+        "docs/changes/CR-016-MEDIA-PLAYERS.md",
+        "docs/changes/CR-015-MEDIA-SCREENS.md"
+      ],
+      "watch_keywords": [
+        "onkyo",
+        "select_source",
+        "sound_mode",
+        "volume",
+        "removed",
+        "config"
+      ],
+      "via": "ha-core",
+      "ha_domains": [
+        "onkyo"
+      ],
+      "note": "4 amplifiers seen: volume_set, mute, select_source, select_sound_mode. Tracked through the Home Assistant release notes (Backward-incompatible changes are matched on the integration domain).",
+      "last_checked": null,
+      "last_seen_version": null
+    },
+    {
+      "id": "ha-int-dlna-dmr",
+      "name": "DLNA Digital Media Renderer integration",
+      "kind": "integration",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "docs": "https://www.home-assistant.io/integrations/dlna_dmr/",
+        "releases": "https://www.home-assistant.io/blog/categories/release-notes/",
+        "source": "https://github.com/home-assistant/core/tree/dev/homeassistant/components/dlna_dmr"
+      },
+      "feeds": [],
+      "current": {
+        "version": null,
+        "source": "core integration: its version is the Home Assistant version (see ha-core)",
+        "verify": false,
+        "applicable": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/media_model.py",
+        "smplwise_vms/backend/smplwise/services/media_commands.py",
+        "smplwise_vms/backend/smplwise/services/media_profiles.py",
+        "docs/changes/CR-016-MEDIA-PLAYERS.md",
+        "docs/changes/CR-015-MEDIA-SCREENS.md"
+      ],
+      "watch_keywords": [
+        "dlna",
+        "media_player",
+        "removed"
+      ],
+      "via": "ha-core",
+      "ha_domains": [
+        "dlna_dmr",
+        "dlna_dms"
+      ],
+      "note": "2 entities seen, mostly unavailable; low weight. Tracked through the Home Assistant release notes (Backward-incompatible changes are matched on the integration domain).",
+      "last_checked": null,
+      "last_seen_version": null
+    },
+    {
+      "id": "ha-int-samsungtv",
+      "name": "Samsung Smart TV integration (core)",
+      "kind": "integration",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "docs": "https://www.home-assistant.io/integrations/samsungtv/",
+        "releases": "https://www.home-assistant.io/blog/categories/release-notes/",
+        "source": "https://github.com/home-assistant/core/tree/dev/homeassistant/components/samsungtv"
+      },
+      "feeds": [],
+      "current": {
+        "version": null,
+        "source": "core integration: its version is the Home Assistant version (see ha-core)",
+        "verify": false,
+        "applicable": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/media_model.py",
+        "smplwise_vms/backend/smplwise/services/media_commands.py",
+        "smplwise_vms/backend/smplwise/services/media_profiles.py",
+        "docs/changes/CR-016-MEDIA-PLAYERS.md",
+        "docs/changes/CR-015-MEDIA-SCREENS.md"
+      ],
+      "watch_keywords": [
+        "samsungtv",
+        "samsung",
+        "media_player",
+        "remote",
+        "removed"
+      ],
+      "via": "ha-core",
+      "ha_domains": [
+        "samsungtv"
+      ],
+      "note": "Core integration, present but not loaded on the inspected system; the HACS samsungtv_smart is what runs (ha-samsungtv-smart item). Tracked through the Home Assistant release notes (Backward-incompatible changes are matched on the integration domain).",
+      "last_checked": null,
+      "last_seen_version": null
+    },
+    {
+      "id": "ha-int-smartthings",
+      "name": "SmartThings integration",
+      "kind": "integration",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "docs": "https://www.home-assistant.io/integrations/smartthings/",
+        "releases": "https://www.home-assistant.io/blog/categories/release-notes/",
+        "source": "https://github.com/home-assistant/core/tree/dev/homeassistant/components/smartthings"
+      },
+      "feeds": [],
+      "current": {
+        "version": null,
+        "source": "core integration: its version is the Home Assistant version (see ha-core)",
+        "verify": false,
+        "applicable": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/media_model.py",
+        "smplwise_vms/backend/smplwise/services/media_commands.py",
+        "smplwise_vms/backend/smplwise/services/media_profiles.py",
+        "docs/changes/CR-016-MEDIA-PLAYERS.md",
+        "docs/changes/CR-015-MEDIA-SCREENS.md"
+      ],
+      "watch_keywords": [
+        "smartthings",
+        "oauth",
+        "media_player",
+        "removed",
+        "cloud"
+      ],
+      "via": "ha-core",
+      "ha_domains": [
+        "smartthings"
+      ],
+      "note": "2 Samsung TVs seen: select_source, volume, power. Cloud-backed: SmartThings API/OAuth changes arrive through HA releases. Tracked through the Home Assistant release notes (Backward-incompatible changes are matched on the integration domain).",
+      "last_checked": null,
+      "last_seen_version": null
+    },
+    {
+      "id": "ha-int-androidtv-remote",
+      "name": "Android TV Remote integration",
+      "kind": "integration",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "docs": "https://www.home-assistant.io/integrations/androidtv_remote/",
+        "releases": "https://www.home-assistant.io/blog/categories/release-notes/",
+        "source": "https://github.com/home-assistant/core/tree/dev/homeassistant/components/androidtv_remote"
+      },
+      "feeds": [],
+      "current": {
+        "version": null,
+        "source": "core integration: its version is the Home Assistant version (see ha-core)",
+        "verify": false,
+        "applicable": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/media_model.py",
+        "smplwise_vms/backend/smplwise/services/media_commands.py",
+        "smplwise_vms/backend/smplwise/services/media_profiles.py",
+        "docs/changes/CR-016-MEDIA-PLAYERS.md",
+        "docs/changes/CR-015-MEDIA-SCREENS.md"
+      ],
+      "watch_keywords": [
+        "androidtv",
+        "remote",
+        "media_player",
+        "removed"
+      ],
+      "via": "ha-core",
+      "ha_domains": [
+        "androidtv_remote"
+      ],
+      "note": "1 TV seen. Tracked through the Home Assistant release notes (Backward-incompatible changes are matched on the integration domain).",
+      "last_checked": null,
+      "last_seen_version": null
+    },
+    {
+      "id": "ha-int-sonos",
+      "name": "Sonos integration",
+      "kind": "integration",
+      "status": "planned",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "docs": "https://www.home-assistant.io/integrations/sonos/",
+        "releases": "https://www.home-assistant.io/blog/categories/release-notes/",
+        "source": "https://github.com/home-assistant/core/tree/dev/homeassistant/components/sonos"
+      },
+      "feeds": [],
+      "current": {
+        "version": null,
+        "source": "core integration: its version is the Home Assistant version (see ha-core)",
+        "verify": false,
+        "applicable": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/media_model.py",
+        "smplwise_vms/backend/smplwise/services/media_commands.py",
+        "smplwise_vms/backend/smplwise/services/media_profiles.py",
+        "docs/changes/CR-016-MEDIA-PLAYERS.md",
+        "docs/changes/CR-015-MEDIA-SCREENS.md"
+      ],
+      "watch_keywords": [
+        "sonos",
+        "media_player",
+        "group",
+        "removed"
+      ],
+      "via": "ha-core",
+      "ha_domains": [
+        "sonos"
+      ],
+      "note": "The media model has capability handling for Sonos, but no inspected owner system runs it yet. Tracked through the Home Assistant release notes (Backward-incompatible changes are matched on the integration domain).",
+      "last_checked": null,
+      "last_seen_version": null
+    },
+    {
+      "id": "ha-samsungtv-smart",
+      "name": "Samsung TV Smart (HACS custom integration, ollo69)",
+      "kind": "integration",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/ollo69/ha-samsungtv-smart",
+        "releases": "https://github.com/ollo69/ha-samsungtv-smart/releases",
+        "docs": "https://github.com/ollo69/ha-samsungtv-smart#readme"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "ollo69/ha-samsungtv-smart"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "runs on an owner system (2 TVs: 6 sources, play_media, remote entities), version not recorded",
+        "verify": true
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/media_model.py",
+        "smplwise_vms/backend/smplwise/services/media_commands.py",
+        "frontend/src/screens/multimedia-remote-editor.ts",
+        "docs/research/TV_REMOTE_INTEGRATIONS_NOTES.md",
+        "docs/changes/CR-016-MEDIA-PLAYERS.md"
+      ],
+      "watch_keywords": [
+        "select_source",
+        "play_media",
+        "key_chain",
+        "art mode",
+        "source_list",
+        "smartthings import"
+      ],
+      "ha_domains": [
+        "samsungtv_smart"
+      ],
+      "note": "The TV integration actually in use on the inspected system (6 sources, play_media, remote.* entities). We read its entities and call its services through HA; a rename of source/key handling would break the TV remote screens.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "v0.14.5"
+    },
+    {
+      "id": "ha-int-risco",
+      "name": "Risco alarm (HA core integration)",
+      "kind": "integration",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "docs": "https://www.home-assistant.io/integrations/risco/",
+        "source": "https://github.com/home-assistant/core/tree/dev/homeassistant/components/risco",
+        "releases": "https://www.home-assistant.io/blog/categories/release-notes/"
+      },
+      "feeds": [],
+      "current": {
+        "version": null,
+        "source": "core integration: follows ha-core; owner's own system is Risco (2 partitions fixtures in tests)",
+        "verify": false,
+        "applicable": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/alarm.py",
+        "smplwise_vms/backend/smplwise/services/alarm_codes.py",
+        "smplwise_vms/backend/smplwise/routers/alarm.py",
+        "docs/changes/CR-010-SECURITY-ALARM.md",
+        "smplwise_vms/backend/tests/fake_alarm.py"
+      ],
+      "watch_keywords": [
+        "risco",
+        "alarm_control_panel",
+        "arm",
+        "disarm",
+        "bypass",
+        "zone",
+        "code",
+        "partition",
+        "removed",
+        "renamed",
+        "cloud",
+        "local"
+      ],
+      "via": "ha-core",
+      "ha_domains": [
+        "risco"
+      ],
+      "note": "First-class alarm system (CR-010, exact pairing by device then system+zone number of the unique id; bypass switches; Risco ignores a wrong code silently). Tracked through the HA release notes.",
+      "last_checked": null,
+      "last_seen_version": null
+    },
+    {
+      "id": "visonic-powermax",
+      "name": "Visonic PowerMax/PowerMaster (HACS custom integration)",
+      "kind": "integration",
+      "status": "planned",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/davesmeghead/visonic",
+        "releases": "https://github.com/davesmeghead/visonic/releases"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "davesmeghead/visonic"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "not deployed on any known system",
+        "verify": true
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/alarm.py",
+        "docs/changes/CR-010-SECURITY-ALARM.md",
+        "smplwise_vms/backend/tests/test_alarm.py"
+      ],
+      "watch_keywords": [
+        "breaking change",
+        "alarm panel entity",
+        "keypad",
+        "usercode",
+        "arm_mode",
+        "bypass"
+      ],
+      "ha_domains": [
+        "visonic"
+      ],
+      "note": "Adapter code and fixtures exist (CR-010: select.visonic_zNN_arm_mode); no live system known.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "paradox-pai",
+      "name": "Paradox Alarm Interface (PAI) via MQTT",
+      "kind": "integration",
+      "status": "planned",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/ParadoxAlarmInterface/pai",
+        "releases": "https://github.com/ParadoxAlarmInterface/pai/releases"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "ParadoxAlarmInterface/pai"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "not deployed on any known system",
+        "verify": true
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/alarm.py",
+        "docs/changes/CR-010-SECURITY-ALARM.md",
+        "smplwise_vms/backend/tests/test_alarm.py"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "mqtt topic",
+        "homeassistant_publish",
+        "zone",
+        "bypass"
+      ],
+      "ha_domains": [
+        "mqtt"
+      ],
+      "note": "Adapter code and fixtures exist (CR-010: binary_sensor.<zone>_open, switch bypass); object ids depend on the PAI config; no live system known.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "3.7.0"
+    },
+    {
+      "id": "aegis-ajax",
+      "name": "Ajax via Aegis for Ajax (HACS custom integration)",
+      "kind": "integration",
+      "status": "planned",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/bvis/aegis-hass",
+        "releases": "https://github.com/bvis/aegis-hass/releases"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "bvis/aegis-hass"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "not deployed on any known system",
+        "verify": true
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/alarm.py",
+        "docs/changes/CR-010-SECURITY-ALARM.md",
+        "smplwise_vms/backend/tests/test_alarm.py"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "bypass",
+        "platform id",
+        "entity naming"
+      ],
+      "ha_domains": [
+        "aegis_ajax"
+      ],
+      "note": "Adapter shape written from the README (platform id guessed as aegis_ajax); no live system known.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "ha-int-envisalink",
+      "name": "DSC / Honeywell via Envisalink (HA core)",
+      "kind": "integration",
+      "status": "planned",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "docs": "https://www.home-assistant.io/integrations/envisalink/",
+        "releases": "https://www.home-assistant.io/blog/categories/release-notes/"
+      },
+      "feeds": [],
+      "current": {
+        "version": null,
+        "source": "core integration: follows ha-core",
+        "verify": false,
+        "applicable": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/alarm.py",
+        "docs/changes/CR-010-SECURITY-ALARM.md"
+      ],
+      "watch_keywords": [
+        "envisalink",
+        "zone",
+        "alarm_control_panel",
+        "removed",
+        "deprecat"
+      ],
+      "via": "ha-core",
+      "ha_domains": [
+        "envisalink"
+      ],
+      "note": "One binary sensor per zone, no bypass; adapter code exists, no live system known.",
+      "last_checked": null,
+      "last_seen_version": null
+    },
+    {
+      "id": "cloudflared-addon",
+      "name": "Cloudflared add-on (Cloudflare tunnel for Home Assistant)",
+      "kind": "addon",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/homeassistant-apps/app-cloudflared",
+        "legacy_repo": "https://github.com/brenner-tobias/ha-addons",
+        "releases": "https://github.com/homeassistant-apps/app-cloudflared/releases",
+        "docs": "https://github.com/homeassistant-apps/app-cloudflared/blob/main/cloudflared/DOCS.md"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "homeassistant-apps/app-cloudflared"
+        },
+        {
+          "type": "text_regex",
+          "url": "https://raw.githubusercontent.com/brenner-tobias/ha-addons/main/cloudflared/config.yaml",
+          "pattern": "^version:\\s*([0-9][0-9.]*[0-9])",
+          "label": "brenner-tobias cloudflared add-on"
+        }
+      ],
+      "current": {
+        "version": "7.0.17",
+        "source": "docs/changes/CR-008-ARX-REMOTE-APP.md (config.yaml of brenner-tobias/ha-addons at design time)",
+        "verify": true
+      },
+      "dependents": [
+        "docs/changes/CR-008-ARX-REMOTE-APP.md",
+        "docs/operations/ARX_CLOUDFLARE_GUIDE_HE.md",
+        "docs/operations/ARX_REMOTE_PENTEST_HE.md",
+        "smplwise_vms/DOCS.md",
+        "smplwise_vms/backend/smplwise/services/ha_user_auth.py",
+        "smplwise_vms/backend/smplwise/remote_channel.py"
+      ],
+      "watch_keywords": [
+        "additional_hosts",
+        "ingress_url",
+        "tunnel_token",
+        "breaking_versions",
+        "config.yaml",
+        "moved",
+        "renamed"
+      ],
+      "note": "Customer HA is exposed through this add-on; Arx adds a path route (/arx) in a second tunnel and wants the token written through the Supervisor API (provisioning script parked). The repository moved to homeassistant-apps (app-*): the old repo's config.yaml still carries the version number we parse as a second signal.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "v7.0.17"
+    },
+    {
+      "id": "cloudflared-binary",
+      "name": "cloudflared (Cloudflare tunnel client)",
+      "kind": "tool",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/cloudflare/cloudflared",
+        "releases": "https://github.com/cloudflare/cloudflared/releases",
+        "docs": "https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/",
+        "announcements": "https://blog.cloudflare.com/rss/",
+        "changelog": "https://developers.cloudflare.com/changelog/"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "cloudflare/cloudflared"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "bundled by the cloudflared add-on, not by us",
+        "verify": true
+      },
+      "dependents": [
+        "docs/changes/CR-008-ARX-REMOTE-APP.md",
+        "docs/operations/ARX_CLOUDFLARE_GUIDE_HE.md",
+        "docs/operations/ARX_REMOTE_PENTEST_HE.md"
+      ],
+      "watch_keywords": [
+        "websocket",
+        "http2",
+        "quic",
+        "minimum version",
+        "no longer supported",
+        "path",
+        "ingress rule"
+      ],
+      "note": "Not installed by Arx; the add-on bundles it. Relevant: WebSocket pass-through for the video relay and path routing for /arx. Cloudflare also returns 403 to default Python User-Agents on the owners' hostnames (documented in memory); the lab clients send a browser-like UA.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "2026.9.3"
+    },
+    {
+      "id": "cloudflare-platform",
+      "name": "Cloudflare (tunnel, Access, WAF, platform announcements)",
+      "kind": "vendor-api",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Product owner (hands-on)",
+      "urls": {
+        "announcements": "https://blog.cloudflare.com/rss/",
+        "changelog": "https://developers.cloudflare.com/changelog/",
+        "docs": "https://developers.cloudflare.com/cloudflare-one/",
+        "status": "https://www.cloudflarestatus.com/"
+      },
+      "feeds": [
+        {
+          "type": "atom",
+          "url": "https://blog.cloudflare.com/rss/",
+          "title_filter": "tunnel|zero trust|access|websocket|cloudflared|deprecat|end of life|sunset|waf|bot"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "SaaS",
+        "verify": false,
+        "applicable": false
+      },
+      "dependents": [
+        "docs/changes/CR-008-ARX-REMOTE-APP.md",
+        "docs/operations/ARX_CLOUDFLARE_GUIDE_HE.md",
+        "docs/changes/CR-011-SECOND-FACTOR.md",
+        "docs/architecture/ADR-011-browser-media-path.md"
+      ],
+      "watch_keywords": [
+        "tunnel",
+        "zero trust",
+        "access",
+        "websocket",
+        "cloudflared",
+        "deprecat",
+        "end of life",
+        "sunset",
+        "WAF",
+        "bot",
+        "User-Agent",
+        "browser integrity",
+        "free plan",
+        "limit"
+      ],
+      "note": "Remote access (CR-008) is Cloudflare in front of each customer HA. Blog posts about tunnels, Access, WebSocket limits, bot protection or free-plan changes are filtered by title; the generic changelog is manual (very large feed).",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "web-push-vapid",
+      "name": "Web Push (RFC 8030/8291/8292) and browser push services",
+      "kind": "vendor-api",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "rfc8030": "https://www.rfc-editor.org/rfc/rfc8030",
+        "rfc8291": "https://www.rfc-editor.org/rfc/rfc8291",
+        "rfc8292": "https://www.rfc-editor.org/rfc/rfc8292",
+        "chrome_blog": "https://chromereleases.googleblog.com/",
+        "webkit_push": "https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/",
+        "fcm": "https://firebase.google.com/docs/cloud-messaging/"
+      },
+      "feeds": [],
+      "current": {
+        "version": null,
+        "source": "standard; our implementation is services/push.py with the cryptography package",
+        "verify": false,
+        "applicable": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/push.py",
+        "smplwise_vms/backend/smplwise/routers/push.py",
+        "smplwise_vms/backend/smplwise/services/notify_channels.py",
+        "frontend/src/pwa/push.ts",
+        "frontend/src/pwa/sw.ts",
+        "docs/changes/CR-012-ANDROID-PUSH.md",
+        "docs/changes/CR-018-NOTIFICATIONS.md"
+      ],
+      "watch_keywords": [
+        "web push",
+        "VAPID",
+        "aes128gcm",
+        "push service",
+        "fcm.googleapis.com",
+        "endpoint",
+        "subscription",
+        "declarative push",
+        "deprecat",
+        "removed"
+      ],
+      "manual": {
+        "how": "Skim the Chrome, Firefox, Safari/WebKit and FCM release notes for Web Push changes (new push hosts, payload limits, declarative push, VAPID requirements).",
+        "cadence_days": 60
+      },
+      "note": "CR-008 P3: VAPID key pair, per-user subscriptions, RFC 8291 encryption written on cryptography + httpx; allow-listed push hosts include fcm, mozilla autopush, apple, windows. A change in push-service host names or payload rules would silently stop notifications.",
+      "last_checked": null,
+      "last_seen_version": null
+    },
+    {
+      "id": "fcm-android-push",
+      "name": "Firebase Cloud Messaging (Android push, content-less wake)",
+      "kind": "vendor-api",
+      "status": "planned",
+      "priority": "P2",
+      "owner": "Product owner (hands-on)",
+      "urls": {
+        "docs": "https://firebase.google.com/docs/cloud-messaging/",
+        "release_notes": "https://firebase.google.com/support/release-notes/android",
+        "android_policy": "https://firebase.google.com/docs/cloud-messaging/android/client"
+      },
+      "feeds": [],
+      "current": {
+        "version": null,
+        "source": "decision pending (CR-012 options: FCM content-less wake, UnifiedPush, persistent connection)",
+        "verify": true
+      },
+      "dependents": [
+        "docs/changes/CR-012-ANDROID-PUSH.md",
+        "docs/changes/CR-018-NOTIFICATIONS.md",
+        "mobile/android-shell/README.md",
+        "management/tasks/T096.md"
+      ],
+      "watch_keywords": [
+        "FCM",
+        "legacy API",
+        "HTTP v1",
+        "deprecat",
+        "token",
+        "quota",
+        "data message",
+        "priority",
+        "doze",
+        "background"
+      ],
+      "manual": {
+        "how": "Only when the FCM option is chosen: read Firebase Android release notes and FCM server migration notices.",
+        "cadence_days": 90
+      },
+      "note": "Option A of CR-012, undecided by the owner. Tracked so that the decision is made against current FCM policy.",
+      "last_checked": null,
+      "last_seen_version": null
+    },
+    {
+      "id": "unifiedpush",
+      "name": "UnifiedPush (connector, distributors such as ntfy)",
+      "kind": "vendor-api",
+      "status": "planned",
+      "priority": "P3",
+      "owner": "Product owner (hands-on)",
+      "urls": {
+        "docs": "https://unifiedpush.org/",
+        "repo": "https://github.com/unifiedpush/android-connector",
+        "ntfy": "https://github.com/binwiederhier/ntfy"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "unifiedpush/android-connector"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "option C of CR-012, not started",
+        "verify": true
+      },
+      "dependents": [
+        "docs/changes/CR-012-ANDROID-PUSH.md",
+        "docs/changes/CR-018-NOTIFICATIONS.md"
+      ],
+      "watch_keywords": [
+        "web push",
+        "VAPID",
+        "connector",
+        "distributor",
+        "removed",
+        "deprecat",
+        "breaking",
+        "migration"
+      ],
+      "note": "Option C of CR-012: a distributor app on the phone plus a push server (ntfy recommended). Planned only if the owner picks it.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "3.0.10"
+    },
+    {
+      "id": "openai-image-api",
+      "name": "OpenAI image API (3D skins, optional)",
+      "kind": "vendor-api",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Product owner (hands-on)",
+      "urls": {
+        "docs": "https://developers.openai.com/api/docs/guides/image-generation",
+        "changelog": "https://developers.openai.com/api/docs/changelog",
+        "deprecations": "https://platform.openai.com/docs/deprecations",
+        "sdk": "https://github.com/openai/openai-python"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "openai/openai-python"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "no version: default model gpt-image-1.5 in services/skins/provider.py OPENAI_DEFAULT_MODEL (POST /v1/images/edits); feature gated and inert until the owner enables it",
+        "verify": false,
+        "applicable": false,
+        "constraint": "default model gpt-image-1.5"
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/skins/provider.py",
+        "smplwise_vms/backend/smplwise/services/skins/store.py",
+        "smplwise_vms/backend/smplwise/routers/skins.py",
+        "smplwise_vms/backend/smplwise/routers/settings.py",
+        "smplwise_vms/backend/smplwise/config.py",
+        "docs/operations/OPENAI_ACCOUNT_SETUP_HE.md",
+        "docs/changes/CR-006-PLAN-STUDIO-3D-VISUAL-LEVEL.md"
+      ],
+      "watch_keywords": [
+        "images/edits",
+        "gpt-image",
+        "retire",
+        "shutdown",
+        "organization verification",
+        "image api"
+      ],
+      "manual": {
+        "how": "Read the OpenAI API changelog and deprecations page for image-model retirements, size/quality parameter changes, or organization-verification requirements.",
+        "cadence_days": 60
+      },
+      "note": "Called with httpx directly (no SDK): /v1/images/edits multipart, model gpt-image-1.5 (installation may choose another). The SDK feed is a proxy for API changes; model deprecations are on the web page (manual).",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "ntfy",
+      "name": "ntfy (UnifiedPush distributor and push server)",
+      "kind": "tool",
+      "status": "planned",
+      "priority": "P3",
+      "owner": "Product owner (hands-on)",
+      "urls": {
+        "repo": "https://github.com/binwiederhier/ntfy",
+        "releases": "https://github.com/binwiederhier/ntfy/releases",
+        "docs": "https://docs.ntfy.sh/"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "binwiederhier/ntfy"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "recommended distributor of CR-012 option C; not deployed",
+        "verify": true
+      },
+      "dependents": [
+        "docs/changes/CR-012-ANDROID-PUSH.md",
+        "docs/changes/CR-018-NOTIFICATIONS.md"
+      ],
+      "watch_keywords": [
+        "web push",
+        "unifiedpush",
+        "auth",
+        "access control",
+        "breaking",
+        "removed",
+        "deprecat",
+        "migration",
+        "self-hosted"
+      ],
+      "note": "Only if the owner chooses UnifiedPush; the site would run its own ntfy server.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "v2.28.0"
+    },
+    {
+      "id": "frigate-nvr",
+      "name": "Frigate NVR (planned multi-vendor support)",
+      "kind": "integration",
+      "status": "planned",
+      "priority": "P3",
+      "owner": "Product owner (hands-on)",
+      "urls": {
+        "repo": "https://github.com/blakeblackshear/frigate",
+        "releases": "https://github.com/blakeblackshear/frigate/releases",
+        "docs": "https://docs.frigate.video/"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "blakeblackshear/frigate"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "not integrated; AGENTS.md says Frigate is not required",
+        "verify": true
+      },
+      "dependents": [
+        "AGENTS.md",
+        "scripts/lab/ha_probe.py"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "api",
+        "go2rtc",
+        "mqtt",
+        "recordings api",
+        "database"
+      ],
+      "note": "Planned second NVR vendor (owner: Hikvision, Provision, Frigate; shared multi-NVR screens, CR-020 not yet written). Frigate bundles go2rtc, so its releases also move go2rtc. No integration code exists yet.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "provision-isr-nvr",
+      "name": "Provision-ISR NVRs (planned multi-vendor support)",
+      "kind": "vendor-api",
+      "status": "planned",
+      "priority": "P3",
+      "owner": "Product owner (hands-on)",
+      "urls": {
+        "homepage": "https://www.provision-isr.com/",
+        "support": "https://www.provision-isr.com/"
+      },
+      "feeds": [],
+      "current": {
+        "version": null,
+        "source": "not integrated; model, firmware and API (ONVIF/ISAPI-like?) unknown",
+        "verify": true
+      },
+      "dependents": [
+        "scripts/lab/ha_probe.py",
+        "AGENTS.md"
+      ],
+      "watch_keywords": [
+        "ONVIF",
+        "firmware",
+        "RTSP",
+        "API",
+        "SDK"
+      ],
+      "manual": {
+        "how": "No public feed known. When the model is known, check the vendor support page for firmware and protocol notes.",
+        "cadence_days": 90
+      },
+      "note": "Named by the owner as a future NVR vendor; nothing in the repository yet beyond the intent. Needs the model, firmware and protocol from the owner before it can be tracked properly.",
+      "last_checked": null,
+      "last_seen_version": null
+    },
+    {
+      "id": "bubble-card",
+      "name": "Bubble Card (Clooos, MIT) - design reference",
+      "kind": "design-reference",
+      "status": "planned",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/Clooos/bubble-card",
+        "releases": "https://github.com/Clooos/bubble-card/releases",
+        "docs": "https://github.com/Clooos/bubble-card#readme"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "Clooos/bubble-card"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "no code dependency; MIT reference for the planned 'bubble' skin and whole-system mockup in 0.1.153",
+        "verify": false,
+        "applicable": false
+      },
+      "dependents": [
+        "docs/changes/CR-006-PLAN-STUDIO-3D-VISUAL-LEVEL.md",
+        "docs/design/DEVICE_THEMES.md"
+      ],
+      "watch_keywords": [
+        "license",
+        "breaking",
+        "pop-up style",
+        "module",
+        "removed"
+      ],
+      "note": "Owner-approved design reference (MIT) for the bubble skin; also the pop-up layer of the 3D dashboard that inspired sw-plan-3d. We copy no code unless the license is kept; watch its releases for style direction and any license change.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "domusui",
+      "name": "DomusUI (Mattia2399, GPL-3.0) - design reference",
+      "kind": "design-reference",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/Mattia2399/DomusUI",
+        "releases": "https://github.com/Mattia2399/DomusUI/releases"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "Mattia2399/DomusUI"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "ideas only, no code copied (GPL-3.0); extraction in docs/integrations/domusui/DOMUSUI_EXTRACTION.md",
+        "verify": false,
+        "applicable": false
+      },
+      "dependents": [
+        "docs/integrations/domusui/DOMUSUI_EXTRACTION.md",
+        "docs/changes/CR-007-DEVICE-CONTROL.md",
+        "docs/design/DEVICE_THEMES.md"
+      ],
+      "watch_keywords": [
+        "license",
+        "gpl",
+        "breaking"
+      ],
+      "note": "Reference for device control (CR-007) and the glass style (design unification). Never copy code (GPL-3.0); only ideas. Watch for a license change.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "advanced-camera-card",
+      "name": "Advanced Camera Card (dermotduffy) - design reference",
+      "kind": "design-reference",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/dermotduffy/advanced-camera-card",
+        "releases": "https://github.com/dermotduffy/advanced-camera-card/releases"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "dermotduffy/advanced-camera-card"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "reference only (MASTER_SPEC_HE.md, docs/research/SOURCES.md)",
+        "verify": false,
+        "applicable": false
+      },
+      "dependents": [
+        "MASTER_SPEC_HE.md",
+        "docs/research/SOURCES.md"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "go2rtc",
+        "webrtc",
+        "timeline"
+      ],
+      "note": "Named in the master spec as a UX reference for the camera card and timeline.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "universal-remote-card",
+      "name": "Universal Remote Card (Nerwyn) - TV remote feature checklist",
+      "kind": "design-reference",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/Nerwyn/universal-remote-card",
+        "releases": "https://github.com/Nerwyn/universal-remote-card/releases",
+        "wiki": "https://github.com/Nerwyn/universal-remote-card/wiki"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "Nerwyn/universal-remote-card"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "reference only (docs/research/TV_REMOTE_INTEGRATIONS_NOTES.md); installed on an owner system with ha-samsungtv-smart",
+        "verify": false,
+        "applicable": false
+      },
+      "dependents": [
+        "docs/research/TV_REMOTE_INTEGRATIONS_NOTES.md",
+        "docs/changes/CR-015-MEDIA-SCREENS.md"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "samsung",
+        "webos",
+        "android_tv"
+      ],
+      "note": "Feature checklist for the TV remote screens (CR-015 section 16, deliberately different).",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "chrome-webview-webrtc",
+      "name": "Chrome, Android System WebView, WebRTC/MSE behaviour",
+      "kind": "platform",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "announcements": "https://chromereleases.googleblog.com/",
+        "feed": "https://chromereleases.googleblog.com/feeds/posts/default",
+        "chromestatus": "https://chromestatus.com/features",
+        "webrtc": "https://webrtc.org/",
+        "webview": "https://developer.android.com/develop/ui/views/layout/webapps/webview"
+      },
+      "feeds": [
+        {
+          "type": "atom",
+          "url": "https://chromereleases.googleblog.com/feeds/posts/default",
+          "title_filter": "Stable Channel Update for Desktop|Chrome for Android",
+          "use_generic": false
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "user browsers: real Chrome in the lab, owners' phones; no version pinned",
+        "verify": true
+      },
+      "dependents": [
+        "frontend/src/components/sw-live-player.ts",
+        "frontend/src/api/video-conn-test.ts",
+        "mobile/android-shell/app/build.gradle.kts",
+        "frontend/tests/evidence-webrtc-only.spec.ts",
+        "frontend/tests/evidence-remote-video.spec.ts"
+      ],
+      "watch_keywords": [
+        "WebRTC",
+        "MediaSource",
+        "SourceBuffer",
+        "H.264",
+        "HEVC",
+        "autoplay",
+        "mDNS",
+        "getStats",
+        "Private Network Access",
+        "local network access",
+        "third-party cookie",
+        "SameSite",
+        "Web Push",
+        "service worker"
+      ],
+      "note": "Lab facts: WebRTC decodes only the NVR sub profile, main needs MSE, MSE start 8-12 s (GOP), SourceBuffer quota small in embedded browsers. The player (auto = WebRTC then MSE), the connection test card, the PWA/Web Push and the Android WebView shell all depend on browser media and privacy changes (autoplay, mDNS ICE candidates, local-network access prompts, third-party cookies in the Ingress iframe). Only keyword hits in the Stable Channel posts are flagged.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "2026-09-30"
+    },
+    {
+      "id": "android-toolchain-gradle",
+      "name": "Gradle (Android shell build)",
+      "kind": "tool",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "releases": "https://gradle.org/releases/",
+        "docs": "https://docs.gradle.org/current/release-notes.html",
+        "repo": "https://github.com/gradle/gradle"
+      },
+      "feeds": [
+        {
+          "type": "gradle_current"
+        }
+      ],
+      "current": {
+        "version": "8.11.1",
+        "source": "mobile/android-shell/gradle/wrapper/gradle-wrapper.properties",
+        "verify": false
+      },
+      "dependents": [
+        "mobile/android-shell/gradle/wrapper/gradle-wrapper.properties",
+        "mobile/android-shell/build.gradle.kts",
+        "mobile/android-shell/settings.gradle.kts"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "AGP",
+        "Android Gradle Plugin",
+        "configuration cache",
+        "Kotlin"
+      ],
+      "note": "Gradle wrapper of the shell app. A new major usually needs a matching AGP; update the three together.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "android-agp",
+      "name": "Android Gradle Plugin",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "metadata": "https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle/maven-metadata.xml",
+        "docs": "https://developer.android.com/jetpack/androidx/versions"
+      },
+      "feeds": [
+        {
+          "type": "maven_metadata",
+          "url": "https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle/maven-metadata.xml"
+        }
+      ],
+      "current": {
+        "version": "8.9.1",
+        "source": "mobile/android-shell/build.gradle.kts",
+        "verify": false
+      },
+      "dependents": [
+        "mobile/android-shell/build.gradle.kts",
+        "mobile/android-shell/app/build.gradle.kts"
+      ],
+      "watch_keywords": [
+        "compileSdk",
+        "targetSdk",
+        "Gradle",
+        "Kotlin",
+        "removed",
+        "deprecat",
+        "R8",
+        "breaking"
+      ],
+      "note": "Tied to Gradle and compileSdk 36.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "androidx-webkit",
+      "name": "androidx.webkit (WebView compatibility library)",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "metadata": "https://dl.google.com/dl/android/maven2/androidx/webkit/webkit/maven-metadata.xml",
+        "docs": "https://developer.android.com/jetpack/androidx/versions"
+      },
+      "feeds": [
+        {
+          "type": "maven_metadata",
+          "url": "https://dl.google.com/dl/android/maven2/androidx/webkit/webkit/maven-metadata.xml"
+        }
+      ],
+      "current": {
+        "version": "1.14.0",
+        "source": "mobile/android-shell/app/build.gradle.kts",
+        "verify": false
+      },
+      "dependents": [
+        "mobile/android-shell/app/build.gradle.kts",
+        "mobile/android-shell/app/src/main/java/com/smplwise/arx/app/WebActivity.kt"
+      ],
+      "watch_keywords": [
+        "WebView",
+        "WebMessage",
+        "script",
+        "removed",
+        "deprecat",
+        "breaking"
+      ],
+      "note": "WebView features of the shell (bridge script, message listeners).",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "1.17.1",
+      "last_seen_prerelease": "1.18.0-alpha02"
+    },
+    {
+      "id": "androidx-biometric",
+      "name": "androidx.biometric (app lock)",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "metadata": "https://dl.google.com/dl/android/maven2/androidx/biometric/biometric/maven-metadata.xml",
+        "docs": "https://developer.android.com/jetpack/androidx/versions"
+      },
+      "feeds": [
+        {
+          "type": "maven_metadata",
+          "url": "https://dl.google.com/dl/android/maven2/androidx/biometric/biometric/maven-metadata.xml"
+        }
+      ],
+      "current": {
+        "version": "1.1.0",
+        "source": "mobile/android-shell/app/build.gradle.kts",
+        "verify": false
+      },
+      "dependents": [
+        "mobile/android-shell/app/build.gradle.kts",
+        "mobile/android-shell/app/src/main/java/com/smplwise/arx/app/AppLock.kt",
+        "docs/changes/CR-011-SECOND-FACTOR.md"
+      ],
+      "watch_keywords": [
+        "BiometricPrompt",
+        "crypto",
+        "CryptoObject",
+        "removed",
+        "deprecat",
+        "breaking"
+      ],
+      "note": "App lock of the Android shell (CR-011).",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "1.1.0",
+      "last_seen_prerelease": "1.4.0-alpha07"
+    },
+    {
+      "id": "material-components-android",
+      "name": "Material Components for Android",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "metadata": "https://dl.google.com/dl/android/maven2/com/google/android/material/material/maven-metadata.xml",
+        "docs": "https://developer.android.com/jetpack/androidx/versions"
+      },
+      "feeds": [
+        {
+          "type": "maven_metadata",
+          "url": "https://dl.google.com/dl/android/maven2/com/google/android/material/material/maven-metadata.xml"
+        }
+      ],
+      "current": {
+        "version": "1.12.0",
+        "source": "mobile/android-shell/app/build.gradle.kts",
+        "verify": false
+      },
+      "dependents": [
+        "mobile/android-shell/app/build.gradle.kts"
+      ],
+      "watch_keywords": [
+        "theme",
+        "removed",
+        "deprecat",
+        "breaking"
+      ],
+      "note": "UI widgets of the shell's native screens.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "1.14.0"
+    },
+    {
+      "id": "android-sdk-policy",
+      "name": "Android API level policy (compileSdk 36 / targetSdk 35) and Google Play requirements",
+      "kind": "platform",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Product owner (hands-on)",
+      "urls": {
+        "policy": "https://developer.android.com/google/play/requirements/target-sdk",
+        "behavior_changes": "https://developer.android.com/about/versions"
+      },
+      "feeds": [],
+      "current": {
+        "version": "targetSdk 35 / compileSdk 36",
+        "source": "mobile/android-shell/app/build.gradle.kts",
+        "verify": false
+      },
+      "dependents": [
+        "mobile/android-shell/app/build.gradle.kts",
+        "docs/operations/ARX_ANDROID_SHELL_HE.md",
+        "mobile/android-shell/README.md"
+      ],
+      "watch_keywords": [
+        "target API level",
+        "behavior changes",
+        "foreground service",
+        "background",
+        "notification permission",
+        "exact alarm",
+        "cleartext"
+      ],
+      "manual": {
+        "how": "Check the Android behavior-changes page for the next API level and the Play target-SDK deadline (only matters before Play distribution, or when a new Android version breaks the shell).",
+        "cadence_days": 90
+      },
+      "note": "The shell is sideloaded today; Play distribution or a new Android major would raise targetSdk and change background/notification behaviour.",
+      "last_checked": null,
+      "last_seen_version": null
+    },
+    {
+      "id": "python-runtime",
+      "name": "Python (3.12 in the add-on image and on workstations)",
+      "kind": "tool",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "releases": "https://www.python.org/downloads/",
+        "schedule": "https://devguide.python.org/versions/",
+        "repo": "https://github.com/python/cpython"
+      },
+      "feeds": [
+        {
+          "type": "github_tags",
+          "repo": "python/cpython",
+          "tag_filter": "^v3\\.12\\.\\d+$"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "image base python:3.12 (patch version floats with the base image); workstation 3.12 per CLAUDE.md",
+        "verify": true,
+        "constraint": "3.12.x"
+      },
+      "dependents": [
+        "smplwise_vms/Dockerfile",
+        "smplwise_vms/build.yaml",
+        "smplwise_vms/backend/pyproject.toml",
+        "CLAUDE.md"
+      ],
+      "watch_keywords": [
+        "security",
+        "CVE",
+        "removed",
+        "deprecat",
+        "end-of-life",
+        "3.13",
+        "3.14"
+      ],
+      "note": "Only 3.12.x patch releases are fed here (security fixes come with the base image). Python 3.12 reaches end of life in October 2028; the feed does not show that, the python devguide link does.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "v3.12.15"
+    },
+    {
+      "id": "alpine-linux",
+      "name": "Alpine Linux 3.22 (base image) and apk packages",
+      "kind": "tool",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "releases": "https://alpinelinux.org/releases/",
+        "json": "https://alpinelinux.org/releases.json",
+        "security": "https://security.alpinelinux.org/"
+      },
+      "feeds": [],
+      "current": {
+        "version": "3.22",
+        "source": "smplwise_vms/Dockerfile / build.yaml (base tag)",
+        "verify": false
+      },
+      "dependents": [
+        "smplwise_vms/Dockerfile",
+        "smplwise_vms/build.yaml",
+        "docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md"
+      ],
+      "watch_keywords": [
+        "end of life",
+        "EOL",
+        "musl",
+        "apk",
+        "removed",
+        "ffmpeg",
+        "poppler"
+      ],
+      "manual": {
+        "how": "Open the Alpine releases page: confirm 3.22 is still supported and see which series the HA base image has moved to.",
+        "cadence_days": 90
+      },
+      "note": "musl wheels and apk packages (poppler-utils, ffmpeg, jpeg, zlib, libpng). Moves with the HA base image; the release list shows end-of-life dates.",
+      "last_checked": null,
+      "last_seen_version": null
+    },
+    {
+      "id": "ffmpeg",
+      "name": "FFmpeg (export remux, thumbnails; apk in the image)",
+      "kind": "tool",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "releases": "https://ffmpeg.org/download.html",
+        "changelog": "https://github.com/FFmpeg/FFmpeg/blob/master/Changelog",
+        "repo": "https://github.com/FFmpeg/FFmpeg"
+      },
+      "feeds": [
+        {
+          "type": "github_tags",
+          "repo": "FFmpeg/FFmpeg",
+          "tag_filter": "^n\\d+\\.\\d+(\\.\\d+)?$"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "Alpine apk in the image (floats); workstation 9.0.1 per lab notes",
+        "verify": true,
+        "constraint": "9.0.x workstation"
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/exports.py",
+        "smplwise_vms/backend/smplwise/services/go2rtc.py",
+        "smplwise_vms/backend/smplwise/services/thumbnails.py",
+        "smplwise_vms/backend/smplwise/routers/exports.py",
+        "smplwise_vms/backend/smplwise/routers/frames.py",
+        "smplwise_vms/backend/smplwise/services/health_report.py",
+        "custom_components/smplwise_bridge/stream_source_service.py"
+      ],
+      "watch_keywords": [
+        "mpeg",
+        "ps demuxer",
+        "concat",
+        "pcm_mulaw",
+        "h264",
+        "-ss",
+        "aac",
+        "removed",
+        "deprecat",
+        "breaking",
+        "ffmpeg 9",
+        "ffmpeg 10"
+      ],
+      "note": "Export: Hikvision PS file (IMKH header + MPEG-PS, H.264 + G.711u) remuxed with -f mpeg -i ... -c:v copy -c:a aac -ar 8000, concat demuxer and -ss/-to -c copy. Thumbnails/frames use it too. A demuxer or option change would break export and stills.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "n9.0.2"
+    },
+    {
+      "id": "poppler-utils",
+      "name": "poppler-utils (pdftoppm / pdfinfo, plan PDF import)",
+      "kind": "tool",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://gitlab.freedesktop.org/poppler/poppler",
+        "tags": "https://gitlab.freedesktop.org/poppler/poppler/-/tags",
+        "docs": "https://poppler.freedesktop.org/"
+      },
+      "feeds": [
+        {
+          "type": "atom",
+          "url": "https://gitlab.freedesktop.org/poppler/poppler/-/tags?format=atom",
+          "version_regex": "(\\d+\\.\\d+\\.\\d+)"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "Alpine apk in the image (floats)",
+        "verify": true
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/plan_render.py",
+        "smplwise_vms/backend/smplwise/routers/health.py",
+        "smplwise_vms/Dockerfile",
+        "smplwise_vms/DOCS.md"
+      ],
+      "watch_keywords": [
+        "pdftoppm",
+        "pdfinfo",
+        "removed",
+        "deprecat",
+        "security",
+        "CVE"
+      ],
+      "note": "PDF pages are rasterized in a separate time-bounded process. Informational feed (tags have no release notes).",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "py-fastapi",
+      "name": "FastAPI",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "pypi": "https://pypi.org/project/fastapi/",
+        "releases": "https://pypi.org/project/fastapi/#history"
+      },
+      "feeds": [
+        {
+          "type": "pypi",
+          "package": "fastapi"
+        }
+      ],
+      "current": {
+        "version": "0.141.1",
+        "source": "smplwise_vms/backend/requirements.txt",
+        "verify": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/main.py",
+        "smplwise_vms/backend/smplwise/routers/health.py",
+        "smplwise_vms/backend/smplwise/routers/plans.py",
+        "smplwise_vms/backend/smplwise/errors.py",
+        "smplwise_vms/backend/smplwise/body_limit.py",
+        "smplwise_vms/backend/smplwise/auth.py",
+        "smplwise_vms/backend/requirements.txt"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "pydantic",
+        "starlette",
+        "lifespan",
+        "dependency",
+        "response_model",
+        "openapi"
+      ],
+      "note": "The web framework of the backend (routers, dependencies, OpenAPI).",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "0.142.2"
+    },
+    {
+      "id": "py-uvicorn",
+      "name": "Uvicorn",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "pypi": "https://pypi.org/project/uvicorn/",
+        "releases": "https://pypi.org/project/uvicorn/#history"
+      },
+      "feeds": [
+        {
+          "type": "pypi",
+          "package": "uvicorn"
+        }
+      ],
+      "current": {
+        "version": "0.53.0",
+        "source": "smplwise_vms/backend/requirements.txt",
+        "verify": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/__main__.py",
+        "smplwise_vms/run.sh",
+        "smplwise_vms/backend/requirements.txt"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "workers",
+        "proxy-headers",
+        "ws",
+        "websockets",
+        "h11",
+        "httptools"
+      ],
+      "note": "ASGI server (standard extras: websockets, httptools); workers=1 is a design rule.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "0.54.0"
+    },
+    {
+      "id": "py-python-multipart",
+      "name": "python-multipart",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "pypi": "https://pypi.org/project/python-multipart/",
+        "releases": "https://pypi.org/project/python-multipart/#history"
+      },
+      "feeds": [
+        {
+          "type": "pypi",
+          "package": "python-multipart"
+        }
+      ],
+      "current": {
+        "version": "0.0.32",
+        "source": "smplwise_vms/backend/requirements.txt",
+        "verify": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/body_limit.py",
+        "smplwise_vms/backend/smplwise/routers/plans.py",
+        "smplwise_vms/backend/smplwise/routers/cases.py",
+        "smplwise_vms/backend/smplwise/services/events_ingest.py",
+        "smplwise_vms/backend/smplwise/services/skins/provider.py",
+        "smplwise_vms/backend/requirements.txt"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "multipart",
+        "limit",
+        "import name"
+      ],
+      "note": "Form/file uploads (plans, cases, skins); the import name changed once already.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "0.0.32"
+    },
+    {
+      "id": "py-pillow",
+      "name": "Pillow",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "pypi": "https://pypi.org/project/pillow/",
+        "releases": "https://pypi.org/project/pillow/#history"
+      },
+      "feeds": [
+        {
+          "type": "pypi",
+          "package": "pillow"
+        }
+      ],
+      "current": {
+        "version": "12.3.0",
+        "source": "smplwise_vms/backend/requirements.txt",
+        "verify": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/plan_render.py",
+        "smplwise_vms/backend/smplwise/services/plan_stylize.py",
+        "smplwise_vms/backend/smplwise/services/plan_geometry_render.py",
+        "smplwise_vms/backend/smplwise/services/plan_detect.py",
+        "smplwise_vms/backend/smplwise/services/skins/store.py",
+        "smplwise_vms/backend/smplwise/routers/catalog.py",
+        "smplwise_vms/backend/requirements.txt"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "Image.",
+        "resampling",
+        "decompression bomb",
+        "security",
+        "CVE"
+      ],
+      "note": "Plan rendering/stylization and image safety limits.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "12.3.0"
+    },
+    {
+      "id": "py-httpx",
+      "name": "httpx",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "pypi": "https://pypi.org/project/httpx/",
+        "releases": "https://pypi.org/project/httpx/#history"
+      },
+      "feeds": [
+        {
+          "type": "pypi",
+          "package": "httpx"
+        }
+      ],
+      "current": {
+        "version": "0.27.2",
+        "source": "smplwise_vms/backend/requirements.txt",
+        "verify": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/go2rtc.py",
+        "smplwise_vms/backend/smplwise/services/ha_client.py",
+        "smplwise_vms/backend/smplwise/services/nvr.py",
+        "smplwise_vms/backend/smplwise/services/media_query.py",
+        "smplwise_vms/backend/smplwise/services/events_ingest.py",
+        "smplwise_vms/backend/smplwise/services/push.py",
+        "smplwise_vms/backend/smplwise/services/skins/provider.py",
+        "smplwise_vms/backend/requirements.txt"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "proxies",
+        "timeout",
+        "verify",
+        "transport",
+        "stream",
+        "1.0"
+      ],
+      "note": "All outbound HTTP (NVR, go2rtc, HA REST, push, OpenAI). Pinned exactly at 0.27.2; a 1.0 line is expected to change APIs.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "0.28.1"
+    },
+    {
+      "id": "py-pydantic",
+      "name": "pydantic",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "pypi": "https://pypi.org/project/pydantic/",
+        "releases": "https://pypi.org/project/pydantic/#history"
+      },
+      "feeds": [
+        {
+          "type": "pypi",
+          "package": "pydantic"
+        }
+      ],
+      "current": {
+        "version": "2.13.5",
+        "source": "smplwise_vms/backend/requirements.txt",
+        "verify": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/errors.py",
+        "smplwise_vms/backend/smplwise/routers/access.py",
+        "smplwise_vms/backend/smplwise/routers/alarm.py",
+        "smplwise_vms/backend/smplwise/routers/devices.py",
+        "smplwise_vms/backend/smplwise/routers/plans.py",
+        "smplwise_vms/backend/requirements.txt"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "validator",
+        "model_config",
+        "v3",
+        "extra"
+      ],
+      "note": "Request/response models everywhere; extra=forbid closed bodies are a security rule.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "2.13.5"
+    },
+    {
+      "id": "py-websockets",
+      "name": "websockets",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "pypi": "https://pypi.org/project/websockets/",
+        "releases": "https://pypi.org/project/websockets/#history"
+      },
+      "feeds": [
+        {
+          "type": "pypi",
+          "package": "websockets"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "smplwise_vms/backend/requirements.txt (range, no exact pin; resolved at image build)",
+        "verify": true,
+        "constraint": ">=13,<16"
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/ha_client.py",
+        "smplwise_vms/backend/smplwise/services/ha_user_auth.py",
+        "smplwise_vms/backend/smplwise/services/relay.py",
+        "smplwise_vms/backend/smplwise/main.py",
+        "smplwise_vms/backend/requirements.txt"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "legacy",
+        "asyncio",
+        "new implementation",
+        "connect",
+        "proxy"
+      ],
+      "note": "HA WebSocket client and the go2rtc relay. Constraint >=13,<16: a 16 release needs an explicit review.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "17.1"
+    },
+    {
+      "id": "py-tzdata",
+      "name": "tzdata",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "pypi": "https://pypi.org/project/tzdata/",
+        "releases": "https://pypi.org/project/tzdata/#history"
+      },
+      "feeds": [
+        {
+          "type": "pypi",
+          "package": "tzdata"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "smplwise_vms/backend/requirements.txt (range, no exact pin; resolved at image build)",
+        "verify": true,
+        "constraint": ">=2024.1"
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/timeutil.py",
+        "smplwise_vms/backend/smplwise/services/nvr_system.py",
+        "smplwise_vms/backend/smplwise/services/setup_wizard.py",
+        "smplwise_vms/backend/smplwise/routers/settings.py",
+        "smplwise_vms/backend/requirements.txt"
+      ],
+      "watch_keywords": [
+        "removed",
+        "renamed",
+        "zone"
+      ],
+      "note": "IANA zone data for local-time conversion (UTC internally).",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "py-numpy",
+      "name": "NumPy",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "pypi": "https://pypi.org/project/numpy/",
+        "releases": "https://pypi.org/project/numpy/#history"
+      },
+      "feeds": [
+        {
+          "type": "pypi",
+          "package": "numpy"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "smplwise_vms/backend/requirements.txt (range, no exact pin; resolved at image build)",
+        "verify": true,
+        "constraint": ">=2.0,<3"
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/plan_detect.py",
+        "smplwise_vms/backend/smplwise/services/plan_zones.py",
+        "smplwise_vms/backend/smplwise/services/plan_stylize.py",
+        "smplwise_vms/backend/smplwise/services/plan_door_tool.py",
+        "smplwise_vms/backend/requirements.txt"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "ABI",
+        "np.cross",
+        "musl",
+        "wheel"
+      ],
+      "note": "Plan detection (no scipy/opencv on Alpine). Constraint >=2.0,<3.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "2.5.3"
+    },
+    {
+      "id": "py-cryptography",
+      "name": "cryptography",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "pypi": "https://pypi.org/project/cryptography/",
+        "releases": "https://pypi.org/project/cryptography/#history"
+      },
+      "feeds": [
+        {
+          "type": "pypi",
+          "package": "cryptography"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "smplwise_vms/backend/requirements.txt (range, no exact pin; resolved at image build)",
+        "verify": true,
+        "constraint": ">=45,<51"
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/push.py",
+        "smplwise_vms/backend/smplwise/services/signing.py",
+        "smplwise_vms/backend/smplwise/services/alarm_codes.py",
+        "scripts/verify_bundle.py",
+        "smplwise_vms/backend/requirements.txt"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "ECDH",
+        "AESGCM",
+        "HKDF",
+        "Fernet",
+        "OpenSSL",
+        "musl",
+        "wheel",
+        "security",
+        "CVE"
+      ],
+      "note": "Web Push (RFC 8291), signed URLs and alarm-code sealing. Constraint >=45,<51.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "50.0.2"
+    },
+    {
+      "id": "py-ezdxf",
+      "name": "ezdxf",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "pypi": "https://pypi.org/project/ezdxf/",
+        "releases": "https://pypi.org/project/ezdxf/#history"
+      },
+      "feeds": [
+        {
+          "type": "pypi",
+          "package": "ezdxf"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "smplwise_vms/backend/requirements.txt (range, no exact pin; resolved at image build)",
+        "verify": true,
+        "constraint": ">=1.3,<2"
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/services/plan_dxf.py",
+        "smplwise_vms/backend/smplwise/services/plan_dxf_map.py",
+        "smplwise_vms/backend/smplwise/routers/plans.py",
+        "frontend/tests/fixtures/gen_plan_map_dxf.py",
+        "smplwise_vms/backend/requirements.txt"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "readfile",
+        "recover",
+        "units",
+        "layout"
+      ],
+      "note": "DXF plan import (Plan Studio). Constraint >=1.3,<2.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "1.4.4"
+    },
+    {
+      "id": "npm-lit",
+      "name": "Lit",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "npm": "https://www.npmjs.com/package/lit",
+        "releases": "https://www.npmjs.com/package/lit?activeTab=versions"
+      },
+      "feeds": [
+        {
+          "type": "npm",
+          "package": "lit"
+        }
+      ],
+      "current": {
+        "version": "3.3.3",
+        "source": "frontend/package-lock.json",
+        "verify": false
+      },
+      "dependents": [
+        "frontend/src/main.ts",
+        "frontend/src/shell/sw-app.ts",
+        "frontend/src/components/sw-live-player.ts",
+        "frontend/src/router.ts",
+        "frontend/package-lock.json"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "decorators",
+        "reactive controller",
+        "directive",
+        "lit 4",
+        "ssr"
+      ],
+      "note": "Every UI component (about 155 files) is a Lit element.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "3.3.3"
+    },
+    {
+      "id": "npm-three",
+      "name": "three.js",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "npm": "https://www.npmjs.com/package/three",
+        "releases": "https://www.npmjs.com/package/three?activeTab=versions"
+      },
+      "feeds": [
+        {
+          "type": "npm",
+          "package": "three"
+        }
+      ],
+      "current": {
+        "version": "0.186.1",
+        "source": "frontend/package-lock.json",
+        "verify": false
+      },
+      "dependents": [
+        "frontend/src/map/three-bundle.ts",
+        "frontend/vite.config.ts",
+        "frontend/package-lock.json"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "migration",
+        "renamed",
+        "WebGPU",
+        "GLTFLoader",
+        "color management",
+        "r1"
+      ],
+      "note": "sw-plan-3d (T087); three releases monthly with breaking changes in migration notes.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "0.186.1"
+    },
+    {
+      "id": "npm-vite",
+      "name": "Vite",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "npm": "https://www.npmjs.com/package/vite",
+        "releases": "https://www.npmjs.com/package/vite?activeTab=versions"
+      },
+      "feeds": [
+        {
+          "type": "npm",
+          "package": "vite"
+        }
+      ],
+      "current": {
+        "version": "6.4.3",
+        "source": "frontend/package-lock.json",
+        "verify": false
+      },
+      "dependents": [
+        "frontend/vite.config.ts",
+        "frontend/package.json",
+        "frontend/package-lock.json"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "rolldown",
+        "node",
+        "esbuild",
+        "rollup",
+        "migration"
+      ],
+      "note": "Build tool. Rollup is replaced by the wasm build via overrides (musl/ARM friendliness): a Vite 7+/rolldown move needs a recheck.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "npm-typescript",
+      "name": "TypeScript",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "npm": "https://www.npmjs.com/package/typescript",
+        "releases": "https://www.npmjs.com/package/typescript?activeTab=versions"
+      },
+      "feeds": [
+        {
+          "type": "npm",
+          "package": "typescript"
+        }
+      ],
+      "current": {
+        "version": "5.9.3",
+        "source": "frontend/package-lock.json",
+        "verify": false
+      },
+      "dependents": [
+        "frontend/tsconfig.json",
+        "frontend/package.json",
+        "frontend/package-lock.json"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "native",
+        "tsgo",
+        "6.0",
+        "7.0",
+        "strict"
+      ],
+      "note": "Type check in the build (tsc --noEmit).",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "npm-playwright-test",
+      "name": "Playwright",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "npm": "https://www.npmjs.com/package/@playwright/test",
+        "releases": "https://www.npmjs.com/package/@playwright/test?activeTab=versions"
+      },
+      "feeds": [
+        {
+          "type": "npm",
+          "package": "@playwright/test"
+        }
+      ],
+      "current": {
+        "version": "1.63.0",
+        "source": "frontend/package-lock.json",
+        "verify": false
+      },
+      "dependents": [
+        "frontend/playwright.config.ts",
+        "frontend/playwright.guide-live.config.ts",
+        "frontend/package.json",
+        "frontend/package-lock.json"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "chromium",
+        "browser",
+        "channel",
+        "snapshot",
+        "toHaveScreenshot",
+        "node"
+      ],
+      "note": "Screenshot and evidence suites; live specs run against real Chrome (channel chrome).",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "1.63.0"
+    },
+    {
+      "id": "npm-types-node",
+      "name": "@types/node",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "npm": "https://www.npmjs.com/package/@types/node",
+        "releases": "https://www.npmjs.com/package/@types/node?activeTab=versions"
+      },
+      "feeds": [
+        {
+          "type": "npm",
+          "package": "@types/node"
+        }
+      ],
+      "current": {
+        "version": "26.5.1",
+        "source": "frontend/package-lock.json",
+        "verify": false
+      },
+      "dependents": [
+        "frontend/package.json",
+        "frontend/package-lock.json"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed"
+      ],
+      "note": "Typings for Node 24 LTS tooling.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "26.6.4"
+    },
+    {
+      "id": "npm-gltf-validator",
+      "name": "gltf-validator",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "npm": "https://www.npmjs.com/package/gltf-validator",
+        "releases": "https://www.npmjs.com/package/gltf-validator?activeTab=versions"
+      },
+      "feeds": [
+        {
+          "type": "npm",
+          "package": "gltf-validator"
+        }
+      ],
+      "current": {
+        "version": "2.0.0-dev.3.10",
+        "source": "frontend/package-lock.json",
+        "verify": false
+      },
+      "dependents": [
+        "frontend/package.json",
+        "frontend/tests/evidence-plan-studio-4.spec.ts",
+        "frontend/package-lock.json"
+      ],
+      "watch_keywords": [
+        "breaking",
+        "removed",
+        "deprecat",
+        "schema"
+      ],
+      "note": "Validates the generated glTF in the Plan Studio tests.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "2.0.0-dev.3.10"
+    },
+    {
+      "id": "npm-rollup-wasm-node",
+      "name": "Rollup (wasm build, aliased as rollup)",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "npm": "https://www.npmjs.com/package/@rollup/wasm-node",
+        "releases": "https://www.npmjs.com/package/@rollup/wasm-node?activeTab=versions"
+      },
+      "feeds": [
+        {
+          "type": "npm",
+          "package": "@rollup/wasm-node"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "frontend/package-lock.json (resolved in the lockfile as an alias; verify)",
+        "verify": true
+      },
+      "dependents": [
+        "frontend/package.json",
+        "frontend/package-lock.json"
+      ],
+      "watch_keywords": [
+        "breaking"
+      ],
+      "note": "Overridden into rollup via package.json overrides.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": "4.63.6"
+    },
+    {
+      "id": "legacy-hikvision-nvr-addon",
+      "name": "Legacy 'Hikvision NVR Panel' add-on v1.5.27 (the running system)",
+      "kind": "addon",
+      "status": "in-use",
+      "priority": "P3",
+      "owner": "Product owner (hands-on)",
+      "urls": {
+        "our_repository": "https://github.com/jonioliel/smplwise-bms"
+      },
+      "feeds": [],
+      "current": {
+        "version": "1.5.27",
+        "source": "legacy source zip supplied by the owner 2026-09-14 (no git repo, no upstream)",
+        "verify": false
+      },
+      "dependents": [
+        "docs/legacy/LEGACY_AUDIT.md",
+        "docs/legacy/REUSE_MATRIX.md",
+        "docs/legacy/KNOWN_QUIRKS.md"
+      ],
+      "watch_keywords": [
+        "version",
+        "update",
+        "replace"
+      ],
+      "manual": {
+        "how": "Ask the owner whether v1.5.27 is still what runs; the legacy source is never edited.",
+        "cadence_days": 180
+      },
+      "note": "Read-only evidence and the system still running at the customer until migration. It has no upstream feed; this item records that the version and the migration (docs/operations/MIGRATION_FROM_LEGACY_HE.md) are tracked by hand.",
+      "last_checked": null,
+      "last_seen_version": null
+    }
+  ]
+}
