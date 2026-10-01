@@ -91,10 +91,20 @@ export interface PlayerCaps extends MediaCaps {
   stations: boolean;
   playlists: boolean;
   transfer: boolean;
+  /** Phase 2b (CR §17): the full queue list through the direct Music Assistant connection; absent/false = the 0.1.150 depth. */
+  queue_list?: boolean;
+  /** Phase 2b: the "ספרייה" tab (browse by type, through the system infrastructure). */
+  browse?: boolean;
+  /** Phase 2b: a search field in the library tab (the direct connection is ready). */
+  search?: boolean;
 }
 
 export interface PlayerCan extends MediaCan {
   group: boolean;
+  /** Phase 2b: media.queue + media.control at the anchor (move / next / delete / clear). */
+  queue?: boolean;
+  /** Phase 2b: media.browse at the anchor. */
+  browse?: boolean;
 }
 
 export interface VolumeNight {
@@ -145,6 +155,8 @@ export interface PlayerStatus extends Omit<MediaStatus, 'bridge' | 'can' | 'coun
   /** false = the installation has no floors: group by area (CR §7.1). */
   floors: boolean;
   library: { provider: MusicProvider; state: 'ready' | 'none' | 'unavailable' };
+  /** Phase 2b: the direct Music Assistant connection's state only (the address never leaves the settings). */
+  direct?: { state: MaState };
 }
 
 // ------------------------------------------------------------------------------------------------ up next, library, suggestions, groups
@@ -189,6 +201,84 @@ export interface LibraryPage {
   provider: MusicProvider;
 }
 export const ITEM_REF_RE = /^[a-f0-9]{24}$/;
+
+// ------------------------------------------------------------------------------------------------ phase 2b: the full queue, the library tab, the connection (CR §17.7)
+
+/** One row of `GET devices/{key}/queue`: `item` is opaque (issued to this user for this device, 10 min). */
+export interface QueueRow extends QueueEntry {
+  item: string;
+  /** Absolute position in the queue (0 = the first row ever queued). */
+  index: number;
+  /** The current row and what is already buffered: never moved or deleted. */
+  locked: boolean;
+}
+export interface QueueList {
+  /** false: the read failed -> "לא זמין", never an empty queue. */
+  confirmed: boolean;
+  count: number | null;
+  index: number | null;
+  /** The last locked index (-1 when nothing plays). */
+  locked_to: number | null;
+  offset: number;
+  items: QueueRow[];
+  shuffle: boolean | null;
+  repeat: RepeatMode | null;
+  read_at: string | null;
+}
+export type QueueOp = 'move' | 'next' | 'delete' | 'clear';
+export interface QueueEditBody { op: QueueOp; item?: string; to?: number; confirmed?: boolean; client_request_id: string; expires_at: string }
+export interface QueueEditResult { status: 'accepted' | 'refused'; op: QueueOp; to?: number; error?: number | null }
+
+export type BrowseType = 'track' | 'album' | 'artist' | 'playlist' | 'radio';
+export const BROWSE_TYPES: readonly BrowseType[] = ['track', 'album', 'artist', 'playlist', 'radio'];
+export const BROWSE_TYPE_LABEL: Record<BrowseType, string> = { track: 'שירים', album: 'אלבומים', artist: 'אמנים', playlist: 'פלייליסטים', radio: 'תחנות' };
+/** GET devices/{key}/browse. */
+export interface BrowsePage { type: BrowseType; q: string | null; items: LibraryItem[]; offset: number; more: boolean; read_at: string; provider: MusicProvider }
+export const SEARCH_DEBOUNCE_MS = 400;
+export const SEARCH_MAX = 60;
+export const LIBRARY_TAB = 'library' as const;
+export const LIBRARY_TAB_TEXT = 'ספרייה';
+
+export type MaState = 'off' | 'ready' | 'unreachable' | 'unauthorized' | 'schema_too_old' | 'error';
+/** GET /multimedia/admin/ma-connection (system.configure): the token is never returned. */
+export interface MaConnection {
+  enabled: boolean;
+  url: string | null;
+  token_set: boolean;
+  token_set_at: string | null;
+  token_expiring: boolean;
+  state: MaState;
+  min_schema: number;
+  last_test: (MaTest & { at: string }) | null;
+}
+export interface MaTest { state: MaState; server_version: string | null; schema_version: number | null; players: number | null }
+export interface MaConnectionBody { enabled?: boolean; url?: string | null; token?: string; clear_token?: boolean }
+/** Settings wording (technical names are allowed in settings only). */
+export const MA_STATE_LABEL: Record<MaState, string> = {
+  off: 'כבוי', ready: 'מחובר', unreachable: 'השרת אינו נגיש', unauthorized: 'האסימון נדחה', schema_too_old: 'גרסת השרת ישנה מדי', error: 'שגיאה',
+};
+
+/** The tab "ספרייה" is offered: the device browses (caps) and the caller holds media.browse. */
+export const browseOffered = (d: Pick<PlayerDevice, 'caps' | 'can'>): boolean => !!d.caps.browse && !!d.can.browse;
+/** The full queue replaces the up-next block. */
+export const fullQueueOffered = (d: Pick<PlayerDevice, 'caps'>): boolean => !!d.caps.queue_list;
+
+/** Where a row dropped between rows `before` and `after` lands: never inside the locked zone, never past the end. */
+export function queueDropTarget(fromIndex: number, toIndex: number, lockedTo: number, last: number): number | null {
+  const to = Math.max(lockedTo + 1, Math.min(last, toIndex));
+  return to === fromIndex || fromIndex <= lockedTo ? null : to;
+}
+/** The optimistic order after a move (the server's next read is the truth). Indexes are absolute. */
+export function reorderRows(rows: readonly QueueRow[], from: number, to: number): QueueRow[] {
+  const i = rows.findIndex((r) => r.index === from);
+  if (i < 0) return [...rows];
+  const out = rows.slice();
+  const [row] = out.splice(i, 1);
+  const j = Math.max(0, Math.min(out.length, i + (to - from)));
+  out.splice(j, 0, row);
+  const base = rows[0]?.index ?? 0;
+  return out.map((r, n) => ({ ...r, index: base + n }));
+}
 
 export interface MergeSuggestion {
   id: string;
@@ -339,6 +429,10 @@ export const PLAYER_ERROR_LABEL: Record<string, string> = {
   use_group_volume: 'עוצמת קבוצה נשלטת ממסך הקבוצה',
   use_media_screen: 'הנגן מנוהל מהמולטימדיה',
   media_managed_control: 'הנגן מנוהל מהמולטימדיה',
+  locked: 'השיר הזה כבר מתנגן',
+  queue_changed: 'התור השתנה',
+  ma_unavailable: 'התור אינו זמין כרגע',
+  search_unavailable: 'החיפוש אינו זמין כרגע',
 };
 /** Refusals that depend on the server's `reason` (a short Hebrew line each): the leader's followers are not the caller's, an unmute above the ceiling. */
 const REASON_LABEL: Record<string, string> = {
@@ -363,6 +457,13 @@ export function confirmPreview(err: unknown): GroupPreview | null {
   if (!(err instanceof ApiError) || err.code !== 'confirm_required') return null;
   const body = err.body as unknown as { details?: { preview?: GroupPreview }; preview?: GroupPreview };
   return body.details?.preview ?? body.preview ?? null;
+}
+
+/** 409 `confirm_required` of a queue `clear` -> how many rows it would remove (`details.count`); else null. */
+export function confirmCount(err: unknown): number | null {
+  if (!(err instanceof ApiError) || err.code !== 'confirm_required') return null;
+  const c = (err.body.details as { count?: unknown } | undefined)?.count;
+  return typeof c === 'number' ? c : null;
 }
 
 export const MEMBER_OUTCOME_LABEL: Record<MemberOutcome, string> = {
@@ -405,6 +506,14 @@ export interface PlayersAdapter {
   suggestions(): Promise<MergeSuggestion[]>;
   /** `approved` (true on a helper group an administrator switched on): only an approved helper group is listed as a shortcut in the groups tab. */
   nonPhysical(): Promise<{ devices: (PlayerDevice & { approved?: boolean })[] }>;
+  /** Phase 2b (CR §17.7). */
+  queue(key: string, offset?: number): Promise<QueueList>;
+  /** 409 `confirm_required` (+ `details.count`) for `clear` without `confirmed`. */
+  queueEdit(key: string, body: QueueEditBody): Promise<QueueEditResult>;
+  browse(key: string, type: BrowseType, q?: string, offset?: number): Promise<BrowsePage>;
+  maConnection(): Promise<MaConnection>;
+  saveMaConnection(body: MaConnectionBody): Promise<MaConnection>;
+  testMaConnection(): Promise<MaTest>;
 }
 
 const enc = encodeURIComponent;
@@ -445,7 +554,17 @@ export const httpPlayers: PlayersAdapter = {
   pauseRun: (scope, id, client_request_id, expires_at) => post('multimedia/actions', { scope, id, kind: 'players_pause', confirmed: true, client_request_id, expires_at }),
   suggestions: async () => rows<MergeSuggestion>(await get<unknown>('multimedia/admin/suggestions'), 'suggestions'),
   nonPhysical: () => get(`multimedia/admin/devices${qs({ kind: NON_PHYSICAL_KINDS.join(',') })}`),
+  queue: (key, offset) => get(`multimedia/devices/${enc(key)}/queue${qs({ offset: offset !== undefined ? String(offset) : undefined })}`),
+  queueEdit: (key, body) => post(`multimedia/devices/${enc(key)}/queue`, body),
+  browse: (key, type, q, offset) => get(`multimedia/devices/${enc(key)}/browse${qs({ type, q: q?.trim() || undefined, offset: offset ? String(offset) : undefined })}`),
+  maConnection: () => get('multimedia/admin/ma-connection'),
+  saveMaConnection: (body) => put('multimedia/admin/ma-connection', body),
+  testMaConnection: () => post('multimedia/admin/ma-connection/test', {}),
 };
+
+/** One queue edit with a fresh request id (one per deliberate gesture; never retried). */
+export const sendQueueEdit = (key: string, op: QueueOp, extra: { item?: string; to?: number; confirmed?: boolean } = {}, requestId: string = commandId()): Promise<QueueEditResult> =>
+  players().queueEdit(key, { op, ...extra, client_request_id: requestId, expires_at: new Date(Date.now() + 15_000).toISOString() });
 
 /** The adapter in force: HTTP with a backend, the mock otherwise (same selector as CR-015's `media()`). */
 export const players = (): PlayersAdapter => (isApi() ? httpPlayers : playersMock());

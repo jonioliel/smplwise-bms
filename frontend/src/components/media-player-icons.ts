@@ -12,6 +12,11 @@ export const PLAYER_ICON: Record<string, string> = {
   transfer: '<path d="M5 8h14"/><path d="m15 4 4 4-4 4"/><path d="M19 16H5"/><path d="m9 12-4 4 4 4"/>',
   group: '<rect x="3" y="5" width="8" height="14" rx="2"/><rect x="13" y="5" width="8" height="14" rx="2"/><circle cx="7" cy="14.5" r="1.8"/><circle cx="17" cy="14.5" r="1.8"/>',
   unlink: '<path d="m9 15 6-6"/><path d="M11 6.5 12.4 5a4 4 0 0 1 5.7 5.7L16.7 12"/><path d="m13 17.5-1.4 1.5a4 4 0 0 1-5.7-5.7L7.3 12"/><path d="M3 3l18 18"/>',
+  // CR-016 phase 2b: the full queue and the library tab
+  trash: '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>',
+  playNext: '<path d="M4 6h10M4 12h10M4 18h6"/><path d="m16 15 5 3-5 3z"/>',
+  addQueue: '<path d="M4 6h12M4 12h12M4 18h7"/><path d="M18 14v8M14 18h8"/>',
 };
 
 const ALL: Record<string, string> = { ...ICON, ...PLAYER_ICON };

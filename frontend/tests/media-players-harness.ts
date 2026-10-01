@@ -249,6 +249,34 @@ export async function install(page: Page, st: St) {
         const r = await guard(() => st.players.groupRecord(rec[1]));
         return r ? json(r) : undefined;
       }
+      // CR-016 phase 2b: the full queue, the library tab, the direct connection (CR §17.7)
+      const qd = /^multimedia\/devices\/([^/]+)\/(queue|browse)$/.exec(p);
+      if (qd && qd[2] === 'queue' && method === 'GET') {
+        const off = url.searchParams.get('offset');
+        const r = await guard(() => st.players.queue(decodeURIComponent(qd[1]), off !== null ? Number(off) : undefined));
+        return r ? json(r) : undefined;
+      }
+      if (qd && qd[2] === 'queue' && method === 'POST') {
+        const r = await guard(() => st.players.queueEdit(decodeURIComponent(qd[1]), body as never));
+        return r ? json(r, 202) : undefined;
+      }
+      if (qd && qd[2] === 'browse') {
+        const r = await guard(() => st.players.browse(decodeURIComponent(qd[1]), (url.searchParams.get('type') ?? 'track') as never, url.searchParams.get('q') ?? undefined, Number(url.searchParams.get('offset') ?? 0)));
+        return r ? json(r) : undefined;
+      }
+      if (p === 'multimedia/admin/ma-connection' && method === 'GET') {
+        if (!has('system.configure')) return err(403, 'forbidden', 'אין הרשאה');
+        return json(await st.players.maConnection());
+      }
+      if (p === 'multimedia/admin/ma-connection' && method === 'PUT') {
+        if (!has('system.configure')) return err(403, 'forbidden', 'אין הרשאה');
+        const r = await guard(() => st.players.saveMaConnection(body as never));
+        return r ? json(r) : undefined;
+      }
+      if (p === 'multimedia/admin/ma-connection/test' && method === 'POST') {
+        if (!has('system.configure')) return err(403, 'forbidden', 'אין הרשאה');
+        return json(await st.players.testMaConnection());
+      }
       // the settings' routes
       if (p === 'multimedia/admin/devices' && method === 'GET') {
         const kinds = url.searchParams.get('kind');

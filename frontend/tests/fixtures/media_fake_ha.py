@@ -113,8 +113,13 @@ services are refused `service_not_allowed` - exactly the drift the fixture exist
 
 Extra control routes: POST /bridge-exec {domain, service, data}, POST /bridge-query {query, entity_id, ...} and POST /bridge-area {entity_id, area_id} drive the fake bridge as
 the add-on would (for specs that test the fixture itself, before S1); GET /raw?service=get_queue|get_library|search&entity_id=...;
-POST /media-config also takes `search_enabled`, `query_fail`, `ma_loaded`, `join_refuse` ([entity ids]), `allow_extra` ([[domain,
+POST /media-config also takes `search_enabled`, `query_fail`, `ma_loaded`, `ma_down`, `join_refuse` ([entity ids]), `allow_extra` ([[domain,
 service], ...]) and `allow_reset`; GET /status lists `allowed_missing` (bridge 0.5.0 services the real bridge does not allow yet).
+
+CR-016 phase 2b: a fake Music Assistant SERVER on the reserved host `fake-ma.test` (`ma_http` / `ma_rpc`): `GET /info` (schema 28) and the
+JSON-RPC `POST /api` with `Authorization: Bearer fake-ma-fixture-token-0001` for exactly the commands the add-on's direct connection may send
+(`players/all`, `player_queues/get_active_queue | items | move_item | delete_item | clear`, `music/search`) over the SAME queues the fake HA
+reports through get_queue; the playing row and the buffered one refuse edits (MA error 11). `ma_down` makes the host unreachable.
 
 Run it (a fresh data dir each time; ports 4381-4390 are for throwaway backends, 4481-4490 for the CR-016 houses):
 
@@ -861,6 +866,10 @@ class Model:
         self.query_fail = False
         self.ma_loaded = True
         self.search_enabled = False
+        # CR-016 phase 2b: the fake Music Assistant server (`ma_rpc`): stable queue item ids per queue owner, and a switch that makes it unreachable
+        self.queue_ids: dict[str, list[str]] = {}
+        self.ma_down = False
+        self.ma_calls: list[str] = []
 
     def load(self, world: dict[str, Any]) -> None:
         with self.lock:
@@ -873,6 +882,7 @@ class Model:
             self.groups = copy.deepcopy(m.get("groups", {}))
             self.queues = copy.deepcopy(m.get("queues", {}))
             self.join_refuse, self.query_fail, self.ma_loaded, self.search_enabled = set(), False, True, False
+            self.queue_ids, self.ma_down, self.ma_calls = {}, False, []
 
     def payload(self, entity_id: str) -> dict[str, Any]:
         """The state as Home Assistant reports it (unavailable / unknown keep only the capability attributes)."""
@@ -1473,6 +1483,102 @@ def _library_answer(q: str, provider: str, e: dict[str, Any], body: dict[str, An
     return {"ok": True, "result": {"items": [{"name": n, "source": n} for n in picked], "offset": 0, "limit": len(picked)}}
 
 
+# ------------------------------------------------------------------------------------------------ the fake Music Assistant server (CR-016 phase 2b)
+
+FAKE_MA_HOST = "fake-ma.test"  # the live specs paste http://fake-ma.test:8095 and FAKE_MA_TOKEN in Settings > Multimedia > Connection
+FAKE_MA_TOKEN = "fake-ma-fixture-token-0001"
+FAKE_MA_SCHEMA = 28
+
+
+def _qids(owner: str) -> list[str]:
+    """Stable queue item ids of one queue, kept parallel to MODEL.queues[owner]['items'] (new rows get new ids, removed rows lose theirs)."""
+    items = (MODEL.queues.get(owner) or {}).get("items") or []
+    ids = MODEL.queue_ids.setdefault(owner, [])
+    while len(ids) < len(items):
+        ids.append(f"qi-{owner.split('.')[-1]}-{len(ids):04d}-{MODEL.n}")
+    del ids[len(items):]
+    return ids
+
+
+def _ma_owner(player_id: str) -> str | None:
+    eid = next((k for k, e in MODEL.ents.items() if e["platform"] == "music_assistant" and e.get("unique_id") == player_id), None)
+    return (MODEL._queue_owner(eid) or eid) if eid else None
+
+
+def _queue_by_id(queue_id: str) -> str | None:
+    return next((k for k, e in MODEL.ents.items() if e["platform"] == "music_assistant" and e.get("unique_id") == queue_id), None)
+
+
+def ma_rpc(command: str, args: dict[str, Any]) -> tuple[int, Any]:
+    """`POST /api` of the fake MA server: the JSON-RPC answer `{message_id, result}` (or an `error_code`) for the commands ma_direct may send. Anything
+    else is MA's own InvalidCommand (12). The queues are the fake HA model's own (a move here is what get_queue shows next)."""
+    with MODEL.lock:
+        MODEL.ma_calls.append(command)
+        if command == "players/all":
+            return 200, [{"player_id": e["unique_id"], "name": "synthetic"} for e in MODEL.ents.values() if e["platform"] == "music_assistant"]
+        if command == "player_queues/get_active_queue":
+            owner = _ma_owner(str(args.get("player_id")))
+            if owner is None:
+                return 400, {"error_code": 10, "details": "player not found"}
+            q = MODEL.queues.get(owner) or {"items": [], "index": 0}
+            idx = q["index"] if q["items"] else None
+            attrs = MODEL.ents[owner]["attrs"]
+            return 200, {"queue_id": MODEL.ents[owner]["unique_id"], "active": bool(q["items"]), "items": len(q["items"]), "current_index": idx,
+                         "index_in_buffer": min(idx + 1, len(q["items"]) - 1) if idx is not None else None, "shuffle_enabled": bool(attrs.get("shuffle")),
+                         "repeat_mode": attrs.get("repeat") or "off", "name": "synthetic"}
+        if command == "player_queues/items":
+            owner = _queue_by_id(str(args.get("queue_id")))
+            if owner is None:
+                return 400, {"error_code": 2, "details": "queue not found"}
+            q = MODEL.queues.get(owner) or {"items": [], "index": 0}
+            ids, off, lim = _qids(owner), int(args.get("offset", 0)), int(args.get("limit", 500))
+            out = []
+            for i in range(off, min(len(q["items"]), off + lim)):
+                mt, iid = q["items"][i]
+                it = lib_item(mt, iid)
+                if it is not None:
+                    out.append({"queue_item_id": ids[i], "name": it["name"], "duration": it.get("duration"), "sort_index": i, "media_item": _raw_item(mt, it)})
+            return 200, out
+        if command in ("player_queues/move_item", "player_queues/delete_item", "player_queues/clear"):
+            owner = _queue_by_id(str(args.get("queue_id")))
+            if owner is None or owner not in MODEL.queues:
+                return 400, {"error_code": 8, "details": "queue empty"}
+            q, ids = MODEL.queues[owner], _qids(owner)
+            if command == "player_queues/clear":
+                del q["items"][q["index"] + 1:]
+                _qids(owner)
+                return 200, None
+            qid = args.get("queue_item_id") if command == "player_queues/move_item" else args.get("item_id_or_index")
+            if qid not in ids:
+                return 400, {"error_code": 3, "details": "item not found"}
+            i = ids.index(qid)
+            if i <= q["index"]:
+                return 400, {"error_code": 11, "details": "cannot change the playing item"}
+            row, rid = q["items"].pop(i), ids.pop(i)
+            if command == "player_queues/move_item":
+                j = max(q["index"] + 1, min(len(q["items"]), i + int(args.get("pos_shift", 1))))
+                q["items"].insert(j, row)
+                ids.insert(j, rid)
+            return 200, None
+        if command == "music/search":
+            text, types, lim = str(args.get("search_query") or ""), args.get("media_types") or list(MEDIA_TYPES), int(args.get("limit", 25))
+            plural = {"track": "tracks", "album": "albums", "artist": "artists", "playlist": "playlists", "radio": "radio"}
+            return 200, {plural[mt]: [_raw_item(mt, i) for i in _filtered(mt, None, "name", text)[:lim]] for mt in MEDIA_TYPES if mt in types}
+        return 400, {"error_code": 12, "details": "invalid command"}
+
+
+def ma_http(method: str, path: str, headers: Any, content: bytes) -> tuple[int, Any]:
+    """The fake MA server over HTTP: `GET /info` (no token), `POST /api` (Bearer FAKE_MA_TOKEN, else 401). `MODEL.ma_down` = unreachable."""
+    if method == "GET" and path == "/info":
+        return 200, {"server_id": "synthetic", "server_version": "2.10.4", "schema_version": FAKE_MA_SCHEMA, "min_supported_schema_version": 24, "homeassistant_addon": True, "onboard_done": True}
+    if method == "POST" and path == "/api":
+        if headers.get("authorization") != f"Bearer {FAKE_MA_TOKEN}":
+            return 401, {"error_code": 20, "details": "authentication required"}
+        body = json.loads(content or b"{}")
+        return ma_rpc(str(body.get("command")), body.get("args") or {})  # the stateless HTTP API answers the RAW result (MA notes 2.1), not the WebSocket envelope
+    return 404, {"error": "not found"}
+
+
 def entity_area(body: dict[str, Any]) -> dict[str, Any]:
     """`smplwise_bridge.set_entity_area` / `entity_area` (admin only): the entity registry changes (an entity-level area overrides its device's)
     and the backend's sync is told. Refusals like the real bridge: entity_not_found, area_not_found."""
@@ -1611,6 +1717,11 @@ def install() -> None:
     real_handle = httpx.HTTPTransport.handle_request
 
     def handle_request(self: Any, request: Any) -> Any:
+        if request.url.host == FAKE_MA_HOST:  # CR-016 phase 2b: the direct Music Assistant connection
+            if MODEL.ma_down:
+                raise httpx.ConnectError("media_fake_ha: the fake Music Assistant server is down", request=request)
+            status, answer = ma_http(request.method, request.url.path, request.headers, request.content)
+            return httpx.Response(status, json=answer, request=request)
         if request.url.host == FAKE_HOST:
             path = request.url.path
             if request.method == "POST" and path == "/api/services/smplwise_bridge/execute":
@@ -1766,7 +1877,7 @@ class _Control(BaseHTTPRequestHandler):
                 MODEL.effect_delay = float(body["effect_delay"])
             if "refuse" in body:
                 MODEL.refuse = body["refuse"] or None
-            for flag in ("search_enabled", "query_fail", "ma_loaded"):
+            for flag in ("search_enabled", "query_fail", "ma_loaded", "ma_down"):
                 if isinstance(body.get(flag), bool):
                     setattr(MODEL, flag, body[flag])
             if isinstance(body.get("join_refuse"), list):

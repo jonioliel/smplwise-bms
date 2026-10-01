@@ -35,7 +35,7 @@ from ..db import Database, commit_now, get_setting, now_iso, rollback_and_restar
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import device_bulk as bulk
-from ..services import ha_bridge, ha_client, ha_sync, media_commands, media_groups, media_layout, media_model as mm, media_profiles as profiles, media_query, media_store as store, user_prefs
+from ..services import ha_bridge, ha_client, ha_sync, ma_direct, media_commands, media_groups, media_layout, media_model as mm, media_profiles as profiles, media_query, media_queue, media_store as store, user_prefs
 from .devices import _envelope, _is_json, _raw_body
 
 router = APIRouter()
@@ -670,6 +670,104 @@ def get_library(key: str, request: Request, kind: Literal["favourites", "station
     _read_limit(conn, principal, request, key, "library", "library-user", LIBRARY_USER)
     show = include_hidden and store.Access(conn, principal, (store.PERM_LAYOUT,)).has(store.PERM_LAYOUT, item.row.get("anchor_entity_id"))
     return media_query.library_page(conn, settings_of(request), principal, cat, item, access, kind, offset, show_hidden=show)
+
+
+# ---------------------------------------------------------------- CR-016 phase 2b: the full queue, the library tab, the direct connection (CR 17.7)
+
+@router.get("/multimedia/devices/{key}/queue")
+def get_queue(key: str, request: Request, offset: int | None = Query(None, ge=0, le=10000), limit: int = Query(50, ge=1, le=100),
+              principal: Principal = Depends(_reader_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """`QueueList`: the rows of the device's queue from `offset` (default: the current item) through the direct Music Assistant connection; locked rows (the
+    current one and what is buffered) marked. A member answers with its leader's queue. `confirmed: false` when the read failed (never an empty queue);
+    422 not_supported without an MA player; 503 ma_unavailable while the direct connection is not ready. Shares the up-next read budget per user."""
+    cat, item, access = store.find_visible(conn, principal, key, tuple(mm.AUDIO_KINDS))
+    _read_limit(conn, principal, request, key, "queue", "up-next-user", UP_NEXT_USER)
+    return media_queue.queue_list(conn, principal, cat, item, access, offset, limit)
+
+
+class QueueEditBody(_Body):
+    op: Literal["move", "next", "delete", "clear"]
+    item: str | None = Field(None, max_length=24)
+    to: Any = None
+    confirmed: Any = None
+    client_request_id: str = Field(pattern=COMMAND_ID)
+    expires_at: str = Field(min_length=1, max_length=40)
+
+
+def _check_queue(conn: sqlite3.Connection, principal: Principal) -> None:
+    """media.queue somewhere (installation or a floor), before the body is read; the audited 403 otherwise."""
+    if not store.Access(conn, principal, (store.PERM_QUEUE,)).anywhere(store.PERM_QUEUE):
+        require(conn, principal, store.PERM_QUEUE, INSTALLATION)
+    _feature_or_404(conn)
+
+
+_queue_gate = read_gate(_check_queue)
+
+
+@router.post("/multimedia/devices/{key}/queue", status_code=202)
+def post_queue(key: str, request: Request, principal: Principal = Depends(_queue_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> Any:
+    """One queue edit (`op` move | next | delete | clear) through the direct Music Assistant connection: 202 `{status: accepted, op}`; 200 `{status: refused,
+    op, error}` when Music Assistant said no (its numeric code only). media.queue + media.control at the device (and at every follower of a live leader);
+    `clear` needs `confirmed: true` (409 confirm_required + `count`); 409 locked / queue_changed / expired, 422 unknown_item / validation, 429, 503
+    ma_unavailable. Every attempt is one audited `media.queue` row (never an item name or id)."""
+    body: QueueEditBody = _parse(request, raw, QueueEditBody)
+    cat, item, access = store.find_visible(conn, principal, key, tuple(mm.AUDIO_KINDS))
+    status, out = media_queue.edit(conn, settings_of(request), principal, _rid(request), cat, item, access, body.model_dump())
+    return JSONResponse(status_code=status, content=out)
+
+
+@router.get("/multimedia/devices/{key}/browse")
+def get_browse(key: str, request: Request, media_type: Literal["track", "album", "artist", "playlist", "radio"] = Query(..., alias="type"), q: str | None = Query(None, max_length=60),
+               offset: int = Query(0, ge=0, le=5000), principal: Principal = Depends(_reader_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """`BrowsePage`: one page of the library of one media type, browsed through the bridge (`q` empty) or searched through the direct Music Assistant
+    connection (`q`). Items are opaque `item_ref`s started with the `play_item` command. media.browse at the device's anchor (the audited 403 otherwise)."""
+    cat, item, access = store.find_visible(conn, principal, key, tuple(mm.AUDIO_KINDS))
+    if not access.has(store.PERM_BROWSE, item.row.get("anchor_entity_id")):
+        require(conn, principal, store.PERM_BROWSE, INSTALLATION)
+    if q and q.strip():
+        _read_limit(conn, principal, request, key, "search", "search-user", media_queue.SEARCH_USER)
+    else:
+        _read_limit(conn, principal, request, key, "library", "library-user", LIBRARY_USER)
+    return media_queue.browse(conn, settings_of(request), principal, cat, item, access, media_type, q, offset)
+
+
+class MaConnectionBody(_Body):
+    enabled: bool | None = None
+    url: str | None = Field(None, max_length=200)
+    token: str | None = Field(None, max_length=ma_direct.TOKEN_MAX)
+    clear_token: bool | None = None
+
+
+@router.get("/multimedia/admin/ma-connection")
+def get_ma_connection(principal: Principal = Depends(_configure_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The direct Music Assistant connection (system.configure): switch, address, whether a token is set (never the token), the state and the last test."""
+    return ma_direct.admin_view(conn)
+
+
+@router.put("/multimedia/admin/ma-connection")
+def put_ma_connection(request: Request, background: BackgroundTasks, principal: Principal = Depends(_configure_gate), raw: bytes = Depends(_raw_body),
+                      conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """`{enabled?, url?, token?, clear_token?}`: the token is write-only (a 0600 file); the audit row names what changed (`url_changed`, `token: set |
+    cleared`, `enabled`) and never a value."""
+    body: MaConnectionBody = _parse(request, raw, MaConnectionBody)
+    fields = {f: getattr(body, f) for f in body.model_fields_set}
+    view, changed = ma_direct.update_config(conn, fields)
+    audit(conn, actor=principal, action="media.ma_connection", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
+          details={"op": "update", **changed})
+    if changed:
+        _changed(background, "connection")
+    return view
+
+
+@router.post("/multimedia/admin/ma-connection/test")
+def test_ma_connection(request: Request, principal: Principal = Depends(_configure_gate), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """"בדוק חיבור": the server's schema gate and the number of players the account sees (no names). Audited with the state only."""
+    with unlocked(conn):
+        out = ma_direct.probe(conn)
+    ma_direct.save_test(conn, out)
+    audit(conn, actor=principal, action="media.ma_connection", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
+          details={"op": "test", "state": out["state"]})
+    return out
 
 
 # ---------------------------------------------------------------- CR-016: favourites curation (MEDIA_PLAYERS_API.md 3.25)
