@@ -32,6 +32,8 @@ export interface ProductSettings {
   'ui.tabs'?: Record<string, unknown>;
   /** The phone UX guards (הגדרות › כללי › אפשרויות נייד, owner 2026-09-30): which kinds of management the phone UI hides - shell/phone.ts. */
   'ui.mobile'?: Record<string, boolean>;
+  /** The colour of each thing the investigation timeline draws (owner 2026-10-01): option -> palette name | #rrggbb; api/timeline-colors.ts. */
+  'timeline.colors'?: Record<string, string>;
   /** The floor the map's floor tab opens first (an existing floor id); '' = the first floor the user may read. */
   'map.default_floor'?: string;
   'media.transport_default': Transport;

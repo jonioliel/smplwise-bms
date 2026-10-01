@@ -1218,10 +1218,10 @@ export class InvestigatePlayback extends LitElement {
       <sw-timeline .segments=${demoSegments} .events=${events} .cursor=${this.cursor} precision="estimated" @seek=${this.seekDemo}></sw-timeline>
       <div class="filters">
         <sw-chip ?selected=${this.filter === 'all'} @click=${() => (this.filter = 'all')}>הכל</sw-chip>
-        <sw-chip dot="#ef4444" ?selected=${this.filter === 'motion'} @click=${() => (this.filter = 'motion')}>תנועה</sw-chip>
-        <sw-chip dot="#2f6bff" ?selected=${this.filter === 'person'} @click=${() => (this.filter = 'person')}>אדם</sw-chip>
-        <sw-chip dot="#22c55e" ?selected=${this.filter === 'vehicle'} @click=${() => (this.filter = 'vehicle')}>רכב</sw-chip>
-        <sw-chip dot="#8b5cf6" ?selected=${this.filter === 'door'} @click=${() => (this.filter = 'door')}>דלת</sw-chip>
+        <sw-chip dot="var(--sw-tl-motion)" ?selected=${this.filter === 'motion'} @click=${() => (this.filter = 'motion')}>תנועה</sw-chip>
+        <sw-chip dot="var(--sw-tl-person)" ?selected=${this.filter === 'person'} @click=${() => (this.filter = 'person')}>אדם</sw-chip>
+        <sw-chip dot="var(--sw-tl-vehicle)" ?selected=${this.filter === 'vehicle'} @click=${() => (this.filter = 'vehicle')}>רכב</sw-chip>
+        <sw-chip dot="var(--sw-tl-door)" ?selected=${this.filter === 'door'} @click=${() => (this.filter = 'door')}>דלת</sw-chip>
         <span class="grow"></span>
         <sw-button size="sm" icon="case">הוסף לתיק</sw-button>
         <a href="#/investigate/floors/f0/history"><sw-button size="sm" icon="map">במפה בזמן הזה</sw-button></a>

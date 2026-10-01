@@ -36,6 +36,7 @@ import './system-tabs'; // owner 2026-09-30: הגדרות › כללי › לש�
 import './system-nav-size'; // UI round 1b: הגדרות › כללי › גודל הניווט
 import './system-home-screen'; // home redesign: הגדרות › חשמל והתקנים › מסך ראשי
 import './system-mobile-options'; // owner 2026-09-30: הגדרות › כללי › אפשרויות נייד
+import './system-timeline-colors'; // owner 2026-10-01: הגדרות › וידאו ומדיה › צבעי ציר הזמן
 import { loadTree } from '../api/catalog';
 import type { Site } from '../api/types';
 import type { DevicesPick } from './devices-theme-picker';
@@ -776,6 +777,7 @@ export class SystemDiagnostics extends LitElement {
         <div class="foot"><sw-button variant="primary" icon="check" ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>
         ${!api ? html`<div class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</div>` : nothing}
       </sw-card>
+      ${NVR ? nothing : html`<system-timeline-colors></system-timeline-colors>`}
       ${this.renderSkins()}
       <sw-card heading="go2rtc" subheading="זרמים של המוצר בשרת החיצוני (קריאה); זרמים זרים אינם מוצגים ואינם משתנים">
         ${!api || !this.canEdit

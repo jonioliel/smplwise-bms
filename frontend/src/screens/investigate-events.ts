@@ -22,7 +22,7 @@ import { EVENT_LABEL, EVENT_TONE, SOURCE_LABEL, WINDOW_GROUP_LABEL, ackEvent, ac
 import { dateInZone, closePlayback, createPlayback, frameUrl, playbackWsUrl, type PlaybackSession } from '../api/recordings';
 import type { Camera } from '../api/types';
 
-const TONE: Record<DemoEvent['type'], string> = { person: '#2f6bff', vehicle: '#22c55e', motion: '#ef4444', line: '#f59e0b', offline: '#6b7280', door: '#8b5cf6' };
+const TONE: Record<DemoEvent['type'], string> = { person: 'var(--sw-tl-person)', vehicle: 'var(--sw-tl-vehicle)', motion: 'var(--sw-tl-motion)', line: 'var(--sw-tl-line)', offline: 'var(--sw-tl-offline)', door: 'var(--sw-tl-door)' };
 const SCENE: Record<string, string> = { 'כניסה ראשית': 'entrance', 'חצר אחורית': 'backyard', מחסן: 'warehouse', לובי: 'lobby', 'חניה מקורה': 'parking', 'מסדרון מזרחי': 'corridor' };
 const SEV_LABEL = { info: 'מידע', alert: 'התראה', critical: 'קריטי' } as const;
 
