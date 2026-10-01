@@ -13,7 +13,7 @@ are the product's existing ones, not new ones:
 | schedule/automation| the owner of record, or schedule.view (installation-wide, or on one of its action entities)      |
 | bulk_job           | the initiator only                                                                               |
 | system             | system.configure                                                                                 |
-| session / security | the account's own user; a lockout also to system.configure holders                               |
+| session / security | the account's own user; a code lockout ONLY to system.configure holders (not the locked-out user)  |
 
 A rule alert (`origin.events_scope`) keeps the rule it always had: a camera alert follows the camera scope for events.read, a
 camera-less one needs installation-wide events.read (GET /rules/alerts, T055 M3).
@@ -140,9 +140,9 @@ class Reach:
         if kind == "system":
             return self._allowed("system.configure")
         if kind == "session":
-            if sid == uid:
-                return True
-            return str(n.get("source") or "") == "security.lockout" and self._allowed("system.configure")
+            if str(n.get("source") or "") == "security.lockout":
+                return self._allowed("system.configure")  # administrators ONLY: the locked-out account is not told (and cannot acknowledge it)
+            return sid == uid
         return False
 
     def can_ack(self, n: dict[str, Any]) -> bool:

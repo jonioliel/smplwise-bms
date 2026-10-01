@@ -291,6 +291,10 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
         for t in tables:
             if t in data:
                 counts[t] = _insert_rows(conn, t, data[t], replace=(mode == "replace"))
+        if "notify_settings" in tables:  # CR-018: an archive without the table must not leave the notification settings without their one row
+            from .notify_settings import ensure_row
+
+            ensure_row(conn)
         for t, rows in keep.items():
             if rows:
                 _insert_rows(conn, t, rows, replace=False)

@@ -31,7 +31,7 @@ from ..services import notify_policy as policies
 from ..services import notify_settings as nsettings
 from ..services import push as push_svc
 from ..services import user_events
-from ..services.notify_visibility import MANAGE
+from ..services.notify_visibility import MANAGE, Reach
 from ..services.timeutil import iso_utc, parse_utc
 from .settings import read_settings
 
@@ -116,8 +116,18 @@ def my_deliveries(principal: Principal = Depends(current_principal_ro), conn: sq
     if notification_id:
         sql += " AND d.notification_id = ?"
         params.append(notification_id)
-    rows = conn.execute(sql + " ORDER BY d.created_at DESC, d.id DESC LIMIT 200", params).fetchall()
-    return {"deliveries": [_delivery(conn, r, with_user=False) for r in rows]}
+    rows = conn.execute(sql + " ORDER BY d.created_at DESC, d.id DESC LIMIT 400", params).fetchall()
+    reach = Reach(conn, principal)
+    seen: dict[str, bool] = {}
+    out = []
+    for r in rows:  # a delivery row names the notification's title: only for a row the caller may STILL see (revoked scope hides it)
+        nid = r["notification_id"]
+        if nid not in seen:
+            n = conn.execute("SELECT * FROM notifications WHERE id = ?", (nid,)).fetchone()
+            seen[nid] = bool(n is not None and reach.can_see(notify._row_note(n)))
+        if seen[nid]:
+            out.append(_delivery(conn, r, with_user=False))
+    return {"deliveries": out[:200]}
 
 
 @router.post("/notifications/test")
@@ -165,6 +175,7 @@ class _FailureBucket:
 
 
 ACTION_FAILURES = _FailureBucket()
+ACTION_GLOBAL = _FailureBucket(burst=300)
 
 
 def _remote_gate(request: Request) -> Principal | None:
@@ -186,18 +197,23 @@ def push_action(request: Request, session: Principal | None = Depends(_remote_ga
     Arx session of THE SAME user). It is bound to (notification, user, action), expires with the push, and is re-checked against the user's
     CURRENT visibility and, for ack, their right to acknowledge. Any failure (expired, used, other action, lost reach, another user's session,
     unknown) is the same 401 `action_token_invalid`."""
-    who = request.client.host if request.client else "?"
-    if ACTION_FAILURES.blocked(who):
+    # The throttle is keyed per SESSION USER on the remote channel and per token-hash prefix locally (the peer address is one shared value behind
+    # Ingress or the tunnel). A global ceiling bounds enumeration. Only malformed / nonexistent tokens count: a stale (expired, used) button is not an attack.
+    keys = [f"user:{session.user_id}" if session is not None else f"tok:{notify._hash(body.t)[:8]}"]
+    if any(ACTION_FAILURES.blocked(k) for k in keys) or ACTION_GLOBAL.blocked("all"):
         raise ApiError(429, "rate_limited", "יותר מדי ניסיונות. נסו שוב בעוד דקה.", retryable=True, details={"retry_after_s": 60})
     db: Database = request.app.state.db
     with db.connection(label="notifications/action") as conn:
-        got = notify.redeem_token(conn, body.t, body.a, _tz(conn), expect_user=session.user_id if session is not None else None)
+        got, why = notify.redeem_token_ex(conn, body.t, body.a, _tz(conn), expect_user=session.user_id if session is not None else None)
         if got is not None:
             principal = got["principal"]
             audit(conn, actor=principal, action="notify.action", decision="allowed", resource_type="notification", resource_id=got["notification_id"], request_id=_rid(request),
                   details={"channel": "push", "action": body.a})
     if got is None:
-        ACTION_FAILURES.fail(who)
+        if why in ("malformed", "unknown"):
+            for k in keys:
+                ACTION_FAILURES.fail(k)
+            ACTION_GLOBAL.fail("all")
         raise ApiError(401, "action_token_invalid", "הכפתור כבר אינו תקף. פתחו את Arx כדי לטפל בהתראה.")
     return {"ok": True, "result": got["result"], "notification_id": got["notification_id"]}
 
