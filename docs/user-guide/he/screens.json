@@ -734,7 +734,7 @@
       },
       {
         "type": "waitFor",
-        "selector": "media-player-panel"
+        "selector": "media-player-panel [data-pn]"
       },
       {
         "type": "waitMs",
@@ -760,7 +760,7 @@
     "setup": [
       {
         "type": "waitFor",
-        "selector": "[data-mm-group-card]"
+        "selector": "[data-group-card]"
       },
       {
         "type": "waitMs",

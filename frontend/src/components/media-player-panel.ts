@@ -243,6 +243,16 @@ export class MediaPlayerPanel extends LitElement {
   private async loadSide(d: PlayerDeviceDetail, token: number, first: boolean): Promise<void> {
     const dead = panelMode(d) === 'unavailable';
     if (dead) return;
+    if (first && d.music_provider !== 'none' && (d.caps.up_next || d.caps.favourites || d.caps.stations)) {
+      // the status says whether the music library answers at all (`library.state`, the bridge's last word about it): when it does not, the panel has no
+      // library tabs and "הבא בתור" reads "לא זמין" - without a read that would fail
+      try {
+        const lib = (await players().status()).library;
+        if (token === this.token) this.libAbsent = lib.state === 'unavailable' && lib.provider === d.music_provider;
+      } catch {
+        /* the reads below say it themselves */
+      }
+    }
     const wantList = d.caps.group || d.caps.transfer || d.kind === 'group' || d.live.group.role !== 'none';
     if (wantList && (first || this.polls++ % LIST_EVERY === 0 || !this.devices)) {
       try {

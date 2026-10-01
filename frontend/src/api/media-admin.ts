@@ -179,7 +179,7 @@ class DemoAdmin implements AdminAdapter {
         ...(patch.volume_max !== undefined ? { volume_max: patch.volume_max } : {}), ...(patch.volume_night !== undefined ? { volume_night: patch.volume_night } : {}),
         ...(patch.approved !== undefined ? { approved: patch.approved } : {}), ...(patch.display_name ? { name: patch.display_name.trim() } : {}),
       });
-      return clone(playersMock().adminList().find((x) => x.key === key)!);
+      return clone(playersMock().adminList().find((x) => x.key === key) ?? ({ key, name: key, kind: 'virtual_group', approved: patch.approved !== false } as AdminDevice)); // a helper group has no card of its own: the settings only read `approved`
     }
     const d = this.devices.find((x) => x.key === key);
     if (!d) throw new Error('not found');

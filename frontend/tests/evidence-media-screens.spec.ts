@@ -642,7 +642,8 @@ test.describe('multimedia screens (mocked backend)', () => {
     await install(page, st);
     await open(page, '/system/multimedia');
     const sys = page.locator('sw-app system-multimedia');
-    await expect(sys.locator('[data-mm-admin-device]')).toHaveCount(8);
+    await expect(sys.locator('[data-mm-devices] [data-mm-admin-device]'), 'the screens card lists the six screens').toHaveCount(6);
+    await expect(sys.locator('[data-mm-players] [data-mm-admin-device]'), 'the players card lists every player of the demo house, approved or not').toHaveCount(17);
     await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('מולטימדיה');
     await expect(sys.locator('[data-mm-display]')).toHaveText('זכוכית תמיד; בהיר/כהה לפי חשמל והתקנים');
     await expect(sys.locator('[data-mm-bridge]')).toContainText('0.4.0');

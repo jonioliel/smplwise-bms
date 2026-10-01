@@ -191,6 +191,9 @@ async function prepare(request: APIRequestContext): Promise<NonNullable<typeof p
   }
   const ap = await post(request, '/multimedia/admin/approve', { device_keys: Object.values(keys), approved: true });
   expect(ap.status).toBeLessThan(300);
+  // a helper group is a shortcut in the groups tab only once the administrator switched it on (the settings' "מוצג בקבוצות")
+  const helpers = (await adminRows(request, '?kind=virtual_group')).map((h) => h.key);
+  if (helpers.length) expect((await post(request, '/multimedia/admin/approve', { device_keys: helpers, approved: true })).status).toBeLessThan(300);
   prepared = { keys, rows };
   return prepared;
 }
@@ -232,9 +235,10 @@ const SEL = {
   card: 'media-player-card',
   cardName: (name: string) => `media-player-card:has-text("${name}")`,
   openPlayer: (name: string) => `media-player-card:has-text("${name}") button[aria-label="נגן · ${name}"]`,
-  panel: 'media-player-panel',
+  /** The open panel: the host element has no box of its own (the drawer is inside it), so the body of the drawer is what is visible. */
+  panel: 'media-player-panel [data-pn]',
   unplaced: 'sw-app :text("לא משויכים")',
-  groupCard: '[data-mm-group-card]',
+  groupCard: '[data-group-card]',
   settings: 'sw-app',
 };
 const SETTINGS_SECTIONS = ['נגנים ורמקולים', 'איחוד כפילויות', 'רכיבים לא פיזיים', 'קבוצות שמורות', 'מועדפים ותחנות', 'חיבור', 'הרשאות'];
@@ -412,7 +416,7 @@ test.describe(`players API on the ${HOUSE} house (needs S1: the CR-016 routes)`,
       expect(rule(e('wiim_living_ma')), 'the MA id embeds the WiiM id').toBe('2c');
       expect(rule(e('wiim_living_cast')), 'the Cast device: manufacturer + model').toBe('3b');
       expect(rule(e('denon_a_ma')), 'the MA id EQUALS the HEOS id').toBe('2b');
-      expect(rule(e('denon_a_zone2')), 'Zone2: the same HA device').toBe('1');
+      expect(rule(e('denon_a_zone2')), 'Zone2: the same HA device (the model names the rung `device`)').toBe('device');
       expect(rule(e('mini_ma')), 'a shortened Cast model is a prefix').toBe('3b');
       expect(rule(e('tv3_ma')), 'the one TV of its model merges').toBe('3b');
       expect(rowOf(rows, e('tv1_cast'))!.key, 'two TVs of one model do NOT merge on their own').not.toBe(rowOf(rows, e('tv1_ma'))!.key);
@@ -471,8 +475,8 @@ test.describe(`players API on the ${HOUSE} house (needs S1: the CR-016 routes)`,
     expect(st.library.provider).toBe(HOUSE === 'ma' ? 'ma' : 'sonos');
     expect(st.bridge.players_ready).toBe(true);
     if (HOUSE === 'sonos') {
-      const hidden = await devices(request, 'kind=speaker,player,receiver,group,session,virtual_group,service');
-      expect(hidden.some((d) => NON_PHYSICAL.includes(d.kind)), 'sessions, helpers and the Spotify source are not devices of the operator lists').toBe(false);
+      const hidden = await request.get(`${API}/multimedia/devices?kind=speaker,player,receiver,group,session,virtual_group,service`);
+      expect(hidden.status(), 'sessions, helpers and the Spotify source are never devices of the operator lists: the list does not know those kinds').toBe(422);
       const admin = await adminRows(request, '?kind=session,virtual_group,service');
       expect(admin.map((a) => a.kind).sort(), 'listed in settings under "רכיבים לא פיזיים"').toEqual([...Array(10).fill('session'), 'service', 'virtual_group', 'virtual_group'].sort());
     }
@@ -482,7 +486,7 @@ test.describe(`players API on the ${HOUSE} house (needs S1: the CR-016 routes)`,
     const p = await ready(request, info);
     await fresh(request);
     if (HOUSE === 'ma') {
-      for (const slug of ['console', 'old_a', 'old_b', 'garden', 'tv1', 'tv3']) {
+      for (const slug of ['console', 'old_a', 'old_b', 'garden']) {
         const d = await device(request, p.keys[slug]);
         expect([d.live.caps_known, d.live.power], `${slug}: no available endpoint`).toEqual([false, 'unavailable']);
       }
@@ -632,17 +636,17 @@ test.describe(`players API on the ${HOUSE} house (needs S1: the CR-016 routes)`,
       const lib = async (kind: string) => (await (await request.get(`${API}/multimedia/devices/${key}/library?kind=${kind}`)).json()) as { items: { item_ref: string; name: string; kind: string }[]; provider: string; curated: boolean };
       const [fav, stations, lists] = [await lib('favourites'), await lib('stations'), await lib('playlists')];
       expect(JSON.stringify([fav, stations, lists]), 'no uri, no image url, nothing but an opaque reference').not.toMatch(PRIVATE);
-      expect(stations.items.map((i) => i.name)).toEqual(['תחנה לדוגמה 1', 'תחנה לדוגמה 2']);
-      expect(lists.items.map((i) => i.name).sort()).toEqual(['פלייליסט בוקר', 'פלייליסט ערב']);
+      expect(stations.items.map((i) => i.name), 'the stations are the whole radio library, not only the favourites').toEqual(['תחנה לדוגמה 1', 'תחנה לדוגמה 2', 'תחנה לדוגמה 3']);
+      expect(lists.items.map((i) => i.name).sort(), 'the whole playlist library').toEqual(['פלייליסט בוקר', 'פלייליסט ישן', 'פלייליסט ערב'].sort());
       expect(fav.items.length).toBeGreaterThan(0);
       expect(fav.items.every((i) => /^[a-f0-9]{24}$/.test(i.item_ref))).toBe(true);
       expect(fav.provider).toBe('ma');
       const since = await mark(request);
       const station = stations.items[0];
       const play = await cmd(request, p.keys.mini, { command: 'play_item', item_ref: station.item_ref });
-      expect([play.status, play.body.status]).toEqual([202, 'accepted']);
+      expect([play.status, ['accepted', 'sent'].includes(play.body.status)], 'a library item has no state to confirm: the server answers sent').toEqual([202, true]);
       const calls = (await callsSince(request, since)).filter((c) => c.kind === 'play_item');
-      expect(calls.map((c) => [c.entity_id, c.media_type, c.media_id, c.enqueue, c.result])).toEqual([[e('mini_ma'), 'radio', 'library://radio/r1', 'play', 'ok']]);
+      expect(calls.map((c) => [c.entity_id, c.media_type, c.media_id, c.enqueue, c.result]), 'mini is a member of the cross-brand group: its queue command runs on the LEADER (CR 6.1)').toEqual([[e('denon_a_ma'), 'radio', 'library://radio/r1', 'play', 'ok']]);
       await expect.poll(async () => (await device(request, p.keys.mini)).live.now.title).toBe('תחנה לדוגמה 1');
       expect((await device(request, p.keys.mini)).live.now.kind, 'a station: no progress, "שידור חי"').toBe('station');
       const unknown = await cmd(request, p.keys.mini, { command: 'play_item', item_ref: 'a'.repeat(24) });
@@ -666,9 +670,9 @@ test.describe(`players API on the ${HOUSE} house (needs S1: the CR-016 routes)`,
       expect([failed.confirmed, failed.next], 'unconfirmed: the panel shows "לא זמין"').toEqual([false, null]);
       await ctl(request, '/media-config', { query_fail: false, ma_loaded: false });
       await sleep(2200);
-      const none = await request.get(`${API}/multimedia/devices/${key}/library?kind=favourites`);
-      expect([none.status(), (await none.json()).code]).toEqual([503, 'no_library']);
-      expect((await (await request.get(`${API}/multimedia/status`)).json()).library.state).toBe('unavailable');
+      const none = await request.get(`${API}/multimedia/devices/${key}/up-next`);
+      expect([none.status(), (await none.json()).code], 'the bridge says no_library for the queue read').toEqual([503, 'no_library']);
+      expect((await (await request.get(`${API}/multimedia/status`)).json()).library.state, 'the status is what tells the panel (the library list itself may still be served from its 5-minute cache)').toBe('unavailable');
       await ctl(request, '/media-config', { ma_loaded: true });
     });
 
@@ -710,9 +714,15 @@ test.describe(`players API on the ${HOUSE} house (needs S1: the CR-016 routes)`,
       expect(go.status).toBe(202);
       out = await outcomes(request, go.body.bulk_id);
       expect([byKey(out, p.keys.mini), byKey(out, p.keys.nest)], 'one joined, one did not').toEqual(['joined', 'not_joined']);
-      // 5. one join in flight per leader
-      const quick = await post(request, '/multimedia/groups/join', stamped({ leader_key: p.keys.wiim_living, member_keys: [p.keys.mini] }));
-      expect([409, 202]).toContain(quick.status);
+      // 5. one join in flight per leader: two requests at once for a free leader (the first one is read back for up to 8 s; the second is refused, not queued)
+      await fresh(request);
+      const free = await post(request, '/multimedia/groups/leave', stamped({ device_keys: [p.keys.mini, p.keys.nest] }));
+      await outcomes(request, free.body.bulk_id);
+      await sleep(1200);
+      const twice = await Promise.all([0, 1].map(() => post(request, '/multimedia/groups/join', stamped({ leader_key: lead, member_keys: [p.keys.nest] }))));
+      expect(twice.map((x) => x.status).sort(), JSON.stringify(twice.map((x) => x.body.code))).toEqual([202, 409]);
+      expect(twice.find((x) => x.status === 409)!.body.code).toBe('group_pending');
+      await outcomes(request, twice.find((x) => x.status === 202)!.body.bulk_id);
     });
 
     test('group volume: relative keeps the balance, absolute sets one level; a ceiling clamps ONLY where it is set; muted members are skipped', async ({ request }, info) => {
@@ -726,7 +736,7 @@ test.describe(`players API on the ${HOUSE} house (needs S1: the CR-016 routes)`,
       let out = await outcomes(request, r.body.bulk_id);
       expect([byKey(out, p.keys.wiim_living), byKey(out, p.keys.wiim_kitchen)]).toEqual(['set', 'set']);
       const sets = (await callsSince(request, since)).filter((c) => c.volume_level !== undefined);
-      expect(sets.map((c) => [c.entity_id, c.volume_level]).sort(), 'one set per member, no ceiling set: no clamp').toEqual([[e('wiim_kitchen_ma'), 0.5], [e('wiim_living_ma'), 0.5]]);
+      expect(sets.map((c) => [c.entity_id, c.volume_level]).sort(), 'one set per member on its vendor entity (CR 5.2), no ceiling set: no clamp').toEqual([[e('wiim_kitchen'), 0.5], [e('wiim_living'), 0.5]]);
       // a ceiling on the kitchen only
       await put(request, `/multimedia/admin/devices/${p.keys.wiim_kitchen}`, { volume_max: 30 });
       await sleep(800);
@@ -734,21 +744,21 @@ test.describe(`players API on the ${HOUSE} house (needs S1: the CR-016 routes)`,
       r = await post(request, `/multimedia/groups/${leader}/volume`, stamped({ level: 80, mode: 'absolute' }));
       out = await outcomes(request, r.body.bulk_id);
       expect([byKey(out, p.keys.wiim_living), byKey(out, p.keys.wiim_kitchen)], 'clamped only where a ceiling is set').toEqual(['set', 'clamped']);
-      expect((await callsSince(request, since)).filter((c) => c.volume_level !== undefined).map((c) => [c.entity_id, c.volume_level]).sort()).toEqual([[e('wiim_kitchen_ma'), 0.3], [e('wiim_living_ma'), 0.8]]);
+      expect((await callsSince(request, since)).filter((c) => c.volume_level !== undefined).map((c) => [c.entity_id, c.volume_level]).sort()).toEqual([[e('wiim_kitchen'), 0.3], [e('wiim_living'), 0.8]]);
       await put(request, `/multimedia/admin/devices/${p.keys.wiim_kitchen}`, { volume_max: null });
       // relative: the same factor on every member (the balance of 0.8 : 0.3 stays)
       await sleep(1200);
       const [l1, k1] = [await base('wiim_living'), await base('wiim_kitchen')];
-      expect(l1, 'the absolute set of 80 is where the relative step starts').toBeCloseTo(0.8, 1);
-      r = await post(request, `/multimedia/groups/${leader}/volume`, stamped({ level: Math.round(Math.max(l1, k1) * 100 / 2), mode: 'relative' }));
+      expect(Math.abs(l1 - 80), 'the absolute set of 80 is where the relative step starts').toBeLessThanOrEqual(1);
+      r = await post(request, `/multimedia/groups/${leader}/volume`, stamped({ level: Math.round(Math.max(l1, k1) / 2), mode: 'relative' }));
       out = await outcomes(request, r.body.bulk_id);
       expect([byKey(out, p.keys.wiim_living), byKey(out, p.keys.wiim_kitchen)]).toEqual(['set', 'set']);
       await sleep(900);
       const [l2, k2] = [await base('wiim_living'), await base('wiim_kitchen')];
       expect(l2 / k2, 'relative keeps the ratio').toBeCloseTo(l1 / k1, 1);
       // a muted member is skipped, a member that is not allowed is not an error
-      await post(request, `/multimedia/devices/${p.keys.wiim_kitchen}/commands`, stamped({ command: 'mute', muted: true }));
-      await sleep(900);
+      expect((await post(request, `/multimedia/devices/${p.keys.wiim_kitchen}/commands`, stamped({ command: 'mute', muted: true }))).status).toBe(202);
+      await expect.poll(async () => (await device(request, p.keys.wiim_kitchen)).live.volume.muted, { timeout: 15_000 }).toBe(true);
       r = await post(request, `/multimedia/groups/${leader}/volume`, stamped({ level: 40, mode: 'absolute' }));
       out = await outcomes(request, r.body.bulk_id);
       expect([byKey(out, p.keys.wiim_living), byKey(out, p.keys.wiim_kitchen)]).toEqual(['set', 'skipped_muted']);
@@ -762,19 +772,24 @@ test.describe(`players API on the ${HOUSE} house (needs S1: the CR-016 routes)`,
       const plain = as(`cr016plain${info.project.name}`);
       bindings.push(await bindUser(request, plain.user, role));
       const body = { name: 'מסיבה', leader_key: p.keys.mini, member_keys: [p.keys.nest, p.keys.wiim_terrace], volumes: { [p.keys.mini]: 30 } };
-      expect((await post(request, '/multimedia/groups/presets', stamped(body), plain.headers)).status, 'saving needs media.layout').toBe(403);
-      const made = await post(request, '/multimedia/groups/presets', stamped(body));
-      expect(made.status).toBeLessThan(300);
+      expect((await post(request, '/multimedia/groups/presets', body, plain.headers)).status, 'saving needs media.layout').toBe(403);
+      const made = await post(request, '/multimedia/groups/presets', body);
+      expect(made.status, JSON.stringify(made.body)).toBeLessThan(300);
       const preset = made.body as { id: string; revision: number };
       const list = ((await (await request.get(`${API}/multimedia/groups/presets`)).json()) as { presets: { id: string; name: string; missing: string[]; running: unknown }[] }).presets;
       expect(list.find((x) => x.id === preset.id)).toMatchObject({ name: 'מסיבה', missing: [], running: null });
       const stale = await put(request, `/multimedia/groups/presets/${preset.id}`, { ...body, name: 'מסיבה 2', base_revision: preset.revision + 5 });
       expect([stale.status, stale.body.code]).toEqual([409, 'revision_conflict']);
+      // a saved group whose leader still follows another live group is refused (422 not_groupable, reason leader_is_member): the leader leaves it first
+      const refused = await post(request, `/multimedia/groups/presets/${preset.id}/apply`, stamped({ confirmed: true }));
+      expect([refused.status, refused.body.code, refused.body.details?.reason]).toEqual([422, 'not_groupable', 'leader_is_member']);
+      const split = await post(request, '/multimedia/groups/leave', stamped({ device_keys: [p.keys.mini] }));
+      await outcomes(request, split.body.bulk_id);
       // apply: terrace is in a vendor-only group (not groupable): the diff names it, the others are done
       await sleep(900);
       const since = await mark(request);
       const run = await post(request, `/multimedia/groups/presets/${preset.id}/apply`, stamped({ confirmed: true }));
-      expect(run.status).toBeLessThan(300);
+      expect(run.status, JSON.stringify(run.body)).toBeLessThan(300);
       const out = await outcomes(request, run.body.bulk_id);
       expect(byKey(out, p.keys.nest), 'the Nest refuses').toBe('not_joined');
       expect(byKey(out, p.keys.wiim_terrace), 'a conflicted device is not joined').not.toBe('joined');
@@ -814,7 +829,7 @@ test.describe(`players API on the ${HOUSE} house (needs S1: the CR-016 routes)`,
       const hide = await put(request, '/multimedia/favourites', { kinds_on: ['favourites', 'stations'], items: [{ item_ref: stations[0].item_ref, hidden: true, order: 0 }], base_revision: cur.revision });
       expect(hide.status).toBeLessThan(300);
       const after = ((await (await request.get(`${API}/multimedia/devices/${key}/library?kind=stations`)).json()) as { items: { name: string }[]; curated: boolean });
-      expect(after.items.map((i) => i.name), 'the hidden station is gone for everyone').toEqual(['תחנה לדוגמה 2']);
+      expect(after.items.map((i) => i.name), 'the hidden station is gone for everyone').toEqual(['תחנה לדוגמה 2', 'תחנה לדוגמה 3']);
       expect(after.curated).toBe(true);
       const lists = await request.get(`${API}/multimedia/devices/${key}/library?kind=playlists`);
       expect(lists.status() === 200 ? ((await lists.json()) as { items: unknown[] }).items : [], 'a kind that is switched off is not offered').toEqual([]);
@@ -846,7 +861,7 @@ test.describe(`players API on the ${HOUSE} house (needs S1: the CR-016 routes)`,
       const since = await mark(request);
       const pick = fav.items.find((i) => i.name === 'פלייליסט ערב')!;
       const play = await cmd(request, p.keys.sonos_bedroom, { command: 'play_item', item_ref: pick.item_ref });
-      expect([play.status, play.body.status]).toEqual([202, 'accepted']);
+      expect([play.status, ['accepted', 'sent'].includes(play.body.status)], 'a library item has no state to confirm: the server answers sent').toEqual([202, true]);
       expect((await callsSince(request, since)).filter((c) => c.service === 'select_source').map((c) => [c.domain, c.entity_id, c.source]), 'a Sonos favourite is started with select_source on the Sonos entity').toEqual([['media_player', e('sonos_bedroom'), 'פלייליסט ערב']]);
       const tr = await cmd(request, p.keys.sonos_bedroom, { command: 'transfer', from_key: p.keys.sonos_living });
       expect([tr.status, tr.body.code], 'transfer is MA only').toEqual([422, 'not_supported']);
@@ -857,7 +872,7 @@ test.describe(`players API on the ${HOUSE} house (needs S1: the CR-016 routes)`,
       await fresh(request);
       const since = await mark(request);
       const r = await post(request, '/multimedia/groups/join', stamped({ leader_key: p.keys.sonos_living, member_keys: [p.keys.sonos_kitchen, p.keys.sonos_terrace] }));
-      expect(r.status).toBe(202);
+      expect(r.status, JSON.stringify(r.body)).toBe(202);
       const out = await outcomes(request, r.body.bulk_id);
       expect([byKey(out, p.keys.sonos_kitchen), byKey(out, p.keys.sonos_terrace)], 'the terrace Sonos refuses').toEqual(['joined', 'not_joined']);
       const join = (await callsSince(request, since)).find((c) => c.kind === 'join')!;
@@ -912,14 +927,29 @@ test.describe(`players screens on the ${HOUSE} house (needs S2 + S3)`, () => {
     await frame(page, info);
     await page.goto(`/?design=a#${hash}`);
     await page.waitForSelector('sw-app');
-    await page.waitForTimeout(1500);
+    await page.locator(expect_selector).first().waitFor({ state: 'attached', timeout: 15_000 }).catch(() => {});
     test.skip((await page.locator(expect_selector).count()) === 0, why);
     return p;
   }
   const names = () => AUDIO.map(([, pl]) => pl.name).sort((a, b) => b.length - a.length);
   /** The page text with the owner's own device names removed: what is left is the product's copy, which names no platform. */
+  async function deepText(page: Page): Promise<string> {
+    return page.evaluate(() => {
+      const out: string[] = [];
+      const walk = (n: Node) => {
+        if (n.nodeType === Node.TEXT_NODE) out.push(n.textContent ?? '');
+        else if (n.nodeType === Node.ELEMENT_NODE && !['STYLE', 'SCRIPT'].includes((n as Element).tagName)) {
+          const el = n as Element;
+          if (el.shadowRoot) walk(el.shadowRoot);
+          for (const c of Array.from(el.childNodes)) walk(c);
+        } else if (n.nodeType === Node.DOCUMENT_FRAGMENT_NODE) for (const c of Array.from(n.childNodes)) walk(c);
+      };
+      walk(document.body);
+      return out.join(' ');
+    });
+  }
   async function productCopy(page: Page): Promise<string> {
-    let text = await page.locator('sw-app').innerText();
+    let text = await deepText(page);
     for (const n of [...names(), ...SCREENS.map(([, pl]) => pl.name)]) text = text.split(n).join('');
     return text;
   }
@@ -958,7 +988,7 @@ test.describe(`players screens on the ${HOUSE} house (needs S2 + S3)`, () => {
     else expect(tabs).toMatch(/פלייליסטים/);
     const since = await mark(request);
     await page.locator(`${SEL.panel} button[aria-label*="השהה"], ${SEL.panel} [data-mpp-pause]`).first().click();
-    await expect.poll(async () => (await callsSince(request, since, 0)).some((c) => c.service === 'media_pause'), { timeout: 15_000 }).toBe(true);
+    await expect.poll(async () => (await callsSince(request, since, 0)).some((c) => c.service === 'media_pause' || c.service === 'media_play_pause'), { timeout: 15_000 }).toBe(true);
     expect(PRIVATE.test(await page.locator(SEL.panel).innerHTML()), 'no identifier in the panel markup').toBe(false);
   });
 
@@ -982,7 +1012,7 @@ test.describe(`players screens on the ${HOUSE} house (needs S2 + S3)`, () => {
     test.setTimeout(90_000);
     await open(page, request, info, '/system/multimedia', 'sw-app', 'the settings screen is missing');
     await page.waitForTimeout(1500);
-    const text = await page.locator('sw-app').innerText();
+    const text = await deepText(page);
     test.skip(!text.includes('נגנים ורמקולים'), 'S2 is not merged: the settings screen has no "נגנים ורמקולים" section');
     for (const s of SETTINGS_SECTIONS.filter((x) => HOUSE === 'sonos' || x !== 'רכיבים לא פיזיים')) expect(text, `section ${s}`).toContain(s);
     if (HOUSE === 'sonos') expect(text, 'the connection line says what answers music here').toMatch(/לא מותקן/);

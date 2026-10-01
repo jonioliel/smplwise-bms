@@ -273,14 +273,22 @@ export async function install(page: Page, st: St) {
         return json(d);
       }
       if (p === 'multimedia/admin/links') {
-        const b = body as { op: string; endpoint_id: string };
-        for (const d of st.admin) for (const e of d.endpoints) if (e.endpoint_id === b.endpoint_id) e.hidden = b.op === 'ignore' ? true : b.op === 'restore' ? false : e.hidden;
-        return json({ devices: st.admin, suggestions: [] });
+        const b = body as { op: 'link' | 'unlink' | 'ignore' | 'restore'; endpoint_id: string; device_key?: string };
+        // `ignore` + the row's device dismisses that merge suggestion only; a plain `ignore` hides the endpoint (the CR-015 meaning)
+        if (!(b.op === 'ignore' && b.device_key)) for (const d of st.admin) for (const e of d.endpoints) if (e.endpoint_id === b.endpoint_id) e.hidden = b.op === 'ignore' ? true : b.op === 'restore' ? false : e.hidden;
+        if (b.op === 'link' || b.op === 'ignore') st.players.answerSuggestion(b.op, b.endpoint_id, b.device_key);
+        return json({ devices: st.admin });
       }
       if (p === 'multimedia/admin/approve') {
-        const b = body as { device_keys: string[]; approved: boolean };
-        for (const d of st.admin) if (b.device_keys.includes(d.key)) d.approved = b.approved;
-        return json({ updated: b.device_keys.length });
+        // by key, or - without keys - every detected device of the named kinds (the server's `kinds`, "אשר את כל הנגנים שזוהו")
+        const b = body as { device_keys?: string[]; approved?: boolean; kinds?: string[] };
+        const approved = b.approved !== false;
+        const hit = st.admin.filter((d) => (b.device_keys ? b.device_keys.includes(d.key) : (b.kinds ?? ['screen']).includes(d.kind)));
+        let changed = 0;
+        for (const d of hit) if (d.approved !== approved) { d.approved = approved; changed += 1; }
+        const players = st.admin.filter((d) => ['speaker', 'player', 'receiver', 'group'].includes(d.kind));
+        return json({ requested: hit.length, changed, approved: st.admin.filter((d) => d.kind === 'screen' && d.approved).length, pending_approval: st.admin.filter((d) => d.kind === 'screen' && !d.approved).length,
+          ...(b.kinds?.length ? { approved_players: players.filter((d) => d.approved).length, pending_players: players.filter((d) => !d.approved).length } : {}) });
       }
       if (p === 'multimedia/admin/suggestions') return json({ suggestions: await st.players.suggestions() });
       if (p === 'multimedia/admin/areas') return json({ areas: [] });

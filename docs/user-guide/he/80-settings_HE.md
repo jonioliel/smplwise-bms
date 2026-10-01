@@ -507,6 +507,9 @@ C:/cloude/smplwisebms/.venv/Scripts/python.exe scripts/media_probe.py <קובץ-
 ![הגדרות · מולטימדיה (אישור מסכים, שלט ותקרות)](img/settings-multimedia.png)
 *צילום מהדגמה.*
 
+![הגדרות · מולטימדיה (נגנים, איחוד כפילויות, קבוצות שמורות ומועדפים)](img/settings-multimedia-players.png)
+*צילום מהדגמה.*
+
 ![הגדרות · חשמל והתקנים · מה מוצג ליד שם האזור](img/settings-devices-area-row.png)
 *צילום מהדגמה.*
 

@@ -382,7 +382,8 @@ export interface PlayersAdapter {
   pauseRun(scope: BulkScope, id: string, clientRequestId: string, expiresAt: string): Promise<{ bulk_id: string; status: string }>;
   /** Settings (`system.configure`): the merge wizard's list (3.27) and the folded non-physical entries (3.28). */
   suggestions(): Promise<MergeSuggestion[]>;
-  nonPhysical(): Promise<{ devices: PlayerDevice[] }>;
+  /** `approved` (true on a helper group an administrator switched on): only an approved helper group is listed as a shortcut in the groups tab. */
+  nonPhysical(): Promise<{ devices: (PlayerDevice & { approved?: boolean })[] }>;
 }
 
 const enc = encodeURIComponent;

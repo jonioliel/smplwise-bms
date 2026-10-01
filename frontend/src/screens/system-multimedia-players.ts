@@ -64,7 +64,7 @@ export class SystemMultimediaPlayers extends LitElement {
   @state() private status: PlayerStatus | null = null;
   @state() private sugg: MergeSuggestion[] | null = null;
   @state() private answered = new Set<string>();
-  @state() private nonPhys: PlayerDevice[] | null = null;
+  @state() private nonPhys: (PlayerDevice & { approved?: boolean })[] | null = null;
   @state() private presets: GroupPreset[] | null = null;
   @state() private fav: FavouritesCuration | null = null;
   @state() private favLists: FavLists = EMPTY_FAVS;
@@ -369,6 +369,18 @@ export class SystemMultimediaPlayers extends LitElement {
     }
   }
 
+  /** A helper group is a shortcut in the groups tab only once an administrator approves it here (never a device card, never joinable). */
+  private async approveHelper(key: string, on: boolean) {
+    this.error = '';
+    try {
+      await mediaAdmin().update(key, { approved: on });
+      this.nonPhys = (await players().nonPhysical()).devices;
+      this.say('נשמר');
+    } catch (err) {
+      this.error = describeError(err);
+    }
+  }
+
   private async link(op: Parameters<ReturnType<typeof mediaAdmin>['link']>[0]) {
     try {
       const list = await mediaAdmin().link(op);
@@ -540,7 +552,9 @@ export class SystemMultimediaPlayers extends LitElement {
             <sw-button size="sm" data-mm-wizard-ignore=${x.id} @click=${() => void this.answer(x, 'ignore')}>התעלם</sw-button></span></div>`)}` : nothing}
       ${np?.length ? html`<div class="row" data-mm-nonphysical><span class="lbl">רכיבים לא פיזיים<span class="muted">${np.length} רשומות: סשנים, קבוצות עזר ושירותים · לא מוצגים כנגנים ולא מוצעים לאיחוד</span></span>
           <sw-button size="sm" data-mm-np-toggle aria-expanded=${String(this.npOpen)} @click=${() => (this.npOpen = !this.npOpen)}>${this.npOpen ? 'הסתר' : 'הצג'}</sw-button></div>
-        ${this.npOpen ? np.map((n) => html`<div class="row" data-mm-np-row=${n.key}><span class="lbl">${n.name}</span><sw-badge kind="neutral" label=${NP[n.kind] ?? n.kind}></sw-badge></div>`) : nothing}` : nothing}
+        ${this.npOpen ? np.map((n) => html`<div class="row" data-mm-np-row=${n.key}><span class="lbl">${n.name}</span>
+          ${n.kind === 'virtual_group' ? html`<label class="f inline">מוצג בקבוצות<sw-toggle label=${`מוצג בקבוצות: ${n.name}`} labelHidden .checked=${!!n.approved} data-mm-np-approved=${n.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.approveHelper(n.key, e.detail.checked)}></sw-toggle></label>` : nothing}
+          <sw-badge kind="neutral" label=${NP[n.kind] ?? n.kind}></sw-badge></div>`) : nothing}` : nothing}
     </sw-card>`;
   }
 

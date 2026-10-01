@@ -230,8 +230,12 @@ export class PlayersMockStore implements PlayersAdapter {
   pendingLeaders = new Set<string>();
   /** up-next reads fail (answers `confirmed: false`). */
   failUpNext = false;
+  /** The Music Assistant entry is not loaded (the bridge answered `no_library`): `status.library.state` is `unavailable` and the reads of the music layer are 503. */
+  libraryState: 'ready' | 'unavailable' = 'ready';
   /** Merge suggestions the administrator answered (`link` / `ignore` with the row's device): they leave the wizard's list. */
   private answered = new Set<string>();
+  /** Helper groups an administrator switched off (a helper group is listed as a shortcut only while approved; the mock starts with them on). */
+  private helperOff = new Set<string>();
   private records = new Map<string, GroupRecord>();
   private seen = new Map<string, unknown>();
   private serial = 0;
@@ -396,7 +400,7 @@ export class PlayersMockStore implements PlayersAdapter {
         screens: 0, on: all.filter((d) => d.live.power === 'on').length, pending_approval: 0, players: players.length, playing: players.filter((d) => d.live.play === 'playing').length,
         groups: (await this.groups()).length, unplaced: unplacedBucket(players).unplaced.length, suggestions: this.fx.suggestions.length,
       },
-      profiles_version: 1, floors: this.hasFloors(), library: { provider: this.fx.provider, state: 'ready' },
+      profiles_version: 1, floors: this.hasFloors(), library: { provider: this.fx.provider, state: this.fx.provider === 'ma' && this.libraryState === 'unavailable' ? 'unavailable' : 'ready' },
     };
   }
 
@@ -421,7 +425,7 @@ export class PlayersMockStore implements PlayersAdapter {
     const r = this.row(key);
     const d = this.build(r);
     const lead = this.row(keyOf(this.leaderId(r.seed.id)));
-    if (!d.caps.up_next) return fail(503, 'no_library', 'אין ספריית מוזיקה.');
+    if (!d.caps.up_next || (d.music_provider === 'ma' && this.libraryState === 'unavailable')) return fail(503, 'no_library', 'אין ספריית מוזיקה.');
     const at = new Date().toISOString();
     const t = tracks();
     const entry = (id: string): QueueEntry => ({ name: t[id].title, artist: t[id].artist, album: t[id].album, duration_s: t[id].dur });
@@ -436,6 +440,7 @@ export class PlayersMockStore implements PlayersAdapter {
 
   async library(key: string, kind: LibraryKind, offset = 0, all = false): Promise<LibraryPage> {
     const d = this.build(this.row(key));
+    if (d.music_provider === 'ma' && this.libraryState === 'unavailable') return fail(503, 'no_library', 'אין ספריית מוזיקה.');
     if (d.music_provider === 'none' || !d.caps[kind]) return fail(d.music_provider === 'none' ? 503 : 422, d.music_provider === 'none' ? 'no_library' : 'not_supported', d.music_provider === 'none' ? 'אין ספריית מוזיקה.' : 'הרשימה אינה זמינה.');
     const lib = items();
     const hiddenOrder = this.curation.items;
@@ -468,7 +473,7 @@ export class PlayersMockStore implements PlayersAdapter {
       });
     }
     // helper shortcuts (no GROUPING of their own, never joinable): static, `can.group` false
-    for (const h of this.fx.helpers.filter((x) => x.members.length)) {
+    for (const h of this.fx.helpers.filter((x) => x.members.length && !this.helperOff.has(x.id))) {
       const rows = h.members.map((i) => this.row(keyOf(i)));
       out.push({ leader_key: keyOf(h.id), name: h.name, static: true, floor_ids: [], members: h.members.map(member), volume: groupLevel(rows.map((x) => this.memberPlan(x))), can: { group: false, volume: true } });
     }
@@ -526,6 +531,12 @@ export class PlayersMockStore implements PlayersAdapter {
 
   /** Settings: place an unplaced device in a room, change its ceilings or approval (the bridge writes the entity registry on the real server). */
   adminPatch(key: string, patch: { area?: { id: string; name: string; floor: readonly [string, string] | null } | null; volume_max?: number | null; volume_night?: VolumeNight | null; approved?: boolean; name?: string }): void {
+    const helper = this.fx.helpers.find((h) => keyOf(h.id) === key);
+    if (helper) {
+      if (patch.approved === false) this.helperOff.add(helper.id);
+      else if (patch.approved === true) this.helperOff.delete(helper.id);
+      return;
+    }
     const r = this.row(key);
     if (patch.area !== undefined) { r.seed.area = patch.area ? [patch.area.id, patch.area.name] : null; r.seed.floor = patch.area?.floor ?? null; }
     if (patch.volume_max !== undefined) r.seed.max = patch.volume_max ?? undefined;
@@ -535,12 +546,12 @@ export class PlayersMockStore implements PlayersAdapter {
   }
 
   /** The folded "רכיבים לא פיזיים": eight Jellyfin sessions under one name, two helper groups and a Spotify source (the house without a music library). */
-  async nonPhysical(): Promise<{ devices: PlayerDevice[] }> {
+  async nonPhysical(): Promise<{ devices: (PlayerDevice & { approved?: boolean })[] }> {
     if (this.house === 'ma') return { devices: [] };
-    const base = (id: string, name: string, kind: PlayerKind, extra: Partial<PlayerDevice> = {}): PlayerDevice => {
+    const base = (id: string, name: string, kind: PlayerKind, extra: Partial<PlayerDevice> = {}): PlayerDevice & { approved?: boolean } => {
       const d = listRow(this.build(this.row(keyOf('off'))));
       return {
-        ...d, key: keyOf(id), name, kind, floor_id: null, floor_name: null, area_id: null, area_name: null, music_provider: 'none',
+        ...d, approved: kind === 'virtual_group' && !this.helperOff.has(id), key: keyOf(id), name, kind, floor_id: null, floor_name: null, area_id: null, area_name: null, music_provider: 'none',
         live: { ...d.live, power: 'unavailable', play: null, confirmed: false, since: '2026-09-30T06:00:00Z', caps_known: false, group: { role: 'none', leader_key: null, member_keys: [], name: null, static: false, layer: null, conflict: false }, queue: null },
         caps: { ...d.caps, group: false, up_next: false, favourites: false, stations: false, playlists: false, transfer: false },
         can: { ...d.can, group: false }, ...extra,
@@ -568,7 +579,7 @@ export class PlayersMockStore implements PlayersAdapter {
     const d = this.build(r);
     const done = (confirm: CommandResult['confirm'] = 'state'): CommandResult => ({ command_id: rid, status: 'accepted', action_id: confirm === 'none' ? null : `mock-${this.sent.length}`, confirm, error: null });
     if (d.live.power === 'unavailable' || !d.live.caps_known) fail(503, 'caps_unknown', 'הנגן אינו זמין.');
-    if (cmd.command === 'play_item' && d.music_provider === 'none') fail(503, 'no_library', 'אין ספריית מוזיקה.');
+    if (cmd.command === 'play_item' && (d.music_provider === 'none' || (d.music_provider === 'ma' && this.libraryState === 'unavailable'))) fail(503, 'no_library', 'אין ספריית מוזיקה.');
     if (cmd.command === 'transfer' && !d.caps.transfer) fail(d.music_provider === 'none' ? 503 : 422, d.music_provider === 'none' ? 'no_library' : 'not_supported', 'הפעולה אינה זמינה לנגן זה.');
     if (cmd.command === 'play_item') {
       const hit = Object.keys(items()).find((id) => refOf(id) === cmd.item_ref);

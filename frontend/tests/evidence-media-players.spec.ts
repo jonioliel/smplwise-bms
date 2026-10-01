@@ -320,14 +320,7 @@ test.describe('players page (mocked backend)', () => {
     await expect.poll(() => hashOf(page)).toContain('q=');
   });
 
-  test('the panel is S3\'s: the address (?player=) opens it and Back closes it', async ({ page }) => {
-    await page.addInitScript(() => {
-      class Stub extends HTMLElement {
-        deviceKey = '';
-        open = false;
-      }
-      customElements.define('media-player-panel', Stub);
-    });
+  test('the address (?player=) opens the player panel (the page imports it itself) and Back closes it', async ({ page }) => {
     await install(page, st);
     await open(page, '/multimedia/players');
     await card(page, 'mp-liv').locator('.cov').click();

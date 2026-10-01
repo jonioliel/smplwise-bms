@@ -212,3 +212,21 @@ Source: original
 
 ![עריכת השלט](img/multimedia-remote-edit.png)
 *צילום מהדגמה.*
+
+![נגנים ורמקולים - כרטיס לכל התקן, לפי קומות, והתקנים ללא חדר בסוף](img/multimedia-players.png)
+*צילום מהדגמה.*
+
+![נגנים ורמקולים בטלפון](img/multimedia-players-phone.png)
+*צילום מהדגמה.*
+
+![הנגן - מה מתנגן, ניגון, עוצמה, הבא בתור, מועדפים וקבוצה](img/multimedia-player-panel.png)
+*צילום מהדגמה.*
+
+![הנגן בטלפון - גיליון מלמטה](img/multimedia-player-panel-phone.png)
+*צילום מהדגמה.*
+
+![קבוצות - קבוצות פועלות, קבוצות שמורות והפעלה בלחיצה](img/multimedia-groups.png)
+*צילום מהדגמה.*
+
+![קבוצות בטלפון](img/multimedia-groups-phone.png)
+*צילום מהדגמה.*

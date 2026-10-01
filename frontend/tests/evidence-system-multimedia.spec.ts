@@ -60,7 +60,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
     await expect(btn).toContainText('(2)');
     await expect(sys(page).locator('[data-mm-approve-all]')).toContainText('(1)'); // the screens' own button is a different one
     await btn.click();
-    await expect.poll(() => callsTo(st, /admin\/approve/).map((c) => c.body)).toContainEqual({ device_keys: ['mp-new1', 'mp-new2'], approved: true });
+    await expect.poll(() => callsTo(st, /admin\/approve/).map((c) => c.body)).toContainEqual({ approved: true, kinds: ['speaker', 'player', 'receiver', 'group'] });
     await expect(btn).toHaveAttribute('disabled', '');
     await expect(sys(page).locator('[data-mm-players-count]')).toContainText('19 מאושרים');
     // one device's approval is one write of one field
@@ -157,7 +157,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
     await w.locator('[data-mm-wizard-accept="s1"]').click();
     await expect.poll(() => callsTo(st, /admin\/links/).map((c) => c.body)).toContainEqual({ op: 'link', endpoint_id: 'ha:media_player.cast_pergola', device_key: 'mp-per' });
     await w.locator('[data-mm-wizard-ignore="s2"]').click();
-    await expect.poll(() => callsTo(st, /admin\/links/).map((c) => c.body)).toContainEqual({ op: 'ignore', endpoint_id: 'ha:media_player.cast_kids' });
+    await expect.poll(() => callsTo(st, /admin\/links/).map((c) => c.body)).toContainEqual({ op: 'ignore', endpoint_id: 'ha:media_player.cast_kids', device_key: 'mp-kids' });
     await expect(w.locator('[data-mm-wizard-row]')).toHaveCount(1);
     await expect(w.locator('[data-mm-wizard-count]')).toHaveText('1 הצעות');
     await w.locator('[data-mm-wizard-accept="s3"]').click();

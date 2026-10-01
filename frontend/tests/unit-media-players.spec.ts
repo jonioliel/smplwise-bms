@@ -866,6 +866,20 @@ test.describe('CR-016 integration: the mock follows the server it was reconciled
     expect(powerControlled(par)).toBe(false);
   });
 
+  test('library.state: after the bridge says no_library the status says unavailable and the music-layer reads are 503; a Sonos house is not affected', async () => {
+    const m = resetPlayersMock('ma');
+    m.libraryState = 'unavailable';
+    expect((await m.status()).library).toEqual({ provider: 'ma', state: 'unavailable' });
+    expect(await code(m.upNext(key('liv')))).toBe('no_library');
+    expect(await code(m.library(key('liv'), 'favourites'))).toBe('no_library');
+    const fav = { item_ref: 'a'.repeat(24) };
+    expect(await code(m.command(key('liv'), { command: 'play_item', item_ref: fav.item_ref, ...req(9) }))).toBe('no_library');
+    const so = resetPlayersMock('sonos');
+    so.libraryState = 'unavailable';
+    expect((await so.status()).library).toEqual({ provider: 'sonos', state: 'ready' });
+    expect((await so.upNext(key('liv'))).confirmed).toBe(true);
+  });
+
   test('the HTTP adapter reads a bulk record as the server writes it: `done` ends it, `waiting` is still running; the members are `items`', async () => {
     const g = globalThis as unknown as { fetch: unknown; document?: unknown };
     const saved = { fetch: g.fetch, document: g.document };
