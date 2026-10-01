@@ -36,6 +36,7 @@ import '../screens/devices-schedules';
 import '../screens/system-schedules';
 import '../screens/devices-automations'; // CR-017: אוטומציות · סצנות · סקריפטים (the third tab of the home area)
 import '../screens/system-automations'; // CR-017: הגדרות › אוטומציות
+import '../screens/automation-editors'; // CR-017 S4: <automation-builder>, <script-editor>, <scene-editor> (S3's lists mount them by tag)
 import '../screens/multimedia-screens'; // CR-015: the screens page (the remote, <media-remote>, is S3's and registers itself where it is imported)
 import '../screens/multimedia-players'; // CR-016: "נגנים ורמקולים" (the player panel, <media-player-panel>, is S3's)
 import '../screens/multimedia-groups'; // CR-016: "קבוצות"
