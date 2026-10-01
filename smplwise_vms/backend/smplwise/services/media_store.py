@@ -122,33 +122,69 @@ def ensure_index(conn: sqlite3.Connection) -> None:
         _refresh_index(conn)
 
 
-# entities of the HA device(s) of an approved screen that could power it, switch its input or set its level (CR-015 review L3): they
-# are listed read-only like its endpoints, and the generic action route refuses them too (409 use_media_screen)
+# entities of the HA device(s) of an approved screen or audio device (speaker / player / receiver) that could power it, switch its input, set its level
+# or fire one of its own services (a Sonos alarm, a volume-like number): they are listed read-only like its endpoints, and the generic action route,
+# the bulk actions and the schedules refuse them too (409 use_media_screen; CR-015 review L3, CR-016 review M4)
 SCREEN_CONTROL_DOMAINS = ("switch", "button", "select", "number", "remote", "media_player")
 _DOMAINS_SQL = ",".join(f"'{d}'" for d in SCREEN_CONTROL_DOMAINS)
+SIBLING_KINDS = ("screen", "speaker", "player", "receiver")  # the approved kinds whose HA device(s) the siblings above belong to
+_KINDS_SQL = ",".join(f"'{k}'" for k in SIBLING_KINDS)
 _SCREEN_DEVICES_SQL = (
     "SELECT ev.device_id FROM media_device_endpoints e JOIN media_devices d ON d.device_key = e.device_key JOIN ha_entities ev ON ev.entity_id = e.ref "
-    "WHERE d.approved = 1 AND d.kind = 'screen' AND d.removed_at IS NULL AND e.source = 'ha' AND ev.device_id IS NOT NULL")
+    f"WHERE d.approved = 1 AND d.kind IN ({_KINDS_SQL}) AND d.removed_at IS NULL AND e.source = 'ha' AND ev.device_id IS NOT NULL")
+_APPROVED_ENDPOINT_SQL = "SELECT 1 FROM media_device_endpoints e JOIN media_devices d ON d.device_key = e.device_key WHERE e.ref = ? AND e.source = 'ha' AND d.approved = 1 AND d.removed_at IS NULL"
+
+
+def _named_entities(attributes_json: str | None) -> list[str]:
+    """The entity ids a media_player lists in `group_members` (a live or static group) or `entity_id` (a helper group) - never raises."""
+    try:
+        attrs = json.loads(attributes_json or "{}")
+    except ValueError:
+        return []
+    out: list[str] = []
+    for name in ("group_members", "entity_id"):
+        raw = attrs.get(name) if isinstance(attrs, dict) else None
+        if isinstance(raw, list):
+            out.extend(x for x in raw if isinstance(x, str))
+    return out
 
 
 def managed_entities(conn: sqlite3.Connection) -> set[str]:
     """The entities operated only from "מולטימדיה": the media_player / remote endpoints of an APPROVED device (a screen, speaker, player,
-    receiver or group - CR-016: one authority per device) and, for an approved SCREEN, every switch, button, select, number, remote or
-    media_player entity of the HA device(s) those endpoints belong to (the generic action route answers 409 use_media_screen; the catalogue
-    lists them read-only). A speaker's other entities (a Sonos equaliser, night mode) stay with the devices area."""
+    receiver or group - CR-016: one authority per device), every switch, button, select, number, remote or media_player entity of the HA device(s)
+    those endpoints belong to (an approved screen, speaker, player or receiver: the generic action route answers 409 use_media_screen, the catalogue
+    lists them read-only) and - CR-016 review M2 - every media_player whose `group_members` (or a helper group's `entity_id` list) names one of the
+    managed endpoints: a group that fans a command out to a managed room is no way round its ceilings."""
     out = {r[0] for r in conn.execute(
         "SELECT e.ref FROM media_device_endpoints e JOIN media_devices d ON d.device_key = e.device_key WHERE d.approved = 1 AND d.removed_at IS NULL AND e.source = 'ha'").fetchall()}
     out.update(r[0] for r in conn.execute(
         f"SELECT entity_id FROM ha_entities WHERE removed_at IS NULL AND domain IN ({_DOMAINS_SQL}) AND device_id IN ({_SCREEN_DEVICES_SQL})").fetchall())
+    endpoints = set(out)
+    for r in conn.execute("SELECT entity_id, attributes_json FROM ha_entities WHERE removed_at IS NULL AND domain = 'media_player' "
+                          "AND (attributes_json LIKE '%group_members%' OR attributes_json LIKE '%entity_id%')").fetchall():
+        if r[0] not in out and any(n in endpoints for n in _named_entities(r[1])):
+            out.add(r[0])
     return out
 
 
 def is_managed(conn: sqlite3.Connection, entity_id: str) -> bool:
-    if conn.execute(
-            "SELECT 1 FROM media_device_endpoints e JOIN media_devices d ON d.device_key = e.device_key WHERE e.ref = ? AND e.source = 'ha' AND d.approved = 1 AND d.removed_at IS NULL", (entity_id,)).fetchone() is not None:
+    if conn.execute(_APPROVED_ENDPOINT_SQL, (entity_id,)).fetchone() is not None:
         return True
+    if conn.execute(
+            f"SELECT 1 FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL AND domain IN ({_DOMAINS_SQL}) AND device_id IN ({_SCREEN_DEVICES_SQL})", (entity_id,)).fetchone() is not None:
+        return True
+    if not entity_id.startswith("media_player."):
+        return False
+    row = conn.execute("SELECT attributes_json FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL AND domain = 'media_player'", (entity_id,)).fetchone()
+    return row is not None and any(conn.execute(_APPROVED_ENDPOINT_SQL, (n,)).fetchone() is not None for n in _named_entities(row[0])[:64])
+
+
+def is_audio_endpoint(conn: sqlite3.Connection, entity_id: str) -> bool:
+    """Whether the entity is an endpoint of ANY non-screen media device - a speaker, player, receiver, group, helper group, session or service - approved or
+    not (CR-016 review M2). The generic action route refuses a volume, power or play action on it: an unapproved helper group over five speakers must not
+    set a volume above the ceilings of the approved rooms."""
     return conn.execute(
-        f"SELECT 1 FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL AND domain IN ({_DOMAINS_SQL}) AND device_id IN ({_SCREEN_DEVICES_SQL})", (entity_id,)).fetchone() is not None
+        "SELECT 1 FROM media_device_endpoints e JOIN media_devices d ON d.device_key = e.device_key WHERE e.ref = ? AND e.source = 'ha' AND d.removed_at IS NULL AND d.kind != 'screen'", (entity_id,)).fetchone() is not None
 
 
 # ------------------------------------------------------------------------------------------------ the ha_devices mirror

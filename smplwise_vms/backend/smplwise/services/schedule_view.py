@@ -179,6 +179,7 @@ class Ctx:
         self._bulk_safe: set[str] | None = None
         self._door_layer: set[str] | None = None
         self._managed: set[str] | None = None
+        self._media_managed: set[str] | None = None
         self._access: Access | None = None
         self._write: tuple[bool, str | None] | None = None
         self._sun: dict[str, int] | None | bool = False
@@ -223,6 +224,13 @@ class Ctx:
             self._door_layer = {r[0] for r in self.conn.execute(
                 "SELECT resource_id FROM map_anchors WHERE resource_type = 'ha_entity' AND layer_id = ? AND effective_to IS NULL", (dsvc.DOOR_LAYER,)).fetchall()}
 
+    def _media_owned(self) -> set[str]:
+        if self._media_managed is None:
+            from . import media_store
+
+            self._media_managed = media_store.managed_entities(self.conn)
+        return self._media_managed
+
     def _alarm_managed(self) -> set[str]:
         if self._managed is None:
             self._managed = alarm_svc.managed_controls(self.conn)
@@ -258,6 +266,8 @@ class Ctx:
         self._sets()
         managed = r["domain"] in ("switch", "select") and info["entity_id"] in self._alarm_managed()
         cls, refusal = policy.classify_entity(info, bulk_safe=info["entity_id"] in (self._bulk_safe or ()), on_door_layer=info["entity_id"] in (self._door_layer or ()), alarm_managed=managed)
+        if refusal != "alarm_managed_control" and r["domain"] in ("switch", "select", "button", "number") and info["entity_id"] in self._media_owned():
+            cls, refusal = None, "media_managed_control"  # CR-016 review M4: a screen's / speaker's own switch is operated from "מולטימדיה" only
         info["class"], info["refusal"] = cls, refusal
         return info
 

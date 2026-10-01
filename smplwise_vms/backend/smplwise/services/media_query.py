@@ -16,7 +16,8 @@ Rules this module keeps:
   administrator's curation can name it); the add-on remembers `item_ref -> uri` for 30 minutes and the browser can only start items the server
   itself listed (`resolve_item`). Never returned: stream details, image URLs, provider mappings, queue item ids.
 - A read is cached: the queue of a device 2 s, a library list 5 min. A failed read is `confirmed: false` (the panel says "לא זמין"), never an empty
-  queue. No retry loop; nothing is queued.
+  queue, and is remembered for a few seconds (per user and device: a failing music layer is not asked again by every poll - review L3). No retry loop;
+  nothing is queued. One user may cause at most `USER_READS_PER_MIN` bridge reads a minute (429 rate_limited): the bridge's own budget is shared by everyone.
 - The caller's own HA identity signs the read, like every call through the bridge."""
 from __future__ import annotations
 
@@ -41,6 +42,10 @@ from . import ha_bridge, ha_client, media_model as mm, media_profiles as profile
 log = logging.getLogger("smplwise.media")
 
 QUEUE_TTL_S = 2.0
+QUEUE_DETAIL_TTL_S = 10.0  # `GET devices/{key}` serves the queue length of a read this young (it never causes a read of its own more often)
+QUEUE_FAIL_TTL_S = 5.0  # a failed queue read is not repeated for this long (per user and device)
+LIBRARY_FAIL_TTL_S = 20.0  # ... nor a failed library read
+USER_READS_PER_MIN = 30  # bridge reads one user may cause a minute (the bridge's own per-user share is 40 of its 120)
 LIBRARY_TTL_S = 300.0
 ITEM_TTL_S = 30 * 60
 PAGE_SIZE = 50
@@ -55,10 +60,14 @@ MONO = time.monotonic  # tests move the clock here
 # what the browser may be told about an item: kind -> glyph
 _GLYPH = {"radio": "antenna", "playlist": "music", "album": "music", "artist": "smile", "track": "music"}
 
-# in memory only
-_ITEMS: dict[str, dict[str, Any]] = {}
+# in memory only. An item is remembered per (user, device, ref): only the person who was LISTED an item - on the device they were listed it on - can start it
+# (review L2); `_NAMES` carries the display names alone (never a uri) for the curation editor
+_ITEMS: dict[tuple[str, str, str], dict[str, Any]] = {}
+_NAMES: dict[str, dict[str, Any]] = {}
 _QUEUES: dict[str, tuple[float, dict[str, Any]]] = {}
 _LIBRARY: dict[tuple[str, str], tuple[float, list[dict[str, Any]]]] = {}
+_FAILED: dict[tuple[str, str, str], tuple[float, Any]] = {}  # (what, key, user) -> (when, what to answer): the negative cache
+_READS: dict[str, list[float]] = {}  # user id -> the monotonic times of the bridge reads of the last minute
 _KEY: list[bytes] = []
 ENTRY: dict[str, Any] = {"loaded": None, "at": 0.0}  # the last thing the bridge said about the Music Assistant entry: True / False / None (never asked)
 
@@ -68,6 +77,8 @@ def clear() -> None:
     _ITEMS.clear()
     _QUEUES.clear()
     _LIBRARY.clear()
+    _FAILED.clear()
+    _READS.clear()
     _KEY.clear()
     ENTRY.update(loaded=None, at=0.0)
 
@@ -107,20 +118,23 @@ def make_ref(conn: Any, provider: str, media_type: str, uri: str) -> str:
     return hmac.new(_item_key(conn), f"{provider}|{media_type}|{uri}".encode("utf-8"), hashlib.sha256).hexdigest()[:24]
 
 
-def remember(conn: Any, provider: str, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Give every listed item its `item_ref`, remember `ref -> uri` for ITEM_TTL_S, and return the browser's view (no uri)."""
+def remember(conn: Any, provider: str, items: list[dict[str, Any]], user_id: str, device_key: str) -> list[dict[str, Any]]:
+    """Give every listed item its `item_ref`, remember `(user, device, ref) -> uri` for ITEM_TTL_S, and return the browser's view (no uri)."""
     now = MONO()
     for ref in [r for r, v in _ITEMS.items() if v["expires"] < now]:
         del _ITEMS[ref]
     out = []
     for it in items:
         ref = make_ref(conn, provider, it["media_type"], it["uri"])
-        _ITEMS[ref] = {"uri": it["uri"], "media_type": it["media_type"], "provider": provider, "name": it["name"], "artist": it.get("artist"), "expires": now + ITEM_TTL_S}
+        _ITEMS[(user_id, device_key, ref)] = {"uri": it["uri"], "media_type": it["media_type"], "provider": provider, "name": it["name"], "artist": it.get("artist"), "expires": now + ITEM_TTL_S}
+        _NAMES[ref] = {"name": it["name"], "artist": it.get("artist"), "media_type": it["media_type"], "expires": now + ITEM_TTL_S}
         h = int(hashlib.sha1(it["name"].lower().encode("utf-8")).hexdigest()[:4], 16) % 360
         out.append({"item_ref": ref, "kind": it["media_type"] if it["media_type"] in _GLYPH else "track", "name": it["name"], "artist": it.get("artist"),
                     "glyph": _GLYPH.get(it["media_type"], "music"), "hue": h})
     while len(_ITEMS) > 3000:
         _ITEMS.pop(next(iter(_ITEMS)))
+    while len(_NAMES) > 3000:
+        _NAMES.pop(next(iter(_NAMES)))
     return out
 
 
@@ -140,8 +154,8 @@ def known_names(conn: Any, refs: list[str]) -> dict[str, dict[str, Any]]:
     saved = _saved_names(conn)
     out: dict[str, dict[str, Any]] = {}
     for ref in refs:
-        hit = _ITEMS.get(ref)
-        if hit is not None:
+        hit = _NAMES.get(ref)
+        if hit is not None and hit["expires"] >= MONO():
             out[ref] = {"name": hit["name"], "artist": hit.get("artist"), "kind": hit["media_type"] if hit["media_type"] in _GLYPH else "track"}
         elif isinstance(saved.get(ref), dict) and isinstance(saved[ref].get("name"), str):
             out[ref] = {"name": saved[ref]["name"][:120], "artist": saved[ref].get("artist") if isinstance(saved[ref].get("artist"), str) else None,
@@ -155,13 +169,14 @@ def save_names(conn: Any, refs: list[str]) -> None:
     set_setting(conn, NAMES_KEY, json.dumps(names, ensure_ascii=False, separators=(",", ":")))
 
 
-def resolve_item(ref: Any) -> dict[str, Any] | None:
-    """What `play_item` starts: the item a server list issued under `ref` within the last 30 minutes (None: unknown or expired)."""
-    if not isinstance(ref, str):
+def resolve_item(ref: Any, user_id: str | None, device_key: str) -> dict[str, Any] | None:
+    """What `play_item` starts: the item a server list issued to THIS user for THIS device under `ref` within the last 30 minutes (None: unknown, listed to
+    someone else or for another device, or expired)."""
+    if not isinstance(ref, str) or not user_id:
         return None
-    hit = _ITEMS.get(ref)
+    hit = _ITEMS.get((user_id, device_key, ref))
     if hit is None or hit["expires"] < MONO():
-        _ITEMS.pop(ref, None)
+        _ITEMS.pop((user_id, device_key, ref), None)
         return None
     return hit
 
@@ -204,9 +219,37 @@ def _ask(conn: Any, settings: Settings, principal: Principal, query: str, **fiel
         raise ApiError(503, "bridge_not_paired", "פעולות אלו דורשות את הגשר מותקן ומצומד.")
     if not bridge["players_ready"]:
         raise ApiError(503, "bridge_outdated", "נדרש עדכון של רכיב החיבור", details={"required": store.BRIDGE_PLAYERS_REQUIRED})
+    _spend_read(principal.user_id)
     secret = ha_bridge.signing_key(conn) or ""
     payload = ha_bridge.sign(secret, {"user_id": principal.user_id, "query": query, **fields, "request_id": uuid.uuid4().hex[:12]})
     return call_bridge_media_query(settings, payload)
+
+
+def _spend_read(user_id: str) -> None:
+    """One user's share of the bridge's read budget (review L3): `USER_READS_PER_MIN` a minute, then 429 - nobody drains what the others need."""
+    now = MONO()
+    mine = [t for t in _READS.get(user_id, []) if now - t < 60.0]
+    if len(mine) >= USER_READS_PER_MIN:
+        _READS[user_id] = mine
+        raise ApiError(429, "rate_limited", "יותר מדי בקשות; נסו שוב.", details={"scope": "user"})
+    mine.append(now)
+    _READS[user_id] = mine
+    if len(_READS) > 500:
+        for k in [k for k, v in _READS.items() if not v or now - v[-1] > 60.0]:
+            del _READS[k]
+
+
+def _failed_recently(what: str, key: str, user_id: str, ttl: float) -> str | None:
+    """What the last failed read of this kind said (`unconfirmed` / `no_library` / an error name) while it is younger than `ttl`, else None."""
+    hit = _FAILED.get((what, key, user_id))
+    return hit[1] if hit is not None and MONO() - hit[0] < ttl else None
+
+
+def _note_failed(what: str, key: str, user_id: str, outcome: str = "unconfirmed") -> None:
+    _FAILED[(what, key, user_id)] = (MONO(), outcome)
+    if len(_FAILED) > 500:
+        for k in [k for k, (t, _v) in _FAILED.items() if MONO() - t > 120.0]:
+            del _FAILED[k]
 
 
 # ------------------------------------------------------------------------------------------------ trimming (the add-on trims again whatever the bridge says)
@@ -281,9 +324,9 @@ def queue_target(cat: store.Catalog, item: store.Item, access: store.Access) -> 
     return item
 
 
-def up_next(conn: Any, settings: Settings, principal: Principal, cat: store.Catalog, item: store.Item, access: store.Access) -> dict[str, Any]:
+def up_next(conn: Any, settings: Settings, principal: Principal, cat: store.Catalog, item: store.Item, access: store.Access, *, max_age: float = QUEUE_TTL_S) -> dict[str, Any]:
     """`GET /multimedia/devices/{key}/up-next` (MEDIA_PLAYERS_API.md 3.16): `UpNext`. 503 no_library when no music layer answers; an unreachable
-    read is `confirmed: false`, never an empty queue."""
+    read is `confirmed: false`, never an empty queue. `max_age`: how old a cached read may be (the device detail passes `QUEUE_DETAIL_TTL_S`)."""
     target = queue_target(cat, item, access)
     provider = mm.music_provider_of(target.model, cat.ents)
     if provider == "sonos":
@@ -303,19 +346,27 @@ def up_next(conn: Any, settings: Settings, principal: Principal, cat: store.Cata
     if not entity or not mm.available(cat.ents.get(entity)):
         return _unconfirmed()
     hit = _QUEUES.get(target.key)
-    if hit and MONO() - hit[0] < QUEUE_TTL_S:
+    if hit and MONO() - hit[0] < max_age:
         data = hit[1]
     else:
+        failed = _failed_recently("queue", target.key, principal.user_id, QUEUE_FAIL_TTL_S)  # a failing music layer is not asked again by every poll
+        if failed == "no_library":
+            raise ApiError(503, "no_library", "ספריית המוזיקה אינה זמינה.")
+        if failed is not None:
+            return _unconfirmed()
         try:
             answer = _ask(conn, settings, principal, "queue", entity_id=entity)
         except ApiError as exc:
-            if exc.code in ("bridge_outdated", "bridge_not_paired", "identity_unmapped"):
+            if exc.code in ("bridge_outdated", "bridge_not_paired", "identity_unmapped", "rate_limited"):
                 raise
+            _note_failed("queue", target.key, principal.user_id)
             return _unconfirmed()
         if not answer.get("ok"):
             if answer.get("error") == "no_library":
                 _note_entry(False)
+                _note_failed("queue", target.key, principal.user_id, "no_library")
                 raise ApiError(503, "no_library", "ספריית המוזיקה אינה זמינה.")
+            _note_failed("queue", target.key, principal.user_id)
             return _unconfirmed()  # entity_unavailable, timeout, anything else: not known - never "empty"
         _note_entry(True)
         data = trim_queue(answer)
@@ -331,15 +382,28 @@ def _bridge_items(conn: Any, settings: Settings, principal: Principal, provider:
     hit = _LIBRARY.get((provider, kind))
     if hit and MONO() - hit[0] < LIBRARY_TTL_S:
         return hit[1]
+    failed = _failed_recently("library", f"{provider}:{kind}", principal.user_id, LIBRARY_FAIL_TTL_S)  # the same refusal again, without another read
+    if failed == "no_library":
+        raise ApiError(503, "no_library", "ספריית המוזיקה אינה זמינה.")
+    if failed is not None:
+        raise ApiError(503, "no_library", "ספריית המוזיקה אינה זמינה כרגע.", retryable=True, details={"error": failed[:40]})
     items: list[dict[str, Any]] = []
     for media_type, favourite in KIND_TYPES[provider][kind]:
-        answer = _ask(conn, settings, principal, "library", entity_id=entity, media_type=media_type, favorite=favourite, limit=50 if kind != "favourites" else 25, offset=0, order_by="name")
+        try:
+            answer = _ask(conn, settings, principal, "library", entity_id=entity, media_type=media_type, favorite=favourite, limit=50 if kind != "favourites" else 25, offset=0, order_by="name")
+        except ApiError as exc:
+            if exc.code not in ("bridge_outdated", "bridge_not_paired", "identity_unmapped", "rate_limited"):
+                _note_failed("library", f"{provider}:{kind}", principal.user_id, exc.code)
+            raise
         if not answer.get("ok"):
             if answer.get("error") == "no_library":
                 if provider == "ma":
                     _note_entry(False)
+                _note_failed("library", f"{provider}:{kind}", principal.user_id, "no_library")
                 raise ApiError(503, "no_library", "ספריית המוזיקה אינה זמינה.")
-            raise ApiError(503, "no_library", "ספריית המוזיקה אינה זמינה כרגע.", retryable=True, details={"error": str(answer.get("error") or "unavailable")[:40]})
+            error = str(answer.get("error") or "unavailable")[:40]
+            _note_failed("library", f"{provider}:{kind}", principal.user_id, error)
+            raise ApiError(503, "no_library", "ספריית המוזיקה אינה זמינה כרגע.", retryable=True, details={"error": error})
         if provider == "ma":
             _note_entry(True)
         items += trim_library(answer, provider, kind)
@@ -363,9 +427,11 @@ def library_page(conn: Any, settings: Settings, principal: Principal, cat: store
     if provider not in ("ma", "sonos") or not entity:
         raise ApiError(503, "no_library", "ספריית המוזיקה אינה זמינה.")
     raw = _bridge_items(conn, settings, principal, provider, entity, kind)
-    listed = remember(conn, provider, raw)
     cfg = store.favourites_config(conn)
     entries = {e["item_ref"]: e for e in cfg["items"]}
+    # an item the administrator hid is neither listed nor remembered for a reader: its ref could not be started (review L2)
+    raw = [i for i in raw if show_hidden or not (entries.get(make_ref(conn, provider, i["media_type"], i["uri"])) or {}).get("hidden")]
+    listed = remember(conn, provider, raw, principal.user_id, item.key)
     mine = [i for i in listed if i["item_ref"] in entries]
     curated = bool(mine)
     ordered = sorted(mine, key=lambda i: (entries[i["item_ref"]].get("order") if isinstance(entries[i["item_ref"]].get("order"), int) else 10**6)) + [i for i in listed if i["item_ref"] not in entries]

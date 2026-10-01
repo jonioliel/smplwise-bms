@@ -37,11 +37,13 @@ READ_TIMEOUT_S = 10.0
 _STATION_WORDS = ("radio", "רדיו", "fm", "תחנ", "station")
 RATE_WINDOW_S = 60.0
 RATE_MAX = 120  # reads per window, all devices together
+RATE_USER_MAX = 40  # ... of which one Home Assistant user may take this many: a reader cannot drain the whole budget (CR-016 review L3)
 MAX_TEXT = 120
 MAX_ITEMS = 100
 COMMON_KEYS = frozenset({"user_id", "query", "request_id", "ts", "nonce", "sig"})
 
 _calls: deque[float] = deque()
+_user_calls: dict[str, deque[float]] = {}
 
 
 def _refuse(msg: Mapping[str, Any], error: str) -> dict[str, Any]:
@@ -148,12 +150,25 @@ def trim_library(response: Any) -> list[dict[str, Any]]:
     return out
 
 
-def _rate_limited(now: float) -> bool:
+def _rate_limited(now: float, user_id: str | None = None) -> bool:
+    """The global budget (`RATE_MAX` a window) with a per-user share (`RATE_USER_MAX`): a refusal by the share never takes a global slot."""
     while _calls and now - _calls[0] > RATE_WINDOW_S:
         _calls.popleft()
+    mine: deque[float] | None = None
+    if user_id is not None:
+        mine = _user_calls.setdefault(user_id, deque())
+        while mine and now - mine[0] > RATE_WINDOW_S:
+            mine.popleft()
+        if len(mine) >= RATE_USER_MAX:
+            return True
     if len(_calls) >= RATE_MAX:
         return True
     _calls.append(now)
+    if mine is not None:
+        mine.append(now)
+    if len(_user_calls) > 200:  # users long gone
+        for k in [k for k, q in _user_calls.items() if not q or now - q[-1] > RATE_WINDOW_S]:
+            del _user_calls[k]
     return False
 
 
@@ -173,7 +188,7 @@ async def async_handle_media_query(hass: Any, verifier: Any, msg: dict[str, Any]
     if refusal:
         _LOGGER.warning("smplwise_bridge.media_query refused: %s", refusal)
         return _refuse(msg, refusal)
-    if _rate_limited(time.monotonic()):
+    if _rate_limited(time.monotonic(), msg["user_id"]):
         _LOGGER.warning("smplwise_bridge.media_query refused: rate_limited")
         return _refuse(msg, "rate_limited")
     user = await hass.auth.async_get_user(msg["user_id"])

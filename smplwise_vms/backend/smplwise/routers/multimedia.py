@@ -40,6 +40,10 @@ from .devices import _envelope, _is_json, _raw_body
 
 router = APIRouter()
 COMMAND_ID = r"^[A-Za-z0-9-]{8,64}$"
+# CR-016 review L3: per USER limits of the reads that reach the bridge (tokens a second, burst): the up-next panel polls every 30 s, a library list is opened by a tap
+UP_NEXT_USER = (0.5, 5.0)
+LIBRARY_USER = (0.5, 4.0)
+DETAIL_QUEUE_USER = (0.2, 3.0)
 RID = Field(min_length=8, max_length=80)
 PERSONALIZE = "screen.personalize"
 
@@ -174,8 +178,10 @@ def get_device(key: str, request: Request, curation: bool = Query(False), princi
     media.layout at the screen's anchor (anyone else gets the ordinary detail)."""
     cat, item, access = store.find_visible(conn, principal, key, mm.RENDERED_KINDS)
     if item.row["kind"] != "screen" and store.caps_of(cat, item).get("up_next"):
-        try:  # the detail of a player carries `live.queue` from an up-next read (cached 2 s): a best effort, never a failure of the detail
-            media_query.up_next(conn, settings_of(request), principal, cat, item, access)
+        try:  # the detail of a player carries `live.queue` from an up-next read: a best effort, never a failure of the detail. It reuses a read up to 10 s old and
+            # is rate limited per user (review L3) - a client that polls the detail never becomes a stream of bridge reads
+            if media_commands.BUCKETS.take("detail-queue", principal.user_id, DETAIL_QUEUE_USER):
+                media_query.up_next(conn, settings_of(request), principal, cat, item, access, max_age=media_query.QUEUE_DETAIL_TTL_S)
         except ApiError:
             pass
     if curation and item.row["kind"] == "screen" and store.Access(conn, principal, (store.PERM_LAYOUT,)).has(store.PERM_LAYOUT, item.row.get("anchor_entity_id")):
@@ -205,16 +211,17 @@ class CommandBody(_Body):
     enqueue: Any = None
     from_key: Any = None
     zone: Any = None
+    confirmed: Any = None  # a static group that is a party (CR-016 review M1): the answer to its 409 confirm_required
     client_request_id: str = RID
     expires_at: str = Field(min_length=1, max_length=40)
 
 
 COMMAND_FIELDS: dict[str, set[str]] = {
-    "power_on": {"zone"}, "power_off": {"zone"}, "volume_set": {"level", "target", "zone"}, "volume_step": {"direction", "target", "zone"}, "mute": {"muted", "target", "zone"},
-    "source": {"source_id", "zone"}, "app": {"app_id"}, "sound_output": {"output", "zone"}, "transport": {"action"}, "key": {"key"}, "text": {"text"},
-    "seek": {"position_s"}, "shuffle": {"on"}, "repeat": {"mode"}, "play_item": {"item_ref", "enqueue"}, "transfer": {"from_key"},
+    "power_on": {"zone", "confirmed"}, "power_off": {"zone", "confirmed"}, "volume_set": {"level", "target", "zone"}, "volume_step": {"direction", "target", "zone"}, "mute": {"muted", "target", "zone"},
+    "source": {"source_id", "zone", "confirmed"}, "app": {"app_id"}, "sound_output": {"output", "zone", "confirmed"}, "transport": {"action", "confirmed"}, "key": {"key"}, "text": {"text"},
+    "seek": {"position_s", "confirmed"}, "shuffle": {"on", "confirmed"}, "repeat": {"mode", "confirmed"}, "play_item": {"item_ref", "enqueue", "confirmed"}, "transfer": {"from_key"},
 }
-COMMAND_ARGS = ("level", "direction", "muted", "target", "source_id", "app_id", "output", "action", "key", "text", "position_s", "on", "mode", "item_ref", "enqueue", "from_key", "zone")
+COMMAND_ARGS = ("level", "direction", "muted", "target", "source_id", "app_id", "output", "action", "key", "text", "position_s", "on", "mode", "item_ref", "enqueue", "from_key", "zone", "confirmed")
 
 
 class _Admitted:
@@ -635,12 +642,21 @@ def admin_approve(request: Request, background: BackgroundTasks, principal: Prin
 
 # ---------------------------------------------------------------- CR-016: up next and the library (MEDIA_PLAYERS_API.md 3.16 / 3.17)
 
+def _read_limit(conn: sqlite3.Connection, principal: Principal, request: Request, key: str, name: str, bucket: str, limit: tuple[float, float]) -> None:
+    """A read of the music layer (up next, a library list) is limited per USER (429, one aggregated audit row per user and device a minute) - after the visibility check,
+    so a device nobody may read is a 404 and never a bucket."""
+    if not media_commands.BUCKETS.take(bucket, principal.user_id, limit):
+        media_commands._audit_limited(conn, principal, _rid(request), key, name, "user")
+        raise media_commands.err(429, "rate_limited", scope="user")
+
+
 @router.get("/multimedia/devices/{key}/up-next")
 def get_up_next(key: str, request: Request, principal: Principal = Depends(_reader_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """`UpNext` of a speaker, player, receiver or group: the current and the next item and the queue length (Music Assistant's `get_queue` through the bridge,
     or a Sonos player's own queue attributes). `confirmed: false` when the read failed - the panel says "לא זמין", never "empty". 503 no_library when no
     music layer answers, 503 bridge_outdated before bridge 0.5.0. A member of a live group is answered with its leader's queue."""
     cat, item, access = store.find_visible(conn, principal, key, tuple(mm.AUDIO_KINDS))
+    _read_limit(conn, principal, request, key, "up_next", "up-next-user", UP_NEXT_USER)
     return media_query.up_next(conn, settings_of(request), principal, cat, item, access)
 
 
@@ -651,6 +667,7 @@ def get_library(key: str, request: Request, kind: Literal["favourites", "station
     everyone). Items travel as opaque `item_ref`s - never a URI. `?all=1` adds the hidden ones (`hidden: true`) for a holder of media.layout (the curation
     editor). 422 not_supported when the device does not offer the list, 503 no_library, 503 bridge_outdated."""
     cat, item, access = store.find_visible(conn, principal, key, tuple(mm.AUDIO_KINDS))
+    _read_limit(conn, principal, request, key, "library", "library-user", LIBRARY_USER)
     show = include_hidden and store.Access(conn, principal, (store.PERM_LAYOUT,)).has(store.PERM_LAYOUT, item.row.get("anchor_entity_id"))
     return media_query.library_page(conn, settings_of(request), principal, cat, item, access, kind, offset, show_hidden=show)
 
@@ -685,6 +702,8 @@ def get_favourites(principal: Principal = Depends(_reader_gate), conn: sqlite3.C
     if store.Access(conn, principal, (store.PERM_LAYOUT,)).anywhere(store.PERM_LAYOUT):
         names = media_query.known_names(conn, [i["item_ref"] for i in cfg["items"]])
         cfg = {**cfg, "items": [{**i, **names[i["item_ref"]]} if i["item_ref"] in names else i for i in cfg["items"]]}
+    else:  # a reader is never sent the refs of the items the administrator hid (review L2): the library lists already leave them out
+        cfg = {**cfg, "items": [i for i in cfg["items"] if not i.get("hidden")]}
     return cfg
 
 
@@ -845,13 +864,20 @@ def groups_volume(leader_key: str, request: Request, principal: Principal = Depe
     """Set a group's volume: a `media_player.volume_set` per member, `relative` (default: every member scaled by the same factor, the balance kept) or
     `absolute`; each level clamped to the member's ceilings WHEN an administrator set them; a member that is muted, off or unavailable is skipped with its
     reason, one the caller may not control is `not_allowed` (not an error). Rate limit 2/s per group (429), no single-flight: the last value wins."""
-    if not media_commands.BUCKETS.take("grp-vol", leader_key, media_groups.VOLUME_RATE):
-        media_commands._audit_limited(conn, principal, _rid(request), leader_key, "group_volume", "device")
-        raise media_commands.err(429, "rate_limited", scope="group")
-    act, body, not_after = _group_request(request, conn, principal, raw, GroupVolumeBody, leader_key)
+    # a cheap per-user flood gate first (before the body and the catalogue); the 2/s limit itself is keyed by (user, leader) and counted only for a leader the caller
+    # may read: a path key nobody validated never allocates a bucket (review L4)
+    if not media_commands.BUCKETS.take("user", principal.user_id, media_commands.USER_ALL):
+        media_commands._audit_limited(conn, principal, _rid(request), "*", "group_volume", "user")
+        raise media_commands.err(429, "rate_limited", scope="user")
+    act, body, not_after = _group_request(request, conn, principal, raw, GroupVolumeBody, leader_key[:64])
     settings, secret = _group_bridge(request, conn, principal, act)
     try:
-        plan = media_groups.plan_volume(conn, store.Access(conn, principal), media_groups.load_catalog(conn), leader_key, body.level, body.mode)
+        access = store.Access(conn, principal)
+        cat = media_groups.load_catalog(conn)
+        if media_groups._visible(cat, access, leader_key) is not None and not media_commands.BUCKETS.take("grp-vol", f"{principal.user_id}:{leader_key}", media_groups.VOLUME_RATE):
+            media_commands._audit_limited(conn, principal, _rid(request), leader_key, "group_volume", "device")
+            raise media_commands.err(429, "rate_limited", scope="group")
+        plan = media_groups.plan_volume(conn, access, cat, leader_key, body.level, body.mode)
     except ApiError as exc:
         raise act.refuse(exc) from None
     return _start_group(request, conn, principal, act, plan, body, not_after, settings, secret, None)
@@ -907,7 +933,7 @@ def delete_preset(preset_id: str, request: Request, background: BackgroundTasks,
 def apply_preset(preset_id: str, request: Request, principal: Principal = Depends(_group_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Start a saved group with one tap (decision 3א): the group as a DIFF against the leader's live group - leave the extras, join the missing, then the saved
     volumes clamped to each room's ceilings - in three ordered phases, an outcome per room. The same permission, confirmation and bridge rules as a join."""
-    act, body, not_after = _group_request(request, conn, principal, raw, GroupApplyBody, preset_id)
+    act, body, not_after = _group_request(request, conn, principal, raw, GroupApplyBody, preset_id[:64])
     row = conn.execute("SELECT * FROM media_group_presets WHERE preset_id = ?", (preset_id,)).fetchone()
     if row is None:
         raise act.refuse(media_commands.err(404, "not_found"))
