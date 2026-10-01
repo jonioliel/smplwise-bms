@@ -467,7 +467,9 @@ def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) ->
     fired: list[dict[str, Any]] = []
     # a pure mirror update commits without fsync; one that may record a correlation event (and rule alerts) - rows HA
     # never sends again - is fsynced (db.py, durability classes)
-    durable = may_record(data.get("old_state"), new)
+    from . import notify_sensors  # CR-018: leak / smoke / gas / CO, the alarm, a doorbell ring - and every condition that just ended
+
+    durable = may_record(data.get("old_state"), new) or notify_sensors.may_notify(data.get("old_state"), new)  # a notification row is a fact HA never sends again
 
     def _write() -> dict[str, Any]:
         fired.clear()
@@ -480,6 +482,7 @@ def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) ->
                     schedules_svc.MIRROR.on_entity_state(conn, row, data.get("old_state"))
                 except Exception:  # noqa: BLE001 - never lose the state update itself
                     log.exception("schedule state hook failed for %s", new.get("entity_id"))
+            notify_sensors.on_state(conn, data.get("old_state"), new, STATE.connected)  # inside this transaction, in its own savepoint; never raises
             transition = record_transition(conn, data.get("old_state"), new)
             if transition:
                 try:

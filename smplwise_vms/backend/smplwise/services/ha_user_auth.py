@@ -862,6 +862,9 @@ def _record_sign_in(db, principal: Principal, meta: dict[str, str]) -> None:
                 (principal.user_id, now_iso(), mask_address(meta.get("client_ip", "")), meta.get("country") or None))
     except Exception:  # noqa: BLE001 - bookkeeping never breaks a sign-in (and a database before migration 0035)
         log.warning("could not record the remote sign-in", exc_info=True)
+    from . import notify_sources  # CR-018: a sign-in from a device this account has not used before tells the account's own user
+
+    notify_sources.remote_sign_in(db, principal.user_id, meta)
 
 
 def _audit(db, *, actor: Principal | None, action: str, decision: str, reason: str | None, meta: dict[str, Any], resource_id: str | None = None) -> None:

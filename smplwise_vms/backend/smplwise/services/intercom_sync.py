@@ -1224,8 +1224,13 @@ class IntercomSync:
         }
         with self._cache_lock:
             changed = projected != self._cache
+            before = list((self._cache or {}).get("stations") or [])
             self._cache = projected
             self._hosts = hosts
+        if changed:
+            from . import notify_sources  # CR-018: a station that starts ringing signals `door.ring` - queued for the notifier's thread, never a write on this loop
+
+            notify_sources.on_stations(before, projected["stations"])
         STATE.fetched_at = now_iso()
         self._fetched_mono = time.monotonic()
         STATE.refreshes += 1

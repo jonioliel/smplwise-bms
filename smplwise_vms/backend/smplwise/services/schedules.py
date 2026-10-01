@@ -675,14 +675,20 @@ def settle_runs(conn: sqlite3.Connection, now: dt.datetime | None = None) -> int
         row = cache_row(conn, run["schedule_id"])
         entities: list[dict[str, Any]] = []
         result = "unknown"
+        sched_name = ""
         if row is not None:
             core = model.normalize(item_of(row))
+            sched_name = str(core.get("name") or "")
             slot = next((s for s in core["slots"] if s["index"] == run["slot_index"]), None)
             slots = [slot] if slot is not None else ([core["slots"][0]] if len(core["slots"]) == 1 else [])
             entities = [_judge_action(conn, a) for s in slots for a in s["actions"] if a["entity_id"]]
             result = _overall([e["result"] for e in entities])
         conn.execute("UPDATE schedule_runs SET result = ?, settled_at = ?, detail_json = ? WHERE id = ?", (result, _iso(now), json.dumps({"entities": entities}, ensure_ascii=False), run["id"]))
         settled += 1
+        from . import notify_sources  # CR-018: a SENSITIVE schedule whose run was not confirmed / skipped tells the administrators; a confirmed run resolves it
+
+        meta = conn.execute("SELECT created_by, updated_by FROM schedule_meta WHERE schedule_id = ?", (run["schedule_id"],)).fetchone()
+        notify_sources.on_schedule_run(conn, run["schedule_id"], sched_name, result, bool(run["sensitive"]), [e["entity_id"] for e in entities], (meta["updated_by"] or meta["created_by"]) if meta else None, run["id"])
     if settled:
         ha_sync.publish({"type": "schedules_changed"})
     return settled

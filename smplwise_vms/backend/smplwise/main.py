@@ -284,6 +284,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import push as push_svc
 
         push_svc.NOTIFIER.start(app.state.db)  # CR-008 P3: Web Push for rule alerts (only to subscribed users in scope)
+        from .services import notify_sources
+
+        notify_sources.start(app.state.db, settings)  # CR-018 S2: the source monitors (health, faults, sensors) and the writer of queued signals
         await run_in_threadpool(bridge_install.run_startup, app.state.db, settings)
 
         async def loop() -> None:
@@ -328,6 +331,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from starlette.concurrency import run_in_threadpool as _in_thread
 
         await _in_thread(push_svc.NOTIFIER.shutdown)  # queued alerts get a few seconds to go out
+        from .services import notify_sources
+
+        await _in_thread(notify_sources.shutdown)
         from .routers import plan_geometry as plan_geometry_router
 
         plan_geometry_router.shutdown_detect_pool()
