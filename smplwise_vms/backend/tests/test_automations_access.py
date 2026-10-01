@@ -99,3 +99,24 @@ def test_the_notification_of_an_automation_reaches_only_its_managers(autos_app):
         assert nv.Reach(conn, nv.principal_of(conn, "dev-omer")).can_see(note) is True
         assert nv.Reach(conn, nv.principal_of(conn, "dev-joni")).can_see(note) is True
         assert nv.Reach(conn, nv.principal_of(conn, "dev-ron")).can_see(note) is False
+
+
+def test_a_runner_has_no_editor_side_for_scripts_and_scenes_either(autos_app):
+    """Security review 2026-10-02: preview (contract row 6: the kind's MANAGE permission) and the dry-run of an UNSAVED draft are editor actions, for scripts and
+    scenes too. The runner keeps the dry-run of the stored script (row 17: the kind's permission)."""
+    app, s, c, fake, tr = autos_app
+    _world(app, c)
+    items = c.get(f"{API}/automations", params={"limit": 500}, headers=RUNNER).json()["items"]
+    sc = next(i for i in items if i["kind"] == "script")
+    for kind in ("script", "scene"):
+        r = c.post(f"{API}/automations/preview", json={"kind": kind, "draft": {}}, headers=RUNNER)
+        assert r.status_code == 403 and r.json()["code"] == "forbidden", kind
+    r = c.post(f"{API}/automations/preview", json={"kind": "script", "id": sc["id"], "draft": {}}, headers=RUNNER)
+    assert r.status_code == 403, "the stored item behind `id` is not read for a runner"
+    assert c.post(f"{API}/automations/script/{sc['id']}/dry-run", headers=RUNNER).status_code == 200, "the stored script's dry-run stays"
+    r = c.post(f"{API}/automations/script/{sc['id']}/dry-run", json={"draft": {"alias": "x", "sequence": []}}, headers=RUNNER)
+    assert r.status_code == 403 and r.json()["code"] == "forbidden"
+    # the editor of the kind still has both
+    detail = c.get(f"{API}/automations/script/{sc['id']}").json()
+    assert c.post(f"{API}/automations/preview", json={"kind": "script", "id": sc["id"], "draft": detail["draft"]}).status_code == 200
+    assert c.post(f"{API}/automations/script/{sc['id']}/dry-run", json={"draft": detail["draft"]}).status_code == 200

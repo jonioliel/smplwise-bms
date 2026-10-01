@@ -1262,10 +1262,10 @@ export abstract class AutomationEditorBase extends LitElement {
     if (!s || !this.env) return out;
     if (this.hardReadOnly) out.push({ id: 'readonly', tone: 'info', icon: 'eye', title: this.roText });
     const sb = !this.hardReadOnly ? saveBlocker(this.kind, s) : null;
-    if (sb && sb.code === 'delegation_off') out.push({ id: 'delegation', tone: 'warn', icon: 'info', title: 'שמירה דורשת מנהל', sub: 'אפשר לערוך ולבדוק; השמירה תתאפשר אחרי שמנהל יאשר זאת בתשתית המערכת.' });
+    if (sb && sb.code === 'delegation_off') out.push({ id: 'delegation', tone: 'warn', icon: 'info', title: 'שמירה דורשת מנהל' }); // clean operator screens (owner 2026-09-30): the title only
     else if (sb && sb.code !== 'no_permission') out.push({ id: 'blocked', tone: 'warn', icon: 'info', title: sb.text });
     const mg = this.missingGrants[0];
-    if (mg && !this.hardReadOnly) out.push({ id: 'grant', tone: 'warn', icon: 'alarm', title: `${grantText(mg.action, this.env.ctx.names!(mg.entity_id))}. השמירה תיחסם עד שהצעד יוסר או שתקבל את ההרשאה.` });
+    if (mg && !this.hardReadOnly) out.push({ id: 'grant', tone: 'warn', icon: 'alarm', title: grantText(mg.action, this.env.ctx.names!(mg.entity_id)) });
     const p = this.freshPreview;
     if (p && !this.hardReadOnly && !sb) {
       const pb = previewSaveBlocker(p, s);

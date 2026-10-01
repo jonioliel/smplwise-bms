@@ -311,8 +311,9 @@ def review(request: Request, principal: Principal = Depends(_auto_gate), conn: s
 def preview(request: Request, principal: Principal = Depends(_view_any_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.1 row 6 - always 200 for a well-formed body; problems are data."""
     body = _parse(request, raw, PreviewBody)
-    if body.kind == "automation":
-        _manage_check_for("automation", conn, principal)  # no view-only access to automations (the audited 403)
+    # contract §3.1 row 6: the kind's MANAGE permission (an automation: automation.manage - no view-only access). A script runner or a caller who only
+    # activates scenes has no editor, so a preview (which reads the stored item behind `id`) is not theirs either (security review 2026-10-02).
+    _manage_check_for(body.kind, conn, principal)
     if (body.draft is None) == (body.config is None):
         raise ApiError(422, "validation", "יש לשלוח draft או config (בדיוק אחד).", details={"fields": ["draft", "config"]})
     w = _writer(request, conn, principal)
@@ -424,6 +425,7 @@ def dry_run(kind: str, item_id: str, request: Request, principal: Principal = De
     ctx = _ctx(request, conn, principal)
     row, rd, facts = view.get_item(ctx, kind, item_id)
     if body.draft is not None:
+        _manage_check_for(kind, conn, principal)  # an unsaved edit is the editor's: a script runner / scene activator checks the stored item only (security review 2026-10-02)
         return view.dry_run_draft(ctx, row, rd, body.draft)
     return view.dry_run(ctx, row, rd, facts)
 
