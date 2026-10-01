@@ -47,13 +47,14 @@ def role(c, settings, name: str, role_id: str, scope=("installation", "*")) -> d
 def test_status_shape_counts_and_what_the_caller_may_do(m):
     app, c, calls, keys, settings = m
     s = c.get("/api/v1/multimedia/status").json()
-    assert s["enabled"] is True and s["bridge"] == {"paired": True, "version": "0.4.0", "media_ready": True} and s["profiles_version"] == 1
-    assert s["can"] == {"read": True, "control": True, "power": True, "public": True, "bulk": True, "layout": True, "configure": True, "personalize": True}
-    assert s["counts"] == {"screens": 6, "on": 4, "pending_approval": 0}, "samsung, lg, android, generic on; the kitchen is off and the second LG unavailable"
+    assert s["enabled"] is True and s["bridge"] == {"paired": True, "version": "0.4.0", "media_ready": True, "players_ready": False} and s["profiles_version"] == 1
+    assert s["can"] == {"read": True, "control": True, "power": True, "public": True, "bulk": True, "layout": True, "group": True, "configure": True, "personalize": True}
+    assert s["counts"] == {"screens": 6, "on": 4, "pending_approval": 0, "players": 0, "playing": 0, "groups": 0, "unplaced": 0, "suggestions": 0}, "samsung, lg, android, generic on; the kitchen is off and the second LG unavailable"
+    assert s["floors"] is True and s["library"] == {"provider": "ma", "state": "ready"}, "CR-016: the seed has a Music Assistant copy of the living-room TV"
     viewer = role(c, settings, "vera", "viewer")
     v = c.get("/api/v1/multimedia/status", headers=viewer).json()
-    assert v["can"] == {"read": True, "control": False, "power": False, "public": False, "bulk": False, "layout": False, "configure": False, "personalize": False}
-    assert v["counts"] == {"screens": 6, "on": 4, "pending_approval": None}, "the pending number is for system.configure only"
+    assert v["can"] == {"read": True, "control": False, "power": False, "public": False, "bulk": False, "layout": False, "group": False, "configure": False, "personalize": False}
+    assert v["counts"] == {"screens": 6, "on": 4, "pending_approval": None, "players": 0, "playing": 0, "groups": 0, "unplaced": 0, "suggestions": None}, "the pending number is for system.configure only"
     nobody = c.get("/api/v1/multimedia/status", headers=as_user("nobody")).json()
     assert nobody["can"]["read"] is False and nobody["counts"]["screens"] == 0 and nobody["enabled"] is True
 
@@ -454,7 +455,7 @@ def test_approval_is_one_tap_for_every_detected_screen_or_per_device_and_changes
     c = TestClient(app)
     seed.install(c)
     st = c.get("/api/v1/multimedia/status").json()
-    assert st["counts"] == {"screens": 0, "on": 0, "pending_approval": 6}
+    assert st["counts"] == {"screens": 0, "on": 0, "pending_approval": 6, "players": 0, "playing": 0, "groups": 0, "unplaced": 0, "suggestions": 0}
     r = c.post("/api/v1/multimedia/admin/approve", json={"device_keys": [seed.key_of(c, "media_player.tv_living")]})
     assert r.json() == {"requested": 1, "changed": 1, "approved": 1, "pending_approval": 5}
     assert len(c.get("/api/v1/multimedia/devices").json()["devices"]) == 1
@@ -564,7 +565,7 @@ def test_the_migrations_apply_on_a_0_1_148_database_and_give_custom_roles_the_me
             conn.execute("INSERT INTO custom_roles(id, name_he, permissions_json, sensitive_json, created_at, updated_at) VALUES (?,?,?,?,?,?)", (rid, rid, json.dumps(perms), json.dumps(sens), now, now))
         rev = dbmod.permission_revision(conn)
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
-    assert database.migrate() == [40, 41, 42, 43], "0040 (climate) and 0043 (camera wall) are in the real set too"
+    assert database.migrate() == [40, 41, 42, 43, 44], "0040 (climate), 0043 (camera wall) and 0044 (CR-016 players) are in the real set too"
     with database.connection() as conn:
         roles = {r["id"]: (json.loads(r["permissions_json"]), json.loads(r["sensitive_json"])) for r in conn.execute("SELECT * FROM custom_roles")}
         assert roles["r-read"][0] == ["devices.read", "map.read", "media.read"]
@@ -599,9 +600,9 @@ def test_the_migrations_apply_on_a_0_1_148_database_and_give_custom_roles_the_me
 
 def test_the_migration_numbers_are_unique_and_0041_0042_are_ours():
     names = sorted(f.name for f in dbmod.MIGRATIONS_DIR.glob("004*.sql"))
-    assert names == ["0040_climate_kind.sql", "0041_media_devices.sql", "0042_media_role_grants.sql", "0043_camera_wall_hidden.sql"], "the real contiguous 0040-0043 set"
+    assert names == ["0040_climate_kind.sql", "0041_media_devices.sql", "0042_media_role_grants.sql", "0043_camera_wall_hidden.sql", "0044_media_players.sql"], "the real contiguous 0040-0044 set"
     numbers = [int(n.split("_", 1)[0]) for n in names]
-    assert numbers == list(range(40, 44)) and len(set(numbers)) == len(numbers)
+    assert numbers == list(range(40, 45)) and len(set(numbers)) == len(numbers)
 
 
 # ------------------------------------------------------------------------------------------------ settings

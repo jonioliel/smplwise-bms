@@ -5,8 +5,13 @@ Canonical shapes (what the `normalise_*` functions return; every shape is closed
 free-form client storage):
 
     layout   {"version": 1, "group_by": "floor|area|none", "floor_order": [floor id], "pinned": [device key],
-              "order": [device key], "cards": {device key: {"on", "size": "s|m|l", "phone_on": bool|null, "phone_size": "s|m"|null}}}
-    personal {"group_by": "floor|area|none"|null, "order": [device key]|null, "cards": {device key: {"on"?, "size"?}}}
+              "order": [device key], "cards": {device key: {"on", "size": "s|m|l", "phone_on": bool|null, "phone_size": "s|m"|null}},
+              "tabs"?: {"screens"|"players"|"groups": {group_by, floor_order, pinned, order, cards}}}
+    personal {"group_by": "floor|area|none"|null, "order": [device key]|null, "cards": {device key: {"on"?, "size"?}},
+              "tabs"?: {"screens"|"players"|"groups": {group_by, order, cards}}}
+
+CR-016: the top-level fields are the "מסכים" tab (as in 0.1.149); `tabs` carries the order / pinned / sizes of the "נגנים ורמקולים" and "קבוצות" tabs (keys:
+device keys, and saved-group ids on the groups tab), one layout document. A layout without `tabs` is exactly the CR-015 one.
     remote   {"sections": [{"id", "on"} x 11, each section once], "more": [section id]}
 
 Unknown device keys are KEPT on write (a device may be temporarily absent) and ignored by the reader; the janitor prunes the keys of
@@ -23,6 +28,7 @@ PHONE_SIZES = ("s", "m")
 REMOTE_SECTIONS = ("recent", "nav", "dpad", "touch", "vol", "ch", "pbk", "nums", "colors", "text", "xtra")
 MAX_KEYS = 300
 MAX_PINNED = 24
+TABS = ("screens", "players", "groups")
 MAX_FLOORS = 100
 KEY_RE = re.compile(r"^[a-f0-9]{32}$")
 FLOOR_RE = re.compile(r"^[^\x00-\x1f\x7f]{1,128}$")
@@ -72,12 +78,8 @@ def default_layout() -> dict[str, Any]:
     return copy.deepcopy(EMPTY_LAYOUT)
 
 
-def normalise_layout(value: Any) -> dict[str, Any]:
-    """The installation layout, validated in full; missing keys take their defaults."""
-    src = _obj(value, "layout", {"version", "group_by", "floor_order", "pinned", "order", "cards"})
-    if src.get("version", 1) != 1 or isinstance(src.get("version"), bool):
-        raise ValueError("layout.version must be 1")
-    out = default_layout()
+def _layout_fields(src: dict[str, Any], out: dict[str, Any]) -> dict[str, Any]:
+    """`group_by`, `floor_order`, `pinned`, `order`, `cards` of one layout (the whole document, or one of its tabs), validated in full into `out`."""
     if "group_by" in src:
         out["group_by"] = _choice(src["group_by"], GROUP_BY, "group_by")
     if "floor_order" in src:
@@ -111,9 +113,33 @@ def normalise_layout(value: Any) -> dict[str, Any]:
     return out
 
 
+def _empty_tab() -> dict[str, Any]:
+    return {"group_by": "floor", "floor_order": [], "pinned": [], "order": [], "cards": {}}
+
+
+def normalise_layout(value: Any) -> dict[str, Any]:
+    """The installation layout, validated in full; missing keys take their defaults. `tabs` (CR-016) is kept only when given."""
+    src = _obj(value, "layout", {"version", "group_by", "floor_order", "pinned", "order", "cards", "tabs"})
+    if src.get("version", 1) != 1 or isinstance(src.get("version"), bool):
+        raise ValueError("layout.version must be 1")
+    out = _layout_fields(src, default_layout())
+    if "tabs" in src:
+        tabs = _obj(src["tabs"], "tabs", set(TABS))
+        out["tabs"] = {name: _layout_fields(_obj(tab, f"tabs.{name}", {"group_by", "floor_order", "pinned", "order", "cards"}), _empty_tab()) for name, tab in tabs.items()}
+    return out
+
+
 def normalise_personal(value: Any) -> dict[str, Any]:
     """The personal override of a holder of `screen.personalize`: group, order and per card on / size only."""
-    src = _obj(value, "multimedia.personal", {"group_by", "order", "cards"})
+    src = _obj(value, "multimedia.personal", {"group_by", "order", "cards", "tabs"})
+    out = _personal_fields(src)
+    if src.get("tabs") is not None:
+        tabs = _obj(src["tabs"], "tabs", set(TABS))
+        out["tabs"] = {name: _personal_fields(_obj(tab, f"tabs.{name}", {"group_by", "order", "cards"})) for name, tab in tabs.items()}
+    return out
+
+
+def _personal_fields(src: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {"group_by": None, "order": None, "cards": {}}
     if src.get("group_by") is not None:
         out["group_by"] = _choice(src["group_by"], GROUP_BY, "group_by")
@@ -136,7 +162,8 @@ def normalise_personal(value: Any) -> dict[str, Any]:
 
 
 def personal_is_empty(personal: dict[str, Any] | None) -> bool:
-    return not personal or (personal.get("group_by") is None and personal.get("order") is None and not personal.get("cards"))
+    return not personal or (personal.get("group_by") is None and personal.get("order") is None and not personal.get("cards")
+                            and all(personal_is_empty(t) for t in (personal.get("tabs") or {}).values()))
 
 
 def normalise_remote_config(value: Any) -> dict[str, Any]:
@@ -174,6 +201,9 @@ def prune_keys(layout: dict[str, Any], gone: set[str]) -> dict[str, Any]:
     out["pinned"] = [k for k in out.get("pinned", []) if k not in gone]
     out["order"] = [k for k in out.get("order", []) if k not in gone]
     out["cards"] = {k: v for k, v in out.get("cards", {}).items() if k not in gone}
+    for name, tab in (out.get("tabs") or {}).items():
+        out["tabs"][name] = {**tab, "pinned": [k for k in tab.get("pinned", []) if k not in gone], "order": [k for k in tab.get("order", []) if k not in gone],
+                             "cards": {k: v for k, v in tab.get("cards", {}).items() if k not in gone}}
     return out
 
 
@@ -186,6 +216,9 @@ def restrict_layout(layout: dict[str, Any], keys: set[str], floors: set[str]) ->
     out["pinned"] = [k for k in out.get("pinned", []) if k in keys]
     out["order"] = [k for k in out.get("order", []) if k in keys]
     out["cards"] = {k: v for k, v in out.get("cards", {}).items() if k in keys}
+    for name, tab in (out.get("tabs") or {}).items():
+        out["tabs"][name] = {**tab, "floor_order": [f for f in tab.get("floor_order", []) if f in floors], "pinned": [k for k in tab.get("pinned", []) if k in keys],
+                             "order": [k for k in tab.get("order", []) if k in keys], "cards": {k: v for k, v in tab.get("cards", {}).items() if k in keys}}
     return out
 
 
@@ -195,4 +228,6 @@ def restrict_personal(personal: dict[str, Any], keys: set[str]) -> dict[str, Any
     if out.get("order") is not None:
         out["order"] = [k for k in out["order"] if k in keys]
     out["cards"] = {k: v for k, v in (out.get("cards") or {}).items() if k in keys}
+    for name, tab in (out.get("tabs") or {}).items():
+        out["tabs"][name] = restrict_personal(tab, keys)
     return out

@@ -18,18 +18,22 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..db import now_iso
+from ..db import get_setting, now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Decision, Principal, authorize, permissions_anywhere
 from . import ha_scope, ha_sync, media_layout, media_model as mm, media_profiles as profiles
+from .timeutil import zone as _zone
 
 log = logging.getLogger("smplwise.media")
 
 PERM_READ, PERM_CONTROL, PERM_POWER, PERM_PUBLIC, PERM_BULK, PERM_LAYOUT = "media.read", "media.control", "media.power", "media.public", "media.bulk", "media.layout"
-ALL_PERMS = (PERM_READ, PERM_CONTROL, PERM_POWER, PERM_PUBLIC, PERM_BULK, PERM_LAYOUT)
+PERM_GROUP = "media.group"  # CR-016: join / leave, group volume, saved groups (needs media.control at every member's anchor too)
+ALL_PERMS = (PERM_READ, PERM_CONTROL, PERM_POWER, PERM_PUBLIC, PERM_BULK, PERM_LAYOUT, PERM_GROUP)
 CONFIGURE = "system.configure"
 TOMBSTONE_DAYS = 30
 BRIDGE_REQUIRED = "0.4.0"
+BRIDGE_PLAYERS_REQUIRED = "0.5.0"  # the CR-016 commands, groups and reads; screens keep working with 0.4.0
+AUDIO_KINDS = mm.AUDIO_KINDS
 PENDING_POWER_S = 20.0  # a power command younger than this whose state has not moved keeps the state "not confirmed"
 CONTENT_ART_TYPES = frozenset({"video", "movie", "episode", "tvshow", "music", "track"})  # real content art, never an app or channel logo
 ENDPOINT_PREFIX = "ha:"
@@ -47,12 +51,14 @@ def version_tuple(text: str | None) -> tuple[int, ...]:
 
 
 def bridge_state(conn: sqlite3.Connection) -> dict[str, Any]:
-    """`{paired, version, media_ready}`: commands need a paired bridge of at least 0.4.0 (an unknown version fails closed)."""
+    """`{paired, version, media_ready, players_ready}`: screen commands need a paired bridge of at least 0.4.0, the CR-016 commands, groups and
+    reads 0.5.0 (an unknown version fails closed)."""
     row = conn.execute("SELECT key, value FROM settings WHERE key IN ('bridge.secret', 'bridge.paired_at', 'bridge.integration_version')").fetchall()
     s = {r[0]: r[1] for r in row}
     paired = bool(s.get("bridge.secret")) and bool(s.get("bridge.paired_at"))
     version = s.get("bridge.integration_version") or None
-    return {"paired": paired, "version": version, "media_ready": paired and version_tuple(version) >= version_tuple(BRIDGE_REQUIRED)}
+    return {"paired": paired, "version": version, "media_ready": paired and version_tuple(version) >= version_tuple(BRIDGE_REQUIRED),
+            "players_ready": paired and version_tuple(version) >= version_tuple(BRIDGE_PLAYERS_REQUIRED)}
 
 
 # ------------------------------------------------------------------------------------------------ in-memory index / artwork
@@ -69,6 +75,7 @@ class _Index:
         self.loaded = False
         self.last_sent: dict[str, float] = {}
         self.suggestions: list[mm.Suggestion] = []
+        self.last_group: dict[str, tuple[str, ...]] = {}  # device key -> the member keys of its group at the last `media_state` (old members are republished too)
 
 
 INDEX = _Index()
@@ -106,7 +113,7 @@ def _refresh_index(conn: sqlite3.Connection) -> None:
     with INDEX.lock:
         INDEX.by_entity = by_entity
         INDEX.anchor = {r["device_key"]: r["anchor_entity_id"] for r in rows if r["anchor_entity_id"]}
-        INDEX.approved = {r["device_key"] for r in rows if r["approved"] and r["kind"] == "screen"}
+        INDEX.approved = {r["device_key"] for r in rows if r["approved"] and r["kind"] in mm.RENDERED_KINDS}
         INDEX.loaded = True
 
 
@@ -121,13 +128,14 @@ SCREEN_CONTROL_DOMAINS = ("switch", "button", "select", "number", "remote", "med
 _DOMAINS_SQL = ",".join(f"'{d}'" for d in SCREEN_CONTROL_DOMAINS)
 _SCREEN_DEVICES_SQL = (
     "SELECT ev.device_id FROM media_device_endpoints e JOIN media_devices d ON d.device_key = e.device_key JOIN ha_entities ev ON ev.entity_id = e.ref "
-    "WHERE d.approved = 1 AND d.removed_at IS NULL AND e.source = 'ha' AND ev.device_id IS NOT NULL")
+    "WHERE d.approved = 1 AND d.kind = 'screen' AND d.removed_at IS NULL AND e.source = 'ha' AND ev.device_id IS NOT NULL")
 
 
 def managed_entities(conn: sqlite3.Connection) -> set[str]:
-    """The entities operated only from "מולטימדיה": the media_player / remote endpoints of an APPROVED screen and every switch, button,
-    select, number, remote or media_player entity of the HA device(s) those endpoints belong to (the generic action route answers 409
-    use_media_screen; the catalogue lists them read-only)."""
+    """The entities operated only from "מולטימדיה": the media_player / remote endpoints of an APPROVED device (a screen, speaker, player,
+    receiver or group - CR-016: one authority per device) and, for an approved SCREEN, every switch, button, select, number, remote or
+    media_player entity of the HA device(s) those endpoints belong to (the generic action route answers 409 use_media_screen; the catalogue
+    lists them read-only). A speaker's other entities (a Sonos equaliser, night mode) stay with the devices area."""
     out = {r[0] for r in conn.execute(
         "SELECT e.ref FROM media_device_endpoints e JOIN media_devices d ON d.device_key = e.device_key WHERE d.approved = 1 AND d.removed_at IS NULL AND e.source = 'ha'").fetchall()}
     out.update(r[0] for r in conn.execute(
@@ -187,7 +195,7 @@ def _load_ha_devices(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         except ValueError:
             conns, idents = [], []
         out.append({"device_id": r["device_id"], "name": r["name"], "name_by_user": r["name_by_user"], "area_id": r["area_id"], "via_device_id": r["via_device_id"],
-                    "connections": [tuple(x) for x in conns], "identifiers": [tuple(x) for x in idents]})
+                    "manufacturer": r["manufacturer"], "model": r["model"], "connections": [tuple(x) for x in conns], "identifiers": [tuple(x) for x in idents]})
     return out
 
 
@@ -211,8 +219,8 @@ def load_media_entities(conn: sqlite3.Connection) -> list[dict[str, Any]]:
 def _fingerprint(conn: sqlite3.Connection) -> str:
     h = hashlib.sha1()
     for sql in (
-        "SELECT endpoint_id, device_key, role, rule, hidden, link_source FROM media_device_endpoints ORDER BY endpoint_id",
-        "SELECT device_key, kind, kind_source, anchor_entity_id, confidence, removed_at FROM media_devices ORDER BY device_key",
+        "SELECT endpoint_id, device_key, role, rule, hidden, link_source, group_layer FROM media_device_endpoints ORDER BY endpoint_id",
+        "SELECT device_key, kind, kind_source, anchor_entity_id, confidence, removed_at, music_provider, zones_json FROM media_devices ORDER BY device_key",
     ):
         for r in conn.execute(sql):
             h.update(json.dumps(list(r), ensure_ascii=False, default=str).encode("utf-8"))
@@ -220,47 +228,86 @@ def _fingerprint(conn: sqlite3.Connection) -> str:
     return h.hexdigest()
 
 
+def _feature_mask(entity: dict[str, Any]) -> int | None:
+    """The `supported_features` an AVAILABLE entity reports (the mask the capabilities of an audio device fall back to when it drops off); None otherwise."""
+    if not entity.get("available", True) or entity.get("state") in ("unavailable", None):
+        return None
+    value = entity.get("supported_features")
+    return int(value) if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def note_features(conn: sqlite3.Connection, entity_id: str, state: str | None, features: Any) -> None:
+    """`ha_sync.upsert_state` of a media_player: remember the feature mask seen while the entity is AVAILABLE on its endpoint row (CR-016 5.4:
+    an unavailable / restored entity reports a degraded mask, so the last good one is the fallback). A single primary-key UPDATE, only when the
+    mask changed."""
+    if state in ("unavailable", None) or isinstance(features, bool) or not isinstance(features, (int, float)):
+        return
+    text = json.dumps(int(features))
+    conn.execute("UPDATE media_device_endpoints SET last_features_json = ? WHERE endpoint_id = ? AND COALESCE(last_features_json, '') != ?", (text, ENDPOINT_PREFIX + entity_id, text))
+
+
 def rebuild(conn: sqlite3.Connection) -> bool:
     """Run the dedupe ladder over the current media endpoints and bring `media_devices` / `media_device_endpoints` in line: new
-    devices are created UNAPPROVED, vanished ones are tombstoned (their curation kept for TOMBSTONE_DAYS), a device keeps its key
-    while its endpoints change. Returns True when something a screen shows moved (the caller publishes `media_devices_changed`)."""
+    devices are created UNAPPROVED (every kind), vanished ones are tombstoned (their curation kept for TOMBSTONE_DAYS), a device keeps its key
+    while its endpoints change. The kind, the music provider, the zones of a receiver and the one grouping layer are derived here (CR-016).
+    Returns True when something a screen shows moved (the caller publishes `media_devices_changed`)."""
     before = _fingerprint(conn)
     now = now_iso()
     entities = load_media_entities(conn)
+    last = {r["endpoint_id"]: r["last_features_json"] for r in conn.execute("SELECT endpoint_id, last_features_json FROM media_device_endpoints WHERE last_features_json IS NOT NULL").fetchall()}
+    for e in entities:
+        raw = last.get(mm.endpoint_id_of(e["entity_id"]))
+        if raw:
+            try:
+                e["last_features"] = int(json.loads(raw))
+            except (ValueError, TypeError):
+                pass
     devices = _load_ha_devices(conn)
     rules = [dict(r) for r in conn.execute("SELECT * FROM media_link_rules").fetchall()]
     existing = {r["endpoint_id"]: r["device_key"] for r in conn.execute("SELECT endpoint_id, device_key FROM media_device_endpoints").fetchall()}
     anchors = {r["device_key"]: r["anchor_entity_id"] for r in conn.execute("SELECT device_key, anchor_entity_id FROM media_devices WHERE anchor_entity_id IS NOT NULL").fetchall()}
     # a device that was tombstoned keeps its key when it comes back: its endpoints are still in `existing` (never deleted with the tombstone)
     model = mm.build(entities, devices, rules, existing_keys=existing, existing_anchors=anchors, new_key=lambda: uuid.uuid4().hex)
+    ent_by_ref = {e["entity_id"]: e for e in entities}
     rows = {r["device_key"]: r for r in conn.execute("SELECT * FROM media_devices").fetchall()}
     for key, dev in model.devices.items():
         row = rows.get(key)
+        zones = json.dumps(dev.zones, ensure_ascii=False, separators=(",", ":")) if dev.zones else None
         if row is None:
             conn.execute(
-                "INSERT INTO media_devices(device_key, kind, kind_source, anchor_entity_id, confidence, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
-                (key, dev.kind, "auto", dev.anchor, dev.confidence, now, now))
+                "INSERT INTO media_devices(device_key, kind, kind_source, anchor_entity_id, confidence, created_at, updated_at, music_provider, zones_json) VALUES (?,?,?,?,?,?,?,?,?)",
+                (key, dev.kind, "auto", dev.anchor, dev.confidence, now, now, dev.music_provider, zones))
         else:
             kind = dev.kind if row["kind_source"] == "auto" else row["kind"]
-            if (row["kind"], row["anchor_entity_id"], row["confidence"], row["removed_at"]) != (kind, dev.anchor, dev.confidence, None):
-                conn.execute("UPDATE media_devices SET kind = ?, anchor_entity_id = ?, confidence = ?, removed_at = NULL, updated_at = ? WHERE device_key = ?", (kind, dev.anchor, dev.confidence, now, key))
+            if (row["kind"], row["anchor_entity_id"], row["confidence"], row["removed_at"], row["music_provider"], row["zones_json"]) != (kind, dev.anchor, dev.confidence, None, dev.music_provider, zones):
+                conn.execute("UPDATE media_devices SET kind = ?, anchor_entity_id = ?, confidence = ?, removed_at = NULL, music_provider = ?, zones_json = ?, updated_at = ? WHERE device_key = ?",
+                             (kind, dev.anchor, dev.confidence, dev.music_provider, zones, now, key))
     for key in [k for k, r in rows.items() if k not in model.devices and r["removed_at"] is None]:
         conn.execute("UPDATE media_devices SET removed_at = ?, updated_at = ? WHERE device_key = ?", (now, now, key))
     have = {r["endpoint_id"]: r for r in conn.execute("SELECT * FROM media_device_endpoints").fetchall()}
     desired = {ep.endpoint_id: (key, ep) for key, dev in model.devices.items() for ep in dev.endpoints}
+    layer_of: dict[str, str] = {}
+    for key, dev in model.devices.items():
+        if dev.kind in mm.AUDIO_KINDS:
+            gep, layer = mm.group_endpoint(dev, ent_by_ref)
+            if gep is not None and layer:
+                layer_of[gep.endpoint_id] = layer
     # an endpoint that left a LIVE device is deleted; the endpoints of a tombstoned device stay, so the device is recognised (and keeps its key
     # and its curation) when its entities come back within TOMBSTONE_DAYS - every reader filters on the device's own `removed_at`
     for endpoint_id in [e for e in have if e not in desired and have[e]["source"] == "ha" and have[e]["device_key"] in model.devices]:
         conn.execute("DELETE FROM media_device_endpoints WHERE endpoint_id = ?", (endpoint_id,))
     for endpoint_id, (key, ep) in desired.items():
         row = have.get(endpoint_id)
-        val = (key, ep.role, ep.platform, ep.rule, ep.link_source, 1 if ep.hidden else 0)
-        if row is not None and (row["device_key"], row["role"], row["platform"], row["rule"], row["link_source"], row["hidden"]) == val:
-            continue
-        conn.execute(
-            "INSERT INTO media_device_endpoints(endpoint_id, source, ref, device_key, role, platform, rule, link_source, hidden, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?) "
-            "ON CONFLICT(endpoint_id) DO UPDATE SET device_key = excluded.device_key, role = excluded.role, platform = excluded.platform, rule = excluded.rule, link_source = excluded.link_source, hidden = excluded.hidden, updated_at = excluded.updated_at",
-            (endpoint_id, "ha", ep.ref, key, ep.role, ep.platform, ep.rule, ep.link_source, 1 if ep.hidden else 0, now))
+        val = (key, ep.role, ep.platform, ep.rule, ep.link_source, 1 if ep.hidden else 0, layer_of.get(endpoint_id))
+        if row is None or (row["device_key"], row["role"], row["platform"], row["rule"], row["link_source"], row["hidden"], row["group_layer"]) != val:
+            conn.execute(
+                "INSERT INTO media_device_endpoints(endpoint_id, source, ref, device_key, role, platform, rule, link_source, hidden, group_layer, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?) "
+                "ON CONFLICT(endpoint_id) DO UPDATE SET device_key = excluded.device_key, role = excluded.role, platform = excluded.platform, rule = excluded.rule, link_source = excluded.link_source, "
+                "hidden = excluded.hidden, group_layer = excluded.group_layer, updated_at = excluded.updated_at",
+                (endpoint_id, "ha", ep.ref, key, ep.role, ep.platform, ep.rule, ep.link_source, 1 if ep.hidden else 0, layer_of.get(endpoint_id), now))
+        mask = _feature_mask(ent_by_ref.get(ep.ref) or {})
+        if mask is not None and (row is None or row["last_features_json"] != json.dumps(mask)):
+            conn.execute("UPDATE media_device_endpoints SET last_features_json = ? WHERE endpoint_id = ?", (json.dumps(mask), endpoint_id))
     with INDEX.lock:
         INDEX.suggestions = list(model.suggestions)
     _refresh_index(conn)
@@ -320,6 +367,27 @@ class Access:
 # ------------------------------------------------------------------------------------------------ the catalogue
 
 
+LIB_KINDS = ("favourites", "stations", "playlists")
+# the last "up next" read of each device (media_query puts it here, `live.queue` reads it; never triggers a read): device key -> (monotonic s, {count, index})
+QUEUE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+QUEUE_FRESH_S = 10.0
+
+
+def note_queue(key: str, queue: dict[str, Any] | None) -> None:
+    if queue is None:
+        QUEUE_CACHE.pop(key, None)
+    else:
+        QUEUE_CACHE[key] = (time.monotonic(), queue)
+    if len(QUEUE_CACHE) > 500:
+        for k in [k for k, (t, _q) in QUEUE_CACHE.items() if time.monotonic() - t > 600]:
+            QUEUE_CACHE.pop(k, None)
+
+
+def cached_queue(key: str) -> dict[str, Any] | None:
+    hit = QUEUE_CACHE.get(key)
+    return hit[1] if hit and time.monotonic() - hit[0] <= QUEUE_FRESH_S else None
+
+
 @dataclass
 class Item:
     row: dict[str, Any]
@@ -340,11 +408,29 @@ class Catalog:
     items: dict[str, Item] = field(default_factory=dict)
     pending: dict[str, int] = field(default_factory=dict)  # device key -> epoch ms of the last power command (recent: its state may not have moved yet)
     ents: dict[str, dict[str, Any]] = field(default_factory=dict)
+    by_entity: dict[str, str] = field(default_factory=dict)  # entity id -> device key, hidden endpoints included (a group lists its members by ANY of their entities)
+    lib_kinds: tuple[str, ...] = LIB_KINDS  # the library lists the administrator switched on (multimedia.favourites)
+    _groups: dict[str, dict[str, Any]] | None = None
 
     def linked(self, item: Item) -> Item | None:
         link = item.row.get("audio_link_key")
         other = self.items.get(link) if link else None
         return other if other is not None and other.key != item.key else None
+
+    def groups(self) -> dict[str, dict[str, Any]]:
+        """Group membership of every audio device in this catalogue (services/media_model.resolve_groups); computed once."""
+        if self._groups is None:
+            self._groups = mm.resolve_groups({k: i.model for k, i in self.items.items() if i.row["kind"] != "screen"}, self.ents, self.by_entity)
+        return self._groups
+
+    def group_info(self, key: str) -> dict[str, Any]:
+        """`LiveGroup` of a device with the leader's name as the group name; `member_keys` lists the leader FIRST (every key unfiltered: the API
+        drops the leader from the list it sends and filters the rest by the caller's scope)."""
+        g = dict(self.groups().get(key) or mm.NO_GROUP)
+        leader = self.items.get(g["leader_key"]) if g.get("leader_key") else None
+        if leader is not None and g["role"] != "none" and not g["static"]:
+            g["name"] = leader.name
+        return g
 
 
 def _loads(text: str | None, default: Any = None) -> Any:
@@ -361,11 +447,34 @@ def _override(row: dict[str, Any]) -> dict[str, str]:
     return {c: (v[len(ENDPOINT_PREFIX):] if isinstance(v, str) and v.startswith(ENDPOINT_PREFIX) else v) for c, v in raw.items() if isinstance(v, str)}
 
 
-def load_catalog(conn: sqlite3.Connection, *, approved_only: bool = True, kind: str | None = "screen", only: str | None = None) -> Catalog:
-    """Every (approved) media device with its endpoints, current entity states, primaries and view (`only`: just that device and
-    the receiver it is linked to)."""
-    where = "removed_at IS NULL" + (" AND approved = 1" if approved_only else "") + (" AND kind = ?" if kind else "") + (" AND device_key = ?" if only else "")
-    args = tuple(x for x in (kind, only) if x)
+def favourites_config(conn: sqlite3.Connection) -> dict[str, Any]:
+    """`multimedia.favourites` (the administrator's curation, one list for everyone - CR-016 decision 5): `{kinds_on, items: [{item_ref, hidden, order}], revision}`."""
+    row = conn.execute("SELECT value FROM settings WHERE key = 'multimedia.favourites'").fetchone()
+    raw = _loads(row[0] if row else None, None)
+    cfg: dict[str, Any] = {"kinds_on": list(LIB_KINDS), "items": [], "revision": 0}
+    if isinstance(raw, dict):
+        kinds = raw.get("kinds_on")
+        if isinstance(kinds, list):
+            cfg["kinds_on"] = [k for k in LIB_KINDS if k in kinds]
+        items = raw.get("items")
+        if isinstance(items, list):
+            cfg["items"] = [i for i in items if isinstance(i, dict) and isinstance(i.get("item_ref"), str)][:500]
+        if isinstance(raw.get("revision"), int) and not isinstance(raw.get("revision"), bool):
+            cfg["revision"] = raw["revision"]
+    return cfg
+
+
+def load_catalog(conn: sqlite3.Connection, *, approved_only: bool = True, kind: "str | tuple[str, ...] | list[str] | None" = "screen", only: str | None = None) -> Catalog:
+    """Every (approved) media device of the given kind(s) with its endpoints, current entity states, primaries and view (`only`: just that device and
+    the receiver it is linked to). An audio device's groups are read from its peers: `only` on a speaker / player / receiver / group loads every
+    audio device (unapproved ones too - they are physically in the group; the readers filter by approval and scope)."""
+    if only:
+        r0 = conn.execute("SELECT kind FROM media_devices WHERE device_key = ? AND removed_at IS NULL", (only,)).fetchone()
+        if r0 is not None and r0["kind"] != "screen":
+            approved_only, kind, only = False, tuple(mm.AUDIO_KINDS), None
+    kinds = [kind] if isinstance(kind, str) else list(kind or [])
+    where = "removed_at IS NULL" + (" AND approved = 1" if approved_only else "") + (f" AND kind IN ({','.join('?' * len(kinds))})" if kinds else "") + (" AND device_key = ?" if only else "")
+    args = tuple(kinds) + ((only,) if only else ())
     rows = [dict(r) for r in conn.execute(f"SELECT * FROM media_devices WHERE {where} ORDER BY device_key", args)]
     # a linked receiver is a device of its own that may not be approved: its endpoints are needed too
     need = {r["device_key"] for r in rows} | {r["audio_link_key"] for r in rows if r.get("audio_link_key")}
@@ -383,7 +492,19 @@ def load_catalog(conn: sqlite3.Connection, *, approved_only: bool = True, kind: 
         chunk = refs[i:i + 400]
         for r in conn.execute(f"SELECT * FROM ha_entities WHERE entity_id IN ({','.join('?' * len(chunk))})", chunk).fetchall():
             ents[r["entity_id"]] = _entity(r)
+    # CR-016 5.4: an audio device falls back to the last good mask of an endpoint that dropped off (screens keep CR-015's live masks)
+    audio_keys = {r["device_key"] for r in rows if r["kind"] != "screen"}
+    for key in audio_keys:
+        for e in eps_by_key.get(key, []):
+            ent = ents.get(e["ref"])
+            if ent is not None and e["last_features_json"]:
+                last = _loads(e["last_features_json"])
+                if isinstance(last, int) and not isinstance(last, bool):
+                    ent["last_features"] = last
     cat.ents = ents
+    cat.by_entity = {e["ref"]: key for key, lst in eps_by_key.items() for e in lst}
+    if audio_keys:
+        cat.lib_kinds = tuple(favourites_config(conn)["kinds_on"])
     device_ids = sorted({e["device_id"] for e in ents.values() if e.get("device_id")})
     hdev: dict[str, dict[str, Any]] = {}
     for i in range(0, len(device_ids), 400):
@@ -399,7 +520,8 @@ def load_catalog(conn: sqlite3.Connection, *, approved_only: bool = True, kind: 
         anchor_id = row.get("anchor_entity_id") or endpoints[0].ref
         detected = profiles.detect({e.platform or "" for e in endpoints})
         profile = row.get("profile") if row.get("profile") in profiles.PROFILE_IDS else detected
-        model = mm.DeviceModel(key=key, endpoints=endpoints, kind=row["kind"], confidence=row["confidence"], anchor=anchor_id, profile=detected)
+        model = mm.DeviceModel(key=key, endpoints=endpoints, kind=row["kind"], confidence=row["confidence"], anchor=anchor_id, profile=detected,
+                               zones=_loads(row.get("zones_json")) or None, music_provider=row.get("music_provider") or "none")
         prim = mm.primaries(model, ents, profile, _override(row))
         view = mm.DeviceView(dev=model, ents=ents, profile=profile, prim=prim, audio_default=row.get("audio_default") or "screen", volume_max=row.get("volume_max"),
                              model_keys=[k for k in (_loads(row.get("model_keys_json"), []) or []) if k in profiles.model_key_options(profile)],
@@ -413,17 +535,31 @@ def load_catalog(conn: sqlite3.Connection, *, approved_only: bool = True, kind: 
     return cat
 
 
+def artwork_source(item: Item) -> tuple[str, str] | None:
+    """(picture path, version hash) of the content art of a device: its now-playing endpoint's, else - for an audio device - its music layer's
+    (the MA entity carries the picture while a vendor entity plays)."""
+    hit = artwork_for(item.view.prim.get("now_playing"))
+    if hit is None and item.row["kind"] != "screen":
+        hit = artwork_for(item.view.prim.get("music"))
+    return hit
+
+
 def live_of(cat: Catalog, item: Item, key_url: bool = True) -> dict[str, Any]:
     linked = cat.linked(item)
     art = None
-    np_id = item.view.prim.get("now_playing")
-    hit = artwork_for(np_id)
+    hit = artwork_source(item)
     if hit and key_url:
         art = f"api/v1/multimedia/devices/{item.key}/artwork?v={hit[1]}"
+    if item.row["kind"] != "screen":
+        g = cat.group_info(item.key)
+        g = {**g, "member_keys": [k for k in g["member_keys"] if k != g["leader_key"]]}  # `member_keys`: the group's OTHER devices (the leader is `leader_key`)
+        return mm.live(item.view, None, pending_power_ms=cat.pending.get(item.key), artwork=art, group=g, queue=cached_queue(item.key))
     return mm.live(item.view, linked.view if linked else None, pending_power_ms=cat.pending.get(item.key), artwork=art)
 
 
 def caps_of(cat: Catalog, item: Item) -> dict[str, Any]:
+    if item.row["kind"] != "screen":
+        return mm.caps(item.view, None, group=cat.group_info(item.key), library={"kinds_on": cat.lib_kinds})
     linked = cat.linked(item)
     return mm.caps(item.view, linked.view if linked else None)
 
@@ -453,18 +589,76 @@ def floor_area(item: Item) -> dict[str, Any]:
     return {"floor_id": a.get("ha_floor_id"), "floor_name": a.get("ha_floor_name"), "area_id": a.get("area_id"), "area_name": a.get("area_name")}
 
 
+def night_window(row: dict[str, Any]) -> dict[str, Any] | None:
+    """`volume_night` of a device row: `{from: "HH:MM", to: "HH:MM", max: 0-100}` or None."""
+    raw = _loads(row.get("volume_night_json"))
+    return raw if isinstance(raw, dict) and isinstance(raw.get("from"), str) and isinstance(raw.get("to"), str) and isinstance(raw.get("max"), int) else None
+
+
+def utcnow() -> dt.datetime:
+    return dt.datetime.now(dt.timezone.utc)  # tests move the clock here
+
+
+def in_night_window(night: dict[str, Any], local_now: dt.datetime) -> bool:
+    """Whether `local_now` (installation local time) is inside the window `from`..`to` (it may wrap midnight: 22:00 to 07:00)."""
+    def minutes(text: str) -> int:
+        return int(text[:2]) * 60 + int(text[3:5])
+
+    start, end, now = minutes(night["from"]), minutes(night["to"]), local_now.hour * 60 + local_now.minute
+    return start <= now < end if start < end else (now >= start or now < end)
+
+
+def effective_ceiling(conn: sqlite3.Connection, row: dict[str, Any], now: dt.datetime | None = None) -> int | None:
+    """The volume ceiling a write to this device is clamped to (CR-016 10.1): the administrator's `volume_max`, and - inside the optional night window -
+    the window's `max` when that is lower. NONE when nothing was set (decision 7ב: no default ceiling, never a silent one); it is applied in the command
+    path BEFORE sending, never as a loop after the fact."""
+    ceiling = row.get("volume_max")
+    night = night_window(row)
+    if night is not None:
+        local = (now or utcnow()).astimezone(_zone(get_setting(conn, "time.zone") or "Asia/Jerusalem"))
+        if in_night_window(night, local):
+            ceiling = night["max"] if ceiling is None else min(ceiling, night["max"])
+    return ceiling
+
+
+def visible_group(cat: Catalog, access: Access, group: dict[str, Any]) -> dict[str, Any]:
+    """A live group reduced to what the caller may see: the members and the leader they may read (no key of another floor's device leaves)."""
+    def ok(k: str | None) -> bool:
+        it = cat.items.get(k) if k else None
+        return it is not None and bool(it.row["approved"]) and access.has(PERM_READ, it.row.get("anchor_entity_id"))
+
+    leader = group["leader_key"] if ok(group.get("leader_key")) else None
+    # `member_keys` are the group's OTHER devices (the leader is `leader_key`; the same list on every device of the group)
+    return {**group, "leader_key": leader, "member_keys": [k for k in group["member_keys"] if k != group.get("leader_key") and ok(k)], "name": group.get("name") if leader or group.get("static") else None}
+
+
 def device_item(cat: Catalog, item: Item, access: Access) -> dict[str, Any]:
-    """`MediaDevice` (contract 2.1): nothing in it carries a hidden endpoint's id, a MAC, an HA identifier, an IP or an HA URL."""
+    """`MediaDevice` (contract 2.1): nothing in it carries a hidden endpoint's id, a MAC, an HA identifier, an IP or an HA URL. A speaker, player,
+    receiver or group (CR-016) also carries its ceilings (only when an administrator set them), the music provider, the zones of a receiver, the
+    members of a helper group and `can.group`; a screen keeps exactly its CR-015 shape."""
     anchor = item.row.get("anchor_entity_id")
     linked = cat.linked(item)
     public = bool(item.row["is_public"])
-    return {
+    out = {
         "key": item.key, "name": item.name, "kind": item.row["kind"], "profile": item.profile, **floor_area(item), "public": public,
         "live": live_of(cat, item), "caps": caps_of(cat, item),
         # the receiver's name only for a caller who may read the receiver itself (review L2): it is a device of its own, possibly on another floor
         "audio_link": {"key": linked.key, "name": linked.name, "default": item.row.get("audio_default") or "screen"} if linked and access.has(PERM_READ, linked.row.get("anchor_entity_id")) else None,
         "can": {"control": access.has(PERM_CONTROL, anchor), "power": access.has(PERM_POWER, anchor), "public_ok": (not public) or access.has(PERM_PUBLIC, anchor), "bulk": access.has(PERM_BULK, anchor)},
     }
+    if item.row["kind"] != "screen":
+        out["live"]["group"] = visible_group(cat, access, out["live"]["group"])
+        # join is offered only where the caller may group AND the device can: a Cast speaker, a static / helper group, a disagreement between its two layers
+        # ("קיבוץ לא תואם") or an unavailable grouping endpoint never
+        out["can"]["group"] = access.has(PERM_GROUP, anchor) and access.has(PERM_CONTROL, anchor) and item.row["kind"] in ("speaker", "player", "receiver") \
+            and bool(out["caps"]["group"]) and not cat.group_info(item.key)["conflict"]
+        out["volume_max"] = item.row.get("volume_max")
+        out["volume_night"] = night_window(item.row)
+        out["music_provider"] = mm.music_provider_of(item.model, cat.ents)
+        out["zones"] = mm.zone_states(item.model, cat.ents)
+        members = mm.virtual_members(item.model, cat.ents, cat.by_entity) if item.row["kind"] == "virtual_group" else None
+        out["virtual_members"] = [k for k in members if cat.items.get(k) is not None and access.has(PERM_READ, cat.items[k].row.get("anchor_entity_id"))] if members is not None else None
+    return out
 
 
 def device_detail(conn: sqlite3.Connection, cat: Catalog, item: Item, access: Access, *, curation: bool = False) -> dict[str, Any]:
@@ -481,17 +675,22 @@ def device_detail(conn: sqlite3.Connection, cat: Catalog, item: Item, access: Ac
     return {**base, "sources": pub(sources), "apps": pub(apps), "recent": mm.recent_items(item.view), "remote": remote_of(conn, item), "model_keys": list(item.view.model_keys)}
 
 
-def visible_items(cat: Catalog, access: Access) -> list[Item]:
-    return [i for i in cat.items.values() if i.row["kind"] == "screen" and i.row["approved"] and access.has(PERM_READ, i.row.get("anchor_entity_id"))]
+def visible_items(cat: Catalog, access: Access, kinds: tuple[str, ...] = ("screen",)) -> list[Item]:
+    return [i for i in cat.items.values() if i.row["kind"] in kinds and i.row["approved"] and access.has(PERM_READ, i.row.get("anchor_entity_id"))]
 
 
-def find_visible(conn: sqlite3.Connection, principal: Principal, key: str) -> tuple[Catalog, Item, Access]:
-    """The approved screen `key` when the caller may read it, else 404 (an invisible device is never a 403)."""
-    cat = load_catalog(conn)
+def find_visible(conn: sqlite3.Connection, principal: Principal, key: str, kinds: tuple[str, ...] = ("screen",)) -> tuple[Catalog, Item, Access]:
+    """The approved device `key` (of one of `kinds`) when the caller may read it, else 404 (an invisible device is never a 403). A screen loads
+    the screens; an audio device loads the audio devices (its groups need its peers)."""
+    r = conn.execute("SELECT kind FROM media_devices WHERE device_key = ? AND removed_at IS NULL", (key,)).fetchone()
+    missing = ApiError(404, "not_found", "המסך לא נמצא." if kinds == ("screen",) else "ההתקן לא נמצא.")
+    if r is None or r["kind"] not in kinds:
+        raise missing
+    cat = load_catalog(conn) if r["kind"] == "screen" else load_catalog(conn, approved_only=False, kind=tuple(mm.AUDIO_KINDS))
     item = cat.items.get(key)
     access = Access(conn, principal)
-    if item is None or not item.row["approved"] or item.row["kind"] != "screen" or not access.has(PERM_READ, item.row.get("anchor_entity_id")):
-        raise ApiError(404, "not_found", "המסך לא נמצא.")
+    if item is None or not item.row["approved"] or item.row["kind"] not in kinds or not access.has(PERM_READ, item.row.get("anchor_entity_id")):
+        raise missing
     return cat, item, access
 
 
@@ -501,11 +700,22 @@ def find_visible(conn: sqlite3.Connection, principal: Principal, key: str) -> tu
 THROTTLE_S = 0.25  # media_state: at most 4 frames per second per device
 
 
+def _group_anchors(cat: Catalog, item: Item) -> dict[str, Any]:
+    """The anchors of the devices a frame's `live.group` names: for the `/ha/ws` scope filter only (the socket drops it, and the keys of the devices a subscriber
+    may not read, before sending). Empty for a screen or a device that is in no group."""
+    if item.row["kind"] == "screen":
+        return {}
+    g = cat.group_info(item.key)
+    keys = {k for k in [g["leader_key"], *g["member_keys"]] if k and k in cat.items}
+    return {"group_anchors": {k: cat.items[k].row.get("anchor_entity_id") for k in keys}} if keys else {}
+
+
 def on_state_event(db: Any, entity_id: str) -> None:
-    """`ha_sync`, after a state event of an entity: when it is an endpoint of an approved screen, recompute that device's `live`
-    from the stored states and publish `media_state` (throttled per device; none while the feature is off). The frame carries the anchor
-    `entity_id` only for the `/ha/ws` scope filter: the socket removes it before sending unless the subscriber holds system.configure.
-    Never raises."""
+    """`ha_sync`, after a state event of an entity: when it is an endpoint of an approved device (a screen, speaker, player, receiver or group),
+    recompute that device's `live` from the stored states and publish `media_state` (throttled per device; none while the feature is off). When
+    the device is in a live group (or was a moment ago) its members' frames are published too - their `live.group` moved with the leader's
+    membership (CR-016 11). The frame carries the anchor `entity_id` only for the `/ha/ws` scope filter: the socket removes it before sending
+    unless the subscriber holds system.configure. Never raises."""
     if not (entity_id.startswith("media_player.") or entity_id.startswith("remote.")):
         return
     try:
@@ -519,6 +729,7 @@ def on_state_event(db: Any, entity_id: str) -> None:
         if now - INDEX.last_sent.get(key, 0.0) < THROTTLE_S:
             return
         INDEX.last_sent[key] = now
+        frames: list[dict[str, Any]] = []
         with db.connection(mode="read") as conn:
             if not enabled(conn):  # multimedia.enabled = false: no frames at all (CR-015 review L5)
                 return
@@ -526,8 +737,20 @@ def on_state_event(db: Any, entity_id: str) -> None:
             item = cat.items.get(key)
             if item is None:
                 return
-            payload = {"type": "media_state", "device_key": key, "entity_id": item.row.get("anchor_entity_id"), "live": live_of(cat, item)}
-        ha_sync.publish(payload)
+            frames.append({"type": "media_state", "device_key": key, "entity_id": item.row.get("anchor_entity_id"), "live": live_of(cat, item), **_group_anchors(cat, item)})
+            if item.row["kind"] != "screen":
+                new = tuple(cat.group_info(key)["member_keys"])
+                targets = (set(new) | set(INDEX.last_group.get(key, ()))) - {key}
+                INDEX.last_group[key] = new
+                for t in sorted(targets):
+                    peer = cat.items.get(t)
+                    if peer is None or t not in INDEX.approved or now - INDEX.last_sent.get(t, 0.0) < THROTTLE_S:
+                        continue
+                    INDEX.last_sent[t] = now
+                    INDEX.last_group[t] = tuple(cat.group_info(t)["member_keys"])
+                    frames.append({"type": "media_state", "device_key": t, "entity_id": peer.row.get("anchor_entity_id"), "live": live_of(cat, peer), **_group_anchors(cat, peer)})
+        for payload in frames:
+            ha_sync.publish(payload)
     except Exception:  # noqa: BLE001 - a push never breaks the state feed
         log.warning("media_state for %s failed", entity_id, exc_info=True)
 
@@ -535,25 +758,58 @@ def on_state_event(db: Any, entity_id: str) -> None:
 # ------------------------------------------------------------------------------------------------ status
 
 
+def library_status(conn: sqlite3.Connection) -> dict[str, Any]:
+    """`{provider, state}` of the music library (CR-016 4.3): `ma` when a Music Assistant player exists (`ready` while one of them is available,
+    else `unavailable`), `sonos` when a Sonos player answers without MA, otherwise `none`. Read from the stored endpoints and states only."""
+    from . import media_query  # the bridge's last word about the Music Assistant entry (not loaded: "unavailable" whatever the players report)
+
+    rows = conn.execute(
+        "SELECT e.platform AS platform, ev.state AS state FROM media_device_endpoints e JOIN media_devices d ON d.device_key = e.device_key "
+        "LEFT JOIN ha_entities ev ON ev.entity_id = e.ref WHERE d.removed_at IS NULL AND e.source = 'ha' AND e.platform IN ('music_assistant', 'sonos')").fetchall()
+    ma = [r for r in rows if r["platform"] == "music_assistant"]
+    if ma:
+        return {"provider": "ma", "state": "ready" if any(r["state"] not in (None, "unavailable") for r in ma) and not media_query.entry_unloaded() else "unavailable"}
+    sonos = [r for r in rows if r["platform"] == "sonos"]
+    if sonos:
+        return {"provider": "sonos", "state": "ready" if any(r["state"] not in (None, "unavailable") for r in sonos) else "unavailable"}
+    return {"provider": "none", "state": "none"}
+
+
 def status(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
-    """`GET /multimedia/status` (contract 2.3)."""
+    """`GET /multimedia/status` (contract 2.3 and MEDIA_PLAYERS_API.md 3)."""
     held = set(permissions_anywhere(conn, principal))
     configure = authorize(conn, principal, CONFIGURE, INSTALLATION).allowed
     body: dict[str, Any] = {
         "enabled": enabled(conn), "bridge": bridge_state(conn),
         "can": {"read": PERM_READ in held, "control": PERM_CONTROL in held, "power": PERM_POWER in held, "public": PERM_PUBLIC in held, "bulk": PERM_BULK in held,
-                "layout": PERM_LAYOUT in held, "configure": configure, "personalize": "screen.personalize" in held},
+                "layout": PERM_LAYOUT in held, "group": PERM_GROUP in held, "configure": configure, "personalize": "screen.personalize" in held},
         "profiles_version": profiles.PROFILES_VERSION,
     }
-    screens = on = 0
+    screens = on = players = playing = groups = unplaced = 0
     if PERM_READ in held and body["enabled"]:
         cat = load_catalog(conn)
         access = Access(conn, principal, (PERM_READ,))
         for item in visible_items(cat, access):
             screens += 1
             on += live_of(cat, item, key_url=False)["power"] == "on"
+        acat = load_catalog(conn, approved_only=False, kind=tuple(mm.AUDIO_KINDS))
+        seen_groups: set[str] = set()
+        for item in visible_items(acat, access, tuple(mm.AUDIO_KINDS)):
+            g = acat.group_info(item.key)
+            unplaced += not floor_area(item)["area_id"]
+            if item.row["kind"] == "group":
+                groups += 1
+                continue
+            players += 1
+            playing += live_of(acat, item, key_url=False)["play"] == "playing"
+            if g["role"] != "none" and g["leader_key"] and g["leader_key"] not in seen_groups:
+                seen_groups.add(g["leader_key"])
+                groups += 1
     pending = conn.execute("SELECT COUNT(*) FROM media_devices WHERE removed_at IS NULL AND kind = 'screen' AND approved = 0").fetchone()[0] if configure else None
-    body["counts"] = {"screens": screens, "on": on, "pending_approval": pending}
+    body["counts"] = {"screens": screens, "on": on, "pending_approval": pending, "players": players, "playing": playing, "groups": groups, "unplaced": unplaced,
+                      "suggestions": len(suggestion_rows(conn)) if configure else None}
+    body["floors"] = conn.execute("SELECT 1 FROM ha_floors LIMIT 1").fetchone() is not None
+    body["library"] = library_status(conn)
     return body
 
 
@@ -571,25 +827,90 @@ def _clean_name(value: Any) -> str | None:
     return text or None
 
 
-def admin_rows(conn: sqlite3.Connection) -> dict[str, Any]:
-    """`GET /multimedia/admin/devices` (contract 3.11): every device with its endpoints (hidden ones too) and the weak suggestions."""
+DISMISSED_KEY = "multimedia.dismissed_suggestions"
+REASON_OF = {"same_area_and_name": "same_name_area"}  # the shipped (CR-015) reason name -> the wizard's (CR-016)
+RULE_OF = {"weak": "5"}
+
+
+def _dismissed(conn: sqlite3.Connection) -> set[str]:
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (DISMISSED_KEY,)).fetchone()
+    raw = _loads(row[0] if row else None, [])
+    return {x for x in raw if isinstance(x, str)} if isinstance(raw, list) else set()
+
+
+def suggestion_id(endpoint_id: str, device_key: str) -> str:
+    return hashlib.sha1(f"{endpoint_id}|{device_key}".encode("utf-8")).hexdigest()[:12]
+
+
+def suggestion_rows(conn: sqlite3.Connection, cat: Catalog | None = None) -> list[dict[str, Any]]:
+    """The merge wizard's list (CR-016 7.4, `GET /multimedia/admin/suggestions`): every suggestion the ladder could not act on (3b the same model
+    twice, 5 / 5b the same name), minus the ones the administrator dismissed, for devices that still exist. `{id, endpoint_id, device_key, rule,
+    reason, endpoint_label, device_name}`."""
+    out: list[dict[str, Any]] = []
+    dismissed = _dismissed(conn)
+    cat = cat or load_catalog(conn, approved_only=False, kind=None)
+    key_of_ep = {e.endpoint_id: k for k, it in cat.items.items() for e in it.model.endpoints}
+    for s in suggestions():
+        sid = suggestion_id(s.endpoint_id, s.device_key)
+        sk = key_of_ep.get(s.endpoint_id)
+        big, small = cat.items.get(s.device_key), cat.items.get(sk) if sk else None
+        if sid in dismissed or big is None or small is None or sk == s.device_key:
+            continue
+        out.append({"id": sid, "endpoint_id": s.endpoint_id, "device_key": s.device_key, "rule": RULE_OF.get(s.rule, s.rule), "reason": REASON_OF.get(s.reason, s.reason),
+                    "endpoint_label": small.name, "device_name": big.name})
+    return out
+
+
+def admin_rows(conn: sqlite3.Connection, kinds: tuple[str, ...] | None = None) -> dict[str, Any]:
+    """`GET /multimedia/admin/devices` (contract 3.11): every device with its endpoints (hidden ones too) and the weak suggestions. The three
+    non-physical kinds (sessions, helper groups, a Spotify list) are left out unless `kinds` names them (3.28, "רכיבים לא פיזיים"); their count is
+    `non_physical`."""
     cat = load_catalog(conn, approved_only=False, kind=None)
     out = []
+    non_physical = 0
     for item in sorted(cat.items.values(), key=lambda i: (i.row["kind"], i.name, i.key)):
+        if kinds is not None and item.row["kind"] not in kinds:
+            continue
+        if kinds is None and item.row["kind"] in mm.NON_PHYSICAL_KINDS:
+            non_physical += 1
+            continue
         prim = item.view.prim
         eps = []
         for ep in item.model.endpoints:
             eps.append({"endpoint_id": ep.endpoint_id, "platform": ep.platform, "role": ep.role, "rule": ep.rule, "link_source": ep.link_source, "hidden": ep.hidden,
                         "primary_for": [c for c in mm.CONTROLS if prim.get(c) == ep.ref]})
-        out.append({
+        fa = floor_area(item)
+        row = {
             "key": item.key, "name": item.name, "kind": item.row["kind"], "kind_source": item.row["kind_source"], "approved": bool(item.row["approved"]), "public": bool(item.row["is_public"]),
             "profile": item.profile, "profile_source": item.profile_source, "confidence": item.row["confidence"], "anchor_entity_id": item.row.get("anchor_entity_id"),
-            "floor_name": floor_area(item)["floor_name"], "area_name": floor_area(item)["area_name"], "audio_link_key": item.row.get("audio_link_key"),
+            "floor_name": fa["floor_name"], "area_name": fa["area_name"], "audio_link_key": item.row.get("audio_link_key"),
             "audio_default": item.row.get("audio_default") or "screen", "volume_max": item.row.get("volume_max"), "model_keys": list(item.view.model_keys),
             "model_key_options": profiles.model_key_options(item.profile), "display_name": item.row.get("display_name"), "also_turns_on": [], "endpoints": eps,
-        })
+        }
+        if item.row["kind"] != "screen":
+            row.update(area_id=fa["area_id"], floor_id=fa["floor_id"], volume_night=night_window(item.row), music_provider=mm.music_provider_of(item.model, cat.ents),
+                       zones=mm.zone_states(item.model, cat.ents), available=any(mm.available(cat.ents.get(e.ref)) for e in item.model.endpoints if e.domain == "media_player"))
+        out.append(row)
     names = {d["key"]: d["name"] for d in out}
-    return {"devices": out, "suggestions": [{"endpoint_id": s.endpoint_id, "device_key": s.device_key, "rule": "weak", "reason": s.reason, "device_name": names.get(s.device_key)} for s in suggestions() if s.device_key in names]}
+    dismissed = _dismissed(conn)
+    legacy = [s for s in suggestions() if s.rule == "weak" and s.device_key in names and suggestion_id(s.endpoint_id, s.device_key) not in dismissed]
+    return {"devices": out, "non_physical": non_physical,
+            "suggestions": [{"endpoint_id": s.endpoint_id, "device_key": s.device_key, "rule": "weak", "reason": s.reason, "device_name": names.get(s.device_key)} for s in legacy]}
+
+
+def _night_window(value: Any) -> str | None:
+    """`volume_night_json` from the administrator's value: None clears; else `{from, to, max}` with HH:MM times and a 0-100 ceiling."""
+    if value is None:
+        return None
+    ok = isinstance(value, dict) and set(value) == {"from", "to", "max"}
+    if ok:
+        import re
+
+        ok = all(isinstance(value[k], str) and re.fullmatch(r"([01][0-9]|2[0-3]):[0-5][0-9]", value[k]) for k in ("from", "to")) and value["from"] != value["to"]
+        ok = ok and isinstance(value["max"], int) and not isinstance(value["max"], bool) and 0 <= value["max"] <= 100
+    if not ok:
+        raise ApiError(422, "validation", "חלון לילה: מ־HH:MM עד HH:MM (שעות שונות) ותקרה 0 עד 100.", details={"fields": ["volume_night"]})
+    return json.dumps({"from": value["from"], "to": value["to"], "max": value["max"]}, separators=(",", ":"))
 
 
 def update_device(conn: sqlite3.Connection, key: str, body: dict[str, Any]) -> dict[str, Any]:
@@ -604,7 +925,7 @@ def update_device(conn: sqlite3.Connection, key: str, body: dict[str, Any]) -> d
         kind = body["kind"]
         if kind in (None, "auto"):
             sets["kind_source"] = "auto"
-        elif kind in ("screen", "receiver", "speaker", "player"):
+        elif kind in mm.KINDS and kind != "group":  # a group is detected (an MA group player), never set by hand
             sets["kind"], sets["kind_source"] = kind, "manual"
         else:
             raise ApiError(422, "validation", "סוג התקן לא מוכר.", details={"fields": ["kind"]})
@@ -643,6 +964,8 @@ def update_device(conn: sqlite3.Connection, key: str, body: dict[str, Any]) -> d
         if v is not None and (isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= 100):
             raise ApiError(422, "validation", "תקרת עוצמה: 0 עד 100.", details={"fields": ["volume_max"]})
         sets["volume_max"] = v
+    if "volume_night" in body:
+        sets["volume_night_json"] = _night_window(body["volume_night"])
     if "model_keys" in body:
         mk = body["model_keys"]
         allowed = profiles.model_key_options(profile)
@@ -668,7 +991,9 @@ def update_device(conn: sqlite3.Connection, key: str, body: dict[str, Any]) -> d
     if sets:
         sets["updated_at"] = now_iso()
         conn.execute(f"UPDATE media_devices SET {', '.join(f'{k} = ?' for k in sets)} WHERE device_key = ?", (*sets.values(), key))
-    return {"changed": sorted(k for k in sets if k != "updated_at")}
+    if sets.get("kind_source") == "auto":
+        rebuild(conn)  # back to automatic: the kind the ladder derives is written now, not at the next registry event
+    return {"changed": sorted(("volume_night" if k == "volume_night_json" else k) for k in sets if k != "updated_at")}
 
 
 def set_link_rule(conn: sqlite3.Connection, principal: Principal, op: str, endpoint_id: str, device_key: str | None) -> None:
@@ -684,16 +1009,26 @@ def set_link_rule(conn: sqlite3.Connection, principal: Principal, op: str, endpo
     if op == "link":
         if not device_key or conn.execute("SELECT 1 FROM media_devices WHERE device_key = ? AND removed_at IS NULL", (device_key,)).fetchone() is None:
             raise ApiError(422, "validation", "ההתקן שאליו מקשרים לא נמצא.", details={"fields": ["device_key"]})
+    if op == "ignore" and device_key:
+        # CR-016 merge wizard: "התעלם" on a SUGGESTION row (endpoint + the device it was offered for) dismisses that suggestion only - the endpoint stays
+        # in the model. (A plain `ignore` without a device key still removes the endpoint from every device, as in CR-015.)
+        if conn.execute("SELECT 1 FROM media_devices WHERE device_key = ? AND removed_at IS NULL", (device_key,)).fetchone() is None:
+            raise ApiError(422, "validation", "ההתקן לא נמצא.", details={"fields": ["device_key"]})
+        dismissed = sorted(_dismissed(conn) | {suggestion_id(endpoint_id, device_key)})[-500:]
+        conn.execute("INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", (DISMISSED_KEY, json.dumps(dismissed)))
+        return
     conn.execute(
         "INSERT INTO media_link_rules(endpoint_id, rule, device_key, set_by, set_at) VALUES (?,?,?,?,?) ON CONFLICT(endpoint_id) DO UPDATE SET rule = excluded.rule, device_key = excluded.device_key, set_by = excluded.set_by, set_at = excluded.set_at",
         (endpoint_id, op, device_key if op == "link" else None, principal.user_id, now_iso()))
 
 
-def approve(conn: sqlite3.Connection, keys: list[str] | None, approved: bool) -> dict[str, int]:
-    """`POST /multimedia/admin/approve`: approve (or withdraw) the named devices; `keys` omitted = every detected SCREEN (decision 3,
-    "approve all detected screens" in one tap)."""
+def approve(conn: sqlite3.Connection, keys: list[str] | None, approved: bool, kinds: list[str] | None = None) -> dict[str, int]:
+    """`POST /multimedia/admin/approve`: approve (or withdraw) the named devices; `keys` omitted = every detected SCREEN (decision 3, "approve all
+    detected screens" in one tap) or, with `kinds`, every detected device of those kinds (CR-016 2א: "אשר את כל הנגנים שזוהו" - speakers, players,
+    receivers, groups; the non-physical kinds are never named by it)."""
     if keys is None:
-        targets = [r[0] for r in conn.execute("SELECT device_key FROM media_devices WHERE removed_at IS NULL AND kind = 'screen'").fetchall()]
+        wanted = list(kinds) if kinds else ["screen"]
+        targets = [r[0] for r in conn.execute(f"SELECT device_key FROM media_devices WHERE removed_at IS NULL AND kind IN ({','.join('?' * len(wanted))})", wanted).fetchall()]
     else:
         targets = [r[0] for r in conn.execute(f"SELECT device_key FROM media_devices WHERE removed_at IS NULL AND device_key IN ({','.join('?' * len(keys))})", keys).fetchall()] if keys else []
     changed = 0
@@ -702,8 +1037,12 @@ def approve(conn: sqlite3.Connection, keys: list[str] | None, approved: bool) ->
         changed += conn.execute("UPDATE media_devices SET approved = ?, updated_at = ? WHERE device_key = ? AND approved != ?", (1 if approved else 0, now, k, 1 if approved else 0)).rowcount
     pending = conn.execute("SELECT COUNT(*) FROM media_devices WHERE removed_at IS NULL AND kind = 'screen' AND approved = 0").fetchone()[0]
     total = conn.execute("SELECT COUNT(*) FROM media_devices WHERE removed_at IS NULL AND kind = 'screen' AND approved = 1").fetchone()[0]
+    out = {"requested": len(targets), "changed": changed, "approved": total, "pending_approval": pending}
+    if kinds:
+        out["approved_players"] = conn.execute(f"SELECT COUNT(*) FROM media_devices WHERE removed_at IS NULL AND approved = 1 AND kind IN ({','.join('?' * len(mm.AUDIO_KINDS))})", list(mm.AUDIO_KINDS)).fetchone()[0]
+        out["pending_players"] = conn.execute(f"SELECT COUNT(*) FROM media_devices WHERE removed_at IS NULL AND approved = 0 AND kind IN ({','.join('?' * len(mm.AUDIO_KINDS))})", list(mm.AUDIO_KINDS)).fetchone()[0]
     _refresh_index(conn)
-    return {"requested": len(targets), "changed": changed, "approved": total, "pending_approval": pending}
+    return out
 
 
 # ------------------------------------------------------------------------------------------------ curation of the remote
