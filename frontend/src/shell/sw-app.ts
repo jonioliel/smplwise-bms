@@ -32,6 +32,8 @@ import '../screens/devices-area';
 import '../screens/devices-schedules';
 import '../screens/system-schedules';
 import '../screens/multimedia-screens'; // CR-015: the screens page (the remote, <media-remote>, is S3's and registers itself where it is imported)
+import '../screens/multimedia-players'; // CR-016: "נגנים ורמקולים" (the player panel, <media-player-panel>, is S3's)
+import '../screens/multimedia-groups'; // CR-016: "קבוצות"
 import '../screens/system-multimedia';
 import '../screens/security-alarm';
 import '../screens/schedule-editor';
@@ -1663,10 +1665,9 @@ export class SwApp extends LitElement {
         if (s[1] === 'schedules') return html`<devices-schedules></devices-schedules>`;
         return html`<devices-building></devices-building>`;
       case 'multimedia':
-        // CR-015: the screens page. Players / groups (0.1.150) have an address but no tab yet: a plain "soon" state.
-        if (s[1] === 'players' || s[1] === 'groups') {
-          return html`<sw-page heading=${s[1] === 'players' ? 'נגנים ורמקולים' : 'קבוצות'}><sw-state-panel data-multimedia-state="later" state="empty" heading="בקרוב"></sw-state-panel></sw-page>`;
-        }
+        // CR-015 / CR-016: the screens page, the players page and the groups page (`?player=<key>` opens a player's panel)
+        if (s[1] === 'players') return html`<multimedia-players .playerKey=${r.params.get('player') ?? ''}></multimedia-players>`;
+        if (s[1] === 'groups') return html`<multimedia-groups .playerKey=${r.params.get('player') ?? ''}></multimedia-groups>`;
         return html`<multimedia-screens .remoteKey=${r.params.get('remote') ?? ''}></multimedia-screens>`;
       case 'explore':
       default: {

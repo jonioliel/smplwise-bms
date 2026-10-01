@@ -352,7 +352,9 @@ export type HaPush =
   /** CR-015: one media device's live state changed (<= 4/s per device; only for subscribers who see its anchor under media.read). */
   | { type: 'media_state'; device_key: string; entity_id: string; live: MediaLive }
   /** CR-015: the media model was rebuilt, or a curation / approval / layout changed (no ids): the multimedia screens refetch. */
-  | { type: 'media_devices_changed'; reason: string };
+  | { type: 'media_devices_changed'; reason: string }
+  /** CR-016: a saved group or the favourites curation changed (no ids): the groups page and the settings refetch. */
+  | { type: 'media_groups_changed' };
 
 /** Subscribe to entity state pushes scoped to what the user may see; returns a stop function. */
 export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connected: boolean) => void): () => void {
@@ -386,6 +388,7 @@ export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connecte
         else if (env.type === 'schedules_changed') onMessage({ type: 'schedules_changed' });
         else if (env.type === 'media_state') onMessage({ type: 'media_state', device_key: String(env.payload.device_key ?? ''), entity_id: String(env.payload.entity_id ?? ''), live: env.payload.live as unknown as MediaLive });
         else if (env.type === 'media_devices_changed') onMessage({ type: 'media_devices_changed', reason: String(env.payload?.reason ?? '') });
+        else if (env.type === 'media_groups_changed') onMessage({ type: 'media_groups_changed' });
       } catch {
         /* ignore malformed frames */
       }

@@ -27,6 +27,9 @@ export class MultimediaEditPanel extends LitElement {
   @property({ attribute: false }) devices: MediaDevice[] = [];
   @property() scope: 'all' | 'me' = 'all';
   @property({ attribute: false }) floors: FloorRef[] = [];
+  /** CR-016: the players tab's editor - no card sizes and no phone settings (a player card has one size); `heading` names the list. */
+  @property({ type: Boolean }) simple = false;
+  @property() heading = 'מסכים';
   @state() private drag = '';
   @state() private dragFloor = '';
   @state() private phoneOpen = new Set<string>();
@@ -274,12 +277,12 @@ export class MultimediaEditPanel extends LitElement {
         <button type="button" class="ib" data-mm-down ?disabled=${index === count - 1} aria-label=${`אחר את ${d.name}`} title="אחר" @click=${() => this.move(d.key, 1)}>${mIcon('arrowDown')}</button>
       </div>
       <div class="l2">
-        <span class="seg sm" role="group" aria-label=${`גודל: ${d.name}`}>${SIZES.map((s) => html`<button type="button" data-mm-size=${`${d.key}:${s}`} aria-pressed=${String(c.size === s)} ?disabled=${!c.on} @click=${() => this.change(setCard(l, d.key, { size: s }))}>${SIZE_LABEL[s]}</button>`)}</span>
+        ${this.simple ? nothing : html`<span class="seg sm" role="group" aria-label=${`גודל: ${d.name}`}>${SIZES.map((s) => html`<button type="button" data-mm-size=${`${d.key}:${s}`} aria-pressed=${String(c.size === s)} ?disabled=${!c.on} @click=${() => this.change(setCard(l, d.key, { size: s }))}>${SIZE_LABEL[s]}</button>`)}</span>`}
         <span class="sp"></span>
         ${personal ? nothing : html`<button type="button" class="ib" data-mm-pin=${d.key} aria-pressed=${String(pinned)} aria-label=${`מועדף: ${d.name}`} title="מועדף" @click=${() => this.change(togglePin(l, d.key))}>${mIcon('star')}</button>
-          <button type="button" class="ib" data-mm-phone-toggle=${d.key} aria-expanded=${String(open)} aria-label=${`בנייד: ${d.name}`} title="בנייד" @click=${() => this.togglePhone(d.key)}>${mIcon('phone')}${custom ? html`<i class="dot" aria-hidden="true"></i>` : nothing}</button>`}
+          ${this.simple ? nothing : html`<button type="button" class="ib" data-mm-phone-toggle=${d.key} aria-expanded=${String(open)} aria-label=${`בנייד: ${d.name}`} title="בנייד" @click=${() => this.togglePhone(d.key)}>${mIcon('phone')}${custom ? html`<i class="dot" aria-hidden="true"></i>` : nothing}</button>`}`}
       </div>
-      ${personal || !open ? nothing : html`<div class="phone" data-mm-phone=${d.key}>
+      ${personal || this.simple || !open ? nothing : html`<div class="phone" data-mm-phone=${d.key}>
         <span class="pl">בנייד</span>
         <label class="check"><input type="checkbox" data-mm-phone-on=${d.key} .checked=${phoneOn} aria-label=${`הצג בנייד: ${d.name}`} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).checked; this.change(setCard(l, d.key, { phone_on: v === c.on ? null : v })); }} />הצג</label>
         <select data-mm-phone-size=${d.key} aria-label=${`גודל בנייד: ${d.name}`} ?disabled=${!phoneOn} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; this.change(setCard(l, d.key, { phone_size: v === 's' || v === 'm' ? v : null })); }}>
@@ -296,7 +299,7 @@ export class MultimediaEditPanel extends LitElement {
     const groups = editGroups(this.devices, l);
     const ids = this.floors.map((f) => f.id);
     const floorsOn = this.scope === 'all' && l.group_by === 'floor' && this.floors.length > 1;
-    return html`<section class="panel glass" data-mm-edit aria-label="הגדרות מסך המסכים">
+    return html`<section class="panel glass" data-mm-edit aria-label=${`הגדרות · ${this.heading}`}>
       <div class="lbl" id="mm-grp">קיבוץ
         <span class="seg sm" role="group" aria-labelledby="mm-grp" data-mm-groupby>${GROUPS.map((g) => html`<button type="button" data-mm-group=${g} aria-pressed=${String(l.group_by === g)} @click=${() => this.change(setGroupBy(l, g))}>${GROUP_LABEL[g]}</button>`)}</span>
       </div>
@@ -313,7 +316,7 @@ export class MultimediaEditPanel extends LitElement {
           </li>`)}
         </ol>
       </div>` : nothing}
-      <h3>מסכים</h3>
+      <h3>${this.heading}</h3>
       ${groups.map((g) => html`<h4>${nameText(bidi(g.label))}</h4>
         <div class="rows">${repeat(g.items, (i) => i.device.key, (i, idx) => this.row(i.device, idx, g.items.length))}</div>`)}
     </section>`;

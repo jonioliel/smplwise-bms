@@ -8,10 +8,13 @@
  */
 import { get, post, put } from './client';
 import { isApi } from './session';
+import { getDevicesTree } from './devices';
 import type { KeyId, MediaKind, ProfileId } from './media-screens';
+import type { MusicProvider, PlayerKind, VolumeNight } from './media-players';
 
 export type Control = 'power' | 'volume' | 'mute' | 'sources' | 'apps' | 'keys' | 'now_playing';
-export type EndpointRole = 'vendor' | 'remote' | 'cast' | 'dlna' | 'smartthings' | 'ma_export' | 'ma_import' | 'ma_native' | 'ma_universal' | 'other';
+/** CR-016: `music` (the device's music layer, CR §5.2) and `mirror` (a poorer cloud twin, hidden, never primary) join the CR-015 roles. */
+export type EndpointRole = 'vendor' | 'remote' | 'cast' | 'dlna' | 'smartthings' | 'ma_export' | 'ma_import' | 'ma_native' | 'ma_universal' | 'other' | 'music' | 'mirror';
 
 export interface AdminEndpoint {
   endpoint_id: string;
@@ -28,7 +31,8 @@ export interface AdminEndpoint {
 export interface AdminDevice {
   key: string;
   name: string;
-  kind: MediaKind;
+  /** CR-016 adds the non-physical kinds (`session`, `virtual_group`, `service`: listed apart, never offered as devices). */
+  kind: MediaKind | PlayerKind;
   kind_source: 'auto' | 'manual';
   approved: boolean;
   public: boolean;
@@ -40,7 +44,16 @@ export interface AdminDevice {
   area_name: string | null;
   audio_link_key: string | null;
   audio_default: 'screen' | 'linked';
+  /** null = no ceiling (CR-016 decision 7ב: there is no default). */
   volume_max: number | null;
+  /** CR-016: a second ceiling that applies inside the window; null = none. */
+  volume_night?: VolumeNight | null;
+  /** CR-016: the HA area (null = "לא משויכים"); a device without one can be placed from the settings (an administrator action). */
+  area_id?: string | null;
+  /** CR-016: which layer answers the music controls (settings keep the exact technical names). */
+  music_provider?: MusicProvider;
+  /** CR-016: the zones of a multi-zone receiver (Main first); null otherwise. */
+  zones?: { id: string; name: string }[] | null;
   model_keys: KeyId[];
   /** The keys the server accepts in `model_keys` for this profile (absent in the static demo: every extra key is offered). */
   model_key_options?: KeyId[];
@@ -65,7 +78,7 @@ export interface AdminList {
 
 export interface AdminDevicePatch {
   display_name?: string | null;
-  kind?: MediaKind;
+  kind?: MediaKind | PlayerKind;
   approved?: boolean;
   public?: boolean;
   /** null = detected automatically. */
@@ -73,6 +86,10 @@ export interface AdminDevicePatch {
   audio_link_key?: string | null;
   audio_default?: 'screen' | 'linked';
   volume_max?: number | null;
+  /** CR-016: null clears the window. */
+  volume_night?: VolumeNight | null;
+  /** CR-016: places an unplaced device (the bridge writes the entity registry; the area must exist). */
+  area_id?: string | null;
   model_keys?: KeyId[];
   primary?: Partial<Record<Control, string>>;
 }
@@ -152,6 +169,11 @@ class DemoAdmin implements AdminAdapter {
     if (patch.audio_link_key !== undefined) d.audio_link_key = patch.audio_link_key;
     if (patch.audio_default) d.audio_default = patch.audio_default;
     if (patch.volume_max !== undefined) d.volume_max = patch.volume_max;
+    if (patch.volume_night !== undefined) d.volume_night = patch.volume_night;
+    if (patch.area_id !== undefined) {
+      d.area_id = patch.area_id;
+      d.area_name = patch.area_id ? DEMO_AREAS.find((a) => a.id === patch.area_id)?.name ?? patch.area_id : null;
+    }
     if (patch.model_keys) d.model_keys = patch.model_keys;
     return clone(d);
   }
@@ -174,6 +196,22 @@ class DemoAdmin implements AdminAdapter {
   }
 }
 
+/** The areas a device can be placed in: the home screen's tree with a backend; the demo's own rooms without one. */
+export const DEMO_AREAS: { id: string; name: string; floor_name: string | null }[] = [
+  { id: 'living', name: 'סלון', floor_name: 'קומת קרקע' }, { id: 'kitchen', name: 'מטבח', floor_name: 'קומת קרקע' }, { id: 'pergola', name: 'פרגולה', floor_name: 'קומת קרקע' },
+  { id: 'guest', name: 'חדר אורחים', floor_name: 'קומת קרקע' }, { id: 'parents', name: 'חדר הורים', floor_name: 'קומה 1' }, { id: 'kids', name: 'חדר ילדים', floor_name: 'קומה 1' },
+  { id: 'office', name: 'חדר עבודה', floor_name: 'קומה 1' }, { id: 'basement', name: 'מרתף', floor_name: 'מרתף' },
+];
+export async function adminAreas(): Promise<{ id: string; name: string; floor_name: string | null }[]> {
+  if (!isApi()) return DEMO_AREAS;
+  try {
+    const t = await getDevicesTree();
+    return t.floors.flatMap((f) => f.areas.map((a) => ({ id: a.area_id, name: a.name, floor_name: f.floor_id === 'none' ? null : f.name })));
+  } catch {
+    return [];
+  }
+}
+
 let demo: DemoAdmin | null = null;
 /** The adapter in force: HTTP with a backend, the in-memory demo otherwise. */
 export const mediaAdmin = (): AdminAdapter => (isApi() ? http : (demo ??= new DemoAdmin()));
@@ -189,9 +227,11 @@ export const PROFILE_LABEL: Record<ProfileId, string> = {
   generic: 'כללי',
 };
 export const KIND_LABEL: Partial<Record<MediaKind, string>> = { screen: 'מסך', receiver: 'מגבר', speaker: 'רמקול', player: 'נגן' };
+/** CR-016: every kind by name (the non-physical ones are listed apart, never chosen as a kind). */
+export const ANY_KIND_LABEL: Record<MediaKind | PlayerKind, string> = { screen: 'מסך', receiver: 'מגבר', speaker: 'רמקול', player: 'נגן', group: 'קבוצה', session: 'סשן', virtual_group: 'קבוצה וירטואלית', service: 'שירות' };
 export const ROLE_LABEL: Record<EndpointRole, string> = {
   vendor: 'יצרן', remote: 'שלט', cast: 'Cast', dlna: 'DLNA', smartthings: 'SmartThings', ma_export: 'Music Assistant (יצוא)', ma_import: 'Music Assistant (יבוא)',
-  ma_native: 'Music Assistant', ma_universal: 'Music Assistant (אוניברסלי)', other: 'אחר',
+  ma_native: 'Music Assistant', ma_universal: 'Music Assistant (אוניברסלי)', other: 'אחר', music: 'שכבת המוזיקה', mirror: 'מראה (מוסתר)',
 };
 export const CONTROL_LABEL: Record<Control, string> = {
   power: 'הפעלה', volume: 'עוצמה', mute: 'השתקה', sources: 'מקורות', apps: 'אפליקציות', keys: 'מקשים', now_playing: 'מה מתנגן',
