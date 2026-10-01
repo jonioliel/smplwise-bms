@@ -176,7 +176,7 @@ export interface MediaStatus {
   enabled: boolean;
   bridge: { paired: boolean; version: string | null; media_ready: boolean };
   can: { read: boolean; control: boolean; power: boolean; public: boolean; bulk: boolean; layout: boolean; configure: boolean; personalize: boolean };
-  counts: { screens: number; on: number; pending_approval: number | null };
+  counts: { screens: number; on: number; pending_approval: number | null; players?: number; groups?: number };
   profiles_version: number;
 }
 

@@ -28,6 +28,7 @@ import {
   floorsOf, installationPayload, isDirty, moveInGroup, personalFrom, roomsOf, setCard, startDraft, togglePin, withFloorOrder,
   type EditScope, type Filters, type StateFilter,
 } from './multimedia-layout';
+import { applyMultimediaKinds } from '../shell/nav';
 
 type Phase = 'loading' | 'ready' | 'error' | 'forbidden' | 'disabled';
 
@@ -647,6 +648,7 @@ export class MultimediaScreens extends LitElement {
     try {
       const st = await media().status();
       this.status = st;
+      applyMultimediaKinds(st.counts); // the screens page is the entry of the section: without this the players / groups tabs are never offered
       if (!st.enabled) {
         this.phase = 'disabled';
         return;
