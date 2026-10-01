@@ -252,7 +252,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
     await expect(c.locator('sw-badge[label="מחובר"]')).toHaveCount(1);
     await expect(c).toContainText('music_assistant על');
     await expect(c).toContainText('חיבור ישיר ל־Music Assistant');
-    await expect(c).toContainText('שלב מאוחר יותר');
+    await expect(c.locator('media-ma-connection [data-mc-state]')).toHaveAttribute('data-mc-state', 'off'); // phase 2b: configurable, off until an installer sets it
     await expect(c).toContainText('מוכן לנגנים');
     st.library = 'unavailable';
     await open(page, '/system/multimedia');

@@ -8,6 +8,7 @@ import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-dialog';
 import '../components/media-preset-editor';
+import '../components/media-ma-connection';
 import type { MediaPresetEditor } from '../components/media-preset-editor';
 import { draftOf } from '../components/media-preset-editor';
 import { ApiError, describeError } from '../api/client';
@@ -613,7 +614,7 @@ export class SystemMultimediaPlayers extends LitElement {
         : html`<div class="row"><span class="lbl">Music Assistant<span class="muted" data-mm-conn-text>לא מותקן במערכת זו${lib.provider !== 'none' ? ` · ספקי מוזיקה: ${PROVIDER_LABEL[lib.provider]}` : ''}</span></span><sw-badge kind="neutral" label="לא מותקן"></sw-badge></div>`}
       ${layers.size ? html`<div class="row"><span class="lbl">שכבת המוזיקה לפי התקן<span class="muted">${[...layers].map(([p, n]) => `${PROVIDER_LABEL[p]} על ${n}`).join(' · ')}</span></span></div>` : nothing}
       <div class="row"><span class="lbl">רכיב החיבור (גשר Arx)<span class="muted">${st.bridge.players_ready ? `גרסה ${st.bridge.version ?? '?'} · מוכן לנגנים` : `גרסה ${st.bridge.version ?? '?'} · נדרש עדכון (0.5.0 ומעלה) לנגנים`}</span></span></div>
-      ${lib.provider === 'ma' ? html`<div class="row"><span class="lbl">חיבור ישיר ל־Music Assistant<span class="muted">שלב מאוחר יותר</span></span><sw-badge kind="neutral" label="שלב מאוחר יותר"></sw-badge></div>` : nothing}
+      ${lib.provider === 'ma' ? html`<media-ma-connection data-mm-ma-direct></media-ma-connection>` : nothing}
     </sw-card>`;
   }
 
@@ -622,6 +623,8 @@ export class SystemMultimediaPlayers extends LitElement {
       <div class="row"><span class="lbl">קיבוץ רמקולים וקבוצות שמורות<span class="muted"><span class="mono">media.group</span> · מפעיל, מנהל אתר, מנהל מערכת · קבוצה של 4 חדרים ומעלה או יותר מקומה אחת מבקשת אישור; כל הבניין רק למנהל</span></span>
         <a class="link" href="#/system/access">תפקידים והרשאות ›</a></div>
       <div class="row"><span class="lbl">שליטה בניגון ובעוצמה<span class="muted"><span class="mono">media.control</span> · כולל דילוג, ערבוב, חזרה, מועדפים והעברת מוזיקה</span></span></div>
+      <div class="row"><span class="lbl">עיון וחיפוש בספריית המוזיקה<span class="muted"><span class="mono">media.browse</span> · מפעיל, מנהל אתר, מנהל מערכת · הפעלת פריט דורשת גם שליטה בניגון</span></span></div>
+      <div class="row"><span class="lbl">עריכת תור הניגון<span class="muted"><span class="mono">media.queue</span> · מנהל מערכת בלבד כברירת מחדל · גרירה, מחיקה, נגן הבא, ניקוי התור</span></span></div>
     </sw-card>`;
   }
 

@@ -123,6 +123,11 @@ PERMISSION_LABELS: dict[str, str] = {
     # needs media.control at EVERY member's anchor; a group of four rooms or more, or one that spans more than one floor, needs a confirmation, and a
     # group over the whole building needs media.bulk as well. Not sensitive. Saving a group (the presets) is media.layout.
     "media.group": "קיבוץ רמקולים וקבוצות שמורות",
+    # CR-016 phase 2b (the direct Music Assistant connection, CR 17.4): media.browse (operator and above, the media.group pattern) opens the library tab of a
+    # player - browse and search; starting an item stays media.control. media.queue (system_admin only: default deny for every other built-in role) moves,
+    # deletes, plays next and clears queue rows - with media.control, and at every follower's anchor when the queue is a live leader's. Neither is sensitive.
+    "media.browse": "עיון וחיפוש בספריית המוזיקה",
+    "media.queue": "עריכת תור הניגון",
     "nvr.config.write": "כתיבה להגדרות ה־NVR",
     "nvr.config.events": "NVR: הפעלת התראות (Notify Surveillance Center) ולוחות זימון",
     "nvr.config.detection": "NVR: עריכת אזורי זיהוי תנועה ורגישות",

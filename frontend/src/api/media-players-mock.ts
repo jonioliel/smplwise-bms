@@ -27,6 +27,7 @@ import {
   type GroupRunResult, type GroupVolumeBody, type LibraryItem, type LibraryKind, type LibraryPage, type MediaGroup, type MemberOutcome, type MergeSuggestion,
   type MusicProvider, type PausePreview, type PlayerCaps, type PlayerCommand, type PlayerDevice, type PlayerDeviceDetail, type PlayerKind, type PlayerListQuery,
   type PlayerNow, type PlayerStatus, type PlayersAdapter, type QueueEntry, type ReceiverZone, type RepeatMode, type UpNext, type VolumeNight,
+  type BrowsePage, type BrowseType, type MaConnection, type MaConnectionBody, type MaTest, type QueueEditBody, type QueueEditResult, type QueueList, type QueueRow,
 } from './media-players';
 
 export type MockHouse = 'ma' | 'sonos';
@@ -58,8 +59,26 @@ function items(): Record<string, Item> {
     blue: fromTrack('blue'), holo: fromTrack('holo'), erev: fromTrack('erev'),
     glz: fromTrack('glz', 'radio'), b88: fromTrack('b88', 'radio'), kan: fromTrack('kan', 'radio'), jazzfm: fromTrack('jazzfm', 'radio'), classic: fromTrack('classic', 'radio'),
     morning: pl('פלייליסט בוקר', 42, 38, 'erev'), jazz: pl('ג׳אז שקט', 68, 245, 'blue'), kids: pl('שירי ילדים', 120, 330, 'erev'), focus: pl('ריכוז', 35, 172, 'holo'), party: pl('מסיבה', 80, 280, 'erev'),
+    // phase 2b: what only the library tab lists (browse by type)
+    allblues: fromTrack('allblues'),
+    kob: { kind: 'album', name: 'Kind of Blue', artist: 'Miles Davis', glyph: 'music', hue: 210, plays: 'blue', count: 5 },
+    biv: { kind: 'album', name: 'Bon Iver, Bon Iver', artist: 'Bon Iver', glyph: 'music', hue: 32, plays: 'holo', count: 10 },
+    tzahov: { kind: 'album', name: 'צהוב', artist: 'שלומי שבן', glyph: 'music', hue: 42, plays: 'erev', count: 12 },
+    miles: { kind: 'artist', name: 'Miles Davis', artist: null, glyph: 'smile', hue: 210, plays: 'blue', count: 1 },
+    boniver: { kind: 'artist', name: 'Bon Iver', artist: null, glyph: 'smile', hue: 32, plays: 'holo', count: 1 },
+    shaben: { kind: 'artist', name: 'שלומי שבן', artist: null, glyph: 'smile', hue: 42, plays: 'erev', count: 1 },
   };
 }
+/** Phase 2b: the order of the library tab per type (ids of `items()`). */
+const BROWSE: Record<BrowseType, string[]> = {
+  track: ['allblues', 'blue', 'holo', 'erev'],
+  album: ['biv', 'kob', 'tzahov'],
+  artist: ['boniver', 'miles', 'shaben'],
+  playlist: ['focus', 'jazz', 'party', 'morning', 'kids'],
+  radio: ['b88', 'glz', 'jazzfm', 'kan', 'classic'],
+};
+/** Phase 2b: the queue the mock invents for a leader that plays (names cycle through the tracks). */
+const QUEUE_LEN = 12;
 const LIBRARY: Record<LibraryKind, string[]> = {
   favourites: ['blue', 'holo', 'glz', 'jazz', 'erev', 'morning'],
   stations: ['glz', 'b88', 'kan', 'jazzfm', 'classic'],
@@ -234,6 +253,22 @@ export class PlayersMockStore implements PlayersAdapter {
   failUpNext = false;
   /** The Music Assistant entry is not loaded (the bridge answered `no_library`): `status.library.state` is `unavailable` and the reads of the music layer are 503. */
   libraryState: 'ready' | 'unavailable' = 'ready';
+  /** Phase 2b (CR §17). Off by default so the 0.1.150 specs keep their shape: `browseOn` offers the library tab ("ספרייה"); `ma` is the direct
+   * connection (its `state: 'ready'` opens the full queue and search). `canQueue` / `canBrowse` stand for media.queue / media.browse. */
+  browseOn = false;
+  ma: { enabled: boolean; url: string | null; token_set: boolean; token_set_at: string | null; state: MaConnection['state']; last_test: MaConnection['last_test'] } =
+    { enabled: false, url: null, token_set: false, token_set_at: null, state: 'off', last_test: null };
+  canQueue = true;
+  canBrowse = true;
+  /** Queue reads fail (`confirmed: false`). */
+  failQueue = false;
+  /** leader id -> the invented queue (row id, track id); built on first read. */
+  private queues: Record<string, { id: string; track: string }[]> = {};
+  /** Opens everything phase 2b offers (the evidence specs and the mock bar). */
+  enablePhase2b(): void {
+    this.browseOn = true;
+    this.ma = { enabled: true, url: 'http://music.local:8095', token_set: true, token_set_at: new Date().toISOString(), state: 'ready', last_test: null };
+  }
   /** Merge suggestions the administrator answered (`link` / `ignore` with the row's device): they leave the wizard's list. */
   private answered = new Set<string>();
   /** Helper groups an administrator switched off (a helper group is listed as a shortcut only while approved; the mock starts with them on). */
@@ -320,6 +355,9 @@ export class PlayersMockStore implements PlayersAdapter {
       keys: [], text: false, touchpad: false, art_mode: false,
       shuffle: lib, repeat: lib, group: f('grp'), volume_group: f('grp') && leaderOfGroup, up_next: lib, favourites: lib, stations: lib, playlists: lib && s.provider === 'ma',
       transfer: lib && s.provider === 'ma',
+      queue_list: lib && s.provider === 'ma' && this.ma.state === 'ready',
+      browse: lib && s.provider === 'ma' && this.browseOn,
+      search: lib && s.provider === 'ma' && this.browseOn && this.ma.state === 'ready',
     };
   }
 
@@ -375,7 +413,7 @@ export class PlayersMockStore implements PlayersAdapter {
       },
       caps,
       audio_link: null,
-      can: { control: true, power: true, public_ok: true, bulk: true, group: caps.group },
+      can: { control: true, power: true, public_ok: true, bulk: true, group: caps.group, queue: !!caps.queue_list && this.canQueue, browse: !!caps.browse && this.canBrowse },
       volume_max: s.max ?? null, volume_night: s.night ? { ...s.night } : null, music_provider: s.provider, zones, virtual_members: null,
       sources: this.sourceItems(r), apps: [], recent: [], remote: clone(DEFAULT_REMOTE), model_keys: [],
     };
@@ -403,6 +441,7 @@ export class PlayersMockStore implements PlayersAdapter {
         groups: (await this.groups()).length, unplaced: unplacedBucket(players).unplaced.length, suggestions: this.fx.suggestions.length,
       },
       profiles_version: 1, floors: this.hasFloors(), library: { provider: this.fx.provider, state: this.fx.provider === 'ma' && this.libraryState === 'unavailable' ? 'unavailable' : 'ready' },
+      direct: { state: this.ma.state },
     };
   }
 
@@ -454,6 +493,106 @@ export class PlayersMockStore implements PlayersAdapter {
       kind, provider: d.music_provider, read_at: new Date().toISOString(), curated: hiddenOrder.length > 0,
       items: list.slice(offset).map((id): LibraryItem => ({ item_ref: refOf(id), ...(all ? { hidden: isHidden(id) } : {}), kind: lib[id].kind, name: lib[id].name, artist: lib[id].artist, glyph: lib[id].glyph, hue: lib[id].hue })),
     };
+  }
+
+  // ---- phase 2b: the full queue, the library tab, the direct connection (CR §17.7)
+
+  /** The invented queue of a leader: the row at `index` is what it plays now (`current`), the rest follow the track order. */
+  private queueOf(leaderId: string, index = 0, current: string | null = null): { id: string; track: string }[] {
+    const t = Object.keys(tracks()).filter((k) => !tracks()[k].station);
+    const shift = current && t.includes(current) ? (t.indexOf(current) - (index % t.length) + t.length) % t.length : 0;
+    return (this.queues[leaderId] ??= Array.from({ length: QUEUE_LEN }, (_, n) => ({ id: `${leaderId}-${n}`, track: t[(n + shift) % t.length] })));
+  }
+
+  private queueHead(key: string): { lead: Row; leaderId: string; rows: { id: string; track: string }[]; index: number; lockedTo: number } {
+    const r = this.row(key);
+    const d = this.build(r);
+    if (!d.caps.queue_list) fail(this.ma.state === 'ready' ? 422 : 503, this.ma.state === 'ready' ? 'not_supported' : 'ma_unavailable', 'התור המלא אינו זמין.');
+    const leaderId = this.leaderId(r.seed.id);
+    const lead = this.row(keyOf(leaderId));
+    const index = lead.track ? Math.min(lead.queue?.index ?? 0, QUEUE_LEN - 1) : -1;
+    const rows = this.queueOf(leaderId, Math.max(0, index), lead.track && !tracks()[lead.track].station ? lead.track : null);
+    return { lead, leaderId, rows, index, lockedTo: index < 0 ? -1 : Math.min(rows.length - 1, index + 1) };
+  }
+
+  async queue(key: string, offset?: number): Promise<QueueList> {
+    const h = this.queueHead(key);
+    if (this.failQueue) return { confirmed: false, count: null, index: null, locked_to: null, offset: offset ?? 0, items: [], shuffle: null, repeat: null, read_at: null };
+    const t = tracks();
+    const start = offset ?? Math.max(0, h.index);
+    const items: QueueRow[] = h.rows.slice(start, start + 50).map((row, n) => ({
+      item: hex(`q:${row.id}`, 24), index: start + n, name: t[row.track].title, artist: t[row.track].artist, album: t[row.track].album, duration_s: t[row.track].dur, locked: start + n <= h.lockedTo,
+    }));
+    return { confirmed: true, count: h.rows.length, index: h.index < 0 ? null : h.index, locked_to: h.lockedTo, offset: start, items, shuffle: h.lead.shuffle, repeat: h.lead.repeat, read_at: new Date().toISOString() };
+  }
+
+  async queueEdit(key: string, body: QueueEditBody): Promise<QueueEditResult> {
+    return this.once(body.client_request_id, () => {
+      const d = this.build(this.row(key));
+      if (!d.can.queue) fail(403, 'forbidden', 'אין הרשאה לערוך את התור.');
+      const h = this.queueHead(key);
+      if (body.op === 'clear') {
+        if (body.confirmed !== true) fail(409, 'confirm_required', 'לנקות את התור?', { count: Math.max(0, h.rows.length - (h.lockedTo + 1)) });
+        h.rows.splice(h.lockedTo + 1);
+        return { status: 'accepted', op: 'clear' } as QueueEditResult;
+      }
+      const at = h.rows.findIndex((row) => hex(`q:${row.id}`, 24) === body.item);
+      if (at < 0) fail(422, 'unknown_item', 'הפריט אינו מוכר.');
+      if (at <= h.lockedTo) fail(409, 'locked', 'השיר הזה כבר מתנגן.');
+      if (body.op === 'delete') {
+        h.rows.splice(at, 1);
+        return { status: 'accepted', op: 'delete' } as QueueEditResult;
+      }
+      const to = body.op === 'next' ? h.lockedTo + 1 : body.to;
+      if (typeof to !== 'number' || to <= h.lockedTo || to > h.rows.length - 1) fail(422, 'validation', 'מיקום לא תקין בתור.', { fields: ['to'] });
+      const [row] = h.rows.splice(at, 1);
+      h.rows.splice(to as number, 0, row);
+      return { status: 'accepted', op: body.op, to } as QueueEditResult;
+    });
+  }
+
+  async browse(key: string, type: BrowseType, q?: string, offset = 0): Promise<BrowsePage> {
+    const d = this.build(this.row(key));
+    const text = (q ?? '').trim();
+    if (!d.caps.browse || !d.can.browse) fail(d.can.browse === false && d.caps.browse ? 403 : 422, d.caps.browse ? 'forbidden' : 'not_supported', 'הספרייה אינה זמינה.');
+    if (text && !d.caps.search) fail(422, 'not_supported', 'החיפוש אינו זמין.', { reason: 'search' });
+    const lib = items();
+    const ids = BROWSE[type].filter((id) => !text || `${lib[id].name} ${lib[id].artist ?? ''}`.toLowerCase().includes(text.toLowerCase()));
+    return {
+      type, q: text || null, offset, more: false, read_at: new Date().toISOString(), provider: 'ma',
+      items: ids.slice(offset, offset + 50).map((id): LibraryItem => ({ item_ref: refOf(id), kind: lib[id].kind, name: lib[id].name, artist: lib[id].artist, glyph: lib[id].glyph, hue: lib[id].hue })),
+    };
+  }
+
+  private maView(): MaConnection {
+    return { ...this.ma, min_schema: 27, token_expiring: false };
+  }
+
+  async maConnection(): Promise<MaConnection> {
+    return clone(this.maView());
+  }
+
+  async saveMaConnection(body: MaConnectionBody): Promise<MaConnection> {
+    if (body.url !== undefined && body.url !== null && body.url !== '' && !/^https?:\/\/[a-z0-9.-]+(:\d{1,5})?\/?$/i.test(body.url)) fail(422, 'validation', 'כתובת השרת: http(s)://שם-מארח:פורט בלבד.', { fields: ['url'] });
+    if (body.token !== undefined && body.token.trim().length < 16) fail(422, 'validation', 'אסימון לא תקין.', { fields: ['token'] });
+    if (body.url !== undefined) this.ma.url = body.url ? body.url.replace(/\/$/, '').toLowerCase() : null;
+    if (body.clear_token) {
+      this.ma.token_set = false;
+      this.ma.token_set_at = null;
+    } else if (body.token !== undefined) {
+      this.ma.token_set = true;
+      this.ma.token_set_at = new Date().toISOString();
+    }
+    if (body.enabled !== undefined) this.ma.enabled = body.enabled;
+    if (this.ma.enabled && !this.ma.url) fail(422, 'validation', 'חיבור ישיר דורש כתובת שרת.', { fields: ['url'] });
+    this.ma.state = this.ma.enabled && this.ma.url && this.ma.token_set ? 'ready' : 'off';
+    return this.maConnection();
+  }
+
+  async testMaConnection(): Promise<MaTest> {
+    const out: MaTest = this.ma.url && this.ma.token_set ? { state: 'ready', server_version: '2.10.4', schema_version: 28, players: this.rows.filter((r) => r.seed.provider === 'ma').length } : { state: 'off', server_version: null, schema_version: null, players: null };
+    this.ma.last_test = { at: new Date().toISOString(), ...out };
+    return clone(out);
   }
 
   async groups(): Promise<MediaGroup[]> {

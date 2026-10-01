@@ -44,7 +44,8 @@
         "media.read",
         "media.control",
         "media.power",
-        "media.group"
+        "media.group",
+        "media.browse"
       ]
     },
     {
@@ -107,7 +108,8 @@
         "media.public",
         "media.bulk",
         "media.layout",
-        "media.group"
+        "media.group",
+        "media.browse"
       ]
     },
     {
@@ -174,7 +176,9 @@
         "media.public",
         "media.bulk",
         "media.layout",
-        "media.group"
+        "media.group",
+        "media.browse",
+        "media.queue"
       ]
     }
   ],

@@ -48,12 +48,12 @@ def test_status_shape_counts_and_what_the_caller_may_do(m):
     app, c, calls, keys, settings = m
     s = c.get("/api/v1/multimedia/status").json()
     assert s["enabled"] is True and s["bridge"] == {"paired": True, "version": "0.4.0", "media_ready": True, "players_ready": False} and s["profiles_version"] == 1
-    assert s["can"] == {"read": True, "control": True, "power": True, "public": True, "bulk": True, "layout": True, "group": True, "configure": True, "personalize": True}
+    assert s["can"] == {"read": True, "control": True, "power": True, "public": True, "bulk": True, "layout": True, "group": True, "queue": True, "browse": True, "configure": True, "personalize": True}
     assert s["counts"] == {"screens": 6, "on": 4, "pending_approval": 0, "players": 0, "playing": 0, "groups": 0, "unplaced": 0, "suggestions": 0}, "samsung, lg, android, generic on; the kitchen is off and the second LG unavailable"
     assert s["floors"] is True and s["library"] == {"provider": "ma", "state": "ready"}, "CR-016: the seed has a Music Assistant copy of the living-room TV"
     viewer = role(c, settings, "vera", "viewer")
     v = c.get("/api/v1/multimedia/status", headers=viewer).json()
-    assert v["can"] == {"read": True, "control": False, "power": False, "public": False, "bulk": False, "layout": False, "group": False, "configure": False, "personalize": False}
+    assert v["can"] == {"read": True, "control": False, "power": False, "public": False, "bulk": False, "layout": False, "group": False, "queue": False, "browse": False, "configure": False, "personalize": False}
     assert v["counts"] == {"screens": 6, "on": 4, "pending_approval": None, "players": 0, "playing": 0, "groups": 0, "unplaced": 0, "suggestions": None}, "the pending number is for system.configure only"
     nobody = c.get("/api/v1/multimedia/status", headers=as_user("nobody")).json()
     assert nobody["can"]["read"] is False and nobody["counts"]["screens"] == 0 and nobody["enabled"] is True
