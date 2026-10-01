@@ -79,7 +79,6 @@ export class SystemMultimediaPlayers extends LitElement {
   @query('media-preset-editor') private editor?: MediaPresetEditor;
   private noteTimer = 0;
   private offPush: (() => void) | null = null;
-  private names = new Map<string, FavRow>();
 
   static styles = css`
     :host {
@@ -314,7 +313,8 @@ export class SystemMultimediaPlayers extends LitElement {
     }
   }
 
-  /** The curation, and the items to curate: read through a device with a music library (the mock and the server order them by the curation already). */
+  /** The curation, and the items to curate: the editor's read of a device with a music library (`library(.., all)`: hidden items included, marked) - the server
+   * names every curated item (`favourites` carries `name` / `artist` / `kind` for a holder of media.layout), so a hidden item can be shown again. */
   private async loadFavs() {
     try {
       const cur = await players().favourites();
@@ -323,23 +323,15 @@ export class SystemMultimediaPlayers extends LitElement {
       const by = new Map(cur.items.map((i) => [i.item_ref, i]));
       for (const k of KINDS) {
         if (!dev || !dev.caps[k]) continue;
-        const page = await players().library(dev.key, k);
-        const rows = page.items.map((i: LibraryItem): FavRow => ({ ref: i.item_ref, name: i.name, artist: i.artist, hidden: false }));
-        for (const r of rows) this.names.set(r.ref, r);
-        // items the administrator hid are not in a curated page: they come back from the curation, by the name seen before
-        const hidden = cur.items.filter((i) => i.hidden && !rows.some((r) => r.ref === i.item_ref) && (this.names.has(i.item_ref) ? this.names.get(i.item_ref) : null) && this.kindOf(i.item_ref) === k);
-        lists[k] = [...rows, ...hidden.map((h) => ({ ...this.names.get(h.item_ref)!, hidden: true }))].sort((a, b) => (by.get(a.ref)?.order ?? 1e6) - (by.get(b.ref)?.order ?? 1e6));
+        const page = await players().library(dev.key, k, 0, true);
+        const rows = page.items.map((i: LibraryItem): FavRow => ({ ref: i.item_ref, name: by.get(i.item_ref)?.name ?? i.name, artist: i.artist, hidden: !!i.hidden }));
+        lists[k] = rows.sort((a, b) => (by.get(a.ref)?.order ?? 1e6) - (by.get(b.ref)?.order ?? 1e6));
       }
       this.favLists = lists;
       this.fav = cur;
     } catch {
       this.fav = null;
     }
-  }
-
-  private kindOf(ref: string): LibraryKind | null {
-    for (const k of KINDS) if (this.favLists[k].some((r) => r.ref === ref)) return k;
-    return null;
   }
 
   private say(text: string) {
@@ -363,13 +355,15 @@ export class SystemMultimediaPlayers extends LitElement {
     }
   }
 
+  /** "אשר את כל הנגנים שזוהו": one call by kind (the server approves every detected speaker, player, receiver and group), then the lists read again. */
   private async approveAll() {
-    const keys = this.devices.filter((d) => !d.approved).map((d) => d.key);
-    if (!keys.length) return;
+    const pending = this.devices.filter((d) => !d.approved).length;
+    if (!pending) return;
     try {
-      await mediaAdmin().approve(keys, true);
-      this.devices = this.devices.map((d) => (keys.includes(d.key) ? { ...d, approved: true } : d));
-      this.say(`אושרו ${keys.length} נגנים`);
+      const r = await mediaAdmin().approve(null, true, ['speaker', 'player', 'receiver', 'group']);
+      this.devices = this.devices.map((d) => ({ ...d, approved: true }));
+      this.say(`אושרו ${r.changed || pending} נגנים`);
+      await this.load();
     } catch (err) {
       this.error = describeError(err);
     }
@@ -389,7 +383,8 @@ export class SystemMultimediaPlayers extends LitElement {
     // the row leaves at once (never a list shifting under the pointer); it comes back when the write failed
     this.error = '';
     this.answered = new Set([...this.answered, s.id]);
-    await this.link(op === 'link' ? { op: 'link', endpoint_id: s.endpoint_id, device_key: s.device_key } : { op: 'ignore', endpoint_id: s.endpoint_id });
+    // "התעלם" dismisses THIS suggestion (the endpoint + the device it was offered for): a plain `ignore` would hide the endpoint from every device
+    await this.link({ op, endpoint_id: s.endpoint_id, device_key: s.device_key });
     if (this.error) this.answered = new Set([...this.answered].filter((x) => x !== s.id));
   }
 

@@ -56,8 +56,10 @@ export interface PlayerNow extends Omit<NowShowing, 'kind'> {
 export interface LiveGroup {
   role: GroupRole;
   leader_key: string | null;
-  /** The group's devices as the server resolved them (union of every player's `group_members` and the `active_queue` owner,
-   * CR §5.3). The client treats it as "leader first, then the others" but never relies on the leader being listed: see `liveGroupKeys`. */
+  /** The group's OTHER devices as the server resolved them (union of every player's `group_members` and the `active_queue` owner,
+   * CR §5.3): the leader is `leader_key`, never listed here, and the list is the same on every device of the group, filtered by the
+   * caller's scope. For a static group (kind `group`) these are its children. The client still tolerates a list that holds the
+   * leader: see `liveGroupKeys`. */
   member_keys: string[];
   name: string | null;
   /** true for a device of kind `group`. */
@@ -171,6 +173,8 @@ export type LibraryKind = 'favourites' | 'stations' | 'playlists';
 export interface LibraryItem {
   /** ^[a-f0-9]{24}$, server-issued, valid 30 min: the only way to start an item. */
   item_ref: string;
+  /** Only in the curation editor's read (`library(key, kind, 0, true)`, a media.layout holder): the administrator hid it. */
+  hidden?: boolean;
   kind: 'track' | 'album' | 'artist' | 'playlist' | 'radio';
   name: string;
   artist: string | null;
@@ -234,7 +238,9 @@ export interface GroupPresetBody {
 
 export interface FavouritesCuration {
   kinds_on: LibraryKind[];
-  items: { item_ref: string; hidden: boolean; order: number }[];
+  /** `name` / `artist` / `kind` come only to a holder of media.layout (the curation editor), where the server knows them - so a
+   * hidden item can be listed and shown again without reading the library. */
+  items: { item_ref: string; hidden: boolean; order: number; name?: string; artist?: string | null; kind?: LibraryItem['kind'] }[];
   revision: number;
 }
 
@@ -269,7 +275,18 @@ export interface GroupRunResult { bulk_id: string; status: 'accepted' | 'refused
 export interface GroupRecord {
   bulk_id: string;
   status: 'running' | 'done';
-  members: { device_key: string; area_name: string | null; outcome: MemberOutcome; level?: number }[];
+  members: {
+    device_key: string;
+    area_name: string | null;
+    outcome: MemberOutcome;
+    level?: number;
+    /** What the operation meant to do with the room (`join`, `leave`, `stay`, `set`, `pause`, `skip`). A `skip` row (a room that
+     * was not playing, was muted ...) is not a failure of a pause. */
+    will?: string;
+    name?: string;
+    /** A saved group's volume has its own record: `set` / `clamped` / `unknown`. */
+    volume_outcome?: MemberOutcome;
+  }[];
 }
 
 export type PlayerStateFilter = 'playing' | 'off' | 'unavailable';
@@ -339,14 +356,15 @@ export const OUTCOME_FAILED: readonly MemberOutcome[] = ['not_joined', 'unknown'
 // ------------------------------------------------------------------------------------------------ the adapter
 
 /** One implementation per transport: HTTP (the real backend) or the in-memory mock. Same shapes, same errors. List reads
- * return arrays; the HTTP layer accepts either a bare array or an object holding it (the wire envelope is not fixed by the contract). */
+ * return arrays; the wire envelopes are `{groups}`, `{presets}` and `{suggestions}` (a bare array is accepted too). */
 export interface PlayersAdapter {
   status(): Promise<PlayerStatus>;
   list(query?: PlayerListQuery): Promise<{ devices: PlayerDevice[] }>;
   get(key: string): Promise<PlayerDeviceDetail>;
   command(key: string, body: PlayerCommand & { client_request_id: string; expires_at: string }): Promise<CommandResult>;
   upNext(key: string): Promise<UpNext>;
-  library(key: string, kind: LibraryKind, offset?: number): Promise<LibraryPage>;
+  /** `all`: the curation editor's read (media.layout), hidden items included with `hidden: true`. */
+  library(key: string, kind: LibraryKind, offset?: number, all?: boolean): Promise<LibraryPage>;
   groups(): Promise<MediaGroup[]>;
   /** 409 `confirm_required` (an ApiError; see `confirmPreview`) when the party rule asks and `confirmed` is not set. */
   join(body: GroupJoinBody): Promise<GroupRunResult>;
@@ -383,14 +401,16 @@ export const httpPlayers: PlayersAdapter = {
   get: (key) => get(`multimedia/devices/${enc(key)}`),
   command: (key, body) => post(`multimedia/devices/${enc(key)}/commands`, body),
   upNext: (key) => get(`multimedia/devices/${enc(key)}/up-next`),
-  library: (key, kind, offset) => get(`multimedia/devices/${enc(key)}/library${qs({ kind, offset: offset ? String(offset) : undefined })}`),
+  library: (key, kind, offset, all) => get(`multimedia/devices/${enc(key)}/library${qs({ kind, offset: offset ? String(offset) : undefined, all: all ? '1' : undefined })}`),
   groups: async () => rows<MediaGroup>(await get<unknown>('multimedia/groups'), 'groups'),
   join: (body) => post('multimedia/groups/join', body),
   leave: (body) => post('multimedia/groups/leave', body),
   groupVolume: (leader, body) => post(`multimedia/groups/${enc(leader)}/volume`, body),
+  // the server's record is `{id, status: queued | waiting | done, done, items: [{device_key, name, area_name, will, outcome, level?, volume_outcome?}]}`:
+  // it is final only when `done` says so (a `waiting` record still has rooms to read back)
   groupRecord: async (id) => {
-    const r = await get<Partial<GroupRecord> & { items?: GroupRecord['members'] }>(`devices/actions/${enc(id)}`);
-    return { bulk_id: r.bulk_id ?? id, status: r.status === 'running' ? 'running' : 'done', members: r.members ?? r.items ?? [] };
+    const r = await get<{ id?: string; bulk_id?: string; status?: string; done?: boolean; items?: GroupRecord['members']; members?: GroupRecord['members'] }>(`devices/actions/${enc(id)}`);
+    return { bulk_id: r.bulk_id ?? r.id ?? id, status: r.done === true || r.status === 'done' ? 'done' : 'running', members: r.items ?? r.members ?? [] };
   },
   presets: async () => rows<GroupPreset>(await get<unknown>('multimedia/groups/presets'), 'presets'),
   createPreset: (body) => post('multimedia/groups/presets', body),
@@ -434,6 +454,9 @@ export const isLeader = (d: Pick<PlayerDevice, 'live'>): boolean => d.live.group
 export const isGrouped = (d: Pick<PlayerDevice, 'live'>): boolean => d.live.group.role !== 'none';
 export const isPlaying = (d: Pick<PlayerDevice, 'live'>): boolean => d.live.power === 'on' && d.live.play === 'playing';
 export const isAvailable = (l: Pick<PlayerLive, 'power'>): boolean => !isDead(l);
+/** The device has a power control at all. A Cast entity is never one (its "on" launches an app): a Cast-only speaker is `on` while it is
+ * reachable and `off` (asleep) when it is not, with neither `power_on` nor `power_off` - the UI draws no power button for it. */
+export const powerControlled = (d: Pick<PlayerDevice, 'caps' | 'zones'>): boolean => d.caps.power_on || d.caps.power_off || !!d.zones?.length;
 
 /** The device's leader inside `devices` (itself when it is not a member, or when the leader is not in the list). */
 export function resolveLeader<T extends Pick<PlayerDevice, 'key' | 'live'>>(d: T, devices: readonly T[]): T {

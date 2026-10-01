@@ -1,10 +1,13 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { customElement, property, query, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-dialog';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/media-remote';
+import '../components/media-player-card';
+import '../components/media-group-dialog';
+import type { MediaGroupDialog } from '../components/media-group-dialog';
 import { describeError } from '../api/client';
 import { getBulk, followBulk, bulkHeadline, OUTCOME_LABEL, type BulkRecord } from '../api/device-bulk';
 import { canAnywhere, isApi } from '../api/session';
@@ -22,7 +25,9 @@ import { bidi } from '../i18n/bidi';
  *
  * CR-016: the area's approved speakers, players and receivers sit next to the TVs, one `<media-player-card>` (S2's card, used by tag)
  * per physical device; its `open-player` (or `open-remote`) opens the same drawer, drawn by the player panel. "כבה הכל" stays
- * screens-only: a speaker is never switched off by it (nothing in the contract adds players to the screens' bulk).
+ * screens-only: a speaker is never switched off by it (nothing in the contract adds players to the screens' bulk). The area's playing
+ * players get their own "עצור מוזיקה" (a holder of media.bulk, only while something plays here): the server's `players_pause` preview, the
+ * confirmation and the honest per-room result of `<media-group-dialog>`.
  *
  *   <media-area-card .areaId=${id} .areaName=${name} .entityIds=${customEntityIds|null} @media-area-state=${...}></media-area-card>
  *
@@ -47,6 +52,9 @@ export class MediaAreaCard extends LitElement {
   @state() private devices: MediaDevice[] | null = null;
   /** CR-016: the area's approved speakers, players and receivers (null = not read yet). */
   @state() private speakers: PlayerDevice[] | null = null;
+  /** The caller holds media.bulk somewhere (the server decides for this area again): "עצור מוזיקה" is offered. */
+  @state() private canBulk = false;
+  @query('media-group-dialog') private pauseDialog?: MediaGroupDialog;
   @state() private remoteKey = '';
   @state() private remoteKind = '';
   @state() private remoteOpen = false;
@@ -98,6 +106,16 @@ export class MediaAreaCard extends LitElement {
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
+    }
+    .bar {
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .off-all.quiet {
+      color: var(--dv-text, var(--sw-text));
+    }
+    .off-all.quiet:hover {
+      background: var(--dv-surface-3, var(--sw-surface-2, var(--sw-surface)));
     }
     .off-all:hover {
       background: var(--dv-danger-soft, var(--sw-danger-soft));
@@ -171,7 +189,9 @@ export class MediaAreaCard extends LitElement {
       // the players of the area (CR-016): a failure here never takes the screens away
       const area = this.areaId;
       const speakers = await players().list({ area }).then((r) => r.devices.filter((d) => d.area_id === area && ['speaker', 'player', 'receiver'].includes(d.kind) && PLAYER_KINDS.includes(d.kind))).catch(() => [] as PlayerDevice[]);
+      const canBulk = speakers.length > 0 && (await players().status().then((s) => s.can.bulk).catch(() => false));
       if (token !== this.token) return;
+      this.canBulk = canBulk;
       const screens = devices.filter((d) => d.kind === 'screen');
       const ids = this.entityIds;
       const mapped = ids?.length ? screens.filter((d) => ((d as MediaDevice & { entity_ids?: string[] }).entity_ids ?? []).some((e) => ids.includes(e))) : [];
@@ -287,12 +307,18 @@ export class MediaAreaCard extends LitElement {
     const spk = this.speakers ?? [];
     if (!list.length && !spk.length) return nothing;
     const canOff = bulkCandidates(list).length > 0;
-    return html`${canOff && !this.external
-        ? html`<div class="bar"><button type="button" class="off-all" data-media-off-all ?disabled=${this.phase === 'loading'} @click=${() => void this.ask()}><sw-icon name="power" size=${14}></sw-icon>כבה הכל</button></div>`
-        : nothing}
+    const canPause = this.canBulk && spk.some(isPlaying);
+    const pause = canPause
+      ? html`<button type="button" class="off-all quiet" data-media-pause-all @click=${() => void this.pauseDialog?.pause({ scope: 'area', id: this.areaId, name: this.areaName || 'האזור' })}><sw-icon name="pause" size=${14}></sw-icon>עצור מוזיקה</button>`
+      : nothing;
+    const offAll = canOff && !this.external
+      ? html`<button type="button" class="off-all" data-media-off-all ?disabled=${this.phase === 'loading'} @click=${() => void this.ask()}><sw-icon name="power" size=${14}></sw-icon>כבה הכל</button>`
+      : nothing;
+    return html`${pause !== nothing || offAll !== nothing ? html`<div class="bar" data-media-area-bar>${pause}${offAll}</div>` : nothing}
       <div class="list" data-media-area-list @open-remote=${this.onOpenRemote} @open-player=${this.onOpenRemote}>${repeat(list, (d) => d.key, (d) => html`<media-screen-card .device=${d} .compact=${true} size="s" data-media-tile=${d.key}></media-screen-card>`)}
         ${spk.length ? html`${list.length ? html`<div class="sub" data-media-area-sub="players">רמקולים ומגברים</div>` : nothing}${repeat(spk, (d) => d.key, (d) => html`<media-player-card .device=${d} .compact=${true} size="s" data-player-tile=${d.key}></media-player-card>`)}` : nothing}</div>
       ${this.dialog()}
+      <media-group-dialog @group-done=${() => void this.load()}></media-group-dialog>
       <media-remote .deviceKey=${this.remoteKey} .kind=${this.remoteKind} .open=${this.remoteOpen} @close=${() => (this.remoteOpen = false)} @media-changed=${() => void this.load()} @media-remote-open=${() => (this.remoteOpen = true)}></media-remote>`;
   }
 }

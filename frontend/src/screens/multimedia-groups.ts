@@ -12,7 +12,7 @@ import { ApiError, describeError } from '../api/client';
 import { subscribeHa } from '../api/ha';
 import { isApi } from '../api/session';
 import {
-  PLAYER_KINDS, confirmPreview, effectiveCeiling, errorCode, memberOutcomeLine, playerErrorText, players, sendApplyPreset, sendGroupVolume,
+  PLAYER_KINDS, confirmPreview, effectiveCeiling, errorCode, isPlaying, memberOutcomeLine, playerErrorText, players, resolveLeader, sendApplyPreset, sendGroupVolume,
   sendLeave, type GroupPreset, type GroupRecord, type MediaGroup, type PlayerDevice, type PlayerLive, type PlayerStatus,
 } from '../api/media-players';
 import { artworkUrl } from '../api/media-screens';
@@ -748,6 +748,34 @@ export class MultimediaGroups extends LitElement {
     this.scheduleRefresh(isApi() ? 600 : 30);
   }
 
+  /** The rooms' leaders of a helper shortcut: each live group once (a member plays with its leader). A helper group has no device of its own to command (the
+   * server lists none of it), so its play / pause is a fan-out: ONE ordinary command per leader, each checked and audited like a press on that player. */
+  private helperLeaders(g: MediaGroup): PlayerDevice[] {
+    const out = new Map<string, PlayerDevice>();
+    for (const m of g.members) {
+      const d = this.dev(m.key);
+      if (d && d.can.control && d.live.caps_known && d.live.power === 'on') {
+        const lead = resolveLeader(d, this.devices);
+        out.set(lead.key, lead);
+      }
+    }
+    return [...out.values()];
+  }
+
+  private async toggleHelper(g: MediaGroup) {
+    const leaders = this.helperLeaders(g);
+    const playing = leaders.filter(isPlaying);
+    const targets = playing.length ? playing : leaders.filter((l) => l.live.play === 'paused');
+    const action = playing.length ? 'pause' : 'play';
+    let problem = '';
+    for (const l of targets) {
+      const o = await runPlayerCommand(l.key, { command: 'transport', action });
+      if (!problem && (o.outcome === 'refused' || o.outcome === 'not_confirmed')) problem = o.message;
+    }
+    if (problem) this.say(problem);
+    this.scheduleRefresh(isApi() ? 600 : 30);
+  }
+
   private async mute(key: string, muted: boolean) {
     const o = await runPlayerCommand(key, { command: 'mute', muted: !muted });
     if (o.outcome === 'refused' || o.outcome === 'not_confirmed') this.say(o.message);
@@ -856,6 +884,11 @@ export class MultimediaGroups extends LitElement {
     const state = !leader || type === 'helper' ? '' : v?.playing ? ' · מנגן' : v?.paused ? ' · מושהה' : ' · לא מנגן';
     const sub = type === 'helper' ? `קבוצה וירטואלית · ${plural(g.members.length, 'חדר אחד', 'חדרים')}` : `${plural(g.members.length, 'חדר אחד', 'חדרים')}${g.floor_ids.length > 1 ? ` · ${g.floor_ids.length} קומות` : ''}${state}`;
     const title = type === 'live' ? rooms.join(' + ') : g.name;
+    const hl = type === 'helper' && this.canControl ? this.helperLeaders(g) : [];
+    const hPlaying = hl.some(isPlaying);
+    const helperToggle = hl.length && (hPlaying || hl.some((l) => l.live.play === 'paused'))
+      ? html`<button type="button" class="rb" data-helper-toggle=${g.leader_key} aria-label=${`${hPlaying ? 'השהה' : 'המשך'} · ${g.name}`} @click=${() => void this.toggleHelper(g)}>${mIcon(hPlaying ? 'pause' : 'play')}</button>`
+      : nothing;
     const np = leader && (v?.playing || v?.paused) && v
       ? html`<div class="gnp">${this.thumb(leader)}<div class="t"><b>${nameText(v.title || leader.live.now.title || '')}</b><small>${nameText(v.sub)}</small></div>${this.canControl && leader.can.control ? html`<button type="button" class="pk" aria-label=${`${v.playing ? 'השהה' : 'המשך'} · ${title}`} @click=${() => void this.togglePlay(g.leader_key)}>${mIcon(v.playing ? 'pause' : 'play')}</button>` : nothing}</div>`
       : nothing;
@@ -864,7 +897,7 @@ export class MultimediaGroups extends LitElement {
     return html`<article class=${classMap({ gcard: true, glass: true, lit })} style=${lit ? `--art:${v!.rgb}` : ''} aria-label=${`קבוצה · ${title}`} data-group-card=${g.leader_key} data-group-type=${type}>
       <span class="gbox" aria-hidden="true">${lit && v ? html`<div class="art" style=${`--a1:${v.a1};--a2:${v.a2}`}>${v.artwork ? html`<img src=${artworkUrl(v.artwork)} alt="" />` : nothing}</div>` : nothing}</span>
       <header class="gh"><span class="gi">${mIcon('group')}</span><div class="tx"><b>${nameText(bidi(title))}</b><small>${sub}</small></div>
-        ${type === 'live' && this.canGroup ? html`<button type="button" class="btn sm quiet" data-ungroup=${g.leader_key} @click=${() => void this.ungroup(g)}>${mIcon('unlink')}פרק</button>` : nothing}</header>
+        ${helperToggle}${type === 'live' && this.canGroup ? html`<button type="button" class="btn sm quiet" data-ungroup=${g.leader_key} @click=${() => void this.ungroup(g)}>${mIcon('unlink')}פרק</button>` : nothing}</header>
       ${np}${this.groupVolume(g)}
       <div class="psh"><h4>לפי חדר</h4>${toggle}</div>
       ${showRows ? html`<div class="members">${g.members.map((m) => this.memberRow(g, m, { leave: type === 'live' }))}</div>` : nothing}

@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { KeyThrottle, artworkUrl, isLit, type Size } from '../api/media-screens';
-import { effectiveCeiling, groupChip, isMember, playerCommandOffered, players, type PlayerCommand, type PlayerDevice, type PlayerDeviceDetail } from '../api/media-players';
+import { effectiveCeiling, groupChip, isMember, playerCommandOffered, players, powerControlled, type PlayerCommand, type PlayerDevice, type PlayerDeviceDetail } from '../api/media-players';
 import { applyMediaGlass, mediaGlassStyles } from '../styles/media-glass';
 import { glyphIcon, mIcon, nameText } from './media-icons';
 import { runPlayerCommand } from './media-player-run';
@@ -583,7 +583,7 @@ export class MediaPlayerCard extends LitElement {
     const spin = this.pending.has('power') ? html`<span class="pend"><i></i></span>` : nothing;
     const dis = this.editing;
     if (v.kind === 'un') return html`<button class="cov un" type="button" ?disabled=${dis} @click=${() => this.openPlayer()} aria-label=${label}><span class="ctr">${mIcon('wifiOff')}</span></button>`;
-    if (v.kind === 'off') return html`<button class="cov off" type="button" ?disabled=${dis} @click=${() => this.openPlayer()} aria-label=${label}><span class="ctr">${mIcon('power')}</span>${spin}</button>`;
+    if (v.kind === 'off') return html`<button class="cov off" type="button" ?disabled=${dis} @click=${() => this.openPlayer()} aria-label=${label}><span class="ctr">${mIcon(powerControlled(d) ? 'power' : d.kind === 'player' ? 'media' : 'speaker')}</span>${spin}</button>`;
     if (v.kind === 'rcv') return html`<button class="cov rcv" type="button" ?disabled=${dis} @click=${() => this.openPlayer()} aria-label=${label}><span class="ctr">${glyphIcon(v.glyph)}<span>${nameText(v.tile)}</span></span>${spin}</button>`;
     if (v.kind === 'idle') return html`<button class="cov idle" type="button" ?disabled=${dis} @click=${() => this.openPlayer()} aria-label=${label}><span class="ctr">${mIcon(d.kind === 'player' ? 'media' : 'speaker')}</span>${spin}</button>`;
     const badge = v.playing ? html`<span class="pilld"><i></i>מנגן</span>` : html`<span class="pilld">${mIcon('pause')}מושהה</span>`;
@@ -594,6 +594,7 @@ export class MediaPlayerCard extends LitElement {
   private mainKey(d: PlayerDevice, v: PlayerView): TemplateResult | typeof nothing {
     const ro = !d.can.control && !d.can.power;
     if (v.kind === 'un' || ro) return nothing;
+    if ((d.kind === 'receiver' || v.kind === 'off') && !powerControlled(d)) return nothing; // a Cast-only speaker has no power control: asleep is a state, not a button
     if (d.kind === 'receiver' || v.kind === 'off') {
       const lit = isLit(d.live);
       const off = { command: 'power_off' } as const;

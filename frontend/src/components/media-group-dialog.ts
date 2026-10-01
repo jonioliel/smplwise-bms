@@ -239,7 +239,8 @@ export class MediaGroupDialog extends LitElement {
         <div class="actions">${this.cancel()}<sw-button data-gd-confirm variant="primary" @click=${() => void this.runPause()}>עצור (${p.counts.send})</sw-button></div>`;
     }
     if (this.phase === 'sending' || (!this.record && this.phase === 'running')) return html`<div class="muted" data-gd-progress>שולח…</div>`;
-    const s = summarizeRecord(this.record);
+    // a room that was skipped (it was not playing, it is unavailable ...) is in the record as `will: skip` - not a room that failed to pause
+    const s = summarizeRecord(this.record && { ...this.record, members: this.record.members.filter((m) => m.will !== 'skip') });
     const partial = !!this.record && s.failed.length > 0;
     return html`<div class="what" data-gd-result=${partial ? 'partial' : 'ok'}>
         <div class=${classMap({ headline: true, ok: !partial, partial })}><sw-icon .name=${partial ? 'warning' : 'check'} size="16"></sw-icon>${partial ? `בוצע חלקית: ${s.failed.length} לא נעצרו` : 'בוצע'}</div>

@@ -18,6 +18,7 @@
  * Owned by the coordinator with media-players.ts. Names and values are invented; nothing here comes from a real system.
  */
 import { ApiError } from './client';
+import type { AdminDevice, AdminEndpoint } from './media-admin';
 import { DEFAULT_REMOTE, type BulkScope, type CommandResult, type Glyph, type PowerState, type SourceItem } from './media-screens';
 import {
   GROUPABLE_KINDS, ITEM_REF_RE, NON_PHYSICAL_KINDS, PLAYER_KINDS, PRESET_RUNNING_MS, clampVolume, groupLevel, groupSectionOffered, groupVolumePlan, joinDiff, matchesState, needsConfirmation,
@@ -184,6 +185,8 @@ function sonosHouse(): Fixture {
 
 interface Row {
   seed: Seed;
+  /** The administrator approved it (CR §5.1: only approved devices reach the pages; every seed starts approved, as an installation after "אשר את כל הנגנים"). */
+  approved: boolean;
   st: St;
   track: string | null;
   pos: number;
@@ -227,6 +230,8 @@ export class PlayersMockStore implements PlayersAdapter {
   pendingLeaders = new Set<string>();
   /** up-next reads fail (answers `confirmed: false`). */
   failUpNext = false;
+  /** Merge suggestions the administrator answered (`link` / `ignore` with the row's device): they leave the wizard's list. */
+  private answered = new Set<string>();
   private records = new Map<string, GroupRecord>();
   private seen = new Map<string, unknown>();
   private serial = 0;
@@ -237,12 +242,12 @@ export class PlayersMockStore implements PlayersAdapter {
     this.fx = house === 'ma' ? maHouse() : sonosHouse();
     const at = new Date().toISOString();
     this.rows = this.fx.seeds.map((s): Row => ({
-      seed: s, st: s.st, track: s.track ?? null, pos: s.pos ?? 0, posAt: at, vol: s.vol, muted: false, queue: s.queue ? { ...s.queue } : null,
+      seed: s, approved: true, st: s.st, track: s.track ?? null, pos: s.pos ?? 0, posAt: at, vol: s.vol, muted: false, queue: s.queue ? { ...s.queue } : null,
       shuffle: s.shuffle ?? false, repeat: s.repeat ?? 'off', src: s.src ?? null, mode: s.mode ?? null, zone2: s.zone2 ? { ...s.zone2 } : null,
     }));
     this.grp = clone(this.fx.groups);
     this.presetState = this.fx.presets.map((p, i) => ({
-      id: hex(`preset:${house}:${i}`, 32), name: p.name, leader_key: keyOf(p.leader), member_keys: p.members.map(keyOf), volumes: p.volumes ? Object.fromEntries(Object.entries(p.volumes).map(([k, v]) => [keyOf(k), v])) : null,
+      id: hex(`preset:${house}:${i}`, 32), name: p.name, leader_key: keyOf(p.leader), member_keys: p.members.filter((m) => m !== p.leader).map(keyOf), volumes: p.volumes ? Object.fromEntries(Object.entries(p.volumes).map(([k, v]) => [keyOf(k), v])) : null,
       revision: 1, running: null,
     }));
     this.curation = { kinds_on: house === 'ma' ? ['favourites', 'stations', 'playlists'] : ['favourites', 'stations'], items: [], revision: 1 };
@@ -342,7 +347,8 @@ export class PlayersMockStore implements PlayersAdapter {
     const lead = this.row(keyOf(leader));
     const play = power !== 'on' || s.kind === 'receiver' ? null : (lead.st === 'playing' || lead.st === 'paused' ? lead.st : 'idle');
     const caps = this.caps(r);
-    const memberKeys = isGroupDev ? (this.grp[id] ?? []).map(keyOf) : role === 'none' ? [] : [leader, ...this.live(leader).members].map(keyOf);
+    // `member_keys` are the group's OTHER devices (the leader is `leader_key`, the same list on every device of the group; a static group's children), like the server
+    const memberKeys = isGroupDev ? (this.grp[id] ?? []).filter((m) => this.row(keyOf(m)).approved).map(keyOf) : role === 'none' ? [] : this.live(leader).members.filter((m) => this.row(keyOf(m)).approved).map(keyOf);
     const now = this.nowOf(r);
     const up = caps.up_next && !!lead.queue && play !== null && lead.track !== null;
     const zones: ReceiverZone[] | null = s.zone2
@@ -375,7 +381,7 @@ export class PlayersMockStore implements PlayersAdapter {
   }
 
   private physical(): PlayerDeviceDetail[] {
-    return this.rows.map((r) => this.build(r));
+    return this.rows.filter((r) => r.approved).map((r) => this.build(r));
   }
 
   // ---- reads
@@ -428,16 +434,18 @@ export class PlayersMockStore implements PlayersAdapter {
     };
   }
 
-  async library(key: string, kind: LibraryKind, offset = 0): Promise<LibraryPage> {
+  async library(key: string, kind: LibraryKind, offset = 0, all = false): Promise<LibraryPage> {
     const d = this.build(this.row(key));
     if (d.music_provider === 'none' || !d.caps[kind]) return fail(d.music_provider === 'none' ? 503 : 422, d.music_provider === 'none' ? 'no_library' : 'not_supported', d.music_provider === 'none' ? 'אין ספריית מוזיקה.' : 'הרשימה אינה זמינה.');
-    const all = items();
+    const lib = items();
     const hiddenOrder = this.curation.items;
-    const list = LIBRARY[kind].filter((id) => !hiddenOrder.find((c) => c.item_ref === refOf(id))?.hidden);
+    const isHidden = (id: string) => !!hiddenOrder.find((c) => c.item_ref === refOf(id))?.hidden;
+    // the curation editor (`all`, media.layout) also gets the hidden ones, marked; everyone else only what the administrator left visible
+    const list = LIBRARY[kind].filter((id) => all || !isHidden(id));
     list.sort((a, b) => (hiddenOrder.find((c) => c.item_ref === refOf(a))?.order ?? 1e6) - (hiddenOrder.find((c) => c.item_ref === refOf(b))?.order ?? 1e6));
     return {
       kind, provider: d.music_provider, read_at: new Date().toISOString(), curated: hiddenOrder.length > 0,
-      items: list.slice(offset).map((id): LibraryItem => ({ item_ref: refOf(id), kind: all[id].kind, name: all[id].name, artist: all[id].artist, glyph: all[id].glyph, hue: all[id].hue })),
+      items: list.slice(offset).map((id): LibraryItem => ({ item_ref: refOf(id), ...(all ? { hidden: isHidden(id) } : {}), kind: lib[id].kind, name: lib[id].name, artist: lib[id].artist, glyph: lib[id].glyph, hue: lib[id].hue })),
     };
   }
 
@@ -449,7 +457,8 @@ export class PlayersMockStore implements PlayersAdapter {
       return { key: d.key, name: d.name, area_name: d.area_name, volume: r.vol, muted: r.muted, available: d.live.power !== 'unavailable' };
     };
     for (const [leader, ms] of Object.entries(this.grp)) {
-      const ids = this.isStatic(leader) ? ms : [leader, ...ms];
+      const ids = (this.isStatic(leader) ? ms : [leader, ...ms]).filter((i) => this.row(keyOf(i)).approved);
+      if (!ids.length) continue;
       const rows = ids.map((i) => this.row(keyOf(i)));
       const r = this.row(keyOf(leader));
       out.push({
@@ -467,7 +476,62 @@ export class PlayersMockStore implements PlayersAdapter {
   }
 
   async suggestions(): Promise<MergeSuggestion[]> {
-    return this.fx.suggestions.map((s, i) => ({ id: `s${i + 1}`, ...s }));
+    return this.fx.suggestions.map((s, i) => ({ id: `s${i + 1}`, ...s })).filter((s) => !this.answered.has(s.id));
+  }
+
+  /** The administrator answered a row of the merge wizard: `link` (merge: the endpoint moves with its cluster) or `ignore` + the row's device (dismiss). Both
+   * drop the row; a plain `ignore` (no device) hides the endpoint from every device and drops its rows too (the CR-015 meaning). */
+  answerSuggestion(op: 'link' | 'ignore', endpointId: string, deviceKey?: string): void {
+    this.fx.suggestions.forEach((s, i) => {
+      if (s.endpoint_id === endpointId && (op === 'link' || !deviceKey || s.device_key === deviceKey)) this.answered.add(`s${i + 1}`);
+    });
+  }
+
+  /** Approve or withdraw devices (`POST admin/approve`): by key, or - like "אשר את כל הנגנים שזוהו" - every device of the named kinds; the counts of the server's answer. */
+  approve(keys: string[] | null, approved: boolean, kinds?: PlayerKind[]): { requested: number; changed: number; approved: number; pending_approval: number; approved_players?: number; pending_players?: number } {
+    const targets = this.rows.filter((r) => (keys ? keys.includes(keyOf(r.seed.id)) : (kinds ?? []).includes(r.seed.kind)));
+    let changed = 0;
+    for (const r of targets) {
+      if (r.approved !== approved) { r.approved = approved; changed += 1; }
+      if (!approved && this.grp[r.seed.id]) this.detach(r.seed.id);
+    }
+    return { requested: targets.length, changed, approved: 0, pending_approval: 0, approved_players: this.rows.filter((r) => r.approved).length, pending_players: this.rows.filter((r) => !r.approved).length };
+  }
+
+  /** The settings' view of every discovered player (approved or not): the connections of each device as the server shows them (the vendor entity answers
+   * power / volume, the music layer - hidden - the music, a Cast or SmartThings twin hidden), with the rung that joined them. */
+  adminList(): AdminDevice[] {
+    const ep = (id: string, platform: string, role: AdminEndpoint['role'], rule: string, hidden: boolean, primary_for: AdminEndpoint['primary_for']): AdminEndpoint => ({ endpoint_id: `ha:media_player.${id}`, platform, role, rule, link_source: 'auto', hidden, primary_for });
+    return this.rows.map((r): AdminDevice => {
+      const s = r.seed;
+      const d = this.build(r);
+      const caps = d.caps;
+      const own: AdminEndpoint['primary_for'] = [...(caps.power_on || caps.power_off ? (['power'] as const) : []), ...(caps.volume_set || caps.volume_step ? (['volume', 'mute'] as const) : []), ...(caps.sources ? (['sources'] as const) : [])];
+      const eps: AdminEndpoint[] = [];
+      if (s.kind === 'group') eps.push(ep(`${s.id}_group`, 'music_assistant', 'ma_native', 'device', false, ['now_playing', ...own]));
+      else if (s.provider === 'sonos') eps.push(ep(s.id, 'sonos', 'vendor', 'device', false, ['now_playing', ...own]), ...(s.id === 'liv' || s.id === 'bath' ? [ep(`${s.id}_st`, 'smartthings', 'mirror', '3b', true, [])] : []));
+      else if (s.kind === 'receiver') eps.push(ep(s.id, 'denonavr', 'vendor', 'device', false, own), ...(s.provider === 'heos' ? [ep(`${s.id}_heos`, 'heos', 'vendor', '2b', false, ['now_playing']), ep(`${s.id}_ma`, 'music_assistant', 'music', '2c', true, [])] : []));
+      else if (s.provider === 'ma') {
+        const cast = s.id === 'per' || s.id === 'gst';
+        eps.push(ep(s.id, cast ? 'cast' : 'wiim', cast ? 'cast' : 'vendor', 'device', false, own), ep(`${s.id}_ma`, 'music_assistant', 'music', cast ? '3b' : '2c', true, s.nocaps ? [] : ['now_playing']));
+      } else eps.push(ep(s.id, 'dlna_dmr', 'dlna', 'device', false, [...own, 'now_playing']));
+      return {
+        key: keyOf(s.id), name: s.name, kind: s.kind, kind_source: 'auto', approved: r.approved, public: false, profile: 'generic', profile_source: 'auto',
+        confidence: s.nocaps ? 'weak' : eps.length > 1 ? 'strong' : 'exact', anchor_entity_id: `media_player.${s.id}`, floor_name: s.floor?.[1] ?? null, area_name: s.area?.[1] ?? null, area_id: s.area?.[0] ?? null,
+        audio_link_key: null, audio_default: 'screen', volume_max: s.max ?? null, volume_night: s.night ? { ...s.night } : null, music_provider: s.provider,
+        zones: d.zones ? d.zones.map((z) => ({ id: z.id, name: z.name })) : null, model_keys: [], also_turns_on: [], endpoints: eps,
+      };
+    });
+  }
+
+  /** Settings: place an unplaced device in a room, change its ceilings or approval (the bridge writes the entity registry on the real server). */
+  adminPatch(key: string, patch: { area?: { id: string; name: string; floor: readonly [string, string] | null } | null; volume_max?: number | null; volume_night?: VolumeNight | null; approved?: boolean; name?: string }): void {
+    const r = this.row(key);
+    if (patch.area !== undefined) { r.seed.area = patch.area ? [patch.area.id, patch.area.name] : null; r.seed.floor = patch.area?.floor ?? null; }
+    if (patch.volume_max !== undefined) r.seed.max = patch.volume_max ?? undefined;
+    if (patch.volume_night !== undefined) r.seed.night = patch.volume_night ?? undefined;
+    if (patch.name) r.seed.name = patch.name;
+    if (patch.approved !== undefined) this.approve([key], patch.approved);
   }
 
   /** The folded "רכיבים לא פיזיים": eight Jellyfin sessions under one name, two helper groups and a Spotify source (the house without a music library). */
@@ -509,6 +573,8 @@ export class PlayersMockStore implements PlayersAdapter {
     if (cmd.command === 'play_item') {
       const hit = Object.keys(items()).find((id) => refOf(id) === cmd.item_ref);
       if (!ITEM_REF_RE.test(cmd.item_ref) || !hit) fail(422, 'unknown_item', 'הפריט אינו זמין.');
+      // a Sonos favourite is started with select_source: it cannot be queued after the current one or added
+      if ((cmd.enqueue === 'next' || cmd.enqueue === 'add') && d.music_provider !== 'ma') fail(422, 'not_supported', 'ההוספה לתור אינה זמינה לנגן זה.');
     }
     if (cmd.command === 'transfer') {
       const from = this.row(cmd.from_key);
@@ -696,9 +762,10 @@ export class PlayersMockStore implements PlayersAdapter {
   private checkPreset(b: GroupPresetBody): void {
     const name = b.name.trim();
     if (!name || name.length > 40) fail(422, 'validation', 'שם עד 40 תווים.');
-    if (b.member_keys.length > 16 || b.member_keys.length === 0) fail(422, 'validation', 'עד 16 חדרים.');
+    // the server's shape: `member_keys` are the OTHER rooms (the leader is `leader_key`, never in the list), at most 15 of them
+    if (b.member_keys.length > 15 || b.member_keys.length === 0 || b.member_keys.includes(b.leader_key) || new Set(b.member_keys).size !== b.member_keys.length) fail(422, 'validation', 'עד 16 חדרים, המוביל לא ברשימה.');
     for (const k of [b.leader_key, ...b.member_keys]) this.row(k);
-    for (const [k, v] of Object.entries(b.volumes ?? {})) if (!b.member_keys.includes(k) || !(v >= 0 && v <= 100)) fail(422, 'validation', 'עוצמה לא תקינה.');
+    for (const [k, v] of Object.entries(b.volumes ?? {})) if (![b.leader_key, ...b.member_keys].includes(k) || !(v >= 0 && v <= 100)) fail(422, 'validation', 'עוצמה לא תקינה.');
   }
 
   async presets(): Promise<GroupPreset[]> {
@@ -767,7 +834,12 @@ export class PlayersMockStore implements PlayersAdapter {
   // ---- favourites, pause, admin
 
   async favourites(): Promise<FavouritesCuration> {
-    return clone(this.curation);
+    // a holder of media.layout also gets the names of the curated items (the server knows the ones it listed lately): a hidden item can be shown again
+    const lib = items();
+    const byRef = new Map(Object.keys(lib).map((id) => [refOf(id), lib[id]]));
+    const c = clone(this.curation);
+    c.items = c.items.map((i) => { const it = byRef.get(i.item_ref); return it ? { ...i, name: it.name, artist: it.artist, kind: it.kind } : i; });
+    return c;
   }
   async saveFavourites(c: Omit<FavouritesCuration, 'revision'>, baseRevision: number): Promise<FavouritesCuration> {
     if (baseRevision !== this.curation.revision) fail(409, 'revision_conflict', 'נערך במקום אחר; טענו מחדש.');
@@ -775,35 +847,43 @@ export class PlayersMockStore implements PlayersAdapter {
     return this.favourites();
   }
 
+  /** The devices of a floor / area and what "עצור מוזיקה" would do with each (the server's vocabulary: `pause` or `skip` with `not_playing` / `unavailable` / `not_allowed`). */
+  private pauseDevices(scope: BulkScope, id: string): { dev: PlayerDevice; will: 'pause' | 'skip'; reason: PausePreview['devices'][number]['reason'] }[] {
+    return this.physical().filter((d) => d.kind !== 'group' && (scope === 'floor' ? d.floor_id : d.area_id) === id).map((d) => {
+      const reason = !d.can.bulk ? 'not_allowed' : d.live.power === 'unavailable' || d.live.power === 'unknown' ? 'unavailable' : d.live.play === 'playing' ? null : 'not_playing';
+      return { dev: d, will: reason ? ('skip' as const) : ('pause' as const), reason } as const;
+    });
+  }
+
   async pausePreview(scope: BulkScope, id: string): Promise<PausePreview> {
-    const inScope = this.physical().filter((d) => d.kind !== 'group' && (scope === 'floor' ? d.floor_id : d.area_id) === id);
-    const reason = (d: PlayerDevice): PausePreview['devices'][number]['reason'] => {
-      if (!d.can.bulk) return 'not_allowed';
-      if (d.live.power === 'unavailable' || d.live.power === 'unknown') return 'unavailable';
-      return d.live.play === 'playing' ? null : 'not_playing';
-    };
-    const devices = inScope.map((d) => ({ key: d.key, name: d.name, will: reason(d) ? ('skip' as const) : ('pause' as const), reason: reason(d) }));
+    const inScope = this.pauseDevices(scope, id);
+    const devices = inScope.map((x) => ({ key: x.dev.key, name: x.dev.name, will: x.will, reason: x.reason }));
     const count = (r: string) => devices.filter((x) => x.reason === r).length;
-    const label = scope === 'floor' ? inScope[0]?.floor_name ?? id : inScope[0]?.area_name ?? id;
+    const first = inScope[0]?.dev;
+    const label = scope === 'floor' ? first?.floor_name ?? id : first?.area_name ?? id;
     return { scope, id, label, devices, counts: { send: devices.filter((x) => x.will === 'pause').length, not_playing: count('not_playing'), unavailable: count('unavailable'), not_allowed: count('not_allowed') } };
   }
 
+  /** Pauses the playing rooms (once per group, through its leader) and records one row per device of the scope, like the server's: `will` `pause` -> `set`, a
+   * skipped room -> `skipped_unavailable` / `not_allowed` (a room that was not playing is not a failure: the row says `will: skip`). */
   async pauseRun(scope: BulkScope, id: string, clientRequestId: string, _expiresAt: string): Promise<{ bulk_id: string; status: string }> {
     return this.once(clientRequestId, () => {
-      const p = this.pausePreviewSync(scope, id);
+      const plan = this.pauseDevices(scope, id);
       const seen = new Set<string>();
-      for (const x of p) {
-        const lead = this.row(keyOf(this.leaderId(idOf(x))));
+      for (const x of plan.filter((p) => p.will === 'pause')) {
+        const lead = this.row(keyOf(this.leaderId(idOf(x.dev.key))));
         if (seen.has(lead.seed.id)) continue;
         seen.add(lead.seed.id);
         this.freeze(lead);
         lead.st = 'paused';
       }
-      return { bulk_id: `mock-pause-${clientRequestId.slice(0, 8)}`, status: 'done' };
+      const bulk = this.bulkId('pause');
+      this.records.set(bulk, {
+        bulk_id: bulk, status: 'done',
+        members: plan.map((x) => ({ device_key: x.dev.key, name: x.dev.name, area_name: x.dev.area_name, will: x.will, outcome: x.will === 'pause' ? ('set' as const) : x.reason === 'unavailable' ? ('skipped_unavailable' as const) : ('not_allowed' as const) })),
+      });
+      return { bulk_id: bulk, status: 'done' };
     });
-  }
-  private pausePreviewSync(scope: BulkScope, id: string): string[] {
-    return this.physical().filter((d) => d.kind !== 'group' && (scope === 'floor' ? d.floor_id : d.area_id) === id && d.live.play === 'playing' && d.can.bulk).map((d) => d.key);
   }
 }
 

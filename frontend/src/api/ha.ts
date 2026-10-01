@@ -7,6 +7,7 @@ import { commandId } from './request-id';
 import type { StateKind } from '../components/sw-badge';
 import type { MarkerKind } from '../map/sw-plan-canvas';
 import type { MediaLive } from './media-screens';
+import type { PlayerLive } from './media-players';
 
 export interface HaActionArgSpec {
   name: string;
@@ -349,8 +350,10 @@ export type HaPush =
   /** CR-014: the schedules changed (the component's read model moved; no ids) - the schedules screens refetch
    * (api/schedules.ts `subscribeSchedules` opens its own socket for this). */
   | { type: 'schedules_changed' }
-  /** CR-015: one media device's live state changed (<= 4/s per device; only for subscribers who see its anchor under media.read). */
-  | { type: 'media_state'; device_key: string; entity_id: string; live: MediaLive }
+  /** CR-015: one media device's live state changed (<= 4/s per device; only for subscribers who see its anchor under media.read).
+   * CR-016: for a speaker, player, receiver or group the `live` is the extended `PlayerLive` (shuffle, repeat, group, queue, caps_known);
+   * the members of a group are republished when its leader's membership moves. */
+  | { type: 'media_state'; device_key: string; entity_id: string; live: MediaLive | PlayerLive }
   /** CR-015: the media model was rebuilt, or a curation / approval / layout changed (no ids): the multimedia screens refetch. */
   | { type: 'media_devices_changed'; reason: string }
   /** CR-016: a saved group or the favourites curation changed (no ids): the groups page and the settings refetch. */

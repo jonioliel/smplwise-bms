@@ -570,7 +570,7 @@ export class MultimediaScreens extends LitElement {
         (m) => {
           if (m.type === 'media_state') {
             const was = this.devices.find((d) => d.key === m.device_key)?.live.power;
-            this.devices = this.devices.map((d) => (d.key === m.device_key ? { ...d, live: m.live } : d));
+            this.devices = this.devices.map((d) => (d.key === m.device_key ? { ...d, live: m.live as MediaDevice['live'] } : d)); // a screen's frame; the players' frames match no screen here
             if (was && was !== m.live.power) this.scheduleRefresh(800); // `caps` follow the live state: read them again after a power change
           } else if (m.type === 'media_devices_changed') this.scheduleRefresh(200);
         },

@@ -11,7 +11,7 @@ import { isApi } from '../api/session';
 import { getAction } from '../api/ha';
 import { artworkUrl } from '../api/media-screens';
 import {
-  JOIN_BATCH_MS, JoinDraft, LIBRARY_TAB_LABEL, UP_NEXT_REFRESH_MS, confirmPreview, errorCode, leaderLabel, libraryTabs, nextRepeat, playerCommandOffered, playerErrorText, players, sendGroupVolume,
+  JOIN_BATCH_MS, JoinDraft, LIBRARY_TAB_LABEL, UP_NEXT_REFRESH_MS, confirmPreview, errorCode, leaderLabel, libraryTabs, nextRepeat, playerCommandOffered, playerErrorText, players, powerControlled, sendGroupVolume,
   sendJoin, sendLeave, sendPlayerCommand, type GroupPreview, type GroupRecord, type LibraryItem, type LibraryKind, type LibraryPage, type PlayerCommand, type PlayerDevice, type PlayerDeviceDetail,
   type UpNext,
 } from '../api/media-players';
@@ -786,6 +786,8 @@ export class MediaPlayerPanel extends LitElement {
     const pend = this.pend.has(zone ? `power:${zone}` : 'power');
     const on = p.action === 'on';
     const tip = vo || p.action === 'none' ? 'כבוי' : !p.enabled ? 'אין הפעלה מרחוק' : 'הפעל';
+    // no power control at all (a Cast-only speaker asleep): a state, never a button
+    if (!zone && !powerControlled(d)) return html`<div class="roff" data-pn-off data-pn-no-power>${ic(d.kind === 'player' ? 'playRect' : 'speaker')}<b>כבוי</b></div>`;
     return html`<div class="roff" data-pn-off>
       <button type="button" class=${classMap({ bigpw: true, pend })} data-pn-power=${on ? 'on' : 'none'} aria-label=${on ? 'הפעל' : 'כבוי'} title=${tip} ?disabled=${vo || !on || !p.enabled || pend}
         @click=${() => void this.exec({ command: 'power_on', ...(zone ? { zone } : {}) })}>${ic('power')}${pend ? html`<span class="pendring"></span>` : nothing}</button>

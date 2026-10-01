@@ -6,6 +6,7 @@ import '../components/sw-button';
 import '../components/sw-dialog';
 import '../components/media-player-card';
 import '../components/media-group-dialog';
+import '../components/media-player-panel';
 import './multimedia-edit-panel';
 import type { MediaGroupDialog } from '../components/media-group-dialog';
 import { ApiError, describeError } from '../api/client';
@@ -569,12 +570,12 @@ export class MultimediaPlayers extends LitElement {
       ${this.header()}
       ${this.editing && this.draft
         ? html`<div class="editing-stack">${this.editBar()}</div>
-          <div class="edit-layout"><multimedia-edit-panel class="edit-side" simple heading="נגנים ורמקולים" .draft=${this.draft} .devices=${asLayoutDevices(this.devices)} scope="all" .floors=${floorsOf(asLayoutDevices(this.devices), this.draft)} @layout-draft=${(e: CustomEvent<MediaLayout>) => this.patchDraft(e.detail)}></multimedia-edit-panel><div class="edit-cards">${this.body()}</div></div>`
+          <div class="edit-layout"><multimedia-edit-panel class="edit-side" simple heading="נגנים ורמקולים" .draft=${this.draft} .devices=${asLayoutDevices(this.devices)} scope="all" .floors=${floorsOf(asLayoutDevices(this.devices), this.draft).map((f) => (f.id === NO_FLOOR ? { ...f, name: UNPLACED_LABEL } : f))} @layout-draft=${(e: CustomEvent<MediaLayout>) => this.patchDraft(e.detail)}></multimedia-edit-panel><div class="edit-cards">${this.body()}</div></div>`
         : this.body()}
     </div>
     <media-group-dialog @group-done=${() => void this.load()}></media-group-dialog>
     ${this.confirmDialog()}
-    ${this.playerKey && customElements.get('media-player-panel') ? html`<media-player-panel .deviceKey=${this.playerKey} .open=${true} @close=${() => this.closePlayer()}></media-player-panel>` : nothing}
+    ${this.playerKey ? html`<media-player-panel .deviceKey=${this.playerKey} .open=${true} @close=${() => this.closePlayer()}></media-player-panel>` : nothing}
     ${this.toast ? html`<div class="toast" role="status">${mIcon('check')}${this.toast}</div>` : nothing}`;
   }
 }

@@ -115,6 +115,16 @@ function build(s: Seed): Row {
 }
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+/** The server stores each tab of the layout (CR-016 `tabs.players` / `tabs.groups`) as a full layout: it fills `floor_order` and every card's size / phone fields. */
+function withFilledTabs(layout: MediaLayout): MediaLayout {
+  const tabs = (layout as MediaLayout & { tabs?: Record<string, Partial<MediaLayout>> }).tabs;
+  if (!tabs) return layout;
+  const filled = Object.fromEntries(Object.entries(tabs).map(([name, t]) => [name, {
+    group_by: t.group_by ?? 'floor', floor_order: [...(t.floor_order ?? [])], pinned: [...(t.pinned ?? [])], order: [...(t.order ?? [])],
+    cards: Object.fromEntries(Object.entries(t.cards ?? {}).map(([k, c]) => [k, { on: c.on ?? true, size: c.size ?? 'm', phone_on: c.phone_on ?? null, phone_size: c.phone_size ?? null }])),
+  }]));
+  return { ...layout, tabs: filled } as MediaLayout;
+}
 const fail = (status: number, code: string, message: string): never => {
   throw new ApiError(status, { code, user_message: message, retryable: false, correlation_id: 'mock', details: {} });
 };
@@ -203,7 +213,7 @@ export class MediaMockStore implements MediaAdapter {
 
   async saveLayout(layout: MediaLayout, baseRevision: number): Promise<LayoutResponse> {
     if (baseRevision !== this.layoutState.revision) fail(409, 'revision_conflict', 'המסך נערך במקום אחר; טענו מחדש.');
-    this.layoutState = { layout: clone(layout), revision: this.layoutState.revision + 1 };
+    this.layoutState = { layout: withFilledTabs(clone(layout)), revision: this.layoutState.revision + 1 };
     return this.layout();
   }
 

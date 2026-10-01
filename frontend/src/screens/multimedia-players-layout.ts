@@ -23,12 +23,15 @@ import type { FloorRef } from './multimedia-layout';
 
 export type PlayerTab = 'players' | 'groups';
 
-/** One tab's layout: how its cards are grouped, their order, the "מועדפים" row and which are hidden (only `on: false` is stored). */
+/** One tab's layout: how its cards are grouped, their order, the "מועדפים" row and which are hidden (only `on: false` is written). The server stores each
+ * tab as a full layout (`MediaLayout` without `version`): it fills `floor_order` and every card's `size` / `phone_on` / `phone_size` on write, and the page reads
+ * back what it needs (`on`); the floors' order of these tabs is the document's own `floor_order`. */
 export interface TabLayout {
   group_by: GroupBy;
   order: string[];
   pinned: string[];
   cards: Record<string, { on: boolean }>;
+  floor_order?: string[];
 }
 /** The layout document as 0.1.150 reads and writes it: the 0.1.149 document plus the `tabs` dimension. */
 export type TabbedLayout = MediaLayout & { tabs?: Partial<Record<PlayerTab, TabLayout>> };
@@ -38,7 +41,7 @@ export const EMPTY_TAB: TabLayout = { group_by: 'floor', order: [], pinned: [], 
 /** A tab of the document, normalised (a missing tab is the default one). Never shares arrays with the document. */
 export function tabOf(layout: Pick<TabbedLayout, 'tabs'> | null | undefined, tab: PlayerTab): TabLayout {
   const t = layout?.tabs?.[tab];
-  return { group_by: t?.group_by ?? 'floor', order: [...(t?.order ?? [])], pinned: [...(t?.pinned ?? [])], cards: { ...(t?.cards ?? {}) } };
+  return { group_by: t?.group_by ?? 'floor', order: [...(t?.order ?? [])], pinned: [...(t?.pinned ?? [])], cards: Object.fromEntries(Object.entries(t?.cards ?? {}).map(([k, c]) => [k, { on: c.on !== false }])) };
 }
 
 /** The tab as the CR-015 editor's `MediaLayout` (cards the tab does not name are shown). `floorOrder` is the order the floors follow. */

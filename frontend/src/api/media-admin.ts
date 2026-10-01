@@ -11,6 +11,7 @@ import { isApi } from './session';
 import { getDevicesTree } from './devices';
 import type { KeyId, MediaKind, ProfileId } from './media-screens';
 import type { MusicProvider, PlayerKind, VolumeNight } from './media-players';
+import { playersMock } from './media-players-mock';
 
 export type Control = 'power' | 'volume' | 'mute' | 'sources' | 'apps' | 'keys' | 'now_playing';
 /** CR-016: `music` (the device's music layer, CR §5.2) and `mirror` (a poorer cloud twin, hidden, never primary) join the CR-015 roles. */
@@ -94,13 +95,26 @@ export interface AdminDevicePatch {
   primary?: Partial<Record<Control, string>>;
 }
 
+/** `link` merges the endpoint into `device_key` (it moves WITH its cluster); `ignore` + `device_key` dismisses that merge suggestion only (the merge wizard's
+ * "התעלם"); a plain `ignore` (no device) hides the endpoint from every device - the CR-015 meaning, unchanged. */
 export type LinkOp = { op: 'link' | 'unlink' | 'ignore' | 'restore'; endpoint_id: string; device_key?: string };
+
+/** The server's answer of `approve`: the counts; with `kinds`, also the players (speakers, players, receivers, groups) approved and still pending. */
+export interface ApproveResult {
+  requested: number;
+  changed: number;
+  approved: number;
+  pending_approval: number;
+  approved_players?: number;
+  pending_players?: number;
+}
 
 export interface AdminAdapter {
   list(): Promise<AdminList>;
   update(key: string, patch: AdminDevicePatch): Promise<AdminDevice>;
   link(op: LinkOp): Promise<AdminList>;
-  approve(keys: string[], approved: boolean): Promise<Record<string, number>>;
+  /** By key, or - with `kinds` and no keys - every detected device of those kinds ("אשר את כל הנגנים שזוהו": `['speaker', 'player', 'receiver', 'group']`). */
+  approve(keys: string[] | null, approved: boolean, kinds?: PlayerKind[]): Promise<ApproveResult>;
 }
 
 const http: AdminAdapter = {
@@ -111,7 +125,7 @@ const http: AdminAdapter = {
     await post('multimedia/admin/links', op);
     return get<AdminList>('multimedia/admin/devices');
   },
-  approve: (device_keys, approved) => post('multimedia/admin/approve', { device_keys, approved }),
+  approve: (device_keys, approved, kinds) => post('multimedia/admin/approve', { ...(device_keys ? { device_keys } : {}), approved, ...(kinds?.length ? { kinds } : {}) }),
 };
 
 // ------------------------------------------------------------------------------------------------ the demo
@@ -132,7 +146,7 @@ function demoDevices(): AdminDevice[] {
       ep('ha:media_player.demo_living_cast', 'cast', 'cast', '3', true, ['now_playing']),
       ep('ha:media_player.demo_living_st', 'smartthings', 'smartthings', '3', true),
       ep('ha:media_player.demo_living_ma', 'music_assistant', 'ma_export', '2', true),
-    ], { confidence: 'strong', audio_link_key: 'md-living-amp', audio_default: 'linked', also_turns_on: ['מגבר סלון'], volume_max: 60 }),
+    ], { confidence: 'strong', audio_link_key: 'mp-ampl', audio_default: 'linked', also_turns_on: ['מגבר סלון'], volume_max: 60 }),
     dev('md-kitchen', 'טלוויזיה מטבח', 'קומת קרקע', 'מטבח', 'lg_webos', true, [ep('ha:media_player.demo_kitchen', 'webostv', 'vendor', '1', false, ['power', 'volume', 'mute', 'sources', 'apps', 'keys', 'now_playing'])]),
     dev('md-pergola', 'מסך פרגולה', 'קומת קרקע', 'פרגולה', 'samsung_smart', true, [ep('ha:media_player.demo_pergola', 'samsungtv_smart', 'vendor', '1', false, ['power', 'sources', 'apps', 'keys'])], { public: true }),
     dev('md-parents', 'טלוויזיה הורים', 'קומה 1', 'חדר הורים', 'android_tv', true, [
@@ -141,17 +155,16 @@ function demoDevices(): AdminDevice[] {
     ]),
     dev('md-kids', 'מסך ילדים', 'קומה 1', 'חדר ילדים', 'generic', true, [ep('ha:media_player.demo_kids', 'dlna_dmr', 'dlna', '1', false, ['power', 'volume', 'mute', 'sources', 'now_playing'])]),
     dev('md-new', 'מסך חדש שזוהה', 'קומה 1', 'חדר עבודה', 'generic', false, [ep('ha:media_player.demo_new', 'samsungtv', 'vendor', '1', false, ['power'])], { confidence: 'weak' }),
-    dev('md-speaker', 'רמקול מטבח', 'קומת קרקע', 'מטבח', 'generic', false, [ep('ha:media_player.demo_speaker', 'cast', 'cast', '1', false, ['volume', 'now_playing'])], { kind: 'speaker' }),
-    dev('md-living-amp', 'מגבר סלון', 'קומת קרקע', 'סלון', 'generic', false, [ep('ha:media_player.demo_amp', 'denonavr', 'other', '1', false, ['volume', 'mute'])], { kind: 'receiver' }),
   ];
 }
 
 class DemoAdmin implements AdminAdapter {
   devices = demoDevices();
-  suggestions: AdminSuggestion[] = [{ endpoint_id: 'ha:media_player.demo_speaker', device_key: 'md-kitchen', rule: 'weak', reason: 'אותו חדר ושם דומה' }];
+  suggestions: AdminSuggestion[] = [{ endpoint_id: 'ha:media_player.demo_new', device_key: 'md-kitchen', rule: 'weak', reason: 'אותו חדר ושם דומה' }];
 
+  /** The screens of this demo, then every player of the players mock (CR-016: speakers, players, receivers, groups, approved or not). */
   private snapshot(): AdminList {
-    return clone({ devices: this.devices, suggestions: this.suggestions });
+    return clone({ devices: [...this.devices, ...playersMock().adminList()], suggestions: this.suggestions });
   }
 
   async list() {
@@ -159,6 +172,15 @@ class DemoAdmin implements AdminAdapter {
   }
 
   async update(key: string, patch: AdminDevicePatch) {
+    if (key.startsWith('mp-')) {
+      const area = patch.area_id ? DEMO_AREAS.find((a) => a.id === patch.area_id) : patch.area_id === null ? null : undefined;
+      playersMock().adminPatch(key, {
+        ...(area !== undefined ? { area: area ? { id: area.id, name: area.name, floor: area.floor_name ? [DEMO_FLOOR_IDS[area.floor_name] ?? area.floor_name, area.floor_name] : null } : null } : {}),
+        ...(patch.volume_max !== undefined ? { volume_max: patch.volume_max } : {}), ...(patch.volume_night !== undefined ? { volume_night: patch.volume_night } : {}),
+        ...(patch.approved !== undefined ? { approved: patch.approved } : {}), ...(patch.display_name ? { name: patch.display_name.trim() } : {}),
+      });
+      return clone(playersMock().adminList().find((x) => x.key === key)!);
+    }
     const d = this.devices.find((x) => x.key === key);
     if (!d) throw new Error('not found');
     if (patch.display_name !== undefined) d.name = patch.display_name?.trim() || d.name;
@@ -187,12 +209,20 @@ class DemoAdmin implements AdminAdapter {
       if (op.op === 'unlink') e.link_source = 'manual';
     }
     if (op.op === 'link') this.suggestions = this.suggestions.filter((s) => s.endpoint_id !== op.endpoint_id);
+    if (op.op === 'link' || op.op === 'ignore') playersMock().answerSuggestion(op.op, op.endpoint_id, op.device_key); // the merge wizard's row leaves its list
     return this.snapshot();
   }
 
-  async approve(keys: string[], approved: boolean) {
-    for (const d of this.devices) if (keys.includes(d.key)) d.approved = approved;
-    return { updated: keys.length };
+  async approve(keys: string[] | null, approved: boolean, kinds?: PlayerKind[]): Promise<ApproveResult> {
+    const own = keys?.filter((k) => !k.startsWith('mp-')) ?? [];
+    for (const d of this.devices) if (keys ? own.includes(d.key) : !kinds?.length && d.kind === 'screen') d.approved = approved;
+    const players = keys === null && !kinds?.length ? null : playersMock().approve(keys ? keys.filter((k) => k.startsWith('mp-')) : null, approved, kinds);
+    const screens = this.devices.filter((d) => d.kind === 'screen');
+    return {
+      requested: keys ? keys.length : (players?.requested ?? screens.length), changed: players?.changed ?? own.length,
+      approved: screens.filter((d) => d.approved).length, pending_approval: screens.filter((d) => !d.approved).length,
+      ...(kinds?.length ? { approved_players: players?.approved_players, pending_players: players?.pending_players } : {}),
+    };
   }
 }
 
@@ -202,6 +232,7 @@ export const DEMO_AREAS: { id: string; name: string; floor_name: string | null }
   { id: 'guest', name: 'חדר אורחים', floor_name: 'קומת קרקע' }, { id: 'parents', name: 'חדר הורים', floor_name: 'קומה 1' }, { id: 'kids', name: 'חדר ילדים', floor_name: 'קומה 1' },
   { id: 'office', name: 'חדר עבודה', floor_name: 'קומה 1' }, { id: 'basement', name: 'מרתף', floor_name: 'מרתף' },
 ];
+const DEMO_FLOOR_IDS: Record<string, string> = { 'קומת קרקע': 'g', 'קומה 1': 'u1', 'מרתף': 'b' };
 export async function adminAreas(): Promise<{ id: string; name: string; floor_name: string | null }[]> {
   if (!isApi()) return DEMO_AREAS;
   try {

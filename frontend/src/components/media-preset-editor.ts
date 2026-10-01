@@ -163,7 +163,8 @@ export class MediaPresetEditor extends LitElement {
       return;
     }
     this.busy = true;
-    const body = { name: d.name.trim(), leader_key: d.leader_key, member_keys: d.member_keys, volumes: presetVolumes(d) };
+    // the server's shape: `member_keys` are the OTHER rooms - the leader is `leader_key`, never in the list (the draft keeps it in for the ticks)
+    const body = { name: d.name.trim(), leader_key: d.leader_key, member_keys: d.member_keys.filter((k) => k !== d.leader_key), volumes: presetVolumes(d) };
     try {
       const saved = d.id ? await players().savePreset(d.id, body, d.revision) : await players().createPreset(body);
       this.open = false;

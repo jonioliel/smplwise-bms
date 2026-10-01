@@ -195,7 +195,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
     await ed.locator('[data-pe-row="mp-hal"] input[type="checkbox"]').check();
     await ed.locator('[data-pe-save]').click();
     await expect.poll(() => callsTo(st, /groups\/presets$/).filter((x) => x.method === 'POST').map((x) => x.body)).toContainEqual(
-      expect.objectContaining({ name: 'ערב חג', leader_key: 'mp-liv', member_keys: ['mp-liv', 'mp-hal'], volumes: null }));
+      expect.objectContaining({ name: 'ערב חג', leader_key: 'mp-liv', member_keys: ['mp-hal'], volumes: null }));
     await expect(c.locator('[data-mm-preset]')).toHaveCount(5);
     await c.locator('[data-mm-preset]', { hasText: 'ערב חג' }).locator('[data-mm-preset-edit]').click();
     await ed.locator('[data-pe-name]').fill('ערב חג שמח');

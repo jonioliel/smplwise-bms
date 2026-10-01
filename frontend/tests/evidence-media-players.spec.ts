@@ -553,7 +553,7 @@ test.describe('groups page (mocked backend)', () => {
     await shot(page, 'groups-editor', '390');
     await ed.locator('[data-pe-save]').click();
     await expect.poll(() => callsTo(st, /groups\/presets$/).filter((c) => c.method === 'POST').map((c) => c.body)).toContainEqual(
-      expect.objectContaining({ name: 'בוקר', leader_key: 'mp-kit', member_keys: ['mp-kit', 'mp-per'], volumes: { 'mp-per': 30 } }));
+      expect.objectContaining({ name: 'בוקר', leader_key: 'mp-kit', member_keys: ['mp-per'], volumes: { 'mp-per': 30 } }));
     await expect(groupsPage(page).locator('[data-preset]')).toHaveCount(5);
     // edit: rename
     await preset(page, 'בוקר').locator('[data-preset-edit]').click();

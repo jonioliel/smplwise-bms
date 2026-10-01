@@ -156,11 +156,37 @@ group by area), `bridge.players_ready` (paired bridge ≥ 0.5.0) and `library: {
 | zone commands | the zone's own `denonavr` entity (`turn_on/off`, `volume_set`, `select_source`, `select_sound_mode`) | entity belongs to the device's `zones` |
 | group volume, preset volumes | `media_player.volume_set` per member (clamped only where a ceiling is set) | unchanged |
 | up-next / library | `smplwise_bridge.media_query {query: queue\|library, ...}` → `get_queue` / `get_library` (`return_response`; `config_entry_id` resolved **inside the bridge**, never a parameter) | read-only, fixed arguments, trimmed response |
-| place a device | `smplwise_bridge.entity_area {entity_id, area_id}` (config/entity_registry/update) | admin-only route; area must exist |
+| place a device | the existing `smplwise_bridge.set_entity_area {entity_id, area_id}` (CR-007; no separate `entity_area` service exists) | admin-only route (`PUT admin/devices/{key}` `area_id`); the area must exist; two-phase audit `media.place` |
 
 `music_assistant.play_announcement` is not allow-listed and `media_player.play_media` with `announce` is refused (6א).
 Never allow-listed: `heos.sign_in` / `sign_out`, `sonos.update_alarm`, `group.set` / `remove` / `reload`,
 `denonavr.get_command` / `set_dynamic_eq` / `update_audyssey`, `jellyfin.*`, `cast.show_lovelace_view`.
+
+### 3.z Reconciliation of the contract with the implementation (integration 0.1.150)
+
+Where S1 built something the first text of this document did not say (the S0 client and its mock follow the server, not the other way round):
+
+| Subject | As built |
+|---|---|
+| `live.group.member_keys` | the group's OTHER devices: the leader is `leader_key` and is never listed; the same list on every device of the group, filtered by the caller's scope; a static group (kind `group`) lists its children. A client may still read a list that holds the leader (`liveGroupKeys` handles both). `MediaGroup.members` (the groups list) DOES include the leader. |
+| List envelopes | `{devices}`, `{groups}`, `{presets}`, `{suggestions}` (a bare array is never sent) |
+| Saved groups | `member_keys` are the OTHER rooms (at most 15; the leader in the list is 422 `validation`); `volumes` may name the leader and the members |
+| Merge wizard | `GET admin/suggestions` -> `{suggestions}`. "אחד" is `POST admin/links {op: "link", endpoint_id, device_key}` (the endpoint moves WITH its cluster); "התעלם" is `{op: "ignore", endpoint_id, device_key}` (the row's device: dismisses that suggestion only). A plain `ignore` without `device_key` keeps its CR-015 meaning (the endpoint leaves every device). The answer is `{devices}` (the admin list) |
+| Approval | `POST admin/approve {device_keys?, approved?, kinds?}`: `kinds` (speaker, player, receiver, group) without `device_keys` approves every detected device of those kinds ("אשר את כל הנגנים שזוהו"); the answer adds `approved_players` / `pending_players` |
+| Placing a device | `PUT admin/devices/{key} {area_id}` goes through the existing `smplwise_bridge.set_entity_area` (no separate service) |
+| Endpoint rungs in the admin list | `device` (same HA device), `ma`, `2b`, `2c`, `3b`, `identifier`, `mac`, `manual`; the music-layer twin of a speaker has role `music` and is hidden; a cloud twin has role `mirror` and is hidden |
+| `GroupPreview` | `{devices: <count>, floors: <count>, needs_confirmation, needs_bulk, members: [{key, name, will, reason}]}` (409 `confirm_required` carries it at the top level of the body and in `details.preview`) |
+| Floor "עצור מוזיקה" | `GET actions/preview?kind=players_pause&scope&id` -> `{scope, id, label, counts: {send, not_playing, unavailable, not_allowed}, devices: [{key, name, will: pause\|skip, reason}]}`; the run is `POST actions {kind: "players_pause", confirmed: true, ...}` |
+| A group record | `GET devices/actions/{bulk_id}` -> `{id, status: queued\|waiting\|done, done, items: [{device_key, name, area_name, will, outcome, level?, volume_outcome?}]}`. It is final only when `done` is true. A `will: skip` row (a room that was not playing, was muted, off or unavailable) is not a failure of a pause |
+| `play_item` | `enqueue` is passed through (`play` \| `next` \| `add`) with Music Assistant; a Sonos favourite is started with `select_source` only (`next` / `add` are 422 `not_supported`) |
+| Library | `GET devices/{key}/library?kind=&offset=&all=1`: `all=1` (a holder of media.layout) adds the hidden items with `hidden: true`. The status `library.state` becomes `unavailable` after the bridge answered `no_library` for a Music Assistant player (the library read itself may still be served from its 5-minute cache) |
+| Curation names | `GET favourites` carries `name`, `artist` and `kind` of every curated item (hidden ones too) to a holder of media.layout, where the server knows them |
+| Layout `tabs` | `tabs.players` / `tabs.groups`: `{group_by, floor_order, pinned, order, cards: {key: {on, size, phone_on, phone_size}}}` - the server fills `floor_order` and each card's size / phone fields on write; the client sends and reads what it needs (`on`) |
+| Zone commands | gated by THAT zone's power (`Main` on does not make `Zone2` "already on") |
+| Power | a Cast entity is never a power control: a Cast-only speaker is `on` while it is reachable and `off` (asleep) when it is not, with neither `caps.power_on` nor `caps.power_off` (`power_on` -> 422 `already_on` / `not_supported`); the UI draws no power button for such a device |
+| Up next of a member | resolves to its leader on the server; a client may pass either key |
+| `media_state` frames | carry the extended player shape (`PlayerLive`) for every non-screen kind; the members of a group are republished when its leader's membership changes |
+| Helper groups (`virtual_group`) | have no device card and no command route (404); the groups tab lists them as shortcuts, and their play / pause is a fan-out of ordinary transport commands to the leaders of their rooms; their volume is `POST groups/{key}/volume` |
 
 ## 4. Events
 

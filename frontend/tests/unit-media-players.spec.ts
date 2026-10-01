@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import {
   GROUP_VOLUME_RATE_PER_S, JOIN_BATCH_MS, JoinDraft, PLAYER_ERROR_LABEL, applyCuration, clampVolume, confirmPreview, effectiveCeiling, groupCandidates, groupChip, groupLevel,
   groupSectionOffered, groupVolumePlan, httpPlayers, inNightWindow, interpolatePosition, isPlaying, joinDiff, leaderLabel, libraryTabs, liveGroupKeys, matchesState,
-  memberOutcomeLine, needsConfirmation, nextRepeat, playerCommandOffered, playerErrorText, playerSections, playerStateText, players, resolveLeader, roomChips, unplacedBucket,
+  memberOutcomeLine, needsConfirmation, nextRepeat, playerCommandOffered, playerErrorText, playerSections, playerStateText, players, powerControlled, resolveLeader, roomChips, unplacedBucket,
   upNextMore, upNextText, type PlanMember, type PlayerDevice, type UpNext,
 } from '../src/api/media-players';
 import { playersMock, resetPlayersMock, type PlayersMockStore } from '../src/api/media-players-mock';
@@ -506,13 +506,13 @@ test.describe('media-players client: saved groups, favourites, floor pause, merg
     const list = await m.presets();
     expect(list.map((p) => p.name)).toEqual(['סלון + מטבח', 'קומת קרקע', 'ערב שקט', 'מסיבה']);
     expect(list.every((p) => /^[a-f0-9]{32}$/.test(p.id) && p.revision === 1 && p.running === null && p.missing.length === 0)).toBe(true);
-    const created = await m.createPreset({ name: 'ערב', leader_key: key('liv'), member_keys: [key('liv'), key('kit')], volumes: { [key('kit')]: 20 } });
+    const created = await m.createPreset({ name: 'ערב', leader_key: key('liv'), member_keys: [key('kit')], volumes: { [key('kit')]: 20 } });
     expect(created.revision).toBe(1);
-    expect(await code(m.createPreset({ name: '', leader_key: key('liv'), member_keys: [key('liv')], volumes: null }))).toBe('validation');
+    expect(await code(m.createPreset({ name: '', leader_key: key('liv'), member_keys: [key('kit')], volumes: null }))).toBe('validation');
     expect(await code(m.createPreset({ name: 'x', leader_key: key('liv'), member_keys: [key('nope')], volumes: null }))).toBe('not_found');
-    const saved = await m.savePreset(created.id, { name: 'ערב ב', leader_key: key('liv'), member_keys: [key('liv'), key('kit'), key('per')], volumes: null }, 1);
+    const saved = await m.savePreset(created.id, { name: 'ערב ב', leader_key: key('liv'), member_keys: [key('kit'), key('per')], volumes: null }, 1);
     expect(saved).toMatchObject({ revision: 2, name: 'ערב ב' });
-    expect(await code(m.savePreset(created.id, { name: 'z', leader_key: key('liv'), member_keys: [key('liv')], volumes: null }, 1))).toBe('revision_conflict');
+    expect(await code(m.savePreset(created.id, { name: 'z', leader_key: key('liv'), member_keys: [key('kit')], volumes: null }, 1))).toBe('revision_conflict');
     expect(await code(m.deletePreset(created.id, 1))).toBe('revision_conflict');
     await m.deletePreset(created.id, 2);
     expect((await m.presets()).map((p) => p.id)).not.toContain(created.id);
@@ -549,7 +549,7 @@ test.describe('media-players client: saved groups, favourites, floor pause, merg
     const rec = await m.groupRecord(run.bulk_id);
     expect(rec.members.map((x) => [x.device_key.slice(3), x.outcome])).toEqual([['liv', 'joined'], ['kit', 'joined'], ['per', 'not_joined']]);
     expect((await dev(m, 'per')).live.group.role).toBe('none');
-    const created = await m.createPreset({ name: 'עם כושר', leader_key: key('liv'), member_keys: [key('liv'), key('gym')], volumes: null });
+    const created = await m.createPreset({ name: 'עם כושר', leader_key: key('liv'), member_keys: [key('gym')], volumes: null });
     const r2 = await m.applyPreset(created.id, { confirmed: true, ...req(2) });
     expect((await m.groupRecord(r2.bulk_id)).members.map((x) => [x.device_key.slice(3), x.outcome])).toEqual([['kit', 'left'], ['liv', 'joined'], ['gym', 'not_joined']]);
   });
@@ -728,7 +728,7 @@ test.describe('media-players client: selection, HTTP adapter and error mapping',
       expect(await httpPlayers.groups()).toHaveLength(2);
       reply = () => new Response(JSON.stringify({ presets: [] }), { status: 200 });
       expect(await httpPlayers.presets()).toEqual([]);
-      reply = () => new Response(JSON.stringify({ items: [{ device_key: 'k', area_name: null, outcome: 'joined' }] }), { status: 200 });
+      reply = () => new Response(JSON.stringify({ id: 'b1', status: 'done', done: true, items: [{ device_key: 'k', area_name: null, outcome: 'joined' }] }), { status: 200 });
       expect(await httpPlayers.groupRecord('b1')).toMatchObject({ bulk_id: 'b1', status: 'done', members: [{ outcome: 'joined' }] });
       // the 409 with the preview, and a plain refusal
       const preview = { devices: 5, floors: 1, needs_confirmation: true, needs_bulk: false, members: [] };
@@ -756,6 +756,130 @@ test.describe('media-players client: selection, HTTP adapter and error mapping',
       const m = resetPlayersMock(house);
       const text = JSON.stringify([...(await m.list()).devices, ...(await m.nonPhysical()).devices, await m.groups(), await m.suggestions().then((s) => s.map((x) => ({ ...x, endpoint_id: '' })))]);
       expect(text).not.toMatch(/media_player\.|\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b|([0-9a-f]{2}:){5}[0-9a-f]{2}|http:\/\/|https:\/\//i);
+    }
+  });
+});
+
+test.describe('CR-016 integration: the mock follows the server it was reconciled with', () => {
+  test('live.group.member_keys are the OTHER devices: the leader is leader_key, never listed; the same list on every device; a static group lists its children', async () => {
+    const m = resetPlayersMock('ma');
+    const liv = await dev(m, 'liv');
+    const kit = await dev(m, 'kit');
+    expect(liv.live.group).toMatchObject({ role: 'leader', leader_key: key('liv'), member_keys: [key('kit')] });
+    expect(kit.live.group).toMatchObject({ role: 'member', leader_key: key('liv'), member_keys: [key('kit')] });
+    expect((await dev(m, 'stu')).live.group.member_keys).toEqual([key('hal'), key('ter'), key('pat')]);
+    expect((await dev(m, 'sgrp')).live.group.member_keys).toEqual([key('balc'), key('off')]);
+    expect(liveGroupKeys(liv.live.group)).toEqual([key('liv'), key('kit')]);
+    expect(liveGroupKeys(kit.live.group)).toEqual([key('liv'), key('kit')]);
+    expect((await dev(m, 'per')).live.group.member_keys).toEqual([]);
+  });
+
+  test('saved groups: member_keys never hold the leader (the server answers 422 validation), at most 15 rooms; volumes may name the leader', async () => {
+    const m = resetPlayersMock('ma');
+    expect((await m.presets())[0]).toMatchObject({ leader_key: key('liv'), member_keys: [key('kit')] });
+    expect(await code(m.createPreset({ name: 'x', leader_key: key('liv'), member_keys: [key('liv'), key('kit')], volumes: null }))).toBe('validation');
+    const p = await m.createPreset({ name: 'עוצמות', leader_key: key('liv'), member_keys: [key('kit')], volumes: { [key('liv')]: 30, [key('kit')]: 20 } });
+    expect(p.volumes).toEqual({ [key('liv')]: 30, [key('kit')]: 20 });
+    expect(await code(m.createPreset({ name: 'x', leader_key: key('liv'), member_keys: [key('kit')], volumes: { [key('per')]: 20 } }))).toBe('validation');
+  });
+
+  test('merge suggestions: a linked or dismissed row leaves the wizard list; a plain ignore drops the endpoint rows', async () => {
+    const m = resetPlayersMock('ma');
+    const first = await m.suggestions();
+    expect(first).toHaveLength(3);
+    m.answerSuggestion('ignore', first[0].endpoint_id, first[0].device_key);
+    expect((await m.suggestions()).map((s) => s.id)).toEqual([first[1].id, first[2].id]);
+    m.answerSuggestion('link', first[1].endpoint_id, first[1].device_key);
+    m.answerSuggestion('ignore', first[2].endpoint_id);
+    expect(await m.suggestions()).toEqual([]);
+  });
+
+  test('the editor reads hidden library items (all) and the curation names them; everyone else only the visible ones', async () => {
+    const m = resetPlayersMock('ma');
+    const items = await refs(m, 'liv', 'favourites');
+    const hide = items[1];
+    const cur = await m.favourites();
+    await m.saveFavourites({ kinds_on: cur.kinds_on, items: [{ item_ref: items[0].item_ref, hidden: false, order: 0 }, { item_ref: hide.item_ref, hidden: true, order: 1 }] }, cur.revision);
+    expect((await m.library(key('liv'), 'favourites')).items.map((i) => i.item_ref)).not.toContain(hide.item_ref);
+    const all = await m.library(key('liv'), 'favourites', 0, true);
+    expect(all.items.find((i) => i.item_ref === hide.item_ref)).toMatchObject({ hidden: true, name: hide.name });
+    expect(all.items.find((i) => i.item_ref === items[0].item_ref)).toMatchObject({ hidden: false });
+    expect((await m.favourites()).items).toEqual(expect.arrayContaining([expect.objectContaining({ item_ref: hide.item_ref, hidden: true, name: hide.name, artist: hide.artist })]));
+  });
+
+  test('play_item: Music Assistant queues next / add; a Sonos favourite is started only (not_supported otherwise)', async () => {
+    const ma = resetPlayersMock('ma');
+    const fav = (await refs(ma, 'liv', 'favourites'))[0];
+    expect(await code(ma.command(key('liv'), { command: 'play_item', item_ref: fav.item_ref, enqueue: 'next', ...req(1) }))).toBeNull();
+    expect(await code(ma.command(key('liv'), { command: 'play_item', item_ref: fav.item_ref, enqueue: 'add', ...req(2) }))).toBeNull();
+    const so = resetPlayersMock('sonos');
+    const sfav = (await refs(so, 'liv', 'favourites'))[0];
+    expect(await code(so.command(key('liv'), { command: 'play_item', item_ref: sfav.item_ref, enqueue: 'next', ...req(3) }))).toBe('not_supported');
+    expect(await code(so.command(key('liv'), { command: 'play_item', item_ref: sfav.item_ref, enqueue: 'add', ...req(4) }))).toBe('not_supported');
+    expect(await code(so.command(key('liv'), { command: 'play_item', item_ref: sfav.item_ref, ...req(5) }))).toBeNull();
+  });
+
+  test('floor pause records one row per device of the scope, like the server: pause -> set, a skipped room says will skip', async () => {
+    const m = resetPlayersMock('ma');
+    const prev = await m.pausePreview('floor', 'g');
+    const run = await m.pauseRun('floor', 'g', 'pause-1-abcdefgh', new Date(Date.now() + 15000).toISOString());
+    const rec = await m.groupRecord(run.bulk_id);
+    expect(rec.status).toBe('done');
+    expect(rec.members.map((x) => x.device_key).sort()).toEqual(prev.devices.map((d) => d.key).sort());
+    for (const r of rec.members) {
+      const row = prev.devices.find((d) => d.key === r.device_key)!;
+      expect([r.will, r.outcome]).toEqual(row.will === 'pause' ? ['pause', 'set'] : ['skip', row.reason === 'unavailable' ? 'skipped_unavailable' : 'not_allowed']);
+      expect(r.name).toBe(row.name);
+    }
+    expect(rec.members.filter((x) => x.will === 'pause').length).toBe(prev.counts.send);
+    expect((await dev(m, 'liv')).live.play).toBe('paused');
+  });
+
+  test('approval: by key or by kind; an unapproved device leaves every list, the settings still list it', async () => {
+    const m = resetPlayersMock('ma');
+    expect(m.adminList()).toHaveLength(17);
+    expect(m.adminList().every((d) => d.approved)).toBe(true);
+    const r = m.approve([key('balc')], false);
+    expect(r).toMatchObject({ requested: 1, changed: 1, approved_players: 16, pending_players: 1 });
+    expect((await m.list()).devices.map((d) => d.key)).not.toContain(key('balc'));
+    expect((await m.groups()).find((g) => g.leader_key === key('sgrp'))!.members.map((x) => x.key)).toEqual([key('off')]);
+    expect(m.adminList().find((d) => d.key === key('balc'))).toMatchObject({ approved: false });
+    expect(m.approve(null, true, ['speaker', 'player', 'receiver', 'group'])).toMatchObject({ changed: 1, pending_players: 0 });
+    expect((await m.list()).devices).toHaveLength(17);
+  });
+
+  test('the settings list shows the connections: the music layer twin is hidden with role music, rung names are the model names', async () => {
+    const m = resetPlayersMock('ma');
+    const liv = m.adminList().find((d) => d.key === key('liv'))!;
+    const twin = liv.endpoints.find((e) => e.platform === 'music_assistant')!;
+    expect([twin.role, twin.hidden, twin.rule]).toEqual(['music', true, '2c']);
+    expect(liv.endpoints.find((e) => e.role === 'vendor')!.rule).toBe('device');
+    expect(m.adminList().find((d) => d.key === key('ampl'))!.zones).toEqual([{ id: 'main', name: 'ראשי' }, { id: 'z2', name: 'אזור 2' }]);
+  });
+
+  test('powerControlled: a device without power caps (a Cast-only speaker) draws no power button; a receiver with zones does', async () => {
+    const m = resetPlayersMock('ma');
+    expect(powerControlled(await dev(m, 'off'))).toBe(true);
+    expect(powerControlled(await dev(m, 'ampl'))).toBe(true);
+    const par = await dev(m, 'par');
+    expect(par.caps.power_on || par.caps.power_off).toBe(false);
+    expect(powerControlled(par)).toBe(false);
+  });
+
+  test('the HTTP adapter reads a bulk record as the server writes it: `done` ends it, `waiting` is still running; the members are `items`', async () => {
+    const g = globalThis as unknown as { fetch: unknown; document?: unknown };
+    const saved = { fetch: g.fetch, document: g.document };
+    g.document = { baseURI: 'http://127.0.0.1:4461/' };
+    let body: unknown = null;
+    g.fetch = async () => new Response(JSON.stringify(body), { status: 200 });
+    try {
+      body = { id: 'b1', status: 'waiting', done: false, items: [{ device_key: 'mp-kit', area_name: 'מטבח', will: 'join', outcome: 'unknown' }] };
+      expect(await httpPlayers.groupRecord('b1')).toMatchObject({ bulk_id: 'b1', status: 'running', members: [{ device_key: 'mp-kit', outcome: 'unknown' }] });
+      body = { id: 'b1', status: 'done', done: true, items: [{ device_key: 'mp-kit', area_name: 'מטבח', will: 'join', outcome: 'joined' }] };
+      expect(await httpPlayers.groupRecord('b1')).toMatchObject({ status: 'done', members: [{ outcome: 'joined', will: 'join' }] });
+    } finally {
+      g.fetch = saved.fetch;
+      g.document = saved.document;
     }
   });
 });
