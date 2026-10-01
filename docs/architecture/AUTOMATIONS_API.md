@@ -198,7 +198,7 @@ present. Runs of items the caller cannot see are never returned.
 | 14 | POST | `/automations/script/{id}/run` · `/stop` | `{fields, confirm, client_request_id}` → 202 | script.run + effects control |
 | 15 | POST | `/automations/scene/{id}/apply` | `{confirm, client_request_id}` → 202 | control of members / scene entity |
 | 16 | POST | `/automations/scene/capture` | `{entity_ids}` → `{members: SceneMember[]}` (no write) | scene.manage + control |
-| 17 | POST | `/automations/{kind}/{id}/dry-run` | → `{conditions: [{sentence, passed\|null}], effects}` (no execution) | the kind's permission (an automation: `automation.manage`) |
+| 17 | POST | `/automations/{kind}/{id}/dry-run` | → `{conditions: [{sentence, passed\|null}], effects}` (no execution); optional body `{draft}` = an unsaved edit | the kind's permission (an automation: `automation.manage`); with `{draft}` the kind's manage permission |
 | 18 | GET | `/automations/{kind}/{id}/runs` · `/runs/{run_id}` | `RunSummary[]` · one `RunTrace` (full) | the kind's permission + visible |
 | 19 | GET / POST | `/automations/{kind}/{id}/versions` · `/versions/{vid}/restore` | history (last `versions_keep`) · restore = upsert | the kind's permission · edit |
 | 20 | GET / POST | `/automations/trash` · `/trash/{tid}/restore` · `/trash/{tid}/purge` | trash (`trash_days`) | any authoring permission (items of a kind the caller may not see are left out) · create rules · installation-wide manage |
@@ -345,7 +345,7 @@ Goal: CR §4.6, §6.1, §6.3, §7, §8.1, §9.4-§9.7, §10-§12 and this contra
 Owns: routers/automations.py; services/automations.py (mirror, status, list/detail, catalog, capture, runs from traces,
   storm guard, review), services/automation_ops.py (create/replace/code/delete/copy/enable/run/apply, trash, versions,
   idempotency, audit), services/automation_scope.py (visibility, change/run rights, per-caller locking);
-  migrations/0045_automations.sql (+0046 only if grants need data); tests/test_automations_api.py, _scope.py, _mirror.py,
+  migrations/0045_automations.sql (shipped as 0048_automations.sql: CR-018 took 0045-0047 in 0.1.151); tests/test_automations_api.py, _scope.py, _mirror.py,
   _trash_versions.py, _runs.py; frontend/tests/fixtures/automations_fake_ha.py (last milestone).
 Touches (sole editor): main.py, roles.json, routers/access.py, role-catalog.design.json, routers/settings.py (4 keys),
   services/ha_sync.py (ATTR_ALLOW, subscriptions), services/ha_client.py (call_bridge_config_item, config GET),

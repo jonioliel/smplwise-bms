@@ -260,7 +260,7 @@ description, triggers, conditions, actions, mode, max …); locked → `raw` unc
 tested on every seed shape: `write(read(c)) == c` (canonical JSON) for any unedited item written in the new schema; a legacy
 item is rewritten in the new schema only when someone saves it (the HA editor does the same).
 
-### 6.3 Arx tables (migration `0045_automations.sql`; renumbered at merge; 0044 is CR-016's)
+### 6.3 Arx tables (migration `0048_automations.sql`: written as 0045, renumbered 2026-10-02 because CR-018 shipped 0045-0047 in 0.1.151; 0044 is CR-016's)
 
 `ha_config_items` (cache, §6.1) · `automation_meta` (kind, config_id, created_via `arx|external`, created_by/updated_by (+username),
 first/last_seen, gone_at, pinned, hidden (integration scenes), favourite) · `automation_versions` (kind, config_id, revision,
@@ -268,8 +268,7 @@ config_json, seen_at, via `arx|external`, actor; last N per item, N = setting `a
 `automation_trash` (snapshot + meta + entities + sensitive, deleted_by, expiry = setting `automations.trash_days`, default 30,
 restored_at) · `automation_ops` (idempotency per user and `client_request_id`, like `schedule_ops`) ·
 `automation_runs` (kind, config_id, at, source `event|trace`, 30-day prune; feeds counts and the storm guard). No config is
-stored outside HA except these snapshots. `0046_automation_role_grants.sql` only if default grants need a data migration
-(CR-015 precedent `0042`).
+stored outside HA except these snapshots. No role-grant data migration was needed (the presets in `roles.json` carry the defaults).
 
 ## 7. Permissions and scope
 
@@ -474,3 +473,15 @@ reconnect. Clients get `HaPush` `automations_changed {kinds, ids}`.
 | 9 | "למה זה רץ" | **ג** the full trace as HA shows it (steps, conditions, variables, timing) for everyone who may view the automation, with the short Hebrew sentence on top | §4.2.6 |
 | 10 | The 42 existing automations | **א** all appear immediately and are editable; unknown parts locked and round-tripped unchanged | §4.2.3, §6.2 |
 | + | Owner rule | every option in one dedicated settings tab "אוטומציות" | §4.7 |
+
+## 17. Integration notes (2026-10-02, `pilot/CR017-finish`)
+
+- **Editors over the list.** `#/devices/automations[/scripts|/scenes]/<id>/edit` and `.../new/edit?kind=&template=` are routes of
+  `<devices-automations>`, which opens S4's sheet (`<automation-builder>`, `<script-editor>`, `<scene-editor>`) over the mounted list;
+  saving closes into the item's drawer, cancelling returns to it (or to the list for a new item). New scenes keep S3's capture sheet.
+- **Decision 1b in the client.** `status.can.scene_run`; `visibleKinds` shows automations only with `automation.manage`; the tab opens for
+  `automation.manage`, a script run or a scene activation; a deep link to an automation without the right shows a forbidden state.
+- **Security review.** Preview and the dry-run of an unsaved draft need the kind's manage permission for every kind (§3.1 rows 6 and 17).
+- **Authoring block (§4.6).** Lifted by an `automation_reloaded` event or a new session (Home Assistant restarted, which is when an added
+  include line takes effect) a minute or more after it was set; the failed write's own reload never lifts it.
+- **Migration** `0048_automations.sql` (§6.3).
