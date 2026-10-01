@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="he" dir="rtl" data-skin="bubble">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bubble taste - Home</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="bubble-skin.css">
+<link rel="stylesheet" href="mockup.css">
+</head>
+<body>
+<script src="shared.js"></script>
+<script>
+'use strict';
+/* Board 1 - Home: status card, quick controls, areas (cards | list), the area pop-up and a centred confirmation. */
+function allLit() { return DEVICES.filter((d) => d.kind === 'light' && d.on); }
+function homeRender() {
+  const lit = allLit().length;
+  const covers = DEVICES.filter((d) => d.kind === 'cover');
+  const openCovers = covers.filter((d) => d.pos > 0).length;
+  const clim = DEVICES.filter((d) => d.kind === 'climate' && d.mode !== 'off');
+  const np = PLAYERS.find((p) => p.state === 'playing');
+  const view = STATE.view;
+  const areaCard = (a) => {
+    const s = AREA_STATE(a.id);
+    const bits = [s.lit ? `${s.lit} דולקים` : 'כבוי', a.temp ? `${a.temp}°` : null].filter(Boolean).join(' · ');
+    return `<div class="pill big clickable" role="button" tabindex="0" data-pop-area="${a.id}" aria-label="${esc(a.name)}, ${bits}">
+      <span class="ring hue" style="background:var(--sw-hue-${a.hue})">${ic(a.icon)}</span>
+      <span class="tx"><span class="nm">${esc(a.name)}</span><span class="st">${bits}</span></span>
+      <span class="subs">${s.lit ? `<span class="chip lit-chip">${ic('bulb', 's')}${s.lit}</span>` : ''}<span class="sub ghost" aria-hidden="true">${ic('menu', 's')}</span></span>
+    </div>`;
+  };
+  const floors = FLOORS.map((f) => {
+    const col = STATE.collapsed.has(f.id);
+    const flit = f.areas.reduce((n, a) => n + AREA_STATE(a.id).lit, 0);
+    return `<section class="floor fl-content" data-collapsed="${col}">
+      <div class="sep"><button class="sub ghost chev" data-cfloor="${f.id}" aria-expanded="${!col}" aria-label="${col ? 'הרחב' : 'כווץ'} ${f.name}">${ic('chev', 's')}</button><span class="t">${f.name}</span>
+        <span class="acts"><span class="fl-cnt">${flit ? `${flit} דולקים` : ''}</span></span></div>
+      <div class="floor-areas"><div><div class="grid areas">${f.areas.map(areaCard).join('')}</div></div></div></section>`;
+  }).join('');
+  const table = `<table class="tbl"><thead><tr><th>אזור</th><th class="hide-s">קומה</th><th>תאורה</th><th class="hide-s">טמפ׳</th><th class="hide-s">תריסים</th><th><span class="sr">פתיחה</span></th></tr></thead><tbody>
+    ${FLOORS.flatMap((f) => f.areas.map((a) => {
+      const s = AREA_STATE(a.id); const cv = s.devices.filter((d) => d.kind === 'cover');
+      return `<tr><td><span class="cellname"><span class="ring" style="background:var(--sw-hue-${a.hue})">${ic(a.icon, 's')}</span>${esc(a.name)}</span></td><td class="hide-s">${f.name}</td>
+        <td>${s.lights ? `<span class="tag ${s.lit ? 'lit' : ''}">${s.lit ? `${s.lit} מתוך ${s.lights} דולקים` : 'כבוי'}</span>` : '-'}</td>
+        <td class="num hide-s">${a.temp ? a.temp + '°' : '-'}</td><td class="hide-s">${cv.length ? (cv.every((c) => c.pos === 0) ? 'סגורים' : 'פתוחים חלקית') : '-'}</td>
+        <td style="text-align:end"><button class="sub ghost" data-pop-area="${a.id}" aria-label="פתיחת ${esc(a.name)}">${ic('chevBack', 's')}</button></td></tr>`;
+    })).join('')}</tbody></table>`;
+
+  document.getElementById('content').innerHTML = `
+    <section class="status" aria-label="מצב הבית">
+      <div><div class="clock">19:42</div><div class="date">יום שישי, 2 באוקטובר</div></div>
+      <div></div>
+      <div class="bits"><button class="pill accent clickable alarm" data-alarm aria-label="אזעקה: דרוך בבית"><span class="ring">${ic('shield')}</span><span class="tx"><span class="nm">דרוך בבית</span><span class="st">אזעקה</span></span></button></div>
+      <div class="row2">
+        <div class="pill big weather"><span class="ring">${ic('cloudsun')}</span><span class="tx"><span class="nm">בהיר חלקית · 27°</span><span class="st">מחר 25° · לחות 61%</span></span><span class="subs"><span class="chip">${ic('thermo', 's')}בבית 24.6°</span></span></div>
+        <div class="pill big"><span class="ring">${ic('moon')}</span><span class="tx"><span class="nm">ערב שבת</span><span class="st">כניסה 18:12 · יציאה 19:08</span></span></div>
+      </div>
+    </section>
+
+    <div class="sep">${ic('scene')}<span class="t">פעולות מהירות</span></div>
+    <div class="grid quick">
+      <div class="pill big ${lit ? 'on lit full' : ''}" style="--fill-c:var(--sw-lit)"><span class="ring">${ic('bulb')}</span>
+        <span class="tx"><span class="nm">כל התאורה</span><span class="st">${lit ? `${lit} דולקים בבית` : 'הכול כבוי'}</span></span>
+        <span class="subs"><button class="sub" data-confirm-off aria-label="כיבוי כל התאורה בבית">${ic('power', 's')}</button></span></div>
+      <div class="pill big"><span class="ring">${ic('blinds')}</span><span class="tx"><span class="nm">כל התריסים</span><span class="st">${openCovers} פתוחים מתוך ${covers.length}</span></span>
+        <span class="subs"><button class="sub" data-allcv="1" aria-label="פתיחת כל התריסים">${ic('up', 's')}</button><button class="sub" aria-label="עצירה">${ic('stop', 's')}</button><button class="sub" data-allcv="0" aria-label="סגירת כל התריסים">${ic('down', 's')}</button></span></div>
+      <div class="pill big ${clim.length ? 'cool' : ''}"><span class="ring">${ic('snow')}</span><span class="tx"><span class="nm">מיזוג</span><span class="st">${clim.length ? `${clim.length} פועלים` : 'כבוי'}</span></span>
+        <span class="subs"><button class="sub" data-pop="c1" aria-label="מזגן סלון">${ic('chevBack', 's')}</button></span></div>
+      ${np ? mediaPill(np, { title: np.track }) : ''}
+    </div>
+
+    <div class="page-head" style="margin-top:6px"><div class="sep" style="flex:1;margin:0">${ic('home')}<span class="t">אזורים</span></div>
+      <div class="seg" role="group" aria-label="תצוגה"><button data-view="cards" aria-pressed="${view === 'cards'}">${ic('grid', 's')}כרטיסים</button><button data-view="list" aria-pressed="${view === 'list'}">${ic('list', 's')}רשימה</button></div></div>
+    ${view === 'list' ? table : floors}`;
+}
+function confirmOff(opener) {
+  Sheet.open(() => `<div class="sheet-head"><span class="ring-xl" aria-hidden="true">${ic('power', 'l')}</span><div style="flex:1"><div class="sheet-h" id="sheet-title">לכבות את כל התאורה?</div><div class="sheet-sub">${allLit().length} דולקים בבית</div></div></div>
+    <div class="sheet-body"><div class="sheet-actions"><button class="btn" data-close>ביטול</button><button class="btn primary" data-do-off>כיבוי</button></div></div>`, { opener, focus: '[data-do-off]' });
+  Sheet.el.classList.add('narrow');
+}
+
+Mock.boot({
+  board: 'home', treeMode: 'none', render: homeRender,
+  onArea: (aid, el) => openAreaSheet(aid, el),
+  openers: { area: () => openAreaSheet('living', document.querySelector('[data-pop-area="living"]')), confirm: () => confirmOff(document.querySelector('[data-confirm-off]')),
+    light: () => openDeviceSheet('l1') },
+});
+Mock.afterChange = () => {
+  const k = focusKey(document.activeElement); const inApp = document.getElementById('app').contains(document.activeElement);
+  if (!document.querySelector('#app .dragging')) { homeRender(); if (k && inApp) { const n = document.querySelector('#app ' + k); n && n.focus({ preventScroll: true }); } }
+};
+document.getElementById('device').addEventListener('click', (e) => {
+  const t = e.target.closest('button, [role="button"]'); if (!t) return;
+  if (t.dataset.view) { STATE.view = t.dataset.view; setUrl(); return homeRender(); }
+  if (t.dataset.cfloor) { const id = t.dataset.cfloor; STATE.collapsed.has(id) ? STATE.collapsed.delete(id) : STATE.collapsed.add(id); Mock.refresh(); return; }
+  if (t.dataset.confirmOff !== undefined) return confirmOff(t);
+  if (t.dataset.doOff !== undefined) { DEVICES.forEach((d) => { if (d.kind === 'light') d.on = false; }); Sheet.close(); Mock.refresh(); return Mock.toast('כל התאורה כובתה'); }
+  if (t.dataset.allcv) { DEVICES.filter((d) => d.kind === 'cover').forEach((d) => (d.pos = +t.dataset.allcv)); Mock.refresh(); return Mock.toast(+t.dataset.allcv ? 'התריסים נפתחים' : 'התריסים נסגרים'); }
+  if (t.dataset.alarm !== undefined) return Mock.toast('האזעקה במסך אבטחה');
+});
+const _close = Sheet.close; Sheet.close = function () { Sheet.el.classList.remove('narrow'); _close(); };
+</script>
+</body>
+</html>
