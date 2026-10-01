@@ -64,6 +64,13 @@ DEFAULTS: dict[str, str] = {
     # draws - a JSON object {recording, motion, person, vehicle, door, line, offline: palette name | #rrggbb}, shape and
     # defaults in services/timeline_colors.py; read back as an object. Applied by the frontend as custom properties.
     "timeline.colors": json.dumps(timeline_colors.DEFAULT, separators=(",", ":")),
+    # owner decision 2026-10-01: who sees the two technical items of the recording screens - the grey helper line above every
+    # timeline ("דיוק לפי פריים מפתח · לחיצה או גרירה = חיפוש · גלגלת = זום") and the diagnostics block under the player (session,
+    # generation, state, player, time zone, coverage, range end): all | installers (callers holding system.configure at
+    # installation scope - the same check as the installer-only screens) | hidden. Defaults keep today's behaviour. Presentation
+    # only: nothing server-side depends on it.
+    "playback.helper_line": "all",
+    "playback.diagnostics": "all",
     "history.ha_secondary": "false",  # S2: the HA recorder fills entity states the local history does not know (marked as secondary)
     "plan.estimates": "true",  # Plan Studio: show estimated metres (≈) before a plan is calibrated; false hides metres until calibration (owner decision 2026-09-23)
     "plan.levels": "all",  # default levels view on every map: all levels together, or the floor's default level only (owner decision 2026-09-26)
@@ -413,6 +420,8 @@ class SettingsPatch(BaseModel):
     ui_mobile: dict[str, Any] | None = Field(default=None, alias="ui.mobile")  # validated in full by services/mobile_options.py
     ui_nav_size: dict[str, Any] | None = Field(default=None, alias="ui.nav_size")  # validated in full by services/nav_size.py
     timeline_palette: dict[str, Any] | None = Field(default=None, alias="timeline.colors")  # validated in full by services/timeline_colors.py
+    playback_helper_line: str | None = Field(default=None, pattern="^(all|installers|hidden)$", alias="playback.helper_line")
+    playback_diagnostics: str | None = Field(default=None, pattern="^(all|installers|hidden)$", alias="playback.diagnostics")
     history_ha_secondary: str | None = Field(default=None, pattern="^(true|false)$", alias="history.ha_secondary")
     plan_estimates: str | None = Field(default=None, pattern="^(true|false)$", alias="plan.estimates")
     plan_levels: str | None = Field(default=None, pattern="^(all|default)$", alias="plan.levels")

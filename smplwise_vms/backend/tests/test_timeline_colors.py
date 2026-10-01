@@ -127,3 +127,54 @@ def test_the_frontend_palette_names_the_same_swatches():
     assert options and tuple(re.findall(r"'([a-z]+)'", options.group(1))) == timeline_colors.OPTIONS
     defaults = re.search(r"export const DEFAULT_TIMELINE_COLORS[^{]*\{(.*?)\};", ts, re.S)
     assert defaults and dict(re.findall(r"(\w+): '([a-z]+)'", defaults.group(1))) == DEFAULT
+
+
+# ---- playback.helper_line / playback.diagnostics (owner 2026-10-01): who sees the two technical items ----
+
+VISIBILITY_KEYS = ("playback.helper_line", "playback.diagnostics")
+BAD_VISIBILITY = ["", "ALL", "installer", "none", "true", "all;x", "all\n", "hidden ", 1, True, ["all"], {"v": "all"}]
+
+
+def test_visibility_defaults_keep_todays_behaviour(client):
+    got = client.get(URL).json()["settings"]
+    assert got["playback.helper_line"] == "all"
+    assert got["playback.diagnostics"] == "all"
+
+
+def test_visibility_round_trip_is_independent_and_audited(settings):
+    app = create_app(settings)
+    with TestClient(app) as c:
+        for value in ("installers", "hidden", "all"):
+            for key in VISIBILITY_KEYS:
+                other = next(k for k in VISIBILITY_KEYS if k != key)
+                before = c.get(URL).json()["settings"][other]
+                r = c.patch(URL, json={key: value})
+                assert r.status_code == 200, r.text
+                got = r.json()["settings"]
+                assert got[key] == value and got[other] == before
+                assert c.get(URL).json()["settings"][key] == value
+        both = c.patch(URL, json={"playback.helper_line": "hidden", "playback.diagnostics": "installers"}).json()["settings"]
+        assert (both["playback.helper_line"], both["playback.diagnostics"]) == ("hidden", "installers")
+        assert {"playback.helper_line": "hidden", "playback.diagnostics": "installers"} in _audit_details(app)
+
+
+def test_visibility_bad_values_are_a_422_and_change_nothing(settings):
+    app = create_app(settings)
+    with TestClient(app) as c:
+        assert c.patch(URL, json={"playback.helper_line": "installers", "playback.diagnostics": "hidden"}).status_code == 200
+        for key in VISIBILITY_KEYS:
+            for bad in BAD_VISIBILITY:
+                r = c.patch(URL, json={key: bad})
+                assert r.status_code == 422, (key, bad, r.text)
+        got = c.get(URL).json()["settings"]
+        assert (got["playback.helper_line"], got["playback.diagnostics"]) == ("installers", "hidden")
+
+
+def test_visibility_only_system_configure_may_change_it_everyone_reads(settings):
+    c = TestClient(create_app(settings))
+    c.get("/api/v1/me")
+    bind(c, settings, "dana", "viewer", "installation", "*")
+    for key in VISIBILITY_KEYS:
+        assert c.patch(URL, headers=as_user("dana"), json={key: "hidden"}).status_code == 403
+    got = c.get(URL, headers=as_user("dana")).json()["settings"]
+    assert got["playback.helper_line"] == "all" and got["playback.diagnostics"] == "all"
