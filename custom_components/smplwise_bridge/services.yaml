@@ -118,6 +118,45 @@ stream_source:
     sig:
       description: HMAC-SHA256 signature computed by the add-on with the pairing secret.
 
+media_query:
+  name: Media query (SMPLWISE add-on only)
+  description: >-
+    Read-only. Returns what a speaker's music layer reports - the length, position and the current and next item of its
+    queue, or a trimmed list of the library (favourites, stations, playlists) - through the Music Assistant integration's
+    response services. Called by the SMPLWISE add-on with a signed request on behalf of a Home Assistant user; the bridge
+    finds the Music Assistant config entry itself and accepts only the two queries and the arguments listed here. Not meant
+    to be called from automations.
+  fields:
+    user_id:
+      description: Home Assistant user id the question is asked for (must be active).
+      example: "12d05a26b0214c9eac77ac26f6cd652c"
+    query:
+      description: queue or library.
+      example: queue
+    entity_id:
+      description: queue only - the Music Assistant player.
+      example: media_player.kitchen_speaker
+    media_type:
+      description: library only - radio, playlist, track, album or artist.
+      example: playlist
+    favorite:
+      description: library only - favourites only.
+    limit:
+      description: library only - at most 100.
+    offset:
+      description: library only.
+    order_by:
+      description: library only - name, last_played or timestamp_added.
+    request_id:
+      description: Add-on request id (for the audit trail).
+      example: "a1b2c3"
+    ts:
+      description: Unix timestamp of the signature.
+    nonce:
+      description: Random nonce.
+    sig:
+      description: HMAC-SHA256 signature computed by the add-on with the pairing secret.
+
 sync_directory:
   name: Sync user directory (SMPLWISE add-on only)
   description: Pushes the Home Assistant user directory (ids, names, active/admin flags, groups) to the SMPLWISE add-on now instead of waiting for the next minute.
