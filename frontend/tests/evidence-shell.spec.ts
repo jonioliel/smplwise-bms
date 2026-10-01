@@ -227,7 +227,7 @@ test.describe('CR-013 shell on the demo data', () => {
       ['/security/alarm', 'security-alarm'],
       ['/system/security/alarm', 'security-alarm'], // the same screen as a page of הגדרות › אבטחה
       ['/system/diagnostics', 'system-diagnostics'],
-      ['/system/notifications', 'arx-notifications-settings'],
+      ['/system/notifications', 'system-notifications'], // CR-018: the administrator's sections (the device registration inside it, or alone for everyone else)
       ['/wiskey/overview', 'wiskey-overview'],
       ['/devices/building', 'devices-building'],
     ] as const) {
@@ -551,8 +551,13 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     if (phone(info)) await shot(page, 'shell-phone-user-menu-alerts');
     else if (info.project.name === 'desktop') await shot(page, 'shell-desktop-user-menu-alerts');
     await menu.locator('[data-menu-alerts]').click();
-    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/investigate/rules?tab=alerts');
-    // the alerts inbox, not the rules list
+    // CR-018: the bell opens the notification center (it no longer navigates); this backend mock has no notifications API, so the center says so
+    await expect(page.locator('sw-app notify-center')).toHaveAttribute('open', '');
+    await expect(page.locator('sw-app notify-center [data-center-state="error"]')).toBeVisible();
+    expect(await page.evaluate(() => location.hash)).toBe('#/devices/building');
+    await page.keyboard.press('Escape');
+    // the rule-alert inbox stays where it was: the alerts tab of the rules (the rule alerts also arrive in the center as the source "התראות מחוקים")
+    await open(page, '/investigate/rules?tab=alerts');
     const rules = page.locator('sw-app investigate-rules');
     await expect(rules.locator('sw-tabs button[aria-pressed="true"]')).toContainText('התראות');
     await expect(rules.locator('[data-alert-row]')).toHaveCount(3);
