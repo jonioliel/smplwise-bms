@@ -573,12 +573,13 @@ def test_the_generic_route_refuses_managed_screens_and_every_media_action(m):
     assert act("media_player.receiver_living", "media_player.play_media", {"media_content_type": "send_key", "media_content_id": "KEY_UP"}).json()["code"] == "use_media_screen"
     assert act("media_player.receiver_living", "webostv.button", {"button": "UP"}).json()["code"] in ("use_media_screen", "action_domain_mismatch")
     assert calls == []
-    # ... while an unmanaged player keeps its ordinary actions
-    assert act("media_player.receiver_living", "media_player.turn_off").status_code == 202 and len(calls) == 1
+    # CR-016 review M2: a volume / power / play action on an endpoint of ANY non-screen media device is the media screen's too - approved or not
+    r = act("media_player.receiver_living", "media_player.turn_off")
+    assert (r.status_code, r.json()["code"]) == (409, "use_media_screen") and calls == []
     # the refusal is audited, after the permission check: a caller without control keeps the audited 403
     viewer = as_role(c, settings, "vera", "viewer")
     assert act("media_player.tv_living", "media_player.turn_off", headers=viewer).json()["code"] == "forbidden"
-    assert [r["reason"] for r in audit_rows(app, "ha.action") if r["decision"] == "denied"].count("use_media_screen") == 5
+    assert [r["reason"] for r in audit_rows(app, "ha.action") if r["decision"] == "denied"].count("use_media_screen") == 6
     # withdrawing the approval gives the screen back to the generic route
     assert c.put(f"/api/v1/multimedia/admin/devices/{keys['samsung']}", json={"approved": False}).status_code == 200
     assert act("media_player.tv_living", "media_player.turn_off").status_code == 202

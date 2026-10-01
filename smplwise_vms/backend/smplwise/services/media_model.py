@@ -602,7 +602,8 @@ def build(
 
     # rung 3b (CR-016 5.1): the same manufacturer + normalised model on endpoints of DIFFERENT platforms - the key that links Cast to MA, HEOS
     # to MA and the SmartThings / DLNA / vendor stacks of a Samsung TV. A model shared by several clusters is ONE physical device when no
-    # platform appears on two different HA devices inside it (merge); otherwise (the same model twice) it is ambiguous and only suggested.
+    # platform appears on two different HA devices inside it AND exactly two clusters carry it (a unique pair: one Cast + one MA twin) - the merge; otherwise (the
+    # same model twice, or three single-platform clusters that could be three devices of one model - review L7) it is ambiguous and only suggested.
     # A Cast model that is a prefix of the full one (shortened) counts; a non-physical platform (a Jellyfin session) never carries a model.
     def sigs_of(root: int) -> set[tuple[str, str, bool]]:
         out: set[tuple[str, str, bool]] = set()
@@ -644,7 +645,7 @@ def build(
             if e.platform and (e.platform or "") not in NON_PHYSICAL_PLATFORMS:
                 by_platform.setdefault(e.platform, set()).add(e.device_id or e.endpoint_id)
         hubs = [h for h in (hub(sorted(uf.groups().get(r, []))) for r in fam) if h is not None]
-        if all(len(v) <= 1 for v in by_platform.values()):
+        if len(fam) == 2 and all(len(v) <= 1 for v in by_platform.values()):
             for other in hubs[1:]:
                 merge(hubs[0], other, "3b", True)
         else:

@@ -123,6 +123,11 @@ def _row(item: store.Item, will: str, reason: str | None = None) -> dict[str, An
     return {"key": item.key, "name": item.name, "area_name": store.floor_area(item)["area_name"], "will": will, "reason": reason}
 
 
+def _more(count: int, will: str) -> list[dict[str, Any]]:
+    """The one preview row that stands for rooms the caller may not read (CR-016 review L1): a count, never a name or a key."""
+    return [{"key": "*", "name": "חדרים נוספים", "area_name": None, "will": will, "reason": None, "count": count}] if count else []
+
+
 def _target(cat: store.Catalog, item: store.Item, entity: str, action_id: str, args: dict[str, Any]) -> dict[str, Any]:
     e = cat.ents.get(entity) or {}
     return {"entity_id": entity, "name": item.name, "domain": "media_player", "action_id": action_id, "state": e.get("state"), "area_id": e.get("area_id"),
@@ -196,7 +201,8 @@ def plan_join(conn: sqlite3.Connection, access: store.Access, cat: store.Catalog
     building without media.bulk; 409 nothing_to_do when everyone is already in."""
     leader, joins, stays, others = _resolve_join(conn, cat, access, leader_key, member_keys)
     final = [leader.key] + [m.key for m in stays] + [o.key for o in others] + [m.key for m in joins]
-    devices = [_row(leader, "stay")] + [_row(m, "stay") for m in stays + others] + [_row(m, "join") for m in joins]
+    seen = [o for o in others if _visible(cat, access, o.key) is not None]  # the leader's other rooms are named only to a caller who may read them
+    devices = [_row(leader, "stay")] + [_row(m, "stay") for m in stays + seen] + [_row(m, "join") for m in joins] + _more(len(others) - len(seen), "stay")
     preview = preview_of(cat, conn, devices, final)
     if preview["needs_bulk"] and not all(access.has(store.PERM_BULK, _anchor(cat.items[k])) for k in final):
         raise mc.err(403, "bulk_required", permission=store.PERM_BULK)
@@ -263,6 +269,7 @@ def _volume_rows(conn: sqlite3.Connection, access: store.Access, cat: store.Cata
     control is `not_allowed`, one that is muted / off / unavailable is skipped with its reason, every level is clamped to the member's ceilings WHEN one is
     set (reason `ceiling`: the outcome is `clamped`)."""
     members, targets, eligible = [], [], []
+    shown: list[int] = []  # the levels the group's slider shows: every readable member that is powered (on / art) and reports a level - `list_groups`' `volume`
     if wanted is not None:
         keys = [k for k in keys if k in wanted]  # a saved group touches only the volumes it saved
     for k in keys:
@@ -271,6 +278,8 @@ def _volume_rows(conn: sqlite3.Connection, access: store.Access, cat: store.Cata
             continue  # a device the caller cannot read is neither sent to nor described
         reason: str | None = None
         live, caps = store.live_of(cat, it, key_url=False), store.caps_of(cat, it)
+        if live["power"] in ("on", "art") and live["volume"]["level"] is not None:
+            shown.append(live["volume"]["level"])
         if not (access.has(store.PERM_CONTROL, _anchor(it)) and access.has(store.PERM_GROUP, _anchor(it))) or not caps["volume_set"] or not it.view.prim.get("volume"):
             reason = "not_allowed"
         elif not live["caps_known"] or live["power"] == "unavailable" or not mm.available(cat.ents.get(it.view.prim.get("volume") or "")):
@@ -286,11 +295,14 @@ def _volume_rows(conn: sqlite3.Connection, access: store.Access, cat: store.Cata
     if wanted is not None:
         asked = {it.key: wanted.get(it.key) for it, _l in eligible}
     else:
-        now = max((lv for _it, lv in eligible if lv is not None), default=None)
+        # `relative` scales from the level the slider SHOWS (the loudest readable powered member, a muted or not-controllable one included - review M3): the
+        # slider is the user's reference, so a muted leader at 80 and a member at 10 dragged 80 -> 50 gives the member 6, never 50
+        now = max(shown, default=None)
         asked = {}
         for it, lv in eligible:
             if mode == "relative" and now and lv is not None:
-                asked[it.key] = round(lv * level / now)  # the same factor for everyone: the balance is kept
+                value = round(lv * level / now)  # the same factor for everyone: the balance is kept
+                asked[it.key] = min(value, lv) if level <= now else value  # a drag DOWN never raises a member
             else:
                 asked[it.key] = level
     for it, _lv in eligible:
@@ -421,12 +433,16 @@ def plan_preset(conn: sqlite3.Connection, access: store.Access, cat: store.Catal
     if lg["role"] == "member":
         raise mc.err(422, "not_groupable", key=leader.key, reason="leader_is_member")
     joins, stays, skips = [], [], []  # skips: (key, name, reason)
+    unseen_skips = 0  # rooms the caller may not read: counted, never named (review L1)
     for k in keys:
         it = _visible(cat, access, k)
         if it is None:
             gone = cat.items.get(k)
             if gone is None or not gone.row["approved"]:
-                skips.append((k, gone.name if gone is not None else "", "not_approved"))
+                if gone is not None and access.has(store.PERM_READ, _anchor(gone)):
+                    skips.append((k, gone.name, "not_approved"))
+                else:
+                    unseen_skips += 1
             continue  # a room the caller may not read is neither sent to nor described
         _require(access, it, store.PERM_GROUP, store.PERM_CONTROL, reason="member")
         why = groupable_reason(cat, it)
@@ -446,8 +462,9 @@ def plan_preset(conn: sqlite3.Connection, access: store.Access, cat: store.Catal
     for it in extras:
         _require(access, it, store.PERM_GROUP, store.PERM_CONTROL, reason="member")
     final = [leader.key] + [m.key for m in stays + joins]
-    devices = [_row(leader, "stay")] + [_row(m, "stay") for m in stays] + [_row(m, "join") for m in joins] + [_row(o, "leave") for o in extras] \
-        + [{"key": k, "name": n, "area_name": None, "will": "skip", "reason": r} for k, n, r in skips]
+    extras_seen = [o for o in extras if _visible(cat, access, o.key) is not None]
+    devices = [_row(leader, "stay")] + [_row(m, "stay") for m in stays] + [_row(m, "join") for m in joins] + [_row(o, "leave") for o in extras_seen] \
+        + [{"key": k, "name": n, "area_name": None, "will": "skip", "reason": r} for k, n, r in skips] + _more(len(extras) - len(extras_seen), "leave") + _more(unseen_skips, "skip")
     preview = preview_of(cat, conn, devices, final)
     if preview["needs_bulk"] and not all(access.has(store.PERM_BULK, _anchor(cat.items[k])) for k in final):
         raise mc.err(403, "bulk_required", permission=store.PERM_BULK)

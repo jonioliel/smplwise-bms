@@ -255,8 +255,8 @@ def classify(core: dict[str, Any], resolve: Callable[[str], dict[str, Any] | Non
             elif info is None:
                 problem = {"code": "action_not_allowed", "message": "ההתקן אינו מוכר למערכת.", "path": path}
             elif cls is None:
-                code = "alarm_managed_control" if info.get("refusal") == "alarm_managed_control" else "action_not_allowed"
-                problem = {"code": code, "message": "רכיב זה נשלט ממסך האזעקה." if code == "alarm_managed_control" else "סוג ההתקן אינו מותר בתזמונים.", "path": path}
+                code = info.get("refusal") if info.get("refusal") in ("alarm_managed_control", "media_managed_control") else "action_not_allowed"
+                problem = {"code": code, "message": {"alarm_managed_control": "רכיב זה נשלט ממסך האזעקה.", "media_managed_control": "רכיב זה נשלט ממסך המולטימדיה."}.get(code, "סוג ההתקן אינו מותר בתזמונים."), "path": path}
             elif not policy.service_allowed(cls, a["service"]):
                 problem = {"code": "action_not_allowed", "message": "הפעולה אינה מותרת בתזמון.", "path": path}
             else:
@@ -686,7 +686,7 @@ def _check_action(act: dict[str, Any], path: str, ctx: DraftContext, enabled: se
     if cls is None:
         code = refusal or "action_not_allowed"
         msgs = {"switch_not_marked": "המתג לא סומן כבטוח לפעולה קבוצתית; רק מתגים מסומנים נכנסים לתזמון.", "alarm_managed_control": "רכיב זה נשלט ממסך האזעקה ואינו נכנס לתזמון.",
-                "action_not_allowed": "סוג ההתקן אינו מותר בתזמונים."}
+                "media_managed_control": "רכיב זה נשלט ממסך המולטימדיה ואינו נכנס לתזמון.", "action_not_allowed": "סוג ההתקן אינו מותר בתזמונים."}
         return [_problem(code, msgs.get(code, msgs["action_not_allowed"]), f"{path}.entity_id")]
     if cls not in enabled and not unchanged:
         return [_problem("class_not_allowed", "סוג ההתקן אינו מותר בתזמונים (הגדרות › תזמונים).", f"{path}.entity_id")]

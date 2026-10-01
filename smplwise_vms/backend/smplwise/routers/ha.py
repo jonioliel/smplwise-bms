@@ -282,7 +282,10 @@ def _refuse_media_managed(conn: sqlite3.Connection, principal: Principal, reques
     for a managed screen, so this general route can never send an arbitrary `play_media` or a key. 409 use_media_screen, audited,
     after the permission check (a caller holding no control keeps its audited 403)."""
     spec = ha_bridge.ACTIONS.get(action_id) or {}
-    if spec.get("route") != "media" and not media_store.is_managed(conn, entity_id):
+    # CR-016 review M2: a volume, mute, power or play action on ANY endpoint of an audio-side media device - approved or not, a helper group included - is the media
+    # screen's too: this route knows no ceiling, party rule or per-member scope
+    audio_action = action_id.startswith("media_player.") and media_store.is_audio_endpoint(conn, entity_id)
+    if spec.get("route") != "media" and not audio_action and not media_store.is_managed(conn, entity_id):
         return
     audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="use_media_screen",
           request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
@@ -555,8 +558,11 @@ async def ha_ws(websocket: WebSocket) -> None:
                     def _seen(k: str | None) -> bool:
                         return bool(k) and ha_scope.entity_visible(mwide, mfloors, placements, anchors.get(k) or "")
 
-                    payload["live"] = {**payload["live"], "group": {**group, "leader_key": group["leader_key"] if _seen(group["leader_key"]) else None,
-                                                                    "member_keys": [k for k in group["member_keys"] if _seen(k)]}}
+                    leader_seen = _seen(group["leader_key"])
+                    # the group's name is the leader's: a subscriber who may not read the leader never learns it (the REST path, media_store.visible_group, says the same)
+                    payload["live"] = {**payload["live"], "group": {**group, "leader_key": group["leader_key"] if leader_seen else None,
+                                                                    "member_keys": [k for k in group["member_keys"] if _seen(k)],
+                                                                    "name": group.get("name") if leader_seen or group.get("static") else None}}
             elif msg.get("type") == "media_devices_changed":
                 if not mwide and not mfloors:
                     continue

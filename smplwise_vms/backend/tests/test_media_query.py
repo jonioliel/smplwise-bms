@@ -111,6 +111,7 @@ def test_no_library_is_503_and_the_status_says_unavailable_until_the_bridge_says
     assert c.get(f"{API}/status").json()["library"] == {"provider": "ma", "state": "unavailable"}
     bridge.answers["queue"] = lambda p: queue_answer()
     media_query._QUEUES.clear()
+    media_query._FAILED.clear()  # the refusal is remembered for a few seconds (review L3)
     assert c.get(f"{API}/devices/{keys['a']}/up-next").status_code == 200
     assert c.get(f"{API}/status").json()["library"]["state"] == "ready"
 
@@ -219,7 +220,7 @@ def test_the_curation_orders_and_hides_one_list_for_everyone_and_the_editor_sees
     assert [(i["name"], i["hidden"], i["kind"]) for i in cur["items"]] == [("בוקר", False, "playlist"), ("ערב רגוע", True, "playlist")]
     bind(c, settings, "vera", "viewer", "installation", "*")
     plain = c.get(f"{API}/favourites", headers=as_user("vera")).json()
-    assert plain["items"] == [{"item_ref": items["בוקר"], "hidden": False, "order": 0}, {"item_ref": items["ערב רגוע"], "hidden": True, "order": 1}], "names only for the curation editor"
+    assert plain["items"] == [{"item_ref": items["בוקר"], "hidden": False, "order": 0}], "names only for the curation editor, and no ref of a hidden item for anyone else (review L2)"
     assert [i["name"] for i in c.get(f"{API}/devices/{keys['a']}/library?kind=playlists&all=1", headers=as_user("vera")).json()["items"]] == ["בוקר"], "?all=1 needs media.layout"
 
 
@@ -273,11 +274,13 @@ def test_item_refs_are_stable_opaque_and_expire(q, monkeypatch):
         assert a == media_query.make_ref(conn, "ma", "playlist", "library://playlist/1") and len(a) == 24 and a != media_query.make_ref(conn, "ma", "playlist", "library://playlist/2")
         assert a != media_query.make_ref(conn, "sonos", "playlist", "library://playlist/1")
     with app.state.db.connection(mode="read") as conn:
-        ref = media_query.remember(conn, "ma", [{"uri": "library://playlist/1", "media_type": "playlist", "name": "x"}])[0]["item_ref"]
-    assert media_query.resolve_item(ref)["uri"] == "library://playlist/1" and media_query.resolve_item("0" * 24) is None and media_query.resolve_item(None) is None
+        ref = media_query.remember(conn, "ma", [{"uri": "library://playlist/1", "media_type": "playlist", "name": "x"}], "u1", "dev-a")[0]["item_ref"]
+    assert media_query.resolve_item(ref, "u1", "dev-a")["uri"] == "library://playlist/1" and media_query.resolve_item("0" * 24, "u1", "dev-a") is None and media_query.resolve_item(None, "u1", "dev-a") is None
+    # review L2: a ref is the listed user's and the listed device's - another user, another device or no user never resolves it
+    assert media_query.resolve_item(ref, "u2", "dev-a") is None and media_query.resolve_item(ref, "u1", "dev-b") is None and media_query.resolve_item(ref, None, "dev-a") is None
     real = media_query.MONO()
     monkeypatch.setattr(media_query, "MONO", lambda: real + media_query.ITEM_TTL_S + 1)
-    assert media_query.resolve_item(ref) is None, "a ref is forgotten after 30 minutes"
+    assert media_query.resolve_item(ref, "u1", "dev-a") is None, "a ref is forgotten after 30 minutes"
 
 
 def test_trim_library_keeps_only_playable_ma_items():

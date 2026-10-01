@@ -56,6 +56,12 @@ NEW_COMMANDS = frozenset({"seek", "shuffle", "repeat", "play_item", "transfer"})
 REDIRECT_COMMANDS = frozenset({"transport", "seek", "shuffle", "repeat", "play_item"})  # a live-group member's transport / queue acts on the leader
 ZONE_COMMANDS = frozenset({"power_on", "power_off", "volume_set", "volume_step", "mute", "source", "sound_output"})  # what a receiver's zone accepts
 STEP_PCT = 5  # a volume step converted to a volume_set (a ceiling is set) moves this many points
+# CR-016 review M1: what a command to a static GROUP (kind `group`: one entity that fans out to every member) needs - control (and power for the power-class commands)
+# at EVERY member's anchor and the party / bulk rule of a join - and what a live-group LEADER's command needs beyond its own anchor (the members' anchors: its transport,
+# queue and power-off act on the rooms that follow it)
+GROUP_FAN_COMMANDS = frozenset({"power_on", "power_off", "source", "sound_output", "transport", "seek", "shuffle", "repeat", "play_item"})  # control + the party rule
+GROUP_VOLUME_COMMANDS = frozenset({"volume_set", "volume_step"})  # never one call on the group entity: `POST /multimedia/groups/{key}/volume` fans out member by member
+LEADER_FAN_COMMANDS = REDIRECT_COMMANDS | {"power_off"}  # a live leader: control at every member's anchor, no party question
 
 POWER_COMMANDS = frozenset({"power_on", "power_off", "source", "app", "sound_output"})  # media.power; the rest media.control
 # a screen marked public: owner decision 2026-09-30 - every command but volume, mute and play / pause needs media.public too,
@@ -94,6 +100,7 @@ MESSAGES = {
     "group_pending": "פעולת קיבוץ קודמת עדיין רצה.",
     "device_off": "ההתקן כבוי",
     "not_found_device": "ההתקן לא נמצא.",
+    "use_group_volume": "עוצמת קבוצה נשלטת ממסך הקבוצה, חדר אחר חדר.",
 }
 
 
@@ -196,7 +203,7 @@ def plan(cat: store.Catalog, item: store.Item, cmd: dict[str, Any], caps: dict[s
     through `plan_audio` (`ceiling`: the effective volume ceiling, `target`: the leader a live-group member's transport acts on, `source`: the
     device a `transfer` takes the music from)."""
     if item.row["kind"] != "screen":
-        return plan_audio(cat, item, cmd, caps, live, ceiling, target or item, source)
+        return plan_audio(cat, item, cmd, caps, live, ceiling, target or item, source, access.principal.user_id if access is not None else None)
     name = cmd["command"]
     prim = item.view.prim
     if name == "power_on":
@@ -299,12 +306,21 @@ def plan(cat: store.Catalog, item: store.Item, cmd: dict[str, Any], caps: dict[s
     raise err(422, "validation", fields=["command"])
 
 
+def _level_of(cat: store.Catalog, item: store.Item, cmd: dict[str, Any], live: dict[str, Any]) -> int | None:
+    """The volume the command's own target reports: a zone's, when the command names one (review L5: Main's level is not Zone 2's), else the device's."""
+    if isinstance(cmd.get("zone"), str) and item.model.zones:
+        zone = next((z for z in (mm.zone_states(item.model, cat.ents) or []) if z["id"] == cmd["zone"]), None)
+        return zone["volume"] if zone is not None else None
+    return live["volume"]["level"]
+
+
 def _eff(cat: store.Catalog, entity_id: str | None, *bits: int) -> bool:
     """Whether the entity offers any of `bits` - from its live mask when available, else the last good one (CR-016 5.4)."""
     return bool(entity_id) and any(mm.eff_features(cat.ents.get(entity_id or "")) & b for b in bits)
 
 
-def plan_audio(cat: store.Catalog, item: store.Item, cmd: dict[str, Any], caps: dict[str, Any], live: dict[str, Any], ceiling: int | None, t_item: store.Item, from_item: store.Item | None) -> Plan:
+def plan_audio(cat: store.Catalog, item: store.Item, cmd: dict[str, Any], caps: dict[str, Any], live: dict[str, Any], ceiling: int | None, t_item: store.Item, from_item: store.Item | None,
+               user_id: str | None = None) -> Plan:
     """CR-016 6.1: one command of a speaker, player, receiver or group -> one allow-listed call on the primary endpoint of the control. `t_item` is
     the device whose transport / queue answers (the leader of a live group when `item` is a member). Refused (422 not_supported / validation)
     when the capabilities do not offer it; never a key, a text or an app (those are screens'); no announcement exists."""
@@ -343,7 +359,7 @@ def plan_audio(cat: store.Catalog, item: store.Item, cmd: dict[str, Any], caps: 
         endpoint = prim.get("volume")
         if ceiling is not None and direction == "up":
             # a step has no known size: with a ceiling it is a bounded volume_set from the level we last saw (never an unbounded step past it)
-            level = live["volume"]["level"]
+            level = _level_of(cat, item, cmd, live)  # the ZONE's own level for a zone command (review L5)
             if not _eff(cat, endpoint, mm.F_VOLUME_SET) or level is None or level >= ceiling:
                 raise err(422, "not_supported", reason="ceiling")
             return Plan(name, "media_player.volume_set", endpoint, {"volume_level": round(min(level + STEP_PCT, ceiling) / 100.0, 4)}, kind="step")
@@ -357,6 +373,12 @@ def plan_audio(cat: store.Catalog, item: store.Item, cmd: dict[str, Any], caps: 
             raise err(422, "validation", fields=["muted"])
         if not _eff(cat, prim.get("mute"), mm.F_VOLUME_MUTE):
             raise err(422, "not_supported", reason="mute")
+        if not muted and ceiling is not None:
+            # review L6: an unmute reveals the level the speaker was muted at - which may be above a ceiling (or a night window) set LATER. It is never sent: the
+            # caller lowers the level (a volume_set is clamped) and unmutes after that
+            level = _level_of(cat, item, cmd, live)
+            if level is None or level > ceiling:
+                raise err(422, "not_supported", reason="ceiling", ceiling=ceiling)
         return Plan(name, "media_player.volume_mute", prim["mute"], {"is_volume_muted": muted})
     if name == "source":
         source_id = cmd.get("source_id")
@@ -418,7 +440,7 @@ def plan_audio(cat: store.Catalog, item: store.Item, cmd: dict[str, Any], caps: 
         provider = mm.music_provider_of(t_item.model, cat.ents)
         if provider not in ("ma", "sonos"):
             raise err(503, "no_library")
-        stored = media_query.resolve_item(cmd.get("item_ref"))
+        stored = media_query.resolve_item(cmd.get("item_ref"), user_id, item.key)
         if stored is None or stored["provider"] != provider:
             raise err(422, "unknown_item")
         endpoint = t_prim.get("music")
@@ -442,6 +464,38 @@ def plan_audio(cat: store.Catalog, item: store.Item, cmd: dict[str, Any], caps: 
             raise err(409, "not_playing")
         return Plan(name, "music_assistant.transfer_queue", target_ep, {"source_player": source_ep, "auto_play": True})
     raise err(422, "not_supported", reason="not_for_audio")
+
+
+def _require_fan_out(conn: sqlite3.Connection, principal: Principal, request_id: str | None, cat: store.Catalog, item: store.Item, access: store.Access, cmd: dict[str, Any]) -> None:
+    """CR-016 review M1. A static group (kind `group`) is ONE entity that acts on every member: a command to it is refused unless the caller holds control (and power
+    for the power-class commands) at EVERY member's anchor; a group that is a party (four rooms or more, or more than one floor) needs `confirmed: true` after the
+    preview (409 confirm_required) and one that covers the whole building `media.bulk` (403 bulk_required) - exactly a join's rules. Its volume is never one
+    `volume_set` on the group entity (that would ignore every member's ceiling): 409 use_group_volume - the group volume route fans out per member, each with its
+    own ceiling. A live-group LEADER's transport, queue and power-off reach the rooms that follow it: control at every one of their anchors."""
+    name = cmd["command"]
+    static = item.row["kind"] == "group"
+    if static:
+        if name in GROUP_VOLUME_COMMANDS:
+            raise _deny(conn, principal, request_id, item, cmd, err(409, "use_group_volume", route=f"/multimedia/groups/{item.key}/volume"))
+    elif name not in LEADER_FAN_COMMANDS or cat.group_info(item.key)["role"] != "leader":
+        return
+    members = [cat.items[k] for k in cat.group_info(item.key)["member_keys"] if k != item.key and k in cat.items]
+    if not members:
+        return
+    perm = store.PERM_POWER if name in POWER_COMMANDS else store.PERM_CONTROL
+    for m in members:
+        anchor = m.row.get("anchor_entity_id")
+        if not (access.has(store.PERM_CONTROL, anchor) and access.has(perm, anchor)):
+            raise _deny(conn, principal, request_id, item, cmd, err(403, "forbidden", permission=perm, reason="group_member"))
+    if not static or name not in GROUP_FAN_COMMANDS:
+        return
+    from . import media_groups  # a lazy import: media_groups imports this module
+
+    preview = media_groups.preview_of(cat, conn, [], [m.key for m in members])
+    if preview["needs_bulk"] and not all(access.has(store.PERM_BULK, m.row.get("anchor_entity_id")) for m in members):
+        raise _deny(conn, principal, request_id, item, cmd, err(403, "bulk_required", permission=store.PERM_BULK))
+    if preview["needs_confirmation"] and cmd.get("confirmed") is not True:
+        raise _deny(conn, principal, request_id, item, cmd, media_groups.ConfirmRequired(preview))
 
 
 def _key_plan(item: store.Item, key: str, command: str) -> Plan:
@@ -670,6 +724,9 @@ def run(conn: sqlite3.Connection, settings: Settings, principal: Principal, requ
                 raise _deny(conn, principal, request_id, item, cmd, ApiError(404, "not_found", MESSAGES["not_found_device"]))
             if not access.has(store.PERM_CONTROL, from_item.row.get("anchor_entity_id")):
                 raise _deny(conn, principal, request_id, item, cmd, err(403, "forbidden", permission=store.PERM_CONTROL, reason="from_device"))
+    # 3c. (CR-016 review M1) a command that FANS OUT to other rooms - a static group's own entity, a live leader's transport - is the caller's at EVERY room it reaches
+    if kind != "screen":
+        _require_fan_out(conn, principal, request_id, cat, item, access, cmd)
     # 4. the caller's identity and the bridge
     if principal.source not in ("ingress", "remote") and not settings.dev_user:
         raise _deny(conn, principal, request_id, item, cmd, err(403, "identity_unmapped"))

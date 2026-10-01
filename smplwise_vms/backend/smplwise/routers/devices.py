@@ -420,6 +420,12 @@ def set_bulk_safe(entity_id: str, body: BulkSafeBody, request: Request, principa
         audit(conn, actor=principal, action="devices.bulk_safe", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="alarm_managed",
               request_id=getattr(request.state, "correlation_id", None), details={"bulk_safe": True})
         raise ApiError(409, "alarm_managed", "מתג עקיפה של חיישן אזעקה נשלט ממסך האזעקה ולעולם לא נכלל בפעולה מרוכזת.")
+    from ..services import media_store
+
+    if body.bulk_safe and media_store.is_managed(conn, entity_id):  # CR-016 review M4: a screen's / speaker's own switch is operated from "מולטימדיה" only
+        audit(conn, actor=principal, action="devices.bulk_safe", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="media_managed",
+              request_id=getattr(request.state, "correlation_id", None), details={"bulk_safe": True})
+        raise ApiError(409, "use_media_screen", "הרכיב נשלט ממסך המולטימדיה ואינו נכלל בפעולה מרוכזת.")
     bulk.set_bulk_safe(conn, principal, entity_id, body.bulk_safe)
     audit(conn, actor=principal, action="devices.bulk_safe", decision="allowed", resource_type="ha_entity", resource_id=entity_id,
           request_id=getattr(request.state, "correlation_id", None), details={"bulk_safe": body.bulk_safe})

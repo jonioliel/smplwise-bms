@@ -8,6 +8,7 @@ import datetime as dt
 
 from .db import Database, database_of, now_iso, permission_revision, read_mode
 
+RESOURCE_ID_MAX = 128  # the longest `resource_id` an audit row keeps
 RETENTION_DAYS = 365  # audit rows older than this are pruned by the janitor (T055); the setting can follow later
 
 
@@ -26,6 +27,8 @@ def _write_audit(
 ) -> None:
     """Append one audit row. Never include secrets or source URLs in `details`. `under` (an rbac.Decision) records the
     binding, role and scope the action was authorised under (T055; ids only)."""
+    if isinstance(resource_id, str) and len(resource_id) > RESOURCE_ID_MAX:
+        resource_id = resource_id[:RESOURCE_ID_MAX]  # a key straight from a URL path is never stored whole (CR-016 review L4)
     if getattr(actor, "source", None) == "remote":  # CR-008: whatever a remote (SmplWise Arx) session does says so
         details = {**(details or {}), "channel": "remote"}
         if getattr(actor, "via", "") == "bearer":  # CR-008 P2: an HA bearer token rather than an Arx session cookie

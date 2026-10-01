@@ -299,6 +299,11 @@ def bulk_scope(conn: Any, principal: Principal) -> tuple[bool, Any, Any]:
     from . import alarm as alarm_svc
 
     managed = alarm_svc.managed_controls(conn)  # CR-010 review B1
+    from . import media_store as _ms
+
+    # CR-016 review M4: the switches, numbers, selects and buttons of an approved screen / speaker / player / receiver are operated from "מולטימדיה" only - the
+    # media_player endpoints themselves stay with the screens kinds' own resolver (`_media_verdicts`)
+    media_managed = {e for e in _ms.managed_entities(conn) if not e.startswith("media_player.")}
     # CR-014: the Scheduler component's switches are not devices - never reached by a bulk action, whatever a request names
     schedulers = {r[0] for r in conn.execute("SELECT entity_id FROM ha_entities WHERE " + dsvc.IS_SCHEDULER_SQL).fetchall()}
 
@@ -313,7 +318,7 @@ def bulk_scope(conn: Any, principal: Principal) -> tuple[bool, Any, Any]:
         # CR-010 review B1: what the alarm section owns (a zone's bypass switch) is never reached from here either
         if entity_id in schedulers or dsvc.is_scheduler_entity(entity_id, None):
             return False
-        return entity_id.split(".", 1)[0] in ha_scope.DEVICES_CONTROL_DOMAINS and entity_id not in managed and in_scope(entity_id)
+        return entity_id.split(".", 1)[0] in ha_scope.DEVICES_CONTROL_DOMAINS and entity_id not in managed and entity_id not in media_managed and in_scope(entity_id)
 
     return wide, in_scope, permitted
 
