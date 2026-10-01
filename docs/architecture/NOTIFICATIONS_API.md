@@ -156,6 +156,14 @@ class Signal:
 already follows: nothing is sent under the SQLite write lock). Rule alerts (`rules.deliver_pending`), system monitors,
 CR-014 run settlement, CR-017's `notify` action and bulk completions all call `emit`; nothing else sends.
 
+### 2.2.1 Implementation note: the door-open confirmation (recorded deviation)
+
+The contract text says the confirmation calls `POST /doors/{id}/unlock` with `door.unlock` and the CR-011 step-up. That route does not exist. As built, a
+doorbell row's `door.can_open` and the in-app confirmation use the REAL WisKey path: `POST /intercom/stations/{id}/release`, which requires `access.release`
+at installation scope and the explicit `confirmed: true`; it has its own rate limit and audit rows, and records `origin: notification:<id>` (audit only).
+It does NOT run a CR-011 step-up and does not check `door.unlock` (that permission belongs to HA lock entities). The notification surfaces still carry no
+token and perform no call for a door; if the owner wants the step-up on this path it is a change to the release route, not to the notification.
+
 ## 3. Events (on the existing per-user WebSocket `/me/ws`)
 
 There is no SSE in Arx; realtime is in-process WebSocket fan-out (`/events/ws`, `/ha/ws`, `/intercom/ws`, `/me/ws`).
@@ -196,7 +204,7 @@ owner's review of the mockup.
 ### S1 — backend core (`pilot/CR018-s1-core`, Sonnet, reviewed by Opus)
 
 ```
-Goal: CR §5, §7-§12: migrations 0050-0052, services/notify.py (emit, dedupe/fold, resolve, recipients = policy rule
+Goal: CR §5, §7-§12: migrations 0045-0047, services/notify.py (emit, dedupe/fold, resolve, recipients = policy rule
   ∩ visibility matrix, installation quiet hours with the pass-through matrix, snooze, escalation timer with
   configurable minutes/steps, action tokens, retention janitor with the configured days), services/notify_settings.py
   (the single NotifySettings row, revision, validation), generalise services/push.py from "fired rule alert" to
@@ -205,7 +213,7 @@ Goal: CR §5, §7-§12: migrations 0050-0052, services/notify.py (emit, dedupe/f
   doorbell button as a deep link only), delivery log writes, routers/notifications.py (§2.1-§2.3), /me/ws events,
   notify.manage in roles.json + access.py labels, audit kinds; rule_alerts rows get a notification_id link (ack on
   either side acks both); /push/prefs → 410 after one release.
-Owns: migrations/0050_notifications.sql, 0051_notify_settings.sql, 0052_notify_policies.sql, services/notify.py,
+Owns: migrations/0045_notifications.sql, 0046_notify_settings.sql, 0047_notify_policies.sql, services/notify.py,
   services/notify_settings.py, services/notify_policy.py, routers/notifications.py, tests/test_notify_*.py.
 Touches (sole editor): services/push.py, services/rules.py (deliver_pending → emit), routers/push.py,
   routers/rules.py (ack mirror), roles.json, routers/access.py (labels), the /me/ws publisher, main.py (router +

@@ -141,9 +141,14 @@ def test_recipients_per_subject_kind(w):
     assert who("schedule.not_confirmed", "schedule", "s1", origin={"owner_user_id": "dev-ops3"}) == {"joni"} | set(), "failures go to administrators by default"
     w.set_settings(failures_audience="visible")
     assert who("schedule.not_confirmed", "schedule", "s2", origin={"owner_user_id": "dev-ops3"}) == {"joni", "ops3"}
-    # session: the account's own user; a lockout also reaches the system administrators (owner decision: the managers AND the locked-out user)
+    # session: the account's own user; a lockout ONLY the system administrators (the locked-out user is not told and cannot acknowledge it)
     assert who("security.new_signin", "session", "dev-ops2", initiator_user_id="dev-ops2") == {"ops2"}
-    assert who("security.lockout", "session", "dev-ops2", initiator_user_id="dev-ops2") == {"joni", "ops2"}
+    lock = w.emit("security.lockout", "session", "dev-ops2", initiator_user_id="dev-ops2")
+    assert w.recipients(lock.id) == {"joni"}
+    assert w.inbox("ops2") == [] or all(n["id"] != lock.id for n in w.inbox("ops2"))
+    assert w.c.post(f"{API}/notifications/{lock.id}/ack", headers=as_user("ops2")).status_code == 404
+    w.set_policy("security.lockout", recipients={"rule": "initiator"})
+    assert w.recipients(w.emit("security.lockout", "session", "dev-ops2", initiator_user_id="dev-ops2", dedupe_key="l2").id) == set(), "even a rule that names the user cannot raise visibility"
 
 
 def test_recipient_rules_are_a_ceiling_on_visibility(w):
@@ -403,7 +408,7 @@ def test_retention_janitor_uses_the_configured_days(w):
     a = w.emit("camera.offline", "camera", w.cam).id
     with w.db.connection() as conn:
         old = (notify.now_utc() - dt.timedelta(days=40)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        conn.execute("UPDATE notifications SET last_at = ?, first_at = ? WHERE id = ?", (old, old, a))
+        conn.execute("UPDATE notifications SET last_at = ?, first_at = ?, state = 'resolved', resolved_at = ? WHERE id = ?", (old, old, old, a))
         conn.execute("INSERT INTO notification_deliveries(id, notification_id, channel, status, created_at) VALUES ('d-old', ?, 'webpush', 'sent', ?)", (a, old))
     b = w.emit("sensor.leak", "entity", w.entity("binary_sensor.kitchen_leak", cls="moisture", floor=w.ids["floor2"])).id
     with w.db.connection() as conn:
@@ -417,7 +422,7 @@ def test_retention_janitor_uses_the_configured_days(w):
     c = w.emit("camera.offline", "camera", w.cam).id
     with w.db.connection() as conn:
         d10 = (notify.now_utc() - dt.timedelta(days=10)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        conn.execute("UPDATE notifications SET last_at = ? WHERE id = ?", (d10, c))
+        conn.execute("UPDATE notifications SET last_at = ?, state = 'resolved', resolved_at = ? WHERE id = ?", (d10, d10, c))
     w.set_settings(retention_days=90)
     with w.db.connection() as conn:
         assert notify.retention_sweep(conn)["notifications"] == 0
@@ -582,7 +587,7 @@ def test_migration_up_on_a_0_1_149_database_keeps_push_prefs_and_subscriptions(s
     older = tmp_path / "older"
     older.mkdir()
     for f in real.glob("*.sql"):
-        if int(f.name.split("_", 1)[0]) < 46:
+        if int(f.name.split("_", 1)[0]) < 45:
             shutil.copy(f, older / f.name)
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", older)
     database = dbmod.Database(settings.db_path)
@@ -593,7 +598,7 @@ def test_migration_up_on_a_0_1_149_database_keeps_push_prefs_and_subscriptions(s
         conn.execute("INSERT INTO rules(id, name, enabled, owner, trigger_json, scope_json, window_json, cooldown_s, actions_json, revision, created_at, updated_at) VALUES ('r1', 'r', 1, 'local', '{}', '{}', '{}', 0, '[]', 1, 't', 't')")
         conn.execute("INSERT INTO rule_alerts(id, rule_id, event_id, fired_at, occurred_at, reasons_json, message) VALUES ('a1', 'r1', 'e1', 't', 't', '[]', 'm')")
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
-    assert dbmod.Database(settings.db_path).migrate() == [46, 47, 48]
+    assert dbmod.Database(settings.db_path).migrate() == [45, 46, 47, 48]
     c = TestClient(create_app(settings))  # start-up seeds the policies
     with database.connection(mode="read") as conn:
         assert conn.execute("SELECT categories_json FROM push_prefs WHERE user_id = 'dev-old'").fetchone()[0] == '{"alerts": false}'
@@ -604,19 +609,114 @@ def test_migration_up_on_a_0_1_149_database_keeps_push_prefs_and_subscriptions(s
     assert c.get(f"{API}/notify/settings").json()["revision"] == 1 and c.get(f"{API}/push/prefs", headers=as_user("dev-old")).status_code == 200
 
 
-def test_migration_numbers_are_unique_and_cr017_holds_0045():
-    """CR-018's migrations were numbered 0046-0048 to leave 0045 to CR-017 (the numbering contract); with both merged the series has no gap and no duplicate."""
+def test_notify_migrations_are_0045_to_0047_and_unique():
+    """Released 0.1.151 applied CR-018 as 0045-0047; CR-017's automations follow as 0048 (renumbered at the 0.1.152 merge)."""
     names = sorted(f.name for f in dbmod.MIGRATIONS_DIR.glob("*.sql"))
-    nums = [int(n.split("_", 1)[0]) for n in names]
-    assert len(nums) == len(set(nums)) and {45, 46, 47, 48} <= set(nums)
-    assert next(n for n in names if n.startswith("0045_")) == "0045_automations.sql"
+    assert [n for n in names if n.startswith(("0045_", "0046_", "0047_", "0048_"))] == ["0045_notifications.sql", "0046_notify_settings.sql", "0047_notify_policies.sql", "0048_automations.sql"]
+    allnums = [int(n.split("_", 1)[0]) for n in names]
+    assert all(allnums.count(n) == 1 for n in (45, 46, 47, 48))
 
 
-def test_a_token_redeemed_on_the_remote_channel_needs_the_sessions_own_user(w):
-    nid = w.emit("camera.offline", "camera", w.cam).id
+# ---------------------------------------------------------------- review fixes
+
+def test_retention_never_deletes_a_row_whose_condition_is_still_open(w):
+    kitchen = w.entity("binary_sensor.kitchen_leak", cls="moisture", floor=w.ids["floor2"])
+    open_id = w.emit("sensor.leak", "entity", kitchen).id
+    acked = w.emit("camera.offline", "camera", w.cam).id
+    assert w.c.post(f"{API}/notifications/{acked}/ack", headers=as_user("ops2")).json()["state"] == "acknowledged"
+    old = (notify.now_utc() - dt.timedelta(days=100)).strftime("%Y-%m-%dT%H:%M:%SZ")
     with w.db.connection() as conn:
-        tok = notify.mint_tokens(conn, nid, "dev-ops2", ["snooze"])["snooze"]
+        conn.execute("UPDATE notifications SET last_at = ?, first_at = ? WHERE id IN (?, ?)", (old, old, open_id, acked))
     with w.db.connection() as conn:
-        assert notify.redeem_token(conn, tok, "snooze", "Asia/Jerusalem", expect_user="dev-joni") is None, "another user's session cannot use it (and does not burn it)"
-        got = notify.redeem_token(conn, tok, "snooze", "Asia/Jerusalem", expect_user="dev-ops2")
-    assert got and got["user_id"] == "dev-ops2" and got["result"] == "snoozed"
+        assert notify.retention_sweep(conn)["notifications"] == 0
+    assert w.row(open_id) and w.row(acked), "an open or acknowledged-but-active row is the live state of something"
+    with w.db.connection() as conn:
+        conn.execute("UPDATE notifications SET state = 'resolved', resolved_at = ? WHERE id = ?", (old, open_id))
+        assert notify.retention_sweep(conn)["notifications"] == 1
+    assert w.row(open_id) is None and w.row(acked)
+
+
+def test_the_settings_row_is_recreated_when_a_restore_left_none(w, settings):
+    with w.db.connection() as conn:
+        conn.execute("DELETE FROM notify_settings")
+    assert w.c.get(f"{API}/notify/settings").json()["revision"] == 0  # the defaults are served
+    r = w.c.put(f"{API}/notify/settings", json={"lockscreen": "full"})
+    assert r.status_code == 200 and r.json()["lockscreen"] == "full", "the row is created before the update: the settings can be saved"
+    assert w.c.get(f"{API}/notify/settings").json()["lockscreen"] == "full"
+    # a replace-restore of a backup made before the tables existed
+    import zipfile
+
+    b = w.c.post(f"{API}/backups", json={"note": "t"})
+    assert b.status_code == 201, b.text
+    src = settings.data_dir / "backups" / b.json()["name"]
+    old = settings.data_dir / "backups" / "auto-pre-notify.zip"
+    with zipfile.ZipFile(src) as zin, zipfile.ZipFile(old, "w") as zout:
+        for item in zin.infolist():
+            if item.filename not in ("data/notify_settings.json", "data/notify_policies.json"):
+                zout.writestr(item, zin.read(item.filename))
+    from smplwise.services import backup as backup_svc
+
+    with w.db.connection() as conn:
+        backup_svc.restore(settings, conn, old, mode="replace")
+    with w.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM notify_settings").fetchone()[0] == 1
+    assert w.c.put(f"{API}/notify/settings", json={"lockscreen": "generic"}).json()["lockscreen"] == "generic"
+    assert w.c.get(f"{API}/notify/policies").status_code == 200 and w.c.put(f"{API}/notify/policies/sensor.leak", json={"enabled": True}).status_code == 200
+
+
+def test_booleans_must_be_real_booleans(w):
+    for body in ({"enabled": "false"}, {"resolve_notice": "no"}, {"channels": {"webpush": "false"}}, {"channels": {"ha_mobile": "false"}}, {"enabled": 0}):
+        r = w.c.put(f"{API}/notify/policies/sensor.leak", json=body)
+        assert r.status_code == 422, (body, r.status_code)
+    for body in ({"quiet": {"enabled": "false"}}, {"escalation": {"enabled": "no"}}, {"pass_through": {"alert": {"webpush": "true"}}}, {"image_in_push": "false"}, {"companion": {"critical_sound_safety": "yes"}}):
+        r = w.c.put(f"{API}/notify/settings", json=body)
+        assert r.status_code == 422, (body, r.status_code)
+    assert w.get_policy_enabled("sensor.leak") is True
+    assert w.c.put(f"{API}/notify/policies/sensor.leak", json={"enabled": False}).json()["enabled"] is False
+
+
+def test_emit_is_atomic_a_failure_part_way_leaves_nothing(w, monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("enqueue failed")
+
+    with w.db.connection() as conn:
+        conn.execute("INSERT INTO settings(key, value) VALUES ('probe', '1') ON CONFLICT(key) DO UPDATE SET value = '1'")
+        real = notify._enqueue
+        monkeypatch.setattr(notify, "_enqueue", boom)
+        with pytest.raises(RuntimeError):
+            notify.emit_full(conn, notify.Signal("camera.offline", "camera", w.cam))
+        monkeypatch.setattr(notify, "_enqueue", real)
+        conn.execute("UPDATE settings SET value = '2' WHERE key = 'probe'")  # the caller's own transaction is intact
+    with w.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM notifications").fetchone()[0] == 0 and conn.execute("SELECT COUNT(*) FROM notification_recipients").fetchone()[0] == 0
+        assert conn.execute("SELECT value FROM settings WHERE key = 'probe'").fetchone()[0] == "2"
+    assert w.emit("camera.offline", "camera", w.cam).action == "created"
+
+
+def test_action_throttle_counts_only_guesses_per_token_and_stale_buttons_never_block(w, fake_push):
+    from smplwise.routers import notifications as router
+
+    router.ACTION_FAILURES.hits.clear()
+    router.ACTION_GLOBAL.hits.clear()
+    guess = "g" * 22
+    codes = [w.c.post(f"{API}/notifications/action", json={"t": guess, "a": "ack"}).status_code for _ in range(22)]
+    assert codes[:20] == [401] * 20 and codes[20:] == [429, 429], "the same unknown token is throttled"
+    assert w.c.post(f"{API}/notifications/action", json={"t": "h" * 22, "a": "ack"}).status_code == 401, "another token is not behind the same bucket (no shared peer address)"
+    # an expired button is not an attack: any number of them never blocks
+    w.subscribe("ops2")
+    nid = w.emit("camera.offline", "camera", w.cam, params={"name": "x"}).id
+    with w.db.connection() as conn:
+        tok = notify.mint_tokens(conn, nid, "dev-ops2", ["ack"])["ack"]
+        conn.execute("UPDATE notify_action_tokens SET expires_at = '2020-01-01T00:00:00Z'")
+    assert [w.c.post(f"{API}/notifications/action", json={"t": tok, "a": "ack"}).status_code for _ in range(30)] == [401] * 30
+    router.ACTION_FAILURES.hits.clear()
+
+
+def test_deliveries_of_a_row_the_caller_may_no_longer_see_are_hidden(w, fake_push):
+    w.subscribe("ops2")
+    w.emit("camera.offline", "camera", w.cam, params={"name": "x"})
+    w.flush()
+    assert len(w.c.get(f"{API}/notifications/deliveries", headers=as_user("ops2")).json()["deliveries"]) == 1
+    with w.db.connection() as conn:
+        conn.execute("UPDATE bindings SET revoked_at = '2026-10-01T00:00:00Z' WHERE subject_id = 'dev-ops2'")
+    assert w.c.get(f"{API}/notifications/deliveries", headers=as_user("ops2")).json()["deliveries"] == []

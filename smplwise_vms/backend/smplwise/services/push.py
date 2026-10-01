@@ -43,6 +43,7 @@ import re
 import sqlite3
 import threading
 import time
+import weakref
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit
@@ -667,6 +668,7 @@ class PushNotifier:
         self._next_housekeeping = time.monotonic() + 30.0
         self.thread = threading.Thread(target=self._loop, name="push-notifier", daemon=True)
         self.thread.start()
+        _LIVE.add(self)
         self.q.put_nowait({"_wake": True})  # the first outbox pass without waiting for the poll
 
     def shutdown(self, timeout: float = 5.0) -> None:
@@ -829,6 +831,15 @@ class PushNotifier:
                 return False
             time.sleep(0.02)
         return True
+
+
+_LIVE: "weakref.WeakSet[PushNotifier]" = weakref.WeakSet()  # every running notifier (the app's NOTIFIER, and a private one a test or tool starts)
+
+
+def wake_all() -> None:
+    """Tell every running notifier there is outbox work (services/notify.wake)."""
+    for n in list(_LIVE):
+        n.wake()
 
 
 NOTIFIER = PushNotifier()

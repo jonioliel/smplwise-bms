@@ -12,7 +12,7 @@ import '../components/sw-remote-sessions';
 import '../components/sw-csp-reports';
 import { logout as arxLogout } from '../arx/auth';
 import { demoHealth, demoJobs } from '../fixtures/catalog';
-import { isApi, nvrLess } from '../api/session';
+import { can, isApi, nvrLess } from '../api/session';
 import { getSettings, listSessions, listStreams, patchSettings, syncStreams, type ProductSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { describeError, get } from '../api/client';
@@ -36,6 +36,8 @@ import './system-tabs'; // owner 2026-09-30: הגדרות › כללי › לש�
 import './system-nav-size'; // UI round 1b: הגדרות › כללי › גודל הניווט
 import './system-home-screen'; // home redesign: הגדרות › חשמל והתקנים › מסך ראשי
 import './system-mobile-options'; // owner 2026-09-30: הגדרות › כללי › אפשרויות נייד
+import './system-timeline-colors'; // owner 2026-10-01: הגדרות › וידאו ומדיה › צבעי ציר הזמן
+import './system-video-conn-test'; // owner 2026-10-01: הגדרות › גישה מרחוק › בדיקת חיבור וידאו
 import { loadTree } from '../api/catalog';
 import type { Site } from '../api/types';
 import type { DevicesPick } from './devices-theme-picker';
@@ -697,6 +699,10 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.transport_default', (e.target as HTMLSelectElement).value as ProductSettings['media.transport_default'])}>
             ${(['mse', 'auto', 'webrtc'] as const).map((t) => html`<option value=${t} ?selected=${(this.value('media.transport_default') ?? 'mse') === t}>${t === 'auto' ? 'אוטומטי (WebRTC → MSE)' : t === 'webrtc' ? 'WebRTC בלבד' : 'MSE (ברירת מחדל)'}</option>`)}
           </select></sw-field></div>
+        <div class="row"><span class="lbl">הודעות על אופן ההזרמה<span class="muted">הודעה על הנגן כשהווידאו עובר ב־MSE במקום WebRTC, ושורות ההסבר מתחת למצלמה. כבוי (ברירת מחדל): המסך נקי, והתג על הנגן ממשיך להראות מה מתנגן ומסביר בריחוף. הפעלה מתאימה למי שבודק בעיית תעבורה</span></span>
+          <sw-field class="ctl"><select data-set-video-notices ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.video_notices', (e.target as HTMLSelectElement).value as 'true' | 'false')}>
+            <option value="false" ?selected=${String(this.value('media.video_notices') ?? 'false') !== 'true'}>מוסתרות</option><option value="true" ?selected=${String(this.value('media.video_notices') ?? 'false') === 'true'}>מוצגות</option>
+          </select></sw-field></div>
         <div class="row"><span class="lbl">פרופיל לקיר המצלמות<span class="muted">משני חוסך CPU ורוחב פס; ראשי לתצוגה בודדת</span></span>
           <sw-field class="ctl"><select ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.wall_profile', (e.target as HTMLSelectElement).value as 'sub' | 'main')}>
             <option value="sub" ?selected=${(this.value('media.wall_profile') ?? 'sub') === 'sub'}>משני</option><option value="main" ?selected=${this.value('media.wall_profile') === 'main'}>ראשי</option>
@@ -776,6 +782,7 @@ export class SystemDiagnostics extends LitElement {
         <div class="foot"><sw-button variant="primary" icon="check" ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>
         ${!api ? html`<div class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</div>` : nothing}
       </sw-card>
+      ${NVR ? nothing : html`<system-timeline-colors></system-timeline-colors>`}
       ${this.renderSkins()}
       <sw-card heading="go2rtc" subheading="זרמים של המוצר בשרת החיצוני (קריאה); זרמים זרים אינם מוצגים ואינם משתנים">
         ${!api || !this.canEdit
@@ -934,7 +941,7 @@ export class SystemDiagnostics extends LitElement {
   private renderRemote() {
     const api = isApi();
     const ro = !api || !this.canEdit;
-    const keys = ['remote.policy', 'remote.session', 'remote.idle_lock_minutes', 'remote.default_profile', 'remote.mse_fallback', 'remote.require_mfa_admin', 'remote.max_live_streams', 'remote.wall_profile'] as const;
+    const keys = ['remote.policy', 'remote.admins_default', 'remote.session', 'remote.idle_lock_minutes', 'remote.default_profile', 'remote.mse_fallback', 'remote.require_mfa_admin', 'remote.max_live_streams', 'remote.wall_profile'] as const;
     const dirty = keys.some((k) => k in this.draft);
     const v = <K extends (typeof keys)[number]>(k: K, d: string) => String(this.value(k) ?? d);
     const sel = (key: (typeof keys)[number], d: string, options: [string, string][]) => html`<sw-field class="ctl"><select data-set-remote=${key} ?disabled=${ro} @change=${(e: Event) => this.set(key, (e.target as HTMLSelectElement).value as never)}>
@@ -950,6 +957,8 @@ export class SystemDiagnostics extends LitElement {
       <sw-card heading="גישה מרחוק · SmplWise Arx" subheading="כניסה דרך https://<שם ה־Home Assistant>/arx עם מסך הכניסה של המערכת (שם משתמש וסיסמה של Home Assistant). הערוץ עצמו מופעל באפשרות ה־add-on remote_access.">
         <div class="row"><span class="lbl">מי רשאי להיכנס מרחוק<span class="muted">דגל אישי: רק משתמשים שהופעלה להם גישה מרחוק במסך משתמשים והרשאות · כל בעל תפקיד: כל משתמש Home Assistant עם תפקיד כלשהו במערכת</span></span>
           ${sel('remote.policy', 'flag', [['flag', 'דגל אישי לכל משתמש'], ['any_role', 'כל משתמש עם תפקיד']])}</div>
+        <div class="row" data-remote-admins-default-row><span class="lbl">מנהלים – גישה מרחוק כברירת מחדל<span class="muted">מנהל מערכת נכנס מרחוק בלי דגל אישי · חל על "דגל אישי לכל משתמש"</span></span>
+          ${sel('remote.admins_default', 'true', [['true', 'מופעלת'], ['false', 'כבויה']])}</div>
         <div class="row"><span class="lbl">שמירת הכניסה בדפדפן<span class="muted">90 יום מתחדשים: כמו האפליקציה של Home Assistant · עד סגירת הדפדפן: הכניסה נמחקת בסגירה · 90 יום עם נעילה: כניסה חוזרת אחרי זמן ללא פעילות</span></span>
           ${sel('remote.session', 'rolling_90d', [['rolling_90d', '90 יום מתחדשים'], ['browser_session', 'עד סגירת הדפדפן'], ['rolling_90d_idle_lock', '90 יום עם נעילה בחוסר פעילות']])}</div>
         <div class="muted" data-remote-shared-login style="margin-block-start:6px">שימו לב: הכניסה ל־Arx מחברת את אותו דפדפן גם ל־Home Assistant בכתובת <span class="ltr">/</span> של אותו שם מתחם (כדי ש־WisKey ייפתח מחובר). ב"עד סגירת הדפדפן" החיבור ל־Home Assistant קיים רק כל עוד דף Arx פתוח; בנעילה בחוסר פעילות הוא מבוטל כשהנעילה מופעלת ב־Arx, אבל עד שפותחים את Arx שוב, Home Assistant בכתובת <span class="ltr">/</span> עדיין פתוח באותו דפדפן. יציאה מ־Arx מנתקת משניהם.</div>
@@ -982,6 +991,7 @@ export class SystemDiagnostics extends LitElement {
         ${this.renderCodecSummary()}
         <div class="muted" data-remote-codec-hint style="margin-block-start:8px">דפדפנים מפענחים ב־WebRTC רק H.264 ללא B-frames; H.265 לא מתנגן ב־WebRTC ברוב הדפדפנים. אם הזרם הראשי של ה־NVR אינו כזה, הגדירו בו H.264 ללא B-frames או בחרו כאן בזרם המשני.</div>
       </sw-card>
+      ${api && can('system.configure') ? html`<system-video-conn-test></system-video-conn-test>` : nothing}
       ${this.canEdit
         ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-remote ?disabled=${!dirty || this.busy} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'remote' ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error && this.tab === 'remote' ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>`
         : html`<div class="muted">${api ? 'שינוי ההגדרות דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}

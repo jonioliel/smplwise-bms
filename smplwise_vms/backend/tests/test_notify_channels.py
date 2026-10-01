@@ -390,6 +390,7 @@ def test_a_registered_channel_is_planned_prepared_and_sent_through_the_interface
                 sent.append((d.nid, t.data))
                 notify_channels.record_outcome(notifier.db, [t.delivery_id], "sent", None, 1)
 
+    previous = notify_channels.CHANNELS.get("email")  # the real e-mail channel (S4) must survive this test
     notify_channels.register(Stub())
     try:
         w.set_policy("system.health", channels={"webpush": False, "email": True})
@@ -397,6 +398,8 @@ def test_a_registered_channel_is_planned_prepared_and_sent_through_the_interface
         w.flush()
     finally:
         notify_channels.CHANNELS.pop("email", None)
+        if previous is not None:
+            notify_channels.CHANNELS["email"] = previous
     assert sent == [(nid, "a@example.com")] and prepared == [1]
     rows = w.deliveries(nid)
     assert [(r["channel"], r["status"], r["target_ref"], r["user_id"]) for r in rows] == [("email", "sent", "a***@example.com", None)]
@@ -415,6 +418,7 @@ def test_a_channel_that_raises_is_logged_failed_and_does_not_stop_the_others(w, 
         def send(self, notifier, d, targets):
             raise RuntimeError("boom")
 
+    previous = notify_channels.CHANNELS.get("email")
     notify_channels.register(Boom())
     try:
         w.set_policy("system.health", channels={"webpush": True, "email": True})
@@ -422,6 +426,8 @@ def test_a_channel_that_raises_is_logged_failed_and_does_not_stop_the_others(w, 
         w.flush()
     finally:
         notify_channels.CHANNELS.pop("email", None)
+        if previous is not None:
+            notify_channels.CHANNELS["email"] = previous
     by = {d["channel"]: d["status"] for d in w.deliveries(nid)}
     assert by == {"webpush": "sent", "email": "failed"}
     assert [e for e in w.inbox("joni")[0]["timeline"] if e["kind"] == "delivery_failed"][0]["channel"] == "email"
@@ -449,5 +455,52 @@ def test_notifier_tick_runs_the_outbox_the_escalation_timer_and_the_retention_ho
         assert conn.execute("SELECT COUNT(*) FROM notify_outbox").fetchone()[0] > 0
     svc.NOTIFIER.start(w.db)
     assert svc.NOTIFIER.drain(10.0)
+    with w.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM notify_outbox").fetchone()[0] == 0
+
+
+def test_the_generic_lockscreen_level_carries_no_action_at_all(w, fake_push):
+    w.subscribe("joni")
+    w.set_settings(lockscreen="generic")
+    nid = w.emit("door.ring", "door", "station-1", params={"name": "כניסה"}).id
+    w.flush()
+    p = _payloads(w, fake_push, "joni")[-1]
+    assert (p["title"], p["body"]) == ("Arx", "התראה חדשה") and "actions" not in p, "not the ack / snooze buttons, not the doorbell link"
+    with w.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM notify_action_tokens WHERE notification_id = ?", (nid,)).fetchone()[0] == 0, "no token is even minted"
+    w.set_settings(lockscreen="type_place")
+    w.emit("door.ring", "door", "station-2", params={"name": "מחסן"})
+    w.flush()
+    assert {a["a"] for a in _payloads(w, fake_push, "joni")[-1]["actions"]} == {"ack", "snooze", "open_door"}
+
+
+def test_outbox_rows_are_deleted_only_after_they_were_handled(w, fake_push, monkeypatch):
+    w.subscribe("ops2")
+    w.emit("camera.offline", "camera", w.cam, params={"name": "x"})
+
+    class Kill(BaseException):
+        pass
+
+    real = notify_channels.dispatch
+
+    def dying(*a, **k):
+        raise Kill()
+
+    monkeypatch.setattr(notify_channels, "dispatch", dying)
+    with pytest.raises(Kill):
+        w.flush()
+    with w.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM notify_outbox WHERE kind = 'dispatch'").fetchone()[0] == 1, "a crash mid-dispatch leaves the row for the next pass"
+    assert fake_push.calls == []
+    monkeypatch.setattr(notify_channels, "dispatch", real)
+    w.flush()
+    assert len(_payloads(w, fake_push, "ops2")) == 1
+    with w.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM notify_outbox").fetchone()[0] == 0
+    # a row that RAISES (not a crash) is logged and dropped, never retried forever
+    w.emit("camera.offline", "camera", w.cam, resolve=True)
+    monkeypatch.setattr(notify_channels, "dispatch", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("bad row")))
+    w.emit("camera.offline", "camera", w.cam, params={"name": "x"})
+    w.flush()
     with w.db.connection(mode="read") as conn:
         assert conn.execute("SELECT COUNT(*) FROM notify_outbox").fetchone()[0] == 0

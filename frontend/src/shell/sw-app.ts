@@ -17,7 +17,7 @@ import { loadNavSize, navCssVars, navDims, navSize, onNavSize, setInstallationNa
 import { listAlerts } from '../api/rules';
 import { parseDoorConfirmLink, type NotifySummary } from '../api/notifications';
 import { notifyStore } from '../components/notify-store';
-import { badgeLabel, badgeOf } from '../components/notify-logic';
+import { badgeLabel, badgeOf, parseNotificationLink } from '../components/notify-logic';
 import { inAndroidShell } from '../arx/android-app';
 import '../screens/explore-floor-map';
 import '../screens/explore-sites';
@@ -81,6 +81,8 @@ import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, res
 import { t } from '../i18n/he';
 import { can, canNav, isApi, loadSession, nvrLess, onSession, watchPermissions, type Session } from '../api/session';
 import { productSettings } from '../api/prefs';
+import { applyTimelineColors } from '../api/timeline-colors';
+import { applyPlaybackDisplay } from '../api/playback-display';
 import '../components/sw-state-panel';
 import '../components/sw-page';
 
@@ -606,11 +608,6 @@ export class SwApp extends LitElement {
       border-radius: 0;
       box-shadow: none;
       border-block-start: 1px solid var(--sw-border);
-    }
-    .searchscrim {
-      position: fixed;
-      inset: 0;
-      z-index: calc(var(--sw-z-topbar) - 1);
     }
     /* the first thing in the content (a page header) keeps clear of the floating corner; wide screens with a tab row
        or a section switch above it have their own row and need no reserve */
@@ -1142,6 +1139,8 @@ export class SwApp extends LitElement {
           HIDDEN_HREFS.clear();
           setInstallationNavSize(ps['ui.nav_size']); // the installation's default size of the navigation
           setInstallationMobileOptions(ps['ui.mobile']); // the phone UX guards (הגדרות › כללי › אפשרויות נייד)
+          applyPlaybackDisplay(ps); // the helper line and the diagnostics block of the recording screens
+          applyTimelineColors(ps['timeline.colors']); // the investigation timeline's colours (הגדרות › וידאו ומדיה › צבעי ציר הזמן)
           if (String(ps['ui.hide_search'] ?? 'false') === 'true') HIDDEN_HREFS.add('#/investigate/search');
           const hideMap = String(ps['ui.hide_map'] ?? 'false') === 'true';
           if (hideMap) for (const h of MAP_HREFS) HIDDEN_HREFS.add(h);
@@ -1189,6 +1188,8 @@ export class SwApp extends LitElement {
     });
     this.stopRouter = onRouteChange((route, replaced) => {
       this.route = route;
+      // the search popover never outlives the screen it was opened on (Back, a tab, a result, the bottom bar)
+      this.closeSearchPanel(false);
       // not the WisKey embed mirroring the panel's own moves into the address (replaced)
       if (!replaced) {
         // CR-013: a menu item (or any navigation) closes the user menu and the tab-order dialog; their history entry
@@ -1203,9 +1204,10 @@ export class SwApp extends LitElement {
       // in-app confirmation - never an unlock by itself, and only inside a signed-in session (the center opens once the session is known); the address
       // then falls back to the home screen so Back does not repeat it.
       const doorLink = parseDoorConfirmLink(window.location.hash);
-      if (doorLink && !replaced) {
-        this.centerFocus = doorLink.notificationId;
-        this.centerConfirm = true;
+      const rowLink = doorLink ? null : parseNotificationLink(window.location.hash); // every push opens '#/notifications/<id>': the center on that row
+      if ((doorLink || rowLink) && !replaced) {
+        this.centerFocus = doorLink?.notificationId ?? (rowLink as string);
+        this.centerConfirm = !!doorLink;
         this.pendingCenter = true;
         this.openPendingCenter();
         this.keepCenterOnce = true;
@@ -1262,6 +1264,7 @@ export class SwApp extends LitElement {
   }
 
   protected updated() {
+    this.syncSearchOutside();
     this.applyNavSize();
     // what the floating corner (search, status) sits above: the phone's sticky section row, a tab / section row, or
     // the page's own header (sw-page reads --sw-float-reserve to keep its actions clear)
@@ -1303,6 +1306,8 @@ export class SwApp extends LitElement {
     this.phoneMq.removeEventListener('change', this.onPhoneMq);
     window.removeEventListener('popstate', this.onPopState);
     window.removeEventListener('keydown', this.onGlobalKey);
+    this.searchPanel = false;
+    this.syncSearchOutside();
     window.removeEventListener('sw-setup-state', this.onSetupState);
     window.clearInterval(this.sysTimer);
     this.sysTimer = 0;
@@ -1463,6 +1468,36 @@ export class SwApp extends LitElement {
     });
   }
 
+  private outsideOn = false;
+
+  /** While the popover is open a press anywhere outside it closes it. There is no scrim: a full-screen layer under the
+   * popover took every touch, so a swipe over it neither scrolled the page nor closed the popover and, on a phone, the
+   * pages could no longer be scrolled after the search was opened. A TAP outside is swallowed (it only closes, it never
+   * also presses what was under the finger: a power button, a card); a swipe is not, it scrolls what it started on. */
+  private syncSearchOutside() {
+    if (this.searchPanel === this.outsideOn) return;
+    this.outsideOn = this.searchPanel;
+    if (this.searchPanel) document.addEventListener('pointerdown', this.onSearchOutside, true);
+    else document.removeEventListener('pointerdown', this.onSearchOutside, true);
+  }
+
+  private onSearchOutside = (e: PointerEvent) => {
+    const path = e.composedPath();
+    if (path.some((n) => n instanceof HTMLElement && (n.hasAttribute('data-search-panel') || n.hasAttribute('data-search-open')))) return;
+    this.closeSearchPanel(false);
+    const swallow = (c: Event) => {
+      c.preventDefault();
+      c.stopPropagation();
+    };
+    const stop = () => {
+      window.removeEventListener('click', swallow, true);
+      window.removeEventListener('pointercancel', stop, true);
+    };
+    window.addEventListener('click', swallow, { capture: true, once: true });
+    window.addEventListener('pointercancel', stop, { capture: true, once: true }); // the browser took the touch for a scroll: no click follows
+    window.setTimeout(stop, 700);
+  };
+
   private closeSearchPanel(restoreFocus = true) {
     if (!this.searchPanel) return;
     this.searchPanel = false;
@@ -1567,8 +1602,7 @@ export class SwApp extends LitElement {
     const canSearch = !this.gated;
     if (dot === nothing && !canSearch) return nothing;
     const open = this.searchOpen && !!this.searchQ.trim();
-    return html`${this.searchPanel ? html`<div class="searchscrim" data-search-scrim @click=${() => this.closeSearchPanel(false)}></div>` : nothing}
-      <div class="float" data-float>
+    return html`<div class="float" data-float>
         <div class="pillrow">${dot}${canSearch ? html`<button type="button" data-search-open aria-label=${t('app.search')} title=${t('app.search')} aria-haspopup="dialog" aria-expanded=${this.searchPanel ? 'true' : 'false'} @click=${() => (this.searchPanel ? this.closeSearchPanel(false) : this.openSearch())}><sw-icon name="search" size=${16}></sw-icon></button>` : nothing}</div>
         ${this.searchPanel
           ? html`<div class="searchpanel" data-search-panel role="dialog" aria-label="חיפוש">

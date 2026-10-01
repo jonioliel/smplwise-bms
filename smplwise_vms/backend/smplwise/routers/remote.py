@@ -4,7 +4,8 @@
 `POST auth/session`        remote channel only: `Authorization: Bearer <HA access token>` → the Arx session cookie
                            (`__Secure-arx_session`, Path=<remote_path>/, HttpOnly, Secure, SameSite=Strict).
 `DELETE auth/session`      remote channel only: sign out (the session is dropped, the cookie cleared).
-`PUT access/users/{id}/remote-access`  system.configure: the per-user flag of remote.policy = flag (D4).
+`PUT access/users/{id}/remote-access`  system.configure: the per-user flag of remote.policy = flag (D4). An administrator stays
+                           admitted by `remote.admins_default` (default on) whatever the flag says (CR-008 amendment).
 
 CR-008 P2 (remote-access hardening), on both channels:
 `GET    auth/sessions?scope=own|all`  the remote sign-ins (one row per browser / client), own; `all` with system.configure.
@@ -102,18 +103,22 @@ def set_remote_access(user_id: str, body: RemoteFlag, request: Request, principa
     else:
         conn.execute("DELETE FROM remote_access_users WHERE user_id = ?", (user_id,))
     dropped = 0
+    # what admits the user after this change: the flag just set, else the administrator default (CR-008 amendment)
+    basis = hua.remote_basis(conn, user_id)
     if not body.enabled:
-        # under remote.policy = flag the user's remote sign-ins end now, their WebSockets with them (CR-008 P2)
+        # under remote.policy = flag the user's remote sign-ins end now, their WebSockets with them (CR-008 P2) - unless
+        # the administrator default still admits them
         from .settings import read_settings
 
-        if read_settings(conn)["remote.policy"] == "flag":
+        if read_settings(conn)["remote.policy"] == "flag" and basis is None:
             dropped = len({s.sign_in() for s in hua.STORE.drop_user(user_id)})
             _close_sockets_from_thread()
     if before != body.enabled:
         audit(conn, actor=principal, action="remote.access_flag", decision="allowed", resource_type="user", resource_id=user_id,
               request_id=getattr(request.state, "correlation_id", None),
               details={"before": before, "after": body.enabled, **({"sessions_ended": dropped} if dropped else {})})
-    return {"user_id": user_id, "remote_access": body.enabled, "sessions_ended": dropped}
+    effective = hua.BASIS_FLAG if body.enabled else hua.BASIS_ADMIN_DEFAULT if basis == hua.BASIS_ADMIN_DEFAULT else None
+    return {"user_id": user_id, "remote_access": effective is not None, "remote_access_basis": effective, "sessions_ended": dropped}
 
 
 def _close_sockets_from_thread() -> None:

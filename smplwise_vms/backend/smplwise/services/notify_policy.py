@@ -213,8 +213,11 @@ class PolicyInvalid(ValueError):
 def validate_update(source: str, body: dict[str, Any]) -> dict[str, Any]:
     """The columns a PUT may change, validated. `ha_mobile` / `whatsapp` true is refused (`channel_reserved`, v1)."""
     out: dict[str, Any] = {}
+    for f in ("enabled", "resolve_notice"):  # real booleans only: the string "false" is truthy and must never silently switch something on
+        if f in body and not isinstance(body[f], bool):
+            raise PolicyInvalid("validation", "הערך חייב להיות כן/לא.", {"field": f})
     if "enabled" in body:
-        out["enabled"] = bool(body["enabled"])
+        out["enabled"] = body["enabled"]
     if "severity" in body:
         if body["severity"] not in SEVERITIES:
             raise PolicyInvalid("validation", "חומרה לא מוכרת.", {"field": "severity"})
@@ -230,7 +233,7 @@ def validate_update(source: str, body: dict[str, Any]) -> dict[str, Any]:
                 raise PolicyInvalid("validation", "ערך מספרי מחוץ לטווח.", {"field": f})
             out[f] = v
     if "resolve_notice" in body:
-        out["resolve_notice"] = bool(body["resolve_notice"])
+        out["resolve_notice"] = body["resolve_notice"]
     if "recipients" in body:
         r = body["recipients"] or {}
         rule = r.get("rule")
@@ -250,6 +253,8 @@ def validate_update(source: str, body: dict[str, Any]) -> dict[str, Any]:
             out["recipients_json"] = json.dumps(rec)
     if "channels" in body:
         ch = body["channels"] or {}
+        if not isinstance(ch, dict) or any(k in ch and not isinstance(ch[k], bool) for k in ("inbox", "webpush", "email", "ha_mobile", "whatsapp", "app")):
+            raise PolicyInvalid("validation", "ערוצים: ערכי כן/לא בלבד.", {"field": "channels"})
         for reserved in CHANNELS_RESERVED:
             if ch.get(reserved):
                 raise PolicyInvalid("channel_reserved", "הערוץ הזה עדיין לא זמין.", {"channel": reserved})

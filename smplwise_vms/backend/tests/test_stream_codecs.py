@@ -47,21 +47,25 @@ LAB_SHAPED = (f'<?xml version="1.0" encoding="UTF-8" ?><StreamingChannelList ver
               + "</StreamingChannelList>")
 
 
+
+# a main stream that is KNOWN not to play over WebRTC (H.264 with B-frames); H.265 and SVC are tried, never skipped (nvr.webrtc_verdict)
+NO_MAIN = {"codec": "H.264", "svc": False, "bframes": True, "width": 2560, "height": 1440}
+
 def test_parse_streaming_channels_codec_svc_b_frames_and_verdicts():
     enc = nvr.parse_streaming_channels(LAB_SHAPED)
     assert sorted(enc) == [1, 2, 3, 4] and sorted(enc[3]) == ["main", "sub"], "N03 is not a main or sub stream"
     m1, s1 = enc[1]["main"], enc[1]["sub"]
     assert (m1["codec"], m1["svc"], m1["smart_codec"], m1["resolution"], m1["fps"], m1["gov_length"]) == ("H.264", True, False, "2560x1440", None, 50)
-    assert (m1["webrtc"], m1["reason"]) == ("no", "svc"), "the lab's main streams: H.264 with SVC - did not decode over WebRTC"
+    assert (m1["webrtc"], m1["reason"]) == ("unknown", "svc"), "SVC is tried, not skipped: the lab NVR's did not decode, the Hoffnung NVR's does (2026-10-01)"
     assert (s1["codec"], s1["svc"], s1["fps"], s1["webrtc"], s1["reason"]) == ("H.264", None, 20.0, "ok", "h264")
-    assert (enc[2]["main"]["codec"], enc[2]["main"]["profile"], enc[2]["main"]["webrtc"], enc[2]["main"]["reason"]) == ("H.265", "Main", "no", "h265")
+    assert (enc[2]["main"]["codec"], enc[2]["main"]["profile"], enc[2]["main"]["webrtc"], enc[2]["main"]["reason"]) == ("H.265", "Main", "unknown", "h265")
     assert (enc[2]["sub"]["profile"], enc[2]["sub"]["webrtc"], enc[2]["sub"]["reason"]) == ("Baseline", "ok", "h264_no_b_frames")
     assert (enc[3]["main"]["b_frames"], enc[3]["main"]["webrtc"], enc[3]["main"]["reason"]) == (True, "no", "b_frames")
     assert (enc[3]["sub"]["b_frames"], enc[3]["sub"]["webrtc"], enc[3]["sub"]["reason"]) == (False, "ok", "h264_no_b_frames"), "a B-frame count of 0 is 'no B-frames'"
     assert (enc[4]["main"]["codec"], enc[4]["main"]["webrtc"]) == ("MJPEG", "no")
     # a single <StreamingChannel> document (GET /ISAPI/Streaming/channels/101) parses the same way
     one = f'<?xml version="1.0" encoding="UTF-8" ?>' + _channel("101", "<videoCodecType>H.265</videoCodecType>")
-    assert nvr.parse_streaming_channels(one)[1]["main"]["webrtc"] == "no"
+    assert nvr.parse_streaming_channels(one)[1]["main"]["webrtc"] == "unknown", "H.265 is tried over WebRTC (Chrome decodes it with a hardware decoder)"
 
 
 def test_track_description_fallback_and_unknowns():
@@ -71,7 +75,7 @@ def test_track_description_fallback_and_unknowns():
     assert (bp["webrtc"], bp["reason"]) == ("unknown", "track_description_only"), "a track Description never says 'plays' (review M1)"
     hp = nvr.encoding_from_track({"codec": "H.264"})
     assert (hp["webrtc"], hp["reason"]) == ("unknown", "track_description_only"), "a track Description says nothing about B-frames / SVC"
-    assert nvr.encoding_from_track({"codec": "H.265"})["webrtc"] == "no", "H.265 / MJPEG from a track Description: will not play"
+    assert nvr.encoding_from_track({"codec": "H.265"})["webrtc"] == "unknown", "H.265 from a track Description: tried"
     assert nvr.encoding_from_track({"codec": "MJPEG"})["webrtc"] == "no"
 
 
@@ -83,9 +87,9 @@ def test_lab_shaped_track_vs_streaming_mismatch():
     ch = nvr.DiscoveredChannel(channel=1, name="כניסה", online=True, main_track=101, sub_track=102, stream=track, sub_stream=track)
     streaming = nvr.parse_streaming_channels(LAB_SHAPED)
     enc = stream_codecs.build(ch, streaming[1], None, error=None, now="2026-09-29T00:00:00Z")
-    assert (enc["main"]["source"], enc["main"]["webrtc"], enc["main"]["reason"]) == ("isapi", "no", "svc")
+    assert (enc["main"]["source"], enc["main"]["webrtc"], enc["main"]["reason"]) == ("isapi", "unknown", "svc")
     enc = stream_codecs.build(dataclasses.replace(ch, channel=2), streaming[2], None, error=None, now="2026-09-29T00:00:00Z")
-    assert (enc["main"]["webrtc"], enc["main"]["reason"]) == ("no", "h265")
+    assert (enc["main"]["webrtc"], enc["main"]["reason"]) == ("unknown", "h265")
     # the streaming document cannot be read (and no earlier reading): the tracks' BP is "unknown", and no hint claims either way
     enc = stream_codecs.build(ch, None, None, error="source_error", now="2026-09-29T00:00:00Z")
     assert (enc["main"]["source"], enc["main"]["webrtc"], enc["sub"]["webrtc"]) == ("track", "unknown", "unknown")
@@ -136,15 +140,16 @@ def _sync(c: TestClient) -> None:
 
 
 def test_discovery_stores_encodings_and_health_counts_them(settings, fake):
-    fake.nvr["encodings_by_channel"] = {2: {"main": {"codec": "H.264", "svc": False}}, 3: {"main": {"codec": "H.264", "svc": True}}}
+    fake.nvr["encodings"]["main"] = dict(NO_MAIN)
+    fake.nvr["encodings_by_channel"] = {2: {"main": {"bframes": False}}, 3: {"main": {"svc": True}}}
     s = _devices(settings)
     c = TestClient(create_app(s))
     _sync(c)
     cams = c.get("/api/v1/cameras").json()["cameras"]
     assert [x["channel"] for x in cams] == [1, 2, 3, 4]
     by = {x["channel"]: x for x in cams}
-    assert (by[1]["encoding"]["main"]["codec"], by[1]["encoding"]["main"]["webrtc"], by[1]["encoding"]["main"]["reason"]) == ("H.265", "no", "h265")
-    assert (by[2]["encoding"]["main"]["webrtc"], by[3]["encoding"]["main"]["reason"]) == ("ok", "svc")
+    assert (by[1]["encoding"]["main"]["codec"], by[1]["encoding"]["main"]["webrtc"], by[1]["encoding"]["main"]["reason"]) == ("H.264", "no", "b_frames")
+    assert (by[2]["encoding"]["main"]["webrtc"], by[3]["encoding"]["main"]["reason"]) == ("ok", "b_frames")
     assert all(x["encoding"]["sub"]["webrtc"] == "ok" and x["encoding"]["error"] is None for x in cams)
     assert by[1]["stream"]["codec"] == "H.265", "the track Description is still stored as before"
 
@@ -155,18 +160,19 @@ def test_discovery_stores_encodings_and_health_counts_them(settings, fake):
     # the capability registry on the camera's capabilities, with the hint (the fake NVR's model names the menu path)
     caps_video = c.get(f"/api/v1/cameras/{by[1]['id']}/capabilities").json()["video"]
     assert caps_video["main"]["webrtc"] == "no"
-    assert caps_video["hint"].startswith("הזרם הראשי של מצלמה 1 מקודד H.265 - לא יתנגן ב-WebRTC; לשינוי: NVR DS-7616NI-FAKE → Configuration")
+    assert caps_video["hint"].startswith("הזרם הראשי של מצלמה 1 מקודד H.264 עם B-frames - לא יתנגן ב-WebRTC; לשינוי: NVR DS-7616NI-FAKE → Configuration")
     assert c.get(f"/api/v1/cameras/{by[2]['id']}/capabilities").json()["video"]["hint"] is None
 
     # the health report: remote channel off → the facts, status ok
     rep = {x["id"]: x for x in c.get("/api/v1/health/report").json()["checks"]}
     v = rep["video_webrtc"]
-    assert v["status"] == "ok" and v["meta"]["main"]["no"] == 3 and "מצלמה 1 (H.265)" in v["detail"] and "מצלמה 3 (SVC)" in v["detail"]
+    assert v["status"] == "ok" and v["meta"]["main"]["no"] == 3 and "מצלמה 1 (B-frames)" in v["detail"] and "מצלמה 3 (B-frames)" in v["detail"]
     assert [b["channel"] for b in v["meta"]["main_not_webrtc"]] == [1, 3, 4]
     assert fake.writes == [], "the codec check never writes to the NVR (or to go2rtc)"
 
 
 def test_health_report_warns_only_when_remote_viewers_get_main_first(settings, fake):
+    fake.nvr["encodings"]["main"] = dict(NO_MAIN)
     s = _devices(settings, remote_access=True)
     app = create_app(s)
     c = TestClient(app)
@@ -192,7 +198,7 @@ def test_streaming_document_unreadable_keeps_the_last_reading_or_falls_back_to_t
     fake.nvr["streaming"] = False  # notSupport: the track Description (codecType=H.265) is all there is
     _sync(c)
     enc = c.get("/api/v1/cameras").json()["cameras"][0]["encoding"]
-    assert enc["main"]["source"] == "track" and enc["main"]["webrtc"] == "no" and enc["sub"] is None and enc["error"] == "source_error"
+    assert enc["main"]["source"] == "track" and enc["main"]["webrtc"] == "unknown" and enc["sub"] is None and enc["error"] == "source_error"
     fake.nvr["streaming"] = True
     _sync(c)
     enc = c.get("/api/v1/cameras").json()["cameras"][0]["encoding"]
@@ -205,14 +211,15 @@ def test_streaming_document_unreadable_keeps_the_last_reading_or_falls_back_to_t
 
 
 def test_setup_wizard_nvr_step_shows_the_hints(settings, fake):
-    fake.nvr["encodings_by_channel"] = {2: {"main": {"codec": "H.264", "svc": False}}}
+    fake.nvr["encodings"]["main"] = dict(NO_MAIN)
+    fake.nvr["encodings_by_channel"] = {2: {"main": {"bframes": False}}}
     s = _devices(settings)
     c = TestClient(create_app(s))
     nvr_step = next(x for x in c.post("/api/v1/setup/check/nvr").json()["steps"] if x["id"] == "nvr")
     assert nvr_step["status"] == "done"
     hints = [w for w in nvr_step["warnings"] if w["code"] == "main_not_webrtc"]
-    assert [w["message"] for w in hints][0] == ("הזרם הראשי של מצלמה 1 מקודד H.265 - לא יתנגן ב-WebRTC; לשינוי: NVR DS-7616NI-FAKE → Configuration → Video/Audio → "
-                                                "Video → Camera 1 → Main Stream (Continuous) → Video Encoding: H.264, B-frames off")
+    assert [w["message"] for w in hints][0] == ("הזרם הראשי של מצלמה 1 מקודד H.264 עם B-frames - לא יתנגן ב-WebRTC; לשינוי: NVR DS-7616NI-FAKE → Configuration → Video/Audio → "
+                                                "Video → Camera 1 → Main Stream (Continuous) → Video Encoding: B-frames off")
     assert len(hints) == 3 and all(w["link"]["href"] == "#/system/diagnostics?tab=remote" for w in hints)
     fact = next(f for f in nvr_step["facts"] if f["label"] == "זרם ראשי ב־WebRTC")
     assert fact["value"] == "1 מתוך 4 · 3 לא יתנגנו" and fact["tone"] == "warn"
@@ -234,6 +241,7 @@ def test_setup_wizard_nvr_step_shows_the_hints(settings, fake):
 def test_wizard_counts_enabled_cameras_and_uses_a_short_timeout(settings, fake, monkeypatch):
     """Review nits: the wizard's live NVR check counts the enabled cameras (as /health and the report do), and its
     streaming-channels GET has a short timeout inside the check's 20 s budget."""
+    fake.nvr["encodings"]["main"] = dict(NO_MAIN)
     s = _devices(settings)
     c = TestClient(create_app(s))
     _sync(c)

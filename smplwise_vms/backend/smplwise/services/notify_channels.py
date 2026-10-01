@@ -33,6 +33,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
+import threading
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -140,25 +141,30 @@ def set_delivery(conn: Any, ids: list[str], status: str, reason: str | None, att
 
 # ---------------------------------------------------------------- the outbox
 
+_OUTBOX_LOCK = threading.RLock()
+
+
 def process_outbox(notifier: "push.PushNotifier", limit: int = 100) -> int:
-    """Take the committed outbox rows (claimed by deleting them in one short write transaction) and act on them in order:
-    UI frames to the users' sockets, dispatches to the channels. A failing row is logged and dropped, never retried forever."""
+    """Act on the committed outbox rows in order: UI frames to the users' sockets, dispatches to the channels. A row is deleted only AFTER it was
+    handled, so a crash (or a kill) in the middle leaves it for the next pass - at-least-once; the one-hour staleness rule keeps a late replay from
+    waking a phone for nothing. A row that RAISES is logged and dropped (never retried forever). One pass at a time per process."""
     db = notifier.db
     assert db is not None
-    with db.connection(label="notify.outbox") as conn:
-        rows = conn.execute("SELECT * FROM notify_outbox ORDER BY id LIMIT ?", (limit,)).fetchall()
-        if rows:
-            conn.execute("DELETE FROM notify_outbox WHERE id <= ?", (rows[-1]["id"],))
-    for r in rows:
-        try:
-            item = json.loads(r["payload_json"] or "{}")
-            if r["kind"] == "ui":
-                publish_ui(db, r["notification_id"], item)
-            elif r["kind"] == "dispatch":
-                item["queued_at"] = r["created_at"]
-                dispatch(notifier, r["notification_id"], item)
-        except Exception:  # noqa: BLE001 - one bad row never stops the others
-            log.exception("notification outbox row %s (%s) failed", r["id"], r["kind"])
+    with _OUTBOX_LOCK:
+        with db.connection(mode="read", label="notify.outbox.read") as conn:
+            rows = conn.execute("SELECT * FROM notify_outbox ORDER BY id LIMIT ?", (limit,)).fetchall()
+        for r in rows:
+            try:
+                item = json.loads(r["payload_json"] or "{}")
+                if r["kind"] == "ui":
+                    publish_ui(db, r["notification_id"], item)
+                elif r["kind"] == "dispatch":
+                    item["queued_at"] = r["created_at"]
+                    dispatch(notifier, r["notification_id"], item)
+            except Exception:  # noqa: BLE001 - one bad row never stops the others
+                log.exception("notification outbox row %s (%s) failed", r["id"], r["kind"])
+            with db.connection(label="notify.outbox.done") as conn:  # BaseException (a kill) skips this: the row stays
+                conn.execute("DELETE FROM notify_outbox WHERE id = ?", (r["id"],))
     if len(rows) >= limit:
         notifier.dirty = True
     return len(rows)
@@ -230,6 +236,8 @@ def payload_v2(n: dict[str, Any], level: str, *, tokens: dict[str, str] | None, 
     if mode == "resolved":
         out["resolved"] = True
     actions: list[dict[str, Any]] = []
+    if level == "generic":
+        tokens, door = None, None  # the most private level carries NO action at all - not the buttons, not the doorbell link
     if tokens:
         if "ack" in tokens:
             actions.append({"a": "ack", "title": "אישור", "t": tokens["ack"]})
@@ -275,8 +283,9 @@ class WebPushChannel(Channel):
                 push.STATS["rate_limited"] += 1
                 out.append(Target(self.name, uid, host, "skipped", "rate_limited"))
                 continue
-            actions = [] if d.mode == "resolved" else (["ack", "snooze"] if reach.can_ack(d.n) else ["snooze"])
-            door = reach.door(d.n) if d.mode != "resolved" else None
+            generic = d.settings["lockscreen"] == "generic"  # nothing to tap on a generic push: no tokens are minted either
+            actions = [] if (d.mode == "resolved" or generic) else (["ack", "snooze"] if reach.can_ack(d.n) else ["snooze"])
+            door = reach.door(d.n) if (d.mode != "resolved" and not generic) else None
             for s in subs:
                 out.append(Target(self.name, uid, push.endpoint_host(s["endpoint"]), "queued", None, {"sub": s, "actions": actions, "door": door}))
         return out

@@ -120,7 +120,7 @@ def wake() -> None:
     try:
         from . import push
 
-        push.NOTIFIER.wake()
+        push.wake_all()
     except Exception:  # noqa: BLE001 - a wake-up is a hint, never a failure of the writer
         log.debug("could not wake the notifier", exc_info=True)
 
@@ -212,6 +212,21 @@ def emit(conn: sqlite3.Connection, signal: Signal) -> str | None:
 
 
 def emit_full(conn: sqlite3.Connection, signal: Signal) -> EmitResult:
+    """emit() with the full answer. Atomic inside the caller's transaction: it runs in a SAVEPOINT, so an error part-way (a row made, its recipients
+    not) is rolled back to the savepoint and re-raised - a caller that catches it (every source hook does) never commits a half-made notification
+    and never loses the rest of its own transaction."""
+    conn.execute("SAVEPOINT notify_emit")
+    try:
+        res = _emit(conn, signal)
+    except BaseException:
+        conn.execute("ROLLBACK TO notify_emit")
+        conn.execute("RELEASE notify_emit")
+        raise
+    conn.execute("RELEASE notify_emit")
+    return res
+
+
+def _emit(conn: sqlite3.Connection, signal: Signal) -> EmitResult:
     policy = policies.get_policy(conn, signal.source)
     if policy is None:
         log.warning("notification signal of an unknown source %r ignored", signal.source)
@@ -573,22 +588,34 @@ def redeem_token(conn: sqlite3.Connection, token: str, action: str, tz_name: str
     """Single use: returns {user_id, notification_id, result} when the token authorises `action` on its row for its user AND the
     user still sees (and for ack may acknowledge) it; None for anything else (expired, used, other action, lost reach). A token
     that fails for lost reach is not burned; a used or expired one never works again."""
+    return redeem_token_ex(conn, token, action, tz_name, expect_user)[0]
+
+
+def redeem_token_ex(conn: sqlite3.Connection, token: str, action: str, tz_name: str, expect_user: str | None = None) -> tuple[dict[str, Any] | None, str]:
+    """redeem_token plus WHY it failed: `malformed` | `unknown` (no such token - a guess) | `expired` | `used` | `mismatch` (another action or another user's
+    session) | `lost_reach` | `ok`. The action endpoint's throttle counts only the first two: a stale button is not an attack."""
     if action not in ACTIONS or not isinstance(token, str) or not 8 <= len(token) <= 128:
-        return None
+        return None, "malformed"
     r = conn.execute("SELECT * FROM notify_action_tokens WHERE token_hash = ?", (_hash(token),)).fetchone()
-    if r is None or r["used_at"] or r["actions"] != action or r["expires_at"] <= iso_utc(now_utc()) or (expect_user is not None and r["user_id"] != expect_user):
-        return None  # (expect_user: the remote channel's session must be the token's own user)
+    if r is None:
+        return None, "unknown"
+    if r["used_at"]:
+        return None, "used"
+    if r["expires_at"] <= iso_utc(now_utc()):
+        return None, "expired"
+    if r["actions"] != action or (expect_user is not None and r["user_id"] != expect_user):
+        return None, "mismatch"  # (expect_user: the remote channel's session must be the token's own user)
     p = principal_of(conn, r["user_id"])
     if p is None:
-        return None
+        return None, "lost_reach"
     got = get_row(conn, p, r["notification_id"])
     if got is None:
-        return None
+        return None, "lost_reach"
     row, _rec, reach = got
     if action == "ack" and not reach.can_ack(_row_note(row)):
-        return None
+        return None, "lost_reach"
     if conn.execute("UPDATE notify_action_tokens SET used_at = ? WHERE token_hash = ? AND used_at IS NULL", (iso_utc(now_utc()), r["token_hash"])).rowcount != 1:
-        return None
+        return None, "used"
     if action == "ack":
         if row["state"] == "open":
             _ack_state(conn, row, p.user_id)
@@ -596,7 +623,7 @@ def redeem_token(conn: sqlite3.Connection, token: str, action: str, tz_name: str
     else:
         snooze(conn, p, r["notification_id"], 60, tz_name)
         result = "snoozed"
-    return {"user_id": p.user_id, "username": p.username, "notification_id": r["notification_id"], "result": result, "principal": p}
+    return {"user_id": p.user_id, "username": p.username, "notification_id": r["notification_id"], "result": result, "principal": p}, "ok"
 
 
 # ---------------------------------------------------------------- escalation (owner decision 6a)
@@ -636,12 +663,14 @@ def escalation_tick(conn: sqlite3.Connection, now: dt.datetime | None = None) ->
 # ---------------------------------------------------------------- retention janitor
 
 def retention_sweep(conn: sqlite3.Connection, now: dt.datetime | None = None) -> dict[str, int]:
-    """Delete notifications older than the configured retention (their recipients, timeline and deliveries go with them), deliveries
-    past 14 days, expired or used action tokens and stale outbox rows."""
+    """Delete RESOLVED notifications older than the configured retention (their recipients, timeline and deliveries go with them), deliveries
+    past 14 days, expired or used action tokens and stale outbox rows. A row whose condition is still open (open, or acknowledged but not
+    resolved) is never deleted by age - it is still the live state of something - except as a last-resort cap at a year."""
     now = now or now_utc()
     st = nsettings.load(conn)
     cutoff = iso_utc(now - dt.timedelta(days=st["retention_days"]))
-    n = conn.execute("DELETE FROM notifications WHERE last_at < ?", (cutoff,)).rowcount
+    n = conn.execute("DELETE FROM notifications WHERE state = 'resolved' AND last_at < ?", (cutoff,)).rowcount
+    n += conn.execute("DELETE FROM notifications WHERE last_at < ?", (iso_utc(now - dt.timedelta(days=max(365, st["retention_days"]))),)).rowcount
     d = conn.execute("DELETE FROM notification_deliveries WHERE created_at < ?", (iso_utc(now - dt.timedelta(days=st["deliveries_retention_days"])),)).rowcount
     t = conn.execute("DELETE FROM notify_action_tokens WHERE expires_at < ? OR used_at IS NOT NULL", (iso_utc(now - dt.timedelta(hours=1)),)).rowcount
     o = conn.execute("DELETE FROM notify_outbox WHERE created_at < ?", (iso_utc(now - dt.timedelta(days=1)),)).rowcount

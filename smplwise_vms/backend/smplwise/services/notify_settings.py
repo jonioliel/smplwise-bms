@@ -90,6 +90,17 @@ def _email_view(raw: dict[str, Any], settings: "Settings | Path | None") -> dict
     }
 
 
+DEFAULT_ROW_SQL = (
+    "INSERT OR IGNORE INTO notify_settings(id, quiet_json, pass_json, escalation_json) VALUES (1, ?, ?, ?)"
+)
+
+
+def ensure_row(conn: sqlite3.Connection) -> None:
+    """The single settings row (id = 1) exists. A replace-restore of a backup made before the table existed empties it and the archive has no row to
+    put back: without this every UPDATE would silently change nothing and the settings could never be saved. Call it before any write."""
+    conn.execute(DEFAULT_ROW_SQL, (json.dumps(DEFAULT_QUIET), json.dumps(DEFAULT_PASS), json.dumps(DEFAULT_ESCALATION)))
+
+
 def load(conn: sqlite3.Connection, settings: "Settings | Path | None" = None) -> dict[str, Any]:
     """NotifySettings as the API returns it (no password)."""
     r = conn.execute("SELECT * FROM notify_settings WHERE id = 1").fetchone()
@@ -118,7 +129,9 @@ def _validate_quiet(q: Any) -> dict[str, Any]:
         raise SettingsInvalid("validation", "שעות שקט לא תקינות.", details={"field": "quiet"})
     out = {**DEFAULT_QUIET}
     if "enabled" in q:
-        out["enabled"] = bool(q["enabled"])
+        if not isinstance(q["enabled"], bool):
+            raise SettingsInvalid("validation", "הערך חייב להיות כן/לא.", details={"field": "quiet.enabled"})
+        out["enabled"] = q["enabled"]
     for f in ("from", "to"):
         if f in q:
             if not isinstance(q[f], str) or not HHMM.match(q[f]):
@@ -141,7 +154,9 @@ def _validate_pass(p: Any, current: dict[str, Any]) -> dict[str, Any]:
     for sev, row in p.items():
         if not isinstance(row, dict) or set(row) - {"webpush", "email", "ha_mobile"}:
             raise SettingsInvalid("validation", "מטריצת המעבר לא תקינה.", details={"field": f"pass_through.{sev}"})
-        out[sev].update({k: bool(v) for k, v in row.items()})
+        if any(not isinstance(v, bool) for v in row.values()):
+            raise SettingsInvalid("validation", "מטריצת המעבר: ערכי כן/לא בלבד.", details={"field": f"pass_through.{sev}"})
+        out[sev].update(row)
     return out
 
 
@@ -150,7 +165,9 @@ def _validate_escalation(e: Any, current: dict[str, Any]) -> dict[str, Any]:
         raise SettingsInvalid("escalation_invalid", "הגדרות ההסלמה לא תקינות.", details={"field": "escalation"})
     out = {**current}
     if "enabled" in e:
-        out["enabled"] = bool(e["enabled"])
+        if not isinstance(e["enabled"], bool):
+            raise SettingsInvalid("escalation_invalid", "הערך חייב להיות כן/לא.", details={"field": "escalation.enabled"})
+        out["enabled"] = e["enabled"]
     if "after_min" in e:
         v = e["after_min"]
         if isinstance(v, bool) or not isinstance(v, int) or not 1 <= v <= 60:
@@ -171,6 +188,7 @@ def _validate_escalation(e: Any, current: dict[str, Any]) -> dict[str, Any]:
 
 def update(conn: sqlite3.Connection, body: dict[str, Any], actor_user_id: str, expected_revision: int | None = None) -> tuple[dict[str, Any], list[str]]:
     """Apply a PUT body; returns (stored settings, the field names that changed). Raises SettingsInvalid."""
+    ensure_row(conn)
     cur = load(conn)
     if expected_revision is not None and expected_revision != cur["revision"]:
         raise SettingsInvalid("settings_conflict", "ההגדרות השתנו בינתיים; טען מחדש.", 412, {"current_revision": cur["revision"], "sent_revision": expected_revision})
@@ -192,12 +210,16 @@ def update(conn: sqlite3.Connection, body: dict[str, Any], actor_user_id: str, e
         if body["lockscreen"] not in LOCKSCREEN_LEVELS:
             raise SettingsInvalid("validation", "רמת פרטיות לא מוכרת.", details={"field": "lockscreen"})
         new["lockscreen"] = body["lockscreen"]
+    if "image_in_push" in body and not isinstance(body["image_in_push"], bool):
+        raise SettingsInvalid("validation", "הערך חייב להיות כן/לא.", details={"field": "image_in_push"})
     if body.get("image_in_push"):
         raise SettingsInvalid("validation", "תמונה בהתראה תיתמך בשלב מאוחר יותר.", details={"field": "image_in_push"})
     if "companion" in body:
         c = body["companion"]
         if not isinstance(c, dict) or set(c) - {"critical_sound_safety"}:
             raise SettingsInvalid("validation", "הגדרת Companion לא תקינה.", details={"field": "companion"})
+        if "critical_sound_safety" in c and not isinstance(c["critical_sound_safety"], bool):
+            raise SettingsInvalid("validation", "הערך חייב להיות כן/לא.", details={"field": "companion.critical_sound_safety"})
         new["companion"] = {"critical_sound_safety": bool(c.get("critical_sound_safety"))}
     if "retention_days" in body:
         if body["retention_days"] not in RETENTION_CHOICES or isinstance(body["retention_days"], bool):
@@ -223,6 +245,7 @@ def update(conn: sqlite3.Connection, body: dict[str, Any], actor_user_id: str, e
 
 def store_last_test(conn: sqlite3.Connection, ok: bool, detail: str) -> None:
     """Record the result of the last e-mail test (S4's POST /notify/email/test) on the settings row."""
+    ensure_row(conn)
     raw = _json((conn.execute("SELECT email_json FROM notify_settings WHERE id = 1").fetchone() or {"email_json": "{}"})["email_json"], {})
     raw["last_test"] = {"at": now_iso(), "ok": ok, "detail": detail}
     conn.execute("UPDATE notify_settings SET email_json = ? WHERE id = 1", (json.dumps(raw),))

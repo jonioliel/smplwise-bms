@@ -555,7 +555,7 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
     expect(await rowTabs(page)).toEqual([]);
     st.perms = [...VIEWER_PERMS, 'schedule.view'];
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual(['מבט על', 'תזמונים']);
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'תזמונים']);
   });
 
   test('schedule.manage without devices.read: the home area opens on the schedules, one tab, no row', async ({ page }) => {
@@ -572,7 +572,7 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
     expect(await rowTabs(page)).toEqual([]);
     st.settings = { 'ui.tabs': { devices: { order: ['schedules', 'building'], hidden: [] } } };
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual(['תזמונים', 'מבט על']);
+    await expect.poll(() => rowTabs(page)).toEqual(['תזמונים', 'מבט על']);
     st.settings = { 'ui.tabs': { devices: { order: [], hidden: ['building'] } } };
     await openApi(page, '/devices/schedules');
     expect(await rowTabs(page)).toEqual([]); // one tab left: no row
@@ -583,10 +583,10 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
     await expect(page.locator('sw-app devices-building')).toHaveCount(1);
     await expect(page.locator('sw-app .subnav sw-tabs')).toHaveCount(0);
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual(['מבט על', 'תזמונים']);
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'תזמונים']);
   });
 
-  test('toggle, bulk and delete send the contract\'s requests; a failing list shows the error state with a retry', async ({ page }, info) => {
+  test('toggle, bulk and delete send the contract\'s requests', async ({ page }) => {
     await openApi(page, '/devices/schedules');
     await expect(page.locator('sw-app devices-schedules [data-sched-grid]')).toBeVisible();
     const post = (re: RegExp) => st.calls.filter((c) => c.method === 'POST' && re.test(c.path));
@@ -604,7 +604,11 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
     await expect.poll(() => post(/schedules\/5a13f2\/delete/).length).toBe(1);
     expect(post(/delete/)[0].body).toMatchObject({ confirm: true });
     expect(typeof (post(/delete/)[0].body as { base_revision: string }).base_revision).toBe('string');
+  });
 
+  // Its own test (it was the tail of the one above): the pair did three page loads and a dozen UI steps inside one 60 s test budget,
+  // which a loaded workstation (several workers, other agents) used up - the failures were test timeouts at a different step each time.
+  test('a failing list shows the error state with a retry', async ({ page }, info) => {
     st.listStatus = 500;
     await openApi(page, '/devices/schedules');
     const panel = page.locator('sw-app devices-schedules sw-state-panel[data-sched-state="error"]');

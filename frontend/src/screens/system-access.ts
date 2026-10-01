@@ -706,7 +706,7 @@ export class SystemAccess extends LitElement {
    * (CR-008 P2). */
   private requestRemote(u: DirectoryUser, enabled: boolean) {
     const active = u.remote_sessions ?? 0;
-    if (!enabled && active > 0 && (this.directory?.remote_policy ?? 'flag') === 'flag') {
+    if (!enabled && active > 0 && (this.directory?.remote_policy ?? 'flag') === 'flag' && !u.remote_admin_default) {
       this.remoteOff = { userId: u.id, count: active };
       return;
     }
@@ -741,7 +741,7 @@ export class SystemAccess extends LitElement {
     const canAssign = dir.can_assign;
     const remoteColumn: TableColumn[] = dir.delegated
       ? []
-      : [{ key: 'remote_access', label: 'מרחוק', render: (r) => { const u = r as unknown as DirectoryUser; const n = u.remote_sessions ?? 0; return html`<span data-remote-col style="font-size:var(--sw-fs-xs)">${u.remote_access ? 'מופעלת' : 'כבויה'}${n ? html` · <sw-badge kind="live" label=${n === 1 ? 'מחובר' : `${n} חיבורים`}></sw-badge>` : nothing}</span><div style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">${u.remote_last_sign_in ? `אחרונה ${fmtWhen(u.remote_last_sign_in)}` : 'טרם נכנס'}</div>`; } }];
+      : [{ key: 'remote_access', label: 'מרחוק', render: (r) => { const u = r as unknown as DirectoryUser; const n = u.remote_sessions ?? 0; return html`<span data-remote-col style="font-size:var(--sw-fs-xs)">${u.remote_access_basis === 'admin_default' ? 'ברירת מחדל (מנהל)' : u.remote_access ? 'מופעלת' : 'כבויה'}${n ? html` · <sw-badge kind="live" label=${n === 1 ? 'מחובר' : `${n} חיבורים`}></sw-badge>` : nothing}</span><div style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">${u.remote_last_sign_in ? `אחרונה ${fmtWhen(u.remote_last_sign_in)}` : 'טרם נכנס'}</div>`; } }];
     const columns: TableColumn[] = [
       { key: 'name', label: 'שם', render: (r) => html`<div style="display:flex;align-items:center;gap:10px"><sw-avatar name=${String(r.name)} size=${30}></sw-avatar><div><strong>${String(r.name)}</strong>${r.is_admin ? html` <sw-badge kind="neutral" label="מנהל HA · מידע בלבד"></sw-badge>` : nothing}${r.is_self ? html` <sw-badge kind="recorded" label="אני"></sw-badge>` : nothing}<div style="font-size:var(--sw-fs-xs);color:var(--sw-text-3);direction:ltr;text-align:start">${String(r.username || r.id)}</div></div></div>` },
       { key: 'bindings', label: 'תפקיד · היקף', render: (r) => { const bs = r.bindings as AccessBinding[]; return bs.length ? html`${bs.slice(0, 2).map((b) => html`<div style="font-size:var(--sw-fs-xs)"><strong>${b.role_name}</strong> · ${b.scope_name}${b.via_group ? ` (קבוצה)` : ''}</div>`)}${bs.length > 2 ? html`<div style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">+${bs.length - 2}</div>` : nothing}` : html`<span style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">ללא שיוך · אין גישה לתוכן</span>`; } },
@@ -767,8 +767,9 @@ export class SystemAccess extends LitElement {
                     <dt>מנהל HA</dt><dd>${u.is_admin ? 'כן · מידע בלבד, לא תפקיד במערכת' : 'לא'}</dd>
                     <dt>קבוצות</dt><dd>${u.groups.map((g) => g.name).join(', ') || '—'}</dd>
                     ${dir.delegated ? nothing : html`<dt>גישה מרחוק</dt><dd data-remote-access>${can('system.configure')
-                      ? html`<sw-toggle label="SmplWise Arx" .checked=${live(!!u.remote_access && this.remoteOff?.userId !== u.id)} ?disabled=${this.busy} data-remote-access-toggle @change=${(e: CustomEvent<{ checked: boolean }>) => this.requestRemote(u, e.detail.checked)}></sw-toggle>`
-                      : u.remote_access ? 'מופעלת' : 'כבויה'}
+                      ? html`<sw-toggle label="SmplWise Arx" .checked=${live(!!u.remote_access && this.remoteOff?.userId !== u.id)} ?disabled=${this.busy || u.remote_access_basis === 'admin_default'} data-remote-access-toggle @change=${(e: CustomEvent<{ checked: boolean }>) => this.requestRemote(u, e.detail.checked)}></sw-toggle>`
+                      : u.remote_access_basis === 'admin_default' ? 'ברירת מחדל (מנהל)' : u.remote_access ? 'מופעלת' : 'כבויה'}
+                      ${u.remote_access_basis === 'admin_default' ? html`<div class="sub" data-remote-admin-default>ברירת מחדל (מנהל) · משתנה בהגדרות › גישה מרחוק</div>` : nothing}
                       <div class="sub" data-remote-stats>${this.remoteStats(u)}</div>
                       ${this.remoteOff?.userId === u.id
                         ? html`<div class="remote-off" role="alert" data-remote-off-impact>

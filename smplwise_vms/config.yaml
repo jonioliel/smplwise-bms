@@ -1,5 +1,5 @@
 name: SmplWise Arx
-version: "0.1.149"
+version: "0.1.151"
 slug: smplwise_vms
 description: Map-centred video management for Hikvision NVRs and Home Assistant (pilot build)
 url: https://github.com/jonioliel/smplwise-bms
@@ -52,7 +52,7 @@ schema:
   nvr_rtsp_port: port
   nvr_username: str?
   nvr_password: password?
-  go2rtc_url: url?
+  go2rtc_url: str?
   go2rtc_api_username: str?
   go2rtc_api_password: password?
   wiskey_username: str?

@@ -278,3 +278,18 @@ def test_security_snapshot_defaults_to_shown_round_trips_and_needs_system_config
         assert c.get("/api/v1/settings", headers=as_user("dana")).json()["settings"]["ui.security_snapshot"] == "false"
         assert c.patch("/api/v1/settings", json={"ui.security_snapshot": "true"}, headers=as_user("dana")).status_code == 403
         assert c.get("/api/v1/settings").json()["settings"]["ui.security_snapshot"] == "false"
+
+def test_video_notices_default_hidden_round_trips_and_needs_system_configure(settings):
+    """Owner 2026-10-01: הגדרות › מדיה › "הודעות על אופן ההזרמה" (media.video_notices) shows the notes the live player and the camera screen draw about
+    how a stream plays (e.g. "WebRTC לא זמין לזרם הזה · …"). Hidden by default; true/false only; read by any user, written only with system.configure."""
+    app = create_app(settings)
+    with TestClient(app) as c:
+        assert c.get("/api/v1/settings").json()["settings"]["media.video_notices"] == "false"
+        r = c.patch("/api/v1/settings", json={"media.video_notices": "true"})
+        assert r.status_code == 200, r.text
+        assert c.get("/api/v1/settings").json()["settings"]["media.video_notices"] == "true"
+        for bad in ("yes", "", "True", "1", "shown"):
+            assert c.patch("/api/v1/settings", json={"media.video_notices": bad}).status_code == 422, bad
+        bind(c, settings, "dana", "viewer", "installation", "*")
+        assert c.get("/api/v1/settings", headers=as_user("dana")).json()["settings"]["media.video_notices"] == "true"
+        assert c.patch("/api/v1/settings", json={"media.video_notices": "false"}, headers=as_user("dana")).status_code == 403

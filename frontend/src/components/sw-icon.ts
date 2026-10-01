@@ -99,6 +99,10 @@ const PATHS: Record<string, ReturnType<typeof svg>> = {
   arrowDown: svg`<path d="M12 5v14M6 13l6 6 6-6"/>`,
   /* notification settings: a bell with a small gear */
   bellSettings: svg`<path d="M5 15.5V11a6 6 0 0 1 10.5-4"/><path d="M5 15.5 3.5 17.5h8.5"/><path d="M8.5 20a2 2 0 0 0 3.5 0"/><circle cx="17.5" cy="15.5" r="2"/><path d="M17.5 11.5v1.5M17.5 18v1.5M21.5 15.5H20M15 15.5h-1.5M20.3 12.7l-1 1M15.7 17.3l-1 1M20.3 18.3l-1-1M15.7 13.7l-1-1"/>`,
+  /* the request to the architect: copy, share, mail */
+  copy: svg`<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/>`,
+  share: svg`<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6"/>`,
+  mail: svg`<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/>`,
 };
 
 export type IconName = keyof typeof PATHS;

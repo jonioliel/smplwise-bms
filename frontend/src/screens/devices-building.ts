@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing } from 'lit';
+import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { repeat } from 'lit/directives/repeat.js';
@@ -195,6 +195,26 @@ function readLayout(): BuildingLayout | null {
 function writeLayout(l: BuildingLayout) {
   try {
     localStorage.setItem(LAYOUT_KEY, l);
+  } catch {
+    /* private mode: the choice lasts for this visit only */
+  }
+}
+
+/** The tree panel's collapsed floors (a JSON array of floor ids), per user and device; default: every floor open. */
+export const TREE_COLLAPSED_KEY = 'sw.devices.treeCollapsed';
+
+function readCollapsed(): Set<string> {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(TREE_COLLAPSED_KEY) ?? '[]');
+    return new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeCollapsed(ids: Set<string>) {
+  try {
+    localStorage.setItem(TREE_COLLAPSED_KEY, JSON.stringify([...ids]));
   } catch {
     /* private mode: the choice lasts for this visit only */
   }
@@ -740,6 +760,8 @@ export class DevicesBuilding extends LitElement {
   private prefsReady: Promise<void> = Promise.resolve();
   /** The tree's selection in the cards layout: every floor, or one floor id. */
   @state() private selected = 'all';
+  /** The tree panel's collapsed floors (their area rows are not drawn); a floor that gets selected opens again. */
+  @state() private collapsed: Set<string> = readCollapsed();
   /** CR-007 HA refresh: "מבנה עודכן" shown for a few seconds after a structure_changed push refetched the tree. */
   @state() private structureFlash = false;
   /** The manual "רענן מ-Home Assistant" request in flight, and its outcome line (error / "no change"). */
@@ -1148,6 +1170,29 @@ export class DevicesBuilding extends LitElement {
   private viewKey = '';
   private offView: (() => void) | null = null;
 
+  protected willUpdate(changed: PropertyValues) {
+    // never hide what is selected: a floor that gets selected (the tree, a floor card, the filter) opens in the tree
+    if (changed.has('selected') && this.collapsed.has(this.selected)) this.setCollapsed(this.selected, false);
+  }
+
+  private setCollapsed(id: string, collapse: boolean) {
+    const next = new Set(this.collapsed);
+    if (collapse) next.add(id);
+    else next.delete(id);
+    this.collapsed = next;
+    writeCollapsed(next);
+  }
+
+  /** The master toggle beside "כל המבנה": every floor that has area rows folds, or (when all are folded) unfolds. */
+  private toggleAllFloors(floors: DeviceFloor[]) {
+    const withAreas = floors.filter((f) => f.areas.length);
+    const next = new Set(this.collapsed);
+    if (withAreas.every((f) => next.has(f.floor_id))) withAreas.forEach((f) => next.delete(f.floor_id));
+    else withAreas.forEach((f) => next.add(f.floor_id));
+    this.collapsed = next;
+    writeCollapsed(next);
+  }
+
   protected updated() {
     this.syncEditFromRoute();
     const vk = `${this.layout}|${this.lay.editing}`;
@@ -1393,11 +1438,71 @@ export class DevicesBuilding extends LitElement {
       color: var(--sw-text-2);
       text-transform: none;
     }
+    /* the floor's fold chevron: a compact column at the row's start (a touch screen's hit area grows invisibly past it) */
+    .tfold {
+      position: relative;
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      inline-size: 22px;
+      block-size: 28px;
+      padding: 0;
+      border: 0;
+      border-radius: var(--sw-r-sm);
+      background: transparent;
+      color: var(--sw-text-3);
+      font: inherit;
+    }
+    button.tfold {
+      cursor: pointer;
+    }
+    button.tfold:hover,
+    button.tfold:focus-visible {
+      background: var(--sw-surface-2);
+      color: var(--sw-text);
+      outline: none;
+    }
+    button.tfold:focus-visible {
+      box-shadow: 0 0 0 2px var(--sw-focus, var(--sw-accent));
+    }
+    @media (pointer: coarse) {
+      button.tfold::before {
+        content: '';
+        position: absolute;
+        inset-block: -8px;
+        inset-inline: -4px -6px;
+      }
+    }
+    .tfold .chev.folded {
+      transform: rotate(90deg); /* points to the inline start (left, in Hebrew) */
+    }
+    .tfold .chev.folded:dir(ltr) {
+      transform: rotate(-90deg);
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .tfold .chev {
+        transition: transform var(--sw-t-fast) var(--sw-ease);
+      }
+      .tree-areas {
+        animation: tree-areas-in var(--sw-t-med) var(--sw-ease);
+      }
+    }
+    @keyframes tree-areas-in {
+      from {
+        opacity: 0;
+        transform: translateY(-4px);
+      }
+    }
+    .tree-floor.tree-all {
+      margin-block-start: 0;
+    }
     .tree-area {
       position: relative;
       display: flex;
       align-items: center;
-      padding-inline-start: 10px;
+      padding-inline-start: 24px; /* under the floor's name: past the fold chevron's column */
     }
     .tree-area devices-bulk-menu {
       flex: 1;
@@ -2081,15 +2186,31 @@ export class DevicesBuilding extends LitElement {
   private renderTreePanel(t: DeviceTree) {
     // the count column is always drawn (empty without lights), so the rows line up (owner 2026-09-29)
     const lit = (c: DeviceCounts) => (c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>` : html`<span class="lit" aria-hidden="true"></span>`);
+    const floors = this.floorsOf(t);
+    const foldable = floors.filter((f) => f.areas.length);
+    const allFolded = foldable.length > 0 && foldable.every((f) => this.collapsed.has(f.floor_id));
+    // owner 2026-10-01: each floor folds its area rows (a chevron at the start of its row, apart from the select button);
+    // the same column beside "כל המבנה" carries the fold-all / unfold-all toggle
+    const chev = (folded: boolean) => html`<sw-icon class=${classMap({ chev: true, folded })} name="chevronDown" size=${14}></sw-icon>`;
     return html`<nav class="tree" aria-label="עץ המבנה" data-devices-tree>
-      <button class=${classMap({ 'tree-row': true, nomenu: true, selected: this.selected === 'all' })} data-tree="all" aria-current=${this.selected === 'all' ? 'true' : 'false'} @click=${() => (this.selected = 'all')}>
-        <sw-icon name="building" size=${15}></sw-icon><span class="nm" title="כל המבנה">כל המבנה</span>${lit(t.building)}
-      </button>
+      <div class="tree-floor tree-all">
+        ${foldable.length > 1
+          ? html`<button type="button" class="tfold" data-tree-fold-all aria-label=${allFolded ? 'הרחב הכל' : 'כווץ הכל'} title=${allFolded ? 'הרחב הכל' : 'כווץ הכל'} @click=${() => this.toggleAllFloors(floors)}>${chev(allFolded)}</button>`
+          : html`<span class="tfold" aria-hidden="true"></span>`}
+        <button class=${classMap({ 'tree-row': true, nomenu: true, selected: this.selected === 'all' })} data-tree="all" aria-current=${this.selected === 'all' ? 'true' : 'false'} @click=${() => (this.selected = 'all')}>
+          <sw-icon name="building" size=${15}></sw-icon><span class="nm" title="כל המבנה">כל המבנה</span>${lit(t.building)}
+        </button>
+      </div>
       ${repeat(
-        this.floorsOf(t),
+        floors,
         (f) => f.floor_id,
-        (f) => html`<div class="tree-group" data-tree-floor=${f.floor_id}>
+        (f) => {
+          const folded = f.areas.length > 0 && this.collapsed.has(f.floor_id);
+          return html`<div class="tree-group" data-tree-floor=${f.floor_id} data-folded=${String(folded)}>
           <div class="tree-floor">
+            ${f.areas.length
+              ? html`<button type="button" class="tfold" data-tree-fold=${f.floor_id} aria-expanded=${String(!folded)} aria-label=${folded ? 'הרחב קומה' : 'כווץ קומה'} title=${folded ? 'הרחב קומה' : 'כווץ קומה'} @click=${() => this.setCollapsed(f.floor_id, !folded)}>${chev(folded)}</button>`
+              : html`<span class="tfold" aria-hidden="true"></span>`}
             <button class=${classMap({ 'tree-row': true, nomenu: !(this.bulkAllowed && f.can_bulk), selected: this.selected === f.floor_id })} data-tree-select=${f.floor_id} aria-current=${this.selected === f.floor_id ? 'true' : 'false'} @click=${() => (this.selected = f.floor_id)}>
               <sw-icon name="floor" size=${14}></sw-icon><span class="nm" title=${f.name}>${bidi(f.name)}</span>${lit(f.counts)}
             </button>
@@ -2097,8 +2218,9 @@ export class DevicesBuilding extends LitElement {
               ? html`<devices-bulk-menu scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${f.counts} variant="menu" label="פעולות לקומה" data-bulk-floor=${f.floor_id}></devices-bulk-menu>`
               : nothing}
           </div>
-          ${repeat(f.areas, (a) => a.area_id, (a) => this.renderAreaRow(a, 'tree'))}
-        </div>`,
+          ${folded ? nothing : html`<div class="tree-areas">${repeat(f.areas, (a) => a.area_id, (a) => this.renderAreaRow(a, 'tree'))}</div>`}
+        </div>`;
+        },
       )}
     </nav>`;
   }

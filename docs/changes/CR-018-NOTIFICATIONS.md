@@ -322,25 +322,25 @@ detail view ("הסלמה 1 · נשלח ל־2 מנהלים · 14:07"). Rows below
   when the Companion step is built it applies only to the `safety` category.
 - Email carries no snapshot and no link token; the link opens the sign-in.
 
-## 12. Data model and migrations (planned 0050-0052)
+## 12. Data model and migrations (as built: 0045-0047)
 
-Numbers: 0040-0043 are used on integ/0.1.149, 0044 by CR-016, 0045+ reserved for CR-017; CR-018 takes 0050-0052
+Numbers: 0040-0043 are used on integ/0.1.149, 0044 by CR-016; CR-018 ships first as 0045-0047 (release_check needs contiguous numbers; automations follow as 0048)
 (renumber at merge if needed; `test_migrations.py` enforces uniqueness).
 
-- **0050_notifications.sql** - `notifications(id, source, category, severity, subject_kind, subject_id, area_id,
+- **0045_notifications.sql** - `notifications(id, source, category, severity, subject_kind, subject_id, area_id,
   title, body, link, params_json, dedupe_key, count, first_at, last_at, state, acked_at, acked_by, resolved_at,
   origin_json, escalation_step, escalate_at, expires_at)` with a partial unique index on `(dedupe_key)` where
   `state != 'resolved'`; `notification_recipients(notification_id, user_id, read_at, snoozed_until, dismissed_at,
   decision)`; `notification_deliveries(id, notification_id, user_id, channel, target_ref, status, reason, attempt,
   created_at, sent_at)`; `notify_action_tokens(token_hash, notification_id, user_id, actions, expires_at, used_at)`;
   `rule_alerts.notification_id` column.
-- **0051_notify_settings.sql** - `notify_settings(id PK = 1, quiet_json, pass_json, escalation_json, lockscreen,
+- **0046_notify_settings.sql** - `notify_settings(id PK = 1, quiet_json, pass_json, escalation_json, lockscreen,
   image_in_push, companion_json, retention_days, deliveries_retention_days, email_json, revision, updated_by,
   updated_at)` - one installation row (owner 4ב, 5, 6א, 7, 8א, 10ב); `email_json` holds host/port/security/user/
   from/recipients, never the password (`/data/secrets/notify_email`). No per-user preferences table: `push_prefs` stays
   readable for one release (its quiet hours seed `notify_settings.quiet_json` from the administrator's row if any) and
   is then dropped; `notify_mutes` is not created.
-- **0052_notify_policies.sql** - `notify_policies(source PK, enabled, severity, category, after_s, dedupe_window_s,
+- **0047_notify_policies.sql** - `notify_policies(source PK, enabled, severity, category, after_s, dedupe_window_s,
   resolve_notice, recipients_json, channels_json, revision, updated_by, updated_at)` seeded from §5 with
   `channels_json = {"inbox": true, "webpush": <default>, "email": <default>, "ha_mobile": false, "whatsapp": false}`;
   `push_subscriptions.kind` (default `webpush`, room for CR-012's `fcm | unifiedpush`).
@@ -348,7 +348,7 @@ Numbers: 0040-0043 are used on integ/0.1.149, 0044 by CR-016, 0045+ reserved for
   created_at, last_ok_at, failures)`; channel `ha_mobile` and `companion_json.critical_sound_safety` already exist in
   the model so that step adds a table and a sender only.
 
-Rollback: the migrations only add tables/columns; the old push path keeps working from `push_prefs` until 0051 is
+Rollback: the migrations only add tables/columns; the old push path keeps working from `push_prefs` until 0046 is
 verified. `notifications` is not part of a project backup (like `events`); `notify_settings` and `notify_policies` are
 (without the mail password).
 

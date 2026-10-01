@@ -42,6 +42,8 @@ const RULES: NotifyPolicy['recipients']['rule'][] = ['scope', 'managers', 'initi
 const STATUS_ICON: Record<Delivery['status'], string> = { sent: 'check', failed: 'warning', gone: 'warning', skipped: 'moon', queued: 'clock', retry: 'refresh' };
 const STATUS_TONE: Record<Delivery['status'], string> = { sent: 'ok', failed: 'bad', gone: 'bad', skipped: 'skp', queued: 'skp', retry: 'skp' };
 
+/** The log table reaches back 14 days; the failures panel above it counts the last 24 hours (each is labelled with its own window). */
+const s14 = () => '14 יום';
 const mailDraftOf = (s: NotifySettings): MailDraft => ({
   linkBase: (s.email as { link_base?: string }).link_base ?? '', host: s.email.host, port: String(s.email.port), security: s.email.security, user: s.email.user, password: '', pwEdit: !s.email.password_set, from: s.email.from, recipients: s.email.recipients.join(', '),
 });
@@ -1281,7 +1283,7 @@ export class SystemNotifications extends LitElement {
     const cards = failurePanel(this.stats);
     const list = logRows(this.log, this.onlyFailed);
     const fails = failedCount(this.log);
-    return html`<section class="glass sec" data-set-section="log" id="sec-log"><header><h2>${nIcon('inbox')}${SECTIONS[7].label}</h2><div class="sp"><div class="seg sm" role="group" aria-label="סינון היומן"><button type="button" aria-pressed=${String(!this.onlyFailed)} data-log-filter="all" @click=${() => (this.onlyFailed = false)}>הכל</button><button type="button" aria-pressed=${String(this.onlyFailed)} data-log-filter="failed" @click=${() => (this.onlyFailed = true)}>רק כשלים${fails ? html`<small class="n">${fails}</small>` : nothing}</button></div></div></header>
+    return html`<section class="glass sec" data-set-section="log" id="sec-log"><header><h2>${nIcon('inbox')}${SECTIONS[7].label}</h2><div class="sp"><span class="tag" data-log-window>${s14()}</span><div class="seg sm" role="group" aria-label="סינון היומן"><button type="button" aria-pressed=${String(!this.onlyFailed)} data-log-filter="all" @click=${() => (this.onlyFailed = false)}>הכל</button><button type="button" aria-pressed=${String(this.onlyFailed)} data-log-filter="failed" @click=${() => (this.onlyFailed = true)}>רק כשלים${fails ? html`<small class="n">${fails}</small>` : nothing}</button></div></div></header>
       <div class="fails" data-fail-panel>${cards.map((c) => html`<div class="fstat ${c.tone}" data-fail-card=${c.channel}><span class="ch">${c.label} · 24 שעות</span><b class="n">${c.failed > 0 ? c.failed : c.sent}</b><small>${c.failed > 0 ? 'נכשלו' : 'נשלחו'}${c.skipped ? ` · ${c.skipped} לא נשלחו` : ''}</small></div>`)}</div>
       <div class="lgw"><table class="lg"><thead><tr><th>שעה</th><th>התראה</th><th>משתמש</th><th>ערוץ</th><th>מצב</th><th>סיבה</th></tr></thead><tbody>${list.length ? list.map((d) => html`<tr data-log-row=${d.id} data-log-status=${d.status}><td class="n" style="direction:rtl">${relativeTime(d.at, this.now, this.tz)}</td><td>${this.titles[d.notification_id] ?? '—'}</td><td>${d.user_display}</td><td>${nIcon(d.channel === 'email' ? 'mail' : 'phone')}${CHANNEL_LABEL[d.channel]}</td><td class=${STATUS_TONE[d.status]}>${nIcon(STATUS_ICON[d.status])}${DELIVERY_STATUS_LABEL[d.status]}</td><td>${deliveryReasonText(d.reason) || '—'}</td></tr>`) : html`<tr><td colspan="6" style="text-align:center;padding:18px;color:var(--dv-text-3)">אין רשומות</td></tr>`}</tbody></table></div></section>`;
   }

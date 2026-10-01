@@ -3,6 +3,8 @@ import { customElement, property, state, query } from 'lit/decorators.js';
 import './sw-icon';
 import { liveWsUrl, relayWsUrl, type Transport } from '../api/media';
 import { can } from '../api/session';
+import { productSettings } from '../api/prefs';
+import { LIVE_ICE_SERVERS } from '../api/video-conn-test';
 import { badgeLabel, decodeLadder, lanLadder, orderLadder, rememberStep, rememberedStep, sameStep, undecodableMessage, type Profile, type VideoStep } from '../api/video-policy';
 
 /**
@@ -305,6 +307,14 @@ export class SwLivePlayer extends LitElement {
       display: none;
     }
   `;
+
+  /** Owner 2026-10-01: the notes about how the stream plays (media.video_notices, default off); the badge keeps the same text as its tooltip. */
+  @state() private showNotices = false;
+
+  connectedCallback() {
+    super.connectedCallback();
+    void productSettings().then((s) => (this.showNotices = s['media.video_notices'] === 'true')).catch(() => undefined);
+  }
 
   disconnectedCallback() {
     super.disconnectedCallback();
@@ -640,7 +650,7 @@ export class SwLivePlayer extends LitElement {
     this.transport = 'webrtc';
     this.webrtcConnected = false;
     const gen = this.generation;
-    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    const pc = new RTCPeerConnection({ iceServers: LIVE_ICE_SERVERS });
     this.pc = pc;
     pc.ontrack = (ev) => {
       if (gen !== this.generation) return;
@@ -1028,7 +1038,7 @@ export class SwLivePlayer extends LitElement {
     const playing = this.status === 'playing';
     // review nit: the badge claims what PLAYS only while it plays; before that it says what is being tried
     return html`<span class="vbadge ${step.transport} ${playing ? '' : 'trying'}" data-video-badge data-step=${badgeLabel(step)} data-state=${playing ? 'playing' : 'trying'} title=${notice || badgeLabel(step)}>${playing ? badgeLabel(step) : `מנסה ${badgeLabel(step)}…`}</span>
-      ${notice ? html`<div class="vnotice" data-video-notice role="status">${notice}</div>` : nothing}`;
+      ${notice && this.showNotices ? html`<div class="vnotice" data-video-notice role="status">${notice}</div>` : nothing}`;
   }
 
   toggleMute() {

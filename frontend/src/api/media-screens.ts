@@ -176,7 +176,7 @@ export interface MediaStatus {
   enabled: boolean;
   bridge: { paired: boolean; version: string | null; media_ready: boolean };
   can: { read: boolean; control: boolean; power: boolean; public: boolean; bulk: boolean; layout: boolean; configure: boolean; personalize: boolean };
-  counts: { screens: number; on: number; pending_approval: number | null };
+  counts: { screens: number; on: number; pending_approval: number | null; players?: number; groups?: number };
   profiles_version: number;
 }
 
@@ -473,7 +473,7 @@ export function resolveCards(devices: MediaDevice[], layout: MediaLayout, phone:
     return groups;
   }
   const idOf = (d: MediaDevice) => (layout.group_by === 'floor' ? d.floor_id : d.area_id) ?? 'none';
-  const nameOf = (d: MediaDevice) => (layout.group_by === 'floor' ? d.floor_name : d.area_name) ?? 'ללא שיוך';
+  const nameOf = (d: MediaDevice) => (layout.group_by === 'floor' ? d.floor_name ?? 'ללא קומה' : d.area_name ?? 'ללא שיוך');
   const ids = [...new Set(rest.map(idOf))];
   const floorRank = new Map(layout.floor_order.map((f, i) => [f, i]));
   if (layout.group_by === 'floor') ids.sort((a, b) => (floorRank.get(a) ?? 1e6) - (floorRank.get(b) ?? 1e6));

@@ -1,5 +1,91 @@
 # Changelog — SmplWise Arx add-on
 
+## 0.1.151 (pilot) — A notification centre, administrators reach the system remotely by default, WebRTC for every stream, the speakers tab, timeline colours
+**After the update no restart of the platform is needed** (the bridge integration stays 0.5.0). Migrations 0045-0047 are applied on the first start. Reload the installed web app once so the new service worker takes over.
+### Notifications (CR-018) — the bell in the user menu, and הגדרות › התראות
+- **A notification centre**: every alert in one place, with read / unread, "snooze for an hour" / "until morning", and acknowledge.
+- **The sources**: leaks, smoke, gas and CO, the alarm, a door or window left open, a camera or the NVR going offline, system faults and backups.
+- **Push** to the installed web app of each person (lock-screen text is the administrator's choice), **quiet hours** (severity x channel), **escalation** of an unacknowledged critical alert, an **e-mail** channel (SMTP, certificate verified; "לא מוגדר" until a server is entered).
+- **The administrator's tab "התראות"** (new permission `notify.manage`, held by system administrators): sources and who is told, quiet hours, escalation, e-mail, the delivery log.
+- Hardening from the security reviews: a locked-out user does not receive the lockout alert meant for the administrators, saved notification settings survive a restore of an older backup, and the action routes are throttled.
+### Video
+- **WebRTC is tried for every stream (owner report, Hoffnung)**: the NVR check marked H.265 and H.264+SVC streams "cannot play over WebRTC" on the codec name alone, so with the installation on "WebRTC only" the remote player never tried 9 of 12 main streams. Measured from a desktop browser outside that network, all of them decode over WebRTC (2560x1440 SVC and H.265 up to 4256x1888). Now only MJPEG and H.264 with B-frames are skipped; the rest are tried and fall back on the measured failure. The "change the NVR settings" warnings no longer claim these streams cannot play.
+- **A video connection test** (הגדרות › גישה מרחוק › "בדיקת חיבור וידאו", administrators): runs a WebRTC connection to a chosen camera from the browser you are on and prints a copyable report - ICE states, candidate types (never addresses), the selected pair, the network type, frames decoded - to find out why a phone does not connect.
+- **The stream notes are hidden by default**: the banner "WebRTC לא זמין לזרם הזה…" and the grey hints under a camera appear only when הגדרות › וידאו ומדיה › "הודעות על אופן ההזרמה" is on. The badge keeps the same text as its tooltip.
+- **Timeline colours**: הגדרות › וידאו ומדיה › "צבעי ציר הזמן" (a colour for recording, motion, person, vehicle, door, line and offline) and two settings that hide the technical text on the recording screen.
+### Multimedia
+- **The "נגנים ורמקולים" and "קבוצות" tabs now appear when you enter the section** (the first page, "מסכים"): they were offered only after opening the players page by its address, so approved speakers seemed to be missing.
+- **No "ללא שיוך" heading over a lone group of screens**; in an installation without floors the no-floor group of a floor grouping is called "ללא קומה".
+### Remote access (CR-008, amendment A1)
+- **Administrators may sign in remotely by default**: the setting `remote.admins_default` (הגדרות › גישה מרחוק). Turn it off there if you do not want it.
+### Plans
+- **"בקשה לאדריכל"**: when a floor has no plan, the setup wizard, the floors list, the plan editor and the import screen offer a ready-made request text.
+### How to turn it on and use it (English)
+1. No restart is needed. After the update reload the installed web app once.
+2. **Notifications**: tap the bell in the user menu; to receive push on a phone or computer open הגדרות › התראות and register the device. Administrators configure the sources, quiet hours, escalation and e-mail in the same place.
+3. **WebRTC**: nothing to do. If a stream still fails on a phone, set הגדרות › וידאו ומדיה to "אוטומטי" so the player falls back to MSE.
+4. **Stream notes**: הגדרות › וידאו ומדיה › "הודעות על אופן ההזרמה" (off by default).
+5. **Remote administrators / timeline colours / request for the architect**: the settings named above; the request is in the setup wizard (floor step) and on a floor without a plan.
+
+## עברית — 0.1.151: מרכז התראות · מנהלים מתחברים מרחוק כברירת מחדל · WebRTC לכל זרם · לשונית הרמקולים · צבעי ציר הזמן
+### מה חדש
+- **מרכז התראות** – כל ההתראות במקום אחד: נקרא / לא נקרא, "השתק לשעה" ו"עד הבוקר", ואישור. נפתח מהפעמון בתפריט המשתמש; בהגדרות לשונית "התראות" למנהלים (הרשאה חדשה `notify.manage`): מקורות ולמי להודיע, שעות שקט, הסלמה, דוא"ל (SMTP) ויומן שליחות. הודעות Push לאפליקציה המותקנת של כל אדם.
+- **WebRTC נוסה לכל זרם** – הבדיקה סימנה זרמי H.265 ו־H.264 עם SVC כ"לא מתנגנים ב־WebRTC" לפי שם הקודק בלבד, ולכן כשההתקנה על "WebRTC בלבד" הנגן המרוחק לא ניסה 9 מתוך 12 זרמים ראשיים (הופנונג). נמדד מדפדפן מחוץ לרשת: כולם מתפענחים. עכשיו מדלגים רק על MJPEG ועל H.264 עם B-frames; השאר נוסים ונופלים רק על כשל מדוד. האזהרות "שנה בהגדרות ה־NVR" כבר לא מופיעות על זרמים כאלה.
+- **בדיקת חיבור וידאו** (הגדרות › גישה מרחוק, למנהלים): מריצה חיבור WebRTC למצלמה שנבחרה מהדפדפן שבו אתה נמצא ומציגה דוח להעתקה – מצבי ICE, סוגי מועמדים (בלי כתובות), הזוג שנבחר, סוג הרשת וכמה פריימים פוענחו – כדי להבין למה נייד לא מתחבר.
+- **הערות ההזרמה מוסתרות כברירת מחדל** – הבאנר "WebRTC לא זמין לזרם הזה…" ושורות הרמז מתחת למצלמה מופיעים רק כשההגדרה "הודעות על אופן ההזרמה" דלוקה (הגדרות › וידאו ומדיה).
+- **צבעי ציר הזמן** והסתרת הטקסט הטכני במסך ההקלטה (הגדרות › וידאו ומדיה).
+- **מנהלים מתחברים מרחוק כברירת מחדל** (`remote.admins_default`, הגדרות › גישה מרחוק; אפשר לכבות).
+- **"בקשה לאדריכל"** – כשלקומה אין תוכנית: נוסח בקשה מוכן באשף ההתקנה, ברשימת הקומות, בעורך התוכנית ובמסך הייבוא.
+### תיקונים
+- **לשוניות "נגנים ורמקולים" ו"קבוצות" מופיעות עכשיו כבר בכניסה לאזור** (במסך "מסכים"); קודם הן הופיעו רק אחרי כניסה לדף הנגנים בכתובת ישירה, ולכן נראה שרמקולים שאושרו לא נוספו.
+- **בלי כותרת "ללא שיוך" מעל קבוצת מסכים יחידה**; באתר בלי קומות הקבוצה נקראת "ללא קומה" בקיבוץ לפי קומה.
+- **הקשחה** (מסקירות אבטחה): משתמש נעול לא מקבל את התראת הנעילה של המנהלים, הגדרות ההתראות שורדות שחזור גיבוי ישן, ופעולות ההתראות מוגבלות בקצב.
+### איך מפעילים ומשתמשים
+1. אין צורך בהפעלה מחדש. אחרי העדכון טען מחדש את האפליקציה המותקנת פעם אחת.
+2. **התראות**: הפעמון בתפריט המשתמש; לקבלת Push רשום את המכשיר בהגדרות › התראות.
+3. **WebRTC**: אין מה לעשות. אם זרם עדיין נכשל בטלפון, הגדר בהגדרות › וידאו ומדיה "אוטומטי" והנגן יעבור ל־MSE.
+4. **הערות ההזרמה**: הגדרות › וידאו ומדיה › "הודעות על אופן ההזרמה" (כבוי כברירת מחדל).
+
+## 0.1.150 (pilot) — Multimedia, part 2: speakers, players and groups
+**After the update restart the platform once**: the bridge integration is 0.5.0 (player services and a read-only `media_query` service). Migration 0044 is applied on the first start.
+### Speakers, players and groups (CR-016) — inside "מולטימדיה"
+- **"נגנים ורמקולים" and "קבוצות" are real tabs**: one card per physical speaker, player or receiver (the same device seen through several integrations is merged; Music Assistant copies, Cast and vendor entities are linked by the merge rules or suggested for you to confirm), grouped by floor, with a "לא משויכים" section for devices without a room and one list for a house without floors. A device that is not available shows "לא זמין" - its controls wait for it.
+- **The player panel** (the same side panel / bottom sheet as the TV remote): now playing with artwork, seek, previous / next, shuffle and repeat, volume, "הבא בתור" (the current and the next item and how many are left; "לא זמין" when it cannot be read, never an empty list), favourites, stations and playlists (when the installation has a library), and live grouping by ticking rooms. A receiver has its zones as tabs; a speaker that cannot be switched on from here (Cast only) shows no power button.
+- **Groups**: join and leave rooms live (a member is controlled through its leader), group volume with a per-room result that names the rooms that did not follow, **saved groups** ("סלון + מטבח") that start with one tap and show which rooms did not join, and "עצור מוזיקה" for a floor or an area. Groups of 4 or more rooms, or rooms on more than one floor, ask for a confirmation; the whole building needs `media.bulk`. A new permission `media.group` is needed to group rooms.
+- **Safe by default**: there is NO default volume ceiling - a ceiling and a night window apply only where an administrator sets them per speaker; a static group's volume always goes room by room; an unmute never brings back a level above a ceiling set later; no announcements anywhere.
+- **Settings › מולטימדיה** gained the players and speakers section (approval, name, room, linked amplifier, ceiling, night window), the merge wizard ("אחד" / "התעלם"), the folded non-physical entries (sessions, helper groups, services), saved groups, favourites and stations (order and hide), the connection status and the permissions line.
+- **With and without Music Assistant**: it works through the platform infrastructure; a house without Music Assistant (Sonos, Cast, HEOS, WiiM natively) is a full citizen. Players and groups also appear in the area screen and in the home widget ("מנגנים עכשיו").
+- **Review hardening**: group and static-group commands need control in every member's room, the generic device route refuses volume / power / play on any media device and on the sibling switches and selects of an approved speaker, a relative group volume never raises a quiet member, names of rooms you cannot see are never listed, list reads are rate limited per user, and an item reference is valid only for the user and the device it was listed for.
+### Fixes
+- A house without floors no longer asks for a confirmation on every join across two rooms; a multi-room pause no longer reports rooms that were not playing as failed.
+- **Phone scrolling**: the multimedia screens page no longer jumps while you scroll (the sticky header used to fold and change the page height under the finger); the search popover no longer blocks scrolling (no full-screen layer, a press outside closes it, a page change closes it); overlapping drawers can no longer leave the page locked.
+### Areas
+- **Fold a floor in the building tree**: a chevron on every floor row folds and unfolds that floor's areas, a fold-all / unfold-all control sits beside "כל המבנה", the choice is remembered on the device, and picking a floor opens it again.
+### Documents
+- CR-016 and its API contract, the three anonymised live probes (Music Assistant, Sonos, HEOS, WiiM, Cast, Denon, Jellyfin patterns), user guide pages for players and groups.
+### How to turn it on and use it (English)
+1. **Restart the platform once** after the update (the bridge integration is 0.5.0). Migration 0044 is applied on the first start.
+2. **Speakers, players and groups**: open "מולטימדיה" in the side rail, then the tabs "נגנים ורמקולים" and "קבוצות" (needs `media.read`; controlling needs `media.control` / `media.power`; joining rooms needs the new `media.group`; a group of 4+ rooms or rooms on more than one floor asks for a confirmation, the whole building needs `media.bulk`). Approve detected devices, name them, set a room and (optionally) a volume ceiling or night window in הגדרות › מולטימדיה; confirm or ignore suggested merges with "אחד" / "התעלם".
+3. **Fold a floor in the building tree**: on the "חשמל והתקנים" screen on a computer, use the chevron at the start of each floor row; "כווץ הכל / הרחב הכל" is beside "כל המבנה". The choice is remembered per device.
+4. **Phone scrolling**: nothing to turn on - update and reload the app (close and reopen the installed web app once).
+
+## עברית — 0.1.150: מולטימדיה, חלק 2 · כיווץ קומות בעץ · תיקוני גלילה בנייד
+### מה חדש
+- **מולטימדיה: רמקולים, נגנים וקבוצות** – בלשונית "מולטימדיה" נוספו "נגנים ורמקולים" ו"קבוצות": כרטיס אחד לכל רמקול, נגן או מקלט פיזי (אותו מכשיר שנראה דרך כמה אינטגרציות מתמזג לאחד), בקבוצות לפי קומות. פאנל נגן עם תמונת אלבום, סרגל התקדמות, הקודם/הבא, ערבוב וחזרה, ווליום, "הבא בתור", מועדפים, תחנות ורשימות השמעה, וקיבוץ חדרים בזמן אמת. קבוצות שמורות ("סלון + מטבח") שמתחילות בלחיצה, וכפתור "עצור מוזיקה" לקומה או לאזור.
+- **בטיחות כברירת מחדל**: אין תקרת ווליום כללית – תקרה וחלון לילה נקבעים רק לרמקול שמנהל מגדיר. קבוצות של 4 חדרים ומעלה, או חדרים ביותר מקומה אחת, מבקשות אישור; הבניין כולו דורש `media.bulk`. הרשאה חדשה `media.group` נדרשת לקיבוץ חדרים.
+- **הגדרות › מולטימדיה** – אישור התקנים, שם, חדר, מגבר מקושר, תקרת ווליום וחלון לילה, אשף איחוד כפילויות, קבוצות שמורות, מועדפים ותחנות.
+- **עץ המבנה**: חץ ליד כל קומה מכווץ ומרחיב את האזורים שלה; כפתור "כווץ הכל / הרחב הכל" ליד "כל המבנה"; הבחירה נשמרת במכשיר, ובחירת קומה פותחת אותה מחדש.
+### תיקונים
+- **גלילה בנייד**: מסך המולטימדיה לא קופץ יותר בזמן גלילה (הכותרת הדביקה שינתה גובה מתחת לאצבע).
+- **חיפוש בנייד**: פתיחת החיפוש כבר לא חוסמת את הגלילה; לחיצה מחוץ לחלון סוגרת אותו, וגם מעבר מסך סוגר אותו. מגירות חופפות כבר לא משאירות את הדף נעול.
+- בית בלי קומות כבר לא מבקש אישור בכל צירוף שני חדרים; השהיה בכמה חדרים כבר לא מדווחת כנכשלו חדרים שלא ניגנו.
+- ביקורת אבטחה לנתיב הפקודות של המדיה: הגבלות קצב, מזהים לפי משתמש ומכשיר, ושליטה במתג/בורר נלווים רק דרך מסך המולטימדיה.
+### איך מפעילים ומשתמשים
+1. **אחרי העדכון הפעל מחדש את התשתית פעם אחת** (רכיב הגשר הוא 0.5.0). ההגירה 0044 מתבצעת בהפעלה הראשונה.
+2. **נגנים, רמקולים וקבוצות**: בתפריט הצד "מולטימדיה" ← "נגנים ורמקולים" ו"קבוצות" (נדרשת `media.read`; לשליטה `media.control` / `media.power`; לקיבוץ חדרים `media.group`). את ההתקנים שזוהו מאשרים, נותנים להם שם וחדר ב-הגדרות › מולטימדיה.
+3. **כיווץ קומות**: במסך "חשמל והתקנים" במחשב – החץ בתחילת כל שורת קומה, ו"כווץ הכל" ליד "כל המבנה".
+4. **גלילה בנייד**: אין מה להפעיל – מרעננים את האפליקציה (סוגרים ופותחים את האפליקציה המותקנת פעם אחת).
+
 ## 0.1.149 (pilot) — Multimedia: screens and a remote; heating apart from air conditioning; what sits next to an area's name; hide a camera in the wall
 **After the update restart the platform once**: the bridge integration is 0.4.0 (the media commands and their policy). Migrations 0040-0043 are applied on the first start.
 ### Multimedia (CR-015) — "מולטימדיה" in the side rail, for holders of `media.read`

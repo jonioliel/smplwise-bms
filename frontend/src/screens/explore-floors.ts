@@ -3,6 +3,7 @@ import { bidi, ltrNum } from '../i18n/bidi';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-card';
+import { openArchitectRequest } from '../components/architect-request-dialog';
 import '../components/sw-badge';
 import '../components/sw-button';
 import '../components/sw-icon';
@@ -368,7 +369,7 @@ export class ExploreFloors extends LitElement {
         <sw-tabs .items=${[{ id: 'floors', label: 'קומות', count: floors.length }, { id: 'cameras', label: 'מצלמות', count: totalCams }, { id: 'details', label: 'פרטים' }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
         ${this.tab === 'floors'
           ? html`<div class="list">
-              ${floors.length ? nothing : html`<div class="empty">${this.phone.restricted('structure') ? 'למבנה הזה אין עדיין קומות. הוספת קומות ותוכניות זמינה במחשב.' : 'למבנה הזה אין עדיין קומות. הוסף קומה, ואז העלה תוכנית (PDF או תמונה).'}</div>`}
+              ${floors.length ? nothing : html`<div class="empty">${this.phone.restricted('structure') ? 'למבנה הזה אין עדיין קומות. הוספת קומות ותוכניות זמינה במחשב.' : 'למבנה הזה אין עדיין קומות. הוסף קומה, ואז העלה תוכנית (PDF או תמונה).'}<div style="margin-block-start:10px"><sw-button variant="ghost" icon="mail" data-architect-request @click=${() => openArchitectRequest()}>בקשה לאדריכל</sw-button></div></div>`}
               ${floors.map(
                 (f) => html`<button class="floor ${sel?.id === f.id ? 'on' : ''}" @click=${() => (sel?.id === f.id ? navigate(`/explore/floors/${f.id}`) : (this.selected = f.id))} aria-pressed=${sel?.id === f.id}>
                   <div class="txt">
@@ -395,6 +396,7 @@ export class ExploreFloors extends LitElement {
                         : html`<sw-button variant="ghost" icon="edit" @click=${() => this.openDialog({ kind: 'rename', floor: sel })}>עריכה</sw-button>
                           <sw-button variant="ghost" icon="trash" @click=${() => this.openDialog({ kind: 'delete', floor: sel, force: false })}>מחיקה</sw-button>
                           <sw-button icon="upload" @click=${() => navigate(`/explore/floors/${sel.id}/import`)}>${sel.has_plan ? 'תוכנית חדשה' : 'העלאת תוכנית'}</sw-button>`}
+                      ${sel.has_plan || sel.draft_version_id ? nothing : html`<sw-button variant="ghost" icon="mail" data-architect-request @click=${() => openArchitectRequest()}>בקשה לאדריכל</sw-button>`}
                       <sw-button variant="primary" icon="map" @click=${() => navigate(`/explore/floors/${sel.id}`)}>פתח את ${sel.name}</sw-button>
                     </div>`
                   : nothing}

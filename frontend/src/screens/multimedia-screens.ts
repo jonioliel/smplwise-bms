@@ -28,6 +28,7 @@ import {
   floorsOf, installationPayload, isDirty, moveInGroup, personalFrom, roomsOf, setCard, startDraft, togglePin, withFloorOrder,
   type EditScope, type Filters, type StateFilter,
 } from './multimedia-layout';
+import { applyMultimediaKinds } from '../shell/nav';
 
 type Phase = 'loading' | 'ready' | 'error' | 'forbidden' | 'disabled';
 
@@ -118,15 +119,35 @@ export class MultimediaScreens extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 12px;
-      transition: background var(--mm-motion) var(--mm-ease), padding var(--mm-motion) var(--mm-ease), box-shadow var(--mm-motion);
     }
-    .dh.compact {
-      padding-block: 10px;
+    /* Compacting is purely visual: it never changes the header's height in the flow. A header that shrank at scrollTop ~60
+       moved every card under the finger (and, with the scroll clamped, fell back under the threshold and expanded again: the
+       list jumped back and forth on a phone). The bar is a layer of the measured height of the title row; what folds away
+       fades out in place and stops taking taps, and the cards slide under the transparent rest. */
+    .dh::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto 0;
+      block-size: var(--mm-bar-h, 64px);
+      z-index: -1;
+      opacity: 0;
+      pointer-events: none;
       background: var(--mm-sheen), var(--dv-surface);
       -webkit-backdrop-filter: var(--dv-surface-blur);
       backdrop-filter: var(--dv-surface-blur);
       border-block-end: 1px solid var(--dv-border);
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+      transition: opacity var(--mm-motion) var(--mm-ease);
+    }
+    .dh.compact {
+      pointer-events: none;
+    }
+    .dh.compact::before {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .dh.compact .dh-row > * {
+      pointer-events: auto;
     }
     .dh-row {
       display: flex;
@@ -233,14 +254,11 @@ export class MultimediaScreens extends LitElement {
       align-items: center;
       gap: 10px;
       flex-wrap: wrap;
-      max-block-size: 120px;
-      transition: max-height var(--mm-motion) var(--mm-ease), opacity var(--mm-motion);
+      transition: opacity var(--mm-motion), visibility var(--mm-motion);
     }
     .dh.compact .dh-det {
-      max-block-size: 0;
       opacity: 0;
-      overflow: hidden;
-      margin-block-end: -12px;
+      visibility: hidden;
       pointer-events: none;
     }
     .amb {
@@ -475,9 +493,6 @@ export class MultimediaScreens extends LitElement {
         padding-inline-end: 14px;
         gap: 10px;
       }
-      .dh.compact {
-        padding-block: 8px;
-      }
       .dh-row {
         display: grid;
         /* the third column keeps the row clear of the shell's floating search / status corner */
@@ -497,7 +512,9 @@ export class MultimediaScreens extends LitElement {
         padding-inline: 14px;
       }
       .dh.compact .rooms {
-        display: none;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
       }
       .amb {
         display: none;
@@ -597,6 +614,7 @@ export class MultimediaScreens extends LitElement {
   }
 
   protected updated() {
+    this.measureBar();
     // `?edit=1` (the user menu, or a link): entered once the data is there and this user may edit; dropped otherwise
     if (this.wantsEdit && !this.editHandled && this.phase === 'ready') {
       this.editHandled = true;
@@ -605,6 +623,17 @@ export class MultimediaScreens extends LitElement {
         else this.dropParam('edit');
       }
     }
+  }
+
+  /** The compact bar covers the title row only (see `.dh::before`): its height is measured, never guessed, and only written when it changed. */
+  private measureBar() {
+    const dh = this.renderRoot.querySelector<HTMLElement>('.dh');
+    if (!dh) return;
+    const top = dh.getBoundingClientRect().top;
+    let bottom = 0;
+    for (const el of dh.querySelectorAll<HTMLElement>(this.phone ? ':scope > .dh-row > h1, :scope > .dh-row > .flwrap' : ':scope > .dh-row > *')) bottom = Math.max(bottom, el.getBoundingClientRect().bottom - top);
+    const h = `${Math.ceil(bottom + (this.phone ? 8 : 10))}px`;
+    if (bottom && dh.style.getPropertyValue('--mm-bar-h') !== h) dh.style.setProperty('--mm-bar-h', h);
   }
 
   // ------------------------------------------------------------------------------------------------ data
@@ -619,6 +648,7 @@ export class MultimediaScreens extends LitElement {
     try {
       const st = await media().status();
       this.status = st;
+      applyMultimediaKinds(st.counts); // the screens page is the entry of the section: without this the players / groups tabs are never offered
       if (!st.enabled) {
         this.phase = 'disabled';
         return;
@@ -863,7 +893,8 @@ export class MultimediaScreens extends LitElement {
       @open-remote=${(e: CustomEvent<{ key: string }>) => this.openRemote(e.detail.key)} @media-changed=${() => this.scheduleRefresh(isApi() ? 700 : 30)}>${edit ? this.chips(d, index, count, size) : nothing}</media-screen-card>`;
   }
 
-  private group(g: CardGroup): TemplateResult {
+  /** `only`: the page shows this one group - its heading would repeat the filter chip (or, for the no-floor bucket of an installation without floors, say "ללא שיוך" about screens that do have a room), so it is left out. */
+  private group(g: CardGroup, only = false): TemplateResult {
     const all = g.items.map((i) => i.device);
     const counts = countsOf(all);
     const target = this.editing ? null : this.floorOfGroup(g);
@@ -875,6 +906,9 @@ export class MultimediaScreens extends LitElement {
       ? html`<h2>${nameText(bidi(g.label))}</h2>`
       : html`<h2><button type="button" class="shlink" data-group-open=${g.id} @click=${() => this.setFilters(target.scope === 'area' ? { area: g.id } : { floor: g.id, area: '' })}>${bidi(g.label)}${mIcon('chevronBack')}</button></h2>`;
     const lit = all.filter((d) => isLit(d.live)).length;
+    if (only && !this.editing && (g.id === 'none' || g.id === NO_FLOOR) && !offBtn) {
+      return html`<section class="fsec" aria-label=${g.label} data-group=${g.id}><div class="sgrid">${repeat(g.items, (i) => i.device.key, (i, idx) => this.card(i.device, i.size, idx, g.items.length))}</div></section>`;
+    }
     return html`<section class="fsec" aria-label=${g.label} data-group=${g.id}>
       <header class="sh"><div>${title}<small><span class="n">${counts.total}</span> ${counts.total === 1 ? 'מסך' : 'מסכים'}${lit ? html` · <em><span class="n">${lit}</span></em> פועלים` : nothing}</small></div><span class="grow"></span>${offBtn}</header>
       <div class="sgrid">${repeat(g.items, (i) => i.device.key, (i, idx) => this.card(i.device, i.size, idx, g.items.length))}</div>
@@ -995,7 +1029,7 @@ export class MultimediaScreens extends LitElement {
     if (!groups.length) {
       return html`${stale}<div data-mm-state="filtered">${this.stateBox('search', 'לא נמצאו מסכים', filtersActive(this.filters) ? html`<button type="button" class="btn sm" data-clear-filters @click=${() => this.setFilters(NO_FILTER)}>נקה סינון</button>` : undefined)}</div>`;
     }
-    return html`${stale}<div class="groups" data-mm-state="ready">${groups.map((g) => this.group(g))}</div>`;
+    return html`${stale}<div class="groups" data-mm-state="ready">${groups.map((g) => this.group(g, groups.length === 1))}</div>`;
   }
 
   render() {

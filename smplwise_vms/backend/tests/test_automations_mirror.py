@@ -1,6 +1,6 @@
 """CR-017 mirror, runs and housekeeping (docs/architecture/AUTOMATIONS_API.md §6, §12; CR §4.6, §6.1, §9.4, §10): the first pull, drift (an outside change is a version row, a chip
 and - for a sensitive item - an audit row without values), the config API probe and the WebSocket fallback, availability and staleness, events (runs, storms, reloads), the traces
-("למה זה רץ?": full, masked, no ids), the janitor, and migration 0045."""
+("למה זה רץ?": full, masked, no ids), the janitor, and migration 0048 (0045 at S1; renumbered after CR-018 shipped 0045-0047 in 0.1.151)."""
 from __future__ import annotations
 
 import copy
@@ -273,12 +273,12 @@ def test_the_janitor_prunes_trash_runs_and_ops_and_releases_stuck_claims(autos_a
     janitor_tick(app.state.db, s)  # the whole pass runs (the automations step included)
 
 
-def test_migration_0045_creates_the_tables_and_runs_once(settings):
+def test_migration_0048_creates_the_tables_and_runs_once(settings):
     from smplwise import db as dbmod
 
     database = dbmod.Database(settings.db_path)
     applied = database.migrate()
-    assert 45 in applied and database.migrate() == []
+    assert 48 in applied and database.migrate() == []
     with database.connection() as conn:
         tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
         assert {"ha_config_items", "automation_meta", "automation_prefs", "automation_versions", "automation_trash", "automation_ops", "automation_runs"} <= tables

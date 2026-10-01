@@ -47,6 +47,15 @@
   --sw-forbidden-soft: #fdecec;
   --sw-purple: #8b5cf6;
 
+  /* Investigation timeline kinds (owner 2026-10-01): installation setting `timeline.colors`; api/timeline-colors.ts overrides these on the root */
+  --sw-tl-recording: var(--sw-accent);
+  --sw-tl-motion: #ef4444;
+  --sw-tl-person: #ea580c;
+  --sw-tl-vehicle: #22c55e;
+  --sw-tl-door: #8b5cf6;
+  --sw-tl-line: #f59e0b;
+  --sw-tl-offline: #6b7280;
+
   /* Video / map canvas */
   --sw-video-bg: #0f1729;
   --sw-map-bg: #ffffff;
