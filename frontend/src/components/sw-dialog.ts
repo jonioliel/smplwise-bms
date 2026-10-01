@@ -10,6 +10,8 @@ export class SwDialog extends LitElement {
   @property() subheading = '';
   /** Re-review M2: while set, nothing closes the dialog (✕, Escape, backdrop) - a physical action is on its way. */
   @property({ type: Boolean }) locked = false;
+  /** A wider box (up to 720px) for text the person reads and copies. */
+  @property({ type: Boolean, reflect: true }) wide = false;
   /** The footer only when something is slotted into it (re-review low). */
   @state() private hasFooter = false;
 
@@ -41,6 +43,9 @@ export class SwDialog extends LitElement {
       /* set only inside a device screen in the glass style (CR-007 6a, devices-style.ts); none everywhere else */
       backdrop-filter: var(--sw-glass-blur, none);
       -webkit-backdrop-filter: var(--sw-glass-blur, none);
+    }
+    :host([wide]) .box {
+      inline-size: min(720px, 100%);
     }
     header {
       display: flex;

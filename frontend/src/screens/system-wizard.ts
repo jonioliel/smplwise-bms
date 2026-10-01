@@ -5,6 +5,7 @@ import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import { openArchitectRequest } from '../components/architect-request-dialog';
 import { isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { demoSetupState, setupCheck, setupState, STATUS_TEXT, type SetupState, type SetupStep, type StepId } from '../api/setup';
@@ -16,6 +17,10 @@ export function announceSetup(s: SetupState) {
 
 const STATUS_ICON: Record<SetupStep['status'], string> = { done: 'check', todo: 'info', failed: 'warning', skipped: 'minus', not_applicable: 'minus' };
 const SOURCE_TEXT: Record<SetupStep['source'], string> = { live: 'נבדק מול המכשיר', background: 'לפי עבודות הרקע של ה־Add-on', local: 'לפי בסיס הנתונים של ה־Add-on' };
+
+/** The floor step's problem codes (backend services/setup_wizard.py) that mean the installation has no plan yet: the request to the
+ * architect is offered next to the step's action. A draft that only waits for publishing (`plan_not_published`) has a plan already. */
+const NO_PLAN = new Set(['no_floor', 'no_plan']);
 
 /** Signed numbers inside Hebrew text ("+03:00", "-45 שנ׳") render as "03:00+" in an RTL run: a left-to-right mark
  * before the sign keeps them together (the same fix as i18n/bidi.ts, for either sign). */
@@ -176,7 +181,9 @@ export class SystemWizard extends LitElement {
             <div>
               <b>${b(s.problem.message)}</b>
               <span data-step-action>מה עושים: ${b(s.problem.action)}</span>
-              ${s.problem.link ? html`<a href=${s.problem.link.href} data-step-link>${s.problem.link.label} ›</a>` : nothing}
+              ${s.problem.link || (s.id === 'floor' && NO_PLAN.has(s.problem.code))
+                ? html`<span class="links">${s.problem.link ? html`<a href=${s.problem.link.href} data-step-link>${s.problem.link.label} ›</a>` : nothing}${s.id === 'floor' && NO_PLAN.has(s.problem.code) ? html`<button type="button" class="linkbtn" data-architect-request @click=${() => openArchitectRequest()}>בקשה לאדריכל ›</button>` : nothing}</span>`
+                : nothing}
             </div>
           </div>`
         : nothing}
@@ -467,8 +474,34 @@ export class SystemWizard extends LitElement {
       font-weight: var(--sw-fw-semibold);
       text-decoration: none;
     }
-    a:hover {
+    a:hover,
+    .linkbtn:hover {
       text-decoration: underline;
+    }
+    .links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 18px;
+    }
+    .linkbtn {
+      all: unset;
+      cursor: pointer;
+      color: var(--sw-accent-text);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .linkbtn:focus-visible {
+      outline: 2px solid var(--sw-accent);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+    /* a finger needs 44px */
+    @media (pointer: coarse) {
+      .links a,
+      .linkbtn {
+        display: inline-flex;
+        align-items: center;
+        min-block-size: 44px;
+      }
     }
     .note {
       font-size: var(--sw-fs-xs);

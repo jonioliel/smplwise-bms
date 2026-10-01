@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-card';
+import { openArchitectRequest } from '../components/architect-request-dialog';
 import '../components/sw-button';
 import '../components/sw-steps';
 import '../components/sw-field';
@@ -829,6 +830,7 @@ export class ExplorePlanImport extends LitElement {
     const canNext = this.step === 0 ? !!this.asset : this.step === 1 ? !!this.asset : true;
     return html`
       <sw-page heading=${f ? `ייבוא תוכנית ל${f.floor.name}` : 'ייבוא תוכנית'} subheading="המקור נשמר ללא שינוי; כל תיקון הוא שכבה נגזרת" crumbs=${f ? `אתרים | ${f.site.name} | ${f.building.name} | ${f.floor.name}` : 'אתרים'}>
+        ${f && !f.floor.has_plan && !f.floor.draft_version_id ? html`<sw-button slot="actions" variant="ghost" icon="mail" data-architect-request @click=${() => openArchitectRequest()}>בקשה לאדריכל</sw-button>` : nothing}
         ${!isApi()
           ? this.renderDemo()
           : !this.floorId || (this.tree && !f)
