@@ -688,8 +688,20 @@ test.describe('routing from <media-remote>, the area card and the home widget', 
     await expect(page.locator('sw-dialog[data-mac-dialog="ask"]')).toHaveAttribute('heading', 'לכבות מסך אחד בסלון?');
     await page.locator('[data-mac-cancel]').click();
     expect(await sent(page)).toEqual([]);
+    // "עצור מוזיקה": the area's playing speaker (media.bulk): the server's preview, a confirmation, an honest per-room result - and only the players are paused
+    await expect(page.locator('[data-media-pause-all]')).toHaveCount(1);
+    await page.locator('[data-media-pause-all]').click();
+    await expect(page.locator('sw-dialog[data-group-dialog="confirm"]')).toHaveAttribute('heading', 'לעצור נגן אחד בסלון?');
+    await page.locator('[data-gd-cancel]').click();
+    expect(await withMock(page, (m) => m.rows.find((r: any) => r.seed.id === 'liv').st)).toBe('playing'); // cancelled: nothing paused
+    await page.locator('[data-media-pause-all]').click();
+    await page.locator('[data-gd-confirm]').click();
+    await expect(page.locator('sw-dialog[data-group-dialog="result"] [data-gd-result="ok"]')).toBeVisible({ timeout: 8000 });
+    expect(await withMock(page, (m) => m.rows.find((r: any) => r.seed.id === 'liv').st)).toBe('paused');
+    await page.locator('[data-gd-cancel]').click();
+    await expect(page.locator('[data-media-off-all]')).toHaveCount(1); // the screens' button stays
     // the speaker's "נגן" opens the player panel in the same drawer
-    await page.locator('[data-player-tile="mp-liv"]').evaluate((el) => (el.shadowRoot!.querySelector('[data-stub-open]') as HTMLElement).click());
+    await page.locator('[data-player-tile="mp-liv"] button[aria-label="נגן · רמקול סלון"]').click();
     await expect(page.locator('media-area-card media-player-panel [data-pn-state="on"]')).toBeVisible({ timeout: 8000 });
     await expect(page.locator('media-area-card media-remote')).toHaveCount(1);
     await shots(page, 'players-areacard-panel-light');

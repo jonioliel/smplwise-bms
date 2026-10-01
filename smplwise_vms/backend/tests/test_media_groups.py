@@ -272,9 +272,11 @@ def test_group_volume_is_relative_by_default_absolute_on_request_and_clamped_onl
     assert levels == {"media_player.wiim_a": 20, "media_player.wiim_b": 15}, "the same factor for every room: the balance is kept (40:30 -> 20:15)"
     assert outcomes(res) == {"רמקול סלון": "set", "רמקול מטבח": "set"}
     calls.clear()
+    media_commands.BUCKETS.clear()  # the rate limit (2/s per user and group) is its own test: these three writes are one person's, spaced
     done(c, c.post(f"{GROUPS}/{keys['a']}/volume", json=req(level=100, mode="absolute")))
     assert {round(p["data"]["volume_level"] * 100) for p in calls} == {100}, "no default ceiling: 100 is sent"
     calls.clear()
+    media_commands.BUCKETS.clear()
     assert c.put(f"{API}/admin/devices/{keys['b']}", json={"volume_max": 60}).status_code == 200
     res = done(c, c.post(f"{GROUPS}/{keys['a']}/volume", json=req(level=90, mode="absolute")))
     assert {p["data"]["entity_id"]: round(p["data"]["volume_level"] * 100) for p in calls} == {"media_player.wiim_a": 90, "media_player.wiim_b": 60}
