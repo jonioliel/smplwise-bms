@@ -52,7 +52,7 @@ schema:
   nvr_rtsp_port: port
   nvr_username: str?
   nvr_password: password?
-  go2rtc_url: url?
+  go2rtc_url: str?
   go2rtc_api_username: str?
   go2rtc_api_password: password?
   wiskey_username: str?
