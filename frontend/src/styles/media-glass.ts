@@ -36,6 +36,8 @@ export const MEDIA_KNOBS: Record<string, string> = {
   '--mm-dpad-size': 'the d-pad; --mm-dpad-ring / --mm-dpad-shadow / --mm-dpad-groove / --mm-ok-bg its material',
   '--mm-rocker-w': 'the volume / channel rocker\'s width',
   '--mm-motion': 'the one transition duration; --mm-ease its curve',
+  '--mm-cover-size': 'CR-016: the square cover of a player card (--mm-cover-radius its corners, --mm-cover-shadow its glow shadow)',
+  '--mm-tkey-size': 'CR-016: the transport keys of a player (--mm-tkey-main-size the play / pause key); --mm-member-row-h a group member row',
 };
 
 export const mediaGlassKnobs = css`
@@ -68,6 +70,12 @@ export const mediaGlassKnobs = css`
     --mm-motion: 240ms;
     --mm-ease: cubic-bezier(0.22, 1, 0.36, 1);
     --mm-hit: 44px;
+    --mm-cover-size: 104px;
+    --mm-cover-radius: 18px;
+    --mm-cover-shadow: 0 12px 28px rgb(var(--art, 20 24 34) / 0.32);
+    --mm-tkey-size: 48px;
+    --mm-tkey-main-size: 66px;
+    --mm-member-row-h: 52px;
   }
   :host([data-devices-style='glass'][data-devices-scheme='dark']) {
     --mm-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.015) 50%);
@@ -87,6 +95,7 @@ export const mediaGlassKnobs = css`
     --mm-dpad-shadow: 0 18px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 -8px 18px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.07);
     --mm-dpad-groove: inset 0 2px 8px rgba(0, 0, 0, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.07);
     --mm-ok-bg: linear-gradient(180deg, #4b4b51, #323236);
+    --mm-cover-shadow: 0 14px 32px rgb(var(--art, 0 0 0) / 0.45);
   }
   @media (max-width: 767px) {
     :host([data-devices-style='glass']) {
@@ -95,6 +104,10 @@ export const mediaGlassKnobs = css`
       --mm-dpad-size: 196px;
       --mm-rocker-w: 56px;
       --mm-key-size: 50px;
+      --mm-cover-size: 84px;
+      --mm-cover-radius: 16px;
+      --mm-tkey-size: 46px;
+      --mm-tkey-main-size: 62px;
     }
   }
   /* no backdrop-filter, or the viewer asked for less transparency: solid sheets, same layout */

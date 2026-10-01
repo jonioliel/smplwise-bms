@@ -409,17 +409,45 @@ function entryHref(fallback: string, tabs: TabItem[], section: string | null): s
 export const SCHEDULES_HREF = '#/devices/schedules';
 export const SCHEDULES_SETTINGS_HREF = '#/system/schedules';
 
-/** CR-015: the multimedia area ("מולטימדיה", #/multimedia/*) and its settings page. 0.1.149 has one tab, "מסכים"; "נגנים
- * ורמקולים" and "קבוצות" are declared here so their addresses and the tab registry exist, but stay out of every tab row
- * until 0.1.150 (`MULTIMEDIA_PHASE2`). With one tab the row is not drawn at all (sw-app shows a row from two tabs). */
+/** CR-015 / CR-016: the multimedia area ("מולטימדיה", #/multimedia/*) and its settings page. Three tabs: "מסכים", "נגנים
+ * ורמקולים" and "קבוצות" (0.1.150). A tab is drawn only when the installation has something of its kind (the pages report
+ * the status counts through `applyMultimediaKinds`); with one tab the row is not drawn at all (sw-app shows a row from two tabs). */
 export const MULTIMEDIA_SCREENS_HREF = '#/multimedia/screens';
+export const MULTIMEDIA_PLAYERS_HREF = '#/multimedia/players';
+export const MULTIMEDIA_GROUPS_HREF = '#/multimedia/groups';
 export const MULTIMEDIA_SETTINGS_HREF = '#/system/multimedia';
-export const MULTIMEDIA_PHASE2 = false as boolean;
 export const MULTIMEDIA_TABS: TabItem[] = [
   { id: 'screens', label: 'מסכים', href: MULTIMEDIA_SCREENS_HREF },
-  { id: 'players', label: 'נגנים ורמקולים', href: '#/multimedia/players' },
-  { id: 'groups', label: 'קבוצות', href: '#/multimedia/groups' },
+  { id: 'players', label: 'נגנים ורמקולים', href: MULTIMEDIA_PLAYERS_HREF },
+  { id: 'groups', label: 'קבוצות', href: MULTIMEDIA_GROUPS_HREF },
 ];
+
+/** What the installation has of the two CR-016 kinds; unknown (nothing reported yet) = none, so the row never flashes a tab that then goes. */
+const MULTIMEDIA_KINDS = { players: false, groups: false };
+
+/** CR-016: the multimedia pages report `GET /multimedia/status` counts here. "נגנים ורמקולים" is offered when at least one
+ * player is approved and visible to the caller; "קבוצות" when a group exists or at least two players could form one. The tab
+ * counts (the number next to the label) follow. Navigation only - never access control (the routes stay open and answer
+ * their own states). Returns what is offered. */
+export function applyMultimediaKinds(counts: { screens?: number | null; players?: number | null; groups?: number | null } | null | undefined): { players: boolean; groups: boolean } {
+  const players = Math.max(0, Number(counts?.players ?? 0) || 0);
+  const groups = Math.max(0, Number(counts?.groups ?? 0) || 0);
+  const screens = Math.max(0, Number(counts?.screens ?? 0) || 0);
+  const next = { players: players > 0, groups: groups > 0 || players >= 2 };
+  const count = (id: string, n: number | undefined) => {
+    const t = MULTIMEDIA_TABS.find((x) => x.id === id);
+    if (!t || t.count === n) return false;
+    t.count = n;
+    return true;
+  };
+  let changed = next.players !== MULTIMEDIA_KINDS.players || next.groups !== MULTIMEDIA_KINDS.groups;
+  MULTIMEDIA_KINDS.players = next.players;
+  MULTIMEDIA_KINDS.groups = next.groups;
+  if (count('screens', screens > 0 ? screens : undefined)) changed = true;
+  if (count('players', players > 0 ? players : undefined)) changed = true;
+  if (changed) for (const l of tabsListeners) l();
+  return { ...next };
+}
 
 /** The map's tabs: the sites list and the floor map. The device catalogue left the map for הגדרות (2026-09-30). */
 const EXPLORE_TABS: TabItem[] = [
@@ -762,8 +790,9 @@ export function tabAllowed(href: string, can?: Can): boolean {
 }
 
 export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[] {
-  // CR-015: the multimedia players / groups pages are not offered until 0.1.150 (MULTIMEDIA_PHASE2), with or without a backend
-  const offered = items === MULTIMEDIA_TABS && !MULTIMEDIA_PHASE2 ? items.filter((t) => t.id === 'screens') : items;
+  // CR-016: the players / groups tabs are offered only when the installation has players / groups (applyMultimediaKinds),
+  // with or without a backend
+  const offered = items === MULTIMEDIA_TABS ? items.filter((t) => t.id === 'screens' || (t.id === 'players' && MULTIMEDIA_KINDS.players) || (t.id === 'groups' && MULTIMEDIA_KINDS.groups)) : items;
   // permissions and the fixed rules decide what is offered; ui.tabs (order, hidden) then shapes it (with a backend only:
   // the static demo shows the defaults)
   return api ? configureTabs(sectionIdOf(items), permittedTabs(offered, api, can)) : offered;
@@ -864,10 +893,10 @@ export function applyMultimediaHidden(settings: Record<string, unknown> | null |
   return hidden;
 }
 
-/** The screens page's layout editor is entered by `?edit=1` on `#/multimedia/screens` (the user menu's "עריכת מסך המולטימדיה"):
- * while it is active the area's tab row is hidden, like the home editor's. */
+/** The multimedia pages' editors are entered by `?edit=1` on `#/multimedia/screens` (the user menu's "עריכת מסך המולטימדיה"), `…/players`
+ * ("עריכת מסך הנגנים") and `…/groups` ("עריכת הקבוצות השמורות"): while one is active the area's tab row is hidden, like the home editor's. */
 export function isMultimediaEditRoute(r: RouteState | null): boolean {
-  return r?.mode === 'multimedia' && (r.segments[1] ?? 'screens') === 'screens' && r.params.get('edit') === '1';
+  return r?.mode === 'multimedia' && ['screens', 'players', 'groups'].includes(r.segments[1] ?? 'screens') && r.params.get('edit') === '1';
 }
 
 /** The home screen's layout editor is entered by `?edit=1` on "מבט על" (the user menu's "עריכת המסך הראשי", devices-layout.ts):
