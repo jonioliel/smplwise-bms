@@ -101,6 +101,15 @@ export class SwDrawer extends LitElement {
       flex: 1;
       min-inline-size: 0;
     }
+    /* an optional header action (the player panel's power button) sits between the title and the close button, and comes AFTER it in
+       the focus order: the first focus on open is the close button, never an action */
+    header sw-button[data-drawer-close] {
+      order: 2;
+    }
+    ::slotted([slot='action']) {
+      order: 1;
+      align-self: center;
+    }
     h3 {
       margin: 0;
       font-size: var(--sw-fs-lg);
@@ -361,6 +370,7 @@ export class SwDrawer extends LitElement {
           ${this.subheading ? html`<div class="sub">${this.subheading}</div>` : ''}
         </div>
         <sw-button variant="ghost" size="sm" iconOnly icon="close" label=${t('actions.close')} data-drawer-close @click=${this.close}></sw-button>
+        <slot name="action"></slot>
       </header>
       <div class="body"><slot></slot></div>
       <footer ?hidden=${!this.hasFooter}><slot name="footer" @slotchange=${this.onFooterSlot}></slot></footer>`;
