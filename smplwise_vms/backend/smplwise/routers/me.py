@@ -45,7 +45,7 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
     if channel == "remote":  # CR-008: what the Arx client needs (session mode, idle lock, video profile policy)
         from ..services.ha_user_auth import remote_settings
 
-        remote = {k: v for k, v in remote_settings(conn).items() if k != "remote.require_mfa_admin"}
+        remote = {k: v for k, v in remote_settings(conn).items() if k not in ("remote.require_mfa_admin", "remote.admins_default")}
     return {
         "channel": channel,
         "remote": remote,

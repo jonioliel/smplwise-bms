@@ -261,8 +261,12 @@ def _users(conn: sqlite3.Connection, principal: Principal) -> list[dict[str, Any
         last_remote = {r["user_id"]: r["last_at"] for r in conn.execute("SELECT user_id, last_at FROM remote_sign_ins").fetchall()}
     except sqlite3.OperationalError:
         last_remote = {}
+    from ..rbac import is_system_admin
     from ..services import ha_user_auth
 
+    # CR-008 amendment: under remote.policy = flag with remote.admins_default on, an administrator is admitted without a flag
+    rs = ha_user_auth.remote_settings(conn)
+    admins_default = rs.get("remote.policy", "flag") == "flag" and str(rs.get("remote.admins_default", "true")) == "true"
     remote_live: dict[str, int] = {}
     for entry in ha_user_auth.STORE.chains():
         uid = entry["session"].principal.user_id
@@ -276,6 +280,8 @@ def _users(conn: sqlite3.Connection, principal: Principal) -> list[dict[str, Any
         active = bool(h["is_active"]) if h else bool(v["active"]) if v else False
         if h and v and not v["active"]:
             active = False
+        admin_default = admins_default and active and is_system_admin(conn, uid)
+        remote_basis = "flag" if uid in remote_ids else "admin_default" if admin_default else None
         out.append({
             "id": uid,
             "name": (h or {}).get("name") or (v or {}).get("display_name") or (v or {}).get("username") or uid,
@@ -290,7 +296,9 @@ def _users(conn: sqlite3.Connection, principal: Principal) -> list[dict[str, Any
             "groups": groups_of.get(uid, []),
             "bindings": _user_bindings(conn, uid),
             "is_self": uid == principal.user_id,
-            "remote_access": uid in remote_ids,
+            "remote_access": remote_basis is not None,
+            "remote_access_basis": remote_basis,  # flag | admin_default | None; the admin default is the setting's, not the user's switch
+            "remote_admin_default": admin_default,  # the administrator default would admit this user without the flag
             "remote_last_sign_in": last_remote.get(uid),
             "remote_sessions": remote_live.get(uid, 0),
         })
@@ -618,6 +626,8 @@ def _delegated_directory(conn: sqlite3.Connection, principal: Principal) -> dict
             "first_seen_at": None,
             "last_seen_at": None,
             "remote_access": False,
+            "remote_access_basis": None,
+            "remote_admin_default": False,
             "remote_last_sign_in": None,
             "remote_sessions": 0,
             "groups": [g for g in u["groups"] if g["id"] in reach_groups],
