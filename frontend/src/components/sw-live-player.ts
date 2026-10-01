@@ -3,6 +3,7 @@ import { customElement, property, state, query } from 'lit/decorators.js';
 import './sw-icon';
 import { liveWsUrl, relayWsUrl, type Transport } from '../api/media';
 import { can } from '../api/session';
+import { LIVE_ICE_SERVERS } from '../api/video-conn-test';
 import { badgeLabel, decodeLadder, lanLadder, orderLadder, rememberStep, rememberedStep, sameStep, undecodableMessage, type Profile, type VideoStep } from '../api/video-policy';
 
 /**
@@ -640,7 +641,7 @@ export class SwLivePlayer extends LitElement {
     this.transport = 'webrtc';
     this.webrtcConnected = false;
     const gen = this.generation;
-    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    const pc = new RTCPeerConnection({ iceServers: LIVE_ICE_SERVERS });
     this.pc = pc;
     pc.ontrack = (ev) => {
       if (gen !== this.generation) return;
