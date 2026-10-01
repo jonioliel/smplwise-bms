@@ -198,7 +198,7 @@ Ingress identity and the scoped role check named in its handler; errors use the 
 | multimedia | PUT | `/api/v1/multimedia/admin/devices/{key}` |  |
 | multimedia | POST | `/api/v1/multimedia/admin/links` |  |
 | multimedia | GET | `/api/v1/multimedia/devices` | The approved screens the caller may read, sorted by name (0.1.149 lists `screen` only; another kind is an empty list). |
-| multimedia | GET | `/api/v1/multimedia/devices/{key}` |  |
+| multimedia | GET | `/api/v1/multimedia/devices/{key}` | `?curation=1` is the remote editor's read: hidden sources / apps included, each with its default name - only for a holder of |
 | multimedia | GET | `/api/v1/multimedia/devices/{key}/artwork` | The content art of what the screen is playing, proxied through the add-on's HA session (never an HA URL in the browser). Only |
 | multimedia | POST | `/api/v1/multimedia/devices/{key}/commands` | One command of the remote to one screen (contract 3.4): 202 `{command_id, status: "accepted" \| "sent", action_id, confirm, error}`; |
 | multimedia | PUT | `/api/v1/multimedia/devices/{key}/remote` | `media.layout` at the screen's anchor: the per-screen remote override (`remote: null` returns it to the default) and the ordered |
