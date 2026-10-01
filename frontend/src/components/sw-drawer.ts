@@ -46,6 +46,28 @@ function deepActive(): HTMLElement | null {
  * since everything outside the top layer is inert. No transform on the open panel (a transform would become the
  * containing block of a nested fixed confirmation dialog).
  */
+/** One reference count per locked scroll container, shared by every drawer: the inline `overflow` is saved by the FIRST lock and
+ * restored by the LAST release. Per-drawer save/restore left a container locked for good when two drawers overlapped (the second
+ * one saved the first one's "hidden" and put it back on closing last): the page could no longer be scrolled. */
+const scrollLocks = new Map<HTMLElement, { n: number; overflow: string }>();
+
+function lockEl(el: HTMLElement) {
+  const l = scrollLocks.get(el);
+  if (l) l.n++;
+  else {
+    scrollLocks.set(el, { n: 1, overflow: el.style.overflow });
+    el.style.overflow = 'hidden';
+  }
+}
+
+function unlockEl(el: HTMLElement) {
+  const l = scrollLocks.get(el);
+  if (!l) return;
+  if (--l.n > 0) return;
+  scrollLocks.delete(el);
+  el.style.overflow = l.overflow;
+}
+
 @customElement('sw-drawer')
 export class SwDrawer extends LitElement {
   @property({ type: Boolean, reflect: true }) open = false;
@@ -57,7 +79,7 @@ export class SwDrawer extends LitElement {
   /** review M3: a press that STARTED on the backdrop - a drag from inside the panel ending outside never closes it. */
   private downOnBackdrop = false;
   /** review M2: the scroll containers behind a modal drawer, locked while it is open (their inline overflow before). */
-  private locked: { el: HTMLElement; overflow: string }[] = [];
+  private locked: HTMLElement[] = [];
 
   static styles = css`
     :host {
@@ -280,8 +302,8 @@ export class SwDrawer extends LitElement {
       if (parent instanceof HTMLElement) {
         const oy = getComputedStyle(parent).overflowY;
         if (oy === 'auto' || oy === 'scroll' || parent === document.documentElement) {
-          this.locked.push({ el: parent, overflow: parent.style.overflow });
-          parent.style.overflow = 'hidden';
+          this.locked.push(parent);
+          lockEl(parent);
         }
       }
       n = parent;
@@ -289,7 +311,7 @@ export class SwDrawer extends LitElement {
   }
 
   private unlockScroll() {
-    for (const { el, overflow } of this.locked) el.style.overflow = overflow;
+    for (const el of this.locked) unlockEl(el);
     this.locked = [];
   }
 
