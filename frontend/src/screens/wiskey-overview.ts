@@ -688,8 +688,13 @@ export class WiskeyOverview extends LitElement {
   static styles = css`
     .stats {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(140px, 240px));
       gap: 12px;
+    }
+    @media (max-width: 600px) {
+      .stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
     }
     .layout {
       display: grid;

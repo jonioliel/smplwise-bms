@@ -29,8 +29,8 @@ screen. B0 (D-006): the same goes for each station's `last_access` (person name,
 every people count: WisKey's `overview` still sends them, this module never keeps, serves or logs them. A person's name
 reaches a screen only through the one-off `events/list` / `users/*` reads below (service identity today, the operator's own
 identity from B1). The background (read) channel proper - its own session, its own account once the owner creates it, and the
-closed D-006 projection - is services/wiskey_background.py; this session is the service channel (SUPERVISOR_TOKEN) that also
-carries the writes (D-004).
+closed D-006 projection - is services/wiskey_background_feed.py (the session) and services/wiskey_background.py (the
+projection); this session is the service channel (SUPERVISOR_TOKEN) that also carries the writes (D-004).
 
 One-off reads (phase 1b: `events/list`, `users/query`, `users/get`) go through `IntercomSync.command`: the request
 thread schedules the command on this feed's own event loop and it is sent over the SAME live session (`self._call`),
@@ -58,7 +58,11 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import hashlib
+import hmac
+import json
 import logging
+import os
 import queue
 import re
 import threading
@@ -282,6 +286,26 @@ def _station(raw: dict[str, Any]) -> dict[str, Any]:
         # the station clock's display zone (WisKey formats a station's times in it, panel.ts zone())
         "zone": clock.get("zone") if isinstance(clock.get("zone"), dict) else None,
     }
+
+
+# What B0 (D-006) stopped keeping from WisKey's `overview` still tells the activity log and the people screens WHEN something
+# happened: a new access record changes a station's `last_access`, a people edit changes the counts. Browsers are told only
+# when the entry center changed (`intercom_refresh`, one notice per actual change), so the change itself is detected with an
+# opaque keyed digest of those removed fields: held in memory, never served, logged or compared across restarts (the key is
+# random per process). The digest is not a field of a person or an event, and it cannot be turned back into one.
+_CHANGE_KEY = os.urandom(16)
+
+
+def change_tag(raw: dict[str, Any]) -> str:
+    """Keyed digest of the parts of `overview` that are no longer projected (last access, people counts), so that a change
+    in them is still noticed without keeping them."""
+    parts = {
+        str(s.get("id") or ""): [s.get("last_access"), s.get("pending_user_count"), s.get("managed_user_count")]
+        for s in raw.get("stations") or []
+        if isinstance(s, dict)
+    }
+    body = json.dumps([parts, raw.get("user_count")], sort_keys=True, default=str, separators=(",", ":")).encode("utf-8")
+    return hmac.new(_CHANGE_KEY, body, hashlib.sha256).hexdigest()
 
 
 def project_overview(raw: dict[str, Any]) -> dict[str, Any]:
@@ -749,6 +773,7 @@ class IntercomSync:
         # station id -> the station's host from the same `overview` reply. NEVER served: it only builds the station's
         # RTSP source for go2rtc (camera stills), server-side. Kept and dropped together with the copy.
         self._hosts: dict[str, str] = {}
+        self._tag: str | None = None  # change_tag of the last overview stored (never served)
         self._cache_lock = threading.Lock()
         self._logged_error: str | None = None
         self._was_ready = False  # a session reached `ready` since the process (or reset()) started
@@ -1226,6 +1251,9 @@ class IntercomSync:
                 pass
 
     def _store(self, raw: dict[str, Any]) -> bool:
+        tag = change_tag(raw)
+        tag_changed = self._tag is not None and tag != self._tag
+        self._tag = tag
         projected = project_overview(raw)
         hosts = {
             str(s.get("id") or ""): s["host"]
@@ -1243,12 +1271,16 @@ class IntercomSync:
         if changed:
             STATE.sequence += 1
             publish({"type": "intercom_refresh", "sequence": STATE.sequence})
+        elif tag_changed:  # only what B0 no longer projects changed (a new access record, a people edit): still one notice
+            STATE.sequence += 1
+            publish({"type": "intercom_refresh", "sequence": STATE.sequence})
         return changed
 
     def _drop(self) -> None:
         with self._cache_lock:
             self._cache = None
             self._hosts = {}
+        self._tag = None
 
     def _set_state(self, state: str, error: str | None) -> None:
         changed = state != STATE.state

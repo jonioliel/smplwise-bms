@@ -14,7 +14,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from test_intercom import CLOSE, OFFLINE, OVERVIEW, STATION, FakeHa, fail, feed, normal, ok, wait_for  # noqa: F401 - `feed` is a fixture
+from test_intercom import CLOSE, OVERVIEW, FakeHa, fail, feed, normal, ok, wait_for  # noqa: F401 - `feed` is a fixture
 
 from smplwise.services import intercom_sync, wiskey_background as bg
 
@@ -185,6 +185,62 @@ def test_nothing_personal_is_cached_served_pushed_or_logged_across_a_reconnect(f
     for marker in (*PERSON_MARKERS, "Eve", "2002"):
         assert marker not in logged, f"{marker} in the log"
     assert re.search(r"WisKey feed connected: 2 stations, WisKey 4\.2\.0", logged), "only the station count and the WisKey version"
+
+
+def test_a_change_in_what_is_no_longer_projected_is_still_one_notice(feed):
+    """The activity log and the people screens refetch on `intercom_refresh`, which the feed sends only when the entry
+    center changed. A new access record (last_access) or a people edit (counts) no longer changes the projection, so the
+    change is noticed through an opaque digest of the dropped fields: one notice per real change, none for an identical
+    refetch, and the notice and the served reply never carry the fields themselves."""
+    app, s, install = feed
+    current = {"ov": copy.deepcopy(OVERVIEW)}
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        if msg["type"] == "hikvision_intercom/overview":
+            return [ok(msg, copy.deepcopy(current["ov"]))]
+        return normal(msg, fake)
+
+    fakes = install(script)
+    q = intercom_sync.subscribe()
+    try:
+        intercom_sync.SYNC.start(s)
+        wait_for(lambda: intercom_sync.STATE.state == "ready" and intercom_sync.SYNC._wiskey_sub is not None)
+        base = intercom_sync.STATE.sequence
+
+        def push_refresh() -> None:
+            fake = fakes[0]
+            assert fake.q is not None and intercom_sync.SYNC._event_loop is not None
+            intercom_sync.SYNC._event_loop.call_soon_threadsafe(fake.q.put_nowait, {"id": intercom_sync.SYNC._wiskey_sub, "type": "event", "event": {"kind": "refresh"}})
+
+        refreshes = intercom_sync.STATE.refreshes
+        push_refresh()  # nothing changed: refetched, no notice
+        wait_for(lambda: intercom_sync.STATE.refreshes > refreshes)
+        assert intercom_sync.STATE.sequence == base
+
+        eve = copy.deepcopy(OVERVIEW)
+        eve["stations"][0]["last_access"] = {**eve["stations"][0]["last_access"], "person_name": "Eve", "employee_no": "2002", "timestamp": "2026-09-27T09:00:00+03:00"}
+        current["ov"] = eve
+        refreshes = intercom_sync.STATE.refreshes
+        push_refresh()
+        wait_for(lambda: intercom_sync.STATE.sequence == base + 1)
+        counts = copy.deepcopy(eve)
+        counts["stations"][1]["pending_user_count"] = 5
+        current["ov"] = counts
+        push_refresh()
+        wait_for(lambda: intercom_sync.STATE.sequence == base + 2)
+        again = intercom_sync.STATE.refreshes
+        push_refresh()  # identical: refetched, no notice
+        wait_for(lambda: intercom_sync.STATE.refreshes > again)
+        assert intercom_sync.STATE.sequence == base + 2
+        notices = []
+        while not q.empty():
+            notices.append(q.get_nowait())
+        refreshed = [n for n in notices if n["type"] == "intercom_refresh"]
+        assert [n["sequence"] for n in refreshed][-2:] == [base + 1, base + 2] and all(set(n) == {"type", "sequence"} for n in refreshed)
+        deep_scan(TestClient(app).get("/api/v1/intercom/overview").json())
+        assert "Eve" not in stamped(notices) and "2002" not in stamped(notices)
+    finally:
+        intercom_sync.unsubscribe(q)
 
 
 def test_a_stale_copy_after_a_refused_reconnect_is_closed_too(feed):
