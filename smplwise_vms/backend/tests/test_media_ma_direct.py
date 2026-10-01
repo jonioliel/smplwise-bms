@@ -234,7 +234,7 @@ def test_with_the_direct_connection_the_caps_open_and_a_cast_speaker_stays_witho
     assert (garden["caps"]["queue_list"], garden["caps"]["browse"], garden["can"]["queue"]) == (False, False, False)
     bind(c, settings, "olga", "operator", "installation", "*")
     op = c.get(f"{API}/devices/{keys['a']}", headers=as_user("olga")).json()
-    assert op["can"]["queue"] is False and op["can"]["browse"] is True, "media.queue is default deny for an operator"
+    assert op["can"]["queue"] is True and op["can"]["browse"] is True, "an operator may edit the queue (owner 2026-10-02: whoever controls multimedia controls the music)"
     fake.fail = "unreachable"
     c.post(f"{API}/admin/ma-connection/test")
     assert c.get(f"{API}/devices/{keys['a']}").json()["caps"]["queue_list"] is False, "an unreachable server closes the full queue (the circuit)"
@@ -339,7 +339,9 @@ def test_queue_editing_needs_media_queue_default_deny_and_the_followers_anchors(
     app, c, fake, bridge, keys, settings, _ = d
     connect(c)
     items = _rows(c, keys)
-    bind(c, settings, "olga", "operator", "installation", "*")
+    nq = c.post("/api/v1/access/roles", json={"name": "בלי תור", "permissions": ["media.read", "media.control"]})
+    assert nq.status_code in (200, 201), nq.text
+    bind(c, settings, "olga", nq.json()["id"], "installation", "*")
     r = c.post(f"{API}/devices/{keys['a']}/queue", headers=as_user("olga"), json=body(op="delete", item=items["שיר 6"]))
     assert r.status_code == 403
     assert c.get(f"{API}/devices/{keys['a']}/queue", headers=as_user("olga")).status_code == 200, "reading the full queue is media.read"
@@ -541,7 +543,7 @@ def test_the_new_permissions_have_labels_and_their_default_roles():
 
     assert PERMISSION_LABELS["media.browse"] == "עיון וחיפוש בספריית המוזיקה" and PERMISSION_LABELS["media.queue"] == "עריכת תור הניגון"
     assert {r for r in ROLES if "media.browse" in ROLES[r]} == {"operator", "site_admin", "system_admin"}
-    assert {r for r in ROLES if "media.queue" in ROLES[r]} == {"system_admin"}, "default deny for every other built-in role"
+    assert {r for r in ROLES if "media.queue" in ROLES[r]} == {"operator", "site_admin", "system_admin"}, "every built-in role that controls multimedia may edit the queue; viewers, kiosks and editors may not"
     assert "media.queue" not in SENSITIVE and "media.browse" not in SENSITIVE
     import pathlib
 
