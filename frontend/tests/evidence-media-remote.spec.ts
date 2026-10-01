@@ -609,8 +609,11 @@ test.describe('the home widget "מסכים"', () => {
     await shots(page, 'home-widget-remote-light');
     expect(await sent(page)).toEqual([]);
     await page.keyboard.press('Escape');
-    // no screens: the widget draws nothing
+    // no screens and (CR-016) no players either: the widget draws nothing
     await withMock(page, (m) => void (m.rows.length = 0));
+    await page.evaluate(async (url) => {
+      (await import(/* @vite-ignore */ url)).playersMock().rows.length = 0;
+    }, '/src/api/media-players-mock.ts');
     await widgets(page, 'm', 'hero', false);
     await page.waitForTimeout(900);
     await expect(page.locator('#mr-stage [data-home-widget="media"]')).toHaveCount(0);

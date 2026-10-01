@@ -23,7 +23,7 @@ export const SIDE_LABEL: Record<Side, string> = { end: 'שמאל', start: 'ימ�
 export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick' | 'media';
 /** `media` (CR-015 §7.5) is appended, so a saved order without it keeps its look: it lands last, like every widget a release adds. */
 export const WIDGET_IDS: WidgetId[] = ['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media'];
-export const WIDGET_NAME: Record<WidgetId, string> = { clock: 'שעון', weather: 'מזג אוויר', shabbat: 'שבת', alarm: 'אזעקה', quick: 'פעולות מהירות', media: 'מסכים' };
+export const WIDGET_NAME: Record<WidgetId, string> = { clock: 'שעון', weather: 'מזג אוויר', shabbat: 'שבת', alarm: 'אזעקה', quick: 'פעולות מהירות', media: 'מולטימדיה' };
 
 export type Size = 's' | 'm' | 'l';
 export const SIZES: Size[] = ['s', 'm', 'l'];

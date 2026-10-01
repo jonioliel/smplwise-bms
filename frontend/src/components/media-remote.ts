@@ -5,10 +5,12 @@ import { repeat } from 'lit/directives/repeat.js';
 import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
 import './sw-drawer';
 import './media-remote-pad';
+import './media-player-panel';
 import '../screens/multimedia-remote-editor';
 import { ApiError } from '../api/client';
 import { getAction } from '../api/ha';
 import { isApi } from '../api/session';
+import { players } from '../api/media-players';
 import {
   ERROR_LABEL, CONFIRM_TIMEOUT_MS, artworkUrl, commandOffered, media, sendCommand,
   type KeyId, type MediaCommand, type MediaDeviceDetail, type MediaStatus, type RemoteSection, type SourceItem, type TransportAction,
@@ -56,6 +58,9 @@ export class MediaRemote extends LitElement {
   @property({ type: Boolean, reflect: true }) open = false;
   /** The colour scheme when the host already knows it (light | dark | auto); empty = the installation's `devices.scheme`. */
   @property() scheme: '' | 'light' | 'dark' | 'auto' = '';
+  /** CR-016: the device's kind when the host knows it. A speaker, player, receiver or group (anything but a screen) is drawn by
+   * `<media-player-panel>` in the same drawer; empty = a screen, or learned from the first read of the device. */
+  @property() kind = '';
 
   @state() private detail: MediaDeviceDetail | null = null;
   @state() private phase: 'loading' | 'ready' | 'error' = 'loading';
@@ -103,11 +108,19 @@ export class MediaRemote extends LitElement {
 
   protected willUpdate(changed: PropertyValues<this>) {
     if (changed.has('deviceKey') && changed.get('deviceKey') !== undefined) {
+      if (!changed.has('kind')) this.kind = ''; // the next device may be a screen again; its first read says
       this.resetForDevice();
     }
   }
 
+  /** The device is not a screen: the player panel draws it (CR-016). */
+  private get isPlayer(): boolean {
+    return this.kind !== '' && this.kind !== 'screen';
+  }
+
   protected updated(changed: PropertyValues<this>) {
+    if (changed.has('kind') && this.isPlayer) this.end();
+    if (this.isPlayer) return;
     if (changed.has('open') || changed.has('deviceKey')) {
       if (this.open && this.deviceKey) this.begin();
       else if (!this.open) this.end();
@@ -224,11 +237,28 @@ export class MediaRemote extends LitElement {
       this.applyDetail(d);
     } catch {
       if (token !== this.token) return;
+      if (!this.detail && (await this.learnPlayer(key, token))) return;
       if (!this.detail) this.phase = 'error';
     }
   }
 
+  /** A key the screens client does not know (the demo's mock keeps players apart): ask the players client; a non-screen is routed to the panel. */
+  private async learnPlayer(key: string, token: number): Promise<boolean> {
+    try {
+      const p = await players().get(key);
+      if (token !== this.token || key !== this.deviceKey || p.kind === 'screen') return false;
+      this.kind = p.kind;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private applyDetail(d: MediaDeviceDetail) {
+    if (d.kind !== 'screen') {
+      this.kind = d.kind; // the real backend answers players on the same route
+      return;
+    }
     this.detail = d;
     this.phase = 'ready';
     if (this.audio === null && d.audio_link) this.audio = d.live.volume.target ?? d.audio_link.default;
@@ -392,7 +422,14 @@ export class MediaRemote extends LitElement {
 
   // ------------------------------------------------------------------------------------------------ events of the body
 
+  /** The remote's own drawer closed. Ignored once the device turned out to be a player: removing the remote's open drawer to make room
+   * for the player panel fires one `close`, which must not close the panel that replaces it. */
   private onClose = () => {
+    if (this.isPlayer) return;
+    this.open = false;
+  };
+
+  private onPanelClose = () => {
     this.open = false;
   };
 
@@ -496,6 +533,9 @@ export class MediaRemote extends LitElement {
   // ------------------------------------------------------------------------------------------------ render
 
   render() {
+    if (this.isPlayer) {
+      return html`<media-player-panel .deviceKey=${this.deviceKey} .open=${this.open} .scheme=${this.scheme} @close=${this.onPanelClose}></media-player-panel>`;
+    }
     const d = this.detail;
     const sub = d ? [d.area_name, d.floor_name].filter(Boolean).map((x) => bidi(x)).join(' · ') : '';
     return html`<sw-drawer modal .open=${this.open} heading=${d ? bidi(d.name) : ''} subheading=${sub} @close=${this.onClose}>${this.body()}</sw-drawer>`;

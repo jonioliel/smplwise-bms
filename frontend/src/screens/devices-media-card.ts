@@ -10,6 +10,7 @@ import { getBulk, followBulk, bulkHeadline, OUTCOME_LABEL, type BulkRecord } fro
 import { canAnywhere, isApi } from '../api/session';
 import { commandId } from '../api/request-id';
 import { bulkCandidates, isOn, media, type BulkPreview, type MediaDevice } from '../api/media-screens';
+import { PLAYER_KINDS, isPlaying, players, type PlayerDevice } from '../api/media-players';
 import { bidi } from '../i18n/bidi';
 
 /**
@@ -18,6 +19,10 @@ import { bidi } from '../i18n/bidi';
  * `<media-remote>` as the screens page, and "כבה הכל" for the area's screens (decision 7a: a question + a count, the details
  * folded, only screens confirmed on, an honest per-screen outcome). Used by the built-in media card and by library (custom)
  * media cards of devices-area.ts; the card is drawn by the screen, this element fills it.
+ *
+ * CR-016: the area's approved speakers, players and receivers sit next to the TVs, one `<media-player-card>` (S2's card, used by tag)
+ * per physical device; its `open-player` (or `open-remote`) opens the same drawer, drawn by the player panel. "כבה הכל" stays
+ * screens-only: a speaker is never switched off by it (nothing in the contract adds players to the screens' bulk).
  *
  *   <media-area-card .areaId=${id} .areaName=${name} .entityIds=${customEntityIds|null} @media-area-state=${...}></media-area-card>
  *
@@ -40,7 +45,10 @@ export class MediaAreaCard extends LitElement {
   /** The host draws "כבה הכל" itself (the area screen puts it in the section header, like the other sections); it calls `ask()`. */
   @property({ type: Boolean }) external = false;
   @state() private devices: MediaDevice[] | null = null;
+  /** CR-016: the area's approved speakers, players and receivers (null = not read yet). */
+  @state() private speakers: PlayerDevice[] | null = null;
   @state() private remoteKey = '';
+  @state() private remoteKind = '';
   @state() private remoteOpen = false;
   @state() private phase: Phase = 'closed';
   @state() private preview: BulkPreview | null = null;
@@ -68,6 +76,13 @@ export class MediaAreaCard extends LitElement {
       display: flex;
       justify-content: flex-end;
       margin-block-end: 2px;
+    }
+    .sub {
+      margin-block-start: 4px;
+      padding-inline: 4px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--sw-text-2);
     }
     .off-all {
       display: inline-flex;
@@ -147,35 +162,48 @@ export class MediaAreaCard extends LitElement {
   }
 
   private async load() {
-    if (!this.areaId || !this.allowed()) return this.setDevices([]);
+    if (!this.areaId || !this.allowed()) return this.setDevices([], []);
     const token = ++this.token;
     try {
       const st = await media().status();
-      if (!st.enabled) return token === this.token ? this.setDevices([]) : undefined;
+      if (!st.enabled) return token === this.token ? this.setDevices([], []) : undefined;
       const { devices } = await media().list({ area: this.areaId });
+      // the players of the area (CR-016): a failure here never takes the screens away
+      const area = this.areaId;
+      const speakers = await players().list({ area }).then((r) => r.devices.filter((d) => d.area_id === area && ['speaker', 'player', 'receiver'].includes(d.kind) && PLAYER_KINDS.includes(d.kind))).catch(() => [] as PlayerDevice[]);
       if (token !== this.token) return;
       const screens = devices.filter((d) => d.kind === 'screen');
       const ids = this.entityIds;
       const mapped = ids?.length ? screens.filter((d) => ((d as MediaDevice & { entity_ids?: string[] }).entity_ids ?? []).some((e) => ids.includes(e))) : [];
-      this.setDevices(ids?.length && mapped.length ? mapped : screens);
+      this.setDevices(ids?.length && mapped.length ? mapped : screens, speakers);
     } catch {
-      if (token === this.token && !this.devices) this.setDevices([]);
+      if (token === this.token && !this.devices) this.setDevices([], []);
     }
   }
 
-  private setDevices(list: MediaDevice[]) {
+  private setDevices(list: MediaDevice[], speakers: PlayerDevice[]) {
     this.devices = list;
-    this.dispatchEvent(new CustomEvent('media-area-state', { detail: { screens: list.length, on: list.filter((d) => isOn(d.live)).length, canOff: bulkCandidates(list).length > 0 }, bubbles: true, composed: true }));
+    this.speakers = speakers;
+    this.dispatchEvent(new CustomEvent('media-area-state', {
+      detail: { screens: list.length, players: speakers.length, playing: speakers.filter(isPlaying).length, on: list.filter((d) => isOn(d.live)).length, canOff: bulkCandidates(list).length > 0 },
+      bubbles: true, composed: true,
+    }));
   }
 
-  private openRemote = (key: string) => {
+  private openRemote = (key: string, kind = '') => {
     this.remoteKey = key;
+    this.remoteKind = kind || this.kindOf(key);
     this.remoteOpen = true;
   };
 
+  /** A speaker, player or receiver of this card opens the player panel; every other key is a screen. */
+  private kindOf(key: string): string {
+    return this.speakers?.find((x) => x.key === key)?.kind ?? 'screen';
+  }
+
   private onOpenRemote = (e: Event) => {
     const d = e as CustomEvent<{ key?: string }>;
-    const key = d.detail?.key ?? ((e.target as HTMLElement & { device?: MediaDevice }).device?.key ?? '');
+    const key = d.detail?.key ?? ((e.target as HTMLElement & { device?: MediaDevice | PlayerDevice }).device?.key ?? '');
     if (key) this.openRemote(key);
   };
 
@@ -255,15 +283,17 @@ export class MediaAreaCard extends LitElement {
   }
 
   render() {
-    const list = this.devices;
-    if (!list || !list.length) return nothing;
+    const list = this.devices ?? [];
+    const spk = this.speakers ?? [];
+    if (!list.length && !spk.length) return nothing;
     const canOff = bulkCandidates(list).length > 0;
     return html`${canOff && !this.external
         ? html`<div class="bar"><button type="button" class="off-all" data-media-off-all ?disabled=${this.phase === 'loading'} @click=${() => void this.ask()}><sw-icon name="power" size=${14}></sw-icon>כבה הכל</button></div>`
         : nothing}
-      <div class="list" data-media-area-list @open-remote=${this.onOpenRemote}>${repeat(list, (d) => d.key, (d) => html`<media-screen-card .device=${d} .compact=${true} size="s" data-media-tile=${d.key}></media-screen-card>`)}</div>
+      <div class="list" data-media-area-list @open-remote=${this.onOpenRemote} @open-player=${this.onOpenRemote}>${repeat(list, (d) => d.key, (d) => html`<media-screen-card .device=${d} .compact=${true} size="s" data-media-tile=${d.key}></media-screen-card>`)}
+        ${spk.length ? html`${list.length ? html`<div class="sub" data-media-area-sub="players">רמקולים ומגברים</div>` : nothing}${repeat(spk, (d) => d.key, (d) => html`<media-player-card .device=${d} .compact=${true} size="s" data-player-tile=${d.key}></media-player-card>`)}` : nothing}</div>
       ${this.dialog()}
-      <media-remote .deviceKey=${this.remoteKey} .open=${this.remoteOpen} @close=${() => (this.remoteOpen = false)} @media-changed=${() => void this.load()} @media-remote-open=${() => (this.remoteOpen = true)}></media-remote>`;
+      <media-remote .deviceKey=${this.remoteKey} .kind=${this.remoteKind} .open=${this.remoteOpen} @close=${() => (this.remoteOpen = false)} @media-changed=${() => void this.load()} @media-remote-open=${() => (this.remoteOpen = true)}></media-remote>`;
   }
 }
 
