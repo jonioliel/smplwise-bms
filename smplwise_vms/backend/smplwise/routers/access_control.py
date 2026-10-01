@@ -49,7 +49,7 @@ from ..db import Database, commit_now, now_iso, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import go2rtc as g2
-from ..services import intercom_client, intercom_sync, wiskey_background_feed, wiskey_camera
+from ..services import ha_user_auth, intercom_client, intercom_sync, wiskey_background_feed, wiskey_camera, wiskey_diagnostics
 from ..services.intercom_capture import CAPTURES, POLLED
 from ..services.timeutil import parse_utc
 from .media import _principal_for_ws
@@ -128,6 +128,17 @@ def background(request: Request, principal: Principal = Depends(_reader)) -> dic
     channel split from the service session) or `service` (no background account configured yet: the same four fields cut
     down from the service feed's copy, `split: false`). `projection` is null whenever there is nothing honest to show."""
     return wiskey_background_feed.channel_view(settings_of(request))
+
+
+@router.get("/intercom/diagnostics")
+def diagnostics(request: Request, principal: Principal = Depends(_credentials_admin)) -> dict[str, Any]:
+    """What WisKey sees Arx as (B0; `system.configure`): WisKey's `authorization/session` for the service identity (the
+    add-on's own Home Assistant user, which also carries the existing writes), for the background identity (its own session
+    once the owner configured `wiskey_background_token`; until then it says it shares the service identity) and, only in the
+    `/arx` channel, for the signed-in operator under their own Home Assistant token. Permission facts only - areas, station
+    scope, field levels, security state, whether `subscribe` is live - with `findings` derived from them. Read-only; nothing is
+    changed in WisKey and no person field is involved."""
+    return wiskey_diagnostics.collect(settings_of(request), who=principal.user_id, operator_session=ha_user_auth.session_of(request))
 
 
 @router.get("/intercom/events")

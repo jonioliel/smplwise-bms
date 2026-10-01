@@ -158,6 +158,7 @@ class Recorder:
 # one representative call of every typed function in intercom_client; the frame it sends is what the catalog judges
 CLIENT_CALLS: dict[str, Any] = {
     "overview": lambda c: intercom_client.overview(c),
+    "authorization/session": lambda c: intercom_client.authorization_session(c),
     "events/list": lambda c: intercom_client.events_list(c, {"station_id": "s1", "limit": 20, "start": "2026-09-27T08:00:00Z"}),
     "users/query": lambda c: intercom_client.users_query(c, {"sort": "name"}, 0, 50, ""),
     "users/get": lambda c: intercom_client.users_get(c, "u1"),

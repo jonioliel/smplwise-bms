@@ -962,6 +962,11 @@ class FakeHa:
             elif kind in ("hikvision_intercom/cards/reader_capabilities", "hikvision_intercom/cards/capture_start", "hikvision_intercom/cards/capture_status",
                           "hikvision_intercom/cards/capture_cancel", "hikvision_intercom/cards/capture_confirm"):
                 self.push(WORLD.capture_command(msg, asyncio.get_running_loop()))
+            elif kind == "hikvision_intercom/authorization/session":  # B0 diagnostics: the fixture's service user is a WisKey administrator
+                levels = {"overview": "manage", "users": "manage", "events": "manage", "stations": "manage", "management": "manage"}
+                fields = {"phone": "manage", "photo": "manage", "credentials": "manage", "profile": "manage", "access": "manage"}
+                self.push(ok(msg, {"allowed": True, "is_admin": True, "areas": levels, "fields": fields, "station_ids": None, "revision": 1, "personal_renewal": False,
+                                   "security": {"locked": False, "idle_minutes": 0, "reauth_sensitive": False, "elevated": False}}))
             elif kind == "hikvision_intercom/tts/engines":
                 self.push(ok(msg, copy.deepcopy(TTS_ENGINES)))
             elif kind == "hikvision_intercom/tts/start":
