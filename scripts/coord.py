@@ -12,6 +12,8 @@ State files on the branch:
   HANDOFF.md   - written by the master when it releases the lease
   assignments/ - one JSON per assignment (two-way inbox, any session -> any session)
 
+Also: watch (loop tick), branches, handoff --auto / handoff-draft, reserve-migration,
+reserve-port, reservations, release-reserved, cancel.
 Commands: status, ping, claim-master, heartbeat, handoff, claim-task, finish-task,
           assign, inbox, accept, done, report.
 Never write secrets, lab addresses or credentials into this branch.
@@ -38,6 +40,11 @@ INITIAL_HANDOFF = "# Handoff\n\nNo handoff written yet.\n"
 
 ASSIGN_DIR = "assignments"
 MAX_TEXT = 20000
+MAX_NOTE = 2000
+WATCH_BASE = 20  # watch exit code = 20 + bitmask of the flags below, 0 when nothing happened
+W_INBOX, W_FINISHED, W_VACANT, W_SILENT = 1, 2, 4, 8
+MIGRATIONS_DIR = "smplwise_vms/backend/smplwise/migrations"
+PORT_FLOOR = 18100
 PRIORITIES = ("low", "normal", "high")
 _SECRET_PATTERNS = [
     ("IPv4 address", re.compile(r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w.])")),
@@ -133,10 +140,27 @@ class Coord:
         return {"lease": lease, "claims": self._read_json("claims.json"),
                 "vacant": self._vacant(lease), "heartbeat_age_seconds": age}
 
-    def ping(self, sid: str, quota: int) -> None:
-        """A non-master session announces it is alive and how much quota it has."""
+    def _touch_presence(self, lease: dict, sid: str, quota: int, note: str | None = None,
+                        agents: list[str] | None = None) -> None:
+        """Record what a session is doing now. ``None`` keeps the previous note/agents."""
+        for what, value in (("note", note or ""), ("agents", "\n".join(agents or []))):
+            if len(value) > MAX_NOTE:
+                raise Refused(f"{what} is too long (max {MAX_NOTE} characters)")
+            validate_no_secrets(value, what)
+        entry = lease.setdefault("presence", {}).get(sid, {})
+        entry.update(quota=quota, ts=int(self.now()))
+        if note is not None:
+            entry["note"] = note
+        if agents is not None:
+            entry["agents"] = agents
+        lease["presence"][sid] = entry
+
+    def ping(self, sid: str, quota: int, note: str | None = None,
+             agents: list[str] | None = None) -> None:
+        """A non-master session announces it is alive, its quota, and what runs on its side."""
         self.sync()
         lease = self._read_json("lease.json")
+        self._touch_presence(lease, sid, quota, note, agents)
         lease.setdefault("candidates", {})[sid] = {"quota": quota, "ts": int(self.now())}
         self._write_json("lease.json", lease)
         self._commit_push(f"coord: ping {sid}")
@@ -156,28 +180,33 @@ class Coord:
                 raise Refused(f"{best} reports more quota ({better[best]['quota']}% > {quota}%) "
                               "and should take the lease; use --force to override")
         lease.update(master=sid, heartbeat=int(self.now()), quota=quota, released=False)
+        self._touch_presence(lease, sid, quota)
         lease.get("candidates", {}).pop(sid, None)
         self._write_json("lease.json", lease)
         self._commit_push(f"coord: {sid} claims master")
 
-    def heartbeat(self, sid: str, quota: int) -> bool:
+    def heartbeat(self, sid: str, quota: int, note: str | None = None,
+                  agents: list[str] | None = None) -> bool:
         """Returns True when the master must now write a handoff (quota is low)."""
         self.sync()
         lease = self._read_json("lease.json")
         if lease.get("master") != sid or lease.get("released"):
             raise Refused(f"{sid} is not the master")
         lease.update(heartbeat=int(self.now()), quota=quota)
+        self._touch_presence(lease, sid, quota, note, agents)
         self._write_json("lease.json", lease)
         self._commit_push(f"coord: heartbeat {sid}")
         return quota < LOW_QUOTA_PERCENT
 
     def handoff(self, sid: str, handoff_file: Path) -> None:
+        self.handoff_text(sid, handoff_file.read_text(encoding="utf-8"))
+
+    def handoff_text(self, sid: str, text: str) -> None:
         self.sync()
         lease = self._read_json("lease.json")
         if lease.get("master") != sid:
             raise Refused(f"{sid} is not the master")
-        (self.dir / "HANDOFF.md").write_text(handoff_file.read_text(encoding="utf-8"),
-                                             encoding="utf-8")
+        (self.dir / "HANDOFF.md").write_text(text, encoding="utf-8")
         lease.update(master=None, released=True, heartbeat=int(self.now()))
         self._write_json("lease.json", lease)
         self._commit_push(f"coord: {sid} releases master with handoff")
@@ -313,6 +342,215 @@ class Coord:
         self.sync()
         return self._all_assignments()
 
+    def cancel(self, sid: str, ref: str) -> dict:
+        """The sender withdraws an assignment that has not been finished."""
+        self.sync()
+        rec = self._load_assignment(ref)
+        if rec["from"] != sid:
+            raise Refused(f"{ref} was sent by {rec['from']}, not {sid}")
+        if rec["status"] in ("done", "cancelled"):
+            raise Refused(f"{ref} is already {rec['status']}")
+        claims = self._read_json("claims.json")
+        if rec.get("task") and claims.get(rec["task"]) == rec["to"]:
+            del claims[rec["task"]]
+            self._write_json("claims.json", claims)
+        rec.update(status="cancelled")
+        self._save_assignment(rec)
+        self._commit_push(f"coord: {sid} cancels {ref}")
+        return rec
+
+    def overview(self) -> dict:
+        """One consolidated picture of every session: lease, quota, liveness, work, agents."""
+        self.sync()
+        lease = self._read_json("lease.json")
+        presence = lease.get("presence", {})
+        assigns = self._all_assignments()
+        vacant = self._vacant(lease)
+        master = None if vacant else lease["master"]
+        ids = set(presence) | ({lease["master"]} if lease.get("master") else set())
+        for r in assigns:
+            ids |= {r["from"], r["to"]}
+        sessions = []
+        for sid in sorted(ids):
+            pr = presence.get(sid, {})
+            ts = pr.get("ts") or (lease.get("heartbeat") if sid == lease.get("master") else None)
+            sessions.append({
+                "id": sid,
+                "role": "master" if sid == master else "sub",
+                "quota": pr.get("quota"),
+                "heartbeat_age_seconds": int(self.now() - ts) if ts else None,
+                "note": pr.get("note", ""),
+                "agents": pr.get("agents", []),
+                "assignments": [{"id": r["id"], "task": r.get("task") or (r.get("text") or "").strip().split("\n")[0][:60],
+                                 "branch": r.get("branch"), "status": r["status"], "from": r["from"]}
+                                for r in assigns if r["to"] == sid and r["status"] in ("pending", "accepted")],
+                "done_count": sum(1 for r in assigns if r["to"] == sid and r["status"] == "done"),
+            })
+        return {"master": master, "vacant": vacant, "sessions": sessions,
+                "claims": self._read_json("claims.json")}
+
+    # -- reservations (migration numbers, ports) -----------------------------
+    def _reservations(self) -> dict:
+        path = self.dir / "reservations.json"
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+    def reservations(self) -> dict:
+        self.sync()
+        return self._reservations()
+
+    def reserve(self, sid: str, kind: str, value: str | None = None, count: int = 1,
+                floor: int = 0) -> list[str]:
+        """Reserve migration numbers or ports so two sessions never pick the same one.
+
+        With ``value`` the exact number is reserved (refused when someone else holds it);
+        without it the next ``count`` free numbers above ``floor`` and every reservation are taken."""
+        if kind not in ("migration", "port"):
+            raise Refused("kind must be migration or port")
+        if not 1 <= count <= 20:
+            raise Refused("count must be between 1 and 20")
+        width = 4 if kind == "migration" else 0
+        self.sync()
+        res = self._reservations()
+        table = res.setdefault(kind, {})
+        if value is not None:
+            if not value.isdigit():
+                raise Refused(f"{kind} value must be a number")
+            values = [str(int(value)).zfill(width)]
+            if table.get(values[0], sid) != sid:
+                raise Refused(f"{kind} {values[0]} is already reserved by {table[values[0]]}")
+        else:
+            start = max([floor, *(int(k) for k in table)] + ([PORT_FLOOR - 1] if kind == "port" else []))
+            values = [str(n).zfill(width) for n in range(start + 1, start + 1 + count)]
+        for v in values:
+            table[v] = sid
+        self._write_json("reservations.json", res)
+        self._commit_push(f"coord: {sid} reserves {kind} {','.join(values)}")
+        return values
+
+    def release_reserved(self, sid: str, kind: str, value: str) -> None:
+        self.sync()
+        res = self._reservations()
+        key = str(int(value)).zfill(4 if kind == "migration" else 0) if value.isdigit() else value
+        if res.get(kind, {}).get(key) != sid:
+            raise Refused(f"{kind} {key} is not reserved by {sid}")
+        del res[kind][key]
+        self._write_json("reservations.json", res)
+        self._commit_push(f"coord: {sid} releases {kind} {key}")
+
+    # -- loop tick -----------------------------------------------------------
+    def watch(self, sid: str, quota: int | None = None) -> dict:
+        """One tick for `/loop 10m`: what changed for me since the last tick, plus an exit code."""
+        self.sync()
+        lease = self._read_json("lease.json")
+        assigns = self._all_assignments()
+        state_file = self.dir / ".git" / f"watch-{sid}.json"
+        try:
+            state = json.loads(state_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            state = {}
+        seen, silent_before = state.get("seen", {}), set(state.get("silent", []))
+        events, bits = [], 0
+        for r in assigns:
+            what = r.get("task") or (r.get("text") or "").strip().split("\n")[0][:60]
+            if r["to"] == sid and r["status"] == "pending" and r["id"] not in seen:
+                events.append(f"NEW  {r['id']} from {r['from']} ({r['priority']}): {what}")
+                bits |= W_INBOX
+            if r["from"] == sid and r["status"] == "done" and seen.get(r["id"]) != "done":
+                events.append(f"DONE {r['id']} finished by {r['to']}: {what} (read it with `report`)")
+                bits |= W_FINISHED
+            if r["to"] == sid and r["status"] == "cancelled" and seen.get(r["id"]) not in (None, "cancelled"):
+                events.append(f"CANCELLED {r['id']} by {r['from']}: {what}")
+        if self._vacant(lease):
+            beat = lease.get("heartbeat")
+            events.append("LEASE vacant" + (f" (last heartbeat {_age(int(self.now() - beat))} ago)" if beat else "")
+                          + "; the highest-quota session should claim-master")
+            bits |= W_VACANT
+        silent_now = set()
+        for peer, pr in lease.get("presence", {}).items():
+            if peer != sid and self.now() - pr.get("ts", 0) > TTL_SECONDS:
+                silent_now.add(peer)
+                if peer not in silent_before:
+                    events.append(f"SILENT {peer} for {_age(int(self.now() - pr.get('ts', 0)))}")
+                    bits |= W_SILENT
+        state_file.write_text(json.dumps({
+            "seen": {r["id"]: r["status"] for r in assigns if sid in (r["to"], r["from"])},
+            "silent": sorted(silent_now)}), encoding="utf-8")
+        open_n = sum(1 for r in assigns if r["to"] == sid and r["status"] in ("pending", "accepted"))
+        if quota is not None:
+            self.ping(sid, quota)
+        return {"events": events, "open_inbox": open_n, "code": WATCH_BASE + bits if bits else 0}
+
+    # -- handoff draft -------------------------------------------------------
+    def handoff_draft(self, repo_root: Path, sid: str) -> str:
+        ov = self.overview()
+        res = self._reservations()
+        branches = branches_info(repo_root, owners={r["branch"]: r["to"] for r in self._all_assignments()
+                                                      if r.get("branch")}, now=self.now())
+        release = _git(repo_root, "log", "-1", "--grep=^release:", "--format=%h %s", "HEAD",
+                       check=False).stdout.strip() or "(no release commit found)"
+        out = [f"# Handoff from {sid}", "",
+               f"Written at {time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(self.now()))}. "
+               "Auto-filled sections first; edit the last section by hand.", "",
+               "## Last release", release, "", "## Pilot branches (ahead/behind the base)"]
+        out += [f"- {b['branch']} ({b['owner'] or 'unassigned'}): +{b['ahead']} / -{b['behind']}, "
+                f"{_age(b['age_seconds'])} ago, {b['subject']}" for b in branches] or ["- none pushed"]
+        out += ["", "## Claims"]
+        out += [f"- {t}: {o}" for t, o in sorted(ov["claims"].items())] or ["- none"]
+        out += ["", "## Open assignments"]
+        rows = [f"- {a['id']} {a['task']} -> {x['id']} [{a['status']}] {a['branch'] or '-'}"
+                for x in ov["sessions"] for a in x["assignments"]]
+        out += rows or ["- none"]
+        out += ["", "## Reservations"]
+        out += [f"- {k} {v}: {o}" for k, t in sorted(res.items()) for v, o in sorted(t.items())] or ["- none"]
+        out += ["", "## Sessions"]
+        for x in ov["sessions"]:
+            out.append(f"- {x['id']} ({x['role']}, quota {x['quota']}%): {x['note'] or 'no note'}")
+            out += [f"  - agent: {a}" for a in x["agents"]]
+        out += ["", "## To fill by hand", "Next three tasks and why:", "Open owner questions:",
+                "House rules in force (language, release authority, batching):",
+                "Anything running that must be stopped:"]
+        return "\n".join(out) + "\n"
+
+
+def branches_info(repo_root: Path, base: str = "g0/intake", owners: dict | None = None,
+                  now: float | None = None, fetch: bool = True) -> list[dict]:
+    """Pushed pilot/* branches of the configured remote: age, subject, ahead/behind the base."""
+    if fetch:
+        _git(repo_root, "fetch", "--quiet", "--prune", "origin", check=False)
+    base_ref = next((r for r in (f"origin/{base}", "origin/g0/intake", "origin/main")
+                     if _git(repo_root, "rev-parse", "--verify", "--quiet", r, check=False).returncode == 0), None)
+    listing = _git(repo_root, "for-each-ref", "--format=%(refname:short)|%(committerdate:unix)|%(subject)",
+                   "refs/remotes/origin/pilot/", check=False).stdout
+    now = time.time() if now is None else now
+    rows = []
+    for line in listing.splitlines():
+        ref, ts, subject = line.split("|", 2)
+        ahead = behind = 0
+        if base_ref:
+            counts = _git(repo_root, "rev-list", "--left-right", "--count", f"{base_ref}...{ref}",
+                          check=False).stdout.split()
+            if len(counts) == 2:
+                behind, ahead = int(counts[0]), int(counts[1])
+        name = ref.removeprefix("origin/")
+        rows.append({"branch": name, "age_seconds": max(0, int(now - int(ts))), "subject": subject,
+                     "ahead": ahead, "behind": behind, "base": base_ref,
+                     "owner": (owners or {}).get(name)})
+    return sorted(rows, key=lambda r: r["age_seconds"])
+
+
+def max_migration(repo_root: Path) -> int:
+    """Highest migration number in the working tree and on origin's pilot/* and base branches."""
+    pattern = re.compile(r"(\d{4})_[^/]*\.sql$")
+    refs = ["HEAD"] + [r.strip() for r in _git(
+        repo_root, "for-each-ref", "--format=%(refname:short)", "refs/remotes/origin/pilot/",
+        "refs/remotes/origin/g0/intake", "refs/remotes/origin/main", check=False).stdout.splitlines()]
+    best = 0
+    for ref in refs:
+        names = _git(repo_root, "ls-tree", "-r", "--name-only", ref, "--", MIGRATIONS_DIR,
+                     check=False).stdout.splitlines()
+        best = max([best] + [int(m.group(1)) for n in names if (m := pattern.search(n))])
+    return best
+
 
 def _task_needs_lab(repo_root: Path, task: str) -> bool:
     path = repo_root / "management" / "tasks.json"
@@ -332,6 +570,37 @@ def _format(r: dict) -> str:
     return f"{r['id']} [{r['status']}] {r['from']} -> {r['to']} ({r['priority']}) {what}{branch}"
 
 
+def _age(seconds) -> str:
+    if seconds is None:
+        return "never"
+    if seconds < 90:
+        return f"{seconds}s"
+    if seconds < 5400:
+        return f"{seconds // 60}m"
+    return f"{seconds // 3600}h"
+
+
+def format_overview(ov: dict) -> str:
+    head = f"master: {ov['master'] or '(vacant)'}"
+    lines = [head, "", "SESSION       ROLE    QUOTA  HEARTBEAT  ASSIGNMENTS (id task branch status)"]
+    for sess in ov["sessions"]:
+        quota = "?" if sess["quota"] is None else f"{sess['quota']}%"
+        work = "; ".join(f"{a['id']} {a['task']} {a['branch'] or '-'} {a['status']}"
+                         for a in sess["assignments"]) or "-"
+        lines.append(f"{sess['id']:<13} {sess['role']:<7} {quota:<6} {_age(sess['heartbeat_age_seconds']):<10} {work}")
+        if sess["note"]:
+            lines.append(f"    now: {sess['note']}")
+        for agent in sess["agents"]:
+            lines.append(f"    agent: {agent}")
+    return "\n".join(lines)
+
+
+def _split_agents(value: str | None) -> list[str] | None:
+    if value is None:
+        return None
+    return [a.strip() for a in value.split(";") if a.strip()]
+
+
 def _default_remote(repo_root: Path) -> str:
     return _git(repo_root, "remote", "get-url", "origin").stdout.strip()
 
@@ -340,7 +609,9 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("command", choices=["status", "ping", "claim-master", "heartbeat",
                                        "handoff", "claim-task", "finish-task",
-                                       "assign", "inbox", "accept", "done", "report"])
+                                       "assign", "inbox", "accept", "done", "report", "cancel",
+                                       "watch", "branches", "handoff-draft", "reserve-migration",
+                                       "reserve-port", "reservations", "release-reserved"])
     p.add_argument("--id", default=os.environ.get("COORD_SESSION"), help="session name, e.g. pc1-main")
     p.add_argument("--quota", type=int, help="remaining plan quota, percent 0-100")
     p.add_argument("--task", help="task id for claim-task / finish-task")
@@ -350,6 +621,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--priority", default="normal", choices=PRIORITIES)
     p.add_argument("--ref", help="assignment id (A0001) for accept / done")
     p.add_argument("--report", type=Path, help="done: closing report markdown file")
+    p.add_argument("--note", help="ping/heartbeat: what is running on my side now (no secrets)")
+    p.add_argument("--agents", help="ping/heartbeat: running sub-agents, entries separated by ';' "
+                                    "(name|branch|task|eta); an empty string clears the list")
+    p.add_argument("--json", action="store_true", dest="as_json", help="report/inbox: machine-readable output")
+    p.add_argument("--count", type=int, default=1, help="reserve-*: how many numbers")
+    p.add_argument("--value", help="reserve-*/release-reserved: an exact number")
+    p.add_argument("--kind", choices=["migration", "port"], help="release-reserved")
+    p.add_argument("--base", default="g0/intake", help="branches: base branch for ahead/behind")
+    p.add_argument("--peer", help="branches: only branches assigned to this session")
+    p.add_argument("--auto", action="store_true", help="handoff: auto-fill the handoff; --file is appended")
     p.add_argument("--cloud", action="store_true", help="this session has no access to the lab")
     p.add_argument("--force", action="store_true", help="claim-master even if a fresher candidate has more quota")
     args = p.parse_args(argv)
@@ -361,7 +642,8 @@ def main(argv: list[str] | None = None) -> int:
                     else Path.home() / ".smplwise-coord"))
     coord = Coord(remote, workdir)
 
-    need_id = args.command not in ("status", "report")
+    need_id = args.command not in ("status", "report", "branches", "reservations", "handoff-draft")
+    agents = _split_agents(args.agents)
     if need_id and not args.id:
         p.error("--id (or COORD_SESSION) is required")
     if args.command in ("ping", "claim-master", "heartbeat") and args.quota is None:
@@ -372,25 +654,57 @@ def main(argv: list[str] | None = None) -> int:
         p.error("--to and --task are required")
     if args.command == "done" and not args.report:
         p.error("--report is required")
-    if args.command == "handoff" and not args.file:
+    if args.command == "handoff" and not args.file and not args.auto:
         p.error("--file is required")
 
     try:
         if args.command == "status":
             print(json.dumps(coord.status(), indent=2, sort_keys=True))
         elif args.command == "ping":
-            coord.ping(args.id, args.quota)
+            coord.ping(args.id, args.quota, args.note, agents)
         elif args.command == "claim-master":
             coord.claim_master(args.id, args.quota, args.force)
             print(f"{args.id} is now master. Read HANDOFF.md on the {BRANCH} branch "
                   f"({workdir / 'HANDOFF.md'}).")
         elif args.command == "heartbeat":
-            if coord.heartbeat(args.id, args.quota):
+            if coord.heartbeat(args.id, args.quota, args.note, agents):
                 print(f"LOW QUOTA (<{LOW_QUOTA_PERCENT}%): write a handoff and run "
                       "'handoff' now.", file=sys.stderr)
                 return EXIT_LOW_QUOTA
         elif args.command == "handoff":
-            coord.handoff(args.id, args.file)
+            if args.auto:
+                text = coord.handoff_draft(repo_root, args.id)
+                if args.file:
+                    text += "\n" + args.file.read_text(encoding="utf-8")
+                coord.handoff_text(args.id, text)
+            else:
+                coord.handoff(args.id, args.file)
+        elif args.command == "handoff-draft":
+            print(coord.handoff_draft(repo_root, args.id or "(unknown)"))
+        elif args.command == "watch":
+            result = coord.watch(args.id, args.quota)
+            print("\n".join(result["events"]) or "no change")
+            print(f"inbox open: {result['open_inbox']}")
+            return result["code"]
+        elif args.command == "branches":
+            owners = {r["branch"]: r["to"] for r in coord.report() if r.get("branch")}
+            rows = [b for b in branches_info(repo_root, args.base, owners)
+                    if not args.peer or b["owner"] == args.peer]
+            for b in rows:
+                print(f"{b['branch']:<40} +{b['ahead']}/-{b['behind']:<4} {_age(b['age_seconds']):<6} "
+                      f"{b['owner'] or '-':<10} {b['subject']}")
+            if not rows:
+                print("(no pilot/* branches on the remote)")
+        elif args.command in ("reserve-migration", "reserve-port"):
+            kind = args.command.split("-")[1]
+            floor = max_migration(repo_root) if kind == "migration" else 0
+            print(" ".join(coord.reserve(args.id, kind, args.value, args.count, floor)))
+        elif args.command == "reservations":
+            print(json.dumps(coord.reservations(), indent=2, sort_keys=True))
+        elif args.command == "release-reserved":
+            if not args.kind or not args.value:
+                p.error("--kind and --value are required")
+            coord.release_reserved(args.id, args.kind, args.value)
         elif args.command == "claim-task":
             coord.claim_task(args.id, args.task, _task_needs_lab(repo_root, args.task), args.cloud)
         elif args.command == "finish-task":
@@ -403,6 +717,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"assigned {ref} to {args.to}")
         elif args.command == "inbox":
             records = coord.inbox(args.id)
+            if args.as_json:
+                print(json.dumps(records, indent=2, sort_keys=True))
+                return 0
             for r in records:
                 print(_format(r))
                 if r.get("text"):
@@ -415,7 +732,12 @@ def main(argv: list[str] | None = None) -> int:
             rec = coord.done(args.id, args.report.read_text(encoding="utf-8"), args.ref)
             print(f"completed {rec['id']}")
         elif args.command == "report":
-            print("\n".join(_format(r) for r in coord.report()) or "(no assignments)")
+            ov = coord.overview()
+            print(json.dumps(ov, indent=2, sort_keys=True) if args.as_json else format_overview(ov))
+        elif args.command == "cancel":
+            if not args.ref:
+                p.error("--ref is required")
+            print(f"cancelled {coord.cancel(args.id, args.ref)['id']}")
     except Refused as exc:
         print(f"REFUSED: {exc}", file=sys.stderr)
         return EXIT_REFUSED
