@@ -124,7 +124,7 @@ export function routeGuardKind(segments: readonly string[]): MobileKind | null {
   if (mode === 'explore' && a === 'floors' && b && (c === 'edit' || c === 'import')) return 'structure';
   if (mode === 'system') {
     if (a === 'access') return 'permissions';
-    if (a === 'schedules' || a === 'entities' || (a === 'security' && b === 'manage')) return 'settings_writes';
+    if (a === 'schedules' || a === 'automations' || a === 'entities' || (a === 'security' && b === 'manage')) return 'settings_writes';
   }
   return null;
 }

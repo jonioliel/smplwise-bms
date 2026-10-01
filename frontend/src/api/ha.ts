@@ -350,6 +350,9 @@ export type HaPush =
   /** CR-014: the schedules changed (the component's read model moved; no ids) - the schedules screens refetch
    * (api/schedules.ts `subscribeSchedules` opens its own socket for this). */
   | { type: 'schedules_changed' }
+  /** CR-017: automations, scenes or scripts changed (an Arx write, or an edit made in the platform): `kinds` and the ids of the items the caller may see
+   * (empty ids = refetch); the automations screens refetch (docs/architecture/AUTOMATIONS_API.md section 6). */
+  | { type: 'automations_changed'; kinds: string[]; ids: string[] }
   /** CR-015: one media device's live state changed (<= 4/s per device; only for subscribers who see its anchor under media.read).
    * CR-016: for a speaker, player, receiver or group the `live` is the extended `PlayerLive` (shuffle, repeat, group, queue, caps_known);
    * the members of a group are republished when its leader's membership moves. */
@@ -389,6 +392,7 @@ export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connecte
         else if (env.type === 'structure_changed')
           onMessage({ type: 'structure_changed', reason: String(env.payload.reason ?? ''), last_registry_at: (env.payload.last_registry_at as string | null) ?? null });
         else if (env.type === 'schedules_changed') onMessage({ type: 'schedules_changed' });
+        else if (env.type === 'automations_changed') onMessage({ type: 'automations_changed', kinds: Array.isArray(env.payload?.kinds) ? (env.payload.kinds as unknown[]).map(String) : [], ids: Array.isArray(env.payload?.ids) ? (env.payload.ids as unknown[]).map(String) : [] });
         else if (env.type === 'media_state') onMessage({ type: 'media_state', device_key: String(env.payload.device_key ?? ''), entity_id: String(env.payload.entity_id ?? ''), live: env.payload.live as unknown as MediaLive });
         else if (env.type === 'media_devices_changed') onMessage({ type: 'media_devices_changed', reason: String(env.payload?.reason ?? '') });
         else if (env.type === 'media_groups_changed') onMessage({ type: 'media_groups_changed' });
