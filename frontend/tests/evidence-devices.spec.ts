@@ -170,7 +170,14 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
 
   async function bindUser(request: APIRequestContext, username: string, roleId: string): Promise<string> {
     const me = await (await request.get('/api/v1/me', { headers: { 'X-SW-Dev-User': username } })).json();
-    const r = await request.post('/api/v1/access/bindings', { data: { subject_kind: 'user', subject_id: me.user.id, role_id: roleId, scope_type: 'installation', scope_id: '*' } });
+    const body = { data: { subject_kind: 'user', subject_id: me.user.id, role_id: roleId, scope_type: 'installation', scope_id: '*' } };
+    let r = await request.post('/api/v1/access/bindings', body);
+    if (r.status() === 409) {
+      // an earlier run was aborted (timeout / Ctrl-C) before its `finally` revoked this binding: the persistent backend still holds it - revoke the leftover and grant afresh
+      const listed = (await (await request.get('/api/v1/access/bindings')).json()) as { bindings: { id: string; subject_id: string; role_id: string; scope_type: string }[] };
+      for (const b of listed.bindings.filter((x) => x.subject_id === me.user.id && x.role_id === roleId && x.scope_type === 'installation')) await request.delete(`/api/v1/access/bindings/${b.id}`);
+      r = await request.post('/api/v1/access/bindings', body);
+    }
     expect(r.status()).toBeLessThan(300);
     return ((await r.json()) as { id: string }).id;
   }
@@ -836,6 +843,11 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     let binding: string | null = await bindUser(request, user, 'operator');
     try {
       const ctx = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': user } });
+      // The server pushes `permissions_changed` over /me/ws the moment the binding is revoked, and the shell then re-fetches /me and
+      // re-mounts the screen ("no role yet") - by design (T055), but it races this test: the tile (or its rollback note) vanishes
+      // between the 403 and the assertions. The page under test must keep its stale view - an operator whose control was withdrawn
+      // after the page loaded and who has not been told yet - so the push is swallowed; every REST call still reaches the real backend.
+      await ctx.routeWebSocket('**/me/ws', () => {});
       const p = await ctx.newPage();
       await open(p, '/devices/areas/cr007_lobby', 'a');
       const tile = p.locator('devices-area .tile[data-entity="light.cr007_lobby_2"]');
@@ -1153,8 +1165,12 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
         Date.now = () => realNow() + skew;
       }, skewMs);
       const posted: Record<string, unknown>[] = [];
+      let sentAt = 0; // the (real) moment the request left, taken in the test process - not "now" after the dialog's result: a loaded machine can take >10 s for that
       p.on('request', (req) => {
-        if (req.method() === 'POST' && /\/api\/v1\/devices\/actions$/.test(req.url())) posted.push(req.postDataJSON() as Record<string, unknown>);
+        if (req.method() === 'POST' && /\/api\/v1\/devices\/actions$/.test(req.url())) {
+          sentAt = Date.now();
+          posted.push(req.postDataJSON() as Record<string, unknown>);
+        }
       });
       await open(p, '/devices/areas/cr007_hall', 'a');
       const menu = p.locator('devices-area devices-bulk-menu[data-bulk-area="cr007_hall"]');
@@ -1166,7 +1182,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await dialog.locator('sw-button[data-bulk-confirm]').click();
       await expect(p.locator('devices-area devices-bulk-dialog [data-bulk-result="ok"]')).toContainText('בוצע', { timeout: 30000 });
       // the expiry sent lies ~15 s ahead of the SERVER's clock, whatever this device's clock says
-      const lead = Date.parse(String(posted[0].expires_at)) - Date.now();
+      const lead = Date.parse(String(posted[0].expires_at)) - sentAt;
       expect(lead, `skew ${skewMs}`).toBeGreaterThan(5_000);
       expect(lead, `skew ${skewMs}`).toBeLessThan(20_000);
       await ctx.close();
