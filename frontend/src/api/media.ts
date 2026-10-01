@@ -32,11 +32,18 @@ export interface ProductSettings {
   'ui.tabs'?: Record<string, unknown>;
   /** The phone UX guards (הגדרות › כללי › אפשרויות נייד, owner 2026-09-30): which kinds of management the phone UI hides - shell/phone.ts. */
   'ui.mobile'?: Record<string, boolean>;
+  /** The colour of each thing the investigation timeline draws (owner 2026-10-01): option -> palette name | #rrggbb; api/timeline-colors.ts. */
+  'timeline.colors'?: Record<string, string>;
+  /** Who sees the timeline's helper line / the recording screen's diagnostics block (owner 2026-10-01): all | installers | hidden; api/playback-display.ts. */
+  'playback.helper_line'?: 'all' | 'installers' | 'hidden';
+  'playback.diagnostics'?: 'all' | 'installers' | 'hidden';
   /** The floor the map's floor tab opens first (an existing floor id); '' = the first floor the user may read. */
   'map.default_floor'?: string;
   'media.transport_default': Transport;
   'media.max_live_sessions': number;
   'media.wall_profile': 'sub' | 'main';
+  /** Owner 2026-10-01: 'true' shows the live player's notes about how it plays (banner, remote-policy hint, "מנגן דרך" line); default 'false'. */
+  'media.video_notices'?: 'true' | 'false';
   'snapshots.max_age_s': number;
   'plan.estimates'?: 'true' | 'false';
   /** Default levels view on every map (0.1.89): 'all' shows every level together, 'default' opens on the floor's
@@ -125,6 +132,8 @@ export interface ProductSettings {
   'devices.floor_row'?: { items: string[] };
   /** CR-008 SmplWise Arx remote access (הגדרות › גישה מרחוק). */
   'remote.policy'?: 'flag' | 'any_role';
+  /** CR-008 amendment (owner 2026-10-01): a system administrator signs in remotely without a per-user flag (default 'true'). */
+  'remote.admins_default'?: 'true' | 'false';
   'remote.session'?: 'rolling_90d' | 'browser_session' | 'rolling_90d_idle_lock';
   'remote.idle_lock_minutes'?: number;
   'remote.default_profile'?: 'main' | 'sub';

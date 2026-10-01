@@ -101,6 +101,11 @@ PERMISSION_LABELS: dict[str, str] = {
     # system_admin - the owner grants it to one person through a custom role plus a binding. The server checks it on every
     # write AND every read: a stored value of a user who lost it is ignored (services/home_screen.py apply_personal).
     "screen.personalize": "התאמה אישית של המסך שלי",
+    # CR-018 (התראות, owner decision 4b 2026-10-01): notify.manage is the ONE permission over what is sent - the settings tab "התראות": per-source
+    # policies with recipients and channels, quiet hours and the pass-through matrix, escalation, lock-screen detail, retention, outgoing mail, and
+    # everyone's delivery log. Installation scope, held by system_admin only, in sensitive_permissions_not_implied (a custom role grants it to one
+    # person by naming it among its sensitive permissions). Receiving a notification needs NO permission - a user gets only what they may see.
+    "notify.manage": "ניהול התראות: מקורות, נמענים, ערוצים, שעות שקט, הסלמה, דואר יוצא ויומן מסירה",
     # CR-015 (מולטימדיה · מסכים ושלט, docs/architecture/MEDIA_API.md 6 / CR 6.1): six permissions, all scoped like devices.control (the
     # screen's anchor entity placement; HA areas and floors are never a scope). media.read (viewer and above, not kiosk) sees the
     # page, the cards and the state; media.control (operator and above) sends volume, keys, transport and text; media.power (operator
@@ -261,8 +266,12 @@ def _users(conn: sqlite3.Connection, principal: Principal) -> list[dict[str, Any
         last_remote = {r["user_id"]: r["last_at"] for r in conn.execute("SELECT user_id, last_at FROM remote_sign_ins").fetchall()}
     except sqlite3.OperationalError:
         last_remote = {}
+    from ..rbac import is_system_admin
     from ..services import ha_user_auth
 
+    # CR-008 amendment: under remote.policy = flag with remote.admins_default on, an administrator is admitted without a flag
+    rs = ha_user_auth.remote_settings(conn)
+    admins_default = rs.get("remote.policy", "flag") == "flag" and str(rs.get("remote.admins_default", "true")) == "true"
     remote_live: dict[str, int] = {}
     for entry in ha_user_auth.STORE.chains():
         uid = entry["session"].principal.user_id
@@ -276,6 +285,8 @@ def _users(conn: sqlite3.Connection, principal: Principal) -> list[dict[str, Any
         active = bool(h["is_active"]) if h else bool(v["active"]) if v else False
         if h and v and not v["active"]:
             active = False
+        admin_default = admins_default and active and is_system_admin(conn, uid)
+        remote_basis = "flag" if uid in remote_ids else "admin_default" if admin_default else None
         out.append({
             "id": uid,
             "name": (h or {}).get("name") or (v or {}).get("display_name") or (v or {}).get("username") or uid,
@@ -290,7 +301,9 @@ def _users(conn: sqlite3.Connection, principal: Principal) -> list[dict[str, Any
             "groups": groups_of.get(uid, []),
             "bindings": _user_bindings(conn, uid),
             "is_self": uid == principal.user_id,
-            "remote_access": uid in remote_ids,
+            "remote_access": remote_basis is not None,
+            "remote_access_basis": remote_basis,  # flag | admin_default | None; the admin default is the setting's, not the user's switch
+            "remote_admin_default": admin_default,  # the administrator default would admit this user without the flag
             "remote_last_sign_in": last_remote.get(uid),
             "remote_sessions": remote_live.get(uid, 0),
         })
@@ -618,6 +631,8 @@ def _delegated_directory(conn: sqlite3.Connection, principal: Principal) -> dict
             "first_seen_at": None,
             "last_seen_at": None,
             "remote_access": False,
+            "remote_access_basis": None,
+            "remote_admin_default": False,
             "remote_last_sign_in": None,
             "remote_sessions": 0,
             "groups": [g for g in u["groups"] if g["id"] in reach_groups],

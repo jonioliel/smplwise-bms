@@ -5434,5 +5434,105 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "T100",
+    "title": "אוטומציות, סצנות וסקריפטים (CR-017): צפייה, הרצה, בונה בעברית, שמירה בטוחה דרך רכיב החיבור",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Automations/scripts/scenes read model (CR-017 §4.1, §4.6, §6.1, §7, §8.1, §12): mirror of the config files by (kind, config id) read through the config API by id (REST GET, WS automation/config fallback), revision = sha256/16 of canonical JSON, source ui/yaml/integration/dynamic, YAML-managed, no-id and integration items read-only with reasons, availability detected by probing the config API (never the components list); list and detail filtered per viewer (visible iff every action target is visible; trigger/condition entities outside scope shown locked), Hebrew one-line sentence per item, floor/area chips, last run and run count from traces; permissions automation.view/manage, scene.manage, script.run/manage, automation.sensitive, automation.advanced in roles.json with floor scope through placements; refresh from automation_reloaded / scene_reloaded / automation_triggered / script_started / registry / state events + 10-minute pull; migration 0045_automations.sql.",
+      "Writes (CR-017 §8.2-§8.3, §10; AUTOMATIONS_API §3.2, §4): create / replace / advanced / delete / copy / restore only through bridge 0.6.0 smplwise_bridge.config_item (signed; independent config_policy; CAS on base_revision under the bridge's write lock; HA's own async_validate_config_item; 10-deep file backup ring; atomic write in HA's format and key order; reload of the one item and wait for the entity -> loaded); new schema only (triggers/conditions/actions, trigger:, action:), legacy read; delegation switch in the bridge options flow (default off: upsert/delete need an HA-admin HA user; on: builder profile only), advanced profile always HA admin; 409 item_changed with the current item; 30-day trash with restore under the same id; last 20 versions with restore; idempotent client_request_id; audit without config values; never a blind retry.",
+      "Builder (CR-017 §4.2, §4.4-§4.5, §5, §6.2): כאשר / אם / אז block lists with typed blocks (state, numeric_state, time, time_pattern, sun, HA start triggers with ids; state, numeric_state, time, sun, trigger, and/or/not, Shabbat-preset conditions; device-control services from the allow-list, scene, script with fields, notify to approved targets, delay, choose, if/then/else, repeat count, condition step, stop) and locked blocks (templates, device triggers/actions, purpose-specific triggers, custom or unknown services, wait/parallel/variables, disabled steps, secret-like values) re-sent byte-identical, movable and deletable, editable only with automation.advanced (inline template text, full YAML editor); write(read(c)) == c for every unedited item; live Hebrew sentence from /automations/preview; templates gallery; run now (skip_condition), dry-run without execution, enable/disable; boundary with CR-014: time/sun-only device automations are created as schedules (use_schedule handoff) while the scheduler component is present.",
+      "Scenes and scripts (CR-017 §4.3-§4.4): integration scenes activate-only (grouped by area, favourites, hide), HA-native scenes created by 'צלם מצב נוכחי' of chosen devices with per-domain attribute allow-lists and an editable table, edit and delete of HA-native scenes only; scene activation needs control of every member (or of the scene entity for integration scenes), 1 per scene per 3 s; script runner with a fields form (number, boolean, select, text, scoped entity), running state and stop, run = script.turn_on with variables, script.run + control of every effect entity (unknown effects -> installation-wide + confirm); script editor with fields and the shared action blocks; never lock unlock, alarm disarm or door open inside a scene.",
+      "Safety and runs (CR-017 §4.2.6, §9): builder service allow-list shared with the bridge (drift test) and never homeassistant.*, shell_command.*, rest_command.*, hassio.*, reload services or the bridge's own services; sensitive classes (alarm, lock, door/gate/garage covers, siren, automation control, notify to all) flagged and gated by automation.sensitive with confirmation; secret-like values masked in every answer, log and audit row and alarm codes never stored; static self-trigger and cycle warnings, runtime storm guard (> 20 runs/min per item or > 200/min total -> admin alert, auto-disable off by default); rate limits (writes 30/min/user, run 1 per item per 10 s); preview of affected devices by floor; 'למה זה רץ' run summaries from trace/get without variables or user ids; administrator review list (sensitive external, storm, invalid, missing entities, owner lost rights); clean operator screens without HA/YAML names."
+    ],
+    "requirement_ids": [
+      "R208",
+      "R209",
+      "R210",
+      "R211",
+      "R212"
+    ],
+    "test_ids": [
+      "AT208",
+      "AT209",
+      "AT210",
+      "AT211",
+      "AT212"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "Owner decisions first (docs/design/mockups/automations/decisions-HE.md), then a mockup (UniFi-style mandate). The delegation switch (CR-017 §8.3) is an exception to docs/security/HA_IDENTITY_RBAC_HE.md section 8 and needs the owner's approval as a change request before slice B merges. Opus review of the write path (automation_ops, automation_scope, automation_policy, the bridge's config_policy / config_store / delegation, ha_client) before the merge; config writes on the lab (phase 0 W-1/W-2) only with the owner's explicit approval; live acceptance only with bridge 0.6.0."
+    },
+    "deliverables": [
+      "docs/changes/CR-017-AUTOMATIONS-SCENES-SCRIPTS.md: goals, live findings of the probe, HA facts, UX of the three kinds, boundary with schedules, data model, permissions, execution model and the recorded delegation contradiction, safety, concurrency, tests, slices, risks",
+      "docs/architecture/AUTOMATIONS_API.md: types, routes, error codes, bridge 0.6.0 config_item, the fake HA config API, events, parallel plan P0 + S1-S4 with agent-hours and a calibrated calendar",
+      "docs/design/mockups/automations/decisions-HE.md: 10 owner questions with recommendations",
+      "P0 mockup + S0 client, S1 backend service, S2 model/sentences/policy/fake/bridge 0.6.0/probe, S3 lists/scenes/scripts/settings, S4 builder/templates/editors (AUTOMATIONS_API.md §7)"
+    ],
+    "evidence": [
+      "2026-10-01: architecture proposed on branch pilot/CR017-automations-arch (public web research of HA core/frontend source and docs, and the anonymised read-only probe docs/research/AUTOMATIONS_PROBE_2026-10-01.md on branch pilot/automations-probe; no HA, lab or device contact by this task; nothing implemented or run). Awaiting the owner's answers."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T101",
+    "title": "התראות (CR-018): מרכז התראות אחד, מקורות מובנים, Push וטלפונים, העדפות אישיות, אישור והסלמה",
+    "epic": "EVENTS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Notification core (CR-018 §4, §7-§12): one store and one entry point notify.emit(Signal) used by every producer (rules, built-in monitors, CR-014 run settlement, bulk completion, CR-017 notify action); fold by dedupe key with count/last_at and re-notify only on a severity rise; resolve signals; recipients decided per subject kind (camera row_scope events.read, entity/area devices.read, alarm.view, access.read, schedule/automation owner or view, bulk initiator, system.configure, own session) and re-checked at every delivery and inbox read; audience scope/managers/initiator; per-user channels per category, minimum push severity, quiet hours with days and critical bypass, mutes (<= 7 days, <= 50) and snooze; shared acknowledge (events.ack / alarm.view) mirrored with rule_alerts; escalation of unacknowledged critical rows (default 5 min, <= 2 steps); one-time action tokens for ack/snooze only; new permission notify.manage; migrations 0050-0052 (renumbered at merge if needed) with push_prefs carried over; retention 30 days, deliveries 14 days.",
+      "Sources and channels (CR-018 §5-§6, §9-§11): built-in sources with policies (camera/NVR offline and storage, alarm triggered/arm failed, leak/smoke/gas/CO critical, door/window left open after 600 s, device unavailable, battery low, CR-014 not_confirmed and review items, CR-017 automation failures, bulk partial results to the initiator, system health/backup/update, new remote sign-in and lockouts; WisKey ring and HA doorbell event entities behind a setting); motion/person only through rules; Web Push generalised (payload v2 without names or images, tag = notification id, action buttons ack/snooze where supported); HA phones through the bridge allow-list (notify.mobile_app_* only, channels per category, action ids that are one-time tokens, never commands); optional SMTP email if the owner approves; a delivery log with status and reason, per-channel retries that re-check reach, and a failures panel; no door open, disarm, arm, scene or device command from any notification.",
+      "Notification center UI (CR-018 §6.1, §8): the inbox opened from the user menu's 'התראות' (count chip = unread, avatar dot = open critical) with severity, place, time, fold count and state; filters all/unread/critical/category; read, snooze 1h/8h/until morning, dismiss, acknowledge when allowed, open; critical safety rows pinned until acknowledged or resolved; live over /me/ws with the 60 s poll as fallback; snapshots only inside Arx after sign-in; settings: channels per category, minimum push severity, quiet hours with days, mutes, my phones; manager page for sources and delivery failures; service worker v2 actions; clean operator screens without HA/Companion names; the user guide 85-notifications_HE.md rewritten."
+    ],
+    "requirement_ids": [
+      "R211",
+      "R212",
+      "R213"
+    ],
+    "test_ids": [
+      "AT211",
+      "AT212",
+      "AT213"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "Owner decisions first (docs/design/mockups/notifications/decisions-HE.md) and a notification-center mockup (UniFi mandate). Coordinate with CR-017 (T100): its notify action calls notify.emit and migrations 0045+ are its; CR-018 plans 0050-0052 and renumbers at merge if needed. Opus review of notify.py recipients/visibility, the action tokens, push.py payload v2 and the bridge notify allow-list before merge. Live acceptance only on a throwaway backend with fakes; no real HA phone notification is sent without the owner's task-specific approval."
+    },
+    "deliverables": [
+      "docs/changes/CR-018-NOTIFICATIONS.md: inventory, goals/non-goals, model, sources, channels, recipients and permissions, quiet hours/escalation/snooze/ack, actionable safety, delivery log, privacy, data model and migrations, API delta, events, tests, phases, CR-017 composition, research sources",
+      "docs/architecture/NOTIFICATIONS_API.md: contract delta (types, routes, events, errors) and the parallel plan P0 + S1-S5 with agent-hour estimates and a calendar",
+      "docs/design/mockups/notifications/decisions-HE.md: 10 owner questions with recommendations",
+      "P0 mockup + S0 client, S1 core, S2 sources, S3 center/settings/SW, S4 HA phones (+ email if approved), S5 evidence and guide (NOTIFICATIONS_API.md §5)"
+    ],
+    "evidence": [
+      "2026-10-01: architecture proposed on branch pilot/CR018-notifications-arch (repository inventory and public web research only; no device, HA, WisKey or lab contact; nothing implemented or run). Awaiting the owner's answers."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]

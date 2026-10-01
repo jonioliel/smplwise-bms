@@ -21,7 +21,7 @@ from ..db import Database, bump_permission_revision, get_setting, set_setting
 log = logging.getLogger("smplwise.backup")
 
 FORMAT = 1
-PROJECT_TABLES = ["settings", "sites", "buildings", "floors", "plan_assets", "plan_versions", "plan_geometry", "catalog_items", "map_anchors", "recorders", "cameras", "spatial_zones", "shared_spaces", "shared_space_members", "cases", "case_items", "saved_views", "device_layouts", "alarm_zone_overrides"]
+PROJECT_TABLES = ["settings", "sites", "buildings", "floors", "plan_assets", "plan_versions", "plan_geometry", "catalog_items", "map_anchors", "recorders", "cameras", "spatial_zones", "shared_spaces", "shared_space_members", "cases", "case_items", "saved_views", "device_layouts", "alarm_zone_overrides", "notify_settings", "notify_policies"]
 ACCESS_TABLES = ["users", "groups", "group_members", "bindings", "custom_roles"]
 OPTIONAL_TABLES = {"audit": ["audit_log"], "events": ["events"]}
 FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path", "stylized_path"]}
@@ -291,6 +291,10 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
         for t in tables:
             if t in data:
                 counts[t] = _insert_rows(conn, t, data[t], replace=(mode == "replace"))
+        if "notify_settings" in tables:  # CR-018: an archive without the table must not leave the notification settings without their one row
+            from .notify_settings import ensure_row
+
+            ensure_row(conn)
         for t, rows in keep.items():
             if rows:
                 _insert_rows(conn, t, rows, replace=False)
@@ -390,3 +394,6 @@ async def daily_loop(db: Database, settings: Settings, interval_s: int = DAILY_S
             log.info("daily backup %s (%d bytes); pruned %s", e["name"], e["bytes"], removed or "nothing")
         except Exception as exc:  # noqa: BLE001 - keep the loop alive
             log.warning("daily backup failed: %s", exc)
+            from . import notify_sources  # CR-018: the administrators hear about a failed automatic backup (resolved by the next good one)
+
+            await run_in_threadpool(notify_sources.backup_failed, db)

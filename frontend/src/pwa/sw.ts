@@ -17,6 +17,7 @@
  */
 import { OFFLINE_HTML } from './offline-page';
 import { baseOf, inScope, isIngressScope, resolveDeepLink } from './deeplink';
+import { dataOf, parsePush, planClick, type NotificationData } from './push-v2';
 
 interface ExtendableEvt extends Event {
   waitUntil(p: Promise<unknown>): void;
@@ -30,6 +31,8 @@ interface PushEvt extends ExtendableEvt {
 }
 interface NotificationEvt extends ExtendableEvt {
   notification: Notification;
+  /** The id of the action button that was pressed ('' = the notification body). */
+  action?: string;
 }
 interface MessageEvt extends ExtendableEvt {
   data: unknown;
@@ -54,17 +57,7 @@ interface SwGlobal {
   skipWaiting(): Promise<void>;
   addEventListener(type: string, listener: (event: never) => void): void;
   arxOpenTarget?: (data: unknown) => Promise<string>;
-}
-
-interface PushData {
-  title?: string;
-  body?: string;
-  url?: string;
-  event_id?: string | null;
-  alert_id?: string | null;
-  tag?: string;
-  category?: string;
-  severity?: string;
+  arxPostAction?: (token: string, action: 'ack' | 'snooze') => Promise<boolean>;
 }
 
 const sw = self as unknown as SwGlobal;
@@ -168,9 +161,12 @@ async function getMeta<T>(name: string): Promise<T | null> {
   return res ? ((await res.json()) as T) : null;
 }
 
+/** The unread count the last v2 push carried (the badge = unread, CR §6.2); null until one arrives (then the number of shown notifications). */
+let lastUnread: number | null = null;
+
 async function updateBadge(): Promise<void> {
   try {
-    const n = (await sw.registration.getNotifications()).length;
+    const n = lastUnread ?? (await sw.registration.getNotifications()).length;
     if (n && sw.navigator.setAppBadge) await sw.navigator.setAppBadge(n);
     else if (sw.navigator.clearAppBadge) await sw.navigator.clearAppBadge();
   } catch {
@@ -178,27 +174,45 @@ async function updateBadge(): Promise<void> {
   }
 }
 
-sw.addEventListener('push', ((e: PushEvt) => {
-  let d: PushData = {};
+/** An action button: the notification's own one-time token authorises exactly `ack` or `snooze` on that row (POST notifications/action, no session). */
+async function postAction(token: string, action: 'ack' | 'snooze'): Promise<boolean> {
   try {
-    d = (e.data?.json() as PushData) ?? {};
+    const r = await fetch(new URL('api/v1/notifications/action', scope()), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: token, a: action }) });
+    return r.ok;
   } catch {
-    d = { body: e.data?.text() ?? '' };
+    return false;
   }
+}
+sw.arxPostAction = postAction;
+
+sw.addEventListener('push', ((e: PushEvt) => {
+  let raw: unknown = {};
+  try {
+    raw = e.data?.json() ?? {};
+  } catch {
+    raw = { body: e.data?.text() ?? '' };
+  }
+  // the backend's payload v2 (push-v2.ts): per-action tokens, the doorbell's deep link, `resolved`, an optional unread count
+  const max = (self as unknown as { Notification?: { maxActions?: number } }).Notification?.maxActions;
+  const p = parsePush(raw, typeof max === 'number' && max > 0 ? max : 2);
   const icon = new URL('icons/arx-192.png', scope()).href;
   const badge = new URL('icons/arx-badge-72.png', scope()).href;
+  if (p.unread !== null) lastUnread = p.unread;
   e.waitUntil(
     sw.registration
-      .showNotification(d.title || 'SmplWise Arx', {
-        body: d.body || '',
-        tag: d.tag || undefined,
+      .showNotification(p.title || 'SmplWise Arx', {
+        body: p.body,
+        tag: p.tag || p.id || undefined, // a fold of the same notification replaces the one shown; so does its "ended" message
+        renotify: !p.resolved && p.renotify, // only a rise of severity (or an escalation) makes a sound again
+        silent: p.resolved,
         icon,
         badge,
         lang: 'he',
         dir: 'rtl',
-        requireInteraction: d.severity === 'critical',
-        data: { url: d.url, event_id: d.event_id ?? null, alert_id: d.alert_id ?? null },
-      })
+        requireInteraction: !p.resolved && p.severity === 'critical',
+        data: dataOf(p),
+        ...(p.actions.length ? { actions: p.actions.map((a) => ({ action: a.action, title: a.title })) } : {}),
+      } as NotificationOptions)
       .then(updateBadge),
   );
 }) as never);
@@ -231,7 +245,15 @@ sw.arxOpenTarget = openTarget;
 
 sw.addEventListener('notificationclick', ((e: NotificationEvt) => {
   e.notification.close();
-  e.waitUntil(openTarget(e.notification.data).then(updateBadge));
+  const data = e.notification.data as NotificationData | null;
+  const plan = planClick(data, e.action || '');
+  if (plan.kind === 'post') {
+    // ack / snooze: answered in the worker with THIS action's one-time token; when it cannot be (expired, offline) the tap opens the row instead
+    e.waitUntil(postAction(plan.token, plan.action).then((ok) => (ok ? undefined : openTarget({ url: data?.url }).then(() => undefined))).then(updateBadge));
+    return;
+  }
+  // "פתח דלת" is only ever the deep link into the app's confirmation (a signed-in session decides): no token, no request
+  e.waitUntil(openTarget({ url: plan.url }).then(updateBadge));
 }) as never);
 
 sw.addEventListener('notificationclose', ((e: NotificationEvt) => {

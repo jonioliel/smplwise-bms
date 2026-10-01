@@ -358,6 +358,10 @@ def gate_code(conn: sqlite3.Connection, principal: Principal, plan: dict[str, st
         ok = codes.verify_pin(typed, codes.pin_hash_of(conn, uid)) if prompt == "pin" else codes.same_code(typed, stored_code)
         if not ok:
             locked = codes.LOCKOUT.fail(keys, conn)
+            if locked:
+                from ..services import notify_sources  # CR-018: the administrators hear about a code lockout (never the code or the panel)
+
+                notify_sources.code_lockout(conn, uid)
             audit_wrong(locked)
             raise ApiError(403, "wrong_code", "קוד שגוי.", details={"locked_s": int(locked)} if locked else {})
         codes.LOCKOUT.succeed(keys[0])

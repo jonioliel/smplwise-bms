@@ -987,13 +987,13 @@ export class LiveCamera extends LitElement {
           <button class="q ${this.profile === 'main' ? 'on' : ''}" @click=${() => (this.profile = 'main')}>ראשי</button>
           <button class="q ${this.profile === 'sub' ? 'on' : ''}" @click=${() => (this.profile = 'sub')}>משני</button>
           ${remote
-            ? html`<span class="note" data-remote-video-policy>גישה מרחוק: WebRTC תחילה${remote.mseFallback ? ' · MSE רק כמוצא אחרון' : ' · בלי MSE'}</span>`
+            ? this.settings?.['media.video_notices'] !== 'true' ? nothing : html`<span class="note" data-remote-video-policy>גישה מרחוק: WebRTC תחילה${remote.mseFallback ? ' · MSE רק כמוצא אחרון' : ' · בלי MSE'}</span>`
             : html`<div class="transport" role="group" aria-label="תעבורה">
                   ${(['auto', 'webrtc', 'mse'] as Transport[]).map((t) => html`<button class=${this.transport === t ? 'on' : ''} @click=${() => this.setTransport(t)}>${t === 'auto' ? 'אוטומטי' : t === 'webrtc' ? 'WebRTC' : 'MSE'}</button>`)}
                 </div>
                 ${transportOverride() ? html`<span class="note">ברירת המחדל של המערכת: ${this.settings?.['media.transport_default'] ?? 'mse'}</span>` : nothing}`}
         </div>
-        <div class="note">${this.playerStatus === 'playing' ? `מנגן דרך ${this.playerTransport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.playerStatus === 'error' ? 'הזרם לא זמין' : 'מתחבר…'}</div>
+        ${this.playerStatus === 'playing' && this.settings?.['media.video_notices'] !== 'true' ? nothing : html`<div class="note">${this.playerStatus === 'playing' ? `מנגן דרך ${this.playerTransport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.playerStatus === 'error' ? 'הזרם לא זמין' : 'מתחבר…'}</div>`}
       </div>
       ${this.renderSettingsAccordion(cam, stream)}
     `;

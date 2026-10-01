@@ -1,13 +1,13 @@
 # Project status — generated view
 
-Generated: 2026-10-01T12:42:58.184739+00:00
+Generated: 2026-10-01T18:40:43.294086+00:00
 
-Tasks: 99 | Requirements: 206 | Tests: 206 | Screens: 32
+Tasks: 101 | Requirements: 212 | Tests: 212 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 ## Status counts
-- BACKLOG: 90
+- BACKLOG: 92
 - BLOCKED: 2
 - DONE: 2
 - IN_PROGRESS: 1
@@ -18,7 +18,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 24
+- V1: 26
 - V2: 12
 
 ## Blockers
@@ -127,3 +127,5 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T097](tasks/T097.md) | V1 | BACKLOG | חלל משותף לשתי קומות (CR-009) — אולם בגובה כפול, שלם בכל קומה | T085 |
 | [T098](tasks/T098.md) | V1 | READY | מולטימדיה - מסכים ושלט (CR-015): מסך המסכים, השלט, כרטיסי מדיה באזורים ובמסך הראשי | — |
 | [T099](tasks/T099.md) | V1 | BACKLOG | מולטימדיה שלב 2 - נגנים, רמקולים וקבוצות (CR-016): כרטיסים, חלונית נגן, קבוצות, מועדפים ותחנות | — |
+| [T100](tasks/T100.md) | V1 | BACKLOG | אוטומציות, סצנות וסקריפטים (CR-017): צפייה, הרצה, בונה בעברית, שמירה בטוחה דרך רכיב החיבור | — |
+| [T101](tasks/T101.md) | V1 | BACKLOG | התראות (CR-018): מרכז התראות אחד, מקורות מובנים, Push וטלפונים, העדפות אישיות, אישור והסלמה | — |

@@ -1,0 +1,43 @@
+01-center-1440-light: ok
+02-center-1440-dark: ok
+03-center-390-light: ok
+04-center-390-dark: ok
+05-usermenu-1440-light: ok
+06-usermenu-390-light: ok
+07-detail-leak-1440-light: ok
+08-detail-leak-390-dark: ok
+09-detail-doorbell-1440-light: ok
+10-door-confirm-1440-light: ok
+11-door-confirm-390-dark: ok
+12-escalation-acked-1440-dark: ok
+13-escalation-acked-390-light: ok
+14-detail-camera-fold-1440-light: ok
+15-detail-snapshot-390-light: ok
+16-rowmenu-1440-light: small target  207x42 "השתק לשעה"; small target  207x42 "אישור"; small target  207x42 "פתח את המצלמה"
+17-sourcefilter-1440-dark: ok
+18-filter-critical-390-light: ok
+19-lock-3levels-1440-light: ok
+20-lock-3levels-1440-dark: ok
+21-lock-typeplace-390-light: ok
+22-lock-full-390-dark: ok
+23-settings-1440-light: ok
+24-settings-1440-dark: ok
+25-settings-sources-390-light: ok
+26-settings-quiet-390-dark: ok
+27-settings-esc-390-light: ok
+28-settings-lock-390-light: ok
+29-settings-mail-390-light: ok
+30-settings-log-390-dark: ok
+31-state-loading-1440-light: ok
+32-state-empty-1440-light: ok
+33-state-error-390-light: ok
+34-state-quiet-1440-light: ok
+35-state-nopush-390-light: ok
+36-state-deliveryfail-1440-dark: ok
+37-operator-center-1440-light: ok
+38-operator-doorbell-390-light: ok
+39-settings-scroll-quiet-esc-1440-light: ok
+40-settings-scroll-mail-log-1440-dark: ok
+flow: ack="קריטיאושר · יוני" door=true toast="דלת הכניסה נפתחה" safetyRows=3 mail="נבדק 14:10 · תקין"
+operator door button present: false; settings footer: false
+errors: none

@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-card';
 import '../components/sw-badge';
@@ -49,6 +49,10 @@ const SUPPORT_TEXT: Record<Exclude<PushSupport, 'ok'>, string> = {
  * only ever sends what the user may see (their camera / area scope). */
 @customElement('arx-notifications-settings')
 export class ArxNotificationsSettings extends LitElement {
+  /** CR-018 (owner 4ב): users have no personal categories or quiet hours - only this device's registration (the administrator decides what is sent). */
+  @property({ type: Boolean, attribute: 'devices-only' }) devicesOnly = false;
+  /** Rendered inside another screen (the administrator's "ערוצים" section): no page frame of its own. */
+  @property({ type: Boolean }) embedded = false;
   @state() private support: PushSupport = 'ok';
   @state() private rows: PushSubscriptionRow[] = [];
   @state() private thisHash: string | null = null;
@@ -147,10 +151,12 @@ export class ArxNotificationsSettings extends LitElement {
       return;
     }
     try {
-      const [subs, prefs] = await Promise.all([listSubscriptions(), getPrefs()]);
+      const [subs, prefs] = await Promise.all([listSubscriptions(), this.devicesOnly ? Promise.resolve(null) : getPrefs()]);
       this.rows = subs.subscriptions;
-      this.prefs = prefs;
-      this.draft = structuredClone(prefs);
+      if (prefs) {
+        this.prefs = prefs;
+        this.draft = structuredClone(prefs);
+      }
       const sub = this.support === 'ok' ? await currentSubscription().catch(() => null) : null;
       this.thisHash = sub ? await endpointHash(sub.endpoint) : null;
       this.error = '';
@@ -337,13 +343,16 @@ export class ArxNotificationsSettings extends LitElement {
 
   render() {
     const dirty = JSON.stringify(this.draft?.categories) !== JSON.stringify(this.prefs?.categories) || JSON.stringify(this.draft?.quiet) !== JSON.stringify(this.prefs?.quiet);
-    return html`<sw-page heading="התראות" subheading=${isApi() ? 'התראות Push לטלפון ולמחשב שלך · לכל משתמש בנפרד' : 'התראות Push · נתוני הדגמה'}>
-      <div class="sections" data-push-settings data-loaded=${this.loaded ? '1' : '0'}>
-        ${this.renderDevice()} ${this.renderCategories()} ${this.renderQuiet()}
-        <div class="foot"><sw-button variant="primary" icon="check" data-push-save ?disabled=${!dirty || this.busy || !isApi()} @click=${() => this.save()}>שמירת ההעדפות</sw-button></div>
+    const body = html`<div class="sections" data-push-settings data-loaded=${this.loaded ? '1' : '0'}>
+        ${this.renderDevice()}
+        ${this.devicesOnly
+          ? nothing
+          : html`${this.renderCategories()} ${this.renderQuiet()}
+            <div class="foot"><sw-button variant="primary" icon="check" data-push-save ?disabled=${!dirty || this.busy || !isApi()} @click=${() => this.save()}>שמירת ההעדפות</sw-button></div>`}
         ${this.renderDevices()} ${this.renderKey()}
-      </div>
-    </sw-page>`;
+      </div>`;
+    if (this.embedded) return body;
+    return html`<sw-page heading="התראות" subheading=${isApi() ? (this.devicesOnly ? 'המכשירים שלך' : 'התראות Push לטלפון ולמחשב שלך · לכל משתמש בנפרד') : 'התראות Push · נתוני הדגמה'}>${body}</sw-page>`;
   }
 }
 

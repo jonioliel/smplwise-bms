@@ -175,6 +175,9 @@ def ack_alert(alert_id: str, request: Request, principal: Principal = Depends(cu
     if not a["acked_at"]:
         conn.execute("UPDATE rule_alerts SET acked_at = ?, acked_by = ?, acked_by_username = ? WHERE id = ?", (now_iso(), principal.user_id, principal.username, alert_id))
         audit(conn, actor=principal, action="rule.alert.ack", decision="allowed", resource_type="rule_alert", resource_id=alert_id, request_id=_rid(request), details={"rule_id": a["rule_id"], "event_id": a["event_id"]})
+        from ..services import notify
+
+        notify.ack_from_alert(conn, a["notification_id"], principal)  # CR-018: the alert's notification is acknowledged with it (and stops escalating)
     r = conn.execute("SELECT a.*, r.name AS rule_name FROM rule_alerts a JOIN rules r ON r.id = a.rule_id WHERE a.id = ?", (alert_id,)).fetchone()
     return svc.alert_row(r)
 

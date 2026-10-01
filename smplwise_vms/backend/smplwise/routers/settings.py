@@ -15,7 +15,7 @@ from ..auth import current_principal, get_conn
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import area_row, home_config, home_screen, media_layout, mobile_options, nav_size
+from ..services import area_row, home_config, home_screen, media_layout, mobile_options, nav_size, timeline_colors
 
 router = APIRouter()
 
@@ -25,6 +25,10 @@ DEFAULTS: dict[str, str] = {
     "media.transport_default": "mse",
     "media.max_live_sessions": "16",
     "media.wall_profile": "sub",  # sub | main — profile used by the camera wall
+    # owner 2026-10-01: the notes the live player draws about HOW it plays (the banner "WebRTC לא זמין לזרם הזה · MSE דרך המנהרה", the
+    # remote-policy hint and the "מנגן דרך MSE" line). "false" (default) keeps the screen clean - the badge stays and carries the same
+    # text as its tooltip; "true" shows them (an installer chasing a transport problem).
+    "media.video_notices": "false",
     "snapshots.max_age_s": "60",
     # IANA zone of the site/NVR wall clock (chapter 20). The lab NVR reports windowsZone "Israel Standard Time".
     "time.zone": "Asia/Jerusalem",
@@ -60,6 +64,17 @@ DEFAULTS: dict[str, str] = {
     # owner 2026-09-30 (phone UX guards): which kinds of management the phone UI (< 768 px) hides - a JSON object of booleans,
     # shape and defaults in services/mobile_options.py; read back as an object. A UX guard only: permissions are unchanged.
     "ui.mobile": '{"hide_structure":true,"hide_layout_editor":false,"hide_wall_arrange":false,"hide_settings_writes":false,"hide_permissions":false,"hide_control_images":true}',
+    # owner 2026-10-01 (the person dots and the recording bars were both blue): the colour of each thing the investigation timeline
+    # draws - a JSON object {recording, motion, person, vehicle, door, line, offline: palette name | #rrggbb}, shape and
+    # defaults in services/timeline_colors.py; read back as an object. Applied by the frontend as custom properties.
+    "timeline.colors": json.dumps(timeline_colors.DEFAULT, separators=(",", ":")),
+    # owner decision 2026-10-01: who sees the two technical items of the recording screens - the grey helper line above every
+    # timeline ("דיוק לפי פריים מפתח · לחיצה או גרירה = חיפוש · גלגלת = זום") and the diagnostics block under the player (session,
+    # generation, state, player, time zone, coverage, range end): all | installers (callers holding system.configure at
+    # installation scope - the same check as the installer-only screens) | hidden. Defaults keep today's behaviour. Presentation
+    # only: nothing server-side depends on it.
+    "playback.helper_line": "all",
+    "playback.diagnostics": "all",
     "history.ha_secondary": "false",  # S2: the HA recorder fills entity states the local history does not know (marked as secondary)
     "plan.estimates": "true",  # Plan Studio: show estimated metres (≈) before a plan is calibrated; false hides metres until calibration (owner decision 2026-09-23)
     "plan.levels": "all",  # default levels view on every map: all levels together, or the floor's default level only (owner decision 2026-09-26)
@@ -167,6 +182,7 @@ DEFAULTS: dict[str, str] = {
     # CR-008 SmplWise Arx remote access (owner decisions 2026-09-29, CR-008 §3f / §7). The channel itself is the add-on
     # option remote_access; these shape who may use it and how the browser keeps its sign-in.
     "remote.policy": "flag",  # flag: only users with the per-user remote-access flag (D4) | any_role: every HA user holding an Arx role
+    "remote.admins_default": "true",  # CR-008 amendment (owner 2026-10-01): true = a system administrator signs in remotely without a per-user flag (only under remote.policy = flag)
     "remote.session": "rolling_90d",  # rolling_90d (HA's sliding refresh token, localStorage) | browser_session (sessionStorage) | rolling_90d_idle_lock (D5)
     "remote.idle_lock_minutes": "720",  # the idle lock of rolling_90d_idle_lock
     "remote.default_profile": "main",  # main | sub: the stream a remote viewer gets first, over WebRTC (D7)
@@ -231,6 +247,7 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
     out["ui.nav_size"] = _stored_nav_size(out["ui.nav_size"])
     out["ui.mobile"] = _stored_mobile(out["ui.mobile"])
+    out["timeline.colors"] = _stored_timeline_colors(out["timeline.colors"])
     out["devices.area_row"] = _stored_area_row(out["devices.area_row"], area_row.normalize_area, area_row.AREA_ROW_DEFAULT)
     out["devices.floor_row"] = _stored_area_row(out["devices.floor_row"], area_row.normalize_floor, area_row.FLOOR_ROW_DEFAULT)
     out["schedules.classes"] = stored_schedule_classes(out["schedules.classes"])
@@ -269,6 +286,14 @@ def _stored_mobile(raw: Any) -> dict[str, bool]:
         return mobile_options.normalize(json.loads(raw) if isinstance(raw, str) else raw)
     except ValueError:
         return dict(mobile_options.DEFAULT)
+
+
+def _stored_timeline_colors(raw: Any) -> dict[str, str]:
+    """The stored timeline.colors as an object with every option; a corrupt or foreign value reads as the defaults."""
+    try:
+        return timeline_colors.normalize(json.loads(raw) if isinstance(raw, str) else raw)
+    except ValueError:
+        return dict(timeline_colors.DEFAULT)
 
 
 def _stored_area_row(raw: Any, normalize: Any, default: dict[str, Any]) -> dict[str, Any]:
@@ -375,6 +400,7 @@ class SettingsPatch(BaseModel):
     media_transport_default: str | None = Field(default=None, pattern="^(auto|webrtc|mse)$", alias="media.transport_default")
     media_max_live_sessions: int | None = Field(default=None, ge=1, le=32, alias="media.max_live_sessions")
     media_wall_profile: str | None = Field(default=None, pattern="^(sub|main)$", alias="media.wall_profile")
+    media_video_notices: str | None = Field(default=None, pattern="^(true|false)$", alias="media.video_notices")
     snapshots_max_age_s: int | None = Field(default=None, ge=5, le=3600, alias="snapshots.max_age_s")
     time_zone: str | None = Field(default=None, pattern=r"^[A-Za-z_]+(/[A-Za-z_\-+0-9]+)+$", alias="time.zone")
     playback_max_sessions: int | None = Field(default=None, ge=1, le=16, alias="playback.max_sessions")
@@ -399,6 +425,9 @@ class SettingsPatch(BaseModel):
     ui_tabs: dict[str, Any] | None = Field(default=None, alias="ui.tabs")  # validated in full by normalize_tabs
     ui_mobile: dict[str, Any] | None = Field(default=None, alias="ui.mobile")  # validated in full by services/mobile_options.py
     ui_nav_size: dict[str, Any] | None = Field(default=None, alias="ui.nav_size")  # validated in full by services/nav_size.py
+    timeline_palette: dict[str, Any] | None = Field(default=None, alias="timeline.colors")  # validated in full by services/timeline_colors.py
+    playback_helper_line: str | None = Field(default=None, pattern="^(all|installers|hidden)$", alias="playback.helper_line")
+    playback_diagnostics: str | None = Field(default=None, pattern="^(all|installers|hidden)$", alias="playback.diagnostics")
     history_ha_secondary: str | None = Field(default=None, pattern="^(true|false)$", alias="history.ha_secondary")
     plan_estimates: str | None = Field(default=None, pattern="^(true|false)$", alias="plan.estimates")
     plan_levels: str | None = Field(default=None, pattern="^(all|default)$", alias="plan.levels")
@@ -452,6 +481,7 @@ class SettingsPatch(BaseModel):
     home_side: str | None = Field(default=None, pattern="^(start|end)$", alias="home.side")
     home_widgets: dict[str, Any] | None = Field(default=None, alias="home.widgets")  # validated in full by services/home_config.py
     remote_policy: str | None = Field(default=None, pattern="^(flag|any_role)$", alias="remote.policy")
+    remote_admins_default: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.admins_default")
     remote_session: str | None = Field(default=None, pattern="^(rolling_90d|browser_session|rolling_90d_idle_lock)$", alias="remote.session")
     remote_idle_lock_minutes: int | None = Field(default=None, ge=5, le=10080, alias="remote.idle_lock_minutes")
     remote_default_profile: str | None = Field(default=None, pattern="^(main|sub)$", alias="remote.default_profile")
@@ -506,6 +536,11 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             changes["ui.mobile"] = mobile_options.normalize(changes["ui.mobile"])
         except ValueError as exc:
             raise ApiError(422, "validation", "אפשרויות נייד: ערך לא תקין.", details={"ui.mobile": str(exc)})
+    if "timeline.colors" in changes:
+        try:
+            changes["timeline.colors"] = timeline_colors.normalize(changes["timeline.colors"])
+        except ValueError as exc:
+            raise ApiError(422, "validation", "צבעי ציר הזמן: ערך לא תקין.", details={"timeline.colors": str(exc)})
     if "devices.area_row" in changes:
         try:
             changes["devices.area_row"] = area_row.normalize_area(changes["devices.area_row"])
@@ -577,7 +612,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if key == "home.widgets":
             set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value else "")
             continue
-        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.mobile", "schedules.classes", "devices.area_row", "devices.floor_row", "multimedia.remote_default") else str(value))
+        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.mobile", "timeline.colors", "schedules.classes", "devices.area_row", "devices.floor_row", "multimedia.remote_default") else str(value))
     if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now
         from ..services import schedules as schedules_svc
 

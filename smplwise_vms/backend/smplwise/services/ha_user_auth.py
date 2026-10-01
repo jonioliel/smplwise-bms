@@ -16,9 +16,11 @@ SAME model as Ingress (HA user id; VMS roles bound to it), with `source = "remot
   token it was made from (<= 30 min). A background task re-validates every session used in the last 2 minutes at most
   every 60 s: a token HA no longer accepts (refresh token deleted in the HA profile, user disabled or deleted) or a
   user the remote policy no longer admits drops the session and closes its WebSockets.
-- **Policy:** `remote.policy` = `flag` (only users with the per-user remote-access flag, table remote_access_users) or
-  `any_role` (every HA user holding any Arx role); `remote.require_mfa_admin` (default off, D8) refuses users holding an
-  administrative permission whose HA account has no MFA module enabled. Inactive users (HA directory or VMS) are refused.
+- **Policy:** `remote.policy` = `flag` (only users with the per-user remote-access flag, table remote_access_users, or -
+  while `remote.admins_default` is on, the default - an administrator: an active installation-wide `system_admin`
+  binding, rbac.is_system_admin) or `any_role` (every HA user holding any Arx role); `remote.require_mfa_admin` (default
+  off, D8) refuses users holding an administrative permission whose HA account has no MFA module enabled. Inactive users
+  (HA directory or VMS) are refused. The deciding `basis` (flag | admin_default | any_role) goes on the created audit row.
 - **Rate limits:** the exchange and logout endpoints, per client address and per user; a negative cache of rejected
   token hashes. **Audit:** `auth.remote_session.created | .rejected | .revoked | .logout` (ids, address, country and
   user agent; never a token or a cookie).
@@ -760,6 +762,11 @@ def origin_ok(conn: Any) -> bool:
 
 # ---------------------------------------------------------------- policy (database side)
 
+BASIS_FLAG = "flag"
+BASIS_ADMIN_DEFAULT = "admin_default"
+BASIS_ANY_ROLE = "any_role"
+
+
 def remote_settings(conn) -> dict[str, Any]:
     from ..routers.settings import read_settings
 
@@ -788,19 +795,41 @@ def build_principal(conn, ha_user: HaUser) -> Principal:
     return Principal(user_id=ha_user.id, username=username, display_name=ha_user.name or username, source="remote")
 
 
+def admin_default_applies(conn, user_id: str, rs: dict[str, Any] | None = None) -> bool:
+    """CR-008 amendment (owner request 2026-10-01): `remote.admins_default` (default on) admits an administrator - a user
+    with an active installation-wide `system_admin` binding (rbac.is_system_admin) - without a per-user flag. It only
+    matters under `remote.policy = flag`."""
+    from ..rbac import is_system_admin
+
+    rs = rs if rs is not None else remote_settings(conn)
+    return str(rs.get("remote.admins_default", "true")) == "true" and is_system_admin(conn, user_id)
+
+
+def remote_basis(conn, user_id: str, rs: dict[str, Any] | None = None) -> str | None:
+    """Why the policy admits this user (BASIS_*), or None. An explicit per-user flag is recorded as such even when the
+    administrator default would admit the user too. The caller has checked the active flags."""
+    from ..rbac import Principal, has_any_binding
+
+    rs = rs if rs is not None else remote_settings(conn)
+    if rs.get("remote.policy", "flag") == "any_role":
+        return BASIS_ANY_ROLE if has_any_binding(conn, Principal(user_id=user_id, username="", display_name="", source="internal")) else None
+    if has_flag(conn, user_id):
+        return BASIS_FLAG
+    return BASIS_ADMIN_DEFAULT if admin_default_applies(conn, user_id, rs) else None
+
+
 def policy_refusal(conn, principal: Principal, ha_user: HaUser) -> ApiError | None:
     """Why this user may not use the remote channel now, or None."""
-    from ..rbac import has_any_binding, permissions_anywhere
+    from ..rbac import permissions_anywhere
 
     ha_row = conn.execute("SELECT is_active FROM ha_users WHERE id = ?", (principal.user_id,)).fetchone()
     vms_row = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
     if (ha_row is not None and not ha_row["is_active"]) or (vms_row is not None and not vms_row["active"]):
         return ApiError(403, "remote_user_inactive", INACTIVE_HE)
     rs = remote_settings(conn)
-    if rs.get("remote.policy", "flag") == "any_role":
-        if not has_any_binding(conn, principal):
+    if remote_basis(conn, principal.user_id, rs) is None:
+        if rs.get("remote.policy", "flag") == "any_role":
             return ApiError(403, "remote_not_allowed", NOT_ALLOWED_ROLE_HE, details={"policy": "any_role"})
-    elif not has_flag(conn, principal.user_id):
         return ApiError(403, "remote_not_allowed", NOT_ALLOWED_FLAG_HE, details={"policy": "flag"})
     if str(rs.get("remote.require_mfa_admin", "false")) == "true" and not ha_user.mfa:
         if set(permissions_anywhere(conn, principal)) & ADMIN_PERMISSIONS:
@@ -862,6 +891,9 @@ def _record_sign_in(db, principal: Principal, meta: dict[str, str]) -> None:
                 (principal.user_id, now_iso(), mask_address(meta.get("client_ip", "")), meta.get("country") or None))
     except Exception:  # noqa: BLE001 - bookkeeping never breaks a sign-in (and a database before migration 0035)
         log.warning("could not record the remote sign-in", exc_info=True)
+    from . import notify_sources  # CR-018: a sign-in from a device this account has not used before tells the account's own user
+
+    notify_sources.remote_sign_in(db, principal.user_id, meta)
 
 
 def _audit(db, *, actor: Principal | None, action: str, decision: str, reason: str | None, meta: dict[str, Any], resource_id: str | None = None) -> None:
@@ -906,14 +938,15 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
     if not LIMITER.hit(f"user:{ha_user.id}", USER_LIMITS):
         raise await rejected("rate_limited_user", ApiError(429, "rate_limited", RATE_LIMITED_HE, retryable=True), subject=ha_user.id)
 
-    def decide() -> tuple[Principal, ApiError | None]:
+    def decide() -> tuple[Principal, ApiError | None, str | None]:
         with db.connection(mode="read", label="auth/session") as conn:
             principal = dataclasses.replace(build_principal(conn, ha_user), via="cookie")
             if chain_revoked(conn, token):
-                return principal, unauthenticated("remote_session_revoked", REVOKED_HE)
-            return principal, policy_refusal(conn, principal, ha_user)
+                return principal, unauthenticated("remote_session_revoked", REVOKED_HE), None
+            refusal = policy_refusal(conn, principal, ha_user)
+            return principal, refusal, None if refusal else remote_basis(conn, principal.user_id)
 
-    principal, refusal = await run_in_threadpool(decide)
+    principal, refusal, basis = await run_in_threadpool(decide)
     if refusal is not None:
         if refusal.code == "remote_session_revoked":
             _remember_rejected(token)
@@ -932,7 +965,7 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
             touch_user(conn, principal, force=True)
         if not session.continued:
             _record_sign_in(db, principal, meta)
-        _audit(db, actor=principal, action="auth.remote_session.created", decision="allowed", reason=None, meta=meta)
+        _audit(db, actor=principal, action="auth.remote_session.created", decision="allowed", reason=None, meta={**meta, "basis": basis})
 
     await run_in_threadpool(touch_and_audit)
     return session, max(1, int(exp - time.time()))
@@ -1001,7 +1034,11 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
         raise rejected("rate_limited_user", ApiError(429, "rate_limited", RATE_LIMITED_HE, retryable=True), subject=ha_user.id)
     with db.connection(mode="read", label="remote bearer") as conn:
         principal = dataclasses.replace(build_principal(conn, ha_user), via="bearer")
-        refusal = unauthenticated("remote_session_revoked", REVOKED_HE) if chain_revoked(conn, token) else policy_refusal(conn, principal, ha_user)
+        if chain_revoked(conn, token):
+            basis, refusal = None, unauthenticated("remote_session_revoked", REVOKED_HE)
+        else:
+            refusal = policy_refusal(conn, principal, ha_user)
+            basis = None if refusal else remote_basis(conn, principal.user_id)
     if refusal is not None:
         if refusal.code == "remote_session_revoked":
             _remember_rejected(token)
@@ -1017,7 +1054,7 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
         raise rejected("remote_session_revoked", unauthenticated("remote_session_revoked", REVOKED_HE), principal)
     if not s.continued:  # a new sign-in of a bearer client (not its next access token)
         _record_sign_in(db, principal, meta)
-        _audit(db, actor=principal, action="auth.remote_session.created", decision="allowed", reason=None, meta=meta)
+        _audit(db, actor=principal, action="auth.remote_session.created", decision="allowed", reason=None, meta={**meta, "basis": basis})
     return s
 
 

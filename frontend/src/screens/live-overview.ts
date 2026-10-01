@@ -46,7 +46,7 @@ function greeting(hour: number): string {
   return 'לילה טוב';
 }
 
-const EVENT_TONE: Record<string, string> = { person: 'var(--sw-accent)', vehicle: 'var(--sw-live)', motion: 'var(--sw-danger)', line: 'var(--sw-stale)', offline: 'var(--sw-offline)', door: 'var(--sw-purple)' };
+const EVENT_TONE: Record<string, string> = { person: 'var(--sw-tl-person)', vehicle: 'var(--sw-tl-vehicle)', motion: 'var(--sw-tl-motion)', line: 'var(--sw-tl-line)', offline: 'var(--sw-tl-offline)', door: 'var(--sw-tl-door)' };
 const EVENT_SCENE: Record<string, string> = { 'כניסה ראשית': 'entrance', 'חצר אחורית': 'backyard', מחסן: 'warehouse', לובי: 'lobby', 'חניה מקורה': 'parking' };
 
 /**

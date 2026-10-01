@@ -139,6 +139,7 @@
         "schedule.manage",
         "schedule.sensitive",
         "screen.personalize",
+        "notify.manage",
         "media.read",
         "media.control",
         "media.power",
@@ -165,6 +166,7 @@
     "alarm.bypass",
     "schedule.manage",
     "schedule.sensitive",
+    "notify.manage",
     "nvr.config.write"
   ],
   "evaluation": "Evaluate each action+scope binding together. Default deny. Apply explicit denies, actor status, scope membership, revision and HA permission intersection. No HA account mutations."

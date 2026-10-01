@@ -257,6 +257,7 @@ next to the add-on options `remote_access` (default `false`) and `remote_path` (
 | Key | Values | Default | Meaning |
 |---|---|---|---|
 | `remote.policy` | `flag` \| `any_role` | `flag` | `flag`: only users whose explicit per-user `remote.access` flag is on may sign in remotely; `any_role`: every HA user holding any Arx role may (D4) |
+| `remote.admins_default` | `true` \| `false` | `true` | owner-requested amendment A1 (end of §9): under `remote.policy = flag`, an administrator is admitted without a per-user flag |
 | `remote.session` | `rolling_90d` \| `browser_session` \| `rolling_90d_idle_lock` | `rolling_90d` | `rolling_90d`: HA's sliding 90-day refresh token in `localStorage`; `browser_session`: tokens in `sessionStorage`, gone with the browser (HA can only read `hassTokens` from `localStorage`, so the seed is written there and removed at logout and at the next Arx start without a session); `rolling_90d_idle_lock`: as the first, plus an idle lock that asks for the password again (D5) |
 | `remote.idle_lock_minutes` | integer ≥ 5 | `720` | idle time before the lock, used by `rolling_90d_idle_lock` |
 | `remote.default_profile` | `main` \| `sub` | `main` | the stream a remote viewer gets first, over WebRTC (D7) |
@@ -720,3 +721,38 @@ them - the worker and the manifest follow whatever base the page is served under
   stays until the browser revokes it itself or it is deleted in the profile).
 - **Tests:** `tests/test_remote_hardening.py` (38), `tests/test_remote_access.py` (59, 2 expectations updated),
   `frontend/tests/evidence-arx-sessions.spec.ts` (desktop). Not in P2: Cloudflare Access (D3), native push.
+
+### Amendment A1 (owner request 2026-10-01, branch `pilot/remote-admins`, not released): administrators remote by default
+
+The owner asked: "allow remote access by default to every user defined as an administrator".
+
+- **Setting:** `remote.admins_default`, `true` | `false`, default `true` (הגדרות › גישה מרחוק, "מנהלים – גישה מרחוק כברירת מחדל").
+  It only matters under `remote.policy = flag`; `any_role` already admits every user holding a role.
+- **"Administrator"** is the system's own predicate, `rbac.is_system_admin(conn, user_id)`: an active (not revoked, not
+  expired) `system_admin` allow-binding at the installation scope, direct or through a group (resolved exactly as
+  `authorize()` does), and no installation-wide deny of that role. A Home Assistant admin or owner flag alone is
+  information only (it never became a role) and does not count; neither does `site_admin` or a `system_admin` binding
+  at a narrower scope.
+- **Admission** (`ha_user_auth.policy_refusal`, one function for the exchange, the bearer path, the idle re-check and
+  the 60 s pass): inactive user (HA directory or VMS) -> refused; then `remote_basis`: policy `any_role` -> admitted
+  with any binding (basis `any_role`); policy `flag` -> admitted with the personal flag (basis `flag`, even when the
+  default would also admit - an explicit grant is recorded as such), else with `remote.admins_default = true` and an
+  administrator (basis `admin_default`), else refused (`remote_not_allowed`); finally `remote.require_mfa_admin`
+  applies to administrators whatever the basis. The add-on option `remote_access` still gates the whole channel (off =
+  404 under `/arx`).
+- **Revalidation:** the same function runs every 60 s for sessions used in the last 2 minutes and before reuse of a session
+  idle for more than 3 minutes, so switching the setting off, or an administrator losing the role, drops their remote
+  sessions (and closes their WebSockets) within a minute, audited as `auth.remote_session.revoked` with reason
+  `remote_not_allowed`. A session whose user also holds the personal flag survives the setting being turned off.
+- **Audit:** `auth.remote_session.created` carries `basis` = `flag` | `admin_default` | `any_role` (no token, cookie or address
+  beyond the existing masked fields). The setting itself is audited by `settings.update`. `/me` on the remote channel
+  does not expose the setting.
+- **Users screen:** `GET identity/users` returns `remote_access` true for an administrator the default admits, plus
+  `remote_access_basis` (`flag` | `admin_default` | null) and `remote_admin_default` (the default would admit this user without
+  the flag). The switch is shown disabled with "ברירת מחדל (מנהל)" when the default is the only reason; the setting is the lever.
+  Turning the personal flag off for an administrator while the default is on ends no session (`PUT access/users/{id}/remote-access`
+  answers `remote_access_basis: admin_default`, `sessions_ended: 0`).
+- **Existing installations:** the key has no stored value, so the default `true` applies on update: administrators (as
+  defined above) can sign in remotely without a flag - but only where the add-on option `remote_access` is on. An
+  installation that wants the old behaviour sets the setting to "כבויה" before or right after the update.
+- **Tests:** `smplwise_vms/backend/tests/test_remote_admins_default.py`; `frontend/tests/evidence-arx-admin-default.spec.ts`.

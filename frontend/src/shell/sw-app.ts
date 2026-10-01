@@ -15,6 +15,9 @@ import { findScreenEdit, onScreenEdits, screenEdits } from './screen-edit';
 import { findScreenView, onScreenViews, screenViews } from './screen-view';
 import { loadNavSize, navCssVars, navDims, navSize, onNavSize, setInstallationNavSize, type NavDims } from './nav-size';
 import { listAlerts } from '../api/rules';
+import { parseDoorConfirmLink, type NotifySummary } from '../api/notifications';
+import { notifyStore } from '../components/notify-store';
+import { badgeLabel, badgeOf, parseNotificationLink } from '../components/notify-logic';
 import { inAndroidShell } from '../arx/android-app';
 import '../screens/explore-floor-map';
 import '../screens/explore-sites';
@@ -61,6 +64,8 @@ import '../screens/system-diagnostics';
 import '../screens/system-security';
 import '../screens/system-storage';
 import '../pwa/notifications-settings';
+import '../screens/system-notifications'; // CR-018: הגדרות › התראות (the administrator's eight sections; everyone else keeps the device registration)
+import '../components/notify-center'; // CR-018: the notification center, opened from the user menu's bell
 import '../screens/screens-index';
 import '../screens/styleguide-screen';
 import '../components/media-remote';
@@ -73,6 +78,8 @@ import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, res
 import { t } from '../i18n/he';
 import { can, canNav, isApi, loadSession, nvrLess, onSession, watchPermissions, type Session } from '../api/session';
 import { productSettings } from '../api/prefs';
+import { applyTimelineColors } from '../api/timeline-colors';
+import { applyPlaybackDisplay } from '../api/playback-display';
 import '../components/sw-state-panel';
 import '../components/sw-page';
 
@@ -118,6 +125,16 @@ export class SwApp extends LitElement {
   @state() private menuOpen = false;
   @state() private orderOpen = false;
   @state() private alertCount: number | null = null;
+  /** CR-018: the notification center (opened from the user menu's bell), the row a deep link focuses, and the numbers of `/notifications/summary`
+   * (the unread chip and the open-critical dot; null while it is not available: the rule-alert count above stands in). */
+  @state() private centerOpen = false;
+  @state() private centerFocus = '';
+  @state() private centerConfirm = false;
+  @state() private notifySummary: NotifySummary | null = null;
+  private stopNotify?: () => void;
+  /** A deep link asked for the center before the session was known; the center opens once it is (never in a gate, never in the kiosk). */
+  private pendingCenter = false;
+  private keepCenterOnce = false;
   @state() private navOrder: NavTabId[] = navOrder();
   private menuTrigger: HTMLElement | null = null;
   /** The phone layout (< 768 px): the user menu is a sheet, the tab row the underline variant. */
@@ -1087,6 +1104,7 @@ export class SwApp extends LitElement {
     this.setAttribute('data-design', 'a'); // the one design: the attribute stays as the styling hook of the shell's CSS
     this.phoneMq.addEventListener('change', this.onPhoneMq);
     window.addEventListener('popstate', this.onPopState);
+    this.stopNotify = notifyStore.subscribe((s) => (this.notifySummary = s.summary));
     this.stopNavOrder = onNavOrder((o) => (this.navOrder = o));
     this.stopNavSize = onNavSize((sz) => (this.nav = navDims(sz)));
     this.stopScreenEdits = onScreenEdits(() => this.requestUpdate()); // a screen registered / dropped its edit mode
@@ -1103,7 +1121,11 @@ export class SwApp extends LitElement {
         void loadNavOrder(who, s.mode === 'api' || s.mode === 'no_access');
         void loadNavSize(who, s.mode === 'api' || s.mode === 'no_access');
       }
-      if (s.mode !== 'loading') void this.pollAlerts();
+      if (s.mode !== 'loading') {
+        this.openPendingCenter();
+        void this.pollAlerts();
+        if ((s.mode === 'api' || s.mode === 'demo') && !this.embedded()) void notifyStore.start(); // CR-018: the badge's summary and the live events
+      }
       // the static demo has no start-screen setting: the bare address opens "ראשי"
       if (s.mode === 'demo' && this.landedDefault) this.land(START_ROUTES.devices);
       if (s.mode === 'api' && this.route) this.redirectDemo(this.route);
@@ -1114,6 +1136,8 @@ export class SwApp extends LitElement {
           HIDDEN_HREFS.clear();
           setInstallationNavSize(ps['ui.nav_size']); // the installation's default size of the navigation
           setInstallationMobileOptions(ps['ui.mobile']); // the phone UX guards (הגדרות › כללי › אפשרויות נייד)
+          applyPlaybackDisplay(ps); // the helper line and the diagnostics block of the recording screens
+          applyTimelineColors(ps['timeline.colors']); // the investigation timeline's colours (הגדרות › וידאו ומדיה › צבעי ציר הזמן)
           if (String(ps['ui.hide_search'] ?? 'false') === 'true') HIDDEN_HREFS.add('#/investigate/search');
           const hideMap = String(ps['ui.hide_map'] ?? 'false') === 'true';
           if (hideMap) for (const h of MAP_HREFS) HIDDEN_HREFS.add(h);
@@ -1169,6 +1193,22 @@ export class SwApp extends LitElement {
         this.overlayEntry = false;
         this.closeMenu(false, false);
         this.orderOpen = false;
+        if (this.keepCenterOnce) this.keepCenterOnce = false;
+        else this.centerOpen = false;
+      }
+      // CR-018 / CR §9: the push's "פתח דלת" is a deep link (#/doors/<id>?confirm=<notification id>). It opens the center on that notification with the
+      // in-app confirmation - never an unlock by itself, and only inside a signed-in session (the center opens once the session is known); the address
+      // then falls back to the home screen so Back does not repeat it.
+      const doorLink = parseDoorConfirmLink(window.location.hash);
+      const rowLink = doorLink ? null : parseNotificationLink(window.location.hash); // every push opens '#/notifications/<id>': the center on that row
+      if ((doorLink || rowLink) && !replaced) {
+        this.centerFocus = doorLink?.notificationId ?? (rowLink as string);
+        this.centerConfirm = !!doorLink;
+        this.pendingCenter = true;
+        this.openPendingCenter();
+        this.keepCenterOnce = true;
+        queueMicrotask(() => window.location.replace('#/devices/building'));
+        return;
       }
       if (this.redirectDemo(route)) return;
       // CR-010: the security section in use, so #/security (the rail entry) reopens it
@@ -1249,6 +1289,8 @@ export class SwApp extends LitElement {
     window.clearTimeout(this.permToastTimer);
     this.stopWiskeyNav?.();
     this.stopAlarmPresence?.();
+    this.stopNotify?.();
+    notifyStore.stop();
     this.stopNavOrder?.();
     this.stopNavSize?.();
     this.stopScreenEdits?.();
@@ -1648,7 +1690,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'multimedia') return html`<system-multimedia></system-multimedia>`; // הגדרות › מולטימדיה (CR-015)
         if (s[1] === 'entities') return html`<explore-entities></explore-entities>`; // the device catalogue, formerly the map's "התקנים" tab (system.configure only: the screen checks it too)
         if (s[1] === 'access') return html`<system-access></system-access>`;
-        if (s[1] === 'notifications') return html`<arx-notifications-settings></arx-notifications-settings>`;
+        if (s[1] === 'notifications') return html`<system-notifications .section=${r.params.get('section') ?? ''}></system-notifications>`; // CR-018: the administrator's eight sections; everyone else: the device registration
         return html`<system-diagnostics></system-diagnostics>`;
       case 'wiskey': {
         // T054/0.1.103: WisKey entry center (CR-005), now its own top-level area, not an explore sub-tab.
@@ -1760,20 +1802,38 @@ export class SwApp extends LitElement {
 
   /** The avatar's accessible name: who, and the open alerts (the red dot says it visually). */
   private userLabel(): string {
+    const s = this.notifySummary;
+    // CR-018: the center's numbers (unread, open critical) when `/notifications/summary` answers, the open rule alerts of today's poll otherwise
+    if (s) {
+      const t = badgeLabel(this.badge(), s.open_critical);
+      return `תפריט המשתמש${this.userName ? ` · ${this.userName}` : ''}${t ? ` · ${t}` : ''}`;
+    }
     const n = this.alertCount ?? 0;
     return `תפריט המשתמש${this.userName ? ` · ${this.userName}` : ''}${n ? ` · ${openAlertsText(n)}` : ''}`;
   }
 
-  /** The alert count for the red dot and the menu: the server's `unacked`, the open alerts in this user's scope
-   * (routers/rules.py filters by camera scope). Null = this user may not read alerts. Never inside the kiosk or the
-   * Lovelace card view: they have no user menu. */
+  /** The avatar's dot and the menu chip (CR-018): see `badgeOf`. */
+  private badge() {
+    return badgeOf(this.gated ? null : this.notifySummary, this.gated ? null : this.alertCount);
+  }
+
+  /** The numbers behind the red dot and the menu's chip. CR-018: `/notifications/summary` (unread, open critical), refreshed by the live events of `/me/ws`
+   * and by this poll as the fallback; when it does not answer (an older backend) the rule-alert count stands in: the server's `unacked`, the open alerts in
+   * this user's scope (routers/rules.py filters by camera scope), null = this user may not read alerts. Never inside the kiosk or the Lovelace card view:
+   * they have no user menu. */
   private async pollAlerts() {
     if (this.route?.segments[0] === 'kiosk' || this.embedded()) return;
     if (this.session.mode === 'demo') {
       this.alertCount = 0;
       return;
     }
-    if (this.session.mode !== 'api' || !canNav('events.read')) {
+    if (this.session.mode !== 'api') {
+      this.alertCount = null;
+      return;
+    }
+    await notifyStore.refreshSummary();
+    if (this.notifySummary) return;
+    if (!canNav('events.read')) {
       this.alertCount = null;
       return;
     }
@@ -1782,6 +1842,31 @@ export class SwApp extends LitElement {
     } catch {
       /* keep the last known count */
     }
+  }
+
+  // ---- the notification center (CR-018) ----
+
+  private openPendingCenter() {
+    if (!this.pendingCenter || this.session.mode === 'loading') return;
+    this.pendingCenter = false;
+    if (this.session.mode === 'api' || this.session.mode === 'demo') this.openCenter();
+  }
+
+  private openCenter() {
+    // the menu hands over to the center: its history entry (the phone sheet's) now stands for the center
+    this.closeMenu(false, false);
+    this.orderOpen = false;
+    this.centerOpen = true;
+    this.pushOverlay();
+  }
+
+  private closeCenter() {
+    if (!this.centerOpen) return;
+    this.centerOpen = false;
+    this.centerFocus = '';
+    this.centerConfirm = false;
+    this.popOverlay();
+    this.menuTrigger?.focus({ preventScroll: true });
   }
 
   // ---- overlays and the Back button (review M4): while the phone sheet or the tab-order dialog is open, one history
@@ -1814,6 +1899,7 @@ export class SwApp extends LitElement {
   private navigateFromOverlay(href: string) {
     this.closeMenu(false, false);
     this.orderOpen = false;
+    this.centerOpen = false;
     const own = this.overlayEntry && (window.history.state as { swOverlay?: boolean } | null)?.swOverlay;
     this.overlayEntry = false;
     if (own) {
@@ -1829,6 +1915,7 @@ export class SwApp extends LitElement {
   private runFromOverlay(run: () => void) {
     this.closeMenu(false, false);
     this.orderOpen = false;
+    this.centerOpen = false;
     const own = this.overlayEntry && (window.history.state as { swOverlay?: boolean } | null)?.swOverlay;
     this.overlayEntry = false;
     if (own) {
@@ -1849,6 +1936,7 @@ export class SwApp extends LitElement {
     if (!this.overlayEntry || (e.state as { swOverlay?: boolean } | null)?.swOverlay) return;
     this.overlayEntry = false;
     this.orderOpen = false;
+    this.centerOpen = false;
     this.closeMenu(true, false);
   };
 
@@ -1867,7 +1955,7 @@ export class SwApp extends LitElement {
   }
 
   private renderMe(where: 'rail' | 'bottom') {
-    const n = this.alertCount ?? 0;
+    const n = this.badge().dot ? 1 : 0;
     const first = this.userName.split(/\s+/)[0] || 'חשבון';
     // review M6: the settings (#/system/...) are reached from here, so the avatar is the active item there
     const here = areaOf(this.route) === 'system';
@@ -1902,7 +1990,9 @@ export class SwApp extends LitElement {
     const api = this.session.mode === 'api';
     const settings = this.gated ? null : settingsEntry(api, canNav);
     const noTabs = this.gated || !visibleAreas(api, canNav, this.navOrder).length;
-    return html`<sw-user-menu .open=${this.menuOpen} .name=${this.userName} .role=${this.userRole} .api=${api} .gated=${noTabs} .alerts=${this.gated ? null : this.alertCount}
+    const badge = this.badge();
+    return html`<sw-user-menu .open=${this.menuOpen} .name=${this.userName} .role=${this.userRole} .api=${api} .gated=${noTabs} .alerts=${badge.item ? badge.count : null}
+        .notifyCenter=${!!this.notifySummary} .alertsHot=${badge.dot} @open-notifications=${() => this.openCenter()}
         .settingsHref=${settings?.href ?? ''} .editHomeHref=${this.canEditHome() ? '#/devices/building?edit=1' : ''}
         .screenEdits=${this.gated ? [] : screenEdits().map((a) => ({ id: a.id, label: a.label, icon: a.icon ?? 'edit' }))}
         .screenViews=${this.gated ? [] : screenViews()}
@@ -1921,7 +2011,9 @@ export class SwApp extends LitElement {
           this.orderOpen = false;
           this.popOverlay();
           this.menuTrigger?.focus({ preventScroll: true });
-        }}></sw-nav-order>`;
+        }}></sw-nav-order>
+      ${this.gated ? nothing : html`<notify-center .open=${this.centerOpen} .focusId=${this.centerFocus} .confirmDoor=${this.centerConfirm}
+        @close=${() => this.closeCenter()} @navigate=${(e: CustomEvent<{ href: string }>) => this.navigateFromOverlay(e.detail.href)}></notify-center>`}`;
   }
 
   private renderA() {

@@ -53,6 +53,17 @@ test.describe('players page (mocked backend)', () => {
     await expect(page.locator('sw-app .subnav sw-tabs')).toHaveCount(0);
   });
 
+  test('the section is entered through the screens page: the players and groups tabs are offered there too (owner report 2026-10-01)', async ({ page }) => {
+    await install(page, st);
+    await open(page, '/multimedia/screens'); // a fresh load of the section's first page, never the players page first
+    const tabs = page.locator('sw-app .subnav sw-tabs');
+    await expect(tabs.locator('a')).toHaveCount(3);
+    await expect(tabs.locator('a[aria-current="page"]')).toContainText('מסכים');
+    await expect(tabs.locator('a', { hasText: 'נגנים ורמקולים' })).toBeVisible();
+    await tabs.locator('a', { hasText: 'נגנים ורמקולים' }).click();
+    await expect.poll(() => hashOf(page)).toContain('/multimedia/players');
+  });
+
   test('ready: one card per physical speaker, player and receiver, by floor, the unplaced last; a member plays with its leader', async ({ page }) => {
     await install(page, st);
     for (const size of ['1440', '820', '390'] as const) {
