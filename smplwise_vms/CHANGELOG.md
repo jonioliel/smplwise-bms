@@ -1,6 +1,29 @@
 # Changelog — SmplWise Arx add-on
 
-## 0.1.149 (pilot) — (in progress)
+## 0.1.149 (pilot) — Multimedia: screens and a remote; heating apart from air conditioning; what sits next to an area's name; hide a camera in the wall
+**After the update restart the platform once**: the bridge integration is 0.4.0 (the media commands and their policy). Migrations 0040-0043 are applied on the first start.
+### Multimedia (CR-015) — "מולטימדיה" in the side rail, for holders of `media.read`
+- **מסכים**: one card per physical screen (the same TV seen through several integrations is merged into one; duplicates are linked, ignored or unlinked in הגדרות › מולטימדיה), grouped by floor with a large title, room chips, a floor menu, search and a state filter. Power, volume, mute and source on the card; **"כבה מסכים"** per floor with a short confirmation and a per-screen outcome; screens that are not confirmed on are skipped.
+- **The remote**: a side panel on the desktop, a bottom sheet on the phone. D-pad or touchpad, back / home / menu, volume and channel rockers, playback, sources and apps, recent, "עוד מקשים" (numbers, colour keys, text). Only what the screen reports is shown; the key set follows the profile (Samsung, LG, Android TV, generic). No power key anywhere: power is always the explicit on / off. Hold-repeat on arrows and volume. States: off ("הפעל"), art mode, unavailable, no remote power-on, view-only, pending, not confirmed (8 s), rate limited.
+- **Edit like the home screen**: from the user menu, order, favourite, size, visibility on desktop and phone, grouping and floor order; "לכולם" with `media.layout`, "רק אני" with `screen.personalize`. **"עריכת השלט"**: which sections show, order, folded keys, sources and apps order and names, per screen or as the default.
+- **In the areas and on the home screen**: a media card in the area (one per screen, opens the same remote; "כבה הכל" includes screens confirmed on) and a home widget with the screens that are on.
+- **Settings › מולטימדיה**: approve detected screens (one tap for all), display name, kind, public screen, profile, linked amplifier, default audio target, volume ceiling, extra keys; feature switch `multimedia.enabled`.
+- **Permissions**: `media.read`, `media.control`, `media.power`, `media.layout`; sensitive `media.public` (change app / source / navigate on a public screen) and `media.bulk` (floor "כבה מסכים"). Custom roles holding `devices.read` gain `media.read`, holding `devices.control` gain `media.control` and `media.power`; the sensitive two are never granted automatically.
+- **Safety**: every command through one server path with rate limits per user and screen; a managed screen is controlled only from מולטימדיה (the generic device action answers `use_media_screen`); the bridge re-checks every media service call (0.4.0). Players, speakers and groups follow in 0.1.150.
+### Air conditioning and heating
+- **"חימום" is its own group**: thermostats, heat pumps and water / floor heating (a climate that cannot cool) have their own card, counters and "כבה חימום"; "כבה מיזוג" never touches them; a per-entity override (הגדרות › חשמל והתקנים › מיזוג וחימום).
+- **Temperature steps by one degree** unless the entity reports its own step; the entity's own range is honoured (a 45° target no longer snaps to 35°). A scheduled "on" picks a mode the entity offers. `heat_cool` reads "חימום/קירור". An entity without a name is named after its device.
+### Camera wall
+- **"מוצגת" per camera in סידור הקיר**: a hidden camera leaves the grid, the stream budget and the counter ("מוצגות 9 מתוך 12 מצלמות"), stays reachable from its own page, saved views and investigation; the kiosk follows the wall.
+- "עריכת המסך הראשי" appears in the user menu only on the home screen.
+### Video
+- **"WebRTC only" is respected on every channel**: an explicit WebRTC choice (the installation default or your own) no longer falls back to MSE, also through the remote route (the player tries the other profile over WebRTC instead); a settings change reaches an open page within a minute.
+### State sync (from 0.1.148, now on the systems that lacked it)
+- The Home Assistant state sync tolerates an integration that reports `supported_features` as a list; one bad state no longer drops the snapshot.
+### Documents
+- A security review of the media command path was applied (per-device and per-user rate limits for every non-power command, no tokenised picture URL in the browser, identifiers shaped like addresses never merge devices, sibling switches/selects of an approved screen are controlled only from מולטימדיה, a linked amplifier needs its own control permission, a clear refusal code for the personal layout without `screen.personalize`).
+- User guide chapter "מולטימדיה", settings and roles pages updated, CR-015 change request and API contract, WisKey native-integration Gate A findings and the Codex correspondence (docs/integrations/wiskey), the designer handoff package (docs/design/handoff), Music Assistant and TV remote research notes.
+
 ### Home screen
 - **A calm area row**: the per-A/C chip lists (floor "מזגני הקומה", building "מזגנים בבניין") are gone. Each area row carries ONE air-conditioning
   indicator (snowflake / flame / fan by the dominant mode, dimmed when off, optional temperature or mode, the number working when several) followed by
