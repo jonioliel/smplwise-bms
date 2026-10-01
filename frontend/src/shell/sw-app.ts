@@ -34,6 +34,8 @@ import '../screens/devices-building';
 import '../screens/devices-area';
 import '../screens/devices-schedules';
 import '../screens/system-schedules';
+import '../screens/devices-automations'; // CR-017: אוטומציות · סצנות · סקריפטים (the third tab of the home area)
+import '../screens/system-automations'; // CR-017: הגדרות › אוטומציות
 import '../screens/multimedia-screens'; // CR-015: the screens page (the remote, <media-remote>, is S3's and registers itself where it is imported)
 import '../screens/multimedia-players'; // CR-016: "נגנים ורמקולים" (the player panel, <media-player-panel>, is S3's)
 import '../screens/multimedia-groups'; // CR-016: "קבוצות"
@@ -73,7 +75,7 @@ import { onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
-import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyMultimediaHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaRowSection, tabStyleOf, type LegacyAccess, tabAllowed, type NavTabId } from './nav';
+import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaRowSection, tabStyleOf, type LegacyAccess, tabAllowed, type NavTabId } from './nav';
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { t } from '../i18n/he';
 import { can, canNav, isApi, loadSession, nvrLess, onSession, watchPermissions, type Session } from '../api/session';
@@ -1148,6 +1150,7 @@ export class SwApp extends LitElement {
           applyWiskeyUi(ps as unknown as Record<string, unknown>); // הגדרות › בקרות כניסה: embed or SMPLWISE per WisKey screen
           applySnapshotHidden(ps as unknown as Record<string, unknown>); // ui.security_snapshot: the live overview leaves the navigation
           applySchedulesHidden(ps as unknown as Record<string, unknown>); // schedules.enabled (CR-014): the "תזמונים" tab of the home area
+          applyAutomationsHidden(ps as unknown as Record<string, unknown>); // automations.enabled (CR-017): the "אוטומציות" tab of the home area
           applyMultimediaHidden(ps as unknown as Record<string, unknown>); // multimedia.enabled (CR-015): the "מולטימדיה" area
           applyTabsConfig(ps as unknown as Record<string, unknown>); // ui.tabs: the installation's tab order and hidden tabs (before the landing target below)
           // the start screen (0.1.68): only when the address carried no route of its own. CR-013: "ראשי" (the device
@@ -1653,6 +1656,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'security') return html`<system-security .sub=${s[2] ?? ''} .panelId=${r.params.get('panel') ?? ''}></system-security>`;
         if (s[1] === 'storage') return html`<system-storage></system-storage>`;
         if (s[1] === 'schedules') return html`<system-schedules></system-schedules>`; // הגדרות › תזמונים (CR-014)
+        if (s[1] === 'automations') return html`<system-automations></system-automations>`; // הגדרות › אוטומציות (CR-017)
         if (s[1] === 'multimedia') return html`<system-multimedia></system-multimedia>`; // הגדרות › מולטימדיה (CR-015)
         if (s[1] === 'entities') return html`<explore-entities></explore-entities>`; // the device catalogue, formerly the map's "התקנים" tab (system.configure only: the screen checks it too)
         if (s[1] === 'access') return html`<system-access></system-access>`;
@@ -1700,6 +1704,14 @@ export class SwApp extends LitElement {
           return html`<schedule-editor .scheduleId=${s[2] === 'new' ? '' : decodeURIComponent(s[2] ?? '')} .template=${r.params.get('template') ?? ''} .preset=${r.params.get('preset') ?? ''}></schedule-editor>`;
         }
         if (s[1] === 'schedules') return html`<devices-schedules></devices-schedules>`;
+        // CR-017: "אוטומציות" - the list (automations, scenes, scripts), its drawer and the trash are one element that reads the address itself; the builder
+        // (S4's <automation-builder>, by tag) is the route `.../<id>/edit` or `.../new/edit?kind=&template=` - the same split as the schedules editor.
+        if (s[1] === 'automations' && s[s.length - 1] === 'edit') {
+          const kind = s[2] === 'scripts' ? 'script' : s[2] === 'scenes' ? 'scene' : r.params.get('kind') ?? 'automation';
+          const id = s[2] === 'new' || s[3] === 'new' ? '' : decodeURIComponent((s[2] === 'scripts' || s[2] === 'scenes' ? s[3] : s[2]) ?? '');
+          return html`<automation-builder .kind=${kind} .itemId=${id} .template=${r.params.get('template') ?? ''}></automation-builder>`;
+        }
+        if (s[1] === 'automations') return html`<devices-automations></devices-automations>`;
         return html`<devices-building></devices-building>`;
       case 'multimedia':
         // CR-015 / CR-016: the screens page, the players page and the groups page (`?player=<key>` opens a player's panel)
@@ -1990,7 +2002,7 @@ export class SwApp extends LitElement {
     const section = area === 'security' ? sectionOf(this.route) : null;
     const tabs = section ? visibleTabs(SECTION_TABS[section], api, canNav) : area && area !== 'security' ? visibleTabs(AREA_TABS[area], api, canNav) : [];
     // the plan editors' and the schedule editor's routes, and the home layout editor (`?edit=1`, CR-014): no tab row
-    const editor = this.route?.segments[3] === 'edit' || this.route?.segments[3] === 'import' || isHomeEditRoute(this.route) || isMultimediaEditRoute(this.route);
+    const editor = this.route?.segments[3] === 'edit' || this.route?.segments[3] === 'import' || isHomeEditRoute(this.route) || isMultimediaEditRoute(this.route) || (this.route?.mode === 'devices' && this.route.segments[1] === 'automations' && this.route.segments[this.route.segments.length - 1] === 'edit'); // CR-017: the builder (scripts/<id>/edit is one segment deeper)
     const areas = visibleAreas(api, canNav, this.navOrder);
     const showSections = area === 'security' && !this.gated;
     // 0.1.148: the look of this row (pill / underline / compact underline) is the installation's choice per hierarchy level,
