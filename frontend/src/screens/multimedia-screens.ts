@@ -891,7 +891,8 @@ export class MultimediaScreens extends LitElement {
       @open-remote=${(e: CustomEvent<{ key: string }>) => this.openRemote(e.detail.key)} @media-changed=${() => this.scheduleRefresh(isApi() ? 700 : 30)}>${edit ? this.chips(d, index, count, size) : nothing}</media-screen-card>`;
   }
 
-  private group(g: CardGroup): TemplateResult {
+  /** `only`: the page shows this one group - its heading would repeat the filter chip (or, for the no-floor bucket of an installation without floors, say "ללא שיוך" about screens that do have a room), so it is left out. */
+  private group(g: CardGroup, only = false): TemplateResult {
     const all = g.items.map((i) => i.device);
     const counts = countsOf(all);
     const target = this.editing ? null : this.floorOfGroup(g);
@@ -903,6 +904,9 @@ export class MultimediaScreens extends LitElement {
       ? html`<h2>${nameText(bidi(g.label))}</h2>`
       : html`<h2><button type="button" class="shlink" data-group-open=${g.id} @click=${() => this.setFilters(target.scope === 'area' ? { area: g.id } : { floor: g.id, area: '' })}>${bidi(g.label)}${mIcon('chevronBack')}</button></h2>`;
     const lit = all.filter((d) => isLit(d.live)).length;
+    if (only && !this.editing && (g.id === 'none' || g.id === NO_FLOOR) && !offBtn) {
+      return html`<section class="fsec" aria-label=${g.label} data-group=${g.id}><div class="sgrid">${repeat(g.items, (i) => i.device.key, (i, idx) => this.card(i.device, i.size, idx, g.items.length))}</div></section>`;
+    }
     return html`<section class="fsec" aria-label=${g.label} data-group=${g.id}>
       <header class="sh"><div>${title}<small><span class="n">${counts.total}</span> ${counts.total === 1 ? 'מסך' : 'מסכים'}${lit ? html` · <em><span class="n">${lit}</span></em> פועלים` : nothing}</small></div><span class="grow"></span>${offBtn}</header>
       <div class="sgrid">${repeat(g.items, (i) => i.device.key, (i, idx) => this.card(i.device, i.size, idx, g.items.length))}</div>
@@ -1023,7 +1027,7 @@ export class MultimediaScreens extends LitElement {
     if (!groups.length) {
       return html`${stale}<div data-mm-state="filtered">${this.stateBox('search', 'לא נמצאו מסכים', filtersActive(this.filters) ? html`<button type="button" class="btn sm" data-clear-filters @click=${() => this.setFilters(NO_FILTER)}>נקה סינון</button>` : undefined)}</div>`;
     }
-    return html`${stale}<div class="groups" data-mm-state="ready">${groups.map((g) => this.group(g))}</div>`;
+    return html`${stale}<div class="groups" data-mm-state="ready">${groups.map((g) => this.group(g, groups.length === 1))}</div>`;
   }
 
   render() {
