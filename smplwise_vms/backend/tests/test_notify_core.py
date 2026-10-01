@@ -604,9 +604,12 @@ def test_migration_up_on_a_0_1_149_database_keeps_push_prefs_and_subscriptions(s
     assert c.get(f"{API}/notify/settings").json()["revision"] == 1 and c.get(f"{API}/push/prefs", headers=as_user("dev-old")).status_code == 200
 
 
-def test_migration_numbers_leave_0045_free_for_cr017():
-    nums = sorted(int(f.name.split("_", 1)[0]) for f in dbmod.MIGRATIONS_DIR.glob("*.sql"))
-    assert 45 not in nums and {46, 47, 48} <= set(nums)
+def test_migration_numbers_are_unique_and_cr017_holds_0045():
+    """CR-018's migrations were numbered 0046-0048 to leave 0045 to CR-017 (the numbering contract); with both merged the series has no gap and no duplicate."""
+    names = sorted(f.name for f in dbmod.MIGRATIONS_DIR.glob("*.sql"))
+    nums = [int(n.split("_", 1)[0]) for n in names]
+    assert len(nums) == len(set(nums)) and {45, 46, 47, 48} <= set(nums)
+    assert next(n for n in names if n.startswith("0045_")) == "0045_automations.sql"
 
 
 def test_a_token_redeemed_on_the_remote_channel_needs_the_sessions_own_user(w):

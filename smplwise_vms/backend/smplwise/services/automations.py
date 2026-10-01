@@ -46,6 +46,7 @@ FETCH_DEBOUNCE_S = 0.5
 RUN_KEEP_DAYS = 30
 OP_KEEP_DAYS = 30
 RECENT_OP_S = 120
+RUN_CHECK_DELAYS = (1.0, 3.0, 8.0, 20.0, 60.0, 180.0, 600.0)  # seconds: a run still running is looked at again, ever less often
 AUTHORING_RETRY_S = 60
 TRACE_LIST_MAX = 50
 
@@ -168,6 +169,8 @@ class Mirror:
         self._lock = threading.Lock()
         self._pending: set[str] = set()
         self._timer: threading.Timer | None = None
+        self._run_checks: set[tuple[str, str]] = set()  # (kind, item id) whose recent runs are to be settled (CR-018: a failed run is announced)
+        self._run_timers: dict[tuple[str, str], threading.Timer] = {}
 
     # -- wiring
 
@@ -183,6 +186,10 @@ class Mirror:
             if self._timer is not None:
                 self._timer.cancel()
             self._timer = None
+            for t in self._run_timers.values():
+                t.cancel()
+            self._run_timers.clear()
+            self._run_checks.clear()
         _STORM_AUDITED.clear()
 
     def now(self) -> dt.datetime:
@@ -485,12 +492,54 @@ class Mirror:
     def _drain(self) -> None:
         with self._lock:
             pending, self._pending = self._pending, set()
-        if not pending or self.db is None or not self.feature_on(self.db):
+            checks, self._run_checks = self._run_checks, set()
+        if self.db is None or not self.feature_on(self.db):
+            return
+        if pending:
+            try:
+                self.pull(None, "event")
+            except Exception:  # noqa: BLE001
+                log.exception("deferred automations refresh failed")
+        for kind, item_id in sorted(checks):
+            self._check_run(kind, item_id, 0)
+
+    # -- runs: a failed run is announced even when nobody has its trace open (services/automation_runs.check_item)
+
+    def queue_run_check(self, kind: str, item_id: str, attempt: int = 0) -> None:
+        """An automation ran (its `last_triggered` moved, or `automation_triggered` arrived): settle its recent runs shortly - the trace is only complete once the run
+        is over, so a run that is still running is looked at again (RUN_CHECK_DELAYS). Only queues: nothing here talks to HA or to the database. With
+        `debounce_s == 0` (tests) the check waits for `flush()`."""
+        if kind != "automation":
+            return
+        key = (kind, item_id)
+        with self._lock:
+            if self.debounce_s <= 0:
+                self._run_checks.add(key)
+                return
+            if key in self._run_timers:
+                return
+            t = threading.Timer(RUN_CHECK_DELAYS[min(attempt, len(RUN_CHECK_DELAYS) - 1)], self._run_timer_fire, args=(kind, item_id, attempt))
+            t.daemon = True
+            self._run_timers[key] = t
+            t.start()
+
+    def _run_timer_fire(self, kind: str, item_id: str, attempt: int) -> None:
+        with self._lock:
+            self._run_timers.pop((kind, item_id), None)
+        self._check_run(kind, item_id, attempt)
+
+    def _check_run(self, kind: str, item_id: str, attempt: int) -> None:
+        from . import automation_runs
+
+        if self.db is None:
             return
         try:
-            self.pull(None, "event")
+            result = automation_runs.check_item(self.db, kind, item_id)
         except Exception:  # noqa: BLE001
-            log.exception("deferred automations refresh failed")
+            log.exception("could not settle the runs of %s", item_id)
+            return
+        if result == "running" and attempt + 1 < len(RUN_CHECK_DELAYS):
+            self.queue_run_check(kind, item_id, attempt + 1)
 
 
 MIRROR = Mirror()
@@ -579,6 +628,7 @@ def note_run_for_entity(conn: sqlite3.Connection, entity_id: str, at_raw: Any, s
     if cur.rowcount:
         storm_check(conn, row["kind"], row["item_id"], now)
         publish([row["kind"]])
+        MIRROR.queue_run_check(row["kind"], row["item_id"])
 
 
 def storm_check(conn: sqlite3.Connection, kind: str, item_id: str, now: dt.datetime) -> str | None:

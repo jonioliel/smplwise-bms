@@ -10,7 +10,9 @@ are the product's existing ones, not new ones:
 | entity / area      | devices.read on the entity's placement (services/ha_scope), catalogued entities only             |
 | alarm_panel        | alarm.view on the panel's own placement (a shared room's mirror never widens it)                 |
 | door (WisKey)      | access.read at installation scope (stations have no site or floor)                               |
-| schedule/automation| the owner of record, or schedule.view (installation-wide, or on one of its action entities)      |
+| schedule           | the owner of record, or schedule.view (installation-wide, or on one of its action entities)      |
+| automation         | whoever may SEE it = automation.manage + the entities of its action targets in their floors        |
+|                    | (no view-only access, owner 2026-10-01); an item that is gone: installation-wide managers          |
 | bulk_job           | the initiator only                                                                               |
 | system             | system.configure                                                                                 |
 | session / security | the account's own user; a lockout also to system.configure holders                               |
@@ -104,6 +106,34 @@ class Reach:
             return False
         return ha_scope.entity_visible(False, floors, self._placed(own), entity_id)
 
+    def _automation(self, item_id: str, origin: dict[str, Any]) -> bool:
+        """CR-017: an automation's notification (`automation.failed`, `automation.notify`) is visible to exactly the callers who see the automation itself:
+        holders of `automation.manage` (there is no view-only access, owner decision 2026-10-01) whose floors hold the entities of its action targets
+        (`automation_scope.visible`; no typed target -> its trigger entities; neither -> installation-wide managers). The item is read from the mirror's cache
+        at every decision, never from the notification; an item that is gone is seen by installation-wide managers only."""
+        from . import automation_scope as scope
+        from . import automation_view as view
+        from . import automations as store
+
+        key = f"automation:{item_id}"
+        if key in self._cache:
+            return self._cache[key]
+        ctx = self._cache.get("auto_ctx")
+        if ctx is None:
+            ctx = self._cache["auto_ctx"] = scope.Ctx(self.conn, self.principal)
+        r = store.cache_row(self.conn, "automation", item_id) if item_id else None
+        if r is None:  # the item is gone (deleted, or never mirrored): its author and the installation-wide viewers still hear of it
+            ok = ctx.access.wide(scope.MANAGE)
+        elif not scope.holds_any(ctx, "automation"):
+            ok = False
+        else:
+            row = view.Row(r, None, None)
+            ctx.preload([row.entity_id] if row.entity_id else [])
+            _, facts = view.analyse_row(ctx, row)
+            ok = view.row_visible(ctx, row, facts)
+        self._cache[key] = ok
+        return ok
+
     # -- the rules
     def can_see(self, n: dict[str, Any]) -> bool:
         n = note_dict(n)
@@ -129,7 +159,9 @@ class Reach:
             return self._entity("alarm.view", sid, own=True)
         if kind == "door":
             return self._allowed("access.read")
-        if kind in ("schedule", "automation"):
+        if kind == "automation":
+            return self._automation(str(sid or ""), origin)
+        if kind == "schedule":
             if origin.get("owner_user_id") == uid:
                 return True
             if self._allowed("schedule.view"):

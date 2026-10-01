@@ -6,7 +6,9 @@ item list). A run of an item the caller may not see never leaves the server (vis
 or an unmasked secret-like value."""
 from __future__ import annotations
 
+import datetime as dt
 import json
+import logging
 import re
 import sqlite3
 from typing import Any
@@ -24,7 +26,11 @@ from . import automations as store
 from . import ha_scope
 from .timeutil import iso_utc, parse_utc, zone
 
+log = logging.getLogger("smplwise.automations")
+
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,80}$")
+SETTLED = ("ok", "error", "stopped", "not_triggered")  # a run that is over
+ANNOUNCE_WINDOW_S = 30 * 60  # a run older than this is history, not news: it is stored, never announced (the first look at a long-running installation)
 
 
 def _trace_domain(kind: str) -> str:
@@ -70,18 +76,133 @@ def runs_list(ctx: scope.Ctx, kind: str, item_id: str) -> dict[str, Any]:
     summaries = [trace.summary(e, ctx.name_of, tz) for e in entries]
     summaries = [s for s in summaries if s["at"]]
     summaries.sort(key=lambda s: s["at"], reverse=True)
-    _remember(ctx.conn, kind, item_id, entries, summaries)
+    _remember(ctx.conn, kind, item_id, entries, summaries, details=_prefetch_details(ctx.conn, kind, item_id, cid, entries, summaries))
     return {"items": summaries[:store.TRACE_LIST_MAX]}
 
 
-def _remember(conn: sqlite3.Connection, kind: str, item_id: str, entries: list[dict[str, Any]], summaries: list[dict[str, Any]]) -> None:
-    """The traces feed the list's last-run and 7-day count (one row per HA run id)."""
+def _remember(conn: sqlite3.Connection, kind: str, item_id: str, entries: list[dict[str, Any]], summaries: list[dict[str, Any]], *, details: dict[str, dict[str, Any]] | None = None) -> None:
+    """The traces feed the list's last-run and 7-day count (one row per HA run id) - and settle runs for the notification center (CR-018 section 15): the FIRST
+    time a run of an automation is seen over, an error is announced once (`automation.failed`) and every `notify` step the trace shows it executed is announced
+    (`automation.notify`). A run already stored as over is never announced again, so a re-read of the same traces is silent."""
     by = {e.get("run_id"): e for e in entries}
+    now = store.MIRROR.now()
+    fresh: list[tuple[dict[str, Any], dict[str, Any]]] = []
     for s in summaries[:store.TRACE_LIST_MAX]:
         e = by.get(s["run_id"]) or {}
         trig = e.get("trigger") if isinstance(e.get("trigger"), str) else None
+        rid = f"tr{s['run_id']}"[:80]
+        prev = conn.execute("SELECT result FROM automation_runs WHERE id = ?", (rid,)).fetchone()
         conn.execute("INSERT INTO automation_runs(id, kind, item_id, at, source, result, trigger_text) VALUES (?,?,?,?, 'trace', ?, ?) "
-                     "ON CONFLICT(id) DO UPDATE SET result = excluded.result, at = excluded.at", (f"tr{s['run_id']}"[:80], kind, item_id, s["at"], s["result"], (trig or "")[:120]))
+                     "ON CONFLICT(id) DO UPDATE SET result = excluded.result, at = excluded.at", (rid, kind, item_id, s["at"], s["result"], (trig or "")[:120]))
+        if kind == "automation" and s["result"] in SETTLED and (prev is None or prev["result"] not in SETTLED) and _recent(s["at"], now):
+            fresh.append((s, e))
+    if fresh:
+        try:
+            _announce(conn, item_id, fresh, details or {})
+        except Exception:  # noqa: BLE001 - a notification problem never breaks reading or mirroring runs
+            log.exception("could not announce the runs of automation %s", item_id)
+
+
+def _recent(at: str, now: dt.datetime) -> bool:
+    try:
+        return (now - parse_utc(at)).total_seconds() <= ANNOUNCE_WINDOW_S
+    except ValueError:
+        return False
+
+
+def _notify_steps(ctx: scope.Ctx, rd: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    """The typed `notify` steps of an automation whose target the administrator approved (setting `automations.notify_targets`): (draft path, block)."""
+    out = []
+    for w in model.walk_draft(rd["draft"]):
+        b = w.block
+        if w.section == "action" and b.get("kind") == "typed" and b.get("type") == "service" and b.get("role") == "notify" and b.get("action") in ctx.notify_targets:
+            out.append((w.path, b))
+    return out
+
+
+def _prefetch_details(conn: sqlite3.Connection, kind: str, item_id: str, config_id: str, entries: list[dict[str, Any]], summaries: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """`trace/get` of the recent finished runs of an automation that has an approved `notify` step (the only case that needs the step list; one WS call each, at
+    most the five most recent), keyed by run id. Anything else costs nothing."""
+    if kind != "automation":
+        return {}
+    r = store.cache_row(conn, kind, item_id)
+    cfg = store.row_config(r) if r is not None else None
+    if not isinstance(cfg, dict):
+        return {}
+    ctx = scope.Ctx(conn, None)
+    if not ctx.notify_targets or not _notify_steps(ctx, drafts.read(kind, cfg, ctx.model_ctx(code_view=False, scoped=False))):
+        return {}
+    now = store.MIRROR.now()
+    out: dict[str, dict[str, Any]] = {}
+    for s in summaries[:5]:
+        if s["result"] in SETTLED and _recent(s["at"], now) and RUN_ID_RE.match(s["run_id"]):
+            try:
+                reply = tr.get_transport().ws("trace/get", domain=kind, item_id=config_id, run_id=s["run_id"])
+            except ApiError:
+                continue
+            ok, _ = store.is_json_error(reply)
+            if ok and isinstance(reply.get("result"), dict):
+                out[s["run_id"]] = reply["result"]
+    return out
+
+
+def _announce(conn: sqlite3.Connection, item_id: str, fresh: list[tuple[dict[str, Any], dict[str, Any]]], details: dict[str, dict[str, Any]]) -> None:
+    """Hand the news of settled runs to the notification center (services/notify_sources): once per failed run, once per executed approved `notify` step."""
+    from . import notify_sources
+
+    r = store.cache_row(conn, "automation", item_id)
+    cfg = store.row_config(r) if r is not None else None
+    if r is None or not isinstance(cfg, dict):
+        return
+    ctx = scope.Ctx(conn, None)
+    rd = drafts.read("automation", cfg, ctx.model_ctx(code_view=False, scoped=False))
+    facts = scope.facts_of(ctx, "automation", rd, entity_id=r["entity_id"])
+    sentences = drafts.path_sentences(rd["draft"])
+    meta = store.meta_rows(conn).get(("automation", item_id))
+    owner = (meta["updated_by"] or meta["created_by"]) if meta is not None else None
+    name = str(rd["draft"].get("alias") or "אוטומציה")
+    targets = list(facts["targets"])[:50]
+    steps = _notify_steps(ctx, rd)
+    for s, e in fresh:
+        if s["result"] == "error":
+            step = sentences.get(model.normalise_path(str(e.get("last_step") or "")), "")
+            detail = f"הצעד \"{step[:60]}\" לא הושלם" if step else "הריצה נעצרה בשגיאה"
+            notify_sources.automation_failed(conn, item_id, name, detail, owner_user_id=owner, entity_ids=targets, run_id=s["run_id"])
+        entry = details.get(s["run_id"])
+        if steps and entry is not None:
+            ran = {model.normalise_path(str(p)) for p in (entry.get("trace") or {})}
+            for path, _block in steps:
+                if path in ran:
+                    notify_sources.automation_notify(conn, item_id, name, key=path, owner_user_id=owner, entity_ids=targets)
+
+
+def check_item(db: Any, kind: str, item_id: str) -> str | None:
+    """The mirror's own look at one automation's recent runs (an `automation_triggered` event queued it): reads `trace/list` outside any transaction, then settles the
+    runs (`_remember`) - this is how a failed run is announced when nobody has the runs open. Returns the latest run's result ('running' = look again later)."""
+    if kind != "automation":
+        return None
+    with db.connection(label="automations run check") as conn:
+        if not store.feature_on(conn):
+            return None
+        r = store.cache_row(conn, kind, item_id)
+        cid = r["config_id"] if r is not None else None
+        if not cid:
+            return None
+        tz = zone(scope.Ctx(conn, None).tz_name)
+    try:
+        reply = tr.get_transport().ws("trace/list", domain=kind, item_id=cid)
+    except ApiError:
+        return None
+    ok, _ = store.is_json_error(reply)
+    if not ok:
+        return None
+    entries = [e for e in (reply.get("result") or []) if isinstance(e, dict)]
+    with db.connection(label="automations run check") as conn:
+        ctx = scope.Ctx(conn, None)
+        summaries = [trace.summary(e, ctx.name_of, tz) for e in entries]
+        summaries = sorted((s for s in summaries if s["at"]), key=lambda s: s["at"], reverse=True)
+        _remember(conn, kind, item_id, entries, summaries, details=_prefetch_details(conn, kind, item_id, cid, entries, summaries))
+    return summaries[0]["result"] if summaries else None
 
 
 def run_detail(ctx: scope.Ctx, kind: str, item_id: str, run_id: str) -> dict[str, Any]:

@@ -562,12 +562,20 @@ def on_schedule_run(conn: sqlite3.Connection, schedule_id: str, name: str, resul
         notify.emit_full(conn, notify.Signal("schedule.not_confirmed", "schedule", schedule_id, resolve=True, params={"resolution": "next_run_confirmed"}))
 
 
+def _automation_link(automation_id: str, run_id: str | None = None) -> str:
+    """The deep link of an automation's notification: its drawer (the run's trace for a failure) in הבית › אוטומציות."""
+    from urllib.parse import quote
+
+    return f"#/devices/automations/{quote(automation_id, safe='')}" + (f"?view=trace&run={quote(run_id, safe='')}" if run_id else "")
+
+
 def automation_failed(conn: sqlite3.Connection, automation_id: str, name: str, detail: str, *, owner_user_id: str | None = None, entity_ids: list[str] | None = None, run_id: str | None = None) -> str | None:
     """The hook CR-017's runner calls when an automation run ends in an error (`automation.failed`; audience = the setting
     `notify.failures_audience`, default the administrators). Emits inside the caller's transaction; returns the new row's id (None when folded or
     disabled). `detail` is a short Hebrew phrase about the step - never a person, a secret or raw output."""
     return notify.emit(conn, notify.Signal("automation.failed", "automation", automation_id, params={"name": name or "אוטומציה", "place": name or "", "detail": detail},
-                                           origin={"run_id": run_id, "owner_user_id": owner_user_id, "entity_ids": (entity_ids or [])[:50]}, initiator_user_id=owner_user_id))
+                                           origin={"run_id": run_id, "owner_user_id": owner_user_id, "entity_ids": (entity_ids or [])[:50]}, initiator_user_id=owner_user_id,
+                                           link=_automation_link(automation_id, run_id)))
 
 
 def automation_notify(conn: sqlite3.Connection, automation_id: str, name: str, *, severity: str | None = None, key: str | None = None, owner_user_id: str | None = None,
@@ -575,7 +583,8 @@ def automation_notify(conn: sqlite3.Connection, automation_id: str, name: str, *
     """CR-017's `notify` action: `automation.notify` for the automation (its policy's recipients, channels and quiet hours; a `critical` severity is
     the caller's to authorise - CR section 15). `key` separates the notifications of one automation."""
     return notify.emit(conn, notify.Signal("automation.notify", "automation", automation_id, severity=severity, dedupe_key=f"automation.notify:automation:{automation_id}:{key}" if key else None,
-                                           params={"name": name or "אוטומציה", "place": name or ""}, origin={"owner_user_id": owner_user_id, "entity_ids": (entity_ids or [])[:50]}, initiator_user_id=owner_user_id))
+                                           params={"name": name or "אוטומציה", "place": name or ""}, origin={"owner_user_id": owner_user_id, "entity_ids": (entity_ids or [])[:50]}, initiator_user_id=owner_user_id,
+                                           link=_automation_link(automation_id)))
 
 
 # ---------------------------------------------------------------- bulk results
