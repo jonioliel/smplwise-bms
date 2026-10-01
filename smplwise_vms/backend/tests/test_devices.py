@@ -931,15 +931,17 @@ def test_bulk_entity_set_never_includes_locks_alarm_or_doors(bulk_app):
     sent = {t["entity_id"]: t["action_id"] for t in p["targets"]}
     assert sent == {
         "light.lobby": "light.turn_off",
+        "switch.lobby_sign": "switch.turn_off",
         "cover.lobby_blind": "cover.close_cover",
         "climate.lobby": "climate.turn_off",
         "fan.lobby": "fan.turn_off",
         "media_player.lobby_tv": "media_player.turn_off",
     }
-    assert p["by_domain"] == {"light": 1, "cover": 1, "climate": 1, "fan": 1, "media_player": 1} and p["count"] == 5
+    assert p["by_domain"] == {"light": 1, "switch": 1, "cover": 1, "climate": 1, "fan": 1, "media_player": 1} and p["count"] == 6
     assert p["never_included"] == {"lock": 1, "alarm_control_panel": 1}
-    # switches enter only when positively safe: the unmarked sign and the door-layer relay are listed, not sent
-    assert {x["entity_id"]: x["reason"] for x in p["excluded"]} == {"cover.lobby_gate": "door_cover", "switch.lobby_door_relay": "doors_layer", "switch.lobby_sign": "switch_not_marked"}
+    # CR-019: a judged, unprotected switch is included (the sign); the door-layer relay never is, protected or not (the
+    # classifier protected it too - "Door relay" - but the door layer is the reason that comes first)
+    assert {x["entity_id"]: x["reason"] for x in p["excluded"]} == {"cover.lobby_gate": "door_cover", "switch.lobby_door_relay": "doors_layer"}
     assert all(x["reason_label"] for x in p["excluded"])
     assert p["skipped"] == {"already": 1, "unavailable": 1}  # light.lobby_spot is off; light.lobby_dead is unavailable
     assert "מנעולים" in p["note"]
@@ -1105,15 +1107,29 @@ def test_bulk_not_sent_after_its_deadline_and_orphans_settled(bulk_app, monkeypa
     assert _audit_rows(app, phase="outcome")[-1]["details"]["bulk_id"] == "orphan1"
 
 
-def test_bulk_switches_only_when_positively_safe(bulk_app, monkeypatch):
-    """Review rounds 1-2: a door / gate release relay is a switch too. A switch enters a bulk action only when an
-    administrator marked it bulk-safe - a Plan Studio lighting circuit never grants that by itself (it only suggests the
-    mark); a switch placed with the default layer, or not placed at all, is listed as not included. A cover on the map's
-    door layer is never closed."""
+def _judge(app) -> dict:
+    """CR-019: the reconcile pass the registry refresh / start-up runs (the fixtures write the registry directly)."""
+    from smplwise.services import switch_protection
+
+    with app.state.db.connection() as conn:
+        return switch_protection.reconcile(conn, switch_protection.present_from_mirror(conn))
+
+
+def _protect(c, eid: str, protected: bool = True, **kw):
+    return c.put(f"/api/v1/devices/entities/{eid}/bulk-protected", json={"protected": protected}, **kw)
+
+
+def test_bulk_switches_included_unless_protected(bulk_app, monkeypatch):
+    """CR-019 (supersedes the opt-in of review rounds 1-2): every judged switch enters a group action unless it is protected
+    - by the classifier (a pump) or an administrator. A Plan Studio lighting circuit has no effect either way; a placed
+    switch is included like any other; a cover on the map's door layer is never closed. Protection is for group actions
+    only: the protected switch is still controllable on its own. A protection change after the preview changes the set
+    (409 target_changed)."""
     app, s, c, fake = bulk_app
     extra = [
         {"entity_id": "switch.lobby_placed", "state": "on", "attributes": {"friendly_name": "Placed relay"}},
         {"entity_id": "switch.lobby_circuit", "state": "on", "attributes": {"friendly_name": "Circuit switch"}},
+        {"entity_id": "switch.lobby_pump", "state": "on", "attributes": {"friendly_name": "Pool pump"}},
         {"entity_id": "cover.lobby_hatch", "state": "open", "attributes": {"friendly_name": "Hatch"}},
     ]
     assert c.post("/api/v1/ha/dev/states", json={"states": extra}).status_code == 200
@@ -1123,45 +1139,65 @@ def test_bulk_switches_only_when_positively_safe(bulk_app, monkeypatch):
     asset = c.post(f"/api/v1/floors/{ids['floor2']}/plan-assets", files={"file": ("p.png", png_bytes(), "image/png")}).json()
     vid = c.post(f"/api/v1/floors/{ids['floor2']}/plan-versions", json={"asset_id": asset["id"]}).json()["id"]
     assert c.post(f"/api/v1/plan-versions/{vid}/publish").status_code == 200
-    # a switch placed with the default layer (the anchor route puts a switch on "lights") and a cover on the door layer
     assert c.post(f"/api/v1/floors/{ids['floor2']}/anchors", json={"resource_type": "ha_entity", "resource_id": "switch.lobby_placed", "x": 0.2, "y": 0.2}).json()["layer_id"] == "lights"
     assert c.post(f"/api/v1/floors/{ids['floor2']}/anchors", json={"resource_type": "ha_entity", "resource_id": "cover.lobby_hatch", "x": 0.3, "y": 0.3, "layer_id": "doors"}).status_code == 201
-    # a published lighting circuit switched by switch.lobby_circuit
     from test_plan_circuits_search import LAMPS, LEVELS, _publish
 
     _publish(c, vid, levels=LEVELS, objects=LAMPS[:1], circuits=[{"id": "k1", "name": "לובי", "switch_entity_id": "switch.lobby_circuit", "member_ids": ["l1"], "color_token": "circuit-1", "power_w": 0}])
 
-    def preview() -> dict:
-        return c.get("/api/v1/devices/actions/preview", params={"scope": "area", "id": "lobby", "kind": "all_off"}).json()
+    def preview(kind: str = "all_off") -> dict:
+        return c.get("/api/v1/devices/actions/preview", params={"scope": "area", "id": "lobby", "kind": kind}).json()
 
     p = preview()
     sent = {t["entity_id"] for t in p["targets"]}
     excluded = {x["entity_id"]: x["reason"] for x in p["excluded"]}
-    assert "switch.lobby_circuit" not in sent and excluded["switch.lobby_circuit"] == "circuit_not_marked", "a circuit alone never makes a switch eligible"
-    assert excluded["switch.lobby_placed"] == "switch_not_marked", "placed with the default layer: not included"
-    assert excluded["switch.lobby_sign"] == "switch_not_marked", "not placed at all: not included"
+    assert {"switch.lobby_circuit", "switch.lobby_placed", "switch.lobby_sign"} <= sent, "judged and unprotected: included (circuit or not, placed or not)"
+    assert excluded["switch.lobby_pump"] == "switch_protected", "the classifier protected the pump"
+    assert {x["entity_id"]: x["reason_label"] for x in p["excluded"]}["switch.lobby_pump"] == "מתג מוגן - לא נכלל בפעולה קבוצתית"
+    assert {x["entity_id"]: x["reason_label"] for x in preview("switches_on")["excluded"]}["switch.lobby_pump"] == "מתג מוגן - לא נכלל בפעולה קבוצתית"
     assert excluded["cover.lobby_hatch"] == "doors_layer", "a cover on the door layer is never closed, device class or not"
-    assert "cover.lobby_hatch" not in {t["entity_id"] for t in c.get("/api/v1/devices/actions/preview", params={"scope": "area", "id": "lobby", "kind": "covers_close"}).json()["targets"]}
-    # the area screen tells a bulk holder which switches are in, and why
+    assert "cover.lobby_hatch" not in {t["entity_id"] for t in preview("covers_close")["targets"]}
+    # the area screen tells a bulk holder which switches are protected, and why each is in or out
     rows = {r["entity_id"]: r for r in c.get("/api/v1/devices/areas/lobby").json()["cards"]["switches"]["entities"]}
-    assert (rows["switch.lobby_circuit"]["bulk_safe"], rows["switch.lobby_circuit"]["bulk_reason"]) == (False, "circuit_not_marked")
-    assert (rows["switch.lobby_sign"]["bulk_safe"], rows["switch.lobby_sign"]["bulk_reason"]) == (False, "switch_not_marked")
-    # marking is an administrator's statement: system.configure only, audited; a site_admin cannot
+    assert (rows["switch.lobby_circuit"]["bulk_protected"], rows["switch.lobby_circuit"]["bulk_reason"]) == (False, "allowed")
+    assert (rows["switch.lobby_pump"]["bulk_protected"], rows["switch.lobby_pump"]["bulk_reason"]) == (True, "protected")
+    assert "bulk_safe" not in rows["switch.lobby_sign"] and c.get("/api/v1/devices/areas/lobby").json()["can_mark_bulk_protected"] is True
+    # protecting is an administrator's statement: system.configure only (before the body), audited; a site_admin cannot
     bind(c, s, "sa", "site_admin", "installation", "*")
-    assert c.put("/api/v1/devices/entities/switch.lobby_sign/bulk-safe", json={"bulk_safe": True}, headers=as_user("sa")).status_code == 403
-    assert c.put("/api/v1/devices/entities/light.lobby/bulk-safe", json={"bulk_safe": True}).status_code == 422
-    r = c.put("/api/v1/devices/entities/switch.lobby_sign/bulk-safe", json={"bulk_safe": True})
-    assert r.status_code == 200 and r.json()["bulk_safe"] is True and r.json()["bulk_reason"] == "marked"
-    assert "switch.lobby_sign" in {t["entity_id"] for t in preview()["targets"]}
-    assert c.put("/api/v1/devices/entities/switch.lobby_circuit/bulk-safe", json={"bulk_safe": True}).json()["bulk_reason"] == "marked"
-    assert "switch.lobby_circuit" in {t["entity_id"] for t in preview()["targets"]}, "a circuit switch with the mark is included"
-    # a mark never overrides the door layer
-    assert c.put("/api/v1/devices/entities/switch.lobby_placed/bulk-safe", json={"bulk_safe": True}).status_code == 200
-    assert "switch.lobby_placed" in {t["entity_id"] for t in preview()["targets"]}
-    assert c.put("/api/v1/devices/entities/switch.lobby_sign/bulk-safe", json={"bulk_safe": False}).json()["bulk_safe"] is False
-    assert preview()["excluded"] and "switch.lobby_sign" in {x["entity_id"] for x in preview()["excluded"]}
+    assert _protect(c, "switch.lobby_sign", headers=as_user("sa")).status_code == 403
+    assert c.put("/api/v1/devices/entities/switch.lobby_sign/bulk-protected", content=b"x", headers={**as_user("sa"), "content-type": "text/plain"}).status_code == 403
+    assert _protect(c, "light.lobby").status_code == 422
+    assert _protect(c, "switch.nope").status_code == 404
+    assert c.put("/api/v1/devices/entities/switch.lobby_sign/bulk-protected", json={"protected": "yes"}).status_code == 422
+    assert c.put("/api/v1/devices/entities/switch.lobby_sign/bulk-protected", json={"protected": True, "x": 1}).status_code == 422
+    assert c.put("/api/v1/devices/entities/switch.lobby_sign/bulk-protected", content=b'{"protected": true}', headers={"content-type": "text/plain"}).status_code == 415
+    # a protection change after the preview changes the set: the old digest is refused
+    before = preview()
+    r = _protect(c, "switch.lobby_circuit")
+    assert r.status_code == 200 and r.json() == {"entity_id": "switch.lobby_circuit", "bulk_protected": True, "bulk_reason": "protected", "source": "manual", "reviewed": True}
+    assert "switch.lobby_circuit" not in {t["entity_id"] for t in preview()["targets"]}, "a circuit never un-protects a switch"
+    r = c.post("/api/v1/devices/actions", json=_bulk(kind="all_off", preview_digest=before["digest"]))
+    assert r.status_code == 409 and r.json()["code"] == "target_changed"
+    # removing protection includes it again (and the classifier never re-protects it)
+    r = _protect(c, "switch.lobby_pump", False)
+    assert r.json() == {"entity_id": "switch.lobby_pump", "bulk_protected": False, "bulk_reason": "allowed", "source": None, "reviewed": None}
+    assert "switch.lobby_pump" in {t["entity_id"] for t in preview()["targets"]}
+    _judge(app)
+    assert "switch.lobby_pump" in {t["entity_id"] for t in preview()["targets"]}
+    assert _protect(c, "switch.lobby_pump").status_code == 200
     with app.state.db.connection() as conn:
-        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'devices.bulk_safe' AND decision = 'allowed'").fetchone()[0] == 4
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'devices.bulk_protected' AND decision = 'allowed'").fetchone()[0] == 3
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'system.configure' AND decision = 'denied'").fetchone()[0] >= 2
+    # protected = out of GROUP actions only: the switch is still controllable on its own (devices.control, the single route)
+    r = c.post("/api/v1/ha/entities/switch.lobby_pump/actions", json={"allowed_action_id": "switch.turn_off", "arguments": {}, "client_request_id": "pump-off-1", "expires_at": "2099-01-01T00:00:00Z"})
+    assert r.status_code == 202, r.text
+    assert any(x["data"]["entity_id"] == "switch.lobby_pump" for x in fake.calls)
+    # a switch on the door layer is never in a group action: protection does not apply (409, audited)
+    assert c.post(f"/api/v1/floors/{ids['floor2']}/anchors", json={"resource_type": "ha_entity", "resource_id": "switch.lobby_sign", "x": 0.4, "y": 0.4, "layer_id": "doors"}).status_code == 201
+    r = _protect(c, "switch.lobby_sign")
+    assert r.status_code == 409 and r.json()["code"] == "doors_layer"
+    with app.state.db.connection() as conn:
+        assert conn.execute("SELECT reason FROM audit_log WHERE action = 'devices.bulk_protected' AND decision = 'denied' ORDER BY id DESC").fetchone()[0] == "doors_layer"
     # input_booleans are HA flags, not devices: never in a bulk action
     assert c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": "input_boolean.lobby_flag", "state": "on", "attributes": {}}]}).status_code == 200
     reg2 = reg + [_reg("input_boolean.lobby_flag", "lobby")]
@@ -1204,33 +1240,34 @@ def test_media_player_standby_confirms_turn_off(bulk_app):
     assert ha_actions.state_matches("media_player.turn_off", "off", "standby") and not ha_actions.state_matches("light.turn_off", "off", "standby")
 
 
-def test_bulk_safe_mark_cleared_when_the_entity_leaves_home_assistant(bulk_app):
-    """Review round 2: a mark never outlives its entity. When a registry refresh no longer lists the switch (removed,
-    or renamed to another id), its mark is deleted and audited, so a returning id is never pre-marked."""
+def test_protection_kept_when_the_entity_leaves_home_assistant_and_follows_a_rename(bulk_app):
+    """CR-019 M3 (the inverse of CR-007's cleared mark): protection outlives a registry refresh that no longer lists the
+    switch (marked gone, kept, still applied), comes back with it, and follows an entity id rename by registry id."""
     app, s, c, fake = bulk_app
-    assert c.put("/api/v1/devices/entities/switch.lobby_sign/bulk-safe", json={"bulk_safe": True}).status_code == 200
-    assert c.put("/api/v1/devices/entities/switch.loose/bulk-safe", json={"bulk_safe": True}).status_code == 200
-    # a refresh that still lists both keeps both marks
     assert c.post("/api/v1/ha/dev/registry", json={"entities": ENTITY_REGISTRY, "devices": [], "areas": AREAS, "floors": FLOORS}).status_code == 200
-    with app.state.db.connection() as conn:
-        assert {r[0] for r in conn.execute("SELECT entity_id FROM device_bulk_safe").fetchall()} == {"switch.lobby_sign", "switch.loose"}
-    # the sign is renamed in HA: its old id is gone from the registry
-    reg = [r for r in ENTITY_REGISTRY if r["entity_id"] != "switch.lobby_sign"] + [_reg("switch.lobby_sign_2", "lobby")]
-    assert c.post("/api/v1/ha/dev/registry", json={"entities": reg, "devices": [], "areas": AREAS, "floors": FLOORS}).status_code == 200
-    with app.state.db.connection() as conn:
-        assert {r[0] for r in conn.execute("SELECT entity_id FROM device_bulk_safe").fetchall()} == {"switch.loose"}
-        cleared = conn.execute("SELECT resource_id, reason FROM audit_log WHERE action = 'devices.bulk_safe.cleared'").fetchall()
-    assert [(r["resource_id"], r["reason"]) for r in cleared] == [("switch.lobby_sign", "entity_gone")]
-    # the id comes back: not pre-marked
-    assert c.post("/api/v1/ha/dev/registry", json={"entities": ENTITY_REGISTRY, "devices": [], "areas": AREAS, "floors": FLOORS}).status_code == 200
-    rows = {r["entity_id"]: r for r in c.get("/api/v1/devices/areas/lobby").json()["cards"]["switches"]["entities"]}
-    assert rows["switch.lobby_sign"]["bulk_reason"] == "switch_not_marked"
-    # the sync's own refresh applies the same rule (a tombstoned entity loses its mark too)
-    from smplwise.services import device_bulk as db_
+    assert _protect(c, "switch.lobby_sign").status_code == 200
 
+    def row(eid: str):
+        with app.state.db.connection() as conn:
+            r = conn.execute("SELECT * FROM device_bulk_protected WHERE entity_id = ?", (eid,)).fetchone()
+        return dict(r) if r else None
+
+    # the sign leaves HA's registry: kept, marked gone
+    reg = [r for r in ENTITY_REGISTRY if r["entity_id"] != "switch.lobby_sign"]
+    assert c.post("/api/v1/ha/dev/registry", json={"entities": reg, "devices": [], "areas": AREAS, "floors": FLOORS}).status_code == 200
+    assert row("switch.lobby_sign")["gone_at"]
     with app.state.db.connection() as conn:
-        conn.execute("UPDATE ha_entities SET removed_at = '2026-09-28T10:00:00Z' WHERE entity_id = 'switch.loose'")
-        assert db_.clear_stale_marks(conn, {"switch.loose"}) == ["switch.loose"]
+        assert device_bulk.SwitchPolicy(conn).switch_reason("switch.lobby_sign") == (False, "switch_protected")
+    # it comes back: present again, still protected
+    assert c.post("/api/v1/ha/dev/registry", json={"entities": ENTITY_REGISTRY, "devices": [], "areas": AREAS, "floors": FLOORS}).status_code == 200
+    assert row("switch.lobby_sign")["gone_at"] is None and row("switch.lobby_sign")["source"] == "manual"
+    # HA renames its entity id (the registry entry keeps its id): the protection moves with it
+    renamed = [r for r in ENTITY_REGISTRY if r["entity_id"] != "switch.lobby_sign"] + [{**_reg("switch.lobby_sign_new", "lobby"), "id": "reg-switch.lobby_sign"}]
+    assert c.post("/api/v1/ha/dev/registry", json={"entities": renamed, "devices": [], "areas": AREAS, "floors": FLOORS}).status_code == 200
+    assert row("switch.lobby_sign") is None and row("switch.lobby_sign_new")["source"] == "manual"
+    with app.state.db.connection() as conn:
+        moved = conn.execute("SELECT details_json FROM audit_log WHERE action = 'devices.bulk_protected.moved'").fetchall()
+    assert [json.loads(m[0]) for m in moved] == [{"from": "switch.lobby_sign", "to": "switch.lobby_sign_new"}]
 
 
 # ---------------------------------------------------------------- slice 4: climate/covers in full, sensors, assign
@@ -1602,20 +1639,22 @@ def test_items_permissions_read_only_rows_floor_scope_and_unlock_grant(dev_app):
 # ---------------------------------------------------------------- the tiles' panel master control (owner 2026-09-29)
 
 
-def test_bulk_master_switches_on_off_follow_the_bulk_safe_mark(bulk_app):
-    """switches_off / switches_on: the same SwitchPolicy as "כבה הכל" - an administrator's bulk-safe mark is the only
-    way a switch enters (turning ON is guarded exactly like off), never an input_boolean; only switches in the needed
-    state are sent; the run goes through the ordinary bulk envelope, records and audit."""
+def test_bulk_master_switches_on_off_follow_the_protection(bulk_app):
+    """switches_off / switches_on: the same SwitchPolicy as "כבה הכל" (CR-019) - a switch the classifier has not judged yet
+    is out (fail-safe), a judged one is in unless protected (turning ON is guarded exactly like off), never an
+    input_boolean; only switches in the needed state are sent; the run goes through the ordinary bulk envelope."""
     app, s, c, fake = bulk_app
     p = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "switches_off"}).json()
-    assert p["count"] == 0 and {x["entity_id"]: x["reason"] for x in p["excluded"]} == {"switch.lobby_sign": "switch_not_marked", "switch.loose": "switch_not_marked"}
-    assert c.put("/api/v1/devices/entities/switch.lobby_sign/bulk-safe", json={"bulk_safe": True}).status_code == 200
+    assert p["count"] == 0 and {x["entity_id"]: x["reason"] for x in p["excluded"]} == {"switch.lobby_sign": "switch_unclassified", "switch.loose": "switch_unclassified"}
+    assert {x["reason_label"] for x in p["excluded"]} == {"מתג חדש שטרם נבדק - לא נכלל עד לבדיקה"}
+    _judge(app)
+    assert _protect(c, "switch.loose").status_code == 200
     p = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "switches_off"}).json()
     assert [t["entity_id"] for t in p["targets"]] == ["switch.lobby_sign"] and p["targets"][0]["action_id"] == "switch.turn_off"
     assert p["kind_label"] == "כיבוי מתגים"
-    # already on: switches_on has nothing to send for it, and the unmarked loose switch stays out
+    # already on: switches_on has nothing to send for it, and the protected loose switch stays out
     on = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "switches_on"}).json()
-    assert on["count"] == 0 and on["skipped"]["already"] == 1 and [x["entity_id"] for x in on["excluded"]] == ["switch.loose"]
+    assert on["count"] == 0 and on["skipped"]["already"] == 1 and [(x["entity_id"], x["reason"]) for x in on["excluded"]] == [("switch.loose", "switch_protected")]
     r = c.post("/api/v1/devices/actions", json=_bulk(scope="building", id="*", kind="switches_off", preview_digest=p["digest"]))
     assert r.status_code == 202, r.text
     done = _finish(c, r.json()["id"])
@@ -1626,6 +1665,7 @@ def test_bulk_master_switches_on_off_follow_the_bulk_safe_mark(bulk_app):
     assert r2.status_code == 202, r2.text
     assert _finish(c, r2.json()["id"])["counts"]["confirmed"] == 1 and fake.calls[-1]["service"] == "turn_on"
     assert len(_audit_rows(app, phase="attempt", kind="switches_on")) == 1 and len(_audit_rows(app, phase="outcome", kind="switches_on")) == 1
+    assert "switch.loose" not in {x["data"]["entity_id"] for x in fake.calls}
     # a viewer / operator (no devices.control_bulk) is refused, as for every bulk kind
     bind(c, s, "op", "operator", "installation", "*")
     assert c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "switches_on"}, headers=as_user("op")).status_code == 403
@@ -1657,22 +1697,29 @@ def test_bulk_lights_and_screens_on_and_the_only_narrowing(bulk_app):
 
 def test_items_carry_the_bulk_facts_and_the_alarm_managed_seam(bulk_app):
     """Re-review M1: each items row says whether a bulk action would reach it (the bulk resolve's own SwitchPolicy) and
-    the switches list says whether this caller may mark switches; the "not marked" reason reads right for ON kinds;
-    a lights action no longer lists the locks / alarm as "not included" (only "כבה הכל" does). The alarm_managed seam
-    (set by another branch): a row carrying it truthy is excluded with its own reason; absent = not managed."""
+    the switches list says whether this caller may change switch protection (CR-019 renames: bulk_protected,
+    can_mark_bulk_protected); a lights action no longer lists the locks / alarm as "not included" (only "כבה הכל" does).
+    The alarm_managed seam: a row carrying it truthy is excluded with its own reason; absent = not managed."""
     app, s, c, fake = bulk_app
+
+    def rows_now() -> dict:
+        return {r["entity_id"]: r for f in c.get("/api/v1/devices/items", params={"kind": "switches"}).json()["floors"] for a in f["areas"] for r in a["items"]}
+
     sw = c.get("/api/v1/devices/items", params={"kind": "switches"}).json()
-    rows = {r["entity_id"]: r for f in sw["floors"] for a in f["areas"] for r in a["items"]}
-    assert rows["switch.lobby_sign"]["bulk_excluded"] == "switch_not_marked" and rows["switch.lobby_sign"]["bulk_safe"] is False
-    assert sw["can_mark_bulk_safe"] is True
-    c.put("/api/v1/devices/entities/switch.lobby_sign/bulk-safe", json={"bulk_safe": True})
-    rows = {r["entity_id"]: r for f in c.get("/api/v1/devices/items", params={"kind": "switches"}).json()["floors"] for a in f["areas"] for r in a["items"]}
-    assert rows["switch.lobby_sign"]["bulk_excluded"] is None and rows["switch.lobby_sign"]["bulk_safe"] is True
-    assert c.get("/api/v1/devices/items", params={"kind": "lights"}).json()["can_mark_bulk_safe"] is False
+    rows = rows_now()
+    assert (rows["switch.lobby_sign"]["bulk_excluded"], rows["switch.lobby_sign"]["bulk_protected"], rows["switch.lobby_sign"]["bulk_reason"]) == ("switch_unclassified", False, "unclassified")
+    assert sw["can_mark_bulk_protected"] is True and "can_mark_bulk_safe" not in sw and "bulk_safe" not in rows["switch.lobby_sign"]
+    _judge(app)
+    rows = rows_now()
+    assert (rows["switch.lobby_sign"]["bulk_excluded"], rows["switch.lobby_sign"]["bulk_protected"], rows["switch.lobby_sign"]["bulk_reason"]) == (None, False, "allowed")
+    _protect(c, "switch.lobby_sign")
+    rows = rows_now()
+    assert (rows["switch.lobby_sign"]["bulk_excluded"], rows["switch.lobby_sign"]["bulk_protected"], rows["switch.lobby_sign"]["bulk_reason"]) == ("switch_protected", True, "protected")
+    assert c.get("/api/v1/devices/items", params={"kind": "lights"}).json()["can_mark_bulk_protected"] is False
     bind(c, s, "vi", "viewer", "installation", "*")
-    assert c.get("/api/v1/devices/items", params={"kind": "switches"}, headers=as_user("vi")).json()["can_mark_bulk_safe"] is False
+    assert c.get("/api/v1/devices/items", params={"kind": "switches"}, headers=as_user("vi")).json()["can_mark_bulk_protected"] is False
     on = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "switches_on"}).json()
-    assert {x["entity_id"]: x["reason_label"] for x in on["excluded"]}["switch.loose"].startswith("לא סומן כבטוח לפעולה קבוצתית")
+    assert {x["entity_id"]: x["reason_label"] for x in on["excluded"]}["switch.lobby_sign"] == "מתג מוגן - לא נכלל בפעולה קבוצתית"
     lights = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "lights_off"}).json()
     assert lights["never_included"] == {}
     # the seam
@@ -1681,42 +1728,91 @@ def test_items_carry_the_bulk_facts_and_the_alarm_managed_seam(bulk_app):
     assert policy.excluded_reason({"entity_id": "light.x", "domain": "light", "alarm_managed": 1}) == "alarm_managed"
     assert policy.excluded_reason({"entity_id": "light.x", "domain": "light"}) is None
     assert device_bulk.excluded_label("alarm_managed", "lights_off").startswith("נשלט ממסך האזעקה")
+    assert not {"switch_not_marked", "circuit_not_marked"} & (set(device_bulk.EXCLUDED_LABELS) | set(device_bulk.EXCLUDED_LABELS_ON))
     row = {"entity_id": "switch.s", "domain": "switch", "state": "on", "available": True, "card": "switches", "attributes": {}, "alarm_managed": 1}
     assert svc.card_row(row, True)["alarm_managed"] is True
     assert "alarm_managed" not in svc.card_row({k: v for k, v in row.items() if k != "alarm_managed"}, True)
 
-def test_bulk_safe_management_list_and_batch(bulk_app, monkeypatch):
-    """הגדרות › חשמל › פעולה קבוצתית (owner 2026-09-30): GET lists every switch with its mark; POST marks / unmarks many
-    in one call - system.configure before the body, at most 500 ids, per-id results (not a switch, alarm-managed and, to
-    mark, the door layer refused), one audit row per changed entity plus a summary row."""
+
+def test_protected_switches_list_and_batch(bulk_app, monkeypatch):
+    """הגדרות › חשמל והתקנים › מתגים מוגנים (CR-019 section 7): GET lists every switch with its protection, a summary and the
+    categories; POST protects / unprotects / approves many in one call - system.configure before the body, JSON only,
+    1..500 ids, per-id results (not a switch, alarm-managed, door layer refused), one audit row per changed entity plus a
+    summary row. The CR-007 bulk-safe paths are gone (404)."""
     app, s, c, fake = bulk_app
-    lst = c.get("/api/v1/devices/bulk-safe").json()
+    extra = [{"entity_id": "switch.lobby_boiler", "state": "off", "attributes": {"friendly_name": "Boiler"}}]
+    assert c.post("/api/v1/ha/dev/states", json={"states": extra}).status_code == 200
+    assert c.post("/api/v1/ha/dev/registry", json={"entities": ENTITY_REGISTRY + [_reg("switch.lobby_boiler", "lobby")], "devices": [], "areas": AREAS, "floors": FLOORS}).status_code == 200
+    lst = c.get("/api/v1/devices/bulk-protected").json()
     by = {r["entity_id"]: r for r in lst["switches"]}
-    assert set(by) >= {"switch.lobby_sign", "switch.loose"} and all(r["entity_id"].startswith("switch.") for r in lst["switches"])
-    assert by["switch.lobby_sign"]["marked"] is False and by["switch.lobby_sign"]["area_name"] == "לובי" and by["switch.lobby_sign"]["floor_name"] == "קרקע"
+    assert set(by) == {"switch.lobby_sign", "switch.loose", "switch.lobby_boiler"}
+    b = by["switch.lobby_boiler"]
+    assert (b["protected"], b["source"], b["category"], b["category_label"], b["rule"], b["reviewed"], b["included"], b["reason"]) == (
+        True, "auto", "water_heating", "משאבות ודודים", "name:boiler", False, False, "switch_protected")
+    assert b["reason_label"] == "מתג מוגן - לא נכלל בפעולה קבוצתית" and b["marked_by"] is None and b["marked_at"]
+    sign = by["switch.lobby_sign"]
+    assert (sign["protected"], sign["source"], sign["included"], sign["reason"], sign["reason_label"]) == (False, None, True, "allowed", None)
+    assert sign["area_name"] == "לובי" and sign["floor_name"] == "קרקע" and sign["alarm_managed"] is False and sign["doors_layer"] is False
+    assert set(sign) >= {"entity_id", "name", "area_id", "area_name", "floor_id", "floor_name", "state", "available", "platform", "protected", "source", "category",
+                         "category_label", "rule", "reviewed", "included", "reason", "reason_label", "alarm_managed", "doors_layer", "marked_by", "marked_at", "reviewed_by", "reviewed_at"}
+    assert lst["summary"] == {"switches": 3, "protected": 1, "auto_unreviewed": 1, "unprotected": 2, "gone_protected": 0}
+    assert {"id": "infrastructure", "label": "תשתית המערכת"} in lst["categories"]
     from smplwise.services import alarm as alarm_svc
 
     monkeypatch.setattr(alarm_svc, "managed_controls", lambda conn: {"switch.loose"})
-    r = c.post("/api/v1/devices/bulk-safe", json={"entity_ids": ["switch.lobby_sign", "switch.loose", "light.lobby", "switch.nope"], "bulk_safe": True})
+    r = c.post("/api/v1/devices/bulk-protected", json={"entity_ids": ["switch.lobby_sign", "switch.loose", "light.lobby", "switch.nope", "switch.lobby_sign"], "action": "protect"})
     assert r.status_code == 200, r.text
-    res = {x["entity_id"]: (x["ok"], x["reason"]) for x in r.json()["results"]}
-    assert res == {"switch.lobby_sign": (True, None), "switch.loose": (False, "alarm_managed"), "light.lobby": (False, "not_switch"), "switch.nope": (False, "not_switch")}
-    assert r.json()["changed"] == 1
-    lst = {x["entity_id"]: x for x in c.get("/api/v1/devices/bulk-safe").json()["switches"]}
-    assert lst["switch.lobby_sign"]["marked"] is True and lst["switch.lobby_sign"]["marked_by"] and lst["switch.loose"]["alarm_managed"] is True
+    res = {x["entity_id"]: (x["ok"], x["reason"], x["changed"]) for x in r.json()["results"]}
+    assert res == {"switch.lobby_sign": (True, None, True), "switch.loose": (False, "alarm_managed", False), "light.lobby": (False, "not_switch", False), "switch.nope": (False, "not_switch", False)}
+    assert r.json()["changed"] == 1 and r.json()["refused"] == 3 and len(r.json()["results"]) == 4, "the same id twice is handled once"
+    by = {x["entity_id"]: x for x in c.get("/api/v1/devices/bulk-protected").json()["switches"]}
+    assert (by["switch.lobby_sign"]["source"], by["switch.lobby_sign"]["reviewed"], by["switch.lobby_sign"]["marked_by"]) == ("manual", True, "joni")
+    assert by["switch.loose"]["alarm_managed"] is True and by["switch.loose"]["reason"] == "alarm_managed"
+    # approve the automatic row: reviewed, still protected; approving a manual row changes nothing
+    r = c.post("/api/v1/devices/bulk-protected", json={"entity_ids": ["switch.lobby_boiler", "switch.lobby_sign"], "action": "approve"})
+    assert [(x["entity_id"], x["ok"], x["changed"]) for x in r.json()["results"]] == [("switch.lobby_boiler", True, True), ("switch.lobby_sign", True, False)]
+    lst = c.get("/api/v1/devices/bulk-protected").json()
+    assert lst["summary"]["auto_unreviewed"] == 0 and {x["entity_id"]: x for x in lst["switches"]}["switch.lobby_boiler"]["reviewed_by"] == "joni"
+    # unprotect: included at once; the classifier never protects it again
+    r = c.post("/api/v1/devices/bulk-protected", json={"entity_ids": ["switch.lobby_boiler", "switch.lobby_sign"], "action": "unprotect"})
+    assert r.json()["changed"] == 2
+    _judge(app)
+    lst = c.get("/api/v1/devices/bulk-protected").json()
+    assert lst["summary"]["protected"] == 0 and all(x["included"] for x in lst["switches"] if x["entity_id"] != "switch.loose")
     with app.state.db.connection() as conn:
-        rows = [json.loads(x[1] or "{}") for x in conn.execute("SELECT action, details_json FROM audit_log WHERE action IN ('devices.bulk_safe', 'devices.bulk_safe.batch') ORDER BY rowid").fetchall()]
-        acts = [x[0] for x in conn.execute("SELECT action FROM audit_log WHERE action IN ('devices.bulk_safe', 'devices.bulk_safe.batch') ORDER BY rowid").fetchall()]
-    assert acts == ["devices.bulk_safe", "devices.bulk_safe.batch"] and rows[1]["changed"] == 1
-    # unmark; the same id twice counts once
-    r2 = c.post("/api/v1/devices/bulk-safe", json={"entity_ids": ["switch.lobby_sign", "switch.lobby_sign"], "bulk_safe": False})
-    assert r2.json()["changed"] == 1 and len(r2.json()["results"]) == 1
-    # limits and permission
-    assert c.post("/api/v1/devices/bulk-safe", json={"entity_ids": [f"switch.x{i}" for i in range(501)], "bulk_safe": True}).status_code == 422
-    assert c.post("/api/v1/devices/bulk-safe", json={"entity_ids": [], "bulk_safe": True}).status_code == 422
+        acts = [x[0] for x in conn.execute("SELECT action FROM audit_log WHERE action LIKE 'devices.bulk_protected%' AND action NOT IN ('devices.bulk_protected.auto', 'devices.bulk_protected.reconcile') ORDER BY id").fetchall()]
+        batches = [json.loads(x[0]) for x in conn.execute("SELECT details_json FROM audit_log WHERE action = 'devices.bulk_protected.batch' ORDER BY id").fetchall()]
+    assert acts == ["devices.bulk_protected", "devices.bulk_protected.batch", "devices.bulk_protected.reviewed", "devices.bulk_protected.batch",
+                    "devices.bulk_protected", "devices.bulk_protected", "devices.bulk_protected.batch"]
+    assert batches[0] == {"action": "protect", "requested": 4, "changed": 1, "refused": ["switch.loose", "light.lobby", "switch.nope"]}
+    # a switch on the door layer is never in a group action: refused (read-only row)
+    ids = seed_tree(c)
+    _publish_plan(c, ids["floor2"])
+    assert c.post(f"/api/v1/floors/{ids['floor2']}/anchors", json={"resource_type": "ha_entity", "resource_id": "switch.lobby_sign", "x": 0.3, "y": 0.3, "layer_id": "doors"}).status_code == 201
+    r = c.post("/api/v1/devices/bulk-protected", json={"entity_ids": ["switch.lobby_sign"], "action": "protect"})
+    assert r.json()["results"] == [{"entity_id": "switch.lobby_sign", "ok": False, "reason": "doors_layer", "changed": False}]
+    assert {x["entity_id"]: x for x in c.get("/api/v1/devices/bulk-protected").json()["switches"]}["switch.lobby_sign"]["doors_layer"] is True
+    # validation, limits, JSON only
+    assert c.post("/api/v1/devices/bulk-protected", json={"entity_ids": [f"switch.x{i}" for i in range(501)], "action": "protect"}).status_code == 422
+    assert c.post("/api/v1/devices/bulk-protected", json={"entity_ids": [], "action": "protect"}).status_code == 422
+    assert c.post("/api/v1/devices/bulk-protected", json={"entity_ids": ["switch.loose"], "action": "delete"}).status_code == 422
+    assert c.post("/api/v1/devices/bulk-protected", json={"entity_ids": ["switch.loose"], "bulk_safe": True}).status_code == 422
+    assert c.post("/api/v1/devices/bulk-protected", content=b'{"entity_ids": ["switch.loose"], "action": "protect"}', headers={"content-type": "text/plain"}).status_code == 415
+    # permission: system.configure before the body, audited
     bind(c, s, "op", "operator", "installation", "*")
-    assert c.get("/api/v1/devices/bulk-safe", headers=as_user("op")).status_code == 403
-    assert c.post("/api/v1/devices/bulk-safe", content=b"not json", headers={**as_user("op"), "content-type": "text/plain"}).status_code == 403
+    bind(c, s, "sa", "site_admin", "installation", "*")
+    with app.state.db.connection() as conn:
+        denied_before = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'system.configure' AND decision = 'denied'").fetchone()[0]
+    for who in ("op", "sa"):
+        assert c.get("/api/v1/devices/bulk-protected", headers=as_user(who)).status_code == 403
+        assert c.post("/api/v1/devices/bulk-protected", content=b"not json", headers={**as_user(who), "content-type": "text/plain"}).status_code == 403
+    with app.state.db.connection() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'system.configure' AND decision = 'denied'").fetchone()[0] >= denied_before + 4
+    # the CR-007 paths are gone
+    assert c.get("/api/v1/devices/bulk-safe").status_code == 404
+    assert c.post("/api/v1/devices/bulk-safe", json={"entity_ids": ["switch.loose"], "bulk_safe": True}).status_code in (404, 405)
+    assert c.put("/api/v1/devices/entities/switch.loose/bulk-safe", json={"bulk_safe": True}).status_code in (404, 405)
+
 
 def test_heating_is_its_own_group_with_its_own_counter_and_off_action(bulk_app):
     """Owner 2026-09-30: a climate entity that cannot cool (modes without cool / dry / fan_only - a thermostat, a heat

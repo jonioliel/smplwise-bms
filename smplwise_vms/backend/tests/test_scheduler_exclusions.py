@@ -1,6 +1,6 @@
 """CR-014 (SCHEDULER_API.md 5.5): the Scheduler component's own switches (`switch.schedule_*`, platform `scheduler`) are not
 devices. They have an HA device (V-LIVE), so without these rules they would appear in the devices tree / area / tiles, be
-markable as bulk-safe, be reached by a bulk action, take a general entity action, be dropped on a map or turn up in
+protected / unprotected from group actions (CR-019), be reached by a bulk action, take a general entity action, be dropped on a map or turn up in
 search. Synthetic entities only."""
 from __future__ import annotations
 
@@ -103,38 +103,48 @@ def test_devices_area_tree_items_and_tiles_leave_schedules_out(sched_app):
     assert unassigned == {"switch.loose"}
 
 
-def test_bulk_safe_list_and_marking_refuse_schedules(sched_app):
+def test_protection_list_and_routes_refuse_schedules_and_reconcile_skips_them(sched_app):
+    """CR-019: a schedule's switch is not a device - the protection routes refuse it (not_markable), the list leaves it out
+    and the classifier never judges it."""
     app, s, c = sched_app
-    assert c.put(f"/api/v1/devices/entities/{ORDINARY}/bulk-safe", json={"bulk_safe": True}).status_code == 200
+    from smplwise.services import switch_protection
+
+    assert c.put(f"/api/v1/devices/entities/{ORDINARY}/bulk-protected", json={"protected": True}).status_code == 200
     for eid in (SCHED, SCHED_FRESH):
-        r = c.put(f"/api/v1/devices/entities/{eid}/bulk-safe", json={"bulk_safe": True})
+        r = c.put(f"/api/v1/devices/entities/{eid}/bulk-protected", json={"protected": True})
         assert r.status_code == 422 and r.json()["code"] == "not_markable" and "תזמון" in r.json()["user_message"], eid
-        assert c.put(f"/api/v1/devices/entities/{eid}/bulk-safe", json={"bulk_safe": False}).status_code == 422, "not even to clear"
-    r = c.post("/api/v1/devices/bulk-safe", json={"entity_ids": [SCHED, ORDINARY, SCHED_FRESH, "switch.loose"], "bulk_safe": True})
-    assert r.status_code == 200, r.text
-    got = {x["entity_id"]: x for x in r.json()["results"]}
-    assert got[SCHED] == {"entity_id": SCHED, "ok": False, "reason": "not_markable"} and got[SCHED_FRESH]["reason"] == "not_markable"
-    assert got["switch.loose"]["ok"] is True
-    lst = {x["entity_id"] for x in c.get("/api/v1/devices/bulk-safe").json()["switches"]}
+        assert c.put(f"/api/v1/devices/entities/{eid}/bulk-protected", json={"protected": False}).status_code == 422, "not even to clear"
+    for action in ("protect", "unprotect", "approve"):
+        r = c.post("/api/v1/devices/bulk-protected", json={"entity_ids": [SCHED, ORDINARY, SCHED_FRESH, "switch.loose"], "action": action})
+        assert r.status_code == 200, r.text
+        got = {x["entity_id"]: x for x in r.json()["results"]}
+        assert got[SCHED] == {"entity_id": SCHED, "ok": False, "reason": "not_markable", "changed": False} and got[SCHED_FRESH]["reason"] == "not_markable"
+        assert got["switch.loose"]["ok"] is True
+    lst = {x["entity_id"] for x in c.get("/api/v1/devices/bulk-protected").json()["switches"]}
     assert SCHED not in lst and SCHED_FRESH not in lst and {ORDINARY, "switch.loose"} <= lst
     with app.state.db.connection() as conn:
-        marked = {r[0] for r in conn.execute("SELECT entity_id FROM device_bulk_safe").fetchall()}
-    assert marked.isdisjoint({SCHED, SCHED_FRESH})
+        switch_protection.reconcile(conn, switch_protection.present_from_mirror(conn))
+        judged = {r[0] for r in conn.execute("SELECT entity_id FROM device_bulk_protected UNION SELECT entity_id FROM device_switch_classified").fetchall()}
+    assert judged.isdisjoint({SCHED, SCHED_FRESH}) and {"switch.schedulexfoo", "switch.lobby_schedule_lamp"} <= judged, "look-alikes are judged like any switch"
 
 
-def test_bulk_never_reaches_a_schedule_even_when_it_was_marked_behind_the_routes(sched_app):
+def test_bulk_never_reaches_a_schedule_even_unprotected_or_unclassified(sched_app):
     app, s, c = sched_app
+    from smplwise.services import switch_protection
+
     assert c.get("/api/v1/devices/tree").status_code == 200  # the developer administrator's binding exists after a first request
     with app.state.db.connection() as conn:
-        device_bulk.set_bulk_safe(conn, _admin(), SCHED, True)  # the mark the routes now refuse, forced in
-        device_bulk.set_bulk_safe(conn, _admin(), ORDINARY, True)
+        _wide, _in_scope, permitted = device_bulk.bulk_scope(conn, _admin())
+        assert permitted(SCHED) is False and permitted(SCHED_FRESH) is False, "unclassified: refused before any protection rule"
+        switch_protection.set_protected(conn, _admin(), SCHED, False)  # judged and unprotected, forced in behind the routes
+        switch_protection.set_protected(conn, _admin(), ORDINARY, False)
         _wide, _in_scope, permitted = device_bulk.bulk_scope(conn, _admin())
         assert permitted(ORDINARY) is True
         assert permitted(SCHED) is False and permitted(SCHED_FRESH) is False, "refused explicitly, by catalogue platform and by id prefix"
         assert permitted("switch.schedule_zzzzzz") is False, "an id the catalogue has never seen is refused by prefix too"
     p = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "switches_off"}).json()
     named = {t["entity_id"] for t in p["targets"]} | {x["entity_id"] for x in p["excluded"]}
-    assert ORDINARY in named and SCHED not in named and SCHED_FRESH not in named
+    assert ORDINARY in {t["entity_id"] for t in p["targets"]} and SCHED not in named and SCHED_FRESH not in named
     p2 = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "switches_on"}).json()
     assert SCHED not in {t["entity_id"] for t in p2["targets"]} | {x["entity_id"] for x in p2["excluded"]}
     p3 = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "all_off"}).json()

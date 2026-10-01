@@ -128,6 +128,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             log.warning("settled %s bulk device action(s) left unfinished by the previous process", swept)
     except Exception:  # noqa: BLE001 - never block the start
         log.exception("could not settle unfinished bulk device actions")
+    try:  # CR-019: switch protection on the mirror the previous process left (renames, gone, switches not judged yet)
+        from .services import switch_protection
+
+        with app.state.db.connection(label="switch_protection.startup") as conn:
+            switch_protection.reconcile(conn, switch_protection.present_from_mirror(conn))
+    except Exception:  # noqa: BLE001 - never block the start; an unjudged switch stays out of group actions (fail-safe)
+        log.exception("could not reconcile the switch protection")
     try:  # 0.1.74: HA Hikvision-integration events get their camera (one cheap pass; new events get it on insert)
         from .services.correlation import backfill_ha_event_cameras
 

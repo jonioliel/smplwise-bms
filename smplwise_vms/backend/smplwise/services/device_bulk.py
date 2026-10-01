@@ -8,11 +8,12 @@ Many physical devices change from one click, so this module is deliberately narr
   entities the caller holds `devices.control_bulk` for (the entity's own placement, as every devices permission), and
   then to the domains of the requested kind - see KINDS. Only the everyday domains ever appear
   (ha_scope.DEVICES_CONTROL_DOMAINS); NEVER a lock, an alarm panel, a siren, a script, a scene or a button, never a
-  door / garage / gate cover, never a cover or switch placed on the map's door layer. A SWITCH enters only when an
-  administrator marked it bulk-safe (device_bulk_safe, system.configure) - CR-007 s3 forbids door release in bulk and a
-  maglock relay is a switch too. A Plan Studio lighting circuit never grants that by itself (drawing one needs only
-  map editing); it only makes the screens suggest the mark (review round 2). Every other switch is listed as "not
-  included" with the reason; a mark is cleared when its entity leaves Home Assistant (clear_stale_marks). input_booleans (HA flags, not devices) never enter.
+  door / garage / gate cover, never a cover or switch placed on the map's door layer, never an alarm zone's bypass
+  control. CR-019 (supersedes the opt-in of CR-007 section 7.10): a SWITCH enters unless it is PROTECTED
+  (device_bulk_protected - seeded by the conservative classifier of services/switch_protection.py, reviewed and changed
+  by an administrator with system.configure), and only once the classifier has judged it (a switch it has not seen yet
+  is excluded, `switch_unclassified`, never included). A Plan Studio lighting circuit has no effect either way. Every
+  excluded switch is listed as "not included" with the reason. input_booleans (HA flags, not devices) never enter.
   The import-time check below fails the add-on's start if KINDS ever names anything else.
 - An entity already in the target state (HA's last report) or unavailable is not sent: an "off" to a light that is
   already off could never be confirmed, and would only turn an honest result into noise. Both are counted.
@@ -96,7 +97,7 @@ KIND_LABELS = {
 SCOPE_LABELS = {"building": "המבנה", "floor": "קומה", "area": "אזור"}
 
 _LIGHTS = (("light", "light.turn_off"),)
-_SWITCHES = (("switch", "switch.turn_off"),)  # only positively safe switches (see switch_policy); never input_boolean
+_SWITCHES = (("switch", "switch.turn_off"),)  # every switch SwitchPolicy includes (not protected, judged, not hard-excluded); never input_boolean
 _COVERS_CLOSE = (("cover", "cover.close_cover"),)
 # CR-007 slice 4: the area's "כל התריסים" group control - open all / stop all / close all / position all, the same
 # resolve/record/run path as every other bulk kind (never a fan-out path of its own); the same exclusions apply
@@ -109,8 +110,8 @@ _CLIMATE = (("climate", "climate.turn_off"), ("fan", "fan.turn_off"))  # fans li
 # override) is its own group with its own off action; "כיבוי מיזוג" never reaches it, "כיבוי הכל" does (it is everything).
 _HEATING = (("climate", "climate.turn_off"),)
 _SCREENS = (("media_player", "media_player.turn_off"),)
-# owner 2026-09-29: the tiles' panel master control. Switches only through the same SwitchPolicy (an administrator's
-# bulk-safe mark is the only way in; never input_boolean, never the door layer) - turning ON is guarded exactly like off.
+# owner 2026-09-29: the tiles' panel master control. Switches only through the same SwitchPolicy (CR-019: a protected or
+# not yet judged switch never; never input_boolean, never the door layer) - turning ON is guarded exactly like off.
 _SWITCHES_ON = (("switch", "switch.turn_on"),)
 _LIGHTS_ON = (("light", "light.turn_on"),)
 _SCREENS_ON = (("media_player", "media_player.turn_on"),)
@@ -224,32 +225,38 @@ def _door_layer_entities(conn: Any) -> set[str]:
 
 
 class SwitchPolicy:
-    """Which covers / switches a bulk action may reach: the map's door layer, the Plan Studio circuits' switches and
-    the administrator's bulk-safe marks, read once per request."""
+    """Which covers / switches a bulk action may reach: the map's door layer, the alarm-managed controls and (CR-019) the
+    switch protection - the protected switches and the switches the classifier has judged - read once per request."""
 
     def __init__(self, conn: Any) -> None:
-        from . import geometry_store
-
         self.door_layer = _door_layer_entities(conn)
-        self.circuits = set(geometry_store.circuit_switches(conn))
-        self.marked = {r[0] for r in conn.execute("SELECT entity_id FROM device_bulk_safe").fetchall()}
+        # a protection row always applies, also while its entity is away from HA (gone_at): keeping it is the safe side
+        self.protected = {r[0] for r in conn.execute("SELECT entity_id FROM device_bulk_protected").fetchall()}
+        self.classified = {r[0] for r in conn.execute("SELECT entity_id FROM device_switch_classified").fetchall()}
         from . import alarm as alarm_svc
 
         self.alarm_managed = alarm_svc.managed_controls(conn)  # CR-010 review B1: a zone's bypass control, never in bulk
 
     def switch_reason(self, entity_id: str) -> tuple[bool, str]:
-        """(included, reason) for a switch: alarm_managed (never - it bypasses an alarm zone), doors_layer (never), marked
-        (the only way in), circuit_not_marked (a lighting circuit's switch - the mark is suggested, never implied) or
-        switch_not_marked."""
+        """(included, reason) for a switch, first hit wins (CR-019 section 4.1; the scheduler / media-managed switches never
+        get here - bulk_scope.permitted): alarm_managed (never - it bypasses an alarm zone), doors_layer (never),
+        switch_protected (an administrator or the classifier protected it), switch_unclassified (the classifier has not
+        judged it yet - excluded, never included), else allowed."""
         if entity_id in self.alarm_managed:
             return False, "alarm_managed"
         if entity_id in self.door_layer:
             return False, "doors_layer"
-        if entity_id in self.marked:
-            return True, "marked"
-        if entity_id in self.circuits:
-            return False, "circuit_not_marked"
-        return False, "switch_not_marked"
+        if entity_id in self.protected:
+            return False, "switch_protected"
+        if entity_id not in self.classified:
+            return False, "switch_unclassified"
+        return True, "allowed"
+
+    def switch_row(self, entity_id: str) -> tuple[bool, str]:
+        """(bulk_protected, bulk_reason) of a switch row in the area / items replies (API section 7.2): the mark itself, and
+        allowed | protected | unclassified | doors_layer | alarm_managed."""
+        _ok, reason = self.switch_reason(entity_id)
+        return entity_id in self.protected, ROW_REASONS.get(reason, reason)
 
     def excluded_reason(self, e: dict[str, Any]) -> str | None:
         # CR-010: an alarm zone's bypass control (computed once per request), or a row that says so itself
@@ -269,20 +276,22 @@ EXCLUDED_LABELS = {
     "alarm_managed": "נשלט ממסך האזעקה - מתג עקיפה של חיישן אזעקה לעולם לא בפעולה מרוכזת",
     "door_cover": "דלת / שער / חניה - תנועה של מעבר אינה נכללת בפעולה מרוכזת",
     "doors_layer": "הוצב במפה בשכבת הדלתות - לעולם לא בפעולה מרוכזת",
-    "switch_not_marked": "לא סומן כבטוח לכיבוי קבוצתי",
-    "circuit_not_marked": "לא סומן כבטוח לכיבוי קבוצתי (מפסק של מעגל תאורה - מומלץ לסמן כבטוח)",
+    # CR-019 section 7.4 (the same words for the "on" kinds)
+    "switch_protected": "מתג מוגן - לא נכלל בפעולה קבוצתית",
+    "switch_unclassified": "מתג חדש שטרם נבדק - לא נכלל עד לבדיקה",
     "no_position": "התריס אינו מדווח מיקום ואינו תומך בקביעת מיקום",
     # CR-015 (decision 8a): what the devices area's screens kinds leave out of a player list
     "not_a_screen": "לא מוגדר כמסך",
     "screen_not_approved": "מסך שטרם אושר בהגדרות המולטימדיה",
     "no_power": "אין למסך בקרת הפעלה",
 }
-# re-review: the same reasons in words that fit a kind that turns something ON (the "off" wording would be false)
+# re-review: the same reasons in words that fit a kind that turns something ON (the "off" wording would be false); CR-019's two
+# switch reasons read the same for both
 EXCLUDED_LABELS_ON = {
     **EXCLUDED_LABELS,
-    "switch_not_marked": "לא סומן כבטוח לפעולה קבוצתית (הדלקה וכיבוי)",
-    "circuit_not_marked": "לא סומן כבטוח לפעולה קבוצתית (מפסק של מעגל תאורה - מומלץ לסמן כבטוח)",
 }
+# CR-019 section 7.2: a switch row's `bulk_reason` (area / items replies) in the row vocabulary
+ROW_REASONS = {"switch_protected": "protected", "switch_unclassified": "unclassified"}
 
 
 def excluded_label(reason: str, kind: str) -> str:
@@ -1039,22 +1048,5 @@ def sweep_unfinished(db: Database) -> int:
     return n
 
 
-def clear_stale_marks(conn: Any, present: set[str]) -> list[str]:
-    """On a registry refresh: a bulk-safe mark whose entity is gone from Home Assistant (removed, or renamed to another
-    id) is deleted and audited, so an id that comes back later - maybe another device - is never pre-marked."""
-    gone = []
-    for r in conn.execute("SELECT b.entity_id, e.removed_at FROM device_bulk_safe b LEFT JOIN ha_entities e ON e.entity_id = b.entity_id").fetchall():
-        if r["entity_id"] not in present or r["removed_at"]:
-            gone.append(r["entity_id"])
-    for eid in gone:
-        conn.execute("DELETE FROM device_bulk_safe WHERE entity_id = ?", (eid,))
-        audit(conn, actor=None, action="devices.bulk_safe.cleared", decision="allowed", resource_type="ha_entity", resource_id=eid, reason="entity_gone")
-    return gone
-
-
-def set_bulk_safe(conn: Any, principal: Principal, entity_id: str, safe: bool) -> None:
-    if safe:
-        conn.execute("INSERT INTO device_bulk_safe(entity_id, marked_by, marked_by_username, marked_at) VALUES (?,?,?,?) ON CONFLICT(entity_id) DO UPDATE SET marked_by = excluded.marked_by, marked_by_username = excluded.marked_by_username, marked_at = excluded.marked_at",
-                     (entity_id, principal.user_id, principal.username, now_iso()))
-    else:
-        conn.execute("DELETE FROM device_bulk_safe WHERE entity_id = ?", (entity_id,))
+# CR-019: the CR-007 `clear_stale_marks` / `set_bulk_safe` are gone - `device_bulk_safe` is frozen (migration 0049) and the
+# protection is kept by services/switch_protection.py (`reconcile`, `set_protected`, `approve`).

@@ -48,7 +48,8 @@ PERMISSION_LABELS: dict[str, str] = {
     # off" for a building, an HA floor or an HA area, many physical devices from one click, each behind a confirmation
     # dialog and the server's own `confirmed: true`. It reaches ONLY lights, switches / input_booleans, covers (never
     # a door / garage / gate cover), climate, fans and media players - never a lock, the alarm panel, a siren, a script,
-    # a scene, a button or a switch placed on the map as a door (services/device_bulk.py). Treated like access.release:
+    # a scene, a button or a switch placed on the map as a door (services/device_bulk.py), and never a switch an
+    # administrator (or the CR-019 classifier) protected from group actions. Treated like access.release:
     # granted by default ONLY to site_admin and system_admin (not operator, whose devices.control stays single-entity),
     # listed in sensitive_permissions_not_implied, so a custom role grants it to one person only by naming it among its
     # sensitive permissions. Floor-scoped like devices.control (the entity's own placement): a floor binding runs floor
