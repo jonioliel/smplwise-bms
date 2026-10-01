@@ -466,6 +466,13 @@ def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Co
     if version and version != (get_setting(conn, "bridge.integration_version") or ""):
         set_setting(conn, "bridge.integration_version", version)
         audit(conn, actor=None, action="bridge.version_seen", decision="allowed", resource_type="installation", resource_id="*", details={"integration_version": version})
+    if "delegated_authoring" in message:  # CR-017 (bridge 0.6.0): the options-flow switch and the time it last changed - read-only state, never a request
+        new = "true" if message.get("delegated_authoring") is True else "false"
+        if new != (get_setting(conn, "bridge.delegated_authoring") or ""):
+            changed = str(message.get("delegation_changed_at") or now)[:40]
+            set_setting(conn, "bridge.delegated_authoring", new)
+            set_setting(conn, "bridge.delegation_changed_at", changed)
+            audit(conn, actor=None, action="bridge.delegation_seen", decision="allowed", resource_type="installation", resource_id="*", details={"delegated_authoring": new == "true", "changed_at": changed})
     return {"ok": True, "users": len(ids)}
 
 

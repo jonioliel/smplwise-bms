@@ -95,6 +95,18 @@ PERMISSION_LABELS: dict[str, str] = {
     "schedule.view": "צפייה בתזמונים",
     "schedule.manage": "ניהול תזמונים: יצירה, עריכה, הפעלה והשבתה, הרצה מיידית, מחיקה ושחזור",
     "schedule.sensitive": "תזמון פעולות רגישות: אזעקה, מנעולים, דלתות ושערים",
+    # CR-017 (אוטומציות · סצנות · סקריפטים, owner decisions 2026-10-01): six permissions, all scoped like devices.control - by the placement of the
+    # item's TARGET entities (HA areas and floors are never a scope). automation.view reads automations, scenes and scripts (site_admin, system_admin);
+    # automation.manage creates / edits / enables / disables / runs / deletes automations, scene.manage the scenes (capture, edit), script.manage the
+    # scripts (all SENSITIVE: a custom role names them among its sensitive permissions); script.run runs scripts (not sensitive); automation.code_view is
+    # the second side of the editor's "builder / code" toggle (SENSITIVE). A step that arms, disarms, unlocks, locks, sounds a siren or moves a door needs the
+    # same grant manual control needs at that entity (owner decision 6ג) - there is no separate "sensitive content" permission.
+    "automation.view": "צפייה באוטומציות, סצנות וסקריפטים",
+    "automation.manage": "יצירה, עריכה, הפעלה/השבתה, הרצה ומחיקה של אוטומציות",
+    "scene.manage": "יצירה, צילום ועריכה של סצנות",
+    "script.run": "הפעלת סקריפטים",
+    "script.manage": "יצירה ועריכה של סקריפטים",
+    "automation.code_view": "תצוגת קוד בעורך (הצד השני של המתג \"בונה · קוד\")",
     # screen.personalize (home redesign, owner decision 2026-09-30): the home screen's PERSONAL override - a direction of
     # its own and the user's own widget on / off / size / order (frontend החשבון שלי › המסך שלי, /me/prefs `home.personal`).
     # Presentation only, so it is not sensitive and is never implied by another permission; held by no default role except
