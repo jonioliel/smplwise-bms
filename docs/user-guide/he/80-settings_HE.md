@@ -444,6 +444,12 @@ C:/cloude/smplwisebms/.venv/Scripts/python.exe scripts/media_probe.py <קובץ-
 ![הגדרות · בקרות כניסה](img/settings-access-control.png)
 *צילום מהמערכת החיה.*
 
+![הגדרות · מולטימדיה (אישור מסכים, שלט ותקרות)](img/settings-multimedia.png)
+*צילום מהדגמה.*
+
+![הגדרות · חשמל והתקנים · מה מוצג ליד שם האזור](img/settings-devices-area-row.png)
+*צילום מהדגמה.*
+
 ![הגדרות · בריאות ועבודות](img/settings-health.png)
 *צילום מהמערכת החיה.*
 
