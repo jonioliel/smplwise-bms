@@ -20,7 +20,7 @@ from .config import DEV_NVR_PLACEHOLDER, Settings, load_settings
 from .db import Database
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
-from .routers import access, access_control, access_groups, alarm, anchors, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, events, exports, frames, ha, health, me, media, multimedia, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, views, zones, nvr_write
+from .routers import access, access_control, access_groups, alarm, anchors, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, events, exports, frames, ha, health, me, media, multimedia, notifications, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, views, zones, nvr_write
 
 log = logging.getLogger("smplwise")
 
@@ -120,6 +120,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     except Exception:  # noqa: BLE001 - never block the start
         log.exception("could not check the shared spaces schema")
     backup_svc.record_version(app.state.db)
+    try:  # CR-018: the per-source notification policies are created from the catalogue the first time (an administrator's edit is never overwritten)
+        from .services import notify_policy
+
+        with app.state.db.connection(label="notify_policy.ensure_defaults") as conn:
+            notify_policy.ensure_defaults(conn)
+    except Exception:  # noqa: BLE001 - never block the start
+        log.exception("could not create the notification policies")
     try:  # CR-007 slice 3 review: a bulk device action cut off by the previous process gets its outcome now
         from .services import device_bulk
 
@@ -205,6 +212,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(storage.router, prefix=api, tags=["storage"])
     app.include_router(rules.router, prefix=api, tags=["rules"])
     app.include_router(push.router, prefix=api, tags=["push"])
+    app.include_router(notifications.router, prefix=api, tags=["notifications"])  # CR-018: התראות - the inbox, the push action endpoint, administration (notify.manage)
     app.include_router(health.router, prefix=api, tags=["ops"])
     app.include_router(setup.router, prefix=api, tags=["ops"])
     app.include_router(views.router, prefix=api, tags=["views"])

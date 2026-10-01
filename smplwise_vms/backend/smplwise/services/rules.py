@@ -162,11 +162,13 @@ def evaluate_event(conn: sqlite3.Connection, ev: dict[str, Any], tz_name: str | 
         message = next((a.get("message") for a in rule["actions"] if a.get("kind") == "notify" and a.get("message")), "") or rule["name"]
         aid = new_id()
         now = now_iso()
-        conn.execute(
+        inserted = conn.execute(
             "INSERT OR IGNORE INTO rule_alerts(id, rule_id, event_id, camera_id, entity_id, fired_at, occurred_at, reasons_json, message) VALUES (?,?,?,?,?,?,?,?,?)",
             (aid, rule["id"], ev["id"], target_cam, target_ent, now, ev["occurred_at"], json.dumps(m["reasons"], ensure_ascii=False), message),
-        )
+        ).rowcount
         conn.execute("UPDATE rules SET last_fired_at = ? WHERE id = ?", (now, rule["id"]))
+        if inserted:
+            _notify_alert(conn, aid, rule, ev, message, target_cam, target_ent)
         pending = [(a["service"], a.get("message") or message, rule["name"]) for a in rule["actions"] if a.get("kind") == "ha_notify" and a.get("service")]
         details = ev.get("details") or {}
         # CR-008 P3: what the Web Push path needs to pick recipients by scope and preference (popped at delivery)
@@ -179,23 +181,57 @@ def evaluate_event(conn: sqlite3.Connection, ev: dict[str, Any], tz_name: str | 
     return fired
 
 
+def _notify_alert(conn: sqlite3.Connection, alert_id: str, rule: dict[str, Any], ev: dict[str, Any], message: str, camera_id: str | None, entity_id: str | None) -> None:
+    """CR-018: a fired rule is a `rule.alert` signal of the notification pipeline (services/notify). It is written inside the ingest transaction
+    (the alert row and its notification commit together; the outbox is read after the commit) and linked to the alert row, so an acknowledge on
+    either side acknowledges both. The recipients are the people who may see the alert (events.read, camera scope - the rule the alert list always
+    had), the channels and quiet hours the ADMINISTRATOR's policy of `rule.alert`. Repeats of the same rule on the same target fold into one row.
+    Never raises into ingestion."""
+    try:
+        from . import notify, push
+
+        details = ev.get("details") or {}
+        place = None
+        if camera_id:
+            cam = conn.execute("SELECT alias, name_source, channel FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+            place = (cam["alias"] or cam["name_source"] or f"ערוץ {cam['channel']}") if cam else None
+        elif entity_id:
+            place = details.get("name") or None
+        severity = ev.get("severity") if ev.get("severity") in SEVERITY_RANK else None
+        category = push.category_of(ev.get("type"), ev.get("source"), details.get("availability"))
+        sig = notify.Signal(
+            "rule.alert", "camera" if camera_id else ("entity" if entity_id else "system"), camera_id or entity_id, severity=severity, category=category,
+            dedupe_key=f"rule.alert:{rule['id']}:{camera_id or entity_id or ''}", params={"name": rule["name"], "message": message, "place": place or ""}, place=place,
+            origin={"alert_id": alert_id, "event_id": ev["id"], "rule_id": rule["id"], "camera_id": camera_id, "entity_id": entity_id, "events_scope": True},
+        )
+        res = notify.emit_full(conn, sig)
+        if res.id:
+            conn.execute("UPDATE rule_alerts SET notification_id = ? WHERE id = ?", (res.id, alert_id))
+    except Exception:  # noqa: BLE001 - a notification problem must never stop ingestion
+        import logging
+
+        logging.getLogger("smplwise.notify").exception("could not raise the notification of rule alert %s", alert_id)
+
+
 def deliver_pending(fired: list[dict[str, Any]]) -> None:
     """Send the Home Assistant notifications of fired rules. Callers that hold a write transaction (the alert stream,
     the HA state sync) evaluate with deliver=False and call this after their commit: the POST to HA can take up to its
     timeout, and under the write lock that stalled every other writer (round-10 lock storm).
-    CR-008 P3: the same alerts are then handed to the Web Push worker (services/push.py), which only enqueues here -
-    recipients, preferences and sending happen on its own thread."""
+    CR-018: the alerts were already written as notifications inside the caller's transaction (_notify_alert); the notifier thread (services/push.py)
+    plans the recipients, applies the administrator's policy and sends - this only wakes it."""
     for item in fired:
         for service, message, title in item.pop("_pending", None) or ():
             item["ha_notify"][service] = HA_NOTIFY(service, message, title)
+    for item in fired:
+        item.pop("_push", None)  # kept on the item for the legacy push planner; the notification pipeline (services/notify) already has the alert
     try:
-        from . import push
+        from . import notify
 
-        push.enqueue_fired(fired)
+        notify.wake()  # the notifier thread takes the outbox rows now that the caller has committed
     except Exception:  # noqa: BLE001 - a push problem must never break ingestion or the HA notifications
         import logging
 
-        logging.getLogger("smplwise.push").exception("could not enqueue Web Push notifications")
+        logging.getLogger("smplwise.push").exception("could not wake the notifier")
 
 
 def dry_run(conn: sqlite3.Connection, rule: dict[str, Any], hours: int, tz_name: str, now: dt.datetime | None = None) -> dict[str, Any]:

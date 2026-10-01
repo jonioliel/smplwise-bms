@@ -21,6 +21,11 @@ Rules of the road (CR-008 §3d):
   subscription. 429 and 5xx are retried with backoff (Retry-After honoured, capped); other 4xx count as failures.
 - Sending never happens under the SQLite write lock: the rules engine only enqueues (after its commit), a worker
   thread computes the recipients on a read connection, sends, and records each outcome in a short transaction.
+
+CR-018: the same worker thread also drains the notification outbox (services/notify_channels.py): notifications of EVERY source
+are planned there against the ADMINISTRATOR's policy and settings (no per-user preferences), pushed with payload v2 and sent
+by e-mail; each attempt is a row of the delivery log. The functions below that take a legacy "notice" dict (plan, notice_from_fired,
+payload_for, get_prefs ...) stay readable for one release, as the migration plan says; nothing in the product calls them but the tests.
 """
 from __future__ import annotations
 
@@ -53,7 +58,8 @@ from ..rbac import Principal
 
 log = logging.getLogger("smplwise.push")
 
-CATEGORIES = ("alerts", "doors", "device_faults", "system")
+CATEGORIES = ("alerts", "doors", "device_faults", "system")  # the legacy per-user preference keys (push_prefs), read for one more release
+ALL_CATEGORIES = ("safety", "alerts", "doors", "device_faults", "automations", "system", "security")  # CR-018 (services/notify_policy.CATEGORIES)
 DEFAULT_CATEGORIES: dict[str, bool] = {c: True for c in CATEGORIES}
 DEFAULT_QUIET: dict[str, Any] = {"enabled": False, "from": "22:00", "to": "07:00", "allow_critical": True}
 
@@ -427,6 +433,9 @@ class Job:
     urgency: str = "normal"
     attempt: int = 0
     camera_id: str | None = None  # the alert's camera (None = camera-less): what reach is re-checked against on a retry
+    notification_id: str | None = None  # CR-018: set for a notification delivery - reach is then re-checked through services/notify_visibility
+    delivery_id: str | None = None  # the delivery-log row this attempt updates
+    mode: str = "new"  # new | renotify | escalate | resolved
 
 
 def plan(conn: sqlite3.Connection, notice: dict[str, Any], now: dt.datetime | None = None, tz_name: str | None = None) -> tuple[list[Job], dict[str, str]]:
@@ -492,7 +501,15 @@ def still_allowed(conn: sqlite3.Connection, job: Job) -> Job | None:
     if u is None or not u["active"]:
         return None
     principal = Principal(user_id=u["id"], username=u["username"] or "", display_name=u["display_name"] or "", source="push")
-    if not row_scope(conn, principal, "events.read").allows_row(job.camera_id):
+    if job.notification_id:  # CR-018: the notification's own visibility rules (every subject kind), not only events.read
+        from .notify import _row_note
+        from .notify_visibility import Reach
+
+        n = conn.execute("SELECT * FROM notifications WHERE id = ?", (job.notification_id,)).fetchone()
+        if n is None or (n["state"] == "resolved" and job.mode != "resolved") or (job.mode == "escalate" and n["state"] != "open") or not Reach(conn, principal).can_see(_row_note(n)):
+            STATS["refused"] += 1
+            return None
+    elif not row_scope(conn, principal, "events.read").allows_row(job.camera_id):
         STATS["refused"] += 1
         return None
     job.endpoint, job.p256dh, job.auth = s["endpoint"], s["p256dh"], s["auth"]
@@ -543,31 +560,50 @@ def retryable(status: int) -> bool:
 
 def record(db: Database, job: Job, outcome: Outcome, final: bool) -> str:
     """Store what the push service said. 2xx → sent; 404/410 → the subscription is gone and removed; retryable while
-    attempts remain → retry (nothing stored yet); anything else counts a failure (dropped after DROP_AFTER_FAILURES)."""
+    attempts remain → retry (nothing stored yet); anything else counts a failure (dropped after DROP_AFTER_FAILURES).
+    A notification delivery (CR-018) also updates its delivery-log row in the same short transaction."""
     st = outcome.status
     with db.connection(label="push.record") as conn:
-        if 200 <= st < 300:
-            conn.execute("UPDATE push_subscriptions SET last_ok_at = ?, failures = 0, last_error = NULL WHERE id = ?", (now_iso(), job.sub_id))
-            STATS["sent"] += 1
-            STATS["last_sent_at"] = now_iso()
-            return "sent"
-        if st in (404, 410):
-            conn.execute("DELETE FROM push_subscriptions WHERE id = ?", (job.sub_id,))
-            STATS["gone"] += 1
-            log.info("push subscription %s removed: the push service at %s answered %s", job.sub_id, endpoint_host(job.endpoint), st)
-            return "gone"
-        if retryable(st) and not final:
-            STATS["retried"] += 1
-            return "retry"
-        conn.execute("UPDATE push_subscriptions SET failures = failures + 1, last_error = ? WHERE id = ?", (outcome.error or f"http_{st}", job.sub_id))
-        row = conn.execute("SELECT failures FROM push_subscriptions WHERE id = ?", (job.sub_id,)).fetchone()
-        STATS["failed"] += 1
-        STATS["last_error"] = outcome.error or f"http_{st}"
-        log.warning("push to %s failed: %s", endpoint_host(job.endpoint), outcome.error or st)
-        if row and row["failures"] >= DROP_AFTER_FAILURES:
-            conn.execute("DELETE FROM push_subscriptions WHERE id = ?", (job.sub_id,))
-            return "dropped"
-        return "failed"
+        result = _record(conn, job, outcome, final)
+        if job.delivery_id:
+            _log_delivery(conn, job, result, outcome, job.attempt + 1)
+        return result
+
+
+def _record(conn: sqlite3.Connection, job: Job, outcome: Outcome, final: bool) -> str:
+    st = outcome.status
+    if 200 <= st < 300:
+        conn.execute("UPDATE push_subscriptions SET last_ok_at = ?, failures = 0, last_error = NULL WHERE id = ?", (now_iso(), job.sub_id))
+        STATS["sent"] += 1
+        STATS["last_sent_at"] = now_iso()
+        return "sent"
+    if st in (404, 410):
+        conn.execute("DELETE FROM push_subscriptions WHERE id = ?", (job.sub_id,))
+        STATS["gone"] += 1
+        log.info("push subscription %s removed: the push service at %s answered %s", job.sub_id, endpoint_host(job.endpoint), st)
+        return "gone"
+    if retryable(st) and not final:
+        STATS["retried"] += 1
+        return "retry"
+    conn.execute("UPDATE push_subscriptions SET failures = failures + 1, last_error = ? WHERE id = ?", (outcome.error or f"http_{st}", job.sub_id))
+    row = conn.execute("SELECT failures FROM push_subscriptions WHERE id = ?", (job.sub_id,)).fetchone()
+    STATS["failed"] += 1
+    STATS["last_error"] = outcome.error or f"http_{st}"
+    log.warning("push to %s failed: %s", endpoint_host(job.endpoint), outcome.error or st)
+    if row and row["failures"] >= DROP_AFTER_FAILURES:
+        conn.execute("DELETE FROM push_subscriptions WHERE id = ?", (job.sub_id,))
+        return "dropped"
+    return "failed"
+
+
+def _log_delivery(conn: sqlite3.Connection, job: Job, result: str, outcome: Outcome, attempt: int) -> None:
+    """Update the delivery-log row of a notification push: status and reason (http_<n> / a network error class), the attempt
+    number, and - when it failed for good - a `delivery_failed` entry on the notification's timeline."""
+    status = {"sent": "sent", "gone": "gone", "retry": "retry", "failed": "failed", "dropped": "failed"}.get(result, "failed")
+    reason = None if status == "sent" else (outcome.error or f"http_{outcome.status}")
+    conn.execute("UPDATE notification_deliveries SET status = ?, reason = ?, attempt = ?, sent_at = CASE WHEN ? = 'sent' THEN ? ELSE sent_at END WHERE id = ?", (status, reason, attempt, status, now_iso(), job.delivery_id))
+    if status in ("failed", "gone") and job.notification_id:
+        conn.execute("INSERT INTO notification_events(notification_id, at, kind, channel) VALUES (?,?,?,?)", (job.notification_id, now_iso(), "delivery_failed", "webpush"))
 
 
 def send_test(db: Database, user_id: str) -> list[dict[str, Any]]:
@@ -591,17 +627,26 @@ def send_test(db: Database, user_id: str) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------- the worker
 
 class PushNotifier:
-    """Fans rule alerts out to push subscriptions on a thread of its own. `enqueue` never blocks and never touches the
-    database (the rules engine calls it right after its commit); retries wait in a heap, not in a sleep."""
+    """Fans notifications out to the channels (Web Push here; others plug in through services/notify_channels) on a thread of its own. `enqueue` / `wake` never block and never
+    touch the database (the writers call them right after their commit); retries wait in a heap, not in a sleep. The same
+    thread drains the notification outbox (CR-018) and runs the escalation timer."""
+
+    OUTBOX_POLL_S = 2.0  # the outbox is also polled: rows written by a writer that never calls wake() (a monitor) wait at most this long
+    ESCALATION_POLL_S = 10.0
+    HOUSEKEEPING_S = 300.0
 
     def __init__(self) -> None:
         self.q: queue.Queue[dict[str, Any] | None] = queue.Queue(maxsize=QUEUE_MAX)
-        self.retries: list[tuple[float, int, Job]] = []
+        self.retries: list[tuple[float, int, Any]] = []  # a push Job, or any channel job with run_retry() / recheck() (services/notify_channels)
         self.seq = itertools.count()
         self.db: Database | None = None
         self.thread: threading.Thread | None = None
         self.stop_evt = threading.Event()
         self.inflight = 0  # retry jobs taken off the heap and not yet finished (drain() waits for them too)
+        self.dirty = False  # a wake() not yet answered by an outbox pass (drain() waits for it)
+        self._next_outbox = 0.0
+        self._next_escalation = 0.0
+        self._next_housekeeping = 0.0
 
     @property
     def running(self) -> bool:
@@ -617,8 +662,12 @@ class PushNotifier:
         self.q = queue.Queue(maxsize=QUEUE_MAX)
         self.retries = []
         self.inflight = 0
+        self.dirty = True  # rows a previous process left in the outbox go out now
+        self._next_outbox = self._next_escalation = 0.0
+        self._next_housekeeping = time.monotonic() + 30.0
         self.thread = threading.Thread(target=self._loop, name="push-notifier", daemon=True)
         self.thread.start()
+        self.q.put_nowait({"_wake": True})  # the first outbox pass without waiting for the poll
 
     def shutdown(self, timeout: float = 5.0) -> None:
         """Stop the worker: alerts already queued get up to `timeout` seconds to go out; pending retries are given up
@@ -649,8 +698,20 @@ class PushNotifier:
                 STATS["dropped_queue"] += 1
         return n
 
+    def wake(self) -> None:
+        """There is outbox work: the notifier looks at it within a moment (and polls it every OUTBOX_POLL_S regardless)."""
+        if not self.running:
+            return
+        self.dirty = True
+        try:
+            self.q.put_nowait({"_wake": True})
+        except queue.Full:
+            pass  # a full queue is already busy; the poll picks the outbox up
+
     def process(self, notice: dict[str, Any]) -> None:
         assert self.db is not None
+        if notice.get("_wake"):
+            return  # a wake-up call: the loop runs the outbox right after
         with self.db.connection(mode="read", label="push.plan") as conn:
             key = signing_key(conn)
             if key is None:
@@ -659,6 +720,7 @@ class PushNotifier:
         for job in jobs:
             self.attempt(job, key)
 
+    # -- a push job
     def attempt(self, job: Job, key: tuple[ec.EllipticCurvePrivateKey, str]) -> str:
         assert self.db is not None
         outcome = send(job, key)
@@ -670,6 +732,12 @@ class PushNotifier:
             heapq.heappush(self.retries, (time.monotonic() + delay, next(self.seq), job))
         return result
 
+    # -- any other channel's job (services/notify_channels.Channel): scheduled for a retry, re-checked and re-run by the same thread
+    def schedule(self, delay: float, job: Any) -> None:
+        """Queue a retry of a channel job. The job must offer `recheck(db) -> bool` (is it still allowed to go out - visibility, the policy,
+        the configuration) and `run_retry(notifier) -> None` (one more attempt, which may `schedule` again)."""
+        heapq.heappush(self.retries, (time.monotonic() + delay, next(self.seq), job))
+
     def _due(self) -> float | None:
         return self.retries[0][0] - time.monotonic() if self.retries else None
 
@@ -677,46 +745,86 @@ class PushNotifier:
         while not self.stop_evt.is_set():
             wait = self._due()
             try:
-                item = self.q.get(timeout=max(0.0, min(wait, 5.0)) if wait is not None else 5.0)
+                item = self.q.get(timeout=max(0.0, min(wait, 1.0)) if wait is not None else 1.0)
             except queue.Empty:
                 item = None
             if self.stop_evt.is_set():
                 return
             try:
+                woke = False
                 if item is not None:
                     try:
-                        self.process(item)
+                        woke = bool(item.get("_wake"))
+                        if woke:
+                            time.sleep(0.12)  # the writer that woke us is committing: its outbox rows are visible a moment later
+                        else:
+                            self.process(item)
                     finally:
                         self.q.task_done()
                 self.run_due()
+                self.tick(force=woke)
             except Exception:  # noqa: BLE001 - the worker never dies on one bad alert
                 log.exception("push delivery failed")
 
+    def tick(self, force: bool = False) -> None:
+        """The periodic work: the notification outbox (at once after a wake-up, else every OUTBOX_POLL_S), the escalation timer
+        and, rarely, retention housekeeping and the channel-down check."""
+        assert self.db is not None
+        from . import notify_channels
+
+        now = time.monotonic()
+        if force or self.dirty or now >= self._next_outbox:
+            self.dirty = False
+            self._next_outbox = now + self.OUTBOX_POLL_S
+            notify_channels.process_outbox(self)
+        if now >= self._next_escalation:
+            self._next_escalation = now + self.ESCALATION_POLL_S
+            notify_channels.escalate(self.db)
+        if now >= self._next_housekeeping:
+            self._next_housekeeping = now + self.HOUSEKEEPING_S
+            notify_channels.housekeeping(self.db)
+
     def run_due(self) -> int:
-        """Send every retry whose time has come - each one re-checked first (still_allowed). Returns how many ran."""
+        """Send every retry whose time has come - each one re-checked first (still_allowed, or the channel job's own recheck). Returns how
+        many ran."""
         assert self.db is not None
         n = 0
         while self.retries and self.retries[0][0] <= time.monotonic():
             self.inflight += 1  # before the pop: drain() never sees an empty heap with a retry still on its way
             try:
                 _, _, job = heapq.heappop(self.retries)
-                with self.db.connection(mode="read", label="push.retry") as conn:
-                    key = signing_key(conn)
-                    fresh = still_allowed(conn, job) if key else None
-                if key and fresh:
-                    self.attempt(fresh, key)
+                if hasattr(job, "run_retry"):  # another channel's job (e-mail, later Companion): it re-checks itself
+                    if job.recheck(self.db):
+                        job.run_retry(self)
+                    else:
+                        STATS["retry_skipped"] += 1
                 else:
-                    STATS["retry_skipped"] += 1
+                    with self.db.connection(mode="read", label="push.retry") as conn:
+                        key = signing_key(conn)
+                        fresh = still_allowed(conn, job) if key else None
+                    if key and fresh:
+                        self.attempt(fresh, key)
+                    else:
+                        STATS["retry_skipped"] += 1
                 n += 1
             finally:
                 self.inflight -= 1
         return n
 
+    def outbox_pending(self) -> bool:
+        if self.db is None:
+            return False
+        try:
+            with self.db.connection(mode="read", label="notify.pending") as conn:
+                return conn.execute("SELECT 1 FROM notify_outbox LIMIT 1").fetchone() is not None
+        except Exception:  # noqa: BLE001
+            return False
+
     def drain(self, timeout: float = 5.0, retries: bool = True) -> bool:
         """Wait until nothing is queued or in flight (and, with `retries`, nothing waits in the retry heap); returns
-        whether that happened within `timeout`."""
+        whether that happened within `timeout`. The notification outbox counts as queued work while the worker runs."""
         deadline = time.monotonic() + timeout
-        while self.q.unfinished_tasks or self.inflight or (retries and self.retries):
+        while self.q.unfinished_tasks or self.inflight or self.dirty or (retries and self.retries) or (self.running and self.outbox_pending()):
             if time.monotonic() >= deadline:
                 return False
             time.sleep(0.02)

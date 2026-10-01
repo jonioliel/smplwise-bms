@@ -271,9 +271,12 @@ def test_notify_path_scope_retry_and_gone(settings, fake_push):
     public = c.get("/api/v1/push/vapid-key").json()["public_key"]
     _verify_vapid(req.headers["authorization"], public, browsers["joni"].endpoint)
     payload = browsers["joni"].decrypt(req.content)
-    assert payload["url"] == "#/investigate/events/ev-cam-1" and payload["event_id"] == "ev-cam-1" and payload["alert_id"] == fired[0]["id"]
+    # CR-018: payload v2 - the notification's id and deep link, never an event / camera id; the alert row is linked to its notification
+    assert payload["v"] == 2 and payload["url"] == f"#/notifications/{payload['id']}" and "ev-cam-1" not in json.dumps(payload) and cam not in json.dumps(payload)
+    with app.state.db.connection() as conn:
+        assert conn.execute("SELECT notification_id FROM rule_alerts WHERE id = ?", (fired[0]["id"],)).fetchone()[0] == payload["id"]
     assert "תנועה בלובי" in payload["title"] + payload["body"] and payload["category"] == "alerts"
-    assert set(payload) <= {"v", "title", "body", "url", "event_id", "alert_id", "tag", "category", "severity", "ts"}
+    assert set(payload) <= {"v", "id", "title", "body", "url", "tag", "category", "severity", "ts", "actions", "renotify", "resolved"}
     text = json.dumps(payload, ensure_ascii=False).lower()
     with app.state.db.connection() as conn:
         pem = conn.execute("SELECT private_pem FROM push_vapid").fetchone()[0]
@@ -283,7 +286,7 @@ def test_notify_path_scope_retry_and_gone(settings, fake_push):
 
 
 def ops2_payload_ok(browser: Browser, fake: FakePushService) -> bool:
-    return all(browser.decrypt(r.content)["event_id"] == "ev-cam-1" for r in fake.to(browser))
+    return all(browser.decrypt(r.content)["v"] == 2 for r in fake.to(browser))
 
 
 def test_camera_less_alert_needs_installation_scope(settings, fake_push):
