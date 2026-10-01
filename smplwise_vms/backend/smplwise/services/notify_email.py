@@ -16,14 +16,18 @@ recipients holds `notify.manage` and still passes visibility (services/notify_vi
 and never for a PERSONAL subject (`session`, `bulk_job`: another user's sign-in or job). Otherwise the delivery log says `skipped / no_reach`.
 
 THE SECRET: the SMTP password is written only to `<data>/secrets/notify_email` (directory 0700, file 0600, temp file + rename; the same
-policy as `<data>/keys/`), is never part of the settings row, a project backup, an API answer, an audit row, a log line or an exception text.
-The API only says `password_set`. A login over `security: none` is refused (the password would cross the LAN in clear).
+policy as `<data>/keys/`), is never part of the settings row, an Arx PROJECT backup (services/backup.py archives tables and plan files only), an API
+answer, an audit row, a log line or an exception text. It is NOT excluded from a Home Assistant add-on backup of `/data` (`backup: hot` in
+config.yaml) unless the add-on lists `secrets/` in `backup_exclude`; see the open question in the S4 report. The API only says `password_set`.
+A login over `security: none` is refused (the password would cross the LAN in clear).
 
-DELIVERY: planned on the notifier thread (`plan`: read-only), sent outside every lock (`send`): one message per recipient address, a
-delivery-log row each (masked address, never the address). Failures are CLASSIFIED - `dns`, `connect`, `tls`, `auth`, `refused`,
+DELIVERY: planned on the notifier thread (`plan`: read-only); `send` only HANDS the dispatch over to the channel's OWN worker thread (`EmailWorker`,
+its own queue and retry heap) so a slow or dead mail server can never hold Web Push, the outbox or the escalation timer. The worker sends outside every
+lock: one message per recipient address, a delivery-log row each (masked address, never the address); all recipients of one notification share a
+time budget (`MAX_NOTIFICATION_S`) and a dead server is contacted once, not once per recipient. Failures are CLASSIFIED - `dns`, `connect`, `tls`, `auth`, `refused`,
 `timeout` (+ `invalid`, `too_large`, `unavailable`) - and only the class is stored or shown, never a server banner or reply text (which
-can echo an address or a credential). A transient failure (network, 4xx) is retried three times over 30 minutes through the notifier's
-job heap (`PushNotifier.schedule`), each retry re-checking configuration, recipient and visibility; a permanent one (auth, 5xx, TLS) is final.
+can echo an address or a credential). A transient failure (network, 4xx) is retried three times over 30 minutes through the e-mail worker's
+own heap, each retry re-checking configuration, recipient and visibility; a permanent one (auth, 5xx, TLS) is final.
 RATE LIMIT: at most `MAX_MAILS_PER_MIN` mails per minute per installation; further new/re-notified conditions are HELD and folded into ONE
 digest mail with a count per condition ("דליפת מים · מטבח ×3"), sent as soon as the window frees; escalations always pass.
 CHANNEL DOWN: when no mail has gone out for 15 minutes while attempts fail, a `notify.channel` system notification is raised (resolved at
@@ -33,10 +37,15 @@ from __future__ import annotations
 
 import collections
 import datetime as dt
+import functools
+import heapq
 import html
+import ipaddress
+import itertools
 import json
 import logging
 import os
+import queue
 import re
 import secrets as _secrets
 import smtplib
@@ -73,6 +82,9 @@ MAX_RECIPIENTS = 10
 MAX_ADDRESS = 254
 MAX_SUBJECT = 150
 MAX_MESSAGE_BYTES = 64 * 1024
+MAX_NOTIFICATION_S = 45.0                          # all recipients of one notification together: past this the rest wait for a retry
+WORKER_QUEUE_MAX = 200                             # dispatches waiting for the e-mail worker thread
+ALLOW_LOOPBACK_HOST = False                        # tests only: the validator refuses loopback / link-local hosts
 CHANNEL_DOWN_AFTER_S = 15 * 60
 TEST_BURST, TEST_PER_MIN = 3, 3.0                  # POST /notify/email/test: 3 a minute
 HELO_NAME = "arx.local"
@@ -152,6 +164,24 @@ def classify(exc: BaseException, stage: str = "send") -> tuple[str, bool]:
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+\-']{1,64}@[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?)+$")
 HOST_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?)*$")
 CTRL_RE = re.compile(r"[\x00-\x1f\x7f  ]")
+
+
+_NUMERIC_HOST = re.compile(r"^(0[xX][0-9a-fA-F]+|[0-9]+)(\.(0[xX][0-9a-fA-F]+|[0-9]+))*$")
+
+
+def refused_host(host: str) -> bool:
+    """A host that points back at this machine or at a link-local address (127.0.0.0/8, 169.254.0.0/16, 0.0.0.0, `localhost`, and the numeric
+    spellings a resolver also accepts: `127.1`, `2130706433`, `0x7f.1`). LAN addresses and names are allowed."""
+    h = host.strip().lower().rstrip(".")
+    if h == "localhost" or h.endswith(".localhost"):
+        return True
+    if _NUMERIC_HOST.match(h):
+        try:
+            ip = ipaddress.IPv4Address(h)
+        except ValueError:
+            return True  # a non-canonical numeric spelling: refused rather than guessed at
+        return ip.is_loopback or ip.is_link_local or ip.is_unspecified or ip.is_multicast
+    return False
 
 
 def valid_address(a: Any) -> bool:
@@ -285,6 +315,8 @@ def update_email(conn: Any, data_dir: Path, body: dict[str, Any], actor_user_id:
     if not isinstance(host, str) or not host.strip() or len(host.strip()) > 253 or not HOST_RE.match(host.strip()):
         raise _invalid("שם שרת הדואר אינו תקין.", "host")
     host = host.strip().lower()
+    if refused_host(host) and not ALLOW_LOOPBACK_HOST:
+        raise _invalid("שרת הדואר אינו יכול להיות המכשיר עצמו או כתובת מקומית־לקישור.", "host")
     port = body.get("port")
     if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
         raise _invalid("מספר היציאה אינו תקין.", "port")
@@ -484,11 +516,26 @@ def build_message(cfg: MailConfig, to: str, r: Rendered) -> EmailMessage:
 
 # ---------------------------------------------------------------- the SMTP session
 
-def smtp_send(cfg: MailConfig, to: str, r: Rendered) -> None:
+def _arm(client: Any, deadline: float | None) -> None:
+    """Before an SMTP step: the socket's timeout is the smaller of the per-step timeout and what is left of the budget; none left = a timeout."""
+    if deadline is None:
+        return
+    left = deadline - time.monotonic()
+    if left <= 0:
+        raise MailError("timeout", True)
+    sock = getattr(client, "sock", None)
+    if sock is not None:
+        sock.settimeout(min(TIMEOUT_S, left))
+
+
+def smtp_send(cfg: MailConfig, to: str, r: Rendered, deadline: float | None = None) -> None:
     """ONE message to ONE address over its own SMTP session: STARTTLS / implicit TLS with the certificate and host name verified (a server
     that does not offer STARTTLS is NOT sent to in clear), the login when a user is set, then the message. Raises MailError(kind); nothing
-    from an exception text or a server reply leaves this function."""
+    from an exception text or a server reply leaves this function. `deadline` (time.monotonic) bounds the whole session."""
     msg = build_message(cfg, to, r)
+    first = TIMEOUT_S if deadline is None else min(TIMEOUT_S, deadline - time.monotonic())
+    if first <= 0:
+        raise MailError("timeout", True)
     if cfg.user and cfg.security == "none":
         raise MailError("unavailable")
     client: smtplib.SMTP | None = None
@@ -496,21 +543,26 @@ def smtp_send(cfg: MailConfig, to: str, r: Rendered) -> None:
     ok = False
     try:
         if cfg.security == "tls":
-            client = smtplib.SMTP_SSL(cfg.host, cfg.port, local_hostname=HELO_NAME, timeout=TIMEOUT_S, context=tls_context())
+            client = smtplib.SMTP_SSL(cfg.host, cfg.port, local_hostname=HELO_NAME, timeout=first, context=tls_context())
         else:
-            client = smtplib.SMTP(cfg.host, cfg.port, local_hostname=HELO_NAME, timeout=TIMEOUT_S)
+            client = smtplib.SMTP(cfg.host, cfg.port, local_hostname=HELO_NAME, timeout=first)
         stage = "ehlo"
+        _arm(client, deadline)
         client.ehlo()
         if cfg.security == "starttls":
             stage = "starttls"
             if not client.has_extn("starttls"):
                 raise MailError("tls")
+            _arm(client, deadline)
             client.starttls(context=tls_context())
+            _arm(client, deadline)
             client.ehlo()
         if cfg.user:
             stage = "login"
+            _arm(client, deadline)
             client.login(cfg.user, cfg.password or "")
         stage = "send"
+        _arm(client, deadline)
         client.send_message(msg, from_addr=cfg.sender, to_addrs=[to])
         ok = True
     except MailError:
@@ -613,7 +665,7 @@ def recover_orphans(db: Any) -> int:
     pass comes shortly after start-up); a row whose job is alive here, or that is younger than a minute, is left alone. Returns how many."""
     cutoff = iso_utc(notify.now_utc() - dt.timedelta(seconds=ORPHAN_GRACE_S))
     with db.connection(mode="read", label="notify.email.orphans") as conn:
-        rows = conn.execute("SELECT id, notification_id, attempt FROM notification_deliveries WHERE channel = 'email' AND status = 'retry' AND created_at < ?", (cutoff,)).fetchall()
+        rows = conn.execute("SELECT id, notification_id, attempt FROM notification_deliveries WHERE channel = 'email' AND status = 'retry' AND created_at <= ?", (cutoff,)).fetchall()
     with _LOCK:
         dead = [r for r in rows if r["id"] not in _LIVE]
     for r in dead:
@@ -622,7 +674,12 @@ def recover_orphans(db: Any) -> int:
 
 
 def reset_state() -> None:
-    """Forget every in-memory limiter, held condition and failure streak (tests, and a restart does it implicitly)."""
+    """Forget every in-memory limiter, held condition and failure streak, and stop the worker (tests; a restart does it implicitly)."""
+    global _WORKER
+    with _LOCK:
+        w, _WORKER = _WORKER, None
+    if w is not None:
+        w.stop()
     with _LOCK:
         _HELD.clear()
         _DIGEST.update(job=None, notifier=None)
@@ -632,11 +689,133 @@ def reset_state() -> None:
     GATE.stamps.clear()
 
 
+class EmailWorker:
+    """The e-mail channel's OWN thread: a queue of dispatches handed over by the notifier thread, and a heap of retry / digest jobs (the same
+    `recheck(db)` / `run_retry(worker)` job protocol as services/push.PushNotifier). SMTP, with its timeouts, happens only here - a slow
+    or dead mail server delays only e-mail."""
+
+    def __init__(self, db: Any) -> None:
+        self.db = db
+        self.q: queue.Queue[Callable[["EmailWorker"], None]] = queue.Queue(maxsize=WORKER_QUEUE_MAX)
+        self.retries: list[tuple[float, int, Any]] = []
+        self.seq = itertools.count()
+        self.lock = threading.Lock()
+        self.inflight = 0
+        self.stop_evt = threading.Event()
+        self.thread = threading.Thread(target=self._loop, name="email-worker", daemon=True)
+        self.thread.start()
+
+    # -- handing work over (never blocks, never touches the database)
+    def submit(self, fn: Callable[["EmailWorker"], None]) -> bool:
+        try:
+            self.q.put_nowait(fn)
+            return True
+        except queue.Full:
+            return False
+
+    def schedule(self, delay: float, job: Any) -> None:
+        with self.lock:
+            heapq.heappush(self.retries, (time.monotonic() + delay, next(self.seq), job))
+        self._wake()
+
+    def has(self, job: Any) -> bool:
+        with self.lock:
+            return any(j is job for _t, _s, j in self.retries)
+
+    def make_due(self) -> None:
+        """Every waiting job comes due now (tests)."""
+        with self.lock:
+            self.retries[:] = [(0.0, seq, job) for _t, seq, job in self.retries]
+            heapq.heapify(self.retries)
+        self._wake()
+
+    def _wake(self) -> None:
+        try:
+            self.q.put_nowait(lambda _w: None)
+        except queue.Full:
+            pass
+
+    # -- the thread
+    def _next_wait(self) -> float:
+        with self.lock:
+            return max(0.0, min(1.0, self.retries[0][0] - time.monotonic())) if self.retries else 1.0
+
+    def _loop(self) -> None:
+        while not self.stop_evt.is_set():
+            try:
+                fn = self.q.get(timeout=self._next_wait())
+            except queue.Empty:
+                fn = None
+            if self.stop_evt.is_set():
+                return
+            try:
+                if fn is not None:
+                    try:
+                        fn(self)
+                    finally:
+                        self.q.task_done()
+                self._run_due()
+            except Exception:  # noqa: BLE001 - the worker never dies on one bad dispatch
+                log.exception("e-mail worker step failed")
+
+    def _run_due(self) -> None:
+        while True:
+            with self.lock:
+                if not self.retries or self.retries[0][0] > time.monotonic():
+                    return
+                self.inflight += 1  # before the pop: drain() never sees an empty heap with a job still on its way
+                _t, _s, job = heapq.heappop(self.retries)
+            try:
+                if job.recheck(self.db):
+                    job.run_retry(self)
+            except Exception:  # noqa: BLE001
+                log.exception("e-mail retry failed")
+            finally:
+                with self.lock:
+                    self.inflight -= 1
+
+    def drain(self, timeout: float = 10.0) -> bool:
+        """Wait until nothing is queued, in flight or due (jobs scheduled for later do not count)."""
+        end = time.monotonic() + timeout
+        while True:
+            with self.lock:
+                due = bool(self.retries) and self.retries[0][0] <= time.monotonic()
+                idle = self.q.unfinished_tasks == 0 and self.inflight == 0 and not due
+            if idle:
+                return True
+            if time.monotonic() >= end:
+                return False
+            time.sleep(0.02)
+
+    def stop(self) -> None:
+        self.stop_evt.set()
+        self._wake()
+        if self.thread is not threading.current_thread():
+            self.thread.join(timeout=3.0)
+
+
+_WORKER: EmailWorker | None = None
+
+
+def worker_for(db: Any) -> EmailWorker:
+    """The e-mail worker of this database (started on first use; one per process in production)."""
+    global _WORKER
+    with _LOCK:
+        w = _WORKER
+        if w is not None and w.db is db and w.thread.is_alive() and not w.stop_evt.is_set():
+            return w
+        _WORKER = EmailWorker(db)
+        new = _WORKER
+    if w is not None:
+        w.stop()
+    return new
+
+
 def _hold(notifier: Any, address: str, item: HeldItem, delay: float | None = None) -> None:
     with _LOCK:
         _HELD.setdefault(address, []).append(item)
         job = _DIGEST["job"]
-        queued = job is not None and _DIGEST["notifier"] is notifier and any(j is job for _t, _s, j in notifier.retries)
+        queued = job is not None and _DIGEST["notifier"] is notifier and notifier.has(job)
         if not queued:
             job = DigestJob()
             _DIGEST.update(job=job, notifier=notifier)
@@ -666,6 +845,25 @@ class DigestJob:
                     _record(db, [it.delivery_id], "skipped", "rate_limited", 1)
                 else:
                     fresh.setdefault(address, []).append(it)
+        if fresh:  # the condition may be over, the policy may have changed: re-check every held item before it is mailed
+            try:
+                with db.connection(mode="read", label="notify.email.digest.recheck") as conn:
+                    verdict = {it.delivery_id: _wanted(conn, it.nid, "new", None) for items in fresh.values() for it in items}
+            except Exception:  # noqa: BLE001 - a database hiccup: keep them, the next pass checks again
+                log.exception("e-mail digest re-check failed")
+                verdict = {}
+            for address in list(fresh):
+                keep = []
+                for it in fresh[address]:
+                    why = verdict.get(it.delivery_id)
+                    if why:
+                        _record(db, [it.delivery_id], "skipped", why, 1)
+                    else:
+                        keep.append(it)
+                if keep:
+                    fresh[address] = keep
+                else:
+                    del fresh[address]
         if not fresh:
             return
         if not GATE.allow():  # still saturated: wait for the next window (the items keep their original hold time)
@@ -810,7 +1008,7 @@ def _note_success(db: Any) -> None:
 _LOAD: Any = object()  # run_job reads the configuration itself (a retry); a caller that already has it passes it
 
 
-def run_job(notifier: Any, job: MailJob, *, cfg: Any = _LOAD, known: MailError | None = None) -> MailError | None:
+def run_job(notifier: Any, job: MailJob, *, cfg: Any = _LOAD, known: MailError | None = None, deadline: float | None = None) -> MailError | None:
     """One attempt for one address: send, record the outcome on the delivery rows, and schedule the next retry for a transient failure.
     `known` is a server-level failure just seen for another address of the same dispatch (no second connection is made against a dead
     server). Returns the error or None."""
@@ -824,7 +1022,7 @@ def run_job(notifier: Any, job: MailJob, *, cfg: Any = _LOAD, known: MailError |
             if cfg is None or job.address.lower() not in [a.lower() for a in cfg.recipients]:
                 err = MailError("unavailable")
             else:
-                smtp_send(cfg, job.address, job.rendered)
+                smtp_send(cfg, job.address, job.rendered, deadline)
         except MailError as e:
             err = e
         except Exception as exc:  # noqa: BLE001 - never let one address stop the others; the class is all that is kept
@@ -879,23 +1077,42 @@ class EmailChannel(Channel):
         return [Target(self.name, None, mask_address(a), "queued", None, {"address": a, "fold": fold}) for a in cfg.recipients]
 
     def send(self, notifier: Any, d: Dispatch, targets: list[Target]) -> None:
-        rendered: Rendered = d.scratch["email_rendered"]
-        item: HeldItem = d.scratch["email_item"]
-        with notifier.db.connection(mode="read", label="notify.email.config") as conn:
-            cfg = load_config(conn, Path(notifier.db.path).parent)
-        server_down: MailError | None = None
-        for t in targets:
-            if t.status != "queued":
-                continue
-            address = t.data["address"]
-            if t.data["fold"]:  # over the rate limit: held for the digest, which names it with a count
-                _record(notifier.db, [t.delivery_id], "retry", "rate_limited", 0)
-                _hold(notifier, address, HeldItem(t.delivery_id, d.nid, item.title, item.place, item.severity, item.count, _mono()))
-                continue
-            job = MailJob(address, [(t.delivery_id, d.nid)], rendered, "single", d.mode, 0, d.n.get("source"))
-            err = run_job(notifier, job, cfg=cfg, known=server_down)
-            if err is not None and err.kind in SERVER_FAILURES:
-                server_down = err
+        """Runs on the notifier thread: only hands the dispatch to the e-mail worker (no SMTP, no wait)."""
+        batch = _Batch(d.nid, d.mode, d.n.get("source"), d.scratch["email_rendered"], d.scratch["email_item"], [(t.delivery_id, t.data["address"], bool(t.data["fold"])) for t in targets if t.status == "queued"])
+        if not batch.targets:
+            return
+        if not worker_for(notifier.db).submit(functools.partial(_run_batch, batch=batch)):  # the worker's queue is full: say so, honestly
+            for did, _a, _f in batch.targets:
+                _record(notifier.db, [did], "failed", "unavailable", 1, notification_id=d.nid, channel="email")
+
+
+@dataclass
+class _Batch:
+    nid: str
+    mode: str
+    source: str | None
+    rendered: Rendered
+    item: HeldItem
+    targets: list[tuple[str, str, bool]]    # (delivery id, address, held for the digest)
+
+
+def _run_batch(worker: EmailWorker, *, batch: _Batch) -> None:
+    """On the worker thread: one dispatch - held ones to the digest, the rest one message per address within the notification's time budget."""
+    with worker.db.connection(mode="read", label="notify.email.config") as conn:
+        cfg = load_config(conn, Path(worker.db.path).parent)
+    deadline = time.monotonic() + MAX_NOTIFICATION_S
+    server_down: MailError | None = None
+    it = batch.item
+    for did, address, fold in batch.targets:
+        if fold:  # over the rate limit: held for the digest, which names it with a count
+            _record(worker.db, [did], "retry", "rate_limited", 0)
+            _hold(worker, address, HeldItem(did, batch.nid, it.title, it.place, it.severity, it.count, _mono()))
+            continue
+        job = MailJob(address, [(did, batch.nid)], batch.rendered, "single", batch.mode, 0, batch.source)
+        known = server_down or (MailError("timeout", True) if time.monotonic() >= deadline else None)
+        err = run_job(worker, job, cfg=cfg, known=known, deadline=deadline)
+        if err is not None and err.kind in SERVER_FAILURES:
+            server_down = err
 
 
 register(EmailChannel())

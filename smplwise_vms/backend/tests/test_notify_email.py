@@ -6,12 +6,13 @@ from __future__ import annotations
 import datetime as dt
 import email
 import email.policy
-import heapq
 import json
 import logging
 import os
 import smtplib
 import socket
+import threading
+import time
 import stat
 
 import pytest
@@ -45,6 +46,7 @@ def _state(monkeypatch):
     push_svc.reset_limits()
     monkeypatch.setattr(notify_email, "RETRY_DELAYS_S", (3600.0, 3600.0, 3600.0))   # a retry waits until the test says its time has come (World.tick)
     monkeypatch.setattr(notify_email, "TIMEOUT_S", 2.0)
+    monkeypatch.setattr(notify_email, "ALLOW_LOOPBACK_HOST", True)   # the fake server listens on 127.0.0.1; test_loopback_hosts_are_refused turns it back off
     monkeypatch.setattr(notify_email, "DIGEST_DELAY_S", 0.0)
     yield
     notify_email.reset_state()
@@ -81,15 +83,23 @@ class World:
         with self.db.connection() as conn:
             return notify.emit_full(conn, notify.Signal(source, subject_kind, subject_id, severity=severity, dedupe_key=key or f"{source}:{self._n}", place=place, params=params)).id
 
-    def tick(self) -> int:
-        """Every waiting retry (and digest) comes due now; run them. A retry that fails again goes back to the heap an hour out."""
-        self.notifier.retries[:] = [(0.0, seq, job) for _t, seq, job in self.notifier.retries]
-        heapq.heapify(self.notifier.retries)
-        return self.notifier.run_due()
+    @property
+    def worker(self):
+        return notify_email.worker_for(self.db)
+
+    def outbox(self) -> int:
+        """The notifier thread's outbox pass (which only HANDS e-mail over), then wait for the e-mail worker to finish what it was given."""
+        n = notify_channels.process_outbox(self.notifier)
+        assert self.worker.drain(20), "the e-mail worker did not settle"
+        return n
+
+    def tick(self) -> None:
+        """Every waiting retry (and digest) comes due now; the worker runs them. A retry that fails again goes back to its heap an hour out."""
+        self.worker.make_due()
+        assert self.worker.drain(20), "the e-mail worker did not settle"
 
     def pump(self) -> int:
-        """The notifier thread's work, on this thread: the outbox, then every retry that is due."""
-        n = notify_channels.process_outbox(self.notifier)
+        n = self.outbox()
         self.tick()
         return n
 
@@ -308,7 +318,7 @@ def test_auth_failure_is_final_and_logs_no_secret(world, tmp_path, monkeypatch, 
         world.pump()
         (row,) = world.rows()
         assert (row["status"], row["reason"], row["attempt"]) == ("failed", "auth", 1) and s.connections == 1, "a bad login is not retried (smtplib itself tries PLAIN then LOGIN inside the one session)"
-        assert not world.notifier.retries
+        assert not world.worker.retries
         assert PASSWORD not in caplog.text and "SECRET-BANNER" not in caplog.text
         with world.db.connection(mode="read") as conn:
             kinds = [r["kind"] for r in conn.execute("SELECT kind FROM notification_events WHERE notification_id = ?", (nid,)).fetchall()]
@@ -352,15 +362,15 @@ def test_transient_failure_is_retried_three_times_over_the_heap_and_recovers(wor
     world.configure(smtp)
     smtp.drop = True                        # the server closes every connection at once
     nid = world.emit()
-    notify_channels.process_outbox(world.notifier)
+    world.outbox()
     (row,) = world.rows()
-    assert (row["status"], row["reason"], row["attempt"]) == ("retry", "connect", 1) and len(world.notifier.retries) == 1
+    assert (row["status"], row["reason"], row["attempt"]) == ("retry", "connect", 1) and len(world.worker.retries) == 1
     world.tick()
     assert world.rows()[0]["attempt"] == 2 and world.rows()[0]["status"] == "retry"
     smtp.drop = False                       # the server is back before the third attempt
     world.tick()
     (row,) = world.rows()
-    assert (row["status"], row["reason"], row["attempt"]) == ("sent", None, 3) and len(smtp.messages) == 1 and not world.notifier.retries
+    assert (row["status"], row["reason"], row["attempt"]) == ("sent", None, 3) and len(smtp.messages) == 1 and not world.worker.retries
     assert nid
 
 
@@ -368,12 +378,12 @@ def test_retries_are_bounded_and_the_last_failure_is_final(world, smtp):
     world.configure(smtp)
     smtp.drop = True
     nid = world.emit()
-    notify_channels.process_outbox(world.notifier)
+    world.outbox()
     for _ in range(6):
         world.tick()
     (row,) = world.rows()
     assert (row["status"], row["reason"], row["attempt"]) == ("failed", "connect", 4), "the first attempt plus three retries"
-    assert not world.notifier.retries and smtp.messages == []
+    assert not world.worker.retries and smtp.messages == []
     with world.db.connection(mode="read") as conn:
         assert conn.execute("SELECT COUNT(*) FROM notification_events WHERE notification_id = ? AND kind = 'delivery_failed' AND channel = 'email'", (nid,)).fetchone()[0] == 1
 
@@ -390,12 +400,12 @@ def test_4xx_is_transient_and_5xx_is_final(world, smtp):
     world.configure(smtp)
     smtp.rcpt_reply = "451 4.3.0 try again later"
     world.emit(key="x1")
-    notify_channels.process_outbox(world.notifier)
+    world.outbox()
     assert world.rows()[-1]["status"] == "retry" and world.rows()[-1]["reason"] == "refused"
     smtp.rcpt_reply = "550 5.1.1 no such user"
     world.tick()
     assert world.rows()[-1]["status"] == "failed" and world.rows()[-1]["reason"] == "refused", "the retry hit a permanent refusal: final"
-    assert not world.notifier.retries
+    assert not world.worker.retries
 
 
 def test_one_bad_recipient_does_not_stop_the_others(world, smtp):
@@ -412,16 +422,16 @@ def test_a_dead_server_is_contacted_once_per_dispatch_not_once_per_recipient(wor
     world.configure(smtp, recipients=[OWNER, SECOND, "third@example.test"])
     smtp.drop = True
     world.emit()
-    notify_channels.process_outbox(world.notifier)
-    assert smtp.connections == 1 and [r["reason"] for r in world.rows()] == ["connect"] * 3 and len(world.notifier.retries) == 3
+    world.outbox()
+    assert smtp.connections == 1 and [r["reason"] for r in world.rows()] == ["connect"] * 3 and len(world.worker.retries) == 3
 
 
 def test_retry_rechecks_configuration_recipient_and_reach(world, smtp, settings):
     world.configure(smtp, recipients=[OWNER, SECOND])
     smtp.drop = True
     nid = world.emit()
-    notify_channels.process_outbox(world.notifier)
-    assert len(world.notifier.retries) == 2
+    world.outbox()
+    assert len(world.worker.retries) == 2
     smtp.drop = False
     # the administrator removes one address and revokes nothing else: only the remaining address is mailed
     world.configure(smtp, recipients=[SECOND])
@@ -432,7 +442,7 @@ def test_retry_rechecks_configuration_recipient_and_reach(world, smtp, settings)
     smtp.drop = True
     world.configure(smtp, recipients=[OWNER])
     nid2 = world.emit(key="k2", source="backup.failed")
-    notify_channels.process_outbox(world.notifier)
+    world.outbox()
     smtp.drop = False
     with world.db.connection() as conn:
         notify.emit(conn, notify.Signal("backup.failed", "system", "backup", dedupe_key="k2", resolve=True))
@@ -444,7 +454,7 @@ def test_retry_stops_when_the_administrator_loses_notify_manage(world, smtp, set
     world.configure(smtp)
     smtp.drop = True
     world.emit()
-    notify_channels.process_outbox(world.notifier)
+    world.outbox()
     smtp.drop = False
     with world.db.connection() as conn:
         conn.execute("UPDATE bindings SET revoked_at = '2026-10-01T00:00:00Z' WHERE subject_id = 'dev-joni'")
@@ -566,11 +576,11 @@ def test_rate_limit_folds_the_rest_into_one_digest_with_counts(world, smtp, monk
     for i in range(5):                                         # the same condition keeps coming, on different rows
         world.emit(key=f"w{i}", place="מטבח")
     world.emit("update.available", key="u", version="1.0")
-    notify_channels.process_outbox(world.notifier)
+    world.outbox()
     assert len(smtp.messages) == 3, "the window allows three mails"
     held = [r for r in world.rows() if r["status"] == "retry"]
     assert len(held) == 6 and {r["reason"] for r in held} == {"rate_limited"}
-    assert len(world.notifier.retries) == 1, "one digest job, however many are held"
+    assert len(world.worker.retries) == 1, "one digest job, however many are held"
     # the window frees: ONE digest, a count per condition
     monkeypatch.setattr(notify_email, "_mono", lambda: __import__("time").monotonic() + 120)
     world.tick()
@@ -582,7 +592,7 @@ def test_rate_limit_folds_the_rest_into_one_digest_with_counts(world, smtp, monk
     after = world.rows()
     assert sum(1 for r in after if r["status"] == "sent") == 9
     assert {r["id"] for r in after if r["reason"] == "folded"} == {h["id"] for h in held}, "exactly the held rows say they went out in the digest"
-    assert not world.notifier.retries
+    assert not world.worker.retries
 
 
 def test_digest_waits_while_the_window_is_full_and_gives_up_after_the_hold_time(world, smtp, monkeypatch):
@@ -592,11 +602,11 @@ def test_digest_waits_while_the_window_is_full_and_gives_up_after_the_hold_time(
     world.configure(smtp)
     world.emit(key="a")
     world.emit(key="b")
-    notify_channels.process_outbox(world.notifier)
+    world.outbox()
     assert len(smtp.messages) == 1
     monkeypatch.setattr(notify_email, "DIGEST_RETRY_S", 3600.0)
     world.tick()                   # the window is still full: the digest is put back (and waits), nothing is sent
-    assert len(smtp.messages) == 1 and len(world.notifier.retries) == 1
+    assert len(smtp.messages) == 1 and len(world.worker.retries) == 1
     clock["t"] += notify_email.MAX_HOLD_S + 1  # held too long: dropped honestly
     world.tick()
     assert [r["status"] for r in world.rows()] == ["sent", "skipped"] and world.rows()[1]["reason"] == "rate_limited" and len(smtp.messages) == 1
@@ -606,14 +616,14 @@ def test_escalations_are_never_held_back_by_the_rate_limit(world, smtp, monkeypa
     monkeypatch.setattr(notify_email, "MAX_MAILS_PER_MIN", 1)
     world.configure(smtp)
     world.emit("nvr.offline", key="c1", subject_id="nvr")
-    notify_channels.process_outbox(world.notifier)
+    world.outbox()
     nid = world.rows()[0]["notification_id"]
     world.emit(key="other")                                   # takes no slot of its own: the window is full
-    notify_channels.process_outbox(world.notifier)
+    world.outbox()
     with world.db.connection() as conn:
         mgr = notify.managers(conn)
         notify._enqueue(conn, "dispatch", nid, {"mode": "escalate", "step": 1, "users": mgr})
-    notify_channels.process_outbox(world.notifier)
+    world.outbox()
     subjects = [str(parsed(m)["Subject"]) for m in smtp.messages]
     assert any("לא אושר" in s for s in subjects), subjects
 
@@ -698,7 +708,7 @@ def test_channel_down_notification_after_fifteen_minutes_and_resolved_on_recover
     world.configure(smtp)
     smtp.drop = True
     world.emit(key="d1")
-    notify_channels.process_outbox(world.notifier)           # attempt 1: the failure streak starts
+    world.outbox()           # attempt 1: the failure streak starts
     with world.db.connection(mode="read") as conn:
         assert conn.execute("SELECT COUNT(*) FROM notifications WHERE source = 'notify.channel'").fetchone()[0] == 0
     clock["now"] += dt.timedelta(minutes=16)
@@ -711,7 +721,7 @@ def test_channel_down_notification_after_fifteen_minutes_and_resolved_on_recover
         assert conn.execute("SELECT COUNT(*) FROM notifications WHERE source = 'notify.channel'").fetchone()[0] == 1, "raised once, not per failure"
     smtp.drop = False
     world.emit(key="d2")
-    notify_channels.process_outbox(world.notifier)
+    world.outbox()
     with world.db.connection(mode="read") as conn:
         assert conn.execute("SELECT state FROM notifications WHERE source = 'notify.channel'").fetchone()[0] == "resolved"
 
@@ -749,8 +759,8 @@ def test_retry_rows_without_a_job_behind_them_are_failed_as_unavailable(world, s
     world.configure(smtp, recipients=[OWNER, SECOND])
     smtp.drop = True
     nid = world.emit(key="o1")
-    notify_channels.process_outbox(world.notifier)
-    assert [r["status"] for r in world.rows()] == ["retry", "retry"] and len(world.notifier.retries) == 2
+    world.outbox()
+    assert [r["status"] for r in world.rows()] == ["retry", "retry"] and len(world.worker.retries) == 2
     # a pass while the jobs are alive in this process leaves them alone
     notify_channels.housekeeping(world.db)
     assert [r["status"] for r in world.rows()] == ["retry", "retry"]
@@ -771,6 +781,130 @@ def test_a_young_retry_row_gets_its_grace_period(world, smtp):
     world.configure(smtp)
     smtp.drop = True
     world.emit(key="o2")
-    notify_channels.process_outbox(world.notifier)
+    world.outbox()
     notify_email.reset_state()               # no live job known, but the row is seconds old (default 60 s grace)
     assert notify_email.recover_orphans(world.db) == 0 and world.rows()[0]["status"] == "retry"
+
+
+# ---------------------------------------------------------------- the e-mail worker thread (review item 5)
+
+def test_a_slow_mail_server_does_not_hold_the_notifier_thread(world, smtp, monkeypatch):
+    """The notifier thread (Web Push, the outbox, escalation) only HANDS e-mail over: its pass returns long before a slow server answers."""
+    monkeypatch.setattr(notify_email, "TIMEOUT_S", 8.0)
+    world.configure(smtp)
+    smtp.greeting_delay = 2.5
+    world.emit(key="slow")
+    t0 = time.monotonic()
+    notify_channels.process_outbox(world.notifier)          # exactly what the notifier thread does
+    took = time.monotonic() - t0
+    assert took < 1.5, f"the outbox pass took {took:.2f}s: SMTP ran on the notifier thread"
+    assert smtp.messages == [], "the server has not even greeted yet"
+    assert world.rows()[0]["status"] == "queued", "the delivery row says what is true: handed over, not sent"
+    assert threading.current_thread() is not world.worker.thread
+    assert world.worker.drain(20) and len(smtp.messages) == 1 and world.rows()[0]["status"] == "sent"
+
+
+def test_the_real_notifier_thread_keeps_draining_while_e_mail_is_stuck(world, smtp, monkeypatch):
+    """With the real PushNotifier thread running: a second dispatch (here an in-app only row) is processed while the first one's mail waits on the server."""
+    monkeypatch.setattr(notify_email, "TIMEOUT_S", 8.0)
+    world.configure(smtp)
+    smtp.greeting_delay = 2.5
+    n = push_svc.PushNotifier()
+    n.start(world.db)
+    try:
+        world.emit(key="stuck")
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and not world.rows():
+            time.sleep(0.05)
+        assert world.rows(), "the notifier planned the e-mail"
+        world.emit("device.battery_low", key="other", subject_kind="entity", subject_id="sensor.x", level="9%")   # a second row, no e-mail channel
+        t0 = time.monotonic()
+        while True:
+            with world.db.connection(mode="read") as conn:
+                if conn.execute("SELECT COUNT(*) FROM notify_outbox").fetchone()[0] == 0:
+                    break
+            assert time.monotonic() - t0 < 2.0, "the outbox was not drained while the mail server was slow"
+            time.sleep(0.05)
+        assert smtp.messages == [], "the first mail is still waiting on the slow server while the outbox moved on"
+    finally:
+        n.shutdown(timeout=2.0)
+    assert world.worker.drain(20) and len(smtp.messages) == 1
+
+
+def test_one_notification_has_a_total_time_budget(world, smtp, monkeypatch):
+    """Five recipients and a server that needs ~0.5 s per greeting: the notification's budget runs out, the rest are retried, not waited on."""
+    monkeypatch.setattr(notify_email, "MAX_NOTIFICATION_S", 1.2)
+    world.configure(smtp, recipients=[f"r{i}@example.test" for i in range(5)])
+    smtp.greeting_delay = 0.5
+    world.emit(key="budget")
+    t0 = time.monotonic()
+    world.outbox()
+    took = time.monotonic() - t0
+    rows = world.rows()
+    sent = [r for r in rows if r["status"] == "sent"]
+    waiting = [r for r in rows if r["status"] == "retry"]
+    assert 1 <= len(sent) <= 3 and len(sent) + len(waiting) == 5 and {r["reason"] for r in waiting} == {"timeout"}, [(r["status"], r["reason"]) for r in rows]
+    assert took < 3.5, f"the whole notification took {took:.2f}s"
+    assert len(world.worker.retries) == len(waiting)
+
+
+# ---------------------------------------------------------------- the digest re-checks what it holds (review item 10)
+
+def _hold_two(world, smtp, monkeypatch):
+    monkeypatch.setattr(notify_email, "MAX_MAILS_PER_MIN", 1)
+    world.configure(smtp)
+    world.emit(key="first")                                    # takes the only slot
+    b = world.emit(key="held-b", place="מקום ב")
+    c = world.emit(key="held-c", place="מקום ג")
+    world.outbox()
+    assert len(smtp.messages) == 1 and [r["status"] for r in world.rows()] == ["sent", "retry", "retry"]
+    return b, c
+
+
+def test_the_digest_drops_a_held_condition_that_has_ended(world, smtp, monkeypatch):
+    b, c = _hold_two(world, smtp, monkeypatch)
+    with world.db.connection() as conn:
+        notify.emit(conn, notify.Signal("backup.failed", "system", "backup", dedupe_key="held-b", resolve=True))
+    monkeypatch.setattr(notify_email, "_mono", lambda: time.monotonic() + 120)    # the rate window has freed
+    world.tick()
+    by = {r["notification_id"]: (r["status"], r["reason"]) for r in world.rows()}
+    assert by[b] == ("skipped", "no_reach") and by[c] == ("sent", "folded")
+    digest = text_of(parsed(smtp.messages[-1]))
+    assert "מקום ב" not in digest and "הגיבוי נכשל" in digest and len(smtp.messages) == 2
+
+
+def test_the_digest_drops_everything_when_email_is_switched_off_or_the_administrator_loses_reach(world, smtp, monkeypatch):
+    b, c = _hold_two(world, smtp, monkeypatch)
+    with world.db.connection() as conn:
+        conn.execute("UPDATE notify_policies SET channels_json = ? WHERE source = 'backup.failed'", (json.dumps({"inbox": True, "webpush": False, "email": False, "ha_mobile": False, "whatsapp": False}),))
+    monkeypatch.setattr(notify_email, "_mono", lambda: time.monotonic() + 120)
+    world.tick()
+    by = {r["notification_id"]: (r["status"], r["reason"]) for r in world.rows()}
+    assert by[b] == ("skipped", "category_off") and by[c] == ("skipped", "category_off") and len(smtp.messages) == 1, "no digest at all"
+    # and a lost notify.manage: another pair, held, then the binding is revoked
+    with world.db.connection() as conn:
+        conn.execute("UPDATE notify_policies SET channels_json = ? WHERE source = 'backup.failed'", (json.dumps({"inbox": True, "webpush": False, "email": True, "ha_mobile": False, "whatsapp": False}),))
+    notify_email.reset_state()
+    monkeypatch.setattr(notify_email, "_mono", time.monotonic)
+    world.emit(key="held-d")
+    e = world.emit(key="held-e")
+    world.outbox()
+    with world.db.connection() as conn:
+        conn.execute("UPDATE bindings SET revoked_at = '2026-10-01T00:00:00Z' WHERE subject_id = 'dev-joni'")
+    monkeypatch.setattr(notify_email, "_mono", lambda: time.monotonic() + 120)
+    world.tick()
+    by = {r["notification_id"]: (r["status"], r["reason"]) for r in world.rows()}
+    assert by[e] == ("skipped", "no_reach") and len(smtp.messages) == 2
+
+
+# ---------------------------------------------------------------- the host validator (review item 14)
+
+def test_loopback_and_link_local_hosts_are_refused_but_lan_hosts_and_names_are_allowed(world, smtp, monkeypatch):
+    monkeypatch.setattr(notify_email, "ALLOW_LOOPBACK_HOST", False)
+    for host in ("127.0.0.1", "127.1", "2130706433", "0x7f.0.0.1", "169.254.169.254", "0.0.0.0", "localhost", "mail.localhost", "224.0.0.1", "0177.0.0.1"):
+        r = world.c.put(f"{API}/notify/email", json=world.body(smtp, host=host))
+        assert r.status_code == 422 and r.json()["code"] == "email_invalid" and r.json()["details"]["field"] == "host", host
+    for host in ("172.16.5.20", "smtp.example.test", "mail.lan", "relay"):
+        r = world.c.put(f"{API}/notify/email", json=world.body(smtp, host=host))
+        assert r.status_code == 200, (host, r.text)
+    assert notify_email.refused_host("127.0.0.1") and not notify_email.refused_host("172.16.5.20")
