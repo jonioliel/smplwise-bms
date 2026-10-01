@@ -76,7 +76,12 @@ ATTR_ALLOW = {
     # CR-016 (players, speakers, groups): the artist / album of what plays, shuffle / repeat, a Sonos queue's position and size, a receiver's
     # sound modes (a list, protected like the source list). `media_content_id` (a URL), `entity_picture` and every media URL stay out.
     "media_artist", "media_album_name", "shuffle", "repeat", "queue_position", "queue_size", "sound_mode_list",
+    # CR-017 (automations, scenes, scripts): an automation's / scene's config id (`id`), a script's / automation's running count (`current`) and
+    # parallel-run limit (`max`); a scene's member list (`entity_id`, kept for the scene domain only - see trim_attributes). `last_triggered` and `mode` are above.
+    "id", "current", "max",
 }
+AUTOMATION_PREFIXES = ("automation.", "script.", "scene.")  # CR-017
+AUTOMATION_EVENTS = ("automation_reloaded", "scene_reloaded", "automation_triggered", "script_started")
 MEDIA_LIST_KEYS = {"source_list": 80, "activity_list": 200, "sound_mode_list": 80}  # attribute -> the longest item kept; 100 items at most (MAX_MEDIA_LIST)
 HELPER_GROUP_MEMBERS_MAX = 120  # a `group` helper player's `entity_id` attribute (its member list): kept for media_player entities only
 MAX_MEDIA_LIST = 100
@@ -192,7 +197,7 @@ def trim_attributes(attrs: dict[str, Any], domain: str | None = None) -> str:
     # CR-015: a TV's source / activity lists are far larger than the 4000-character budget of the other attributes and must reach
     # the model whole (they are bounded above instead): taken out first, put back after the budget rule ran on the rest
     media_lists = {k: _media_list(kept.pop(k), n) for k, n in MEDIA_LIST_KEYS.items() if k in kept}
-    if domain == "media_player" and isinstance((attrs or {}).get("entity_id"), list):
+    if domain in ("media_player", "scene") and isinstance((attrs or {}).get("entity_id"), list):  # CR-017: a scene's members (a native scene lists what it sets)
         media_lists["entity_id"] = _media_list(attrs["entity_id"], HELPER_GROUP_MEMBERS_MAX)  # CR-016: the members of a helper group (a shortcut, never joinable)
     text = json.dumps(kept, ensure_ascii=False, default=str)
     if len(text) > 4000:
@@ -475,6 +480,13 @@ def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) ->
         fired.clear()
         with db.connection(durable=durable) as conn:
             row = upsert_state(conn, new)
+            if str(new.get("entity_id") or "").startswith(AUTOMATION_PREFIXES):
+                from . import automations as automations_svc  # CR-017: an automation / script / scene state feeds the item cache, the runs and the clients
+
+                try:
+                    automations_svc.MIRROR.on_entity_state(conn, row, data.get("old_state"))
+                except Exception:  # noqa: BLE001 - never lose the state update itself
+                    log.exception("automation state hook failed for %s", new.get("entity_id"))
             if str(new.get("entity_id") or "").startswith("switch.schedule_"):
                 from . import schedules as schedules_svc  # CR-014: a schedule switch's state feeds the mirror and the derived runs
 
@@ -493,6 +505,10 @@ def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) ->
 
     row = retry_locked(_write, what="HA state update", attempts=attempts, base_s=0.25)
     rules_svc.deliver_pending(fired)
+    if str(new.get("entity_id") or "").startswith(AUTOMATION_PREFIXES):
+        from . import automations as automations_svc
+
+        automations_svc.MIRROR.flush()  # CR-017: after the commit - deferred pulls (a no-op while the debounce timer runs them)
     if str(new.get("entity_id") or "").startswith("switch.schedule_"):
         from . import schedules as schedules_svc
 
@@ -670,6 +686,14 @@ class HaSync:
                     log.exception("scheduler event hook failed")
                 return
             event = msg.get("event")
+            if isinstance(event, dict) and event.get("event_type") in AUTOMATION_EVENTS:
+                from . import automations as automations_svc  # CR-017: reloads, automation runs, script starts
+
+                try:
+                    automations_svc.MIRROR.on_ha_event(msg)
+                except Exception:  # noqa: BLE001
+                    log.exception("automations event hook failed")
+                return
             if not isinstance(event, dict) or event.get("event_type") not in REGISTRY_EVENTS:
                 return
             STATE.registry_events += 1
@@ -709,6 +733,9 @@ class HaSync:
             task = asyncio.create_task(self._schedules_start(call, "connect"))  # CR-014: subscribe + full pull when the feature is on
             tasks.add(task)
             task.add_done_callback(tasks.discard)
+            task = asyncio.create_task(self._automations_start(call, "connect"))  # CR-017: subscribe + full pull when the feature is on
+            tasks.add(task)
+            task.add_done_callback(tasks.discard)
 
             # periodic registry refresh inside the session: the safety net under the registry events
             async def refresher() -> None:
@@ -716,6 +743,7 @@ class HaSync:
                     await asyncio.sleep(REGISTRY_REFRESH_S)
                     await self._refresh_and_notify(call, "periodic")
                     await self._schedules_pull("periodic")  # CR-014: the third refresh layer (§6.2)
+                    await self._automations_pull("periodic")  # CR-017: the full pull of every 10 minutes (§12)
 
             refresher_task = asyncio.create_task(refresher(), name="ha-registry-refresher")
 
@@ -808,6 +836,40 @@ class HaSync:
         if loop is None or call is None or not STATE.connected:
             return
         asyncio.run_coroutine_threadsafe(self._schedules_start(call, "enabled"), loop)
+
+    # ------------------------------------------------------------------ CR-017: automations, scripts, scenes (reads + events only)
+
+    async def _automations_start(self, call, reason: str) -> None:
+        """When the feature is on: subscribe to the reload / run events (a refusal is logged - the state and periodic layers remain) and do the full pull."""
+        from . import automations as automations_svc
+
+        if self.db is None or not automations_svc.MIRROR.feature_on(self.db):
+            return
+        for et in AUTOMATION_EVENTS:
+            try:
+                reply = await call("subscribe_events", event_type=et)
+                if not (isinstance(reply, dict) and reply.get("success")):
+                    log.info("HA did not accept the %s subscription", et)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("%s subscription failed: %s", et, type(exc).__name__)
+        await self._automations_pull(reason)
+
+    async def _automations_pull(self, reason: str) -> None:
+        from . import automations as automations_svc
+
+        if self.db is None or not automations_svc.MIRROR.feature_on(self.db):
+            return
+        try:
+            await asyncio.get_event_loop().run_in_executor(None, automations_svc.MIRROR.pull, None, reason)
+        except Exception as exc:  # noqa: BLE001 - a failed pull keeps the cache (services/automations.py records why)
+            log.warning("automations pull (%s) failed: %s", reason, type(exc).__name__)
+
+    def automations_switched_on(self) -> None:
+        """The feature was just switched on in the settings: subscribe and pull on the live session (thread-safe)."""
+        loop, call = self._session_loop, self._session_call
+        if loop is None or call is None or not STATE.connected:
+            return
+        asyncio.run_coroutine_threadsafe(self._automations_start(call, "enabled"), loop)
 
     def refresh_now(self) -> dict[str, Any]:
         """Force a registry refresh from a request thread (the "רענן מ-Home Assistant" button): runs on the live

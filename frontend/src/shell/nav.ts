@@ -408,6 +408,9 @@ function entryHref(fallback: string, tabs: TabItem[], section: string | null): s
 /** CR-014: the schedules list (a tab of the home area) and its settings page (a tab of הגדרות). */
 export const SCHEDULES_HREF = '#/devices/schedules';
 export const SCHEDULES_SETTINGS_HREF = '#/system/schedules';
+/** CR-017: the automations screen (the third tab of the home area: automations, scenes, scripts) and its settings page. */
+export const AUTOMATIONS_HREF = '#/devices/automations';
+export const AUTOMATIONS_SETTINGS_HREF = '#/system/automations';
 
 /** CR-015 / CR-016: the multimedia area ("מולטימדיה", #/multimedia/*) and its settings page. Three tabs: "מסכים", "נגנים
  * ורמקולים" and "קבוצות" (0.1.150). A tab is drawn only when the installation has something of its kind (the pages report
@@ -463,6 +466,7 @@ const EXPLORE_TABS: TabItem[] = [
 export const DEVICES_TABS: TabItem[] = [
   { id: 'building', label: 'מבט על', href: '#/devices/building' },
   { id: 'schedules', label: 'תזמונים', href: SCHEDULES_HREF },
+  { id: 'automations', label: 'אוטומציות', href: AUTOMATIONS_HREF },
 ];
 
 // ---------------------------------------------------------------------------------------------
@@ -572,6 +576,8 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'setup', label: 'חיבורים', href: '#/system/setup' },
     { id: 'entities', label: 'קטלוג התקנים', href: ENTITIES_SETTINGS_HREF },
     { id: 'schedules', label: 'תזמונים', href: SCHEDULES_SETTINGS_HREF },
+    // CR-017: every option of the automations, scenes and scripts (system.configure, installation scope)
+    { id: 'automations', label: 'אוטומציות', href: AUTOMATIONS_SETTINGS_HREF },
     // CR-015: the screens' approval, connections and the remote's defaults (system.configure, installation scope)
     { id: 'multimedia', label: 'מולטימדיה', href: MULTIMEDIA_SETTINGS_HREF },
     /** CR-013 review M10: the screen catalogue left the user menu; a system administrator reaches it from here */
@@ -612,7 +618,7 @@ export function activeAreaTab(r: RouteState | null): string {
     case 'wiskey':
       return wiskeyActiveTab(r);
     case 'devices':
-      return s[1] === 'schedules' ? 'schedules' : 'building';
+      return s[1] === 'schedules' ? 'schedules' : s[1] === 'automations' ? 'automations' : 'building';
     case 'multimedia':
       return s[1] === 'players' ? 'players' : s[1] === 'groups' ? 'groups' : 'screens';
     default:
@@ -739,6 +745,11 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   [SCHEDULES_HREF]: ['schedule.view', 'schedule.manage'],
   // its settings page: system.configure at installation scope
   [SCHEDULES_SETTINGS_HREF]: ['system.configure'],
+  // CR-017, owner decision 1b (2026-10-01, no view-only access): automation.manage, a script run (script.run / script.manage) or a scene activation
+  // (scene.manage or the control of a device) at any scope - the server narrows the lists to the caller's floors and leaves automations out for a caller
+  // without automation.manage; the settings page is system.configure at installation scope.
+  [AUTOMATIONS_HREF]: ['automation.manage', 'script.run', 'script.manage', 'scene.manage', 'devices.control', 'ha.entity.control'],
+  [AUTOMATIONS_SETTINGS_HREF]: ['system.configure'],
   // CR-015: media.read at any scope (a floor-scoped holder sees the screens of their floors; the server narrows the list);
   // the settings page is system.configure at installation scope. No role holds media.read before the backend (S1) lands.
   [MULTIMEDIA_SCREENS_HREF]: ['media.read'],
@@ -777,7 +788,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
-export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
+export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
 
 /** `installationOnly`: the permission must be held at installation scope, not at any scope. */
 export type Can = (permission: string, installationOnly?: boolean) => boolean;
@@ -869,6 +880,18 @@ export function applySchedulesHidden(settings: Record<string, unknown> | null | 
   const was = HIDDEN_HREFS.has(SCHEDULES_HREF);
   if (hidden) HIDDEN_HREFS.add(SCHEDULES_HREF);
   else HIDDEN_HREFS.delete(SCHEDULES_HREF);
+  if (was !== hidden) for (const l of tabsListeners) l();
+  return hidden;
+}
+
+/** CR-017: `automations.enabled` off (הגדרות › אוטומציות) takes the "אוטומציות" tab out of the home area for everyone (the same shape as applySchedulesHidden).
+ * The route is not closed: the screen answers "האוטומציות כבויות" itself. Called by the shell after HIDDEN_HREFS was rebuilt from the product settings and by
+ * the settings screen after a save. Returns whether the tab is hidden. */
+export function applyAutomationsHidden(settings: Record<string, unknown> | null | undefined): boolean {
+  const hidden = String(settings?.['automations.enabled'] ?? 'true') === 'false';
+  const was = HIDDEN_HREFS.has(AUTOMATIONS_HREF);
+  if (hidden) HIDDEN_HREFS.add(AUTOMATIONS_HREF);
+  else HIDDEN_HREFS.delete(AUTOMATIONS_HREF);
   if (was !== hidden) for (const l of tabsListeners) l();
   return hidden;
 }

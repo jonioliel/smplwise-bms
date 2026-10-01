@@ -598,7 +598,7 @@ def test_migration_up_on_a_0_1_149_database_keeps_push_prefs_and_subscriptions(s
         conn.execute("INSERT INTO rules(id, name, enabled, owner, trigger_json, scope_json, window_json, cooldown_s, actions_json, revision, created_at, updated_at) VALUES ('r1', 'r', 1, 'local', '{}', '{}', '{}', 0, '[]', 1, 't', 't')")
         conn.execute("INSERT INTO rule_alerts(id, rule_id, event_id, fired_at, occurred_at, reasons_json, message) VALUES ('a1', 'r1', 'e1', 't', 't', '[]', 'm')")
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
-    assert dbmod.Database(settings.db_path).migrate() == [45, 46, 47]
+    assert dbmod.Database(settings.db_path).migrate() == [45, 46, 47, 48]
     c = TestClient(create_app(settings))  # start-up seeds the policies
     with database.connection(mode="read") as conn:
         assert conn.execute("SELECT categories_json FROM push_prefs WHERE user_id = 'dev-old'").fetchone()[0] == '{"alerts": false}'
@@ -610,10 +610,11 @@ def test_migration_up_on_a_0_1_149_database_keeps_push_prefs_and_subscriptions(s
 
 
 def test_notify_migrations_are_0045_to_0047_and_unique():
+    """Released 0.1.151 applied CR-018 as 0045-0047; CR-017's automations follow as 0048 (renumbered at the 0.1.152 merge)."""
     names = sorted(f.name for f in dbmod.MIGRATIONS_DIR.glob("*.sql"))
-    assert [n for n in names if n.startswith(("0045_", "0046_", "0047_"))] == ["0045_notifications.sql", "0046_notify_settings.sql", "0047_notify_policies.sql"]
+    assert [n for n in names if n.startswith(("0045_", "0046_", "0047_", "0048_"))] == ["0045_notifications.sql", "0046_notify_settings.sql", "0047_notify_policies.sql", "0048_automations.sql"]
     allnums = [int(n.split("_", 1)[0]) for n in names]
-    assert all(allnums.count(n) == 1 for n in (45, 46, 47))
+    assert all(allnums.count(n) == 1 for n in (45, 46, 47, 48))
 
 
 # ---------------------------------------------------------------- review fixes

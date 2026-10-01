@@ -20,7 +20,7 @@ from .config import DEV_NVR_PLACEHOLDER, Settings, load_settings
 from .db import Database
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
-from .routers import access, access_control, access_groups, alarm, anchors, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, events, exports, frames, ha, health, me, media, multimedia, notifications, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, views, zones, nvr_write
+from .routers import access, access_control, access_groups, alarm, anchors, automations, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, events, exports, frames, ha, health, me, media, multimedia, notifications, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, views, zones, nvr_write
 
 log = logging.getLogger("smplwise")
 
@@ -55,6 +55,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         schedules_svc.janitor(db, s)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("schedules janitor failed", exc_info=True)
+    try:  # CR-017: expired automation trash, runs and ops past their retention (no Home Assistant call)
+        from .services import automations as automations_svc
+
+        automations_svc.janitor(db, s)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("automations janitor failed", exc_info=True)
     try:  # CR-015: media devices deleted for 30 days, their layout keys, old command rows (no Home Assistant call)
         from .services import media_store
 
@@ -202,6 +208,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(device_cameras.router, prefix=api, tags=["devices"])
     app.include_router(multimedia.router, prefix=api, tags=["multimedia"])  # CR-015: מולטימדיה - מסכים ושלט (/api/v1/multimedia; /api/v1/media is the camera video router)
     app.include_router(schedules.router, prefix=api, tags=["schedules"])  # CR-014: תזמונים
+    app.include_router(automations.router, prefix=api, tags=["automations"])  # CR-017: אוטומציות · סצנות · סקריפטים
     app.include_router(alarm.router, prefix=api, tags=["alarm"])  # CR-010: אבטחה › אזעקה
     app.include_router(zones.router, prefix=api, tags=["zones"])
     app.include_router(skins.router, prefix=api, tags=["plans"])

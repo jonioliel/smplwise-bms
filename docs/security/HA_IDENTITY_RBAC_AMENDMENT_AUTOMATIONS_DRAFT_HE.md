@@ -1,6 +1,6 @@
 # טיוטת תיקון ל־`HA_IDENTITY_RBAC_HE.md` §8 — שמירת אוטומציות, סצנות וסקריפטים עבור משתמשים שאינם מנהלי HA (CR-017)
 
-**סטטוס:** טיוטה לחתימת הבעלים. המסמך המקורי `docs/security/HA_IDENTITY_RBAC_HE.md` **לא נערך**; הטקסט כאן ייכנס אליו רק אחרי
+**סטטוס:** טיוטה לחתימת הבעלים (עודכנה 2026-10-02: הבהרת החלטה 1ב ומצב היישום). המסמך המקורי `docs/security/HA_IDENTITY_RBAC_HE.md` **לא נערך**; הטקסט כאן ייכנס אליו רק אחרי
 אישור מפורש. מקור ההחלטה: תשובת הבעלים 2026-10-01 בבוקר לשאלה 2 במסמך `docs/design/mockups/automations/decisions-HE.md`
 (אפשרות ב), מתועדת ב־`docs/changes/CR-017-AUTOMATIONS-SCENES-SCRIPTS.md` §8.3 ו־§16. לפי סדר הקדימויות של CLAUDE.md, בקשת
 שינוי מאושרת קודמת ל־`docs/security/`, אך הסתירה נרשמת ואינה נפתרת בשקט — זו מטרת הטיוטה.
@@ -42,6 +42,23 @@
 > שינויו מוצגים לקריאה בלבד במסך הגדרות › אוטומציות. הדלקת המתג היא הרחבת הרשאות מודעת מעבר למודל של תשתית המערכת: היא
 > מתועדת כאן כחריג מאושר, ואינה משנה את [H05] לשום פעולה אחרת.
 
+> **הבהרה — אין גישת צפייה בלבד (החלטת הבעלים 1ב, 2026-10-01).** אוטומציה נראית רק למי שרשאי ליצור, לערוך ולשמור אוטומציות
+> (`automation.manage`) ב־scope של יעדיה. מי שאינו מחזיק בה אינו מגיע לאוטומציות כלל: לא רשימה, לא פרטים, לא הרצות ו־trace,
+> לא גרסאות, לא תצוגה מקדימה או בדיקה, לא סל מחזור ולא ההתראות של אוטומציה (`automation.failed`, `automation.notify`) — תשובת
+> השרת 403. לכל היותר הוא מפעיל סצנות (`scene.manage` או שליטה במכשיר) ומריץ סקריפטים (`script.run` / `script.manage`) שמותר
+> לו; גם עבורם תצוגה מקדימה ובדיקה של טיוטה לא שמורה הן פעולות עורך ודורשות את הרשאת הניהול של הסוג. ההרשאה `automation.view`
+> הוסרה מהקטלוג, מתבניות התפקידים ומברירות המחדל.
+
+## 2א. מצב יישום (לבדיקת הבעלים לפני החתימה)
+
+| סעיף | איפה נאכף | בדיקה |
+|---|---|---|
+| מתג האצלה, כבוי כברירת מחדל, רק מנהל בתוך תשתית המערכת | הגשר: `config_service.py` (`delegated_authoring` באפשרויות הרכיב); המוצר קורא את המצב בלבד (`routers/ha.py`) | `test_bridge_config_service.py`, `test_automations_writes.py` |
+| פרופיל `builder` בלבד למואצל; `code` תמיד מנהל | הגשר (`config_service.py`, `config_policy.py`) והמוצר (`automation_ops.py`, פרופיל לפי התוכן) | `test_bridge_config_policy.py`, `test_automations_writes.py` |
+| בלוק נעול זהה לשמור (טביעת אצבע) | `config_policy.py` (`preserved` + הפריט השמור), `automation_ops.py` (`locked_block_changed`) | `test_bridge_config_policy.py`, `test_automations_preview.py` |
+| scope + שליטה + grant ידני לפעולה רגישה | `automation_scope.py` (`change_reasons`, `grant_reasons`) | `test_automations_scope.py` |
+| audit עם `delegated: true` | `automation_ops.py` (`W.audit`) | `test_automations_writes.py` |
+| אין צפייה בלבד (1ב) | `routers/automations.py`, `automation_scope.VIEW_PERMS`, `notify_visibility.py`; הלקוח `visibleKinds` | `test_automations_access.py`, `unit-automations*.spec.ts` |
 ## 3. מה לא משתנה
 
 - כל שאר §8 בתוקף: אין generic service-call proxy לפעולות אדמיניסטרטיביות; scripts/scenes נבדקים לפי השפעותיהם; המוצר אינו

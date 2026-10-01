@@ -111,7 +111,7 @@ S2 extends it with U-1…U-10 (read-only) and a separate, opt-in `--write-check`
 ### 4.1 Navigation and lists
 
 - Home area tabs (CR-014 pattern): **מבט על · תזמונים · אוטומציות**. Inside "אוטומציות" a segmented control: **אוטומציות ·
-  סצנות · סקריפטים**. Settings: a dedicated tab הגדרות › אוטומציות (§4.7). Tabs appear only to holders of `automation.view` (or
+  סצנות · סקריפטים**. Settings: a dedicated tab הגדרות › אוטומציות (§4.7). Tabs appear only to holders of `automation.manage` (or
   the run rights of §7). Optional (setting `automations.ask_when_on_new`, off by default): one "+ חדש" in the home area that asks
   "מתי?" — "בשעות קבועות" opens CR-014's create dialog, "כשמשהו קורה" opens the builder (§5).
 - List row / card: name (Hebrew alias), the one-line Hebrew sentence, floor/area chips of the targets, on/off toggle, last run
@@ -260,7 +260,7 @@ description, triggers, conditions, actions, mode, max …); locked → `raw` unc
 tested on every seed shape: `write(read(c)) == c` (canonical JSON) for any unedited item written in the new schema; a legacy
 item is rewritten in the new schema only when someone saves it (the HA editor does the same).
 
-### 6.3 Arx tables (migration `0045_automations.sql`; renumbered at merge; 0044 is CR-016's)
+### 6.3 Arx tables (migration `0048_automations.sql`: written as 0045, renumbered 2026-10-02 because CR-018 shipped 0045-0047 in 0.1.151; 0044 is CR-016's)
 
 `ha_config_items` (cache, §6.1) · `automation_meta` (kind, config_id, created_via `arx|external`, created_by/updated_by (+username),
 first/last_seen, gone_at, pinned, hidden (integration scenes), favourite) · `automation_versions` (kind, config_id, revision,
@@ -268,8 +268,7 @@ config_json, seen_at, via `arx|external`, actor; last N per item, N = setting `a
 `automation_trash` (snapshot + meta + entities + sensitive, deleted_by, expiry = setting `automations.trash_days`, default 30,
 restored_at) · `automation_ops` (idempotency per user and `client_request_id`, like `schedule_ops`) ·
 `automation_runs` (kind, config_id, at, source `event|trace`, 30-day prune; feeds counts and the storm guard). No config is
-stored outside HA except these snapshots. `0046_automation_role_grants.sql` only if default grants need a data migration
-(CR-015 precedent `0042`).
+stored outside HA except these snapshots. No role-grant data migration was needed (the presets in `roles.json` carry the defaults).
 
 ## 7. Permissions and scope
 
@@ -277,9 +276,15 @@ Decision 1ב: installers and administrators, **and household members who were gr
 their floors/areas** (the binding's scope). Decision 6ג: no separate "sensitive content" permission; sensitive steps use the
 grants manual control already uses.
 
+**Decision 1ב, clarified 2026-10-01 (supersedes the view-only model of the first draft): there is NO view-only permission.** `automation.view` is removed from the
+catalogue, the role presets and the defaults. A caller without `automation.manage` cannot reach automations at all: list, detail, runs, trace, versions, preview, dry-run,
+templates, catalog, review, trash and the automations' notifications (`automation.failed`, `automation.notify`) are 403 `forbidden` (a list without `?kind=` simply leaves
+automations out; `?kind=automation` is the 403, never an empty list). At most such a caller activates scenes (`scene.manage` or the control of a device) and runs scripts
+(`script.run` / `script.manage`) they may; the status then carries only those capabilities and counts (no automation count, no name). In the UI the "אוטומציות" segment and
+deep links to an automation are the normal forbidden state; the home tab appears for `automation.manage`, a script run or a scene activation.
+
 | Permission | Hebrew label | Default | Sensitive (not implied) |
 |---|---|---|---|
-| `automation.view` | צפייה באוטומציות, סצנות וסקריפטים | site_admin, system_admin | no |
 | `automation.manage` | יצירה, עריכה, הפעלה/השבתה, הרצה ומחיקה של אוטומציות | site_admin, system_admin | yes |
 | `scene.manage` | יצירה, צילום ועריכה של סצנות | site_admin, system_admin | yes |
 | `script.run` | הפעלת סקריפטים | site_admin, system_admin | no |
@@ -287,10 +292,10 @@ grants manual control already uses.
 | `automation.code_view` | תצוגת קוד בעורך (הצד השני של המתג "בונה · קוד") | site_admin, system_admin (setting `automations.code_view_roles`) | yes |
 
 - Scope primitive = CR-014 §4.2 (`ha_scope.entity_allowed`, placements; HA areas are never a scope). Family recipe (documented,
-  like "עורך תזמונים"): custom role "בני בית" = `automation.view` + `script.run` bound at their floors; "עורך אוטומציות" adds
-  `automation.manage` + `scene.manage` at the same floors. Saving by a household member who is not an HA admin also needs the
+  like "עורך תזמונים"): custom role "מפעיל סקריפטים" = `script.run` + the control of devices (activates scenes, runs scripts, sees no automation) bound at
+  their floors; "עורך אוטומציות" adds `automation.manage` + `scene.manage` at the same floors. Saving by a household member who is not an HA admin also needs the
   delegation switch (§8.3).
-- **Visibility**: an item is visible iff every **action target** entity is visible to the caller (view permission + `devices.read`
+- **Visibility**: an item is visible iff every **action target** entity is visible to the caller (the kind's permission - for an automation `automation.manage` - + `devices.read`
   or `entity.state.read` at the entity); with no typed target, by trigger entities; with neither (only locked/notify), only to
   installation-wide viewers. Trigger/condition entities outside scope never hide an item: shown by name, locked for that caller.
 - **Change**: the right permission at every target entity of the old and the new content + control there (`ha_scope.control_allowed`)
@@ -468,3 +473,15 @@ reconnect. Clients get `HaPush` `automations_changed {kinds, ids}`.
 | 9 | "למה זה רץ" | **ג** the full trace as HA shows it (steps, conditions, variables, timing) for everyone who may view the automation, with the short Hebrew sentence on top | §4.2.6 |
 | 10 | The 42 existing automations | **א** all appear immediately and are editable; unknown parts locked and round-tripped unchanged | §4.2.3, §6.2 |
 | + | Owner rule | every option in one dedicated settings tab "אוטומציות" | §4.7 |
+
+## 17. Integration notes (2026-10-02, `pilot/CR017-finish`)
+
+- **Editors over the list.** `#/devices/automations[/scripts|/scenes]/<id>/edit` and `.../new/edit?kind=&template=` are routes of
+  `<devices-automations>`, which opens S4's sheet (`<automation-builder>`, `<script-editor>`, `<scene-editor>`) over the mounted list;
+  saving closes into the item's drawer, cancelling returns to it (or to the list for a new item). New scenes keep S3's capture sheet.
+- **Decision 1b in the client.** `status.can.scene_run`; `visibleKinds` shows automations only with `automation.manage`; the tab opens for
+  `automation.manage`, a script run or a scene activation; a deep link to an automation without the right shows a forbidden state.
+- **Security review.** Preview and the dry-run of an unsaved draft need the kind's manage permission for every kind (§3.1 rows 6 and 17).
+- **Authoring block (§4.6).** Lifted by an `automation_reloaded` event or a new session (Home Assistant restarted, which is when an added
+  include line takes effect) a minute or more after it was set; the failed write's own reload never lifts it.
+- **Migration** `0048_automations.sql` (§6.3).
