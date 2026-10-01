@@ -31,6 +31,11 @@ test.describe('rows: place, icon, the one state tag', () => {
     expect(placeText(mk({ subject: { kind: 'session', id: 's', area_id: null }, category: 'security' }), MOCK_AREAS)).toBe('חשבון');
     expect(placeText(mk({ subject: { kind: 'schedule', id: 's', area_id: null }, category: 'automations' }), MOCK_AREAS)).toBe('תזמונים');
     expect(placeText(mk({ subject: { kind: 'entity', id: 'e', area_id: 'unknown-area' }, category: 'safety' }), MOCK_AREAS)).toBe('בטיחות'); // an area the catalog does not know: the category, never an id
+    // the server's place_name wins: a station or a camera without an HA area still names its place
+    expect(placeText(mk({ place_name: 'שער ראשי', subject: { kind: 'door', id: 'st', area_id: null } }), MOCK_AREAS)).toBe('שער ראשי');
+    expect(placeText(mk({ place_name: 'מצלמת חניה', subject: { kind: 'camera', id: 'c', area_id: 'kitchen' } }), MOCK_AREAS)).toBe('מצלמת חניה');
+    expect(placeText(mk({ place_name: null }), MOCK_AREAS)).toBe('חניה');
+    expect(whereText(mk({ place_name: 'מצלמת חניה' }), MOCK_AREAS)).toBe('מצלמה · מצלמת חניה');
     expect(whereText(mk(), MOCK_AREAS)).toBe('מצלמה · חניה');
     expect(whereText(mk({ subject: { kind: 'door', id: 'st', area_id: 'entrance' }, door: { id: 'st', name: 'דלת הכניסה', can_open: true } }), MOCK_AREAS)).toBe('עמדת כניסה · כניסה ראשית');
     expect(whereText(mk({ subject: { kind: 'system', id: 's', area_id: null }, category: 'system' }), MOCK_AREAS)).toBe('מערכת');

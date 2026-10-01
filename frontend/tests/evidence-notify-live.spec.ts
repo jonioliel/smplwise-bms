@@ -102,11 +102,10 @@ async function shot(page: Page, name: string) {
 const hhmm = (minutes: number) => `${String(Math.floor(((minutes % 1440) + 1440) % 1440 / 60)).padStart(2, '0')}:${String((((minutes % 1440) + 1440) % 1440) % 60).padStart(2, '0')}`;
 const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 
-/** A recorded gap, not a failure: the server names the place of a row without an HA area (`place_name`: the station, the camera) but the center's client contract
- * has no such field, so such a row shows its category word instead. Annotated in the report when it happens. */
+/** The heading names the place the server sends (`place_name`: the station, the camera, the area) - the center reads it first (notify-logic.placeText). */
 async function noteGap(heading: ReturnType<Page['locator']>, place: string | null, what: string) {
   const text = (await heading.innerText().catch(() => '')) || '';
-  if (place && !text.includes(place)) test.info().annotations.push({ type: 'gap', description: `${what}: the heading "${text.trim()}" does not show the place "${place}" the API sends (place_name is not read by notify-logic.placeText)` });
+  if (place) expect(text, `${what}: the heading shows the place the API sends`).toContain(place);
 }
 
 // ------------------------------------------------------------------------------------------------ the UI helpers (the same locators as the mock-mode spec)

@@ -279,7 +279,7 @@ export class NotifyDetail extends LitElement {
     const hasMain = n.state === 'open' && (n.can_ack || door);
     return html`<div class=${classMap({ ndet: true, [`s-${n.severity}`]: true })} data-notify-detail=${n.id}>
       <div class=${classMap({ dhead: true, crit })}><span class="ring">${nIcon(iconOf(n))}</span>
-        <div class="tx"><h4>${n.title}${n.subject.area_id || n.subject.kind === 'door' ? html` · ${place}` : nothing}</h4>
+        <div class="tx"><h4>${n.title}${n.place_name || n.subject.area_id || n.subject.kind === 'door' ? html` · ${place}` : nothing}</h4>
           <div class="meta"><span class="sevtag" data-detail-severity=${n.severity}>${severityText(n.severity)}</span>${stTag}${n.count > 1 ? html`<span class="tag n">${foldLabel(n)}</span>` : nothing}${n.me.snoozed_until && a.snooze === false && n.state === 'open' ? html`<span class="tag soon">${nIcon('snooze')}הושתק עד ${clockText(n.me.snoozed_until, this.tz)}</span>` : nothing}</div></div></div>
       ${n.has_snapshot && this.snapshot
         ? html`<div class="snap" data-detail-snapshot><span class="pil">${nIcon('cam')}${whereText(n, this.areas)}</span>${this.snapFailed ? nothing : html`<img alt="" src=${this.snapshot} @error=${() => (this.snapFailed = true)} />`}<div class="ctr">${nIcon('image')}<span>תמונה מהמצלמה · <span class="n">${clockText(n.last_at, this.tz)}</span></span></div></div>`

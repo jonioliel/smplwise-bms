@@ -14,7 +14,8 @@ import {
 // ------------------------------------------------------------------------------------------------ rows
 
 /** The place a row names: the area, else what the subject is ("מערכת", "חשבון", "תזמונים") - every row has one short place word. */
-export function placeText(n: Pick<Notification, 'subject' | 'category'>, areas: Record<string, string>): string {
+export function placeText(n: Pick<Notification, 'subject' | 'category'> & { place_name?: string | null }, areas: Record<string, string>): string {
+  if (n.place_name) return n.place_name; // the server's name first: the station, the camera, the area
   const a = n.subject.area_id ? areas[n.subject.area_id] : undefined;
   if (a) return a;
   switch (n.subject.kind) {
@@ -37,7 +38,7 @@ const OPEN_LABEL: Record<SubjectKind, string> = {
 /** The label of the "open the device" menu item: "פתח את המצלמה". */
 export const openLabel = (n: Pick<Notification, 'subject'>): string => OPEN_LABEL[n.subject.kind];
 /** The "where" of the detail view: what the subject is and its place, "מצלמה · חניה" ("עמדת כניסה" is the door's own name when the row has one). */
-export function whereText(n: Pick<Notification, 'subject' | 'category' | 'door'>, areas: Record<string, string>): string {
+export function whereText(n: Pick<Notification, 'subject' | 'category' | 'door'> & { place_name?: string | null }, areas: Record<string, string>): string {
   const place = placeText(n, areas);
   const what = n.door?.name ? `עמדת כניסה` : KIND_LABEL[n.subject.kind];
   return what === place ? place : `${what} · ${place}`;
