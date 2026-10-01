@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { KeyThrottle, artworkUrl, isLit, type Size } from '../api/media-screens';
-import { effectiveCeiling, groupChip, isMember, playerCommandOffered, players, powerControlled, type PlayerCommand, type PlayerDevice, type PlayerDeviceDetail } from '../api/media-players';
+import { effectiveCeiling, groupChip, isMember, playerCommandOffered, players, powerControlled, unmuteCeiling, type PlayerCommand, type PlayerDevice, type PlayerDeviceDetail } from '../api/media-players';
 import { applyMediaGlass, mediaGlassStyles } from '../styles/media-glass';
 import { glyphIcon, mIcon, nameText } from './media-icons';
 import { runPlayerCommand } from './media-player-run';
@@ -542,8 +542,11 @@ export class MediaPlayerCard extends LitElement {
     void this.send('volume', d.caps.volume_set ? { command: 'volume_set', level } : { command: 'volume_step', direction: dir > 0 ? 'up' : 'down' });
   }
 
-  private mute() {
-    void this.send('mute', { command: 'mute', muted: !this.device.live.volume.muted });
+  private async mute() {
+    const d = this.device;
+    const ceiling = d.live.volume.muted ? unmuteCeiling(d) : null; // an unmute above a ceiling set later is refused: lower the level first
+    if (ceiling !== null && playerCommandOffered(d, { command: 'volume_set', level: ceiling })) await runPlayerCommand(d.key, { command: 'volume_set', level: ceiling });
+    void this.send('mute', { command: 'mute', muted: !d.live.volume.muted });
   }
 
   private openPlayer() {

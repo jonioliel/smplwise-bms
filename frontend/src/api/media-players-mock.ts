@@ -21,7 +21,7 @@ import { ApiError } from './client';
 import type { AdminDevice, AdminEndpoint } from './media-admin';
 import { DEFAULT_REMOTE, type BulkScope, type CommandResult, type Glyph, type PowerState, type SourceItem } from './media-screens';
 import {
-  GROUPABLE_KINDS, ITEM_REF_RE, NON_PHYSICAL_KINDS, PLAYER_KINDS, PRESET_RUNNING_MS, clampVolume, groupLevel, groupSectionOffered, groupVolumePlan, joinDiff, matchesState, needsConfirmation,
+  GROUPABLE_KINDS, ITEM_REF_RE, NON_PHYSICAL_KINDS, PLAYER_KINDS, PRESET_RUNNING_MS, clampVolume, effectiveCeiling, groupLevel, groupSectionOffered, groupVolumePlan, joinDiff, matchesState, needsConfirmation,
   playerCommandOffered, unplacedBucket,
   type FavouritesCuration, type GroupJoinBody, type GroupLeaveBody, type GroupPreset, type GroupPresetBody, type GroupPreview, type GroupRecord,
   type GroupRunResult, type GroupVolumeBody, type LibraryItem, type LibraryKind, type LibraryPage, type MediaGroup, type MemberOutcome, type MergeSuggestion,
@@ -210,6 +210,8 @@ const listRow = (d: PlayerDeviceDetail): PlayerDevice => {
   return clone(rest);
 };
 const keyOf = (id: string): string => `mp-${id}`;
+/** What a command to a static group fans out to (volume is the group volume route's). */
+const GROUP_FAN: readonly string[] = ['power_on', 'power_off', 'source', 'sound_output', 'transport', 'seek', 'shuffle', 'repeat', 'play_item'];
 const idOf = (key: string): string => key.replace(/^mp-/, '');
 
 
@@ -591,6 +593,20 @@ export class PlayersMockStore implements PlayersAdapter {
       const from = this.row(cmd.from_key);
       const src = this.build(from);
       if (src.live.play !== 'playing') fail(409, 'not_playing', 'אין מה להעביר.');
+    }
+    if (r.seed.kind === 'group') {
+      // a static group is one entity that acts on every member: its volume is the group volume route's (never one volume_set), and a party (four rooms or more, or
+      // more than one floor) asks for `confirmed: true` after the preview - exactly a join's rule
+      if (cmd.command === 'volume_set' || cmd.command === 'volume_step') fail(409, 'use_group_volume', 'עוצמת קבוצה נשלטת ממסך הקבוצה.', { route: `/multimedia/groups/${key}/volume` });
+      if (GROUP_FAN.includes(cmd.command) && cmd.confirmed !== true) {
+        const ids = (this.grp[r.seed.id] ?? []).filter((i) => this.row(keyOf(i)).approved);
+        if (needsConfirmation(ids.map((i) => this.build(this.row(keyOf(i)))))) fail(409, 'confirm_required', 'קבוצה גדולה: נדרש אישור.', { preview: this.partyPreview(ids, {}) });
+      }
+    }
+    if (cmd.command === 'mute' && cmd.muted === false) {
+      // an unmute reveals the level the speaker was muted at: above a ceiling set later it is never sent (the caller lowers the level first)
+      const ceiling = effectiveCeiling(d, this.clock());
+      if (ceiling !== null && (d.live.volume.level === null || d.live.volume.level > ceiling)) fail(422, 'not_supported', 'העוצמה גבוהה מהתקרה.', { reason: 'ceiling', ceiling });
     }
     if (!playerCommandOffered(d, cmd)) fail(422, d.live.power === 'on' ? 'not_supported' : 'screen_off', 'הפעולה אינה זמינה לנגן זה עכשיו.');
     this.sent.push({ key, command: cmd });

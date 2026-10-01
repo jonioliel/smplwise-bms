@@ -12,8 +12,8 @@ import { ApiError, describeError } from '../api/client';
 import { subscribeHa } from '../api/ha';
 import { isApi } from '../api/session';
 import {
-  PLAYER_KINDS, confirmPreview, effectiveCeiling, errorCode, isPlaying, memberOutcomeLine, playerErrorText, players, resolveLeader, sendApplyPreset, sendGroupVolume,
-  sendLeave, type GroupPreset, type GroupRecord, type MediaGroup, type PlayerDevice, type PlayerLive, type PlayerStatus,
+  PLAYER_KINDS, confirmPreview, effectiveCeiling, errorCode, isPlaying, memberOutcomeLine, playerErrorText, players, previewNames, resolveLeader, sendApplyPreset, sendGroupVolume,
+  sendLeave, unmuteCeiling, type GroupPreset, type GroupPreview, type GroupRecord, type MediaGroup, type PlayerDevice, type PlayerLive, type PlayerStatus,
 } from '../api/media-players';
 import { artworkUrl } from '../api/media-screens';
 import { onRouteChange, parseRoute, replaceRoute } from '../router';
@@ -712,7 +712,7 @@ export class MultimediaGroups extends LitElement {
         this.dialog?.confirm({
           heading: `לצרף ${preview.devices} חדרים לקבוצה אחת?`,
           sub: floors > 1 ? `הקבוצה תשמיע ב־${floors} קומות.` : undefined,
-          names: preview.members.map((m) => m.name),
+          names: previewNames(preview),
           ok: 'צרף',
           run: async () => {
             await this.apply(p, true);
@@ -742,9 +742,20 @@ export class MultimediaGroups extends LitElement {
     }
   }
 
+  /** A command to a static group or a party answers 409 confirm_required with the preview: ask once, then resend with `confirmed: true`. */
+  private askParty = (pv: GroupPreview): Promise<boolean> =>
+    new Promise((resolve) => {
+      const dlg = this.dialog;
+      if (!dlg) return resolve(false);
+      dlg.confirm({
+        heading: `לשלוט ב־${pv.devices} חדרים יחד?`, sub: pv.floors > 1 ? `הקבוצה משמיעה ב־${pv.floors} קומות.` : undefined, names: previewNames(pv), ok: 'בצע',
+        run: async () => resolve(true), cancel: () => resolve(false),
+      });
+    });
+
   private async togglePlay(leaderKey: string) {
-    const o = await runPlayerCommand(leaderKey, { command: 'transport', action: 'play_pause' });
-    if (o.outcome === 'refused' || o.outcome === 'not_confirmed') this.say(o.message);
+    const o = await runPlayerCommand(leaderKey, { command: 'transport', action: 'play_pause' }, undefined, this.askParty);
+    if ((o.outcome === 'refused' || o.outcome === 'not_confirmed') && o.message) this.say(o.message);
     this.scheduleRefresh(isApi() ? 600 : 30);
   }
 
@@ -777,6 +788,10 @@ export class MultimediaGroups extends LitElement {
   }
 
   private async mute(key: string, muted: boolean) {
+    // an unmute reveals the old level: above a ceiling set later the server refuses, so the level goes down to the ceiling first
+    const d = this.dev(key);
+    const ceiling = muted && d ? unmuteCeiling(d) : null;
+    if (ceiling !== null) await runPlayerCommand(key, { command: 'volume_set', level: ceiling });
     const o = await runPlayerCommand(key, { command: 'mute', muted: !muted });
     if (o.outcome === 'refused' || o.outcome === 'not_confirmed') this.say(o.message);
     this.scheduleRefresh(isApi() ? 600 : 30);

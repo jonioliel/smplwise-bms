@@ -21,6 +21,8 @@ export interface GroupConfirmRequest {
   names?: string[];
   ok: string;
   danger?: boolean;
+  /** Runs when the dialog is closed WITHOUT the confirm button (cancel, Escape): the caller's promise for "no". */
+  cancel?: () => void;
   /** Runs when the confirm button is pressed (only there); a rejection is shown in the dialog. The dialog closes when it resolves. */
   run: () => Promise<void>;
 }
@@ -146,7 +148,9 @@ export class MediaGroupDialog extends LitElement {
   private close = () => {
     if (this.phase === 'sending') return;
     this.stopped = true;
+    const was = this.phase;
     this.phase = 'closed';
+    if (was === 'confirm') this.req?.cancel?.();
   };
 
   private async runConfirm() {

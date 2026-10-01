@@ -543,8 +543,10 @@ test.describe(`players API on the ${HOUSE} house (needs S1: the CR-016 routes)`,
       expect(led('wiim_living').members.map((m) => m.key).sort()).toEqual([p.keys.wiim_living, p.keys.wiim_kitchen].sort());
       expect(led('group_outside').static).toBe(true);
       expect(JSON.stringify(groups)).not.toMatch(PRIVATE);
+      // the queue window of the detail comes from an up-next read; a user has a share of 30 bridge reads a minute (review L3), so a busy run waits for its turn
+      await expect.poll(async () => (await device(request, p.keys.wiim_living)).live.queue, { timeout: 75_000, intervals: [2000, 5000] }).toEqual({ count: 4, index: 0 });
       const playing = await device(request, p.keys.wiim_living);
-      expect([playing.live.now.title, playing.live.now.artist, playing.live.now.album, playing.live.queue]).toEqual(['שיר לדוגמה א', 'אמן לדוגמה', 'אלבום לדוגמה', { count: 4, index: 0 }]);
+      expect([playing.live.now.title, playing.live.now.artist, playing.live.now.album]).toEqual(['שיר לדוגמה א', 'אמן לדוגמה', 'אלבום לדוגמה']);
       expect(playing.live.now.artwork, 'a proxied, versioned relative URL - never the HA URL').toMatch(/multimedia\/devices\/[a-f0-9]{32}\/artwork\?v=/);
     });
   }
@@ -633,7 +635,7 @@ test.describe(`players API on the ${HOUSE} house (needs S1: the CR-016 routes)`,
       expect(JSON.stringify(next)).not.toMatch(PRIVATE);
       const empty = await (await request.get(`${API}/multimedia/devices/${p.keys.wiim_terrace}/up-next`)).json();
       expect([empty.confirmed, empty.count, empty.next], 'an empty queue is not unavailable').toEqual([true, 0, null]);
-      const lib = async (kind: string) => (await (await request.get(`${API}/multimedia/devices/${key}/library?kind=${kind}`)).json()) as { items: { item_ref: string; name: string; kind: string }[]; provider: string; curated: boolean };
+      const lib = async (kind: string, k = key) => (await (await request.get(`${API}/multimedia/devices/${k}/library?kind=${kind}`)).json()) as { items: { item_ref: string; name: string; kind: string }[]; provider: string; curated: boolean };
       const [fav, stations, lists] = [await lib('favourites'), await lib('stations'), await lib('playlists')];
       expect(JSON.stringify([fav, stations, lists]), 'no uri, no image url, nothing but an opaque reference').not.toMatch(PRIVATE);
       expect(stations.items.map((i) => i.name), 'the stations are the whole radio library, not only the favourites').toEqual(['תחנה לדוגמה 1', 'תחנה לדוגמה 2', 'תחנה לדוגמה 3']);
@@ -642,22 +644,25 @@ test.describe(`players API on the ${HOUSE} house (needs S1: the CR-016 routes)`,
       expect(fav.items.every((i) => /^[a-f0-9]{24}$/.test(i.item_ref))).toBe(true);
       expect(fav.provider).toBe('ma');
       const since = await mark(request);
-      const station = stations.items[0];
+      // an item ref plays only for the user and the device it was listed for (review L2): mini lists its own stations
+      const station = (await lib('stations', p.keys.mini)).items[0];
       const play = await cmd(request, p.keys.mini, { command: 'play_item', item_ref: station.item_ref });
       expect([play.status, ['accepted', 'sent'].includes(play.body.status)], 'a library item has no state to confirm: the server answers sent').toEqual([202, true]);
       const calls = (await callsSince(request, since)).filter((c) => c.kind === 'play_item');
       expect(calls.map((c) => [c.entity_id, c.media_type, c.media_id, c.enqueue, c.result]), 'mini is a member of the cross-brand group: its queue command runs on the LEADER (CR 6.1)').toEqual([[e('denon_a_ma'), 'radio', 'library://radio/r1', 'play', 'ok']]);
       await expect.poll(async () => (await device(request, p.keys.mini)).live.now.title).toBe('תחנה לדוגמה 1');
       expect((await device(request, p.keys.mini)).live.now.kind, 'a station: no progress, "שידור חי"').toBe('station');
+      await sleep(1100);
       const unknown = await cmd(request, p.keys.mini, { command: 'play_item', item_ref: 'a'.repeat(24) });
       expect([unknown.status, unknown.body.code]).toEqual([422, 'unknown_item']);
+      await sleep(1100); // play_item: 1 per second per device (CR 6.4)
       const url = await cmd(request, p.keys.mini, { command: 'play_item', item_ref: 'https://example.invalid/a.mp3' });
       expect(url.status, 'a URL is not an item_ref').toBe(422);
       // transfer: the queue of a playing player moves here; a player that is not playing cannot be the source
       await sleep(1100);
       const t0 = await mark(request);
       const tr = await cmd(request, p.keys.wiim_terrace, { command: 'transfer', from_key: p.keys.wiim_living });
-      expect([tr.status, tr.body.status]).toEqual([202, 'accepted']);
+      expect([tr.status, ['accepted', 'sent'].includes(tr.body.status)], 'a transfer has no single state to confirm: the server answers sent').toEqual([202, true]);
       expect((await callsSince(request, t0)).filter((c) => c.kind === 'transfer').map((c) => [c.entity_id, c.source_player])).toEqual([[e('wiim_terrace_ma'), e('wiim_living_ma')]]);
       await sleep(1100);
       const idle = await cmd(request, p.keys.wiim_study, { command: 'transfer', from_key: p.keys.garden });
@@ -669,7 +674,7 @@ test.describe(`players API on the ${HOUSE} house (needs S1: the CR-016 routes)`,
       const failed = await (await request.get(`${API}/multimedia/devices/${key}/up-next`)).json();
       expect([failed.confirmed, failed.next], 'unconfirmed: the panel shows "לא זמין"').toEqual([false, null]);
       await ctl(request, '/media-config', { query_fail: false, ma_loaded: false });
-      await sleep(2200);
+      await sleep(5500); // a failed queue read is remembered for 5 s per user and device (review L3): the next read asks the bridge again
       const none = await request.get(`${API}/multimedia/devices/${key}/up-next`);
       expect([none.status(), (await none.json()).code], 'the bridge says no_library for the queue read').toEqual([503, 'no_library']);
       expect((await (await request.get(`${API}/multimedia/status`)).json()).library.state, 'the status is what tells the panel (the library list itself may still be served from its 5-minute cache)').toBe('unavailable');
@@ -826,7 +831,7 @@ test.describe(`players API on the ${HOUSE} house (needs S1: the CR-016 routes)`,
       const key = p.keys.wiim_living;
       const stations = ((await (await request.get(`${API}/multimedia/devices/${key}/library?kind=stations`)).json()) as { items: { item_ref: string; name: string }[] }).items;
       const cur = await (await request.get(`${API}/multimedia/favourites`)).json();
-      const hide = await put(request, '/multimedia/favourites', { kinds_on: ['favourites', 'stations'], items: [{ item_ref: stations[0].item_ref, hidden: true, order: 0 }], base_revision: cur.revision });
+      const hide = await put(request, '/multimedia/favourites', { kinds_on: ['favourites', 'stations'], items: [{ item_ref: stations[0].item_ref, hidden: true, order: 0 }, { item_ref: stations[1].item_ref, hidden: false, order: 1 }], base_revision: cur.revision });
       expect(hide.status).toBeLessThan(300);
       const after = ((await (await request.get(`${API}/multimedia/devices/${key}/library?kind=stations`)).json()) as { items: { name: string }[]; curated: boolean });
       expect(after.items.map((i) => i.name), 'the hidden station is gone for everyone').toEqual(['תחנה לדוגמה 2', 'תחנה לדוגמה 3']);
@@ -859,7 +864,9 @@ test.describe(`players API on the ${HOUSE} house (needs S1: the CR-016 routes)`,
       const lists = await request.get(`${API}/multimedia/devices/${key}/library?kind=playlists`);
       expect(lists.status() === 200 ? ((await lists.json()) as { items: unknown[] }).items : [], 'no playlists tab with the Sonos provider').toEqual([]);
       const since = await mark(request);
-      const pick = fav.items.find((i) => i.name === 'פלייליסט ערב')!;
+      // an item ref plays only for the user and the device it was listed for (review L2): the bedroom lists its own favourites
+      const bed = (await (await request.get(`${API}/multimedia/devices/${p.keys.sonos_bedroom}/library?kind=favourites`)).json()) as { items: { item_ref: string; name: string }[] };
+      const pick = bed.items.find((i) => i.name === 'פלייליסט ערב')!;
       const play = await cmd(request, p.keys.sonos_bedroom, { command: 'play_item', item_ref: pick.item_ref });
       expect([play.status, ['accepted', 'sent'].includes(play.body.status)], 'a library item has no state to confirm: the server answers sent').toEqual([202, true]);
       expect((await callsSince(request, since)).filter((c) => c.service === 'select_source').map((c) => [c.domain, c.entity_id, c.source]), 'a Sonos favourite is started with select_source on the Sonos entity').toEqual([['media_player', e('sonos_bedroom'), 'פלייליסט ערב']]);
@@ -962,7 +969,10 @@ test.describe(`players screens on the ${HOUSE} house (needs S2 + S3)`, () => {
     const text = await productCopy(page);
     expect(text, 'operator screens name no platform (UI_COPY_RULES)').not.toMatch(PLATFORM_WORDS);
     if (HOUSE === 'sonos') expect(text, 'no floors: one list, the floor menu is gone').toContain('כל החדרים');
-    else expect(text).toContain('קומת קרקע');
+    else {
+      expect(text).toContain('קומת קרקע');
+      expect(text, 'the vendor-only pair is a conflict: the chip is on the cards of the players tab').toContain('קיבוץ לא תואם');
+    }
     for (const label of ['מסכים', 'נגנים ורמקולים', 'קבוצות']) await expect(page.locator(SEL.tab(label)).first(), `tab ${label}`).toBeVisible();
     expect(p.keys).toBeTruthy();
     await shot(page, 'media-players-live', info);
@@ -1000,7 +1010,6 @@ test.describe(`players screens on the ${HOUSE} house (needs S2 + S3)`, () => {
     await page.waitForSelector(SEL.groupCard, { timeout: 30_000 });
     if (HOUSE === 'ma') {
       await expect(page.locator(SEL.groupCard).filter({ hasText: 'מגבר קולנוע' }), 'the cross-brand group of four rooms').toContainText('רמקול חדר שינה');
-      await expect(page.locator('sw-app'), 'the vendor-only pair is a conflict').toContainText('קיבוץ לא תואם');
     } else {
       await expect(page.locator('sw-app'), 'helper groups are shortcuts: "קבוצה וירטואלית"').toContainText('קבוצה וירטואלית');
     }

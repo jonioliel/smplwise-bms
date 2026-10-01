@@ -11,7 +11,7 @@ import { isApi } from '../api/session';
 import { getAction } from '../api/ha';
 import { artworkUrl } from '../api/media-screens';
 import {
-  JOIN_BATCH_MS, JoinDraft, LIBRARY_TAB_LABEL, UP_NEXT_REFRESH_MS, confirmPreview, errorCode, leaderLabel, libraryTabs, nextRepeat, playerCommandOffered, playerErrorText, players, powerControlled, sendGroupVolume,
+  JOIN_BATCH_MS, JoinDraft, LIBRARY_TAB_LABEL, UP_NEXT_REFRESH_MS, confirmPreview, errorCode, leaderLabel, libraryTabs, nextRepeat, playerCommandOffered, playerErrorText, players, powerControlled, previewNames, sendGroupVolume, unmuteCeiling,
   sendJoin, sendLeave, sendPlayerCommand, type GroupPreview, type GroupRecord, type LibraryItem, type LibraryKind, type LibraryPage, type PlayerCommand, type PlayerDevice, type PlayerDeviceDetail,
   type UpNext,
 } from '../api/media-players';
@@ -88,6 +88,8 @@ export class MediaPlayerPanel extends LitElement {
   @state() private joining = new Set<string>();
   @state() private tick = 0;
   @state() private confirm: { plan: JoinPlan; preview: GroupPreview | null } | null = null;
+  /** A command to a static group or a party that the server wants confirmed (409 confirm_required): the preview, and the answer the waiting `exec` is blocked on. */
+  @state() private partyAsk: { preview: GroupPreview; answer: (yes: boolean) => void } | null = null;
   @state() private trMenu = false;
   @state() private seekDraft: number | null = null;
   @state() private nowMs = Date.now();
@@ -150,6 +152,7 @@ export class MediaPlayerPanel extends LitElement {
     this.outcomes = {};
     this.joining = new Set();
     this.confirm = null;
+    this.partyAsk?.answer(false);
     this.trMenu = false;
     this.seekDraft = null;
     this.draft.clear();
@@ -193,6 +196,7 @@ export class MediaPlayerPanel extends LitElement {
     this.joining = new Set();
     this.draft.clear();
     this.confirm = null;
+    this.partyAsk?.answer(false);
     this.trMenu = false;
     this.gate.powerDone();
   }
@@ -272,7 +276,7 @@ export class MediaPlayerPanel extends LitElement {
           const u = await players().upNext(lead.key);
           if (token === this.token) this.upNext = u;
         } catch (err) {
-          if (token === this.token) {
+          if (token === this.token && errorCode(err) !== 'rate_limited') { // a 429 backs off quietly: the last read stays
             if (errorCode(err) === 'no_library') this.libAbsent = true;
             this.upNext = 'error';
           }
@@ -291,7 +295,7 @@ export class MediaPlayerPanel extends LitElement {
       const page = await players().library(key, kind);
       if (token === this.token) this.lib = { ...this.lib, [kind]: page };
     } catch (err) {
-      if (token !== this.token) return;
+      if (token !== this.token || errorCode(err) === 'rate_limited') return; // a 429 backs off quietly
       if (errorCode(err) === 'no_library') this.libAbsent = true;
       this.lib = { ...this.lib, [kind]: 'error' };
     }
@@ -328,6 +332,13 @@ export class MediaPlayerPanel extends LitElement {
     if (code === 'unknown_item') this.lib = {};
   }
 
+  private askParty(preview: GroupPreview): Promise<boolean> {
+    return new Promise((resolve) => {
+      this.partyAsk?.answer(false);
+      this.partyAsk = { preview, answer: (yes) => { this.partyAsk = null; resolve(yes); } };
+    });
+  }
+
   // ------------------------------------------------------------------------------------------------ sending
 
   /** The one way out: gate -> sendPlayerCommand -> (pending until the state confirms, for commands that can be confirmed). `target` is the
@@ -349,6 +360,12 @@ export class MediaPlayerPanel extends LitElement {
     } catch (err) {
       this.setPend(ctrl, false);
       if (power) this.gate.powerDone();
+      const pv = cmd.confirmed === true ? null : confirmPreview(err);
+      if (pv) {
+        // a static group or a party: ask once with the server's preview, then send the same command with `confirmed: true`
+        if (await this.askParty(pv)) return this.exec({ ...cmd, confirmed: true }, target, ctx, ctrl);
+        return false;
+      }
       this.onError(err);
       return false;
     }
@@ -456,6 +473,10 @@ export class MediaPlayerPanel extends LitElement {
     const { key, level, zone } = e.detail;
     const target = this.deviceOf(key);
     const z = zone && target?.zones && zone !== target.zones[0]?.id ? zone : undefined;
+    if (target?.kind === 'group') { // a static group's volume is never one volume_set on the group entity (409 use_group_volume): it fans out member by member
+      void this.runGroupVolume(level, 'absolute');
+      return;
+    }
     if (target) void this.exec({ command: 'volume_set', level, ...(z ? { zone: z } : {}) }, target, {}, `vol:${key}${z ? `@${z}` : ''}`);
   };
 
@@ -498,7 +519,13 @@ export class MediaPlayerPanel extends LitElement {
   /** A mute press (a room's or the device's own); steps and holds go through `KeyPress`. */
   private onMute(key: string) {
     const target = this.deviceOf(key);
-    if (target) void this.exec({ command: 'mute', muted: !(target.live.volume.muted ?? false) }, target, {}, `mute:${key}`);
+    if (!target) return;
+    void (async () => {
+      // an unmute reveals the old level: above a ceiling set later the server refuses it, so the level goes down to the ceiling first
+      const ceiling = target.live.volume.muted ? unmuteCeiling(target) : null;
+      if (ceiling !== null && target.caps.volume_set && !(await this.exec({ command: 'volume_set', level: ceiling }, target, {}, `vol:${key}`))) return;
+      await this.exec({ command: 'mute', muted: !(target.live.volume.muted ?? false) }, target, {}, `mute:${key}`);
+    })();
   }
 
   /** A held step / the keyboard's +/-: a volume step through the gate (the client's token bucket drops what is too fast). */
@@ -969,10 +996,18 @@ export class MediaPlayerPanel extends LitElement {
   // --- the confirmation of a big group (rendered inside the drawer: everything outside the top layer is inert)
 
   private dialog(): TemplateResult | typeof nothing {
+    const a = this.partyAsk;
+    if (a) {
+      return html`<sw-dialog open heading=${`לשלוט ב־${a.preview.devices} חדרים יחד?`} data-pn-dialog="party" @close=${(e: Event) => { e.stopPropagation(); a.answer(false); }}>
+        <div class="cd">${a.preview.floors > 1 ? html`<p class="cd-line">הקבוצה משמיעה ב־${a.preview.floors} קומות.</p>` : nothing}
+          <details data-pn-details><summary>פרטים</summary><ul>${previewNames(a.preview).map((n) => html`<li>${bidi(n)}</li>`)}</ul></details></div>
+        <sw-button slot="footer" data-pn-cancel @click=${() => a.answer(false)}>ביטול</sw-button>
+        <sw-button slot="footer" variant="primary" data-pn-confirm @click=${() => a.answer(true)}>בצע</sw-button></sw-dialog>`;
+    }
     const c = this.confirm;
     if (!c) return nothing;
     const copy = confirmCopy(c.preview, c.plan);
-    const names = c.preview ? c.preview.members.map((m) => m.name) : c.plan.after.map((x) => x.name);
+    const names = c.preview ? previewNames(c.preview) : c.plan.after.map((x) => x.name);
     return html`<sw-dialog open heading=${copy.question} data-pn-dialog="confirm" @close=${(e: Event) => { e.stopPropagation(); this.onCancelConfirm(); }}>
       <div class="cd">${copy.line ? html`<p class="cd-line">${copy.line}</p>` : nothing}
         <details data-pn-details><summary>פרטים</summary><ul>${names.map((n) => html`<li>${bidi(n)}</li>`)}</ul></details></div>

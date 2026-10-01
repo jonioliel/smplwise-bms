@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import {
   GROUP_VOLUME_RATE_PER_S, JOIN_BATCH_MS, JoinDraft, PLAYER_ERROR_LABEL, applyCuration, clampVolume, confirmPreview, effectiveCeiling, groupCandidates, groupChip, groupLevel,
   groupSectionOffered, groupVolumePlan, httpPlayers, inNightWindow, interpolatePosition, isPlaying, joinDiff, leaderLabel, libraryTabs, liveGroupKeys, matchesState,
-  memberOutcomeLine, needsConfirmation, nextRepeat, playerCommandOffered, playerErrorText, playerSections, playerStateText, players, powerControlled, resolveLeader, roomChips, unplacedBucket,
+  memberOutcomeLine, needsConfirmation, nextRepeat, playerCommandOffered, playerErrorText, playerSections, playerStateText, players, powerControlled, previewNames, resolveLeader, roomChips, unmuteCeiling, unplacedBucket,
   upNextMore, upNextText, type PlanMember, type PlayerDevice, type UpNext,
 } from '../src/api/media-players';
 import { playersMock, resetPlayersMock, type PlayersMockStore } from '../src/api/media-players-mock';
@@ -864,6 +864,43 @@ test.describe('CR-016 integration: the mock follows the server it was reconciled
     const par = await dev(m, 'par');
     expect(par.caps.power_on || par.caps.power_off).toBe(false);
     expect(powerControlled(par)).toBe(false);
+  });
+
+  test('review fixes: a static group has no volume_set (use_group_volume) and a party asks for confirmed: true; an unmute above a ceiling is refused', async () => {
+    const m = resetPlayersMock('ma');
+    // the static group of two rooms on one floor... balc (no floor) + off (upstairs): two devices, one floor: no party, a command goes
+    expect(await code(m.command(key('sgrp'), { command: 'transport', action: 'pause', ...req(21) }))).toBeNull();
+    expect(await code(m.command(key('sgrp'), { command: 'volume_set', level: 30, ...req(22) }))).toBe('use_group_volume');
+    // a party: four rooms
+    m.grp.sgrp = ['balc', 'off', 'liv', 'kit'];
+    let err: unknown = null;
+    try { await m.command(key('sgrp'), { command: 'transport', action: 'play', ...req(23) }); } catch (e) { err = e; }
+    expect((err as ApiError).code).toBe('confirm_required');
+    const pv = confirmPreview(err)!;
+    expect(pv.devices).toBe(4);
+    expect(previewNames({ members: [...pv.members, { key: '*', name: 'חדרים נוספים', area_name: null, will: 'stay', reason: null, count: 2 }] }).at(-1)).toBe('חדרים נוספים (2)');
+    expect(await code(m.command(key('sgrp'), { command: 'transport', action: 'play', confirmed: true, ...req(24) }))).toBeNull();
+    // an unmute above a ceiling set later
+    m.rows.find((r) => r.seed.id === 'liv')!.muted = true;
+    m.rows.find((r) => r.seed.id === 'liv')!.vol = 90;
+    let e2: unknown = null;
+    try { await m.command(key('liv'), { command: 'mute', muted: false, ...req(25) }); } catch (e) { e2 = e; }
+    expect(e2).toBeInstanceOf(ApiError);
+    expect(playerErrorText(e2)).toBe('העוצמה גבוהה מהתקרה: הנמיכו ואז בטלו השתקה');
+    const liv = await dev(m, 'liv');
+    expect(unmuteCeiling(liv)).toBe(70);
+    await m.command(key('liv'), { command: 'volume_set', level: 90, ...req(26) });
+    expect(await code(m.command(key('liv'), { command: 'mute', muted: false, ...req(27) }))).toBeNull();
+    expect(unmuteCeiling({ ...liv, live: { ...liv.live, volume: { ...liv.live.volume, level: 40 } } })).toBeNull();
+    expect(unmuteCeiling({ ...liv, volume_max: null, volume_night: null })).toBeNull();
+  });
+
+  test('error lines by reason: a leader needs control at the followers, 429 and the group-volume refusal have lines', () => {
+    const mk = (status: number, c: string, details: Record<string, unknown>) => new ApiError(status, { code: c, user_message: 'x', retryable: false, correlation_id: '', details });
+    expect(playerErrorText(mk(403, 'forbidden', { reason: 'group_member' }))).toBe('אין הרשאה לשלוט בכל חדרי הקבוצה');
+    expect(playerErrorText(mk(403, 'forbidden', { reason: 'member' }))).toBe('אין הרשאה');
+    expect(playerErrorText(mk(409, 'use_group_volume', { route: '/x' }))).toBe('עוצמת קבוצה נשלטת ממסך הקבוצה');
+    expect(playerErrorText(mk(422, 'media_managed_control', {}))).toBe('הנגן מנוהל מהמולטימדיה');
   });
 
   test('library.state: after the bridge says no_library the status says unavailable and the music-layer reads are 503; a Sonos house is not affected', async () => {

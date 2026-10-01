@@ -254,7 +254,12 @@ export type PlayerOnlyCommand =
   | { command: 'transfer'; from_key: string };
 /** The base union plus the five new commands (no `announce`, decision 6א). On a multi-zone receiver a command carries
  * `zone` (default: the first zone); Zone2 accepts power / volume / mute / source / sound_output only. */
-export type PlayerCommand = (MediaCommand | PlayerOnlyCommand) & { zone?: string };
+export type PlayerCommand = (MediaCommand | PlayerOnlyCommand) & {
+  zone?: string;
+  /** The answer to a 409 `confirm_required` of a command to a static group or a party (four rooms or more, or more than one floor): resend with `true` after the
+   * user saw the preview (accepted by power_*, source, sound_output, transport, seek, shuffle, repeat and play_item). */
+  confirmed?: boolean;
+};
 export type PlayerCommandName = PlayerCommand['command'];
 export const ZONE2_COMMANDS: readonly PlayerCommandName[] = ['power_on', 'power_off', 'volume_set', 'volume_step', 'mute', 'source', 'sound_output'];
 
@@ -268,8 +273,11 @@ export interface GroupPreview {
   floors: number;
   needs_confirmation: boolean;
   needs_bulk: boolean;
-  members: { key: string; name: string; area_name: string | null; will: 'join' | 'leave' | 'stay' | 'skip'; reason: string | null }[];
+  /** `key: "*"` is the ONE aggregate row for rooms the caller may not read ("חדרים נוספים", with their `count`): never a device, never named. */
+  members: { key: string; name: string; area_name: string | null; will: 'join' | 'leave' | 'stay' | 'skip'; reason: string | null; count?: number }[];
 }
+/** The names a confirmation lists: the rooms, and the aggregate row as "חדרים נוספים (N)". */
+export const previewNames = (p: Pick<GroupPreview, 'members'>): string[] => p.members.map((m) => (m.key === '*' ? `${m.name}${m.count ? ` (${m.count})` : ''}` : m.name));
 export interface GroupRunResult { bulk_id: string; status: 'accepted' | 'refused'; preview?: GroupPreview }
 /** GET /devices/actions/{bulk_id} for the group kinds: one record per member, naming the room (never an entity id). */
 export interface GroupRecord {
@@ -328,10 +336,23 @@ export const PLAYER_ERROR_LABEL: Record<string, string> = {
   no_library: 'אין ספריית מוזיקה',
   caps_unknown: 'הנגן אינו זמין',
   revision_conflict: 'נערך במקום אחר; טענו מחדש',
+  use_group_volume: 'עוצמת קבוצה נשלטת ממסך הקבוצה',
+  use_media_screen: 'הנגן מנוהל מהמולטימדיה',
+  media_managed_control: 'הנגן מנוהל מהמולטימדיה',
+};
+/** Refusals that depend on the server's `reason` (a short Hebrew line each): the leader's followers are not the caller's, an unmute above the ceiling. */
+const REASON_LABEL: Record<string, string> = {
+  'forbidden:group_member': 'אין הרשאה לשלוט בכל חדרי הקבוצה',
+  'not_supported:ceiling': 'העוצמה גבוהה מהתקרה: הנמיכו ואז בטלו השתקה',
 };
 
 /** The Hebrew line of an error of the players API: the table above by code, else the server's own message. */
 export function playerErrorText(err: unknown): string {
+  if (err instanceof ApiError) {
+    const reason = (err.body.details as { reason?: unknown } | undefined)?.reason;
+    const byReason = typeof reason === 'string' ? REASON_LABEL[`${err.code}:${reason}`] : undefined;
+    if (byReason) return byReason;
+  }
   if (err instanceof ApiError && PLAYER_ERROR_LABEL[err.code]) return PLAYER_ERROR_LABEL[err.code];
   return describeError(err);
 }
@@ -570,6 +591,14 @@ export function inNightWindow(night: VolumeNight | null, now: Date = new Date())
   const t = now.getHours() * 60 + now.getMinutes();
   return from < to ? t >= from && t < to : t >= from || t < to;
 }
+/** Unmuting reveals the level the device was muted at: when a ceiling (or a night window) set LATER is below it the server refuses (422 `not_supported`, reason
+ * `ceiling`). Returns the ceiling the level must be lowered to first, else null (the unmute can go as it is). */
+export function unmuteCeiling(d: Pick<PlayerDevice, 'volume_max' | 'volume_night' | 'live'>, now: Date = new Date()): number | null {
+  const c = effectiveCeiling(d, now);
+  const level = d.live.volume.level;
+  return c !== null && (level === null || level > c) ? c : null;
+}
+
 /** The ceiling in force right now: the lower of `volume_max` and the night window's max inside the window - only where an
  * administrator set them (decision 7ב: no default, so null = no ceiling and nothing is clamped). */
 export function effectiveCeiling(d: Pick<PlayerDevice, 'volume_max' | 'volume_night'>, now: Date = new Date()): number | null {

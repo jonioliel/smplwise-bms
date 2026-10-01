@@ -535,3 +535,13 @@ called, so join behaviour, `get_library` shapes and MA `schema_version` stay UNV
 The mockup carries a mock-bar switch "ספריית מוזיקה: Music Assistant / ללא (Sonos)" that swaps the seed between an MA
 house (H + V patterns: WiiM, Cast, Denon zones, a two-layer group, unplaced and unavailable speakers) and a no-MA house
 (K: six Sonos, no floors, SmartThings mirrors hidden), so the owner sees both on the same screens.
+
+## 16. Integration 0.1.150: review and reconciliation
+
+The Opus review of the command and bridge path (4 medium, 7 low findings) is fixed on `pilot/CR016-review-fixes` and merged. The consequences for the contract
+are in `docs/architecture/MEDIA_PLAYERS_API.md` §3.z (reconciliation with what S1 built, and the review fixes with what the client does with each):
+a static group's volume is the group-volume route's only; a command to a static group or a party needs the join's confirmation (and `media.bulk` for the whole
+building); a live leader's transport needs control at the followers' anchors; an unmute never reveals a level above a ceiling set later; previews may carry one
+aggregate row for rooms the caller may not read; reads are rate-limited per user; every endpoint of a media device and the sibling entities of an approved
+speaker are refused on the generic action route. Decision notes: the party rule counts real floors (a house without floors only asks for four rooms or more),
+and a helper group (`virtual_group`) is a shortcut in the groups tab only after an administrator switches it on in the settings.

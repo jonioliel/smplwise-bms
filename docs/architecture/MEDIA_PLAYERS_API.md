@@ -188,6 +188,22 @@ Where S1 built something the first text of this document did not say (the S0 cli
 | `media_state` frames | carry the extended player shape (`PlayerLive`) for every non-screen kind; the members of a group are republished when its leader's membership changes |
 | Helper groups (`virtual_group`) | have no device card and no command route (404); the groups tab lists them as shortcuts, and their play / pause is a fan-out of ordinary transport commands to the leaders of their rooms; their volume is `POST groups/{key}/volume` |
 
+Opus review fixes (branch `pilot/CR016-review-fixes`, merged into 0.1.150) and what the client does with them:
+
+| Subject | Server | Client |
+|---|---|---|
+| `confirmed` on commands | an optional body field of power_*, source, sound_output, transport, seek, shuffle, repeat and play_item: the answer to a 409 `confirm_required` | `PlayerCommand.confirmed`; `runPlayerCommand(.., ask)` and the panel resend the same command with `confirmed: true` after the user saw the preview |
+| Static group (kind `group`) commands | control (and power for the power-class commands) at EVERY member's anchor; a party (four rooms or more, or more than one floor) is 409 `confirm_required` + `preview`; a whole-building group is 403 `bulk_required` without media.bulk | a dialog "לשלוט ב־N חדרים יחד?" (the panel and the groups tab) |
+| Volume of a static group | `volume_set` / `volume_step` through `/commands` is 409 `use_group_volume` (`details.route`) | the static group's slider calls `POST groups/{key}/volume` (the panel redirects a plain slider on a group too) |
+| A live leader's transport / queue / power-off | control at the followers' anchors too: 403 `forbidden`, `details.reason: group_member` | a short line "אין הרשאה לשלוט בכל חדרי הקבוצה" |
+| Unmute above a ceiling | 422 `not_supported`, `details.reason: ceiling`, `details.ceiling` (a ceiling or night window set after the mute) | `unmuteCeiling(d)`: the level goes down to the ceiling first, then the unmute |
+| Join / preset previews | may contain ONE aggregate row `{key: "*", name: "חדרים נוספים", count}` for rooms the caller may not read | `previewNames` lists it as "חדרים נוספים (N)"; `"*"` is never a device |
+| Reads | up-next, library and the device detail may answer 429 `rate_limited` (scope user); a failed read repeated inside the cache window is a generic `no_library`; item refs are valid only for the user and device they were listed for; `GET favourites` omits hidden items for non-editors | the panel backs off quietly on a 429 (the last read stays) |
+| Schedules | 422 `media_managed_control` for the managed audio sibling entities | label "הנגן מנוהל מהמולטימדיה" |
+| Devices area | the generic action route refuses (409 `use_media_screen`) volume / mute / power / play / pause / stop on ANY media device endpoint and on sibling switch / number / select / button entities of approved speakers, players and receivers | those rows come with `can_control: false` and `media_managed: true`: the area screen draws them read-only |
+| Rung 3b | merges only a component of exactly two clusters with no repeated platform; three or more become suggestions; two clusters that each hold an entity of one integration are never offered once their twins are linked | - |
+| Party rule | counts real floors (a house without floors has none: only four rooms or more asks); areas stay the scope of the whole-building check | `GroupPreview.floors` is the number of floors |
+
 ## 4. Events
 
 `/ha/ws`: `media_state` for every approved kind (payload unchanged, `live` extended); member devices republished when a
