@@ -100,7 +100,7 @@ class ApplyBody(_Body):
 
 
 class CaptureBody(_Body):
-    entity_ids: list[str] = Field(min_length=1, max_length=pol.MAX_MEMBERS)
+    entity_ids: list[str] = Field(min_length=1, max_length=pol.CAPS["members_max"])
 
 
 class PreviewBody(_Body):
@@ -167,7 +167,7 @@ def _bind(request: Request) -> None:
 
 
 def _kind(value: str) -> str:
-    if value not in pol.KINDS:
+    if value not in pol.ITEM_KINDS:
         raise ApiError(404, "item_not_found", "הפריט לא נמצא.")
     return value
 

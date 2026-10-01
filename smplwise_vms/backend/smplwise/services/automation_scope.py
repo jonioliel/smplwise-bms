@@ -18,6 +18,7 @@ from typing import Any
 from ..db import get_setting
 from ..rbac import INSTALLATION, Principal, authorize, bindings_of
 from . import alarm as alarm_svc
+from . import automation_draft as drafts
 from . import automation_model as model
 from . import automation_policy as pol
 from . import automation_transport as tr
@@ -194,8 +195,20 @@ class Ctx:
         info = self.entity(entity_id)
         return bool(entity_id in self.door_layer() or (info and (info["device_class"] or "") in dsvc.DOOR_COVER_CLASSES))
 
+    def entity_class(self, entity_id: str) -> str | None:
+        """The sensitive class of an entity as the client names it: alarm / lock / siren, or a door-class cover's own class (door / gate / garage)."""
+        domain = entity_id.split(".", 1)[0]
+        if domain == "alarm_control_panel":
+            return "alarm"
+        if domain in ("lock", "siren"):
+            return domain
+        if domain == "cover" and self.door_cover(entity_id):
+            dc = (self.entity(entity_id) or {}).get("device_class") or ""
+            return dc if dc in ("door", "gate", "garage") else "door"
+        return None
+
     def sens_class(self, action: str, entity_id: str) -> str | None:
-        return pol.sensitive_service(action, self.door_cover(entity_id))
+        return pol.sensitive_class_of(action, self.entity_class(entity_id))
 
     # -- the caller
 
@@ -238,61 +251,70 @@ class Ctx:
             return "delegation_off"
         return None
 
-    def model_ctx(self, *, code_view: bool, scoped: bool = True, names_scoped: bool = False) -> model.ModelCtx:
-        """`names_scoped`: an entity the caller may not read is named by its id (a preview of a DRAFT never tells a caller the name of a device outside their reach)."""
-        a = self.access if (scoped and self.principal is not None) else None
+    def allowed_actions(self) -> list[str]:
+        """The services the builder may type: the closed device list plus the notify targets the administrator approved."""
+        return [*pol.DEFAULT_ALLOWED_ACTIONS, *self.notify_targets]
+
+    def notify_name(self, action: str) -> str | None:
+        return action.split(".", 1)[1].replace("_", " ") if action in self.notify_targets else None
+
+    def model_ctx(self, *, code_view: bool, scoped: bool = True, names_scoped: bool = False) -> model.ModelContext:
+        """The model's context for this caller. `names_scoped`: an entity the caller may not read is named by its id (a preview of a DRAFT never tells a caller
+        the name of a device outside their reach). `code_view` decides whether a template's text travels in its locked block."""
         name_of = (lambda e: self.name_of(e) if self.access.can_read_state(e) else e) if (names_scoped and self.principal is not None) else self.name_of
-        return model.ModelCtx(name_of=name_of, shabbat_sensor=self.shabbat_sensor or None, notify_targets=self.notify_targets, code_view=code_view,
-                              editable_entity=(lambda e: a.can_read_state(e)) if a is not None else None, door_cover=self.door_cover)
+        return model.ModelContext(names=name_of, notify_name=self.notify_name, shabbat_sensor=self.shabbat_sensor or None, allowed_actions=self.allowed_actions(), template_text=code_view)
+
+    def can_watch(self, entity_id: str) -> bool:
+        """Whether the caller may see the entity a trigger or condition watches (else the block is a locked view for them)."""
+        return self.access.can_read_state(entity_id) if self.principal is not None else True
 
 
 # ---------------------------------------------------------------- facts of an item
 
 def facts_of(ctx: Ctx, kind: str, rd: dict[str, Any], *, entity_id: str | None = None, depth: int = 0) -> dict[str, Any]:
-    """What the rules need to know about a READ item (`automation_model.read_item`): its device targets (scenes and scripts it calls expanded through their
-    own members, depth 3), the references it makes to other items, the typed sensitive steps, the locked blocks and the entities its triggers and conditions
-    watch."""
+    """What the rules need to know about a READ item (`automation_draft.read`): its device targets (scenes and scripts it calls expanded through their own
+    members, depth 3), the references it makes to other items, the sensitive steps (one per device a typed step drives), the locked blocks and the entities
+    its triggers and conditions watch."""
     f: dict[str, Any] = {"targets": [], "refs": [], "steps": [], "locked": [], "unknown_effects": False, "trigger_entities": [], "condition_entities": [],
                          "locked_count": rd.get("locked_count", 0), "unsupported": bool(rd.get("unsupported")), "masked": bool(rd.get("masked"))}
+    d = rd["draft"]
     if kind == "scene":
-        for m in rd["draft"]["members"]:
+        for m in d["members"]:
             f["targets"].append(m["entity_id"])
             if m["entity_id"].startswith("lock."):
-                f["steps"].append({"path": "members", "action": "lock.lock" if m["state"] == "locked" else "lock.unlock", "entity_ids": [m["entity_id"]], "role": "device", "sens": "lock"})
+                f["steps"].append({"path": "members", "action": "lock.lock" if m["state"] == "locked" else "lock.unlock", "entity_id": m["entity_id"], "role": "device", "sens": "lock"})
         return _finish(ctx, f)
-    walk: pol.Walk = rd["walk"]
-    f["trigger_entities"] = pol.trigger_entities(walk)
-    f["condition_entities"] = pol.condition_entities(walk)
-    for b in walk.blocks:
-        t = b["typed"]
-        if b["section"] == "action" and t is not None and t["type"] == "service":
-            step = {"path": b["path"], "action": t["action"], "entity_ids": list(t["entity_ids"]), "role": t["role"], "sens": t["sens"]}
-            f["steps"].append(step)
-            if t["role"] == "device":
-                for e in t["entity_ids"]:
+    f["trigger_entities"] = model.trigger_entities(d) if kind == "automation" else []
+    f["condition_entities"] = model.condition_entities(d) if kind == "automation" else []
+    for w in model.walk_draft(d):
+        b = w.block
+        if w.section != "action":
+            continue
+        if b.get("kind") == "typed" and b.get("type") == "service":
+            role = b["role"]
+            if role == "device":
+                for e in b["entity_ids"]:
+                    cls = pol.sensitive_class_of(b["action"], ctx.entity_class(e))
+                    f["steps"].append({"path": w.path, "action": b["action"], "entity_id": e, "role": "device", "sens": cls})
                     if e not in f["targets"]:
                         f["targets"].append(e)
-                if not t["sens"] and any(ctx.door_cover(e) for e in t["entity_ids"]):
-                    step["sens"] = "door"
-            elif t["role"] in ("scene", "script", "automation"):
-                for e in t["entity_ids"]:
-                    f["refs"].append({"role": t["role"], "entity_id": e})
-                if t["role"] == "script" and not t["entity_ids"]:  # a direct `script.<key>` call
-                    f["refs"].append({"role": "script", "entity_id": t["action"]})
-        elif t is None and b["section"] == "action":
-            f["locked"].append({"path": b["path"], "fingerprint": b["fingerprint"], "reason": b["reason"], "sensitive": b["sensitive"], "effects": b["effects"]})
-            if b["effects"] == "unknown":
+            elif role in ("scene", "script", "automation"):
+                for e in b["entity_ids"]:
+                    f["refs"].append({"role": role, "entity_id": e})
+        elif b.get("kind") == "locked":
+            f["locked"].append({"path": w.path, "fingerprint": b["fingerprint"], "reason": b["reason"], "sensitive": bool(b.get("sensitive")), "effects": b.get("effects")})
+            if b.get("effects") == "unknown":
                 f["unknown_effects"] = True
-            elif isinstance(b["effects"], list):
+            elif isinstance(b.get("effects"), list):
                 for e in b["effects"]:
                     if e not in f["targets"] and pol.ENTITY_RE.match(str(e)):
                         f["targets"].append(e)
-            if b["sensitive"]:
-                f["steps"].append({"path": b["path"], "action": None, "entity_ids": [], "role": "locked", "sens": "locked"})
-    return _finish(ctx, f, entity_id=entity_id, depth=depth)
+            if b.get("sensitive"):
+                f["steps"].append({"path": w.path, "action": None, "entity_id": "", "role": "locked", "sens": "locked"})
+    return _finish(ctx, f, entity_id=entity_id, depth=depth, draft=d)
 
 
-def _finish(ctx: Ctx, f: dict[str, Any], *, entity_id: str | None = None, depth: int = 0) -> dict[str, Any]:
+def _finish(ctx: Ctx, f: dict[str, Any], *, entity_id: str | None = None, depth: int = 0, draft: dict[str, Any] | None = None) -> dict[str, Any]:
     """Expand the references: a scene's members, a script's effects (recursively, depth 3); a reference that cannot be resolved is an unknown effect."""
     for ref in f["refs"]:
         if ref["role"] == "automation":
@@ -308,8 +330,13 @@ def _finish(ctx: Ctx, f: dict[str, Any], *, entity_id: str | None = None, depth:
         f["unknown_effects"] = f["unknown_effects"] or unknown
     f["targets"] = [e for e in f["targets"] if e not in {r["entity_id"] for r in f["refs"]}]
     ctx.preload(f["targets"] + f["trigger_entities"] + f["condition_entities"])
-    f["sensitive_classes"] = sorted({s["sens"] for s in f["steps"] if s.get("sens")})
-    f["sensitive"] = bool(f["sensitive_classes"])
+    classes: list[str] = []
+    if draft is not None:
+        classes = model.sensitive_classes(draft, ctx.entity_class)
+    else:  # a scene: the lock members
+        classes = ["lock"] if any(s.get("sens") for s in f["steps"]) else []
+    f["sensitive_classes"] = classes
+    f["sensitive"] = bool(classes) or any(s.get("sens") for s in f["steps"])
     return f
 
 
@@ -330,7 +357,7 @@ def effects_of_entity(ctx: Ctx, role: str, ref: str, depth: int, origin: str | N
         if row["kind"] == "scene" and isinstance(members, list):
             return [m for m in members if isinstance(m, str)], False
         return None
-    rd = model.read_item(row["kind"], cfg, ctx.model_ctx(code_view=False, scoped=False))
+    rd = drafts.read(row["kind"], cfg, ctx.model_ctx(code_view=False, scoped=False))
     inner = facts_of(ctx, row["kind"], rd, entity_id=ref, depth=depth)
     return inner["targets"], inner["unknown_effects"]
 
@@ -386,28 +413,27 @@ def grant_reasons(ctx: Ctx, steps: list[dict[str, Any]]) -> list[dict[str, Any]]
     for s in steps:
         if not s.get("sens") or s["role"] != "device":
             continue
-        action = s["action"]
-        for e in s["entity_ids"]:
-            if s["sens"] == "alarm":
-                perm = "alarm.disarm" if action == "alarm_control_panel.alarm_disarm" else "alarm.arm"
-                ok = a.allowed(perm, e, own=True)
-                block = _remote_block(ctx, "disarm" if perm == "alarm.disarm" else "arm") if ok else None
-                if block:
-                    key = f"remote|{e}"
-                    if key not in seen:
-                        seen.add(key)
-                        out.append(reason("entity_not_controllable", e, block[1], _remote=block[0], path=s["path"]))
-                    continue
-            else:
-                perm = GRANT_FOR.get(action)
-                if perm is None:
-                    continue  # lock.lock / siren / door covers need control only (below)
-                ok = a.allowed(perm, e)
-            if not ok:
-                key = f"{perm}|{e}"
+        action, e = s["action"], s["entity_id"]
+        if s["sens"] == "alarm":
+            perm = "alarm.disarm" if action == "alarm_control_panel.alarm_disarm" else "alarm.arm"
+            ok = a.allowed(perm, e, own=True)
+            block = _remote_block(ctx, "disarm" if perm == "alarm.disarm" else "arm") if ok else None
+            if block:
+                key = f"remote|{e}"
                 if key not in seen:
                     seen.add(key)
-                    out.append(reason("grant_required", e, f"אין לך הרשאה ל{PERMISSION_LABELS[perm]} ב־{ctx.name_of(e)}.", grant=perm, path=s["path"]))
+                    out.append(reason("entity_not_controllable", e, block[1], _remote=block[0], path=s["path"]))
+                continue
+        else:
+            perm = GRANT_FOR.get(action)
+            if perm is None:
+                continue  # lock.lock / siren / door covers need control only (below)
+            ok = a.allowed(perm, e)
+        if not ok:
+            key = f"{perm}|{e}"
+            if key not in seen:
+                seen.add(key)
+                out.append(reason("grant_required", e, f"אין לך הרשאה ל{PERMISSION_LABELS[perm]} ב־{ctx.name_of(e)}.", grant=perm, path=s["path"]))
     return out
 
 
@@ -460,7 +486,7 @@ def ref_reasons(ctx: Ctx, facts: dict[str, Any]) -> list[dict[str, Any]]:
         targets: list[str] | None = None
         if row is not None and row["config_json"]:
             try:
-                rd = model.read_item("automation", json.loads(row["config_json"]), ctx.model_ctx(code_view=False, scoped=False))
+                rd = drafts.read("automation", json.loads(row["config_json"]), ctx.model_ctx(code_view=False, scoped=False))
                 targets = facts_of(ctx, "automation", rd, entity_id=ref["entity_id"], depth=EFFECT_DEPTH)["targets"]
             except (ValueError, TypeError):
                 targets = None
@@ -508,12 +534,12 @@ def sensitive_steps_view(ctx: Ctx, facts: dict[str, Any]) -> list[dict[str, Any]
     for s in facts["steps"]:
         if not s.get("sens") or s["role"] != "device":
             continue
-        for e in s["entity_ids"]:
-            if s["sens"] == "alarm":
-                grant = "alarm.disarm" if s["action"] == "alarm_control_panel.alarm_disarm" else "alarm.arm"
-                ok = ctx.access.allowed(grant, e, own=True)
-            else:
-                grant = GRANT_FOR.get(s["action"], "ha.entity.control")
-                ok = ctx.access.allowed(grant, e) if grant != "ha.entity.control" else ctx.access.control(e)
-            out.append({"path": s["path"], "entity_id": e, "action": s["action"], "grant": grant, "granted": bool(ok)})
+        e = s["entity_id"]
+        if s["sens"] == "alarm":
+            grant = "alarm.disarm" if s["action"] == "alarm_control_panel.alarm_disarm" else "alarm.arm"
+            ok = ctx.access.allowed(grant, e, own=True)
+        else:
+            grant = GRANT_FOR.get(s["action"], "ha.entity.control")
+            ok = ctx.access.allowed(grant, e) if grant != "ha.entity.control" else ctx.access.control(e)
+        out.append({"path": s["path"], "entity_id": e, "action": s["action"], "grant": grant, "granted": bool(ok)})
     return out

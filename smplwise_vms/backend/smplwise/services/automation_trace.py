@@ -7,6 +7,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any, Callable
 
+from . import automation_model as model
 from . import automation_policy as pol
 from .timeutil import parse_utc
 
@@ -93,7 +94,7 @@ def summary(entry: dict[str, Any], name_of: Callable[[str], str], tz: Any) -> di
 
 
 def _depth(path: str) -> int:
-    return max(0, (len(path.split("/")) - 2) // 2)
+    return max(0, (len(path.split(".")) - 2) // 2)
 
 
 def detail(entry: dict[str, Any], *, step_paths: list[str], sentences: dict[str, str], name_of: Callable[[str], str], tz: Any, user_name: Callable[[str | None], str | None]) -> dict[str, Any]:
@@ -106,14 +107,15 @@ def detail(entry: dict[str, Any], *, step_paths: list[str], sentences: dict[str,
     base = summary(entry, name_of, tz)
     elements: dict[str, dict[str, Any]] = {}
     order: list[str] = []
-    for path, items in trace.items():
+    for path, items in trace.items():  # HA's paths (`action/1/choose/0/sequence/2`) become the draft's dotted ones (`actions.1.choose.0.sequence.2`)
         if not isinstance(items, list) or not items:
             continue
         first = items[0] if isinstance(items[0], dict) else {}
-        elements[str(path)] = {"first": first, "all": [i for i in items if isinstance(i, dict)]}
-        order.append(str(path))
+        dotted = model.normalise_path(str(path))
+        elements[dotted] = {"first": first, "all": [i for i in items if isinstance(i, dict)]}
+        order.append(dotted)
     # the trigger
-    trig_path = next((p for p in order if p.startswith("trigger/")), "trigger/0")
+    trig_path = next((p for p in order if p.startswith("triggers.")), "triggers.0")
     trig_el = elements.get(trig_path, {}).get("first", {})
     changed = trig_el.get("changed_variables") if isinstance(trig_el.get("changed_variables"), dict) else {}
     trig_var = changed.get("trigger") if isinstance(changed.get("trigger"), dict) else {}
@@ -124,20 +126,20 @@ def detail(entry: dict[str, Any], *, step_paths: list[str], sentences: dict[str,
     for p in order:
         first = elements[p]["first"]
         res = first.get("result")
-        is_condition_path = p.startswith("condition/") or "/conditions/" in p or "/if/" in p
+        is_condition_path = p.startswith("conditions.") or ".conditions." in p or ".if." in p
         if is_condition_path and isinstance(res, dict) and "result" in res:
             conditions.append({"path": p, "sentence": sentences.get(p) or "תנאי", "passed": bool(res["result"])})
     for p in order:  # a condition used as a step: its sentence comes from the block, its verdict from the result
         first = elements[p]["first"]
         res = first.get("result")
-        if (p.startswith("action/") or p.startswith("sequence/")) and not ("/conditions/" in p or "/if/" in p) and isinstance(res, dict) and set(res) <= {"result", "entities"} and "result" in res:
+        if (p.startswith("actions.") or p.startswith("sequence.")) and not (".conditions." in p or ".if." in p) and isinstance(res, dict) and set(res) <= {"result", "entities"} and "result" in res:
             if not any(c["path"] == p for c in conditions):
                 conditions.append({"path": p, "sentence": sentences.get(p) or "תנאי", "passed": bool(res["result"])})
     # steps: the config's own order, every step listed
     stamps = [(p, elements[p]["first"].get("timestamp")) for p in order]
     steps: list[dict[str, Any]] = []
     listed: set[str] = set()
-    extra_paths = [p for p in order if (p.startswith("action/") or p.startswith("sequence/")) and p not in step_paths]
+    extra_paths = [p for p in order if (p.startswith("actions.") or p.startswith("sequence.")) and p not in step_paths and ".conditions." not in p and ".if." not in p]
     for p in list(step_paths) + extra_paths:
         el = elements.get(p)
         if el is None:
@@ -148,7 +150,7 @@ def detail(entry: dict[str, Any], *, step_paths: list[str], sentences: dict[str,
         nxt = next((s for q, s in stamps[[q for q, _ in stamps].index(p) + 1:] if s), None) if p in [q for q, _ in stamps] else None
         dur = _ms(first.get("timestamp"), nxt or ts.get("finish")) if started else None
         err = first.get("error") if isinstance(first.get("error"), str) else None
-        res = "error" if err else ("running" if (result == "running" and p == entry.get("last_step")) else "done")
+        res = "error" if err else ("running" if (result == "running" and p == model.normalise_path(str(entry.get("last_step") or ""))) else "done")
         cv = first.get("changed_variables")
         steps.append({"path": p, "depth": _depth(p), "sentence": sentences.get(p, ""), "result": res, "started_at": started, "duration_ms": dur,
                       "error": (err[:300] if err else None), "changed_variables": sanitize(cv) if isinstance(cv, dict) and cv else None})

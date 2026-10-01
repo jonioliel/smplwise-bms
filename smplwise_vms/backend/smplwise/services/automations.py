@@ -38,7 +38,7 @@ from .timeutil import iso_utc, parse_utc, zone
 
 log = logging.getLogger("smplwise.automations")
 
-KINDS = pol.KINDS
+KINDS = pol.ITEM_KINDS
 FETCH_CONCURRENCY = 4
 STALE_AFTER_S = 25 * 60
 ENSURE_RETRY_S = 30.0
@@ -46,6 +46,7 @@ FETCH_DEBOUNCE_S = 0.5
 RUN_KEEP_DAYS = 30
 OP_KEEP_DAYS = 30
 RECENT_OP_S = 120
+AUTHORING_RETRY_S = 60
 TRACE_LIST_MAX = 50
 
 
@@ -149,11 +150,8 @@ def config_sensitive(kind: str, cfg: dict[str, Any] | None) -> list[str]:
     """The sensitive classes a stored config statically contains (no entity lookups: alarm / lock / siren services, locked blocks that touch them)."""
     if not isinstance(cfg, dict) or kind == "scene":
         return []
-    w = pol.analyse(kind, pol.normalize_config(kind, cfg))
-    out = {b["typed"]["sens"] for b in w.blocks if b["typed"] is not None and b["typed"]["type"] == "service" and b["typed"]["sens"]}
-    if any(b["typed"] is None and b.get("sensitive") for b in w.blocks):
-        out.add("locked")
-    return sorted(out)
+    d = model.config_to_draft(kind, cfg, model.ModelContext(template_text=False)).draft
+    return model.sensitive_classes(d)
 
 
 # ================================================================ the mirror
@@ -357,9 +355,9 @@ class Mirror:
         return changed
 
     def _upsert(self, conn: sqlite3.Connection, c: Cand, source: str, reason: str | None, cfg: dict[str, Any] | None, row: sqlite3.Row | None, now: str, baseline: bool) -> bool:
-        masked_cfg = pol.mask(cfg) if cfg is not None else None
-        rev = pol.revision(cfg) if cfg is not None else None
-        masked = 1 if cfg is not None and pol.secret_keys(cfg) else 0
+        masked_cfg = pol.mask_secrets(cfg) if cfg is not None else None
+        rev = model.revision_of(cfg) if cfg is not None else None
+        masked = 1 if cfg is not None and pol.secret_kind(cfg) else 0
         blob = json.dumps(masked_cfg, ensure_ascii=False) if masked_cfg is not None else None
         config_id = c.config_id
         if row is None:
@@ -427,6 +425,7 @@ class Mirror:
         etype = event.get("event_type")
         data = event.get("data") if isinstance(event.get("data"), dict) else {}
         if etype in ("automation_reloaded", "scene_reloaded"):
+            self._maybe_clear_authoring_block()
             self._queue("*")
             self.flush()
         elif etype in ("automation_triggered", "script_started"):
@@ -435,6 +434,18 @@ class Mirror:
                 with self.db.connection(label="automations event") as conn:
                     if feature_on(conn):
                         note_run_for_entity(conn, eid, event.get("time_fired") or self.stamp(), "event", self.now())
+
+    def _maybe_clear_authoring_block(self) -> None:
+        """A write that never loaded blocks writing (`authoring_block`); a reload that Home Assistant announces a minute or more later is the administrator's fix
+        (the include line of the file), not the failed write's own."""
+        if self.db is None:
+            return
+        with self.db.connection(label="automations authoring block") as conn:
+            st = tr.mirror_state(conn)
+            at = _parse(st.get("authoring_block_at"))
+            if st.get("authoring_block") and (at is None or (self.now() - at).total_seconds() >= AUTHORING_RETRY_S):
+                st["authoring_block"], st["authoring_block_at"] = None, None
+                self._save(conn, st)
 
     def on_entity_state(self, conn: sqlite3.Connection, row: dict[str, Any], old_state: dict[str, Any] | None) -> None:
         """An automation / script / scene state was mirrored (inside `handle_state_event`'s transaction: nothing here talks to HA). A new entity queues a fetch;

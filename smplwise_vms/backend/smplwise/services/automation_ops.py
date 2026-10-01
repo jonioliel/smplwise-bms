@@ -23,9 +23,11 @@ from ..audit import audit
 from ..db import get_setting, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
+from . import automation_draft as drafts
 from . import automation_model as model
 from . import automation_policy as pol
 from . import automation_scope as scope
+from . import automation_text as text
 from . import automation_transport as tr
 from . import automation_view as view
 from . import automations as store
@@ -63,6 +65,8 @@ BRIDGE_ERRORS = {
     "service_not_allowed": lambda d: ApiError(422, "action_not_allowed", "הפעולה אינה מותרת כאן.", details={"path": d.get("path")}),
     "argument_not_allowed": lambda d: ApiError(422, "action_not_allowed", "הפעולה אינה מותרת כאן.", details={"path": d.get("path")}),
     "preserved_mismatch": lambda d: ApiError(403, "locked_block_changed", "חלק נעול שונה. אפשר לשנות אותו רק בתצוגת הקוד.", details={"path": d.get("path")}),
+    "legacy_schema": lambda d: ApiError(422, "validation", "ערך לא תקין — התוכן משתמש במפתחות ישנים; השתמשו בתצוגת הקוד כפי שהוצגה.", details={"path": d.get("path")}),
+    "invalid_payload": lambda d: ApiError(422, "validation", "ערך לא תקין — התוכן אינו עומד בכללי השמירה.", details={"path": d.get("path")}),
     "unauthorized": lambda d: ApiError(403, "entity_not_controllable", "אין לך הרשאת שליטה בהתקן; תשתית המערכת דחתה את הפעולה."),
 }
 
@@ -199,14 +203,36 @@ def bridge_error(resp: dict[str, Any]) -> ApiError:
 
 # ================================================================ the bridge
 
+def bridge_body(w: W, op: str, op_id: str, *, kind: str | None, item_id: str | None, base_revision: str | None, profile: str | None, config: dict[str, Any] | None,
+                preserved: list[str] | None, sensitive: bool, variables: dict[str, Any] | None, skip_condition: bool | None, entity_id: str | None) -> dict[str, Any]:
+    """The message of one op with exactly the keys the bridge accepts for it (`config_policy.OP_KEYS`: any other key is refused as `invalid_payload`)."""
+    body: dict[str, Any] = {"user_id": w.principal.user_id, "op": op, "request_id": op_id}
+    if op == "apply_scene":
+        body["entity_id"] = entity_id
+        return body
+    body["kind"], body["item_id"] = kind, item_id
+    if op == "upsert":
+        body.update(base_revision=base_revision, profile=profile or "builder", config=config, preserved=list(preserved or []), sensitive=bool(sensitive))
+    elif op == "delete":
+        body.update(base_revision=base_revision, profile=profile or "builder")
+    elif op == "trigger":
+        if skip_condition is not None:
+            body["skip_condition"] = bool(skip_condition)
+        if variables:
+            body["variables"] = variables
+    elif op == "run_script" and variables:
+        body["variables"] = variables
+    return body
+
+
 def bridge_call(w: W, op: str, op_id: str, *, kind: str | None = None, item_id: str | None = None, base_revision: str | None = None, profile: str | None = None,
                 config: dict[str, Any] | None = None, preserved: list[str] | None = None, sensitive: bool = False, variables: dict[str, Any] | None = None,
                 skip_condition: bool | None = None, entity_id: str | None = None) -> dict[str, Any]:
     """One signed `smplwise_bridge.config_item` call, made with the request's write lock released. Never retried. A transport failure or `ok: false` settles the op
     and raises (504 `config_timeout` leaves it `unknown`)."""
     secret = ha_bridge.signing_key(w.conn)
-    body = {"user_id": w.principal.user_id, "op": op, "request_id": op_id, "kind": kind, "item_id": item_id, "base_revision": base_revision, "profile": profile, "config": config,
-            "preserved": preserved, "sensitive": bool(sensitive), "variables": variables, "skip_condition": skip_condition, "entity_id": entity_id, "notify_targets": list(w.ctx.notify_targets)}
+    body = bridge_body(w, op, op_id, kind=kind, item_id=item_id, base_revision=base_revision, profile=profile, config=config, preserved=preserved, sensitive=sensitive,
+                       variables=variables, skip_condition=skip_condition, entity_id=entity_id)
     signed = ha_bridge.sign(secret or "", body)
     transport = tr.get_transport()
     try:
@@ -220,10 +246,6 @@ def bridge_call(w: W, op: str, op_id: str, *, kind: str | None = None, item_id: 
     if not isinstance(resp, dict) or not resp.get("ok"):
         err = bridge_error(resp if isinstance(resp, dict) else {"error": "bad_answer"})
         store_finish(w.conn, op_id, "failed", error=err.details.get("error") or err.code)
-        if (resp or {}).get("error") == "not_loaded" if isinstance(resp, dict) else False:
-            st = tr.mirror_state(w.conn)
-            st["authoring_block"] = "not_loaded"
-            store.MIRROR._save(w.conn, st)
         raise err
     return resp
 
@@ -287,9 +309,8 @@ class Judgement:
 
     def __init__(self) -> None:
         self.config: dict[str, Any] = {}
+        self.draft: dict[str, Any] | None = None  # the draft the sentences / block paths refer to (the caller's own, sanitised; a code save: parsed from the config)
         self.profile = "builder"
-        self.profile_reasons: list[str] = []
-        self.walk: pol.Walk | None = None
         self.facts: dict[str, Any] = {}
         self.old_facts: dict[str, Any] | None = None
         self.preserved: list[str] = []
@@ -301,76 +322,88 @@ class Judgement:
         self.rd: dict[str, Any] | None = None
 
 
-def _mctx(w: W, names_scoped: bool = False) -> model.ModelCtx:
+def _mctx(w: W, names_scoped: bool = False) -> model.ModelContext:
     return w.ctx.model_ctx(code_view=True, scoped=False, names_scoped=names_scoped)
+
+
+LOCKED_CHANGED = "חלק נעול שונה. אפשר לשנות אותו רק בתצוגת הקוד."
+MASKED_TEXT = "הפריט כולל ערכים חסויים; ערכו אותו בתשתית המערכת."
+
+
+def _validate(w: W, kind: str, draft: dict[str, Any]) -> list[dict[str, str]]:
+    return model.validate_draft(kind, draft, notify_targets=list(w.ctx.notify_targets), shabbat_sensor=w.ctx.shabbat_sensor or None, allowed_actions=w.ctx.allowed_actions())
 
 
 def judge(w: W, kind: str, *, draft: dict[str, Any] | None, config_in: dict[str, Any] | None, stored: dict[str, Any] | None, item_id: str | None, creating: bool,
           force_single: bool = False, names_scoped: bool = False) -> Judgement:
     """Build the config of a draft (or take the config of the code view), derive the profile from its CONTENT, check the policy, the scope and the sensitive
-    grants. Nothing is raised: the caller chooses (a write raises, a preview reports)."""
+    grants. Nothing is raised: the caller chooses (a write raises, a preview reports). A draft from a client is never trusted: its locked blocks are the stored
+    item's by fingerprint or they are refused (`locked_block_changed`), its typed blocks keep only raws the stored item has."""
     j = Judgement()
     mctx = _mctx(w, names_scoped)
-    stored_read = model.read_item(kind, stored, mctx) if stored is not None else None
-    old_facts = scope.facts_of(w.ctx, kind, stored_read, entity_id=None) if stored_read is not None else None
-    j.old_facts = old_facts
+    stored_rd = drafts.read(kind, stored, mctx) if stored is not None else None
+    stored_draft = stored_rd["draft"] if stored_rd is not None else None
+    j.old_facts = scope.facts_of(w.ctx, kind, stored_rd) if stored_rd is not None else None
     if draft is not None:
-        cfg, st = model.draft_to_config(kind, draft, stored, mctx, item_id=item_id, stored_read=stored_read, max_exceeded="silent" if force_single else None)
-        model.validate_top(kind, draft, st)
-        j.errors = list(st.problems)
-        j.config = cfg
-    else:
-        cfg_in = pol.normalize_config(kind, config_in or {})
-        if pol.secret_keys(cfg_in):
-            j.errors = [{"path": "", "code": "masked_values", "message": "הפריט כולל ערכים חסויים; ערכו אותו בתשתית המערכת."}]
-            j.config = cfg_in
+        san = drafts.sanitise(kind, draft, stored_draft, mctx)
+        j.draft = san.draft
+        for path, _b in san.changed:
+            j.errors.append({"path": path, "code": "locked_block_changed", "message": LOCKED_CHANGED})
+        j.errors.extend(p for p in san.problems if not any(e["path"] == p["path"] and e["code"] == p["code"] for e in j.errors))
+        j.errors.extend(_validate(w, kind, san.draft))
+        if j.errors:
             return j
-        rd_in = model.read_item(kind, cfg_in, mctx)
-        cfg, st = model.draft_to_config(kind, rd_in["draft"], stored, mctx, item_id=item_id, stored_read=stored_read, trust_raw=True)
-        model.validate_top(kind, rd_in["draft"], st)
-        j.errors = list(st.problems)
-        if not j.errors and pol.canonical(_strip_defaults(cfg)) != pol.canonical(_strip_defaults(_with_id(kind, cfg_in, item_id))):
-            j.errors.append({"path": "", "code": "validation", "message": "התוכן אינו ניתן לשמירה כפי שהוא (מפתחות לא מוכרים או מבנה לא תקין)."})
-        j.config = _with_id(kind, cfg_in, item_id) if not j.errors else cfg  # the incoming content exactly (an unchanged optional key stays)
-        if kind == "automation" and cfg_in.get("id") not in (None, item_id) and item_id is not None:
+        try:
+            j.config = model.draft_to_config(kind, san.draft, stored, mctx, item_id=item_id)
+        except (model.ModelError, KeyError, TypeError, ValueError):
+            j.errors.append({"path": "", "code": "validation", "message": "הפריט אינו שלם או אינו תקין"})
+            return j
+        if pol.has_mask(j.config):
+            j.errors.append({"path": "", "code": "masked_values", "message": MASKED_TEXT})
+            return j
+        j.profile = "builder"
+    else:
+        incoming = config_in or {}
+        if pol.secret_kind(incoming) or pol.has_mask(incoming):
+            j.errors = [{"path": "", "code": "masked_values", "message": MASKED_TEXT}]
+            j.config = incoming
+            return j
+        if kind in ("automation", "scene") and item_id is not None and incoming.get("id") not in (None, item_id):
             j.errors.append({"path": "id", "code": "validation", "message": "המזהה אינו ניתן לשינוי"})
-    if j.errors:
-        return j
-    if kind == "automation" and force_single is False and j.config.get("mode") not in (None, "single") and False:
-        pass
-    j.profile, j.profile_reasons = model.profile_of(kind, j.config, stored, mctx)
-    nrd = model.read_item(kind, j.config, mctx)
+            return j
+        cfg_in = _with_id(kind, incoming, item_id)
+        try:
+            builder, parsed = drafts.builder_expressible(kind, cfg_in, stored, mctx, item_id)
+        except (model.ModelError, KeyError, TypeError, ValueError):
+            j.errors.append({"path": "", "code": "validation", "message": "התוכן אינו ניתן לשמירה כפי שהוא (מפתחות לא מוכרים או מבנה לא תקין)."})
+            return j
+        j.draft = parsed
+        j.errors.extend(_validate(w, kind, parsed))
+        known = {model.true_fingerprint(b) for b in model.locked_blocks(stored_draft)} if stored_draft else set()
+        for wk in model.walk_draft(parsed):
+            b = wk.block
+            if b.get("kind") == "locked" and model.true_fingerprint(b) not in known:
+                if b.get("reason") == "code":
+                    j.errors.append({"path": wk.path, "code": "code_not_allowed", "message": "אסור לשמור קוד סודי בתוך אוטומציה, סצנה או סקריפט."})
+                elif b.get("reason") == "secret":
+                    j.errors.append({"path": wk.path, "code": "masked_values", "message": MASKED_TEXT})
+        if j.errors:
+            return j
+        j.config = cfg_in
+        j.profile = "builder" if builder else "code"
+    nrd = drafts.read(kind, j.config, mctx)
     j.rd = nrd
     j.facts = scope.facts_of(w.ctx, kind, nrd)
     j.unknown_effects = j.facts["unknown_effects"]
     j.sensitive = j.facts["sensitive"]
-    j.walk = nrd.get("walk")
-    if j.walk is not None:
-        have = {b["fingerprint"] for b in pol.analyse(kind, pol.normalize_config(kind, stored), w.ctx.notify_targets, w.ctx.shabbat_sensor).blocks} if stored else set()
-        j.preserved = [b["fingerprint"] for b in j.walk.blocks if b["typed"] is None]
-        for b in j.walk.blocks:
-            if b["typed"] is None and b["fingerprint"] not in have:
-                if b["reason"] == "code":
-                    j.errors.append({"path": b["path"], "code": "code_not_allowed", "message": "אסור לשמור קוד סודי בתוך אוטומציה, סצנה או סקריפט."})
-                elif b["reason"] == "secret":
-                    j.errors.append({"path": b["path"], "code": "masked_values", "message": "הפריט כולל ערכים חסויים; ערכו אותו בתשתית המערכת."})
-                elif b["reason"] in ("service_not_allowed",) and draft is not None:
-                    j.errors.append({"path": b["path"], "code": "action_not_allowed", "message": "הפעולה אינה מותרת כאן."})
-        if kind == "automation":
-            j.self_trigger = [e for e in pol.self_trigger(j.walk)]
-            if stored is not None and j.self_trigger:
-                old_walk = stored_read["walk"]
-                j.self_trigger = [e for e in j.self_trigger if e not in pol.self_trigger(old_walk)]
+    j.preserved = model.preserved_fingerprints(nrd["draft"])
+    if kind == "automation":
+        nd = nrd["draft"]
+        j.self_trigger = pol.self_trigger(j.facts["trigger_entities"], model.draft_targets(nd), guarded=bool(nd["conditions"]))
+        if stored_draft is not None and j.self_trigger:
+            old = pol.self_trigger(j.old_facts["trigger_entities"] if j.old_facts else [], model.draft_targets(stored_draft), guarded=bool(stored_draft["conditions"]))
+            j.self_trigger = [e for e in j.self_trigger if e not in old]
     return j
-
-
-def _strip_defaults(cfg: dict[str, Any]) -> dict[str, Any]:
-    """The config without the optional keys that carry their default (an empty description, no conditions, mode single): a create has no stored item to say which were there."""
-    out = dict(cfg)
-    for k, empty in (("description", ""), ("conditions", []), ("mode", "single")):
-        if out.get(k) == empty:
-            out.pop(k)
-    return out
 
 
 def _with_id(kind: str, cfg: dict[str, Any], item_id: str | None) -> dict[str, Any]:
@@ -474,8 +507,14 @@ def _after_write(w: W, kind: str, item_id: str, resp: dict[str, Any], op_id: str
     entity_id = resp.get("entity_id") if isinstance(resp.get("entity_id"), str) else None
     warnings: list[dict[str, str]] = []
     if not resp.get("loaded", True):
+        # the write was accepted but the item never appeared in Home Assistant (a new item the bridge took out again: `rolled_back`; the include line of the file
+        # is probably missing, U-5): writing is blocked until Home Assistant reloads, and the administrator's review lists it
+        if created:
+            st = tr.mirror_state(w.conn)
+            st["authoring_block"], st["authoring_block_at"] = "not_loaded", store.stamp()
+            store.MIRROR._save(w.conn, st)
         store_finish(w.conn, op_id, "ok", item_id=item_id)
-        w.audit(action, "allowed", kind, item_id, "not_loaded", op_id=op_id, revision_before=revision_before, revision_after=resp.get("revision_after"))
+        w.audit(action, "allowed", kind, item_id, "not_loaded", op_id=op_id, revision_before=revision_before, revision_after=resp.get("revision_after"), rolled_back=bool(resp.get("rolled_back")))
         return 202, {"status": "not_loaded", "op_id": op_id}
     if created and kind == "automation" and not enabled:
         try:
@@ -538,7 +577,7 @@ def update(w: W, kind: str, item_id: str, draft: dict[str, Any], base_revision: 
         w.writable()
         _editable(row)
         stored = fresh_stored(w, kind, item_id, row)
-        revision = pol.revision(stored)
+        revision = model.revision_of(stored)
         if base_revision != revision:
             raise _conflict(w, kind, item_id, base_revision, revision)
         j = judge(w, kind, draft=draft, config_in=None, stored=stored, item_id=item_id, creating=False)
@@ -550,7 +589,7 @@ def update(w: W, kind: str, item_id: str, draft: dict[str, Any], base_revision: 
 
 
 def _send_update(w: W, kind: str, item_id: str, stored: dict[str, Any], revision: str, j: Judgement, client_request_id: str, action: str) -> tuple[int, dict[str, Any]]:
-    if pol.canonical(pol.normalize_config(kind, stored)) == pol.canonical(j.config) and pol.canonical(stored) == pol.canonical(j.config):
+    if model.canonical_json(stored) == model.canonical_json(j.config):
         return 200, {"item": item_view(w, kind, item_id, detail=True), "op_id": None}
     op_id, again = begin_op(w, client_request_id, "update", kind, item_id)
     if again is not None:
@@ -577,7 +616,7 @@ def update_code(w: W, kind: str, item_id: str, config: dict[str, Any], base_revi
         if row.masked:
             raise ApiError(422, "masked_values", "הפריט כולל ערכים חסויים; ערכו אותו בתשתית המערכת.")
         stored = fresh_stored(w, kind, item_id, row)
-        revision = pol.revision(stored)
+        revision = model.revision_of(stored)
         if base_revision != revision:
             raise _conflict(w, kind, item_id, base_revision, revision)
         j = judge(w, kind, draft=None, config_in=config, stored=stored, item_id=item_id, creating=False)
@@ -599,13 +638,13 @@ def copy_item(w: W, kind: str, item_id: str, name: str, client_request_id: str) 
         w.writable()
         _editable(row)
         name = (name or "").strip()
-        if not name or len(name) > pol.MAX_ALIAS or any(ord(c) < 32 for c in name):
-            raise ApiError(422, "validation", f"שם: 1–{pol.MAX_ALIAS} תווים, בלי תווי בקרה.", details={"path": "name"})
+        if not name or len(name) > pol.CAPS["alias_max"] or any(ord(c) < 32 for c in name):
+            raise ApiError(422, "validation", f"שם: 1–{pol.CAPS['alias_max']} תווים, בלי תווי בקרה.", details={"path": "name"})
         stored = fresh_stored(w, kind, item_id, row)
-        if pol.secret_keys(stored):
+        if pol.secret_kind(stored):
             raise ApiError(422, "masked_values", "הפריט כולל ערכים חסויים; ערכו אותו בתשתית המערכת.")
         new_id = new_item_id(w, kind, name)
-        cfg = copy.deepcopy(pol.normalize_config(kind, stored))
+        cfg = copy.deepcopy(model.to_new_schema(kind, stored, _mctx(w)))
         if kind in ("automation", "scene"):
             cfg["id"] = new_id
         cfg["name" if kind == "scene" else "alias"] = name
@@ -628,11 +667,11 @@ def delete(w: W, kind: str, item_id: str, base_revision: str, confirm: bool, cli
         w.writable()
         _editable(row)
         stored = fresh_stored(w, kind, item_id, row)
-        revision = pol.revision(stored)
+        revision = model.revision_of(stored)
         if base_revision != revision:
             raise _conflict(w, kind, item_id, base_revision, revision)
         mctx = _mctx(w)
-        rd = model.read_item(kind, stored, mctx)
+        rd = drafts.read(kind, stored, mctx)
         facts = scope.facts_of(w.ctx, kind, rd)
         reasons = scope.change_reasons(w.ctx, kind, facts, None)
         if reasons:
@@ -665,12 +704,12 @@ def trash_put(w: W, kind: str, item_id: str, stored: dict[str, Any], meta: sqlit
     days = int(w.ctx.cfg["automations.trash_days"])
     trash_id = "tr" + uuid.uuid4().hex[:12]
     expires = store._iso(now + dt.timedelta(days=days))
-    masked = 1 if pol.secret_keys(stored) else 0
+    masked = 1 if pol.secret_kind(stored) else 0
     entities = [{"entity_id": e, "name": w.ctx.name_of(e)} for e in facts["targets"]]
     name = (stored.get("name") if kind == "scene" else stored.get("alias")) or item_id
     meta_json = json.dumps({k: meta[k] for k in meta.keys()}, ensure_ascii=False) if meta is not None else None
     w.conn.execute("INSERT INTO automation_trash(id, kind, item_id, name, config_json, masked, meta_json, entities_json, sensitive, deleted_by, deleted_by_username, deleted_at, expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                   (trash_id, kind, item_id, name, json.dumps(pol.mask(stored), ensure_ascii=False), masked, meta_json, json.dumps(entities, ensure_ascii=False), 1 if facts["sensitive"] else 0,
+                   (trash_id, kind, item_id, name, json.dumps(pol.mask_secrets(stored), ensure_ascii=False), masked, meta_json, json.dumps(entities, ensure_ascii=False), 1 if facts["sensitive"] else 0,
                     w.principal.user_id, w.principal.username, store._iso(now), expires))
     return trash_id, expires
 
@@ -684,7 +723,7 @@ def _trash_visible(w: W, t: sqlite3.Row) -> tuple[bool, dict[str, Any] | None, d
         cfg = json.loads(t["config_json"])
     except ValueError:
         return False, None, None
-    rd = model.read_item(t["kind"], cfg, w.ctx.model_ctx(code_view=False, scoped=False))
+    rd = drafts.read(t["kind"], cfg, w.ctx.model_ctx(code_view=False, scoped=False))
     facts = scope.facts_of(w.ctx, t["kind"], rd)
     return scope.visible(w.ctx, t["kind"], facts) and scope.holds_any(w.ctx, t["kind"]), rd, facts
 
@@ -729,7 +768,7 @@ def restore_trash(w: W, trash_id: str, client_request_id: str, confirm: bool = F
             raise ApiError(422, "masked_values", "הפריט כולל ערכים חסויים; ערכו אותו בתשתית המערכת.")
         cfg = json.loads(t["config_json"])
         item_id = t["item_id"] if store.cache_row(w.conn, kind, t["item_id"]) is None and w.ctx.entity(f"{kind}.{t['item_id']}" if kind == "script" else "") is None else new_item_id(w, kind, t["name"] or "")
-        cfg = pol.normalize_config(kind, cfg)
+        cfg = model.to_new_schema(kind, cfg, _mctx(w))
         if kind in ("automation", "scene"):
             cfg["id"] = item_id
         j = judge(w, kind, draft=None, config_in=cfg, stored=None, item_id=item_id, creating=True)
@@ -773,7 +812,7 @@ def versions_list(w: W, kind: str, item_id: str) -> dict[str, Any]:
     mctx = w.ctx.model_ctx(code_view=False, scoped=False)
     for v in w.conn.execute("SELECT * FROM automation_versions WHERE kind = ? AND item_id = ? ORDER BY id DESC", (kind, item_id)).fetchall():
         try:
-            summary = model.read_item(kind, json.loads(v["config_json"]), mctx)["sentence"]
+            summary = drafts.read(kind, json.loads(v["config_json"]), mctx)["sentence"]
         except (ValueError, TypeError):
             summary = ""
         out.append({"version_id": str(v["id"]), "revision": v["revision"], "at": v["seen_at"], "via": v["via"], "actor": v["actor_username"] or None, "summary": summary,
@@ -798,10 +837,10 @@ def restore_version(w: W, kind: str, item_id: str, version_id: int, base_revisio
         if v["masked"]:
             raise ApiError(422, "masked_values", "הפריט כולל ערכים חסויים; ערכו אותו בתשתית המערכת.")
         stored = fresh_stored(w, kind, item_id, row)
-        revision = pol.revision(stored)
+        revision = model.revision_of(stored)
         if base_revision is not None and base_revision != revision:
             raise _conflict(w, kind, item_id, base_revision, revision)
-        cfg = pol.normalize_config(kind, json.loads(v["config_json"]))
+        cfg = model.to_new_schema(kind, json.loads(v["config_json"]), _mctx(w))
         if kind in ("automation", "scene"):
             cfg["id"] = item_id
         j = judge(w, kind, draft=None, config_in=cfg, stored=stored, item_id=item_id, creating=False)
@@ -900,19 +939,19 @@ def _field_variables(rd: dict[str, Any] | None, fields: dict[str, Any]) -> dict[
     """The values of a script's fields as `variables`: only defined fields, each checked against its selector; required fields without a value or a default
     are refused. Values never carry a secret-like key or a template."""
     defs = {f["key"]: f for f in (rd["draft"]["fields"] if rd else [])}
-    if not isinstance(fields, dict) or len(fields) > pol.MAX_FIELDS:
+    if not isinstance(fields, dict) or len(fields) > pol.CAPS["fields_max"]:
         raise ApiError(422, "validation", "ערך לא תקין — fields: אובייקט של שדות.", details={"path": "fields"})
     out: dict[str, Any] = {}
     for k, v in fields.items():
         f = defs.get(k)
         if f is None:
             raise ApiError(422, "validation", f"ערך לא תקין — {k}: שדה לא מוכר.", details={"path": k})
-        if pol.has_template(v) or pol.secret_keys(v):
+        if pol.has_template(v) or pol.secret_kind(v):
             raise ApiError(422, "validation", f"ערך לא תקין — {k}: ערך אסור.", details={"path": k})
         sel = f["selector"]
         ok = True
         if sel["kind"] == "number":
-            ok = pol._num(v) and sel["min"] <= v <= sel["max"]
+            ok = pol.is_number(v) and sel["min"] <= v <= sel["max"]
         elif sel["kind"] == "boolean":
             ok = isinstance(v, bool)
         elif sel["kind"] == "select":
@@ -927,7 +966,7 @@ def _field_variables(rd: dict[str, Any] | None, fields: dict[str, Any]) -> dict[
             raise ApiError(422, "validation", f"ערך לא תקין — {k}: הערך אינו מתאים לשדה.", details={"path": k})
         out[k] = v
     for k, f in defs.items():
-        if f["required"] and k not in out and f["default"] is None:
+        if f["required"] and k not in out and f.get("default") is None:
             raise ApiError(422, "validation", f"ערך לא תקין — {k}: שדה חובה.", details={"path": k})
     return out
 
@@ -1069,16 +1108,19 @@ def preview(w: W, kind: str, item_id: str | None, draft: dict[str, Any] | None, 
     denials: list[ApiError] = rights_of(w, kind, j, code_view_needed=config is not None) if w.ctx.access.anywhere(scope.MANAGE_OF[kind]) else []
     for d in denials:
         errors.append({"path": "", "code": d.code, "message": d.user_message})
-    rd = j.rd
-    out["sentence"] = rd["sentence"] if rd is not None else ""
-    out["block_sentences"] = rd["sentences"] if rd is not None else {}
+    mctx = w.ctx.model_ctx(code_view=False, scoped=False, names_scoped=True)
+    shown = j.draft if j.draft is not None else (j.rd["draft"] if j.rd is not None else None)
+    if shown is not None:  # the sentences of the caller's own draft (its block uids), with names the caller may see
+        model.refresh_sentences(shown, mctx)
+        out["sentence"] = text.draft_sentence(kind, shown, mctx)
+        out["block_sentences"] = model.block_sentences(shown, mctx)
     out["sensitive"] = j.sensitive
     out["sensitive_steps"] = scope.sensitive_steps_view(w.ctx, j.facts)
     out["requires"] = {"confirm": bool(j.unknown_effects or j.self_trigger), "code_view": j.profile == "code", "ha_admin": j.profile == "code"}
     effects = []
     for e in j.facts["targets"]:
         info = w.ctx.entity(e)
-        step = next((s for s in j.facts["steps"] if e in s["entity_ids"]), None)
+        step = next((s for s in j.facts["steps"] if e == s["entity_id"]), None)
         seen = bool(info) and w.ctx.access.can_read_state(e)  # a device outside the caller's reach is not named, placed or described
         effects.append({"entity_id": e, "name": info["name"] if seen else e, "floor": info["floor_name"] if seen else None, "area": info["area_name"] if seen else None,
                         "from": info["state"] if seen else None, "to": view.EXPECT_TO.get(step["action"]) if step and step.get("action") else None})
@@ -1093,11 +1135,11 @@ def preview(w: W, kind: str, item_id: str | None, draft: dict[str, Any] | None, 
         warnings.append({"path": "", "code": "unknown_effects", "message": "לפריט פעולות שאינן ידועות מראש"})
     if j.sensitive:
         warnings.append({"path": "", "code": "sensitive", "message": "פעולה רגישה"})
-    if kind == "automation" and j.walk is not None and w.ctx.scheduler_present() and pol.suggest_schedule_ok(j.walk) and j.rd is not None:
-        sug = view.suggest_schedule_draft(w.ctx, j.rd)
+    if kind == "automation" and j.rd is not None:
+        sug = view.suggest_schedule_for(w.ctx, j.rd)
         if sug is not None:
             warnings.append({"path": "", "code": "suggest_schedule", "message": "אפשר ליצור כתזמון"})
-            out["suggest_schedule"] = {"schedule_draft": sug}
+            out["suggest_schedule"] = sug
     out["ha_validation"] = ha_validate(w, kind, j.config)
     if out["ha_validation"] == "failed":
         errors.append({"path": "", "code": "ha_validation", "message": "תשתית המערכת דחתה את ההגדרה."})

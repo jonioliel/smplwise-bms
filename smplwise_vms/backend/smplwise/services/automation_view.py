@@ -14,6 +14,7 @@ from typing import Any
 from ..db import get_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize
+from . import automation_draft as drafts
 from . import automation_model as model
 from . import automation_policy as pol
 from . import automation_scope as scope
@@ -46,7 +47,7 @@ class Row:
         return self.kind, self.item_id
 
 
-def load_rows(ctx: scope.Ctx, kinds: tuple[str, ...] = pol.KINDS) -> list[Row]:
+def load_rows(ctx: scope.Ctx, kinds: tuple[str, ...] = pol.ITEM_KINDS) -> list[Row]:
     meta = store.meta_rows(ctx.conn)
     prefs = {(r["kind"], r["item_id"]): r for r in ctx.conn.execute("SELECT * FROM automation_prefs WHERE user_id = ?", (ctx.principal.user_id,)).fetchall()} if ctx.principal is not None else {}
     rows = [Row(r, meta.get((r["kind"], r["item_id"])), prefs.get((r["kind"], r["item_id"]))) for r in store.cache_rows(ctx.conn) if r["kind"] in kinds]
@@ -65,7 +66,7 @@ def analyse_row(ctx: scope.Ctx, row: Row, *, code_view: bool = False, scoped: bo
             if isinstance(members, list):
                 facts["targets"] = [m for m in members if isinstance(m, str)]
         return None, facts
-    rd = model.read_item(row.kind, row.cfg, ctx.model_ctx(code_view=code_view, scoped=scoped))
+    rd = drafts.read(row.kind, row.cfg, ctx.model_ctx(code_view=code_view, scoped=scoped))
     return rd, scope.facts_of(ctx, row.kind, rd, entity_id=row.entity_id)
 
 
@@ -100,7 +101,7 @@ def _state_of(ctx: scope.Ctx, row: Row) -> str:
 
 def _target_entry(ctx: scope.Ctx, e: str, facts: dict[str, Any]) -> dict[str, Any]:
     info = ctx.entity(e)
-    sens = next((s["sens"] for s in facts["steps"] if e in s["entity_ids"] and s.get("sens")), None)
+    sens = next((s["sens"] for s in facts["steps"] if e == s["entity_id"] and s.get("sens")), None)
     return {"entity_id": e, "name": info["name"] if info else e, "floor": info["floor_name"] if info else None, "area": info["area_name"] if info else None,
             "class": sens or DOMAIN_CLASS.get(e.split(".", 1)[0]), "sensitive": bool(sens), "missing": info is None}
 
@@ -155,15 +156,14 @@ class Env:
     def cycles(self) -> dict[tuple[str, str], list[str]]:
         """§9.4: item -> the other items it forms an automation cycle with (trigger entity <- action target graph over every automation of the installation)."""
         if self._cycles is None:
-            graph: dict[str, tuple[set[str], set[str]]] = {}
-            names: dict[str, tuple[str, str]] = {}
+            graph: dict[str, dict[str, Any]] = {}
+            mctx = self.ctx.model_ctx(code_view=False, scoped=False)
             for r in store.cache_rows(self.ctx.conn):
                 cfg = store.row_config(r)
                 if r["kind"] != "automation" or cfg is None:
                     continue
-                w = pol.analyse("automation", pol.normalize_config("automation", cfg))
-                graph[r["item_id"]] = (set(pol.trigger_entities(w)), set(w.targets))
-                names[r["item_id"]] = ("automation", r["item_id"])
+                d = model.config_to_draft("automation", cfg, mctx).draft
+                graph[r["item_id"]] = {"entity_id": r["entity_id"], "watches": set(model.trigger_entities(d)), "drives": set(model.draft_targets(d))}
             out: dict[tuple[str, str], list[str]] = {}
             for cyc in pol.find_cycles(graph):
                 for item in cyc:
@@ -231,12 +231,11 @@ def build_item(ctx: scope.Ctx, env: Env, row: Row, *, rd: dict[str, Any] | None,
     if facts["sensitive"]:
         warnings.append({"code": "sensitive", "message": "פעולה רגישה"})
     if rd is not None and row.kind == "automation":
-        walk: pol.Walk = rd["walk"]
-        if pol.self_trigger(walk):
+        if pol.self_trigger(facts["trigger_entities"], [s["entity_id"] for s in facts["steps"] if s["role"] == "device"], guarded=bool(rd["draft"]["conditions"])):
             warnings.append({"code": "self_trigger", "message": "פעולה משנה התקן שגם מפעיל את האוטומציה"})
         if row.key in env.cycles():
             warnings.append({"code": "cycle", "message": "מעגל בין אוטומציות"})
-        if detail and ctx.scheduler_present() and pol.suggest_schedule_ok(walk):
+        if detail and suggest_schedule_for(ctx, rd) is not None:
             warnings.append({"code": "suggest_schedule", "message": "אפשר ליצור כתזמון"})
     meta = row.meta
     owner = None
@@ -262,70 +261,36 @@ def detail_item(ctx: scope.Ctx, env: Env, row: Row, rd: dict[str, Any] | None, f
     """`ItemDetail`: the item plus the draft (blocks, per-caller locking), the version count, and - for a caller with the code view - the config."""
     item = build_item(ctx, env, row, rd=rd, facts=facts, detail=True)
     code_view = bool(item["can"]["code_view"])
+    mctx = ctx.model_ctx(code_view=code_view)
     if rd is not None and code_view:
-        rd = model.read_item(row.kind, row.cfg, ctx.model_ctx(code_view=True))  # raw content (masked) only for the code view
-    item["draft"] = rd["draft"] if rd is not None else None
+        rd = drafts.read(row.kind, row.cfg, mctx)  # raw content (masked) and template text only for the code view
+    item["draft"] = drafts.present(rd["draft"], code_view=code_view, mctx=mctx, can_watch=ctx.can_watch if ctx.principal is not None and row.kind == "automation" else None) if rd is not None else None
     item["versions"] = ctx.conn.execute("SELECT COUNT(*) FROM automation_versions WHERE kind = ? AND item_id = ?", row.key).fetchone()[0]
     item["trash_restore_of"] = None
     if code_view and row.cfg is not None:
-        item["config"] = pol.normalize_config(row.kind, row.cfg)
+        item["config"] = model.to_new_schema(row.kind, row.cfg, mctx)
         item["config_masked"] = row.masked
     else:
         item["config"] = None
         item["config_masked"] = False
-    if row.kind == "automation" and rd is not None and ctx.scheduler_present() and pol.suggest_schedule_ok(rd["walk"]):
-        item["suggest_schedule"] = suggest_schedule_draft(ctx, rd)
+    if row.kind == "automation" and rd is not None:
+        item["suggest_schedule"] = suggest_schedule_for(ctx, rd)
     return item
 
 
 # ================================================================ the CR-014 suggestion (§5)
 
-def suggest_schedule_draft(ctx: scope.Ctx, rd: dict[str, Any]) -> dict[str, Any] | None:
-    """A pre-filled CR-014 draft for a time / sun triggered automation of plain device control: weekdays from the time condition, a slot per trigger, the
-    Shabbat condition as the preset. None when the schedule policy would not take every action."""
-    from . import schedule_policy as sp
-
-    d = rd["draft"]
-    weekdays: list[str] = []
-    conditions: list[dict[str, Any]] = []
-    for c in d["conditions"]:
-        if c["kind"] != "typed":
-            return None
-        if c["type"] == "time" and c.get("weekday") and not c.get("after") and not c.get("before"):
-            weekdays = list(c["weekday"])
-        elif c["type"] == "shabbat" and ctx.shabbat_sensor:
-            conditions.append({"entity_id": ctx.shabbat_sensor, "attribute": "state", "match_type": "is", "value": "on" if c["mode"] == "only_holy_days" else "off"})
-        else:
-            return None
-    actions: list[dict[str, Any]] = []
-    for a in d["actions"]:
-        if a["kind"] != "typed" or a["type"] != "service":
-            return None
-        if a["action"] not in sp.SCHEDULE_ACTION_SERVICES or any(k not in sp.SERVICE_ARGS.get(a["action"], {}) for k in a["data"]):
-            return None
-        for e in a["entity_ids"]:
-            actions.append({"service": a["action"], "entity_id": e, "data": dict(a["data"])})
-    slots = []
-    for t in d["triggers"]:
-        if t["kind"] != "typed":
-            return None
-        if t["type"] == "time":
-            start = sp.canonical_time(t["at"])
-        elif t["type"] == "sun":
-            off = abs(int(t["offset_min"]))
-            start = sp.canonical_time(f"{t['event']}{'-' if t['offset_min'] < 0 else '+'}{off // 60:02d}:{off % 60:02d}")
-        else:
-            return None
-        if start is None:
-            return None
-        slots.append({"start": start, "stop": None, "actions": [dict(x) for x in actions]})
-    return {"name": d["alias"] or "", "weekdays": weekdays or ["daily"], "start_date": None, "end_date": None, "repeat": "repeat", "tags": [],
-            "conditions": {"items": conditions, "type": "and" if conditions else None, "track": False}, "slots": slots}
+def suggest_schedule_for(ctx: scope.Ctx, rd: dict[str, Any]) -> dict[str, Any] | None:
+    """`{schedule_draft}` - a pre-filled CR-014 draft for a time / sun triggered automation of plain device control (a suggestion, never a refusal) - or None
+    (no scheduler component, or the content is not expressible as a schedule)."""
+    if not ctx.scheduler_present() or rd.get("kind") != "automation":
+        return None
+    return pol.suggest_schedule(rd["draft"], scheduler_present=True, shabbat_sensor=ctx.shabbat_sensor or None, class_of=ctx.entity_class)
 
 
 # ================================================================ lists
 
-def visible_rows(ctx: scope.Ctx, kinds: tuple[str, ...] = pol.KINDS) -> list[tuple[Row, dict[str, Any] | None, dict[str, Any]]]:
+def visible_rows(ctx: scope.Ctx, kinds: tuple[str, ...] = pol.ITEM_KINDS) -> list[tuple[Row, dict[str, Any] | None, dict[str, Any]]]:
     out = []
     for row in load_rows(ctx, kinds):
         if not scope.holds_any(ctx, row.kind):
@@ -370,7 +335,7 @@ def sort_key(sort: str):
 def list_payload(ctx: scope.Ctx, f: dict[str, Any], sort: str, limit: int, offset: int) -> dict[str, Any]:
     env = Env(ctx)
     items: list[dict[str, Any]] = []
-    kinds = (f["kind"],) if f.get("kind") else pol.KINDS
+    kinds = (f["kind"],) if f.get("kind") else pol.ITEM_KINDS
     hidden_scenes_ok = ctx.access.anywhere(scope.MANAGE) or authorize(ctx.conn, ctx.principal, "system.configure", INSTALLATION).allowed
     for row, rd, facts in visible_rows(ctx, kinds):
         if row.meta is not None and row.meta["hidden"] and row.kind == "scene" and not hidden_scenes_ok and not f.get("hidden"):
@@ -470,41 +435,22 @@ READ_DOMAINS = ("binary_sensor", "sensor", "person", "sun", "zone", "timer", "de
 CATALOG_LIMIT = 2000
 
 
-def _arg_spec(name: str, spec: tuple[Any, ...], required: bool) -> dict[str, Any]:
-    """One typed argument as the client's `ArgSpec` (kind number / text / select / boolean)."""
-    base: dict[str, Any] = {"key": name, "label": text.ARG_WORDS.get(name, name), "required": required}
-    kind = spec[0]
-    if kind in ("int", "float"):
-        step = 1 if kind == "int" else (0.5 if name == "temperature" else 0.01 if name == "volume_level" else 0.1)
-        return {**base, "kind": "number", "min": spec[1], "max": spec[2], "step": step}
-    if kind == "enum":
-        return {**base, "kind": "select", "options": [{"value": c, "label": text.STATE_WORDS.get(c, c)} for c in spec[1]]}
-    if kind == "str":
-        return {**base, "kind": "text"}
-    return {**base, "kind": "boolean"}
-
-
-def action_specs() -> dict[str, list[dict[str, Any]]]:
-    """The closed service table (§9.1) by service domain, as the builder offers it: label, role, sensitivity and typed arguments."""
+def action_specs(ctx: scope.Ctx) -> dict[str, list[dict[str, Any]]]:
+    """The closed service table (§9.1) by service domain, as the builder offers it: label, role, sensitivity and typed arguments - the device services, the
+    scene / script / automation calls, and the notify targets the administrator approved."""
     out: dict[str, list[dict[str, Any]]] = {}
-    for sid, spec in pol.SERVICE_SPECS.items():
-        base = ha_bridge.ACTIONS.get(sid)
-        out.setdefault(sid.split(".", 1)[0], []).append({"action": sid, "label": base["label"] if base else text.SERVICE_VERBS.get(sid, sid), "role": spec["role"], "sensitive": bool(spec["sens"]),
-                                                         "args": [_arg_spec(n, sp, n in pol.REQUIRED_ARGS.get(sid, ())) for n, sp in spec["args"].items()]})
+
+    def add(action: str, role: str) -> None:
+        out.setdefault(action.split(".", 1)[0], []).append({"action": action, "label": text.action_label(action) if action in text.ACTION_VERBS else action.split(".", 1)[1].replace("_", " "),
+                                                            "role": role, "sensitive": pol.sensitive_class_of(action) is not None, "args": pol.arg_specs_for_catalog(action, role)})
+
+    for action in pol.BUILDER_ACTIONS:
+        add(action, "device")
+    for action, spec in pol.ROLE_ACTIONS.items():
+        add(action, spec["role"])
+    for action in ctx.notify_targets:
+        add(action, "notify")
     return out
-
-
-def entity_class(ctx: scope.Ctx, e: str, info: dict[str, Any]) -> str | None:
-    """The sensitive class of an entity as the client names it: alarm / lock / siren, or a door-class cover's own class (door / gate / garage)."""
-    domain = e.split(".", 1)[0]
-    if domain == "alarm_control_panel":
-        return "alarm"
-    if domain in ("lock", "siren"):
-        return domain
-    if domain == "cover" and ctx.door_cover(e):
-        dc = info.get("device_class") or ""
-        return dc if dc in ("door", "gate", "garage") else "door"
-    return None
 
 
 def catalog_payload(ctx: scope.Ctx, q: str | None, floor: str | None, area: str | None, cls: str | None) -> dict[str, Any]:
@@ -517,10 +463,12 @@ def catalog_payload(ctx: scope.Ctx, q: str | None, floor: str | None, area: str 
     ctx.preload([r[0] for r in rows])
     floors: dict[str, dict[str, Any]] = {}
     areas: dict[str, dict[str, Any]] = {}
-    by_domain = {}
-    for sid, spec in pol.SERVICE_SPECS.items():
-        if spec["role"] == "device":
-            by_domain.setdefault(spec["domain"], []).append(sid)
+    specs = action_specs(ctx)
+    by_domain: dict[str, list[str]] = {}
+    for dom_specs in specs.values():
+        for sp in dom_specs:
+            if sp["role"] == "device":
+                by_domain.setdefault(sp["action"].split(".", 1)[0], []).append(sp["action"])
     for r in rows:
         e = r[0]
         info = ctx.entity(e)
@@ -533,7 +481,7 @@ def catalog_payload(ctx: scope.Ctx, q: str | None, floor: str | None, area: str 
         if area and info["area_id"] != area and info["area_name"] != area:
             continue
         domain = e.split(".", 1)[0]
-        sens = entity_class(ctx, e, info)
+        sens = ctx.entity_class(e)
         if cls and (sens or DOMAIN_CLASS.get(domain, domain)) != cls:
             continue
         controllable = domain not in READ_DOMAINS and (a.control(e) or (domain == "alarm_control_panel" and (a.allowed("alarm.arm", e, own=True) or a.allowed("alarm.disarm", e, own=True))))
@@ -553,59 +501,67 @@ def catalog_payload(ctx: scope.Ctx, q: str | None, floor: str | None, area: str 
         if row.kind == "scene":
             scenes.append({"entity_id": row.entity_id, "name": _name_of_row(ctx, row, rd), "area": (ent or {}).get("area_name"), "integration": row.source == "integration"})
         else:
-            fields = [{"key": f["key"], "name": f["name"], "required": f["required"], "default": f["default"], "selector": f["selector"]} for f in (rd["draft"]["fields"] if rd else [])]
+            fields = [{"key": f["key"], "name": f["name"], "required": f["required"], "default": f.get("default"), "selector": f["selector"]} for f in (rd["draft"]["fields"] if rd else [])]
             scripts.append({"entity_id": row.entity_id, "name": _name_of_row(ctx, row, rd), "fields": fields})
-    return {"entities": ents, "actions": action_specs(), "notify_targets": [{"action": t, "name": t.split(".", 1)[1].replace("_", " ")} for t in ctx.notify_targets], "scenes": scenes,
+    return {"entities": ents, "actions": specs, "notify_targets": [{"action": t, "name": ctx.notify_name(t) or t} for t in ctx.notify_targets], "scenes": scenes,
             "scripts": scripts, "floors": sorted(floors.values(), key=lambda f: f["name"]), "areas": sorted(areas.values(), key=lambda x: x["name"]), "shabbat_sensor": ctx.shabbat_sensor or None,
-            "allowed_actions": sorted(pol.SERVICE_SPECS)}
+            "allowed_actions": sorted(a for dom in specs.values() for a in (sp["action"] for sp in dom))}
 
 
-def _tb(uid: str, kind: str, type_: str, **f: Any) -> dict[str, Any]:
-    return {"uid": uid, "kind": "typed", "type": type_, "raw": None, "sentence": "", **f}
+def template_defs(ctx: scope.Ctx) -> list[dict[str, Any]]:
+    """§4.2.4: the gallery - pre-filled drafts (read through the model, so they are exactly what the builder would hold) with the pickers left empty. Nothing is
+    saved without review. A template whose notify step needs an approved target uses the first one; without any, that step is shown locked."""
+    notify = ctx.notify_targets[0] if ctx.notify_targets else "notify.notify"
 
+    def dur(m: int) -> dict[str, int]:
+        return {"hours": 0, "minutes": m, "seconds": 0}
 
-def _svc(uid: str, action: str, ents: list[str], data: dict[str, Any] | None = None, role: str = "device") -> dict[str, Any]:
-    return _tb(uid, "action", "service", action=action, entity_ids=ents, data=data or {}, role=role, sensitive=False)
+    def svc(action: str, ids: list[str] | None = None, **data: Any) -> dict[str, Any]:
+        out: dict[str, Any] = {"action": action}
+        if ids is not None:
+            out["target"] = {"entity_id": ids}
+        if data:
+            out["data"] = data
+        return out
 
+    def st(ids: list[str], to: str, **kw: Any) -> dict[str, Any]:
+        return {"trigger": "state", "entity_id": ids, "to": to, **kw}
 
-def template_defs() -> list[dict[str, Any]]:
-    """§4.2.4: the gallery - pre-filled drafts with the pickers left empty. Nothing is saved without review."""
-    def draft(alias: str, trig: list[dict[str, Any]], cond: list[dict[str, Any]], acts: list[dict[str, Any]], mode: str = "single") -> dict[str, Any]:
-        return {"alias": alias, "description": "", "mode": mode, "max": None, "triggers": trig, "conditions": cond, "actions": acts}
-
-    return [
-        {"id": "motion_light", "name": "תאורה בתנועה", "icon": "mdi:motion-sensor", "description": "מדליק כשיש תנועה ומכבה אחרי כמה דקות בלי תנועה", "target": "automation", "time_only": False,
-         "draft": draft("תאורה בתנועה", [_tb("t1", "trigger", "state", entity_ids=[], to="on", id=None, **{"from": None, "for": None})], [],
-                        [_svc("a1", "light.turn_on", []), _tb("a2", "action", "delay", delay={"minutes": 5}), _svc("a3", "light.turn_off", [])], "restart")},
-        {"id": "door_open_notify", "name": "דלת או חלון פתוחים זמן רב", "icon": "mdi:door-open", "description": "התראה כשדלת או חלון פתוחים יותר מכמה דקות", "target": "automation", "time_only": False,
-         "draft": draft("דלת פתוחה זמן רב", [_tb("t1", "trigger", "state", entity_ids=[], to="on", id=None, **{"from": None, "for": {"minutes": 5}})], [],
-                        [_svc("a1", "notify.", [], {"message": "הדלת פתוחה"}, "notify")])},
-        {"id": "leaving_home", "name": "יציאה מהבית", "icon": "mdi:exit-run", "description": "כשכולם יצאו: כיבוי תאורה ומיזוג (דריכת אזעקה אפשרית)", "target": "automation", "time_only": False,
-         "draft": draft("יציאה מהבית", [_tb("t1", "trigger", "numeric_state", entity_ids=["zone.home"], below=1, above=None, id=None, **{"for": {"minutes": 2}})], [],
-                        [_svc("a1", "light.turn_off", []), _svc("a2", "climate.turn_off", [])])},
-        {"id": "arrive_after_sunset", "name": "הגעה אחרי השקיעה", "icon": "mdi:home-import-outline", "description": "מדליק תאורת כניסה כשמישהו מגיע אחרי השקיעה", "target": "automation", "time_only": False,
-         "draft": draft("הגעה אחרי השקיעה", [_tb("t1", "trigger", "state", entity_ids=[], to="home", id=None, **{"from": None, "for": None})],
-                        [_tb("c1", "condition", "sun", after="sunset", before=None)], [_svc("a1", "light.turn_on", [])])},
-        {"id": "water_leak", "name": "נזילת מים", "icon": "mdi:water-alert", "description": "התראה כשחיישן נזילה מזהה מים", "target": "automation", "time_only": False,
-         "draft": draft("נזילת מים", [_tb("t1", "trigger", "state", entity_ids=[], to="on", id=None, **{"from": None, "for": None})], [], [_svc("a1", "notify.", [], {"message": "זוהתה נזילת מים"}, "notify")])},
-        {"id": "lights_at_sunset", "name": "תאורה בשקיעה", "icon": "mdi:weather-sunset", "description": "מדליק תאורה בשקיעה", "target": "automation", "time_only": True,
-         "draft": draft("תאורה בשקיעה", [_tb("t1", "trigger", "sun", event="sunset", offset_min=0, id=None)], [], [_svc("a1", "light.turn_on", [])])},
-        {"id": "ac_by_clock", "name": "מזגן לפי שעות", "icon": "mdi:air-conditioner", "description": "מפעיל מזגן בשעה קבועה בימים נבחרים", "target": "automation", "time_only": True,
-         "draft": draft("מזגן לפי שעות", [_tb("t1", "trigger", "time", at="07:00:00", id=None)], [_tb("c1", "condition", "time", after=None, before=None, weekday=["sun", "mon", "tue", "wed", "thu"])],
-                        [_svc("a1", "climate.set_temperature", [], {"temperature": 24, "hvac_mode": "cool"})])},
+    T = [
+        ("motion_light", "תאורה בתנועה", "mdi:motion-sensor", "מדליק כשיש תנועה ומכבה אחרי כמה דקות בלי תנועה", False,
+         {"triggers": [st([], "on")], "actions": [svc("light.turn_on", [], brightness_pct=40), {"delay": dur(5)}, svc("light.turn_off", [])], "mode": "restart"}),
+        ("door_open_notify", "דלת או חלון פתוחים זמן רב", "mdi:door-open", "התראה כשדלת או חלון פתוחים יותר מכמה דקות", False,
+         {"triggers": [st([], "on", **{"for": dur(5)})], "actions": [svc(notify, None, message="הדלת פתוחה")]}),
+        ("leaving_home", "יציאה מהבית", "mdi:exit-run", "כשכולם יצאו: כיבוי תאורה ומיזוג (דריכת אזעקה אפשרית)", False,
+         {"triggers": [{"trigger": "numeric_state", "entity_id": ["zone.home"], "below": 1, "for": dur(2)}], "actions": [svc("light.turn_off", []), svc("climate.turn_off", [])]}),
+        ("arrive_after_sunset", "הגעה אחרי השקיעה", "mdi:home-import-outline", "מדליק תאורת כניסה כשמישהו מגיע אחרי השקיעה", False,
+         {"triggers": [st([], "home")], "conditions": [{"condition": "sun", "after": "sunset"}], "actions": [svc("light.turn_on", [])]}),
+        ("water_leak", "נזילת מים", "mdi:water-alert", "התראה כשחיישן נזילה מזהה מים", False,
+         {"triggers": [st([], "on")], "actions": [svc(notify, None, message="זוהתה נזילת מים")]}),
+        ("lights_at_sunset", "תאורה בשקיעה", "mdi:weather-sunset", "מדליק תאורה בשקיעה", True,
+         {"triggers": [{"trigger": "sun", "event": "sunset"}], "actions": [svc("light.turn_on", [])]}),
+        ("ac_by_clock", "מזגן לפי שעות", "mdi:air-conditioner", "מפעיל מזגן בשעה קבועה בימים נבחרים", True,
+         {"triggers": [{"trigger": "time", "at": "07:00:00"}], "conditions": [{"condition": "time", "weekday": ["sun", "mon", "tue", "wed", "thu"]}],
+          "actions": [svc("climate.set_temperature", [], temperature=24, hvac_mode="cool")]}),
     ]
+    mctx = ctx.model_ctx(code_view=False, scoped=False)
+    out = []
+    for tid, name, icon, desc, time_only, cfg in T:
+        draft = model.config_to_draft("automation", {"alias": name, "description": "", "conditions": [], "mode": "single", **cfg}, mctx).draft
+        out.append({"id": tid, "name": name, "icon": icon, "description": desc, "target": "automation", "time_only": time_only, "draft": draft})
+    return out
 
 
 def templates_payload(ctx: scope.Ctx) -> dict[str, Any]:
     hidden = set(ctx.cfg["automations.templates_hidden"])
     order = {t: i for i, t in enumerate(ctx.cfg["automations.templates_order"])}
-    items = [t for t in template_defs() if t["id"] not in hidden] if ctx.cfg["automations.templates_enabled"] == "true" else []
+    items = [t for t in template_defs(ctx) if t["id"] not in hidden] if ctx.cfg["automations.templates_enabled"] == "true" else []
     items.sort(key=lambda t: order.get(t["id"], 1000))
     out = []
     for t in items:
         tt = {k: v for k, v in t.items() if k != "time_only"}
         tt["suggest_schedule"] = bool(t["time_only"]) and ctx.scheduler_present()
-        tt["sensitive"] = False
+        tt["sensitive"] = bool(model.sensitive_classes(t["draft"], ctx.entity_class))
         out.append(tt)
     return {"templates": out}
 
@@ -692,13 +648,13 @@ def dry_run(ctx: scope.Ctx, row: Row, rd: dict[str, Any] | None, facts: dict[str
     effects: list[dict[str, Any]] = []
     unknown = bool(facts["unknown_effects"])
     if rd is not None and row.kind == "automation":
-        for c in rd["draft"]["conditions"]:
+        for i, c in enumerate(rd["draft"]["conditions"]):
             passed = evaluate_condition(c, ctx, now, tz)
-            conds.append({"path": c["path"], "sentence": c["sentence"] if c["kind"] == "typed" else "לא ניתן לבדוק", "passed": passed})
+            conds.append({"path": f"conditions.{i}", "sentence": c["sentence"] if c["kind"] == "typed" else "לא ניתן לבדוק", "passed": passed})
     if rd is not None and row.kind != "scene":
-        section = rd["draft"]["actions"] if row.kind == "automation" else rd["draft"]["sequence"]
-        for b in model.iter_blocks(section):
-            if b.get("kind") == "typed" and b.get("type") == "service" and b["role"] == "device":
+        for w in model.walk_draft(rd["draft"]):
+            b = w.block
+            if w.section == "action" and b.get("kind") == "typed" and b.get("type") == "service" and b["role"] == "device":
                 for e in b["entity_ids"]:
                     info = ctx.entity(e)
                     to = EXPECT_TO.get(b["action"])

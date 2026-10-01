@@ -13,6 +13,7 @@ from typing import Any
 
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
+from . import automation_draft as drafts
 from . import automation_model as model
 from . import automation_policy as pol
 from . import automation_scope as scope
@@ -102,10 +103,9 @@ def run_detail(ctx: scope.Ctx, kind: str, item_id: str, run_id: str) -> dict[str
             raise ApiError(404, "item_not_found", "הפריט לא נמצא.", details={"what": "run"})
     # sentences come from the config the run actually used (the trace carries it), else the stored one
     cfg_used = entry.get("config") if isinstance(entry.get("config"), dict) else row.cfg
-    mrd = model.read_item(kind, cfg_used, ctx.model_ctx(code_view=False, scoped=False)) if isinstance(cfg_used, dict) else None
-    sentences = mrd["sentences"] if mrd is not None else {}
-    section_base = "action" if kind == "automation" else "sequence"
-    step_paths = [b["path"] for b in mrd["walk"].blocks if b["section"] == "action"] if mrd is not None else []
+    mrd = drafts.read(kind, cfg_used, ctx.model_ctx(code_view=False, scoped=False)) if isinstance(cfg_used, dict) else None
+    sentences = drafts.path_sentences(mrd["draft"]) if mrd is not None else {}
+    step_paths = [w.path for w in model.walk_draft(mrd["draft"]) if w.section == "action"] if mrd is not None else []
     tz = zone(ctx.tz_name)
     detail = trace.detail(entry, step_paths=step_paths, sentences=sentences, name_of=ctx.name_of, tz=tz, user_name=_user_name(ctx.conn))
     return detail
