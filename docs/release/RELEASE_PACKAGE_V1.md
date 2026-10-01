@@ -18,6 +18,10 @@ consistency items below and prints the tag commands to run after approval.
 
 ## 2. Compatibility matrix (tested)
 
+The versions below mirror `current.version` in `management/upstream_watch.json`; the upstream watch
+(`scripts/upstream_check.py`, `docs/operations/UPSTREAM_WATCH.md`) reports newer upstream releases and their breaking-change
+keywords. Update both together when the lab is upgraded.
+
 | Layer | Tested with | Notes |
 |---|---|---|
 | Home Assistant Core | 2026.9.2 | Ingress identity headers, Supervisor `supervisor/api`, hassio discovery for the bridge |
