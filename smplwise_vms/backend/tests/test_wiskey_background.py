@@ -14,7 +14,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from test_intercom import CLOSE, OFFLINE, OVERVIEW, STATION, FakeHa, feed, normal, ok, wait_for  # noqa: F401 - `feed` is a fixture
+from test_intercom import CLOSE, OFFLINE, OVERVIEW, STATION, FakeHa, fail, feed, normal, ok, wait_for  # noqa: F401 - `feed` is a fixture
 
 from smplwise.services import intercom_sync, wiskey_background as bg
 
@@ -209,3 +209,255 @@ def test_the_activity_log_projection_still_carries_the_event_fields():
              "person_name": "Dana", "employee_no": "1001", "authentication": "card", "result": "granted", "event_type": "access_granted", "recovered": False, "door": 1}
     page = intercom_sync.project_event_page({"records": [event], "next": None})
     assert page["records"][0]["person_name"] == "Dana" and page["records"][0]["employee_no"] == "1001"
+
+
+# ---------------------------------------------------------------- the split: a second session under its own token
+
+class TokenFakeHa(FakeHa):
+    """FakeHa that accepts a set of tokens and remembers which one this connection authenticated with."""
+
+    def __init__(self, script: Any, accepted: set[str]) -> None:
+        super().__init__(script)
+        self.accepted = accepted
+        self.token: str | None = None
+
+    async def send(self, raw: str) -> None:
+        msg = json.loads(raw)
+        if msg.get("type") == "auth":
+            assert self.q
+            self.sent.append(msg)
+            self.token = msg.get("access_token")
+            self.q.put_nowait({"type": "auth_ok" if self.token in self.accepted else "auth_invalid"})
+            return
+        await super().send(raw)
+
+
+def restricted_overview(revision: int = 7) -> dict[str, Any]:
+    """What WisKey sends a non-administrator background account with `overview: view` and nothing else: no users, no host,
+    no technical station fields - but still `last_access` with a person name (WisKey's own D-006 finding)."""
+    raw = copy.deepcopy(OVERVIEW)
+    raw["access"] = {"allowed": True, "is_admin": False, "revision": revision, "areas": {"overview": "view", "users": "none", "events": "none", "stations": "none", "management": "none"}}
+    raw["users"], raw["user_count"] = [], 0
+    for station in raw["stations"]:
+        for key in ("host", "model", "firmware", "capabilities", "observations", "clock", "event_status", "last_poll_ms"):
+            station.pop(key, None)
+    return raw
+
+
+@pytest.fixture()
+def split(settings, monkeypatch):
+    import websockets
+    from dataclasses import replace
+
+    from smplwise.main import create_app
+    from smplwise.services import wiskey_background_feed as wbf
+
+    s = replace(settings, ha_url="http://ha.local:8123", ha_token="t", ha_core_url="http://ha.local:8123", wiskey_background_token="bg-token")
+    intercom_sync.SYNC.reset()
+    wbf.FEED.reset()
+    monkeypatch.setattr(intercom_sync, "RETRY_S", 0.05)
+    monkeypatch.setattr(intercom_sync, "RETRY_MAX_S", 0.2)
+    conns: list[TokenFakeHa] = []
+
+    def install(service: Any, background: Any, accepted: tuple[str, ...] = ("t", "bg-token")) -> list[TokenFakeHa]:
+        def connect(url: str, **_kw: Any) -> TokenFakeHa:
+            assert url == "ws://ha.local:8123/api/websocket"
+            fake = TokenFakeHa(lambda msg, f: (background if f.token == "bg-token" else service)(msg, f), set(accepted))
+            conns.append(fake)
+            return fake
+
+        monkeypatch.setattr(websockets, "connect", connect)
+        return conns
+
+    app = create_app(s)
+    yield app, s, install, wbf
+    wbf.FEED.shutdown()
+    intercom_sync.SYNC.shutdown()
+    for thread in (wbf.FEED.thread, intercom_sync.SYNC.thread):
+        if thread is not None:
+            thread.join(timeout=5)
+    wbf.FEED.reset()
+    intercom_sync.SYNC.reset()
+
+
+def by_token(conns: list[TokenFakeHa], token: str) -> TokenFakeHa:
+    return next(c for c in conns if c.token == token)
+
+
+def service_script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+    if msg["type"] == "hikvision_intercom/stations/test_unlock":
+        return [ok(msg, {"accepted": True})]
+    return normal(msg, fake)
+
+
+def background_script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+    if msg["type"] == "hikvision_intercom/overview":
+        return [ok(msg, restricted_overview())]
+    if msg["type"] == "get_config":
+        return [normal(msg, fake)[0]]
+    return [ok(msg)]
+
+
+def both_ready(wbf: Any) -> None:
+    wait_for(lambda: wbf.FEED.status["state"] == "ready" and intercom_sync.STATE.state == "ready")
+
+
+def test_the_background_session_has_its_own_connection_token_and_only_read_commands(split, caplog):
+    app, s, install, wbf = split
+    caplog.set_level(logging.DEBUG, logger="smplwise.intercom")
+    conns = install(service_script, background_script)
+    intercom_sync.SYNC.start(s)
+    wbf.FEED.start(s)
+    both_ready(wbf)
+    service, background = by_token(conns, "t"), by_token(conns, "bg-token")
+    assert service is not background and len(conns) == 2, "two connections, two identities"
+    assert background.types() == ["auth", "hikvision_intercom/overview", "hikvision_intercom/subscribe"], "the background session asks for nothing but its read and its push"
+    assert "subscribe_entities" in service.types(), "the service session keeps the entity watch for the ring state"
+
+    client = TestClient(app)
+    view = client.get("/api/v1/intercom/background").json()
+    assert view["identity"] == "background" and view["split"] is True and view["configured"] is True and view["state"] == "ready" and view["fresh"] is True
+    projection = view["projection"]
+    bg.assert_closed(projection)
+    conforms_to_d006(projection)
+    assert projection["permission_revision"] == 7 and [st["id"] for st in projection["stations"]] == ["entry-a", "entry-b"]
+    deep_scan(view)
+    assert view["sync"]["subscribe"] == "ok" and view["sync"]["wiskey_version"] == "4.2.0"
+    # the entry center still comes from the service session (the operational detail the door flows need)
+    overview = client.get("/api/v1/intercom/overview").json()
+    assert overview["overview"]["stations"][0]["locks"] == [{"physical_index": 1, "name": "Gate"}]
+    deep_scan(overview)
+    logged = "\n".join(r.getMessage() for r in caplog.records if r.name == "smplwise.intercom")
+    assert "WisKey background feed connected: 2 stations, WisKey 4.2.0" in logged
+    assert "bg-token" not in logged and not any(m in logged for m in PERSON_MARKERS)
+
+
+def test_a_door_release_never_rides_the_background_session(split):
+    from smplwise.services import intercom_client, wiskey_background_feed as wbf_mod
+
+    app, s, install, wbf = split
+    conns = install(service_script, background_script)
+    intercom_sync.SYNC.start(s)
+    wbf.FEED.start(s)
+    both_ready(wbf)
+    reply = intercom_sync.SYNC.action(s, "release", lambda call: intercom_client.release_door(call, "entry-a", 1), intercom_sync.project_release, who="u1")
+    assert reply["release"] == {"accepted": True}
+    assert any(m["type"] == "hikvision_intercom/stations/test_unlock" for m in by_token(conns, "t").sent)
+    assert not any(m["type"] == "hikvision_intercom/stations/test_unlock" for m in by_token(conns, "bg-token").sent)
+    with pytest.raises(ValueError):  # the session has no path for a write or an unlisted read, by construction
+        wbf.FEED.command("stations/test_unlock", lambda call: intercom_client.release_door(call, "entry-a", 1))
+    assert wbf_mod.READ_ALLOWLIST == {"authorization/session"}
+
+
+def test_the_background_account_being_refused_is_its_own_state_and_leaves_the_service_session_alone(split):
+    app, s, install, wbf = split
+
+    def refused(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        if msg["type"] == "hikvision_intercom/overview":
+            return [fail(msg, "unauthorized")]
+        return [ok(msg)]
+
+    install(service_script, refused)
+    intercom_sync.SYNC.start(s)
+    wbf.FEED.start(s)
+    wait_for(lambda: wbf.FEED.status["state"] == "forbidden" and intercom_sync.STATE.state == "ready")
+    view = TestClient(app).get("/api/v1/intercom/background").json()
+    assert view["state"] == "forbidden" and view["projection"] is None and view["last_error"] == "unauthorized" and view["fresh"] is False
+    assert TestClient(app).get("/api/v1/intercom/overview").json()["state"] == "ready", "the service session is unaffected"
+
+
+def test_access_revoked_on_the_background_session_drops_its_copy(split):
+    app, s, install, wbf = split
+
+    def revoking(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        if msg["type"] == "hikvision_intercom/overview":
+            return [ok(msg, restricted_overview())]
+        if msg["type"] == "hikvision_intercom/subscribe":
+            return [ok(msg), {"id": msg["id"], "type": "event", "event": {"kind": "access_revoked"}}]
+        return [ok(msg)]
+
+    install(service_script, revoking)
+    intercom_sync.SYNC.start(s)
+    wbf.FEED.start(s)
+    wait_for(lambda: wbf.FEED.status["state"] == "forbidden")
+    assert TestClient(app).get("/api/v1/intercom/background").json()["projection"] is None
+
+
+def test_a_refresh_push_refetches_and_a_disconnect_keeps_serving_the_closed_copy(split):
+    app, s, install, wbf = split
+    calls = {"n": 0}
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        if msg["type"] == "hikvision_intercom/overview":
+            calls["n"] += 1
+            return [ok(msg, restricted_overview(revision=7 + calls["n"]))]
+        if msg["type"] == "hikvision_intercom/subscribe":
+            return [ok(msg), {"id": msg["id"], "type": "event", "event": {"kind": "refresh"}}]
+        return [ok(msg)]
+
+    conns = install(service_script, script)
+    intercom_sync.SYNC.start(s)
+    wbf.FEED.start(s)
+    wait_for(lambda: wbf.FEED.status["state"] == "ready" and calls["n"] >= 2 and wbf.FEED.status["sequence"] >= 2)
+    projection = TestClient(app).get("/api/v1/intercom/background").json()["projection"]
+    assert projection["permission_revision"] >= 9, "the pushed refresh was refetched"
+    # the background socket closes: the session reconnects; whatever is served in between is the closed projection
+    first = by_token(conns, "bg-token")
+    assert first.q is not None
+    first.q.put_nowait(CLOSE)
+    wait_for(lambda: wbf.FEED.status["reconnects"] >= 1)
+    view = TestClient(app).get("/api/v1/intercom/background").json()
+    deep_scan(view)
+    if view["projection"] is not None:
+        bg.assert_closed(view["projection"])
+
+
+def test_a_failed_subscribe_is_reported_not_fatal(split):
+    app, s, install, wbf = split
+
+    def no_push(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        if msg["type"] == "hikvision_intercom/subscribe":
+            return [{"id": msg["id"], "type": "result", "success": False, "error": {"code": "unauthorized", "message": "unauthorized"}}]
+        return background_script(msg, fake)
+
+    install(service_script, no_push)
+    intercom_sync.SYNC.start(s)
+    wbf.FEED.start(s)
+    both_ready(wbf)
+    view = TestClient(app).get("/api/v1/intercom/background").json()
+    assert view["state"] == "ready" and view["sync"]["subscribe"] == "failed:unauthorized" and view["projection"]["stations"]
+
+
+def test_without_a_token_the_feed_does_not_run_and_the_view_says_the_identity_is_the_service_one(feed):
+    from smplwise.services import wiskey_background_feed as wbf
+
+    app, s, install = feed
+    wbf.FEED.reset()
+    fakes = install(lambda msg, fake: normal(msg, fake))
+    wbf.FEED.start(s)
+    assert wbf.FEED.thread is None or not wbf.FEED.thread.is_alive()
+    assert wbf.FEED.status["state"] == "not_configured"
+    client = TestClient(app)
+    before = client.get("/api/v1/intercom/background").json()
+    assert before["split"] is False and before["identity"] == "service" and before["projection"] is None
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: intercom_sync.STATE.state == "ready")
+    view = client.get("/api/v1/intercom/background").json()
+    assert view["identity"] == "service" and view["split"] is False and view["state"] == "ready" and view["fresh"] is True
+    bg.assert_closed(view["projection"])
+    deep_scan(view)
+    assert len(fakes) == 1, "one connection: nothing is opened for a background account that does not exist"
+
+
+def test_the_background_token_is_never_sent_to_the_supervisor_proxy(split):
+    """Inside the add-on `ha_url` is the Supervisor proxy, which accepts only SUPERVISOR_TOKEN: with no core URL to reach
+    (outside the add-on and no HA_CORE_URL) the background session does not connect at all, rather than send the account's
+    token to the wrong endpoint."""
+    from dataclasses import replace
+
+    app, s, install, wbf = split
+    conns = install(service_script, background_script)
+    proxied = replace(s, ha_url="http://supervisor/core", ha_core_url=None)
+    wbf.FEED.start(proxied)
+    wait_for(lambda: wbf.FEED.status["state"] == "ha_unavailable" and wbf.FEED.status["last_error"] == "HaUnavailable")
+    assert conns == [], "no connection was opened, so the token went nowhere"

@@ -49,7 +49,7 @@ from ..db import Database, commit_now, now_iso, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import go2rtc as g2
-from ..services import intercom_client, intercom_sync, wiskey_camera
+from ..services import intercom_client, intercom_sync, wiskey_background_feed, wiskey_camera
 from ..services.intercom_capture import CAPTURES, POLLED
 from ..services.timeutil import parse_utc
 from .media import _principal_for_ws
@@ -118,6 +118,16 @@ def overview(request: Request, principal: Principal = Depends(current_principal)
     body = intercom_sync.SYNC.snapshot(settings)
     body["camera_access"] = wiskey_camera.camera_access(conn, settings, body["overview"])
     return body
+
+
+@router.get("/intercom/background")
+def background(request: Request, principal: Principal = Depends(_reader)) -> dict[str, Any]:
+    """The background (read) channel (B0, D-006): the closed station-health projection `{schema_version, generated_at,
+    permission_revision, stations: [{id, name, online, last_seen}]}` and nothing else - no last access, no person, no
+    counts, no operational detail. `identity` says whose session produced it: `background` (the dedicated account, the
+    channel split from the service session) or `service` (no background account configured yet: the same four fields cut
+    down from the service feed's copy, `split: false`). `projection` is null whenever there is nothing honest to show."""
+    return wiskey_background_feed.channel_view(settings_of(request))
 
 
 @router.get("/intercom/events")

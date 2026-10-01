@@ -270,18 +270,36 @@ async def ws_session(
     on_event: Callable[[dict[str, Any]], None],
     stop: asyncio.Event,
     on_message: Callable[[dict[str, Any]], None] | None = None,
+    *,
+    url: str | None = None,
+    token: str | None = None,
+    internal_tls: bool = False,
 ) -> None:
     """One authenticated WebSocket session. `on_ready(call)` receives an async `call(type, **kw)` helper;
     `on_event` gets every `state_changed` event data; `on_message`, when given, gets every raw `event` frame
     first (subscriptions whose events carry no `entity_id`, e.g. an integration's own `subscribe` command or
-    `subscribe_entities`); returns when the socket closes or `stop` is set."""
+    `subscribe_entities`); returns when the socket closes or `stop` is set.
+
+    `url` / `token` replace the Supervisor-proxy endpoint and SUPERVISOR_TOKEN for a session under another identity
+    (the WisKey background channel, B0: a dedicated account's token is valid only on Home Assistant core itself, never on
+    the Supervisor proxy); `internal_tls` accepts core's certificate for its internal name, as the remote channel's own
+    dial does (services/ha_user_auth._dial). The token is never logged."""
     import websockets
 
-    async with websockets.connect(_ws_url(settings), max_size=None, open_timeout=15, ping_interval=25) as ws:
+    kw: dict[str, Any] = {}
+    target = url or _ws_url(settings)
+    if internal_tls and target.startswith("wss://"):
+        import ssl
+
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        kw["ssl"] = ctx
+    async with websockets.connect(target, max_size=None, open_timeout=15, ping_interval=25, **kw) as ws:
         hello = json.loads(await ws.recv())
         if hello.get("type") != "auth_required":
             raise RuntimeError("unexpected hello")
-        await ws.send(json.dumps({"type": "auth", "access_token": settings.ha_token}))
+        await ws.send(json.dumps({"type": "auth", "access_token": token or settings.ha_token}))
         auth = json.loads(await ws.recv())
         if auth.get("type") != "auth_ok":
             raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את האסימון.")

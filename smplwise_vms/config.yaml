@@ -38,6 +38,9 @@ options:
   go2rtc_api_password: ""
   wiskey_username: ""
   wiskey_password: ""
+  # WisKey background (read) channel: the long-lived token of the dedicated non-admin Home Assistant account (DOCS "WisKey
+  # background account"). Empty = the background channel shares the add-on's own identity.
+  wiskey_background_token: ""
   openai_api_key: ""
   # CR-008 SmplWise Arx: https://<your HA hostname>/arx through a Cloudflare tunnel path route (DOCS "Remote access").
   remote_access: false
@@ -57,6 +60,7 @@ schema:
   go2rtc_api_password: password?
   wiskey_username: str?
   wiskey_password: password?
+  wiskey_background_token: password?
   openai_api_key: password?
   remote_access: bool
   remote_path: match(^/[a-z0-9][a-z0-9_-]{0,31}$)
