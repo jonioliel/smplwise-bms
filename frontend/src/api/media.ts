@@ -34,6 +34,9 @@ export interface ProductSettings {
   'ui.mobile'?: Record<string, boolean>;
   /** The colour of each thing the investigation timeline draws (owner 2026-10-01): option -> palette name | #rrggbb; api/timeline-colors.ts. */
   'timeline.colors'?: Record<string, string>;
+  /** Who sees the timeline's helper line / the recording screen's diagnostics block (owner 2026-10-01): all | installers | hidden; api/playback-display.ts. */
+  'playback.helper_line'?: 'all' | 'installers' | 'hidden';
+  'playback.diagnostics'?: 'all' | 'installers' | 'hidden';
   /** The floor the map's floor tab opens first (an existing floor id); '' = the first floor the user may read. */
   'map.default_floor'?: string;
   'media.transport_default': Transport;

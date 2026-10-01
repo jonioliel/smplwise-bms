@@ -7,6 +7,9 @@ import { getSettings, patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
 import {
+  PLAYBACK_ITEM_LABEL, VISIBILITY_LABEL, VISIBILITY_VALUES, applyPlaybackDisplay, onPlaybackDisplay, playbackDisplay, type PlaybackItem, type Visibility,
+} from '../api/playback-display';
+import {
   DEFAULT_TIMELINE_COLORS, TIMELINE_OPTIONS, TIMELINE_OPTION_LABEL, TIMELINE_PALETTE, applyTimelineColors, normalizeTimelineColors, onTimelineColors,
   similarTimelineOptions, timelineColors, timelineHex, type TimelineColors, type TimelineOption,
 } from '../api/timeline-colors';
@@ -16,15 +19,19 @@ import {
  * thing the investigation timeline draws: its name, a live colour dot, ten palette swatches and a native colour input for
  * a custom colour. Installation-wide (`timeline.colors`, backend services/timeline_colors.py); only who may change settings
  * can edit. Two options with (nearly) the same colour get a soft inline note - never a block, the colours are the owner's choice.
+ * A second section, "תצוגה", holds two rows with a three-way choice (לכולם / מתקינים בלבד / מוסתר) for the grey helper line above
+ * the timelines (`playback.helper_line`) and the diagnostics block under the recording player (`playback.diagnostics`).
  */
 @customElement('system-timeline-colors')
 export class SystemTimelineColors extends LitElement {
   @state() private draft: TimelineColors = { ...timelineColors() };
+  @state() private display: Record<PlaybackItem, Visibility> = { ...playbackDisplay() };
   @state() private canEdit = false;
   @state() private busy = false;
   @state() private message = '';
   @state() private error = '';
   private stop?: () => void;
+  private stopDisplay?: () => void;
 
   static styles = css`
     :host {
@@ -94,6 +101,41 @@ export class SystemTimelineColors extends LitElement {
       background: none;
       cursor: pointer;
     }
+    h4 {
+      margin: 14px 0 2px;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+    }
+    .seg {
+      display: inline-flex;
+      gap: 2px;
+      padding: 2px;
+      border-radius: 8px;
+      background: var(--sw-surface-3);
+    }
+    .seg button {
+      border: 0;
+      background: transparent;
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      padding: 5px 10px;
+      border-radius: 6px;
+      color: var(--sw-text-2);
+      cursor: pointer;
+    }
+    .seg button[aria-checked='true'] {
+      background: var(--sw-surface);
+      color: var(--sw-accent-text);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .seg button:disabled {
+      cursor: default;
+      opacity: 0.6;
+    }
+    .seg button:focus-visible {
+      outline: 2px solid var(--sw-focus);
+      outline-offset: 2px;
+    }
     .warn {
       grid-column: 1 / -1;
       color: var(--sw-warning-text, #b45309);
@@ -126,12 +168,17 @@ export class SystemTimelineColors extends LitElement {
     this.stop = onTimelineColors(() => {
       if (!this.dirty) this.draft = { ...timelineColors() };
     });
+    this.stopDisplay = onPlaybackDisplay(() => {
+      if (!this.displayDirty) this.display = { ...playbackDisplay() };
+    });
     if (isApi()) {
       void getSettings()
         .then((r) => {
           this.canEdit = r.can_edit;
           applyTimelineColors(r.settings['timeline.colors']);
+          applyPlaybackDisplay(r.settings);
           this.draft = { ...timelineColors() };
+          this.display = { ...playbackDisplay() };
         })
         .catch(() => undefined);
     }
@@ -139,12 +186,22 @@ export class SystemTimelineColors extends LitElement {
 
   disconnectedCallback() {
     this.stop?.();
+    this.stopDisplay?.();
     super.disconnectedCallback();
   }
 
-  private get dirty(): boolean {
+  private get colorsDirty(): boolean {
     const now = timelineColors();
     return TIMELINE_OPTIONS.some((o) => this.draft[o] !== now[o]);
+  }
+
+  private get displayDirty(): boolean {
+    const now = playbackDisplay();
+    return this.display.helper_line !== now.helper_line || this.display.diagnostics !== now.diagnostics;
+  }
+
+  private get dirty(): boolean {
+    return this.colorsDirty || this.displayDirty;
   }
 
   private get atDefaults(): boolean {
@@ -153,6 +210,11 @@ export class SystemTimelineColors extends LitElement {
 
   private pick(option: TimelineOption, value: string) {
     this.draft = { ...this.draft, [option]: value };
+    this.message = '';
+  }
+
+  private setDisplay(item: PlaybackItem, value: Visibility) {
+    this.display = { ...this.display, [item]: value };
     this.message = '';
   }
 
@@ -165,10 +227,17 @@ export class SystemTimelineColors extends LitElement {
     this.busy = true;
     this.error = '';
     try {
-      const r = await patchSettings({ 'timeline.colors': this.draft });
+      // only what changed is sent
+      const body: Parameters<typeof patchSettings>[0] = {};
+      if (this.colorsDirty) body['timeline.colors'] = this.draft;
+      if (this.display.helper_line !== playbackDisplay().helper_line) body['playback.helper_line'] = this.display.helper_line;
+      if (this.display.diagnostics !== playbackDisplay().diagnostics) body['playback.diagnostics'] = this.display.diagnostics;
+      const r = await patchSettings(body);
       invalidateSettings();
       applyTimelineColors(r.settings['timeline.colors']); // every open timeline follows at once
+      applyPlaybackDisplay(r.settings); // ... and the helper line / diagnostics block
       this.draft = normalizeTimelineColors(r.settings['timeline.colors']);
+      this.display = { ...playbackDisplay() };
       this.message = 'הצבעים נשמרו';
       setTimeout(() => (this.message = ''), 2500);
     } catch (err) {
@@ -195,6 +264,15 @@ export class SystemTimelineColors extends LitElement {
           ${similar.length ? html`<span class="warn" role="note" data-timeline-warning>דומה ל${similar.join(', ')}</span>` : nothing}
         </div>`;
       })}
+      <h4>תצוגה</h4>
+      ${(['helper_line', 'diagnostics'] as const).map(
+        (item) => html`<div class="row" data-playback-display=${item}>
+          <span class="name"><span class="lbl">${PLAYBACK_ITEM_LABEL[item]}</span></span>
+          <span class="seg" role="radiogroup" aria-label=${PLAYBACK_ITEM_LABEL[item]}>
+            ${VISIBILITY_VALUES.map((v) => html`<button type="button" role="radio" aria-checked=${this.display[item] === v ? 'true' : 'false'} data-visibility=${v} ?disabled=${!editable || this.busy} @click=${() => this.setDisplay(item, v)}>${VISIBILITY_LABEL[v]}</button>`)}
+          </span>
+        </div>`,
+      )}
       ${editable
         ? html`<div class="foot">
             <sw-button variant="primary" size="sm" icon="check" data-timeline-save ?disabled=${!this.dirty || this.busy} @click=${() => void this.save()}>שמור</sw-button>

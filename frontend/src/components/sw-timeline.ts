@@ -2,6 +2,7 @@ import { LitElement, html, css, svg, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { DemoSegment } from '../fixtures/catalog';
 import { timelineVar } from '../api/timeline-colors';
+import { onPlaybackDisplay, showPlaybackItem } from '../api/playback-display';
 
 export interface TimelineEvent {
   minute: number;
@@ -80,6 +81,7 @@ export class SwTimeline extends LitElement {
   private lastHoverBucket = -1;
   @state() private viewStart = -1;
   @state() private dragging = false;
+  private stopDisplay?: () => void;
 
   static styles = css`
     :host {
@@ -164,6 +166,16 @@ export class SwTimeline extends LitElement {
       background: var(--lg);
     }
   `;
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.stopDisplay = onPlaybackDisplay(() => this.requestUpdate()); // the helper line follows its setting at once
+  }
+
+  disconnectedCallback() {
+    this.stopDisplay?.();
+    super.disconnectedCallback();
+  }
 
   /** Left edge of the visible window in minutes of day. */
   get start(): number {
@@ -283,14 +295,14 @@ export class SwTimeline extends LitElement {
     const ticks: number[] = [];
     for (let m = Math.ceil(this.start / tickEvery - 1e-9) * tickEvery; m <= this.start + this.windowMinutes + 1e-9; m += tickEvery) ticks.push(m);
     const heights = [0, 12, 26, 36];
-    const precisionText = { verified: 'זמן מאומת', keyframe_limited: 'דיוק לפי keyframe', estimated: 'זמן משוער', unknown: 'דיוק לא ידוע' }[this.precision];
+    const precisionText = { verified: 'זמן מאומת', keyframe_limited: 'דיוק לפי פריים מפתח', estimated: 'זמן משוער', unknown: 'דיוק לא ידוע' }[this.precision];
     const cx = this.x(this.cursor, W);
     const label = this.label(this.cursor);
     const bubble = label.length > 5 ? 62 : 48;
     const limitX = this.limit < this.start + this.windowMinutes ? Math.max(0, this.x(this.limit, W)) : null;
     return html`
       <div class="bar">
-        <span class="precision">${precisionText} · לחיצה או גרירה = seek · גלגלת = זום</span>
+        ${showPlaybackItem('helper_line') ? html`<span class="precision" data-timeline-helper>${precisionText} · לחיצה או גרירה = חיפוש · גלגלת = זום</span>` : html`<span></span>`}
         <div class="windows">
           ${WINDOWS.map((w) => html`<button class=${w.minutes === this.windowMinutes ? 'on' : ''} @click=${() => this.setWindow(w.minutes)}>${w.label}</button>`)}
         </div>
