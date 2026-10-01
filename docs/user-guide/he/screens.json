@@ -686,6 +686,113 @@
     "data": "mock-area"
   },
   {
+    "id": "multimedia-players",
+    "name_he": "מולטימדיה · נגנים ורמקולים",
+    "section": "multimedia",
+    "route": "#/multimedia/players",
+    "viewports": [
+      "desktop",
+      "phone"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitFor",
+        "selector": "media-player-card"
+      },
+      {
+        "type": "waitMs",
+        "ms": 600
+      }
+    ],
+    "caption_he": "מסך הנגנים והרמקולים: כרטיס אחד לכל רמקול, נגן ומגבר, מקובצים לפי קומה (או ברשימה אחת בבית בלי קומות), שבבי חדרים, חיפוש וסינון מצב, כפתור \"עצור מוזיקה\" לקומה, וחלק \"לא משויכים\" בסוף. פרטים ב-42-multimedia_HE.md.",
+    "source": "demo",
+    "data": "static"
+  },
+  {
+    "id": "multimedia-player-panel",
+    "name_he": "מולטימדיה · הנגן",
+    "section": "multimedia",
+    "route": "#/multimedia/players",
+    "viewports": [
+      "desktop",
+      "phone"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitFor",
+        "selector": "media-player-card"
+      },
+      {
+        "type": "click",
+        "selector": "media-player-card button[aria-label^=\"נגן\"]"
+      },
+      {
+        "type": "waitFor",
+        "selector": "media-player-panel"
+      },
+      {
+        "type": "waitMs",
+        "ms": 600
+      }
+    ],
+    "caption_he": "הנגן: תמונה, שם השיר, האמן והאלבום, פס התקדמות, ערבוב · הקודם · השהה · הבא · חזרה, עוצמה ו\"לפי חדר\", \"הבא בתור\", לשוניות מועדפים, תחנות ופלייליסטים, וחלק הקבוצה עם סימון חדרים. בטלפון הוא גיליון שעולה מלמטה. פרטים ב-42-multimedia_HE.md.",
+    "source": "demo",
+    "data": "static"
+  },
+  {
+    "id": "multimedia-groups",
+    "name_he": "מולטימדיה · קבוצות",
+    "section": "multimedia",
+    "route": "#/multimedia/groups",
+    "viewports": [
+      "desktop",
+      "phone"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitFor",
+        "selector": "[data-mm-group-card]"
+      },
+      {
+        "type": "waitMs",
+        "ms": 600
+      }
+    ],
+    "caption_he": "מסך הקבוצות: קבוצות חיות עם החדרים שלהן ומחוון אחד לקבוצה, קבוצות קבועות, קבוצות שמורות עם \"הפעל\" והתוצאה לכל חדר בשמו, וקבוצה וירטואלית כקיצור. פרטים ב-42-multimedia_HE.md.",
+    "source": "demo",
+    "data": "static"
+  },
+  {
+    "id": "settings-multimedia-players",
+    "name_he": "הגדרות · מולטימדיה (נגנים, איחוד, קבוצות שמורות ומועדפים)",
+    "section": "settings",
+    "route": "#/system/multimedia",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitMs",
+        "ms": 1000
+      }
+    ],
+    "caption_he": "הגדרות · מולטימדיה, החלקים החדשים: נגנים ורמקולים (סוג, חדר, אישור, תקרת עוצמה וחלון לילה), אשף איחוד הכפילויות, רכיבים לא פיזיים, קבוצות שמורות, מועדפים ותחנות, מצב החיבור והרשאות. פרטים ב-80-settings_HE.md.",
+    "source": "demo",
+    "data": "static"
+  },
+  {
     "id": "devices-area-row",
     "name_he": "חשמל והתקנים · מה שמופיע ליד שם האזור",
     "section": "devices",
