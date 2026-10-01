@@ -1739,13 +1739,9 @@ export class SwApp extends LitElement {
           return html`<schedule-editor .scheduleId=${s[2] === 'new' ? '' : decodeURIComponent(s[2] ?? '')} .template=${r.params.get('template') ?? ''} .preset=${r.params.get('preset') ?? ''}></schedule-editor>`;
         }
         if (s[1] === 'schedules') return html`<devices-schedules></devices-schedules>`;
-        // CR-017: "אוטומציות" - the list (automations, scenes, scripts), its drawer and the trash are one element that reads the address itself; the builder
-        // (S4's <automation-builder>, by tag) is the route `.../<id>/edit` or `.../new/edit?kind=&template=` - the same split as the schedules editor.
-        if (s[1] === 'automations' && s[s.length - 1] === 'edit') {
-          const kind = s[2] === 'scripts' ? 'script' : s[2] === 'scenes' ? 'scene' : r.params.get('kind') ?? 'automation';
-          const id = s[2] === 'new' || s[3] === 'new' ? '' : decodeURIComponent((s[2] === 'scripts' || s[2] === 'scenes' ? s[3] : s[2]) ?? '');
-          return html`<automation-builder .kind=${kind} .itemId=${id} .template=${r.params.get('template') ?? ''}></automation-builder>`;
-        }
+        // CR-017: "אוטומציות" - the list (automations, scenes, scripts), its drawer, the trash AND the editors are one element that reads the address itself:
+        // the routes `.../<id>/edit` and `.../new/edit?kind=&template=` open S4's editor sheet (<automation-builder> / <script-editor> / <scene-editor>) over
+        // the list, which stays mounted underneath (closing the sheet returns to the item's drawer or the list without a reload).
         if (s[1] === 'automations') return html`<devices-automations></devices-automations>`;
         return html`<devices-building></devices-building>`;
       case 'multimedia':

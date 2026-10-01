@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
+import { keyed } from 'lit/directives/keyed.js';
+import './automation-editors';
 import '../components/sw-dialog';
 import '../components/sw-automation-card';
 import './automation-drawer';
@@ -9,7 +11,7 @@ import './scripts-panel';
 import { aIcon } from '../components/automation-icons';
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles } from '../styles/media-page';
-import { applyAutomationsGlass, autoApi, autoNow, autoReady, demoLoading } from '../api/automations-demo';
+import { applyAutomationsGlass, autoApi, autoNow, autoReady, demoControl, demoLoading } from '../api/automations-demo';
 import { isApi } from '../api/session';
 import { subscribeHa } from '../api/ha';
 import { bidi } from '../i18n/bidi';
@@ -17,10 +19,10 @@ import { onRouteChange, navigate, pushRoute, replaceRoute, type RouteState } fro
 import { registerScreenEdit } from '../shell/screen-edit';
 import {
   mapAutomationError, needsConfirmation, toggleAutomation, visibleKinds,
-  type AutomationsStatus, type Item, type ItemDetail, type ScriptDraft,
+  type AnyDraft, type AutomationsStatus, type Item, type ItemDetail, type ItemKind, type ScriptDraft,
 } from '../api/automations';
 import {
-  BASE, NO_FILTERS, STATE_FILTERS, applyFilters, banners, countsOf, confirmLine, editPath, filtersActive, filtersFromParams, filtersToParams, floorOptions, hiddenScenes, itemPath,
+  BASE, NO_FILTERS, STATE_FILTERS, applyFilters, banners, countsOf, confirmLine, editPath, editTarget, filtersActive, filtersFromParams, filtersToParams, floorOptions, hiddenScenes, itemPath,
   newButton, newPath, parseAutomationsRoute, screenKind, segmentOf, segmentOfKind, stateCounts, trashPath, SEGMENTS,
   type AutomationsRoute, type ListFilters, type Segment, type StateFilter,
 } from './automations-logic';
@@ -60,6 +62,10 @@ export class DevicesAutomations extends LitElement {
   @state() private fieldScripts: ReadonlySet<string> = new Set();
   @state() private now: Date = new Date();
   @state() private cardAction = '';
+  /** The raw query of the address (the editor route reads `kind` / `template` from it). */
+  @state() private rawParams = new URLSearchParams();
+  /** A gallery template the editor route named (`?template=`): its draft once loaded, null while loading or when unknown. */
+  @state() private tplDraft: { id: string; draft: AnyDraft | null; done: boolean } | null = null;
 
   private phoneMq = window.matchMedia('(max-width: 767px)');
   private onPhone = () => (this.phone = this.phoneMq.matches);
@@ -272,7 +278,10 @@ export class DevicesAutomations extends LitElement {
       this.lastWritten = incoming;
     }
     this.route = next;
+    this.rawParams = new URLSearchParams(r.params);
     this.cardAction = r.params.get('do') ?? '';
+    const et = editTarget(next, r.params);
+    if (et?.template && this.tplDraft?.id !== et.template) void this.loadTemplate(et.template);
     if (next.id || next.trash) this.drawerUsed = true;
   }
 
@@ -477,6 +486,63 @@ export class DevicesAutomations extends LitElement {
     replaceRoute(itemPath(this.route.segment, this.route.id), p);
   };
 
+  // ------------------------------------------------------------------------------------------------ the editors (S4) over the list (S3)
+
+  private async loadTemplate(id: string) {
+    this.tplDraft = { id, draft: null, done: false };
+    try {
+      const { templates } = await autoApi().templates();
+      const t = templates.find((x) => x.id === id);
+      if (this.tplDraft?.id === id) this.tplDraft = { id, draft: t ? (t.draft as AnyDraft) : null, done: true };
+    } catch {
+      if (this.tplDraft?.id === id) this.tplDraft = { id, draft: null, done: true }; // no gallery for this caller: the editor opens on its own start
+    }
+  }
+
+  /** Where the editor returns: the item's drawer (automations and scripts have one), else the kind's list. */
+  private editorExit(kind: ItemKind, id: string): string {
+    const seg = segmentOfKind(kind).id;
+    return id && kind !== 'scene' ? itemPath(seg, id) : itemPath(seg);
+  }
+  private onEditorSaved = (e: CustomEvent<{ kind: ItemKind; id: string; status: 'ok' | 'not_loaded' }>) => {
+    const { kind, id, status } = e.detail;
+    void this.loadList();
+    void this.refreshStatus();
+    replaceRoute(this.editorExit(kind, status === 'ok' ? id : ''), filtersToParams(this.filters));
+    this.say(status === 'not_loaded' ? 'נשמר, אך עדיין לא נטען' : 'נשמר', status === 'not_loaded' ? 'error' : 'ok');
+  };
+  private onEditorCancel = (kind: ItemKind, id: string) => {
+    replaceRoute(this.editorExit(kind, id), filtersToParams(this.filters));
+  };
+  private onEditorDeleted = (e: CustomEvent<{ kind: ItemKind; id: string; trash_id: string }>) => {
+    const { kind, id, trash_id } = e.detail;
+    const name = (this.items ?? []).find((x) => x.kind === kind && x.id === id)?.name ?? '';
+    replaceRoute(itemPath(segmentOfKind(kind).id), filtersToParams(this.filters));
+    void this.loadList();
+    void this.refreshStatus();
+    this.say(name ? `"${name}" נמחק` : 'נמחק', 'ok', { label: 'שחזור', run: () => void this.undoDelete(trash_id, name) });
+  };
+
+  /** The editor of the route `.../<id>/edit` or `.../new/edit` (S4's sheets, mounted by tag over the list; keyed so another item is a fresh editor). */
+  private editorSheet(): TemplateResult | typeof nothing {
+    const et = editTarget(this.route, this.rawParams);
+    if (!et) return nothing;
+    if (et.template && !(this.tplDraft?.id === et.template && this.tplDraft.done)) return nothing;
+    const draft0 = et.template ? this.tplDraft?.draft ?? null : null;
+    const mode = et.id ? 'edit' : 'create';
+    const cancel = () => this.onEditorCancel(et.kind, et.id);
+    const changed = () => void this.loadList();
+    const key = `${et.kind}:${et.id || 'new'}:${et.template}`;
+    const scheme = isApi() ? '' : demoControl().scheme ?? ''; // the demo's scheme; with a backend the editors read devices.scheme like this screen
+    if (et.kind === 'script') {
+      return html`${keyed(key, html`<script-editor data-auto-editor="script" .itemId=${et.id || null} .mode=${mode} .scheme=${scheme} @saved=${this.onEditorSaved} @cancel=${cancel} @deleted=${this.onEditorDeleted} @item-changed=${changed}></script-editor>`)}`;
+    }
+    if (et.kind === 'scene') {
+      return html`${keyed(key, html`<scene-editor data-auto-editor="scene" .itemId=${et.id || null} .mode=${mode} .scheme=${scheme} @saved=${this.onEditorSaved} @cancel=${cancel} @deleted=${this.onEditorDeleted} @item-changed=${changed}></scene-editor>`)}`;
+    }
+    return html`${keyed(key, html`<automation-builder data-auto-editor="automation" .itemId=${et.id || null} .mode=${mode} .scheme=${scheme} .draft0=${draft0} @saved=${this.onEditorSaved} @cancel=${cancel} @deleted=${this.onEditorDeleted} @item-changed=${changed}></automation-builder>`)}`;
+  }
+
   // ------------------------------------------------------------------------------------------------ render pieces
 
   private segItems(seg: Segment): Item[] {
@@ -576,7 +642,7 @@ export class DevicesAutomations extends LitElement {
     const seg = this.segment();
     const r = this.route;
     const drawerKind = r.segment === 'scripts' ? 'script' : 'automation';
-    const drawerOpen = (!!r.id && r.segment !== 'scenes') || r.trash;
+    const drawerOpen = ((!!r.id && r.id !== 'new' && r.segment !== 'scenes') || r.trash) && !r.edit; // the editor sheet replaces the drawer while it is open
     return html`<div class="page" data-screen="devices-automations" data-segment=${seg}>
       ${this.header(seg)}
       ${this.body(seg)}
@@ -586,6 +652,7 @@ export class DevicesAutomations extends LitElement {
           @drawer-close=${this.onDrawerClose} @view-change=${this.onViewChange} @edit=${(e: CustomEvent<{ kind: 'automation' | 'script' | 'scene'; id: string }>) => navigate(editPath(e.detail.kind, e.detail.id))}
           @changed=${this.onChanged} @deleted=${this.onDeleted} @copied=${this.onCopied} @result=${this.onResult} @action-done=${this.onActionDone}></automation-drawer>`
       : nothing}
+    ${this.editorSheet()}
     ${this.dialogs()}
     ${this.note ? html`<div class=${`toast${this.note.tone === 'error' ? ' bad' : ''}`} popover="manual" role="status" data-auto-note>${aIcon(this.note.tone === 'error' ? 'warning' : 'check')}${this.note.text}${this.note.action ? html`<button type="button" class="btn sm" data-note-action @click=${() => { const a = this.note?.action; this.note = null; a?.run(); }}>${this.note.action.label}</button>` : nothing}</div>` : nothing}`;
   }

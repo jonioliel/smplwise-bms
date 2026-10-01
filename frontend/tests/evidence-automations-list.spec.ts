@@ -9,7 +9,7 @@ import { ApiError } from '../src/api/client';
 // with the capture editor, the script runner and הגדרות › אוטומציות, in demo mode (no backend: api/automations-mock.ts answers; the persona, the state and the
 // scheme through localStorage `sw.demo.automations`, see api/automations-demo.ts) at 1440 / 820 / 390, light and dark, RTL; three users (installer, household
 // editor, script runner - no view-only access, owner decision 1b) and every state. The last describe block runs with a session (a mocked backend answering the real routes from the same mock store): the
-// permission-gated navigation and what the client sends. S4's `<automation-builder>` is a double here (only the address and the properties are checked).
+// permission-gated navigation and what the client sends. S4's editors open as the real sheets over the list (the wiring of S3 and S4).
 //   SW_BASE_URL=http://127.0.0.1:4711/ npx playwright test tests/evidence-automations-list.spec.ts --project=desktop --workers=1
 // Screenshots: docs/design/evidence/CR-017/s3/.
 
@@ -31,27 +31,6 @@ interface Control {
   scheme?: 'light' | 'dark';
   phoneFilter?: 'fold' | 'rows';
   sensitiveChip?: 'amber' | 'red';
-}
-
-/** S4's builder is not part of this branch: the screen mounts it by tag (shell route `.../edit`), so a double records what it was given. */
-async function installBuilderDouble(page: Page) {
-  await page.addInitScript(() => {
-    class Builder extends HTMLElement {
-      kind = '';
-      itemId = '';
-      template = '';
-      connectedCallback() {
-        this.setAttribute('data-builder-double', '');
-        queueMicrotask(() => {
-          this.setAttribute('data-kind', String(this.kind));
-          this.setAttribute('data-item', String(this.itemId));
-          this.setAttribute('data-template', String(this.template));
-          this.textContent = `builder ${this.kind} ${this.itemId}`;
-        });
-      }
-    }
-    customElements.define('automation-builder', Builder);
-  });
 }
 
 async function open(page: Page, hash: string, size: Size = '1440', control: Control = {}) {
@@ -426,31 +405,33 @@ test.describe('the detail drawer', () => {
     await shot(page, '52-trash', '390');
   });
 
-  test('edit and new are routes of the builder (S4): the screen mounts it by tag with the kind and the id', async ({ page }) => {
-    await installBuilderDouble(page);
+  test('edit and new are routes of the editors (S4): the screen opens the sheet over the list, by kind, with the id; closing returns to the drawer', async ({ page }) => {
     await open(page, '/devices/automations');
     await ready(page);
     await card(page, 'תנועה בפרוזדור').locator('[data-card-menu]').click();
     await card(page, 'תנועה בפרוזדור').locator('[data-card-action="edit"]').click();
     await expect.poll(() => hashOf(page)).toContain('/devices/automations/1727700000002/edit');
-    const b = page.locator('sw-app automation-builder');
-    await expect(b).toHaveAttribute('data-kind', 'automation');
-    await expect(b).toHaveAttribute('data-item', '1727700000002');
-    await expect(page.locator('sw-app .subnav sw-tabs')).toHaveCount(0); // the editor has the whole screen
+    const b = scr(page).locator('automation-builder[data-auto-editor="automation"]');
+    await expect(b.locator('[data-name-input]')).toHaveValue('תנועה בפרוזדור');
+    await expect(cards(page)).toHaveCount(12); // the list stays mounted underneath
+    await b.locator('[data-editor-cancel], [data-editor-close]').first().click();
+    await expect.poll(() => hashOf(page)).toMatch(/\/devices\/automations\/1727700000002(\?|$)/);
+    await expect(scr(page).locator('automation-builder')).toHaveCount(0);
+    await expect(drawer(page).locator('[data-drawer-detail]')).toBeVisible();
     await open(page, '/devices/automations');
     await ready(page);
     await scr(page).locator('[data-auto-new]').click();
     await expect.poll(() => hashOf(page)).toContain('/devices/automations/new/edit?kind=automation');
-    await expect(page.locator('sw-app automation-builder')).toHaveAttribute('data-item', '');
+    await expect(scr(page).locator('automation-builder [data-stage="templates"]')).toBeVisible(); // a new automation starts at the gallery
     await open(page, '/devices/automations/scripts/1727700000100/edit');
-    await expect(page.locator('sw-app automation-builder')).toHaveAttribute('data-kind', 'script');
-    await expect(page.locator('sw-app automation-builder')).toHaveAttribute('data-item', '1727700000100');
+    await expect(scr(page).locator('script-editor[data-auto-editor="script"] [data-name-input]')).not.toHaveValue('');
+    await expect(scr(page).locator('automation-builder')).toHaveCount(0);
     // the drawer's own "עריכה" goes there too
     await open(page, '/devices/automations/1727700000002');
     await drawer(page).locator('[data-drawer-edit]').click();
     await expect.poll(() => hashOf(page)).toContain('/1727700000002/edit');
+    await expect(scr(page).locator('automation-builder [data-name-input]')).toHaveValue('תנועה בפרוזדור');
   });
-
   test('the card menu lists what the caller may do; "גרסאות" opens that view of the drawer', async ({ page }) => {
     await open(page, '/devices/automations');
     await ready(page);
@@ -834,7 +815,7 @@ test.describe('הגדרות › אוטומציות', () => {
     await s.locator('[data-settings-save]').click();
     await expect(s.locator('[data-settings-saved]')).toHaveText('נשמר');
     await expect(s.locator('[data-setting="trash_days"]')).toContainText('29');
-    await expect(s.locator('[data-roles-matrix] tr[data-role="aut_editor"] .yes')).toHaveCount(4); // the code view switched on for the editor role
+    await expect(s.locator('[data-roles-matrix] tr[data-role="aut_editor"] .yes')).toHaveCount(3); // run, create-edit and the code view switched on for the editor role (no view column, decision 1b)
     // the list reads the new display settings from the status
     await page.evaluate(() => { location.hash = '#/devices/automations'; });
     await ready(page);
@@ -1096,7 +1077,6 @@ test.describe('with a session: permissions, the setting, the push frame and what
 
 test.describe('"+ חדש" asks "מתי?" (the setting, off by default)', () => {
   test('on: "בשעות קבועות" opens the schedules editor, "כשמשהו קורה" the builder; off: the button goes straight to the builder', async ({ page }) => {
-    await installBuilderDouble(page);
     await open(page, '/system/automations');
     const s = settings(page);
     await s.locator('[data-toggle="ask_when_on_new"]').click();
@@ -1114,5 +1094,55 @@ test.describe('"+ חדש" asks "מתי?" (the setting, off by default)', () => {
     await scr(page).locator('[data-auto-new]').click();
     await scr(page).locator('[data-when="time"]').click();
     await expect.poll(() => hashOf(page)).toContain('/devices/schedules/new/edit');
+  });
+});
+
+// ------------------------------------------------------------------------------------------------ S3 x S4: the editors over the list
+
+test.describe('the editors over the list (S3 x S4 wiring)', () => {
+  test('the builder, the script editor and the scene editor open over the list at 1440 / 820 / 390, light and dark, naming no product', async ({ page }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      for (const size of ['1440', '820', '390'] as const) {
+        await open(page, '/devices/automations/1727700000002/edit', size, { scheme });
+        const b = scr(page).locator('automation-builder');
+        await expect(b.locator('[data-name-input]')).toHaveValue('תנועה בפרוזדור');
+        await expect(b.locator('[data-sentence]').first()).toBeVisible();
+        expect(await b.innerText()).not.toMatch(BRANDS);
+        await shot(page, '110-builder-over-list', size, scheme);
+      }
+      await open(page, '/devices/automations/scripts/1727700000100/edit', '1440', { scheme });
+      await expect(scr(page).locator('script-editor [data-name-input]')).not.toHaveValue('');
+      expect(await scr(page).locator('script-editor').innerText()).not.toMatch(BRANDS);
+      await shot(page, '111-script-editor-over-list', '1440', scheme);
+      await open(page, '/devices/automations/scripts/new/edit', '390', { scheme });
+      await expect(scr(page).locator('script-editor [data-name-input]')).toHaveValue('');
+      await shot(page, '112-script-editor-new', '390', scheme);
+    }
+  });
+
+  test('a new automation from a gallery template: saved through the sheet, which closes into the new item\'s drawer; the list has it', async ({ page }) => {
+    await open(page, '/devices/automations/new/edit?kind=automation&template=t6');
+    const b = scr(page).locator('automation-builder');
+    await expect(b.locator('[data-name-input]')).toHaveValue('תאורה בשקיעה');
+    await b.locator('[data-name-input]').fill('תאורה בשקיעה · חדשה');
+    await b.locator('[data-editor-save]').click();
+    const ok = b.locator('[data-confirm-save]');
+    if (await ok.waitFor({ state: 'visible', timeout: 1500 }).then(() => true, () => false)) await ok.click();
+    await expect(scr(page).locator('automation-builder')).toHaveCount(0);
+    await expect.poll(() => hashOf(page)).toMatch(/\/devices\/automations\/[^/?]+(\?|$)/);
+    expect(await hashOf(page)).not.toContain('/edit');
+    await expect(scr(page).locator('[data-auto-note]')).toContainText('נשמר');
+    await expect(drawer(page)).toContainText('תאורה בשקיעה · חדשה');
+    await expect(drawer(page).locator('[data-drawer-detail]')).toContainText('בשקיעה');
+    await expect(cards(page)).toHaveCount(13);
+    await shot(page, '113-saved-into-drawer', '1440');
+  });
+
+  test('a runner\'s deep link to an automation editor shows the forbidden state, never the draft (decision 1b)', async ({ page }) => {
+    await open(page, '/devices/automations/1727700000002/edit', '390', { user: 'runner' });
+    await expect(scr(page).locator('automation-builder [data-editor-state="forbidden"]')).toBeVisible();
+    await expect(scr(page).locator('automation-builder [data-block-main]')).toHaveCount(0);
+    await expect(scr(page).locator('automation-builder [data-name-input]')).toHaveValue('');
+    await shot(page, '114-runner-editor-link', '390');
   });
 });

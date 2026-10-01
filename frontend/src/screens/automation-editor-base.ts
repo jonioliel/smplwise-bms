@@ -13,6 +13,7 @@ import {
   sensitiveSteps, suggestSchedule, toggleAutomation, validateDraft, walkDraft,
   type AnyDraft, type ScriptDraft, type AutomationCatalog, type AutomationDraft, type AutomationTemplate, type AutomationsStatus, type Block, type DryRunResult, type Issue, type ItemDetail, type ItemKind, type PreviewResult, type WriteResult,
 } from '../api/automations';
+import { autoReady } from '../api/automations-demo';
 import { loadDevicesPrefs, applyDevicesPrefs, applyDevicesScheme, DEVICES_PREFS_DEFAULT, devicesStyleTokens } from './devices-style';
 import { navigate } from '../router';
 import { NEW_DRAFT_KEY } from './schedule-create-dialog';
@@ -824,6 +825,8 @@ export abstract class AutomationEditorBase extends LitElement {
     this.item = null; this.draft = null; this.preview = null; this.previewVersion = -1; this.previewFailed = false; this.openUid = null; this.view = 'builder'; this.dialog = null; this.conflict = null; this.saveError = '';
     this.serverIssues = []; this.touched = false; this.note = ''; this.pop = null; this.picker = null; this.templateName = ''; this.optionsOpen = false; this.dryResult = null;
     try {
+      await autoReady(); // the demo persona (no backend) is applied before the first read; with a backend this resolves at once
+      if (token !== this.loadToken) return;
       const a = automations();
       const [status, catalog, item] = await Promise.all([
         a.status(),

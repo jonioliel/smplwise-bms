@@ -68,6 +68,15 @@ export function editPath(kind: ItemKind, id: string): string {
 export function newPath(kind: ItemKind): { path: string; params: Record<string, string> } {
   return { path: `${BASE}/new/edit`, params: { kind } };
 }
+/** What the editor route asks for (S3 x S4 wiring): the kind (by the segment, else `?kind=`, else an automation), the item id ('' = a new one; `new` is not an id)
+ *  and the gallery template of a new automation (`?template=`). null when the route is not an editor route. */
+export function editTarget(r: AutomationsRoute, params: URLSearchParams): { kind: ItemKind; id: string; template: string } | null {
+  if (!r.edit) return null;
+  const pk = params.get('kind');
+  const kind: ItemKind = r.segment === 'scripts' ? 'script' : r.segment === 'scenes' ? 'scene' : pk === 'script' || pk === 'scene' ? pk : 'automation';
+  const id = r.id === 'new' ? '' : r.id;
+  return { kind, id, template: kind === 'automation' && !id ? params.get('template') ?? '' : '' };
+}
 
 // ------------------------------------------------------------------------------------------------ filters
 
