@@ -205,6 +205,7 @@ def bridge_error(resp: dict[str, Any]) -> ApiError:
 
 def bridge_body(w: W, op: str, op_id: str, *, kind: str | None, item_id: str | None, base_revision: str | None, profile: str | None, config: dict[str, Any] | None,
                 preserved: list[str] | None, sensitive: bool, variables: dict[str, Any] | None, skip_condition: bool | None, entity_id: str | None) -> dict[str, Any]:
+    """(the notify targets the administrator approved travel with every upsert: the bridge refuses a new or changed notify step naming any other)"""
     """The message of one op with exactly the keys the bridge accepts for it (`config_policy.OP_KEYS`: any other key is refused as `invalid_payload`)."""
     body: dict[str, Any] = {"user_id": w.principal.user_id, "op": op, "request_id": op_id}
     if op == "apply_scene":
@@ -212,7 +213,8 @@ def bridge_body(w: W, op: str, op_id: str, *, kind: str | None, item_id: str | N
         return body
     body["kind"], body["item_id"] = kind, item_id
     if op == "upsert":
-        body.update(base_revision=base_revision, profile=profile or "builder", config=config, preserved=list(preserved or []), sensitive=bool(sensitive))
+        body.update(base_revision=base_revision, profile=profile or "builder", config=config, preserved=list(preserved or []), sensitive=bool(sensitive),
+                    allowed_notify=sorted(w.ctx.notify_targets))
     elif op == "delete":
         body.update(base_revision=base_revision, profile=profile or "builder")
     elif op == "trigger":
@@ -430,6 +432,10 @@ def _sensitive_by_bridge_rule(w: W, draft: dict[str, Any]) -> bool:
     """The bridge refuses `sensitive: false` on what it can recognise on its own (an alarm / lock / siren service anywhere, a door-class cover by the
     `device_class` of its state): the flag is sent true wherever `automation_policy.sensitive_required` says so, whatever the add-on's own classification found."""
     services: list[str] = []
+    if "members" in draft:  # a scene that reproduces the state of a lock or of a door-class cover
+        members = [m["entity_id"] for m in draft["members"]]
+        w.ctx.preload(members)
+        return pol.scene_sensitive_required(members, lambda e: (w.ctx.entity(e) or {}).get("attributes"))
     for wk in model.walk_draft(draft):
         b = wk.block
         if wk.section != "action":

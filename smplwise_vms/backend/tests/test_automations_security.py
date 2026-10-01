@@ -9,7 +9,7 @@ import json
 
 from automations_fixture import *  # noqa: F401,F403
 from automations_fixture import autos_app  # noqa: F401
-from automations_fixture import API, OMER, create_item, draft_of, get_item, item_by_name, place, put_item, rid, svc_block, typed_state_trigger
+from automations_fixture import NOTIFY, API, OMER, create_item, draft_of, get_item, item_by_name, place, put_item, rid, svc_block, typed_state_trigger
 from automations_fixture import grant as _raw_grant
 from smplwise.routers.access import SENSITIVE as _SENSITIVE
 from smplwise.services import automations
@@ -288,3 +288,26 @@ def test_low_f_the_size_and_depth_of_a_body_are_capped(autos_app):
     r = c.post(f"{API}/automations/preview", json={"kind": "automation", "draft": deep})
     assert r.status_code == 422 and r.json()["code"] == "validation"
     assert c.post(f"{API}/automations/preview", json={"kind": "automation", "draft": draft_of("x")}).status_code == 200
+
+
+# ================================================================ the bridge's new fields (S2 a03cfe1e)
+
+def test_the_approved_notify_targets_and_the_scene_sensitive_flag_travel_to_the_bridge(autos_app):
+    app, s, c, fake, tr = autos_app
+    assert create_item(c, "automation", draft_of("עם יעד התראה", actions=[svc_block(NOTIFY, [], {"message": "שלום"}, role_="notify")])).status_code == 201
+    assert tr.bridge_calls[-1]["allowed_notify"] == [NOTIFY]
+    plain = c.post(f"{API}/automations/scene", json={"draft": {"name": "אור", "icon": None, "members": [{"entity_id": "light.office", "state": "on", "attributes": {}}]}, "client_request_id": rid()})
+    assert plain.status_code == 201 and tr.bridge_calls[-1]["sensitive"] is False
+    gate = c.post(f"{API}/automations/scene", json={"draft": {"name": "שער", "icon": None, "members": [{"entity_id": "cover.driveway_gate", "state": "closed", "attributes": {}}]},
+                                                    "client_request_id": rid()})
+    assert gate.status_code == 201, gate.text
+    assert tr.bridge_calls[-1]["sensitive"] is True, "a scene that reproduces a door-class cover is sent as sensitive"
+
+
+def test_a_delegated_user_is_not_offered_the_delete_of_content_only_an_administrator_could_write(autos_app):
+    app, s, c, fake, tr = autos_app
+    world(c, tr)
+    tpl = get_item(c, "automation", item_by_name(c, "תבניות – התראת טמפרטורה")["id"], OMER).json()
+    assert tpl["can"]["delete"] is False
+    plain = create_item(c, "automation", draft_of("פשוטה למחיקה"), OMER)
+    assert plain.status_code == 201 and plain.json()["item"]["can"]["delete"] is True

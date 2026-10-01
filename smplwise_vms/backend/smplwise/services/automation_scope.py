@@ -437,7 +437,7 @@ def visible(ctx: Ctx, kind: str, facts: dict[str, Any], *, source: str = "ui", e
 
 # ---------------------------------------------------------------- rights
 
-GRANT_FOR = {"alarm_control_panel.alarm_disarm": "alarm.disarm", "lock.unlock": "door.unlock"}
+GRANT_FOR = pol.GRANT_FOR  # S2's table is the single source (`pol.grant_for`): disarm -> alarm.disarm, other alarm_* -> alarm.arm, lock.unlock -> door.unlock; the rest is control only
 
 
 def grant_reasons(ctx: Ctx, steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -449,9 +449,8 @@ def grant_reasons(ctx: Ctx, steps: list[dict[str, Any]]) -> list[dict[str, Any]]
     seen: set[str] = set()
     for s in steps:
         if s.get("sens") and s["role"] == "locked":  # a sensitive call whose targets are not known statically: the grant is needed installation-wide
-            action = s.get("action") or ""
-            perm = ("alarm.disarm" if action == "alarm_control_panel.alarm_disarm" else "alarm.arm") if action.startswith("alarm_control_panel.") else GRANT_FOR.get(action)
-            if perm and not a.wide(perm) and f"wide|{perm}" not in seen:
+            perm = pol.grant_for(s.get("action") or "")
+            if perm != "ha.entity.control" and not a.wide(perm) and f"wide|{perm}" not in seen:
                 seen.add(f"wide|{perm}")
                 out.append(reason("grant_required", None, f"אין לך הרשאה ל{PERMISSION_LABELS[perm]} (פעולה רגישה שהיעד שלה אינו ידוע מראש).", grant=perm, path=s["path"]))
             continue
@@ -459,7 +458,7 @@ def grant_reasons(ctx: Ctx, steps: list[dict[str, Any]]) -> list[dict[str, Any]]
             continue
         action, e = s["action"], s["entity_id"]
         if s["sens"] == "alarm":
-            perm = "alarm.disarm" if action == "alarm_control_panel.alarm_disarm" else "alarm.arm"
+            perm = pol.grant_for(action)
             ok = a.allowed(perm, e, own=True)
             block = _remote_block(ctx, "disarm" if perm == "alarm.disarm" else "arm") if ok else None
             if block:
@@ -469,8 +468,8 @@ def grant_reasons(ctx: Ctx, steps: list[dict[str, Any]]) -> list[dict[str, Any]]
                     out.append(reason("entity_not_controllable", e, block[1], _remote=block[0], path=s["path"]))
                 continue
         else:
-            perm = GRANT_FOR.get(action)
-            if perm is None:
+            perm = pol.grant_for(action)
+            if perm == "ha.entity.control":
                 continue  # lock.lock / siren / door covers need control only (below)
             ok = a.allowed(perm, e)
         if not ok:
@@ -592,10 +591,10 @@ def sensitive_steps_view(ctx: Ctx, facts: dict[str, Any]) -> list[dict[str, Any]
             continue
         e = s["entity_id"]
         if s["sens"] == "alarm":
-            grant = "alarm.disarm" if s["action"] == "alarm_control_panel.alarm_disarm" else "alarm.arm"
+            grant = pol.grant_for(s["action"])
             ok = ctx.access.allowed(grant, e, own=True)
         else:
-            grant = GRANT_FOR.get(s["action"], "ha.entity.control")
+            grant = pol.grant_for(s["action"] or "")
             ok = ctx.access.allowed(grant, e) if grant != "ha.entity.control" else ctx.access.control(e)
         out.append({"path": s["path"], "entity_id": e, "action": s["action"], "grant": grant, "granted": bool(ok), "class": s["sens"], "label": pol.SENSITIVE_CLASS_LABEL.get(s["sens"], ""),
                     "name": ctx.name_of(e) if ctx.access.can_read_state(e) else e})

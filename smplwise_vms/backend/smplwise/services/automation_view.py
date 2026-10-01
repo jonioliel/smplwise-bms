@@ -26,6 +26,7 @@ from . import ha_bridge, ha_sync
 from .timeutil import iso_utc, parse_utc, zone
 
 LIST_LIMIT_MAX = 500
+HARMLESS_EXTRAS = frozenset({"trace", "initial_state", "note", "metadata"})  # the extra keys that carry no logic (the bridge's list of the same name)
 STATES = ("on", "off", "running", "unavailable", "invalid", "scene")
 DOMAIN_CLASS = {"light": "light", "switch": "switch", "cover": "cover", "climate": "climate", "fan": "fan", "lock": "lock", "alarm_control_panel": "alarm", "siren": "siren", "media_player": "media",
                 "scene": "scene", "script": "script", "automation": "automation", "humidifier": "climate", "vacuum": "vacuum", "button": "button", "number": "helper", "select": "helper",
@@ -199,6 +200,8 @@ def can_and_reasons(ctx: scope.Ctx, env: Env, row: Row, rd: dict[str, Any] | Non
         run_ok = not rr and (kind != "scene" or bool(row.entity_id))
         toggle_ok = kind == "automation" and run_ok
     delete_ok = bool(editable_source and env.edit_block is None and not scope.change_reasons(ctx, kind, facts, None))
+    if delete_ok and not ctx.ha_admin and rd is not None and not (facts["locked_count"] == 0 and not rd.get("legacy") and set(rd["extras"]) <= HARMLESS_EXTRAS):
+        delete_ok = False  # the bridge lets a delegated user delete only what a builder could have written (config_policy.stored_is_builder_authorable)
     code_ok = False
     if env.code_view and rd is not None:
         ents = facts["targets"]
