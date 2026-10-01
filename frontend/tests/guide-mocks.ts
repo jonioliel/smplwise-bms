@@ -132,7 +132,7 @@ async function installArea(page: Page): Promise<() => Promise<void>> {
     if (p.startsWith('multimedia/') || p.startsWith('devices/actions/')) {
       const body = req.postDataJSON?.() ?? null;
       const out = await holder.evaluate(
-        async ([murl, m, path, q, b]) => {
+        async ([murl, m, path, q]) => {
           const s = (await import(/* @vite-ignore */ murl)).mediaMock();
           try {
             if (path === 'multimedia/status') return { ok: await s.status() };
