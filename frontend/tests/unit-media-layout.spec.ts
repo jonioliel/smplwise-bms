@@ -42,6 +42,13 @@ test.describe('multimedia layout (pure)', () => {
     expect(floorsOf(floorless, { floor_order: [] }).at(-1)).toMatchObject({ id: NO_FLOOR, name: 'ללא שיוך' });
   });
 
+  test('a screen without a floor is grouped as "ללא קומה" by floor (it may well have a room), "ללא שיוך" only by area', async () => {
+    const all = (await devices()).map((d) => ({ ...d, floor_id: null, floor_name: null }));
+    expect(resolveCards(all, { ...EMPTY_LAYOUT, group_by: 'floor' }, false).map((g) => g.label)).toEqual(['ללא קומה']);
+    const noArea = all.map((d) => ({ ...d, area_id: null, area_name: null }));
+    expect(resolveCards(noArea, { ...EMPTY_LAYOUT, group_by: 'area' }, false).map((g) => g.label)).toEqual(['ללא שיוך']);
+  });
+
   test('complete(): a device the layout does not know joins the end with the default card; stored keys of absent devices are kept', async () => {
     const all = await devices();
     const layout: MediaLayout = { ...EMPTY_LAYOUT, order: ['md-kids', 'md-gone'], cards: { 'md-gone': { ...DEFAULT_CARD, on: false } } };
