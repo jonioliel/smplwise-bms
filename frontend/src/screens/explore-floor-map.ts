@@ -21,7 +21,7 @@ import { navigate } from '../router';
 import { registerScreenEdit } from '../shell/screen-edit';
 import { PhoneWidth, phoneRestricted } from '../shell/phone';
 import { cameraState, entityName, loadMap, updateAnchor, type MapBundle } from '../api/maps';
-import { snapshotUrl } from '../api/media';
+import { snapshotUrl, type Transport } from '../api/media';
 import { entryFloor, findFloor, loadTree, type CatalogTree } from '../api/catalog';
 import { isApi, nvrLess } from '../api/session';
 import { bidi } from '../i18n/bidi';
@@ -45,7 +45,7 @@ import { sharedChip, zonesWithChips } from '../map/shared-space';
 import '../components/sw-share-members';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
 import { anchorOnLevel, initialLevel } from '../map/studio-ops';
-import { productSettings } from '../api/prefs';
+import { effectiveTransport, productSettings } from '../api/prefs';
 import { demoSceneInput, demoSceneLabels } from '../fixtures/demo-3d';
 import { circuitAction } from '../map/circuit-action';
 import { countLabel, renderLevelChips } from './plan-studio-panel';
@@ -154,6 +154,9 @@ export class ExploreFloorMap extends LitElement {
    * while a tint is fading the instant steps at the fade's cadence (presenceStepMs), so the layer - and the scene built
    * from it - changes only at those steps and the same instant gives the same layer. */
   @state() private presenceFade: PresenceFade = DEFAULT_PRESENCE_FADE_MIN;
+  /** The live transport of the camera card's player (the installation's, or this browser's override); null until the
+   * settings are read - the card shows its snapshot meanwhile, so a WebRTC-only choice never starts on another transport. */
+  @state() private liveTransport: Transport | null = null;
   @state() private stateNow = Date.now();
   private fadeTimer = 0;
   /** What the state layer reads from the structure (the openings' gap midpoints, the lamp objects), per document. */
@@ -1055,8 +1058,9 @@ export class ExploreFloorMap extends LitElement {
           if (this.bundle === b) this.default3d = s['map.default_view'] === '3d' && !this.view3d;
           this.quality3d = s['plan.quality'] === '1' ? 1 : s['plan.quality'] === '2' ? 2 : null;
           this.presenceFade = parsePresenceFade(s['plan.presence_fade']); // CR-006 1b: off, or the fade window in minutes
+          this.liveTransport = effectiveTransport(s);
         })
-        .catch(() => {}); // settings unavailable: keep every level shown
+        .catch(() => (this.liveTransport = effectiveTransport(null))); // settings unavailable: keep every level shown
       const seq = ++this.geomSeq;
       this.geometry = null;
       void geometryFor(this.bundle).then((g) => {
@@ -2064,7 +2068,7 @@ export class ExploreFloorMap extends LitElement {
     return html`
       ${st === 'offline'
         ? html`<div class="off"><div><sw-icon name="offline" size=${22}></sw-icon><div>${t('camera.offlineReason')}</div></div></div>`
-        : html`<sw-camera-tile name="" state=${st === 'live' ? 'live' : 'unknown'} scene=${scene} poster=${cam ? snapshotUrl(cam.id, Date.now()) : ''} ?live=${canLive} .cameraId=${canLive ? cam.id : ''} data-live=${canLive ? '1' : '0'} @click=${() => cam && navigate(`/live/cameras/${cam.id}`)}></sw-camera-tile>`}
+        : html`<sw-camera-tile name="" state=${st === 'live' ? 'live' : 'unknown'} scene=${scene} poster=${cam ? snapshotUrl(cam.id, Date.now()) : ''} ?live=${canLive && !!this.liveTransport} .cameraId=${canLive ? cam.id : ''} transport=${this.liveTransport ?? 'auto'} data-live=${canLive ? '1' : '0'} @click=${() => cam && navigate(`/live/cameras/${cam.id}`)}></sw-camera-tile>`}
       <div class="statusrow"><sw-badge kind=${st}></sw-badge><span data-where>${where}</span></div>
       <dl class="meta">
         <dt>שם ב־NVR</dt><dd>${cam?.name_source || '—'}${cam ? html` · <span class="ltr">ch ${cam.channel}</span>` : nothing}</dd>
