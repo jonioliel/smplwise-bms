@@ -140,6 +140,8 @@ interface Setup {
   override?: Transport;
   /** `sw.live.works` (0.1.148 per-camera memory) */
   works?: Record<string, { step: string; at: number }>;
+  /** media.video_notices (owner 2026-10-01): the notes about how the stream plays; off by default */
+  notices?: boolean;
 }
 
 const ENCODING = { main: { codec: 'H.264', webrtc: 'ok', gov_length: 50, fps: 25 }, sub: { codec: 'H.264', webrtc: 'ok', gov_length: 50, fps: 25 } };
@@ -178,7 +180,7 @@ async function setup(page: Page, o: Setup) {
     }
     if (p === 'settings') {
       const t = typeof o.transport === 'function' ? o.transport() : o.transport;
-      return json({ settings: { 'media.transport_default': t, 'media.max_live_sessions': 16, 'media.wall_profile': 'sub', 'snapshots.max_age_s': 60, 'remote.max_live_streams': 16, 'remote.wall_profile': 'sub', 'ui.kiosk_cols': 2, 'ui.kiosk_rows': 2 }, can_edit: false });
+      return json({ settings: { 'media.transport_default': t, 'media.max_live_sessions': 16, 'media.wall_profile': 'sub', 'media.video_notices': o.notices ? 'true' : 'false', 'snapshots.max_age_s': 60, 'remote.max_live_streams': 16, 'remote.wall_profile': 'sub', 'ui.kiosk_cols': 2, 'ui.kiosk_rows': 2 }, can_edit: false });
     }
     if (p === 'devices/camera-card/resolve') return json({ state: 'live', kind: 'nvr', camera_id: 'c2', recorder_id: 'r', channel: 2, name: 'Street', status: 'online', encoding: ENCODING });
     if (p === 'health/summary') return json({ status: 'ok', items: [], checked_at: '2026-10-01T00:00:00Z', version: 'test' });
@@ -235,7 +237,7 @@ test.describe('an explicit WebRTC choice never opens an MSE stream (owner bug 20
   });
 
   test('remote channel, camera page, installation WebRTC, remote.mse_fallback on: WebRTC only (the other profile over WebRTC)', async ({ page }) => {
-    await setup(page, { channel: 'remote', transport: 'webrtc', mseFallback: true, rtc: { main: 'fail', sub: 'fail' } });
+    await setup(page, { channel: 'remote', transport: 'webrtc', mseFallback: true, rtc: { main: 'fail', sub: 'fail' }, notices: true });
     await cameraPage(page);
     await walked(page, 2);
     expect(await kinds(page), `steps: ${(await sockets(page)).join(', ')}`).toEqual(['webrtc']);
@@ -294,11 +296,32 @@ test.describe('an explicit WebRTC choice never opens an MSE stream (owner bug 20
   });
 
   test('control: remote channel with the installation on auto keeps the announced MSE last resort', async ({ page }) => {
-    await setup(page, { channel: 'remote', transport: 'auto', mseFallback: true, rtc: { main: 'fail', sub: 'fail' } });
+    await setup(page, { channel: 'remote', transport: 'auto', mseFallback: true, rtc: { main: 'fail', sub: 'fail' }, notices: true });
     await cameraPage(page);
     await expect.poll(() => kinds(page), { timeout: 20000 }).toContain('mse');
     expect((await sockets(page)).slice(0, 2)).toEqual(['main:webrtc', 'main:mse']);
     await expect(page.locator('live-camera [data-remote-video-policy]')).toContainText('MSE רק כמוצא אחרון');
+  });
+
+  test('the notes about how the stream plays are hidden by default; the badge stays and explains itself in its tooltip (owner 2026-10-01)', async ({ page }) => {
+    await setup(page, { channel: 'remote', transport: 'auto', mseFallback: true, rtc: { main: 'fail', sub: 'fail' } });
+    await cameraPage(page);
+    await expect.poll(() => kinds(page), { timeout: 20000 }).toContain('mse');
+    const live = page.locator('live-camera');
+    await expect(live.locator('sw-live-player [data-video-badge]')).toBeVisible({ timeout: 20000 });
+    await expect(live.locator('sw-live-player [data-video-badge]')).toHaveAttribute('title', /MSE דרך המנהרה/);
+    await expect(live.locator('[data-video-notice]')).toHaveCount(0);
+    await expect(live.locator('[data-remote-video-policy]')).toHaveCount(0);
+    await expect(live).not.toContainText('מנגן דרך');
+  });
+
+  test('with media.video_notices on the banner, the remote-policy hint and the "plays through" line show', async ({ page }) => {
+    await setup(page, { channel: 'remote', transport: 'auto', mseFallback: true, rtc: { main: 'fail', sub: 'fail' }, notices: true });
+    await cameraPage(page);
+    await expect.poll(() => kinds(page), { timeout: 20000 }).toContain('mse');
+    const live = page.locator('live-camera');
+    await expect(live.locator('[data-video-notice]')).toContainText('MSE דרך המנהרה', { timeout: 20000 });
+    await expect(live.locator('[data-remote-video-policy]')).toContainText('MSE רק כמוצא אחרון');
   });
 
   test('LAN, the wall, installation WebRTC with remembered MSE steps from earlier choices: never replayed', async ({ page }) => {

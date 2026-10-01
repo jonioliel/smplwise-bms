@@ -182,7 +182,20 @@ const FAKE_MEDIA = () => {
   (window as unknown as { RTCPeerConnection: unknown }).RTCPeerConnection = FakePC;
 };
 
+/** The notes about how the stream plays (banner, hint) are off by default (media.video_notices, owner 2026-10-01): these specs assert
+ * them, so the installation setting is switched on for the page; `evidence-webrtc-only.spec.ts` covers the default. */
+async function noticesOn(page: Page) {
+  await page.route(/\/api\/v1\/settings(\?.*)?$/, async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    const response = await route.fetch();
+    const body = await response.json();
+    body.settings = { ...(body.settings ?? {}), 'media.video_notices': 'true' };
+    await route.fulfill({ response, json: body });
+  });
+}
+
 async function remoteMe(page: Page, remote: { profile: 'main' | 'sub'; mse: boolean }) {
+  await noticesOn(page);
   await page.route(/\/api\/v1\/me(\?.*)?$/, async (route) => {
     const response = await route.fetch();
     const me = await response.json();

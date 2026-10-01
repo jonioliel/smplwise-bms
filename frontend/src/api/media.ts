@@ -42,6 +42,8 @@ export interface ProductSettings {
   'media.transport_default': Transport;
   'media.max_live_sessions': number;
   'media.wall_profile': 'sub' | 'main';
+  /** Owner 2026-10-01: 'true' shows the live player's notes about how it plays (banner, remote-policy hint, "מנגן דרך" line); default 'false'. */
+  'media.video_notices'?: 'true' | 'false';
   'snapshots.max_age_s': number;
   'plan.estimates'?: 'true' | 'false';
   /** Default levels view on every map (0.1.89): 'all' shows every level together, 'default' opens on the floor's
