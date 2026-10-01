@@ -113,3 +113,6 @@ class World:
         r = self.c.put(f"{API}/notify/policies/{source}", json=body)
         assert r.status_code == 200, r.text
         return r.json()
+
+    def get_policy_enabled(self, source: str) -> bool:
+        return self.c.get(f"{API}/notify/policies/{source}").json()["enabled"]

@@ -156,6 +156,14 @@ class Signal:
 already follows: nothing is sent under the SQLite write lock). Rule alerts (`rules.deliver_pending`), system monitors,
 CR-014 run settlement, CR-017's `notify` action and bulk completions all call `emit`; nothing else sends.
 
+### 2.2.1 Implementation note: the door-open confirmation (recorded deviation)
+
+The contract text says the confirmation calls `POST /doors/{id}/unlock` with `door.unlock` and the CR-011 step-up. That route does not exist. As built, a
+doorbell row's `door.can_open` and the in-app confirmation use the REAL WisKey path: `POST /intercom/stations/{id}/release`, which requires `access.release`
+at installation scope and the explicit `confirmed: true`; it has its own rate limit and audit rows, and records `origin: notification:<id>` (audit only).
+It does NOT run a CR-011 step-up and does not check `door.unlock` (that permission belongs to HA lock entities). The notification surfaces still carry no
+token and perform no call for a door; if the owner wants the step-up on this path it is a change to the release route, not to the notification.
+
 ## 3. Events (on the existing per-user WebSocket `/me/ws`)
 
 There is no SSE in Arx; realtime is in-process WebSocket fan-out (`/events/ws`, `/ha/ws`, `/intercom/ws`, `/me/ws`).
