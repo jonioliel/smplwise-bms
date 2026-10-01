@@ -40,6 +40,13 @@ export async function loadSession(): Promise<Session> {
   return session;
 }
 
+const meListeners = new Set<(env: { type: string; payload?: unknown }) => void>();
+/** CR-018: every message of the same per-user socket (`notification`, `notification_state`, `notify_summary`, ...) - the permissions watcher below owns the connection. */
+export function onMeEvent(fn: (env: { type: string; payload?: unknown }) => void): () => void {
+  meListeners.add(fn);
+  return () => meListeners.delete(fn);
+}
+
 /**
  * T055: the server's access channel (`/me/ws`). It says `permissions_changed` as soon as this user's bindings, groups,
  * roles or Home Assistant active flag change; the shell then re-fetches /me (the navigation follows `session`) and
@@ -68,6 +75,7 @@ export function watchPermissions(onChanged: () => void): () => void {
     ws.onmessage = (m) => {
       try {
         const env = JSON.parse(m.data as string) as { type: string; payload?: { permissions_fingerprint?: string } };
+        meListeners.forEach((fn) => fn(env));
         const known = session.me?.permissions_fingerprint;
         if (env.type === 'permissions_changed') onChanged();
         else if (env.type === 'hello' && known && env.payload?.permissions_fingerprint && env.payload.permissions_fingerprint !== known) onChanged();
