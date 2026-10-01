@@ -664,7 +664,9 @@ export class MediaPlayerPanel extends LitElement {
 
   // ------------------------------------------------------------------------------------------------ events of the body
 
-  private onClose = () => {
+  /** The drawer's own `close` only: the confirmation inside it raises a `close` of its own that bubbles through the drawer. */
+  private onClose = (e: Event) => {
+    if (e.target !== e.currentTarget) return;
     this.open = false;
   };
 
@@ -959,7 +961,7 @@ export class MediaPlayerPanel extends LitElement {
     if (!c) return nothing;
     const copy = confirmCopy(c.preview, c.plan);
     const names = c.preview ? c.preview.members.map((m) => m.name) : c.plan.after.map((x) => x.name);
-    return html`<sw-dialog open heading=${copy.question} data-pn-dialog="confirm" @close=${() => this.onCancelConfirm()}>
+    return html`<sw-dialog open heading=${copy.question} data-pn-dialog="confirm" @close=${(e: Event) => { e.stopPropagation(); this.onCancelConfirm(); }}>
       <div class="cd">${copy.line ? html`<p class="cd-line">${copy.line}</p>` : nothing}
         <details data-pn-details><summary>פרטים</summary><ul>${names.map((n) => html`<li>${bidi(n)}</li>`)}</ul></details></div>
       <sw-button slot="footer" data-pn-cancel @click=${() => this.onCancelConfirm()}>ביטול</sw-button>

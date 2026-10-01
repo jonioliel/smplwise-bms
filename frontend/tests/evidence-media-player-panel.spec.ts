@@ -560,6 +560,21 @@ test.describe('the player panel: the group section', () => {
     await expect.poll(() => withMock(page, (m) => [...m.grp.liv].sort()), { timeout: 8000 }).toEqual(['kit', 'par', 'per']);
   });
 
+  test('Escape on the confirmation closes only the confirmation: nothing is sent and the panel stays open', async ({ page }) => {
+    await stage(page);
+    await openPanel(page, id('liv'));
+    await q(page, '[data-pn-room="mp-per"]').click();
+    await q(page, '[data-pn-room="mp-par"]').click();
+    const dlg = page.locator('#pn-stage media-player-panel sw-dialog[data-pn-dialog="confirm"]');
+    await expect(dlg.locator('[role="dialog"]')).toBeVisible({ timeout: 4000 });
+    await page.keyboard.press('Escape');
+    await expect(dlg).toHaveCount(0);
+    await expect(q(page, '[data-pn-state="on"]')).toBeVisible();
+    await expect(page.locator('#pn-stage media-player-panel')).toHaveAttribute('open', '');
+    expect(await withMock(page, (m) => m.grp.liv)).toEqual(['kit']);
+    await expect(q(page, '[data-pn-room="mp-per"][aria-checked="false"]')).toBeVisible();
+  });
+
   test('"פרק" dissolves the group; a room of another layer, an unavailable room or a conflicting one is never offered', async ({ page }) => {
     await stage(page);
     await openPanel(page, id('liv'));
@@ -667,7 +682,7 @@ test.describe('routing from <media-remote>, the area card and the home widget', 
     await expect(page.locator('[data-media-tile]')).toHaveCount(2); // the screens, unchanged
     await expect(page.locator('[data-player-tile]')).toHaveCount(2); // רמקול סלון + מגבר סלון
     await expect(page.locator('[data-media-area-sub="players"]')).toHaveText('רמקולים ומגברים');
-    await shots(page, 'areacard-with-speakers-light');
+    await shots(page, 'players-areacard-light');
     // "כבה הכל" is the screens' (a count of screens only)
     await page.locator('[data-media-off-all]').click();
     await expect(page.locator('sw-dialog[data-mac-dialog="ask"]')).toHaveAttribute('heading', 'לכבות מסך אחד בסלון?');
@@ -677,7 +692,7 @@ test.describe('routing from <media-remote>, the area card and the home widget', 
     await page.locator('[data-player-tile="mp-liv"]').evaluate((el) => (el.shadowRoot!.querySelector('[data-stub-open]') as HTMLElement).click());
     await expect(page.locator('media-area-card media-player-panel [data-pn-state="on"]')).toBeVisible({ timeout: 8000 });
     await expect(page.locator('media-area-card media-remote')).toHaveCount(1);
-    await shots(page, 'areacard-speaker-panel-light');
+    await shots(page, 'players-areacard-panel-light');
     expect(await sent(page)).toEqual([]); // opening sent nothing
   });
 
@@ -713,13 +728,13 @@ test.describe('routing from <media-remote>, the area card and the home widget', 
       await mount(size);
       await expect(page.locator('#pn-stage [data-home-media-count]')).toHaveText(/5/); // the screens, as before
       await expect(page.locator('#pn-stage [data-home-media-playing]')).toHaveText(/7/); // the mock house plays on seven speakers
-      await shots(page, `home-widget-${size}-light`, size === 'm' ? [1440, 390] : [1440]);
+      await shots(page, `players-widget-${size}-light`, size === 'm' ? [1440, 390] : [1440]);
     }
     await mount('m');
     await page.locator('#pn-stage [data-home-media-chip="mp-liv"]').click();
     await expect(page.locator('#pn-stage home-widgets media-player-panel [data-pn-state="on"]')).toBeVisible({ timeout: 8000 });
     await expect(page.locator('#pn-stage home-widgets media-player-panel sw-drawer')).toHaveAttribute('heading', 'רמקול סלון');
-    await shots(page, 'home-widget-panel-light', [1440]);
+    await shots(page, 'players-widget-panel-light', [1440]);
     expect(await sent(page)).toEqual([]);
     await page.keyboard.press('Escape');
     // no screen at all: the players keep the widget
