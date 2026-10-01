@@ -364,6 +364,12 @@ fixtures; commit on the agent's own branch with the CLAUDE.md trailer; a closing
 
 ## 6. Phase 2b (direct MA connection) - reserved, not in 0.1.150
 
+**Built for 0.1.152** (branch `pilot/CR016-2b-music-assistant`): the as-built design, routes and permissions are CR §17 (§17.7 is the
+contract). Differences from the reservation below: queue edits are `op`s of `POST devices/{key}/queue` (not commands), browse and search
+are `GET devices/{key}/browse`, permission `media.queue` is added next to `media.browse`, the transport is MA's stateless HTTP JSON-RPC (no
+WebSocket, no events), browse stays on the Home Assistant bridge and only search and the queue use the direct connection; group volume mode
+`ma` and `can_group_with` are not built.
+
 Shaped now so it drops in later (CR §4.4):
 
 | Reserved | Shape |
