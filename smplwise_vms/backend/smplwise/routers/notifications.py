@@ -8,7 +8,8 @@ No session: `POST /notifications/action` - a push button's single-use token auth
 user. There is no token for, and no route here that performs, anything physical: the doorbell's "open door" is a deep link into an
 in-app confirmation that runs the existing release route with its own permission, step-up, rate limit and audit.
 
-Administrators (`notify.manage`, installation scope): settings, per-source policies, the delivery log and its counters (outgoing mail is S4's). Every one of those routes answers 403 to anyone else.
+Administrators (`notify.manage`, installation scope): settings, per-source policies, outgoing mail (`/notify/email`, its test), the delivery log and its
+counters. Every one of those routes answers 403 to anyone else.
 """
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ import time
 from typing import Any, Literal
 
 from fastapi import APIRouter, Body, Depends, Header, Query, Request, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
@@ -27,6 +29,7 @@ from ..db import Database, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import notify, notify_channels
+from ..services import notify_email as email_svc
 from ..services import notify_policy as policies
 from ..services import notify_settings as nsettings
 from ..services import push as push_svc
@@ -355,8 +358,60 @@ def put_policy(source: str, request: Request, body: dict[str, Any] = Body(...), 
     return _policy_view(policies.get_policy(conn, source), nsettings.failures_audience(conn))  # type: ignore[arg-type]
 
 
-# S4 (the e-mail channel) adds GET / PUT /notify/email and POST /notify/email/test here, next to the settings routes above:
-# the same `_manager` gate, the write-only password file, the audit kinds notify.email.update / notify.email.test.
+@router.get("/notify/email")
+def get_email(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The outgoing-mail block of the settings: host / port / security / user / from / recipients / last test and `password_set` - never the password."""
+    _manager(conn, principal)
+    return email_svc.email_view(conn, settings_of(request).data_dir)
+
+
+@router.put("/notify/email")
+def put_email(request: Request, body: dict[str, Any] = Body(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Outgoing mail: host, port, security (starttls | tls | none), user, from, recipients (1-10 addresses) and the password. The password is
+    WRITE-ONLY: omitted or empty = unchanged; it goes to <data>/secrets/notify_email (mode 600) and the answer only says `password_set`. 422
+    `email_invalid` for a bad host, port, address (or a CR/LF in any of them). The audit row names the changed fields, never a value."""
+    _manager(conn, principal)
+    try:
+        view, changed, pw = email_svc.update_email(conn, settings_of(request).data_dir, body, principal.user_id)
+    except nsettings.SettingsInvalid as exc:
+        raise ApiError(exc.status, exc.code, exc.message, details=exc.details) from None
+    audit(conn, actor=principal, action="notify.email.update", decision="allowed", resource_type="installation", resource_id="notify.email", request_id=_rid(request),
+          details={"changed": changed, "password_changed": pw})
+    return view
+
+
+EMAIL_TEST_MESSAGES = {
+    "ok": "הודעת הבדיקה נשלחה.", "dns": "שם שרת הדואר לא נמצא.", "connect": "אין חיבור לשרת הדואר.", "tls": "ההצפנה מול שרת הדואר נכשלה.",
+    "auth": "שם המשתמש או הסיסמה נדחו.", "refused": "שרת הדואר סירב להודעה.", "timeout": "שרת הדואר לא ענה בזמן.", "invalid": "ההודעה אינה תקינה.",
+    "too_large": "ההודעה גדולה מדי.", "unavailable": "הדואר היוצא אינו מוגדר במלואו.",
+}
+
+
+@router.post("/notify/email/test")
+def test_email(request: Request, body: dict[str, Any] | None = Body(None), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Any:
+    """Send one test mail through the real code path to each configured recipient (or, with `{"to": <one of them>}`, only to that one), 3 a minute.
+    `{ok, detail, message, delivered, total}`: `detail` is `ok` or the failure class (dns, connect, tls, auth, refused, timeout) - never a
+    server text, which could echo an address or a credential. The result is stored as `email.last_test`. 409 `channel_unavailable` when mail is
+    not configured; 429 `rate_limited` with Retry-After."""
+    _manager(conn, principal)
+    allowed, wait = email_svc.take_test_token(principal.user_id)
+    if not allowed:
+        secs = int(wait) + 1
+        err = ApiError(429, "rate_limited", "יותר מדי בדיקות דואר. נסו שוב בעוד דקה.", retryable=True, details={"retry_after_s": secs})
+        return JSONResponse(status_code=429, content=err.payload(_rid(request) or ""), headers={"Retry-After": str(secs)})
+    cfg = email_svc.load_config(conn, settings_of(request).data_dir)
+    if cfg is None:
+        raise ApiError(409, "channel_unavailable", "הדואר היוצא עדיין לא הוגדר.")
+    to = (body or {}).get("to")
+    if to is not None and (not isinstance(to, str) or to.lower() not in [a.lower() for a in cfg.recipients]):
+        raise ApiError(422, "email_invalid", "הבדיקה נשלחת רק לאחת מכתובות הנמענים שהוגדרו.", details={"field": "to"})
+    tz_name = _tz(conn)
+    with unlocked(conn):  # the SMTP server is called without the request's write lock
+        ok, detail, delivered, total = email_svc.send_test(cfg, tz_name, to)
+    nsettings.store_last_test(conn, ok, detail)
+    audit(conn, actor=principal, action="notify.email.test", decision="allowed", resource_type="installation", resource_id="notify.email", request_id=_rid(request),
+          details={"ok": ok, "detail": detail})
+    return {"ok": ok, "detail": detail, "message": EMAIL_TEST_MESSAGES.get(detail, detail), "delivered": delivered, "total": total}
 
 
 @router.get("/notify/deliveries")
