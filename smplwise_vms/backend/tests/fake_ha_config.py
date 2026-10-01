@@ -728,3 +728,201 @@ class FakeHaConfig:
 
 def _as_list(v: Any) -> list[Any]:
     return [] if v is None else v if isinstance(v, list) else [v]
+
+
+# ---------------------------------------------------------------------------------------------------- the bridge's `config_item` on the same state
+
+class FakeUnauthorized(Exception):
+    """Home Assistant's `Unauthorized`: the user's own policy refused an entity."""
+
+
+class FakeContext:
+    _n = 0
+
+    def __init__(self, user_id: str | None = None) -> None:
+        FakeContext._n += 1
+        self.user_id, self.id = user_id, f"bctx{FakeContext._n:05d}"
+
+
+class FakeUser:
+    def __init__(self, uid: str, *, admin: bool = True, active: bool = True, allowed: set[str] | None = None, api: bool = True) -> None:
+        from types import SimpleNamespace
+
+        self.id, self.is_admin, self.is_active = uid, admin, active
+        self.allowed = allowed  # None = every entity; else the entities the person may control
+        self.checked: list[tuple[str, str]] = []
+        self.permissions = SimpleNamespace(check_entity=self._check) if api else SimpleNamespace()
+
+    def _check(self, entity_id: str, key: str) -> bool:
+        self.checked.append((entity_id, key))
+        return self.allowed is None or entity_id in self.allowed
+
+
+class _Row:
+    def __init__(self, row: dict[str, Any]) -> None:
+        self.entity_id, self.unique_id, self.platform = row["entity_id"], row["unique_id"], row["platform"]
+
+
+class _FakeRegistry:
+    """The entity registry the bridge reads: `entities` (live), `async_get`, `async_remove`."""
+
+    def __init__(self, hass: "FakeBridgeHass") -> None:
+        self._hass = hass
+
+    @property
+    def entities(self) -> dict[str, _Row]:
+        return {r["entity_id"]: _Row(r) for r in self._hass.fake.registry}
+
+    def async_get(self, entity_id: str) -> _Row | None:
+        return self._hass._reg_get(entity_id)
+
+    def async_remove(self, entity_id: str) -> None:
+        self._hass._reg_remove(entity_id)
+
+
+class FakeBridgeHass:
+    """Home Assistant as the bridge sees it, over a FakeHaConfig: the three YAML files of a temp directory are what the bridge's store reads and writes; a
+    `*.reload` service pulls them into the fake (as Home Assistant's reload would) and then reloads. Users, an entity registry, states and services are duck-typed
+    like the schedule tests' fake."""
+
+    def __init__(self, fake: FakeHaConfig, config_dir: Any) -> None:
+        from types import SimpleNamespace
+
+        self.fake, self.config = fake, SimpleNamespace(config_dir=str(config_dir))
+        self.users: dict[str, FakeUser] = {}
+        self.denied: dict[tuple[str, str], bool] = {}  # (user id, entity id) the person's own policy refuses at the service
+        self.calls: list[dict[str, Any]] = []
+        self.auth = SimpleNamespace(async_get_user=self._get_user)
+        self.services = SimpleNamespace(has_service=self._has, async_call=self._call)
+        self.states = SimpleNamespace(get=self._state)
+        self.registry = _FakeRegistry(self)
+        self.pull_on_reload = True
+        self.write_files()
+
+    # the files
+    def write_files(self) -> None:
+        """Write the fake's current lists as the three files (the starting point of a bridge test)."""
+        from pathlib import Path
+
+        import bridge_loader
+
+        store_mod = bridge_loader.load("config_store")
+        d = Path(self.config.config_dir)
+        d.mkdir(parents=True, exist_ok=True)
+        store_mod.ConfigStore._atomic_write(d / "automations.yaml", store_mod._dump(self.fake.automations))
+        store_mod.ConfigStore._atomic_write(d / "scripts.yaml", store_mod._dump(self.fake.scripts))
+        store_mod.ConfigStore._atomic_write(d / "scenes.yaml", store_mod._dump(self.fake.scenes))
+
+    def pull_files(self) -> None:
+        import bridge_loader
+
+        store = bridge_loader.load("config_store").ConfigStore(self.config.config_dir)
+        self.fake.automations[:] = store._read("automation")[0]
+        self.fake.scripts.clear()
+        self.fake.scripts.update(store._read("script")[0])
+        self.fake.scenes[:] = store._read("scene")[0]
+
+    # users
+    async def _get_user(self, uid: str) -> FakeUser | None:
+        return self.users.get(uid)
+
+    # services
+    def _has(self, domain: str, service: str) -> bool:
+        if domain == "automation" and not self.fake.installed:
+            return False
+        return (domain, service) in {(d, s) for d in ("automation", "script", "scene") for s in ("reload", "turn_on", "turn_off", "trigger", "toggle", "apply", "create", "delete")}
+
+    async def _call(self, domain: str, service: str, data: dict[str, Any], blocking: bool = False, context: Any = None) -> None:
+        self.calls.append({"domain": domain, "service": service, "data": copy.deepcopy(data), "blocking": blocking, "context": context})
+        uid = getattr(context, "user_id", None)
+        user = self.users.get(uid) if uid else None
+        if service != "reload" and user is not None and not user.is_admin:
+            for eid in _as_list(data.get("entity_id")):
+                if self.denied.get((uid, eid)):
+                    raise FakeUnauthorized()
+        if service == "reload" and self.pull_on_reload:
+            self.pull_files()
+        self.fake.call_service(domain, service, data, user_id=uid)
+
+    # states and the registry
+    def _state(self, entity_id: str) -> Any:
+        from types import SimpleNamespace
+
+        st = self.fake.states.get(entity_id)
+        return SimpleNamespace(state=st["state"], attributes=st["attributes"]) if st else None
+
+    def _reg_get(self, entity_id: str) -> _Row | None:
+        r = self.fake.entity_registry_entry(entity_id)
+        return _Row(r) if r else None
+
+    def _reg_remove(self, entity_id: str) -> None:
+        for (kind, key), eid in list(self.fake._entity_of.items()):
+            if eid == entity_id:
+                self.fake._entity_of.pop((kind, key))
+        self.fake.states.pop(entity_id, None)
+        self.fake.registry[:] = [r for r in self.fake.registry if r["entity_id"] != entity_id]
+
+
+def _bridge_hass(fake: FakeHaConfig) -> FakeBridgeHass:
+    if getattr(fake, "_bridge", None) is None:
+        import tempfile
+
+        fake._bridge_tmp = tempfile.TemporaryDirectory(prefix="fake-ha-config-")
+        fake._bridge = FakeBridgeHass(fake, fake._bridge_tmp.name)
+    return fake._bridge
+
+
+def _bridge_deps(hass: FakeBridgeHass) -> Any:
+    import asyncio
+    from types import SimpleNamespace
+
+    import bridge_loader
+
+    store_mod = bridge_loader.load("config_store")
+
+    async def run_io(_hass: Any, fn: Callable[[], Any]) -> Any:
+        return fn()
+
+    async def validate(_hass: Any, kind: str, item_id: str, config: dict[str, Any]) -> tuple[str, str | None]:
+        try:
+            hass.fake.validate(kind, config)
+        except FakeInvalid as exc:
+            return "failed", str(exc)
+        return "ok", None
+
+    async def sleep(_s: float) -> None:
+        await asyncio.sleep(0)
+
+    return SimpleNamespace(Context=FakeContext, Unauthorized=FakeUnauthorized, ServiceValidationError=ValueError, POLICY_CONTROL="control", registry=lambda h: h.registry, run_io=run_io,
+                           store=lambda h: store_mod.ConfigStore(h.config.config_dir), validate=validate, sleep=sleep)
+
+
+async def _bridge_config_item_async(self: FakeHaConfig, signed: dict[str, Any], secret: str, *, delegated: bool = False, is_admin: bool = True, allowed: set[str] | None = None) -> dict[str, Any]:
+    import bridge_loader
+
+    signing = bridge_loader.load("signing")
+    service = bridge_loader.load("config_service")
+    hass = _bridge_hass(self)
+    uid = signed.get("user_id", "u1")
+    if uid not in hass.users:
+        hass.users[uid] = FakeUser(uid, admin=is_admin, allowed=allowed)
+    else:
+        hass.users[uid].is_admin = is_admin
+        hass.users[uid].allowed = allowed
+    verifier = getattr(hass, "_verifier", None) or signing.Verifier(secret)
+    hass._verifier = verifier
+    return await service.async_handle_config_item(hass, verifier, dict(signed), delegated=lambda: delegated, deps=_bridge_deps(hass))
+
+
+def _bridge_config_item(self: FakeHaConfig, signed: dict[str, Any], secret: str, delegated: bool = False, is_admin: bool = True, allowed: set[str] | None = None) -> dict[str, Any]:
+    """The bridge 0.6.0 `config_item` service on this fake's state (module config_service.py with its real policy and file store): `signed` is the message the
+    add-on built and signed with `secret`; `delegated` = the options-flow switch; `is_admin` = the calling HA user's flag; `allowed` = the entities a non-admin may
+    control (None = all). Returns the bridge's answer dict. Synchronous (it runs its own event loop); use `bridge_config_item_async` inside one."""
+    import asyncio
+
+    return asyncio.run(_bridge_config_item_async(self, signed, secret, delegated=delegated, is_admin=is_admin, allowed=allowed))
+
+
+FakeHaConfig.bridge_config_item = _bridge_config_item  # type: ignore[attr-defined]
+FakeHaConfig.bridge_config_item_async = _bridge_config_item_async  # type: ignore[attr-defined]
+FakeHaConfig.bridge_hass = _bridge_hass  # type: ignore[attr-defined]

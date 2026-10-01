@@ -2,14 +2,16 @@
 the user only confirms) or entered by hand (add-on address + pairing code from the add-on's settings)."""
 from __future__ import annotations
 
+import datetime as dt
 from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service_info.hassio import HassioServiceInfo
 
-from .const import CONF_ADDON_URL, CONF_PAIRING_CODE, DEFAULT_ADDON_URL, DOMAIN, VERSION
+from .const import CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_PAIRING_CODE, DEFAULT_ADDON_URL, DOMAIN, VERSION
 from .signing import sign
 
 
@@ -19,6 +21,12 @@ class SmplwiseBridgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         self._discovered: dict[str, str] | None = None
         self._addon_name = "SmplWise Arx"
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
+        """0.6.0 (CR-017): the options of the bridge - today one switch, the owner-approved delegation of saving automations (section 8.3)."""
+        return SmplwiseBridgeOptionsFlow(config_entry)
 
     async def _try_pair(self, url: str, code: str) -> str | None:
         """Ping the add-on with a signed message; returns an error key or None when paired."""
@@ -69,3 +77,31 @@ class SmplwiseBridgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_create_entry(title="SMPLWISE Bridge", data=self._discovered)
             errors["base"] = err
         return self.async_show_form(step_id="hassio_confirm", data_schema=vol.Schema({}), errors=errors, description_placeholders={"addon": self._addon_name})
+
+
+class SmplwiseBridgeOptionsFlow(config_entries.OptionsFlow):
+    """The delegation switch (CR-017 section 8.3, the owner's approval of 2026-10-01): "let Arx save automations, scenes and scripts for users who are not
+    administrators" - simple-builder content only, off by default. It lives HERE, inside Home Assistant, because only a Home Assistant administrator may open
+    this form: the product itself can neither turn it on nor change it. The bridge reads it live on every call; the add-on only shows it, read-only."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry | None = None) -> None:
+        # newer cores provide `self.config_entry` themselves (and forbid setting it); older ones need the entry handed in
+        self._entry_arg = config_entry
+
+    def _entry(self) -> config_entries.ConfigEntry | None:
+        try:
+            return self.config_entry
+        except Exception:  # noqa: BLE001 - an older core without the property
+            return self._entry_arg
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None):
+        entry = self._entry()
+        options = dict(entry.options) if entry is not None else {}
+        current = bool(options.get(CONF_DELEGATED_AUTHORING, False))
+        if user_input is not None:
+            new = bool(user_input.get(CONF_DELEGATED_AUTHORING, False))
+            changed_at = options.get(CONF_DELEGATED_CHANGED_AT)
+            if new != current:
+                changed_at = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+            return self.async_create_entry(title="", data={**options, CONF_DELEGATED_AUTHORING: new, CONF_DELEGATED_CHANGED_AT: changed_at})
+        return self.async_show_form(step_id="init", data_schema=vol.Schema({vol.Optional(CONF_DELEGATED_AUTHORING, default=current): bool}))

@@ -23,6 +23,15 @@ It does two things and nothing else:
    re-checked by media_policy.py; announcements, `heos.sign_in`, `sonos.update_alarm`, helper-group management and the `jellyfin` domain never.
 8. `smplwise_bridge.media_query` (0.5.0): a signed READ-ONLY answer - a speaker's queue, or the music library - through Music Assistant's response services
    (media_query_service.py); the config entry is found inside the bridge and never a parameter.
+9. `smplwise_bridge.config_item` (0.6.0, CR-017): signed writes to the automations, scripts and scenes of the installation - the same files and the same format the
+   Home Assistant editor writes (`automations.yaml`, `scripts.yaml`, `scenes.yaml`) - and the runtime ops on them (enable / disable / trigger / run / stop / apply a scene,
+   all with the caller's own Context). `upsert` and `delete` are judged again here, independently of the add-on, by config_policy.py (closed block schemas, the builder
+   service allow-list, no code or secret anywhere that is authored, every block outside the schemas byte-identical to a stored one, the sensitive flag), written by
+   config_store.py (compare-and-set against the revision the user edited, a ring of 10 backups, an atomic write that is read back) and followed by a reload of ONLY the
+   changed item (config_service.py). An HA administrator may always write; anyone else only when the options-flow switch "delegated authoring" is on (off by default;
+   changed only inside Home Assistant) and only for simple-builder content (profile `builder`) - an HA administrator is always needed for the `code` profile.
+   Never called from here: a reload of anything else, `homeassistant.*`, `hassio.*`, the user directory, an item that calls this bridge. The switch state and its change
+   time travel to the add-on with the user directory push.
 """
 from __future__ import annotations
 
@@ -41,7 +50,9 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 
-from .const import CONF_ADDON_URL, CONF_PAIRING_CODE, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_EXECUTE, SERVICE_MEDIA_QUERY, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION
+from .config_service import async_handle_config_item
+from .const import (CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_PAIRING_CODE, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_CONFIG_ITEM, SERVICE_EXECUTE,
+                    SERVICE_MEDIA_QUERY, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION)
 from . import media_policy
 from .media_query_service import async_handle_media_query
 from .schedule_service import async_handle_schedule, execute_refusal
@@ -135,6 +146,30 @@ MEDIA_QUERY_SCHEMA = vol.Schema(
         vol.Required("sig"): cv.string,
     },
     extra=vol.PREVENT_EXTRA,
+)
+
+# 0.6.0 (CR-017): the automations service. NO defaults (the signature covers every key but ts / nonce / sig); config_policy.validate_message refuses a key outside the op's own set
+# and every value is judged there. `config` is the item exactly as it is to be stored; `preserved` the fingerprints of the blocks kept byte for byte.
+CONFIG_ITEM_SCHEMA = vol.Schema(
+    {
+        vol.Required("user_id"): cv.string,
+        vol.Required("op"): cv.string,
+        vol.Required("request_id"): cv.string,
+        vol.Optional("kind"): vol.Any(None, str),
+        vol.Optional("item_id"): vol.Any(None, str),
+        vol.Optional("base_revision"): vol.Any(None, str),
+        vol.Optional("profile"): vol.Any(None, str),
+        vol.Optional("config"): vol.Any(None, dict),
+        vol.Optional("preserved"): vol.Any(None, list),
+        vol.Optional("sensitive"): bool,
+        vol.Optional("variables"): vol.Any(None, dict),
+        vol.Optional("skip_condition"): vol.Any(None, bool),
+        vol.Optional("entity_id"): vol.Any(None, str),
+        vol.Required("ts"): vol.Coerce(int),
+        vol.Required("nonce"): cv.string,
+        vol.Required("sig"): cv.string,
+    },
+    extra=vol.ALLOW_EXTRA,
 )
 
 # Only these may ever be executed, whatever the add-on asks for (defence in depth: the add-on has the same list).
@@ -335,6 +370,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.services.async_register(DOMAIN, SERVICE_MEDIA_QUERY, media_query, schema=MEDIA_QUERY_SCHEMA, supports_response=SupportsResponse.ONLY)
 
+    def delegated() -> bool:
+        """The owner-approved switch (CR-017 section 8.3): read live from the options, so a change inside Home Assistant applies to the next call."""
+        return bool(entry.options.get(CONF_DELEGATED_AUTHORING, False))
+
+    async def config_item(call: ServiceCall) -> ServiceResponse:
+        """0.6.0 (CR-017): a signed write to / run of an automation, script or scene as the VMS user (see config_service.py)."""
+        return await async_handle_config_item(hass, verifier, dict(call.data), delegated=delegated)
+
+    hass.services.async_register(DOMAIN, SERVICE_CONFIG_ITEM, config_item, schema=CONFIG_ITEM_SCHEMA, supports_response=SupportsResponse.ONLY)
+
     async def push_directory(_now: Any = None) -> int:
         users = []
         for u in await hass.auth.async_get_users():
@@ -347,7 +392,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     break
             users.append({"id": u.id, "name": u.name, "username": username, "is_active": u.is_active, "is_admin": u.is_admin, "group_ids": [g.id for g in u.groups]})
         try:
-            async with session.post(f"{url}/api/v1/ha/bridge/directory", json=sign(secret, {"users": users, "version": VERSION}), timeout=10) as resp:
+            async with session.post(f"{url}/api/v1/ha/bridge/directory", json=sign(secret, {"users": users, "version": VERSION, "delegated_authoring": delegated(), "delegated_changed_at": entry.options.get(CONF_DELEGATED_CHANGED_AT) or None, "config_item": True}), timeout=10) as resp:
                 if resp.status != 200:
                     _LOGGER.debug("directory push answered %s", resp.status)
                     return 0
@@ -362,6 +407,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.services.async_register(DOMAIN, SERVICE_SYNC, sync_directory, supports_response=SupportsResponse.OPTIONAL)
     entry.async_on_unload(async_track_time_interval(hass, push_directory, timedelta(seconds=DIRECTORY_INTERVAL_S)))
+
+    async def options_updated(_hass: HomeAssistant, _entry: ConfigEntry) -> None:
+        """The delegation switch changed inside Home Assistant: tell the add-on now instead of at the next minute (the switch is read live, nothing reloads)."""
+        hass.async_create_task(push_directory())
+
+    entry.async_on_unload(entry.add_update_listener(options_updated))
     hass.async_create_task(push_directory())
     return True
 
@@ -372,5 +423,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_remove(DOMAIN, SERVICE_SCHEDULE)
     hass.services.async_remove(DOMAIN, SERVICE_STREAM_SOURCE)
     hass.services.async_remove(DOMAIN, SERVICE_MEDIA_QUERY)
+    hass.services.async_remove(DOMAIN, SERVICE_CONFIG_ITEM)
     hass.services.async_remove(DOMAIN, SERVICE_SYNC)
     return True
