@@ -25,8 +25,8 @@ export function openAlertsText(n: number): string {
  * CR-013: the user menu of the app shell (design SW A). One panel for every width, opened from the user avatar - the
  * last item of the side rail (a popover beside the rail's foot) and of the phone bottom bar (a bottom sheet). Two
  * levels in the same panel, no explanatory text:
- * - first: a header (avatar, name, role; on the phone the status pills that lived in the top bar), התראות (a count chip
- *   only when there are open alerts), עריכת המסך הראשי (the home screen's layout editor: system.configure only), מערכת (a user holding a settings permission), החשבון שלי, and a destructive-styled
+ * - first: a header (avatar, name, role; on the phone the status pills that lived in the top bar), התראות (opens the notification
+ *   center, CR-018: `open-notifications`; a count chip only when there are unread notifications), עריכת המסך הראשי (the home screen's layout editor: system.configure only), מערכת (a user holding a settings permission), החשבון שלי, and a destructive-styled
  *   יציאה at the foot (the remote channel only: under the local entry the platform owns the sign-in);
  * - החשבון שלי: סדר הלשוניות, הגדרות התראות, הכניסות שלי, החלף שרת (inside the Android app).
  * The shell owns the open state; this element reports `close` and `nav-order` (open the tab-order dialog).
@@ -42,6 +42,10 @@ export class SwUserMenu extends LitElement {
   @property({ type: Boolean }) gated = false;
   /** Open alerts in the user's scope; null = the user may not read alerts (no item). */
   @property({ type: Number }) alerts: number | null = null;
+  /** CR-018: the open-critical state (the avatar's red dot): the bell's icon turns red. */
+  @property({ type: Boolean }) alertsHot: boolean | undefined = undefined;
+  /** CR-018: the count is the center's unread count (`/notifications/summary`), not the legacy open rule alerts. */
+  @property({ type: Boolean }) notifyCenter = false;
   @property() alertsHref = '#/investigate/rules?tab=alerts';
   /** "מערכת" for a user with a settings permission (nav.ts settingsEntry); '' = no item. */
   @property() settingsHref = '';
@@ -447,9 +451,9 @@ export class SwUserMenu extends LitElement {
       <div class="pills" data-user-menu-pills><slot name="pills"></slot></div>
       <ul data-menu-level="main">
         ${alerts !== null
-          ? html`<li class="alerts ${alerts ? 'hot' : ''}"><a href=${this.alertsHref} data-menu-alerts @click=${(e: MouseEvent) => this.go(e)}>
+          ? html`<li class="alerts ${(this.notifyCenter ? this.alertsHot : !!alerts) ? 'hot' : ''}"><button type="button" data-menu-alerts aria-haspopup="dialog" @click=${() => this.dispatchEvent(new CustomEvent('open-notifications', { bubbles: true, composed: true }))}>
               <span class="ic"><sw-icon name="bell" size=${18}></sw-icon></span><span class="txt">התראות</span>
-              ${alerts ? html`<span class="count" data-alert-count aria-label=${openAlertsText(alerts)}>${alertCountText(alerts)}</span>` : nothing}</a></li>`
+              ${alerts ? html`<span class="count" data-alert-count aria-label=${this.notifyCenter ? `${alertCountText(alerts)} התראות שלא נקראו` : openAlertsText(alerts)}>${alertCountText(alerts)}</span>` : nothing}</button></li>`
           : nothing}
         ${this.screenEdits.map(
           (a) => html`<li><button type="button" data-menu-screen-edit=${a.id} @click=${() => this.dispatchEvent(new CustomEvent('screen-edit', { detail: { id: a.id }, bubbles: true, composed: true }))}>
