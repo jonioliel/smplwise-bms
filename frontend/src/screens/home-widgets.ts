@@ -12,6 +12,7 @@ import {
 import { ltrNum, bidi } from '../i18n/bidi';
 import { canAnywhere, isApi } from '../api/session';
 import { isOn, media, type MediaDevice } from '../api/media-screens';
+import { isPlaying, players, type PlayerDevice } from '../api/media-players';
 
 const GLYPHS: Record<WeatherGlyph, TemplateResult> = {
   sun: svg`<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>`,
@@ -57,7 +58,7 @@ const GHOST_MSG: Record<Exclude<Avail, 'ok'>, string> = {
   unavail: 'הישות לא זמינה כרגע',
   noalarm: 'אין מערכת אזעקה באתר',
   noaction: 'אין הרשאה לפעולות מהירות',
-  nomedia: 'אין מסכים להצגה',
+  nomedia: 'אין מסכים או נגנים להצגה',
 };
 
 /**
@@ -88,7 +89,10 @@ export class HomeWidgetsView extends LitElement {
   @state() private dragId: WidgetId | '' = '';
   /** CR-015: the screens this user may see (null = not loaded / not allowed) and the one whose remote is open. */
   @state() private screens: MediaDevice[] | null = null;
+  /** CR-016: the approved speakers, players and receivers this user may see (null / empty = none). */
+  @state() private speakers: PlayerDevice[] | null = null;
   @state() private remoteKey = '';
+  @state() private remoteKind = '';
   @state() private remoteOpen = false;
   private mediaTimer = 0;
   private timer = 0;
@@ -569,6 +573,13 @@ export class HomeWidgetsView extends LitElement {
     .mt span {
       font-size: 11.5px;
       color: var(--sw-text-3);
+    }
+    .mts {
+      display: flex;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 6px 22px;
+      min-inline-size: 0;
     }
     .mchips {
       display: flex;
@@ -1119,22 +1130,33 @@ export class HomeWidgetsView extends LitElement {
     window.clearInterval(this.mediaTimer);
   }
 
-  /** The screens of the installation that this user may see (media.read; the demo has the mock). Null when there are none. */
+  /** The screens and (CR-016) the speakers, players and receivers of the installation that this user may see (media.read; the demo has
+   * the mocks). Null when there are none. */
   private async loadScreens() {
     if (isApi() && !canAnywhere('media.read')) {
       this.screens = null;
+      this.speakers = null;
       return;
     }
     try {
       if (!(await media().status()).enabled) {
         this.screens = null;
+        this.speakers = null;
         return;
       }
       const { devices } = await media().list();
       this.screens = devices.filter((d) => d.kind === 'screen');
+      // a failure of the players read never takes the screens away
+      this.speakers = await players().list().then((r) => r.devices.filter((d) => ['speaker', 'player', 'receiver'].includes(d.kind))).catch(() => null);
     } catch {
       this.screens = null;
+      this.speakers = null;
     }
+  }
+
+  /** The widget has something to show: an approved screen, speaker, player or receiver. */
+  private get hasMedia(): boolean {
+    return !!this.screens?.length || !!this.speakers?.length;
   }
 
   /** The clock ticks each second only while a card shows seconds, else every 10 s. */
@@ -1156,13 +1178,13 @@ export class HomeWidgetsView extends LitElement {
     const items = this.items;
     this.toggleAttribute('hidden', !items.length);
     if (!items.length || !this.config) return nothing;
-    return html`<div class="wrap" data-home-widgets role=${this.layout === 'snap' ? 'list' : 'group'} aria-label="ווידג׳טים">${repeat(items, (it) => it.id, (it) => this.item(it))}</div>${this.items.some((i) => i.id === 'media') && this.screens?.length ? html`<media-remote .deviceKey=${this.remoteKey} .open=${this.remoteOpen} @close=${() => (this.remoteOpen = false)} @media-changed=${() => void this.loadScreens()} @media-remote-open=${() => (this.remoteOpen = true)}></media-remote>` : nothing}`;
+    return html`<div class="wrap" data-home-widgets role=${this.layout === 'snap' ? 'list' : 'group'} aria-label="ווידג׳טים">${repeat(items, (it) => it.id, (it) => this.item(it))}</div>${this.items.some((i) => i.id === 'media') && this.hasMedia ? html`<media-remote .deviceKey=${this.remoteKey} .kind=${this.remoteKind} .open=${this.remoteOpen} @close=${() => (this.remoteOpen = false)} @media-changed=${() => void this.loadScreens()} @media-remote-open=${() => (this.remoteOpen = true)}></media-remote>` : nothing}`;
   }
 
   /** A widget card, or its ghost; the media widget (CR-015) asks for itself: without a screen this user may see it is absent
    * from the screen, and a ghost that says so while editing. */
   private item(it: WidgetItem) {
-    if (it.id === 'media' && it.avail === 'ok' && !this.screens?.length) {
+    if (it.id === 'media' && it.avail === 'ok' && !this.hasMedia) {
       return this.editing ? this.ghost({ ...it, avail: 'nomedia' }) : nothing;
     }
     return it.avail === 'ok' ? this.card(it) : this.ghost(it);
@@ -1343,28 +1365,39 @@ export class HomeWidgetsView extends LitElement {
   }
 
   /** CR-015 §7.5: how many screens are on and - from medium up - those screens as chips; a chip opens the same remote as the
-   * screens page. Tapping anything here only opens a remote: nothing is sent, and nothing powers a screen on. */
+   * screens page. Tapping anything here only opens a remote: nothing is sent, and nothing powers a screen on.
+   * CR-016: the players that play right now are counted next to the screens ("מנגנים עכשיו") and, from medium up, listed as chips too;
+   * a player's chip opens the player panel through the same drawer. */
   private mediaCard(it: WidgetItem) {
     const all = this.screens ?? [];
+    const spk = this.speakers ?? [];
     const on = all.filter((d) => isOn(d.live) || d.live.power === 'art');
+    const playing = spk.filter(isPlaying);
     const open = (key: string) => {
       if (this.editing) return;
       this.remoteKey = key;
+      this.remoteKind = spk.find((x) => x.key === key)?.kind ?? 'screen';
       this.remoteOpen = true;
     };
     const cap = it.size === 'l' ? 6 : 3;
-    const chips = on.slice(0, cap);
-    const rest = on.length - chips.length;
-    const chip = (d: MediaDevice) => html`<button type="button" class="mchip" data-home-media-chip=${d.key} ?disabled=${this.editing} @click=${() => open(d.key)}><i aria-hidden="true"></i><span>${bidi(d.name)}</span></button>`;
-    const first = on[0] ?? all[0];
+    // the chips are shared: the players that play keep at least one place (up to half of them), the screens fill the rest
+    const pMax = Math.min(playing.length, Math.max(1, Math.floor(cap / 2)));
+    const sCount = Math.min(on.length, cap - pMax);
+    const chips: { key: string; name: string }[] = [...on.slice(0, sCount), ...playing.slice(0, cap - sCount)].map((d) => ({ key: d.key, name: d.name }));
+    const rest = on.length + playing.length - chips.length;
+    const chip = (d: { key: string; name: string }) => html`<button type="button" class="mchip" data-home-media-chip=${d.key} ?disabled=${this.editing} @click=${() => open(d.key)}><i aria-hidden="true"></i><span>${bidi(d.name)}</span></button>`;
+    const first = on[0] ?? playing[0] ?? all[0] ?? spk[0];
     const icon = svg`<rect x="2.5" y="4" width="19" height="13" rx="2.5"/><path d="M8.5 21h7M12 17v4"/><path d="m10.2 8.3 4.3 2.2-4.3 2.2z"/>`;
+    const counts = (size: string) => html`${all.length ? html`<div class="mt" style=${size}><b data-home-media-count>${ltrNum(on.length)}</b><span>${on.length === 1 ? 'מסך פועל' : 'מסכים פועלים'}</span></div>` : nothing}
+      ${spk.length ? html`<div class="mt" style=${size}><b data-home-media-playing>${ltrNum(playing.length)}</b><span>${playing.length === 1 ? 'מנגן עכשיו' : 'מנגנים עכשיו'}</span></div>` : nothing}`;
+    const total = [all.length ? `${ltrNum(all.length)} מסכים` : '', spk.length ? `${ltrNum(spk.length)} נגנים` : ''].filter(Boolean).join(' · ');
     if (it.size === 's') {
       return this.shell(it, 'wg-media', {}, html`<span class="mic"><svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg></span>
-        <div class="mt"><b data-home-media-count>${ltrNum(on.length)}</b><span>${on.length === 1 ? 'מסך פועל' : 'מסכים פועלים'}</span></div>
-        ${first ? html`<button type="button" class="mchip" style="margin-inline-start:auto" data-home-media-chip=${first.key} aria-label=${`שלט: ${first.name}`} ?disabled=${this.editing} @click=${() => open(first.key)}>שלט</button>` : nothing}`);
+        <div class="mts">${counts('')}</div>
+        ${first ? html`<button type="button" class="mchip" style="margin-inline-start:auto" data-home-media-chip=${first.key} aria-label=${`שלט: ${first.name}`} ?disabled=${this.editing} @click=${() => open(first.key)}>${all.length ? 'שלט' : 'נגן'}</button>` : nothing}`);
     }
-    return this.shell(it, 'wg-media', {}, html`${this.head(it, icon, all.length ? `${ltrNum(all.length)} מסכים` : '')}
-      <div class="wg-b"><div class="mt" style="--mn:28px"><b data-home-media-count>${ltrNum(on.length)}</b><span>${on.length === 1 ? 'מסך פועל' : 'מסכים פועלים'}</span></div>
+    return this.shell(it, 'wg-media', {}, html`${this.head(it, icon, total)}
+      <div class="wg-b"><div class="mts">${counts('--mn:28px')}</div>
         ${chips.length ? html`<div class="mchips" data-home-media-chips>${chips.map(chip)}${rest > 0 ? html`<span class="mchip more">${ltrNum(`+${rest}`)}</span>` : nothing}</div>` : nothing}</div>`);
   }
 

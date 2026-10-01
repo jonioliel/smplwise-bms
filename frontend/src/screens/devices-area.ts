@@ -519,7 +519,7 @@ export class DevicesArea extends LitElement {
   @state() private installationDesign: AreaDesign = 'tiles';
   @state() private extra = new Map<string, EntityRow>();
   /** CR-015: per media card key, how many screens its `<media-area-card>` drew (undefined = not known yet). */
-  @state() private mediaCount = new Map<string, { n: number; off: boolean }>();
+  @state() private mediaCount = new Map<string, { n: number; p: number; off: boolean }>();
   @state() private sensOpen = new Set<string>();
   @state() private foldState = new Map<string, boolean>();
   @state() private phone = false;
@@ -1234,16 +1234,17 @@ export class DevicesArea extends LitElement {
     return !isApi() || canAnywhere('media.read');
   }
 
-  /** A row the screens' cards replace: a media player that is not a speaker or a receiver (those keep their row until the
-   * players and speakers of 0.1.150; the server dedupes the endpoints of one screen into one card). */
-  private isScreenRow(r: DeviceRow): boolean {
-    return r.domain === 'media_player' && r.device_class !== 'speaker' && r.device_class !== 'receiver';
+  /** A row the media card's cards replace: a media player that is not a speaker or a receiver once the card draws screens (the server
+   * dedupes the endpoints of one screen into one card), and a speaker or receiver once it also draws the area's players (CR-016). */
+  private isScreenRow(r: DeviceRow, screens: boolean, players: boolean): boolean {
+    if (r.domain !== 'media_player') return false;
+    return r.device_class === 'speaker' || r.device_class === 'receiver' ? players : screens;
   }
 
   private renderMedia(key: string, entityIds: string[] | null, rows: DeviceRow[]) {
     const d = this.detail!;
     const st = this.mediaCount.get(key);
-    const rest = st?.n ? rows.filter((r) => !this.isScreenRow(r)) : st === undefined ? [] : rows;
+    const rest = st === undefined ? [] : rows.filter((r) => !this.isScreenRow(r, st.n > 0, st.p > 0));
     const look: BulkLook = this.lay.bulkLookOf(key);
     const ask = () => this.renderRoot.querySelector<HTMLElement & { ask: () => Promise<void> }>(`media-area-card[data-media-card="${key}"]`)?.ask();
     return html`${st?.off && !this.lay.arranging(key)
@@ -1252,9 +1253,10 @@ export class DevicesArea extends LitElement {
             : html`<sw-button size="sm" icon=${look === 'both' ? 'power' : undefined} data-section-bulk-kind="screens_off" @click=${ask}>כבה הכל</sw-button>`}</span>`
         : nothing}
       <media-area-card external data-media-card=${key} .areaId=${d.area.area_id} .areaName=${d.area.name} .entityIds=${entityIds}
-        @media-area-state=${(e: CustomEvent<{ screens: number; canOff: boolean }>) => {
-          if (st?.n === e.detail.screens && st.off === e.detail.canOff) return;
-          this.mediaCount = new Map(this.mediaCount).set(key, { n: e.detail.screens, off: e.detail.canOff });
+        @media-area-state=${(e: CustomEvent<{ screens: number; players?: number; canOff: boolean }>) => {
+          const p = e.detail.players ?? 0;
+          if (st?.n === e.detail.screens && st.p === p && st.off === e.detail.canOff) return;
+          this.mediaCount = new Map(this.mediaCount).set(key, { n: e.detail.screens, p, off: e.detail.canOff });
         }}></media-area-card>
       ${rest.length ? html`<div class="rows">${repeat(rest, (r) => r.entity_id, (r) => this.renderRow(r, 'media'))}</div>` : nothing}`;
   }
