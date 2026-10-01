@@ -157,14 +157,18 @@ const SEL = {
   bottom: 'sw-app nav.bottom a[href="#/multimedia/screens"]',
   card: 'media-screen-card',
   areaCard: 'media-area-card',
-  remote: 'media-remote',
-  remoteKey: (k: string) => `media-remote [data-key="${k}"]`,
+  /** The open remote: the host element has no box of its own (the drawer is inside it), so the body of the drawer is what is visible. */
+  remote: 'media-remote[open] [data-mr]',
+  /** A key of the remote: the d-pad (media-remote-pad) marks its buttons `data-k`, the other rows `data-key`. */
+  remoteKey: (k: string) => `media-remote [data-k="${k}"], media-remote [data-key="${k}"]`,
   editMenu: '[data-menu-screen-edit="multimedia-layout"]',
   userMenuButton: 'sw-app [data-profile-menu]:visible, sw-app [data-nav-me]:visible',
   editPanel: 'multimedia-edit-panel',
   cardName: (name: string) => `media-screen-card:has-text("${name}")`,
   /** The "שלט" button of one card (aria-label "שלט · <name>", components/media-screen-card.ts); the picture opens the remote too. */
   openRemote: (name: string) => `media-screen-card:has-text("${name}") button[aria-label="שלט · ${name}"]`,
+  /** The picture of a card opens the remote too - the only way for a view-only caller (no "שלט" button without media.control). */
+  openPoster: (name: string) => `media-screen-card:has-text("${name}") button[aria-label="פתח שלט · ${name}"]`,
   power: 'media-remote [data-mr-power]',
   moveDown: 'multimedia-edit-panel [data-mm-down]:not([disabled])',
   save: '[data-mm-save]',
@@ -175,6 +179,12 @@ const SEL = {
 test.describe('media fixture: the synthetic house and the fake bridge (real backend, real action route)', () => {
   test.skip(process.env.SW_LIVE !== '1', 'set SW_LIVE=1 with the fixture backend running');
   test.skip(process.env.SW_MEDIA_FIXTURE !== '1', 'needs tests/fixtures/media_fake_ha.py as the backend (SW_MEDIA_FIXTURE=1)');
+
+  // these tests use the GENERIC action route on the vendor entities, which answers 409 use_media_screen for an APPROVED screen: a
+  // second project on the same backend starts from no approvals (part B / C approve again in prepare())
+  test.beforeAll(async ({ request }) => {
+    await request.post(`${API}/multimedia/admin/approve`, { data: { approved: false } }).catch(() => undefined);
+  });
 
   test('the world is seeded: registries with devices and areas, every entity present with its state', async ({ request }) => {
     const seeded = await ctl<{ registry_ok: boolean; states_ok: boolean; expect: { screens: number; entities: number; devices: number }; screens: Record<string, { vendor: string; duplicates: string[] }> }>(request, '/seed-media', {});
@@ -437,9 +447,10 @@ test.describe('multimedia API on the fixture (needs S1: /multimedia/* routes)', 
     expect([blue.status, blue.body.code]).toEqual([422, 'not_supported']);
     const rew = await cmd(request, p.keys.bedroom, { command: 'key', key: 'rew' });
     expect([rew.status, rew.body.code]).toEqual([422, 'not_supported']);
-    // a generic screen has no keys at all
+    // a generic screen has no keys at all (and its power is not known from a Cast display's state: the screen answers "unavailable")
+    expect((await device(request, p.keys.lobby)).caps.keys).toEqual([]);
     const generic = await cmd(request, p.keys.lobby, { command: 'key', key: 'ok' });
-    expect([generic.status, generic.body.code]).toEqual([422, 'not_supported']);
+    expect([generic.status, generic.body.code]).toEqual([409, 'unavailable']);
     // a power key does not exist: not as a KeyId, not as a raw code
     for (const key of ['power', 'KEY_POWER', 'POWER', 'KEY_POWEROFF']) {
       const r = await cmd(request, p.keys.living, { command: 'key', key });
@@ -526,7 +537,7 @@ test.describe('multimedia API on the fixture (needs S1: /multimedia/* routes)', 
     await expect.poll(async () => (await (await request.get(`${API}/multimedia/status`)).json()).bridge.media_ready).toBe(true);
   });
 
-  test('public screens: source, app and text need media.public; control does not; the generic action route refuses a managed screen', async ({ request }, info) => {
+  test('public screens: source, app, text and the content keys need media.public; volume, mute and play / pause do not; the generic action route refuses a managed screen', async ({ request }, info) => {
     const p = await ready(request, info);
     const role = await mkRole(request, 'CR-015 operator', ['map.read', 'media.read', 'media.control', 'media.power']);
     roles.push(role);
@@ -547,9 +558,14 @@ test.describe('multimedia API on the fixture (needs S1: /multimedia/* routes)', 
       expect([src.status, src.body.code]).toEqual([403, 'public_screen']);
       const txt = await cmd(request, p.keys.kitchen, { command: 'text', text: 'hello' }, op.headers);
       expect([txt.status, txt.body.code]).toEqual([403, 'public_screen']);
+      // owner decision 2026-09-30: on a public screen every key but volume, mute and play / pause needs media.public too
+      const pad = await cmd(request, p.keys.kitchen, { command: 'key', key: 'ok' }, op.headers);
+      expect([pad.status, pad.body.code]).toEqual([403, 'public_screen']);
+      const next = await cmd(request, p.keys.kitchen, { command: 'transport', action: 'next' }, op.headers);
+      expect([next.status, next.body.code]).toEqual([403, 'public_screen']);
       await sleep(300);
-      const key = await cmd(request, p.keys.kitchen, { command: 'key', key: 'ok' }, op.headers);
-      expect(key.status, 'a key is control, allowed on a public screen').toBe(202);
+      const key = await cmd(request, p.keys.kitchen, { command: 'key', key: 'volup' }, op.headers);
+      expect(key.status, 'volume is control, allowed on a public screen').toBe(202);
       const since = await mark(request);
       const ok = await cmd(request, p.keys.kitchen, { command: 'source', source_id: 'HDMI 2' });
       expect(ok.status).toBe(202);
@@ -801,8 +817,9 @@ test.describe('multimedia screens, the remote and the editors on the fixture (ne
     await page.keyboard.press('Escape');
     // "כבה הכל" of the area turns off only the screens confirmed on
     const before = await mark(request);
-    await card.getByRole('button', { name: /כבה הכל/ }).click();
-    await page.getByRole('button', { name: /כיבוי|אישור|כבה/ }).last().click();
+    // the area screen draws the section's "כבה הכל" itself (devices-area.ts); the question and its confirmation are the area card's own
+    await page.locator('devices-area [data-section-bulk-kind="screens_off"]').click();
+    await page.locator('media-area-card [data-mac-confirm]').click();
     await expect.poll(async () => (await callsSince(request, before, 0)).filter((c) => c.kind === 'power').map((c) => c.entity_id), { timeout: 20_000 }).toEqual([SCREENS.living.vendor]);
     await ctl(request, '/seed-media', {});
   });
@@ -819,7 +836,7 @@ test.describe('multimedia screens, the remote and the editors on the fixture (ne
     await expect(page.locator(SEL.editPanel), 'the edit panel (screens/multimedia-edit-panel.ts)').toBeVisible({ timeout: 15_000 });
     await shot(page, 'media-editor-live', info);
     // move the first card down once through the panel, then save
-    const order = async () => (await page.locator(SEL.card).evaluateAll((els) => els.map((e) => e.textContent ?? ''))).map((t) => t.slice(0, 40));
+    const order = async () => page.locator(SEL.card).evaluateAll((els) => els.map((e) => e.getAttribute('data-screen-card') ?? ''));
     const before = await order();
     await page.locator(SEL.moveDown).first().click();
     await page.locator(SEL.save).click();
@@ -841,8 +858,8 @@ test.describe('multimedia screens, the remote and the editors on the fixture (ne
       const pp = await ctx.newPage();
       await pp.goto(`/?design=a#/multimedia/screens`);
       await expect(pp.locator(SEL.card)).toHaveCount(7, { timeout: 30_000 });
-      const first = await pp.locator(SEL.card).first().innerText();
-      expect(first, 'the personal order puts the kitchen TV first, in a single group').toContain(SCREENS.kitchen.name);
+      const first = await pp.locator(SEL.card).first().getAttribute('data-screen-card');
+      expect(first, 'the personal order puts the kitchen TV first, in a single group').toBe(p.keys.kitchen);
       await ctx.close();
     } finally {
       await request.put(`${API}/me/prefs`, { headers: who.headers, data: { 'multimedia.personal': null } });
@@ -864,7 +881,7 @@ test.describe('multimedia screens, the remote and the editors on the fixture (ne
       const pp = await ctx.newPage();
       await pp.goto(`/?design=a#/multimedia/screens`);
       await expect(pp.locator(SEL.card)).toHaveCount(7, { timeout: 30_000 });
-      await pp.locator(SEL.openRemote(SCREENS.living.name)).click();
+      await pp.locator(SEL.openPoster(SCREENS.living.name)).click();
       await expect(pp.locator(SEL.remote)).toBeVisible({ timeout: 15_000 });
       await expect(pp.locator(SEL.remoteKey('ok')), 'no key is drawn for a caller without media.control').toHaveCount(0);
       await shot(pp, 'media-remote-view-only-live', info);

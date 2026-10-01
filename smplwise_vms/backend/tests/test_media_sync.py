@@ -302,6 +302,9 @@ def test_media_state_is_throttled_per_device_and_never_raises(app_c, monkeypatch
     seed.install(c)
     seed.approve_all(c)
     media_store.INDEX.last_sent.clear()
+    # the four HTTP calls take 70-120 ms each here: a window of 250 ms would pass between them on a slower machine; the rule under
+    # test is "one frame per window", so the window is widened instead of the test racing the clock
+    monkeypatch.setattr(media_store, "THROTTLE_S", 30.0)
     q = ha_sync.subscribe()
     try:
         for state in ("paused", "playing", "paused", "playing"):

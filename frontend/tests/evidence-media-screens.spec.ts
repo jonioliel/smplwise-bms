@@ -374,8 +374,12 @@ test.describe('multimedia screens (mocked backend)', () => {
     await kitchen.locator('.vrock button[aria-label="הגבר"]').click();
     await expect(kitchen.locator('.vrock .vv')).toContainText('20');
     expect(st.store.sent.map((s) => s.command.command)).toEqual(['volume_step']);
+    const t0 = Date.now();
     for (let i = 0; i < 14; i += 1) await kitchen.locator('.vrock button[aria-label="הגבר"]').dispatchEvent('click');
-    expect(st.store.sent.length).toBeLessThanOrEqual(9); // burst of 8 (+ the first), the rest dropped
+    // a burst of 8 (+ the first press), refilled at 5 a second while the loop ran (a loaded machine runs it slowly), the rest dropped
+    const allowed = 9 + Math.ceil(((Date.now() - t0) / 1000) * 5);
+    expect(st.store.sent.length).toBeLessThanOrEqual(allowed);
+    expect(st.store.sent.length, 'some presses were dropped, not queued').toBeLessThan(15);
   });
 
   test('the remote opens by tag from the poster and the button; the address carries it; Back and close end it', async ({ page }) => {

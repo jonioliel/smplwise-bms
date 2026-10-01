@@ -884,7 +884,7 @@ test.describe('the home screen against the devices fixture backend', () => {
       await p.locator(`${menu} [data-my-home] summary`).click();
       const mine = p.locator(`${menu} sw-home-personal`);
       await expect(mine.locator('[data-home-personal-dir]')).toHaveCount(4, { timeout: 15000 }); // "ברירת מחדל" + a / b / c
-      await expect(mine.locator('[data-home-personal-widget]')).toHaveCount(5);
+      await expect(mine.locator('[data-home-personal-widget]')).toHaveCount(6); // clock, weather, Shabbat, alarm, quick actions and (CR-015) the media widget
       await shot(p, 'home-personal', testInfo);
       // a direction of their own
       await mine.locator('[data-home-personal-dir="c"]').click();
