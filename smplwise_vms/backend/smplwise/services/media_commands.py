@@ -32,7 +32,7 @@ from ..config import Settings
 from ..db import database_of, get_setting, now_iso, read_mode, unlocked
 from ..errors import ApiError
 from ..rbac import Principal, note_grant
-from . import ha_actions, ha_bridge, ha_client, media_model as mm, media_profiles as profiles, media_store as store
+from . import ha_actions, ha_bridge, ha_client, media_model as mm, media_profiles as profiles, media_query, media_store as store
 from .timeutil import parse_utc
 
 EXPIRY_MAX_S = 60.0
@@ -46,6 +46,16 @@ KEY_USER = USER_ALL
 VOLUME_DEVICE = (4.0, 4.0)
 TEXT_DEVICE = (1.0, 1.0)
 OTHER_DEVICE = (3.0, 6.0)  # transport, mute, source, app, sound output: a person taps these, a script floods them
+# CR-016 6.4: seek and shuffle / repeat 2/s per device, a library item 1/s per device and 6/min per user, a transfer 1 per 5 s per device
+SEEK_DEVICE = (2.0, 2.0)
+SHUFFLE_DEVICE = (2.0, 2.0)
+ITEM_DEVICE = (1.0, 1.0)
+ITEM_USER = (0.1, 6.0)
+TRANSFER_DEVICE = (0.2, 1.0)
+NEW_COMMANDS = frozenset({"seek", "shuffle", "repeat", "play_item", "transfer"})  # need bridge 0.5.0 (a receiver's sound mode does too)
+REDIRECT_COMMANDS = frozenset({"transport", "seek", "shuffle", "repeat", "play_item"})  # a live-group member's transport / queue acts on the leader
+ZONE_COMMANDS = frozenset({"power_on", "power_off", "volume_set", "volume_step", "mute", "source", "sound_output"})  # what a receiver's zone accepts
+STEP_PCT = 5  # a volume step converted to a volume_set (a ceiling is set) moves this many points
 
 POWER_COMMANDS = frozenset({"power_on", "power_off", "source", "app", "sound_output"})  # media.power; the rest media.control
 # a screen marked public: owner decision 2026-09-30 - every command but volume, mute and play / pause needs media.public too,
@@ -73,6 +83,17 @@ MESSAGES = {
     "bridge_outdated": "נדרש עדכון של רכיב החיבור",
     "bridge_not_paired": "פעולות אלו דורשות את הגשר מותקן ומצומד.",
     "identity_unmapped": "לא ניתן למפות את הזהות לפעולת ההתקן.",
+    # CR-016
+    "unknown_item": "הפריט אינו ברשימה; רעננו את הרשימה.",
+    "not_playing": "אין מוזיקה מתנגנת במקור שנבחר.",
+    "no_library": "ספריית המוזיקה אינה זמינה.",
+    "caps_unknown": "ההתקן אינו זמין.",
+    "not_groupable": "אי אפשר לקבץ את ההתקנים האלה.",
+    "confirm_required": "קבוצה גדולה: נדרש אישור.",
+    "bulk_required": "קבוצה בכל הבניין דורשת הרשאה מורחבת.",
+    "group_pending": "פעולת קיבוץ קודמת עדיין רצה.",
+    "device_off": "ההתקן כבוי",
+    "not_found_device": "ההתקן לא נמצא.",
 }
 
 
@@ -136,6 +157,7 @@ class Plan:
 
     def __init__(self, command: str, action_id: str | None, entity_id: str | None, args: dict[str, Any], *, kind: str = "command", recent: tuple[str, str] | None = None) -> None:
         self.command, self.action_id, self.entity_id, self.args, self.kind, self.recent = command, action_id, entity_id, args, kind, recent
+        self.extra: dict[str, Any] = {}  # audit details beyond the command: the leader a member's command was executed on, the source of a transfer
 
 
 def needs_public(cmd: dict[str, Any]) -> bool:
@@ -167,9 +189,14 @@ def _target_view(cat: store.Catalog, item: store.Item, target: str | None, live:
     return item, "screen"
 
 
-def plan(cat: store.Catalog, item: store.Item, cmd: dict[str, Any], caps: dict[str, Any], live: dict[str, Any], access: store.Access | None = None) -> Plan:
+def plan(cat: store.Catalog, item: store.Item, cmd: dict[str, Any], caps: dict[str, Any], live: dict[str, Any], access: store.Access | None = None, *,
+         ceiling: int | None = None, target: store.Item | None = None, source: store.Item | None = None) -> Plan:
     """Resolve `cmd` to one allow-listed call, or refuse it (422 not_supported / validation): the command must be in `caps`, the
-    profile must have the key, the source or app must be one of the curated visible ones."""
+    profile must have the key, the source or app must be one of the curated visible ones. A speaker, player, receiver or group (CR-016) goes
+    through `plan_audio` (`ceiling`: the effective volume ceiling, `target`: the leader a live-group member's transport acts on, `source`: the
+    device a `transfer` takes the music from)."""
+    if item.row["kind"] != "screen":
+        return plan_audio(cat, item, cmd, caps, live, ceiling, target or item, source)
     name = cmd["command"]
     prim = item.view.prim
     if name == "power_on":
@@ -272,6 +299,151 @@ def plan(cat: store.Catalog, item: store.Item, cmd: dict[str, Any], caps: dict[s
     raise err(422, "validation", fields=["command"])
 
 
+def _eff(cat: store.Catalog, entity_id: str | None, *bits: int) -> bool:
+    """Whether the entity offers any of `bits` - from its live mask when available, else the last good one (CR-016 5.4)."""
+    return bool(entity_id) and any(mm.eff_features(cat.ents.get(entity_id or "")) & b for b in bits)
+
+
+def plan_audio(cat: store.Catalog, item: store.Item, cmd: dict[str, Any], caps: dict[str, Any], live: dict[str, Any], ceiling: int | None, t_item: store.Item, from_item: store.Item | None) -> Plan:
+    """CR-016 6.1: one command of a speaker, player, receiver or group -> one allow-listed call on the primary endpoint of the control. `t_item` is
+    the device whose transport / queue answers (the leader of a live group when `item` is a member). Refused (422 not_supported / validation)
+    when the capabilities do not offer it; never a key, a text or an app (those are screens'); no announcement exists."""
+    name = cmd["command"]
+    prim = dict(item.view.prim)
+    t_prim = t_item.view.prim
+    t_caps = caps if t_item is item else store.caps_of(cat, t_item)
+    if cmd.get("zone") is not None:
+        zone_ep = mm.zone_endpoint(item.model, cmd["zone"]) if isinstance(cmd["zone"], str) else None
+        if zone_ep is None:
+            raise err(422, "validation", fields=["zone"])
+        if name not in ZONE_COMMANDS:
+            raise err(422, "not_supported", reason="zone_command")
+        for c in ("power", "volume", "mute", "sources", "sound_mode"):
+            prim[c] = zone_ep.ref
+    if name == "power_on":
+        if not _eff(cat, prim.get("power"), mm.F_TURN_ON):
+            raise err(422, "not_supported", reason="power_on")
+        return Plan(name, "media_player.turn_on", prim["power"], {})
+    if name == "power_off":
+        if not _eff(cat, prim.get("power"), mm.F_TURN_OFF):
+            raise err(422, "not_supported", reason="power_off")
+        return Plan(name, "media_player.turn_off", prim["power"], {})
+    if name == "volume_set":
+        level = cmd.get("level")
+        if isinstance(level, bool) or not isinstance(level, (int, float)) or not 0 <= level <= 100:
+            raise err(422, "validation", fields=["level"])
+        if not _eff(cat, prim.get("volume"), mm.F_VOLUME_SET):
+            raise err(422, "not_supported", reason="volume_set")
+        value = float(level) if ceiling is None else min(float(level), float(ceiling))  # a ceiling only where an administrator set one (7ב); never a default
+        return Plan(name, "media_player.volume_set", prim["volume"], {"volume_level": round(value / 100.0, 4)})
+    if name == "volume_step":
+        direction = cmd.get("direction")
+        if direction not in ("up", "down"):
+            raise err(422, "validation", fields=["direction"])
+        endpoint = prim.get("volume")
+        if ceiling is not None and direction == "up":
+            # a step has no known size: with a ceiling it is a bounded volume_set from the level we last saw (never an unbounded step past it)
+            level = live["volume"]["level"]
+            if not _eff(cat, endpoint, mm.F_VOLUME_SET) or level is None or level >= ceiling:
+                raise err(422, "not_supported", reason="ceiling")
+            return Plan(name, "media_player.volume_set", endpoint, {"volume_level": round(min(level + STEP_PCT, ceiling) / 100.0, 4)}, kind="step")
+        step = endpoint if _eff(cat, endpoint, mm.F_VOLUME_STEP) else mm.step_endpoint(item.model, cat.ents, prim)
+        if step and _eff(cat, step, mm.F_VOLUME_STEP):
+            return Plan(name, f"media_player.volume_{direction}", step, {}, kind="step")
+        raise err(422, "not_supported", reason="volume_step")
+    if name == "mute":
+        muted = cmd.get("muted")
+        if not isinstance(muted, bool):
+            raise err(422, "validation", fields=["muted"])
+        if not _eff(cat, prim.get("mute"), mm.F_VOLUME_MUTE):
+            raise err(422, "not_supported", reason="mute")
+        return Plan(name, "media_player.volume_mute", prim["mute"], {"is_volume_muted": muted})
+    if name == "source":
+        source_id = cmd.get("source_id")
+        if not isinstance(source_id, str) or not source_id or len(source_id) > profiles.SOURCE_MAX:
+            raise err(422, "validation", fields=["source_id"])
+        endpoint = prim.get("sources")
+        if not _eff(cat, endpoint, mm.F_SELECT_SOURCE):
+            raise err(422, "not_supported", reason="sources")
+        if cmd.get("zone") is not None:
+            listed = source_id in mm._string_list(mm._attrs(cat.ents.get(endpoint or "")).get("source_list"))
+        else:
+            sources, _apps = mm.view_lists(item.view)
+            listed = any(x["id"] == source_id and not x["hidden"] for x in sources)
+        if not listed:
+            raise err(422, "not_supported", reason="unknown_source")
+        return Plan(name, "media_player.select_source", endpoint, {"source": source_id}, recent=("source", source_id))
+    if name == "sound_output":
+        output = cmd.get("output")
+        endpoint = prim.get("sound_mode")
+        listed = mm._string_list(mm._attrs(cat.ents.get(endpoint or "")).get("sound_mode_list")) if _eff(cat, endpoint, mm.F_SELECT_SOUND_MODE) else []
+        if not isinstance(output, str) or output not in listed:
+            raise err(422, "not_supported", reason="sound_output")
+        return Plan(name, "media_player.select_sound_mode", endpoint, {"sound_mode": output})
+    if name == "transport":
+        action = cmd.get("action")
+        if action not in TRANSPORT_ACTIONS:
+            raise err(422, "validation", fields=["action"])
+        t = t_caps["transport"]
+        ok = (t["play"] or t["pause"]) if action == "play_pause" else t[TRANSPORT_CAP[action]]
+        if not ok:
+            raise err(422, "not_supported", reason="transport")
+        return Plan(name, TRANSPORT_ACTIONS[action], t_prim["now_playing"], {})
+    if name == "seek":
+        position = cmd.get("position_s")
+        if isinstance(position, bool) or not isinstance(position, (int, float)) or position != position or position < 0:
+            raise err(422, "validation", fields=["position_s"])
+        endpoint = t_prim.get("now_playing") if _eff(cat, t_prim.get("now_playing"), mm.F_SEEK) else (t_prim.get("music") if _eff(cat, t_prim.get("music"), mm.F_SEEK) else None)
+        duration = store.live_of(cat, t_item, key_url=False)["now"]["duration_s"]
+        if not endpoint or duration is None:
+            raise err(422, "not_supported", reason="seek" if not endpoint else "no_duration")
+        if position > duration:
+            raise err(422, "validation", fields=["position_s"], max=duration)
+        return Plan(name, "media_player.media_seek", endpoint, {"seek_position": float(position)})
+    if name in ("shuffle", "repeat"):
+        bit = mm.F_SHUFFLE_SET if name == "shuffle" else mm.F_REPEAT_SET
+        if name == "shuffle":
+            if not isinstance(cmd.get("on"), bool):
+                raise err(422, "validation", fields=["on"])
+        elif cmd.get("mode") not in ("off", "one", "all"):
+            raise err(422, "validation", fields=["mode"])
+        endpoint = next((e for e in (t_prim.get("now_playing"), t_prim.get("music")) if _eff(cat, e, bit)), None)
+        if endpoint is None:
+            raise err(422, "not_supported", reason=name)
+        return Plan(name, "media_player.shuffle_set" if name == "shuffle" else "media_player.repeat_set", endpoint, {"shuffle": cmd["on"]} if name == "shuffle" else {"repeat": cmd["mode"]})
+    if name == "play_item":
+        enqueue = cmd.get("enqueue") or "play"
+        if enqueue not in ("play", "next", "add"):
+            raise err(422, "validation", fields=["enqueue"])
+        provider = mm.music_provider_of(t_item.model, cat.ents)
+        if provider not in ("ma", "sonos"):
+            raise err(503, "no_library")
+        stored = media_query.resolve_item(cmd.get("item_ref"))
+        if stored is None or stored["provider"] != provider:
+            raise err(422, "unknown_item")
+        endpoint = t_prim.get("music")
+        if not endpoint:
+            raise err(503, "no_library")
+        if provider == "ma":
+            return Plan(name, "music_assistant.play_media", endpoint, {"media_id": stored["uri"], "media_type": stored["media_type"], "enqueue": enqueue})
+        if enqueue != "play" or stored["uri"] not in mm._string_list(mm._attrs(cat.ents.get(endpoint)).get("source_list")):
+            raise err(422, "not_supported", reason="enqueue" if enqueue != "play" else "unknown_item")
+        return Plan(name, "media_player.select_source", endpoint, {"source": stored["uri"]})
+    if name == "transfer":
+        if from_item is None or from_item.key == item.key:
+            raise err(422, "validation", fields=["from_key"])
+        target_ep, source_ep = t_prim.get("music"), from_item.view.prim.get("music")
+        for it in (t_item, from_item):
+            if mm.music_provider_of(it.model, cat.ents) != "ma":
+                raise err(422, "not_supported", reason="transfer")
+        if not target_ep or not source_ep:
+            raise err(422, "not_supported", reason="transfer")
+        if store.live_of(cat, from_item, key_url=False)["play"] != "playing":
+            raise err(409, "not_playing")
+        return Plan(name, "music_assistant.transfer_queue", target_ep, {"source_player": source_ep, "auto_play": True})
+    raise err(422, "not_supported", reason="not_for_audio")
+
+
 def _key_plan(item: store.Item, key: str, command: str) -> Plan:
     """One remote key through the profile's own transport. A power key does not exist: the tables have none."""
     transport = profiles.TRANSPORT.get(item.profile)
@@ -370,8 +542,8 @@ def early(conn: sqlite3.Connection, principal: Principal, request_id: str | None
     caller must hold media.control or media.power at its anchor (else the audited 403) - a 422 never reveals more than a 403 would."""
     r = conn.execute("SELECT device_key, anchor_entity_id, approved, kind, is_public FROM media_devices WHERE device_key = ? AND removed_at IS NULL", (key,)).fetchone()
     access = store.Access(conn, principal, (store.PERM_READ, store.PERM_CONTROL, store.PERM_POWER))
-    if r is None or not r["approved"] or r["kind"] != "screen" or not access.has(store.PERM_READ, r["anchor_entity_id"]):
-        raise err(404, "not_found")
+    if r is None or not r["approved"] or r["kind"] not in mm.RENDERED_KINDS or not access.has(store.PERM_READ, r["anchor_entity_id"]):
+        raise err(404, "not_found") if r is None or r["kind"] == "screen" else ApiError(404, "not_found", MESSAGES["not_found_device"])
     if not (access.has(store.PERM_CONTROL, r["anchor_entity_id"]) or access.has(store.PERM_POWER, r["anchor_entity_id"])):
         raise _deny(conn, principal, request_id, key, None, err(403, "forbidden", permission=store.PERM_CONTROL))
     return Admission(dict(r), access)
@@ -415,6 +587,14 @@ def _device_limit(name: str) -> tuple[str, tuple[float, float]]:
         return "vol-device", VOLUME_DEVICE
     if name == "text":
         return "text-device", TEXT_DEVICE
+    if name == "seek":
+        return "seek-device", SEEK_DEVICE
+    if name in ("shuffle", "repeat"):
+        return "shuffle-device", SHUFFLE_DEVICE
+    if name == "play_item":
+        return "item-device", ITEM_DEVICE
+    if name == "transfer":
+        return "transfer-device", TRANSFER_DEVICE
     return "cmd-device", OTHER_DEVICE
 
 
@@ -434,6 +614,11 @@ def admit(conn: sqlite3.Connection, principal: Principal, request_id: str | None
         raise err(429, "rate_limited", scope="device")
     if not BUCKETS.take("user", principal.user_id, USER_ALL):
         BUCKETS.refund(kind, adm.key, limit)
+        _audit_limited(conn, principal, request_id, adm.key, name, "user")
+        raise err(429, "rate_limited", scope="user")
+    if name == "play_item" and not BUCKETS.take("item-user", principal.user_id, ITEM_USER):  # 6 library items a minute per person
+        BUCKETS.refund(kind, adm.key, limit)
+        BUCKETS.refund("user", principal.user_id, USER_ALL)
         _audit_limited(conn, principal, request_id, adm.key, name, "user")
         raise err(429, "rate_limited", scope="user")
 
@@ -467,6 +652,24 @@ def run(conn: sqlite3.Connection, settings: Settings, principal: Principal, requ
     note_grant(access.decision(perm, anchor), perm)
     if item.row["is_public"] and needs_public(cmd) and not access.has(store.PERM_PUBLIC, anchor):
         raise _deny(conn, principal, request_id, item, cmd, err(403, "public_screen"))
+    # 3b. (CR-016) a live-group member's transport / queue acts on the LEADER and a transfer takes the music from another device: the caller needs
+    # media.control at THEIR anchors too (a room of another floor is not theirs to stop)
+    kind = item.row["kind"]
+    t_item, from_item = item, None
+    if kind != "screen":
+        if name in REDIRECT_COMMANDS:
+            g = cat.group_info(item.key)
+            leader = cat.items.get(g["leader_key"]) if g["role"] == "member" and g["leader_key"] else None
+            if leader is not None:
+                if not (leader.row["approved"] and access.has(store.PERM_CONTROL, leader.row.get("anchor_entity_id"))):
+                    raise _deny(conn, principal, request_id, item, cmd, err(403, "forbidden", permission=store.PERM_CONTROL, reason="group_leader"))
+                t_item = leader
+        if name == "transfer":
+            from_item = cat.items.get(cmd.get("from_key")) if isinstance(cmd.get("from_key"), str) else None
+            if from_item is None or not from_item.row["approved"] or from_item.row["kind"] == "screen" or not access.has(store.PERM_READ, from_item.row.get("anchor_entity_id")):
+                raise _deny(conn, principal, request_id, item, cmd, ApiError(404, "not_found", MESSAGES["not_found_device"]))
+            if not access.has(store.PERM_CONTROL, from_item.row.get("anchor_entity_id")):
+                raise _deny(conn, principal, request_id, item, cmd, err(403, "forbidden", permission=store.PERM_CONTROL, reason="from_device"))
     # 4. the caller's identity and the bridge
     if principal.source not in ("ingress", "remote") and not settings.dev_user:
         raise _deny(conn, principal, request_id, item, cmd, err(403, "identity_unmapped"))
@@ -475,6 +678,8 @@ def run(conn: sqlite3.Connection, settings: Settings, principal: Principal, requ
         raise _deny(conn, principal, request_id, item, cmd, err(503, "bridge_not_paired"))
     if not bridge["media_ready"]:
         raise _deny(conn, principal, request_id, item, cmd, err(503, "bridge_outdated", required=store.BRIDGE_REQUIRED))
+    if (name in NEW_COMMANDS or (name == "sound_output" and kind != "screen")) and not bridge["players_ready"]:
+        raise _deny(conn, principal, request_id, item, cmd, err(503, "bridge_outdated", required=store.BRIDGE_PLAYERS_REQUIRED))  # screens keep working with 0.4.0
     secret = ha_bridge.signing_key(conn)
     # 5. one power command per device in flight (checked first: a double tap is "pending", not "already on")
     if name in ("power_on", "power_off"):
@@ -486,18 +691,35 @@ def run(conn: sqlite3.Connection, settings: Settings, principal: Principal, requ
     live = store.live_of(cat, item, key_url=False)
     caps = store.caps_of(cat, item)
     power = live["power"]
+    if kind != "screen" and isinstance(cmd.get("zone"), str) and item.model.zones:
+        zone = next((z for z in (mm.zone_states(item.model, cat.ents) or []) if z["id"] == cmd["zone"]), None)
+        if zone is not None:
+            power = zone["power"]  # a zone command is gated by THAT zone's power (Main on does not make Zone2 "already on")
+    off_error = err(409, "screen_off") if kind == "screen" else ApiError(409, "screen_off", MESSAGES["device_off"])
+    if kind != "screen" and not live["caps_known"]:
+        raise _deny(conn, principal, request_id, item, cmd, err(503, "caps_unknown"))  # every endpoint is unavailable: never guessed from a degraded mask
     if power == "unavailable" or (power == "unknown" and name != "power_on"):
         raise _deny(conn, principal, request_id, item, cmd, err(409, "unavailable"))
-    if name != "power_on" and power in ("off", "standby", "art") and not (name == "power_off" and power == "art"):
-        raise _deny(conn, principal, request_id, item, cmd, err(409, "screen_off"))
+    has_power = kind == "screen" or item.view.prim.get("power") is not None  # a speaker without a power control is never "off"
+    if name != "power_on" and power in ("off", "standby", "art") and has_power and not (name == "power_off" and power == "art"):
+        raise _deny(conn, principal, request_id, item, cmd, off_error)
     if name == "power_off" and power in ("off", "standby"):
-        raise _deny(conn, principal, request_id, item, cmd, err(409, "screen_off"))
+        raise _deny(conn, principal, request_id, item, cmd, off_error)
     if name == "power_on" and power == "on":
         raise _deny(conn, principal, request_id, item, cmd, err(422, "not_supported", reason="already_on"))
     try:
-        p = plan(cat, item, cmd, caps, live, access)
+        ceiling = store.effective_ceiling(conn, item.row) if kind != "screen" else None
+        p = plan(cat, item, cmd, caps, live, access, ceiling=ceiling, target=t_item, source=from_item)
         if p.entity_id is None or p.action_id is None:
             raise err(422, "not_supported", reason="no_endpoint")
+        if kind != "screen" and not mm.available(cat.ents.get(p.entity_id)):
+            raise err(409, "unavailable")
+        if from_item is not None and not mm.available(cat.ents.get(from_item.view.prim.get("music") or "")):
+            raise err(409, "unavailable")
+        if t_item is not item:
+            p.extra["via"] = t_item.key
+        if from_item is not None:
+            p.extra["from"] = from_item.key
         spec, data = ha_bridge.validate_action(p.action_id, p.entity_id, p.args)
     except ApiError as exc:
         if exc.code in ("action_not_allowed", "action_domain_mismatch", "argument_not_allowed"):
@@ -551,7 +773,7 @@ def run(conn: sqlite3.Connection, settings: Settings, principal: Principal, requ
 def _audit_outcome(conn: sqlite3.Connection, principal: Principal, request_id: str | None, item: store.Item, name: str, p: Plan, aid: str | None, outcome: str, error: str | None) -> None:
     if outcome == "refused":
         audit(conn, actor=principal, action="media.command", decision="denied", resource_type="media_device", resource_id=item.key, reason=error, request_id=request_id,
-              details={"command": name, "endpoint_id": store.ENDPOINT_PREFIX + (p.entity_id or ""), "id": aid})
+              details={"command": name, "endpoint_id": store.ENDPOINT_PREFIX + (p.entity_id or ""), "id": aid, **p.extra})
         return
     if name == "key":
         _audit_keys(conn, principal, request_id, item, _key_of(item, p))
@@ -560,7 +782,7 @@ def _audit_outcome(conn: sqlite3.Connection, principal: Principal, request_id: s
               details={"length": len(p.args.get("media_content_id") or p.args.get("command", "")[5:])})  # the length only, never the text
     else:
         audit(conn, actor=principal, action="media.command", decision="allowed", resource_type="media_device", resource_id=item.key, request_id=request_id,
-              details={"command": name, "endpoint_id": store.ENDPOINT_PREFIX + (p.entity_id or ""), "id": aid, "status": outcome})
+              details={"command": name, "endpoint_id": store.ENDPOINT_PREFIX + (p.entity_id or ""), "id": aid, "status": outcome, **p.extra})
 
 
 def _key_of(item: store.Item, p: Plan) -> str:
