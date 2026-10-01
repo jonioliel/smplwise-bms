@@ -215,6 +215,7 @@ export class SceneCapture extends LitElement {
     th:first-child,
     td.dev {
       inline-size: 40%;
+      min-inline-size: 150px;
     }
     td.dev b {
       display: block;
@@ -243,7 +244,7 @@ export class SceneCapture extends LitElement {
       border-radius: var(--dv-radius-control);
       border: 1px solid var(--dv-border);
       background: var(--dv-surface-2);
-      max-inline-size: 130px;
+      max-inline-size: 108px;
     }
     .num input {
       border: 0;

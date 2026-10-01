@@ -52,6 +52,9 @@ export class ScenesPanel extends LitElement {
     :host {
       display: block;
     }
+    sw-drawer {
+      --sw-drawer-modal-w: 560px;
+    }
     sw-dialog {
       --sw-surface: var(--mm-sheet-surface);
       --sw-glass-blur: var(--mm-sheet-blur);

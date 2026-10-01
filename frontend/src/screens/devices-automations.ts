@@ -96,7 +96,7 @@ export class DevicesAutomations extends LitElement {
     }
     .cgrid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
       gap: var(--dv-gap-lg, 16px);
       align-items: stretch;
     }
