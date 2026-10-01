@@ -5943,5 +5943,31 @@
     "evidence": [],
     "executed_at": null,
     "notes": "Planned in CR-017 (2026-10-01)."
+  },
+  {
+    "id": "AT213",
+    "requirement_ids": [
+      "R213"
+    ],
+    "task_ids": [
+      "T101"
+    ],
+    "title": "התראות - מרכז התראות, הגדרות ומסך מנהל",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fake HA/NVR/WisKey fixtures and a fake push service; no real device, phone or HA notification"
+    ],
+    "procedure": [
+      "Frontend unit: unit-notify-inbox.spec.ts, unit-notify-settings.spec.ts; evidence-notify-center.spec.ts (demo; 1440/820/390; loading/empty/error/ready; RTL) and the service worker action path in evidence-pwa-push.spec.ts additions.",
+      "Live spec: the chip and dot follow /me/ws; a user without scope sees nothing; quiet hours hold a push but the inbox has the row."
+    ],
+    "expected": "Notification center UI (CR-018 §6.1, §8): the inbox opened from the user menu's 'התראות' (count chip = unread, avatar dot = open critical) with severity, place, time, fold count and state; filters all/unread/critical/category; read, snooze 1h/8h/until morning, dismiss, acknowledge when allowed, open; critical safety rows pinned until acknowledged or resolved; live over /me/ws with the 60 s poll as fallback; snapshots only inside Arx after sign-in; settings: channels per category, minimum push severity, quiet hours with days, mutes, my phones; manager page for sources and delivery failures; service worker v2 actions; clean operator screens without HA/Companion names; the user guide 85-notifications_HE.md rewritten.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Planned in CR-018 (2026-10-01)."
   }
 ]

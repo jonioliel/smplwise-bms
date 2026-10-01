@@ -4398,5 +4398,21 @@
     "test_ids": [
       "AT212"
     ]
+  },
+  {
+    "id": "R213",
+    "title": "התראות - מרכז התראות, הגדרות ומסך מנהל",
+    "statement": "Notification center UI (CR-018 §6.1, §8): the inbox opened from the user menu's 'התראות' (count chip = unread, avatar dot = open critical) with severity, place, time, fold count and state; filters all/unread/critical/category; read, snooze 1h/8h/until morning, dismiss, acknowledge when allowed, open; critical safety rows pinned until acknowledged or resolved; live over /me/ws with the 60 s poll as fallback; snapshots only inside Arx after sign-in; settings: channels per category, minimum push severity, quiet hours with days, mutes, my phones; manager page for sources and delivery failures; service worker v2 actions; clean operator screens without HA/Companion names; the user guide 85-notifications_HE.md rewritten.",
+    "task_ids": [
+      "T101"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT213"
+    ]
   }
 ]
