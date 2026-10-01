@@ -73,6 +73,7 @@ import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, res
 import { t } from '../i18n/he';
 import { can, canNav, isApi, loadSession, nvrLess, onSession, watchPermissions, type Session } from '../api/session';
 import { productSettings } from '../api/prefs';
+import { setInstallationDesign } from '../design/apply';
 import '../components/sw-state-panel';
 import '../components/sw-page';
 
@@ -1113,6 +1114,7 @@ export class SwApp extends LitElement {
         void productSettings().then((ps) => {
           HIDDEN_HREFS.clear();
           setInstallationNavSize(ps['ui.nav_size']); // the installation's default size of the navigation
+          setInstallationDesign(ps['ui.skin'], ps['ui.scheme']); // the installation's skin and light / dark choice (design foundation)
           setInstallationMobileOptions(ps['ui.mobile']); // the phone UX guards (הגדרות › כללי › אפשרויות נייד)
           if (String(ps['ui.hide_search'] ?? 'false') === 'true') HIDDEN_HREFS.add('#/investigate/search');
           const hideMap = String(ps['ui.hide_map'] ?? 'false') === 'true';
