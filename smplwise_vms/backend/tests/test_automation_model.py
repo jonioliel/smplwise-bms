@@ -366,8 +366,8 @@ def test_facts_unknown_effects_sensitive_steps_and_schedule_controlling_blocks(h
     assert m.has_unknown_effects(d) and any(m.controls_schedules(b) for b in m.locked_blocks(d))
     assert not m.has_unknown_effects(draft_of(by_alias(house, "תנועה בפרוזדור")))
     left = draft_of(by_alias(house, "כולם יצאו"))
-    steps = m.sensitive_steps(left, lambda e: "alarm" if e.startswith("alarm") else None, lambda g: g == "alarm.disarm")
-    assert steps == [{"path": "actions.2", "entity_id": "alarm_control_panel.home", "action": "alarm_control_panel.alarm_arm_away", "grant": "alarm.disarm", "granted": True}]
+    steps = m.sensitive_steps(left, lambda e: "alarm" if e.startswith("alarm") else None, lambda g: g == "alarm.arm")
+    assert steps == [{"path": "actions.2", "entity_id": "alarm_control_panel.home", "action": "alarm_control_panel.alarm_arm_away", "grant": "alarm.arm", "granted": True}]
     assert m.sensitive_steps(left, None, lambda g: False)[0]["granted"] is False
     assert m.sensitive_classes(left) == ["alarm"]
     gate = {"kind": "typed", "raw": None, "type": "service", "role": "device", "action": "cover.open_cover", "entity_ids": ["cover.gate"], "data": {}}
@@ -526,3 +526,32 @@ def test_issue_paths_group_by_block(house):
     d = draft_of(by_alias(house, "תנועה בפרוזדור"))
     g = m.issues_by_uid(d, [{"path": "actions[0]", "code": "x", "message": "m"}, {"path": "alias", "code": "y", "message": "m"}])
     assert list(g) == [d["actions"][0]["uid"], ""]
+
+
+# ---------------------------------------------------------------- review F5: a step that names its target twice
+
+def test_a_step_with_both_target_and_a_top_level_entity_id_is_never_typed_and_its_effects_are_the_union():
+    both = {"action": "climate.turn_off", "target": {"entity_id": ["climate.living_room"]}, "entity_id": "climate.bedroom_1"}
+    b = m.parse_action(both, CTX)
+    assert b["kind"] == "locked" and b["reason"] == "unsupported_step" and b["effects"] == ["climate.living_room", "climate.bedroom_1"]
+    assert m.parse_action({"action": "climate.turn_off", "entity_id": "climate.a"}, CTX)["kind"] == "typed"  # the legacy single form stays typed
+    for extra in ({"area_id": "x"}, {"device_id": "d"}, {"floor_id": "f"}, {"label_id": "l"}):
+        blk = m.parse_action({"action": "light.turn_off", "target": {"entity_id": ["light.a"]}, **extra}, CTX)
+        assert blk["kind"] == "locked" and blk["effects"] == "unknown", extra
+    for raw in ({"action": "light.turn_off", "target": {"entity_id": ["light.a"], "area_id": "x"}}, {"action": "light.turn_off", "data": {"entity_id": "light.b"}, "target": {"entity_id": ["light.a"]}},
+                {"action": "light.turn_off", "target": {"entity_id": ["light.a"]}, "data": {"device_id": "d"}}):
+        assert m.parse_action(raw, CTX)["kind"] == "locked"
+    assert m.parse_action({"action": "light.turn_off", "data": {"entity_id": "light.b"}, "target": {"entity_id": ["light.a"]}}, CTX)["effects"] == ["light.a", "light.b"]
+    ids, unknown = m.step_entity_refs({"action": "x.y", "target": {"entity_id": ["light.a"]}, "entity_id": ["light.b"], "data": {"entity_id": "light.c", "area_id": "z"}})
+    assert ids == ["light.a", "light.b", "light.c"] and unknown is True
+    d = draft_of({"id": "1", "alias": "x", "triggers": [{"trigger": "time", "at": "01:00:00"}], "conditions": [], "actions": [both], "mode": "single"})
+    assert m.draft_targets(d) == ["climate.living_room", "climate.bedroom_1"]  # an out-of-scope entity is visible to the scope check
+    assert m.save_profile(draft_of({"id": "1", "alias": "x", "triggers": [{"trigger": "time", "at": "01:00:00"}], "conditions": [], "actions": [both], "mode": "single"}), None) == "code"
+
+
+def test_repeat_count_is_capped_like_the_bridge_and_the_grants_are_per_action():
+    assert m.parse_action({"repeat": {"count": 1000, "sequence": [{"delay": {"seconds": 1}}]}}, CTX)["kind"] == "typed"
+    assert m.parse_action({"repeat": {"count": 1001, "sequence": [{"delay": {"seconds": 1}}]}}, CTX)["kind"] == "locked"
+    from smplwise.services import automation_policy as pol
+    assert [pol.grant_for(a) for a in ("alarm_control_panel.alarm_disarm", "alarm_control_panel.alarm_arm_home", "lock.unlock", "lock.lock", "siren.turn_on", "cover.open_cover")] == [
+        "alarm.disarm", "alarm.arm", "door.unlock", "ha.entity.control", "ha.entity.control", "ha.entity.control"]

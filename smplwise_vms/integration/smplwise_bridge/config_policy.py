@@ -35,7 +35,7 @@ PROFILES = ("builder", "code")
 
 COMMON_KEYS = frozenset({"user_id", "op", "request_id", "ts", "nonce", "sig"})
 OP_KEYS: dict[str, frozenset[str]] = {
-    "upsert": COMMON_KEYS | {"kind", "item_id", "base_revision", "profile", "config", "preserved", "sensitive"},
+    "upsert": COMMON_KEYS | {"kind", "item_id", "base_revision", "profile", "config", "preserved", "sensitive", "allowed_notify"},
     "delete": COMMON_KEYS | {"kind", "item_id", "base_revision", "profile"},
     "enable": COMMON_KEYS | {"kind", "item_id"},
     "disable": COMMON_KEYS | {"kind", "item_id"},
@@ -58,7 +58,7 @@ TIME_RE = re.compile(r"^([01]?\d|2[0-3]):[0-5]\d(:[0-5]\d)?$")
 _TEMPLATE_RE = re.compile(r"\{\{|\{%|\{#")
 
 # caps (AUTOMATIONS_API.md section 2.2; the builder profile only - an administrator's code view is bounded by the size cap)
-CAPS = {"alias": 120, "description": 1000, "triggers": 20, "conditions": 20, "steps": 60, "depth": 4, "targets": 50, "fields": 12, "members": 100, "options": 6, "preserved": 400}
+CAPS = {"alias": 120, "description": 1000, "triggers": 20, "conditions": 20, "steps": 60, "depth": 4, "targets": 50, "fields": 12, "members": 100, "options": 6, "preserved": 400, "repeat_count": 1000, "allowed_notify": 100}
 MAX_CONFIG_BYTES = 262144
 MAX_VARIABLES = 50
 MAX_DEPTH = 24  # the nesting guard of every recursive walk
@@ -460,7 +460,7 @@ def action_authorable(raw: Any) -> bool:
     if "repeat" in raw:
         rp = raw["repeat"]
         return (_only_keys(raw, ["repeat"]) and isinstance(rp, dict) and all(k in ("count", "sequence") for k in rp) and _is_num(rp.get("count"))
-                and float(rp["count"]) == int(rp["count"]) and rp["count"] >= 1)
+                and float(rp["count"]) == int(rp["count"]) and 1 <= rp["count"] <= CAPS["repeat_count"])
     if "delay" in raw:
         return _only_keys(raw, ["delay"]) and _duration_ok(raw["delay"])
     if "stop" in raw:
@@ -475,6 +475,8 @@ def action_authorable(raw: Any) -> bool:
     role, _ = classify_service(svc)
     if role is None:
         return False
+    if "target" in raw and any(k in raw for k in ("entity_id", "device_id", "area_id", "floor_id", "label_id")):
+        return False  # a step that names its target twice hides the real one (HA merges them): never typed
     if "target" in raw:
         if not isinstance(raw["target"], dict) or any(k != "entity_id" for k in raw["target"]):
             return False
@@ -582,6 +584,7 @@ class Message:
     config: dict[str, Any] | None = None
     preserved: frozenset[str] = frozenset()
     sensitive: bool = False
+    allowed_notify: frozenset[str] | None = None
     variables: dict[str, Any] | None = None
     skip_condition: bool | None = None
     entity_id: str | None = None
@@ -655,6 +658,12 @@ def validate_message(msg: Mapping[str, Any]) -> Message:
             if not isinstance(sens, bool):
                 raise _bad("sensitive")
             out.sensitive = sens
+            an = msg.get("allowed_notify")
+            if an is not None:
+                if (not isinstance(an, list) or len(an) > CAPS["allowed_notify"]
+                        or not all(isinstance(x, str) and re.match(r"^notify\.[a-z0-9_]{1,100}$", x) for x in an)):
+                    raise _bad("allowed_notify")
+                out.allowed_notify = frozenset(an)
     if op == "trigger":
         sc = msg.get("skip_condition")
         if sc is not None and not isinstance(sc, bool):
@@ -709,10 +718,13 @@ def step_targets(config: Mapping[str, Any]) -> tuple[list[str], list[str]]:
         svc = _service_of(s)
         if isinstance(svc, str):
             svcs[svc] = None
-        tgt = s.get("target", {}).get("entity_id") if isinstance(s.get("target"), dict) else s.get("entity_id")
-        for e in _to_list(tgt):
-            if _is_entity(e):
-                ents[e] = None
+        # HA merges `target`, a top-level `entity_id` and `data.entity_id`: all three are read (reading one would hide the real target)
+        places = [s.get("target", {}).get("entity_id") if isinstance(s.get("target"), dict) else None, s.get("entity_id"),
+                  s.get("data", {}).get("entity_id") if isinstance(s.get("data"), dict) else None]
+        for place in places:
+            for e in _to_list(place):
+                if _is_entity(e):
+                    ents[e] = None
     return list(ents), list(svcs)
 
 
@@ -734,6 +746,46 @@ def _is_condition_step(raw: Any) -> bool:
     return isinstance(raw, dict) and isinstance(raw.get("condition"), str) and "action" not in raw and "service" not in raw and not any(k in raw for k in ("choose", "if", "repeat", "delay", "stop"))
 
 
+# extra top-level keys the HA editor itself writes and that carry no logic
+HARMLESS_EXTRAS = frozenset({"trace", "initial_state", "note", "metadata"})
+
+
+def scene_sensitive_required(entity_ids: list[str], attributes_of: Callable[[str], Mapping[str, Any] | None] | None = None) -> bool:
+    for e in entity_ids:
+        if e.startswith("lock."):
+            return True
+        if e.startswith("cover.") and attributes_of:
+            attrs = attributes_of(e)
+            if attrs and attrs.get("device_class") in SENSITIVE_COVER_CLASSES:
+                return True
+    return False
+
+
+def stored_is_builder_authorable(kind: str, config: Mapping[str, Any]) -> bool:
+    """Whether EVERY block of a stored item is inside the builder's closed schemas (no template, device trigger, custom service, secret ...), i.e. whether a delegated
+    user may delete it: an item with admin-authored content is an administrator's to delete. Legacy keys count as not authorable."""
+    try:
+        if _nesting_exceeds(config, MAX_NESTING + 8):
+            return False
+        ctx = _Ctx("builder", frozenset(), set())
+        counter = [0]
+        if kind == "scene":
+            _check_scene(config, None, "builder")
+        elif kind == "script":
+            _check_fields(config, None, "builder")
+            _check_blocks("action", config.get("sequence"), "sequence", ctx, 0, counter)
+        else:
+            if any(k in config for k in LEGACY_KEYS["automation"]):
+                return False
+            _check_blocks("trigger", config.get("triggers"), "triggers", ctx, 0, counter)
+            _check_blocks("condition", config.get("conditions"), "conditions", ctx, 0, counter)
+            _check_blocks("action", config.get("actions"), "actions", ctx, 0, counter)
+        managed = set(MANAGED_KEYS[kind]) | HARMLESS_EXTRAS
+        return all(k in managed for k in config)  # an extra key that carries logic (variables, trigger_variables, use_blueprint ...) is admin content too
+    except PolicyError:
+        return False
+
+
 def _check_blocks(section: str, raws: Any, path: str, ctx: "_Ctx", depth: int, counter: list[int]) -> None:
     for i, raw in enumerate(_to_list(raws)):
         _check_block(section, raw, f"{path}[{i}]", ctx, depth, counter)
@@ -752,6 +804,9 @@ def _check_block(section: str, raw: Any, path: str, ctx: "_Ctx", depth: int, cou
         if _is_container(eff, raw):
             for seg, sec, child, grp in _children(eff, raw):
                 _check_block(sec, child, f"{path}.{seg}", ctx, depth + 1 if sec == "action" else depth, counter, grp)
+        elif (ctx.allowed_notify is not None and eff == "action" and not unchanged and isinstance(raw, dict)
+              and str(_service_of(raw) or "").startswith("notify.") and _service_of(raw) not in ctx.allowed_notify):
+            raise PolicyError("service_not_allowed", path)  # the administrator's approved notify targets (the add-on sends them); an old step stays saveable
         return
     # outside the typed schemas: a delegated (builder) save may only keep what is stored
     if ctx.profile == "builder" and (fp not in ctx.preserved or not unchanged):
@@ -777,6 +832,7 @@ class _Ctx:
     profile: str
     preserved: frozenset[str]
     stored_fps: set[str]
+    allowed_notify: frozenset[str] | None = None
 
 
 def _check_extras(kind: str, config: Mapping[str, Any], stored: Mapping[str, Any] | None, profile: str) -> None:
@@ -920,7 +976,8 @@ MAX_NESTING = 48  # deeper than any item a person or the Home Assistant editor w
 
 
 def validate_config(kind: str, item_id: str, config: Mapping[str, Any], *, profile: str, preserved: frozenset[str], stored: Mapping[str, Any] | None,
-                    sensitive: bool, attributes_of: Callable[[str], Mapping[str, Any] | None] | None = None) -> ConfigFacts:
+                    sensitive: bool, attributes_of: Callable[[str], Mapping[str, Any] | None] | None = None,
+                    allowed_notify: frozenset[str] | None = None) -> ConfigFacts:
     """Judge the config of an upsert (module docstring). `stored` = the item as it is stored now (None for a create). Raises PolicyError; returns the facts the
     caller needs for the permission check and the sensitive flag (already checked here)."""
     builder = profile == "builder"
@@ -931,7 +988,7 @@ def validate_config(kind: str, item_id: str, config: Mapping[str, Any], *, profi
     _check_head(kind, item_id, config, builder)
     _check_extras(kind, config, stored, profile)
     stored_fps = all_block_fingerprints(stored) if stored else set()
-    ctx = _Ctx(profile, preserved, stored_fps)
+    ctx = _Ctx(profile, preserved, stored_fps, allowed_notify)
     if kind == "scene":
         _check_scene(config, stored, profile)
     else:
@@ -961,5 +1018,7 @@ def validate_config(kind: str, item_id: str, config: Mapping[str, Any], *, profi
         raise PolicyError("sensitive_flag_mismatch", "actions" if kind == "automation" else "sequence")
     stored_targets = step_targets(stored)[0] if stored else []
     scene_members = [e for e in (config.get("entities") or {}) if _is_entity(e)] if kind == "scene" else []
+    if kind == "scene" and not sensitive and scene_sensitive_required(scene_members, attributes_of):
+        raise PolicyError("sensitive_flag_mismatch", "entities")  # a scene that sets a lock or a door-class cover is as sensitive as a step that does
     return ConfigFacts(targets=list(dict.fromkeys(targets + scene_members)), stored_targets=stored_targets,
                        sensitive_services=[s for s in services if SENSITIVE_ACTION_RE.match(s)])

@@ -162,6 +162,7 @@ CONFIG_ITEM_SCHEMA = vol.Schema(
         vol.Optional("config"): vol.Any(None, dict),
         vol.Optional("preserved"): vol.Any(None, list),
         vol.Optional("sensitive"): bool,
+        vol.Optional("allowed_notify"): vol.Any(None, list),
         vol.Optional("variables"): vol.Any(None, dict),
         vol.Optional("skip_condition"): vol.Any(None, bool),
         vol.Optional("entity_id"): vol.Any(None, str),

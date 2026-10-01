@@ -199,6 +199,9 @@ config_item:
       description: Fingerprints of the blocks kept byte for byte; each must also be in the stored item.
     sensitive:
       description: True when the config calls an alarm, a lock, a siren or a door-class cover. The bridge refuses a false flag on what it can recognise.
+    allowed_notify:
+      description: Optional (upsert) - the notify services the administrator approved; a new or changed notify step naming another one is refused.
+      example: '["notify.mobile_app_phone"]'
     variables:
       description: Variables for trigger / run_script.
     skip_condition:

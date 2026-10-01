@@ -29,7 +29,7 @@ WEEKDAYS = ("sun", "mon", "tue", "wed", "thu", "fri", "sat")
 # Caps of AUTOMATIONS_API.md section 2.2 (the client's CAPS)
 CAPS: dict[str, int] = {
     "alias_max": 120, "description_max": 1000, "triggers_max": 20, "conditions_max": 20, "steps_max": 60, "depth_max": 4, "targets_max": 50,
-    "fields_max": 12, "members_max": 100, "choose_options_max": 6,
+    "fields_max": 12, "members_max": 100, "choose_options_max": 6, "repeat_count_max": 1000,
 }
 
 ENTITY_RE = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
@@ -135,7 +135,9 @@ def has_mask(v: Any) -> bool:
 SENSITIVE_ACTION_RE = re.compile(r"^(alarm_control_panel\.alarm_[a-z_]+|lock\.(lock|unlock|open)|siren\.[a-z_]+)$")
 SENSITIVE_CLASSES = ("alarm", "lock", "gate", "door", "garage", "siren")
 SENSITIVE_CLASS_LABEL = {"alarm": "אזעקה", "lock": "מנעול", "gate": "שער", "door": "דלת", "garage": "חניה", "siren": "צופר"}
-# the manual-control grant that guards each class (CR-014 section 4.4 mapped by the approved mockup): the same grant the device screen needs
+# INFORMATIONAL (the TS client's mapping): the strongest grant any action of a class may need. ENFORCEMENT is per ACTION (`GRANT_FOR` / `grant_for`, the same table S1's
+# automation_scope uses): only disarming (alarm.disarm), arming (alarm.arm) and lock.unlock (door.unlock) need a separate grant; lock.lock, sirens and door-class covers
+# need CONTROL of the entity only (`ha.entity.control` = no extra grant). The preview's `sensitive_steps[].grant` carries `grant_for`.
 GRANT_OF_CLASS = {"alarm": "alarm.disarm", "lock": "door.unlock", "gate": "door.unlock", "door": "door.unlock", "garage": "door.unlock", "siren": "ha.entity.control"}
 
 
@@ -153,9 +155,21 @@ def sensitive_class_of(action: str, entity_class: str | None = None) -> str | No
     return entity_class if entity_class in ("alarm", "lock", "siren") else None
 
 
+GRANT_FOR = {"alarm_control_panel.alarm_disarm": "alarm.disarm", "lock.unlock": "door.unlock"}
+
+
+def grant_for(action: str) -> str:
+    """The manual-control grant a SENSITIVE action needs on top of control of the entity (what enforcement checks): `alarm.disarm`, `alarm.arm`, `door.unlock`, else
+    `ha.entity.control` (control of the entity is enough)."""
+    if action in GRANT_FOR:
+        return GRANT_FOR[action]
+    if action.startswith("alarm_control_panel."):
+        return "alarm.arm"
+    return "ha.entity.control"
+
+
 def grant_of(action: str, entity_class: str | None = None) -> str | None:
-    cls = sensitive_class_of(action, entity_class)
-    return GRANT_OF_CLASS[cls] if cls else None
+    return grant_for(action) if sensitive_class_of(action, entity_class) else None
 
 
 # an alarm / lock / siren service, or (a cover service) a door-class cover by its `device_class`: what the bridge recognises on its own (config_policy.sensitive_required)
@@ -174,6 +188,18 @@ def sensitive_required(services: Iterable[str], entity_ids: Iterable[str], attri
                 attrs = attributes_of(e)
                 if attrs and attrs.get("device_class") in SENSITIVE_COVER_CLASSES:
                     return True
+    return False
+
+
+def scene_sensitive_required(entity_ids: Iterable[str], attributes_of: Any = None) -> bool:
+    """A scene that reproduces the state of a lock, or of a door-class cover, must be sent with `sensitive: true` (the bridge insists; same function, drift-tested)."""
+    for e in entity_ids:
+        if e.startswith("lock."):
+            return True
+        if e.startswith("cover.") and attributes_of:
+            attrs = attributes_of(e)
+            if attrs and attrs.get("device_class") in SENSITIVE_COVER_CLASSES:
+                return True
     return False
 
 

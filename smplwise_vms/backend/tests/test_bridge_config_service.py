@@ -434,3 +434,34 @@ def test_a_document_too_deep_to_serialise_is_refused_not_a_crash(fake):
     out = fake.bridge_config_item({"user_id": "u1", "op": "upsert", "request_id": "r", "kind": "automation", "item_id": NEWID, "base_revision": None, "profile": "builder",
                                    "config": {"id": NEWID, "variables": deep}, "preserved": [], "sensitive": False, "ts": int(__import__("time").time()), "nonce": "n", "sig": "s"}, SECRET)
     assert out["ok"] is False and out["error"] == "bad_signature" and fake.file_item("automation", NEWID) is None
+
+
+# ---------------------------------------------------------------- review: delete by a delegated user, allowed_notify, a hidden target
+
+def test_a_delegated_user_cannot_delete_an_item_with_admin_authored_content_but_an_admin_can(fake):
+    templ = fake.file_item("automation", "1727700000007")  # a template trigger and a template target
+    rev = am.revision_of(templ)
+    out = send(fake, "delete", item_id="1727700000007", base_revision=rev, profile="builder", is_admin=False, delegated=True)
+    assert out["ok"] is False and out["error"] == "not_ha_admin" and fake.file_item("automation", "1727700000007") is not None
+    assert fake.bridge_hass().calls == []
+    custom = fake.file_item("automation", "1727700000008")  # a scheduler.* custom service
+    assert send(fake, "delete", item_id="1727700000008", base_revision=am.revision_of(custom), profile="builder", is_admin=False, delegated=True)["error"] == "not_ha_admin"
+    assert send(fake, "delete", item_id="1727700000007", base_revision=rev, profile="builder", is_admin=True)["ok"] is True
+    plain = fake.file_item("automation", "1727700000002")
+    assert send(fake, "delete", item_id="1727700000002", base_revision=am.revision_of(plain), profile="builder", is_admin=False, delegated=True)["ok"] is True
+
+
+def test_the_signed_allowed_notify_list_is_enforced_by_the_bridge(fake):
+    cfg = new_auto(actions=[{"action": "notify.other", "data": {"message": "m"}}])
+    out = upsert(fake, cfg, allowed_notify=["notify.mobile_app_yoni"])
+    assert out["ok"] is False and out["error"] == "service_not_allowed" and out["path"] == "actions[0]"
+    assert upsert(fake, new_auto(actions=[{"action": "notify.mobile_app_yoni", "data": {"message": "m"}}]), allowed_notify=["notify.mobile_app_yoni"])["ok"] is True
+
+
+def test_a_step_hiding_an_out_of_scope_target_is_refused_for_a_delegated_user(fake):
+    both = {"action": "climate.turn_off", "target": {"entity_id": ["climate.bed"]}, "entity_id": "climate.salon"}
+    cfg = new_auto(actions=[both])
+    out = upsert(fake, cfg, is_admin=False, delegated=True, allowed={"climate.bed"})
+    assert out["ok"] is False and out["error"] == "preserved_mismatch" and fake.file_item("automation", NEWID) is None
+    # as a CODE save by an administrator it is accepted (an administrator may write what HA's editor lets him)
+    assert upsert(fake, cfg, profile="code")["ok"] is True
