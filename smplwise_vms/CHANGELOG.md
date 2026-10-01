@@ -1,5 +1,51 @@
 # Changelog — SmplWise Arx add-on
 
+## 0.1.151 (pilot) — A notification centre, administrators reach the system remotely by default, WebRTC for every stream, the speakers tab, timeline colours
+**After the update no restart of the platform is needed** (the bridge integration stays 0.5.0). Migrations 0045-0047 are applied on the first start. Reload the installed web app once so the new service worker takes over.
+### Notifications (CR-018) — the bell in the user menu, and הגדרות › התראות
+- **A notification centre**: every alert in one place, with read / unread, "snooze for an hour" / "until morning", and acknowledge.
+- **The sources**: leaks, smoke, gas and CO, the alarm, a door or window left open, a camera or the NVR going offline, system faults and backups.
+- **Push** to the installed web app of each person (lock-screen text is the administrator's choice), **quiet hours** (severity x channel), **escalation** of an unacknowledged critical alert, an **e-mail** channel (SMTP, certificate verified; "לא מוגדר" until a server is entered).
+- **The administrator's tab "התראות"** (new permission `notify.manage`, held by system administrators): sources and who is told, quiet hours, escalation, e-mail, the delivery log.
+- Hardening from the security reviews: a locked-out user does not receive the lockout alert meant for the administrators, saved notification settings survive a restore of an older backup, and the action routes are throttled.
+### Video
+- **WebRTC is tried for every stream (owner report, Hoffnung)**: the NVR check marked H.265 and H.264+SVC streams "cannot play over WebRTC" on the codec name alone, so with the installation on "WebRTC only" the remote player never tried 9 of 12 main streams. Measured from a desktop browser outside that network, all of them decode over WebRTC (2560x1440 SVC and H.265 up to 4256x1888). Now only MJPEG and H.264 with B-frames are skipped; the rest are tried and fall back on the measured failure. The "change the NVR settings" warnings no longer claim these streams cannot play.
+- **A video connection test** (הגדרות › גישה מרחוק › "בדיקת חיבור וידאו", administrators): runs a WebRTC connection to a chosen camera from the browser you are on and prints a copyable report - ICE states, candidate types (never addresses), the selected pair, the network type, frames decoded - to find out why a phone does not connect.
+- **The stream notes are hidden by default**: the banner "WebRTC לא זמין לזרם הזה…" and the grey hints under a camera appear only when הגדרות › וידאו ומדיה › "הודעות על אופן ההזרמה" is on. The badge keeps the same text as its tooltip.
+- **Timeline colours**: הגדרות › וידאו ומדיה › "צבעי ציר הזמן" (a colour for recording, motion, person, vehicle, door, line and offline) and two settings that hide the technical text on the recording screen.
+### Multimedia
+- **The "נגנים ורמקולים" and "קבוצות" tabs now appear when you enter the section** (the first page, "מסכים"): they were offered only after opening the players page by its address, so approved speakers seemed to be missing.
+- **No "ללא שיוך" heading over a lone group of screens**; in an installation without floors the no-floor group of a floor grouping is called "ללא קומה".
+### Remote access (CR-008, amendment A1)
+- **Administrators may sign in remotely by default**: the setting `remote.admins_default` (הגדרות › גישה מרחוק). Turn it off there if you do not want it.
+### Plans
+- **"בקשה לאדריכל"**: when a floor has no plan, the setup wizard, the floors list, the plan editor and the import screen offer a ready-made request text.
+### How to turn it on and use it (English)
+1. No restart is needed. After the update reload the installed web app once.
+2. **Notifications**: tap the bell in the user menu; to receive push on a phone or computer open הגדרות › התראות and register the device. Administrators configure the sources, quiet hours, escalation and e-mail in the same place.
+3. **WebRTC**: nothing to do. If a stream still fails on a phone, set הגדרות › וידאו ומדיה to "אוטומטי" so the player falls back to MSE.
+4. **Stream notes**: הגדרות › וידאו ומדיה › "הודעות על אופן ההזרמה" (off by default).
+5. **Remote administrators / timeline colours / request for the architect**: the settings named above; the request is in the setup wizard (floor step) and on a floor without a plan.
+
+## עברית — 0.1.151: מרכז התראות · מנהלים מתחברים מרחוק כברירת מחדל · WebRTC לכל זרם · לשונית הרמקולים · צבעי ציר הזמן
+### מה חדש
+- **מרכז התראות** – כל ההתראות במקום אחד: נקרא / לא נקרא, "השתק לשעה" ו"עד הבוקר", ואישור. נפתח מהפעמון בתפריט המשתמש; בהגדרות לשונית "התראות" למנהלים (הרשאה חדשה `notify.manage`): מקורות ולמי להודיע, שעות שקט, הסלמה, דוא"ל (SMTP) ויומן שליחות. הודעות Push לאפליקציה המותקנת של כל אדם.
+- **WebRTC נוסה לכל זרם** – הבדיקה סימנה זרמי H.265 ו־H.264 עם SVC כ"לא מתנגנים ב־WebRTC" לפי שם הקודק בלבד, ולכן כשההתקנה על "WebRTC בלבד" הנגן המרוחק לא ניסה 9 מתוך 12 זרמים ראשיים (הופנונג). נמדד מדפדפן מחוץ לרשת: כולם מתפענחים. עכשיו מדלגים רק על MJPEG ועל H.264 עם B-frames; השאר נוסים ונופלים רק על כשל מדוד. האזהרות "שנה בהגדרות ה־NVR" כבר לא מופיעות על זרמים כאלה.
+- **בדיקת חיבור וידאו** (הגדרות › גישה מרחוק, למנהלים): מריצה חיבור WebRTC למצלמה שנבחרה מהדפדפן שבו אתה נמצא ומציגה דוח להעתקה – מצבי ICE, סוגי מועמדים (בלי כתובות), הזוג שנבחר, סוג הרשת וכמה פריימים פוענחו – כדי להבין למה נייד לא מתחבר.
+- **הערות ההזרמה מוסתרות כברירת מחדל** – הבאנר "WebRTC לא זמין לזרם הזה…" ושורות הרמז מתחת למצלמה מופיעים רק כשההגדרה "הודעות על אופן ההזרמה" דלוקה (הגדרות › וידאו ומדיה).
+- **צבעי ציר הזמן** והסתרת הטקסט הטכני במסך ההקלטה (הגדרות › וידאו ומדיה).
+- **מנהלים מתחברים מרחוק כברירת מחדל** (`remote.admins_default`, הגדרות › גישה מרחוק; אפשר לכבות).
+- **"בקשה לאדריכל"** – כשלקומה אין תוכנית: נוסח בקשה מוכן באשף ההתקנה, ברשימת הקומות, בעורך התוכנית ובמסך הייבוא.
+### תיקונים
+- **לשוניות "נגנים ורמקולים" ו"קבוצות" מופיעות עכשיו כבר בכניסה לאזור** (במסך "מסכים"); קודם הן הופיעו רק אחרי כניסה לדף הנגנים בכתובת ישירה, ולכן נראה שרמקולים שאושרו לא נוספו.
+- **בלי כותרת "ללא שיוך" מעל קבוצת מסכים יחידה**; באתר בלי קומות הקבוצה נקראת "ללא קומה" בקיבוץ לפי קומה.
+- **הקשחה** (מסקירות אבטחה): משתמש נעול לא מקבל את התראת הנעילה של המנהלים, הגדרות ההתראות שורדות שחזור גיבוי ישן, ופעולות ההתראות מוגבלות בקצב.
+### איך מפעילים ומשתמשים
+1. אין צורך בהפעלה מחדש. אחרי העדכון טען מחדש את האפליקציה המותקנת פעם אחת.
+2. **התראות**: הפעמון בתפריט המשתמש; לקבלת Push רשום את המכשיר בהגדרות › התראות.
+3. **WebRTC**: אין מה לעשות. אם זרם עדיין נכשל בטלפון, הגדר בהגדרות › וידאו ומדיה "אוטומטי" והנגן יעבור ל־MSE.
+4. **הערות ההזרמה**: הגדרות › וידאו ומדיה › "הודעות על אופן ההזרמה" (כבוי כברירת מחדל).
+
 ## 0.1.150 (pilot) — Multimedia, part 2: speakers, players and groups
 **After the update restart the platform once**: the bridge integration is 0.5.0 (player services and a read-only `media_query` service). Migration 0044 is applied on the first start.
 ### Speakers, players and groups (CR-016) — inside "מולטימדיה"
