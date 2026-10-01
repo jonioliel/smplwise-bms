@@ -269,6 +269,8 @@ class Mirror:
             st.update(last_sync_at=self.stamp(), last_error=None if any(r["status"] != "error" for r in results.values()) or not results else "fetch_failed")
             st["ha_version"] = ha_sync.STATE.ha_version or st.get("ha_version")
             self._save(c, st)
+            if reason == "connect":  # a new session: Home Assistant re-read configuration.yaml (where the include line lives)
+                self._maybe_clear_authoring_block(c)
         if changed:
             publish(["automation", "script", "scene"])
         return {"items": len(cands), "changed": changed}
@@ -442,17 +444,22 @@ class Mirror:
                     if feature_on(conn):
                         note_run_for_entity(conn, eid, event.get("time_fired") or self.stamp(), "event", self.now())
 
-    def _maybe_clear_authoring_block(self) -> None:
+    def _maybe_clear_authoring_block(self, conn: sqlite3.Connection | None = None) -> bool:
         """A write that never loaded blocks writing (`authoring_block`); a reload that Home Assistant announces a minute or more later is the administrator's fix
-        (the include line of the file), not the failed write's own."""
-        if self.db is None:
-            return
-        with self.db.connection(label="automations authoring block") as conn:
-            st = tr.mirror_state(conn)
+        (the include line of the file), not the failed write's own. The include line lives in configuration.yaml, which Home Assistant reads only at start, so a
+        new session (the pull of reason `connect`, i.e. Home Assistant or the add-on restarted) a minute or more later lifts the block too. A reload or a
+        reconnect inside that minute is the failed write's own reload and keeps the block. Returns whether the block was lifted."""
+        if conn is None and self.db is None:
+            return False
+        with self._use(conn) as c:
+            st = tr.mirror_state(c)
             at = _parse(st.get("authoring_block_at"))
             if st.get("authoring_block") and (at is None or (self.now() - at).total_seconds() >= AUTHORING_RETRY_S):
                 st["authoring_block"], st["authoring_block_at"] = None, None
-                self._save(conn, st)
+                self._save(c, st)
+                log.info("automations: the authoring block was lifted (a reload or a new session after %ss)", AUTHORING_RETRY_S)
+                return True
+        return False
 
     def on_entity_state(self, conn: sqlite3.Connection, row: dict[str, Any], old_state: dict[str, Any] | None) -> None:
         """An automation / script / scene state was mirrored (inside `handle_state_event`'s transaction: nothing here talks to HA). A new entity queues a fetch;

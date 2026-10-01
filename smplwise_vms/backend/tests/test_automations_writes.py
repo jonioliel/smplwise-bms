@@ -495,6 +495,26 @@ def test_an_item_that_never_loads_is_taken_out_again_and_authoring_is_blocked(au
     assert create_item(c, "automation", draft_of("אחרי התיקון")).status_code == 201
 
 
+def test_the_authoring_block_survives_its_own_reload_and_lifts_after_a_minute_on_a_new_session(autos_app):
+    """Owner OK 2026-10-01: recovery after 60 s. The failed write's own reload (and a reconnect inside the minute) keeps the block; the include line lives in
+    configuration.yaml, which Home Assistant reads at start, so a new session (pull reason `connect`) a minute or more later lifts it like a late reload does."""
+    app, s, c, fake, tr = autos_app
+    fake.include_loaded = False
+    assert create_item(c, "automation", draft_of("לא נטען")).status_code == 202
+    base = fake.now()
+    automations.MIRROR.clock = lambda: base + dt.timedelta(seconds=20)
+    automations.MIRROR.on_ha_event({"event": {"event_type": "automation_reloaded", "data": {}, "time_fired": fake.iso()}})
+    automations.MIRROR.pull(None, "connect")
+    assert c.get(f"{API}/automations/status").json()["write_block"] == "authoring_blocked", "inside the minute nothing lifts the block"
+    automations.MIRROR.clock = lambda: base + dt.timedelta(seconds=90)
+    automations.MIRROR.pull(None, "periodic")
+    assert c.get(f"{API}/automations/status").json()["write_block"] == "authoring_blocked", "the 10-minute pull is not a fix"
+    fake.include_loaded = True  # the administrator added the include line and restarted Home Assistant
+    automations.MIRROR.pull(None, "connect")
+    assert c.get(f"{API}/automations/status").json()["write_block"] is None
+    assert create_item(c, "automation", draft_of("אחרי ההפעלה מחדש")).status_code == 201
+
+
 def test_the_bridge_state_blocks_writes(autos_app):
     app, s, c, fake, tr = autos_app
     with app.state.db.connection() as conn:
