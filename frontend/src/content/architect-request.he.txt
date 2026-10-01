@@ -1,5 +1,3 @@
-<!-- Maintainers: everything after this comment is mirrored verbatim in frontend/src/content/architect-request.he.txt, the text the app shows in the "בקשה לאדריכל" dialog (setup wizard, plan editor, floors list, plan import). Edit both files together; frontend/tests/unit-architect-request.spec.ts fails when they drift. -->
-
 בקשה לתוכניות מהאדריכל – מערכת ניהול ובקרה (SmplWise Arx)
 
 שלום,
