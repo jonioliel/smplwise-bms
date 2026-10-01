@@ -5534,5 +5534,58 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "T102",
+    "title": "תזמונים (CR-014): מסך תזמונים מעל רכיב התזמונים, הרשאות, ביטול ושחזור, אימות חי במעבדה",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Schedules read model and writes (CR-014; docs/design/CR-014-scheduler.md, docs/architecture/SCHEDULER_API.md): mirror of the scheduler component's schedules through the platform, create / edit / copy / run now / enable-disable / delete with a 30-day trash and restore, only through the signed bridge schedule service; conditions (Shabbat/holiday presets), review list for schedules edited outside the product, the component's own switches hidden from ordinary devices, tiles and bulk actions; the feature is off until switched on in Settings > Schedules (schedules.enabled).",
+      "Schedules UI (CR-014 section on screens): the Schedules tab in the home area with list as cards / table / week view, the 24-hour week grid and from-to table editors, day view, phone timeline, templates and three-tap creation, run now, review list, settings page; operator-facing copy never names Home Assistant (UI_COPY_RULES).",
+      "Schedules permissions and safety (CR-014): schedule.view, schedule.manage, schedule.sensitive scoped per user or role; an editor may change a schedule only when their scope covers every device in it; alarm, lock and gate actions need the sensitive permission and an explicit confirmation; a panel code is never written to the component (an alarm action that needs a code cannot be scheduled); known limit recorded: direct edits inside the component bypass these permissions and are flagged external."
+    ],
+    "requirement_ids": [
+      "R214",
+      "R215",
+      "R216"
+    ],
+    "test_ids": [
+      "AT214",
+      "AT215",
+      "AT216"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "Writes to the scheduler component go through the signed bridge only; live write steps of the phase-0 checklist need the owner's step-by-step approval and run on the lab only. Opus review of the write path and of the permission scoping before live acceptance."
+    },
+    "deliverables": [
+      "docs/design/CR-014-scheduler.md and CR-014-scheduler-decisions-HE.md: design and the owner's decisions",
+      "docs/architecture/SCHEDULER_API.md (+ SCHEDULER_API_HE_NOTE.md): contract and phase-0 probes",
+      "docs/operations/SCHEDULER_PHASE0_CHECKLIST_HE.md and scripts/scheduler_phase0_probe.py",
+      "docs/user-guide/he/41-schedules_HE.md",
+      "Backend: migration 0039_schedules.sql, services/schedules.py, schedule_model.py, schedule_policy.py, schedule_ops.py, schedule_view.py, routers/schedules.py; bridge schedule_service.py (bridge 0.3.0)",
+      "Frontend: Schedules tab and editors (frontend/src/screens/schedule-*.ts, schedules-*.ts, components sw-schedule-*.ts)"
+    ],
+    "evidence": [
+      "Design: docs/design/CR-014-scheduler.md and the owner summary CR-014-scheduler-decisions-HE.md exist in the repository; the external schedules probe on two real systems is docs/research (commit db2a75d5).",
+      "Shipped as pilot 0.1.147, feature off by default (smplwise_vms/CHANGELOG.md, section 0.1.147): migration 0039, the Schedules tab, permissions schedule.view / schedule.manage / schedule.sensitive, bridge 0.3.0; settings page and user guide page 41 documented.",
+      "Test files present in the repository (this card registration did not run them): 21 backend files matching *schedul* under smplwise_vms/backend/tests and 6 frontend specs matching *schedul* under frontend/tests. No acceptance test is marked PASS in test_catalog.json: AT214-AT216 are NOT_RUN until a run is recorded against a commit.",
+      "Open: recorded live acceptance on the lab (phase-0 checklist write steps need the owner's approval); an alarm action that needs a panel code cannot be scheduled; direct edits inside the component bypass product permissions (flagged external).",
+      "2026-10-02: card registered retroactively by the cleanup task pilot/playback-cap-cleanup; CR-014 had no card before, only mentions in T100/T101."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]

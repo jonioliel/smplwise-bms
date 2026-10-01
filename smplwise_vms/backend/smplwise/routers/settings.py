@@ -15,7 +15,7 @@ from ..auth import current_principal, get_conn
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import area_row, home_config, home_screen, media_layout, mobile_options, nav_size, timeline_colors
+from ..services import area_row, home_config, home_screen, media_layout, mobile_options, nav_size, nvr_capacity, timeline_colors
 
 router = APIRouter()
 
@@ -403,7 +403,7 @@ class SettingsPatch(BaseModel):
     media_video_notices: str | None = Field(default=None, pattern="^(true|false)$", alias="media.video_notices")
     snapshots_max_age_s: int | None = Field(default=None, ge=5, le=3600, alias="snapshots.max_age_s")
     time_zone: str | None = Field(default=None, pattern=r"^[A-Za-z_]+(/[A-Za-z_\-+0-9]+)+$", alias="time.zone")
-    playback_max_sessions: int | None = Field(default=None, ge=1, le=16, alias="playback.max_sessions")
+    playback_max_sessions: int | None = Field(default=None, ge=1, le=128, alias="playback.max_sessions")
     playback_lease_s: int | None = Field(default=None, ge=60, le=3600, alias="playback.lease_s")
     exports_max_mb: int | None = Field(default=None, ge=50, le=20480, alias="exports.max_mb")
     exports_retention_days: int | None = Field(default=None, ge=1, le=365, alias="exports.retention_days")
@@ -508,9 +508,16 @@ class SettingsPatch(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+def _capacity_info(conn: sqlite3.Connection) -> dict[str, Any]:
+    """`nvr_channels` (None = unknown) and `warnings` ([{key, message}]): advisory only, a warning never blocks a save."""
+    channels = nvr_capacity.recorder_channels(conn)
+    text = nvr_capacity.playback_sessions_warning(int(get_setting(conn, "playback.max_sessions", DEFAULTS["playback.max_sessions"]) or DEFAULTS["playback.max_sessions"]), channels)
+    return {"nvr_channels": channels, "warnings": [{"key": "playback.max_sessions", "message": text}] if text else []}
+
+
 @router.get("/settings")
 def get_settings(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    return {"settings": read_settings(conn), "can_edit": authorize(conn, principal, "system.configure", INSTALLATION).allowed}
+    return {"settings": read_settings(conn), "can_edit": authorize(conn, principal, "system.configure", INSTALLATION).allowed, **_capacity_info(conn)}
 
 
 @router.patch("/settings")
@@ -623,4 +630,4 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         set_csp_enforce(changes["remote.csp_enforce"] == "true")
     audit(conn, actor=principal, action="settings.update", decision="allowed", resource_type="installation", resource_id="*",
           request_id=getattr(request.state, "correlation_id", None), details={**changes, "forced": True} if forced else changes)  # an override of the calendar-sensor check is on the record
-    return {"settings": read_settings(conn), "can_edit": True}
+    return {"settings": read_settings(conn), "can_edit": True, **_capacity_info(conn)}
