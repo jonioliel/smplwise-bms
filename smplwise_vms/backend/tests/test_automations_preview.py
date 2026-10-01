@@ -102,7 +102,7 @@ def test_a_scoped_caller_previews_only_what_they_may_see(autos_app):
     app, s, c, fake, tr = autos_app
     ids = seed_tree(c)
     place(c, ids["floor2"], "light.office")
-    grant(c, "omer", "צופה צר", ["automation.view", "devices.read", "entity.state.read"], [], "floor", ids["floor2"])
+    grant(c, "omer", "עורך צר", ["devices.read", "entity.state.read"], ["automation.manage"], "floor", ids["floor2"])
     out = pv(c, {"kind": "automation", "draft": draft_of("x", actions=[svc_block("climate.turn_off", ["climate.bedroom_1"])])}, OMER)
     assert out["effects"]["entities"][0] == {"entity_id": "climate.bedroom_1", "name": "climate.bedroom_1", "floor": None, "area": None, "from": None, "to": "off"}
     assert "Bedroom 1 AC" not in str(out), "a device outside the caller's reach is not named"

@@ -147,8 +147,9 @@ class W:
             require(self.conn, self.principal, perm, INSTALLATION)
 
     def require_view(self, kind: str) -> None:
+        """Seeing a kind needs the permission that goes with it (an automation: `automation.manage`; no view-only access): the audited 403 otherwise."""
         if not scope.holds_any(self.ctx, kind):
-            require(self.conn, self.principal, scope.VIEW, INSTALLATION)
+            require(self.conn, self.principal, scope.VIEW_PERMS[kind][0], INSTALLATION)
 
     def feature_on(self) -> None:
         if self.ctx.cfg["automations.enabled"] != "true":
@@ -1130,7 +1131,7 @@ def preview(w: W, kind: str, item_id: str | None, draft: dict[str, Any] | None, 
     """Always data: problems are returned, never raised (a well-formed body is always 200)."""
     w.feature_on()
     if not (w.ctx.access.anywhere(scope.MANAGE_OF[kind]) or scope.holds_any(w.ctx, kind)):
-        require(w.conn, w.principal, scope.VIEW, INSTALLATION)
+        require(w.conn, w.principal, scope.MANAGE_OF[kind], INSTALLATION)
     rate_limit(w.principal.user_id, "preview", w.ctx.limits["preview_per_min"])
     stored = None
     if item_id:

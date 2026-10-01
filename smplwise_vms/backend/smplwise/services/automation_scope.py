@@ -25,11 +25,13 @@ from . import automation_transport as tr
 from . import devices as dsvc
 from . import ha_scope
 
-VIEW, MANAGE, SCENE_MANAGE = "automation.view", "automation.manage", "scene.manage"
+MANAGE, SCENE_MANAGE = "automation.manage", "scene.manage"
 SCRIPT_RUN, SCRIPT_MANAGE, CODE_VIEW = "script.run", "script.manage", "automation.code_view"
 MANAGE_OF = {"automation": MANAGE, "script": SCRIPT_MANAGE, "scene": SCENE_MANAGE}
-VIEW_PERMS = {"automation": (VIEW, MANAGE), "script": (VIEW, SCRIPT_RUN, SCRIPT_MANAGE), "scene": (VIEW, SCENE_MANAGE)}
-PERMS = (VIEW, MANAGE, SCENE_MANAGE, SCRIPT_RUN, SCRIPT_MANAGE, CODE_VIEW, "devices.read", "entity.state.read", "ha.entity.control", "devices.control", "door.unlock",
+# owner decision 2026-10-01 (CR-017 1b): there is NO view-only access to automations - whoever may not edit and save them may not see them at all (list, detail, runs,
+# trace, versions, review, templates, catalog, trash, notifications). A scene or a script is seen by who may activate / run / manage it.
+VIEW_PERMS = {"automation": (MANAGE,), "script": (SCRIPT_RUN, SCRIPT_MANAGE), "scene": (SCENE_MANAGE,)}
+PERMS = (MANAGE, SCENE_MANAGE, SCRIPT_RUN, SCRIPT_MANAGE, CODE_VIEW, "devices.read", "entity.state.read", "ha.entity.control", "devices.control", "door.unlock",
          "alarm.view", "alarm.arm", "alarm.disarm", "system.configure")
 EFFECT_DEPTH = 3
 
@@ -278,7 +280,7 @@ class Ctx:
         caller works inside floors only (never both), `floors` = those floors (Arx floors; the placements decide which devices are in them - Home Assistant's own
         areas are never a scope), `areas` is always empty (kept for clients that read it)."""
         a = self.access
-        perms = (VIEW, MANAGE, SCENE_MANAGE, SCRIPT_RUN, SCRIPT_MANAGE)
+        perms = (MANAGE, SCENE_MANAGE, SCRIPT_RUN, SCRIPT_MANAGE)
         wide = any(a.wide(p) for p in perms)
         ids: set[str] = set()
         for p in perms:

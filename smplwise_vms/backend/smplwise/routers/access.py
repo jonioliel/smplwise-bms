@@ -96,12 +96,11 @@ PERMISSION_LABELS: dict[str, str] = {
     "schedule.manage": "ניהול תזמונים: יצירה, עריכה, הפעלה והשבתה, הרצה מיידית, מחיקה ושחזור",
     "schedule.sensitive": "תזמון פעולות רגישות: אזעקה, מנעולים, דלתות ושערים",
     # CR-017 (אוטומציות · סצנות · סקריפטים, owner decisions 2026-10-01): six permissions, all scoped like devices.control - by the placement of the
-    # item's TARGET entities (HA areas and floors are never a scope). automation.view reads automations, scenes and scripts (site_admin, system_admin);
+    # item's TARGET entities (HA areas and floors are never a scope). there is NO view-only permission (owner decision 2026-10-01): who may not edit and save automations does not see them at all (at most they activate scenes and run scripts they may);
     # automation.manage creates / edits / enables / disables / runs / deletes automations, scene.manage the scenes (capture, edit), script.manage the
     # scripts (all SENSITIVE: a custom role names them among its sensitive permissions); script.run runs scripts (not sensitive); automation.code_view is
     # the second side of the editor's "builder / code" toggle (SENSITIVE). A step that arms, disarms, unlocks, locks, sounds a siren or moves a door needs the
     # same grant manual control needs at that entity (owner decision 6ג) - there is no separate "sensitive content" permission.
-    "automation.view": "צפייה באוטומציות, סצנות וסקריפטים",
     "automation.manage": "יצירה, עריכה, הפעלה/השבתה, הרצה ומחיקה של אוטומציות",
     "scene.manage": "יצירה, צילום ועריכה של סצנות",
     "script.run": "הפעלת סקריפטים",

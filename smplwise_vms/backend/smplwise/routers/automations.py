@@ -201,7 +201,7 @@ def _require_any(conn: sqlite3.Connection, principal: Principal, perms: tuple[st
 def _view_gate_check(kind: str | None):
     def check(conn: sqlite3.Connection, principal: Principal) -> None:
         if kind is None:
-            _require_any(conn, principal, (scope.VIEW, scope.MANAGE, scope.SCENE_MANAGE, scope.SCRIPT_RUN, scope.SCRIPT_MANAGE), ("ha.entity.control", "devices.control"))
+            _require_any(conn, principal, (scope.MANAGE, scope.SCENE_MANAGE, scope.SCRIPT_RUN, scope.SCRIPT_MANAGE), ("ha.entity.control", "devices.control"))
         else:
             extra = ("ha.entity.control", "devices.control") if kind == "scene" else ()
             _require_any(conn, principal, scope.VIEW_PERMS[kind], extra)
@@ -244,8 +244,8 @@ def _fixed_gate(perms: tuple[str, ...], extra: tuple[str, ...] = ()):
 
 _auto_gate = _fixed_gate((scope.MANAGE,))
 _script_run_gate = _fixed_gate((scope.SCRIPT_RUN, scope.SCRIPT_MANAGE))
-_scene_gate = _fixed_gate((scope.VIEW, scope.SCENE_MANAGE), ("ha.entity.control", "devices.control"))
-_view_any_gate = _fixed_gate((scope.VIEW, scope.MANAGE, scope.SCENE_MANAGE, scope.SCRIPT_RUN, scope.SCRIPT_MANAGE), ("ha.entity.control", "devices.control"))
+_scene_gate = _fixed_gate((scope.SCENE_MANAGE,), ("ha.entity.control", "devices.control"))
+_view_any_gate = _fixed_gate((scope.MANAGE, scope.SCENE_MANAGE, scope.SCRIPT_RUN, scope.SCRIPT_MANAGE), ("ha.entity.control", "devices.control"))
 _scene_manage_gate = _fixed_gate((scope.SCENE_MANAGE,))
 _authoring_gate = _fixed_gate((scope.MANAGE, scope.SCENE_MANAGE, scope.SCRIPT_MANAGE))
 
@@ -254,10 +254,11 @@ _authoring_gate = _fixed_gate((scope.MANAGE, scope.SCENE_MANAGE, scope.SCRIPT_MA
 
 @router.get("/automations/status")
 def automations_status(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """§3.1 row 1 - never 403: a caller without view gets `can.view = false` and zero counts."""
+    """§3.1 row 1 - never 403: a caller who may see nothing of the area gets `can.view = false` and zero counts; one who only runs scripts / activates scenes gets those
+    counts and capabilities alone (no automation count, no name)."""
     _bind(request)
     a = scope.Access(conn, principal)
-    if a.any_of((scope.VIEW, scope.MANAGE, scope.SCENE_MANAGE, scope.SCRIPT_RUN, scope.SCRIPT_MANAGE, "ha.entity.control", "devices.control")):
+    if a.any_of((scope.MANAGE, scope.SCENE_MANAGE, scope.SCRIPT_RUN, scope.SCRIPT_MANAGE, "ha.entity.control", "devices.control")):
         store.MIRROR.ensure(conn)
     return view.status_payload(conn, principal)
 
@@ -283,7 +284,7 @@ def templates(request: Request, principal: Principal = Depends(current_principal
 
 
 @router.get("/automations/trash")
-def list_trash(request: Request, principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_trash(request: Request, principal: Principal = Depends(_authoring_gate), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.1 row 20 - the trash the caller may see (30 days, setting `automations.trash_days`)."""
     return ops.trash_list(_writer(request, conn, principal))
 
@@ -301,7 +302,7 @@ def purge_trash(trash_id: str, request: Request, principal: Principal = Depends(
 
 
 @router.get("/automations/review")
-def review(request: Request, principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def review(request: Request, principal: Principal = Depends(_auto_gate), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.1 row 22 - the administrator's review list (installation-wide automation.manage)."""
     return runs.review(_ctx(request, conn, principal))
 
@@ -310,6 +311,8 @@ def review(request: Request, principal: Principal = Depends(_viewer), conn: sqli
 def preview(request: Request, principal: Principal = Depends(_view_any_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.1 row 6 - always 200 for a well-formed body; problems are data."""
     body = _parse(request, raw, PreviewBody)
+    if body.kind == "automation":
+        _manage_check_for("automation", conn, principal)  # no view-only access to automations (the audited 403)
     if (body.draft is None) == (body.config is None):
         raise ApiError(422, "validation", "יש לשלוח draft או config (בדיוק אחד).", details={"fields": ["draft", "config"]})
     w = _writer(request, conn, principal)
@@ -350,6 +353,8 @@ def list_items(
     category: str | None = Query(None, max_length=60), sort: Literal["last_run", "name", "updated"] = "last_run", limit: int = Query(200, ge=1, le=view.LIST_LIMIT_MAX), offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
     """§3.1 row 2 - visibility is applied before filters, totals and pagination."""
+    if kind is not None:
+        _view_gate_check(kind)(conn, principal)  # `?kind=automation` without automation.manage is the 403 (a list without `kind` simply leaves automations out)
     ctx = _ctx(request, conn, principal)
     filters = {"kind": kind, "q": q, "floor": floor, "area": area, "state": state, "sensitive": sensitive, "source": source, "mine": mine, "label": label, "category": category}
     return view.list_payload(ctx, filters, sort, limit, offset)
@@ -381,7 +386,7 @@ def update_code(kind: str, item_id: str, request: Request, principal: Principal 
 
 
 @router.put("/automations/{kind}/{item_id}/meta")
-def put_meta(kind: str, item_id: str, request: Request, principal: Principal = Depends(_view_any_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def put_meta(kind: str, item_id: str, request: Request, principal: Principal = Depends(_kind_viewer), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.1 row 21 - the caller's own pin / favourite; `hidden` (integration scenes) by an administrator."""
     kind = _kind(kind)
     body = _parse(request, raw, MetaBody)

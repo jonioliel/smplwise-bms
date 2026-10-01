@@ -111,7 +111,7 @@ S2 extends it with U-1…U-10 (read-only) and a separate, opt-in `--write-check`
 ### 4.1 Navigation and lists
 
 - Home area tabs (CR-014 pattern): **מבט על · תזמונים · אוטומציות**. Inside "אוטומציות" a segmented control: **אוטומציות ·
-  סצנות · סקריפטים**. Settings: a dedicated tab הגדרות › אוטומציות (§4.7). Tabs appear only to holders of `automation.view` (or
+  סצנות · סקריפטים**. Settings: a dedicated tab הגדרות › אוטומציות (§4.7). Tabs appear only to holders of `automation.manage` (or
   the run rights of §7). Optional (setting `automations.ask_when_on_new`, off by default): one "+ חדש" in the home area that asks
   "מתי?" — "בשעות קבועות" opens CR-014's create dialog, "כשמשהו קורה" opens the builder (§5).
 - List row / card: name (Hebrew alias), the one-line Hebrew sentence, floor/area chips of the targets, on/off toggle, last run
@@ -277,9 +277,15 @@ Decision 1ב: installers and administrators, **and household members who were gr
 their floors/areas** (the binding's scope). Decision 6ג: no separate "sensitive content" permission; sensitive steps use the
 grants manual control already uses.
 
+**Decision 1ב, clarified 2026-10-01 (supersedes the view-only model of the first draft): there is NO view-only permission.** `automation.view` is removed from the
+catalogue, the role presets and the defaults. A caller without `automation.manage` cannot reach automations at all: list, detail, runs, trace, versions, preview, dry-run,
+templates, catalog, review, trash and the automations' notifications (`automation.failed`, `automation.notify`) are 403 `forbidden` (a list without `?kind=` simply leaves
+automations out; `?kind=automation` is the 403, never an empty list). At most such a caller activates scenes (`scene.manage` or the control of a device) and runs scripts
+(`script.run` / `script.manage`) they may; the status then carries only those capabilities and counts (no automation count, no name). In the UI the "אוטומציות" segment and
+deep links to an automation are the normal forbidden state; the home tab appears for `automation.manage`, a script run or a scene activation.
+
 | Permission | Hebrew label | Default | Sensitive (not implied) |
 |---|---|---|---|
-| `automation.view` | צפייה באוטומציות, סצנות וסקריפטים | site_admin, system_admin | no |
 | `automation.manage` | יצירה, עריכה, הפעלה/השבתה, הרצה ומחיקה של אוטומציות | site_admin, system_admin | yes |
 | `scene.manage` | יצירה, צילום ועריכה של סצנות | site_admin, system_admin | yes |
 | `script.run` | הפעלת סקריפטים | site_admin, system_admin | no |
@@ -287,10 +293,10 @@ grants manual control already uses.
 | `automation.code_view` | תצוגת קוד בעורך (הצד השני של המתג "בונה · קוד") | site_admin, system_admin (setting `automations.code_view_roles`) | yes |
 
 - Scope primitive = CR-014 §4.2 (`ha_scope.entity_allowed`, placements; HA areas are never a scope). Family recipe (documented,
-  like "עורך תזמונים"): custom role "בני בית" = `automation.view` + `script.run` bound at their floors; "עורך אוטומציות" adds
-  `automation.manage` + `scene.manage` at the same floors. Saving by a household member who is not an HA admin also needs the
+  like "עורך תזמונים"): custom role "מפעיל סקריפטים" = `script.run` + the control of devices (activates scenes, runs scripts, sees no automation) bound at
+  their floors; "עורך אוטומציות" adds `automation.manage` + `scene.manage` at the same floors. Saving by a household member who is not an HA admin also needs the
   delegation switch (§8.3).
-- **Visibility**: an item is visible iff every **action target** entity is visible to the caller (view permission + `devices.read`
+- **Visibility**: an item is visible iff every **action target** entity is visible to the caller (the kind's permission - for an automation `automation.manage` - + `devices.read`
   or `entity.state.read` at the entity); with no typed target, by trigger entities; with neither (only locked/notify), only to
   installation-wide viewers. Trigger/condition entities outside scope never hide an item: shown by name, locked for that caller.
 - **Change**: the right permission at every target entity of the old and the new content + control there (`ha_scope.control_allowed`)

@@ -73,7 +73,7 @@ def test_purge_is_for_installation_wide_managers_and_trash_is_scoped(autos_app):
     app, s, c, fake, tr = autos_app
     ids = seed_tree(c)
     place(c, ids["floor2"], "climate.living_room", "light.office")
-    _g(c, "omer", "מנהל קומה", ["automation.view", "devices.read", "entity.state.read", "devices.control", "automation.manage"], "floor", ids["floor2"])
+    _g(c, "omer", "מנהל קומה", ["devices.read", "entity.state.read", "devices.control", "automation.manage"], "floor", ids["floor2"])
     tid = _del(c, get_item(c, "automation", item_by_name(c, "מזגן סלון בבוקר")["id"]).json())["trash_id"]
     other = _del(c, get_item(c, "automation", item_by_name(c, "כבוי כשאף אחד לא בבית")["id"]).json())["trash_id"]
     seen = [t["trash_id"] for t in c.get(f"{API}/automations/trash", headers=OMER).json()["items"]]
@@ -104,10 +104,12 @@ def test_who_sees_which_kind_and_integration_scenes_follow_control(autos_app):
     ids = seed_tree(c)
     _g(c, "omer", "מפעיל סקריפטים", ["script.run", "devices.read", "entity.state.read"], "installation", "*")
     st = c.get(f"{API}/automations/status", headers=OMER).json()
-    assert st["can"]["view"] is True and st["can"]["script_run"] is True and st["can"]["manage"] is False
+    assert st["can"]["view"] is True and st["can"]["script_run"] is True and st["can"]["manage"] is False and st["can"]["scene_run"] is False
     got = c.get(f"{API}/automations", params={"limit": 500}, headers=OMER).json()["items"]
     assert {i["kind"] for i in got} == {"script"} and len(got) == 2, "the alarm script needs alarm.view too"
-    assert c.get(f"{API}/automations", params={"kind": "automation"}, headers=OMER).json()["total"] == 0
+    assert st["counts"]["automations"] == 0 and st["counts"]["scenes"] == 0 and "admin" not in st, "a runner is told nothing about automations"
+    r = c.get(f"{API}/automations", params={"kind": "automation"}, headers=OMER)
+    assert r.status_code == 403 and r.json()["code"] == "forbidden", "an automation list is closed to a caller without automation.manage (not an empty list)"
     _g(c, "vera", "שליטה", ["ha.entity.control", "devices.read", "entity.state.read"], "installation", "*")
     vera = {"X-SW-Dev-User": "vera"}
     scenes = c.get(f"{API}/automations", params={"kind": "scene", "limit": 500}, headers=vera).json()["items"]

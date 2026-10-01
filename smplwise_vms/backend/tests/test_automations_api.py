@@ -19,7 +19,7 @@ def test_status_for_the_administrator_and_for_nobody(autos_app):
     app, s, c, fake, tr = autos_app
     st = c.get(f"{API}/automations/status").json()
     assert st["available"] == "ok" and st["writable"] is True and st["write_block"] is None and st["scheduler_present"] is False
-    assert st["can"] == {"view": True, "manage": True, "scene_manage": True, "script_run": True, "script_manage": True, "code_view": True, "configure": True}
+    assert st["can"] == {"view": True, "manage": True, "scene_manage": True, "script_run": True, "script_manage": True, "code_view": True, "configure": True, "scene_run": True}
     assert st["delegation"] == {"on": False, "needed": False}
     assert st["scope"] == {"installation": True, "scoped": False, "floors": [], "areas": []}
     assert st["ui"] == {"sensitive_warning": True, "ask_when_on_new": False, "templates_enabled": True, "phone_filter": "fold", "sensitive_chip": "amber"}

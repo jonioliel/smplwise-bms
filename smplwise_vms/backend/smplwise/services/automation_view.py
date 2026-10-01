@@ -388,7 +388,8 @@ def status_payload(conn: sqlite3.Connection, principal: Principal) -> dict[str, 
     cfg = ctx.cfg
     avail = tr.availability(conn, cfg)
     st = tr.mirror_state(conn)
-    can = {"view": a.any_of((scope.VIEW, scope.MANAGE, scope.SCENE_MANAGE, scope.SCRIPT_RUN, scope.SCRIPT_MANAGE)), "manage": a.anywhere(scope.MANAGE), "scene_manage": a.anywhere(scope.SCENE_MANAGE),
+    scene_run = a.any_of(("ha.entity.control", "devices.control"))
+    can = {"view": a.any_of((scope.MANAGE, scope.SCENE_MANAGE, scope.SCRIPT_RUN, scope.SCRIPT_MANAGE)) or scene_run, "scene_run": scene_run, "manage": a.anywhere(scope.MANAGE), "scene_manage": a.anywhere(scope.SCENE_MANAGE),
            "script_run": a.anywhere(scope.SCRIPT_RUN), "script_manage": a.anywhere(scope.SCRIPT_MANAGE), "code_view": ctx.code_view_allowed(),
            "configure": authorize(conn, principal, "system.configure", INSTALLATION).allowed}
     block = tr.write_block(conn, cfg)

@@ -235,7 +235,7 @@ def test_runs_of_an_item_the_caller_cannot_see_never_leave(autos_app):
     v = {"X-SW-Dev-User": "vera"}
     assert c.get(f"{API}/automations/automation/{it['id']}/runs", headers=v).status_code == 403
     ids = seed_tree(c)
-    grant(c, "omer", "צופה צר", ["automation.view", "devices.read", "entity.state.read"], [], "floor", ids["floor2"])
+    grant(c, "omer", "עורך צר", ["devices.read", "entity.state.read"], ["automation.manage"], "floor", ids["floor2"])
     assert c.get(f"{API}/automations/automation/{it['id']}/runs", headers=OMER).status_code == 404
     assert c.get(f"{API}/automations/automation/{it['id']}/runs/{run['run_id']}", headers=OMER).status_code == 404
 

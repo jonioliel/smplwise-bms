@@ -141,8 +141,8 @@ export interface AutomationsStatus {
   write_block: null | 'feature_disabled' | 'ha_unavailable' | 'bridge_missing' | 'bridge_unpaired' | 'bridge_too_old'
              | 'delegation_off' | 'authoring_blocked';
   scheduler_present: boolean;                    // CR §5 cross-link
-  can: { view: boolean; manage: boolean; scene_manage: boolean; script_run: boolean; script_manage: boolean;
-         code_view: boolean; configure: boolean };
+  can: { view: boolean /* sees ANY kind: manage, a script run or a scene activation - no view-only access to automations (owner decision 2026-10-01) */; manage: boolean;
+         scene_manage: boolean; script_run: boolean; script_manage: boolean; code_view: boolean; configure: boolean; scene_run: boolean /* control of a device */ };
   delegation: { on: boolean; needed: boolean };  // needed = the caller is not an HA admin (so saving depends on `on`)
   ui: { sensitive_warning: boolean; ask_when_on_new: boolean; templates_enabled: boolean };   // settings echoed for the client
   counts: { automations: number; scripts: number; scenes: number; running: number; attention: number; hidden: number | null };
@@ -183,11 +183,11 @@ present. Runs of items the caller cannot see are never returned.
 | # | Method | Path | Purpose | Auth (CR §7) |
 |---|---|---|---|---|
 | 1 | GET | `/automations/status` | availability, capabilities, `can`, counts | signed in; never 403 |
-| 2 | GET | `/automations` | list; query `kind`, `q` (≤ 80), `floor`, `area`, `state`, `sensitive`, `source`, `mine`, `label`, `category`, `sort` (`last_run`\|`name`\|`updated`), `limit` ≤ 500 | view (or script.run for scripts, control for scenes) |
-| 3 | GET | `/automations/{kind}/{id}` | `ItemDetail` | view + visible |
+| 2 | GET | `/automations` | list; query `kind`, `q` (≤ 80), `floor`, `area`, `state`, `sensitive`, `source`, `mine`, `label`, `category`, `sort` (`last_run`\|`name`\|`updated`), `limit` ≤ 500 | the kind's permission: `automation.manage` (`?kind=automation` without it = 403; a list without `kind` leaves automations out), `script.run`/`script.manage`, `scene.manage` or the control of a device |
+| 3 | GET | `/automations/{kind}/{id}` | `ItemDetail` | the kind's permission + visible (an automation: `automation.manage`; no view-only access) |
 | 4 | GET | `/automations/catalog` | pickable entities with their typed triggers/conditions/actions and argument specs; notify targets; scenes; scripts with fields | any authoring permission |
 | 5 | GET | `/automations/templates` | the gallery (CR §4.2.4), each with `target: 'automation' \| 'schedule'` | manage |
-| 6 | POST | `/automations/preview` | `{kind, id?, draft}` → `PreviewResult` (always 200 for a well-formed body) | view or manage |
+| 6 | POST | `/automations/preview` | `{kind, id?, draft}` → `PreviewResult` (always 200 for a well-formed body) | the kind's manage permission (an automation: `automation.manage`) |
 | 7 | POST | `/automations/{kind}` | create `{draft, enabled, confirm, client_request_id}` → 201 `{item, op_id}` | manage/scene.manage/script.manage + control (+ the manual-control grant per sensitive step) |
 | 8 | PUT | `/automations/{kind}/{id}` | replace `{draft, base_revision, confirm, client_request_id}` | edit (old AND new) |
 | 9 | PUT | `/automations/{kind}/{id}/code` | `{config, base_revision, confirm, client_request_id}` (full item JSON from the code view; the client renders YAML). The server parses it into blocks and derives the profile: all typed/preserved → `builder` (delegation applies); else `code` → HA admin | code_view (+ HA admin for a `code` profile save, checked by the bridge) |
@@ -198,11 +198,11 @@ present. Runs of items the caller cannot see are never returned.
 | 14 | POST | `/automations/script/{id}/run` · `/stop` | `{fields, confirm, client_request_id}` → 202 | script.run + effects control |
 | 15 | POST | `/automations/scene/{id}/apply` | `{confirm, client_request_id}` → 202 | control of members / scene entity |
 | 16 | POST | `/automations/scene/capture` | `{entity_ids}` → `{members: SceneMember[]}` (no write) | scene.manage + control |
-| 17 | POST | `/automations/{kind}/{id}/dry-run` | → `{conditions: [{sentence, passed\|null}], effects}` (no execution) | view |
-| 18 | GET | `/automations/{kind}/{id}/runs` · `/runs/{run_id}` | `RunSummary[]` · one `RunTrace` (full) | view + visible |
-| 19 | GET / POST | `/automations/{kind}/{id}/versions` · `/versions/{vid}/restore` | history (last `versions_keep`) · restore = upsert | view · edit |
-| 20 | GET / POST | `/automations/trash` · `/trash/{tid}/restore` · `/trash/{tid}/purge` | trash (`trash_days`) | view · create rules · installation-wide manage |
-| 21 | PUT | `/automations/{kind}/{id}/meta` | `{pinned?, favourite?, hidden?}` (Arx only; `hidden` for integration scenes by admins) | view (own prefs) / manage (hidden) |
+| 17 | POST | `/automations/{kind}/{id}/dry-run` | → `{conditions: [{sentence, passed\|null}], effects}` (no execution) | the kind's permission (an automation: `automation.manage`) |
+| 18 | GET | `/automations/{kind}/{id}/runs` · `/runs/{run_id}` | `RunSummary[]` · one `RunTrace` (full) | the kind's permission + visible |
+| 19 | GET / POST | `/automations/{kind}/{id}/versions` · `/versions/{vid}/restore` | history (last `versions_keep`) · restore = upsert | the kind's permission · edit |
+| 20 | GET / POST | `/automations/trash` · `/trash/{tid}/restore` · `/trash/{tid}/purge` | trash (`trash_days`) | any authoring permission (items of a kind the caller may not see are left out) · create rules · installation-wide manage |
+| 21 | PUT | `/automations/{kind}/{id}/meta` | `{pinned?, favourite?, hidden?}` (Arx only; `hidden` for integration scenes by admins) | the kind's permission (own prefs) / manage (hidden) |
 | 22 | GET | `/automations/review` | administrator list: sensitive external, storm, invalid, missing entities, owner lost rights, masked values, delegated writes | installation-wide manage |
 | 23 | GET / PUT | `/settings` keys (the הגדרות › אוטומציות tab, CR §4.7): `automations.enabled` (true), `.code_view_roles` (`["site_admin","system_admin"]`), `.trash_days` (30, 7-90), `.versions_keep` (20, 5-50), `.limits` (`{writes_per_min: 30, preview_per_min: 60, run_interval_s: 10, scene_apply_interval_s: 3, storm_item_per_min: 20, storm_total_per_min: 200}`), `.storm_auto_disable` (false), `.sensitive_warning` (true), `.templates_enabled` (true), `.templates_hidden` (`[]`), `.templates_order` (`[]`), `.notify_targets` (`[]`), `.ask_when_on_new` (false). Delegation is **not** a setting here (read-only state from the bridge) | `system.configure` |
 
@@ -415,7 +415,7 @@ Done: every typed block round-trips through the form unchanged when untouched (r
 1. **S2** → 2. **S1** → 3. **S3** → 4. **S4**, then the **Opus review of the write path** (automation_ops, automation_scope,
 automation_policy, the bridge's config_policy/config_store/delegation, ha_client) with fixes by S1/S2, then the live spec against
 the fake (4-6 h, coordinator), then phase 0 W-1/W-2 on the lab with the owner's approval, then the release round. Frontend branches
-work on the mock and are harmless early (the tab is gated on `automation.view`, which no role holds until S1).
+work on the mock and are harmless early (the tab is gated on `automation.manage`, a script run or a scene activation; there is no view-only permission).
 
 | Shared file | Sole editor |
 |---|---|

@@ -1,7 +1,8 @@
 """CR-017 permissions, scope and delegation (docs/architecture/AUTOMATIONS_API.md §3.2, CR §7-§9): visibility by TARGET entities (an invisible item is absent everywhere),
 floor-scoped editing that needs every target in scope plus control, the SAME grants manual control needs for a sensitive step (owner decision 6ג), the delegation switch
 for HA non-administrators (off by default; builder content only; the code profile always needs an HA administrator), the code-view roles, and the run rights.
-Roles are custom roles bound with a scope (the documented family recipe: `automation.view` + `script.run`; the editor adds sensitive `automation.manage` + `scene.manage`)."""
+Roles are custom roles bound with a scope (the documented family recipe, owner decision 2026-10-01: a RUNNER holds `script.run` + the control of devices and sees no automation at all - there is no view-only
+permission; an EDITOR adds sensitive `automation.manage` + `scene.manage`)."""
 from __future__ import annotations
 
 import copy
@@ -20,7 +21,7 @@ def grant(c, user, name, permissions, sensitive, scope_type, scope_id):
     return _raw_grant(c, user, name, [p for p in both if p not in _SENSITIVE], [p for p in both if p in _SENSITIVE], scope_type, scope_id)
 
 READ = ["devices.read", "entity.state.read"]
-VIEW = ["automation.view", "script.run"] + READ
+VIEW = ["script.run"] + READ  # a runner: scripts (and, with the control of a device, scenes) - never an automation
 EDIT_SENS = ["automation.manage", "scene.manage", "script.manage"]
 
 
@@ -51,12 +52,13 @@ def test_the_six_permissions_and_their_default_roles():
     from smplwise.rbac import ROLES
     from smplwise.routers.access import PERMISSION_LABELS, SENSITIVE
 
-    names = {"automation.view", "automation.manage", "scene.manage", "script.run", "script.manage", "automation.code_view"}
+    names = {"automation.manage", "scene.manage", "script.run", "script.manage", "automation.code_view"}
+    assert "automation.view" not in PERMISSION_LABELS and not any("automation.view" in perms for perms in ROLES.values()), "no view-only permission (owner decision 2026-10-01)"
     assert all(n in PERMISSION_LABELS for n in names) and PERMISSION_LABELS["script.run"] == "הפעלת סקריפטים"
     expect = {"viewer": set(), "editor": set(), "kiosk": set(), "operator": set(), "site_admin": names, "system_admin": names}
     for role_id, perms in expect.items():
         assert {p for p in ROLES[role_id] if p in names} == perms, role_id
-    assert {"automation.manage", "scene.manage", "script.manage", "automation.code_view"} <= set(SENSITIVE) and not ({"automation.view", "script.run"} & set(SENSITIVE))
+    assert {"automation.manage", "scene.manage", "script.manage", "automation.code_view"} <= set(SENSITIVE) and "script.run" not in SENSITIVE
     contract = json.loads((Path(__file__).resolve().parents[3] / "contracts" / "examples" / "role-catalog.design.json").read_text(encoding="utf-8"))
     for r in contract["roles"]:
         assert {p for p in r["permissions"] if p in names} == expect[r["id"]], r["id"]
@@ -70,7 +72,7 @@ def test_visibility_is_decided_by_target_entities_and_an_invisible_item_is_absen
     _scoped_world(c)
     with app.state.db.connection() as conn:
         floor_id = conn.execute("SELECT id FROM floors WHERE name = 'קומה 2'").fetchone()[0]
-    grant(c, "omer", "צופה באוטומציות", VIEW, [], "floor", floor_id)
+    _editor(c, floor_id, user="omer", name="עורך צר")  # a floor-scoped EDITOR: automation.manage is what shows automations, the floor narrows them
     got = _names(c, OMER)
     assert got == sorted(["תאורה בפרוזדור בתנועה", "מזגן סלון בבוקר", "מפסק מעבדה – הדלקה וכיבוי", "תבניות – התראת טמפרטורה", "כפתור קיר – תרחיש", "פריט בסכמה ישנה", "טריגר ייעודי", "אוטומציה מקובץ תצורה",
                           "התראה לטלפון", "שלבים מתקדמים", "מפתחות עליונים נוספים", "קירור עם פרמטרים", "ערב בסלון",
@@ -94,12 +96,12 @@ def test_visibility_is_decided_by_target_entities_and_an_invisible_item_is_absen
     assert not any(n.startswith("wall scene") for n in _names(c, OMER, kind="scene"))
 
 
-def test_a_scoped_viewer_sees_locked_blocks_and_no_raw_content(autos_app):
+def test_a_scoped_editor_without_the_code_view_sees_locked_blocks_and_no_raw_content(autos_app):
     app, s, c, fake, tr = autos_app
     _scoped_world(c)
     with app.state.db.connection() as conn:
         floor_id = conn.execute("SELECT id FROM floors WHERE name = 'קומה 2'").fetchone()[0]
-    grant(c, "omer", "צופה באוטומציות", VIEW, [], "floor", floor_id)
+    _editor(c, floor_id, user="omer", name="עורך צר")
     tpl = item_by_name(c, "תבניות – התראת טמפרטורה", headers=OMER)
     d = get_item(c, "automation", tpl["id"], OMER).json()
     assert d["can"]["code_view"] is False and d["config"] is None and d["can"]["edit"] is False and d["read_only"]["reasons"]
@@ -260,15 +262,16 @@ def test_script_run_and_scene_activation_follow_control_of_the_effects(autos_app
     ids = seed_tree(c)
     place(c, ids["floor2"], "climate.living_room", "light.office", "switch.hall_lights")
     grant(c, "omer", "בן בית", VIEW + ["devices.control"], [], "floor", ids["floor2"])
+    one_id = item_by_name(c, "תאורה בפרוזדור בתנועה")["id"]  # the administrator's view of it: the runner is not shown it at all
     sc = item_by_name(c, "קירור עם פרמטרים", headers=OMER)
     r = c.post(f"{API}/automations/script/{sc['id']}/run", json={"client_request_id": rid(), "fields": {"temp": 22}}, headers=OMER)
     assert r.status_code == 202 and fake.calls[-1]["user_id"] == "dev-omer"
     native = item_by_name(c, "ערב בסלון", headers=OMER)
     assert c.post(f"{API}/automations/scene/{native['id']}/apply", json={"client_request_id": rid()}, headers=OMER).status_code == 202
     # no automation.manage: no run, no enable, no create
-    one = item_by_name(c, "תאורה בפרוזדור בתנועה", headers=OMER)
-    assert one["can"]["run"] is False and one["can"]["toggle"] is False
+    one = {"id": one_id}
     assert c.post(f"{API}/automations/automation/{one['id']}/run", json={"client_request_id": rid(), "confirm": True}, headers=OMER).status_code == 403
+    assert c.post(f"{API}/automations/automation/{one['id']}/disable", json={"client_request_id": rid()}, headers=OMER).status_code == 403
     assert create_item(c, "automation", draft_of("x"), OMER).status_code == 403
     assert c.post(f"{API}/automations/scene", json={"draft": {"name": "x", "icon": None, "members": []}, "client_request_id": rid()}, headers=OMER).status_code == 403
     # without devices.control the script cannot be run
