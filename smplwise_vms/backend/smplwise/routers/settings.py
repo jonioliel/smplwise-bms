@@ -25,6 +25,10 @@ DEFAULTS: dict[str, str] = {
     "media.transport_default": "mse",
     "media.max_live_sessions": "16",
     "media.wall_profile": "sub",  # sub | main — profile used by the camera wall
+    # owner 2026-10-01: the notes the live player draws about HOW it plays (the banner "WebRTC לא זמין לזרם הזה · MSE דרך המנהרה", the
+    # remote-policy hint and the "מנגן דרך MSE" line). "false" (default) keeps the screen clean - the badge stays and carries the same
+    # text as its tooltip; "true" shows them (an installer chasing a transport problem).
+    "media.video_notices": "false",
     "snapshots.max_age_s": "60",
     # IANA zone of the site/NVR wall clock (chapter 20). The lab NVR reports windowsZone "Israel Standard Time".
     "time.zone": "Asia/Jerusalem",
@@ -375,6 +379,7 @@ class SettingsPatch(BaseModel):
     media_transport_default: str | None = Field(default=None, pattern="^(auto|webrtc|mse)$", alias="media.transport_default")
     media_max_live_sessions: int | None = Field(default=None, ge=1, le=32, alias="media.max_live_sessions")
     media_wall_profile: str | None = Field(default=None, pattern="^(sub|main)$", alias="media.wall_profile")
+    media_video_notices: str | None = Field(default=None, pattern="^(true|false)$", alias="media.video_notices")
     snapshots_max_age_s: int | None = Field(default=None, ge=5, le=3600, alias="snapshots.max_age_s")
     time_zone: str | None = Field(default=None, pattern=r"^[A-Za-z_]+(/[A-Za-z_\-+0-9]+)+$", alias="time.zone")
     playback_max_sessions: int | None = Field(default=None, ge=1, le=16, alias="playback.max_sessions")
