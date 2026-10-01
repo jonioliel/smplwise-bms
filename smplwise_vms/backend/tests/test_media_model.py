@@ -229,6 +229,18 @@ def test_the_android_pair_volume_set_comes_from_cast_and_keys_from_the_remote():
     assert lv["now"]["kind"] == "app" and lv["now"]["app_id"] == "netflix://" and lv["volume"] == {"level": 30, "muted": None, "target": "screen", "step_only": False}
 
 
+def test_a_receivers_own_integration_outranks_its_cast_copy_for_volume():
+    """An amplifier has no TV-brand integration: its native one (role "other") is its vendor - it steps the volume, the Cast copy may not.
+    A TV keeps the old order (the Android pair's Cast copy still owns volume_set)."""
+    avr = ent("media_player.avr", "denonavr", "d1", device_class="receiver", features=TURN_ON | TURN_OFF | VOLUME_SET | VOLUME_STEP | VOLUME_MUTE | SELECT_SOURCE | PLAY | PAUSE | STOP)
+    cast = ent("media_player.avr_cast", "cast", "d2", features=VOLUME_SET | VOLUME_MUTE | PLAY_MEDIA | PLAY | PAUSE | STOP, volume_level=0.4)
+    v = view_of([avr, cast], [dev("d1", macs=["AA:BB:CC:00:00:08"]), dev("d2", macs=["aa:bb:cc:00:00:08"])])
+    assert v.dev.kind == "receiver"
+    assert v.prim["volume"] == "media_player.avr" and v.prim["mute"] == "media_player.avr"
+    assert mm.step_endpoint(v.dev, v.ents, v.prim) == "media_player.avr"
+    assert mm.caps(v)["volume_step"] is True
+
+
 def test_an_android_remote_without_a_cast_copy_is_steps_only():
     v = view_of([ent("media_player.tv", "androidtv_remote", "d1", features=VOLUME_STEP | VOLUME_MUTE | TURN_ON | TURN_OFF, volume_level=0.5), ent("remote.tv", "androidtv_remote", "d1")])
     c = mm.caps(v)

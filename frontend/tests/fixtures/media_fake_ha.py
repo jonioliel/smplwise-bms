@@ -198,7 +198,7 @@ def build_world() -> dict[str, Any]:
         })
 
     def ssv(slug: str, friendly: str, area: str, mac: int, uuid_n: int, *, ent: str | None = None, source: str = "HDMI 1", volume: float = 0.3) -> tuple[str, str]:
-        d = device(f"ssv_{slug}", f"Samsung {slug} (synthetic)", "Samsung", "SYNTH-QE55", area, mac, ("samsungtv_smart", f"uuid:{_uuid(uuid_n)}"))
+        d = device(f"ssv_{slug}", friendly, "Samsung", "SYNTH-QE55", area, mac, ("samsungtv_smart", f"uuid:{_uuid(uuid_n)}"))
         base = ent or f"{slug}_tv"
         mp, rm = f"media_player.cr015_{base}", f"remote.cr015_{base}"
         entity(mp, "samsungtv_smart", d, "on", {
@@ -234,21 +234,21 @@ def build_world() -> dict[str, Any]:
     ssv("kitchen", "טלוויזיה מטבח", "cr015_kitchen", 2, 2, source="HDMI 1", volume=0.2)
 
     # ---- bedroom: LG with a turn-on automation
-    d = device("lg_bedroom", "LG bedroom (synthetic)", "LG", "SYNTH-OLED", "cr015_bedroom", 3, ("webostv", _uuid(3)))
+    d = device("lg_bedroom", "טלוויזיה חדר שינה", "LG", "SYNTH-OLED", "cr015_bedroom", 3, ("webostv", _uuid(3)))
     entity("media_player.cr015_bedroom_tv", "webostv", d, "on", {
         "friendly_name": "טלוויזיה חדר שינה", "device_class": "tv", "supported_features": LG_FEATURES | VOLUME_SET | TURN_ON, "volume_level": 0.25, "is_volume_muted": False,
         "source": "HDMI 2", "source_list": list(LG_SOURCES), "app_id": "com.webos.app.hdmi2", "sound_output": "tv_speaker", "ip_address": "192.0.2.13",
     }, unique_id="lg-bedroom-0001")
 
     # ---- hall: LG without a turn-on automation, external speaker
-    d = device("lg_hall", "LG hall (synthetic)", "LG", "SYNTH-OLED", "cr015_hall", 4, ("webostv", _uuid(4)))
+    d = device("lg_hall", "טלוויזיה מסדרון", "LG", "SYNTH-OLED", "cr015_hall", 4, ("webostv", _uuid(4)))
     entity("media_player.cr015_hall_tv", "webostv", d, "on", {
         "friendly_name": "טלוויזיה מסדרון", "device_class": "tv", "supported_features": LG_FEATURES, "volume_level": 0.5, "is_volume_muted": False, "source": "Live TV",
         "source_list": list(LG_SOURCES), "app_id": "com.webos.app.livetv", "media_content_type": "channel", "media_channel": "Channel 7", "sound_output": "external_arc", "ip_address": "192.0.2.14",
     }, unique_id="lg-hall-0001")
 
     # ---- office: Android TV Remote (remote + media_player on one device) + a Cast entity on another device (same MAC)
-    d = device("atv_office", "Android TV office (synthetic)", "Synthetic", "ATV-4K", "cr015_office", 5, ("androidtv_remote", _uuid(5)))
+    d = device("atv_office", "טלוויזיה משרד", "Synthetic", "ATV-4K", "cr015_office", 5, ("androidtv_remote", _uuid(5)))
     entity("remote.cr015_office_tv", "androidtv_remote", d, "on", {
         "friendly_name": "טלוויזיה משרד", "supported_features": ACTIVITY, "activity_list": list(ANDROID_ACTIVITIES), "current_activity": ANDROID_ACTIVITIES[0],
     }, unique_id="atv-office-remote")
@@ -263,7 +263,7 @@ def build_world() -> dict[str, Any]:
     })
 
     # ---- lobby: Cast only, a display (generic profile)
-    d = device("cast_lobby", "Cast lobby display", "Synthetic", "DISPLAY-43", "cr015_lobby", 6, ("cast", _uuid(6)))
+    d = device("cast_lobby", "מסך לובי", "Synthetic", "DISPLAY-43", "cr015_lobby", 6, ("cast", _uuid(6)))
     entity("media_player.cr015_lobby_display", "cast", d, "playing", {
         "friendly_name": "מסך לובי", "device_class": "tv", "supported_features": CAST_FEATURES, "app_name": "Dashboard", "media_title": "לוח מודעות לדוגמה", "media_content_type": "video",
         "volume_level": 0.2, "is_volume_muted": False,
@@ -273,7 +273,7 @@ def build_world() -> dict[str, Any]:
     stuck_mp, stuck_rm = ssv("lounge", "טלוויזיה פינת מנוחה", "cr015_lounge", 7, 8, ent="lounge_stuck", source="HDMI 2", volume=0.3)
 
     # ---- the living room amplifier (a receiver) with its own Cast entity on another device, same MAC
-    d = device("avr_living", "Amplifier living (synthetic)", "Synthetic", "AVR-X", "cr015_living", 8, ("denonavr", _uuid(9)))
+    d = device("avr_living", "מגבר סלון", "Synthetic", "AVR-X", "cr015_living", 8, ("denonavr", _uuid(9)))
     entity("media_player.cr015_avr_living", "denonavr", d, "on", {
         "friendly_name": "מגבר סלון", "device_class": "receiver", "supported_features": AVR_FEATURES, "volume_level": 0.4, "is_volume_muted": False, "source": "TV Audio",
         "source_list": list(AVR_SOURCES), "sound_mode": "Stereo", "sound_mode_list": ["Stereo", "Movie"],

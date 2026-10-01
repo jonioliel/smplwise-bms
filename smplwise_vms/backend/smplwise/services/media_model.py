@@ -502,7 +502,10 @@ def primaries(dev: DeviceModel, ents: dict[str, dict[str, Any]], profile: str, o
     casts = dev.by_role("cast", domain="media_player")
     remotes = dev.by_role("remote", domain="remote")
     android_remote = next((e for e in remotes if e.platform == "androidtv_remote"), remotes[0] if remotes else None)
-    chain = vendors + casts + others  # never the MA copies: MA shows only "External" for a TV
+    # never the MA copies: MA shows only "External" for a TV. A receiver / speaker / player has no brand integration of a TV's kind: its own
+    # integration (role "other": denonavr, yamaha, onkyo ...) is its vendor and outranks the Cast copy (it steps the volume, Cast may not)
+    native = others if dev.kind != "screen" else []
+    chain = vendors + native + casts + [e for e in others if e not in native]
 
     def first(pool: list[Endpoint], pred: Callable[[dict[str, Any] | None], bool] | None = None) -> str | None:
         for e in pool:
