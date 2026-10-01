@@ -206,6 +206,7 @@ class Hass:
 def fake_ha(monkeypatch):
     monkeypatch.setattr(svc, "_ha", lambda: SimpleNamespace(Context=lambda user_id=None: SimpleNamespace(user_id=user_id), platform_of=lambda hass, eid: PLATFORMS.get(eid) or ("sonos" if eid.startswith("media_player.sonos") else None)))
     svc._calls.clear()
+    svc._user_calls.clear()
 
 
 def ask(hass: Hass, query: str, verifier: Verifier | None = None, **fields: Any) -> dict[str, Any]:
@@ -297,3 +298,14 @@ def test_the_service_is_registered_with_response_and_removed_on_unload():
     src = (SRC / "__init__.py").read_text(encoding="utf-8")
     assert "SERVICE_MEDIA_QUERY" in src and "from .media_query_service import async_handle_media_query" in src and "supports_response=SupportsResponse.ONLY" in src
     assert "hass.services.async_remove(DOMAIN, SERVICE_MEDIA_QUERY)" in src
+
+
+def test_one_user_has_a_share_of_the_global_read_budget(monkeypatch):
+    """CR-016 review L3: a reader cannot drain the bridge's whole read budget; a refusal by the share takes no global slot."""
+    monkeypatch.setattr(svc, "RATE_MAX", 6)
+    monkeypatch.setattr(svc, "RATE_USER_MAX", 2)
+    assert [svc._rate_limited(0.0, "u1") for _ in range(4)] == [False, False, True, True]
+    assert [svc._rate_limited(0.0, "u2") for _ in range(3)] == [False, False, True]
+    assert len(svc._calls) == 4
+    assert svc._rate_limited(0.0) is False and svc._rate_limited(0.0) is False and svc._rate_limited(0.0) is True, "the global budget still applies"
+    assert svc._rate_limited(61.0, "u1") is False, "the window moves"
