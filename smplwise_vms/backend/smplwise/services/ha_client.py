@@ -233,6 +233,57 @@ def call_bridge_schedule(settings: Settings, payload: dict[str, Any], timeout: f
     return (body.get("service_response") or body) if isinstance(body, dict) else {}
 
 
+_CONFIG_KINDS = ("automation", "script", "scene")
+
+
+def get_config_item(settings: Settings, kind: str, config_id: str) -> tuple[int, Any]:
+    """GET /api/config/<automation|script|scene>/config/<id> (CR-017, read-only): (status, body). Home Assistant answers 200 with the stored item,
+    404 `{"message": "Resource not found"}` for an id that is not in the editor's file (a YAML-managed item) and 404 with a plain-text body when the
+    config component's view does not exist - the caller tells the last two apart by the body (None = not JSON). Never logs the item or the URL."""
+    if not configured(settings):
+        raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת (SUPERVISOR_TOKEN חסר).")
+    if kind not in _CONFIG_KINDS:
+        raise ValueError("unknown kind")
+    from urllib.parse import quote
+
+    try:
+        with httpx.Client(timeout=10) as c:
+            r = c.get(_rest_base(settings) + f"/config/{kind}/config/{quote(config_id, safe='')}", headers=_headers(settings))
+    except httpx.HTTPError as exc:
+        raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+    try:
+        body = r.json()
+    except ValueError:
+        body = None
+    return r.status_code, body
+
+
+def call_bridge_config_item(settings: Settings, payload: dict[str, Any], timeout: float = 15.0) -> dict[str, Any]:
+    """POST /api/services/smplwise_bridge/config_item?return_response (CR-017, bridge >= 0.6.0) - the only write path to automations, scripts and scenes:
+    the bridge verifies and re-judges the signed payload and, for a runtime op, calls the service with the caller's own Context. Never retried: a call
+    that timed out may have been applied (504 `config_timeout`, the operation is then recorded as unknown). Same envelope as call_bridge_execute."""
+    if not configured(settings):
+        raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
+    try:
+        with httpx.Client(timeout=timeout) as c:
+            r = c.post(_rest_base(settings) + "/services/smplwise_bridge/config_item?return_response", headers=_headers(settings), content=json.dumps(payload))
+    except httpx.TimeoutException as exc:
+        raise ApiError(504, "config_timeout", "תשתית המערכת לא ענתה בזמן; ייתכן שהשינוי נשמר. רעננו לפני ניסיון נוסף.", details={"error": type(exc).__name__}) from exc
+    except httpx.HTTPError as exc:
+        raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+    if r.status_code in (400, 404) and "not found" in r.text.lower():
+        raise ApiError(503, "bridge_too_old", "נדרש עדכון של רכיב החיבור כדי לשמור אוטומציות.", details={"status": r.status_code})
+    if r.status_code in (401, 403):
+        raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הקריאה.", details={"status": r.status_code})
+    if r.status_code >= 400:
+        raise ApiError(503, "bridge_error", "הגשר החזיר שגיאה.", retryable=False, details={"status": r.status_code})
+    try:
+        body = r.json()
+    except ValueError:
+        return {}
+    return (body.get("service_response") or body) if isinstance(body, dict) else {}
+
+
 STREAM_SOURCE_ANSWER_MAX = 8192  # bytes of the bridge's answer we are willing to read (a source is <= 2048 characters)
 
 

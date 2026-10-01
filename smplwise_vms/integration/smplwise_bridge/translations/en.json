@@ -26,7 +26,22 @@
       "single_instance_allowed": "Only one bridge can be configured."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Saving automations through SmplWise Arx",
+        "description": "Home Assistant lets only administrators write automations, scenes and scripts. When this switch is on, the SmplWise Arx add-on may save them for the household members it has granted that permission, for the floors they are limited to. Only content of the simple builder is saved for them; anything advanced still needs an administrator. Off by default; only an administrator can change it, here.",
+        "data": {
+          "delegated_authoring": "Let Arx save automations, scenes and scripts for users who are not administrators - simple-builder content only"
+        }
+      }
+    }
+  },
   "services": {
+    "config_item": {
+      "name": "Config item (SMPLWISE add-on only)",
+      "description": "Signed write to, or run of, one automation, script or scene on behalf of a VMS user. Not meant to be called from automations."
+    },
     "schedule": {
       "name": "Schedule (SMPLWISE add-on only)",
       "description": "Signed write to the Scheduler component on behalf of a VMS user. Not meant to be called from automations."

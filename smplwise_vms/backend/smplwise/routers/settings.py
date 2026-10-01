@@ -15,7 +15,7 @@ from ..auth import current_principal, get_conn
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import area_row, home_config, home_screen, media_layout, mobile_options, nav_size
+from ..services import area_row, automation_settings, home_config, home_screen, media_layout, mobile_options, nav_size
 
 router = APIRouter()
 
@@ -212,6 +212,9 @@ DEFAULTS: dict[str, str] = {
     # CR-016: the administrator's curation of the favourites / stations / playlists lists - one list for everyone (owner decision 5א). A JSON object
     # `{kinds_on, items: [{item_ref, hidden, order}], revision}`, read back as an object; written ONLY by PUT /multimedia/favourites (optimistic revision).
     "multimedia.favourites": "",
+    # CR-017 (אוטומציות · סצנות · סקריפטים, docs/architecture/AUTOMATIONS_API.md 3.1 row 23): every option of the feature, one settings tab. The JSON-valued
+    # keys are read back as objects / lists (services/automation_settings.py validates them). The bridge's delegation switch is NOT here: it is read-only state.
+    **automation_settings.DEFAULTS,
 }
 
 SCHEDULE_CLASSES = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door")
@@ -220,7 +223,7 @@ SCHEDULE_CLASSES = ("light", "switch", "cover", "climate", "fan", "alarm", "lock
 # frontend/src/styles/devices-themes.ts (docs/design/DEVICE_THEMES.md, "How to add a theme").
 DEVICE_THEMES = ("default", "sand", "forest", "graphite")
 
-INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days")
+INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", *automation_settings.INT_KEYS)
 
 
 def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -237,6 +240,8 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out["home.widgets"] = home_screen.effective_config(conn)
     out["multimedia.remote_default"] = _stored_remote_default(out["multimedia.remote_default"])
     out["multimedia.favourites"] = _stored_favourites(conn)
+    for key in (*automation_settings.JSON_KEYS, *automation_settings.ENUM_KEYS):
+        out[key] = automation_settings.stored(key, out[key])
     return out
 
 
@@ -474,6 +479,20 @@ class SettingsPatch(BaseModel):
     schedules_shabbat_sensor_force: bool | None = Field(default=None, alias="schedules.shabbat_sensor_force")  # an explicit override; never stored
     multimedia_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="multimedia.enabled")
     multimedia_remote_default: dict[str, Any] | None = Field(default=None, alias="multimedia.remote_default")  # validated in full by services/media_layout.py
+    automations_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="automations.enabled")
+    automations_code_view_roles: list[str] | None = Field(default=None, max_length=200, alias="automations.code_view_roles")
+    automations_trash_days: int | None = Field(default=None, ge=7, le=90, alias="automations.trash_days")
+    automations_versions_keep: int | None = Field(default=None, ge=5, le=50, alias="automations.versions_keep")
+    automations_limits: dict[str, Any] | None = Field(default=None, alias="automations.limits")
+    automations_storm_auto_disable: str | None = Field(default=None, pattern="^(true|false)$", alias="automations.storm_auto_disable")
+    automations_sensitive_warning: str | None = Field(default=None, pattern="^(true|false)$", alias="automations.sensitive_warning")
+    automations_templates_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="automations.templates_enabled")
+    automations_templates_hidden: list[str] | None = Field(default=None, max_length=200, alias="automations.templates_hidden")
+    automations_templates_order: list[str] | None = Field(default=None, max_length=200, alias="automations.templates_order")
+    automations_notify_targets: list[str] | None = Field(default=None, max_length=200, alias="automations.notify_targets")
+    automations_ask_when_on_new: str | None = Field(default=None, pattern="^(true|false)$", alias="automations.ask_when_on_new")
+    automations_phone_filter: str | None = Field(default=None, pattern="^(fold|rows)$", alias="automations.phone_filter")
+    automations_sensitive_chip: str | None = Field(default=None, pattern="^(amber|red)$", alias="automations.sensitive_chip")
 
     model_config = {"populate_by_name": True}
 
@@ -521,6 +540,12 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if bad:
             raise ApiError(422, "validation", "סוגי התקנים בתזמונים: ערך לא מוכר.", details={"schedules.classes": bad})
         changes["schedules.classes"] = [c for c in SCHEDULE_CLASSES if c in changes["schedules.classes"]]
+    for key in automation_settings.JSON_KEYS:  # CR-017: validated in full before anything is stored
+        if key in changes:
+            try:
+                changes[key] = automation_settings.normalize(key, changes[key])
+            except ValueError as exc:
+                raise ApiError(422, "validation", "הגדרות האוטומציות: ערך לא תקין.", details={key: str(exc)})
     if "multimedia.remote_default" in changes:
         try:
             changes["multimedia.remote_default"] = media_layout.normalise_remote_config(changes["multimedia.remote_default"])
@@ -577,11 +602,15 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if key == "home.widgets":
             set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value else "")
             continue
-        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.mobile", "schedules.classes", "devices.area_row", "devices.floor_row", "multimedia.remote_default") else str(value))
+        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.mobile", "schedules.classes", "devices.area_row", "devices.floor_row", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
     if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now
         from ..services import schedules as schedules_svc
 
         schedules_svc.MIRROR.feature_switched_on()
+    if changes.get("automations.enabled") == "true":  # CR-017: listen to the reload / run events and pull now
+        from ..services import automations as automations_svc
+
+        automations_svc.MIRROR.feature_switched_on()
     if "remote.csp_enforce" in changes:  # CR-008 P2: the remote channel's next response already follows
         from ..remote_channel import set_csp_enforce
 
