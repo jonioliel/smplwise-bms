@@ -114,6 +114,10 @@ PERMISSION_LABELS: dict[str, str] = {
     "media.public": "מסכים ציבוריים: החלפת מקור ואפליקציה והקלדה",
     "media.bulk": "כיבוי מרוכז של מסכים בקומה או באזור",
     "media.layout": "עריכת מסך המולטימדיה והשלט",
+    # CR-016 (נגנים, רמקולים וקבוצות): media.group (operator and above) joins and leaves rooms, sets a group's volume and starts a saved group - it also
+    # needs media.control at EVERY member's anchor; a group of four rooms or more, or one that spans more than one floor, needs a confirmation, and a
+    # group over the whole building needs media.bulk as well. Not sensitive. Saving a group (the presets) is media.layout.
+    "media.group": "קיבוץ רמקולים וקבוצות שמורות",
     "nvr.config.write": "כתיבה להגדרות ה־NVR",
     "nvr.config.events": "NVR: הפעלת התראות (Notify Surveillance Center) ולוחות זימון",
     "nvr.config.detection": "NVR: עריכת אזורי זיהוי תנועה ורגישות",

@@ -43,7 +43,8 @@
         "cases.manage",
         "media.read",
         "media.control",
-        "media.power"
+        "media.power",
+        "media.group"
       ]
     },
     {
@@ -105,7 +106,8 @@
         "media.power",
         "media.public",
         "media.bulk",
-        "media.layout"
+        "media.layout",
+        "media.group"
       ]
     },
     {
@@ -170,7 +172,8 @@
         "media.power",
         "media.public",
         "media.bulk",
-        "media.layout"
+        "media.layout",
+        "media.group"
       ]
     }
   ],

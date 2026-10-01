@@ -548,11 +548,24 @@ async def ha_ws(websocket: WebSocket) -> None:
                 # CR-015: only to a subscriber who sees the screen's anchor under media.read (contract 4: payload {device_key, entity_id, live})
                 if not ha_scope.entity_visible(mwide, mfloors, placements, msg["entity_id"]):
                     continue
-                payload = {k: v for k, v in msg.items() if k != "type" and (k != "entity_id" or madmin)}  # review L5: the anchor entity id only for system.configure
+                payload = {k: v for k, v in msg.items() if k not in ("type", "group_anchors") and (k != "entity_id" or madmin)}  # review L5: the anchor entity id only for system.configure
+                anchors, group = msg.get("group_anchors") or {}, (msg.get("live") or {}).get("group")
+                if anchors and group:
+                    # CR-016: a frame names the devices of its group by key - a subscriber is told only the ones it may read (the anchors are never sent)
+                    def _seen(k: str | None) -> bool:
+                        return bool(k) and ha_scope.entity_visible(mwide, mfloors, placements, anchors.get(k) or "")
+
+                    payload["live"] = {**payload["live"], "group": {**group, "leader_key": group["leader_key"] if _seen(group["leader_key"]) else None,
+                                                                    "member_keys": [k for k in group["member_keys"] if _seen(k)]}}
             elif msg.get("type") == "media_devices_changed":
                 if not mwide and not mfloors:
                     continue
                 payload = {"reason": msg.get("reason")}
+            elif msg.get("type") == "media_groups_changed":
+                # CR-016: a saved group or the favourites curation changed - no ids, only to a subscriber who holds media.read somewhere
+                if not mwide and not mfloors:
+                    continue
+                payload = {}
             seq += 1
             await websocket.send_text(json.dumps({"version": 1, "type": msg.get("type"), "sequence": seq, "subscription_id": principal.user_id, "occurred_at": now_iso(), "received_at": now_iso(), "payload": payload}, ensure_ascii=False, default=str))
     except Exception:
