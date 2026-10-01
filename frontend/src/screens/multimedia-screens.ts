@@ -118,15 +118,35 @@ export class MultimediaScreens extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 12px;
-      transition: background var(--mm-motion) var(--mm-ease), padding var(--mm-motion) var(--mm-ease), box-shadow var(--mm-motion);
     }
-    .dh.compact {
-      padding-block: 10px;
+    /* Compacting is purely visual: it never changes the header's height in the flow. A header that shrank at scrollTop ~60
+       moved every card under the finger (and, with the scroll clamped, fell back under the threshold and expanded again: the
+       list jumped back and forth on a phone). The bar is a layer of the measured height of the title row; what folds away
+       fades out in place and stops taking taps, and the cards slide under the transparent rest. */
+    .dh::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto 0;
+      block-size: var(--mm-bar-h, 64px);
+      z-index: -1;
+      opacity: 0;
+      pointer-events: none;
       background: var(--mm-sheen), var(--dv-surface);
       -webkit-backdrop-filter: var(--dv-surface-blur);
       backdrop-filter: var(--dv-surface-blur);
       border-block-end: 1px solid var(--dv-border);
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+      transition: opacity var(--mm-motion) var(--mm-ease);
+    }
+    .dh.compact {
+      pointer-events: none;
+    }
+    .dh.compact::before {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .dh.compact .dh-row > * {
+      pointer-events: auto;
     }
     .dh-row {
       display: flex;
@@ -233,14 +253,11 @@ export class MultimediaScreens extends LitElement {
       align-items: center;
       gap: 10px;
       flex-wrap: wrap;
-      max-block-size: 120px;
-      transition: max-height var(--mm-motion) var(--mm-ease), opacity var(--mm-motion);
+      transition: opacity var(--mm-motion), visibility var(--mm-motion);
     }
     .dh.compact .dh-det {
-      max-block-size: 0;
       opacity: 0;
-      overflow: hidden;
-      margin-block-end: -12px;
+      visibility: hidden;
       pointer-events: none;
     }
     .amb {
@@ -475,9 +492,6 @@ export class MultimediaScreens extends LitElement {
         padding-inline-end: 14px;
         gap: 10px;
       }
-      .dh.compact {
-        padding-block: 8px;
-      }
       .dh-row {
         display: grid;
         /* the third column keeps the row clear of the shell's floating search / status corner */
@@ -497,7 +511,9 @@ export class MultimediaScreens extends LitElement {
         padding-inline: 14px;
       }
       .dh.compact .rooms {
-        display: none;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
       }
       .amb {
         display: none;
@@ -597,6 +613,7 @@ export class MultimediaScreens extends LitElement {
   }
 
   protected updated() {
+    this.measureBar();
     // `?edit=1` (the user menu, or a link): entered once the data is there and this user may edit; dropped otherwise
     if (this.wantsEdit && !this.editHandled && this.phase === 'ready') {
       this.editHandled = true;
@@ -605,6 +622,17 @@ export class MultimediaScreens extends LitElement {
         else this.dropParam('edit');
       }
     }
+  }
+
+  /** The compact bar covers the title row only (see `.dh::before`): its height is measured, never guessed, and only written when it changed. */
+  private measureBar() {
+    const dh = this.renderRoot.querySelector<HTMLElement>('.dh');
+    if (!dh) return;
+    const top = dh.getBoundingClientRect().top;
+    let bottom = 0;
+    for (const el of dh.querySelectorAll<HTMLElement>(this.phone ? ':scope > .dh-row > h1, :scope > .dh-row > .flwrap' : ':scope > .dh-row > *')) bottom = Math.max(bottom, el.getBoundingClientRect().bottom - top);
+    const h = `${Math.ceil(bottom + (this.phone ? 8 : 10))}px`;
+    if (bottom && dh.style.getPropertyValue('--mm-bar-h') !== h) dh.style.setProperty('--mm-bar-h', h);
   }
 
   // ------------------------------------------------------------------------------------------------ data
