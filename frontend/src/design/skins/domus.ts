@@ -104,6 +104,43 @@ const tokens: TokenTable = {
 };
 
 const rules = `
+/* domus 1 - the canvas: warm and cool blooms the glass sits on */
+:host(sw-app) { background: var(--sw-canvas); }
+/* domus 2 - the rail is a floating glass panel 12px off the edges */
+:host(sw-app) nav.rail.rail { margin-block: 12px; margin-inline-start: 12px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-xl); background: var(--sw-glass-sheen), var(--sw-surface); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); }
+/* domus 3 - brand tile, rail items and the floating corner */
+:host(sw-app) .brand-tile { background: linear-gradient(145deg, var(--sw-accent), var(--sw-accent-hover)); border-radius: var(--sw-r-sm); }
+:host(sw-app) a.item.a { border-radius: var(--sw-r-md); }
+:host(sw-app) .float .pillrow, :host(sw-app) .searchpanel { background: var(--sw-glass-sheen), var(--sw-surface); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: var(--sw-shadow-2); }
+:host(sw-app) nav.bottom.bottom { background: var(--sw-glass-sheen), var(--sw-surface); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); border-block-start: 1px solid var(--sw-border); box-shadow: none; }
+/* domus 4 - glass panels: cards, KPI tiles, the home widgets, the floor cards, area tiles and the building tree */
+:host(sw-card), :host(sw-kpi), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(devices-building) nav.tree, :host(home-widgets) .wg { background: var(--sw-glass-sheen), var(--sw-surface); border-color: var(--sw-border); -webkit-backdrop-filter: var(--sw-glass-blur); backdrop-filter: var(--sw-glass-blur); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); }
+:host(sw-card[interactive]:hover), :host(devices-building) a.tile:hover { box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); transform: translateY(var(--sw-hover-lift)); }
+/* domus 5 - the building tree stays prominent: a taller panel, pill rows, the selected row filled */
+:host(devices-building) nav.tree { border-radius: var(--sw-r-lg); padding: 10px; gap: 3px; }
+:host(devices-building) .tree-row { border-radius: var(--sw-r-pill); padding-block: 8px; }
+:host(devices-building) .tree-row.selected { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
+/* domus 6 - controls: round buttons with an inner highlight, pill chips, soft inputs */
+:host(sw-button) button { border-radius: var(--sw-r-sm); min-block-size: 34px; box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); }
+:host(sw-button[variant='primary']) button { box-shadow: 0 6px 16px color-mix(in srgb, var(--sw-accent) 30%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.25); }
+:host(sw-button[variant='ghost']) button { box-shadow: none; }
+:host(sw-button[size='sm']) button { border-radius: var(--sw-r-sm); min-block-size: 30px; }
+:host(sw-chip) button { border-radius: var(--sw-r-pill); }
+::slotted(input), ::slotted(select), ::slotted(textarea) { background: var(--sw-surface-2); border-color: var(--sw-border-strong); border-radius: var(--sw-r-sm); }
+/* domus 7 - the switch and the segmented / tab rails */
+:host(sw-toggle) button::after { box-shadow: var(--sw-shadow-thumb); transition-timing-function: var(--sw-ease-thumb); }
+:host(sw-toggle[checked]) button { background: var(--sw-toggle-on); }
+:host(sw-tabs[data-variant='pill']) .row::before { border-radius: var(--sw-r-pill); }
+:host(sw-tabs[data-variant='pill']) .lbl { border-radius: var(--sw-r-pill); }
+:host(sw-tabs[data-variant='pill']) .on .lbl { background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-thumb); }
+/* domus 8 - floating layers are opaque enough to read, with a sheet blur behind */
+:host(sw-dialog) .box, :host(sw-popover), :host(sw-drawer) .panel { background: var(--sw-glass-sheen), var(--sw-surface-solid); border-color: var(--sw-border); -webkit-backdrop-filter: var(--sw-glass-blur-sheet); backdrop-filter: var(--sw-glass-blur-sheet); }
+:host(sw-dialog) .box { border-radius: var(--sw-r-xl); }
+/* domus 9 - tables and list rows: hairline rows, a soft hover */
+:host(sw-table) tbody tr:hover { background: var(--sw-surface-3); }
+:host(sw-table) th { font-weight: var(--sw-fw-semibold); letter-spacing: 0.02em; }
+:host(sw-kpi) .value { font-variant-numeric: tabular-nums; }
+:host(sw-page) h1 { font-weight: var(--sw-h1-weight); }
 `;
 
 export const domus: Skin = { id: 'domus', name: 'hi-tech Domus', nameHe: 'הייטק Domus', noteHe: 'זכוכית על רקע צבעוני, פינות עגולות, כותרות גדולות', tokens, rules };

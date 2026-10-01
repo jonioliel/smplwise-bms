@@ -67,12 +67,12 @@ export const TOKEN_GROUPS: TokenGroup[] = [
     id: 'accent',
     title: 'Accent and focus',
     tokens: {
-      '--sw-accent': lt('#2767ed', '#3f73ea'),
+      '--sw-accent': lt('#2767ed', '#3a6ce0'),
       '--sw-accent-hover': lt('#1f57d1', '#5a88f2'),
       '--sw-accent-soft': lt('#edf3ff', 'rgba(91, 140, 255, 0.18)'),
       '--sw-accent-text': lt('#2767ed', '#8fb2ff'),
       '--sw-focus': lt('#2767ed', '#7aa2ff'),
-      '--sw-nav': lt('#2868ef', '#3f73ea'),
+      '--sw-nav': lt('#2868ef', '#3a6ce0'),
     },
   },
   {
@@ -106,9 +106,9 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-unknown-text': lt('#6b7280', '#aab5c9'),
       '--sw-danger-text': lt('#b91c1c', '#ff8a82'),
       '--sw-warning-text': lt('#b45309', '#f5b043'),
-      '--sw-success-text': lt('#15803d', '#3ddc84'),
+      '--sw-success-text': lt('#16a34a', '#3ddc84'),
       '--sw-forbidden-text': lt('#b91c1c', '#ff8a82'),
-      '--sw-toggle-on': lt('#2767ed', '#3f73ea'),
+      '--sw-toggle-on': lt('#2767ed', '#3a6ce0'),
     },
   },
   {

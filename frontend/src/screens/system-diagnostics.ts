@@ -34,6 +34,7 @@ import type { AreaRowChange } from './area-row-editor';
 import './devices-bulk-safe-admin'; // owner 2026-09-30: הגדרות › חשמל והתקנים › פעולה קבוצתית
 import './system-tabs'; // owner 2026-09-30: הגדרות › כללי › לשוניות
 import './system-nav-size'; // UI round 1b: הגדרות › כללי › גודל הניווט
+import './system-design'; // design foundation: הגדרות › כללי › מראה המערכת (skin, light / dark)
 import './system-home-screen'; // home redesign: הגדרות › חשמל והתקנים › מסך ראשי
 import './system-mobile-options'; // owner 2026-09-30: הגדרות › כללי › אפשרויות נייד
 import { loadTree } from '../api/catalog';
@@ -662,6 +663,7 @@ export class SystemDiagnostics extends LitElement {
     const NVR = nvrLess();
     return html`<div class="sections">
       ${this.renderDesign()}
+      <system-design></system-design>
       <system-nav-size></system-nav-size>
       <system-mobile-options></system-mobile-options>
       <sw-card heading="זמן ומיקום">

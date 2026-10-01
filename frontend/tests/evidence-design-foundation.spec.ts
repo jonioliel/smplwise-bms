@@ -19,8 +19,10 @@ const SCHEMES = ['light', 'dark'] as const;
 const SCREENS = [
   { id: 'home', hash: '/devices' },
   { id: 'map', hash: '/explore/floors/f0' },
-  { id: 'settings', hash: '/system/diagnostics' },
+  { id: 'settings', hash: '/system/diagnostics?tab=devices' },
 ] as const;
+/** Matrix-only (the card is new, so there is no baseline from before the foundation): הגדרות › כללי with the skin picker. */
+const DESIGN_CARD = { id: 'design', hash: '/system/diagnostics' } as const;
 
 async function open(page: Page, hash: string, query = '') {
   await page.clock.setFixedTime(new Date('2026-10-01T13:00:00Z')); // the home clock and the weather strip must not move between runs
@@ -74,6 +76,63 @@ test.describe('design foundation', () => {
     await expect(page).toHaveScreenshot(`classic-dialog-${view(info)}.png`, { maxDiffPixels: 0, animations: 'disabled' });
   });
 
+  test.describe('the picker and the switch (demo mode: the installation is this browser)', () => {
+    const card = (page: Page) => page.locator('sw-app system-design');
+    const attr = (page: Page, a: string) => page.evaluate((n) => document.documentElement.getAttribute(n), a);
+
+    test('default is classic / light; an unknown ?skin= is ignored; ?skin= and ?scheme= override the page view only', async ({ page }) => {
+      await open(page, '/devices');
+      expect(await attr(page, 'data-skin')).toBe('classic');
+      expect(await attr(page, 'data-theme')).toBe('light');
+      await open(page, '/devices', '&skin=glass&scheme=night');
+      expect(await attr(page, 'data-skin')).toBe('classic');
+      expect(await attr(page, 'data-theme')).toBe('light');
+      await open(page, '/devices', '&skin=tesla&scheme=dark');
+      expect(await attr(page, 'data-skin')).toBe('tesla');
+      expect(await attr(page, 'data-theme')).toBe('dark');
+      expect(await page.evaluate(() => localStorage.getItem('sw.ui.design'))).toBeNull(); // nothing stored by the override
+    });
+
+    test('the picker: three skins with a swatch each; save applies skin and scheme at once and survives a reload; my own scheme wins and clears', async ({ page }, info) => {
+      test.skip(info.project.name === 'mobile', 'the picker is the same component on a phone; one width is enough here');
+      await open(page, '/system/diagnostics');
+      await expect(card(page).locator('[data-skin-option]')).toHaveCount(3);
+      await expect(card(page).locator('[data-skin-option="classic"] [data-skin-current]')).toBeVisible();
+      await expect(card(page).locator('[data-skin-option] .sw')).toHaveCount(3);
+      await expect(card(page).locator('[data-design-save]')).toHaveAttribute('disabled', ''); // nothing changed yet
+      await card(page).locator('[data-skin-option="domus"]').click();
+      await card(page).locator('[data-scheme-option="dark"]').click();
+      expect(await attr(page, 'data-skin')).toBe('classic'); // a choice is a draft until it is saved
+      await card(page).locator('[data-design-save]').click();
+      await expect(card(page).locator('[data-design-message]')).toBeVisible();
+      expect(await attr(page, 'data-skin')).toBe('domus');
+      expect(await attr(page, 'data-theme')).toBe('dark');
+      // the rules of the skin reached a shadow root: the rail is a floating glass panel
+      const radius = await page.locator('sw-app').evaluate((app) => getComputedStyle(app.shadowRoot!.querySelector('nav.rail')!).borderTopLeftRadius);
+      expect(parseFloat(radius)).toBeGreaterThan(20);
+      await page.reload();
+      await page.waitForSelector('sw-app');
+      expect(await attr(page, 'data-skin')).toBe('domus');
+      expect(await attr(page, 'data-theme')).toBe('dark');
+      // my own scheme: light here, whatever the installation says; "כמו המערכת" clears it
+      await open(page, '/system/diagnostics');
+      await card(page).locator('[data-own-scheme="light"]').click();
+      expect(await attr(page, 'data-theme')).toBe('light');
+      expect(await attr(page, 'data-skin')).toBe('domus');
+      await card(page).locator('[data-own-scheme="system"]').click();
+      expect(await attr(page, 'data-theme')).toBe('dark');
+    });
+
+    test('auto follows the operating system, live', async ({ page }, info) => {
+      test.skip(info.project.name === 'mobile', 'one width is enough');
+      await page.emulateMedia({ colorScheme: 'dark' });
+      await open(page, '/devices', '&scheme=auto');
+      expect(await attr(page, 'data-theme')).toBe('dark');
+      await page.emulateMedia({ colorScheme: 'light' });
+      await expect.poll(() => attr(page, 'data-theme')).toBe('light');
+    });
+  });
+
   test.describe('evidence matrix', () => {
     test.skip(!!process.env.SW_SHOTS_OFF, 'SW_SHOTS_OFF=1');
     for (const skin of SKINS) {
@@ -82,13 +141,19 @@ test.describe('design foundation', () => {
           test.skip(info.project.name === 'tablet', 'two widths are enough');
           fs.mkdirSync(EVIDENCE, { recursive: true });
           const q = `&skin=${skin}&scheme=${scheme}`;
-          for (const s of SCREENS) {
+          for (const s of [...SCREENS, DESIGN_CARD]) {
             await open(page, s.hash, q);
             if (skin !== 'classic' || scheme === 'dark') {
               await expect(page.locator('html')).toHaveAttribute('data-skin', skin);
               await expect(page.locator('html')).toHaveAttribute('data-theme', scheme);
             }
             await page.screenshot({ path: path.join(EVIDENCE, `${skin}-${scheme}-${s.id}-${view(info)}.png`) });
+            if (s.id === 'home' && view(info) === '390') {
+              // the phone's equivalent of the building tree panel: the floor cards carry every area row, count and the floor menu
+              await page.locator('devices-building').evaluate((el) => el.shadowRoot!.querySelector('section.fcard')!.scrollIntoView({ block: 'start' }));
+              await page.waitForTimeout(300);
+              await page.screenshot({ path: path.join(EVIDENCE, `${skin}-${scheme}-floors-390.png`) });
+            }
           }
           await open(page, '/devices', q);
           await openDialog(page);

@@ -105,6 +105,49 @@ const tokens: TokenTable = {
 };
 
 const rules = `
+/* tesla 1 - the rail is a flat column with a hairline; the brand mark is an outline; the active item is the heading colour */
+:host(sw-app) nav.rail.rail { background: var(--sw-bg); border-inline-end: 1px solid var(--sw-border); }
+:host(sw-app) .brand-tile { background: transparent; color: var(--sw-heading); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md); box-shadow: none; font-weight: 600; }
+:host(sw-app) a.item.a { border-radius: var(--sw-r-md); }
+:host(sw-app) a.item.a.active { background: transparent; color: var(--sw-heading); }
+:host(sw-app) a.item.a.active sw-icon { color: var(--sw-heading); }
+/* tesla 2 - the phone bar and the corner pill are flat too */
+:host(sw-app) nav.bottom.bottom { background: var(--sw-bg); box-shadow: none; border-block-start: 1px solid var(--sw-border); }
+:host(sw-app) nav.bottom.bottom a.active .ic { background: transparent; box-shadow: inset 0 -2px 0 var(--sw-accent); border-radius: 0; }
+:host(sw-app) .float .pillrow { border-radius: var(--sw-r-md); box-shadow: none; }
+:host(sw-app) .searchpanel { box-shadow: none; border-color: var(--sw-border-strong); }
+/* tesla 3 - the building tree: a ruled panel, the selected row marked by a 2px accent rule at its start edge */
+:host(devices-building) nav.tree { border-radius: var(--sw-r-lg); padding: 10px; }
+:host(devices-building) .tree-row { position: relative; border-radius: var(--sw-r-sm); padding-block: 8px; }
+:host(devices-building) .tree-row.selected { background: var(--sw-surface-3); color: var(--sw-heading); }
+:host(devices-building) .tree-row.selected::before { content: ''; position: absolute; inset-block: 6px; inset-inline-start: 0; inline-size: 2px; background: var(--sw-accent); }
+/* tesla 4 - titles in medium weight, big numerals */
+:host(sw-page) h1, :host(sw-card) h3, :host(sw-dialog) h3 { font-weight: var(--sw-fw-medium); }
+:host(sw-kpi) .value { font-weight: var(--sw-fw-medium); font-variant-numeric: tabular-nums; }
+/* tesla 5 - flat, outlined controls */
+:host(sw-button) button { border-radius: var(--sw-r-md); box-shadow: none; }
+:host(sw-button[variant='primary']) button { box-shadow: none; }
+:host(sw-button[variant='secondary']) button, :host(sw-button[variant='danger']) button { background: transparent; }
+:host(sw-chip) button { background: transparent; border-radius: var(--sw-r-md); box-shadow: none; }
+:host(sw-chip[selected]) button { background: var(--sw-text); border-color: var(--sw-text); color: var(--sw-text-inverse); }
+:host(sw-badge:not([onimage])) { background: transparent; border: 1px solid color-mix(in srgb, currentColor 45%, transparent); border-radius: var(--sw-r-md); }
+::slotted(input), ::slotted(select), ::slotted(textarea) { background: transparent; border-radius: var(--sw-r-sm); }
+/* tesla 6 - switch: an outlined track, the thumb in grey, accent when on */
+:host(sw-toggle) button { background: transparent; box-shadow: inset 0 0 0 1px var(--sw-border-strong); }
+:host(sw-toggle) button::after { background: var(--sw-text-2); box-shadow: none; }
+:host(sw-toggle[checked]) button { background: var(--sw-toggle-on); box-shadow: none; }
+:host(sw-toggle[checked]) button::after { background: #fff; }
+/* tesla 7 - the segmented control: outlined boxes, the selected segment inverted */
+:host(sw-tabs[data-variant='pill']) .row::before { background: transparent; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md); }
+:host(sw-tabs[data-variant='pill']) .lbl { border-radius: var(--sw-r-sm); }
+:host(sw-tabs[data-variant='pill']) .on .lbl { background: var(--sw-text); color: var(--sw-text-inverse); box-shadow: none; }
+/* tesla 8 - floating layers: a strong rule instead of a shadow */
+:host(sw-dialog) .box, :host(sw-popover), :host(sw-drawer) .panel { border: 1px solid var(--sw-border-strong); background: var(--sw-surface-solid); box-shadow: none; }
+/* tesla 9 - the home widgets lose their tint (the alarm's error tone keeps its colour) */
+:host(home-widgets) .wg-weather, :host(home-widgets) .wg-shabbat { background: var(--sw-surface); }
+/* tesla 10 - tables: ruled rows, small-caps headings */
+:host(sw-table) th { text-transform: uppercase; letter-spacing: 0.06em; font-size: var(--sw-fs-xs); }
+:host(sw-table) tbody tr:hover { background: var(--sw-surface-2); }
 `;
 
 export const tesla: Skin = { id: 'tesla', name: 'Tesla clean hi-tech', nameHe: 'הייטק נקי (Tesla)', noteHe: 'משטחים שטוחים, קווי 1px, פינות חדות, מבטא אחד', tokens, rules };
