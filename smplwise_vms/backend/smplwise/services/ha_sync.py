@@ -42,7 +42,7 @@ ATTR_ALLOW = {
     "current_position", "current_tilt_position", "temperature", "current_temperature", "target_temp_high", "target_temp_low", "hvac_modes",
     "hvac_action", "fan_mode", "preset_mode", "percentage", "battery_level", "battery", "occupancy", "motion", "contact", "door", "window",
     "locked", "code_format", "options", "min", "max", "step", "mode", "media_title", "volume_level", "is_volume_muted", "source", "last_triggered",
-    "restored", "assumed_state", "entity_picture_local", "editable", "power", "voltage", "current", "energy",
+    "restored", "assumed_state", "editable", "power", "voltage", "current", "energy",
     # CR-007 slice 2: what the devices-area controls offer (the modes an entity really has, its target range) and
     # the step an attribute confirmation must tolerate (a 3-speed fan lands on 33/67/100)
     "fan_modes", "min_temp", "max_temp", "target_temp_step", "percentage_step",
@@ -69,8 +69,8 @@ ATTR_ALLOW = {
     "next_trigger", "current_slot", "next_slot", "next_rising", "next_setting",
     # CR-015 (multimedia, MEDIA_API.md 11): what a screen card and the remote draw - the TV's sources and apps, what is playing, the
     # sound output, Samsung Frame's art mode, an Android remote's activities - and, for 0.1.150, MA's grouping facts. Never
-    # `ip_address`, never `entity_picture` (a tokenised HA proxy URL: kept server-side in memory for the artwork proxy only,
-    # services/media_store.note_picture).
+    # `ip_address`, never `entity_picture` / `entity_picture_local` (a tokenised HA proxy URL `/api/media_player_proxy/...?token=`: kept
+    # server-side in memory for the artwork proxy only, services/media_store.note_picture - CR-015 review M2).
     "source_list", "app_id", "app_name", "media_content_type", "media_channel", "media_duration", "media_position", "media_position_updated_at",
     "sound_output", "sound_mode", "art_mode_status", "activity_list", "current_activity", "group_members", "mass_player_type", "active_queue",
 }
@@ -168,8 +168,21 @@ def _media_list(raw: Any, longest: int) -> list[str]:
     return out
 
 
+SECRET_ATTRS = ("entity_picture", "entity_picture_local")
+
+
+def _tokenised(value: Any) -> bool:
+    """A string that carries a tokenised Home Assistant URL (`...?token=...`): never stored, never sent to a browser."""
+    return isinstance(value, str) and "token=" in value.lower()
+
+
+def scrub_attributes(attrs: dict[str, Any]) -> dict[str, Any]:
+    """The attributes without a picture URL or any value carrying an access token (rows stored before CR-015 review M2 may hold one)."""
+    return {k: v for k, v in attrs.items() if k not in SECRET_ATTRS and not _tokenised(v)}
+
+
 def trim_attributes(attrs: dict[str, Any]) -> str:
-    kept = {k: v for k, v in (attrs or {}).items() if k in ATTR_ALLOW}
+    kept = scrub_attributes({k: v for k, v in (attrs or {}).items() if k in ATTR_ALLOW})
     if "forecast" in kept:
         kept["forecast"] = trim_forecast(kept["forecast"])
     # CR-015: a TV's source / activity lists are far larger than the 4000-character budget of the other attributes and must reach
@@ -411,6 +424,8 @@ def entity_row(r: sqlite3.Row) -> dict[str, Any]:
         d["attributes"] = json.loads(d.pop("attributes_json") or "{}")
     except ValueError:
         d["attributes"] = {}
+    if isinstance(d["attributes"], dict):
+        d["attributes"] = scrub_attributes(d["attributes"])  # a row stored before CR-015 review M2 may still hold a tokenised picture URL
     d["disabled"] = bool(d["disabled"])
     d["hidden"] = bool(d["hidden"])
     d["available"] = bool(d["available"])

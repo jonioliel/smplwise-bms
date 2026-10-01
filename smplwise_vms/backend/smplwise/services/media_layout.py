@@ -175,3 +175,24 @@ def prune_keys(layout: dict[str, Any], gone: set[str]) -> dict[str, Any]:
     out["order"] = [k for k in out.get("order", []) if k not in gone]
     out["cards"] = {k: v for k, v in out.get("cards", {}).items() if k not in gone}
     return out
+
+
+def restrict_layout(layout: dict[str, Any], keys: set[str], floors: set[str]) -> dict[str, Any]:
+    """The installation layout reduced to the device keys and floor ids the reader may see (review L4): no key, floor id or card of a
+    screen outside the reader's scope is returned. The editor of the installation layout (`media.layout` at the installation) gets it whole
+    instead - a save replaces the whole layout, so a filtered copy would wipe the entries it cannot see."""
+    out = copy.deepcopy(layout)
+    out["floor_order"] = [f for f in out.get("floor_order", []) if f in floors]
+    out["pinned"] = [k for k in out.get("pinned", []) if k in keys]
+    out["order"] = [k for k in out.get("order", []) if k in keys]
+    out["cards"] = {k: v for k, v in out.get("cards", {}).items() if k in keys}
+    return out
+
+
+def restrict_personal(personal: dict[str, Any], keys: set[str]) -> dict[str, Any]:
+    """A personal override reduced to the device keys the reader may see."""
+    out = copy.deepcopy(personal)
+    if out.get("order") is not None:
+        out["order"] = [k for k in out["order"] if k in keys]
+    out["cards"] = {k: v for k, v in (out.get("cards") or {}).items() if k in keys}
+    return out

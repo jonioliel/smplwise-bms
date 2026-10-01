@@ -227,7 +227,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 state = hass.states.get(entity_id)
                 return dict(state.attributes) if state is not None else None
 
-            media_blocked = media_policy.refusal(domain, service, data, _attributes)
+            def _platform(entity_id: str) -> Any:  # the registry's platform of the entity (None when it is not registered)
+                entry = er.async_get(hass).async_get(entity_id)
+                return entry.platform if entry is not None else None
+
+            media_blocked = media_policy.refusal(domain, service, data, _attributes, _platform)
             if media_blocked:
                 _LOGGER.warning("smplwise_bridge.execute %s.%s refused: %s", domain, service, media_blocked)
                 return {"ok": False, "error": media_blocked}
