@@ -335,7 +335,15 @@ def facts_of(ctx: Ctx, kind: str, rd: dict[str, Any], *, entity_id: str | None =
                     if e not in f["targets"] and pol.ENTITY_RE.match(str(e)):
                         f["targets"].append(e)
             if b.get("sensitive"):
-                f["steps"].append({"path": w.path, "action": None, "entity_id": "", "role": "locked", "sens": "locked"})
+                raw = b.get("raw") if isinstance(b.get("raw"), dict) else {}
+                svc = raw.get("action") if raw.get("action") is not None else raw.get("service")
+                svc = svc if isinstance(svc, str) else None
+                literal = [e for e in b["effects"] if isinstance(e, str) and pol.ENTITY_RE.match(e)] if isinstance(b.get("effects"), list) else []
+                if literal:  # the targets are known: the same step per device as a typed one (same grant, same control, at each device)
+                    for e in literal:
+                        f["steps"].append({"path": w.path, "action": svc, "entity_id": e, "role": "device", "sens": (pol.sensitive_class_of(svc, ctx.entity_class(e)) if svc else None) or "locked"})
+                else:  # the targets are not known statically: the grant is needed installation-wide
+                    f["steps"].append({"path": w.path, "action": svc, "entity_id": "", "role": "locked", "sens": "locked"})
     return _finish(ctx, f, entity_id=entity_id, depth=depth, draft=d)
 
 
@@ -348,11 +356,12 @@ def _finish(ctx: Ctx, f: dict[str, Any], *, entity_id: str | None = None, depth:
         if eff is None:
             f["unknown_effects"] = True
             continue
-        targets, unknown = eff
+        targets, unknown, inner_steps = eff
         for e in targets:
             if e not in f["targets"]:
                 f["targets"].append(e)
         f["unknown_effects"] = f["unknown_effects"] or unknown
+        f["steps"].extend({**st, "via": ref["entity_id"]} for st in inner_steps if st.get("sens"))  # a sensitive step of a called script / scene is a sensitive step of the caller
     f["targets"] = [e for e in f["targets"] if e not in {r["entity_id"] for r in f["refs"]}]
     ctx.preload(f["targets"] + f["trigger_entities"] + f["condition_entities"])
     classes: list[str] = []
@@ -360,18 +369,19 @@ def _finish(ctx: Ctx, f: dict[str, Any], *, entity_id: str | None = None, depth:
         classes = model.sensitive_classes(draft, ctx.entity_class)
     else:  # a scene: the lock members
         classes = ["lock"] if any(s.get("sens") for s in f["steps"]) else []
-    f["sensitive_classes"] = classes
+    inner = {s["sens"] for s in f["steps"] if s.get("via") and s.get("sens") in pol.SENSITIVE_CLASSES}
+    f["sensitive_classes"] = [c for c in pol.SENSITIVE_CLASSES if c in set(classes) | inner]
     f["sensitive"] = bool(classes) or any(s.get("sens") for s in f["steps"])
     return f
 
 
-def effects_of_entity(ctx: Ctx, role: str, ref: str, depth: int, origin: str | None) -> tuple[list[str], bool] | None:
-    """(device entities, unknown effects) of the scene / script an entity id names, from the mirror's cache; None when it is not known."""
+def effects_of_entity(ctx: Ctx, role: str, ref: str, depth: int, origin: str | None) -> tuple[list[str], bool, list[dict[str, Any]]] | None:
+    """(device entities, unknown effects, sensitive steps) of the scene / script an entity id names, from the mirror's cache; None when it is not known."""
     if depth > EFFECT_DEPTH:
-        return [], True
+        return [], True, []
     row = ctx.conn.execute("SELECT kind, config_json, entity_id FROM ha_config_items WHERE entity_id = ?", (ref,)).fetchone()
     if row is None or row["entity_id"] == origin:
-        return None if row is None else ([], False)
+        return None if row is None else ([], False, [])
     try:
         cfg = json.loads(row["config_json"]) if row["config_json"] else None
     except ValueError:
@@ -380,11 +390,13 @@ def effects_of_entity(ctx: Ctx, role: str, ref: str, depth: int, origin: str | N
         info = ctx.entity(ref)
         members = (info or {}).get("attributes", {}).get("entity_id") if info else None
         if row["kind"] == "scene" and isinstance(members, list):
-            return [m for m in members if isinstance(m, str)], False
+            ids = [m for m in members if isinstance(m, str)]
+            # an integration scene has no config: a lock among its members is taken as an unlock (the cautious reading)
+            return ids, False, [{"path": "members", "action": "lock.unlock", "entity_id": m, "role": "device", "sens": "lock"} for m in ids if m.startswith("lock.")]
         return None
     rd = drafts.read(row["kind"], cfg, ctx.model_ctx(code_view=False, scoped=False))
     inner = facts_of(ctx, row["kind"], rd, entity_id=ref, depth=depth)
-    return inner["targets"], inner["unknown_effects"]
+    return inner["targets"], inner["unknown_effects"], inner["steps"]
 
 
 # ---------------------------------------------------------------- visibility
@@ -436,6 +448,13 @@ def grant_reasons(ctx: Ctx, steps: list[dict[str, Any]]) -> list[dict[str, Any]]
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
     for s in steps:
+        if s.get("sens") and s["role"] == "locked":  # a sensitive call whose targets are not known statically: the grant is needed installation-wide
+            action = s.get("action") or ""
+            perm = ("alarm.disarm" if action == "alarm_control_panel.alarm_disarm" else "alarm.arm") if action.startswith("alarm_control_panel.") else GRANT_FOR.get(action)
+            if perm and not a.wide(perm) and f"wide|{perm}" not in seen:
+                seen.add(f"wide|{perm}")
+                out.append(reason("grant_required", None, f"אין לך הרשאה ל{PERMISSION_LABELS[perm]} (פעולה רגישה שהיעד שלה אינו ידוע מראש).", grant=perm, path=s["path"]))
+            continue
         if not s.get("sens") or s["role"] != "device":
             continue
         action, e = s["action"], s["entity_id"]
@@ -488,6 +507,12 @@ def change_reasons(ctx: Ctx, kind: str, old: dict[str, Any] | None, new: dict[st
     ents = list(dict.fromkeys((old["targets"] if old else []) + (new["targets"] if new else [])))
     if not ents and not a.wide(perm):
         out.append(reason("no_permission"))
+    if new is not None and new["unknown_effects"] and not a.wide(perm):
+        # content whose effects cannot be known is for installation-wide managers - to keep what is already there is fine, to add to it is not
+        before = {b["fingerprint"] for b in (old or {}).get("locked", []) if b["effects"] == "unknown"}
+        after = {b["fingerprint"] for b in new["locked"] if b["effects"] == "unknown"}
+        if old is None or not old["unknown_effects"] or after - before:
+            out.append(reason("no_permission", message="לפריט פעולות שאינן ידועות מראש; שמירה דורשת הרשאה בכל ההתקנה."))
     for e in ents:
         if not a.allowed(perm, e):
             out.append(reason("no_permission", e))
@@ -499,11 +524,12 @@ def change_reasons(ctx: Ctx, kind: str, old: dict[str, Any] | None, new: dict[st
     return out
 
 
-def ref_reasons(ctx: Ctx, facts: dict[str, Any]) -> list[dict[str, Any]]:
+def ref_reasons(ctx: Ctx, facts: dict[str, Any], _seen: set[str] | None = None) -> list[dict[str, Any]]:
     """Controlling another automation (`automation.turn_on/off/trigger`) needs `automation.manage` at that automation: its own targets, or installation-wide
-    when it is not known."""
+    when it is not known - and the manual-control grants of the sensitive steps it takes (recursively; an automation already visited is not visited again)."""
     a = ctx.access
     out = []
+    seen = _seen if _seen is not None else set()
     for ref in facts["refs"]:
         if ref["role"] != "automation":
             continue
@@ -512,7 +538,12 @@ def ref_reasons(ctx: Ctx, facts: dict[str, Any]) -> list[dict[str, Any]]:
         if row is not None and row["config_json"]:
             try:
                 rd = drafts.read("automation", json.loads(row["config_json"]), ctx.model_ctx(code_view=False, scoped=False))
-                targets = facts_of(ctx, "automation", rd, entity_id=ref["entity_id"], depth=EFFECT_DEPTH)["targets"]
+                inner = facts_of(ctx, "automation", rd, entity_id=ref["entity_id"], depth=0)
+                targets = inner["targets"]
+                if ref["entity_id"] not in seen:
+                    seen.add(ref["entity_id"])
+                    out.extend(grant_reasons(ctx, inner["steps"]))
+                    out.extend(ref_reasons(ctx, inner, seen))
             except (ValueError, TypeError):
                 targets = None
         if targets is None or not targets:

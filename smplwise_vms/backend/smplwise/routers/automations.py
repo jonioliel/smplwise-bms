@@ -142,8 +142,35 @@ def _is_json(content_type: str | None) -> bool:
     return media == "application/json" or (media.startswith("application/") and media.endswith("+json"))
 
 
+MAX_BODY_BYTES = 256 * 1024
+MAX_BODY_DEPTH = 40
+
+
 async def _raw_body(request: Request) -> bytes:
-    return await request.body()
+    try:
+        declared = int(request.headers.get("content-length") or 0)
+    except ValueError:
+        declared = 0
+    if declared > MAX_BODY_BYTES:
+        raise ApiError(413, "payload_too_large", "הבקשה גדולה מדי.")
+    raw = await request.body()
+    if len(raw) > MAX_BODY_BYTES:
+        raise ApiError(413, "payload_too_large", "הבקשה גדולה מדי.")
+    return raw
+
+
+def _too_deep(value: Any) -> bool:
+    """Whether the JSON nests deeper than MAX_BODY_DEPTH (iteratively: a hostile body must not be able to exhaust the stack of the code that walks it)."""
+    stack: list[tuple[Any, int]] = [(value, 1)]
+    while stack:
+        v, d = stack.pop()
+        if d > MAX_BODY_DEPTH:
+            return True
+        if isinstance(v, dict):
+            stack.extend((x, d + 1) for x in v.values() if isinstance(x, (dict, list)))
+        elif isinstance(v, list):
+            stack.extend((x, d + 1) for x in v if isinstance(x, (dict, list)))
+    return False
 
 
 def _parse(request: Request, raw: bytes, body_model: type[BaseModel]) -> Any:
@@ -155,6 +182,8 @@ def _parse(request: Request, raw: bytes, body_model: type[BaseModel]) -> Any:
         raise ApiError(422, "validation", "גוף הבקשה אינו JSON תקין.", details={"fields": ["body"]}) from None
     if not isinstance(data, dict):
         raise ApiError(422, "validation", "גוף הבקשה חייב להיות אובייקט JSON.", details={"fields": ["body"]})
+    if _too_deep(data):
+        raise ApiError(422, "validation", "גוף הבקשה מקונן עמוק מדי.", details={"fields": ["body"]})
     try:
         return body_model.model_validate(data)
     except ValidationError as exc:

@@ -366,7 +366,7 @@ class Mirror:
             exists = conn.execute("SELECT 1 FROM automation_meta WHERE kind = ? AND item_id = ?", c.key).fetchone()
             if exists is None:
                 conn.execute("INSERT INTO automation_meta(kind, item_id, created_via, first_seen_at, last_seen_at) VALUES (?, ?, 'external', ?, ?)", (*c.key, now, now))
-                if not baseline and not self._arx_create_in_flight(conn) and cfg is not None:
+                if not baseline and not self._arx_made(conn, c.kind, c.item_id, rev) and cfg is not None:
                     self._audit_outside(conn, c, cfg, "created", rev)
             else:
                 conn.execute("UPDATE automation_meta SET last_seen_at = ?, gone_at = NULL WHERE kind = ? AND item_id = ?", (now, *c.key))
@@ -379,7 +379,7 @@ class Mirror:
                          (config_id, c.entity_id, source, rev, blob, masked, reason, now, now, *c.key))
             changed = True
             if row["revision"] != rev and rev is not None:
-                arx = self._recent_arx_op(conn, c.kind, c.item_id)
+                arx = self._arx_made(conn, c.kind, c.item_id, rev)
                 note_version(conn, c.kind, c.item_id, rev, blob, masked, "arx" if arx else "external", None, None, self.now(), keep=versions_keep(conn))
                 if not arx:
                     self._audit_outside(conn, c, cfg, "updated", rev)
@@ -395,13 +395,14 @@ class Mirror:
         conn.execute("UPDATE automation_meta SET gone_at = COALESCE(gone_at, ?) WHERE kind = ? AND item_id = ?", (now, kind, item_id))
         return cur.rowcount > 0
 
-    def _arx_create_in_flight(self, conn: sqlite3.Connection) -> bool:
+    def _arx_made(self, conn: sqlite3.Connection, kind: str, item_id: str, revision: str | None) -> bool:
+        """Whether THIS revision of THIS item is the one an Arx write sent a moment ago: the op names the item and the revision it wrote, and has not failed.
+        Any other change - a recent create elsewhere, a failed op, a different content - is an outside change and is audited as one."""
+        if revision is None:
+            return False
         cutoff = _iso(self.now() - dt.timedelta(seconds=RECENT_OP_S))
-        return conn.execute("SELECT 1 FROM automation_ops WHERE op IN ('create', 'copy', 'restore') AND (status = 'pending' OR requested_at >= ?) LIMIT 1", (cutoff,)).fetchone() is not None
-
-    def _recent_arx_op(self, conn: sqlite3.Connection, kind: str, item_id: str) -> bool:
-        cutoff = _iso(self.now() - dt.timedelta(seconds=RECENT_OP_S))
-        return conn.execute("SELECT 1 FROM automation_ops WHERE kind = ? AND item_id = ? AND (status = 'pending' OR requested_at >= ?) LIMIT 1", (kind, item_id, cutoff)).fetchone() is not None
+        return conn.execute("SELECT 1 FROM automation_ops WHERE kind = ? AND item_id = ? AND expected_revision = ? AND status IN ('pending', 'ok', 'unknown') "
+                            "AND (status = 'pending' OR requested_at >= ?) LIMIT 1", (kind, item_id, revision, cutoff)).fetchone() is not None
 
     def _audit_outside(self, conn: sqlite3.Connection, c: Cand, cfg: dict[str, Any] | None, what: str, rev: str | None) -> None:
         """§10.2: a sensitive item changed or created without an Arx op. No config, no template text, no values - revisions and classes only."""

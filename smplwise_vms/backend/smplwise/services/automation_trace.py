@@ -5,6 +5,7 @@ shape of `trace/get` on 2026.9 is U-7 (unverified): everything here is read defe
 from __future__ import annotations
 
 import datetime as dt
+import re
 from typing import Any, Callable
 
 from . import automation_model as model
@@ -16,16 +17,24 @@ RESULTS = {"finished": "ok", "error": "error", "failed_runtime": "error", "abort
            "failed_max_runs": "not_triggered", "failed_disabled": "not_triggered", "failed_unknown_reason": "error"}
 
 
-def sanitize(value: Any, depth: int = 0) -> Any:
-    """A copy without context / user ids and with secret-like values masked."""
+_PICTURE_KEYS = frozenset({"entity_picture", "entity_picture_local"})
+_URL_SECRET = re.compile(r"([?&](?:token|access_token|auth|auth_sig|api_key|apikey|key|secret|signature|sig)=)[^&#\s\"']*", re.IGNORECASE)
+
+
+def sanitize(value: Any, depth: int = 0, readable: Callable[[str], bool] | None = None) -> Any:
+    """A copy without context / user ids, with secret-like values masked, with the secret query parameters of a URL masked, and - when `readable` is given -
+    with the state and attributes of an entity the caller may not read reduced to its id."""
     if depth > 12:
         return None
     if isinstance(value, dict):
-        return {k: (pol.MASK if pol.is_secret_key(k) else sanitize(v, depth + 1)) for k, v in value.items() if k not in _DROP_KEYS}
+        eid = value.get("entity_id")
+        if readable is not None and isinstance(eid, str) and ("attributes" in value or "state" in value) and not readable(eid):
+            return {"entity_id": eid}
+        return {k: (pol.MASK if pol.is_secret_key(k) else sanitize(v, depth + 1, readable)) for k, v in value.items() if k not in _DROP_KEYS and k not in _PICTURE_KEYS}
     if isinstance(value, list):
-        return [sanitize(v, depth + 1) for v in value[:200]]
+        return [sanitize(v, depth + 1, readable) for v in value[:200]]
     if isinstance(value, str):
-        return value[:2000]
+        return _URL_SECRET.sub(lambda m: m.group(1) + pol.MASK, value[:2000])
     return value
 
 
@@ -99,7 +108,8 @@ def _depth(path: str) -> int:
     return max(0, (len(path.split(".")) - 2) // 2)
 
 
-def detail(entry: dict[str, Any], *, step_paths: list[str], sentences: dict[str, str], name_of: Callable[[str], str], tz: Any, user_name: Callable[[str | None], str | None]) -> dict[str, Any]:
+def detail(entry: dict[str, Any], *, step_paths: list[str], sentences: dict[str, str], name_of: Callable[[str], str], tz: Any, user_name: Callable[[str | None], str | None],
+           readable: Callable[[str], bool] | None = None) -> dict[str, Any]:
     """One `RunTrace` out of a `trace/get` answer. `step_paths` are the config's action steps in document order (every one of them is listed, `not_run` when
     the run never reached it); `sentences` maps a block path (HA trace path) to its Hebrew sentence."""
     ts = entry.get("timestamp") if isinstance(entry.get("timestamp"), dict) else {}
@@ -155,9 +165,9 @@ def detail(entry: dict[str, Any], *, step_paths: list[str], sentences: dict[str,
         res = "error" if err else ("running" if (result == "running" and p == model.normalise_path(str(entry.get("last_step") or ""))) else "done")
         cv = first.get("changed_variables")
         steps.append({"path": p, "depth": _depth(p), "sentence": sentences.get(p, ""), "result": res, "started_at": started, "duration_ms": dur,
-                      "error": (err[:300] if err else None), "changed_variables": sanitize(cv) if isinstance(cv, dict) and cv else None})
+                      "error": (err[:300] if err else None), "changed_variables": sanitize(cv, 0, readable) if isinstance(cv, dict) and cv else None})
         listed.add(p)
-    variables = sanitize({k: v for k, v in changed.items()}) if changed else None
+    variables = sanitize({k: v for k, v in changed.items()}, 0, readable) if changed else None
     ctx = entry.get("context") if isinstance(entry.get("context"), dict) else {}
     user_id = ctx.get("user_id") if isinstance(ctx.get("user_id"), str) else None
     parent = "user" if user_id else ("automation" if ctx.get("parent_id") else "system")

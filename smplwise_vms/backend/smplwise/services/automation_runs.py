@@ -107,7 +107,7 @@ def run_detail(ctx: scope.Ctx, kind: str, item_id: str, run_id: str) -> dict[str
     sentences = drafts.path_sentences(mrd["draft"]) if mrd is not None else {}
     step_paths = [w.path for w in model.walk_draft(mrd["draft"]) if w.section == "action"] if mrd is not None else []
     tz = zone(ctx.tz_name)
-    detail = trace.detail(entry, step_paths=step_paths, sentences=sentences, name_of=ctx.name_of, tz=tz, user_name=_user_name(ctx.conn))
+    detail = trace.detail(entry, step_paths=step_paths, sentences=sentences, name_of=ctx.name_of, tz=tz, user_name=_user_name(ctx.conn), readable=ctx.can_watch)
     return detail
 
 

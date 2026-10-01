@@ -252,13 +252,13 @@ def bridge_call(w: W, op: str, op_id: str, *, kind: str | None = None, item_id: 
 
 # ================================================================ ops (idempotency)
 
-def begin_op(w: W, client_request_id: str, op: str, kind: str | None, item_id: str | None) -> tuple[str, sqlite3.Row | None]:
+def begin_op(w: W, client_request_id: str, op: str, kind: str | None, item_id: str | None, expected_revision: str | None = None) -> tuple[str, sqlite3.Row | None]:
     prev = w.conn.execute("SELECT * FROM automation_ops WHERE principal_user_id = ? AND client_request_id = ?", (w.principal.user_id, client_request_id)).fetchone()
     if prev is not None:
         return prev["id"], prev
     op_id = "op" + uuid.uuid4().hex[:12]
-    w.conn.execute("INSERT INTO automation_ops(id, principal_user_id, principal_username, client_request_id, op, kind, item_id, status, requested_at) VALUES (?,?,?,?,?,?,?, 'pending', ?)",
-                   (op_id, w.principal.user_id, w.principal.username, client_request_id, op, kind, item_id, store.stamp()))
+    w.conn.execute("INSERT INTO automation_ops(id, principal_user_id, principal_username, client_request_id, op, kind, item_id, status, expected_revision, requested_at) VALUES (?,?,?,?,?,?,?, 'pending', ?, ?)",
+                   (op_id, w.principal.user_id, w.principal.username, client_request_id, op, kind, item_id, expected_revision, store.stamp()))
     return op_id, None
 
 
@@ -472,13 +472,18 @@ def _code_scope_ok(w: W, j: Judgement) -> bool:
     return a.wide(scope.CODE_VIEW) or (bool(ents) and all(a.allowed(scope.CODE_VIEW, e) for e in ents))
 
 
-def lock_removal_needs_wide(w: W, j: Judgement) -> ApiError | None:
-    """CR §7: moving or deleting a locked block needs only `manage` at the typed targets - unless the block has unknown effects: then installation-wide manage."""
-    if j.old_facts is None or w.ctx.access.wide(scope.MANAGE_OF["automation"]):
+def _unknown_places(facts: dict[str, Any] | None) -> list[tuple[str, tuple[str, ...]]]:
+    """Where each locked block of unknown effects sits: its fingerprint and the STRUCTURE it is in (`actions.choose.sequence`, no indexes): putting it in a
+    reorderable list again changes nothing, taking it out of an `if` or a `choose` does (the condition that guarded it is gone)."""
+    return sorted((b["fingerprint"], tuple(seg for seg in b["path"].split(".")[:-1] if not seg.isdigit())) for b in (facts or {}).get("locked", []) if b["effects"] == "unknown")
+
+
+def lock_removal_needs_wide(w: W, kind: str, old_facts: dict[str, Any] | None, new_facts: dict[str, Any] | None) -> ApiError | None:
+    """CR §7: moving or deleting a locked block needs only `manage` at the typed targets - unless the block has unknown effects: then installation-wide manage
+    of the kind (a delete is a change to nothing)."""
+    if old_facts is None or w.ctx.access.wide(scope.MANAGE_OF[kind]):
         return None
-    old = [b["fingerprint"] for b in j.old_facts["locked"] if b["effects"] == "unknown"]
-    new = [b["fingerprint"] for b in j.facts["locked"] if b["effects"] == "unknown"]
-    if old != new:
+    if _unknown_places(old_facts) != _unknown_places(new_facts):
         return ApiError(403, "forbidden", "אין הרשאה לפעולה זו בהיקף המבוקש.", details={"reason": "unknown_effects_block_moved"})
     return None
 
@@ -526,7 +531,7 @@ def _raise_judgement(w: W, kind: str, j: Judgement, confirm: bool, *, creating: 
     denials = rights_of(w, kind, j, code_view_needed=code_view_needed)
     if denials:
         raise denials[0]
-    wide = lock_removal_needs_wide(w, j)
+    wide = lock_removal_needs_wide(w, kind, j.old_facts, j.facts)
     if wide is not None:
         raise wide
     w.details.update(entities=j.facts.get("targets", []), classes=j.facts.get("sensitive_classes", []), sensitive=j.sensitive, profile=j.profile, locked=j.facts.get("locked_count", 0))
@@ -534,7 +539,7 @@ def _raise_judgement(w: W, kind: str, j: Judgement, confirm: bool, *, creating: 
 
 
 def _write_new(w: W, kind: str, item_id: str, j: Judgement, enabled: bool, client_request_id: str, op: str, action: str, *, trash_id: str | None = None) -> tuple[int, dict[str, Any]]:
-    op_id, again = begin_op(w, client_request_id, op, kind, item_id)
+    op_id, again = begin_op(w, client_request_id, op, kind, item_id, model.revision_of(j.config))
     if again is not None:
         return replay(w, again, "create", op, kind)
     resp = bridge_call(w, "upsert", op_id, kind=kind, item_id=item_id, base_revision=None, profile=j.profile, config=j.config, preserved=j.preserved, sensitive=j.sensitive)
@@ -630,7 +635,7 @@ def update(w: W, kind: str, item_id: str, draft: dict[str, Any], base_revision: 
 def _send_update(w: W, kind: str, item_id: str, stored: dict[str, Any], revision: str, j: Judgement, client_request_id: str, action: str) -> tuple[int, dict[str, Any]]:
     if model.canonical_json(stored) == model.canonical_json(j.config):
         return 200, {"item": item_view(w, kind, item_id, detail=True), "op_id": None}
-    op_id, again = begin_op(w, client_request_id, "update", kind, item_id)
+    op_id, again = begin_op(w, client_request_id, "update", kind, item_id, model.revision_of(j.config))
     if again is not None:
         return replay(w, again, "update", "update", kind, item_id)
     resp = bridge_call(w, "upsert", op_id, kind=kind, item_id=item_id, base_revision=revision, profile=j.profile, config=j.config, preserved=j.preserved, sensitive=j.sensitive)
@@ -715,6 +720,9 @@ def delete(w: W, kind: str, item_id: str, base_revision: str, confirm: bool, cli
         reasons = scope.change_reasons(w.ctx, kind, facts, None)
         if reasons:
             raise reason_error(reasons[0])
+        gone = lock_removal_needs_wide(w, kind, facts, None)
+        if gone is not None:
+            raise gone
         if confirm is not True:
             raise ApiError(409, "confirmation_required", "פעולה זו דורשת אישור מפורש.")
         w.details.update(entities=facts["targets"], classes=facts["sensitive_classes"], sensitive=facts["sensitive"])
@@ -811,11 +819,11 @@ def restore_trash(w: W, trash_id: str, client_request_id: str, confirm: bool = F
         if kind in ("automation", "scene"):
             cfg["id"] = item_id
         j = judge(w, kind, draft=None, config_in=cfg, stored=None, item_id=item_id, creating=True)
-        _raise_judgement(w, kind, j, True, creating=True)
+        _raise_judgement(w, kind, j, confirm, creating=True)
         if w.conn.execute("UPDATE automation_trash SET restored_at = ? WHERE id = ? AND restored_at IS NULL", (f"~restoring:{store.stamp()}", trash_id)).rowcount != 1:
             raise ApiError(404, "trash_not_found", "הפריט אינו בסל המחזור (ייתכן שפג תוקפו).")
         try:
-            status, body = _write_new(w, kind, item_id, j, True, client_request_id, "restore", "automation.restore", trash_id=trash_id)
+            status, body = _write_new(w, kind, item_id, j, False, client_request_id, "restore", "automation.restore", trash_id=trash_id)  # back DISABLED: it runs only when someone turns it on
         except ApiError as exc:
             w.conn.execute("UPDATE automation_trash SET restored_at = ? WHERE id = ?", (None if exc.code != "config_timeout" else f"~unknown:{store.stamp()}", trash_id))
             raise
@@ -884,7 +892,7 @@ def restore_version(w: W, kind: str, item_id: str, version_id: int, base_revisio
             cfg["id"] = item_id
         j = judge(w, kind, draft=None, config_in=cfg, stored=stored, item_id=item_id, creating=False)
         _raise_judgement(w, kind, j, confirm, creating=False)
-        op_id, again = begin_op(w, client_request_id, "update", kind, item_id)
+        op_id, again = begin_op(w, client_request_id, "update", kind, item_id, model.revision_of(j.config))
         if again is not None:
             return replay(w, again, "update", "restore_version", kind, item_id)
         resp = bridge_call(w, "upsert", op_id, kind=kind, item_id=item_id, base_revision=revision, profile=j.profile, config=j.config, preserved=j.preserved, sensitive=j.sensitive)

@@ -82,6 +82,7 @@ CREATE TABLE automation_ops (
   kind               TEXT,
   item_id            TEXT,
   status             TEXT NOT NULL CHECK (status IN ('pending', 'ok', 'failed', 'unknown')),
+  expected_revision  TEXT,            -- the revision of the config an upsert sends: the mirror calls a change Arx's own only when it matches
   error              TEXT,
   requested_at       TEXT NOT NULL,
   responded_at       TEXT

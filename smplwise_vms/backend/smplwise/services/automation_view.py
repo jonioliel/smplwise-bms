@@ -185,6 +185,8 @@ def can_and_reasons(ctx: scope.Ctx, env: Env, row: Row, rd: dict[str, Any] | Non
         reasons.append(scope.reason("ha_unavailable"))
     elif rd.get("unsupported"):
         reasons.append(scope.reason("unsupported_content"))
+    if editable_source and row.masked:
+        reasons.append(scope.reason("masked_values"))  # the cache holds the masked raw: a builder save could not tell its blocks from the stored ones
     if editable_source:
         if env.edit_block:
             reasons.append(scope.reason(scope.WRITE_BLOCK_REASON[env.edit_block]))
@@ -575,6 +577,8 @@ def evaluate_condition(c: dict[str, Any], ctx: scope.Ctx, now: dt.datetime, tz: 
     if c.get("kind") == "locked":
         return None
     if kind in ("state", "numeric_state"):
+        if any(not ctx.can_watch(e) for e in c["entity_ids"]):
+            return None  # a device the caller may not read: neither its state nor a verdict about it leaves the server
         results = []
         for e in c["entity_ids"]:
             info = ctx.entity(e)
@@ -653,7 +657,7 @@ def dry_run_draft(ctx: scope.Ctx, row: Row, rd: dict[str, Any] | None, draft: di
         raise ApiError(422, "validation", "ערך לא תקין — draft: הטיוטה אינה שלמה או אינה תקינה.", details={"path": "draft"}) from None
 
 
-def dry_run(ctx: scope.Ctx, row: Row, rd: dict[str, Any] | None, facts: dict[str, Any], scoped: bool = False) -> dict[str, Any]:
+def dry_run(ctx: scope.Ctx, row: Row, rd: dict[str, Any] | None, facts: dict[str, Any], scoped: bool = True) -> dict[str, Any]:
     """§4.2.5 "בדיקה": no execution. The current truth of each typed condition from the mirror (template conditions: "לא ניתן לבדוק") and the device diff the
     actions would make."""
 
