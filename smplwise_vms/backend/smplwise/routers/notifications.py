@@ -167,17 +167,31 @@ class _FailureBucket:
 ACTION_FAILURES = _FailureBucket()
 
 
+def _remote_gate(request: Request) -> Principal | None:
+    """On the remote channel (/arx) the call must ALSO carry a live Arx session: refused 401 here, before the body is read or validated, like
+    every other route (CR-008 3e.2). The service worker's fetch is same-origin and sends the session cookie. On the local (Ingress) channel the
+    action token alone is the credential - Home Assistant's own sign-in already stands behind that surface. Returns the session's principal."""
+    from ..remote_channel import is_remote
+
+    if not is_remote(request):
+        return None
+    from ..auth import resolve_remote_first
+
+    return resolve_remote_first(request)
+
+
 @router.post("/notifications/action")
-def push_action(body: ActionIn, request: Request) -> dict[str, Any]:
-    """A push button (ack / snooze) pressed from the service worker. No session: the single-use token is the credential. It is bound to
-    (notification, user, action), expires with the push, and is re-checked against the user's CURRENT visibility and, for ack, their
-    right to acknowledge. Any failure (expired, used, other action, lost reach, unknown) is the same 401 `action_token_invalid`."""
+def push_action(request: Request, session: Principal | None = Depends(_remote_gate), body: ActionIn = Body(...)) -> dict[str, Any]:
+    """A push button (ack / snooze) pressed from the service worker. The single-use token is the credential (plus, on the remote channel, a live
+    Arx session of THE SAME user). It is bound to (notification, user, action), expires with the push, and is re-checked against the user's
+    CURRENT visibility and, for ack, their right to acknowledge. Any failure (expired, used, other action, lost reach, another user's session,
+    unknown) is the same 401 `action_token_invalid`."""
     who = request.client.host if request.client else "?"
     if ACTION_FAILURES.blocked(who):
         raise ApiError(429, "rate_limited", "יותר מדי ניסיונות. נסו שוב בעוד דקה.", retryable=True, details={"retry_after_s": 60})
     db: Database = request.app.state.db
     with db.connection(label="notifications/action") as conn:
-        got = notify.redeem_token(conn, body.t, body.a, _tz(conn))
+        got = notify.redeem_token(conn, body.t, body.a, _tz(conn), expect_user=session.user_id if session is not None else None)
         if got is not None:
             principal = got["principal"]
             audit(conn, actor=principal, action="notify.action", decision="allowed", resource_type="notification", resource_id=got["notification_id"], request_id=_rid(request),

@@ -44,7 +44,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..db import new_id, now_iso
+from ..db import new_id
 from ..rbac import INSTALLATION, Principal, authorize
 from . import notify_policy as policies
 from . import notify_settings as nsettings
@@ -111,7 +111,7 @@ def _default_link(s: Signal) -> str:
 
 
 def _enqueue(conn: sqlite3.Connection, kind: str, notification_id: str | None, payload: dict[str, Any]) -> None:
-    conn.execute("INSERT INTO notify_outbox(kind, notification_id, payload_json, created_at) VALUES (?,?,?,?)", (kind, notification_id, json.dumps(payload, ensure_ascii=False), now_iso()))
+    conn.execute("INSERT INTO notify_outbox(kind, notification_id, payload_json, created_at) VALUES (?,?,?,?)", (kind, notification_id, json.dumps(payload, ensure_ascii=False), iso_utc(now_utc())))
     wake()
 
 
@@ -241,14 +241,19 @@ def _create(conn: sqlite3.Connection, s: Signal, severity: str, policy: dict[str
     stamp = iso_utc(now)
     params = dict(s.params)
     place = s.place or params.get("place")
+    area = s.area_id
+    if s.subject_kind == "entity" and s.subject_id:
+        r = conn.execute("SELECT area_id, area_name FROM ha_entities WHERE entity_id = ?", (s.subject_id,)).fetchone()
+        if r:
+            area = area if area is not None else r["area_id"]
+            place = place or r["area_name"] or None  # the label the title shows: the entity's area
+    elif s.subject_kind == "camera" and s.subject_id and not place:
+        r = conn.execute("SELECT alias, name_source, channel FROM cameras WHERE id = ?", (s.subject_id,)).fetchone()
+        place = (r["alias"] or r["name_source"] or f"ערוץ {r['channel']}") if r else None
     if place:
         params["place"] = place
     title, body = policies.render(s.source, params)
     category = s.category if s.category in policies.CATEGORIES else policy["category"]
-    area = s.area_id
-    if area is None and s.subject_kind == "entity" and s.subject_id:
-        r = conn.execute("SELECT area_id FROM ha_entities WHERE entity_id = ?", (s.subject_id,)).fetchone()
-        area = r["area_id"] if r else None
     conn.execute(
         """INSERT INTO notifications(id, source, category, severity, subject_kind, subject_id, area_id, title, body, place, link, params_json, dedupe_key, count, first_at, last_at, state,
                                      origin_json, initiator_user_id, escalation_step, escalate_at, created_at)
@@ -564,15 +569,15 @@ def mint_tokens(conn: sqlite3.Connection, nid: str, user_id: str, actions: list[
     return out
 
 
-def redeem_token(conn: sqlite3.Connection, token: str, action: str, tz_name: str) -> dict[str, Any] | None:
+def redeem_token(conn: sqlite3.Connection, token: str, action: str, tz_name: str, expect_user: str | None = None) -> dict[str, Any] | None:
     """Single use: returns {user_id, notification_id, result} when the token authorises `action` on its row for its user AND the
     user still sees (and for ack may acknowledge) it; None for anything else (expired, used, other action, lost reach). A token
     that fails for lost reach is not burned; a used or expired one never works again."""
     if action not in ACTIONS or not isinstance(token, str) or not 8 <= len(token) <= 128:
         return None
     r = conn.execute("SELECT * FROM notify_action_tokens WHERE token_hash = ?", (_hash(token),)).fetchone()
-    if r is None or r["used_at"] or r["actions"] != action or r["expires_at"] <= iso_utc(now_utc()):
-        return None
+    if r is None or r["used_at"] or r["actions"] != action or r["expires_at"] <= iso_utc(now_utc()) or (expect_user is not None and r["user_id"] != expect_user):
+        return None  # (expect_user: the remote channel's session must be the token's own user)
     p = principal_of(conn, r["user_id"])
     if p is None:
         return None

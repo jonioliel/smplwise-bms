@@ -82,7 +82,7 @@ SOURCES: tuple[Source, ...] = (
     _s("bulk.partial", "תוצאת פעולה קבוצתית / סצנה", "automations", "info", "פעולה קבוצתית", "{name}: {detail}.", window_s=3600, who="initiator", push=False, subject="bulk_job", resolves=False),
     # ---- security
     _s("security.new_signin", "כניסה חדשה / גישה מרחוק", "security", "alert", "כניסה חדשה לחשבון", "כניסה ממכשיר חדש. אם זה לא אתה - נתק את הכניסה.", window_s=3600, who="initiator", subject="session", resolves=False),
-    _s("security.lockout", "נעילת קוד", "security", "alert", "נעילת קוד", "הוזנו קודים שגויים ונשארה נעילה זמנית.", window_s=3600, who="managers", subject="session", resolves=False),
+    _s("security.lockout", "נעילת קוד", "security", "alert", "נעילת קוד", "הוזנו קודים שגויים ונשארה נעילה זמנית.", window_s=3600, subject="session", resolves=False),
     # ---- alerts (rules, and the NVR smart events that only rules turn into notifications)
     _s("rule.alert", "התראות מחוקים", "alerts", "alert", "{name}", "{message}", window_s=300, subject="camera", resolve_text="טופל", resolves=False),
     _s("camera.motion", "תנועה (רק דרך חוקים)", "alerts", "info", "תנועה", "{name}.", window_s=300, push=False, enabled=False, subject="camera", resolves=False),
