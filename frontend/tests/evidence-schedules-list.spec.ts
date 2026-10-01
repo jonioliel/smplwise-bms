@@ -598,8 +598,16 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
     await page.locator('sw-app devices-schedules [data-bulk-disable]').click();
     await expect.poll(() => post(/schedules\/bulk/).length).toBe(1);
     expect(post(/schedules\/bulk/)[0].body).toMatchObject({ op: 'disable', ids: ['4d6e0a'], confirm: true });
-    await page.locator('sw-app devices-schedules article[data-schedule="5a13f2"] a.name').click();
-    await page.locator('sw-app devices-schedules [data-drawer-delete]').click();
+    // the bulk result re-renders the list (selection cleared, bar gone): open the drawer only after that settles,
+    // or the refresh can swallow the click / close the drawer before the delete dialog opens
+    await expect(page.locator('sw-app devices-schedules [data-bulk-disable]')).toHaveCount(0);
+    const del = page.locator('sw-app devices-schedules [data-drawer-delete]');
+    await expect(async () => {
+      if (!(await del.isVisible())) await page.locator('sw-app devices-schedules article[data-schedule="5a13f2"] a.name').click();
+      await expect(del).toBeVisible({ timeout: 2000 });
+      await del.click();
+      await expect(page.locator('sw-app devices-schedules [data-delete-confirm]')).toBeVisible({ timeout: 2000 });
+    }).toPass({ timeout: 20_000 });
     await page.locator('sw-app devices-schedules [data-delete-confirm]').click();
     await expect.poll(() => post(/schedules\/5a13f2\/delete/).length).toBe(1);
     expect(post(/delete/)[0].body).toMatchObject({ confirm: true });
