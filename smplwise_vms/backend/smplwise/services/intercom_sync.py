@@ -25,7 +25,12 @@ serving the last-known copy as not fresh.
 Honest state: without Home Assistant access, without the WisKey integration, or when WisKey refuses the add-on's user,
 the state says so and no station data is served. Only the projection below is ever kept in memory - WisKey's people
 list (cards, PIN flags, phones) is dropped the moment the reply arrives; that belongs to a later, separately gated
-screen.
+screen. B0 (D-006): the same goes for each station's `last_access` (person name, employee number, event identity) and for
+every people count: WisKey's `overview` still sends them, this module never keeps, serves or logs them. A person's name
+reaches a screen only through the one-off `events/list` / `users/*` reads below (service identity today, the operator's own
+identity from B1). The background (read) channel proper - its own session, its own account once the owner creates it, and the
+closed D-006 projection - is services/wiskey_background.py; this session is the service channel (SUPERVISOR_TOKEN) that also
+carries the writes (D-004).
 
 One-off reads (phase 1b: `events/list`, `users/query`, `users/get`) go through `IntercomSync.command`: the request
 thread schedules the command on this feed's own event loop and it is sent over the SAME live session (`self._call`),
@@ -81,10 +86,13 @@ SERVED_STATES = ("ready", "ha_unavailable", "connecting", "error")  # the states
 # a camera entity id as Home Assistant spells it (lower-case, digits, underscores). It comes from WisKey's `overview`,
 # which is untrusted input, and is meant to name a media source later, so anything else is not kept.
 CAMERA_ENTITY = re.compile(r"camera\.[a-z0-9_]{1,200}")
-LAST_ACCESS_KEYS = ("timestamp", "time_source", "person_name", "employee_no", "authentication", "result", "event_type", "recovered", "door")
-# one events/list row as the activity screen shows it: the overview's last-access fields plus the row's identity and
-# arrival time. Not kept: `card` (masked last-4), `portrait`, `evidence`, `major` / `minor`, `api_door`, `source`.
-EVENT_KEYS = ("id", "station_id", "timestamp", "received_at", *LAST_ACCESS_KEYS[1:])
+# the fields of one access event as WisKey names them (`events/list` rows carry them). They are person / event identity:
+# since B0 (D-006) they come ONLY from the one-off `events/list` read, never from the background overview, so no station of
+# the served overview, of the cache or of the background projection holds them (services/wiskey_background.py).
+EVENT_FIELD_KEYS = ("timestamp", "time_source", "person_name", "employee_no", "authentication", "result", "event_type", "recovered", "door")
+# one events/list row as the activity screen shows it: the event's fields plus the row's identity and arrival time. Not
+# kept: `card` (masked last-4), `portrait`, `evidence`, `major` / `minor`, `api_door`, `source`.
+EVENT_KEYS = ("id", "station_id", "timestamp", "received_at", *EVENT_FIELD_KEYS[1:])
 # one person as the read-only people screens show them. Not kept: `phone`, `cards`, `pin_configured`, `profile`,
 # `photo_configured`, `permission_overrides`, `access_timing_*`, `timing_readbacks`, `identity_locked`, `user_type`,
 # `sync_reference`, `created_at` / `updated_at`, and each assignment's `last_error` / revisions.
@@ -243,9 +251,12 @@ def _int(value: Any) -> int | None:
 
 
 def _station(raw: dict[str, Any]) -> dict[str, Any]:
+    """One station as the entry center shows it: identity, health and the operational state the door / call / camera
+    flows need (call, sync, relays, camera entity). Built field by field. B0 (D-006): never `last_access` (person name,
+    employee number, event identity) and never a people count (`pending_user_count`, `managed_user_count`); WisKey's
+    `overview` still sends them, and they are dropped here, before anything is cached, served or logged."""
     entities = raw.get("entities") if isinstance(raw.get("entities"), dict) else {}
     clock = raw.get("clock") if isinstance(raw.get("clock"), dict) else {}
-    last = raw.get("last_access") if isinstance(raw.get("last_access"), dict) else None
     locks = raw.get("integrated_locks") if isinstance(raw.get("integrated_locks"), list) else []
     return {
         "id": str(raw.get("id") or ""),
@@ -268,26 +279,21 @@ def _station(raw: dict[str, Any]) -> dict[str, Any]:
         "camera_entity": camera if isinstance(camera := entities.get("camera"), str) and CAMERA_ENTITY.fullmatch(camera) else None,
         "last_error": raw.get("last_error") if isinstance(raw.get("last_error"), str) else None,
         "last_seen": raw.get("last_seen") if isinstance(raw.get("last_seen"), str) else None,
-        "pending_user_count": _int(raw.get("pending_user_count")) or 0,
-        "managed_user_count": _int(raw.get("managed_user_count")),
-        # the station clock's display zone (WisKey formats a station's last access in it, panel.ts zone())
+        # the station clock's display zone (WisKey formats a station's times in it, panel.ts zone())
         "zone": clock.get("zone") if isinstance(clock.get("zone"), dict) else None,
-        "last_access": {k: last.get(k) for k in LAST_ACCESS_KEYS} if last else None,
     }
 
 
 def project_overview(raw: dict[str, Any]) -> dict[str, Any]:
-    """What SMPLWISE keeps and serves from WisKey's `overview`: the stations as the entry center shows them, counts,
-    and the display zone. Not kept: people, cards, PIN flags, tombstones / revocations, host / model / firmware."""
+    """What SMPLWISE keeps and serves from WisKey's `overview`: the stations as the entry center shows them and the
+    display zone. Not kept (B0, D-006): people, the directory size (`user_count`), per-station last access, cards, PIN
+    flags, tombstones / revocations, host / model / firmware."""
     stations = [_station(s) for s in raw.get("stations") or [] if isinstance(s, dict)]
     api = raw.get("api") if isinstance(raw.get("api"), dict) else {}
-    users = raw.get("users")
-    user_count = _int(raw.get("user_count"))
     return {
         "version": raw.get("version") if isinstance(raw.get("version"), str) else None,
         "api_version": _int(api.get("version")),
         "default_zone": raw.get("default_zone") if isinstance(raw.get("default_zone"), dict) else None,
-        "user_count": user_count if user_count is not None else (len(users) if isinstance(users, list) else 0),
         "stations": stations,
     }
 
@@ -1136,6 +1142,10 @@ class IntercomSync:
     def has_copy(self) -> bool:
         with self._cache_lock:
             return self._cache is not None
+
+    def subscribe_state(self) -> str:
+        """Whether WisKey's `subscribe` is live on this session (`ok`) or not (`not_attempted`: no ready session yet)."""
+        return "ok" if self._wiskey_sub is not None and STATE.state == "ready" else "not_attempted"
 
     def tts_status(self, station_id: str) -> dict[str, Any] | None:
         return self._tts_status.get(station_id)

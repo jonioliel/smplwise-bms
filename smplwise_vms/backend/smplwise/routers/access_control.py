@@ -107,7 +107,8 @@ def _instant(name: str, value: str | None) -> str | None:
 
 @router.get("/intercom/overview")
 def overview(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """The entry center: stations with online / ringing / sync state and the last access record, plus the feed's own
+    """The entry center: stations with online / ringing / sync state (no last-access record and no people counts since
+    B0: D-006, a person's name reaches a screen only through the activity log), plus the feed's own
     state (`ha_not_configured`, `connecting`, `ha_unavailable`, `not_installed`, `forbidden`, `error`, `ready`).
     `overview` is null whenever there is nothing honest to show; `fresh` is false for a copy from before a disconnect.
     `camera_access` says, per station with a camera, whether its still can be had (`ready`) or why not (`no_media`,

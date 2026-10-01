@@ -13,25 +13,14 @@ export type DisplayZone =
   | { kind: 'iana'; name: string }
   | { kind: 'device'; name: string; standard: number; delta: number; start: number[] | null; end: number[] | null };
 
-/** WisKey types.ts `LastAccess`. */
-export interface IntercomLastAccess {
-  timestamp: string;
-  time_source: 'device' | 'received';
-  person_name: string | null;
-  employee_no: string | null;
-  authentication: string;
-  result: string;
-  event_type: string;
-  recovered: boolean;
-  door: number | null;
-}
-
 export interface IntercomLock {
   physical_index: number;
   name: string | null;
 }
 
-/** The part of WisKey's `Station` the entry center shows (the backend drops the rest). */
+/** The part of WisKey's `Station` the entry center shows (the backend drops the rest). Since B0 (D-006) it carries no
+ * person data: no last access (name, employee number, event) and no people counts - a person's name reaches a screen
+ * only through the activity log (`getIntercomEvents`). */
 export interface IntercomStation {
   id: string;
   name: string;
@@ -48,17 +37,13 @@ export interface IntercomStation {
   camera_entity: string | null;
   last_error: string | null;
   last_seen: string | null;
-  pending_user_count: number;
-  managed_user_count: number | null;
   zone: DisplayZone | null;
-  last_access: IntercomLastAccess | null;
 }
 
 export interface IntercomOverview {
   version: string | null;
   api_version: number | null;
   default_zone: DisplayZone | null;
-  user_count: number;
   stations: IntercomStation[];
 }
 
@@ -97,6 +82,62 @@ export async function getIntercomOverview(): Promise<IntercomFeed> {
   // the server read its clock somewhere during the round trip: assume the middle (error <= half the round trip)
   if (typeof feed.server_time_ms === 'number') serverOffsetMs = feed.server_time_ms - (sentAt + receivedAt) / 2;
   return feed;
+}
+
+// ---------------------------------------------------------------- diagnostics (system.configure, read-only; B0)
+
+export type WiskeyLevel = 'none' | 'view' | 'manage' | 'unknown';
+
+/** WisKey's `authorization/session` as the backend projects it: permission facts only (areas, field levels, station scope,
+ * security state). An unrecognised value is `unknown`, never a permission. */
+export interface WiskeyAuthorization {
+  allowed: boolean | null;
+  is_admin: boolean | null;
+  areas: Record<'overview' | 'users' | 'events' | 'stations' | 'management', WiskeyLevel>;
+  fields: Record<'phone' | 'photo' | 'credentials' | 'profile' | 'access', WiskeyLevel>;
+  station_scope: { kind: 'all' | 'explicit' | 'unknown'; count: number | null; ids: string[] };
+  revision: number | null;
+  personal_renewal: boolean | null;
+  security: { locked: boolean | null; idle_minutes: number | null; reauth_sensitive: boolean | null; elevated: boolean | null } | null;
+}
+
+export interface WiskeyIdentityDiagnostics {
+  identity: 'service' | 'background';
+  split?: boolean;
+  configured?: boolean;
+  state: string;
+  last_error: string | null;
+  connected: boolean | null;
+  wiskey_version: string | null;
+  subscribe: string;
+  authorization: WiskeyAuthorization | null;
+  authorization_state: string;
+}
+
+export interface WiskeyOperatorDiagnostics {
+  available: boolean;
+  reason: string | null;
+  state: string;
+  authorization: WiskeyAuthorization | null;
+}
+
+export interface WiskeyFinding {
+  code: string;
+  level: 'warn' | 'info';
+  subject: 'service' | 'background' | 'operator';
+}
+
+export interface WiskeyDiagnostics {
+  generated_at: string;
+  service: WiskeyIdentityDiagnostics;
+  background: WiskeyIdentityDiagnostics;
+  operator: WiskeyOperatorDiagnostics;
+  findings: WiskeyFinding[];
+}
+
+/** What WisKey sees Arx as: one `authorization/session` per identity (service, background, the signed-in operator in `/arx`). */
+export function getWiskeyDiagnostics(): Promise<WiskeyDiagnostics> {
+  return get<WiskeyDiagnostics>('intercom/diagnostics');
 }
 
 // ---------------------------------------------------------------- activity log (access.read, read-only)
