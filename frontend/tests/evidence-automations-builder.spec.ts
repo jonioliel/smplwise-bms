@@ -548,9 +548,9 @@ test.describe('automation builder: locked blocks and the builder <-> code toggle
   });
 });
 
-// ---------------------------------------------------------------------------------------------------------------------------- the household editor, delegation, view-only
+// ---------------------------------------------------------------------------------------------------------------------------- the household editor, delegation, no view-only access
 
-test.describe('automation builder: scoped editors, delegation, grants, view-only', () => {
+test.describe('automation builder: scoped editors, delegation, grants, no view-only access', () => {
   test('the household editor sees only the devices of its floor; no code toggle (1440 light, 390 picker sheet)', async ({ page }) => {
     const st = fresh('household');
     const { tag } = await mount(page, st, 'automation-builder', { itemId: idOf(st, 'automation.hall_motion') });
@@ -634,23 +634,15 @@ test.describe('automation builder: scoped editors, delegation, grants, view-only
     await shot(page, '17-builder-delegation-off-390-light');
   });
 
-  test('the viewer opens the automation read-only: no add buttons, no forms to type in, no save', async ({ page }) => {
-    const st = fresh('viewer');
+  test('a script runner (no automation.manage) never sees an automation: the editor answers the forbidden state, no draft, no retry (decision 1b)', async ({ page }) => {
+    const st = fresh('runner');
     const { tag } = await mount(page, st, 'automation-builder', { itemId: idOf(st, 'automation.hall_motion') });
-    await ready(page, tag);
-    await expect(page.locator(`${tag} [data-banner="readonly"]`)).toContainText('צפייה בלבד');
-    await expect(page.locator(`${tag} [data-add]`)).toHaveCount(0);
-    await expect(page.locator(`${tag} [data-block-remove]`).first()).toBeHidden();
-    await expect(page.locator(`${tag} [data-editor-save]`)).toBeDisabled();
-    await expect(page.locator(`${tag} [data-name-input]`)).toBeDisabled();
-    await expect(page.locator(`${tag} [data-view-toggle]`)).toHaveCount(0);
-    await card(page, tag, 'action').nth(0).locator('[data-block-main]').click();
-    await expect(card(page, tag, 'action').nth(0)).not.toHaveAttribute('open', ''); // a typed block has no form to open without edit rights
-    await expect(page.locator(`${tag} fieldset`)).toHaveCount(0);
-    await expect(card(page, tag, 'action').nth(0)).toContainText('הדלק תאורת פרוזדור ל־40%'); // the sentence (names resolved by the server) is the read
-    await shot(page, '18-builder-viewer-1440-light');
+    await expect(page.locator(`${tag} [data-editor-state="forbidden"]`)).toContainText('אין הרשאה');
+    await expect(page.locator(`${tag} [data-block-main]`)).toHaveCount(0);
+    await expect(page.locator(`${tag} [data-editor-state="forbidden"] button`)).toHaveCount(0);
+    await expect(page.locator(`${tag} [data-editor-save]`)).toHaveCount(0);
+    await shot(page, '18-builder-runner-forbidden-1440-light');
   });
-
   test('a configuration-file automation is view-only; its chip says so', async ({ page }) => {
     const st = fresh();
     const { tag } = await mount(page, st, 'automation-builder', { itemId: 'entity:automation.irrigation_shabbat' });

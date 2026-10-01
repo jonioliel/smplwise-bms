@@ -220,7 +220,7 @@ export class DevicesAutomations extends LitElement {
     applyAutomationsGlass(this);
     this.phoneMq.addEventListener('change', this.onPhone);
     this.addEventListener('scroll', this.onScroll, { passive: true });
-    this.offEdit = registerScreenEdit({ id: 'automations-trash', label: 'סל מחזור', icon: 'trash', can: () => !!this.status?.can.view, run: () => pushRoute(trashPath()) });
+    this.offEdit = registerScreenEdit({ id: 'automations-trash', label: 'סל מחזור', icon: 'trash', can: () => !!(this.status?.can.manage || this.status?.can.scene_manage || this.status?.can.script_manage), run: () => pushRoute(trashPath()) });
     this.offRoute = onRouteChange((r) => this.onRoute(r));
     void this.load();
     if (isApi()) {

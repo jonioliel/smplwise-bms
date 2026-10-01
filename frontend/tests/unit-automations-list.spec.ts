@@ -17,7 +17,7 @@ import {
 const TZ = 'Asia/Jerusalem';
 const NOW = new Date('2026-10-01T15:46:00Z'); // the mock's fixed clock
 
-async function house(user: 'installer' | 'household' | 'viewer' = 'installer', extra: Parameters<typeof resetAutomationsMock>[0] = {}): Promise<{ m: AutomationsMockStore; items: Item[]; status: AutomationsStatus }> {
+async function house(user: 'installer' | 'household' | 'runner' = 'installer', extra: Parameters<typeof resetAutomationsMock>[0] = {}): Promise<{ m: AutomationsMockStore; items: Item[]; status: AutomationsStatus }> {
   const m = resetAutomationsMock({ user, ...extra });
   const [list, status] = await Promise.all([m.list({ limit: 500 }), m.status()]);
   return { m, items: list.items, status };
@@ -108,9 +108,9 @@ test.describe('list filters', () => {
     expect(sorted[0].id).toBe(byEntity(m, items, 'automation.hall_motion').id);
   });
 
-  test('floor chips and the segment counts follow what the caller sees (the viewer has floor 1 only)', async () => {
+  test('floor chips and the segment counts follow what the caller sees (the household editor has floor 1 only)', async () => {
     const wide = await house();
-    const narrow = await house('viewer');
+    const narrow = await house('household');
     expect(floorOptions(wide.items.filter((i) => i.kind === 'automation')).map((f) => f.id).sort()).toEqual(expect.arrayContaining(['f1', 'g']));
     const f = floorOptions(narrow.items);
     expect(f.map((x) => x.id)).toEqual(['f1']);
@@ -234,14 +234,14 @@ test.describe('scenes', () => {
 // ---------------------------------------------------------------------------------------------------------------- banners, state, the new button
 
 test.describe('banners and the screen state', () => {
-  test('the installer sees no banner; a household member with delegation off sees the one that says what still works', async () => {
+  test('the installer sees no banner; a household member with delegation off sees one short strip (clean operator screens: no paragraph)', async () => {
     const a = await house('installer');
     expect(banners(a.status, 'automation')).toEqual([]);
     const off = await house('household', { delegation: false });
     const b = banners(off.status, 'automation');
     expect(b.map((x) => x.id)).toEqual(['delegation_off']);
     expect(b[0].title).toBe('שמירה דורשת מנהל');
-    expect(b[0].text).toContain('להפעיל ולכבות');
+    expect(b[0].text).toBe('');
     expect(banners((await house('household', { delegation: true })).status, 'automation')).toEqual([]);
   });
 
@@ -265,7 +265,8 @@ test.describe('banners and the screen state', () => {
     expect(screenKind(status, { ...o, noPermission: true })).toBe('no_permission');
     expect(screenKind({ ...status, available: 'feature_disabled' }, o)).toBe('feature_disabled');
     expect(screenKind({ ...status, available: 'not_configured' }, o)).toBe('not_configured');
-    expect(screenKind({ ...status, can: { ...status.can, view: false, script_run: false } }, o)).toBe('no_permission');
+    expect(screenKind({ ...status, can: { ...status.can, view: false, manage: false, script_run: false, script_manage: false, scene_manage: false, scene_run: false } }, o)).toBe('no_permission');
+    expect(screenKind({ ...status, can: { ...status.can, manage: false, script_run: false, script_manage: false, scene_manage: false } }, o)).toBe('ready'); // scenes by device control
     expect(screenKind(status, { ...o, loading: true })).toBe('loading');
     expect(screenKind(status, o)).toBe('ready');
   });
@@ -274,18 +275,20 @@ test.describe('banners and the screen state', () => {
     const inst = await house('installer');
     expect(newButton(inst.status, 'automation')).toEqual({ shown: true, disabled: false, reason: '' });
     expect(newButton(inst.status, 'scene').shown).toBe(true);
-    const view = await house('viewer');
-    expect(newButton(view.status, 'automation').shown).toBe(false);
-    expect(newButton(view.status, 'script').shown).toBe(false);
+    const run = await house('runner');
+    expect(newButton(run.status, 'automation').shown).toBe(false);
+    expect(newButton(run.status, 'script').shown).toBe(false);
+    expect(newButton(run.status, 'scene').shown).toBe(false);
     const hh = await house('household', { delegation: false });
     expect(newButton(hh.status, 'automation')).toMatchObject({ shown: true, disabled: true, reason: 'שמירה דורשת מנהל' });
     expect(newButton(null, 'automation').shown).toBe(false);
   });
 
-  test('which kinds a caller sees: all with view, scripts only with the run right alone', async () => {
-    const { status } = await house('viewer');
-    expect(visibleKinds(status)).toEqual(['automation', 'script', 'scene']);
-    expect(visibleKinds({ ...status, can: { ...status.can, view: false } })).toEqual(['script']);
+  test('which kinds a caller sees (decision 1b, no view-only): automations with manage only, scripts with a run right, scenes with device control', async () => {
+    const { status } = await house('runner');
+    expect(visibleKinds(status)).toEqual(['script', 'scene']);
+    expect(visibleKinds({ ...status, can: { ...status.can, scene_run: false } })).toEqual(['script']);
+    expect(visibleKinds((await house('installer')).status)).toEqual(['automation', 'script', 'scene']);
   });
 });
 
@@ -302,8 +305,10 @@ test.describe('script fields and settings tables', () => {
     expect(missingFields(fields, { percent: '' })).toEqual(['percent']);
   });
 
-  test('who may: the six roles; the system administrator always has the code view; the role chips toggle', () => {
+  test('who may: the six roles, no view-only column (decision 1b); the system administrator always has the code view; the role chips toggle', () => {
     expect(ROLE_ROWS.map((r) => r.id)).toEqual(['viewer', 'operator', 'household', 'aut_editor', 'site_admin', 'system_admin']);
+    expect(ROLE_ROWS.some((r) => 'view' in r)).toBe(false);
+    expect(ROLE_ROWS.filter((r) => r.run).map((r) => r.id)).toEqual(['operator', 'household', 'aut_editor', 'site_admin', 'system_admin']);
     expect(ROLE_ROWS.filter((r) => r.edit).map((r) => r.id)).toEqual(['aut_editor', 'site_admin', 'system_admin']);
     expect(CODE_VIEW_ROLES.find((r) => r.id === 'system_admin')!.locked).toBe(true);
     expect(toggleCodeRole(['site_admin', 'system_admin'], 'aut_editor')).toEqual(['site_admin', 'system_admin', 'aut_editor']);
@@ -358,25 +363,28 @@ test.describe('navigation (the shell module, node only)', () => {
   };
   test.afterEach(() => applyAutomationsHidden({}));
 
-  test('the tab is for automation.view or script.run at any scope; the settings tab for system.configure at the installation', () => {
+  test('the tab is for automation.manage, a script run or a scene activation at any scope (decision 1b); the settings tab for system.configure at the installation', () => {
     expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read')))).toEqual(['building']);
-    expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'automation.view')))).toEqual(['building', 'automations']);
+    expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'automation.manage')))).toEqual(['building', 'automations']);
+    expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'automation.view')))).toEqual(['building']); // the removed permission opens nothing
+    expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'devices.control')))).toEqual(['building', 'automations']); // scenes
+    expect(ids(visibleTabs(DEVICES_TABS, true, only('script.manage')))).toEqual(['automations']);
     expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'script.run')))).toEqual(['building', 'automations']);
-    expect(ids(visibleTabs(DEVICES_TABS, true, only('automation.view', 'schedule.view')))).toEqual(['schedules', 'automations']);
-    expect(ids(visibleTabs(DEVICES_TABS, true, only('automation.manage')))).toEqual([]); // managing alone reads nothing
+    expect(ids(visibleTabs(DEVICES_TABS, true, only('automation.manage', 'schedule.view')))).toEqual(['schedules', 'automations']);
+    expect(ids(visibleTabs(DEVICES_TABS, true, only('automation.manage')))).toEqual(['automations']); // whoever may edit sees them
     expect(tabAllowed(AUTOMATIONS_SETTINGS_HREF, only('system.configure'))).toBe(true);
     expect(tabAllowed(AUTOMATIONS_SETTINGS_HREF, only('automation.manage'))).toBe(false);
     expect(INSTALLATION_ONLY_HREFS.has(AUTOMATIONS_SETTINGS_HREF)).toBe(true);
     const scoped: Can = (p, inst) => p === 'system.configure' && !inst;
     expect(tabAllowed(AUTOMATIONS_SETTINGS_HREF, scoped)).toBe(false);
     expect(visibleTabs(AREA_TABS.system, true, only('system.configure')).some((t) => t.id === 'automations')).toBe(true);
-    expect(visibleTabs(AREA_TABS.system, true, only('automation.view')).some((t) => t.id === 'automations')).toBe(false);
+    expect(visibleTabs(AREA_TABS.system, true, only('automation.manage')).some((t) => t.id === 'automations')).toBe(false);
   });
 
   test('automations.enabled = false takes the tab out for everyone and back; the navigation hears each change once', () => {
     let heard = 0;
     const stop = onTabsConfig(() => (heard += 1));
-    const can = only('devices.read', 'automation.view');
+    const can = only('devices.read', 'automation.manage');
     expect(applyAutomationsHidden({ 'automations.enabled': 'false' })).toBe(true);
     expect(HIDDEN_HREFS.has(AUTOMATIONS_HREF)).toBe(true);
     expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['building']);

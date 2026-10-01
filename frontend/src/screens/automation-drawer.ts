@@ -42,7 +42,7 @@ export class AutomationDrawer extends LitElement {
   @property({ type: Boolean }) trash = false;
   @property({ attribute: false }) status: AutomationsStatus | null = null;
   @property({ attribute: false }) now: Date = new Date();
-  @state() private phase: 'loading' | 'ready' | 'missing' | 'error' = 'loading';
+  @state() private phase: 'loading' | 'ready' | 'missing' | 'forbidden' | 'error' = 'loading';
   @state() private item: ItemDetail | null = null;
   @state() private errorText = '';
   @state() private runs: RunSummary[] | null = null;
@@ -388,6 +388,7 @@ export class AutomationDrawer extends LitElement {
     } catch (err) {
       const f = mapAutomationError(err);
       if (f.status === 404) this.phase = 'missing';
+      else if (f.status === 403) this.phase = 'forbidden'; // owner decision 1b: no view-only access - a deep link to an automation the caller may not edit
       else { this.phase = 'error'; this.errorText = f.message; }
     }
   }
@@ -715,6 +716,7 @@ export class AutomationDrawer extends LitElement {
   private stateBox(): TemplateResult | null {
     if (this.phase === 'loading') return html`<div class="skl-stack" data-drawer-state="loading" aria-busy="true"><span class="skl" style="block-size:96px"></span><span class="skl" style="block-size:52px"></span><span class="skl" style="block-size:52px"></span><span class="skl" style="block-size:52px"></span></div>`;
     if (this.phase === 'missing') return html`<div class="center" data-drawer-state="missing">${aIcon('search', 30)}<b>הפריט לא נמצא</b></div>`;
+    if (this.phase === 'forbidden') return html`<div class="center" data-drawer-state="forbidden">${aIcon('lock', 30)}<b>אין הרשאה</b></div>`;
     if (this.phase === 'error') return html`<div class="center" data-drawer-state="error">${aIcon('warning', 30)}<b>${this.errorText || 'לא ניתן לטעון'}</b><button type="button" class="btn sm" @click=${() => void this.load()}>${aIcon('refresh')}נסו שוב</button></div>`;
     return null;
   }

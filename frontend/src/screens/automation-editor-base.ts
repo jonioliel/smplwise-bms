@@ -58,6 +58,8 @@ export abstract class AutomationEditorBase extends LitElement {
 
   @state() protected phase: 'loading' | 'ready' | 'error' = 'loading';
   @state() protected loadError = '';
+  /** The load answered 403 / 404: no retry button (owner decision 1b: an automation is not seen at all without automation.manage). */
+  @state() protected loadDenied = false;
   @state() protected status: AutomationsStatus | null = null;
   @state() protected env: EditorEnv | null = null;
   @state() protected item: ItemDetail | null = null;
@@ -846,6 +848,8 @@ export abstract class AutomationEditorBase extends LitElement {
     } catch (e) {
       if (token !== this.loadToken) return;
       this.loadError = automationErrorText(e);
+      const st = mapAutomationError(e).status;
+      this.loadDenied = st === 403 || st === 404;
       this.phase = 'error';
     }
   }
@@ -1467,6 +1471,7 @@ export abstract class AutomationEditorBase extends LitElement {
 
   protected renderBody(): TemplateResult {
     if (this.phase === 'loading') return html`<div class="state-box" data-editor-state="loading"><b>טוען…</b></div>`;
+    if (this.phase === 'error' && this.loadDenied) return html`<div class="state-box err" data-editor-state="forbidden"><b>${this.loadError}</b></div>`;
     if (this.phase === 'error') return html`<div class="state-box err" data-editor-state="error"><b>לא הצלחנו לטעון</b><span>${this.loadError}</span><button class="btn" type="button" @click=${() => void this.init()}>${icon('refresh')}נסו שוב</button></div>`;
     return this.view === 'code'
       ? html`${this.renderConflict()}${this.renderBanners()}${this.renderSentence()}${this.renderCodeView()}`

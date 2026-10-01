@@ -18,7 +18,7 @@ import {
 
 const stripUids = (v: unknown): unknown => JSON.parse(JSON.stringify(v, (k, x) => (k === 'uid' ? undefined : x)));
 
-async function envFor(user: 'installer' | 'household' | 'viewer' = 'installer'): Promise<{ env: EditorEnv; store: ReturnType<typeof resetAutomationsMock> }> {
+async function envFor(user: 'installer' | 'household' | 'runner' = 'installer'): Promise<{ env: EditorEnv; store: ReturnType<typeof resetAutomationsMock> }> {
   const store = resetAutomationsMock({ user });
   const status = await store.status();
   const catalog = await store.catalog().catch(() => EMPTY_CATALOG);
@@ -43,8 +43,8 @@ test.describe('editors: environment and scope', () => {
     expect(hh.env.catalog.entities.some((e) => e.entity_id === 'light.hall')).toBe(true);
   });
 
-  test('the viewer has no authoring catalogue: the editor falls back to the empty one and stays read-only', async () => {
-    const store = resetAutomationsMock({ user: 'viewer' });
+  test('the script runner has no authoring catalogue: the editor falls back to the empty one and stays read-only', async () => {
+    const store = resetAutomationsMock({ user: 'runner' });
     await expect(store.catalog()).rejects.toBeInstanceOf(ApiError);
     const env = buildEnv(await store.status(), EMPTY_CATALOG);
     expect(env.catalog.entities).toEqual([]);

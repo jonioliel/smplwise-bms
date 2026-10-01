@@ -745,9 +745,10 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   [SCHEDULES_HREF]: ['schedule.view', 'schedule.manage'],
   // its settings page: system.configure at installation scope
   [SCHEDULES_SETTINGS_HREF]: ['system.configure'],
-  // CR-017: automation.view (or script.run: a household member who may only run scripts) at any scope - the server narrows the lists to the
-  // caller's floors; the settings page is system.configure at installation scope. No role holds these before the backend (S1) lands.
-  [AUTOMATIONS_HREF]: ['automation.view', 'script.run'],
+  // CR-017, owner decision 1b (2026-10-01, no view-only access): automation.manage, a script run (script.run / script.manage) or a scene activation
+  // (scene.manage or the control of a device) at any scope - the server narrows the lists to the caller's floors and leaves automations out for a caller
+  // without automation.manage; the settings page is system.configure at installation scope.
+  [AUTOMATIONS_HREF]: ['automation.manage', 'script.run', 'script.manage', 'scene.manage', 'devices.control', 'ha.entity.control'],
   [AUTOMATIONS_SETTINGS_HREF]: ['system.configure'],
   // CR-015: media.read at any scope (a floor-scoped holder sees the screens of their floors; the server narrows the list);
   // the settings page is system.configure at installation scope. No role holds media.read before the backend (S1) lands.

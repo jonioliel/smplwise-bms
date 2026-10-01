@@ -554,7 +554,7 @@ test.describe('automations client: validation (§2.2 caps)', () => {
 // ---------------------------------------------------------------------------------------------------------------- permissions, lists, scope
 
 test.describe('automations client: permissions, delegation, lists, scope', () => {
-  const status = async (u: 'installer' | 'household' | 'viewer', o: { delegation?: boolean } = {}) => {
+  const status = async (u: 'installer' | 'household' | 'runner', o: { delegation?: boolean } = {}) => {
     const m = resetAutomationsMock({ user: u, delegation: o.delegation });
     return { m, s: await m.status() };
   };
@@ -573,12 +573,15 @@ test.describe('automations client: permissions, delegation, lists, scope', () =>
     const off = await status('household', { delegation: false });
     expect(saveBlocker('automation', off.s)).toEqual({ code: 'delegation_off', text: 'שמירה דורשת מנהל' });
     expect(delegationState(off.s).state).toBe('off');
-    const vw = await status('viewer');
-    expect(visibleKinds(vw.s)).toEqual(['automation', 'script', 'scene']);
-    expect(saveBlocker('automation', vw.s)).toEqual({ code: 'no_permission', text: 'אין הרשאת עריכה' });
-    expect(manageRight('scene', vw.s)).toBe(false);
-    expect(automationsTabVisible({ ...vw.s, can: { ...vw.s.can, view: false, script_run: false } })).toBe(false);
-    expect(visibleKinds({ ...vw.s, can: { ...vw.s.can, view: false } })).toEqual(['script']);
+    // owner decision 1b: no view-only access - a script runner who controls devices sees scripts and scenes, never automations
+    const rn = await status('runner');
+    expect(visibleKinds(rn.s)).toEqual(['script', 'scene']);
+    expect(automationsTabVisible(rn.s)).toBe(true);
+    expect(saveBlocker('automation', rn.s)).toEqual({ code: 'no_permission', text: 'אין הרשאת עריכה' });
+    expect(manageRight('scene', rn.s)).toBe(false);
+    expect(automationsTabVisible({ ...rn.s, can: { ...rn.s.can, script_run: false, scene_run: false } })).toBe(false);
+    expect(visibleKinds({ ...rn.s, can: { ...rn.s.can, scene_run: false } })).toEqual(['script']);
+    expect(visibleKinds({ ...inst.s, can: { ...inst.s.can, manage: false } })).toEqual(['script', 'scene']);
     expect(automationsTabVisible({ ...inst.s, available: 'feature_disabled' })).toBe(false);
     expect(saveBlocker('script', { ...inst.s, available: 'ha_unavailable' } as AutomationsStatus)?.code).toBe('ha_unavailable');
     expect(saveBlocker('script', { ...inst.s, write_block: 'bridge_too_old' })?.text).toBe('נדרש עדכון של רכיב החיבור כדי לשמור אוטומציות');
@@ -880,7 +883,7 @@ test.describe('automations mock: reads (the fixture house, three users)', () => 
     expect(by('scene.bed_night').hidden).toBe(true);
   });
 
-  test('the household editor (floor 1) and the viewer see only floor 1; the 404 for the rest; rights per user', async () => {
+  test('the household editor (floor 1) sees only floor 1; the 404 for the rest; the runner never sees an automation (403); rights per user', async () => {
     const m = resetAutomationsMock({ user: 'household' });
     const l = (await m.list()).items;
     expect(l.map((i) => i.entity_id).sort()).toEqual(['automation.bed_ac_clock', 'automation.hall_motion']); // the hidden scene is the installer's
@@ -891,11 +894,10 @@ test.describe('automations mock: reads (the fixture house, three users)', () => 
     const s = await m.status();
     expect(s.counts).toMatchObject({ automations: 2, scripts: 0, scenes: 0, hidden: null });
     expect(s.admin).toBeUndefined();
-    const v = resetAutomationsMock({ user: 'viewer' });
-    const vd = await v.get('automation', S(v, 'automation.hall_motion'));
-    expect(vd.can).toEqual({ edit: false, code_view: false, toggle: false, run: false, delete: false, copy: false });
-    expect(vd.read_only?.reasons[0].code).toBe('no_permission');
-    expect((await v.list()).items.map((i) => i.entity_id).sort()).toEqual(['automation.bed_ac_clock', 'automation.hall_motion']);
+    const v = resetAutomationsMock({ user: 'runner' });
+    expect(await code(v.get('automation', S(v, 'automation.hall_motion')))).toBe('forbidden');
+    expect((await v.list()).items.filter((i) => i.kind === 'automation')).toEqual([]);
+    expect((await v.status()).counts.automations).toBe(0);
   });
 
   test('the delegation knob decides whether a non-admin may save: read-only reason, write_block, then the write itself', async () => {
@@ -949,7 +951,7 @@ test.describe('automations mock: reads (the fixture house, three users)', () => 
     expect(h.entities.every((e) => !e.floor || e.floor.id === 'f1')).toBe(true);
     expect(h.entities.find((e) => e.entity_id === 'person.yoni')).toBeTruthy();
     expect(h.entities.find((e) => e.entity_id === 'light.entry')).toBeUndefined();
-    expect(await code(resetAutomationsMock({ user: 'viewer' }).catalog())).toBe('forbidden');
+    expect(await code(resetAutomationsMock({ user: 'runner' }).catalog())).toBe('forbidden');
   });
 
   test('templates: seven drafts with empty pickers, the time-only ones offer the schedule; hide and order come from the settings', async () => {
@@ -967,7 +969,7 @@ test.describe('automations mock: reads (the fixture house, three users)', () => 
     expect((await m.templates()).templates.map((t) => t.id)).toEqual(['t7', 't1', 't3', 't4', 't5', 't6']);
     await m.saveSettings({ ...s, templates_enabled: false });
     expect((await m.templates()).templates).toEqual([]);
-    expect(await code(resetAutomationsMock({ user: 'viewer' }).templates())).toBe('forbidden');
+    expect(await code(resetAutomationsMock({ user: 'runner' }).templates())).toBe('forbidden');
   });
 
   test('runs and traces: authored traces, a synthetic one for an item that ran, masked secrets, hidden from callers who cannot see the item', async () => {
@@ -1028,7 +1030,7 @@ test.describe('automations mock: writes follow §3.2 in order and answer with th
     expect(sc.item!.entity_id).toBe(`script.${sc.item!.id}`);
     expect(m.storedConfig('script', sc.item!.id)).toEqual({ alias: 'ס', description: '', mode: 'single', sequence: [{ action: 'light.turn_on', target: { entity_id: ['light.kitchen'] } }] });
     // no right, no write
-    expect(await code(resetAutomationsMock({ user: 'viewer' }).create('automation', { draft, client_request_id: rid() }))).toBe('forbidden');
+    expect(await code(resetAutomationsMock({ user: 'runner' }).create('automation', { draft, client_request_id: rid() }))).toBe('forbidden');
   });
 
   test('create by a household editor: scope (entity_not_controllable), the delegation audit flag, locked blocks are refused in the builder', async () => {
@@ -1209,7 +1211,7 @@ test.describe('automations mock: writes follow §3.2 in order and answer with th
     expect((await m.setEnabled(id, true, { client_request_id: rid() })).item.state).toBe('on');
     expect(await code(m.setEnabled(S(m, 'automation.light_by_lux'), true, { client_request_id: rid() }))).toBe('confirmation_required');
     expect((await m.setEnabled(S(m, 'automation.light_by_lux'), true, { confirm: true, client_request_id: rid() })).changed).toBe(false);
-    expect(await code(resetAutomationsMock({ user: 'viewer' }).setEnabled(id, false, { client_request_id: rid() }))).toBe('forbidden');
+    expect(await code(resetAutomationsMock({ user: 'runner' }).setEnabled(id, false, { client_request_id: rid() }))).toBe('forbidden');
     expect((await m.setMeta('automation', id, { pinned: true })).pinned).toBe(true);
     expect((await m.setMeta('scene', 'entity:scene.salon_movie', { hidden: true })).hidden).toBe(true);
     const hh = resetAutomationsMock({ user: 'household' });
@@ -1235,7 +1237,7 @@ test.describe('automations mock: writes follow §3.2 in order and answer with th
     expect(await code(m.run(away, { skip_condition: true, client_request_id: rid() }))).toBe('confirmation_required');
     expect(await code(m.run(away, { skip_condition: true, confirm: true, client_request_id: rid() }))).toBeNull();
     expect(await code(m.run(S(m, 'automation.light_by_lux'), { skip_condition: true, client_request_id: rid() }))).toBe('confirmation_required');
-    expect(await code(resetAutomationsMock({ user: 'viewer' }).run(hall, { skip_condition: true, client_request_id: rid() }))).toBe('forbidden');
+    expect(await code(resetAutomationsMock({ user: 'runner' }).run(hall, { skip_condition: true, client_request_id: rid() }))).toBe('forbidden');
     // scripts
     const sh = S(m, 'script.shutters');
     expect(await code(m.runScript(sh, { fields: { percent: 30 }, client_request_id: rid() }))).toBe('confirmation_required'); // a template action: unknown effects
@@ -1273,7 +1275,7 @@ test.describe('automations mock: writes follow §3.2 in order and answer with th
     expect(await code(m.capture({ entity_ids: ['lock.front'] }))).toBe('grant_required');
     expect(await code(hh.capture({ entity_ids: ['light.salon'] }))).toBe('entity_not_controllable');
     expect((await hh.capture({ entity_ids: ['light.hall', 'light.bed'] })).members).toHaveLength(2);
-    expect(await code(resetAutomationsMock({ user: 'viewer' }).capture({ entity_ids: ['light.hall'] }))).toBe('forbidden');
+    expect(await code(resetAutomationsMock({ user: 'runner' }).capture({ entity_ids: ['light.hall'] }))).toBe('forbidden');
     // a captured scene saved through the table
     const draft = { name: 'לילה', icon: null, members: [...(await hh.capture({ entity_ids: ['light.hall', 'light.bed'] })).members] };
     draft.members[0].attributes = { brightness: 25 };

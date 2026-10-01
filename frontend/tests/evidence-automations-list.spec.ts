@@ -8,7 +8,7 @@ import { ApiError } from '../src/api/client';
 // CR-017 S3: the automations screen ("אוטומציות", the third tab of the home area), its drawer (detail, "למה זה רץ", versions, dry-run, trash), the scenes panel
 // with the capture editor, the script runner and הגדרות › אוטומציות, in demo mode (no backend: api/automations-mock.ts answers; the persona, the state and the
 // scheme through localStorage `sw.demo.automations`, see api/automations-demo.ts) at 1440 / 820 / 390, light and dark, RTL; three users (installer, household
-// editor, viewer) and every state. The last describe block runs with a session (a mocked backend answering the real routes from the same mock store): the
+// editor, script runner - no view-only access, owner decision 1b) and every state. The last describe block runs with a session (a mocked backend answering the real routes from the same mock store): the
 // permission-gated navigation and what the client sends. S4's `<automation-builder>` is a double here (only the address and the properties are checked).
 //   SW_BASE_URL=http://127.0.0.1:4711/ npx playwright test tests/evidence-automations-list.spec.ts --project=desktop --workers=1
 // Screenshots: docs/design/evidence/CR-017/s3/.
@@ -352,7 +352,7 @@ test.describe('the detail drawer', () => {
     await expect(scr(page).locator('[data-auto-note]')).toContainText('האוטומציה הורצה');
   });
 
-  test('a configuration-file item is view-only; an invalid one says so; a view-only caller has no edit', async ({ page }) => {
+  test('a configuration-file item is view-only; an invalid one says so; a caller without automation.manage gets no automation at all (decision 1b)', async ({ page }) => {
     await open(page, '/devices/automations/entity%3Aautomation.irrigation_shabbat');
     let d = drawer(page);
     await expect(d.locator('[data-drawer-readonly="yaml_managed"]')).toContainText('מוגדרת בקובץ תצורה');
@@ -370,12 +370,11 @@ test.describe('the detail drawer', () => {
     d = drawer(page);
     await expect(d.locator('[data-drawer-invalid]')).toContainText('לא פעילה – שגיאה בהגדרה');
     await shot(page, '42-state-invalid-drawer', '1440');
-    await open(page, '/devices/automations/1727700000002', '390', { user: 'viewer' });
+    await open(page, '/devices/automations/1727700000002', '390', { user: 'runner' });
     d = drawer(page);
-    await expect(d.locator('[data-drawer-detail]')).toBeVisible();
-    for (const a of ['edit', 'run', 'copy', 'delete']) await expect(d.locator(`[data-drawer-${a}]`)).toHaveCount(0);
-    await expect(d.locator('[data-drawer-why]')).toBeVisible();
-    await shot(page, '43-state-viewer-drawer', '390');
+    await expect(d.locator('[data-drawer-state="forbidden"]')).toContainText('אין הרשאה');
+    await expect(d.locator('[data-drawer-detail], [data-drawer-why]')).toHaveCount(0);
+    await shot(page, '43-state-runner-automation-link', '390');
   });
 
   test('a change made outside while the drawer is open: the write finds it changed, the banner offers the current version', async ({ page }) => {
@@ -647,14 +646,14 @@ test.describe('scripts', () => {
     }
   });
 
-  test('the empty state of the scripts and the view-only caller: a viewer runs scripts but cannot edit', async ({ page }) => {
+  test('the empty state of the scripts and the script runner: runs scripts but cannot edit', async ({ page }) => {
     await open(page, '/devices/automations/scripts', '1440', { empty: true });
     await expect(scr(page).locator('[data-auto-state="empty"]')).toContainText('אין עדיין סקריפטים');
-    // a viewer of floor 1 runs the scripts of that floor only (none here: they all touch the ground floor) and cannot create
-    await open(page, '/devices/automations/scripts', '390', { user: 'viewer' });
+    // a runner of floor 1 runs the scripts of that floor only (none here: they all touch the ground floor) and cannot create
+    await open(page, '/devices/automations/scripts', '390', { user: 'runner' });
     await expect(scr(page).locator('[data-auto-state="empty"]')).toContainText('אין עדיין סקריפטים');
     await expect(scr(page).locator('[data-auto-new], [data-auto-new-empty]')).toHaveCount(0);
-    await shot(page, '74-scripts-viewer', '390');
+    await shot(page, '74-scripts-runner', '390');
     // the household editor sees the same floor and may create
     await open(page, '/devices/automations/scripts', '1440', { user: 'household' });
     await expect(scr(page).locator('[data-auto-new-empty]')).toBeVisible();
@@ -698,22 +697,19 @@ test.describe('the three users', () => {
     await expect(scr(page).locator('[data-card-toggle]').first()).toBeVisible(); // viewing, running, switching still work
   });
 
-  test('viewer: no new button, a state chip instead of the toggle, no edit in the menu', async ({ page }) => {
+  test('script runner (decision 1b, no view-only access): no automations segment, no automation card, no new button', async ({ page }) => {
     for (const size of ['1440', '390'] as const) {
-      await open(page, '/devices/automations', size, { user: 'viewer' });
-      await ready(page);
-      await shot(page, '82-viewer', size);
+      await open(page, '/devices/automations', size, { user: 'runner' });
+      await expect(scr(page).locator('[data-screen="devices-automations"]')).toHaveAttribute('data-segment', 'scripts');
+      await shot(page, '82-runner', size);
     }
-    await open(page, '/devices/automations', '1440', { user: 'viewer' });
-    await ready(page);
-    await expect(scr(page).locator('[data-auto-new]')).toHaveCount(0);
-    await expect(scr(page).locator('[data-card-toggle]')).toHaveCount(0);
-    expect(await scr(page).locator('[data-card-state]').count()).toBe(await cards(page).count());
-    await cards(page).first().locator('[data-card-menu]').click();
-    await expect(cards(page).first().locator('[data-card-action="edit"]')).toHaveCount(0);
-    await expect(cards(page).first().locator('[data-card-action="trace"]')).toBeVisible();
-    // a viewer's settings tab: forbidden
-    await open(page, '/system/automations', '1440', { user: 'viewer' });
+    await open(page, '/devices/automations', '1440', { user: 'runner' });
+    await expect(scr(page).locator('[data-screen="devices-automations"]')).toHaveAttribute('data-segment', 'scripts');
+    await expect(scr(page).locator('button[data-segment="automations"]')).toHaveCount(0);
+    await expect(cards(page)).toHaveCount(0);
+    await expect(scr(page).locator('[data-auto-new], [data-auto-new-empty]')).toHaveCount(0);
+    // a runner's settings tab: forbidden
+    await open(page, '/system/automations', '1440', { user: 'runner' });
     await expect(page.locator('sw-app system-automations [data-automations-settings-forbidden]')).toBeVisible();
   });
 });
@@ -737,8 +733,8 @@ test.describe('states', () => {
       await expect(scr(page).locator('[data-auto-new-empty]')).toBeVisible();
       await shot(page, '91-state-empty', size, scheme);
     }
-    await open(page, '/devices/automations', '1440', { empty: true, user: 'viewer' });
-    await expect(scr(page).locator('[data-auto-state="empty"]')).toBeVisible();
+    await open(page, '/devices/automations', '1440', { empty: true, user: 'runner' });
+    await expect(scr(page).locator('[data-auto-state="empty"]')).toContainText('אין עדיין סקריפטים');
     await expect(scr(page).locator('[data-auto-new-empty]')).toHaveCount(0);
   });
 
@@ -762,7 +758,7 @@ test.describe('states', () => {
     await shot(page, '93-state-switched-off', '1440');
     await open(page, '/devices/automations', '390', { available: 'not_configured' });
     await expect(scr(page).locator('[data-auto-state="not_configured"]')).toBeVisible();
-    await open(page, '/devices/automations', '1440', { available: 'feature_disabled', user: 'viewer' });
+    await open(page, '/devices/automations', '1440', { available: 'feature_disabled', user: 'runner' });
     await expect(scr(page).locator('[data-open-settings]')).toHaveCount(0);
   });
 
@@ -914,7 +910,7 @@ async function install(page: Page, st: ApiState) {
         if (p === 'automations/status') {
           if (st.statusCode !== 200) return err(st.statusCode, 'forbidden', 'אין הרשאה לפעולה זו בהיקף המבוקש.');
           const status = await s.status();
-          return json(st.scriptsOnly ? { ...status, can: { ...status.can, view: false, manage: false, scene_manage: false, script_manage: false, code_view: false, configure: false } } : status);
+          return json(st.scriptsOnly ? { ...status, can: { ...status.can, view: true, manage: false, scene_manage: false, script_manage: false, code_view: false, configure: false, scene_run: false } } : status);
         }
         if (p === 'automations' && req.method() === 'GET') {
           st.lists += 1;
@@ -973,34 +969,37 @@ test.describe('with a session: permissions, the setting, the push frame and what
   let st: ApiState;
 
   test.beforeEach(async ({ page }) => {
-    st = { perms: [...VIEWER_PERMS, 'automation.view', 'automation.manage', 'scene.manage', 'script.run', 'script.manage', 'system.configure'], settings: {}, store: resetAutomationsMock({ user: 'installer' }), calls: [], listStatus: 200, statusCode: 200, scriptsOnly: false, lists: 0, patches: [], ws: null };
+    st = { perms: [...VIEWER_PERMS, 'automation.manage', 'scene.manage', 'script.run', 'script.manage', 'system.configure'], settings: {}, store: resetAutomationsMock({ user: 'installer' }), calls: [], listStatus: 200, statusCode: 200, scriptsOnly: false, lists: 0, patches: [], ws: null };
     await install(page, st);
   });
 
   const post = (re: RegExp) => st.calls.filter((c) => c.method === 'POST' && re.test(c.path));
 
-  test('the tab is for holders of automation.view (or script.run); the settings tab for system.configure; automations.enabled off hides it', async ({ page }) => {
+  test('the tab is for automation.manage, a script run or a scene activation (decision 1b); the settings tab for system.configure; automations.enabled off hides it', async ({ page }) => {
     st.perms = VIEWER_PERMS;
     await openApi(page, '/devices/building');
     expect(await rowTabs(page)).toEqual([]);
-    st.perms = [...VIEWER_PERMS, 'automation.view'];
+    st.perms = [...VIEWER_PERMS, 'automation.view']; // the removed permission opens nothing
+    await openApi(page, '/devices/building');
+    expect(await rowTabs(page)).toEqual([]);
+    st.perms = [...VIEWER_PERMS, 'automation.manage'];
     await openApi(page, '/devices/building');
     expect(await rowTabs(page)).toEqual(['מבט על', 'אוטומציות']);
     st.perms = [...VIEWER_PERMS, 'script.run'];
     await openApi(page, '/devices/building');
     expect(await rowTabs(page)).toEqual(['מבט על', 'אוטומציות']);
-    st.perms = [...VIEWER_PERMS, 'schedule.view', 'automation.view'];
+    st.perms = [...VIEWER_PERMS, 'schedule.view', 'automation.manage'];
     await openApi(page, '/devices/building');
     expect(await rowTabs(page)).toEqual(['מבט על', 'תזמונים', 'אוטומציות']);
     // the settings tab
-    st.perms = [...VIEWER_PERMS, 'automation.view'];
+    st.perms = [...VIEWER_PERMS, 'automation.manage'];
     await openApi(page, '/system/diagnostics');
     expect(await rowTabs(page)).not.toContain('אוטומציות');
     st.perms = [...VIEWER_PERMS, 'system.configure'];
     await openApi(page, '/system/diagnostics');
     expect(await rowTabs(page)).toContain('אוטומציות');
     // the product setting
-    st.perms = [...VIEWER_PERMS, 'automation.view'];
+    st.perms = [...VIEWER_PERMS, 'automation.manage'];
     st.settings = { 'automations.enabled': 'false' };
     await openApi(page, '/devices/building');
     expect(await rowTabs(page)).toEqual([]);

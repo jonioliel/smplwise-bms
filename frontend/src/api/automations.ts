@@ -143,8 +143,10 @@ export interface AutomationsStatus {
   write_block: null | 'feature_disabled' | 'ha_unavailable' | 'bridge_missing' | 'bridge_unpaired' | 'bridge_too_old'
              | 'delegation_off' | 'authoring_blocked';
   scheduler_present: boolean;                    // CR §5 cross-link
+  /** Owner decision 1b (2026-10-01): there is NO view-only access. `view` = sees ANY kind (automation.manage, a script run or a scene activation);
+   *  automations are seen by `manage` only; `scene_run` = the control of a device (activates the scenes whose members / entity it controls). */
   can: { view: boolean; manage: boolean; scene_manage: boolean; script_run: boolean; script_manage: boolean;
-         code_view: boolean; configure: boolean };
+         code_view: boolean; configure: boolean; scene_run: boolean };
   delegation: { on: boolean; needed: boolean };  // needed = the caller is not an HA admin (so saving depends on `on`)
   ui: { sensitive_warning: boolean; ask_when_on_new: boolean; templates_enabled: boolean;
         /** Optional echoes of the two owner display settings (absent = defaults `fold` / `amber`). */
@@ -1664,9 +1666,11 @@ export function issuesByUid(draft: AnyDraft, issues: readonly Issue[]): Record<s
 // ------------------------------------------------------------------------------------------------ permissions, delegation, read-only
 
 export const manageRight = (kind: ItemKind, s: Pick<AutomationsStatus, 'can'>): boolean => (kind === 'automation' ? s.can.manage : kind === 'scene' ? s.can.scene_manage : s.can.script_manage);
-/** CR §4.1: the tabs appear only to holders of `automation.view` (or the run rights of §7), and not while the feature is switched off. */
-export const automationsTabVisible = (s: AutomationsStatus): boolean => s.available !== 'feature_disabled' && (s.can.view || s.can.script_run);
-export const visibleKinds = (s: AutomationsStatus): ItemKind[] => (s.can.view ? [...ITEM_KINDS] : s.can.script_run ? ['script'] : []);
+/** CR §4.1 + owner decision 1b: the tab appears to holders of `automation.manage`, a script run or a scene activation, and not while the feature is switched off. */
+export const automationsTabVisible = (s: AutomationsStatus): boolean => s.available !== 'feature_disabled' && visibleKinds(s).length > 0;
+/** The kinds the caller sees (decision 1b: automations only with `automation.manage`; scripts with script.run / script.manage; scenes with scene.manage or the control of a device). */
+export const visibleKinds = (s: Pick<AutomationsStatus, 'can'>): ItemKind[] =>
+  ITEM_KINDS.filter((k) => (k === 'automation' ? s.can.manage : k === 'script' ? s.can.script_run || s.can.script_manage : s.can.scene_manage || !!s.can.scene_run));
 /** The delegation state the editor and the settings tab show: not needed (an HA admin), on, or off (a non-admin's save is blocked). */
 export function delegationState(s: Pick<AutomationsStatus, 'delegation' | 'admin'>): { state: 'not_needed' | 'on' | 'off'; changed_at: string | null } {
   return { state: !s.delegation.needed ? 'not_needed' : s.delegation.on ? 'on' : 'off', changed_at: s.admin?.delegation_changed_at ?? null };

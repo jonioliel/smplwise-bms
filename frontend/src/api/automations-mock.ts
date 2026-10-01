@@ -7,7 +7,7 @@
  *  - 3 scripts (one with fields, one sensitive) and scenes: five integration-provided (activate-only) and one captured (HA-native, editable);
  *  - full traces for two automations, versions for one, two items in the trash;
  *  - three users: an installer (HA admin, everything), a household editor scoped to floor 1 (not an HA admin: saving depends on the delegation knob),
- *    and a viewer (view + run scripts, floor 1).
+ *    and a runner (runs scripts and activates scenes, floor 1; sees no automation - owner decision 1b, no view-only access).
  * Knobs: `store.setUser(..)`, `store.delegation` (the bridge's switch, default ON like the approved mockup), `store.conflictNext` (the next write finds the
  * item changed elsewhere), `store.failNext(code)`, `store.available`, `store.schedulerPresent`, `store.conditionsPass`, `store.clock`, `store.externalEdit(..)`.
  * The write path follows §3.2 of the contract in order (validate -> grants -> confirm -> revision -> delegation -> write -> version -> audit) and answers with
@@ -90,18 +90,18 @@ const modelCtx = (): ModelContext => ({ names: nameOf, notifyName: (a) => NOTIFY
 
 // ------------------------------------------------------------------------------------------------ users
 
-export type MockUserId = 'installer' | 'household' | 'viewer';
+export type MockUserId = 'installer' | 'household' | 'runner';
 export interface MockUser {
   id: MockUserId; name: string; ha_admin: boolean; can: AutomationsStatus['can']; scope: UserScope;
   /** The manual-control grants held (`door.unlock`, `alarm.disarm`, `ha.entity.control`). */
   grants: Set<string>;
 }
 function users(): Record<MockUserId, MockUser> {
-  const all = { view: true, manage: true, scene_manage: true, script_run: true, script_manage: true, code_view: true, configure: true };
+  const all = { view: true, manage: true, scene_manage: true, script_run: true, script_manage: true, code_view: true, configure: true, scene_run: true };
   return {
     installer: { id: 'installer', name: 'יוני', ha_admin: true, can: all, scope: { floors: null, areas: null }, grants: new Set(['alarm.disarm', 'door.unlock', 'ha.entity.control']) },
     household: { id: 'household', name: 'דנה', ha_admin: false, can: { ...all, code_view: false, configure: false }, scope: { floors: ['f1'], areas: null }, grants: new Set(['door.unlock']) },
-    viewer: { id: 'viewer', name: 'נועם', ha_admin: false, can: { view: true, manage: false, scene_manage: false, script_run: true, script_manage: false, code_view: false, configure: false }, scope: { floors: ['f1'], areas: null }, grants: new Set() },
+    runner: { id: 'runner', name: 'נועם', ha_admin: false, can: { view: true, manage: false, scene_manage: false, script_run: true, script_manage: false, code_view: false, configure: false, scene_run: true }, scope: { floors: ['f1'], areas: null }, grants: new Set() },
   };
 }
 
@@ -387,7 +387,13 @@ export class AutomationsMockStore implements AutomationsAdapter {
     if (e.kind === 'scene' && !e.config) return entityInScope(placeOf(e.entity) ?? { floor: null, area: null }, u.scope, 'target');
     return itemVisibleTo(this.draftOf(e), u.scope, (id) => placeOf(id));
   }
-  private viewRight(kind: ItemKind, u: MockUser = this.user): boolean { return kind === 'script' ? u.can.view || u.can.script_run : u.can.view; }
+  /** Owner decision 1b (2026-10-01): no view-only access - an automation is seen by automation.manage only; scripts by script.run / script.manage; scenes by scene.manage or the control of a device. */
+  private viewRight(kind: ItemKind, u: MockUser = this.user): boolean { return kind === 'automation' ? u.can.manage : kind === 'script' ? u.can.script_run || u.can.script_manage : u.can.scene_manage || u.can.scene_run; }
+  /** 403 without the kind's right (the backend's order: no view-only access, decision 1b), 404 for an item outside the caller's scope. */
+  private mustSee(kind: ItemKind, e: Entry): void {
+    if (!this.viewRight(kind)) this.err(403, 'forbidden');
+    if (!this.visible(e)) this.err(404, 'item_not_found');
+  }
   private needGrants(draft: AnyDraft, u: MockUser = this.user): PreviewResult['sensitive_steps'] {
     return sensitiveSteps(draft, this.classOf, (g) => u.grants.has(g));
   }
@@ -588,7 +594,8 @@ export class AutomationsMockStore implements AutomationsAdapter {
   }
   async get(kind: ItemKind, id: string): Promise<ItemDetail> {
     const e = this.must(kind, id);
-    if (!this.viewRight(kind) || !this.visible(e)) this.err(404, 'item_not_found');
+    if (!this.viewRight(kind)) this.err(403, 'forbidden');
+    if (!this.visible(e)) this.err(404, 'item_not_found');
     return this.detailOf(e);
   }
   async catalog(): Promise<AutomationCatalog> {
@@ -652,7 +659,7 @@ export class AutomationsMockStore implements AutomationsAdapter {
     return { entities: out, unknown: hasUnknownEffects(draft) };
   }
   async preview(body: { kind: ItemKind; id?: string | null; draft: AnyDraft }): Promise<PreviewResult> {
-    if (!this.viewRight(body.kind)) this.err(403, 'forbidden');
+    if (!manageRight(body.kind, { can: this.user.can })) this.err(403, 'forbidden');
     const { kind, draft } = body;
     const stored = body.id ? this.entries.get(this.key(kind, body.id)) ?? null : null;
     const errors = validateDraft(kind, draft, { shabbatSensor: SHABBAT_SENSOR });
@@ -723,7 +730,7 @@ export class AutomationsMockStore implements AutomationsAdapter {
   }
   private editable(kind: ItemKind, id: string): Entry {
     const e = this.must(kind, id);
-    if (!this.viewRight(kind) || !this.visible(e)) this.err(404, 'item_not_found');
+    this.mustSee(kind, e);
     if (e.source !== 'ui') this.err(422, 'not_editable');
     return e;
   }
@@ -816,7 +823,7 @@ export class AutomationsMockStore implements AutomationsAdapter {
     return this.idem(body.client_request_id, () => {
       this.maybeFail();
       const e = this.must('automation', id);
-      if (!this.visible(e) || !this.viewRight('automation')) this.err(404, 'item_not_found');
+      this.mustSee('automation', e);
       if (!this.user.can.manage) this.err(403, 'forbidden');
       if (e.source === 'integration') this.err(422, 'not_editable');
       const draft = this.draftOf(e);
@@ -930,7 +937,7 @@ export class AutomationsMockStore implements AutomationsAdapter {
 
   async runs(kind: ItemKind, id: string): Promise<RunSummary[]> {
     const e = this.must(kind, id);
-    if (!this.visible(e) || !this.viewRight(kind)) this.err(404, 'item_not_found');
+    this.mustSee(kind, e);
     return this.traces(e).map((t) => ({ run_id: t.run_id, at: t.at, finished_at: t.finished_at, result: t.result, sentence: t.sentence }));
   }
   /** Authored traces, else one synthetic run for an item that has a last run. */
@@ -945,14 +952,14 @@ export class AutomationsMockStore implements AutomationsAdapter {
   }
   async runTrace(kind: ItemKind, id: string, runId: string): Promise<RunTrace> {
     const e = this.must(kind, id);
-    if (!this.visible(e) || !this.viewRight(kind)) this.err(404, 'item_not_found');
+    this.mustSee(kind, e);
     const t = this.traces(e).find((x) => x.run_id === runId);
     if (!t) this.err(404, 'item_not_found');
     return clone(t);
   }
   async versions(kind: ItemKind, id: string): Promise<VersionRow[]> {
     const e = this.must(kind, id);
-    if (!this.visible(e) || !this.viewRight(kind)) this.err(404, 'item_not_found');
+    this.mustSee(kind, e);
     const last = e.versions.length - 1;
     return e.versions.map((v, i) => ({ version_id: v.version_id, revision: v.revision, at: v.at, via: v.via, actor: v.actor, summary: v.summary, current: i === last })).reverse();
   }
@@ -976,8 +983,8 @@ export class AutomationsMockStore implements AutomationsAdapter {
     });
   }
   async trash(): Promise<TrashRow[]> {
-    if (!this.user.can.view) this.err(403, 'forbidden');
-    return this.trashRows.filter((t) => t.entities.every((id) => entityInScope(placeOf(id) ?? { floor: null, area: null }, this.user.scope, 'target')))
+    if (!this.user.can.manage && !this.user.can.scene_manage && !this.user.can.script_manage) this.err(403, 'forbidden');
+    return this.trashRows.filter((t) => this.viewRight(t.kind) && t.entities.every((id) => entityInScope(placeOf(id) ?? { floor: null, area: null }, this.user.scope, 'target')))
       .map((t) => ({ trash_id: t.trash_id, kind: t.kind, config_id: t.id, name: t.name, sentence: t.sentence, deleted_at: t.deleted_at, expires_at: t.expires_at, deleted_by: t.deleted_by, sensitive: t.sensitive, entities: t.entities,
         can_restore: manageRight(t.kind, { can: this.user.can }) }));
   }
@@ -1015,7 +1022,7 @@ export class AutomationsMockStore implements AutomationsAdapter {
   }
   async setMeta(kind: ItemKind, id: string, patch: MetaPatch): Promise<Item> {
     const e = this.must(kind, id);
-    if (!this.visible(e) || !this.viewRight(kind)) this.err(404, 'item_not_found');
+    this.mustSee(kind, e);
     if (patch.hidden !== undefined && !(this.user.can.manage && isInstallationWide(this.user.scope))) this.err(403, 'forbidden');
     if (patch.pinned !== undefined) e.meta.pinned = patch.pinned;
     if (patch.favourite !== undefined) e.meta.favourite = patch.favourite;

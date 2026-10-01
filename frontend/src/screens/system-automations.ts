@@ -420,8 +420,8 @@ export class SystemAutomations extends LitElement {
     const codeOn = (id: string, fixed: boolean | null) => (fixed !== null ? fixed : this.draft.code_view_roles.includes(id));
     return html`<sw-card heading="מי רשאי" data-card="who">
       <table class="mtx" data-roles-matrix>
-        <thead><tr><th>תפקיד</th><th class="c">צפייה</th><th class="c">הפעלה</th><th class="c">יצירה ועריכה</th><th class="c">קוד</th></tr></thead>
-        <tbody>${ROLE_ROWS.map((r) => html`<tr data-role=${r.id}><td>${r.label}${r.scope ? html`<small>${r.scope}</small>` : nothing}</td><td class="c">${tick(r.view)}</td><td class="c">${tick(r.run)}</td><td class="c">${tick(r.edit)}</td><td class="c">${tick(codeOn(r.id, r.codeFixed))}</td></tr>`)}</tbody>
+        <thead><tr><th>תפקיד</th><th class="c">הפעלה</th><th class="c">יצירה ועריכה</th><th class="c">קוד</th></tr></thead>
+        <tbody>${ROLE_ROWS.map((r) => html`<tr data-role=${r.id}><td>${r.label}${r.scope ? html`<small>${r.scope}</small>` : nothing}</td><td class="c">${tick(r.run)}</td><td class="c">${tick(r.edit)}</td><td class="c">${tick(codeOn(r.id, r.codeFixed))}</td></tr>`)}</tbody>
       </table>
       ${this.row('הרשאות ותפקידים', 'ההקצאה למשתמשים ולקומות במסך "משתמשים והרשאות".', html`<a class="link" href="#/system/access" data-link-access>למסך המשתמשים</a>`)}
     </sw-card>`;

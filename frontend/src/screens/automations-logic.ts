@@ -1,5 +1,5 @@
 import {
-  filterItems, itemChips, manageRight, saveBlocker, sortItems,
+  filterItems, itemChips, manageRight, saveBlocker, sortItems, visibleKinds,
   type AutomationsStatus, type Item, type ItemChip, type ItemKind, type RunSummary, type SceneMember, type ScriptField,
 } from '../api/automations';
 
@@ -235,7 +235,7 @@ export function screenKind(status: AutomationsStatus | null, o: { failed: boolea
   if (!status) return o.failed ? 'error' : 'loading';
   if (status.available === 'feature_disabled') return 'feature_disabled';
   if (status.available === 'not_configured') return 'not_configured';
-  if (!status.can.view && !status.can.script_run) return 'no_permission';
+  if (!visibleKinds(status).length) return 'no_permission';
   if (o.failed) return 'error';
   return o.loading ? 'loading' : 'ready';
 }
@@ -248,7 +248,7 @@ export function banners(status: AutomationsStatus | null, kind: ItemKind): Banne
   else if (status.stale || status.available === 'error') out.push({ id: 'stale', tone: 'warn', title: '', text: 'המידע אינו עדכני. הרענון האחרון נכשל.', retry: true });
   if (manageRight(kind, status) && status.available === 'ok') {
     const b = saveBlocker(kind, status);
-    if (b?.code === 'delegation_off') out.push({ id: 'delegation_off', tone: 'warn', title: 'שמירה דורשת מנהל', text: 'אפשר לצפות, להפעיל ולכבות. שינויים יישמרו אחרי שמנהל יאשר זאת בתשתית המערכת.', retry: false });
+    if (b?.code === 'delegation_off') out.push({ id: 'delegation_off', tone: 'warn', title: 'שמירה דורשת מנהל', text: '', retry: false });
     else if (b) out.push({ id: 'read_only', tone: 'info', title: '', text: b.text, retry: false });
   } else if (status.available === 'config_api_unavailable') out.push({ id: 'read_only', tone: 'info', title: '', text: 'עריכה אינה זמינה כרגע', retry: false });
   return out;
@@ -271,16 +271,17 @@ export function runRows(runs: readonly RunSummary[], now: Date, timeZone?: strin
 
 // ------------------------------------------------------------------------------------------------ the settings tab
 
-export interface RoleRow { id: string; label: string; scope: string; view: boolean; run: boolean; edit: boolean; codeFixed: boolean | null }
-/** The documented defaults (CR §7): who may view / run / create-edit; the code column follows `automations.code_view_roles` for the roles that can hold it.
+export interface RoleRow { id: string; label: string; scope: string; run: boolean; edit: boolean; codeFixed: boolean | null }
+/** The documented defaults (CR §7): who may run (activate scenes, run scripts) / create-edit; owner decision 1b (2026-10-01): there is no view-only column -
+ * automations are seen only by whoever may create and edit them. The code column follows `automations.code_view_roles` for the roles that can hold it.
  * Read-only here (the roles themselves are assigned in הגדרות › משתמשים והרשאות). */
 export const ROLE_ROWS: readonly RoleRow[] = [
-  { id: 'viewer', label: 'צופה', scope: '', view: true, run: false, edit: false, codeFixed: false },
-  { id: 'operator', label: 'מפעיל', scope: '', view: true, run: true, edit: false, codeFixed: false },
-  { id: 'household', label: 'בני בית', scope: 'בקומות שלהם', view: true, run: true, edit: false, codeFixed: false },
-  { id: 'aut_editor', label: 'עורך אוטומציות', scope: 'בקומות שלהם · שמירה דרך האצלה', view: true, run: true, edit: true, codeFixed: null },
-  { id: 'site_admin', label: 'מנהל אתר / קומה', scope: '', view: true, run: true, edit: true, codeFixed: null },
-  { id: 'system_admin', label: 'מנהל מערכת', scope: '', view: true, run: true, edit: true, codeFixed: true },
+  { id: 'viewer', label: 'צופה', scope: '', run: false, edit: false, codeFixed: false },
+  { id: 'operator', label: 'מפעיל', scope: '', run: true, edit: false, codeFixed: false },
+  { id: 'household', label: 'מפעיל סקריפטים', scope: 'בקומות שלהם', run: true, edit: false, codeFixed: false },
+  { id: 'aut_editor', label: 'עורך אוטומציות', scope: 'בקומות שלהם · שמירה דרך האצלה', run: true, edit: true, codeFixed: null },
+  { id: 'site_admin', label: 'מנהל אתר / קומה', scope: '', run: true, edit: true, codeFixed: null },
+  { id: 'system_admin', label: 'מנהל מערכת', scope: '', run: true, edit: true, codeFixed: true },
 ];
 /** Roles whose code-view switch is configurable (the system administrator always has it). */
 export const CODE_VIEW_ROLES: ReadonlyArray<{ id: string; label: string; locked: boolean }> = [
