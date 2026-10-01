@@ -190,7 +190,7 @@ test.describe('PWA shell (CR-008 P3)', () => {
     await page.waitForTimeout(500);
     await expect(hint).toBeHidden();
     // the notifications tab says why push needs the installed app on iOS
-    await page.goto('/#/system/notifications');
+    await page.goto('/#/system/notifications?section=chan');
     await expect(page.locator('arx-notifications-settings [data-push-support="ios_install"]')).toBeVisible();
     await ctx.close();
   });
@@ -221,7 +221,7 @@ test.describe('PWA shell (CR-008 P3)', () => {
     await expect(page.locator('arx-pwa-prompts [data-pwa-install]')).toBeHidden();
     // the notifications tab no longer needs the "install first" hint: push works in the installed app (a denied
     // browser permission is a separate, unrelated state - this only checks the iOS "install it first" branch)
-    await page.goto('/#/system/notifications');
+    await page.goto('/#/system/notifications?section=chan');
     await expect(page.locator('arx-notifications-settings [data-push-support="ios_install"]')).toHaveCount(0);
     await ctx.close();
   });
@@ -360,7 +360,7 @@ test.describe('הגדרות › התראות (live, throwaway backend)', () => {
 
   test('subscribe, preferences, test, unsubscribe', async ({ page, request }, info) => {
     await page.addInitScript(MOCK_PUSH);
-    await page.goto('/#/system/notifications');
+    await page.goto('/#/system/notifications?section=chan');
     const screen = page.locator('arx-notifications-settings');
     await expect(screen.locator('[data-push-settings][data-loaded="1"]')).toBeVisible({ timeout: 20_000 });
     // the tab is offered to every user in the settings tab row
@@ -377,16 +377,9 @@ test.describe('הגדרות › התראות (live, throwaway backend)', () => {
     expect(JSON.stringify(subs)).not.toContain('playwright-'); // the endpoint itself is never served back
     await expect(screen.locator(`[data-push-row="${subs[0].id}"]`)).toContainText('המכשיר הזה');
 
-    // preferences: a category off, quiet hours on (22:00-06:30), saved for this user
-    await screen.locator('[data-push-cat="system"]').locator('button').click();
-    await screen.locator('[data-push-quiet]').locator('button').click();
-    await screen.locator('[data-push-to]').fill('06:30');
-    await screen.locator('[data-push-to]').dispatchEvent('change');
-    await screen.locator('[data-push-save]').click();
-    await expect(screen.locator('[data-push-message]')).toContainText('נשמרו');
-    const prefs = await (await request.get('/api/v1/push/prefs')).json();
-    expect(prefs.categories.system).toBe(false);
-    expect(prefs.quiet).toMatchObject({ enabled: true, from: '22:00', to: '06:30', allow_critical: true });
+    // CR-018 (owner 4ב): no personal categories or quiet hours - only this device's registration; what is sent is the administrator's decision
+    await expect(screen.locator('[data-push-cat]')).toHaveCount(0);
+    await expect(screen.locator('[data-push-save]')).toHaveCount(0);
 
     // the test button (answered here; the endpoint is fake and must not reach Google)
     await page.route('**/api/v1/push/test', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sent: 1, results: [{ id: subs[0].id, endpoint_host: 'fcm.googleapis.com', status: 201, outcome: 'sent' }] }) }));
