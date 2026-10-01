@@ -5428,7 +5428,8 @@
       "P0 mockup + S0 client, S1 backend + bridge 0.5.0, S2 pages/settings, S3 player panel/area card/widget, S4 fixture/evidence/guide (MEDIA_PLAYERS_API.md §5)"
     ],
     "evidence": [
-      "2026-10-01: architecture proposed on branch pilot/CR016-media-players-arch (public web research only; no device, HA, MA or lab contact; nothing implemented or run). Awaiting the owner's answers."
+      "2026-10-01: architecture proposed on branch pilot/CR016-media-players-arch (public web research only; no device, HA, MA or lab contact; nothing implemented or run). Awaiting the owner's answers.",
+      "2026-10-01 (0.1.150): CR-016 shipped - speaker/player/receiver cards, the player panel, live and saved groups, the merge wizard, non-physical kinds, media.group, bridge 0.5.0 (player services + read-only media_query), migration 0044; works with and without Music Assistant."
     ],
     "owner": null,
     "commit": null,

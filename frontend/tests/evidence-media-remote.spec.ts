@@ -292,13 +292,17 @@ test.describe('the remote: every press goes through the gate', () => {
     const ok = padBtn(page, 'ok');
     const b = (await ok.boundingBox())!;
     await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    const t0 = Date.now();
     for (let i = 0; i < 24; i++) {
       await page.mouse.down();
       await page.mouse.up();
     }
+    const elapsed = (Date.now() - t0) / 1000;
     const n = (await sent(page)).filter((s) => (s.command as any).key === 'ok').length;
     expect(n).toBeGreaterThanOrEqual(8);
-    expect(n).toBeLessThanOrEqual(12); // the burst plus what the bucket refilled while the clicks ran
+    // the burst (8) plus what the bucket (5/s) refilled while the clicks ran: the clicks' own speed depends on the machine's load
+    expect(n).toBeLessThanOrEqual(8 + Math.ceil(elapsed * 5) + 1);
+    expect(n).toBeLessThan(24); // and some presses were dropped
     await expect(R(page).locator('[data-mr-notice]')).toHaveCount(0); // rate-limited: no text
     expect(await page.evaluate(() => (window as any).__shakes)).toBeGreaterThan(0); // the short shake
     // the state, frozen mid-shake for the evidence (the real one lasts 260 ms)

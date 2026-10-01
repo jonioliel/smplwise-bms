@@ -1,5 +1,45 @@
 # Changelog — SmplWise Arx add-on
 
+## 0.1.150 (pilot) — Multimedia, part 2: speakers, players and groups
+**After the update restart the platform once**: the bridge integration is 0.5.0 (player services and a read-only `media_query` service). Migration 0044 is applied on the first start.
+### Speakers, players and groups (CR-016) — inside "מולטימדיה"
+- **"נגנים ורמקולים" and "קבוצות" are real tabs**: one card per physical speaker, player or receiver (the same device seen through several integrations is merged; Music Assistant copies, Cast and vendor entities are linked by the merge rules or suggested for you to confirm), grouped by floor, with a "לא משויכים" section for devices without a room and one list for a house without floors. A device that is not available shows "לא זמין" - its controls wait for it.
+- **The player panel** (the same side panel / bottom sheet as the TV remote): now playing with artwork, seek, previous / next, shuffle and repeat, volume, "הבא בתור" (the current and the next item and how many are left; "לא זמין" when it cannot be read, never an empty list), favourites, stations and playlists (when the installation has a library), and live grouping by ticking rooms. A receiver has its zones as tabs; a speaker that cannot be switched on from here (Cast only) shows no power button.
+- **Groups**: join and leave rooms live (a member is controlled through its leader), group volume with a per-room result that names the rooms that did not follow, **saved groups** ("סלון + מטבח") that start with one tap and show which rooms did not join, and "עצור מוזיקה" for a floor or an area. Groups of 4 or more rooms, or rooms on more than one floor, ask for a confirmation; the whole building needs `media.bulk`. A new permission `media.group` is needed to group rooms.
+- **Safe by default**: there is NO default volume ceiling - a ceiling and a night window apply only where an administrator sets them per speaker; a static group's volume always goes room by room; an unmute never brings back a level above a ceiling set later; no announcements anywhere.
+- **Settings › מולטימדיה** gained the players and speakers section (approval, name, room, linked amplifier, ceiling, night window), the merge wizard ("אחד" / "התעלם"), the folded non-physical entries (sessions, helper groups, services), saved groups, favourites and stations (order and hide), the connection status and the permissions line.
+- **With and without Music Assistant**: it works through the platform infrastructure; a house without Music Assistant (Sonos, Cast, HEOS, WiiM natively) is a full citizen. Players and groups also appear in the area screen and in the home widget ("מנגנים עכשיו").
+- **Review hardening**: group and static-group commands need control in every member's room, the generic device route refuses volume / power / play on any media device and on the sibling switches and selects of an approved speaker, a relative group volume never raises a quiet member, names of rooms you cannot see are never listed, list reads are rate limited per user, and an item reference is valid only for the user and the device it was listed for.
+### Fixes
+- A house without floors no longer asks for a confirmation on every join across two rooms; a multi-room pause no longer reports rooms that were not playing as failed.
+- **Phone scrolling**: the multimedia screens page no longer jumps while you scroll (the sticky header used to fold and change the page height under the finger); the search popover no longer blocks scrolling (no full-screen layer, a press outside closes it, a page change closes it); overlapping drawers can no longer leave the page locked.
+### Areas
+- **Fold a floor in the building tree**: a chevron on every floor row folds and unfolds that floor's areas, a fold-all / unfold-all control sits beside "כל המבנה", the choice is remembered on the device, and picking a floor opens it again.
+### Documents
+- CR-016 and its API contract, the three anonymised live probes (Music Assistant, Sonos, HEOS, WiiM, Cast, Denon, Jellyfin patterns), user guide pages for players and groups.
+### How to turn it on and use it (English)
+1. **Restart the platform once** after the update (the bridge integration is 0.5.0). Migration 0044 is applied on the first start.
+2. **Speakers, players and groups**: open "מולטימדיה" in the side rail, then the tabs "נגנים ורמקולים" and "קבוצות" (needs `media.read`; controlling needs `media.control` / `media.power`; joining rooms needs the new `media.group`; a group of 4+ rooms or rooms on more than one floor asks for a confirmation, the whole building needs `media.bulk`). Approve detected devices, name them, set a room and (optionally) a volume ceiling or night window in הגדרות › מולטימדיה; confirm or ignore suggested merges with "אחד" / "התעלם".
+3. **Fold a floor in the building tree**: on the "חשמל והתקנים" screen on a computer, use the chevron at the start of each floor row; "כווץ הכל / הרחב הכל" is beside "כל המבנה". The choice is remembered per device.
+4. **Phone scrolling**: nothing to turn on - update and reload the app (close and reopen the installed web app once).
+
+## עברית — 0.1.150: מולטימדיה, חלק 2 · כיווץ קומות בעץ · תיקוני גלילה בנייד
+### מה חדש
+- **מולטימדיה: רמקולים, נגנים וקבוצות** – בלשונית "מולטימדיה" נוספו "נגנים ורמקולים" ו"קבוצות": כרטיס אחד לכל רמקול, נגן או מקלט פיזי (אותו מכשיר שנראה דרך כמה אינטגרציות מתמזג לאחד), בקבוצות לפי קומות. פאנל נגן עם תמונת אלבום, סרגל התקדמות, הקודם/הבא, ערבוב וחזרה, ווליום, "הבא בתור", מועדפים, תחנות ורשימות השמעה, וקיבוץ חדרים בזמן אמת. קבוצות שמורות ("סלון + מטבח") שמתחילות בלחיצה, וכפתור "עצור מוזיקה" לקומה או לאזור.
+- **בטיחות כברירת מחדל**: אין תקרת ווליום כללית – תקרה וחלון לילה נקבעים רק לרמקול שמנהל מגדיר. קבוצות של 4 חדרים ומעלה, או חדרים ביותר מקומה אחת, מבקשות אישור; הבניין כולו דורש `media.bulk`. הרשאה חדשה `media.group` נדרשת לקיבוץ חדרים.
+- **הגדרות › מולטימדיה** – אישור התקנים, שם, חדר, מגבר מקושר, תקרת ווליום וחלון לילה, אשף איחוד כפילויות, קבוצות שמורות, מועדפים ותחנות.
+- **עץ המבנה**: חץ ליד כל קומה מכווץ ומרחיב את האזורים שלה; כפתור "כווץ הכל / הרחב הכל" ליד "כל המבנה"; הבחירה נשמרת במכשיר, ובחירת קומה פותחת אותה מחדש.
+### תיקונים
+- **גלילה בנייד**: מסך המולטימדיה לא קופץ יותר בזמן גלילה (הכותרת הדביקה שינתה גובה מתחת לאצבע).
+- **חיפוש בנייד**: פתיחת החיפוש כבר לא חוסמת את הגלילה; לחיצה מחוץ לחלון סוגרת אותו, וגם מעבר מסך סוגר אותו. מגירות חופפות כבר לא משאירות את הדף נעול.
+- בית בלי קומות כבר לא מבקש אישור בכל צירוף שני חדרים; השהיה בכמה חדרים כבר לא מדווחת כנכשלו חדרים שלא ניגנו.
+- ביקורת אבטחה לנתיב הפקודות של המדיה: הגבלות קצב, מזהים לפי משתמש ומכשיר, ושליטה במתג/בורר נלווים רק דרך מסך המולטימדיה.
+### איך מפעילים ומשתמשים
+1. **אחרי העדכון הפעל מחדש את התשתית פעם אחת** (רכיב הגשר הוא 0.5.0). ההגירה 0044 מתבצעת בהפעלה הראשונה.
+2. **נגנים, רמקולים וקבוצות**: בתפריט הצד "מולטימדיה" ← "נגנים ורמקולים" ו"קבוצות" (נדרשת `media.read`; לשליטה `media.control` / `media.power`; לקיבוץ חדרים `media.group`). את ההתקנים שזוהו מאשרים, נותנים להם שם וחדר ב-הגדרות › מולטימדיה.
+3. **כיווץ קומות**: במסך "חשמל והתקנים" במחשב – החץ בתחילת כל שורת קומה, ו"כווץ הכל" ליד "כל המבנה".
+4. **גלילה בנייד**: אין מה להפעיל – מרעננים את האפליקציה (סוגרים ופותחים את האפליקציה המותקנת פעם אחת).
+
 ## 0.1.149 (pilot) — Multimedia: screens and a remote; heating apart from air conditioning; what sits next to an area's name; hide a camera in the wall
 **After the update restart the platform once**: the bridge integration is 0.4.0 (the media commands and their policy). Migrations 0040-0043 are applied on the first start.
 ### Multimedia (CR-015) — "מולטימדיה" in the side rail, for holders of `media.read`
