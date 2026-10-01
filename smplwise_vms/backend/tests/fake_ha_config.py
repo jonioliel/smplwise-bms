@@ -670,6 +670,17 @@ class FakeHaConfig:
         def err(code: str, message: str) -> dict[str, Any]:
             return {"success": False, "error": {"code": code, "message": message}}
 
+        if t == "get_config":
+            return ok({"version": self.ha_version, "config_dir": "/config", "location_name": "Home", "time_zone": "Asia/Jerusalem",
+                       "components": ["automation", "script", "scene", "config", "trace", "blueprint", "websocket_api", "api", "device_automation"]})  # `config.automation` & co are NOT listed (the probe's finding)
+        if t == "render_template":
+            return ok(None)
+        if t == "call_service":
+            try:
+                self.call_service(str(msg.get("domain")), str(msg.get("service")), dict(msg.get("service_data") or {}), user_id=msg.get("_user_id"))
+            except FakeServiceError as exc:
+                return err("home_assistant_error", str(exc))
+            return ok({"context": {"id": "ctx", "parent_id": None, "user_id": msg.get("_user_id")}})
         if t == "get_states":
             return ok(list(self.states.values()))
         if t == "get_services":

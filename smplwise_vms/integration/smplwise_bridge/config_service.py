@@ -160,7 +160,10 @@ def _check_permissions(user: Any, deps: SimpleNamespace, entity_ids: list[str]) 
 
 async def async_handle_config_item(hass: Any, verifier: Any, msg: dict[str, Any], *, delegated: Callable[[], bool], deps: SimpleNamespace | None = None) -> dict[str, Any]:
     """Run one signed `config_item` request. Always answers a dict, never raises for a refusal."""
-    reason = verifier.verify(msg)
+    try:
+        reason = verifier.verify(msg)
+    except RecursionError:  # a hostile document too deep to serialise cannot carry a valid signature
+        reason = "bad_signature"
     if reason:
         _LOGGER.warning("smplwise_bridge.config_item refused: %s", reason)
         return _refuse(msg, reason)

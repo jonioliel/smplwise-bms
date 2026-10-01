@@ -158,6 +158,25 @@ def grant_of(action: str, entity_class: str | None = None) -> str | None:
     return GRANT_OF_CLASS[cls] if cls else None
 
 
+# an alarm / lock / siren service, or (a cover service) a door-class cover by its `device_class`: what the bridge recognises on its own (config_policy.sensitive_required)
+SENSITIVE_COVER_CLASSES = frozenset({"door", "garage", "gate"})
+
+
+def sensitive_required(services: Iterable[str], entity_ids: Iterable[str], attributes_of: Any = None) -> bool:
+    """Whether a config that calls `services` on `entity_ids` must be sent with `sensitive: true`: the bridge refuses a false flag on what it can recognise (the same
+    function, drift-tested). `attributes_of(entity_id)` = the entity's state attributes (its `device_class`), or None."""
+    svcs = list(services)
+    if any(SENSITIVE_ACTION_RE.match(s) for s in svcs):
+        return True
+    if any(s.startswith("cover.") for s in svcs) and attributes_of:
+        for e in entity_ids:
+            if e.startswith("cover."):
+                attrs = attributes_of(e)
+                if attrs and attrs.get("device_class") in SENSITIVE_COVER_CLASSES:
+                    return True
+    return False
+
+
 # ---------------------------------------------------------------- the allow-list (CR section 9.1)
 
 # Never typed (locked `service_not_allowed`): homeassistant, shell_command, rest_command, hassio, recorder, smplwise_bridge and any `*.reload`

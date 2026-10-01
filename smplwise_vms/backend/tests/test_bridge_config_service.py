@@ -425,3 +425,12 @@ def test_the_validation_detail_handed_back_never_quotes_a_value_a_template_or_an
     detail = service._safe_detail("invalid template (TemplateSyntaxError: " + SECRET_VALUE + " {{ x }}) for dictionary value @ data['actions'][0]['value_template']")
     assert SECRET_VALUE not in detail and "{{" not in detail and detail.endswith("@ data['actions'][0]['value_template']")
     assert service._safe_detail(None) == "invalid" and len(service._safe_detail("x" * 500)) <= 100
+
+
+def test_a_document_too_deep_to_serialise_is_refused_not_a_crash(fake):
+    deep: object = "x"
+    for _ in range(3000):
+        deep = [deep]
+    out = fake.bridge_config_item({"user_id": "u1", "op": "upsert", "request_id": "r", "kind": "automation", "item_id": NEWID, "base_revision": None, "profile": "builder",
+                                   "config": {"id": NEWID, "variables": deep}, "preserved": [], "sensitive": False, "ts": int(__import__("time").time()), "nonce": "n", "sig": "s"}, SECRET)
+    assert out["ok"] is False and out["error"] == "bad_signature" and fake.file_item("automation", NEWID) is None
