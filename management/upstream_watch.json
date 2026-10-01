@@ -46,7 +46,7 @@
       ],
       "current": {
         "version": "2026.9.4",
-        "source": "lab Home Assistant, recorded in services/schedule_policy.py (verified 2026-09-30); the live value is ha_sync.STATE.ha_version / health report",
+        "source": "lab Home Assistant, recorded in services/schedule_policy.py (verified 2026-09-30); the live value is ha_sync.STATE.ha_version / health report; the release package matrix still says 2026.9.2",
         "verify": true
       },
       "dependents": [
@@ -185,8 +185,8 @@
         }
       ],
       "current": {
-        "version": null,
-        "source": "not recorded in the repository; read it from the lab with the Supervisor API (/supervisor/info) when approved",
+        "version": "2026.09.2",
+        "source": "docs/release/RELEASE_PACKAGE_V1.md compatibility matrix (HAOS 18.2, Supervisor 2026.09.2 on the amd64 lab host); the live value may have moved: verify",
         "verify": true
       },
       "dependents": [
@@ -222,6 +222,59 @@
         "port 80"
       ],
       "note": "Add-on runtime: Ingress (ingress, ingress_port, panel_*), hassio_api + homeassistant_api roles, discovery of the bridge, /addons/self/options and /addons/self/restart (settings screen), backup: hot, watchdog, the map: homeassistant_config copy of the bridge. build.yaml is kept only for Supervisors older than 2026.04 (newer ones read the base image from the Dockerfile). HA is moving the name add-ons -> apps (the cloudflared repo is homeassistant-apps/app-cloudflared): watch for config key or API renames.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
+    },
+    {
+      "id": "ha-os",
+      "name": "Home Assistant Operating System (HAOS)",
+      "kind": "platform",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/home-assistant/operating-system",
+        "releases": "https://github.com/home-assistant/operating-system/releases",
+        "docs": "https://www.home-assistant.io/installation/",
+        "announcements": "https://www.home-assistant.io/blog/"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "home-assistant/operating-system"
+        }
+      ],
+      "current": {
+        "version": "18.2",
+        "source": "docs/release/RELEASE_PACKAGE_V1.md compatibility matrix (amd64 generic-x86-64 lab host); verify",
+        "verify": true
+      },
+      "dependents": [
+        "docs/release/RELEASE_PACKAGE_V1.md",
+        "docs/operations/HA_INSTALLATION_BOUNDARIES.md",
+        "smplwise_vms/Dockerfile",
+        "smplwise_vms/backend/smplwise/services/go2rtc.py",
+        "docs/architecture/ADR-011-browser-media-path.md"
+      ],
+      "watch_keywords": [
+        "docker",
+        "kernel",
+        "network",
+        "ipv6",
+        "mdns",
+        "avahi",
+        "cgroup",
+        "usb",
+        "bluetooth",
+        "supervisor",
+        "host network",
+        "firewall",
+        "time sync",
+        "timesyncd",
+        "storage",
+        "data disk"
+      ],
+      "note": "The host under the lab and the customer systems. A new Docker/kernel/network stack can change container networking (go2rtc runs on the host network; WebRTC media takes a direct UDP path), mDNS resolution, time sync (NVR clock drift evidence) and the data disk the add-on database lives on. Seen in the lab: HAOS 18.2.",
       "last_checked": "2026-10-01",
       "last_seen_version": null
     },
