@@ -446,7 +446,7 @@ function wireGrab() {
   let d = null;
   Sheet.el.addEventListener('pointerdown', (e) => {
     if (!e.target.closest('.grab, .sheet-head') || e.target.closest('.sub, .chip, .pill.slider')) return;
-    if (getComputedStyle(Sheet.el).top !== 'auto') return; // centred mode: no drag
+    const grab = Sheet.el.querySelector('.grab'); if (!grab || getComputedStyle(grab).display === 'none') return; // centred mode: no drag
     d = { y0: e.clientY, t0: performance.now(), id: e.pointerId, dy: 0 };
     Sheet.el.setPointerCapture(e.pointerId); Sheet.el.classList.add('dragging');
   });

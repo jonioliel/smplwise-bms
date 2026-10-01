@@ -29,8 +29,8 @@
 
   --sw-text: #20263b;
   --sw-heading: #171c2e;
-  --sw-text-2: #474e66;
-  --sw-text-3: #5a6178;
+  --sw-text-2: #3d4459;
+  --sw-text-3: #4f566c;
   --sw-text-inverse: #ffffff;
 
   --sw-accent: #2767ed;
@@ -41,9 +41,9 @@
   --sw-nav: #2767ed;
   --sw-toggle-on: #2767ed;
 
-  --sw-success: #16a34a;  --sw-success-text: #15803d;  --sw-success-soft: rgba(22, 163, 74, 0.14);
+  --sw-success: #16a34a;  --sw-success-text: #116330;  --sw-success-soft: rgba(22, 163, 74, 0.14);
   --sw-warning: #f59e0b;  --sw-warning-text: #9a4a06;  --sw-warning-soft: rgba(245, 158, 11, 0.16);
-  --sw-danger: #ef4444;   --sw-danger-text: #b91c1c;   --sw-danger-soft: rgba(239, 68, 68, 0.14);
+  --sw-danger: #ef4444;   --sw-danger-text: #a01515;   --sw-danger-soft: rgba(239, 68, 68, 0.14);
   --sw-live: #16a34a;     --sw-live-text: #15803d;
 
   /* NEW: Bubble's "lit" fill (lights use the light's warm colour) and the text on it */
@@ -52,7 +52,7 @@
   --sw-lit-soft: rgba(243, 164, 60, 0.32);
   --sw-on-lit: #2b1a05;
   /* NEW: area hues for the icon ring (decoration only, never meaning) */
-  --sw-hue-1: #7b84eb; --sw-hue-2: #e8456f; --sw-hue-3: #2fa37c; --sw-hue-4: #2f8fb8;
+  --sw-hue-1: #7b84eb; --sw-hue-2: #e8456f; --sw-hue-3: #2fa37c; --sw-hue-4: #1f6f94;
   --sw-hue-5: #c4508f; --sw-hue-6: #e07a2f; --sw-hue-7: #5a6fd8; --sw-hue-8: #7a9a2f;
   --sw-ring-on-hue: #ffffff;
   /* NEW: climate modes */
@@ -92,20 +92,20 @@
   --sw-text: #ffffff;
   --sw-heading: #ffffff;
   --sw-text-2: #ddd6e8;
-  --sw-text-3: #c1b9d0;
+  --sw-text-3: #d0c9dc;
   --sw-text-inverse: #ffffff;
 
   --sw-accent: #4c6fd9;
   --sw-accent-hover: #6585e6;
   --sw-accent-soft: rgba(110, 140, 240, 0.26);
-  --sw-accent-text: #b4c6ff;
+  --sw-accent-text: #c9d6ff;
   --sw-focus: #a9bdff;
   --sw-nav: #4c6fd9;
   --sw-toggle-on: #4c6fd9;
 
   --sw-success: #3ddc84;  --sw-success-text: #7ff0b0;  --sw-success-soft: rgba(61, 220, 132, 0.2);
   --sw-warning: #f5b043;  --sw-warning-text: #ffd08a;  --sw-warning-soft: rgba(245, 176, 67, 0.22);
-  --sw-danger: #ff6b62;   --sw-danger-text: #ffb0aa;   --sw-danger-soft: rgba(255, 107, 98, 0.22);
+  --sw-danger: #ff6b62;   --sw-danger-text: #ffc8c3;   --sw-danger-soft: rgba(255, 107, 98, 0.22);
   --sw-live: #3ddc84;     --sw-live-text: #7ff0b0;
 
   --sw-lit: #f19e33;                /* measured in the video */
@@ -646,9 +646,9 @@ button.pill { border: 0; font: inherit; text-align: start; width: 100%; }
 }
 :root[data-theme='light'][data-bubble-surface='gradient'] .pill.hued:not(.accent):not(.cool):not(.heat):not(.media-on) { --mixA: 40%; --mixB: 26%; }
 :root[data-bubble-surface='gradient'] .pill.hued .ring { background: var(--h); color: #fff; }
-:root[data-bubble-surface='gradient'] .pill.hued.lit { --fill-c: color-mix(in oklab, var(--h) 82%, #fff 6%) !important; }
-:root[data-bubble-surface='gradient'] .pill.hued.lit .lay.over { color: #fff; }
-:root[data-theme='light'][data-bubble-surface='gradient'] .pill.hued.lit .lay.over { color: var(--sw-on-lit); }
+/* the lit part is a light tint of the entity hue with dark text (white on a saturated fill failed 4.5:1, see README) */
+:root[data-bubble-surface='gradient'] .pill.hued.lit { --fill-c: color-mix(in oklab, var(--h) 70%, #fff) !important; }
+:root[data-bubble-surface='gradient'] .pill.hued.lit .lay.over { color: var(--sw-on-lit); }
 :root[data-bubble-surface='gradient'] .pill.hued.cov { --fill-c: color-mix(in oklab, var(--h) 45%, transparent) !important; }
 :root[data-bubble-surface='gradient'] .sheet .pill.hued { --pill-base: rgba(var(--sw-sheet-rgb), 0.4); }
 :root[data-bubble-surface='gradient'] .status .pill.hued, :root[data-bubble-surface='gradient'] .pill.room { --pill-base: var(--sw-surface); }
@@ -709,3 +709,4 @@ button.pill { border: 0; font: inherit; text-align: start; width: 100%; }
 .fab:active { transform: scale(0.94); }
 @container app (max-width: 700px) { .fab { bottom: 96px; inset-inline-end: 16px; } }
 .main { padding-bottom: 96px; }
+.floor-head .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
