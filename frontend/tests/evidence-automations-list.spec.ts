@@ -1146,3 +1146,33 @@ test.describe('the editors over the list (S3 x S4 wiring)', () => {
     await shot(page, '114-runner-editor-link', '390');
   });
 });
+
+// ------------------------------------------------------------------------------------------------ the evidence matrix (release 0.1.152)
+
+test.describe('evidence matrix: the three kinds and the settings tab at 1440 / 820 / 390, light and dark', () => {
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`automations, scenes, scripts and הגדרות › אוטומציות (${scheme}); no product name`, async ({ page }) => {
+      for (const size of ['1440', '820', '390'] as const) {
+        await open(page, '/devices/automations', size, { scheme });
+        await ready(page);
+        await expect(cards(page)).toHaveCount(12);
+        expect(await scr(page).innerText()).not.toMatch(BRANDS);
+        await shot(page, '120-matrix-automations', size, scheme);
+        await open(page, '/devices/automations/scenes', size, { scheme });
+        await ready(page);
+        await expect(scr(page).locator('[data-scenes-panel]')).toBeVisible();
+        expect(await scr(page).innerText()).not.toMatch(BRANDS);
+        await shot(page, '121-matrix-scenes', size, scheme);
+        await open(page, '/devices/automations/scripts', size, { scheme });
+        await ready(page);
+        await expect(sp(page).locator('.pcard').first()).toBeVisible();
+        expect(await scr(page).innerText()).not.toMatch(BRANDS);
+        await shot(page, '122-matrix-scripts', size, scheme);
+        if (scheme === 'dark') continue; // the settings area has no dark scheme of its own yet (the design unification, after development ends)
+        await open(page, '/system/automations', size);
+        await expect(page.locator('sw-app system-automations [data-automations-settings]')).toBeVisible();
+        await shot(page, '123-matrix-settings', size);
+      }
+    });
+  }
+});

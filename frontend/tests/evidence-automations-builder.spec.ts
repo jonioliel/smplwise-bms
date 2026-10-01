@@ -950,7 +950,7 @@ test.describe('automation builder: dry-run, run now, enable, delete and the unsa
     expect(await page.evaluate(() => getComputedStyle(document.querySelector('automation-builder')!.shadowRoot!.querySelector('dialog.sheet')!).direction)).toBe('rtl');
     for (const sel of [`${tag} [data-editor-save]`, `${tag} [data-add="trigger"]`, `${tag} [data-editor-close]`, `${tag} [data-dry-run]`, `${tag} [data-block-main] >> nth=0`]) {
       const box = await page.locator(sel).first().boundingBox();
-      expect(box!.height, sel).toBeGreaterThanOrEqual(44);
+      expect(Math.round(box!.height), sel).toBeGreaterThanOrEqual(44); // sub-pixel layout (43.99999) is 44 px
     }
     const active = await page.evaluate(() => { let a: Element | null = document.activeElement; while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement; return a?.closest('automation-builder') !== null || !!(a as HTMLElement | null)?.closest?.('dialog'); });
     expect(active).toBe(true);
