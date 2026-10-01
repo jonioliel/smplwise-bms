@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="he" dir="rtl" data-skin="bubble">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bubble taste - Media</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="bubble-skin.css">
+<link rel="stylesheet" href="mockup.css">
+<style>
+/* board-local: the now-playing hero (glass panel over the blurred cover art) */
+.np-hero { position: relative; isolation: isolate; overflow: hidden; border-radius: 36px; min-height: 260px; display: grid; grid-template-columns: auto 1fr; gap: 22px; padding: 22px; align-items: center; }
+.np-hero .bg { position: absolute; inset: -30%; z-index: -2; filter: blur(50px) saturate(150%); opacity: .9; }
+.np-hero::after { content: ''; position: absolute; inset: 0; z-index: -1; background: rgba(var(--sw-sheet-rgb), var(--sw-sheet-alpha)); box-shadow: inset 0 1px 0 var(--sw-highlight); border-radius: inherit; }
+.np-hero .art { width: 216px; aspect-ratio: 1; border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-3); }
+.np-hero .meta { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.np-hero .where { display: flex; gap: 8px; flex-wrap: wrap; }
+.np-hero .t1 { font-size: 28px; font-weight: 700; color: var(--sw-heading); letter-spacing: -.4px; }
+.np-hero .t2 { font-size: var(--sw-fs-lg); color: var(--sw-text-2); }
+.np-hero .row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.np-hero .row .bigslider { flex: 1; min-width: 200px; height: 52px; }
+.np-hero .chip { height: 36px; padding: 0 14px; border-radius: var(--sw-r-pill); border: 0; background: var(--sw-layer); color: var(--sw-text); font-weight: 600; font-size: var(--sw-fs-sm); display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.np-hero .chip:hover { background: var(--sw-layer-2); }
+.np-hero .sub:not(.play) { background: var(--sw-layer); }
+.np-hero .transport { justify-content: flex-start; gap: 14px; }
+.flt { display: flex; gap: 8px; flex-wrap: wrap; }
+.flt button { height: 36px; padding: 0 14px; border-radius: var(--sw-r-pill); border: 0; background: var(--sw-surface); color: var(--sw-text); font-weight: 600; font-size: var(--sw-fs-sm); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.flt button[aria-pressed='true'] { background: var(--sw-accent); color: #fff; }
+@container app (max-width: 700px) {
+  .np-hero { grid-template-columns: 1fr; justify-items: center; text-align: center; padding: 18px; border-radius: 32px; }
+  .np-hero .art { width: 64%; }
+  .np-hero .meta { width: 100%; align-items: stretch; }
+  .np-hero .where, .np-hero .transport { justify-content: center; }
+  .np-hero .t1 { font-size: 22px; }
+}
+</style>
+</head>
+<body>
+<script src="shared.js"></script>
+<script>
+'use strict';
+/* Board 3 - Media: now playing (glass over the cover art), players and speakers (cards | list), group / join pop-up,
+   volume morph on every player pill. */
+let FILTER = null; // area id or null = whole house
+function mediaRender() {
+  const lead = PLAYERS.find((p) => p.state === 'playing' && p.kind === 'speaker') || PLAYERS.find((p) => p.state === 'paused');
+  const list = PLAYERS.filter((p) => !FILTER || p.area === FILTER);
+  const mem = lead && lead.group ? groupMembers(lead.group) : lead ? [lead] : [];
+  const tm = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  const hero = lead ? `<section class="np-hero" aria-label="מתנגן עכשיו">
+      <div class="bg" style="background:${ARTS[lead.art]}" aria-hidden="true"></div>
+      <div class="art" style="background:${ARTS[lead.art]}" role="img" aria-label="עטיפה"></div>
+      <div class="meta">
+        <div class="where">${mem.map((m) => `<button class="chip" data-pop-player="${m.id}">${ic('speaker', 's')}${esc(AREAS[m.area].name)}</button>`).join('')}
+          <button class="chip" data-open-group-page="${lead.id}">${ic('link', 's')}${lead.group ? 'קבוצה' : 'הוספת רמקולים'}</button></div>
+        <div><div class="t1">${esc(lead.track)}</div><div class="t2">${esc(lead.artist)} · ${esc(lead.source)}</div></div>
+        <div class="prog" dir="ltr"><span>${tm(lead.pos * lead.dur)}</span><div class="bar"><i style="width:${lead.pos * 100}%"></i></div><span>${tm(lead.dur)}</span></div>
+        <div class="row"><div class="transport" dir="ltr"><button class="sub xl" aria-label="הקודם">${ic('prev', 'l')}</button>
+          <button class="sub xl play" data-play="${lead.id}" aria-label="${lead.state === 'playing' ? 'השהיה' : 'ניגון'}">${ic(lead.state === 'playing' ? 'pause' : 'play', 'l')}</button>
+          <button class="sub xl" aria-label="הבא">${ic('next', 'l')}</button></div>
+          ${bigSlider({ attr: `data-pvol="${lead.id}"`, label: '', aria: `עוצמה · ${lead.name}`, icon: 'vol', v: lead.vol, fill: 'var(--sw-accent)', over: '#fff' })}</div>
+      </div></section>` : '';
+  const table = `<table class="tbl"><thead><tr><th>נגן</th><th class="hide-s">אזור</th><th>מצב</th><th class="hide-s">עוצמה</th><th class="hide-s">קבוצה</th><th><span class="sr">פעולה</span></th></tr></thead><tbody>
+    ${list.map((p) => `<tr><td><span class="cellname"><button class="ring sm" data-pop-player="${p.id}" aria-label="פרטים: ${esc(p.name)}" style="${artStyle(p) || 'background:var(--sw-surface-2)'}">${ic(p.kind === 'tv' ? 'tv' : 'speaker', 's')}</button>${esc(p.name)}</span></td>
+      <td class="hide-s">${esc(AREAS[p.area].name)}</td><td><span class="tag ${p.state === 'playing' ? 'lit' : p.state === 'on' ? 'on' : ''}">${esc(playerState(p))}</span></td>
+      <td class="num hide-s">${p.state === 'unavailable' ? '-' : Math.round(p.vol * 100) + '%'}</td><td class="hide-s">${p.group ? groupMembers(p.group).map((m) => AREAS[m.area].name).join(' + ') : '-'}</td>
+      <td style="text-align:end">${p.state === 'unavailable' ? '' : `<button class="sub" data-play="${p.id}" aria-label="${p.state === 'playing' ? 'השהיה' : 'ניגון'} ${esc(p.name)}">${ic(p.state === 'playing' ? 'pause' : p.kind === 'tv' ? 'power' : 'play', 's')}</button>`}</td></tr>`).join('')}
+  </tbody></table>`;
+  const groups = [...new Set(PLAYERS.map((p) => p.group).filter(Boolean))];
+  document.getElementById('content').innerHTML = `
+    <div class="page-head"><h1>מולטימדיה</h1></div>
+    ${hero}
+    <div class="page-head"><div class="sep" style="flex:1;margin:0">${ic('speaker')}<span class="t">נגנים ורמקולים</span></div>
+      <div class="seg" role="group" aria-label="תצוגה"><button data-view="cards" aria-pressed="${STATE.view === 'cards'}">${ic('grid', 's')}כרטיסים</button><button data-view="list" aria-pressed="${STATE.view === 'list'}">${ic('list', 's')}רשימה</button></div></div>
+    <div class="flt" role="group" aria-label="סינון לפי אזור"><button data-flt="" aria-pressed="${!FILTER}">כל הבית</button>${FILTER ? `<button data-flt="${FILTER}" aria-pressed="true">${esc(AREAS[FILTER].name)}${ic('x', 's')}</button>` : ''}</div>
+    ${STATE.view === 'list' ? table : `<div class="grid wide-cells">${list.map((p) => mediaPill(p)).join('') || ''}</div>`}
+    <div class="sep">${ic('link')}<span class="t">קבוצות השמעה</span></div>
+    <div class="grid wide-cells">${groups.map((g) => { const m = groupMembers(g); const l = m[0];
+      return `<div class="pill big clickable" role="button" tabindex="0" data-open-group-page="${l.id}" aria-label="קבוצה: ${m.map((x) => AREAS[x.area].name).join(' ו')}">
+        <span class="ring" style="${artStyle(l)}">${ic('layers')}</span><span class="tx"><span class="nm">${m.map((x) => AREAS[x.area].name).join(' + ')}</span><span class="st">${m.length} רמקולים · ${esc(l.track || 'לא מנגן')}</span></span>
+        <span class="sub ghost" aria-hidden="true">${ic('chevBack', 's')}</span></div>`; }).join('')}
+      <button class="pill big clickable" data-new-group><span class="ring">${ic('plus')}</span><span class="tx"><span class="nm">קבוצה חדשה</span><span class="st">חיבור רמקולים לניגון משותף</span></span></button></div>`;
+}
+Mock.boot({
+  board: 'media', render: mediaRender, treeMode: 'none',
+  onArea: (aid) => { FILTER = aid; Mock.refresh(); },
+  openers: {
+    player: () => openPlayerSheet('p-living', document.querySelector('[data-pop-player="p-living"]')),
+    group: () => openGroupSheet('p-living', document.querySelector('[data-open-group-page]')),
+    vol: () => { VOL_OPEN.add('p-living'); Mock.refresh(); },
+  },
+});
+document.getElementById('device').addEventListener('click', (e) => {
+  const t = e.target.closest('button, [role="button"]'); if (!t) return;
+  if (t.dataset.view) { STATE.view = t.dataset.view; setUrl(); return Mock.refresh(); }
+  if (t.dataset.flt !== undefined) { FILTER = null; return Mock.refresh(); }
+  if (t.dataset.openGroupPage) return openGroupSheet(t.dataset.openGroupPage, t);
+  if (t.dataset.newGroup !== undefined) return openGroupSheet('p-master', t);
+});
+</script>
+</body>
+</html>

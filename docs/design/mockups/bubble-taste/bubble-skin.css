@@ -271,8 +271,8 @@ svg.i.l { width: 26px; height: 26px; }
 .sep .acts { order: 3; display: flex; gap: 6px; }
 
 /* ---------- grid of pills ---------- */
-.grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
-.grid.areas { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.grid { display: grid; gap: var(--grid-gap, 10px); grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--grid-min, 280px)), 1fr)); }
+.grid.areas { grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--grid-min, 280px) + 20px)), 1fr)); }
 
 /* ---------- THE pill (Bubble button card) ---------- */
 .pill {
@@ -300,8 +300,8 @@ svg.i.l { width: 26px; height: 26px; }
 .pill.on.lit { color: var(--sw-text); }
 .pill.on.lit.full, .pill.on.lit.hi { color: var(--sw-on-lit); }
 .pill .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 18px; }
-.pill .nm { font-size: var(--sw-fs-sm); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pill .st { font-size: var(--sw-fs-xs); opacity: 0.86; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pill .nm { font-size: var(--pill-nm, var(--sw-fs-sm)); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pill .st { font-size: var(--pill-st, var(--sw-fs-xs)); opacity: 0.86; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pill .subs { display: flex; gap: 6px; align-items: center; flex: none; }
 .pill .chip { height: var(--sw-sub); padding: 0 12px; border-radius: var(--sw-r-md); background: var(--sw-surface-2); display: inline-flex; align-items: center; gap: 6px;
   font-size: var(--sw-fs-xs); font-weight: 500; border: 0; cursor: pointer; color: inherit; white-space: nowrap; }
@@ -535,7 +535,7 @@ svg.i.l { width: 26px; height: 26px; }
 /* ---------- pop-up content pieces ---------- */
 .sheet.settled .sheet-body > * { animation: none !important; }
 .sheet.swapping .sheet-head, .sheet.swapping .sheet-body { opacity: 0; transform: translateX(-12px); transition: opacity 140ms var(--sw-ease), transform 140ms var(--sw-ease); }
-.sheet .grid.g2 { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.sheet .grid.g2 { grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--grid-min, 280px) - 50px)), 1fr)); }
 .sheet .sec { display: flex; flex-direction: column; gap: 10px; }
 .sec { display: flex; flex-direction: column; gap: 10px; }
 .sheet-h { font-size: var(--sw-fs-xl); font-weight: 700; color: var(--sw-heading); }
@@ -597,6 +597,115 @@ button.pill { border: 0; font: inherit; text-align: start; width: 100%; }
 .fl-content .sep { margin-top: 2px; }
 .fl-content .fl-cnt { font-size: var(--sw-fs-xs); color: var(--sw-text-2); font-weight: 500; }
 .fl-content .floor-areas > div { padding: 10px 0 2px; }
-.grid.quick { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
-@container app (max-width: 700px) { .grid.quick { grid-template-columns: 1fr; } .sheet.narrow { width: 100%; } }.grid.wide-cells, .sheet .grid.g2.wide-cells { grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); }
+.grid.quick { grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--grid-min, 280px) - 20px)), 1fr)); }
+@container app (max-width: 700px) { .grid.quick { grid-template-columns: 1fr; } .sheet.narrow { width: 100%; } }.grid.wide-cells, .sheet .grid.g2.wide-cells { grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--grid-min, 280px) + 50px)), 1fr)); }
 @container app (max-width: 700px) { .grid.wide-cells, .sheet .grid.g2.wide-cells { grid-template-columns: 1fr; } }
+.sheet .tree.sheet-tree { margin: 0; padding: 0; background: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.sheet .tree.sheet-tree h2 { display: none; }
+.sheet .tree-row:not([aria-current='true']):hover { background: var(--sw-layer); }.bigslider > .bl { position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; gap: 10px; padding-inline: 18px; pointer-events: none; transition: clip-path var(--sw-t-med) var(--sw-ease); }
+.bigslider > .bl.base { color: var(--sw-text); clip-path: inset(0 calc(var(--v) * 100%) 0 0); }
+.bigslider > .bl.over { color: var(--over, var(--sw-text)); clip-path: inset(0 0 0 calc((1 - var(--v)) * 100%)); }
+.bigslider.dragging > .bl { transition: none; }
+.bigslider.inpill > .bl { padding-inline: 14px; }
+.pill.media-on .bigslider.inpill > .bl.base { color: var(--sw-on-lit); }
+
+/* ======================================================================================================================
+   STYLES WITHIN THE STYLE (owner 2026-10-02): presentation is data attributes + tokens, so each can become a per-user setting.
+   data-bubble-density: wide | regular | compact | row      data-bubble-surface: fill | gradient | glass
+   ====================================================================================================================== */
+:root, :root[data-bubble-density='regular'] { --grid-min: 280px; --grid-gap: 10px; --pill-nm: 13px; --pill-st: 12px; }
+:root[data-bubble-density='wide'] { --sw-pill-h: 76px; --sw-icon-ring: 54px; --sw-sub: 42px; --grid-min: 400px; --grid-gap: 14px; --pill-nm: 17px; --pill-st: 13.5px; }
+:root[data-bubble-density='wide'] .pill { padding-inline: 11px; gap: 14px; }
+:root[data-bubble-density='wide'] .pill .ring svg { width: 26px; height: 26px; }
+:root[data-bubble-density='wide'] .pill.dual { --lay-s: calc(11px + var(--sw-icon-ring) + 14px); }
+:root[data-bubble-density='compact'] { --sw-pill-h: 46px; --sw-icon-ring: 32px; --sw-sub: 32px; --grid-min: 210px; --grid-gap: 6px; --pill-nm: 12.5px; --pill-st: 11.5px; }
+:root[data-bubble-density='compact'] .pill { padding-inline: 6px; gap: 8px; }
+:root[data-bubble-density='compact'] .pill .ring svg { width: 17px; height: 17px; }
+:root[data-bubble-density='compact'] .pill.dual { --lay-s: calc(6px + var(--sw-icon-ring) + 8px); }
+:root[data-bubble-density='compact'] .pill.big { min-height: 52px; }
+:root[data-bubble-density='compact'] .pill .chip { height: 28px; padding: 0 9px; }
+:root[data-bubble-density='compact'] .stepper button { width: 28px; height: 28px; }
+:root[data-bubble-density='compact'] .pill .sub.play { width: 38px; height: 38px; }
+/* row = one column, grouped list: rows touch, only the group's outer corners are round (iOS inset-grouped, Bubble pills inside) */
+:root[data-bubble-density='row'] { --sw-pill-h: 54px; --grid-min: 100%; --grid-gap: 2px; }
+:root[data-bubble-density='row'] .grid { grid-template-columns: 1fr !important; }
+:root[data-bubble-density='row'] .grid > .pill, :root[data-bubble-density='row'] .grid > .cover > .pill { border-radius: 10px; }
+:root[data-bubble-density='row'] .grid > :first-child, :root[data-bubble-density='row'] .grid > .cover:first-child > .pill { border-start-start-radius: 26px; border-start-end-radius: 26px; }
+:root[data-bubble-density='row'] .grid > :last-child:not(.cover) { border-end-start-radius: 26px; border-end-end-radius: 26px; }
+:root[data-bubble-density='row'] .cover { flex-direction: row; align-items: center; gap: 2px; }
+:root[data-bubble-density='row'] .cover > .pill { flex: 1; }
+:root[data-bubble-density='row'] .cover .btns { display: flex; gap: 2px; }
+:root[data-bubble-density='row'] .cover .btns button { width: 54px; height: 54px; border-radius: 10px; }
+:root[data-bubble-density='row'] .grid > .cover:last-child .btns button:last-child { border-end-end-radius: 26px; }
+:root[data-bubble-density='row'] .grid > .cover:first-child .btns button:last-child { border-start-end-radius: 26px; }
+
+/* surface: gradient per entity (the owner's "colourful" reference): a hue-to-hue wash, solid hue icon ring */
+:root[data-bubble-surface='gradient'] .pill.hued:not(.accent):not(.cool):not(.heat):not(.media-on) {
+  --mixA: 52%; --mixB: 30%;
+  background: linear-gradient(100deg, color-mix(in oklab, var(--h) var(--mixA), var(--pill-base, var(--sw-surface))) 0%, color-mix(in oklab, var(--h2) var(--mixB), var(--pill-base, var(--sw-surface))) 100%);
+}
+:root[data-theme='light'][data-bubble-surface='gradient'] .pill.hued:not(.accent):not(.cool):not(.heat):not(.media-on) { --mixA: 40%; --mixB: 26%; }
+:root[data-bubble-surface='gradient'] .pill.hued .ring { background: var(--h); color: #fff; }
+:root[data-bubble-surface='gradient'] .pill.hued.lit { --fill-c: color-mix(in oklab, var(--h) 82%, #fff 6%) !important; }
+:root[data-bubble-surface='gradient'] .pill.hued.lit .lay.over { color: #fff; }
+:root[data-theme='light'][data-bubble-surface='gradient'] .pill.hued.lit .lay.over { color: var(--sw-on-lit); }
+:root[data-bubble-surface='gradient'] .pill.hued.cov { --fill-c: color-mix(in oklab, var(--h) 45%, transparent) !important; }
+:root[data-bubble-surface='gradient'] .sheet .pill.hued { --pill-base: rgba(var(--sw-sheet-rgb), 0.4); }
+:root[data-bubble-surface='gradient'] .status .pill.hued, :root[data-bubble-surface='gradient'] .pill.room { --pill-base: var(--sw-surface); }
+
+/* surface: glass (frosted): every card is a translucent blurred layer over a livelier canvas */
+:root[data-bubble-surface='glass'] { --sw-canvas:
+    radial-gradient(45% 40% at 80% 10%, rgba(120, 110, 255, 0.45), transparent 70%),
+    radial-gradient(40% 40% at 15% 85%, rgba(255, 120, 90, 0.38), transparent 70%),
+    radial-gradient(40% 35% at 55% 55%, rgba(60, 200, 190, 0.25), transparent 70%),
+    linear-gradient(var(--sw-bg), var(--sw-bg)); }
+:root[data-bubble-surface='glass'] .pill:not(.accent):not(.cool):not(.heat):not(.media-on):not(.weather),
+:root[data-bubble-surface='glass'] .status, :root[data-bubble-surface='glass'] .cover .btns button, :root[data-bubble-surface='glass'] .kv > div,
+:root[data-bubble-surface='glass'] .tbl td, :root[data-bubble-surface='glass'] .seg {
+  background-color: rgba(var(--sw-sheet-rgb), 0.42);
+  backdrop-filter: blur(16px) saturate(150%); -webkit-backdrop-filter: blur(16px) saturate(150%);
+  box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong);
+}
+:root[data-bubble-surface='glass'] .sheet .pill:not(.accent):not(.cool):not(.heat):not(.media-on) { backdrop-filter: none; -webkit-backdrop-filter: none; background-color: var(--sw-layer); }
+:root[data-bubble-surface='glass'] .pill .ring:not(.hue):not(.art) { background: rgba(255, 255, 255, 0.16); }
+:root[data-theme='light'][data-bubble-surface='glass'] .pill .ring:not(.hue):not(.art) { background: rgba(255, 255, 255, 0.6); }
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-bubble-surface='glass'] .pill, :root[data-bubble-surface='glass'] .status { background-color: var(--sw-surface) !important; backdrop-filter: none !important; }
+}
+
+/* ---------- room picker (Bubble "choose a room" pop-up) ---------- */
+.picker .floor + .floor { margin-top: 6px; }
+.picker .floor-areas > div { padding-top: 8px; }
+.pill.room { width: 100%; min-height: 58px; }
+.pill.room::before { opacity: 0.0; }
+.pill.room > svg:last-child { opacity: 0.7; margin-inline-end: 8px; }
+.pill.room.cur { box-shadow: inset 0 0 0 2px var(--sw-focus); }
+.ring-s { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--sw-layer-2); flex: none; }
+:root[data-bubble-surface='gradient'] .pill.room::before { opacity: 0.35; background: var(--h); }
+
+/* ---------- area brightness mini slider in the head (owner ref: "100 %" pill) ---------- */
+.bigslider.mini { width: 104px; height: var(--sw-sub); flex: none; background: var(--sw-surface-2); font-size: var(--sw-fs-xs); }
+.bigslider.mini > .bl { padding-inline: 12px; justify-content: flex-end; }
+.sheet .bigslider.mini { background: var(--sw-layer-2); }
+.pill.on .bigslider.mini, .pill.accent .bigslider.mini { background: rgba(0, 0, 0, 0.14); }
+
+/* ---------- scene dropdown (Bubble select) ---------- */
+.dd-menu { position: absolute; z-index: 70; width: 210px; max-height: 360px; overflow: auto; padding: 6px; border-radius: 24px;
+  background: rgba(var(--sw-sheet-rgb), 0.86); backdrop-filter: var(--sw-glass-blur-sheet); -webkit-backdrop-filter: var(--sw-glass-blur-sheet);
+  box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong), var(--sw-shadow-3);
+  transform: translateY(-6px) scale(0.96); transform-origin: top; opacity: 0; transition: transform var(--sw-t-med) var(--sw-ease-thumb), opacity var(--sw-t-fast) var(--sw-ease); }
+.dd-menu.open { transform: none; opacity: 1; }
+.dd-menu button { display: flex; width: 100%; min-height: 40px; align-items: center; padding: 0 14px; border: 0; border-radius: var(--sw-r-pill); background: transparent; color: var(--sw-text);
+  font-size: var(--sw-fs-sm); font-weight: 500; cursor: pointer; text-align: start; }
+.dd-menu button:hover { background: var(--sw-layer-2); }
+.dd-menu button[aria-selected='true'] { background: var(--sw-accent); color: #fff; font-weight: 600; }
+.scene-pill .sub { background: var(--sw-surface-2); }
+
+/* ---------- floating home button (opens the room picker; owner ref) ---------- */
+.fab { position: absolute; z-index: 39; inset-inline-end: 22px; bottom: 22px; width: 56px; height: 56px; border-radius: 50%; border: 0; cursor: pointer;
+  background: var(--sw-accent); color: #fff; display: grid; place-items: center; box-shadow: var(--sw-shadow-3);
+  transition: transform var(--sw-t-fast) var(--sw-ease-thumb); }
+.fab:hover { transform: scale(1.06); }
+.fab:active { transform: scale(0.94); }
+@container app (max-width: 700px) { .fab { bottom: 96px; inset-inline-end: 16px; } }
+.main { padding-bottom: 96px; }

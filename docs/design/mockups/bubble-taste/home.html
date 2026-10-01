@@ -24,7 +24,7 @@ function homeRender() {
   const areaCard = (a) => {
     const s = AREA_STATE(a.id);
     const bits = [s.lit ? `${s.lit} דולקים` : 'כבוי', a.temp ? `${a.temp}°` : null].filter(Boolean).join(' · ');
-    return `<div class="pill big clickable" role="button" tabindex="0" data-pop-area="${a.id}" aria-label="${esc(a.name)}, ${bits}">
+    return `<div class="pill big clickable hued" style="${hueVars(a.hue)}" role="button" tabindex="0" data-pop-area="${a.id}" aria-label="${esc(a.name)}, ${bits}">
       <span class="ring hue" style="background:var(--sw-hue-${a.hue})">${ic(a.icon)}</span>
       <span class="tx"><span class="nm">${esc(a.name)}</span><span class="st">${bits}</span></span>
       <span class="subs">${s.lit ? `<span class="chip lit-chip">${ic('bulb', 's')}${s.lit}</span>` : ''}<span class="sub ghost" aria-hidden="true">${ic('menu', 's')}</span></span>

@@ -160,6 +160,8 @@ const STATE = {
   vp: Q.get('vp') || (innerWidth < 760 ? 'fit' : '1440'),
   scheme: Q.get('scheme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
   glass: Q.get('glass') || 'glass',
+  surface: Q.get('surface') || 'fill',
+  density: Q.get('density') || 'regular',
   view: Q.get('view') || 'cards',
   area: Q.get('area') || 'living',
   floor: Q.get('floor') || null,
@@ -169,7 +171,7 @@ const VP = { 1440: [1440, 900], 820: [820, 1180], 390: [390, 844] };
 
 function setUrl() {
   const u = new URL(location.href);
-  for (const k of ['vp', 'scheme', 'glass', 'view', 'area']) u.searchParams.set(k, STATE[k]);
+  for (const k of ['vp', 'scheme', 'glass', 'surface', 'density', 'view', 'area']) u.searchParams.set(k, STATE[k]);
   history.replaceState(null, '', u);
 }
 
@@ -201,6 +203,8 @@ const Mock = {
         <span class="grp">${BOARDS.map((b) => `<a href="${b.href}" ${b.id === Mock.board ? 'aria-current="page"' : ''} data-keep>${b.label}</a>`).join('')}<a href="index.html">אינדקס</a></span>
         <span class="grp"><span>מסך</span>${['1440', '820', '390', 'fit'].map((v) => `<button data-vp="${v}" aria-pressed="${STATE.vp === v}">${v === 'fit' ? 'מלא' : v}</button>`).join('')}</span>
         <span class="grp"><span>ערכה</span><button data-scheme="light" aria-pressed="${STATE.scheme === 'light'}">בהיר</button><button data-scheme="dark" aria-pressed="${STATE.scheme === 'dark'}">כהה</button></span>
+        <span class="grp"><span>משטח</span>${[['fill', 'מילוי'], ['gradient', 'גרדיאנט'], ['glass', 'זכוכית']].map(([k, l]) => `<button data-surface="${k}" aria-pressed="${STATE.surface === k}">${l}</button>`).join('')}</span>
+        <span class="grp"><span>צפיפות</span>${[['wide', 'רחב'], ['regular', 'רגיל'], ['compact', 'דחוס'], ['row', 'שורות']].map(([k, l]) => `<button data-density="${k}" aria-pressed="${STATE.density === k}">${l}</button>`).join('')}</span>
         <span class="grp"><span>שקיפות</span><button data-glass="bubble" aria-pressed="${STATE.glass === 'bubble'}">Bubble 88%</button><button data-glass="glass" aria-pressed="${STATE.glass === 'glass'}">72%</button><button data-glass="max" aria-pressed="${STATE.glass === 'max'}">58%</button></span>
       </div>
       <div class="mk-stage"><div class="mk-fit" id="fit"><div class="device" id="device">
@@ -213,6 +217,7 @@ const Mock = {
           </nav>
           <nav class="tree" id="tree" aria-label="קומות ואזורים"></nav>
           <main class="main" id="main"><div class="main-inner" id="content"></div></main>
+          <button class="fab" data-tree-sheet aria-label="בחירת אזור">${ic('home')}</button>
           <nav class="stack" aria-label="ניווט ראשי">
             ${NAV.map((n) => `<a href="${n.href}" ${n.id === navId() ? 'aria-current="page"' : ''} data-keep>${ic(n.icon)}<span>${n.label}</span></a>`).join('')}
           </nav>
@@ -233,9 +238,9 @@ const Mock = {
     addEventListener('resize', fit);
   },
   rerender() { Mock.renderTree(); Mock.render(); },
-  renderTree() {
-    const el = document.getElementById('tree');
-    el.innerHTML = `<h2><span>הבית</span><button class="sub ghost" aria-label="תפריט הבניין">${ic('dots', 's')}</button></h2>` + FLOORS.map((f) => {
+  renderTree() { document.getElementById('tree').innerHTML = Mock.treeHtml(); },
+  treeHtml() {
+    return `<h2><span>הבית</span><button class="sub ghost" aria-label="תפריט הבניין">${ic('dots', 's')}</button></h2>` + FLOORS.map((f) => {
       const lit = f.areas.reduce((n, a) => n + AREA_STATE(a.id).lit, 0);
       const col = STATE.collapsed.has(f.id);
       return `<div class="floor" data-collapsed="${col}">
@@ -264,6 +269,8 @@ function navId() { return Mock.board === 'area' ? 'home' : Mock.board; }
 function applyScheme() {
   document.documentElement.dataset.theme = STATE.scheme;
   document.documentElement.dataset.glass = STATE.glass;
+  document.documentElement.dataset.bubbleSurface = STATE.surface;   /* data-bubble-surface: fill | gradient | glass */
+  document.documentElement.dataset.bubbleDensity = STATE.density;   /* data-bubble-density: wide | regular | compact | row */
 }
 function applyVp() {
   const f = document.getElementById('fit');
@@ -288,8 +295,10 @@ function wireChrome() {
     if (b.dataset.vp) STATE.vp = b.dataset.vp;
     if (b.dataset.scheme) STATE.scheme = b.dataset.scheme;
     if (b.dataset.glass) STATE.glass = b.dataset.glass;
+    if (b.dataset.surface) STATE.surface = b.dataset.surface;
+    if (b.dataset.density) STATE.density = b.dataset.density;
     document.querySelectorAll('.mk-bar button').forEach((x) => {
-      x.setAttribute('aria-pressed', String(x.dataset.vp === STATE.vp || x.dataset.scheme === STATE.scheme || x.dataset.glass === STATE.glass));
+      x.setAttribute('aria-pressed', String(x.dataset.vp === STATE.vp || x.dataset.scheme === STATE.scheme || x.dataset.glass === STATE.glass || x.dataset.surface === STATE.surface || x.dataset.density === STATE.density));
     });
     applyScheme(); applyVp(); setUrl();
   });
@@ -298,19 +307,26 @@ function wireChrome() {
     const a = e.target.closest('a[data-keep]'); if (!a || a.getAttribute('href') === '#') return;
     e.preventDefault();
     const u = new URL(a.getAttribute('href'), location.href);
-    for (const k of ['vp', 'scheme', 'glass']) u.searchParams.set(k, STATE[k]);
+    for (const k of ['vp', 'scheme', 'glass', 'surface', 'density']) u.searchParams.set(k, STATE[k]);
     location.href = u.toString();
   });
-  document.getElementById('tree').addEventListener('click', (e) => {
+  document.getElementById('device').addEventListener('click', (e) => {
+    const host = e.target.closest('#tree, .sheet-tree'); if (!host) return;
+    const inSheet = host.classList.contains('sheet-tree');
     const fb = e.target.closest('[data-floor]');
     if (fb) {
       const id = fb.dataset.floor;
       STATE.collapsed.has(id) ? STATE.collapsed.delete(id) : STATE.collapsed.add(id);
-      Mock.renderTree(); document.querySelector(`#tree [data-floor="${id}"]`)?.focus();
+      Mock.renderTree(); if (inSheet) Sheet.rebuild();
+      (inSheet ? Sheet.el : document.getElementById('tree')).querySelector(`[data-floor="${id}"]`)?.focus();
       return;
     }
     const ar = e.target.closest('[data-area]');
-    if (ar) { if (Mock.onArea) Mock.onArea(ar.dataset.area, ar); }
+    if (ar) {
+      if (inSheet && Mock.board === 'home') return Sheet.swap(() => openAreaSheet(ar.dataset.area, Sheet.opener));
+      if (inSheet) Sheet.close();
+      if (Mock.onArea) Mock.onArea(ar.dataset.area, ar);
+    }
   });
   document.querySelectorAll('a[href="#"]').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); Mock.toast('לא כלול בטעימה הזו'); }));
 }
@@ -358,7 +374,7 @@ function setValue(el, v) {
   el.style.setProperty(el.classList.contains('pill') ? '--fill' : '--v', v);
   el.setAttribute('aria-valuenow', Math.round(v * 100));
   el.setAttribute('aria-valuetext', `${Math.round(v * 100)}%`);
-  const pct = el.querySelector('.pct, .val'); if (pct) pct.textContent = `${Math.round(v * 100)}%`;
+  el.querySelectorAll('.val').forEach((x) => (x.textContent = `${Math.round(v * 100)}%`));
   el.dispatchEvent(new CustomEvent('value', { bubbles: true, detail: v }));
 }
 
@@ -457,15 +473,15 @@ function lightPill(d) {
   const fillC = d.ct === 'cool' ? 'var(--sw-lit-cool)' : 'var(--sw-lit)';
   const st = d.on ? `דולק · ${Math.round(d.v * 100)}%` : 'כבוי';
   const tx = `<span class="nm">${esc(d.name)}</span><span class="st">${st}</span>`;
-  return `<div class="pill slider lit dual ${d.on ? 'on' : 'off'}" data-dev="${d.id}" role="slider" tabindex="0"
+  return `<div class="pill slider lit dual hued ${d.on ? 'on' : 'off'}" data-dev="${d.id}" role="slider" tabindex="0"
     aria-label="${esc(d.name)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${d.on ? Math.round(d.v * 100) : 0}" aria-valuetext="${st}"
-    style="--fill:${d.on ? d.v : 0};--fill-c:${fillC}">
+    style="--fill:${d.on ? d.v : 0};--fill-c:${fillC};${hueVars(hueOf(d.id))}">
     <button class="ring" data-pop="${d.id}" aria-label="פרטים: ${esc(d.name)}">${ic(d.icon)}</button>
     <span class="tx lay base">${tx}</span><span class="tx lay over" aria-hidden="true">${tx}</span>
   </div>`;
 }
 function switchPill(d) {
-  return `<div class="pill clickable ${d.on ? 'on accent' : 'off'}" data-dev="${d.id}" role="switch" tabindex="0" aria-checked="${d.on}" aria-label="${esc(d.name)}">
+  return `<div class="pill clickable hued ${d.on ? 'on accent' : 'off'}" data-dev="${d.id}" role="switch" tabindex="0" aria-checked="${d.on}" aria-label="${esc(d.name)}" style="${hueVars(hueOf(d.id))}">
     <span class="ring">${ic(d.icon)}</span><span class="tx"><span class="nm">${esc(d.name)}</span><span class="st">${d.on ? 'פועל' : 'כבוי'}</span></span></div>`;
 }
 const MODE_LABEL = { cool: 'קירור', heat: 'חימום', fan: 'מאוורר', auto: 'אוטומטי', off: 'כבוי' };
@@ -481,8 +497,8 @@ function climatePill(d) {
 function coverPill(d) {
   const st = d.pos === 0 ? 'סגור' : d.pos === 1 ? 'פתוח' : `פתוח ${Math.round(d.pos * 100)}%`;
   return `<div class="cover" data-dev="${d.id}">
-    <div class="pill slider" role="slider" tabindex="0" aria-label="${esc(d.name)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(d.pos * 100)}" aria-valuetext="${st}"
-      style="--fill:${d.pos};--fill-c:var(--sw-accent-soft)" data-cover="${d.id}">
+    <div class="pill slider hued cov" role="slider" tabindex="0" aria-label="${esc(d.name)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(d.pos * 100)}" aria-valuetext="${st}"
+      style="--fill:${d.pos};--fill-c:var(--sw-accent-soft);${hueVars(4)}" data-cover="${d.id}">
       <button class="ring" data-pop="${d.id}" aria-label="פרטים: ${esc(d.name)}">${ic('blinds')}</button>
       <span class="tx"><span class="nm">${esc(d.name)}</span><span class="st">${st}</span></span>
     </div>
@@ -505,8 +521,7 @@ function mediaPill(p, opts = {}) {
   if (vol) {
     return `<div class="${cls} volmode" data-player="${p.id}">
       <button class="ring" data-mute="${p.id}" aria-label="${p.muted ? 'ביטול השתקה' : 'השתקה'}">${ic(p.muted ? 'volOff' : 'vol')}</button>
-      <div class="bigslider inpill" role="slider" tabindex="0" aria-label="עוצמה · ${esc(p.name)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(p.vol * 100)}"
-        data-pvol="${p.id}" style="--v:${p.vol};--fill-c:rgba(0,0,0,.16)"><span class="val">${Math.round(p.vol * 100)}%</span></div>
+      ${bigSlider({ attr: `data-pvol="${p.id}"`, cls: 'inpill', label: '', aria: `עוצמה · ${p.name}`, v: p.vol, fill: playing ? 'rgba(43,26,5,.22)' : 'var(--sw-accent-soft)', over: playing ? 'var(--sw-on-lit)' : 'var(--sw-text)' })}
       <span class="subs"><button class="sub ghost" data-vol="${p.id}" aria-label="סגירת העוצמה">${ic('x', 's')}</button>
       <button class="sub play" data-play="${p.id}" aria-label="${playing ? 'השהיה' : 'ניגון'}">${ic(playing ? 'pause' : 'play')}</button></span>
     </div>`;
@@ -548,7 +563,8 @@ function areaSections(aid, opts = {}) {
     if (!list.length) return '';
     const anyOn = list.some((d) => d.on);
     const acts = s.kind[0] === 'light' && anyOn ? `<span class="acts"><button class="sub" data-alloff="${aid}" aria-label="כיבוי כל התאורה ב${AREAS[aid].name}">${ic('power', 's')}</button></span>` : '';
-    const body = s.kind[0] === 'sensor' ? `<div class="kv">${list.map(sensorTile).join('')}</div>` : `<div class="grid ${opts.inSheet ? 'g2' : ''} ${['climate', 'media'].includes(s.kind[0]) ? 'wide-cells' : ''}">${list.map(renderDev).join('')}</div>`;
+    const scene = s.kind[0] === 'light' ? scenePill(aid) : '';
+    const body = s.kind[0] === 'sensor' ? `<div class="kv">${list.map(sensorTile).join('')}</div>` : `<div class="grid ${opts.inSheet ? 'g2' : ''} ${['climate', 'media'].includes(s.kind[0]) ? 'wide-cells' : ''}">${scene}${list.map(renderDev).join('')}</div>`;
     return `<section class="sec" aria-label="${s.title}"><div class="sep">${ic(s.icon)}<span class="t">${s.title}</span>${acts}</div>${body}</section>`;
   }).join('');
 }
@@ -572,7 +588,7 @@ function areaHeadPill(aid, inSheet) {
     <span class="ring hue" style="background:var(--sw-hue-${a.hue})">${ic(a.icon)}</span>
     <span class="tx"><span class="nm" ${inSheet ? 'id="sheet-title"' : ''}>${esc(a.name)}</span><span class="st">${s.lit ? `${s.lit} דולקים` : 'הכול כבוי'} · ${esc(a.floorName)}</span></span>
     <span class="subs">${a.temp ? `<span class="chip hide-s">${ic('thermo', 's')}${a.temp}°</span>` : ''}
-      ${clim ? '' : ''}<button class="chip" data-scenes="${aid}" aria-haspopup="true">${ic('scene', 's')}<span class="hide-s">תרחיש</span>${ic('chev', 's')}</button>
+      ${s.lights ? bigSlider({ attr: `data-abright="${aid}"`, cls: 'mini', label: '', aria: `בהירות כל התאורה ב${a.name}`, v: areaBright(aid), fill: 'var(--sw-lit)', over: 'var(--sw-on-lit)' }) : ''}
       <button class="sub" data-alloff="${aid}" aria-label="כיבוי הכול ב${esc(a.name)}">${ic('power', 's')}</button></span>
   </div>`;
 }
@@ -590,8 +606,7 @@ function openDeviceSheet(id, opener) {
     const title = `<h2 class="sr" id="sheet-title">${esc(d.name)}</h2>`;
     let body = '';
     if (d.kind === 'light') {
-      body = `<div class="bigslider tall" role="slider" tabindex="0" aria-label="בהירות" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round((d.on ? d.v : 0) * 100)}"
-          data-bright="${d.id}" style="--v:${d.on ? d.v : 0};--fill-c:${d.ct === 'cool' ? 'var(--sw-lit-cool)' : 'var(--sw-lit)'}">${ic('sun')}<span>בהירות</span><span class="val">${Math.round((d.on ? d.v : 0) * 100)}%</span></div>
+      body = `${bigSlider({ attr: `data-bright="${d.id}"`, cls: 'tall', label: 'בהירות', icon: 'sun', v: d.on ? d.v : 0, fill: d.ct === 'cool' ? 'var(--sw-lit-cool)' : 'var(--sw-lit)', over: 'var(--sw-on-lit)' })}
         <div class="sep"><span class="t">גוון</span></div>
         <div class="chips">${[['warm', 'חם'], ['neutral', 'טבעי'], ['cool', 'קר']].map(([k, l]) => `<button class="chip" data-ct="${d.id}" data-v="${k}" aria-pressed="${d.ct === k}">${l}</button>`).join('')}</div>
         <div class="sep"><span class="t">תרחישים</span></div>
@@ -606,8 +621,7 @@ function openDeviceSheet(id, opener) {
         <div class="sep"><span class="t">מאוורר</span></div>
         <div class="chips">${[['low', 'נמוך'], ['mid', 'בינוני'], ['high', 'גבוה'], ['auto', 'אוטומטי']].map(([k, l]) => `<button class="chip" data-fan="${d.id}" data-v="${k}" aria-pressed="${d.fan === k}">${l}</button>`).join('')}</div>`;
     } else if (d.kind === 'cover') {
-      body = `<div class="bigslider tall" role="slider" tabindex="0" aria-label="מיקום" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(d.pos * 100)}"
-          data-pos="${d.id}" style="--v:${d.pos};--fill-c:var(--sw-accent-soft)">${ic('blinds')}<span>פתיחה</span><span class="val">${Math.round(d.pos * 100)}%</span></div>
+      body = `${bigSlider({ attr: `data-pos="${d.id}"`, cls: 'tall', label: 'פתיחה', aria: 'מיקום', icon: 'blinds', v: d.pos, fill: 'var(--sw-accent-soft)', over: 'var(--sw-text)' })}
         <div class="chips">${[[1, 'פתוח'], [0.5, 'חצי'], [0.2, 'אוורור'], [0, 'סגור']].map(([v, l]) => `<button class="chip" data-cv="${d.id}" data-to="${v}" aria-pressed="${d.pos === v}">${l}</button>`).join('')}</div>`;
     } else if (d.kind === 'switch') {
       body = `<div class="kv"><div><div class="k">מצב</div><div class="v">${d.on ? 'פועל' : 'כבוי'}</div></div><div><div class="k">הופעל לאחרונה</div><div class="v">06:30</div></div></div>`;
@@ -632,11 +646,10 @@ function openPlayerSheet(pid, opener) {
         <div class="np"><div class="np-art" style="background:${ARTS[p.art]}" role="img" aria-label="עטיפה"></div>
           <div class="np-t"><div class="np-track">${esc(p.track)}</div><div class="np-artist">${esc(p.artist)}</div></div></div>
         <div class="prog" dir="ltr"><span>${tm(p.pos * p.dur)}</span><div class="bar"><i style="width:${p.pos * 100}%"></i></div><span>${tm(p.dur)}</span></div>
-        <div class="transport"><button class="sub xl ghost" aria-label="הקודם">${ic('next', 'l')}</button>
+        <div class="transport" dir="ltr"><button class="sub xl ghost" aria-label="הקודם">${ic('prev', 'l')}</button>
           <button class="sub xxl play" data-play="${p.id}" aria-label="${playing ? 'השהיה' : 'ניגון'}">${ic(playing ? 'pause' : 'play', 'l')}</button>
-          <button class="sub xl ghost" aria-label="הבא">${ic('prev', 'l')}</button></div>`}
-        <div class="bigslider" role="slider" tabindex="0" aria-label="עוצמה" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(p.vol * 100)}" data-pvol="${p.id}" style="--v:${p.vol};--fill-c:var(--sw-accent)">
-          ${ic('vol')}<span>עוצמה</span><span class="val">${Math.round(p.vol * 100)}%</span></div>
+          <button class="sub xl ghost" aria-label="הבא">${ic('next', 'l')}</button></div>`}
+        ${bigSlider({ attr: `data-pvol="${p.id}"`, label: 'עוצמה', icon: 'vol', v: p.vol, fill: 'var(--sw-accent)', over: '#fff' })}
         ${p.kind === 'speaker' ? `<div class="sep">${ic('link')}<span class="t">קבוצת השמעה</span></div>
         <div class="pill clickable" data-open-group="${p.id}" role="button" tabindex="0" aria-label="ניהול קבוצת ההשמעה">
           <span class="ring">${ic('layers')}</span><span class="tx"><span class="nm">${p.group ? mem.map((m) => m.name.replace('רמקול ', '')).join(' + ') : 'רק הרמקול הזה'}</span><span class="st">${p.group ? `${mem.length} רמקולים מנגנים יחד` : 'הוספת רמקולים'}</span></span>
@@ -657,8 +670,7 @@ function openGroupSheet(pid, opener) {
         <div class="tx" style="flex:1"><div class="sheet-h" id="sheet-title">קבוצת השמעה</div><div class="sheet-sub">${count} רמקולים · ${esc(lead.track || 'לא מנגן')}</div></div>
         <button class="sub" data-close aria-label="סגירה">${ic('x')}</button></div>
       <div class="sheet-body">
-        <div class="bigslider tall" role="slider" tabindex="0" aria-label="עוצמת הקבוצה" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(master * 100)}" data-gvol="${lead.id}" style="--v:${master};--fill-c:var(--sw-accent)">
-          ${ic('vol')}<span>כל הקבוצה</span><span class="val">${Math.round(master * 100)}%</span></div>
+        ${bigSlider({ attr: `data-gvol="${lead.id}"`, cls: 'tall', label: 'כל הקבוצה', aria: 'עוצמת הקבוצה', icon: 'vol', v: master, fill: 'var(--sw-accent)', over: '#fff' })}
         <div class="sep">${ic('speaker')}<span class="t">רמקולים</span></div>
         <div class="gl">${mem.map((x) => {
           const on = inG(x); const un = x.state === 'unavailable';
@@ -687,13 +699,13 @@ function syncLight(d) {
   });
   document.querySelectorAll(`[data-bright="${d.id}"]`).forEach((el) => {
     if (el.classList.contains('dragging')) return;
-    el.style.setProperty('--v', d.on ? d.v : 0); el.querySelector('.val').textContent = `${Math.round((d.on ? d.v : 0) * 100)}%`;
+    el.style.setProperty('--v', d.on ? d.v : 0); el.querySelectorAll('.val').forEach((x) => (x.textContent = `${Math.round((d.on ? d.v : 0) * 100)}%`));
   });
 }
 function syncCover(d) {
   const st = d.pos === 0 ? 'סגור' : d.pos === 1 ? 'פתוח' : `פתוח ${Math.round(d.pos * 100)}%`;
   document.querySelectorAll(`[data-cover="${d.id}"]`).forEach((el) => { if (!el.classList.contains('dragging')) el.style.setProperty('--fill', d.pos); el.querySelector('.st').textContent = st; el.setAttribute('aria-valuetext', st); });
-  document.querySelectorAll(`[data-pos="${d.id}"]`).forEach((el) => { if (!el.classList.contains('dragging')) { el.style.setProperty('--v', d.pos); el.querySelector('.val').textContent = `${Math.round(d.pos * 100)}%`; } });
+  document.querySelectorAll(`[data-pos="${d.id}"]`).forEach((el) => { if (!el.classList.contains('dragging')) { el.style.setProperty('--v', d.pos); el.querySelectorAll('.val').forEach((x) => (x.textContent = `${Math.round(d.pos * 100)}%`)); } });
 }
 function focusKey(el) {
   if (!el || el === document.body) return null;
@@ -719,8 +731,9 @@ function wireDevices() {
     if (el.matches('.pill[data-dev]')) { const d = DEV[el.dataset.dev]; if (d.kind === 'light') { d.v = v; d.on = v > 0; syncLight(d); } }
     if (el.dataset.bright) { const d = DEV[el.dataset.bright]; d.v = v; d.on = v > 0; syncLight(d); }
     if (el.dataset.cover) { DEV[el.dataset.cover].pos = v; syncCover(DEV[el.dataset.cover]); }
+    if (el.dataset.abright) { DEVICES.filter((d) => d.area === el.dataset.abright && d.kind === 'light').forEach((d) => { d.v = v; d.on = v > 0; syncLight(d); }); }
     if (el.dataset.pos) { DEV[el.dataset.pos].pos = v; syncCover(DEV[el.dataset.pos]); }
-    if (el.dataset.pvol) { PLAYER[el.dataset.pvol].vol = v; document.querySelectorAll(`[data-pvol="${el.dataset.pvol}"]`).forEach((x) => { if (x !== el) { x.style.setProperty('--v', v); x.querySelector('.val').textContent = `${Math.round(v * 100)}%`; } }); }
+    if (el.dataset.pvol) { PLAYER[el.dataset.pvol].vol = v; document.querySelectorAll(`[data-pvol="${el.dataset.pvol}"]`).forEach((x) => { if (x !== el) { x.style.setProperty('--v', v); x.querySelectorAll('.val').forEach((y) => (y.textContent = `${Math.round(v * 100)}%`)); } }); }
     if (el.dataset.mvol) { PLAYER[el.dataset.mvol].vol = v; el.querySelector('.st').textContent = `בקבוצה · ${Math.round(v * 100)}%`; }
     if (el.dataset.gvol) {
       const lead = PLAYER[el.dataset.gvol]; const mem = lead.group ? groupMembers(lead.group) : [lead];
@@ -737,6 +750,7 @@ function wireDevices() {
     if (ds.openGroup) return Sheet.swap(() => openGroupSheet(ds.openGroup, Sheet.opener));
     if (ds.back) return Sheet.swap(() => openPlayerSheet(ds.back, Sheet.opener));
     if (ds.popArea) return openAreaSheet(ds.popArea, t);
+    if (ds.treeSheet !== undefined) return openTreeSheet(t);
     if (ds.toggle) { const d = DEV[ds.toggle]; d.on = !d.on; return Mock.refresh(); }
     if (t.matches('.pill.clickable[data-dev]')) { const d = DEV[t.dataset.dev]; d.on = !d.on; return Mock.refresh(); }
     if (ds.step) { const d = DEV[ds.step]; d.target = Math.max(16, Math.min(30, d.target + parseFloat(ds.d))); document.querySelectorAll(`[data-dev="${d.id}"] output, .thermo-big output`).forEach((o) => (o.textContent = d.target.toFixed(1) + '°')); return; }
@@ -749,7 +763,7 @@ function wireDevices() {
       DEVICES.filter((d) => d.area === ds.alloff && (d.kind === 'light' || d.kind === 'switch')).forEach((d) => (d.on = false));
       Mock.refresh(); return Mock.toast(`כל התאורה ב${AREAS[ds.alloff].name} כובתה`);
     }
-    if (ds.scenes) return Mock.toast('תרחישים: ערב · סרט · ניקיון · לילה');
+    if (ds.scenes) return openSceneMenu(ds.scenes, t);
     if (ds.sceneChip !== undefined) return Mock.toast(`התרחיש "${t.textContent.trim()}" הופעל`);
     if (ds.play) {
       const p = PLAYER[ds.play];
@@ -774,4 +788,91 @@ function wireDevices() {
   dev.addEventListener('keydown', (e) => {
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role="button"], [role="switch"]')) { e.preventDefault(); e.target.click(); }
   });
+}
+/* phone: the building tree as a pop-up (same rows, same per-floor collapse) */
+function openTreeSheet(opener) {
+  Sheet.open(() => `<div class="sheet-head"><span class="ring-s">${ic('home')}</span><div style="flex:1"><div class="sheet-h" id="sheet-title">בחירת אזור</div></div><button class="sub" data-close aria-label="סגירה">${ic('x')}</button></div>
+    <div class="sheet-body"><nav class="sheet-tree picker" aria-label="קומות ואזורים">${FLOORS.map((f) => {
+      const col = STATE.collapsed.has(f.id);
+      const lit = f.areas.reduce((n, a) => n + AREA_STATE(a.id).lit, 0);
+      return `<section class="floor" data-collapsed="${col}"><div class="sep"><button class="sub ghost chev" data-floor="${f.id}" aria-expanded="${!col}" aria-label="${col ? 'הרחב' : 'כווץ'} ${f.name}">${ic('chev', 's')}</button><span class="t">${f.name}</span><span class="acts"><span class="fl-cnt">${lit ? `${lit} דולקים` : ''}</span></span></div>
+        <div class="floor-areas"><div><div class="grid g2">${f.areas.map((a) => {
+          const s = AREA_STATE(a.id);
+          return `<button class="pill clickable hued room ${STATE.area === a.id && Mock.treeMode !== 'none' ? 'cur' : ''}" data-area="${a.id}" ${col ? 'tabindex="-1"' : ''} style="--fill:${s.lights ? s.lit / s.lights : 0};${hueVars(a.hue)}">
+            <span class="ring hue" style="background:var(--sw-hue-${a.hue})">${ic(a.icon)}</span><span class="tx"><span class="nm">${esc(a.name)}</span><span class="st">${s.lit ? `${s.lit} דולקים` : 'כבוי'}${a.temp ? ` · ${a.temp}°` : ''}</span></span>${ic('chevBack', 's')}</button>`;
+        }).join('')}</div></div></div></section>`;
+    }).join('')}</nav></div>`, { opener });
+}
+function floorBar() {
+  const a = AREAS[STATE.area]; const f = FLOORS.find((x) => x.id === a.floor);
+  return `<div class="floorbar" role="group" aria-label="אזורים בקומה">
+    <button data-tree-sheet aria-label="קומות ואזורים: ${esc(f.name)}">${ic('layers', 's')}${esc(f.name)}${ic('chev', 's')}</button>
+    ${f.areas.map((x) => `<button data-area-pick="${x.id}" aria-pressed="${x.id === STATE.area}">${esc(x.name)}</button>`).join('')}</div>`;
+}
+/* a big slider (brightness, position, volume): the label is drawn twice and clipped at the fill edge, like the light pills */
+function bigSlider(o) {
+  const pct = Math.round(o.v * 100);
+  const inner = `${o.icon ? ic(o.icon) : ''}${o.label ? `<span>${esc(o.label)}</span>` : ''}<span class="val">${pct}%</span>`;
+  return `<div class="bigslider ${o.cls || ''}" role="slider" tabindex="0" aria-label="${esc(o.aria || o.label)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-valuetext="${pct}%"
+    ${o.attr} style="--v:${o.v};--fill-c:${o.fill};--over:${o.over}"><span class="bl base">${inner}</span><span class="bl over" aria-hidden="true">${inner}</span></div>`;
+}
+
+/* ---------------------------------------------------------------- colourful variant (owner references): per-entity hue gradient */
+const HUES = [6, 2, 5, 1, 4, 3, 7, 8];
+function hueOf(id) { let n = 0; for (const ch of id) n += ch.charCodeAt(0); return HUES[n % HUES.length]; }
+function hueVars(h) { const h2 = HUES[(HUES.indexOf(h) + 3) % HUES.length]; return `--h:var(--sw-hue-${h});--h2:var(--sw-hue-${h2});`; }
+function areaBright(aid) {
+  const ls = DEVICES.filter((d) => d.area === aid && d.kind === 'light' && d.on);
+  return ls.length ? Math.round((ls.reduce((n, d) => n + d.v, 0) / ls.length) * 100) / 100 : 0;
+}
+
+/* ---------------------------------------------------------------- scene dropdown (Bubble select card: pill + floating list) */
+const SCENES = ['בהיר', 'חמים', 'רגוע', 'מעומעם', 'קולנוע', 'קולנוע חשוך', 'מסיבה', 'מוזיקה', 'מותאם'];
+const AREA_SCENE = { living: 'חמים' };
+function scenePill(aid) {
+  const cur = AREA_SCENE[aid] || 'בהיר';
+  return `<div class="pill scene-pill hued" style="${hueVars(7)}"><span class="ring">${ic('scene')}</span>
+    <span class="tx"><span class="nm">אווירה</span><span class="st">${esc(cur)}</span></span>
+    <span class="subs"><button class="sub" data-scenes="${aid}" aria-haspopup="listbox" aria-expanded="false" aria-label="בחירת אווירה, כעת ${esc(cur)}">${ic('chev', 's')}</button></span></div>`;
+}
+function openSceneMenu(aid, trigger) {
+  closeSceneMenu();
+  const dev = document.getElementById('device');
+  const cur = AREA_SCENE[aid] || 'בהיר';
+  const m = document.createElement('div');
+  m.className = 'dd-menu'; m.setAttribute('role', 'listbox'); m.setAttribute('aria-label', 'אווירה');
+  m.innerHTML = SCENES.map((s) => `<button role="option" aria-selected="${s === cur}" data-scene-pick="${esc(s)}" data-scene-area="${aid}">${esc(s)}</button>`).join('');
+  dev.appendChild(m);
+  const scale = dev.getBoundingClientRect().width / dev.offsetWidth || 1;
+  const dr = dev.getBoundingClientRect(), tr = trigger.getBoundingClientRect();
+  const top = (tr.bottom - dr.top) / scale + 6;
+  const left = Math.max(8, (tr.left - dr.left) / scale + tr.width / scale - 210);
+  m.style.top = Math.min(top, dev.offsetHeight - m.offsetHeight - 8) + 'px';
+  m.style.left = Math.min(left, dev.offsetWidth - 218) + 'px';
+  trigger.setAttribute('aria-expanded', 'true');
+  requestAnimationFrame(() => m.classList.add('open'));
+  (m.querySelector('[aria-selected="true"]') || m.firstChild).focus();
+  m._trigger = trigger;
+  m.addEventListener('keydown', (e) => {
+    const items = [...m.querySelectorAll('[role="option"]')]; const i = items.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeSceneMenu(true); }
+    if (e.key === 'Tab') { closeSceneMenu(); }
+  });
+  m.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-scene-pick]'); if (!b) return;
+    e.stopPropagation();
+    AREA_SCENE[b.dataset.sceneArea] = b.dataset.scenePick;
+    closeSceneMenu(true); Mock.refresh();
+  });
+  setTimeout(() => document.addEventListener('pointerdown', outsideScene, true), 0);
+}
+function outsideScene(e) { if (!e.target.closest('.dd-menu')) closeSceneMenu(); }
+function closeSceneMenu(refocus) {
+  const m = document.querySelector('.dd-menu'); if (!m) return;
+  document.removeEventListener('pointerdown', outsideScene, true);
+  m._trigger && m._trigger.setAttribute('aria-expanded', 'false');
+  if (refocus && m._trigger && m._trigger.isConnected) m._trigger.focus();
+  m.remove();
 }
