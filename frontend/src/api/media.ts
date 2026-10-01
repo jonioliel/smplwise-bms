@@ -147,8 +147,10 @@ export interface ProductSettings {
   'remote.csp_enforce'?: 'true' | 'false';
 }
 
-export const getSettings = () => get<{ settings: ProductSettings; can_edit: boolean }>('settings');
-export const patchSettings = (body: Partial<ProductSettings>) => patch<{ settings: ProductSettings; can_edit: boolean }>('settings', body);
+/** `nvr_channels`: the recorder's channel capacity when known; `warnings`: advisory only, never blocks a save. */
+export type SettingsResponse = { settings: ProductSettings; can_edit: boolean; nvr_channels?: number | null; warnings?: { key: string; message: string }[] };
+export const getSettings = () => get<SettingsResponse>('settings');
+export const patchSettings = (body: Partial<ProductSettings>) => patch<SettingsResponse>('settings', body);
 
 export interface LiveInfo {
   camera_id: string;
