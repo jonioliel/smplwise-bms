@@ -895,5 +895,276 @@
     "caption_he": "סידור הקיר (מתפריט המשתמש): לכל מצלמה סדר, רוחב אריח ותיבת \"מוצגת\". מצלמה שהוסרה ממנה עוברת לסוף הרשימה ועמומה, ונעלמת מהקיר ומהמונה שבתחתיתו. פרטים ב-30-cameras_HE.md.",
     "source": "demo",
     "data": "mock-wall"
+  },
+  {
+    "id": "notifications-center",
+    "name_he": "מרכז ההתראות",
+    "section": "notifications",
+    "route": "#/devices/building",
+    "viewports": [
+      "desktop",
+      "phone"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "click",
+        "selector": "sw-app [data-profile-menu]:visible, sw-app [data-nav-me]:visible"
+      },
+      {
+        "type": "click",
+        "selector": "sw-user-menu [data-menu-alerts]"
+      },
+      {
+        "type": "waitFor",
+        "selector": "notify-center [data-center-state=\"ready\"]"
+      },
+      {
+        "type": "waitMs",
+        "ms": 500
+      }
+    ],
+    "caption_he": "מרכז ההתראות, נפתח מהפעמון בתפריט המשתמש: התראה קריטית פתוחה נעוצה למעלה, אחריה התראות היום והימים הקודמים לפי סדר, ×N להתראה שהתקפלה, נקודה כחולה ללא נקראה, מסנני הכל / לא נקראו / קריטי ומסנן מקור. פרטים ב-85-notifications_HE.md.",
+    "source": "demo",
+    "data": "static"
+  },
+  {
+    "id": "notifications-detail",
+    "name_he": "התראה פתוחה: פרטים וציר הסלמה",
+    "section": "notifications",
+    "route": "#/devices/building",
+    "viewports": [
+      "desktop",
+      "phone"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "click",
+        "selector": "sw-app [data-profile-menu]:visible, sw-app [data-nav-me]:visible"
+      },
+      {
+        "type": "click",
+        "selector": "sw-user-menu [data-menu-alerts]"
+      },
+      {
+        "type": "waitFor",
+        "selector": "notify-center [data-center-state=\"ready\"]"
+      },
+      {
+        "type": "click",
+        "selector": "notify-center notify-row [data-notify-row=\"ntf-001\"] [data-row-open]"
+      },
+      {
+        "type": "waitFor",
+        "selector": "notify-center notify-detail [data-notify-detail=\"ntf-001\"]"
+      },
+      {
+        "type": "waitMs",
+        "ms": 500
+      }
+    ],
+    "caption_he": "פירוט התראה קריטית: מה קרה, איפה, מתי, מצב, שורת המסירה אליכם וציר ההסלמה (נוצרה, הסלמה למנהלים, השלב הבא), עם הכפתורים פתח, אישור והשתק לשעה. פרטים ב-85-notifications_HE.md.",
+    "source": "demo",
+    "data": "static"
+  },
+  {
+    "id": "notifications-door-confirm",
+    "name_he": "צלצול בדלת: אישור פתיחה בתוך Arx",
+    "section": "notifications",
+    "route": "#/devices/building",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "click",
+        "selector": "sw-app [data-profile-menu]:visible, sw-app [data-nav-me]:visible"
+      },
+      {
+        "type": "click",
+        "selector": "sw-user-menu [data-menu-alerts]"
+      },
+      {
+        "type": "waitFor",
+        "selector": "notify-center [data-center-state=\"ready\"]"
+      },
+      {
+        "type": "click",
+        "selector": "notify-center notify-row [data-notify-row=\"ntf-002\"] [data-row-open]"
+      },
+      {
+        "type": "waitFor",
+        "selector": "notify-center notify-detail [data-notify-detail=\"ntf-002\"]"
+      },
+      {
+        "type": "click",
+        "selector": "notify-center notify-detail [data-detail-act=\"door\"]"
+      },
+      {
+        "type": "waitFor",
+        "selector": "notify-center [data-door-dialog]"
+      },
+      {
+        "type": "waitMs",
+        "ms": 500
+      }
+    ],
+    "caption_he": "\"פתח דלת\" בהתראת צלצול לא פותח את הדלת: נפתח חלון אישור בתוך Arx למשתמש מחובר עם הרשאת פתיחת דלת, ורק לחיצה על האישור שולחת את הפקודה. פרטים ב-85-notifications_HE.md.",
+    "source": "demo",
+    "data": "static"
+  },
+  {
+    "id": "settings-notifications",
+    "name_he": "הגדרות › התראות (מקורות והרשאות)",
+    "section": "settings",
+    "route": "#/system/notifications",
+    "viewports": [
+      "desktop",
+      "phone"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitFor",
+        "selector": "system-notifications [data-notify-settings]"
+      },
+      {
+        "type": "scrollTo",
+        "selector": "system-notifications [data-set-section=\"sources\"]"
+      },
+      {
+        "type": "waitMs",
+        "ms": 500
+      }
+    ],
+    "caption_he": "לשונית ההתראות למנהל (הרשאת ניהול התראות): שמונה מדורים, והראשון הוא מקורות והרשאות - לכל מקור פעיל, חומרה, מי מקבל וערוצים. בטלפון כרטיס לכל מקור ומדור אחד בכל פעם. פרטים ב-85-notifications_HE.md.",
+    "source": "demo",
+    "data": "static"
+  },
+  {
+    "id": "settings-notifications-quiet",
+    "name_he": "הגדרות › התראות › שעות שקט והסלמה",
+    "section": "settings",
+    "route": "#/system/notifications",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitFor",
+        "selector": "system-notifications [data-notify-settings]"
+      },
+      {
+        "type": "scrollTo",
+        "selector": "system-notifications [data-set-section=\"quiet\"]"
+      },
+      {
+        "type": "waitMs",
+        "ms": 500
+      }
+    ],
+    "caption_he": "שעות שקט (ימים, שעות, ומטריצת חומרה × ערוץ של מה עובר בכל זאת) והסלמה (אחרי כמה דקות, כמה שלבים, למי) עם תצוגה מקדימה של הציר. פרטים ב-85-notifications_HE.md.",
+    "source": "demo",
+    "data": "static"
+  },
+  {
+    "id": "settings-notifications-lock",
+    "name_he": "הגדרות › התראות › פרטיות מסך נעול",
+    "section": "settings",
+    "route": "#/system/notifications",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitFor",
+        "selector": "system-notifications [data-notify-settings]"
+      },
+      {
+        "type": "scrollTo",
+        "selector": "system-notifications [data-set-section=\"lock\"]"
+      },
+      {
+        "type": "waitMs",
+        "ms": 500
+      }
+    ],
+    "caption_he": "שלוש רמות פירוט למסך נעול (גנרי, סוג ומקום, מלא) עם תצוגה מקדימה של ההתראה בטלפון; \"תמונה בהתראה\" ו\"צליל קריטי\" מסומנים בקרוב. פרטים ב-85-notifications_HE.md.",
+    "source": "demo",
+    "data": "static"
+  },
+  {
+    "id": "settings-notifications-mail",
+    "name_he": "הגדרות › התראות › דואר יוצא",
+    "section": "settings",
+    "route": "#/system/notifications",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitFor",
+        "selector": "system-notifications [data-notify-settings]"
+      },
+      {
+        "type": "scrollTo",
+        "selector": "system-notifications [data-set-section=\"mail\"]"
+      },
+      {
+        "type": "waitMs",
+        "ms": 500
+      }
+    ],
+    "caption_he": "דואר יוצא: שרת, יציאה, הצפנה, משתמש, סיסמה (כתיבה בלבד), כתובת שולח ונמענים, וכפתור בדיקה שמציג את התוצאה במקום. פרטים ב-85-notifications_HE.md.",
+    "source": "demo",
+    "data": "static"
+  },
+  {
+    "id": "settings-notifications-log",
+    "name_he": "הגדרות › התראות › יומן מסירה וכשלים",
+    "section": "settings",
+    "route": "#/system/notifications",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [
+      {
+        "type": "waitFor",
+        "selector": "system-notifications [data-notify-settings]"
+      },
+      {
+        "type": "scrollTo",
+        "selector": "system-notifications [data-set-section=\"log\"]"
+      },
+      {
+        "type": "waitMs",
+        "ms": 500
+      }
+    ],
+    "caption_he": "יומן המסירה: לוח כשלים של 24 השעות האחרונות לפי ערוץ וטבלת מסירות (שעה, התראה, משתמש, ערוץ, מצב, סיבה), עם מסנן \"רק כשלים\". אין בו כתובות. פרטים ב-85-notifications_HE.md.",
+    "source": "demo",
+    "data": "static"
   }
 ]
