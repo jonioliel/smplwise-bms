@@ -221,6 +221,7 @@ test.describe('remote video policy against the fixture backend (fake NVR / go2rt
   let control: APIRequestContext;
   let request: APIRequestContext;
   let h264Camera = '';
+  let bframeCamera = '';
   let h265Camera = '';
 
   test.beforeEach(async ({}, testInfo) => {
@@ -232,11 +233,12 @@ test.describe('remote video policy against the fixture backend (fake NVR / go2rt
     control = await pwRequest.newContext({ baseURL: CONTROL });
     request = await pwRequest.newContext({ baseURL: process.env.SW_BASE_URL || 'http://127.0.0.1:4173/' });
     expect((await control.post('/reset')).status()).toBe(200);
-    // channel 1: main H.265 (cannot play over WebRTC); every other channel: main H.264 without SVC / B-frames
+    // channel 1: main H.264 with B-frames (known not to play over WebRTC); channel 3: main H.265 (unknown: TRIED, a viewer's
+    // decoder decides - 2026-10-01); every other channel: main H.264 without SVC / B-frames
     const set = await control.post('/nvr', {
       data: {
         encodings: { main: { codec: 'H.264', svc: false, width: 2560, height: 1440 }, sub: { codec: 'H.264', width: 640, height: 360 } },
-        encodings_by_channel: { '1': { main: { codec: 'H.265' } } },
+        encodings_by_channel: { '1': { main: { codec: 'H.264', bframes: true } }, '3': { main: { codec: 'H.265' } } },
       },
     });
     expect(set.status()).toBe(200);
@@ -244,10 +246,13 @@ test.describe('remote video policy against the fixture backend (fake NVR / go2rt
     const cams = (await (await request.get('/api/v1/cameras')).json()).cameras as { id: string; channel: number; encoding: { main: { webrtc: string } } }[];
     const one = cams.find((c) => c.channel === 1)!;
     const two = cams.find((c) => c.channel === 2)!;
+    const three = cams.find((c) => c.channel === 3)!;
     expect(one.encoding.main.webrtc).toBe('no');
     expect(two.encoding.main.webrtc).toBe('ok');
-    h265Camera = one.id;
+    expect(three.encoding.main.webrtc).toBe('unknown');
+    bframeCamera = one.id;
     h264Camera = two.id;
+    h265Camera = three.id;
   });
 
   test.afterAll(async () => {
@@ -406,13 +411,24 @@ test.describe('remote video policy against the fixture backend (fake NVR / go2rt
     expect(await watchListeners(page), 're-review F1: the torn-down attempt left no listener behind').toBe(0);
   });
 
-  test('a main stream the NVR reports as H.265 skips WebRTC: straight to main·MSE (allowed)', async ({ page }) => {
+  test('a main stream the NVR reports with B-frames skips WebRTC: straight to main·MSE (allowed)', async ({ page }) => {
     await remoteMe(page, { profile: 'main', mse: true });
-    await openCamera(page, h265Camera, { main: 'ok', sub: 'ok' });
+    await openCamera(page, bframeCamera, { main: 'ok', sub: 'ok' });
     await expect(badge(page)).toHaveAttribute('data-step', 'main·MSE');
     await expect.poll(() => sockets(page)).toEqual([{ profile: 'main', kind: 'mse' }]);
     // the camera's capabilities carry the settings hint from the registry
-    await expect(page.locator('live-camera [data-caps-webrtc-hint]')).toContainText('מקודד H.265 - לא יתנגן ב-WebRTC; לשינוי: NVR DS-7616NI-FAKE', { timeout: 15000 });
+    await expect(page.locator('live-camera [data-caps-webrtc-hint]')).toContainText('מקודד H.264 עם B-frames - לא יתנגן ב-WebRTC; לשינוי: NVR DS-7616NI-FAKE', { timeout: 15000 });
+  });
+
+  test('a main stream the NVR reports as H.265 is TRIED over WebRTC (never skipped on the codec name); a viewer that cannot decode it falls to main·MSE', async ({ page }) => {
+    await remoteMe(page, { profile: 'main', mse: true });
+    await openCamera(page, h265Camera, { main: 'ok', sub: 'ok' });
+    await expectPlaying(page, 'main·WebRTC');
+    expect(await sockets(page)).toEqual([{ profile: 'main', kind: 'webrtc' }]);
+    await page.goto('about:blank');
+    await remoteMe(page, { profile: 'main', mse: true });
+    await openCamera(page, h265Camera, { main: 'nodecode', sub: 'ok' });
+    await expect(badge(page)).toHaveAttribute('data-step', 'main·MSE', { timeout: 30000 });
   });
 
   test("LAN / Ingress channel: no plan, no badge - today's player", async ({ page }) => {
@@ -428,12 +444,12 @@ test.describe('remote video policy against the fixture backend (fake NVR / go2rt
     await page.goto('/?design=a#/system/diagnostics?tab=remote');
     await page.waitForSelector('sw-app');
     const line = page.locator('system-diagnostics [data-remote-codec-summary]');
-    await expect(line).toContainText('זרם ראשי: 3 מתוך 4 מצלמות מתנגנים ב־WebRTC · 1 לא יתנגנו');
+    await expect(line).toContainText('זרם ראשי: 2 מתוך 4 מצלמות מתנגנים ב־WebRTC · 1 לא יתנגנו');
     await line.locator('[data-remote-codec-link]').click();
     const card = page.locator('system-diagnostics [data-health-card="video_webrtc"]');
     await expect(card).toBeVisible({ timeout: 20000 });
     await expect(card.locator('[data-video-hint]')).toHaveCount(1);
-    await expect(card.locator('[data-video-hint]')).toContainText('הזרם הראשי של מצלמה 1 מקודד H.265');
+    await expect(card.locator('[data-video-hint]')).toContainText('הזרם הראשי של מצלמה 1 מקודד H.264 עם B-frames');
     await page.screenshot({ path: test.info().outputPath('settings-codec-health.png'), fullPage: true });
   });
 });

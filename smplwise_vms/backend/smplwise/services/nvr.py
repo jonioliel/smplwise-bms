@@ -703,12 +703,18 @@ def _child_text(el: ET.Element, name: str) -> str:
 
 
 def webrtc_verdict(enc: dict[str, object]) -> tuple[str, str]:
-    """(`ok` | `no` | `unknown`, reason) for one stream's encoding."""
+    """(`ok` | `no` | `unknown`, reason) for one stream's encoding.
+
+    `no` = known not to play (the player skips WebRTC for it): MJPEG and H.264 with B-frames. H.265 and H.264 with SVC are
+    `unknown` with their reason kept: measured 2026-10-01 on the owner's Hoffnung system, a desktop Chrome outside its network
+    decodes main streams of both kinds over WebRTC (2560x1440 H.264 SVC, 2560x1440 and 4256x1888 H.265, WebRTC through go2rtc),
+    while a lab NVR's H.264 SVC main did not decode. Whether it plays depends on the viewer's decoder and the device's firmware, so
+    the player tries WebRTC and falls back on the measured failure (first-frame watch) instead of skipping it on a guess."""
     codec = enc.get("codec")
     if not codec:
         return "unknown", "codec_unknown"
     if codec == "H.265":
-        return "no", "h265"
+        return "unknown", "h265"
     if codec == "MJPEG":
         return "no", "mjpeg"
     if codec != "H.264":
@@ -720,7 +726,7 @@ def webrtc_verdict(enc: dict[str, object]) -> tuple[str, str]:
     if enc.get("b_frames") is True:
         return "no", "b_frames"
     if enc.get("svc") is True:
-        return "no", "svc"
+        return "unknown", "svc"
     profile = str(enc.get("profile") or "").lower()
     if enc.get("b_frames") is False or profile.startswith(("baseline", "bp", "constrained")):
         return "ok", "h264_no_b_frames"
