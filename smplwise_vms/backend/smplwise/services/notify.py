@@ -120,7 +120,7 @@ def wake() -> None:
     try:
         from . import push
 
-        push.NOTIFIER.wake()
+        push.wake_all()
     except Exception:  # noqa: BLE001 - a wake-up is a hint, never a failure of the writer
         log.debug("could not wake the notifier", exc_info=True)
 

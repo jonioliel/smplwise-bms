@@ -390,6 +390,7 @@ def test_a_registered_channel_is_planned_prepared_and_sent_through_the_interface
                 sent.append((d.nid, t.data))
                 notify_channels.record_outcome(notifier.db, [t.delivery_id], "sent", None, 1)
 
+    previous = notify_channels.CHANNELS.get("email")  # the real e-mail channel (S4) must survive this test
     notify_channels.register(Stub())
     try:
         w.set_policy("system.health", channels={"webpush": False, "email": True})
@@ -397,6 +398,8 @@ def test_a_registered_channel_is_planned_prepared_and_sent_through_the_interface
         w.flush()
     finally:
         notify_channels.CHANNELS.pop("email", None)
+        if previous is not None:
+            notify_channels.CHANNELS["email"] = previous
     assert sent == [(nid, "a@example.com")] and prepared == [1]
     rows = w.deliveries(nid)
     assert [(r["channel"], r["status"], r["target_ref"], r["user_id"]) for r in rows] == [("email", "sent", "a***@example.com", None)]
@@ -415,6 +418,7 @@ def test_a_channel_that_raises_is_logged_failed_and_does_not_stop_the_others(w, 
         def send(self, notifier, d, targets):
             raise RuntimeError("boom")
 
+    previous = notify_channels.CHANNELS.get("email")
     notify_channels.register(Boom())
     try:
         w.set_policy("system.health", channels={"webpush": True, "email": True})
@@ -422,6 +426,8 @@ def test_a_channel_that_raises_is_logged_failed_and_does_not_stop_the_others(w, 
         w.flush()
     finally:
         notify_channels.CHANNELS.pop("email", None)
+        if previous is not None:
+            notify_channels.CHANNELS["email"] = previous
     by = {d["channel"]: d["status"] for d in w.deliveries(nid)}
     assert by == {"webpush": "sent", "email": "failed"}
     assert [e for e in w.inbox("joni")[0]["timeline"] if e["kind"] == "delivery_failed"][0]["channel"] == "email"

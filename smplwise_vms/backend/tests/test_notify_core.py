@@ -587,7 +587,7 @@ def test_migration_up_on_a_0_1_149_database_keeps_push_prefs_and_subscriptions(s
     older = tmp_path / "older"
     older.mkdir()
     for f in real.glob("*.sql"):
-        if int(f.name.split("_", 1)[0]) < 46:
+        if int(f.name.split("_", 1)[0]) < 45:
             shutil.copy(f, older / f.name)
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", older)
     database = dbmod.Database(settings.db_path)
@@ -598,7 +598,7 @@ def test_migration_up_on_a_0_1_149_database_keeps_push_prefs_and_subscriptions(s
         conn.execute("INSERT INTO rules(id, name, enabled, owner, trigger_json, scope_json, window_json, cooldown_s, actions_json, revision, created_at, updated_at) VALUES ('r1', 'r', 1, 'local', '{}', '{}', '{}', 0, '[]', 1, 't', 't')")
         conn.execute("INSERT INTO rule_alerts(id, rule_id, event_id, fired_at, occurred_at, reasons_json, message) VALUES ('a1', 'r1', 'e1', 't', 't', '[]', 'm')")
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
-    assert dbmod.Database(settings.db_path).migrate() == [46, 47, 48]
+    assert dbmod.Database(settings.db_path).migrate() == [45, 46, 47]
     c = TestClient(create_app(settings))  # start-up seeds the policies
     with database.connection(mode="read") as conn:
         assert conn.execute("SELECT categories_json FROM push_prefs WHERE user_id = 'dev-old'").fetchone()[0] == '{"alerts": false}'
@@ -609,11 +609,11 @@ def test_migration_up_on_a_0_1_149_database_keeps_push_prefs_and_subscriptions(s
     assert c.get(f"{API}/notify/settings").json()["revision"] == 1 and c.get(f"{API}/push/prefs", headers=as_user("dev-old")).status_code == 200
 
 
-def test_notify_migrations_are_0046_to_0048_and_unique():
+def test_notify_migrations_are_0045_to_0047_and_unique():
     names = sorted(f.name for f in dbmod.MIGRATIONS_DIR.glob("*.sql"))
-    assert [n for n in names if n.startswith(("0046_", "0047_", "0048_"))] == ["0046_notifications.sql", "0047_notify_settings.sql", "0048_notify_policies.sql"]
+    assert [n for n in names if n.startswith(("0045_", "0046_", "0047_"))] == ["0045_notifications.sql", "0046_notify_settings.sql", "0047_notify_policies.sql"]
     allnums = [int(n.split("_", 1)[0]) for n in names]
-    assert all(allnums.count(n) == 1 for n in (46, 47, 48))
+    assert all(allnums.count(n) == 1 for n in (45, 46, 47))
 
 
 # ---------------------------------------------------------------- review fixes

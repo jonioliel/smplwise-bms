@@ -204,7 +204,7 @@ owner's review of the mockup.
 ### S1 — backend core (`pilot/CR018-s1-core`, Sonnet, reviewed by Opus)
 
 ```
-Goal: CR §5, §7-§12: migrations 0050-0052, services/notify.py (emit, dedupe/fold, resolve, recipients = policy rule
+Goal: CR §5, §7-§12: migrations 0045-0047, services/notify.py (emit, dedupe/fold, resolve, recipients = policy rule
   ∩ visibility matrix, installation quiet hours with the pass-through matrix, snooze, escalation timer with
   configurable minutes/steps, action tokens, retention janitor with the configured days), services/notify_settings.py
   (the single NotifySettings row, revision, validation), generalise services/push.py from "fired rule alert" to
@@ -213,7 +213,7 @@ Goal: CR §5, §7-§12: migrations 0050-0052, services/notify.py (emit, dedupe/f
   doorbell button as a deep link only), delivery log writes, routers/notifications.py (§2.1-§2.3), /me/ws events,
   notify.manage in roles.json + access.py labels, audit kinds; rule_alerts rows get a notification_id link (ack on
   either side acks both); /push/prefs → 410 after one release.
-Owns: migrations/0050_notifications.sql, 0051_notify_settings.sql, 0052_notify_policies.sql, services/notify.py,
+Owns: migrations/0045_notifications.sql, 0046_notify_settings.sql, 0047_notify_policies.sql, services/notify.py,
   services/notify_settings.py, services/notify_policy.py, routers/notifications.py, tests/test_notify_*.py.
 Touches (sole editor): services/push.py, services/rules.py (deliver_pending → emit), routers/push.py,
   routers/rules.py (ack mirror), roles.json, routers/access.py (labels), the /me/ws publisher, main.py (router +
