@@ -16,6 +16,7 @@ import hashlib
 import hmac
 import json
 import math
+import re
 import secrets
 import sqlite3
 import time
@@ -89,7 +90,8 @@ TEMPERATURE_DEFAULT_RANGE = (5.0, 35.0)  # for a climate entity that reports no 
 
 
 def _a(domain: str, service: str, label: str, *, args: dict[str, Any] | None = None, expect: str | None = None, risk: str = "routine", grant: str | None = None, expect_from: str | None = None,
-       expect_attr: tuple[str, str, float | str | None] | None = None, route: str | None = None, entity_domain: str | None = None, required: tuple[str, ...] = ()) -> dict[str, Any]:
+       expect_attr: tuple[str, str | None, float | str | None] | None = None, route: str | None = None, entity_domain: str | None = None, required: tuple[str, ...] = (),
+       window_s: float | None = None, always_expect: bool = False) -> dict[str, Any]:
     d: dict[str, Any] = {"domain": domain, "service": service, "args": args or {}, "expect": expect, "sensitive": risk != "routine", "risk": risk, "label": label}
     if grant:
         d["grant"] = grant
@@ -101,6 +103,10 @@ def _a(domain: str, service: str, label: str, *, args: dict[str, Any] | None = N
         d["entity_domain"] = entity_domain  # the service's domain differs from its target entity's (webostv.* targets a media_player)
     if required:
         d["required"] = list(required)
+    if window_s:
+        d["window_s"] = window_s  # CR-016: how long the confirming report is awaited (a group's membership is read back for 8 s, not 20)
+    if always_expect:
+        d["always_expect"] = True  # CR-016: confirmed from the attribute even when it is absent / null now (a HEOS player's `group_members` is null while ungrouped)
     if expect_from:
         d["expect_from"] = expect_from
     if expect_attr:
@@ -201,7 +207,28 @@ ACTIONS: dict[str, dict[str, Any]] = {
     "webostv.button": _a("webostv", "button", "שליחת מקש", args={"button": ("enum", sorted(media_profiles.ALL_LG))}, route="media", entity_domain="media_player", required=("button",)),
     "webostv.select_sound_output": _a("webostv", "select_sound_output", "יציאת שמע", args={"sound_output": ("str", 1, 40)}, expect_attr=("sound_output", "sound_output", None), route="media",
                                       entity_domain="media_player", required=("sound_output",)),
+    # CR-016 (players, speakers, groups; MEDIA_PLAYERS_API.md 3.y): what a speaker, player or receiver card needs beyond the rows above. Again
+    # `route: "media"` only (the multimedia commands and group routes send them; the generic route refuses them). `music_assistant.play_media` plays
+    # an item the SERVER listed (an MA library / provider URI, never a URL); `play_announcement` is NOT here (no announcements in 0.1.150), neither
+    # are `heos.sign_in` / `sign_out`, `sonos.update_alarm`, `group.set` / `remove` / `reload`, `denonavr.get_command` / `set_dynamic_eq` /
+    # `update_audyssey`, `jellyfin.*` or `cast.show_lovelace_view`.
+    "media_player.media_seek": _a("media_player", "media_seek", "קפיצה בשיר", args={"seek_position": ("float", 0, 86400)}, expect_attr=("media_position", "seek_position", 5.0), route="media", required=("seek_position",)),
+    "media_player.shuffle_set": _a("media_player", "shuffle_set", "ערבוב", args={"shuffle": ("bool",)}, expect_attr=("shuffle", "shuffle", None), route="media", required=("shuffle",)),
+    "media_player.repeat_set": _a("media_player", "repeat_set", "חזרה", args={"repeat": ("enum", ["off", "one", "all"])}, expect_attr=("repeat", "repeat", None), route="media", required=("repeat",)),
+    "media_player.select_sound_mode": _a("media_player", "select_sound_mode", "מצב צליל", args={"sound_mode": ("str", 1, 80)}, expect_attr=("sound_mode", "sound_mode", None), route="media", required=("sound_mode",)),
+    "media_player.join": _a("media_player", "join", "צירוף לקבוצה", args={"group_members": ("entities", 1, 16)}, expect_attr=("group_members", "group_members", "superset"), route="media",
+                            required=("group_members",), window_s=8.0, always_expect=True),
+    "media_player.unjoin": _a("media_player", "unjoin", "יציאה מקבוצה", expect_attr=("group_members", None, "ungrouped"), route="media", window_s=8.0, always_expect=True),
+    "music_assistant.play_media": _a("music_assistant", "play_media", "ניגון פריט מהספרייה", args={"media_id": ("str", 1, 300), "media_type": ("enum", ["radio", "playlist", "track", "album", "artist"]),
+                                                                                               "enqueue": ("enum", ["play", "replace", "next", "add"])}, route="media", entity_domain="media_player",
+                                     required=("media_id", "media_type")),
+    "music_assistant.transfer_queue": _a("music_assistant", "transfer_queue", "העברת המוזיקה", args={"source_player": ("str", 1, 255), "auto_play": ("bool",)}, route="media", entity_domain="media_player",
+                                         required=("source_player",)),
 }
+
+# CR-016: the actions that change a player's group - confirmed by reading the membership back (8 s), outcome per device (services/media_groups.py)
+MEMBERSHIP_ACTIONS = frozenset({"media_player.join", "media_player.unjoin"})
+ENTITY_ID_RE = re.compile(r"^media_player\.[a-z0-9_]{1,200}$")
 
 
 def _arg_spec(name: str, schema: tuple[Any, ...]) -> dict[str, Any]:
@@ -210,6 +237,8 @@ def _arg_spec(name: str, schema: tuple[Any, ...]) -> dict[str, Any]:
         return {"name": name, "type": "enum", "choices": list(schema[1])}
     if typ == "str":
         return {"name": name, "type": "str", "min_len": schema[1], "max_len": schema[2]}
+    if typ == "entities":
+        return {"name": name, "type": "entities", "min_len": schema[1], "max_len": schema[2]}
     if typ == "bool":
         return {"name": name, "type": "bool"}
     return {"name": name, "type": typ, "min": schema[1], "max": schema[2]}
@@ -259,6 +288,11 @@ def validate_action(action_id: str, entity_id: str, arguments: dict[str, Any]) -
             if not isinstance(value, bool):
                 raise ApiError(422, "validation", f"{name} חייב להיות אמת/שקר.")
             data[name] = value
+        elif typ == "entities":
+            ok = isinstance(value, list) and schema[1] <= len(value) <= schema[2] and all(isinstance(x, str) and ENTITY_ID_RE.match(x) for x in value) and len(set(value)) == len(value)
+            if not ok:
+                raise ApiError(422, "validation", f"{name}: רשימה של {schema[1]}–{schema[2]} ישויות נגן שונות.")
+            data[name] = list(value)
     ea = spec.get("expect_attr")
     missing = [n for n in spec["args"] if n not in data and (spec.get("expect_from") == n or (ea and ea["argument"] == n) or n in spec.get("required", ()))]
     if missing:
@@ -274,7 +308,9 @@ def validate_action(action_id: str, entity_id: str, arguments: dict[str, Any]) -
     if ea:
         # stored as a readable "attribute=value" (never compared to the state); expectation_for() drops it when the
         # entity does not report that attribute at all, and the action is then honestly "sent", not "confirmed"
-        spec = {**spec, "expect": f"{ea['attribute']}={_fmt(data[ea['argument']])}"}
+        arg = ea["argument"]
+        shown = "ungrouped" if arg is None else (",".join(sorted(data[arg])) if isinstance(data.get(arg), list) else _fmt(data[arg]))
+        spec = {**spec, "expect": f"{ea['attribute']}={shown}"}
     return spec, data
 
 
@@ -306,7 +342,7 @@ def expectation_for(spec: dict[str, Any], attributes: dict[str, Any] | None) -> 
     attribute now (a climate in heat_cool mode has no single `temperature`; a player may not report mute) - otherwise
     None, which the poll reports as "sent" (confirmation "none"), never as a confirmed fact."""
     ea = spec.get("expect_attr")
-    if ea and (attributes or {}).get(ea["attribute"]) is None:
+    if ea and (attributes or {}).get(ea["attribute"]) is None and not spec.get("always_expect"):
         return None
     return spec.get("expect")
 
@@ -326,8 +362,12 @@ def attribute_reached(action_id: str, arguments: dict[str, Any], state: str | No
     if not ea:
         return False
     attrs = attributes or {}
-    target = (arguments or {}).get(ea["argument"])
+    target = (arguments or {}).get(ea["argument"]) if ea["argument"] else None
     actual = attrs.get(ea["attribute"])
+    if ea["tolerance"] == "ungrouped":  # CR-016: any of the four "ungrouped" encodings - [] (MA), [self] (Sonos, WiiM), null (HEOS), absent
+        return actual is None or (isinstance(actual, list) and len(actual) <= 1)
+    if ea["tolerance"] == "superset":  # a join: every requested member is listed now (the leader lists itself too)
+        return isinstance(target, list) and isinstance(actual, list) and set(target) <= set(actual)
     if isinstance(target, str):
         return isinstance(actual, str) and actual == target.strip()
     if isinstance(target, bool) or ea["tolerance"] is None:

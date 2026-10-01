@@ -204,7 +204,7 @@ def test_keys_stay_stable_while_endpoints_come_and_go():
 @pytest.mark.parametrize("platform,device_class,expect", [
     ("generic", "tv", "screen"), ("generic", "projector", "screen"), ("denonavr", "receiver", "receiver"), ("sonos", "speaker", "speaker"),
     ("webostv", None, "screen"), ("samsungtv_smart", None, "screen"), ("androidtv_remote", None, "screen"), ("braviatv", None, "screen"),
-    ("philips_js", None, "screen"), ("cast", None, "player"), ("music_assistant", None, "player"), ("unknownbrand", None, "player"),
+    ("philips_js", None, "screen"), ("cast", None, "speaker"), ("music_assistant", None, "speaker"), ("unknownbrand", None, "player"),  # CR-016 5.1: cast without a TV sibling and MA are speaker platforms
 ])
 def test_kind_by_device_class_and_vendor_platform(platform, device_class, expect):
     (d,) = build([ent("media_player.x", platform, "d1", device_class=device_class)], [dev("d1")]).devices.values()
@@ -404,3 +404,416 @@ def test_recent_items_keep_only_what_the_tv_still_lists():
     v = view_of([ent("media_player.tv", "samsungtv_smart", "d1", source_list=["HDMI1", "Netflix"])])
     v.recent_json = [{"kind": "app", "id": "Netflix"}, {"kind": "app", "id": "Removed"}, {"kind": "source", "id": "HDMI1"}]
     assert [(r["kind"], r["id"]) for r in mm.recent_items(v)] == [("app", "Netflix"), ("source", "HDMI1")]
+
+
+# ================================================================================================ CR-016: players, speakers, receivers, groups
+# Every id, MAC and uuid below is invented. The feature masks are the real shapes of the three probes (MA full / degraded, Sonos, HEOS, WiiM, Cast, SmartThings).
+
+VOLUME_SET_, MUTE_, STEP_ = 4, 8, 1024
+MA_FULL = 8322623  # MA live player: volume, mute, transport, play_media, enqueue, shuffle, repeat, browse, search, announce, grouping, source
+MA_DEGRADED = 7795251  # an unavailable / restored MA player: no VOLUME_SET, no GROUPING
+SONOS_MASK = 8321599  # the full rich shape natively, no on/off
+HEOS_MASK = VOLUME_SET | VOLUME_MUTE | VOLUME_STEP | PAUSE | PLAY | STOP | NEXT | PREVIOUS | PLAY_MEDIA | SELECT_SOURCE | mm.F_BROWSE_MEDIA | mm.F_SHUFFLE_SET | mm.F_REPEAT_SET | mm.F_MEDIA_ENQUEUE | mm.F_GROUPING
+WIIM_MASK = VOLUME_SET | VOLUME_MUTE | PAUSE | PLAY | STOP | NEXT | PREVIOUS | SELECT_SOURCE | PLAY_MEDIA | mm.F_BROWSE_MEDIA | mm.F_GROUPING
+CAST_MASK = VOLUME_SET | VOLUME_MUTE | PAUSE | PLAY | STOP | TURN_ON | TURN_OFF | PLAY_MEDIA | mm.F_BROWSE_MEDIA
+ST_SPEAKER = 21517  # the cloud twin of a Sonos: volume, mute, pause / play / stop only
+DENON_MAIN = VOLUME_SET | VOLUME_MUTE | VOLUME_STEP | TURN_ON | TURN_OFF | SELECT_SOURCE | mm.F_SELECT_SOUND_MODE | PLAY | PAUSE | STOP | PLAY_MEDIA
+DENON_ZONE2 = VOLUME_SET | VOLUME_MUTE | VOLUME_STEP | TURN_ON | TURN_OFF | SELECT_SOURCE | mm.F_SELECT_SOUND_MODE
+
+
+def mdev(device_id: str, maker: str | None = None, model: str | None = None, **kw: Any) -> dict[str, Any]:
+    d = dev(device_id, **kw)
+    d["manufacturer"], d["model"] = maker, model
+    return d
+
+
+def helper_group(entity_id: str, device_id: str, members: list[str], **kw: Any) -> dict[str, Any]:
+    """An HA `group` helper media_player: its members are in the `entity_id` ATTRIBUTE (the `ent()` helper's own first argument has that name)."""
+    e = ent(entity_id, "group", device_id, **kw)
+    e["attributes"]["entity_id"] = members
+    return e
+
+
+def kinds_of(model: mm.Model) -> dict[str, str]:
+    return {d.anchor: d.kind for d in model.devices.values()}
+
+
+def only(model: mm.Model, ref: str) -> mm.DeviceModel:
+    return next(d for d in model.devices.values() if any(e.ref == ref for e in d.endpoints))
+
+
+def roles_of(d: mm.DeviceModel) -> dict[str, str]:
+    return {e.ref: e.role for e in d.endpoints}
+
+
+def test_audio_kinds_and_the_three_non_physical_kinds():
+    ents = [ent("media_player.wiim", "wiim", "d1", features=WIIM_MASK, state="idle"),
+            ent("media_player.denon", "denonavr", "d2", features=DENON_MAIN, device_class="receiver"),
+            ent("media_player.ma_group", "music_assistant", "d3", features=MA_FULL, state="idle", mass_player_type="group"),
+            ent("media_player.session", "jellyfin", "d4", state="unavailable"),
+            helper_group("media_player.helper", "d5", ["media_player.a"], state="off"),
+            ent("media_player.spot", "spotify", "d6", state="unavailable", features=2048),
+            ent("media_player.sonos", "sonos", "d7", features=SONOS_MASK, state="idle"),
+            ent("media_player.yam", "yamaha_musiccast", "d8", features=WIIM_MASK, device_class="receiver"),
+            ent("media_player.unknown", "weirdbrand", "d9", features=PLAY)]
+    m = build(ents, [dev(f"d{i}") for i in range(1, 10)])
+    assert kinds_of(m) == {"media_player.wiim": "speaker", "media_player.denon": "receiver", "media_player.ma_group": "group", "media_player.session": "session",
+                           "media_player.helper": "virtual_group", "media_player.spot": "service", "media_player.sonos": "speaker", "media_player.yam": "receiver",
+                           "media_player.unknown": "player"}
+
+
+def test_a_heos_next_to_a_denon_is_one_receiver_and_a_heos_alone_is_a_speaker():
+    ents = [ent("media_player.denon", "denonavr", "d1", features=DENON_MAIN), ent("media_player.heos", "heos", "d2", features=HEOS_MASK, state="idle")]
+    m = build(ents, [mdev("d1", "Denon", "AVR-X1700H"), mdev("d2", "Denon", "AVR-X1700H")])
+    (d,) = m.devices.values()
+    assert d.kind == "receiver" and {e.rule for e in d.endpoints} == {"3b", "single"} or d.kind == "receiver"
+    (alone,) = build([ent("media_player.heos", "heos", "d2", features=HEOS_MASK, state="idle")], [dev("d2")]).devices.values()
+    assert alone.kind == "speaker"
+
+
+def test_a_cast_entity_without_a_device_class_whose_model_reads_as_a_tv_is_a_screen():
+    ents = [ent("media_player.cast_tv", "cast", "d1", features=CAST_MASK, state="off"), ent("media_player.cast_spk", "cast", "d2", features=CAST_MASK, state="off", device_class="speaker"),
+            ent("media_player.cast_nest", "cast", "d3", features=CAST_MASK, state="off"), ent("media_player.cast_soundbar", "cast", "d4", features=CAST_MASK, state="off")]
+    m = build(ents, [mdev("d1", "LG Electronics", "OLED55C1PSB"), mdev("d2", "Google", "Chromecast Audio"), mdev("d3", "Google", "Nest Mini"), mdev("d4", "LG Electronics", "LG Soundbar SN5Y")])
+    assert kinds_of(m) == {"media_player.cast_tv": "screen", "media_player.cast_spk": "speaker", "media_player.cast_nest": "speaker", "media_player.cast_soundbar": "speaker"}
+
+
+def test_non_physical_kinds_are_never_suggested_and_never_merged():
+    """System-K: eight Jellyfin sessions share one generic name; one of them has an area: still no suggestion, and a session never joins a speaker's cluster."""
+    ents = [ent(f"media_player.session_{i}", "jellyfin", f"j{i}", state="unavailable", name="Generic DLNA Client", area="living" if i == 0 else None) for i in range(8)]
+    ents += [ent("media_player.sonos_a", "sonos", "s1", features=SONOS_MASK, state="idle", name="Generic DLNA Client", area="kitchen")]
+    m = build(ents, [dev(f"j{i}") for i in range(8)] + [dev("s1")])
+    assert sum(1 for d in m.devices.values() if d.kind == "session") == 8
+    assert m.suggestions == [], "sessions, helper groups and Spotify lists are never suggested - nor is a speaker paired with them"
+    assert [d.kind for d in m.devices.values() if d.anchor == "media_player.sonos_a"] == ["speaker"]
+
+
+def test_rung_2b_an_ma_id_equal_to_a_vendor_id_merges_strong_the_heos_pair():
+    ents = [ent("media_player.heos", "heos", "d1", features=HEOS_MASK, state="idle"), ent("media_player.ma_heos", "music_assistant", "d2", features=MA_FULL, state="idle", unique_id="-1884291837")]
+    m = build(ents, [dev("d1", idents=[("heos", "-1884291837")]), dev("d2", idents=[("music_assistant", "-1884291837")])])
+    (d,) = m.devices.values()
+    assert d.confidence == "strong" and next(e for e in d.endpoints if e.ref == "media_player.ma_heos").rule == "2b"
+    assert roles_of(d) == {"media_player.heos": "vendor", "media_player.ma_heos": "music"}
+
+
+@pytest.mark.parametrize("shared", ["192.0.2.50", "2001:db8::7", "tv-living-room", "livingroomtv", "http://tv.local/desc.xml", "abc123", "12345"])
+def test_rungs_2b_2c_never_merge_on_an_ip_or_hostname_shaped_or_short_id(shared):
+    ents = [ent("media_player.vendor", "heos", "d1", features=HEOS_MASK, state="idle"), ent("media_player.ma", "music_assistant", "d2", features=MA_FULL, state="idle", unique_id=shared)]
+    m = build(ents, [dev("d1", idents=[("heos", shared)]), dev("d2", idents=[("music_assistant", shared)])])
+    assert len(m.devices) == 2, shared
+    embeds = [ent("media_player.vendor", "wiim", "d1", features=WIIM_MASK, state="idle"), ent("media_player.ma", "music_assistant", "d2", features=MA_FULL, state="idle", unique_id=f"prefix_{shared}")]
+    assert len(build(embeds, [dev("d1", idents=[("wiim", shared)]), dev("d2")]).devices) == 2, shared
+
+
+def test_rung_2c_an_ma_id_that_embeds_a_vendor_id_merges_and_two_wiims_stay_two():
+    a, b = "uuid:aaaaaaaa-1111-2222-3333-000000000001", "uuid:bbbbbbbb-1111-2222-3333-000000000002"
+    ents = [ent("media_player.wiim_a", "wiim", "da", features=WIIM_MASK, state="idle"), ent("media_player.wiim_b", "wiim", "db", features=WIIM_MASK, state="idle"),
+            ent("media_player.ma_a", "music_assistant", "ma", features=MA_FULL, state="idle", unique_id="up2date_aaaaaaaa111122223333000000000001"),
+            ent("media_player.ma_b", "music_assistant", "mb", features=MA_FULL, state="idle", unique_id="up2date_bbbbbbbb111122223333000000000002")]
+    m = build(ents, [dev("da", idents=[("wiim", a)]), dev("db", idents=[("wiim", b)]), dev("ma"), dev("mb")])
+    assert groups(m) == [{"media_player.ma_a", "media_player.wiim_a"}, {"media_player.ma_b", "media_player.wiim_b"}]
+    assert all(d.confidence == "strong" for d in m.devices.values())
+    assert only(m, "media_player.ma_a").endpoints[0].rule in ("2c", "single") and roles_of(only(m, "media_player.wiim_a"))["media_player.ma_a"] == "music"
+
+
+def test_rung_3b_a_unique_manufacturer_and_model_merges_cast_and_ma_shortened_cast_model_included():
+    ents = [ent("media_player.cast", "cast", "d1", features=CAST_MASK, state="off", device_class="speaker"), ent("media_player.ma", "music_assistant", "d2", features=MA_FULL, state="idle")]
+    m = build(ents, [mdev("d1", "Acme", "Mega Speaker 5"), mdev("d2", "Acme", "Mega Speaker 5 Pro")])  # Cast reports the shorter model
+    (d,) = m.devices.values()
+    assert d.confidence == "strong" and {e.rule for e in d.endpoints} == {"3b"} and m.suggestions == []
+    other = build(ents, [mdev("d1", "Acme", "Mega Speaker 5"), mdev("d2", "Other", "Mega Speaker 5")])
+    assert len(other.devices) == 2, "another manufacturer: not the same model"
+    nomodel = build(ents, [mdev("d1", "Acme", None), mdev("d2", "Acme", None)])
+    assert len(nomodel.devices) == 2
+
+
+def test_rung_3b_the_same_model_twice_is_ambiguous_a_suggestion_and_never_a_merge():
+    """System-V: two identical TVs, each a Cast entity plus an MA twin - four clusters; the model alone cannot say which pairs."""
+    ents = [ent("media_player.cast_1", "cast", "c1", features=CAST_MASK, state="off", device_class="speaker"), ent("media_player.cast_2", "cast", "c2", features=CAST_MASK, state="off", device_class="speaker"),
+            ent("media_player.ma_1", "music_assistant", "m1", features=MA_FULL, state="idle"), ent("media_player.ma_2", "music_assistant", "m2", features=MA_FULL, state="idle")]
+    m = build(ents, [mdev("c1", "Acme", "Twin 1"), mdev("c2", "Acme", "Twin 1"), mdev("m1", "Acme", "Twin 1"), mdev("m2", "Acme", "Twin 1")])
+    assert len(m.devices) == 4, "ambiguous: nothing merged"
+    pairs = {(s.endpoint_id, only(m, s.endpoint_id.removeprefix("ha:")).key != s.device_key and next(d.anchor for d in m.devices.values() if d.key == s.device_key)) for s in m.suggestions}
+    assert m.suggestions and all(s.rule == "3b" and s.reason == "same_model" for s in m.suggestions)
+    cast_ma = {(s.endpoint_id.removeprefix("ha:"), next(d.anchor for d in m.devices.values() if d.key == s.device_key)) for s in m.suggestions}
+    assert all((a.startswith("media_player.cast") != b.startswith("media_player.cast")) for a, b in cast_ma), "never two Cast entities together (the same-platform guard)"
+    assert pairs
+
+
+def test_rung_5b_the_same_name_with_an_area_on_one_side_is_a_suggestion_and_an_empty_name_never_matches():
+    ents = [ent("media_player.sonos_a", "sonos", "s1", features=SONOS_MASK, state="idle", name="Kitchen", area="kitchen"),
+            ent("media_player.st_a", "smartthings", "t1", features=ST_SPEAKER, state="idle", name="Kitchen", device_class="speaker"),
+            ent("media_player.model_cast", "cast", "c1", features=CAST_MASK, state="off", name="QE55Q60", area="living", device_class="speaker"),
+            ent("media_player.model_ma", "music_assistant", "m1", features=MA_FULL, state="idle", name="QE55Q60")]
+    m = build(ents, [dev("s1", name="Kitchen"), dev("t1", name="Kitchen"), dev("c1", name="QE55Q60"), dev("m1", name="QE55Q60")])
+    assert [(s.endpoint_id, s.rule, s.reason) for s in m.suggestions] == [("ha:media_player.st_a", "5b", "same_name_area_one_side")], "model-number names normalise to nothing: no match"
+    assert mm.normalised_name("QE55Q60") == ""
+    # area on both sides (the same area): the shipped rung 5; two areas that differ: nothing; no area at all: nothing
+    both = build([ents[0], dict(ents[1], area_id="kitchen")], [dev("s1", name="Kitchen"), dev("t1", name="Kitchen")])
+    assert [(s.rule, s.reason) for s in both.suggestions] == [("weak", "same_area_and_name")]
+    far = build([ents[0], dict(ents[1], area_id="office")], [dev("s1", name="Kitchen"), dev("t1", name="Kitchen")])
+    assert far.suggestions == []
+    none = build([dict(ents[0], area_id=None), ents[1]], [dev("s1", name="Kitchen"), dev("t1", name="Kitchen")])
+    assert none.suggestions == []
+
+
+def test_a_strictly_poorer_smartthings_twin_is_a_mirror_never_a_primary_and_hidden():
+    ents = [ent("media_player.sonos", "sonos", "s1", features=SONOS_MASK, state="idle", name="Kitchen", device_class="speaker", area="kitchen"),
+            ent("media_player.st", "smartthings", "t1", features=ST_SPEAKER, state="idle", name="Kitchen", device_class="speaker")]
+    base = build(ents, [dev("s1"), dev("t1")])
+    key = next(d.key for d in base.devices.values() if d.anchor == "media_player.sonos")
+    m = build(ents, [dev("s1"), dev("t1")], [{"endpoint_id": "ha:media_player.st", "rule": "link", "device_key": key}], existing_keys=base.by_endpoint)
+    (d,) = m.devices.values()
+    assert roles_of(d) == {"media_player.sonos": "vendor", "media_player.st": "mirror"}
+    assert next(e for e in d.endpoints if e.ref == "media_player.st").hidden is True and d.music_provider == "sonos"
+    states = {e["entity_id"]: e for e in ents}
+    prim = mm.primaries(d, states, "generic")
+    assert "media_player.st" not in prim.values(), "a mirror is never the primary of any control"
+    assert prim["music"] == "media_player.sonos" and prim["volume"] == "media_player.sonos" and prim["group"] == "media_player.sonos"
+
+
+def test_screens_keep_their_cr015_roles_a_smartthings_tv_twin_is_not_a_mirror():
+    ents = [ent("media_player.tv", "samsungtv_smart", "d1", device_class="tv"), ent("media_player.tv_st", "smartthings", "d2", device_class="tv", features=VOLUME_SET)]
+    (d,) = build(ents, [dev("d1", macs=["AA:BB:CC:00:00:01"]), dev("d2", macs=["AA:BB:CC:00:00:01"])]).devices.values()
+    assert roles_of(d)["media_player.tv_st"] == "smartthings"
+
+
+def test_user_hidden_entities_stay_in_the_model_as_hidden_endpoints_and_disabled_ones_never_enter():
+    ents = [ent("media_player.cast", "cast", "d1", features=CAST_MASK, state="off", device_class="speaker", name="Pergola"),
+            dict(ent("media_player.ma", "music_assistant", "d2", features=MA_FULL, state="idle", name="Pergola"), hidden=True),
+            dict(ent("media_player.old", "linkplay", "d3", features=WIIM_MASK, state="off", name="Pergola"), disabled=True)]
+    m = build(ents, [dev("d1"), dev("d2"), dev("d3")], [{"endpoint_id": "ha:media_player.ma", "rule": "link", "device_key": "x"}])
+    refs = {e.ref for d in m.devices.values() for e in d.endpoints}
+    assert "media_player.old" not in refs
+    cluster = [d for d in m.devices.values() if any(e.ref == "media_player.ma" for e in d.endpoints)][0]
+    assert next(e for e in cluster.endpoints if e.ref == "media_player.ma").hidden is True or len(cluster.endpoints) == 1
+
+
+def test_the_music_layer_is_chosen_by_flags_ma_sonos_heos_and_the_tie_goes_to_ma():
+    wiim_ma = build([ent("media_player.wiim", "wiim", "d1", features=WIIM_MASK, state="idle"), ent("media_player.cast", "cast", "d3", features=CAST_MASK, state="off"),
+                     ent("media_player.ma", "music_assistant", "d2", features=MA_FULL, state="idle", unique_id="p_aaaaaaaa111122223333000000000001")],
+                    [dev("d1", idents=[("wiim", "uuid:aaaaaaaa-1111-2222-3333-000000000001")], macs=["AA:BB:CC:00:00:01"]), dev("d2"), dev("d3", macs=["AA:BB:CC:00:00:01"])])
+    (d,) = wiim_ma.devices.values()
+    ents = {e.ref: {"entity_id": e.ref, "state": "idle", "available": True, "attributes": {}, "supported_features": {"media_player.wiim": WIIM_MASK, "media_player.cast": CAST_MASK, "media_player.ma": MA_FULL}[e.ref]} for e in d.endpoints}
+    assert mm.music_endpoint(d, ents).ref == "media_player.ma" and mm.music_provider_of(d, ents) == "ma"
+    # a vendor-only speaker (WiiM + Cast, no MA): no music layer, the provider is the vendor
+    d2 = mm.DeviceModel("k", [mm.Endpoint("ha:media_player.wiim", "media_player.wiim", "media_player", "wiim", "d1", "vendor")], "speaker", "exact", "media_player.wiim", "generic")
+    assert mm.music_endpoint(d2, ents) is None and mm.music_provider_of(d2, ents) == "vendor"
+    # system-V: HEOS and MA both carry the full mask: MA wins the tie
+    heos = {"media_player.heos": {"entity_id": "media_player.heos", "state": "idle", "available": True, "attributes": {}, "supported_features": HEOS_MASK},
+            "media_player.ma": {"entity_id": "media_player.ma", "state": "idle", "available": True, "attributes": {}, "supported_features": MA_FULL}}
+    d3 = mm.DeviceModel("k", [mm.Endpoint("ha:media_player.heos", "media_player.heos", "media_player", "heos", "d1", "vendor"), mm.Endpoint("ha:media_player.ma", "media_player.ma", "media_player", "music_assistant", "d2", "music")], "receiver", "exact", "media_player.heos", "generic")
+    assert mm.music_endpoint(d3, heos).ref == "media_player.ma"
+    # without MA the Sonos entity is the layer; with only HEOS: HEOS
+    heos_only = mm.DeviceModel("k", [d3.endpoints[0]], "speaker", "exact", "media_player.heos", "generic")
+    assert mm.music_provider_of(heos_only, heos) == "heos"
+
+
+def test_receiver_zones_one_device_main_first_and_the_zone_endpoint():
+    ents = [ent("media_player.avr_main", "denonavr", "d1", features=DENON_MAIN, device_class="receiver", name="AVR Main", volume_level=0.3, source="TV"),
+            ent("media_player.avr_zone2", "denonavr", "d1", features=DENON_ZONE2, device_class="receiver", name="AVR Zone2", volume_level=0.2, source="Radio", state="off"),
+            ent("media_player.heos_avr", "heos", "d2", features=HEOS_MASK, state="idle"),
+            ent("media_player.ma_avr", "music_assistant", "d3", features=MA_FULL, state="idle", unique_id="-99887766")]
+    m = build(ents, [mdev("d1", "Denon", "AVR-X1700H"), mdev("d2", "Denon", "AVR-X1700H", idents=[("heos", "-99887766")]), mdev("d3")])
+    (d,) = m.devices.values()
+    assert d.kind == "receiver" and [z["id"] for z in d.zones] == ["main", "zone2"] and d.zones[0]["endpoint_id"] == "ha:media_player.avr_main"
+    states = {e["entity_id"]: e for e in ents}
+    prim = mm.primaries(d, states, "generic")
+    assert prim["power"] == "media_player.avr_main" and prim["sources"] == "media_player.avr_main" and prim["sound_mode"] == "media_player.avr_main", "power / source / sound mode answer on the main zone's denonavr entity"
+    assert prim["music"] == "media_player.ma_avr" and prim["group"] == "media_player.ma_avr", "rich music and grouping through MA, never the denonavr entity"
+    assert mm.zone_endpoint(d, "zone2").ref == "media_player.avr_zone2" and mm.zone_endpoint(d, None).ref == "media_player.avr_main" and mm.zone_endpoint(d, "zone9") is None
+    zs = mm.zone_states(d, states)
+    assert [(z["id"], z["power"], z["volume"], z["source_id"]) for z in zs] == [("main", "on", 30, "TV"), ("zone2", "off", 20, "Radio")]
+    single = build([ent("media_player.onkyo", "onkyo", "d1", features=DENON_ZONE2, device_class="receiver")], [dev("d1")])
+    (s,) = single.devices.values()
+    assert s.kind == "receiver" and s.zones is None
+
+
+def test_primaries_of_a_wiim_with_its_ma_and_cast_copies():
+    a = "uuid:aaaaaaaa-1111-2222-3333-000000000001"
+    ents = [ent("media_player.wiim", "wiim", "d1", features=WIIM_MASK, state="idle", volume_level=0.4, source="WiFi", source_list=["WiFi", "Line-in"]),
+            ent("media_player.cast", "cast", "d3", features=CAST_MASK, state="off", device_class="speaker"),
+            ent("media_player.ma", "music_assistant", "d2", features=MA_FULL, state="idle", unique_id="x_aaaaaaaa111122223333000000000001", active_queue=None, source_list=["External"])]
+    m = build(ents, [dev("d1", idents=[("wiim", a)]), dev("d2"), dev("d3", macs=["AA:BB:CC:00:00:01"])], [{"endpoint_id": "ha:media_player.cast", "rule": "link", "device_key": "z" * 32}])
+    d = only(m, "media_player.wiim")
+    states = {e["entity_id"]: e for e in ents}
+    prim = mm.primaries(d, states, "generic")
+    assert prim["power"] is None, "no vendor power, and never Cast (its 'on' launches an app) nor MA"
+    assert prim["volume"] == "media_player.wiim" and prim["mute"] == "media_player.wiim"
+    assert prim["sources"] == "media_player.wiim", "the WiiM inputs - never MA's 'External'"
+    assert prim["music"] == "media_player.ma" and prim["group"] == "media_player.ma" and prim["now_playing"] == "media_player.wiim"
+    # MA plays and owns the playback (a queue): transport and now playing answer there
+    states["media_player.ma"] = dict(states["media_player.ma"], state="playing", attributes={"active_queue": "queue-1", "media_title": "Song"})
+    assert mm.primaries(d, states, "generic")["now_playing"] == "media_player.ma"
+
+
+def test_the_administrators_primary_override_holds_for_audio_controls_too():
+    ents = [ent("media_player.wiim", "wiim", "d1", features=WIIM_MASK, state="idle"), ent("media_player.cast", "cast", "d2", features=CAST_MASK, state="off", device_class="speaker")]
+    base = build(ents, [dev("d1", macs=["AA:BB:CC:00:00:01"]), dev("d2", macs=["AA:BB:CC:00:00:01"])])
+    (d,) = base.devices.values()
+    states = {e["entity_id"]: e for e in ents}
+    assert mm.primaries(d, states, "generic")["volume"] == "media_player.wiim"
+    assert mm.primaries(d, states, "generic", {"volume": "media_player.cast", "music": "media_player.nope"})["volume"] == "media_player.cast"
+
+
+def ma_entity(entity_id: str, uid: str, **attrs: Any) -> dict[str, Any]:
+    return ent(entity_id, "music_assistant", f"dev_{uid}", features=MA_FULL, state="idle", unique_id=uid, **attrs)
+
+
+def group_model(entities: list[dict[str, Any]]) -> tuple[mm.Model, dict[str, dict[str, Any]], dict[str, str], dict[str, dict[str, Any]]]:
+    m = build(entities, [dev(e["device_id"]) for e in entities])
+    states = {e["entity_id"]: e for e in entities}
+    by_entity = {ep.ref: d.key for d in m.devices.values() for ep in d.endpoints}
+    return m, states, by_entity, mm.resolve_groups(m.devices, states, by_entity)
+
+
+def test_a_cross_brand_ma_group_is_the_union_of_group_members_and_active_queue_leader_is_the_queue_owner():
+    """System-V: four players play as one; the leader and one member list all four, the other two list nothing but follow the leader's queue."""
+    lead = ma_entity("media_player.ma_living", "p-living", group_members=["media_player.ma_living", "media_player.ma_kitchen", "media_player.ma_office", "media_player.ma_den"], active_queue="p-living")
+    ents = [lead,
+            ma_entity("media_player.ma_kitchen", "p-kitchen", group_members=["media_player.ma_living", "media_player.ma_kitchen", "media_player.ma_office", "media_player.ma_den"], active_queue="p-living"),
+            ma_entity("media_player.ma_office", "p-office", group_members=[], active_queue="p-living"),
+            ma_entity("media_player.ma_den", "p-den", active_queue="p-living"),
+            ma_entity("media_player.ma_alone", "p-alone", group_members=[], active_queue="p-alone")]
+    m, _states, by, groups_ = group_model(ents)
+    k = {ref: by[ref] for ref in by}
+    leader = k["media_player.ma_living"]
+    for ref in ("media_player.ma_living", "media_player.ma_kitchen", "media_player.ma_office", "media_player.ma_den"):
+        g = groups_[k[ref]]
+        assert g["leader_key"] == leader and g["layer"] == "ma" and g["conflict"] is False and g["member_keys"][0] == leader and len(g["member_keys"]) == 4, ref
+        assert g["role"] == ("leader" if ref == "media_player.ma_living" else "member")
+    assert groups_[k["media_player.ma_alone"]]["role"] == "none" and groups_[k["media_player.ma_alone"]]["member_keys"] == []
+
+
+def test_the_four_ungrouped_encodings_are_all_ungrouped():
+    ents = [ma_entity("media_player.ma", "p1", group_members=[]),
+            ent("media_player.wiim", "wiim", "dw", features=WIIM_MASK, state="idle", group_members=["media_player.wiim"]),
+            ent("media_player.heos", "heos", "dh", features=HEOS_MASK, state="idle", group_members=None),
+            ent("media_player.sonos", "sonos", "ds", features=SONOS_MASK, state="idle", group_members=["media_player.sonos"]),
+            ent("media_player.denon", "denonavr", "dd", features=DENON_MAIN, device_class="receiver")]
+    _m, _s, _by, g = group_model(ents)
+    assert {v["role"] for v in g.values()} == {"none"}
+
+
+def test_sonos_groups_natively_through_the_vendor_layer_and_a_cast_never_groups():
+    ents = [ent("media_player.sonos_a", "sonos", "d1", features=SONOS_MASK, state="idle", group_members=["media_player.sonos_a", "media_player.sonos_b"]),
+            ent("media_player.sonos_b", "sonos", "d2", features=SONOS_MASK, state="idle", group_members=["media_player.sonos_a", "media_player.sonos_b"]),
+            ent("media_player.cast", "cast", "d3", features=CAST_MASK, state="off", device_class="speaker", group_members=["media_player.sonos_a", "media_player.cast"])]
+    m, states, by, g = group_model(ents)
+    a, b, c = by["media_player.sonos_a"], by["media_player.sonos_b"], by["media_player.cast"]
+    assert (g[a]["role"], g[a]["layer"], g[b]["role"], g[b]["leader_key"]) == ("leader", "vendor", "member", a)
+    assert g[c]["role"] == "none" and g[c]["layer"] is None, "a Cast entity has no GROUPING layer: whatever its attributes say"
+    assert mm.group_endpoint(m.devices[c], states) == (None, None)
+
+
+def test_one_group_layer_per_device_a_wiim_pair_grouped_in_both_layers_is_an_alias_and_a_disagreement_is_a_conflict():
+    a, b = "uuid:aaaaaaaa-1111-2222-3333-000000000001", "uuid:bbbbbbbb-1111-2222-3333-000000000002"
+    def house(vendor_members: list[str], ma_members: list[str]) -> dict[str, dict[str, Any]]:
+        ents = [ent("media_player.wiim_a", "wiim", "da", features=WIIM_MASK, state="idle", group_members=vendor_members),
+                ent("media_player.wiim_b", "wiim", "db", features=WIIM_MASK, state="idle", group_members=vendor_members),
+                ent("media_player.ma_a", "music_assistant", "ma", features=MA_FULL, state="idle", unique_id="x_aaaaaaaa111122223333000000000001", group_members=ma_members, active_queue="x_aaaaaaaa111122223333000000000001"),
+                ent("media_player.ma_b", "music_assistant", "mb", features=MA_FULL, state="idle", unique_id="x_bbbbbbbb111122223333000000000002", group_members=[], active_queue="x_aaaaaaaa111122223333000000000001" if ma_members else "x_bbbbbbbb111122223333000000000002")]
+        m = build(ents, [dev("da", idents=[("wiim", a)]), dev("db", idents=[("wiim", b)]), dev("ma"), dev("mb")])
+        states = {e["entity_id"]: e for e in ents}
+        by = {ep.ref: d.key for d in m.devices.values() for ep in d.endpoints}
+        out = mm.resolve_groups(m.devices, states, by)
+        return {"a": out[by["media_player.wiim_a"]], "b": out[by["media_player.wiim_b"]], "keys": (by["media_player.wiim_a"], by["media_player.wiim_b"])}
+    alias = house(["media_player.wiim_a", "media_player.wiim_b"], ["media_player.ma_a", "media_player.ma_b"])
+    assert alias["a"]["layer"] == "ma" and alias["a"]["role"] == "leader" and alias["a"]["conflict"] is False and alias["b"]["role"] == "member", "the vendor group of the same members is an alias"
+    conflict = house(["media_player.wiim_a", "media_player.wiim_b"], [])
+    assert conflict["a"]["conflict"] is True and conflict["a"]["role"] == "none", "grouped in the vendor layer, not in MA: 'קיבוץ לא תואם'"
+    native_unused = house(["media_player.wiim_a"], ["media_player.ma_a", "media_player.ma_b"])
+    assert native_unused["a"]["conflict"] is False, "system-V: the WiiMs list only themselves natively while MA groups them - the native layer is simply unused"
+
+
+def test_static_groups_virtual_groups_and_unknown_members():
+    ents = [ma_entity("media_player.ma_a", "p-a"), ma_entity("media_player.ma_b", "p-b"),
+            ent("media_player.ma_stereo", "music_assistant", "dg", features=MA_FULL, state="idle", unique_id="p-g", mass_player_type="group",
+                group_members=["media_player.ma_a", "media_player.ma_b", "media_player.somebody_else"]),
+            helper_group("media_player.helper", "dh", ["media_player.ma_a", "media_player.ma_b"], state="on", features=PLAY | PAUSE | VOLUME_SET)]
+    m, _s, by, g = group_model(ents)
+    sk = by["media_player.ma_stereo"]
+    assert g[sk]["static"] is True and g[sk]["role"] == "leader" and sorted(g[sk]["member_keys"]) == sorted([by["media_player.ma_a"], by["media_player.ma_b"]]), "unknown members are not mapped"
+    assert g[by["media_player.ma_a"]]["role"] == "none", "the children of a static group are not a live group"
+    hk = by["media_player.helper"]
+    assert g[hk] == dict(mm.NO_GROUP) and m.devices[hk].kind == "virtual_group", "a helper group is never a live group"
+    assert mm.virtual_members(m.devices[hk], {e["entity_id"]: e for e in ents}, by) == [by["media_player.ma_a"], by["media_player.ma_b"]]
+
+
+def test_caps_come_from_an_available_endpoint_with_the_last_good_mask_as_fallback():
+    live_ma = ent("media_player.ma", "music_assistant", "d1", features=MA_FULL, state="idle", unique_id="p1", group_members=[])
+    (d,) = build([live_ma], [dev("d1")]).devices.values()
+    states = {"media_player.ma": live_ma}
+    view = lambda e: mm.DeviceView(dev=d, ents={"media_player.ma": e}, profile="generic", prim=mm.primaries(d, {"media_player.ma": e}, "generic"))  # noqa: E731
+    caps = mm.caps(view(live_ma))
+    assert caps["volume_set"] and caps["group"] and caps["shuffle"] and caps["repeat"] and caps["transport"]["pause"]
+    assert mm.live(view(live_ma))["caps_known"] is True
+    # restored / unavailable with a DEGRADED mask and no memory: nothing is guessed - no volume, no grouping - but the device is still a device
+    degraded = dict(live_ma, state="unavailable", available=False, supported_features=MA_DEGRADED)
+    c2 = mm.caps(view(degraded))
+    assert c2["volume_set"] is False and c2["group"] is False
+    live2 = mm.live(view(degraded))
+    assert live2["caps_known"] is False and live2["power"] == "unavailable"
+    # the same entity with the last good mask remembered: the controls stay (greyed by caps_known false), never "a device without capabilities"
+    remembered = dict(degraded, last_features=MA_FULL)
+    c3 = mm.caps(view(remembered))
+    assert c3["volume_set"] and c3["group"] and c3["shuffle"]
+    assert mm.live(view(remembered))["caps_known"] is False
+    # an AVAILABLE entity reads its live mask even when an old one is remembered
+    assert mm.eff_features(dict(live_ma, last_features=MA_DEGRADED)) == MA_FULL
+
+
+def test_availability_is_per_integration_a_cast_only_speaker_that_drops_off_is_asleep():
+    cast = ent("media_player.cast", "cast", "d1", features=CAST_MASK, state="unavailable", device_class="speaker", available=False)
+    (d,) = build([cast], [dev("d1")]).devices.values()
+    v = mm.DeviceView(dev=d, ents={"media_player.cast": cast}, profile="generic", prim=mm.primaries(d, {"media_player.cast": cast}, "generic"))
+    assert mm.asleep_when_unavailable(d) is True and mm.live(v)["power"] == "off" and mm.live(v)["caps_known"] is False
+    wiim = ent("media_player.wiim", "wiim", "d2", features=WIIM_MASK, state="unavailable", available=False)
+    (w,) = build([wiim], [dev("d2")]).devices.values()
+    vw = mm.DeviceView(dev=w, ents={"media_player.wiim": wiim}, profile="generic", prim=mm.primaries(w, {"media_player.wiim": wiim}, "generic"))
+    assert mm.asleep_when_unavailable(w) is False and mm.live(vw)["power"] == "unavailable"
+
+
+def test_live_audio_now_playing_station_group_queue_and_receiver_source():
+    sonos = ent("media_player.sonos", "sonos", "d1", features=SONOS_MASK, state="playing", media_title="Song", media_artist="Artist", media_album_name="Album", media_duration=200, media_position=50,
+                media_content_type="music", shuffle=True, repeat="all", queue_size=12, queue_position=3, volume_level=0.25, is_volume_muted=False,
+                media_position_updated_at="2026-10-01T10:00:00+00:00", source_list=["Radio One", "Favourite A"])
+    (d,) = build([sonos], [dev("d1")]).devices.values()
+    v = mm.DeviceView(dev=d, ents={"media_player.sonos": sonos}, profile="generic", prim=mm.primaries(d, {"media_player.sonos": sonos}, "generic"))
+    lv = mm.live(v, artwork="x")
+    assert lv["power"] == "on" and lv["play"] == "playing" and lv["now"]["kind"] == "music" and (lv["now"]["title"], lv["now"]["artist"], lv["now"]["album"]) == ("Song", "Artist", "Album")
+    assert lv["now"]["duration_s"] == 200 and lv["now"]["position_s"] == 50 and lv["now"]["artwork"] == "x" and lv["now"]["glyph"] == "music"
+    assert (lv["shuffle"], lv["repeat"], lv["queue"], lv["volume"]["level"], lv["caps_known"]) == (True, "all", {"count": 12, "index": 3}, 25, True)
+    assert lv["group"]["role"] == "none"
+    station = dict(sonos, attributes=dict(sonos["attributes"], media_content_type="radio", media_duration=None, media_title="Radio One"))
+    ls = mm.live(mm.DeviceView(dev=d, ents={"media_player.sonos": station}, profile="generic", prim=v.prim))
+    assert ls["now"]["kind"] == "station" and ls["now"]["duration_s"] is None and ls["now"]["position_s"] is None
+    paused_idle = dict(sonos, state="idle")
+    assert mm.live(mm.DeviceView(dev=d, ents={"media_player.sonos": paused_idle}, profile="generic", prim=v.prim))["now"]["kind"] == "none"
+    avr = ent("media_player.avr", "denonavr", "d2", features=DENON_MAIN, device_class="receiver", state="on", source="TV", volume_level=0.4)
+    (r,) = build([avr], [dev("d2")]).devices.values()
+    rl = mm.live(mm.DeviceView(dev=r, ents={"media_player.avr": avr}, profile="generic", prim=mm.primaries(r, {"media_player.avr": avr}, "generic")))
+    assert rl["now"]["kind"] == "source" and rl["now"]["label"] == "TV" and rl["power"] == "on"
+    off = dict(avr, state="off")
+    assert mm.live(mm.DeviceView(dev=r, ents={"media_player.avr": off}, profile="generic", prim=mm.primaries(r, {"media_player.avr": off}, "generic")))["power"] == "off"
+
+
+def test_caps_audio_library_and_group_flags_follow_the_provider():
+    ma = ma_entity("media_player.ma", "p1", group_members=[], queue_size=None)
+    (d,) = build([ma], [dev(f"dev_p1")]).devices.values()
+    v = mm.DeviceView(dev=d, ents={"media_player.ma": ma}, profile="generic", prim=mm.primaries(d, {"media_player.ma": ma}, "generic"))
+    c = mm.caps(v, group=dict(mm.NO_GROUP))
+    assert (c["favourites"], c["stations"], c["playlists"], c["up_next"], c["transfer"], c["group"]) == (True, True, True, True, True, True)
+    assert mm.caps(v, group=dict(mm.NO_GROUP), library={"kinds_on": ("stations",)})["favourites"] is False
+    leader = {"role": "leader", "leader_key": d.key, "member_keys": [d.key, "x" * 32], "name": None, "static": False, "layer": "ma", "conflict": False}
+    assert mm.caps(v, group=leader)["volume_group"] is True and mm.caps(v, group=dict(mm.NO_GROUP))["volume_group"] is False
+    sonos = ent("media_player.sonos", "sonos", "d2", features=SONOS_MASK, state="idle", source_list=["A"], queue_size=3)
+    (s,) = build([sonos], [dev("d2")]).devices.values()
+    sv = mm.DeviceView(dev=s, ents={"media_player.sonos": sonos}, profile="generic", prim=mm.primaries(s, {"media_player.sonos": sonos}, "generic"))
+    sc = mm.caps(sv)
+    assert (sc["favourites"], sc["stations"], sc["playlists"], sc["transfer"], sc["up_next"]) == (True, True, False, False, True), "Sonos favourites and stations, no playlists, no transfer"
+    cast = ent("media_player.cast", "cast", "d3", features=CAST_MASK, state="off", device_class="speaker")
+    (cc,) = build([cast], [dev("d3")]).devices.values()
+    cv = mm.DeviceView(dev=cc, ents={"media_player.cast": cast}, profile="generic", prim=mm.primaries(cc, {"media_player.cast": cast}, "generic"))
+    ccaps = mm.caps(cv)
+    assert (ccaps["group"], ccaps["favourites"], ccaps["up_next"], ccaps["transfer"], ccaps["shuffle"], ccaps["power_on"]) == (False,) * 6, "a Cast speaker offers no group section and never powers on through Cast"

@@ -75,7 +75,8 @@ def refresh(conn: sqlite3.Connection, a: dict[str, Any]) -> bool:
     action_id = a["id"]
     e = conn.execute("SELECT state, attributes_json, last_changed, last_updated, state_seen_at FROM ha_entities WHERE entity_id = ?", (a["entity_id"],)).fetchone()
     requested = parse_utc(a["requested_at"])
-    timed_out = (dt.datetime.now(dt.timezone.utc) - requested).total_seconds() > CONFIRM_WINDOW_S
+    window = float((ha_bridge.ACTIONS.get(a["action_id"]) or {}).get("window_s") or CONFIRM_WINDOW_S)  # CR-016: a group's membership is read back for 8 s
+    timed_out = (dt.datetime.now(dt.timezone.utc) - requested).total_seconds() > window
 
     def since_request(ts: str | None) -> bool:
         return bool(ts) and parse_utc(ts.replace("+00:00", "Z")) >= requested - dt.timedelta(seconds=2)

@@ -58,6 +58,11 @@ PERMISSION = "devices.control_bulk"
 AUDIT_ACTION = "devices.bulk"
 MEDIA_AUDIT_ACTION = "media.bulk"  # CR-015: the screens page's floor / area "כבה מסכים" (origin 'media')
 MEDIA_KINDS = frozenset({"screens_off", "all_off", "screens_on"})  # the kinds that reach media_player entities: through the media resolver only
+# CR-016: the group operations of the players page run on this same engine (origin 'media', the media resolver of services/media_groups.py and
+# `resolve_players_pause` below); `players_pause` is the floor / area "עצור מוזיקה"
+GROUP_KINDS = frozenset({"group_join", "group_leave", "group_volume"})
+PLAYER_KINDS = GROUP_KINDS | {"players_pause"}
+GROUP_AUDIT_ACTION = "media.group"
 SCOPES = ("building", "floor", "area")
 BUILDING_ID = "*"
 BULK_MAX_IN_FLIGHT = 8  # bridge calls in flight across every running bulk
@@ -82,6 +87,11 @@ KIND_LABELS = {
     "switches_on": "הדלקת מתגים",
     "lights_on": "הדלקת תאורה",
     "screens_on": "הדלקת מסכים",
+    # CR-016 (players, speakers, groups)
+    "group_join": "צירוף רמקולים לקבוצה",
+    "group_leave": "הוצאת רמקולים מקבוצה",
+    "group_volume": "עוצמה לקבוצה",
+    "players_pause": "עצירת מוזיקה",
 }
 SCOPE_LABELS = {"building": "המבנה", "floor": "קומה", "area": "אזור"}
 
@@ -570,6 +580,75 @@ def resolve_media(conn: Any, principal: Principal, scope: str, scope_id: str) ->
     }
 
 
+def resolve_players_pause(conn: Any, principal: Principal, scope: str, scope_id: str) -> dict[str, Any]:
+    """CR-016 (MEDIA_PLAYERS_API.md 3.9'): the floor / area "עצור מוזיקה" of the players page - the approved speakers, players and receivers of one HA floor
+    or area that the caller may read, `media.bulk` at each one's anchor, only the ones CONFIRMED playing, through their transport endpoint. A device
+    that has no area is never in a floor (unplaced devices are not reached); a device in a live group that reaches beyond the scope is skipped
+    (`not_allowed`: pausing it would stop rooms outside the floor) and a group that lies wholly inside is paused once, through its leader. Same plan
+    shape as `resolve_media` (so `record` / `run` / `load` and the poll route are shared); `devices[].will` is `pause` or `skip`."""
+    from . import media_store as ms
+
+    if scope not in ("floor", "area"):
+        raise ApiError(422, "validation", "עצירת מוזיקה מרוכזת זמינה לקומה או לאזור בלבד.", details={"fields": ["scope"]})
+    cat = ms.load_catalog(conn, approved_only=False, kind=tuple(ms.mm.AUDIO_KINDS))
+    access = ms.Access(conn, principal, (ms.PERM_READ, ms.PERM_BULK))
+    if not access.anywhere(ms.PERM_BULK):
+        from ..rbac import INSTALLATION, require
+
+        require(conn, principal, ms.PERM_BULK, INSTALLATION)
+    field = "floor_id" if scope == "floor" else "area_id"
+    inside = [i for i in ms.visible_items(cat, access, ("speaker", "player", "receiver")) if ms.floor_area(i)[field] == scope_id]
+    if not inside:
+        raise ApiError(404, "not_found", "הקומה או האזור לא נמצאו.")
+    inside.sort(key=lambda i: (i.name, i.key))
+    label = ms.floor_area(inside[0])["floor_name" if scope == "floor" else "area_name"] or scope_id
+    inside_keys = {i.key for i in inside}
+    devices: list[dict[str, Any]] = []
+    targets: list[dict[str, Any]] = []
+    members: list[dict[str, Any]] = []
+    by_entity: dict[str, dict[str, Any]] = {}
+    counts = {"send": 0, "not_playing": 0, "unavailable": 0, "not_allowed": 0}
+    for item in inside:
+        anchor = item.row.get("anchor_entity_id")
+        prim = item.view.prim.get("now_playing")
+        live, caps = ms.live_of(cat, item, key_url=False), ms.caps_of(cat, item)
+        g = cat.group_info(item.key)
+        reason: str | None = None
+        if not access.has(ms.PERM_BULK, anchor) or not prim or not caps["transport"]["pause"]:
+            reason = "not_allowed"
+        elif not live["caps_known"] or live["power"] == "unavailable":
+            reason = "unavailable"
+        elif live["play"] != "playing" or not live["confirmed"]:
+            reason = "not_playing"  # not (confirmed) playing: nothing to stop
+        elif g["role"] != "none" and not set(g["member_keys"]) <= inside_keys:
+            reason = "not_allowed"  # the group reaches rooms outside this floor / area
+        entity = prim
+        if reason is None and g["role"] == "member":
+            leader = cat.items.get(g["leader_key"]) if g["leader_key"] in inside_keys else None
+            entity = (leader.view.prim.get("now_playing") if leader is not None else None) or prim  # the group plays on its leader: one pause for all of it
+        devices.append({"key": item.key, "name": item.name, "will": "skip" if reason else "pause", "reason": reason})
+        if reason is not None:
+            counts[reason] += 1
+            members.append({"device_key": item.key, "role": "target", "will": "skip", "reason": reason, "target": None})
+            continue
+        counts["send"] += 1
+        if entity not in by_entity:
+            e = cat.ents.get(entity or "") or {}
+            by_entity[entity] = {"entity_id": entity, "name": item.name, "domain": "media_player", "action_id": "media_player.media_pause", "state": e.get("state"),
+                                 "area_id": e.get("area_id"), "area_name": e.get("area_name"), "args": {}, "device_key": item.key}
+            targets.append(by_entity[entity])
+        members.append({"device_key": item.key, "role": "target", "will": "pause", "reason": None, "target": by_entity[entity]})
+    if not counts["send"] and counts["not_allowed"] == len(devices):
+        raise ApiError(403, "forbidden", "אין לך הרשאה לעצירת מוזיקה מרוכזת בהיקף הזה.", details={"permission": ms.PERM_BULK})
+    return {
+        "scope": scope, "id": scope_id, "name": label, "floor_name": None, "kind": "players_pause", "kind_label": KIND_LABELS["players_pause"], "count": len(targets), "targets": targets,
+        "by_domain": {"media_player": len(targets)} if targets else {}, "domain_labels": {"media_player": DOMAIN_LABELS["media_player"]},
+        "skipped": {"already": counts["not_playing"], "unavailable": counts["unavailable"]}, "excluded": [], "never_included": {},
+        "digest": digest([t["entity_id"] for t in targets], "players_pause"), "narrowed": False, "server_time_ms": int(time.time() * 1000), "position": None, "note": "",
+        "origin": "media", "devices": devices, "counts": counts, "members": members,
+    }
+
+
 def digest(entity_ids: list[str], kind: str, position: int | None = None) -> str:
     """A short fingerprint of exactly what the dialog showed: the request is refused when the set - or, for
     covers_position, the requested position - changed since."""
@@ -669,7 +748,7 @@ def record(conn: Any, principal: Principal, bulk_id: str, plan: dict[str, Any], 
             "INSERT INTO ha_actions(id, entity_id, action_id, arguments_json, principal_user_id, principal_username, client_request_id, status, requested_at, expected_state, via, bulk_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (t["id"], t["entity_id"], t["action_id"], json.dumps(cleaned, ensure_ascii=False), principal.user_id, principal.username, f"{client_request_id}:{n}", "queued", now, ha_bridge.expectation_for(spec, a), "bulk", bulk_id),
         )
-        if plan.get("origin") == "media" and t.get("device_key"):
+        if plan.get("origin") == "media" and t.get("device_key") and plan["kind"] == "screens_off":
             # CR-015 review L9: the screens page's "turn off" is a power command of that screen like any other - the remote's power gate
             # (services/media_commands._power_gate: one in flight per screen, 2 s apart) and the "state not confirmed" window read this row
             from . import media_commands
@@ -678,6 +757,15 @@ def record(conn: Any, principal: Principal, bulk_id: str, plan: dict[str, Any], 
                 "INSERT INTO media_commands(id, device_key, principal_user_id, client_request_id, command, status, action_id, created_ms, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
                 (uuid.uuid4().hex, t["device_key"], principal.user_id, f"bulk:{client_request_id}:{n}", "power_off", "accepted", t["id"], media_commands.NOW_MS(), now),
             )
+
+
+    # CR-016: one row per DEVICE a group operation names (a join is ONE call on the leader, acting for several members): what it should become, the
+    # record that acts for it and, for a volume, the level asked - the per-device outcome is computed from these and the live state when the bulk is read
+    for m in plan.get("members") or []:
+        t = m.get("target")
+        vt = m.get("volume_target")
+        conn.execute("INSERT INTO device_bulk_members(bulk_id, device_key, action_id, volume_action_id, role, will, reason, leader_key, level) VALUES (?,?,?,?,?,?,?,?,?)",
+                     (bulk_id, m["device_key"], t["id"] if t else None, vt["id"] if vt else None, m["role"], m["will"], m.get("volume_reason") or m.get("reason"), m.get("leader_key"), m.get("level")))
 
 
 UNKNOWN_ERRORS = frozenset({"ha_unavailable", "internal_error"})  # the call may have reached Home Assistant
@@ -730,8 +818,11 @@ def refresh_pending(conn: Any, bulk_id: str) -> int:
     return conn.execute("SELECT COUNT(*) FROM ha_actions WHERE bulk_id = ? AND status IN ('pending', 'queued', 'sending')", (bulk_id,)).fetchone()[0]
 
 
-def run(db: Database, settings: Settings, principal: Principal, bulk_id: str, targets: list[dict[str, Any]], secret: str, not_after: dt.datetime, request_id: str | None) -> None:
-    """The worker: fan the calls out (bounded), record each answer, wait for the confirmations, write the outcome."""
+def run(db: Database, settings: Settings, principal: Principal, bulk_id: str, targets: list[dict[str, Any]], secret: str, not_after: dt.datetime, request_id: str | None,
+        phases: list[list[dict[str, Any]]] | None = None) -> None:
+    """The worker: fan the calls out (bounded), record each answer, wait for the confirmations, write the outcome. `phases` (CR-016: a saved group is
+    applied as "leave, then join, then volumes"): the batches are sent IN ORDER, each one settled (confirmed, or its window passed) before the next starts;
+    without it every target is one batch, as before."""
     try:
         buffer: list[tuple[str, str | None, str]] = []
         answers: queue.Queue = queue.Queue()
@@ -750,30 +841,52 @@ def run(db: Database, settings: Settings, principal: Principal, bulk_id: str, ta
                 _flush(db, buffer)
                 last = time.monotonic()
 
-        with ThreadPoolExecutor(max_workers=BULK_MAX_IN_FLIGHT, thread_name_prefix=f"bulk-{bulk_id}") as pool:
-            futures = []
-            for t in targets:
-                # one slot of the global bound per call in flight, taken HERE: this thread is the only writer, and a
-                # record is `sending` (committed) before its call can start
-                while not RUNNER.slots.acquire(timeout=0.2):
+        def send(batch: list[dict[str, Any]]) -> None:
+            with ThreadPoolExecutor(max_workers=BULK_MAX_IN_FLIGHT, thread_name_prefix=f"bulk-{bulk_id}") as pool:
+                futures = []
+                for t in batch:
+                    # one slot of the global bound per call in flight, taken HERE: this thread is the only writer, and a
+                    # record is `sending` (committed) before its call can start
+                    while not RUNNER.slots.acquire(timeout=0.2):
+                        drain()
+                    if dt.datetime.now(dt.timezone.utc) > not_after:
+                        RUNNER.slots.release()
+                        buffer.append(("failed", "expired", t["id"]))  # never sent: the request's own deadline passed
+                        continue
+                    try:
+                        _mark_sending(db, t["id"])
+                    except BaseException:
+                        RUNNER.slots.release()
+                        raise
+                    fut = pool.submit(_call, settings, secret, principal, t)
+                    fut.add_done_callback(lambda f, t=t: answers.put((t, "failed", "internal_error") if f.exception() else f.result()))
+                    futures.append(fut)
                     drain()
-                if dt.datetime.now(dt.timezone.utc) > not_after:
-                    RUNNER.slots.release()
-                    buffer.append(("failed", "expired", t["id"]))  # never sent: the request's own deadline passed
-                    continue
-                try:
-                    _mark_sending(db, t["id"])
-                except BaseException:
-                    RUNNER.slots.release()
-                    raise
-                fut = pool.submit(_call, settings, secret, principal, t)
-                fut.add_done_callback(lambda f, t=t: answers.put((t, "failed", "internal_error") if f.exception() else f.result()))
-                futures.append(fut)
-                drain()
-            for fut in futures:
-                fut.exception()  # wait for every call to end
-        drain()
-        _flush(db, buffer)
+                for fut in futures:
+                    fut.exception()  # wait for every call to end
+            drain()
+            _flush(db, buffer)
+
+        def settle(batch: list[dict[str, Any]]) -> None:
+            """Between two phases: wait until every record of the batch is confirmed or its window passed (its own window: 8 s for a membership)."""
+            ids = [t["id"] for t in batch]
+            deadline = time.monotonic() + ha_actions.CONFIRM_WINDOW_S + 2.0
+
+            def _poll_batch() -> int:
+                with db.write_aside() as w:
+                    for r in w.execute("SELECT * FROM ha_actions WHERE bulk_id = ? AND status = 'pending'", (bulk_id,)).fetchall():
+                        if r["id"] in ids:
+                            ha_actions.refresh(w, ha_actions.as_dict(r))
+                    return sum(1 for r in w.execute("SELECT id FROM ha_actions WHERE bulk_id = ? AND status IN ('pending', 'sending')", (bulk_id,)).fetchall() if r["id"] in ids)
+
+            while retry_locked(_poll_batch, what=f"device bulk {bulk_id} phase") and time.monotonic() < deadline:
+                time.sleep(POLL_S)
+
+        batches = phases if phases else [targets]
+        for n, batch in enumerate(batches):
+            send(batch)
+            if n < len(batches) - 1:
+                settle(batch)
         with db.write_aside() as w:
             w.execute("UPDATE device_bulk_actions SET status = 'waiting', sent_at = ? WHERE id = ?", (now_iso(), bulk_id))
         deadline = time.monotonic() + ha_actions.CONFIRM_WINDOW_S + 5.0
@@ -849,6 +962,10 @@ def load(conn: Any, bulk_id: str) -> dict[str, Any]:
             "may_have_been_sent": r["status"] == "unknown" and r["error"] == "interrupted",
         })
     counts["total"] = len(rows)
+    if b["origin"] == "media" and b["kind"] in PLAYER_KINDS:
+        from . import media_groups  # CR-016: a group operation is reported per DEVICE (joined / not_joined / left / set / skipped_*), read back from the live state
+
+        items, counts = media_groups.member_outcomes(conn, bulk_id, b["kind"])
     done = b["status"] == "done"
     return {
         "id": b["id"], "scope": b["scope"], "scope_id": b["scope_id"], "scope_name": b["scope_name"], "kind": b["kind"], "kind_label": KIND_LABELS.get(b["kind"], b["kind"]),
@@ -871,9 +988,10 @@ def finish(db: Database, bulk_id: str, request_id: str | None = None) -> None:
         actor = SimpleNamespace(user_id=body["principal_user_id"], username=body["principal_username"])
 
         def ids(outcome: str) -> list[str]:
-            return [i["entity_id"] for i in body["items"] if i["outcome"] == outcome][:100]
+            return [i.get("entity_id") or i.get("device_key") or "" for i in body["items"] if i["outcome"] == outcome][:100]
 
-        audit(w, actor=actor, action=MEDIA_AUDIT_ACTION if body["origin"] == "media" else AUDIT_ACTION, decision="allowed", resource_type=f"devices_{body['scope']}", resource_id=body["scope_id"],
+        action = (GROUP_AUDIT_ACTION if body["kind"] in GROUP_KINDS else MEDIA_AUDIT_ACTION) if body["origin"] == "media" else AUDIT_ACTION
+        audit(w, actor=actor, action=action, decision="allowed", resource_type=f"devices_{body['scope']}", resource_id=body["scope_id"],
               reason=None if c["confirmed"] == c["total"] else ("partial" if c["confirmed"] else "none_confirmed"), request_id=request_id,
               details={"phase": "outcome", "bulk_id": bulk_id, "kind": body["kind"], "scope": body["scope"], "scope_name": body["scope_name"], "counts": c,
                        "not_confirmed": ids("not_confirmed"), "unknown": ids("unknown"), "refused": ids("refused")})

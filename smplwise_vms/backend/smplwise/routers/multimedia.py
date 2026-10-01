@@ -2,6 +2,12 @@
 comments below). Screens are PHYSICAL devices built from Home Assistant endpoints (services/media_model.py); the page lists them, the
 remote sends commands, the administrator decides which detected screens are managed.
 
+CR-016 (players, speakers, groups; docs/architecture/MEDIA_PLAYERS_API.md) adds, on the same conventions: the kinds `speaker,player,receiver,group` in `GET devices`
+and every route that names a device, the commands seek / shuffle / repeat / play_item / transfer, `GET devices/{key}/up-next` and `/library`, `GET groups`,
+`POST groups/join` / `leave` / `{leader_key}/volume`, the saved groups `GET / POST groups/presets`, `PUT / DELETE groups/presets/{id}`, `POST
+groups/presets/{id}/apply`, `GET / PUT favourites`, `GET admin/suggestions`, the floor "עצור מוזיקה" (`kind: players_pause` on the actions routes) and, in the
+administration, the volume ceilings / night window / placing a device in an area / the non-physical components.
+
 Routes (all under /api/v1/multimedia; `/api/v1/media/*` is the camera video router): `GET status` (3.1), `GET devices` (3.2),
 `GET devices/{key}` (3.3), `POST devices/{key}/commands` (3.4), `GET devices/{key}/artwork` (3.5), `GET / PUT / DELETE layout` (3.6),
 `GET / PUT remote-default` (3.7), `PUT devices/{key}/remote` (3.8), `GET actions/preview` + `POST actions` (3.9), `GET profiles` (3.10),
@@ -14,6 +20,7 @@ command goes through services/media_commands.py and the signed bridge as the cal
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import uuid
 from typing import Any, Literal
@@ -24,11 +31,11 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
-from ..db import Database, commit_now, get_setting, now_iso, rollback_and_restart, set_setting
+from ..db import Database, commit_now, get_setting, now_iso, rollback_and_restart, set_setting, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import device_bulk as bulk
-from ..services import ha_bridge, ha_client, ha_sync, media_commands, media_layout, media_model as mm, media_profiles as profiles, media_store as store, user_prefs
+from ..services import ha_bridge, ha_client, ha_sync, media_commands, media_groups, media_layout, media_model as mm, media_profiles as profiles, media_query, media_store as store, user_prefs
 from .devices import _envelope, _is_json, _raw_body
 
 router = APIRouter()
@@ -101,6 +108,16 @@ def _check_bulk(conn: sqlite3.Connection, principal: Principal) -> None:
 _bulk_gate = read_gate(_check_bulk)
 
 
+def _check_group(conn: sqlite3.Connection, principal: Principal) -> None:
+    """media.group somewhere (installation or a floor), before the body is read; the audited 403 otherwise (CR-016)."""
+    if not store.Access(conn, principal, (store.PERM_GROUP,)).anywhere(store.PERM_GROUP):
+        require(conn, principal, store.PERM_GROUP, INSTALLATION)
+    _feature_or_404(conn)
+
+
+_group_gate = read_gate(_check_group)
+
+
 def _changed(background: BackgroundTasks, reason: str) -> None:
     """Tell the open clients to refetch - after the response (and so after the commit)."""
     background.add_task(ha_sync.publish, {"type": "media_devices_changed", "reason": reason})
@@ -119,34 +136,49 @@ def multimedia_status(principal: Principal = Depends(current_principal_ro), conn
 def list_devices(
     principal: Principal = Depends(_reader_gate),
     conn: sqlite3.Connection = Depends(get_read_conn),
-    kind: Literal["screen", "receiver", "speaker", "player", "group"] = "screen",
+    kind: str = Query("screen", max_length=80),
     floor: str | None = Query(None, max_length=128),
     area: str | None = Query(None, max_length=128),
     q: str | None = Query(None, max_length=80),
+    state: str | None = Query(None, max_length=16),
 ) -> dict[str, Any]:
-    """The approved screens the caller may read, sorted by name (0.1.149 lists `screen` only; another kind is an empty list)."""
-    if kind != "screen":
-        return {"devices": []}
-    cat = store.load_catalog(conn)
+    """The approved devices of the requested kind(s) the caller may read, sorted by name. `kind` is one kind or a comma-separated list (`screen` by
+    default; CR-016: `speaker,player,receiver,group`); `area=none` lists the devices without an area ("לא משויכים"); `state` is `playing`, `off` or
+    `unavailable`. A device without an area has no floor either: a floor filter never lists it."""
+    kinds = [k.strip() for k in kind.split(",") if k.strip()] or ["screen"]
+    if any(k not in mm.RENDERED_KINDS for k in kinds) or state not in (None, "playing", "off", "unavailable"):
+        raise ApiError(422, "validation", "סוג התקן או מצב לא מוכר.", details={"fields": ["kind" if any(k not in mm.RENDERED_KINDS for k in kinds) else "state"]})
+    cat = store.load_catalog(conn) if kinds == ["screen"] else store.load_catalog(conn, approved_only=False, kind=tuple(kinds))
     access = store.Access(conn, principal)
     out = []
     text = (q or "").strip().casefold()
-    for item in sorted(store.visible_items(cat, access), key=lambda i: (i.name.casefold(), i.key)):
+    for item in sorted(store.visible_items(cat, access, tuple(kinds)), key=lambda i: (i.name.casefold(), i.key)):
         d = store.device_item(cat, item, access)
-        if floor and d["floor_id"] != floor or area and d["area_id"] != area:
+        if floor and d["floor_id"] != floor:
+            continue
+        if area and (d["area_id"] is not None if area == "none" else d["area_id"] != area):
             continue
         if text and text not in d["name"].casefold() and text not in (d["area_name"] or "").casefold():
+            continue
+        playing_now = d["live"]["power"] == "on" and d["live"]["play"] == "playing"
+        if state == "playing" and not playing_now or state == "unavailable" and d["live"]["power"] != "unavailable" \
+                or state == "off" and (playing_now or d["live"]["power"] in ("unavailable", "unknown")):  # "off" = off, standby, idle or paused: not playing and available
             continue
         out.append(d)
     return {"devices": out}
 
 
 @router.get("/multimedia/devices/{key}")
-def get_device(key: str, curation: bool = Query(False), principal: Principal = Depends(_reader_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+def get_device(key: str, request: Request, curation: bool = Query(False), principal: Principal = Depends(_reader_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """`?curation=1` is the remote editor's read: hidden sources / apps included, each with its default name - only for a holder of
     media.layout at the screen's anchor (anyone else gets the ordinary detail)."""
-    cat, item, access = store.find_visible(conn, principal, key)
-    if curation and store.Access(conn, principal, (store.PERM_LAYOUT,)).has(store.PERM_LAYOUT, item.row.get("anchor_entity_id")):
+    cat, item, access = store.find_visible(conn, principal, key, mm.RENDERED_KINDS)
+    if item.row["kind"] != "screen" and store.caps_of(cat, item).get("up_next"):
+        try:  # the detail of a player carries `live.queue` from an up-next read (cached 2 s): a best effort, never a failure of the detail
+            media_query.up_next(conn, settings_of(request), principal, cat, item, access)
+        except ApiError:
+            pass
+    if curation and item.row["kind"] == "screen" and store.Access(conn, principal, (store.PERM_LAYOUT,)).has(store.PERM_LAYOUT, item.row.get("anchor_entity_id")):
         return store.device_detail(conn, cat, item, access, curation=True)
     return store.device_detail(conn, cat, item, access)
 
@@ -154,7 +186,8 @@ def get_device(key: str, curation: bool = Query(False), principal: Principal = D
 # ---------------------------------------------------------------- 3.4 commands
 
 class CommandBody(_Body):
-    command: Literal["power_on", "power_off", "volume_set", "volume_step", "mute", "source", "app", "sound_output", "transport", "key", "text"]
+    command: Literal["power_on", "power_off", "volume_set", "volume_step", "mute", "source", "app", "sound_output", "transport", "key", "text",
+                     "seek", "shuffle", "repeat", "play_item", "transfer"]  # CR-016: no `announce` (owner decision 6א) - an unknown command is a 422
     level: Any = None
     direction: Any = None
     muted: Any = None
@@ -165,14 +198,23 @@ class CommandBody(_Body):
     action: Any = None
     key: Any = None
     text: Any = None
+    position_s: Any = None
+    on: Any = None
+    mode: Any = None
+    item_ref: Any = None
+    enqueue: Any = None
+    from_key: Any = None
+    zone: Any = None
     client_request_id: str = RID
     expires_at: str = Field(min_length=1, max_length=40)
 
 
 COMMAND_FIELDS: dict[str, set[str]] = {
-    "power_on": set(), "power_off": set(), "volume_set": {"level", "target"}, "volume_step": {"direction", "target"}, "mute": {"muted", "target"},
-    "source": {"source_id"}, "app": {"app_id"}, "sound_output": {"output"}, "transport": {"action"}, "key": {"key"}, "text": {"text"},
+    "power_on": {"zone"}, "power_off": {"zone"}, "volume_set": {"level", "target", "zone"}, "volume_step": {"direction", "target", "zone"}, "mute": {"muted", "target", "zone"},
+    "source": {"source_id", "zone"}, "app": {"app_id"}, "sound_output": {"output", "zone"}, "transport": {"action"}, "key": {"key"}, "text": {"text"},
+    "seek": {"position_s"}, "shuffle": {"on"}, "repeat": {"mode"}, "play_item": {"item_ref", "enqueue"}, "transfer": {"from_key"},
 }
+COMMAND_ARGS = ("level", "direction", "muted", "target", "source_id", "app_id", "output", "action", "key", "text", "position_s", "on", "mode", "item_ref", "enqueue", "from_key", "zone")
 
 
 class _Admitted:
@@ -194,7 +236,7 @@ def _command_admitted(request: Request, adm: media_commands.Admission = Depends(
     command never takes the write lock and never loads the catalogue."""
     body: CommandBody = _parse(request, raw, CommandBody)
     allowed = COMMAND_FIELDS[body.command]
-    given = {f for f in ("level", "direction", "muted", "target", "source_id", "app_id", "output", "action", "key", "text") if getattr(body, f) is not None}
+    given = {f for f in COMMAND_ARGS if getattr(body, f) is not None}
     if given - allowed:
         raise ApiError(422, "validation", "הבקשה אינה תקינה: " + ", ".join(sorted(given - allowed)), details={"fields": sorted(given - allowed)})
     cmd = {"command": body.command, **{f: getattr(body, f) for f in allowed if getattr(body, f) is not None}}
@@ -213,7 +255,7 @@ def send_command(key: str, request: Request, admitted: _Admitted = Depends(_comm
     at the anchor (403) before the body is read; then the body (415 / 422), the permission of this command and the rate limits (429)
     - on the read connection; only then the catalogue and the write lock."""
     principal = admitted.principal
-    cat, item, access = store.find_visible(conn, principal, key)
+    cat, item, access = store.find_visible(conn, principal, key, mm.RENDERED_KINDS)
     status, result = media_commands.run(conn, settings_of(request), principal, _rid(request), cat, item, access, admitted.cmd, admitted.body.client_request_id, admitted.body.expires_at)
     return JSONResponse(status_code=status, content=result)
 
@@ -224,8 +266,8 @@ def send_command(key: str, request: Request, admitted: _Admitted = Depends(_comm
 def artwork(key: str, request: Request, v: str | None = Query(None, max_length=64), principal: Principal = Depends(_reader_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
     """The content art of what the screen is playing, proxied through the add-on's HA session (never an HA URL in the browser). Only
     real content art (Cast / MA metadata of a video, movie, episode, show or music track) - never an app or channel logo; 404 otherwise."""
-    cat, item, _access = store.find_visible(conn, principal, key)
-    hit = store.artwork_for(item.view.prim.get("now_playing"))
+    cat, item, _access = store.find_visible(conn, principal, key, mm.RENDERED_KINDS)
+    hit = store.artwork_source(item)
     if hit is None:
         raise ApiError(404, "not_found", "אין תמונה.")
     data, media_type = ha_client.media_artwork(settings_of(request), hit[0])
@@ -249,11 +291,14 @@ def _layout_response(conn: sqlite3.Connection, principal: Principal) -> dict[str
         stored = user_prefs.get_prefs(conn, principal.user_id)["prefs"].get(user_prefs.PERSONAL_MEDIA_KEY)
         personal = stored if stored and not media_layout.personal_is_empty(stored) else None
     if not can_edit or personal is not None:  # only what the caller may see (the editor's installation layout is whole: a save replaces it)
+        access = store.Access(conn, principal, (store.PERM_READ,))
         cat = store.load_catalog(conn)
-        seen = store.visible_items(cat, store.Access(conn, principal, (store.PERM_READ,)))
-        keys = {i.key for i in seen}
+        seen = store.visible_items(cat, access)
+        acat = media_groups.load_catalog(conn)
+        seen_audio = store.visible_items(acat, access, tuple(mm.AUDIO_KINDS))
+        keys = {i.key for i in seen} | {i.key for i in seen_audio} | {p["id"] for p in media_groups.list_presets(conn, acat, access)}
         if not can_edit:
-            layout = media_layout.restrict_layout(layout, keys, {f for f in (store.floor_area(i)["floor_id"] for i in seen) if f})
+            layout = media_layout.restrict_layout(layout, keys, {f for f in (store.floor_area(i)["floor_id"] for i in [*seen, *seen_audio]) if f})
         if personal is not None:
             personal = media_layout.restrict_personal(personal, keys)
     return {"installation": layout, "personal": personal, "revision": revision, "can_edit": can_edit, "can_personalize": personalize}
@@ -351,15 +396,15 @@ class _MediaRefusals:
     """The audit context of one media bulk request (the `_Refusals` of routers/devices.py with the action `media.bulk`): every refusal
     before sending is one `denied` row."""
 
-    def __init__(self, request: Request, conn: sqlite3.Connection, principal: Principal) -> None:
-        self.request, self.conn, self.principal = request, conn, principal
+    def __init__(self, request: Request, conn: sqlite3.Connection, principal: Principal, action: str = bulk.MEDIA_AUDIT_ACTION) -> None:
+        self.request, self.conn, self.principal, self.action = request, conn, principal, action
         self.rid = _rid(request)
         self.resource_type, self.resource_id = "devices_floor", "*"
         self.details: dict[str, Any] = {}
 
     def refuse(self, exc: ApiError) -> ApiError:
         exc.details.setdefault("outcome", "not_sent")
-        audit(self.conn, actor=self.principal, action=bulk.MEDIA_AUDIT_ACTION, decision="denied", resource_type=self.resource_type, resource_id=self.resource_id, reason=exc.code,
+        audit(self.conn, actor=self.principal, action=self.action, decision="denied", resource_type=self.resource_type, resource_id=self.resource_id, reason=exc.code,
               request_id=self.rid, details={**self.details, "phase": "refused", "outcome": "not_sent"})
         return exc
 
@@ -367,7 +412,7 @@ class _MediaRefusals:
 class BulkBody(_Body):
     scope: Literal["floor", "area"]
     id: str = Field(min_length=1, max_length=255)
-    kind: Literal["screens_off"]
+    kind: Literal["screens_off", "players_pause"] = "screens_off"
     confirmed: Any = None
     client_request_id: str = Field(pattern=COMMAND_ID)
     expires_at: str = Field(min_length=1, max_length=40)
@@ -380,15 +425,18 @@ def bulk_preview(
     conn: sqlite3.Connection = Depends(get_read_conn),
     scope: str = Query(..., max_length=16),
     id: str = Query(..., min_length=1, max_length=255),  # noqa: A002 - the scope's id, as in the body
+    kind: Literal["screens_off", "players_pause"] = Query("screens_off"),
 ) -> dict[str, Any]:
-    """What `POST /multimedia/actions` would send, per screen: `{scope, id, label, counts, devices}`. Sends nothing."""
-    plan = bulk.resolve_media(conn, principal, scope, id)
+    """What `POST /multimedia/actions` would send, per screen (`kind: screens_off`) or per speaker / player / receiver (`kind: players_pause`, CR-016):
+    `{scope, id, label, counts, devices}`. Sends nothing."""
+    plan = bulk.resolve_media(conn, principal, scope, id) if kind == "screens_off" else bulk.resolve_players_pause(conn, principal, scope, id)
     return {"scope": scope, "id": id, "label": plan["name"], "counts": plan["counts"], "devices": plan["devices"]}
 
 
 @router.post("/multimedia/actions", status_code=202)
 def bulk_run(request: Request, principal: Principal = Depends(_bulk_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """Turn off the screens of one floor or area (decision 7a): only approved screens confirmed on (or in art mode), their power endpoint
+    """Turn off the screens of one floor or area (decision 7a; CR-016: `kind: players_pause` pauses the speakers, players and receivers that are playing there):
+    only approved screens confirmed on (or in art mode), their power endpoint
     only, the same records / in-flight bound / honest per-screen outcome as the devices area's bulk actions. Body: `{scope, id, kind:
     "screens_off", confirmed: true, client_request_id, expires_at}`; reply 202 `{bulk_id, status}` - follow it with
     `GET /devices/actions/{bulk_id}`. The building is 422 validation."""
@@ -406,15 +454,15 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_gate), raw: 
     act.details.update(scope=body.scope, id=body.id, kind=body.kind, client_request_id=body.client_request_id, expires_at=body.expires_at)
     not_after = _envelope(act, body)  # the same expiry / duplicate rules as every bulk
     if body.confirmed is not True:
-        raise act.refuse(ApiError(409, "confirmation_required", "כיבוי מרוכז דורש אישור מפורש בחלון האישור."))
+        raise act.refuse(ApiError(409, "confirmation_required", "כיבוי מרוכז דורש אישור מפורש בחלון האישור." if body.kind == "screens_off" else "עצירת מוזיקה מרוכזת דורשת אישור מפורש בחלון האישור."))
     try:
-        plan = bulk.resolve_media(conn, principal, body.scope, body.id)
+        plan = bulk.resolve_media(conn, principal, body.scope, body.id) if body.kind == "screens_off" else bulk.resolve_players_pause(conn, principal, body.scope, body.id)
     except ApiError as exc:
         raise act.refuse(exc) from None
     if body.preview_digest is not None and body.preview_digest != plan["digest"]:
         raise act.refuse(ApiError(409, "target_changed", "רשימת המסכים השתנתה מאז שנפתח חלון האישור, ולכן לא נשלח דבר. פתחו את הפעולה מחדש.", details={"count": plan["count"]}))
     if not plan["count"]:
-        raise act.refuse(ApiError(409, "nothing_to_do", "אין מה לכבות: לפי הדיווח האחרון אין בהיקף הזה מסך שאושר כדולק.", details={"counts": plan["counts"]}))
+        raise act.refuse(ApiError(409, "nothing_to_do", "אין מה לכבות: לפי הדיווח האחרון אין בהיקף הזה מסך שאושר כדולק." if body.kind == "screens_off" else "אין מה לעצור: לפי הדיווח האחרון לא מנגן בהיקף הזה דבר שאושר.", details={"counts": plan["counts"]}))
     settings = settings_of(request)
     if principal.source not in ("ingress", "remote") and not settings.dev_user:
         raise act.refuse(ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן."))
@@ -464,6 +512,8 @@ class AdminDeviceBody(_Body):
     audio_link_key: str | None = None
     audio_default: str | None = None
     volume_max: Any = None  # validated by services/media_store.update_device (a bool is not a number)
+    volume_night: Any = None  # CR-016: {from, to, max} or null - a second ceiling inside a window (validated by media_store.update_device)
+    area_id: str | None = Field(None, min_length=1, max_length=255)  # CR-016: place the device in an HA area (the bridge writes the entity registry)
     model_keys: list[str] | None = None
     primary: dict[str, str | None] | None = None
 
@@ -477,27 +527,87 @@ class LinkBody(_Body):
 class ApproveBody(_Body):
     device_keys: list[str] | None = Field(None, max_length=500)
     approved: bool = True
+    kinds: list[Literal["speaker", "player", "receiver", "group"]] | None = Field(None, max_length=4)  # CR-016: "אשר את כל הנגנים שזוהו" (without device_keys)
 
 
 @router.get("/multimedia/admin/devices")
-def admin_devices(principal: Principal = Depends(_configure_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+def admin_devices(principal: Principal = Depends(_configure_gate), conn: sqlite3.Connection = Depends(get_read_conn), kind: str | None = Query(None, max_length=80)) -> dict[str, Any]:
     """Every discovered media device with its endpoints (hidden ones too), the ladder's rung, the weak merge suggestions. The only place
-    an anchor entity id or an endpoint id is shown."""
-    return store.admin_rows(conn)
+    an anchor entity id or an endpoint id is shown. The non-physical components (sessions, helper groups, a Spotify list) are left out - `non_physical` counts
+    them - unless `kind` names them (`?kind=session,virtual_group,service`, CR-016 3.28)."""
+    kinds = tuple(k.strip() for k in kind.split(",") if k.strip()) if kind else None
+    if kinds is not None and any(k not in mm.KINDS for k in kinds):
+        raise ApiError(422, "validation", "סוג התקן לא מוכר.", details={"fields": ["kind"]})
+    return store.admin_rows(conn, kinds)
+
+
+@router.get("/multimedia/admin/suggestions")
+def admin_suggestions(principal: Principal = Depends(_configure_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The merge wizard's list (CR-016 7.4): `{suggestions: MergeSuggestion[]}` - what the ladder could not decide (the same model twice, the same name with an
+    area on one side or both), minus the ones dismissed. Answer a row with `POST admin/links` `link` (merge) or `ignore` + the row's `device_key` (dismiss)."""
+    return {"suggestions": store.suggestion_rows(conn)}
+
+
+def _place_device(request: Request, conn: sqlite3.Connection, principal: Principal, key: str, area_id: str) -> None:
+    """Place a device in an HA area (CR-016 7.1: "חדר" for an unplaced speaker): the one Home Assistant CONFIG write this product makes, through the
+    bridge's `set_entity_area` path (the anchor entity), exactly as the devices area's assign route does - system.configure, two-phase audit (the attempt
+    row is committed before Home Assistant is asked), the local mirror updated at once."""
+    row = conn.execute("SELECT anchor_entity_id FROM media_devices WHERE device_key = ? AND removed_at IS NULL", (key,)).fetchone()
+    if row is None or not row["anchor_entity_id"]:
+        raise ApiError(404, "not_found", "ההתקן לא נמצא.")
+    entity_id = row["anchor_entity_id"]
+    arow = conn.execute("SELECT area_id, name, floor_id FROM ha_areas WHERE area_id = ?", (area_id,)).fetchone()
+    if not arow:
+        raise ApiError(404, "area_not_found", "האזור לא נמצא.")
+    settings = settings_of(request)
+    rid = _rid(request)
+    if principal.source not in ("ingress", "remote") and not settings.dev_user:
+        raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן.")
+    secret = ha_bridge.signing_key(conn)
+    if not secret or not get_setting(conn, "bridge.paired_at"):
+        raise ApiError(503, "bridge_not_paired", "שיוך אזור דורש את הגשר מותקן ומצומד.")
+    old = conn.execute("SELECT area_id FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
+    bridge_rid = uuid.uuid4().hex[:12]
+    payload = ha_bridge.sign(secret, {"user_id": principal.user_id, "entity_id": entity_id, "area_id": area_id, "request_id": bridge_rid})
+    audit(conn, actor=principal, action="media.place", decision="allowed", resource_type="media_device", resource_id=key, request_id=rid,
+          details={"area_id": area_id, "from_area_id": old["area_id"] if old else None, "phase": "attempt", "request": bridge_rid})
+    try:
+        with unlocked(conn):  # the HA call runs without the request's write lock
+            result = ha_client.call_bridge_set_area(settings, payload)
+    except ApiError as exc:
+        audit(conn, actor=principal, action="media.place", decision="denied", resource_type="media_device", resource_id=key, reason=exc.code, request_id=rid,
+              details={"area_id": area_id, "phase": "outcome", "request": bridge_rid})
+        raise
+    ok = bool(result.get("ok"))
+    error = None if ok else str(result.get("error") or "bridge_error")
+    audit(conn, actor=principal, action="media.place", decision="allowed" if ok else "denied", resource_type="media_device", resource_id=key, reason=error, request_id=rid,
+          details={"area_id": area_id, "phase": "outcome", "request": bridge_rid})
+    if not ok:
+        raise ApiError(404 if error in ("entity_not_found", "area_not_found") else 502, "bridge_error", "תשתית המערכת דחתה את שיוך האזור.", details={"error": error})
+    frow = conn.execute("SELECT name FROM ha_floors WHERE floor_id = ?", (arow["floor_id"],)).fetchone() if arow["floor_id"] else None
+    conn.execute("UPDATE ha_entities SET area_id = ?, area_name = ?, ha_floor_id = ?, ha_floor_name = ?, updated_at = ? WHERE entity_id = ?",
+                 (arow["area_id"], arow["name"], arow["floor_id"], frow["name"] if frow else None, now_iso(), entity_id))
 
 
 @router.put("/multimedia/admin/devices/{key}")
 def admin_update_device(key: str, request: Request, background: BackgroundTasks, principal: Principal = Depends(_configure_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body: AdminDeviceBody = _parse(request, raw, AdminDeviceBody)
-    nullable = {"display_name", "kind", "profile", "audio_link_key", "volume_max"}  # null clears these; a null flag or list is "not given"
+    nullable = {"display_name", "kind", "profile", "audio_link_key", "volume_max", "volume_night"}  # null clears these; a null flag or list is "not given"
     fields = {f: getattr(body, f) for f in body.model_fields_set if getattr(body, f) is not None or f in nullable}
+    area_id = fields.pop("area_id", None)
+    if conn.execute("SELECT 1 FROM media_devices WHERE device_key = ? AND removed_at IS NULL", (key,)).fetchone() is None:
+        raise ApiError(404, "not_found", "ההתקן לא נמצא.")
+    if area_id:
+        _place_device(request, conn, principal, key, area_id)
     result = store.update_device(conn, key, fields)
+    if area_id:
+        result["changed"] = sorted([*result["changed"], "area_id"])
     audit(conn, actor=principal, action="media.device.update", decision="allowed", resource_type="media_device", resource_id=key, request_id=_rid(request),
           details={"fields": result["changed"], **({"approved": bool(fields["approved"])} if "approved" in fields else {}), **({"public": bool(fields["public"])} if "public" in fields else {})})
     if "approved" in fields:
         store._refresh_index(conn)
-    _changed(background, "approval" if "approved" in fields else "curation")
-    return next(d for d in store.admin_rows(conn)["devices"] if d["key"] == key)
+    _changed(background, "approval" if "approved" in fields else ("placed" if area_id and not fields else "curation"))
+    return next(d for d in store.admin_rows(conn, tuple(mm.KINDS))["devices"] if d["key"] == key)
 
 
 @router.post("/multimedia/admin/links")
@@ -516,8 +626,295 @@ def admin_approve(request: Request, background: BackgroundTasks, principal: Prin
     """Approve (or withdraw) the named devices; without `device_keys` every detected SCREEN - the first approval is one tap
     ("אשר את כל המסכים שזוהו")."""
     body: ApproveBody = _parse(request, raw, ApproveBody)
-    counts = store.approve(conn, body.device_keys, body.approved)
+    counts = store.approve(conn, body.device_keys, body.approved, list(body.kinds) if body.kinds else None)
     audit(conn, actor=principal, action="media.approve", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
-          details={"approved": body.approved, "all_screens": body.device_keys is None, **counts})
+          details={"approved": body.approved, "all_screens": body.device_keys is None and not body.kinds, **({"kinds": list(body.kinds)} if body.kinds else {}), **counts})
     _changed(background, "approval")
     return counts
+
+
+# ---------------------------------------------------------------- CR-016: up next and the library (MEDIA_PLAYERS_API.md 3.16 / 3.17)
+
+@router.get("/multimedia/devices/{key}/up-next")
+def get_up_next(key: str, request: Request, principal: Principal = Depends(_reader_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """`UpNext` of a speaker, player, receiver or group: the current and the next item and the queue length (Music Assistant's `get_queue` through the bridge,
+    or a Sonos player's own queue attributes). `confirmed: false` when the read failed - the panel says "לא זמין", never "empty". 503 no_library when no
+    music layer answers, 503 bridge_outdated before bridge 0.5.0. A member of a live group is answered with its leader's queue."""
+    cat, item, access = store.find_visible(conn, principal, key, tuple(mm.AUDIO_KINDS))
+    return media_query.up_next(conn, settings_of(request), principal, cat, item, access)
+
+
+@router.get("/multimedia/devices/{key}/library")
+def get_library(key: str, request: Request, kind: Literal["favourites", "stations", "playlists"] = Query(...), offset: int = Query(0, ge=0, le=5000),
+                include_hidden: bool = Query(False, alias="all"), principal: Principal = Depends(_reader_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """`LibraryPage`: the favourites, stations or playlists of the device's music layer in the administrator's order, hidden items left out (the same list for
+    everyone). Items travel as opaque `item_ref`s - never a URI. `?all=1` adds the hidden ones (`hidden: true`) for a holder of media.layout (the curation
+    editor). 422 not_supported when the device does not offer the list, 503 no_library, 503 bridge_outdated."""
+    cat, item, access = store.find_visible(conn, principal, key, tuple(mm.AUDIO_KINDS))
+    show = include_hidden and store.Access(conn, principal, (store.PERM_LAYOUT,)).has(store.PERM_LAYOUT, item.row.get("anchor_entity_id"))
+    return media_query.library_page(conn, settings_of(request), principal, cat, item, access, kind, offset, show_hidden=show)
+
+
+# ---------------------------------------------------------------- CR-016: favourites curation (MEDIA_PLAYERS_API.md 3.25)
+
+class FavouritesBody(_Body):
+    kinds_on: list[Literal["favourites", "stations", "playlists"]] = Field(max_length=3)
+    items: list[dict[str, Any]] = Field(max_length=500)
+    base_revision: int = Field(ge=0)
+
+
+def _favourites_clean(body: FavouritesBody) -> dict[str, Any]:
+    items: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for it in body.items:
+        ref, hidden, order = it.get("item_ref"), it.get("hidden", False), it.get("order")
+        if set(it) - {"item_ref", "hidden", "order"} or not isinstance(ref, str) or not re.fullmatch(r"[a-f0-9]{24}", ref) or ref in seen or not isinstance(hidden, bool) \
+                or isinstance(order, bool) or not isinstance(order, int) or not 0 <= order < 100000:
+            raise ApiError(422, "validation", "רשימת המועדפים: פריט לא תקין.", details={"fields": ["items"]})
+        seen.add(ref)
+        items.append({"item_ref": ref, "hidden": hidden, "order": order})
+    return {"kinds_on": [k for k in store.LIB_KINDS if k in body.kinds_on], "items": sorted(items, key=lambda i: (i["order"], i["item_ref"]))}
+
+
+@router.get("/multimedia/favourites")
+def get_favourites(principal: Principal = Depends(_reader_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """`FavouritesCuration`: which lists appear and, per item, its order and whether it is hidden - one list for everyone (owner decision 5א). A holder of
+    media.layout (the curation editor) also gets each item's `name`, `artist` and `kind` where the server knows them (the items it listed in the last 30
+    minutes, or - after a restart - the names saved with the curation), so a HIDDEN item can be listed and shown again without reading the library."""
+    cfg = store.favourites_config(conn)
+    if store.Access(conn, principal, (store.PERM_LAYOUT,)).anywhere(store.PERM_LAYOUT):
+        names = media_query.known_names(conn, [i["item_ref"] for i in cfg["items"]])
+        cfg = {**cfg, "items": [{**i, **names[i["item_ref"]]} if i["item_ref"] in names else i for i in cfg["items"]]}
+    return cfg
+
+
+@router.put("/multimedia/favourites")
+def put_favourites(request: Request, background: BackgroundTasks, principal: Principal = Depends(_layout_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """media.layout: save the curation. `base_revision` is the revision the editor loaded (409 revision_conflict otherwise); audited `media.favourites.update`."""
+    body: FavouritesBody = _parse(request, raw, FavouritesBody)
+    current = store.favourites_config(conn)
+    if body.base_revision != current["revision"]:
+        raise ApiError(409, "revision_conflict", "הרשימה נערכה במקום אחר; טענו מחדש.", details={"revision": current["revision"]})
+    cfg = {**_favourites_clean(body), "revision": current["revision"] + 1}
+    set_setting(conn, "multimedia.favourites", json.dumps(cfg, ensure_ascii=False, separators=(",", ":")))
+    media_query.save_names(conn, [i["item_ref"] for i in cfg["items"]])
+    audit(conn, actor=principal, action="media.favourites.update", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
+          details={"revision": cfg["revision"], "kinds_on": cfg["kinds_on"], "items": len(cfg["items"])})
+    background.add_task(ha_sync.publish, {"type": "media_groups_changed"})
+    _changed(background, "curation")
+    return {**cfg, "items": [{**i, **media_query.known_names(conn, [i["item_ref"]]).get(i["item_ref"], {})} for i in cfg["items"]]}
+
+
+# ---------------------------------------------------------------- CR-016: groups (MEDIA_PLAYERS_API.md 3.18 - 3.24)
+
+class GroupJoinBody(_Body):
+    leader_key: str = Field(min_length=1, max_length=64)
+    member_keys: list[str] = Field(min_length=1, max_length=16)
+    confirmed: Any = None
+    client_request_id: str = Field(pattern=COMMAND_ID)
+    expires_at: str = Field(min_length=1, max_length=40)
+
+
+class GroupLeaveBody(_Body):
+    device_keys: list[str] = Field(min_length=1, max_length=16)
+    client_request_id: str = Field(pattern=COMMAND_ID)
+    expires_at: str = Field(min_length=1, max_length=40)
+
+
+class GroupVolumeBody(_Body):
+    level: Any = None
+    mode: Literal["relative", "absolute"] = "relative"
+    client_request_id: str = Field(pattern=COMMAND_ID)
+    expires_at: str = Field(min_length=1, max_length=40)
+
+
+class GroupApplyBody(_Body):
+    confirmed: Any = None
+    client_request_id: str = Field(pattern=COMMAND_ID)
+    expires_at: str = Field(min_length=1, max_length=40)
+
+
+class PresetBody(_Body):
+    name: str = Field(min_length=1, max_length=media_groups.PRESET_NAME_MAX)
+    leader_key: str = Field(min_length=1, max_length=64)
+    member_keys: list[str] = Field(min_length=1, max_length=15)
+    volumes: dict[str, int] | None = None
+
+
+class PresetUpdateBody(PresetBody):
+    base_revision: int = Field(ge=0)
+
+
+@router.get("/multimedia/groups")
+def get_groups(principal: Principal = Depends(_reader_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """`{groups: MediaGroup[]}`: the live groups (one per leader), the static groups (a device of kind `group`) and the helper groups (`virtual: true`, a
+    shortcut) with at least one member the caller may read; the members listed are the readable ones."""
+    return {"groups": media_groups.list_groups(media_groups.load_catalog(conn), store.Access(conn, principal))}
+
+
+def _group_request(request: Request, conn: sqlite3.Connection, principal: Principal, raw: bytes, model: type[BaseModel], rid_key: str = "*") -> tuple[_MediaRefusals, Any, Any]:
+    """The envelope of every group write: JSON only, the closed body model, `client_request_id` + `expires_at` on the server's clock (409 expired /
+    duplicate_command) - each refusal one audited `media.group` row."""
+    act = _MediaRefusals(request, conn, principal, bulk.GROUP_AUDIT_ACTION)
+    act.resource_type, act.resource_id = "devices_group", rid_key
+    if not _is_json(request.headers.get("content-type")):
+        raise act.refuse(ApiError(415, "unsupported_media_type", "הבקשה חייבת להישלח כ־JSON (Content-Type: application/json)."))
+    try:
+        body = model.model_validate(json.loads(raw) if raw.strip() else {})
+    except (ValueError, RecursionError):
+        raise act.refuse(ApiError(422, "validation", "גוף הבקשה אינו JSON תקין.", details={"fields": ["body"]})) from None
+    except ValidationError as exc:
+        fields = sorted({".".join(str(p) for p in err["loc"]) or "body" for err in exc.errors()})
+        raise act.refuse(ApiError(422, "validation", "הבקשה אינה תקינה: " + ", ".join(fields), details={"fields": fields})) from None
+    act.details.update(client_request_id=body.client_request_id, expires_at=body.expires_at)
+    return act, body, _envelope(act, body)
+
+
+def _group_bridge(request: Request, conn: sqlite3.Connection, principal: Principal, act: _MediaRefusals) -> tuple[Any, str]:
+    """The prerequisites of a group write: the caller's identity maps to a Home Assistant user, the bridge is paired and at least 0.5.0 (503 otherwise)."""
+    settings = settings_of(request)
+    if principal.source not in ("ingress", "remote") and not settings.dev_user:
+        raise act.refuse(ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן."))
+    secret = ha_bridge.signing_key(conn)
+    if not secret or not get_setting(conn, "bridge.paired_at"):
+        raise act.refuse(ApiError(503, "bridge_not_paired", "פעולות אלו דורשות את הגשר מותקן ומצומד."))
+    if not store.bridge_state(conn)["players_ready"]:
+        raise act.refuse(ApiError(503, "bridge_outdated", media_commands.MESSAGES["bridge_outdated"], details={"required": store.BRIDGE_PLAYERS_REQUIRED}))
+    return settings, secret
+
+
+def _start_group(request: Request, conn: sqlite3.Connection, principal: Principal, act: _MediaRefusals, plan: dict[str, Any], body: Any, not_after: Any, settings: Any, secret: str,
+                 reserve: str | None) -> dict[str, Any]:
+    """Record the plan (one ha_actions record per call, the per-device rows) and the attempt audit row - committed before anything is sent - then run it on the
+    bulk engine. `reserve` is the scope one operation at a time is allowed in (a leader: 409 group_pending); None = only rate-limited (a group volume)."""
+    bulk_id = uuid.uuid4().hex[:12]
+    blocking = bulk.RUNNER.reserve(reserve or bulk.scope_key("gvol", bulk_id), bulk_id, {t["entity_id"] for t in plan["targets"]} if reserve else set())
+    if blocking:
+        raise act.refuse(media_commands.err(409, "group_pending", bulk_id=blocking))
+    started = False
+    try:
+        try:
+            bulk.record(conn, principal, bulk_id, plan, body.client_request_id, not_after)
+        except ApiError as exc:  # never keep half a record: drop what was written, refuse, send nothing
+            rollback_and_restart(conn)
+            raise act.refuse(exc) from None
+        audit(conn, actor=principal, action=bulk.GROUP_AUDIT_ACTION, decision="allowed", resource_type=act.resource_type, resource_id=act.resource_id, request_id=act.rid,
+              details={**act.details, "phase": "attempt", "bulk_id": bulk_id, "kind": plan["kind"], "scope_name": plan["name"], "device_count": len(plan["members"]),
+                       "device_keys": [m["device_key"] for m in plan["members"]][:64], "sent": len(plan["targets"])})
+        commit_now(conn)  # the attempt row and the queued records exist before the first call - or nothing is sent
+        db: Database = request.app.state.db
+        targets, phases = plan["targets"], plan.get("phases")
+        bulk.RUNNER.start(bulk_id, lambda: bulk.run(db, settings, principal, bulk_id, targets, secret, not_after, act.rid, phases))
+        started = True
+    finally:
+        if not started:
+            bulk.RUNNER.release(bulk_id)
+    return {"bulk_id": bulk_id, "status": "accepted", "preview": plan.get("preview")}
+
+
+@router.post("/multimedia/groups/join", status_code=202)
+def groups_join(request: Request, principal: Principal = Depends(_group_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Join rooms to a leader (decision 3א). media.group + media.control at every involved device's anchor; one `media_player.join` on the leader's grouping
+    layer, confirmed by reading the membership back (8 s), an outcome per room on `GET /devices/actions/{bulk_id}`. 409 confirm_required (with the
+    `preview`) for four devices or more or more than one floor, 403 bulk_required for the whole building without media.bulk, 422 not_groupable, 409
+    group_pending (one in flight per leader), 409 nothing_to_do, 503 bridge_outdated / bridge_not_paired."""
+    act, body, not_after = _group_request(request, conn, principal, raw, GroupJoinBody)
+    act.resource_id = body.leader_key
+    settings, secret = _group_bridge(request, conn, principal, act)
+    try:
+        plan = media_groups.plan_join(conn, store.Access(conn, principal), media_groups.load_catalog(conn), body.leader_key, body.member_keys, body.confirmed is True)
+    except ApiError as exc:
+        raise act.refuse(exc) from None
+    return _start_group(request, conn, principal, act, plan, body, not_after, settings, secret, bulk.scope_key("group", body.leader_key))
+
+
+@router.post("/multimedia/groups/leave", status_code=202)
+def groups_leave(request: Request, principal: Principal = Depends(_group_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Take devices out of their live group: one `media_player.unjoin` per device through its own grouping layer, an outcome per device (`left` / `unknown`)."""
+    act, body, not_after = _group_request(request, conn, principal, raw, GroupLeaveBody)
+    settings, secret = _group_bridge(request, conn, principal, act)
+    try:
+        plan = media_groups.plan_leave(conn, store.Access(conn, principal), media_groups.load_catalog(conn), body.device_keys)
+    except ApiError as exc:
+        raise act.refuse(exc) from None
+    return _start_group(request, conn, principal, act, plan, body, not_after, settings, secret, bulk.scope_key("group-leave", plan["id"]))
+
+
+@router.post("/multimedia/groups/{leader_key}/volume", status_code=202)
+def groups_volume(leader_key: str, request: Request, principal: Principal = Depends(_group_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Set a group's volume: a `media_player.volume_set` per member, `relative` (default: every member scaled by the same factor, the balance kept) or
+    `absolute`; each level clamped to the member's ceilings WHEN an administrator set them; a member that is muted, off or unavailable is skipped with its
+    reason, one the caller may not control is `not_allowed` (not an error). Rate limit 2/s per group (429), no single-flight: the last value wins."""
+    if not media_commands.BUCKETS.take("grp-vol", leader_key, media_groups.VOLUME_RATE):
+        media_commands._audit_limited(conn, principal, _rid(request), leader_key, "group_volume", "device")
+        raise media_commands.err(429, "rate_limited", scope="group")
+    act, body, not_after = _group_request(request, conn, principal, raw, GroupVolumeBody, leader_key)
+    settings, secret = _group_bridge(request, conn, principal, act)
+    try:
+        plan = media_groups.plan_volume(conn, store.Access(conn, principal), media_groups.load_catalog(conn), leader_key, body.level, body.mode)
+    except ApiError as exc:
+        raise act.refuse(exc) from None
+    return _start_group(request, conn, principal, act, plan, body, not_after, settings, secret, None)
+
+
+def _preset_out(conn: sqlite3.Connection, principal: Principal, preset_id: str) -> dict[str, Any]:
+    row = conn.execute("SELECT * FROM media_group_presets WHERE preset_id = ?", (preset_id,)).fetchone()
+    return media_groups._preset_dict(conn, media_groups.load_catalog(conn), store.Access(conn, principal), row)
+
+
+@router.get("/multimedia/groups/presets")
+def get_presets(principal: Principal = Depends(_reader_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """`{presets: GroupPreset[]}`: the saved groups whose rooms the caller may read, with the rooms that are no longer approved (`missing`) and an apply that
+    is in flight or finished less than 30 s ago (`running`)."""
+    return {"presets": media_groups.list_presets(conn, media_groups.load_catalog(conn), store.Access(conn, principal))}
+
+
+@router.post("/multimedia/groups/presets", status_code=201)
+def post_preset(request: Request, background: BackgroundTasks, principal: Principal = Depends(_layout_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """media.layout: save a group (a name of at most 40 characters, a leader, up to 15 more rooms of the same grouping layer, optional per-room volumes)."""
+    body: PresetBody = _parse(request, raw, PresetBody)
+    row = media_groups.create_preset(conn, principal, media_groups.load_catalog(conn), body.model_dump())
+    audit(conn, actor=principal, action="media.group.preset", decision="allowed", resource_type="media_group_preset", resource_id=row["preset_id"], request_id=_rid(request),
+          details={"op": "create", "name": row["name"], "members": len(json.loads(row["members_json"]))})
+    background.add_task(ha_sync.publish, {"type": "media_groups_changed"})
+    return _preset_out(conn, principal, row["preset_id"])
+
+
+@router.put("/multimedia/groups/presets/{preset_id}")
+def put_preset(preset_id: str, request: Request, background: BackgroundTasks, principal: Principal = Depends(_layout_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """media.layout: edit a saved group; `base_revision` is the revision the editor loaded (409 revision_conflict otherwise)."""
+    body: PresetUpdateBody = _parse(request, raw, PresetUpdateBody)
+    fields = body.model_dump()
+    base = fields.pop("base_revision")
+    row = media_groups.update_preset(conn, principal, media_groups.load_catalog(conn), preset_id, fields, base)
+    audit(conn, actor=principal, action="media.group.preset", decision="allowed", resource_type="media_group_preset", resource_id=preset_id, request_id=_rid(request),
+          details={"op": "update", "name": row["name"], "revision": row["revision"]})
+    background.add_task(ha_sync.publish, {"type": "media_groups_changed"})
+    return _preset_out(conn, principal, preset_id)
+
+
+@router.delete("/multimedia/groups/presets/{preset_id}", status_code=204)
+def delete_preset(preset_id: str, request: Request, background: BackgroundTasks, base_revision: int | None = Query(None, ge=0), principal: Principal = Depends(_layout_gate),
+                  conn: sqlite3.Connection = Depends(get_conn)) -> Response:
+    """media.layout: delete a saved group (`?base_revision=` makes it conditional on the revision the editor loaded)."""
+    media_groups.delete_preset(conn, preset_id, base_revision)
+    audit(conn, actor=principal, action="media.group.preset", decision="allowed", resource_type="media_group_preset", resource_id=preset_id, request_id=_rid(request), details={"op": "delete"})
+    background.add_task(ha_sync.publish, {"type": "media_groups_changed"})
+    return Response(status_code=204)
+
+
+@router.post("/multimedia/groups/presets/{preset_id}/apply", status_code=202)
+def apply_preset(preset_id: str, request: Request, principal: Principal = Depends(_group_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Start a saved group with one tap (decision 3א): the group as a DIFF against the leader's live group - leave the extras, join the missing, then the saved
+    volumes clamped to each room's ceilings - in three ordered phases, an outcome per room. The same permission, confirmation and bridge rules as a join."""
+    act, body, not_after = _group_request(request, conn, principal, raw, GroupApplyBody, preset_id)
+    row = conn.execute("SELECT * FROM media_group_presets WHERE preset_id = ?", (preset_id,)).fetchone()
+    if row is None:
+        raise act.refuse(media_commands.err(404, "not_found"))
+    settings, secret = _group_bridge(request, conn, principal, act)
+    try:
+        plan = media_groups.plan_preset(conn, store.Access(conn, principal), media_groups.load_catalog(conn), row, body.confirmed is True)
+    except ApiError as exc:
+        raise act.refuse(exc) from None
+    act.resource_type = "devices_preset"
+    return _start_group(request, conn, principal, act, plan, body, not_after, settings, secret, bulk.scope_key("group", row["leader_key"]))

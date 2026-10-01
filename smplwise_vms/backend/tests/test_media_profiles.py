@@ -119,7 +119,10 @@ def test_the_good_calls_pass_and_carry_exactly_their_arguments():
 
 def test_every_media_action_is_route_media_and_never_offered_generically():
     new = {"media_player.volume_up", "media_player.volume_down", "media_player.media_play_pause", "media_player.media_next_track", "media_player.media_previous_track",
-           "media_player.select_source", "media_player.play_media", "remote.send_command", "remote.turn_on", "webostv.button", "webostv.select_sound_output"}
+           "media_player.select_source", "media_player.play_media", "remote.send_command", "remote.turn_on", "webostv.button", "webostv.select_sound_output",
+           # CR-016 (bridge 0.5.0): the player controls and the grouping actions
+           "media_player.media_seek", "media_player.shuffle_set", "media_player.repeat_set", "media_player.select_sound_mode", "media_player.join", "media_player.unjoin",
+           "music_assistant.play_media", "music_assistant.transfer_queue"}
     assert {a for a, spec in ha_bridge.ACTIONS.items() if spec.get("route") == "media"} == new
     offered = {a["id"] for domain in ("media_player", "remote", "webostv") for a in ha_bridge.actions_for(domain)}
     assert not offered & new

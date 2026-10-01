@@ -73,8 +73,12 @@ ATTR_ALLOW = {
     # server-side in memory for the artwork proxy only, services/media_store.note_picture - CR-015 review M2).
     "source_list", "app_id", "app_name", "media_content_type", "media_channel", "media_duration", "media_position", "media_position_updated_at",
     "sound_output", "sound_mode", "art_mode_status", "activity_list", "current_activity", "group_members", "mass_player_type", "active_queue",
+    # CR-016 (players, speakers, groups): the artist / album of what plays, shuffle / repeat, a Sonos queue's position and size, a receiver's
+    # sound modes (a list, protected like the source list). `media_content_id` (a URL), `entity_picture` and every media URL stay out.
+    "media_artist", "media_album_name", "shuffle", "repeat", "queue_position", "queue_size", "sound_mode_list",
 }
-MEDIA_LIST_KEYS = {"source_list": 80, "activity_list": 200}  # attribute -> the longest item kept; 100 items at most (MAX_MEDIA_LIST)
+MEDIA_LIST_KEYS = {"source_list": 80, "activity_list": 200, "sound_mode_list": 80}  # attribute -> the longest item kept; 100 items at most (MAX_MEDIA_LIST)
+HELPER_GROUP_MEMBERS_MAX = 120  # a `group` helper player's `entity_id` attribute (its member list): kept for media_player entities only
 MAX_MEDIA_LIST = 100
 STATE_DOMAINS_SKIP = {"update", "image", "conversation", "zone", "person", "device_tracker", "notify", "tts", "stt", "wake_word", "assist_satellite"}
 
@@ -181,13 +185,15 @@ def scrub_attributes(attrs: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in attrs.items() if k not in SECRET_ATTRS and not _tokenised(v)}
 
 
-def trim_attributes(attrs: dict[str, Any]) -> str:
+def trim_attributes(attrs: dict[str, Any], domain: str | None = None) -> str:
     kept = scrub_attributes({k: v for k, v in (attrs or {}).items() if k in ATTR_ALLOW})
     if "forecast" in kept:
         kept["forecast"] = trim_forecast(kept["forecast"])
     # CR-015: a TV's source / activity lists are far larger than the 4000-character budget of the other attributes and must reach
     # the model whole (they are bounded above instead): taken out first, put back after the budget rule ran on the rest
     media_lists = {k: _media_list(kept.pop(k), n) for k, n in MEDIA_LIST_KEYS.items() if k in kept}
+    if domain == "media_player" and isinstance((attrs or {}).get("entity_id"), list):
+        media_lists["entity_id"] = _media_list(attrs["entity_id"], HELPER_GROUP_MEMBERS_MAX)  # CR-016: the members of a helper group (a shortcut, never joinable)
     text = json.dumps(kept, ensure_ascii=False, default=str)
     if len(text) > 4000:
         kept = {k: kept[k] for k in list(kept)[:10]}
@@ -240,6 +246,7 @@ def upsert_state(conn: sqlite3.Connection, st: dict[str, Any], seen: str | None 
         from . import media_store  # CR-015: the picture URL stays in memory for the artwork proxy, never in the attributes
 
         media_store.note_picture(eid, attrs)
+        media_store.note_features(conn, eid, state, feature_bits(attrs.get("supported_features")))  # CR-016 5.4: the last good mask of an endpoint that was available
     row = conn.execute("SELECT entity_id FROM ha_entities WHERE entity_id = ?", (eid,)).fetchone()
     common = (
         scalar_text(attrs.get("friendly_name")) or "",
@@ -249,7 +256,7 @@ def upsert_state(conn: sqlite3.Connection, st: dict[str, Any], seen: str | None 
         scalar_text(attrs.get("icon")),
         feature_bits(attrs.get("supported_features")),
         state,
-        trim_attributes(attrs),
+        trim_attributes(attrs, domain),
         st.get("last_changed"),
         st.get("last_updated"),
         seen,

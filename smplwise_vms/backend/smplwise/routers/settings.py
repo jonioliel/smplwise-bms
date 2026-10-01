@@ -209,6 +209,9 @@ DEFAULTS: dict[str, str] = {
     # are not settings.
     "multimedia.enabled": "true",
     "multimedia.remote_default": "",
+    # CR-016: the administrator's curation of the favourites / stations / playlists lists - one list for everyone (owner decision 5א). A JSON object
+    # `{kinds_on, items: [{item_ref, hidden, order}], revision}`, read back as an object; written ONLY by PUT /multimedia/favourites (optimistic revision).
+    "multimedia.favourites": "",
 }
 
 SCHEDULE_CLASSES = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door")
@@ -233,7 +236,15 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out["schedules.classes"] = stored_schedule_classes(out["schedules.classes"])
     out["home.widgets"] = home_screen.effective_config(conn)
     out["multimedia.remote_default"] = _stored_remote_default(out["multimedia.remote_default"])
+    out["multimedia.favourites"] = _stored_favourites(conn)
     return out
+
+
+def _stored_favourites(conn: sqlite3.Connection) -> dict[str, Any]:
+    """`multimedia.favourites` as an object (the defaults when nothing was saved or the stored value is corrupt)."""
+    from ..services import media_store
+
+    return media_store.favourites_config(conn)
 
 
 def _stored_remote_default(raw: Any) -> dict[str, Any]:

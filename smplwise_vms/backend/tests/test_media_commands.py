@@ -362,7 +362,7 @@ def test_the_bridge_must_be_paired_and_at_least_0_4_0(settings, monkeypatch):
     calls = seed.pair(c, monkeypatch, version="0.3.1")
     r = send(c, key, "key", key="up")
     assert (r.status_code, code(r)) == (503, "bridge_outdated") and r.json()["user_message"] == "נדרש עדכון של רכיב החיבור"
-    assert c.get("/api/v1/multimedia/status").json()["bridge"] == {"paired": True, "version": "0.3.1", "media_ready": False}
+    assert c.get("/api/v1/multimedia/status").json()["bridge"] == {"paired": True, "version": "0.3.1", "media_ready": False, "players_ready": False}
     secret = c.get("/api/v1/ha/bridge/pairing").json()["pairing_code"]
     from smplwise.services import ha_bridge
 

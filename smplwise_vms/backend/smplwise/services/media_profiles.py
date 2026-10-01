@@ -151,6 +151,28 @@ def text_problem(text: Any) -> str | None:
     return None
 
 
+# CR-016 (players, speakers, groups): what `music_assistant.play_media` may carry. `media_id` is an MA library / provider URI that the SERVER listed
+# (`scheme://id`) - never an address, a file, a local path or a free-form stream; the scheme is not one of the schemes that fetch a URL or read a
+# file. The bridge (custom_components/smplwise_bridge/media_policy.py) carries the same rule and refuses independently; the drift test keeps them equal.
+MA_MEDIA_TYPES: tuple[str, ...] = ("radio", "playlist", "track", "album", "artist")
+MA_ENQUEUE: tuple[str, ...] = ("play", "replace", "next", "add")
+MA_URI_MAX = 300
+BANNED_URI_SCHEMES = frozenset({"http", "https", "file", "ftp", "ftps", "sftp", "ssh", "rtsp", "rtmp", "rtmps", "rtp", "udp", "tcp", "smb", "nfs", "ws", "wss", "data", "javascript", "mms", "url", "builtin"})
+_URI_RE = re.compile(r"^([a-z][a-z0-9+._-]{0,30})://[^\s\x00-\x1f\x7f]{1,280}$", re.I)
+_PLAYER_ENTITY_RE = re.compile(r"^media_player\.[a-z0-9_]{1,200}$")
+
+
+def ma_uri_problem(value: Any) -> str | None:
+    """None when `value` may be played through Music Assistant: an `scheme://id` URI of a library or provider (<= 300 characters, no whitespace or control
+    characters, no `..`), whose scheme does not fetch a URL or read a file. A URL (`http(s)://`), a `file://` path or a bare local path is refused."""
+    if not isinstance(value, str) or not 1 <= len(value) <= MA_URI_MAX:
+        return "media_id"
+    m = _URI_RE.match(value)
+    if m is None or m.group(1).lower() in BANNED_URI_SCHEMES or ".." in value or "%2e%2e" in value.lower():
+        return "media_id"
+    return None
+
+
 def static_refusal(action_id: str, data: dict[str, Any]) -> str | None:
     """The add-on's own context-free check of a media action's arguments (services/ha_bridge.validate_action calls it for
     every `route: "media"` action; the bridge repeats it in media_policy.py): the key code is in a profile table - hence
@@ -182,4 +204,18 @@ def static_refusal(action_id: str, data: dict[str, Any]) -> str | None:
     if action_id == "media_player.select_source":
         value = data.get("source")
         return None if isinstance(value, str) and value.strip() and not has_control_chars(value) else "source"
+    if action_id == "music_assistant.play_media":
+        if data.get("media_type") not in MA_MEDIA_TYPES or data.get("enqueue", "play") not in MA_ENQUEUE:
+            return "media_type"
+        return ma_uri_problem(data.get("media_id"))
+    if action_id == "music_assistant.transfer_queue":
+        source = data.get("source_player")
+        return None if isinstance(source, str) and _PLAYER_ENTITY_RE.match(source) and source != data.get("entity_id") else "source_player"
+    if action_id == "media_player.join":
+        members = data.get("group_members")
+        ok = isinstance(members, list) and all(isinstance(m, str) and _PLAYER_ENTITY_RE.match(m) for m in members) and data.get("entity_id") not in members
+        return None if ok else "group_members"
+    if action_id == "media_player.select_sound_mode":
+        value = data.get("sound_mode")
+        return None if isinstance(value, str) and value.strip() and not has_control_chars(value) else "sound_mode"
     return None

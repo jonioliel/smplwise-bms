@@ -18,6 +18,11 @@ It does two things and nothing else:
    previous, `select_source`, `play_media` (send_key / send_text only), `remote.send_command`, `remote.turn_on` with an activity,
    `webostv.button`, `webostv.select_sound_output` - each independently re-checked by media_policy.py (no power key anywhere, a source
    or activity only from the entity's current lists, no extra arguments, never `remote.turn_off` or `webostv.command`).
+7. `smplwise_bridge.execute` grows the speaker / player / receiver services (0.5.0, CR-016): `media_seek`, `shuffle_set`, `repeat_set`, `select_sound_mode`,
+   `join` / `unjoin`, `music_assistant.play_media` (an MA library / provider URI only - never a URL) and `music_assistant.transfer_queue` - again each
+   re-checked by media_policy.py; announcements, `heos.sign_in`, `sonos.update_alarm`, helper-group management and the `jellyfin` domain never.
+8. `smplwise_bridge.media_query` (0.5.0): a signed READ-ONLY answer - a speaker's queue, or the music library - through Music Assistant's response services
+   (media_query_service.py); the config entry is found inside the bridge and never a parameter.
 """
 from __future__ import annotations
 
@@ -36,8 +41,9 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 
-from .const import CONF_ADDON_URL, CONF_PAIRING_CODE, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_EXECUTE, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION
+from .const import CONF_ADDON_URL, CONF_PAIRING_CODE, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_EXECUTE, SERVICE_MEDIA_QUERY, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION
 from . import media_policy
+from .media_query_service import async_handle_media_query
 from .schedule_service import async_handle_schedule, execute_refusal
 from .signing import Verifier, sign
 from .stream_source_service import async_handle_stream_source
@@ -111,6 +117,26 @@ STREAM_SOURCE_SCHEMA = vol.Schema(
     extra=vol.PREVENT_EXTRA,
 )
 
+# 0.5.0 (CR-016): the music-layer question. Exactly these keys and no extras; the arguments of each query are the closed sets of
+# media_policy.query_refusal. NO defaults (the signature covers every key but ts / nonce / sig). Never a config entry id.
+MEDIA_QUERY_SCHEMA = vol.Schema(
+    {
+        vol.Required("user_id"): cv.string,
+        vol.Required("query"): cv.string,
+        vol.Optional("entity_id"): cv.string,
+        vol.Optional("media_type"): cv.string,
+        vol.Optional("favorite"): bool,
+        vol.Optional("limit"): int,
+        vol.Optional("offset"): int,
+        vol.Optional("order_by"): cv.string,
+        vol.Required("request_id"): cv.string,
+        vol.Required("ts"): vol.Coerce(int),
+        vol.Required("nonce"): cv.string,
+        vol.Required("sig"): cv.string,
+    },
+    extra=vol.PREVENT_EXTRA,
+)
+
 # Only these may ever be executed, whatever the add-on asks for (defence in depth: the add-on has the same list).
 ALLOWED_SERVICES = {
     ("light", "turn_on"), ("light", "turn_off"), ("switch", "turn_on"), ("switch", "turn_off"), ("fan", "turn_on"), ("fan", "turn_off"),
@@ -137,6 +163,10 @@ ALLOWED_SERVICES = {
     ("media_player", "volume_up"), ("media_player", "volume_down"), ("media_player", "media_play_pause"), ("media_player", "media_next_track"),
     ("media_player", "media_previous_track"), ("media_player", "select_source"), ("media_player", "play_media"),
     ("remote", "send_command"), ("remote", "turn_on"), ("webostv", "button"), ("webostv", "select_sound_output"),
+    # 0.5.0 (CR-016, speakers / players / receivers): re-validated by media_policy.py - an MA library URI only (never a URL), a join between players of ONE
+    # grouping layer that all report GROUPING now, a transfer between two Music Assistant players, no announcement, no account or alarm service.
+    ("media_player", "media_seek"), ("media_player", "shuffle_set"), ("media_player", "repeat_set"), ("media_player", "select_sound_mode"),
+    ("media_player", "join"), ("media_player", "unjoin"), ("music_assistant", "play_media"), ("music_assistant", "transfer_queue"),
 }
 
 # 0.2.6 (CR-010): Home Assistant's own translation keys for a refused alarm code (alarm_control_panel and the
@@ -298,6 +328,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.services.async_register(DOMAIN, SERVICE_STREAM_SOURCE, stream_source, schema=STREAM_SOURCE_SCHEMA, supports_response=SupportsResponse.ONLY)
 
+    async def media_query(call: ServiceCall) -> ServiceResponse:
+        """0.5.0 (CR-016): a signed READ-ONLY answer about a speaker's music layer - its queue, or the library (see media_query_service.py). Trimmed; the
+        Music Assistant config entry is found here and never a parameter."""
+        return await async_handle_media_query(hass, verifier, dict(call.data))
+
+    hass.services.async_register(DOMAIN, SERVICE_MEDIA_QUERY, media_query, schema=MEDIA_QUERY_SCHEMA, supports_response=SupportsResponse.ONLY)
+
     async def push_directory(_now: Any = None) -> int:
         users = []
         for u in await hass.auth.async_get_users():
@@ -334,5 +371,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_remove(DOMAIN, SERVICE_SET_AREA)
     hass.services.async_remove(DOMAIN, SERVICE_SCHEDULE)
     hass.services.async_remove(DOMAIN, SERVICE_STREAM_SOURCE)
+    hass.services.async_remove(DOMAIN, SERVICE_MEDIA_QUERY)
     hass.services.async_remove(DOMAIN, SERVICE_SYNC)
     return True
