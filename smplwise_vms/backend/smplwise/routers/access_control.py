@@ -392,12 +392,19 @@ class CommandEnvelope(BaseModel):
     expires_at: str = Field(min_length=1, max_length=40)
 
 
+ORIGIN_RE = re.compile(r"notification:[A-Za-z0-9_-]{1,64}")
+
+
 class ReleaseBody(CommandEnvelope):
     # the relay (`integrated_locks[].physical_index`); may be left out when the station has exactly one
     lock: StrictInt | None = Field(None, ge=1, le=64)
     # the UI's confirmation step, stated explicitly (the same rule as a sensitive HA action's `confirmation_grant`).
     # Any JSON value is accepted here and only `true` confirms, so a wrong value is an audited refusal, not a bare 422.
     confirmed: Any = None
+    # CR-018: where the release was started from - `notification:<id>` when the in-app confirmation was reached through a notification's
+    # "open door" deep link. Recorded in the audit rows only; it changes nothing about the permission, the confirmation or the send. Any other
+    # value is ignored (never refused), so an older client behaves exactly as before.
+    origin: Any = None
 
 
 class CallBody(CommandEnvelope):
@@ -674,6 +681,8 @@ def release(request: Request, station_id: str, principal: Principal = Depends(_r
     if lock is None:
         lock = 1  # no copy to check against: WisKey's own default relay (panel.ts unlock(station, physical = 1))
     act.details["lock"] = lock
+    if isinstance(body.origin, str) and ORIGIN_RE.fullmatch(body.origin):
+        act.details["origin"] = body.origin  # CR-018: started from a notification's deep link (audit only)
     if body.confirmed is not True:
         raise act.refuse(ApiError(409, "confirmation_required", "שחרור דלת דורש אישור מפורש."))
     entry = RELAYS.acquire((station_id, lock))

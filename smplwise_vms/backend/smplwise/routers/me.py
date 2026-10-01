@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import queue
 import sqlite3
 import time
 
@@ -17,7 +18,7 @@ from ..errors import forbidden, validation
 from ..mode import installation_mode
 from ..rbac import INSTALLATION, Principal, bindings_of, effective_permissions, has_any_binding, permissions_anywhere, permissions_fingerprint
 from ..services import revocation
-from ..services import user_prefs
+from ..services import user_events, user_prefs
 
 router = APIRouter()
 
@@ -171,10 +172,17 @@ async def me_ws(websocket: WebSocket) -> None:
             await websocket.receive_text()
 
     listen = asyncio.create_task(reader())
+    frames = user_events.subscribe(principal.user_id)  # CR-018: notification / notification_state / notify_summary for THIS user only
     try:
         await send("hello", state)
         while not listen.done():
             await asyncio.sleep(1)
+            while True:
+                try:
+                    frame = frames.get_nowait()
+                except queue.Empty:
+                    break
+                await send(frame["type"], frame["payload"])
             now = time.time()
             moved = revocation.generation(principal.user_id) != gen
             if moved or now - checked >= ME_RECHECK_S:
@@ -191,3 +199,4 @@ async def me_ws(websocket: WebSocket) -> None:
         pass
     finally:
         listen.cancel()
+        user_events.unsubscribe(principal.user_id, frames)

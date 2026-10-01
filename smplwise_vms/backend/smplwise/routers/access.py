@@ -101,6 +101,11 @@ PERMISSION_LABELS: dict[str, str] = {
     # system_admin - the owner grants it to one person through a custom role plus a binding. The server checks it on every
     # write AND every read: a stored value of a user who lost it is ignored (services/home_screen.py apply_personal).
     "screen.personalize": "התאמה אישית של המסך שלי",
+    # CR-018 (התראות, owner decision 4b 2026-10-01): notify.manage is the ONE permission over what is sent - the settings tab "התראות": per-source
+    # policies with recipients and channels, quiet hours and the pass-through matrix, escalation, lock-screen detail, retention, outgoing mail, and
+    # everyone's delivery log. Installation scope, held by system_admin only, in sensitive_permissions_not_implied (a custom role grants it to one
+    # person by naming it among its sensitive permissions). Receiving a notification needs NO permission - a user gets only what they may see.
+    "notify.manage": "ניהול התראות: מקורות, נמענים, ערוצים, שעות שקט, הסלמה, דואר יוצא ויומן מסירה",
     # CR-015 (מולטימדיה · מסכים ושלט, docs/architecture/MEDIA_API.md 6 / CR 6.1): six permissions, all scoped like devices.control (the
     # screen's anchor entity placement; HA areas and floors are never a scope). media.read (viewer and above, not kiosk) sees the
     # page, the cards and the state; media.control (operator and above) sends volume, keys, transport and text; media.power (operator
