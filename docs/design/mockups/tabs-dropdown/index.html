@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SmplWise Arx - tabs vs dropdowns mockup</title>
+<style>
+/* ===== Tokens: the real ones, copied from frontend/src/styles (tokens.css "SW A" block, devices-themes.ts glass light/dark, media-glass.ts) =====
+   security / settings: SW A solid look (light only in the product today; the dark block is DERIVED from the device dark palette - flagged in the README)
+   multimedia: the glass look, light + dark exactly as the device theme layer defines them. */
+:root{ --font:"Heebo","Inter",-apple-system,BlinkMacSystemFont,system-ui,"Segoe UI","Noto Sans Hebrew",Arial,sans-serif; }
+.frame{
+  --t-fast:120ms; --t-med:200ms; --ease:cubic-bezier(.2,0,0,1);
+  --hit:44px; --live:#22c55e; --warn:#f59e0b; --danger:#ef4444; --blur:none; --sheen:none;
+}
+@media (prefers-reduced-motion: reduce){ .frame{ --t-fast:0ms; --t-med:0ms; } }
+/* SW A light (security, settings) */
+.frame[data-theme=light][data-screen=security], .frame[data-theme=light][data-screen=settings]{
+  --bg:#f5f7fb; --surface:#fff; --surface2:#f7f9fc; --surface3:#eef2f8; --border:#e7ebf2; --border-strong:#e1e6ef;
+  --text:#22314c; --text2:#5b6a85; --text3:#8a97ae; --accent:#2767ed; --accent-soft:#edf3ff; --accent-text:#2767ed;
+  --thumb:#fff; --thumb-shadow:0 1px 2px rgba(16,24,40,.04); --sheet:rgba(255,255,255,.88); --sheet-blur:blur(24px) saturate(1.6);
+  --shadow3:0 14px 36px rgba(34,49,76,.14); --r-ctl:12px; --chip-bg:#fff; --inv:#fff; --tilebg:#dfe6f2;
+}
+/* derived dark for SW A (NOT in the product yet): device dark palette values */
+.frame[data-theme=dark][data-screen=security], .frame[data-theme=dark][data-screen=settings]{
+  --bg:#141416; --surface:#1c1c1e; --surface2:#242427; --surface3:#2c2c2e; --border:rgba(255,255,255,.13); --border-strong:rgba(255,255,255,.24);
+  --text:#f5f5f7; --text2:rgba(235,235,245,.72); --text3:rgba(235,235,245,.56); --accent:#0a84ff; --accent-soft:rgba(10,132,255,.26); --accent-text:#64a8ff;
+  --thumb:rgba(118,118,128,.5); --thumb-shadow:0 1px 4px rgba(0,0,0,.35); --sheet:rgba(22,22,25,.84); --sheet-blur:blur(40px) saturate(1.8);
+  --shadow3:0 26px 70px rgba(0,0,0,.6); --r-ctl:12px; --chip-bg:#242427; --inv:#1c1c1e; --tilebg:#2a2f3a;
+}
+/* glass light (multimedia): --dv-* default light + --mm-* light */
+.frame[data-theme=light][data-screen=media]{
+  --bg:radial-gradient(1100px 560px at 85% -12%, rgba(255,184,86,.2), transparent 60%), #eef0f5;
+  --surface:rgba(255,255,255,.64); --surface2:rgba(255,255,255,.5); --surface3:rgba(120,120,128,.14); --border:rgba(60,60,67,.12); --border-strong:rgba(60,60,67,.22);
+  --text:#1c1c1e; --text2:#4c4c50; --text3:#6e6e73; --accent:#007aff; --accent-soft:rgba(0,122,255,.13); --accent-text:#0062cc;
+  --thumb:#fff; --thumb-shadow:0 1px 4px rgba(0,0,0,.18); --sheet:rgba(248,250,253,.84); --sheet-blur:blur(40px) saturate(1.8);
+  --shadow3:0 24px 64px rgba(15,23,42,.26); --r-ctl:999px; --chip-bg:rgba(255,255,255,.64); --inv:#fff; --blur:blur(28px) saturate(1.7);
+  --sheen:linear-gradient(180deg,rgba(255,255,255,.42),rgba(255,255,255,0) 46%); --tilebg:#dde3ee;
+}
+.frame[data-theme=dark][data-screen=media]{
+  --bg:radial-gradient(1200px 600px at 80% -10%, rgba(255,184,86,.22), transparent 60%), #0e0e10;
+  --surface:rgba(28,28,30,.72); --surface2:rgba(44,44,46,.62); --surface3:rgba(235,235,245,.14); --border:rgba(255,255,255,.13); --border-strong:rgba(255,255,255,.24);
+  --text:#f5f5f7; --text2:rgba(235,235,245,.72); --text3:rgba(235,235,245,.56); --accent:#0a84ff; --accent-soft:rgba(10,132,255,.26); --accent-text:#64a8ff;
+  --thumb:rgba(118,118,128,.5); --thumb-shadow:0 1px 4px rgba(0,0,0,.35); --sheet:rgba(22,22,25,.84); --sheet-blur:blur(40px) saturate(1.8);
+  --shadow3:0 26px 70px rgba(0,0,0,.6); --r-ctl:999px; --chip-bg:rgba(44,44,46,.62); --inv:#1c1c1e; --blur:blur(28px) saturate(1.7);
+  --sheen:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,0) 46%); --tilebg:#2a2f3a;
+}
+
+/* ===== page chrome (not part of the product) ===== */
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font);background:#e9ecf2;color:#1c1c1e;font-size:14px;line-height:1.5}
+body.dark{background:#0a0a0c;color:#f5f5f7}
+.bar{position:sticky;top:0;z-index:100;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:10px 20px;background:#111827;color:#fff}
+.bar h1{font-size:15px;margin:0 8px 0 0}
+.grp{display:inline-flex;gap:2px;background:#1f2937;border-radius:10px;padding:3px}
+.grp button{border:0;background:transparent;color:#cbd5e1;font:inherit;font-size:13px;padding:5px 12px;border-radius:8px;cursor:pointer}
+.grp button[aria-pressed=true]{background:#fff;color:#111827;font-weight:600}
+.grp button:focus-visible{outline:2px solid #60a5fa;outline-offset:1px}
+.lbl{font-size:12px;color:#94a3b8}
+main{padding:20px;display:flex;flex-wrap:wrap;gap:26px 30px;justify-content:center;align-items:flex-start}
+.fw h3{margin:0 0 8px;font-size:14px}
+.fw h3 small{font-weight:400;opacity:.7;margin-inline-start:6px}
+.fw .stat{margin-top:8px;font-size:12.5px;opacity:.85;font-variant-numeric:tabular-nums}
+section.panel{width:100%;max-width:1200px;background:#fff;color:#1c1c1e;border-radius:14px;padding:16px 20px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+body.dark section.panel{background:#1c1c1e;color:#f5f5f7}
+section.panel h2{margin:0 0 8px;font-size:16px}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:6px 10px;border-bottom:1px solid rgba(128,128,128,.25);text-align:start}
+td.n{font-weight:700} td.good{color:#16a34a} td.bad{color:#dc2626}
+
+/* ===== the device frame ===== */
+.frame{position:relative;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;border-radius:28px;border:1px solid rgba(128,128,128,.4);box-shadow:0 12px 34px rgba(0,0,0,.18)}
+.frame[data-w="390"]{width:390px;height:780px}
+.frame[data-w="820"]{width:820px;height:620px;border-radius:18px}
+.frame[data-fit="auto"]{height:auto}
+.shell{display:flex;height:100%}
+.rail{display:none;flex:none;inline-size:70px;background:var(--surface);border-inline-end:1px solid var(--border);flex-direction:column;align-items:center;gap:6px;padding:12px 0}
+.frame[data-w="820"] .rail{display:flex}
+.rail button, .bottom button{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10.5px;color:var(--text2)}
+.rail button{inline-size:56px;block-size:54px;border-radius:12px}
+.rail button[aria-current=page],.bottom button[aria-current=page]{color:var(--accent-text);background:var(--accent-soft)}
+.rail button:focus-visible,.bottom button:focus-visible{outline:2px solid var(--accent)}
+.main{flex:1;min-inline-size:0;display:flex;flex-direction:column}
+.scroller{flex:1;min-block-size:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;position:relative}
+.bottom{flex:none;block-size:50px;display:flex;background:var(--surface);border-block-start:1px solid var(--border)}
+.frame[data-w="820"] .bottom{display:none}
+.bottom button{flex:1;block-size:50px;border-radius:0}
+.avatar{inline-size:24px;block-size:24px;border-radius:50%;background:var(--surface3);color:var(--text2);display:grid;place-items:center;font-size:12px;font-weight:600}
+svg.i{inline-size:18px;block-size:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+svg.i.sm{inline-size:14px;block-size:14px}
+
+.hdr{block-size:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+.frame[data-w="820"] .hdr{padding:0 24px;block-size:56px}
+.hdr h1{margin:0;font-size:24px;font-weight:700;letter-spacing:-.03em}
+.float{display:inline-flex;align-items:center;block-size:34px;padding-inline:4px;border-radius:999px;background:var(--surface);border:1px solid var(--border);backdrop-filter:var(--blur)}
+.float button{all:unset;position:relative;box-sizing:border-box;inline-size:28px;block-size:28px;border-radius:50%;display:grid;place-items:center;color:var(--text2);cursor:pointer}
+.float button::after{content:"";position:absolute;inset:-8px}
+.float button:focus-visible{outline:2px solid var(--accent)}
+.float .sd{inline-size:28px;block-size:28px;display:grid;place-items:center}.float .sd i{inline-size:9px;block-size:9px;border-radius:50%;background:var(--live)}
+
+/* chrome = everything between the header and the first content item */
+.chrome{position:sticky;top:0;z-index:20;padding:0 16px;display:flex;flex-direction:column}
+.frame[data-w="820"] .chrome{padding:0 24px}
+.chrome.stuck{background:var(--surface);backdrop-filter:var(--blur)}
+.content{padding:10px 16px 20px;display:grid;gap:10px}
+.frame[data-w="820"] .content{padding:12px 24px 24px;grid-template-columns:repeat(2,1fr)}
+.content.cols{grid-template-columns:repeat(var(--cols,1),1fr)}
+.row{display:flex;align-items:center;gap:8px;min-inline-size:0}
+.row.h44{block-size:44px}.row.h40{block-size:40px}
+
+/* --- sw-tabs variant "pill" (frontend/src/components/sw-tabs.ts), track 34, 44 px hit area, row 44 --- */
+.tabs-pill{display:inline-flex;gap:2px;padding:0 3px;block-size:34px;align-items:center;background:var(--surface3);border-radius:12px;max-inline-size:100%;overflow-x:auto;scrollbar-width:none}
+.tabs-pill button{all:unset;position:relative;box-sizing:border-box;cursor:pointer;block-size:28px;padding:0 12px;border-radius:9px;display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:500;color:var(--text2);white-space:nowrap;transition:background var(--t-fast) var(--ease),color var(--t-fast) var(--ease)}
+.tabs-pill button::after{content:"";position:absolute;inset:-8px 0}
+.tabs-pill button[aria-pressed=true]{background:var(--thumb);box-shadow:var(--thumb-shadow);color:var(--accent-text);font-weight:600}
+.tabs-pill button:focus-visible{outline:2px solid var(--accent)}
+.cnt{font-size:11px;color:var(--text3)}[aria-pressed=true] .cnt{color:var(--accent-text)}
+.cnt.alert{color:var(--danger);font-weight:700}
+/* --- variant "underline-compact": 32 px row, 44 px hit area overlapping the space below --- */
+.tabs-uc{position:relative;display:flex;block-size:32px;margin-block-end:0;overflow-x:auto;scrollbar-width:none}
+.tabs-uc::after{content:"";position:absolute;inset-inline:0;inset-block-start:31px;block-size:1px;background:var(--border)}
+.tabs-uc button{all:unset;position:relative;box-sizing:border-box;cursor:pointer;block-size:30px;padding:0 10px;display:inline-flex;align-items:flex-start;padding-block-start:6px;gap:5px;font-size:12.5px;font-weight:500;color:var(--text2);white-space:nowrap;flex:none}
+.tabs-uc button::before{content:"";position:absolute;inset:0 0 -14px}
+.tabs-uc button[aria-pressed=true]{color:var(--accent-text);font-weight:600}
+.tabs-uc button[aria-pressed=true]::after{content:"";position:absolute;inset-inline:0;inset-block-start:29px;block-size:2px;background:var(--accent);z-index:1}
+.tabs-uc button:focus-visible{outline:2px solid var(--accent);border-radius:6px}
+/* --- area chips of the multimedia header (.rc in styles/media-page.ts) --- */
+.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:6px 0;-webkit-mask-image:linear-gradient(90deg,transparent,#000 14px,#000 calc(100% - 14px),transparent);mask-image:linear-gradient(90deg,transparent,#000 14px,#000 calc(100% - 14px),transparent);flex:1;min-inline-size:0}
+.rc{all:unset;box-sizing:border-box;flex:none;block-size:38px;padding-inline:17px;border-radius:999px;border:1px solid var(--border);background:var(--chip-bg);backdrop-filter:var(--blur);font-size:14px;font-weight:500;color:var(--text2);cursor:pointer;display:inline-flex;align-items:center;white-space:nowrap}
+.rc[aria-pressed=true]{background:var(--text);color:var(--inv);border-color:transparent;font-weight:600}
+.rc:focus-visible,.fb:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.fb{all:unset;box-sizing:border-box;flex:none;position:relative;inline-size:40px;block-size:40px;border-radius:999px;border:1px solid var(--border);background:var(--sheen),var(--surface);backdrop-filter:var(--blur);display:grid;place-items:center;color:var(--text2);cursor:pointer}
+/* --- status segmented (media) and search field --- */
+.seg{display:flex;inline-size:100%;block-size:34px;padding:3px;gap:2px;background:var(--surface3);border-radius:var(--r-ctl);align-items:center}
+.seg button{all:unset;position:relative;box-sizing:border-box;flex:1;min-inline-size:0;block-size:28px;border-radius:calc(var(--r-ctl) - 3px);display:flex;align-items:center;justify-content:center;gap:4px;font-size:12.5px;font-weight:500;color:var(--text2);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background var(--t-fast) var(--ease)}
+.seg button::after{content:"";position:absolute;inset:-8px 0}
+.seg button[aria-pressed=true]{background:var(--thumb);box-shadow:var(--thumb-shadow);color:var(--text);font-weight:600}
+.seg button:focus-visible{outline:2px solid var(--accent)}
+.seg.compact{block-size:32px}.seg.compact button{block-size:26px;padding-inline:4px}
+.search{display:flex;align-items:center;gap:8px;block-size:38px;padding-inline:14px;border-radius:var(--r-ctl);background:var(--sheen),var(--surface);backdrop-filter:var(--blur);border:1px solid var(--border);color:var(--text2);inline-size:100%}
+.search input{border:0;background:transparent;outline:none;flex:1;min-inline-size:0;font:inherit;font-size:13.5px;color:var(--text)}
+.search:focus-within{outline:2px solid var(--accent);outline-offset:1px}
+/* --- the security controls row: chips (A) --- */
+.ctl{all:unset;position:relative;box-sizing:border-box;block-size:36px;padding-inline:9px;min-inline-size:36px;justify-content:center;flex:0 1 auto;border-radius:10px;border:1px solid var(--border);background:var(--surface);display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:var(--text);cursor:pointer;white-space:nowrap}
+.ctl::after{content:"";position:absolute;inset:-4px}
+.ctl:focus-visible{outline:2px solid var(--accent)}
+.ctl small{color:var(--text3);font-size:11px;font-weight:400}
+.sp{flex:1}
+
+/* ===== the new control: dropdown chip (visual 32 px, hit area 44 px) ===== */
+.dd{all:unset;position:relative;box-sizing:border-box;flex:1 1 0;min-inline-size:0;block-size:32px;padding-inline:10px 8px;border-radius:var(--r-ctl);border:1px solid var(--border);background:var(--sheen),var(--chip-bg);backdrop-filter:var(--blur);display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--text);cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.dd::after{content:"";position:absolute;inset:-6px -2px}
+.dd .v{flex:1;min-inline-size:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:start}
+.dd .ch{transition:transform var(--t-med) var(--ease);color:var(--text3)}
+.dd[aria-expanded=true]{background:var(--surface);border-color:var(--accent)}
+.dd[aria-expanded=true] .ch{transform:rotate(180deg)}
+.dd:focus-visible,.ib:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.dd .pfx{color:var(--text3)}
+.adot{inline-size:7px;block-size:7px;border-radius:50%;background:var(--danger);flex:none;box-shadow:0 0 0 2px var(--chip-bg)}
+.adot.warn{background:var(--warn)}
+.ib{all:unset;position:relative;box-sizing:border-box;flex:none;inline-size:32px;block-size:32px;border-radius:var(--r-ctl);border:1px solid var(--border);background:var(--sheen),var(--chip-bg);backdrop-filter:var(--blur);display:grid;place-items:center;color:var(--text2);cursor:pointer}
+.ib::after{content:"";position:absolute;inset:-6px}
+.ib .adot{position:absolute;inset-block-start:-2px;inset-inline-end:-2px}
+.ib[aria-expanded=true]{border-color:var(--accent);color:var(--accent-text)}
+
+/* the Bubble-like popover (the glass sheet: --mm-sheet-surface + 40px blur) */
+.layer{position:absolute;inset:0;pointer-events:none;z-index:60}
+.pop{position:absolute;pointer-events:auto;background:var(--sheet);-webkit-backdrop-filter:var(--sheet-blur);backdrop-filter:var(--sheet-blur);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow3);padding:6px;max-block-size:60%;overflow:auto;scrollbar-width:thin;animation:pin var(--t-med) var(--ease);transform-origin:top}
+@keyframes pin{from{opacity:0;transform:translateY(-6px) scale(.97)}to{opacity:1;transform:none}}
+.lb{outline:none}
+.grp-h{padding:8px 12px 2px;font-size:11px;font-weight:600;color:var(--text3)}
+.opt{min-block-size:44px;padding:0 12px;border-radius:12px;display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text);cursor:pointer}
+.opt .t{flex:1}
+.opt[data-active=true]{background:var(--surface3)}
+.opt[aria-selected=true]{color:var(--accent-text);font-weight:600}
+.opt .ok{visibility:hidden;color:var(--accent-text)}.opt[aria-selected=true] .ok{visibility:visible}
+.opt .c{font-size:12px;color:var(--text3)}.opt .c.alert{color:var(--danger);font-weight:700}
+.panel-pop{padding:10px;display:flex;flex-direction:column;gap:12px;min-inline-size:260px}
+.panel-pop .fl{font-size:12px;color:var(--text2);margin-block-end:4px;font-weight:600}
+.step{display:flex;align-items:center;gap:6px}
+.step button{all:unset;inline-size:44px;block-size:44px;border-radius:12px;background:var(--surface3);display:grid;place-items:center;cursor:pointer;font-size:18px;color:var(--text)}
+.step button:focus-visible{outline:2px solid var(--accent)}
+.step output{min-inline-size:44px;text-align:center;font-weight:600;font-variant-numeric:tabular-nums}
+
+/* ===== content fixtures (no real footage) ===== */
+.item{border-radius:16px;background:var(--surface);border:1px solid var(--border);backdrop-filter:var(--blur);overflow:hidden}
+.card{display:flex;align-items:center;gap:12px;padding:10px 12px;min-block-size:68px}
+.cover{inline-size:48px;block-size:48px;border-radius:12px;flex:none;background:linear-gradient(135deg,hsl(var(--h) 60% 62%),hsl(calc(var(--h) + 40) 55% 45%))}
+.card b{display:block;font-size:14px}.card small{color:var(--text2);font-size:12.5px}
+.badge{margin-inline-start:auto;font-size:11.5px;padding:2px 9px;border-radius:999px;background:var(--surface3);color:var(--text2);display:inline-flex;align-items:center;gap:5px}
+.badge i{inline-size:7px;block-size:7px;border-radius:50%;background:var(--text3)}.badge.on i{background:var(--live)}.badge.na i{background:var(--warn)}
+.cam{position:relative;aspect-ratio:16/9;background:linear-gradient(150deg,hsl(var(--h) 25% 38%),hsl(calc(var(--h) + 30) 30% 22%));display:flex;align-items:flex-end;padding:8px 10px;color:#fff;font-size:12.5px;font-weight:600}
+.cam::before{content:"דוגמה";position:absolute;inset-block-start:8px;inset-inline-end:10px;font-size:10px;opacity:.7;font-weight:400}
+.cam .lv{position:absolute;inset-block-start:8px;inset-inline-start:10px;font-size:10px;background:rgba(0,0,0,.45);border-radius:6px;padding:1px 6px}
+.empty{padding:22px;text-align:center;color:var(--text2);font-size:13px}
+
+/* settings screen */
+.set{padding:0 16px 20px;display:flex;flex-direction:column;gap:12px}
+.frame[data-w="820"] .set{padding:0 24px 24px}
+.sc{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px}
+.sc h4{margin:0 0 2px;font-size:15px}.sc p{margin:0 0 10px;font-size:12.5px;color:var(--text2)}
+.radios{display:grid;gap:8px}
+.rd{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:10px;min-block-size:44px;padding:6px 12px;border-radius:12px;border:1px solid var(--border);background:var(--surface2)}
+.rd[aria-checked=true]{border-color:var(--accent);background:var(--accent-soft)}
+.rd .dot{inline-size:18px;block-size:18px;border-radius:50%;border:2px solid var(--border-strong);flex:none;display:grid;place-items:center}
+.rd[aria-checked=true] .dot{border-color:var(--accent)}.rd[aria-checked=true] .dot::after{content:"";inline-size:8px;block-size:8px;border-radius:50%;background:var(--accent)}
+.rd b{font-size:13.5px}.rd small{display:block;color:var(--text2);font-size:12px}
+.rd:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.prev{display:flex;justify-content:center;border:1px solid var(--border);border-radius:14px;overflow:hidden;position:relative;block-size:236px;background:var(--bg)}
+.prev .frame{zoom:.72;border-radius:0;border:0;box-shadow:none;inline-size:390px;block-size:330px}
+.savebar{display:flex;gap:8px;justify-content:flex-end}
+.btn{all:unset;box-sizing:border-box;cursor:pointer;min-block-size:44px;padding:0 18px;border-radius:12px;background:var(--accent);color:#fff;font-size:13.5px;font-weight:600;display:inline-flex;align-items:center}
+.btn.sec{background:var(--surface3);color:var(--text)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sr{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<div class="bar" role="toolbar" aria-label="בקרות המוקאפ">
+  <h1>לשוניות מול תפריטים · מוקאפ</h1>
+  <span class="lbl">מסך</span><span class="grp" data-g="screen"></span>
+  <span class="lbl">רוחב</span><span class="grp" data-g="w"></span>
+  <span class="lbl">ערכה</span><span class="grp" data-g="theme"></span>
+</div>
+<main id="main"></main>
+<section class="panel" id="meas" aria-live="polite"></section>
+<section class="panel" id="taps"></section>
+<script>
+'use strict';
+/* ---------- tiny helpers ---------- */
+const $ = (s, r=document) => r.querySelector(s);
+const el = (tag, cls, attrs={}) => { const e=document.createElement(tag); if(cls) e.className=cls; for(const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+const ICON = {
+  chev:'<path d="m6 9 6 6 6-6"/>', search:'<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>', tune:'<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
+  full:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>', check:'<path d="m5 12 4.5 4.5L19 7"/>', pin:'<path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.800 12 21 12 21z"/><circle cx="12" cy="9.500" r="2.500"/>',
+  layers:'<path d="m12 3 9 5-9 5-9-5 9-5z"/><path d="m3 13 9 5 9-5"/>', eye:'<path d="M2 12s3.500-6.500 10-6.500S22 12 22 12s-3.500 6.500-10 6.500S2 12 2 12z"/><circle cx="12" cy="12" r="2.800"/>',
+  home:'<path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/>', shield:'<path d="M12 3 5 6v6c0 4.500 3 7.500 7 9 4-1.500 7-4.500 7-9V6z"/>', speaker:'<rect x="6" y="3" width="12" height="18" rx="3"/><circle cx="12" cy="14.500" r="3"/><circle cx="12" cy="7.500" r=".8"/>',
+  map:'<path d="m3 6 6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/>', gear:'<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.600 5.600l2.100 2.100M16.300 16.300l2.100 2.100M5.600 18.400l2.100-2.100M16.300 7.700l2.100-2.100"/>',
+};
+const ic = (n, cls='') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
+
+/* ---------- fixtures (invented; no real cameras, names or footage) ---------- */
+const MEDIA = {
+  devices: [
+    {k:'screens',n:'טלוויזיה סלון',a:'living',s:'on',now:'ערוץ חדשות'},{k:'screens',n:'מסך מטבח',a:'kitchen',s:'off',now:'כבוי'},
+    {k:'screens',n:'טלוויזיה חדר שינה',a:'master',s:'on',now:'סרט'},{k:'screens',n:'מסך חדר ילדים',a:'kids',s:'na',now:'לא זמין'},{k:'screens',n:'מקרן סלון',a:'living',s:'off',now:'כבוי'},
+    {k:'players',n:'רמקול סלון',a:'living',s:'on',now:'פלייליסט שקט'},{k:'players',n:'רמקול מטבח',a:'kitchen',s:'on',now:'רדיו'},{k:'players',n:'רמקול חדר שינה',a:'master',s:'off',now:'כבוי'},{k:'players',n:'רמקול חדר ילדים',a:'kids',s:'na',now:'לא זמין'},
+    {k:'groups',n:'כל הבית',a:'living',s:'on',now:'4 נגנים'},{k:'groups',n:'קומת קרקע',a:'living',s:'off',now:'2 נגנים'},{k:'groups',n:'קומה א׳',a:'master',s:'off',now:'2 נגנים'},
+  ],
+  sections:[{id:'screens',label:'מסכים'},{id:'players',label:'נגנים ורמקולים'},{id:'groups',label:'קבוצות'}],
+  areas:[{id:'all',label:'הכל'},{group:'קומת קרקע',items:[{id:'living',label:'סלון'},{id:'kitchen',label:'מטבח'}]},{group:'קומה א׳',items:[{id:'master',label:'חדר שינה מאסטר'},{id:'kids',label:'חדר ילדים'}]}],
+  status:[{id:'all',label:'הכל'},{id:'on',label:'פועלים'},{id:'off',label:'כבויים'},{id:'na',label:'לא זמינים',alert:'warn'}],
+};
+const SEC = {
+  sections:[{id:'live',label:'לייב'},{id:'investigate',label:'חקירה'},{id:'alarm',label:'אזעקה',count:6,alert:true}],
+  subs:{
+    live:[{id:'snap',label:'תמונת מצב'},{id:'all',label:'כל המצלמות'},{id:'saved',label:'תצוגות שמורות'}],
+    investigate:[{id:'timeline',label:'ציר זמן'},{id:'search',label:'חיפוש'},{id:'cases',label:'תיקים'},{id:'events',label:'אירועים'},{id:'rules',label:'כללים'}],
+    alarm:[{id:'state',label:'מצב'},{id:'zones',label:'אזורים'},{id:'log',label:'יומן',count:6,alert:true}],
+  },
+  cams:['כניסה ראשית','חניה','לובי','מעלית','מחסן','גג','חצר אחורית','שער'],
+};
+const QUALITY=[{id:'low',label:'נמוכה'},{id:'mid',label:'בינונית'},{id:'high',label:'גבוהה'}];
+
+/* ---------- state per frame ---------- */
+function initState(screen, variant, w, theme){
+  return {screen, variant, w, theme, section: screen==='media'?'screens':'live', area:'all', status:'all', q:'',
+    sub:{live:'all',investigate:'timeline',alarm:'state'}, quality:'high', cams:32, cols:1, fid:null, setTab:'tabs'};
+}
+/* The hybrid rule (variant C): <=3 items -> segmented, 4+ (or a long list such as floors/areas) -> dropdown */
+const kindFor = (variant, items, long=false) => variant==='A' ? 'tabs' : variant==='B' ? 'dropdown' : (items.length<=3 && !long ? 'seg' : 'dropdown');
+
+/* ---------- popover machinery (listbox / panel) ---------- */
+function closePop(f, ret){
+  const layer = f.querySelector('.layer'); const open = f._open;
+  if(!open) return;
+  f._open=null; open.pop.remove(); open.btn.setAttribute('aria-expanded','false'); open.btn.removeAttribute('aria-controls');
+  document.removeEventListener('pointerdown', open.out, true);
+  if(ret) open.btn.focus();
+}
+function place(f, btn, pop){
+  const fr=f.getBoundingClientRect(), b=btn.getBoundingClientRect(), z=getComputedStyle(f).zoom||1;
+  const fw=fr.width, W=Math.min(Math.max(b.width, 240), fw-16);
+  pop.style.width=W+'px';
+  let left=(b.right-fr.left)-W;               // RTL: the popover grows from the chip's start edge
+  left=Math.max(8, Math.min(left, fw-W-8));
+  pop.style.left=left+'px';
+  const top=b.bottom-fr.top+6; pop.style.top=top+'px';
+  const room=fr.height-top-8; pop.style.maxHeight=Math.max(160, room)+'px';
+}
+function openPop(f, btn, pop, role){
+  closePop(f,false);
+  f.querySelector('.layer').appendChild(pop);
+  btn.setAttribute('aria-expanded','true'); btn.setAttribute('aria-controls', pop.id);
+  place(f, btn, pop);
+  const out = e => { if(!pop.contains(e.target) && !btn.contains(e.target)) closePop(f,false); };
+  document.addEventListener('pointerdown', out, true);
+  f._open={btn,pop,out};
+}
+function listbox(f, btn, {items, value, label, onPick}){
+  const pop=el('div','pop'); pop.id='pop'+Math.random().toString(36).slice(2,7);
+  const lb=el('div','lb',{role:'listbox','aria-label':label,tabindex:'-1'}); pop.appendChild(lb);
+  const flat=[]; let gi=0;
+  const mk=(it,parent)=>{ const o=el('div','opt',{role:'option',id:pop.id+'o'+flat.length,'aria-selected':String(it.id===value)});
+    o.dataset.id=it.id; o.innerHTML=`<span class="t">${it.label}</span>${it.count!=null?`<span class="c ${it.alert===true?'alert':''}">${it.count}</span>`:''}${it.alert&&it.count==null?`<i class="adot ${it.alert==='warn'?'warn':''}"></i>`:''}<span class="ok">${ic('check','sm')}</span>`;
+    o.addEventListener('click',()=>pick(it.id)); parent.appendChild(o); flat.push(o); };
+  items.forEach(it=>{ if(it.group){ const g=el('div','',{role:'group','aria-label':it.group}); g.innerHTML=`<div class="grp-h" aria-hidden="true">${it.group}</div>`; lb.appendChild(g); it.items.forEach(x=>mk(x,g)); } else mk(it,lb); });
+  let cur=Math.max(0, flat.findIndex(o=>o.dataset.id===value));
+  const setCur=i=>{ cur=(i+flat.length)%flat.length; flat.forEach((o,j)=>o.dataset.active=String(j===cur)); lb.setAttribute('aria-activedescendant',flat[cur].id); flat[cur].scrollIntoView({block:'nearest'}); };
+  const pick=id=>{ closePop(f,true); onPick(id); };
+  let buf='',tm=null;
+  lb.addEventListener('keydown',e=>{
+    if(e.key==='ArrowDown'){e.preventDefault();setCur(cur+1)} else if(e.key==='ArrowUp'){e.preventDefault();setCur(cur-1)}
+    else if(e.key==='Home'){e.preventDefault();setCur(0)} else if(e.key==='End'){e.preventDefault();setCur(flat.length-1)}
+    else if(e.key==='Enter'||e.key===' '){e.preventDefault();pick(flat[cur].dataset.id)}
+    else if(e.key==='Escape'){e.preventDefault();e.stopPropagation();closePop(f,true)}
+    else if(e.key==='Tab'){closePop(f,false)}
+    else if(e.key.length===1){ buf+=e.key; clearTimeout(tm); tm=setTimeout(()=>buf='',700); const i=flat.findIndex(o=>o.textContent.trim().startsWith(buf)); if(i>=0) setCur(i); }
+  });
+  openPop(f,btn,pop,'listbox'); setCur(cur); lb.focus();
+}
+function panel(f, btn, label, build){
+  const pop=el('div','pop panel-pop',{role:'dialog','aria-label':label}); pop.id='pop'+Math.random().toString(36).slice(2,7);
+  build(pop);
+  pop.addEventListener('keydown',e=>{ if(e.key==='Escape'){e.preventDefault();e.stopPropagation();closePop(f,true)} });
+  pop.addEventListener('focusout',e=>{ if(e.relatedTarget && !pop.contains(e.relatedTarget) && e.relatedTarget!==btn) closePop(f,false) });
+  openPop(f,btn,pop,'dialog');
+  const first=pop.querySelector('input,button'); first&&first.focus();
+}
+
+/* ---------- component builders ---------- */
+function ddChip(f,S,{fid,label,items,value,icon,onPick,long}){
+  const flat=items.flatMap(i=>i.group?i.items:[i]); const cur=flat.find(i=>i.id===value)||flat[0];
+  const others=flat.filter(i=>i.id!==cur.id && i.alert);   // alert on a hidden option -> a dot on the chip
+  const b=el('button','dd',{type:'button','aria-haspopup':'listbox','aria-expanded':'false','aria-label':`${label}: ${cur.label}${cur.count!=null?` (${cur.count})`:''}${others.length?' - יש התראות באפשרויות אחרות':''}`}); b.dataset.fid=fid;
+  b.innerHTML=`${icon?`<span class="pfx">${ic(icon,'sm')}</span>`:''}<span class="v">${cur.label}</span>${cur.count!=null?`<span class="cnt ${cur.alert===true?'alert':''}">(${cur.count})</span>`:''}${others.length?`<i class="adot ${others[0].alert==='warn'?'warn':''}" title="יש התראות באפשרויות אחרות"></i>`:''}<span class="ch">${ic('chev','sm')}</span>`;
+  b.addEventListener('click',()=>{ if(f._open&&f._open.btn===b) closePop(f,true); else listbox(f,b,{items,value,label,onPick}); });
+  b.addEventListener('keydown',e=>{ if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault(); if(!(f._open&&f._open.btn===b)) listbox(f,b,{items,value,label,onPick});} });
+  return b;
+}
+function pillTabs(items,value,onPick,fid,label){
+  const w=el('div','tabs-pill',{role:'group','aria-label':label});
+  items.forEach(it=>{ const b=el('button','',{type:'button','aria-pressed':String(it.id===value)}); b.dataset.fid=fid+it.id; b.innerHTML=`${it.label}${it.count!=null?`<span class="cnt ${it.alert?'alert':''}">(${it.count})</span>`:''}`; b.onclick=()=>onPick(it.id); w.appendChild(b); }); return w; }
+function compactTabs(items,value,onPick,fid,label){
+  const w=el('div','tabs-uc',{role:'group','aria-label':label});
+  items.forEach(it=>{ const b=el('button','',{type:'button','aria-pressed':String(it.id===value)}); b.dataset.fid=fid+it.id; b.innerHTML=`${it.label}${it.count!=null?`<span class="cnt ${it.alert?'alert':''}">(${it.count})</span>`:''}`; b.onclick=()=>onPick(it.id); w.appendChild(b); }); return w; }
+function segCtl(items,value,onPick,fid,label,compact){
+  const w=el('div','seg'+(compact?' compact':''),{role:'group','aria-label':label});
+  items.forEach(it=>{ const b=el('button','',{type:'button','aria-pressed':String(it.id===value)}); b.dataset.fid=fid+it.id; b.innerHTML=`${it.label}${it.count!=null?`<span class="cnt ${it.alert?'alert':''}">(${it.count})</span>`:''}`; b.onclick=()=>onPick(it.id); w.appendChild(b); }); return w; }
+const rowOf=(cls,...kids)=>{ const r=el('div','row '+cls); kids.forEach(k=>k&&r.appendChild(k)); return r; };
+const html=(s)=>{ const t=document.createElement('template'); t.innerHTML=s.trim(); return t.content.firstElementChild; };
+
+/* ---------- screens ---------- */
+function mediaChrome(f,S,rerender){
+  const D=MEDIA, c=[];
+  const secs=D.sections.map(s=>({...s,count:D.devices.filter(d=>d.k===s.id).length}));
+  const stat=D.status.map(s=>({...s,count:s.id==='all'?undefined:D.devices.filter(d=>d.k===S.section&&d.s===s.id).length}));
+  const setSec=id=>{S.section=id;S.fid='sec'+id;rerender()};
+  const setArea=id=>{S.area=id;S.fid='area';rerender()};
+  const setStat=id=>{S.status=id;S.fid='stat';rerender()};
+  const flatAreas=D.areas.flatMap(a=>a.group?a.items:[a]);
+  const areaKind=S.variant==='A'?'chips':'dd';
+  const tune=(withStatus,withSearch)=>{ const b=el('button','ib',{type:'button','aria-haspopup':'dialog','aria-expanded':'false','aria-label':withStatus?'סינון וחיפוש':'חיפוש'}); b.dataset.fid='tune';
+    const active=(withStatus&&S.status!=='all')||S.q; b.innerHTML=ic(withStatus?'tune':'search','sm')+(active?'<i class="adot"></i>':'');
+    b.onclick=()=>{ if(f._open&&f._open.btn===b) return closePop(f,true); panel(f,b,withStatus?'סינון וחיפוש':'חיפוש',pop=>{
+      if(withSearch){ const w=el('div'); w.innerHTML=`<div class="fl">חיפוש</div>`; const s=el('label','search'); s.innerHTML=`${ic('search','sm')}<input type="search" placeholder="חיפוש מכשיר" aria-label="חיפוש מכשיר" value="${S.q}">`; w.appendChild(s); s.querySelector('input').addEventListener('input',e=>{S.q=e.target.value;softContent()}); pop.appendChild(w);}
+      if(withStatus){ const w=el('div'); w.innerHTML=`<div class="fl">סטטוס</div>`; w.appendChild(segCtl(stat,S.status,id=>{S.status=id;softContent();[...w.querySelectorAll('button')].forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.fid==='st'+id)))},'st','סטטוס',true)); pop.appendChild(w);} }); };
+    return b; };
+  const softContent=()=>{ const cnt=f.querySelector('.content'); cnt.replaceWith(mediaContent(S)); const t=f.querySelector('[data-fid=tune]'); if(t){ const act=S.status!=='all'||S.q; const d=t.querySelector('.adot'); if(act&&!d) t.insertAdjacentHTML('beforeend','<i class="adot"></i>'); if(!act&&d) d.remove(); } };
+  if(S.variant==='A'){
+    c.push(rowOf('h44',pillTabs(secs,S.section,setSec,'sec','מקטעי מולטימדיה')));
+    const fb=el('button','fb',{type:'button','aria-haspopup':'listbox','aria-expanded':'false','aria-label':'קומות ואזורים'}); fb.dataset.fid='floor'; fb.innerHTML=ic('layers','sm');
+    fb.onclick=()=>{ if(f._open&&f._open.btn===fb) closePop(f,true); else listbox(f,fb,{items:D.areas,value:S.area,label:'אזור',onPick:setArea}); };
+    const chips=el('div','chips'); flatAreas.forEach(a=>{ const b=el('button','rc',{type:'button','aria-pressed':String(a.id===S.area)}); b.dataset.fid='area'+a.id; b.textContent=a.label; b.onclick=()=>{S.area=a.id;S.fid='area'+a.id;rerender()}; chips.appendChild(b); });
+    c.push(rowOf('',fb,chips));
+    c.push(rowOf('',segCtl(stat,S.status,id=>{S.status=id;S.fid='st'+id;rerender()},'st','סטטוס')));
+    const s=el('label','search'); s.innerHTML=`${ic('search','sm')}<input type="search" placeholder="חיפוש מכשיר" aria-label="חיפוש מכשיר" value="${S.q}">`; s.querySelector('input').addEventListener('input',e=>{S.q=e.target.value;f.querySelector('.content').replaceWith(mediaContent(S))});
+    const r=rowOf('',s); r.style.paddingBlock='4px'; c.push(r);
+  } else if(S.variant==='B'){
+    const r=rowOf('h40',ddChip(f,S,{fid:'sec',label:'מקטע',items:secs,value:S.section,icon:'layers',onPick:setSec}),ddChip(f,S,{fid:'area',label:'אזור',items:D.areas,value:S.area,icon:'pin',onPick:setArea,long:true}),tune(true,true)); c.push(r);
+  } else {
+    c.push(rowOf('h40',segCtl(secs,S.section,setSec,'sec','מקטעי מולטימדיה')));
+    c.push(rowOf('h40',ddChip(f,S,{fid:'area',label:'אזור',items:D.areas,value:S.area,icon:'pin',onPick:setArea,long:true}),ddChip(f,S,{fid:'stat',label:'סטטוס',items:stat,value:S.status,icon:'eye',onPick:setStat}),tune(false,true)));
+  }
+  return c;
+}
+function mediaContent(S){
+  const D=MEDIA; const w=el('div','content');
+  const list=D.devices.filter(d=>d.k===S.section&&(S.area==='all'||d.a===S.area)&&(S.status==='all'||d.s===S.status)&&(!S.q||d.n.includes(S.q)));
+  if(!list.length){ w.innerHTML='<div class="empty">אין מכשירים להצגה</div>'; return w; }
+  list.forEach((d,i)=>{ const c=el('div','item card'); c.style.setProperty('--h',[210,150,28,300,190,340][i%6]); c.innerHTML=`<span class="cover"></span><span><b>${d.n}</b><small>${d.now}</small></span><span class="badge ${d.s}"><i></i>${d.s==='on'?'פועל':d.s==='off'?'כבוי':'לא זמין'}</span>`; w.appendChild(c); });
+  return w;
+}
+function secChrome(f,S,rerender){
+  const subs=SEC.subs[S.section], c=[];
+  const setSec=id=>{S.section=id;S.fid='sec'+id;rerender()};
+  const setSub=id=>{S.sub[S.section]=id;S.fid='sub'+id;rerender()};
+  const showCtl = S.section==='live' && S.sub.live==='all';
+  const qlab=QUALITY.find(q=>q.id===S.quality).label;
+  const fs=()=>{ const b=el('button',S.variant==='A'?'ctl':'ib',{type:'button','aria-label':'מסך מלא'}); b.dataset.fid='fs'; b.innerHTML=ic('full','sm'); b.onclick=()=>{}; return b; };
+  const tune=()=>{ const b=el('button','ib',{type:'button','aria-haspopup':'dialog','aria-expanded':'false','aria-label':`הגדרות תצוגה: איכות ${qlab}, ${S.cams} מצלמות, ${S.cols} עמודות`}); b.dataset.fid='tune'; b.innerHTML=ic('tune','sm');
+    b.onclick=()=>{ if(f._open&&f._open.btn===b) return closePop(f,true); panel(f,b,'הגדרות תצוגה',pop=>{
+      const q=el('div'); q.innerHTML='<div class="fl">איכות</div>'; q.appendChild(segCtl(QUALITY,S.quality,id=>{S.quality=id;[...q.querySelectorAll('button')].forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.fid==='q'+id)))},'q','איכות',true)); pop.appendChild(q);
+      const stepper=(name,key,min,max,stepv)=>{ const w=el('div'); w.innerHTML=`<div class="fl">${name}</div>`; const s=el('div','step'); const o=el('output'); o.textContent=S[key];
+        const mk=(t,d,lab)=>{ const x=el('button','',{type:'button','aria-label':lab+' '+name}); x.textContent=t; x.onclick=()=>{S[key]=Math.max(min,Math.min(max,S[key]+d*stepv));o.textContent=S[key];if(key==='cols')f.querySelector('.content').style.setProperty('--cols',S.cols)}; return x; };
+        s.append(mk('−',-1,'הפחת'),o,mk('+',1,'הוסף')); w.appendChild(s); pop.appendChild(w); };
+      stepper('מצלמות','cams',1,32,1); stepper('עמודות','cols',1,4,1); }); };
+    return b; };
+  if(S.variant==='A'){
+    c.push(rowOf('h44',pillTabs(SEC.sections,S.section,setSec,'sec','מקטעי אבטחה')));
+    c.push(compactTabs(subs,S.sub[S.section],setSub,'sub','תצוגות'));
+    if(showCtl){ const r=rowOf('h44'); [['איכות',qlab],['מצלמות',S.cams],['עמודות',S.cols]].forEach(([k,v])=>{ const b=el('button','ctl',{type:'button','aria-label':k+': '+v}); b.innerHTML=`<small>${k}</small> ${v} ${ic('chev','sm')}`; r.appendChild(b); }); r.appendChild(el('span','sp')); r.appendChild(fs()); c.push(r); }
+  } else if(S.variant==='B'){
+    const r=rowOf('h40',ddChip(f,S,{fid:'sec',label:'מקטע',items:SEC.sections,value:S.section,icon:'layers',onPick:setSec}),ddChip(f,S,{fid:'sub',label:'תצוגה',items:subs,value:S.sub[S.section],icon:'eye',onPick:setSub}));
+    if(showCtl){ r.appendChild(tune()); r.appendChild(fs()); } c.push(r);
+  } else {
+    c.push(rowOf('h40',segCtl(SEC.sections,S.section,setSec,'sec','מקטעי אבטחה')));
+    const control = kindFor('C',subs)==='seg' ? segCtl(subs,S.sub[S.section],setSub,'sub','תצוגות',true) : ddChip(f,S,{fid:'sub',label:'תצוגה',items:subs,value:S.sub[S.section],icon:'eye',onPick:setSub});
+    const r=rowOf('h40',control); if(showCtl){ r.appendChild(tune()); r.appendChild(fs()); } c.push(r);
+  }
+  return c;
+}
+function secContent(S){
+  const w=el('div','content cols'); const sub=S.sub[S.section]; w.style.setProperty('--cols',S.cols);
+  if(S.section==='live' && (sub==='all'||sub==='snap')){
+    SEC.cams.slice(0,Math.min(S.cams,8)).forEach((n,i)=>{ const c=el('div','item cam'); c.style.setProperty('--h',[200,160,260,30,320,100,180,240][i]); c.innerHTML=`<span class="lv">${sub==='snap'?'תמונה':'חי'}</span>${n}`; w.appendChild(c); });
+  } else {
+    const names=SEC.subs[S.section].find(x=>x.id===sub).label; const n=el('div','item card'); n.style.setProperty('--h',210);
+    n.innerHTML=`<span class="cover"></span><span><b>${names}</b><small>תוכן לדוגמה של התצוגה</small></span>`; w.appendChild(n);
+    for(let i=0;i<2;i++){ const x=el('div','item card'); x.style.setProperty('--h',60+i*90); x.innerHTML=`<span class="cover"></span><span><b>פריט ${i+1}</b><small>תוכן לדוגמה</small></span>`; w.appendChild(x); }
+  }
+  return w;
+}
+const NAV=[['home','ראשי'],['shield','אבטחה'],['speaker','מולטימדיה'],['map','מפה']];
+function settingsContent(f,S,rerender){
+  const w=el('div','set'); const MODE=[['tabs','כמוסות ופסים (כמו היום)','כל הלשוניות גלויות בלחיצה אחת'],['hybrid','משולב (מומלץ)','עד 3 אפשרויות כמוסה אחת; 4 ומעלה ורשימות ארוכות בתפריט נפתח'],['dropdown','תפריטים נפתחים','שני תפריטים קטנים בשורה אחת: מקטע ותצוגה']];
+  S.inst=S.inst||'tabs'; S.mine=S.mine===undefined?null:S.mine;
+  const eff=S.mine||S.inst;
+  const radios=(key,opts,val)=>{ const g=el('div','radios',{role:'radiogroup','aria-label':key==='inst'?'ברירת מחדל להתקנה':'ההעדפה שלי'});
+    opts.forEach(([id,t,sm])=>{ const b=el('button','rd',{type:'button',role:'radio','aria-checked':String(id===val),tabindex:id===val?'0':'-1'}); b.dataset.fid=key+id; b.innerHTML=`<span class="dot"></span><span><b>${t}</b><small>${sm}</small></span>`;
+      b.onclick=()=>{S[key]=id==='follow'?null:id;S.fid=key+id;rerender()};
+      b.onkeydown=e=>{ const i=opts.findIndex(o=>o[0]===val); let j=-1; if(e.key==='ArrowDown'||e.key==='ArrowLeft')j=(i+1)%opts.length; if(e.key==='ArrowUp'||e.key==='ArrowRight')j=(i-1+opts.length)%opts.length; if(j>=0){e.preventDefault();const id2=opts[j][0];S[key]=id2==='follow'?null:id2;S.fid=key+id2;rerender();} };
+      g.appendChild(b); }); return g; };
+  const c1=el('div','sc'); c1.innerHTML='<h4>ברירת מחדל להתקנה</h4><p>חל על כל המשתמשים שלא בחרו אחרת. מנהל מערכת בלבד.</p>'; c1.appendChild(radios('inst',MODE,S.inst));
+  const c2=el('div','sc'); c2.innerHTML='<h4>ההעדפה שלי</h4><p>שלי בלבד, בכל המכשירים שלי. “לפי ההתקנה” מנקה את הבחירה.</p>';
+  c2.appendChild(radios('mine',[['follow',`לפי ההתקנה (כרגע: ${MODE.find(m=>m[0]===S.inst)[1].split(' (')[0]})`,'מעקב אחרי ברירת המחדל של ההתקנה'],...MODE],S.mine||'follow'));
+  const c3=el('div','sc'); c3.innerHTML=`<h4>תצוגה מקדימה</h4><p>כך ייראה מסך המולטימדיה בטלפון: ${MODE.find(m=>m[0]===eff)[1].split(' (')[0]}.</p>`;
+  const pv=el('div','prev'); const mini=buildFrame('media',{tabs:'A',hybrid:'C',dropdown:'B'}[eff],390,S.theme,{preview:true}); pv.appendChild(mini); c3.appendChild(pv);
+  w.append(c1,c2,c3); return w;
+}
+
+/* ---------- the frame ---------- */
+function buildFrame(screen, variant, w, theme, opts={}){
+  const S=initState(screen,variant,w,theme);
+  const f=el('div','frame',{'data-w':String(w),'data-theme':theme,'data-screen':screen,'data-variant':variant});
+  f._S=S; if(opts.preview) f.dataset.fit='auto';
+  const title={media:'מולטימדיה',security:'אבטחה',settings:'הגדרות › כללי › לשוניות'}[screen];
+  f.innerHTML=`<div class="shell"><nav class="rail" aria-label="ניווט ראשי"></nav><div class="main"><div class="scroller"><header class="hdr"><h1>${title}</h1><div class="float" role="group" aria-label="חיפוש ומצב מערכת"><button type="button" aria-label="חיפוש">${ic('search','sm')}</button><span class="sd" title="המערכת תקינה"><i></i></span></div></header><div class="chrome"></div><div class="body"></div></div><nav class="bottom" aria-label="ניווט תחתון"></nav></div></div><div class="layer"></div>`;
+  const cur={media:'speaker',security:'shield',settings:'gear'}[screen];
+  const navHtml=NAV.map(([i,l])=>`<button type="button" ${i===cur?'aria-current="page"':''}>${ic(i)}<span>${l}</span></button>`).join('')+`<button type="button" ${screen==='settings'?'aria-current="page"':''}><span class="avatar">י</span><span>אני</span></button>`;
+  f.querySelector('.rail').innerHTML=navHtml; f.querySelector('.bottom').innerHTML=navHtml;
+  const render=()=>{
+    closePop(f,false);
+    const chrome=f.querySelector('.chrome'), body=f.querySelector('.body'); chrome.replaceChildren(); body.replaceChildren();
+    if(screen==='settings'){ const wrap=settingsContent(f,S,render); body.appendChild(wrap); }
+    else { const kids=(screen==='media'?mediaChrome:secChrome)(f,S,render); kids.forEach(k=>chrome.appendChild(k)); body.appendChild(screen==='media'?mediaContent(S):secContent(S)); }
+    if(S.fid){ const t=f.querySelector(`[data-fid="${S.fid}"]`)||f.querySelector(`[data-fid="${S.fid.replace(/^(sec|sub|area|stat).*/,'$1')}"]`); if(t) t.focus({preventScroll:true}); S.fid=null; }
+  };
+  f._render=render; render(); return f;
+}
+
+/* ---------- page ---------- */
+const P={screen:'media',w:'390',theme:'light'};
+(location.hash||'').slice(1).split('&').forEach(kv=>{const [k,v]=kv.split('=');if(k&&v)P[k]=v;});
+const LBL={A:['A · כיום','לשוניות, שורה לכל סרגל'],B:['B · הצעת הבעלים','שני תפריטים קטנים בשורה אחת'],C:['C · משולב','כמוסה עד 3, תפריט מ־4']};
+function drawBar(){
+  const def={screen:[['media','מולטימדיה'],['security','אבטחה'],['settings','הגדרות']],w:[['390','טלפון 390'],['820','820']],theme:[['light','בהיר'],['dark','כהה']]};
+  for(const g in def){ const box=$(`[data-g=${g}]`); box.replaceChildren(); def[g].forEach(([v,t])=>{ const b=el('button','',{type:'button','aria-pressed':String(P[g]===v)}); b.textContent=t; b.onclick=()=>{P[g]=v;location.hash=Object.entries(P).map(e=>e.join('=')).join('&');draw()}; box.appendChild(b); }); }
+}
+function measure(screen,variant,w,theme){
+  const host=el('div'); host.style.cssText='position:fixed;left:-6000px;top:0;visibility:hidden'; document.body.appendChild(host);
+  const f=buildFrame(screen,variant,w,theme); host.appendChild(f);
+  const sc=f.querySelector('.scroller').getBoundingClientRect(), hdr=f.querySelector('.hdr').getBoundingClientRect(), ch=f.querySelector('.chrome').getBoundingClientRect(), it=f.querySelector('.item').getBoundingClientRect();
+  const r={header:Math.round(hdr.height),chrome:Math.round(ch.height),first:Math.round(it.top-sc.top)}; host.remove(); return r;
+}
+function drawMeasure(){
+  const m=$('#meas'); let h='<h2>מדידה: פיקסלים אנכיים מעל התוכן (מראש המסך עד הפריט הראשון), רוחב 390, מדוד חי בדפדפן</h2><table><thead><tr><th>מסך</th><th>גרסה</th><th>כותרת קבועה</th><th>שורות בקרה (נדבק למעלה)</th><th>עד הפריט הראשון</th><th>חיסכון מול A</th></tr></thead><tbody>';
+  window.__M={};
+  for(const sc of ['media','security']){ const base=measure(sc,'A',390,'light'); for(const v of ['A','B','C']){ const r=measure(sc,v,390,'light'); window.__M[sc+v]=r; const d=base.first-r.first; h+=`<tr><td>${sc==='media'?'מולטימדיה':'אבטחה (לייב)'}</td><td>${v}</td><td>${r.header}</td><td class="n">${r.chrome}</td><td class="n">${r.first}</td><td class="${d>0?'good':''}">${v==='A'?'-':`<bdi dir="ltr">${d} px (${Math.round(d/base.first*100)}%)</bdi>`}</td></tr>`; } }
+  m.innerHTML=h+'</tbody></table>';
+  const w=[]; for(const sc of ['media','security']) for(const v of ['A','B','C']){ const r=measure(sc,v,820,'light'); window.__M[sc+v+'820']=r; }
+}
+function drawTaps(){
+  const rows=[['מעבר בין מקטעים (3)','1','2','1'],['תצוגה בתוך מקטע (3, לייב)','1','2','1'],['תצוגה בתוך מקטע (5, חקירה)','1 (גלילה לצדדים)','2','2'],['סינון לפי אזור','1 (אם הצ׳יפ בשורה)','2','2'],['סינון סטטוס (4)','1','3 (פתיחת סינון, בחירה; סגירה אופציונלית)','2'],['חיפוש','1 (שדה פתוח)','2 (פתיחה, הקלדה)','2 (פתיחה, הקלדה)'],['איכות / עמודות / מצלמות','2 (תפריט)','3 (פתיחת הגדרות, שינוי)','3']];
+  $('#taps').innerHTML='<h2>מספר נגיעות להגעה לתצוגה (נגיעה אחת = לחיצה אחת; אחרי הבחירה התפריט נסגר לבד)</h2><table><thead><tr><th>פעולה</th><th>A כיום</th><th>B תפריטים</th><th>C משולב</th></tr></thead><tbody>'+rows.map(r=>`<tr><td>${r[0]}</td>${r.slice(1).map(x=>`<td>${x}</td>`).join('')}</tr>`).join('')+'</tbody></table>';
+}
+function draw(){
+  document.body.classList.toggle('dark',P.theme==='dark'); drawBar();
+  const main=$('#main'); main.replaceChildren();
+  const w=+P.w;
+  if(P.screen==='settings'){ const wrap=el('div','fw'); wrap.innerHTML='<h3>הגדרות › כללי › לשוניות · כרטיס חדש “תצוגת לשוניות” <small>ברירת מחדל להתקנה + העדפה אישית + תצוגה מקדימה חיה</small></h3>'; wrap.appendChild(buildFrame('settings','A',w,P.theme,{preview:true})); main.appendChild(wrap); return; }
+  ['A','B','C'].forEach(v=>{ const wrap=el('div','fw'); wrap.innerHTML=`<h3>${LBL[v][0]}<small>${LBL[v][1]}</small></h3>`; const f=buildFrame(P.screen,v,w,P.theme); wrap.appendChild(f);
+    const r=measure(P.screen,v,w,P.theme); const st=el('div','stat'); st.textContent=`עד הפריט הראשון: ${r.first} px · בקרות: ${r.chrome} px`; wrap.appendChild(st); main.appendChild(wrap); });
+}
+draw(); drawMeasure(); drawTaps();
+addEventListener('hashchange',()=>{Object.assign(P,Object.fromEntries((location.hash||'').slice(1).split('&').map(x=>x.split('='))));draw();});
+</script>
+</body>
+</html>
