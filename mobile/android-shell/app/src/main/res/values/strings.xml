@@ -56,6 +56,11 @@
     <!-- app lock -->
     <string name="lock_title">נעילת האפליקציה</string>
     <string name="lock_hint">בפתיחה, ואחרי זמן מחוץ לאפליקציה, נדרשים טביעת אצבע, זיהוי פנים או קוד הנעילה של הטלפון.</string>
+    <string name="gesture_title">מחווה לרשימת השרתים</string>
+    <string name="gesture_hint">שתי אצבעות כלפי מעלה בתוך האתר פותחות את רשימת השרתים.</string>
+    <string name="gesture_off">כבויה</string>
+    <string name="gesture_anywhere">בכל המסך</string>
+    <string name="gesture_edge">מהקצה התחתון</string>
     <string name="lock_after">נעילה אחרי</string>
     <string name="lock_after_title">לנעול אחרי זמן מחוץ לאפליקציה</string>
     <string name="lock_immediately">מיד</string>
