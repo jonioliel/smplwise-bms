@@ -594,8 +594,8 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     const link = bottom.locator(`a[href="${HREF}"]`);
     await expect(link).toBeVisible();
     await expect(link).toContainText('ראשי'); // CR-013: the device overview is "ראשי", the bar's first tab
-    // four tabs and the user avatar share the bar: no item may be pushed out of the viewport
-    await expect(bottom.locator(':scope > a, :scope > button')).toHaveCount(5);
+    // five tabs (ראשי, אבטחה, מפה, מולטימדיה, WisKey) and the user avatar share the bar: no item may be pushed out of the viewport
+    await expect(bottom.locator(':scope > a, :scope > button')).toHaveCount(6);
     await expect(bottom.locator(':scope > :last-child')).toHaveAttribute('data-nav-me', '');
     const box = await link.boundingBox();
     const vw = page.viewportSize()!.width;
@@ -973,17 +973,21 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await menu.locator('sw-button[data-bulk-trigger]').click();
     await menu.locator('[data-bulk-panel="menu"] button[data-bulk-kind="all_off"]').click();
     const dialog = screen.locator('devices-bulk-dialog sw-dialog[data-bulk-dialog="confirm"]');
-    await expect(dialog.locator('[data-bulk-count]')).toHaveAttribute('data-bulk-count', '7', { timeout: 10000 });
-    for (const [d, n] of [['light', '4'], ['cover', '1'], ['climate', '1'], ['media_player', '1']]) await expect(dialog.locator(`[data-domain="${d}"]`)).toContainText(n);
+    // CR-015: a media player is reached only as an approved screen (the multimedia model); the fixture's player is not one, so it is
+    // left out and named under "לא נכלל" - six devices, not seven
+    await expect(dialog.locator('[data-bulk-count]')).toHaveAttribute('data-bulk-count', '6', { timeout: 10000 });
+    for (const [d, n] of [['light', '4'], ['cover', '1'], ['climate', '1']]) await expect(dialog.locator(`[data-domain="${d}"]`)).toContainText(n);
+    await expect(dialog.locator('[data-domain="media_player"]')).toHaveCount(0);
+    await expect(dialog.locator('[data-bulk-excluded] li[data-reason="not_a_screen"]')).toHaveCount(1);
     await expect(dialog.locator('[data-domain="lock"]')).toHaveCount(0);
     await expect(dialog.locator('[data-bulk-never]')).toContainText('מנעולים (1)');
     await expect.poll(() => focusedBulkButton(page)).toBe('cancel');
     await dialog.locator('sw-button[data-bulk-confirm]').click();
     const progress = screen.locator('devices-bulk-dialog [data-bulk-progress]');
-    await expect(progress).toHaveAttribute('data-total', '7', { timeout: 10000 });
-    await expect(progress).toHaveAttribute('data-confirmed', '6', { timeout: 15000 });
+    await expect(progress).toHaveAttribute('data-total', '6', { timeout: 10000 });
+    await expect(progress).toHaveAttribute('data-confirmed', '5', { timeout: 15000 });
     await expect(progress).toHaveAttribute('data-done', 'false'); // the stuck light is still inside its window
-    await expect(screen.locator('devices-bulk-dialog [data-bulk-result="running"]')).toContainText('6 מתוך 7 אושרו');
+    await expect(screen.locator('devices-bulk-dialog [data-bulk-result="running"]')).toContainText('5 מתוך 6 אושרו');
     const partial = screen.locator('devices-bulk-dialog [data-bulk-result="partial"]');
     await expect(partial).toContainText('בוצע חלקית: 1 לא אושרו', { timeout: 45000 });
     const missing = screen.locator('devices-bulk-dialog [data-bulk-not-confirmed] li');
@@ -1492,7 +1496,8 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await expect(b1.locator('[data-area-indicators]').first()).toBeVisible();
       await setView(b1.page(), 'tiles');
       const lobby1 = b1.locator('a.tile[data-area="cr007_lobby"]');
-      await expect(lobby1.locator('.pills span[title="חיישנים"]')).toHaveCount(1);
+      // 0.1.149: a tile's line is the area row's indicators (the A/C and the lit counters); its counts stay in `data-counts`, sensors included
+      await expect(lobby1).toHaveAttribute('data-counts', /sensors:/);
       const padComfortable = await lobby1.evaluate((e) => parseFloat(getComputedStyle(e).paddingTop));
       await ctx.close();
 
@@ -1507,8 +1512,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await expect(b2).toHaveAttribute('data-devices-density', 'compact');
       expect(await lobby.evaluate((e) => parseFloat(getComputedStyle(e).paddingTop))).toBeLessThan(padComfortable);
       await expect(b2.locator('[data-climate-strip]')).toHaveCount(0);
-      await expect(lobby.locator('.pills span[title="חיישנים"]')).toHaveCount(0);
-      await expect(lobby.locator('.pills span[title="תאורה"]')).toHaveCount(1); // only the sensors count goes
+      await expect(lobby.locator('[data-ind="lights"]')).toHaveCount(1); // only the sensors count goes
       await expect(lobby).not.toHaveAttribute('data-counts', /sensors:/);
       // the viewer's own toggle wins from then on (remembered in this browser)
       await setView(b2.page(), 'cards');
