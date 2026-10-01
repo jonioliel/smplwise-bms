@@ -1,0 +1,65 @@
+{
+  "ack_snooze": {
+    "v": 2,
+    "id": "ntf-golden-leak",
+    "title": "דליפת מים · מטבח",
+    "body": "קריטי · 14:02",
+    "url": "#/notifications/ntf-golden-leak",
+    "category": "safety",
+    "severity": "critical",
+    "tag": "arx-n-ntf-golden-leak",
+    "ts": "2026-10-01T11:02:00Z",
+    "actions": [
+      {
+        "a": "ack",
+        "title": "אישור",
+        "t": "AAAAAAAAAAAAAAAAAAAAAA"
+      },
+      {
+        "a": "snooze",
+        "title": "השתק לשעה",
+        "t": "BBBBBBBBBBBBBBBBBBBBBB"
+      }
+    ]
+  },
+  "doorbell_open_door": {
+    "v": 2,
+    "id": "ntf-golden-ring",
+    "title": "צלצול בדלת · כניסה ראשית",
+    "body": "מישהו מצלצל בעמדת הכניסה הראשית. · כניסה ראשית",
+    "url": "#/notifications/ntf-golden-ring",
+    "category": "doors",
+    "severity": "alert",
+    "tag": "arx-n-ntf-golden-ring",
+    "ts": "2026-10-01T11:02:00Z",
+    "actions": [
+      {
+        "a": "ack",
+        "title": "אישור",
+        "t": "CCCCCCCCCCCCCCCCCCCCCC"
+      },
+      {
+        "a": "snooze",
+        "title": "השתק לשעה",
+        "t": "DDDDDDDDDDDDDDDDDDDDDD"
+      },
+      {
+        "a": "open_door",
+        "title": "פתח דלת",
+        "url": "#/doors/st-main?confirm=ntf-golden-ring"
+      }
+    ]
+  },
+  "resolved": {
+    "v": 2,
+    "id": "ntf-golden-leak",
+    "title": "דליפת מים · מטבח",
+    "body": "קריטי · 14:02 · הסתיים",
+    "url": "#/notifications/ntf-golden-leak",
+    "category": "safety",
+    "severity": "critical",
+    "tag": "arx-n-ntf-golden-leak",
+    "ts": "2026-10-01T11:02:00Z",
+    "resolved": true
+  }
+}

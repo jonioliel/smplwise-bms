@@ -17,7 +17,7 @@ import { loadNavSize, navCssVars, navDims, navSize, onNavSize, setInstallationNa
 import { listAlerts } from '../api/rules';
 import { parseDoorConfirmLink, type NotifySummary } from '../api/notifications';
 import { notifyStore } from '../components/notify-store';
-import { badgeLabel, badgeOf } from '../components/notify-logic';
+import { badgeLabel, badgeOf, parseNotificationLink } from '../components/notify-logic';
 import { inAndroidShell } from '../arx/android-app';
 import '../screens/explore-floor-map';
 import '../screens/explore-sites';
@@ -1199,9 +1199,10 @@ export class SwApp extends LitElement {
       // in-app confirmation - never an unlock by itself, and only inside a signed-in session (the center opens once the session is known); the address
       // then falls back to the home screen so Back does not repeat it.
       const doorLink = parseDoorConfirmLink(window.location.hash);
-      if (doorLink && !replaced) {
-        this.centerFocus = doorLink.notificationId;
-        this.centerConfirm = true;
+      const rowLink = doorLink ? null : parseNotificationLink(window.location.hash); // every push opens '#/notifications/<id>': the center on that row
+      if ((doorLink || rowLink) && !replaced) {
+        this.centerFocus = doorLink?.notificationId ?? (rowLink as string);
+        this.centerConfirm = !!doorLink;
         this.pendingCenter = true;
         this.openPendingCenter();
         this.keepCenterOnce = true;

@@ -631,7 +631,7 @@ export class NotifyCenter extends LitElement {
     if (!list.length) return nothing;
     return html`<div class="nbars" data-center-banners>${list.map((b) => html`<div class="bnr ${b.kind}" data-banner=${b.kind}>${nIcon(b.kind === 'quiet' ? 'moon' : b.kind === 'push' ? 'bellOff' : 'warning')}<span>${b.kind === 'failed' ? this.failedText() : b.text}</span>
       ${b.kind === 'push' ? html`<button type="button" class="btn sm" data-banner-act @click=${() => this.go(SETTINGS_HREF)}>איך מפעילים</button>` : nothing}
-      ${b.kind === 'failed' ? html`<button type="button" class="btn sm" data-banner-act @click=${() => this.go(SETTINGS_HREF)}>פרטים</button>` : nothing}</div>`)}</div>`;
+      ${b.kind === 'failed' ? html`<button type="button" class="btn sm" data-banner-act @click=${() => this.go(`${SETTINGS_HREF}?section=log`)}>פרטים</button>` : nothing}</div>`)}</div>`;
   }
 
   private renderFilters() {

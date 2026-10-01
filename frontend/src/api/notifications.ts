@@ -68,6 +68,8 @@ export interface Notification {
   /** <= 180 chars. */
   body: string;
   subject: { kind: SubjectKind; id: string | null; area_id: string | null };
+  /** The place the server names (an area, else the station or the camera of a row without an HA area); read first by the screens. */
+  place_name?: string | null;
   /** A hash route inside Arx, e.g. '#/investigate/events/<id>'. */
   link: string;
   /** Occurrences folded into this row by dedupe. */

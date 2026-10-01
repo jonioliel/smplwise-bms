@@ -145,7 +145,7 @@ function buildRows(): MockRow[] {
     }
     const core: Core = {
       id, source: s.source, category: info.category, severity: s.sev ?? info.severity, title: s.title, body: s.body,
-      subject: { kind: s.kind, id: s.subject, area_id: s.area }, link: s.link ?? LINK[s.kind](s.subject), count,
+      subject: { kind: s.kind, id: s.subject, area_id: s.area }, place_name: s.area ? MOCK_AREAS[s.area] ?? null : null, link: s.link ?? LINK[s.kind](s.subject), count,
       first_at: new Date(first).toISOString(), last_at: new Date(last).toISOString(), state, acked_at: ackedAt, acked_by_display: ackedBy, resolved_at: resolvedAt,
       has_snapshot: !!s.snap, timeline: timeline.sort((a, b) => Date.parse(a.at) - Date.parse(b.at)),
     };
