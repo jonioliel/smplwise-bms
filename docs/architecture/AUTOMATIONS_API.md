@@ -1,7 +1,8 @@
 # CR-017 Automations, scenes, scripts — API contract and parallel work plan
 
-Status: **PROPOSED CONTRACT** (becomes binding when the owner answers `docs/design/mockups/automations/decisions-HE.md`;
-until then it follows the recommendations). Change request: `docs/changes/CR-017-AUTOMATIONS-SCENES-SCRIPTS.md` ("the CR").
+Status: **CONTRACT v2 — owner decisions of 2026-10-01 adopted** (`docs/design/mockups/automations/decisions-HE.md`; CR §16).
+Binding for the stream branches once the architecture branch merges. Change request: `docs/changes/CR-017-AUTOMATIONS-SCENES-SCRIPTS.md`
+("the CR"). Mockup: `docs/design/mockups/automations/index.html`.
 Task T100. Style and conventions follow `SCHEDULER_API.md` (CR-014) and `MEDIA_API.md` (CR-015). Contract changes are made only
 by the coordinator on the architecture branch; stream branches rebase.
 
@@ -63,8 +64,10 @@ export interface LockedBlock extends BlockBase {
         | 'disabled_step' | 'secret' | 'code' | 'unknown';
   label: string;                                 // Hebrew, e.g. "תבנית", "כפתור · מפסק סלון", "שירות מיוחד · scheduler"
   sensitive: boolean; effects: 'none' | 'unknown' | string[];   // entity ids when statically known
-  template_text?: string | null;                 // only for callers with can.advanced and no masked values
+  template_text?: string | null;                 // only for callers with can.code_view and no masked values
   masked: boolean;
+  /** Growth path (CR §6.2, roadmap §14.1): when a typed schema for this `reason` ships, the server returns a typed block
+   *  instead; clients never special-case reasons. */
 }
 export type Block = TriggerBlock | ConditionBlock | ActionBlock | LockedBlock;
 ```
@@ -72,7 +75,9 @@ export type Block = TriggerBlock | ConditionBlock | ActionBlock | LockedBlock;
 Typed-block rules: an `entity_ids` list is a literal list (a template makes the block locked); `target.area_id/device_id/
 floor_id/label_id` make it locked in v1; `action` must be in the catalogue for the entity class (§3.2 `catalog`), else locked
 `service_not_allowed`; a step with `enabled: false` or `continue_on_error` is locked `disabled_step`. Weekday tokens are HA's
-(`mon`…`sun`).
+(`mon`…`sun`). Sensitive services (`alarm_control_panel.alarm_arm_*`, `alarm_disarm`, `lock.lock/unlock`, door/gate/garage
+`cover.*`, `siren.*`) are typed `service` blocks with `role: 'device'` and `sensitive: true` on the item; a `code` key in `data`
+makes the block invalid (`code_not_allowed`), never locked.
 
 ### 2.2 Drafts
 
@@ -112,10 +117,10 @@ export interface Item {
   last_run: { at: string; result: 'ok' | 'error' | 'stopped' | 'running' | 'not_triggered' } | null; runs_7d: number | null;
   created_via: 'arx' | 'external'; owner: { display_name: string } | null; updated_at: string | null;
   revision: string | null; pinned: boolean; favourite: boolean; hidden: boolean;
-  can: { edit: boolean; advanced: boolean; toggle: boolean; run: boolean; delete: boolean; copy: boolean };
+  can: { edit: boolean; code_view: boolean; toggle: boolean; run: boolean; delete: boolean; copy: boolean };
   read_only: null | { reasons: Array<{ code: string; message: string; entity_id?: string }> };
   warnings: Array<{ code: 'missing_entity' | 'invalid_config' | 'self_trigger' | 'cycle' | 'storm' | 'changed_outside'
-                         | 'use_schedule' | 'unknown_effects'; message: string }>;
+                         | 'suggest_schedule' | 'unknown_effects' | 'sensitive'; message: string }>;
 }
 export interface ItemDetail extends Item {
   draft: AutomationDraft | ScriptDraft | SceneDraft;   // blocks with per-caller locking (out-of-scope entities → locked view)
@@ -123,9 +128,9 @@ export interface ItemDetail extends Item {
 }
 ```
 
-Read-only reason codes: `no_permission`, `entity_not_controllable`, `sensitive_permission_required`, `yaml_managed`,
-`no_config_id`, `integration_scene`, `masked_values`, `config_api_unavailable`, `bridge_unavailable`, `delegation_off`,
-`feature_disabled`, `ha_unavailable`.
+Read-only reason codes: `no_permission`, `entity_not_controllable`, `grant_required` (a sensitive step whose manual-control
+grant the caller lacks; `entity_id` + `details.grant`), `yaml_managed`, `no_config_id`, `integration_scene`, `masked_values`,
+`config_api_unavailable`, `bridge_unavailable`, `delegation_off`, `feature_disabled`, `ha_unavailable`.
 
 ### 2.4 Status, preview, runs
 
@@ -135,11 +140,13 @@ export interface AutomationsStatus {
   stale: boolean; last_sync_at: string | null; writable: boolean;
   write_block: null | 'feature_disabled' | 'ha_unavailable' | 'bridge_missing' | 'bridge_unpaired' | 'bridge_too_old'
              | 'delegation_off' | 'authoring_blocked';
-  scheduler_present: boolean;                    // CR §5 boundary
+  scheduler_present: boolean;                    // CR §5 cross-link
   can: { view: boolean; manage: boolean; scene_manage: boolean; script_run: boolean; script_manage: boolean;
-         sensitive: boolean; advanced: boolean; configure: boolean };
+         code_view: boolean; configure: boolean };
+  delegation: { on: boolean; needed: boolean };  // needed = the caller is not an HA admin (so saving depends on `on`)
+  ui: { sensitive_warning: boolean; ask_when_on_new: boolean; templates_enabled: boolean };   // settings echoed for the client
   counts: { automations: number; scripts: number; scenes: number; running: number; attention: number; hidden: number | null };
-  admin?: { ha_version: string; bridge_version: string | null; bridge_required: string; delegation: boolean;
+  admin?: { ha_version: string; bridge_version: string | null; bridge_required: string; delegation_changed_at: string | null;
             caller_is_ha_admin: boolean; config_api: 'ok' | 'unavailable'; authoring_block_reason: string | null };
 }
 export interface PreviewResult {
@@ -147,18 +154,27 @@ export interface PreviewResult {
   sentence: string; block_sentences: Record<string, string>;
   effects: { entities: Array<{ entity_id: string; name: string; floor: string | null; area: string | null;
                                from: string | null; to: string | null }>; unknown: boolean };
-  sensitive: boolean; requires: { confirm: boolean; sensitive_permission: boolean; advanced: boolean };
-  use_schedule: null | { schedule_draft: unknown /* CR-014 ScheduleDraft */ };
+  sensitive: boolean; sensitive_steps: Array<{ path: string; entity_id: string; action: string; grant: string; granted: boolean }>;
+  requires: { confirm: boolean; code_view: boolean; ha_admin: boolean /* the save is a `code` profile save */ };
+  suggest_schedule: null | { schedule_draft: unknown /* CR-014 ScheduleDraft */ };   // a suggestion, never a refusal (CR §5)
 }
 export interface Issue { path: string; code: string; message: string }
-export interface RunSummary { run_id: string; at: string; finished_at: string | null;
+/** "למה זה רץ" — the full trace (owner decision 9ג), for every caller who may view the item. */
+export interface RunTrace { run_id: string; at: string; finished_at: string | null; duration_ms: number | null;
   result: 'ok' | 'error' | 'stopped' | 'running' | 'not_triggered';
-  trigger: string; conditions: Array<{ sentence: string; passed: boolean | null }>;
-  steps: Array<{ sentence: string; result: 'done' | 'skipped' | 'error' | 'running'; error: string | null }> }
+  sentence: string;                              // the one Hebrew line on top
+  trigger: { sentence: string; path: string; description: string | null };
+  conditions: Array<{ path: string; sentence: string; passed: boolean | null }>;
+  steps: Array<{ path: string; depth: number; sentence: string; result: 'done' | 'skipped' | 'error' | 'running' | 'not_run';
+                 started_at: string | null; duration_ms: number | null; error: string | null;
+                 changed_variables: Record<string, unknown> | null }>;     // secret-like keys masked ("••••")
+  variables: Record<string, unknown> | null;     // masked the same way
+  context: { user: string | null /* display name, never an id */; parent: 'automation' | 'script' | 'user' | 'system' | null } }
+export type RunSummary = Pick<RunTrace, 'run_id' | 'at' | 'finished_at' | 'result' | 'sentence'>;  // list rows
 ```
 
-`RunSummary` never contains variables, context ids or user ids; `steps` for callers without `can.advanced` are the top-level
-steps only.
+`RunTrace` never contains user ids, context ids or an unmasked secret-like value; everything else HA stores for the run is
+present. Runs of items the caller cannot see are never returned.
 
 ## 3. Routes
 
@@ -172,9 +188,9 @@ steps only.
 | 4 | GET | `/automations/catalog` | pickable entities with their typed triggers/conditions/actions and argument specs; notify targets; scenes; scripts with fields | any authoring permission |
 | 5 | GET | `/automations/templates` | the gallery (CR §4.2.4), each with `target: 'automation' \| 'schedule'` | manage |
 | 6 | POST | `/automations/preview` | `{kind, id?, draft}` → `PreviewResult` (always 200 for a well-formed body) | view or manage |
-| 7 | POST | `/automations/{kind}` | create `{draft, enabled, confirm, client_request_id}` → 201 `{item, op_id}` | manage/scene.manage/script.manage + control (+ sensitive) |
+| 7 | POST | `/automations/{kind}` | create `{draft, enabled, confirm, client_request_id}` → 201 `{item, op_id}` | manage/scene.manage/script.manage + control (+ the manual-control grant per sensitive step) |
 | 8 | PUT | `/automations/{kind}/{id}` | replace `{draft, base_revision, confirm, client_request_id}` | edit (old AND new) |
-| 9 | PUT | `/automations/{kind}/{id}/advanced` | `{config, base_revision, confirm, client_request_id}` (full item JSON; the client renders YAML) | advanced + HA admin (bridge) |
+| 9 | PUT | `/automations/{kind}/{id}/code` | `{config, base_revision, confirm, client_request_id}` (full item JSON from the code view; the client renders YAML). The server parses it into blocks and derives the profile: all typed/preserved → `builder` (delegation applies); else `code` → HA admin | code_view (+ HA admin for a `code` profile save, checked by the bridge) |
 | 10 | POST | `/automations/{kind}/{id}/delete` | `{base_revision, confirm, client_request_id}` → trash | delete |
 | 11 | POST | `/automations/{kind}/{id}/copy` | `{name, client_request_id}` | copy |
 | 12 | POST | `/automations/automation/{id}/enable` · `/disable` | `{confirm, client_request_id}` | toggle |
@@ -183,23 +199,28 @@ steps only.
 | 15 | POST | `/automations/scene/{id}/apply` | `{confirm, client_request_id}` → 202 | control of members / scene entity |
 | 16 | POST | `/automations/scene/capture` | `{entity_ids}` → `{members: SceneMember[]}` (no write) | scene.manage + control |
 | 17 | POST | `/automations/{kind}/{id}/dry-run` | → `{conditions: [{sentence, passed\|null}], effects}` (no execution) | view |
-| 18 | GET | `/automations/{kind}/{id}/runs` · `/runs/{run_id}` | `RunSummary[]` · one | view + visible |
-| 19 | GET / POST | `/automations/{kind}/{id}/versions` · `/versions/{vid}/restore` | history (last 20) · restore = upsert | view · edit |
-| 20 | GET / POST | `/automations/trash` · `/trash/{tid}/restore` · `/trash/{tid}/purge` | trash (30 days) | view · create rules · installation-wide manage |
+| 18 | GET | `/automations/{kind}/{id}/runs` · `/runs/{run_id}` | `RunSummary[]` · one `RunTrace` (full) | view + visible |
+| 19 | GET / POST | `/automations/{kind}/{id}/versions` · `/versions/{vid}/restore` | history (last `versions_keep`) · restore = upsert | view · edit |
+| 20 | GET / POST | `/automations/trash` · `/trash/{tid}/restore` · `/trash/{tid}/purge` | trash (`trash_days`) | view · create rules · installation-wide manage |
 | 21 | PUT | `/automations/{kind}/{id}/meta` | `{pinned?, favourite?, hidden?}` (Arx only; `hidden` for integration scenes by admins) | view (own prefs) / manage (hidden) |
-| 22 | GET | `/automations/review` | administrator list: sensitive external, storm, invalid, missing entities, owner lost rights, masked values | installation-wide manage |
-| 23 | GET / PUT | `/settings` keys `automations.enabled`, `.notify_targets`, `.storm_auto_disable`, `.templates_enabled` | settings | `system.configure` |
+| 22 | GET | `/automations/review` | administrator list: sensitive external, storm, invalid, missing entities, owner lost rights, masked values, delegated writes | installation-wide manage |
+| 23 | GET / PUT | `/settings` keys (the הגדרות › אוטומציות tab, CR §4.7): `automations.enabled` (true), `.code_view_roles` (`["site_admin","system_admin"]`), `.trash_days` (30, 7-90), `.versions_keep` (20, 5-50), `.limits` (`{writes_per_min: 30, preview_per_min: 60, run_interval_s: 10, scene_apply_interval_s: 3, storm_item_per_min: 20, storm_total_per_min: 200}`), `.storm_auto_disable` (false), `.sensitive_warning` (true), `.templates_enabled` (true), `.templates_hidden` (`[]`), `.templates_order` (`[]`), `.notify_targets` (`[]`), `.ask_when_on_new` (false). Delegation is **not** a setting here (read-only state from the bridge) | `system.configure` |
 
 ### 3.2 Semantics that matter
 
 - **Create/replace**: validate (model + policy + scope) → `preview` rules (errors → 422 `validation` with `details.errors`) →
-  sensitive/unknown-effect content needs `confirm` (409 `confirmation_required`) → `base_revision` check (409 `item_changed`
-  with `details.current`) → bridge `upsert` → re-read → cache, meta, version row, audit → 200/201 `{item, op_id}`. Bridge ok
-  with `loaded: false` → 202 `{status: "not_loaded"}` and the admin review lists it. Timeout → 504, op `unknown`, never retried.
+  sensitive steps: the caller must hold the manual-control grant at each target (403 `grant_required` naming the first missing
+  one) → unknown-effect content needs `confirm` (409 `confirmation_required`) → `base_revision` check (409 `item_changed` with
+  `details.current`) → bridge `upsert` (profile `builder`, or `code` for route 9 content that is not builder-expressible) →
+  re-read → cache, meta, version row, audit (`delegated` when the caller is not an HA admin) → 200/201 `{item, op_id}`. Bridge
+  ok with `loaded: false` → 202 `{status: "not_loaded"}` and the admin review lists it. Timeout → 504, op `unknown`, never
+  retried.
 - **Locked-block rule**: every locked block in a draft must match (fingerprint) a locked block of the stored item, unless the
-  caller has `can.advanced`; else 403 `locked_block_changed`. Order changes and removals are allowed (CR §7).
-- **Boundary**: a create that is time/sun-only with device-only actions while `scheduler_present` → 422 `use_schedule` with
-  `details.schedule_draft`; replaces of existing items are never refused for this.
+  caller has `can.code_view` and the save goes through route 9; else 403 `locked_block_changed`. Order changes and removals are
+  allowed (CR §7).
+- **Schedule cross-link (CR §5)**: a draft that is time/sun-only with device-only actions while `scheduler_present` gets the
+  preview warning `suggest_schedule` with `suggest_schedule.schedule_draft`; **no route refuses for this**. The client shows the
+  chip "צור כתזמון"; choosing it opens CR-014's create dialog with the draft and abandons the automation draft.
 - **Delete**: snapshot to `automation_trash`, then bridge `delete`; on bridge failure the snapshot is removed. Integration
   scenes and YAML-managed items → 422 `not_editable`.
 - **Restore** (trash or version): bridge `upsert` with the original id when free (else a new id, reported), under the current
@@ -213,11 +234,11 @@ steps only.
 |---|---|---|
 | 403 | `forbidden` | אין הרשאה לפעולה זו בהיקף המבוקש. |
 | 403 | `entity_not_controllable` | אין לך הרשאת שליטה ב־{name}. |
-| 403 | `sensitive_permission_required` | תוכן שנוגע באזעקה, במנעולים, בדלתות ובשערים דורש הרשאה לתוכן רגיש. |
-| 403 | `advanced_required` | שינוי זה דורש הרשאה לעריכה מתקדמת. |
-| 403 | `locked_block_changed` | חלק נעול שונה. אפשר לשנות אותו רק בעריכה מתקדמת. |
-| 403 | `delegation_off` | שמירה עבור משתמש זה אינה מופעלת בהגדרות רכיב החיבור. |
-| 403 | `not_ha_admin` | עריכה מתקדמת זמינה רק למנהלי תשתית המערכת. |
+| 403 | `grant_required` | אין לך הרשאה ל{action} ב־{name}. (the same message manual control gives; `details.grant`, `details.path`) |
+| 403 | `code_view_required` | שינוי זה אפשרי רק בתצוגת הקוד. |
+| 403 | `locked_block_changed` | חלק נעול שונה. אפשר לשנות אותו רק בתצוגת הקוד. |
+| 403 | `delegation_off` | שמירה עבור משתמש זה אינה מופעלת. פנו למנהל המערכת. |
+| 403 | `not_ha_admin` | שמירת תוכן זה דורשת מנהל של תשתית המערכת. |
 | 404 | `item_not_found` | הפריט לא נמצא. |
 | 404 | `trash_not_found` | הפריט אינו בסל המחזור (ייתכן שפג תוקפו). |
 | 409 | `item_changed` | הפריט שונה במקום אחר. טענו את הגרסה העדכנית והחליטו מה לשמור. |
@@ -226,8 +247,7 @@ steps only.
 | 422 | `validation` | ערך לא תקין — {field}: {what} |
 | 422 | `ha_validation` | תשתית המערכת דחתה את ההגדרה: {what} |
 | 422 | `action_not_allowed` | הפעולה אינה מותרת כאן. |
-| 422 | `code_not_allowed` | אסור לשמור קוד בתוך אוטומציה, סצנה או סקריפט. |
-| 422 | `use_schedule` | פעולה בשעות קבועות נוצרת בתזמונים. |
+| 422 | `code_not_allowed` | אסור לשמור קוד סודי בתוך אוטומציה, סצנה או סקריפט. |
 | 422 | `not_editable` | פריט זה מוגדר בקובץ תצורה או במכשיר ואינו ניתן לעריכה כאן. |
 | 422 | `masked_values` | הפריט כולל ערכים חסויים; ערכו אותו בתשתית המערכת. |
 | 429 | `rate_limited` / `run_too_soon` | יותר מדי שינויים ברצף; נסו שוב בעוד רגע. / הפריט הורץ ממש עכשיו; נסו שוב בעוד כמה שניות. |
@@ -257,11 +277,12 @@ steps only.
 | `snapshot_scene` (slice C) | entity_ids | `scene.create` (`snapshot_entities`) / `scene.delete` of `arx_undo_*` only |
 
 Checks, in order (independent of the add-on): signature, replay window, active HA user · op allow-list · `upsert`/`delete`:
-`user.is_admin`, or the options-flow switch `delegated_authoring` is on **and** `profile == "builder"`; `profile == "advanced"`
-always needs `is_admin` · `config_policy.py` (dependency-free, by path in tests): top-level keys per kind, typed block schemas,
-the builder service allow-list (⊂ `ALLOWED_SERVICES` ∪ the CR §9.1 additions), argument specs, no secret-like key and no `code`
-at any depth in authored blocks, `sensitive` flag consistency, for `builder`: every block outside the typed schemas must have its
-fingerprint in `preserved` **and** in the stored item (so a delegated user can keep but never author them) · under the write
+`user.is_admin`, or the options-flow switch `delegated_authoring` is on **and** `profile == "builder"` (owner approval CR §8.3);
+`profile == "code"` always needs `is_admin` · `config_policy.py` (dependency-free, by path in tests): top-level keys per kind,
+typed block schemas, the builder service allow-list (⊂ `ALLOWED_SERVICES` ∪ the CR §9.1 additions, sensitive services included,
+none with a `code` argument), argument specs, no secret-like key and no `code` at any depth in authored blocks, `sensitive` flag
+consistency, for `builder`: every block outside the typed schemas must have its fingerprint in `preserved` **and** in the stored
+item (so a delegated user can keep but never author them) · under the write
 lock: stored revision == `base_revision` else `stale` · HA validation (`async_validate_config_item`) → `ha_invalid` with the
 message path · backup ring (10) · atomic write, re-read, verify · reload, wait ≤ 5 s for the registry entry → `loaded`.
 Runtime ops: the target entity's registry platform is `automation`/`script`/`homeassistant`(scene) or an integration scene for
@@ -272,8 +293,11 @@ error, path?}`; errors `bad_signature|stale|replay`, `unknown_user`, `op_not_all
 `invalid_payload`, `service_not_allowed`, `argument_not_allowed`, `code_not_allowed`, `secret_not_allowed`,
 `preserved_mismatch`, `sensitive_flag_mismatch`, `stale`, `exists`, `not_found`, `ha_invalid`, `write_failed`, `unauthorized`,
 else the exception class name. Never logged: config values, variables, template text. Other bridge files: `const.py` VERSION
-0.6.0 + `SERVICE_CONFIG_ITEM`, options flow (`delegated_authoring`, default false), `services.yaml`, `strings.json`,
-translations, unload, README. `execute`, `schedule`, `set_entity_area`, `ALLOWED_SERVICES` unchanged.
+0.6.0 + `SERVICE_CONFIG_ITEM`, options flow (`delegated_authoring`, default false, Hebrew/English strings naming the effect
+plainly: "מאפשר ל־Arx לשמור אוטומציות, סצנות וסקריפטים עבור משתמשים שאינם מנהלים — תוכן העורך הפשוט בלבד"), `services.yaml`,
+`strings.json`, translations, unload, README. The add-on reads the switch state (and its change time) through the existing
+bridge status call and shows it read-only in הגדרות › אוטומציות. `execute`, `schedule`, `set_entity_area`, `ALLOWED_SERVICES`
+unchanged.
 
 ## 5. The fake (`smplwise_vms/backend/tests/fake_ha_config.py`)
 
@@ -306,18 +330,20 @@ before every commit; never read `secrets/` or `private-evidence/`; no HA, lab or
 with the owner's approval for W-1/W-2). Model: Sonnet for S1-S4 (Fable/Opus for S2's writer if the review asks); Opus reviews
 the write path before the merge.
 
-### P0 — decisions, mockup, S0 client (coordinator + design agent, 8-12 h)
+### P0 — decisions, mockup, S0 client (coordinator + design agent, 8-12 h) — decisions and mockup DONE 2026-10-01
 
-Owner answers; static mockup in `docs/design/mockups/automations/` (UniFi-style mandate, v2 tokens, 1440/820/390: list, detail
-drawer, builder with typed and locked blocks, template gallery, scene capture table, script runner with fields, "למה זה רץ",
-read-only states, conflict banner); `frontend/src/api/automations.ts` + `automations-mock.ts` (mock seeded like §5).
+Owner answers (CR §16); interactive mockup `docs/design/mockups/automations/index.html` (Domus glass style of the approved
+multimedia mockups, `--dv-*` tokens, 1440/390, light/dark: three lists, builder with typed and locked blocks and the builder ↔
+code toggle, template gallery, "צור כתזמון" suggestion, scene capture table, script runner with fields, full trace, trash +
+versions, the settings tab, every state; evidence `docs/evidence/automations-mockup/`); remaining: `frontend/src/api/automations.ts`
++ `automations-mock.ts` (mock seeded like §5).
 
 ### S1 — backend service (`pilot/CR017-s1-backend`), 34-42 h
 
 ```
 Goal: CR §4.6, §6.1, §6.3, §7, §8.1, §9.4-§9.7, §10-§12 and this contract §2-§3, §6.
 Owns: routers/automations.py; services/automations.py (mirror, status, list/detail, catalog, capture, runs from traces,
-  storm guard, review), services/automation_ops.py (create/replace/advanced/delete/copy/enable/run/apply, trash, versions,
+  storm guard, review), services/automation_ops.py (create/replace/code/delete/copy/enable/run/apply, trash, versions,
   idempotency, audit), services/automation_scope.py (visibility, change/run rights, per-caller locking);
   migrations/0045_automations.sql (+0046 only if grants need data); tests/test_automations_api.py, _scope.py, _mirror.py,
   _trash_versions.py, _runs.py; frontend/tests/fixtures/automations_fake_ha.py (last milestone).
@@ -336,7 +362,8 @@ Done: every route and §3.3 code tested against fake_ha_config; visibility befor
 Goal: CR §3.3 (probe extension), §6.2, §8.2-§8.3, §9.1-§9.4, §13 fake; this contract §2.1-§2.2, §4, §5.
 Owns: services/automation_model.py (read/write blocks, legacy normalisation, raw-preserving writer, fingerprints),
   services/automation_text.py (Hebrew sentences: triggers, conditions, actions, whole item; golden files),
-  services/automation_policy.py (classes, allow-list, arg specs, sensitive, secret masking, loops/cycles, use_schedule);
+  services/automation_policy.py (classes, allow-list, arg specs, sensitive → manual-control grant mapping, secret masking,
+  loops/cycles, suggest_schedule);
   tests/fake_ha_config.py + seed; integration/smplwise_bridge/config_policy.py, config_store.py (writer, lock, backups,
   CAS, reload + wait), config_item service in __init__.py, options flow, const/manifest 0.6.0, services.yaml, strings,
   translations, README; scripts/automations_probe.py additions (U-1..U-10 read-only; --write-check opt-in, throwaway ids);
@@ -351,11 +378,14 @@ Done: write(read(c)) == c for every seed item; no secret or code survives in aut
 ### S3 — frontend lists, detail, runners, settings (`pilot/CR017-s3-lists`), 26-32 h
 
 ```
-Goal: CR §4.1, §4.2.5-§4.2.6, §4.3 (activate + capture table + save), §4.4 runner, §4.6 states; settings page; trash/versions.
-Owns: screens/devices-automations.ts (tab + segmented control), screens/automation-drawer.ts (detail, runs/why, versions,
-  actions), components/sw-automation-card.ts (<automation-card .item>), screens/scenes-panel.ts (grid by area, activate,
-  favourites, capture table <scene-capture>), screens/scripts-panel.ts (runner, <script-fields-form>),
-  screens/system-automations.ts (settings, delegation state, review list, trash); specs unit-automations-list.spec.ts,
+Goal: CR §4.1, §4.2.5-§4.2.6 (full trace view), §4.3 (activate + capture table + save), §4.4 runner, §4.6 states, §4.7 the
+  settings tab (every section); trash/versions.
+Owns: screens/devices-automations.ts (tab + segmented control), screens/automation-drawer.ts (detail, runs + <run-trace>,
+  versions, actions), components/sw-automation-card.ts (<automation-card .item>), screens/scenes-panel.ts (grid by area,
+  activate, favourites, capture table <scene-capture>), screens/scripts-panel.ts (runner, <script-fields-form>),
+  screens/system-automations.ts (the הגדרות › אוטומציות tab: who-may matrix, delegation state read-only, code-view roles,
+  trash days, versions keep, limits, sensitive warning, templates gallery management, ask-when-on-new, review list, trash);
+  specs unit-automations-list.spec.ts,
   evidence-automations-list.spec.ts (demo; 1440/820/390; loading/empty/error/ready/view-only/yaml/invalid/running; RTL).
 Touches (sole editor): shell/nav.ts (tab gating), shell/sw-app.ts (routes #/devices/automations[/…], #/system/automations),
   api/ha.ts (HaPush automations_changed).
@@ -365,16 +395,19 @@ Done: no HA/YAML names on operator screens; no hints/paragraphs (clean operator 
 ### S4 — frontend builder and editors (`pilot/CR017-s4-builder`), 34-42 h
 
 ```
-Goal: CR §4.2.1-§4.2.4, §4.4 editor, §4.5, §5 handoff, conflict banner, unsaved guard, phone variant.
-Owns: screens/automation-builder.ts (כאשר / אם / אז sections, live sentence via preview, mode/max), components/
-  sw-block-card.ts (typed + locked cards, drag/keyboard reorder), screens/automation-block-forms.ts (one form per typed
-  block), screens/automation-entity-picker.ts (floor → area → device, search; reuses schedule-entity-picker patterns),
-  screens/automation-templates.ts (gallery; schedule targets open CR-014's create dialog by tag), screens/script-editor.ts
-  (fields + sequence reuse), screens/automation-advanced.ts (YAML text editor, path-mapped errors, JSON fallback);
+Goal: CR §4.2.1-§4.2.4, §4.4 editor, §4.5 code view + the builder ↔ code toggle, §5 "צור כתזמון" suggestion, sensitive-step
+  warning chip, conflict banner, unsaved guard, phone variant.
+Owns: screens/automation-builder.ts (כאשר / אם / אז sections, live sentence via preview, mode/max, the "בונה · קוד" toggle
+  gated on can.code_view), components/sw-block-card.ts (typed + locked cards, drag/keyboard reorder, sensitive chip),
+  screens/automation-block-forms.ts (one form per typed block; the form registry is keyed by block type so later typed reasons
+  add a form without touching the builder), screens/automation-entity-picker.ts (floor → area → device, search; reuses
+  schedule-entity-picker patterns), screens/automation-templates.ts (gallery), screens/script-editor.ts (fields + sequence
+  reuse), screens/automation-code.ts (YAML text editor, path-mapped errors, JSON fallback; save through route 9);
   specs unit-automation-builder.spec.ts, evidence-automation-builder.spec.ts.
 Touches: shell/sw-app.ts one import line after S3's.
 Done: every typed block round-trips through the form unchanged when untouched (raw preserved); locked blocks visible, movable,
-  deletable, never editable without can.advanced; use_schedule handoff; tsc clean; specs run and reported.
+  deletable, never editable without can.code_view; builder ↔ code switch keeps the draft; suggest_schedule chip opens CR-014's
+  dialog; tsc clean; specs run and reported.
 ```
 
 ### 7.1 Merge order, review, shared files
@@ -395,32 +428,39 @@ work on the mock and are harmless early (the tab is gated on `automation.view`, 
 
 ### 7.2 Effort, critical path, calendar
 
+Re-estimated 2026-10-01 after the owner's decisions. Deltas vs the first estimate: full trace view (+2-4), the dedicated
+settings tab with eight sections (+4-6), code view for everyone allowed with a toggle and content-derived profile (+2-3), the
+sensitive grant mapping onto CR-014's manual-control classes (+1-2), the schedule suggestion instead of a refusal (−1-2), the
+delegation approval removing the security-review round from the worst case (calendar only).
+
 | Item | Agent-hours |
 |---|---|
-| P0 decisions + mockup + S0 client | 8-12 |
-| S1 backend service | 34-42 |
+| P0 decisions + mockup (done) + S0 client | 10-14 (≈ 8 spent) |
+| S1 backend service (incl. full trace, settings keys, grant mapping) | 36-45 |
 | S2 model, sentences, policy, fake, bridge 0.6.0, probe | 32-40 |
-| S3 lists, detail, scenes, scripts, settings | 26-32 |
-| S4 builder, templates, script editor, advanced editor | 34-42 |
+| S3 lists, detail, full trace view, scenes, scripts, the settings tab | 30-38 |
+| S4 builder, templates, script editor, code view + toggle, suggestion chip | 36-45 |
 | Opus review + fixes, live spec, phase 0 (incl. W-1/W-2) | 12-18 |
-| **Total slices A + B** | **146-186** |
-| Slice C (try-with-undo, typed device triggers, area/floor targets, labels writes, storm auto-disable) | +24-32 |
+| **Total slices A + B** | **156-200** |
+| Slice C (try-with-undo, area/floor targets, labels writes, storm auto-disable, "+ חדש → מתי?") | +18-26 |
+| Roadmap (CR §14.1): typed device/template/purpose-specific blocks +16-24; blueprints +12-20 | later, on the owner's word |
 
-Slice A alone (see and run, no config writes) is about 40 % of this (≈ 60-75 h) and can ship first.
+Slice A alone (see and run, no config writes, incl. the full trace and the settings tab) is about 40 % (≈ 65-80 h) and can ship first.
 
 **Calibration.** CR-015: a 92-116 agent-hour estimate took about 2.5 hours of wall-clock with four parallel agents (contract
-22:30 → review fixes 00:46). Agent-hours are nominal effort; the calendar is set by the owner's decisions and reviews, the lab
-write checks that need his approval, live rounds on his systems and the release rhythm (one or two release rounds a day, on his
-word). The probe shrank the risk: all 42 automations are UI-managed, new-schema, small, with no blueprints.
+22:30 → review fixes 00:46). Agent-hours are nominal effort; the calendar is set by the owner's reviews, the lab write checks
+that need his approval, live rounds on his systems and the release rhythm (one or two release rounds a day, on his word). The
+probe shrank the risk: all 42 automations are UI-managed, new-schema, small, with no blueprints. The decisions are in, so the
+"decisions" day of the first estimate is gone; the mockup exists and awaits one owner review.
 
 | Case | Calendar (4 parallel Sonnet agents + integration + Opus review) | Assumes |
 |---|---|---|
-| **Best** | **2 working days**: day 1 decisions + mockup + S0 + S1-S4; day 2 review, fixes, W-1/W-2 on the lab, one release round for A + B | recommendations adopted, first mockup accepted, the writer matches HA's format first time |
-| **Likely** | **4-6 working days**: slice A released on day 2-3; slice B after one mockup revision, the lab write checks and one live round on the owner's systems (2-5 fixes: sentence wording, key order/format, reload timing, a template block) | normal review cycles |
-| **Worst** | **9-12 working days (≈ 2 weeks)** | delegation needs a security-review round and a CR against `docs/security/`; the bridge writer disagrees with HA on a real file and is replaced by another write path; scope grows into typed device triggers for the wall-switch buttons, purpose-specific triggers or blueprints |
+| **Best** | **2 working days**: day 1 mockup accepted as is, S0 + S1-S4 in parallel; day 2 review, fixes, W-1/W-2 on the lab, one release round for A + B | mockup accepted, amendment signed, the writer matches HA's format first time |
+| **Likely** | **4-5 working days**: slice A released on day 2; slice B after one mockup revision, the amendment sign-off, the lab write checks and one live round on the owner's systems (2-5 fixes: sentence wording, key order/format, reload timing, a template block) | normal review cycles |
+| **Worst** | **8-10 working days** | the bridge writer disagrees with HA on a real file and is replaced by another write path; a second mockup round on the builder; the trace shape (U-7) differs on 2026.9 and the trace view is reworked; the owner pulls a roadmap item (typed wall-switch buttons) into v1 |
 
-Honest reading: the owner's "about two weeks" is the worst case. The core builder with safe writes is likely done within a
-working week; what stretches it is not coding but decisions, the security exception of CR §8.3 and live verification.
+Honest reading: the owner's "about two weeks" is now beyond the worst case. The core builder with safe writes is likely done
+within a working week; what stretches it is not coding but the mockup review, the amendment sign-off and live verification.
 
 ### 7.3 Definition of done (every agent)
 
