@@ -264,3 +264,18 @@ def permissions_fingerprint(conn: sqlite3.Connection, principal: Principal) -> s
 
 def has_any_binding(conn: sqlite3.Connection, principal: Principal) -> bool:
     return bool(_active_bindings(conn, principal))
+
+
+def is_system_admin(conn: sqlite3.Connection, user_id: str) -> bool:
+    """Is this user an administrator of the installation: an active (not revoked, not expired) `system_admin` allow-binding
+    at the installation scope - direct or through a group, resolved exactly like authorize() - and no installation-wide
+    deny of that role. The same notion the wizard's "system administrators" count and the directory sync use; a Home
+    Assistant admin flag alone never makes anyone one (it is information only). Callers check the active flag themselves."""
+    admin = False
+    for b in _active_bindings(conn, Principal(user_id=user_id, username="", display_name="", source="internal")):
+        if b["role_id"] != "system_admin" or (b["scope_type"], b["scope_id"]) != INSTALLATION:
+            continue
+        if b["effect"] == "deny":
+            return False
+        admin = True
+    return admin

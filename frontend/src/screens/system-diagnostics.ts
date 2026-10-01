@@ -936,7 +936,7 @@ export class SystemDiagnostics extends LitElement {
   private renderRemote() {
     const api = isApi();
     const ro = !api || !this.canEdit;
-    const keys = ['remote.policy', 'remote.session', 'remote.idle_lock_minutes', 'remote.default_profile', 'remote.mse_fallback', 'remote.require_mfa_admin', 'remote.max_live_streams', 'remote.wall_profile'] as const;
+    const keys = ['remote.policy', 'remote.admins_default', 'remote.session', 'remote.idle_lock_minutes', 'remote.default_profile', 'remote.mse_fallback', 'remote.require_mfa_admin', 'remote.max_live_streams', 'remote.wall_profile'] as const;
     const dirty = keys.some((k) => k in this.draft);
     const v = <K extends (typeof keys)[number]>(k: K, d: string) => String(this.value(k) ?? d);
     const sel = (key: (typeof keys)[number], d: string, options: [string, string][]) => html`<sw-field class="ctl"><select data-set-remote=${key} ?disabled=${ro} @change=${(e: Event) => this.set(key, (e.target as HTMLSelectElement).value as never)}>
@@ -952,6 +952,8 @@ export class SystemDiagnostics extends LitElement {
       <sw-card heading="גישה מרחוק · SmplWise Arx" subheading="כניסה דרך https://<שם ה־Home Assistant>/arx עם מסך הכניסה של המערכת (שם משתמש וסיסמה של Home Assistant). הערוץ עצמו מופעל באפשרות ה־add-on remote_access.">
         <div class="row"><span class="lbl">מי רשאי להיכנס מרחוק<span class="muted">דגל אישי: רק משתמשים שהופעלה להם גישה מרחוק במסך משתמשים והרשאות · כל בעל תפקיד: כל משתמש Home Assistant עם תפקיד כלשהו במערכת</span></span>
           ${sel('remote.policy', 'flag', [['flag', 'דגל אישי לכל משתמש'], ['any_role', 'כל משתמש עם תפקיד']])}</div>
+        <div class="row" data-remote-admins-default-row><span class="lbl">מנהלים – גישה מרחוק כברירת מחדל<span class="muted">מנהל מערכת נכנס מרחוק בלי דגל אישי · חל על "דגל אישי לכל משתמש"</span></span>
+          ${sel('remote.admins_default', 'true', [['true', 'מופעלת'], ['false', 'כבויה']])}</div>
         <div class="row"><span class="lbl">שמירת הכניסה בדפדפן<span class="muted">90 יום מתחדשים: כמו האפליקציה של Home Assistant · עד סגירת הדפדפן: הכניסה נמחקת בסגירה · 90 יום עם נעילה: כניסה חוזרת אחרי זמן ללא פעילות</span></span>
           ${sel('remote.session', 'rolling_90d', [['rolling_90d', '90 יום מתחדשים'], ['browser_session', 'עד סגירת הדפדפן'], ['rolling_90d_idle_lock', '90 יום עם נעילה בחוסר פעילות']])}</div>
         <div class="muted" data-remote-shared-login style="margin-block-start:6px">שימו לב: הכניסה ל־Arx מחברת את אותו דפדפן גם ל־Home Assistant בכתובת <span class="ltr">/</span> של אותו שם מתחם (כדי ש־WisKey ייפתח מחובר). ב"עד סגירת הדפדפן" החיבור ל־Home Assistant קיים רק כל עוד דף Arx פתוח; בנעילה בחוסר פעילות הוא מבוטל כשהנעילה מופעלת ב־Arx, אבל עד שפותחים את Arx שוב, Home Assistant בכתובת <span class="ltr">/</span> עדיין פתוח באותו דפדפן. יציאה מ־Arx מנתקת משניהם.</div>

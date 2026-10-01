@@ -38,6 +38,11 @@ export interface DirectoryUser {
   is_self: boolean;
   /** CR-008: the per-user remote-access flag (SmplWise Arx, remote.policy = flag). */
   remote_access?: boolean;
+  /** CR-008 amendment: what admits the user remotely - their own flag, or the administrator default (the installation setting
+   * remote.admins_default, not the user's switch); null when nothing does. `remote_admin_default`: the default would admit them
+   * without the flag. */
+  remote_access_basis?: 'flag' | 'admin_default' | null;
+  remote_admin_default?: boolean;
   /** CR-008 P2: the last remote sign-in (ISO time) and how many remote sign-ins are active now. */
   remote_last_sign_in?: string | null;
   remote_sessions?: number;

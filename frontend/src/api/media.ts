@@ -130,6 +130,8 @@ export interface ProductSettings {
   'devices.floor_row'?: { items: string[] };
   /** CR-008 SmplWise Arx remote access (הגדרות › גישה מרחוק). */
   'remote.policy'?: 'flag' | 'any_role';
+  /** CR-008 amendment (owner 2026-10-01): a system administrator signs in remotely without a per-user flag (default 'true'). */
+  'remote.admins_default'?: 'true' | 'false';
   'remote.session'?: 'rolling_90d' | 'browser_session' | 'rolling_90d_idle_lock';
   'remote.idle_lock_minutes'?: number;
   'remote.default_profile'?: 'main' | 'sub';

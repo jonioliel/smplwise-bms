@@ -178,6 +178,7 @@ DEFAULTS: dict[str, str] = {
     # CR-008 SmplWise Arx remote access (owner decisions 2026-09-29, CR-008 §3f / §7). The channel itself is the add-on
     # option remote_access; these shape who may use it and how the browser keeps its sign-in.
     "remote.policy": "flag",  # flag: only users with the per-user remote-access flag (D4) | any_role: every HA user holding an Arx role
+    "remote.admins_default": "true",  # CR-008 amendment (owner 2026-10-01): true = a system administrator signs in remotely without a per-user flag (only under remote.policy = flag)
     "remote.session": "rolling_90d",  # rolling_90d (HA's sliding refresh token, localStorage) | browser_session (sessionStorage) | rolling_90d_idle_lock (D5)
     "remote.idle_lock_minutes": "720",  # the idle lock of rolling_90d_idle_lock
     "remote.default_profile": "main",  # main | sub: the stream a remote viewer gets first, over WebRTC (D7)
@@ -475,6 +476,7 @@ class SettingsPatch(BaseModel):
     home_side: str | None = Field(default=None, pattern="^(start|end)$", alias="home.side")
     home_widgets: dict[str, Any] | None = Field(default=None, alias="home.widgets")  # validated in full by services/home_config.py
     remote_policy: str | None = Field(default=None, pattern="^(flag|any_role)$", alias="remote.policy")
+    remote_admins_default: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.admins_default")
     remote_session: str | None = Field(default=None, pattern="^(rolling_90d|browser_session|rolling_90d_idle_lock)$", alias="remote.session")
     remote_idle_lock_minutes: int | None = Field(default=None, ge=5, le=10080, alias="remote.idle_lock_minutes")
     remote_default_profile: str | None = Field(default=None, pattern="^(main|sub)$", alias="remote.default_profile")
