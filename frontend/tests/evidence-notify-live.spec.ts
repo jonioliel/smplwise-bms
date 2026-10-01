@@ -47,7 +47,6 @@ const W = {
 const users: Record<string, APIRequestContext> = {};
 let control: APIRequestContext;
 let wiskey: APIRequestContext;
-let pushSeen = 0;
 
 /** A 480x300 synthetic plan (flat colour), built here so the spec needs no binary fixture. */
 function planPng(): Buffer {
@@ -197,7 +196,6 @@ test.describe('notifications, live against the fixture backend (CR-018 S5)', () 
     }
     // the shortened escalation: 1 minute, two steps, to the administrators
     await settingsPut({ escalation: { enabled: true, after_min: 1, steps: 2, to: 'managers' } });
-    pushSeen = (await pushLog()).next;
   });
 
   test.afterAll(async () => {

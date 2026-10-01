@@ -25,7 +25,8 @@ Ports (default SW_PORT = 4771):  SW_PORT backend  ·  +1 this control server  ·
 
 Control server (JSON, 127.0.0.1 only):
     GET  /status                      {ok, version, smtp_port, clock}
-    POST /ha-state {entity_id, state, attributes?}      one `state_changed` push through ha_sync.handle_state_event (old state = the mirror's)
+    POST /ha-state {entity_id, state, attributes?}      one `state_changed` push through ha_sync.handle_state_event (old state = the mirror's;
+                                      `last_changed` is stamped with the movable clock below)
     POST /push/browser {user}         a fake browser for `user`: answers its subscription body ({endpoint, keys}) for POST /push/subscriptions
     GET  /push/log[?since=n]          every push the fake service received, decrypted: {n, user, status, urgency, ttl, payload}
     GET  /smtp/messages               the mail the fake SMTP server received: {n, from, to, subject, text, tls}
@@ -163,7 +164,7 @@ def ha_state(entity_id: str, state: str, attributes: dict[str, Any]) -> dict[str
     with db.connection(mode="read") as conn:
         row = conn.execute("SELECT state, attributes_json FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
     old = {"entity_id": entity_id, "state": row["state"], "attributes": json.loads(row["attributes_json"] or "{}")} if row else None
-    stamp = _real_now().isoformat().replace("+00:00", "Z")
+    stamp = _shifted_now().isoformat().replace("+00:00", "Z")  # the mirror's last_changed follows the movable clock, so a hold (a door open for N s) is judged on one clock
     new = {"entity_id": entity_id, "state": state, "attributes": attributes, "last_changed": stamp, "last_updated": stamp}
     ha_sync.handle_state_event(db, {"old_state": old, "new_state": new}, attempts=3)
     return {"ok": True, "old": old["state"] if old else None}
