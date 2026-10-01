@@ -2,10 +2,11 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { dataOf, parsePush, planClick } from '../src/pwa/push-v2';
 import { DEFAULT_SETTINGS, SOURCE_CATALOG, defaultPolicies, type Notification } from '../src/api/notifications';
 import { MOCK_AREAS, MOCK_NOW, MOCK_TZ, mockAt, mockId, resetNotifyMock } from '../src/api/notifications-mock';
 import {
-  applyLiveEvent, MAIL_TEST_DETAIL, MAX_MAIL_RECIPIENTS, badgeLabel, badgeOf, categoryIcon, detailDelivery, enabledCount, escalationLines, failedCount, failurePanel, filterCounts, iconOf, isValidLinkBase, lockPreview, logRows, mailFormError, mailResultText, matrixGroups, openLabel, placeText, policyWithChannel,
+  applyLiveEvent, MAIL_TEST_DETAIL, MAX_MAIL_RECIPIENTS, badgeLabel, badgeOf, categoryIcon, detailDelivery, enabledCount, escalationLines, failedCount, failurePanel, filterCounts, iconOf, isValidLinkBase, lockPreview, parseNotificationLink, logRows, mailFormError, mailResultText, matrixGroups, openLabel, placeText, policyWithChannel,
   policyWithRule, policyWithSeverity, replaceRow, rowTag, sourceOptions, stepAfterMin, subtitleText, toggleDay, togglePass, visibleRows, whereText,
 } from '../src/components/notify-logic';
 
@@ -221,26 +222,98 @@ test.describe('outgoing mail (the S4 backend wire)', () => {
   });
 });
 
-test.describe('the service worker: what a notification may carry and do (CR §9)', () => {
-  const sw = fs.readFileSync(path.resolve(here, '../src/pwa/sw.ts'), 'utf8');
+test('the url of every push opens its notification: #/notifications/<id>', () => {
+  expect(parseNotificationLink('#/notifications/ntf-golden-leak')).toBe('ntf-golden-leak');
+  expect(parseNotificationLink('/notifications/x%2Fy')).toBe('x/y');
+  expect(parseNotificationLink('#/notifications/')).toBeNull();
+  expect(parseNotificationLink('#/doors/st-main?confirm=ntf-1')).toBeNull();
+  expect(parseNotificationLink('#/notifications/a/b')).toBeNull();
+});
 
-  test('the buttons are acknowledge, snooze and the doorbell deep link - nothing that opens, releases or runs anything', () => {
-    expect(sw).toMatch(/ack: 'אישור', snooze: 'השתק לשעה', open_door: 'פתח דלת'/);
-    // no unlock / release / intercom / door / disarm route is reachable from the worker, and the only request it makes for an action is the token endpoint
-    const code = sw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/\s.*$/gm, ''); // the code, not its comments
-    expect(code).not.toMatch(/unlock|release|intercom|disarm|\/doors\/\$\{|api\/v1\/doors/i);
-    const fetches = [...sw.matchAll(/fetch\(([^)]*)\)/g)].map((m) => m[1]);
-    for (const f of fetches.filter((x) => /api\/v1\//.test(x))) expect(f).toMatch(/notifications\/action|push\/vapid-key|push\/subscriptions/);
-    expect(fetches.some((f) => /api\/v1\/notifications\/action/.test(f))).toBe(true);
-    // the door button only opens the in-app confirmation route
-    expect(sw).toMatch(/\^#\\\/doors\\\/\[A-Za-z0-9_\\-\.~%\]\+\\\?confirm=/);
-    expect(sw).toMatch(/action === 'open_door' && doorLink\(data\?\.door_url\)/);
+test.describe('push v2: the backend wire, parsed by the worker pure function (golden: tests/fixtures/push-v2.json)', () => {
+  const golden = JSON.parse(fs.readFileSync(path.resolve(here, 'fixtures/push-v2.json'), 'utf8')) as Record<'ack_snooze' | 'doorbell_open_door' | 'resolved', Record<string, unknown>>;
+
+  test('ack + snooze: a token PER action, the row link, tag and renotify as the backend sends them', () => {
+    const p = parsePush(golden.ack_snooze);
+    expect(p).toMatchObject({ v: 2, id: 'ntf-golden-leak', url: '#/notifications/ntf-golden-leak', tag: 'arx-n-ntf-golden-leak', severity: 'critical', renotify: false, resolved: false, unread: null });
+    expect(p.actions.map((a) => [a.action, a.title, a.token])).toEqual([['ack', 'אישור', 'AAAAAAAAAAAAAAAAAAAAAA'], ['snooze', 'השתק לשעה', 'BBBBBBBBBBBBBBBBBBBBBB']]);
+    const data = dataOf(p);
+    expect(data.tokens).toEqual({ ack: 'AAAAAAAAAAAAAAAAAAAAAA', snooze: 'BBBBBBBBBBBBBBBBBBBBBB' });
+    expect(data.door_url).toBeNull();
+    // a click posts the token of exactly that action; the body opens the row
+    expect(planClick(data, 'ack')).toEqual({ kind: 'post', token: 'AAAAAAAAAAAAAAAAAAAAAA', action: 'ack' });
+    expect(planClick(data, 'snooze')).toEqual({ kind: 'post', token: 'BBBBBBBBBBBBBBBBBBBBBB', action: 'snooze' });
+    expect(planClick(data, '')).toEqual({ kind: 'open', url: '#/notifications/ntf-golden-leak' });
+    expect(planClick(data, 'open_door')).toEqual({ kind: 'open', url: '#/notifications/ntf-golden-leak' }); // no door link was sent: nothing else happens
   });
 
-  test('the action token is posted only for ack / snooze, with the one-time token; the tag is the notification id; the badge follows the unread count', () => {
-    expect(sw).toMatch(/\(action === 'ack' \|\| action === 'snooze'\) && typeof data\?\.t === 'string'/);
+  test('doorbell: open_door is the deep link from its OWN url - no token, never a post; the browser limit trims the buttons', () => {
+    const p = parsePush(golden.doorbell_open_door, 3);
+    expect(p.actions.map((a) => a.action)).toEqual(['ack', 'snooze', 'open_door']);
+    const door = p.actions[2];
+    expect(door).toMatchObject({ action: 'open_door', url: '#/doors/st-main?confirm=ntf-golden-ring' });
+    expect(door.token).toBeUndefined();
+    const data = dataOf(p);
+    expect(planClick(data, 'open_door')).toEqual({ kind: 'open', url: '#/doors/st-main?confirm=ntf-golden-ring' });
+    expect(parsePush(golden.doorbell_open_door, 2).actions.map((a) => a.action)).toEqual(['ack', 'snooze']);
+    expect(parsePush(golden.doorbell_open_door, 0).actions).toEqual([]);
+    expect(parsePush(golden.doorbell_open_door).title).toContain('צלצול בדלת');
+  });
+
+  test('resolved: the notice replaces the shown one (same tag), with no buttons and no sound', () => {
+    const p = parsePush(golden.resolved);
+    expect(p).toMatchObject({ resolved: true, tag: 'arx-n-ntf-golden-leak', renotify: false });
+    expect(p.actions).toEqual([]);
+    expect(p.body).toContain('הסתיים');
+    // even a resolved message that (wrongly) carries actions shows none
+    expect(parsePush({ ...golden.ack_snooze, resolved: true }).actions).toEqual([]);
+  });
+
+  test('hostile or malformed input: links must be in-app routes, tokens bounded strings, the door link the confirmation route, unknown actions dropped', () => {
+    const bad = parsePush({
+      v: 2, id: 'x', title: 't', body: 'b', url: 'https://evil.example/', unread: -3,
+      actions: [
+        { a: 'ack', title: 'x', t: 'short' }, { a: 'ack', title: 'x', t: 'bad token with spaces!!!!' }, { a: 'snooze', title: 'x', t: 'GOODTOKENGOODTOKEN12' },
+        { a: 'open_door', title: 'x', url: 'https://evil.example/unlock' }, { a: 'open_door', title: 'x', url: '#/doors/st-main' }, { a: 'unlock', title: 'x', t: 'GOODTOKENGOODTOKEN12' }, 'ack', null,
+      ],
+    });
+    expect(bad.url).toBeNull();
+    expect(bad.unread).toBeNull();
+    expect(bad.actions.map((a) => a.action)).toEqual(['snooze']);
+    expect(parsePush({ actions: [{ a: 'open_door', url: '#/doors/st-main?confirm=ntf-1' }, { a: 'open_door', url: '#/doors/st-main?confirm=ntf-2' }] }).actions).toHaveLength(1);
+    expect(parsePush(null).actions).toEqual([]);
+    expect(parsePush('text')).toMatchObject({ title: '', url: null, actions: [] });
+    expect(parsePush({ unread: 4 }).unread).toBe(4);
+    // a v1 message (rule alerts before CR-018) still parses
+    expect(parsePush({ title: 'אדם', body: 'x', url: '#/investigate/events/e1', event_id: 'e1', alert_id: 'a1', tag: 'rule-1' })).toMatchObject({ v: 1, url: '#/investigate/events/e1', event_id: 'e1', alert_id: 'a1', actions: [] });
+    // a stored door link that is not the confirmation route never plans an open of it
+    expect(planClick({ url: '#/home', door_url: 'https://evil.example/' }, 'open_door')).toEqual({ kind: 'open', url: '#/home' });
+    expect(planClick(null, 'ack')).toEqual({ kind: 'open', url: null });
+  });
+});
+
+test.describe('the service worker: what a notification may carry and do (CR section 9)', () => {
+  const sw = fs.readFileSync(path.resolve(here, '../src/pwa/sw.ts'), 'utf8');
+  const v2 = fs.readFileSync(path.resolve(here, '../src/pwa/push-v2.ts'), 'utf8');
+  const strip = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/\s.*$/gm, ''); // the code, not its comments
+
+  test('nothing in the worker or the parser opens, releases or runs anything; the only action request is the token endpoint', () => {
+    for (const code of [strip(sw), strip(v2)]) expect(code).not.toMatch(/unlock|release|intercom|disarm|api\/v1\/doors/i);
+    expect(strip(v2)).not.toMatch(/fetch\(/); // the parser never touches the network
+    const fetches = [...strip(sw).matchAll(/fetch\(([^)]*)\)/g)].map((m) => m[1]);
+    for (const f of fetches.filter((x) => /api\/v1\//.test(x))) expect(f).toMatch(/notifications\/action|push\/vapid-key|push\/subscriptions/);
+    expect(fetches.some((f) => /api\/v1\/notifications\/action/.test(f))).toBe(true);
     expect(sw).toMatch(/body: JSON\.stringify\(\{ t: token, a: action \}\)/);
-    expect(sw).toMatch(/tag: d\.tag \|\| d\.id/);
+    // the worker decides a click only through the pure plan, and a door button only ever reaches openTarget
+    expect(sw).toMatch(/planClick\(data, e\.action \|\| ''\)/);
+    expect(sw).toMatch(/if \(plan\.kind === 'post'\)/);
+  });
+
+  test('the notification is shown from the parsed message: tag, renotify, silent resolved, the badge from the unread count when there is one', () => {
+    expect(sw).toMatch(/parsePush\(raw, /);
+    expect(sw).toMatch(/tag: p\.tag \|\| p\.id/);
+    expect(sw).toMatch(/renotify: !p\.resolved && p\.renotify/);
+    expect(sw).toMatch(/silent: p\.resolved/);
     expect(sw).toMatch(/lastUnread/);
     expect(sw).toMatch(/Notification\?\.maxActions/);
   });

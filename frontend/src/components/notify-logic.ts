@@ -236,3 +236,10 @@ export function mailFormError(b: MailBody): 'email_invalid' | null {
   if (validateEmailBody(b) || b.recipients.length > MAX_MAIL_RECIPIENTS || !isValidLinkBase(b.link_base ?? '')) return 'email_invalid';
   return null;
 }
+
+/** '#/notifications/<id>' (the url of every push v2 message) -> the notification id, or null. */
+export function parseNotificationLink(hash: string): string | null {
+  const m = /^#?\/notifications\/([^/?#]+)\/?$/.exec(hash);
+  if (!m) return null;
+  try { return decodeURIComponent(m[1]); } catch { return null; }
+}

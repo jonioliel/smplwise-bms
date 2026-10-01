@@ -328,6 +328,17 @@ test.describe('the doorbell: "פתח דלת" never opens by itself (CR §9)', ()
     await shot(page, `door-deeplink-${vp(info)}-light`);
   });
 
+  test('every push opens #/notifications/<id>: the center on that row, nothing sent', async ({ page }, info) => {
+    await setup(page);
+    await open(page, `/notifications/${N(1)}`);
+    await expect(center(page)).toHaveAttribute('open', '');
+    await expect(page.locator('sw-app notify-center notify-detail [data-notify-detail]')).toHaveAttribute('data-notify-detail', N(1));
+    await expect(page.locator('sw-app notify-center [data-door-dialog]')).toHaveCount(0);
+    expect(await doorOpens(page)).toEqual([]);
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/devices/building');
+    void info;
+  });
+
   test('a user without the door-open permission has no "פתח דלת" and no manager rows; one who holds it has the button', async ({ page }, info) => {
     await setup(page, { viewer: 'operator' });
     await open(page);
@@ -410,6 +421,10 @@ test.describe('the states of the center', () => {
     await expect(page.locator('sw-app notify-center [data-banner="failed"]')).toContainText('המסירה לטלפון נכשלה · התראה אחת');
     await expect(rowOf(page, N(10)).locator('[data-row-tag="fail"]')).toBeVisible();
     await shot(page, `state-deliveryfail-${vp(info)}-dark`);
+    // the banner's button opens the delivery log of the Settings tab
+    await page.locator('sw-app notify-center [data-banner="failed"] [data-banner-act]').click();
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/system/notifications?section=log');
+    await expect(sys(page).locator('#sec-log')).toBeVisible();
   });
 
   test('the full-screen presentation (notify.center_layout = page) on a wide screen; a phone always gets the bottom sheet', async ({ page }, info) => {
@@ -696,6 +711,8 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     await expect(l.locator('[data-fail-card="webpush"]')).toContainText('נכשלו');
     await expect(l.locator('[data-fail-card="webpush"] b')).toHaveText('2'); // the last 24 h; the table below reaches back 14 days
     await expect(l.locator('[data-fail-card="email"]')).toContainText('נשלחו');
+    await expect(l.locator('[data-log-window]')).toHaveText('14 יום'); // the table's window; the panel's cards say "24 שעות"
+    await expect(l.locator('[data-fail-card="webpush"] .ch')).toContainText('24 שעות');
     await expect(l.locator('[data-log-row]')).toHaveCount(14);
     await expect(l.locator('[data-log-filter="failed"] small')).toHaveText('3');
     await l.locator('[data-log-filter="failed"]').click();
