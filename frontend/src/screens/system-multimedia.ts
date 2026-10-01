@@ -7,11 +7,12 @@ import '../components/sw-toggle';
 import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import './system-multimedia-players';
 import { ApiError, describeError, patch } from '../api/client';
 import { can, isApi } from '../api/session';
 import { invalidateSettings, productSettings } from '../api/prefs';
 import { applyMultimediaHidden } from '../shell/nav';
-import { SECTION_LABEL, media, type KeyId, type MediaStatus, type ProfileId, type RemoteConfig, type RemoteSection } from '../api/media-screens';
+import { SECTION_LABEL, media, type KeyId, type MediaKind, type MediaStatus, type ProfileId, type RemoteConfig, type RemoteSection } from '../api/media-screens';
 import {
   CONFIDENCE_LABEL, CONTROL_LABEL, KIND_LABEL, PROFILE_LABEL, ROLE_LABEL, mediaAdmin,
   type AdminDevice, type AdminDevicePatch, type AdminList,
@@ -30,11 +31,12 @@ const EXTRA_KEYS: { id: KeyId; label: string }[] = [
 
 /**
  * CR-015 הגדרות › מולטימדיה (`#/system/multimedia`, system.configure, installation scope; the server checks it again on every
- * write): the feature switch, every discovered device with kind, confidence, approval ("אשר את כל המסכים שזוהו" as one
+ * write): the feature switch, every discovered SCREEN with kind, confidence, approval ("אשר את כל המסכים שזוהו" as one
  * action), display name, public flag, profile (detected / pinned), linked receiver, default audio target and volume ceiling,
  * the connections of each device (which integration answers what, hidden duplicates, link / unlink / ignore, merge
  * suggestions), the remote's default sections, and the fixed display line. A settings screen keeps the exact technical names
- * (docs/design/UI_COPY_RULES.md). Every change is saved at once (audited server-side: media.device.update / media.link /
+ * (docs/design/UI_COPY_RULES.md). CR-016: the speakers, players and receivers, the merge wizard, the saved groups, the favourites, the
+ * connection and the permissions line are the sections of `<system-multimedia-players>`. Every change is saved at once (audited server-side: media.device.update / media.link /
  * media.approve); no draft bar. Without a backend the in-memory demo of api/media-admin.ts answers.
  */
 @customElement('system-multimedia')
@@ -376,7 +378,7 @@ export class SystemMultimedia extends LitElement {
         </label>
         <label class="f">סוג
           <select data-mm-kind=${d.key} @change=${(e: Event) => void this.updateDevice(d, { kind: (e.target as HTMLSelectElement).value as AdminDevice['kind'] })}>
-            ${(Object.keys(KIND_LABEL) as AdminDevice['kind'][]).map((k) => html`<option value=${k} ?selected=${d.kind === k}>${KIND_LABEL[k]}</option>`)}
+            ${(Object.keys(KIND_LABEL) as MediaKind[]).map((k) => html`<option value=${k} ?selected=${d.kind === k}>${KIND_LABEL[k]}</option>`)}
           </select>
         </label>
         <span class="f">זיהוי<sw-badge kind=${d.confidence === 'weak' ? 'stale' : 'neutral'} label=${CONFIDENCE_LABEL[d.confidence]}></sw-badge></span>
@@ -427,7 +429,7 @@ export class SystemMultimedia extends LitElement {
   }
 
   private suggestions(): TemplateResult | typeof nothing {
-    const s = this.list.suggestions;
+    const s = this.list.suggestions ?? [];
     if (!s.length) return nothing;
     const name = (k: string) => this.list.devices.find((d) => d.key === k)?.name ?? k;
     return html`<sw-card heading="הצעות איחוד" data-mm-suggestions>
@@ -457,9 +459,10 @@ export class SystemMultimedia extends LitElement {
     if (this.phase === 'loading') return html`<sw-page heading="מולטימדיה"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     if (this.phase === 'error') return html`<sw-page heading="מולטימדיה"><sw-state-panel data-mm-admin-state="error" state="error" heading="לא ניתן לטעון את הגדרות המדיה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     const st = this.status;
-    const pending = this.list.devices.filter((d) => d.kind === 'screen' && !d.approved).length;
+    const screens = this.list.devices.filter((d) => d.kind === 'screen');
+    const pending = screens.filter((d) => !d.approved).length;
     const bridge = st?.bridge;
-    return html`<sw-page heading="מולטימדיה" subheading=${`${this.list.devices.filter((d) => d.approved && d.kind === 'screen').length} מסכים מאושרים${pending ? ` · ${pending} ממתינים לאישור` : ''}`}>
+    return html`<sw-page heading="מולטימדיה" subheading=${`${screens.filter((d) => d.approved).length} מסכים מאושרים${pending ? ` · ${pending} ממתינים לאישור` : ''}`}>
       <div class="stack">
         ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
         <sw-card heading="כללי" data-mm-general>
@@ -471,10 +474,11 @@ export class SystemMultimedia extends LitElement {
         <sw-card heading="מסכים" data-mm-devices>
           <div class="row"><span class="muted">רק מסכים מאושרים מופיעים ב"מולטימדיה".</span>
             <sw-button size="sm" variant="primary" icon="check" data-mm-approve-all ?disabled=${!pending} @click=${() => void this.approveAll()}>אשר את כל המסכים שזוהו${pending ? ` (${pending})` : ''}</sw-button></div>
-          ${this.list.devices.length ? this.list.devices.map((d) => this.deviceRow(d)) : html`<div class="muted" data-mm-none>לא זוהו התקנים.</div>`}
+          ${screens.length ? screens.map((d) => this.deviceRow(d)) : html`<div class="muted" data-mm-none>לא זוהו מסכים.</div>`}
         </sw-card>
         ${this.suggestions()}
         ${this.remoteCard()}
+        <system-multimedia-players></system-multimedia-players>
         ${this.note ? html`<div class="ok" role="status" data-mm-note>${this.note}</div>` : nothing}
       </div>
     </sw-page>`;
