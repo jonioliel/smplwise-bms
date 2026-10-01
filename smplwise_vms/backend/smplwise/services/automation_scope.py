@@ -145,6 +145,7 @@ class Ctx:
         self._door_layer: set[str] | None = None
         self._ha_admin: bool | None = None
         self._scheduler_present: bool | None = None
+        self._device_names: dict[str, str | None] = {}
 
     @property
     def access(self) -> Access:
@@ -262,7 +263,31 @@ class Ctx:
         """The model's context for this caller. `names_scoped`: an entity the caller may not read is named by its id (a preview of a DRAFT never tells a caller
         the name of a device outside their reach). `code_view` decides whether a template's text travels in its locked block."""
         name_of = (lambda e: self.name_of(e) if self.access.can_read_state(e) else e) if (names_scoped and self.principal is not None) else self.name_of
-        return model.ModelContext(names=name_of, notify_name=self.notify_name, shabbat_sensor=self.shabbat_sensor or None, allowed_actions=self.allowed_actions(), template_text=code_view)
+        return model.ModelContext(names=name_of, notify_name=self.notify_name, device_name=self.device_name, shabbat_sensor=self.shabbat_sensor or None, allowed_actions=self.allowed_actions(),
+                                  template_text=code_view)
+
+    def device_name(self, device_id: str) -> str | None:
+        """The name of a Home Assistant device (a wall switch a `device` trigger belongs to) from the mirror, for the label of its locked block."""
+        if device_id not in self._device_names:
+            row = self.conn.execute("SELECT COALESCE(NULLIF(name_by_user, ''), NULLIF(name, '')) FROM ha_devices WHERE device_id = ? AND removed_at IS NULL", (device_id,)).fetchone()
+            self._device_names[device_id] = row[0] if row and row[0] else None
+        return self._device_names[device_id]
+
+    def scope_info(self) -> dict[str, Any]:
+        """The caller's reach for the authoring permissions, explicit: `installation` = at least one of them holds for the whole installation, `scoped` = the
+        caller works inside floors only (never both), `floors` = those floors (Arx floors; the placements decide which devices are in them - Home Assistant's own
+        areas are never a scope), `areas` is always empty (kept for clients that read it)."""
+        a = self.access
+        perms = (VIEW, MANAGE, SCENE_MANAGE, SCRIPT_RUN, SCRIPT_MANAGE)
+        wide = any(a.wide(p) for p in perms)
+        ids: set[str] = set()
+        for p in perms:
+            ids |= set(a.reach.get(p, (False, set()))[1])
+        floors: list[dict[str, str]] = []
+        if ids and not wide:
+            rows = self.conn.execute(f"SELECT id, name FROM floors WHERE id IN ({','.join('?' * len(ids))}) AND deleted_at IS NULL ORDER BY level, sort_order, name", sorted(ids)).fetchall()
+            floors = [{"id": r["id"], "name": r["name"]} for r in rows]
+        return {"installation": wide, "scoped": bool(not wide and ids), "floors": floors, "areas": []}
 
     def can_watch(self, entity_id: str) -> bool:
         """Whether the caller may see the entity a trigger or condition watches (else the block is a locked view for them)."""
@@ -541,5 +566,6 @@ def sensitive_steps_view(ctx: Ctx, facts: dict[str, Any]) -> list[dict[str, Any]
         else:
             grant = GRANT_FOR.get(s["action"], "ha.entity.control")
             ok = ctx.access.allowed(grant, e) if grant != "ha.entity.control" else ctx.access.control(e)
-        out.append({"path": s["path"], "entity_id": e, "action": s["action"], "grant": grant, "granted": bool(ok)})
+        out.append({"path": s["path"], "entity_id": e, "action": s["action"], "grant": grant, "granted": bool(ok), "class": s["sens"], "label": pol.SENSITIVE_CLASS_LABEL.get(s["sens"], ""),
+                    "name": ctx.name_of(e) if ctx.access.can_read_state(e) else e})
     return out

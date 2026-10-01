@@ -5,16 +5,20 @@ from __future__ import annotations
 
 import copy
 import json
+from pathlib import Path
 
 from automations_fixture import *  # noqa: F401,F403
 from automations_fixture import autos_app  # noqa: F401
 from automations_fixture import API, NOTIFY, create_item, draft_of, get_item, item_by_name, put_item, rid, svc_block, typed_state_trigger
+import datetime as dt
+
 from smplwise.db import set_setting
-from smplwise.services import automation_policy as pol
+from smplwise.services import automations
+from smplwise.services import automation_model as model
 
 
 def _file_item(fake, item_id):
-    return next(i for i in fake.files["automation"] if str(i.get("id")) == item_id)
+    return next(i for i in fake.automations if str(i.get("id")) == item_id)
 
 
 def _detail(c, name, kind="automation"):
@@ -35,13 +39,13 @@ def test_create_writes_the_new_schema_reloads_only_that_item_and_keeps_a_backup(
     item = r.json()["item"]
     assert item["name"] == "תאורת בדיקה" and item["created_via"] == "arx" and item["can"]["edit"] is True and item["revision"] and item["entity_id"].startswith("automation.")
     stored = _file_item(fake, item["config_id"])
-    assert list(stored)[:3] == ["id", "alias", "triggers"] and "trigger" not in stored and "platform" not in json.dumps(stored)
+    assert list(stored)[:4] == ["id", "alias", "description", "triggers"] and "trigger" not in stored and "platform" not in json.dumps(stored)
     assert stored["triggers"] == [{"trigger": "state", "entity_id": ["binary_sensor.motion_hall"], "to": "on"}]
     assert stored["actions"] == [{"action": "light.turn_on", "target": {"entity_id": ["light.office"]}, "data": {"brightness_pct": 40}}]
     assert stored["conditions"] == [{"condition": "time", "after": "18:00:00", "weekday": ["sun", "mon"]}] and stored["mode"] == "single"
     assert [(x["domain"], x["service"]) for x in fake.calls if x["service"] == "reload"] == [("automation", "reload")] and fake.calls[-1]["data"] == {"id": item["config_id"]}
-    assert fake.backups["automation"] and len(fake.file_writes) == 1
-    call = fake.bridge_calls[-1]
+    assert any((Path(fake.bridge_hass().config.config_dir) / "smplwise_bridge_backups").glob("automations.yaml.*.bak")), "the previous file is kept in the bridge's backup ring"
+    call = tr.bridge_calls[-1]
     assert call["op"] == "upsert" and call["profile"] == "builder" and call["base_revision"] is None and call["user_id"] == "dev-joni"
     d = get_item(c, "automation", item["id"]).json()
     assert d["versions"] == 1 and c.get(f"{API}/automations/automation/{item['id']}/versions").json()["items"][0]["via"] == "arx"
@@ -56,7 +60,7 @@ def test_create_is_idempotent_per_client_request_id(autos_app):
     body = {"draft": draft_of("חד־פעמית"), "client_request_id": key}
     r1 = c.post(f"{API}/automations/automation", json=body)
     r2 = c.post(f"{API}/automations/automation", json=body)
-    assert r1.status_code == 201 and r2.status_code == 201 and r1.json()["item"]["id"] == r2.json()["item"]["id"] and len(fake.bridge_calls) == 1
+    assert r1.status_code == 201 and r2.status_code == 201 and r1.json()["item"]["id"] == r2.json()["item"]["id"] and len(tr.bridge_calls) == 1
     other = c.post(f"{API}/automations/script", json={"draft": {"alias": "x", "description": "", "mode": "single", "max": None, "icon": None, "fields": [], "sequence": [svc_block("light.turn_off", ["light.office"])]},
                                                      "client_request_id": key})
     assert other.status_code == 409 and other.json()["code"] == "idempotency_conflict"
@@ -71,7 +75,7 @@ def test_validation_errors_are_422_with_paths(autos_app):
     r = post(draft_of("x", triggers=[]))
     assert r.status_code == 422 and r.json()["code"] == "validation" and r.json()["details"]["errors"][0]["path"] == "triggers"
     r = post(draft_of("x", actions=[svc_block("light.turn_on", ["light.office"], {"brightness_pct": 400})]))
-    assert r.status_code == 422 and r.json()["details"]["errors"][0]["path"] == "action/0"
+    assert r.status_code == 422 and r.json()["details"]["errors"][0]["path"] == "actions.0"
     r = post(draft_of("x", actions=[svc_block("light.turn_on", ["switch.hall_lights"])]))
     assert r.status_code == 422 and r.json()["code"] == "validation"
     r = post(draft_of("x", actions=[svc_block("homeassistant.turn_on", ["light.office"])]))
@@ -94,7 +98,7 @@ def test_validation_errors_are_422_with_paths(autos_app):
     assert r.status_code == 422 and r.json()["code"] == "validation"
     r = c.post(f"{API}/automations/automation", content="{}", headers={"content-type": "text/plain"})
     assert r.status_code == 415
-    assert not fake.bridge_calls
+    assert not tr.bridge_calls
 
 
 def test_notify_with_an_approved_target_is_typed(autos_app):
@@ -115,9 +119,9 @@ def test_a_replace_changes_only_what_was_edited_and_round_trips_locked_blocks_by
     r = put_item(c, "automation", d["id"], draft, d["revision"], confirm=True)
     assert r.status_code == 200, r.text
     after = _file_item(fake, d["id"])
-    assert pol.canonical(after) == pol.canonical({**before, "alias": "שם חדש לתבניות"}), "templates and the typed light step are untouched"
-    assert r.json()["item"]["revision"] == pol.revision(after) != d["revision"]
-    call = fake.bridge_calls[-1]
+    assert model.canonical_json(after) == model.canonical_json({**before, "alias": "שם חדש לתבניות"}), "templates and the typed light step are untouched"
+    assert r.json()["item"]["revision"] == model.revision_of(after) != d["revision"]
+    call = tr.bridge_calls[-1]
     assert call["base_revision"] == d["revision"] and len(call["preserved"]) == 3 and call["profile"] == "builder"
 
 
@@ -149,7 +153,7 @@ def test_an_unchanged_replace_sends_nothing(autos_app):
     app, s, c, fake, tr = autos_app
     d = _detail(c, "מזגן סלון בבוקר")
     r = put_item(c, "automation", d["id"], _editable_draft(d), d["revision"])
-    assert r.status_code == 200 and r.json()["op_id"] is None and not fake.bridge_calls
+    assert r.status_code == 200 and r.json()["op_id"] is None and not tr.bridge_calls
 
 
 def test_a_stale_base_revision_is_409_with_the_current_item_and_drift_is_flagged(autos_app):
@@ -162,7 +166,7 @@ def test_a_stale_base_revision_is_409_with_the_current_item_and_drift_is_flagged
     assert r.status_code == 409 and r.json()["code"] == "item_changed"
     cur = r.json()["details"]["current"]
     assert cur["name"] == "שונה ב־HA" and r.json()["details"]["base_revision"] == d["revision"] and r.json()["details"]["current_revision"] == cur["revision"]
-    assert not fake.bridge_calls
+    assert not tr.bridge_calls
     assert any(w["code"] == "changed_outside" for w in cur["warnings"])
     assert put_item(c, "automation", d["id"], draft, cur["revision"]).status_code == 200
 
@@ -192,13 +196,18 @@ def test_a_changed_or_invented_locked_block_is_refused(autos_app):
     app, s, c, fake, tr = autos_app
     d = _detail(c, "תבניות – התראת טמפרטורה")
     draft = _editable_draft(d)
-    draft["triggers"][0]["fingerprint"] = "0123456789abcdef"
+    draft["triggers"][0]["raw"] = None
+    draft["triggers"][0]["fingerprint"] = "0123456789abcdef"  # without its raw a block is only its fingerprint: not the stored one
     r = put_item(c, "automation", d["id"], draft, d["revision"], confirm=True)
     assert r.status_code == 403 and r.json()["code"] == "locked_block_changed"
     draft = _editable_draft(d)
-    draft["triggers"][0]["raw"] = {"trigger": "template", "value_template": "{{ true }}"}  # a client-sent raw is never trusted
+    draft["triggers"][0]["raw"] = {"trigger": "template", "value_template": "{{ true }}"}  # a raw the stored item does not hold is a changed block, never written
+    r = put_item(c, "automation", d["id"], draft, d["revision"], confirm=True)
+    assert r.status_code == 403 and r.json()["code"] == "locked_block_changed"
+    draft = _editable_draft(d)
+    draft["triggers"][0]["fingerprint"] = "0123456789abcdef"  # the claimed fingerprint is recomputed from the raw: the stored raw wins
     ok = put_item(c, "automation", d["id"], draft, d["revision"], confirm=True)
-    assert ok.status_code == 200 and pol.canonical(_file_item(fake, d["id"])["triggers"]) == pol.canonical(seed_triggers(d))
+    assert ok.status_code == 200 and model.canonical_json(_file_item(fake, d["id"])["triggers"]) == model.canonical_json(seed_triggers(d))
     draft = _editable_draft(d)
     draft["actions"].append({"uid": "x", "kind": "locked", "fingerprint": "feedfeedfeedfeed", "reason": "template", "label": "", "sensitive": False, "effects": "unknown", "masked": False, "raw": None, "sentence": ""})
     again = _detail(c, "תבניות – התראת טמפרטורה")
@@ -206,7 +215,7 @@ def test_a_changed_or_invented_locked_block_is_refused(autos_app):
 
 
 def seed_triggers(d):
-    from automations_seed import automations
+    from automations_seed_s1 import automations
 
     return next(a for a in automations() if a["id"] == d["id"])["triggers"]
 
@@ -235,7 +244,7 @@ def test_the_code_view_saves_a_template_as_a_code_profile_save(autos_app):
     cfg["conditions"].append({"condition": "template", "value_template": "{{ is_state('sun.sun', 'below_horizon') }}"})
     r = c.put(f"{API}/automations/automation/{d['id']}/code", json={"config": cfg, "base_revision": d["revision"], "confirm": True, "client_request_id": rid()})
     assert r.status_code == 200, r.text
-    assert fake.bridge_calls[-1]["profile"] == "code" and _file_item(fake, d["id"])["conditions"][-1]["value_template"].startswith("{{")
+    assert tr.bridge_calls[-1]["profile"] == "code" and _file_item(fake, d["id"])["conditions"][-1]["value_template"].startswith("{{")
     d2 = _detail(c, "מזגן סלון בבוקר")
     assert d2["locked_count"] == 1 and d2["draft"]["conditions"][-1]["template_text"].startswith("{{")
 
@@ -246,7 +255,7 @@ def test_the_code_view_with_only_typed_changes_is_a_builder_profile_save(autos_a
     cfg = copy.deepcopy(d["config"])
     cfg["actions"][0]["data"]["temperature"] = 23
     r = c.put(f"{API}/automations/automation/{d['id']}/code", json={"config": cfg, "base_revision": d["revision"], "client_request_id": rid()})
-    assert r.status_code == 200 and fake.bridge_calls[-1]["profile"] == "builder" and _file_item(fake, d["id"])["actions"][0]["data"]["temperature"] == 23
+    assert r.status_code == 200 and tr.bridge_calls[-1]["profile"] == "builder" and _file_item(fake, d["id"])["actions"][0]["data"]["temperature"] == 23
 
 
 def test_the_code_view_refuses_secrets_masked_items_and_foreign_ids(autos_app):
@@ -266,7 +275,7 @@ def test_the_code_view_refuses_secrets_masked_items_and_foreign_ids(autos_app):
     cfg = copy.deepcopy(d["config"])
     cfg["actions"][0]["bogus_key"] = 1  # an unknown key makes the step a locked block: authored in the code view = a code-profile save, fine for an HA administrator
     r = c.put(f"{API}/automations/automation/{d['id']}/code", json={"config": cfg, "base_revision": d["revision"], "client_request_id": rid()})
-    assert r.status_code == 200 and fake.bridge_calls[-1]["profile"] == "code"
+    assert r.status_code == 200 and tr.bridge_calls[-1]["profile"] == "code"
 
 
 # ================================================================ copy, delete, trash, versions
@@ -296,13 +305,13 @@ def test_delete_goes_to_the_trash_and_restore_brings_it_back_with_the_same_id(au
     r = c.post(f"{API}/automations/automation/{d['id']}/delete", json={"base_revision": d["revision"], "confirm": True, "client_request_id": rid()})
     assert r.status_code == 200, r.text
     tid = r.json()["trash_id"]
-    assert not any(str(i.get("id")) == d["id"] for i in fake.files["automation"]) and fake.removed_entities and get_item(c, "automation", d["id"]).status_code == 404
+    assert not any(str(i.get("id")) == d["id"] for i in fake.automations) and d["entity_id"] not in fake.states and get_item(c, "automation", d["id"]).status_code == 404
     assert all(x["service"] != "reload" or x["domain"] != "automation" or x["data"].get("id") != d["id"] for x in fake.calls[-1:]), "no reload after a delete"
     tr_list = c.get(f"{API}/automations/trash").json()["items"]
     assert [t["trash_id"] for t in tr_list] == [tid] and tr_list[0]["can_restore"] is True and tr_list[0]["name"] == "מזגן סלון בבוקר" and tr_list[0]["deleted_by"] == "joni" and tr_list[0]["config_id"] == d["id"] and tr_list[0]["sentence"]
     r = c.post(f"{API}/automations/trash/{tid}/restore", json={"client_request_id": rid()})
     assert r.status_code == 201, r.text
-    assert r.json()["item"]["id"] == d["id"] and r.json()["id_changed"] is False and pol.canonical(_file_item(fake, d["id"])) == pol.canonical(before)
+    assert r.json()["item"]["id"] == d["id"] and r.json()["id_changed"] is False and model.canonical_json(_file_item(fake, d["id"])) == model.canonical_json(before)
     assert c.get(f"{API}/automations/trash").json()["items"] == []
     assert c.post(f"{API}/automations/trash/{tid}/restore", json={"client_request_id": rid()}).status_code == 404
 
@@ -386,7 +395,7 @@ def test_scripts_run_with_fields_and_stop(autos_app):
     assert c.post(f"{API}/automations/script/{sc['id']}/run", json={"client_request_id": rid(), "fields": {"temp": "{{ 1 }}"}}).status_code == 422
     r = c.post(f"{API}/automations/script/{sc['id']}/run", json={"client_request_id": rid(), "fields": {"temp": 22, "quiet": True, "mode_pick": "cool"}})
     assert r.status_code == 202 and fake.calls[-1] == {"domain": "script", "service": "turn_on", "data": {"variables": {"temp": 22, "quiet": True, "mode_pick": "cool"}, "entity_id": "script.set_cooling"},
-                                                       "user_id": "dev-joni", "blocking": False}
+                                                       "user_id": "dev-joni"}
     assert c.post(f"{API}/automations/script/{sc['id']}/stop", json={"client_request_id": rid()}).status_code == 202 and fake.calls[-1]["service"] == "turn_off"
     alarm_script = item_by_name(c, "לילה טוב")
     assert c.post(f"{API}/automations/script/{alarm_script['id']}/run", json={"client_request_id": rid()}).json()["code"] == "confirmation_required"
@@ -397,10 +406,10 @@ def test_scenes_apply_integration_and_native(autos_app):
     app, s, c, fake, tr = autos_app
     wall = item_by_name(c, "wall scene 03", "scene")
     r = c.post(f"{API}/automations/scene/{wall['id']}/apply", json={"client_request_id": rid()})
-    assert r.status_code == 202 and fake.calls[-1] == {"domain": "scene", "service": "turn_on", "data": {"entity_id": "scene.wall_scene_03"}, "user_id": "dev-joni", "blocking": True}
+    assert r.status_code == 202 and fake.calls[-1] == {"domain": "scene", "service": "turn_on", "data": {"entity_id": "scene.wall_scene_03"}, "user_id": "dev-joni"}
     native = item_by_name(c, "ערב בסלון", "scene")
     assert c.post(f"{API}/automations/scene/{native['id']}/apply", json={"client_request_id": rid()}).status_code == 202
-    assert fake.world["switch.hall_lights"]["state"] == "on"
+    assert fake.states["switch.hall_lights"]["state"] == "on"
     assert c.post(f"{API}/automations/scene/{native['id']}/apply", json={"client_request_id": rid()}).status_code == 429
 
 
@@ -410,24 +419,24 @@ def test_scenes_and_scripts_can_be_created_edited_and_deleted(autos_app):
     r = c.post(f"{API}/automations/scene", json={"draft": {"name": "סצנת בדיקה", "icon": None, "members": members}, "client_request_id": rid()})
     assert r.status_code == 201, r.text
     sc = r.json()["item"]
-    assert sc["state"] == "scene" and sc["kind"] == "scene" and fake.files["scene"][-1]["entities"] == {"light.office": {"state": "on", "brightness": 120}, "switch.hall_lights": "off"}
+    assert sc["state"] == "scene" and sc["kind"] == "scene" and fake.scenes[-1]["entities"] == {"light.office": {"state": "on", "brightness": 120}, "switch.hall_lights": {"state": "off"}}
     assert sc["draft"]["members"][0]["attributes"] == {"brightness": 120}
     assert any(x["service"] == "reload" and x["domain"] == "scene" for x in fake.calls)
     draft = copy.deepcopy(sc["draft"])
     draft["members"][0]["attributes"]["brightness"] = 200
     r = put_item(c, "scene", sc["id"], draft, sc["revision"])
-    assert r.status_code == 200 and fake.files["scene"][-1]["entities"]["light.office"]["brightness"] == 200
+    assert r.status_code == 200 and fake.scenes[-1]["entities"]["light.office"]["brightness"] == 200
     r = c.post(f"{API}/automations/script", json={"draft": {"alias": "סקריפט בדיקה", "description": "", "mode": "single", "max": None, "icon": "mdi:light", "fields": [
         {"key": "level", "name": "רמה", "required": False, "default": 5, "selector": {"kind": "number", "min": 1, "max": 10}}], "sequence": [svc_block("light.turn_off", ["light.office"])]},
         "client_request_id": rid()})
     assert r.status_code == 201, r.text
     script = r.json()["item"]
-    assert script["id"].startswith("arx_") and fake.files["script"][script["id"]]["fields"]["level"]["selector"] == {"number": {"min": 1, "max": 10}} and fake.files["script"][script["id"]]["icon"] == "mdi:light"
+    assert script["id"].startswith("arx_") and fake.scripts[script["id"]]["fields"]["level"]["selector"] == {"number": {"min": 1, "max": 10}} and fake.scripts[script["id"]]["icon"] == "mdi:light"
     d = get_item(c, "scene", sc["id"]).json()
     r = c.post(f"{API}/automations/scene/{sc['id']}/delete", json={"base_revision": d["revision"], "confirm": True, "client_request_id": rid()})
-    assert r.status_code == 200 and all(str(i.get("id")) != sc["id"] for i in fake.files["scene"])
+    assert r.status_code == 200 and all(str(i.get("id")) != sc["id"] for i in fake.scenes)
     d = get_item(c, "script", script["id"]).json()
-    assert c.post(f"{API}/automations/script/{script['id']}/delete", json={"base_revision": d["revision"], "confirm": True, "client_request_id": rid()}).status_code == 200 and script["id"] not in fake.files["script"]
+    assert c.post(f"{API}/automations/script/{script['id']}/delete", json={"base_revision": d["revision"], "confirm": True, "client_request_id": rid()}).status_code == 200 and script["id"] not in fake.scripts
 
 
 def test_a_script_id_is_an_ascii_slug_of_the_alias_when_free(autos_app):
@@ -449,29 +458,41 @@ def test_a_self_triggering_save_needs_confirmation_and_forces_single_mode(autos_
     r = create_item(c, "automation", draft, confirm=True)
     assert r.status_code == 201
     stored = _file_item(fake, r.json()["item"]["config_id"])
-    assert stored["mode"] == "single" and stored["max_exceeded"] == "silent" and any(w["code"] == "self_trigger" for w in r.json()["item"]["warnings"])
+    assert stored["mode"] == "single" and "max" not in stored and any(w["code"] == "self_trigger" for w in r.json()["item"]["warnings"])
 
 
 def test_homeassistants_own_validator_can_refuse(autos_app):
     app, s, c, fake, tr = autos_app
-    r = create_item(c, "automation", draft_of("INVALID-FOR-HA"))
-    assert r.status_code == 422 and r.json()["code"] == "ha_validation" and r.json()["details"]["path"] == "triggers.0"
-    assert all(i["alias"] != "INVALID-FOR-HA" for i in fake.files["automation"])
+    d = _detail(c, "מזגן סלון בבוקר")
+    cfg = copy.deepcopy(d["config"])
+    cfg["triggers"].append({"trigger": "bogus_platform"})  # a code-view block Home Assistant itself does not know
+    pv = c.post(f"{API}/automations/preview", json={"kind": "automation", "id": d["id"], "config": cfg}).json()
+    assert pv["ha_validation"] == "failed" and pv["valid"] is False
+    r = c.put(f"{API}/automations/automation/{d['id']}/code", json={"config": cfg, "base_revision": d["revision"], "confirm": True, "client_request_id": rid()})
+    assert r.status_code == 422 and r.json()["code"] == "ha_validation" and "triggers" in r.json()["details"]["path"] and "bogus_platform" not in r.text
+    assert _file_item(fake, d["id"])["triggers"] == [{"trigger": "time", "at": "07:00:00"}], "nothing was written"
 
 
 def test_an_item_that_never_loads_is_taken_out_again_and_authoring_is_blocked(autos_app):
     app, s, c, fake, tr = autos_app
-    fake.load_ok = False
-    n = len(fake.files["automation"])
+    fake.include_loaded = False  # the include line of automations.yaml is missing: a reload loads nothing (U-5)
+    n = len(fake.automations)
     r = create_item(c, "automation", draft_of("לא נטען"))
-    assert r.status_code == 502 and r.json()["code"] == "config_refused" and r.json()["details"]["error"] == "not_loaded"
-    assert len(fake.files["automation"]) == n, "the orphan was removed"
+    assert r.status_code == 202 and r.json()["status"] == "not_loaded", r.text
+    assert len(fake.automations) == n, "the bridge took the orphan out of the file again"
+    assert tr.bridge_calls[-1]["op"] == "upsert"
     st = c.get(f"{API}/automations/status").json()
     assert st["write_block"] == "authoring_blocked" and st["admin"]["authoring_block_reason"] == "not_loaded" and st["writable"] is False
     r = create_item(c, "automation", draft_of("אחרי החסימה"))
     assert r.status_code == 503 and r.json()["code"] == "config_api_unavailable"
     rv = c.get(f"{API}/automations/review").json()["items"]
     assert any(x["issue"] == "not_loaded" for x in rv)
+    # an administrator's fix (the include line, a reload a minute or more later) lifts the block
+    fake.include_loaded = True
+    automations.MIRROR.clock = lambda: fake.now() + dt.timedelta(minutes=2)
+    automations.MIRROR.on_ha_event({"event": {"event_type": "automation_reloaded", "data": {}, "time_fired": fake.iso()}})
+    assert c.get(f"{API}/automations/status").json()["write_block"] is None
+    assert create_item(c, "automation", draft_of("אחרי התיקון")).status_code == 201
 
 
 def test_the_bridge_state_blocks_writes(autos_app):
@@ -500,25 +521,43 @@ def test_the_bridge_state_blocks_writes(autos_app):
 def test_a_timeout_is_504_the_op_is_unknown_and_nothing_is_retried(autos_app):
     app, s, c, fake, tr = autos_app
     key = rid()
-    fake.fail_next["bridge_timeout"] = True
+    tr.fail_next["timeout"] = True
     body = {"draft": draft_of("איטית"), "client_request_id": key}
     r = c.post(f"{API}/automations/automation", json=body)
     assert r.status_code == 504 and r.json()["code"] == "config_timeout"
     again = c.post(f"{API}/automations/automation", json=body)
-    assert again.status_code == 202 and again.json()["status"] == "unknown" and len(fake.bridge_calls) == 1
+    assert again.status_code == 202 and again.json()["status"] == "unknown" and len(tr.bridge_calls) == 1
     with app.state.db.connection() as conn:
         assert conn.execute("SELECT status FROM automation_ops WHERE client_request_id = ?", (key,)).fetchone()[0] == "unknown"
 
 
-def test_a_failed_write_never_leaves_the_file_half_written(autos_app):
+def test_a_failed_write_never_leaves_the_file_half_written(autos_app, monkeypatch):
+    import bridge_loader
+
     app, s, c, fake, tr = autos_app
-    before = copy.deepcopy(fake.files["automation"])
-    fake.fail_next["write"] = True
+    store = bridge_loader.load("config_store")
+    real = store.ConfigStore._atomic_write
+    before = copy.deepcopy(fake.automations)
+
+    def failing(p, text):  # the add-on's own item is in the text of the write the bridge makes (not of the harness's file sync)
+        if "נכשלת" in text:
+            raise OSError("disk")
+        return real(p, text)
+
+    monkeypatch.setattr(store.ConfigStore, "_atomic_write", staticmethod(failing))
     r = create_item(c, "automation", draft_of("נכשלת"))
-    assert r.status_code == 502 and r.json()["details"]["error"] == "write_failed" and fake.files["automation"] == before
-    fake.fail_next["write_corrupt"] = True
+    assert r.status_code == 502 and r.json()["code"] == "config_refused" and r.json()["details"]["error"] == "write_failed" and fake.automations == before
+    state = {"n": 0}
+
+    def corrupt(p, text):  # a write that does not read back as what was meant: the previous file is put back
+        if "נכשלת שוב" in text and state["n"] == 0:
+            state["n"] += 1
+            return real(p, "[]\n")
+        return real(p, text)
+
+    monkeypatch.setattr(store.ConfigStore, "_atomic_write", staticmethod(corrupt))
     r = create_item(c, "automation", draft_of("נכשלת שוב"))
-    assert r.status_code == 502 and r.json()["details"]["error"] == "write_failed" and fake.files["automation"] == before, "a write that does not read back is rolled back from the backup"
+    assert r.status_code == 502 and r.json()["details"]["error"] == "write_failed" and fake.automations == before
 
 
 def test_items_that_are_not_in_the_editors_file_are_view_only(autos_app):
@@ -532,13 +571,13 @@ def test_items_that_are_not_in_the_editors_file_are_view_only(autos_app):
     assert c.post(f"{API}/automations/automation/{y['id']}/disable", json={"client_request_id": rid()}).status_code == 200, "run / enable / disable still work"
     wall = item_by_name(c, "wall scene 05", "scene")
     assert put_item(c, "scene", wall["id"], {"name": "x", "icon": None, "members": []}, "x").json()["code"] == "not_editable"
-    assert not [b for b in fake.bridge_calls if b["op"] in ("upsert", "delete")], "a view-only item never reaches a write"
+    assert not [b for b in tr.bridge_calls if b["op"] in ("upsert", "delete")], "a view-only item never reaches a write"
 
 
 def test_a_bridge_not_found_marks_the_item_view_only(autos_app):
     app, s, c, fake, tr = autos_app
     d = _detail(c, "מזגן סלון בבוקר")
-    fake.files["automation"] = [i for i in fake.files["automation"] if str(i.get("id")) != d["id"]]  # the file no longer holds it (moved to a package)
+    fake.automations = [i for i in fake.automations if str(i.get("id")) != d["id"]]  # the file no longer holds it (moved to a package)
     draft = _editable_draft(d)
     draft["alias"] = "x"
     r = put_item(c, "automation", d["id"], draft, d["revision"])

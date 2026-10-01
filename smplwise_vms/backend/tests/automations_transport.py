@@ -66,6 +66,7 @@ class FakeTransport:
         self.allowed: dict[str, set[str] | None] = {}
         self.fail_next: dict[str, Any] = {}
         self.bridge_calls: list[dict[str, Any]] = []
+        self.ws_calls: list[str] = []
         self.on_change: Any = None
 
     def _check(self) -> None:
@@ -79,6 +80,7 @@ class FakeTransport:
 
     def ws(self, msg_type: str, **kw: Any) -> dict[str, Any]:
         self._check()
+        self.ws_calls.append(msg_type)
         return self.fake.ws({"type": msg_type, **kw})
 
     def bridge(self, payload: dict[str, Any]) -> dict[str, Any]:

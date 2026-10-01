@@ -10,7 +10,7 @@ from automations_fixture import autos_app  # noqa: F401
 from automations_fixture import API, OMER, create_item, draft_of, get_item, item_by_name, put_item, rid
 from smplwise.routers.access import SENSITIVE
 from smplwise.services import automations
-from fake_ha_config import seed_mirror
+from automations_transport import seed_mirror
 
 
 def _del(c, d):
@@ -28,15 +28,15 @@ def test_the_trash_period_is_a_setting(autos_app):
     app, s, c, fake, tr = autos_app
     assert c.patch(f"{API}/settings", json={"automations.trash_days": 7}).status_code == 200
     out = _del(c, get_item(c, "automation", item_by_name(c, "מזגן סלון בבוקר")["id"]).json())
-    assert out["expires_at"] == (fake.now_dt + dt.timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    assert out["expires_at"] == (fake.now() + dt.timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def test_a_restore_whose_id_is_taken_gets_a_new_id_and_says_so(autos_app):
     app, s, c, fake, tr = autos_app
     d = get_item(c, "automation", item_by_name(c, "מזגן סלון בבוקר")["id"]).json()
     tid = _del(c, d)["trash_id"]
-    fake.files["automation"].append({"id": d["id"], "alias": "תופס את המזהה", "triggers": [{"trigger": "time", "at": "02:00:00"}], "conditions": [], "actions": [{"delay": {"seconds": 1}}], "mode": "single"})
-    fake.reload("automation", d["id"])
+    fake.automations.append({"id": d["id"], "alias": "תופס את המזהה", "triggers": [{"trigger": "time", "at": "02:00:00"}], "conditions": [], "actions": [{"delay": {"seconds": 1}}], "mode": "single"})
+    fake.reload_automation(d["id"])
     seed_mirror(app.state.db, fake)
     automations.MIRROR.pull(None, "test")
     r = c.post(f"{API}/automations/trash/{tid}/restore", json={"client_request_id": rid()})
@@ -49,7 +49,7 @@ def test_create_disabled_and_the_op_sequence(autos_app):
     app, s, c, fake, tr = autos_app
     r = create_item(c, "automation", draft_of("כבויה מההתחלה"), enabled=False)
     assert r.status_code == 201 and r.json()["item"]["state"] == "off"
-    assert [b["op"] for b in fake.bridge_calls] == ["upsert", "disable"]
+    assert [b["op"] for b in tr.bridge_calls] == ["upsert", "disable"]
 
 
 def test_update_and_run_replays_answer_as_the_first_request_and_send_nothing_twice(autos_app):
@@ -61,7 +61,7 @@ def test_update_and_run_replays_answer_as_the_first_request_and_send_nothing_twi
     body = {"draft": draft, "base_revision": d["revision"], "client_request_id": key}
     r1 = c.put(f"{API}/automations/automation/{d['id']}", json=body)
     r2 = c.put(f"{API}/automations/automation/{d['id']}", json=body)
-    assert r1.status_code == r2.status_code == 200 and len([b for b in fake.bridge_calls if b["op"] == "upsert"]) == 1 and r2.json()["item"]["revision"] == r1.json()["item"]["revision"]
+    assert r1.status_code == r2.status_code == 200 and len([b for b in tr.bridge_calls if b["op"] == "upsert"]) == 1 and r2.json()["item"]["revision"] == r1.json()["item"]["revision"]
     assert c.post(f"{API}/automations/automation/{d['id']}/disable", json={"client_request_id": key}).status_code == 409, "the same key for another operation"
     rk = rid()
     a = c.post(f"{API}/automations/automation/{d['id']}/run", json={"client_request_id": rk, "confirm": True})

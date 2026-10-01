@@ -414,6 +414,7 @@ def status_payload(conn: sqlite3.Connection, principal: Principal) -> dict[str, 
         if can["configure"]:
             counts["hidden"] = total_rows - shown
     out: dict[str, Any] = {
+        "scope": ctx.scope_info(),
         "available": avail, "stale": is_stale(ctx, avail, st), "last_sync_at": st.get("last_sync_at"), "writable": writable, "write_block": block, "scheduler_present": ctx.scheduler_present(),
         "can": can, "delegation": {"on": ctx.delegation_on, "needed": not ctx.ha_admin},
         "ui": {"sensitive_warning": cfg["automations.sensitive_warning"] == "true", "ask_when_on_new": cfg["automations.ask_when_on_new"] == "true",
@@ -491,7 +492,7 @@ def catalog_payload(ctx: scope.Ctx, q: str | None, floor: str | None, area: str 
             areas[info["area_id"]] = {"id": info["area_id"], "name": info["area_name"] or info["area_id"], "floor": info["floor_id"]}
         numeric = domain in ("sensor", "number", "input_number", "climate") or (info["state"] or "").replace(".", "", 1).lstrip("-").isdigit()
         ents.append({"entity_id": e, "name": info["name"], "domain": domain, "floor": {"id": info["floor_id"], "name": info["floor_name"]} if info["floor_id"] else None,
-                     "area": {"id": info["area_id"], "name": info["area_name"]} if info["area_id"] else None, "class": sens, "state": info["state"], "missing": False,
+                     "area": {"id": info["area_id"], "name": info["area_name"]} if info["area_id"] else None, "class": sens, "device_class": info["device_class"] or None, "state": info["state"], "missing": False,
                      "triggers": ["state", "numeric_state"] if numeric else ["state"], "actions": by_domain.get(domain, []) if controllable else []})
         if len(ents) >= CATALOG_LIMIT:
             break
@@ -503,7 +504,7 @@ def catalog_payload(ctx: scope.Ctx, q: str | None, floor: str | None, area: str 
         else:
             fields = [{"key": f["key"], "name": f["name"], "required": f["required"], "default": f.get("default"), "selector": f["selector"]} for f in (rd["draft"]["fields"] if rd else [])]
             scripts.append({"entity_id": row.entity_id, "name": _name_of_row(ctx, row, rd), "fields": fields})
-    return {"entities": ents, "actions": specs, "notify_targets": [{"action": t, "name": ctx.notify_name(t) or t} for t in ctx.notify_targets], "scenes": scenes,
+    return {"scope": ctx.scope_info(), "entities": ents, "actions": specs, "notify_targets": [{"action": t, "name": ctx.notify_name(t) or t} for t in ctx.notify_targets], "scenes": scenes,
             "scripts": scripts, "floors": sorted(floors.values(), key=lambda f: f["name"]), "areas": sorted(areas.values(), key=lambda x: x["name"]), "shabbat_sensor": ctx.shabbat_sensor or None,
             "allowed_actions": sorted(a for dom in specs.values() for a in (sp["action"] for sp in dom))}
 
@@ -639,9 +640,27 @@ def evaluate_condition(c: dict[str, Any], ctx: scope.Ctx, now: dt.datetime, tz: 
 EXPECT_TO = {sid: a.get("expect") for sid, a in ha_bridge.ACTIONS.items()}
 
 
-def dry_run(ctx: scope.Ctx, row: Row, rd: dict[str, Any] | None, facts: dict[str, Any]) -> dict[str, Any]:
+def dry_run_draft(ctx: scope.Ctx, row: Row, rd: dict[str, Any] | None, draft: dict[str, Any]) -> dict[str, Any]:
+    """§4.2.5 for an UNSAVED edit of a stored item: the caller's draft (sanitised exactly as a save would: a locked block is the stored one or it is the caller's own
+    raw, nothing is ever written) is evaluated instead of the stored content. Devices outside the caller's reach are not named, placed or described."""
+    mctx = ctx.model_ctx(code_view=False, scoped=False, names_scoped=True)
+    try:
+        san = drafts.sanitise(row.kind, draft, rd["draft"] if rd is not None else None, mctx)
+        drd = {"kind": row.kind, "draft": san.draft, "locked_count": model.locked_count(san.draft)}
+        facts = scope.facts_of(ctx, row.kind, drd)
+        return dry_run(ctx, row, drd, facts, scoped=True)
+    except (KeyError, TypeError, ValueError, AttributeError, IndexError, RecursionError):
+        raise ApiError(422, "validation", "ערך לא תקין — draft: הטיוטה אינה שלמה או אינה תקינה.", details={"path": "draft"}) from None
+
+
+def dry_run(ctx: scope.Ctx, row: Row, rd: dict[str, Any] | None, facts: dict[str, Any], scoped: bool = False) -> dict[str, Any]:
     """§4.2.5 "בדיקה": no execution. The current truth of each typed condition from the mirror (template conditions: "לא ניתן לבדוק") and the device diff the
     actions would make."""
+
+    def seen(e: str) -> dict[str, Any] | None:
+        info = ctx.entity(e)
+        return info if info is not None and (not scoped or ctx.access.can_read_state(e)) else None
+
     now = store.MIRROR.now()
     tz = zone(ctx.tz_name)
     conds: list[dict[str, Any]] = []
@@ -656,13 +675,13 @@ def dry_run(ctx: scope.Ctx, row: Row, rd: dict[str, Any] | None, facts: dict[str
             b = w.block
             if w.section == "action" and b.get("kind") == "typed" and b.get("type") == "service" and b["role"] == "device":
                 for e in b["entity_ids"]:
-                    info = ctx.entity(e)
+                    info = seen(e)
                     to = EXPECT_TO.get(b["action"])
                     effects.append({"entity_id": e, "name": info["name"] if info else e, "floor": info["floor_name"] if info else None, "area": info["area_name"] if info else None,
                                     "from": info["state"] if info else None, "to": to})
     elif rd is not None:
         for m in rd["draft"]["members"]:
-            info = ctx.entity(m["entity_id"])
+            info = seen(m["entity_id"])
             effects.append({"entity_id": m["entity_id"], "name": info["name"] if info else m["entity_id"], "floor": info["floor_name"] if info else None, "area": info["area_name"] if info else None,
                             "from": info["state"] if info else None, "to": m["state"]})
     return {"conditions": conds, "effects": {"entities": effects, "unknown": unknown}}
@@ -710,14 +729,31 @@ def capture_member(info: dict[str, Any]) -> dict[str, Any] | None:
     return {"entity_id": info["entity_id"], "state": str(state), "attributes": out}
 
 
-def capture(ctx: scope.Ctx, entity_ids: list[str]) -> list[dict[str, Any]]:
-    """`POST /automations/scene/capture` data: the members of the selected entities as their states are now. Entities the caller may not control, and
-    domains that cannot be captured (an alarm panel needs a code, which is never stored), are refused by the caller of this function."""
+def capture_skip_reason(info: dict[str, Any]) -> str | None:
+    """Why an entity is not part of a captured scene: an alarm panel needs a code (never stored), a domain scenes do not hold, no state to take."""
+    if info["domain"] == "alarm_control_panel":
+        return "alarm_not_capturable"
+    if info["domain"] not in CAPTURE_DOMAINS:
+        return "domain_not_supported"
+    if info["state"] in (None, "unavailable", "unknown"):
+        return "unavailable"
+    return None
+
+
+def capture(ctx: scope.Ctx, entity_ids: list[str]) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    """`POST /automations/scene/capture` data: (the members of the selected entities as their states are now, the skipped ones with the reason). The caller of this
+    function has established that every entity is known and readable, and that the caller controls the ones that are captured."""
     ctx.preload(entity_ids)
-    out = []
+    members: list[dict[str, Any]] = []
+    skipped: list[dict[str, str]] = []
     for e in entity_ids:
         info = ctx.entity(e)
-        m = capture_member(info) if info is not None else None
+        if info is None:
+            continue
+        reason = capture_skip_reason(info)
+        m = capture_member(info) if reason is None else None
         if m is not None:
-            out.append(m)
-    return out
+            members.append(m)
+        else:
+            skipped.append({"entity_id": e, "reason": reason or "unavailable"})
+    return members, skipped

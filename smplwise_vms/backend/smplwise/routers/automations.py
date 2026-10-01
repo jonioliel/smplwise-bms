@@ -110,6 +110,10 @@ class PreviewBody(_Body):
     config: dict[str, Any] | None = None  # the code view's item JSON (exactly one of draft / config)
 
 
+class DryRunBody(_Body):
+    draft: dict[str, Any] | None = None  # an unsaved edit of the item: its conditions and effects are evaluated instead of the stored content
+
+
 class RestoreBody(_Body):
     confirm: bool = False
     client_request_id: str = RID
@@ -327,18 +331,15 @@ def capture_scene(request: Request, principal: Principal = Depends(_scene_manage
             info = ctx.entity(e)
             if info is None or not ctx.access.can_read_state(e):
                 raise ApiError(422, "validation", f"ערך לא תקין — entity_ids: ההתקן {e} לא נמצא.", details={"path": e})
-            if e.split(".", 1)[0] not in view.CAPTURE_DOMAINS:
-                raise ApiError(422, "action_not_allowed", "הפעולה אינה מותרת כאן.", details={"path": e})
-        steps = [{"path": "members", "action": "lock.unlock", "entity_ids": [e], "role": "device", "sens": "lock"} for e in ids if e.startswith("lock.")]
-        for r in scope.control_reasons(ctx, ids) + scope.grant_reasons(ctx, steps):
+        members, skipped = view.capture(ctx, ids)
+        taken = [m["entity_id"] for m in members]  # rights are asked of what is captured; a skipped entity (an alarm panel, a sensor ...) needs none
+        steps = [{"path": "members", "action": "lock.unlock", "entity_id": e, "role": "device", "sens": "lock"} for e in taken if e.startswith("lock.")]
+        for r in scope.control_reasons(ctx, taken) + scope.grant_reasons(ctx, steps):
             raise ops.reason_error(r)
-        for e in ids:
+        for e in taken:
             if not ctx.access.allowed(scope.SCENE_MANAGE, e):
                 raise ApiError(403, "forbidden", "אין הרשאה לפעולה זו בהיקף המבוקש.", details={"entity_id": e})
-        members = view.capture(ctx, ids)
-        if len(members) != len(ids):
-            raise ApiError(422, "validation", "ערך לא תקין — entity_ids: התקן לא זמין, אין מצב לצלם.", details={"captured": len(members)})
-        return {"members": members}
+        return {"members": members, "skipped": skipped}
 
 
 @router.get("/automations")
@@ -410,11 +411,15 @@ def copy_item(kind: str, item_id: str, request: Request, principal: Principal = 
 
 
 @router.post("/automations/{kind}/{item_id}/dry-run")
-def dry_run(kind: str, item_id: str, request: Request, principal: Principal = Depends(_kind_viewer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """§3.1 row 17 - no execution: the current truth of each typed condition from the mirror and the device diff."""
+def dry_run(kind: str, item_id: str, request: Request, principal: Principal = Depends(_kind_viewer), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """§3.1 row 17 - no execution: the current truth of each typed condition from the mirror and the device diff. An optional body `{draft}` evaluates an unsaved
+    edit of the item instead of the stored content."""
     kind = _kind(kind)
+    body = _parse(request, raw, DryRunBody) if raw.strip() else DryRunBody()
     ctx = _ctx(request, conn, principal)
     row, rd, facts = view.get_item(ctx, kind, item_id)
+    if body.draft is not None:
+        return view.dry_run_draft(ctx, row, rd, body.draft)
     return view.dry_run(ctx, row, rd, facts)
 
 

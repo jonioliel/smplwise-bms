@@ -1,6 +1,6 @@
-"""Shared fixtures of the CR-017 automations tests: an app whose Home Assistant is a FakeHaConfig (tests/fake_ha_config.py, seeded with the
-probe-like items of tests/automations_seed.py), whose mirror holds the matching entities, whose bridge is paired at 0.6.0 and whose transport is the fake one
-(no network, no Home Assistant). Import with `from automations_fixture import *  # noqa` in a test module."""
+"""Shared fixtures of the CR-017 automations tests: an app whose Home Assistant is S2's FakeHaConfig (tests/fake_ha_config.py) populated with the S1 test world
+(tests/automations_transport.build_world), whose mirror holds the matching entities, whose bridge is paired at 0.6.0 and whose transport is the fake one
+(no network, no Home Assistant; the REAL bridge code answers). Import with `from automations_fixture import *  # noqa` in a test module."""
 from __future__ import annotations
 
 import copy
@@ -13,8 +13,8 @@ from conftest import as_user, bind, seed_tree  # noqa: F401
 from fastapi.testclient import TestClient
 
 import fake_ha_config
-from fake_ha_config import FakeHaConfig, FakeTransport
-from automations_seed import NOTIFY, SHABBAT
+from automations_seed_s1 import NOTIFY, SHABBAT
+from automations_transport import FakeTransport, build_world, seed_mirror
 from smplwise.services import automation_ops, automation_transport, automations, ha_bridge
 
 BOSS = {"X-SW-Dev-User": "boss"}
@@ -22,7 +22,7 @@ OMER = {"X-SW-Dev-User": "omer"}
 API = "/api/v1"
 
 __all__ = ["autos_app", "rid", "grant", "place", "role", "as_user", "bind", "seed_tree", "directory", "get_item", "item_by_name", "draft_of", "typed_state_trigger", "svc_block", "locked_copy",
-           "put_item", "create_item", "SHABBAT", "NOTIFY", "OMER", "API", "BOSS", "fake_ha_config", "provision"]
+           "put_item", "create_item", "SHABBAT", "NOTIFY", "OMER", "API", "BOSS", "fake_ha_config", "provision", "seed_mirror"]
 
 _n = [0]
 
@@ -35,7 +35,7 @@ def rid() -> str:
 def directory(c: TestClient, secret: str, *, admins: tuple[str, ...] = ("dev-joni",), delegated: bool = False, changed_at: str | None = None, others: tuple[str, ...] = ("dev-omer", "dev-vera")) -> None:
     users = [{"id": u, "name": u, "username": u.split("-", 1)[1], "is_active": True, "is_admin": True, "group_ids": []} for u in admins]
     users += [{"id": u, "name": u, "username": u.split("-", 1)[1], "is_active": True, "is_admin": False, "group_ids": []} for u in others if u not in admins]
-    r = c.post("/api/v1/ha/bridge/directory", json=ha_bridge.sign(secret, {"users": users, "version": "0.6.0", "delegated_authoring": delegated, "delegation_changed_at": changed_at}))
+    r = c.post("/api/v1/ha/bridge/directory", json=ha_bridge.sign(secret, {"users": users, "version": "0.6.0", "delegated_authoring": delegated, "delegated_changed_at": changed_at}))
     assert r.status_code == 200, r.text
 
 
@@ -47,16 +47,15 @@ def autos_app(settings, monkeypatch):
     from smplwise.main import create_app
 
     app = create_app(s)
-    fake = FakeHaConfig().seed()
-    fake_ha_config.seed_mirror(app.state.db, fake)
+    fake = build_world()
+    seed_mirror(app.state.db, fake)
     c = TestClient(app)
     secret = c.get("/api/v1/ha/bridge/pairing").json()["pairing_code"]
-    fake.secret = secret
     assert c.post("/api/v1/ha/bridge/ping", json=ha_bridge.sign(secret, {"version": "0.6.0"})).status_code == 200
     directory(c, secret)
     tr = FakeTransport(fake, secret)
     automation_transport.set_transport(tr)
-    fake.on_change = lambda: fake_ha_config.seed_mirror(app.state.db, fake)
+    tr.on_change = lambda: seed_mirror(app.state.db, fake)
     automations.MIRROR.reset()
     automations.MIRROR.debounce_s = 0
     automations.MIRROR.clock = lambda: fake.now()
@@ -121,7 +120,7 @@ def item_by_name(c: TestClient, name: str, kind: str | None = None, headers: dic
 
 
 def typed_state_trigger(entity: str = "binary_sensor.motion_hall", to: str = "on", uid: str = "n1") -> dict[str, Any]:
-    return {"uid": uid, "kind": "typed", "type": "state", "entity_ids": [entity], "from": None, "to": to, "for": None, "id": None, "raw": None, "sentence": ""}
+    return {"uid": uid, "kind": "typed", "type": "state", "entity_ids": [entity], "to": to, "raw": None, "sentence": ""}
 
 
 def svc_block(action: str, entity_ids: list[str], data: dict[str, Any] | None = None, uid: str = "n2", role_: str = "device") -> dict[str, Any]:

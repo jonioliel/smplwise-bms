@@ -331,11 +331,22 @@ MASKED_TEXT = "הפריט כולל ערכים חסויים; ערכו אותו ב
 
 
 def _validate(w: W, kind: str, draft: dict[str, Any]) -> list[dict[str, str]]:
-    return model.validate_draft(kind, draft, notify_targets=list(w.ctx.notify_targets), shabbat_sensor=w.ctx.shabbat_sensor or None, allowed_actions=w.ctx.allowed_actions())
+    """The model's validation (caps, required values, the argument and notify rules of NEW or CHANGED blocks) plus what only the service knows: a device step
+    drives devices of its own domain (`light.turn_on` on a switch is a mistake the catalogue never offers)."""
+    out = model.validate_draft(kind, draft, notify_targets=list(w.ctx.notify_targets), shabbat_sensor=w.ctx.shabbat_sensor or None, allowed_actions=w.ctx.allowed_actions())
+    mctx = w.ctx.model_ctx(code_view=False, scoped=False)
+    for wk in model.walk_draft(draft):
+        b = wk.block
+        if wk.section != "action" or b.get("kind") != "typed" or b.get("type") != "service" or b.get("role") != "device" or not model.block_changed(b, wk.section, mctx):
+            continue
+        domain = b["action"].split(".", 1)[0]
+        if any(e.split(".", 1)[0] != domain for e in b["entity_ids"]):
+            out.append({"path": wk.path, "code": "entity_mismatch", "message": "המכשיר אינו מתאים לפעולה שנבחרה"})
+    return out
 
 
 def judge(w: W, kind: str, *, draft: dict[str, Any] | None, config_in: dict[str, Any] | None, stored: dict[str, Any] | None, item_id: str | None, creating: bool,
-          force_single: bool = False, names_scoped: bool = False) -> Judgement:
+          force_single: bool = False, names_scoped: bool = False, preview: bool = False) -> Judgement:
     """Build the config of a draft (or take the config of the code view), derive the profile from its CONTENT, check the policy, the scope and the sensitive
     grants. Nothing is raised: the caller chooses (a write raises, a preview reports). A draft from a client is never trusted: its locked blocks are the stored
     item's by fingerprint or they are refused (`locked_block_changed`), its typed blocks keep only raws the stored item has."""
@@ -345,12 +356,21 @@ def judge(w: W, kind: str, *, draft: dict[str, Any] | None, config_in: dict[str,
     stored_draft = stored_rd["draft"] if stored_rd is not None else None
     j.old_facts = scope.facts_of(w.ctx, kind, stored_rd) if stored_rd is not None else None
     if draft is not None:
-        san = drafts.sanitise(kind, draft, stored_draft, mctx)
-        j.draft = san.draft
-        for path, _b in san.changed:
-            j.errors.append({"path": path, "code": "locked_block_changed", "message": LOCKED_CHANGED})
+        try:
+            san = drafts.sanitise(kind, draft, stored_draft, mctx)
+            j.draft = san.draft
+            problems = _validate(w, kind, san.draft)
+        except (KeyError, TypeError, ValueError, AttributeError, IndexError, RecursionError):
+            j.errors.append({"path": "", "code": "validation", "message": "הטיוטה אינה שלמה או אינה תקינה"})  # a draft that is not shaped like one is the caller's mistake, never a crash
+            return j
+        code_needed = False
+        for path, b in san.changed:
+            if preview and b.get("raw") is not None and not pol.has_mask(b["raw"]):
+                code_needed = True  # a preview reports what the save would need (`requires.code_view`); the save itself refuses: 403 `locked_block_changed`
+            else:
+                j.errors.append({"path": path, "code": "locked_block_changed", "message": LOCKED_CHANGED})
         j.errors.extend(p for p in san.problems if not any(e["path"] == p["path"] and e["code"] == p["code"] for e in j.errors))
-        j.errors.extend(_validate(w, kind, san.draft))
+        j.errors.extend(problems)
         if j.errors:
             return j
         try:
@@ -361,7 +381,7 @@ def judge(w: W, kind: str, *, draft: dict[str, Any] | None, config_in: dict[str,
         if pol.has_mask(j.config):
             j.errors.append({"path": "", "code": "masked_values", "message": MASKED_TEXT})
             return j
-        j.profile = "builder"
+        j.profile = "code" if code_needed else "builder"
     else:
         incoming = config_in or {}
         if pol.secret_kind(incoming) or pol.has_mask(incoming):
@@ -395,7 +415,7 @@ def judge(w: W, kind: str, *, draft: dict[str, Any] | None, config_in: dict[str,
     j.rd = nrd
     j.facts = scope.facts_of(w.ctx, kind, nrd)
     j.unknown_effects = j.facts["unknown_effects"]
-    j.sensitive = j.facts["sensitive"]
+    j.sensitive = bool(j.facts["sensitive"]) or _sensitive_by_bridge_rule(w, nrd["draft"])
     j.preserved = model.preserved_fingerprints(nrd["draft"])
     if kind == "automation":
         nd = nrd["draft"]
@@ -404,6 +424,25 @@ def judge(w: W, kind: str, *, draft: dict[str, Any] | None, config_in: dict[str,
             old = pol.self_trigger(j.old_facts["trigger_entities"] if j.old_facts else [], model.draft_targets(stored_draft), guarded=bool(stored_draft["conditions"]))
             j.self_trigger = [e for e in j.self_trigger if e not in old]
     return j
+
+
+def _sensitive_by_bridge_rule(w: W, draft: dict[str, Any]) -> bool:
+    """The bridge refuses `sensitive: false` on what it can recognise on its own (an alarm / lock / siren service anywhere, a door-class cover by the
+    `device_class` of its state): the flag is sent true wherever `automation_policy.sensitive_required` says so, whatever the add-on's own classification found."""
+    services: list[str] = []
+    for wk in model.walk_draft(draft):
+        b = wk.block
+        if wk.section != "action":
+            continue
+        if b.get("kind") == "typed" and b.get("type") == "service":
+            services.append(b["action"])
+        elif b.get("kind") == "locked" and isinstance(b.get("raw"), dict):
+            svc = b["raw"].get("action") if b["raw"].get("action") is not None else b["raw"].get("service")
+            if isinstance(svc, str):
+                services.append(svc)
+    targets = model.draft_targets(draft)
+    w.ctx.preload(targets)
+    return pol.sensitive_required(services, targets, lambda e: (w.ctx.entity(e) or {}).get("attributes"))
 
 
 def _with_id(kind: str, cfg: dict[str, Any], item_id: str | None) -> dict[str, Any]:
@@ -1097,7 +1136,7 @@ def preview(w: W, kind: str, item_id: str | None, draft: dict[str, Any] | None, 
     if item_id:
         row, _rd, _f = view.get_item(w.ctx, kind, item_id)
         stored = row.cfg  # the cached (masked) config: a preview never reads Home Assistant for the stored item
-    j = judge(w, kind, draft=draft, config_in=config, stored=stored, item_id=item_id, creating=item_id is None, names_scoped=True)
+    j = judge(w, kind, draft=draft, config_in=config, stored=stored, item_id=item_id, creating=item_id is None, names_scoped=True, preview=True)
     errors = list(j.errors)
     warnings: list[dict[str, str]] = []
     out: dict[str, Any] = {"valid": False, "errors": errors, "warnings": warnings, "ha_validation": "skipped", "sentence": "", "block_sentences": {},

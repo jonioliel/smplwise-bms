@@ -9,12 +9,12 @@ import json
 from automations_fixture import *  # noqa: F401,F403
 from automations_fixture import autos_app  # noqa: F401
 from automations_fixture import API, OMER, get_item, item_by_name, put_item, rid, draft_of, create_item, svc_block
-from smplwise.services import automation_policy as pol
+from smplwise.services import automation_model as model
 from smplwise.services import automations, ha_sync
 
 
 def _file(fake, item_id):
-    return next(i for i in fake.files["automation"] if str(i.get("id")) == item_id)
+    return next(i for i in fake.automations if str(i.get("id")) == item_id)
 
 
 # ================================================================ the first pull and drift
@@ -27,7 +27,7 @@ def test_the_first_read_pulls_every_item_once_and_keeps_secrets_out_of_the_cache
     with app.state.db.connection() as conn:
         rows = {(r["kind"], r["item_id"]): r for r in conn.execute("SELECT * FROM ha_config_items").fetchall()}
         assert len(rows) == 43 and rows[("automation", "1727000000015")]["masked"] == 1 and "abc-not-real" not in rows[("automation", "1727000000015")]["config_json"]
-        assert rows[("automation", "1727000000015")]["revision"] == pol.revision(_file(fake, "1727000000015")), "the revision is of the REAL config"
+        assert rows[("automation", "1727000000015")]["revision"] == model.revision_of(_file(fake, "1727000000015")), "the revision is of the REAL config"
         assert rows[("automation", "yaml1")]["source"] == "yaml" and rows[("automation", "yaml1")]["reason"] == "yaml_managed" and rows[("automation", "yaml1")]["config_json"]
         assert rows[("scene", "entity:scene.wall_scene_01")]["source"] == "integration" and rows[("scene", "entity:scene.wall_scene_01")]["config_json"] is None
         assert [json.loads(rows[("script", "set_cooling")]["config_json"])["fields"].__iter__().__next__()] == ["temp"], "dict order is kept"
@@ -64,11 +64,9 @@ def test_an_outside_change_is_a_version_a_chip_and_for_a_sensitive_item_an_audit
     with app.state.db.connection() as conn:
         assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'automation.changed_outside'").fetchone()[0] == 1
     # a new sensitive item made outside is audited as created
-    fake.files["automation"].append({"id": "9001", "alias": "חדשה מבחוץ", "triggers": [{"trigger": "time", "at": "01:00:00"}], "conditions": [],
+    fake.automations.append({"id": "9001", "alias": "חדשה מבחוץ", "triggers": [{"trigger": "time", "at": "01:00:00"}], "conditions": [],
                                      "actions": [{"action": "lock.unlock", "target": {"entity_id": ["lock.front_door"]}}], "mode": "single"})
-    fake.reload("automation", "9001")
-    from fake_ha_config import seed_mirror
-
+    fake.reload_automation("9001")
     seed_mirror(app.state.db, fake)
     automations.MIRROR.pull(None, "test")
     assert item_by_name(c, "חדשה מבחוץ")["created_via"] == "external"
@@ -95,12 +93,13 @@ def test_the_config_api_is_probed_not_assumed_and_the_websocket_is_the_fallback(
     r = c.get(f"{API}/automations", params={"limit": 500})
     assert r.status_code == 200
     ui = {i["name"]: i for i in r.json()["items"]}
-    assert ui["מזגן סלון בבוקר"]["source"] == "ui" and ui["מזגן סלון בבוקר"]["can"]["edit"] is True and "automation/config" in fake.ws_calls, "automations and scripts are read over the session's command"
+    assert ui["מזגן סלון בבוקר"]["source"] == "ui" and ui["מזגן סלון בבוקר"]["can"]["edit"] is True and "automation/config" in tr.ws_calls, "automations and scripts are read over the session's command"
     scene = ui["ערב בסלון"]
     assert scene["source"] == "yaml" and scene["can"]["edit"] is False and scene["read_only"]["reasons"][0]["code"] == "config_api_unavailable"
     # nothing readable at all: the feature says so and writes are blocked
-    app2_fake = fake
-    app2_fake.files = {"automation": [], "script": {}, "scene": []}
+    fake.automations.clear()
+    fake.scripts.clear()
+    fake.scenes.clear()
     with app.state.db.connection() as conn:
         conn.execute("DELETE FROM ha_entities WHERE domain IN ('automation', 'script') OR (domain = 'scene' AND entity_id NOT LIKE 'scene.wall_%')")
         conn.execute("DELETE FROM ha_config_items")
@@ -123,7 +122,7 @@ def test_availability_and_staleness_follow_home_assistant(autos_app):
     tr.up = True
     import datetime as dt
 
-    fake.now_dt += dt.timedelta(minutes=30)
+    fake.advance(30 * 60)
     st = c.get(f"{API}/automations/status").json()
     assert st["available"] == "ok" and st["stale"] is True, "a mirror not refreshed for 25 minutes is stale even while the socket is up"
     automations.MIRROR.pull(None, "test")
@@ -149,7 +148,7 @@ def test_run_events_feed_the_last_run_the_count_and_the_storm_guard(autos_app):
     automations.MIRROR.on_ha_event(_frame("automation_triggered", entity_id=it["entity_id"]))
     assert item_by_name(c, "מזגן סלון בבוקר")["runs_7d"] == 1, "the same instant is the same run"
     with app.state.db.connection() as conn:
-        base = fake.now_dt
+        base = fake.now()
         import datetime as dt
 
         for i in range(25):
@@ -160,7 +159,7 @@ def test_run_events_feed_the_last_run_the_count_and_the_storm_guard(autos_app):
     assert any(w["code"] == "storm" for w in item_by_name(c, "מזגן סלון בבוקר")["warnings"])
     assert any(x["issue"] == "storm" for x in c.get(f"{API}/automations/review").json()["items"])
     # a reload event pulls again
-    fake.files["automation"][0]["alias"] = "אחרי טעינה מחדש"
+    fake.automations[0]["alias"] = "אחרי טעינה מחדש"
     automations.MIRROR.on_ha_event(_frame("automation_reloaded"))
     assert any(i["name"] == "אחרי טעינה מחדש" for i in c.get(f"{API}/automations", params={"limit": 500}).json()["items"])
     assert automations.MIRROR.on_ha_event({"event": None}) is None
@@ -200,28 +199,28 @@ def test_attributes_of_the_three_domains_reach_the_mirror(autos_app):
 def test_the_run_list_and_the_full_trace(autos_app):
     app, s, c, fake, tr = autos_app
     it = item_by_name(c, "תאורה בפרוזדור בתנועה")
-    import datetime as dt
-
-    fake.add_trace("automation", it["id"], trigger="state of binary_sensor.motion_hall", steps=3, user_id="dev-omer", secret=True)
-    fake.now_dt += dt.timedelta(minutes=5)
-    fake.add_trace("automation", it["id"], trigger="time", result="error", steps=2)
-    fake.now_dt += dt.timedelta(minutes=5)
-    fake.add_trace("automation", it["id"], trigger="state of binary_sensor.motion_hall", result="failed_conditions", steps=1)
+    cfg = _file(fake, it["id"])
+    r1 = fake.add_run("automation", it["id"], cfg, minutes_ago=10, user_id="dev-omer", variables={"api_key": "abc-not-real", "level": 3})
+    r2 = fake.add_run("automation", it["id"], cfg, minutes_ago=5, fail_step="action/1")
+    r3 = fake.add_run("automation", it["id"], cfg, minutes_ago=0, conditions_pass=False)
     r = c.get(f"{API}/automations/automation/{it['id']}/runs")
     assert r.status_code == 200
     runs = r.json()["items"]
-    assert [x["result"] for x in runs] == ["ok", "error", "not_triggered"] or {x["result"] for x in runs} == {"ok", "error", "not_triggered"}
-    first = next(x for x in runs if x["run_id"] == "run001")
-    assert first["at"] == "2026-10-01T10:00:00Z" and first["finished_at"] == "2026-10-01T10:00:10Z" and first["sentence"].startswith("רצה ב־13:00 · שינוי ב־Hall motion")
-    t = c.get(f"{API}/automations/automation/{it['id']}/runs/run001").json()
-    assert t["result"] == "ok" and t["duration_ms"] == 10000 and t["trigger"]["path"] == "trigger/0" and t["trigger"]["sentence"] == "כש־Hall motion הופך לדלוק"
-    assert t["context"] == {"user": "dev-omer", "parent": "user"} and "user_id" not in json.dumps(t) and "abc-not-real" not in json.dumps(t) and pol.MASK in json.dumps(t["variables"], ensure_ascii=False)
-    assert [s_["path"] for s_ in t["steps"]] == ["action/0", "action/1", "action/2"] and t["steps"][0]["result"] == "done" and t["steps"][0]["sentence"] == "הדלקת Office light · בהירות 40%"
-    assert t["steps"][2]["duration_ms"] is not None and t["conditions"][0]["passed"] is True and t["conditions"][0]["path"] == "condition/0"
-    assert t["sentence"].startswith("רצה ב־13:00 כי ") and "ביצעה:" in t["sentence"]
-    err = c.get(f"{API}/automations/automation/{it['id']}/runs/run002").json()
-    assert err["result"] == "error" and err["steps"][1]["result"] == "error" and err["steps"][1]["error"] == "boom" and err["sentence"].endswith("נעצרה בשגיאה")
-    assert [s_["result"] for s_ in c.get(f"{API}/automations/automation/{it['id']}/runs/run003").json()["steps"]] == ["done", "not_run", "not_run"]
+    assert [x["run_id"] for x in runs] == [r3["run_id"], r2["run_id"], r1["run_id"]], "newest first"
+    assert [x["result"] for x in runs] == ["not_triggered", "error", "ok"]
+    first = runs[2]
+    assert first["at"] == "2026-10-01T15:36:00Z" and first["finished_at"] == "2026-10-01T15:36:01Z" and first["sentence"].startswith("רצה ב־18:36 · שינוי ב־Hall motion")
+    t = c.get(f"{API}/automations/automation/{it['id']}/runs/{r1['run_id']}").json()
+    assert t["result"] == "ok" and t["duration_ms"] == 1000 and t["trigger"]["path"] == "triggers.0" and t["trigger"]["sentence"] == "כשHall motion מזהה תנועה"
+    dumped = json.dumps(t, ensure_ascii=False)
+    assert t["context"] == {"user": "dev-omer", "parent": "user"} and "user_id" not in dumped and "abc-not-real" not in dumped and model.MASK in dumped
+    assert [s_["path"] for s_ in t["steps"]] == ["actions.0", "actions.1", "actions.2"] and t["steps"][0]["result"] == "done" and t["steps"][0]["sentence"] == "הדלק Office light ל־40%"
+    assert t["steps"][0]["changed_variables"] == {"api_key": model.MASK, "level": 3}
+    assert t["steps"][2]["duration_ms"] is not None and t["conditions"][0]["passed"] is True and t["conditions"][0]["path"] == "conditions.0"
+    assert t["sentence"].startswith("רצה ב־18:36 כי ") and "ביצעה:" in t["sentence"]
+    err = c.get(f"{API}/automations/automation/{it['id']}/runs/{r2['run_id']}").json()
+    assert err["result"] == "error" and err["steps"][1]["result"] == "error" and err["steps"][1]["error"] == "Entity not found" and err["sentence"].endswith("נעצרה בשגיאה")
+    assert [s_["result"] for s_ in c.get(f"{API}/automations/automation/{it['id']}/runs/{r3['run_id']}").json()["steps"]] == ["not_run", "not_run", "not_run"]
     assert c.get(f"{API}/automations/automation/{it['id']}/runs/nope").status_code == 404 and c.get(f"{API}/automations/automation/{it['id']}/runs/bad%20id").status_code == 404
     assert c.get(f"{API}/automations/scene/{item_by_name(c, 'ערב בסלון', 'scene')['id']}/runs").json() == {"items": []}
     # the runs feed the list's last run
@@ -231,14 +230,14 @@ def test_the_run_list_and_the_full_trace(autos_app):
 def test_runs_of_an_item_the_caller_cannot_see_never_leave(autos_app):
     app, s, c, fake, tr = autos_app
     it = item_by_name(c, "דריכת אזעקה בלילה")
-    fake.add_trace("automation", it["id"])
+    run = fake.add_run("automation", it["id"], _file(fake, it["id"]))
     bind(c, s, "vera", "viewer", "installation", "*")
     v = {"X-SW-Dev-User": "vera"}
     assert c.get(f"{API}/automations/automation/{it['id']}/runs", headers=v).status_code == 403
     ids = seed_tree(c)
     grant(c, "omer", "צופה צר", ["automation.view", "devices.read", "entity.state.read"], [], "floor", ids["floor2"])
     assert c.get(f"{API}/automations/automation/{it['id']}/runs", headers=OMER).status_code == 404
-    assert c.get(f"{API}/automations/automation/{it['id']}/runs/run001", headers=OMER).status_code == 404
+    assert c.get(f"{API}/automations/automation/{it['id']}/runs/{run['run_id']}", headers=OMER).status_code == 404
 
 
 def test_a_trace_command_that_fails_is_503_not_a_crash(autos_app):

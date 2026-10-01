@@ -1,7 +1,8 @@
 """Fixture backend for the live parts of the automations specs (CR-017, docs/architecture/AUTOMATIONS_API.md §5): the REAL SMPLWISE backend - the real
 /automations routes with their permission gates, model, policy, trash, versions, audit and bridge signing - whose only fake is Home Assistant with its
-automation / script / scene files and the bridge integration's `config_item` service, which here runs the REAL bridge code (config_item_service.py,
-config_store.py, config_policy.py) against `smplwise_vms/backend/tests/fake_ha_config.py`. Everything is generic and anonymised (tests/automations_seed.py);
+automation / script / scene files and the bridge integration's `config_item` service, which here runs the REAL bridge code (config_service.py,
+config_store.py, config_policy.py) against S2's `smplwise_vms/backend/tests/fake_ha_config.py`, populated with the S1 test world
+(`tests/automations_transport.build_world`, from tests/automations_seed_s1.py). Everything is generic and anonymised;
 nothing of a real installation is in here. No real Home Assistant can be reached from this process: HA_URL is forced to a `.test` host (a reserved name that
 never resolves), the HA WebSocket is an in-process fake (below) and every REST call to that host is answered here. It refuses to start inside the add-on.
 
@@ -57,23 +58,25 @@ BASE = f"http://127.0.0.1:{PORT}/api/v1"
 import httpx  # noqa: E402
 import websockets  # noqa: E402
 
-import fake_ha_config  # noqa: E402
 import fake_scheduler  # noqa: E402
+from automations_transport import FakeTransport, build_world  # noqa: E402
+from smplwise.errors import ApiError  # noqa: E402
 
 LOCK = threading.RLock()
-FAKE = fake_ha_config.FakeHaConfig().seed()
+FAKE = build_world()
+TR = FakeTransport(FAKE, "")  # the add-on's calls into the fake (REST, WebSocket, the real bridge code); the pairing code is set once the backend is up
 SECRET: dict[str, str] = {}  # the pairing code once the backend is up (the bridge's shared secret)
 _prev: dict[str, dict[str, Any]] = {}
 
 
 def _states() -> list[dict[str, Any]]:
     with LOCK:
-        return copy.deepcopy(FAKE.all_states())
+        return copy.deepcopy(list(FAKE.states.values()))
 
 
 def _registry() -> list[dict[str, Any]]:
     with LOCK:
-        return copy.deepcopy(FAKE.all_registry())
+        return copy.deepcopy(FAKE.registry)
 
 
 class _World:
@@ -94,7 +97,7 @@ WORLD = _World()
 def _push_changes(reloaded: bool = False) -> None:
     """After anything moved: `state_changed` for every entity whose state or attributes changed, the registry events for new / removed entities, and the reload events."""
     with LOCK:
-        now = {e["entity_id"]: {"entity_id": e["entity_id"], "state": e["state"], "attributes": copy.deepcopy(e["attributes"])} for e in FAKE.all_states()}
+        now = {e["entity_id"]: {"entity_id": e["entity_id"], "state": e["state"], "attributes": copy.deepcopy(e["attributes"])} for e in FAKE.states.values()}
     for eid, st in now.items():
         old = _prev.get(eid)
         if old is None:
@@ -112,7 +115,7 @@ def _push_changes(reloaded: bool = False) -> None:
 
 
 with LOCK:
-    _prev.update({e["entity_id"]: {"entity_id": e["entity_id"], "state": e["state"], "attributes": copy.deepcopy(e["attributes"])} for e in FAKE.all_states()})
+    _prev.update({e["entity_id"]: {"entity_id": e["entity_id"], "state": e["state"], "attributes": copy.deepcopy(e["attributes"])} for e in FAKE.states.values()})
 
 
 _real_handle = httpx.HTTPTransport.handle_request
@@ -125,21 +128,23 @@ def handle_request(self: httpx.HTTPTransport, request: httpx.Request) -> httpx.R
             body = json.loads(request.content or b"{}")
             with LOCK:
                 try:
-                    resp = FAKE.bridge(body)
-                except httpx.ReadTimeout:
+                    resp = TR.bridge(body)
+                except ApiError as exc:
+                    if exc.code != "config_timeout":
+                        raise
                     raise httpx.ReadTimeout("automations_fake_ha: the bridge never answered", request=request) from None
             _push_changes(reloaded=body.get("op") in ("upsert", "delete"))
             return httpx.Response(200, json={"service_response": resp}, request=request)
         parts = path.strip("/").split("/")
         if request.method == "GET" and parts[:2] == ["api", "config"] and len(parts) == 5 and parts[3] == "config":
             with LOCK:
-                status, data = FAKE.rest_config(parts[2], parts[4])
+                status, data = TR.rest_config(parts[2], parts[4])
             if data is None:
                 return httpx.Response(status, text="404: Not Found", request=request)
             return httpx.Response(status, json=data, request=request)
         if request.method == "GET" and parts[:2] == ["api", "states"] and len(parts) == 3:
             with LOCK:
-                st = FAKE.state(parts[2])
+                st = TR.state(parts[2])
             return httpx.Response(200 if st else 404, json=st or {"message": "Entity not found."}, request=request)
         if request.method == "GET" and path == "/api/config":
             return httpx.Response(200, json={"version": "fake-2026.9", "time_zone": "Asia/Jerusalem"}, request=request)
@@ -187,7 +192,7 @@ class _FakeSocket:
             result = listings[kind]
         else:
             with LOCK:
-                reply = FAKE.ws(kind, **{k: v for k, v in msg.items() if k not in ("id", "type")})
+                reply = FAKE.ws({k: v for k, v in msg.items() if k != "id"})
             self.inbox.put_nowait(json.dumps({"id": mid, "type": "result", **reply}))
             return
         self.inbox.put_nowait(json.dumps({"id": mid, "type": "result", "success": True, "result": result}))
@@ -222,7 +227,7 @@ def _directory(delegated: bool) -> None:
     users = [{"id": "dev-joni", "name": "joni", "username": "joni", "is_active": True, "is_admin": True, "group_ids": []},
              {"id": "dev-omer", "name": "omer", "username": "omer", "is_active": True, "is_admin": False, "group_ids": []},
              {"id": "dev-vera", "name": "vera", "username": "vera", "is_active": True, "is_admin": False, "group_ids": []}]
-    body = ha_bridge.sign(SECRET.get("code", ""), {"users": users, "version": "0.6.0", "delegated_authoring": delegated, "delegation_changed_at": "2026-10-01T09:00:00Z" if delegated else None})
+    body = ha_bridge.sign(SECRET.get("code", ""), {"users": users, "version": "0.6.0", "delegated_authoring": delegated, "delegated_changed_at": "2026-10-01T09:00:00Z" if delegated else None, "config_item": True})
     with httpx.Client(timeout=5) as c:
         c.post(f"{BASE}/ha/bridge/directory", json=body)
 
@@ -241,9 +246,9 @@ class _Control(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         with LOCK:
-            body = {"automations": len(FAKE.files["automation"]), "scripts": len(FAKE.files["script"]), "scenes": len(FAKE.files["scene"]), "sockets": len(WORLD.sockets),
+            body = {"automations": len(FAKE.automations), "scripts": len(FAKE.scripts), "scenes": len(FAKE.scenes), "sockets": len(WORLD.sockets),
                     "now": FAKE.now().isoformat(), "calls": [{"domain": c["domain"], "service": c["service"], "user_id": c["user_id"]} for c in FAKE.calls],
-                    "bridge_calls": [{"op": c.get("op"), "kind": c.get("kind"), "profile": c.get("profile")} for c in FAKE.bridge_calls], "delegated": FAKE.options["delegated_authoring"]}
+                    "bridge_calls": [{"op": c.get("op"), "kind": c.get("kind"), "profile": c.get("profile")} for c in TR.bridge_calls], "delegated": TR.delegated}
         self._reply(200, body)
 
     def do_POST(self) -> None:  # noqa: N802
@@ -251,29 +256,30 @@ class _Control(BaseHTTPRequestHandler):
         reloaded = False
         with LOCK:
             if self.path == "/tick":
-                import datetime as dt
-
-                FAKE.now_dt += dt.timedelta(seconds=float(body.get("seconds", 60)))
+                FAKE.advance(float(body.get("seconds", 60)))
             elif self.path == "/world":
-                w = FAKE.world.setdefault(body["entity_id"], {"entity_id": body["entity_id"], "state": None, "attributes": {}})
+                w = FAKE.states.setdefault(body["entity_id"], {"entity_id": body["entity_id"], "state": None, "attributes": {}})
                 w["state"] = body["state"]
                 w["attributes"] = {**(w.get("attributes") or {}), **(body.get("attributes") or {})}
             elif self.path == "/external":
-                item = next(i for i in FAKE.files["automation"] if str(i.get("id")) == body["id"])
+                item = next(i for i in FAKE.automations if str(i.get("id")) == body["id"])
                 item["alias"] = body.get("alias", item.get("alias"))
-                FAKE.reload("automation", body["id"])
+                FAKE.reload_automation(body["id"])
                 reloaded = True
             elif self.path == "/trace":
-                FAKE.add_trace(body["domain"], body["item_id"], trigger=body.get("trigger", "state of binary_sensor.motion_hall"), result=body.get("result", "finished"), steps=int(body.get("steps", 2)),
-                               secret=bool(body.get("secret", False)))
+                dom, iid = body["domain"], body["item_id"]
+                cfg = FAKE.scripts.get(iid) if dom == "script" else next(i for i in FAKE.automations if str(i.get("id")) == iid)
+                base = "action" if dom == "automation" else "sequence"
+                FAKE.add_run(dom, iid, cfg, variables={"api_key": "abc-not-real", "level": 3} if body.get("secret") else None,
+                             fail_step=f"{base}/{max(0, int(body.get('steps', 2)) - 1)}" if body.get("result") == "error" else None, conditions_pass=body.get("result") != "failed_conditions")
             elif self.path == "/delegation":
-                FAKE.options["delegated_authoring"] = bool(body.get("on"))
+                TR.delegated = bool(body.get("on"))
             elif self.path == "/load":
-                FAKE.load_ok = bool(body.get("ok", True))
+                FAKE.include_loaded = bool(body.get("ok", True))
             elif self.path == "/fail":
-                FAKE.fail_next[body["service"]] = True
+                FAKE.fail_next[f"call:{body['service']}"] = RuntimeError("service failed")
             elif self.path == "/timeout":
-                FAKE.fail_next["bridge_timeout"] = True
+                TR.fail_next["timeout"] = True
             elif self.path == "/config-api":
                 FAKE.config_api = bool(body.get("on", True))
             else:
@@ -283,7 +289,7 @@ class _Control(BaseHTTPRequestHandler):
             _directory(bool(body.get("on")))
         if self.path == "/world":
             with LOCK:
-                w = FAKE.world[body["entity_id"]]
+                w = FAKE.states[body["entity_id"]]
                 new = {"entity_id": body["entity_id"], "state": w["state"], "attributes": w.get("attributes") or {}, "last_changed": "2026-10-01T10:10:00+00:00", "last_updated": "2026-10-01T10:10:00+00:00"}
             WORLD.emit("state_changed", {"entity_id": body["entity_id"], "old_state": None, "new_state": new})
         _push_changes(reloaded)
@@ -307,7 +313,7 @@ def _pair() -> None:
                 r = c.get(f"{BASE}/ha/bridge/pairing")
                 if r.status_code == 200:
                     SECRET["code"] = r.json()["pairing_code"]
-                    FAKE.secret = SECRET["code"]
+                    TR.secret = SECRET["code"]
                     p = c.post(f"{BASE}/ha/bridge/ping", json=ha_bridge.sign(SECRET["code"], {"version": "0.6.0"}))
                     print(f"automations_fake_ha: bridge paired ({p.status_code})", flush=True)
                     _directory(False)
@@ -324,7 +330,7 @@ def _pair() -> None:
 def main() -> None:
     threading.Thread(target=_pair, name="automations-fixture-pair", daemon=True).start()
     threading.Thread(target=_serve_control, name="automations-fixture-control", daemon=True).start()
-    print(f"automations_fake_ha: fake Home Assistant with {len(FAKE.files['automation'])} automations, {len(FAKE.files['script'])} scripts, {len(FAKE.files['scene'])} scenes; backend on {BASE}", flush=True)
+    print(f"automations_fake_ha: fake Home Assistant with {len(FAKE.automations)} automations, {len(FAKE.scripts)} scripts, {len(FAKE.scenes)} scenes; backend on {BASE}", flush=True)
     from smplwise.__main__ import main as serve
 
     serve()

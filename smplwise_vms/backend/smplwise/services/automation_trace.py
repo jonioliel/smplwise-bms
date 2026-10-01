@@ -12,7 +12,7 @@ from . import automation_policy as pol
 from .timeutil import parse_utc
 
 _DROP_KEYS = frozenset({"user_id", "parent_id", "context_id", "context", "refresh_token_id"})
-RESULTS = {"finished": "ok", "error": "error", "aborted": "stopped", "cancelled": "stopped", "failed_conditions": "not_triggered", "failed_single": "not_triggered",
+RESULTS = {"finished": "ok", "error": "error", "failed_runtime": "error", "aborted": "stopped", "cancelled": "stopped", "failed_conditions": "not_triggered", "failed_single": "not_triggered",
            "failed_max_runs": "not_triggered", "failed_disabled": "not_triggered", "failed_unknown_reason": "error"}
 
 
@@ -48,6 +48,8 @@ def _ms(a: Any, b: Any) -> int | None:
 def run_result(entry: dict[str, Any]) -> str:
     state = entry.get("state")
     exe = entry.get("script_execution")
+    if entry.get("error"):
+        return "error"
     if state == "running" or (exe is None and not (entry.get("timestamp") or {}).get("finish")):
         return "running"
     return RESULTS.get(str(exe), "ok")

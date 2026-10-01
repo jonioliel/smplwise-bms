@@ -7,7 +7,7 @@ import copy
 
 from automations_fixture import *  # noqa: F401,F403
 from automations_fixture import autos_app  # noqa: F401
-from automations_fixture import API, OMER, SHABBAT, create_item, draft_of, get_item, item_by_name, rid, svc_block, typed_state_trigger
+from automations_fixture import API, OMER, SHABBAT, create_item, draft_of, get_item, item_by_name, put_item, rid, svc_block, typed_state_trigger
 
 
 def pv(c, body, headers=None):
@@ -25,10 +25,11 @@ def test_a_valid_draft_previews_with_sentences_effects_and_requirements(autos_ap
     app, s, c, fake, tr = autos_app
     out = pv(c, {"kind": "automation", "draft": draft_of("בדיקה", conditions=[{"uid": "c1", "kind": "typed", "type": "shabbat", "mode": "not_holy_days"}])})
     assert out["valid"] is True and out["errors"] == [] and out["ha_validation"] == "ok"
-    assert out["sentence"].startswith("כש־Hall motion הופך לדלוק, אם לא בשבת ובחג, אז הדלקת Office light") and out["block_sentences"]["trigger/0"] and out["block_sentences"]["condition/0"] == "לא בשבת ובחג"
+    assert out["sentence"] == "כשHall motion מזהה תנועה, אם לא בשבת וחג – הדלק Office light ל־40%"
+    assert out["block_sentences"] == {"n1": "כשHall motion מזהה תנועה", "c1": "לא בשבת וחג", "n2": "הדלק Office light ל־40%"}, "keyed by the uid of the caller's own blocks"
     assert out["effects"] == {"entities": [{"entity_id": "light.office", "name": "Office light", "floor": "Ground floor", "area": "Living room", "from": "off", "to": "on"}], "unknown": False}
     assert out["sensitive"] is False and out["sensitive_steps"] == [] and out["requires"] == {"confirm": False, "code_view": False, "ha_admin": False} and out["suggest_schedule"] is None
-    assert not fake.bridge_calls and len(fake.files["automation"]) == 16, "a preview never writes"
+    assert not tr.bridge_calls and len(fake.automations) == 16, "a preview never writes"
 
 
 def test_problems_are_data_not_errors(autos_app):
@@ -36,7 +37,7 @@ def test_problems_are_data_not_errors(autos_app):
     out = pv(c, {"kind": "automation", "draft": draft_of("x", triggers=[])})
     assert out["valid"] is False and out["errors"][0]["path"] == "triggers" and out["sentence"] == ""
     out = pv(c, {"kind": "automation", "draft": draft_of("x", actions=[svc_block("homeassistant.turn_on", ["light.office"])])})
-    assert out["valid"] is False and out["errors"][0]["code"] == "action_not_allowed" and out["errors"][0]["path"] == "action/0"
+    assert out["valid"] is False and out["errors"][0]["code"] == "action_not_allowed" and out["errors"][0]["path"] == "actions.0"
     r = c.post(f"{API}/automations/preview", json={"kind": "automation"})
     assert r.status_code == 422
     r = c.post(f"{API}/automations/preview", json={"kind": "automation", "draft": draft_of("x"), "config": {}})
@@ -78,6 +79,25 @@ def test_the_code_view_preview_reports_the_profile_and_home_assistants_verdict(a
     assert pv(c, {"kind": "automation", "draft": draft_of("x")})["ha_validation"] == "skipped"
 
 
+def test_a_new_locked_block_is_a_requirement_of_the_save_not_an_error_of_the_preview(autos_app):
+    app, s, c, fake, tr = autos_app
+    d = get_item(c, "automation", item_by_name(c, "מזגן סלון בבוקר")["id"]).json()
+    draft = copy.deepcopy(d["draft"])
+    draft["conditions"].append({"uid": "zz", "kind": "locked", "fingerprint": "aaaaaaaaaaaaaaaa", "reason": "template", "label": "", "sensitive": False, "effects": "none", "masked": False,
+                                "raw": {"condition": "template", "value_template": "{{ true }}"}, "sentence": ""})
+    out = pv(c, {"kind": "automation", "id": d["id"], "draft": draft})
+    assert out["valid"] is True and out["requires"] == {"confirm": False, "code_view": True, "ha_admin": True}, "the administrator holds both: the save would go through route 9"
+    r = put_item(c, "automation", d["id"], draft, d["revision"])
+    assert r.status_code == 403 and r.json()["code"] == "locked_block_changed", "the replace route never takes a new locked block"
+    no_raw = copy.deepcopy(draft)
+    no_raw["conditions"][-1]["raw"] = None
+    out = pv(c, {"kind": "automation", "id": d["id"], "draft": no_raw})
+    assert out["valid"] is False and out["errors"][0]["code"] == "locked_block_changed", "without a raw there is nothing to take"
+    # what the caller was shown as a locked view (outside their reach) is the stored block: no requirement
+    out = pv(c, {"kind": "automation", "id": d["id"], "draft": d["draft"]})
+    assert out["requires"] == {"confirm": False, "code_view": False, "ha_admin": False}
+
+
 def test_a_scoped_caller_previews_only_what_they_may_see(autos_app):
     app, s, c, fake, tr = autos_app
     ids = seed_tree(c)
@@ -100,7 +120,7 @@ def test_the_schedule_suggestion_is_a_warning_with_a_draft_and_never_a_refusal(a
     assert out["valid"] is True and any(w["code"] == "suggest_schedule" for w in out["warnings"])
     sched = out["suggest_schedule"]["schedule_draft"]
     assert sched["name"] == "מזגן בשעה" and sched["weekdays"] == ["sun", "mon"] and [x["start"] for x in sched["slots"]] == ["07:00:00", "sunset-00:30:00"]
-    assert sched["conditions"] == {"items": [{"entity_id": SHABBAT, "attribute": "state", "match_type": "is", "value": "off"}], "type": "and", "track": False}
+    assert sched["conditions"] == {"items": [{"entity_id": SHABBAT, "attribute": "state", "match_type": "is", "value": "off"}], "type": None, "track": False}
     assert sched["slots"][0]["actions"] == [{"service": "climate.set_temperature", "entity_id": "climate.living_room", "data": {"temperature": 24, "hvac_mode": "cool"}}, {"service": "light.turn_on", "entity_id": "light.office", "data": {}}]
     # the save is not refused for it
     r = create_item(c, "automation", time_draft)
@@ -114,7 +134,7 @@ def test_the_schedule_suggestion_is_a_warning_with_a_draft_and_never_a_refusal(a
     t = {x["id"]: x for x in c.get(f"{API}/automations/templates").json()["templates"]}
     assert t["lights_at_sunset"]["suggest_schedule"] is True and t["motion_light"]["suggest_schedule"] is False
     d = get_item(c, "automation", r.json()["item"]["id"]).json()
-    assert d["suggest_schedule"]["slots"][0]["start"] == "07:00:00"
+    assert d["suggest_schedule"]["schedule_draft"]["slots"][0]["start"] == "07:00:00"
 
 
 def test_the_preview_rate_limit_is_a_setting(autos_app):
