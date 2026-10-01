@@ -390,3 +390,6 @@ async def daily_loop(db: Database, settings: Settings, interval_s: int = DAILY_S
             log.info("daily backup %s (%d bytes); pruned %s", e["name"], e["bytes"], removed or "nothing")
         except Exception as exc:  # noqa: BLE001 - keep the loop alive
             log.warning("daily backup failed: %s", exc)
+            from . import notify_sources  # CR-018: the administrators hear about a failed automatic backup (resolved by the next good one)
+
+            await run_in_threadpool(notify_sources.backup_failed, db)

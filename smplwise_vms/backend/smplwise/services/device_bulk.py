@@ -1000,6 +1000,9 @@ def finish(db: Database, bulk_id: str, request_id: str | None = None) -> None:
               reason=None if c["confirmed"] == c["total"] else ("partial" if c["confirmed"] else "none_confirmed"), request_id=request_id,
               details={"phase": "outcome", "bulk_id": bulk_id, "kind": body["kind"], "scope": body["scope"], "scope_name": body["scope_name"], "counts": c,
                        "not_confirmed": ids("not_confirmed"), "unknown": ids("unknown"), "refused": ids("refused")})
+        from . import notify_sources  # CR-018: the initiator hears about a bulk / group result that was not fully confirmed
+
+        notify_sources.on_bulk_finished(w, body)
 
 
 def interrupt(conn: Any, bulk_id: str) -> None:
