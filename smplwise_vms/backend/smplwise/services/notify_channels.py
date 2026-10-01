@@ -405,6 +405,7 @@ def housekeeping(db: Any) -> None:
     """Retention: notifications for the configured days, deliveries for 14, spent action tokens, stale outbox rows."""
     with db.connection(label="notify.retention") as conn:
         notify.retention_sweep(conn)
+    notify_email.recover_orphans(db)  # e-mail rows left in `retry` by a process that is gone (CR-018 S4)
 
 
 # the e-mail channel registers itself here (CR-018 S4); imported last because it uses the interface defined above

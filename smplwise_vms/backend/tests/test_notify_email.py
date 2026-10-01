@@ -740,3 +740,37 @@ def test_the_password_is_nowhere_in_any_response_log_or_database_after_a_full_wo
         assert PASSWORD not in blob
         for m in good.messages:
             assert PASSWORD.encode() not in m["data"], "not in a mail either"
+
+
+# ---------------------------------------------------------------- start-up cleanup of orphaned `retry` rows
+
+def test_retry_rows_without_a_job_behind_them_are_failed_as_unavailable(world, smtp, monkeypatch):
+    monkeypatch.setattr(notify_email, "ORPHAN_GRACE_S", 0.0)
+    world.configure(smtp, recipients=[OWNER, SECOND])
+    smtp.drop = True
+    nid = world.emit(key="o1")
+    notify_channels.process_outbox(world.notifier)
+    assert [r["status"] for r in world.rows()] == ["retry", "retry"] and len(world.notifier.retries) == 2
+    # a pass while the jobs are alive in this process leaves them alone
+    notify_channels.housekeeping(world.db)
+    assert [r["status"] for r in world.rows()] == ["retry", "retry"]
+    # the process restarts: the heap and the in-memory bookkeeping are gone, the rows are not
+    notify_email.reset_state()
+    world.notifier = push_svc.PushNotifier()
+    world.notifier.db = world.db
+    notify_channels.housekeeping(world.db)
+    rows = world.rows()
+    assert [(r["status"], r["reason"]) for r in rows] == [("failed", "unavailable")] * 2
+    with world.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM notification_events WHERE notification_id = ? AND kind = 'delivery_failed' AND channel = 'email'", (nid,)).fetchone()[0] == 2
+    notify_channels.housekeeping(world.db)   # nothing left to do, nothing changes
+    assert [r["status"] for r in world.rows()] == ["failed", "failed"]
+
+
+def test_a_young_retry_row_gets_its_grace_period(world, smtp):
+    world.configure(smtp)
+    smtp.drop = True
+    world.emit(key="o2")
+    notify_channels.process_outbox(world.notifier)
+    notify_email.reset_state()               # no live job known, but the row is seconds old (default 60 s grace)
+    assert notify_email.recover_orphans(world.db) == 0 and world.rows()[0]["status"] == "retry"

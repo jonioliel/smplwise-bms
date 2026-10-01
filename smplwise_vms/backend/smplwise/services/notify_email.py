@@ -593,12 +593,41 @@ _HELD: dict[str, list[HeldItem]] = {}
 _DIGEST: dict[str, Any] = {"job": None, "notifier": None}
 
 
+_LIVE: set[str] = set()   # delivery rows in `retry` whose job is alive in THIS process (the retry heap or the held digest)
+
+
+def _record(db: Any, ids: list[str], status: str, reason: str | None, attempt: int, **kw: Any) -> None:
+    """record_outcome, plus the bookkeeping of which `retry` rows still have a job behind them."""
+    with _LOCK:
+        for i in ids:
+            (_LIVE.add if status == "retry" else _LIVE.discard)(i)
+    record_outcome(db, ids, status, reason, attempt, **kw)
+
+
+ORPHAN_GRACE_S = 60.0
+
+
+def recover_orphans(db: Any) -> int:
+    """Delivery rows left in `retry` by a process that no longer exists (a restart drops the retry heap and the held digest) have no job
+    behind them: each is marked `failed` / `unavailable` - honest, and the failures panel shows it. Runs from the notifier's housekeeping (the first
+    pass comes shortly after start-up); a row whose job is alive here, or that is younger than a minute, is left alone. Returns how many."""
+    cutoff = iso_utc(notify.now_utc() - dt.timedelta(seconds=ORPHAN_GRACE_S))
+    with db.connection(mode="read", label="notify.email.orphans") as conn:
+        rows = conn.execute("SELECT id, notification_id, attempt FROM notification_deliveries WHERE channel = 'email' AND status = 'retry' AND created_at < ?", (cutoff,)).fetchall()
+    with _LOCK:
+        dead = [r for r in rows if r["id"] not in _LIVE]
+    for r in dead:
+        _record(db, [r["id"]], "failed", "unavailable", int(r["attempt"] or 0), notification_id=r["notification_id"], channel="email")
+    return len(dead)
+
+
 def reset_state() -> None:
     """Forget every in-memory limiter, held condition and failure streak (tests, and a restart does it implicitly)."""
     with _LOCK:
         _HELD.clear()
         _DIGEST.update(job=None, notifier=None)
         _TEST_BUCKETS.clear()
+        _LIVE.clear()
         _DOWN.update(since=None, raised=False)
     GATE.stamps.clear()
 
@@ -634,7 +663,7 @@ class DigestJob:
         for address, items in held.items():
             for it in items:
                 if now - it.held_at > MAX_HOLD_S:
-                    record_outcome(db, [it.delivery_id], "skipped", "rate_limited", 1)
+                    _record(db, [it.delivery_id], "skipped", "rate_limited", 1)
                 else:
                     fresh.setdefault(address, []).append(it)
         if not fresh:
@@ -696,7 +725,7 @@ class MailJob:
             return True
         if reason:
             for did, nid in self.items:
-                record_outcome(db, [did], "skipped", reason, self.attempt + 1)
+                _record(db, [did], "skipped", reason, self.attempt + 1)
             return False
         return True
 
@@ -804,17 +833,17 @@ def run_job(notifier: Any, job: MailJob, *, cfg: Any = _LOAD, known: MailError |
     attempt = job.attempt + 1
     if err is None:
         for did, nid in job.items:
-            record_outcome(db, [did], "sent", "folded" if job.kind == "digest" else None, attempt)
+            _record(db, [did], "sent", "folded" if job.kind == "digest" else None, attempt)
         _note_success(db)
         return None
     final = not err.retryable or job.attempt >= len(RETRY_DELAYS_S)
     log.warning("e-mail to %s failed (%s)%s", mask_address(job.address), err.kind, "" if final else ", will retry")
     if final:
         for did, nid in job.items:
-            record_outcome(db, [did], "failed", err.kind, attempt, notification_id=nid, channel="email")
+            _record(db, [did], "failed", err.kind, attempt, notification_id=nid, channel="email")
     else:
         for did, nid in job.items:
-            record_outcome(db, [did], "retry", err.kind, attempt)
+            _record(db, [did], "retry", err.kind, attempt)
         delay = RETRY_DELAYS_S[job.attempt]
         job.attempt += 1
         notifier.schedule(delay, job)
@@ -860,7 +889,7 @@ class EmailChannel(Channel):
                 continue
             address = t.data["address"]
             if t.data["fold"]:  # over the rate limit: held for the digest, which names it with a count
-                record_outcome(notifier.db, [t.delivery_id], "retry", "rate_limited", 0)
+                _record(notifier.db, [t.delivery_id], "retry", "rate_limited", 0)
                 _hold(notifier, address, HeldItem(t.delivery_id, d.nid, item.title, item.place, item.severity, item.count, _mono()))
                 continue
             job = MailJob(address, [(t.delivery_id, d.nid)], rendered, "single", d.mode, 0, d.n.get("source"))
