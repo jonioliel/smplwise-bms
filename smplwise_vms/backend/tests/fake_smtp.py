@@ -6,7 +6,7 @@ throw-away self-signed certificate for 127.0.0.1 / localhost (the test trusts it
 
 Behaviour switches (set on the instance before or between sends): `auth` (a (user, password) pair the server accepts; None = no AUTH offered),
 `rcpt_reply` / `data_reply` / `mail_reply` (a reply line to send instead of 250 / 250 / 250; may be a callable of the address), `hang` (accept and
-never answer: a client timeout), `drop` (close right after the TCP accept), `banner` (the greeting text), `max_size`, `extra_reply_text`
+never answer: a client timeout), `greeting_delay` (a slow server), `drop` (close right after the TCP accept), `banner` (the greeting text), `max_size`, `extra_reply_text`
 (appended to every error reply, to prove a client never echoes server text).
 """
 from __future__ import annotations
@@ -57,6 +57,7 @@ class FakeSMTP:
         self.extra_reply_text = ""
         self.max_size = 10 * 1024 * 1024
         self.hang = False
+        self.greeting_delay = 0.0               # seconds before the 220 greeting (a slow server)
         self.drop = False
         self.mail_reply: str | Callable[[str], str] | None = None
         self.rcpt_reply: str | Callable[[str], str] | None = None
@@ -153,6 +154,8 @@ class FakeSMTP:
             def send(line: str) -> None:
                 f.write((line + "\r\n").encode("utf-8", "replace"))
 
+            if self.greeting_delay:
+                self._stop.wait(self.greeting_delay)
             send(f"220 {self.banner}")
             while True:
                 line = f.readline()
