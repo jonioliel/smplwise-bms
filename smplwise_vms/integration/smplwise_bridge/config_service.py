@@ -273,11 +273,17 @@ async def _write(hass: Any, deps: SimpleNamespace, user: Any, p: policy.Message,
         if p.op == "upsert":
             assert p.config is not None
             try:
-                facts = policy.validate_config(kind, item_id, p.config, profile=p.profile, preserved=p.preserved, stored=stored, sensitive=p.sensitive, attributes_of=attributes_of)
+                facts = policy.validate_config(kind, item_id, p.config, profile=p.profile, preserved=p.preserved, stored=stored, sensitive=p.sensitive, attributes_of=attributes_of,
+                                             allowed_notify=p.allowed_notify)
             except policy.PolicyError as exc:
                 _LOGGER.warning("smplwise_bridge.config_item upsert refused: %s", exc.code)
                 return _refuse(msg, exc.code, exc.path)
         else:
+            # a delegated user deletes only what a builder could have written: admin-authored content (templates, device triggers, custom services, secrets,
+            # extra keys) is an administrator's to remove
+            if not getattr(user, "is_admin", False) and not policy.stored_is_builder_authorable(kind, stored):
+                _LOGGER.warning("smplwise_bridge.config_item delete refused: not_ha_admin")
+                return _refuse(msg, "not_ha_admin")
             facts = policy.ConfigFacts(stored_targets=policy.step_targets(stored)[0] + ([e for e in (stored.get("entities") or {})] if kind == "scene" else []))
         # ---- a non-administrator controls every entity the item drives (the new content and the old)
         refusal = _check_permissions(user, deps, list(dict.fromkeys(facts.targets + facts.stored_targets)))

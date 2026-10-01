@@ -40,9 +40,10 @@ def test_sensitive_classes_by_service_and_by_entity_class_with_their_grants():
     assert pol.sensitive_class_of("cover.close_cover", "garage") == "garage"
     assert pol.sensitive_class_of("light.turn_on") is None
     assert pol.sensitive_class_of("switch.turn_on", "siren") == "siren"  # a plain service on a siren-class entity is still the siren class
-    assert pol.grant_of("alarm_control_panel.alarm_arm_away") == "alarm.disarm"
-    assert pol.grant_of("lock.lock") == "door.unlock"
-    assert pol.grant_of("cover.open_cover", "door") == "door.unlock"
+    # enforcement is per ACTION (the table S1 enforces): only disarm / arm / unlock need a separate grant, the rest need control of the entity
+    assert pol.grant_of("alarm_control_panel.alarm_arm_away") == "alarm.arm" and pol.grant_of("alarm_control_panel.alarm_disarm") == "alarm.disarm"
+    assert pol.grant_of("lock.unlock") == "door.unlock" and pol.grant_of("lock.lock") == "ha.entity.control"
+    assert pol.grant_of("cover.open_cover", "door") == "ha.entity.control"
     assert pol.grant_of("siren.turn_off") == "ha.entity.control"
     assert pol.grant_of("light.turn_off") is None
     assert set(pol.GRANT_OF_CLASS) == set(pol.SENSITIVE_CLASSES)

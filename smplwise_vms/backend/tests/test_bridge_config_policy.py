@@ -353,7 +353,7 @@ def scene(**kw):
 
 
 def test_scene_members_are_capture_domains_with_known_attributes_and_never_an_alarm():
-    facts = check(scene(), kind="scene", item_id="1727700000200")
+    facts = check(scene(), kind="scene", item_id="1727700000200", sensitive=True)  # the default scene has a lock member
     assert facts.targets == ["light.entry", "lock.front"]
     assert code_of(scene(entities={"alarm_control_panel.home": {"state": "disarmed"}}), kind="scene", item_id="1727700000200")[0] == "service_not_allowed"
     assert code_of(scene(entities={"sensor.a": {"state": "on"}}), kind="scene", item_id="1727700000200")[0] == "service_not_allowed"
@@ -369,3 +369,66 @@ def test_scene_members_are_capture_domains_with_known_attributes_and_never_an_al
     assert code_of(scene(entities={"light.a": {"state": "on", "effect": "fire"}}), kind="scene", item_id="1727700000200", stored=stored)[0] == "argument_not_allowed"
     assert code_of(scene(metadata={"x": 1}), kind="scene", item_id="1727700000200")[0] == "preserved_mismatch"  # an extra key of a scene is kept, never authored by a builder save
     assert code_of(scene(entities={f"light.l{i}": "on" for i in range(101)}), kind="scene", item_id="1727700000200") == ("invalid_payload", "entities")
+
+
+# ---------------------------------------------------------------- review findings (F5 and the lows)
+
+def test_a_step_that_names_its_target_twice_is_not_typed_and_every_place_is_a_target():
+    both = {"action": "climate.turn_off", "target": {"entity_id": ["climate.living_room"]}, "entity_id": "climate.bedroom_1"}
+    assert policy.action_authorable(both) is False
+    assert code_of(action(both))[0] == "preserved_mismatch"
+    for extra in ({"area_id": "x"}, {"device_id": "d"}, {"floor_id": "f"}, {"label_id": "l"}):
+        assert policy.action_authorable({"action": "light.turn_off", "target": {"entity_id": ["light.a"]}, **extra}) is False, extra
+    assert policy.action_authorable({"action": "climate.turn_off", "entity_id": "climate.a"}) is True
+    ents, _ = policy.step_targets({"actions": [{"action": "x.y", "target": {"entity_id": ["light.a"]}, "entity_id": ["light.b"], "data": {"entity_id": "light.c"}}]})
+    assert ents == ["light.a", "light.b", "light.c"]
+    # kept as stored it is fine for a delegated user who keeps it, and its targets are all reported for the permission check
+    stored = AUTO(actions=[both])
+    fp = policy.fingerprint_of(both)
+    assert check(copy.deepcopy(stored), stored=stored, preserved=[fp]).targets == ["climate.living_room", "climate.bedroom_1"]
+
+
+def test_repeat_count_is_capped_at_1000():
+    assert code_of(action({"repeat": {"count": 1000, "sequence": [{"delay": {"seconds": 1}}]}})) is None
+    assert code_of(action({"repeat": {"count": 1001, "sequence": [{"delay": {"seconds": 1}}]}}))[0] == "preserved_mismatch"
+
+
+def test_allowed_notify_is_enforced_when_the_add_on_sends_it_and_an_old_step_stays_saveable():
+    n = lambda target: action({"action": target, "data": {"message": "m"}})  # noqa: E731
+    allow = frozenset({"notify.mobile_app_yoni"})
+    run = lambda cfg, **kw: policy.validate_config("automation", "1727700000002", cfg, profile="builder", preserved=frozenset(), sensitive=False, allowed_notify=allow, **kw)  # noqa: E731
+    run(n("notify.mobile_app_yoni"), stored=None)
+    with pytest.raises(PolicyError) as e:
+        run(n("notify.other"), stored=None)
+    assert (e.value.code, e.value.path) == ("service_not_allowed", "actions[0]")
+    old = n("notify.other")
+    run(copy.deepcopy(old), stored=old)  # an unchanged stored step is not re-judged
+    assert code_of(n("notify.anything")) is None  # absent = the add-on did not send a list: any notify target (the previous behaviour)
+    for bad in ("notify.x y", ["notify.ok", 5], "notify.ok", [f"notify.n{i}" for i in range(101)], ["light.turn_on"]):
+        with pytest.raises(PolicyError):
+            policy.validate_message(msg("upsert", allowed_notify=bad))
+    assert policy.validate_message(msg("upsert", allowed_notify=["notify.a"])).allowed_notify == {"notify.a"}
+    assert policy.validate_message(msg("upsert")).allowed_notify is None
+
+
+def test_a_scene_with_a_lock_or_a_door_cover_member_needs_the_sensitive_flag():
+    sc = lambda ents, **kw: code_of(scene(entities=ents), kind="scene", item_id="1727700000200", **kw)  # noqa: E731
+    assert sc({"lock.front": "locked"}, sensitive=False) == ("sensitive_flag_mismatch", "entities")
+    assert sc({"lock.front": "locked"}, sensitive=True) is None
+    assert sc({"cover.gate": {"state": "open"}}, sensitive=False, attrs=lambda e: {"device_class": "gate"}) == ("sensitive_flag_mismatch", "entities")
+    assert sc({"cover.shutter": {"state": "open"}}, sensitive=False, attrs=lambda e: {"device_class": "shutter"}) is None
+    assert sc({"light.a": "on"}, sensitive=False) is None
+
+
+def test_a_delegated_user_may_delete_only_what_a_builder_could_have_written():
+    assert policy.stored_is_builder_authorable("automation", AUTO()) is True
+    assert policy.stored_is_builder_authorable("automation", AUTO(trace={"stored_traces": 10})) is True  # a harmless extra the HA editor writes
+    legacy = {k: v for k, v in AUTO().items() if k != "triggers"}
+    legacy["trigger"] = [{"platform": "time", "at": "06:00"}]
+    for bad in (AUTO(triggers=[{"trigger": "template", "value_template": "{{ x }}"}]), AUTO(triggers=[LOCKED_TRIGGER]), AUTO(actions=[{"action": "scheduler.disable_all"}]),
+                AUTO(actions=[{"action": "notify.p", "data": {"message": "m", "api_key": "k"}}]), AUTO(variables={"a": 1}), AUTO(actions=[{"action": "light.turn_on", "target": {"area_id": "x"}}]), legacy):
+        assert policy.stored_is_builder_authorable("automation", bad) is False, bad
+    assert policy.stored_is_builder_authorable("script", script()) is True
+    assert policy.stored_is_builder_authorable("script", script(sequence=[{"wait_template": "{{ true }}"}])) is False
+    assert policy.stored_is_builder_authorable("scene", scene()) is True
+    assert policy.stored_is_builder_authorable("scene", scene(entities={"light.a": {"state": "on", "effect": "x"}})) is False

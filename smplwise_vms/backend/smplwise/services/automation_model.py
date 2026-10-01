@@ -111,13 +111,48 @@ def _entity_list(v: Any) -> list[str] | None:
     return arr if all(is_entity_id(x) for x in arr) else None
 
 
+_EXPANDING_KEYS = ("device_id", "area_id", "floor_id", "label_id")
+
+
+def step_entity_refs(raw: Mapping[str, Any]) -> tuple[list[str], bool]:
+    """(every entity id a service step names, whether it ALSO targets by something that expands to unknown entities or by something not a plain list). Home Assistant
+    merges `target`, a top-level `entity_id` and `data.entity_id`; reading only one of them would hide the real target (CR-017 review F5), so all three are unioned."""
+    ids: dict[str, None] = {}
+    unknown = False
+    places: list[Any] = []
+    tgt = raw.get("target")
+    if tgt is not None:
+        if isinstance(tgt, dict):
+            places.append(tgt.get("entity_id"))
+            unknown = unknown or any(k in tgt for k in _EXPANDING_KEYS) or any(k != "entity_id" for k in tgt)
+        else:
+            unknown = True
+    if "entity_id" in raw:
+        places.append(raw["entity_id"])
+    data = raw.get("data")
+    if isinstance(data, dict):
+        if "entity_id" in data:
+            places.append(data["entity_id"])
+        unknown = unknown or any(k in data for k in _EXPANDING_KEYS)
+    elif data is not None:
+        unknown = True
+    unknown = unknown or any(k in raw for k in _EXPANDING_KEYS)
+    for place in places:
+        lst = _entity_list(place)
+        if lst is None:
+            unknown = True
+        else:
+            for e in lst:
+                ids[e] = None
+    return list(ids), unknown
+
+
 def _static_effects(raw: Any, reason: str) -> Any:
     if reason in ("template", "device", "custom_service", "unknown"):
         return "unknown"
     if isinstance(raw, dict) and isinstance(_service_of(raw), str):
-        tgt = raw["target"].get("entity_id") if isinstance(raw.get("target"), dict) else raw.get("entity_id")
-        ids = _entity_list(tgt)
-        if ids:
+        ids, unknown = step_entity_refs(raw)
+        if ids and not unknown:
             return ids
     return "unknown"
 
@@ -479,7 +514,7 @@ def parse_action(raw: Any, ctx: ModelContext | None = None) -> Block:
     if "repeat" in r:
         rp = r["repeat"]
         if (not _only_keys(r, ["repeat"]) or not isinstance(rp, dict) or not all(k in ("count", "sequence") for k in rp) or not is_number(rp.get("count"))
-                or float(rp["count"]) != int(rp["count"]) or rp["count"] < 1):
+                or float(rp["count"]) != int(rp["count"]) or not 1 <= rp["count"] <= pol.CAPS["repeat_count_max"]):
             return bad()
         return mk({"kind": "typed", "raw": raw, "type": "repeat_count", "count": int(rp["count"]), "sequence": parse_actions(rp.get("sequence"), ctx)})
     if "delay" in r:
@@ -513,6 +548,8 @@ def parse_action(raw: Any, ctx: ModelContext | None = None) -> Block:
     if not cls.ok:
         return mk_locked(raw, cls.reason or "unknown", "action", ctx)
     ids: list[str] | None = []
+    if "target" in r and any(k in r for k in ("entity_id", *_EXPANDING_KEYS)):
+        return bad()  # a step that names its target twice hides the real one (HA merges them): never typed
     if "target" in r:
         if not isinstance(r["target"], dict) or any(k != "entity_id" for k in r["target"]):
             return bad()
@@ -1126,7 +1163,7 @@ def sensitive_steps(draft: Mapping[str, Any], class_of: Callable[[str], str | No
         for eid in b["entity_ids"] or [""]:
             cls = pol.sensitive_class_of(b["action"], (class_of(eid) if class_of and eid else None))
             if cls:
-                grant = pol.GRANT_OF_CLASS[cls]
+                grant = pol.grant_for(b["action"])
                 out.append({"path": w.path, "entity_id": eid, "action": b["action"], "grant": grant, "granted": has_grant(grant) if has_grant else True})
     return out
 
@@ -1375,7 +1412,7 @@ def validate_draft(kind: str, draft: Mapping[str, Any], *, notify_targets: Itera
                 need(not b["conditions"], "conditions_required", "הוסיפו תנאי")
                 need(not b["then"], "action_required", "הוסיפו לפחות פעולה אחת")
             elif t == "repeat_count":
-                need(not isinstance(b["count"], int) or b["count"] < 1 or b["count"] > 1000, "count_invalid", "מספר חזרות לא תקין")
+                need(not isinstance(b["count"], int) or b["count"] < 1 or b["count"] > pol.CAPS["repeat_count_max"], "count_invalid", "מספר חזרות לא תקין")
     if kind == "script":
         keys: set[str] = set()
         for i, f in enumerate(d["fields"]):

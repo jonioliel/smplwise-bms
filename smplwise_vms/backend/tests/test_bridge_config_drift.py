@@ -283,3 +283,22 @@ def test_the_bridge_modules_import_without_home_assistant_and_ban_nothing_they_s
     called = set(re.findall(r'async_call\((?:domain|"[a-z_]+")\s*,\s*(?:service|"[a-z_]+")', svc))
     assert "hassio" not in svc.replace("`hassio.*`", "") and "homeassistant.restart" not in svc and "restart" not in re.sub(r"#.*|\"\"\"[\s\S]*?\"\"\"", "", svc)
     assert called  # the two call sites exist
+
+
+def test_review_findings_are_the_same_on_both_sides():
+    assert bp.CAPS["repeat_count"] == pol.CAPS["repeat_count_max"] == 1000
+    for count, typed in ((1000, True), (1001, False), (0, False)):
+        raw = {"repeat": {"count": count, "sequence": [{"delay": {"seconds": 1}}]}}
+        assert (am.parse_action(raw)["kind"] == "typed") == typed == bp.action_authorable(raw)
+    both = {"action": "climate.turn_off", "target": {"entity_id": ["climate.a"]}, "entity_id": "climate.b"}
+    assert am.parse_action(both)["kind"] == "locked" and bp.action_authorable(both) is False
+    ids, _unknown = am.step_entity_refs(both)
+    assert ids == bp.step_targets({"actions": [both]})[0] == ["climate.a", "climate.b"]
+    attrs = {"cover.gate": {"device_class": "gate"}, "cover.shutter": {"device_class": "shutter"}}
+    for ents in (["lock.front"], ["cover.gate"], ["cover.shutter"], ["light.a"], [], ["cover.missing"]):
+        for lookup in (None, attrs.get):
+            assert bp.scene_sensitive_required(ents, lookup) == pol.scene_sensitive_required(ents, lookup), ents
+    # the grants: enforcement is per action (S1's table); the class mapping is informational
+    assert pol.GRANT_FOR == {"alarm_control_panel.alarm_disarm": "alarm.disarm", "lock.unlock": "door.unlock"}
+    assert pol.grant_for("alarm_control_panel.alarm_arm_night") == "alarm.arm" and pol.grant_for("cover.open_cover") == "ha.entity.control"
+    assert "allowed_notify" in bp.OP_KEYS["upsert"] and "allowed_notify" not in bp.OP_KEYS["delete"]
