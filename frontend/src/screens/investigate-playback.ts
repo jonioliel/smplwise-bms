@@ -20,6 +20,7 @@ import { demoEvents, demoScene, demoSegments, demoWall } from '../fixtures/catal
 import { isApi } from '../api/session';
 import { listCameras } from '../api/maps';
 import { productSettings } from '../api/prefs';
+import { onPlaybackDisplay, showPlaybackItem } from '../api/playback-display';
 import { navigate } from '../router';
 import { describeError, ApiError } from '../api/client';
 import { closeGroup, closePlayback, createGroup, createPlayback, dateInZone, frameUrl, instantInZone, minuteInZone, playbackWsUrl, recordingsForDay, seekGroup, seekPlayback, type PlaybackGroup, type PlaybackSession, type RecordingsResponse } from '../api/recordings';
@@ -119,6 +120,7 @@ export class InvestigatePlayback extends LitElement {
   @state() private exportBusy = false;
   @state() private exportError = '';
   private ticker: number | undefined;
+  private stopDisplay?: () => void;
 
   static styles = css`
     .pick {
@@ -438,6 +440,7 @@ export class InvestigatePlayback extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.stopDisplay = onPlaybackDisplay(() => this.requestUpdate()); // the diagnostics block follows its setting at once
     if (isApi()) {
       void this.init();
       this.ticker = window.setInterval(() => this.tick(), 500);
@@ -446,6 +449,7 @@ export class InvestigatePlayback extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    this.stopDisplay?.();
     window.clearInterval(this.ticker);
     void this.endSession();
   }
@@ -1174,13 +1178,13 @@ export class InvestigatePlayback extends LitElement {
           : nothing}
       </div>
       <sw-case-picker .item=${this.casePick} subheading=${`${this.cams?.find((c) => c.id === this.cameraId)?.name ?? ''} · ${this.date} ${secondLabel(this.cursor)}`} @added=${() => void this.loadBookmarks()} @close=${() => (this.casePick = null)}></sw-case-picker>
-      <div class="session">
+      ${showPlaybackItem('diagnostics') ? html`<div class="session" data-playback-diagnostics>
         <span>Session: ${master ? `${master.id} · דור ${this.groupMode ? this.group?.generation ?? master.generation : master.generation} · ${master.state}` : 'אין'}</span>
         <span>נגן: ${masterStatus || '—'}${this.paused ? ' (מושהה)' : ''}</span>
         <span>אזור זמן: <span class="ltr">${this.tz}</span></span>
         <span>כיסוי: ${this.rec ? (this.rec.coverage === 'complete' ? 'מלא' : this.rec.coverage === 'partial' ? 'חלקי' : 'לא ידוע') : '—'}</span>
         ${master ? html`<span>סוף הטווח: ${this.fmt(new Date(master.playback_end_at))}</span>` : nothing}
-      </div>
+      </div>` : nothing}
       ${this.renderExportDialog()}
     `;
   }
@@ -1218,22 +1222,22 @@ export class InvestigatePlayback extends LitElement {
       <sw-timeline .segments=${demoSegments} .events=${events} .cursor=${this.cursor} precision="estimated" @seek=${this.seekDemo}></sw-timeline>
       <div class="filters">
         <sw-chip ?selected=${this.filter === 'all'} @click=${() => (this.filter = 'all')}>הכל</sw-chip>
-        <sw-chip dot="#ef4444" ?selected=${this.filter === 'motion'} @click=${() => (this.filter = 'motion')}>תנועה</sw-chip>
-        <sw-chip dot="#2f6bff" ?selected=${this.filter === 'person'} @click=${() => (this.filter = 'person')}>אדם</sw-chip>
-        <sw-chip dot="#22c55e" ?selected=${this.filter === 'vehicle'} @click=${() => (this.filter = 'vehicle')}>רכב</sw-chip>
-        <sw-chip dot="#8b5cf6" ?selected=${this.filter === 'door'} @click=${() => (this.filter = 'door')}>דלת</sw-chip>
+        <sw-chip dot="var(--sw-tl-motion)" ?selected=${this.filter === 'motion'} @click=${() => (this.filter = 'motion')}>תנועה</sw-chip>
+        <sw-chip dot="var(--sw-tl-person)" ?selected=${this.filter === 'person'} @click=${() => (this.filter = 'person')}>אדם</sw-chip>
+        <sw-chip dot="var(--sw-tl-vehicle)" ?selected=${this.filter === 'vehicle'} @click=${() => (this.filter = 'vehicle')}>רכב</sw-chip>
+        <sw-chip dot="var(--sw-tl-door)" ?selected=${this.filter === 'door'} @click=${() => (this.filter = 'door')}>דלת</sw-chip>
         <span class="grow"></span>
         <sw-button size="sm" icon="case">הוסף לתיק</sw-button>
         <a href="#/investigate/floors/f0/history"><sw-button size="sm" icon="map">במפה בזמן הזה</sw-button></a>
       </div>
-      <div class="session">
+      ${showPlaybackItem('diagnostics') ? html`<div class="session" data-playback-diagnostics>
         <span>Session: ${this.playing ? 'playing' : 'paused'} · ${this.speed}×</span>
         <span>דור ${this.generation}</span>
         <span>דיוק זמן: משוער</span>
         <span>כיסוי: ${inGap ? 'פער' : 'מלא'} · 6 מקטעים ביום</span>
         <span>WebRTC → MSE</span>
         ${inGap ? nothing : html`<span>מצלמה: ${cam.name}</span>`}
-      </div>
+      </div>` : nothing}
     `;
   }
 

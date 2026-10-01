@@ -78,6 +78,8 @@ import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, res
 import { t } from '../i18n/he';
 import { can, canNav, isApi, loadSession, nvrLess, onSession, watchPermissions, type Session } from '../api/session';
 import { productSettings } from '../api/prefs';
+import { applyTimelineColors } from '../api/timeline-colors';
+import { applyPlaybackDisplay } from '../api/playback-display';
 import '../components/sw-state-panel';
 import '../components/sw-page';
 
@@ -1139,6 +1141,8 @@ export class SwApp extends LitElement {
           HIDDEN_HREFS.clear();
           setInstallationNavSize(ps['ui.nav_size']); // the installation's default size of the navigation
           setInstallationMobileOptions(ps['ui.mobile']); // the phone UX guards (הגדרות › כללי › אפשרויות נייד)
+          applyPlaybackDisplay(ps); // the helper line and the diagnostics block of the recording screens
+          applyTimelineColors(ps['timeline.colors']); // the investigation timeline's colours (הגדרות › וידאו ומדיה › צבעי ציר הזמן)
           if (String(ps['ui.hide_search'] ?? 'false') === 'true') HIDDEN_HREFS.add('#/investigate/search');
           const hideMap = String(ps['ui.hide_map'] ?? 'false') === 'true';
           if (hideMap) for (const h of MAP_HREFS) HIDDEN_HREFS.add(h);

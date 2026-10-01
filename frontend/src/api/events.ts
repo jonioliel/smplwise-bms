@@ -188,20 +188,22 @@ export const EVENT_LABEL: Record<EventKind, string> = {
   other: 'אחר',
 };
 
+/** The kinds the timeline setting colours (הגדרות › וידאו ומדיה › צבעי ציר הזמן) are drawn with its custom properties, so the lists, chips and
+ * dots agree with the timeline; a field intrusion follows the line, an input signal the door, a manual recording the recording. */
 export const EVENT_TONE: Record<EventKind, string> = {
-  motion: '#ef4444',
-  person: '#2f6bff',
-  vehicle: '#22c55e',
-  line: '#f59e0b',
-  field: '#f59e0b',
-  offline: '#6b7280',
+  motion: 'var(--sw-tl-motion)',
+  person: 'var(--sw-tl-person)',
+  vehicle: 'var(--sw-tl-vehicle)',
+  line: 'var(--sw-tl-line)',
+  field: 'var(--sw-tl-line)',
+  offline: 'var(--sw-tl-offline)',
   tamper: '#b45309',
-  door: '#8b5cf6',
-  io: '#8b5cf6',
+  door: 'var(--sw-tl-door)',
+  io: 'var(--sw-tl-door)',
   storage: '#6b7280',
   system: '#6b7280',
   coverage_gap: '#6b7280',
-  manual: '#2f6bff',
+  manual: 'var(--sw-tl-recording)',
   other: '#6b7280',
 };
 

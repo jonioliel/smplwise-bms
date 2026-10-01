@@ -250,7 +250,7 @@ export class InvestigateSync extends LitElement {
         <sw-timeline .segments=${demoSegments} .events=${demoEvents.slice(0, 4).map((e) => ({ minute: e.minuteOfDay, kind: e.type, label: e.title }))} .cursor=${this.cursor} precision="estimated" @seek=${(e: CustomEvent<{ minute: number }>) => (this.cursor = e.detail.minute)}></sw-timeline>
         <div class="filters">
           <sw-chip selected icon="check">כל המצלמות</sw-chip>
-          <sw-chip dot="#ef4444">תנועה</sw-chip><sw-chip dot="#2f6bff">אדם</sw-chip><sw-chip dot="#22c55e">רכב</sw-chip><sw-chip dot="#8b5cf6">אחר</sw-chip>
+          <sw-chip dot="var(--sw-tl-motion)">תנועה</sw-chip><sw-chip dot="var(--sw-tl-person)">אדם</sw-chip><sw-chip dot="var(--sw-tl-vehicle)">רכב</sw-chip><sw-chip dot="var(--sw-tl-door)">אחר</sw-chip>
         </div>
         <div class="note">מקור שאינו מוכן מוצג במפורש (buffering / gap) ואינו מוצג כמסונכרן. יעד הנדסי: סטייה עד שנייה ב־95% מהדגימות, לאחר בדיקה עם אירוע חזותי משותף.</div>
       </sw-page>
