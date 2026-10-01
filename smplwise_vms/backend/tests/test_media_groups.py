@@ -221,6 +221,22 @@ def test_a_group_of_four_rooms_or_more_than_one_floor_needs_a_confirmation_and_t
     assert r.status_code == 403 and r.json()["code"] == "bulk_required"
 
 
+def test_a_house_without_floors_asks_only_for_four_rooms_never_for_a_second_floor(g):
+    """Floor scopes degrade to areas for PERMISSIONS (CR 7.1), but the party rule counts floors: a house without floors (the Sonos house of system-K) has none, so a
+    group of three rooms in three areas is not a party."""
+    app, c, calls, keys, settings, fx, put = g
+    with app.state.db.connection() as conn:
+        conn.execute("DELETE FROM ha_floors")
+        conn.execute("UPDATE ha_entities SET ha_floor_id = NULL, ha_floor_name = NULL")
+    r = c.post(f"{GROUPS}/join", json=req(leader_key=keys["a"], member_keys=[keys["b"], keys["denon"]]))
+    assert r.status_code == 202, r.text
+    assert r.json()["preview"]["floors"] == 0 and r.json()["preview"]["needs_confirmation"] is False
+    done(c, r)
+    four = [keys["x1"], keys["x2"]]
+    r = c.post(f"{GROUPS}/join", json=req(leader_key=keys["a"], member_keys=four))
+    assert (r.status_code, r.json()["code"]) == (409, "confirm_required") and r.json()["preview"]["floors"] == 0 and r.json()["preview"]["devices"] == 5
+
+
 def test_leave_sends_one_unjoin_per_device_through_its_own_layer(g):
     app, c, calls, keys, settings, fx, put = g
     done(c, c.post(f"{GROUPS}/join", json=req(leader_key=keys["a"], member_keys=[keys["b"], keys["x1"]])))

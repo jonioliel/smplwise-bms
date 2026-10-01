@@ -114,9 +114,10 @@ def preview_of(cat: store.Catalog, conn: sqlite3.Connection, devices: list[dict[
     has_floors = installation_has_floors(conn)
     items = [cat.items[k] for k in keys if k in cat.items]
     units = {u for u in (_unit(i, has_floors) for i in items) if u}
+    floors = {f for f in (store.floor_area(i)["floor_id"] for i in items) if f} if has_floors else set()  # the party rule counts real floors: a house without floors has none
     every = {u for u in (_unit(i, has_floors) for i in cat.items.values() if i.row["approved"] and i.row["kind"] in JOINABLE_KINDS) if u}
     building = len(every) >= 2 and every <= units
-    return {"devices": len(items), "floors": len(units), "needs_confirmation": len(items) >= PARTY_DEVICES or len(units) > 1, "needs_bulk": building, "members": devices}
+    return {"devices": len(items), "floors": len(floors), "needs_confirmation": len(items) >= PARTY_DEVICES or len(floors) > 1, "needs_bulk": building, "members": devices}
 
 
 def _row(item: store.Item, will: str, reason: str | None = None) -> dict[str, Any]:

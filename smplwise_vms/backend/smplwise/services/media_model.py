@@ -779,6 +779,8 @@ def build(
         if ka is None or kb is None or ka == kb:
             continue
         ga, gb = next(g for k, g in keyed if k == ka), next(g for k, g in keyed if k == kb)
+        if _conflict([eps[x] for x in ga], [eps[x] for x in gb]):
+            continue  # two clusters that each hold an entity of one integration (two Cast entities, two Music Assistant players) are two things: once the owner has linked each twin, the pair is no suggestion
         small, big = ((a, kb), (b, ka)) if len(ga) <= len(gb) else ((b, ka), (a, kb))
         suggest(small[0], small[1], "same_model", "3b")
     infos = []

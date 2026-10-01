@@ -552,6 +552,20 @@ def test_rung_3b_the_same_model_twice_is_ambiguous_a_suggestion_and_never_a_merg
     assert pairs
 
 
+def test_rung_3b_ambiguous_twins_stop_being_a_suggestion_once_each_pair_is_linked():
+    """System-V again: after the owner linked each TV's Cast entity with its Music Assistant twin, the two devices both hold a Cast and an MA entity: merging them would
+    put two Cast entities in one device, so the wizard no longer offers the pair."""
+    ents = [ent("media_player.cast_1", "cast", "c1", features=CAST_MASK, state="off", device_class="speaker"), ent("media_player.cast_2", "cast", "c2", features=CAST_MASK, state="off", device_class="speaker"),
+            ent("media_player.ma_1", "music_assistant", "m1", features=MA_FULL, state="idle"), ent("media_player.ma_2", "music_assistant", "m2", features=MA_FULL, state="idle")]
+    metas = [mdev("c1", "Acme", "Twin 1"), mdev("c2", "Acme", "Twin 1"), mdev("m1", "Acme", "Twin 1"), mdev("m2", "Acme", "Twin 1")]
+    assert build(ents, metas).suggestions, "before the links: the ambiguous pairs are offered"
+    base = build(ents, metas)
+    k1, k2 = only(base, "media_player.cast_1").key, only(base, "media_player.cast_2").key
+    rules = [{"endpoint_id": "ha:media_player.ma_1", "rule": "link", "device_key": k1}, {"endpoint_id": "ha:media_player.ma_2", "rule": "link", "device_key": k2}]
+    linked = build(ents, metas, rules, existing_keys={e.endpoint_id: d.key for d in base.devices.values() for e in d.endpoints})
+    assert len(linked.devices) == 2 and linked.suggestions == [], "each TV is one device now: no cross suggestion between two TVs"
+
+
 def test_rung_5b_the_same_name_with_an_area_on_one_side_is_a_suggestion_and_an_empty_name_never_matches():
     ents = [ent("media_player.sonos_a", "sonos", "s1", features=SONOS_MASK, state="idle", name="Kitchen", area="kitchen"),
             ent("media_player.st_a", "smartthings", "t1", features=ST_SPEAKER, state="idle", name="Kitchen", device_class="speaker"),
