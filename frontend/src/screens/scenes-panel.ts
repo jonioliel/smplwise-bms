@@ -172,13 +172,10 @@ export class ScenesPanel extends LitElement {
     .eyeb .ic {
       font-size: 18px;
     }
-    /* hiding a scene of a device is an administrator's chore: the control shows on hover or focus (a fine pointer), not on every card */
-    .eyeb {
-      display: none;
-    }
+    /* hiding a scene of a device is an administrator's chore: with a mouse the control shows on hover or focus, not on every card;
+       a touch screen has no hover, so it stays reachable there (quiet, like the star) - otherwise nobody could unhide a scene on a phone */
     @media (hover: hover) and (pointer: fine) {
       .eyeb {
-        display: grid;
         opacity: 0;
       }
       .scard:hover .eyeb,
