@@ -203,9 +203,10 @@ def test_escalation_resends_to_administrators_with_high_urgency_bypassing_quiet_
     w.flush()
     assert len(_payloads(w, fake_push, "joni")) == 1 and len(_payloads(w, fake_push, "ops2")) == 1
     w.set_settings(pass_through={"critical": {"webpush": False}})  # even a held severity: an escalation bypasses quiet hours
+    base = notify.now_utc()  # the escalation is due relative to the clock the notification was created on; the dispatch then runs at night
     _quiet(monkeypatch)
     with w.db.connection() as conn:
-        notify.escalation_tick(conn, notify.now_utc() + dt.timedelta(minutes=6))
+        notify.escalation_tick(conn, base + dt.timedelta(minutes=6))
     w.flush()
     assert len(_payloads(w, fake_push, "ops2")) == 1, "only the administrators are re-sent"
     again = _payloads(w, fake_push, "joni")
@@ -213,7 +214,7 @@ def test_escalation_resends_to_administrators_with_high_urgency_bypassing_quiet_
     assert fake_push.to(w.browsers["joni"])[-1].headers["urgency"] == "high"
     # acknowledged: a queued escalation dispatch does nothing
     with w.db.connection() as conn:
-        notify.escalation_tick(conn, notify.now_utc() + dt.timedelta(minutes=12))
+        notify.escalation_tick(conn, base + dt.timedelta(minutes=12))
     assert w.c.post(f"{API}/notifications/{nid}/ack", headers=as_user("ops2")).status_code == 200
     w.flush()
     assert len(_payloads(w, fake_push, "joni")) == 2, "stops at once on acknowledge"
