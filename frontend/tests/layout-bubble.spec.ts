@@ -311,4 +311,79 @@ test.describe('bubble layout guard', () => {
     expect(errors, 'page errors').toEqual([]);
     expect(lines, 'layout findings').toEqual([]);
   });
+
+  // The palette dimension (release 0.1.156): a palette changes colours only, never geometry, but a palette must not push text out of a bubble
+  // or hide a target either (a darker surface, a wider glass). Representative palettes only - the default blue, a mauve one and the
+  // accessibility one (near-opaque glass) - over three widths, three look combinations and both schemes, one pop-up; each run first checks
+  // the palette is really in force (a no-op palette would make this a copy of the main sweep).
+  const PALETTES = (process.env.LAYOUT_PALETTES ? process.env.LAYOUT_PALETTES.split(',') : ['calm-blue', 'purple-rose', 'high-contrast']) as string[];
+  const PAL_WIDTHS = QUICK ? [390, 1440] : [390, 1024, 1440];
+  const PAL_COMBOS: Record<string, string | number>[] = [
+    { density: 'regular', surface: 'fill', radius: 'pill', touch: 44 },
+    { density: 'compact', surface: 'glass', radius: 'soft', touch: 44 },
+    { density: 'row', surface: 'gradient', radius: 'pill', touch: 44 },
+  ];
+  test('no escape / overflow / floating / clipped / small target with a palette applied (representative palettes x widths x looks x scheme)', async ({ page, context }) => {
+    test.skip(test.info().project.name !== 'desktop', 'one project runs the whole sweep');
+    test.setTimeout(10 * 60_000);
+    await context.addInitScript(() => {
+      try {
+        localStorage.removeItem('sw.ui.look');
+      } catch {
+        /* storage unavailable */
+      }
+    });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    const results: Finding[] = [];
+    const notApplied: string[] = [];
+    let runs = 0;
+    for (const theme of THEMES) {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await openDemo(page, theme);
+      for (const palette of PALETTES) {
+        for (const w of PAL_WIDTHS) {
+          await page.setViewportSize({ width: w, height: height(w) });
+          await settle(page);
+          for (const c of PAL_COMBOS) {
+            const look = { ...c, performance: 'full', palette };
+            await setLook(page, look);
+            await setSheet(page, '');
+            const seen = await page.evaluate(() => ({ p: document.documentElement.getAttribute('data-bubble-palette'), accent: document.documentElement.style.getPropertyValue('--sw-accent'), bg: document.documentElement.style.getPropertyValue('--sw-bg') }));
+            const want = await page.evaluate(
+              async ([url, id, th]) => {
+                const mod = await import(/* @vite-ignore */ url as string);
+                const p = mod.paletteById(id);
+                return p ? { accent: p.schemes[th as string].accent, bg: p.schemes[th as string].bg } : null;
+              },
+              ['/src/design/palette.ts', palette, theme] as const,
+            );
+            if (!want || seen.p !== palette || seen.accent !== want.accent || seen.bg !== want.bg) notApplied.push(`${theme} ${w} ${palette}: ${JSON.stringify(seen)} vs ${JSON.stringify(want)}`);
+            runs++;
+            results.push(...(await page.evaluate(inPageCheck, `${theme} ${w} ${palette} ${JSON.stringify(c)} page`)));
+            if (c.surface !== 'gradient') {
+              await setSheet(page, 'area');
+              runs++;
+              results.push(...(await page.evaluate(inPageCheck, `${theme} ${w} ${palette} ${JSON.stringify(c)} popup:area`)));
+              await setSheet(page, '');
+            }
+          }
+        }
+      }
+    }
+    const uniq = new Map<string, Finding & { n: number }>();
+    for (const r of results) {
+      const k = `${r.cls}|${r.el}|${r.detail}`;
+      const u = uniq.get(k) ?? { ...r, n: 0 };
+      u.n++;
+      uniq.set(k, u);
+    }
+    const lines = [...uniq.values()].sort((a, b) => b.n - a.n).slice(0, 60).map((u) => `[${u.cls}] ${u.el} - ${u.detail} (x${u.n}; e.g. ${u.ctx})`);
+    console.log(`layout-bubble [palettes ${PALETTES.join(',')}]: ${runs} checks, findings ${results.length}, not applied ${notApplied.length}, page errors ${errors.length}`);
+    for (const l of lines) console.log('  ' + l);
+    expect(errors, 'page errors').toEqual([]);
+    expect(notApplied, 'palette in force').toEqual([]);
+    expect(lines, 'layout findings').toEqual([]);
+  });
 });

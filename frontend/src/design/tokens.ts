@@ -276,6 +276,7 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-lit-cool': lt('#ece4c9', '#e3e0cf'),
       '--sw-lit-soft': lt('rgba(255, 200, 87, 0.32)', 'rgba(255, 181, 71, 0.34)'),
       '--sw-on-lit': same('#2b1a05'),
+      '--sw-fill-edge': same('transparent'), // a 3px mark at the slider fill's end; a palette sets it where fill and track are under 3:1 (design/palette.ts)
       // eight decorative hues for icon rings and the gradient surface (decoration only, never meaning); a palette replaces them
       '--sw-hue-1': lt('#7b84eb', '#7b84eb'),
       '--sw-hue-2': lt('#e8456f', '#ef3464'),

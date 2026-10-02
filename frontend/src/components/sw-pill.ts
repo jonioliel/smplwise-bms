@@ -100,9 +100,15 @@ export class SwPill extends LitElement {
     :host([data-dragging])::before {
       transition: none;
     }
+    /* a palette whose fill is under 3:1 against the track marks the fill's end (transparent otherwise) */
+    :host([variant='slider'])::before {
+      box-sizing: border-box;
+      border-inline-end: 3px solid var(--sw-fill-edge, transparent);
+    }
     :host(:not([on]))::before,
     :host([accent])::before {
       inline-size: 0;
+      border-inline-end-width: 0;
     }
     :host([variant='slider']) {
       cursor: ew-resize;
