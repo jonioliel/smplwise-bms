@@ -24,10 +24,10 @@ const paletteAccent = (page: Page, id: string, scheme: 'light' | 'dark') =>
     return mod.paletteById(i).schemes[s as string].accent as string;
   }, ['/src/design/palette.ts', id, scheme] as const);
 
-async function open(page: Page, query = '') {
+async function open(page: Page, query = '', skin = 'bubble') {
   await page.clock.setFixedTime(new Date('2026-10-02T13:00:00Z'));
   await page.goto('about:blank');
-  await page.goto(`/?design=a&skin=bubble${query}#/system/diagnostics`);
+  await page.goto(`/?design=a&skin=${skin}${query}#/system/diagnostics`);
   await page.waitForSelector('sw-app');
   await expect(lookCard(page)).toBeVisible();
   await page.waitForTimeout(500);
@@ -80,7 +80,7 @@ test.describe('bubble palettes', () => {
     const alpha = Number(await inline(page, '--sw-sheet-alpha'));
     expect(alpha).toBeGreaterThanOrEqual(0.88);
     // another skin ignores the dial: no palette colours on the page
-    await open(page, '&skin=classic');
+    await open(page, '', 'classic');
     expect(await inline(page, '--sw-accent')).toBe('');
     // "לפי ההתקנה": the palette is gone and the skin's own colours are back
     await open(page, '&scheme=light');
@@ -99,9 +99,9 @@ test.describe('bubble palettes', () => {
     const ed = editor(page);
     await ed.locator('[data-palette-new]').click();
     await expect(ed.locator('[data-palette-editor]')).toBeVisible();
-    await expect(ed.locator('[data-palette-save]')).toBeDisabled(); // no name yet
+    await expect(ed.locator('[data-palette-save][disabled]')).toHaveCount(1); // no name yet
     await ed.locator('[data-palette-name]').fill('בדיקה');
-    await expect(ed.locator('[data-palette-save]')).toBeEnabled(); // the base palette passes
+    await expect(ed.locator('[data-palette-save]:not([disabled])')).toHaveCount(1); // the base palette passes
     await expect(ed.locator('[data-palette-invalid]')).toHaveCount(0);
     // light text on the light surface: below 4.5:1
     await ed.locator('[data-palette-color="textMuted"]').fill('#c8cfdc');
@@ -109,7 +109,7 @@ test.describe('bubble palettes', () => {
     await expect(invalid).toBeVisible();
     await expect(invalid).toContainText('ערכת הצבעים נדחתה: ניגודיות נמוכה מדי');
     await expect(invalid).toContainText('(נדרש 4.5:1)');
-    await expect(ed.locator('[data-palette-save]')).toBeDisabled();
+    await expect(ed.locator('[data-palette-save][disabled]')).toHaveCount(1);
     expect(await page.evaluate(() => localStorage.getItem('sw.ui.palettes'))).toBeNull(); // nothing stored
     expect(await inline(page, '--sw-text-2')).toBe(''); // nothing applied
     // a refused palette is not an option of the dial
