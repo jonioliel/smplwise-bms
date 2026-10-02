@@ -107,6 +107,51 @@ test.describe('bubble screens', () => {
     }
   });
 
+  // The performance tier (owner pre-approval 2026-10-02): the glass surface drawn in `full` and in `lite`, same screens, same widths.
+  // lite = no backdrop-filter on pills, cards, rows and lists; the dock / rail / tree and the open pop-up keep their blur.
+  // Evidence -> docs/design/evidence/bubble-performance/ (390 from the mobile project, 1440 from the desktop project).
+  test('performance tier evidence: home, area and players, glass surface, full vs lite, light and dark', async ({ page }, info) => {
+    test.skip(info.project.name === 'tablet', 'the tablet width is not shot');
+    test.setTimeout(10 * 60_000);
+    const w = info.project.name === 'mobile' ? 390 : 1440;
+    const blurOf = (loc: ReturnType<Page['locator']>) => loc.first().evaluate((el) => getComputedStyle(el).backdropFilter);
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.setViewportSize({ width: w, height: w <= 480 ? 844 : 900 });
+      for (const tier of ['full', 'lite'] as const) {
+        const q = `&scheme=${scheme}&look=surface:glass,performance:${tier}`;
+        await installBubbleMock(page);
+        await open(page, '/devices/building', q);
+        await expect(page.locator('html')).toHaveAttribute('data-bubble-performance', tier);
+        await shot(page, `../bubble-performance/home-${tier}-${w}-${scheme}`);
+        await open(page, '/devices/areas/living', q);
+        await expect(pill(page, 'light.living_main')).toBeVisible();
+        await expect(page.locator('html')).toHaveAttribute('data-bubble-performance', tier);
+        // the glass pill: blurred in full, none in lite; the dock (phone) or the rail (desktop) is blurred in both
+        const pillBlur = await blurOf(area(page).locator('sw-pill[data-surface="glass"]'));
+        const nav = page.locator(w <= 480 ? 'sw-app nav.bottom .stack' : 'sw-app nav.rail');
+        const navBlur = await blurOf(nav);
+        if (tier === 'lite') expect(pillBlur, `lite pill ${w} ${scheme}`).toBe('none');
+        else expect(pillBlur, `full pill ${w} ${scheme}`).toContain('blur(');
+        expect(navBlur, `nav ${tier} ${w} ${scheme}`).toContain('blur(');
+        await shot(page, `../bubble-performance/area-${tier}-${w}-${scheme}`);
+        // the open pop-up keeps its blur in lite
+        await pill(page, 'light.living_main').locator('[data-pill-ring]').click();
+        await page.waitForTimeout(700);
+        const sheetBlur = await page.evaluate(() => {
+          const s = document.querySelector('sw-app devices-area')?.shadowRoot?.querySelector('sw-sheet[data-device-sheet]');
+          const panel = s?.shadowRoot?.querySelector('.panel, .sheet, [part="panel"]') as HTMLElement | null;
+          return panel ? getComputedStyle(panel).backdropFilter : 'no-panel';
+        });
+        expect(sheetBlur, `sheet ${tier} ${w} ${scheme}`).toContain('blur(');
+        await shot(page, `../bubble-performance/area-sheet-${tier}-${w}-${scheme}`);
+        await page.keyboard.press('Escape');
+        await page.unroute('**/api/v1/**');
+        await open(page, '/multimedia/players', q);
+        await expect(page.locator('sw-app multimedia-players media-player-card').first()).toBeVisible();
+        await shot(page, `../bubble-performance/players-${tier}-${w}-${scheme}`);
+      }
+    }
+  });
   test('the area: one tap = one command, the keyboard, the sheet, the cover confirmation, the climate stepper, the list view', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'the behaviour runs once');
     const st: BubbleMockState = await installBubbleMock(page);

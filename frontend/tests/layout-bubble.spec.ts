@@ -13,12 +13,15 @@ import { test, expect, type Page } from '@playwright/test';
 //   SW_API_PORT=59997 npx vite --host 127.0.0.1 --port 5201      then
 //   SW_BASE_URL=http://127.0.0.1:5201/ npx playwright test tests/layout-bubble.spec.ts --project=desktop --workers=1
 //   LAYOUT_QUICK=1 sweeps four widths only.
+// The performance dial is part of the matrix: the whole sweep runs in the full tier AND in the lite tier (two tests, a worker each);
+// LAYOUT_PERF=lite|full runs one.
 const LOOK_URL = '/src/design/look.ts';
 const QUICK = !!process.env.LAYOUT_QUICK;
 const WIDTHS = QUICK ? [320, 390, 800, 1440] : [320, 360, 390, 480, 600, 768, 820, 1024, 1280, 1440];
 const DENSITIES = ['wide', 'regular', 'compact', 'row'] as const;
 const SURFACES = ['flat', 'glass', 'gradient', 'fill'] as const;
 const THEMES = ['light', 'dark'] as const;
+const PERFS = (process.env.LAYOUT_PERF ? [process.env.LAYOUT_PERF] : ['full', 'lite']) as ('full' | 'lite')[];
 const POPUPS = ['area', 'confirm', 'inline', 'light'] as const;
 
 interface Finding {
@@ -215,6 +218,9 @@ async function setLook(page: Page, look: Record<string, string | number>) {
     async ([url, l]) => {
       const mod = await import(/* @vite-ignore */ url as string);
       await mod.saveOwnLook(l);
+      // the dials are in force on <html> (a tier that did not apply would make the lite pass a copy of the full one)
+      const want = (l as Record<string, unknown>).performance;
+      if (want && document.documentElement.getAttribute('data-bubble-performance') !== want) throw new Error('data-bubble-performance is ' + document.documentElement.getAttribute('data-bubble-performance') + ', wanted ' + want);
     },
     [LOOK_URL, look] as const,
   );
@@ -243,7 +249,7 @@ test.describe('bubble layout guard', () => {
   test.skip(process.env.SW_LIVE === '1', 'demo-mode spec');
   test.describe.configure({ timeout: 20 * 60_000 });
 
-  test('no escape / overflow / floating / clipped / small target over widths x density x surface x scheme, pop-ups included', async ({ page, context }) => {
+  for (const perf of PERFS) test(`no escape / overflow / floating / clipped / small target over widths x density x surface x scheme, pop-ups included [${perf}]`, async ({ page, context }) => {
     test.skip(test.info().project.name !== 'desktop', 'one project runs the whole sweep');
     await context.addInitScript(() => {
       try {
@@ -264,9 +270,9 @@ test.describe('bubble layout guard', () => {
         await page.setViewportSize({ width: w, height: height(w) });
         await settle(page);
         const combos: Record<string, string | number>[] = [];
-        for (const density of DENSITIES) for (const surface of SURFACES) combos.push({ density, surface, radius: 'pill', touch: 44 });
-        combos.push({ density: 'regular', surface: 'fill', radius: 'soft', touch: 44 }, { density: 'regular', surface: 'fill', radius: 'square', touch: 44 });
-        if (w > 1100) combos.push({ density: 'compact', surface: 'fill', radius: 'pill', touch: 32 }, { density: 'row', surface: 'flat', radius: 'square', touch: 32 });
+        for (const density of DENSITIES) for (const surface of SURFACES) combos.push({ density, surface, radius: 'pill', touch: 44, performance: perf });
+        combos.push({ density: 'regular', surface: 'fill', radius: 'soft', touch: 44, performance: perf }, { density: 'regular', surface: 'fill', radius: 'square', touch: 44, performance: perf });
+        if (w > 1100) combos.push({ density: 'compact', surface: 'fill', radius: 'pill', touch: 32, performance: perf }, { density: 'row', surface: 'flat', radius: 'square', touch: 32, performance: perf });
         for (const c of combos) {
           await setLook(page, c);
           await setSheet(page, '');
@@ -299,7 +305,7 @@ test.describe('bubble layout guard', () => {
       u.ctxs.add(r.ctx);
     }
     const lines = [...uniq.values()].sort((a, b) => b.n - a.n).slice(0, 80).map((u) => `[${u.cls}] ${u.el} - ${u.detail} (x${u.n}; e.g. ${[...u.ctxs][0]})`);
-    console.log(`layout-bubble: ${runs} checks (${WIDTHS.length} widths), findings ${results.length} (${JSON.stringify(byCls)}), page errors ${errors.length}`);
+    console.log(`layout-bubble [${perf}]: ${runs} checks (${WIDTHS.length} widths), findings ${results.length} (${JSON.stringify(byCls)}), page errors ${errors.length}`);
     for (const l of lines) console.log('  ' + l);
     if (errors.length) console.log('page errors:', [...new Set(errors)].slice(0, 10));
     expect(errors, 'page errors').toEqual([]);
