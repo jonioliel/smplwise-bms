@@ -805,3 +805,139 @@ def fetch_stream_encodings(settings: Settings, timeout: float = 8.0) -> dict[int
         xml = _get(client, "/ISAPI/Streaming/channels")
     return parse_streaming_channels(xml)
 
+
+# ---------------------------------------------------------------- every stream's encoding (CR-020 S1, read-only)
+#
+# `GET /ISAPI/Streaming/channels` answers a LIST document (StreamingChannelList, v2.0 elements): every encoder output of
+# every channel - N01 main, N02 sub, N03 third, ... - with the full <Video> block. The list is the only reading used: on the
+# lab firmware a single-channel GET (`/ISAPI/Streaming/channels/101`) lacks the <SVC> element that the list carries, so a
+# per-stream read would report "no SVC" for a stream that has it. Strict where it matters (no DOCTYPE, size and count
+# caps, text length caps), tolerant where devices differ: an element the device does not send is None and its field is
+# listed as unsupported - never a default value.
+
+STREAMING_DOC_MAX_BYTES = 2_000_000  # the lab's ten-camera list is about 60 KB; a larger answer is not a streaming list
+MAX_STREAMING_ELEMENTS = 256  # StreamingChannel elements read from one document (16 channels x 4 streams is the realistic ceiling)
+_TEXT_CAP = 64
+ENCODING_FIELDS = ("codec", "profile", "resolution", "fps", "bitrate_mode", "bitrate_kbps", "quality", "gop", "svc", "smart_codec", "b_frames")
+
+
+def _get_capped(client: httpx.Client, path: str, max_bytes: int) -> str:
+    """A read-only GET whose body is read at most `max_bytes` (an answer over the cap is refused, not truncated)."""
+    try:
+        with client.stream("GET", path) as r:
+            if r.status_code in (401, 403):
+                raise ApiError(503, "source_forbidden", "ה־NVR דחה את פרטי הגישה.", details={"path": path, "status": r.status_code})
+            if r.status_code != 200:
+                raise ApiError(503, "source_error", "ה־NVR החזיר שגיאה.", retryable=True, details={"path": path, "status": r.status_code})
+            declared = r.headers.get("content-length")
+            if declared and declared.isdigit() and int(declared) > max_bytes:
+                raise ApiError(503, "source_too_large", "תשובת ה־NVR גדולה מהצפוי.", details={"path": path})
+            body = bytearray()
+            for chunk in r.iter_bytes(64 * 1024):
+                body.extend(chunk)
+                if len(body) > max_bytes:
+                    raise ApiError(503, "source_too_large", "תשובת ה־NVR גדולה מהצפוי.", details={"path": path})
+            return bytes(body).decode(r.encoding or "utf-8", "replace")
+    except httpx.HTTPError as exc:
+        raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"path": path, "error": type(exc).__name__}) from exc
+
+
+def fetch_streaming_document(settings: Settings, timeout: float = 8.0, max_bytes: int = STREAMING_DOC_MAX_BYTES) -> str:
+    """The raw streaming list (one read-only GET, size-capped)."""
+    with _client(settings, timeout=timeout) as client:
+        return _get_capped(client, "/ISAPI/Streaming/channels", max_bytes)
+
+
+def _opt_int(video: ET.Element, name: str) -> int | None:
+    m = re.match(r"\s*(-?\d+)", _child_text(video, name))
+    return int(m.group(1)) if m else None
+
+
+def _stream_etag(el: ET.Element) -> str:
+    import hashlib
+
+    raw = ET.tostring(el, encoding="unicode")
+    return hashlib.sha256(re.sub(r">\s+<", "><", raw).strip().encode("utf-8")).hexdigest()[:16]
+
+
+def stream_role(stream_ref: int) -> str:
+    """Hikvision: id N01 is the main stream, N02 the sub stream, N03 the third, N04 and higher are others."""
+    kind = stream_ref % 100
+    return "main" if kind == 1 else "sub" if kind == 2 else "third" if kind == 3 else "other"
+
+
+def _unsupported(video: ET.Element, enc: dict[str, object]) -> dict[str, dict[str, bool]]:
+    """The fields the device document does not carry at all (`fields.<name>.supported:false`); anything not listed is supported."""
+    names = {_local(c.tag) for c in video.iter()}
+    present = {
+        "codec": "videoCodecType" in names,
+        "profile": bool(names & {"H264Profile", "H265Profile"}),
+        "resolution": {"videoResolutionWidth", "videoResolutionHeight"} <= names,
+        "fps": "maxFrameRate" in names,
+        "bitrate_mode": "videoQualityControlType" in names,
+        "bitrate_kbps": bool(names & {"constantBitRate", "vbrUpperCap"}),
+        "quality": "fixedQuality" in names,
+        "gop": "GovLength" in names,
+        "svc": "SVC" in names,
+        "smart_codec": "SmartCodec" in names,
+        "b_frames": enc.get("b_frames") is not None,
+    }
+    return {f: {"supported": False, "editable": False} for f in ENCODING_FIELDS if not present[f]}
+
+
+def parse_streaming_channels_all(xml: str | bytes, max_streams: int = MAX_STREAMING_ELEMENTS) -> list[dict[str, object]]:
+    """`GET /ISAPI/Streaming/channels` -> one dict per stream the device lists, in document order.
+
+    Keys: `stream_ref` ("101"), `channel` (the video input, 1), `role`, `enabled`, `codec` (H.264 / H.265 / MJPEG / raw),
+    `codec_raw`, `codec_plus` (the vendor's "+" variants H.264+ / H.265+, i.e. smart codec on), `profile`, `resolution`
+    ("2560x1440"), `fps` (None with `fps_full` True when the device says 0), `bitrate_mode`, `bitrate_kbps`, `quality`,
+    `gop`, `svc`, `smart_codec`, `b_frames`, `webrtc` / `webrtc_reason` (webrtc_verdict, unchanged), `fields` (only the
+    unsupported ones) and `etag`. An element that is absent is None. A stream without a <Video> block is skipped.
+    Raises ET.ParseError (incl. xmlsafe.UnsafeXml) for a document that is not XML or carries a DOCTYPE."""
+    root = xmlsafe.parse(xml)
+    items = [root] if _local(root.tag) == "StreamingChannel" else [el for el in root if _local(el.tag) == "StreamingChannel"]
+    out: list[dict[str, object]] = []
+    for el in items[:max_streams]:
+        sid = _child_text(el, "id")
+        video = _child(el, "Video")
+        if not sid.isdigit() or len(sid) > 6 or video is None:
+            continue
+        parsed = parse_streaming_channel(el)
+        if parsed is None:
+            continue
+        ref, base = parsed
+        raw = _child_text(video, "videoCodecType")[:_TEXT_CAP]
+        mode_raw = _child_text(video, "videoQualityControlType").upper()[:_TEXT_CAP]
+        mode = mode_raw if mode_raw in ("CBR", "VBR") else None
+        cbr, vbr = _opt_int(video, "constantBitRate"), _opt_int(video, "vbrUpperCap")
+        bitrate = cbr if mode == "CBR" else vbr if mode == "VBR" else (cbr if cbr is not None else vbr)
+        width, height = _opt_int(video, "videoResolutionWidth"), _opt_int(video, "videoResolutionHeight")
+        rate = _opt_int(video, "maxFrameRate")
+        smart = base.get("smart_codec")
+        enc: dict[str, object] = {
+            "stream_ref": sid,
+            "channel": ref // 100,
+            "role": stream_role(ref),
+            "enabled": _flag(_child(el, "enabled")),
+            "codec": base["codec"],
+            "codec_raw": raw or None,
+            "codec_plus": (raw.endswith("+") or smart is True) if raw else None,
+            "profile": str(base["profile"])[:_TEXT_CAP] if base.get("profile") else None,
+            "resolution": f"{width}x{height}" if width and height else None,
+            "fps": round(rate / 100, 2) if rate and rate > 0 else None,
+            "fps_full": rate == 0,
+            "bitrate_mode": mode,
+            "bitrate_kbps": bitrate if bitrate and bitrate > 0 else None,
+            "quality": _opt_int(video, "fixedQuality"),
+            "gop": _opt_int(video, "GovLength") or None,
+            "svc": base.get("svc"),
+            "smart_codec": smart,
+            "b_frames": base.get("b_frames"),
+            "webrtc": base["webrtc"],
+            "webrtc_reason": base["reason"],
+        }
+        enc["fields"] = _unsupported(video, enc)
+        enc["etag"] = _stream_etag(el)
+        out.append(enc)
+    return out
+
