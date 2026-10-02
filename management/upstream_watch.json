@@ -3525,7 +3525,10 @@
       "note": "Owner-given 2026-10-02: wall-tablet Home Assistant dashboard, 9 themes, widget SDK. Inspiration only (app is proprietary); research branch pilot/design-glasshome-research.",
       "last_checked": "2026-10-01",
       "last_seen_version": null,
-      "manual": "Check the GlassHome blog and the GitHub organisation (https://github.com/glasshome) monthly for new themes, widgets or licence changes."
+      "manual": {
+        "how": "Check the GlassHome blog and the GitHub organisation monthly for new themes, widgets or licence changes.",
+        "cadence_days": 30
+      }
     },
     {
       "id": "magic-frame",
