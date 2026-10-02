@@ -34,6 +34,15 @@ class ServersGestureTest {
 
     @Test fun `a pinch is not a swipe`() = assertFalse(trigger(Mode.ANYWHERE, endSpread = 600f))
 
+    @Test fun `a pinch is told by the change of the distance between the fingers`() {
+        assertFalse(ServersGesture.isPinch(300f, 300f))
+        assertFalse(ServersGesture.isPinch(300f, 360f)) // 20 %: two fingers dragging, not zooming
+        assertTrue(ServersGesture.isPinch(300f, 400f))
+        assertTrue(ServersGesture.isPinch(300f, 200f))
+        assertFalse(ServersGesture.isPinch(0f, 200f)) // no starting distance: nothing to compare
+        assertFalse(trigger(Mode.ANYWHERE, endSpread = 400f)) // 33 %: a zoom with a drift upward
+    }
+
     @Test fun `stored value falls back to anywhere`() {
         assertEquals(Mode.ANYWHERE, Mode.of(null))
         assertEquals(Mode.ANYWHERE, Mode.of("garbage"))

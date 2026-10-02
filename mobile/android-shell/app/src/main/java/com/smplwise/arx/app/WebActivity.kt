@@ -637,6 +637,13 @@ class WebActivity : LockedActivity() {
     private var gestureStart: FloatArray? = null // startY, startX, startSpread, startTime
 
     private fun trackServersGesture(v: View, e: MotionEvent) {
+        if (e.actionMasked == MotionEvent.ACTION_MOVE) { // a pinch at any moment of the touch rules the gesture out
+            val s = gestureStart ?: return
+            if (e.pointerCount != 2) { gestureStart = null; return }
+            val spread = Math.hypot((e.getX(0) - e.getX(1)).toDouble(), (e.getY(0) - e.getY(1)).toDouble()).toFloat()
+            if (ServersGesture.isPinch(s[2], spread)) gestureStart = null
+            return
+        }
         if (e.actionMasked != MotionEvent.ACTION_POINTER_DOWN && e.actionMasked != MotionEvent.ACTION_POINTER_UP) {
             if (e.actionMasked == MotionEvent.ACTION_CANCEL || e.actionMasked == MotionEvent.ACTION_UP || e.actionMasked == MotionEvent.ACTION_DOWN) gestureStart = null
             return

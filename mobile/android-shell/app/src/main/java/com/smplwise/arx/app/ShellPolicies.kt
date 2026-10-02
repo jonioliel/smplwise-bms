@@ -213,7 +213,12 @@ object ServersGesture {
     const val MIN_RISE_DP = 120f
     const val MAX_MS = 700L
     const val EDGE_FRACTION = 0.25f
-    private const val MAX_SPREAD_CHANGE = 0.35f
+    private const val MAX_SPREAD_CHANGE = 0.25f
+
+    /** The two fingers moved apart or together by more than a quarter of their starting distance: a pinch (zoom), never this gesture.
+     *  Checked on every move as well as at the end, so a pinch that ends back at its starting distance is still ruled out. */
+    fun isPinch(startSpread: Float, spread: Float): Boolean =
+        startSpread > 0f && kotlin.math.abs(spread - startSpread) / startSpread > MAX_SPREAD_CHANGE
 
     /** Average of both fingers at the start and the end of one two-finger touch that never had a third finger. */
     fun isTrigger(
@@ -224,7 +229,7 @@ object ServersGesture {
         val rise = startY - endY
         if (rise < MIN_RISE_DP * density) return false
         if (kotlin.math.abs(endX - startX) > rise / 2) return false // mostly vertical
-        if (startSpread > 0f && kotlin.math.abs(endSpread - startSpread) / startSpread > MAX_SPREAD_CHANGE) return false // a pinch
+        if (isPinch(startSpread, endSpread)) return false
         return mode != Mode.EDGE || startY >= viewHeight * (1f - EDGE_FRACTION)
     }
 }
