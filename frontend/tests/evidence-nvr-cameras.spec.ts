@@ -56,10 +56,10 @@ function labCameras(opts: { stale?: boolean } = {}) {
     const ch = i + 1;
     const h265 = [2, 5, 8].includes(ch); // the lab: three cameras are H.265 in both streams
     const main = h265
-      ? stream(`${ch}01`, 'main', { codec: 'H.265', codec_raw: 'H.265', profile: 'Main', resolution: '2688x1520', bitrate_kbps: 4096, svc: false, smart_codec: true, codec_plus: true, webrtc: 'no', webrtc_reason: 'h265' })
-      : stream(`${ch}01`, 'main', { resolution: '2560x1440', fps: null, fps_full: true, bitrate_kbps: 3072, svc: true, webrtc: 'no', webrtc_reason: 'svc', profile: ch % 2 ? 'High' : 'Main' });
+      ? stream(`${ch}01`, 'main', { codec: 'H.265', codec_raw: 'H.265', profile: 'Main', resolution: '2688x1520', bitrate_kbps: 4096, svc: false, smart_codec: true, codec_plus: true, webrtc: 'unknown', webrtc_reason: 'h265' })
+      : stream(`${ch}01`, 'main', { resolution: '2560x1440', fps: null, fps_full: true, bitrate_kbps: 3072, svc: true, webrtc: 'unknown', webrtc_reason: 'svc', profile: ch % 2 ? 'High' : 'Main' });
     const sub = stream(`${ch}02`, 'sub', h265
-      ? { codec: 'H.265', codec_raw: 'H.265', profile: 'Main', resolution: '640x360', fps: 20, bitrate_kbps: 512, svc: ch === 5 ? true : false, webrtc: 'no', webrtc_reason: 'h265' }
+      ? { codec: 'H.265', codec_raw: 'H.265', profile: 'Main', resolution: '640x360', fps: 20, bitrate_kbps: 512, svc: ch === 5 ? true : false, webrtc: 'unknown', webrtc_reason: 'h265' }
       : { resolution: '640x360', fps: 20, bitrate_kbps: 1024, profile: 'Baseline', webrtc_reason: 'h264_no_b_frames', gop: 40 });
     const streams = ch === 3 ? [main, sub, stream('303', 'third', { resolution: '1280x720', fps: 12, bitrate_kbps: 1536, bitrate_mode: 'CBR', gop: 24 })] : ch === 6 ? [] : [main, sub];
     const stale = opts.stale ? streams.map((s) => ({ ...s, etag: null, bitrate_mode: null, bitrate_kbps: null, quality: null, fields: {} })) : streams;
@@ -164,7 +164,7 @@ test.describe('CR-020 S1 cameras table (mocked backend)', () => {
     await expect(page.locator(`${PAGE} [data-nvr-count]`)).toHaveText('19 זרמים');
     const row = (ref: string) => page.locator(`${ROWS}[data-stream="${ref}"]`);
     const cell = (ref: string, col: string) => row(ref).locator(`td[data-col="${col}"]`);
-    // an SVC main of the lab: H.264 High, SVC on, full frame rate, 3072 kbps VBR, GOP 50, will not play
+    // an SVC main of the lab: H.264 High, SVC on, full frame rate, 3072 kbps VBR, GOP 50, WebRTC unknown (tried, not skipped)
     await expect(cell('101', 'role')).toHaveText('ראשי');
     await expect(cell('101', 'codec')).toHaveText('H.264 High');
     await expect(cell('101', 'svc')).toHaveText('פעיל');
@@ -172,8 +172,8 @@ test.describe('CR-020 S1 cameras table (mocked backend)', () => {
     await expect(cell('101', 'fps')).toHaveText('מלא');
     await expect(cell('101', 'bitrate')).toHaveText('3072 kbps VBR');
     await expect(cell('101', 'gop')).toHaveText('50');
-    await expect(cell('101', 'webrtc').locator('[data-verdict]')).toHaveAttribute('data-verdict', 'no');
-    await expect(cell('101', 'webrtc').locator('[data-verdict]')).toHaveAttribute('aria-label', 'לא מתנגן בדפדפן');
+    await expect(cell('101', 'webrtc').locator('[data-verdict]')).toHaveAttribute('data-verdict', 'unknown');
+    await expect(cell('101', 'webrtc').locator('[data-verdict]')).toHaveAttribute('aria-label', 'לא ידוע');
     // the sub stream of the same camera: no SVC element -> a dash (never "off"), plays
     await expect(cell('102', 'role')).toHaveText('משני');
     await expect(cell('102', 'svc')).toHaveText('—');

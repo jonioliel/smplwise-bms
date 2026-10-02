@@ -38,11 +38,11 @@ function cam(channel: number, name: string, streams: StreamEncoding[], extra: Pa
 
 const CAMERAS: NvrCamera[] = [
   cam(2, 'חצר', [
-    stream('201', 'main', { codec: 'H.265', codec_raw: 'H.265', profile: 'Main', resolution: '2688x1520', bitrate_kbps: 4096, svc: false, webrtc: 'no', webrtc_reason: 'h265', gop: 25 }),
+    stream('201', 'main', { codec: 'H.265', codec_raw: 'H.265', profile: 'Main', resolution: '2688x1520', bitrate_kbps: 4096, svc: false, webrtc: 'unknown', webrtc_reason: 'h265', gop: 25 }),
     stream('202', 'sub', { resolution: '640x360', fps: 20, bitrate_kbps: 512, bitrate_mode: 'CBR', gop: 40 }),
   ]),
   cam(1, 'כניסה', [
-    stream('101', 'main', { resolution: '2560x1440', fps: null, fps_full: true, bitrate_kbps: 3072, svc: true, webrtc: 'no', webrtc_reason: 'svc', profile: 'High' }),
+    stream('101', 'main', { resolution: '2560x1440', fps: null, fps_full: true, bitrate_kbps: 3072, svc: true, b_frames: true, webrtc: 'no', webrtc_reason: 'b_frames', profile: 'High' }),
     stream('102', 'sub', { resolution: '640x360', fps: 12.5, bitrate_kbps: null, bitrate_mode: null, gop: null, webrtc: 'ok' }),
     stream('103', 'third', { codec: 'H.264', codec_raw: 'H.264+', codec_plus: true, smart_codec: true, resolution: null, webrtc: 'unknown' }),
   ]),
@@ -58,7 +58,7 @@ test('flatten: one row per stream, a camera without streams keeps a placeholder'
   expect(new Set(rows.map((r) => r.key)).size).toBe(rows.length);
   expect(rows[5]).toMatchObject({ stream: null, cameraName: 'מחסן', online: false, error: 'source_error', cameraKey: 'nvr-1:3' });
   expect(rows[6].enabledInArx).toBe(false);
-  expect(counts(rows)).toEqual({ cameras: 4, streams: 6, notWebrtc: 2 });
+  expect(counts(rows)).toEqual({ cameras: 4, streams: 6, notWebrtc: 1 });
 });
 
 test('formats: a value the device does not report is a dash, never a default', () => {
@@ -92,7 +92,7 @@ test('sort by a column: numbers numerically, missing values always last, ties ke
   expect(res.slice(0, 4)).toEqual(['201', '101', '102', '202']); // 2688x1520 > 2560x1440 > 640x360 twice (ties by channel)
   expect(res.slice(4)).toEqual(['103', 'none3', '401']);
   expect(refs(sortRows(rows, { key: 'fps', dir: 'desc' }))[0]).toBe('101'); // the full rate sorts above any number
-  expect(refs(sortRows(rows, { key: 'webrtc', dir: 'asc' })).slice(0, 2)).toEqual(['101', '201']); // the streams that do not play come first
+  expect(refs(sortRows(rows, { key: 'webrtc', dir: 'asc' })).slice(0, 3)).toEqual(['101', '103', '201']); // the streams known not to play first, then the unknown ones (ties by channel)
   expect(refs(sortRows(rows, { key: 'svc', dir: 'desc' }))[0]).toBe('101');
   expect(refs(sortRows(rows, { key: 'camera', dir: 'asc' }))).toEqual(['401', '201', '202', '101', '102', '103', 'none3']); // גג, חצר, כניסה, מחסן
 });
@@ -137,8 +137,8 @@ test('filters combine (and) and report whether any is active', () => {
   expect(f({ svc: 'on' })).toEqual(['101']);
   expect(f({ svc: 'off' })).toEqual(['201']);
   expect(f({ svc: 'none' })).toEqual(['202', '102', '103', '401']);
-  expect(f({ webrtc: 'no' })).toEqual(['201', '101']);
-  expect(f({ webrtc: 'unknown' })).toEqual(['103', '401']);
+  expect(f({ webrtc: 'no' })).toEqual(['101']);
+  expect(f({ webrtc: 'unknown' })).toEqual(['201', '103', '401']);
   expect(f({ role: 'main', webrtc: 'no', codec: 'h264' })).toEqual(['101']);
   expect(f({ q: 'כניסה', webrtc: 'ok' })).toEqual(['102']);
 });
@@ -157,7 +157,7 @@ test('the demo answers in the lab shape: read-only, no address or secret in the 
   const text = JSON.stringify(list);
   expect(text).not.toMatch(/\d+\.\d+\.\d+\.\d+|password|serial|mac/i);
   const rows = flatten(list.cameras);
-  expect(rows.some((r) => r.stream?.svc === true && r.stream.webrtc === 'no')).toBe(true);
+  expect(rows.some((r) => r.stream?.svc === true && r.stream.webrtc === 'unknown')).toBe(true); // SVC mains are tried over WebRTC (0.1.151)
   expect(rows.some((r) => r.stream?.codec === 'H.265')).toBe(true);
   expect(rows.some((r) => r.stream?.role === 'third')).toBe(true);
   expect(rows.some((r) => r.online === false)).toBe(true);
