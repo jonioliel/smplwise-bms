@@ -53,7 +53,7 @@ AC_ONLY_MODES = frozenset({"cool", "dry", "fan_only"})
 OFF_STATES = {"off", "unavailable", "unknown", None, ""}
 MEDIA_OFF_STATES = {"off", "standby", "unavailable", "unknown", None, ""}
 # CR-014 (SCHEDULER_API.md 5.5): the Scheduler component's own switches (`switch.schedule_*`) are not devices. They have an
-# HA device and could otherwise be placed in the devices area, marked bulk-safe, bulk-controlled or dropped on a map.
+# HA device and could otherwise be placed in the devices area, marked protected, bulk-controlled or dropped on a map.
 # platform `scheduler` is the truth (V-LIVE); an entity id starting `switch.schedule_` with no platform yet (before the
 # first registry refresh) is treated the same, so a fresh sync cannot leak one in for ten minutes.
 SCHEDULER_PLATFORM = "scheduler"

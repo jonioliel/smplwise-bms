@@ -245,14 +245,15 @@ def test_a_device_moved_in_ha_moves_its_entities_but_an_entity_area_wins(app_s, 
 
 def test_a_failed_entity_or_device_listing_writes_nothing(app_s, monkeypatch):
     """A refused device listing used to become [] - every device-area entity fell to "ללא שיוך" - and a refused entity
-    listing tombstoned entities and cleared the bulk-safe marks, until the next refresh 10 minutes later."""
+    listing tombstoned entities and cleared the bulk-safe marks, until the next refresh 10 minutes later. CR-019: nor does
+    a failed listing mark a protection gone or judge anything."""
     app, s = app_s
     fake = FakeHa()
     snap: dict[str, Any] = {}
 
     async def script(_on_event, on_message, settle):
         with app.state.db.connection() as conn:
-            conn.execute("INSERT INTO device_bulk_safe(entity_id, marked_by, marked_by_username, marked_at) VALUES ('switch.lobby_sign', 'u', 'admin', '2026-09-28T10:00:00Z')")
+            _protect_sign(conn)
             snap["fp"] = ha_sync.mirror_fingerprint(conn)
             snap["marks"] = _marks(conn)
         for failing in ("config/device_registry/list", "config/entity_registry/list"):
@@ -277,8 +278,43 @@ def test_a_failed_entity_or_device_listing_writes_nothing(app_s, monkeypatch):
     assert [n["reason"] for n in notices(msgs)] == ["device_registry_updated"]  # only the refresh that got everything
 
 
-def _marks(conn) -> list[str]:
-    return sorted(r["entity_id"] for r in conn.execute("SELECT entity_id FROM device_bulk_safe"))
+def _marks(conn) -> list[tuple]:
+    """CR-019: the switch protection rows (with their gone mark) and the classifier's verdicts."""
+    return sorted((r["entity_id"], r["gone_at"]) for r in conn.execute("SELECT entity_id, gone_at FROM device_bulk_protected")) + \
+        sorted((r["entity_id"], r["verdict"]) for r in conn.execute("SELECT entity_id, verdict FROM device_switch_classified"))
+
+
+def _protect_sign(conn) -> None:
+    conn.execute("INSERT OR REPLACE INTO device_bulk_protected(entity_id, registry_id, source, marked_by, marked_by_username, marked_at, reviewed) "
+                 "VALUES ('switch.lobby_sign', 'reg-switch.lobby_sign', 'manual', 'u', 'admin', '2026-09-28T10:00:00Z', 1)")
+
+
+def test_a_registry_refresh_judges_new_switches_with_the_listed_device_and_keeps_a_gone_protection(app_s, monkeypatch):
+    """CR-019 section 6.4: the sync's own refresh runs the reconcile - a switch first seen is judged within that refresh
+    (with the device listing it just read: the device mirror is written after), and a protected switch that leaves the
+    registry is tombstoned but keeps its protection (marked gone)."""
+    app, s = app_s
+    fake = FakeHa()
+    fake.devices.append({"id": "dev-boiler", "area_id": "lobby", "name": "Boiler controller"})
+    seen: dict[str, Any] = {}
+
+    async def script(on_event, on_message, settle):
+        with app.state.db.connection() as conn:
+            seen["first"] = {r[0]: r[1] for r in conn.execute("SELECT entity_id, verdict FROM device_switch_classified")}
+            _protect_sign(conn)
+        fake.entities = [e for e in fake.entities if e["entity_id"] != "switch.lobby_sign"]
+        fake.entities.append({"entity_id": "switch.relay_7", "id": "reg-relay-7", "area_id": "lobby", "device_id": "dev-boiler", "original_name": "Relay 7", "entity_category": None})
+        on_event({"entity_id": "switch.relay_7", "old_state": None, "new_state": {"entity_id": "switch.relay_7", "state": "on", "attributes": {"friendly_name": "Relay 7"}, "last_changed": "2026-09-28T11:00:00+00:00", "last_updated": "2026-09-28T11:00:00+00:00"}})
+        on_message(registry_event("entity_registry_updated", action="create", entity_id="switch.relay_7"))
+        await settle(2)
+
+    run_session(app, s, fake, script, monkeypatch)
+    assert seen["first"] == {"switch.lobby_sign": "allowed", "switch.loose": "allowed"}, "the session's first refresh judged the switches it found"
+    with app.state.db.connection() as conn:
+        p = {r["entity_id"]: dict(r) for r in conn.execute("SELECT * FROM device_bulk_protected")}
+        removed = conn.execute("SELECT removed_at FROM ha_entities WHERE entity_id = 'switch.lobby_sign'").fetchone()[0]
+    assert (p["switch.relay_7"]["source"], p["switch.relay_7"]["category"], p["switch.relay_7"]["rule"]) == ("auto", "water_heating", "device:boiler")
+    assert removed and p["switch.lobby_sign"]["gone_at"], "tombstoned, protection kept"
 
 
 def test_an_entity_removed_in_ha_leaves_the_tree_and_a_new_one_arrives(app_s, monkeypatch):
@@ -480,16 +516,17 @@ def test_an_ha_that_refuses_one_registry_subscription_keeps_the_session(app_s, m
     assert len(notices(msgs)) == 1
 
 
-def test_an_integration_reload_keeps_the_entity_and_its_bulk_safe_mark(app_s, monkeypatch):
+def test_an_integration_reload_keeps_the_entity_and_its_protection(app_s, monkeypatch):
     """Reloading an integration removes its states and adds them back; the registry keeps the entities. The removed
-    state only marks the entity unavailable - no tombstone, and the bulk-safe mark survives the refresh it schedules."""
+    state only marks the entity unavailable - no tombstone, and the switch protection (CR-019) survives the refresh it
+    schedules, never marked gone."""
     app, s = app_s
     fake = FakeHa()
     seen: dict[str, Any] = {}
 
     async def script(on_event, _on_message, settle):
         with app.state.db.connection() as conn:
-            conn.execute("INSERT INTO device_bulk_safe(entity_id, marked_by, marked_by_username, marked_at) VALUES ('switch.lobby_sign', 'u', 'admin', '2026-09-28T10:00:00Z')")
+            _protect_sign(conn)
         on_event({"entity_id": "switch.lobby_sign", "old_state": {"state": "on"}, "new_state": None})
         await settle(2)
         with app.state.db.connection() as conn:
@@ -500,9 +537,9 @@ def test_an_integration_reload_keeps_the_entity_and_its_bulk_safe_mark(app_s, mo
 
     run_session(app, s, fake, script, monkeypatch)
     assert seen["during"] == (None, 0)
-    assert seen["marks"] == ["switch.lobby_sign"]
+    assert seen["marks"][0] == ("switch.lobby_sign", None)
     with app.state.db.connection() as conn:
-        assert _marks(conn) == ["switch.lobby_sign"]
+        assert _marks(conn)[0] == ("switch.lobby_sign", None)
         r = conn.execute("SELECT removed_at, available FROM ha_entities WHERE entity_id = 'switch.lobby_sign'").fetchone()
         assert (r["removed_at"], r["available"]) == (None, 1)
 
