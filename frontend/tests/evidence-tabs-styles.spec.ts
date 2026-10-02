@@ -271,8 +271,7 @@ test.describe('tab bar styles (mocked backend)', () => {
     await ed2.locator('li[data-sec="explore"][data-tab="floors"] .mv[data-move="up"]').click();
     await ed2.locator('[data-tabs-save]').click();
     await expect.poll(() => st.patches.length).toBe(3);
-    console.log('DBG', _log.join(' '), Date.now() % 100000);
-    expect(st.patches[2]).toEqual({ 'ui.tabs': { styles: { level2: 'underline' }, explore: { order: ['floors', 'sites'], hidden: [], style: 'underline' } } });
+    expect(st.patches[2], 'DBG ' + _log.join(' ') + ' now ' + (Date.now() % 100000)).toEqual({ 'ui.tabs': { styles: { level2: 'underline' }, explore: { order: ['floors', 'sites'], hidden: [], style: 'underline' } } });
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   });
 });
