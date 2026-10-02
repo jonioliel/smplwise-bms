@@ -224,6 +224,8 @@ test.describe('tab bar styles (mocked backend)', () => {
   });
 
   test('the editor: a default per level with a preview, an override per section, saved in ui.tabs, easy to flip back', async ({ page }, info) => {
+    const _log: string[] = [];
+    page.on('request', (r) => { if (/api\/v1\/settings/.test(r.url())) _log.push(r.method() + '@' + (Date.now() % 100000)); });
     await open(page, '/system/diagnostics?tab=tabs');
     const ed = page.locator('sw-app system-diagnostics system-tabs-config');
     await expect(ed).toBeVisible();
@@ -269,6 +271,7 @@ test.describe('tab bar styles (mocked backend)', () => {
     await ed2.locator('li[data-sec="explore"][data-tab="floors"] .mv[data-move="up"]').click();
     await ed2.locator('[data-tabs-save]').click();
     await expect.poll(() => st.patches.length).toBe(3);
+    console.log('DBG', _log.join(' '), Date.now() % 100000);
     expect(st.patches[2]).toEqual({ 'ui.tabs': { styles: { level2: 'underline' }, explore: { order: ['floors', 'sites'], hidden: [], style: 'underline' } } });
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   });
