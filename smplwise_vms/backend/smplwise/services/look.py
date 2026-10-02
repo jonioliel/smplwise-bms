@@ -14,6 +14,9 @@ One value shape, `ui.look`, owned twice:
     "transparency": 40 .. 100,                                    opacity of translucent layers, in percent (100 = opaque)
     "scale":        80 .. 130,                                    size of the components, in percent
     "touch":        32 | 44,                                      the minimum pointer target on a desktop, in px (touch layouts are always 44)
+    "performance":  "auto" | "full" | "lite",                     what the glass costs: full = blur on every glass layer, lite = blur only
+                                                                  on the dock, rail, tree, scrim and the open pop-up (wall tablets, weak
+                                                                  phones), auto = the device decides (a client-side probe, design/performance.ts)
     "palette":      "default"                                     the colour set; more palettes and a colour editor come later (a palette is a set of token values)
   }
 
@@ -32,12 +35,13 @@ POPUPS: tuple[str, ...] = ("sheet", "centred", "inline")
 RADII: tuple[str, ...] = ("pill", "soft", "square")
 TOUCH: tuple[int, ...] = (32, 44)
 PALETTES: tuple[str, ...] = ("default",)
+PERFORMANCES: tuple[str, ...] = ("auto", "full", "lite")
 TRANSPARENCY_RANGE = (40, 100)
 SCALE_RANGE = (80, 130)
 
-CHOICES: dict[str, tuple[str, ...]] = {"density": DENSITIES, "surface": SURFACES, "popup": POPUPS, "radius": RADII, "palette": PALETTES}
+CHOICES: dict[str, tuple[str, ...]] = {"density": DENSITIES, "surface": SURFACES, "popup": POPUPS, "radius": RADII, "performance": PERFORMANCES, "palette": PALETTES}
 RANGES: dict[str, tuple[int, int]] = {"transparency": TRANSPARENCY_RANGE, "scale": SCALE_RANGE}
-KEYS: tuple[str, ...] = ("density", "surface", "popup", "radius", "transparency", "scale", "touch", "palette")
+KEYS: tuple[str, ...] = ("density", "surface", "popup", "radius", "transparency", "scale", "touch", "performance", "palette")
 
 DEFAULT: dict[str, Any] = {
     "density": "regular",
@@ -47,6 +51,7 @@ DEFAULT: dict[str, Any] = {
     "transparency": 72,
     "scale": 100,
     "touch": 44,
+    "performance": "auto",
     "palette": "default",
 }
 

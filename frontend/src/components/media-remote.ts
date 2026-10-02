@@ -16,6 +16,7 @@ import {
   type KeyId, type MediaCommand, type MediaDeviceDetail, type MediaStatus, type RemoteSection, type SourceItem, type TransportAction,
 } from '../api/media-screens';
 import { applyDevicesScheme, loadDevicesPrefs } from '../screens/devices-style';
+import { mirrorSkin } from '../styles/media-glass';
 import { registerScreenEdit } from '../shell/screen-edit';
 import { bidi } from '../i18n/bidi';
 import { COLOR_KEYS, ICON, KEY_GLYPH, KEY_LABEL, NUM_KEYS, XTRA_KEYS, XTRA_SPOKEN_ELSEWHERE, glyphPath, tint } from './media-remote-keys';
@@ -97,6 +98,7 @@ export class MediaRemote extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     if (!this.hasAttribute('data-devices-scheme')) this.setAttribute('data-devices-scheme', 'light');
+    mirrorSkin(this); // the bubble skin: the remote's tokens follow the product's (media-remote-css.ts)
   }
 
   disconnectedCallback() {

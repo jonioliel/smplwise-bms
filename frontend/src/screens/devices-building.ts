@@ -36,6 +36,7 @@ import {
 } from '../api/home';
 import { demoHome } from './home-demo';
 import { media } from '../api/media-screens';
+import { hueOf, SkinController } from '../design/skin';
 import { areaIndicators, effectiveRows, floorKinds, loadPersonalRow, ROW_MAX_PHONE, ROW_MAX_WIDE, splitRow, type AreaRowPersonal, type FloorItem, type Indicator } from '../api/area-row';
 
 /** Owner notes 2026-09-30: the home route's edit mode is entered by the address (`#/devices/building?edit=1`, from the
@@ -179,6 +180,236 @@ export const DEMO_DEVICES_TREE: DeviceTree = {
   scoped: false,
   sync: { connected: false, last_snapshot_at: null, last_event_at: null, last_registry_at: null, last_error: null, reconnects: 0, sequence: 0, entities: 20, started_at: null, ha_version: null },
 };
+
+/** The Bubble skin (phase C, 2026-10-02; the approved board docs/design/mockups/bubble-taste/home.html): the floor cards are bare
+ * groups under a separator title, every area row a pill with a hue ring, the area tiles pills too, the tree rows carry the ring;
+ * `--sw-grid-min` (the density dial) sets the columns and `row` makes one column (the list view). Keyed on the host's data-skin. */
+const BUILDING_BUBBLE = css`
+  :host([data-skin='bubble']) .kpis {
+    gap: var(--sw-gap);
+  }
+  :host([data-skin='bubble']) .fcards {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, max(300px, var(--sw-grid-min))), 1fr));
+    gap: 6px var(--sw-gap-grid);
+  }
+  :host([data-skin='bubble']) section.fcard {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    gap: 4px;
+  }
+  :host([data-skin='bubble']) .fcard header {
+    padding: 8px 4px 4px;
+  }
+  :host([data-skin='bubble']) .fcard header h2 {
+    font-size: var(--sw-fs-lg);
+    font-weight: var(--sw-fw-bold);
+  }
+  :host([data-skin='bubble']) .fh-top::after {
+    content: '';
+    flex: 1 1 24px;
+    order: 5;
+    block-size: 6px;
+    border-radius: 3px;
+    background: var(--sw-surface-2);
+  }
+  :host([data-skin='bubble']) .fcard header .fh-top devices-bulk-menu {
+    order: 9;
+    margin-inline-start: 0;
+  }
+  :host([data-skin='bubble']) .fcard .rows {
+    gap: var(--sw-gap);
+    padding: 0;
+  }
+  :host([data-skin='bubble']) .arow,
+  :host([data-skin='bubble']) a.tile {
+    border: 0;
+    border-radius: var(--sw-r-pill);
+    background: var(--sw-surface);
+    box-shadow: none;
+    min-block-size: calc(var(--sw-pill-h) * var(--sw-look-scale, 1));
+    padding: 4px 8px;
+    gap: 10px;
+    transition: background var(--sw-t-fast) var(--sw-ease);
+  }
+  :host([data-skin='bubble']) .arow:hover,
+  :host([data-skin='bubble']) .arow:focus-visible,
+  :host([data-skin='bubble']) a.tile:hover,
+  :host([data-skin='bubble']) a.tile:focus-visible {
+    background: var(--sw-surface-3);
+    outline: none;
+    box-shadow: none;
+  }
+  :host([data-skin='bubble']) .arow:focus-visible,
+  :host([data-skin='bubble']) a.tile:focus-visible {
+    outline: 2px solid var(--sw-focus);
+    outline-offset: 2px;
+  }
+  :host([data-skin='bubble']) .arow .nm {
+    font-weight: var(--sw-fw-semibold);
+    font-size: calc(var(--sw-fs-name) * var(--sw-look-scale, 1));
+  }
+  /* the ring: the area's hue, the lit halo when something is on */
+  :host([data-skin='bubble']) .arow .sdot,
+  :host([data-skin='bubble']) .tile-head .ring {
+    inline-size: calc(var(--sw-icon-ring) * var(--sw-look-scale, 1));
+    block-size: calc(var(--sw-icon-ring) * var(--sw-look-scale, 1));
+    border-radius: 50%;
+    background: var(--h, var(--sw-surface-2));
+    color: var(--sw-ring-on-hue);
+    display: grid;
+    place-items: center;
+    flex: none;
+  }
+  :host([data-skin='bubble']) .arow .sdot.on,
+  :host([data-skin='bubble']) a.tile.on .ring {
+    box-shadow: 0 0 0 3px var(--sw-lit-soft);
+  }
+  :host([data-skin='bubble']) .tree-row .sdot {
+    inline-size: 22px;
+    block-size: 22px;
+    background: var(--h, var(--sw-surface-3));
+    color: var(--sw-ring-on-hue);
+    display: grid;
+    place-items: center;
+  }
+  :host([data-skin='bubble']) .tree-row .sdot.on {
+    box-shadow: 0 0 0 2px var(--sw-lit-soft);
+  }
+  :host([data-skin='bubble']) .tree-row.selected .sdot {
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+  }
+  :host([data-skin='bubble']) .ind .i.more {
+    background: var(--sw-surface-2);
+  }
+  :host([data-skin='bubble']) .fcard footer {
+    border: 0;
+    padding: 4px 4px 0;
+  }
+  :host([data-skin='bubble']) .fcard.loose {
+    border: 0;
+  }
+  :host([data-skin='bubble']) .fcard.loose .arow {
+    background: var(--sw-surface-2);
+  }
+  /* the tiles view: a pill per area with the ring at the start */
+  :host([data-skin='bubble']) a.tile {
+    flex-direction: row;
+    align-items: center;
+    min-block-size: calc(var(--sw-pill-h) * var(--sw-look-scale, 1));
+    padding: 4px 8px;
+  }
+  :host([data-skin='bubble']) a.tile.on {
+    background: var(--sw-surface);
+  }
+  :host([data-skin='bubble']) a.tile .tile-head {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+  }
+  :host([data-skin='bubble']) a.tile .tile-head > sw-icon,
+  :host([data-skin='bubble']) a.tile .tile-head .dot {
+    display: none;
+  }
+  :host([data-skin='bubble']) .tile-wrap devices-bulk-menu {
+    inset-block-start: 50%;
+    transform: translateY(-50%);
+  }
+  :host([data-skin='bubble']) .areas {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--sw-grid-min)), 1fr));
+    gap: var(--sw-gap-grid);
+  }
+  :host([data-skin='bubble']) .floor-head h2 {
+    font-size: var(--sw-fs-lg);
+    font-weight: var(--sw-fw-bold);
+  }
+  :host([data-skin='bubble']) button.chip,
+  :host([data-skin='bubble']) .chip,
+  :host([data-skin='bubble']) .fchips button.chip {
+    border: 0;
+    border-radius: var(--sw-r-pill);
+    background: var(--sw-surface-2);
+    min-block-size: var(--sw-touch-desktop, 44px);
+    padding-inline: 12px;
+  }
+  /* the targets of the tree and the floor headers: the fold, the title, the "⋯" (the layout guard's touch dial) */
+  :host([data-skin='bubble']) .tfold {
+    inline-size: var(--sw-touch-desktop, 44px);
+    block-size: var(--sw-touch-desktop, 44px);
+    border-radius: 50%;
+  }
+  :host([data-skin='bubble']) .tree-area {
+    padding-inline-start: calc(var(--sw-touch-desktop, 44px) - 20px);
+  }
+  :host([data-skin='bubble']) .fcard header h2 .ftitle {
+    min-block-size: var(--sw-touch-desktop, 44px);
+    min-inline-size: var(--sw-touch-desktop, 44px);
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  /* the area tile's "⋯" sits in the row, never over the tile */
+  :host([data-skin='bubble']) .tile-wrap {
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+  }
+  :host([data-skin='bubble']) .tile-wrap > a.tile {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+  }
+  :host([data-skin='bubble']) .tile-wrap.bulk > a.tile .tile-head {
+    padding-inline-end: 0;
+  }
+  :host([data-skin='bubble']) .tile-wrap devices-bulk-menu {
+    position: static;
+    transform: none;
+    flex: none;
+  }
+  @media (max-width: 1100px) {
+    :host([data-skin='bubble']) button.chip,
+    :host([data-skin='bubble']) .fchips button.chip,
+    :host([data-skin='bubble']) .fcard header h2 .ftitle {
+      min-block-size: 44px;
+    }
+    :host([data-skin='bubble']) .tfold {
+      inline-size: 44px;
+      block-size: 44px;
+    }
+  }
+  :host([data-skin='bubble']) button.chip:hover,
+  :host([data-skin='bubble']) button.chip:focus-visible {
+    background: var(--sw-surface-3);
+  }
+  :host([data-skin='bubble']) .seg .opts {
+    border: 0;
+    border-radius: var(--sw-r-pill);
+    background: var(--sw-surface-2);
+    padding: 3px;
+  }
+  :host([data-skin='bubble']) .seg button {
+    border-radius: var(--sw-r-pill);
+    background: transparent;
+  }
+  :host([data-skin='bubble']) .seg button[aria-pressed='true'] {
+    background: var(--sw-surface-solid);
+  }
+  :host([data-skin='bubble']) .floor-filter .opts {
+    border: 0;
+    border-radius: var(--sw-r-pill);
+    background: var(--sw-surface-2);
+    padding: 3px;
+  }
+  :host([data-skin='bubble']) .floor-filter button {
+    border: 0;
+    border-radius: var(--sw-r-pill);
+    background: transparent;
+    min-block-size: 36px;
+  }
+  :host([data-skin='bubble']) .floor-filter button[aria-pressed='true'] {
+    background: var(--sw-surface-solid);
+  }
+`;
 
 export type BuildingLayout = 'cards' | 'tiles';
 export const LAYOUT_KEY = 'sw.devices.layout';
@@ -763,6 +994,8 @@ export class DevicesBuilding extends LitElement {
   @state() private selected = 'all';
   /** The tree panel's collapsed floors (their area rows are not drawn); a floor that gets selected opens again. */
   @state() private collapsed: Set<string> = readCollapsed();
+  /** Bubble phase C: the skin in force mirrored on the host (the bubble rules key on it; the rows carry a hue ring there). */
+  private skin = new SkinController(this);
   /** CR-007 HA refresh: "מבנה עודכן" shown for a few seconds after a structure_changed push refetched the tree. */
   @state() private structureFlash = false;
   /** The manual "רענן מ-Home Assistant" request in flight, and its outcome line (error / "no change"). */
@@ -1865,7 +2098,7 @@ export class DevicesBuilding extends LitElement {
         padding-inline: 10px;
       }
     }
-  `, BUILDING_GLASS, TILE_LAYOUT, HOME_LAYOUT];
+  `, BUILDING_GLASS, TILE_LAYOUT, HOME_LAYOUT, BUILDING_BUBBLE];
 
   connectedCallback() {
     super.connectedCallback();
@@ -2272,17 +2505,22 @@ export class DevicesBuilding extends LitElement {
     const href = `#/devices/areas/${encodeURIComponent(a.area_id)}`;
     const bulk = !unassigned && this.bulkAllowed && a.can_bulk === true;
     const pills = this.pillsShown(c);
+    // the bubble skin: the state dot is a hue ring with the area's icon (decoration only; the lit halo says something is on)
+    const bubble = this.skin.bubble;
+    const it = bubble ? this.lay.item(`area:${a.area_id}`) : undefined;
+    const dot = html`<span class=${classMap({ sdot: true, on })}>${bubble ? html`<sw-icon .name=${it?.icon ?? (unassigned ? 'help' : 'home')} size=${where === 'tree' ? 12 : 18}></sw-icon>` : nothing}</span>`;
+    const hueStyle = bubble && !unassigned ? `--h:var(--sw-hue-${hueOf(a.area_id)})` : '';
     const body =
       where === 'tree'
-        ? html`<span class=${classMap({ sdot: true, on })}></span><span class="nm" title=${a.name}>${bidi(a.name)}</span>${c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>` : html`<span class="lit" aria-hidden="true"></span>`}`
-        : html`<span class=${classMap({ sdot: true, on })}></span><span class="nm" title=${a.name}>${bidi(a.name)}</span>${this.renderIndicators(a)}`;
+        ? html`${dot}<span class="nm" title=${a.name}>${bidi(a.name)}</span>${c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>` : html`<span class="lit" aria-hidden="true"></span>`}`
+        : html`${dot}<span class="nm" title=${a.name}>${bidi(a.name)}</span>${this.renderIndicators(a)}`;
     const attrs = { area: a.area_id, on: String(on), counts: countsAttr(pills) };
     if (unassigned) {
       return html`<a class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style="text-decoration:none">${body}</a>`;
     }
     const menu = html`<devices-bulk-menu block hover scope="area" .targetId=${a.area_id} .targetName=${a.name} .counts=${c} variant="popover" align="start" .actions=${bulk} openHref=${href} label="סיכום האזור"
         data-tree-area=${where === 'tree' ? a.area_id : nothing} data-card-area=${where === 'card' ? a.area_id : nothing}>
-        <a slot="trigger" class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} aria-label=${`${a.name} · ${c.entities} התקנים · כניסה לאזור`}>${body}</a>
+        <a slot="trigger" class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style=${hueStyle || nothing} aria-label=${`${a.name} · ${c.entities} התקנים · כניסה לאזור`}>${body}</a>
       </devices-bulk-menu>`;
     if (where === 'card') return menu;
     return html`<div class="tree-area">
@@ -2359,15 +2597,18 @@ export class DevicesBuilding extends LitElement {
     const on = anythingOn(c);
     const bulk = !unassigned && this.bulkAllowed && a.can_bulk === true;
     const it = this.lay.item(`area:${a.area_id}`); // CR-007 6b: the layout's own title and icon
+    const bubble = this.skin.bubble;
     return html`<div class=${classMap({ 'tile-wrap': true, bulk })} data-lay-key=${`area:${a.area_id}`}><a
       class=${classMap({ tile: true, on, empty: c.entities === 0, unassigned })}
       href=${`#/devices/areas/${encodeURIComponent(a.area_id)}`}
       data-area=${a.area_id}
       data-on=${String(on)}
       data-counts=${pills.map((p) => `${p.key}:${p.on === null ? p.total : `${p.on}/${p.total}`}`).join(' ')}
+      style=${bubble && !unassigned ? `--h:var(--sw-hue-${hueOf(a.area_id)})` : nothing}
       aria-label=${`${a.name} · ${c.entities} התקנים`}
     >
       <div class="tile-head">
+        ${bubble ? html`<span class="ring"><sw-icon .name=${it?.icon ?? (unassigned ? 'help' : 'home')} size=${18}></sw-icon></span>` : nothing}
         <sw-icon .name=${it?.icon ?? (unassigned ? 'help' : 'home')} size=${16}></sw-icon>
         <span class="name">${bidi(titleOf(it, a.name))}</span>
         ${on ? html`<span class="dot" title="יש התקן פעיל"></span>` : nothing}

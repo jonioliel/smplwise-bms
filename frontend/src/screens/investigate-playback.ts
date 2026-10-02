@@ -290,7 +290,7 @@ export class InvestigatePlayback extends LitElement {
       padding: 4px 8px;
       border-radius: var(--sw-r-pill);
       background: rgba(17, 24, 39, 0.72);
-      backdrop-filter: blur(8px);
+      backdrop-filter: var(--sw-perf-blur, blur(8px));
       color: #fff;
       box-shadow: var(--sw-shadow-2);
     }

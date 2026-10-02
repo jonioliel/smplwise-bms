@@ -738,7 +738,7 @@ export class ExploreFloorMap extends LitElement {
       padding: 3px 10px;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
-      backdrop-filter: blur(6px);
+      backdrop-filter: var(--sw-perf-blur, blur(6px));
     }
     .legend span {
       display: inline-flex;

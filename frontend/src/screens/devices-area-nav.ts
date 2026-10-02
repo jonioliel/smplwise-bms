@@ -60,6 +60,8 @@ export class DevicesAreaNav extends LitElement {
     :host {
       display: block;
       margin-block-end: 4px;
+      min-inline-size: 0;
+      max-inline-size: 100%;
     }
     nav {
       display: flex;

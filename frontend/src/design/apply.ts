@@ -14,8 +14,8 @@
 import { ReactiveElement } from 'lit';
 import { DEFAULT_SKIN, SKIN_IDS, SKINS, isSkinId, type SkinId } from './skins';
 import { skinRules, skinTable, tokensCss } from './css';
-import { alphaFloor, sheetModelOf } from './contrast';
-import { bootLook, setAlphaFloor } from './look';
+import { alphaFloor, liteAlpha, sheetModelOf } from './contrast';
+import { bootLook, setAlphaFloor, setLiteAlpha } from './look';
 
 export type Scheme = 'light' | 'dark' | 'auto';
 export type Theme = 'light' | 'dark';
@@ -108,6 +108,7 @@ function apply() {
   const t = skinTable(skin);
   const model = sheetModelOf((n) => t[n]?.[theme] ?? '');
   setAlphaFloor(model ? alphaFloor(model) : 1);
+  setLiteAlpha(model ? liteAlpha(model) : 1); // the lite tier's tinted layers (no blur) keep the same 4.5:1 guard
   listeners.forEach((fn) => fn());
 }
 
