@@ -324,12 +324,56 @@ const BUILDING_BUBBLE = css`
     font-weight: var(--sw-fw-bold);
   }
   :host([data-skin='bubble']) button.chip,
-  :host([data-skin='bubble']) .chip {
+  :host([data-skin='bubble']) .chip,
+  :host([data-skin='bubble']) .fchips button.chip {
     border: 0;
     border-radius: var(--sw-r-pill);
     background: var(--sw-surface-2);
-    min-block-size: 32px;
-    padding-inline: 10px;
+    min-block-size: var(--sw-touch-desktop, 44px);
+    padding-inline: 12px;
+  }
+  /* the targets of the tree and the floor headers: the fold, the title, the "⋯" (the layout guard's touch dial) */
+  :host([data-skin='bubble']) .tfold {
+    inline-size: var(--sw-touch-desktop, 44px);
+    block-size: var(--sw-touch-desktop, 44px);
+    border-radius: 50%;
+  }
+  :host([data-skin='bubble']) .tree-area {
+    padding-inline-start: calc(var(--sw-touch-desktop, 44px) - 20px);
+  }
+  :host([data-skin='bubble']) .fcard header h2 .ftitle {
+    min-block-size: var(--sw-touch-desktop, 44px);
+    display: inline-flex;
+    align-items: center;
+  }
+  /* the area tile's "⋯" sits in the row, never over the tile */
+  :host([data-skin='bubble']) .tile-wrap {
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+  }
+  :host([data-skin='bubble']) .tile-wrap > a.tile {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+  }
+  :host([data-skin='bubble']) .tile-wrap.bulk > a.tile .tile-head {
+    padding-inline-end: 0;
+  }
+  :host([data-skin='bubble']) .tile-wrap devices-bulk-menu {
+    position: static;
+    transform: none;
+    flex: none;
+  }
+  @media (max-width: 1100px) {
+    :host([data-skin='bubble']) button.chip,
+    :host([data-skin='bubble']) .fchips button.chip,
+    :host([data-skin='bubble']) .fcard header h2 .ftitle {
+      min-block-size: 44px;
+    }
+    :host([data-skin='bubble']) .tfold {
+      inline-size: 44px;
+      block-size: 44px;
+    }
   }
   :host([data-skin='bubble']) button.chip:hover,
   :host([data-skin='bubble']) button.chip:focus-visible {

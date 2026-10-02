@@ -51,6 +51,11 @@ export class SwPage extends LitElement {
       padding: 12px 16px 0;
       padding-inline-end: calc(16px + var(--sw-float-reserve, 0px));
     }
+    /* the title column may shrink below its content (a crumb row that scrolls sideways on a phone must not widen the page) */
+    header > div:first-child {
+      min-inline-size: 0;
+      max-inline-size: 100%;
+    }
     .titlebar {
       display: flex;
       align-items: center;

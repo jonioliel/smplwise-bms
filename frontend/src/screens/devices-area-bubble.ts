@@ -331,8 +331,13 @@ export const bubbleAreaStyles = css`
   :host([data-skin='bubble']) .sec-chip {
     border: 0;
     background: var(--sw-layer-2);
-    min-block-size: 36px;
+    min-block-size: var(--sw-touch-desktop, 44px);
     padding: 0 12px;
+  }
+  @media (max-width: 1100px) {
+    :host([data-skin='bubble']) .sec-chip {
+      min-block-size: 44px;
+    }
   }
   :host([data-skin='bubble']) .note,
   :host([data-skin='bubble']) .count {
@@ -493,13 +498,13 @@ export function renderBubblePill(h: BubbleAreaHost, r: DeviceRow, card: CardId):
     const label = on ? (dimmable ? `דולק · ${ltrNum(Math.round(pct))}%` : r.domain === 'light' ? 'דולק' : 'פועל') : unavailable ? 'לא זמין' : 'כבוי';
     const alarm = r.alarm_managed ? html`<button slot="subs" type="button" class="chip" aria-label=${r.managed_label ?? 'נשלט ממסך האזעקה'} data-alarm-managed @click=${() => navigate('/security/alarm')}><sw-icon name="shield" size=${14}></sw-icon></button>` : nothing;
     if (dimmable) {
-      return html`<sw-pill variant="slider" icon="light" .label=${bidi(r.name)} .state=${stateOf(h, r, label)} .value=${Math.max(0, Math.min(1, pct / 100))} ?on=${on} .hue=${hue} ?unavailable=${unavailable || !r.can_control}
+      return html`<sw-pill variant="slider" icon="light" .label=${bidi(r.name)} .state=${stateOf(h, r, label)} .value=${Math.max(0, Math.min(1, pct / 100))} ?on=${on} .hue=${hue} ?unavailable=${unavailable} ?readonly=${!r.can_control}
         data-entity=${r.entity_id} data-active=${String(on)} ?data-can-control=${can} ?data-pending=${pending} title=${r.entity_id}
         @toggle=${(e: CustomEvent<{ on: boolean }>) => can && ctl.power(r, e.detail.on)}
         @input=${(e: CustomEvent<{ value: number }>) => can && ctl.brightness(r, Math.round(e.detail.value * 100))}
         @icon-click=${open}>${alarm}${h.assignButton(r)}</sw-pill>`;
     }
-    return html`<sw-pill variant="toggle" .icon=${card === 'lighting' ? 'light' : 'bolt'} .label=${bidi(r.name)} .state=${stateOf(h, r, label)} ?on=${on} ?accent=${on && card === 'switches'} .hue=${hue} ?unavailable=${unavailable || !r.can_control}
+    return html`<sw-pill variant="toggle" .icon=${card === 'lighting' ? 'light' : 'bolt'} .label=${bidi(r.name)} .state=${stateOf(h, r, label)} ?on=${on} ?accent=${on && card === 'switches'} .hue=${hue} ?unavailable=${unavailable} ?readonly=${!r.can_control}
       data-entity=${r.entity_id} data-active=${String(on)} ?data-can-control=${can} ?data-pending=${pending} title=${r.entity_id}
       @toggle=${(e: CustomEvent<{ on: boolean }>) => can && ctl.power(r, e.detail.on)} @icon-click=${open}>${alarm}${h.assignButton(r)}</sw-pill>`;
   }

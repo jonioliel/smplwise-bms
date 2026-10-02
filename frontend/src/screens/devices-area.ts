@@ -1104,7 +1104,7 @@ export class DevicesArea extends LitElement {
     const state = [parts.length ? parts.join(' · ') : `${ltrNum(c.entities)} התקנים`, d.area.floor_name ?? ''].filter(Boolean).join(' · ');
     const temp = d.cards.sensors.entities.find((r) => r.domain === 'sensor' && r.device_class === 'temperature' && r.available && r.value !== null && r.value !== undefined);
     const alarm = d.counts.alarm;
-    return html`<sw-pill class="bhead" variant="plain" icon="home" .label=${bidi(d.area.name)} .state=${state} .hue=${hueOf(d.area.area_id)} data-area-head=${d.area.area_id}>
+    return html`<sw-pill class="bhead" variant="plain" ring-static icon="home" .label=${bidi(d.area.name)} .state=${state} .hue=${hueOf(d.area.area_id)} tabindex="-1" data-area-head=${d.area.area_id}>
       ${temp ? html`<span slot="subs" class="chip plain" data-area-temperature title=${bidi(temp.name)}><sw-icon name="thermometer" size=${14}></sw-icon>${deg(temp.value)}</span>` : nothing}
       ${alarm ? html`<a slot="subs" class="chip" href="#/security/alarm" data-area-alarm title="לאזעקה" style="text-decoration:none"><sw-icon name="shield" size=${14}></sw-icon>${ALARM_HE[alarm] ?? alarm}</a>` : nothing}
       ${this.bulkAllowed && (c.lights_on || c.switches_on) ? html`<button slot="subs" type="button" class="sb" aria-label="כבה הכל באזור" data-area-all-off @click=${() => this.openCoverGroupBulk('all_off')}><sw-icon name="power" size=${18}></sw-icon></button>` : nothing}
@@ -1119,7 +1119,7 @@ export class DevicesArea extends LitElement {
     const r = hit?.row;
     const card = s?.card ?? hit?.card ?? 'sensors';
     return html`<sw-sheet ?open=${!!r} heading=${r ? bidi(r.name) : ''} data-device-sheet=${r?.entity_id ?? ''} @close=${() => (this.sheet = null)}>
-      ${r ? html`<sw-pill slot="head" variant="plain" .icon=${sectionIcon(card)} .label=${bidi(r.name)} .state=${rowLabel(r)} .hue=${hueOf(r.entity_id)} ?on=${r.active && r.available} fill-color=${card === 'lighting' ? 'var(--sw-lit)' : card === 'climate' || card === 'heating' ? (card === 'heating' ? 'var(--sw-heat)' : 'var(--sw-cool)') : 'var(--sw-accent-soft)'} tabindex="-1"></sw-pill>${renderBubbleSheetBody(this.bubbleHost, r, card)}` : nothing}
+      ${r ? html`<sw-pill slot="head" variant="plain" ring-static .icon=${sectionIcon(card)} .label=${bidi(r.name)} .state=${rowLabel(r)} .hue=${hueOf(r.entity_id)} ?on=${r.active && r.available} fill-color=${card === 'lighting' ? 'var(--sw-lit)' : card === 'climate' || card === 'heating' ? (card === 'heating' ? 'var(--sw-heat)' : 'var(--sw-cool)') : 'var(--sw-accent-soft)'} tabindex="-1" data-sheet-head></sw-pill>${renderBubbleSheetBody(this.bubbleHost, r, card)}` : nothing}
     </sw-sheet>`;
   }
 

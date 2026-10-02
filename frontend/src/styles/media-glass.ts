@@ -910,6 +910,95 @@ export const mediaBubbleKnobs = css`
       --mm-sheet-blur: none;
     }
   }
+  /* the bubble skin's targets: every control at least the desktop touch dial (44 / 32) and 44 px in touch layouts (the layout guard);
+     the page header no longer sticks (a floating bar over the rows is the one thing the owner's rule forbids) */
+  :host([data-skin='bubble']) .btn,
+  :host([data-skin='bubble']) .btn.sm,
+  :host([data-skin='bubble']) .seg button,
+  :host([data-skin='bubble']) .seg.sm button,
+  :host([data-skin='bubble']) .rc,
+  :host([data-skin='bubble']) .floorbtn,
+  :host([data-skin='bubble']) .search,
+  :host([data-skin='bubble']) .shlink,
+  :host([data-skin='bubble']) .pop button,
+  :host([data-skin='bubble']) .rbtn,
+  :host([data-skin='bubble']) .tog {
+    min-block-size: var(--sw-touch-desktop, 44px);
+    block-size: auto;
+  }
+  :host([data-skin='bubble']) .rb,
+  :host([data-skin='bubble']) .pw,
+  :host([data-skin='bubble']) .vrock button,
+  :host([data-skin='bubble']) .rbtn,
+  :host([data-skin='bubble']) .ecard button {
+    min-inline-size: var(--sw-touch-desktop, 44px);
+    min-block-size: var(--sw-touch-desktop, 44px);
+  }
+  :host([data-skin='bubble']) .vrock {
+    block-size: auto;
+    min-block-size: var(--sw-touch-desktop, 44px);
+  }
+  :host([data-skin='bubble']) .search input {
+    min-block-size: var(--sw-touch-desktop, 44px);
+  }
+  :host([data-skin='bubble']) .dh {
+    position: static;
+    margin-inline: 0;
+    padding-inline: 0;
+  }
+  :host([data-skin='bubble']) .dh::before {
+    display: none;
+  }
+  :host([data-skin='bubble']) .dh.compact {
+    background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border: 0;
+    box-shadow: none;
+    padding-block: 16px 4px;
+  }
+  :host([data-skin='bubble']) .dh.compact h1 {
+    font-size: var(--mm-fs-page-title);
+  }
+  :host([data-skin='bubble']) .dh.compact .dh-det {
+    max-block-size: 120px;
+    opacity: 1;
+    overflow: visible;
+    margin-block-end: 0;
+    pointer-events: auto;
+  }
+  :host([data-skin='bubble']) .dh.compact .rooms {
+    display: flex;
+  }
+  :host([data-skin='bubble']) .rooms {
+    padding-inline: 4px;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  @media (max-width: 1100px) {
+    :host([data-skin='bubble']) .btn,
+    :host([data-skin='bubble']) .btn.sm,
+    :host([data-skin='bubble']) .seg button,
+    :host([data-skin='bubble']) .rc,
+    :host([data-skin='bubble']) .floorbtn,
+    :host([data-skin='bubble']) .search,
+    :host([data-skin='bubble']) .search input,
+    :host([data-skin='bubble']) .shlink,
+    :host([data-skin='bubble']) .pop button,
+    :host([data-skin='bubble']) .rbtn,
+    :host([data-skin='bubble']) .tog,
+    :host([data-skin='bubble']) .vrock {
+      min-block-size: 44px;
+    }
+    :host([data-skin='bubble']) .rb,
+    :host([data-skin='bubble']) .pw,
+    :host([data-skin='bubble']) .vrock button,
+    :host([data-skin='bubble']) .rbtn,
+    :host([data-skin='bubble']) .ecard button {
+      min-inline-size: 44px;
+      min-block-size: 44px;
+    }
+  }
 `;
 
 /** The style set every media component starts with: the device theme layer, the media knobs, the shared controls. */

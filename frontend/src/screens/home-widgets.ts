@@ -1521,7 +1521,7 @@ export class HomeWidgetsView extends LitElement {
       const pill = (a: QuickAction) => {
         const lights = a !== 'all_off';
         const n = lights ? this.quick.lightsOn : this.quick.lightsOn + this.quick.switchesOn;
-        return html`<sw-pill variant="plain" .icon=${lights ? 'light' : 'bolt'} .label=${QUICK_ACTION_LABEL[a]} .state=${lights ? `${ltrNum(this.quick.lightsOn)} דולקות בבית` : `${ltrNum(n)} פעילים בבית`} ?on=${lights && n > 0} ?accent=${!lights} fill-color="var(--sw-lit)" data-home-quick-pill=${a} tabindex="-1">
+        return html`<sw-pill variant="plain" ring-static .icon=${lights ? 'light' : 'bolt'} .label=${QUICK_ACTION_LABEL[a]} .state=${lights ? `${ltrNum(this.quick.lightsOn)} דולקות בבית` : `${ltrNum(n)} פעילים בבית`} ?on=${lights && n > 0} ?accent=${!lights} fill-color="var(--sw-lit)" data-home-quick-pill=${a} tabindex="-1">
           <button slot="subs" type="button" class="qsb" data-home-quick=${a} aria-label=${QUICK_ACTION_LABEL[a]} ?disabled=${this.editing} @click=${() => this.emit('home-quick', { action: a })}><sw-icon name="power" size=${18}></sw-icon></button>
         </sw-pill>`;
       };
