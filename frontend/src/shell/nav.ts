@@ -292,8 +292,13 @@ export function normalizeTabsConfig(raw: unknown): TabsConfig {
   for (const [section, body] of Object.entries(value as Record<string, unknown>)) {
     if (section === TAB_STYLES_KEY) continue; // the per-level defaults, not a section (normalizeTabStyles)
     if (!TAB_ID.test(section) || !body || typeof body !== 'object' || Array.isArray(body)) continue;
-    const order = ids((body as { order?: unknown }).order);
-    const hidden = ids((body as { hidden?: unknown }).hidden);
+    let order = ids((body as { order?: unknown }).order);
+    let hidden = ids((body as { hidden?: unknown }).hidden);
+    // 0.1.154 migration: the home area's "schedules" tab became a segment of "קברניט" (the `automations` tab): a stored entry for it is dropped
+    if (section === 'devices') {
+      order = order.filter((id) => id !== 'schedules');
+      hidden = hidden.filter((id) => id !== 'schedules');
+    }
     const style = asTabStyle((body as { style?: unknown }).style);
     if (order.length || hidden.length || style) out[section] = style ? { order, hidden, style } : { order, hidden };
   }
@@ -462,16 +467,28 @@ const EXPLORE_TABS: TabItem[] = [
   { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
 ];
 
-/** CR-014 (2026-09-30): the home area's tabs (`ui.tabs` (section `devices`) and the phone bottom bar follow). "מבט על" is the home screen as it always was (the
- * building tree, `#/devices/building`; an area screen is a drill-down of it, #/devices/areas/<id>, not a tab); "תזמונים" is
- * the schedules list (`#/devices/schedules`), shown to holders of schedule.view / schedule.manage while the feature is on
- * (`schedules.enabled`, applySchedulesHidden). With only one of them visible the tab row does not appear at all, so a user
- * without schedule rights sees the home screen exactly as before. */
+/** The home area's tabs (`ui.tabs` (section `devices`) and the phone bottom bar follow). "מבט על" is the home screen as it always was (the
+ * building tree, `#/devices/building`; an area screen is a drill-down of it, #/devices/areas/<id>, not a tab). "קברניט" (0.1.154, owner
+ * 2026-10-02; the tab id stays `automations`, so route ids are untouched) holds the segments תזמונים · אוטומציות · סצנות · סקריפטים: the
+ * schedules list (CR-014, `#/devices/schedules`) is its first segment, shown while the feature is on (`schedules.enabled`,
+ * applySchedulesHidden) to holders of schedule.view / schedule.manage; the automations screen (CR-017, `#/devices/automations`) holds the
+ * rest. The tab opens on the schedules segment when it is offered, else on the automations (`kavarnitSegments`, applied in
+ * `permittedTabs`); the static href below is that default (the static demo has no gates). With only one tab visible the tab row does not
+ * appear at all, so a user without those rights sees the home screen exactly as before. */
 export const DEVICES_TABS: TabItem[] = [
   { id: 'building', label: 'מבט על', href: '#/devices/building' },
-  { id: 'schedules', label: 'תזמונים', href: SCHEDULES_HREF },
-  { id: 'automations', label: 'אוטומציות', href: AUTOMATIONS_HREF },
+  { id: 'automations', label: 'קברניט', href: SCHEDULES_HREF },
 ];
+
+/** 0.1.154: which segments of "קברניט" this user is offered. `schedules`: the feature is on and schedule.view / schedule.manage is held;
+ * `automations`: the automations feature is on and one of its rights is held (the scenes and scripts segments follow the automations
+ * status inside the screen). Without a backend (the demo) both are offered. */
+export interface KavarnitSegments { schedules: boolean; automations: boolean }
+export function kavarnitSegments(api: boolean, can?: Can): KavarnitSegments {
+  if (!api) return { schedules: true, automations: true };
+  const offered = (href: string) => !HIDDEN_HREFS.has(href) && tabAllowed(href, can);
+  return { schedules: offered(SCHEDULES_HREF), automations: offered(AUTOMATIONS_HREF) };
+}
 
 // ---------------------------------------------------------------------------------------------
 // Design "SW A" (mockups v1.3): originally exactly the kit's four areas as a right icon rail; WisKey
@@ -622,7 +639,7 @@ export function activeAreaTab(r: RouteState | null): string {
     case 'wiskey':
       return wiskeyActiveTab(r);
     case 'devices':
-      return s[1] === 'schedules' ? 'schedules' : s[1] === 'automations' ? 'automations' : 'building';
+      return s[1] === 'schedules' || s[1] === 'automations' ? 'automations' : 'building'; // 0.1.154: the schedules are a segment of קברניט
     case 'multimedia':
       return s[1] === 'players' ? 'players' : s[1] === 'groups' ? 'groups' : 'screens';
     default:
@@ -640,7 +657,10 @@ export function crumbsOf(r: RouteState | null, api = false): string[] {
   const tab = tabs.find((x) => x.id === activeAreaTab(r));
   const label = tab ? (api && API_LABELS[tab.href ?? ''] ? API_LABELS[tab.href ?? ''] : tab.label) : '';
   const sub = a === 'system' && r?.segments[1] === 'security' ? SECURITY_SETTINGS_TABS.find((x) => x.id === r.segments[2])?.label : undefined;
-  return [area?.label ?? '', sec?.label ?? '', label === sec?.label ? '' : label, sub ?? ''].filter(Boolean);
+  // 0.1.154: ראשי › קברניט › the segment
+  const s = r?.segments ?? [];
+  const kSub = a !== 'devices' ? undefined : s[1] === 'schedules' ? 'תזמונים' : s[1] === 'automations' ? (s[2] === 'scenes' ? 'סצנות' : s[2] === 'scripts' ? 'סקריפטים' : 'אוטומציות') : undefined;
+  return [area?.label ?? '', sec?.label ?? '', label === sec?.label ? '' : label, sub ?? kSub ?? ''].filter(Boolean);
 }
 
 /** The sections of the security area this user sees, each opening on its first visible page. */
@@ -812,10 +832,25 @@ export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[
   const offered = items === MULTIMEDIA_TABS ? items.filter((t) => t.id === 'screens' || (t.id === 'players' && MULTIMEDIA_KINDS.players) || (t.id === 'groups' && MULTIMEDIA_KINDS.groups)) : items;
   // permissions and the fixed rules decide what is offered; ui.tabs (order, hidden) then shapes it (with a backend only:
   // the static demo shows the defaults)
-  return api ? configureTabs(sectionIdOf(items), permittedTabs(offered, api, can)) : offered;
+  if (!api) return offered;
+  const permitted = permittedTabs(offered, api, can);
+  const shown = configureTabs(sectionIdOf(items), permitted);
+  // 0.1.154: a stored `ui.tabs` entry that hides the old "אוטומציות" tab must not take the schedules segment away with it
+  if (items === DEVICES_TABS) {
+    const k = permitted.find((t) => t.id === 'automations');
+    if (k && !shown.includes(k) && kavarnitSegments(api, can).schedules) return [...shown, k];
+  }
+  return shown;
 }
 
-function permittedTabs(items: TabItem[], api: boolean, can?: Can): TabItem[] {
+function permittedTabs(source: TabItem[], api: boolean, can?: Can): TabItem[] {
+  // 0.1.154: the "קברניט" tab (id `automations`) stands for two gates: it is offered while its schedules or its automations segment is, and it
+  // opens on the first one offered (the schedules)
+  const items = api && source === DEVICES_TABS ? source.flatMap((t) => {
+    if (t.id !== 'automations') return [t];
+    const seg = kavarnitSegments(api, can);
+    return seg.schedules || seg.automations ? [{ ...t, href: seg.schedules ? SCHEDULES_HREF : AUTOMATIONS_HREF }] : [];
+  }) : source;
   return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !(NVR_LESS && isNvrHref(t.href ?? '')) && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
 }
 

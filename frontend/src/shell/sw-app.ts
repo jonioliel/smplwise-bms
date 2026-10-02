@@ -80,7 +80,7 @@ import { navigate, onRouteChange, type RouteState, parseRoute } from '../router'
 import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
-import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaRowSection, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, type NavTabId } from './nav';
+import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaRowSection, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { t } from '../i18n/he';
 import { can, canNav, isApi, loadSession, nvrLess, onSession, watchPermissions, type Session } from '../api/session';
@@ -1963,11 +1963,13 @@ export class SwApp extends LitElement {
         if (s[1] === 'schedules' && s[3] === 'edit') {
           return html`<schedule-editor .scheduleId=${s[2] === 'new' ? '' : decodeURIComponent(s[2] ?? '')} .template=${r.params.get('template') ?? ''} .preset=${r.params.get('preset') ?? ''}></schedule-editor>`;
         }
-        if (s[1] === 'schedules') return html`<devices-schedules></devices-schedules>`;
+        // 0.1.154: the schedules are the first segment of "קברניט"; the address stays #/devices/schedules (old links, notifications and the
+        // guide keep working) and the screen draws the segment strip itself, from what this user is offered
+        if (s[1] === 'schedules') return html`<devices-schedules .kavarnit=${kavarnitSegments(this.session.mode === 'api', canNav)}></devices-schedules>`;
         // CR-017: "אוטומציות" - the list (automations, scenes, scripts), its drawer, the trash AND the editors are one element that reads the address itself:
         // the routes `.../<id>/edit` and `.../new/edit?kind=&template=` open S4's editor sheet (<automation-builder> / <script-editor> / <scene-editor>) over
         // the list, which stays mounted underneath (closing the sheet returns to the item's drawer or the list without a reload).
-        if (s[1] === 'automations') return html`<devices-automations></devices-automations>`;
+        if (s[1] === 'automations') return html`<devices-automations .kavarnit=${kavarnitSegments(this.session.mode === 'api', canNav)}></devices-automations>`;
         return html`<devices-building></devices-building>`;
       case 'multimedia':
         // CR-015 / CR-016: the screens page, the players page and the groups page (`?player=<key>` opens a player's panel)

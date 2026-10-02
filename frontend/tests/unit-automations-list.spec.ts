@@ -370,7 +370,7 @@ test.describe('navigation (the shell module, node only)', () => {
     expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'devices.control')))).toEqual(['building', 'automations']); // scenes
     expect(ids(visibleTabs(DEVICES_TABS, true, only('script.manage')))).toEqual(['automations']);
     expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'script.run')))).toEqual(['building', 'automations']);
-    expect(ids(visibleTabs(DEVICES_TABS, true, only('automation.manage', 'schedule.view')))).toEqual(['schedules', 'automations']);
+    expect(ids(visibleTabs(DEVICES_TABS, true, only('automation.manage', 'schedule.view')))).toEqual(['automations']); // 0.1.154: one tab, קברניט, whose first segment is the schedules
     expect(ids(visibleTabs(DEVICES_TABS, true, only('automation.manage')))).toEqual(['automations']); // whoever may edit sees them
     expect(tabAllowed(AUTOMATIONS_SETTINGS_HREF, only('system.configure'))).toBe(true);
     expect(tabAllowed(AUTOMATIONS_SETTINGS_HREF, only('automation.manage'))).toBe(false);
@@ -401,7 +401,7 @@ test.describe('navigation (the shell module, node only)', () => {
     expect(activeAreaTab(route('/devices/automations'))).toBe('automations');
     expect(activeAreaTab(route('/devices/automations/scenes/new'))).toBe('automations');
     expect(activeAreaTab(route('/devices/automations/1727700000002?view=trace'))).toBe('automations');
-    expect(activeAreaTab(route('/devices/schedules'))).toBe('schedules');
+    expect(activeAreaTab(route('/devices/schedules'))).toBe('automations'); // 0.1.154: the schedules are a segment of קברניט
     expect(activeAreaTab(route('/devices/building'))).toBe('building');
     expect(activeAreaTab(route('/system/automations'))).toBe('automations');
     expect(crumbsOf(route('/system/automations'))).toEqual(['מערכת', 'אוטומציות']);
