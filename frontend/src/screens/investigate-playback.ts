@@ -321,15 +321,51 @@ export class InvestigatePlayback extends LitElement {
       background: rgba(255, 255, 255, 0.25);
       margin-inline: 4px;
     }
+    /* The transport controls are ONE bar under the picture, never over it (owner 2026-10-02: on a phone the floating pill covered
+       more than half of the video). Row 1 is the picture (the single video or the comparison grid), the time stamp sits on its
+       bottom corner, row 2 is the bar. */
     .stage {
-      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 8px;
     }
-    .stage .bar {
-      inset-block-end: 12px;
+    .stage > :not(.bar):not(.stamp) {
+      grid-row: 1;
+      grid-column: 1;
     }
     .stage .stamp {
-      inset-block-end: 60px;
-      inset-inline-start: 14px;
+      position: static;
+      grid-row: 1;
+      grid-column: 1;
+      align-self: end;
+      justify-self: start;
+      margin: 0 12px 10px;
+      pointer-events: none;
+      z-index: 2;
+    }
+    .stage .bar {
+      position: static;
+      grid-row: 2;
+      grid-column: 1;
+      justify-content: stretch;
+    }
+    .stage .bar .inner {
+      inline-size: 100%;
+      box-sizing: border-box;
+      justify-content: center;
+      border-radius: var(--sw-r-md);
+      background: #111827;
+      backdrop-filter: none;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .stage .bar sw-button {
+      min-inline-size: 44px;
+      min-block-size: 44px;
+    }
+    .stage .bar .q {
+      min-block-size: 44px;
+      min-inline-size: 44px;
     }
     .filters {
       display: flex;
@@ -427,13 +463,23 @@ export class InvestigatePlayback extends LitElement {
        dropped there instead of taking room as disabled buttons. */
     @media (max-width: 767px) {
       .bar .inner {
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         justify-content: center;
         row-gap: 4px;
         max-inline-size: calc(100% - 16px);
       }
-      .bar .q[disabled] {
+      /* one row: the frame-step buttons only exist while paused */
+      .stage .bar .inner {
+        flex-wrap: nowrap;
+        max-inline-size: none;
+        padding-inline: 4px;
+      }
+      .bar .q[disabled],
+      .bar .q[data-frame-step][disabled] {
         display: none;
+      }
+      .bar .q {
+        flex: none;
       }
     }
   `;
