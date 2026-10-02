@@ -26,7 +26,6 @@ from smplwise.services import notify, notify_channels, notify_email
 from smplwise.services import notify_settings as nsettings
 from smplwise.services import push as push_svc
 
-pytestmark = pytest.mark.usefixtures("daytime_clock")  # the wall clock must not decide quiet hours (see conftest.daytime_clock)
 
 PASSWORD = "S3cr3t-Pw-9f2c1d7a"          # a distinctive value to grep for everywhere
 SENDER = "arx@example.test"
