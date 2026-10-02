@@ -321,7 +321,7 @@ test.describe('bubble foundation', () => {
 
 // ---- the mocked backend: what the card sends ----
 const ALL = ['video.live', 'map.read', 'entity.state.read', 'devices.read', 'alarm.view', 'events.read', 'system.configure'];
-const INST = { density: 'regular', surface: 'fill', popup: 'sheet', radius: 'pill', transparency: 72, scale: 100, touch: 44, palette: 'default' };
+const INST = { density: 'regular', surface: 'fill', popup: 'sheet', radius: 'pill', transparency: 72, scale: 100, touch: 44, performance: 'auto', palette: 'default' };
 
 class Mock {
   admin = true;
