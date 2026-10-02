@@ -41,6 +41,7 @@ async function controlled(page: Page) {
   await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 15_000 });
 }
 
+const swLog: string[] = [];
 const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist');
 
 /** The built worker script and the cache name baked into it. */
@@ -59,6 +60,7 @@ async function serveDist(getSw: () => string, slow: { ms: number } = { ms: 0 }) 
     if (rel === 'arx-sw.js') {
       const body = getSw();
       const delay = slow.ms;
+      swLog.push(`${Date.now() % 100000}:${delay}:${body.includes('-next') ? 'next' : 'old'}`);
       setTimeout(() => {
         res.writeHead(200, { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-cache' });
         res.end(body);
@@ -180,11 +182,17 @@ test.describe('PWA shell (CR-008 P3)', () => {
       await controlled(page);
       await reloadWired(page);
       slow.ms = 2000;
+      swLog.push('-- reload');
       await page.reload();
+      swLog.push('-- reloaded');
       slow.ms = 0;
       sw = original.split(oldName).join(`${oldName}-next`);
+      swLog.push('-- update()');
       await page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.update());
-      await expect(page.locator('arx-pwa-prompts [data-pwa-update]')).toBeVisible({ timeout: 8_000 });
+      swLog.push('-- update() done');
+      let shown = true;
+      await expect(page.locator('arx-pwa-prompts [data-pwa-update]')).toBeVisible({ timeout: 8_000 }).catch(() => (shown = false));
+      expect(`${shown} ${swLog.join(' | ')}`).toBe('x');
     } finally {
       await page.goto('about:blank');
       await new Promise<void>((ok) => server.close(() => ok()));
