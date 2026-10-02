@@ -106,6 +106,14 @@ def normalize_partial(value: Any) -> dict[str, Any]:
     return normalize(value, partial=True)
 
 
+def normalize_own(value: Any) -> dict[str, Any]:
+    """A user's own override (/me/prefs). The palette is chosen ONLY by the installation's system administrator (owner decision
+    2026-10-02), so a `palette` in a personal override is validated like any dial and then dropped: it never overrides anything."""
+    out = normalize_partial(value)
+    out.pop("palette", None)
+    return out
+
+
 def stored(raw: Any) -> dict[str, Any]:
     """The stored installation default as an object. A stored value from an older release that lacks a dial that was added
     later keeps the dials it has and takes the default for the rest; a corrupt or foreign value reads as the defaults."""

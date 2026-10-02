@@ -37,7 +37,7 @@ VALIDATORS: dict[str, Callable[[Any], Any]] = {"nav.order": normalize_nav_order,
 DEFAULTS: dict[str, Any] = {"nav.order": list(NAV_TAB_IDS), "ui.nav_size": dict(nav_size.DEFAULT)}
 # `ui.look` (Bubble foundation, owner 2026-10-02): the user's own look dials - a PARTIAL object, only the dials they set; each
 # follows the installation's `ui.look` otherwise (services/look.py). No stored value (null) = follow it entirely. Presentation only.
-VALIDATORS["ui.look"] = look.normalize_partial
+VALIDATORS["ui.look"] = look.normalize_own  # every dial except the palette (the installation's system administrator chooses it for all)
 DEFAULTS["ui.look"] = None
 
 

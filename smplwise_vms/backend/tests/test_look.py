@@ -131,7 +131,7 @@ def test_user_override_is_partial_per_user_validated_and_clearable(settings):
     for bad in ({"density": "huge"}, {"transparency": 30}, {"scale": "100"}, {"touch": 36}, {"performance": "turbo"}, {"palette": "x"}, {"colour": "red"}, "compact", []):
         assert c.put("/api/v1/me/prefs", json={"ui.look": bad}).status_code == 422, bad
     assert c.get("/api/v1/me/prefs").json()["prefs"]["ui.look"] == {"density": "row", "touch": 32}
-    # a full object is fine too, and null = "לפי ההתקנה": the key is gone again
-    assert c.put("/api/v1/me/prefs", json={"ui.look": FULL}).json()["prefs"]["ui.look"] == FULL
+    # a full object is fine too (the palette is the installation administrator's alone, so it is dropped), and null = "לפי ההתקנה": the key is gone again
+    assert c.put("/api/v1/me/prefs", json={"ui.look": FULL}).json()["prefs"]["ui.look"] == {k: v for k, v in FULL.items() if k != "palette"}
     r = c.put("/api/v1/me/prefs", json={"ui.look": None})
     assert r.status_code == 200 and "ui.look" not in r.json()["stored"] and r.json()["prefs"]["ui.look"] is None

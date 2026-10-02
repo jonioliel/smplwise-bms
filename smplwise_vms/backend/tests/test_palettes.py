@@ -1,7 +1,8 @@
 """Release 0.1.156: the colour palettes of the Bubble skin. The ten ready palettes (data in docs/design/palettes/palettes.json, copied
 to frontend/src/design/palettes.json) must stay valid under the contrast rules; the palette dial of `ui.look` accepts default, the ten
-ids and `custom-<slug>`; a custom palette (`ui.palettes`, per installation) is stored only when it is well-formed AND passes every
-contrast pair (Hebrew refusal otherwise); the look dial and a user's override accept the new values."""
+ids and `custom-<slug>`; a custom palette (`ui.palettes`, per installation) is stored when it is well-formed (Hebrew 422 otherwise);
+low contrast is only a WARNING (owner 2026-10-02: saving is allowed); the palette is chosen by the system administrator only, so a
+user's personal override of the palette is validated and dropped."""
 from __future__ import annotations
 
 import copy
@@ -76,21 +77,24 @@ def _break(pal: dict, scheme: str, path: str, value) -> dict:
     return pal
 
 
-def test_low_contrast_text_is_refused_with_a_hebrew_message():
+def test_low_contrast_is_a_warning_not_a_refusal():
     pal = _break(custom(), "light", "textMuted", "#c8cfdc")  # light grey on light surfaces
-    with pytest.raises(ValueError) as e:
-        palettes.validate_custom(pal)
-    msg = str(e.value)
-    assert msg.startswith("ערכת הצבעים נדחתה: ניגודיות נמוכה מדי")
+    out = palettes.validate_custom(pal)  # accepted: no ValueError
+    assert out["schemes"] == pal["schemes"]
+    rows = palettes.failing_pairs(pal)
+    assert rows
+    msg = palettes.describe_failures(rows)  # the Hebrew warning the editor shows lists the worst pairs
+    assert msg.startswith("אזהרה: ניגודיות נמוכה מדי")
     assert "בהיר" in msg and "טקסט משני" in msg and ":1 (נדרש 4.5:1)" in msg
-    assert palettes.failing_pairs(pal)
 
 
-def test_low_contrast_in_the_dark_scheme_and_non_text_pairs_are_refused_too():
-    with pytest.raises(ValueError, match="כהה"):
-        palettes.validate_custom(_break(custom(), "dark", "text", "#4a4f5c"))
-    with pytest.raises(ValueError, match="נדרש 3:1"):
-        palettes.validate_custom(_break(custom(), "light", "state.danger", custom()["schemes"]["light"]["bg"]))
+def test_low_contrast_in_the_dark_scheme_and_non_text_pairs_are_accepted_with_a_warning():
+    dark = _break(custom(), "dark", "text", "#4a4f5c")
+    assert palettes.validate_custom(dark)["id"] == "custom-mine"
+    assert "כהה" in palettes.describe_failures(palettes.failing_pairs(dark))
+    light = _break(custom(), "light", "state.danger", custom()["schemes"]["light"]["bg"])
+    assert palettes.validate_custom(light)["id"] == "custom-mine"
+    assert "נדרש 3:1" in palettes.describe_failures(palettes.failing_pairs(light))
 
 
 def test_malformed_palettes_are_refused():
@@ -125,8 +129,11 @@ def test_list_rules_and_stored():
             palettes.normalize_customs(bad)
     assert palettes.stored(None) == [] and palettes.stored("not json") == [] and palettes.stored("{}") == []
     good = custom("custom-a")
-    broken = _break(custom("custom-b"), "light", "text", "#dddddd")
-    assert [p["id"] for p in palettes.stored(json.dumps([good, broken, "x"]))] == ["custom-a"]  # a palette that no longer passes is never served
+    low = _break(custom("custom-b"), "light", "text", "#dddddd")  # low contrast: kept (it was saved with a warning)
+    assert [p["id"] for p in palettes.stored(json.dumps([good, low, "x"]))] == ["custom-a", "custom-b"]
+    structural = custom("custom-c")
+    del structural["schemes"]["light"]["accent"]
+    assert [p["id"] for p in palettes.stored(json.dumps([good, structural]))] == ["custom-a"]  # a structurally invalid one is never served
 
 
 def test_settings_round_trip_refusal_audit_and_permission(settings):
@@ -142,13 +149,20 @@ def test_settings_round_trip_refusal_audit_and_permission(settings):
         full = {**look.DEFAULT, "palette": "custom-mine"}
         assert c.patch("/api/v1/settings", json={"ui.look": full}).json()["settings"]["ui.look"]["palette"] == "custom-mine"
         assert c.patch("/api/v1/settings", json={"ui.look": {**look.DEFAULT, "palette": "sunset"}}).status_code == 200
-        # a palette that fails the contrast checks is refused (422, Hebrew) and stores nothing
-        broken = _break(custom("custom-bad"), "light", "textMuted", "#c8cfdc")
+        # a palette that fails the contrast checks is ACCEPTED (warn-only, owner decision): no 422, it is stored
+        low = _break(custom("custom-low"), "light", "textMuted", "#c8cfdc")
+        r = c.patch("/api/v1/settings", json={"ui.palettes": [mine, low]})
+        assert r.status_code == 200, r.text
+        assert [p["id"] for p in r.json()["settings"]["ui.palettes"]] == ["custom-mine", "custom-low"]
+        assert [p["id"] for p in c.get("/api/v1/settings").json()["settings"]["ui.palettes"]] == ["custom-mine", "custom-low"]
+        # a structurally invalid palette is still refused (422, Hebrew) and stores nothing
+        broken = custom("custom-bad")
+        del broken["schemes"]["dark"]["accent"]
         r = c.patch("/api/v1/settings", json={"ui.palettes": [mine, broken]})
-        assert r.status_code == 422 and "ניגודיות נמוכה" in json.dumps(r.json(), ensure_ascii=False)
-        for bad in ("x", [1], [{**mine, "id": "calm-blue"}], [mine, mine]):
+        assert r.status_code == 422 and "אינה תקינה" in json.dumps(r.json(), ensure_ascii=False)
+        for bad in ("x", [1], [{**mine, "id": "calm-blue"}], [mine, mine], [_break(custom("custom-bad2"), "light", "bg", "red")]):
             assert c.patch("/api/v1/settings", json={"ui.palettes": bad}).status_code == 422, bad
-        assert [p["id"] for p in c.get("/api/v1/settings").json()["settings"]["ui.palettes"]] == ["custom-mine"]
+        assert [p["id"] for p in c.get("/api/v1/settings").json()["settings"]["ui.palettes"]] == ["custom-mine", "custom-low"]
         with app.state.db.connection() as conn:
             rows = [json.loads(r[0] or "{}") for r in conn.execute("SELECT details_json FROM audit_log WHERE action = 'settings.update' AND decision = 'allowed' ORDER BY rowid").fetchall()]
         assert any("ui.palettes" in d for d in rows)
@@ -160,14 +174,18 @@ def test_settings_round_trip_refusal_audit_and_permission(settings):
         assert c.get("/api/v1/settings", headers=as_user("dana")).json()["settings"]["ui.palettes"] == []
 
 
-def test_user_override_accepts_the_new_palette_values(settings):
+def test_user_override_of_the_palette_is_validated_and_ignored(settings):
+    """Only the installation's system administrator chooses the palette (owner 2026-10-02): a personal palette never sticks."""
     c = TestClient(create_app(settings))
     c.get("/api/v1/me")
     bind(c, settings, "dana", "viewer", "installation", "*")
     for value in ("forest", "high-contrast", "custom-mine"):
         r = c.put("/api/v1/me/prefs", json={"ui.look": {"palette": value}})
         assert r.status_code == 200, r.text
-        assert r.json()["prefs"]["ui.look"] == {"palette": value}
+        assert r.json()["prefs"]["ui.look"] == {}  # accepted, dropped
+    r = c.put("/api/v1/me/prefs", json={"ui.look": {"palette": "forest", "density": "row"}})
+    assert r.json()["prefs"]["ui.look"] == {"density": "row"}  # the other dials' personal overrides are untouched
     for bad in ("Forest", "custom-", "neon"):
         assert c.put("/api/v1/me/prefs", json={"ui.look": {"palette": bad}}).status_code == 422
-    assert c.get("/api/v1/me/prefs").json()["prefs"]["ui.look"] == {"palette": "custom-mine"}
+    assert c.get("/api/v1/me/prefs").json()["prefs"]["ui.look"] == {"density": "row"}
+    assert look.normalize_own({"palette": "sunset", "scale": 90}) == {"scale": 90}

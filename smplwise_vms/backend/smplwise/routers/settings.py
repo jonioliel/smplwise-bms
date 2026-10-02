@@ -59,7 +59,7 @@ DEFAULTS: dict[str, str] = {
     # scale, desktop touch target, palette - a JSON object (shape, lists and ranges in services/look.py), read back as an object.
     # The installation default carries every dial; a user's own partial override (/me/prefs) wins per dial.
     "ui.look": json.dumps(look.DEFAULT, separators=(",", ":")),
-    # Release 0.1.156: the custom colour palettes of the Bubble skin - a JSON list, each checked for shape and contrast (services/palettes.py)
+    # Release 0.1.156: the custom colour palettes of the Bubble skin - a JSON list, each checked for shape (services/palettes.py; low contrast is only a warning in the editor)
     # before it is stored; "[]" = none. A palette id in the look dial (custom-<slug>) points at one of them. Per installation.
     "ui.palettes": "[]",
     # UI round 1 (owner 2026-09-30): the size of the side rail / phone bottom bar - a JSON object, shape and ranges in
@@ -454,7 +454,7 @@ class SettingsPatch(BaseModel):
     ui_mobile: dict[str, Any] | None = Field(default=None, alias="ui.mobile")  # validated in full by services/mobile_options.py
     ui_nav_size: dict[str, Any] | None = Field(default=None, alias="ui.nav_size")  # validated in full by services/nav_size.py
     ui_look: dict[str, Any] | None = Field(default=None, alias="ui.look")  # validated in full by services/look.py (every dial required)
-    ui_palettes: list[dict[str, Any]] | None = Field(default=None, alias="ui.palettes")  # validated in full (shape and contrast) by services/palettes.py
+    ui_palettes: list[dict[str, Any]] | None = Field(default=None, alias="ui.palettes")  # validated in full (shape; contrast is warn-only) by services/palettes.py
     timeline_palette: dict[str, Any] | None = Field(default=None, alias="timeline.colors")  # validated in full by services/timeline_colors.py
     playback_helper_line: str | None = Field(default=None, pattern="^(all|installers|hidden)$", alias="playback.helper_line")
     playback_diagnostics: str | None = Field(default=None, pattern="^(all|installers|hidden)$", alias="playback.diagnostics")

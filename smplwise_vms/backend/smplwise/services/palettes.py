@@ -7,9 +7,13 @@ The palette DIAL is part of `ui.look` (services/look.py): `default` (the skin's 
 
 A custom palette is a closed set of colour tokens per scheme (light, dark) - the same schema as docs/design/palettes/palettes.schema.json
 and the same WCAG 2.x contrast checks as docs/design/palettes/validate_palettes.mjs and frontend/src/design/palette.ts (text 4.5:1,
-non-text 3:1, translucent layers composited over the lightest and the darkest wallpaper stop at the minimum glass opacity). A palette
-that fails is REFUSED here (422 with a Hebrew message listing the failing pairs); the frontend refuses it before sending, this is the
-authority. Pure functions, no I/O."""
+non-text 3:1, translucent layers composited over the lightest and the darkest wallpaper stop at the minimum glass opacity).
+
+Owner decision 2026-10-02: contrast is a WARNING, not a gate. A custom palette that is structurally valid but fails some contrast pair is
+ACCEPTED and stored (the editor warns, lists the worst pairs and offers an auto-fix); only a structurally invalid palette (shape, closed
+token set, colour formats, ids, limits) is refused with a 422 and a Hebrew message. `failing_pairs` / `describe_failures` stay here as the
+twin of the frontend checks (tests, tooling); they are never a reason to refuse. The dark scheme's accent is derived client-side
+(frontend/src/design/palette.ts effectiveScheme), so these checks look at the stored colours. Pure functions, no I/O."""
 from __future__ import annotations
 
 import json
@@ -298,19 +302,17 @@ def describe_failures(rows: list[dict[str, Any]], limit: int = 3) -> str:
     worst = sorted(rows, key=lambda r: r["ratio"])[:limit]
     parts = [f"{'בהיר' if r['scheme'] == 'light' else 'כהה'}: {_fg_he(r['fg'])} על {_bg_he(r['bg'])} - {r['ratio']:.2f}:1 (נדרש {r['min']:g}:1)" for r in worst]
     more = f" ועוד {len(rows) - limit}" if len(rows) > limit else ""
-    return f"ערכת הצבעים נדחתה: ניגודיות נמוכה מדי ב־{len(rows)} זוגות. " + "; ".join(parts) + more + "."
+    return f"אזהרה: ניגודיות נמוכה מדי ב־{len(rows)} זוגות. " + "; ".join(parts) + more + "."
 
 
 def validate_custom(pal: Any) -> dict[str, Any]:
-    """A custom palette in its canonical form, or ValueError with a Hebrew message (never applied, never stored)."""
+    """A custom palette in its canonical form, or ValueError with a Hebrew message when it is STRUCTURALLY invalid (never stored).
+    A palette that only fails contrast checks is accepted (warn-only, owner decision 2026-10-02)."""
     errs = schema_errors(pal)
     if errs:
         raise ValueError("ערכת הצבעים אינה תקינה: " + errs[0])
     if not CUSTOM_ID_RE.match(pal["id"]) or len(pal["id"]) > MAX_CUSTOM_ID:
         raise ValueError("מזהה ערכה מותאמת חייב להתחיל ב־custom- (אותיות קטנות, ספרות ומקפים)")
-    bad = failing_pairs(pal)
-    if bad:
-        raise ValueError(describe_failures(bad))
     out: dict[str, Any] = {"id": pal["id"], "name": {"he": pal["name"]["he"].strip(), "en": pal["name"]["en"].strip()}}
     if pal.get("character"):
         out["character"] = pal["character"]
@@ -332,7 +334,8 @@ def normalize_customs(value: Any) -> list[dict[str, Any]]:
 
 
 def stored(raw: Any) -> list[dict[str, Any]]:
-    """The stored list; a corrupt value, or a palette that no longer passes, is dropped (never served, never applied)."""
+    """The stored list; a corrupt value, or a palette that is structurally invalid, is dropped (never served, never applied).
+    A palette with low contrast is kept: it was saved with a warning."""
     try:
         data = json.loads(raw) if isinstance(raw, str) else raw
     except (ValueError, TypeError):
