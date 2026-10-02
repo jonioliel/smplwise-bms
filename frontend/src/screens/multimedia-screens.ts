@@ -22,6 +22,9 @@ import { registerScreenEdit } from '../shell/screen-edit';
 import { phoneRestricted } from '../shell/phone';
 import { bidi } from '../i18n/bidi';
 import { applyMediaGlass, mediaGlassStyles } from '../styles/media-glass';
+import { mediaTabsModeStyles } from '../styles/media-page';
+import '../components/sw-dropdown';
+import { HYBRID_MAX_ITEMS, TabsModeController } from '../shell/tabs-mode';
 import { mIcon, nameText } from '../components/media-icons';
 import {
   DEMO_FLOOR_ORDER, NO_FILTER, NO_FLOOR, STATE_FILTERS, cardOf, countsOf, editGroups, effective, filterDevices, filtersActive, filtersFromParams, filtersToParams,
@@ -73,6 +76,8 @@ export class MultimediaScreens extends LitElement {
   @state() private confirm: 'reset' | 'cancel' | null = null;
   @query('media-bulk-dialog') private bulk?: MediaBulkDialog;
 
+  /** 0.1.153: the multimedia group's presentation (tabs = the room chips, today). */
+  private tabsMode = new TabsModeController(this, 'multimedia');
   private phoneMq = window.matchMedia('(max-width: 767px)');
   private onPhone = () => (this.phone = this.phoneMq.matches);
   private offRoute: (() => void) | null = null;
@@ -89,7 +94,7 @@ export class MultimediaScreens extends LitElement {
   private loading = false;
   private homeFloorsLoaded = false;
 
-  static styles = [mediaGlassStyles, css`
+  static styles = [mediaGlassStyles, mediaTabsModeStyles, css`
     :host {
       display: block;
       position: relative;
@@ -915,6 +920,12 @@ export class MultimediaScreens extends LitElement {
     </section>`;
   }
 
+  /** 0.1.153: the room filter as one dropdown - always in dropdown mode, in hybrid only for a list longer than three. */
+  private roomsAsDropdown(items: number): boolean {
+    const m = this.tabsMode.value;
+    return m === 'dropdown' || (m === 'hybrid' && items > HYBRID_MAX_ITEMS);
+  }
+
   private header(): TemplateResult {
     const f = this.filters;
     const floors = floorsOf(this.devices, this.display());
@@ -926,7 +937,7 @@ export class MultimediaScreens extends LitElement {
     return html`<header class=${classMap({ dh: true, compact: this.compactHeader })} data-mm-header>
       <div class="dh-row">
         <h1>מסכים</h1>
-        ${tools ? html`<div class="rooms" role="group" aria-label="חדרים" @pointerdown=${this.roomsDrag}>
+        ${tools && this.roomsAsDropdown(rooms.length + 1) ? html`<div class="rooms dd" data-rooms-dropdown><sw-dropdown label="חדרים" .value=${f.area} .items=${[{ id: '', label: 'הכל' }, ...rooms.map((r) => ({ id: r.id, label: r.name }))]} @change=${(e: CustomEvent<{ id: string }>) => this.setFilters({ area: e.detail.id })}></sw-dropdown></div>` : tools ? html`<div class="rooms" role="group" aria-label="חדרים" @pointerdown=${this.roomsDrag}>
           <button type="button" class="rc" aria-pressed=${String(!f.area)} data-room="" @click=${() => this.setFilters({ area: '' })}>הכל</button>
           ${rooms.map((r) => html`<button type="button" class="rc" aria-pressed=${String(f.area === r.id)} data-room=${r.id} @click=${() => this.setFilters({ area: r.id })}>${nameText(r.name)}</button>`)}
         </div>` : html`<span class="grow"></span>`}

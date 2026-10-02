@@ -14,6 +14,7 @@ import { loadNavOrder, navOrder, onNavOrder, resetNavOrder, saveNavOrder } from 
 import { findScreenEdit, onScreenEdits, screenEdits } from './screen-edit';
 import { findScreenView, onScreenViews, screenViews } from './screen-view';
 import { loadNavSize, navCssVars, navDims, navSize, onNavSize, setInstallationNavSize, type NavDims } from './nav-size';
+import { loadTabsMode, onTabsMode, setInstallationTabsMode, tabModeOf } from './tabs-mode';
 import { listAlerts } from '../api/rules';
 import { parseDoorConfirmLink, type NotifySummary } from '../api/notifications';
 import { notifyStore } from '../components/notify-store';
@@ -76,7 +77,7 @@ import { onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
-import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaRowSection, tabStyleOf, type LegacyAccess, tabAllowed, type NavTabId } from './nav';
+import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaRowSection, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, type NavTabId } from './nav';
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { t } from '../i18n/he';
 import { can, canNav, isApi, loadSession, nvrLess, onSession, watchPermissions, type Session } from '../api/session';
@@ -153,6 +154,7 @@ export class SwApp extends LitElement {
   private railObs: ResizeObserver | null = null;
   private observedRail: HTMLElement | null = null;
   private stopTabsConfig?: () => void;
+  private stopTabsMode?: () => void;
   private stopMobileOptions?: () => void;
   private navOrderUser: string | null = null;
 
@@ -960,6 +962,37 @@ export class SwApp extends LitElement {
       :host([data-design='a']) nav.sectabs.phone sw-tabs {
         flex: 1;
       }
+      /* 0.1.153, dropdown mode: the chip keeps its natural width at the start of the row, the alarm button beside it */
+      :host([data-design='a']) .subnav[data-tabstyle='dropdown'] sw-tabs {
+        align-self: flex-start;
+      }
+      :host([data-design='a']) nav.sectabs[data-tabs-mode='dropdown'] {
+        align-items: center;
+        gap: 8px;
+      }
+      :host([data-design='a']) nav.sectabs[data-tabs-mode='dropdown'] sw-tabs {
+        flex: none;
+      }
+      nav.sectabs a.alarmpin {
+        display: inline-flex;
+        align-items: center;
+        min-block-size: 32px;
+        padding-inline: 12px;
+        border: 1px solid var(--sw-danger);
+        border-radius: 10px;
+        color: var(--sw-danger);
+        background: var(--sw-surface);
+        font-size: var(--sw-fs-sm);
+        font-weight: var(--sw-fw-semibold);
+        text-decoration: none;
+        position: relative;
+      }
+      nav.sectabs a.alarmpin::after {
+        content: '';
+        position: absolute;
+        inset-inline: -4px;
+        inset-block: -6px;
+      }
       /* the floating search / status corner sits over the first row's far end: that row keeps clear of it */
       :host([data-design='a'][data-top='tabs']) .subnav {
         padding-inline-end: 84px;
@@ -1113,6 +1146,7 @@ export class SwApp extends LitElement {
     this.stopScreenEdits = onScreenEdits(() => this.requestUpdate()); // a screen registered / dropped its edit mode
     this.stopScreenViews = onScreenViews(() => this.requestUpdate()); // a screen registered / dropped / changed its view choice
     this.stopTabsConfig = onTabsConfig(() => this.requestUpdate()); // הגדרות › כללי › לשוניות: every tab row follows at once
+    this.stopTabsMode = onTabsMode(() => this.requestUpdate()); // 0.1.153: tabs / hybrid / dropdown follows at once
     this.stopMobileOptions = onMobileOptions(() => this.requestUpdate()); // הגדרות › כללי › אפשרויות נייד: the phone guards follow at once
     this.stopSession = onSession((s) => {
       this.session = s;
@@ -1123,6 +1157,7 @@ export class SwApp extends LitElement {
         this.navOrderUser = who;
         void loadNavOrder(who, s.mode === 'api' || s.mode === 'no_access');
         void loadNavSize(who, s.mode === 'api' || s.mode === 'no_access');
+        void loadTabsMode(who, s.mode === 'api' || s.mode === 'no_access');
       }
       if (s.mode !== 'loading') {
         this.openPendingCenter();
@@ -1138,6 +1173,7 @@ export class SwApp extends LitElement {
         void productSettings().then((ps) => {
           HIDDEN_HREFS.clear();
           setInstallationNavSize(ps['ui.nav_size']); // the installation's default size of the navigation
+          setInstallationTabsMode(ps as unknown as Record<string, unknown>); // ui.tabs_mode(+_groups): tabs / hybrid / dropdown (0.1.153)
           setInstallationMobileOptions(ps['ui.mobile']); // the phone UX guards (הגדרות › כללי › אפשרויות נייד)
           applyPlaybackDisplay(ps); // the helper line and the diagnostics block of the recording screens
           applyTimelineColors(ps['timeline.colors']); // the investigation timeline's colours (הגדרות › וידאו ומדיה › צבעי ציר הזמן)
@@ -1302,6 +1338,7 @@ export class SwApp extends LitElement {
     this.railObs?.disconnect();
     this.railObs = null;
     this.stopTabsConfig?.();
+    this.stopTabsMode?.();
     this.stopMobileOptions?.();
     this.phoneMq.removeEventListener('change', this.onPhoneMq);
     window.removeEventListener('popstate', this.onPopState);
@@ -2039,6 +2076,8 @@ export class SwApp extends LitElement {
     // 0.1.148: the look of this row (pill / underline / compact underline) is the installation's choice per hierarchy level,
     // overridable per section (הגדרות › כללי › לשוניות) - one helper for every row (nav.ts tabStyleOf)
     const rowStyle = tabStyleOf(areaRowSection(area, section));
+    // 0.1.153: tabs (default) / hybrid / dropdown for this area's group (הגדרות › כללי › לשוניות; phone only, tabModeOf)
+    const rowMode = this.rowModeProps(area, rowStyle);
     return html`
       <nav class="rail" aria-label="ניווט ראשי">
         <span class="brand-tile" aria-hidden="true"><span>S</span></span>
@@ -2055,7 +2094,7 @@ export class SwApp extends LitElement {
       <main>
         ${this.renderSetupHint()}
         ${this.renderGate() || html`
-          ${showSections && this.phone ? this.renderSections(section, true) : nothing}<div class="subnav" data-tabstyle=${rowStyle}>${showSections && !this.phone ? this.renderSections(section) : nothing}${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeAreaTab(this.route)} .variant=${rowStyle} data-area-tabs></sw-tabs>` : nothing}</div>
+          ${showSections && this.phone ? this.renderSections(section, true) : nothing}<div class="subnav" data-tabstyle=${rowMode.variant === 'dropdown' ? 'dropdown' : rowStyle}>${showSections && !this.phone ? this.renderSections(section) : nothing}${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeAreaTab(this.route)} .variant=${rowMode.variant} ?adaptive=${rowMode.adaptive} group-label=${rowMode.variant === 'dropdown' || rowMode.adaptive ? rowMode.label : nothing} data-area-tabs></sw-tabs>` : nothing}</div>
           <div class="screen">${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}
       </main>
       <nav class="bottom" aria-label="ניווט ראשי">
@@ -2066,6 +2105,13 @@ export class SwApp extends LitElement {
     `;
   }
 
+  /** 0.1.153: the `variant` / `adaptive` a row of an area's tab group gets - the row's own style when the mode is `tabs` (nothing changes). */
+  private rowModeProps(area: ReturnType<typeof areaOf>, style: ReturnType<typeof tabStyleOf>): { variant: ReturnType<typeof tabStyleOf> | 'dropdown'; adaptive: boolean; label: string } {
+    const group = tabGroupOf(area);
+    const mode = group ? tabModeOf(group, this.phone) : 'tabs';
+    return { variant: mode === 'dropdown' ? 'dropdown' : style, adaptive: mode === 'hybrid', label: area === 'system' ? 'הגדרות' : area === 'multimedia' ? 'מולטימדיה' : 'לשוניות' };
+  }
+
   /** CR-010: the security area's sections (לייב | חקירה | אזעקה) as a segmented control - at the head of the page on a
    * wide screen (before the page's tab row; UI round 1: no top bar), and on the phone as a slim sticky row above the tab row: area (rail / bottom bar),
    * section (here), page (the tab row), each on its own level. `row` = the phone's copy inside the content. */
@@ -2073,6 +2119,11 @@ export class SwApp extends LitElement {
     const sections = visibleSections(this.session.mode === 'api', canNav);
     if (sections.length < 2) return nothing;
     const style = tabStyleOf('security');
+    if (tabModeOf('security', this.phone) === 'dropdown') {
+      // 0.1.153: the sections as one dropdown; the alarm stays one tap away as its own button while it is not the section shown
+      const alarm = sections.find((s) => s.id === 'alarm');
+      return html`<nav class=${row ? 'sectabs phone' : 'sectabs'} aria-label="אבטחה" ?data-security-sections=${!row} ?data-security-row=${row} data-tabs-mode="dropdown"><sw-tabs .items=${sections.map((s) => ({ id: s.id, label: s.label, href: s.href }))} .active=${active ?? ''} variant="dropdown" group-label="אבטחה" data-section-tabs></sw-tabs>${alarm && active !== 'alarm' ? html`<a class="alarmpin" href=${alarm.href} data-section-alarm>${alarm.label}</a>` : nothing}</nav>`;
+    }
     if (style !== 'pill') {
       // the installation chose an underline look for the sections: the same items as a tab row (sw-tabs draws it)
       return html`<nav class=${row ? 'sectabs phone' : 'sectabs'} aria-label="אבטחה" ?data-security-sections=${!row} ?data-security-row=${row}><sw-tabs .items=${sections.map((s) => ({ id: s.id, label: s.label, href: s.href }))} .active=${active ?? ''} .variant=${style} data-section-tabs></sw-tabs></nav>`;

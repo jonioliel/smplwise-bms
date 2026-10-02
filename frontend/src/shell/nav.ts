@@ -2,6 +2,7 @@ import type { IconName } from '../components/sw-icon';
 import type { TabItem } from '../components/sw-tabs';
 import type { RouteState } from '../router';
 import type { WiskeyCatalog, WiskeyLocation } from '../wiskey/embed-connector';
+import type { TabGroup } from './tabs-mode';
 import type { TabsConfig, TabsSectionConfig, TabStyle, TabStyleDefaults } from '../api/media';
 
 /** The WisKey area's tabs before (or without) a WisKey embed API handshake: the older panel's tabs. The first three are
@@ -1030,6 +1031,17 @@ export function areaRowSection(area: AreaId | null, section: SecuritySection | n
   if (area === 'security') return section ? `security.${section}` : null;
   return TAB_SECTIONS.some((s) => s.id === area) ? area : null;
 }
+
+/** 0.1.153: the tab group (shell/tabs-mode.ts) of an area's row - the unit a presentation mode (tabs / hybrid / dropdown) is set for. The
+ * main bottom navigation is not a group. */
+export function tabGroupOf(area: AreaId | null): TabGroup | null {
+  if (!area) return null;
+  if (area === 'security') return 'security';
+  if (area === 'system') return 'settings';
+  if (area === 'multimedia') return 'multimedia';
+  return 'area';
+}
+export { tabModeOf } from './tabs-mode';
 
 let ARRAY_SECTIONS: Map<readonly TabItem[], string> | null = null;
 

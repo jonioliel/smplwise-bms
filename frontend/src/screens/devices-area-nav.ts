@@ -2,9 +2,11 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-chip';
+import '../components/sw-dropdown';
 import { getDevicesTree, type DeviceCounts, type DeviceTree } from '../api/devices';
 import { navigate } from '../router';
 import { bidi } from '../i18n/bidi';
+import { HYBRID_MAX_ITEMS, TabsModeController } from '../shell/tabs-mode';
 
 /** One switcher entry: a floor or an area of the current floor, with its device count. */
 export interface NavOption {
@@ -50,6 +52,8 @@ export class DevicesAreaNav extends LitElement {
   @state() private treeError = false;
   @state() private phone = false;
   private mq: MediaQueryList | null = null;
+  /** 0.1.153: the home group's presentation (tabs = the chip row, today; hybrid / dropdown = one dropdown for a longer list). */
+  private tabsMode = new TabsModeController(this, 'home');
 
   static styles = css`
     :host {
@@ -314,6 +318,12 @@ export class DevicesAreaNav extends LitElement {
     </span>`;
   }
 
+  /** `dropdown`: always; `hybrid`: only a list longer than three areas (a short one stays chips); `tabs`: never. */
+  private asDropdown(): boolean {
+    const mode = this.tabsMode.value;
+    return mode === 'dropdown' || (mode === 'hybrid' && this.areas.length > HYBRID_MAX_ITEMS);
+  }
+
   render() {
     const floor = this.floorName || 'ללא קומה';
     const sep = html`<span class="sep" aria-hidden="true"><sw-icon name="chevron" size=${11}></sw-icon></span>`;
@@ -322,7 +332,10 @@ export class DevicesAreaNav extends LitElement {
         ${sep}${this.trigger('floor', floor, this.phone)}
         ${this.phone ? nothing : html`${sep}${this.trigger('area', this.areaName, true)}`}
       </nav>
-      ${this.phone && this.areas.length > 1
+      ${this.phone && this.areas.length > 1 && this.asDropdown()
+        ? html`<div class="areas dd" data-areas-dropdown><sw-dropdown label="אזורים בקומה" .value=${this.areaId} .items=${this.areas.map((a) => ({ id: a.area_id, label: bidi(a.name), count: a.counts.entities, href: `/devices/areas/${encodeURIComponent(a.area_id)}` }))}
+            @change=${(e: CustomEvent<{ id: string }>) => navigate(`/devices/areas/${encodeURIComponent(e.detail.id)}`)}></sw-dropdown></div>`
+        : this.phone && this.areas.length > 1
         ? html`<div class="areas" role="navigation" aria-label="אזורים בקומה">${this.areas.map(
             (a) => html`<sw-chip data-nav-option=${a.area_id} data-count=${a.counts.entities} ?selected=${a.area_id === this.areaId} .count=${a.counts.entities} @click=${() => navigate(`/devices/areas/${encodeURIComponent(a.area_id)}`)}>${bidi(a.name)}</sw-chip>`,
           )}</div>`

@@ -448,3 +448,30 @@ export const mediaPageStyles = css`
       }
     }
   `;
+
+/**
+ * 0.1.153: the room filter as a dropdown (the multimedia group's `dropdown` / `hybrid` tabs mode, shell/tabs-mode.ts): the shared
+ * `sw-dropdown` wears the glass knobs, and the row it sits in does not scroll or fade (the chip's dot and 44 px hit area stick out).
+ */
+export const mediaTabsModeStyles = css`
+    sw-dropdown {
+      --sw-dd-bg: var(--dv-surface-2);
+      --sw-dd-border: var(--dv-border);
+      --sw-dd-border-soft: var(--dv-border);
+      --sw-dd-text: var(--dv-text);
+      --sw-dd-text-3: var(--dv-text-2);
+      --sw-dd-hover: var(--dv-surface);
+      --sw-dd-active: var(--dv-surface-3);
+      --sw-dd-accent: var(--dv-accent-text);
+      --sw-dd-radius: var(--dv-radius-control);
+      --sw-dd-shadow: var(--dv-shadow-control);
+      --sw-dd-pop-bg: var(--mm-sheet-surface);
+    }
+    .rooms.dd {
+      overflow: visible;
+      -webkit-mask-image: none;
+      mask-image: none;
+      flex: 0 1 auto;
+      padding-block: 4px;
+    }
+`;
