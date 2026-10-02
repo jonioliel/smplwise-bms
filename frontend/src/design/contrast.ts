@@ -97,3 +97,23 @@ export function sheetModelOf(v: (name: string) => string): SheetModel | null {
   behind.push([255, 255, 255, 1], [10, 10, 14, 1]);
   return { sheet, overlay, texts, behind };
 }
+
+// ---- the lite tier (performance dial): translucent layers WITHOUT blur ----
+
+/** The lowest alpha a tinted layer of the lite tier is drawn at, whatever the computed floor says: lite means near-solid. */
+export const LITE_MIN_ALPHA = 0.86;
+
+/**
+ * The model of an un-blurred translucent layer (a glass pill, a floating corner pill) over live content: nothing averages what
+ * is behind it, so a single saturated or extreme pixel is the worst case, and there is no dimming overlay under it. The
+ * candidates are the sheet model's plus the pure primaries.
+ */
+export function liteLayerModel(m: SheetModel): SheetModel {
+  return { ...m, overlay: [0, 0, 0, 0], behind: [...m.behind, [255, 0, 0, 1], [0, 0, 255, 1], [0, 255, 0, 1], [255, 255, 0, 1]] };
+}
+
+/** The lowest alpha at which every text reads at `min` on an un-blurred translucent layer over every candidate behind it. */
+export const liteAlphaFloor = (m: SheetModel, min = WCAG_TEXT): number => alphaFloor(liteLayerModel(m), min);
+
+/** The alpha the lite tier draws its tinted layers at (`--sw-lite-alpha`): the computed floor, never below LITE_MIN_ALPHA. */
+export const liteAlpha = (m: SheetModel): number => Math.max(LITE_MIN_ALPHA, liteAlphaFloor(m));

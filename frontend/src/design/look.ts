@@ -16,6 +16,7 @@
  * and the components read the tokens. The bubble skin is the one that draws all of this; the other skins ignore the attributes.
  */
 import { getMyPrefs, putMyPrefs } from '../api/me-prefs';
+import { autoTier, readCaps, capsVerdict, type PerformanceMode, type Tier } from './performance';
 
 export type Density = 'wide' | 'regular' | 'compact' | 'row';
 export type Surface = 'flat' | 'glass' | 'gradient' | 'fill';
@@ -23,6 +24,7 @@ export type Popup = 'sheet' | 'centred' | 'inline';
 export type Radius = 'pill' | 'soft' | 'square';
 export type Touch = 32 | 44;
 export type Palette = 'default';
+export type Performance = PerformanceMode;
 
 export interface Look {
   density: Density;
@@ -35,6 +37,8 @@ export interface Look {
   scale: number;
   /** The minimum pointer target on a desktop, in px (touch layouts are always 44). */
   touch: Touch;
+  /** What the glass costs: `lite` = no blur on cards, pills, rows and lists (the dock, rail, tree, scrim and the open pop-up keep theirs); `auto` = this device decides (design/performance.ts). */
+  performance: Performance;
   palette: Palette;
 }
 export type LookDial = keyof Look;
@@ -94,6 +98,13 @@ export const LOOK_DIALS = {
     labelHe: { 32: '32', 44: '44' },
     hintHe: { 32: 'צפוף יותר, לעכבר', 44: 'כמו בטלפון' },
   } satisfies ChoiceDial<Touch>,
+  performance: {
+    kind: 'choice',
+    values: ['auto', 'full', 'lite'],
+    nameHe: 'ביצועים',
+    labelHe: { auto: 'אוטומטי', full: 'מלא', lite: 'קל' },
+    hintHe: { auto: 'המכשיר מחליט לפי כוחו', full: 'טשטוש זכוכית בכל השכבות', lite: 'בלי טשטוש בכרטיסים וברשימות, לטאבלט קיר ולטלפון חלש' },
+  } satisfies ChoiceDial<Performance>,
   palette: {
     kind: 'choice',
     values: ['default'],
@@ -103,9 +114,9 @@ export const LOOK_DIALS = {
   } satisfies ChoiceDial<Palette>,
 } as const;
 
-export const LOOK_DIAL_IDS = ['density', 'surface', 'popup', 'radius', 'transparency', 'scale', 'touch', 'palette'] as const satisfies readonly LookDial[];
+export const LOOK_DIAL_IDS = ['density', 'surface', 'popup', 'radius', 'transparency', 'scale', 'touch', 'performance', 'palette'] as const satisfies readonly LookDial[];
 
-export const LOOK_DEFAULT: Readonly<Look> = { density: 'regular', surface: 'fill', popup: 'sheet', radius: 'pill', transparency: 72, scale: 100, touch: 44, palette: 'default' };
+export const LOOK_DEFAULT: Readonly<Look> = { density: 'regular', surface: 'fill', popup: 'sheet', radius: 'pill', transparency: 72, scale: 100, touch: 44, performance: 'auto', palette: 'default' };
 
 /** The backend's rule for one dial: a listed value / a whole in-range number, else null. */
 export function normalizeDial<K extends LookDial>(dial: K, v: unknown): Look[K] | null {
@@ -209,12 +220,37 @@ export class LookController {
   }
 }
 
+// ---- the performance tier: the dial, resolved to what is drawn (`full` | `lite`) ----
+
+let autoResolved: Tier | null = null;
+/** `auto` re-resolved (the cache or a weak capability; starts the probe when there is neither). Called at boot and after the probe. */
+export function refreshAutoPerformance(): void {
+  const before = autoResolved;
+  autoResolved = autoTier(() => refreshAutoPerformance());
+  if (before !== autoResolved) notify();
+}
+/** The tier a dial value is drawn as: `full` / `lite` as chosen, `auto` as this device decided. */
+export function tierOf(mode: Performance): Tier {
+  if (mode !== 'auto') return mode;
+  if (autoResolved === null) autoResolved = capsVerdict(readCaps()) ? 'lite' : 'full'; // before boot: the free check only (no probe, no cache read)
+  return autoResolved;
+}
+/** The tier in force on this page. */
+export const effectivePerformance = (): Tier => tierOf(lookOf('performance'));
+
 /** The contrast floor of the sheet's alpha, set by design/contrast.ts once the skin and scheme are known (see applyLook). */
 let alphaFloor = 0;
 export function setAlphaFloor(v: number) {
   alphaFloor = Math.max(0, Math.min(1, v));
   applyLook();
 }
+/** The alpha of an un-blurred translucent layer in the lite tier (design/contrast.ts computes the floor; apply.ts sets it). */
+let liteAlpha = 0.9;
+export function setLiteAlpha(v: number) {
+  liteAlpha = Math.max(0.5, Math.min(1, v));
+  applyLook();
+}
+export const liteAlphaInForce = (): number => liteAlpha;
 /** The sheet alpha in force: the transparency dial, never below the computed contrast floor. */
 export function effectiveSheetAlpha(): number {
   return Math.max(alphaFloor, lookOf('transparency') / 100);
@@ -232,17 +268,19 @@ export function applyLook(): void {
   set('data-bubble-popup', lookOf('popup'));
   set('data-bubble-radius', lookOf('radius'));
   set('data-bubble-touch', String(lookOf('touch')));
+  set('data-bubble-performance', effectivePerformance());
   set('data-bubble-palette', lookOf('palette'));
   root.style.setProperty('--sw-sheet-alpha', effectiveSheetAlpha().toFixed(2));
   root.style.setProperty('--sw-look-scale', (lookOf('scale') / 100).toFixed(2));
   root.style.setProperty('--sw-touch-desktop', `${lookOf('touch')}px`);
+  root.style.setProperty('--sw-lite-alpha', liteAlpha.toFixed(2));
 }
 
 /** The dials as inline attributes + custom properties for a PREVIEW box (the settings card shows a draft without touching <html>). */
 export function lookAttributes(l: Look, floor = alphaFloor): { attrs: Record<string, string>; style: Record<string, string> } {
   return {
-    attrs: { 'data-bubble-density': l.density, 'data-bubble-surface': l.surface, 'data-bubble-popup': l.popup, 'data-bubble-radius': l.radius, 'data-bubble-touch': String(l.touch), 'data-bubble-palette': l.palette },
-    style: { '--sw-sheet-alpha': Math.max(floor, l.transparency / 100).toFixed(2), '--sw-look-scale': (l.scale / 100).toFixed(2), '--sw-touch-desktop': `${l.touch}px` },
+    attrs: { 'data-bubble-density': l.density, 'data-bubble-surface': l.surface, 'data-bubble-popup': l.popup, 'data-bubble-radius': l.radius, 'data-bubble-touch': String(l.touch), 'data-bubble-performance': tierOf(l.performance), 'data-bubble-palette': l.palette },
+    style: { '--sw-sheet-alpha': Math.max(floor, l.transparency / 100).toFixed(2), '--sw-look-scale': (l.scale / 100).toFixed(2), '--sw-touch-desktop': `${l.touch}px`, '--sw-lite-alpha': liteAlpha.toFixed(2) },
   };
 }
 
@@ -272,6 +310,7 @@ export function bootLook(): void {
   const cached = readCache();
   own = cached ? cached.look : {};
   query = readQuery();
+  refreshAutoPerformance(); // the cached / free verdict of `auto` at once (no flicker); the probe, when needed, runs at idle
   applyLook();
 }
 
@@ -359,6 +398,18 @@ export const RADIUS_BUNDLE: Record<Radius, Record<string, string>> = {
   square: { '--sw-r-sm': '4px', '--sw-r-md': '6px', '--sw-r-lg': '8px', '--sw-r-xl': '12px', '--sw-r-pill': '8px', '--sw-r-media': '4px' },
 };
 
+/**
+ * The lite tier (performance dial): the switches the components read as `var(--sw-perf-blur, <their own blur>)` and
+ * `var(--sw-perf-glass-bg, <their own translucent fill>)`. In `full` both are `initial` (tokens.ts), so the component's own value
+ * applies; in `lite` the blur is `none` and the glass fill is the sheet colour at the contrast-computed lite alpha (a tinted, near
+ * solid fill: contrast.ts liteAlphaFloor). Not overridden in lite: the dock, rail, tree (`--sw-glass-blur-nav`), the sheet scrim
+ * (`--sw-backdrop-blur`) and the open pop-up (`--sw-glass-blur-sheet`).
+ */
+export const PERFORMANCE_BUNDLE: Record<Tier, Record<string, string>> = {
+  full: { '--sw-perf-blur': 'initial', '--sw-perf-glass-bg': 'initial' }, // resets what an enclosing lite page set (the settings preview shows both)
+  lite: { '--sw-perf-blur': 'none', '--sw-perf-glass-bg': 'rgba(var(--sw-sheet-rgb), var(--sw-lite-alpha))' },
+};
+
 /** The CSS of the dial bundles: `[data-bubble-density="compact"]{...}` for the bubble skin only (the attribute may sit on any element). */
 export function lookBundlesCss(skinSelector = ':root[data-skin="bubble"]'): string {
   let css = '';
@@ -373,5 +424,6 @@ export function lookBundlesCss(skinSelector = ':root[data-skin="bubble"]'): stri
   };
   emit('data-bubble-density', DENSITY_BUNDLE);
   emit('data-bubble-radius', RADIUS_BUNDLE);
+  emit('data-bubble-performance', PERFORMANCE_BUNDLE);
   return css;
 }
