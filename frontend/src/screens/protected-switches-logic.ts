@@ -45,7 +45,7 @@ export interface ProtectedCategory {
 
 export type ProtectAction = 'protect' | 'unprotect' | 'approve';
 export type StatusFilter = '' | 'protected' | 'pending' | 'unprotected';
-export type RowStatus = 'alarm' | 'doors' | 'media' | 'pending' | 'protected' | 'unprotected';
+export type RowStatus = 'alarm' | 'doors' | 'media' | 'pending' | 'protected' | 'unprotected' | 'unclassified';
 
 /** Rows the server never lets a group action reach whatever the mark: protect / unprotect would be refused, so they are not selectable. */
 export const readOnly = (r: ProtectedSwitchRow): boolean => r.alarm_managed || r.doors_layer || !!r.media_managed;
@@ -57,6 +57,7 @@ export function statusOf(r: ProtectedSwitchRow): RowStatus {
   if (r.doors_layer) return 'doors';
   if (r.media_managed) return 'media';
   if (isPending(r)) return 'pending';
+  if (!r.protected && r.reason === 'unclassified') return 'unclassified'; // a new switch the classifier has not judged yet: left out of group actions until it is
   return r.protected ? 'protected' : 'unprotected';
 }
 
@@ -67,6 +68,7 @@ export const STATUS_TEXT: Record<RowStatus, string> = {
   pending: 'מוגן · ממתין לבדיקה',
   protected: 'מוגן',
   unprotected: 'לא מוגן',
+  unclassified: 'טרם נבדק',
 };
 
 export interface Filters {

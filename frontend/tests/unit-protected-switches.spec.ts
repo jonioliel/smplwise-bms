@@ -35,6 +35,11 @@ test.describe('protected switches: status and read-only rows', () => {
   test('alarm-managed, door-layer and multimedia rows are read-only; the rest are not', () => {
     expect(ROWS.map(readOnly)).toEqual([false, false, false, false, true, true, true]);
   });
+  test('a switch the classifier has not judged yet is its own status, still counted as unprotected by the filter', () => {
+    const r = row('new', { reason: 'unclassified', included: false });
+    expect(statusOf(r)).toBe('unclassified');
+    expect(applyFilters([r], { ...NO_FILTERS, status: 'unprotected' })).toHaveLength(1);
+  });
   test('an auto row that was reviewed is a plain protected row', () => {
     expect(statusOf(auto('x', 'network', { reviewed: true }))).toBe('protected');
   });
