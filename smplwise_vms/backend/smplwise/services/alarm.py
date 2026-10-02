@@ -558,7 +558,7 @@ def _managed_fingerprint(conn: sqlite3.Connection) -> tuple[str, str] | None:
 def managed_controls(conn: sqlite3.Connection, disc: dict[str, Any] | None = None) -> set[str]:
     """Every entity the alarm section owns and no other path may operate: each panel, each bypass control discover()
     pairs with a zone, each unpaired bypass-like control of a panel's integration, and each override target. The
-    general entity route, the bulk actions and the bulk-safe mark refuse them (routers/ha.py, device_bulk.py): bypassing a
+    general entity route, the bulk actions and the switch-protection routes (CR-019: protection not applicable) refuse them (routers/ha.py, device_bulk.py): bypassing a
     zone or arming / disarming a panel goes through routers/alarm.py only - alarm.* permissions, the code policy, the
     lockout, the remote settings, the confirmation and the alarm.* audit rows. Cached per database while its discovery
     inputs are unchanged (review L9, above); a caller-supplied `disc` is always used as given, never cached. Always a

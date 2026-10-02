@@ -403,7 +403,7 @@ def normalize_tabs(value: Any) -> dict[str, Any]:
 
 class SettingsPatch(BaseModel):
     media_transport_default: str | None = Field(default=None, pattern="^(auto|webrtc|mse)$", alias="media.transport_default")
-    media_max_live_sessions: int | None = Field(default=None, ge=1, le=32, alias="media.max_live_sessions")
+    media_max_live_sessions: int | None = Field(default=None, ge=1, le=128, alias="media.max_live_sessions")
     media_wall_profile: str | None = Field(default=None, pattern="^(sub|main)$", alias="media.wall_profile")
     media_video_notices: str | None = Field(default=None, pattern="^(true|false)$", alias="media.video_notices")
     snapshots_max_age_s: int | None = Field(default=None, ge=5, le=3600, alias="snapshots.max_age_s")
@@ -493,7 +493,7 @@ class SettingsPatch(BaseModel):
     remote_wall_profile: str | None = Field(default=None, pattern="^(main|sub)$", alias="remote.wall_profile")
     remote_mse_fallback: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.mse_fallback")
     remote_require_mfa_admin: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.require_mfa_admin")
-    remote_max_live_streams: int | None = Field(default=None, ge=1, le=32, alias="remote.max_live_streams")
+    remote_max_live_streams: int | None = Field(default=None, ge=1, le=128, alias="remote.max_live_streams")
     remote_csp_enforce: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.csp_enforce")
     alarm_remote_control: str | None = Field(default=None, pattern="^(true|false)$", alias="alarm.remote_control")
     alarm_remote_disarm: str | None = Field(default=None, pattern="^(true|false)$", alias="alarm.remote_disarm")
@@ -530,8 +530,16 @@ class SettingsPatch(BaseModel):
 def _capacity_info(conn: sqlite3.Connection) -> dict[str, Any]:
     """`nvr_channels` (None = unknown) and `warnings` ([{key, message}]): advisory only, a warning never blocks a save."""
     channels = nvr_capacity.recorder_channels(conn)
-    text = nvr_capacity.playback_sessions_warning(int(get_setting(conn, "playback.max_sessions", DEFAULTS["playback.max_sessions"]) or DEFAULTS["playback.max_sessions"]), channels)
-    return {"nvr_channels": channels, "warnings": [{"key": "playback.max_sessions", "message": text}] if text else []}
+    warnings = []
+    for key, fn in (
+        ("playback.max_sessions", nvr_capacity.playback_sessions_warning),
+        ("media.max_live_sessions", nvr_capacity.live_sessions_warning),
+        ("remote.max_live_streams", nvr_capacity.remote_live_streams_warning),
+    ):
+        text = fn(int(get_setting(conn, key, DEFAULTS[key]) or DEFAULTS[key]), channels)
+        if text:
+            warnings.append({"key": key, "message": text})
+    return {"nvr_channels": channels, "warnings": warnings}
 
 
 @router.get("/settings")

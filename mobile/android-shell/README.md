@@ -62,6 +62,9 @@ future iOS app is again a thin `WKWebView` shell around the same site.
   inside the app).
 - Back at the site's first screen opens a small sheet "יציאה / שרתים".
 - Long press on the app icon: shortcut "שרתים".
+- Two fingers swipe up inside the site opens the server list (like the Home Assistant app). Setting "מחווה לרשימת השרתים"
+  on the server list: off / anywhere (default) / from the bottom quarter only. Never consumes the touch (page scroll and
+  zoom are unaffected); needs >= 120 dp of vertical travel within 0.7 s, no pinch (the distance between the fingers may change by at most 25 % at any moment of the touch), no third finger; ignored while locked.
 - After the first server opens, a one-time hint: "להחלפת שרת: התפריט של המשתמש › החלף שרת".
 
 ### The site (`WebActivity`)

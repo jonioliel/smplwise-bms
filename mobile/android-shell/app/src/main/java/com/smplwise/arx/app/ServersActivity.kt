@@ -87,6 +87,7 @@ class ServersActivity : LockedActivity() {
         }
         findViewById<TextView>(R.id.version).text = getString(R.string.version_line, BuildConfig.VERSION_NAME)
         setupLockSettings()
+        setupGestureSetting()
         render()
         if (savedInstanceState == null) {
             if (offer != null || replace != null) showPending()
@@ -262,6 +263,29 @@ class ServersActivity : LockedActivity() {
     }
 
     // ---- app lock ------------------------------------------------------------------------------------------------------
+
+    private fun setupGestureSetting() {
+        val button = findViewById<Button>(R.id.gestureMode)
+        val modes = ServersGesture.Mode.values()
+        fun label(m: ServersGesture.Mode) = getString(when (m) {
+            ServersGesture.Mode.OFF -> R.string.gesture_off
+            ServersGesture.Mode.ANYWHERE -> R.string.gesture_anywhere
+            ServersGesture.Mode.EDGE -> R.string.gesture_edge
+        })
+        fun refresh() { button.text = label(store.serversGesture) }
+        button.setOnClickListener {
+            track(MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.gesture_title)
+                .setSingleChoiceItems(modes.map { label(it) }.toTypedArray(), modes.indexOf(store.serversGesture)) { d, which ->
+                    store.serversGesture = modes[which]
+                    d.dismiss()
+                    refresh()
+                }
+                .setNegativeButton(R.string.cancel, null)
+                .show())
+        }
+        refresh()
+    }
 
     private fun setupLockSettings() {
         val toggle = findViewById<MaterialSwitch>(R.id.lockSwitch)
