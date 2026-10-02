@@ -28,7 +28,8 @@ log = logging.getLogger("smplwise.media")
 
 PERM_READ, PERM_CONTROL, PERM_POWER, PERM_PUBLIC, PERM_BULK, PERM_LAYOUT = "media.read", "media.control", "media.power", "media.public", "media.bulk", "media.layout"
 PERM_GROUP = "media.group"  # CR-016: join / leave, group volume, saved groups (needs media.control at every member's anchor too)
-ALL_PERMS = (PERM_READ, PERM_CONTROL, PERM_POWER, PERM_PUBLIC, PERM_BULK, PERM_LAYOUT, PERM_GROUP)
+PERM_QUEUE, PERM_BROWSE = "media.queue", "media.browse"  # CR-016 phase 2b: queue edits (default deny), the library tab (browse + search)
+ALL_PERMS = (PERM_READ, PERM_CONTROL, PERM_POWER, PERM_PUBLIC, PERM_BULK, PERM_LAYOUT, PERM_GROUP, PERM_QUEUE, PERM_BROWSE)
 CONFIGURE = "system.configure"
 TOMBSTONE_DAYS = 30
 BRIDGE_REQUIRED = "0.4.0"
@@ -688,6 +689,12 @@ def device_item(cat: Catalog, item: Item, access: Access) -> dict[str, Any]:
         # ("קיבוץ לא תואם") or an unavailable grouping endpoint never
         out["can"]["group"] = access.has(PERM_GROUP, anchor) and access.has(PERM_CONTROL, anchor) and item.row["kind"] in ("speaker", "player", "receiver") \
             and bool(out["caps"]["group"]) and not cat.group_info(item.key)["conflict"]
+        # CR-016 phase 2b: the full queue (the direct Music Assistant connection), the library tab (browse through the bridge, search through the direct connection)
+        from . import media_queue  # lazy: media_queue imports this module
+
+        out["caps"].update(media_queue.caps_extra(access.conn, cat, item, out["caps"]))
+        out["can"]["queue"] = access.has(PERM_QUEUE, anchor) and access.has(PERM_CONTROL, anchor) and out["caps"]["queue_list"]
+        out["can"]["browse"] = access.has(PERM_BROWSE, anchor) and out["caps"]["browse"]
         out["volume_max"] = item.row.get("volume_max")
         out["volume_night"] = night_window(item.row)
         out["music_provider"] = mm.music_provider_of(item.model, cat.ents)
@@ -818,7 +825,8 @@ def status(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
     body: dict[str, Any] = {
         "enabled": enabled(conn), "bridge": bridge_state(conn),
         "can": {"read": PERM_READ in held, "control": PERM_CONTROL in held, "power": PERM_POWER in held, "public": PERM_PUBLIC in held, "bulk": PERM_BULK in held,
-                "layout": PERM_LAYOUT in held, "group": PERM_GROUP in held, "configure": configure, "personalize": "screen.personalize" in held},
+                "layout": PERM_LAYOUT in held, "group": PERM_GROUP in held, "queue": PERM_QUEUE in held, "browse": PERM_BROWSE in held, "configure": configure,
+                "personalize": "screen.personalize" in held},
         "profiles_version": profiles.PROFILES_VERSION,
     }
     screens = on = players = playing = groups = unplaced = 0
@@ -846,6 +854,9 @@ def status(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
                       "suggestions": len(suggestion_rows(conn)) if configure else None}
     body["floors"] = conn.execute("SELECT 1 FROM ha_floors LIMIT 1").fetchone() is not None
     body["library"] = library_status(conn)
+    from . import ma_direct  # CR-016 phase 2b: the direct connection's state only (the address never leaves the administration)
+
+    body["direct"] = {"state": ma_direct.state(conn)}
     return body
 
 

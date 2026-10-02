@@ -44,7 +44,9 @@
         "media.read",
         "media.control",
         "media.power",
-        "media.group"
+        "media.group",
+        "media.browse",
+        "media.queue"
       ]
     },
     {
@@ -101,13 +103,20 @@
         "rbac.assign",
         "schedule.view",
         "schedule.manage",
+        "automation.manage",
+        "scene.manage",
+        "script.run",
+        "script.manage",
+        "automation.code_view",
         "media.read",
         "media.control",
         "media.power",
         "media.public",
         "media.bulk",
         "media.layout",
-        "media.group"
+        "media.group",
+        "media.browse",
+        "media.queue"
       ]
     },
     {
@@ -152,6 +161,11 @@
         "schedule.view",
         "schedule.manage",
         "schedule.sensitive",
+        "automation.manage",
+        "scene.manage",
+        "script.run",
+        "script.manage",
+        "automation.code_view",
         "screen.personalize",
         "notify.manage",
         "nvr.config.write",
@@ -174,7 +188,9 @@
         "media.public",
         "media.bulk",
         "media.layout",
-        "media.group"
+        "media.group",
+        "media.browse",
+        "media.queue"
       ]
     }
   ],
@@ -196,6 +212,10 @@
     "schedule.manage",
     "schedule.sensitive",
     "notify.manage",
+    "automation.manage",
+    "scene.manage",
+    "script.manage",
+    "automation.code_view",
     "nvr.config.write",
     "nvr.config.events",
     "nvr.config.detection",

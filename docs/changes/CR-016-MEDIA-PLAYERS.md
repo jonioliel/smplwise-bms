@@ -2,7 +2,8 @@
 
 **Status:** DECISIONS ADOPTED (owner answers 2026-10-01, §0); mockup delivered for review
 (`docs/design/mockups/media/players-index.html`, evidence in `docs/evidence/media-players-mockup/`). Nothing implemented.
-Implementation starts when the owner approves the mockup. **Release:** 0.1.150 (task T099).
+Implementation starts when the owner approves the mockup. **Release:** 0.1.150 (task T099). **Phase 2b** (the direct Music
+Assistant connection: full queue and library search) is designed in §17 for 0.1.152.
 **Contract and work plan:** `docs/architecture/MEDIA_PLAYERS_API.md`. **Builds on:** CR-015
 (`docs/changes/CR-015-MEDIA-SCREENS.md`, `docs/architecture/MEDIA_API.md`, shipped in the integration branch `integ/0.1.149`;
 "CR-015 §n" below). **Research:** `docs/research/MUSIC_ASSISTANT_API_NOTES.md` ("MA notes"; §8 is the players update).
@@ -545,3 +546,130 @@ building); a live leader's transport needs control at the followers' anchors; an
 aggregate row for rooms the caller may not read; reads are rate-limited per user; every endpoint of a media device and the sibling entities of an approved
 speaker are refused on the generic action route. Decision notes: the party rule counts real floors (a house without floors only asks for four rooms or more),
 and a helper group (`virtual_group`) is a shortcut in the groups tab only after an administrator switches it on in the settings.
+
+## 17. Phase 2b: the direct Music Assistant connection (design addendum, 2026-10-02, release 0.1.152)
+
+The owner approved building phase 2b (decision 1ב, deferred on 2026-10-01, now built) so that decision 4ג - the full queue with drag /
+delete / play next and the full library with search - is delivered. This section is the binding design of phase 2b; it adds to §4 option B
+and replaces the reserved shapes of MEDIA_PLAYERS_API.md §6 where they differ (§17.7). Branch `pilot/CR016-2b-music-assistant`.
+
+### 17.1 Read-only probe of system-H (2026-10-02)
+
+`scripts/ma_probe.py` (allow-list: HA WebSocket `auth`, `get_services`, `config/entity_registry/list`, `config_entries/get`, `call_service`
+ONLY for the three Music Assistant response services that read - `get_library`, `get_queue`, `search` - and an unauthenticated `GET /info`
+on port 8095 of the HA host). Structure only: key sets, types, counts, closed enumerations. Nothing was played, changed or written.
+
+| Question | Finding |
+|---|---|
+| MA config entry | 1 entry, `loaded`; 11 enabled MA `media_player` entities; their `unique_id` (= the MA `player_id`) has two textual shapes (14 and 46 characters) |
+| `get_library` fields | `album_artists_only`, `album_type`, `config_entry_id`, `favorite`, `media_type`, `order_by`, `pagination`, **`search`**, `username`; response not optional |
+| `get_library` answer | `{items, limit, media_type, offset, order_by}`; an item is `{name, uri, media_type, version, favorite, explicit, image}` plus `artists[]` (track, album) and `album{}` (track); `image` is a URL string or null - never forwarded |
+| Favourites | **0 favourites of every type** on system-H, while every type has library items: the "מועדפים" tab of 0.1.150 is empty there; the library tab of this phase is what fills the panel |
+| `search` | answers `{artists, albums, tracks, playlists, radio, audiobooks, podcasts}` (lists) through HA as well |
+| `get_queue` | `{queue_id, active, name, items (a COUNT), shuffle_enabled, repeat_mode, current_index, elapsed_time, current_item, next_item}`; an item `{queue_item_id, name, duration, media_item, stream_title}`. Confirms: Home Assistant offers **no queue list and no queue edit** |
+| MA server (`GET /info`, `schema_version`) | **not reachable from the owner's workstation** (connect timeout on 8095): `schema_version` was NOT read. Reachability from the add-on container stays UNVERIFIED (the MA add-on runs on the host network; the add-on reaches the host through the Supervisor network) |
+
+### 17.2 Connection method (adopted)
+
+| Need | Path | Why |
+|---|---|---|
+| Full library, browse by type with paging (tracks, albums, artists, playlists, stations) | **Home Assistant** - the existing bridge read `media_query library` (bridge 0.5.0: `favorite: false`, `offset`, `limit` <= 100) | least privilege: no new secret, no second authority; works in every MA house today |
+| Library **search** | **direct MA** `music/search` (`library_only: true`, one media type, limit 50) when the direct connection is ready; without it the library has no search box | the bridge's argument set is closed and has no `search`; a bridge 0.6.0 `search` argument would remove the token from this path (owner question Q3) |
+| Full queue list; move, delete, play next, clear | **direct MA** `player_queues/*` | Home Assistant has no such service (17.1) - this is the only path that really provides queue manipulation |
+| Transport, volume, power, play an item, transfer, groups | unchanged: Home Assistant through the signed bridge as the caller | one authority for everything audible; the direct connection never starts, stops or changes the volume of anything |
+
+Transport: MA's **stateless JSON-RPC over HTTP** (`POST <url>/api`, header `Authorization: Bearer <token>`, body `{message_id, command,
+args}`), one request per read or edit, timeout 8 s. No persistent WebSocket and no MA events: the panel refetches the queue list when it opens,
+after each edit, when the now-playing title changes and every 30 s while open (the up-next cadence). Hence no reconnect loop: a failure opens a
+30 s circuit (`unreachable`) during which nothing is sent; **a write is never retried**. A transport abstraction keeps a WebSocket client a
+drop-in later. The client has a fixed command allow-list (anything else raises before a byte is sent): `players/all` (the connection test: a
+count only), `player_queues/get_active_queue`, `player_queues/items`, `player_queues/move_item`, `player_queues/delete_item`,
+`player_queues/clear`, `music/search`, plus `GET /info` (schema gate). Every player id sent is derived on the server from an **approved**
+device's MA entity (`unique_id`); a client never names a player, a queue or a queue item. The JSON-RPC endpoint and the schema number of
+release 2.10.4 are documented by MA but UNVERIFIED on the owner's server (17.1).
+
+Rejected: MA's Ingress port 8094 (it trusts Home Assistant user headers - using it would be impersonation), the MA `service` role or an
+admin token, username + password onboarding, a generic command passthrough, and an MA WebSocket with events (more moving parts than a
+refetching panel needs; reserved).
+
+### 17.3 Credentials (installer-only)
+
+- The owner creates, in Music Assistant itself, a dedicated account of role `user` restricted by a `player_filter` to the players this
+  product manages, and a long-lived token for it (MA tokens live one year without renewal). The installer pastes the server address and the
+  token in הגדרות › מולטימדיה › חיבור (`system.configure`).
+- The token is **write-only**: stored in `<data>/secrets/music_assistant_token` (mode 0600, the `notify_email` precedent), never returned
+  (the API says `token_set` and `token_set_at`), never logged, never in an audit row (`token: "set" | "cleared"` only), never in a backup.
+- The address lives in the setting `multimedia.ma_direct` (`{enabled, url, token_set_at, last_test}`), is returned only to
+  `system.configure`, is never in an operator answer, a log line or an audit row (`url_changed: true` only), and is excluded from backups
+  (`backup.SETTINGS_KEEP`). Validation: `http` / `https`, a host, an optional port; no user-info, path, query or fragment.
+- Settings warn from day 330 after `token_set_at` ("יש לחדש את האסימון").
+
+### 17.4 Permissions
+
+| Permission | Label | Allows | Default roles | Sensitive |
+|---|---|---|---|---|
+| `media.browse` (new) | עיון וחיפוש בספריית המוזיקה | the library tab (browse + search) of a device, at its anchor; starting an item stays `media.control` (`play_item`) | operator, site_admin, system_admin (the `media.group` pattern) | no |
+| `media.queue` (new) | עריכת תור הניגון | move, delete, play next, clear; needs `media.control` too; on a live leader with followers `media.queue` at every follower's anchor | **system_admin only** (default deny for every other built-in role; a custom role may add it) | no |
+
+Reading the full queue list needs `media.read` (as up next). No migration: nobody loses a capability, no custom role changes. (Next free
+migration number if one is ever needed: **0051** - 0045-0047 CR-018 on `g0/intake`, 0048 on unmerged CR-018 branches, 0049
+`pilot/switch-model`, 0050 reserved for CR-020.)
+
+### 17.5 Confirmation, limits, audit
+
+- `clear` answers 409 `confirm_required` with `{count}` until it is resent with `confirmed: true`. `move`, `next` and `delete` act at once
+  (operator screens stay clean: no dialog, the row moves or disappears).
+- **Locked rows**: the current item and the rows MA already buffered (`index <= max(current_index, index_in_buffer)`) are never moved or
+  deleted (409 `locked`) and nothing is moved into that zone. History rows before the current one are not listed.
+- An edit names an opaque `item` (24 hex, an HMAC issued by the list read to THIS user for THIS device, 10 minutes); the server re-reads the
+  queue before a move to find the row's current index (409 `queue_changed` when it is gone).
+- Rate limits: edits 2/s per device and 30/min per user; queue list reads share the up-next budget per user; search 0.5/s (burst 4) per
+  user. Over a limit: 429, dropped, never queued.
+- Writes carry `client_request_id` + `expires_at` (<= 60 s); a repeated id answers the stored result (2 minutes, in memory).
+- Audit: one `media.queue` row per edit attempt (`op`, outcome, MA error code number) - never an item name, uri or id; `media.ma_connection`
+  for every settings change and connection test.
+
+### 17.6 Failure and fallback
+
+- Not configured, switched off, `unreachable`, `unauthorized` (401/403), `schema_too_old` (`schema_version` below `MIN_SCHEMA_VERSION` = 27,
+  the lowest the documented commands need - UNVERIFIED, raised once the owner's number is known) or `error`: the device's caps `queue_list` and
+  `search` are false and the panel shows exactly the HA depth (up next = current + next + count, the library without a search box). Nothing
+  else changes; the HA path never depends on the direct connection.
+- A failed queue read is `confirmed: false` ("לא זמין"), never an empty queue. A refused edit answers `status: "refused"` with the MA error
+  code number only (no text: it may carry provider details).
+- Settings show the state (`off`, `ready`, `unreachable`, `unauthorized`, `schema_too_old`, `error`), the server and schema versions and the
+  number of players the account sees (more players than the product manages means the `player_filter` is missing - shown as a warning).
+
+### 17.7 API (as built; MEDIA_PLAYERS_API.md §6 points here)
+
+| Method | Path | Auth | Shape |
+|---|---|---|---|
+| GET | `/multimedia/devices/{key}/queue?offset=&limit=` | `media.read` + `caps.queue_list` | `{confirmed, count, index, locked_to, offset, items: [{item, index, name, artist, album, duration_s, locked}], read_at}` (a member answers with its leader's queue) |
+| POST | `/multimedia/devices/{key}/queue` | `media.queue` + `media.control` | `{op: move\|next\|delete\|clear, item?, to?, confirmed?, client_request_id, expires_at}` -> 202 `{status: accepted\|refused, op, error?}`; 409 `confirm_required` / `locked` / `queue_changed`; 503 `ma_unavailable` |
+| GET | `/multimedia/devices/{key}/browse?type=track\|album\|artist\|playlist\|radio&q=&offset=` | `media.browse` + `caps.browse` (`q` needs `caps.search`) | `{type, q, items: LibraryItem[], offset, more, read_at, provider}`; items are played with the existing `play_item` (`enqueue` play / next / add) |
+| GET / PUT | `/multimedia/admin/ma-connection` | `system.configure` | `{enabled, url, token_set, token_set_at, token_expiring, state, last_test}`; PUT `{enabled?, url?, token?, clear_token?}` |
+| POST | `/multimedia/admin/ma-connection/test` | `system.configure` | `{state, server_version, schema_version, players}` |
+
+`MediaCaps` += `queue_list`, `browse`, `search`; `MediaCan` += `queue`, `browse`; `GET status` `library` += `direct: {state}` (state only;
+the address never). Commands `queue_move` / `queue_delete` / `queue_clear` reserved in §4.4 became the `op`s of one queue route because
+they have a different authority (the direct connection) and permission (`media.queue`) than the bridge commands.
+
+### 17.8 UI
+
+- Player panel, "הבא בתור": with `caps.queue_list` it becomes the full list (current row first, locked rows without handles); each row
+  has a drag handle (pointer drag; keyboard: the row's "הזז למעלה / למטה" buttons), "נגן הבא" and delete; "נקה תור" asks once ("לנקות
+  N שירים מהתור?"). Without `can.queue` the list is read-only. Without `caps.queue_list` the 0.1.150 block is unchanged.
+- Library: a fourth tab "ספרייה" (with `caps.browse` and `can.browse`) with type chips "שירים · אלבומים · אמנים · פלייליסטים · תחנות",
+  "עוד" paging and, with `caps.search`, a search field (400 ms debounce). A tap plays; the row offers "נגן הבא" and "הוסף לתור".
+- Settings › מולטימדיה › חיבור: the HA line of 0.1.150, then "חיבור ישיר ל־Music Assistant": switch, address, token (write-only, "הוגדר
+  ב־<date>" / "החלף" / "מחק"), "בדוק חיבור" with the state line. Technical names stay in settings only; operator screens show neither
+  Home Assistant nor Music Assistant (no hints, no badges).
+
+### 17.9 Open owner questions (safest default taken)
+
+- Q1 (credentials model): a dedicated MA `user` account + `player_filter` + a token pasted by the installer (adopted) vs. reusing an
+  existing MA account. Default: dedicated account; the settings warn when the account sees more players than the product manages.
+- Q2 (`media.queue` default): system_admin only (adopted) vs. also operator / site_admin.
+- Q3 (search without a token): add a `search` argument to the bridge's `media_query library` (bridge 0.6.0) so search works through Home
+  Assistant without the direct connection - recommended for 0.1.153.
+- Q4 (network): confirm the MA server port is reachable from the add-on container (the workstation could not reach it, 17.1).

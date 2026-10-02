@@ -89,7 +89,7 @@ def test_screens_keep_their_cr015_shape_and_players_carry_the_extended_fields(ma
         assert set(d) == AUDIO_KEYS, d["name"]
         assert set(d["live"]) == {"power", "play", "confirmed", "since", "now", "volume", "sound_output", "shuffle", "repeat", "group", "queue", "caps_known"}
         assert set(d["live"]["now"]) == {"kind", "label", "app_id", "source_id", "title", "channel", "position_s", "duration_s", "position_at", "artwork", "glyph", "hue", "artist", "album"}
-        assert set(d["can"]) == {"control", "power", "public_ok", "bulk", "group"} and d["volume_max"] is None and d["volume_night"] is None, "no default ceiling (decision 7ב)"
+        assert set(d["can"]) == {"control", "power", "public_ok", "bulk", "group", "queue", "browse"} and d["volume_max"] is None and d["volume_night"] is None, "no default ceiling (decision 7ב)"
         assert set(d["caps"]) >= {"shuffle", "repeat", "group", "volume_group", "up_next", "favourites", "stations", "playlists", "transfer"}
     blob = json.dumps(devices(c) + devices(c, "kind=screen"), ensure_ascii=False)
     assert not [p for p in PRIVATE if p in blob], "no entity id, identifier, MA uri or endpoint id in any list"
@@ -345,7 +345,7 @@ def test_a_custom_role_may_hold_media_group_without_naming_it_sensitive(ma):
     d = by_name(devices(c, headers=as_user("gil")))["רמקול סלון"]
     assert d["can"]["group"] is True and d["can"]["control"] is True
     bind(c, settings, "vera", "viewer", "installation", "*")
-    assert by_name(devices(c, headers=as_user("vera")))["רמקול סלון"]["can"] == {"control": False, "power": False, "public_ok": True, "bulk": False, "group": False}
+    assert by_name(devices(c, headers=as_user("vera")))["רמקול סלון"]["can"] == {"control": False, "power": False, "public_ok": True, "bulk": False, "group": False, "queue": False, "browse": False}
 
 
 def test_can_group_is_false_where_the_device_cannot_join(ma):
@@ -425,7 +425,7 @@ def test_migration_0044_applies_on_a_database_of_the_previous_release_and_keeps_
         conn.execute("INSERT INTO media_device_endpoints(endpoint_id, source, ref, device_key, role, platform, rule, link_source, hidden, updated_at) VALUES ('ha:media_player.x', 'ha', 'media_player.x', 'k1', 'vendor', 'sonos', 'single', 'auto', 0, ?)", (now,))
         conn.execute("INSERT INTO device_bulk_actions(id, scope, scope_id, kind, principal_user_id, client_request_id, entity_count, status, requested_at, not_after) VALUES ('b1', 'floor', 'f', 'screens_off', 'u', 'r', 1, 'done', ?, ?)", (now, now))
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
-    assert database.migrate() == [44, 45, 46, 47], "0044 is the one under test; 0045-0047 (CR-018) follow it in the real set"
+    assert database.migrate() == [44, 45, 46, 47, 48], "0044 is the one under test; 0045-0047 (CR-018) and 0048 (CR-017) follow it in the real set"
     with database.connection() as conn:
         row = dict(conn.execute("SELECT * FROM media_devices WHERE device_key = 'k1'").fetchone())
         assert (row["kind"], row["approved"], row["volume_max"], row["volume_night_json"], row["music_provider"], row["zones_json"]) == ("speaker", 1, 30, None, "none", None), "rows kept, ceilings stay NULL by default"

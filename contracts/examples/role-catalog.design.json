@@ -35,7 +35,9 @@
         "media.read",
         "media.control",
         "media.power",
-        "media.group"
+        "media.group",
+        "media.browse",
+        "media.queue"
       ]
     },
     {
@@ -89,13 +91,20 @@
         "ha.entity.control",
         "schedule.view",
         "schedule.manage",
+        "automation.manage",
+        "scene.manage",
+        "script.run",
+        "script.manage",
+        "automation.code_view",
         "media.read",
         "media.control",
         "media.power",
         "media.public",
         "media.bulk",
         "media.layout",
-        "media.group"
+        "media.group",
+        "media.browse",
+        "media.queue"
       ]
     },
     {
@@ -138,6 +147,11 @@
         "schedule.view",
         "schedule.manage",
         "schedule.sensitive",
+        "automation.manage",
+        "scene.manage",
+        "script.run",
+        "script.manage",
+        "automation.code_view",
         "screen.personalize",
         "notify.manage",
         "media.read",
@@ -146,7 +160,9 @@
         "media.public",
         "media.bulk",
         "media.layout",
-        "media.group"
+        "media.group",
+        "media.browse",
+        "media.queue"
       ]
     }
   ],
@@ -167,6 +183,10 @@
     "schedule.manage",
     "schedule.sensitive",
     "notify.manage",
+    "automation.manage",
+    "scene.manage",
+    "script.manage",
+    "automation.code_view",
     "nvr.config.write"
   ],
   "evaluation": "Evaluate each action+scope binding together. Default deny. Apply explicit denies, actor status, scope membership, revision and HA permission intersection. No HA account mutations."

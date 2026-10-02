@@ -95,6 +95,17 @@ PERMISSION_LABELS: dict[str, str] = {
     "schedule.view": "צפייה בתזמונים",
     "schedule.manage": "ניהול תזמונים: יצירה, עריכה, הפעלה והשבתה, הרצה מיידית, מחיקה ושחזור",
     "schedule.sensitive": "תזמון פעולות רגישות: אזעקה, מנעולים, דלתות ושערים",
+    # CR-017 (אוטומציות · סצנות · סקריפטים, owner decisions 2026-10-01): six permissions, all scoped like devices.control - by the placement of the
+    # item's TARGET entities (HA areas and floors are never a scope). there is NO view-only permission (owner decision 2026-10-01): who may not edit and save automations does not see them at all (at most they activate scenes and run scripts they may);
+    # automation.manage creates / edits / enables / disables / runs / deletes automations, scene.manage the scenes (capture, edit), script.manage the
+    # scripts (all SENSITIVE: a custom role names them among its sensitive permissions); script.run runs scripts (not sensitive); automation.code_view is
+    # the second side of the editor's "builder / code" toggle (SENSITIVE). A step that arms, disarms, unlocks, locks, sounds a siren or moves a door needs the
+    # same grant manual control needs at that entity (owner decision 6ג) - there is no separate "sensitive content" permission.
+    "automation.manage": "יצירה, עריכה, הפעלה/השבתה, הרצה ומחיקה של אוטומציות",
+    "scene.manage": "יצירה, צילום ועריכה של סצנות",
+    "script.run": "הפעלת סקריפטים",
+    "script.manage": "יצירה ועריכה של סקריפטים",
+    "automation.code_view": "תצוגת קוד בעורך (הצד השני של המתג \"בונה · קוד\")",
     # screen.personalize (home redesign, owner decision 2026-09-30): the home screen's PERSONAL override - a direction of
     # its own and the user's own widget on / off / size / order (frontend החשבון שלי › המסך שלי, /me/prefs `home.personal`).
     # Presentation only, so it is not sensitive and is never implied by another permission; held by no default role except
@@ -123,6 +134,11 @@ PERMISSION_LABELS: dict[str, str] = {
     # needs media.control at EVERY member's anchor; a group of four rooms or more, or one that spans more than one floor, needs a confirmation, and a
     # group over the whole building needs media.bulk as well. Not sensitive. Saving a group (the presets) is media.layout.
     "media.group": "קיבוץ רמקולים וקבוצות שמורות",
+    # CR-016 phase 2b (the direct Music Assistant connection, CR 17.4): media.browse (operator and above, the media.group pattern) opens the library tab of a
+    # player - browse and search; starting an item stays media.control. media.queue (system_admin only: default deny for every other built-in role) moves,
+    # deletes, plays next and clears queue rows - with media.control, and at every follower's anchor when the queue is a live leader's. Neither is sensitive.
+    "media.browse": "עיון וחיפוש בספריית המוזיקה",
+    "media.queue": "עריכת תור הניגון",
     "nvr.config.write": "כתיבה להגדרות ה־NVR",
     "nvr.config.events": "NVR: הפעלת התראות (Notify Surveillance Center) ולוחות זימון",
     "nvr.config.detection": "NVR: עריכת אזורי זיהוי תנועה ורגישות",

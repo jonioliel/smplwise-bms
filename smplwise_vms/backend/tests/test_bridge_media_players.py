@@ -139,14 +139,16 @@ def test_the_new_services_and_arguments_equal_the_add_ons_actions():
 
 def test_version_manifest_services_yaml_and_mirror_agree():
     manifest = json.loads((SRC / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == const.VERSION == "0.5.0" == (json.loads((MIRROR / "manifest.json").read_text(encoding="utf-8")))["version"]
+    assert manifest["version"] == const.VERSION == "0.6.0" == (json.loads((MIRROR / "manifest.json").read_text(encoding="utf-8")))["version"]
     assert const.SERVICE_MEDIA_QUERY == "media_query"
     assert "media_query:" in (SRC / "services.yaml").read_text(encoding="utf-8")
     for name in ("media_policy.py", "media_query_service.py", "__init__.py", "const.py", "services.yaml", "manifest.json"):
         assert (SRC / name).read_bytes() == (MIRROR / name).read_bytes(), name
     from smplwise.services import media_store
 
-    assert media_store.BRIDGE_PLAYERS_REQUIRED == const.VERSION
+    # the bridge version that introduced the players layer is a MINIMUM: a later bridge (0.6.0, CR-017) still satisfies it
+    as_tuple = lambda v: tuple(int(x) for x in v.split("."))  # noqa: E731
+    assert as_tuple(media_store.BRIDGE_PLAYERS_REQUIRED) <= as_tuple(const.VERSION)
 
 
 # ------------------------------------------------------------------------------------------------ media_query: what may be asked

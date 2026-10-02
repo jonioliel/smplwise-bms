@@ -160,3 +160,55 @@ media_query:
 sync_directory:
   name: Sync user directory (SMPLWISE add-on only)
   description: Pushes the Home Assistant user directory (ids, names, active/admin flags, groups) to the SMPLWISE add-on now instead of waiting for the next minute.
+
+config_item:
+  name: Config item (SMPLWISE add-on only)
+  description: >-
+    Writes (upsert, delete) or runs (enable, disable, trigger, run_script, stop_script, apply_scene) ONE automation,
+    script or scene on behalf of a VMS user. Called by the SMPLWISE add-on with a signed request. A write is judged
+    again here: closed block schemas, the allowed services, no code or secret anywhere that is authored, every block
+    outside the simple builder identical to a stored one, a compare-and-set against the revision the user edited, a
+    ring of 10 backups, an atomic write, and a reload of only the changed item. Only a Home Assistant administrator may
+    write, unless the options switch "delegated authoring" is on - and then only simple-builder content. Runs use the
+    user's own context. Never calls anything else. Not meant to be called from automations.
+  fields:
+    user_id:
+      description: Home Assistant user id the operation runs as (must be active).
+      example: "12d05a26b0214c9eac77ac26f6cd652c"
+    op:
+      description: One of upsert, delete, enable, disable, trigger, run_script, stop_script, apply_scene.
+      example: upsert
+    request_id:
+      description: Add-on operation id (for the audit trail).
+      example: "a1b2c3"
+    kind:
+      description: automation, script or scene (not for apply_scene).
+      example: automation
+    item_id:
+      description: The config id of the item (a script's object id).
+      example: "1727712345678"
+    base_revision:
+      description: The revision of the item as the user edited it (null to create). The write is refused as stale when the stored item changed.
+      example: "9f2c0d1e4b7a6c35"
+    profile:
+      description: builder (simple-builder content) or code (the code view; administrators only).
+      example: builder
+    config:
+      description: The item exactly as it is to be stored (upsert). Never a code.
+    preserved:
+      description: Fingerprints of the blocks kept byte for byte; each must also be in the stored item.
+    sensitive:
+      description: True when the config calls an alarm, a lock, a siren or a door-class cover. The bridge refuses a false flag on what it can recognise.
+    variables:
+      description: Variables for trigger / run_script.
+    skip_condition:
+      description: Run the automation's actions without its conditions (trigger).
+    entity_id:
+      description: The scene entity (apply_scene).
+      example: scene.salon_evening
+    ts:
+      description: Unix timestamp of the signature.
+    nonce:
+      description: Random nonce.
+    sig:
+      description: HMAC-SHA256 signature computed by the add-on with the pairing secret.

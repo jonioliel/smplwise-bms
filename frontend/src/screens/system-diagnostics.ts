@@ -79,6 +79,7 @@ export class SystemDiagnostics extends LitElement {
   @state() private tab = 'general';
   @state() private settings: ProductSettings | null = null;
   @state() private canEdit = false;
+  @state() private nvrChannels: number | null = null;
   @state() private floorTree: Site[] = [];
   @state() private draft: Partial<ProductSettings> = {};
   @state() private streams: { name: string; online: boolean }[] | null = null;
@@ -446,6 +447,7 @@ export class SystemDiagnostics extends LitElement {
       const [r, h] = await Promise.all([getSettings(), get<{ version: string; discovery?: Record<string, unknown>; events?: never }>('health').catch(() => null)]);
       this.settings = r.settings;
       this.canEdit = r.can_edit;
+      this.nvrChannels = r.nvr_channels ?? null;
       this.draft = {};
       this.version = h?.version ?? '';
       this.health = (h as unknown as typeof this.health) ?? null;
@@ -587,6 +589,14 @@ export class SystemDiagnostics extends LitElement {
 
   private set<K extends keyof ProductSettings>(key: K, value: ProductSettings[K]) {
     this.draft = { ...this.draft, [key]: value };
+  }
+
+  /** Advisory only (never blocks the save): more playback sessions than half of the recorder's channels. Unknown capacity = no warning. */
+  private playbackWarning(): string {
+    const channels = this.nvrChannels;
+    const v = Number(this.value('playback.max_sessions') ?? 0);
+    if (!channels || !v || v * 2 <= channels) return '';
+    return `${v} סשני ניגון במקביל זה יותר ממחצית הערוצים שה־NVR בנוי להם (${channels}). זה עלול להעמיס על ה־NVR ולפגוע בהקלטה ובצפייה החיה. השמירה אפשרית.`;
   }
 
   private value<K extends keyof ProductSettings>(key: K): ProductSettings[K] | undefined {
@@ -771,7 +781,8 @@ export class SystemDiagnostics extends LitElement {
           </select></sw-field></div>
         <div class="row"><span class="lbl">מקסימום זרמים חיים במקביל<span class="muted">מגן על ה־NVR; מעבר למכסה מוצג צילום בלבד</span></span><sw-field class="ctl"><input type="number" min="1" max="32" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('media.max_live_sessions') ?? 16)} @change=${(e: Event) => this.set('media.max_live_sessions', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         <div class="row"><span class="lbl">רעננות צילום (שניות)<span class="muted">snapshot מה־NVR לאריחים; cache בשרת</span></span><sw-field class="ctl"><input type="number" min="5" max="3600" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('snapshots.max_age_s') ?? 60)} @change=${(e: Event) => this.set('snapshots.max_age_s', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
-        <div class="row"><span class="lbl">סשני ניגון במקביל<span class="muted">כל ניגון = זרם playback אחד מה־NVR דרך go2rtc</span></span><sw-field class="ctl"><input type="number" min="1" max="16" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('playback.max_sessions') ?? 4)} @change=${(e: Event) => this.set('playback.max_sessions', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        <div class="row"><span class="lbl">סשני ניגון במקביל<span class="muted">כל ניגון = זרם playback אחד מה־NVR דרך go2rtc</span></span><sw-field class="ctl"><input type="number" min="1" max="128" data-ltr data-playback-max-sessions ?disabled=${!api || !this.canEdit} .value=${String(this.value('playback.max_sessions') ?? 4)} @change=${(e: Event) => this.set('playback.max_sessions', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        ${this.playbackWarning() ? html`<div class="err" data-playback-warning style="margin-block-start:-4px">${this.playbackWarning()}</div>` : nothing}
         <div class="row"><span class="lbl">פקיעת סשן ניגון ללא פעילות (שניות)<span class="muted">אחרי הזמן הזה הזרם נמחק מ־go2rtc אוטומטית</span></span><sw-field class="ctl"><input type="number" min="60" max="3600" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('playback.lease_s') ?? 600)} @change=${(e: Event) => this.set('playback.lease_s', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         <div class="row"><span class="lbl">גודל ייצוא מקסימלי (MB)<span class="muted">לפי הנפח המשוער של קבצי ה־NVR בטווח</span></span><sw-field class="ctl"><input type="number" min="50" max="20480" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('exports.max_mb') ?? 2048)} @change=${(e: Event) => this.set('exports.max_mb', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         <div class="row"><span class="lbl">שמירת קבצי ייצוא (ימים)<span class="muted">אחרי התקופה הקבצים נמחקים מ־/data/exports</span></span><sw-field class="ctl"><input type="number" min="1" max="365" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('exports.retention_days') ?? 7)} @change=${(e: Event) => this.set('exports.retention_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>`}

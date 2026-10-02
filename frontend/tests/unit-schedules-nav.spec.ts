@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   AREA_TABS,
+  AUTOMATIONS_HREF,
   DEVICES_TABS,
   HIDDEN_HREFS,
   INSTALLATION_ONLY_HREFS,
@@ -42,12 +43,13 @@ test.afterEach(() => {
 
 test('the home area has one tab array; its hrefs and the section registry', () => {
   expect(AREA_TABS.devices).toBe(DEVICES_TABS);
-  expect(DEVICES_TABS.map((t) => t.href)).toEqual(['#/devices/building', SCHEDULES_HREF]);
-  expect(DEVICES_TABS.map((t) => t.label)).toEqual(['מבט על', 'תזמונים']);
+  // CR-017: "אוטומציות" is the third tab (its gate and setting are tested in unit-automations-list.spec.ts)
+  expect(DEVICES_TABS.map((t) => t.href)).toEqual(['#/devices/building', SCHEDULES_HREF, AUTOMATIONS_HREF]);
+  expect(DEVICES_TABS.map((t) => t.label)).toEqual(['מבט על', 'תזמונים', 'אוטומציות']);
   expect(sectionIdOf(DEVICES_TABS)).toBe('devices');
   const def = TAB_SECTIONS.find((s) => s.id === 'devices');
   expect(def?.label).toBe('ראשי');
-  expect(ids(def!.tabs())).toEqual(['building', 'schedules']);
+  expect(ids(def!.tabs())).toEqual(['building', 'schedules', 'automations']);
   expect(ids(AREA_TABS.system)).toContain('schedules');
 });
 
@@ -67,8 +69,8 @@ test('the schedules tab needs schedule.view or schedule.manage at any scope; the
   expect(settingsEntry(true, only('schedule.manage'))).toBeNull();
 });
 
-test('the static demo shows both tabs whatever the permissions', () => {
-  expect(ids(visibleTabs(DEVICES_TABS, false))).toEqual(['building', 'schedules']);
+test('the static demo shows every tab whatever the permissions', () => {
+  expect(ids(visibleTabs(DEVICES_TABS, false))).toEqual(['building', 'schedules', 'automations']);
 });
 
 test('a user without schedule rights sees one tab (so no tab row): the home screen exactly as before', () => {

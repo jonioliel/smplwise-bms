@@ -123,7 +123,7 @@ test.describe('the schedules list (demo mode)', () => {
   test('cards: the summary strip, the toolbar, one card per schedule; the home tabs', async ({ page }, info) => {
     await open(page, '/devices/schedules');
     await ready(page);
-    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'תזמונים']);
+    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'תזמונים', 'אוטומציות']); // CR-017 added the third tab
     await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('תזמונים');
     await expect(scr(page).locator('article.card')).toHaveCount(13);
     await expect(scr(page).locator('[data-kpi="active"] .big')).toContainText('10');
@@ -406,7 +406,7 @@ test.describe('the home tabs and the settings page (demo mode)', () => {
   test('"מבט על" is the home screen as it was, the first of two tabs (the layout editor\'s row rule is under "with a session")', async ({ page }, info) => {
     await open(page, '/devices/building');
     await expect(page.locator('sw-app devices-building')).toHaveCount(1);
-    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'תזמונים']);
+    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'תזמונים', 'אוטומציות']); // CR-017 added the third tab
     await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('מבט על');
     await shot(page, '20-home-overview-tab', info);
     await page.locator('sw-app .subnav sw-tabs a', { hasText: 'תזמונים' }).click();
@@ -598,8 +598,16 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
     await page.locator('sw-app devices-schedules [data-bulk-disable]').click();
     await expect.poll(() => post(/schedules\/bulk/).length).toBe(1);
     expect(post(/schedules\/bulk/)[0].body).toMatchObject({ op: 'disable', ids: ['4d6e0a'], confirm: true });
-    await page.locator('sw-app devices-schedules article[data-schedule="5a13f2"] a.name').click();
-    await page.locator('sw-app devices-schedules [data-drawer-delete]').click();
+    // the bulk result re-renders the list (selection cleared, bar gone): open the drawer only after that settles,
+    // or the refresh can swallow the click / close the drawer before the delete dialog opens
+    await expect(page.locator('sw-app devices-schedules [data-bulk-disable]')).toHaveCount(0);
+    const del = page.locator('sw-app devices-schedules [data-drawer-delete]');
+    await expect(async () => {
+      if (!(await del.isVisible())) await page.locator('sw-app devices-schedules article[data-schedule="5a13f2"] a.name').click();
+      await expect(del).toBeVisible({ timeout: 2000 });
+      await del.click();
+      await expect(page.locator('sw-app devices-schedules [data-delete-confirm]')).toBeVisible({ timeout: 2000 });
+    }).toPass({ timeout: 20_000 });
     await page.locator('sw-app devices-schedules [data-delete-confirm]').click();
     await expect.poll(() => post(/schedules\/5a13f2\/delete/).length).toBe(1);
     expect(post(/delete/)[0].body).toMatchObject({ confirm: true });

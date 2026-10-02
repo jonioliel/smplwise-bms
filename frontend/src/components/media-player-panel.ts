@@ -6,6 +6,9 @@ import './sw-drawer';
 import './sw-dialog';
 import './sw-button';
 import './media-player-volume';
+import './media-queue-list';
+import './media-library-browse';
+import type { PlayItemEvent } from './media-library-browse';
 import { ApiError } from '../api/client';
 import { isApi } from '../api/session';
 import { getAction } from '../api/ha';
@@ -13,7 +16,7 @@ import { artworkUrl } from '../api/media-screens';
 import {
   JOIN_BATCH_MS, JoinDraft, LIBRARY_TAB_LABEL, UP_NEXT_REFRESH_MS, confirmPreview, errorCode, leaderLabel, libraryTabs, nextRepeat, playerCommandOffered, playerErrorText, players, powerControlled, previewNames, sendGroupVolume, unmuteCeiling,
   sendJoin, sendLeave, sendPlayerCommand, type GroupPreview, type GroupRecord, type LibraryItem, type LibraryKind, type LibraryPage, type PlayerCommand, type PlayerDevice, type PlayerDeviceDetail,
-  type UpNext,
+  type UpNext, LIBRARY_TAB, LIBRARY_TAB_TEXT, browseOffered, fullQueueOffered,
 } from '../api/media-players';
 import { applyDevicesScheme, loadDevicesPrefs } from '../screens/devices-style';
 import { bidi } from '../i18n/bidi';
@@ -78,7 +81,8 @@ export class MediaPlayerPanel extends LitElement {
   @state() private libAbsent = false;
   @state() private lib: Partial<Record<LibraryKind, LibraryPage | 'error'>> = {};
   @state() private kindsOn: LibraryKind[] | null = null;
-  @state() private libTab: LibraryKind | null = null;
+  /** A list tab, or phase 2b's "ספרייה" (`LIBRARY_TAB`). */
+  @state() private libTab: LibraryKind | typeof LIBRARY_TAB | null = null;
   @state() private pend = new Set<string>();
   @state() private notice: string[] = [];
   @state() private shaking = false;
@@ -267,7 +271,9 @@ export class MediaPlayerPanel extends LitElement {
       }
     }
     const lead = this.devices ? leaderOf(d, this.devices) : d;
-    if (d.caps.up_next && hasNow(d.live)) {
+    if (fullQueueOffered(d)) {
+      // phase 2b: <media-queue-list> reads the full queue itself (when it opens, when the title changes, every 30 s)
+    } else if (d.caps.up_next && hasNow(d.live)) {
       const title = d.live.now.title;
       if (first || title !== this.upNextTitle || Date.now() - this.upNextAt >= UP_NEXT_REFRESH_MS) {
         this.upNextTitle = title;
@@ -286,7 +292,8 @@ export class MediaPlayerPanel extends LitElement {
       this.upNextTitle = null;
     }
     const tabs = libraryTabs(d, this.kindsOn);
-    const tab = pickTab(tabs, this.libTab);
+    if (this.libTab === LIBRARY_TAB && browseOffered(d)) return; // <media-library-browse> reads its own pages
+    const tab = pickTab(tabs, this.libTab === LIBRARY_TAB ? null : this.libTab);
     if (tab && (first || !this.lib[tab])) await this.loadLib(d.key, tab, token);
   }
 
@@ -559,6 +566,14 @@ export class MediaPlayerPanel extends LitElement {
       return;
     }
     void this.exec({ command: 'play_item', item_ref: item.item_ref }, this.detail, { itemName: item.name });
+  }
+
+  /** Phase 2b: an item of the library tab - play now, after the current one, or at the end of the queue (one `play_item`). */
+  private onBrowseItem(e: PlayItemEvent) {
+    const cmd: PlayerCommand = e.enqueue === 'play' ? { command: 'play_item', item_ref: e.item.item_ref } : { command: 'play_item', item_ref: e.item.item_ref, enqueue: e.enqueue };
+    void this.exec(cmd, this.detail, e.enqueue === 'play' ? { itemName: e.item.name } : {}, `item:${e.item.item_ref}`).then((ok) => {
+      if (ok && e.enqueue !== 'play') this.say(e.enqueue === 'next' ? 'יתנגן אחרי הנוכחי' : 'נוסף לתור', 2000);
+    });
   }
 
   private onTransfer(from: PlayerDevice) {
@@ -928,6 +943,10 @@ export class MediaPlayerPanel extends LitElement {
   }
 
   private upNextBlock(d: PlayerDeviceDetail): TemplateResult | typeof nothing {
+    if (fullQueueOffered(d) && !this.libAbsent && d.live.caps_known) {
+      // phase 2b: the full, reorderable queue in the same place (CR §17.8)
+      return html`<media-queue-list .deviceKey=${d.key} .canEdit=${!!d.can.queue && !greyed(d)} .stamp=${d.live.now.title}></media-queue-list>`;
+    }
     const v = upNextView(d, this.upNext, this.libAbsent);
     if (v.kind === 'none') return nothing;
     const head = html`<div class="psh"><h4>הבא בתור</h4>${v.kind === 'rows' && v.count ? html`<small class="n">${v.count}</small>` : nothing}</div>`;
@@ -942,13 +961,21 @@ export class MediaPlayerPanel extends LitElement {
   private libraryBlock(d: PlayerDeviceDetail): TemplateResult | typeof nothing {
     if (this.libAbsent || !d.live.caps_known) return nothing;
     const tabs = libraryTabs(d, this.kindsOn);
-    if (!tabs.length) return nothing;
-    const tab = pickTab(tabs, this.libTab) as LibraryKind;
+    const browse = browseOffered(d);
+    if (!tabs.length && !browse) return nothing;
+    const cur = d.live.now.title;
+    const inLibrary = browse && (this.libTab === LIBRARY_TAB || !tabs.length);
+    const tab = inLibrary ? null : (pickTab(tabs, this.libTab === LIBRARY_TAB ? null : this.libTab) as LibraryKind);
+    const tabRow = html`<div class="seg full sm" role="tablist" aria-label="ספרייה" data-pn-libtabs>${tabs.map((k) => html`<button type="button" role="tab" aria-selected=${String(tab === k)} data-pn-libtab=${k}
+        @click=${() => { this.libTab = k; if (!this.lib[k]) void this.loadLib(d.key, k); }}>${LIBRARY_TAB_LABEL[k]}</button>`)}
+      ${browse ? html`<button type="button" role="tab" aria-selected=${String(inLibrary)} data-pn-libtab=${LIBRARY_TAB} @click=${() => (this.libTab = LIBRARY_TAB)}>${LIBRARY_TAB_TEXT}</button>` : nothing}</div>`;
+    if (inLibrary || tab === null) {
+      return html`${tabRow}<media-library-browse .deviceKey=${d.key} .canSearch=${!!d.caps.search} .canPlay=${d.can.control && !greyed(d)} .enqueueOk=${enqueueOffered(d)}
+        .pending=${this.pend} .current=${cur} @play-item=${(e: CustomEvent<PlayItemEvent>) => this.onBrowseItem(e.detail)}></media-library-browse>`;
+    }
     const page = this.lib[tab];
     const items = page && page !== 'error' ? page.items : null;
-    const cur = d.live.now.title;
-    return html`<div class="seg full sm" role="tablist" aria-label="ספרייה" data-pn-libtabs>${tabs.map((k) => html`<button type="button" role="tab" aria-selected=${String(tab === k)} data-pn-libtab=${k}
-        @click=${() => { this.libTab = k; if (!this.lib[k]) void this.loadLib(d.key, k); }}>${LIBRARY_TAB_LABEL[k]}</button>`)}</div>
+    return html`${tabRow}
       ${items === null
         ? page === 'error'
           ? html`<div class="libempty" data-pn-lib="error">לא זמין</div>`

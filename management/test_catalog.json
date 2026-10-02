@@ -5969,5 +5969,80 @@
     "evidence": [],
     "executed_at": null,
     "notes": "Planned in CR-018 (2026-10-01)."
+  },
+  {
+    "id": "AT214",
+    "requirement_ids": [
+      "R214"
+    ],
+    "task_ids": [
+      "T102"
+    ],
+    "title": "תזמונים - מודל וכתיבה דרך הגשר",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fake scheduler component and fake bridge for automated runs; lab only for live steps"
+    ],
+    "procedure": [
+      "Backend schedule tests (test_schedules_*.py, test_bridge_schedule_*.py, test_scheduler_*.py) against the fake scheduler, plus the live phase-0 checklist (docs/operations/SCHEDULER_PHASE0_CHECKLIST_HE.md) on the lab; the write steps of the checklist only with the owner's step-by-step approval."
+    ],
+    "expected": "Schedules read model and writes (CR-014; docs/design/CR-014-scheduler.md, docs/architecture/SCHEDULER_API.md): mirror of the scheduler component's schedules through the platform, create / edit / copy / run now / enable-disable / delete with a 30-day trash and restore, only through the signed bridge schedule service; conditions (Shabbat/holiday presets), review list for schedules edited outside the product, the component's own switches hidden from ordinary devices, tiles and bulk actions; the feature is off until switched on in Settings > Schedules (schedules.enabled).",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-02 for CR-014 (shipped in 0.1.147, feature off by default); NOT_RUN until recorded against a commit."
+  },
+  {
+    "id": "AT215",
+    "requirement_ids": [
+      "R215"
+    ],
+    "task_ids": [
+      "T102"
+    ],
+    "title": "תזמונים - מסך וממשק",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fake scheduler component and fake bridge for automated runs; lab only for live steps"
+    ],
+    "procedure": [
+      "Frontend unit and evidence specs (unit-schedules-*.spec.ts, evidence-schedules-*.spec.ts) on the Vite dev server with desktop/mobile/RTL screenshots, loading/empty/error/ready."
+    ],
+    "expected": "Schedules UI (CR-014 section on screens): the Schedules tab in the home area with list as cards / table / week view, the 24-hour week grid and from-to table editors, day view, phone timeline, templates and three-tap creation, run now, review list, settings page; operator-facing copy never names Home Assistant (UI_COPY_RULES).",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-02 for CR-014 (shipped in 0.1.147, feature off by default); NOT_RUN until recorded against a commit."
+  },
+  {
+    "id": "AT216",
+    "requirement_ids": [
+      "R216"
+    ],
+    "task_ids": [
+      "T102"
+    ],
+    "title": "תזמונים - הרשאות ובטיחות",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fake scheduler component and fake bridge for automated runs; lab only for live steps"
+    ],
+    "procedure": [
+      "Backend tests test_schedules_scope.py, test_schedules_review*.py, test_bridge_schedule_policy.py and the RBAC matrix; Opus review of the write path before any live write."
+    ],
+    "expected": "Schedules permissions and safety (CR-014): schedule.view, schedule.manage, schedule.sensitive scoped per user or role; an editor may change a schedule only when their scope covers every device in it; alarm, lock and gate actions need the sensitive permission and an explicit confirmation; a panel code is never written to the component (an alarm action that needs a code cannot be scheduled); known limit recorded: direct edits inside the component bypass these permissions and are flagged external.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-02 for CR-014 (shipped in 0.1.147, feature off by default); NOT_RUN until recorded against a commit."
   }
 ]

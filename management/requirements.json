@@ -4414,5 +4414,53 @@
     "test_ids": [
       "AT213"
     ]
+  },
+  {
+    "id": "R214",
+    "title": "תזמונים - מודל וכתיבה דרך הגשר",
+    "statement": "Schedules read model and writes (CR-014; docs/design/CR-014-scheduler.md, docs/architecture/SCHEDULER_API.md): mirror of the scheduler component's schedules through the platform, create / edit / copy / run now / enable-disable / delete with a 30-day trash and restore, only through the signed bridge schedule service; conditions (Shabbat/holiday presets), review list for schedules edited outside the product, the component's own switches hidden from ordinary devices, tiles and bulk actions; the feature is off until switched on in Settings > Schedules (schedules.enabled).",
+    "task_ids": [
+      "T102"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT214"
+    ]
+  },
+  {
+    "id": "R215",
+    "title": "תזמונים - מסך וממשק",
+    "statement": "Schedules UI (CR-014 section on screens): the Schedules tab in the home area with list as cards / table / week view, the 24-hour week grid and from-to table editors, day view, phone timeline, templates and three-tap creation, run now, review list, settings page; operator-facing copy never names Home Assistant (UI_COPY_RULES).",
+    "task_ids": [
+      "T102"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT215"
+    ]
+  },
+  {
+    "id": "R216",
+    "title": "תזמונים - הרשאות ובטיחות",
+    "statement": "Schedules permissions and safety (CR-014): schedule.view, schedule.manage, schedule.sensitive scoped per user or role; an editor may change a schedule only when their scope covers every device in it; alarm, lock and gate actions need the sensitive permission and an explicit confirmation; a panel code is never written to the component (an alarm action that needs a code cannot be scheduled); known limit recorded: direct edits inside the component bypass these permissions and are flagged external.",
+    "task_ids": [
+      "T102"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT216"
+    ]
   }
 ]
