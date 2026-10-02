@@ -15,7 +15,7 @@ export type MockKind = 'wall' | 'area' | 'settings';
 const NOT_FOUND = { code: 'not_found', user_message: 'לא נמצא', retryable: false, correlation_id: '', details: {} };
 const MOCK_URL = '/src/api/media-screens-mock.ts';
 
-function meBody(perms: string[]) {
+export function meBody(perms: string[]) {
   return {
     user: { id: 'u-guide', username: 'guide', display_name: 'יוני', source: 'ingress' }, channel: 'local', remote: null, bindings: [],
     permissions_installation: perms, permissions_any: perms, has_access: true, permission_revision: 1, bootstrap_state: 'done',
@@ -69,7 +69,7 @@ async function installWall(page: Page): Promise<() => Promise<void>> {
 
 // ------------------------------------------------------------------------------------------------------------------ the area
 
-const PERMS = ['devices.read', 'devices.control', 'devices.control_bulk', 'media.read', 'media.control', 'media.power', 'media.bulk', 'media.layout', 'system.configure'];
+export const PERMS = ['devices.read', 'devices.control', 'devices.control_bulk', 'media.read', 'media.control', 'media.power', 'media.bulk', 'media.layout', 'system.configure'];
 
 function row(entity_id: string, name: string, state: string, extra: Record<string, unknown> = {}) {
   return { entity_id, name, domain: entity_id.split('.')[0], device_class: null, state, available: true, fresh: true, active: state === 'playing' || state === 'on', icon: null, last_changed: '2026-09-30T18:00:00Z', can_control: true, ...extra };
@@ -77,7 +77,7 @@ function row(entity_id: string, name: string, state: string, extra: Record<strin
 
 const emptyCounts = { entities: 0, lights: 0, lights_on: 0, switches: 0, switches_on: 0, covers: 0, covers_open: 0, climate: 0, climate_active: 0, heating: 0, heating_active: 0, media: 0, media_on: 0, locks: 0, locks_locked: 0, alarm: null, cameras: 0, sensors: 0 };
 
-function areaDetail() {
+export function areaDetail() {
   const card = (id: string, label: string, entities: unknown[], active = entities.length) => ({ id, label, entities, count: entities.length, active });
   const ac = (id: string, name: string, mode: string, action: string, cur: number, target: number) =>
     row(`climate.${id}`, name, mode, { hvac_mode: mode, hvac_action: action, climate_kind: 'ac', current_temperature: cur, target_temperature: target, hvac_modes: ['off', 'cool', 'heat', 'dry', 'fan_only', 'auto'], min_temp: 16, max_temp: 30, target_temp_step: 1, active: mode !== 'off' });

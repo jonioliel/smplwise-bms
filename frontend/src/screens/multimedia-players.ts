@@ -22,7 +22,7 @@ import { applyMultimediaKinds } from '../shell/nav';
 import { phoneRestricted } from '../shell/phone';
 import { bidi } from '../i18n/bidi';
 import { applyMediaGlass, mediaGlassStyles } from '../styles/media-glass';
-import { mediaPageStyles, mediaTabsModeStyles } from '../styles/media-page';
+import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
 import { clearPairChip, publishPairChip } from '../shell/tab-pair';
 import { HYBRID_MAX_ITEMS, TabsModeController } from '../shell/tabs-mode';
 import { mIcon, nameText } from '../components/media-icons';
@@ -94,7 +94,7 @@ export class MultimediaPlayers extends LitElement {
   private loading = false;
   private homeFloorsLoaded = false;
 
-  static styles = [mediaGlassStyles, mediaPageStyles, mediaTabsModeStyles, css`
+  static styles = [mediaGlassStyles, mediaPageStyles, css`
     .shlink[disabled] {
       cursor: default;
     }
@@ -182,6 +182,7 @@ export class MultimediaPlayers extends LitElement {
 
   protected updated() {
     this.syncPair();
+    measureHeaderBar(this.renderRoot, this.phone);
     if (this.wantsEdit && !this.editHandled && this.phase === 'ready') {
       this.editHandled = true;
       if (!this.editing) {

@@ -36,15 +36,35 @@ export const mediaPageStyles = css`
       display: flex;
       flex-direction: column;
       gap: 12px;
-      transition: background var(--mm-motion) var(--mm-ease), padding var(--mm-motion) var(--mm-ease), box-shadow var(--mm-motion);
     }
-    .dh.compact {
-      padding-block: 10px;
+    /* Compacting is purely visual: it never changes the header's height in the flow. A header that shrank at scrollTop ~60 moved
+       every card under the finger and, with the scroll clamped, fell back under the threshold and expanded again (the list jumped
+       back and forth on a phone, the first group heading slid over the search field). The bar is a layer of the measured height of
+       the title row (measureHeaderBar below); what folds away fades out in place and stops taking taps. */
+    .dh::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto 0;
+      block-size: var(--mm-bar-h, 64px);
+      z-index: -1;
+      opacity: 0;
+      pointer-events: none;
       background: var(--mm-sheen), var(--dv-surface);
       -webkit-backdrop-filter: var(--dv-surface-blur);
       backdrop-filter: var(--dv-surface-blur);
       border-block-end: 1px solid var(--dv-border);
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+      transition: opacity var(--mm-motion) var(--mm-ease);
+    }
+    .dh.compact {
+      pointer-events: none;
+    }
+    .dh.compact::before {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .dh.compact .dh-row > * {
+      pointer-events: auto;
     }
     .dh-row {
       display: flex;
@@ -151,14 +171,11 @@ export const mediaPageStyles = css`
       align-items: center;
       gap: 10px;
       flex-wrap: wrap;
-      max-block-size: 120px;
-      transition: max-height var(--mm-motion) var(--mm-ease), opacity var(--mm-motion);
+      transition: opacity var(--mm-motion), visibility var(--mm-motion);
     }
     .dh.compact .dh-det {
-      max-block-size: 0;
       opacity: 0;
-      overflow: hidden;
-      margin-block-end: -12px;
+      visibility: hidden;
       pointer-events: none;
     }
     .amb {
@@ -392,9 +409,6 @@ export const mediaPageStyles = css`
         padding-inline-end: 14px;
         gap: 10px;
       }
-      .dh.compact {
-        padding-block: 8px;
-      }
       .dh-row {
         display: grid;
         /* the third column keeps the row clear of the shell's floating search / status corner */
@@ -405,6 +419,10 @@ export const mediaPageStyles = css`
       .dh-row h1 {
         grid-area: t;
       }
+      /* a long title wraps to two lines on a phone: a smaller compact font would shorten the header and feed back into the scroll */
+      .dh.compact h1 {
+        font-size: var(--mm-fs-page-title);
+      }
       .dh-row .flwrap {
         grid-area: f;
       }
@@ -414,7 +432,9 @@ export const mediaPageStyles = css`
         padding-inline: 14px;
       }
       .dh.compact .rooms {
-        display: none;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
       }
       .amb {
         display: none;
@@ -450,28 +470,15 @@ export const mediaPageStyles = css`
   `;
 
 /**
- * 0.1.153: the room filter as a dropdown (the multimedia group's `dropdown` / `hybrid` tabs mode, shell/tabs-mode.ts): the shared
- * `sw-dropdown` wears the glass knobs, and the row it sits in does not scroll or fade (the chip's dot and 44 px hit area stick out).
+ * The compact bar of `.dh::before` covers the title row only: its height is measured, never guessed, and only written when it
+ * changed. Call it from `updated()` of every page that uses the shared header.
  */
-export const mediaTabsModeStyles = css`
-    sw-dropdown {
-      --sw-dd-bg: var(--dv-surface-2);
-      --sw-dd-border: var(--dv-border);
-      --sw-dd-border-soft: var(--dv-border);
-      --sw-dd-text: var(--dv-text);
-      --sw-dd-text-3: var(--dv-text-2);
-      --sw-dd-hover: var(--dv-surface);
-      --sw-dd-active: var(--dv-surface-3);
-      --sw-dd-accent: var(--dv-accent-text);
-      --sw-dd-radius: var(--dv-radius-control);
-      --sw-dd-shadow: var(--dv-shadow-control);
-      --sw-dd-pop-bg: var(--mm-sheet-surface);
-    }
-    .rooms.dd {
-      overflow: visible;
-      -webkit-mask-image: none;
-      mask-image: none;
-      flex: 0 1 auto;
-      padding-block: 4px;
-    }
-`;
+export function measureHeaderBar(root: ParentNode, phone: boolean): void {
+  const dh = root.querySelector<HTMLElement>('.dh');
+  if (!dh) return;
+  const top = dh.getBoundingClientRect().top;
+  let bottom = 0;
+  for (const el of dh.querySelectorAll<HTMLElement>(phone ? ':scope > .dh-row > h1, :scope > .dh-row > .flwrap' : ':scope > .dh-row > *')) bottom = Math.max(bottom, el.getBoundingClientRect().bottom - top);
+  const h = `${Math.ceil(bottom + (phone ? 8 : 10))}px`;
+  if (bottom && dh.style.getPropertyValue('--mm-bar-h') !== h) dh.style.setProperty('--mm-bar-h', h);
+}

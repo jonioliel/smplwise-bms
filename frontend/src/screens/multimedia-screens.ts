@@ -22,7 +22,6 @@ import { registerScreenEdit } from '../shell/screen-edit';
 import { phoneRestricted } from '../shell/phone';
 import { bidi } from '../i18n/bidi';
 import { applyMediaGlass, mediaGlassStyles } from '../styles/media-glass';
-import { mediaTabsModeStyles } from '../styles/media-page';
 import { clearPairChip, publishPairChip } from '../shell/tab-pair';
 import { HYBRID_MAX_ITEMS, TabsModeController } from '../shell/tabs-mode';
 import { mIcon, nameText } from '../components/media-icons';
@@ -94,7 +93,7 @@ export class MultimediaScreens extends LitElement {
   private loading = false;
   private homeFloorsLoaded = false;
 
-  static styles = [mediaGlassStyles, mediaTabsModeStyles, css`
+  static styles = [mediaGlassStyles, css`
     :host {
       display: block;
       position: relative;
