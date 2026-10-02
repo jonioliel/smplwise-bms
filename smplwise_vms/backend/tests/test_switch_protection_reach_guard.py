@@ -9,7 +9,7 @@ from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[1] / "smplwise"
 REPO = Path(__file__).resolve().parents[3]
-FORBIDDEN = ("device_bulk_protected", "device_switch_classified", "switch_protection", "SwitchPolicy", "bulk_protected")
+FORBIDDEN = ("device_bulk_protected", "device_switch_classified", "switch_protection", "SwitchPolicy", "bulk_protected", "device_bulk_safe", "switch_not_marked")
 GUARDED_GLOBS = (
     "services/schedule*.py", "routers/schedules.py",  # CR-014
     "services/automation*.py", "routers/automations.py",  # CR-017 (pilot/CR017-*)
@@ -42,3 +42,16 @@ def test_the_bridge_never_knew_the_mark():
         for f in root.glob("*.py") if root.is_dir() else ():
             text = f.read_text(encoding="utf-8")
             assert not [w for w in FORBIDDEN + ("bulk_safe",) if w in text], f
+
+
+def test_a_switch_is_schedulable_whatever_its_protection():
+    """CR-019 S2: the schedule classifier takes no mark at all - a pump and a hall light are both class `switch`."""
+    import inspect
+
+    from smplwise.services import schedule_policy as p
+
+    assert set(inspect.signature(p.classify_entity).parameters) == {"entity", "on_door_layer", "alarm_managed"}
+    pump = {"entity_id": "switch.garden_pump", "domain": "switch", "device_class": None, "platform": "x"}
+    assert p.classify_entity(pump, on_door_layer=False, alarm_managed=False) == ("switch", None)
+    assert p.classify_entity(pump, on_door_layer=True, alarm_managed=False) == ("door", None)  # the door layer stays sensitive
+    assert p.classify_entity(pump, on_door_layer=False, alarm_managed=True) == (None, "alarm_managed_control")
