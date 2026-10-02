@@ -183,8 +183,9 @@ test.describe('bubble palettes', () => {
     test.skip(info.project.name !== 'desktop', 'once');
     await open(page, '&scheme=dark');
     const [low, broken] = await page.evaluate(async () => {
-      const mod = await import(/* @vite-ignore */ '/src/design/palette.ts');
-      const a = JSON.parse(JSON.stringify(mod.paletteById('calm-blue')));
+      const url = '/src/design/palette.ts';
+      const mod = await import(/* @vite-ignore */ url);
+      const a =JSON.parse(JSON.stringify(mod.paletteById('calm-blue')));
       a.id = 'custom-low';
       a.name = { he: 'ניגודיות נמוכה', en: 'Low' };
       a.schemes.light.text = '#e0e0e0';
