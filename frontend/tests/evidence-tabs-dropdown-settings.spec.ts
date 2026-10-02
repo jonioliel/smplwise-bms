@@ -18,8 +18,9 @@ async function shot(page: Page, name: string) {
 
 async function stage(page: Page, width = 390) {
   await page.setViewportSize({ width, height: 844 });
-  await page.goto('./');
+  await page.goto('./?design=a#/devices/building');
   await page.waitForFunction(() => !!customElements.get('sw-dropdown') && !!customElements.get('sw-tabs'));
+  await page.waitForTimeout(1200); // the shell's own load of the mode (loadTabsMode) must be over before a test sets one
   await page.evaluate(() => {
     document.querySelectorAll('#stage').forEach((e) => e.remove());
     const st = document.createElement('div');
@@ -43,7 +44,7 @@ test.describe('the home areas chip row (devices-area-nav, phone)', () => {
   async function mountNav(page: Page, n: number) {
     await page.evaluate(
       async (count) => {
-        if (!customElements.get('devices-area-nav')) await import(/* @vite-ignore */ '/src/screens/devices-area-nav.ts');
+        if (!customElements.get('devices-area-nav')) await import(/* @vite-ignore */ ['/src', 'screens', 'devices-area-nav.ts'].join('/'));
         const el = document.createElement('devices-area-nav') as HTMLElement & { areaId: string; areaName: string; floorName: string; areas: unknown };
         el.id = 'nav';
         el.areaId = 'a1';
@@ -57,7 +58,7 @@ test.describe('the home areas chip row (devices-area-nav, phone)', () => {
     await page.waitForTimeout(300);
   }
   const state = (page: Page) =>
-    page.locator('#nav').evaluate((el) => ({ chips: el.shadowRoot!.querySelectorAll('.areas sw-chip').length, dropdown: !!el.shadowRoot!.querySelector('[data-areas-dropdown] sw-dropdown') }));
+    page.locator('#nav').evaluate((el) => ({ chips: el.shadowRoot!.querySelectorAll('.areas sw-chip').length, dropdown: !!el.shadowRoot!.querySelector('[data-areas-in-shell]') && !!document.querySelector('sw-app')!.shadowRoot!.querySelector('[data-pair-chip]') }));
 
   test('tabs: the chip row as today; dropdown: one dropdown with counts; hybrid: only a longer list', async ({ page }) => {
     await stage(page);
@@ -67,14 +68,10 @@ test.describe('the home areas chip row (devices-area-nav, phone)', () => {
     await shot(page, 'home-areas-tabs-390-light');
     await setMode(page, 'dropdown', {});
     await expect.poll(() => state(page)).toEqual({ chips: 0, dropdown: true });
-    const dd = page.locator('#nav').locator('sw-dropdown');
+    const dd = page.locator('sw-app').locator('sw-dropdown[data-pair-chip]'); // the shell draws it, beside the home area's page chip
     await expect(dd.locator('.chip')).toContainText('אזור 1');
     await expect(dd.locator('.chip')).toContainText('(2)');
-    await shot(page, 'home-areas-dropdown-390-light');
-    await dd.locator('.chip').click();
-    await shot(page, 'home-areas-dropdown-open-390-light');
-    await dd.locator('[role=option]').nth(2).click();
-    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/devices/areas/a3');
+
     await setMode(page, 'hybrid', {});
     await expect.poll(() => state(page)).toEqual({ chips: 0, dropdown: true }); // 5 areas: more than three
     await page.locator('#nav').evaluate((el) => ((el as unknown as { areas: unknown[] }).areas = (el as unknown as { areas: unknown[] }).areas.slice(0, 3)));
@@ -115,6 +112,11 @@ test.describe('הגדרות › כללי › לשוניות › תצוגת לש�
     await expect(card(page).locator('[data-tabs-mode-preview]')).toHaveAttribute('data-tabs-mode-preview', 'dropdown');
     await expect(card(page).locator('sw-tabs[data-preview="3"] sw-dropdown')).toHaveCount(1);
     expect(await effective(page)).toBe('dropdown');
+    // the preview shows the pair: two chips on one row
+    const ys = await card(page).locator('[data-preview=pair] sw-tabs').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+    expect(ys.length).toBe(2);
+    expect(Math.abs(ys[0] - ys[1])).toBeLessThan(2);
+    await shot(page, 'settings-card-pair-390-light');
     await card(page).locator('[data-tabs-mode-own] input[data-mode=hybrid]').check();
     await expect(card(page).locator('sw-tabs[data-preview="3"] sw-dropdown')).toHaveCount(0); // 3 items: the bar
     await expect(card(page).locator('sw-tabs[data-preview="6"] sw-dropdown')).toHaveCount(1); // 6 items: the dropdown

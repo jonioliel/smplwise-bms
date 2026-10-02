@@ -34,6 +34,8 @@ export class SwDropdown extends LitElement {
   @property() label = '';
   @property() icon?: IconName;
   @property() placeholder = '';
+  /** Fills its flexible box (a chip of the pair row: equal widths, min 0, the text ellipsised). */
+  @property({ type: Boolean, reflect: true }) block = false;
   @state() private open = false;
   @state() private cursor = -1;
   @state() private pos = { top: 0, left: 0, minWidth: 0, maxHeight: 320 };
@@ -46,6 +48,17 @@ export class SwDropdown extends LitElement {
       display: inline-flex;
       min-inline-size: 0;
       max-inline-size: 100%;
+    }
+    :host([block]) {
+      display: flex;
+      flex: 1 1 0;
+    }
+    :host([block]) .chip {
+      flex: 1;
+    }
+    :host([block]) .txt {
+      flex: 1 1 auto;
+      text-align: start;
     }
     .chip {
       position: relative;

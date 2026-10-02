@@ -23,7 +23,7 @@ import { phoneRestricted } from '../shell/phone';
 import { bidi } from '../i18n/bidi';
 import { applyMediaGlass, mediaGlassStyles } from '../styles/media-glass';
 import { mediaTabsModeStyles } from '../styles/media-page';
-import '../components/sw-dropdown';
+import { clearPairChip, publishPairChip } from '../shell/tab-pair';
 import { HYBRID_MAX_ITEMS, TabsModeController } from '../shell/tabs-mode';
 import { mIcon, nameText } from '../components/media-icons';
 import {
@@ -606,6 +606,7 @@ export class MultimediaScreens extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    clearPairChip(this);
     this.phoneMq.removeEventListener('change', this.onPhone);
     this.removeEventListener('scroll', this.onScroll);
     window.removeEventListener('pointerdown', this.onOutside, true);
@@ -618,7 +619,18 @@ export class MultimediaScreens extends LitElement {
     window.clearInterval(this.pollTimer);
   }
 
+  /** 0.1.153: the room filter in its dropdown form is drawn by the shell, beside the area's tab chip (shell/tab-pair.ts). */
+  private syncPair() {
+    const f = this.filters;
+    const rooms = roomsOf(this.devices, f.floor);
+    const tools = !this.editing && this.phase === 'ready' && this.devices.length > 0;
+    if (tools && this.roomsAsDropdown(rooms.length + 1)) {
+      publishPairChip(this, { label: 'חדרים', value: f.area, items: [{ id: '', label: 'הכל' }, ...rooms.map((r) => ({ id: r.id, label: r.name }))], onPick: (id) => this.setFilters({ area: id }) });
+    } else clearPairChip(this);
+  }
+
   protected updated() {
+    this.syncPair();
     this.measureBar();
     // `?edit=1` (the user menu, or a link): entered once the data is there and this user may edit; dropped otherwise
     if (this.wantsEdit && !this.editHandled && this.phase === 'ready') {
@@ -937,7 +949,7 @@ export class MultimediaScreens extends LitElement {
     return html`<header class=${classMap({ dh: true, compact: this.compactHeader })} data-mm-header>
       <div class="dh-row">
         <h1>מסכים</h1>
-        ${tools && this.roomsAsDropdown(rooms.length + 1) ? html`<div class="rooms dd" data-rooms-dropdown><sw-dropdown label="חדרים" .value=${f.area} .items=${[{ id: '', label: 'הכל' }, ...rooms.map((r) => ({ id: r.id, label: r.name }))]} @change=${(e: CustomEvent<{ id: string }>) => this.setFilters({ area: e.detail.id })}></sw-dropdown></div>` : tools ? html`<div class="rooms" role="group" aria-label="חדרים" @pointerdown=${this.roomsDrag}>
+        ${tools && this.roomsAsDropdown(rooms.length + 1) ? html`<span class="grow" data-rooms-in-shell></span>` : tools ? html`<div class="rooms" role="group" aria-label="חדרים" @pointerdown=${this.roomsDrag}>
           <button type="button" class="rc" aria-pressed=${String(!f.area)} data-room="" @click=${() => this.setFilters({ area: '' })}>הכל</button>
           ${rooms.map((r) => html`<button type="button" class="rc" aria-pressed=${String(f.area === r.id)} data-room=${r.id} @click=${() => this.setFilters({ area: r.id })}>${nameText(r.name)}</button>`)}
         </div>` : html`<span class="grow"></span>`}

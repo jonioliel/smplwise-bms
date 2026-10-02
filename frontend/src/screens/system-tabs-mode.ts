@@ -105,6 +105,11 @@ export class SystemTabsMode extends LitElement {
       border: 1px dashed var(--sw-border-strong);
       border-radius: var(--sw-r-md);
     }
+    .pair {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
     .ok {
       color: #15803d;
     }
@@ -224,6 +229,7 @@ export class SystemTabsMode extends LitElement {
         <span class="muted">תצוגה מקדימה: ${TAB_MODE_LABEL[effective]}</span>
         <sw-tabs .items=${SAMPLE_3} active="a" .variant=${effective === 'dropdown' ? 'dropdown' : 'pill'} ?adaptive=${effective === 'hybrid'} group-label="דוגמה: שלוש אפשרויות" data-preview="3"></sw-tabs>
         <sw-tabs .items=${SAMPLE_6} active="a" .variant=${effective === 'dropdown' ? 'dropdown' : 'pill'} ?adaptive=${effective === 'hybrid'} group-label="דוגמה: שש אפשרויות" data-preview="6"></sw-tabs>
+        ${effective === 'dropdown' ? html`<div class="pair" data-preview="pair"><sw-tabs block variant="dropdown" .items=${SAMPLE_3} active="a" group-label="דוגמה: רמה ראשונה"></sw-tabs><sw-tabs block variant="dropdown" .items=${SAMPLE_6} active="a" group-label="דוגמה: רמה שנייה"></sw-tabs></div>` : nothing}
       </div>
       <div aria-live="polite">${this.message ? html`<span class="ok" role="status">${this.message}</span>` : nothing}${this.error ? html`<span class="err" role="alert">${this.error}</span>` : nothing}</div>
     </sw-card>`;

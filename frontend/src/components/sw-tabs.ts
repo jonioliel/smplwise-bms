@@ -37,6 +37,8 @@ export class SwTabs extends LitElement {
   /** Hybrid presentation (0.1.153, the `hybrid` tabs mode): a list of up to three items keeps the bar chosen by `variant`, a longer one
    * becomes the dropdown. With `variant="dropdown"` the list is always a dropdown. */
   @property({ type: Boolean, reflect: true }) adaptive = false;
+  /** Dropdown only: fill the flexible box it sits in (the pair row of the shell). */
+  @property({ type: Boolean, reflect: true }) block = false;
   /** The accessible name of the dropdown (the group's name). */
   @property({ attribute: 'group-label' }) groupLabel = '';
 
@@ -143,6 +145,12 @@ export class SwTabs extends LitElement {
       padding-block: 4px; /* 32 px chip + 4 + 4 = the 40 px row; the chip's hit area reaches 44 px */
       -webkit-mask-image: none;
       mask-image: none;
+    }
+
+    :host([data-variant='dropdown'][block]) {
+      display: flex;
+      flex: 1 1 0;
+      min-inline-size: 0;
     }
 
     /* ---- pill: the narrow segmented control (the track is 34 px; a taller hit area grows around it) ---- */
@@ -335,7 +343,7 @@ export class SwTabs extends LitElement {
 
   render() {
     if (this.mode === 'dropdown') {
-      return html`<sw-dropdown .items=${this.items} .value=${this.active} .label=${this.groupLabel} @change=${this.onPick}></sw-dropdown>`;
+      return html`<sw-dropdown ?block=${this.block} .items=${this.items} .value=${this.active} .label=${this.groupLabel} @change=${this.onPick}></sw-dropdown>`;
     }
     const label = (it: TabItem) => html`<span class="lbl">${it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}</span>`;
     return html`<div class="row">${this.items.map((it) =>

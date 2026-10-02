@@ -14,7 +14,9 @@ import { loadNavOrder, navOrder, onNavOrder, resetNavOrder, saveNavOrder } from 
 import { findScreenEdit, onScreenEdits, screenEdits } from './screen-edit';
 import { findScreenView, onScreenViews, screenViews } from './screen-view';
 import { loadNavSize, navCssVars, navDims, navSize, onNavSize, setInstallationNavSize, type NavDims } from './nav-size';
-import { loadTabsMode, onTabsMode, setInstallationTabsMode, tabModeOf } from './tabs-mode';
+import { onPairChip, pairChip } from './tab-pair';
+import type { TabItem } from '../components/sw-tabs';
+import { HYBRID_MAX_ITEMS, loadTabsMode, onTabsMode, setInstallationTabsMode, tabModeOf } from './tabs-mode';
 import { listAlerts } from '../api/rules';
 import { parseDoorConfirmLink, type NotifySummary } from '../api/notifications';
 import { notifyStore } from '../components/notify-store';
@@ -155,6 +157,7 @@ export class SwApp extends LitElement {
   private observedRail: HTMLElement | null = null;
   private stopTabsConfig?: () => void;
   private stopTabsMode?: () => void;
+  private stopPair?: () => void;
   private stopMobileOptions?: () => void;
   private navOrderUser: string | null = null;
 
@@ -966,32 +969,48 @@ export class SwApp extends LitElement {
       :host([data-design='a']) .subnav[data-tabstyle='dropdown'] sw-tabs {
         align-self: flex-start;
       }
-      :host([data-design='a']) nav.sectabs[data-tabs-mode='dropdown'] {
+      /* 0.1.153, the pair: the two levels as two equal chips in ONE row (primary on the inline-start side), clear of the floating corner */
+      :host([data-design='a']) .tabpair {
+        position: sticky;
+        inset-block-start: var(--sw-banner-h, 0px);
+        z-index: 4;
+        display: flex;
+        flex: none;
         align-items: center;
         gap: 8px;
+        padding: 0 12px;
+        padding-inline-end: 84px;
+        background: var(--sw-bg);
       }
-      :host([data-design='a']) nav.sectabs[data-tabs-mode='dropdown'] sw-tabs {
+      :host([data-design='a']) .tabpair > sw-tabs,
+      :host([data-design='a']) .tabpair > sw-dropdown {
+        flex: 1 1 0;
+        min-inline-size: 0;
+      }
+      :host([data-design='a']) .tabpair.single > sw-dropdown {
+        flex: 0 1 50%;
+        padding-block: 4px;
+      }
+      :host([data-design='a']) .tabpair > sw-dropdown {
+        padding-block: 4px;
+      }
+      :host([data-design='a']) .tabpair a.alarmpin {
+        position: relative;
         flex: none;
-      }
-      nav.sectabs a.alarmpin {
-        display: inline-flex;
-        align-items: center;
-        min-block-size: 32px;
-        padding-inline: 12px;
+        display: inline-grid;
+        place-items: center;
+        inline-size: 32px;
+        block-size: 32px;
+        box-sizing: border-box;
         border: 1px solid var(--sw-danger);
         border-radius: 10px;
         color: var(--sw-danger);
         background: var(--sw-surface);
-        font-size: var(--sw-fs-sm);
-        font-weight: var(--sw-fw-semibold);
-        text-decoration: none;
-        position: relative;
       }
-      nav.sectabs a.alarmpin::after {
+      :host([data-design='a']) .tabpair a.alarmpin::after {
         content: '';
         position: absolute;
-        inset-inline: -4px;
-        inset-block: -7px;
+        inset: -6px;
       }
       /* the floating search / status corner sits over the first row's far end: that row keeps clear of it */
       :host([data-design='a'][data-top='tabs']) .subnav {
@@ -1146,6 +1165,7 @@ export class SwApp extends LitElement {
     this.stopScreenEdits = onScreenEdits(() => this.requestUpdate()); // a screen registered / dropped its edit mode
     this.stopScreenViews = onScreenViews(() => this.requestUpdate()); // a screen registered / dropped / changed its view choice
     this.stopTabsConfig = onTabsConfig(() => this.requestUpdate()); // הגדרות › כללי › לשוניות: every tab row follows at once
+    this.stopPair = onPairChip(() => this.requestUpdate()); // 0.1.153: a screen's second chip joins the first in one row
     this.stopTabsMode = onTabsMode(() => this.requestUpdate()); // 0.1.153: tabs / hybrid / dropdown follows at once
     this.stopMobileOptions = onMobileOptions(() => this.requestUpdate()); // הגדרות › כללי › אפשרויות נייד: the phone guards follow at once
     this.stopSession = onSession((s) => {
@@ -1304,7 +1324,7 @@ export class SwApp extends LitElement {
     this.applyNavSize();
     // what the floating corner (search, status) sits above: the phone's sticky section row, a tab / section row, or
     // the page's own header (sw-page reads --sw-float-reserve to keep its actions clear)
-    const top = this.renderRoot.querySelector('nav.secrow, nav.sectabs.phone') ? 'secrow' :this.renderRoot.querySelector('.subnav > *') ? 'tabs' : 'page';
+    const top = this.renderRoot.querySelector('nav.secrow, nav.sectabs.phone, .tabpair') ? 'secrow' :this.renderRoot.querySelector('.subnav > *') ? 'tabs' : 'page';
     if (this.getAttribute('data-top') !== top) this.setAttribute('data-top', top);
     const banner = this.renderRoot.querySelector<HTMLElement>('[data-sys-banner]');
     if (banner === this.observedBanner) return;
@@ -1339,6 +1359,7 @@ export class SwApp extends LitElement {
     this.railObs = null;
     this.stopTabsConfig?.();
     this.stopTabsMode?.();
+    this.stopPair?.();
     this.stopMobileOptions?.();
     this.phoneMq.removeEventListener('change', this.onPhoneMq);
     window.removeEventListener('popstate', this.onPopState);
@@ -2094,7 +2115,7 @@ export class SwApp extends LitElement {
       <main>
         ${this.renderSetupHint()}
         ${this.renderGate() || html`
-          ${showSections && this.phone ? this.renderSections(section, true) : nothing}<div class="subnav" data-tabstyle=${rowMode.variant === 'dropdown' ? 'dropdown' : rowStyle}>${showSections && !this.phone ? this.renderSections(section) : nothing}${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeAreaTab(this.route)} .variant=${rowMode.variant} ?adaptive=${rowMode.adaptive} group-label=${rowMode.variant === 'dropdown' || rowMode.adaptive ? rowMode.label : nothing} data-area-tabs></sw-tabs>` : nothing}</div>
+          ${this.renderChrome(section, tabs, editor, rowMode, rowStyle, showSections)}
           <div class="screen">${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}
       </main>
       <nav class="bottom" aria-label="ניווט ראשי">
@@ -2103,6 +2124,30 @@ export class SwApp extends LitElement {
       </nav>
       ${this.renderUserMenu()}
     `;
+  }
+
+  /**
+   * The page chrome above the screen. On a wide screen and in the tabs form it is what it always was. On the phone, in the dropdown form,
+   * the two levels (the security sections and pages, or the area's tabs and the screen's own filter, published through shell/tab-pair.ts)
+   * share ONE row of two equal chips (the `tabpair`, 0.1.153). A level in the bar form (hybrid, three items or fewer) keeps its own row.
+   */
+  private renderChrome(section: ReturnType<typeof sectionOf>, tabs: TabItem[], editor: boolean, rowMode: { variant: string; adaptive: boolean; label: string }, rowStyle: ReturnType<typeof tabStyleOf>, showSections: boolean) {
+    const second = this.phone && !editor && !this.gated ? pairChip() : null;
+    const secondChip = second ? html`<sw-dropdown block data-pair-chip .items=${second.items} .value=${second.value} .label=${second.label} @change=${(e: CustomEvent<{ id: string }>) => second.onPick(e.detail.id)}></sw-dropdown>` : nothing;
+    const pageChip = (label: string) => html`<sw-tabs block variant="dropdown" .items=${tabs} .active=${activeAreaTab(this.route)} group-label=${label} data-area-tabs></sw-tabs>`;
+    if (showSections && this.phone && tabModeOf('security', true) === 'dropdown') {
+      const sections = visibleSections(this.session.mode === 'api', canNav);
+      const alarm = sections.find((s) => s.id === 'alarm');
+      const first = sections.length > 1 ? html`<sw-tabs block variant="dropdown" .items=${sections.map((s) => ({ id: s.id, label: s.label, href: s.href }))} .active=${section ?? ''} group-label="אבטחה" data-section-tabs></sw-tabs>` : nothing;
+      const pin = sections.length > 1 && alarm && section !== 'alarm' ? html`<a class="alarmpin" href=${alarm.href} data-section-alarm aria-label=${alarm.label} title=${alarm.label}><sw-icon name="bell" size=${16}></sw-icon></a>` : nothing;
+      return html`<div class="tabpair" data-tab-pair data-tabs-mode="dropdown" data-security-row>${first}${tabs.length > 1 && !editor ? pageChip('עמודים') : nothing}${pin}</div>`;
+    }
+    const own = html`<div class="subnav" data-tabstyle=${rowMode.variant === 'dropdown' ? 'dropdown' : rowStyle}>${showSections && !this.phone ? this.renderSections(section) : nothing}${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeAreaTab(this.route)} .variant=${rowMode.variant} ?adaptive=${rowMode.adaptive} group-label=${rowMode.variant === 'dropdown' || rowMode.adaptive ? rowMode.label : nothing} data-area-tabs></sw-tabs>` : nothing}</div>`;
+    const sections = showSections && this.phone ? this.renderSections(section, true) : nothing;
+    if (!second) return html`${sections}${own}`;
+    const pagesDd = tabs.length > 1 && !editor && (rowMode.variant === 'dropdown' || (rowMode.adaptive && tabs.length > HYBRID_MAX_ITEMS));
+    if (pagesDd) return html`<div class="tabpair" data-tab-pair>${pageChip(rowMode.label)}${secondChip}</div>`;
+    return html`${sections}${own}<div class="tabpair single" data-tab-pair>${secondChip}</div>`;
   }
 
   /** 0.1.153: the `variant` / `adaptive` a row of an area's tab group gets - the row's own style when the mode is `tabs` (nothing changes). */
@@ -2119,11 +2164,6 @@ export class SwApp extends LitElement {
     const sections = visibleSections(this.session.mode === 'api', canNav);
     if (sections.length < 2) return nothing;
     const style = tabStyleOf('security');
-    if (tabModeOf('security', this.phone) === 'dropdown') {
-      // 0.1.153: the sections as one dropdown; the alarm stays one tap away as its own button while it is not the section shown
-      const alarm = sections.find((s) => s.id === 'alarm');
-      return html`<nav class=${row ? 'sectabs phone' : 'sectabs'} aria-label="אבטחה" ?data-security-sections=${!row} ?data-security-row=${row} data-tabs-mode="dropdown"><sw-tabs .items=${sections.map((s) => ({ id: s.id, label: s.label, href: s.href }))} .active=${active ?? ''} variant="dropdown" group-label="אבטחה" data-section-tabs></sw-tabs>${alarm && active !== 'alarm' ? html`<a class="alarmpin" href=${alarm.href} data-section-alarm>${alarm.label}</a>` : nothing}</nav>`;
-    }
     if (style !== 'pill') {
       // the installation chose an underline look for the sections: the same items as a tab row (sw-tabs draws it)
       return html`<nav class=${row ? 'sectabs phone' : 'sectabs'} aria-label="אבטחה" ?data-security-sections=${!row} ?data-security-row=${row}><sw-tabs .items=${sections.map((s) => ({ id: s.id, label: s.label, href: s.href }))} .active=${active ?? ''} .variant=${style} data-section-tabs></sw-tabs></nav>`;

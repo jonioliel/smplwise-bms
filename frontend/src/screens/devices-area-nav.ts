@@ -7,6 +7,7 @@ import { getDevicesTree, type DeviceCounts, type DeviceTree } from '../api/devic
 import { navigate } from '../router';
 import { bidi } from '../i18n/bidi';
 import { HYBRID_MAX_ITEMS, TabsModeController } from '../shell/tabs-mode';
+import { clearPairChip, publishPairChip } from '../shell/tab-pair';
 
 /** One switcher entry: a floor or an area of the current floor, with its device count. */
 export interface NavOption {
@@ -207,8 +208,16 @@ export class DevicesAreaNav extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    clearPairChip(this);
     this.mq?.removeEventListener('change', this.onMq);
     document.removeEventListener('pointerdown', this.onOutside, true);
+  }
+
+  /** 0.1.153: the areas of the floor in their dropdown form are drawn by the shell, beside the page chip of the home area (shell/tab-pair.ts). */
+  protected updated() {
+    if (this.phone && this.areas.length > 1 && this.asDropdown()) {
+      publishPairChip(this, { label: 'אזורים בקומה', value: this.areaId, items: this.areas.map((a) => ({ id: a.area_id, label: bidi(a.name), count: a.counts.entities })), onPick: (id) => navigate(`/devices/areas/${encodeURIComponent(id)}`) });
+    } else clearPairChip(this);
   }
 
   protected willUpdate(changed: Map<string, unknown>) {
@@ -333,8 +342,7 @@ export class DevicesAreaNav extends LitElement {
         ${this.phone ? nothing : html`${sep}${this.trigger('area', this.areaName, true)}`}
       </nav>
       ${this.phone && this.areas.length > 1 && this.asDropdown()
-        ? html`<div class="areas dd" data-areas-dropdown><sw-dropdown label="אזורים בקומה" .value=${this.areaId} .items=${this.areas.map((a) => ({ id: a.area_id, label: bidi(a.name), count: a.counts.entities, href: `/devices/areas/${encodeURIComponent(a.area_id)}` }))}
-            @change=${(e: CustomEvent<{ id: string }>) => navigate(`/devices/areas/${encodeURIComponent(e.detail.id)}`)}></sw-dropdown></div>`
+        ? html`<span data-areas-in-shell></span>`
         : this.phone && this.areas.length > 1
         ? html`<div class="areas" role="navigation" aria-label="אזורים בקומה">${this.areas.map(
             (a) => html`<sw-chip data-nav-option=${a.area_id} data-count=${a.counts.entities} ?selected=${a.area_id === this.areaId} .count=${a.counts.entities} @click=${() => navigate(`/devices/areas/${encodeURIComponent(a.area_id)}`)}>${bidi(a.name)}</sw-chip>`,

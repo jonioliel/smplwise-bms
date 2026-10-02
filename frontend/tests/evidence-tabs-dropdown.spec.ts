@@ -338,7 +338,7 @@ test.describe('the shell at 390 px (demo mode)', () => {
       const info = await page.locator('sw-app').evaluate((app) => {
         const r = app.shadowRoot!;
         return {
-          sections: r.querySelector('nav[data-tabs-mode=dropdown] sw-tabs[data-section-tabs]')?.getAttribute('data-variant') ?? null,
+          sections: r.querySelector('.tabpair[data-tabs-mode=dropdown] sw-tabs[data-section-tabs]')?.getAttribute('data-variant') ?? null,
           sub: r.querySelector('sw-tabs[data-area-tabs]')?.getAttribute('data-variant') ?? null,
           alarmPin: !!r.querySelector('a[data-section-alarm]'),
         };
@@ -390,13 +390,13 @@ test.describe('the shell at 390 px (demo mode)', () => {
       await shot(page, `media-tabs-390-${scheme}`);
       await setMode(page, 'dropdown', {});
       await page.waitForTimeout(600);
-      const dd = await page.locator('multimedia-screens').evaluate((el) => ({ dropdown: !!el.shadowRoot!.querySelector('[data-rooms-dropdown] sw-dropdown'), chips: el.shadowRoot!.querySelectorAll('.rc').length }));
+      const dd = await page.locator('multimedia-screens').evaluate((el) => ({ dropdown: !!el.shadowRoot!.querySelector('[data-rooms-in-shell]') && !!document.querySelector('sw-app')!.shadowRoot!.querySelector('.tabpair sw-dropdown[data-pair-chip]'), chips: el.shadowRoot!.querySelectorAll('.rc').length }));
       expect(dd.dropdown).toBe(true);
       expect(dd.chips).toBe(0);
       await shot(page, `media-dropdown-390-${scheme}`);
       await setMode(page, 'tabs', {});
       await page.waitForTimeout(400);
-      const back = await page.locator('multimedia-screens').evaluate((el) => ({ dropdown: !!el.shadowRoot!.querySelector('[data-rooms-dropdown]'), chips: el.shadowRoot!.querySelectorAll('.rc').length }));
+      const back = await page.locator('multimedia-screens').evaluate((el) => ({ dropdown: !!document.querySelector('sw-app')!.shadowRoot!.querySelector('[data-pair-chip]'), chips: el.shadowRoot!.querySelectorAll('.rc').length }));
       expect(back.dropdown).toBe(false);
       expect(back.chips).toBeGreaterThan(0);
     });
