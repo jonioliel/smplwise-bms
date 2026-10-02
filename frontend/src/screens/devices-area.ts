@@ -39,11 +39,11 @@ export { rowLabel };
 
 /** CR-007 slice 4: a cover of these device classes is a passage, not a shutter - read-only wherever the covers card
  * renders it (device-class-aware wording/icon, `can_control` already false server-side). */
-const DOOR_COVER_LABELS: Record<string, string> = { door: '׳“׳׳×', garage: '׳“׳׳× ׳׳•׳¡׳', gate: '׳©׳¢׳¨' };
-const COVER_CLASS_LABEL: Record<string, string> = { shutter: '׳×׳¨׳™׳¡ ׳’׳׳™׳׳”', blind: '׳×׳¨׳™׳¡', curtain: '׳•׳™׳׳•׳', awning: '׳¡׳•׳›׳', window: '׳—׳׳•׳' };
+const DOOR_COVER_LABELS: Record<string, string> = { door: 'דלת', garage: 'דלת מוסך', gate: 'שער' };
+const COVER_CLASS_LABEL: Record<string, string> = { shutter: 'תריס גלילה', blind: 'תריס', curtain: 'וילון', awning: 'סוכך', window: 'חלון' };
 const COVER_CLASS_ICON: Record<string, IconName> = { door: 'lock', garage: 'lock', gate: 'lock' };
 /** CR-007 slice 4: the sensors card grouped by device class, compact (services/devices.py SENSOR_GROUP_CLASSES). */
-const SENSOR_GROUP_LABELS: Record<string, string> = { temperature: '׳˜׳׳₪׳¨׳˜׳•׳¨׳”', humidity: '׳׳—׳•׳×', power: '׳—׳©׳׳ / ׳׳ ׳¨׳’׳™׳”', illuminance: '׳×׳׳•׳¨׳” ׳¡׳‘׳™׳‘׳×׳™׳×', co2: 'CO2', battery: '׳¡׳•׳׳׳”', other: '׳׳—׳¨' };
+const SENSOR_GROUP_LABELS: Record<string, string> = { temperature: 'טמפרטורה', humidity: 'לחות', power: 'חשמל / אנרגיה', illuminance: 'תאורה סביבתית', co2: 'CO2', battery: 'סוללה', other: 'אחר' };
 const SENSOR_GROUP_ORDER = ['temperature', 'humidity', 'power', 'illuminance', 'co2', 'battery'];
 
 /** The cards whose devices are two-up tiles (the others are full-width rows). */
@@ -260,7 +260,7 @@ const AREA_DESIGN = css`
   .row .d {
     gap: 4px 8px;
   }
-  /* the section's header has "׳₪׳×׳—" / "׳¡׳’׳•׳¨" now (with the confirmation): the group control keeps only what it adds -
+  /* the section's header has "פתח" / "סגור" now (with the confirmation): the group control keeps only what it adds -
      stop all and the position for all - on one short line */
   :host([data-area-design]) .grid:not(.lay-grid) .cover-group {
     padding: 4px 8px;
@@ -478,7 +478,7 @@ const AREA_GLASS = css`
 `;
 
 /**
- * ׳—׳©׳׳ ׳•׳”׳×׳§׳ ׳™׳ ג€÷ ׳׳–׳•׳¨ (CR-007 slice 1, read-only): one Home Assistant area as the mockup's cards - lighting, switches,
+ * חשמל והתקנים › אזור (CR-007 slice 1, read-only): one Home Assistant area as the mockup's cards - lighting, switches,
  * climate, covers, security, media, sensors - with the sibling areas of the same floor as chips and a breadcrumb back
  * to the building tree. Cards with something in them come first; empty ones close the grid with the honest empty
  * state (DomusUI's own layout choice for phones, applied everywhere). No controls in this slice: a lit light is a
@@ -492,12 +492,12 @@ export class DevicesArea extends LitElement {
   @state() private forbidden = false;
   @state() private notFound = false;
   @state() private sync: HaSyncState | null = null;
-  /** CR-007 HA refresh: "׳׳‘׳ ׳” ׳¢׳•׳“׳›׳" for a few seconds after a structure_changed push (an entity moved in or out). */
+  /** CR-007 HA refresh: "מבנה עודכן" for a few seconds after a structure_changed push (an entity moved in or out). */
   @state() private structureFlash = false;
   private flashTimer = 0;
-  /** CR-007 slice 4: the "׳›׳ ׳”׳×׳¨׳™׳¡׳™׳" group control's own draft position (0-100), local until "׳§׳‘׳¢ ׳׳™׳§׳•׳" is pressed. */
+  /** CR-007 slice 4: the "כל התריסים" group control's own draft position (0-100), local until "קבע מיקום" is pressed. */
   @state() private coverGroupPosition = 50;
-  /** CR-007 slice 4: the "׳׳׳ ׳©׳™׳•׳" bucket's assign-area dialog - the entity being assigned, and the HA areas to
+  /** CR-007 slice 4: the "ללא שיוך" bucket's assign-area dialog - the entity being assigned, and the HA areas to
    * offer (loaded from the tree on demand: the assign action needs installation-wide names, not this caller's
    * possibly-scoped area list). */
   @state() private assigning: DeviceRow | null = null;
@@ -511,7 +511,7 @@ export class DevicesArea extends LitElement {
   private loadAgain = false;
   /** CR-007 single-entity controls (devices-controls.ts, shared with the overview tiles' panel). */
   private ctl = new DeviceControls(this);
-  /** CR-007 6a: style, density and the sensors card (׳”׳’׳“׳¨׳•׳× ג€÷ ׳—׳©׳׳ ׳•׳”׳×׳§׳ ׳™׳). */
+  /** CR-007 6a: style, density and the sensors card (הגדרות › חשמל והתקנים). */
   @state() private prefs: DevicesPrefs = DEVICES_PREFS_DEFAULT;
   private prefsReady: Promise<void> = Promise.resolve();
   /** Owner decisions 2026-09-30 (area redesign): the direction in force (the installation's `devices.area_design`, or a
@@ -534,10 +534,10 @@ export class DevicesArea extends LitElement {
   private lay: DevicesLayoutController = new DevicesLayoutController(this, {
     scope: 'area',
     id: () => this.areaId,
-    screenName: () => `׳׳¡׳ ׳”׳׳–׳•׳¨ ג€÷ ${this.detail?.area.name ?? ''}`,
+    screenName: () => `מסך האזור › ${this.detail?.area.name ?? ''}`,
     measure: () => this.measureCards(),
     defaultH: () => 30,
-    label: (key: string): string => (key.startsWith('card:c-') ? this.lay.customTitle(key) : key.startsWith('camera:') ? this.lay.item(key)?.title || '׳׳¦׳׳׳”' : this.detail ? (this.detail.cards[key.slice(5) as CardId]?.label ?? key) : key),
+    label: (key: string): string => (key.startsWith('card:c-') ? this.lay.customTitle(key) : key.startsWith('camera:') ? this.lay.item(key)?.title || 'מצלמה' : this.detail ? (this.detail.cards[key.slice(5) as CardId]?.label ?? key) : key),
     compact: () => this.prefs.density === 'compact',
     entities: (key) => {
       if (key.startsWith('card:c-')) return this.customRows(key).map((r) => ({ id: r.entity_id, name: r.name }));
@@ -773,7 +773,7 @@ export class DevicesArea extends LitElement {
       color: var(--sw-text-3);
       white-space: normal;
     }
-    /* CR-007 slice 4: the covers card's own "׳›׳ ׳”׳×׳¨׳™׳¡׳™׳" group control */
+    /* CR-007 slice 4: the covers card's own "כל התריסים" group control */
     .cover-group {
       display: flex;
       align-items: center;
@@ -1013,25 +1013,25 @@ export class DevicesArea extends LitElement {
   }
 
   render() {
-    const heading = '׳—׳©׳׳ ׳•׳”׳×׳§׳ ׳™׳';
+    const heading = 'חשמל והתקנים';
     if (!isApi()) {
-      return html`<sw-page heading="׳׳–׳•׳¨" subheading="׳—׳©׳׳ ׳•׳”׳×׳§׳ ׳™׳ ֲ· ׳ ׳×׳•׳ ׳™ ׳”׳“׳’׳׳”" backHref="/devices/building" crumbs=${`${heading} | ׳׳–׳•׳¨`}><sw-state-panel state="empty" heading="׳׳¡׳ ׳”׳׳–׳•׳¨ ׳¢׳•׳‘׳“ ׳׳•׳ ׳”׳©׳¨׳×" hint="׳‘׳׳¦׳‘ ׳”׳“׳’׳׳” ׳׳™׳ ׳׳–׳•׳¨׳™׳ ׳׳”׳¦׳’׳”; ׳¢׳¥ ׳”׳׳‘׳ ׳” ׳׳¦׳™׳’ ׳ ׳×׳•׳ ׳™ ׳”׳“׳’׳׳”."></sw-state-panel></sw-page>`;
+      return html`<sw-page heading="אזור" subheading="חשמל והתקנים · נתוני הדגמה" backHref="/devices/building" crumbs=${`${heading} | אזור`}><sw-state-panel state="empty" heading="מסך האזור עובד מול השרת" hint="במצב הדגמה אין אזורים להצגה; עץ המבנה מציג נתוני הדגמה."></sw-state-panel></sw-page>`;
     }
     if (this.forbidden) {
-      return html`<sw-page heading=${heading} subheading="׳׳–׳•׳¨" backHref="/devices/building"><sw-state-panel data-devices-state="no_permission" state="forbidden" heading="׳׳™׳ ׳׳ ׳”׳¨׳©׳׳× ׳¦׳₪׳™׳™׳” ׳‘׳—׳©׳׳ ׳•׳”׳×׳§׳ ׳™׳" hint="׳ ׳“׳¨׳©׳× ׳”׳”׳¨׳©׳׳” ׳¦׳₪׳™׳™׳” ׳‘׳—׳©׳׳ ׳•׳”׳×׳§׳ ׳™׳. ׳₪׳ ׳” ׳׳׳ ׳”׳ ׳”׳׳¢׳¨׳›׳×."></sw-state-panel></sw-page>`;
+      return html`<sw-page heading=${heading} subheading="אזור" backHref="/devices/building"><sw-state-panel data-devices-state="no_permission" state="forbidden" heading="אין לך הרשאת צפייה בחשמל והתקנים" hint="נדרשת ההרשאה צפייה בחשמל והתקנים. פנה למנהל המערכת."></sw-state-panel></sw-page>`;
     }
     if (this.notFound) {
-      return html`<sw-page heading=${heading} subheading="׳׳–׳•׳¨" backHref="/devices/building" crumbs=${`${heading} | ׳׳–׳•׳¨`}><sw-state-panel data-devices-state="not_found" state="empty" heading="׳”׳׳–׳•׳¨ ׳׳ ׳ ׳׳¦׳" hint="׳”׳׳–׳•׳¨ ׳׳™׳ ׳• ׳§׳™׳™׳, ׳׳• ׳©׳׳™׳ ׳‘׳• ׳”׳×׳§׳ ׳™׳ ׳©׳‘׳”׳¨׳©׳׳×׳."></sw-state-panel></sw-page>`;
+      return html`<sw-page heading=${heading} subheading="אזור" backHref="/devices/building" crumbs=${`${heading} | אזור`}><sw-state-panel data-devices-state="not_found" state="empty" heading="האזור לא נמצא" hint="האזור אינו קיים, או שאין בו התקנים שבהרשאתך."></sw-state-panel></sw-page>`;
     }
     const d = this.detail;
     if (!d) {
-      return html`<sw-page heading=${heading} subheading="׳׳–׳•׳¨" backHref="/devices/building">${this.error
-        ? html`<sw-state-panel data-devices-state="load_error" state="error" heading="׳׳ ׳ ׳™׳×׳ ׳׳˜׳¢׳•׳ ׳׳× ׳”׳׳–׳•׳¨" hint=${this.error}></sw-state-panel>`
+      return html`<sw-page heading=${heading} subheading="אזור" backHref="/devices/building">${this.error
+        ? html`<sw-state-panel data-devices-state="load_error" state="error" heading="לא ניתן לטעון את האזור" hint=${this.error}></sw-state-panel>`
         : html`<sw-state-panel state="loading"></sw-state-panel>`}</sw-page>`;
     }
     const floorName = d.area.floor_name ?? '';
     // the floor is a crumb now (devices-area-nav.ts): the subtitle keeps only the counts
-    const sub = `${d.counts.entities} ׳”׳×׳§׳ ׳™׳${d.scoped ? ' ֲ· ׳׳₪׳™ ׳”׳§׳•׳׳•׳× ׳©׳׳' : ''}`;
+    const sub = `${d.counts.entities} התקנים${d.scoped ? ' · לפי הקומות שלך' : ''}`;
     const connected = this.sync?.connected ?? false;
     const cards = CARD_IDS.filter((id) => this.prefs.showSensors || id !== 'sensors').map((id) => d.cards[id]);
     // Owner feedback 2026-09-29 ("hide empty domains"): a domain this area has nothing of is not a card at all. Its saved
@@ -1051,19 +1051,19 @@ export class DevicesArea extends LitElement {
     // owner 2026-09-30: camera cards (`camera:<slug>` items of the layout) sit on the same grid as the domain cards
     const cameraKeys = this.lay.keysWithPrefix('camera:').filter((k) => isCameraSource(this.lay.cameraOf(k)));
     this.lay.prepare([{ id: 'cards', keys: [...gridKeys, ...cameraKeys] }]);
-    // 6c: "׳¡׳™׳“׳•׳¨ ׳”׳×׳§׳ ׳™׳" - the editor shows the card being arranged alone
+    // 6c: "סידור התקנים" - the editor shows the card being arranged alone
     const arranging = this.lay.tileCard ? ordered.find((c) => this.lay.arranging(`card:${c.id}`)) : undefined;
     const arrangingCustom = this.lay.tileCard && customKeys.includes(this.lay.tileCard) && this.lay.arranging(this.lay.tileCard) ? this.lay.tileCard : '';
     const bubble = this.skin.bubble;
     return html`<sw-page heading=${bubble ? '' : bidi(d.area.name)} subheading=${bubble ? '' : sub} wide @bulk-request=${this.onBulkRequest}>
       <devices-area-nav slot="crumbs" .areaId=${d.area.area_id} .areaName=${d.area.name} .floorName=${floorName} .areas=${d.floor_areas}></devices-area-nav>
       <div slot="actions">
-        ${bulk ? html`<devices-bulk-menu scope="area" .targetId=${d.area.area_id} .targetName=${d.area.name} .counts=${d.counts} variant="popover" label="׳₪׳¢׳•׳׳•׳× ׳׳׳–׳•׳¨" data-bulk-area=${d.area.area_id}></devices-bulk-menu>` : nothing}
-        ${d.counts.alarm && !bubble ? html`<sw-badge data-area-alarm kind=${alarmTone(d.counts.alarm)} label=${`׳׳–׳¢׳§׳”: ${ALARM_HE[d.counts.alarm] ?? d.counts.alarm}`}></sw-badge>` : nothing}
-        ${bubble && connected ? nothing : html`<sw-badge data-devices-sync kind=${connected ? 'live' : 'stale'} label=${connected ? '׳׳¡׳•׳ ׳›׳¨׳' : '׳׳ ׳׳¡׳•׳ ׳›׳¨׳'}></sw-badge>`}
-        ${this.structureFlash ? html`<sw-badge data-structure-changed kind="live" label="׳׳‘׳ ׳” ׳¢׳•׳“׳›׳"></sw-badge>` : nothing}
+        ${bulk ? html`<devices-bulk-menu scope="area" .targetId=${d.area.area_id} .targetName=${d.area.name} .counts=${d.counts} variant="popover" label="פעולות לאזור" data-bulk-area=${d.area.area_id}></devices-bulk-menu>` : nothing}
+        ${d.counts.alarm && !bubble ? html`<sw-badge data-area-alarm kind=${alarmTone(d.counts.alarm)} label=${`אזעקה: ${ALARM_HE[d.counts.alarm] ?? d.counts.alarm}`}></sw-badge>` : nothing}
+        ${bubble && connected ? nothing : html`<sw-badge data-devices-sync kind=${connected ? 'live' : 'stale'} label=${connected ? 'מסונכרן' : 'לא מסונכרן'}></sw-badge>`}
+        ${this.structureFlash ? html`<sw-badge data-structure-changed kind="live" label="מבנה עודכן"></sw-badge>` : nothing}
       </div>
-      ${this.error ? html`<sw-state-panel compact state="error" heading="׳”׳¨׳¢׳ ׳•׳ ׳”׳׳—׳¨׳•׳ ׳ ׳›׳©׳" hint=${this.error}></sw-state-panel>` : nothing}
+      ${this.error ? html`<sw-state-panel compact state="error" heading="הרענון האחרון נכשל" hint=${this.error}></sw-state-panel>` : nothing}
       ${bubble ? this.renderBubbleHead(d) : nothing}
       ${this.lay.renderBar()}
       ${this.lay.editing ? nothing : this.renderSecurityStrip(d)}
@@ -1077,8 +1077,8 @@ export class DevicesArea extends LitElement {
             ${repeat(customKeys, (k) => k, (k) => this.lay.wrap(k, this.renderCustomCard(k)))}
             ${repeat(cameraKeys, (k) => k, (k) => this.lay.wrap(k, this.renderCameraCard(k)))}
           </div>`
-        : html`<sw-state-panel data-devices-state="area_empty" state="empty" heading="׳׳™׳ ׳”׳×׳§׳ ׳™׳ ׳‘׳׳–׳•׳¨ ׳”׳–׳”" hint="׳©׳™׳™׳›׳• ׳”׳×׳§׳ ׳™׳ ׳׳׳–׳•׳¨ (׳׳• ׳׳´׳׳׳ ׳©׳™׳•׳׳´); ׳›׳¨׳˜׳™׳¡ ׳©׳ ׳×׳׳•׳¨׳”, ׳׳×׳’׳™׳, ׳׳™׳–׳•׳’, ׳×׳¨׳™׳¡׳™׳, ׳׳‘׳˜׳—׳”, ׳׳¡׳›׳™׳ ׳׳• ׳—׳™׳™׳©׳ ׳™׳ ׳׳•׳₪׳™׳¢ ׳›׳©׳™׳© ׳‘׳׳–׳•׳¨ ׳”׳×׳§׳ ׳׳”׳¡׳•׳’ ׳”׳–׳”."></sw-state-panel>`}
-      ${anyControllable ? nothing : html`<div class="note" data-readonly-note>׳×׳¦׳•׳’׳” ׳׳§׳¨׳™׳׳” ׳‘׳׳‘׳“: ׳׳¦׳‘ ׳”׳”׳×׳§׳ ׳™׳ ׳›׳₪׳™ ׳©׳“׳•׳•׳—.</div>`}
+        : html`<sw-state-panel data-devices-state="area_empty" state="empty" heading="אין התקנים באזור הזה" hint="שייכו התקנים לאזור (או מ״ללא שיוך״); כרטיס של תאורה, מתגים, מיזוג, תריסים, אבטחה, מסכים או חיישנים מופיע כשיש באזור התקן מהסוג הזה."></sw-state-panel>`}
+      ${anyControllable ? nothing : html`<div class="note" data-readonly-note>תצוגה לקריאה בלבד: מצב ההתקנים כפי שדווח.</div>`}
       ${bulk ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
       ${this.canAssignArea ? this.renderAssignDialog() : nothing}
       ${this.lay.renderPanel()}
@@ -1094,20 +1094,20 @@ export class DevicesArea extends LitElement {
     openSheet: (r: DeviceRow, card: CardId) => {
       this.sheet = { id: r.entity_id, card };
     },
-    assignButton: (r: DeviceRow) => (this.canAssignArea ? html`<sw-button slot="subs" class="assign-btn" size="sm" variant="ghost" data-assign-entity=${r.entity_id} @click=${(e: Event) => { e.stopPropagation(); void this.openAssign(r); }}>׳©׳™׳™׳ ׳׳׳–׳•׳¨</sw-button>` : nothing),
+    assignButton: (r: DeviceRow) => (this.canAssignArea ? html`<sw-button slot="subs" class="assign-btn" size="sm" variant="ghost" data-assign-entity=${r.entity_id} @click=${(e: Event) => { e.stopPropagation(); void this.openAssign(r); }}>שייך לאזור</sw-button>` : nothing),
   };
 
-  /** The area's head pill: name, counts, the room temperature (its first temperature sensor), and "׳›׳‘׳” ׳”׳›׳" for a bulk holder. */
+  /** The area's head pill: name, counts, the room temperature (its first temperature sensor), and "כבה הכל" for a bulk holder. */
   private renderBubbleHead(d: DeviceAreaDetail) {
     const c = d.counts;
-    const parts = [c.lights_on ? `${ltrNum(c.lights_on)} ׳“׳•׳׳§׳™׳` : '', c.climate_active + c.heating_active ? `${ltrNum(c.climate_active + c.heating_active)} ׳׳™׳–׳•׳’` : '', c.covers_open ? `${ltrNum(c.covers_open)} ׳₪׳×׳•׳—׳™׳` : ''].filter(Boolean);
-    const state = [parts.length ? parts.join(' ֲ· ') : `${ltrNum(c.entities)} ׳”׳×׳§׳ ׳™׳`, d.area.floor_name ?? ''].filter(Boolean).join(' ֲ· ');
+    const parts = [c.lights_on ? `${ltrNum(c.lights_on)} דולקים` : '', c.climate_active + c.heating_active ? `${ltrNum(c.climate_active + c.heating_active)} מיזוג` : '', c.covers_open ? `${ltrNum(c.covers_open)} פתוחים` : ''].filter(Boolean);
+    const state = [parts.length ? parts.join(' · ') : `${ltrNum(c.entities)} התקנים`, d.area.floor_name ?? ''].filter(Boolean).join(' · ');
     const temp = d.cards.sensors.entities.find((r) => r.domain === 'sensor' && r.device_class === 'temperature' && r.available && r.value !== null && r.value !== undefined);
     const alarm = d.counts.alarm;
     return html`<sw-pill class="bhead" variant="plain" icon="home" .label=${bidi(d.area.name)} .state=${state} .hue=${hueOf(d.area.area_id)} data-area-head=${d.area.area_id}>
       ${temp ? html`<span slot="subs" class="chip plain" data-area-temperature title=${bidi(temp.name)}><sw-icon name="thermometer" size=${14}></sw-icon>${deg(temp.value)}</span>` : nothing}
-      ${alarm ? html`<a slot="subs" class="chip" href="#/security/alarm" data-area-alarm title="׳׳׳–׳¢׳§׳”" style="text-decoration:none"><sw-icon name="shield" size=${14}></sw-icon>${ALARM_HE[alarm] ?? alarm}</a>` : nothing}
-      ${this.bulkAllowed && (c.lights_on || c.switches_on) ? html`<button slot="subs" type="button" class="sb" aria-label="׳›׳‘׳” ׳”׳›׳ ׳‘׳׳–׳•׳¨" data-area-all-off @click=${() => this.openCoverGroupBulk('all_off')}><sw-icon name="power" size=${18}></sw-icon></button>` : nothing}
+      ${alarm ? html`<a slot="subs" class="chip" href="#/security/alarm" data-area-alarm title="לאזעקה" style="text-decoration:none"><sw-icon name="shield" size=${14}></sw-icon>${ALARM_HE[alarm] ?? alarm}</a>` : nothing}
+      ${this.bulkAllowed && (c.lights_on || c.switches_on) ? html`<button slot="subs" type="button" class="sb" aria-label="כבה הכל באזור" data-area-all-off @click=${() => this.openCoverGroupBulk('all_off')}><sw-icon name="power" size=${18}></sw-icon></button>` : nothing}
     </sw-pill>`;
   }
 
@@ -1128,7 +1128,7 @@ export class DevicesArea extends LitElement {
     const it = this.lay.item(key);
     const folded = this.phone && !this.lay.editing && this.folded(key, c.id === 'sensors');
     const actions = SECTION_BULK[c.id] && this.bulkAllowed && c.count && !this.lay.arranging(key)
-      ? html`<span class="sec-bulk" data-section-bulk=${c.id} data-bulk-look=${this.lay.bulkLookOf(key)}>${SECTION_BULK[c.id]!.map((a) => html`<button type="button" class="sb" aria-label=${`${a.label} ֲ· ${c.label}`} title=${a.label} data-section-bulk-kind=${a.kind} @click=${() => this.openCoverGroupBulk(a.kind)}><sw-icon .name=${a.icon} size=${18}></sw-icon></button>`)}</span>`
+      ? html`<span class="sec-bulk" data-section-bulk=${c.id} data-bulk-look=${this.lay.bulkLookOf(key)}>${SECTION_BULK[c.id]!.map((a) => html`<button type="button" class="sb" aria-label=${`${a.label} · ${c.label}`} title=${a.label} data-section-bulk-kind=${a.kind} @click=${() => this.openCoverGroupBulk(a.kind)}><sw-icon .name=${a.icon} size=${18}></sw-icon></button>`)}</span>`
       : nothing;
     return html`${renderBubbleSep({ id: c.id, icon: it?.icon ?? sectionIcon(c.id), label: titleOf(it, c.label), count: c.count ? `${ltrNum(c.count)}` : '', fold: this.phone && !this.lay.editing ? { open: !folded, toggle: () => this.fold(key, !folded) } : null, actions })}
       ${folded ? nothing : body}`;
@@ -1156,7 +1156,7 @@ export class DevicesArea extends LitElement {
       : tiles
         ? this.renderArranged(c, tiles)
         : !ents.length
-        ? html`<div class="count" data-card-all-hidden>׳›׳ ׳”׳”׳×׳§׳ ׳™׳ ׳‘׳›׳¨׳˜׳™׳¡ ׳”׳•׳¡׳×׳¨׳• ׳‘׳¢׳•׳¨׳ ׳”׳₪׳¨׳™׳¡׳”.</div>`
+        ? html`<div class="count" data-card-all-hidden>כל ההתקנים בכרטיס הוסתרו בעורך הפריסה.</div>`
         : c.id === 'media' && this.mediaHook
         ? this.renderMedia(key, null, ents)
         : c.id === 'sensors'
@@ -1171,7 +1171,7 @@ export class DevicesArea extends LitElement {
     if (bubble) {
       return html`<sw-card data-card=${c.id} data-lay-key=${key} ?data-empty=${c.count === 0} data-bubble-card>${this.renderBubbleSection(c, key, body)}</sw-card>`;
     }
-    return html`<sw-card data-card=${c.id} data-lay-key=${key} ?data-empty=${c.count === 0} ?row=${this.rowSections && c.id !== 'sensors' && c.id !== 'media'} ?collapsible=${this.phone && !this.lay.editing} ?collapsed=${this.phone && !this.lay.editing && this.folded(key, c.id === 'sensors')} @sw-card-toggle=${(ev: CustomEvent<{ collapsed: boolean }>) => this.fold(key, ev.detail.collapsed)} heading=${titleOf(it, c.label)} subheading=${c.count ? `${c.count} ׳”׳×׳§׳ ׳™׳${c.id === 'lighting' || c.id === 'switches' || c.id === 'climate' || c.id === 'heating' || c.id === 'covers' || c.id === 'media' ? ` ֲ· ${c.active} ׳₪׳¢׳™׳׳™׳` : ''}` : ''}>
+    return html`<sw-card data-card=${c.id} data-lay-key=${key} ?data-empty=${c.count === 0} ?row=${this.rowSections && c.id !== 'sensors' && c.id !== 'media'} ?collapsible=${this.phone && !this.lay.editing} ?collapsed=${this.phone && !this.lay.editing && this.folded(key, c.id === 'sensors')} @sw-card-toggle=${(ev: CustomEvent<{ collapsed: boolean }>) => this.fold(key, ev.detail.collapsed)} heading=${titleOf(it, c.label)} subheading=${c.count ? `${c.count} התקנים${c.id === 'lighting' || c.id === 'switches' || c.id === 'climate' || c.id === 'heating' || c.id === 'covers' || c.id === 'media' ? ` · ${c.active} פעילים` : ''}` : ''}>
       ${this.renderSectionBulk(c, key)}
       <sw-icon slot="actions" .name=${it?.icon ?? CARD_ICON[c.id]} size=${18}></sw-icon>
       ${body}
@@ -1194,7 +1194,7 @@ export class DevicesArea extends LitElement {
     this.foldState = new Map(this.foldState).set(key, collapsed);
   }
 
-  /** The section's "׳›׳‘׳” ׳”׳›׳" button(s): the registry (devices-area-design.ts SECTION_BULK) decides which sections have one
+  /** The section's "כבה הכל" button(s): the registry (devices-area-design.ts SECTION_BULK) decides which sections have one
    * and what it sends; the section's `bulk_look` (edit mode) decides icon / text / both. Every press opens the bulk flow's
    * confirmation dialog - nothing is sent from here. A holder of devices.control_bulk only (`can_bulk` of the area). */
   private renderSectionBulk(c: DeviceCard, key: string) {
@@ -1217,18 +1217,18 @@ export class DevicesArea extends LitElement {
       const unavailable = !r.available || r.state === 'unavailable';
       const icon: IconName = r.kind === 'lock' ? (r.locked ? 'lock' : 'unlock') : r.kind === 'alarm' ? 'shield' : r.kind === 'camera' ? 'camera' : 'door';
       const tone = unavailable ? 'off' : r.kind === 'lock' ? (r.locked ? 'ok' : 'warn') : r.kind === 'alarm' ? (r.state === 'triggered' ? 'bad' : r.armed ? 'ok' : 'warn') : r.kind === 'camera' ? 'ok' : r.state === 'on' ? 'warn' : 'ok';
-      const text = r.kind === 'camera' ? '׳׳§׳•׳•׳' : rowLabel(r);
+      const text = r.kind === 'camera' ? 'מקוון' : rowLabel(r);
       const inner = html`<sw-icon .name=${icon} size=${14}></sw-icon><b>${bidi(r.name)}</b><span>${text}</span>`;
       return r.kind === 'alarm'
-        ? html`<a class="sec-chip ${tone}" href="#/security/alarm" data-sec-chip=${r.entity_id} title="׳׳׳–׳¢׳§׳”">${inner}</a>`
+        ? html`<a class="sec-chip ${tone}" href="#/security/alarm" data-sec-chip=${r.entity_id} title="לאזעקה">${inner}</a>`
         : html`<span class="sec-chip ${tone}" data-sec-chip=${r.entity_id}>${inner}</span>`;
     };
-    return html`<div class="sec-strip" data-security-strip role="group" aria-label="׳׳‘׳˜׳—׳”"><span class="sec-lbl"><sw-icon name="shield" size=${15}></sw-icon>׳׳‘׳˜׳—׳”</span>${rows.map(chip)}</div>`;
+    return html`<div class="sec-strip" data-security-strip role="group" aria-label="אבטחה"><span class="sec-lbl"><sw-icon name="shield" size=${15}></sw-icon>אבטחה</span>${rows.map(chip)}</div>`;
   }
 
   /**
    * The sensors section (owner 2026-09-30): the MAIN strip on top - temperature, humidity, motion and door, only those the
-   * area has, or the owner's own pick of any sensors of the installation (edit mode) - and "׳¢׳•׳“ N ׳—׳™׳™׳©׳ ׳™׳" folding the rest
+   * area has, or the owner's own pick of any sensors of the installation (edit mode) - and "עוד N חיישנים" folding the rest
    * away. A room whose sensors are none of those four shows them all, as before.
    */
   private renderSensorsSection(key: string, ents: DeviceRow[]) {
@@ -1248,10 +1248,10 @@ export class DevicesArea extends LitElement {
     };
     if (this.skin.bubble) {
       return html`<div class="kv" data-main-sensors>${main.map((r) => renderBubbleSensorTile(r, mainSlotOf(r)))}</div>
-        ${rest.length ? html`<button type="button" class="bmore" data-sensors-more aria-expanded=${String(open)} @click=${toggle}>${open ? '׳”׳¡׳×׳¨ ׳—׳™׳™׳©׳ ׳™׳' : `׳¢׳•׳“ ${rest.length} ׳—׳™׳™׳©׳ ׳™׳`}</button>${open ? this.renderSensorGroups(rest) : nothing}` : nothing}`;
+        ${rest.length ? html`<button type="button" class="bmore" data-sensors-more aria-expanded=${String(open)} @click=${toggle}>${open ? 'הסתר חיישנים' : `עוד ${rest.length} חיישנים`}</button>${open ? this.renderSensorGroups(rest) : nothing}` : nothing}`;
     }
     return html`<div class="main-sensors" data-main-sensors>${main.map((r) => this.renderMainSensor(r))}</div>
-      ${rest.length ? html`<button type="button" class="more-sens" data-sensors-more aria-expanded=${String(open)} @click=${toggle}>${open ? '׳”׳¡׳×׳¨ ׳—׳™׳™׳©׳ ׳™׳' : `׳¢׳•׳“ ${rest.length} ׳—׳™׳™׳©׳ ׳™׳`}</button>${open ? this.renderSensorGroups(rest) : nothing}` : nothing}`;
+      ${rest.length ? html`<button type="button" class="more-sens" data-sensors-more aria-expanded=${String(open)} @click=${toggle}>${open ? 'הסתר חיישנים' : `עוד ${rest.length} חיישנים`}</button>${open ? this.renderSensorGroups(rest) : nothing}` : nothing}`;
   }
 
   private renderMainSensor(r: DeviceRow) {
@@ -1259,7 +1259,7 @@ export class DevicesArea extends LitElement {
     const slot = mainSlotOf(r);
     const icon: IconName = slot === 'temperature' ? 'sensor' : slot === 'humidity' ? 'sensor' : slot === 'motion' ? 'activity' : slot === 'door' ? 'door' : 'sensor';
     const unavailable = !r.available || r.state === 'unavailable';
-    const value = unavailable ? '׳׳ ׳–׳׳™׳' : r.domain === 'sensor' && r.value !== null && r.value !== undefined ? `${ltrNum(Number.isInteger(r.value) ? r.value : r.value.toFixed(1))}${r.unit ? (r.unit.startsWith('ֲ°') || r.unit === '%' ? r.unit : ` ${r.unit}`) : ''}` : rowLabel(r);
+    const value = unavailable ? 'לא זמין' : r.domain === 'sensor' && r.value !== null && r.value !== undefined ? `${ltrNum(Number.isInteger(r.value) ? r.value : r.value.toFixed(1))}${r.unit ? (r.unit.startsWith('°') || r.unit === '%' ? r.unit : ` ${r.unit}`) : ''}` : rowLabel(r);
     return html`<div class=${classMap({ msens: true, unavailable, hot: r.domain === 'binary_sensor' && r.state === 'on' })} data-main-sensor=${r.entity_id} data-slot=${slot ?? ''} title=${r.entity_id}>
       <sw-icon .name=${icon} size=${16}></sw-icon><div class="mv"><b>${value}</b><span>${bidi(r.name)}</span></div>
     </div>`;
@@ -1269,9 +1269,9 @@ export class DevicesArea extends LitElement {
   private renderDesignPersonal() {
     if (!this.mayPersonalize) return nothing;
     const own = this.personalDesign();
-    return html`<span class="design-personal" data-design-personal><label>׳›׳™׳•׳•׳ ׳×׳¦׳•׳’׳” (׳¨׳§ ׳׳¦׳׳™)
+    return html`<span class="design-personal" data-design-personal><label>כיוון תצוגה (רק אצלי)
       <select data-design-personal-select @change=${(ev: Event) => this.setPersonalDesign(((ev.target as HTMLSelectElement).value as AreaDesign | ''))}>
-        <option value="" ?selected=${!own}>׳‘׳¨׳™׳¨׳× ׳”׳׳¢׳¨׳›׳× ֲ· ${AREA_DESIGN_LABEL[this.installationDesign]}</option>
+        <option value="" ?selected=${!own}>ברירת המערכת · ${AREA_DESIGN_LABEL[this.installationDesign]}</option>
         ${AREA_DESIGNS.map((k) => html`<option value=${k} ?selected=${own === k}>${AREA_DESIGN_LABEL[k]}</option>`)}
       </select></label></span>`;
   }
@@ -1280,7 +1280,7 @@ export class DevicesArea extends LitElement {
    * span, size and title (the device's own row / tile inside; its controls unchanged). The card's numbers (heading,
    * the floor chips) still count every device, hidden or not; a sensors card arranged by hand is one list. */
   private renderArranged(c: DeviceCard, tiles: TileEntry[], custom?: { key: string; cardOf: (id: string) => CardId }) {
-    if (!tiles.length) return html`<div class="count" data-card-all-hidden>׳›׳ ׳”׳”׳×׳§׳ ׳™׳ ׳‘׳›׳¨׳˜׳™׳¡ ׳”׳•׳¡׳×׳¨׳• ׳‘׳¢׳•׳¨׳ ׳”׳₪׳¨׳™׳¡׳”.</div>`;
+    if (!tiles.length) return html`<div class="count" data-card-all-hidden>כל ההתקנים בכרטיס הוסתרו בעורך הפריסה.</div>`;
     const key = custom?.key ?? `card:${c.id}`;
     const byId = new Map(c.entities.map((r) => [r.entity_id, r]));
     return html`${!custom && c.id === 'covers' && !this.lay.arranging(key) ? this.renderCoverGroupControl() : nothing}<div class="tiles lay-tgrid" data-lay-tiles=${custom ? key : c.id}>${repeat(
@@ -1319,8 +1319,8 @@ export class DevicesArea extends LitElement {
     const ask = () => this.renderRoot.querySelector<HTMLElement & { ask: () => Promise<void> }>(`media-area-card[data-media-card="${key}"]`)?.ask();
     return html`${st?.off && !this.lay.arranging(key)
         ? html`<span slot="actions" class="sec-bulk" data-section-bulk="media" data-bulk-look=${look}>${look === 'icon'
-            ? html`<sw-button size="sm" iconOnly icon="power" label="׳›׳‘׳” ׳”׳›׳" data-section-bulk-kind="screens_off" @click=${ask}></sw-button>`
-            : html`<sw-button size="sm" icon=${look === 'both' ? 'power' : undefined} data-section-bulk-kind="screens_off" @click=${ask}>׳›׳‘׳” ׳”׳›׳</sw-button>`}</span>`
+            ? html`<sw-button size="sm" iconOnly icon="power" label="כבה הכל" data-section-bulk-kind="screens_off" @click=${ask}></sw-button>`
+            : html`<sw-button size="sm" icon=${look === 'both' ? 'power' : undefined} data-section-bulk-kind="screens_off" @click=${ask}>כבה הכל</sw-button>`}</span>`
         : nothing}
       <media-area-card external data-media-card=${key} .areaId=${d.area.area_id} .areaName=${d.area.name} .entityIds=${entityIds}
         @media-area-state=${(e: CustomEvent<{ screens: number; players?: number; canOff: boolean }>) => {
@@ -1352,11 +1352,11 @@ export class DevicesArea extends LitElement {
     const listRows = rows.filter((r) => !TILE_CARDS.has(cardOf(r.entity_id)));
     const bubble = this.skin.bubble;
     const body = !all.length
-      ? html`<div class="count" data-card-empty>׳׳™׳ ׳‘׳›׳¨׳˜׳™׳¡ ׳”׳×׳§׳ ׳™׳. ׳‘׳—׳¨׳• ׳”׳×׳§׳ ׳™׳ ׳‘׳—׳׳•׳ ׳™׳× ׳”׳׳׳₪׳™׳™׳ ׳™׳ ׳©׳ ׳”׳›׳¨׳˜׳™׳¡.</div>`
+      ? html`<div class="count" data-card-empty>אין בכרטיס התקנים. בחרו התקנים בחלונית המאפיינים של הכרטיס.</div>`
       : tiles
         ? this.renderArranged(pseudo, tiles, { key, cardOf })
         : !rows.length
-          ? html`<div class="count" data-card-all-hidden>׳›׳ ׳”׳”׳×׳§׳ ׳™׳ ׳‘׳›׳¨׳˜׳™׳¡ ׳”׳•׳¡׳×׳¨׳• ׳‘׳¢׳•׳¨׳ ׳”׳₪׳¨׳™׳¡׳”.</div>`
+          ? html`<div class="count" data-card-all-hidden>כל ההתקנים בכרטיס הוסתרו בעורך הפריסה.</div>`
           : custom.type === 'media' && this.mediaHook
           ? this.renderMedia(key, custom.entities ?? null, rows)
           : bubble
@@ -1366,7 +1366,7 @@ export class DevicesArea extends LitElement {
       const sepCard: DeviceCard = { ...pseudo, id: (isCardType(custom.type) && (CARD_IDS as string[]).includes(custom.type) ? custom.type : 'sensors') as CardId, label: titleOf(it, info.label) };
       return html`<sw-card data-custom-card=${key.slice(5)} data-card-type=${custom.type} data-lay-key=${key} ?data-empty=${all.length === 0} data-bubble-card>${renderBubbleSep({ id: sepCard.id, icon: it?.icon ?? info.icon, label: sepCard.label, count: all.length ? `${ltrNum(all.length)}` : '' })}${body}</sw-card>`;
     }
-    return html`<sw-card data-custom-card=${key.slice(5)} data-card-type=${custom.type} data-lay-key=${key} ?data-empty=${all.length === 0} heading=${titleOf(it, info.label)} subheading=${all.length ? `${all.length} ׳”׳×׳§׳ ׳™׳` : ''}>
+    return html`<sw-card data-custom-card=${key.slice(5)} data-card-type=${custom.type} data-lay-key=${key} ?data-empty=${all.length === 0} heading=${titleOf(it, info.label)} subheading=${all.length ? `${all.length} התקנים` : ''}>
       <sw-icon slot="actions" .name=${it?.icon ?? info.icon} size=${18}></sw-icon>
       ${body}
     </sw-card>`;
@@ -1413,22 +1413,22 @@ export class DevicesArea extends LitElement {
         ? r.domain === 'sensor'
           ? r.value !== null && r.value !== undefined
             ? `${ltrNum(Number.isInteger(r.value) ? r.value : r.value.toFixed(1))}${r.unit ? ` ${r.unit}` : ''}`
-            : (r.state ?? 'ג€”')
+            : (r.state ?? '—')
           : rowLabel(r)
         : rowLabel(r);
     const on = r.active && !unavailable;
     return html`<div class=${classMap({ tile: true, on, off: !on && !unavailable, unavailable, pending: controllable && this.ctl.rowPending(r.entity_id) })} data-entity=${r.entity_id} data-active=${String(on)} ?data-can-control=${controllable} title=${r.entity_id}>
       <div class="t"><sw-icon .name=${icon} size=${15}></sw-icon><span>${bidi(r.name)}</span>${controllable ? this.ctl.renderPowerToggle(r) : nothing}</div>
-      <div class="s">${unavailable ? '׳׳ ׳–׳׳™׳' : value}</div>
+      <div class="s">${unavailable ? 'לא זמין' : value}</div>
       ${card === 'sensors' && r.last_changed ? html`<div class="lc" data-last-changed>${fmtTime(r.last_changed)}</div>` : nothing}
       ${controllable && card === 'lighting' && (on || this.ctl.live<boolean>(r.entity_id, 'power') === true) ? this.ctl.renderBrightnessSlider(r) : nothing}
       ${controllable ? this.ctl.renderCmdStatus(r.entity_id) : nothing}
-      ${r.alarm_managed ? html`<div class="bulk-safe" data-alarm-managed>${r.managed_label ?? '׳ ׳©׳׳˜ ׳׳׳¡׳ ׳”׳׳–׳¢׳§׳”'} ֲ· <a href="#/security/alarm">׳׳׳–׳¢׳§׳”</a></div>` : nothing}
+      ${r.alarm_managed ? html`<div class="bulk-safe" data-alarm-managed>${r.managed_label ?? 'נשלט ממסך האזעקה'} · <a href="#/security/alarm">לאזעקה</a></div>` : nothing}
       ${this.renderAssignButton(r)}
     </div>`;
   }
 
-  // ---------------------------------------------------------------- CR-007 slice 4: covers card - the "׳›׳ ׳”׳×׳¨׳™׳¡׳™׳"
+  // ---------------------------------------------------------------- CR-007 slice 4: covers card - the "כל התריסים"
   // group control (open all / stop all / close all / position all), the same server-enforced bulk path (never a
   // fan-out path of its own) as the floor/area/building menus - just started from here, with kind covers_open /
   // covers_stop / covers_close / covers_position, scoped to this area.
@@ -1436,8 +1436,8 @@ export class DevicesArea extends LitElement {
   /** Wording/icon per device class (CR-007 slice 4): shutter/blind/curtain/awning/window get the shutter controls;
    * door/garage/gate stay read-only (server-side `can_control` is already false for them). */
   private coverLabel(r: DeviceRow): string {
-    if (r.door_class) return DOOR_COVER_LABELS[r.device_class ?? ''] ?? '׳“׳׳× / ׳©׳¢׳¨';
-    return COVER_CLASS_LABEL[r.device_class ?? ''] ?? '׳×׳¨׳™׳¡';
+    if (r.door_class) return DOOR_COVER_LABELS[r.device_class ?? ''] ?? 'דלת / שער';
+    return COVER_CLASS_LABEL[r.device_class ?? ''] ?? 'תריס';
   }
 
   private get coverGroupAllowed(): boolean {
@@ -1453,25 +1453,25 @@ export class DevicesArea extends LitElement {
   private renderCoverGroupControl() {
     if (!this.coverGroupAllowed) return nothing;
     if (this.skin.bubble) {
-      // the bubble skin: one pill for every cover of the area - a position slider (sent on "׳§׳‘׳¢") and open / stop / close
+      // the bubble skin: one pill for every cover of the area - a position slider (sent on "קבע") and open / stop / close
       const v = this.coverGroupPosition;
-      return html`<sw-pill class="bgroup" variant="slider" icon="layers" label="׳›׳ ׳”׳×׳¨׳™׳¡׳™׳" .state=${`׳׳™׳§׳•׳ ׳׳›׳•׳׳ ֲ· ${ltrNum(v)}%`} .value=${v / 100} on fill-color="var(--sw-accent-soft)" keep-text data-cover-group
+      return html`<sw-pill class="bgroup" variant="slider" icon="layers" label="כל התריסים" .state=${`מיקום לכולם · ${ltrNum(v)}%`} .value=${v / 100} on fill-color="var(--sw-accent-soft)" keep-text data-cover-group
         @input=${(e: CustomEvent<{ value: number }>) => (this.coverGroupPosition = Math.round(e.detail.value * 100))} @toggle=${() => (this.coverGroupPosition = v > 0 ? 0 : 100)}>
-        <button slot="subs" type="button" class="sb" aria-label="׳₪׳×׳— ׳”׳›׳" data-cover-group-kind="covers_open" @click=${() => this.openCoverGroupBulk('covers_open')}><sw-icon name="arrowUp" size=${18}></sw-icon></button>
-        <button slot="subs" type="button" class="sb" aria-label="׳¢׳¦׳•׳¨ ׳”׳›׳" data-cover-group-kind="covers_stop" @click=${() => this.openCoverGroupBulk('covers_stop')}><sw-icon name="pause" size=${18}></sw-icon></button>
-        <button slot="subs" type="button" class="sb" aria-label="׳¡׳’׳•׳¨ ׳”׳›׳" data-cover-group-kind="covers_close" @click=${() => this.openCoverGroupBulk('covers_close')}><sw-icon name="arrowDown" size=${18}></sw-icon></button>
-        <button slot="subs" type="button" class="chip on" data-cover-group-kind="covers_position" @click=${() => this.openCoverGroupBulk('covers_position', this.coverGroupPosition)}>${`׳§׳‘׳¢ ${ltrNum(v)}%`}</button>
+        <button slot="subs" type="button" class="sb" aria-label="פתח הכל" data-cover-group-kind="covers_open" @click=${() => this.openCoverGroupBulk('covers_open')}><sw-icon name="arrowUp" size=${18}></sw-icon></button>
+        <button slot="subs" type="button" class="sb" aria-label="עצור הכל" data-cover-group-kind="covers_stop" @click=${() => this.openCoverGroupBulk('covers_stop')}><sw-icon name="pause" size=${18}></sw-icon></button>
+        <button slot="subs" type="button" class="sb" aria-label="סגור הכל" data-cover-group-kind="covers_close" @click=${() => this.openCoverGroupBulk('covers_close')}><sw-icon name="arrowDown" size=${18}></sw-icon></button>
+        <button slot="subs" type="button" class="chip on" data-cover-group-kind="covers_position" @click=${() => this.openCoverGroupBulk('covers_position', this.coverGroupPosition)}>${`קבע ${ltrNum(v)}%`}</button>
       </sw-pill>`;
     }
     const setPos = (ev: Event) => (this.coverGroupPosition = Number((ev.target as HTMLInputElement).value));
     return html`<div class="cover-group" data-cover-group>
-      <span class="lbl">׳›׳ ׳”׳×׳¨׳™׳¡׳™׳:</span>
-      <sw-button size="sm" data-cover-group-kind="covers_open" @click=${() => this.openCoverGroupBulk('covers_open')}>׳₪׳×׳— ׳”׳›׳</sw-button>
-      <sw-button size="sm" data-cover-group-kind="covers_stop" @click=${() => this.openCoverGroupBulk('covers_stop')}>׳¢׳¦׳•׳¨ ׳”׳›׳</sw-button>
-      <sw-button size="sm" data-cover-group-kind="covers_close" @click=${() => this.openCoverGroupBulk('covers_close')}>׳¡׳’׳•׳¨ ׳”׳›׳</sw-button>
-      <input type="range" data-cover-group-position-input min="0" max="100" .value=${String(this.coverGroupPosition)} @input=${setPos} @click=${(e: Event) => e.stopPropagation()} aria-label="׳׳™׳§׳•׳ ׳׳›׳ ׳”׳×׳¨׳™׳¡׳™׳" />
+      <span class="lbl">כל התריסים:</span>
+      <sw-button size="sm" data-cover-group-kind="covers_open" @click=${() => this.openCoverGroupBulk('covers_open')}>פתח הכל</sw-button>
+      <sw-button size="sm" data-cover-group-kind="covers_stop" @click=${() => this.openCoverGroupBulk('covers_stop')}>עצור הכל</sw-button>
+      <sw-button size="sm" data-cover-group-kind="covers_close" @click=${() => this.openCoverGroupBulk('covers_close')}>סגור הכל</sw-button>
+      <input type="range" data-cover-group-position-input min="0" max="100" .value=${String(this.coverGroupPosition)} @input=${setPos} @click=${(e: Event) => e.stopPropagation()} aria-label="מיקום לכל התריסים" />
       <span class="ctl-val">${ltrNum(this.coverGroupPosition)}%</span>
-      <sw-button size="sm" variant="primary" data-cover-group-kind="covers_position" @click=${() => this.openCoverGroupBulk('covers_position', this.coverGroupPosition)}>׳§׳‘׳¢ ׳׳™׳§׳•׳ ׳׳›׳•׳׳</sw-button>
+      <sw-button size="sm" variant="primary" data-cover-group-kind="covers_position" @click=${() => this.openCoverGroupBulk('covers_position', this.coverGroupPosition)}>קבע מיקום לכולם</sw-button>
     </div>`;
   }
 
@@ -1483,7 +1483,7 @@ export class DevicesArea extends LitElement {
 
   private renderAssignButton(r: DeviceRow) {
     if (!this.canAssignArea) return nothing;
-    return html`<sw-button class="assign-btn" size="sm" variant="ghost" data-assign-entity=${r.entity_id} @click=${(e: Event) => { e.stopPropagation(); void this.openAssign(r); }}>׳©׳™׳™׳ ׳׳׳–׳•׳¨</sw-button>`;
+    return html`<sw-button class="assign-btn" size="sm" variant="ghost" data-assign-entity=${r.entity_id} @click=${(e: Event) => { e.stopPropagation(); void this.openAssign(r); }}>שייך לאזור</sw-button>`;
   }
 
   private async openAssign(r: DeviceRow) {
@@ -1530,17 +1530,17 @@ export class DevicesArea extends LitElement {
   private renderAssignDialog() {
     const r = this.assigning;
     if (!r) return html`<sw-dialog data-assign-dialog="closed"></sw-dialog>`;
-    return html`<sw-dialog open data-assign-dialog="open" heading="׳©׳™׳•׳ ׳׳׳–׳•׳¨" subheading=${bidi(r.name)} @close=${this.closeAssign}>
+    return html`<sw-dialog open data-assign-dialog="open" heading="שיוך לאזור" subheading=${bidi(r.name)} @close=${this.closeAssign}>
       ${this.assignError ? html`<div class="assign-err" data-assign-error>${this.assignError}</div>` : nothing}
       ${this.assignAreas === null
-        ? html`<div class="assign-muted">׳˜׳•׳¢׳ ׳׳–׳•׳¨׳™׳ג€¦</div>`
+        ? html`<div class="assign-muted">טוען אזורים…</div>`
         : html`<select class="assign-select" data-assign-select @change=${(e: Event) => (this.assignTarget = (e.target as HTMLSelectElement).value)}>
-            <option value="" ?selected=${!this.assignTarget} disabled>׳‘׳—׳¨׳• ׳׳–׳•׳¨</option>
-            ${this.assignAreas.map((a) => html`<option value=${a.area_id} ?selected=${a.area_id === this.assignTarget}>${bidi(a.name)}${a.floor_name ? ` ֲ· ${bidi(a.floor_name)}` : ''}</option>`)}
+            <option value="" ?selected=${!this.assignTarget} disabled>בחרו אזור</option>
+            ${this.assignAreas.map((a) => html`<option value=${a.area_id} ?selected=${a.area_id === this.assignTarget}>${bidi(a.name)}${a.floor_name ? ` · ${bidi(a.floor_name)}` : ''}</option>`)}
           </select>`}
       <div class="assign-actions">
-        <sw-button data-assign-cancel autofocus @click=${this.closeAssign}>׳‘׳™׳˜׳•׳</sw-button>
-        <sw-button data-assign-confirm variant="primary" ?disabled=${!this.assignTarget || this.assignBusy} @click=${() => void this.confirmAssign()}>׳©׳™׳™׳</sw-button>
+        <sw-button data-assign-cancel autofocus @click=${this.closeAssign}>ביטול</sw-button>
+        <sw-button data-assign-confirm variant="primary" ?disabled=${!this.assignTarget || this.assignBusy} @click=${() => void this.confirmAssign()}>שייך</sw-button>
       </div>
     </sw-dialog>`;
   }
@@ -1556,23 +1556,23 @@ export class DevicesArea extends LitElement {
       const isClimate = r.domain === 'climate';
       return html`<div class=${classMap({ row: true, on, unavailable, pending: pendingCls })} data-entity=${r.entity_id} data-active=${String(r.active)} ?data-can-control=${controllable} title=${r.entity_id}>
         <span class="n">${bidi(r.name)}</span>
-        <span class="v big">${unavailable ? '׳׳ ׳–׳׳™׳' : isClimate ? deg(r.current_temperature) : rowLabel(r)}</span>
+        <span class="v big">${unavailable ? 'לא זמין' : isClimate ? deg(r.current_temperature) : rowLabel(r)}</span>
         ${isClimate && !unavailable
           ? html`<div class="d">
-              <span>׳׳¦׳‘: ${rowLabel(r)}</span>
+              <span>מצב: ${rowLabel(r)}</span>
               ${r.hvac_action ? html`<span>${HVAC_ACTION_HE[r.hvac_action] ?? r.hvac_action}</span>` : nothing}
-              ${r.target_temperature !== null && r.target_temperature !== undefined ? html`<span>׳™׳¢׳“ ${deg(r.target_temperature)}</span>` : nothing}
-              ${r.target_temp_low !== null && r.target_temp_low !== undefined && r.target_temp_high !== null && r.target_temp_high !== undefined ? html`<span>׳˜׳•׳•׳— ${deg(r.target_temp_low)}ג€“${deg(r.target_temp_high)}</span>` : nothing}
-              ${r.fan_mode ? html`<span>׳׳׳•׳•׳¨׳¨: ${r.fan_mode}</span>` : nothing}
-              ${r.preset_mode ? html`<span>׳׳¦׳‘ ׳׳•׳’׳“׳¨: ${r.preset_mode}</span>` : nothing}
-              ${r.swing_mode ? html`<span>׳ ׳“׳ ׳•׳“: ${r.swing_mode}</span>` : nothing}
-              ${r.target_humidity !== null && r.target_humidity !== undefined ? html`<span>׳׳—׳•׳× ׳™׳¢׳“ ${ltrNum(r.target_humidity)}%</span>` : nothing}
+              ${r.target_temperature !== null && r.target_temperature !== undefined ? html`<span>יעד ${deg(r.target_temperature)}</span>` : nothing}
+              ${r.target_temp_low !== null && r.target_temp_low !== undefined && r.target_temp_high !== null && r.target_temp_high !== undefined ? html`<span>טווח ${deg(r.target_temp_low)}–${deg(r.target_temp_high)}</span>` : nothing}
+              ${r.fan_mode ? html`<span>מאוורר: ${r.fan_mode}</span>` : nothing}
+              ${r.preset_mode ? html`<span>מצב מוגדר: ${r.preset_mode}</span>` : nothing}
+              ${r.swing_mode ? html`<span>נדנוד: ${r.swing_mode}</span>` : nothing}
+              ${r.target_humidity !== null && r.target_humidity !== undefined ? html`<span>לחות יעד ${ltrNum(r.target_humidity)}%</span>` : nothing}
             </div>`
           : r.domain === 'humidifier' && !unavailable
             ? html`<div class="d">
-                ${r.mode ? html`<span>׳׳¦׳‘: ${r.mode}</span>` : nothing}
-                ${r.current_humidity !== null && r.current_humidity !== undefined ? html`<span>׳׳—׳•׳× ${ltrNum(r.current_humidity)}%</span>` : nothing}
-                ${r.target_humidity !== null && r.target_humidity !== undefined ? html`<span>׳™׳¢׳“ ${ltrNum(r.target_humidity)}%</span>` : nothing}
+                ${r.mode ? html`<span>מצב: ${r.mode}</span>` : nothing}
+                ${r.current_humidity !== null && r.current_humidity !== undefined ? html`<span>לחות ${ltrNum(r.current_humidity)}%</span>` : nothing}
+                ${r.target_humidity !== null && r.target_humidity !== undefined ? html`<span>יעד ${ltrNum(r.target_humidity)}%</span>` : nothing}
               </div>`
             : nothing}
         ${controllable ? this.ctl.renderClimateControls(r) : nothing}
@@ -1583,11 +1583,11 @@ export class DevicesArea extends LitElement {
     if (card === 'covers') {
       const coverIcon: IconName = r.door_class ? (COVER_CLASS_ICON[r.device_class ?? ''] ?? 'lock') : 'layers';
       return html`<div class=${classMap({ row: true, on, unavailable, pending: pendingCls })} data-entity=${r.entity_id} data-active=${String(r.active)} data-door-class=${String(!!r.door_class)} ?data-can-control=${controllable} title=${r.entity_id}>
-        <span class="n">${r.door_class ? html`<sw-icon .name=${coverIcon} size=${14}></sw-icon> ` : nothing}${bidi(r.name)}<span class="muted"> ֲ· ${this.coverLabel(r)}</span></span>
+        <span class="n">${r.door_class ? html`<sw-icon .name=${coverIcon} size=${14}></sw-icon> ` : nothing}${bidi(r.name)}<span class="muted"> · ${this.coverLabel(r)}</span></span>
         <span class="v">${rowLabel(r)}</span>
-        ${r.position !== null && r.position !== undefined && !unavailable ? html`<div class="bar" role="img" aria-label=${`׳₪׳×׳•׳— ${r.position}%`}><i style=${`inline-size:${r.position}%`}></i></div>` : nothing}
-        ${r.tilt !== null && r.tilt !== undefined && !unavailable ? html`<div class="d"><span>׳”׳˜׳™׳” ${ltrNum(r.tilt)}%</span></div>` : nothing}
-        ${r.door_class ? html`<div class="d"><span>׳“׳׳× / ׳©׳¢׳¨ - ׳×׳ ׳•׳¢׳” ׳©׳ ׳׳¢׳‘׳¨, ׳׳§׳¨׳™׳׳” ׳‘׳׳‘׳“ ׳›׳׳</span></div>` : nothing}
+        ${r.position !== null && r.position !== undefined && !unavailable ? html`<div class="bar" role="img" aria-label=${`פתוח ${r.position}%`}><i style=${`inline-size:${r.position}%`}></i></div>` : nothing}
+        ${r.tilt !== null && r.tilt !== undefined && !unavailable ? html`<div class="d"><span>הטיה ${ltrNum(r.tilt)}%</span></div>` : nothing}
+        ${r.door_class ? html`<div class="d"><span>דלת / שער - תנועה של מעבר, לקריאה בלבד כאן</span></div>` : nothing}
         ${controllable ? this.ctl.renderCoverControls(r) : nothing}
         ${controllable ? this.ctl.renderCmdStatus(r.entity_id) : nothing}
         ${this.renderAssignButton(r)}
@@ -1595,16 +1595,16 @@ export class DevicesArea extends LitElement {
     }
     if (card === 'security') {
       let badge: { kind: StateKind; label: string };
-      if (unavailable) badge = { kind: 'offline', label: '׳׳ ׳–׳׳™׳' };
-      else if (r.kind === 'lock') badge = r.locked ? { kind: 'live', label: '׳ ׳¢׳•׳' } : { kind: 'stale', label: rowLabel(r) };
+      if (unavailable) badge = { kind: 'offline', label: 'לא זמין' };
+      else if (r.kind === 'lock') badge = r.locked ? { kind: 'live', label: 'נעול' } : { kind: 'stale', label: rowLabel(r) };
       else if (r.kind === 'alarm') badge = { kind: alarmTone(r.state), label: rowLabel(r) };
-      else if (r.kind === 'camera') badge = { kind: 'neutral', label: '׳׳¦׳׳׳× ׳”׳×׳§׳' };
+      else if (r.kind === 'camera') badge = { kind: 'neutral', label: 'מצלמת התקן' };
       else badge = { kind: r.state === 'on' ? 'stale' : 'neutral', label: rowLabel(r) };
       const kindIcon: IconName = r.kind === 'lock' ? (r.locked ? 'lock' : 'unlock') : r.kind === 'alarm' ? 'shield' : r.kind === 'camera' ? 'camera' : 'sensor';
       return html`<div class=${classMap({ row: true, unavailable })} data-entity=${r.entity_id} data-kind=${r.kind ?? ''} title=${r.entity_id}>
         <span class="n"><sw-icon .name=${kindIcon} size=${14}></sw-icon> ${bidi(r.name)}</span>
         <sw-badge kind=${badge.kind} label=${badge.label}></sw-badge>
-        ${r.kind === 'camera' ? html`<div class="d"><span>׳׳™׳ ׳×׳׳•׳ ׳” ׳׳׳¦׳׳׳× ׳”׳×׳§׳ ׳‘׳׳¡׳ ׳”׳–׳” ׳¢׳“׳™׳™׳; ׳׳¦׳׳׳•׳× ׳”ײ¾NVR ׳׳•׳¦׳’׳•׳× ׳‘"׳׳¦׳׳׳•׳×".</span></div>` : nothing}
+        ${r.kind === 'camera' ? html`<div class="d"><span>אין תמונה ממצלמת התקן במסך הזה עדיין; מצלמות ה־NVR מוצגות ב"מצלמות".</span></div>` : nothing}
         ${this.renderAssignButton(r)}
       </div>`;
     }
@@ -1615,8 +1615,8 @@ export class DevicesArea extends LitElement {
       ${!unavailable && (r.media_title || r.source || r.volume_pct !== null)
         ? html`<div class="d">
             ${r.media_title ? html`<span>${r.media_title}</span>` : nothing}
-            ${r.source ? html`<span>׳׳§׳•׳¨: ${r.source}</span>` : nothing}
-            ${r.volume_pct !== null && r.volume_pct !== undefined ? html`<span>׳¢׳•׳¦׳׳” ${ltrNum(r.volume_pct)}%${r.muted ? ' ֲ· ׳׳•׳©׳×׳§' : ''}</span>` : nothing}
+            ${r.source ? html`<span>מקור: ${r.source}</span>` : nothing}
+            ${r.volume_pct !== null && r.volume_pct !== undefined ? html`<span>עוצמה ${ltrNum(r.volume_pct)}%${r.muted ? ' · מושתק' : ''}</span>` : nothing}
           </div>`
         : nothing}
       ${controllable ? this.ctl.renderMediaControls(r) : nothing}
