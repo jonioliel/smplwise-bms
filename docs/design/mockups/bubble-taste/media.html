@@ -26,7 +26,8 @@
 .flt { display: flex; gap: 8px; flex-wrap: wrap; }
 .flt button { height: 36px; padding: 0 14px; border-radius: var(--sw-r-pill); border: 0; background: var(--sw-surface); color: var(--sw-text); font-weight: 600; font-size: var(--sw-fs-sm); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .flt button[aria-pressed='true'] { background: var(--sw-accent); color: #fff; }
-@container app (max-width: 700px) {
+/* the hero stacks when its COLUMN is narrow (tablet with tree, phone), not only on phones */
+@container content (max-width: 640px) {
   .np-hero { grid-template-columns: 1fr; justify-items: center; text-align: center; padding: 18px; border-radius: 32px; }
   .np-hero .art { width: 64%; }
   .np-hero .meta { width: 100%; align-items: stretch; }
@@ -61,7 +62,7 @@ function mediaRender() {
           ${bigSlider({ attr: `data-pvol="${lead.id}"`, label: '', aria: `עוצמה · ${lead.name}`, icon: 'vol', v: lead.vol, fill: 'var(--sw-accent)', over: '#fff' })}</div>
       </div></section>` : '';
   const table = `<table class="tbl"><thead><tr><th>נגן</th><th class="hide-s">אזור</th><th>מצב</th><th class="hide-s">עוצמה</th><th class="hide-s">קבוצה</th><th><span class="sr">פעולה</span></th></tr></thead><tbody>
-    ${list.map((p) => `<tr><td><span class="cellname"><button class="ring sm" data-pop-player="${p.id}" aria-label="פרטים: ${esc(p.name)}" style="${artStyle(p) || 'background:var(--sw-surface-2)'}">${ic(p.kind === 'tv' ? 'tv' : 'speaker', 's')}</button>${esc(p.name)}</span></td>
+    ${list.map((p) => `<tr><td><span class="cellname"><button class="ring sm" data-pop-player="${p.id}" aria-label="פרטים: ${esc(p.name)}" style="${artStyle(p) || 'background:var(--sw-surface-2)'}">${ic(p.kind === 'tv' ? 'tv' : 'speaker', 's')}</button><span class="nmc">${esc(p.name)}</span></span></td>
       <td class="hide-s">${esc(AREAS[p.area].name)}</td><td><span class="tag ${p.state === 'playing' ? 'lit' : p.state === 'on' ? 'on' : ''}">${esc(playerState(p))}</span></td>
       <td class="num hide-s">${p.state === 'unavailable' ? '-' : Math.round(p.vol * 100) + '%'}</td><td class="hide-s">${p.group ? groupMembers(p.group).map((m) => AREAS[m.area].name).join(' + ') : '-'}</td>
       <td style="text-align:end">${p.state === 'unavailable' ? '' : `<button class="sub" data-play="${p.id}" aria-label="${p.state === 'playing' ? 'השהיה' : 'ניגון'} ${esc(p.name)}">${ic(p.state === 'playing' ? 'pause' : p.kind === 'tv' ? 'power' : 'play', 's')}</button>`}</td></tr>`).join('')}

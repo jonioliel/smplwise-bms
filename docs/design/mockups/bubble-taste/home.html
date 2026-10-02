@@ -41,7 +41,7 @@ function homeRender() {
   const table = `<table class="tbl"><thead><tr><th>אזור</th><th class="hide-s">קומה</th><th>תאורה</th><th class="hide-s">טמפ׳</th><th class="hide-s">תריסים</th><th><span class="sr">פתיחה</span></th></tr></thead><tbody>
     ${FLOORS.flatMap((f) => f.areas.map((a) => {
       const s = AREA_STATE(a.id); const cv = s.devices.filter((d) => d.kind === 'cover');
-      return `<tr><td><span class="cellname"><span class="ring" style="background:var(--sw-hue-${a.hue})">${ic(a.icon, 's')}</span>${esc(a.name)}</span></td><td class="hide-s">${f.name}</td>
+      return `<tr><td><span class="cellname"><span class="ring" style="background:var(--sw-hue-${a.hue})">${ic(a.icon, 's')}</span><span class="nmc">${esc(a.name)}</span></span></td><td class="hide-s">${f.name}</td>
         <td>${s.lights ? `<span class="tag ${s.lit ? 'lit' : ''}">${s.lit ? `${s.lit} מתוך ${s.lights} דולקים` : 'כבוי'}</span>` : '-'}</td>
         <td class="num hide-s">${a.temp ? a.temp + '°' : '-'}</td><td class="hide-s">${cv.length ? (cv.every((c) => c.pos === 0) ? 'סגורים' : 'פתוחים חלקית') : '-'}</td>
         <td style="text-align:end"><button class="sub ghost" data-pop-area="${a.id}" aria-label="פתיחת ${esc(a.name)}">${ic('chevBack', 's')}</button></td></tr>`;
@@ -84,7 +84,7 @@ Mock.boot({
   board: 'home', treeMode: 'none', render: homeRender,
   onArea: (aid, el) => openAreaSheet(aid, el),
   openers: { area: () => openAreaSheet('living', document.querySelector('[data-pop-area="living"]')), confirm: () => confirmOff(document.querySelector('[data-confirm-off]')),
-    light: () => openDeviceSheet('l1') },
+    light: () => openDeviceSheet('l1'), picker: () => openTreeSheet(document.querySelector('.fab')) },
 });
 Mock.afterChange = () => {
   const k = focusKey(document.activeElement); const inApp = document.getElementById('app').contains(document.activeElement);

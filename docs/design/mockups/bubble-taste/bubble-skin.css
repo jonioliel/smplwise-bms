@@ -442,9 +442,9 @@ svg.i.l { width: 26px; height: 26px; }
   }
   .sheet.open { transform: translateY(var(--drag, 0px)); transition: transform var(--sw-t-sheet) var(--sw-ease-thumb), visibility 0s; }
   .sheet.dragging { transition: none; }
-  .sheet .grab { display: block; width: 100%; height: 22px; border: 0; background: transparent; cursor: grab; touch-action: none; padding: 0; }
-  .sheet .grab::before { content: ''; display: block; width: 44px; height: 5px; border-radius: 3px; margin: 9px auto 0; background: var(--sw-text-3); opacity: 0.6; }
-  .sheet-head { padding-top: 4px; }
+  .sheet .grab { display: block; flex: none; width: 100%; height: 44px; border: 0; background: transparent; cursor: grab; touch-action: none; padding: 0; }
+  .sheet .grab::before { content: ''; display: block; width: 44px; height: 5px; border-radius: 3px; margin: 12px auto 0; background: var(--sw-text-3); opacity: 0.6; }
+  .sheet-head { padding-top: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .sheet, .sheet.open, .scrim { transition: none !important; }
@@ -482,11 +482,11 @@ svg.i.l { width: 26px; height: 26px; }
 .kv .v { font-size: var(--sw-fs-xl); font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* ---------- phone: floating pill stack (Bubble horizontal buttons stack) ---------- */
-.stack { display: none; }
+.stack, .dock { display: none; }
 .floorbar { display: none; }
 
 /* ---------- toast ---------- */
-.toast { position: absolute; z-index: 60; inset-inline: 0; margin-inline: auto; bottom: 28px; width: max-content; max-width: calc(100% - 32px);
+.toast { position: absolute; z-index: 60; inset-inline: 0; margin-inline: auto; bottom: 28px; /* transient; above the dock on phones (see below) */ width: max-content; max-width: calc(100% - 32px);
   padding: 12px 20px; border-radius: var(--sw-r-pill); background: rgba(var(--sw-sheet-rgb), 0.8); backdrop-filter: var(--sw-glass-blur-sheet); -webkit-backdrop-filter: var(--sw-glass-blur-sheet);
   box-shadow: inset 0 1px 0 var(--sw-highlight), var(--sw-shadow-2); font-weight: 600; font-size: var(--sw-fs-sm);
   transform: translateY(30px); opacity: 0; transition: transform var(--sw-t-sheet) var(--sw-ease-thumb), opacity var(--sw-t-med); pointer-events: none; }
@@ -505,7 +505,7 @@ svg.i.l { width: 26px; height: 26px; }
 @container app (max-width: 700px) {
   .app { grid-template-columns: minmax(0, 1fr); }
   .app > .rail, .app > .tree { display: none; }
-  .main { padding: 14px 12px 120px; }
+  .main { padding: 14px 12px 24px; }
   .grid, .grid.areas { grid-template-columns: 1fr; gap: 8px; }
   .page-head h1 { font-size: 22px; }
   .status { grid-template-columns: 1fr auto; padding: 16px; border-radius: 30px; }
@@ -518,8 +518,11 @@ svg.i.l { width: 26px; height: 26px; }
   .floorbar button { flex: none; height: 42px; padding: 0 16px; border-radius: var(--sw-r-pill); border: 0; background: var(--sw-surface); color: var(--sw-text); font-weight: 600; font-size: var(--sw-fs-sm);
     display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
   .floorbar button[aria-pressed='true'] { background: var(--sw-accent); color: #fff; }
+  /* the dock is a ROW OF THE LAYOUT (not an overlay): content scrolls above it and can never sit under it */
+  .app { grid-template-rows: minmax(0, 1fr) auto; }
+  .dock { display: flex; align-items: center; gap: 8px; padding: 6px 8px 14px; min-width: 0; }
   .stack {
-    display: flex; position: absolute; z-index: 40; inset-inline: 8px; bottom: 16px; height: 66px; padding: 7px; gap: 6px; border-radius: var(--sw-r-pill);
+    display: flex; flex: 1; min-width: 0; height: 66px; padding: 7px; gap: 4px; border-radius: var(--sw-r-pill);
     background: var(--sw-nav-glass); backdrop-filter: var(--sw-glass-blur-nav); -webkit-backdrop-filter: var(--sw-glass-blur-nav);
     box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong), var(--sw-shadow-2);
     animation: rise 0.6s var(--sw-ease-thumb) both;
@@ -702,11 +705,81 @@ button.pill { border: 0; font: inherit; text-align: start; width: 100%; }
 .scene-pill .sub { background: var(--sw-surface-2); }
 
 /* ---------- floating home button (opens the room picker; owner ref) ---------- */
-.fab { position: absolute; z-index: 39; inset-inline-end: 22px; bottom: 22px; width: 56px; height: 56px; border-radius: 50%; border: 0; cursor: pointer;
+.fab { flex: none; width: 58px; height: 58px; border-radius: 50%; border: 0; cursor: pointer;
   background: var(--sw-accent); color: #fff; display: grid; place-items: center; box-shadow: var(--sw-shadow-3);
   transition: transform var(--sw-t-fast) var(--sw-ease-thumb); }
 .fab:hover { transform: scale(1.06); }
 .fab:active { transform: scale(0.94); }
-@container app (max-width: 700px) { .fab { bottom: 96px; inset-inline-end: 16px; } }
-.main { padding-bottom: 96px; }
 .floor-head .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+
+/* ======================================================================================================================
+   Layout safety (owner 2026-10-02: a floating element must never overlap or clip content). Found by layout-check.mjs.
+   ====================================================================================================================== */
+@container app (max-width: 700px) {
+  .toast { bottom: 100px; }
+  .stack a { min-width: 0; overflow: hidden; }
+  .stack a span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+/* touch layouts (phone and tablet): every target >= 44 px; desktop keeps Bubble's 36 px sub-buttons (pointer) */
+@container app (max-width: 1100px) {
+  .app, .sheet, .dd-menu { --sw-sub: 44px; }
+  .pill .ring { min-width: 44px; min-height: 44px; }
+  .pill.dual { --lay-s: calc(8px + max(44px, var(--sw-icon-ring)) + 10px); }
+  :root[data-bubble-density='wide'] .pill.dual { --lay-s: calc(11px + var(--sw-icon-ring) + 14px); }
+  :root[data-bubble-density='compact'] .pill.dual { --lay-s: calc(6px + 44px + 8px); }
+  .seg button, .floorbar button, .flt button, .np-hero .chip, .chips .chip, .dd-menu button { min-height: 44px; }
+  .stepper button, .ring.sm, .pill .sub.play { width: 44px; height: 44px; min-width: 44px; }
+  .pill { min-height: max(var(--sw-pill-h), 52px); }
+}
+
+@container app (max-width: 1100px) {
+  .tbl .cellname .ring, .tbl .cellname .ring.sm { width: 44px; height: 44px; }
+}
+/* phone dock: five 44 px+ nav items + the 56 px home button fit from 320 px */
+@container app (max-width: 700px) {
+  .dock { gap: 6px; }
+  .stack { padding: 5px; gap: 2px; }
+  .fab { width: 56px; height: 56px; }
+  /* tables: never wider than the column - fixed layout, the name cell truncates */
+  .tbl { table-layout: fixed; }
+  .tbl th:first-child { width: 48%; }
+  .tbl th:last-child { width: 60px; }
+  .tbl td { overflow: hidden; }
+  .tbl .cellname { min-width: 0; }
+  .tbl .cellname > :not(.ring) { min-width: 0; }
+  .tbl td .tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; line-height: 26px; }
+}
+.tbl .cellname .nmc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+/* ---------- layout safety, round 2 (layout-check findings) ---------- */
+.main-inner { container: content / inline-size; }
+.sheet-body { container: content / inline-size; }
+/* a pill never lets its sub-buttons escape: when the row is too narrow they wrap under the label, inside the bubble */
+.pill:has(> .subs) { flex-wrap: wrap; row-gap: 6px; }
+.pill .tx { flex: 1 1 96px; }
+.pill .subs { margin-inline-start: auto; flex-wrap: wrap; justify-content: flex-end; row-gap: 6px; max-width: 100%; }
+.pill.big { border-radius: 32px; padding-block: 4px; }
+.pill .bigslider.inpill { min-width: 120px; }
+/* tables never widen the column: fixed layout, truncating cells, secondary columns drop when the column is narrow */
+.tbl { table-layout: fixed; }
+.tbl th:first-child { width: 42%; }
+.tbl th:last-child { width: 64px; }
+.tbl td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tbl .cellname { min-width: 0; }
+.tbl td .tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; line-height: 26px; vertical-align: middle; }
+@container content (max-width: 560px) { .hide-s { display: none; } .tbl th:first-child { width: 52%; } }
+/* row density: covers fall back to the stacked layout when the column cannot hold pill + three 54 px buttons */
+@container content (max-width: 440px) {
+  :root[data-bubble-density='row'] .cover { flex-direction: column; align-items: stretch; }
+  :root[data-bubble-density='row'] .cover .btns { display: grid; grid-template-columns: repeat(3, 1fr); }
+  :root[data-bubble-density='row'] .cover .btns button { width: auto; height: 44px; }
+}
+/* compact keeps >= 32 px pointer targets on desktop */
+:root[data-bubble-density='compact'] .stepper button { width: 32px; height: 32px; }
+:root[data-bubble-density='compact'] .pill .chip { height: 32px; }
+/* touch layouts: 44 px wins over every density */
+@container app (max-width: 1100px) {
+  :root .device .stepper button, :root .device .pill .sub.play { width: 44px; height: 44px; min-width: 44px; }
+  :root .device .pill .chip { min-height: 44px; }
+}@container app (max-width: 1100px) { .floor-head .cnt { display: none; } }/* pop-up rows never shrink below their height when the sheet is short (found at 480 px: the volume slider squeezed to 34 px) */
+.sheet-body > * { flex-shrink: 0; }

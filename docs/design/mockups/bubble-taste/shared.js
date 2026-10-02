@@ -192,7 +192,7 @@ const BOARDS = [
 const Mock = {
   board: null, render: null, onArea: null,
   boot(opts) {
-    Mock.board = opts.board; Mock.render = opts.render; Mock.onArea = opts.onArea || null; Mock.treeMode = opts.treeMode || 'area';
+    Mock.board = opts.board; Mock.render = opts.render; Mock.openers = opts.openers || {}; Mock.onArea = opts.onArea || null; Mock.treeMode = opts.treeMode || 'area';
     document.documentElement.dataset.skin = 'bubble';
     applyScheme();
     document.body.classList.add('mk');
@@ -217,10 +217,12 @@ const Mock = {
           </nav>
           <nav class="tree" id="tree" aria-label="קומות ואזורים"></nav>
           <main class="main" id="main"><div class="main-inner" id="content"></div></main>
-          <button class="fab" data-tree-sheet aria-label="בחירת אזור">${ic('home')}</button>
-          <nav class="stack" aria-label="ניווט ראשי">
-            ${NAV.map((n) => `<a href="${n.href}" ${n.id === navId() ? 'aria-current="page"' : ''} data-keep>${ic(n.icon)}<span>${n.label}</span></a>`).join('')}
-          </nav>
+          <div class="dock">
+            <nav class="stack" aria-label="ניווט ראשי">
+              ${NAV.map((n) => `<a href="${n.href}" ${n.id === navId() ? 'aria-current="page"' : ''} data-keep>${ic(n.icon)}<span>${n.label}</span></a>`).join('')}
+            </nav>
+            <button class="fab" data-tree-sheet aria-label="בחירת אזור">${ic('home')}</button>
+          </div>
         </div>
         <div class="scrim" id="scrim"></div>
         <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden></section>
@@ -576,7 +578,7 @@ function areaListTable(aid) {
   const kindName = { light: 'תאורה', switch: 'מתג', climate: 'מזגן', cover: 'תריס', media: 'מדיה' };
   const on = (d) => d.kind === 'light' || d.kind === 'switch' ? d.on : d.kind === 'cover' ? d.pos > 0 : d.kind === 'climate' ? d.mode !== 'off' : PLAYER[d.player].state === 'playing' || PLAYER[d.player].state === 'on';
   return `<table class="tbl"><thead><tr><th>התקן</th><th>סוג</th><th>מצב</th><th class="hide-s">עודכן</th><th><span class="sr">פעולה</span></th></tr></thead><tbody>
-    ${ds.map((d, i) => `<tr><td><span class="cellname"><button class="ring sm" data-pop="${d.kind === 'media' ? '' : d.id}" ${d.kind === 'media' ? `data-pop-player="${d.player}"` : ''} aria-label="פרטים: ${esc(d.name)}" style="background:${on(d) ? (d.kind === 'light' ? 'var(--sw-lit)' : 'var(--sw-accent)') : 'var(--sw-surface-2)'};color:${on(d) && d.kind === 'light' ? 'var(--sw-on-lit)' : on(d) ? '#fff' : 'var(--sw-text)'}">${ic(d.icon, 's')}</button>${esc(d.name)}</span></td>
+    ${ds.map((d, i) => `<tr><td><span class="cellname"><button class="ring sm" data-pop="${d.kind === 'media' ? '' : d.id}" ${d.kind === 'media' ? `data-pop-player="${d.player}"` : ''} aria-label="פרטים: ${esc(d.name)}" style="background:${on(d) ? (d.kind === 'light' ? 'var(--sw-lit)' : 'var(--sw-accent)') : 'var(--sw-surface-2)'};color:${on(d) && d.kind === 'light' ? 'var(--sw-on-lit)' : on(d) ? '#fff' : 'var(--sw-text)'}">${ic(d.icon, 's')}</button><span class="nmc">${esc(d.name)}</span></span></td>
       <td>${kindName[d.kind]}</td><td><span class="tag ${on(d) ? (d.kind === 'light' ? 'lit' : 'on') : ''}">${esc(state(d))}</span></td><td class="num hide-s">${['לפני 2 דק׳', 'לפני 14 דק׳', 'לפני שעה', '18:40', 'אתמול'][i % 5]}</td>
       <td style="text-align:end">${d.kind === 'light' || d.kind === 'switch' ? `<button class="sub" data-toggle="${d.id}" aria-label="${d.on ? 'כיבוי' : 'הדלקה'} ${esc(d.name)}">${ic('power', 's')}</button>` : `<button class="sub ghost" ${d.kind === 'media' ? `data-pop-player="${d.player}"` : `data-pop="${d.id}"`} aria-label="פתיחה: ${esc(d.name)}">${ic('chevBack', 's')}</button>`}</td></tr>`).join('')}
   </tbody></table>`;

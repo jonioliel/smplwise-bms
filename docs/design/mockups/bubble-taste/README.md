@@ -18,6 +18,7 @@ Open `index.html` in a browser (static files, no build, no network: works from `
 | `shared.js` | Icons, fixture, shell (rail, building tree, phone pill stack, floating home button), pop-up sheet controller, sliders, renderers, the mockup chrome |
 | `mockup.css` | Mockup chrome only (board / viewport / scheme / variant switches); not part of the skin |
 | `fonts.css` | The embedded Heebo subsets (copied from `docs/design/mockups/media/players-index.html`) |
+| `layout-check.mjs` | Layout safety sweep (Playwright): bubbles, overflow, floating elements, clipped text, touch targets over every board x width x style; exit 1 on any finding |
 | `contrast.mjs` | WCAG contrast check of the tokens, including text on translucent surfaces (`node docs/design/mockups/bubble-taste/contrast.mjs`) |
 | `screens/` | 49 screenshots (Playwright, Chromium, the static files): every board at 1440 / 820 / 390 in light and dark, every pop-up, every variant |
 
@@ -151,9 +152,59 @@ The images include two of our own phone screens (live cameras, media screens) us
 - bottom room chips (icon + label, one filled, others outlined) - present as the phone floor/area strip and the phone pill stack;
 - light and dark versions of the same pop-up - both schemes built for everything.
 
+## Layout safety check (`layout-check.mjs`)
+
+Owner rule (2026-10-02): a floating element must never overlap or clip content, and nothing may leave its bubble. The first version broke it
+(the floating home button sat over the "all lights" pill around 600-800 px, the phone pill bar covered the last rows). Fix, by design rather
+than by offsets: the phone **dock** (pill bar + home button) is now a **row of the layout grid** (`.app` rows `1fr auto`), so the scrolling
+column ends above it and nothing can ever sit under it; on tablet and desktop the home button is not shown (the tree panel does its job).
+The pop-up grabber is a 44 px in-flow row of the sheet. The toast is transient and sits above the dock.
+
+```
+node docs/design/mockups/bubble-taste/layout-check.mjs            # full sweep, ~25 min, exit 1 on any finding
+node docs/design/mockups/bubble-taste/layout-check.mjs --quick    # 4 widths, ~8 min
+node docs/design/mockups/bubble-taste/layout-check.mjs --json out.json
+```
+
+Playwright comes from `SW_PLAYWRIGHT`, a global `playwright`, or `frontend/node_modules/playwright` (also the main checkout's when run
+from a worktree). The sweep runs every board x width (320, 360, 390, 480, 600, 768, 800, 820, 1024, 1280, 1440) x density (wide,
+regular, compact, row) x surface (fill, gradient, glass) x theme (light, dark), plus transparency (88 / 72 / 58 %) x theme at the default
+style; for each it checks the page (cards and list; media also the volume morph) with the main column scrolled to the top and to the bottom,
+and the board's pop-ups (home: area, confirm; area: light, climate, cover; media: group, player). Reduced motion is on so every state is
+measured settled. Classes:
+
+| Class | Fails when |
+|---|---|
+| escape | an element, or a text run, lies outside the box of the bubble that contains it (pill, card, chip, sub-button, sheet, ...) |
+| overflow | the page, the device, the main column or a pop-up body scrolls horizontally |
+| floating | an absolutely / fixed / sticky positioned element intersects interactive content outside itself (modal layers excluded) |
+| clipped | text cut by an overflow box without an ellipsis, or text sitting in a bubble's rounded corner |
+| target | an interactive element below 44 x 44 px in touch layouts (<= 1100 px) or 32 x 32 px in desktop pointer layouts |
+
+Fixes that came out of it: the dock as a layout row; phone dock sizing (five 44 px items + the home button from 320 px); every target
+44 px in touch layouts (sub-buttons, steppers, chips, table icons, segmented buttons, the grabber); pills wrap their sub-buttons under the
+label instead of pushing them out (pop-up head with the brightness pill, climate stepper, media pill at narrow widths); tables use a fixed
+layout with truncating cells and drop secondary columns by the width of their column (container query), not the window; the media hero
+stacks by its column width (it overflowed at 800 px with the tree panel); row-density covers stack below 440 px; the tree hides floor
+counts on touch so the floor names fit; pop-up rows never shrink (the player volume slider was squeezed to 34 px at 480 px).
+Visually hidden screen-reader text (`.sr`) and the decorative clipped label layers are excluded.
+
+Results (full sweep, 4,312 checks each; "distinct" = unique element + board + state + finding):
+
+| Class | Before the fix (commit `78175390`): instances / distinct | After |
+|---|---|---|
+| escape | 1,308 / 71 | 0 |
+| overflow | 114 / 14 | 0 |
+| floating | 5,602 / 115 (pill bar and home button over pills, sub-buttons, play buttons at 320-820 px) | 0 |
+| clipped | 0 / 0 (the rounded-corner rule was added later, after a wrap regression the screenshots showed) | 0 |
+| target | 44,562 / 530 (36 px sub-buttons, 40 px rings, 34 px steppers, 22 px grabber, 42 px dock items at 320 px) | 0 |
+
+The final full run: 0 findings, 0 page errors (about 25 minutes).
+
 ## Verification (actually run)
 
-- Screenshots: `screens/` - 49 PNGs via Playwright Chromium (the frontend's installed Playwright) on the static files; console errors and warnings collected on every capture: **0**.
+- Layout sweep `layout-check.mjs`: full run 4,312 checks, **0 findings** (table above).
+- Screenshots: `screens/` - 49 PNGs (re-shot after the layout fixes) via Playwright Chromium (the frontend's installed Playwright) on the static files; console errors and warnings collected on every capture: **0**.
 - Interaction script (Playwright, not committed - scratchpad): pop-up opens from the keyboard, focus moves in, background inert, Tab trapped
   after 60 presses, Esc closes, focus returns to the opener, scrim click closes, light slider +10 % with ArrowLeft, Enter toggles, scene
   list keyboard selection, phone swipe-down closes, reduced motion removes the sheet transition, no console errors: **14 / 14 pass**
