@@ -23,7 +23,8 @@ export type Surface = 'flat' | 'glass' | 'gradient' | 'fill';
 export type Popup = 'sheet' | 'centred' | 'inline';
 export type Radius = 'pill' | 'soft' | 'square';
 export type Touch = 32 | 44;
-export type Palette = 'default';
+/** `default` (the skin's own colours), one of the ten ready palette ids, or `custom-<slug>` (an installation's custom palette, design/palette.ts). */
+export type PaletteId = string;
 export type Performance = PerformanceMode;
 
 export interface Look {
@@ -39,7 +40,7 @@ export interface Look {
   touch: Touch;
   /** What the glass costs: `lite` = no blur on cards, pills, rows and lists (the dock, rail, tree, scrim and the open pop-up keep theirs); `auto` = this device decides (design/performance.ts). */
   performance: Performance;
-  palette: Palette;
+  palette: PaletteId;
 }
 export type LookDial = keyof Look;
 export type PartialLook = Partial<Look>;
@@ -105,14 +106,21 @@ export const LOOK_DIALS = {
     labelHe: { auto: 'אוטומטי', full: 'מלא', lite: 'קל' },
     hintHe: { auto: 'המכשיר מחליט לפי כוחו', full: 'טשטוש זכוכית בכל השכבות', lite: 'בלי טשטוש בכרטיסים וברשימות, לטאבלט קיר ולטלפון חלש' },
   } satisfies ChoiceDial<Performance>,
+  // the fixed choices (the backend's PALETTES); a `custom-<slug>` id is valid too (CUSTOM_PALETTE_ID). Names: design/palettes.json (name.he).
   palette: {
     kind: 'choice',
-    values: ['default'],
+    values: ['default', 'calm-blue', 'purple-rose', 'teal-green', 'amber-sand', 'graphite', 'deep-ocean', 'forest', 'sunset', 'rose-quartz', 'high-contrast'],
     nameHe: 'צבעים',
-    labelHe: { default: 'ברירת מחדל' },
-    hintHe: { default: 'ערכות צבעים נוספות - בשלב הבא' },
-  } satisfies ChoiceDial<Palette>,
+    labelHe: {
+      default: 'ברירת מחדל', 'calm-blue': 'כחול שקט', 'purple-rose': 'סגול ורד', 'teal-green': 'טורקיז', 'amber-sand': 'חול וענבר', graphite: 'גרפיט',
+      'deep-ocean': 'אוקיינוס עמוק', forest: 'יער', sunset: 'שקיעה', 'rose-quartz': 'קוורץ ורוד', 'high-contrast': 'ניגודיות גבוהה',
+    },
+    hintHe: { default: 'הצבעים של סגנון Bubble' },
+  } satisfies ChoiceDial<PaletteId>,
 } as const;
+
+/** A custom palette's dial value (the backend's CUSTOM_ID_RE): a lower-case kebab slug after `custom-`. */
+export const CUSTOM_PALETTE_ID = /^custom-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export const LOOK_DIAL_IDS = ['density', 'surface', 'popup', 'radius', 'transparency', 'scale', 'touch', 'performance', 'palette'] as const satisfies readonly LookDial[];
 
@@ -121,6 +129,7 @@ export const LOOK_DEFAULT: Readonly<Look> = { density: 'regular', surface: 'fill
 /** The backend's rule for one dial: a listed value / a whole in-range number, else null. */
 export function normalizeDial<K extends LookDial>(dial: K, v: unknown): Look[K] | null {
   const d = LOOK_DIALS[dial] as ChoiceDial<string | number> | RangeDial;
+  if (dial === 'palette') return typeof v === 'string' && (d.kind === 'choice' && (d.values as readonly unknown[]).includes(v) || (v.length <= 40 && CUSTOM_PALETTE_ID.test(v))) ? (v as Look[K]) : null;
   if (d.kind === 'choice') return (d.values as readonly unknown[]).includes(v) ? (v as Look[K]) : null;
   if (typeof v !== 'number' || !Number.isInteger(v)) return null;
   return v >= d.range[0] && v <= d.range[1] ? (v as Look[K]) : null;

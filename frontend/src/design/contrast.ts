@@ -15,8 +15,8 @@ export function parseColor(c: string): RGBA | null {
   const s = c.trim();
   let m = /^#([0-9a-f]{3})$/i.exec(s);
   if (m) return [...m[1].split('').map((h) => parseInt(h + h, 16)), 1] as RGBA;
-  m = /^#([0-9a-f]{6})$/i.exec(s);
-  if (m) return [parseInt(m[1].slice(0, 2), 16), parseInt(m[1].slice(2, 4), 16), parseInt(m[1].slice(4, 6), 16), 1];
+  m = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(s); // #rrggbb, or #rrggbbaa (palette borders and glass layers)
+  if (m) return [parseInt(m[1].slice(0, 2), 16), parseInt(m[1].slice(2, 4), 16), parseInt(m[1].slice(4, 6), 16), m[2] ? parseInt(m[2], 16) / 255 : 1];
   m = /^rgba?\(([^)]+)\)$/i.exec(s);
   if (m) {
     const p = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);

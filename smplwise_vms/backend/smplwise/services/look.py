@@ -17,7 +17,9 @@ One value shape, `ui.look`, owned twice:
     "performance":  "auto" | "full" | "lite",                     what the glass costs: full = blur on every glass layer, lite = blur only
                                                                   on the dock, rail, tree, scrim and the open pop-up (wall tablets, weak
                                                                   phones), auto = the device decides (a client-side probe, design/performance.ts)
-    "palette":      "default"                                     the colour set; more palettes and a colour editor come later (a palette is a set of token values)
+    "palette":      "default" | <one of the ten ids> | "custom-<slug>"  the colour set (services/palettes.py): default = the skin's own colours, the ten ready
+                                                                  palettes, or a custom palette an administrator saved (`ui.palettes`); an id that no longer
+                                                                  exists reads as default on the frontend
   }
 
 Unknown keys, unknown values, non-integers and out-of-range numbers are refused (never clamped silently), so the
@@ -29,12 +31,14 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from .palettes import BUILTIN_IDS, valid_dial_value
+
 DENSITIES: tuple[str, ...] = ("wide", "regular", "compact", "row")
 SURFACES: tuple[str, ...] = ("flat", "glass", "gradient", "fill")
 POPUPS: tuple[str, ...] = ("sheet", "centred", "inline")
 RADII: tuple[str, ...] = ("pill", "soft", "square")
 TOUCH: tuple[int, ...] = (32, 44)
-PALETTES: tuple[str, ...] = ("default",)
+PALETTES: tuple[str, ...] = ("default", *BUILTIN_IDS)  # the fixed choices; a `custom-<slug>` id is valid too (palettes.valid_dial_value)
 PERFORMANCES: tuple[str, ...] = ("auto", "full", "lite")
 TRANSPARENCY_RANGE = (40, 100)
 SCALE_RANGE = (80, 130)
@@ -58,6 +62,10 @@ DEFAULT: dict[str, Any] = {
 
 def _dial(key: str, value: Any) -> Any:
     """One dial's value in its canonical form, or ValueError."""
+    if key == "palette":
+        if not valid_dial_value(value):
+            raise ValueError("look palette must be default, a ready palette id or a custom-<name> id")
+        return value
     if key in CHOICES:
         if not isinstance(value, str) or value not in CHOICES[key]:
             raise ValueError(f"look {key} must be one of {', '.join(CHOICES[key])}")

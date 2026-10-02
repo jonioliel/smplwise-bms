@@ -38,6 +38,13 @@ BAD_FULL = [
     {**FULL, "performance": True},
     {**FULL, "performance": None},
     {**FULL, "palette": "ocean"},
+    {**FULL, "palette": "Calm-Blue"},
+    {**FULL, "palette": "custom-"},
+    {**FULL, "palette": "custom--x"},
+    {**FULL, "palette": "custom-X"},
+    {**FULL, "palette": "custom-" + "a" * 40},
+    {**FULL, "palette": None},
+    {**FULL, "palette": 3},
     {**FULL, "accent": "#ff0000"},  # unknown dial
     {k: v for k, v in FULL.items() if k != "radius"},  # the installation default needs every dial
 ]
@@ -50,7 +57,7 @@ def test_defaults_and_the_frontend_lists_agree():
     for key, allowed in look.CHOICES.items():
         m = re.search(rf"{key}:\s*\{{[^}}]*values:\s*\[([^\]]*)\]", front, re.S)
         assert m, f"{key} values not found in design/look.ts"
-        assert tuple(re.findall(r"'([a-z]+)'", m.group(1))) == allowed, key
+        assert tuple(re.findall(r"'([a-z-]+)'", m.group(1))) == allowed, key
     assert re.search(r"transparency:\s*\{[^}]*range:\s*\[40,\s*100\]", front, re.S)
     assert re.search(r"scale:\s*\{[^}]*range:\s*\[80,\s*130\]", front, re.S)
     assert re.search(r"touch:\s*\{[^}]*values:\s*\[32,\s*44\]", front, re.S)
