@@ -1,5 +1,15 @@
 # Token contract (designer handoff, 2026-09-30)
 
+> **Status 2026-10-01 - the foundation is implemented (branch `pilot/design-foundation`).** The decisions this contract left open are
+> closed: (1) ONE table of `{name:{light,dark}}` in `frontend/src/design/tokens.ts` replaces `styles/tokens.css` (`--sw-*`, 145 names, the
+> light column = the previous look, the dark column new for the whole shell); (2) the switch is `<html data-skin data-theme>` (§1 rule 3);
+> (3) skins are token overrides + <= 50 component rules (`frontend/src/design/skins/`, guide: `docs/design/SKIN_AUTHORING_HE.md`), chosen per
+> installation (`ui.skin`, `ui.scheme`); Domus and Tesla ship, iOS is not implemented yet. Still open: the `--dv-*` family is unchanged and
+> still bridges onto `--sw-*` inside the device screens (aliasing it to the new names is per-screen work); `--sw-role-*`, `--sw-on-*`,
+> `--sw-glow-*`, the compact-tile and tree knobs of the approved package are not in the table yet (they belong to the per-screen structure work);
+> the touch size (`--sw-touch` 44) and the type scale of the skins are token values only until the screens consume them. The text below is the
+> original brief and is kept as written.
+
 What the design must come back with, as named values. The names are engineering's; the values are the designer's. The current values
 are listed so the designer knows the starting point and can decide what to keep. Everything here is read from
 `frontend/src/styles/tokens.css` (the `--sw-*` family, "v2 / SW A"), `frontend/src/styles/devices-themes.ts` and `devices-palettes.ts`

@@ -70,7 +70,7 @@ export class SwKpi extends LitElement {
     }
     :host([tone='live']) .icon {
       background: var(--sw-live-soft);
-      color: #16a34a;
+      color: var(--sw-success-text);
     }
     .txt {
       min-inline-size: 0;
@@ -94,13 +94,13 @@ export class SwKpi extends LitElement {
     .detail {
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-medium);
-      color: #16a34a;
+      color: var(--sw-success-text);
       margin-block-start: 1px;
       font-variant-numeric: tabular-nums;
     }
     :host([tone='stale']) .detail,
     :host([tone='partial']) .detail {
-      color: #b45309;
+      color: var(--sw-warning-text);
     }
     :host([tone='error']) .detail,
     :host([tone='offline']) .detail {

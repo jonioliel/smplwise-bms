@@ -51,6 +51,10 @@ DEFAULTS: dict[str, str] = {
     # auto (compact under 600 px wide, cards above) | cards (tall, icon above) | compact (a rectangle, icon beside the
     # value). Per installation; a browser may override it for itself (frontend/src/api/tile-layout.ts).
     "ui.tile_layout": "auto",
+    # Design foundation (2026-10-01): the installation's skin (classic = today's look | domus | tesla; frontend/src/design/skins)
+    # and light / dark / auto choice (a browser may keep its own scheme, in the browser only). Per installation.
+    "ui.skin": "classic",
+    "ui.scheme": "light",
     # UI round 1 (owner 2026-09-30): the size of the side rail / phone bottom bar - a JSON object, shape and ranges in
     # services/nav_size.py ({"mode":"rel","preset":"m"} or {"mode":"free","icon":..,"label":..,"item":..}); a user's own
     # value (/me/prefs) wins. Read back as an object.
@@ -427,6 +431,8 @@ class SettingsPatch(BaseModel):
     ui_hide_map: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_map")
     ui_security_snapshot: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.security_snapshot")
     ui_tile_layout: str | None = Field(default=None, pattern="^(auto|cards|compact)$", alias="ui.tile_layout")
+    ui_skin: str | None = Field(default=None, pattern="^(classic|domus|tesla)$", alias="ui.skin")  # keep in step with SKIN_IDS in frontend/src/design/skins/index.ts
+    ui_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="ui.scheme")
     ui_tabs: dict[str, Any] | None = Field(default=None, alias="ui.tabs")  # validated in full by normalize_tabs
     ui_mobile: dict[str, Any] | None = Field(default=None, alias="ui.mobile")  # validated in full by services/mobile_options.py
     ui_nav_size: dict[str, Any] | None = Field(default=None, alias="ui.nav_size")  # validated in full by services/nav_size.py

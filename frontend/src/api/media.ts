@@ -117,6 +117,9 @@ export interface ProductSettings {
    * ('smplwise' today's look, 'glass' the approved mockup's), the building screen's first view (a viewer's own toggle
    * wins), the sensors card / count, the climate strip, and the density. */
   'devices.style'?: 'smplwise' | 'glass';
+  /** Design foundation (2026-10-01): the installation's skin (design/skins) and light / dark / auto choice (design/apply.ts). */
+  'ui.skin'?: 'classic' | 'domus' | 'tesla';
+  'ui.scheme'?: 'light' | 'dark' | 'auto';
   /** The palette of the style (styles/devices-themes.ts DEVICE_THEMES; 'default' today, no picker until 6b). */
   'devices.theme'?: string;
   'devices.default_view'?: 'cards' | 'tiles';

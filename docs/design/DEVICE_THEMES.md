@@ -24,7 +24,7 @@ These settings are per installation. Everyone reads them through `GET /settings`
 `system.configure`, and every change is audited as `settings.update`.
 
 - **`smplwise`** matches no rule in the theme file. The screens keep the product's v2 tokens
-  (`frontend/src/styles/tokens.css`) and stay pixel for pixel as before 6a. This was checked by a before/after capture
+  (`frontend/src/design/tokens.ts`, the classic skin; before 2026-10-01 `styles/tokens.css`) and stay pixel for pixel as before 6a. This was checked by a before/after capture
   of the building view (both layouts) and the area screen, on desktop and phone. A smplwise palette is possible if
   wanted: add a block on `:host([data-devices-style='smplwise'][data-devices-theme='<id>'])` that overrides `--sw-*`
   tokens directly.

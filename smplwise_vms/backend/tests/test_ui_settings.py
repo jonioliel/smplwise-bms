@@ -259,6 +259,45 @@ def test_ui_tile_layout_setting(settings):
         assert c.get("/api/v1/settings").json()["settings"]["ui.tile_layout"] == "compact"
 
 
+def test_ui_skin_and_scheme_settings(settings):
+    """Design foundation (2026-10-01): ui.skin (classic | domus | tesla, default classic) and ui.scheme (light | dark | auto, default
+    light) are per installation, validated here, audited, readable by everyone, writable with system.configure. The frontend's
+    skin registry lists the same ids."""
+    import re
+    from pathlib import Path
+
+    front = (Path(__file__).resolve().parents[3] / "frontend" / "src" / "design" / "skins" / "index.ts").read_text(encoding="utf-8")
+    m = re.search(r"export const SKIN_IDS = \[([^\]]*)\]", front)
+    assert m, "SKIN_IDS not found in design/skins/index.ts"
+    assert tuple(re.findall(r"'([a-z]+)'", m.group(1))) == ("classic", "domus", "tesla")
+    app = create_app(settings)
+    with TestClient(app) as c:
+        s = c.get("/api/v1/settings").json()["settings"]
+        assert s["ui.skin"] == "classic" and s["ui.scheme"] == "light"
+        for skin in ("domus", "tesla", "classic"):
+            r = c.patch("/api/v1/settings", json={"ui.skin": skin})
+            assert r.status_code == 200, (skin, r.text)
+            assert r.json()["settings"]["ui.skin"] == skin
+        for scheme in ("dark", "auto", "light"):
+            r = c.patch("/api/v1/settings", json={"ui.scheme": scheme})
+            assert r.status_code == 200, (scheme, r.text)
+            assert r.json()["settings"]["ui.scheme"] == scheme
+        for bad in ("ios", "Domus", "", "domus ", "glass"):
+            assert c.patch("/api/v1/settings", json={"ui.skin": bad}).status_code == 422, bad
+        for bad in ("night", "Dark", "", "dark "):
+            assert c.patch("/api/v1/settings", json={"ui.scheme": bad}).status_code == 422, bad
+        assert c.get("/api/v1/settings").json()["settings"]["ui.skin"] == "classic"
+        assert c.patch("/api/v1/settings", json={"ui.skin": "tesla", "ui.scheme": "dark"}).status_code == 200
+        with app.state.db.connection() as conn:
+            rows = [json.loads(r[0] or "{}") for r in conn.execute("SELECT details_json FROM audit_log WHERE action = 'settings.update' AND decision = 'allowed' ORDER BY rowid").fetchall()]
+        assert {"ui.skin": "tesla", "ui.scheme": "dark"} in rows
+        bind(c, settings, "dana", "viewer", "installation", "*")
+        seen = c.get("/api/v1/settings", headers=as_user("dana"))
+        assert seen.status_code == 200 and seen.json()["settings"]["ui.skin"] == "tesla"
+        assert c.patch("/api/v1/settings", json={"ui.skin": "domus"}, headers=as_user("dana")).status_code == 403
+        assert c.get("/api/v1/settings").json()["settings"]["ui.skin"] == "tesla"
+
+
 def test_security_snapshot_defaults_to_shown_round_trips_and_needs_system_configure(settings):
     """Owner 2026-09-30: הגדרות › ממשק › "תמונת מצב באבטחה" (ui.security_snapshot) hides the live overview sub-screen of the
     security area for everyone. Shown by default; true/false only; audited; read by any user, written only with system.configure."""
