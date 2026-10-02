@@ -65,6 +65,44 @@ def settings(tmp_path: Path) -> Settings:
     )
 
 
+import datetime as _dt  # noqa: E402
+import time as _time  # noqa: E402
+import types as _types  # noqa: E402
+
+# 12:00 on a Monday in Asia/Jerusalem (UTC+3 until 2026-10-25): outside the default quiet hours (22:00-07:00).
+DAY_ANCHOR = _dt.datetime(2026, 10, 5, 9, 0, tzinfo=_dt.timezone.utc)
+_DAY_T0 = _time.monotonic()
+
+
+def day_now() -> _dt.datetime:
+    """The pinned daytime clock: starts at DAY_ANCHOR and runs forward with the test run (so ordering still holds)."""
+    return DAY_ANCHOR + _dt.timedelta(seconds=_time.monotonic() - _DAY_T0)
+
+
+@pytest.fixture()
+def daytime_clock(monkeypatch):
+    """Pin the notification and push clocks to a daytime instant so a test does not depend on the wall clock.
+
+    Tests that need another instant (a night inside quiet hours, an escalation boundary) patch `notify.now_utc`
+    after this fixture; everything that decides from `now` (installation quiet hours, per-user push quiet hours,
+    outbox staleness) reads that one seam. `push.plan` falls back to `datetime.now` when no instant is passed:
+    it is routed through the same seam here, with no change to production code."""
+    from smplwise.services import notify
+    from smplwise.services import push as push_svc
+
+    class _Datetime(_dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            at = notify.now_utc()
+            return at.astimezone(tz) if tz is not None else at.replace(tzinfo=None)
+
+    shim = _types.SimpleNamespace(**{k: v for k, v in vars(_dt).items() if not k.startswith("__")})
+    shim.datetime = _Datetime
+    monkeypatch.setattr(notify, "now_utc", day_now)
+    monkeypatch.setattr(push_svc, "dt", shim)
+    return day_now
+
+
 @pytest.fixture()
 def client(settings: Settings) -> TestClient:
     return TestClient(create_app(settings))
