@@ -17,6 +17,7 @@ import android.os.Message
 import android.provider.DocumentsContract
 import android.os.SystemClock
 import android.util.Base64
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -201,9 +202,10 @@ class WebActivity : LockedActivity() {
         pageInsets = InsetPolicy.pageHandlesInsets(webViewMajor)
         webViewOutdated = InsetPolicy.webViewOutdated(webViewMajor)
         webView = WebView(this).apply { layoutParams = FrameLayout.LayoutParams(-1, -1) }
-        webView.setOnTouchListener { _, _ ->
+        webView.setOnTouchListener { v, event ->
             lastTouchAt = SystemClock.elapsedRealtime() // user activation for "החלף שרת" (NavPolicy.userActivated)
-            false
+            trackServersGesture(v, event)
+            false // never consumed: scrolling, zoom and taps in the page are untouched
         }
         webHolder.addView(webView, 0)
         configureWebView()
@@ -628,6 +630,32 @@ class WebActivity : LockedActivity() {
     private fun handleAppLink(url: String) {
         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).setClass(this, ServersActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+    }
+
+    // ---- two-finger swipe up: the server list -------------------------------------------------------------------------
+
+    private var gestureStart: FloatArray? = null // startY, startX, startSpread, startTime
+
+    private fun trackServersGesture(v: View, e: MotionEvent) {
+        if (e.actionMasked != MotionEvent.ACTION_POINTER_DOWN && e.actionMasked != MotionEvent.ACTION_POINTER_UP) {
+            if (e.actionMasked == MotionEvent.ACTION_CANCEL || e.actionMasked == MotionEvent.ACTION_UP || e.actionMasked == MotionEvent.ACTION_DOWN) gestureStart = null
+            return
+        }
+        if (e.pointerCount != 2) { // a third finger cancels the gesture
+            gestureStart = null
+            return
+        }
+        val midY = (e.getY(0) + e.getY(1)) / 2
+        val midX = (e.getX(0) + e.getX(1)) / 2
+        val spread = Math.hypot((e.getX(0) - e.getX(1)).toDouble(), (e.getY(0) - e.getY(1)).toDouble()).toFloat()
+        if (e.actionMasked == MotionEvent.ACTION_POINTER_DOWN) {
+            gestureStart = floatArrayOf(midY, midX, spread, e.eventTime.toFloat())
+            return
+        }
+        val s = gestureStart ?: return
+        gestureStart = null
+        if (!locked && ServersGesture.isTrigger(store.serversGesture, s[0], midY, s[1], midX, s[2], spread, v.height.toFloat(),
+                e.eventTime - s[3].toLong(), resources.displayMetrics.density)) openServers()
     }
 
     private fun openServers() {
