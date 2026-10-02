@@ -41,6 +41,54 @@ async function controlled(page: Page) {
   await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 15_000 });
 }
 
+const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist');
+
+/** The built worker script and the cache name baked into it. */
+function distWorker() {
+  const original = fs.readFileSync(path.join(DIST, 'arx-sw.js'), 'utf8');
+  const oldName = /arx-shell-[0-9A-Za-z.\-]+/.exec(original)?.[0] ?? '';
+  expect(oldName, 'the build id is baked into the worker').toMatch(/^arx-shell-.+/);
+  return { original, oldName };
+}
+
+/** dist/ on a tiny server of its own; arx-sw.js comes from `getSw()`, so a test can ship a "next release". */
+async function serveDist(getSw: () => string) {
+  const types: Record<string, string> = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2' };
+  const server = http.createServer((req, res) => {
+    const rel = decodeURIComponent((req.url || '/').split('?')[0]).replace(/^\/+/, '') || 'index.html';
+    if (rel === 'arx-sw.js') {
+      res.writeHead(200, { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-cache' });
+      res.end(getSw());
+      return;
+    }
+    const file = path.join(DIST, rel);
+    if (!file.startsWith(DIST) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end('{"code":"not_found"}');
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': types[path.extname(file)] ?? 'application/octet-stream' });
+    res.end(fs.readFileSync(file));
+  });
+  await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+  return { server, origin: `http://127.0.0.1:${(server.address() as { port: number }).port}/` };
+}
+
+/** The app has wired its update watcher once it has told the worker which page hosts it (register.ts startPwa: watchUpdates, then ready, then arx-context). */
+async function wired(page: Page) {
+  await expect
+    .poll(() => page.evaluate(async () => !!(await (await caches.open('arx-meta')).match(`${new URL('./', document.baseURI).href}__arx/context`))), { timeout: 15_000 })
+    .toBe(true);
+}
+
+/** Reloads and returns once the NEW page has wired itself: the previous page's context note is deleted first, so the next one is this page's. */
+async function reloadWired(page: Page) {
+  await wired(page);
+  await page.evaluate(async () => (await caches.open('arx-meta')).delete(`${new URL('./', document.baseURI).href}__arx/context`));
+  await page.reload();
+  await wired(page);
+}
+
 test.describe('PWA shell (CR-008 P3)', () => {
   test('service worker and manifest live under the app base', async ({ page, context, baseURL }) => {
     await page.goto('/');
@@ -92,37 +140,18 @@ test.describe('PWA shell (CR-008 P3)', () => {
     // The worker names its cache after the build (the add-on version), so a new release is a changed arx-sw.js. The
     // browser fetches the worker script itself (not routable), so this test serves dist/ from its own tiny server and
     // swaps the script for a "next release" copy half-way.
-    const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist');
-    const original = fs.readFileSync(path.join(dist, 'arx-sw.js'), 'utf8');
-    const oldName = /arx-shell-[0-9A-Za-z.\-]+/.exec(original)?.[0] ?? '';
-    expect(oldName, 'the build id is baked into the worker').toMatch(/^arx-shell-.+/);
+    const { original, oldName } = distWorker();
     let sw = original;
-    const types: Record<string, string> = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2' };
-    const server = http.createServer((req, res) => {
-      const rel = decodeURIComponent((req.url || '/').split('?')[0]).replace(/^\/+/, '') || 'index.html';
-      if (rel === 'arx-sw.js') {
-        res.writeHead(200, { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-cache' });
-        res.end(sw);
-        return;
-      }
-      const file = path.join(dist, rel);
-      if (!file.startsWith(dist) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end('{"code":"not_found"}');
-        return;
-      }
-      res.writeHead(200, { 'Content-Type': types[path.extname(file)] ?? 'application/octet-stream' });
-      res.end(fs.readFileSync(file));
-    });
-    await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
-    const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}/`;
+    const { server, origin } = await serveDist(() => sw);
     try {
       await page.goto(origin);
       await controlled(page);
-      await page.reload();
+      // the app wires its update watcher a moment after load (register.ts startPwa); this test is about the notice, so it
+      // starts the update only once the reloaded page has wired it (an update found earlier is the next test)
+      await reloadWired(page);
       const shellCaches = () => page.evaluate(async () => (await caches.keys()).filter((k) => k.startsWith('arx-shell-')));
       expect(await shellCaches()).toEqual([oldName]);
-      sw = original.split(oldName).join(`${oldName}-next`);
+      sw =original.split(oldName).join(`${oldName}-next`);
       await page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.update());
       const toast = page.locator('arx-pwa-prompts [data-pwa-update]');
       await expect(toast).toBeVisible({ timeout: 15_000 });
@@ -135,7 +164,44 @@ test.describe('PWA shell (CR-008 P3)', () => {
     }
   });
 
-  test('install banner "התקן את Arx" (beforeinstallprompt)', async ({ page }, info) => {
+  test('a new release found while the app is still wiring its update watcher still raises the notice', async ({ page }) => {
+    // Regression: watchUpdates() used to listen for `updatefound` only, so a worker already installing when it attached
+    // (a slow start, a loaded machine) was never noticed and the "new version" toast never came. Here the page holds back
+    // its register() call, the next release starts installing (slowly, the install is held 2.5 s), and only then does the
+    // page wire itself. Deterministic: no timing luck involved.
+    const { original, oldName } = distWorker();
+    let sw = original;
+    const { server, origin } = await serveDist(() => sw);
+    try {
+      await page.addInitScript(() => {
+        const real = ServiceWorkerContainer.prototype.register;
+        ServiceWorkerContainer.prototype.register = function (this: ServiceWorkerContainer, ...args: Parameters<ServiceWorkerContainer['register']>) {
+          if (sessionStorage.getItem('hold-register') !== '1') return real.apply(this, args);
+          return new Promise((resolve) => {
+            (window as unknown as { __releaseRegister: () => void }).__releaseRegister = () => resolve(real.apply(this, args));
+          });
+        };
+      });
+      await page.goto(origin);
+      await controlled(page);
+      await reloadWired(page);
+      await page.evaluate(() => sessionStorage.setItem('hold-register', '1'));
+      await page.reload();
+      await page.waitForFunction(() => !!(window as unknown as { __releaseRegister?: unknown }).__releaseRegister);
+      sw = `${original.split(oldName).join(`${oldName}-next`)}\nself.addEventListener('install', (e) => e.waitUntil(new Promise((r) => setTimeout(r, 2500))));\n`;
+      await page.evaluate(() => {
+        void navigator.serviceWorker.getRegistration().then((r) => r?.update());
+      });
+      await page.waitForFunction(async () => !!(await navigator.serviceWorker.getRegistration())?.installing);
+      await page.evaluate(() => (window as unknown as { __releaseRegister: () => void }).__releaseRegister());
+      await expect(page.locator('arx-pwa-prompts [data-pwa-update]')).toBeVisible({ timeout: 15_000 });
+    } finally {
+      await page.goto('about:blank');
+      await new Promise<void>((ok) => server.close(() => ok()));
+    }
+  });
+
+  test('install banner "התקן את Arx" (beforeinstallprompt)',async ({ page }, info) => {
     await page.goto('/');
     await page.waitForFunction(() => !!customElements.get('arx-pwa-prompts'));
     const fire = () =>
