@@ -72,7 +72,7 @@ export class SwDropdown extends LitElement {
       content: '';
       position: absolute;
       inset-inline: -4px;
-      inset-block: -6px;
+      inset-block: -7px;
     }
     .chip:hover {
       background: var(--sw-dd-hover, var(--sw-surface-2));

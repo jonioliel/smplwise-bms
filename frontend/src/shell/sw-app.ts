@@ -991,7 +991,7 @@ export class SwApp extends LitElement {
         content: '';
         position: absolute;
         inset-inline: -4px;
-        inset-block: -6px;
+        inset-block: -7px;
       }
       /* the floating search / status corner sits over the first row's far end: that row keeps clear of it */
       :host([data-design='a'][data-top='tabs']) .subnav {
