@@ -1,5 +1,57 @@
 # Changelog — SmplWise Arx add-on
 
+## 0.1.154 (pilot) — The Bubble look on the home, area and multimedia screens, a performance dial, "קברניט" with the schedules inside, a clearer tabs display card
+**After the update no restart of the platform is needed** (the bridge integration stays 0.6.0). There is no database migration. Reload the installed web app once so the new service worker takes over.
+### The Bubble look on the real screens - הגדרות › כללי › "מראה" (still off until you choose it)
+- **Home**: status pills, quick-action pills and area rows with coloured hue rings.
+- **Area**: pill rows, section separators and the device sheets that open over the dimmed page.
+- **Multimedia**: a now-playing hero, player pills and a volume control that morphs.
+- Nothing changes until the Bubble skin is chosen; the default skin and the floors/areas tree are untouched.
+### A performance dial - הגדרות › כללי › "מראה" › "ביצועים"
+- Three values: **auto** (the default), **full** and **lite**. **Lite** removes the glass blur from pills, chips and the overlays on video, art and maps (the dock, rail and the open pop-up keep theirs) and keeps text contrast above 4.5:1.
+- **Auto** decides per device: a weak processor (4 cores or fewer), little memory, or a system preference for reduced motion or transparency gives lite at once; otherwise a short frame-time probe at idle decides, and the answer is remembered for 30 days. The probe now runs only while the dial is auto.
+### "קברניט" - the old "אוטומציות" top tab, with the schedules inside
+- The top tabs of the devices area are now **מבט על** and **קברניט**. Inside קברניט the first segment is **תזמונים**, followed by אוטומציות, סצנות and סקריפטים.
+- The tab opens on the schedules when they are available. If schedules are off in the settings, the scheduler is unavailable or you may not view them, that segment is hidden and the tab opens on the automations.
+- Old links (`#/devices/schedules`) keep working, a stale stored tab setting can no longer hide the new segment, and the breadcrumb reads ראשי › קברניט › the segment.
+### A clearer tabs display card - הגדרות › כללי › לשוניות › "תצוגת לשוניות"
+- The card now shows, per group, which mode is in force and where it comes from (your choice or the installation default), and a **reset my choices** button.
+- A note explains that the dropdown mode applies on a phone width (up to 767 px); the preview is labelled as the phone look. The home group is now called "אזורים בקומה (מסך האזור)".
+### Fixes and under the hood
+- The Hebrew strings of the area screen that had been garbled are restored.
+- The notification and schedules tests no longer depend on the time of day, and the test suites run the same on Linux as on Windows (Linux pixel baselines were added).
+### How to turn it on and use it (English)
+1. No restart is needed; reload the installed web app once.
+2. **The Bubble look**: הגדרות › כללי › "מראה" (choose the skin; the performance row sits with the other dials).
+3. **קברניט**: the top tab of the devices area; the schedules are its first segment.
+4. **Tabs display**: הגדרות › כללי › לשוניות › "תצוגת לשוניות" (the active mode per group is listed in the card).
+
+## עברית — 0.1.154: המראה "בועה" במסכי הבית, האזור והמולטימדיה · חוגת ביצועים · "קברניט" עם התזמונים בתוכו · כרטיס ברור יותר לתצוגת לשוניות
+**אחרי העדכון אין צורך להפעיל מחדש את התשתית** (הגשר נשאר 0.6.0). אין מיגרציית מסד נתונים. יש לטעון מחדש את אפליקציית הרשת המותקנת פעם אחת, כדי שה-service worker החדש ייכנס לתוקף.
+### המראה "בועה" במסכים האמיתיים - הגדרות › כללי › "מראה" (עדיין כבוי עד שתבחר בו)
+- **הבית**: גלולות מצב, גלולות פעולה מהירה ושורות אזור עם טבעות צבע.
+- **האזור**: שורות גלולה, מפרידי מקטעים וגיליונות מכשיר שנפתחים מעל הדף המעומעם.
+- **מולטימדיה**: נגן ראשי, גלולות נגנים ופקד עוצמת שמע שמשנה צורה.
+- שום דבר לא משתנה עד שבוחרים בערכת "בועה"; ערכת ברירת המחדל ועץ הקומות והאזורים נשארים כמות שהם.
+### חוגת ביצועים - הגדרות › כללי › "מראה" › "ביצועים"
+- שלושה ערכים: **אוטומטי** (ברירת המחדל), **מלא** ו**קל**. במצב **קל** מוסר טשטוש הזכוכית מגלולות, צ'יפים וכיסויים מעל וידאו, תמונה ומפה (הדוק, הסרגל והחלון הקופץ הפתוח שומרים עליו), וניגודיות הטקסט נשארת מעל 4.5:1.
+- במצב **אוטומטי** המכשיר מחליט לבד: מעבד חלש (עד 4 ליבות), מעט זיכרון, או העדפת מערכת להפחתת תנועה או שקיפות נותנים מצב קל מיד; אחרת מדידה קצרה של קצב הפריימים בזמן סרק מכריעה, והתשובה נשמרת 30 יום. המדידה רצה מעכשיו רק כשהחוגה על אוטומטי.
+### "קברניט" - לשונית "אוטומציות" הקודמת, עם התזמונים בתוכה
+- הלשוניות העליונות באזור ההתקנים הן עכשיו **מבט על** ו**קברניט**. בתוך קברניט הקטע הראשון הוא **תזמונים**, ואחריו אוטומציות, סצנות וסקריפטים.
+- הלשונית נפתחת על התזמונים כשהם זמינים. אם התזמונים כבויים בהגדרות, המתזמן לא זמין או שאין לך הרשאה לצפות בהם, הקטע מוסתר והלשונית נפתחת על האוטומציות.
+- קישורים ישנים (`#/devices/schedules`) ממשיכים לעבוד, הגדרת לשונית ישנה שנשמרה לא יכולה עוד להסתיר את הקטע החדש, ופירורי הלחם מציגים ראשי › קברניט › הקטע.
+### כרטיס ברור יותר לתצוגת לשוניות - הגדרות › כללי › לשוניות › "תצוגת לשוניות"
+- הכרטיס מציג עכשיו לכל קבוצה איזה מצב בתוקף ומאיפה הוא בא (בחירה שלך או ברירת מחדל של ההתקנה), וכפתור **איפוס הבחירות שלי**.
+- הערה מסבירה שמצב התפריט הנפתח חל ברוחב טלפון (עד 767 פיקסלים); התצוגה המקדימה מסומנת כמראה הטלפון. קבוצת הבית נקראת עכשיו "אזורים בקומה (מסך האזור)".
+### תיקונים ומאחורי הקלעים
+- שוחזרו מחרוזות העברית של מסך האזור שנשחתו.
+- בדיקות ההתראות והתזמונים אינן תלויות עוד בשעה ביום, ובדיקות המערכת רצות זהה בלינוקס ובווינדוס (נוספו בסיסי פיקסלים ללינוקס).
+### איך מפעילים ומשתמשים (עברית)
+1. אין צורך בהפעלה מחדש; יש לטעון מחדש את אפליקציית הרשת המותקנת פעם אחת.
+2. **המראה "בועה"**: הגדרות › כללי › "מראה" (בחירת ערכת העיצוב; שורת הביצועים נמצאת עם שאר החוגות).
+3. **קברניט**: הלשונית העליונה באזור ההתקנים; התזמונים הם הקטע הראשון בה.
+4. **תצוגת לשוניות**: הגדרות › כללי › לשוניות › "תצוגת לשוניות" (המצב הפעיל לכל קבוצה מופיע בכרטיס).
+
 ## 0.1.153 (pilot) — The Bubble look (optional), protected switches, a cameras table, tabs as a dropdown option, phone fixes, higher caps
 **After the update no restart of the platform is needed** (the bridge integration stays 0.6.0). Migration 0049 is applied on the first start. Reload the installed web app once so the new service worker takes over.
 ### The Bubble look - הגדרות › כללי › "מראה" (off until you choose it)
