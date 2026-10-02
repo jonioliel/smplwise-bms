@@ -35,7 +35,8 @@ from typing import Any, Callable
 
 from ..config import Settings
 from ..db import Database, retry_locked
-from . import notify
+from .. import __version__
+from . import notify, self_update
 from .notify_policy import get_policy
 from .timeutil import iso_utc, parse_utc
 
@@ -414,41 +415,53 @@ def backup_resolution(conn: sqlite3.Connection, backups: dict[str, Any]) -> dict
 # ---------------------------------------------------------------- update available (Supervisor, add-on only)
 
 _UPDATE: dict[str, float] = {"checked": 0.0}
-UPDATE_EVERY_S = 6 * 3600
+_LAST_FAILED: list[self_update.CheckOutcome] = []  # the scheduled read's failure, for the caller to record
 UPDATE_FETCHER: Callable[[Settings], dict[str, Any] | None] | None = None  # tests install a fake; None = the Supervisor
-_VERSION = re.compile(r"[0-9A-Za-z._+-]{1,40}")
+_VERSION = self_update.VERSION_RE
 
 
 def _fetch_update(settings: Settings) -> dict[str, Any] | None:
+    """{update_available, version_latest, version?} or None. The scheduled check only READS (CR-021 D4: the store is refreshed by the
+    manual button alone)."""
     if UPDATE_FETCHER is not None:
         return UPDATE_FETCHER(settings)
-    token = os.environ.get("SUPERVISOR_TOKEN")
-    if not (settings.in_addon and token):
+    if not self_update.configured(settings):
         return None  # a developer backend never asks the Supervisor
-    import httpx
-
-    r = httpx.get("http://supervisor/addons/self/info", headers={"Authorization": f"Bearer {token}"}, timeout=5.0)  # read-only; no database connection is held
-    if r.status_code != 200:
+    out = self_update.run_check(settings, refresh=False)  # read-only; no database connection is held
+    if out.info is None:
+        _LAST_FAILED[:] = [out]
         return None
-    data = (r.json() or {}).get("data") or {}
-    return {"update_available": bool(data.get("update_available")), "version_latest": str(data.get("version_latest") or "")}
+    return {"update_available": out.info.update_available, "version_latest": out.info.latest, "version": out.info.installed}
 
 
 def update_tick(db: Database, settings: Settings, now_ts: float) -> str:
-    """At most every UPDATE_EVERY_S: `update.available` for a newer add-on version (one row per version, managers, email), resolved once
-    it is installed (the Supervisor stops reporting it)."""
-    if now_ts - _UPDATE["checked"] < UPDATE_EVERY_S:
+    """At most every `update.interval_hours` (default 6, 0 = off): `update.available` for a newer add-on version (one row per version,
+    managers, email), resolved once it is installed (the Supervisor stops reporting it). The result is also kept as `update.*` settings for
+    the CR-021 page and the user-menu marker."""
+    with db.connection(mode="read", label="notify.update.interval") as rconn:
+        hours = self_update.get_interval(rconn)
+    if hours == 0:
+        return "off"
+    if now_ts - _UPDATE["checked"] < hours * 3600:
         return "skipped"
     _UPDATE["checked"] = now_ts
+    _LAST_FAILED.clear()
     info = _fetch_update(settings)  # the network call, before any connection
+    now = dt.datetime.fromtimestamp(now_ts, dt.timezone.utc)
     if info is None:
+        if _LAST_FAILED:  # a configured infrastructure that did not answer: the page shows when and why
+            with db.connection(label="notify.update") as conn:
+                self_update.record(conn, _LAST_FAILED[0], now, refresh=False)
         return "unknown"
     latest = str(info.get("version_latest") or "")
     available = bool(info.get("update_available")) and bool(_VERSION.fullmatch(latest))
-    now = dt.datetime.fromtimestamp(now_ts, dt.timezone.utc)
     sig = notify.Signal("update.available", "system", "addon", dedupe_key=f"update.available:system:{latest}", params={"version": latest})
     with db.connection(label="notify.update") as conn:
         reconcile(conn, "update.available", {sig.dedupe_key: sig} if available else {}, {sig.dedupe_key} if available else set(), now)  # type: ignore[dict-item]
+        if _VERSION.fullmatch(latest):
+            installed = str(info.get("version") or "")
+            shown = self_update.Info(installed if _VERSION.fullmatch(installed) else __version__, latest, available)
+            self_update.record(conn, self_update.CheckOutcome("available" if available else "current", False, shown, 200), now, refresh=False)
     return "available" if available else "current"
 
 
