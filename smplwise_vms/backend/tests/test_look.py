@@ -55,6 +55,8 @@ def test_defaults_and_the_frontend_lists_agree():
     assert look.stored(json.dumps(look.DEFAULT)) == look.DEFAULT
     front = (Path(__file__).resolve().parents[3] / "frontend" / "src" / "design" / "look.ts").read_text(encoding="utf-8")
     for key, allowed in look.CHOICES.items():
+        if key == "palette":
+            continue  # generated from palettes.json on both sides (test_palettes.py compares the ids)
         m = re.search(rf"{key}:\s*\{{[^}}]*values:\s*\[([^\]]*)\]", front, re.S)
         assert m, f"{key} values not found in design/look.ts"
         assert tuple(re.findall(r"'([a-z-]+)'", m.group(1))) == allowed, key
