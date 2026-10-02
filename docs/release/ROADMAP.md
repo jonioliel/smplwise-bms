@@ -19,6 +19,18 @@ Estimates are agent work-hours, not wall clock. "Tier" is the test tier of `TEST
 | **0.1.161** | M | Music: library search without the direct connection (bridge 0.7.0, platform restart) and voice announcements | decision on announcements | later |
 | **0.2.0** | L | Structural: the system runs without an NVR or go2rtc; several NVR vendors in parallel (Provision-ISR, Frigate besides Hikvision); infrastructure tab (electricity meters, electricity bill editing and export, generators, water) | access to the NVRs; the electricity bill specification; component list from Home Assistant (owner: next week) | not before next week |
 
+## Ideas adopted from the design references (owner 2026-10-02: adopt all, the order is decided calmly)
+Source: `GLASS_DASHBOARDS_ANALYSIS.md` (branch `pilot/design-glasshome-research`; GlassHome app is proprietary, its `ui`/widget SDK repos are MIT; Magic Frame is Polyform Noncommercial = inspiration only, no code).
+
+| # | Idea | Where it goes | Lead's recommendation |
+|---|---|---|---|
+| 1 | **Performance tier for the glass look**: no `backdrop-filter` on large tiles/lists, only on the dock, buttons and the scrim; selectable as a dial and chosen automatically on weak devices | with the Bubble releases (first item after 0.1.154) | **do it with Bubble** (the main wall-tablet risk) |
+| 2 | **Material dials** `depth`, `tint`, `material` presets (Frosted, Paper, Chalk, Neon) in `ui.look`, 1px bevel rim, state-tinted tiles | after the palettes and the colour editor (0.1.156+) | useful, overlaps Bubble/Domus glass |
+| 3 | **`crystal` skin** (wallpaper-led, day/night photos, glow) | after 2, behind a mockup first | the lead disagrees (overlap, needs a wallpaper) but the owner wants it: build last, mockup first |
+| 4 | **Wall-display module** (kiosk screen, six-digit pairing code, restricted principal per tablet, per-breakpoint layout, live sync, periodic reload; ties to CR-007/SC31) | product feature: needs a CR and owner decisions (next week with the other new product inputs) | big (36-52 h), a product decision |
+| 5 | **Photo-frame/ambient mode** and **rule-based notification tiles** | extras of the wall-display module | after 4 |
+| 6 | Never adopted: unauthenticated view URLs/actions, a dock covering content | - | breaks AGENTS.md and our layout rules |
+
 ## Parallel tracks
 - **iOS app** (a WKWebView shell, the Mac session): separate repository folder `mobile/`, not on this train. Needs Apple Developer account and a production signing decision for Google Play.
 - **Upstream watch**: weekly Monday 08:36 scheduled task; after each monthly Home Assistant release run it by hand.
