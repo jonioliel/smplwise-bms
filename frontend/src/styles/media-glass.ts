@@ -1,5 +1,6 @@
 import { css } from 'lit';
 import { applyDevicesPrefs, DEVICES_PREFS_DEFAULT, loadDevicesPrefs, devicesStyleTokens, type DevicesPrefs } from '../screens/devices-style';
+import { currentSkin, onDesign } from '../design/apply';
 
 /**
  * CR-015: the look of the multimedia screens and the remote - ALWAYS the glass style (owner decision 14a, the remote is built
@@ -789,14 +790,154 @@ export const mediaGlassControls = css`
   }
 `;
 
+/**
+ * The Bubble skin (phase C, 2026-10-02; the approved board docs/design/mockups/bubble-taste/media.html): every knob the media
+ * components read is pointed at the product's `--sw-*` tokens, so the pages, the cards and the dialogs follow the skin and ITS
+ * scheme (light / dark by `data-theme`, not by `devices.scheme`): flat pills, no sheen, no glass blur on scrolling lists (the
+ * phone performance rule), pill radii, the sheet translucent at the transparency dial. Keyed on the host's `data-skin`, which
+ * applyMediaGlass mirrors from the design layer; declared after the dark block so it wins at equal specificity.
+ */
+export const mediaBubbleKnobs = css`
+  :host([data-skin='bubble'][data-devices-style='glass']) {
+    /* the glass bridge (devices-themes.ts) rewrites these --sw-* names from the --dv-* knobs; here the knobs are the --sw-* names,
+       so the bridge is undone first (inherit = the page's own tokens) or every pair would be a cycle */
+    --sw-glass-blur: inherit;
+    --sw-bg: inherit;
+    --sw-surface: inherit;
+    --sw-surface-2: inherit;
+    --sw-surface-3: inherit;
+    --sw-border: inherit;
+    --sw-border-strong: inherit;
+    --sw-overlay: inherit;
+    --sw-text: inherit;
+    --sw-heading: inherit;
+    --sw-text-2: inherit;
+    --sw-text-3: inherit;
+    --sw-accent: inherit;
+    --sw-accent-hover: inherit;
+    --sw-accent-soft: inherit;
+    --sw-accent-text: inherit;
+    --sw-focus: inherit;
+    --sw-live: inherit;
+    --sw-live-soft: inherit;
+    --sw-success: inherit;
+    --sw-success-soft: inherit;
+    --sw-warning: inherit;
+    --sw-warning-soft: inherit;
+    --sw-stale: inherit;
+    --sw-stale-soft: inherit;
+    --sw-danger: inherit;
+    --sw-danger-soft: inherit;
+    --sw-offline: inherit;
+    --sw-offline-soft: inherit;
+    --sw-unknown-soft: inherit;
+    --sw-recorded-soft: inherit;
+    --sw-r-sm: inherit;
+    --sw-r-md: inherit;
+    --sw-r-lg: inherit;
+    --sw-r-pill: inherit;
+    --sw-shadow-1: inherit;
+    --sw-shadow-2: inherit;
+    --sw-shadow-3: inherit;
+    --sw-font: inherit;
+    color-scheme: inherit;
+    --dv-color-scheme: inherit;
+    --dv-backdrop: transparent;
+    --dv-surface: var(--sw-surface);
+    --dv-surface-2: var(--sw-surface-2);
+    --dv-surface-3: var(--sw-surface-3);
+    --dv-surface-solid: var(--sw-surface-solid);
+    --dv-surface-2-solid: var(--sw-surface-2-solid);
+    --dv-surface-blur: none;
+    --dv-border: transparent;
+    --dv-border-strong: var(--sw-border-strong);
+    --dv-overlay: var(--sw-overlay);
+    --dv-font: var(--sw-font);
+    --dv-text: var(--sw-text);
+    --dv-text-2: var(--sw-text-2);
+    --dv-text-3: var(--sw-text-3);
+    --dv-accent: var(--sw-accent);
+    --dv-accent-hover: var(--sw-accent-hover);
+    --dv-accent-soft: var(--sw-accent-soft);
+    --dv-accent-text: var(--sw-accent-text);
+    --dv-focus: var(--sw-focus);
+    --dv-success: var(--sw-success);
+    --dv-success-soft: var(--sw-success-soft);
+    --dv-warning: var(--sw-warning);
+    --dv-warning-soft: var(--sw-warning-soft);
+    --dv-warning-text: var(--sw-warning-text);
+    --dv-danger: var(--sw-danger);
+    --dv-danger-soft: var(--sw-danger-soft);
+    --dv-neutral-soft: var(--sw-unknown-soft);
+    --dv-radius-sm: var(--sw-r-md);
+    --dv-radius-md: var(--sw-r-lg);
+    --dv-radius-lg: var(--sw-r-xl);
+    --dv-radius-control: var(--sw-r-pill);
+    --dv-shadow-1: none;
+    --dv-shadow-2: none;
+    --dv-shadow-3: var(--sw-shadow-3);
+    --dv-shadow-control: none;
+    --dv-toggle-on: var(--sw-toggle-on);
+    --dv-hover-lift: 0px;
+    --mm-sheen: none;
+    --mm-accent-glow: transparent;
+    --mm-text-inverse: var(--sw-bg); /* text on a chip filled with --sw-text (the chosen room): the page colour, both schemes */
+    --mm-fs-page-title: var(--sw-h1);
+    --mm-fs-page-title-compact: var(--sw-fs-lg);
+    --mm-art-glow-alpha: 0.42;
+    --mm-art-halo-alpha: 0;
+    --mm-art-veil: rgba(var(--sw-sheet-rgb), 0.3);
+    --mm-screen-off: var(--sw-surface-2);
+    --mm-sheet-surface: rgba(var(--sw-sheet-rgb), var(--sw-sheet-alpha));
+    --mm-sheet-blur: var(--sw-glass-blur-sheet);
+    --mm-seg-thumb: var(--sw-surface-solid);
+    --mm-key-bg: var(--sw-surface-2);
+    --mm-key-fg: var(--sw-text);
+    --mm-key-shadow: none;
+    --mm-remote-body: var(--sw-layer);
+    --mm-dpad-ring: var(--sw-surface-2);
+    --mm-dpad-shadow: none;
+    --mm-dpad-groove: none;
+    --mm-ok-bg: var(--sw-surface-solid);
+    --mm-motion: var(--sw-t-med);
+    --mm-ease: var(--sw-ease);
+    --mm-cover-radius: var(--sw-r-media);
+    --mm-cover-shadow: none;
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    :host([data-skin='bubble'][data-devices-style='glass']) {
+      --mm-sheet-surface: var(--sw-surface-solid);
+      --mm-sheet-blur: none;
+    }
+  }
+`;
+
 /** The style set every media component starts with: the device theme layer, the media knobs, the shared controls. */
-export const mediaGlassStyles = [devicesStyleTokens, mediaGlassKnobs, mediaGlassControls];
+export const mediaGlassStyles = [devicesStyleTokens, mediaGlassKnobs, mediaGlassControls, mediaBubbleKnobs];
+
+/** Mirrors the skin in force onto a media host (`data-skin`) and follows every change while the host is connected. */
+export function mirrorSkin(host: HTMLElement): void {
+  const put = () => {
+    const id = currentSkin();
+    if (host.getAttribute('data-skin') !== id) host.setAttribute('data-skin', id);
+  };
+  put();
+  const off = onDesign(() => {
+    if (!host.isConnected) {
+      off();
+      return;
+    }
+    put();
+  });
+}
 
 /** Puts the glass style (always), the installation's palette and scheme on a media component's host. The first paint
  * already carries the glass style in the default light scheme; the installation's scheme and palette follow when its
- * settings arrive (devices-style.ts loadDevicesPrefs: the shared settings cache, never throws). */
+ * settings arrive (devices-style.ts loadDevicesPrefs: the shared settings cache, never throws). The skin (bubble) is
+ * mirrored too: in the bubble skin the knobs follow the product tokens and the skin's own scheme. */
 export function applyMediaGlass(host: HTMLElement): Promise<DevicesPrefs> {
   applyDevicesPrefs(host, { ...DEVICES_PREFS_DEFAULT, style: 'glass' });
+  mirrorSkin(host);
   return loadDevicesPrefs().then((p) => {
     const prefs: DevicesPrefs = { ...p, style: 'glass' };
     if (host.isConnected) applyDevicesPrefs(host, prefs);

@@ -95,6 +95,48 @@ export const remoteTokens = css`
     --mr-glow-alpha: 0.5;
     color-scheme: dark;
   }
+  /* the Bubble skin (phase C): the remote and the player panel read the product's tokens - the sheet, the keys, the rows follow
+     the skin and its scheme (data-theme on <html>), not devices.scheme; declared after the dark block so it wins */
+  :host([data-skin='bubble']) {
+    --mr-text: var(--sw-text);
+    --mr-text-2: var(--sw-text-2);
+    --mr-text-3: var(--sw-text-3);
+    --mr-text-inverse: var(--sw-text-inverse);
+    --mr-surface: var(--sw-layer);
+    --mr-surface-2: var(--sw-layer-2);
+    --mr-surface-3: var(--sw-surface-2);
+    --mr-surface-solid: var(--sw-surface-solid);
+    --mr-border: transparent;
+    --mr-border-strong: var(--sw-border-strong);
+    --mr-accent: var(--sw-accent);
+    --mr-accent-hover: var(--sw-accent-hover);
+    --mr-accent-soft: var(--sw-accent-soft);
+    --mr-accent-text: var(--sw-accent-text);
+    --mr-accent-glow: transparent;
+    --mr-focus: var(--sw-focus);
+    --mr-success: var(--sw-success);
+    --mr-danger: var(--sw-danger);
+    --mr-danger-soft: var(--sw-danger-soft);
+    --mr-warning: var(--sw-warning);
+    --mr-seg-thumb: var(--sw-surface-solid);
+    --mr-shadow-control: none;
+    --mr-shadow-3: var(--sw-shadow-3);
+    --mr-sheen: none;
+    --mr-key-bg: var(--sw-surface-2);
+    --mr-key-fg: var(--sw-text);
+    --mr-key-shadow: none;
+    --mr-remote-body: var(--sw-layer);
+    --mr-dpad-ring: var(--sw-surface-2);
+    --mr-dpad-shadow: none;
+    --mr-dpad-groove: none;
+    --mr-ok-bg: var(--sw-surface-solid);
+    --mr-screen-off: var(--sw-surface-2);
+    --mr-art-veil: rgba(var(--sw-sheet-rgb), 0.3);
+    --mr-glow-alpha: 0.3;
+    --mr-ease: var(--sw-ease);
+    --mr-motion: var(--sw-t-med);
+    --mr-font: var(--sw-font);
+  }
   @media (max-width: 767px) {
     :host {
       --mr-dpad-size: 196px;
