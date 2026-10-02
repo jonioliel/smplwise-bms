@@ -137,11 +137,10 @@ test.describe('bubble screens', () => {
         // the open pop-up keeps its blur in lite
         await pill(page, 'light.living_main').locator('[data-pill-ring]').click();
         await page.waitForTimeout(700);
-        const sheetBlur = await page.evaluate(() => {
-          const s = document.querySelector('sw-app devices-area')?.shadowRoot?.querySelector('sw-sheet[data-device-sheet]');
-          const panel = s?.shadowRoot?.querySelector('.panel, .sheet, [part="panel"]') as HTMLElement | null;
-          return panel ? getComputedStyle(panel).backdropFilter : 'no-panel';
-        });
+        // Playwright locators pierce the open shadow roots
+        const sheetPanel = area(page).locator('sw-sheet[data-device-sheet] .sheet');
+        await expect(sheetPanel).toBeVisible();
+        const sheetBlur = await blurOf(sheetPanel);
         expect(sheetBlur, `sheet ${tier} ${w} ${scheme}`).toContain('blur(');
         await shot(page, `../bubble-performance/area-sheet-${tier}-${w}-${scheme}`);
         await page.keyboard.press('Escape');
