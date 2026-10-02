@@ -9,11 +9,11 @@ import { get, put } from './client';
 export type NavSizeWire = { mode: 'rel'; preset: 's' | 'm' | 'l' | 'xl' } | { mode: 'free'; icon: number; label: number; item: number };
 
 export interface MyPrefs {
-  prefs: { 'nav.order': string[]; 'ui.nav_size'?: NavSizeWire; 'wiskey.density'?: string | null; 'wiskey.wall'?: string | null; 'home.personal'?: unknown; 'devices.area_row'?: unknown; 'multimedia.personal'?: unknown };
+  prefs: { 'nav.order': string[]; 'ui.nav_size'?: NavSizeWire; 'ui.look'?: Record<string, unknown> | null; 'wiskey.density'?: string | null; 'wiskey.wall'?: string | null; 'home.personal'?: unknown; 'devices.area_row'?: unknown; 'multimedia.personal'?: unknown };
   /** The keys the user set themselves (the rest are defaults). */
   stored: string[];
   updated_at: string | null;
 }
 
 export const getMyPrefs = () => get<MyPrefs>('me/prefs');
-export const putMyPrefs = (patch: { 'nav.order'?: string[] | null; 'ui.nav_size'?: NavSizeWire | null; 'wiskey.density'?: string | null; 'wiskey.wall'?: string | null; 'home.personal'?: Record<string, unknown> | null; 'devices.area_row'?: Record<string, unknown> | null; 'multimedia.personal'?: Record<string, unknown> | null }) => put<MyPrefs>('me/prefs', patch);
+export const putMyPrefs = (patch: { 'nav.order'?: string[] | null; 'ui.nav_size'?: NavSizeWire | null; 'ui.look'?: Record<string, unknown> | null; 'wiskey.density'?: string | null; 'wiskey.wall'?: string | null; 'home.personal'?: Record<string, unknown> | null; 'devices.area_row'?: Record<string, unknown> | null; 'multimedia.personal'?: Record<string, unknown> | null }) => put<MyPrefs>('me/prefs', patch);

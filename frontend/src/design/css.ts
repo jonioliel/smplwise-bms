@@ -13,6 +13,7 @@
  */
 import { TOKENS, type TokenTable } from './tokens';
 import { SKINS, SKIN_IDS, type SkinId } from './skins';
+import { lookBundlesCss } from './look';
 
 const decls = (t: TokenTable, mode: 'light' | 'dark', onlyDiffering = false): string =>
   Object.entries(t)
@@ -43,8 +44,12 @@ export function tokensCss(): string {
     if (!Object.keys(skin.tokens).length) continue;
     css += blocks(`:root[data-skin="${id}"]`, skin.tokens, false);
   }
+  // the look dials (design/look.ts): token bundles keyed on the data attributes, for the bubble skin
+  css += lookBundlesCss();
   // reduced motion: durations become 0 and the hover lift is off (accessibility, TOKEN_CONTRACT §2)
-  css += '@media (prefers-reduced-motion: reduce){:root,:root[data-skin]{--sw-t-fast:0ms;--sw-t-med:0ms;--sw-hover-lift:0px}}\n';
+  css += '@media (prefers-reduced-motion: reduce){:root,:root[data-skin]{--sw-t-fast:0ms;--sw-t-med:0ms;--sw-t-sheet:0ms;--sw-t-state:0ms;--sw-hover-lift:0px}}\n';
+  // reduced transparency: the translucent layers of every skin become their solid twins
+  css += '@media (prefers-reduced-transparency: reduce){:root,:root[data-skin]{--sw-sheet-alpha:1 !important;--sw-glass-blur:none;--sw-glass-blur-nav:none;--sw-glass-blur-sheet:none;--sw-backdrop-blur:none}}\n';
   return css;
 }
 

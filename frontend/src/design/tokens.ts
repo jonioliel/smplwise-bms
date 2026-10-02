@@ -245,7 +245,64 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-t-med': same('200ms'),
       '--sw-ease': same('cubic-bezier(0.2, 0, 0, 1)'),
       '--sw-ease-thumb': same('cubic-bezier(0.2, 0, 0, 1)'),
+      '--sw-ease-dialog': same('cubic-bezier(0.16, 1, 0.3, 1)'), // NEW (bubble): a centred pop-up landing
+      '--sw-ease-out': same('cubic-bezier(0.4, 0, 1, 1)'), // NEW (bubble): closing
+      '--sw-t-sheet': same('200ms'), // NEW (bubble): the pop-up's opening spring (bubble 460 ms)
+      '--sw-t-state': same('200ms'), // NEW (bubble): a state fill fading in (bubble 900 ms)
       '--sw-hover-lift': same('0px'),
+    },
+  },
+  {
+    // Bubble foundation (2026-10-02). Every name here is NEW. The base values are neutral: the classic skin draws nothing with
+    // them that it did not draw before (a sheet is opaque, a pill is a plain surface, the hues are the accent). The bubble skin
+    // gives them their values; a PALETTE (later phase) is a set of values for the colour names of this group and of
+    // `accent` / `state` - never a rule.
+    id: 'bubble',
+    title: 'Pills, sheets and the look dials',
+    tokens: {
+      // the sheet (translucent pop-up): colour as a triplet so the transparency dial can compose the alpha
+      '--sw-sheet-rgb': lt('255, 255, 255', '21, 28, 44'),
+      '--sw-sheet-alpha': same('1'), // the look dial `transparency` sets this on <html> (design/look.ts); 1 = opaque
+      '--sw-layer': lt('rgba(255, 255, 255, 0.55)', 'rgba(255, 255, 255, 0.08)'), // a pill sitting ON a translucent sheet
+      '--sw-layer-2': lt('rgba(255, 255, 255, 0.8)', 'rgba(255, 255, 255, 0.14)'),
+      '--sw-nav-glass': lt('#ffffff', '#151c2c'), // rail, tree panel, phone dock
+      '--sw-backdrop-blur': same('none'), // the live page behind a sheet
+      // the "lit" fill of a light's pill and the text on it (bubble: the lamp's warm colour)
+      '--sw-lit': lt('#ffc857', '#ffb547'),
+      '--sw-lit-cool': lt('#ece4c9', '#e3e0cf'),
+      '--sw-lit-soft': lt('rgba(255, 200, 87, 0.32)', 'rgba(255, 181, 71, 0.34)'),
+      '--sw-on-lit': same('#2b1a05'),
+      // eight decorative hues for icon rings and the gradient surface (decoration only, never meaning); a palette replaces them
+      '--sw-hue-1': lt('#7b84eb', '#7b84eb'),
+      '--sw-hue-2': lt('#e8456f', '#ef3464'),
+      '--sw-hue-3': lt('#2fa37c', '#34a57f'),
+      '--sw-hue-4': lt('#1f6f94', '#2a7ea3'),
+      '--sw-hue-5': lt('#c4508f', '#c4479a'),
+      '--sw-hue-6': lt('#e07a2f', '#e8762c'),
+      '--sw-hue-7': lt('#5a6fd8', '#4f68d8'),
+      '--sw-hue-8': lt('#7a9a2f', '#7d9b2a'),
+      '--sw-ring-on-hue': same('#ffffff'),
+      '--sw-cool': lt('#2f8fb8', '#4aa8d8'),
+      '--sw-heat': lt('#e0662f', '#ff7a45'),
+      // the pill family's sizes: the density dial rewrites them (design/look.ts DENSITY bundles)
+      '--sw-pill-h': same('56px'),
+      '--sw-icon-ring': same('40px'),
+      '--sw-sub': same('36px'),
+      '--sw-fs-name': same('13px'),
+      '--sw-fs-state': same('12px'),
+      '--sw-gap': same('8px'),
+      '--sw-gap-grid': same('14px'),
+      '--sw-grid-min': same('280px'),
+      '--sw-s-1h': same('6px'),
+      '--sw-s-3h': same('14px'),
+      '--sw-s-4h': same('18px'),
+      '--sw-r-media': same('12px'), // art and video: the modest radius tier (never the pill radius)
+      '--sw-tree-w': same('286px'),
+      '--sw-sheet-w': same('560px'),
+      '--sw-sheet-w-wide': same('760px'),
+      // the look dials the components read directly (set on <html> by design/look.ts; these are the resting values)
+      '--sw-look-scale': same('1'),
+      '--sw-touch-desktop': same('44px'),
     },
   },
 ];

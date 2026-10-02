@@ -13,7 +13,9 @@
  */
 import { ReactiveElement } from 'lit';
 import { DEFAULT_SKIN, SKIN_IDS, SKINS, isSkinId, type SkinId } from './skins';
-import { skinRules, tokensCss } from './css';
+import { skinRules, skinTable, tokensCss } from './css';
+import { alphaFloor, sheetModelOf } from './contrast';
+import { bootLook, setAlphaFloor } from './look';
 
 export type Scheme = 'light' | 'dark' | 'auto';
 export type Theme = 'light' | 'dark';
@@ -102,6 +104,10 @@ function apply() {
     sheet.replaceSync(skinRules(skin));
     sheetSkin = skin;
   }
+  // the translucent sheet never drops below the alpha at which its text reads at 4.5:1 (design/contrast.ts, per skin and scheme)
+  const t = skinTable(skin);
+  const model = sheetModelOf((n) => t[n]?.[theme] ?? '');
+  setAlphaFloor(model ? alphaFloor(model) : 1);
   listeners.forEach((fn) => fn());
 }
 
@@ -140,6 +146,7 @@ export function bootDesign() {
   if (booted) return;
   booted = true;
   loadStored();
+  bootLook(); // the look dials (data-bubble-* and the numeric custom properties on <html>), before the first paint
   // the token CSS is a constructable stylesheet: the strict CSP candidate (remote channel) refuses inline <style> elements
   try {
     const tokens = new CSSStyleSheet();

@@ -8,7 +8,7 @@ import sqlite3
 from typing import Any, Callable
 
 from ..db import now_iso
-from . import area_row, home_config, media_layout, nav_size
+from . import area_row, home_config, look, media_layout, nav_size
 
 # The navigation tabs of the app shell in their default order (frontend/src/shell/nav.ts, NAV_A): ראשי (the device
 # overview), אבטחה, מפה, WisKey. The user avatar is always last and is not a tab. A new tab is appended to every stored
@@ -35,6 +35,10 @@ def normalize_nav_order(value: Any) -> list[str]:
 # `ui.nav_size` setting applies (services/nav_size.py holds the shape and ranges)
 VALIDATORS: dict[str, Callable[[Any], Any]] = {"nav.order": normalize_nav_order, "ui.nav_size": nav_size.normalize}
 DEFAULTS: dict[str, Any] = {"nav.order": list(NAV_TAB_IDS), "ui.nav_size": dict(nav_size.DEFAULT)}
+# `ui.look` (Bubble foundation, owner 2026-10-02): the user's own look dials - a PARTIAL object, only the dials they set; each
+# follows the installation's `ui.look` otherwise (services/look.py). No stored value (null) = follow it entirely. Presentation only.
+VALIDATORS["ui.look"] = look.normalize_partial
+DEFAULTS["ui.look"] = None
 
 
 def _choice(name: str, allowed: tuple[str, ...]) -> Callable[[Any], str]:

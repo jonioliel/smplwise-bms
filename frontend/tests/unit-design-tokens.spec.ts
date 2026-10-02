@@ -2,6 +2,8 @@ import { test, expect } from '@playwright/test';
 import { TOKENS, TOKEN_GROUPS, TOKEN_NAMES } from '../src/design/tokens';
 import { SKINS, SKIN_IDS, SKIN_RULE_BUDGET, DEFAULT_SKIN } from '../src/design/skins';
 import { ruleCount, skinRules, skinTable, tokensCss } from '../src/design/css';
+import { DENSITY_BUNDLE, LOOK_DEFAULT, LOOK_DIALS, LOOK_DIAL_IDS, RADIUS_BUNDLE, normalizeDial, normalizeLook } from '../src/design/look';
+import { alphaFloor, sheetModelOf, worstTextContrast } from '../src/design/contrast';
 
 // Design foundation (2026-10-01): the token table and the skins. Node only: the table is data, the CSS is generated from it.
 
@@ -31,7 +33,7 @@ test('the colours of the shell exist for both schemes: surfaces, text, accent, e
 });
 
 test('skins: registered ids, overrides carry both columns and name existing tokens, rules stay inside the budget', () => {
-  expect([...SKIN_IDS]).toEqual(['classic', 'domus', 'tesla']);
+  expect([...SKIN_IDS]).toEqual(['classic', 'domus', 'tesla', 'bubble']);
   expect(DEFAULT_SKIN).toBe('classic');
   expect(SKINS.classic.tokens).toEqual({});
   expect(SKINS.classic.rules).toBe('');
@@ -47,6 +49,63 @@ test('skins: registered ids, overrides carry both columns and name existing toke
   }
   expect(ruleCount(SKINS.domus.rules)).toBeGreaterThan(10);
   expect(ruleCount(SKINS.tesla.rules)).toBeGreaterThan(10);
+  expect(ruleCount(SKINS.bubble.rules)).toBeGreaterThan(10);
+});
+
+// ---- the look dials (Bubble foundation): the lists match the backend, the bundles cover every value, the resolver's order ----
+test('look dials: every dial has a default inside its list / range, the bundles cover every density and radius, the CSS carries them for the bubble skin', () => {
+  for (const d of LOOK_DIAL_IDS) {
+    expect(normalizeDial(d, LOOK_DEFAULT[d]), `${d} default`).toBe(LOOK_DEFAULT[d]);
+    const dial = LOOK_DIALS[d] as { kind: string; values?: readonly unknown[]; range?: readonly [number, number] };
+    if (dial.kind === 'choice') for (const v of dial.values!) expect(normalizeDial(d, v), `${d}=${String(v)}`).toBe(v);
+    else {
+      expect(normalizeDial(d, dial.range![0])).toBe(dial.range![0]);
+      expect(normalizeDial(d, dial.range![1])).toBe(dial.range![1]);
+      expect(normalizeDial(d, dial.range![0] - 1)).toBeNull();
+      expect(normalizeDial(d, dial.range![1] + 1)).toBeNull();
+      expect(normalizeDial(d, dial.range![0] + 0.5)).toBeNull();
+    }
+  }
+  expect(normalizeDial('density', 'huge')).toBeNull();
+  expect(normalizeDial('touch', 40)).toBeNull();
+  expect(normalizeLook({ density: 'row', touch: 32, scale: 200, colour: 'red' })).toEqual({ density: 'row', touch: 32 });
+  expect(normalizeLook('{"surface":"glass"}')).toEqual({ surface: 'glass' });
+  expect(normalizeLook('nope')).toEqual({});
+  for (const v of LOOK_DIALS.density.values) {
+    expect(DENSITY_BUNDLE[v]['--sw-pill-h'], v).toBeTruthy();
+    for (const name of Object.keys(DENSITY_BUNDLE[v])) expect(TOKENS[name], `${v}: ${name} is not a token`).toBeTruthy();
+  }
+  for (const v of LOOK_DIALS.radius.values) {
+    expect(RADIUS_BUNDLE[v]['--sw-r-lg'], v).toBeTruthy();
+    for (const name of Object.keys(RADIUS_BUNDLE[v])) expect(TOKENS[name], `${v}: ${name} is not a token`).toBeTruthy();
+  }
+  const css = tokensCss();
+  expect(css).toContain(':root[data-skin="bubble"][data-bubble-density="compact"],:root[data-skin="bubble"] [data-bubble-density="compact"]{--sw-pill-h:46px;');
+  expect(css).toContain('[data-bubble-radius="square"]');
+  expect(css).toContain('prefers-reduced-transparency: reduce');
+  expect(css).toContain('--sw-t-sheet:0ms');
+});
+
+// ---- contrast on translucent surfaces (Bubble foundation): computed, and the floor the runtime clamps to ----
+test('translucent sheet: the computed alpha floor keeps every text at >= 4.5:1 over the worst content behind it, and the dial\'s range reaches above it', () => {
+  for (const id of SKIN_IDS) {
+    const t = skinTable(id);
+    for (const mode of ['light', 'dark'] as const) {
+      const model = sheetModelOf((n) => t[n]?.[mode] ?? '');
+      expect(model, `${id}/${mode} sheet model`).toBeTruthy();
+      const floor = alphaFloor(model!);
+      // at the floor and at every allowed alpha above it the worst text pair passes; one step below it fails (the floor is tight)
+      for (let a = floor; a <= 1.0001; a += 0.01) expect(worstTextContrast(model!, Math.round(a * 100) / 100), `${id}/${mode} alpha ${a.toFixed(2)}`).toBeGreaterThanOrEqual(4.5);
+      if (floor > 0.01) expect(worstTextContrast(model!, floor - 0.01), `${id}/${mode} below the floor`).toBeLessThan(4.5);
+      // the skin's resting alpha (tokens) is usable: at or above the floor
+      expect(parseFloat(t['--sw-sheet-alpha'][mode]), `${id}/${mode} resting alpha`).toBeGreaterThanOrEqual(floor - 1e-9);
+      if (id === 'bubble') {
+        // the mockup's contrast pass: 72 % (the default transparency) passes, so the floor is at or below it; the owner can go lower only to the floor
+        expect(floor, `${id}/${mode} floor`).toBeLessThanOrEqual(LOOK_DEFAULT.transparency / 100 + 1e-9);
+        expect(floor).toBeGreaterThanOrEqual(LOOK_DIALS.transparency.range[0] / 100); // the floor is inside the dial's range (never silently off)
+      }
+    }
+  }
 });
 
 test('the generated CSS: light on :root, dark on [data-theme=dark] and on the OS query, a block set per skin, reduced motion', () => {

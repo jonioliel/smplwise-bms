@@ -7,8 +7,9 @@ import type { TokenTable } from '../tokens';
 import { classic } from './classic';
 import { domus } from './domus';
 import { tesla } from './tesla';
+import { bubble } from './bubble';
 
-export const SKIN_IDS = ['classic', 'domus', 'tesla'] as const;
+export const SKIN_IDS = ['classic', 'domus', 'tesla', 'bubble'] as const;
 export type SkinId = (typeof SKIN_IDS)[number];
 export const DEFAULT_SKIN: SkinId = 'classic';
 /** The rule budget of one skin (`{ }` blocks of its `rules`). */
@@ -27,6 +28,6 @@ export interface Skin {
   rules: string;
 }
 
-export const SKINS: Record<SkinId, Skin> = { classic, domus, tesla };
+export const SKINS: Record<SkinId, Skin> = { classic, domus, tesla, bubble };
 
 export const isSkinId = (v: unknown): v is SkinId => typeof v === 'string' && (SKIN_IDS as readonly string[]).includes(v);

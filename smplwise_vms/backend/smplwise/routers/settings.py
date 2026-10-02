@@ -15,7 +15,7 @@ from ..auth import current_principal, get_conn
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import area_row, automation_settings, home_config, home_screen, media_layout, mobile_options, nav_size, nvr_capacity, timeline_colors
+from ..services import area_row, automation_settings, home_config, home_screen, look, media_layout, mobile_options, nav_size, nvr_capacity, timeline_colors
 
 router = APIRouter()
 
@@ -55,6 +55,10 @@ DEFAULTS: dict[str, str] = {
     # and light / dark / auto choice (a browser may keep its own scheme, in the browser only). Per installation.
     "ui.skin": "classic",
     "ui.scheme": "light",
+    # Bubble foundation (owner 2026-10-02): the look dials of the skin - density, surface, pop-up kind, corner radius, transparency,
+    # scale, desktop touch target, palette - a JSON object (shape, lists and ranges in services/look.py), read back as an object.
+    # The installation default carries every dial; a user's own partial override (/me/prefs) wins per dial.
+    "ui.look": json.dumps(look.DEFAULT, separators=(",", ":")),
     # UI round 1 (owner 2026-09-30): the size of the side rail / phone bottom bar - a JSON object, shape and ranges in
     # services/nav_size.py ({"mode":"rel","preset":"m"} or {"mode":"free","icon":..,"label":..,"item":..}); a user's own
     # value (/me/prefs) wins. Read back as an object.
@@ -253,6 +257,7 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
         out[key] = int(value) if key in INT_KEYS else value
     out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
     out["ui.nav_size"] = _stored_nav_size(out["ui.nav_size"])
+    out["ui.look"] = look.stored(out["ui.look"])
     out["ui.mobile"] = _stored_mobile(out["ui.mobile"])
     out["timeline.colors"] = _stored_timeline_colors(out["timeline.colors"])
     out["devices.area_row"] = _stored_area_row(out["devices.area_row"], area_row.normalize_area, area_row.AREA_ROW_DEFAULT)
@@ -431,11 +436,12 @@ class SettingsPatch(BaseModel):
     ui_hide_map: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_map")
     ui_security_snapshot: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.security_snapshot")
     ui_tile_layout: str | None = Field(default=None, pattern="^(auto|cards|compact)$", alias="ui.tile_layout")
-    ui_skin: str | None = Field(default=None, pattern="^(classic|domus|tesla)$", alias="ui.skin")  # keep in step with SKIN_IDS in frontend/src/design/skins/index.ts
+    ui_skin: str | None = Field(default=None, pattern="^(classic|domus|tesla|bubble)$", alias="ui.skin")  # keep in step with SKIN_IDS in frontend/src/design/skins/index.ts
     ui_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="ui.scheme")
     ui_tabs: dict[str, Any] | None = Field(default=None, alias="ui.tabs")  # validated in full by normalize_tabs
     ui_mobile: dict[str, Any] | None = Field(default=None, alias="ui.mobile")  # validated in full by services/mobile_options.py
     ui_nav_size: dict[str, Any] | None = Field(default=None, alias="ui.nav_size")  # validated in full by services/nav_size.py
+    ui_look: dict[str, Any] | None = Field(default=None, alias="ui.look")  # validated in full by services/look.py (every dial required)
     timeline_palette: dict[str, Any] | None = Field(default=None, alias="timeline.colors")  # validated in full by services/timeline_colors.py
     playback_helper_line: str | None = Field(default=None, pattern="^(all|installers|hidden)$", alias="playback.helper_line")
     playback_diagnostics: str | None = Field(default=None, pattern="^(all|installers|hidden)$", alias="playback.diagnostics")
@@ -563,6 +569,11 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             changes["ui.nav_size"] = nav_size.normalize(changes["ui.nav_size"])
         except ValueError as exc:
             raise ApiError(422, "validation", "גודל הניווט: ערך לא תקין.", details={"ui.nav_size": str(exc)})
+    if "ui.look" in changes:
+        try:
+            changes["ui.look"] = look.normalize(changes["ui.look"])
+        except ValueError as exc:
+            raise ApiError(422, "validation", "מראה: ערך לא תקין.", details={"ui.look": str(exc)})
     if "ui.mobile" in changes:
         try:
             changes["ui.mobile"] = mobile_options.normalize(changes["ui.mobile"])
@@ -650,7 +661,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if key == "home.widgets":
             set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value else "")
             continue
-        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.mobile", "timeline.colors", "schedules.classes", "devices.area_row", "devices.floor_row", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
+        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.mobile", "timeline.colors", "schedules.classes", "devices.area_row", "devices.floor_row", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
     if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now
         from ..services import schedules as schedules_svc
 
