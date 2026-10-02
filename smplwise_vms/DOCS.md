@@ -732,7 +732,7 @@ Supervisor network.
   quick views: "כניסות מרחוק" (every `auth.remote_*` row) and "סירובים מרחוק" (every refusal on the remote channel:
   `remote_not_allowed`, `csrf_refused`, the rate limits, a revoked sign-in, the live-stream cap). API: `GET audit`
   with `channel=local|remote|bearer` and `view=remote_sign_ins|remote_refusals`.
-- **Live streams per sign-in.** `remote.max_live_streams` (default 16, 1-32; 4 before the 11-camera wall hotfix - a value an administrator saved is kept): the next live start of the same remote
+- **Live streams per sign-in.** `remote.max_live_streams` (default 16, 1-128; 4 before the 11-camera wall hotfix - a value an administrator saved is kept): the next live start of the same remote
   sign-in is refused - `GET media/live/{id}` answers 429 `remote_live_cap` with a Hebrew message, the live socket
   sends the message (with `max`) and closes 4429; the player shows it as a cap (no retry, no ladder), the wall shows the tiles beyond the cap as snapshots and streams only the tiles in view. `remote.wall_profile` (sub / main) is the wall's stream on the remote channel; each device can switch it on the wall. `media.max_live_sessions` still caps the whole installation. `/health` (system
   administrators) shows `remote`: sessions by kind, sign-ins, users, sockets, remote live streams and the cap.
