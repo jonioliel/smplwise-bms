@@ -1,0 +1,301 @@
+import { LitElement, html, css, nothing } from 'lit';
+import { customElement, state } from 'lit/decorators.js';
+import '../components/sw-page';
+import '../components/sw-card';
+import '../components/sw-button';
+import '../components/sw-icon';
+import '../components/sw-state-panel';
+import { describeError } from '../api/client';
+import { productSettings } from '../api/prefs';
+import {
+  INTERVAL_CHOICES, checkForUpdate, classifyCheckError, getUpdateState, intervalLabel, resultLabel, setUpdateInterval,
+  type CheckFailure, type UpdateState,
+} from '../api/system-update';
+import { notifyUpdateState } from '../shell/update-marker';
+
+/**
+ * הגדרות › עדכונים (CR-021 S2, installation scope, `system.update`: system administrators). The installed and the latest
+ * version, the last check (time and result), "בדוק אם יש עדכון" (the store reload first, then the read), the automatic
+ * check interval (כבוי / 1 / 3 / 6 / 12 / 24 hours) and the release notes while an update exists. There is no apply or
+ * restart control yet (slice S3). Only the class of a failure is worded here; the infrastructure's own answer never is.
+ */
+@customElement('system-update')
+export class SystemUpdate extends LitElement {
+  @state() private data: UpdateState | null = null;
+  @state() private loadError = '';
+  @state() private checking = false;
+  @state() private failure: CheckFailure | null = null;
+  /** The last manual check ran without the store reload (the infrastructure refused it, the read worked). */
+  @state() private degraded = false;
+  @state() private savingInterval = false;
+  @state() private intervalError = '';
+  @state() private tz = 'Asia/Jerusalem';
+
+  static styles = css`
+    :host {
+      display: block;
+    }
+    .rows {
+      display: grid;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 12px 0;
+      border-block-end: 1px solid var(--sw-border);
+      min-inline-size: 0;
+    }
+    .row:last-child {
+      border-block-end: 0;
+    }
+    .lbl {
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-md);
+    }
+    .val {
+      font-weight: var(--sw-fw-semibold);
+      min-inline-size: 0;
+      overflow-wrap: anywhere;
+    }
+    .ver {
+      direction: ltr;
+      unicode-bidi: isolate;
+      font-variant-numeric: tabular-nums;
+    }
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: var(--sw-fw-semibold);
+    }
+    .status.up {
+      color: var(--sw-live);
+    }
+    .status.avail {
+      color: var(--sw-accent-text);
+    }
+    .msg {
+      margin: 0;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+    }
+    .msg.err {
+      color: var(--sw-danger);
+    }
+    .foot {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-block-start: 12px;
+    }
+    .seg {
+      display: inline-flex;
+      gap: 2px;
+      padding: 3px;
+      background: var(--sw-surface-3);
+      border-radius: 12px;
+      flex-wrap: wrap;
+      max-inline-size: 100%;
+    }
+    .seg button {
+      all: unset;
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      min-block-size: 44px;
+      padding: 0 14px;
+      border-radius: 9px;
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-medium);
+      cursor: pointer;
+    }
+    .seg button[aria-pressed='true'] {
+      background: var(--sw-surface);
+      color: var(--sw-accent-text);
+      font-weight: var(--sw-fw-semibold);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .seg button:focus-visible {
+      outline: 2px solid var(--sw-focus);
+      outline-offset: 1px;
+    }
+    .seg button[disabled] {
+      opacity: 0.6;
+      cursor: default;
+    }
+    .note {
+      padding: 10px 0;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .note:last-child {
+      border-block-end: 0;
+    }
+    .note h4 {
+      margin: 0 0 4px;
+      font-size: var(--sw-fs-md);
+    }
+    .note .txt {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+    }
+    .note .txt[lang='en'] {
+      direction: ltr;
+      text-align: start;
+    }
+  `;
+
+  connectedCallback() {
+    super.connectedCallback();
+    void this.load();
+    void productSettings()
+      .then((s) => (this.tz = (s['time.zone'] as string | undefined) ?? this.tz))
+      .catch(() => undefined);
+  }
+
+  private async load() {
+    this.loadError = '';
+    try {
+      const d = await getUpdateState();
+      this.data = d;
+      notifyUpdateState(d.update_available);
+    } catch (err) {
+      this.loadError = describeError(err);
+    }
+  }
+
+  private async check() {
+    if (this.checking) return;
+    this.checking = true;
+    this.failure = null;
+    this.degraded = false;
+    try {
+      const r = await checkForUpdate();
+      this.degraded = !r.refreshed || r.check_result === 'refresh_failed_read_ok';
+      this.data = { ...(this.data ?? { update_available: false }), installed: r.installed, latest: r.latest, update_available: r.update_available, checked_at: r.checked_at, check_result: r.check_result, permitted: 'yes' };
+      notifyUpdateState(r.update_available);
+    } catch (err) {
+      this.failure = classifyCheckError(err);
+      // the server records a failed check too (time and result): read it back, quietly
+      void getUpdateState().then((d) => (this.data = d)).catch(() => undefined);
+    } finally {
+      this.checking = false;
+    }
+  }
+
+  private async pickInterval(h: number) {
+    if (this.savingInterval || !this.data || this.data.interval_hours === h) return;
+    this.savingInterval = true;
+    this.intervalError = '';
+    try {
+      const r = await setUpdateInterval(h);
+      this.data = { ...this.data, interval_hours: r.interval_hours };
+    } catch (err) {
+      this.intervalError = describeError(err);
+    } finally {
+      this.savingInterval = false;
+    }
+  }
+
+  private when(iso: string | null | undefined): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return new Intl.DateTimeFormat('he-IL', { timeZone: this.tz, dateStyle: 'short', timeStyle: 'short' }).format(d);
+  }
+
+  private failureText(f: CheckFailure): string {
+    switch (f.kind) {
+      case 'rate_limited':
+        return f.wait ? `הבדיקה בוצעה זה עתה. נסו שוב בעוד ${f.wait} שניות.` : 'הבדיקה בוצעה זה עתה. נסו שוב בעוד רגע.';
+      case 'not_permitted':
+        return 'חסרה הרשאה בתשתית המערכת, ולכן אי אפשר לבדוק עדכונים.';
+      case 'unreachable':
+        return 'תשתית המערכת אינה זמינה כרגע.';
+      default:
+        return f.message || 'הבדיקה נכשלה. נסו שוב.';
+    }
+  }
+
+  private renderStatus(d: UpdateState) {
+    if (!d.checked_at) return html`<span class="status" data-update-status="never">טרם בוצעה בדיקה</span>`;
+    if (d.update_available) return html`<span class="status avail" data-update-status="available"><sw-icon name="info" size=${16}></sw-icon>יש גרסה חדשה</span>`;
+    if (d.check_result === 'not_permitted') return html`<span class="status" data-update-status="not-permitted">אין הרשאה לבדוק</span>`;
+    if (d.check_result === 'unreachable' || d.check_result === 'error') return html`<span class="status" data-update-status="failed">לא ניתן לבדוק</span>`;
+    return html`<span class="status up" data-update-status="current"><sw-icon name="check" size=${16}></sw-icon>הגרסה מעודכנת</span>`;
+  }
+
+  private renderNotes(d: UpdateState) {
+    if (!d.update_available) return nothing;
+    const notes = d.notes ?? [];
+    return html`<sw-card heading="מה חדש" data-update-notes>
+      ${notes.length
+        ? notes.map(
+            (n) => html`<div class="note" data-update-note><h4 class="ver">${n.version}</h4>
+              ${n.he ? html`<div class="txt" lang="he">${n.he}</div>` : nothing}${n.en ? html`<div class="txt" lang="en">${n.en}</div>` : nothing}</div>`,
+          )
+        : html`<p class="msg" data-update-notes-empty>אין פירוט זמין</p>`}
+    </sw-card>`;
+  }
+
+  render() {
+    const d = this.data;
+    if (!d) {
+      return html`<sw-page heading="עדכונים">
+        ${this.loadError
+          ? html`<sw-state-panel state="error" heading="לא ניתן לטעון את מצב העדכונים" hint=${this.loadError} actionLabel="נסו שוב" data-update-load-error @action=${() => void this.load()}></sw-state-panel>`
+          : html`<sw-state-panel state="loading" data-update-loading></sw-state-panel>`}
+      </sw-page>`;
+    }
+    const interval = d.interval_hours ?? 6;
+    const notPermitted = this.failure?.kind === 'not_permitted' || (!this.failure && d.check_result === 'not_permitted');
+    const last = d.checked_at ? `${this.when(d.checked_at)} · ${resultLabel(d.check_result, d.update_available)}` : 'טרם בוצעה בדיקה';
+    return html`<sw-page heading="עדכונים">
+      <div class="stack" data-system-update>
+        <sw-card heading="גרסה">
+          <div class="rows">
+            <div class="row"><span class="lbl">גרסה מותקנת</span><span class="val ver" data-update-installed>${d.installed ?? '—'}</span></div>
+            <div class="row"><span class="lbl">הגרסה האחרונה</span><span class="val ver" data-update-latest>${d.latest ?? '—'}</span></div>
+            <div class="row"><span class="lbl">בדיקה אחרונה</span><span class="val" data-update-last>${last}</span></div>
+            <div class="row">${this.renderStatus(d)}</div>
+          </div>
+          <div class="foot">
+            <sw-button variant="primary" size="sm" icon="refresh" data-update-check ?disabled=${this.checking} @click=${() => void this.check()}>${this.checking ? 'בודק…' : 'בדוק אם יש עדכון'}</sw-button>
+          </div>
+          ${this.failure
+            ? html`<p class="msg err" role="alert" data-update-failure=${this.failure.kind}>${this.failureText(this.failure)}</p>`
+            : notPermitted
+              ? html`<p class="msg err" data-update-failure="not_permitted">${this.failureText({ kind: 'not_permitted' })}</p>`
+              : this.degraded
+                ? html`<p class="msg" role="status" data-update-degraded>הרשימה לא רועננה, והבדיקה נעשתה לפי המצב הנוכחי. ייתכן שגרסה חדשה עוד לא מופיעה.</p>`
+                : nothing}
+        </sw-card>
+        <sw-card heading="בדיקה אוטומטית" data-update-interval-card>
+          <div class="seg" role="group" aria-label="תדירות בדיקה אוטומטית" data-update-interval>
+            ${INTERVAL_CHOICES.map(
+              (h) => html`<button type="button" data-update-interval-option=${h} aria-pressed=${interval === h ? 'true' : 'false'} ?disabled=${this.savingInterval} @click=${() => void this.pickInterval(h)}>${intervalLabel(h)}</button>`,
+            )}
+          </div>
+          ${this.intervalError ? html`<p class="msg err" role="alert" data-update-interval-error>${this.intervalError}</p>` : nothing}
+        </sw-card>
+        ${this.renderNotes(d)}
+      </div>
+    </sw-page>`;
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'system-update': SystemUpdate;
+  }
+}
