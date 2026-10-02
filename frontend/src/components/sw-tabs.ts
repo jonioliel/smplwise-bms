@@ -1,16 +1,21 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import './sw-dropdown';
 
 export interface TabItem {
   id: string;
   label: string;
   href?: string;
   count?: number;
+  /** Dropdown presentation only: a dot on the chip while this item is not the selected one (`true` = alert, `'warn'` = attention). */
+  alert?: boolean | 'warn';
 }
 
 /** The look of a tab bar (0.1.148, `ui.tabs` styles - shell/nav.ts tabStyleOf): the narrow segmented pill, the underline row,
  * or the compact underline row. The first hierarchy level of an area is a pill by default, its sub-tabs the compact row. */
-export type TabVariant = 'pill' | 'underline' | 'underline-compact';
+export type TabVariant = 'pill' | 'underline' | 'underline-compact' | 'dropdown';
+/** hybrid (0.1.153): up to this many items stay the bar the host asked for, more become a dropdown. */
+export const ADAPTIVE_MAX_ITEMS = 3;
 
 /**
  * Tabs as on the boards ("All Sites (3) | Buildings | Map"). `variant` picks the look:
@@ -29,6 +34,13 @@ export class SwTabs extends LitElement {
   @property({ type: Boolean, reflect: true }) segmented = false;
   @property({ type: Boolean, reflect: true }) underline = false;
   @property() variant: TabVariant | '' = '';
+  /** Hybrid presentation (0.1.153, the `hybrid` tabs mode): a list of up to three items keeps the bar chosen by `variant`, a longer one
+   * becomes the dropdown. With `variant="dropdown"` the list is always a dropdown. */
+  @property({ type: Boolean, reflect: true }) adaptive = false;
+  /** Dropdown only: fill the flexible box it sits in (the pair row of the shell). */
+  @property({ type: Boolean, reflect: true }) block = false;
+  /** The accessible name of the dropdown (the group's name). */
+  @property({ attribute: 'group-label' }) groupLabel = '';
 
   static styles = css`
     :host {
@@ -124,6 +136,21 @@ export class SwTabs extends LitElement {
     }
     .on .count {
       color: var(--sw-accent-text);
+    }
+
+    /* ---- dropdown (0.1.153): one chip + a popover list; nothing to scroll or fade, and the chip's dot / hit area stick out of the box ---- */
+    :host([data-variant='dropdown']) {
+      display: inline-flex;
+      overflow: visible;
+      padding-block: 4px; /* 32 px chip + 4 + 4 = the 40 px row; the chip's hit area reaches 44 px */
+      -webkit-mask-image: none;
+      mask-image: none;
+    }
+
+    :host([data-variant='dropdown'][block]) {
+      display: flex;
+      flex: 1 1 0;
+      min-inline-size: 0;
     }
 
     /* ---- pill: the narrow segmented control (the track is 34 px; a taller hit area grows around it) ---- */
@@ -252,6 +279,7 @@ export class SwTabs extends LitElement {
 
   /** The look in force: `variant`, else the older `underline` flag, else the pill. */
   get mode(): TabVariant {
+    if (this.variant === 'dropdown' || (this.adaptive && this.items.length > ADAPTIVE_MAX_ITEMS)) return 'dropdown';
     return this.variant === 'pill' || this.variant === 'underline' || this.variant === 'underline-compact' ? this.variant : this.underline ? 'underline' : 'pill';
   }
 
@@ -260,7 +288,7 @@ export class SwTabs extends LitElement {
   }
 
   protected updated(changed: Map<string, unknown>) {
-    if (changed.has('active') || changed.has('items') || changed.has('variant') || changed.has('underline')) this.revealActive();
+    if (changed.has('active') || changed.has('items') || changed.has('variant') || changed.has('underline') || changed.has('adaptive')) this.revealActive();
     this.updateFade();
   }
 
@@ -304,7 +332,19 @@ export class SwTabs extends LitElement {
     this.dispatchEvent(new CustomEvent('change', { detail: { id: item.id }, bubbles: true, composed: true }));
   }
 
+  /** The dropdown's choice: a link item navigates like its `<a>` would, any item fires the same `change` as a tab does. */
+  private onPick = (e: CustomEvent<{ id: string }>) => {
+    e.stopPropagation();
+    const item = this.items.find((i) => i.id === e.detail.id);
+    if (!item) return;
+    if (item.href?.startsWith('#')) window.location.hash = item.href;
+    this.choose(item);
+  };
+
   render() {
+    if (this.mode === 'dropdown') {
+      return html`<sw-dropdown ?block=${this.block} .items=${this.items} .value=${this.active} .label=${this.groupLabel} @change=${this.onPick}></sw-dropdown>`;
+    }
     const label = (it: TabItem) => html`<span class="lbl">${it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}</span>`;
     return html`<div class="row">${this.items.map((it) =>
       it.href

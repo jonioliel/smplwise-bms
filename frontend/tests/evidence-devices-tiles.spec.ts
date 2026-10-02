@@ -280,27 +280,28 @@ test.describe('overview tiles against the devices fixture backend', () => {
     await seed(request);
   });
 
-  test('switches: with nothing marked bulk-safe the master is disabled and says why only in its tooltip; once marked it asks (re-review M1, owner 2026-09-30)', async ({ page, request }) => {
+  test('switches: the master is enabled by default; when every shown switch is protected it is disabled and says why only in its tooltip (CR-019)', async ({ page, request }) => {
     await seed(request);
-    for (const id of ['switch.cr007t_sign', 'switch.cr007t_pump', 'switch.cr007t_boiler']) await request.put(`/api/v1/devices/entities/${id}/bulk-safe`, { data: { bulk_safe: false } });
+    // owner decision 2026-10-02: only an administrator's protection excludes a switch (the classifier merely suggests); protect all three, then nothing is left
+    for (const id of ['switch.cr007t_pump', 'switch.cr007t_boiler', 'switch.cr007t_sign']) expect((await request.put(`/api/v1/devices/entities/${id}/bulk-protected`, { data: { protected: true } })).status()).toBe(200);
     await open(page, '/devices/building?domain=switches&floor=cr007t_ground');
     const panel = page.locator('devices-building devices-tiles-panel');
     const master = panel.locator('button[data-panel-master="switches"]');
     await expect(master).toBeDisabled({ timeout: 30000 });
-    await expect(master).toHaveAttribute('title', /אין מתגים שאושרו לפעולה קבוצתית/);
+    await expect(master).toHaveAttribute('title', /כל המתגים כאן מוגנים מפעולה קבוצתית/);
     // nothing about eligibility on the screen itself
-    await expect(panel.locator('[data-bulk-included], [data-bulk-safe-settings]')).toHaveCount(0);
+    await expect(panel.locator('[data-bulk-included], [data-bulk-protected-settings]')).toHaveCount(0);
     await expect(panel.locator('.row[data-entity]').first()).not.toContainText('קבוצתי');
-    expect((await request.put('/api/v1/devices/entities/switch.cr007t_sign/bulk-safe', { data: { bulk_safe: true } })).status()).toBe(200);
+    expect((await request.put('/api/v1/devices/entities/switch.cr007t_sign/bulk-protected', { data: { protected: false } })).status()).toBe(200);
     await page.reload();
     await expect(master).toBeEnabled({ timeout: 30000 });
-    await expect(master).toHaveAttribute('data-state', 'on'); // the one eligible switch is on (the others are not counted)
+    await expect(master).toHaveAttribute('data-state', 'on'); // the one unprotected switch is on (the others are not counted)
     await master.click();
     const dlg = panel.locator('devices-bulk-dialog');
     await expect(dlg.locator('[data-bulk-question]')).toHaveText('לכבות מתג אחד?', { timeout: 10000 });
     await expect(dlg.locator('details[data-bulk-details]')).not.toHaveAttribute('open', ''); // the rest under "פרטים"
     await dlg.locator('sw-button[data-bulk-cancel]').click();
-    await request.put('/api/v1/devices/entities/switch.cr007t_sign/bulk-safe', { data: { bulk_safe: false } });
+    for (const id of ['switch.cr007t_pump', 'switch.cr007t_boiler']) await request.put(`/api/v1/devices/entities/${id}/bulk-protected`, { data: { protected: false } });
   });
 
   test('re-review M2 / M3: a running lock-all cannot be closed away; the alarm link lands on the alarm route (a tile click, not a deep link)', async ({ page, request }) => {

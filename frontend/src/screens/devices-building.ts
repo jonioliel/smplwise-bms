@@ -150,7 +150,8 @@ export function alarmTone(state: string | null): StateKind {
 
 const DEMO_CLIMATE = [{ entity_id: 'climate.lobby', name: 'מזגן לובי', area_name: 'לובי', hvac_mode: 'cool', hvac_action: 'cooling', current_temperature: 24.5, target_temperature: 22, unit: '°C', available: true }];
 
-const DEMO: DeviceTree = {
+/** The demo-mode building (also the shell's phone area picker in the bubble skin reads it: no backend, fixture only). */
+export const DEMO_DEVICES_TREE: DeviceTree = {
   floors: [
     {
       floor_id: 'ground', name: 'קרקע', level: 0, icon: null,
@@ -1911,8 +1912,8 @@ export class DevicesBuilding extends LitElement {
       this.panel = { ...want, name: this.scopeName(want.scope, want.id) };
     });
     if (!isApi()) {
-      this.tree = { ...DEMO, home: demoHome() };
-      this.sync = DEMO.sync;
+      this.tree = { ...DEMO_DEVICES_TREE, home: demoHome() };
+      this.sync = DEMO_DEVICES_TREE.sync;
       return;
     }
     if (!canAnywhere('devices.read')) {

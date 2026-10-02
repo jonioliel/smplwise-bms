@@ -162,6 +162,17 @@ def touch_user(conn: sqlite3.Connection, principal: Principal, force: bool = Fal
     return True
 
 
+def normalize_username(name: str | None) -> str:
+    """Home Assistant 2026.10 trims and lower-cases usernames; compare them the same way on both sides (strip + casefold)."""
+    return (name or "").strip().casefold()
+
+
+def same_username(a: str | None, b: str | None) -> bool:
+    """Identity comparison of two usernames (the Supervisor's and a configured one). An empty name never matches."""
+    na = normalize_username(a)
+    return bool(na) and na == normalize_username(b)
+
+
 def maybe_bootstrap(conn: sqlite3.Connection, settings: Settings, principal: Principal, request_id: str | None) -> None:
     """Grant system_admin once to the HA username named in the add-on options - through Ingress only: never on the
     CR-008 remote channel, whatever the username."""
@@ -171,7 +182,7 @@ def maybe_bootstrap(conn: sqlite3.Connection, settings: Settings, principal: Pri
         return
     if get_setting(conn, "bootstrap_state", "pending") != "pending":
         return
-    if principal.username != settings.bootstrap_admin_username:
+    if not same_username(principal.username, settings.bootstrap_admin_username):
         return
 
     def grant(w: sqlite3.Connection) -> None:

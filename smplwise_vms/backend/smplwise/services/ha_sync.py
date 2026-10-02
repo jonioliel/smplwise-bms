@@ -374,7 +374,7 @@ def mirror_fingerprint(conn: sqlite3.Connection) -> str:
 def state_removed(conn: sqlite3.Connection, entity_id: str) -> bool:
     """HA removed the entity's state (`state_changed` with no new state: the entity was deleted, or its integration is
     reloading / unloaded). An entity HA's registry knows is only marked unavailable - the registry refresh this
-    schedules decides whether it is gone (an integration reload keeps it, and must not cost it its bulk-safe mark). An
+    schedules decides whether it is gone (an integration reload keeps it, and must not cost it its switch protection). An
     entity without a registry entry has nothing else to tell us, so it is tombstoned now (placement kept; a later
     state brings it back - upsert_state clears removed_at) instead of lingering in the tree. True when a row changed."""
     row = conn.execute("SELECT registry_id FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
@@ -899,7 +899,8 @@ class HaSync:
     async def _refresh_registry(self, call) -> bool | None:
         """Fetch the four registries and rewrite the mirror. Returns whether the mirror changed, or None when the entity
         or device listing failed - then NOTHING is written: an empty device list would move every entity whose area
-        comes from its device to "ללא שיוך", an empty entity list would tombstone entities and clear bulk-safe marks."""
+        comes from its device to "ללא שיוך", an empty entity list would tombstone entities and mark every switch protection
+        as gone (CR-019)."""
         assert self.db
         ents = _listing(await call("config/entity_registry/list"))
         devs = _listing(await call("config/device_registry/list"))
@@ -956,11 +957,18 @@ class HaSync:
                     present = set(maps) | {r["entity_id"] for r in conn.execute("SELECT entity_id FROM ha_entities WHERE state_seen_at >= ? AND registry_id IS NULL", (STATE.last_snapshot_at or "",)).fetchall()}
                     if STATE.last_snapshot_at:
                         tombstone_missing(conn, present)
-                    from . import device_bulk  # CR-007 s3: a bulk-safe mark never outlives its entity
-
-                    device_bulk.clear_stale_marks(conn, set(maps))
                     STATE.entities = count_entities(conn)
             _busy_retry(_tombstone)
+
+            def _protection() -> None:
+                from . import switch_protection  # CR-019: rename follow, gone / purge, classify every switch seen for the first time
+
+                with db.connection(label="switch_protection.reconcile") as conn:  # durable: safety state and its audit rows
+                    switch_protection.reconcile(conn, set(maps), devices=devs)
+            try:
+                _busy_retry(_protection)
+            except Exception:  # noqa: BLE001 - never costs the refresh; an unjudged switch stays out of group actions (fail-safe)
+                log.exception("switch protection reconcile failed")
 
             def _media() -> None:
                 from . import media_store  # CR-015: the device mirror and the media device model follow every registry refresh

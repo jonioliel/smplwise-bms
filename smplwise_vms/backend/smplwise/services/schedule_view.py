@@ -176,7 +176,6 @@ class Ctx:
         self._classes = set(self.cfg["schedules.classes"])
         self._entities: dict[str, dict[str, Any] | None] = {}
         self._panels: dict[str, dict[str, Any]] = {}
-        self._bulk_safe: set[str] | None = None
         self._door_layer: set[str] | None = None
         self._managed: set[str] | None = None
         self._media_managed: set[str] | None = None
@@ -219,8 +218,7 @@ class Ctx:
     # -- entities
 
     def _sets(self) -> None:
-        if self._bulk_safe is None:
-            self._bulk_safe = {r[0] for r in self.conn.execute("SELECT entity_id FROM device_bulk_safe").fetchall()}
+        if self._door_layer is None:
             self._door_layer = {r[0] for r in self.conn.execute(
                 "SELECT resource_id FROM map_anchors WHERE resource_type = 'ha_entity' AND layer_id = ? AND effective_to IS NULL", (dsvc.DOOR_LAYER,)).fetchall()}
 
@@ -265,7 +263,7 @@ class Ctx:
         }
         self._sets()
         managed = r["domain"] in ("switch", "select") and info["entity_id"] in self._alarm_managed()
-        cls, refusal = policy.classify_entity(info, bulk_safe=info["entity_id"] in (self._bulk_safe or ()), on_door_layer=info["entity_id"] in (self._door_layer or ()), alarm_managed=managed)
+        cls, refusal = policy.classify_entity(info, on_door_layer=info["entity_id"] in (self._door_layer or ()), alarm_managed=managed)
         if refusal != "alarm_managed_control" and r["domain"] in ("switch", "select", "button", "number") and info["entity_id"] in self._media_owned():
             cls, refusal = None, "media_managed_control"  # CR-016 review M4: a screen's / speaker's own switch is operated from "מולטימדיה" only
         info["class"], info["refusal"] = cls, refusal
@@ -816,7 +814,7 @@ def catalog_payload(ctx: Ctx, q: str | None, floor: str | None, area: str | None
             continue
         eid = info["entity_id"]
         cls, refusal = info["class"], info["refusal"]
-        if cls is None and refusal != "switch_not_marked":
+        if cls is None:
             continue  # scheduler switches, alarm-managed controls, scripts, scenes, plain buttons ... never appear
         if cls is not None and cls not in ctx.enabled_classes():
             continue
@@ -837,17 +835,14 @@ def catalog_payload(ctx: Ctx, q: str | None, floor: str | None, area: str | None
             break
         actions: list[dict[str, Any]] = []
         why: dict[str, Any] | None = None
-        if cls is None:
-            why = {"code": "switch_not_marked", "message": "המתג לא סומן כבטוח לפעולה קבוצתית."}
-        else:
-            actions, why = catalog_actions(cls, info, ctx)
-            if why is None and not actions:
-                why = {"code": "action_not_allowed", "message": "אין פעולות מותרות להתקן זה."}
-            if why is None:
-                sample = core_sample(eid, cls, actions)
-                blocked = next((x for x in (action_reasons(ctx, s, eid, cls, strict=True) for s in sample) if x), None)
-                if blocked:
-                    why = {"code": blocked[0]["code"], "message": blocked[0]["message"]}
+        actions, why = catalog_actions(cls, info, ctx)
+        if why is None and not actions:
+            why = {"code": "action_not_allowed", "message": "אין פעולות מותרות להתקן זה."}
+        if why is None:
+            sample = core_sample(eid, cls, actions)
+            blocked = next((x for x in (action_reasons(ctx, s, eid, cls, strict=True) for s in sample) if x), None)
+            if blocked:
+                why = {"code": blocked[0]["code"], "message": blocked[0]["message"]}
         out.append({
             "entity_id": eid, "name": info["name"], "domain": info["domain"], "class": cls or "switch", "sensitive": bool(cls in policy.SENSITIVE_CLASSES), "area_id": info["area_id"], "area_name": info["area_name"],
             "floor_id": info["floor_id"], "floor_name": info["floor_name"], "available": info["available"], "selectable": why is None, "reason": why, "attributes": _catalog_attrs(info), "actions": actions if why is None or cls else [],

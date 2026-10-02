@@ -41,3 +41,17 @@ def playback_sessions_warning(value: int | None, channels: int | None) -> str | 
     if value is None or not channels or value * 2 <= channels:
         return None
     return f"{value} סשני ניגון במקביל זה יותר ממחצית הערוצים שה־NVR בנוי להם ({channels}). זה עלול להעמיס על ה־NVR ולפגוע בהקלטה ובצפייה החיה. השמירה אפשרית."
+
+
+def live_sessions_warning(value: int | None, channels: int | None) -> str | None:
+    """Same rule for `media.max_live_sessions` (installation-wide live streams); advisory, never blocks."""
+    if value is None or not channels or value * 2 <= channels:
+        return None
+    return f"{value} זרמים חיים במקביל זה יותר ממחצית הערוצים שה־NVR בנוי להם ({channels}). זה עלול להעמיס על ה־NVR ולפגוע בהקלטה. השמירה אפשרית."
+
+
+def remote_live_streams_warning(value: int | None, channels: int | None) -> str | None:
+    """Same rule for `remote.max_live_streams` (live streams per remote sign-in); advisory, never blocks."""
+    if value is None or not channels or value * 2 <= channels:
+        return None
+    return f"{value} זרמים חיים לכל כניסה מרחוק זה יותר ממחצית הערוצים שה־NVR בנוי להם ({channels}). זה עלול להעמיס על ה־NVR ולפגוע בהקלטה. השמירה אפשרית."

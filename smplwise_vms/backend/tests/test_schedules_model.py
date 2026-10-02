@@ -42,7 +42,7 @@ ENTITIES = {
     "climate.lr": {"entity_id": "climate.lr", "name": "AC", "domain": "climate", "class": "climate", "refusal": None, "available": True, "state": "cool", "attributes": {"hvac_modes": ["off", "cool", "heat"], "min_temp": 16, "max_temp": 30}, "supported_features": 1},
     "light.office": {"entity_id": "light.office", "name": "Light", "domain": "light", "class": "light", "refusal": None, "available": True, "state": "off", "attributes": {}, "supported_features": 0},
     "switch.hall": {"entity_id": "switch.hall", "name": "Hall", "domain": "switch", "class": "switch", "refusal": None, "available": True, "state": "off", "attributes": {}, "supported_features": 0},
-    "switch.pump": {"entity_id": "switch.pump", "name": "Pump", "domain": "switch", "class": None, "refusal": "switch_not_marked", "available": True, "state": "off", "attributes": {}, "supported_features": 0},
+    "switch.pump": {"entity_id": "switch.pump", "name": "Pump", "domain": "switch", "class": "switch", "refusal": None, "available": True, "state": "off", "attributes": {}, "supported_features": 0},
     "cover.shutter": {"entity_id": "cover.shutter", "name": "Shutter", "domain": "cover", "class": "cover", "refusal": None, "available": True, "state": "open", "attributes": {"current_position": 100}, "supported_features": 15},
     "cover.plain": {"entity_id": "cover.plain", "name": "No position", "domain": "cover", "class": "cover", "refusal": None, "available": True, "state": "open", "attributes": {}, "supported_features": 3},
     "cover.gate": {"entity_id": "cover.gate", "name": "Gate", "domain": "cover", "class": "door", "refusal": None, "available": True, "state": "closed", "attributes": {"device_class": "gate", "current_position": 0}, "supported_features": 7},
@@ -318,7 +318,7 @@ def test_class_and_service_pairing_and_unknown_entities():
     assert "action_not_allowed" in codes(errs(draft("V", [slot_of("light.turn_on", "switch.hall")]))[0])  # a service of another class
     assert "action_not_allowed" in codes(errs(draft("V", [slot_of("script.turn_on", "light.office")]))[0])
     assert "entity_unknown" in codes(errs(draft("V", [slot_of("light.turn_on", "light.nowhere")]))[0])
-    assert "switch_not_marked" in codes(errs(draft("V", [slot_of("switch.turn_on", "switch.pump")]))[0])
+    assert "switch_not_marked" not in codes(errs(draft("V", [slot_of("switch.turn_on", "switch.pump")]))[0])  # CR-019
     no_entity = draft("V", [{"start": "08:00:00", "stop": None, "actions": [{"service": "light.turn_on", "entity_id": None, "data": {}}]}])
     assert "action_not_allowed" in codes(errs(no_entity)[0])
     e, _ = errs(draft("V", [slot_of("climate.turn_off", "climate.lr")]), Ctx(classes={"light"}))
@@ -476,19 +476,19 @@ def test_policy_tables():
 
 
 def test_classification_of_entities():
-    def cls(eid, dclass=None, platform="x", *, safe=False, door=False, managed=False):
-        return p.classify_entity({"entity_id": eid, "domain": eid.split(".")[0], "device_class": dclass, "platform": platform}, bulk_safe=safe, on_door_layer=door, alarm_managed=managed)
+    def cls(eid, dclass=None, platform="x", *, door=False, managed=False):
+        return p.classify_entity({"entity_id": eid, "domain": eid.split(".")[0], "device_class": dclass, "platform": platform}, on_door_layer=door, alarm_managed=managed)
 
     assert cls("light.a") == ("light", None) and cls("climate.a") == ("climate", None) and cls("fan.a") == ("fan", None) and cls("lock.a") == ("lock", None)
     assert cls("alarm_control_panel.a") == ("alarm", None) and cls("cover.a", "shutter") == ("cover", None)
     for dc in ("door", "garage", "gate"):
         assert cls("cover.a", dc) == ("door", None)
     assert cls("cover.a", None, door=True) == ("door", None) and cls("switch.a", door=True) == ("door", None) and cls("button.a", door=True) == ("door", None)
-    assert cls("switch.a") == (None, "switch_not_marked") and cls("switch.a", safe=True) == ("switch", None)
-    assert cls("switch.a", safe=True, managed=True) == (None, "alarm_managed_control")
-    assert cls("switch.schedule_x", platform="scheduler", safe=True) == (None, "action_not_allowed")  # a schedule's own switch (platform)
-    assert cls("switch.schedule_x", platform=None, safe=True) == (None, "action_not_allowed")  # ... before the first registry refresh
-    assert cls("switch.schedule_x", platform="generic", safe=True) == ("switch", None)  # a real switch that merely has the prefix
+    assert cls("switch.a") == ("switch", None)  # CR-019: every switch is class switch; the protection mark is not an input
+    assert cls("switch.a", managed=True) == (None, "alarm_managed_control")
+    assert cls("switch.schedule_x", platform="scheduler") == (None, "action_not_allowed")  # a schedule's own switch (platform)
+    assert cls("switch.schedule_x", platform=None) == (None, "action_not_allowed")  # ... before the first registry refresh
+    assert cls("switch.schedule_x", platform="generic") == ("switch", None)  # a real switch that merely has the prefix
     for eid in ("script.a", "scene.a", "button.a", "siren.a", "input_boolean.a", "humidifier.a", "media_player.a", "vacuum.a", "number.a", "select.a", "notify.a", "sensor.a"):
         assert cls(eid) == (None, "action_not_allowed"), eid
 

@@ -83,7 +83,7 @@ export function timelineColors(): TimelineColors {
   return current;
 }
 
-/** Publishes the colours as `--sw-tl-<option>` on the document root (styles/tokens.css holds the defaults). */
+/** Publishes the colours as `--sw-tl-<option>` on the document root (design/tokens.ts holds the defaults). */
 export function applyTimelineColors(raw: unknown): void {
   current = normalizeTimelineColors(raw);
   if (typeof document !== 'undefined') {

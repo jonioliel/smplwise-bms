@@ -31,9 +31,11 @@ import './devices-theme-picker';
 import './devices-climate-kind-admin'; // owner 2026-09-30: מיזוג / חימום per climate entity
 import './area-row-editor'; // release 0.1.149: הגדרות › חשמל והתקנים › מה מוצג ליד שם האזור
 import type { AreaRowChange } from './area-row-editor';
-import './devices-bulk-safe-admin'; // owner 2026-09-30: הגדרות › חשמל והתקנים › פעולה קבוצתית
+import './devices-protected-switches-admin'; // CR-019: הגדרות › חשמל והתקנים › מתגים מוגנים (replaces פעולה קבוצתית)
 import './system-tabs'; // owner 2026-09-30: הגדרות › כללי › לשוניות
 import './system-nav-size'; // UI round 1b: הגדרות › כללי › גודל הניווט
+import './system-design'; // design foundation: הגדרות › כללי › מראה המערכת (skin, light / dark)
+import './system-look'; // Bubble foundation: הגדרות › כללי › מראה (the look dials)
 import './system-home-screen'; // home redesign: הגדרות › חשמל והתקנים › מסך ראשי
 import './system-mobile-options'; // owner 2026-09-30: הגדרות › כללי › אפשרויות נייד
 import './system-timeline-colors'; // owner 2026-10-01: הגדרות › וידאו ומדיה › צבעי ציר הזמן
@@ -599,6 +601,15 @@ export class SystemDiagnostics extends LitElement {
     return `${v} סשני ניגון במקביל זה יותר ממחצית הערוצים שה־NVR בנוי להם (${channels}). זה עלול להעמיס על ה־NVR ולפגוע בהקלטה ובצפייה החיה. השמירה אפשרית.`;
   }
 
+  /** Same advisory rule for the two live-stream caps (never blocks the save; unknown capacity = no warning). */
+  private liveCapWarning(key: 'media.max_live_sessions' | 'remote.max_live_streams'): string {
+    const channels = this.nvrChannels;
+    const v = Number(this.value(key) ?? 0);
+    if (!channels || !v || v * 2 <= channels) return '';
+    const what = key === 'media.max_live_sessions' ? 'זרמים חיים במקביל' : 'זרמים חיים לכל כניסה מרחוק';
+    return `${v} ${what} זה יותר ממחצית הערוצים שה־NVR בנוי להם (${channels}). זה עלול להעמיס על ה־NVR ולפגוע בהקלטה. השמירה אפשרית.`;
+  }
+
   private value<K extends keyof ProductSettings>(key: K): ProductSettings[K] | undefined {
     return (this.draft[key] ?? this.settings?.[key]) as ProductSettings[K] | undefined;
   }
@@ -674,6 +685,8 @@ export class SystemDiagnostics extends LitElement {
     const NVR = nvrLess();
     return html`<div class="sections">
       ${this.renderDesign()}
+      <system-design></system-design>
+      <system-look></system-look>
       <system-nav-size></system-nav-size>
       <system-mobile-options></system-mobile-options>
       <sw-card heading="זמן ומיקום">
@@ -779,7 +792,8 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-security-snapshot ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.security_snapshot', (e.target as HTMLSelectElement).value)}>
             <option value="true" ?selected=${String(this.value('ui.security_snapshot') ?? 'true') !== 'false'}>מוצגת</option><option value="false" ?selected=${String(this.value('ui.security_snapshot') ?? 'true') === 'false'}>מוסתרת</option>
           </select></sw-field></div>
-        <div class="row"><span class="lbl">מקסימום זרמים חיים במקביל<span class="muted">מגן על ה־NVR; מעבר למכסה מוצג צילום בלבד</span></span><sw-field class="ctl"><input type="number" min="1" max="32" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('media.max_live_sessions') ?? 16)} @change=${(e: Event) => this.set('media.max_live_sessions', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        <div class="row"><span class="lbl">מקסימום זרמים חיים במקביל<span class="muted">מגן על ה־NVR; מעבר למכסה מוצג צילום בלבד</span></span><sw-field class="ctl"><input type="number" min="1" max="128" data-ltr data-live-max-sessions ?disabled=${!api || !this.canEdit} .value=${String(this.value('media.max_live_sessions') ?? 16)} @change=${(e: Event) => this.set('media.max_live_sessions', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        ${this.liveCapWarning('media.max_live_sessions') ? html`<div class="err" data-live-warning style="margin-block-start:-4px">${this.liveCapWarning('media.max_live_sessions')}</div>` : nothing}
         <div class="row"><span class="lbl">רעננות צילום (שניות)<span class="muted">snapshot מה־NVR לאריחים; cache בשרת</span></span><sw-field class="ctl"><input type="number" min="5" max="3600" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('snapshots.max_age_s') ?? 60)} @change=${(e: Event) => this.set('snapshots.max_age_s', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         <div class="row"><span class="lbl">סשני ניגון במקביל<span class="muted">כל ניגון = זרם playback אחד מה־NVR דרך go2rtc</span></span><sw-field class="ctl"><input type="number" min="1" max="128" data-ltr data-playback-max-sessions ?disabled=${!api || !this.canEdit} .value=${String(this.value('playback.max_sessions') ?? 4)} @change=${(e: Event) => this.set('playback.max_sessions', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         ${this.playbackWarning() ? html`<div class="err" data-playback-warning style="margin-block-start:-4px">${this.playbackWarning()}</div>` : nothing}
@@ -997,8 +1011,9 @@ export class SystemDiagnostics extends LitElement {
           ${sel('remote.wall_profile', 'sub', [['sub', 'רגילה (זרם משני)'], ['main', 'גבוהה (זרם ראשי)']])}</div>
         <div class="row"><span class="lbl">MSE כמוצא אחרון<span class="muted">כש־WebRTC לא מתחבר או לא מפענח (לא כשהתעבורה היא WebRTC בלבד). כבוי: אין וידאו דרך המנהרה בכלל</span></span>
           ${sel('remote.mse_fallback', 'true', [['true', 'מותר (מוצג לצופה)'], ['false', 'אסור']])}</div>
-        <div class="row"><span class="lbl">זרמים חיים לכל כניסה<span class="muted">כמה צפיות חיות במקביל מותרות לכל דפדפן או אפליקציה שנכנסו מרחוק (1 עד 32, ברירת מחדל 16); הצפייה הבאה נדחית עם הסבר. המכסה הכללית של המערכת חלה בנוסף<br /><span data-remote-cap-hint>מומלץ: לפחות כמספר המצלמות בקיר</span>${this.health?.remote?.live_streams != null ? html` · <span data-remote-live-now>פעילים עכשיו: ${this.health.remote.live_streams}</span>` : nothing}</span></span>
-          <sw-field class="ctl"><input type="number" min="1" max="32" data-ltr data-set-remote="remote.max_live_streams" .value=${v('remote.max_live_streams', '16')} ?disabled=${ro} @change=${(e: Event) => this.set('remote.max_live_streams', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        <div class="row"><span class="lbl">זרמים חיים לכל כניסה<span class="muted">כמה צפיות חיות במקביל מותרות לכל דפדפן או אפליקציה שנכנסו מרחוק (1 עד 128, ברירת מחדל 16); הצפייה הבאה נדחית עם הסבר. המכסה הכללית של המערכת חלה בנוסף<br /><span data-remote-cap-hint>מומלץ: לפחות כמספר המצלמות בקיר</span>${this.health?.remote?.live_streams != null ? html` · <span data-remote-live-now>פעילים עכשיו: ${this.health.remote.live_streams}</span>` : nothing}</span></span>
+          <sw-field class="ctl"><input type="number" min="1" max="128" data-ltr data-set-remote="remote.max_live_streams" .value=${v('remote.max_live_streams', '16')} ?disabled=${ro} @change=${(e: Event) => this.set('remote.max_live_streams', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        ${this.liveCapWarning('remote.max_live_streams') ? html`<div class="err" data-remote-live-warning style="margin-block-start:-4px">${this.liveCapWarning('remote.max_live_streams')}</div>` : nothing}
         ${this.renderCodecSummary()}
         <div class="muted" data-remote-codec-hint style="margin-block-start:8px">דפדפנים מפענחים ב־WebRTC רק H.264 ללא B-frames; H.265 לא מתנגן ב־WebRTC ברוב הדפדפנים. אם הזרם הראשי של ה־NVR אינו כזה, הגדירו בו H.264 ללא B-frames או בחרו כאן בזרם המשני.</div>
       </sw-card>
@@ -1080,7 +1095,7 @@ export class SystemDiagnostics extends LitElement {
           : html`<div class="muted" data-devices-readonly>${api ? 'שינוי ההגדרות דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
       </sw-card>
       ${api && this.canEdit ? html`<devices-climate-kind-admin data-section="climate-kind"></devices-climate-kind-admin>` : nothing}
-      ${api && this.canEdit ? html`<devices-bulk-safe-admin data-section="bulk-safe"></devices-bulk-safe-admin>` : nothing}
+      ${api && this.canEdit ? html`<devices-protected-switches data-section="protected-switches"></devices-protected-switches>` : nothing}
     </div>`;
   }
 

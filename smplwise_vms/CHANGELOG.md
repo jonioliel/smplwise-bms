@@ -1,5 +1,53 @@
 # Changelog — SmplWise Arx add-on
 
+## 0.1.153 (pilot) — The Bubble look (optional), protected switches, a cameras table, tabs as a dropdown option, phone fixes, higher caps
+**After the update no restart of the platform is needed** (the bridge integration stays 0.6.0). Migration 0049 is applied on the first start. Reload the installed web app once so the new service worker takes over.
+### The Bubble look - הגדרות › כללי › "מראה" (off until you choose it)
+- A new optional **skin "Bubble"**: translucent pop-ups over the dimmed page, pill rows, a floating bottom bar with a home button on the phone. Nothing changes until it is chosen (the default skin stays as today). This release brings the foundation and the settings; the home, area and multimedia screens follow in the next releases.
+- **Every option is editable in the UI**, as an installation default and as a personal choice ("ההעדפה שלי"): density (wide / regular / compact / row), surface (flat / glass / gradient / fill), pop-up kind (sheet / centred / inline), corner radius, transparency, size scale and touch-target size. The transparency never goes below the level where text stays readable (4.5:1).
+### Protected switches (CR-019) - הגדרות › חשמל והתקנים › "מתגים מוגנים"
+- Group actions ("turn everything off" for a floor, an area, the building) now include **every switch unless an administrator protects it**; switches that look sensitive (pumps, boilers, routers...) are only **suggested** for protection. **Important: right after the update "turn everything off" reaches every switch - open the screen once and protect what must stay out.** A protected switch is still controllable one by one, by schedules and by automations.
+### A cameras table (CR-020, read only) - הגדרות › אבטחה › "מצלמות"
+- For system administrators: every stream with its codec (H.264/H.265 and the + variants), SVC, resolution, frame rate, bitrate, GOP and whether it plays over WebRTC. Read only; nothing is changed on the recorder.
+### Phone fixes
+- **Multimedia › players and speakers**: the header no longer jumps between expanded and compact while you scroll, and the group heading no longer slides over the search field. The same fix covers the groups page and the automations pages.
+- **Area page**: it can no longer be dragged sideways by the row of area chips.
+- **Investigation (playback)**: the transport controls sit in one bar under the video instead of covering half of it.
+### Tabs as a dropdown (הגדרות › כללי › לשוניות › "תצוגת לשוניות")
+- Choose **tabs** (as today, the default), **hybrid** (a segmented control up to three items, a dropdown for more) or **dropdown**; an installation default and a personal choice ("ההעדפה שלי"), and a choice per tab group (home areas, area pages, multimedia, security, settings). On a phone the dropdown mode puts the two levels in **one row of two compact chips** and saves vertical space; the count "(6)" stays in the list and a dot shows an alert behind a hidden option; the alarm stays one tap away.
+### Limits and compatibility
+- **Live sessions and remote streams up to 128** (הגדרות › וידאו ומדיה and הגדרות › גישה מרחוק), with a warning - never a block - above half of the streams the recorder is built for.
+- **Ready for Home Assistant 2026.10**: usernames are compared lower-cased and trimmed, and the automation builder refuses state conditions that combine "for" with several entities or a list of states (Home Assistant 2026.10 rejects them).
+### How to turn it on and use it (English)
+1. No restart is needed; reload the installed web app once.
+2. **The Bubble look**: הגדרות › כללי › "מראה" (a skin choice and the dials). **Protected switches**: review the suggestions once. **Cameras table**: הגדרות › אבטחה › "מצלמות".
+3. **Tabs as a dropdown**: הגדרות › כללי › לשוניות › "תצוגת לשוניות"; the default stays tabs until you or a user chooses otherwise.
+4. **Higher caps**: the two fields in הגדרות accept up to 128 now; a warning appears above half of the recorder's streams.
+
+## עברית — 0.1.153: המראה "בועה" (אופציונלי) · מתגים מוגנים · טבלת מצלמות · לשוניות כרשימה נפתחת · תיקונים בטלפון · תקרות גבוהות
+**אחרי העדכון אין צורך להפעיל מחדש את התשתית** (הגשר נשאר 0.6.0). מיגרציה 0049 מתבצעת בהפעלה הראשונה. יש לטעון מחדש את האפליקציה המותקנת פעם אחת.
+### המראה "בועה" - הגדרות › כללי › "מראה" (כבוי עד שתבחר בו)
+- **ערכת עיצוב חדשה ואופציונלית "בועה"**: חלונות קופצים שקופים מעל הדף המעומעם, שורות גלולה, וסרגל תחתון צף עם כפתור בית בטלפון. שום דבר לא משתנה עד שבוחרים בה (ברירת המחדל נשארת כמו היום). הגרסה מביאה את התשתית וההגדרות; מסכי הבית, האזור והמולטימדיה יבואו בגרסאות הבאות.
+- **כל האפשרויות ניתנות לעריכה בממשק**, כברירת מחדל להתקנה וכבחירה אישית ("ההעדפה שלי"): צפיפות (רחב / רגיל / קומפקטי / שורות), משטח (שטוח / זכוכית / גרדיאנט / מילוי), סוג חלון קופץ (גיליון / מרכזי / בתוך הדף), רדיוס פינות, שקיפות, קנה מידה וגודל יעד נגיעה. השקיפות לא יורדת מתחת לרמה שבה הטקסט נשאר קריא (4.5:1).
+### מתגים מוגנים (CR-019) - הגדרות › חשמל והתקנים › "מתגים מוגנים"
+- פעולות קבוצתיות ("כבה הכל" לקומה, לאזור, למבנה) כוללות עכשיו **כל מתג, אלא אם מנהל הגן עליו**; מתגים שנראים רגישים (משאבות, דודים, ראוטרים...) רק **מוצעים** להגנה. **חשוב: מיד אחרי העדכון "כבה הכל" מגיע לכל מתג - יש להיכנס למסך פעם אחת ולהגן על מה שצריך להישאר בחוץ.** מתג מוגן עדיין ניתן להפעלה לבד, בתזמון ובאוטומציה.
+### טבלת מצלמות (CR-020, לקריאה בלבד) - הגדרות › אבטחה › "מצלמות"
+- למנהלי מערכת: כל זרם עם ה-codec שלו (H.264/H.265 והווריאנטים עם +), SVC, רזולוציה, קצב פריימים, ביטרייט, GOP והאם הוא מנוגן ב-WebRTC. לקריאה בלבד; שום דבר לא משתנה במקליט.
+### תיקונים בטלפון
+- **מולטימדיה › נגנים ורמקולים**: הכותרת כבר לא קופצת בין מורחבת לקומפקטית בגלילה, וכותרת הקבוצה לא מחליקה מעל שדה החיפוש. אותו תיקון חל על עמוד הקבוצות ועל עמודי האוטומציות.
+- **עמוד אזור**: אי אפשר עוד לגרור אותו הצידה בעזרת שורת צ'יפי האזורים.
+- **חקירה (ניגון)**: בקרי הניגון נמצאים בסרגל אחד מתחת לווידאו ולא מכסים חצי ממנו.
+### לשוניות כרשימה נפתחת (הגדרות › כללי › לשוניות › "תצוגת לשוניות")
+- בחירה בין **לשוניות** (כמו היום, ברירת המחדל), **היברידי** (פקד מפוצל עד שלושה פריטים, רשימה נפתחת למעלה מזה) ו**רשימה נפתחת**; ברירת מחדל להתקנה, בחירה אישית ("ההעדפה שלי") ובחירה לכל קבוצת לשוניות (אזורי הבית, עמודי אזור, מולטימדיה, אבטחה, הגדרות). בטלפון מצב הרשימה הנפתחת מציב את שתי הרמות **בשורה אחת של שני צ'יפים** וחוסך מקום; הספירה "(6)" נשארת ברשימה, נקודה מסמנת התראה מאחורי אפשרות מוסתרת, והאזעקה נשארת במרחק נגיעה אחת.
+### תקרות ותאימות
+- **סשנים חיים וזרמים מרחוק עד 128** (הגדרות › וידאו ומדיה והגדרות › גישה מרחוק), עם אזהרה - לא חסימה - מעל מחצית מכמות הזרמים שהמקליט בנוי אליה.
+- **מוכן ל-Home Assistant 2026.10**: שמות משתמש מושווים באותיות קטנות וללא רווחים, ובונה האוטומציות מסרב לתנאי מצב שמשלבים "for" עם כמה ישויות או רשימת מצבים (Home Assistant 2026.10 דוחה אותם).
+### איך מפעילים ומשתמשים (עברית)
+1. אין צורך בהפעלה מחדש; טוענים מחדש את האפליקציה המותקנת פעם אחת.
+2. **המראה "בועה"**: הגדרות › כללי › "מראה" (בחירת ערכת עיצוב והחוגות). **מתגים מוגנים**: לעבור פעם אחת על ההצעות. **טבלת מצלמות**: הגדרות › אבטחה › "מצלמות".
+3. **לשוניות כרשימה נפתחת**: הגדרות › כללי › לשוניות › "תצוגת לשוניות"; ברירת המחדל נשארת לשוניות עד שתבחר או שמשתמש יבחר אחרת.
+4. **תקרות גבוהות**: שני השדות בהגדרות מקבלים עד 128; מופיעה אזהרה מעל מחצית מזרמי המקליט.
+
 ## 0.1.152 (pilot) — Automations, scenes and scripts; the full music queue and library; up to 128 parallel playbacks
 **After the update restart the platform once**: the bridge integration is 0.6.0 (the automation, scene and script services). Migration 0048 is applied on the first start. Reload the installed web app once so the new service worker takes over.
 ### Automations, scenes and scripts (CR-017)

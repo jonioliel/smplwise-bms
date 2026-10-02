@@ -109,11 +109,11 @@ export interface DeviceRow {
   /** CR-010 review B1: owned by the alarm section (a zone's bypass control, the panel) - read-only everywhere else. */
   alarm_managed?: boolean;
   managed_label?: string;
-  /** CR-007 slice 3 (switch rows, for a bulk holder): whether this switch may enter a bulk action and why - "marked"
-   * (an administrator marked it: the only way in), "circuit_not_marked" (a lighting circuit's switch: the mark is
-   * suggested), "switch_not_marked" or "doors_layer" (never). */
-  bulk_safe?: boolean;
-  bulk_reason?: 'marked' | 'circuit_not_marked' | 'doors_layer' | 'switch_not_marked';
+  /** CR-019 (switch rows, for a bulk holder): `bulk_protected` is the administrator's mark (a protected switch is left out of
+   * group actions only); `bulk_reason` says what a group action does with it - "allowed", "protected", "unclassified" (not judged
+   * yet: excluded until it is) or "doors_layer" / "alarm_managed" (never). */
+  bulk_protected?: boolean;
+  bulk_reason?: 'allowed' | 'protected' | 'unclassified' | 'doors_layer' | 'alarm_managed';
   /** Re-review M1 (tiles' panel rows): why a bulk action would not reach this row (the bulk resolve's own rules), or null. */
   bulk_excluded?: string | null;
   // lighting
@@ -191,8 +191,8 @@ export interface DeviceAreaDetail {
   scoped: boolean;
   /** CR-007 slice 3: the caller may start a bulk action on this area. */
   can_bulk?: boolean;
-  /** CR-007 slice 3: the caller may mark a switch bulk-safe (system.configure). */
-  can_mark_bulk_safe?: boolean;
+  /** CR-019: the caller may protect a switch from group actions (system.configure). */
+  can_mark_bulk_protected?: boolean;
   /** CR-007 slice 4: the caller may assign an entity of the "ללא שיוך" bucket to an area (system.configure); true
    * only when this is the unassigned bucket itself. */
   can_assign_area?: boolean;
@@ -227,8 +227,8 @@ export interface DeviceItems {
   truncated: boolean;
   scoped: boolean;
   can_bulk?: boolean;
-  /** The caller may mark switches bulk-safe (system.configure) - the switches list only. */
-  can_mark_bulk_safe?: boolean;
+  /** The caller may protect switches from group actions (system.configure) - the switches list only. */
+  can_mark_bulk_protected?: boolean;
   sync?: HaSyncState;
 }
 

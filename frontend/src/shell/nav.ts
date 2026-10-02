@@ -2,6 +2,7 @@ import type { IconName } from '../components/sw-icon';
 import type { TabItem } from '../components/sw-tabs';
 import type { RouteState } from '../router';
 import type { WiskeyCatalog, WiskeyLocation } from '../wiskey/embed-connector';
+import type { TabGroup } from './tabs-mode';
 import type { TabsConfig, TabsSectionConfig, TabStyle, TabStyleDefaults } from '../api/media';
 
 /** The WisKey area's tabs before (or without) a WisKey embed API handshake: the older panel's tabs. The first three are
@@ -186,14 +187,14 @@ export function applyNvrLess(on: boolean): boolean {
 
 /** An href of an area that needs the NVR (see NVR_LESS). */
 export function isNvrHref(href: string): boolean {
-  return href === '#/live' || href.startsWith('#/live/') || href.startsWith('#/investigate/') || href === '#/system/devices';
+  return href === '#/live' || href.startsWith('#/live/') || href.startsWith('#/investigate/') || href === '#/system/devices' || href === SECURITY_CAMERAS_HREF;
 }
 
 /** A route of an area that needs the NVR: live and cameras, the whole investigate mode, camera health, the kiosk wall. */
 export function isNvrRoute(r: RouteState | null): boolean {
   if (!r) return false;
   if (r.segments[0] === 'kiosk') return true;
-  return r.mode === 'live' || r.mode === 'investigate' || (r.mode === 'system' && r.segments[1] === 'devices');
+  return r.mode === 'live' || r.mode === 'investigate' || (r.mode === 'system' && (r.segments[1] === 'devices' || (r.segments[1] === 'security' && r.segments[2] === 'cameras')));
 }
 
 /** SMPLWISE route segment (#/wiskey/<segment>) → the WisKey panel's own tab id (panel.ts `_tab`; "people" is the
@@ -232,6 +233,7 @@ function wiskeyPathSegment(r: RouteState | null): string {
  * and the NVR summary. Sub-pages, each with the permission it always had: the alarm screen (alarm.view), its management
  * (system.configure) and the NVR (system.configure / sources.configure, like הגדרות › חיבורים). */
 export const SECURITY_SETTINGS_HREF = '#/system/security';
+export const SECURITY_CAMERAS_HREF = '#/system/security/cameras';
 /** הגדרות › קטלוג התקנים (2026-09-30): the Home Assistant entity catalogue, formerly the map's "התקנים" tab
  * (#/explore/entities, which redirects here for holders of system.configure - see legacyRedirect). */
 export const ENTITIES_SETTINGS_HREF = '#/system/entities';
@@ -239,6 +241,8 @@ export const SECURITY_SETTINGS_TABS: TabItem[] = [
   { id: 'alarm', label: 'אזעקה', href: '#/system/security/alarm' },
   { id: 'manage', label: 'ניהול אזעקה', href: '#/system/security/manage' },
   { id: 'nvr', label: 'NVR', href: '#/system/security/nvr' },
+  /** CR-020 S1: the cameras' video settings (codec, SVC, resolution, bitrate, ...), read-only, system administrators. */
+  { id: 'cameras', label: 'מצלמות', href: SECURITY_CAMERAS_HREF },
 ];
 
 /** Is there an alarm panel on this platform? null = not known yet (api/alarm-presence.ts fills it once per session and
@@ -764,6 +768,8 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   '#/system/security/alarm': ALARM_PERMISSIONS,
   '#/system/security/manage': ['system.configure'],
   '#/system/security/nvr': ['system.configure', 'sources.configure'],
+  // CR-020 S1: GET /nvr/cameras needs system.configure at installation scope (owner Q6: system administrators only)
+  [SECURITY_CAMERAS_HREF]: ['system.configure'],
   [SECURITY_SETTINGS_HREF]: [...ALARM_PERMISSIONS, 'sources.configure'],
   '#/investigate/events': ['events.read'],
   '#/investigate/playback': ['video.playback'],
@@ -788,7 +794,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
-export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
+export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', SECURITY_CAMERAS_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
 
 /** `installationOnly`: the permission must be held at installation scope, not at any scope. */
 export type Can = (permission: string, installationOnly?: boolean) => boolean;
@@ -1030,6 +1036,17 @@ export function areaRowSection(area: AreaId | null, section: SecuritySection | n
   if (area === 'security') return section ? `security.${section}` : null;
   return TAB_SECTIONS.some((s) => s.id === area) ? area : null;
 }
+
+/** 0.1.153: the tab group (shell/tabs-mode.ts) of an area's row - the unit a presentation mode (tabs / hybrid / dropdown) is set for. The
+ * main bottom navigation is not a group. */
+export function tabGroupOf(area: AreaId | null): TabGroup | null {
+  if (!area) return null;
+  if (area === 'security') return 'security';
+  if (area === 'system') return 'settings';
+  if (area === 'multimedia') return 'multimedia';
+  return 'area';
+}
+export { tabModeOf } from './tabs-mode';
 
 let ARRAY_SECTIONS: Map<readonly TabItem[], string> | null = null;
 

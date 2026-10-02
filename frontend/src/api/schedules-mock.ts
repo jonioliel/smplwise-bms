@@ -95,8 +95,7 @@ export const DEMO_ENTITIES: DemoEntity[] = [
   { entity_id: 'switch.shabbat_lights_living', name: 'תאורת שבת – סלון', domain: 'switch', class: 'switch', area_id: 'living', area_name: 'סלון', ...F0 },
   { entity_id: 'switch.irrigation', name: 'השקיה', domain: 'switch', class: 'switch', area_id: 'yard', area_name: 'חצר', ...F0 },
   {
-    entity_id: 'switch.boiler', name: 'דוד', domain: 'switch', class: 'switch', area_id: 'kitchen', area_name: 'מטבח', ...F0, selectable: false,
-    reason: { code: 'switch_not_marked', message: 'המתג לא סומן כבטוח לפעולה קבוצתית.' },
+    entity_id: 'switch.boiler', name: 'דוד', domain: 'switch', class: 'switch', area_id: 'kitchen', area_name: 'מטבח', ...F0,
   },
   { entity_id: 'light.office_ceiling', name: 'תאורת תקרה – משרדים', domain: 'light', class: 'light', area_id: 'offices', area_name: 'משרדים', ...F1 },
   { entity_id: 'light.yard', name: 'תאורת חצר', domain: 'light', class: 'light', area_id: 'yard', area_name: 'חצר', ...F0 },

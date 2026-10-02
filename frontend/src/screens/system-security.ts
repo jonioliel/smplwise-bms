@@ -7,10 +7,12 @@ import '../components/sw-button';
 import '../components/sw-state-panel';
 import './security-alarm';
 import './system-alarm';
+import './system-security-cameras';
 import { alarmPresence, onAlarmPresence, refreshAlarmPresence } from '../api/alarm-presence';
 import { describeError, get } from '../api/client';
 import { canNav, isApi, nvrLess } from '../api/session';
-import { SECURITY_SETTINGS_TABS, applyAlarmPresent, tabAllowed, tabStyleOf, visibleTabs } from '../shell/nav';
+import { SECURITY_CAMERAS_HREF, SECURITY_SETTINGS_TABS, applyAlarmPresent, tabAllowed, tabStyleOf, visibleTabs } from '../shell/nav';
+import { TabsModeController } from '../shell/tabs-mode';
 
 /** GET /api/v1/health - the connection facts, for every signed-in user (the same read הגדרות › חיבורים starts from). */
 interface RawHealth {
@@ -30,7 +32,8 @@ function when(iso: string | null | undefined): string {
  * הגדרות › אבטחה (2026-09-30, owner request): everything about the alarm system and the NVR in one Settings section.
  * Pages (route `#/system/security/<page>`): `alarm` - the alarm screen itself, unchanged (it left the security area);
  * `manage` - the alarm management (panel code, user policy is in משתמשים והרשאות, zone pairing, remote policy); `nvr` -
- * the NVR's state, with the way to its connection and recorder settings, which stay in הגדרות › חיבורים.
+ * the NVR's state, with the way to its connection and recorder settings, which stay in הגדרות › חיבורים; `cameras` - the
+ * cameras' video settings, read-only (CR-020 S1, system administrators).
  *
  * Nothing here decides access: each page is offered to (and rendered for) the holders of the permission it always
  * required - alarm.view, system.configure, system.configure / sources.configure - and the server checks every call itself.
@@ -45,6 +48,7 @@ export class SystemSecurity extends LitElement {
   @property() panelId = '';
   @state() private presenceKnown = alarmPresence() !== null;
   private stopPresence?: () => void;
+  private tabsMode = new TabsModeController(this, 'settings'); // 0.1.153: tabs / hybrid / dropdown
   private giveUp = 0;
 
   static styles = css`
@@ -145,13 +149,15 @@ export class SystemSecurity extends LitElement {
     const current = SECURITY_SETTINGS_TABS.find((t) => t.id === this.sub);
     const items = current && !offered.some((o) => o.id === current.id) ? [...offered, current] : offered;
     return html`${items.length > 1
-        ? html`<div class="tabs" data-security-settings-tabs><sw-tabs .variant=${tabStyleOf('system.security')} .items=${items} .active=${this.sub}></sw-tabs></div>`
+        ? html`<div class="tabs" data-security-settings-tabs><sw-tabs .variant=${this.tabsMode.props(tabStyleOf('system.security')).variant} ?adaptive=${this.tabsMode.props(tabStyleOf('system.security')).adaptive} .items=${items} .active=${this.sub}></sw-tabs></div>`
         : nothing}
       ${this.sub === 'alarm'
         ? html`<security-alarm .panelId=${this.panelId}></security-alarm>`
         : this.sub === 'manage'
           ? html`<sw-page heading="ניהול אזעקה" subheading="לוחות, קוד הלוח, שיוך חיישנים לעקיפה ומדיניות מרחוק"><system-alarm-settings ?canEdit=${this.api && canNav('system.configure', true)}></system-alarm-settings></sw-page>`
-          : html`<system-security-nvr></system-security-nvr>`}`;
+          : this.sub === 'cameras'
+            ? html`<system-security-cameras></system-security-cameras>`
+            : html`<system-security-nvr></system-security-nvr>`}`;
   }
 }
 
@@ -186,6 +192,7 @@ export class SystemSecurityNvr extends LitElement {
     const off = nvrLess() || h.mode === 'ha_only';
     const links = [
       { href: '#/system/setup', label: 'חיבורים והגדרות ה־NVR', show: tabAllowed('#/system/setup', canNav) },
+      { href: SECURITY_CAMERAS_HREF, label: 'הגדרות מצלמות', show: !off && tabAllowed(SECURITY_CAMERAS_HREF, canNav) },
       { href: '#/investigate/health', label: 'בריאות מצלמות', show: !off && tabAllowed('#/investigate/health', canNav) },
     ].filter((l) => l.show);
     return html`<sw-page heading="NVR" subheading=${off ? 'ללא NVR' : h.nvr_configured ? 'מוגדר' : 'לא מוגדר'}>

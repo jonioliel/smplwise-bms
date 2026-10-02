@@ -121,6 +121,18 @@ def bind(client: TestClient, settings: Settings, username: str, role: str, scope
         )
 
 
+@pytest.fixture(autouse=True)
+def _storage_report_cache_is_per_test():
+    """`services.storage` keeps a process-wide 10-minute report cache, and the start-up warm-up fills it from a daemon thread that
+    can finish after its test is over. Without this, a report built for another test's settings (an NVR, disks) leaks into the next
+    one depending on timing - e.g. the NVR-less storage assertions failed under load and passed alone."""
+    from smplwise.services import storage
+
+    storage.invalidate()
+    yield
+    storage.invalidate()
+
+
 # ---------------------------------------------------------------- SW_DB_IO_GUARD=1: I/O under the SQLite write lock
 
 if os.environ.get("SW_DB_IO_GUARD") == "1":

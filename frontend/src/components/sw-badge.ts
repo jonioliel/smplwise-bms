@@ -55,7 +55,7 @@ export class SwBadge extends LitElement {
     }
     :host([kind='live']) {
       background: var(--sw-live-soft);
-      color: #15803d;
+      color: var(--sw-live-text);
     }
     :host([kind='live']) .dot {
       background: var(--sw-live);
@@ -72,7 +72,7 @@ export class SwBadge extends LitElement {
     }
     :host([kind='offline']) {
       background: var(--sw-offline-soft);
-      color: #6b7280;
+      color: var(--sw-offline-text);
     }
     :host([kind='offline']) .dot {
       background: transparent;
@@ -82,7 +82,7 @@ export class SwBadge extends LitElement {
     :host([kind='stale']),
     :host([kind='partial']) {
       background: var(--sw-stale-soft);
-      color: #b45309;
+      color: var(--sw-stale-text);
       border-style: dashed;
       border-color: var(--sw-stale);
     }
@@ -99,7 +99,7 @@ export class SwBadge extends LitElement {
     :host([kind='forbidden']),
     :host([kind='error']) {
       background: var(--sw-danger-soft);
-      color: #b91c1c;
+      color: var(--sw-danger-text);
     }
     @keyframes pulse {
       0%,

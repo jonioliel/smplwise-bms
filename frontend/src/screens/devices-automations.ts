@@ -10,7 +10,7 @@ import './scenes-panel';
 import './scripts-panel';
 import { aIcon } from '../components/automation-icons';
 import { automationsStyles } from '../styles/automations-glass';
-import { mediaPageStyles } from '../styles/media-page';
+import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
 import { applyAutomationsGlass, autoApi, autoNow, autoReady, demoControl, demoLoading } from '../api/automations-demo';
 import { isApi } from '../api/session';
 import { subscribeHa } from '../api/ha';
@@ -213,9 +213,6 @@ export class DevicesAutomations extends LitElement {
       .dh-det .stf::-webkit-scrollbar {
         display: none;
       }
-      .dh.compact .dh-det {
-        display: none;
-      }
     }
   `];
 
@@ -251,6 +248,7 @@ export class DevicesAutomations extends LitElement {
   }
 
   protected updated(c: PropertyValues) {
+    measureHeaderBar(this.renderRoot, this.phone);
     const t = this.renderRoot.querySelector<HTMLElement>('.toast[popover]');
     if (t) {
       try { if (!t.matches(':popover-open')) t.showPopover(); } catch { /* no popover support: the note stays in the page */ }

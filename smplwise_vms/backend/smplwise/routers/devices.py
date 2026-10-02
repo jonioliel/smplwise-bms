@@ -25,10 +25,10 @@ import sqlite3
 import threading
 import time
 import uuid
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
@@ -37,7 +37,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import device_bulk as bulk
 from ..services import devices as svc
-from ..services import ha_bridge, ha_client, ha_scope, ha_sync, home_screen, user_prefs
+from ..services import ha_bridge, ha_client, ha_scope, ha_sync, home_screen, switch_protection, user_prefs
 from ..services.timeutil import parse_utc
 
 router = APIRouter()
@@ -203,16 +203,15 @@ def area(area_id: str, principal: Principal = Depends(current_principal_ro), con
                 r["can_control"] = False
     flags = _bulk_flags(conn, principal)
     body["can_bulk"] = area_id != svc.UNASSIGNED and (flags["all"] or area_id in flags["areas"])
-    # review round 1: whether each switch may enter a bulk action (a lighting circuit's switch, or marked bulk-safe
-    # by an administrator; a switch on the map's door layer never) - shown to bulk holders, editable with
-    # system.configure (PUT /devices/entities/{id}/bulk-safe)
+    # CR-019: whether each switch is protected from group actions and why it would or would not be included (protected,
+    # not judged yet, the door layer, alarm-managed) - shown to bulk holders, editable with system.configure
+    # (PUT /devices/entities/{id}/bulk-protected)
     if flags["building"] or flags["areas"]:
         policy = bulk.SwitchPolicy(conn)
-        body["can_mark_bulk_safe"] = authorize(conn, principal, "system.configure", INSTALLATION).allowed
+        body["can_mark_bulk_protected"] = authorize(conn, principal, "system.configure", INSTALLATION).allowed
         for r in body["cards"]["switches"]["entities"]:
             if r["domain"] == "switch":
-                ok, reason = policy.switch_reason(r["entity_id"])
-                r["bulk_safe"], r["bulk_reason"] = ok, reason
+                r["bulk_protected"], r["bulk_reason"] = policy.switch_row(r["entity_id"])
     # CR-007 slice 4: an administrator may assign an entity of the "ללא שיוך" bucket to an HA area
     # (PUT /devices/entities/{id}/area, system.configure)
     body["can_assign_area"] = area_id == svc.UNASSIGNED and authorize(conn, principal, "system.configure", INSTALLATION).allowed
@@ -252,8 +251,8 @@ def items(
         body["can_bulk"] = bool(flags["all"] or body["id"] in flags["floors"])
     else:
         body["can_bulk"] = body["id"] != svc.UNASSIGNED and bool(flags["all"] or body["id"] in flags["areas"])
-    # re-review M1: which rows a bulk action would reach (the same SwitchPolicy the bulk resolves with - the bulk-safe
-    # mark, the door layer, door covers, alarm-managed), so the master control counts only those
+    # re-review M1: which rows a bulk action would reach (the same SwitchPolicy the bulk resolves with - CR-019's switch
+    # protection, the door layer, door covers, alarm-managed), so the master control counts only those
     policy = bulk.SwitchPolicy(conn)
     from ..services import media_store
 
@@ -273,8 +272,8 @@ def items(
                 reason = policy.excluded_reason(r)
                 r["bulk_excluded"] = reason
                 if r["domain"] == "switch":
-                    r["bulk_safe"], r["bulk_reason"] = policy.switch_reason(r["entity_id"])
-    body["can_mark_bulk_safe"] = kind == "switches" and authorize(conn, principal, "system.configure", INSTALLATION).allowed
+                    r["bulk_protected"], r["bulk_reason"] = policy.switch_row(r["entity_id"])
+    body["can_mark_bulk_protected"] = kind == "switches" and authorize(conn, principal, "system.configure", INSTALLATION).allowed
     if kind == "locks":
         wide, floors = ha_scope.visible_floors(conn, principal, "door.unlock")
         placed = ha_scope.placements(conn) if floors and not wide else {}
@@ -309,128 +308,175 @@ def refresh_from_ha(principal: Principal = Depends(current_principal_ro), conn: 
     return {**result, "sync": ha_sync.STATE.as_dict()}
 
 
-class BulkSafeBody(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    bulk_safe: bool
-
-
-# ---------------------------------------------------------------- הגדרות › חשמל › פעולה קבוצתית (owner 2026-09-30)
+# ---------------------------------------------------------------- הגדרות › חשמל והתקנים › מתגים מוגנים (CR-019)
 #
-# The bulk-safe mark exists for switches only (CR-007 §7.10: lights, covers, climate and screens follow the kind's own
-# rules; input_booleans never enter; locks, the alarm and door releases never). One screen manages it for every switch.
+# Switch protection exists for switches only (lights, covers, climate and screens follow the kind's own rules;
+# input_booleans never enter; locks, the alarm and door releases never). A protected switch is left out of GROUP actions
+# only - individual control, schedules and automations never read the mark. One screen reviews and changes it for every
+# switch; system.configure, checked before the body is read; every change audited (services/switch_protection.py).
 
-BULK_SAFE_MAX = 500
-
-
-@router.get("/devices/bulk-safe")
-def list_bulk_safe(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    """Every switch with its bulk-safe mark, place, state, why it is or is not included and who marked it when -
-    the settings screen's list. system.configure (the mark's own permission)."""
-    require(conn, principal, "system.configure", INSTALLATION)
-    policy = bulk.SwitchPolicy(conn)
-    marks = {r["entity_id"]: dict(r) for r in conn.execute("SELECT entity_id, marked_by_username, marked_at FROM device_bulk_safe").fetchall()}
-    floors, areas = svc.load_structure(conn, svc.load_entities(conn))
-    fname = {f["floor_id"]: f["name"] for f in floors}
-    area_floor = {a["area_id"]: a.get("floor_id") for a in areas}
-    out = []
-    for e in svc.load_entities(conn):
-        if e["domain"] != "switch":
-            continue
-        ok, reason = policy.switch_reason(e["entity_id"])
-        m = marks.get(e["entity_id"]) or {}
-        fid = area_floor.get(e.get("area_id")) if e.get("area_id") else None
-        out.append({
-            "entity_id": e["entity_id"], "name": e.get("name") or e.get("original_name") or e["entity_id"],
-            "area_id": e.get("area_id"), "area_name": e.get("area_name"), "floor_id": fid, "floor_name": fname.get(fid) if fid else None,
-            "state": e.get("state"), "available": bool(e.get("available")),
-            "marked": e["entity_id"] in policy.marked, "included": ok, "reason": reason, "reason_label": bulk.EXCLUDED_LABELS.get(reason) if not ok else None,
-            "alarm_managed": e["entity_id"] in policy.alarm_managed,
-            "marked_by": m.get("marked_by_username"), "marked_at": m.get("marked_at"),
-        })
-    out.sort(key=lambda r: (r["name"].casefold(), r["entity_id"]))
-    return {"switches": out, "note": "הסימון קיים למתגים בלבד: תאורה, תריסים, מיזוג ומסכים נכללים לפי סוגם; מנעולים, אזעקה ושחרור דלתות לעולם לא."}
+PROTECT_MAX = 500
+MEDIA_MANAGED_LABEL = "נשלט ממסך המולטימדיה - לא בפעולה קבוצתית"
+DOORS_LAYER_MESSAGE = "בשכבת הדלתות - לעולם לא בפעולה קבוצתית; אין צורך בהגנה"
 
 
-class BulkSafeManyBody(BaseModel):
+class ProtectBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    entity_ids: list[str] = Field(min_length=1, max_length=BULK_SAFE_MAX)
-    bulk_safe: bool
+    protected: StrictBool
 
 
-@router.post("/devices/bulk-safe")
-def set_bulk_safe_many(request: Request, principal: Principal = Depends(_configure_holder_early_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """Mark (or unmark) many switches as bulk-safe in one call - the settings screen's "אשר לנבחרים" / "הסר אישור
-    מהנבחרים". system.configure, checked before the body; JSON only; at most BULK_SAFE_MAX ids. Per id: refused when it
-    is not a switch in the catalogue, when the alarm section owns it (`alarm_managed`) or - to mark - when it sits on the
-    map's door layer; otherwise set through the same path as the single route. One audit row per changed entity
-    (`devices.bulk_safe`) and one summary row (`devices.bulk_safe.batch`)."""
+class ProtectManyBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    entity_ids: list[Annotated[str, Field(min_length=1, max_length=255)]] = Field(min_length=1, max_length=PROTECT_MAX)
+    action: Literal["protect", "unprotect", "approve"]
+
+
+def _json_body(request: Request, raw: bytes, model: type[BaseModel]) -> Any:
+    """JSON only (415), a closed body (422 with the offending fields) - read after the permission check."""
     if not _is_json(request.headers.get("content-type")):
         raise ApiError(415, "unsupported_media_type", "הבקשה חייבת להישלח כ־JSON (Content-Type: application/json).")
     try:
-        body = BulkSafeManyBody.model_validate(json.loads(raw) if raw.strip() else {})
-    except (ValueError, ValidationError) as exc:
+        return model.model_validate(json.loads(raw) if raw.strip() else {})
+    except (ValueError, RecursionError, ValidationError) as exc:
         fields = sorted({".".join(str(p) for p in err["loc"]) or "body" for err in exc.errors()}) if isinstance(exc, ValidationError) else ["body"]
         raise ApiError(422, "validation", "הבקשה אינה תקינה: " + ", ".join(fields), details={"fields": fields}) from None
+
+
+def _protect_refusal(conn: sqlite3.Connection, entity_id: str, action: str, policy: bulk.SwitchPolicy, media_managed: set[str]) -> str | None:
+    """Why this id cannot take `action` (None = it can): not_switch (not a switch of the catalogue), not_markable (a
+    Scheduler component switch - not a device), and - to protect or unprotect - alarm_managed / media_managed /
+    doors_layer (never in a group action whatever the mark: the row is read-only). Approving an auto row is only a review."""
+    row = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
+    if not row or row["domain"] != "switch":
+        return "not_switch"
+    if svc.is_scheduler(conn, entity_id):  # CR-014: a schedule's switch is not a device
+        return "not_markable"
+    if action == "approve":
+        return None
+    if entity_id in policy.alarm_managed:
+        return "alarm_managed"
+    if entity_id in media_managed:
+        return "media_managed"
+    if entity_id in policy.door_layer:
+        return "doors_layer"
+    return None
+
+
+def _media_managed(conn: sqlite3.Connection) -> set[str]:
+    from ..services import media_store
+
+    return media_store.managed_entities(conn)  # CR-016 review M4: operated from "מולטימדיה" only, never in a group action
+
+
+@router.get("/devices/bulk-protected")
+def list_bulk_protected(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """Every switch with its protection (manual / auto, the classifier's category and rule, reviewed or not, who and when),
+    its place and state and whether a group action would include it - the review list of "מתגים מוגנים" (CR-019 section 7.3).
+    A protected entity that left Home Assistant is not a row; `summary.gone_protected` counts them. system.configure."""
+    require(conn, principal, "system.configure", INSTALLATION)
     policy = bulk.SwitchPolicy(conn)
+    media_managed = _media_managed(conn)
+    rows_p = {r["entity_id"]: dict(r) for r in conn.execute("SELECT * FROM device_bulk_protected").fetchall()}
+    entities = svc.load_entities(conn)
+    floors, areas = svc.load_structure(conn, entities)
+    fname = {f["floor_id"]: f["name"] for f in floors}
+    area_floor = {a["area_id"]: a.get("floor_id") for a in areas}
+    out = []
+    for e in entities:
+        if e["domain"] != "switch":
+            continue
+        eid = e["entity_id"]
+        ok, reason = policy.switch_reason(eid)
+        label = bulk.EXCLUDED_LABELS.get(reason) if not ok else None
+        if eid in media_managed:
+            ok, reason, label = False, "media_managed", MEDIA_MANAGED_LABEL
+        p = rows_p.get(eid) or {}
+        suggested = p.get("source") == "auto" and not p.get("reviewed")  # a classifier suggestion nobody approved: shown, never enforced
+        enforced = bool(p) and not suggested
+        fid = area_floor.get(e.get("area_id")) if e.get("area_id") else None
+        out.append({
+            "entity_id": eid, "name": e.get("name") or e.get("original_name") or eid,
+            "area_id": e.get("area_id"), "area_name": e.get("area_name"), "floor_id": fid, "floor_name": fname.get(fid) if fid else None,
+            "state": e.get("state"), "available": bool(e.get("available")), "platform": e.get("platform"),
+            "protected": enforced, "suggested": suggested, "source": p.get("source"), "category": p.get("category"), "category_label": switch_protection.category_label(p.get("category")),
+            "rule": p.get("rule"), "reviewed": bool(p.get("reviewed")) if p else None,
+            "included": ok, "reason": reason, "reason_label": label,
+            "alarm_managed": eid in policy.alarm_managed, "doors_layer": eid in policy.door_layer, "media_managed": eid in media_managed,
+            "marked_by": p.get("marked_by_username"), "marked_at": p.get("marked_at"), "reviewed_by": p.get("reviewed_by"), "reviewed_at": p.get("reviewed_at"),
+        })
+    out.sort(key=lambda r: (r["name"].casefold(), r["entity_id"]))
+    listed = {r["entity_id"] for r in out}
+    summary = {
+        "switches": len(out),
+        "protected": sum(1 for r in out if r["protected"]),
+        "suggested": sum(1 for r in out if r["suggested"]),
+        "unprotected": sum(1 for r in out if not r["protected"]),
+        "gone_protected": sum(1 for eid, p in rows_p.items() if p.get("gone_at") and eid not in listed),
+    }
+    return {
+        "switches": out, "summary": summary, "categories": switch_protection.categories(),
+        "note": "מתגים מוגנים לא נכללים ב'כבה הכל' ובפעולות קבוצתיות. אפשר עדיין להפעיל אותם לבד, בתזמון ובאוטומציה.",
+    }
+
+
+@router.post("/devices/bulk-protected")
+def set_bulk_protected_many(request: Request, principal: Principal = Depends(_configure_holder_early_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Protect, remove protection from, or approve (confirm an automatic protection of) many switches in one call - the
+    review list's "הגן" / "הסר הגנה" / "אשר". system.configure, checked before the body; JSON only; 1..PROTECT_MAX ids, each
+    handled once in the order given. Per id `{entity_id, ok, reason, changed}`: refused not_switch / not_markable, and - to
+    protect or unprotect - alarm_managed / media_managed / doors_layer. One audit row per changed entity
+    (`devices.bulk_protected`, or `.reviewed` for an approval) and one summary row (`devices.bulk_protected.batch`)."""
+    body = _json_body(request, raw, ProtectManyBody)
+    policy = bulk.SwitchPolicy(conn)
+    media_managed = _media_managed(conn)
     rid = getattr(request.state, "correlation_id", None)
     results = []
     changed = 0
-    for eid in dict.fromkeys(body.entity_ids):  # each id once, in the order given
-        row = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (eid,)).fetchone()
-        if not row or row["domain"] != "switch":
-            results.append({"entity_id": eid, "ok": False, "reason": "not_switch"})
+    for eid in dict.fromkeys(body.entity_ids):
+        why = _protect_refusal(conn, eid, body.action, policy, media_managed)
+        if why:
+            results.append({"entity_id": eid, "ok": False, "reason": why, "changed": False})
             continue
-        if svc.is_scheduler(conn, eid):  # CR-014: a schedule's switch is not a device
-            results.append({"entity_id": eid, "ok": False, "reason": "not_markable"})
-            continue
-        if eid in policy.alarm_managed:
-            results.append({"entity_id": eid, "ok": False, "reason": "alarm_managed"})
-            continue
-        if body.bulk_safe and eid in policy.door_layer:
-            results.append({"entity_id": eid, "ok": False, "reason": "doors_layer"})
-            continue
-        was = eid in policy.marked
-        if was != body.bulk_safe:
-            bulk.set_bulk_safe(conn, principal, eid, body.bulk_safe)
-            audit(conn, actor=principal, action="devices.bulk_safe", decision="allowed", resource_type="ha_entity", resource_id=eid, request_id=rid, details={"bulk_safe": body.bulk_safe, "batch": True})
-            changed += 1
-        results.append({"entity_id": eid, "ok": True, "reason": None, "changed": was != body.bulk_safe})
-    audit(conn, actor=principal, action="devices.bulk_safe.batch", decision="allowed", resource_type="installation", resource_id="*", request_id=rid,
-          details={"bulk_safe": body.bulk_safe, "requested": len(results), "changed": changed, "refused": [r["entity_id"] for r in results if not r["ok"]][:100]})
+        if body.action == "approve":
+            did = switch_protection.approve(conn, principal, eid, request_id=rid)
+        else:
+            did = switch_protection.set_protected(conn, principal, eid, body.action == "protect", batch=True, request_id=rid)
+        changed += int(did)
+        results.append({"entity_id": eid, "ok": True, "reason": None, "changed": did})
+    audit(conn, actor=principal, action="devices.bulk_protected.batch", decision="allowed", resource_type="installation", resource_id="*", request_id=rid,
+          details={"action": body.action, "requested": len(results), "changed": changed, "refused": [r["entity_id"] for r in results if not r["ok"]][:100]})
     return {"results": results, "changed": changed, "refused": sum(1 for r in results if not r["ok"])}
 
 
-@router.put("/devices/entities/{entity_id}/bulk-safe")
-def set_bulk_safe(entity_id: str, body: BulkSafeBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """Mark a switch as safe (or no longer safe) to be turned off by a bulk action - an administrator's statement that it
-    is not a door / gate release or anything else that must not go off with the lights (system.configure; audited).
-    The mark is the only way a switch enters a bulk action (a lighting circuit only suggests it); a switch on the map's
-    door layer is never included, mark or not."""
-    require(conn, principal, "system.configure", INSTALLATION)
+@router.put("/devices/entities/{entity_id}/bulk-protected")
+def set_bulk_protected(entity_id: str, request: Request, principal: Principal = Depends(_configure_holder_early_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Protect one switch from group actions (or remove its protection) - an administrator's statement that it must not go
+    off (or on) with the lights (system.configure, checked before the body; JSON only; audited, refusals too). Removing
+    protection is permanent against the classifier (verdict `admin_cleared`). A switch the alarm section or the multimedia
+    screens own, or one on the map's door layer, is never in a group action whatever its mark: 409."""
+    body = _json_body(request, raw, ProtectBody)
     row = conn.execute("SELECT domain FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
     if not row:
         raise ApiError(404, "not_found", "הישות לא נמצאה בקטלוג.")
     if row["domain"] != "switch":
-        raise ApiError(422, "validation", "רק מתג (switch) מסומן כבטוח לכיבוי מרוכז; שאר הסוגים נקבעים לפי הכללים.")
+        raise ApiError(422, "validation", "רק מתג (switch) מוגן מפעולה קבוצתית; שאר הסוגים נקבעים לפי הכללים.")
     if svc.is_scheduler(conn, entity_id):  # CR-014: the Scheduler component's switch is not a device
-        raise ApiError(422, "not_markable", "תזמון אינו התקן ואינו מסומן כבטוח.")
-    from ..services import alarm as alarm_svc
-
-    if body.bulk_safe and alarm_svc.is_managed_control(conn, entity_id):  # CR-010 review B1
-        audit(conn, actor=principal, action="devices.bulk_safe", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="alarm_managed",
-              request_id=getattr(request.state, "correlation_id", None), details={"bulk_safe": True})
-        raise ApiError(409, "alarm_managed", "מתג עקיפה של חיישן אזעקה נשלט ממסך האזעקה ולעולם לא נכלל בפעולה מרוכזת.")
-    from ..services import media_store
-
-    if body.bulk_safe and media_store.is_managed(conn, entity_id):  # CR-016 review M4: a screen's / speaker's own switch is operated from "מולטימדיה" only
-        audit(conn, actor=principal, action="devices.bulk_safe", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="media_managed",
-              request_id=getattr(request.state, "correlation_id", None), details={"bulk_safe": True})
-        raise ApiError(409, "use_media_screen", "הרכיב נשלט ממסך המולטימדיה ואינו נכלל בפעולה מרוכזת.")
-    bulk.set_bulk_safe(conn, principal, entity_id, body.bulk_safe)
-    audit(conn, actor=principal, action="devices.bulk_safe", decision="allowed", resource_type="ha_entity", resource_id=entity_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"bulk_safe": body.bulk_safe})
-    ok, reason = bulk.SwitchPolicy(conn).switch_reason(entity_id)
-    return {"entity_id": entity_id, "bulk_safe": ok, "bulk_reason": reason, "marked": body.bulk_safe}
+        raise ApiError(422, "not_markable", "תזמון אינו התקן ואינו מסומן כמוגן.")
+    policy = bulk.SwitchPolicy(conn)
+    why = _protect_refusal(conn, entity_id, "protect", policy, _media_managed(conn))
+    rid = getattr(request.state, "correlation_id", None)
+    if why:
+        audit(conn, actor=principal, action="devices.bulk_protected", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=why,
+              request_id=rid, details={"protected": body.protected})
+        if why == "alarm_managed":  # CR-010 review B1
+            raise ApiError(409, "alarm_managed", "מתג עקיפה של חיישן אזעקה נשלט ממסך האזעקה ולעולם לא נכלל בפעולה מרוכזת.")
+        if why == "media_managed":  # CR-016 review M4
+            raise ApiError(409, "use_media_screen", "הרכיב נשלט ממסך המולטימדיה ואינו נכלל בפעולה מרוכזת.")
+        raise ApiError(409, "doors_layer", DOORS_LAYER_MESSAGE)
+    switch_protection.set_protected(conn, principal, entity_id, body.protected, request_id=rid)
+    p, _c = switch_protection.status(conn, entity_id)
+    marked, reason = bulk.SwitchPolicy(conn).switch_row(entity_id)
+    return {"entity_id": entity_id, "bulk_protected": marked, "bulk_reason": reason, "source": (p or {}).get("source"), "reviewed": bool(p["reviewed"]) if p else None}
 
 
 # ---------------------------------------------------------------- heating versus air conditioning (owner 2026-09-30)
@@ -503,7 +549,7 @@ def assign_area(entity_id: str, request: Request, principal: Principal = Depends
     """CR-007 slice 4: assign an entity of the "ללא שיוך" bucket (or move any entity) to an HA area - a Home
     Assistant CONFIG write, never a domain service call, through the bridge's own registry-write path
     (services/ha_client.call_bridge_set_area - the bridge accepts exactly this one registry op, nothing else).
-    system.configure (an administrator's statement, the same gate as bulk-safe) checked before the body is even
+    system.configure (an administrator's statement, the same gate as switch protection) checked before the body is even
     read (_configure_holder, the same JSON-only / permission-first envelope the bulk route uses); audited under the
     real actor with the honest bridge answer; on success the local registry mirror is updated at once from our own
     area/floor tables, so the tree and area screens show the move without waiting for the next HA registry refresh."""

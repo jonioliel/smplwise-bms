@@ -606,13 +606,13 @@ test.describe('unsaved changes, conflicts, split', () => {
 });
 
 test.describe('the device picker', () => {
-  test('by room and by type, multi-select, a device that cannot be scheduled says why; adding mirrors the slots', async ({ page }) => {
+  test('by room and by type, multi-select, every switch is selectable (CR-019: no mark); adding mirrors the slots', async ({ page }) => {
     await mount(page, '4d6e0a');
     await editor(page).locator('[data-open-picker]').click();
     const picker = editor(page).locator('schedule-entity-picker');
     await expect(picker.locator('[data-picker-item="light.lobby"]')).toBeVisible();
-    await expect(picker.locator('[data-picker-item="switch.boiler"]')).toContainText('לא סומן כבטוח');
-    await expect(picker.locator('[data-picker-item="switch.boiler"] input')).toBeDisabled();
+    await expect(picker.locator('[data-picker-item="switch.boiler"]')).not.toContainText('לא סומן כבטוח');
+    await expect(picker.locator('[data-picker-item="switch.boiler"] input')).toBeEnabled();
     await picker.locator('[data-picker-by-class]').click();
     await picker.locator('[data-picker-search]').fill('חצר');
     await expect(picker.locator('[data-picker-item="light.yard"]')).toBeVisible();

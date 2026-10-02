@@ -84,7 +84,8 @@ interface SeedIds {
 }
 
 function readScreens(): ScreenSpec[] {
-  return JSON.parse(fs.readFileSync(SCREENS_JSON, 'utf8')) as ScreenSpec[];
+  // source "evidence": the picture is copied from docs/**/evidence (a mock-backed evidence run), not captured here
+  return (JSON.parse(fs.readFileSync(SCREENS_JSON, 'utf8')) as (ScreenSpec & { source?: string })[]).filter((s) => s.source !== 'evidence');
 }
 
 function fillRoute(route: string, ids: SeedIds): string {

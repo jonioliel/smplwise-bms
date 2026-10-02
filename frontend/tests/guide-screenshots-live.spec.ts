@@ -406,7 +406,8 @@ async function guard(context: BrowserContext): Promise<void> {
 }
 
 function readScreens(): ScreenSpec[] {
-  return JSON.parse(fs.readFileSync(SCREENS_JSON, 'utf8')) as ScreenSpec[];
+  // source "evidence": copied from docs/**/evidence (mock-backed), never captured from the live installation
+  return (JSON.parse(fs.readFileSync(SCREENS_JSON, 'utf8')) as (ScreenSpec & { source?: string })[]).filter((s) => s.source !== 'evidence');
 }
 
 async function discoverIds(page: Page): Promise<Ids> {

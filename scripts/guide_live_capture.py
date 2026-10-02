@@ -277,6 +277,8 @@ def cmd_apply(args: argparse.Namespace) -> int:
         print(f"{name}: marked demo (restore its demo picture with git checkout)")
     live = set(copied)
     for s in screens:
+        if s.get("source") == "evidence":  # copied from docs/**/evidence, never live and never regenerated here
+            continue
         files = [f.name for f in IMG_DIR.glob(f"{s['id']}*.png") if re.fullmatch(rf"{re.escape(s['id'])}(-phone)?(--[a-z_]+)?\.png", f.name)]
         if s.get("source") == "live":  # an earlier apply: those pictures stay live unless re-marked
             live.update(f for f in files if f not in s.get("demo_files", []))

@@ -199,3 +199,37 @@ object FileTypes {
         }
     }
 }
+
+/** Two-finger swipe up opens the server list. Pure, so the thresholds are unit-tested. */
+object ServersGesture {
+    enum class Mode(val key: String) {
+        OFF("off"), ANYWHERE("anywhere"), EDGE("edge");
+
+        companion object {
+            fun of(key: String?): Mode = values().firstOrNull { it.key == key } ?: ANYWHERE
+        }
+    }
+
+    const val MIN_RISE_DP = 120f
+    const val MAX_MS = 700L
+    const val EDGE_FRACTION = 0.25f
+    private const val MAX_SPREAD_CHANGE = 0.25f
+
+    /** The two fingers moved apart or together by more than a quarter of their starting distance: a pinch (zoom), never this gesture.
+     *  Checked on every move as well as at the end, so a pinch that ends back at its starting distance is still ruled out. */
+    fun isPinch(startSpread: Float, spread: Float): Boolean =
+        startSpread > 0f && kotlin.math.abs(spread - startSpread) / startSpread > MAX_SPREAD_CHANGE
+
+    /** Average of both fingers at the start and the end of one two-finger touch that never had a third finger. */
+    fun isTrigger(
+        mode: Mode, startY: Float, endY: Float, startX: Float, endX: Float,
+        startSpread: Float, endSpread: Float, viewHeight: Float, durationMs: Long, density: Float,
+    ): Boolean {
+        if (mode == Mode.OFF || viewHeight <= 0f || durationMs > MAX_MS) return false
+        val rise = startY - endY
+        if (rise < MIN_RISE_DP * density) return false
+        if (kotlin.math.abs(endX - startX) > rise / 2) return false // mostly vertical
+        if (isPinch(startSpread, endSpread)) return false
+        return mode != Mode.EDGE || startY >= viewHeight * (1f - EDGE_FRACTION)
+    }
+}

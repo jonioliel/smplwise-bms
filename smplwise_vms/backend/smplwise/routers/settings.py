@@ -15,7 +15,7 @@ from ..auth import current_principal, get_conn
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import area_row, automation_settings, home_config, home_screen, media_layout, mobile_options, nav_size, nvr_capacity, timeline_colors
+from ..services import area_row, automation_settings, home_config, home_screen, look, media_layout, mobile_options, nav_size, nvr_capacity, tabs_mode, timeline_colors
 
 router = APIRouter()
 
@@ -51,6 +51,14 @@ DEFAULTS: dict[str, str] = {
     # auto (compact under 600 px wide, cards above) | cards (tall, icon above) | compact (a rectangle, icon beside the
     # value). Per installation; a browser may override it for itself (frontend/src/api/tile-layout.ts).
     "ui.tile_layout": "auto",
+    # Design foundation (2026-10-01): the installation's skin (classic = today's look | domus | tesla; frontend/src/design/skins)
+    # and light / dark / auto choice (a browser may keep its own scheme, in the browser only). Per installation.
+    "ui.skin": "classic",
+    "ui.scheme": "light",
+    # Bubble foundation (owner 2026-10-02): the look dials of the skin - density, surface, pop-up kind, corner radius, transparency,
+    # scale, desktop touch target, palette - a JSON object (shape, lists and ranges in services/look.py), read back as an object.
+    # The installation default carries every dial; a user's own partial override (/me/prefs) wins per dial.
+    "ui.look": json.dumps(look.DEFAULT, separators=(",", ":")),
     # UI round 1 (owner 2026-09-30): the size of the side rail / phone bottom bar - a JSON object, shape and ranges in
     # services/nav_size.py ({"mode":"rel","preset":"m"} or {"mode":"free","icon":..,"label":..,"item":..}); a user's own
     # value (/me/prefs) wins. Read back as an object.
@@ -61,6 +69,10 @@ DEFAULTS: dict[str, str] = {
     # {section_id: {"order": [tab_id...], "hidden": [tab_id...]}}; read back as an object, not a string. "{}" = nothing
     # configured = the built-in tabs. Contract: docs/architecture/TABS_CONFIG.md.
     "ui.tabs": "{}",
+    # release 0.1.153: how the tab groups are presented - tabs (default) | hybrid | dropdown - and a per-group override (a JSON object
+    # {home|area|multimedia|security|settings: mode}, read back as an object). A user's own value (/me/prefs) wins. services/tabs_mode.py.
+    "ui.tabs_mode": "tabs",
+    "ui.tabs_mode_groups": "{}",
     # owner 2026-09-30 (phone UX guards): which kinds of management the phone UI (< 768 px) hides - a JSON object of booleans,
     # shape and defaults in services/mobile_options.py; read back as an object. A UX guard only: permissions are unchanged.
     "ui.mobile": '{"hide_structure":true,"hide_layout_editor":false,"hide_wall_arrange":false,"hide_settings_writes":false,"hide_permissions":false,"hide_control_images":true}',
@@ -249,6 +261,9 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
         out[key] = int(value) if key in INT_KEYS else value
     out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
     out["ui.nav_size"] = _stored_nav_size(out["ui.nav_size"])
+    out["ui.look"] = look.stored(out["ui.look"])
+    out["ui.tabs_mode"] = tabs_mode.stored_mode(out["ui.tabs_mode"])
+    out["ui.tabs_mode_groups"] = tabs_mode.stored_groups(out["ui.tabs_mode_groups"])
     out["ui.mobile"] = _stored_mobile(out["ui.mobile"])
     out["timeline.colors"] = _stored_timeline_colors(out["timeline.colors"])
     out["devices.area_row"] = _stored_area_row(out["devices.area_row"], area_row.normalize_area, area_row.AREA_ROW_DEFAULT)
@@ -403,7 +418,7 @@ def normalize_tabs(value: Any) -> dict[str, Any]:
 
 class SettingsPatch(BaseModel):
     media_transport_default: str | None = Field(default=None, pattern="^(auto|webrtc|mse)$", alias="media.transport_default")
-    media_max_live_sessions: int | None = Field(default=None, ge=1, le=32, alias="media.max_live_sessions")
+    media_max_live_sessions: int | None = Field(default=None, ge=1, le=128, alias="media.max_live_sessions")
     media_wall_profile: str | None = Field(default=None, pattern="^(sub|main)$", alias="media.wall_profile")
     media_video_notices: str | None = Field(default=None, pattern="^(true|false)$", alias="media.video_notices")
     snapshots_max_age_s: int | None = Field(default=None, ge=5, le=3600, alias="snapshots.max_age_s")
@@ -427,9 +442,14 @@ class SettingsPatch(BaseModel):
     ui_hide_map: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_map")
     ui_security_snapshot: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.security_snapshot")
     ui_tile_layout: str | None = Field(default=None, pattern="^(auto|cards|compact)$", alias="ui.tile_layout")
+    ui_skin: str | None = Field(default=None, pattern="^(classic|domus|tesla|bubble)$", alias="ui.skin")  # keep in step with SKIN_IDS in frontend/src/design/skins/index.ts
+    ui_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="ui.scheme")
     ui_tabs: dict[str, Any] | None = Field(default=None, alias="ui.tabs")  # validated in full by normalize_tabs
+    ui_tabs_mode: str | None = Field(default=None, pattern="^(tabs|hybrid|dropdown)$", alias="ui.tabs_mode")
+    ui_tabs_mode_groups: dict[str, Any] | None = Field(default=None, alias="ui.tabs_mode_groups")  # validated in full by services/tabs_mode.py
     ui_mobile: dict[str, Any] | None = Field(default=None, alias="ui.mobile")  # validated in full by services/mobile_options.py
     ui_nav_size: dict[str, Any] | None = Field(default=None, alias="ui.nav_size")  # validated in full by services/nav_size.py
+    ui_look: dict[str, Any] | None = Field(default=None, alias="ui.look")  # validated in full by services/look.py (every dial required)
     timeline_palette: dict[str, Any] | None = Field(default=None, alias="timeline.colors")  # validated in full by services/timeline_colors.py
     playback_helper_line: str | None = Field(default=None, pattern="^(all|installers|hidden)$", alias="playback.helper_line")
     playback_diagnostics: str | None = Field(default=None, pattern="^(all|installers|hidden)$", alias="playback.diagnostics")
@@ -493,7 +513,7 @@ class SettingsPatch(BaseModel):
     remote_wall_profile: str | None = Field(default=None, pattern="^(main|sub)$", alias="remote.wall_profile")
     remote_mse_fallback: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.mse_fallback")
     remote_require_mfa_admin: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.require_mfa_admin")
-    remote_max_live_streams: int | None = Field(default=None, ge=1, le=32, alias="remote.max_live_streams")
+    remote_max_live_streams: int | None = Field(default=None, ge=1, le=128, alias="remote.max_live_streams")
     remote_csp_enforce: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.csp_enforce")
     alarm_remote_control: str | None = Field(default=None, pattern="^(true|false)$", alias="alarm.remote_control")
     alarm_remote_disarm: str | None = Field(default=None, pattern="^(true|false)$", alias="alarm.remote_disarm")
@@ -530,8 +550,16 @@ class SettingsPatch(BaseModel):
 def _capacity_info(conn: sqlite3.Connection) -> dict[str, Any]:
     """`nvr_channels` (None = unknown) and `warnings` ([{key, message}]): advisory only, a warning never blocks a save."""
     channels = nvr_capacity.recorder_channels(conn)
-    text = nvr_capacity.playback_sessions_warning(int(get_setting(conn, "playback.max_sessions", DEFAULTS["playback.max_sessions"]) or DEFAULTS["playback.max_sessions"]), channels)
-    return {"nvr_channels": channels, "warnings": [{"key": "playback.max_sessions", "message": text}] if text else []}
+    warnings = []
+    for key, fn in (
+        ("playback.max_sessions", nvr_capacity.playback_sessions_warning),
+        ("media.max_live_sessions", nvr_capacity.live_sessions_warning),
+        ("remote.max_live_streams", nvr_capacity.remote_live_streams_warning),
+    ):
+        text = fn(int(get_setting(conn, key, DEFAULTS[key]) or DEFAULTS[key]), channels)
+        if text:
+            warnings.append({"key": key, "message": text})
+    return {"nvr_channels": channels, "warnings": warnings}
 
 
 @router.get("/settings")
@@ -557,6 +585,16 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             changes["ui.nav_size"] = nav_size.normalize(changes["ui.nav_size"])
         except ValueError as exc:
             raise ApiError(422, "validation", "גודל הניווט: ערך לא תקין.", details={"ui.nav_size": str(exc)})
+    if "ui.look" in changes:
+        try:
+            changes["ui.look"] = look.normalize(changes["ui.look"])
+        except ValueError as exc:
+            raise ApiError(422, "validation", "מראה: ערך לא תקין.", details={"ui.look": str(exc)})
+    if "ui.tabs_mode_groups" in changes:
+        try:
+            changes["ui.tabs_mode_groups"] = tabs_mode.normalize_groups(changes["ui.tabs_mode_groups"])
+        except ValueError as exc:
+            raise ApiError(422, "validation", "תצוגת לשוניות לפי קבוצה: ערך לא תקין.", details={"ui.tabs_mode_groups": str(exc)})
     if "ui.mobile" in changes:
         try:
             changes["ui.mobile"] = mobile_options.normalize(changes["ui.mobile"])
@@ -644,7 +682,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if key == "home.widgets":
             set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value else "")
             continue
-        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.mobile", "timeline.colors", "schedules.classes", "devices.area_row", "devices.floor_row", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
+        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.tabs_mode_groups", "ui.mobile", "timeline.colors", "schedules.classes", "devices.area_row", "devices.floor_row", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
     if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now
         from ..services import schedules as schedules_svc
 
