@@ -21,11 +21,8 @@ from ..db import Database, bump_permission_revision, get_setting, set_setting
 log = logging.getLogger("smplwise.backup")
 
 FORMAT = 1
-PROJECT_TABLES = ["settings", "sites", "buildings", "floors", "plan_assets", "plan_versions", "plan_geometry", "catalog_items", "map_anchors", "recorders", "cameras", "spatial_zones", "shared_spaces", "shared_space_members", "cases", "case_items", "saved_views", "device_layouts", "alarm_zone_overrides", "notify_settings", "notify_policies", "device_bulk_protected", "device_switch_classified"]
+PROJECT_TABLES = ["settings", "sites", "buildings", "floors", "plan_assets", "plan_versions", "plan_geometry", "catalog_items", "map_anchors", "recorders", "cameras", "spatial_zones", "shared_spaces", "shared_space_members", "cases", "case_items", "saved_views", "device_layouts", "alarm_zone_overrides", "notify_settings", "notify_policies"]
 ACCESS_TABLES = ["users", "groups", "group_members", "bindings", "custom_roles"]
-# CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
-# them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
-KEEP_WHEN_ABSENT = frozenset({"device_bulk_protected", "device_switch_classified"})
 OPTIONAL_TABLES = {"audit": ["audit_log"], "events": ["events"]}
 FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path", "stylized_path"]}
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.zip$")
@@ -264,9 +261,8 @@ def _unsafe_rows(settings: Settings, data: dict[str, list[dict[str, Any]]]) -> d
 def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str = "replace", scope: str = "project", actor_user_id: str | None = None) -> dict[str, Any]:
     """Load a backup into the current database inside the caller's transaction. `replace` empties every table of
     the scope first, also one the archive does not have (a backup older than the table): the restored project equals
-    the backup, and no row is left pointing at a parent row being replaced (R-T7-1) - except KEEP_WHEN_ABSENT (CR-019's
-    switch protection): an archive without them keeps the current rows (`kept_current` in the answer). Identity rows of
-    the acting user are kept. `merge` only adds missing rows. Files are written before the commit; a failure rolls the rows back."""
+    the backup, and no row is left pointing at a parent row being replaced (R-T7-1). Identity rows of the acting user
+    are kept. `merge` only adds missing rows. Files are written before the commit; a failure rolls the rows back."""
     if mode not in ("replace", "merge"):
         raise ValueError("mode must be replace | merge")
     if scope not in ("project", "project+access"):
@@ -285,11 +281,8 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
             if member in names:
                 data[t] = json.loads(z.read(member).decode("utf-8"))
         keep = _actor_rows(conn, actor_user_id) if scope == "project+access" else {}
-        kept_current = [t for t in tables if t in KEEP_WHEN_ABSENT and t not in data]
         if mode == "replace":
             for t in reversed(tables):  # children before parents; a table missing from the archive is emptied too
-                if t in kept_current:
-                    continue  # CR-019: never emptied by an archive that does not have it
                 if t == "settings":
                     conn.execute(f"DELETE FROM settings WHERE key NOT IN ({', '.join('?' * len(SETTINGS_KEEP))})", list(SETTINGS_KEEP))
                 else:
@@ -329,7 +322,7 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
     swept = skins_store.sweep_orphans(settings, conn) if "plan_skin_controls" in existing else 0
     if skipped:
         log.warning("restore skipped %s row(s) with an unsafe id or path", sum(skipped.values()))
-    return {"mode": mode, "scope": scope, "tables": counts, "files": files, "skin_controls_swept": swept, "skipped_unsafe": skipped, "kept_current": kept_current, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at")}
+    return {"mode": mode, "scope": scope, "tables": counts, "files": files, "skin_controls_swept": swept, "skipped_unsafe": skipped, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at")}
 
 
 def save_upload(settings: Settings, content: bytes) -> dict[str, Any]:

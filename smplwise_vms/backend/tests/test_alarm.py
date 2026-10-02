@@ -810,11 +810,8 @@ def test_bypass_switch_without_config_entry_is_still_owned_by_the_alarm(alarm_ap
     r = c.post(f"/api/v1/ha/entities/{sw}/actions", json={"allowed_action_id": "switch.turn_off", "arguments": {}, "expected_state_version": None, "confirmation_grant": None,
                                                            "client_request_id": _rid(), "expires_at": "2099-01-01T00:00:00Z"}, headers=as_user("omer"))
     assert r.status_code == 409 and r.json()["code"] == "use_alarm_screen"
-    from smplwise.services import switch_protection
-
-    with app.state.db.connection() as conn:  # CR-019: judged and NOT protected - the alarm's ownership alone keeps it out
-        switch_protection.set_protected(conn, Principal(user_id="dev-joni", username="joni", display_name="joni", source="dev"), sw, False)
-        assert device_bulk.SwitchPolicy(conn).switch_reason(sw) == (False, "alarm_managed")
+    with app.state.db.connection() as conn:
+        device_bulk.set_bulk_safe(conn, Principal(user_id="dev-joni", username="joni", display_name="joni", source="dev"), sw, True)
     p = c.get("/api/v1/devices/actions/preview?scope=area&id=alarm_kitchen&kind=all_off").json()
     assert sw not in [t["entity_id"] for t in p["targets"]] and {x["entity_id"]: x["reason"] for x in p["excluded"]}[sw] == "alarm_managed"
 
@@ -875,25 +872,18 @@ def test_fallback_only_without_config_entry_and_not_alarm_mark(alarm_app):
     with app.state.db.connection() as conn:
         assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'alarm.mapping' AND decision = 'allowed' AND details_json LIKE '%not_alarm%'").fetchone()[0] == 3
 
-def test_bulk_never_reaches_a_bypass_switch_even_unprotected(alarm_app):
-    """CR-019: every unprotected switch enters a group action - except what the alarm section owns. A bypass switch is never
-    in bulk although unprotected, and the protection routes refuse it either way (409 alarm_managed, audited)."""
+def test_bulk_never_reaches_a_bypass_switch_even_marked_bulk_safe(alarm_app):
     app, s, c, calls, _ = alarm_app
-    from smplwise.services import device_bulk, switch_protection
+    from smplwise.services import device_bulk
 
     # a PAI bypass switch (no entity category, so the devices area lists it) placed in the kitchen area
     sw = "switch.paradox_zone_front_door_bypassed"
     with app.state.db.connection() as conn:
         conn.execute("UPDATE ha_entities SET area_id = 'alarm_kitchen', area_name = 'מטבח', ha_floor_id = 'alarm_ground', ha_floor_name = 'קרקע' WHERE entity_id = ?", (sw,))
-    for protected in (True, False):
-        r = c.put(f"/api/v1/devices/entities/{sw}/bulk-protected", json={"protected": protected})
-        assert r.status_code == 409 and r.json()["code"] == "alarm_managed"
-    r = c.post("/api/v1/devices/bulk-protected", json={"entity_ids": [sw], "action": "unprotect"})
-    assert r.json()["results"] == [{"entity_id": sw, "ok": False, "reason": "alarm_managed", "changed": False}]
-    with app.state.db.connection() as conn:
-        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'devices.bulk_protected' AND decision = 'denied' AND reason = 'alarm_managed'").fetchone()[0] == 2
-        # judged and unprotected behind the routes (as an upgrade could leave it): still never in bulk
-        switch_protection.set_protected(conn, Principal(user_id="dev-joni", username="joni", display_name="joni", source="dev"), sw, False)
+    r = c.put(f"/api/v1/devices/entities/{sw}/bulk-safe", json={"bulk_safe": True})
+    assert r.status_code == 409 and r.json()["code"] == "alarm_managed"
+    with app.state.db.connection() as conn:  # a mark made before this rule existed
+        device_bulk.set_bulk_safe(conn, Principal(user_id="dev-joni", username="joni", display_name="joni", source="dev"), sw, True)
         conn.execute("UPDATE ha_entities SET state = 'on' WHERE entity_id = ?", (sw,))
     p = c.get("/api/v1/devices/actions/preview?scope=area&id=alarm_kitchen&kind=all_off").json()
     assert sw not in [t["entity_id"] for t in p["targets"]]

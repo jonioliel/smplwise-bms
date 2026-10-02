@@ -384,7 +384,7 @@ def dev_registry(body: DevRegistryIn, request: Request, principal: Principal = D
             raise ApiError(422, "validation_error", "לכל קומה נדרש floor_id.")
     maps = ha_client.registry_maps(body.entities, body.devices, body.areas, body.floors)
     maps = {k: v for k, v in maps.items() if k.split(".", 1)[0] not in ha_sync.STATE_DOMAINS_SKIP}
-    from ..services import switch_protection  # CR-019: as the sync's own refresh - rename follow, gone, classify new switches
+    from ..services import device_bulk  # as the sync's own refresh: a mark never outlives its entity
 
     db: Database = request.app.state.db
     # one write transaction under the sync's mirror lock: a seed never interleaves with a registry refresh (the checks
@@ -393,8 +393,8 @@ def dev_registry(body: DevRegistryIn, request: Request, principal: Principal = D
         before = ha_sync.mirror_fingerprint(wconn)
         n = ha_sync.apply_registry(wconn, maps)
         ha_sync.apply_structure(wconn, body.areas, body.floors)
+        device_bulk.clear_stale_marks(wconn, set(maps))
         media_store.apply_devices(wconn, body.devices)  # CR-015: the device mirror and the media model, as the sync's refresh does
-        switch_protection.reconcile(wconn, set(maps), devices=body.devices)
         media_changed = media_store.rebuild(wconn)
         changed = ha_sync.mirror_fingerprint(wconn) != before
         audit(wconn, actor=principal, action="ha.dev.registry", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None),

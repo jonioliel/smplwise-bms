@@ -179,20 +179,9 @@ def test_m4_the_siblings_of_an_approved_speaker_are_refused_listed_read_only_and
     assert calls == [] and acall(c, "switch.hall_lamp", "switch.turn_off").status_code == 202
     listing = {e["entity_id"]: e for e in c.get("/api/v1/ha/entities").json()["entities"]}
     assert listing["switch.wiim_a_alarm"]["media_managed"] is True and listing["switch.wiim_a_alarm"]["actions"] == [] and listing["switch.hall_lamp"]["media_managed"] is False
-    # the bulk actions never reach it although unprotected (CR-019), and an administrator cannot protect / unprotect it
-    for protected in (True, False):
-        r = c.put("/api/v1/devices/entities/switch.wiim_a_alarm/bulk-protected", json={"protected": protected})
-        assert (r.status_code, r.json()["code"]) == (409, "use_media_screen")
-    r = c.post("/api/v1/devices/bulk-protected", json={"entity_ids": ["switch.wiim_a_alarm"], "action": "protect"})
-    assert r.json()["results"][0]["reason"] == "media_managed"
-    from smplwise.rbac import Principal
-    from smplwise.services import switch_protection
-
-    with app.state.db.connection() as conn:
-        switch_protection.set_protected(conn, Principal(user_id="dev-joni", username="joni", display_name="joni", source="dev"), "switch.wiim_a_alarm", False)
-    p = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "switches_off"}).json()
-    named = {t["entity_id"] for t in p["targets"]} | {x["entity_id"] for x in p["excluded"]}
-    assert "switch.hall_lamp" in {t["entity_id"] for t in p["targets"]} and "switch.wiim_a_alarm" not in named
+    # the bulk actions never reach it, and an administrator cannot mark it bulk-safe
+    r = c.put("/api/v1/devices/entities/switch.wiim_a_alarm/bulk-safe", json={"bulk_safe": True})
+    assert (r.status_code, r.json()["code"]) == (409, "use_media_screen")
     with app.state.db.connection(mode="read") as conn:
         _wide, _scope, permitted = device_bulk.bulk_scope(conn, DEV)
         assert permitted("switch.hall_lamp") and not permitted("switch.wiim_a_alarm") and not permitted("number.wiim_a_bass")
