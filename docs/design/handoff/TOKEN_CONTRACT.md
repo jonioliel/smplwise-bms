@@ -307,3 +307,60 @@ phone block changes sizes only. Four palettes exist (`default` blue, `sand`, `fo
     the 3D sky and wall, the 12 object classes and 6 circuit colours - light and dark.
 11. **Export**: a JSON (`{ "name": { "light": v, "dark": v } }`) and a CSS-variables file for light and for dark, using the names of
     this document or the mapping table of item 1.
+
+## 7. Performance tier (added 2026-10-02, bubble skin, branch `pilot/bubble-performance`)
+
+Wall tablets and weak phones must not pay for `backdrop-filter` on cards, pills, rows and scrolling lists. The look dial
+`performance` switches those surfaces between two tiers, **full** (the glass as designed) and **lite** (no blur, a near-solid tinted
+fill). A skin or a component that draws glass reads the switches below instead of hard-coding a blur. Sources:
+`frontend/src/design/performance.ts` (how `auto` decides), `design/look.ts` (the dial, `PERFORMANCE_BUNDLE`), `design/contrast.ts`
+(the lite alpha), `design/tokens.ts` (the defaults).
+
+### 7.1 Tokens
+
+| Token | Full | Lite | Meaning |
+|---|---|---|---|
+| `--sw-perf-blur` | `initial` | `none` | A switch, not a design value. A component writes `backdrop-filter: var(--sw-perf-blur, blur(16px) saturate(150%))` (and the `-webkit-` twin): in full the variable is the guaranteed-invalid value `initial`, so the fallback (the component's own blur) applies; in lite it is `none`. |
+| `--sw-perf-glass-bg` | `initial` | `rgba(var(--sw-sheet-rgb), var(--sw-lite-alpha))` | The translucent fill that replaces a glass fill in lite: `background: var(--sw-perf-glass-bg, <own translucent fill>)`. It is the sheet colour at the lite alpha, so it follows light / dark. |
+| `--sw-lite-alpha` | `0.9` (token default) | computed | The alpha of the lite fill. Set on `<html>` (and on a settings preview box) by `applyLook()`: `max(LITE_MIN_ALPHA = 0.86, liteAlphaFloor)`. |
+
+Both `--sw-perf-*` tokens are the same in light and dark (`same('initial')` in `tokens.ts`); the dark/light difference comes from
+`--sw-sheet-rgb`. Rule for designers: **never write a bare `backdrop-filter: blur(..)` on a card, pill, row, chip or list** - wrap it in
+`var(--sw-perf-blur, ..)`, and give a translucent fill a `var(--sw-perf-glass-bg, ..)` wrapper, or the lite tier will not reach it.
+
+How the lite alpha is computed (`contrast.ts`): without a blur nothing averages what is behind the layer, and there is no dimming
+scrim under it, so the worst case is a single extreme pixel. `liteLayerModel` takes the sheet model (sheet colour, texts
+`--sw-text` / `--sw-text-2` / `--sw-heading`, backdrops `--sw-bg`, `--sw-lit`, `--sw-accent`, `--sw-hue-2`, `--sw-surface`, white and
+near-black), removes the overlay and adds pure red, blue, green and yellow as candidates behind. `liteAlphaFloor` is the lowest alpha at
+which every text still reads at WCAG 4.5:1 over every candidate; `liteAlpha` = `max(0.86, floor)`, so lite is always near-solid.
+
+### 7.2 The attribute
+
+`<html data-bubble-performance="full|lite">` is the resolved tier (never `auto`). `design/look.ts` writes it in `applyLook()`, and a
+settings preview box carries its own attribute (`lookAttributes`), so one page can show both tiers. The bundle is emitted as CSS for
+the bubble skin only: `:root[data-skin="bubble"][data-bubble-performance="lite"], :root[data-skin="bubble"] [data-bubble-performance="lite"] { ... }`
+(`lookBundlesCss`); the `full` bundle resets both tokens to `initial` so a lite page does not leak into a full preview inside it.
+
+Not switched by the tier (they keep their blur in lite): the dock, rail and tree (`--sw-glass-blur-nav`), the sheet scrim
+(`--sw-backdrop-blur`) and the open pop-up (`--sw-glass-blur-sheet`).
+
+### 7.3 The dial `ui.look.performance`
+
+`auto` (default) | `full` | `lite`, part of the `ui.look` value: set for the installation (`ui.look` setting, every dial present) and
+optionally overridden per user (`ui.look` in my prefs, a partial object). Labels: auto "אוטומטי", full "מלא", lite "קל". The backend
+validates it (`services/look.py`, unknown values refused); presentation only, no permission depends on it. `full` and `lite` are taken
+as chosen; `auto` is resolved on the device by `performance.ts`.
+
+### 7.4 How `auto` decides (client side, `design/performance.ts`)
+
+1. **Weak-signal check** (synchronous, free; the first match wins, no probe): `prefers-reduced-transparency`, `prefers-reduced-motion`,
+   `hardwareConcurrency <= 4`, `deviceMemory <= 2` GB (when the browser reports it). Any one => lite.
+2. **Cached verdict**: otherwise the stored verdict is used if it is fresh and belongs to this device class (below).
+3. **Probe**: with nothing cached the page starts as full and, once per page view at idle (after load), measures ~700 ms of
+   `requestAnimationFrame` with a nearly invisible blurred test layer over a moving backdrop. The first 3 frames are dropped; fewer than 12
+   usable frames (hidden or throttled tab) is no verdict and nothing is cached; a median frame interval above 24 ms (under about 42 fps)
+   => lite, else full. The verdict is cached and the look is re-applied, so a probed-lite device flips once and then starts lite on every load.
+
+Cache key: **`sw.ui.performance`** in `localStorage`, value `{ tier, sig, at }`; `sig` = `cores/memoryGb/devicePixelRatio` (a different
+device class invalidates it), valid for 30 days (and not dated in the future). Storage that is unavailable only means the verdict lasts
+for the page view. Thresholds live in `PERF_THRESHOLDS`; they are engineering values, not design values.
