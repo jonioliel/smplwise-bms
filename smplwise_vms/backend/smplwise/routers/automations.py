@@ -223,6 +223,15 @@ def _kind_viewer(request: Request, principal: Principal = Depends(current_princi
     return principal
 
 
+def _kind_viewer_gate(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
+    """`_kind_viewer` for the routes that read their body themselves: the view permission of the PATH's kind is checked on a
+    read connection BEFORE the body is read, so a slow client never holds SQLite's write lock (review L7)."""
+    _bind(request)
+    kind = _kind(str(request.path_params.get("kind")))
+    _view_gate_check(kind)(conn, principal)
+    return principal
+
+
 def _manage_check_for(kind: str, conn: sqlite3.Connection, principal: Principal) -> None:
     _require_any(conn, principal, (scope.MANAGE_OF[kind],))
 
@@ -387,7 +396,7 @@ def update_code(kind: str, item_id: str, request: Request, principal: Principal 
 
 
 @router.put("/automations/{kind}/{item_id}/meta")
-def put_meta(kind: str, item_id: str, request: Request, principal: Principal = Depends(_kind_viewer), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def put_meta(kind: str, item_id: str, request: Request, principal: Principal = Depends(_kind_viewer_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.1 row 21 - the caller's own pin / favourite; `hidden` (integration scenes) by an administrator."""
     kind = _kind(kind)
     body = _parse(request, raw, MetaBody)
@@ -417,7 +426,7 @@ def copy_item(kind: str, item_id: str, request: Request, principal: Principal = 
 
 
 @router.post("/automations/{kind}/{item_id}/dry-run")
-def dry_run(kind: str, item_id: str, request: Request, principal: Principal = Depends(_kind_viewer), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def dry_run(kind: str, item_id: str, request: Request, principal: Principal = Depends(_kind_viewer_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.1 row 17 - no execution: the current truth of each typed condition from the mirror and the device diff. An optional body `{draft}` evaluates an unsaved
     edit of the item instead of the stored content."""
     kind = _kind(kind)
