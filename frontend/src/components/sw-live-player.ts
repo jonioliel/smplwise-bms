@@ -179,7 +179,7 @@ export class SwLivePlayer extends LitElement {
       background: rgba(17, 24, 39, 0.6);
       border-radius: 999px;
       padding: 2px 8px;
-      backdrop-filter: blur(6px);
+      backdrop-filter: var(--sw-perf-blur, blur(6px));
     }
     .status i {
       inline-size: 6px;
@@ -261,7 +261,7 @@ export class SwLivePlayer extends LitElement {
       background: rgba(17, 24, 39, 0.6);
       border-radius: 999px;
       padding: 2px 8px;
-      backdrop-filter: blur(6px);
+      backdrop-filter: var(--sw-perf-blur, blur(6px));
     }
     .vbadge.mse {
       background: rgba(180, 83, 9, 0.85);

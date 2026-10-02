@@ -112,7 +112,7 @@ const rules = `
 :host(sw-app) a.item.a.active { background: var(--sw-accent); color: var(--sw-text-inverse); }
 :host(sw-app) a.item.a.active sw-icon { color: var(--sw-text-inverse); }
 /* bubble 3 - the floating corner (search / status) and the search panel */
-:host(sw-app) .float .pillrow, :host(sw-app) .searchpanel { border-radius: var(--sw-r-pill); background: var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: inset 0 1px 0 var(--sw-highlight), var(--sw-shadow-2); }
+:host(sw-app) .float .pillrow, :host(sw-app) .searchpanel { border-radius: var(--sw-r-pill); background: var(--sw-perf-glass-bg, var(--sw-nav-glass)); -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur-nav)); backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur-nav)); box-shadow: inset 0 1px 0 var(--sw-highlight), var(--sw-shadow-2); }
 /* bubble 4 - the phone dock: the bottom bar is a floating pill stack beside the home button (sw-app renders the dock row in this skin) */
 :host(sw-app) nav.bottom.bottom { background: transparent; border: 0; box-shadow: none; }
 :host(sw-app) nav.bottom.bottom .stack { background: var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong), var(--sw-shadow-2); }

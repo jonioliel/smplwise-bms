@@ -305,9 +305,10 @@ export class SwPill extends LitElement {
     }
     /* glass: a translucent, blurred layer over the canvas */
     :host([data-surface='glass']:not([accent])) {
-      background: rgba(var(--sw-sheet-rgb), 0.42);
-      -webkit-backdrop-filter: blur(16px) saturate(150%);
-      backdrop-filter: blur(16px) saturate(150%);
+      /* the lite tier (performance dial): no blur on a pill, a tinted near-solid fill at the contrast-computed alpha */
+      background: var(--sw-perf-glass-bg, rgba(var(--sw-sheet-rgb), 0.42));
+      -webkit-backdrop-filter: var(--sw-perf-blur, blur(16px) saturate(150%));
+      backdrop-filter: var(--sw-perf-blur, blur(16px) saturate(150%));
       box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong);
     }
     :host([data-surface='glass']) .ring:not(.hue) {

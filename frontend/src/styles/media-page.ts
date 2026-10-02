@@ -274,9 +274,9 @@ export const mediaPageStyles = css`
       gap: 2px;
       padding: 3px;
       border-radius: 999px;
-      background: var(--mm-sheet-surface);
-      -webkit-backdrop-filter: blur(16px);
-      backdrop-filter: blur(16px);
+      background: var(--sw-perf-glass-bg, var(--mm-sheet-surface));
+      -webkit-backdrop-filter: var(--sw-perf-blur, blur(16px));
+      backdrop-filter: var(--sw-perf-blur, blur(16px));
       box-shadow: var(--dv-shadow-control);
       border: 1px solid var(--dv-border);
     }
@@ -352,8 +352,8 @@ export const mediaPageStyles = css`
       max-inline-size: calc(100% - 24px);
       inset-block-end: 26px;
       background: rgba(28, 28, 30, 0.88);
-      -webkit-backdrop-filter: blur(20px);
-      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: var(--sw-perf-blur, blur(20px));
+      backdrop-filter: var(--sw-perf-blur, blur(20px));
       color: #fff;
       padding: 11px 20px 11px 16px;
       border-radius: 999px;
