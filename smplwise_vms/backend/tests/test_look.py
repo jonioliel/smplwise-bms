@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from smplwise.main import create_app
 from smplwise.services import look
 
-FULL = {"density": "compact", "surface": "glass", "popup": "centred", "radius": "soft", "transparency": 60, "scale": 110, "touch": 32, "palette": "default"}
+FULL = {"density": "compact", "surface": "glass", "popup": "centred", "radius": "soft", "transparency": 60, "scale": 110, "touch": 32, "performance": "lite", "palette": "default"}
 
 BAD_FULL = [
     "compact",
@@ -33,6 +33,10 @@ BAD_FULL = [
     {**FULL, "scale": 131},
     {**FULL, "touch": 40},
     {**FULL, "touch": "44"},
+    {**FULL, "performance": "fast"},
+    {**FULL, "performance": "LITE"},
+    {**FULL, "performance": True},
+    {**FULL, "performance": None},
     {**FULL, "palette": "ocean"},
     {**FULL, "accent": "#ff0000"},  # unknown dial
     {k: v for k, v in FULL.items() if k != "radius"},  # the installation default needs every dial
@@ -50,6 +54,7 @@ def test_defaults_and_the_frontend_lists_agree():
     assert re.search(r"transparency:\s*\{[^}]*range:\s*\[40,\s*100\]", front, re.S)
     assert re.search(r"scale:\s*\{[^}]*range:\s*\[80,\s*130\]", front, re.S)
     assert re.search(r"touch:\s*\{[^}]*values:\s*\[32,\s*44\]", front, re.S)
+    assert look.PERFORMANCES == ("auto", "full", "lite") and look.DEFAULT["performance"] == "auto"  # the performance tier: auto is the default
 
 
 @pytest.mark.parametrize("value", [FULL, look.DEFAULT, {**FULL, "transparency": 40, "scale": 80}, {**FULL, "transparency": 100, "scale": 130, "touch": 44}])
@@ -65,6 +70,12 @@ def test_normalize_refuses_everything_else(value):
 
 def test_partial_and_stored():
     assert look.normalize_partial({}) == {}
+    assert look.normalize_partial({"performance": "lite"}) == {"performance": "lite"}
+    for bad in ("fast", "Auto", 1, None, ["lite"]):
+        with pytest.raises(ValueError):
+            look.normalize_partial({"performance": bad})
+    # a default stored before the performance dial existed reads as "auto" for that dial
+    assert look.stored(json.dumps({k: v for k, v in FULL.items() if k != "performance"}))["performance"] == "auto"
     assert look.normalize_partial({"density": "row"}) == {"density": "row"}
     with pytest.raises(ValueError):
         look.normalize_partial({"density": "row", "x": 1})
@@ -110,7 +121,7 @@ def test_user_override_is_partial_per_user_validated_and_clearable(settings):
     # an empty override is a stored "nothing overridden"
     assert c.put("/api/v1/me/prefs", headers=as_user("dana"), json={"ui.look": {}}).json()["prefs"]["ui.look"] == {}
     assert c.get("/api/v1/me/prefs").json()["prefs"]["ui.look"] == {"density": "row", "touch": 32}  # another user is untouched
-    for bad in ({"density": "huge"}, {"transparency": 30}, {"scale": "100"}, {"touch": 36}, {"palette": "x"}, {"colour": "red"}, "compact", []):
+    for bad in ({"density": "huge"}, {"transparency": 30}, {"scale": "100"}, {"touch": 36}, {"performance": "turbo"}, {"palette": "x"}, {"colour": "red"}, "compact", []):
         assert c.put("/api/v1/me/prefs", json={"ui.look": bad}).status_code == 422, bad
     assert c.get("/api/v1/me/prefs").json()["prefs"]["ui.look"] == {"density": "row", "touch": 32}
     # a full object is fine too, and null = "לפי ההתקנה": the key is gone again

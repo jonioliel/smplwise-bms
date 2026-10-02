@@ -12,7 +12,7 @@ import { isApi } from '../api/session';
 import { currentSkin, onDesign } from '../design/apply';
 import {
   DENSITY_BUNDLE, LOOK_DEFAULT, LOOK_DIALS, LOOK_DIAL_IDS, RADIUS_BUNDLE, effectiveSheetAlpha, installationLook, lookAttributes, normalizeDial, onLook, ownLook, saveDemoInstallationLook, saveOwnLook,
-  sameLook, setInstallationLook, type Look, type LookDial, type PartialLook,
+  sameLook, setInstallationLook, tierOf, type Look, type LookDial, type PartialLook,
 } from '../design/look';
 
 type Target = 'own' | 'installation';
@@ -328,7 +328,9 @@ export class SystemLook extends LitElement {
     const inst = installationLook()[dial] as string | number;
     const current = (this.target === 'installation' ? this.draftInst[dial] : this.own[dial] ?? null) as string | number | null;
     const disabled = this.busy || (this.target === 'installation' && !this.canEdit);
-    const hint = current === null ? `לפי ההתקנה: ${d.labelHe[String(inst)]}` : d.hintHe[String(current)];
+    let hint = current === null ? `לפי ההתקנה: ${d.labelHe[String(inst)]}` : d.hintHe[String(current)];
+    // the performance dial: auto shows what this device decided (design/performance.ts)
+    if (dial === 'performance' && (current ?? inst) === 'auto') hint += ` · כרגע: ${d.labelHe[tierOf('auto')]}`;
     return html`<div class="row" data-look-row=${dial}>
       <span class="lbl">${d.nameHe}<span class="muted">${hint}</span></span>
       <span class="seg" role="group" aria-label=${d.nameHe}>
@@ -393,9 +395,10 @@ export class SystemLook extends LitElement {
       ${this.rangeRow('transparency')}
       ${this.rangeRow('scale')}
       ${this.choiceRow('touch')}
+      ${this.choiceRow('performance')}
       ${this.choiceRow('palette')}
       <div class="preview" data-look-preview=${`${l.density}/${l.surface}/${l.popup}/${l.radius}/${l.transparency}/${l.scale}/${l.touch}`} aria-label="תצוגה מקדימה" style=${styleMap(this.previewStyle(l))}
-        data-bubble-density=${attrs['data-bubble-density']} data-bubble-surface=${attrs['data-bubble-surface']} data-bubble-radius=${attrs['data-bubble-radius']} data-bubble-touch=${attrs['data-bubble-touch']}>
+        data-bubble-density=${attrs['data-bubble-density']} data-bubble-surface=${attrs['data-bubble-surface']} data-bubble-radius=${attrs['data-bubble-radius']} data-bubble-touch=${attrs['data-bubble-touch']} data-bubble-performance=${attrs['data-bubble-performance']}>
         <div class="pv-col">
           <sw-pill variant="slider" icon="light" label="תאורה מרכזית" state="דולק · 72%" .value=${0.72} on .hue=${2} .density=${l.density} .surface=${l.surface} tabindex="-1" data-preview-pill></sw-pill>
           <sw-pill variant="plain" icon="coverOpen" label="תריס חלון" state="פתוח · 60%" .value=${0.6} on fill-color="var(--sw-accent-soft)" .hue=${4} .density=${l.density} .surface=${l.surface} tabindex="-1">

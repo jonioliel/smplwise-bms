@@ -520,8 +520,8 @@ export const mediaGlassControls = css`
     padding-inline: 10px;
     border-radius: 999px;
     background: rgba(0, 0, 0, 0.4);
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: var(--sw-perf-blur, blur(12px));
+    backdrop-filter: var(--sw-perf-blur, blur(12px));
     border: 1px solid rgba(255, 255, 255, 0.16);
     color: #fff;
     font-size: 11.5px;

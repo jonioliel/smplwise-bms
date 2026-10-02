@@ -603,8 +603,8 @@ export class SystemNotifications extends LitElement {
         flex-direction: column;
         gap: 3px;
         font-family: var(--dv-font);
-        -webkit-backdrop-filter: blur(30px);
-        backdrop-filter: blur(30px);
+        -webkit-backdrop-filter: var(--sw-perf-blur, blur(30px));
+        backdrop-filter: var(--sw-perf-blur, blur(30px));
         border: 1px solid rgba(255, 255, 255, 0.6);
       }
       :host([data-devices-scheme='dark']) .pushcard {

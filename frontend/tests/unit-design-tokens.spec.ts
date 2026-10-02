@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test';
 import { TOKENS, TOKEN_GROUPS, TOKEN_NAMES } from '../src/design/tokens';
 import { SKINS, SKIN_IDS, SKIN_RULE_BUDGET, DEFAULT_SKIN } from '../src/design/skins';
 import { ruleCount, skinRules, skinTable, tokensCss } from '../src/design/css';
-import { DENSITY_BUNDLE, LOOK_DEFAULT, LOOK_DIALS, LOOK_DIAL_IDS, RADIUS_BUNDLE, normalizeDial, normalizeLook } from '../src/design/look';
-import { alphaFloor, sheetModelOf, worstTextContrast } from '../src/design/contrast';
+import { DENSITY_BUNDLE, LOOK_DEFAULT, LOOK_DIALS, LOOK_DIAL_IDS, PERFORMANCE_BUNDLE, RADIUS_BUNDLE, normalizeDial, normalizeLook } from '../src/design/look';
+import { LITE_MIN_ALPHA, alphaFloor, liteAlpha, liteAlphaFloor, liteLayerModel, sheetModelOf, worstTextContrast } from '../src/design/contrast';
 
 // Design foundation (2026-10-01): the token table and the skins. Node only: the table is data, the CSS is generated from it.
 
@@ -190,4 +190,50 @@ test('contrast: body, secondary and tertiary text, accent text, text on accent, 
   const unexpected = fails.filter((f) => !(f.startsWith('classic/light ') && KNOWN_CLASSIC_LIGHT.some((k) => f.includes(k))));
   expect(unexpected).toEqual([]);
   expect(fails.length - unexpected.length, 'a known classic/light pair got fixed: remove it from the list').toBe(KNOWN_CLASSIC_LIGHT.length);
+});
+
+// ---- the performance tier (lite): no blur on cards / pills / rows / lists, tinted fills that keep the contrast guard ----
+test('performance dial: auto | full | lite, auto is the default; the bundle switches the blur and the glass fill, and the CSS carries it for the bubble skin', () => {
+  expect([...LOOK_DIALS.performance.values]).toEqual(['auto', 'full', 'lite']);
+  expect(LOOK_DEFAULT.performance).toBe('auto');
+  expect(normalizeDial('performance', 'lite')).toBe('lite');
+  expect(normalizeDial('performance', 'turbo')).toBeNull();
+  expect(normalizeLook({ performance: 'lite', density: 'row' })).toEqual({ density: 'row', performance: 'lite' });
+  for (const tier of ['full', 'lite'] as const) for (const name of Object.keys(PERFORMANCE_BUNDLE[tier])) expect(TOKENS[name], `${tier}: ${name} is not a token`).toBeTruthy();
+  expect(PERFORMANCE_BUNDLE.lite['--sw-perf-blur']).toBe('none');
+  expect(PERFORMANCE_BUNDLE.full['--sw-perf-blur']).toBe('initial'); // full = the component's own blur (the var() fallback applies)
+  expect(TOKENS['--sw-perf-blur'].light).toBe('initial');
+  const css = tokensCss();
+  expect(css).toContain(':root[data-skin="bubble"][data-bubble-performance="lite"],:root[data-skin="bubble"] [data-bubble-performance="lite"]{--sw-perf-blur:none;');
+  expect(css).toContain('[data-bubble-performance="full"]');
+  // the dock / rail / tree, the scrim and the open pop-up keep their blur tokens (lite does not touch them)
+  for (const kept of ['--sw-glass-blur-nav', '--sw-glass-blur-sheet', '--sw-backdrop-blur']) expect(Object.keys(PERFORMANCE_BUNDLE.lite)).not.toContain(kept);
+});
+
+test('lite tier contrast: the un-blurred tinted fill reads at >= 4.5:1 for every text over every worst-case pixel, in both schemes', () => {
+  for (const id of SKIN_IDS) {
+    const t = skinTable(id);
+    for (const mode of ['light', 'dark'] as const) {
+      const model = sheetModelOf((n) => t[n]?.[mode] ?? '');
+      expect(model, `${id}/${mode}`).toBeTruthy();
+      const lite = liteLayerModel(model!);
+      expect(lite.overlay[3], 'no dimming overlay under an un-blurred layer').toBe(0);
+      expect(lite.behind.length).toBeGreaterThan(model!.behind.length); // the saturated primaries are added
+      const floor = liteAlphaFloor(model!);
+      const alpha = liteAlpha(model!);
+      expect(alpha, `${id}/${mode} lite alpha`).toBeGreaterThanOrEqual(LITE_MIN_ALPHA);
+      expect(alpha).toBeGreaterThanOrEqual(floor);
+      expect(alpha).toBeLessThanOrEqual(1);
+      // at the lite alpha and at every alpha above it the worst pair passes
+      for (let a = alpha; a <= 1.0001; a += 0.01) expect(worstTextContrast(lite, Math.round(a * 100) / 100), `${id}/${mode} alpha ${a.toFixed(2)}`).toBeGreaterThanOrEqual(4.5);
+      // the floor is tight (one step below fails) unless it sits at 0
+      if (floor > 0.01) expect(worstTextContrast(lite, floor - 0.01), `${id}/${mode} below the lite floor`).toBeLessThan(4.5);
+    }
+  }
+  // the bubble skin needs no more than the near-solid minimum: lite costs no extra opacity beyond it
+  for (const mode of ['light', 'dark'] as const) {
+    const t = skinTable('bubble');
+    const model = sheetModelOf((n) => t[n]?.[mode] ?? '')!;
+    expect(liteAlpha(model), `bubble/${mode}`).toBeLessThanOrEqual(1);
+  }
 });

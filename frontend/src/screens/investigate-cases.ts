@@ -397,7 +397,7 @@ export class InvestigateCaseDetail extends LitElement {
       align-items: center;
       gap: 8px;
       background: rgba(17, 24, 39, 0.65);
-      backdrop-filter: blur(8px);
+      backdrop-filter: var(--sw-perf-blur, blur(8px));
       border-radius: var(--sw-r-pill);
       padding: 4px 10px;
       font-size: var(--sw-fs-xs);
