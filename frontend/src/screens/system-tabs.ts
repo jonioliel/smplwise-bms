@@ -8,6 +8,7 @@ import '../components/sw-toggle';
 import '../components/sw-state-panel';
 import { describeError } from '../api/client';
 import '../components/sw-tabs';
+import './system-tabs-mode';
 import { getSettings, patchSettings, type TabsConfig, type TabStyle, type TabStyleDefaults } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { can, isApi } from '../api/session';
@@ -526,6 +527,7 @@ export class SystemTabsConfig extends LitElement {
     const api = isApi();
     return html`<div class="sections" data-tabs-config>
       <p class="intro">בחרו אילו לשוניות מוצגות בכל אזור ובאיזה סדר. השינוי חל על כל המשתמשים והלשונית הראשונה המוצגת היא זו שהאזור נפתח עליה. הסדר של הניווט הראשי הוא ברירת המחדל: כל משתמש יכול לסדר אותו לעצמו. הסתרת לשונית אינה מבטלת הרשאות והכתובת שלה ממשיכה לעבוד למי שמורשה; בכל אזור נשארת לפחות לשונית אחת.</p>
+      <system-tabs-mode></system-tabs-mode>
       ${this.renderStyleDefaults()}
       ${TAB_SECTIONS.map((def) => this.renderSection(def))}
       <div class="savebar">

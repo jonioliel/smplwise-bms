@@ -169,3 +169,23 @@ Two smaller findings by reading the code (not exercised by a test):
    Studio smoke run for an `editor` role before release.
 3. Do **not** simply put `system.configure` on `GET /ha/entities` or `/ha/ws`: it breaks Plan Studio for editors and the
    live push for every viewer.
+
+## Presentation mode: tabs, hybrid or dropdown (release 0.1.153)
+
+How a group of tabs is drawn on the phone (<= 767 px; wider screens are always `tabs`) is a separate setting from the order, the
+visibility and the look (`ui.tabs`). Three values: `tabs` (today, the default everywhere), `hybrid` (a bar of up to three items,
+a dropdown for four or more) and `dropdown`.
+
+- **Groups** (closed list, `services/tabs_mode.py` and `shell/tabs-mode.ts`): `home` (the areas chip row of the home screen),
+  `area` (the sub-tabs of the home / map / WisKey areas), `multimedia` (the area row and the room filter), `security` (the
+  sections and their pages) and `settings` (the settings tabs and the security sub-tabs). The main bottom navigation is not a group.
+- **Keys**, installation default in `/settings` and the user's own in `/me/prefs` (null = follow the installation):
+  `ui.tabs_mode` (`tabs|hybrid|dropdown`) and `ui.tabs_mode_groups` (an object `{group: mode}`). Unknown modes and unknown groups are
+  refused with a 422; nothing is silently dropped. Presentation only, no permission is involved.
+- **Effective mode** of a group, first match wins: the user's group override, the user's global value, the installation's group
+  override, the installation's global value, `tabs`. `tabModeOf(group)` (next to `tabStyleOf`) answers it.
+- **In `tabs` mode nothing changes**: the DOM of the `pill` / `underline` / `underline-compact` variants is untouched. In `hybrid`
+  a short list keeps the look `ui.tabs` chose; `dropdown` is `sw-tabs variant="dropdown"` (`sw-dropdown`: a real listbox, 44 px
+  targets, the selected item's count in the chip, a dot on the chip when a hidden option has an alert). The security sections keep
+  the alarm one tap away as its own button in `dropdown` mode while it is not the section shown.
+- **UI**: הגדרות › כללי › לשוניות › "תצוגת לשוניות" (installation default, "ההעדפה שלי", per-group selects, a live preview).

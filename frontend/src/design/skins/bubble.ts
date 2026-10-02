@@ -143,7 +143,12 @@ const rules = `
 :host(sw-dialog) .backdrop { -webkit-backdrop-filter: var(--sw-backdrop-blur); backdrop-filter: var(--sw-backdrop-blur); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { :host(sw-dialog) .box, :host(sw-popover), :host(sw-drawer) .panel, :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom .stack, :host(devices-building) nav.tree { background: var(--sw-surface-solid); } }
 @media (prefers-reduced-transparency: reduce) { :host(sw-dialog) .box, :host(sw-popover), :host(sw-drawer) .panel, :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom .stack, :host(devices-building) nav.tree { background: var(--sw-surface-solid); -webkit-backdrop-filter: none; backdrop-filter: none; } }
-/* bubble 10 - tables: pill-shaped rows with a soft hover (admin lists stay tables, never a column of pills) */
+/* bubble 10 - the phone tab pair (0.1.153 dropdown mode) and the dropdown chip / list follow the skin: glass row, pill chips, a translucent list */
+:host(sw-app) .tabpair { background: var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); }
+:host(sw-app) .tabpair a.alarmpin { border-radius: 50%; background: var(--sw-surface-2); }
+:host(sw-dropdown) .chip { border: 0; border-radius: var(--sw-r-pill); background: var(--sw-surface-2); box-shadow: none; }
+:host(sw-dropdown) .pop { border: 0; border-radius: var(--sw-r-lg); background: rgba(var(--sw-sheet-rgb), var(--sw-sheet-alpha)); box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong), var(--sw-shadow-3); }
+/* bubble 11 - tables: pill-shaped rows with a soft hover (admin lists stay tables, never a column of pills) */
 :host(sw-table) tbody tr:hover { background: var(--sw-surface-3); }
 :host(sw-table) th { font-weight: var(--sw-fw-semibold); }
 :host(sw-page) h1 { letter-spacing: -0.3px; }

@@ -708,18 +708,18 @@ export class DevicesTilesPanel extends LitElement {
 
   /** The master control (owner 2026-09-29): acts on the rows the panel shows (its scope, filter and search) through
    * the existing bulk flow - its confirmation dialog, its rules (only what the caller may control in bulk; a switch
-   * only when marked bulk-safe), batches, per-item result and audit. On / off: filled while any shown device is on
+   * unless an administrator protected it), batches, per-item result and audit. On / off: filled while any shown device is on
    * (a press turns them all off), outline when all are off (a press turns them all on), with a count badge when only
    * some are on. Covers: open all and close all. */
   private renderMaster(shown: DeviceItem[], narrowed: boolean, name: string) {
     const master = KIND_META[this.kind].master!;
     const only = narrowed ? shown.map((r) => r.entity_id) : undefined;
-    // re-review M1: only the rows a bulk action would reach count (controllable, not excluded - for a switch: marked
-    // bulk-safe by an administrator); with none, the button is disabled and says why
+    // re-review M1: only the rows a bulk action would reach count (controllable, not excluded - for a switch: not protected
+    // from group actions by an administrator); with none, the button is disabled and says why
     const avail = shown.filter((r) => rowState(r) !== 'unavailable' && r.can_control && !r.bulk_excluded);
     const on = avail.filter((r) => rowState(r) === 'active').length;
     // owner 2026-09-30: nothing about eligibility on the screen - the reason lives in the disabled button's tooltip only
-    const none = this.kind === 'switches' ? 'אין מתגים שאושרו לפעולה קבוצתית - הגדרות › חשמל' : 'אין כאן התקנים שאושרו לפעולה קבוצתית - הגדרות › חשמל';
+    const none = this.kind === 'switches' ? 'כל המתגים כאן מוגנים מפעולה קבוצתית - הגדרות › חשמל והתקנים' : 'אין כאן התקנים שאושרו לפעולה קבוצתית - הגדרות › חשמל';
     const ask = (kind: BulkKind) => void this.bulkDialog?.show({ scope: this.scope, id: this.scope === 'building' ? '*' : this.scopeId, name, kind, only });
     if ('open' in master) {
       return html`<div class="master-group" data-panel-master="covers">

@@ -784,7 +784,7 @@ ENTITIES: dict[str, tuple[str, str | None, str, dict[str, Any]]] = {
     SHABBAT: ("Rest day in effect", None, "off", {"device_class": None}),
     "binary_sensor.motion_hall": ("Hall motion", "sch_living", "off", {"device_class": "motion"}),
     "sensor.outdoor_temperature": ("Outdoor temperature", "sch_yard", "22.5", {"unit_of_measurement": "°C"}),
-    # a zone-bypass switch of the alarm's own integration: owned by the alarm section, never schedulable (even when marked bulk-safe)
+    # a zone-bypass switch of the alarm's own integration: owned by the alarm section, never schedulable
     "switch.zone_9_bypassed": ("Zone 9 bypassed", None, "off", {}),
     "sun.sun": ("Sun", None, "above_horizon", {"next_rising": "2026-10-01T03:32:00+00:00", "next_setting": "2026-09-30T15:15:00+00:00"}),
 }
@@ -857,9 +857,9 @@ def seed_live_like(fake: FakeScheduler) -> dict[str, str]:
     return ids
 
 
-def seed_mirror(db: Any, fake: FakeScheduler | None = None, *, bulk_safe: tuple[str, ...] = ("switch.hall_lights", "switch.zone_9_bypassed")) -> None:
+def seed_mirror(db: Any, fake: FakeScheduler | None = None) -> None:
     """Put the generic entities, their registry rows, HA areas / floors and (with a fake) the schedule switches into the
-    add-on's mirror, and mark the bulk-safe switches - what the entity sync would have written."""
+    add-on's mirror - what the entity sync would have written (CR-019: no per-switch mark any more)."""
     from smplwise.db import now_iso
     from smplwise.services import ha_client, ha_sync
 
@@ -877,5 +877,3 @@ def seed_mirror(db: Any, fake: FakeScheduler | None = None, *, bulk_safe: tuple[
             ha_sync.upsert_state(conn, st)
         ha_sync.apply_registry(conn, ha_client.registry_maps(reg, [], AREAS, FLOORS))
         ha_sync.apply_structure(conn, AREAS, FLOORS)
-        for eid in bulk_safe:
-            conn.execute("INSERT OR REPLACE INTO device_bulk_safe(entity_id, marked_by, marked_by_username, marked_at) VALUES (?, 'test', 'test', ?)", (eid, now_iso()))

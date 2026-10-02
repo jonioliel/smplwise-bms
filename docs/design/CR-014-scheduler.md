@@ -1,5 +1,7 @@
 # CR-014 — Schedules screen ("תזמונים") on top of the scheduler component
 
+> **CR-019 (switch protection) supersedes the bulk-safe requirement named below:** a switch is schedulable whatever its protection mark; the `switch_not_marked` refusal no longer exists. This design text is kept as history.
+
 Status: DESIGN PROPOSAL (documents and a static mockup only; no product code, no version bump). Owner request 2026-09-30.
 Author: design agent, branch `pilot/CR014-scheduler-design`. Hebrew mirror: to be produced by the coordinator; the one-page
 owner summary is `CR-014-scheduler-decisions-HE.md`. Mockup: `docs/design/mockups/scheduler/index.html`.

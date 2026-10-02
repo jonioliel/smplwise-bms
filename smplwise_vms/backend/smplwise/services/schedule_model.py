@@ -685,7 +685,7 @@ def _check_action(act: dict[str, Any], path: str, ctx: DraftContext, enabled: se
     cls, refusal = info.get("class"), info.get("refusal")
     if cls is None:
         code = refusal or "action_not_allowed"
-        msgs = {"switch_not_marked": "המתג לא סומן כבטוח לפעולה קבוצתית; רק מתגים מסומנים נכנסים לתזמון.", "alarm_managed_control": "רכיב זה נשלט ממסך האזעקה ואינו נכנס לתזמון.",
+        msgs = {"alarm_managed_control": "רכיב זה נשלט ממסך האזעקה ואינו נכנס לתזמון.",
                 "media_managed_control": "רכיב זה נשלט ממסך המולטימדיה ואינו נכנס לתזמון.", "action_not_allowed": "סוג ההתקן אינו מותר בתזמונים."}
         return [_problem(code, msgs.get(code, msgs["action_not_allowed"]), f"{path}.entity_id")]
     if cls not in enabled and not unchanged:

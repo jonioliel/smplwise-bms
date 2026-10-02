@@ -115,10 +115,9 @@ def is_scheduler_entity(entity_id: str, platform: str | None) -> bool:
     return platform is None and entity_id.startswith("switch.schedule_")
 
 
-def classify_entity(entity: dict[str, Any], *, bulk_safe: bool, on_door_layer: bool, alarm_managed: bool) -> tuple[str | None, str | None]:
+def classify_entity(entity: dict[str, Any], *, on_door_layer: bool, alarm_managed: bool) -> tuple[str | None, str | None]:
     """(class, refusal code) of a mirrored entity (`entity_id`, `domain`, `device_class`, `platform`), §5.1. The class is
-    None when the entity can never be scheduled; the refusal code then says why (`switch_not_marked`,
-    `alarm_managed_control`, `action_not_allowed`)."""
+    None when the entity can never be scheduled; the refusal code then says why (`alarm_managed_control`, `action_not_allowed`)."""
     eid, domain, dclass = entity["entity_id"], entity["domain"], entity.get("device_class") or ""
     if is_scheduler_entity(eid, entity.get("platform")):
         return None, "action_not_allowed"
@@ -139,7 +138,7 @@ def classify_entity(entity: dict[str, Any], *, bulk_safe: bool, on_door_layer: b
     if domain == "switch":
         if on_door_layer:
             return "door", None
-        return ("switch", None) if bulk_safe else (None, "switch_not_marked")
+        return "switch", None  # CR-019: the group-action protection mark never gates a schedule
     if domain == "button" and on_door_layer:
         return "door", None
     return None, "action_not_allowed"

@@ -1190,12 +1190,12 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await seed(request);
   });
 
-  test('owner 2026-09-30: the area screen shows nothing about bulk eligibility (it is managed in הגדרות › חשמל › פעולה קבוצתית)', async ({ page, request }) => {
+  test('owner 2026-09-30: the area screen shows nothing about bulk eligibility (protection is managed in הגדרות › חשמל והתקנים › מתגים מוגנים)', async ({ page, request }) => {
     await seed(request);
     await open(page, '/devices/areas/cr007_lobby', 'a');
     const sign = page.locator('devices-area .tile[data-entity="switch.cr007_sign"]');
     await expect(sign).toBeVisible({ timeout: 30000 });
-    await expect(page.locator('devices-area [data-bulk-safe], devices-area [data-bulk-safe-toggle]')).toHaveCount(0);
+    await expect(page.locator('devices-area [data-bulk-protected], devices-area [data-bulk-safe], devices-area [data-protected-toggle]')).toHaveCount(0);
     await expect(sign).not.toContainText('כיבוי מרוכז');
   });
 

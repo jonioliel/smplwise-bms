@@ -51,6 +51,12 @@ export class SwPage extends LitElement {
       padding: 12px 16px 0;
       padding-inline-end: calc(16px + var(--sw-float-reserve, 0px));
     }
+    /* the title block may shrink below its content: a scrolling chip row in the crumbs slot (the area page on a phone) otherwise
+       widened the block to the whole row and dragged the page sideways */
+    .head {
+      min-inline-size: 0;
+      max-inline-size: 100%;
+    }
     .titlebar {
       display: flex;
       align-items: center;
@@ -111,7 +117,7 @@ export class SwPage extends LitElement {
     const crumbs = this.crumbs ? this.crumbs.split('|').map((c) => c.trim()) : [];
     return html`
       <header>
-        <div>
+        <div class="head">
           ${crumbs.length ? html`<div class="crumbs">${crumbs.map((c, i) => html`${i ? html`<sw-icon name="chevron" size=${11}></sw-icon>` : ''}<span>${c}</span>`)}</div>` : ''}
           <slot name="crumbs"></slot>
           <div class="titlebar">

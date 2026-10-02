@@ -146,7 +146,7 @@ def test_catalog_selectability_and_reasons(sched_app):
     temp = next(x for x in clim["climate.set_temperature"]["args"] if x["name"] == "temperature")
     assert (temp["min"], temp["max"], temp["required"]) == (16, 30, True)
     assert next(x for x in clim["climate.set_hvac_mode"]["args"])["choices"] == ["off", "cool", "heat", "auto"]
-    assert by["switch.garden_pump"]["selectable"] is False and by["switch.garden_pump"]["reason"]["code"] == "switch_not_marked" and by["switch.garden_pump"]["actions"] == []
+    assert by["switch.garden_pump"]["selectable"] is True and by["switch.garden_pump"]["class"] == "switch" and by["switch.garden_pump"]["reason"] is None and by["switch.garden_pump"]["actions"]  # CR-019: no mark gates a schedule
     assert by["switch.hall_lights"]["selectable"] is True
     assert by["cover.driveway_gate"]["class"] == "door" and by["cover.driveway_gate"]["sensitive"] is True
     assert next(a for a in by["cover.driveway_gate"]["actions"] if a["service"] == "cover.open_cover")["lowering"] is True
@@ -266,8 +266,6 @@ def test_create_validation_errors_use_the_contract_codes(sched_app):
         return r.status_code, r.json()["code"]
 
     assert code(create(draft_of("x", [slot("18:00:00", "19:00:00", act("light.turn_on", "light.office", code="1234"))]))) == (422, "code_not_allowed")
-    assert code(create(draft_of("x", [slot("18:00:00", "19:00:00", act("switch.turn_on", "switch.garden_pump"))]))) == (422, "switch_not_marked")
-    assert create(draft_of("x", [slot("18:00:00", "19:00:00", act("switch.turn_on", "switch.garden_pump"))])).json()["user_message"] == "המתג לא סומן כבטוח לפעולה קבוצתית; רק מתגים מסומנים נכנסים לתזמון."
     assert code(create(draft_of("x", [slot("18:00:00", "19:00:00", act("light.turn_on", "light.office"), act("script.turn_on", "script.thing"))]))) == (422, "validation")  # unknown entity
     assert code(create(draft_of("x", [slot("18:00:00", "19:00:00", act("scene.turn_on", "light.office"))]))) == (422, "action_not_allowed")
     assert code(create(draft_of("x", [slot("18:00:00", "19:00:00", act("light.turn_on", "light.office")), slot("18:30:00", "19:30:00", act("light.turn_off", "light.office"))]))) == (422, "slots_overlap")
@@ -279,6 +277,7 @@ def test_create_validation_errors_use_the_contract_codes(sched_app):
     assert code(create(draft_of(""))) == (422, "validation")
     assert code(create(draft_of("x", [slot("18:00:00", "17:00:00", act("light.turn_on", "light.office"))]))) == (422, "validation")
     assert not any(i["name"] == "x" for i in fake.items.values())
+    assert create(draft_of("pump-ok", [slot("18:00:00", "19:00:00", act("switch.turn_on", "switch.garden_pump"))])).status_code in (200, 201)  # CR-019: an unmarked switch is schedulable
     # a class an administrator switched off
     assert c.patch(f"{API}/settings", json={"schedules.classes": ["light", "switch", "cover", "fan", "alarm", "lock", "door"]}).status_code == 200
     r = create(draft_of("x", [slot("18:00:00", "19:00:00", act("climate.turn_off", "climate.living_room"))]))

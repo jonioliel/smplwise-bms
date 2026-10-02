@@ -468,6 +468,37 @@ def test_per_block_rules_entities_values_time_trigger_ids_notify_delay_repeat_op
     assert "action_not_allowed" in one("actions", {**dev, "action": "homeassistant.restart", "entity_ids": ["light.a"]})
 
 
+def test_state_condition_with_for_never_combines_a_state_list_or_several_entities_ha_2026_10():
+    """HA 2026.10 rejects a state condition that sets `for` together with an attribute, a state list or another entity."""
+    base = {"kind": "typed", "raw": None, "type": "state", "for": {"hours": 0, "minutes": 5, "seconds": 0}}
+    ok = {**base, "entity_ids": ["binary_sensor.front_door"], "state": "on"}
+    many = {**base, "entity_ids": ["binary_sensor.front_door", "binary_sensor.back_door"], "state": "on"}
+    listed = {**base, "entity_ids": ["binary_sensor.front_door"], "state": ["on", "open"]}
+    assert not m.state_for_conflict(ok) and m.state_for_conflict(many) and m.state_for_conflict(listed)
+    assert not m.state_for_conflict({**many, "for": None}) and not m.state_for_conflict({**listed, "type": "numeric_state"})
+    assert m._build_condition(ok, CTX) == {"condition": "state", "entity_id": ["binary_sensor.front_door"], "state": "on", "for": {"hours": 0, "minutes": 5, "seconds": 0}}
+    for bad in (many, listed):
+        with pytest.raises(m.ModelError):
+            m._build_condition(bad, CTX)
+        d = valid_base()
+        d["conditions"].append(bad)
+        assert "state_for_conflict" in codes(d)
+    d = valid_base()
+    d["conditions"].append(ok)
+    assert codes(d) == []
+    # the same without `for` is fine, and an attribute condition stays a locked block (the builder never emits it)
+    assert m._build_condition({**many, "for": None}, CTX)["entity_id"] == ["binary_sensor.front_door", "binary_sensor.back_door"]
+    attr = m.parse_condition({"condition": "state", "entity_id": "light.hall", "attribute": "brightness", "state": 5, "for": "00:05:00"}, CTX)
+    assert attr["kind"] == "locked"
+    # a stored step that already carries the combination is passed through unchanged and stays saveable
+    stored = {"condition": "state", "entity_id": ["binary_sensor.front_door", "binary_sensor.back_door"], "state": "on", "for": {"hours": 0, "minutes": 5, "seconds": 0}}
+    blk = m.parse_condition(stored, CTX)
+    assert blk["kind"] == "typed" and m._build_condition(blk, CTX) == stored
+    d = valid_base()
+    d["conditions"].append(blk)
+    assert "state_for_conflict" not in codes(d)
+
+
 def test_codes_are_never_stored_a_code_in_a_new_step_is_code_not_allowed_any_other_secret_is_secret_not_allowed():
     base = {"kind": "typed", "raw": None, "type": "service", "role": "device", "action": "alarm_control_panel.alarm_disarm", "entity_ids": ["alarm_control_panel.home"]}
     d = valid_base()

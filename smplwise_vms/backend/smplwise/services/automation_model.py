@@ -727,12 +727,24 @@ def _build_trigger(b: Block) -> Raw:
     return out
 
 
+def state_for_conflict(b: Mapping[str, Any]) -> bool:
+    """A typed state condition that sets `for` AND names several entities or a list of states (rejected by Home Assistant 2026.10).
+    Attributes cannot occur: the model has no attribute field (a raw condition with one stays a locked block)."""
+    if b.get("type") != "state" or not b.get("for"):
+        return False
+    return len(b.get("entity_ids") or []) != 1 or not isinstance(b.get("state"), str)
+
+
 def _build_condition(b: Block, ctx: ModelContext) -> Raw:
     t = b["type"]
     if t == "state":
         out: Raw = {"condition": "state", "entity_id": list(b["entity_ids"]), "state": b["state"]}
         if b.get("for"):
             out["for"] = _dur_out(b["for"])
+            # Home Assistant 2026.10 rejects `for` combined with a state list or several entities: never emit it for a new or changed
+            # block (a stored step that already carries it is passed through exactly as it was)
+            if state_for_conflict(b) and canonical_json(out) != canonical_json(b.get("raw")):
+                raise ModelError("state_for_conflict", "a state condition with `for` takes exactly one entity and one state")
         return out
     if t == "numeric_state":
         out = {"condition": "numeric_state", "entity_id": list(b["entity_ids"])}
@@ -1332,6 +1344,8 @@ def validate_draft(kind: str, draft: Mapping[str, Any], *, notify_targets: Itera
                 need(not b["entity_ids"], "entity_required", "בחרו מכשיר")
             if t == "numeric_state":
                 need(b.get("above") is None and b.get("below") is None, "value_required", "הגדירו ערך")
+            if t == "state":
+                need(fresh and state_for_conflict(b), "state_for_conflict", "תנאי עם \"במשך\" תומך במכשיר אחד ובמצב אחד בלבד")
             if t == "time":
                 need((bool(b.get("after")) and not pol.TIME_RE.match(b["after"])) or (bool(b.get("before")) and not pol.TIME_RE.match(b["before"])), "time_invalid", "שעה לא תקינה")
             if t == "shabbat":

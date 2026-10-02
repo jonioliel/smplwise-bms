@@ -20,7 +20,7 @@ from .config import DEV_NVR_PLACEHOLDER, Settings, load_settings
 from .db import Database
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
-from .routers import access, access_control, access_groups, alarm, anchors, automations, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, events, exports, frames, ha, health, me, media, multimedia, notifications, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, views, zones, nvr_write
+from .routers import access, access_control, access_groups, alarm, anchors, automations, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, events, exports, frames, ha, health, me, media, multimedia, notifications, nvr_settings as nvr_settings_router, nvr_write, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, views, zones
 
 log = logging.getLogger("smplwise")
 
@@ -141,6 +141,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             log.warning("settled %s bulk device action(s) left unfinished by the previous process", swept)
     except Exception:  # noqa: BLE001 - never block the start
         log.exception("could not settle unfinished bulk device actions")
+    try:  # CR-019: switch protection on the mirror the previous process left (renames, gone, switches not judged yet)
+        from .services import switch_protection
+
+        with app.state.db.connection(label="switch_protection.startup") as conn:
+            switch_protection.reconcile(conn, switch_protection.present_from_mirror(conn))
+    except Exception:  # noqa: BLE001 - never block the start; an unjudged switch stays out of group actions (fail-safe)
+        log.exception("could not reconcile the switch protection")
     try:  # 0.1.74: HA Hikvision-integration events get their camera (one cheap pass; new events get it on insert)
         from .services.correlation import backfill_ha_event_cameras
 
@@ -224,6 +231,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(setup.router, prefix=api, tags=["ops"])
     app.include_router(views.router, prefix=api, tags=["views"])
     app.include_router(nvr_write.router, prefix=api, tags=["nvr"])
+    app.include_router(nvr_settings_router.router, prefix=api, tags=["nvr"])  # CR-020 S1: read-only camera video settings
     from .routers import remote as remote_router
 
     app.include_router(remote_router.router, prefix=api, tags=["remote"])  # CR-008: auth/session, the remote-access flag

@@ -478,7 +478,6 @@ export type ScheduleErrorCode =
   | 'validation'
   | 'action_not_allowed'
   | 'class_not_allowed'
-  | 'switch_not_marked'
   | 'alarm_managed_control'
   | 'alarm_code_needed'
   | 'lock_code_needed'

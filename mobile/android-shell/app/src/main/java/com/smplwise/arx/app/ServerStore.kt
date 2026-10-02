@@ -81,6 +81,11 @@ class ServerStore(context: Context) {
         get() = prefs.getString(KEY_LAST_SERVER, null)
         set(value) = prefs.edit().putString(KEY_LAST_SERVER, value).apply()
 
+    /** Two-finger swipe up opens the server list: off / anywhere / from the bottom edge only. */
+    var serversGesture: ServersGesture.Mode
+        get() = ServersGesture.Mode.of(prefs.getString(KEY_GESTURE, null))
+        set(value) = prefs.edit().putString(KEY_GESTURE, value.key).apply()
+
     /** Whether the one-time "how to switch servers" hint was shown. */
     var switchHintShown: Boolean
         get() = prefs.getBoolean(KEY_SWITCH_HINT, false)
@@ -103,6 +108,7 @@ class ServerStore(context: Context) {
         const val KEY_LOCK = "app_lock"
         const val KEY_LOCK_MINUTES = "app_lock_minutes"
         const val KEY_LAST_SERVER = "last_server"
+        const val KEY_GESTURE = "servers_gesture"
         const val KEY_SWITCH_HINT = "switch_hint_shown"
     }
 }
