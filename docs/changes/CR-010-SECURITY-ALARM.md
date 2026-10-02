@@ -137,7 +137,7 @@ panel, zone → bypass control or "none", zone excluded); state is never copied 
   with a zone, each unpaired bypass-like control, each override target (services/alarm.managed_controls) - is refused
   on the general `/ha/entities/{id}/actions` route (map cards, devices screens, catalogue) with 409 `use_alarm_screen`,
   audited, whatever the caller holds there; it never enters a bulk action (excluded as "alarm_managed", named in the
-  preview), cannot be marked bulk-safe, and is listed read-only elsewhere with an `alarm_managed` flag ("נשלט ממסך
+  preview), is never in a group action whatever its protection mark (CR-019: protection is not applicable), and is listed read-only elsewhere with an `alarm_managed` flag ("נשלט ממסך
   האזעקה"; the map card links to the alarm screen). A zone is bypassed, and a panel armed or disarmed, only through
   routers/alarm.py.
 - **Shared zones (review M4).** A zone listed on several panels (an unassigned zone of a multi-partition system) shows

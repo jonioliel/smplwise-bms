@@ -8,8 +8,8 @@ import { CLASS_LABEL, getScheduleCatalog, type CatalogEntity, type ScheduleClass
 
 /**
  * CR-014 S4: "בחירת התקנים" (mockup 08): the devices a schedule may act on, by room or by type, with multi-select. The list is
- * the server's catalogue (`GET /schedules/catalog`: what the caller may schedule, one source of classes, allow-list, bulk-safe
- * switches and the door / alarm rules); a device that cannot be scheduled is listed with the reason.
+ * the server's catalogue (`GET /schedules/catalog`: what the caller may schedule, one source of classes, allow-list, switches
+ * (any, whatever their group-action protection) and the door / alarm rules); a device that cannot be scheduled is listed with the reason.
  *
  *   confirm {ids, entities}   the chosen set (the editor adds / removes the difference)
  *   close

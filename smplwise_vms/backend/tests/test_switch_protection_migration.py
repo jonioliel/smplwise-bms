@@ -81,10 +81,10 @@ def test_upgrade_carries_the_safe_marks_over_and_the_first_pass_classifies_the_r
         assert not _protected(conn)
         assert {r[0] for r in conn.execute("SELECT entity_id FROM device_bulk_safe")} == {"switch.hall_lights", "switch.gate", "switch.gone_before"}, "kept, frozen"
         assert dbmod.get_setting(conn, sp.MIGRATION_KEY)
-        # before the first pass: a switch the classifier has not seen is excluded (fail-safe), never included
+        # before the first pass: a switch nobody has judged is INCLUDED (owner decision 2026-10-02: the default is included)
         pol = device_bulk.SwitchPolicy(conn)
-        assert pol.switch_reason("switch.relay_2") == (False, "switch_unclassified")
-        assert pol.switch_reason("switch.pool_pump") == (False, "switch_unclassified")
+        assert pol.switch_reason("switch.relay_2") == (True, "allowed")
+        assert pol.switch_reason("switch.pool_pump") == (True, "allowed")
         assert pol.switch_reason("switch.gate") == (True, "allowed"), "decision 2a: marked safe stays unprotected"
     # start-up runs the first pass on the mirror the previous process left
     TestClient(create_app(settings))
@@ -101,8 +101,10 @@ def test_upgrade_carries_the_safe_marks_over_and_the_first_pass_classifies_the_r
         assert "switch.schedule_morning" not in v and "switch.disabled_pump" not in v
         pol = device_bulk.SwitchPolicy(conn)
         assert pol.switch_reason("switch.relay_2") == (True, "allowed")
-        assert pol.switch_reason("switch.pool_pump") == (False, "switch_protected")
-        assert pol.switch_row("switch.pool_pump") == (True, "protected") and pol.switch_row("switch.relay_2") == (False, "allowed")
+        # the classifier only SUGGESTS: a suggestion is included and is not protected until an administrator approves it
+        for eid in ("switch.pool_pump", "switch.relay_9", "switch.relay_10", "switch.yaml_boiler"):
+            assert pol.switch_reason(eid) == (True, "allowed") and pol.switch_row(eid) == (False, "allowed"), eid
+        assert pol.switch_row("switch.relay_2") == (False, "allowed")
         rows = _audit(conn)
         auto = sorted(r[1] for r in rows if r[0] == "devices.bulk_protected.auto")
         assert auto == ["switch.pool_pump", "switch.relay_10", "switch.relay_9", "switch.yaml_boiler"]
@@ -118,6 +120,25 @@ def test_upgrade_carries_the_safe_marks_over_and_the_first_pass_classifies_the_r
         # idempotent: a second pass changes nothing and writes nothing
         counts = sp.reconcile(conn, sp.present_from_mirror(conn))
         assert not any(counts.values()) and len(_audit(conn)) == n and _protected(conn) == p
+
+
+def test_a_suggestion_is_enforced_only_after_the_administrator_approves_it_and_dismissing_it_is_permanent(db_0150):
+    db_0150.migrate()
+    with db_0150.connection() as conn:
+        sp.reconcile(conn, sp.present_from_mirror(conn))
+        assert device_bulk.SwitchPolicy(conn).switch_reason("switch.pool_pump") == (True, "allowed")
+        assert sp.approve(conn, ADMIN, "switch.pool_pump") is True and sp.approve(conn, ADMIN, "switch.pool_pump") is False
+        pol = device_bulk.SwitchPolicy(conn)
+        assert pol.switch_reason("switch.pool_pump") == (False, "switch_protected") and pol.switch_row("switch.pool_pump") == (True, "protected")
+        # protecting a suggestion is the same as approving it
+        assert sp.set_protected(conn, ADMIN, "switch.relay_9", True) is True
+        assert device_bulk.SwitchPolicy(conn).switch_reason("switch.relay_9") == (False, "switch_protected") and _protected(conn)["switch.relay_9"]["reviewed"] == 1
+        # dismissing a suggestion: it stays included and the classifier never suggests it again
+        assert sp.set_protected(conn, ADMIN, "switch.relay_10", False) is True
+        assert "switch.relay_10" not in _protected(conn) and _verdicts(conn)["switch.relay_10"] == "admin_cleared"
+        assert device_bulk.SwitchPolicy(conn).switch_reason("switch.relay_10") == (True, "allowed")
+        sp.reconcile(conn, sp.present_from_mirror(conn))
+        assert "switch.relay_10" not in _protected(conn)
 
 
 def test_a_fresh_installation_has_no_migration_record(settings):
@@ -180,6 +201,7 @@ def test_a_gone_entity_keeps_its_protection_returns_and_is_purged_after_90_days(
     now = dt.datetime(2026, 10, 1, 12, 0, tzinfo=dt.timezone.utc)
     with db_0150.connection() as conn:
         sp.reconcile(conn, sp.present_from_mirror(conn), now=now)
+        assert sp.approve(conn, ADMIN, "switch.pool_pump")  # the suggestion becomes an enforced protection
         present = sp.present_from_mirror(conn)
         # the pump leaves HA's registry (integration removed): protection kept, marked gone, still applies
         counts = sp.reconcile(conn, present - {"switch.pool_pump"}, now=now)
@@ -207,19 +229,20 @@ def test_a_gone_entity_keeps_its_protection_returns_and_is_purged_after_90_days(
         assert "switch.gone_before" not in _verdicts(conn)
 
 
-def test_a_switch_seen_for_the_first_time_is_excluded_until_judged_then_judged_once(db_0150):
+def test_a_switch_seen_for_the_first_time_is_included_judged_once_and_at_most_suggested(db_0150):
     db_0150.migrate()
     with db_0150.connection() as conn:
         sp.reconcile(conn, sp.present_from_mirror(conn))
         _ent(conn, "switch.new_fridge", "Fridge")
         _ent(conn, "switch.new_lamp", "Desk lamp")
         pol = device_bulk.SwitchPolicy(conn)
-        assert pol.switch_reason("switch.new_fridge") == (False, "switch_unclassified") and pol.switch_reason("switch.new_lamp") == (False, "switch_unclassified")
+        assert pol.switch_reason("switch.new_fridge") == (True, "allowed") and pol.switch_reason("switch.new_lamp") == (True, "allowed")
         counts = sp.reconcile(conn, sp.present_from_mirror(conn))
         assert (counts["auto_protected"], counts["allowed"]) == (1, 1)
         pol = device_bulk.SwitchPolicy(conn)
-        assert pol.switch_reason("switch.new_fridge") == (False, "switch_protected") and pol.switch_reason("switch.new_lamp") == (True, "allowed")
-        # an administrator removes the auto protection: never re-applied by later passes, also after the HA name changes
+        assert pol.switch_reason("switch.new_fridge") == (True, "allowed") and pol.switch_reason("switch.new_lamp") == (True, "allowed"), "a suggestion is not enforced"
+        assert _protected(conn)["switch.new_fridge"]["source"] == "auto" and "switch.new_lamp" not in _protected(conn)
+        # an administrator dismisses the suggestion: never re-applied by later passes, also after the HA name changes
         sp.set_protected(conn, ADMIN, "switch.new_fridge", False)
         conn.execute("UPDATE ha_entities SET name = 'Freezer' WHERE entity_id = 'switch.new_fridge'")
         sp.reconcile(conn, sp.present_from_mirror(conn))

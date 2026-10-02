@@ -282,6 +282,21 @@
     "source": "live"
   },
   {
+    "id": "settings-protected-switches",
+    "name_he": "הגדרות · מתגים מוגנים",
+    "section": "settings",
+    "route": "#/system/diagnostics?tab=devices&section=protected-switches",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "הגדרות · חשמל והתקנים · מתגים מוגנים: סרגל בדיקה לסימונים אוטומטיים, סינון, בחירה מרובה, אישור / הגנה / הסרת הגנה. פרטים ב-80-settings_HE.md.",
+    "source": "demo"
+  },
+  {
     "id": "settings-media",
     "name_he": "הגדרות · וידאו ומדיה",
     "section": "settings",

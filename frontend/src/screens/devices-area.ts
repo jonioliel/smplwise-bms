@@ -763,7 +763,7 @@ export class DevicesArea extends LitElement {
         grid-template-columns: minmax(0, 1fr);
       }
     }
-    .bulk-safe {
+    .managed-note {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
       white-space: normal;
@@ -1338,7 +1338,7 @@ export class DevicesArea extends LitElement {
       ${card === 'sensors' && r.last_changed ? html`<div class="lc" data-last-changed>${fmtTime(r.last_changed)}</div>` : nothing}
       ${controllable && card === 'lighting' && (on || this.ctl.live<boolean>(r.entity_id, 'power') === true) ? this.ctl.renderBrightnessSlider(r) : nothing}
       ${controllable ? this.ctl.renderCmdStatus(r.entity_id) : nothing}
-      ${r.alarm_managed ? html`<div class="bulk-safe" data-alarm-managed>${r.managed_label ?? 'נשלט ממסך האזעקה'} · <a href="#/security/alarm">לאזעקה</a></div>` : nothing}
+      ${r.alarm_managed ? html`<div class="managed-note" data-alarm-managed>${r.managed_label ?? 'נשלט ממסך האזעקה'} · <a href="#/security/alarm">לאזעקה</a></div>` : nothing}
       ${this.renderAssignButton(r)}
     </div>`;
   }

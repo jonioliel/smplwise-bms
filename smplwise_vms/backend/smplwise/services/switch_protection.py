@@ -1,17 +1,19 @@
 """CR-019 switch protection (docs/changes/CR-019-SWITCH-PROTECTION.md): a switch takes part in GROUP actions ("turn
-everything off", the floor / area / building switch actions of services/device_bulk.py) unless it is PROTECTED. Protection
-means excluded from group actions only - individual control, schedules and automations never read it (decision 1a).
+everything off", the floor / area / building switch actions of services/device_bulk.py) unless an administrator PROTECTED it.
+Protection means excluded from group actions only - individual control, schedules and automations never read it (decision 1a).
+Owner decision 2026-10-02: the default of every switch - new, or not yet judged - is INCLUDED; the classifier below only
+SUGGESTS protection (an auto row, `reviewed = 0`: shown in the review list, never enforced) until an administrator approves it.
 
 - `classify_switch` - the pure, conservative classifier (section 6.3, rules in switch_protection_rules.py): HA-side facts only
   (entity, its HA device, the other entities of that device, the HA area) - never the map, a circuit or anything an Arx map
   editor can change. A hit is a protection category and the signal that matched.
 - `reconcile` - after every registry refresh, at start-up and after the dev seed (section 6.4): follow renamed entity ids,
   keep (never delete) the protection of an entity that left HA and purge it after 90 days, classify every switch seen for the
-  first time (a hit is protected at once, `source='auto'`, unreviewed) and, after a classifier version bump, re-judge the
-  switches the older rules allowed. A switch the classifier has not seen yet is excluded from group actions (fail-safe,
-  device_bulk.SwitchPolicy), never included.
-- `set_protected` / `approve` - the administrator's choices (system.configure, routers/devices.py). Removing protection writes
-  the verdict `admin_cleared`: the classifier never protects that switch again.
+  first time (a hit becomes a SUGGESTION: `source='auto'`, unreviewed, not enforced) and, after a classifier version bump,
+  re-judge the switches the older rules allowed. Nothing here excludes a switch from a group action.
+- `set_protected` / `approve` - the administrator's choices (system.configure, routers/devices.py). Protecting (or approving) a
+  suggestion enforces it; removing protection, or dismissing a suggestion, writes the verdict `admin_cleared`: the classifier
+  never suggests that switch again.
 
 `device_bulk_safe` (the CR-007 opt-in marks) is read once by migration 0049 (verdict `was_safe`) and never written again.
 """
@@ -218,7 +220,7 @@ def _days_since(stamp: str | None, now: dt.datetime) -> float:
 
 
 def _protect_auto(conn: Any, eid: str, registry_id: str | None, category: str, rule: str, stamp: str) -> bool:
-    """A classifier hit: protected at once, unreviewed. An existing protection row (manual or auto) is left as it is."""
+    """A classifier hit: a SUGGESTION (auto, unreviewed - not enforced). An existing protection row (manual or auto) is left as it is."""
     cur = conn.execute(
         "INSERT OR IGNORE INTO device_bulk_protected(entity_id, registry_id, source, category, rule, marked_at, reviewed) VALUES (?,?,?,?,?,?,0)",
         (eid, registry_id, "auto", category, rule, stamp),
@@ -415,7 +417,7 @@ def _review(conn: Any, principal: Any, entity_id: str, p: dict[str, Any], stamp:
 
 
 def approve(conn: Any, principal: Any, entity_id: str, *, request_id: str | None = None) -> bool:
-    """Confirm an unreviewed auto protection. Anything else is left as it is (False)."""
+    """Approve an unreviewed automatic suggestion: it becomes an enforced protection. Anything else is left as it is (False)."""
     p, _c = status(conn, entity_id)
     if p is None or p["reviewed"]:
         return False

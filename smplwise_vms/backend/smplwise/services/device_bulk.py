@@ -10,9 +10,9 @@ Many physical devices change from one click, so this module is deliberately narr
   (ha_scope.DEVICES_CONTROL_DOMAINS); NEVER a lock, an alarm panel, a siren, a script, a scene or a button, never a
   door / garage / gate cover, never a cover or switch placed on the map's door layer, never an alarm zone's bypass
   control. CR-019 (supersedes the opt-in of CR-007 section 7.10): a SWITCH enters unless it is PROTECTED
-  (device_bulk_protected - seeded by the conservative classifier of services/switch_protection.py, reviewed and changed
-  by an administrator with system.configure), and only once the classifier has judged it (a switch it has not seen yet
-  is excluded, `switch_unclassified`, never included). A Plan Studio lighting circuit has no effect either way. Every
+  (device_bulk_protected: ONLY an administrator's explicit protection, system.configure - owner decision 2026-10-02: every
+  other switch, new or not yet judged, is included; the conservative classifier of services/switch_protection.py can only
+  SUGGEST protection, a suggestion is not enforced until the administrator approves it). A Plan Studio lighting circuit has no effect either way. Every
   excluded switch is listed as "not included" with the reason. input_booleans (HA flags, not devices) never enter.
   The import-time check below fails the add-on's start if KINDS ever names anything else.
 - An entity already in the target state (HA's last report) or unavailable is not sent: an "off" to a light that is
@@ -226,13 +226,14 @@ def _door_layer_entities(conn: Any) -> set[str]:
 
 class SwitchPolicy:
     """Which covers / switches a bulk action may reach: the map's door layer, the alarm-managed controls and (CR-019) the
-    switch protection - the protected switches and the switches the classifier has judged - read once per request."""
+    switch protection - the switches an administrator protected (a classifier suggestion that nobody approved is not
+    one of them) - read once per request."""
 
     def __init__(self, conn: Any) -> None:
         self.door_layer = _door_layer_entities(conn)
-        # a protection row always applies, also while its entity is away from HA (gone_at): keeping it is the safe side
-        self.protected = {r[0] for r in conn.execute("SELECT entity_id FROM device_bulk_protected").fetchall()}
-        self.classified = {r[0] for r in conn.execute("SELECT entity_id FROM device_switch_classified").fetchall()}
+        # a protection row always applies, also while its entity is away from HA (gone_at): keeping it is the safe side.
+        # Only an administrator's protection counts: a manual row, or an automatic suggestion the administrator approved.
+        self.protected = {r[0] for r in conn.execute("SELECT entity_id FROM device_bulk_protected WHERE source = 'manual' OR reviewed = 1").fetchall()}
         from . import alarm as alarm_svc
 
         self.alarm_managed = alarm_svc.managed_controls(conn)  # CR-010 review B1: a zone's bypass control, never in bulk
@@ -240,21 +241,18 @@ class SwitchPolicy:
     def switch_reason(self, entity_id: str) -> tuple[bool, str]:
         """(included, reason) for a switch, first hit wins (CR-019 section 4.1; the scheduler / media-managed switches never
         get here - bulk_scope.permitted): alarm_managed (never - it bypasses an alarm zone), doors_layer (never),
-        switch_protected (an administrator or the classifier protected it), switch_unclassified (the classifier has not
-        judged it yet - excluded, never included), else allowed."""
+        switch_protected (an administrator protected it), else allowed - including a new switch nobody has looked at."""
         if entity_id in self.alarm_managed:
             return False, "alarm_managed"
         if entity_id in self.door_layer:
             return False, "doors_layer"
         if entity_id in self.protected:
             return False, "switch_protected"
-        if entity_id not in self.classified:
-            return False, "switch_unclassified"
         return True, "allowed"
 
     def switch_row(self, entity_id: str) -> tuple[bool, str]:
         """(bulk_protected, bulk_reason) of a switch row in the area / items replies (API section 7.2): the mark itself, and
-        allowed | protected | unclassified | doors_layer | alarm_managed."""
+        allowed | protected | doors_layer | alarm_managed."""
         _ok, reason = self.switch_reason(entity_id)
         return entity_id in self.protected, ROW_REASONS.get(reason, reason)
 
@@ -278,20 +276,19 @@ EXCLUDED_LABELS = {
     "doors_layer": "הוצב במפה בשכבת הדלתות - לעולם לא בפעולה מרוכזת",
     # CR-019 section 7.4 (the same words for the "on" kinds)
     "switch_protected": "מתג מוגן - לא נכלל בפעולה קבוצתית",
-    "switch_unclassified": "מתג חדש שטרם נבדק - לא נכלל עד לבדיקה",
     "no_position": "התריס אינו מדווח מיקום ואינו תומך בקביעת מיקום",
     # CR-015 (decision 8a): what the devices area's screens kinds leave out of a player list
     "not_a_screen": "לא מוגדר כמסך",
     "screen_not_approved": "מסך שטרם אושר בהגדרות המולטימדיה",
     "no_power": "אין למסך בקרת הפעלה",
 }
-# re-review: the same reasons in words that fit a kind that turns something ON (the "off" wording would be false); CR-019's two
-# switch reasons read the same for both
+# re-review: the same reasons in words that fit a kind that turns something ON (the "off" wording would be false); CR-019's
+# switch reason reads the same for both
 EXCLUDED_LABELS_ON = {
     **EXCLUDED_LABELS,
 }
 # CR-019 section 7.2: a switch row's `bulk_reason` (area / items replies) in the row vocabulary
-ROW_REASONS = {"switch_protected": "protected", "switch_unclassified": "unclassified"}
+ROW_REASONS = {"switch_protected": "protected"}
 
 
 def excluded_label(reason: str, kind: str) -> str:

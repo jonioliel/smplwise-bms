@@ -7,8 +7,7 @@
 > 4. בהגדרות › חשמל והתקנים › "מתגים מוגנים" תראה את הרשימה פעם אחת ותאשר, תסיר הגנה או תגן על עוד מתגים (בחירה מרובה).
 > 5. מה שלא משתנה: דלתות, מתגי עקיפה של האזעקה, מנעולים ושערים בשכבת הדלתות לעולם לא בפעולה קבוצתית; חלון האישור ורשימת התוצאה נשארים כמו היום.
 
-**Status:** DESIGN — owner decisions adopted (2026-10-01, §1). Nothing implemented. Branch `pilot/switch-model` (from
-`base/0.1.150`), design only. **Release:** the first release after 0.1.150 (owner's call; no version or CHANGELOG edit
+**Status:** IMPLEMENTED on `pilot/cr019-complete` (S1 backend, S2 schedules + guard, S3 frontend, S4 docs; not released) — owner decisions adopted (2026-10-01, §1). Design text below is unchanged except where §15 records a deviation. **Release:** the first release after 0.1.150 (owner's call; no version or CHANGELOG edit
 here). **Supersedes:** the opt-in "bulk-safe" rule of CR-007 §7.10 (review round 1, slice 3) and its reuse as the
 schedule gate in CR-014 (`SCHEDULER_API.md` §5.1 `switch` row, error `switch_not_marked`). **Builds on:** CR-007 (bulk
 engine `services/device_bulk.py`), CR-010 (alarm-managed controls), CR-014 (schedules), CR-015/016 (media-managed
@@ -550,3 +549,21 @@ normal permission"), so this CR does **not** do it; the owner may ask for it lat
 **Q2 (not blocking, design choice taken):** the classifier also runs on switches that appear **after** the upgrade (not
 only once at upgrade). Taken because it is the conservative reading of 2א and costs nothing when there is no hit; the
 owner may restrict it to the upgrade only.
+
+## 15. Implementation notes (S2-S4)
+
+- **Reach guard.** The static guard is `tests/test_switch_protection_reach_guard.py` (S1 name; the design called it `..._scope_guard`). S2 extended it: schedule, automation, notification and individual-control modules may not name `device_bulk_protected`, `device_switch_classified`, `switch_protection`, `SwitchPolicy`, `bulk_protected`, `device_bulk_safe` or `switch_not_marked`, and `classify_entity` takes exactly `(entity, on_door_layer, alarm_managed)`.
+- **Schedules catalogue.** A switch is never listed as unselectable for a mark; entities that cannot be scheduled (alarm-managed, scheduler, media-managed) are not listed at all, as before.
+- **Frontend.** `<devices-protected-switches>` (`devices-protected-switches-admin.ts`) replaces `devices-bulk-safe-admin.ts`; pure logic in `protected-switches-logic.ts`. `section=bulk-safe` still scrolls to it. Multimedia-managed switches are shown read-only (the server refuses them with `media_managed`). "אשר את כולם" and any selection go to the server in chunks of 500 ids (the route's cap).
+- **Dark scheme.** The settings screens have no dark theme tokens today (design unification is a separate item), so the dark evidence image shows the light card on a dark page.
+- **Migration number.** 0049 is unused by `integ/0152`, `integ/0153`, `integ/notify` and `pilot/wave1-0153` at the time of writing (checked 2026-10-02); 0045-0048 on this line are notifications / automations.
+
+## 16. Owner decision 2026-10-02: the default is INCLUDED, the classifier only suggests
+
+The owner answered the two open questions: Q1 - a gate / door / garage switch is NOT a sensitive class in schedules (as decided; no `access` -> `door` mapping). Q2 - "all will be classified as suitable for control unless we said otherwise about a specific switch": a switch is excluded from group actions ONLY when an administrator explicitly protects it, or a hard rule applies (alarm-managed, door layer, multimedia-managed, scheduler component). This **deliberately overturns the fail-safe** of sections 4.1 (order 6, `switch_unclassified`), 5.2 (M1, M2) and R3 and the auto-protection of sections 6.3-6.5. What changed:
+
+- **Included by default.** A new switch, and a switch the classifier has not judged yet, is included in group actions. `switch_unclassified` no longer exists (reason, label and row value `unclassified` removed). `SwitchPolicy` reads only the administrator's protection: a row of `device_bulk_protected` with `source = 'manual'` or `reviewed = 1`.
+- **The classifier only suggests.** A hit still creates a row (`source = 'auto'`, `reviewed = 0`, category and rule) - now a *suggestion*: listed in the review screen as "מוצע להגנה", never enforced. Approving it (`approve`, or `protect` on it) sets `reviewed = 1` and enforces it; dismissing it (`unprotect`) deletes the row and writes the verdict `admin_cleared`, so it is never suggested again. The list reply carries `protected` (enforced) and `suggested`; the summary has `suggested` instead of `auto_unreviewed`.
+- **Migration 0049 unchanged.** It never wrote a protected row (it only copies `device_bulk_safe` into the verdict `was_safe`), and 0049 has not been released: it is on no tag, `main` or `g0/intake`; only integration branches (`pilot/wave1-0153`, `integ/0153`) carry it. No data migration is needed; a development database that already holds `auto` rows keeps them and reads them as suggestions, admin decisions (`manual` rows, reviewed rows) are untouched.
+- **Security consequence (accepted by the owner).** Immediately after the upgrade, and for every newly appearing switch, "כבה הכל" and the master button reach every switch that is not hard-excluded and not explicitly protected, including a pump, boiler or router the classifier would have suggested protecting. The residual risk of section 5.1 is therefore larger than designed; the only mitigations left are the suggestions in the review list, the unchanged confirmation dialog with its excluded list, the digest check, `devices.control_bulk` being limited to site and system administrators, and the audit rows. The auto-suggestion audit action `devices.bulk_protected.auto` now records a suggestion.
+- **Frontend.** The strip reads "N מתגים מוצעים להגנה ... נכללים ב'כבה הכל' עד שתאשרו" with "הצג" and "הגן על כולם"; selection actions are "הגן", "הסר הגנה", "דחה הצעה". The "טרם נבדק" status was dropped (a switch nobody judged is simply unprotected).

@@ -31,7 +31,7 @@ import './devices-theme-picker';
 import './devices-climate-kind-admin'; // owner 2026-09-30: מיזוג / חימום per climate entity
 import './area-row-editor'; // release 0.1.149: הגדרות › חשמל והתקנים › מה מוצג ליד שם האזור
 import type { AreaRowChange } from './area-row-editor';
-import './devices-bulk-safe-admin'; // owner 2026-09-30: הגדרות › חשמל והתקנים › פעולה קבוצתית
+import './devices-protected-switches-admin'; // CR-019: הגדרות › חשמל והתקנים › מתגים מוגנים (replaces פעולה קבוצתית)
 import './system-tabs'; // owner 2026-09-30: הגדרות › כללי › לשוניות
 import './system-nav-size'; // UI round 1b: הגדרות › כללי › גודל הניווט
 import './system-home-screen'; // home redesign: הגדרות › חשמל והתקנים › מסך ראשי
@@ -1091,7 +1091,7 @@ export class SystemDiagnostics extends LitElement {
           : html`<div class="muted" data-devices-readonly>${api ? 'שינוי ההגדרות דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
       </sw-card>
       ${api && this.canEdit ? html`<devices-climate-kind-admin data-section="climate-kind"></devices-climate-kind-admin>` : nothing}
-      ${api && this.canEdit ? html`<devices-bulk-safe-admin data-section="bulk-safe"></devices-bulk-safe-admin>` : nothing}
+      ${api && this.canEdit ? html`<devices-protected-switches data-section="protected-switches"></devices-protected-switches>` : nothing}
     </div>`;
   }
 

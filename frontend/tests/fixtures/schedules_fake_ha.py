@@ -16,7 +16,7 @@ What the fake Home Assistant does:
   flag, the registry check and the id diff. A schedule's switch changes state after a change and when a slot fires.
 
 On start it pairs the bridge (signed ping, version 0.3.0), switches the feature on and sets the Shabbat sensor, and marks
-the generic bulk-safe switch. A small control server (127.0.0.1, SW_FAKE_HA_CONTROL_PORT, default SW_PORT + 1) is the
+the generic switch. A small control server (127.0.0.1, SW_FAKE_HA_CONTROL_PORT, default SW_PORT + 1) is the
 spec's hand on the world: `POST /tick {seconds}` (the fake clock moves, slots fire WITH their conditions), `POST /world
 {entity_id, state, attributes?}` (a sensor turns on / becomes unavailable), `POST /fail {op, error}` and `POST /timeout
 {op}` (the next bridge call of that op is refused / never answered), `POST /component {installed}` (the component goes
@@ -306,13 +306,8 @@ def _pair() -> None:
                     SECRET["code"] = r.json()["pairing_code"]
                     p = c.post(f"{BASE}/ha/bridge/ping", json=ha_bridge.sign(SECRET["code"], {"version": "0.3.0"}))
                     print(f"schedules_fake_ha: bridge paired ({p.status_code})", flush=True)
-                    for _ in range(120):  # the sync must have mirrored the entities before a switch can be marked bulk-safe
-                        if c.get(f"{BASE}/ha/entities/switch.hall_lights").status_code == 200:
-                            break
-                        time.sleep(0.5)
-                    mark = c.put(f"{BASE}/devices/entities/switch.hall_lights/bulk-safe", json={"bulk_safe": True})
                     s = c.patch(f"{BASE}/settings", json={"schedules.enabled": "true", "schedules.shabbat_sensor": fake_scheduler.SHABBAT, "schedules.shabbat_sensor_force": True})
-                    print(f"schedules_fake_ha: feature on ({s.status_code}), bulk-safe switch ({mark.status_code})", flush=True)
+                    print(f"schedules_fake_ha: feature on ({s.status_code})", flush=True)
                     return
         except httpx.HTTPError:
             pass
