@@ -1101,6 +1101,9 @@ test.describe('"+ חדש" asks "מתי?" (the setting, off by default)', () => {
 
 test.describe('the editors over the list (S3 x S4 wiring)', () => {
   test('the builder, the script editor and the scene editor open over the list at 1440 / 820 / 390, light and dark, naming no product', async ({ page }) => {
+    // ten page loads and ten full-page screenshots; on the mobile project (device scale 2.625) a 1440-wide shot is ~3800 px and takes
+    // 5-9 s each, so the default 60 s ran out at a random call (goto / setViewportSize / screenshot). Nothing hangs: a budget, not a bug.
+    test.setTimeout(240_000);
     for (const scheme of ['light', 'dark'] as const) {
       for (const size of ['1440', '820', '390'] as const) {
         await open(page, '/devices/automations/1727700000002/edit', size, { scheme });
