@@ -557,4 +557,145 @@ export class DeviceControls implements ReactiveController {
     const key = `${r.entity_id}:lock`;
     void runCommand(key, 'lock', r.entity_id, 'lock.unlock', {}, 'unlocked', (s) => this.setCmd(key, s), { confirmed: true, label: 'פתיחה' });
   }
+
+  // ---------------------------------------------------------------- Bubble skin (phase C, 2026-10-02): the SAME commands, keys,
+  // arm-then-confirm rule and status phases behind the pill rows and the sheets (devices-area-bubble.ts). Nothing new is sent
+  // from there; these are the closures above as methods, so a pill and a classic row on the same entity stay in step.
+
+  /** A short status for a pill's state line: pending / rolled back (with the reason); null when nothing is in flight. */
+  pillStatus(entityId: string): { text: string; tone: 'pending' | 'bad' | 'ok' } | null {
+    const all = this.entityCommands(entityId);
+    const pending = all.find((c) => c.phase === 'pending');
+    if (pending) return { text: `ממתין לאישור${pending.label ? ` · ${pending.label}` : ''}`, tone: 'pending' };
+    const rolled = all.find((c) => c.phase === 'rolled_back');
+    if (rolled) return { text: rolled.note ?? 'לא בוצע', tone: 'bad' };
+    const sent = all.find((c) => c.phase === 'sent');
+    if (sent) return { text: `נשלח${sent.label ? ` · ${sent.label}` : ''}`, tone: 'ok' };
+    return null;
+  }
+
+  power(r: DeviceRow, next: boolean) {
+    const key = `${r.entity_id}:power`;
+    if (this.commands[key]?.phase === 'pending') return;
+    const domain = ['light', 'input_boolean', 'media_player', 'fan'].includes(r.domain) ? r.domain : 'switch';
+    void runCommand(key, r.domain, r.entity_id, `${domain}.${next ? 'turn_on' : 'turn_off'}`, {}, next, (s) => this.setCmd(key, s), { label: next ? 'הדלקה' : 'כיבוי' });
+  }
+
+  /** A light's brightness in percent (1..100 turns it on; 0 turns it off). */
+  brightness(r: DeviceRow, pct: number) {
+    const v = Math.max(0, Math.min(100, Math.round(pct)));
+    if (v === 0) return this.power(r, false);
+    const key = `${r.entity_id}:brightness`;
+    this.debouncedRange(key, 'light', r.entity_id, 'light.turn_on', { brightness_pct: v }, v, (s) => this.setCmd(key, s), { label: `בהירות ${v}%` });
+  }
+
+  private coverKey(r: DeviceRow, which: string, axis: 'position' | 'tilt'): string {
+    const map: Record<string, string> = axis === 'tilt' ? { open: 'open-tilt', close: 'close-tilt', stop: 'stop-tilt', position: 'tilt-position' } : { open: 'open', close: 'close', stop: 'stop', position: 'position' };
+    return `${r.entity_id}:${map[which]}`;
+  }
+
+  coverMoving(r: DeviceRow, axis: 'position' | 'tilt' = 'position'): boolean {
+    return ['open', 'close', 'position'].some((w) => this.commands[this.coverKey(r, w, axis)]?.phase === 'pending');
+  }
+
+  coverArmed(r: DeviceRow, which: 'open' | 'close' | 'position', axis: 'position' | 'tilt' = 'position'): boolean {
+    return this.isArmed(this.coverKey(r, which, axis));
+  }
+
+  /** Open / close arm on the first tap and run on the confirming tap; stop runs at once and supersedes what is in flight. */
+  coverMove(r: DeviceRow, which: 'open' | 'close' | 'stop', axis: 'position' | 'tilt' = 'position') {
+    const tilt = axis === 'tilt';
+    const key = this.coverKey(r, which, axis);
+    const run = (actionId: string, target: unknown, label: string, confirmed: boolean) =>
+      void runCommand(key, 'cover', r.entity_id, actionId, {}, target, (s) => this.setCmd(key, s), confirmed ? { confirmed: true, label } : { label });
+    if (which === 'stop') {
+      const next = { ...this.commands };
+      for (const w of ['open', 'close', 'position'] as const) {
+        const k = this.coverKey(r, w, axis);
+        supersede(k);
+        delete next[k];
+        if (k in this.armed || k in this.drafts) this.disarm(k);
+      }
+      this.commands = next;
+      this.changed();
+      run(tilt ? 'cover.stop_cover_tilt' : 'cover.stop_cover', 'stopped', tilt ? 'עצירת הטיה' : 'עצירה', false);
+      return;
+    }
+    const open = which === 'open';
+    this.tapArmed(key, () => run(tilt ? (open ? 'cover.open_cover_tilt' : 'cover.close_cover_tilt') : open ? 'cover.open_cover' : 'cover.close_cover', open ? 'open' : 'closed', tilt ? (open ? 'פתיחת הטיה' : 'סגירת הטיה') : open ? 'פתיחה' : 'סגירה', true));
+  }
+
+  /** A dragged position: local draft, armed - nothing is sent until coverConfirm. */
+  coverStage(r: DeviceRow, pct: number, axis: 'position' | 'tilt' = 'position') {
+    const key = this.coverKey(r, 'position', axis);
+    this.setDraft(key, Math.max(0, Math.min(100, Math.round(pct))));
+    this.arm(key);
+  }
+
+  coverDraft(r: DeviceRow, axis: 'position' | 'tilt' = 'position'): number | undefined {
+    const key = this.coverKey(r, 'position', axis);
+    return this.isArmed(key) ? this.drafts[key] : undefined;
+  }
+
+  coverConfirm(r: DeviceRow, axis: 'position' | 'tilt' = 'position') {
+    const key = this.coverKey(r, 'position', axis);
+    const pct = this.drafts[key];
+    if (pct === undefined || !this.isArmed(key)) return;
+    this.disarm(key);
+    const tilt = axis === 'tilt';
+    void runCommand(key, 'cover', r.entity_id, tilt ? 'cover.set_cover_tilt_position' : 'cover.set_cover_position', tilt ? { tilt_position: pct } : { position: pct }, pct, (s) => this.setCmd(key, s), { confirmed: true, label: tilt ? `מיקום הטיה ${pct}%` : `מיקום ${pct}%` });
+  }
+
+  /** The cover's position as a control shows it: the armed draft, the pending target, else the reported one. */
+  coverShown(r: DeviceRow, axis: 'position' | 'tilt' = 'position'): number {
+    return this.coverDraft(r, axis) ?? this.live<number>(r.entity_id, axis === 'tilt' ? 'tilt-position' : 'position') ?? (axis === 'tilt' ? r.tilt : r.position) ?? 0;
+  }
+
+  climateTemp(r: DeviceRow, next: number) {
+    const { min, max } = climateRange(r);
+    const v = Math.min(max, Math.max(min, Math.round(next * 10) / 10));
+    const key = `${r.entity_id}:temp`;
+    this.debouncedRange(key, 'climate', r.entity_id, 'climate.set_temperature', { temperature: v }, v, (s) => this.setCmd(key, s), { label: `טמפרטורת יעד ${v}°` });
+  }
+
+  climateMode(r: DeviceRow, mode: string) {
+    const key = `${r.entity_id}:mode`;
+    const label = `מצב ${HVAC_HE[mode] ?? mode}`;
+    if (mode === 'off') void runCommand(key, 'climate', r.entity_id, 'climate.turn_off', {}, 'off', (s) => this.setCmd(key, s), { label });
+    else void runCommand(key, 'climate', r.entity_id, 'climate.set_hvac_mode', { hvac_mode: mode }, mode, (s) => this.setCmd(key, s), { label });
+  }
+
+  /** fan / preset / swing of a climate entity, mode of a humidifier: only values the entity itself reports. */
+  climateChoice(r: DeviceRow, which: 'fan' | 'preset' | 'swing' | 'hmode', value: string) {
+    const key = `${r.entity_id}:${which === 'hmode' ? 'mode' : which}`;
+    const spec = which === 'fan' ? ['climate.set_fan_mode', 'fan_mode', 'מאוורר'] : which === 'preset' ? ['climate.set_preset_mode', 'preset_mode', 'מצב מוגדר'] : which === 'swing' ? ['climate.set_swing_mode', 'swing_mode', 'נדנוד'] : ['humidifier.set_mode', 'mode', 'מצב'];
+    void runCommand(key, which === 'hmode' ? 'humidifier' : 'climate', r.entity_id, spec[0], { [spec[1]]: value }, value, (s) => this.setCmd(key, s), { label: `${spec[2]} ${value}` });
+  }
+
+  humidity(r: DeviceRow, next: number) {
+    const v = Math.min(r.max_humidity ?? 100, Math.max(r.min_humidity ?? 0, Math.round(next)));
+    const key = `${r.entity_id}:humidity`;
+    const dom = r.domain === 'humidifier' ? 'humidifier' : 'climate';
+    void runCommand(key, dom, r.entity_id, `${dom}.set_humidity`, { humidity: v }, v, (s) => this.setCmd(key, s), { label: `לחות יעד ${v}%` });
+  }
+
+  fanPercentage(r: DeviceRow, pct: number) {
+    const v = Math.max(0, Math.min(100, Math.round(pct)));
+    const key = `${r.entity_id}:percentage`;
+    this.debouncedRange(key, 'fan', r.entity_id, 'fan.set_percentage', { percentage: v }, v, (s) => this.setCmd(key, s), { label: `עוצמה ${v}%` });
+  }
+
+  mediaPlayPause(r: DeviceRow) {
+    const key = `${r.entity_id}:playpause`;
+    if (this.commands[key]?.phase === 'pending') return;
+    const playing = (this.live<string>(r.entity_id, 'playpause') ?? r.state) === 'playing';
+    void runCommand(key, 'media_player', r.entity_id, playing ? 'media_player.media_pause' : 'media_player.media_play', {}, playing ? 'paused' : 'playing', (s) => this.setCmd(key, s), { label: playing ? 'השהיה' : 'ניגון' });
+  }
+
+  mediaMute(r: DeviceRow) {
+    const key = `${r.entity_id}:mute`;
+    if (this.commands[key]?.phase === 'pending') return;
+    const muted = this.live<boolean>(r.entity_id, 'mute') ?? Boolean(r.muted);
+    void runCommand(key, 'media_player', r.entity_id, 'media_player.volume_mute', { is_volume_muted: !muted }, !muted, (s) => this.setCmd(key, s), { label: muted ? 'ביטול השתקה' : 'השתקה' });
+  }
 }

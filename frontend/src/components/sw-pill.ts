@@ -39,6 +39,8 @@ export class SwPill extends LitElement {
   @property({ type: Boolean, reflect: true }) unavailable = false;
   /** Accent fill (a switch that is on, the "all off" row). */
   @property({ type: Boolean, reflect: true }) accent = false;
+  /** A translucent fill (a cover's position, a fan's speed): the label keeps its one colour, no dual-colour clip. */
+  @property({ type: Boolean, reflect: true, attribute: 'keep-text' }) keepText = false;
   /** The list view: set by the host container when its density is `row`; '' = follow the look dial. */
   @property() density: '' | 'wide' | 'regular' | 'compact' | 'row' = '';
   /** The surface: set by a host that shows a draft (the settings preview); '' = follow the look dial. */
@@ -213,8 +215,13 @@ export class SwPill extends LitElement {
     :host(:not([on])) .tx.over,
     :host(:not([variant='slider'])) .tx.over,
     :host([data-surface='flat']) .tx.over,
+    :host([keep-text]) .tx.over,
     :host([accent]) .tx.over {
       display: none;
+    }
+    :host([keep-text][on][data-surface='flat']:not([accent])) .tx.base,
+    :host([keep-text][on][data-surface='flat']:not([accent])) .pct {
+      color: var(--sw-text);
     }
     :host([data-dragging]) .tx.over {
       transition: none;
