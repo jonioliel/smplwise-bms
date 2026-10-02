@@ -1166,5 +1166,313 @@
     "caption_he": "יומן המסירה: לוח כשלים של 24 השעות האחרונות לפי ערוץ וטבלת מסירות (שעה, התראה, משתמש, ערוץ, מצב, סיבה), עם מסנן \"רק כשלים\". אין בו כתובות. פרטים ב-85-notifications_HE.md.",
     "source": "demo",
     "data": "static"
+  },
+  {
+    "id": "automations-list",
+    "name_he": "אוטומציות - הרשימה",
+    "section": "automations",
+    "route": "#/devices/automations",
+    "viewports": [
+      "desktop",
+      "phone"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "הלשונית השלישית במסך הראשי: כרטיס לכל אוטומציה עם משפט בעברית, מצב והרצה אחרונה, ומסננים. פרטים ב-43-automations_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/CR-017/s3/01-list-1440.png",
+      "docs/design/evidence/CR-017/s3/01-list-390.png"
+    ]
+  },
+  {
+    "id": "automations-drawer",
+    "name_he": "אוטומציה - מגירת פרטים",
+    "section": "automations",
+    "route": "#/devices/automations/{id}",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "מגירת הפרטים: כאשר, אם, אז, מכשירים מושפעים וכפתורי פעולה. פרטים ב-43-automations_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/CR-017/s3/10-detail-1440.png"
+    ]
+  },
+  {
+    "id": "automations-trace",
+    "name_he": "אוטומציה - למה זה רץ",
+    "section": "automations",
+    "route": "#/devices/automations/{id}",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "הריצה צעד אחר צעד. פרטים ב-43-automations_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/CR-017/s3/20-trace-1440.png"
+    ]
+  },
+  {
+    "id": "automations-builder",
+    "name_he": "אוטומציה - הבונה",
+    "section": "automations",
+    "route": "#/devices/automations/{id}/edit",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "הבונה: כאשר, אם, אז ומתג בונה/קוד. פרטים ב-43-automations_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/CR-017/s4/01-builder-installer-1440-light.png"
+    ]
+  },
+  {
+    "id": "automations-templates",
+    "name_he": "אוטומציה - גלריית תבניות",
+    "section": "automations",
+    "route": "#/devices/automations/new/edit",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "גלריית התבניות של אוטומציה חדשה. פרטים ב-43-automations_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/CR-017/s4/21-templates-1440-light.png"
+    ]
+  },
+  {
+    "id": "scenes-list",
+    "name_he": "סצנות",
+    "section": "automations",
+    "route": "#/devices/automations/scenes",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "סצנות לפי אזור, מועדפות והפעלה בלחיצה. פרטים ב-43-automations_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/CR-017/s3/60-scenes-1440.png"
+    ]
+  },
+  {
+    "id": "scene-capture",
+    "name_he": "סצנה חדשה - צילום מצב",
+    "section": "automations",
+    "route": "#/devices/automations/scenes/new/edit",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "צילום המצב הנוכחי וטבלת ערכים לתיקון. פרטים ב-43-automations_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/CR-017/s3/62-scene-capture-1440.png"
+    ]
+  },
+  {
+    "id": "scripts-list",
+    "name_he": "סקריפטים",
+    "section": "automations",
+    "route": "#/devices/automations/scripts",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "כפתור הפעלה לכל סקריפט. פרטים ב-43-automations_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/CR-017/s3/70-scripts-1440.png"
+    ]
+  },
+  {
+    "id": "settings-automations",
+    "name_he": "הגדרות › אוטומציות",
+    "section": "settings",
+    "route": "#/system/automations",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "לשונית ההגדרות של האוטומציות. פרטים ב-80-settings_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/CR-017/s3/95-settings-1440.png"
+    ]
+  },
+  {
+    "id": "music-queue",
+    "name_he": "נגן - התור המלא",
+    "section": "multimedia",
+    "route": "#/multimedia/players",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "התור המלא עם ידית גרירה, מחיקה ו\"נגן הבא\". פרטים ב-42-multimedia_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/CR-016/2b/queue-light-1440.png"
+    ]
+  },
+  {
+    "id": "music-library-search",
+    "name_he": "נגן - ספרייה וחיפוש",
+    "section": "multimedia",
+    "route": "#/multimedia/players",
+    "viewports": [
+      "phone"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "הלשונית \"ספרייה\" עם בורר סוג ותיבת חיפוש. פרטים ב-42-multimedia_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/CR-016/2b/library-search-390.png"
+    ]
+  },
+  {
+    "id": "music-queue-unavailable",
+    "name_he": "נגן - התור אינו זמין",
+    "section": "multimedia",
+    "route": "#/multimedia/players",
+    "viewports": [
+      "phone"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "\"לא זמין\" כשהחיבור אינו עונה. פרטים ב-42-multimedia_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/CR-016/2b/queue-unavailable-390.png"
+    ]
+  },
+  {
+    "id": "settings-multimedia-connection",
+    "name_he": "הגדרות › מולטימדיה › חיבור",
+    "section": "settings",
+    "route": "#/system/multimedia",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "החיבור הישיר לשרת המוזיקה. פרטים ב-80-settings_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/CR-016/2b/settings-connection-light-1440.png"
+    ]
+  },
+  {
+    "id": "settings-tabs-mode",
+    "name_he": "הגדרות › כללי › לשוניות › תצוגת לשוניות",
+    "section": "settings",
+    "route": "#/system/diagnostics?tab=tabs",
+    "viewports": [
+      "phone"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "ברירת מחדל, בחירה לפי קבוצה והעדפה אישית. פרטים ב-80-settings_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/evidence/tabs-dropdown/settings-card-390-light.png"
+    ]
+  },
+  {
+    "id": "tabs-dropdown-media",
+    "name_he": "מולטימדיה - שני צ'יפים בשורה",
+    "section": "settings",
+    "route": "#/multimedia/screens",
+    "viewports": [
+      "phone"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "מצב תפריטים נפתחים בטלפון, הרשימה פתוחה. פרטים ב-80-settings_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/evidence/tabs-dropdown/pair-media-open-390-light.png"
+    ]
+  },
+  {
+    "id": "tabs-dropdown-security",
+    "name_he": "אבטחה - שני צ'יפים והאזעקה",
+    "section": "settings",
+    "route": "#/live",
+    "viewports": [
+      "phone"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "מצב תפריטים נפתחים באבטחה. פרטים ב-80-settings_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/evidence/tabs-dropdown/pair-security-open-390-light.png"
+    ]
+  },
+  {
+    "id": "tabs-dropdown-home",
+    "name_he": "מסך ראשי - אזורים כרשימה נפתחת",
+    "section": "settings",
+    "route": "#/devices",
+    "viewports": [
+      "phone"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "אזורי הבית כרשימה נפתחת. פרטים ב-80-settings_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/evidence/tabs-dropdown/home-areas-dropdown-open-390-light.png"
+    ]
   }
 ]
