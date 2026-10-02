@@ -14,7 +14,7 @@ gates, the real WisKey feed hook and the real release route - whose only fakes a
 Run it (a fresh data dir each time; the ports are yours - the agent range 4771-4780 is used by default):
 
     SW_PORT=4771 SW_DATA_DIR=<empty dir> SW_DEV_USER=joni SW_BOOTSTRAP_ADMIN=joni \
-        <repo>/.venv/Scripts/python.exe frontend/tests/fixtures/notify_live_fake.py
+        <venv-python> frontend/tests/fixtures/notify_live_fake.py
 
 then, from frontend/ (`npm run build` first; the preview proxies /api to the backend):
 

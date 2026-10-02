@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 // 2. Live (SW_LIVE=1 SW_PUSH=1) against a throwaway backend - the real backend in the NVR-less mode on its own data dir:
 //
 //      SW_PORT=8391 SW_DATA_DIR=<empty dir> SW_DEV_USER=joni SW_BOOTSTRAP_ADMIN=joni SW_MODE=ha_only \
-//        SW_OPTIONS_FILE=<dir>/none.json <repo>/.venv/Scripts/python.exe -m smplwise      (from smplwise_vms/backend)
+//        SW_OPTIONS_FILE=<dir>/none.json <venv-python> -m smplwise      (from smplwise_vms/backend)
 //      SW_LIVE=1 SW_PUSH=1 SW_API_PORT=8391 SW_BASE_URL=http://127.0.0.1:4197/ \
 //        npx playwright test tests/evidence-pwa-push.spec.ts --project=desktop --project=mobile --workers=1
 //

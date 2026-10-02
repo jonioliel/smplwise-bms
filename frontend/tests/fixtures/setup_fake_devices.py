@@ -10,7 +10,7 @@ streams in the fake go2rtc, as the real add-on does; the setup wizard itself nev
 Run it (a fresh data dir each time):
 
     SW_PORT=8349 SW_DATA_DIR=<empty dir> SW_DEV_USER=joni SW_BOOTSTRAP_ADMIN=joni \
-        <repo>/.venv/Scripts/python.exe frontend/tests/fixtures/setup_fake_devices.py
+        <venv-python> frontend/tests/fixtures/setup_fake_devices.py
 
 then, from frontend/ (`npm run build` first):
 

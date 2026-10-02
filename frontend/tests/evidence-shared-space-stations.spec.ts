@@ -12,7 +12,7 @@ import path from 'node:path';
  *    jumps to that floor with the room selected ("בטל שיתוף" stays); on the HOME floor "מחק אזור" opens ONE confirmation that
  *    says what will happen and, on confirm, unshares and deletes in one server call.
  *
- *   SW_PORT=4901 SW_DATA_DIR=<empty dir> SW_DEV_USER=joni SW_BOOTSTRAP_ADMIN=joni <repo>/.venv/Scripts/python.exe frontend/tests/fixtures/wiskey_fake_ha.py
+ *   SW_PORT=4901 SW_DATA_DIR=<empty dir> SW_DEV_USER=joni SW_BOOTSTRAP_ADMIN=joni <venv-python> frontend/tests/fixtures/wiskey_fake_ha.py
  *   (frontend/) npm run build; SW_LIVE=1 SW_WISKEY_FIXTURE=1 SW_API_PORT=4901 SW_BASE_URL=http://127.0.0.1:4903/ npx playwright test tests/evidence-shared-space-stations.spec.ts --project=desktop --workers=1
  *
  * The spec builds its own site / building / two floors and removes them. Screenshots (SW_SHOT_DIR, off by default) are named "ss-*".

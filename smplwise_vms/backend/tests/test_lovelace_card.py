@@ -93,9 +93,15 @@ def _node() -> str | None:
     found = shutil.which("node")
     if found:
         return found
-    fnm = Path(os.environ.get("APPDATA", "")) / "fnm" / "node-versions"
-    candidates = sorted(fnm.glob("v*/installation/node.exe")) if fnm.is_dir() else []
-    return str(candidates[-1]) if candidates else None
+    # fnm keeps versions under %APPDATA%\fnm (Windows) or ~/.local/share/fnm (Linux) / ~/Library/Application Support/fnm (macOS)
+    homes = [Path(os.environ["APPDATA"]) / "fnm"] if os.environ.get("APPDATA") else []
+    homes += [Path.home() / ".local" / "share" / "fnm", Path.home() / "Library" / "Application Support" / "fnm"]
+    for fnm in homes:
+        base = fnm / "node-versions"
+        candidates = sorted([*base.glob("v*/installation/node.exe"), *base.glob("v*/installation/bin/node")]) if base.is_dir() else []
+        if candidates:
+            return str(candidates[-1])
+    return None
 
 
 def test_card_behaviour_in_node():
