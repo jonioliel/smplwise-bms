@@ -17,6 +17,10 @@
  */
 import { getMyPrefs, putMyPrefs } from '../api/me-prefs';
 import { autoTier, readCaps, capsVerdict, type PerformanceMode, type Tier } from './performance';
+import rawPalettes from './palettes.json' with { type: 'json' };
+
+/** Only the ids and Hebrew names of the ready palettes are read here (the colours are design/palette.ts's). */
+const palettesFile = rawPalettes as unknown as { palettes: { id: string; name: { he: string } }[] };
 
 export type Density = 'wide' | 'regular' | 'compact' | 'row';
 export type Surface = 'flat' | 'glass' | 'gradient' | 'fill';
@@ -106,15 +110,13 @@ export const LOOK_DIALS = {
     labelHe: { auto: 'אוטומטי', full: 'מלא', lite: 'קל' },
     hintHe: { auto: 'המכשיר מחליט לפי כוחו', full: 'טשטוש זכוכית בכל השכבות', lite: 'בלי טשטוש בכרטיסים וברשימות, לטאבלט קיר ולטלפון חלש' },
   } satisfies ChoiceDial<Performance>,
-  // the fixed choices (the backend's PALETTES); a `custom-<slug>` id is valid too (CUSTOM_PALETTE_ID). Names: design/palettes.json (name.he).
+  // the fixed choices = `default` + every palette of design/palettes.json (the backend lists the same file); a `custom-<slug>` id is valid too
+  // (CUSTOM_PALETTE_ID). Adding a palette is a data-only change: append it to the file (docs/design/palettes/README.md).
   palette: {
     kind: 'choice',
-    values: ['default', 'calm-blue', 'purple-rose', 'teal-green', 'amber-sand', 'graphite', 'deep-ocean', 'forest', 'sunset', 'rose-quartz', 'high-contrast'],
+    values: ['default', ...palettesFile.palettes.map((p) => p.id)],
     nameHe: 'צבעים',
-    labelHe: {
-      default: 'ברירת מחדל', 'calm-blue': 'כחול שקט', 'purple-rose': 'סגול ורד', 'teal-green': 'טורקיז', 'amber-sand': 'חול וענבר', graphite: 'גרפיט',
-      'deep-ocean': 'אוקיינוס עמוק', forest: 'יער', sunset: 'שקיעה', 'rose-quartz': 'קוורץ ורוד', 'high-contrast': 'ניגודיות גבוהה',
-    },
+    labelHe: { default: 'ברירת מחדל', ...Object.fromEntries(palettesFile.palettes.map((p) => [p.id, p.name.he])) },
     hintHe: { default: 'הצבעים של סגנון Bubble' },
   } satisfies ChoiceDial<PaletteId>,
 } as const;
@@ -197,8 +199,15 @@ export function onLook(fn: () => void): () => void {
 
 /** THE resolver: the dial in force. */
 export function lookOf<K extends LookDial>(dial: K): Look[K] {
+  // the palette is chosen by the installation's system administrator only (owner 2026-10-02): a personal value is never read
+  if (dial === 'palette') return (query.palette ?? installation.palette ?? LOOK_DEFAULT.palette) as Look[K];
   return (query[dial] ?? own[dial] ?? installation[dial] ?? LOOK_DEFAULT[dial]) as Look[K];
 }
+/** A personal override without the palette (an older stored value may carry one; it is ignored). */
+const withoutPalette = (v: PartialLook): PartialLook => {
+  const { palette: _ignored, ...rest } = v;
+  return rest;
+};
 /** Every dial in force. */
 export function look(): Look {
   const out: Record<string, unknown> = {};
@@ -317,7 +326,7 @@ export function bootLook(): void {
   booted = true;
   installation = { ...LOOK_DEFAULT, ...normalizeLook(read(INST_KEY)) };
   const cached = readCache();
-  own = cached ? cached.look : {};
+  own = cached ? withoutPalette(cached.look) : {};
   query = readQuery();
   refreshAutoPerformance(); // the cached / free verdict of `auto` at once (no flicker); the probe, when needed, runs at idle
   applyLook();
@@ -355,7 +364,7 @@ export async function loadLook(userId: string, api: boolean): Promise<void> {
   user = userId;
   remote = api;
   const cached = readCache();
-  own = cached && cached.u === userId ? cached.look : {};
+  own = cached && cached.u === userId ? withoutPalette(cached.look) : {};
   notify();
   if (!api) return;
   try {
@@ -364,7 +373,7 @@ export async function loadLook(userId: string, api: boolean): Promise<void> {
     const stored = Array.isArray(p.stored) && p.stored.includes('ui.look');
     const v = stored ? normalizeLook(p.prefs['ui.look']) : {};
     writeCache(userId, v);
-    own = v;
+    own = withoutPalette(v);
     notify();
   } catch {
     /* an older backend, or offline: keep the cached copy */
@@ -374,7 +383,7 @@ export async function loadLook(userId: string, api: boolean): Promise<void> {
 /** Save the user's own override: only the dials in `v` are overridden; `{}` = "לפי ההתקנה" for every dial. Optimistic; reverted when refused. */
 export async function saveOwnLook(v: PartialLook): Promise<void> {
   const before = own;
-  own = normalizeLook(v);
+  own = withoutPalette(normalizeLook(v));
   writeCache(user, own);
   notify();
   if (!remote) return;

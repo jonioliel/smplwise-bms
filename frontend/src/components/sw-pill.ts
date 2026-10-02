@@ -300,14 +300,14 @@ export class SwPill extends LitElement {
     }
     /* gradient: a hue-to-hue wash with a solid hue ring; the lit part is a light tint of the hue with dark text */
     :host([data-surface='gradient']:not([accent])) {
-      background: linear-gradient(100deg, color-mix(in oklab, var(--h) 40%, var(--sw-surface)) 0%, color-mix(in oklab, var(--h) 24%, var(--sw-surface)) 100%);
+      background: linear-gradient(100deg, color-mix(in oklab, var(--h) var(--sw-wash-start, 40%), var(--sw-surface)) 0%, color-mix(in oklab, var(--h) var(--sw-wash-end, 24%), var(--sw-surface)) 100%);
     }
     :host([data-surface='gradient']:not([accent])) .ring {
       background: var(--h);
       color: var(--sw-ring-on-hue);
     }
     :host([data-surface='gradient'][on]:not([accent]))::before {
-      background: color-mix(in oklab, var(--h) 70%, #fff);
+      background: color-mix(in oklab, var(--h) var(--sw-wash-lit, 70%), #fff);
     }
     /* glass: a translucent, blurred layer over the canvas */
     :host([data-surface='glass']:not([accent])) {

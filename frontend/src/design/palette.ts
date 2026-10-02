@@ -8,12 +8,17 @@
  *   - the custom palettes of an installation (`ui.palettes`, saved by an administrator in הגדרות › כללי › מראה) are held here;
  *   - `paletteTokens` maps a palette + scheme to `--sw-*` custom properties, `syncPalette` puts them on <html> inline (an inline
  *     declaration beats the skin's stylesheet, so no rule and no token table changes) - only while the bubble skin is in force;
- *   - a palette that does not pass every contrast pair (text 4.5:1, non-text 3:1; contrast.ts maths) is NEVER applied: the previous
- *     valid palette stays (or `default` when there was none).
+ *   - the palette is chosen by the installation's system administrator ONLY (`ui.look` of the installation); a user's personal
+ *     palette override does not exist (look.ts ignores it);
+ *   - contrast (text 4.5:1, non-text 3:1) is a WARNING, not a gate (owner decision 2026-10-02): `validatePalette` returns the failing
+ *     pairs next to `ok: true`, the editor shows them with a one-click auto-fix (`autoFixPalette`) and still lets the palette be saved.
+ *     Only a structurally invalid palette is refused / not applied (the previous valid one stays, or `default` when there was none).
  *
- * Defaults chosen for the open owner questions (all one-line changes, see DEFAULTS_FOR_OPEN_QUESTIONS below):
- *   1. dark accent: the palette's own accent (the lighter blue with dark text on it, not the product's #4c6fd9);
- *   2. icon rings follow the palette accent (RING_MODE 'accent'); `entity.*` colours are not wired, the gradient pairs only feed the washes;
+ * Owner decisions (2026-10-02 night), see DEFAULTS_FOR_OPEN_QUESTIONS and the functions named:
+ *   1. dark accent: always LIGHTER than the light scheme's accent (`effectiveScheme` derives it in code when a palette's own is not);
+ *      the editor offers recommended swatches (`recommendedColors`, taken from the ten ready palettes) next to a free colour picker;
+ *   2. icon rings follow the palette accent (RING_MODE 'accent'); the alternative per-entity-type hues stay as the 'pairs' mode (future
+ *      option, see docs/design/palettes/README.md); the gradient washes keep their text readable (`washShares`, asserted in a unit spec);
  *   3. all ten palettes are offered, plus `default` (the skin's own colours).
  */
 import { over, parseColor, type RGBA } from './contrast';
@@ -49,7 +54,8 @@ export interface Palette {
 
 /** The decisions taken for the open owner questions of docs/design/palettes/README.md (change here, nowhere else). */
 export const DEFAULTS_FOR_OPEN_QUESTIONS = {
-  /** 'accent': every icon ring is the palette accent with its contrast text; 'pairs': rings take the start colours of the gradient pairs (decorative hues). */
+  /** 'accent' (owner 2026-10-02): every icon ring is the palette accent with its contrast text. 'pairs' is KEPT as a documented future option
+   *  (per-entity-type ring hues: rings take the start colours of the gradient pairs): switch it here, nothing else changes. */
   RING_MODE: 'accent' as 'accent' | 'pairs',
   /** The ten ready palettes offered in the dial (all of them); a subset is a one-line filter of this list. */
   OFFERED: null as string[] | null,
@@ -247,10 +253,10 @@ export function checkScheme(s: PaletteScheme): Row[] {
 export interface FailingRow extends Row {
   scheme: Scheme;
 }
-/** The failing rows of a well-formed palette, both schemes. */
+/** The failing rows of a well-formed palette, both schemes, of the colours as they are APPLIED (the dark accent derived, see effectiveScheme). */
 export function failingPairs(pal: Palette): FailingRow[] {
   const out: FailingRow[] = [];
-  for (const sc of ['light', 'dark'] as const) for (const r of checkScheme(pal.schemes[sc])) if (!r.ok) out.push({ ...r, scheme: sc });
+  for (const sc of ['light', 'dark'] as const) for (const r of checkScheme(effectiveScheme(pal, sc))) if (!r.ok) out.push({ ...r, scheme: sc });
   return out;
 }
 
@@ -280,19 +286,22 @@ export function describeFailures(rows: FailingRow[], limit = 3): string {
   const worst = [...rows].sort((a, b) => a.ratio - b.ratio).slice(0, limit);
   const parts = worst.map((r) => `${r.scheme === 'light' ? 'בהיר' : 'כהה'}: ${fgHe(r.fg)} על ${bgHe(r.bg)} - ${r.ratio.toFixed(2)}:1 (נדרש ${r.min}:1)`);
   const more = rows.length > limit ? ` ועוד ${rows.length - limit}` : '';
-  return `ערכת הצבעים נדחתה: ניגודיות נמוכה מדי ב־${rows.length} זוגות. ${parts.join('; ')}${more}.`;
+  return `אזהרה: ניגודיות נמוכה מדי ב־${rows.length} זוגות. ${parts.join('; ')}${more}.`;
 }
 
-export type Verdict = { ok: true; palette: Palette } | { ok: false; message: string; rows: FailingRow[] };
-/** Shape and contrast. A palette that fails is refused with a Hebrew message; it is never applied or stored. */
+/**
+ * ok: shape is valid (the palette may be stored and applied); `rows` = the contrast pairs that fail (empty = all pass) and `warning` = the
+ * Hebrew text about them ('' when none). ok: false = structurally invalid (never stored, never applied), with a Hebrew message.
+ */
+export type Verdict = { ok: true; palette: Palette; rows: FailingRow[]; warning: string } | { ok: false; message: string; rows: FailingRow[] };
+/** Shape (a refusal) and contrast (a warning only: owner decision 2026-10-02, saving a low-contrast custom palette is allowed). */
 export function validatePalette(pal: unknown, opts: { custom?: boolean } = {}): Verdict {
   const errs = schemaErrors(pal);
   if (errs.length) return { ok: false, message: `ערכת הצבעים אינה תקינה: ${errs[0]}`, rows: [] };
   const p = pal as Palette;
   if (opts.custom && !isCustomId(p.id)) return { ok: false, message: 'מזהה ערכה מותאמת חייב להתחיל ב־custom- (אותיות קטנות, ספרות ומקפים)', rows: [] };
   const rows = failingPairs(p);
-  if (rows.length) return { ok: false, message: describeFailures(rows), rows };
-  return { ok: true, palette: p };
+  return { ok: true, palette: p, rows, warning: rows.length ? describeFailures(rows) : '' };
 }
 
 // ---- colour helpers for the token mapping ----
@@ -308,7 +317,7 @@ export const surface3Of = (s: PaletteScheme): string => toHex(mix(col(s, 'surfac
 
 /** A palette + scheme as `--sw-*` custom properties (the names of tokens.ts; only colours, glass blur and the wallpaper). */
 export function paletteTokens(pal: Palette, scheme: Scheme): Record<string, string> {
-  const s = pal.schemes[scheme];
+  const s = effectiveScheme(pal, scheme);
   const dark = scheme === 'dark';
   const C = (p: string) => col(s, p);
   const t: Record<string, string> = {};
@@ -382,7 +391,188 @@ export function paletteTokens(pal: Palette, scheme: Scheme): Record<string, stri
     t['--sw-ring-on-hue'] = s.gradient.text;
   }
   t['--sw-cool'] = s.entity.climate;
+  // the gradient surface's washes (sw-pill): the accent share of the wash and of the lit part, reduced where the text would not read
+  const w = washShares(s);
+  t['--sw-wash-start'] = `${w.start}%`;
+  t['--sw-wash-end'] = `${w.end}%`;
+  t['--sw-wash-lit'] = `${w.lit}%`;
   return t;
+}
+
+// ---- the dark accent (owner decision 2026-10-02): always lighter than the light scheme's accent ----
+
+/** The least contrast ratio the dark accent keeps against the light scheme's accent (so the two read as clearly different shades). */
+export const DARK_ACCENT_MIN_RATIO = 1.35;
+const WHITE: RGBA = [255, 255, 255, 1];
+const BLACK: RGBA = [0, 0, 0, 1];
+
+/**
+ * A scheme as it is APPLIED. Light = as stored. Dark = as stored, except the accent: it is derived to be a LIGHTER shade than the light
+ * scheme's accent (a palette whose dark accent already is keeps it, so the ten ready palettes are unchanged). A too-dark dark accent is
+ * mixed toward white until it is lighter by DARK_ACCENT_MIN_RATIO and keeps 3:1 against the dark backgrounds; the text on it
+ * (`accentContrast`) is re-picked (the stored colour, else black, else white) to keep 4.5:1; the toggle colour follows when it was the accent.
+ */
+export function effectiveScheme(pal: Palette, scheme: Scheme): PaletteScheme {
+  const dark = pal.schemes.dark;
+  if (scheme === 'light') return pal.schemes.light;
+  const light = parseColor(pal.schemes.light.accent);
+  const cur = parseColor(dark.accent);
+  if (!light || !cur) return dark;
+  const bgs = [col(dark, 'bg'), col(dark, 'surface')];
+  const ok = (c: RGBA) => lum(c) > lum(light) && ratio(c, light) >= DARK_ACCENT_MIN_RATIO && bgs.every((b) => ratio(c, b) >= UI_MIN);
+  if (ok(cur)) return dark;
+  let next = cur;
+  for (let t = 0.04; t <= 0.9; t += 0.04) {
+    next = mix(cur, WHITE, t);
+    if (ok(next)) break;
+  }
+  const accent = toHex(next);
+  const onAccent = [col(dark, 'accentContrast'), BLACK, WHITE].find((c) => ratio(c, next) >= TEXT_MIN) ?? (ratio(BLACK, next) >= ratio(WHITE, next) ? BLACK : WHITE);
+  return { ...dark, accent, accentContrast: toHex(onAccent), state: { ...dark.state, on: dark.state.on.toLowerCase() === dark.accent.toLowerCase() ? accent : dark.state.on } };
+}
+
+// ---- the gradient washes (surface `gradient` of the pill): the text on them must read ----
+
+/** sRGB -> OKLab and back (CSS `color-mix(in oklab, ...)` is what sw-pill draws). */
+const toLab = (c: RGBA): [number, number, number] => {
+  const [r, g, b] = [c[0], c[1], c[2]].map((v) => {
+    const x = v / 255;
+    return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+  });
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s];
+};
+const fromLab = ([L, a, b]: [number, number, number]): RGBA => {
+  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+  const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+  const s = (L - 0.0894841775 * a - 1.2914855480 * b) ** 3;
+  const lin = [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s, -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s];
+  const [r, g, bl] = lin.map((v) => {
+    const x = Math.max(0, Math.min(1, v));
+    return 255 * (x <= 0.0031308 ? 12.92 * x : 1.055 * x ** (1 / 2.4) - 0.055);
+  });
+  return [r, g, bl, 1];
+};
+/** CSS `color-mix(in oklab, a pct%, b)`. */
+export const mixOklab = (a: RGBA, b: RGBA, pct: number): RGBA => {
+  const [x, y] = [toLab(a), toLab(b)];
+  const t = pct / 100;
+  return fromLab([x[0] * t + y[0] * (1 - t), x[1] * t + y[1] * (1 - t), x[2] * t + y[2] * (1 - t)]);
+};
+
+/** What sw-pill draws when nothing overrides it: the wash starts at 40 % accent over the surface, ends at 24 %, the lit part is 70 % accent over white. */
+export const WASH_DEFAULT = { start: 40, end: 24, lit: 70 } as const;
+
+/**
+ * The accent shares of the gradient washes for a scheme (percent): the defaults, reduced in 2-point steps until the text and the muted text
+ * read at 4.5:1 on the wash (the end of the wash is 0.6 of the start, as in the default) and the on-fill text reads on the lit part (a smaller
+ * share = more surface / white under it). Monotonic: 0 is the plain surface / white, which the main contrast pairs already cover.
+ */
+export function washShares(s: PaletteScheme): { start: number; end: number; lit: number } {
+  const acc = col(s, 'accent');
+  const surface = col(s, 'surface');
+  let start: number = WASH_DEFAULT.start;
+  const reads = (pct: number) => {
+    const w = mixOklab(acc, surface, pct);
+    return ratio(col(s, 'text'), w) >= TEXT_MIN && ratio(col(s, 'textMuted'), w) >= TEXT_MIN;
+  };
+  while (start > 0 && !reads(start)) start -= 2;
+  let lit: number = WASH_DEFAULT.lit;
+  while (lit > 0 && ratio(col(s, 'slider.onFill'), mixOklab(acc, WHITE, lit)) < TEXT_MIN) lit -= 2;
+  return { start, end: Math.round(start * (WASH_DEFAULT.end / WASH_DEFAULT.start)), lit };
+}
+
+/** The contrast rows of the gradient washes at the shares in force (what is drawn): text and muted text on both ends, on-fill text on the lit part. */
+export function washRows(s: PaletteScheme): Row[] {
+  const acc = col(s, 'accent');
+  const surface = col(s, 'surface');
+  const w = washShares(s);
+  const rows: Row[] = [];
+  const add = (what: string, fg: string, bg: string, f: RGBA, b: RGBA) => {
+    const r = ratio(f, b);
+    rows.push({ group: 'wash', what, fg, bg, ratio: Math.round(r * 100) / 100, min: TEXT_MIN, ok: r >= TEXT_MIN });
+  };
+  for (const [name, pct] of [['start', w.start], ['end', w.end]] as const) {
+    const b = mixOklab(acc, surface, pct);
+    add(`text on wash ${name}`, 'text', `wash.${name}`, col(s, 'text'), b);
+    add(`textMuted on wash ${name}`, 'textMuted', `wash.${name}`, col(s, 'textMuted'), b);
+  }
+  add('onFill on the lit part', 'slider.onFill', 'wash.lit', col(s, 'slider.onFill'), mixOklab(acc, WHITE, w.lit));
+  return rows;
+}
+
+// ---- the editor's colour choices ----
+
+/** The colour paths of the key colours with recommended swatches: values the ten ready palettes use for it in that scheme (first the accent's). */
+export function recommendedColors(path: string, scheme: Scheme, limit = 10): string[] {
+  const out: string[] = [];
+  for (const p of BUILTIN_PALETTES) {
+    const v = String(get(p.schemes[scheme], path) ?? '').toLowerCase();
+    if (HEX.test(v) && !out.includes(v)) out.push(v);
+  }
+  return out.slice(0, limit);
+}
+
+// ---- the auto-fix of a palette that fails contrast ----
+
+const SCHEME_KEYS = ['light', 'dark'] as const;
+/**
+ * The nearest passing colours: every failing pair's foreground colour moves toward white or black (whichever passes sooner, in 2-point
+ * steps) until every pair that uses it passes. Backgrounds (bg, surfaces, wallpaper, glass, fills) are never moved: a palette's look is its
+ * backgrounds. Returns a new palette and whatever still fails (e.g. a foreground that is boxed in between two backgrounds).
+ */
+export function autoFixPalette(pal: Palette): { palette: Palette; changed: string[]; remaining: FailingRow[] } {
+  const next = JSON.parse(JSON.stringify(pal)) as Palette;
+  const changed: string[] = [];
+  const setHex = (s: PaletteScheme, path: string, v: string) => {
+    const ks = path.split('.');
+    const last = ks.pop() as string;
+    let n = s as unknown as Record<string, unknown>;
+    for (const k of ks) n = n[k] as Record<string, unknown>;
+    n[last] = v;
+  };
+  for (const sc of SCHEME_KEYS) {
+    const s = next.schemes[sc];
+    for (let pass = 0; pass < 4; pass++) {
+      const bad = checkScheme(effectiveOf(next, sc, s)).filter((r) => !r.ok);
+      if (!bad.length) break;
+      const fgs = [...new Set(bad.map((r) => r.fg))].filter((p) => HEX.test(String(get(s, p) ?? '')));
+      if (!fgs.length) break;
+      for (const path of fgs) {
+        const cur = col(s, path);
+        const failing = (c: string): number => {
+          const was = String(get(s, path));
+          setHex(s, path, c);
+          const n = checkScheme(effectiveOf(next, sc, s)).filter((r) => !r.ok && r.fg === path).length;
+          setHex(s, path, was);
+          return n;
+        };
+        let best: { hex: string; fails: number } | null = null;
+        for (let t = 0.02; t <= 1.0001 && !(best && best.fails === 0); t += 0.02) {
+          for (const end of [WHITE, BLACK]) {
+            const hex = toHex(mix(cur, end, Math.min(1, t)));
+            const fails = failing(hex);
+            if (!best || fails < best.fails) best = { hex, fails };
+            if (fails === 0) {
+              best = { hex, fails };
+              break;
+            }
+          }
+        }
+        if (best && best.hex !== String(get(s, path)).toLowerCase()) {
+          setHex(s, path, best.hex);
+          changed.push(`${sc}.${path}`);
+        }
+      }
+    }
+  }
+  return { palette: next, changed, remaining: failingPairs(next) };
+}
+/** The dark accent is derived from the light one, so while the fix edits the light scheme the dark one is re-derived on every check. */
+function effectiveOf(pal: Palette, sc: Scheme, s: PaletteScheme): PaletteScheme {
+  return sc === 'light' ? s : effectiveScheme({ ...pal, schemes: { light: pal.schemes.light, dark: s } }, 'dark');
 }
 
 // ---- the custom palettes of the installation (`ui.palettes`) and the resolver ----
@@ -408,7 +598,7 @@ function writeStorage(v: string | null): void {
   }
 }
 
-/** A stored / served list reduced to the palettes that are well-formed custom palettes; the rest is dropped (a bad one is never applied). */
+/** A stored / served list reduced to the palettes that are well-formed custom palettes (low contrast is kept: it was saved with a warning); the rest is dropped. */
 export function normalizeCustoms(raw: unknown): Palette[] {
   let v = raw;
   if (typeof v === 'string') {
@@ -454,7 +644,8 @@ export function paletteById(id: string): Palette | null {
 
 /**
  * The palette in force: the dial's value resolved. `default` and an id with no palette behind it (deleted) = null (the skin's own
- * colours); a palette that fails validation is NOT applied: the previous valid palette stays, else null.
+ * colours); a palette that is STRUCTURALLY invalid is NOT applied: the previous valid palette stays, else null. Low contrast does not
+ * stop a palette (warn-only, owner decision 2026-10-02).
  */
 export function resolvePalette(id: string = lookOf('palette')): Palette | null {
   const p = paletteById(id);

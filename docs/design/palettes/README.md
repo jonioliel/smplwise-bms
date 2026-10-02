@@ -158,3 +158,38 @@ Screenshots: `screens/` - 40 PNGs (10 palettes x light / dark x 390 / 1440), Pla
    the gradient surface?
 4. Which palettes go into the first release (all ten, or a short list such as calm-blue, purple-rose, graphite, high-contrast)?
 5. A custom palette from the colour editor: block a failing palette, or allow it with a warning for administrators?
+
+## Owner decisions (2026-10-02 night) and how the app implements them
+
+Questions 1-5 above are answered; the app (`frontend/src/design/palette.ts`, `system-palette-editor.ts`, backend `services/palettes.py`) does this:
+
+1. **Dark accent**: always a LIGHTER shade than the light scheme's accent. The ten palettes already are (data unchanged). For a custom palette
+   `effectiveScheme()` derives it in code: a dark accent that is not at least 1.35:1 lighter than the light accent (and 3:1 against the dark
+   `bg` / `surface`) is mixed toward white until it is; the text on it is re-picked for 4.5:1. The editor offers RECOMMENDED swatches for
+   every key colour (the accent first; the values the ten ready palettes use) and a free colour picker.
+2. **Icon rings** stay the accent colour (`RING_MODE: 'accent'` in `palette.ts`). The alternative stays as a documented FUTURE option:
+   set `RING_MODE` to `'pairs'` and the rings take per-entity-type hues from `gradient.pairs` (the `entity.*` tokens remain in every palette
+   for it; a unit spec keeps that mode working). With monochrome rings the gradient washes are accent washes: `washShares()` lowers the
+   accent share of the wash (`--sw-wash-start` / `--sw-wash-end`, default 40 % / 24 %) and of the lit part (`--sw-wash-lit`, default 70 %)
+   per palette and scheme until text and muted text read at 4.5:1 on the wash and the on-fill text on the lit part (`unit-palettes.spec.ts`
+   asserts it for every palette and both schemes).
+3. **All ten palettes** are offered (plus `default`, the skin's own colours).
+4. **A failing custom palette only WARNS**: the editor lists the worst pairs in Hebrew and offers "תקן אוטומטית" (`autoFixPalette`: failing
+   foreground colours move to the nearest passing value, backgrounds stay) and saving stays allowed. The backend accepts it (no 422 for
+   contrast) and still refuses a structurally invalid palette; the app falls back to the previous valid palette only for a structurally
+   invalid one.
+5. **Import / export** of palettes: not now.
+6. **Who chooses**: only the installation's system administrator (`system.configure`, the settings gate) sets the palette, for everyone.
+   There is no personal palette override: the row is not shown on "ההעדפה שלי", `lookOf('palette')` never reads a personal value and
+   `/me/prefs` drops a `palette` it is given. The other look dials keep their personal overrides.
+
+## Adding a palette is a data-only change
+
+1. Append the palette object to `palettes.json` here (same schema as the others; `id` lower-case kebab, `name.he` / `name.en`).
+2. `node validate_palettes.mjs` must pass (every contrast pair), then `--emit-preview` to refresh `preview-data.js`.
+3. Copy the file to `frontend/src/design/palettes.json` and to `smplwise_vms/backend/smplwise/palettes.json` (a unit spec and a backend test
+   keep the three identical; the file name list of the dial, its Hebrew labels and the backend's accepted ids are all read from it).
+4. Bump the release notes. Nothing else.
+
+No component, token table, CSS or id list changes: the loader maps any valid palette to `--sw-*` custom properties, the look dial's
+choices (`LOOK_DIALS.palette`) and the backend's `BUILTIN_IDS` are generated from the file.

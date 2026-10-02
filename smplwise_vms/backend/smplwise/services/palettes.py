@@ -18,9 +18,17 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 from typing import Any
 
-BUILTIN_IDS: tuple[str, ...] = ("calm-blue", "purple-rose", "teal-green", "amber-sand", "graphite", "deep-ocean", "forest", "sunset", "rose-quartz", "high-contrast")
+def _builtin_ids() -> tuple[str, ...]:
+    """The ready palettes' ids: read from smplwise/palettes.json, a copy of docs/design/palettes/palettes.json (a test keeps the copies identical),
+    so adding a palette is a data-only change (docs/design/palettes/README.md)."""
+    data = json.loads((Path(__file__).resolve().parent.parent / "palettes.json").read_text(encoding="utf-8"))
+    return tuple(p["id"] for p in data["palettes"])
+
+
+BUILTIN_IDS: tuple[str, ...] = _builtin_ids()
 CUSTOM_PREFIX = "custom-"
 CUSTOM_ID_RE = re.compile(r"^custom-[a-z0-9]+(?:-[a-z0-9]+)*$")
 MAX_CUSTOM = 12

@@ -8,10 +8,15 @@ import { patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
 import { lookOf } from '../design/look';
-import { MAX_CUSTOM, allPalettes, customPalettes, onPalettes, paletteById, paletteTokens, setCustomPalettes, validatePalette, type Palette, type Scheme } from '../design/palette';
+import {
+  MAX_CUSTOM, allPalettes, autoFixPalette, customPalettes, effectiveScheme, onPalettes, paletteById, paletteTokens, recommendedColors, setCustomPalettes, validatePalette, type Palette, type Scheme,
+} from '../design/palette';
 
-/** The key colours the editor offers (path inside a scheme, Hebrew name). The rest of a palette (states, rings, gradients, slider) is the base palette's. */
+/** The key colours the editor offers (path inside a scheme, Hebrew name), the accent first. The rest of a palette (states, rings, gradients, slider) is the base palette's. */
 export const KEY_COLORS: readonly (readonly [string, string])[] = [
+  ['accent', 'צבע הדגש'],
+  ['accentContrast', 'טקסט על הדגש'],
+  ['accentText', 'טקסט בצבע הדגש'],
   ['bg', 'רקע'],
   ['surface', 'משטח'],
   ['surface2', 'משטח משני'],
@@ -19,9 +24,6 @@ export const KEY_COLORS: readonly (readonly [string, string])[] = [
   ['glass.tint', 'גוון זכוכית'],
   ['text', 'טקסט'],
   ['textMuted', 'טקסט משני'],
-  ['accent', 'צבע הדגש'],
-  ['accentContrast', 'טקסט על הדגש'],
-  ['accentText', 'טקסט בצבע הדגש'],
 ];
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -37,9 +39,12 @@ const getPath = (o: unknown, path: string): string => path.split('.').reduce<unk
 /**
  * הגדרות › כללי › מראה › ערכות צבעים (release 0.1.156): the palette editor. A system administrator starts from any palette, edits the
  * key colours of the light and the dark scheme with a live preview, and saves the result as a CUSTOM palette of the installation
- * (`ui.palettes`; the palette dial of every user can then point at it). A palette that does not pass the contrast checks (text 4.5:1,
- * non-text 3:1; design/palette.ts) is refused with a Hebrew message listing the failing pairs: it is never sent, never stored and never
- * applied - the palette in force stays. The backend runs the same checks. Renders nothing for a person who cannot edit the installation.
+ * (`ui.palettes`; the installation's palette dial can then point at it - nobody else chooses a palette). Every key colour offers a few
+ * RECOMMENDED swatches (the values the ten ready palettes use) and a free colour picker. A palette that does not pass the contrast
+ * checks (text 4.5:1, non-text 3:1; design/palette.ts) is only WARNED about (owner decision 2026-10-02): the worst pairs are listed in
+ * Hebrew with a one-click auto-fix, and saving stays allowed. Only a structurally invalid palette cannot be saved. In the dark scheme the
+ * accent is derived to be lighter than the light one (design/palette.ts effectiveScheme). Renders nothing for a person who cannot edit
+ * the installation.
  */
 @customElement('system-palette-editor')
 export class SystemPaletteEditor extends LitElement {
@@ -124,19 +129,53 @@ export class SystemPaletteEditor extends LitElement {
     }
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
       gap: 8px;
     }
-    .grid label {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      min-block-size: 40px;
-      padding: 0 10px;
+    .ci {
+      display: grid;
+      gap: 6px;
+      padding: 8px 10px;
       border-radius: var(--sw-r-md);
       background: var(--sw-surface-2);
       font-size: var(--sw-fs-sm);
+    }
+    .sw {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+    .chip {
+      all: unset;
+      box-sizing: border-box;
+      inline-size: 26px;
+      block-size: 26px;
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 0 0 1px rgba(128, 128, 128, 0.5);
+    }
+    .chip[aria-pressed='true'] {
+      box-shadow: 0 0 0 2px var(--sw-surface-2), 0 0 0 4px var(--sw-accent);
+    }
+    .chip:focus-visible {
+      outline: 2px solid var(--sw-focus);
+      outline-offset: 2px;
+    }
+    .note {
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+      padding-block: 6px;
+    }
+    .warn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      color: var(--sw-warning-text);
+      font-size: var(--sw-fs-sm);
+      padding-block: 8px;
     }
     .grid input[type='color'] {
       inline-size: 44px;
@@ -261,7 +300,7 @@ export class SystemPaletteEditor extends LitElement {
     if (!this.draft) return;
     const v = validatePalette(this.draft, { custom: true });
     if (!v.ok) {
-      this.error = v.message; // refused before it is sent: nothing is stored, nothing is applied
+      this.error = v.message; // structurally invalid: refused before it is sent, nothing is stored, nothing is applied
       return;
     }
     const next = [...customPalettes().filter((p) => p.id !== v.palette.id), v.palette];
@@ -270,6 +309,14 @@ export class SystemPaletteEditor extends LitElement {
       return;
     }
     await this.persist(next, 'הערכה נשמרה', () => (this.draft = null));
+  }
+
+  /** One click: every failing foreground colour moves to the nearest passing value (backgrounds stay); what cannot be fixed stays in the warning. */
+  private autoFix() {
+    if (!this.draft) return;
+    const r = autoFixPalette(this.draft);
+    this.draft = r.palette;
+    this.flash(r.changed.length ? `תוקנו ${r.changed.length} צבעים` : 'אין מה לתקן אוטומטית');
   }
 
   private async removeCustom(id: string) {
@@ -330,7 +377,9 @@ export class SystemPaletteEditor extends LitElement {
       </div>`;
     }
     const verdict = validatePalette(d, { custom: true });
-    const bad = !verdict.ok;
+    const bad = !verdict.ok; // structurally invalid: cannot be saved
+    const warning = verdict.ok ? verdict.warning : ''; // low contrast: a warning, saving stays allowed
+    const lifted = this.scheme === 'dark' && effectiveScheme(d, 'dark').accent.toLowerCase() !== d.schemes.dark.accent.toLowerCase();
     const existing = customPalettes().some((p) => p.id === d.id);
     const s = d.schemes[this.scheme];
     return html`<div data-palette-editor style="border-block-end: 1px solid var(--sw-border); padding-block-end: 10px">
@@ -348,11 +397,28 @@ export class SystemPaletteEditor extends LitElement {
         </span>
       </div>
       <div class="grid" data-palette-colors>
-        ${KEY_COLORS.map(
-          ([path, name]) => html`<label>${name}<input type="color" data-palette-color=${path} aria-label=${name} .value=${getPath(s, path)} @input=${(e: Event) => this.setColor(path, (e.target as HTMLInputElement).value)} /></label>`,
-        )}
+        ${KEY_COLORS.map(([path, name]) => {
+          const cur = getPath(s, path).toLowerCase();
+          return html`<div class="ci" data-palette-key=${path}>
+            <span class="cn">${name}</span>
+            <span class="sw" role="group" aria-label=${`צבעים מומלצים: ${name}`}>
+              ${recommendedColors(path, this.scheme).map(
+                (hex) => html`<button type="button" class="chip" data-palette-swatch=${`${path}:${hex}`} aria-label=${`${name} ${hex}`} aria-pressed=${cur === hex ? 'true' : 'false'} style=${styleMap({ background: hex })} @click=${() => this.setColor(path, hex)}></button>`,
+              )}
+              <input type="color" data-palette-color=${path} aria-label=${`${name}: בחירה חופשית`} .value=${cur} @input=${(e: Event) => this.setColor(path, (e.target as HTMLInputElement).value)} />
+            </span>
+          </div>`;
+        })}
       </div>
+      ${lifted ? html`<div class="note" data-palette-lifted>בכהה צבע הדגש מוּבהר אוטומטית, כך שיהיה בהיר מהצבע בתצוגה הבהירה.</div>` : nothing}
       ${bad ? html`<div class="err" role="alert" data-palette-invalid>${verdict.message}</div>` : nothing}
+      ${warning
+        ? html`<div class="warn" role="status" data-palette-warning>
+            <span>${warning}</span>
+            <sw-button variant="ghost" size="sm" data-palette-autofix ?disabled=${this.busy} @click=${() => this.autoFix()}>תקן אוטומטית</sw-button>
+          </div>`
+        : nothing}
+      ${this.message ? html`<div class="ok" role="status" data-palette-message>${this.message}</div>` : nothing}
       <div class="pv" data-palette-preview style=${styleMap(this.previewStyle(d))}>
         <div class="pv-col">
           <sw-pill variant="slider" icon="light" label="תאורה מרכזית" state="דולק · 72%" .value=${0.72} on .hue=${2} tabindex="-1"></sw-pill>

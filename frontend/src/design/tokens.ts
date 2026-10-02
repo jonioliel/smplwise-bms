@@ -287,6 +287,10 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-hue-7': lt('#5a6fd8', '#4f68d8'),
       '--sw-hue-8': lt('#7a9a2f', '#7d9b2a'),
       '--sw-ring-on-hue': same('#ffffff'),
+      // the gradient surface's washes (sw-pill): accent share at the start / end of the wash and of the lit part; a palette lowers them where its text would not read (design/palette.ts washShares)
+      '--sw-wash-start': same('40%'),
+      '--sw-wash-end': same('24%'),
+      '--sw-wash-lit': same('70%'),
       '--sw-cool': lt('#2f8fb8', '#4aa8d8'),
       '--sw-heat': lt('#e0662f', '#ff7a45'),
       // the pill family's sizes: the density dial rewrites them (design/look.ts DENSITY bundles)

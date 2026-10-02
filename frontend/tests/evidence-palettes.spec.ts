@@ -4,11 +4,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Release 0.1.156: the palette loader and the editor in הגדרות › כללי › מראה (static demo mode; the backend side is test_palettes.py).
-//   1. the palette dial: a ready palette is in force on <html> (data attribute + inline tokens), per scheme, per user, follows the
-//      installation again on "לפי ההתקנה", is ignored by the other skins, and keeps the glass above the palette's own minimum opacity;
-//   2. the editor: a palette that fails the contrast checks is refused with a Hebrew message, never saved and never applied; a good one
-//      is saved as a custom palette, becomes an option of the dial, applies, survives a reload and can be deleted;
-//   3. evidence shots -> docs/design/evidence/palettes/
+//   1. the palette dial belongs to the installation's system administrator only: a ready palette chosen there (saved with the button) is in
+//      force on <html> (data attribute + inline tokens), per scheme, ignored by the other skins, keeps the glass above the palette's own
+//      minimum opacity; a personal palette override does not exist (no row on "ההעדפה שלי", a stored one is ignored);
+//   2. the editor: recommended swatches + a free picker for every key colour (accent first); a palette that fails the contrast checks is
+//      only WARNED about (Hebrew, worst pairs, one-click auto-fix) and can still be saved and applied; a good one is saved as a custom
+//      palette, becomes an option of the dial, applies, survives a reload and can be deleted;
+//   3. the dark scheme's accent is lighter than the light one's, whatever a custom palette stores;
+//   4. evidence shots -> docs/design/evidence/palettes/
 // Needs the Vite DEV server (the specs import /src/design/palette.ts):
 //   SW_API_PORT=59997 npx vite --host 127.0.0.1 --port 5201      then
 //   SW_BASE_URL=http://127.0.0.1:5201/ npx playwright test tests/evidence-palettes.spec.ts --project=desktop --project=mobile --workers=1
@@ -21,7 +24,7 @@ const editor = (page: Page) => page.locator('sw-app system-diagnostics system-lo
 const paletteAccent = (page: Page, id: string, scheme: 'light' | 'dark') =>
   page.evaluate(async ([url, i, s]) => {
     const mod = await import(/* @vite-ignore */ url as string);
-    return mod.paletteById(i).schemes[s as string].accent as string;
+    return mod.effectiveScheme(mod.paletteById(i), s).accent as string;
   }, ['/src/design/palette.ts', id, scheme] as const);
 
 async function open(page: Page, query = '', skin = 'bubble') {
@@ -31,6 +34,15 @@ async function open(page: Page, query = '', skin = 'bubble') {
   await page.waitForSelector('sw-app');
   await expect(lookCard(page)).toBeVisible();
   await page.waitForTimeout(500);
+}
+
+/** The installation's palette, chosen on "ברירת המחדל של ההתקנה" and saved (the only place a palette is chosen). */
+async function choose(page: Page, id: string) {
+  const card = lookCard(page);
+  await card.locator('[data-look-target="installation"]').click();
+  await card.locator(`[data-look-option="palette:${id}"]`).click();
+  await card.locator('[data-look-save]').click();
+  await expect.poll(() => attr(page, 'data-bubble-palette')).toBe(id);
 }
 
 async function shot(page: Page, name: string) {
@@ -54,19 +66,39 @@ test.describe('bubble palettes', () => {
     });
   });
 
-  test('the dial offers default and all ten palettes; choosing one puts its colours on the page for the scheme in force, per user, and clearing restores the skin', async ({ page }, info) => {
+  test('only the installation chooses the palette: the dial offers default and all ten, saved it is in force for the scheme, there is no personal override', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'the card is one component on every width');
     await open(page, '&scheme=light');
     const card = lookCard(page);
-    await expect(card.locator('[data-look-row]')).toHaveCount(9);
+    // "ההעדפה שלי": the other eight dials, no palette row at all
+    await expect(card.locator('[data-look-row]')).toHaveCount(8);
+    await expect(card.locator('[data-look-row="palette"]')).toHaveCount(0);
+    await expect(card.locator('[data-look-follow="palette"]')).toHaveCount(0);
+    // a personal palette left in the browser store by an older version is ignored
+    await page.evaluate(() => localStorage.setItem('sw.ui.look', JSON.stringify({ u: null, look: { palette: 'sunset', density: 'compact' } })));
+    await page.evaluate(() => sessionStorage.setItem('look-keep', '1'));
+    await page.reload();
+    await page.waitForSelector('sw-app');
+    await page.waitForTimeout(400);
+    expect(await attr(page, 'data-bubble-palette')).toBe('default');
+    expect(await attr(page, 'data-bubble-density')).toBe('compact'); // the other personal dials stay
+    expect(await inline(page, '--sw-accent')).toBe('');
+    await page.evaluate(() => sessionStorage.removeItem('look-keep'));
+    await open(page, '&scheme=light');
+    // the installation: ten + default, a draft until saved
+    await card.locator('[data-look-target="installation"]').click();
     await expect(card.locator('[data-look-row="palette"] [data-look-option]')).toHaveCount(11);
-    expect(await inline(page, '--sw-accent')).toBe(''); // default: the skin's own colours, nothing inline
+    await expect(card.locator('[data-look-row]')).toHaveCount(9);
     await card.locator('[data-look-option="palette:forest"]').click();
+    expect(await attr(page, 'data-bubble-palette')).toBe('default');
+    await card.locator('[data-look-save]').click();
     await expect.poll(() => attr(page, 'data-bubble-palette')).toBe('forest');
     expect(await inline(page, '--sw-accent')).toBe(await paletteAccent(page, 'forest', 'light'));
     expect(await inline(page, '--sw-sheet-rgb')).toMatch(/^\d+, \d+, \d+$/);
+    // the gradient washes keep their text readable: the three shares are on the page
+    expect(await inline(page, '--sw-wash-start')).toMatch(/^\d+%$/);
     await expect(card.locator('[data-look-row="palette"] [data-look-option="palette:forest"]')).toHaveAttribute('aria-pressed', 'true');
-    // it survives a reload (the user's own look is cached) and follows the dark scheme
+    // it survives a reload and follows the dark scheme (its lighter accent)
     await page.evaluate(() => sessionStorage.setItem('look-keep', '1'));
     await page.reload();
     await page.waitForSelector('sw-app');
@@ -75,23 +107,21 @@ test.describe('bubble palettes', () => {
     await open(page, '&scheme=dark');
     expect(await inline(page, '--sw-accent')).toBe(await paletteAccent(page, 'forest', 'dark'));
     // the accessibility palette keeps the glass nearly opaque whatever the transparency dial says
-    await lookCard(page).locator('[data-look-option="palette:high-contrast"]').click();
-    await expect.poll(() => attr(page, 'data-bubble-palette')).toBe('high-contrast');
+    await choose(page, 'high-contrast');
     const alpha = Number(await inline(page, '--sw-sheet-alpha'));
     expect(alpha).toBeGreaterThanOrEqual(0.88);
     // another skin ignores the dial: no palette colours on the page
     await open(page, '', 'classic');
     expect(await inline(page, '--sw-accent')).toBe('');
-    // "לפי ההתקנה": the palette is gone and the skin's own colours are back
+    // back to the skin's own colours
     await open(page, '&scheme=light');
-    await lookCard(page).locator('[data-look-follow="palette"]').click();
-    await expect.poll(() => attr(page, 'data-bubble-palette')).toBe('default');
+    await choose(page, 'default');
     expect(await inline(page, '--sw-accent')).toBe('');
     expect(await inline(page, '--sw-bg')).toBe('');
     await page.evaluate(() => sessionStorage.removeItem('look-keep'));
   });
 
-  test('the editor refuses a palette that fails the contrast checks (Hebrew message, nothing saved, nothing applied) and saves a good one as a custom palette', async ({ page }, info) => {
+  test('the editor warns about low contrast (Hebrew, worst pairs, auto-fix) but still saves; recommended swatches and a free picker, accent first', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'one width is enough for the flow');
     await open(page, '&scheme=light');
     const card = lookCard(page);
@@ -102,23 +132,32 @@ test.describe('bubble palettes', () => {
     await expect(ed.locator('[data-palette-save][disabled]')).toHaveCount(1); // no name yet
     await ed.locator('[data-palette-name]').fill('בדיקה');
     await expect(ed.locator('[data-palette-save]:not([disabled])')).toHaveCount(1); // the base palette passes
-    await expect(ed.locator('[data-palette-invalid]')).toHaveCount(0);
-    // light text on the light surface: below 4.5:1
+    await expect(ed.locator('[data-palette-warning]')).toHaveCount(0);
+    // the accent is the first key colour; recommended swatches and a free picker
+    await expect(ed.locator('[data-palette-key]').first()).toHaveAttribute('data-palette-key', 'accent');
+    const swatches = ed.locator('[data-palette-key="accent"] [data-palette-swatch]');
+    expect(await swatches.count()).toBeGreaterThanOrEqual(5);
+    await swatches.nth(1).click();
+    await expect(swatches.nth(1)).toHaveAttribute('aria-pressed', 'true');
+    const picked = (await swatches.nth(1).getAttribute('data-palette-swatch'))!.split(':')[1];
+    await expect(ed.locator('[data-palette-color="accent"]')).toHaveValue(picked);
+    await swatches.nth(0).click(); // back to the base palette's own accent, so the flow below starts from a passing palette
+    await expect(swatches.nth(0)).toHaveAttribute('aria-pressed', 'true');
+    // light text on the light surface: below 4.5:1 -> a warning, saving stays allowed
     await ed.locator('[data-palette-color="textMuted"]').fill('#c8cfdc');
-    const invalid = ed.locator('[data-palette-invalid]');
-    await expect(invalid).toBeVisible();
-    await expect(invalid).toContainText('ערכת הצבעים נדחתה: ניגודיות נמוכה מדי');
-    await expect(invalid).toContainText('(נדרש 4.5:1)');
-    await expect(ed.locator('[data-palette-save][disabled]')).toHaveCount(1);
-    expect(await page.evaluate(() => localStorage.getItem('sw.ui.palettes'))).toBeNull(); // nothing stored
-    expect(await inline(page, '--sw-text-2')).toBe(''); // nothing applied
-    // a refused palette is not an option of the dial
-    await expect(card.locator('[data-look-option^="palette:custom-"]')).toHaveCount(0);
-    // repaired: a dark muted text
-    await ed.locator('[data-palette-color="textMuted"]').fill('#4a5368');
-    await expect(invalid).toHaveCount(0);
-    await ed.locator('[data-palette-color="accent"]').fill('#0b57d0');
-    await expect(invalid).toHaveCount(0);
+    const warn = ed.locator('[data-palette-warning]');
+    await expect(warn).toBeVisible();
+    await expect(warn).toContainText('אזהרה: ניגודיות נמוכה מדי');
+    await expect(warn).toContainText('(נדרש 4.5:1)');
+    await expect(ed.locator('[data-palette-invalid]')).toHaveCount(0);
+    await expect(ed.locator('[data-palette-save]:not([disabled])')).toHaveCount(1);
+    // the one-click fix moves the failing colours to passing values
+    await ed.locator('[data-palette-autofix]').click();
+    await expect(warn).toHaveCount(0);
+    await expect(ed.locator('[data-palette-save]:not([disabled])')).toHaveCount(1);
+    // break it again and SAVE with the warning: it is stored and is an option of the dial
+    await ed.locator('[data-palette-color="textMuted"]').fill('#c8cfdc');
+    await expect(warn).toBeVisible();
     await ed.locator('[data-palette-save]').click();
     await expect(ed.locator('[data-palette-message]')).toBeVisible();
     const opt = card.locator('[data-look-option^="palette:custom-"]');
@@ -126,14 +165,13 @@ test.describe('bubble palettes', () => {
     await expect(opt).toContainText('בדיקה');
     const stored = JSON.parse((await page.evaluate(() => localStorage.getItem('sw.ui.palettes'))) as string) as { id: string; schemes: { light: { accent: string; textMuted: string } } }[];
     expect(stored).toHaveLength(1);
-    expect(stored[0].schemes.light.accent).toBe('#0b57d0');
-    // choose it for me: applied
-    await card.locator('[data-look-target="own"]').click();
+    expect(stored[0].schemes.light.textMuted).toBe('#c8cfdc');
+    // choose it for everybody: applied although it warns
     await opt.click();
-    await expect.poll(() => inline(page, '--sw-accent')).toBe('#0b57d0');
+    await card.locator('[data-look-save]').click();
     await expect.poll(() => attr(page, 'data-bubble-palette')).toBe(stored[0].id);
+    await expect.poll(() => inline(page, '--sw-text-2')).toBe('#c8cfdc');
     // delete it (two steps): the dial falls back to the skin's colours
-    await card.locator('[data-look-target="installation"]').click();
     await ed.locator(`[data-palette-delete="${stored[0].id}"]`).click();
     await ed.locator(`[data-palette-delete="${stored[0].id}"]`).click();
     await expect(card.locator('[data-look-option^="palette:custom-"]')).toHaveCount(0);
@@ -141,27 +179,43 @@ test.describe('bubble palettes', () => {
     expect(await page.evaluate(() => localStorage.getItem('sw.ui.palettes'))).toBeNull();
   });
 
-  test('a custom palette lives in the browser store: it is applied after a reload; a stored palette that no longer passes is dropped, never applied', async ({ page }, info) => {
+  test('a custom palette lives in the browser store: it is applied after a reload even with low contrast; a structurally broken one is dropped, never applied; the dark accent is lifted', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'once');
-    await open(page, '&scheme=light');
-    const bad = await page.evaluate(async () => {
+    await open(page, '&scheme=dark');
+    const [low, broken] = await page.evaluate(async () => {
       const mod = await import(/* @vite-ignore */ '/src/design/palette.ts');
-      const p = JSON.parse(JSON.stringify(mod.paletteById('calm-blue')));
-      p.id = 'custom-tampered';
-      p.name = { he: 'פגומה', en: 'Tampered' };
-      p.schemes.light.text = '#e0e0e0';
-      return p;
+      const a = JSON.parse(JSON.stringify(mod.paletteById('calm-blue')));
+      a.id = 'custom-low';
+      a.name = { he: 'ניגודיות נמוכה', en: 'Low' };
+      a.schemes.light.text = '#e0e0e0';
+      a.schemes.dark.accent = '#10204a'; // darker than the light accent: the dark scheme lifts it
+      const b = JSON.parse(JSON.stringify(mod.paletteById('calm-blue')));
+      b.id = 'custom-broken';
+      b.name = { he: 'פגומה', en: 'Broken' };
+      delete b.schemes.dark.accent;
+      return [a, b];
     });
-    await page.evaluate((p) => {
-      sessionStorage.setItem('look-keep', '1');
-      localStorage.setItem('sw.ui.palettes', JSON.stringify([p]));
-      localStorage.setItem('sw.ui.look', JSON.stringify({ u: null, look: { palette: 'custom-tampered' } }));
-    }, bad);
+    await page.evaluate(
+      ([a, b]) => {
+        sessionStorage.setItem('look-keep', '1');
+        localStorage.setItem('sw.ui.palettes', JSON.stringify([a, b]));
+        localStorage.setItem('sw.ui.look.installation', JSON.stringify({ palette: 'custom-low' }));
+      },
+      [low, broken],
+    );
     await page.reload();
     await page.waitForSelector('sw-app');
     await page.waitForTimeout(500);
-    expect(await inline(page, '--sw-text')).toBe(''); // the failing palette is not applied: the skin's own colours stay
-    await expect(lookCard(page).locator('[data-look-option^="palette:custom-"]')).toHaveCount(0);
+    const lightText = await page.evaluate(() => document.documentElement.style.getPropertyValue('--sw-text').trim());
+    expect(lightText).not.toBe(''); // applied (low contrast only warns)
+    const accent = await inline(page, '--sw-accent');
+    expect(accent).not.toBe('#10204a');
+    const lum = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((x) => (x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4)).reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+    expect(lum(accent)).toBeGreaterThan(lum(await page.evaluate(() => JSON.parse(localStorage.getItem('sw.ui.palettes') as string)[0].schemes.light.accent)));
+    await expect(lookCard(page).locator('[data-look-target="installation"]')).toBeVisible();
+    await lookCard(page).locator('[data-look-target="installation"]').click();
+    await expect(lookCard(page).locator('[data-look-option="palette:custom-low"]')).toHaveCount(1);
+    await expect(lookCard(page).locator('[data-look-option="palette:custom-broken"]')).toHaveCount(0); // dropped
     await page.evaluate(() => sessionStorage.removeItem('look-keep'));
   });
 
@@ -171,11 +225,10 @@ test.describe('bubble palettes', () => {
     await page.setViewportSize({ width: w, height: w <= 480 ? 844 : 900 });
     for (const [scheme, id] of [['light', 'purple-rose'], ['dark', 'deep-ocean']] as const) {
       await open(page, `&scheme=${scheme}`);
-      await lookCard(page).locator(`[data-look-option="palette:${id}"]`).click();
+      await choose(page, id);
       await page.waitForTimeout(300);
       await lookCard(page).locator('[data-look-row="palette"]').scrollIntoViewIfNeeded();
       await shot(page, `settings-palette-${id}-${w}-${scheme}`);
-      await lookCard(page).locator('[data-look-target="installation"]').click();
       await editor(page).locator('[data-palette-new]').click();
       await editor(page).locator('[data-palette-name]').fill('ערכה שלי');
       await editor(page).locator('[data-palette-scheme="dark"]').click();

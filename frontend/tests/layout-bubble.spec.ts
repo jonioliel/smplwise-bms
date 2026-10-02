@@ -226,6 +226,17 @@ async function setLook(page: Page, look: Record<string, string | number>) {
   );
 }
 
+/** The palette is the installation's (only the system administrator chooses it): the sweep sets the installation default, never a personal override. */
+async function setInstallationPalette(page: Page, palette: string) {
+  await page.evaluate(
+    async ([url, p]) => {
+      const mod = await import(/* @vite-ignore */ url as string);
+      mod.setInstallationLook({ palette: p });
+    },
+    [LOOK_URL, palette] as const,
+  );
+}
+
 async function openDemo(page: Page, theme: string) {
   await page.goto('about:blank');
   await page.goto(`/?design=a&skin=bubble&scheme=${theme}#/styleguide/bubble`);
@@ -347,15 +358,16 @@ test.describe('bubble layout guard', () => {
           await page.setViewportSize({ width: w, height: height(w) });
           await settle(page);
           for (const c of PAL_COMBOS) {
-            const look = { ...c, performance: 'full', palette };
-            await setLook(page, look);
+            await setInstallationPalette(page, palette);
+            await setLook(page, { ...c, performance: 'full' });
             await setSheet(page, '');
             const seen = await page.evaluate(() => ({ p: document.documentElement.getAttribute('data-bubble-palette'), accent: document.documentElement.style.getPropertyValue('--sw-accent'), bg: document.documentElement.style.getPropertyValue('--sw-bg') }));
             const want = await page.evaluate(
               async ([url, id, th]) => {
                 const mod = await import(/* @vite-ignore */ url as string);
                 const p = mod.paletteById(id);
-                return p ? { accent: p.schemes[th as string].accent, bg: p.schemes[th as string].bg } : null;
+                const s = p ? mod.effectiveScheme(p, th) : null; // the colours as applied (the dark accent is derived)
+                return s ? { accent: s.accent, bg: s.bg } : null;
               },
               ['/src/design/palette.ts', palette, theme] as const,
             );

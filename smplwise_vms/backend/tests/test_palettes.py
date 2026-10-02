@@ -19,6 +19,7 @@ from smplwise.services import look, palettes
 ROOT = Path(__file__).resolve().parents[3]
 DOC = json.loads((ROOT / "docs" / "design" / "palettes" / "palettes.json").read_text(encoding="utf-8"))
 FRONT = json.loads((ROOT / "frontend" / "src" / "design" / "palettes.json").read_text(encoding="utf-8"))
+BACK = json.loads((ROOT / "smplwise_vms" / "backend" / "smplwise" / "palettes.json").read_text(encoding="utf-8"))
 
 
 def custom(pid: str = "custom-mine", base: str = "calm-blue") -> dict:
@@ -32,6 +33,7 @@ def test_the_ten_ids_the_frontend_copy_and_the_dial_agree():
     ids = tuple(p["id"] for p in DOC["palettes"])
     assert ids == palettes.BUILTIN_IDS and len(ids) == 10
     assert FRONT == DOC  # the app's copy is the design asset, byte for byte in content
+    assert BACK == DOC  # the backend's copy (the dial's ids come from it: adding a palette is a data-only change)
     assert look.PALETTES == ("default", *ids)
     assert DOC["defaultPalette"] in ids
 

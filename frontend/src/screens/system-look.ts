@@ -458,17 +458,17 @@ export class SystemLook extends LitElement {
     return ['--sw-bg', '--sw-surface', '--sw-accent', '--sw-text'].map((n) => t[n][theme]);
   }
 
+  /** The palette is chosen for everybody by the installation's system administrator only (owner 2026-10-02): no personal override, so the row exists only on the installation target, for a person who can edit it. */
   private paletteRow() {
+    if (this.target !== 'installation' || !this.canEdit) return nothing;
     const d = LOOK_DIALS.palette;
-    const inst = installationLook().palette;
-    const current = this.target === 'installation' ? this.draftInst.palette : this.own.palette ?? null;
-    const disabled = this.busy || (this.target === 'installation' && !this.canEdit);
+    const current = this.draftInst.palette;
+    const disabled = this.busy;
     const nameOf = (id: string) => (id === 'default' ? d.labelHe.default : paletteById(id)?.name.he ?? d.labelHe.default);
     const ids = ['default', ...allPalettes().map((p) => p.id)];
     return html`<div class="row" data-look-row="palette">
-      <span class="lbl">${d.nameHe}<span class="muted">${current === null ? `לפי ההתקנה: ${nameOf(inst)}` : nameOf(current)}</span></span>
+      <span class="lbl">${d.nameHe}<span class="muted">${nameOf(current)}</span></span>
       <span class="pal" role="group" aria-label=${d.nameHe}>
-        ${this.target === 'own' ? html`<button type="button" class="fol" data-look-follow="palette" aria-pressed=${current === null ? 'true' : 'false'} ?disabled=${disabled} @click=${() => this.pick('palette', null)}>לפי ההתקנה</button>` : nothing}
         ${ids.map(
           (id) => html`<button type="button" data-look-option=${`palette:${id}`} aria-pressed=${current === id ? 'true' : 'false'} ?disabled=${disabled} @click=${() => this.pick('palette', id)}>
             <span class="dots" aria-hidden="true">${this.swatch(id).map((c) => html`<i style=${styleMap({ background: c })}></i>`)}</span>${nameOf(id)}
