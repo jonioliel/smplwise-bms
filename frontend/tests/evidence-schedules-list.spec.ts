@@ -673,6 +673,8 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
     await s.locator('[data-settings-save]').click();
     await expect.poll(() => st.patches.length).toBe(1);
     expect(st.patches[0]).not.toHaveProperty('schedules.shabbat_sensor_force');
+    // the save must have finished (the screen reloads its draft) before the next edit, or the edit is overwritten and the button detaches
+    await expect(s.locator('[data-settings-saved]')).toBeVisible();
     // another sensor: asked first; cancelling sends nothing
     await s.locator('[data-shabbat-sensor]').selectOption('binary_sensor.office_occupancy');
     await s.locator('[data-settings-save]').click();
