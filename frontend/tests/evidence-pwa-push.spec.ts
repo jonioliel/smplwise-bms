@@ -194,7 +194,10 @@ test.describe('PWA shell (CR-008 P3)', () => {
       });
       await page.waitForFunction(async () => !!(await navigator.serviceWorker.getRegistration())?.installing);
       await page.evaluate(() => (window as unknown as { __releaseRegister: () => void }).__releaseRegister());
+      const t0 = Date.now();
       await expect(page.locator('arx-pwa-prompts [data-pwa-update]')).toBeVisible({ timeout: 15_000 });
+      const dbg = await page.evaluate(async () => { const r = await navigator.serviceWorker.getRegistration(); return `${r?.installing?.state}/${r?.waiting?.state}/${r?.active?.state}`; });
+      expect(`DBG ${Date.now() - t0}ms ${dbg}`).toBe('x');
     } finally {
       await page.goto('about:blank');
       await new Promise<void>((ok) => server.close(() => ok()));
