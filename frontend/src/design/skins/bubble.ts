@@ -141,7 +141,7 @@ const rules = `
 /* bubble 8 - the segmented control: a pill track, the chosen segment a solid pill */
 :host(sw-tabs[data-variant='pill']) .row::before { border-radius: var(--sw-r-pill); background: var(--sw-surface-2); }
 :host(sw-tabs[data-variant='pill']) .lbl { border-radius: var(--sw-r-pill); min-block-size: calc(var(--sw-touch-desktop) - 6px); }
-:host(sw-tabs) a { min-block-size: var(--sw-touch-desktop); }
+:host(sw-tabs) a, :host(sw-tabs) button, :host(sw-tabs[data-variant='pill']) a, :host(sw-tabs[data-variant='pill']) button { min-block-size: var(--sw-touch-desktop); }
 :host(sw-tabs[data-variant='pill']) .on .lbl { background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-2); }
 /* bubble 9 - floating layers (dialog, drawer, popover) are translucent sheets over a blurred page, solid when the OS asks for less transparency or blur is unsupported */
 :host(sw-dialog) .box, :host(sw-popover), :host(sw-drawer) .panel { border: 0; border-radius: var(--sw-r-xl); background: rgba(var(--sw-sheet-rgb), var(--sw-sheet-alpha)); -webkit-backdrop-filter: var(--sw-glass-blur-sheet); backdrop-filter: var(--sw-glass-blur-sheet); box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong), var(--sw-shadow-3); }

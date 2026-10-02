@@ -343,8 +343,10 @@ const BUILDING_BUBBLE = css`
   }
   :host([data-skin='bubble']) .fcard header h2 .ftitle {
     min-block-size: var(--sw-touch-desktop, 44px);
+    min-inline-size: var(--sw-touch-desktop, 44px);
     display: inline-flex;
     align-items: center;
+    justify-content: flex-start;
   }
   /* the area tile's "⋯" sits in the row, never over the tile */
   :host([data-skin='bubble']) .tile-wrap {
