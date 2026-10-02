@@ -7,6 +7,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -65,7 +66,7 @@ def test_list_parses_every_stream_with_bitrate_and_support_facts():
     assert (m["channel"], m["role"], m["codec"], m["profile"], m["resolution"]) == (1, "main", "H.264", "High", "2560x1440")
     assert (m["fps"], m["fps_full"], m["bitrate_mode"], m["bitrate_kbps"], m["quality"], m["gop"]) == (None, True, "VBR", 3072, 60, 50), "fps 0 is the camera's full rate; VBR reads vbrUpperCap"
     assert (m["svc"], m["smart_codec"], m["codec_plus"]) == (True, False, False)
-    assert (m["webrtc"], m["webrtc_reason"]) == ("no", "svc"), "the lab's SVC mains: H.264 that does not decode over WebRTC"
+    assert (m["webrtc"], m["webrtc_reason"]) == ("unknown", "svc"), "SVC mains are tried over WebRTC since 0.1.151 (verdict unknown, reason kept)"
     assert set(m["fields"]) == {"b_frames"}, "only the B-frame element is missing on the lab shape"
     assert m["fields"]["b_frames"] == {"supported": False, "editable": False} and m["b_frames"] is None, "never a default for a field the device does not send"
     sub = s["102"]
@@ -74,7 +75,7 @@ def test_list_parses_every_stream_with_bitrate_and_support_facts():
     assert (s["103"]["role"], s["103"]["bitrate_kbps"], s["103"]["bitrate_mode"], s["103"]["gop"], s["103"]["profile"]) == ("third", None, None, None, None)
     assert set(s["103"]["fields"]) >= {"profile", "bitrate_mode", "bitrate_kbps", "quality", "gop", "svc", "smart_codec", "b_frames"}
     h265 = s["201"]
-    assert (h265["channel"], h265["codec"], h265["profile"], h265["svc"], h265["smart_codec"], h265["codec_plus"], h265["webrtc"]) == (2, "H.265", "Main", False, True, True, "no"), "smart codec on is the H.265+ variant"
+    assert (h265["channel"], h265["codec"], h265["profile"], h265["svc"], h265["smart_codec"], h265["codec_plus"], h265["webrtc"]) == (2, "H.265", "Main", False, True, True, "unknown"), "smart codec on is the H.265+ variant"
     plus = s["202"]
     assert (plus["codec"], plus["codec_raw"], plus["codec_plus"], plus["enabled"], plus["resolution"]) == ("H.264", "H.264+", True, False, "640x360"), "the raw '+' codec is kept and flagged"
     assert len({x["etag"] for x in streams}) == 5 and all(len(x["etag"]) == 16 for x in streams)
@@ -201,7 +202,16 @@ def _register(c: TestClient, *channels: tuple[int, str]) -> dict[int, str]:
 
 
 def _forget_channel(app, channel: int) -> None:
-    """The start-up discovery already created a camera row per channel; drop one to stand for 'discovery has not run for it yet'."""
+    """Drop the camera row discovery created for a channel, to stand for 'discovery has not run for it yet'.
+
+    The start-up discovery is a background task: wait until it has written the row (it commits every channel together), otherwise a
+    slow machine deletes first and the late discovery puts the row back mid-test."""
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        with app.state.db.connection(mode="read") as conn:
+            if conn.execute("SELECT 1 FROM cameras WHERE recorder_id = 'nvr-1' AND channel = ?", (channel,)).fetchone():
+                break
+        time.sleep(0.05)
     with app.state.db.connection() as conn:
         conn.execute("DELETE FROM cameras WHERE recorder_id = 'nvr-1' AND channel = ?", (channel,))
 
@@ -240,7 +250,7 @@ def test_cameras_route_lists_every_channel_with_every_stream(app_and_fake, setti
         assert (cams[3]["camera_id"], cams[3]["online"], cams[3]["name"]) == (None, False, "מצלמה 3"), "an unsynced channel: the device's own name, no Arx id"
         m1, s1 = cams[1]["streams"]
         assert (m1["stream_ref"], m1["role"], m1["codec"], m1["svc"], m1["resolution"], m1["fps_full"], m1["bitrate_kbps"], m1["bitrate_mode"]) == ("101", "main", "H.264", True, "2560x1440", True, 3072, "VBR")
-        assert (m1["webrtc"], m1["webrtc_reason"], m1["writable"], m1["not_writable_reason"]) == ("no", "svc", False, "read_only")
+        assert (m1["webrtc"], m1["webrtc_reason"], m1["writable"], m1["not_writable_reason"]) == ("unknown", "svc", False, "read_only")
         assert (s1["role"], s1["svc"], s1["fps"], s1["bitrate_mode"], s1["bitrate_kbps"], s1["profile"], s1["webrtc"]) == ("sub", None, 20.0, "CBR", 512, "Baseline", "ok")
         assert s1["fields"]["svc"] == {"supported": False, "editable": False} and s1["fields"]["b_frames"]["supported"] is False
         assert (cams[2]["streams"][0]["codec"], cams[2]["streams"][0]["webrtc_reason"]) == ("H.265", "h265")
@@ -333,7 +343,7 @@ def test_unreadable_streaming_document_falls_back_to_the_registry_stale(app_and_
     with TestClient(app) as c:
         ids = _register(c, (1, "כניסה"))
         with app.state.db.connection() as conn:  # the discovery's last reading (main + sub) lives in the camera row
-            enc = {"main": {"codec": "H.264", "profile": None, "b_frames": None, "svc": True, "smart_codec": False, "resolution": "2560x1440", "fps": None, "gov_length": 50, "source": "isapi", "webrtc": "no", "reason": "svc"},
+            enc = {"main": {"codec": "H.264", "profile": None, "b_frames": None, "svc": True, "smart_codec": False, "resolution": "2560x1440", "fps": None, "gov_length": 50, "source": "isapi", "webrtc": "unknown", "reason": "svc"},
                    "sub": {"codec": "H.264", "profile": "Baseline", "b_frames": None, "svc": None, "smart_codec": False, "resolution": "640x360", "fps": 20.0, "gov_length": 50, "source": "isapi", "webrtc": "ok", "reason": "h264_no_b_frames"},
                    "checked_at": now_iso(), "error": None}
             conn.execute("UPDATE cameras SET capabilities_json = ? WHERE id = ?", (json.dumps({"encoding": enc}), ids[1]))
@@ -344,7 +354,7 @@ def test_unreadable_streaming_document_falls_back_to_the_registry_stale(app_and_
         assert body["stale"] is True and body["error"] == "source_error" and body["recorders_failed"] == ["nvr-1"]
         cam = next(x for x in body["cameras"] if x["channel"] == 1)
         assert cam["error"] == "source_error" and [(s["stream_ref"], s["role"], s["etag"], s["writable"]) for s in cam["streams"]] == [("101", "main", None, False), ("102", "sub", None, False)]
-        assert (cam["streams"][0]["svc"], cam["streams"][0]["webrtc"], cam["streams"][0]["gop"]) == (True, "no", 50)
+        assert (cam["streams"][0]["svc"], cam["streams"][0]["webrtc"], cam["streams"][0]["gop"]) == (True, "unknown", 50)
         # the whole NVR down: the cameras Arx knows, from the registry
         fake.nvr["up"] = False
         body = c.get("/api/v1/nvr/cameras").json()

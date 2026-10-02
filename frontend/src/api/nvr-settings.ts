@@ -216,14 +216,14 @@ const http: NvrSettingsAdapter = {
 
 // ------------------------------------------------------------------------------------------------ verdict (mirror of nvr.webrtc_verdict)
 
-/** The server's verdict logic for one ISAPI-read stream, so the demo flips the same way the backend will. */
+/** The server's verdict logic for one ISAPI-read stream (nvr.webrtc_verdict, 0.1.151: H.265 and SVC are `unknown`, only MJPEG and B-frames are `no`). */
 export function webrtcVerdict(s: Pick<StreamEncoding, 'codec' | 'svc' | 'b_frames' | 'profile'>): [Verdict, string] {
   if (!s.codec) return ['unknown', 'codec_unknown'];
-  if (s.codec === 'H.265') return ['no', 'h265'];
+  if (s.codec === 'H.265') return ['unknown', 'h265'];
   if (s.codec === 'MJPEG') return ['no', 'mjpeg'];
   if (s.codec !== 'H.264') return ['unknown', 'codec_other'];
   if (s.b_frames === true) return ['no', 'b_frames'];
-  if (s.svc === true) return ['no', 'svc'];
+  if (s.svc === true) return ['unknown', 'svc'];
   const profile = (s.profile ?? '').toLowerCase();
   if (s.b_frames === false || profile.startsWith('baseline') || profile.startsWith('bp') || profile.startsWith('constrained')) return ['ok', 'h264_no_b_frames'];
   return ['ok', 'h264'];

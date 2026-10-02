@@ -23,7 +23,7 @@ No device was contacted for this CR. Lab facts come from the read-only probe of 
 ## 1. Problem
 
 Seven of the ten lab cameras stream an H.264 main with SVC on, three are H.265 in both streams (probe 2026-09-14). Browsers
-do not decode those over WebRTC, so remote viewers fall back to the sub stream. Today Arx can only *say* so (the hint in
+may not decode over WebRTC on every viewer (lab probe 2026-09-14; since 0.1.151 the player tries WebRTC anyway and falls back to the sub stream on failure). Today Arx can only *say* so (the hint in
 `stream_codecs.main_hint` names the NVR's own web menu). The owner wants to see every stream's encoding in one place and
 fix it from Arx, and wants the adapter seam in place before a second recorder brand or a second NVR arrives.
 
@@ -72,7 +72,7 @@ InputProxy. Every UI test needs desktop / phone / RTL screenshots of loading, em
 | AT | Slice | Test | Kind |
 |---|---|---|---|
 | AT-020-01 | S1 | `GET /nvr/recorders` lists `nvr-1` (vendor, model, firmware, capabilities, health); NVR-less mode answers 409 `nvr_not_configured` | fixture |
-| AT-020-02 | S1 | `GET /nvr/cameras` returns every InputProxy channel (incl. offline and disabled-in-Arx) with every stream of the streaming document, N03 included; lab-shaped document: SVC mains `webrtc:no`, H.265 `no`, Baseline sub `ok` | fixture |
+| AT-020-02 | S1 | `GET /nvr/cameras` returns every InputProxy channel (incl. offline and disabled-in-Arx) with every stream of the streaming document, N03 included; lab-shaped document: SVC mains `webrtc:unknown` (reason `svc`), H.265 `unknown`, Baseline sub `ok`; only MJPEG and H.264 with B-frames are `no` (rule of 0.1.151: WebRTC is tried for every stream) | fixture |
 | AT-020-03 | S1 | An element the device does not send is `null` with `fields.<f>.supported:false`, never a default; the B-frame field is unsupported on the lab-shaped document | fixture |
 | AT-020-04 | S1 | Without `system.configure`: 403 audited; a camera deny (T055) removes that camera from the list and 403s its detail | fixture |
 | AT-020-05 | S1 | Streaming document unreadable: the list answers with the registry's last main/sub reading, `stale:true`, `error` code; no 5xx | fixture |
@@ -147,3 +147,5 @@ Deviations from the S1 row of section 2, recorded rather than resolved silently:
    (H.264+ / H.265+), B-frames is unsupported on the lab firmware.
 5. The table reads the LIST document only: on the lab firmware a single-channel `GET /ISAPI/Streaming/channels/{id}` lacks the
    `<SVC>` element the list carries.
+6. **WebRTC verdict follows the 0.1.151 rule**, not the 2026-09-14 probe: `unknown` (shown as a neutral dash, never a cross) for H.264 SVC and
+   H.265 mains because the player tries WebRTC and falls back on a measured failure; `no` only for MJPEG and H.264 with B-frames.
