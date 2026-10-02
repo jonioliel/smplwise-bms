@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="he" dir="rtl" data-scheme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bubble Palettes</title>
+<link rel="stylesheet" href="../mockups/bubble-taste/fonts.css">
+<style>
+/* Static preview of docs/design/palettes/palettes.json (data via preview-data.js). The --p-* custom properties are set from
+   the selected palette + scheme by the script below; nothing here holds a colour of its own except the neutral chrome. */
+:root {
+  --font: 'Heebo', 'Segoe UI', -apple-system, 'Noto Sans Hebrew', Roboto, Arial, sans-serif;
+  --r-pill: 999px; --r-card: 28px; --r-sheet: 42px; --pill-h: 56px; --ring: 40px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { font-family: var(--font); background: var(--p-bg); color: var(--p-text); min-height: 100vh; font-size: 14px; }
+button { font: inherit; color: inherit; }
+.top { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; padding: 12px 16px;
+  background: color-mix(in srgb, var(--p-surfaceElevated) 88%, transparent); backdrop-filter: blur(18px) saturate(150%); border-bottom: 1px solid var(--p-border); }
+.top h1 { font-size: 17px; margin: 0; font-weight: 700; }
+.seg { display: inline-flex; background: var(--p-surface2); border-radius: var(--r-pill); padding: 3px; }
+.seg button { border: 0; background: transparent; border-radius: var(--r-pill); padding: 0 14px; min-height: 36px; cursor: pointer; color: var(--p-text); }
+.seg button[aria-pressed='true'] { background: var(--p-accent); color: var(--p-accentContrast); font-weight: 600; }
+.picker { display: flex; gap: 8px; flex-wrap: wrap; width: 100%; }
+.chip { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 12px 4px 6px; border-radius: var(--r-pill); border: 1px solid var(--p-border);
+  background: var(--p-surface); cursor: pointer; color: var(--p-text); }
+.chip[aria-pressed='true'] { outline: 2px solid var(--p-accent); outline-offset: 1px; font-weight: 600; }
+.chip .sw { display: inline-flex; width: 30px; height: 30px; border-radius: 50%; overflow: hidden; flex: none; }
+.chip .sw i { flex: 1; }
+
+/* stage: the wallpaper the glass sits on */
+.stage { position: relative; padding: 20px 16px 32px; background: linear-gradient(var(--p-wall-angle), var(--p-wall)); overflow: hidden; }
+.stage::before, .stage::after { content: ''; position: absolute; border-radius: 50%; filter: blur(60px); opacity: .55; pointer-events: none; }
+.stage::before { width: 380px; height: 380px; inset-block-start: -80px; inset-inline-end: -60px; background: var(--p-ent-media); }
+.stage::after { width: 320px; height: 320px; inset-block-end: -100px; inset-inline-start: -60px; background: var(--p-ent-light); opacity: .4; }
+.wrap { position: relative; z-index: 1; max-width: 1360px; margin: 0 auto; }
+.head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin: 0 0 16px; }
+.head h2 { margin: 0; font-size: 24px; }
+.head p { margin: 0; color: var(--p-textMuted); }
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); grid-auto-flow: row dense; align-items: start; }
+@media (min-width: 900px) { .sheetwrap { grid-row: span 2; } }
+.panel { border-radius: var(--r-card); padding: 16px; background: rgba(var(--p-tint-rgb), var(--p-op)); backdrop-filter: blur(var(--p-blur)) saturate(160%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 10px 30px rgba(0,0,0,.12); }
+.label { font-size: 12px; font-weight: 600; color: var(--p-textMuted); margin: 0 4px 10px; display: flex; gap: 8px; align-items: center; }
+.label::after { content: ''; flex: 1; height: 6px; border-radius: 6px; background: var(--p-layer); }
+
+/* home card */
+.home { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; }
+.clock { font-size: 46px; font-weight: 600; line-height: 1; letter-spacing: -1px; }
+.date { color: var(--p-textMuted); }
+.home .side { display: grid; gap: 8px; justify-items: end; align-content: start; }
+.tag { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border-radius: var(--r-pill); background: var(--p-layer); font-weight: 600; font-size: 13px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.home .row { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* pills */
+.pills { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); }
+.pill { position: relative; display: flex; align-items: center; gap: 10px; height: var(--pill-h); padding: 0 8px; border-radius: var(--r-pill); overflow: hidden;
+  background: var(--p-surface); color: var(--p-text); isolation: isolate; }
+.ring { width: var(--ring); height: var(--ring); border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--c, var(--p-surface2)); color: var(--p-ent-icon); z-index: 2; }
+.ring svg { width: 22px; height: 22px; }
+.pill .tx { min-width: 0; display: grid; z-index: 2; }
+.pill b { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pill small { font-size: 12px; color: var(--p-textMuted); white-space: nowrap; }
+.pill .fill { position: absolute; inset-block: 0; inset-inline-start: 0; width: var(--v); background: var(--fc, var(--p-fill)); z-index: 0; }
+.pill .fill::after { content: ''; position: absolute; inset-block: 10px; inset-inline-end: 0; width: 3px; border-radius: 3px; background: var(--p-edge); }
+.pill .lay { position: absolute; inset: 0; display: flex; align-items: center; gap: 10px; padding: 0 8px; z-index: 1; }
+.pill .lay.on { color: var(--p-onFill); clip-path: inset(0 0 0 calc(100% - var(--v))); }
+.pill .lay.off { clip-path: inset(0 var(--v) 0 0); }
+.pill .lay .ghost { width: var(--ring); flex: none; }
+.pill .lay.on small { color: var(--p-onFill); }
+.pill .tx.hid { visibility: hidden; }
+.pill .fill::after { z-index: 0; }
+.pill .val { margin-inline-start: auto; font-weight: 600; font-size: 13px; padding-inline-end: 8px; z-index: 2; }
+/* surface styles */
+.s-gradient .pill { background: linear-gradient(to left, var(--g1), var(--g2)); color: var(--p-gradText); }
+.s-gradient .pill small { color: var(--p-gradText); opacity: .92; }
+.s-glass .pill { background: rgba(var(--p-tint-rgb), var(--p-op)); backdrop-filter: blur(14px); box-shadow: inset 0 1px 0 rgba(255,255,255,.3); }
+.states { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* pop-up sheet */
+.sheetwrap { position: relative; border-radius: var(--r-card); overflow: hidden; padding: 40px 14px 0; min-height: 420px;
+  background: linear-gradient(var(--p-wall-angle), var(--p-wall)); }
+.sheetwrap .live { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; filter: blur(3px); }
+.sheetwrap .live i { height: 56px; border-radius: var(--r-pill); background: var(--p-surface); }
+.sheetwrap .live i:nth-child(3n) { background: var(--p-ent-media); }
+.sheetwrap .live i:nth-child(4n) { background: var(--p-fill); }
+.sheetwrap .dim { position: absolute; inset: 0; background: var(--p-overlay); }
+.sheet { position: absolute; inset-inline: 10px; inset-block-end: 0; top: 70px; border-radius: var(--r-sheet) var(--r-sheet) 0 0; padding: 10px 14px 16px;
+  background: rgba(var(--p-tint-rgb), var(--p-op)); backdrop-filter: blur(var(--p-blur)) saturate(160%); box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 -10px 40px rgba(0,0,0,.2); }
+.grab { width: 40px; height: 5px; border-radius: 5px; background: var(--p-textMuted); opacity: .5; margin: 0 auto 10px; }
+.sheet .hd { display: flex; align-items: center; gap: 8px; height: 56px; padding: 0 8px; border-radius: var(--r-pill); background: var(--p-layer); margin-bottom: 12px; }
+.sheet .hd b { font-size: 16px; }
+.sheet .hd .sp { flex: 1; }
+.btn { width: 44px; height: 44px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--p-layer); cursor: pointer; }
+.btn.acc { background: var(--p-accent); color: var(--p-accentContrast); }
+.btn svg { width: 20px; height: 20px; }
+.sheet .pill { background: var(--p-layer); }
+.sheet .pills { grid-template-columns: 1fr 1fr; }
+.sheet p { margin: 10px 4px 0; color: var(--p-textMuted); font-size: 12px; }
+
+/* media tile */
+.media { position: relative; border-radius: var(--r-card); overflow: hidden; min-height: 260px; display: grid; align-content: end; isolation: isolate; }
+.media .art { position: absolute; inset: -20px; z-index: -1; filter: blur(22px) saturate(140%);
+  background: radial-gradient(60% 70% at 30% 30%, var(--p-ent-light), transparent 70%), radial-gradient(60% 60% at 75% 70%, var(--p-ent-media), transparent 70%), var(--p-ent-climate); }
+.media .glass { margin: 12px; border-radius: 24px; padding: 14px; background: rgba(var(--p-tint-rgb), var(--p-op)); backdrop-filter: blur(var(--p-blur)) saturate(160%);
+  display: grid; gap: 10px; box-shadow: inset 0 1px 0 rgba(255,255,255,.35); }
+.media .meta { display: flex; gap: 12px; align-items: center; }
+.media .cover { width: 56px; height: 56px; border-radius: 16px; background: linear-gradient(135deg, var(--p-ent-media), var(--p-ent-light)); flex: none; }
+.media .meta div { display: grid; }
+.media .meta small { color: var(--p-textMuted); }
+.prog { direction: ltr; height: 6px; border-radius: 6px; background: var(--p-layer); overflow: hidden; }
+.prog i { display: block; height: 100%; width: 38%; background: var(--p-accent); }
+.ctl { direction: ltr; display: flex; justify-content: center; gap: 12px; }
+.ctl .btn.big { width: 52px; height: 52px; }
+
+/* contrast table */
+.table { background: var(--p-surfaceElevated); color: var(--p-text); padding: 20px 16px 40px; }
+.table .wrap { max-width: 1360px; }
+.table h3 { margin: 0 0 6px; font-size: 18px; }
+.table .sum { color: var(--p-textMuted); margin: 0 0 12px; }
+.tscroll { overflow-x: auto; border-radius: 16px; border: 1px solid var(--p-border); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: start; padding: 7px 10px; border-bottom: 1px solid var(--p-border); white-space: nowrap; }
+th { background: var(--p-surface); position: sticky; top: 0; }
+td.what { white-space: normal; min-width: 220px; }
+td.num { direction: ltr; text-align: end; font-variant-numeric: tabular-nums; }
+.pair { display: inline-flex; align-items: center; justify-content: center; min-width: 52px; height: 26px; border-radius: 8px; font-weight: 700; font-size: 12px; border: 1px solid var(--p-border); }
+.res-ok { color: var(--p-successText); font-weight: 600; }
+.res-bad { color: var(--p-dangerText); font-weight: 700; }
+.overview { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); margin: 0 0 20px; }
+.ov { border-radius: 18px; padding: 10px; border: 1px solid var(--p-border); background: var(--p-surface); display: grid; gap: 6px; cursor: pointer; text-align: start; }
+.ov .bar { display: flex; height: 26px; border-radius: 8px; overflow: hidden; }
+.ov .bar i { flex: 1; }
+.ov small { color: var(--p-textMuted); }
+@media (max-width: 600px) {
+  .clock { font-size: 38px; }
+  .sheet .pills { grid-template-columns: 1fr; }
+  .top h1 { width: 100%; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>פלטות צבע · Bubble</h1>
+  <div class="seg" role="group" aria-label="ערכת תצוגה"><button data-scheme="light">בהיר</button><button data-scheme="dark">כהה</button></div>
+  <div class="seg" role="group" aria-label="שקיפות"><button data-op="min">שקוף</button><button data-op="default">רגיל</button><button data-op="max">אטום</button></div>
+  <div class="picker" id="picker" role="group" aria-label="פלטה"></div>
+</header>
+<main>
+  <section class="stage">
+    <div class="wrap">
+      <div class="head"><h2 id="pname"></h2><p id="pchar" dir="ltr"></p></div>
+      <div class="grid">
+        <div class="panel" id="home"></div>
+        <div class="media" id="media"></div>
+        <div class="sheetwrap" id="sheet"></div>
+        <div class="panel"><div class="label">מילוי (ברירת מחדל)</div><div class="pills s-fill" id="row-fill"></div></div>
+        <div class="panel"><div class="label">מעבר צבע</div><div class="pills s-gradient" id="row-gradient"></div></div>
+        <div class="panel"><div class="label">זכוכית</div><div class="pills s-glass" id="row-glass"></div></div>
+        <div class="panel"><div class="label">מצבים</div><div class="states" id="states"></div></div>
+      </div>
+    </div>
+  </section>
+  <section class="table">
+    <div class="wrap">
+      <div class="overview" id="overview"></div>
+      <h3>בדיקת ניגודיות</h3>
+      <p class="sum" id="sum"></p>
+      <div class="seg" role="group" aria-label="סינון" style="margin-bottom:12px"><button data-filter="low">20 הנמוכים</button><button data-filter="all">הכול</button></div>
+      <div class="tscroll"><table><thead><tr><th>קבוצה</th><th>זוג</th><th>דוגמה</th><th>יחס</th><th>סף</th><th>תוצאה</th></tr></thead><tbody id="rows"></tbody></table></div>
+    </div>
+  </section>
+</main>
+<script src="preview-data.js"></script>
+<script>
+(() => {
+  const D = window.SW_PALETTES, R = window.SW_CONTRAST;
+  const q = new URLSearchParams(location.search);
+  const st = { p: q.get('p') || D.defaultPalette, scheme: q.get('scheme') || 'light', op: q.get('op') || 'min', filter: q.get('filter') || 'low' };
+  const I = {
+    light: '<path d="M9 21h6M10 18h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+    climate: '<path d="M14 14.8V5a2 2 0 1 0-4 0v9.8a4 4 0 1 0 4 0z" fill="none" stroke="currentColor" stroke-width="2"/>',
+    cover: '<path d="M4 4h16M5 4v16M19 4v16M7 8h10M7 12h10M7 16h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    media: '<path d="M9 18V6l11-2v12M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM20 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+    security: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z M9 12l2 2 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+    camera: '<path d="M3 7h12v10H3zM15 10l6-3v10l-6-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+    play: '<path d="M8 5l11 7-11 7z" fill="currentColor"/>', prev: '<path d="M18 6v12l-9-6zM6 6v12" fill="currentColor" stroke="currentColor" stroke-width="2"/>',
+    next: '<path d="M6 6v12l9-6zM18 6v12" fill="currentColor" stroke="currentColor" stroke-width="2"/>',
+    power: '<path d="M12 3v9M6.3 6.3a8 8 0 1 0 11.4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    close: '<path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  };
+  const svg = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${I[k]}</svg>`;
+  const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(',');
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  function apply() {
+    const pal = D.palettes.find((p) => p.id === st.p) || D.palettes[0]; st.p = pal.id;
+    const s = pal.schemes[st.scheme];
+    const r = document.documentElement.style;
+    const v = { bg: s.bg, surface: s.surface, surface2: s.surface2, surfaceElevated: s.surfaceElevated, text: s.text, textMuted: s.textMuted, border: s.border,
+      accent: s.accent, accentContrast: s.accentContrast, accentText: s.accentText, layer: s.glass.layer, overlay: s.glass.overlay,
+      fill: s.slider.fill, fillCool: s.slider.fillCool, onFill: s.slider.onFill, edge: s.slider.edge, gradText: s.gradient.text,
+      successText: s.state.successText, dangerText: s.state.dangerText, 'ent-icon': s.entity.icon };
+    for (const [k, x] of Object.entries(v)) r.setProperty(`--p-${k}`, x);
+    for (const e of ['light', 'climate', 'cover', 'media', 'security', 'camera']) r.setProperty(`--p-ent-${e}`, s.entity[e]);
+    r.setProperty('--p-tint-rgb', rgb(s.glass.tint)); r.setProperty('--p-op', s.glass.opacity[st.op]); r.setProperty('--p-blur', s.glass.blurPx + 'px');
+    r.setProperty('--p-wall', s.wallpaper.stops.join(', ')); r.setProperty('--p-wall-angle', s.wallpaper.angle + 'deg');
+    document.documentElement.dataset.scheme = st.scheme; document.documentElement.style.colorScheme = st.scheme;
+    document.getElementById('pname').textContent = `${pal.name.he} · ${pal.name.en}`;
+    document.getElementById('pchar').textContent = pal.character;
+    render(pal, s);
+    for (const b of document.querySelectorAll('[data-scheme]')) if (b.tagName === 'BUTTON') b.setAttribute('aria-pressed', b.dataset.scheme === st.scheme);
+    for (const b of document.querySelectorAll('[data-op]')) b.setAttribute('aria-pressed', b.dataset.op === st.op);
+    for (const b of document.querySelectorAll('[data-filter]')) b.setAttribute('aria-pressed', b.dataset.filter === st.filter);
+    for (const b of document.querySelectorAll('#picker .chip')) b.setAttribute('aria-pressed', b.dataset.p === st.p);
+    const u = new URL(location.href); u.searchParams.set('p', st.p); u.searchParams.set('scheme', st.scheme); u.searchParams.set('op', st.op); history.replaceState(null, '', u);
+  }
+
+  const items = [
+    { k: 'light', n: 'תאורת סלון', s: 'דולק', v: 64 },
+    { k: 'light', n: 'מנורת קריאה', s: 'דולק', v: 30, cool: true },
+    { k: 'climate', n: 'מזגן', s: 'קירור · 23°', v: 0 },
+    { k: 'cover', n: 'תריס מטבח', s: 'פתוח', v: 80 },
+    { k: 'media', n: 'רמקול סלון', s: 'מנגן', v: 45 },
+    { k: 'security', n: 'אזעקה', s: 'דרוך בבית', v: 0 },
+    { k: 'camera', n: 'מצלמת כניסה', s: 'שידור חי', v: 0 },
+  ];
+  function pill(it, i, s, style) {
+    const c = s.entity[it.k];
+    const fillOn = style !== 'gradient' && it.v > 0;
+    const pair = s.gradient.pairs[i % s.gradient.pairs.length];
+    // only the two validated fills: warm (lights) and cool (white lights, covers, volume)
+    const fc = it.k === 'light' && !it.cool ? s.slider.fill : s.slider.fillCool;
+    const lit = it.k === 'light' || it.k === 'media' || it.k === 'cover';
+    const fill = fillOn && lit ? `<span class="fill" style="--fc:${fc}"></span>${["on", "off"].map((k) => `<span class="lay ${k}" aria-hidden="true"><span class="ghost"></span><span class="tx"><b>${it.n}</b><small>${it.s}</small></span></span>`).join("")}` : '';
+    return `<div class="pill" style="--v:${it.v}%;--c:${c};--g1:${pair[0]};--g2:${pair[1]}">${fill}<span class="ring">${svg(it.k)}</span><span class="tx${fill ? " hid" : ""}"><b>${it.n}</b><small>${it.s}</small></span>${it.v && lit ? `<span class="val">${it.v}%</span>` : ''}</div>`;
+  }
+  function render(pal, s) {
+    document.getElementById('home').innerHTML = `<div class="home"><div><div class="clock">16:14</div><div class="date">יום שישי, 2 באוקטובר</div></div>
+      <div class="side"><span class="tag">☁ 22°</span><span class="tag"><span class="dot" style="background:${s.state.success}"></span>אזעקה מנוטרלת</span></div>
+      <div class="row"><span class="tag"><span class="dot" style="background:${s.state.on}"></span>6 אורות דולקים</span><span class="tag"><span class="dot" style="background:${s.state.warning}"></span>חלון פתוח</span><span class="tag">כניסת שבת 18:21</span></div></div>`;
+    for (const style of ['fill', 'gradient', 'glass']) document.getElementById('row-' + style).innerHTML = items.map((it, i) => pill(it, i, s, style)).join('');
+    const stl = [['on', 'דולק'], ['off', 'כבוי'], ['unavailable', 'לא זמין'], ['success', 'תקין'], ['warning', 'אזהרה'], ['danger', 'תקלה']];
+    document.getElementById('states').innerHTML = stl.map(([k, n]) => `<span class="tag"><span class="dot" style="background:${s.state[k]}${k === 'unavailable' ? ';background:repeating-linear-gradient(45deg,' + s.state[k] + ' 0 2px,transparent 2px 4px);outline:1.5px solid ' + s.state[k] : ''}"></span>${n}</span>`).join('')
+      + `<span class="tag" style="color:${s.state.successText}">הכול תקין</span><span class="tag" style="color:${s.state.warningText}">סוללה חלשה</span><span class="tag" style="color:${s.state.dangerText}">גלאי עשן</span>`;
+    document.getElementById('sheet').innerHTML = `<div class="live">${'<i></i>'.repeat(10)}</div><div class="dim"></div>
+      <div class="sheet" role="dialog" aria-label="סלון"><div class="grab"></div>
+        <div class="hd"><span class="ring" style="--c:${s.entity.light}">${svg('light')}</span><b>סלון</b><span>23.4°</span><span class="sp"></span><button class="btn acc" aria-label="כיבוי">${svg('power')}</button><button class="btn" aria-label="סגירה">${svg('close')}</button></div>
+        <div class="label">תאורה</div>
+        <div class="pills s-fill">${pill(items[0], 0, s, 'fill')}${pill(items[1], 1, s, 'fill')}${pill(items[3], 3, s, 'fill')}${pill(items[2], 2, s, 'fill')}</div>
+        <p>שקיפות ${Math.round(s.glass.opacity[st.op] * 100)}%</p></div>`;
+    document.getElementById('media').innerHTML = `<div class="art"></div><div class="glass"><div class="meta"><span class="cover"></span><div><b>Blue in Green</b><small>רמקול סלון · מנגן</small></div></div>
+      <div class="prog"><i></i></div><div class="ctl"><button class="btn" aria-label="הקודם">${svg('prev')}</button><button class="btn acc big" aria-label="נגן">${svg('play')}</button><button class="btn" aria-label="הבא">${svg('next')}</button></div></div>`;
+    // contrast
+    const rep = R.find((x) => x.palette === pal.id && x.scheme === st.scheme);
+    const all = R.filter((x) => x.palette === pal.id);
+    document.getElementById('sum').textContent = rep ? `${pal.name.he} (${st.scheme === 'light' ? 'בהיר' : 'כהה'}): ${rep.checked} זוגות, ${rep.failed} נכשלו · בכל הפלטות: ${R.reduce((a, x) => a + x.checked, 0)} זוגות, ${R.reduce((a, x) => a + x.failed, 0)} נכשלו` : 'אין נתוני ניגודיות (הריצו validate_palettes.mjs --emit-preview)';
+    let rows = rep ? [...rep.rows] : [];
+    if (st.filter === 'low') rows = rows.map((x) => ({ ...x, m: x.ratio / x.min })).sort((a, b) => a.m - b.m).slice(0, 20);
+    document.getElementById('rows').innerHTML = rows.map((x) => `<tr><td>${esc(x.group)}</td><td class="what" dir="ltr">${esc(x.what)}${x.alt ? `<br><small>${esc(x.alt)}</small>` : ''}</td>
+      <td><span class="pair" style="color:${x.fg};background:${x.bg}">${x.min === 4.5 ? 'אבג' : '●'}</span></td><td class="num">${x.ratio.toFixed(2)}</td><td class="num">${x.min}</td>
+      <td class="${x.ok ? 'res-ok' : 'res-bad'}">${x.ok ? 'עובר' : 'נכשל'}</td></tr>`).join('');
+    document.getElementById('overview').innerHTML = D.palettes.map((p) => { const sc = p.schemes[st.scheme];
+      const fails = all.length && p.id ? R.filter((x) => x.palette === p.id).reduce((a, x) => a + x.failed, 0) : 0;
+      return `<button class="ov" data-p="${p.id}" style="background:${sc.surface};color:${sc.text};border-color:${p.id === st.p ? sc.accent : 'transparent'}">
+        <span class="bar">${[...sc.wallpaper.stops, sc.surface, sc.accent, sc.slider.fill, ...['light', 'climate', 'media', 'security'].map((e) => sc.entity[e])].map((c) => `<i style="background:${c}"></i>`).join('')}</span>
+        <b>${p.name.he}</b><small style="color:${sc.textMuted}" dir="ltr">${p.name.en} · ${fails} failed</small></button>`; }).join('');
+  }
+
+  document.getElementById('picker').innerHTML = D.palettes.map((p) => { const l = p.schemes.light, d = p.schemes.dark;
+    return `<button class="chip" data-p="${p.id}"><span class="sw"><i style="background:${l.accent}"></i><i style="background:${d.accent}"></i><i style="background:${d.bg}"></i></span>${p.name.he}</button>`; }).join('');
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.p) st.p = b.dataset.p; else if (b.dataset.scheme) st.scheme = b.dataset.scheme; else if (b.dataset.op) st.op = b.dataset.op; else if (b.dataset.filter) st.filter = b.dataset.filter; else return;
+    apply();
+  });
+  apply();
+})();
+</script>
+</body>
+</html>

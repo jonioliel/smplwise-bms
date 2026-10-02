@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="he" dir="rtl" data-skin="bubble">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bubble taste - Area</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="bubble-skin.css">
+<link rel="stylesheet" href="mockup.css">
+</head>
+<body>
+<script src="shared.js"></script>
+<script>
+'use strict';
+/* Board 2 - Area screen: device pills with sub-buttons, climate / cover quick controls, cards | list, and the device pop-up
+   (tap the round icon of any device). Tap a light = toggle, drag along it = brightness. */
+function areaRender() {
+  const aid = STATE.area;
+  const ds = DEVICES.filter((d) => d.area === aid);
+  const sensors = ds.filter((d) => d.kind === 'sensor');
+  document.getElementById('content').innerHTML = `
+    ${floorBar()}
+    <div class="area-head">${areaHeadPill(aid, false)}</div>
+    <div class="page-head"><div style="flex:1"></div>
+      <div class="seg" role="group" aria-label="תצוגה"><button data-view="cards" aria-pressed="${STATE.view === 'cards'}">${ic('grid', 's')}כרטיסים</button><button data-view="list" aria-pressed="${STATE.view === 'list'}">${ic('list', 's')}רשימה</button></div></div>
+    ${STATE.view === 'list'
+      ? `${areaListTable(aid)}${sensors.length ? `<div class="sep">${ic('motion')}<span class="t">חיישנים</span></div><div class="kv">${sensors.map(sensorTile).join('')}</div>` : ''}`
+      : areaSections(aid)}`;
+}
+Mock.boot({
+  board: 'area', render: areaRender,
+  onArea: (aid) => { STATE.area = aid; setUrl(); Mock.refresh(); document.getElementById('main').scrollTop = 0; },
+  openers: {
+    light: () => openDeviceSheet('l1', document.querySelector('[data-pop="l1"]')),
+    climate: () => openDeviceSheet('c1', document.querySelector('[data-pop="c1"]')),
+    cover: () => openDeviceSheet('v1', document.querySelector('[data-pop="v1"]')),
+    tree: () => openTreeSheet(document.querySelector('[data-tree-sheet]')),
+  },
+});
+document.getElementById('device').addEventListener('click', (e) => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.view) { STATE.view = t.dataset.view; setUrl(); return Mock.refresh(); }
+  if (t.dataset.areaPick) { STATE.area = t.dataset.areaPick; setUrl(); return Mock.refresh(); }
+});
+</script>
+</body>
+</html>
