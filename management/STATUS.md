@@ -1,6 +1,6 @@
 # Project status — generated view
 
-Generated: 2026-10-01T21:35:41.520693+00:00
+Generated: 2026-10-02T21:36:00.650889+00:00
 
 Tasks: 102 | Requirements: 215 | Tests: 215 | Screens: 32
 
@@ -18,8 +18,9 @@ No VMS implementation or hardware test is implied by this planning registry.
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 27
+- V1: 25
 - V2: 12
+- V3: 2
 
 ## Blockers
 - T003: Excluded from G0 by owner decision 2026-09-22 - not to be worked (see the evidence entry).
@@ -85,7 +86,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T055](tasks/T055.md) | V1 | BACKLOG | RBAC מרחבי מלא ואודיט | T011, T038, T040, T049, T077, T078, T080 |
 | [T056](tasks/T056.md) | BETA | BACKLOG | Lovelace wrappers והרחבת אינטגרציית HA | T009, T017, T023, T032 |
 | [T057](tasks/T057.md) | BETA | BACKLOG | Kiosk ותצוגת קיר | T018, T034, T047 |
-| [T058](tasks/T058.md) | V1 | BACKLOG | Multi-NVR ואתרים מרובים | T013, T019, T055 |
+| [T058](tasks/T058.md) | V3 | BACKLOG | Multi-NVR ואתרים מרובים | T013, T019, T055 |
 | [T059](tasks/T059.md) | BETA | BACKLOG | Schema קנוני לתוכנית אדריכלית | T020, T021, T038 |
 | [T060](tasks/T060.md) | V1 | BACKLOG | AI Plan Normalizer עם Prompt גרסאי | T059 |
 | [T061](tasks/T061.md) | V1 | BACKLOG | Compare ואישור אנושי לתוכנית AI | T060 |
@@ -122,7 +123,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T092](tasks/T092.md) | V1 | BACKLOG | Arx remote access (CR-008) — /arx, התחברות HA במסך שלנו, PWA ואפליקציה | T011 |
 | [T093](tasks/T093.md) | V1 | REVIEW | אבטחה: לייב | חקירה | אזעקה — אזעקה מתשתית המערכת (CR-010) | — |
 | [T094](tasks/T094.md) | V1 | REVIEW | מעטפת האפליקציה: המשתמש בסוף סרגל הניווט, בלי סרגל עליון בטלפון, סדר לשוניות אישי (CR-013) | — |
-| [T095](tasks/T095.md) | V1 | BACKLOG | גורם אימות שני ל-Arx (CR-011) — מדיניות כניסה, step-up לפעולות רגישות, passkeys | T092 |
+| [T095](tasks/T095.md) | V3 | BACKLOG | גורם אימות שני ל-Arx (CR-011) — מדיניות כניסה, step-up לפעולות רגישות, passkeys | T092 |
 | [T096](tasks/T096.md) | V1 | BACKLOG | התראות באפליקציית Android (CR-012) — השכמת FCM דרך ממסר, חלופת UnifiedPush | T092 |
 | [T097](tasks/T097.md) | V1 | BACKLOG | חלל משותף לשתי קומות (CR-009) — אולם בגובה כפול, שלם בכל קומה | T085 |
 | [T098](tasks/T098.md) | V1 | READY | מולטימדיה - מסכים ושלט (CR-015): מסך המסכים, השלט, כרטיסי מדיה באזורים ובמסך הראשי | — |

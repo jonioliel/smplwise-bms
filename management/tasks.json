@@ -3140,7 +3140,7 @@
     "id": "T058",
     "title": "Multi-NVR ואתרים מרובים",
     "epic": "ARCH",
-    "phase": "V1",
+    "phase": "V3",
     "dependencies": [
       "T013",
       "T019",
@@ -5194,7 +5194,7 @@
     "id": "T095",
     "title": "גורם אימות שני ל-Arx (CR-011) — מדיניות כניסה, step-up לפעולות רגישות, passkeys",
     "epic": "SECURITY",
-    "phase": "V1",
+    "phase": "V3",
     "dependencies": [
       "T092"
     ],
