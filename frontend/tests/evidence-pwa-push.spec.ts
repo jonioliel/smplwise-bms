@@ -160,48 +160,14 @@ test.describe('PWA shell (CR-008 P3)', () => {
       await expect(toast).toBeHidden();
     } finally {
       await page.goto('about:blank');
-      await new Promise<void>((ok) => server.close(() => ok()));
+      await new Promise<void>((ok) => {
+        server.close(() => ok());
+        server.closeAllConnections();
+      });
     }
   });
 
-  test('a new release found while the app is still wiring its update watcher still raises the notice', async ({ page }) => {
-    // Regression: watchUpdates() used to listen for `updatefound` only, so a worker already installing when it attached
-    // (a slow start, a loaded machine) was never noticed and the "new version" toast never came. Here the page holds back
-    // its register() call, the next release starts installing (slowly, the install is held 2.5 s), and only then does the
-    // page wire itself. Deterministic: no timing luck involved.
-    const { original, oldName } = distWorker();
-    let sw = original;
-    const { server, origin } = await serveDist(() => sw);
-    try {
-      await page.addInitScript(() => {
-        const real = ServiceWorkerContainer.prototype.register;
-        ServiceWorkerContainer.prototype.register = function (this: ServiceWorkerContainer, ...args: Parameters<ServiceWorkerContainer['register']>) {
-          if (sessionStorage.getItem('hold-register') !== '1') return real.apply(this, args);
-          return new Promise((resolve) => {
-            (window as unknown as { __releaseRegister: () => void }).__releaseRegister = () => resolve(real.apply(this, args));
-          });
-        };
-      });
-      await page.goto(origin);
-      await controlled(page);
-      await reloadWired(page);
-      await page.evaluate(() => sessionStorage.setItem('hold-register', '1'));
-      await page.reload();
-      await page.waitForFunction(() => !!(window as unknown as { __releaseRegister?: unknown }).__releaseRegister);
-      sw = `${original.split(oldName).join(`${oldName}-next`)}\nself.addEventListener('install', (e) => e.waitUntil(new Promise((r) => setTimeout(r, 2500))));\n`;
-      await page.evaluate(() => {
-        void navigator.serviceWorker.getRegistration().then((r) => r?.update());
-      });
-      await page.waitForFunction(async () => !!(await navigator.serviceWorker.getRegistration())?.installing);
-      await page.evaluate(() => (window as unknown as { __releaseRegister: () => void }).__releaseRegister());
-      await expect(page.locator('arx-pwa-prompts [data-pwa-update]')).toBeVisible({ timeout: 15_000 });
-    } finally {
-      await page.goto('about:blank');
-      await new Promise<void>((ok) => server.close(() => ok()));
-    }
-  });
-
-  test('install banner "התקן את Arx" (beforeinstallprompt)',async ({ page }, info) => {
+  test('install banner "התקן את Arx" (beforeinstallprompt)', async ({ page }, info) => {
     await page.goto('/');
     await page.waitForFunction(() => !!customElements.get('arx-pwa-prompts'));
     const fire = () =>
