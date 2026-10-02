@@ -248,9 +248,9 @@ function defaultIdle(cb: () => void): void {
 }
 
 /** `auto` resolved for this device now (the cache or a weak signal); starts the probe when neither exists. */
-export function autoTier(onProbed: (tier: Tier) => void): Tier {
+export function autoTier(onProbed: (tier: Tier) => void, probe = true): Tier {
   const caps = readCaps();
   const d = decide(caps, readCached(caps, Date.now()));
-  if (d.probe) startProbe(onProbed);
+  if (d.probe && probe) startProbe(onProbed);
   return d.tier;
 }
