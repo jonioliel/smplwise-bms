@@ -3489,6 +3489,80 @@
       "note": "Read-only evidence and the system still running at the customer until migration. It has no upstream feed; this item records that the version and the migration (docs/operations/MIGRATION_FROM_LEGACY_HE.md) are tracked by hand.",
       "last_checked": null,
       "last_seen_version": null
+    },
+    {
+      "id": "glasshome",
+      "name": "GlassHome (dashboard app; proprietary, SDK/UI library open source) - design reference",
+      "kind": "design-reference",
+      "status": "planned",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "site": "https://glasshome.app/",
+        "demo": "https://demo.glasshome.app",
+        "docs": "https://glasshome.app/docs",
+        "widgets": "https://glasshome.app/widgets",
+        "blog": "https://glasshome.app/blog",
+        "repo": "https://github.com/glasshome"
+      },
+      "feeds": [],
+      "current": {
+        "version": null,
+        "source": "no code dependency; design reference only",
+        "verify": false,
+        "applicable": false
+      },
+      "dependents": [
+        "docs/design/DEVICE_THEMES.md"
+      ],
+      "watch_keywords": [
+        "theme",
+        "widget",
+        "license",
+        "pricing",
+        "breaking"
+      ],
+      "note": "Owner-given 2026-10-02: wall-tablet Home Assistant dashboard, 9 themes, widget SDK. Inspiration only (app is proprietary); research branch pilot/design-glasshome-research.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null,
+      "manual": "Check the GlassHome blog and the GitHub organisation (https://github.com/glasshome) monthly for new themes, widgets or licence changes."
+    },
+    {
+      "id": "magic-frame",
+      "name": "Magic Frame (Polyform Noncommercial) - design reference only",
+      "kind": "design-reference",
+      "status": "planned",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "site": "https://magicframe.dev/",
+        "repo": "https://github.com/jeremiaa/magic-frame",
+        "docs": "https://magicframe.dev/docs"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "jeremiaa/magic-frame"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "no code dependency; design reference only",
+        "verify": false,
+        "applicable": false
+      },
+      "dependents": [
+        "docs/design/DEVICE_THEMES.md"
+      ],
+      "watch_keywords": [
+        "license",
+        "breaking",
+        "widget",
+        "grid"
+      ],
+      "note": "Owner-given 2026-10-02: self-hosted widget-grid dashboard / photo frame; Polyform Noncommercial licence = NOT reusable in our commercial product, inspiration only.",
+      "last_checked": "2026-10-01",
+      "last_seen_version": null
     }
   ]
 }
