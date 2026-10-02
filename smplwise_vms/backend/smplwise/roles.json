@@ -154,6 +154,7 @@
         "rbac.roles.manage",
         "audit.read",
         "backup.manage",
+        "system.update",
         "video.export",
         "ha.entity.control",
         "cases.manage",

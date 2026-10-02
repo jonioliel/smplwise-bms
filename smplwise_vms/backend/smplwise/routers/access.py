@@ -73,6 +73,7 @@ PERMISSION_LABELS: dict[str, str] = {
     "rbac.roles.manage": "ניהול תפקידים",
     "audit.read": "צפייה באודיט",
     "backup.manage": "גיבוי ושחזור",
+    "system.update": "עדכון המערכת",  # CR-021: check for and (S3) install a new version; system administrators only, never delegable
     "video.export": "ייצוא וידאו",
     "ha.entity.control": "שליטה בישויות HA",
     "audio.talk": "דיבור דו־כיווני",
@@ -189,7 +190,7 @@ PERMISSION_LABELS: dict[str, str] = {
     # role naming it among its sensitive permissions plus a binding is the per-person grant path), installation scope.
     "access.cards.capture": "קריאת כרטיס מקורא בעמדת WisKey (מפעיל את הקורא בדלת; דורש גם ניהול אנשים)",
 }
-SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage"}  # rbac.assign is delegable (T082)
+SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage", "system.update"}  # rbac.assign is delegable (T082)
 # T082 (R164): the per-installation allow-list of roles a delegated administrator may hand out. Setting key
 # `rbac.delegable_roles` (shipped in 0.1.36 - kept, so an allow-list the owner already edited survives); the default
 # narrowed to viewer + operator. Never on it, whatever the setting says: system_admin / site_admin, a role with a
