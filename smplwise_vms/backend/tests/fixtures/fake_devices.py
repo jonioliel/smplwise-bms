@@ -53,6 +53,9 @@ class FakeDevices:
                 # overrides one. Keys: codec, profile (H264Profile / H265Profile), svc, bframes (a synthetic <BFrame>
                 # element - the lab firmware has none), width, height.
                 "streaming": True,
+                # CR-020 S1: more keys of an `encodings` entry - bitrate_mode (CBR | VBR), bitrate_kbps, quality, fps (e.g. 25),
+                # gop; `streaming_xml` replaces the whole streaming list answer (oversized / hostile / odd-shaped documents)
+                "streaming_xml": None,
                 "encodings": {"main": {"codec": "H.265", "svc": False, "width": 2560, "height": 1440},
                               "sub": {"codec": "H.264", "svc": None, "width": 640, "height": 360}},
                 "encodings_by_channel": {},
@@ -101,6 +104,8 @@ class FakeDevices:
                 f"<Track><id>{c}01</id><Channel>{c}01</Channel><Description>{desc}</Description><SrcDescriptor><SrcChannel>{c}</SrcChannel></SrcDescriptor></Track>"
                 f"<Track><id>{c}02</id><Channel>{c}02</Channel><SrcDescriptor><SrcChannel>{c}</SrcChannel></SrcDescriptor></Track>"
                 for c in chans if c not in n["no_tracks"]) + "</TrackList>")
+        if path == "/ISAPI/Streaming/channels" and n["streaming"] and n["streaming_xml"] is not None:
+            return self._ok(request, n["streaming_xml"])
         if path == "/ISAPI/Streaming/channels" and n["streaming"]:
             return self._ok(request, f"<StreamingChannelList version=\"1.0\" {NS}>" + "".join(
                 self._streaming_channel(c, kind) for c in chans for kind in ("main", "sub")) + "</StreamingChannelList>")
@@ -121,11 +126,20 @@ class FakeDevices:
         svc = f"<SVC><enabled>{'true' if e['svc'] else 'false'}</enabled><SVCMode>manual</SVCMode></SVC>" if e.get("svc") is not None else ""
         bframes = f"<BFrame><enabled>{'true' if e['bframes'] else 'false'}</enabled></BFrame>" if e.get("bframes") is not None else ""
         sid = f"{channel}0{1 if kind == 'main' else 2}"
+        mode = e.get("bitrate_mode", "VBR")
+        kbps = e.get("bitrate_kbps")
+        rate = ""
+        if mode == "CBR" and kbps is not None:
+            rate = f"<constantBitRate>{kbps}</constantBitRate>"
+        elif kbps is not None:
+            rate = f"<vbrUpperCap>{kbps}</vbrUpperCap>"
+        if e.get("quality") is not None:
+            rate += f"<fixedQuality>{e['quality']}</fixedQuality>"
         return (f'<StreamingChannel version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema"><id>{sid}</id><channelName>{sid}</channelName><enabled>true</enabled>'
                 "<Transport><ControlProtocolList><ControlProtocol><streamingTransport>RTSP</streamingTransport></ControlProtocol></ControlProtocolList></Transport>"
                 f"<Video><enabled>true</enabled><dynVideoInputChannelID>{channel}</dynVideoInputChannelID><videoCodecType>{codec}</videoCodecType>"
                 f"<videoResolutionWidth>{e.get('width', 1920)}</videoResolutionWidth><videoResolutionHeight>{e.get('height', 1080)}</videoResolutionHeight>"
-                f"<videoQualityControlType>VBR</videoQualityControlType><maxFrameRate>2500</maxFrameRate><GovLength>50</GovLength>{profile}{svc}{bframes}"
+                f"<videoQualityControlType>{mode}</videoQualityControlType>{rate}<maxFrameRate>{int(float(e.get('fps', 25)) * 100)}</maxFrameRate><GovLength>{e.get('gop', 50)}</GovLength>{profile}{svc}{bframes}"
                 "<snapShotImageType>JPEG</snapShotImageType><SmartCodec><enabled>false</enabled></SmartCodec></Video></StreamingChannel>")
 
     @staticmethod
