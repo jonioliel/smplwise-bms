@@ -1,5 +1,7 @@
 # CR-007 — Electricity and device control area: floors → areas → per-domain cards, bulk actions, screens and remotes, editable layouts, two styles
 
+> **Superseded in part by CR-019 (switch protection):** the opt-in bulk-safe rule of section 7.10 (a switch enters a group action only when marked) is inverted - a switch enters unless an administrator protects it, and the settings screen is now "מתגים מוגנים" (`/devices/bulk-protected`). Read the passages about the bulk-safe mark and `/devices/bulk-safe` below as history; see `CR-019-SWITCH-PROTECTION.md`.
+
 **Numbering:** registered as CR-007 on 2026-09-28 (CR-005 WisKey phase 2 and CR-006 3D visuals are in progress).
 
 **Status:** Approved for development by the owner on 2026-09-28 after reviewing the mockup

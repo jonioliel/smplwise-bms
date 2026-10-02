@@ -17,7 +17,7 @@ Owner answers 2026-09-30 ("as recommended", then overrides A and B and the condi
 |---|---|---|
 | 1a | A schedule whose **action** entity the caller may not see is **absent** (never masked). Condition entities never hide a schedule; out-of-scope conditions are shown read-only and locked | §4.3 |
 | 2 (override B) | Who edits = a **permission** the owner grants to any user or role: `schedule.view`, `schedule.manage`, plus `schedule.sensitive`. Defaults: system_admin all three, site_admin view + manage, nobody else. Least-privilege scope: edit only when the binding scope covers **every** action entity | §4 |
-| 3/4 (override A) | Allowed: lights, bulk-safe switches, climate, fans, covers/blinds **and** (sensitive) alarm arm/disarm, locks lock/unlock, doors/gates. No scenes/scripts/others | §5 |
+| 3/4 (override A) | Allowed: lights, switches (any - CR-019), climate, fans, covers/blinds **and** (sensitive) alarm arm/disarm, locks lock/unlock, doors/gates. No scenes/scripts/others | §5 |
 | 5a | "כיבוי בסיום" helper adds a companion off slot (UI only) | §2.7 |
 | 6a | Editing one day of a multi-day schedule splits it after confirmation (server op `split`) | §3.10 |
 | 7a | Delete = confirmation + 30-day Arx trash with restore | §3.11–3.13, §7 |
@@ -379,7 +379,7 @@ Visibility is applied **before** filters, totals and pagination.
 
 ### 3.4 `GET /schedules/catalog`
 
-The editor's action-entity picker (one server-side source of classes, allow-list, bulk-safe, door-layer and alarm rules).
+The editor's action-entity picker (one server-side source of classes, allow-list, door-layer and alarm rules; CR-019: no per-switch mark).
 Query `q`, `floor`, `area`, `class`.
 
 ```json
@@ -392,7 +392,11 @@ Query `q`, `floor`, `area`, `class`.
       { "service": "cover.set_cover_position", "label": "מיקום", "lowering": false,
         "args": [ { "name": "position", "type": "int", "min": 0, "max": 100, "required": true } ] } ] },
   { "entity_id": "switch.boiler", "name": "דוד", "domain": "switch", "class": "switch", "sensitive": false,
-    "selectable": false, "reason": { "code": "switch_not_marked", "message": "המתג לא סומן כבטוח לפעולה קבוצתית." }, "actions": [] } ],
+    "area_id": "kitchen", "area_name": "מטבח", "floor_id": "f0", "floor_name": "קומת קרקע", "available": true,
+    "selectable": true, "reason": null, "attributes": {},
+    "actions": [
+      { "service": "switch.turn_on", "label": "הדלקה", "lowering": false, "args": [] },
+      { "service": "switch.turn_off", "label": "כיבוי", "lowering": false, "args": [] } ] } ],
   "truncated": false }
 ```
 
@@ -553,7 +557,6 @@ Installation-wide `schedule.manage`. `{ "items": [ { "schedule": Schedule, "issu
 | 422 | `validation` | ערך לא תקין — {field}: {what} (details.errors[] with path / code / message) |
 | 422 | `action_not_allowed` | הפעולה אינה מותרת בתזמון. |
 | 422 | `class_not_allowed` | סוג ההתקן אינו מותר בתזמונים (הגדרות › תזמונים). |
-| 422 | `switch_not_marked` | המתג לא סומן כבטוח לפעולה קבוצתית; רק מתגים מסומנים נכנסים לתזמון. |
 | 422 | `alarm_managed_control` | רכיב זה נשלט ממסך האזעקה ואינו נכנס לתזמון. |
 | 422 | `alarm_code_needed` | לוח האזעקה דורש קוד לפעולה זו. תזמון אינו שומר קודים, ולכן אי אפשר לתזמן אותה. |
 | 422 | `lock_code_needed` | המנעול דורש קוד. תזמון אינו שומר קודים, ולכן אי אפשר לתזמן אותו. |
@@ -684,7 +687,7 @@ diff: {days, dates, repeat, conditions_changed, slots_added, slots_removed, slot
 | Class | Entities | Sensitive |
 |---|---|---|
 | `light` | `light` | no |
-| `switch` | `switch`, **bulk-safe marked** (`device_bulk_safe`), not on the door layer, not alarm-managed, not a scheduler switch | no |
+| `switch` | `switch`, not on the door layer, not alarm-managed, not media-managed, not a scheduler switch. **CR-019:** the group-action protection mark (`device_bulk_protected`) is never consulted; the former `device_bulk_safe` gate and its `switch_not_marked` refusal are gone | no |
 | `cover` | `cover`, device_class ∉ {door, garage, gate}, not on the door layer | no |
 | `climate` | `climate` | no |
 | `fan` | `fan` | no |
@@ -692,8 +695,7 @@ diff: {days, dates, repeat, conditions_changed, slots_added, slots_removed, slot
 | `lock` | `lock` | yes |
 | `door` | covers with device_class ∈ `DOOR_COVER_CLASSES`; `cover` / `switch` / `button` on the map's door layer | yes |
 
-Never schedulable: alarm-managed controls (bypass) → `alarm_managed_control`; unmarked switches →
-`switch_not_marked`; scheduler switches, scripts, scenes, plain buttons, sirens, input_*, humidifier, media_player,
+Never schedulable: alarm-managed controls (bypass) → `alarm_managed_control`; scheduler switches, scripts, scenes, plain buttons, sirens, input_*, humidifier, media_player,
 vacuum, number, select, notify, every other domain → `action_not_allowed`. WisKey door release is not an HA entity.
 
 ### 5.2 Allow-list per class (`SCHEDULE_ACTIONS`, services ⊂ `ha_bridge.ACTIONS`)
@@ -735,11 +737,11 @@ Schedule switches have an HA device (V-LIVE), so a device area could otherwise p
 
 | Function | Change |
 |---|---|
-| `services/devices.py::load_entities` | exclude them (covers the devices tree, area, items, tiles via `device_layouts`, the bulk-safe list, `device_bulk.resolve`) |
+| `services/devices.py::load_entities` | exclude them (covers the devices tree, area, items, tiles via `device_layouts`, the protected-switches list, `device_bulk.resolve`) |
 | `services/device_bulk.py::bulk_scope.permitted` | refuse them explicitly |
 | `routers/ha.py::run_action` | after the permission check, 409 `use_schedules_screen` "התזמון מנוהל במסך התזמונים.", audited denied (the `_refuse_alarm_managed` pattern) |
 | `routers/ha.py::list_entities`, `get_entity` | keep listed; `actions: []`, `schedule_entity: true` |
-| `routers/devices.py::set_bulk_safe`, `set_bulk_safe_many` | 422 `not_markable` "תזמון אינו התקן ואינו מסומן כבטוח." |
+| `routers/devices.py::set_bulk_protected`, `set_bulk_protected_many` (CR-019; were `set_bulk_safe*`) | 422 `not_markable` "תזמון אינו התקן ואינו מסומן כמוגן." |
 | `routers/anchors.py` (HA-entity placement check) | 422 `not_placeable` |
 | `routers/search.py` (device search over `ha_entities`) | exclude |
 
@@ -1085,7 +1087,7 @@ Switch per item: state `on`/`off`; attributes `actions` (`[{service, data?}]` fi
 |---|---|---|
 | 1 | Shabbat cooling, 5 contiguous slots 00:00→00:00 alternating `climate.set_temperature {hvac_mode: cool, temperature: 25}` / `climate.turn_off`, condition shabbat sensor `is on`, `or`, tag `shabbat` | the most common real shape |
 | 2 | as 1 with `temperature: 25.5` and 3 slots, disabled (`enabled: false`, switch `off`) | float, disabled |
-| 3 | Shabbat lights: `switch.turn_on` / `switch.turn_off` contiguous, condition `is on`, tag `shabbat` | bulk-safe marked switch in the fixture |
+| 3 | Shabbat lights: `switch.turn_on` / `switch.turn_off` contiguous, condition `is on`, tag `shabbat` | any switch in the fixture (CR-019) |
 | 4 | Plain `light.turn_on {brightness: 51}` / `light.turn_off`, no conditions | brightness 0–255 |
 | 5 | Covers: `cover.close_cover`, `cover.set_cover_position {position: 10}` | |
 | 6 | Alarm: one point slot (`stop: null`) `alarm_control_panel.alarm_arm_home {}`, no conditions | sensitive design case |

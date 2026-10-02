@@ -7,8 +7,7 @@
 > 4. בהגדרות › חשמל והתקנים › "מתגים מוגנים" תראה את הרשימה פעם אחת ותאשר, תסיר הגנה או תגן על עוד מתגים (בחירה מרובה).
 > 5. מה שלא משתנה: דלתות, מתגי עקיפה של האזעקה, מנעולים ושערים בשכבת הדלתות לעולם לא בפעולה קבוצתית; חלון האישור ורשימת התוצאה נשארים כמו היום.
 
-**Status:** DESIGN — owner decisions adopted (2026-10-01, §1). Nothing implemented. Branch `pilot/switch-model` (from
-`base/0.1.150`), design only. **Release:** the first release after 0.1.150 (owner's call; no version or CHANGELOG edit
+**Status:** IMPLEMENTED on `pilot/cr019-complete` (S1 backend, S2 schedules + guard, S3 frontend, S4 docs; not released) — owner decisions adopted (2026-10-01, §1). Design text below is unchanged except where §15 records a deviation. **Release:** the first release after 0.1.150 (owner's call; no version or CHANGELOG edit
 here). **Supersedes:** the opt-in "bulk-safe" rule of CR-007 §7.10 (review round 1, slice 3) and its reuse as the
 schedule gate in CR-014 (`SCHEDULER_API.md` §5.1 `switch` row, error `switch_not_marked`). **Builds on:** CR-007 (bulk
 engine `services/device_bulk.py`), CR-010 (alarm-managed controls), CR-014 (schedules), CR-015/016 (media-managed
@@ -550,3 +549,11 @@ normal permission"), so this CR does **not** do it; the owner may ask for it lat
 **Q2 (not blocking, design choice taken):** the classifier also runs on switches that appear **after** the upgrade (not
 only once at upgrade). Taken because it is the conservative reading of 2א and costs nothing when there is no hit; the
 owner may restrict it to the upgrade only.
+
+## 15. Implementation notes (S2-S4)
+
+- **Reach guard.** The static guard is `tests/test_switch_protection_reach_guard.py` (S1 name; the design called it `..._scope_guard`). S2 extended it: schedule, automation, notification and individual-control modules may not name `device_bulk_protected`, `device_switch_classified`, `switch_protection`, `SwitchPolicy`, `bulk_protected`, `device_bulk_safe` or `switch_not_marked`, and `classify_entity` takes exactly `(entity, on_door_layer, alarm_managed)`.
+- **Schedules catalogue.** A switch is never listed as unselectable for a mark; entities that cannot be scheduled (alarm-managed, scheduler, media-managed) are not listed at all, as before.
+- **Frontend.** `<devices-protected-switches>` (`devices-protected-switches-admin.ts`) replaces `devices-bulk-safe-admin.ts`; pure logic in `protected-switches-logic.ts`. `section=bulk-safe` still scrolls to it. Multimedia-managed switches are shown read-only (the server refuses them with `media_managed`). "אשר את כולם" and any selection go to the server in chunks of 500 ids (the route's cap).
+- **Dark scheme.** The settings screens have no dark theme tokens today (design unification is a separate item), so the dark evidence image shows the light card on a dark page.
+- **Migration number.** 0049 is unused by `integ/0152`, `integ/0153`, `integ/notify` and `pilot/wave1-0153` at the time of writing (checked 2026-10-02); 0045-0048 on this line are notifications / automations.
