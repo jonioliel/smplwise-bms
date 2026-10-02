@@ -176,7 +176,7 @@ How a group of tabs is drawn on the phone (<= 767 px; wider screens are always `
 visibility and the look (`ui.tabs`). Three values: `tabs` (today, the default everywhere), `hybrid` (a bar of up to three items,
 a dropdown for four or more) and `dropdown`.
 
-- **Groups** (closed list, `services/tabs_mode.py` and `shell/tabs-mode.ts`): `home` (the areas chip row of the home screen),
+- **Groups** (closed list, `services/tabs_mode.py` and `shell/tabs-mode.ts`): `home` (the areas chip row of an area's page),
   `area` (the sub-tabs of the home / map / WisKey areas), `multimedia` (the area row and the room filter), `security` (the
   sections and their pages) and `settings` (the settings tabs and the security sub-tabs). The main bottom navigation is not a group.
 - **Keys**, installation default in `/settings` and the user's own in `/me/prefs` (null = follow the installation):

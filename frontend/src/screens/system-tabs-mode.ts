@@ -7,9 +7,11 @@ import { getSettings, patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
 import {
-  TAB_GROUPS, TAB_GROUP_LABEL, TAB_MODES, TAB_MODE_HINT, TAB_MODE_LABEL, asTabMode, installationTabsMode, onTabsMode, ownTabsMode, saveOwnTabsMode, setInstallationTabsMode,
-  type TabGroup, type TabMode, type TabModeGroups,
+  TAB_GROUPS, TAB_GROUP_LABEL, TAB_MODES, TAB_MODE_HINT, TAB_MODE_LABEL, TAB_MODE_MAX_WIDTH, asTabMode, installationTabsMode, isPhoneWidth, onTabsMode, ownTabsMode, resolveTabMode, saveOwnTabsMode, setInstallationTabsMode,
+  type TabGroup, type TabMode, type TabModeGroups, type TabModeSource,
 } from '../shell/tabs-mode';
+
+const SOURCE_LABEL: Record<TabModeSource, string> = { 'own-group': 'ההעדפה שלי לקבוצה', own: 'ההעדפה שלי', 'installation-group': 'ברירת המחדל לקבוצה', installation: 'ברירת המחדל של ההתקנה' };
 
 const SAMPLE_3 = [{ id: 'a', label: 'ראשון', count: 4 }, { id: 'b', label: 'שני' }, { id: 'c', label: 'שלישי' }];
 const SAMPLE_6 = [{ id: 'a', label: 'סלון', count: 6 }, { id: 'b', label: 'מטבח' }, { id: 'c', label: 'חדר שינה' }, { id: 'd', label: 'משרד', alert: true as const }, { id: 'e', label: 'מרפסת' }, { id: 'f', label: 'חצר' }];
@@ -29,6 +31,8 @@ export class SystemTabsMode extends LitElement {
   @state() private busy = false;
   @state() private message = '';
   @state() private error = '';
+  @state() private phone = isPhoneWidth();
+  private mq: MediaQueryList | null = null;
   private stop?: () => void;
 
   static styles = css`
@@ -97,6 +101,35 @@ export class SystemTabsMode extends LitElement {
       color: var(--sw-text);
       font: inherit;
     }
+    .effective {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-block-end: 14px;
+    }
+    .effective ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .effective li {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 4px 0;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .reset {
+      align-self: flex-start;
+      min-block-size: 44px;
+      padding: 0 14px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+      cursor: pointer;
+    }
     .preview {
       display: flex;
       flex-direction: column;
@@ -118,16 +151,26 @@ export class SystemTabsMode extends LitElement {
     }
   `;
 
+  private onWidth = () => (this.phone = isPhoneWidth());
+
   connectedCallback() {
     super.connectedCallback();
     this.stop = onTabsMode(() => {
       this.inst = installationTabsMode();
       this.own = ownTabsMode();
     });
+    try {
+      this.mq = window.matchMedia(`(max-width: ${TAB_MODE_MAX_WIDTH}px)`);
+      this.mq.addEventListener('change', this.onWidth);
+    } catch {
+      this.mq = null;
+    }
+    this.phone = isPhoneWidth();
     void this.load();
   }
 
   disconnectedCallback() {
+    this.mq?.removeEventListener('change', this.onWidth);
     this.stop?.();
     super.disconnectedCallback();
   }
@@ -225,8 +268,19 @@ export class SystemTabsMode extends LitElement {
           <fieldset><legend>לפי קבוצה</legend>${this.groupSelects('own', this.own.groups, ownDisabled, (g, v) => void this.saveOwn(this.own.mode, this.withGroup(this.own.groups, g, v)))}</fieldset>
         </div>
       </div>
+      <div class="effective" data-tabs-mode-effective>
+        <strong>מה פעיל אצלי עכשיו</strong>
+        ${!this.phone ? html`<span class="muted" data-tabs-mode-wide>במסך רחב הלשוניות נשארות כמו היום; התצוגה שנבחרה חלה בטלפון (עד ${TAB_MODE_MAX_WIDTH} פיקסלים)</span>` : nothing}
+        <ul>${TAB_GROUPS.map((g) => {
+          const r = resolveTabMode(g);
+          return html`<li data-effective-group=${g} data-mode=${r.mode} data-source=${r.source}><span>${TAB_GROUP_LABEL[g]}</span><span>${TAB_MODE_LABEL[r.mode]} <span class="muted">${SOURCE_LABEL[r.source]}</span></span></li>`;
+        })}</ul>
+        ${this.own.mode || Object.keys(this.own.groups).length
+          ? html`<button type="button" class="reset" data-own-reset ?disabled=${this.busy} @click=${() => void this.saveOwn(null, {})}>אפס את ההעדפות שלי</button>`
+          : nothing}
+      </div>
       <div class="preview" data-tabs-mode-preview=${effective} aria-label="תצוגה מקדימה">
-        <span class="muted">תצוגה מקדימה: ${TAB_MODE_LABEL[effective]}</span>
+        <span class="muted">תצוגה מקדימה (כך זה ייראה בטלפון): ${TAB_MODE_LABEL[effective]}</span>
         <sw-tabs .items=${SAMPLE_3} active="a" .variant=${effective === 'dropdown' ? 'dropdown' : 'pill'} ?adaptive=${effective === 'hybrid'} group-label="דוגמה: שלוש אפשרויות" data-preview="3"></sw-tabs>
         <sw-tabs .items=${SAMPLE_6} active="a" .variant=${effective === 'dropdown' ? 'dropdown' : 'pill'} ?adaptive=${effective === 'hybrid'} group-label="דוגמה: שש אפשרויות" data-preview="6"></sw-tabs>
         ${effective === 'dropdown' ? html`<div class="pair" data-preview="pair"><sw-tabs block variant="dropdown" .items=${SAMPLE_3} active="a" group-label="דוגמה: רמה ראשונה"></sw-tabs><sw-tabs block variant="dropdown" .items=${SAMPLE_6} active="a" group-label="דוגמה: רמה שנייה"></sw-tabs></div>` : nothing}
