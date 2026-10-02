@@ -181,9 +181,9 @@ export function lookOf<K extends LookDial>(dial: K): Look[K] {
 }
 /** Every dial in force. */
 export function look(): Look {
-  const out = {} as Look;
-  for (const d of LOOK_DIAL_IDS) (out as Record<string, unknown>)[d] = lookOf(d);
-  return out;
+  const out: Record<string, unknown> = {};
+  for (const d of LOOK_DIAL_IDS) out[d] = lookOf(d);
+  return out as unknown as Look;
 }
 export const installationLook = (): Look => ({ ...installation });
 /** The user's own override (only the dials they set). */

@@ -71,8 +71,9 @@ import '../screens/system-notifications'; // CR-018: הגדרות › התראו
 import '../components/notify-center'; // CR-018: the notification center, opened from the user menu's bell
 import '../screens/screens-index';
 import '../screens/styleguide-screen';
+import '../screens/bubble-demo'; // Bubble foundation (2026-10-02): #/styleguide/bubble
 import '../components/media-remote';
-import { onRouteChange, type RouteState, parseRoute } from '../router';
+import { navigate, onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
@@ -83,7 +84,12 @@ import { can, canNav, isApi, loadSession, nvrLess, onSession, watchPermissions, 
 import { productSettings } from '../api/prefs';
 import { applyTimelineColors } from '../api/timeline-colors';
 import { applyPlaybackDisplay } from '../api/playback-display';
-import { setInstallationDesign } from '../design/apply';
+import { currentSkin, onDesign, setInstallationDesign } from '../design/apply';
+import { loadLook, setInstallationLook } from '../design/look';
+import { getDevicesTree, type DeviceTree } from '../api/devices';
+import { DEMO_DEVICES_TREE } from '../screens/devices-building';
+import '../components/sw-sheet';
+import '../components/sw-pill';
 import '../components/sw-state-panel';
 import '../components/sw-page';
 
@@ -156,6 +162,12 @@ export class SwApp extends LitElement {
   private stopTabsConfig?: () => void;
   private stopMobileOptions?: () => void;
   private navOrderUser: string | null = null;
+  /** Bubble foundation: the skin in force (the bubble skin's phone shell is a dock row: pill stack + home button). */
+  @state() private skin = currentSkin();
+  private stopDesign?: () => void;
+  @state() private pickerOpen = false;
+  @state() private pickerTree: DeviceTree | null = null;
+  @state() private pickerCollapsed = new Set<string>();
 
   static styles = css`
     :host {
@@ -791,6 +803,52 @@ export class SwApp extends LitElement {
       }
     }
 
+    /* the area picker's rows (Bubble foundation; inside the sheet the pills are translucent layers) */
+    .pk-floor {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .pk-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-block-size: 44px;
+      padding-inline: 8px;
+      border: 0;
+      border-radius: var(--sw-r-pill);
+      background: transparent;
+      color: var(--sw-text);
+      font: inherit;
+      font-weight: var(--sw-fw-semibold);
+      text-align: start;
+      cursor: pointer;
+    }
+    .pk-head .t {
+      flex: 1;
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .pk-head .n {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      font-weight: var(--sw-fw-regular);
+    }
+    .pk-head:focus-visible {
+      outline: 2px solid var(--sw-focus);
+      outline-offset: 2px;
+    }
+    .pk-areas {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sw-gap);
+    }
+    .pk-areas sw-pill {
+      --pill-base: var(--sw-layer);
+    }
+
     /* ---- CR-013: the user as the navigation's last item; no top bar on the phone ---- */
     :host {
       /* the status-bar inset the page must keep clear of; the Android app's own WebView reserves it natively */
@@ -918,6 +976,88 @@ export class SwApp extends LitElement {
         grid-template-areas:
           'main'
           'bottom';
+      }
+      /* Bubble foundation: the phone dock is a ROW of the shell's grid (never an overlay), so the content scrolls above it and nothing
+         can sit under it: a floating pill stack (the areas + the user) beside the round home button that opens the area picker */
+      :host([data-design='a']) nav.bottom.dock {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 8px calc(12px + env(safe-area-inset-bottom, 0px));
+        min-inline-size: 0;
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+        grid-template-columns: none;
+      }
+      :host([data-design='a']) nav.bottom.dock .stack {
+        flex: 1;
+        min-inline-size: 0;
+        display: flex;
+        align-items: stretch;
+        block-size: 66px;
+        padding: 5px;
+        gap: 2px;
+        border-radius: var(--sw-r-pill);
+        background: var(--sw-surface);
+        box-shadow: var(--sw-shadow-2);
+        animation: dock-rise 0.6s var(--sw-ease-thumb) both;
+      }
+      :host([data-design='a']) nav.bottom.dock .stack a,
+      :host([data-design='a']) nav.bottom.dock .stack button.me {
+        flex: 1;
+        min-inline-size: 0;
+        min-block-size: 44px;
+        padding: 2px;
+        border-radius: var(--sw-r-pill);
+        overflow: hidden;
+      }
+      :host([data-design='a']) nav.bottom.dock .stack .lbl {
+        max-inline-size: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      :host([data-design='a']) nav.bottom.dock .fab {
+        flex: none;
+        inline-size: 56px;
+        block-size: 56px;
+        border: 0;
+        border-radius: 50%;
+        background: var(--sw-accent);
+        color: var(--sw-text-inverse);
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        box-shadow: var(--sw-shadow-3);
+        padding: 0;
+        transition: transform var(--sw-t-fast) var(--sw-ease-thumb);
+      }
+      :host([data-design='a']) nav.bottom.dock .fab:active {
+        transform: scale(0.94);
+      }
+      :host([data-design='a']) nav.bottom.dock .fab:focus-visible {
+        outline: 2px solid var(--sw-focus);
+        outline-offset: 2px;
+      }
+      @keyframes dock-rise {
+        0% {
+          transform: translateY(90px);
+        }
+        40% {
+          transform: translateY(-6px);
+        }
+        62% {
+          transform: translateY(2px);
+        }
+        100% {
+          transform: none;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        :host([data-design='a']) nav.bottom.dock .stack {
+          animation: none;
+        }
       }
       /* the kiosk and the Lovelace card view have no bars and keep the whole screen (review M5) */
       :host([data-design='a']:not([data-kiosk]):not([data-embed])) {
@@ -1111,6 +1251,7 @@ export class SwApp extends LitElement {
     this.stopNotify = notifyStore.subscribe((s) => (this.notifySummary = s.summary));
     this.stopNavOrder = onNavOrder((o) => (this.navOrder = o));
     this.stopNavSize = onNavSize((sz) => (this.nav = navDims(sz)));
+    this.stopDesign = onDesign(() => (this.skin = currentSkin())); // the bubble skin renders the phone dock (its own row)
     this.stopScreenEdits = onScreenEdits(() => this.requestUpdate()); // a screen registered / dropped its edit mode
     this.stopScreenViews = onScreenViews(() => this.requestUpdate()); // a screen registered / dropped / changed its view choice
     this.stopTabsConfig = onTabsConfig(() => this.requestUpdate()); // הגדרות › כללי › לשוניות: every tab row follows at once
@@ -1124,6 +1265,7 @@ export class SwApp extends LitElement {
         this.navOrderUser = who;
         void loadNavOrder(who, s.mode === 'api' || s.mode === 'no_access');
         void loadNavSize(who, s.mode === 'api' || s.mode === 'no_access');
+        void loadLook(who, s.mode === 'api' || s.mode === 'no_access'); // Bubble foundation: this user's look dials
       }
       if (s.mode !== 'loading') {
         this.openPendingCenter();
@@ -1140,6 +1282,7 @@ export class SwApp extends LitElement {
           HIDDEN_HREFS.clear();
           setInstallationNavSize(ps['ui.nav_size']); // the installation's default size of the navigation
           setInstallationDesign(ps['ui.skin'], ps['ui.scheme']); // the installation's skin and light / dark choice (design foundation)
+          setInstallationLook(ps['ui.look']); // the installation's look dials (Bubble foundation)
           setInstallationMobileOptions(ps['ui.mobile']); // the phone UX guards (הגדרות › כללי › אפשרויות נייד)
           applyPlaybackDisplay(ps); // the helper line and the diagnostics block of the recording screens
           applyTimelineColors(ps['timeline.colors']); // the investigation timeline's colours (הגדרות › וידאו ומדיה › צבעי ציר הזמן)
@@ -1288,6 +1431,7 @@ export class SwApp extends LitElement {
   disconnectedCallback() {
     this.bannerObs?.disconnect();
     super.disconnectedCallback();
+    this.stopDesign?.();
     this.stopRouter?.();
     this.stopSession?.();
     this.stopPermissions?.();
@@ -1662,6 +1806,7 @@ export class SwApp extends LitElement {
     // offered on a phone while its option is on. A UX guard, NOT a security boundary: the server still enforces every permission.
     const guarded = routeGuardKind(s);
     if (guarded && phoneRestricted(guarded)) return this.desktopOnly(guarded, s);
+    if (s[0] === 'styleguide' && s[1] === 'bubble') return html`<bubble-demo></bubble-demo>`; // Bubble foundation: the components' demo page (fixture)
     if (s[0] === 'styleguide') return html`<styleguide-screen></styleguide-screen>`;
     if (s[0] === 'screens') return html`<screens-index></screens-index>`;
     if (s[0] === 'kiosk') return html`<kiosk-wall></kiosk-wall>`;
@@ -2060,12 +2205,54 @@ export class SwApp extends LitElement {
           ${showSections && this.phone ? this.renderSections(section, true) : nothing}<div class="subnav" data-tabstyle=${rowStyle}>${showSections && !this.phone ? this.renderSections(section) : nothing}${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeAreaTab(this.route)} .variant=${rowStyle} data-area-tabs></sw-tabs>` : nothing}</div>
           <div class="screen">${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}
       </main>
-      <nav class="bottom" aria-label="ניווט ראשי">
-        ${areas.map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href} aria-label=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}><span class="ic"><sw-icon .name=${n.icon} size=${this.nav.pIcon}></sw-icon></span><span class="lbl">${n.label}</span></a>`)}
-        ${this.renderMe('bottom')}
-      </nav>
+      ${this.skin === 'bubble'
+        ? html`<nav class="bottom dock" aria-label="ניווט ראשי" data-dock>
+            <div class="stack">
+              ${areas.map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href} aria-label=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}><span class="ic"><sw-icon .name=${n.icon} size=${this.nav.pIcon}></sw-icon></span><span class="lbl">${n.label}</span></a>`)}
+              ${this.renderMe('bottom')}
+            </div>
+            <button type="button" class="fab" aria-label="בחירת אזור" aria-haspopup="dialog" aria-expanded=${this.pickerOpen ? 'true' : 'false'} data-area-picker @click=${() => void this.openPicker()}><sw-icon name="home" size=${24}></sw-icon></button>
+          </nav>
+          ${this.renderPicker()}`
+        : html`<nav class="bottom" aria-label="ניווט ראשי">
+            ${areas.map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href} aria-label=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}><span class="ic"><sw-icon .name=${n.icon} size=${this.nav.pIcon}></sw-icon></span><span class="lbl">${n.label}</span></a>`)}
+            ${this.renderMe('bottom')}
+          </nav>`}
       ${this.renderUserMenu()}
     `;
+  }
+
+  /** Bubble foundation: the phone dock's home button opens the room picker - floors (collapsible) and areas as pill rows. */
+  private async openPicker() {
+    this.pickerOpen = true;
+    if (this.pickerTree) return;
+    try {
+      this.pickerTree = isApi() ? await getDevicesTree() : DEMO_DEVICES_TREE;
+    } catch {
+      this.pickerTree = { ...DEMO_DEVICES_TREE, floors: [] };
+    }
+  }
+
+  private renderPicker() {
+    const t = this.pickerTree;
+    const seg = this.route?.segments ?? [];
+    const here = seg[0] === 'devices' && seg[1] === 'areas' ? seg[2] ?? '' : '';
+    return html`<sw-sheet heading="בחירת אזור" ?open=${this.pickerOpen} data-area-picker-sheet @close=${() => (this.pickerOpen = false)}>
+      ${!t
+        ? html`<sw-state-panel state="loading"></sw-state-panel>`
+        : !t.floors.length
+          ? html`<sw-state-panel state="empty" heading="אין אזורים"></sw-state-panel>`
+          : t.floors.map((f) => {
+              const col = this.pickerCollapsed.has(f.floor_id);
+              return html`<div class="pk-floor" data-picker-floor=${f.floor_id}>
+                <button type="button" class="pk-head" aria-expanded=${col ? 'false' : 'true'} @click=${() => { const n = new Set(this.pickerCollapsed); n.has(f.floor_id) ? n.delete(f.floor_id) : n.add(f.floor_id); this.pickerCollapsed = n; }}>
+                  <sw-icon name=${col ? 'chevronBack' : 'chevronDown'} size=${16}></sw-icon><span class="t">${f.name}</span>${f.counts.lights_on ? html`<span class="n">${f.counts.lights_on} דולקים</span>` : nothing}
+                </button>
+                ${col ? nothing : html`<div class="pk-areas">${f.areas.map((a) => html`<sw-pill variant="plain" icon="home" .label=${a.name} .state=${a.counts.lights_on ? `${a.counts.lights_on} דולקים` : `${a.counts.entities} התקנים`} ?accent=${a.area_id === here} data-picker-area=${a.area_id}
+                  @activate=${() => { this.pickerOpen = false; navigate(`/devices/areas/${encodeURIComponent(a.area_id)}`); }}></sw-pill>`)}</div>`}
+              </div>`;
+            })}
+    </sw-sheet>`;
   }
 
   /** CR-010: the security area's sections (לייב | חקירה | אזעקה) as a segmented control - at the head of the page on a
