@@ -1,6 +1,6 @@
 """A small in-process fake SMTP server for the e-mail channel tests (CR-018 S4): no mail ever leaves the machine.
 
-Binds 127.0.0.1 in the agent port range 4691-4700, speaks enough ESMTP for smtplib (EHLO, STARTTLS, AUTH PLAIN / LOGIN, MAIL, RCPT, DATA,
+Binds 127.0.0.1 on an ephemeral port (read `FakeSMTP.port`), speaks enough ESMTP for smtplib (EHLO, STARTTLS, AUTH PLAIN / LOGIN, MAIL, RCPT, DATA,
 RSET, NOOP, QUIT) in one of three modes - `none` (plain), `starttls` (offers STARTTLS; AUTH only after it) and `ssl` (implicit TLS) - with a
 throw-away self-signed certificate for 127.0.0.1 / localhost (the test trusts it through `FakeSMTP.client_context()`).
 
@@ -14,6 +14,7 @@ from __future__ import annotations
 import base64
 import datetime as dt
 import ipaddress
+import os
 import socket
 import ssl
 import threading
@@ -24,8 +25,6 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
-
-PORTS = range(4691, 4701)
 
 
 def make_cert(directory: Path) -> tuple[Path, Path, bytes]:
@@ -75,17 +74,17 @@ class FakeSMTP:
 
     # -- lifecycle
     def start(self) -> "FakeSMTP":
+        # Port 0: the kernel hands out a free ephemeral port, so parallel test processes never collide and sockets lingering in
+        # TIME_WAIT from earlier tests cannot exhaust a fixed range (Linux refuses to rebind a fixed port without SO_REUSEADDR).
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        for p in PORTS:
-            try:
-                sock.bind(("127.0.0.1", p))
-                self.port = p
-                break
-            except OSError:
-                continue
-        else:
+        try:
+            if os.name != "nt":     # on Windows SO_REUSEADDR permits port hijacking; the port is ephemeral anyway
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind(("127.0.0.1", 0))
+        except OSError:
             sock.close()
-            raise RuntimeError("no free port in 4691-4700 for the fake SMTP server")
+            raise
+        self.port = sock.getsockname()[1]
         sock.listen(8)
         sock.settimeout(0.2)
         self.sock = sock
