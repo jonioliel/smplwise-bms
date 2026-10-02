@@ -397,7 +397,7 @@ def test_local_reads_and_the_rest_of_the_product_keep_working(ha_only):
         r = c.get(path)
         assert r.status_code == 200, (path, r.status_code, r.text[:200])
     assert c.get("/api/v1/cameras").json()["cameras"] == []
-    st = c.get("/api/v1/storage").json()
+    st = c.get("/api/v1/storage?fresh=true").json()  # never a report cached by another test's settings (storage._cache is process-wide)
     assert st["nvr"]["configured"] is False and st["disks"] == []
 
 
