@@ -274,7 +274,7 @@ need no new role (the read works today; the store reload needs `manager`, so bef
 - D2: backup before update is on by default but optional.
 - D3: scheduled check interval 6 h.
 - D4: only the manual button refreshes the store; the scheduled check does not.
-- D5: remote channel allowed only with the second factor (recommended option; owner asked for an explanation, proceeding with it unless he changes it).
+- D5: the marker and the update also work over the remote channel, WITHOUT a second factor (owner: it would complicate things). Same permission `system.update` applies.
 - D6: platform restart is always a separate action.
 - D7: nightly opt-in auto-update recorded as a future option, not built now.
 - D8: bilingual CHANGELOG plus a `[platform-restart]` marker line is the release-notes source.
