@@ -37,8 +37,14 @@ export class SwPill extends LitElement {
   /** 1..8: the decorative hue of the ring (and the gradient surface's wash). 0 = none. */
   @property({ type: Number }) hue = 0;
   @property({ type: Boolean, reflect: true }) unavailable = false;
+  /** Read-only: the row shows its state but takes no tap, drag or key (no permission to control); the ring still opens the sheet. */
+  @property({ type: Boolean, reflect: true }) readonly = false;
   /** Accent fill (a switch that is on, the "all off" row). */
   @property({ type: Boolean, reflect: true }) accent = false;
+  /** A translucent fill (a cover's position, a fan's speed): the label keeps its one colour, no dual-colour clip. */
+  @property({ type: Boolean, reflect: true, attribute: 'keep-text' }) keepText = false;
+  /** The ring is a plain badge, not a button (a pill that is itself the head of its own sheet). */
+  @property({ type: Boolean, reflect: true, attribute: 'ring-static' }) ringStatic = false;
   /** The list view: set by the host container when its density is `row`; '' = follow the look dial. */
   @property() density: '' | 'wide' | 'regular' | 'compact' | 'row' = '';
   /** The surface: set by a host that shows a draft (the settings preview); '' = follow the look dial. */
@@ -118,6 +124,13 @@ export class SwPill extends LitElement {
       opacity: 0.55;
       cursor: not-allowed;
     }
+    :host([readonly]) {
+      cursor: default;
+    }
+    :host([readonly][variant='plain']:hover),
+    :host([readonly][variant='toggle']:not([on]):hover) {
+      background: var(--pill-base, var(--sw-surface));
+    }
     .ring {
       flex: none;
       inline-size: calc(var(--sw-icon-ring) * var(--sw-look-scale, 1));
@@ -143,6 +156,12 @@ export class SwPill extends LitElement {
     .ring:focus-visible {
       outline: 2px solid var(--sw-focus);
       outline-offset: 2px;
+    }
+    span.ring {
+      cursor: default;
+    }
+    span.ring:hover {
+      transform: none;
     }
     .ring.hue {
       background: var(--h);
@@ -213,8 +232,13 @@ export class SwPill extends LitElement {
     :host(:not([on])) .tx.over,
     :host(:not([variant='slider'])) .tx.over,
     :host([data-surface='flat']) .tx.over,
+    :host([keep-text]) .tx.over,
     :host([accent]) .tx.over {
       display: none;
+    }
+    :host([keep-text][on][data-surface='flat']:not([accent])) .tx.base,
+    :host([keep-text][on][data-surface='flat']:not([accent])) .pct {
+      color: var(--sw-text);
     }
     :host([data-dragging]) .tx.over {
       transition: none;
@@ -351,7 +375,7 @@ export class SwPill extends LitElement {
 
   /** The row's main action: a slider / switch toggles, a plain row activates. */
   private tap() {
-    if (this.unavailable) return;
+    if (this.unavailable || this.readonly) return;
     if (this.variant === 'plain') this.emit('activate');
     else this.emit('toggle', { on: !this.on });
   }
@@ -371,7 +395,7 @@ export class SwPill extends LitElement {
   }
 
   private onDown = (e: PointerEvent) => {
-    if (this.unavailable) return;
+    if (this.unavailable || this.readonly) return;
     const t = e.composedPath()[0] as HTMLElement;
     if (t instanceof HTMLElement && (t.closest('.ring') || t.closest('.subs') || t.assignedSlot?.name === 'subs')) return;
     // a sub-button slotted from the light DOM: its own click, not the pill's
@@ -405,7 +429,8 @@ export class SwPill extends LitElement {
     if (e.type === 'pointerup') this.tap();
   };
   private onKey = (e: KeyboardEvent) => {
-    if (e.target !== this || this.unavailable) return;
+    // only the pill itself: a key on the ring or on a slotted sub-button is theirs (the host listener sees them retargeted to the host)
+    if (e.composedPath()[0] !== this || this.unavailable || this.readonly) return;
     if (this.variant === 'slider') {
       // RTL: ArrowLeft moves toward the fill's growth (the mockup's rule); LTR the other way round
       const rtl = getComputedStyle(this).direction === 'rtl';
@@ -441,6 +466,8 @@ export class SwPill extends LitElement {
     this.setAttribute('aria-label', this.label);
     if (this.unavailable) this.setAttribute('aria-disabled', 'true');
     else this.removeAttribute('aria-disabled');
+    if (this.readonly && this.variant !== 'plain') this.setAttribute('aria-readonly', 'true');
+    else this.removeAttribute('aria-readonly');
     // the effective density and surface: the host's word, else the look dials (the styles key on these)
     this.setAttribute('data-density', this.density || this.look.of('density'));
     this.setAttribute('data-surface', this.surface || this.look.of('surface'));
@@ -448,10 +475,13 @@ export class SwPill extends LitElement {
 
   render() {
     const text = html`<span class="nm">${this.label}</span>${this.state ? html`<span class="st">${this.state}</span>` : nothing}`;
-    return html`<button type="button" class=${classMap({ ring: true, hue: this.hue >= 1 && this.hue <= 8 })} aria-label=${`פרטים: ${this.label}`} ?disabled=${this.unavailable} data-pill-ring
-        @click=${(e: Event) => { e.stopPropagation(); this.emit('icon-click'); }} @pointerdown=${(e: Event) => e.stopPropagation()}>
-        <sw-icon .name=${this.icon} size=${20}></sw-icon>
-      </button>
+    const ringCls = classMap({ ring: true, hue: this.hue >= 1 && this.hue <= 8 });
+    return html`${this.ringStatic
+        ? html`<span class=${ringCls} aria-hidden="true" data-pill-ring-static><sw-icon .name=${this.icon} size=${20}></sw-icon></span>`
+        : html`<button type="button" class=${ringCls} aria-label=${`פרטים: ${this.label}`} ?disabled=${this.unavailable} data-pill-ring
+            @click=${(e: Event) => { e.stopPropagation(); this.emit('icon-click'); }} @pointerdown=${(e: Event) => e.stopPropagation()}>
+            <sw-icon .name=${this.icon} size=${20}></sw-icon>
+          </button>`}
       <span class="txw"><span class="tx base">${text}</span><span class="tx over" aria-hidden="true">${text}</span></span>
       ${this.variant === 'slider' && this.on ? html`<span class="pct" aria-hidden="true">${Math.round(this.value * 100)}%</span>` : nothing}
       <span class="subs" ?hidden=${!this.hasSubs} @pointerdown=${(e: Event) => e.stopPropagation()}><slot name="subs" @slotchange=${(e: Event) => (this.hasSubs = (e.target as HTMLSlotElement).assignedElements({ flatten: true }).length > 0)}></slot></span>`;

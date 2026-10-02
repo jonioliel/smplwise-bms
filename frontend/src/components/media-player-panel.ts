@@ -19,6 +19,7 @@ import {
   type UpNext, LIBRARY_TAB, LIBRARY_TAB_TEXT, browseOffered, fullQueueOffered,
 } from '../api/media-players';
 import { applyDevicesScheme, loadDevicesPrefs } from '../screens/devices-style';
+import { mirrorSkin } from '../styles/media-glass';
 import { bidi } from '../i18n/bidi';
 import { tint } from './media-remote-keys';
 import { KeyPress } from './media-remote-press';
@@ -122,6 +123,7 @@ export class MediaPlayerPanel extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     if (!this.hasAttribute('data-devices-scheme')) this.setAttribute('data-devices-scheme', 'light');
+    mirrorSkin(this); // the bubble skin: the panel's tokens follow the product's (media-remote-css.ts)
   }
 
   disconnectedCallback() {
