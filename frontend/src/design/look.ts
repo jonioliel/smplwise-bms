@@ -226,9 +226,14 @@ let autoResolved: Tier | null = null;
 /** `auto` re-resolved (the cache or a weak capability; starts the probe when there is neither). Called at boot and after the probe. */
 export function refreshAutoPerformance(): void {
   const before = autoResolved;
-  autoResolved = autoTier(() => refreshAutoPerformance());
+  // the probe (a blurred layer over a moving backdrop for ~700 ms) only runs while the dial is `auto`; an explicit full / lite never pays for it
+  // (and a page pinned with ?look=performance:full is deterministic: the pixel specs rely on it). If the dial later turns to `auto`, applyLook retries.
+  const probe = lookOf('performance') === 'auto';
+  probeDeferred = !probe;
+  autoResolved = autoTier(() => refreshAutoPerformance(), probe);
   if (before !== autoResolved) notify();
 }
+let probeDeferred = false;
 /** The tier a dial value is drawn as: `full` / `lite` as chosen, `auto` as this device decided. */
 export function tierOf(mode: Performance): Tier {
   if (mode !== 'auto') return mode;
@@ -268,6 +273,7 @@ export function applyLook(): void {
   set('data-bubble-popup', lookOf('popup'));
   set('data-bubble-radius', lookOf('radius'));
   set('data-bubble-touch', String(lookOf('touch')));
+  if (probeDeferred && lookOf('performance') === 'auto') refreshAutoPerformance(); // the dial turned to auto after boot: resolve it now (cache, free check, probe)
   set('data-bubble-performance', effectivePerformance());
   set('data-bubble-palette', lookOf('palette'));
   root.style.setProperty('--sw-sheet-alpha', effectiveSheetAlpha().toFixed(2));
