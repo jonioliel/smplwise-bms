@@ -11,6 +11,7 @@ import { alarmPresence, onAlarmPresence, refreshAlarmPresence } from '../api/ala
 import { describeError, get } from '../api/client';
 import { canNav, isApi, nvrLess } from '../api/session';
 import { SECURITY_SETTINGS_TABS, applyAlarmPresent, tabAllowed, tabStyleOf, visibleTabs } from '../shell/nav';
+import { TabsModeController } from '../shell/tabs-mode';
 
 /** GET /api/v1/health - the connection facts, for every signed-in user (the same read הגדרות › חיבורים starts from). */
 interface RawHealth {
@@ -45,6 +46,7 @@ export class SystemSecurity extends LitElement {
   @property() panelId = '';
   @state() private presenceKnown = alarmPresence() !== null;
   private stopPresence?: () => void;
+  private tabsMode = new TabsModeController(this, 'settings'); // 0.1.153: tabs / hybrid / dropdown
   private giveUp = 0;
 
   static styles = css`
@@ -145,7 +147,7 @@ export class SystemSecurity extends LitElement {
     const current = SECURITY_SETTINGS_TABS.find((t) => t.id === this.sub);
     const items = current && !offered.some((o) => o.id === current.id) ? [...offered, current] : offered;
     return html`${items.length > 1
-        ? html`<div class="tabs" data-security-settings-tabs><sw-tabs .variant=${tabStyleOf('system.security')} .items=${items} .active=${this.sub}></sw-tabs></div>`
+        ? html`<div class="tabs" data-security-settings-tabs><sw-tabs .variant=${this.tabsMode.props(tabStyleOf('system.security')).variant} ?adaptive=${this.tabsMode.props(tabStyleOf('system.security')).adaptive} .items=${items} .active=${this.sub}></sw-tabs></div>`
         : nothing}
       ${this.sub === 'alarm'
         ? html`<security-alarm .panelId=${this.panelId}></security-alarm>`

@@ -8,7 +8,7 @@ import sqlite3
 from typing import Any, Callable
 
 from ..db import now_iso
-from . import area_row, home_config, media_layout, nav_size
+from . import area_row, home_config, media_layout, nav_size, tabs_mode
 
 # The navigation tabs of the app shell in their default order (frontend/src/shell/nav.ts, NAV_A): ראשי (the device
 # overview), אבטחה, מפה, WisKey. The user avatar is always last and is not a tab. A new tab is appended to every stored
@@ -66,6 +66,14 @@ DEFAULTS["wiskey.wall"] = None
 # (services/home_config.py). The keys are stored for everyone who sends them past the permission check, but the value only
 # EXISTS for a holder of `screen.personalize`: routers/me.py refuses a write without it and hides the stored value on a read,
 # and services/home_screen.py ignores it when the tree is built (a user who lost the permission gets the installation's screen).
+# `ui.tabs_mode` / `ui.tabs_mode_groups` (release 0.1.153): how the user wants the tab groups presented (tabs | hybrid | dropdown,
+# globally and per group; services/tabs_mode.py). No stored value (null) = follow the installation's settings of the same names.
+# Presentation only: not a personal-screen key, no permission needed.
+VALIDATORS["ui.tabs_mode"] = tabs_mode.normalize_mode
+VALIDATORS["ui.tabs_mode_groups"] = tabs_mode.normalize_groups
+DEFAULTS["ui.tabs_mode"] = None
+DEFAULTS["ui.tabs_mode_groups"] = None
+
 PERSONAL_HOME_KEY = "home.personal"
 VALIDATORS[PERSONAL_HOME_KEY] = home_config.normalise_personal
 DEFAULTS[PERSONAL_HOME_KEY] = None

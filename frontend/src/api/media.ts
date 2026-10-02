@@ -30,6 +30,9 @@ export interface ProductSettings {
   'ui.nav_size'?: NavSizeWire;
   /** Installation-wide tab order and visibility per navigation section (הגדרות › כללי › לשוניות); `{}` = the built-in tabs. */
   'ui.tabs'?: Record<string, unknown>;
+  /** How the tab groups are presented on the phone (0.1.153; הגדרות › כללי › לשוניות): `tabs` (default) | `hybrid` | `dropdown`, and a per-group override. shell/tabs-mode.ts. */
+  'ui.tabs_mode'?: string;
+  'ui.tabs_mode_groups'?: Record<string, string>;
   /** The phone UX guards (הגדרות › כללי › אפשרויות נייד, owner 2026-09-30): which kinds of management the phone UI hides - shell/phone.ts. */
   'ui.mobile'?: Record<string, boolean>;
   /** The colour of each thing the investigation timeline draws (owner 2026-10-01): option -> palette name | #rrggbb; api/timeline-colors.ts. */

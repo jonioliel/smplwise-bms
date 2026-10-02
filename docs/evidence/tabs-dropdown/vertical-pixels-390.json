@@ -1,0 +1,12 @@
+{
+  "security": {
+    "tabs": 79,
+    "dropdown": 40
+  },
+  "multimedia": {
+    "tabs_first_card": 365,
+    "dropdown_first_card": 303,
+    "tabs_screen_top": 46,
+    "dropdown_screen_top": 40
+  }
+}
