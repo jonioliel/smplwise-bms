@@ -95,7 +95,7 @@ def _arx_rows(conn: sqlite3.Connection, recorder_id: str) -> dict[int, sqlite3.R
 
 
 def _camera(recorder_id: str, channel: int, device_name: str | None, online: bool | None, row: sqlite3.Row | None, streams: list[dict[str, Any]], error: str | None) -> dict[str, Any]:
-    name = stream_codecs.camera_name(row) if row is not None else (device_name or f"ערוץ {channel}")
+    name = (stream_codecs.camera_name(row) if row is not None else (device_name or f"ערוץ {channel}"))[:128]
     if online is None and row is not None:
         online = {"online": True, "offline": False}.get(str(row["status"]))
     return {

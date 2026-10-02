@@ -125,3 +125,25 @@ InputProxy. Every UI test needs desktop / phone / RTL screenshots of loading, em
 6. **Who sees the table read-only.**
    א. System administrators only. **(recommended)**
    ב. Also whoever holds any NVR permission (as the NVR change log today).
+
+## 8. Slice S1 implementation record (2026-10-02, branch `pilot/cr020-s1`)
+
+Implemented: the adapter seam (`services/recorders/`: Protocol with the read methods only, registry, Hikvision adapter over the
+existing read-only ISAPI code), `GET /nvr/recorders`, `GET /nvr/cameras`, `GET /nvr/cameras/{id}` (`system.configure`,
+installation scope + the camera chain; every successful read audited as `nvr.cameras.read`, counts only), the strict streaming
+LIST parser (`nvr.parse_streaming_channels_all`: every stream, bitrate, quality, GOP, SVC, smart codec, H.264+/H.265+, per-field
+support, etag; 2 MB / 256-element / text caps), and the read-only tab "מצלמות" in הגדרות › אבטחה (owner Q1 option א, Q6 option א).
+
+Deviations from the S1 row of section 2, recorded rather than resolved silently:
+1. **No migration 0050 in this slice.** Nothing in the read-only table needs a column: the one recorder is `nvr-1`, `source_ref`
+   is `str(channel)` in code. The vendor / connection columns, `cameras.source_ref` and the fingerprint columns land with the
+   slice that first needs them (second recorder, S2's `nvr_changes` columns, S3). AT-020-19 (fingerprint disables a swapped
+   camera) and AT-020-20 (second fake recorder) are therefore **not covered by S1**.
+2. `GET /nvr/cameras/{id}` carries no `options` (they are S2); `can_write` is `false` and every stream is `writable:false,
+   not_writable_reason:"read_only"`; the recorder's `write_encodings` / `add_channel` / `remove_channel` capabilities are `false`.
+3. `camera_id` is `null` for a channel the NVR has and Arx has not discovered yet; such a row is listed to installation-wide
+   holders only. Extra response fields: `codec_plus`, list-level `error` and `checked_at`.
+4. The B-frames and smart-codec columns of UI brief section 2 are not separate columns: smart codec shows as the "+" of the codec
+   (H.264+ / H.265+), B-frames is unsupported on the lab firmware.
+5. The table reads the LIST document only: on the lab firmware a single-channel `GET /ISAPI/Streaming/channels/{id}` lacks the
+   `<SVC>` element the list carries.
