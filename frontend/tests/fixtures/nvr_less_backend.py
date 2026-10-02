@@ -11,7 +11,7 @@ name). The spec seeds HA floors, areas and entities through the developer endpoi
 Run it (a fresh data dir each time):
 
     SW_PORT=8372 SW_DATA_DIR=<empty dir> SW_DEV_USER=joni SW_BOOTSTRAP_ADMIN=joni \
-        <repo>/.venv/Scripts/python.exe frontend/tests/fixtures/nvr_less_backend.py
+        <venv-python> frontend/tests/fixtures/nvr_less_backend.py
 
 then, from frontend/ (`npm run build` first):
 

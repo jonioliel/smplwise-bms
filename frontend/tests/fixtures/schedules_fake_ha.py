@@ -26,7 +26,7 @@ missing), `POST /external {name}` (a schedule created "in the card": events only
 Run it (a fresh data dir each time):
 
     SW_PORT=8349 SW_DATA_DIR=<empty dir> SW_DEV_USER=joni SW_BOOTSTRAP_ADMIN=joni \
-        <repo>/.venv/Scripts/python.exe frontend/tests/fixtures/schedules_fake_ha.py
+        <venv-python> frontend/tests/fixtures/schedules_fake_ha.py
 
 then, from frontend/ (`npm run build` first):
 

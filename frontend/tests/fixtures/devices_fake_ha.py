@@ -37,7 +37,7 @@ On start it pairs the bridge (signed ping with the pairing code, as the integrat
 Run it (a fresh data dir each time):
 
     SW_PORT=8348 SW_DATA_DIR=<empty dir> SW_DEV_USER=joni SW_BOOTSTRAP_ADMIN=joni \
-        <repo>/.venv/Scripts/python.exe frontend/tests/fixtures/devices_fake_ha.py
+        <venv-python> frontend/tests/fixtures/devices_fake_ha.py
 
 then, from frontend/ (`npm run build` first):
 

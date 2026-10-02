@@ -10,6 +10,8 @@ from __future__ import annotations
 import argparse
 import concurrent.futures as cf
 import json
+import os
+import re
 import statistics
 import subprocess
 import sys
@@ -28,8 +30,37 @@ def pct(values: list[float], p: float) -> float:
     return s[k]
 
 
+def _backend_process_proc() -> dict[str, float | int | str] | None:
+    """POSIX counterpart of the Windows probe: scan /proc for `-m smplwise`, report the biggest match."""
+    best: dict[str, float | int | str] | None = None
+    try:
+        tick = os.sysconf("SC_CLK_TCK")
+        for entry in os.listdir("/proc"):
+            if not entry.isdigit():
+                continue
+            try:
+                with open(f"/proc/{entry}/cmdline", "rb") as fh:
+                    argv = fh.read().split(b"\0")
+                if not (b"-m" in argv and b"smplwise" in argv and b"python" in os.path.basename(argv[0])):
+                    continue
+                status = open(f"/proc/{entry}/status", encoding="utf-8").read()
+                stat = open(f"/proc/{entry}/stat", encoding="utf-8").read().rsplit(")", 1)[1].split()
+                rss_kb = int(re.search(r"VmRSS:\s+(\d+)", status).group(1))  # type: ignore[union-attr]
+                row = {"pid": int(entry), "ws_mb": round(rss_kb / 1024, 1), "cpu_s": round((int(stat[11]) + int(stat[12])) / tick, 1),
+                       "threads": int(stat[17]), "handles": len(os.listdir(f"/proc/{entry}/fd"))}
+            except (OSError, AttributeError, IndexError, ValueError):
+                continue
+            if best is None or row["ws_mb"] > best["ws_mb"]:  # type: ignore[operator]
+                best = row
+    except (OSError, ValueError):
+        return None
+    return best
+
+
 def backend_process() -> dict[str, float | int | str] | None:
-    """Memory / CPU of the python process serving the API (Windows: Get-Process on the smplwise module)."""
+    """Memory / CPU of the python process serving the API (Windows: Get-Process on the smplwise module; Linux: /proc)."""
+    if sys.platform != "win32":
+        return _backend_process_proc()
     ps = (
         "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*-m smplwise*' -and $_.Name -like 'python*' } | "
         "ForEach-Object { $p = Get-Process -Id $_.ProcessId; [pscustomobject]@{ pid=$_.ProcessId; ws_mb=[math]::Round($p.WorkingSet64/1MB,1); "

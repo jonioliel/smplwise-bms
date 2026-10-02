@@ -124,7 +124,7 @@ reports through get_queue; the playing row and the buffered one refuse edits (MA
 Run it (a fresh data dir each time; ports 4381-4390 are for throwaway backends, 4481-4490 for the CR-016 houses):
 
     SW_PORT=4481 SW_DATA_DIR=<empty dir> SW_DEV_USER=joni SW_BOOTSTRAP_ADMIN=joni SW_FAKE_HOUSE=ma \
-        <repo>/.venv/Scripts/python.exe frontend/tests/fixtures/media_fake_ha.py        (the control server is SW_PORT + 1)
+        <venv-python> frontend/tests/fixtures/media_fake_ha.py        (the control server is SW_PORT + 1)
 
 then, from frontend/ (`npm run build` first):
 

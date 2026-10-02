@@ -5,8 +5,10 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 
-const WT = process.env.ARX_WT || 'C:/cloude/smplwisebms/.claude/worktrees/cr017';
+// The checkout this script lives in (docs/evidence/automations-mockup/ -> repo root); ARX_WT points at another worktree.
+const WT = process.env.ARX_WT || fileURLToPath(new URL('../../../', import.meta.url)).replace(/[\\/]$/, '');
 const { chromium } = createRequire(`${WT}/frontend/package.json`)('playwright');
 const FILE = `${WT}/docs/design/mockups/automations/index.html`;
 const OUT = `${WT}/docs/evidence/automations-mockup`;

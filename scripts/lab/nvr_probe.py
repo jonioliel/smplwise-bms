@@ -6,8 +6,8 @@ recording search POST), stores the raw responses under private-evidence/nvr-prob
 (gitignored) and prints a redacted summary. Nothing here writes to the device.
 
 Usage (from the repository root):
-    .venv/Scripts/python.exe scripts/lab/nvr_probe.py            # capability/discovery probes
-    .venv/Scripts/python.exe scripts/lab/nvr_probe.py --search 101 --hours 1
+    <venv-python> scripts/lab/nvr_probe.py            # capability/discovery probes
+    <venv-python> scripts/lab/nvr_probe.py --search 101 --hours 1
 """
 from __future__ import annotations
 

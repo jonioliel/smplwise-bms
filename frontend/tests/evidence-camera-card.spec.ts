@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
  * what this proves is which cards ask for a stream, with which profile and transport, when they release it, and every state
  * the card shows. What it does NOT prove: real video through go2rtc (no NVR or go2rtc exists here) - that needs the lab.
  *
- *   SW_PORT=8348 SW_DATA_DIR=<empty dir> SW_DEV_USER=joni SW_BOOTSTRAP_ADMIN=joni <repo>/.venv/Scripts/python.exe frontend/tests/fixtures/devices_fake_ha.py
+ *   SW_PORT=8348 SW_DATA_DIR=<empty dir> SW_DEV_USER=joni SW_BOOTSTRAP_ADMIN=joni <venv-python> frontend/tests/fixtures/devices_fake_ha.py
  *   (frontend/) npm run build; SW_LIVE=1 SW_DEVICES_FIXTURE=1 SW_API_PORT=8348 SW_BASE_URL=http://127.0.0.1:4823/ npx playwright test tests/evidence-camera-card.spec.ts --workers=1
  *
  * Screenshots (1440 / 390) go to docs/evidence/UIR1-camera-card/.

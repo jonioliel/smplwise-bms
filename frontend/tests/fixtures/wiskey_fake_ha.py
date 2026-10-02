@@ -8,7 +8,7 @@ name that never resolves) and every `websockets.connect` goes to the fake; it re
 Run it (a fresh data dir each time; the SMPLWISE port and the control port are yours to choose):
 
     SW_PORT=8347 SW_DATA_DIR=<empty dir> SW_DEV_USER=joni SW_BOOTSTRAP_ADMIN=joni \
-        <repo>/.venv/Scripts/python.exe frontend/tests/fixtures/wiskey_fake_ha.py
+        <venv-python> frontend/tests/fixtures/wiskey_fake_ha.py
 
 then, from frontend/ (`npm run build` first):
 
