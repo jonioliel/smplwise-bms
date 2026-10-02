@@ -35,7 +35,7 @@
 ## 0.1.152 (pilot) — Automations, scenes and scripts; the full music queue and library; up to 128 parallel playbacks
 **After the update restart the platform once**: the bridge integration is 0.6.0 (the automation, scene and script services). Migration 0048 is applied on the first start. Reload the installed web app once so the new service worker takes over.
 ### Automations, scenes and scripts (CR-017)
-- **A third tab on the home screens** for automations, scenes and scripts, with lists, a detail drawer and editors (a builder with templates) for each kind. Scenes can be activated and scripts run by anyone allowed to control devices; editing needs the new permission `automation.manage` (held by system administrators; there is no view-only access).
+- **A third tab on the home screens** for automations, scenes and scripts, with lists, a detail drawer and editors (a builder with templates) for each kind. Scenes are activated by anyone allowed to control devices; scripts run with `script.run` and editing needs the new permission `automation.manage` (both held by site administrators and system administrators by default; there is no view-only access).
 - **Failures reach the notification centre**: a failed automation or script raises an "automation failed" alert for the administrators.
 - Hardening from the security review: previews and dry-runs of an unsaved draft need the manage permission of that kind, and a reconnect a minute after a failed write lifts the authoring block.
 ### Music (CR-016, phase 2b) — הגדרות › מולטימדיה › חיבור
@@ -49,14 +49,14 @@
 - A flaky schedules spec was made stable; the CR-014 scheduler has its task card; a registry and checker of upstream dependencies (`management/upstream_watch.json`, `scripts/upstream_check.py`) was added for tracking Home Assistant and other releases.
 ### How to turn it on and use it (English)
 1. Restart the platform once after the update (the bridge integration is 0.6.0), then reload the installed web app once.
-2. **Automations**: the new third tab on the home screens; system administrators create and edit, others run scenes and scripts according to their device permissions.
+2. **Automations**: the new third tab on the home screens; site and system administrators create, edit and run; others activate scenes according to their device permissions.
 3. **The music queue and library**: open the player panel of a speaker. To enable the queue edit and the search, an installer sets the connection in הגדרות › מולטימדיה › חיבור (address and token of Music Assistant).
 4. **Parallel playbacks**: הגדרות › וידאו ומדיה › "סשני ניגון במקביל" now accepts up to 128.
 
 ## עברית — 0.1.152: אוטומציות, סצנות וסקריפטים · תור וספרייה מלאים למוזיקה · עד 128 ניגונים במקביל
 **אחרי העדכון יש להפעיל מחדש את התשתית פעם אחת**: הגשר הוא 0.6.0 (שירותי אוטומציות, סצנות וסקריפטים). מיגרציה 0048 מתבצעת בהפעלה הראשונה. יש לטעון מחדש את האפליקציה המותקנת פעם אחת.
 ### אוטומציות, סצנות וסקריפטים (CR-017)
-- **לשונית שלישית במסכי הבית** לאוטומציות, סצנות וסקריפטים: רשימות, מגירת פרטים ועורך (בונה עם תבניות) לכל סוג. סצנה מופעלת וסקריפט רץ על ידי כל מי שמורשה לשלוט במכשירים; עריכה דורשת את ההרשאה החדשה `automation.manage` (למנהלי מערכת; אין גישת צפייה בלבד).
+- **לשונית שלישית במסכי הבית** לאוטומציות, סצנות וסקריפטים: רשימות, מגירת פרטים ועורך (בונה עם תבניות) לכל סוג. סצנה מופעלת על ידי כל מי שמורשה לשלוט במכשירים; סקריפט רץ עם `script.run` ועריכה דורשת את ההרשאה החדשה `automation.manage` (שתיהן למנהלי אתר ולמנהלי מערכת כברירת מחדל; אין גישת צפייה בלבד).
 - **כשלים מגיעים למרכז ההתראות**: אוטומציה או סקריפט שנכשלו מעלים התראה למנהלים.
 - חיזוק לפי ביקורת האבטחה: תצוגה מקדימה והרצת ניסיון של טיוטה דורשות הרשאת ניהול של אותו סוג.
 ### מוזיקה (CR-016, שלב 2b) — הגדרות › מולטימדיה › חיבור
@@ -70,7 +70,7 @@
 - בדיקת התזמונים הלא יציבה תוקנה; לתזמונים (CR-014) נוסף כרטיס משימה; נוספו רישום ובדיקה של תלויות חיצוניות (`management/upstream_watch.json`, `scripts/upstream_check.py`) למעקב אחר Home Assistant ועוד.
 ### איך מפעילים ומשתמשים (עברית)
 1. מפעילים מחדש את התשתית פעם אחת אחרי העדכון (הגשר הוא 0.6.0), ואז טוענים מחדש את האפליקציה המותקנת.
-2. **אוטומציות**: הלשונית השלישית במסכי הבית. מנהלי מערכת יוצרים ועורכים; אחרים מפעילים סצנות וסקריפטים לפי הרשאות המכשירים.
+2. **אוטומציות**: הלשונית השלישית במסכי הבית. מנהלי אתר ומנהלי מערכת יוצרים, עורכים ומריצים; אחרים מפעילים סצנות לפי הרשאות המכשירים.
 3. **תור וספרייה**: פותחים את פאנל הנגן של רמקול. להפעלת עריכת התור והחיפוש המתקין מגדיר את החיבור ב-הגדרות › מולטימדיה › חיבור (כתובת וטוקן של Music Assistant).
 4. **ניגונים במקביל**: הגדרות › וידאו ומדיה › "סשני ניגון במקביל" מקבלת עד 128.
 
