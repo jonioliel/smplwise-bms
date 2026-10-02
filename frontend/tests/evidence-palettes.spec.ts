@@ -75,7 +75,12 @@ test.describe('bubble palettes', () => {
     await expect(card.locator('[data-look-row="palette"]')).toHaveCount(0);
     await expect(card.locator('[data-look-follow="palette"]')).toHaveCount(0);
     // a personal palette left in the browser store by an older version is ignored
-    await page.evaluate(() => localStorage.setItem('sw.ui.look', JSON.stringify({ u: null, look: { palette: 'sunset', density: 'compact' } })));
+    await card.locator('[data-look-option="density:compact"]').click(); // a real personal dial (writes the user's cache entry)
+    await page.evaluate(() => {
+      const c = JSON.parse(localStorage.getItem('sw.ui.look') as string) as { u: string | null; look: Record<string, unknown> };
+      c.look.palette = 'sunset';
+      localStorage.setItem('sw.ui.look', JSON.stringify(c));
+    });
     await page.evaluate(() => sessionStorage.setItem('look-keep', '1'));
     await page.reload();
     await page.waitForSelector('sw-app');
