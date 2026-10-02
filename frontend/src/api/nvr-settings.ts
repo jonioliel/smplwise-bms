@@ -3,7 +3,9 @@
  * (docs/architecture/NVR_SETTINGS_API.md). Reading needs system.configure; every write needs `nvr.configure`, a system
  * permission only system administrators hold. The server checks everything; `can_write` only shapes the screen.
  *
- * STUB: the backend routes do not exist yet. With a backend the HTTP adapter calls the contract's routes; without one
+ * Slice S1 (read-only table) is implemented on the backend: `recorders`, `cameras` and `camera` (no `options`) answer for real.
+ * The write calls are the S2 / S3 stub: the demo implements them in memory, the backend does not have them yet.
+ * With a backend the HTTP adapter calls the contract's routes; without one
  * (static demo / mockup) an in-memory demo answers in the lab's shape: H.264 mains with SVC on, an H.265 camera, H.264 subs.
  * No address, user name, password, serial or MAC ever appears in these types.
  */
@@ -56,6 +58,8 @@ export interface StreamEncoding {
   /** null = the device does not say (never a default). */
   codec: string | null;
   codec_raw: string | null;
+  /** The vendor's "+" variants (H.264+ / H.265+): smart codec on, or the raw codec name ends with "+". */
+  codec_plus?: boolean | null;
   profile: string | null;
   resolution: string | null;
   fps: number | null;
@@ -79,7 +83,8 @@ export interface StreamEncoding {
 }
 
 export interface NvrCamera {
-  camera_id: string;
+  /** null: a channel the NVR has but Arx has not discovered yet (shown to installation-wide administrators only). */
+  camera_id: string | null;
   recorder_id: string;
   source_ref: string;
   channel: number;
@@ -96,6 +101,9 @@ export interface CameraList {
   /** True when the device could not be read and the values are the registry's last reading (main and sub only). */
   stale: boolean;
   can_write: boolean;
+  /** The adapter's error code when the device could not be read (with `stale`). */
+  error?: string | null;
+  checked_at?: string;
 }
 
 export interface StreamOptions {
@@ -118,8 +126,10 @@ export interface StreamOptions {
 
 export interface CameraDetail {
   camera: NvrCamera;
-  /** By stream_ref; null when the device's capability documents cannot be read. */
-  options: Record<string, StreamOptions | null>;
+  /** By stream_ref; null when the device's capability documents cannot be read. Absent in S1 (the backend adds it with S2). */
+  options?: Record<string, StreamOptions | null>;
+  stale?: boolean;
+  can_write?: boolean;
 }
 
 export interface EncodingChanges {
@@ -250,13 +260,14 @@ const SUB_OPTIONS: StreamOptions = {
 
 function demoStream(ref: string, role: StreamRole, v: Partial<StreamEncoding>): StreamEncoding {
   const s: StreamEncoding = {
-    stream_ref: ref, role, enabled: true, codec: 'H.264', codec_raw: 'H.264', profile: null, resolution: '1920x1080', fps: 25, fps_full: false,
+    stream_ref: ref, role, enabled: true, codec: 'H.264', codec_raw: 'H.264', codec_plus: false, profile: null, resolution: '1920x1080', fps: 25, fps_full: false,
     bitrate_mode: 'VBR', bitrate_kbps: 2048, quality: 60, gop: 50, svc: null, smart_codec: false, b_frames: null,
     webrtc: 'unknown', webrtc_reason: 'codec_unknown',
     fields: { b_frames: { supported: false, editable: false } }, writable: true, not_writable_reason: null, etag: `${ref}-1`, ...v,
   };
   if (s.svc === null) s.fields.svc = { supported: false, editable: false };
   [s.webrtc, s.webrtc_reason] = webrtcVerdict(s);
+  s.codec_plus = s.smart_codec === true || String(s.codec_raw ?? '').endsWith('+');
   return s;
 }
 
@@ -270,7 +281,7 @@ function demoCameras(): NvrCamera[] {
     cam(2, 'חניה', [demoStream('201', 'main', { resolution: '2560x1440', fps: null, fps_full: true, bitrate_kbps: 3072, svc: true }), sub(2)]),
     cam(3, 'חצר אחורית', [
       demoStream('301', 'main', { codec: 'H.265', codec_raw: 'H.265', profile: 'Main', resolution: '2560x1440', bitrate_kbps: 2048, svc: false }),
-      demoStream('302', 'sub', { codec: 'H.265', codec_raw: 'H.265', profile: 'Main', resolution: '640x360', fps: 20, bitrate_kbps: 512, svc: true }),
+      demoStream('302', 'sub', { codec: 'H.265', codec_raw: 'H.265', profile: 'Main', resolution: '640x360', fps: 20, bitrate_kbps: 512, svc: true, smart_codec: true }),
       demoStream('303', 'third', { resolution: '1280x720', fps: 12, bitrate_kbps: 1024 }),
     ]),
     cam(4, 'מחסן', [demoStream('401', 'main', { resolution: '1920x1080', svc: false, profile: 'High' }), sub(4)], { online: false }),
@@ -315,12 +326,12 @@ class DemoNvrSettings implements NvrSettingsAdapter {
   }
 
   async cameras(recorderId?: string): Promise<CameraList> {
-    return { cameras: clone(this.cameras_.filter((c) => !recorderId || c.recorder_id === recorderId)), recorders_failed: [], stale: false, can_write: true };
+    return { cameras: clone(this.cameras_.filter((c) => !recorderId || c.recorder_id === recorderId)), recorders_failed: [], stale: false, can_write: false };
   }
 
   async camera(cameraId: string): Promise<CameraDetail> {
     const c = this.find(cameraId);
-    return { camera: clone(c), options: Object.fromEntries(c.streams.map((s) => [s.stream_ref, this.optionsOf(s)])) };
+    return { camera: clone(c), can_write: true, options: Object.fromEntries(c.streams.map((s) => [s.stream_ref, this.optionsOf(s)])) };
   }
 
   async options(cameraId: string, streamRef: string, codec?: string) {
