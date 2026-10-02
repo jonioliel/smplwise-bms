@@ -983,6 +983,7 @@ def test_bulk_attempt_row_committed_before_the_first_call(bulk_app):
     """At the moment the first call reaches the bridge, the attempt audit row (scope, id, kind, count, entity ids) and
     every per-entity record are already committed - read here through a separate connection."""
     app, s, c, fake = bulk_app
+    assert _protect(c, "switch.lobby_sign").status_code == 200  # CR-019: every other switch is in a group action, so the fixture's sign is protected to keep these tests about lights, covers and media
     seen: list[tuple] = []
 
     def check(payload):
@@ -1015,6 +1016,7 @@ def test_bulk_per_entity_outcomes_counts_and_one_outcome_row(bulk_app):
     refused when the bridge said no. `done` only at the end; `all_confirmed` false; ONE outcome row with the counts
     (however many times the status is read); another user may not read it."""
     app, s, c, fake = bulk_app
+    assert _protect(c, "switch.lobby_sign").status_code == 200  # CR-019: every other switch is in a group action, so the fixture's sign is protected to keep these tests about lights, covers and media
     fake.stuck = {"media_player.lobby_tv"}
     fake.refuse = {"climate.lobby"}
     r = c.post("/api/v1/devices/actions", json=_bulk(kind="all_off"))
@@ -1093,6 +1095,7 @@ def test_bulk_not_sent_after_its_deadline_and_orphans_settled(bulk_app, monkeypa
     """Nothing is sent after the request's deadline (the rest is reported as refused / not sent, never as sent); a bulk
     whose worker is gone (restart) is settled on the next read: what was never sent is recorded so."""
     app, s, c, fake = bulk_app
+    assert _protect(c, "switch.lobby_sign").status_code == 200  # CR-019: every other switch is in a group action, so the fixture's sign is protected to keep these tests about lights, covers and media
     monkeypatch.setattr(device_bulk, "SEND_WITHIN_S", 0.0)
     r = c.post("/api/v1/devices/actions", json=_bulk(kind="all_off"))
     got = _finish(c, r.json()["id"])
@@ -1120,8 +1123,8 @@ def _protect(c, eid: str, protected: bool = True, **kw):
 
 
 def test_bulk_switches_included_unless_protected(bulk_app, monkeypatch):
-    """CR-019 (supersedes the opt-in of review rounds 1-2): every judged switch enters a group action unless it is protected
-    - by the classifier (a pump) or an administrator. A Plan Studio lighting circuit has no effect either way; a placed
+    """CR-019 (supersedes the opt-in of review rounds 1-2): every switch enters a group action unless an administrator
+    protected it - also a new one nobody judged, and one the classifier merely SUGGESTS protecting (a pump; owner decision 2026-10-02). A Plan Studio lighting circuit has no effect either way; a placed
     switch is included like any other; a cover on the map's door layer is never closed. Protection is for group actions
     only: the protected switch is still controllable on its own. A protection change after the preview changes the set
     (409 target_changed)."""
@@ -1149,10 +1152,17 @@ def test_bulk_switches_included_unless_protected(bulk_app, monkeypatch):
         return c.get("/api/v1/devices/actions/preview", params={"scope": "area", "id": "lobby", "kind": kind}).json()
 
     p = preview()
+    assert {"switch.lobby_circuit", "switch.lobby_placed", "switch.lobby_sign", "switch.lobby_pump"} <= {t["entity_id"] for t in p["targets"]}, "nothing is judged yet: every switch is in"
+    _judge(app)
+    p = preview()
     sent = {t["entity_id"] for t in p["targets"]}
+    assert {"switch.lobby_circuit", "switch.lobby_placed", "switch.lobby_sign", "switch.lobby_pump"} <= sent, "unprotected: included (circuit or not, placed or not); the classifier's suggestion for the pump is not enforced"
+    row = {r["entity_id"]: r for r in c.get("/api/v1/devices/bulk-protected").json()["switches"]}["switch.lobby_pump"]
+    assert (row["protected"], row["suggested"], row["source"], row["included"]) == (False, True, "auto", True)
+    assert _protect(c, "switch.lobby_pump").status_code == 200, "the administrator approves the suggestion"
+    p = preview()
     excluded = {x["entity_id"]: x["reason"] for x in p["excluded"]}
-    assert {"switch.lobby_circuit", "switch.lobby_placed", "switch.lobby_sign"} <= sent, "judged and unprotected: included (circuit or not, placed or not)"
-    assert excluded["switch.lobby_pump"] == "switch_protected", "the classifier protected the pump"
+    assert excluded["switch.lobby_pump"] == "switch_protected"
     assert {x["entity_id"]: x["reason_label"] for x in p["excluded"]}["switch.lobby_pump"] == "מתג מוגן - לא נכלל בפעולה קבוצתית"
     assert {x["entity_id"]: x["reason_label"] for x in preview("switches_on")["excluded"]}["switch.lobby_pump"] == "מתג מוגן - לא נכלל בפעולה קבוצתית"
     assert excluded["cover.lobby_hatch"] == "doors_layer", "a cover on the door layer is never closed, device class or not"
@@ -1640,13 +1650,12 @@ def test_items_permissions_read_only_rows_floor_scope_and_unlock_grant(dev_app):
 
 
 def test_bulk_master_switches_on_off_follow_the_protection(bulk_app):
-    """switches_off / switches_on: the same SwitchPolicy as "כבה הכל" (CR-019) - a switch the classifier has not judged yet
-    is out (fail-safe), a judged one is in unless protected (turning ON is guarded exactly like off), never an
+    """switches_off / switches_on: the same SwitchPolicy as "כבה הכל" (CR-019) - every switch is in unless an administrator
+    protected it, also one nobody has judged yet (owner decision 2026-10-02; turning ON is guarded exactly like off), never an
     input_boolean; only switches in the needed state are sent; the run goes through the ordinary bulk envelope."""
     app, s, c, fake = bulk_app
     p = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "switches_off"}).json()
-    assert p["count"] == 0 and {x["entity_id"]: x["reason"] for x in p["excluded"]} == {"switch.lobby_sign": "switch_unclassified", "switch.loose": "switch_unclassified"}
-    assert {x["reason_label"] for x in p["excluded"]} == {"מתג חדש שטרם נבדק - לא נכלל עד לבדיקה"}
+    assert "lobby_sign" in str(p["targets"]) and p["excluded"] == [], "nothing is excluded until an administrator protects a switch"
     _judge(app)
     assert _protect(c, "switch.loose").status_code == 200
     p = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "switches_off"}).json()
@@ -1707,7 +1716,7 @@ def test_items_carry_the_bulk_facts_and_the_alarm_managed_seam(bulk_app):
 
     sw = c.get("/api/v1/devices/items", params={"kind": "switches"}).json()
     rows = rows_now()
-    assert (rows["switch.lobby_sign"]["bulk_excluded"], rows["switch.lobby_sign"]["bulk_protected"], rows["switch.lobby_sign"]["bulk_reason"]) == ("switch_unclassified", False, "unclassified")
+    assert (rows["switch.lobby_sign"]["bulk_excluded"], rows["switch.lobby_sign"]["bulk_protected"], rows["switch.lobby_sign"]["bulk_reason"]) == (None, False, "allowed")
     assert sw["can_mark_bulk_protected"] is True and "can_mark_bulk_safe" not in sw and "bulk_safe" not in rows["switch.lobby_sign"]
     _judge(app)
     rows = rows_now()
@@ -1748,14 +1757,14 @@ def test_protected_switches_list_and_batch(bulk_app, monkeypatch):
     assert set(by) == {"switch.lobby_sign", "switch.loose", "switch.lobby_boiler"}
     b = by["switch.lobby_boiler"]
     assert (b["protected"], b["source"], b["category"], b["category_label"], b["rule"], b["reviewed"], b["included"], b["reason"]) == (
-        True, "auto", "water_heating", "משאבות ודודים", "name:boiler", False, False, "switch_protected")
-    assert b["reason_label"] == "מתג מוגן - לא נכלל בפעולה קבוצתית" and b["marked_by"] is None and b["marked_at"]
+        False, "auto", "water_heating", "משאבות ודודים", "name:boiler", False, True, "allowed")
+    assert b["suggested"] is True and b["reason_label"] is None and b["marked_by"] is None and b["marked_at"], "a suggestion: shown, not enforced"
     sign = by["switch.lobby_sign"]
     assert (sign["protected"], sign["source"], sign["included"], sign["reason"], sign["reason_label"]) == (False, None, True, "allowed", None)
     assert sign["area_name"] == "לובי" and sign["floor_name"] == "קרקע" and sign["alarm_managed"] is False and sign["doors_layer"] is False
     assert set(sign) >= {"entity_id", "name", "area_id", "area_name", "floor_id", "floor_name", "state", "available", "platform", "protected", "source", "category",
-                         "category_label", "rule", "reviewed", "included", "reason", "reason_label", "alarm_managed", "doors_layer", "marked_by", "marked_at", "reviewed_by", "reviewed_at"}
-    assert lst["summary"] == {"switches": 3, "protected": 1, "auto_unreviewed": 1, "unprotected": 2, "gone_protected": 0}
+                         "category_label", "rule", "reviewed", "suggested", "included", "reason", "reason_label", "alarm_managed", "doors_layer", "marked_by", "marked_at", "reviewed_by", "reviewed_at"}
+    assert lst["summary"] == {"switches": 3, "protected": 0, "suggested": 1, "unprotected": 3, "gone_protected": 0}
     assert {"id": "infrastructure", "label": "תשתית המערכת"} in lst["categories"]
     from smplwise.services import alarm as alarm_svc
 
@@ -1768,11 +1777,12 @@ def test_protected_switches_list_and_batch(bulk_app, monkeypatch):
     by = {x["entity_id"]: x for x in c.get("/api/v1/devices/bulk-protected").json()["switches"]}
     assert (by["switch.lobby_sign"]["source"], by["switch.lobby_sign"]["reviewed"], by["switch.lobby_sign"]["marked_by"]) == ("manual", True, "joni")
     assert by["switch.loose"]["alarm_managed"] is True and by["switch.loose"]["reason"] == "alarm_managed"
-    # approve the automatic row: reviewed, still protected; approving a manual row changes nothing
+    # approve the suggestion: it becomes an enforced protection; approving a manual row changes nothing
     r = c.post("/api/v1/devices/bulk-protected", json={"entity_ids": ["switch.lobby_boiler", "switch.lobby_sign"], "action": "approve"})
     assert [(x["entity_id"], x["ok"], x["changed"]) for x in r.json()["results"]] == [("switch.lobby_boiler", True, True), ("switch.lobby_sign", True, False)]
     lst = c.get("/api/v1/devices/bulk-protected").json()
-    assert lst["summary"]["auto_unreviewed"] == 0 and {x["entity_id"]: x for x in lst["switches"]}["switch.lobby_boiler"]["reviewed_by"] == "joni"
+    assert lst["summary"]["suggested"] == 0 and {x["entity_id"]: x for x in lst["switches"]}["switch.lobby_boiler"]["reviewed_by"] == "joni"
+    assert {x["entity_id"]: x for x in lst["switches"]}["switch.lobby_boiler"]["protected"] is True
     # unprotect: included at once; the classifier never protects it again
     r = c.post("/api/v1/devices/bulk-protected", json={"entity_ids": ["switch.lobby_boiler", "switch.lobby_sign"], "action": "unprotect"})
     assert r.json()["changed"] == 2

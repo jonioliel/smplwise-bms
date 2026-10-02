@@ -6,8 +6,8 @@ Not part of `CHANGELOG.md` - copy into it when the release is cut. Branch `pilot
 
 ### Added
 - **Protected switches.** Group actions ("turn everything off" for a floor, an area, the building and the main button on the overview) now include every switch unless an administrator protected it. A protected switch is left out of group actions only; it can still be controlled one by one, by schedules and by automations.
-- **Automatic protection.** Switches that look sensitive (pumps and boilers, heating and cooking, gates and doors, fridges, servers and routers, alarm and cameras, pool, irrigation, elevator, charging and energy, system infrastructure) are protected the moment they appear and wait for the administrator's review.
-- **Settings > Electricity and devices > "מתגים מוגנים"** (replaces "פעולה קבוצתית"): a review strip for automatic protections ("approve all"), filters, multi-select with Shift ranges, and approve / protect / remove protection, each with one confirmation (removing protection names the consequence).
+- **Suggestions, not automatic protection.** Switches that look sensitive (pumps and boilers, heating and cooking, gates and doors, fridges, servers and routers, alarm and cameras, pool, irrigation, elevator, charging and energy, system infrastructure) are listed as "suggested for protection". A suggestion is NOT enforced: the switch stays in group actions until an administrator approves it. This is the owner's decision (2026-10-02): the default for every switch, including new ones, is included; only an explicit protection excludes it.
+- **Settings > Electricity and devices > "מתגים מוגנים"** (replaces "פעולה קבוצתית"): a strip for the suggestions ("protect all"), filters, multi-select with Shift ranges, and protect / remove protection / dismiss a suggestion, each with one confirmation (removing protection names the consequence).
 - Project backups now include the protection tables; restoring an older backup that lacks them keeps the current protections.
 
 ### Changed
@@ -16,18 +16,18 @@ Not part of `CHANGELOG.md` - copy into it when the release is cut. Branch `pilot
 - API: `/devices/bulk-safe` routes are replaced by `/devices/bulk-protected` (old paths answer 404); area and item rows carry `bulk_protected` / `bulk_reason` and `can_mark_bulk_protected`; group-action exclusions read `switch_protected` / `switch_unclassified`.
 
 ### Upgrade
-- Migration `0049_switch_protection.sql`. Switches that were approved before stay unprotected; switches never approved are unprotected unless the classifier flags them. `device_bulk_safe` is kept untouched, so reinstalling the previous version restores the old opt-in marks.
-- After the upgrade open Settings > Electricity and devices > "מתגים מוגנים" once and approve or adjust the automatic protections.
+- Migration `0049_switch_protection.sql`. Every switch is included in group actions after the upgrade (those approved before stay unprotected; the classifier only adds suggestions). `device_bulk_safe` is kept untouched, so reinstalling the previous version restores the old opt-in marks.
+- **Important:** right after the upgrade "turn everything off" reaches every switch, including pumps, boilers and routers. Open Settings > Electricity and devices > "מתגים מוגנים" once and protect what must stay out (start from the suggestions).
 
 ### How to enable
-Nothing to enable: the model is on from the upgrade. Review the list once as an administrator (`system.configure`).
+Nothing to enable: the model is on from the upgrade. Review the suggestions once as an administrator (`system.configure`).
 
 ## עברית
 
 ### נוסף
 - **מתגים מוגנים.** פעולות קבוצתיות ("כבה הכל" לקומה, לאזור, למבנה ולכפתור הראשי) כוללות עכשיו כל מתג, אלא אם מנהל המערכת הגן עליו. מתג מוגן לא נכלל רק בפעולות קבוצתיות; אפשר עדיין להפעיל אותו לבד, בתזמון ובאוטומציה.
-- **הגנה אוטומטית.** מתגים שנראים רגישים (משאבות ודודים, חימום ובישול, שערים ודלתות, מקררים, שרתים וראוטרים, אזעקה ומצלמות, בריכה, השקיה, מעלית, טעינה ואנרגיה, תשתית המערכת) מוגנים מיד כשהם מופיעים וממתינים לבדיקת מנהל המערכת.
-- **הגדרות › חשמל והתקנים › "מתגים מוגנים"** (במקום "פעולה קבוצתית"): סרגל בדיקה לסימונים אוטומטיים ("אשר את כולם"), סינון, בחירה מרובה עם טווח ב-Shift, ואישור / הגנה / הסרת הגנה - כל אחד עם אישור אחד ("הסר הגנה" מציין את ההשלכה).
+- **הצעות, לא הגנה אוטומטית.** מתגים שנראים רגישים (משאבות ודודים, חימום ובישול, שערים ודלתות, מקררים, שרתים וראוטרים, אזעקה ומצלמות, בריכה, השקיה, מעלית, טעינה ואנרגיה, תשתית המערכת) מופיעים כ"מוצע להגנה". הצעה אינה נאכפת: המתג נשאר בפעולות הקבוצתיות עד שמנהל המערכת מאשר. זו החלטת הבעלים (2.10.2026): ברירת המחדל של כל מתג, גם חדש, היא נכלל; רק הגנה מפורשת מוציאה אותו.
+- **הגדרות › חשמל והתקנים › "מתגים מוגנים"** (במקום "פעולה קבוצתית"): סרגל הצעות ("הגן על כולם"), סינון, בחירה מרובה עם טווח ב-Shift, והגנה / הסרת הגנה / דחיית הצעה - כל אחד עם אישור אחד ("הסר הגנה" מציין את ההשלכה).
 - גיבוי הפרויקט כולל עכשיו את טבלאות ההגנה; שחזור מגיבוי ישן שאין בו אותן משאיר את ההגנות הקיימות.
 
 ### השתנה
@@ -36,8 +36,8 @@ Nothing to enable: the model is on from the upgrade. Review the list once as an 
 - API: נתיבי `/devices/bulk-safe` הוחלפו ב-`/devices/bulk-protected` (הנתיבים הישנים מחזירים 404).
 
 ### שדרוג
-- מיגרציה `0049_switch_protection.sql`. מתגים שאושרו בעבר נשארים לא מוגנים; מתגים שלא אושרו אף פעם לא מוגנים, אלא אם הסיווג מסמן אותם. הרשימה הישנה (`device_bulk_safe`) נשמרת, כך שחזרה לגרסה הקודמת מחזירה את הסימונים הישנים.
-- אחרי השדרוג יש להיכנס פעם אחת להגדרות › חשמל והתקנים › "מתגים מוגנים" ולאשר או לתקן את הסימונים האוטומטיים.
+- מיגרציה `0049_switch_protection.sql`. אחרי השדרוג כל המתגים נכללים בפעולות קבוצתיות (גם אלה שאושרו בעבר נשארים לא מוגנים; הסיווג רק מוסיף הצעות). הרשימה הישנה (`device_bulk_safe`) נשמרת, כך שחזרה לגרסה הקודמת מחזירה את הסימונים הישנים.
+- **חשוב:** מיד אחרי השדרוג "כבה הכל" מגיע לכל מתג, כולל משאבות, דודים וראוטרים. יש להיכנס פעם אחת להגדרות › חשמל והתקנים › "מתגים מוגנים" ולהגן על מה שצריך להישאר בחוץ (אפשר להתחיל מההצעות).
 
 ### איך מפעילים
-אין מה להפעיל: המודל פעיל מרגע השדרוג. מנהל מערכת (`system.configure`) עובר על הרשימה פעם אחת.
+אין מה להפעיל: המודל פעיל מרגע השדרוג. מנהל מערכת (`system.configure`) עובר על ההצעות פעם אחת.

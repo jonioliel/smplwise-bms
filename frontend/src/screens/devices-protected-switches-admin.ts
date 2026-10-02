@@ -8,7 +8,7 @@ import { get, post, describeError } from '../api/client';
 import { parseRoute } from '../router';
 import { bidi, ltrNum } from '../i18n/bidi';
 import {
-  CONFIRM, NO_FILTERS, STATUS_TEXT, actionIds, applyFilters, chunks, confirmQuestion, countsLine, filtersActive, isPending, pendingIds, rangeIds, readOnly, resultLine, statusOf,
+  CONFIRM, NO_FILTERS, STATUS_TEXT, actionIds, apiAction, applyFilters, chunks, confirmQuestion, countsLine, filtersActive, rangeIds, readOnly, resultLine, statusOf, suggestedIds,
   type Filters, type ProtectAction, type ProtectedCategory, type ProtectedSummary, type ProtectedSwitchRow, type StatusFilter,
 } from './protected-switches-logic';
 
@@ -24,8 +24,8 @@ interface ListReply {
  * הגדרות › חשמל והתקנים › מתגים מוגנים (CR-019; replaces "פעולה קבוצתית"): the ONE place where switch protection is reviewed and
  * changed - the operator screens say nothing about it. A protected switch is left out of GROUP actions only; it is still controlled
  * one by one, by schedules and by automations. Every switch is listed (system.configure; the server checks it again on every call):
- * a review strip while automatic protections wait for the administrator, search / status / category / floor / area filters, sort by
- * name or place, a checkbox per row (Shift+click selects a range), then "אשר" / "הגן" / "הסר הגנה" on the selection - one
+ * a strip while the classifier suggests protections (a suggestion is NOT enforced: the switch stays in group actions until the administrator approves it), search / status / category / floor / area filters, sort by
+ * name or place, a checkbox per row (Shift+click selects a range), then "הגן" / "הסר הגנה" / "דחה הצעה" on the selection - one
  * confirmation each (removing protection names the consequence, focus on Cancel), one call per 500 ids, a per-result line.
  * Alarm-managed, door-layer and multimedia-managed rows are read-only. A table on a wide screen, cards with a sticky action bar
  * under 600 px; 100 rows at a time ("הצג עוד"). Wording keeps to "תשתית המערכת" - no product names.
@@ -225,7 +225,7 @@ export class DevicesProtectedSwitches extends LitElement {
       let changed = 0;
       let refused = 0;
       for (const part of chunks(c.ids)) {
-        const r = await post<{ changed: number; refused: number }>('devices/bulk-protected', { entity_ids: part, action: c.action });
+        const r = await post<{ changed: number; refused: number }>('devices/bulk-protected', { entity_ids: part, action: apiAction(c.action) });
         changed += r.changed;
         refused += r.refused;
       }
@@ -253,15 +253,15 @@ export class DevicesProtectedSwitches extends LitElement {
     const floors = [...new Map(rows.filter((r) => r.floor_id).map((r) => [r.floor_id!, r.floor_name ?? r.floor_id!])).entries()];
     const areas = [...new Map(rows.filter((r) => r.area_id && (!f.floor || r.floor_id === f.floor)).map((r) => [r.area_id!, r.area_name ?? r.area_id!])).entries()];
     const selectable = list.filter((r) => !readOnly(r));
-    const waiting = this.summary?.auto_unreviewed ?? pendingIds(rows).length;
+    const waiting = suggestedIds(rows).length;
     const place = (r: ProtectedSwitchRow) => [r.floor_name, r.area_name].filter(Boolean).join(' › ') || 'ללא שיוך';
     const status = (r: ProtectedSwitchRow) => {
       const s = statusOf(r);
-      return html`<span class=${s === 'protected' ? 'yes' : s === 'pending' ? 'wait' : 'no'} data-status=${s}>${STATUS_TEXT[s]}</span>`;
+      return html`<span class=${s === 'protected' ? 'yes' : s === 'suggested' ? 'wait' : 'no'} data-status=${s}>${STATUS_TEXT[s]}</span>`;
     };
     const source = (r: ProtectedSwitchRow) =>
-      r.source === 'auto' ? html`<span title=${r.rule ?? ''}>אוטומטי${r.category_label ? ` · ${r.category_label}` : ''}</span>` : r.source === 'manual' ? 'ידני' : html`<span class="muted">—</span>`;
-    const reviewed = (r: ProtectedSwitchRow) => (r.reviewed ? html`<span class="yes" aria-label="נבדק">✓</span>` : isPending(r) ? html`<span class="wait">ממתין</span>` : html`<span class="muted">—</span>`);
+      r.source === 'auto' ? html`<span title=${r.rule ?? ''}>הצעה אוטומטית${r.category_label ? ` · ${r.category_label}` : ''}</span>` : r.source === 'manual' ? 'ידני' : html`<span class="muted">—</span>`;
+    const reviewed = (r: ProtectedSwitchRow) => (r.protected && r.reviewed ? html`<span class="yes" aria-label="אושר">✓</span>` : html`<span class="muted">—</span>`);
     const when = (r: ProtectedSwitchRow) => {
       const at = r.reviewed_at ?? r.marked_at;
       const who = r.reviewed_at ? r.reviewed_by : r.marked_by;
@@ -273,9 +273,9 @@ export class DevicesProtectedSwitches extends LitElement {
     return html`<sw-card heading=${head} subheading="מתגים מוגנים לא נכללים ב'כבה הכל' ובפעולות קבוצתיות. אפשר עדיין להפעיל אותם לבד, בתזמון ובאוטומציה." data-protected-switches>
       ${waiting
         ? html`<div class="strip" role="status" data-protected-strip>
-            <span class="grow">${ltrNum(waiting)} מתגים סומנו כמוגנים אוטומטית וממתינים לאישורך</span>
-            <sw-button size="sm" data-protected-show @click=${() => this.setFilter({ status: 'pending' })}>הצג</sw-button>
-            <sw-button size="sm" variant="primary" data-protected-approve-all ?disabled=${this.busy} @click=${() => this.ask('approve', pendingIds(rows))}>אשר את כולם</sw-button>
+            <span class="grow">${ltrNum(waiting)} מתגים מוצעים להגנה לפי השם או הסוג שלהם. הם נכללים ב'כבה הכל' עד שתאשרו</span>
+            <sw-button size="sm" data-protected-show @click=${() => this.setFilter({ status: 'suggested' })}>הצג</sw-button>
+            <sw-button size="sm" variant="primary" data-protected-approve-all ?disabled=${this.busy} @click=${() => this.ask('approve', suggestedIds(rows))}>הגן על כולם</sw-button>
           </div>`
         : nothing}
       <div class="bar">
@@ -283,7 +283,7 @@ export class DevicesProtectedSwitches extends LitElement {
         <select data-protected-status aria-label="סטטוס" @change=${(e: Event) => this.setFilter({ status: (e.target as HTMLSelectElement).value as StatusFilter })}>
           <option value="" ?selected=${!f.status}>הכל</option>
           <option value="protected" ?selected=${f.status === 'protected'}>מוגנים</option>
-          <option value="pending" ?selected=${f.status === 'pending'}>ממתינים לבדיקה</option>
+          <option value="suggested" ?selected=${f.status === 'suggested'}>מוצעים להגנה</option>
           <option value="unprotected" ?selected=${f.status === 'unprotected'}>לא מוגנים</option>
         </select>
         <select data-protected-category aria-label="קטגוריה" @change=${(e: Event) => this.setFilter({ category: (e.target as HTMLSelectElement).value })}><option value="">כל הקטגוריות</option>${this.categories.map((c) => html`<option value=${c.id} ?selected=${f.category === c.id}>${c.label}</option>`)}</select>
@@ -298,7 +298,7 @@ export class DevicesProtectedSwitches extends LitElement {
                 <th><span class="muted">בחירה</span></th>
                 <th aria-sort=${f.sort === 'name' ? 'ascending' : 'none'}><button type="button" data-protected-sort="name" @click=${() => this.setFilter({ sort: 'name' })}>שם</button></th>
                 <th aria-sort=${f.sort === 'area' ? 'ascending' : 'none'}><button type="button" data-protected-sort="area" @click=${() => this.setFilter({ sort: 'area' })}>קומה › אזור</button></th>
-                <th>מוגן</th><th>מקור</th><th>נבדק</th><th>שונה על ידי</th>
+                <th>מוגן</th><th>מקור</th><th>אושר</th><th>שונה על ידי</th>
               </tr></thead>
               <tbody>${page.map((r) => html`<tr data-entity=${r.entity_id}><td>${box(r)}</td><td>${bidi(r.name)}<div class="muted">${r.entity_id}</div></td><td>${place(r)}</td><td>${status(r)}</td><td>${source(r)}</td><td>${reviewed(r)}</td><td class="muted">${when(r)}</td></tr>`)}</tbody>
             </table>
@@ -309,8 +309,8 @@ export class DevicesProtectedSwitches extends LitElement {
         <span data-protected-selected>נבחרו ${ltrNum(this.selected.size)} מתוך ${ltrNum(rows.length)}</span>
         <sw-button size="sm" data-protected-all ?disabled=${!selectable.length} @click=${() => (this.selected = new Set([...this.selected, ...selectable.map((r) => r.entity_id)]))}>בחר הכול (${ltrNum(selectable.length)})</sw-button>
         <sw-button size="sm" variant="ghost" data-protected-clear ?disabled=${!this.selected.size} @click=${() => (this.selected = new Set())}>נקה בחירה</sw-button>
-        <sw-button size="sm" variant="primary" data-protected-do-approve ?disabled=${!sel('approve')} @click=${() => this.ask('approve', actionIds('approve', rows, this.selected))}>אשר</sw-button>
-        <sw-button size="sm" data-protected-do-protect ?disabled=${!sel('protect')} @click=${() => this.ask('protect', actionIds('protect', rows, this.selected))}>הגן</sw-button>
+        <sw-button size="sm" variant="primary" data-protected-do-protect ?disabled=${!sel('protect')} @click=${() => this.ask('protect', actionIds('protect', rows, this.selected))}>הגן</sw-button>
+        <sw-button size="sm" data-protected-do-dismiss ?disabled=${!sel('dismiss')} @click=${() => this.ask('dismiss', actionIds('dismiss', rows, this.selected))}>דחה הצעה</sw-button>
         <sw-button size="sm" data-protected-do-unprotect ?disabled=${!sel('unprotect')} @click=${() => this.ask('unprotect', actionIds('unprotect', rows, this.selected))}>הסר הגנה</sw-button>
       </div>
       ${this.result ? html`<div class="note" role="status" data-protected-result>${this.result}</div>` : nothing}

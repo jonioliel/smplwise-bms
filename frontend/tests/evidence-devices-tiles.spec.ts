@@ -282,8 +282,8 @@ test.describe('overview tiles against the devices fixture backend', () => {
 
   test('switches: the master is enabled by default; when every shown switch is protected it is disabled and says why only in its tooltip (CR-019)', async ({ page, request }) => {
     await seed(request);
-    // the pump and the boiler were protected by the classifier; the sign was not (decision 2): protect the sign too, then nothing is left
-    expect((await request.put('/api/v1/devices/entities/switch.cr007t_sign/bulk-protected', { data: { protected: true } })).status()).toBe(200);
+    // owner decision 2026-10-02: only an administrator's protection excludes a switch (the classifier merely suggests); protect all three, then nothing is left
+    for (const id of ['switch.cr007t_pump', 'switch.cr007t_boiler', 'switch.cr007t_sign']) expect((await request.put(`/api/v1/devices/entities/${id}/bulk-protected`, { data: { protected: true } })).status()).toBe(200);
     await open(page, '/devices/building?domain=switches&floor=cr007t_ground');
     const panel = page.locator('devices-building devices-tiles-panel');
     const master = panel.locator('button[data-panel-master="switches"]');
@@ -301,6 +301,7 @@ test.describe('overview tiles against the devices fixture backend', () => {
     await expect(dlg.locator('[data-bulk-question]')).toHaveText('לכבות מתג אחד?', { timeout: 10000 });
     await expect(dlg.locator('details[data-bulk-details]')).not.toHaveAttribute('open', ''); // the rest under "פרטים"
     await dlg.locator('sw-button[data-bulk-cancel]').click();
+    for (const id of ['switch.cr007t_pump', 'switch.cr007t_boiler']) await request.put(`/api/v1/devices/entities/${id}/bulk-protected`, { data: { protected: false } });
   });
 
   test('re-review M2 / M3: a running lock-all cannot be closed away; the alarm link lands on the alarm route (a tile click, not a deep link)', async ({ page, request }) => {

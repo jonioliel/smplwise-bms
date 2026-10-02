@@ -391,12 +391,14 @@ def list_bulk_protected(principal: Principal = Depends(current_principal_ro), co
         if eid in media_managed:
             ok, reason, label = False, "media_managed", MEDIA_MANAGED_LABEL
         p = rows_p.get(eid) or {}
+        suggested = p.get("source") == "auto" and not p.get("reviewed")  # a classifier suggestion nobody approved: shown, never enforced
+        enforced = bool(p) and not suggested
         fid = area_floor.get(e.get("area_id")) if e.get("area_id") else None
         out.append({
             "entity_id": eid, "name": e.get("name") or e.get("original_name") or eid,
             "area_id": e.get("area_id"), "area_name": e.get("area_name"), "floor_id": fid, "floor_name": fname.get(fid) if fid else None,
             "state": e.get("state"), "available": bool(e.get("available")), "platform": e.get("platform"),
-            "protected": bool(p), "source": p.get("source"), "category": p.get("category"), "category_label": switch_protection.category_label(p.get("category")),
+            "protected": enforced, "suggested": suggested, "source": p.get("source"), "category": p.get("category"), "category_label": switch_protection.category_label(p.get("category")),
             "rule": p.get("rule"), "reviewed": bool(p.get("reviewed")) if p else None,
             "included": ok, "reason": reason, "reason_label": label,
             "alarm_managed": eid in policy.alarm_managed, "doors_layer": eid in policy.door_layer, "media_managed": eid in media_managed,
@@ -407,7 +409,7 @@ def list_bulk_protected(principal: Principal = Depends(current_principal_ro), co
     summary = {
         "switches": len(out),
         "protected": sum(1 for r in out if r["protected"]),
-        "auto_unreviewed": sum(1 for r in out if r["source"] == "auto" and not r["reviewed"]),
+        "suggested": sum(1 for r in out if r["suggested"]),
         "unprotected": sum(1 for r in out if not r["protected"]),
         "gone_protected": sum(1 for eid, p in rows_p.items() if p.get("gone_at") and eid not in listed),
     }
