@@ -214,6 +214,25 @@ export class SystemSecurityCameras extends LitElement {
     .v.unknown {
       color: var(--sw-text-3);
     }
+    .chan {
+      display: none;
+      font-size: var(--sw-fs-xs);
+    }
+    /* tablet widths: the channel folds into the camera cell and the cells tighten, so all columns fit without scrolling */
+    @media (max-width: 1100px) {
+      .c-chan {
+        display: none;
+      }
+      .chan {
+        display: inline;
+      }
+      th button {
+        padding: 8px 6px;
+      }
+      td {
+        padding: 7px 6px;
+      }
+    }
     .cards {
       display: none;
     }
@@ -309,8 +328,8 @@ export class SystemSecurityCameras extends LitElement {
       <sw-field class="search"><input type="search" placeholder="חיפוש מצלמה, קידוד, רזולוציה" aria-label="חיפוש" data-nvr-search .value=${f.q} @input=${(e: Event) => this.patch({ q: (e.target as HTMLInputElement).value })} /></sw-field>
       ${this.select('קידוד', 'codec', [['', 'כל הקידודים'], ['h264', 'H.264'], ['h265', 'H.265'], ['other', 'אחר']] satisfies [CodecFilter, string][], 'codec')}
       ${this.select('סוג זרם', 'role', [['', 'כל הזרמים'], ['main', 'ראשי'], ['sub', 'משני'], ['other', 'נוסף']] satisfies [RoleFilter, string][], 'role')}
-      ${this.select('SVC', 'svc', [['', 'SVC: הכול'], ['on', 'SVC פעיל'], ['off', 'SVC כבוי'], ['none', 'ללא SVC']] satisfies [SvcFilter, string][], 'svc')}
-      ${this.select('WebRTC', 'webrtc', [['', 'WebRTC: הכול'], ['ok', 'מתנגן'], ['no', 'לא מתנגן'], ['unknown', 'לא ידוע']] satisfies [VerdictFilter, string][], 'webrtc')}
+      ${this.select('SVC', 'svc', [['', 'כל ה־SVC'], ['on', 'SVC פעיל'], ['off', 'SVC כבוי'], ['none', 'ללא SVC']] satisfies [SvcFilter, string][], 'svc')}
+      ${this.select('WebRTC', 'webrtc', [['', 'כל ה־WebRTC'], ['ok', 'מתנגן'], ['no', 'לא מתנגן'], ['unknown', 'לא ידוע']] satisfies [VerdictFilter, string][], 'webrtc')}
       ${filtersActive(f) ? html`<sw-button size="sm" variant="ghost" data-nvr-clear @click=${() => (this.filters = { ...NO_FILTERS })}>נקה</sw-button>` : nothing}
       <sw-button size="sm" icon="refresh" data-nvr-refresh ?disabled=${this.loading} @click=${() => void this.load()}>רענון</sw-button>
       <span class="count" data-nvr-count>${filtersActive(f) ? `${shown} מתוך ${total} זרמים` : `${total} זרמים`}</span>
@@ -320,7 +339,7 @@ export class SystemSecurityCameras extends LitElement {
   private headerCell(c: (typeof COLUMNS)[number]) {
     const on = this.sort.key === c.sort;
     const aria = on ? (this.sort.dir === 'asc' ? 'ascending' : 'descending') : 'none';
-    return html`<th scope="col" aria-sort=${aria} data-col=${c.id}>
+    return html`<th scope="col" class=${c.id === 'channel' ? 'c-chan' : ''} aria-sort=${aria} data-col=${c.id}>
       ${c.sort ? html`<button type="button" data-nvr-sort=${c.sort} @click=${() => (this.sort = nextSort(this.sort, c.sort as SortKey))}>${c.label}<span class="arrow" aria-hidden="true">${on ? (this.sort.dir === 'asc' ? '▲' : '▼') : ''}</span></button>` : html`<span style="padding:9px 10px;display:inline-block">${c.label}</span>`}
     </th>`;
   }
@@ -336,14 +355,14 @@ export class SystemSecurityCameras extends LitElement {
     const s = r.stream;
     const first = startsGroup(rows, i);
     return html`<tr class="${first ? 'first' : 'repeat'} ${r.enabledInArx ? '' : 'off'}" data-stream-row data-camera=${r.cameraKey} data-stream=${s?.stream_ref ?? ''}>
-      <td class="muted" data-col="channel"><span class="ltr">${r.channel}</span></td>
-      <td data-col="camera"><span class="cam">${r.online === false ? html`<span class="dot" title="לא מקוונת" data-offline></span>` : nothing}${r.cameraName}</span></td>
+      <td class="muted c-chan" data-col="channel"><span class="ltr">${r.channel}</span></td>
+      <td data-col="camera"><span class="cam">${r.online === false ? html`<span class="dot" title="לא מקוונת" data-offline></span>` : nothing}${r.cameraName}</span><span class="chan muted"> ערוץ <span class="ltr">${r.channel}</span></span></td>
       <td data-col="role">${s ? ROLE_HE[s.role] : html`<span class="muted" data-unread>לא נקרא</span>`}</td>
-      <td data-col="codec"><bdi class="ltr">${codecLabel(s)}</bdi>${s?.profile ? html` <bdi class="ltr muted">${s.profile}</bdi>` : nothing}</td>
+      <td data-col="codec"><span class="ltr"><bdi>${codecLabel(s)}</bdi>${s?.profile ? html` <bdi class="muted">${s.profile}</bdi>` : nothing}</span></td>
       <td data-col="svc">${svcLabel(s)}</td>
       <td data-col="resolution"><bdi class="ltr">${resolutionLabel(s)}</bdi></td>
       <td data-col="fps"><span class="ltr">${fpsLabel(s)}</span></td>
-      <td data-col="bitrate"><bdi class="ltr">${bitrateLabel(s)}</bdi>${s?.bitrate_mode && s.bitrate_kbps ? html` <span class="ltr muted">${s.bitrate_mode}</span>` : nothing}</td>
+      <td data-col="bitrate"><span class="ltr"><bdi>${bitrateLabel(s)}</bdi>${s?.bitrate_mode && s.bitrate_kbps ? html` <span class="muted">${s.bitrate_mode}</span>` : nothing}</span></td>
       <td data-col="gop"><span class="ltr">${numberLabel(s?.gop)}</span></td>
       <td data-col="webrtc">${this.verdict(r)}</td>
     </tr>`;
