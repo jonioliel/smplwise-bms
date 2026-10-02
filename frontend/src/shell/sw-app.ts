@@ -9,6 +9,7 @@ import '../components/sw-tabs';
 import '../components/sw-avatar';
 import './sw-user-menu';
 import './sw-nav-order';
+import { UPDATE_HREF, onUpdateState, refreshUpdateMarker, updateAvailable } from './update-marker';
 import { openAlertsText } from './sw-user-menu';
 import { loadNavOrder, navOrder, onNavOrder, resetNavOrder, saveNavOrder } from './nav-order';
 import { findScreenEdit, onScreenEdits, screenEdits } from './screen-edit';
@@ -69,6 +70,7 @@ import '../screens/system-devices';
 import '../screens/system-diagnostics';
 import '../screens/system-security';
 import '../screens/system-storage';
+import '../screens/system-update';
 import '../pwa/notifications-settings';
 import '../screens/system-notifications'; // CR-018: הגדרות › התראות (the administrator's eight sections; everyone else keeps the device registration)
 import '../components/notify-center'; // CR-018: the notification center, opened from the user menu's bell
@@ -159,6 +161,9 @@ export class SwApp extends LitElement {
   /** UI round 1b: the navigation's size (shell/nav-size.ts: the user's own over the installation's), as pixel sizes. */
   @state() private nav: NavDims = navDims(navSize());
   private stopNavSize?: () => void;
+  /** CR-021 S2: an update exists (known only to a holder of system.update; shell/update-marker.ts). */
+  @state() private updateMark = updateAvailable();
+  private stopUpdateMark?: () => void;
   private stopScreenEdits?: () => void;
   private stopScreenViews?: () => void;
   private railObs: ResizeObserver | null = null;
@@ -1324,6 +1329,7 @@ export class SwApp extends LitElement {
     this.stopNotify = notifyStore.subscribe((s) => (this.notifySummary = s.summary));
     this.stopNavOrder = onNavOrder((o) => (this.navOrder = o));
     this.stopNavSize = onNavSize((sz) => (this.nav = navDims(sz)));
+    this.stopUpdateMark = onUpdateState(() => (this.updateMark = updateAvailable()));
     this.stopDesign = onDesign(() => (this.skin = currentSkin())); // the bubble skin renders the phone dock (its own row)
     this.stopScreenEdits = onScreenEdits(() => this.requestUpdate()); // a screen registered / dropped its edit mode
     this.stopScreenViews = onScreenViews(() => this.requestUpdate()); // a screen registered / dropped / changed its view choice
@@ -1521,7 +1527,8 @@ export class SwApp extends LitElement {
     notifyStore.stop();
     this.stopNavOrder?.();
     this.stopNavSize?.();
-    this.stopScreenEdits?.();
+    this.stopUpdateMark?.();
+this.stopScreenEdits?.();
     this.stopScreenViews?.();
     this.railObs?.disconnect();
     this.railObs = null;
@@ -1917,6 +1924,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'wizard') return html`<system-wizard></system-wizard>`;
         if (s[1] === 'security') return html`<system-security .sub=${s[2] ?? ''} .panelId=${r.params.get('panel') ?? ''}></system-security>`;
         if (s[1] === 'storage') return html`<system-storage></system-storage>`;
+        if (s[1] === 'update') return html`<system-update></system-update>`; // הגדרות › עדכונים (CR-021, system.update)
         if (s[1] === 'schedules') return html`<system-schedules></system-schedules>`; // הגדרות › תזמונים (CR-014)
         if (s[1] === 'automations') return html`<system-automations></system-automations>`; // הגדרות › אוטומציות (CR-017)
         if (s[1] === 'multimedia') return html`<system-multimedia></system-multimedia>`; // הגדרות › מולטימדיה (CR-015)
@@ -2183,6 +2191,7 @@ export class SwApp extends LitElement {
     this.menuOpen = true;
     if (this.phone) this.pushOverlay();
     void this.pollAlerts();
+    void refreshUpdateMarker();
   }
 
   private closeMenu(restoreFocus = true, dropEntry = true) {
@@ -2231,7 +2240,7 @@ export class SwApp extends LitElement {
     const badge = this.badge();
     return html`<sw-user-menu .open=${this.menuOpen} .name=${this.userName} .role=${this.userRole} .api=${api} .gated=${noTabs} .alerts=${badge.item ? badge.count : null}
         .notifyCenter=${!!this.notifySummary} .alertsHot=${badge.dot} @open-notifications=${() => this.openCenter()}
-        .settingsHref=${settings?.href ?? ''} .editHomeHref=${this.canEditHome() ? '#/devices/building?edit=1' : ''}
+        .settingsHref=${settings?.href ?? ''} .updateHref=${!this.gated && api && this.updateMark && can('system.update') ? UPDATE_HREF : ''} .editHomeHref=${this.canEditHome() ? '#/devices/building?edit=1' : ''}
         .screenEdits=${this.gated ? [] : screenEdits().map((a) => ({ id: a.id, label: a.label, icon: a.icon ?? 'edit' }))}
         .screenViews=${this.gated ? [] : screenViews()}
         @screen-view=${(e: CustomEvent<{ id: string; value: string }>) => findScreenView(e.detail.id)?.set(e.detail.value)}

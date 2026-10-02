@@ -49,6 +49,8 @@ export class SwUserMenu extends LitElement {
   @property() alertsHref = '#/investigate/rules?tab=alerts';
   /** "מערכת" for a user with a settings permission (nav.ts settingsEntry); '' = no item. */
   @property() settingsHref = '';
+  /** CR-021 S2: "עדכון זמין" - an update exists and the user holds system.update (the shell decides; '' = no row). */
+  @property() updateHref = '';
   /** "עריכת המסך הראשי": the home screen in its layout-edit mode (the shell decides who may; '' = no item). */
   @property() editHomeHref = '';
   /** UI round 1c (shell/screen-edit.ts): the edit modes the CURRENT screen registered that this user may enter ("עריכת פריסה", ...). */
@@ -323,6 +325,14 @@ export class SwUserMenu extends LitElement {
       place-items: center;
       font-variant-numeric: tabular-nums;
     }
+    li.update .dot {
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      background: var(--sw-accent);
+      flex: none;
+      margin-inline-end: 4px;
+    }
     li.alerts.hot .ic {
       background: var(--sw-danger-soft);
       color: var(--sw-danger);
@@ -472,6 +482,10 @@ export class SwUserMenu extends LitElement {
         ${this.settingsHref
           ? html`<li><a href=${this.settingsHref} data-menu-settings @click=${(e: MouseEvent) => this.go(e)}>
               <span class="ic"><sw-icon name="system" size=${18}></sw-icon></span><span class="txt">מערכת</span></a></li>`
+          : nothing}
+        ${this.updateHref
+          ? html`<li class="update"><a href=${this.updateHref} data-menu-update @click=${(e: MouseEvent) => this.go(e)}>
+              <span class="ic"><sw-icon name="refresh" size=${18}></sw-icon></span><span class="txt">עדכון זמין</span><span class="dot" aria-hidden="true"></span></a></li>`
           : nothing}
         ${hasAccount
           ? html`<li><button type="button" data-menu-account aria-haspopup="true" @click=${() => this.goLevel('account')}>
