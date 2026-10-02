@@ -81,7 +81,7 @@ test('every registry section comes from the arrays of nav.ts (nothing duplicated
   expect(TAB_SECTIONS.map((s) => s.id)).toEqual(['areas', 'devices', 'security', 'security.live', 'security.investigate', 'explore', 'wiskey', 'system', 'system.security']);
   const byId = Object.fromEntries(TAB_SECTIONS.map((s) => [s.id, ids(s.tabs())]));
   expect(byId['areas']).toEqual(['devices', 'security', 'explore', 'multimedia', 'wiskey']); // CR-015: multimedia sits between the map and WisKey
-  expect(byId['devices']).toEqual(['building', 'schedules', 'automations']); // CR-014: the home area's tabs; CR-017: the third
+  expect(byId['devices']).toEqual(['building', 'automations']); // 0.1.154: the home area's tabs (the schedules became the first segment of the second, קברניט)
   expect(byId['security']).toEqual(ids(SECURITY_SECTIONS));
   expect(byId['security.live']).toEqual(ids(SECTION_TABS.live));
   expect(byId['security.investigate']).toEqual(ids(SECTION_TABS.investigate));

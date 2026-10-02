@@ -75,12 +75,12 @@ test.describe('the list (installer)', () => {
     }
     await open(page, '/devices/automations');
     await ready(page);
-    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'תזמונים', 'אוטומציות']);
-    await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('אוטומציות');
+    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט']);
+    await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('קברניט');
     await expect(scr(page).locator('[data-auto-title]')).toHaveText('אוטומציות');
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
     // the segments with their counts
-    await expect(scr(page).locator('button[data-segment]')).toHaveCount(3);
+    await expect(scr(page).locator('button[data-segment]')).toHaveCount(4); // 0.1.154: תזמונים is the first segment
     await expect(scr(page).locator('button[data-segment="automations"]')).toContainText('12');
     await expect(scr(page).locator('button[data-segment="scenes"]')).toContainText('5');
     await expect(scr(page).locator('button[data-segment="scripts"]')).toContainText('3');
@@ -965,13 +965,13 @@ test.describe('with a session: permissions, the setting, the push frame and what
     expect(await rowTabs(page)).toEqual([]);
     st.perms = [...VIEWER_PERMS, 'automation.manage'];
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual(['מבט על', 'אוטומציות']);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'קברניט']);
     st.perms = [...VIEWER_PERMS, 'script.run'];
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual(['מבט על', 'אוטומציות']);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'קברניט']);
     st.perms = [...VIEWER_PERMS, 'schedule.view', 'automation.manage'];
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual(['מבט על', 'תזמונים', 'אוטומציות']);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'קברניט']);
     // the settings tab
     st.perms = [...VIEWER_PERMS, 'automation.manage'];
     await openApi(page, '/system/diagnostics');

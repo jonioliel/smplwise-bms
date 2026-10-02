@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
 import '../components/sw-page';
 import '../components/sw-button';
@@ -14,6 +14,11 @@ import './schedule-drawer';
 import type { ScheduleActions } from './schedule-drawer';
 import { ApiError } from '../api/client';
 import { isApi } from '../api/session';
+import { autoApi, autoReady } from '../api/automations-demo';
+import { visibleKinds } from '../api/automations';
+import type { ItemKind } from '../api/automations';
+import { SEGMENTS, itemPath } from './automations-logic';
+import type { KavarnitSegments } from '../shell/nav';
 import { onRouteChange, parseRoute, navigate, pushRoute, replaceRoute, type RouteState } from '../router';
 import type { IconName } from '../components/sw-icon';
 import { DEMO_SUN } from '../api/schedules-mock';
@@ -120,6 +125,11 @@ function writeStored(key: string, value: unknown) {
  */
 @customElement('devices-schedules')
 export class DevicesSchedules extends LitElement {
+  /** 0.1.154: the segments of "קברניט" this user is offered (set by the shell). This screen is the first segment; the strip leads to the others. */
+  @property({ attribute: false }) kavarnit: KavarnitSegments = { schedules: true, automations: true };
+  /** The kinds of the automations screen this user may open and their counts (null = not loaded / not offered). */
+  @state() private autoKinds: ItemKind[] | null = null;
+  @state() private autoCounts: Record<ItemKind, number> | null = null;
   @state() private status: ScheduleStatus | null = null;
   @state() private items: Schedule[] | null = null;
   @state() private failed = '';
@@ -327,6 +337,53 @@ export class DevicesSchedules extends LitElement {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
       color: var(--sw-text-inverse);
+    }
+    .kseg {
+      display: flex;
+      gap: 4px;
+      padding: 4px;
+      margin-block-end: var(--sw-space-3, 12px);
+      inline-size: fit-content;
+      max-inline-size: 100%;
+      overflow-x: auto;
+      scrollbar-width: none;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: var(--sw-radius-lg, 12px);
+      background: var(--sw-surface);
+    }
+    .kseg button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      flex: 0 0 auto;
+      min-block-size: 44px;
+      padding-inline: 16px;
+      border: 0;
+      border-radius: var(--sw-radius-md, 8px);
+      background: transparent;
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+      color: var(--sw-text-2);
+      cursor: pointer;
+    }
+    .kseg button[aria-selected='true'] {
+      background: var(--sw-accent);
+      color: var(--sw-text-inverse);
+    }
+    .kseg small {
+      opacity: 0.75;
+      font-size: var(--sw-fs-xs, 12px);
+    }
+    @media (max-width: 767px) {
+      .kseg {
+        inline-size: 100%;
+      }
+      .kseg button {
+        flex: 1 1 0;
+        padding-inline: 8px;
+      }
     }
     .seg {
       display: inline-flex;
@@ -821,7 +878,34 @@ export class DevicesSchedules extends LitElement {
     this.view = parseView(params.get('view')) ?? storedView ?? 'cards';
     this.offRoute = onRouteChange((r) => this.onRoute(r));
     void this.load();
+    void this.loadSegments();
     this.stopWs = subscribeSchedules(() => void this.refresh());
+  }
+
+  /** The other segments of "קברניט": which kinds the automations screen offers this caller, with their counts (best effort: no answer = only "אוטומציות"). */
+  private async loadSegments() {
+    if (!this.kavarnit.automations) return;
+    try {
+      await autoReady();
+      const st = await autoApi().status();
+      if (st.available === 'feature_disabled') return;
+      this.autoKinds = visibleKinds(st);
+      this.autoCounts = { automation: st.counts.automations, script: st.counts.scripts, scene: st.counts.scenes };
+    } catch {
+      this.autoKinds = null;
+    }
+  }
+
+  /** The strip of "קברניט": תזמונים (this screen) first, then the automations screen's segments. Shown only when there is a second segment to go to. */
+  private renderSegments() {
+    if (this.sub === 'trash' || this.sub === 'review') return nothing;
+    const others = this.kavarnit.automations ? SEGMENTS.filter((s) => (this.autoKinds ? this.autoKinds.includes(s.kind) : s.id === 'automations')) : [];
+    if (!others.length) return nothing;
+    const n = this.status?.counts.visible;
+    return html`<div class="kseg" role="tablist" aria-label="קברניט" data-kavarnit-segments>
+      <button type="button" role="tab" aria-selected="true" data-segment="schedules">תזמונים${n === undefined ? nothing : html` <small>${n}</small>`}</button>
+      ${others.map((s) => html`<button type="button" role="tab" aria-selected="false" data-segment=${s.id} @click=${() => navigate(itemPath(s.id))}>${s.label}${this.autoCounts ? html` <small>${this.autoCounts[s.kind]}</small>` : nothing}</button>`)}
+    </div>`;
   }
 
   disconnectedCallback() {
@@ -1394,6 +1478,7 @@ export class DevicesSchedules extends LitElement {
     const drawerId = sub && sub !== 'trash' && sub !== 'review' ? sub : '';
     return html`<sw-page heading=${heading} subheading=${subheading} wide data-sched-screen=${scr.kind} backHref=${sub === 'trash' || sub === 'review' ? BASE : ''}>
       ${this.headerActions(scr)}
+      ${this.renderSegments()}
       ${this.renderBody(scr)}
       ${scr.kind === 'ready' && this.drawerUsed
         ? html`<schedule-drawer ?open=${!!drawerId} .schedule=${this.detail} .status=${this.status} ?missing=${this.detailMissing} @drawer-close=${() => this.go('')} @edit=${(e: CustomEvent<{ id: string }>) => navigate(`${BASE}/${e.detail.id}/edit`)} @changed=${this.onChanged} @deleted=${this.onDeleted} @copied=${this.onCopied}></schedule-drawer>`
