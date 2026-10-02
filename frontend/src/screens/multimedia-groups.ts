@@ -22,7 +22,7 @@ import { applyMultimediaKinds } from '../shell/nav';
 import { phoneRestricted } from '../shell/phone';
 import { bidi } from '../i18n/bidi';
 import { applyMediaGlass, mediaGlassStyles } from '../styles/media-glass';
-import { mediaPageStyles } from '../styles/media-page';
+import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
 import { glyphIcon, mIcon, nameText } from '../components/media-icons';
 import { playerView } from '../components/media-player-now';
 import { runPlayerCommand } from '../components/media-player-run';
@@ -555,6 +555,7 @@ export class MultimediaGroups extends LitElement {
   }
 
   protected updated() {
+    measureHeaderBar(this.renderRoot, this.phone);
     if (this.wantsEdit && !this.editHandled && this.phase === 'ready') {
       this.editHandled = true;
       if (this.canEdit) this.enterEdit(true);

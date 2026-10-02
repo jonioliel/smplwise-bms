@@ -22,7 +22,7 @@ import { applyMultimediaKinds } from '../shell/nav';
 import { phoneRestricted } from '../shell/phone';
 import { bidi } from '../i18n/bidi';
 import { applyMediaGlass, mediaGlassStyles } from '../styles/media-glass';
-import { mediaPageStyles } from '../styles/media-page';
+import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
 import { mIcon, nameText } from '../components/media-icons';
 import { DEMO_FLOOR_ORDER, NO_FLOOR, floorsOf, isDirty, moveInGroup, setCard, togglePin, type FloorRef } from './multimedia-layout';
 import {
@@ -165,6 +165,7 @@ export class MultimediaPlayers extends LitElement {
   }
 
   protected updated() {
+    measureHeaderBar(this.renderRoot, this.phone);
     if (this.wantsEdit && !this.editHandled && this.phase === 'ready') {
       this.editHandled = true;
       if (!this.editing) {
