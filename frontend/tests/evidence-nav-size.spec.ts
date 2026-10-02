@@ -292,7 +292,7 @@ test.describe('navigation size with a (mocked) backend', () => {
     await expect.poll(() => mock.patches.length).toBe(1);
     expect(mock.patches[0]).toEqual({ 'ui.nav_size': XL });
     expect(mock.puts).toHaveLength(0);
-    expect((await measure(page, info)).icon).toBe(iconOf(info, PRESETS.xl.icon));
+    await expect.poll(async () => (await measure(page, info)).icon).toBe(iconOf(info, PRESETS.xl.icon)); // the PATCH was seen; its response is applied a moment later
     // a reload: the installation's value again, from the server
     await open(page, '/devices/building');
     await expect.poll(async () => (await measure(page, info)).icon).toBe(iconOf(info, PRESETS.xl.icon));
@@ -305,7 +305,7 @@ test.describe('navigation size with a (mocked) backend', () => {
     await page.locator(`${CARD} [data-nav-save]`).click();
     await expect.poll(() => mock.puts.length).toBe(1);
     expect(mock.puts[0]).toEqual({ 'ui.nav_size': FREE });
-    expect((await measure(page, info)).icon).toBe(iconOf(info, 26));
+    await expect.poll(async () => (await measure(page, info)).icon).toBe(iconOf(info, 26));
     await open(page, '/devices/building');
     await expect.poll(async () => (await measure(page, info)).icon).toBe(iconOf(info, 26)); // server copy, personal wins
     // "ברירת מחדל של המערכת": null to the server, the installation's size (xl) applies again
@@ -313,7 +313,7 @@ test.describe('navigation size with a (mocked) backend', () => {
     await page.locator(`${CARD} [data-nav-reset]`).click();
     await expect.poll(() => mock.puts.length).toBe(2);
     expect(mock.puts[1]).toEqual({ 'ui.nav_size': null });
-    expect((await measure(page, info)).icon).toBe(iconOf(info, PRESETS.xl.icon));
+    await expect.poll(async () => (await measure(page, info)).icon).toBe(iconOf(info, PRESETS.xl.icon));
     if (info.project.name === 'desktop') await shot(page, 'nav-size-settings-backend');
   });
 
