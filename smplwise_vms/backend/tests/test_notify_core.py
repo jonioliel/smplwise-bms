@@ -11,6 +11,8 @@ import pytest
 from conftest import as_user
 from notify_world import API, NOW, REAL_NOW, World, fake_push  # noqa: F401 - fake_push is a fixture
 
+pytestmark = pytest.mark.usefixtures("daytime_clock")  # the wall clock must not decide quiet hours (see conftest.daytime_clock)
+
 from smplwise import db as dbmod
 from smplwise.services import notify
 from smplwise.services import notify_policy as policies

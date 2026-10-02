@@ -13,6 +13,7 @@ import zipfile
 import httpx
 import pytest
 from conftest import as_user, bind, png_bytes, seed_tree
+
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
@@ -22,6 +23,8 @@ from fastapi.testclient import TestClient
 from smplwise.main import create_app
 from smplwise.services import push as svc
 from smplwise.services import rules as rules_svc
+
+pytestmark = pytest.mark.usefixtures("daytime_clock")  # the wall clock must not decide quiet hours (see conftest.daytime_clock)
 
 
 def b64u(data: bytes) -> str:
