@@ -203,11 +203,11 @@ test.describe('validation', () => {
     expect(locked.errors[0].message).toBe('המנעול דורש קוד. תזמון אינו שומר קודים, ולכן אי אפשר לתזמן אותו.');
   });
 
-  test('a device the server refuses (unmarked switch) is refused here too, unless it is already on the schedule', () => {
-    const boiler = meta('switch.boiler', 'דוד', { selectable: false, reason: { code: 'switch_not_marked', message: 'המתג לא סומן כבטוח לפעולה קבוצתית.' } });
+  test('a device the server refuses (an alarm-managed control) is refused here too, unless it is already on the schedule', () => {
+    const boiler = meta('switch.boiler', 'דוד', { selectable: false, reason: { code: 'alarm_managed_control', message: 'רכיב זה נשלט ממסך האזעקה ואינו נכנס לתזמון.' } });
     const m2: MetaMap = new Map(M).set('switch.boiler', boiler);
     const d = draft({ slots: [slot('07:00:00', null, act('switch.turn_on', 'switch.boiler'))] });
-    expect(validateDraft(d, ctx({ meta: m2 })).errors.map((e) => e.code)).toEqual(['switch_not_marked']);
+    expect(validateDraft(d, ctx({ meta: m2 })).errors.map((e) => e.code)).toEqual(['alarm_managed_control']);
     expect(validateDraft(d, ctx({ meta: m2, creating: false, original: d })).errors).toEqual([]);
   });
 
