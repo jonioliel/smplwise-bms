@@ -13,6 +13,116 @@ import { ltrNum, bidi } from '../i18n/bidi';
 import { canAnywhere, isApi } from '../api/session';
 import { isOn, media, type MediaDevice } from '../api/media-screens';
 import { isPlaying, players, type PlayerDevice } from '../api/media-players';
+import { SkinController } from '../design/skin';
+import '../components/sw-pill';
+
+/** The Bubble skin (phase C, 2026-10-02; the approved board docs/design/mockups/bubble-taste/home.html): the status widgets are
+ * flat pills - the weather on its hue, the armed alarm on the accent, no gradients - and the quick actions are pill rows
+ * (home-widgets draws them with sw-pill when the skin is bubble). Keyed on the host's data-skin (design/skin.ts). */
+const HOME_WIDGETS_BUBBLE = css`
+  :host([data-skin='bubble']) .wg {
+    border: 0;
+    border-radius: var(--sw-r-lg);
+    background: var(--sw-surface);
+    box-shadow: none;
+  }
+  :host([data-skin='bubble']) .wg-weather {
+    background: var(--sw-hue-4);
+    color: var(--sw-ring-on-hue);
+  }
+  :host([data-skin='bubble']) .wg-weather :is(.wg-h, .wg-h small, .wg-h sw-icon, .wx-c, .wx-m, .wx-m b, .wx-m svg, .wx-fc, .wx-fc span, .wx-fc b, .wx-fc i, .wx-ic) {
+    color: inherit;
+  }
+  :host([data-skin='bubble']) .wg-weather .wx-fc {
+    border-color: rgba(255, 255, 255, 0.25);
+  }
+  :host([data-skin='bubble']) .wg-shabbat {
+    background: var(--sw-surface);
+  }
+  :host([data-skin='bubble']) .wg-alarm[data-tone='ok'] {
+    background: var(--sw-accent);
+    color: var(--sw-text-inverse);
+  }
+  :host([data-skin='bubble']) .wg-alarm[data-tone='ok'] :is(.al-l, .al-s, .al-x, .al-go) {
+    color: inherit;
+  }
+  :host([data-skin='bubble']) .wg-alarm[data-tone='ok'] .aic {
+    background: rgba(255, 255, 255, 0.22);
+    color: var(--sw-text-inverse);
+  }
+  :host([data-skin='bubble']) .wg-alarm[data-tone='err'] {
+    background: var(--sw-danger-soft);
+    border: 0;
+  }
+  :host([data-skin='bubble']) .mchip {
+    border: 0;
+    border-radius: var(--sw-r-pill);
+    background: var(--sw-surface-2);
+    min-block-size: 36px;
+  }
+  :host([data-skin='bubble']) .mic {
+    background: var(--sw-accent);
+    color: var(--sw-text-inverse);
+  }
+  /* the quick actions as pills: a row in the band, a column in the side panel and on a phone */
+  :host([data-skin='bubble']) .wg-quick {
+    padding: 0;
+    background: transparent;
+    justify-content: flex-start;
+  }
+  :host([data-skin='bubble']) .wg-quick .wg-h {
+    padding: 4px 10px 0;
+  }
+  /* room for the ring, the label and the round button on one line */
+  :host([layout='hero'][data-skin='bubble']) .wg-quick,
+  :host([layout='row'][data-skin='bubble']) .wg-quick {
+    flex-basis: 300px;
+    min-inline-size: min(100%, 260px);
+  }
+  :host([layout='row'][data-skin='bubble']) .wg-quick .qa {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  :host([layout='row'][data-skin='bubble']) .wg-quick sw-pill {
+    flex: 1 1 220px;
+  }
+  :host([data-skin='bubble']) .wg-quick .qa {
+    flex-direction: column;
+    gap: var(--sw-gap);
+  }
+  :host([data-skin='bubble']) .wg-quick .q-x {
+    padding-inline: 10px;
+  }
+  :host([data-skin='bubble']) .qsb {
+    inline-size: var(--sw-sub-size, var(--sw-sub));
+    block-size: var(--sw-sub-size, var(--sw-sub));
+    min-inline-size: var(--sw-touch-desktop, 44px);
+    min-block-size: var(--sw-touch-desktop, 44px);
+    box-sizing: border-box;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.14);
+    color: inherit;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    padding: 0;
+  }
+  :host([data-skin='bubble']) .qsb:focus-visible {
+    outline: 2px solid var(--sw-focus);
+    outline-offset: 2px;
+  }
+  :host([data-skin='bubble']) .qsb:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  @media (max-width: 1100px) {
+    :host([data-skin='bubble']) .qsb {
+      min-inline-size: 44px;
+      min-block-size: 44px;
+    }
+  }
+`;
 
 const GLYPHS: Record<WeatherGlyph, TemplateResult> = {
   sun: svg`<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>`,
@@ -96,8 +206,10 @@ export class HomeWidgetsView extends LitElement {
   @state() private remoteOpen = false;
   private mediaTimer = 0;
   private timer = 0;
+  /** Bubble phase C: the skin in force (the quick actions are pills there). */
+  private skin = new SkinController(this);
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
       min-inline-size: 0;
@@ -1114,7 +1226,7 @@ export class HomeWidgetsView extends LitElement {
         scroll-behavior: auto;
       }
     }
-  `;
+  `, HOME_WIDGETS_BUBBLE];
 
   connectedCallback() {
     super.connectedCallback();
@@ -1403,6 +1515,19 @@ export class HomeWidgetsView extends LitElement {
 
   private quickCard(it: WidgetItem) {
     const allowed = this.config.quick.actions.filter((a) => this.quick.allowed[a]);
+    if (this.skin.bubble) {
+      // the bubble skin: each quick action is a pill row (the lit one for the lights, the accent one for everything), its round
+      // sub-button sends the same `home-quick` the button did - the bulk dialog of the screen confirms, nothing is sent from here
+      const pill = (a: QuickAction) => {
+        const lights = a !== 'all_off';
+        const n = lights ? this.quick.lightsOn : this.quick.lightsOn + this.quick.switchesOn;
+        return html`<sw-pill variant="plain" .icon=${lights ? 'light' : 'bolt'} .label=${QUICK_ACTION_LABEL[a]} .state=${lights ? `${ltrNum(this.quick.lightsOn)} דולקות בבית` : `${ltrNum(n)} פעילים בבית`} ?on=${lights && n > 0} ?accent=${!lights} fill-color="var(--sw-lit)" data-home-quick-pill=${a} tabindex="-1">
+          <button slot="subs" type="button" class="qsb" data-home-quick=${a} aria-label=${QUICK_ACTION_LABEL[a]} ?disabled=${this.editing} @click=${() => this.emit('home-quick', { action: a })}><sw-icon name="power" size=${18}></sw-icon></button>
+        </sw-pill>`;
+      };
+      return this.shell(it, 'wg-quick', {}, html`${this.head(it, BOLT)}<div class="wg-b"><div class="qa">${allowed.map(pill)}</div>
+        <div class="q-x only-l" data-home-quick-summary>${ltrNum(this.quick.lightsOn)} מנורות דולקות · ${ltrNum(this.quick.switchesOn)} מתגים פעילים</div></div>`);
+    }
     const btn = (a: QuickAction) => html`<button type="button" class=${classMap({ qbtn: true, danger: a === 'all_off' })} data-home-quick=${a} ?disabled=${this.editing} @click=${() => this.emit('home-quick', { action: a })}><svg viewBox="0 0 24 24" aria-hidden="true">${a === 'all_off' ? BOLT : BULB}</svg><span class="only-s">${a === 'all_off' ? 'הכל' : 'תאורה'}</span><span class="ge-m">${QUICK_ACTION_LABEL[a]}</span></button>`;
     return this.shell(it, 'wg-quick', {}, html`${this.head(it, BOLT)}<div class="wg-b"><div class="qa">${allowed.map(btn)}</div>
       <div class="q-x only-l" data-home-quick-summary>${ltrNum(this.quick.lightsOn)} מנורות דולקות · ${ltrNum(this.quick.switchesOn)} מתגים פעילים</div></div>`);
