@@ -23,6 +23,7 @@ Estimates are agent work-hours, not wall clock. "Tier" is the test tier of `TEST
 - **iOS app** (a WKWebView shell, the Mac session): separate repository folder `mobile/`, not on this train. Needs Apple Developer account and a production signing decision for Google Play.
 - **Upstream watch**: weekly Monday 08:36 scheduled task; after each monthly Home Assistant release run it by hand.
 - **Nightly full run** of backend and Playwright on the integration branch when the machine is idle.
+- **Design unification (later, after the Bubble family):** dark tokens for the settings screens (they have none today), one visual language across the whole system; recorded so it is not lost (owner 2026-10-02).
 - **Held until stabilisation (owner decision):** V1 T058 multi-NVR as a whole, T095 second factor (CR-011), T096 Android push (CR-012), V2 studio phases T088-T090.
 
 ## Rules that bind every version
