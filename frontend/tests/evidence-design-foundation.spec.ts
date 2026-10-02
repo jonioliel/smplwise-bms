@@ -96,9 +96,9 @@ test.describe('design foundation', () => {
     test('the picker: three skins with a swatch each; save applies skin and scheme at once and survives a reload; my own scheme wins and clears', async ({ page }, info) => {
       test.skip(info.project.name === 'mobile', 'the picker is the same component on a phone; one width is enough here');
       await open(page, '/system/diagnostics');
-      await expect(card(page).locator('[data-skin-option]')).toHaveCount(3);
+      await expect(card(page).locator('[data-skin-option]')).toHaveCount(4); // classic, domus, tesla, bubble (Bubble foundation)
       await expect(card(page).locator('[data-skin-option="classic"] [data-skin-current]')).toBeVisible();
-      await expect(card(page).locator('[data-skin-option] .sw')).toHaveCount(3);
+      await expect(card(page).locator('[data-skin-option] .sw')).toHaveCount(4);
       await expect(card(page).locator('[data-design-save]')).toHaveAttribute('disabled', ''); // nothing changed yet
       await card(page).locator('[data-skin-option="domus"]').click();
       await card(page).locator('[data-scheme-option="dark"]').click();

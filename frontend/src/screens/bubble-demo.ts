@@ -228,6 +228,9 @@ export class BubbleDemo extends LitElement {
     .chip {
       block-size: var(--sw-sub-size, var(--sw-sub));
       min-block-size: var(--sw-touch-desktop, 44px);
+      min-inline-size: var(--sw-touch-desktop, 44px);
+      box-sizing: border-box;
+      justify-content: center;
       padding: 0 12px;
       border: 0;
       border-radius: var(--sw-r-md);
@@ -287,7 +290,8 @@ export class BubbleDemo extends LitElement {
       .chip {
         min-block-size: 44px;
       }
-      .sb {
+      .sb,
+      .chip {
         min-inline-size: 44px;
       }
     }

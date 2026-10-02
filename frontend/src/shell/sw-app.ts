@@ -1040,6 +1040,26 @@ export class SwApp extends LitElement {
         outline: 2px solid var(--sw-focus);
         outline-offset: 2px;
       }
+      /* 320-359 px: six 44 px items (the areas and the user) and a 44 px home button fit exactly with 2 px paddings */
+      @media (max-width: 359px) {
+        :host([data-design='a']) nav.bottom.dock {
+          gap: 4px;
+          padding-inline: 2px;
+        }
+        :host([data-design='a']) nav.bottom.dock .stack {
+          padding-inline: 2px;
+          gap: 0;
+        }
+        :host([data-design='a']) nav.bottom.dock .stack a,
+        :host([data-design='a']) nav.bottom.dock .stack button.me {
+          padding-inline: 0;
+          min-inline-size: 44px;
+        }
+        :host([data-design='a']) nav.bottom.dock .fab {
+          inline-size: 44px;
+          block-size: 44px;
+        }
+      }
       @keyframes dock-rise {
         0% {
           transform: translateY(90px);
