@@ -312,7 +312,8 @@ test('material layer: one formula appended to the bubble and domus sheets inside
   const b = materialRules('bubble');
   // the neon bloom: only around a tile whose tone is decorative (the hue ring, the area's hue) and never in a list; the KPI state tones carry no glow switch
   expect(b).toMatch(/:host\(sw-pill\[on\]:not\(\[accent\]\):not\(\[data-density='row'\]\)\)[^{]*\{ --sw-m-glow-on: 1; --sw-m-glow-c: var\(--h, var\(--sw-accent\)\); \}/);
-  expect(b).not.toMatch(/sw-kpi[^\n]*--sw-m-glow-on/);
+  expect(b).not.toMatch(/sw-kpi\[tone[^\n]*--sw-m-glow-on: 1/); // no KPI tone rule turns the bloom on
+  expect(b.split('\n').filter((l) => l.includes('--sw-m-glow-on: 1'))).toHaveLength(1); // exactly one rule turns it on (the decorative-tone hosts)
   expect(MATERIAL_SHADOWS).toContain('var(--sw-m-glow-on, 0)'); // the bloom's alpha is 0 wherever the switch is not set
   // the wash is capped by the computed contrast floor and multiplied by the tile's own --sw-m-on (0 unless its state carries a tone)
   expect(b).toContain('--sw-m-w: min(calc(var(--sw-m-wash) * var(--sw-m-t)), var(--sw-m-wash-cap));');
