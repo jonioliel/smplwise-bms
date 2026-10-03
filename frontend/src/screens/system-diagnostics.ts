@@ -677,7 +677,7 @@ export class SystemDiagnostics extends LitElement {
   /** NVR-less mode: the neutral notice a settings section shows instead of NVR / video forms that could only fail. */
   private renderNvrLessNotice(what: string) {
     return html`<sw-card heading="מצב ללא NVR" subheading=${what} data-nvr-less-settings>
-      <div class="muted">ההתקנה פועלת עם Home Assistant בלבד, ולכן ההגדרות של וידאו, הקלטות, ייצוא וחיפוש אירועים מוסתרות כאן. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password ב־Home Assistant › Add-ons › SmplWise Arx › Configuration והפעילו מחדש את ה־Add-on; ההגדרות יחזרו כמו שהיו.</div>
+      <div class="muted">ההתקנה פועלת ללא NVR, ולכן ההגדרות של וידאו, הקלטות, ייצוא וחיפוש אירועים מוסתרות כאן. הן יחזרו כמו שהיו כשיחובר NVR בהגדרות › חיבורים.</div>
     </sw-card>`;
   }
 
