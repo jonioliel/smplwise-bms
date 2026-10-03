@@ -205,6 +205,22 @@ test.describe('the status screen of a run', () => {
     expect(await page.evaluate(() => sessionStorage.getItem('sw.update.run'))).toBeNull();
   });
 
+  test('success of an update that needs a platform restart says so (never automatic); a flagged release note says it too', async ({ page }) => {
+    const mock = withUpdate(freshMock(), { notes: [{ version: '0.1.157', he: 'שינוי', en: 'Change', platform_restart: true }] });
+    mock.runReplies = [runView({ state: 'succeeded', to_version: BUILD, finished_at: new Date().toISOString() })];
+    await mockBackend(page, ADMIN_PERMS, mock);
+    await open(page, '/system/update');
+    await expect(root(page).locator('[data-update-note-restart]')).toContainText('דורש הפעלה מחדש של תשתית המערכת');
+    await root(page).locator('[data-update-apply]').click();
+    mock.state = { ...mock.state, requires_platform_restart: true, platform_restart_reasons: [{ code: 'release', version: '0.1.157' }] };
+    await root(page).locator('[data-update-confirm]').click();
+    await expect(run(page).locator('[data-run-state="succeeded"]')).toBeVisible({ timeout: 15000 });
+    await expect(run(page).locator('[data-run-restart-needed]')).toHaveText('נדרשת הפעלה מחדש של תשתית המערכת');
+    expect(mock.restartBodies).toEqual([]); // nothing was restarted for the person
+    await run(page).locator('[data-run-continue]').click();
+    await expect(card(page).locator('[data-restart-required]')).toBeVisible();
+  });
+
   const FAILURES: [string, string, string, boolean, string?][] = [
     ['version_unchanged', 'failed', 'העדכון לא הוחל: המערכת חזרה באותה גרסה', true],
     ['interrupted', 'failed', 'הפעולה נקטעה לפני שהסתיימה', true],

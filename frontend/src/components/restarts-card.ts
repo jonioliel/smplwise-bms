@@ -107,6 +107,12 @@ export class SwRestartsCard extends LitElement {
         animation: none;
       }
     }
+    /* touch layouts: every button is a 44 px target (the inner button stretches to the host) */
+    @media (max-width: 1100px) {
+      sw-button {
+        min-block-size: 44px;
+      }
+    }
   `;
 
   disconnectedCallback() {
@@ -203,14 +209,14 @@ export class SwRestartsCard extends LitElement {
               <div class="row"><span class="lbl">תשתית המערכת</span><sw-button icon="power" variant=${this.required ? 'primary' : 'secondary'} ?disabled=${disabled} data-restart-platform @click=${() => this.ask('platform')}>הפעל מחדש את תשתית המערכת</sw-button></div>
             </div>`}
       ${this.error ? html`<p class="msg err" role="alert" data-restart-error>${this.error}</p>` : nothing}
-      <sw-dialog ?open=${this.phase === 'confirm'} heading=${arx ? 'להפעיל מחדש את Arx?' : 'להפעיל מחדש את תשתית המערכת?'}
+    </sw-card>
+    <sw-dialog ?open=${this.phase === 'confirm'} heading=${arx ? 'להפעיל מחדש את Arx?' : 'להפעיל מחדש את תשתית המערכת?'}
         subheading=${arx ? 'המערכת לא תהיה זמינה לרגעים אחדים' : 'Arx יישאר פעיל, אך התשתית לא תהיה זמינה לכמה דקות'} data-restart-dialog data-restart-which=${this.which} @close=${() => this.cancel()}>
         <div slot="footer">
           <sw-button variant="primary" data-restart-confirm @click=${() => void this.confirm()}>הפעל מחדש</sw-button>
           <sw-button variant="ghost" data-restart-cancel @click=${() => this.cancel()}>ביטול</sw-button>
         </div>
-      </sw-dialog>
-    </sw-card>`;
+      </sw-dialog>`;
   }
 }
 

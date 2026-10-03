@@ -4,6 +4,7 @@ import './sw-button';
 import './sw-card';
 import './sw-icon';
 import { ApiError } from '../api/client';
+import { getUpdateState } from '../api/system-update';
 import { ROLLBACK_STEPS, getRun, isTerminal, needsRollbackGuidance, runFailureText, runSteps, type RunKind, type RunView } from '../api/system-update-runs';
 
 /** The page that follows one run: shown while it runs (also across the restart of Arx), then its outcome. Events: `run-dismiss` (the person closes the outcome). */
@@ -44,6 +45,8 @@ export class SwUpdateRun extends LitElement {
   @state() private guidance = false;
   @state() private now = Date.now();
   @state() private notFound = false;
+  /** After a success: the platform still needs a restart (a flagged release, the bridge copied) - the outcome says so, the restart stays a separate press. */
+  @state() private restartNeeded = false;
   private timer = 0;
   private tick = 0;
   private delay = POLL_FAST_MS;
@@ -177,6 +180,12 @@ export class SwUpdateRun extends LitElement {
       gap: 12px;
       flex-wrap: wrap;
     }
+    /* touch layouts: every button is a 44 px target (the inner button stretches to the host) */
+    @media (max-width: 1100px) {
+      sw-button {
+        min-block-size: 44px;
+      }
+    }
     ol.how {
       margin: 0;
       padding-inline-start: 22px;
@@ -240,6 +249,11 @@ export class SwUpdateRun extends LitElement {
 
   /** An update that finished on another version than this bundle's: the page loads the new bundle once. */
   private afterSettled(r: RunView) {
+    if (r.kind === 'update' && r.state === 'succeeded') {
+      void getUpdateState()
+        .then((s) => (this.restartNeeded = s.requires_platform_restart === true))
+        .catch(() => undefined);
+    }
     if (r.kind !== 'update' || r.state !== 'succeeded' || !r.to_version) return;
     let build = '';
     try {
@@ -285,6 +299,7 @@ export class SwUpdateRun extends LitElement {
       return html`<sw-card data-run-state="succeeded">
         <div class="stack">
           <div class="outcome ok"><sw-icon name="check" size=${22}></sw-icon><span data-run-outcome>${update ? html`המערכת עודכנה לגרסה <span class="ver">${r.to_version ?? ''}</span>` : 'תשתית המערכת הופעלה מחדש'}</span></div>
+          ${update && this.restartNeeded ? html`<p class="reason" data-run-restart-needed>נדרשת הפעלה מחדש של תשתית המערכת</p>` : nothing}
           <div class="foot"><sw-button variant="primary" data-run-continue @click=${() => this.dismiss()}>המשך</sw-button></div>
         </div>
       </sw-card>`;

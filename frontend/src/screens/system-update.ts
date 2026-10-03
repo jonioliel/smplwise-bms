@@ -106,7 +106,7 @@ export class SystemUpdate extends LitElement {
       unicode-bidi: isolate;
       font-variant-numeric: tabular-nums;
     }
-    .stack {
+    .col {
       display: grid;
       gap: 12px;
     }
@@ -203,7 +203,9 @@ export class SystemUpdate extends LitElement {
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }
+    /* the checkbox row is one 44 px target: the native input covers the whole row (invisible), the box is drawn beside the text */
     .chk {
+      position: relative;
       display: flex;
       align-items: center;
       gap: 10px;
@@ -212,10 +214,48 @@ export class SystemUpdate extends LitElement {
       font-size: var(--sw-fs-md);
     }
     .chk input {
-      inline-size: 20px;
-      block-size: 20px;
+      position: absolute;
+      inset: 0;
+      inline-size: 100%;
+      block-size: 100%;
+      margin: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .chk .box {
       flex: none;
-      accent-color: var(--sw-accent);
+      display: grid;
+      place-items: center;
+      inline-size: 22px;
+      block-size: 22px;
+      border: 2px solid var(--sw-border-strong);
+      border-radius: 6px;
+      background: var(--sw-surface);
+    }
+    .chk input:checked + .box {
+      background: var(--sw-accent);
+      border-color: var(--sw-accent);
+    }
+    .chk input:checked + .box::after {
+      content: '';
+      inline-size: 6px;
+      block-size: 11px;
+      border: solid #fff;
+      border-width: 0 2px 2px 0;
+      transform: translateY(-1px) rotate(45deg);
+    }
+    .chk input:focus-visible + .box {
+      outline: 2px solid var(--sw-focus);
+      outline-offset: 2px;
+    }
+    .chk input:disabled + .box {
+      opacity: 0.6;
+    }
+    /* touch layouts: every button of this screen is a 44 px target (the inner button stretches to the host) */
+    @media (max-width: 1100px) {
+      sw-button {
+        min-block-size: 44px;
+      }
     }
     .note .txt[lang='en'] {
       direction: ltr;
@@ -356,7 +396,8 @@ export class SystemUpdate extends LitElement {
       ${notes.length
         ? notes.map(
             (n) => html`<div class="note" data-update-note><h4 class="ver">${n.version}</h4>
-              ${n.he ? html`<div class="txt" lang="he">${n.he}</div>` : nothing}${n.en ? html`<div class="txt" lang="en">${n.en}</div>` : nothing}</div>`,
+              ${n.he ? html`<div class="txt" lang="he">${n.he}</div>` : nothing}${n.en ? html`<div class="txt" lang="en">${n.en}</div>` : nothing}
+              ${n.platform_restart ? html`<div class="txt" data-update-note-restart>דורש הפעלה מחדש של תשתית המערכת</div>` : nothing}</div>`,
           )
         : html`<p class="msg" data-update-notes-empty>אין פירוט זמין</p>`}
       ${this.renderApply(d)}
@@ -378,10 +419,10 @@ export class SystemUpdate extends LitElement {
 
   private renderConfirm(d: UpdateState) {
     return html`<sw-dialog ?open=${this.confirmOpen} ?locked=${this.applying} heading="לעדכן את SmplWise Arx?" data-update-dialog @close=${() => (this.confirmOpen = false)}>
-      <div class="stack">
+      <div class="col">
         <div class="msg ver-line" data-update-dialog-versions>מגרסה <span class="ver">${d.installed ?? '—'}</span> לגרסה <span class="ver">${d.latest ?? '—'}</span></div>
         <div class="msg">המערכת לא תהיה זמינה כמה דקות</div>
-        <label class="chk"><input type="checkbox" data-update-backup .checked=${this.backup} ?disabled=${this.applying} @change=${(e: Event) => (this.backup = (e.target as HTMLInputElement).checked)} /><span>צור גיבוי לפני העדכון</span></label>
+        <label class="chk"><input type="checkbox" data-update-backup .checked=${this.backup} ?disabled=${this.applying} @change=${(e: Event) => (this.backup = (e.target as HTMLInputElement).checked)} /><span class="box" aria-hidden="true"></span><span>צור גיבוי לפני העדכון</span></label>
         ${this.applyError ? html`<p class="msg err" role="alert" data-update-apply-error>${this.applyError}</p>` : nothing}
       </div>
       <div slot="footer">
@@ -409,7 +450,7 @@ export class SystemUpdate extends LitElement {
     }
     if (this.runId) {
       return html`<sw-page heading="עדכונים">
-        <div class="stack" data-system-update data-update-run-page>
+        <div class="col" data-system-update data-update-run-page>
           <sw-update-run .runId=${this.runId} .initial=${this.runHint} @run-dismiss=${() => this.endRun()}></sw-update-run>
         </div>
       </sw-page>`;
@@ -418,7 +459,7 @@ export class SystemUpdate extends LitElement {
     const notPermitted = this.failure?.kind === 'not_permitted' || (!this.failure && d.check_result === 'not_permitted');
     const last = d.checked_at ? `${this.when(d.checked_at)} · ${resultLabel(d.check_result, d.update_available)}` : 'טרם בוצעה בדיקה';
     return html`<sw-page heading="עדכונים">
-      <div class="stack" data-system-update>
+      <div class="col" data-system-update>
         <sw-card heading="גרסה">
           <div class="rows">
             <div class="row"><span class="lbl">גרסה מותקנת</span><span class="val ver" data-update-installed>${d.installed ?? '—'}</span></div>

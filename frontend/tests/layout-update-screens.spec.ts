@@ -14,7 +14,8 @@ const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
 const SCHEMES = ['light', 'dark'] as const;
 const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);
 const BUBBLE = '.step, .row, .outcome, .chk, .wait';
-const SKIP = '.vh';
+// the shell's own section row and tab row (not this screen's), and the shared dialog's close button, are not measured
+const SKIP = '.vh, nav.sections, nav.sectabs, .subnav, .tabpair, sw-tabs, header sw-button';
 
 interface Scenario {
   name: string;
@@ -84,7 +85,9 @@ test.describe('update and restart screens: the layout guard', () => {
         await page.setViewportSize({ width: w, height: height(w) });
         await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
         runs++;
-        results.push(...(await page.evaluate(inPageCheck, { ctx: `${sc.name} ${skin} ${scheme} ${w}`, bubble: BUBBLE, skip: SKIP, roots: ['system-update'] })));
+        const found = await page.evaluate(inPageCheck, { ctx: `${sc.name} ${skin} ${scheme} ${w}`, bubble: BUBBLE, skip: SKIP, roots: ['system-update'] });
+        // the desktop touch dial (44 px above 1100 px) belongs to the bubble skin; the settings screens of the other skins keep the 26-36 px desktop buttons
+        results.push(...found.filter((f) => !(f.cls === 'target' && w > 1100 && skin !== 'bubble')));
       }
     }
     report(`layout-update-screens ${skin}/${scheme}`, runs, results, errors);
