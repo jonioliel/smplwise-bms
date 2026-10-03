@@ -501,6 +501,97 @@ def test_browse_needs_media_browse(d):
     assert c.get(f"{API}/devices/{keys['a']}/browse?type=track", headers=as_user("olga")).status_code == 200
 
 
+def _search_requests(bridge) -> list[dict[str, Any]]:
+    return [x for x in bridge.requests if x["query"] == "search"]
+
+
+def test_a_bridge_search_is_cached_per_user_so_user_b_never_gets_user_as_answer(d):
+    app, c, fake, bridge, keys, settings, _ = d
+    announce(c, "0.7.0")
+    bind(c, settings, "olga", "operator", "installation", "*")
+    bind(c, settings, "vera", "operator", "installation", "*")
+    url = f"{API}/devices/{keys['a']}/browse?type=album&q=נמצא"
+    assert c.get(url, headers=as_user("olga")).status_code == 200
+    assert c.get(url, headers=as_user("olga")).status_code == 200
+    assert len(_search_requests(bridge)) == 1, "the same user is served from the cache"
+    assert c.get(url, headers=as_user("vera")).status_code == 200
+    users = {x["user_id"] for x in _search_requests(bridge)}
+    assert len(_search_requests(bridge)) == 2 and len(users) == 2, "another user is asked again: the bridge checks identity, the HA user and the rate limit per caller"
+
+
+def test_the_bridge_search_limit_never_exceeds_the_bridges_cap_even_if_the_page_size_grows(d, monkeypatch):
+    app, c, fake, bridge, keys, *_ = d
+    from bridge_loader import load
+
+    policy = load("media_policy")
+    assert media_queue.BRIDGE_SEARCH_LIMIT_MAX == policy.SEARCH_LIMIT_MAX
+    announce(c, "0.7.0")
+    monkeypatch.setattr(media_queue, "BROWSE_PAGE", 120)
+    r = c.get(f"{API}/devices/{keys['a']}/browse?type=album&q=נמצא")
+    assert r.status_code == 200, r.text
+    (req,) = _search_requests(bridge)
+    assert req["limit"] == policy.SEARCH_LIMIT_MAX
+    assert policy.query_refusal("search", {k: req[k] for k in ("entity_id", "media_type", "name", "limit")}) is None, "the bridge would have refused it"
+
+
+@pytest.mark.parametrize("error,status,code", [("rate_limited", 429, "rate_limited"), ("unknown_user", 403, "forbidden"), ("no_library", 503, "search_unavailable"), ("TimeoutError", 503, "search_unavailable")])
+def test_bridge_refusal_codes_map_to_http_statuses_and_keep_the_original_in_error(d, error, status, code):
+    app, c, fake, bridge, keys, *_ = d
+    announce(c, "0.7.0")
+    bridge.search_error = error
+    r = c.get(f"{API}/devices/{keys['a']}/browse?type=track&q=x")
+    assert (r.status_code, r.json()["code"], r.json()["details"]["error"]) == (status, code, error), r.text
+    assert "http" not in r.text
+
+
+def test_a_bridge_refusal_on_browse_maps_the_same_way(d, monkeypatch):
+    app, c, fake, bridge, keys, *_ = d
+    announce(c, "0.7.0")
+
+    def refuse(_s, payload, timeout=15.0):
+        return {"ok": False, "request_id": payload["request_id"], "query": payload["query"], "error": "rate_limited"}
+
+    monkeypatch.setattr(media_query, "call_bridge_media_query", refuse)
+    r = c.get(f"{API}/devices/{keys['a']}/browse?type=track")
+    assert (r.status_code, r.json()["code"], r.json()["details"]["error"]) == (429, "rate_limited", "rate_limited")
+
+
+def test_a_user_without_media_browse_gets_403_on_a_bridge_search_and_the_bridge_is_never_asked(d):
+    app, c, fake, bridge, keys, settings, _ = d
+    announce(c, "0.7.0")
+    bind(c, settings, "vera", "viewer", "installation", "*")
+    r = c.get(f"{API}/devices/{keys['a']}/browse?type=track&q=x", headers=as_user("vera"))
+    assert r.status_code == 403 and bridge.requests == []
+
+
+def test_bridge_search_ready_follows_the_announced_version_and_a_downgrade(d):
+    import sqlite3
+
+    from smplwise.services import media_store
+
+    app, c, *_ = d
+
+    def ready() -> bool:
+        with app.state.db.connection(mode="read") as conn:
+            return media_store.bridge_search_ready(conn)
+
+    for version, want in (("0.6.9", False), ("0.7", True), ("0.7.0", True), ("0.10.0", True)):
+        announce(c, version)
+        assert ready() is want, version
+    announce(c, "0.7.0")
+    assert ready() is True
+    announce(c, "0.6.9")
+    assert ready() is False, "a downgrade after a signed ping closes search again"
+    announce(c, "")
+    assert ready() is False, "an empty version fails closed"
+    mem = sqlite3.connect(":memory:")
+    mem.execute("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)")
+    mem.executemany("INSERT INTO settings VALUES (?, ?)", [("bridge.secret", "s"), ("bridge.paired_at", "2026-01-01T00:00:00Z")])
+    assert media_store.bridge_search_ready(mem) is False, "no version row (None)"
+    mem.execute("INSERT INTO settings VALUES ('bridge.integration_version', '0.7.0')")
+    assert media_store.bridge_search_ready(mem) is True
+
+
 # ------------------------------------------------------------------------------------------------ the real HTTP transport against the live fixture's fake MA server
 
 

@@ -243,6 +243,13 @@ def is_media(domain: str, service: str) -> bool:
 QUERY_KINDS = ("queue", "library", "search")
 SEARCH_LIMIT_MAX = 50
 SEARCH_TEXT_MAX = 60
+_NAME_STRIP = re.compile("[\u0080-\u009f\u202a-\u202e\u2066-\u2069\u2028\u2029]")  # C1 controls, bidi embeddings / isolates, line and paragraph separators
+
+
+def clean_name(text: str) -> str:
+    """A search text without the Unicode control / format characters that could reorder or hide what an operator reads (ASCII controls are refused outright)."""
+    return _NAME_STRIP.sub("", text).strip()
+
 LIBRARY_ORDER = ("name", "last_played", "timestamp_added")
 LIBRARY_LIMIT_MAX = 100
 LIBRARY_OFFSET_MAX = 5000
@@ -272,7 +279,7 @@ def query_refusal(query: Any, fields: Mapping[str, Any]) -> str | None:
         return "arguments_invalid"
     if query == "search":  # 0.7.0: a text of 1-60 printable characters, one media type, at most 50 hits; the library of the loaded Music Assistant entry only
         name, limit = fields.get("name"), fields.get("limit", SEARCH_LIMIT_MAX)
-        if not isinstance(name, str) or not name.strip() or len(name) > SEARCH_TEXT_MAX or any(ord(c) < 32 or ord(c) == 127 for c in name):
+        if not isinstance(name, str) or not clean_name(name) or len(name) > SEARCH_TEXT_MAX or any(ord(c) < 32 or ord(c) == 127 for c in name):
             return "arguments_invalid"
         return None if isinstance(limit, int) and not isinstance(limit, bool) and 1 <= limit <= SEARCH_LIMIT_MAX else "arguments_invalid"
     for key, top in (("limit", LIBRARY_LIMIT_MAX), ("offset", LIBRARY_OFFSET_MAX)):

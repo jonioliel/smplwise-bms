@@ -154,7 +154,7 @@ def test_version_manifest_services_yaml_and_mirror_agree():
 # ------------------------------------------------------------------------------------------------ media_query: what may be asked
 
 
-def test_query_refusal_is_a_closed_set_with_no_config_entry_and_no_search():
+def test_query_refusal_is_a_closed_set_for_queue_and_library_with_no_config_entry():
     ok_lib = {"media_type": "playlist", "favorite": True, "limit": 50, "offset": 0, "order_by": "name", "entity_id": "media_player.ma_a"}
     assert policy.query_refusal("queue", {"entity_id": "media_player.ma_a"}) is None and policy.query_refusal("library", ok_lib) is None and policy.query_refusal("library", {"media_type": "radio"}) is None
     assert policy.query_refusal("lookup", {"entity_id": "media_player.ma_a"}) == "query_not_allowed" and policy.query_refusal(None, {}) == "query_not_allowed"
@@ -345,6 +345,17 @@ def test_a_search_calls_music_assistant_search_in_the_library_as_the_callers_use
     (domain, service, data, ctx), = hass.calls
     assert (domain, service, ctx.user_id) == ("music_assistant", "search", "u1")
     assert data == {"config_entry_id": "ma-entry-secret", "name": "נמצא", "media_type": ["track"], "limit": 5, "library_only": True}
+
+
+def test_a_search_text_loses_unicode_control_and_bidi_characters_and_an_only_control_text_is_refused():
+    dirty = "a\u0085b\u009f‮c‪⁦d⁩ e  f"
+    assert policy.clean_name(dirty) == "abcde f" and policy.clean_name("  נמצא ") == "נמצא"
+    assert policy.query_refusal("search", {"media_type": "track", "name": dirty}) is None
+    assert policy.query_refusal("search", {"media_type": "track", "name": "‮⁦ \u0085"}) == "arguments_invalid", "nothing left after stripping"
+    hass = Hass(MA_STATES, responses={"search": {"tracks": []}})
+    assert ask(hass, "search", media_type="track", name=dirty)["ok"] is True
+    (_d, _s, data, _c), = hass.calls
+    assert data["name"] == "abcde f"
 
 
 def test_a_search_without_a_player_asks_music_assistant_and_a_missing_entry_or_a_sonos_player_is_no_library():

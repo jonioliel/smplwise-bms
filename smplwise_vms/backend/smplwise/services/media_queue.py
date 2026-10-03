@@ -28,12 +28,13 @@ EDIT_DEVICE = (2.0, 4.0)  # queue edits: 2 a second per device (a burst of 4: a 
 EDIT_USER = (0.5, 30.0)  # ... and 30 a minute per user (burst 30, refill 1 every 2 s)
 SEARCH_USER = (0.5, 4.0)
 BROWSE_PAGE = 50
+BRIDGE_SEARCH_LIMIT_MAX = 50  # the bridge's own cap on a `search` (media_policy.SEARCH_LIMIT_MAX): a larger limit is refused as arguments_invalid
 BROWSE_TTL_S = 300.0
 SEARCH_TTL_S = 60.0
 QUERY_MAX = 60
 OPS = ("move", "next", "delete", "clear")
 _BROWSE: dict[tuple[str, int], tuple[float, list[dict[str, Any]]]] = {}
-_SEARCH: dict[tuple[str, str], tuple[float, list[dict[str, Any]]]] = {}
+_SEARCH: dict[tuple[str, str, bool, str], tuple[float, list[dict[str, Any]]]] = {}
 
 
 def clear() -> None:
@@ -220,6 +221,16 @@ def edit(conn: sqlite3.Connection, settings: Settings, principal: Principal, req
 # ------------------------------------------------------------------------------------------------ the library: browse (HA) and search (direct)
 
 
+def _bridge_refusal(answer: dict[str, Any], code: str, message: str) -> ApiError:
+    """The add-on's error for a bridge answer `{ok: false, error}`: `rate_limited` -> 429, `unknown_user` -> 403, anything else `code` (503); the bridge's own error name travels in `error`."""
+    err = str(answer.get("error") or "unavailable")[:40]
+    if err == "rate_limited":
+        return _err(429, "rate_limited", "יותר מדי בקשות; נסו שוב.", error=err)
+    if err == "unknown_user":
+        return _err(403, "forbidden", "אין הרשאה לעיין בספרייה.", error=err)
+    return _err(503, code, message, error=err)
+
+
 def _browse_items(conn: sqlite3.Connection, settings: Settings, principal: Principal, entity: str, media_type: str, offset: int) -> list[dict[str, Any]]:
     hit = _BROWSE.get((media_type, offset))
     if hit and media_query.MONO() - hit[0] < BROWSE_TTL_S:
@@ -231,7 +242,7 @@ def _browse_items(conn: sqlite3.Connection, settings: Settings, principal: Princ
             raise
         raise _err(503, "no_library", "ספריית המוזיקה אינה זמינה כרגע.", error=exc.code) from None
     if not answer.get("ok"):
-        raise _err(503, "no_library", "ספריית המוזיקה אינה זמינה כרגע.", error=str(answer.get("error") or "unavailable")[:40])
+        raise _bridge_refusal(answer, "no_library", "ספריית המוזיקה אינה זמינה כרגע.")
     items = media_query.trim_library(answer, "ma", "browse", limit=BROWSE_PAGE)
     _BROWSE[(media_type, offset)] = (media_query.MONO(), items)
     if len(_BROWSE) > 200:
@@ -243,19 +254,20 @@ def _search_via_bridge(conn: sqlite3.Connection, settings: Settings, principal: 
     """MU1: the library search without the direct connection - the signed `media_query` `search` of bridge 0.7.0, asked as the caller (Music Assistant's own
     `search` response service, library only). The answer is trimmed again here; a refusal is `search_unavailable`."""
     try:
-        answer = media_query._ask(conn, settings, principal, "search", entity_id=entity, media_type=media_type, name=q, limit=BROWSE_PAGE)
+        answer = media_query._ask(conn, settings, principal, "search", entity_id=entity, media_type=media_type, name=q, limit=min(BROWSE_PAGE, BRIDGE_SEARCH_LIMIT_MAX))
     except ApiError as exc:
         if exc.code in ("bridge_outdated", "bridge_not_paired", "identity_unmapped", "rate_limited"):
             raise
         raise _err(503, "search_unavailable", "החיפוש אינו זמין כרגע.", error=exc.code) from None
     if not answer.get("ok"):
-        raise _err(503, "search_unavailable", "החיפוש אינו זמין כרגע.", error=str(answer.get("error") or "unavailable")[:40])
+        raise _bridge_refusal(answer, "search_unavailable", "החיפוש אינו זמין כרגע.")
     return media_query.trim_library(answer, "ma", "search", limit=BROWSE_PAGE)
 
 
 def _search_items(conn: sqlite3.Connection, settings: Settings, principal: Principal, entity: str, media_type: str, q: str) -> list[dict[str, Any]]:
     direct = ma.usable(conn)  # the direct connection when it is ready, else the bridge
-    key = (media_type, q.casefold(), direct)
+    # the direct (server-side) answer is the same for everyone; a bridge answer was asked as ONE user (identity, active HA user, rate limit) and is never served to another
+    key = (media_type, q.casefold(), direct, "" if direct else principal.user_id)
     hit = _SEARCH.get(key)
     if hit and media_query.MONO() - hit[0] < SEARCH_TTL_S:
         return hit[1]

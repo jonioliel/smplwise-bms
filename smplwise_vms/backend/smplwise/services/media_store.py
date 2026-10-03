@@ -49,7 +49,8 @@ def enabled(conn: sqlite3.Connection) -> bool:
 def version_tuple(text: str | None) -> tuple[int, ...]:
     import re
 
-    return tuple(int(p) for p in re.findall(r"\d+", text or "")[:3])
+    parts = tuple(int(p) for p in re.findall(r"\d+", text or "")[:3])
+    return parts + (0,) * (3 - len(parts)) if parts else ()  # "0.7" == "0.7.0"; no digits at all stays () (below every version)
 
 
 def bridge_search_ready(conn: sqlite3.Connection) -> bool:

@@ -7,7 +7,7 @@ It exists because the two answers are Home Assistant *response* services of the 
 
 - three queries and nothing else (`queue`, `library`, and from 0.7.0 `search`: a text of 1-60 characters, one media type, at most 50 hits, the Music Assistant library only); the arguments are the closed sets of `media_policy.query_refusal` (a `queue` names ONE media_player;
   a `library` names a media type of the five, `favorite`, `limit` <= 100, `offset`, `order_by` and, optionally, the player whose music layer is asked) -
-  never a config entry id, never a free-form search. The answer is `{ok, request_id, query, provider, result}`: `provider` `ma` for a Music Assistant player,
+  never a config entry id; the only text is the 1-60 character `search` name. The answer is `{ok, request_id, query, provider, result}`: `provider` `ma` for a Music Assistant player,
   `sonos` for a Sonos one (its own queue attributes and favourites - the `source_list`), anything else is `no_library`;
 - the Music Assistant config entry is found HERE (`hass.config_entries`, domain `music_assistant`, the LOADED one) and is never a parameter: a caller can
   neither name another integration's entry nor learn the id (it is not in any answer);
@@ -230,7 +230,7 @@ async def async_handle_media_query(hass: Any, verifier: Any, msg: dict[str, Any]
             if provider == "sonos":
                 return _refuse(msg, "no_library")  # a Sonos player has no library to search
             limit = fields.get("limit", media_policy.SEARCH_LIMIT_MAX)
-            data = {"config_entry_id": ma_entry_id(hass), "name": fields["name"].strip(), "media_type": [fields["media_type"]], "limit": limit, "library_only": True}
+            data = {"config_entry_id": ma_entry_id(hass), "name": media_policy.clean_name(fields["name"]), "media_type": [fields["media_type"]], "limit": limit, "library_only": True}
             response = await asyncio.wait_for(hass.services.async_call(MA_DOMAIN, "search", data, blocking=True, return_response=True, context=context), READ_TIMEOUT_S)
             return _answer(msg, provider, {"items": trim_search(response, fields["media_type"], limit), "limit": limit})
         limit, offset = fields.get("limit", 50), fields.get("offset", 0)
