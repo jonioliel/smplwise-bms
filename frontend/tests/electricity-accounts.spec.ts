@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { EL, noOverflow, open, phone, screen, shot, watchErrors } from './electricity-ui';
+import { EL, noOverflow, open, phone, screen, shot, tap, watchErrors } from './electricity-ui';
 
 // Accounts list and page, customers and billing settings (CR-023; mock layer): table and cards, the account's three tabs, the unreported meter, the
 // consumption chart (full, partial, none), customers (new, edit, delete, errors), prices and VAT, business details (logo, brand colour, payment
@@ -22,7 +22,7 @@ test.describe('accounts list', () => {
     await page.locator('[data-search]').fill('גל-טק');
     await expect(page.locator('[data-account-row]')).toHaveCount(2);
     await page.locator('[data-search]').fill('');
-    await page.locator('[data-account-row="a1"] a').first().click();
+    await page.locator('[data-account-row="a1"]').first().click();
     await screen(page, 'account');
     errs.expectNone();
   });
@@ -127,13 +127,15 @@ test.describe('account page', () => {
     await screen(page, 'account', 'forbidden');
   });
 
-  test('edit mode: the wizard opens with the saved formula and saves the change', async ({ page }) => {
+  test('edit mode: the wizard opens with the saved formula and saves the change', async ({ page }, info) => {
     await open(page, `${EL}/accounts/a1/edit`);
     await screen(page, 'wizard');
     await expect(page.locator('[data-elec="wizard"] h2, [data-elec="wizard"] .h2').first()).toContainText('עריכת חשבון');
-    await page.locator('[data-step-btn="2"]').click();
+    if (phone(info)) await page.locator('[data-next]').click();
+    else await page.locator('[data-step-btn="2"]').click();
     await expect(page.locator('[data-sentence]')).toHaveText('לוח סטודיו + 30% × תאורת לובי');
-    await page.locator('[data-step-btn="6"]').click();
+    if (phone(info)) for (let i = 0; i < 4; i++) await page.locator('[data-next]').click();
+    else await page.locator('[data-step-btn="6"]').click();
     await page.locator('[data-opt="off"]').click();
     await page.locator('[data-save]').click();
     await screen(page, 'account');
@@ -156,7 +158,7 @@ test.describe('customers', () => {
     await shot(page, info, 'customer-card-state');
     await card.locator('#f-phone').fill('050-1111111');
     await card.locator('[data-save]').click();
-    await page.locator('[data-close]').click();
+    await page.keyboard.press('Escape');
     await expect(page.locator('[data-customer-card]')).toHaveCount(0);
     await expect(page.locator('[data-customer-row="c2"]')).toContainText('050-1111111');
     errs.expectNone();
@@ -181,7 +183,7 @@ test.describe('customers', () => {
     await card.locator('#f-customer_number').fill('0005');
     await card.locator('[data-save]').click();
     await expect(page.locator('[data-customer-card] #f-name')).toHaveValue('לקוח חדש');
-    await page.locator('[data-close]').click();
+    await page.keyboard.press('Escape');
     await expect(page.locator('[data-customer-row]')).toHaveCount(5);
   });
 
@@ -238,7 +240,7 @@ test.describe('billing settings', () => {
     await page.locator('[data-vat-from]').fill('2027-01-01');
     await page.locator('[data-dialog="vat"] [data-save]').click();
     await expect(page.locator('[data-vat-rate]')).toContainText('17.5%');
-    await page.locator('[data-default-mode="inc_vat"]').check({ force: true });
+    await tap(page.locator('[data-default-mode="inc_vat"]'));
     await expect(page.locator('[data-default-mode="inc_vat"]')).toBeChecked();
   });
 

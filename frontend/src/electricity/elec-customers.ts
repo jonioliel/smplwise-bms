@@ -154,7 +154,6 @@ export class ElecCustomersPage extends ElecBase {
     const c = this.card;
     return html`<sw-sheet open wide .heading=${c ? 'כרטיס לקוח' : 'לקוח חדש'} data-customer-card @close=${() => this.close()}>
         <div class="col" style="gap:14px">
-        <button type="button" class="sr" data-close @click=${() => this.close()}>סגירה</button>
         ${this.cardSt === 'loading' ? skeleton(4) : this.cardSt === 'error' ? stateBox('error', 'warning', 'לא ניתן לטעון את הלקוח', { label: 'נסה שוב', run: () => void this.loadCard(this.segments[0]) }) : html`
           <div class="form">${this.field('name', 'שם הלקוח', { wide: true })}${this.field('customer_number', 'מספר לקוח', { ltr: true })}${this.field('tax_id', 'ח.פ. / ע.מ. (לא חובה)', { ltr: true, ph: 'לא חובה' })}
             ${this.field('address', 'כתובת למשלוח החיוב', { wide: true })}${this.field('phone', 'טלפון', { ltr: true })}${this.field('email', 'דוא״ל', { ltr: true })}${this.field('notes', 'הערות', { wide: true, ph: 'לא חובה', area: true })}</div>

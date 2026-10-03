@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { EL, noOverflow, open, screen, shot, watchErrors } from './electricity-ui';
+import { EL, noOverflow, open, phone, screen, shot, watchErrors } from './electricity-ui';
 import { wizardTo } from './electricity-wizard-helpers';
 
 // The six-step new-account wizard and its formula editor (CR-023, owner decision 1; mock layer, no backend): the happy path, every error state of
@@ -217,14 +217,19 @@ test.describe('account wizard', () => {
     await page.goto('about:blank');
   });
 
-  test('view-only users cannot open the wizard; the stepper goes back to finished steps', async ({ page }) => {
+  test('view-only users cannot open the wizard; the stepper goes back to finished steps', async ({ page }, info) => {
     await open(page, NEW, { ctl: { persona: 'view' } });
     await screen(page, 'wizard', 'forbidden');
     await open(page, NEW);
     await screen(page, 'wizard');
     await wizardTo(page, 3);
-    await page.locator('[data-step-btn="1"]').click();
+    if (phone(info)) {
+      await page.locator('[data-prev]').click();
+      await page.locator('[data-prev]').click();
+    } else {
+      await page.locator('[data-step-btn="1"]').click();
+      await expect(page.locator('[data-step-btn="4"]')).toBeDisabled();
+    }
     await expect(page.locator('[data-elec="wizard"]')).toHaveAttribute('data-step', '1');
-    await expect(page.locator('[data-step-btn="4"]')).toBeDisabled();
   });
 });

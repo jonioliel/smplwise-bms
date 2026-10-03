@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { EL, noOverflow, open, screen, shot, watchErrors } from './electricity-ui';
+import { EL, noOverflow, open, screen, shot, tap, watchErrors } from './electricity-ui';
 
 // Bills (CR-023 §9-§12; mock layer): the list with the status filter, the A4 preview in every state, the confirmation dialogs (issue, cancel with a
 // mandatory reason, correct, mark sent, mark paid, delete a draft), the PDF failure, generating a bill with the period choice and the overlap error.
@@ -29,7 +29,7 @@ test.describe('bills list', () => {
     await expect(page.locator('[data-elec-state="empty"]')).toBeVisible();
     await shot(page, info, 'bills-filtered-empty');
     await page.locator('[data-search]').fill('גל-טק');
-    await page.locator('[data-bill-row]').first().locator('a.rowlink, a.li').first().click();
+    await page.locator('[data-bill-row]').first().click();
     await screen(page, 'bill');
   });
 });
@@ -212,7 +212,7 @@ test.describe('generate a bill', () => {
     await expect(d.locator('[data-create]')).toBeDisabled();
     await shot(page, info, 'dialog-generate-overlap');
     // the current period up to today is free
-    await d.locator('[data-period="current"]').check({ force: true });
+    await tap(d.locator('[data-period="current"]'));
     await expect(d.locator('.alert.err')).toHaveCount(0);
     await expect(d.locator('[data-create]')).toBeEnabled();
   });
@@ -222,7 +222,7 @@ test.describe('generate a bill', () => {
     await screen(page, 'account');
     await page.locator('[data-create-bill]').click();
     const d = page.locator('[data-bill-create]');
-    await d.locator('[data-period="range"]').check({ force: true });
+    await tap(d.locator('[data-period="range"]'));
     await d.locator('[data-range-from]').fill('2026-10-03');
     await d.locator('[data-range-to]').fill('2026-10-01');
     await expect(d.locator('.alert.err')).toContainText('אחרי תאריך ההתחלה');
@@ -246,7 +246,7 @@ test.describe('generate a bill', () => {
       await screen(page, 'account');
       await page.locator('[data-create-bill]').click();
       const d = page.locator('[data-bill-create]');
-      await d.locator('[data-period="current"]').check({ force: true });
+      await tap(d.locator('[data-period="current"]'));
       await d.locator('[data-create]').click();
       await expect(d.locator('.alert.err')).toContainText(text);
       if (code === 'formula_negative') await shot(page, info, 'dialog-generate-negative');
