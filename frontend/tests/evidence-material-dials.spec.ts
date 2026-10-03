@@ -156,8 +156,12 @@ test.describe('material dials', () => {
     // the rim and the lift are drawn now (non-zero alphas), the glass pill keeps its blur in the full tier at the preset's radius
     const sh = await computedOf(demoPill, 'box-shadow');
     expect(Math.max(...alphas(sh)), sh).toBeGreaterThan(0);
+    expect(await computedOf(demoPill, 'backdrop-filter')).toContain('blur(14px)');
+    // the same through "ההעדפה שלי" (no ?look= override, which would win over the personal dials)
+    await open(page, '/styleguide/bubble', '&scheme=light');
     await page.evaluate(async (url) => (await import(/* @vite-ignore */ url as string)).saveOwnLook({ material: 'frosted', depth: 1, tint: 1, surface: 'glass', performance: 'full' }), LOOK_URL);
     await page.waitForTimeout(200);
+    await expect(page.locator('html')).toHaveAttribute('data-bubble-material', 'frosted');
     expect(await computedOf(demoPill, 'backdrop-filter')).toContain('blur(20px)');
     await page.evaluate(async (url) => (await import(/* @vite-ignore */ url as string)).saveOwnLook({ material: 'paper', depth: 1, tint: 1, surface: 'glass', performance: 'full' }), LOOK_URL);
     await page.waitForTimeout(200);
@@ -183,10 +187,15 @@ test.describe('material dials', () => {
 
   test('neon: the bloom only around a tile with a decorative tone, never a state tone, never in a list; lists take the side stripe; the lite tier never blurs a tile; the chrome keeps its blur', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'the numbers are the same on every width');
-    // the settings preview carries a hue pill (on) and a KPI tile with a state tone, side by side under the same dials
-    await open(page, '/system/diagnostics', '&scheme=light&look=material:neon,depth:1,tint:1,surface:glass,performance:full');
+    // the settings preview carries a hue pill (on) and a KPI tile with a state tone, side by side under the same dials; the dials are
+    // set as "ההעדפה שלי" (the preview follows the personal dials, not a ?look= page override)
+    await open(page, '/system/diagnostics', '&scheme=light');
+    await page.evaluate(async (url) => (await import(/* @vite-ignore */ url as string)).saveOwnLook({ material: 'neon', depth: 1, tint: 1, surface: 'glass', performance: 'full' }), LOOK_URL);
+    await page.waitForTimeout(300);
+    await expect(page.locator('html')).toHaveAttribute('data-bubble-material', 'neon');
     const card = lookCard(page);
     await expect(card).toBeVisible();
+    await expect(card.locator('[data-look-preview]')).toHaveAttribute('data-bubble-material', 'neon');
     const previewPill = card.locator('[data-preview-pill]');
     const previewKpi = card.locator('[data-preview-kpi]');
     const glowPill = lastShadow(await computedOf(previewPill, 'box-shadow'));
@@ -198,8 +207,12 @@ test.describe('material dials', () => {
     expect(Math.max(...alphas(kpiBg)), kpiBg.slice(0, 200)).toBeGreaterThan(0);
     // the area in the list density: no bloom, a 6 px tone stripe on an "on" pill, none on an off one
     await installBubbleMock(page);
-    await open(page, '/devices/areas/living', '&scheme=light&look=material:neon,depth:1,tint:1,surface:glass,density:row,performance:full');
+    await open(page, '/devices/areas/living', '&scheme=light');
+    await page.evaluate(async (url) => (await import(/* @vite-ignore */ url as string)).saveOwnLook({ material: 'neon', depth: 1, tint: 1, surface: 'glass', density: 'row', performance: 'full' }), LOOK_URL);
+    await page.waitForTimeout(300);
+    await expect(page.locator('html')).toHaveAttribute('data-bubble-material', 'neon');
     await expect(pill(page, 'light.living_main')).toBeVisible();
+    await expect(pill(page, 'light.living_main')).toHaveAttribute('data-density', 'row');
     const rowGlow = lastShadow(await computedOf(pill(page, 'light.living_main'), 'box-shadow'));
     expect(Math.max(...alphas(rowGlow)), `list bloom: ${rowGlow}`).toBe(0);
     expect(await computedOf(pill(page, 'light.living_main'), 'border-inline-start-width')).toBe('6px');
