@@ -233,7 +233,7 @@ update fails; slow update; version flips only after "restart".
 |---|---|
 | Unit | version / pattern validation; endpoint allow-list refuses anything else; rate limiter; idempotency; state machine; interval validation |
 | API | permission matrix (system admin yes; every other role 403, including project/area admins); `state` leaks nothing to non-admins; check performs reload then read; stale store case; 403 -> `platform_not_permitted`; double apply -> 409; replay with the same key; audit rows without secrets (assert no token/url/slug text) |
-| Migration | 0050 on a copy of a populated database; idempotent re-run |
+| Migration | 0051 on a copy of a populated database; idempotent re-run |
 | Restart survival | a test that kills the fake mid-request and asserts the run row stays `requested` then resolves after the fake "comes back" with the new version; stuck run -> `abandoned` |
 | Browser (Playwright, fake backend) | marker visible only to the administrator; check button flow; confirmation modal; status screen across a simulated outage; "not permitted" state; Hebrew RTL and mobile width; no forbidden words (the existing no-HA-branding scan) |
 | Live (owner approval needed, not in CI) | one real check with store reload on the lab; the actual update only on a system the owner nominates |
