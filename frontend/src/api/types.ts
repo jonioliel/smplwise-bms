@@ -22,6 +22,8 @@ export interface Me {
   /** NVR-less mode (owner request 2026-09-29): `ha_only` when the add-on options name no NVR host - the shell hides the
    * NVR areas for everyone. Absent on an older backend (= full). */
   mode?: 'full' | 'ha_only';
+  /** NN1: what this installation has (NVR, media server, Home Assistant ...), derived by the server; the shell hides what cannot work. */
+  capabilities?: import('./capabilities').Capabilities;
 }
 
 export interface Site {

@@ -6,6 +6,7 @@ import '../components/sw-badge';
 import { describeError } from '../api/client';
 import { cameraSources, disableHaLive, enableHaLive, sameSource, type CameraSource, type CameraSources, type PickerHaCamera } from '../api/camera-card';
 import { bidi } from '../i18n/bidi';
+import { cap } from '../api/session';
 
 /** `camera-picked`: the user chose a camera. `detail.name` is the camera's own name (a title for the card, if it has none). */
 export interface CameraPickedDetail {
@@ -209,9 +210,10 @@ export class DevicesCameraPicker extends LitElement {
     const d = this.data;
     if (!d) return html`<sw-state-panel compact data-camera-picker-state="loading" state="loading"></sw-state-panel>`;
     const stills = d.ha_cameras.filter((h) => h.mode === 'still_only');
-    const total = d.recorders.reduce((n, r) => n + r.cameras.length, 0) + stills.length;
+    const recorders = cap('nvr') ? d.recorders : []; // NN1 D5: leftover camera rows of a removed NVR are not offered
+    const total = recorders.reduce((n, r) => n + r.cameras.length, 0) + stills.length;
     if (!total) return html`<sw-state-panel compact data-camera-picker-state="empty" state="empty" heading="אין מצלמות זמינות לך" hint="מצלמות מופיעות כאן לפי ההרשאות שלך."></sw-state-panel>`;
-    const groups = d.recorders.map((r) => ({ r, cams: r.cameras.filter((c) => this.match(`${c.name} ${c.channel}`)) })).filter((g) => g.cams.length);
+    const groups = recorders.map((r) => ({ r, cams: r.cameras.filter((c) => this.match(`${c.name} ${c.channel}`)) })).filter((g) => g.cams.length);
     const more = stills.filter((h) => this.match(`${h.name} ${h.area_name ?? ''}`));
     return html`
       ${total > FILTER_FROM ? html`<input class="find" type="search" data-camera-find placeholder="חיפוש מצלמה" aria-label="חיפוש מצלמה" .value=${this.filter} @input=${(e: Event) => (this.filter = (e.target as HTMLInputElement).value)} />` : nothing}
@@ -236,7 +238,7 @@ export class DevicesCameraPicker extends LitElement {
             <div role="listbox" aria-label="מצלמות נוספות">
               ${more.map((h) => {
                 const source: CameraSource = { kind: 'ha', entity_id: h.entity_id };
-                const canToggle = !!d.ha_live?.ready && !!d.ha_live.can_configure;
+                const canToggle = cap('ha_cameras_live') && !!d.ha_live?.ready && !!d.ha_live.can_configure;
                 return html`<div class="row">
                   <button type="button" class="opt" role="option" data-camera-option=${`ha:${h.entity_id}`} aria-selected=${String(sameSource(this.value, source))} @click=${() => this.pick(source, h.name)}>
                     <sw-icon name=${h.live_enabled ? 'camera' : 'image'} size=${14}></sw-icon>

@@ -6,7 +6,8 @@ import '../components/sw-button';
 import '../components/sw-field';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
-import { can, isApi, nvrLess } from '../api/session';
+import { can, installationSupported, isApi, nvrLess } from '../api/session';
+import { UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
 import { ApiError, get, describeError } from '../api/client';
 import { clearIntercomCredentials, getIntercomCredentials, setIntercomCredentials, type IntercomCredentialsList, type IntercomStationCredentials } from '../api/intercom';
 import { listCameras } from '../api/maps';
@@ -487,9 +488,10 @@ export class SystemSetup extends LitElement {
               ${this.renderSystemCard()}
               ${this.renderConnectionCard()}`}
               <div class="grouplabel">שירותים ותשתית נוספים</div>
-              <sw-card heading="go2rtc (relay לווידאו)" subheading=${h.go2rtc_configured ? 'מוגדר' : h.mode === 'ha_only' ? 'לא מוגדר - רשות במצב ללא NVR' : 'לא מוגדר'}>
+              <sw-card heading="go2rtc (relay לווידאו)" subheading=${h.go2rtc_configured ? 'מוגדר' : h.mode === 'ha_only' ? 'לא מוגדר - רשות במצב ללא NVR' : !installationSupported() ? 'לא מוגדר - נדרש כשיש NVR' : 'לא מוגדר'}>
                 ${this.row('מוגדר ב־Add-on options', h.go2rtc_configured ? 'כן' : 'לא', h.go2rtc_configured ? 'ok' : h.mode === 'ha_only' ? '' : 'err')}
                 ${!h.go2rtc_configured && h.mode === 'ha_only' ? html`<div class="hint" data-go2rtc-optional>במצב ללא NVR go2rtc נדרש רק לווידאו של עמדות WisKey.</div>` : nothing}
+                ${!installationSupported() ? html`<div class="hint" data-go2rtc-required>${UNSUPPORTED_NVR_WITHOUT_GO2RTC}</div>` : nothing}
                 ${this.row('סנכרון זרמים אחרון תקין', when(h.discovery.streams_last_ok), h.discovery.streams_last_error ? 'warn' : 'ok')}
                 ${h.discovery.streams_last_error ? this.row('שגיאת סנכרון זרמים', h.discovery.streams_last_error, 'err') : nothing}
                 ${this.check('go2rtc') ? this.row('בדיקת בריאות', this.check('go2rtc')!.detail, this.check('go2rtc')!.status === 'ok' ? 'ok' : this.check('go2rtc')!.status === 'warn' ? 'warn' : 'err') : html`<div class="hint">פרטי הזרמים והגרסה מוצגים ב"הגדרות › כללי › בריאות ועבודות" (דורש הרשאת ניהול).</div>`}

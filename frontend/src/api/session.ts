@@ -4,6 +4,7 @@
  * skeleton screens keep working without a server.
  */
 import { ApiError, apiUrl, get } from './client';
+import { ALL_CAPABILITIES, resolveCapabilities, type Capabilities, type CapabilityName } from './capabilities';
 import type { Me } from './types';
 
 export type SessionMode = 'loading' | 'api' | 'demo' | 'unauthenticated' | 'no_access';
@@ -12,13 +13,15 @@ export interface Session {
   mode: SessionMode;
   me: Me | null;
   error: string | null;
+  /** NN1: what the installation has (derived from `me`; everything on without a backend). */
+  capabilities: Capabilities;
 }
 
 const listeners = new Set<(s: Session) => void>();
-export let session: Session = { mode: 'loading', me: null, error: null };
+export let session: Session = { mode: 'loading', me: null, error: null, capabilities: ALL_CAPABILITIES };
 
-function set(next: Session) {
-  session = next;
+function set(next: Omit<Session, 'capabilities'>) {
+  session = { ...next, capabilities: resolveCapabilities(next.me) };
   listeners.forEach((fn) => fn(session));
 }
 
@@ -121,7 +124,12 @@ export function canReadNvrConfig(): boolean {
 
 export const isApi = () => session.mode === 'api';
 
-/** NVR-less mode: the backend runs with Home Assistant only (no `nvr_host` in the add-on options). The NVR areas (live,
- * cameras, events, recordings, cases, exports) are hidden from the navigation and their URLs show a notice; the server
- * refuses their device routes with 409 nvr_not_configured, so hiding is never the protection. */
-export const nvrLess = () => session.mode === 'api' && session.me?.mode === 'ha_only';
+/** NN1: does this installation have the capability (always true without a backend)? The shell hides what cannot work;
+ * the server still refuses the routes (409 nvr_not_configured / capability_unavailable), so hiding is never the protection. */
+export const cap = (name: CapabilityName): boolean => session.mode !== 'api' || session.capabilities[name];
+
+/** No NVR in this installation: its areas (live, cameras, events, recordings, cases, exports) are hidden and their URLs show a notice. */
+export const nvrLess = () => !cap('nvr');
+
+/** false for a recorder installation without its media server (never "ready", D2). Always true without a backend. */
+export const installationSupported = (): boolean => session.mode !== 'api' || session.capabilities.supported;

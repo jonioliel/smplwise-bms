@@ -10,7 +10,8 @@ import {
   type CenterLayout, type Channel, type Delivery, type EmailSecurity, type EscalationSettings, type FailuresAudience, type LockscreenLevel, type NotifyPolicy,
   type NotifySettings, type NotifyStats, type RetentionDays, type Severity, type Weekday,
 } from '../api/notifications';
-import { can, isApi } from '../api/session';
+import { can, cap, isApi } from '../api/session';
+import { needsNvrSource } from '../api/capabilities';
 import { productSettings } from '../api/prefs';
 import { listSubscriptions } from '../pwa/push';
 import { mediaGlassStyles } from '../styles/media-glass';
@@ -1156,8 +1157,10 @@ export class SystemNotifications extends LitElement {
   }
 
   private renderSources() {
-    const groups = matrixGroups(this.policies, SOURCE_CATALOG);
-    const total = this.policies.length;
+    // NN1: the recorder's own sources (recorder offline, recorder storage, camera lost) are not offered without an NVR
+    const shown = cap('nvr') ? this.policies : this.policies.filter((p) => !needsNvrSource(p.source));
+    const groups = matrixGroups(shown, SOURCE_CATALOG);
+    const total = shown.length;
     const ruleOnly = (src: string) => src === 'rule.alert' || SOURCE_CATALOG.find((s) => s.key === src)?.rulesOnly === true;
     const s = this.settings as NotifySettings;
     let body: TemplateResult;
