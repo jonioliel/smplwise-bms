@@ -1,7 +1,7 @@
 -- CR-021 (docs/changes/CR-021-SELF-UPDATE.md section 7), slice S1: the self-update feature.
 -- S1 only reads: the check results live in the existing `settings` key/value table (update.interval_hours, update.checked_at,
 -- update.check_result, update.latest, update.permitted); no row is written here. The run table below is created now so that S3
--- (apply and platform restart) needs no second migration. Number 0050: 0049 is the last on integ/0153; Database.migrate() applies gaps.
+-- (apply and platform restart) needs no second migration. Number 0051: 0050 is reserved for CR-020 S1 (recorder_adapters); Database.migrate() applies gaps.
 
 CREATE TABLE IF NOT EXISTS update_runs (
   id               TEXT PRIMARY KEY,

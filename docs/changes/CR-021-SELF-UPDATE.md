@@ -207,7 +207,7 @@ All under `/api/system/update`, JSON, system-level (installation) scope. Permiss
 
 ## 7. Data model and migration
 
-Migration `0050_self_update.sql` (next after `0049_switch_protection`):
+Migration `0051_self_update.sql` (next free number: 0050 is reserved for CR-020 S1 `0050_recorder_adapters`; 0049 is the last on g0/intake; `Database.migrate()` applies gaps):
 
 - `update_runs(id TEXT PK, created_at, finished_at, actor_user_id, from_version, to_version, backup INTEGER, restart_platform INTEGER, state, step, error_code, idempotency_key UNIQUE, backup_ref)`.
 - `settings` rows (existing key/value table, no new table): `update.interval_hours` (default 6), `update.checked_at`, `update.check_result`, `update.latest`, `update.permitted` (`unknown|yes|no`).
@@ -242,7 +242,7 @@ update fails; slow update; version flips only after "restart".
 
 | Slice | Content | Estimate |
 |---|---|---|
-| S1 | Migration 0050, permission `system.update`, `services/self_update.py` (read + check with store reload, settings, scheduled tick with interval), `GET state`, `POST check`, `PUT settings`, fake infrastructure fixture, unit + API tests; confirm the v1 / v2 path forms and the changelog endpoint on the lab (read-only) | 1 day |
+| S1 | Migration 0051, permission `system.update`, `services/self_update.py` (read + check with store reload, settings, scheduled tick with interval), `GET state`, `POST check`, `PUT settings`, fake infrastructure fixture, unit + API tests; confirm the v1 / v2 path forms and the changelog endpoint on the lab (read-only) | 1 day |
 | S2 | UI: user-menu marker, Settings > Updates page (versions, last check, button, interval), "not permitted" state, release notes view, Hebrew strings, Playwright | 1 day |
 | S3 | `apply` + `restart-platform`, run state machine, backup option, startup hook, status route, confirmation modal and status screen surviving the restart, threat-model tests, audit | 1.5 days |
 | S4 | Release-notes feed and `[platform-restart]` flag in CHANGELOG convention, docs (user guide, add-on README paragraph for the role), live check on the lab with the owner, release | 0.5 day |

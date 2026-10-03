@@ -308,13 +308,13 @@ def test_audit_rows_carry_no_token_address_or_slug(world, sup):
     assert sup.auth_ok, "every request to the infrastructure carried the add-on token"
 
 
-# ---------------------------------------------------------------- migration 0050
+# ---------------------------------------------------------------- migration 0051
 
-def test_migration_0050_creates_the_run_table_and_is_idempotent(settings):
+def test_migration_0051_creates_the_run_table_and_is_idempotent(settings):
     database = dbmod.Database(settings.db_path)
     applied = database.migrate()
     assert 50 in applied
-    sql = (dbmod.MIGRATIONS_DIR / "0050_self_update.sql").read_text(encoding="utf-8")
+    sql = (dbmod.MIGRATIONS_DIR / "0051_self_update.sql").read_text(encoding="utf-8")
     with database.connection() as conn:
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(update_runs)")}
         assert cols == {"id", "created_at", "finished_at", "actor_user_id", "from_version", "to_version", "backup", "restart_platform", "state", "step", "error_code", "idempotency_key", "backup_ref"}
