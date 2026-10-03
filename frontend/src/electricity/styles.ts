@@ -9,6 +9,11 @@ export const electricityCss = css`
   :host {
     --elec-touch: var(--sw-touch-desktop, 44px);
   }
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
   .num {
     font-variant-numeric: tabular-nums;
     direction: ltr;
