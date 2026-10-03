@@ -168,11 +168,11 @@ test.describe('material dials', () => {
     const capN = parseInt(cap, 10);
     expect(capN).toBeGreaterThanOrEqual(14);
     expect(capN).toBeLessThanOrEqual(62);
-    const computedCap = await page.evaluate(async () => {
-      const c = await import(/* @vite-ignore */ '/src/design/contrast.ts');
+    const computedCap = await page.evaluate(async (url) => {
+      const c = await import(/* @vite-ignore */ url as string);
       const v = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-      return c.washCap(c.washModelOf(v));
-    });
+      return c.washCap(c.washModelOf(v)) as number;
+    }, '/src/design/contrast.ts');
     expect(capN).toBe(computedCap);
     // dark scheme: a cap of its own
     await open(page, '/styleguide/bubble', '&scheme=dark&look=material:frosted,depth:1,tint:1');
