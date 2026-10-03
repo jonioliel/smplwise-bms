@@ -17,6 +17,8 @@ import { snapshotUrl } from '../api/media';
 import { navigate } from '../router';
 import { describeError } from '../api/client';
 import type { Camera } from '../api/types';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 interface RecentSet {
   cameras: string[];
@@ -34,6 +36,8 @@ function localInput(d: Date): string {
 /** SC13 — command center / synchronized playback (board 2 screen 14, Beta): 2×2 pictures, one transport row, one timeline, per-source truth. */
 @customElement('investigate-sync')
 export class InvestigateSync extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private cursor = 615;
   @state() private playing = false;
   @state() private cams: Camera[] | null = null;
@@ -129,7 +133,7 @@ export class InvestigateSync extends LitElement {
     `;
   }
 
-  static styles = css`
+  static styles = [css`
     .grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -214,7 +218,7 @@ export class InvestigateSync extends LitElement {
         grid-template-columns: 1fr;
       }
     }
-  `;
+  `, bubbleChrome];
 
   render() {
     if (isApi()) return this.renderApi();

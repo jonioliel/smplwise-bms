@@ -14,6 +14,8 @@ import { isApi } from '../api/session';
 import { describeError } from '../api/client';
 import { navigate } from '../router';
 import { OBJECT_LABEL, searchProviders, semanticSearch, type ProvidersResponse, type SemanticResponse } from '../api/search';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const RESULTS = [
   { scene: 'entrance', when: '14.09.2026 10:14', cam: 'כניסה ראשית', why: 'NVR: זיהוי אדם (Smart)' },
@@ -27,6 +29,8 @@ const RESULTS = [
 /** SC19 — AI search (board 2 screen 9, Beta): search-by pills, "search by person" card, similar matches grid. Metadata filters first; AI only with a real index. */
 @customElement('investigate-search')
 export class InvestigateSearch extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private by = 'person';
   // ---- real mode (T063) ----
   @state() private q = '';
@@ -115,7 +119,7 @@ export class InvestigateSearch extends LitElement {
     `;
   }
 
-  static styles = css`
+  static styles = [css`
     .chips {
       display: flex;
       flex-wrap: wrap;
@@ -250,7 +254,7 @@ export class InvestigateSearch extends LitElement {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
-  `;
+  `, bubbleChrome];
 
   render() {
     if (isApi()) return this.renderApi();

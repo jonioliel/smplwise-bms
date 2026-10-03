@@ -11,6 +11,8 @@ import { lookOf } from '../design/look';
 import {
   MAX_CUSTOM, allPalettes, autoFixPalette, customPalettes, effectiveScheme, isCustomId, onPalettes, paletteById, paletteTokens, recommendedColors, setCustomPalettes, validatePalette, type Palette, type Scheme,
 } from '../design/palette';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const newCustomId = (): string => `custom-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
 
@@ -50,6 +52,8 @@ const getPath = (o: unknown, path: string): string => path.split('.').reduce<unk
  */
 @customElement('system-palette-editor')
 export class SystemPaletteEditor extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @property({ type: Boolean }) canEdit = false;
   @state() private draft: Palette | null = null;
   @state() private scheme: Scheme = 'light';
@@ -59,7 +63,7 @@ export class SystemPaletteEditor extends LitElement {
   @state() private confirmDelete = '';
   private stop?: () => void;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
     }
@@ -256,7 +260,7 @@ export class SystemPaletteEditor extends LitElement {
     .pv-states b {
       font-weight: var(--sw-fw-semibold);
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

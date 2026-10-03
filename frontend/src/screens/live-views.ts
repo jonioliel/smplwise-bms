@@ -18,6 +18,8 @@ import { snapshotUrl } from '../api/media';
 import { describeError } from '../api/client';
 import { createView, deleteView, kioskHref, listViews, updateView, wallHref, type SavedView, type ViewBody } from '../api/views';
 import type { Camera } from '../api/types';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const EMPTY: ViewBody = { name: '', cameras: [], cols: 2, rows: 2, shared: false, kiosk: false };
 
@@ -31,6 +33,8 @@ const VIEWS = [
 /** SC09 — saved views manager (legacy layout manager; templates 1/2/4/6/9/12/16/custom). */
 @customElement('live-views')
 export class LiveViews extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private views: SavedView[] | null = null;
   @state() private cams: Camera[] = [];
   @state() private canShare = false;
@@ -186,7 +190,7 @@ export class LiveViews extends LitElement {
     `;
   }
 
-  static styles = css`
+  static styles = [css`
     .thumb img {
       inline-size: 100%;
       block-size: 100%;
@@ -295,7 +299,7 @@ export class LiveViews extends LitElement {
       margin-block-start: 10px;
       align-items: center;
     }
-  `;
+  `, bubbleChrome];
 
   render() {
     if (isApi()) return this.renderApi();

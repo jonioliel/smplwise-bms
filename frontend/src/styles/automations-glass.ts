@@ -180,4 +180,20 @@ export const automationsControls = css`
 `;
 
 /** The style set every component of the area starts with: the device theme layer, the media knobs, the shared controls, and this file. */
-export const automationsStyles = [mediaGlassStyles, automationsControls];
+/** 0.1.157: in the bubble skin the automation / scene / script cards take the skin's large radius (the knobs already flatten them:
+ * no sheen, no blur, no hairline through mediaBubbleKnobs); the banner and block rows follow the medium radius. Keyed on the
+ * host's `data-skin` (applyAutomationsGlass mirrors it; the card has its own SkinController). */
+export const automationsBubble = css`
+  :host([data-skin='bubble']) .acard,
+  :host([data-skin='bubble']) .scard,
+  :host([data-skin='bubble']) .pcard {
+    border-radius: var(--sw-r-lg);
+  }
+  :host([data-skin='bubble']) .blk,
+  :host([data-skin='bubble']) .banner,
+  :host([data-skin='bubble']) .sentence {
+    border-radius: var(--sw-r-md);
+  }
+`;
+
+export const automationsStyles = [mediaGlassStyles, automationsControls, automationsBubble];

@@ -14,6 +14,8 @@ import { productSettings } from '../api/prefs';
 import { fmtMb, getStorage, getStorageLocal, resumeExports, type StorageLocal, type StorageReport } from '../api/storage';
 import { getSigning, rotateSigning, type SigningInfo } from '../api/cases';
 import { formatBytes } from '../api/exports';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const PER_CAMERA = [
   { name: 'כניסה ראשית', gb: 320 },
@@ -26,13 +28,15 @@ const PER_CAMERA = [
 /** SC20 — storage analytics (board 2 screen 11, Beta): range pills, three stat cards, usage forecast with a "projected full" marker, per-camera bars, recording policy. */
 @customElement('system-storage')
 export class SystemStorage extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private range = '30D';
   @state() private data: StorageReport | null = null;
   @state() private error = '';
   @state() private loading = false;
   @state() private tz = 'Asia/Jerusalem';
 
-  static styles = css`
+  static styles = [css`
     .kpis {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -218,7 +222,7 @@ export class SystemStorage extends LitElement {
         grid-template-columns: 1fr;
       }
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

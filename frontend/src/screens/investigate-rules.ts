@@ -23,6 +23,8 @@ import '../components/sw-icon';
 import type { IconName } from '../components/sw-icon';
 import { demoRules } from '../fixtures/catalog';
 import { navigate } from '../router';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const RULE_ICON: Record<string, { icon: IconName; bg: string; fg: string }> = {
   'r-1': { icon: 'user', bg: '#eaf0ff', fg: '#2f6bff' },
@@ -42,6 +44,8 @@ const RULE_TEMPLATES: { id: string; label: string; body: Partial<RuleBody> }[] =
 
 @customElement('investigate-rules')
 export class InvestigateRules extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   /** CR-013: the user menu's "התראות" opens this screen on its alerts (`?tab=alerts`). */
   @property() initialTab = '';
   @state() private tab = 'rules';
@@ -281,7 +285,7 @@ export class InvestigateRules extends LitElement {
     `;
   }
 
-  static styles = css`
+  static styles = [css`
     .list {
       display: flex;
       flex-direction: column;
@@ -388,7 +392,7 @@ export class InvestigateRules extends LitElement {
         grid-template-columns: 1fr;
       }
     }
-  `;
+  `, bubbleChrome];
 
   render() {
     if (isApi()) return this.renderApi();
@@ -419,9 +423,11 @@ export class InvestigateRules extends LitElement {
 /** SC22 — rule editor with dry run and loop prevention. */
 @customElement('investigate-rule-editor')
 export class InvestigateRuleEditor extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @property() ruleId = 'r-1';
 
-  static styles = css`
+  static styles = [css`
     .layout {
       display: grid;
       grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
@@ -452,7 +458,7 @@ export class InvestigateRuleEditor extends LitElement {
         grid-template-columns: 1fr;
       }
     }
-  `;
+  `, bubbleChrome];
 
   render() {
     const r = demoRules.find((x) => x.id === this.ruleId) ?? { name: 'חוק חדש', trigger: 'זיהוי אדם', scope: 'חוץ', action: 'התראה' };

@@ -13,6 +13,8 @@ import { getSettings, patchSettings, type TabsConfig, type TabStyle, type TabSty
 import { invalidateSettings } from '../api/prefs';
 import { can, isApi } from '../api/session';
 import { LOCKED_TABS, TAB_SECTIONS, TAB_STYLE_DEFAULTS, applyTabsConfig, normalizeTabStyles, normalizeTabsConfig, type TabSectionDef } from '../shell/nav';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 /** The names of the bar styles (הגדרות › לשוניות › סגנון סרגל). */
 const STYLE_LABEL: Record<TabStyle, string> = { pill: 'כמוסבה', underline: 'פס תחתון', 'underline-compact': 'פס תחתון קומפקטי' };
@@ -33,6 +35,8 @@ const SAMPLE = [{ id: 'a', label: 'ראשון' }, { id: 'b', label: 'שני' }, 
  */
 @customElement('system-tabs-config')
 export class SystemTabsConfig extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private saved: TabsConfig = {};
   @state() private draft: TabsConfig = {};
   /** The bar style defaults per hierarchy level (`ui.tabs.styles`), as saved and as edited. */
@@ -46,7 +50,7 @@ export class SystemTabsConfig extends LitElement {
   @state() private announce = '';
   @state() private dragging: { section: string; id: string } | null = null;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
     }
@@ -238,7 +242,7 @@ export class SystemTabsConfig extends LitElement {
       align-items: center;
       flex-wrap: wrap;
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

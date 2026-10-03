@@ -33,6 +33,8 @@ import {
   type ScheduleSettings,
   type ScheduleStatus,
 } from '../api/schedules';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 /** The technical name of each class as the settings page shows it (a settings screen keeps the exact names). */
 const CLASS_DOMAIN: Record<ScheduleClass, string> = {
@@ -92,6 +94,8 @@ const ROLE_ROWS: { role: string; view: boolean; manage: boolean; sensitive: bool
  */
 @customElement('system-schedules')
 export class SystemSchedules extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private status: ScheduleStatus | null = null;
   @state() private saved: ScheduleSettings = { ...SCHEDULE_SETTINGS_DEFAULT };
   @state() private draft: ScheduleSettings = { ...SCHEDULE_SETTINGS_DEFAULT };
@@ -104,7 +108,7 @@ export class SystemSchedules extends LitElement {
   @state() private loaded = false;
   private noteTimer = 0;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
     }
@@ -269,7 +273,7 @@ export class SystemSchedules extends LitElement {
         grid-template-columns: 1fr;
       }
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

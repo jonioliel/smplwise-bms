@@ -74,6 +74,8 @@ import {
   scheduleErrorText,
 } from './schedules-logic';
 import { toneColor } from '../components/sw-schedule-bar';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const VIEW_KEY = 'sw.schedules.view';
 const FILTERS_KEY = 'sw.schedules.filters';
@@ -125,6 +127,8 @@ function writeStored(key: string, value: unknown) {
  */
 @customElement('devices-schedules')
 export class DevicesSchedules extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   /** 0.1.154: the segments of "קברניט" this user is offered (set by the shell). This screen is the first segment; the strip leads to the others. */
   @property({ attribute: false }) kavarnit: KavarnitSegments = { schedules: true, automations: true };
   /** The kinds of the automations screen this user may open and their counts (null = not loaded / not offered). */
@@ -156,7 +160,7 @@ export class DevicesSchedules extends LitElement {
   private urlTimer = 0;
   private noteTimer = 0;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
     }
@@ -864,7 +868,7 @@ export class DevicesSchedules extends LitElement {
         inset-block-end: calc(var(--sw-bottomnav-h, 50px) + 8px);
       }
     }
-  `;
+  `, bubbleChrome];
 
   // ---------------------------------------------------------------------------- lifecycle
 

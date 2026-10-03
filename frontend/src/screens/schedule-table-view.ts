@@ -12,6 +12,8 @@ import {
   type MetaMap,
 } from './schedule-edit-logic';
 import { applyTableEdit, tableRows, timeInputText, type TableField } from './schedule-grid-logic';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 /**
  * CR-014 S4: the table view of the same scheme (mockup 07 / 23): one row per slot, "from" and "to" typed inline (07:30,
@@ -29,6 +31,8 @@ const ADVANCED = new Set(['cover.stop_cover', 'cover.set_cover_tilt_position', '
 
 @customElement('schedule-table-view')
 export class ScheduleTableView extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @property({ attribute: false }) slots: EditSlot[] = [];
   @property({ attribute: false }) meta: MetaMap = new Map();
   @property({ attribute: false }) sun: SunTimes | null = null;
@@ -45,7 +49,7 @@ export class ScheduleTableView extends LitElement {
   @property({ attribute: false }) pairOf: (index: number) => number | null = () => null;
   @state() private cellError: { uid: string; field: TableField; message: string } | null = null;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
     }
@@ -211,7 +215,7 @@ export class ScheduleTableView extends LitElement {
         inline-size: 100%;
       }
     }
-  `;
+  `, bubbleChrome];
 
   private fire(name: string, detail?: unknown) {
     this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));

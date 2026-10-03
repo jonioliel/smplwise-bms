@@ -9,6 +9,8 @@ import { openArchitectRequest } from '../components/architect-request-dialog';
 import { isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { demoSetupState, setupCheck, setupState, STATUS_TEXT, type SetupState, type SetupStep, type StepId } from '../api/setup';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 /** Tells the shell's "השלם את ההתקנה" hint what the wizard just learned, so it does not wait for its own next read. */
 export function announceSetup(s: SetupState) {
@@ -39,6 +41,8 @@ function when(iso: string | null | undefined): string {
  * Device checks are read-only (GET /setup/state never probes; POST /setup/check/{step} does, rate-limited). */
 @customElement('system-wizard')
 export class SystemWizard extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private data: SetupState | null = null;
   @state() private error = '';
   @state() private busy = new Set<StepId>();
@@ -216,7 +220,7 @@ export class SystemWizard extends LitElement {
     </sw-page>`;
   }
 
-  static styles = css`
+  static styles = [css`
     .wrap {
       display: flex;
       flex-direction: column;
@@ -592,7 +596,7 @@ export class SystemWizard extends LitElement {
         margin-inline-start: auto;
       }
     }
-  `;
+  `, bubbleChrome];
 }
 
 declare global {

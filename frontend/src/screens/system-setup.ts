@@ -13,6 +13,8 @@ import { listCameras } from '../api/maps';
 import { healthReport, type HealthReport } from '../api/health';
 import { listNvrChanges, notifyStatus, nvrConnection, nvrSystem, pulseNvrOutput, rebootNvr, rollbackNvrChange, setNotify, setNvrConnection, setNvrNtp, setNvrTime, startSmartTest, type NotifyStatus, type NvrChange, type NvrConnection, type NvrSystem } from '../api/nvr';
 import '../components/sw-dialog';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 /** GET /api/v1/health — the add-on's own connection facts (no device probe, every signed-in user). */
 interface RawHealth {
@@ -56,6 +58,8 @@ function when(iso: string | null | undefined): string {
  * (SC26) is system-wizard.ts since T071. */
 @customElement('system-setup')
 export class SystemSetup extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private raw: RawHealth | null = null;
   @state() private report: HealthReport | null = null;
   @state() private recorder: { model: string | null; firmware: string | null; name: string; last_seen_at: string | null } | null = null;
@@ -523,7 +527,7 @@ export class SystemSetup extends LitElement {
     `;
   }
 
-  static styles = css`
+  static styles = [css`
     .matrix {
       inline-size: 100%;
       border-collapse: collapse;
@@ -646,7 +650,7 @@ export class SystemSetup extends LitElement {
         grid-template-columns: 1fr;
       }
     }
-  `;
+  `, bubbleChrome];
 
   render() {
     if (isApi()) return this.renderApi();

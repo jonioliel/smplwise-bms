@@ -11,6 +11,8 @@ import {
   DEFAULT_MOBILE_OPTIONS, MOBILE_OPTION_LABEL, mobileOptions, normalizeMobileOptions, onMobileOptions, setInstallationMobileOptions,
   type MobileKind, type MobileOptions,
 } from '../shell/phone';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 /** The options in the order the settings card lists them (the structure guard first: it is on by default). */
 const KINDS: readonly MobileKind[] = ['structure', 'control_images', 'layout_editor', 'wall_arrange', 'settings_writes', 'permissions'];
@@ -23,6 +25,8 @@ const KINDS: readonly MobileKind[] = ['structure', 'control_images', 'layout_edi
  */
 @customElement('system-mobile-options')
 export class SystemMobileOptions extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private draft: MobileOptions = { ...mobileOptions() };
   @state() private canEdit = false;
   @state() private busy = false;
@@ -30,7 +34,7 @@ export class SystemMobileOptions extends LitElement {
   @state() private error = '';
   private stop?: () => void;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
     }
@@ -63,7 +67,7 @@ export class SystemMobileOptions extends LitElement {
       color: var(--sw-danger);
       font-size: var(--sw-fs-sm);
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

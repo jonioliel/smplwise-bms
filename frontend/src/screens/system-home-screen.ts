@@ -7,6 +7,8 @@ import { getSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
 import { DIRECTION_DEFAULT, DIRECTION_LABEL, DIRECTION_LETTER, DIRECTIONS, homeSettingsOf, SIDE_LABEL, SIDES, type Direction, type Side } from '../api/home';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 /** A schematic of each direction (the mockup's three layouts): the widgets in the accent colour, the summary tiles, the floors. */
 function thumb(d: Direction, side: Side): TemplateResult {
@@ -35,6 +37,8 @@ function thumb(d: Direction, side: Side): TemplateResult {
  */
 @customElement('system-home-screen')
 export class SystemHomeScreen extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private direction: Direction = DIRECTION_DEFAULT;
   @state() private side: Side = 'end';
   @state() private canEdit = false;
@@ -42,7 +46,7 @@ export class SystemHomeScreen extends LitElement {
   @state() private message = '';
   @state() private error = '';
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
     }
@@ -148,7 +152,7 @@ export class SystemHomeScreen extends LitElement {
       color: var(--sw-text-3);
       font-size: var(--sw-fs-sm);
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

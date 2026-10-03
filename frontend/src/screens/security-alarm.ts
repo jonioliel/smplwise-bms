@@ -26,6 +26,8 @@ import { noteAlarmPanels } from '../api/alarm-presence';
 import { isApi, onSession } from '../api/session';
 import { navigate, parseRoute } from '../router';
 import { DEMO_ALARM } from '../fixtures/alarm-demo';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 type Filter = 'all' | 'open' | 'bypassed' | 'faults';
 
@@ -65,6 +67,8 @@ function when(iso: string | null): string {
  */
 @customElement('security-alarm')
 export class SecurityAlarm extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @property() panelId = '';
   @state() private data: AlarmPanels | null = null;
   @state() private error = '';
@@ -86,7 +90,7 @@ export class SecurityAlarm extends LitElement {
   private toastTimer = 0;
   private watched = new Set<string>();
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
       --al-ok: var(--sw-success, #22c55e);
@@ -517,7 +521,7 @@ export class SecurityAlarm extends LitElement {
         grid-template-columns: minmax(0, 1fr);
       }
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

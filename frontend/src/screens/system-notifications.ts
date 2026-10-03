@@ -22,6 +22,8 @@ import {
   type MatrixGroup,
 } from '../components/notify-logic';
 import { applyNotifyGlass, notifyStore } from '../components/notify-store';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 type SecId = 'sources' | 'quiet' | 'esc' | 'lock' | 'keep' | 'mail' | 'chan' | 'log';
 const SECTIONS: { id: SecId; label: string; icon: string }[] = [
@@ -57,6 +59,8 @@ const mailDraftOf = (s: NotifySettings): MailDraft => ({
  */
 @customElement('system-notifications')
 export class SystemNotifications extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   /** `?section=<id>` of the address. */
   @property() section = '';
   @state() private phase: Phase = 'loading';
@@ -87,6 +91,7 @@ export class SystemNotifications extends LitElement {
   private obs: IntersectionObserver | null = null;
 
   static styles = [
+    bubbleChrome,
     mediaGlassStyles,
     mediaPageStyles,
     notifyKnobs,

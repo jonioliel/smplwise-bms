@@ -58,6 +58,8 @@ import {
   type PreviewResponse,
   type RolesResponse,
 } from '../api/access';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const TABS = [
   { id: 'users', label: 'משתמשים', count: demoUsers.length },
@@ -92,6 +94,8 @@ interface Wizard {
 /** SC24 — user roles & permissions (board 3 screen 20): identity from HA only; assignments live only inside SMPLWISE. */
 @customElement('system-access')
 export class SystemAccess extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private tab = 'users';
   @state() private selected: string | null = null;
   @state() private assigning = false;
@@ -124,7 +128,7 @@ export class SystemAccess extends LitElement {
   @state() private remoteOff: { userId: string; count: number } | null = null;
   private roleImpactTimer = 0;
 
-  static styles = css`
+  static styles = [css`
     .notice {
       display: flex;
       align-items: center;
@@ -360,7 +364,7 @@ export class SystemAccess extends LitElement {
       align-items: flex-end;
       flex-wrap: wrap;
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

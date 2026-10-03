@@ -18,6 +18,8 @@ import { navigate, parseRoute } from '../router';
 import { phoneRestricted } from '../shell/phone';
 import { firstFloor, loadTree } from '../api/catalog';
 import { domainLabel, entityTone, fmtTime, listEntities, stateLabel, subscribeHa, type HaCatalogue, type HaEntity, type HaSyncState } from '../api/ha';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 interface Ent {
   id: string;
@@ -62,6 +64,8 @@ export function domainIcon(domain: string): IconName {
  */
 @customElement('explore-entities')
 export class ExploreEntities extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private selected: string | null = null;
   @state() private domain = 'all';
   @state() private q = '';
@@ -76,7 +80,7 @@ export class ExploreEntities extends LitElement {
   private stopWs: (() => void) | null = null;
   private searchTimer = 0;
 
-  static styles = css`
+  static styles = [css`
     .filters {
       display: flex;
       flex-wrap: wrap;
@@ -139,7 +143,7 @@ export class ExploreEntities extends LitElement {
       direction: ltr;
       unicode-bidi: isolate;
     }
-  `;
+  `, bubbleChrome];
 
   /** A backend session without system.configure at the installation: nothing is requested and nothing is shown. */
   private get forbidden(): boolean {

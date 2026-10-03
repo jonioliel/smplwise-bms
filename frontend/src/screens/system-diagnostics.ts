@@ -44,6 +44,8 @@ import { loadTree } from '../api/catalog';
 import type { Site } from '../api/types';
 import type { DevicesPick } from './devices-theme-picker';
 import { inAndroidApp, switchServer } from '../arx/android-app';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 /** הגדרות › בקרות כניסה: the SMPLWISE WisKey screens that can show either WisKey's own panel or the screen built here. */
 const ACCESS_SCREENS: { screen: WiskeyScreen; label: string; href: string; detail: string }[] = [
@@ -78,6 +80,8 @@ const TABS = [
 /** SC28 — system settings (board 3 screen 23): underline tabs, label / control rows; the media tab is live against the backend. */
 @customElement('system-diagnostics')
 export class SystemDiagnostics extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private tab = 'general';
   @state() private settings: ProductSettings | null = null;
   @state() private canEdit = false;
@@ -114,7 +118,7 @@ export class SystemDiagnostics extends LitElement {
   @state() private restoreConfirm = '';
   @state() private health: { discovery?: Record<string, unknown>; video_codecs?: VideoCodecs; remote?: { live_streams?: number }; events?: { ingest: { connected: boolean; last_heartbeat_at: string | null; last_event_at: string | null; last_error: string | null; reconnects: number; events_stored: number }; derive: { last_ok: string | null; last_error: string | null; derived: number }; stored: number } } | null = null;
 
-  static styles = css`
+  static styles = [css`
     code {
       font-family: var(--sw-font-mono, ui-monospace, monospace);
       font-size: var(--sw-fs-xs);
@@ -428,7 +432,7 @@ export class SystemDiagnostics extends LitElement {
         inline-size: auto;
       }
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

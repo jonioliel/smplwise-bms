@@ -34,6 +34,8 @@ import {
   type SvcFilter,
   type VerdictFilter,
 } from './nvr-cameras-logic';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const STALE_NOTE = 'ה־NVR אינו זמין. מוצגים הערכים האחרונים.';
 
@@ -64,6 +66,8 @@ const CROSS = html`<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="
  */
 @customElement('system-security-cameras')
 export class SystemSecurityCameras extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private data: CameraList | null = null;
   @state() private recorder: Recorder | null = null;
   @state() private loading = true;
@@ -73,7 +77,7 @@ export class SystemSecurityCameras extends LitElement {
   @state() private sort: Sort = { ...DEFAULT_SORT };
   private seq = 0;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
     }
@@ -281,7 +285,7 @@ export class SystemSecurityCameras extends LitElement {
         margin: 0;
       }
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

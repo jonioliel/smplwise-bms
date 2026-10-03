@@ -13,6 +13,8 @@ import {
   NAV_PRESETS, NAV_PRESET_LABEL, NAV_RANGE, freeFrom, installationNavSize, navCssVars, navDims, navSize, onNavSize, ownNavSize,
   sameNavSize, saveOwnNavSize, setInstallationNavSize, type NavSize,
 } from '../shell/nav-size';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 /** The preview's tabs (the same icons and labels as the rail; shell/nav.ts NAV_A). */
 const PREVIEW_TABS = [
@@ -35,6 +37,8 @@ const PREVIEW_TABS = [
  */
 @customElement('system-nav-size')
 export class SystemNavSize extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private target: 'own' | 'installation' = 'own';
   @state() private draft: NavSize = navSize();
   @state() private canEdit = false;
@@ -45,7 +49,7 @@ export class SystemNavSize extends LitElement {
   @state() private applied: NavSize = navSize();
   private stop?: () => void;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
     }
@@ -252,7 +256,7 @@ export class SystemNavSize extends LitElement {
       color: var(--sw-danger);
       font-size: var(--sw-fs-sm);
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

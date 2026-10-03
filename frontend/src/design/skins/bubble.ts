@@ -157,6 +157,14 @@ const rules = `
 :host(sw-table) tbody tr:hover { background: var(--sw-surface-3); }
 :host(sw-table) th { font-weight: var(--sw-fw-semibold); }
 :host(sw-page) h1 { letter-spacing: -0.3px; }
+/* bubble 12 - 0.1.157 (the security / lists / settings chrome): the security sections (לייב | חקירה | אזעקה) are a pill track with a solid thumb like the segmented control; the phone's row does not stick (nothing floats over the rows) */
+:host(sw-app) nav.sections.sections { border-radius: var(--sw-r-pill); background: var(--sw-surface-2); padding: 3px; }
+:host(sw-app) nav.sections.sections a { border-radius: var(--sw-r-pill); min-block-size: calc(var(--sw-touch-desktop) - 6px); }
+:host(sw-app) nav.sections.sections a.on { background: var(--sw-surface-solid); color: var(--sw-accent-text); box-shadow: var(--sw-shadow-2); }
+:host(sw-app) nav.secrow.secrow, :host(sw-app) nav.sectabs.phone.phone { position: static; background: transparent; border: 0; }
+:host(sw-app) nav.secrow.secrow::before { border-radius: var(--sw-r-pill); background: var(--sw-surface-2); }
+:host(sw-app) nav.secrow.secrow a .pill { border-radius: var(--sw-r-pill); }
+:host(sw-app) nav.secrow.secrow a.on .pill { background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-2); }
 `;
 
 export const bubble: Skin = { id: 'bubble', name: 'Bubble', nameHe: 'Bubble', noteHe: 'חלונות קופצים שקופים, כמוסות, פס צף בטלפון; צפיפות, משטח ופינות לבחירה', tokens, rules };

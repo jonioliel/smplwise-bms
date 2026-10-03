@@ -6,6 +6,8 @@ import '../components/sw-badge';
 import '../components/sw-button';
 import '../components/sw-chip';
 import '../components/sw-camera-tile';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const ITEMS = [
   { id: 'rv-1', title: 'כניסה ראשית · 10:12–10:16', primary: 'כניסה ראשית', scene: 'entrance', related: ['לובי'], events: 3, severity: 'alert', status: 'חדש' },
@@ -17,7 +19,9 @@ const ITEMS = [
 /** SC15 — review queue (legacy:review, Beta): close events grouped into windows; raw events stay reachable. */
 @customElement('investigate-reviews')
 export class InvestigateReviews extends LitElement {
-  static styles = css`
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
+  static styles = [css`
     .filters {
       display: flex;
       gap: 6px;
@@ -51,7 +55,7 @@ export class InvestigateReviews extends LitElement {
       gap: 4px;
       flex-wrap: wrap;
     }
-  `;
+  `, bubbleChrome];
 
   render() {
     return html`

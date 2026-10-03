@@ -17,6 +17,8 @@ import {
   type AutomationSettings, type AutomationTemplate, type AutomationsStatus, type ReviewRow, type TrashRow,
 } from '../api/automations';
 import { CODE_VIEW_ROLES, ROLE_ROWS, delegationLabel, moveTemplate, templateRows, toggleCodeRole, toggleHidden, whenText, type TplRef } from './automations-logic';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
@@ -45,6 +47,8 @@ type LimKey = keyof AutomationSettings['limits'];
  */
 @customElement('system-automations')
 export class SystemAutomations extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private phase: 'loading' | 'ready' | 'forbidden' | 'error' = 'loading';
   @state() private status: AutomationsStatus | null = null;
   @state() private saved: AutomationSettings = clone(AUTOMATION_SETTINGS_DEFAULT);
@@ -60,7 +64,7 @@ export class SystemAutomations extends LitElement {
   @state() private now: Date = new Date();
   private noteTimer = 0;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
     }
@@ -317,7 +321,7 @@ export class SystemAutomations extends LitElement {
         grid-template-columns: 1fr;
       }
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();
