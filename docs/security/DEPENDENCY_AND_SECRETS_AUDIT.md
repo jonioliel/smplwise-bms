@@ -52,7 +52,7 @@ the dependency is updated or the exposure is documented as not reachable.
   development) the HA token come from the add-on options / `secrets/lab.env`, which is git-ignored together
   with `private-evidence/` and `data/`. The bridge shared secret is stored in the settings table of the
   add-on database and excluded from backups (`SETTINGS_KEEP` in `services/backup.py`).
-- Approved exception (CR-022, owner decision 2026-10-04, not yet implemented): the NVR connection password
+- Approved exception (CR-022, owner decision 2026-10-04; backend implemented on `pilot/nn4-backend`, ships with the CR-022 release): the NVR connection password
   moves from the add-on options into `recorder_connections.password_enc`, encrypted with AES-256-GCM under its
   own key file `<data>/keys/connections.key`; neither the table nor the key enters an Arx backup or bundle, and
   the password is never returned by an API or written to a log or the audit trail. It protects against a leaked

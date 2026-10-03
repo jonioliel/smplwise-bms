@@ -14,9 +14,13 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
    - `bootstrap_admin_username` — the Home Assistant **username** (not display name) that becomes the
      VMS system administrator. The grant happens once, on that user's first visit, and is written to
      the audit log. Leave everything else empty for now if you only want to try the maps.
-   - `nvr_host`, `nvr_http_port`, `nvr_rtsp_port`, `nvr_username`, `nvr_password` — read-only ISAPI
-     access used by "Sync cameras" and snapshots; the RTSP port is what go2rtc pulls video from. Prefer
-     a dedicated non-admin NVR account. The add-on never changes NVR settings.
+   - `nvr_host`, `nvr_http_port`, `nvr_rtsp_port`, `nvr_username`, `nvr_password` — **deprecated (CR-022)**: the
+     NVR is now chosen and connected inside Arx (הגדרות › חיבורים, or the setup wizard's NVR step: choose the
+     NVR type - Hikvision, or "ללא NVR"; Provision-ISR and Frigate are listed as coming soon - then address, ports,
+     user and password, test, save, restart). On the first start after the upgrade, values already present here
+     are imported once into Arx and then ignored; the options themselves are never changed, so a downgrade keeps
+     working. The keys stay for at least two releases. Prefer a dedicated non-admin NVR account; the connection
+     test only reads, and the add-on never changes NVR settings without an explicit, separate approval.
    - `go2rtc_url` — the external go2rtc API, e.g. `http://<ha-host>:1984` (the AlexxIT add-on). The
      product creates only streams named `smplwise_*` there and never touches other streams. Optional
      `go2rtc_api_username` / `go2rtc_api_password` if the go2rtc API is protected.
@@ -89,26 +93,29 @@ installation in six steps and says, for each one that is not done, what is wrong
 
 The add-on also runs without a Hikvision NVR, for an installation that uses it for electricity and device control only.
 
-- **How to install for electricity only.** Leave `nvr_host` empty in the add-on Configuration (with `nvr_username` /
-  `nvr_password`). The add-on then starts in the `ha_only` installation mode; the log says so in one INFO line at
+- **How to install for electricity only.** Choose "ללא NVR" in the setup wizard's NVR step (or הגדרות › חיבורים) and
+  restart; an installation that never named an NVR also starts without one, but the wizard's NVR step stays "todo"
+  until that explicit choice. The add-on then runs in the `ha_only` installation mode; the log says so in one INFO line at
   start-up. `go2rtc_url` is optional (only WisKey station video uses it). Home Assistant is connected automatically
   through the Supervisor, as always.
 - **What works.** The map (sites, floors, plans, 3D, HA entity anchors), חשמל והתקנים (device control), WisKey,
   settings, users and roles, backup and restore - unchanged.
 - **What is hidden.** For every user, regardless of role: the live overview and cameras, events, the historical map,
   recordings and synchronized playback, cases, rules, search and exports, and camera health. A direct link to one of
-  them shows a "מצב ללא NVR" panel that points at the add-on options. The server refuses the NVR routes itself with
+  them shows a "מצב ללא NVR" panel that points at הגדרות › חיבורים. The server refuses the NVR routes itself with
   409 `nvr_not_configured` (hidden is not unprotected; every route keeps its permission check). The Lovelace card falls
   back to the map for its NVR views. The storage page shows the add-on's own disk only; the video settings tab shows a
   neutral notice instead of video forms.
 - **Health and the wizard.** The NVR shows as "לא מוגדר" (neutral, never red); no NVR job (camera discovery, alert
-  stream, derived events, thumbnails, exports) runs or is reported. The setup wizard marks the NVR and camera steps
-  "דילוג - מצב ללא NVR" (and go2rtc as optional while neither it nor the WisKey credentials are configured);
-  "מוכן לעבודה" is reached with the remaining steps. Home Assistant is the product in this mode: missing, or
+  stream, derived events, thumbnails, exports) runs or is reported. The setup wizard marks the NVR step done for the
+  explicit "ללא NVR" choice and the camera step "דילוג - מצב ללא NVR" (and go2rtc as optional while neither it nor the
+  WisKey credentials are configured); "מוכן לעבודה" is reached with the remaining steps. Home Assistant is the product in this mode: missing, or
   disconnected for more than a minute, it is shown as an error.
-- **Adding the NVR later.** Fill `nvr_host`, `nvr_username` and `nvr_password` and restart the add-on. The mode is
-  derived from the options on every start and nothing in the data depends on it: no migration, maps, plans and
-  permissions stay as they are, and the camera areas appear. Removing the host again returns to the NVR-less mode.
+- **Adding the NVR later.** Choose the NVR type in הגדרות › חיבורים, enter the connection, test, save and press
+  "הפעל מחדש". The mode is derived from the stored connection on every start and nothing else in the data depends on
+  it: no migration, maps, plans and permissions stay as they are, and the camera areas appear. "הסר NVR" (typed
+  confirmation) returns to the NVR-less mode; the cameras stay, disabled. Changing the NVR type of an installation
+  with cameras needs "הסר NVR" first.
 
 Design note: `docs/operations/NVR_LESS_MODE.md`.
 
@@ -130,7 +137,13 @@ Design note: `docs/operations/NVR_LESS_MODE.md`.
   included but only restored on request) and can be downloaded to a computer or uploaded into a fresh
   installation. "שחזר" loads a backup after typing RESTORE, either replacing the current project data or
   merging the missing items; the administrator who restores keeps access, and the restore is audited.
-  Backups never contain the NVR or HA credentials (those live in the add-on options) and never video.
+  Backups never contain the NVR or HA credentials and never video. The NVR connection (CR-022) is stored in the
+  Arx database with its password encrypted (AES-256-GCM) under a separate key file in `/data/keys/`; neither the
+  connection nor the key enters an Arx backup, so a backup restored onto another installation asks for the NVR
+  connection again, and a restore onto the same installation keeps it. This protects a leaked database file or Arx
+  backup, not a reader of the whole `/data` folder: the Home Assistant add-on backup below contains the database and
+  the key together - the same exposure class as the add-on options, which the Supervisor also keeps in clear. If the
+  key file is lost, the NVR shows as "not configured" and the password must be entered again.
 - Rollback after a bad upgrade: install the previous version from Home Assistant, then restore the
   "לפני עדכון" backup with "החלפה".
 

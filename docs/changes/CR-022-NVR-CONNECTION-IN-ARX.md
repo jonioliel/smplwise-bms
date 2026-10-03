@@ -1,7 +1,8 @@
 # CR-022 — NVR connection in Arx: vendor choice and connection settings stored by Arx, not in the add-on options
 
-**Status:** APPROVED for implementation (owner decisions 2026-10-04, §0). Documents only so far (Phase A, branch
-`pilot/nn4-cr-022`). Nothing implemented. **Release:** its own tier-L release as soon as migrations 0050 (CR-020 S2) and
+**Status:** APPROVED for implementation (owner decisions 2026-10-04, §0). Slice A (this document, the audit amendment,
+`DOCS.md`, ADP §4/§7, ROADMAP) and slice B (backend, branch `pilot/nn4-backend`) done; implementation notes and the
+deviations from the text below are in §19. Slices C (frontend) and D (closing) open. **Release:** its own tier-L release as soon as migrations 0050 (CR-020 S2) and
 0051 (CR-021) are on `g0/intake`; NN1 P1 (capabilities) merges before the NN4 backend (§12).
 **Design source:** the NN4 planning note of 2026-10-03 (private, base `g0/intake` e2089071). **Builds on:** the D4 connection
 editor of 0.1.71 (`PUT /nvr/connection`, `services/nvr_system.py`), the AES-GCM pattern of the alarm panel codes
@@ -389,3 +390,46 @@ installation, only on his word. UI tests need desktop / phone / RTL screenshots 
 
 1. Confirm NN1 P4 renumbering to 0053 and the drop of `recorder_credentials`.
 2. If CR-021 merges first, slice B reuses its Supervisor helper for the restart call.
+
+## 19. Slice B implementation notes and deviations (2026-10-03, `pilot/nn4-backend`)
+
+Built: `migrations/0052_recorder_connections.sql`, `services/connection_store.py` (crypto, CRUD, import, overlay),
+`services/connection_probe.py` (validation, source policy, GET-only probe, rate limits), `services/addon_restart.py`,
+`services/recorders/registry.py` (`VendorSpec`, `catalogue`, `constructor_for`), `routers/nvr_connection.py`, the
+`main.py` start-up overlay, `connection_pending_restart` in `/me` and `/health`, wizard NVR step and texts, `mode.py`
+texts, backup `SETTINGS_KEEP`, the remote deny list, and `tests/test_nvr_connection.py` (AT-022-01 ... 15, 17 ... 20).
+Recorded deviations, none of them widening a permission or a secret's reach:
+
+1. **Old handlers deleted now.** The base of `pilot/nn4-backend` already contains CR-020 S2 (0050) and CR-021 (0051), so the
+   0.1.71 `GET/PUT /nvr/connection` handlers in `routers/nvr_write.py`, `nvr_system.supervisor_post/_options`,
+   `with_connection`, `save_connection` and the workstation `nvr_connection.json` were removed in slice B (§13 allowed this
+   after S2). No code writes the add-on options any more.
+2. **Restart answers 202 and calls the Supervisor after the answer is sent** (a FastAPI background task): the restart ends the
+   process, so its outcome cannot be returned. An unaccepted restart is logged; the screen (slice C) falls back to
+   "restart by hand" when the system does not come back. R4's "fall back on any Supervisor error" is therefore client-side.
+   CR-021's `self_update.call` stays allow-listed to its own S1 calls; `addon_restart` has its own single allow-listed call.
+3. **The import reads only values that came from the options file** (`Settings.nvr_from_options`); `NVR_*` environment
+   values (development, tests) are never imported - they stay a fallback below a stored row.
+4. **Unreadable connection = no NVR host** (`capabilities.nvr_host()` returns None): the installation runs NVR-less until the
+   password is entered again; `/health` shows `nvr.state = unreadable`, the wizard's NVR step fails with
+   `connection_unreadable`. Start-up never fails on it.
+5. **NVR step without a host:** `todo` (`nvr_choice_needed`) until a choice, `done` for vendor `none`, `failed` for an
+   unreadable row. The camera step stays "not applicable" in the NVR-less mode. An NVR-less installation upgraded from an
+   older version therefore shows the NVR step as "todo" once, until "no NVR" is chosen explicitly.
+6. **PUT body compatibility:** `user` is accepted as an alias of `username`; an absent `password` keeps the stored one (as in
+   0.1.71); `if_revision` is optional (absent = no stale check). Failure answers: `source_unavailable` / `timeout` /
+   `source_error` 503, `source_forbidden` 502, `host_refused` / `host_invalid` / `port_invalid` / `vendor_not_available` /
+   `username_required` / `password_required` / `extra_invalid` / `confirm_required` 422, `remove_first` / `stale` 409.
+7. **`legacy_options_differ`** is also true after "Remove NVR" while the old options still name a host (they are ignored; the
+   neutral note stays honest).
+8. **`/health.connection_pending_restart`** is a boolean for every signed-in caller (no connection detail); `/me` carries it for
+   `system.configure` holders only.
+9. **Source policy additions:** besides `source_policy` (loopback, unspecified, link-local / metadata, multicast, 0/8 in every
+   spelling) the test refuses `supervisor`, `hassio`, `homeassistant`, `metadata*` names, the platform network
+   172.30.32.0/23, the trusted proxies and this host's own name and addresses. IPv6 literals are stored bare and bracketed
+   when a URL is built.
+10. **"Diagnostic bundle":** Arx has no diagnostic bundle that reads database tables; the case evidence bundle
+    (`services/bundle.py`) packs case files only. The guard test covers every backup table (`PROJECT_TABLES`,
+    `ACCESS_TABLES`, `OPTIONAL_TABLES`) for secret-like columns.
+11. **Not in slice B (by plan):** the frontend (slice C); `config.yaml` deprecation marks, user guides, `NVR_LESS_MODE(_HE).md`,
+    release notes, test catalogue (slice D); AT-022-16 (real installation, owner's word); AT-022-21 ... 24 (Playwright, C).
