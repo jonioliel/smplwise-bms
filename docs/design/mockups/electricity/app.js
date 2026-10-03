@@ -465,7 +465,8 @@ function billPage(kind) {
   const acc = kind === 'draft' ? A.a4 : A.a1;
   const log = kind === 'draft' ? [['01.10.2026 06:00', 'טיוטה נוצרה אוטומטית']]
     : kind === 'void' ? [['02.09.2026 09:12', 'הונפק'], ['04.09.2026 11:30', 'בוטל: קריאת סוף תקופה שגויה'], ['06.09.2026 08:05', 'הוחלף ב-2026-08-0001-2']]
-    : [['02.10.2026 09:12', 'הונפק'], ['02.10.2026 09:20', 'סומן כנשלח']];
+    : kind === 'rev' ? [['06.09.2026 08:05', 'הונפק, מחליף את 2026-08-0001'], ['09.09.2026 10:40', 'סומן כשולם']]
+    : [['02.10.2026 09:12', 'הונפק']];
   const side = `<div class="card"><div class="hd"><b class="h3">פרטים</b></div><dl class="kv"><dt>חשבון</dt><dd><a onclick="go('account')" style="color:var(--sw-accent-text);cursor:pointer">${acc.name}</a></dd><dt>לקוח</dt><dd>${C[acc.c].name}</dd><dt>תקופה</dt><dd>${N('01.09.2026')} - ${N('30.09.2026')}</dd><dt>נוצר על ידי</dt><dd>דנה</dd></dl></div>
     <div class="card"><div class="hd"><b class="h3">יומן</b></div><div class="list">${log.map(([d, l]) => `<div class="row"><span class="num mut" style="min-width:110px">${d}</span><span>${l}</span></div>`).join('')}</div></div>`;
   const alerts = kind === 'pdferr' ? `<div class="alert err"><span class="x">!</span><div>יצירת קובץ ה-PDF נכשלה. החיוב נשמר ואפשר לנסות שוב.</div></div>`

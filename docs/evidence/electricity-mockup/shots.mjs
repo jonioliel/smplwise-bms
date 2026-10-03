@@ -36,7 +36,7 @@ async function shot(s, { d = 'desktop', t = 'light', k = 'classic', p = 'full', 
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`${file}: console ${m.text()}`); });
   await page.goto(`http://127.0.0.1:${PORT}/mockups/electricity/index.html#s=${s}&d=${d}&t=${t}&k=${k}&p=${p}`);
   await page.waitForSelector(s === 'matrix' ? '.matrix' : '#frame .app');
-  await page.evaluate(() => document.fonts.ready);
+  await page.evaluate(() => { document.getElementById('bar').style.display = 'none'; const c = document.getElementById('cap'); if (c) c.style.display = 'none'; return document.fonts.ready; });
   await page.waitForTimeout(150);
   if (s !== 'matrix') {
     const ov = await page.evaluate(() => {

@@ -410,6 +410,8 @@ Dependencies: migrations 0050-0053 merged before P1; NN1 P2 shell capability mod
 6. Q6 Meter not reporting at issue time: (a) allow with a note (b) block until it reports or a manual reading is typed.
 7. Q7 A fixed monthly charge line (e.g. a meter fee) in the first release: (a) no (b) yes, optional per tariff.
 8. Q8 Due date: (a) issue date + days from Settings (b) a fixed day of the month.
+9. Q9 Importing past data from the infrastructure statistics when an account is created (the plan had it as a wizard step;
+   the owner's step list does not): (a) an optional line in the review step (b) a separate step (c) not in the first release.
 
 ## 24. P0 record (this branch)
 - Mockup gallery `docs/design/mockups/electricity/` (49 screens, four skins, light/dark, 1440/820/390, view-only toggle);
