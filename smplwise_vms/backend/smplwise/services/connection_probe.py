@@ -5,8 +5,8 @@ The test is an SSRF oracle by nature (it makes the add-on connect where the call
 - only a system administrator reaches it (the router checks `system.configure` first);
 - the host is validated (a host name, an IPv4 or a bracket-less IPv6 literal; no scheme, path, port, user info or
   whitespace; at most 253 characters) and checked BEFORE any connection: loopback, unspecified, link-local (cloud metadata),
-  multicast and 0.0.0.0/8 addresses in any spelling (services/source_policy), the IPv4 inside a NAT64 (64:ff9b::/96,
-  64:ff9b:1::/48) or 6to4 (2002::/16) address judged as that IPv4, Teredo and site-local IPv6, the platform's internal
+  multicast and 0.0.0.0/8 addresses in any spelling (services/source_policy), the IPv4 inside a NAT64 (64:ff9b::/96) or
+  6to4 (2002::/16) address judged as that IPv4, the local-use NAT64 range 64:ff9b:1::/48, Teredo and site-local IPv6, the platform's internal
   network and its Supervisor / core names, the trusted proxies, and this host itself (its name, what the name resolves to and
   the addresses of its own network interfaces) are refused (`host_refused`). A name is resolved here and EVERY address it
   resolves to is checked; the probe then connects to the checked address, not to the name (no second resolution). A name
@@ -17,8 +17,11 @@ The test is an SSRF oracle by nature (it makes the add-on connect where the call
   (`port_refused`, review F9): the test must not become a port scanner of the machine it runs on, whose LAN address is not
   always knowable from inside the add-on's container;
 - the probe is GET only (`/ISAPI/System/deviceInfo`, then the channel listing) with its own client: Digest only, redirects
-  not followed, 5 s to connect, 5 s per read, ONE 8 s wall-clock deadline for the whole probe and at most 256 KB read per
-  answer (review F4);
+  not followed, no proxy from the environment, 5 s to connect, 5 s per read, ONE 8 s wall-clock deadline for the whole probe
+  and at most 256 KB read per answer (review F4). The deadline is hard (second review N2): every socket read and write is
+  bounded by the time left, also while waiting for the response headers (an endless stream of `100 Continue` answers), and
+  the probe runs in its own thread whose sockets are shut down if it is still running at the deadline. Only identity encoding
+  is accepted and the raw bytes are counted (second review N3: a compressed answer is never inflated before the cap);
 - the answer is coarse: `ok` plus model, firmware and channel count, or one of `source_unavailable`, `source_forbidden`,
   `source_error`, `timeout`, `host_refused`. No response body, header, resolved address or exception text is echoed;
 - 5 tests a minute per user and 20 a minute per installation (the save repeats the test and counts too).
@@ -39,6 +42,7 @@ from collections import deque
 from collections.abc import Callable
 from typing import Any
 
+import httpcore
 import httpx
 
 from ..config import Settings
@@ -52,11 +56,13 @@ REFUSED_NAMES = frozenset({"localhost", "supervisor", "hassio", "homeassistant",
 # the platform's internal container network (Supervisor 172.30.32.2, the add-ons 172.30.33.x) and well-known metadata addresses
 REFUSED_NETWORKS = (ipaddress.ip_network("172.30.32.0/23"), ipaddress.ip_network("100.100.100.200/32"), ipaddress.ip_network("fd00:ec2::/64"),
                     ipaddress.ip_network("2001::/32"),   # Teredo: a tunnel endpoint, never an NVR (review F8)
-                    ipaddress.ip_network("fec0::/10"))   # deprecated site-local IPv6
+                    ipaddress.ip_network("fec0::/10"),   # deprecated site-local IPv6
+                    ipaddress.ip_network("64:ff9b:1::/48"))  # local-use NAT64 (RFC 8215): the IPv4's place depends on the
+                                                             # prefix length, so the whole range is refused (second review N6)
 # IPv6 prefixes that carry an IPv4 address (review F8): the embedded IPv4 is judged like a literal, so `64:ff9b::7f00:1`
 # (NAT64 of 127.0.0.1) or `2002:7f00:1::` (6to4 of 127.0.0.1) cannot hide a refused address. IPv4-mapped and
 # IPv4-compatible forms are unwrapped by source_policy.address_of already.
-NAT64_NETWORKS = (ipaddress.ip_network("64:ff9b::/96"), ipaddress.ip_network("64:ff9b:1::/48"))
+NAT64_NETWORKS = (ipaddress.ip_network("64:ff9b::/96"),)  # the well-known prefix; 64:ff9b:1::/48 is refused whole above
 SIX_TO_FOUR = ipaddress.ip_network("2002::/16")
 # the platform's own services, refused on ANY host (review F9): HA core 8123, go2rtc 1984 / 8554 / 8555, the observer 4357,
 # Arx's own port 8099. None of them is an NVR's HTTP port.
@@ -218,11 +224,98 @@ class _Fail(Exception):
         self.code = code
 
 
+class _DeadlineStream(httpcore.NetworkStream):
+    """A socket stream whose every read and write waits at most the time left before the probe's hard deadline (second review
+    N2): httpcore resets its read timeout for each event and skips interim (1xx) answers in a loop, so a per-read timeout alone
+    never ends a server that keeps sending them."""
+
+    def __init__(self, inner: httpcore.NetworkStream, owner: "_DeadlineBackend") -> None:
+        self._inner, self._owner = inner, owner
+
+    def _left(self, timeout: float | None, exc: type[Exception]) -> float:
+        left = self._owner.hard_deadline - time.monotonic()
+        if left <= 0:
+            raise exc("the probe's deadline passed")
+        return left if timeout is None else min(timeout, left)
+
+    def read(self, max_bytes: int, timeout: float | None = None) -> bytes:
+        return self._inner.read(max_bytes, self._left(timeout, httpcore.ReadTimeout))
+
+    def write(self, buffer: bytes, timeout: float | None = None) -> None:
+        self._inner.write(buffer, self._left(timeout, httpcore.WriteTimeout))
+
+    def close(self) -> None:
+        self._inner.close()
+
+    def start_tls(self, ssl_context: Any, server_hostname: str | None = None, timeout: float | None = None) -> httpcore.NetworkStream:
+        return _DeadlineStream(self._inner.start_tls(ssl_context, server_hostname, self._left(timeout, httpcore.ConnectTimeout)), self._owner)
+
+    def get_extra_info(self, info: str) -> Any:
+        return self._inner.get_extra_info(info)
+
+
+class _DeadlineBackend(httpcore.NetworkBackend):
+    """The synchronous socket backend with the probe's hard deadline; remembers its sockets so that `abort()` can shut them down
+    from another thread (a blocked receive returns at once)."""
+
+    def __init__(self, seconds: float) -> None:
+        self._inner = httpcore.SyncBackend()
+        self.hard_deadline = time.monotonic() + seconds
+        self._lock = threading.Lock()
+        self._streams: list[_DeadlineStream] = []
+
+    def connect_tcp(self, host: str, port: int, timeout: float | None = None, local_address: str | None = None,
+                    socket_options: Any = None) -> httpcore.NetworkStream:
+        left = self.hard_deadline - time.monotonic()
+        if left <= 0:
+            raise httpcore.ConnectTimeout("the probe's deadline passed")
+        stream = _DeadlineStream(self._inner.connect_tcp(host, port, left if timeout is None else min(timeout, left), local_address, socket_options), self)
+        with self._lock:
+            self._streams.append(stream)
+        return stream
+
+    def connect_unix_socket(self, path: str, timeout: float | None = None, socket_options: Any = None) -> httpcore.NetworkStream:
+        raise httpcore.ConnectError("no unix sockets in the probe")
+
+    def sleep(self, seconds: float) -> None:
+        time.sleep(min(seconds, max(0.0, self.hard_deadline - time.monotonic())))
+
+    def abort(self) -> None:
+        with self._lock:
+            streams = list(self._streams)
+        for stream in streams:
+            sock = stream.get_extra_info("socket")
+            try:
+                if sock is not None:
+                    sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            try:
+                stream.close()
+            except Exception:  # noqa: BLE001 - best effort; the socket is shut down already
+                pass
+
+
+class _ProbeTransport(httpx.HTTPTransport):
+    """httpx's own transport (exception mapping, response streams) over one connection pool that uses `_DeadlineBackend`."""
+
+    def __init__(self, backend: _DeadlineBackend) -> None:
+        super().__init__(trust_env=False, retries=0)
+        self._pool = httpcore.ConnectionPool(max_connections=1, max_keepalive_connections=1, http1=True, http2=False, retries=0,
+                                             network_backend=backend)
+
+
 def probe_client(cand: Settings) -> httpx.Client:
-    """The probe's own client (not the NVR module's): Digest only, no redirects, 5 s to connect, 5 s per read. Tests replace
-    this function or TRANSPORT."""
-    return httpx.Client(base_url=f"http://{cand.nvr_host}:{cand.nvr_http_port}", auth=httpx.DigestAuth(cand.nvr_user or "", cand.nvr_password or ""),
-                        timeout=httpx.Timeout(connect=CONNECT_S, read=READ_S, write=READ_S, pool=READ_S), follow_redirects=False, transport=TRANSPORT)
+    """The probe's own client (not the NVR module's): Digest only, no redirects, no proxy or settings from the environment,
+    identity encoding, 5 s to connect, 5 s per read, every socket operation within the hard deadline. Tests replace this
+    function or TRANSPORT (a test transport bypasses the socket backend)."""
+    backend = _DeadlineBackend(DEADLINE_S)
+    transport: httpx.BaseTransport = TRANSPORT if TRANSPORT is not None else _ProbeTransport(backend)
+    client = httpx.Client(base_url=f"http://{cand.nvr_host}:{cand.nvr_http_port}", auth=httpx.DigestAuth(cand.nvr_user or "", cand.nvr_password or ""),
+                        timeout=httpx.Timeout(connect=CONNECT_S, read=READ_S, write=READ_S, pool=READ_S), follow_redirects=False,
+                        headers={"Accept-Encoding": "identity"}, trust_env=False, transport=transport)
+    client._sw_probe_backend = backend  # type: ignore[attr-defined]  # probe() shuts its sockets down at the hard deadline
+    return client
 
 
 def _remaining(deadline: float) -> float:
@@ -242,19 +335,19 @@ def _get_capped(client: httpx.Client, path: str, deadline: float) -> str:
                 raise _Fail("source_forbidden")
             if r.status_code != 200:
                 raise _Fail("source_error")
+            if r.headers.get("content-encoding", "identity").strip().lower() not in ("", "identity"):
+                raise _Fail("source_error")  # second review N3: only identity was asked for; never inflate an answer
             declared = r.headers.get("content-length")
             if declared and declared.isdigit() and int(declared) > MAX_BYTES:
                 raise _Fail("source_error")
             body = bytearray()
-            for chunk in r.iter_bytes():  # as received (a chunk size would buffer a trickle)
+            for chunk in r.iter_raw():  # raw bytes as received (a chunk size would buffer a trickle); no decoding
                 body.extend(chunk)
                 if len(body) > MAX_BYTES:
                     raise _Fail("source_error")
-                left = _remaining(deadline)  # a trickling answer cannot hold the request past the deadline
-                try:  # best effort: the next read waits at most what is left (httpcore reads this value on every receive)
-                    r.request.extensions["timeout"]["read"] = min(READ_S, left)
-                except (AttributeError, KeyError, TypeError):
-                    pass
+                _remaining(deadline)  # a trickling answer cannot hold the request past the deadline; each socket read is
+                # also bounded by the hard deadline of _DeadlineBackend (the per-request read timeout is read only once
+                # by httpcore, so changing it here had no effect - second review N4)
             return bytes(body).decode("utf-8", "replace")
     except httpx.TimeoutException:
         raise _Fail("timeout") from None
@@ -275,28 +368,52 @@ def _local(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
 
 
-def probe(cand: Settings) -> dict[str, Any]:
-    """deviceInfo, then the channel count: two GET requests, one wall-clock deadline, size-capped answers. Coarse result."""
-    deadline = CLOCK() + DEADLINE_S
+def _probe_with(client: httpx.Client, deadline: float) -> dict[str, Any]:
+    root = xmlsafe.parse(_get_capped(client, DEVICE_INFO_PATH, deadline))
+    info: dict[str, str] = {}
+    for el in root.iter():
+        name = _local(el.tag)
+        if name in ("model", "firmwareVersion") and name not in info and el.text:
+            info[name] = el.text.strip()
+    channels: int | None
     try:
-        with probe_client(cand) as client:
-            root = xmlsafe.parse(_get_capped(client, DEVICE_INFO_PATH, deadline))
-            info: dict[str, str] = {}
-            for el in root.iter():
-                name = _local(el.tag)
-                if name in ("model", "firmwareVersion") and name not in info and el.text:
-                    info[name] = el.text.strip()
-            channels: int | None
-            try:
-                listing = xmlsafe.parse(_get_capped(client, CHANNELS_PATH, deadline))
-                channels = sum(1 for el in listing.iter() if _local(el.tag) == "InputProxyChannel")
-            except Exception:  # noqa: BLE001 - the device answered deviceInfo; the channel count is optional
-                channels = None
-    except _Fail as exc:
-        return {"ok": False, "code": exc.code if exc.code in OUTCOMES else "source_error"}
-    except Exception:  # noqa: BLE001 - an unparsable answer is a device error, never a 500 with text
-        return {"ok": False, "code": "source_error"}
+        listing = xmlsafe.parse(_get_capped(client, CHANNELS_PATH, deadline))
+        channels = sum(1 for el in listing.iter() if _local(el.tag) == "InputProxyChannel")
+    except Exception:  # noqa: BLE001 - the device answered deviceInfo; the channel count is optional
+        channels = None
     return {"ok": True, "code": "ok", "model": _clip(info.get("model")), "firmware": _clip(info.get("firmwareVersion")), "channels": channels}
+
+
+def probe(cand: Settings) -> dict[str, Any]:
+    """deviceInfo, then the channel count: two GET requests, one wall-clock deadline, size-capped answers. Coarse result.
+
+    The work runs in its own thread and this call waits at most the deadline plus a short grace (second review N2): if the
+    thread is still running then, its sockets are shut down (the thread ends at once) and the answer is `timeout`."""
+    deadline = CLOCK() + DEADLINE_S
+    out: list[dict[str, Any]] = []
+    backends: list[_DeadlineBackend] = []
+
+    def work() -> None:
+        try:
+            with probe_client(cand) as client:
+                backend = getattr(client, "_sw_probe_backend", None)
+                if backend is not None:
+                    backends.append(backend)
+                out.append(_probe_with(client, deadline))
+        except _Fail as exc:
+            out.append({"ok": False, "code": exc.code if exc.code in OUTCOMES else "source_error"})
+        except Exception:  # noqa: BLE001 - an unparsable answer is a device error, never a 500 with text
+            out.append({"ok": False, "code": "source_error"})
+
+    worker = threading.Thread(target=work, name="nvr-probe", daemon=True)
+    worker.start()
+    worker.join(DEADLINE_S + 0.5)
+    if worker.is_alive():
+        for backend in backends:
+            backend.abort()
+        worker.join(1.0)
+        return {"ok": False, "code": "timeout"}
+    return out[0] if out else {"ok": False, "code": "source_error"}
 
 
 # ---------------------------------------------------------------- rate limits

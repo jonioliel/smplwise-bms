@@ -198,8 +198,10 @@ def _password_for(body: _Base, settings: Settings, row: sqlite3.Row | None, fiel
         return body.password, True
     if use_stored:
         stored = _stored_destination(settings, row)
+        if stored is None:  # second review N1: no stored destination = no stored password goes anywhere (422 password_required)
+            return None, False
         wanted = (fields["vendor"], _norm_host(fields["host"]), fields["http_port"], fields["rtsp_port"])
-        if stored is not None and stored != wanted:
+        if stored != wanted:
             raise ApiError(422, "password_required", DESTINATION_CHANGED, details={"field": "password", "reason": "destination_changed"})
         try:
             if row is not None:
