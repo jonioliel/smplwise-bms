@@ -287,7 +287,8 @@ test.describe('phase 2b: the full queue in the player panel', () => {
         await page.waitForTimeout(250);
         findings.push(...(await page.evaluate(inPageCheck, { ctx, bubble: '.row.qrow, .ask, .uq, .tap, .opt', skip: '.skl, .grip', roots: [] })));
       };
-      for (const w of [320, 390, 820, 1440]) {
+      // LAYOUT_QUICK=1 sweeps four widths (the loop); without it, the ten widths of the layout-bubble specs
+      for (const w of process.env.LAYOUT_QUICK ? [320, 390, 820, 1440] : [320, 360, 390, 480, 600, 768, 820, 1024, 1280, 1440]) {
         await page.setViewportSize({ width: w, height: w <= 480 ? 844 : 1000 });
         await scrollTo(q(page, 'media-queue-list [data-pn-upnext="queue"]'));
         await run(`${scheme} ${w} normal`);
