@@ -99,7 +99,7 @@ export class NvrConnectionForm extends LitElement {
       this.lockedByServer = false;
       this.stale = false;
       this.loadState = 'ready';
-      this.editing = this.context === 'wizard' || !view.vendor || view.state === 'not_chosen' || view.state === 'unreadable';
+      this.editing = this.context === 'wizard' || !view.vendor || view.state === 'not_chosen' || view.state === 'unreadable' || view.state === 'refused';
       this.seed();
     } catch (err) {
       this.loadError = describeError(err);
@@ -321,6 +321,7 @@ export class NvrConnectionForm extends LitElement {
       </sw-field>
       ${locked ? html`<div class="note" data-conn-vendor-locked>יש להסיר את ה־NVR לפני החלפת סוג</div>` : nothing}
       ${v.state === 'unreadable' ? html`<div class="note warn" data-conn-unreadable>יש להזין סיסמה מחדש</div>` : nothing}
+      ${v.state === 'refused' ? html`<div class="note warn" data-conn-refused>הכתובת השמורה אינה מותרת - יש להזין כתובת מחדש</div>` : nothing}
       ${spec && spec.fields.length ? html`<div class="grid">${spec.fields.map((f) => this.field(f))}</div>` : nothing}
       ${this.testLine ? html`<div class=${`line ${this.testLine.ok ? 'ok' : 'err'}`} role="status" data-conn-test-result data-ok=${String(this.testLine.ok)}>${this.testLine.text}</div>` : nothing}
       <div class="actions">
