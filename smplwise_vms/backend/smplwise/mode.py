@@ -34,6 +34,7 @@ NVR_NOT_CONFIGURED_MESSAGE = ("ההתקנה פועלת במצב ללא NVR. כד
                               "בהגדרות › חיבורים, ואז הפעילו את המערכת מחדש.")
 NVR_LESS_LABEL = "לא מוגדר - מצב ללא NVR"
 UNREADABLE_LABEL = "לא ניתן לקרוא את פרטי החיבור השמורים - יש להזין את הסיסמה מחדש"
+REFUSED_LABEL = "הכתובת השמורה של ה־NVR אינה מותרת - יש להזין כתובת אחרת"
 
 
 def installation_mode(settings: Settings) -> str:
@@ -62,6 +63,8 @@ def describe(settings: Settings) -> dict[str, Any]:
     ha_only = is_ha_only(settings)
     if settings.nvr_connection_state == "unreadable":  # CR-022: fail closed - the NVR is treated as not configured
         return {"mode": installation_mode(settings), "nvr": {"configured": False, "state": "unreadable", "label": UNREADABLE_LABEL}}
+    if settings.nvr_connection_state == "refused":  # CR-022 review F5: the stored host failed the source policy at start-up
+        return {"mode": installation_mode(settings), "nvr": {"configured": False, "state": "refused", "label": REFUSED_LABEL}}
     state = "not_configured" if ha_only else "placeholder" if is_placeholder(settings) else "configured" if nvr_ready(settings) else "incomplete"
     label = NVR_LESS_LABEL if ha_only else "כתובת NVR זמנית של סביבת פיתוח (לא NVR אמיתי)" if state == "placeholder" else ""
     return {"mode": installation_mode(settings), "nvr": {"configured": nvr_ready(settings), "state": state, "label": label}}

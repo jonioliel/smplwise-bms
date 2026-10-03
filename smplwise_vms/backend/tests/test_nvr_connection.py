@@ -28,7 +28,7 @@ from smplwise.services import setup_wizard as wizard
 from smplwise.services.recorders import registry
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "fixtures"))
-from fake_devices import GO2RTC_HOST, NVR_HOST, FakeDevices  # noqa: E402
+from fake_devices import GO2RTC_HOST, NVR_ADDR, NVR_HOST, FakeDevices  # noqa: E402
 
 API = "/api/v1/nvr/connection"
 CANARY = "Canary-Pw-7Q9z"  # a made-up test value, never a real credential
@@ -41,9 +41,10 @@ GOOD = {"vendor": "hikvision", "host": NVR_HOST, "http_port": 80, "rtsp_port": 5
 def fake(monkeypatch):
     f = FakeDevices()
     f.install(monkeypatch)
-    resolved: dict[str, list[str]] = {}
+    resolved: dict[str, list[str]] = {NVR_HOST: [NVR_ADDR]}  # review F3: only a resolved, checked address is ever connected
     monkeypatch.setattr(connection_probe, "RESOLVE", lambda h: list(resolved.get(h, [])))
     monkeypatch.setattr(connection_probe, "HOSTNAME", lambda: OWN_HOST)
+    monkeypatch.setattr(connection_probe, "LOCAL_ADDRESSES", lambda: set(), raising=False)  # no interface listing from a test
     f.resolved = resolved  # type: ignore[attr-defined]
     monkeypatch.setattr(addon_restart, "BASE_URL", None)
     monkeypatch.setattr(addon_restart, "TOKEN", None)
@@ -64,7 +65,12 @@ def world(settings, fake):
     return app, c
 
 
-def j(c, method, path=API, user="joni", **kw):
+def j(c, method, path=API, user="joni", auto_revision=True, **kw):
+    """A request as `user`. PUT / DELETE on the connection carry the current `if_revision` (mandatory since review F10)
+    unless the body names one or `auto_revision=False`."""
+    body = kw.get("json")
+    if auto_revision and path == API and method in ("put", "delete") and isinstance(body, dict) and "if_revision" not in body:
+        kw["json"] = {**body, "if_revision": c.get(API, headers=as_user("joni")).json().get("revision") or 0}
     return c.request(method, path, headers=as_user(user), **kw)
 
 
@@ -87,7 +93,8 @@ def add_camera(settings, cid="cam1", channel=1):
 
 def from_options(settings, **kw):
     """Settings as load_settings builds them from an add-on options file that names an NVR."""
-    base = {"nvr_host": NVR_HOST, "nvr_user": "viewer", "nvr_password": CANARY, "nvr_from_options": True, "go2rtc_url": f"http://{GO2RTC_HOST}:1984"}
+    base = {"nvr_host": NVR_HOST, "nvr_user": "viewer", "nvr_password": CANARY, "nvr_from_options": True, "go2rtc_url": f"http://{GO2RTC_HOST}:1984",
+            "nvr_option_keys": frozenset({"nvr_host", "nvr_username", "nvr_password"})}
     return dataclasses.replace(settings, **{**base, **kw})
 
 

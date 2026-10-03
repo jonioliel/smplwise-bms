@@ -241,7 +241,7 @@ def test_wizard_skips_the_nvr_and_camera_steps_on_purpose(ha_only):
     assert body["total"] == 4 and body["done"] == 1 and body["next"] == "nvr", "install, nvr (choose), ha and floor remain"
     assert all(s["status"] != "failed" for s in body["steps"] if s["id"] in ("nvr", "camera", "go2rtc"))
     # the explicit "no NVR" choice completes the step
-    r = c.put("/api/v1/nvr/connection", json={"vendor": "none"})
+    r = c.put("/api/v1/nvr/connection", json={"vendor": "none", "if_revision": 0})
     assert r.status_code == 200 and r.json()["restart_required"] is True, r.text
     after = step_of(c.get(STATE).json(), "nvr")
     assert after["status"] == "done" and after["evidence"]["choice"] == "none"
@@ -268,7 +268,7 @@ def test_wizard_is_ready_with_the_remaining_steps(ha_only, monkeypatch):
         set_setting(conn, "bridge.integration_version", "0.3.0")
     for sid in ("ha", "go2rtc"):
         assert step_of(c.post(f"/api/v1/setup/check/{sid}").json(), sid)["status"] == "done", sid
-    assert c.put("/api/v1/nvr/connection", json={"vendor": "none"}).status_code == 200  # CR-022: the explicit "no NVR" choice
+    assert c.put("/api/v1/nvr/connection", json={"vendor": "none", "if_revision": 0}).status_code == 200  # CR-022: the explicit "no NVR" choice
     body = c.get(STATE).json()
     go = step_of(body, "go2rtc")
     assert go["status"] == "done", "a configured go2rtc is a real step (WisKey station video)"

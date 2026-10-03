@@ -56,12 +56,13 @@ class TestIn(_Base):
 class SaveIn(_Base):
     save_untested: bool = False
     confirm_text: str | None = Field(default=None, max_length=32)
-    if_revision: int | None = None
+    if_revision: int | None = None  # required (422 revision_required); re-checked after the probe, under the write lock (F10)
 
 
 class RemoveIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     confirm_text: str = Field(max_length=32)
+    if_revision: int | None = None  # required (422 revision_required); checked under the write lock (review F10)
 
 
 class RestartIn(BaseModel):
@@ -123,6 +124,8 @@ def connection_view(conn: sqlite3.Connection, request: Request) -> dict[str, Any
             extra = {}
         unreadable = not connection_store.readable(conn, settings, row)
         state = "unreadable" if unreadable else row["state"]
+        if not unreadable and settings.nvr_connection_state == "refused" and settings.nvr_connection_revision == int(row["revision"]):
+            state = "refused"  # review F5: the stored host failed the source policy when this process started
         return {"vendor": row["vendor"], "host": row["host"], "placeholder": False, "http_port": row["http_port"], "rtsp_port": row["rtsp_port"],
                 "username": row["username"], "user": row["username"], "extra": extra, "has_password": bool(row["password_enc"]) and not unreadable,
                 "state": state, "source": row["source"], "revision": int(row["revision"]), "updated_at": row["updated_at"], "updated_by": row["updated_by"],
@@ -157,6 +160,8 @@ def _validated(body: _Base) -> dict[str, Any]:
     username = (body.username or "").strip()
     if not username:
         raise ApiError(422, "username_required", "יש להזין שם משתמש.", details={"field": "username"})
+    if any(ord(ch) < 32 or 127 <= ord(ch) < 160 for ch in username):  # review F14: no control characters in a stored, displayed name
+        raise ApiError(422, "username_invalid", "שם המשתמש מכיל תווים לא חוקיים.", details={"field": "username"})
     allowed_extra = {f.key for f in spec.fields} - {"host", "http_port", "rtsp_port", "username", "password"}
     extra = body.extra or {}
     if any(k not in allowed_extra for k in extra) or any(not isinstance(v, (str, int, bool)) or isinstance(v, str) and len(v) > 200 for v in extra.values()):
@@ -164,11 +169,38 @@ def _validated(body: _Base) -> dict[str, Any]:
     return {"vendor": vendor, "host": host, **ports, "username": username, "extra": extra}
 
 
-def _password_for(body: _Base, settings: Settings, row: sqlite3.Row | None, *, use_stored: bool) -> tuple[str | None, bool]:
-    """(password to use, changed?). The stored one only when the body omits it and asks to keep it."""
+def _norm_host(host: str | None) -> str:
+    return (host or "").strip().strip("[]").lower().rstrip(".")
+
+
+def _stored_destination(settings: Settings, row: sqlite3.Row | None) -> tuple[Any, ...] | None:
+    """Where the stored password is allowed to go: (vendor, host, http_port, rtsp_port) of the stored row, or - before any
+    save - of the legacy connection the process runs with. None when nothing is stored."""
+    if row is not None:
+        if row["vendor"] == registry.NO_NVR or not row["host"]:
+            return None
+        return (row["vendor"], _norm_host(row["host"]), row["http_port"], row["rtsp_port"])
+    host = settings.nvr_host
+    if not host or host == DEV_NVR_PLACEHOLDER:
+        return None
+    return (registry.DEFAULT_VENDOR, _norm_host(host), settings.nvr_http_port, settings.nvr_rtsp_port)
+
+
+DESTINATION_CHANGED = "הכתובת, הפורט או סוג ה־NVR השתנו - יש להזין את הסיסמה מחדש."
+
+
+def _password_for(body: _Base, settings: Settings, row: sqlite3.Row | None, fields: dict[str, Any], *, use_stored: bool) -> tuple[str | None, bool]:
+    """(password to use, changed?). The stored one only when the body omits it, asks to keep it AND the destination (vendor,
+    host, HTTP port, RTSP port) is the stored one: a stored password is never sent anywhere else (security review F2; a
+    deliberate hardening of CR-022 section 6.2). A changed destination without a typed password is 422 `password_required`
+    with `details.reason = "destination_changed"`."""
     if body.password:
         return body.password, True
     if use_stored:
+        stored = _stored_destination(settings, row)
+        wanted = (fields["vendor"], _norm_host(fields["host"]), fields["http_port"], fields["rtsp_port"])
+        if stored is not None and stored != wanted:
+            raise ApiError(422, "password_required", DESTINATION_CHANGED, details={"field": "password", "reason": "destination_changed"})
         try:
             if row is not None:
                 return connection_store.stored_password(settings, row), False
@@ -185,6 +217,13 @@ def _current_vendor(settings: Settings, row: sqlite3.Row | None) -> str | None:
     return registry.DEFAULT_VENDOR if host and host != DEV_NVR_PLACEHOLDER else None
 
 
+def _check_vendor_change(conn: sqlite3.Connection, settings: Settings, row: sqlite3.Row | None, fields: dict[str, Any]) -> None:
+    """D7: changing the vendor of a recorder with cameras needs "Remove NVR" first (409 remove_first)."""
+    current = _current_vendor(settings, row)
+    if current not in (None, registry.NO_NVR) and fields["vendor"] != current and connection_store.camera_count(conn) > 0:
+        raise ApiError(409, "remove_first", "יש להסיר את ה־NVR לפני החלפת סוג.", details={"vendor": current})
+
+
 def _limit(request: Request, conn: sqlite3.Connection, principal: Principal, action: str) -> None:
     wait = request.app.state.connection_probe_limiter.take(principal.user_id or principal.username or "?")
     if wait:
@@ -192,13 +231,43 @@ def _limit(request: Request, conn: sqlite3.Connection, principal: Principal, act
         raise ApiError(429, "rate_limited", f"יותר מדי בדיקות חיבור; אפשר לנסות שוב בעוד {wait} שניות.", retryable=True, details={"retry_after_s": wait})
 
 
+def _deny(request: Request, conn: sqlite3.Connection, principal: Principal, action: str, reason: str, vendor: str) -> None:
+    """Review F7: every refused test or save leaves an audit row - the reason and the vendor, never the host or a password."""
+    audit(conn, actor=principal, action=action, decision="denied", resource_type="nvr", resource_id="connection", reason=reason,
+          request_id=_rid(request), details={"vendor": vendor, "outcome": reason})
+
+
+def _check_ports(fields: dict[str, Any]) -> None:
+    """Review F9: the platform's own service ports are never a probe target, on any host."""
+    for name in ("http_port", "rtsp_port"):
+        if connection_probe.port_refused(fields.get(name)):
+            raise ApiError(422, "port_refused", "הפורט שמור לשירותי המערכת ואינו מותר לחיבור NVR.", details={"field": name})
+
+
 def _run_probe(request: Request, conn: sqlite3.Connection, settings: Settings, fields: dict[str, Any], password: str | None) -> dict[str, Any]:
-    """The source policy, then the GET-only probe with the database write lock released. Raises 422 host_refused."""
+    """The source policy, then the GET-only probe with the database write lock released. Raises 422 host_refused. A name that
+    does not resolve is never handed to the HTTP client (review F3): `source_unavailable`, no connection."""
     with unlocked(conn):
         target = connection_probe.connect_target(fields["host"], settings)
+        if target is None:
+            return {"ok": False, "code": "source_unavailable"}
         cand = connection_probe.candidate(settings, vendor=fields["vendor"], target=target, http_port=fields["http_port"], rtsp_port=fields["rtsp_port"],
                                           username=fields["username"], password=password)
         return connection_probe.probe(cand)
+
+
+def _revision_now(conn: sqlite3.Connection) -> int:
+    row = connection_store.get_row(conn)
+    return int(row["revision"]) if row else 0
+
+
+def _require_revision(if_revision: int | None, conn: sqlite3.Connection) -> None:
+    """Review F10: `if_revision` is mandatory on PUT / DELETE and must equal the stored revision (0 before any save)."""
+    if if_revision is None:
+        raise ApiError(422, "revision_required", "חסר מספר הגרסה של פרטי החיבור; טענו את הדף מחדש.", details={"field": "if_revision"})
+    current = _revision_now(conn)
+    if if_revision != current:
+        raise ApiError(409, "stale", "פרטי החיבור השתנו בינתיים; טענו את הדף מחדש.", details={"revision": current})
 
 
 # ---------------------------------------------------------------- routes
@@ -226,7 +295,12 @@ def test_connection(request: Request, principal: Principal = Depends(_admin_ro),
     if fields["vendor"] == registry.NO_NVR:
         raise ApiError(422, "vendor_not_testable", "אין מה לבדוק כשנבחר \"ללא NVR\".", details={"field": "vendor"})
     row = connection_store.get_row(conn)
-    password, _ = _password_for(body, settings, row, use_stored=body.use_stored_password)
+    try:
+        _check_ports(fields)
+        password, _ = _password_for(body, settings, row, fields, use_stored=body.use_stored_password)
+    except ApiError as exc:
+        _deny(request, conn, principal, "nvr.connection.test", (exc.details or {}).get("reason") or exc.code, fields["vendor"])
+        raise
     if not password:
         raise ApiError(422, "password_required", "יש להזין סיסמה.", details={"field": "password"})
     _limit(request, conn, principal, "nvr.connection.test")
@@ -234,8 +308,7 @@ def test_connection(request: Request, principal: Principal = Depends(_admin_ro),
         result = _run_probe(request, conn, settings, fields, password)
     except ApiError as exc:
         if exc.code == "host_refused":
-            audit(conn, actor=principal, action="nvr.connection.test", decision="denied", resource_type="nvr", resource_id="connection", reason="host_refused",
-                  request_id=_rid(request), details={"vendor": fields["vendor"], "outcome": "host_refused"})
+            _deny(request, conn, principal, "nvr.connection.test", "host_refused", fields["vendor"])
         raise
     audit(conn, actor=principal, action="nvr.connection.test", decision="allowed", resource_type="nvr", resource_id="connection", request_id=_rid(request),
           details={"vendor": fields["vendor"], "outcome": result["code"]})
@@ -251,12 +324,9 @@ def save_connection(request: Request, principal: Principal = Depends(_admin_ro),
     body: SaveIn = _parse(request, raw, SaveIn)
     settings = settings_of(request)
     fields = _validated(body)
+    _require_revision(body.if_revision, conn)
     row = connection_store.get_row(conn)
-    if body.if_revision is not None and body.if_revision != (int(row["revision"]) if row else 0):
-        raise ApiError(409, "stale", "פרטי החיבור השתנו בינתיים; טענו את הדף מחדש.", details={"revision": int(row["revision"]) if row else 0})
-    current = _current_vendor(settings, row)
-    if current not in (None, registry.NO_NVR) and fields["vendor"] != current and connection_store.camera_count(conn) > 0:
-        raise ApiError(409, "remove_first", "יש להסיר את ה־NVR לפני החלפת סוג.", details={"vendor": current})
+    _check_vendor_change(conn, settings, row, fields)
     actor_id = principal.user_id
     if fields["vendor"] == registry.NO_NVR:
         revision = connection_store.write_row(conn, settings, vendor=registry.NO_NVR, host=None, http_port=None, rtsp_port=None, username=None, password=None,
@@ -264,11 +334,25 @@ def save_connection(request: Request, principal: Principal = Depends(_admin_ro),
         audit(conn, actor=principal, action="nvr.connection.update", decision="allowed", resource_type="nvr", resource_id="connection", request_id=_rid(request),
               details={"vendor": registry.NO_NVR, "revision": revision})
         return {"saved": True, "restart_required": True, "restarting": False, "revision": revision, "device": None, "untested": False, **connection_view(conn, request)}
-    password, changed = _password_for(body, settings, row if current == fields["vendor"] or row is None else None, use_stored=body.keep_password)
+    try:
+        _check_ports(fields)
+        password, changed = _password_for(body, settings, row, fields, use_stored=body.keep_password)
+    except ApiError as exc:
+        _deny(request, conn, principal, "nvr.connection.update", (exc.details or {}).get("reason") or exc.code, fields["vendor"])
+        raise
     if not password:
         raise ApiError(422, "password_required", "יש להזין סיסמה.", details={"field": "password"})
     _limit(request, conn, principal, "nvr.connection.update")
-    result = _run_probe(request, conn, settings, fields, password)  # 422 host_refused propagates: never saved, even untested
+    try:
+        result = _run_probe(request, conn, settings, fields, password)  # 422 host_refused propagates: never saved, even untested
+    except ApiError as exc:
+        if exc.code == "host_refused":  # review F7: audited like the test's refusal (no host in the row)
+            _deny(request, conn, principal, "nvr.connection.update", "host_refused", fields["vendor"])
+        raise
+    # review F10: the probe ran with the write lock released - re-check the revision (and the vendor rule) under the lock now
+    _require_revision(body.if_revision, conn)
+    row = connection_store.get_row(conn)
+    _check_vendor_change(conn, settings, row, fields)
     untested = False
     if not result["ok"]:
         code = result["code"]
@@ -305,6 +389,7 @@ def remove_connection(request: Request, principal: Principal = Depends(_admin_ro
     body: RemoveIn = _parse(request, raw, RemoveIn)
     if body.confirm_text.strip() != REMOVE_WORD:
         raise ApiError(422, "confirm_required", f"כדי להסיר את ה־NVR יש להקליד \"{REMOVE_WORD}\".", details={"field": "confirm_text"})
+    _require_revision(body.if_revision, conn)  # the request holds the write lock from here to the commit
     revision, disabled = connection_store.remove(conn, settings_of(request), principal.user_id)
     audit(conn, actor=principal, action="nvr.connection.remove", decision="allowed", resource_type="nvr", resource_id="connection", request_id=_rid(request),
           details={"revision": revision, "cameras_disabled": disabled})
@@ -330,11 +415,12 @@ def restart_system(request: Request, background: BackgroundTasks, principal: Pri
     settings = settings_of(request)
     if not addon_restart.configured(settings):
         raise ApiError(409, "restart_manual", "יש להפעיל מחדש את השירות באופן ידני.")
-    wait = request.app.state.restart_limiter.take("installation")
+    wait = addon_restart.wait_seconds(conn)  # review F6: persisted, so a restart loop cannot reset it
     if wait:
         audit(conn, actor=principal, action="system.restart", decision="denied", resource_type="system", resource_id="addon", reason="rate_limited", request_id=_rid(request))
         raise ApiError(429, "rate_limited", f"המערכת הופעלה מחדש לפני רגע; אפשר לנסות שוב בעוד {wait} שניות.", retryable=True, details={"retry_after_s": wait})
     audit(conn, actor=principal, action="system.restart", decision="allowed", resource_type="system", resource_id="addon", request_id=_rid(request),
           details={"pending_connection": connection_store.pending_restart(conn, settings)})
+    addon_restart.mark(conn)
     background.add_task(_restart_later, settings)
     return JSONResponse({"restarting": True}, status_code=202)

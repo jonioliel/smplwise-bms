@@ -24,6 +24,9 @@ from zoneinfo import ZoneInfo
 import httpx
 
 NVR_HOST = "fake-nvr.test"
+# the address a test resolver gives NVR_HOST (TEST-NET-1, RFC 5737: documentation only, never routed): the connection test
+# connects to the checked address, not the name (CR-022 review F3), and this fake answers that address as the NVR
+NVR_ADDR = "192.0.2.80"
 GO2RTC_HOST = "fake-go2rtc.test"
 HA_HOST = "fake-ha.test"
 NS = 'xmlns="http://www.hikvision.com/ver20/XMLSchema"'
@@ -350,6 +353,8 @@ class FakeDevices:
 
     def handle(self, request: httpx.Request) -> httpx.Response | None:
         host = request.url.host
+        if host == NVR_ADDR:
+            host = NVR_HOST
         if host not in (NVR_HOST, GO2RTC_HOST, HA_HOST):
             return None
         with self.lock:

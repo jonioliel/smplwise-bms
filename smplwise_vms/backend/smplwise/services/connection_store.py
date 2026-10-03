@@ -59,10 +59,42 @@ def key_path(settings: Settings) -> Path:
     return settings.data_dir / "keys" / KEY_NAME
 
 
+_POSIX = os.name == "posix"
+
+
+def _tighten(p: Path) -> None:
+    """Review F13: the key file is readable by its owner only - a looser mode found on disk (a copy, a restore by hand) is
+    put back to 0600. POSIX only; best effort, never raises."""
+    if not _POSIX:
+        return
+    try:
+        if os.stat(p).st_mode & 0o077:
+            os.chmod(p, 0o600)
+    except OSError:
+        pass
+
+
+def _fsync_dir(d: Path) -> None:
+    """Review F13: the new directory entry of the key reaches the disk too (POSIX; best effort)."""
+    if not _POSIX:
+        return
+    try:
+        fd = os.open(str(d), os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+
+
 def _load_or_create_key(settings: Settings, create: bool) -> bytes | None:
     p = key_path(settings)
     with _key_lock:
         if p.exists():
+            _tighten(p)
             raw = p.read_bytes()
             if len(raw) != 32:
                 raise SecretError("the connection key file is damaged")
@@ -94,6 +126,7 @@ def _load_or_create_key(settings: Settings, create: bool) -> bytes | None:
                 if p.exists():
                     return _read_key(p)
                 os.replace(tmp, p)
+            _fsync_dir(d)
             return key
         finally:
             try:
@@ -231,22 +264,39 @@ def _importable(settings: Settings) -> bool:
     return bool(settings.nvr_from_options and host and host != DEV_NVR_PLACEHOLDER)
 
 
+def _from_options(settings: Settings, key: str) -> bool:
+    """Review F16: the import takes a value only when the options file itself carried it - never an `NVR_*` environment
+    value that load_settings used as a fallback for a key the options left empty (CR-022 section 19, deviation 3)."""
+    return key in settings.nvr_option_keys
+
+
 def import_legacy(conn: sqlite3.Connection, settings: Settings) -> bool:
     """Copy the add-on options' NVR connection into the table once: only when no row exists, the import never ran, and the
     options name a real host. Idempotent; the caller's transaction. A key / encryption failure writes nothing (the options
     keep working) and logs one WARN line without values. The options themselves are never written (owner decision D4)."""
     if get_row(conn) is not None or get_setting(conn, IMPORT_DONE_KEY) or not _importable(settings):
         return False
+    from . import connection_probe  # validation only (no network here)
+
+    host = settings.nvr_host.strip()
+    http_port = settings.nvr_http_port if _from_options(settings, "nvr_http_port") else 80
+    rtsp_port = settings.nvr_rtsp_port if _from_options(settings, "nvr_rtsp_port") else 554
+    if not connection_probe.valid_host(host) or not connection_probe.valid_port(http_port) or not connection_probe.valid_port(rtsp_port):
+        # review F16: a value the connection form would refuse is not imported; nothing is written and the options stay in use
+        log.warning("the NVR connection of the add-on options was not imported (the host or a port is not valid); the options stay in use")
+        return False
+    username = settings.nvr_user if _from_options(settings, "nvr_username") else None
+    password = settings.nvr_password if _from_options(settings, "nvr_password") else None
     try:
-        write_row(conn, settings, vendor=DEFAULT_VENDOR, host=settings.nvr_host.strip(), http_port=settings.nvr_http_port, rtsp_port=settings.nvr_rtsp_port,
-                  username=settings.nvr_user, password=settings.nvr_password, extra=None, source="addon_import", actor_id=None)
+        write_row(conn, settings, vendor=DEFAULT_VENDOR, host=host, http_port=http_port, rtsp_port=rtsp_port,
+                  username=username, password=password, extra=None, source="addon_import", actor_id=None)
     except SecretError:
         log.warning("the NVR connection of the add-on options could not be imported (key not available); the options stay in use")
         return False
     from ..audit import audit  # local import: audit -> db only
 
     audit(conn, actor=None, action="nvr.connection.import", decision="allowed", resource_type="nvr", resource_id="connection",
-          details={"vendor": DEFAULT_VENDOR, "http_port": settings.nvr_http_port, "rtsp_port": settings.nvr_rtsp_port, "password_imported": bool(settings.nvr_password)})
+          details={"vendor": DEFAULT_VENDOR, "http_port": http_port, "rtsp_port": rtsp_port, "password_imported": bool(password)})
     log.info("the NVR connection of the add-on options was imported into Arx; the add-on options are ignored from now on")
     return True
 
@@ -282,6 +332,13 @@ def overlay(settings: Settings, row: sqlite3.Row | None) -> Settings:
     except SecretError:
         return dataclasses.replace(settings, nvr_vendor=row["vendor"], nvr_host=None, nvr_user=None, nvr_password=None, nvr_extra=extra,
                                    nvr_connection_state="unreadable", nvr_connection_revision=revision)
+    from . import connection_probe
+
+    if row["host"] and connection_probe.refused_host(row["host"], settings):
+        # review F5: the stored host is re-checked with the connection test's source policy once per start (a name that now
+        # resolves to loopback, the platform network, this host...): fail closed, the NVR is treated as not configured
+        return dataclasses.replace(settings, nvr_vendor=row["vendor"], nvr_host=None, nvr_user=None, nvr_password=None, nvr_extra=extra,
+                                   nvr_connection_state="refused", nvr_connection_revision=revision)
     return dataclasses.replace(
         settings, nvr_vendor=row["vendor"], nvr_host=connect_host(row["host"]), nvr_http_port=int(row["http_port"] or 80),
         nvr_rtsp_port=int(row["rtsp_port"] or 554), nvr_user=row["username"], nvr_password=password, nvr_extra=extra,
@@ -302,9 +359,35 @@ def load_effective(settings: Settings, conn: sqlite3.Connection) -> Settings:
     return overlay(settings, get_row(conn))
 
 
+LEGACY_FILE = "nvr_connection.json"
+
+
+def remove_legacy_file(settings: Settings) -> bool:
+    """Review F11: the 0.1.71 workstation file `<data>/nvr_connection.json` held the NVR password in clear. Nothing reads it
+    any more (CR-022 section 5); it is overwritten with zeros, flushed and deleted at start-up. Idempotent (no file = no-op),
+    never raises, one INFO line without values. Honest limit: on a copy-on-write or flash file system the overwrite does not
+    guarantee the old blocks are gone; the deletion is what this guarantees."""
+    p = settings.data_dir / LEGACY_FILE
+    try:
+        if not p.is_file():
+            return False
+        size = p.stat().st_size
+        with open(p, "r+b") as fh:
+            fh.write(b"\0" * size)
+            fh.flush()
+            os.fsync(fh.fileno())
+        p.unlink()
+    except OSError:
+        log.warning("the legacy NVR connection file could not be removed; delete it by hand")
+        return False
+    log.info("the legacy NVR connection file of an older version was removed (the connection is stored in Arx)")
+    return True
+
+
 def apply_at_startup(db: Any, settings: Settings) -> tuple[Settings, bool]:
     """main.py: `load_effective` in its own transaction. Never blocks the start: on an unexpected error the legacy settings
     stay in use (one line, no values). Returns (effective settings, legacy options differ)."""
+    remove_legacy_file(settings)
     try:
         with db.connection(label="connection_store.startup") as conn:
             effective = load_effective(settings, conn)
@@ -314,6 +397,8 @@ def apply_at_startup(db: Any, settings: Settings) -> tuple[Settings, bool]:
         return settings, False
     if differ:
         log.warning("legacy add-on NVR options are ignored: the NVR connection stored in Arx is used")
+    if effective.nvr_connection_state == "refused":
+        log.warning("the stored NVR address is not allowed by the connection policy; the NVR is treated as not configured until it is entered again")
     if effective.nvr_connection_state == "unreadable":
         log.warning("the stored NVR connection cannot be decrypted (key missing or changed); the NVR is treated as not configured until the password is entered again")
     return effective, differ

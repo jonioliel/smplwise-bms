@@ -63,6 +63,9 @@ class Settings:
     nvr_vendor: str = "hikvision"
     nvr_extra: dict = field(default_factory=dict)
     nvr_from_options: bool = False  # the NVR host came from the add-on options file (the one-time import reads only this)
+    # which NVR option keys the options file itself carried (not an NVR_* environment fallback): the import takes only these
+    # (CR-022 security review F16)
+    nvr_option_keys: frozenset = frozenset()
     nvr_connection_state: str | None = None  # None = legacy options / env; ok | incomplete | unreadable = the stored row
     nvr_connection_revision: int | None = None  # the row revision this process loaded (pending restart = it differs)
 
@@ -125,7 +128,8 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
 
     data_dir = Path(os.environ.get("SW_DATA_DIR") or ("/data" if in_addon else Path.cwd() / "data"))
     # CR-022: the workstation file <data>/nvr_connection.json of 0.1.71 is gone - the NVR connection is a database row
-    # everywhere (services/connection_store.py); NVR_* environment variables stay as the development and test fallback.
+    # everywhere (services/connection_store.py; a leftover file is wiped and deleted at start-up, review F11); NVR_*
+    # environment variables stay as the development and test fallback and are never imported (review F16).
     www_raw = os.environ.get("SW_WWW_DIR") or ("/app/www" if in_addon else None)
     www_dir = Path(www_raw) if www_raw else None
 
@@ -147,6 +151,7 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
         nvr_user=_opt(options, "nvr_username", "NVR_USER"),
         nvr_password=_opt(options, "nvr_password", "NVR_PASSWORD"),
         nvr_from_options=options.get("nvr_host") not in (None, ""),
+        nvr_option_keys=frozenset(k for k in ("nvr_host", "nvr_http_port", "nvr_rtsp_port", "nvr_username", "nvr_password") if options.get(k) not in (None, "")),
         go2rtc_url=_opt(options, "go2rtc_url", "GO2RTC_URL"),
         log_level=(_opt(options, "log_level", "SW_LOG_LEVEL", "info") or "info").lower(),
         nvr_rtsp_port=int(_opt(options, "nvr_rtsp_port", "NVR_RTSP_PORT", "554") or 554),

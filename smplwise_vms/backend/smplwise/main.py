@@ -172,7 +172,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.legacy_options_differ = legacy_differ
     app.state.connection_probe_limiter = connection_probe.probe_limiter()
-    app.state.restart_limiter = connection_probe.restart_limiter()
     if settings.nvr_host == DEV_NVR_PLACEHOLDER:
         log.info("installation mode: full with a placeholder NVR host (developer backend without NVR_HOST); "
                  "SW_MODE=ha_only starts the NVR-less mode")

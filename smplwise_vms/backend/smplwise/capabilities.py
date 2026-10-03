@@ -45,7 +45,7 @@ def nvr_host(settings: Settings) -> str | None:
     the stored `recorder_connections` row overlaid once at start-up by connection_store.load_effective (else the legacy
     add-on options / NVR_* environment, else config.DEV_NVR_PLACEHOLDER for a developer launch). An explicit "no NVR"
     choice (vendor `none`) and an unreadable stored connection are no host."""
-    if settings.nvr_vendor == "none" or settings.nvr_connection_state == "unreadable":
+    if settings.nvr_vendor == "none" or settings.nvr_connection_state in ("unreadable", "refused"):  # refused: review F5
         return None
     host = (settings.nvr_host or "").strip()
     return host or None
