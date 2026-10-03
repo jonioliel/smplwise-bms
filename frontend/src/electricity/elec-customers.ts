@@ -28,6 +28,7 @@ const blank = (no = ''): Form => ({ name: '', customer_number: no, tax_id: '', a
 export class ElecCustomersPage extends ElecBase {
   /** the route segments after /customers: [] = the list, ['new'], [id] = the card */
   @property({ attribute: false }) segments: string[] = [];
+  @property({ attribute: false }) params: URLSearchParams = new URLSearchParams();
   @state() private st: LoadState = 'loading';
   @state() private list: Customer[] = [];
   @state() private q = '';
@@ -151,7 +152,7 @@ export class ElecCustomersPage extends ElecBase {
       this.busy = false;
     }
   }
-  private async remove() {
+  private async removeCustomer() {
     if (!this.card || this.busy) return;
     this.busy = true;
     try {
@@ -193,7 +194,7 @@ export class ElecCustomersPage extends ElecBase {
           ${perms.manage ? html`<div class="row"><button type="button" class="btn pri" data-save ?disabled=${this.busy} @click=${() => void this.save()}>שמירה</button><span class="sp"></span>${c ? html`<button type="button" class="btn dng" data-delete @click=${() => (this.confirmDel = true)}>מחיקת לקוח</button>` : nothing}</div>` : nothing}`}
         <elec-dialog heading="מחיקת לקוח" ?open=${this.confirmDel} data-dialog="delete-customer" @close=${() => (this.confirmDel = false)}>
           <div>הלקוח יימחק. חיובים שהונפקו שומרים עותק של פרטיו.</div>
-          <button slot="actions" type="button" class="btn dng pri" data-confirm ?disabled=${this.busy} @click=${() => void this.remove()}>מחיקה</button>
+          <button slot="actions" type="button" class="btn dng pri" data-confirm ?disabled=${this.busy} @click=${() => void this.removeCustomer()}>מחיקה</button>
           <button slot="actions" type="button" class="btn" @click=${() => (this.confirmDel = false)}>ביטול</button>
         </elec-dialog>
       </aside>`;
