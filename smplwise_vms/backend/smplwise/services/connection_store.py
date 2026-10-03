@@ -385,16 +385,18 @@ def remove_legacy_file(settings: Settings) -> bool:
 
 
 def apply_at_startup(db: Any, settings: Settings) -> tuple[Settings, bool]:
-    """main.py: `load_effective` in its own transaction. Never blocks the start: on an unexpected error the legacy settings
-    stay in use (one line, no values). Returns (effective settings, legacy options differ)."""
+    """main.py: `load_effective` in its own transaction. Never blocks the start, and fails CLOSED (third security review): on
+    an unexpected error (a locked or damaged database) the NVR is treated as not configured with state `unreadable` - the
+    raw add-on options (an old host and password, never checked by the connection policy) are NOT used, because the store may
+    hold "no NVR" or another destination. One line, no values. Returns (effective settings, legacy options differ)."""
     remove_legacy_file(settings)
     try:
         with db.connection(label="connection_store.startup") as conn:
             effective = load_effective(settings, conn)
             differ = legacy_options_differ(settings, get_row(conn))
     except Exception:  # noqa: BLE001 - never block the start
-        log.exception("could not load the stored NVR connection; the add-on options stay in use")
-        return settings, False
+        log.exception("could not load the stored NVR connection; the NVR is treated as not configured until the next start")
+        return dataclasses.replace(settings, nvr_host=None, nvr_user=None, nvr_password=None, nvr_connection_state="unreadable"), False
     if differ:
         log.warning("legacy add-on NVR options are ignored: the NVR connection stored in Arx is used")
     if effective.nvr_connection_state == "refused":

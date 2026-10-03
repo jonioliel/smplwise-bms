@@ -248,14 +248,12 @@ def _check_ports(fields: dict[str, Any]) -> None:
 
 def _run_probe(request: Request, conn: sqlite3.Connection, settings: Settings, fields: dict[str, Any], password: str | None) -> dict[str, Any]:
     """The source policy, then the GET-only probe with the database write lock released. Raises 422 host_refused. A name that
-    does not resolve is never handed to the HTTP client (review F3): `source_unavailable`, no connection."""
+    does not resolve is never handed to the HTTP client (review F3): `source_unavailable`, no connection. Name resolution and
+    the probe share one 8 s budget (third review)."""
     with unlocked(conn):
-        target = connection_probe.connect_target(fields["host"], settings)
-        if target is None:
-            return {"ok": False, "code": "source_unavailable"}
-        cand = connection_probe.candidate(settings, vendor=fields["vendor"], target=target, http_port=fields["http_port"], rtsp_port=fields["rtsp_port"],
-                                          username=fields["username"], password=password)
-        return connection_probe.probe(cand)
+        return connection_probe.check_and_probe(fields["host"], settings, lambda target: connection_probe.candidate(
+            settings, vendor=fields["vendor"], target=target, http_port=fields["http_port"], rtsp_port=fields["rtsp_port"],
+            username=fields["username"], password=password))
 
 
 def _revision_now(conn: sqlite3.Connection) -> int:

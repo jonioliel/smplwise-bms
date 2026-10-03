@@ -21,7 +21,10 @@ The test is an SSRF oracle by nature (it makes the add-on connect where the call
   and at most 256 KB read per answer (review F4). The deadline is hard (second review N2): every socket read and write is
   bounded by the time left, also while waiting for the response headers (an endless stream of `100 Continue` answers), and
   the probe runs in its own thread whose sockets are shut down if it is still running at the deadline. Only identity encoding
-  is accepted and the raw bytes are counted (second review N3: a compressed answer is never inflated before the cap);
+  is accepted and the raw bytes are counted (second review N3: a compressed answer is never inflated before the cap). Both
+  rules hold at the transport for EVERY answer, also the 401 challenge that the Digest handshake reads by itself (third
+  review). Name resolution (this host's name and the typed name, each at most 2 s) runs inside the same 8 s budget
+  (`check_and_probe`, third review); the probe's resolver is its own bounded pool, not the camera source policy's;
 - the answer is coarse: `ok` plus model, firmware and channel count, or one of `source_unavailable`, `source_forbidden`,
   `source_error`, `timeout`, `host_refused`. No response body, header, resolved address or exception text is echoed;
 - 5 tests a minute per user and 20 a minute per installation (the save repeats the test and counts too).
@@ -29,11 +32,15 @@ Residual risk, stated plainly: a name whose DNS answer changes between this chec
 add-on is not fully caught; the start-up overlay (connection_store.overlay) re-checks the stored host once with this policy
 (review F5), but the NVR client resolves the name again on every request after that. The NVR's own network segment is the
 real boundary. Open item: the platform's internal IPv6 network is not listed, because its prefix could not be verified from
-this repository's documents."""
+this repository's documents (third review: still not verifiable here; not guessed). The shared address space 100.64.0.0/10
+and the IPv6 metadata address fd20:ce::254 are refused (third review; the former has an environment override, see
+SHARED_ADDRESS_SPACE)."""
 from __future__ import annotations
 
+import contextvars
 import dataclasses
 import ipaddress
+import os
 import re
 import socket
 import threading
@@ -57,8 +64,20 @@ REFUSED_NAMES = frozenset({"localhost", "supervisor", "hassio", "homeassistant",
 REFUSED_NETWORKS = (ipaddress.ip_network("172.30.32.0/23"), ipaddress.ip_network("100.100.100.200/32"), ipaddress.ip_network("fd00:ec2::/64"),
                     ipaddress.ip_network("2001::/32"),   # Teredo: a tunnel endpoint, never an NVR (review F8)
                     ipaddress.ip_network("fec0::/10"),   # deprecated site-local IPv6
-                    ipaddress.ip_network("64:ff9b:1::/48"))  # local-use NAT64 (RFC 8215): the IPv4's place depends on the
+                    ipaddress.ip_network("64:ff9b:1::/48"),  # local-use NAT64 (RFC 8215): the IPv4's place depends on the
                                                              # prefix length, so the whole range is refused (second review N6)
+                    ipaddress.ip_network("fd20:ce::254/128"))  # a cloud metadata service over IPv6 (third review)
+# the shared address space of carrier-grade NAT (RFC 6598, 100.64.0.0/10; third review). An NVR on a real LAN has an RFC 1918
+# address (or a ULA / global IPv6), never one of these: they sit between a subscriber's router and the carrier, and inside
+# cloud and overlay networks (several metadata and DNS helpers live there). Refused by default; an installation that really
+# reaches its NVR through such an overlay sets SW_NVR_ALLOW_SHARED_ADDRESS_SPACE=1 in the add-on's environment. The metadata
+# addresses inside the range (100.100.100.200) stay refused either way.
+SHARED_ADDRESS_SPACE = ipaddress.ip_network("100.64.0.0/10")
+SHARED_ADDRESS_SPACE_OVERRIDE = "SW_NVR_ALLOW_SHARED_ADDRESS_SPACE"
+
+
+def _shared_address_space_allowed() -> bool:
+    return (os.environ.get(SHARED_ADDRESS_SPACE_OVERRIDE) or "").strip().lower() in ("1", "true", "yes")
 # IPv6 prefixes that carry an IPv4 address (review F8): the embedded IPv4 is judged like a literal, so `64:ff9b::7f00:1`
 # (NAT64 of 127.0.0.1) or `2002:7f00:1::` (6to4 of 127.0.0.1) cannot hide a refused address. IPv4-mapped and
 # IPv4-compatible forms are unwrapped by source_policy.address_of already.
@@ -105,8 +124,28 @@ def _interface_addresses() -> set[str]:
     return out
 
 
+# the probe's own bounded resolver (third review: it shared the camera source policy's four workers, so slow names typed here
+# starved that policy and the other way round)
+_RESOLVER = source_policy.Resolver(workers=4, name="probe-dns")
+# the absolute time.monotonic() end of the current connection test (check_and_probe): name resolution and the probe share it
+_BUDGET_END: contextvars.ContextVar[float | None] = contextvars.ContextVar("sw_probe_budget_end", default=None)
+
+
+def _budget_left(cap: float) -> float:
+    end = _BUDGET_END.get()
+    return cap if end is None else max(0.0, min(cap, end - time.monotonic()))
+
+
+def _resolve(host: str) -> list[str]:
+    """The default RESOLVE: the probe's own resolver, at most 2 s and never past the test's budget."""
+    left = _budget_left(source_policy.RESOLVE_TIMEOUT_S)
+    if left <= 0:
+        return source_policy.NotAnswered(busy=False)
+    return _RESOLVER.resolve(host, left)
+
+
 # seams (tests replace them; nothing here ever reaches a real device in a test)
-RESOLVE: Callable[[str], list[str]] = source_policy.resolve_host
+RESOLVE: Callable[[str], list[str]] = _resolve
 HOSTNAME: Callable[[], str] = socket.gethostname
 LOCAL_ADDRESSES: Callable[[], set[str]] = _interface_addresses
 CLOCK: Callable[[], float] = time.monotonic
@@ -150,6 +189,8 @@ def _address_refused(ip: ipaddress.IPv4Address | ipaddress.IPv6Address, settings
     if source_policy.address_refused(ip):
         return True
     if any(ip.version == net.version and ip in net for net in REFUSED_NETWORKS):
+        return True
+    if ip.version == 4 and ip in SHARED_ADDRESS_SPACE and not _shared_address_space_allowed():
         return True
     if str(ip) in own:
         return True
@@ -305,12 +346,63 @@ class _ProbeTransport(httpx.HTTPTransport):
                                              network_backend=backend)
 
 
+class _CappedStream(httpx.SyncByteStream):
+    """A response body that yields at most MAX_BYTES raw bytes, then stops and closes the connection (`over` tells that more
+    was there). It sits under every reader of the probe's answers, including the Digest handshake's own read of the 401
+    challenge (third review: that read bypassed the cap of `_get_capped`)."""
+
+    def __init__(self, inner: httpx.SyncByteStream) -> None:
+        self._inner = inner
+        self.over = False
+
+    def __iter__(self):
+        count = 0
+        for chunk in self._inner:
+            room = MAX_BYTES - count
+            if len(chunk) > room:
+                if room > 0:
+                    yield chunk[:room]
+                self.over = True
+                break
+            count += len(chunk)
+            yield chunk
+        if self.over:
+            self.close()
+
+    def close(self) -> None:
+        self._inner.close()
+
+
+class _CappedTransport(httpx.BaseTransport):
+    """The probe's rules for EVERY answer, before anything reads or decodes it (third review): only identity encoding (anything
+    else is closed unread and raises httpx.DecodingError, so no reader can inflate it) and at most MAX_BYTES raw bytes."""
+
+    def __init__(self, inner: httpx.BaseTransport) -> None:
+        self._inner = inner
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        response = self._inner.handle_request(request)
+        encoding = response.headers.get("content-encoding", "identity").strip().lower()
+        if encoding not in ("", "identity"):
+            response.close()
+            raise httpx.DecodingError("only identity encoding is accepted", request=request)
+        if not response.is_stream_consumed and isinstance(response.stream, httpx.SyncByteStream):
+            capped = _CappedStream(response.stream)
+            response.stream = capped
+            response.extensions = {**response.extensions, "sw_cap": capped}
+        return response
+
+    def close(self) -> None:
+        self._inner.close()
+
+
 def probe_client(cand: Settings) -> httpx.Client:
     """The probe's own client (not the NVR module's): Digest only, no redirects, no proxy or settings from the environment,
-    identity encoding, 5 s to connect, 5 s per read, every socket operation within the hard deadline. Tests replace this
-    function or TRANSPORT (a test transport bypasses the socket backend)."""
-    backend = _DeadlineBackend(DEADLINE_S)
-    transport: httpx.BaseTransport = TRANSPORT if TRANSPORT is not None else _ProbeTransport(backend)
+    identity encoding, 5 s to connect, 5 s per read, every socket operation within the hard deadline (the test's budget, at
+    most DEADLINE_S), every answer capped at the transport. Tests replace this function or TRANSPORT (a test transport bypasses
+    the socket backend; the caps still apply)."""
+    backend = _DeadlineBackend(_budget_left(DEADLINE_S))
+    transport: httpx.BaseTransport = _CappedTransport(TRANSPORT if TRANSPORT is not None else _ProbeTransport(backend))
     client = httpx.Client(base_url=f"http://{cand.nvr_host}:{cand.nvr_http_port}", auth=httpx.DigestAuth(cand.nvr_user or "", cand.nvr_password or ""),
                         timeout=httpx.Timeout(connect=CONNECT_S, read=READ_S, write=READ_S, pool=READ_S), follow_redirects=False,
                         headers={"Accept-Encoding": "identity"}, trust_env=False, transport=transport)
@@ -350,9 +442,14 @@ def _get_capped(client: httpx.Client, path: str, deadline: float) -> str:
                 _remaining(deadline)  # a trickling answer cannot hold the request past the deadline; each socket read is
                 # also bounded by the hard deadline of _DeadlineBackend (the per-request read timeout is read only once
                 # by httpcore, so changing it here had no effect - second review N4)
+            cap = r.extensions.get("sw_cap")
+            if cap is not None and cap.over:
+                raise _Fail("source_error")  # the transport stopped at MAX_BYTES and more was there
             return bytes(body).decode("utf-8", "replace")
     except httpx.TimeoutException:
         raise _Fail("timeout") from None
+    except httpx.DecodingError:
+        raise _Fail("source_error") from None  # a compressed answer (refused at the transport, third review)
     except httpx.HTTPError:
         raise _Fail("source_unavailable") from None
 
@@ -390,12 +487,18 @@ def probe(cand: Settings) -> dict[str, Any]:
     """deviceInfo, then the channel count: two GET requests, one wall-clock deadline, size-capped answers. Coarse result.
 
     The work runs in its own thread and this call waits at most the deadline plus a short grace (second review N2): if the
-    thread is still running then, its sockets are shut down (the thread ends at once) and the answer is `timeout`."""
-    deadline = CLOCK() + DEADLINE_S
+    thread is still running then, its sockets are shut down (the thread ends at once) and the answer is `timeout`. Inside
+    `check_and_probe` the deadline is what is left of the test's one budget after name resolution (third review)."""
+    budget = _budget_left(DEADLINE_S)
+    if budget <= 0:
+        return {"ok": False, "code": "timeout"}
+    budget_end = time.monotonic() + budget
+    deadline = CLOCK() + budget
     out: list[dict[str, Any]] = []
     backends: list[_DeadlineBackend] = []
 
     def work() -> None:
+        _BUDGET_END.set(budget_end)  # a new thread starts with an empty context; probe_client reads the budget from it
         try:
             with probe_client(cand) as client:
                 backend = getattr(client, "_sw_probe_backend", None)
@@ -409,13 +512,28 @@ def probe(cand: Settings) -> dict[str, Any]:
 
     worker = threading.Thread(target=work, name="nvr-probe", daemon=True)
     worker.start()
-    worker.join(DEADLINE_S + 0.5)
+    worker.join(budget + 0.5)
     if worker.is_alive():
         for backend in backends:
             backend.abort()
         worker.join(1.0)
         return {"ok": False, "code": "timeout"}
     return out[0] if out else {"ok": False, "code": "source_error"}
+
+
+def check_and_probe(host: str, settings: Settings, build: Callable[[str], Settings]) -> dict[str, Any]:
+    """The whole connection test inside ONE budget of DEADLINE_S (third review): the source policy with its name resolution
+    (this host's own name and the typed name, each at most 2 s and never past the budget), then the probe with what is left.
+    Raises 422 `host_refused` like `connect_target`. `build(target)` makes the candidate for the checked address. Worst case
+    for the caller: DEADLINE_S plus the probe's 0.5 s grace and 1 s to close its sockets."""
+    token = _BUDGET_END.set(time.monotonic() + DEADLINE_S)
+    try:
+        target = connect_target(host, settings)
+        if target is None:
+            return {"ok": False, "code": "timeout" if _budget_left(DEADLINE_S) <= 0 else "source_unavailable"}
+        return probe(build(target))
+    finally:
+        _BUDGET_END.reset(token)
 
 
 # ---------------------------------------------------------------- rate limits

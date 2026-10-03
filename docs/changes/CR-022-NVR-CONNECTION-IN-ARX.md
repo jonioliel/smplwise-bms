@@ -539,3 +539,46 @@ UI binding requirement (F14): `model`, `firmware`, `username`, `host` and every 
      resolves DNS inside the start-up write transaction, up to about 4 s when DNS is down).
 5. **Not changed by the integration:** `smplwise_vms/DOCS.md`, the migration, the API inventory, the version. The open items of
    §20.2 stay open (owner decisions).
+
+## 22. Third security review fixes (2026-10-04, branch `pilot/nn4-final-fixes`)
+
+Base `pilot/nn4-integrated` (3a652d12). Regression tests: `tests/test_cr022_security_third_review.py` (every case failed
+before the fix).
+
+1. **Medium: the Digest challenge answer bypassed the caps.** httpx's Digest handshake reads the 401 answer by itself, so the
+   identity-only rule and the 256 KB cap of the probe's own reader did not apply to it (a 65 KB gzip body inflated to 64 MB;
+   an 8 MB plain body was read whole). Both rules now hold at the transport for every answer (`_CappedTransport`): any
+   `Content-Encoding` other than identity is closed unread and raises `httpx.DecodingError` (outcome `source_error`); the body
+   is a raw-byte stream that stops at 256 KB and closes the connection (a larger 200 answer is `source_error`; a larger 401
+   challenge is read up to the cap and the handshake goes on, so wrong credentials still answer `source_forbidden`). The caps
+   apply to a test transport too. Tests: `test_challenge_answer_is_not_capped`, `test_challenge_answer_is_inflated`.
+   **Not changed: the running NVR client** (`services/nvr.py`, `services/events_ingest.py`). It talks only to the stored
+   destination, which a system administrator entered and the policy checked at save and at start-up, and its answers need
+   per-endpoint limits (snapshots, recording search pages, the endless alert stream whose buffer is already bounded to 1 MB).
+   A blanket 256 KB cap or an identity-only rule there would break real devices. Open item: per-endpoint caps for that client.
+2. **Low: one resolver pool for two policies.** The probe used the camera source policy's four DNS workers; slow names
+   starved them and `source_refusal()` then allowed an unresolved name. Name resolution is now a bounded `Resolver`: a lookup
+   abandoned on its timeout keeps its slot until the system resolver returns, and with every slot taken the answer is "busy"
+   at once (no queue). The probe has its own instance. `source_refusal()` refuses a name when the resolver is busy
+   (`source_not_allowed`); a name the resolver says does not exist, or that times out with a free worker, keeps the documented
+   behaviour (unknown, allowed; the same as the bridge's policy). Tests: `test_slow_names_cannot_open_the_camera_source_policy`,
+   `test_the_connection_probe_has_its_own_resolver`.
+3. **Low: start-up fallback.** When reading the stored connection fails at start-up (a locked or damaged database) the add-on
+   no longer falls back to the raw add-on options (an old host and password, unchecked by the policy, even when "no NVR" or a
+   new destination is stored): the NVR is treated as not configured, state `unreadable`, until the next start. Test:
+   `test_a_store_failure_at_startup_does_not_fall_back_to_the_add_on_options`.
+4. **Block list.** Added: `fd20:ce::254` (a cloud metadata service over IPv6) and the shared address space `100.64.0.0/10`
+   (RFC 6598). The shared address space is safe to refuse for NVRs on real LANs: a LAN device has an RFC 1918 address (or a ULA
+   / global IPv6); 100.64/10 sits between a subscriber's router and the carrier and inside cloud and overlay networks, where
+   metadata and DNS helpers live. Override for an installation that really reaches its NVR through such an overlay:
+   environment variable `SW_NVR_ALLOW_SHARED_ADDRESS_SPACE=1` (the metadata address `100.100.100.200` stays refused either
+   way). The NAT64 form of a shared address (`64:ff9b::6440:1`) is refused through the embedded-IPv4 rule. **Not added: the
+   platform's internal IPv6 network.** Its prefix still cannot be verified from this repository or its documents, so it is
+   not guessed; it needs a read-only check on a real installation. Tests: `test_metadata_and_shared_address_space_are_refused`,
+   `test_the_shared_address_space_override`.
+5. **The 8 s budget includes name resolution.** `connection_probe.check_and_probe` (used by the test and the save) starts one
+   8 s budget before the source policy: this host's own name and the typed name are each resolved for at most 2 s and never
+   past the budget, and the probe gets what is left. Worst case for a request: 8 s plus the probe's 0.5 s grace and up to 1 s
+   to close its sockets (about 9.5 s; before this fix about 13 s). Test: `test_name_resolution_is_inside_the_probe_budget`.
+6. **Kept, as instructed and as written:** the host stays in the audit row of a successful save. §10 ("host kept (admin-only
+   audit view, as today)") is the written requirement; no owner requirement found that contradicts it.
