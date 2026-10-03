@@ -216,6 +216,16 @@ export class NvrCameraEditor extends LitElement {
     } else if (changed.has('options') && this.draft && s && this.draft.codec === (s.codec ?? '')) this.opts = this.options;
   }
 
+  /** A select's chosen option follows the draft even after the user touched it (a codec change clears the profile): the DOM value is synced here. */
+  protected updated() {
+    const d = this.draft;
+    if (!d) return;
+    for (const sel of this.renderRoot.querySelectorAll<HTMLSelectElement>('select[data-f]')) {
+      const want = String(d[sel.dataset.f as keyof Draft] ?? '');
+      if (sel.value !== want) sel.value = want;
+    }
+  }
+
   private async loadHistory() {
     const cam = this.camera;
     const s = this.stream;
@@ -301,7 +311,7 @@ export class NvrCameraEditor extends LitElement {
     const cur = String(d[f as keyof Draft] ?? '');
     return html`<label class="f ${bad ? 'bad' : ''}" data-field=${f}>
       <span class="l">${label}</span>
-      <select aria-label=${label} title=${lock ?? ''} ?disabled=${!!lock || this.busy} @change=${(e: Event) => (f === 'codec' ? void this.onCodec((e.target as HTMLSelectElement).value) : this.set(f as keyof Draft, (e.target as HTMLSelectElement).value as never))}>
+      <select data-f=${f} aria-label=${label} title=${lock ?? ''} ?disabled=${!!lock || this.busy} @change=${(e: Event) => (f === 'codec' ? void this.onCodec((e.target as HTMLSelectElement).value) : this.set(f as keyof Draft, (e.target as HTMLSelectElement).value as never))}>
         ${cur === '' || !values.includes(cur) ? html`<option value="" selected disabled>—</option>` : nothing}
         ${values.map((v) => html`<option value=${v} ?selected=${v === cur}>${shown ? shown(v) : v}</option>`)}
       </select>

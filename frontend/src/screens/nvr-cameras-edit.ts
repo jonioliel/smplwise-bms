@@ -232,8 +232,11 @@ export function lockedBy(f: EncodingField, s: StreamEncoding, o: StreamOptions, 
 export function invalidFields(s: StreamEncoding, o: StreamOptions, d: Draft): EncodingField[] {
   const bad: EncodingField[] = [];
   const codec = d.codec || s.codec || '';
+  const was = draftOf(s);
   for (const f of shownFields(s, o, d)) {
     if (lockedBy(f, s, o, d)) continue;
+    // a value the person did not touch (and the codec is the same) is what the device already holds: never "invalid", even when it is unset
+    if (d.codec === was.codec && f in was && d[f as keyof Draft] === was[f as keyof Draft]) continue;
     switch (f) {
       case 'codec':
         if (!o.codec.includes(d.codec)) bad.push(f);
