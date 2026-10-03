@@ -5,7 +5,11 @@ import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import '../components/sw-dialog';
+import '../components/update-run';
+import '../components/restarts-card';
 import { describeError } from '../api/client';
+import { applyUpdate, classifyRunError, newIdempotencyKey, runFailureRequestText, type RunView } from '../api/system-update-runs';
 import { productSettings } from '../api/prefs';
 import {
   INTERVAL_CHOICES, checkForUpdate, classifyCheckError, getUpdateState, intervalLabel, resultLabel, setUpdateInterval,
@@ -16,9 +20,36 @@ import { notifyUpdateState } from '../shell/update-marker';
 /**
  * הגדרות › עדכונים (CR-021 S2, installation scope, `system.update`: system administrators). The installed and the latest
  * version, the last check (time and result), "בדוק אם יש עדכון" (the store reload first, then the read), the automatic
- * check interval (כבוי / 1 / 3 / 6 / 12 / 24 hours) and the release notes while an update exists. There is no apply or
- * restart control yet (slice S3). Only the class of a failure is worded here; the infrastructure's own answer never is.
+ * check interval (כבוי / 1 / 3 / 6 / 12 / 24 hours) and the release notes while an update exists.
+ * CR-021 S3: "עדכן" (a plain confirmation with a backup choice) starts a run; the run's status screen replaces the cards until its
+ * outcome is closed, and is resumed after a reload (the open run from the state, or the run id kept in sessionStorage); the
+ * "הפעלות מחדש" card restarts Arx or the platform. Only the class of a failure is worded here; the infrastructure's own answer never is.
  */
+const RUN_KEY = 'sw.update.run';
+
+function storedRun(): string {
+  try {
+    return sessionStorage.getItem(RUN_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+function keepRun(id: string): void {
+  try {
+    if (id) sessionStorage.setItem(RUN_KEY, id);
+    else sessionStorage.removeItem(RUN_KEY);
+  } catch {
+    /* no storage: the open run still comes from the state */
+  }
+}
+
+/** The one-time manual step while the add-on's role is still the default (CR-021 section 4; text only). */
+const MANUAL_STEPS = [
+  'בתשתית המערכת: הגדרות › תוספים › SmplWise Arx › בדיקת עדכונים.',
+  'סמנו "גיבוי לפני העדכון" ולחצו על עדכון. ההתקנה נמשכת כמה דקות.',
+  'חזרו לכאן ולחצו "בדוק אם יש עדכון". מכאן והלאה העדכונים יתבצעו מתוך Arx.',
+];
+
 @customElement('system-update')
 export class SystemUpdate extends LitElement {
   @state() private data: UpdateState | null = null;
@@ -30,6 +61,15 @@ export class SystemUpdate extends LitElement {
   @state() private savingInterval = false;
   @state() private intervalError = '';
   @state() private tz = 'Asia/Jerusalem';
+  /** CR-021 S3: the run the status screen follows ('' = none) and what the caller already knew about it. */
+  @state() private runId = '';
+  @state() private runHint: Partial<RunView> | null = null;
+  @state() private confirmOpen = false;
+  @state() private backup = true;
+  @state() private applying = false;
+  @state() private applyError = '';
+  @state() private manualOpen = false;
+  private applyKey = '';
 
   static styles = css`
     :host {
@@ -149,6 +189,33 @@ export class SystemUpdate extends LitElement {
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }
+    .apply {
+      display: grid;
+      gap: 8px;
+      margin-block-start: 12px;
+    }
+    ol.how {
+      margin: 0;
+      padding-inline-start: 22px;
+      display: grid;
+      gap: 6px;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+    }
+    .chk {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-block-size: 44px;
+      cursor: pointer;
+      font-size: var(--sw-fs-md);
+    }
+    .chk input {
+      inline-size: 20px;
+      block-size: 20px;
+      flex: none;
+      accent-color: var(--sw-accent);
+    }
     .note .txt[lang='en'] {
       direction: ltr;
       text-align: start;
@@ -168,10 +235,55 @@ export class SystemUpdate extends LitElement {
     try {
       const d = await getUpdateState();
       this.data = d;
-      notifyUpdateState(d.update_available);
+      notifyUpdateState(d.update_available, d.requires_platform_restart === true);
+      const open = d.run?.run_id ?? d.run?.id ?? '';
+      if (open && !this.runId) {
+        this.runId = open;
+        keepRun(open);
+      } else if (!this.runId && storedRun()) {
+        this.runId = storedRun(); // a reload: the status screen shows the outcome of the run this tab started
+      }
     } catch (err) {
       this.loadError = describeError(err);
     }
+  }
+
+  private openConfirm() {
+    this.backup = true;
+    this.applyError = '';
+    this.applyKey = newIdempotencyKey();
+    this.confirmOpen = true;
+  }
+
+  private async confirmApply() {
+    const target = this.data?.latest;
+    if (this.applying || !target) return;
+    this.applying = true;
+    this.applyError = '';
+    try {
+      const run = await applyUpdate({ target_version: target, backup: this.backup, idempotency_key: this.applyKey });
+      this.confirmOpen = false;
+      this.startRun(run);
+    } catch (err) {
+      const f = classifyRunError(err);
+      this.applyError = runFailureRequestText(f, 'update');
+      if (f.kind === 'not_available' || f.kind === 'version_mismatch' || f.kind === 'in_progress') void this.load();
+    } finally {
+      this.applying = false;
+    }
+  }
+
+  private startRun(run: RunView) {
+    this.runHint = run;
+    this.runId = run.run_id;
+    keepRun(run.run_id);
+  }
+
+  private endRun() {
+    this.runId = '';
+    this.runHint = null;
+    keepRun('');
+    void this.load();
   }
 
   private async check() {
@@ -245,7 +357,36 @@ export class SystemUpdate extends LitElement {
               ${n.he ? html`<div class="txt" lang="he">${n.he}</div>` : nothing}${n.en ? html`<div class="txt" lang="en">${n.en}</div>` : nothing}</div>`,
           )
         : html`<p class="msg" data-update-notes-empty>אין פירוט זמין</p>`}
+      ${this.renderApply(d)}
     </sw-card>`;
+  }
+
+  /** "עדכן" - or, while the add-on's role is still the default, the one-time manual step instead of a button that cannot work. */
+  private renderApply(d: UpdateState) {
+    const blocked = d.permitted === 'no' || this.failure?.kind === 'not_permitted' || (!this.failure && d.check_result === 'not_permitted');
+    if (blocked) {
+      return html`<div class="apply" data-update-blocked>
+        <p class="msg err">ל-Arx אין הרשאה לעדכן את עצמו. נדרש שינוי חד-פעמי בהגדרות ההתקנה.</p>
+        <div class="foot"><sw-button size="sm" data-update-manual-open aria-expanded=${this.manualOpen ? 'true' : 'false'} @click=${() => (this.manualOpen = !this.manualOpen)}>הוראות</sw-button></div>
+        ${this.manualOpen ? html`<ol class="how" data-update-manual>${MANUAL_STEPS.map((s) => html`<li>${s}</li>`)}</ol>` : nothing}
+      </div>`;
+    }
+    return html`<div class="foot"><sw-button variant="primary" icon="download" data-update-apply @click=${() => this.openConfirm()}>עדכן</sw-button></div>`;
+  }
+
+  private renderConfirm(d: UpdateState) {
+    return html`<sw-dialog ?open=${this.confirmOpen} ?locked=${this.applying} heading="לעדכן את SmplWise Arx?" data-update-dialog @close=${() => (this.confirmOpen = false)}>
+      <div class="stack">
+        <div class="msg ver-line" data-update-dialog-versions>מגרסה <span class="ver">${d.installed ?? '—'}</span> לגרסה <span class="ver">${d.latest ?? '—'}</span></div>
+        <div class="msg">המערכת לא תהיה זמינה כמה דקות</div>
+        <label class="chk"><input type="checkbox" data-update-backup .checked=${this.backup} ?disabled=${this.applying} @change=${(e: Event) => (this.backup = (e.target as HTMLInputElement).checked)} /><span>צור גיבוי לפני העדכון</span></label>
+        ${this.applyError ? html`<p class="msg err" role="alert" data-update-apply-error>${this.applyError}</p>` : nothing}
+      </div>
+      <div slot="footer">
+        <sw-button variant="primary" data-update-confirm ?disabled=${this.applying} @click=${() => void this.confirmApply()}>עדכן עכשיו</sw-button>
+        <sw-button variant="ghost" data-update-cancel ?disabled=${this.applying} @click=${() => (this.confirmOpen = false)}>ביטול</sw-button>
+      </div>
+    </sw-dialog>`;
   }
 
   render() {
@@ -255,6 +396,13 @@ export class SystemUpdate extends LitElement {
         ${this.loadError
           ? html`<sw-state-panel state="error" heading="לא ניתן לטעון את מצב העדכונים" hint=${this.loadError} actionLabel="נסו שוב" data-update-load-error @action=${() => void this.load()}></sw-state-panel>`
           : html`<sw-state-panel state="loading" data-update-loading></sw-state-panel>`}
+      </sw-page>`;
+    }
+    if (this.runId) {
+      return html`<sw-page heading="עדכונים">
+        <div class="stack" data-system-update data-update-run-page>
+          <sw-update-run .runId=${this.runId} .initial=${this.runHint} @run-dismiss=${() => this.endRun()}></sw-update-run>
+        </div>
       </sw-page>`;
     }
     const interval = d.interval_hours ?? 6;
@@ -289,7 +437,9 @@ export class SystemUpdate extends LitElement {
           ${this.intervalError ? html`<p class="msg err" role="alert" data-update-interval-error>${this.intervalError}</p>` : nothing}
         </sw-card>
         ${this.renderNotes(d)}
+        <sw-restarts-card ?required=${d.requires_platform_restart === true} @run-started=${(e: CustomEvent<RunView>) => this.startRun(e.detail)}></sw-restarts-card>
       </div>
+      ${this.renderConfirm(d)}
     </sw-page>`;
   }
 }

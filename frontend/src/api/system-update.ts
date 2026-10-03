@@ -1,5 +1,6 @@
 /** CR-021 S2: the self-update state, the manual check and the check interval (backend: routers/system_update.py). */
 import { ApiError, get, put, api } from './client';
+import type { RestartReason, RunRef } from './system-update-runs';
 
 export const INTERVAL_CHOICES = [0, 1, 3, 6, 12, 24] as const;
 
@@ -24,6 +25,10 @@ export interface UpdateState {
   permitted?: 'unknown' | 'yes' | 'no';
   notes?: UpdateNote[];
   requires_platform_restart?: boolean;
+  /** CR-021 S3: why (bridge / wiskey / release), holders only. */
+  platform_restart_reasons?: RestartReason[];
+  /** CR-021 S3: the open (not finished) update or platform-restart run, if any. */
+  run?: RunRef | null;
 }
 
 export interface CheckOut {

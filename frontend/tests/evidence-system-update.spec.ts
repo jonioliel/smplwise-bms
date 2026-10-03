@@ -170,7 +170,7 @@ test.describe('settings page (CR-021 S2)', () => {
     await shot(page, 'page-never');
   });
 
-  test('available: the new version, the empty release-notes list says there are no details, and no apply control', async ({ page }) => {
+  test('available: the new version, the empty release-notes list says there are no details, and the apply button (S3)', async ({ page }) => {
     const mock = freshMock();
     mock.state = { ...mock.state, latest: '0.1.154', update_available: true, check_result: 'available' };
     await mockBackend(page, ADMIN_PERMS, mock);
@@ -180,7 +180,7 @@ test.describe('settings page (CR-021 S2)', () => {
     await expect(root.locator('[data-update-status="available"]')).toContainText('יש גרסה חדשה');
     await expect(root.locator('[data-update-last]')).toContainText('יש עדכון');
     await expect(root.locator('[data-update-notes-empty]')).toHaveText('אין פירוט זמין');
-    await expect(root.locator('button, sw-button').filter({ hasText: /^\s*עדכן/ })).toHaveCount(0);
+    await expect(root.locator('[data-update-apply]')).toBeVisible();
     await noOverflow(page);
     await shot(page, 'page-available');
   });
