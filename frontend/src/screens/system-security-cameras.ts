@@ -418,11 +418,36 @@ export class SystemSecurityCameras extends LitElement {
         margin: 0;
       }
     }
+    /* S2: with the switch and pencil columns the table needs about 900 px; a holder of nvr.configure gets the cards below that */
+    @media (max-width: 899px) {
+      :host([data-rw]) .wrap {
+        display: none;
+      }
+      :host([data-rw]) .cards {
+        display: grid;
+        gap: 8px;
+      }
+      :host([data-rw]) .toolbar sw-field,
+      :host([data-rw]) .toolbar sw-field.search {
+        inline-size: calc(50% - 4px);
+      }
+      :host([data-rw]) .toolbar sw-field.search {
+        inline-size: 100%;
+      }
+      :host([data-rw]) .count {
+        inline-size: 100%;
+        margin: 0;
+      }
+    }
   `;
 
   connectedCallback() {
     super.connectedCallback();
     void this.load();
+  }
+
+  protected willUpdate() {
+    this.toggleAttribute('data-rw', !!this.data?.can_write);
   }
 
   private async load() {
