@@ -80,17 +80,6 @@ def bill_pdf_filename(number: str | None) -> str:
     return "bill-draft.pdf"
 
 
-def _child_setup(limits: _Limits):  # pragma: no cover - runs in the forked child
-    def apply() -> None:
-        import resource
-
-        resource.setrlimit(resource.RLIMIT_AS, (limits.memory_bytes, limits.memory_bytes))
-        cpu = int(limits.timeout_s) + 5
-        resource.setrlimit(resource.RLIMIT_CPU, (cpu, cpu))
-        resource.setrlimit(resource.RLIMIT_FSIZE, (limits.max_pdf_bytes + 1_000_000, limits.max_pdf_bytes + 1_000_000))
-    return apply
-
-
 def _child_env() -> dict[str, str]:
     """A scrubbed environment: no tokens, no proxy settings, nothing of the add-on's configuration."""
     env = {"PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"), "PYTHONPATH": _PACKAGE_PARENT,
@@ -119,14 +108,15 @@ def render_bill_pdf(snapshot: Mapping[str, Any], *, logo: bytes | None = None, w
         except LogoError as exc:
             log.warning("bill logo dropped: %s", exc)
     job = {"snapshot": snapshot, "logo": base64.b64encode(logo_png).decode("ascii") if logo_png else None,
-           "watermark": watermark, "max_pages": limits.max_pages, "engine": limits.engine}
+           "watermark": watermark, "max_pages": limits.max_pages, "engine": limits.engine,
+           "memory_bytes": limits.memory_bytes, "cpu_seconds": int(limits.timeout_s) + 5,
+           "fsize_bytes": limits.max_pdf_bytes + 1_000_000}
     payload = json.dumps(job, default=str).encode("utf-8")
 
     kwargs: dict[str, Any] = {"stdin": subprocess.PIPE, "stdout": subprocess.PIPE, "stderr": subprocess.PIPE,
                               "env": _child_env(), "cwd": _PACKAGE_PARENT}
     if os.name == "posix":
         kwargs["start_new_session"] = True  # own process group: only this child tree is ever signalled
-        kwargs["preexec_fn"] = _child_setup(limits)
     cmd = [sys.executable, "-s", "-m", "smplwise.services.bill_pdf_engine"]
     try:
         proc = subprocess.Popen(cmd, **kwargs)

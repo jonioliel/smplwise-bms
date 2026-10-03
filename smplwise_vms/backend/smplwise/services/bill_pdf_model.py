@@ -312,7 +312,7 @@ class BillSnapshot:
         prev_kwh = None
         if points:
             last = max(points, key=lambda h: h.period_end)
-            if (p_start - last.period_end).days == 1:  # directly preceding period only
+            if (p_start - last.period_end).days == 1 and not last.partial:  # the directly preceding, complete period only
                 prev_kwh = last.kwh
 
         due = _opt_date(bill.get("due_date") or bill.get("expected_due_date"), "bill.due_date")

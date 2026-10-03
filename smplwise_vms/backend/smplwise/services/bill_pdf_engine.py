@@ -161,7 +161,7 @@ def render_fpdf2(s: BillSnapshot, logo_png: bytes | None, max_pages: int = MAX_P
             for i, text in enumerate(cells):
                 x -= widths[i]
                 pdf.set_xy(x, y + 0.8)
-                numeric = i >= numeric_from and not bold
+                numeric = i >= numeric_from and not bold and not any("\u0590" <= ch <= "\u05ff" for ch in text)
                 setf(8.5, bold)
                 pdf.set_text_shaping(False) if numeric else pdf.set_text_shaping(**rtl)
                 pdf.multi_cell(widths[i], 4.6, text, align="L" if numeric else "R", new_x="RIGHT", new_y="TOP")
@@ -278,6 +278,19 @@ def render_fpdf2(s: BillSnapshot, logo_png: bytes | None, max_pages: int = MAX_P
 
 
 # ---------------------------------------------------------------------------------------------------- worker entry
+def apply_limits(memory_bytes: int, cpu_seconds: int, fsize_bytes: int) -> None:
+    """Resource limits of the render process, set by the process itself at start-up (a preexec_fn in the parent would
+    not be thread-safe inside the web server). POSIX only; on other systems the parent's timeout still applies."""
+    try:
+        import resource
+    except ImportError:  # pragma: no cover
+        return
+    for which, value in ((resource.RLIMIT_AS, memory_bytes), (resource.RLIMIT_CPU, cpu_seconds),
+                         (resource.RLIMIT_FSIZE, fsize_bytes)):
+        _soft, hard = resource.getrlimit(which)
+        resource.setrlimit(which, (value if hard == resource.RLIM_INFINITY else min(value, hard), hard))
+
+
 def deny_network() -> None:
     """Defence in depth for the render process: any attempt to resolve a name or open a socket raises. The URL fetcher
     already refuses every URL; this makes a library-level surprise fail loudly instead of reaching a network."""
@@ -313,6 +326,8 @@ def run_job(job: dict[str, Any]) -> tuple[bytes, str]:
 def main() -> int:
     deny_network()
     job = json.loads(sys.stdin.buffer.read())
+    if job.get("memory_bytes"):
+        apply_limits(int(job["memory_bytes"]), int(job.get("cpu_seconds") or 30), int(job.get("fsize_bytes") or 12_000_000))
     try:
         pdf, engine = run_job(job)
     except RenderRefused as exc:

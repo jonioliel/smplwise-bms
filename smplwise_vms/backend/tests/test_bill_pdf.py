@@ -688,15 +688,19 @@ def test_child_environment_is_scrubbed(monkeypatch):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="address-space limit applies to POSIX")
-def test_memory_limit_is_applied_to_the_child_process(monkeypatch):
+def test_memory_limit_is_applied_to_the_child_process(monkeypatch, tmp_path):
     monkeypatch.setenv("SW_BILL_PDF_MEMORY_MB", "256")  # the lowest the clamp allows
     limits = bill_pdf._limits(None, None)
-    proc = subprocess.run([sys.executable, "-c", "x = bytearray(700 * 1024 * 1024); print('allocated')"],
-                          capture_output=True, preexec_fn=bill_pdf._child_setup(limits))
+    prefix = ("from smplwise.services.bill_pdf_engine import apply_limits; "
+              f"apply_limits({limits.memory_bytes}, 30, 12000000); ")
+    run = lambda body: subprocess.run([sys.executable, "-c", prefix + body], capture_output=True,  # noqa: E731
+                                      cwd=bill_pdf._PACKAGE_PARENT)
+    proc = run("x = bytearray(700 * 1024 * 1024); print('allocated')")
     assert proc.returncode != 0 and b"allocated" not in proc.stdout and b"MemoryError" in proc.stderr
-    ok = subprocess.run([sys.executable, "-c", "x = bytearray(20 * 1024 * 1024); print('allocated')"],
-                        capture_output=True, preexec_fn=bill_pdf._child_setup(limits))
+    ok = run("x = bytearray(20 * 1024 * 1024); print('allocated')")
     assert ok.returncode == 0 and b"allocated" in ok.stdout
+    big_file = run(f"open({str(tmp_path / 'probe')!r}, 'wb').write(b'x' * 13_000_000)")
+    assert big_file.returncode != 0  # RLIMIT_FSIZE: SIGXFSZ / OSError before a 13 MB file is written
 
 
 @needs_render
@@ -722,6 +726,14 @@ def test_render_time_budget_for_a_three_page_bill_on_this_machine():
     elapsed = time.perf_counter() - t0
     assert int(pdf_info(pdf)["Pages"]) >= 3
     assert elapsed < 15 * sw_time_factor(), f"3+ page bill took {elapsed:.1f} s"
+
+
+def test_previous_period_consumption_is_not_stated_from_partial_or_distant_data():
+    assert snap(S.base()).previous_kwh == Decimal("776.20")
+    partial = S.with_history(S.previous([("2026-08-01", "2026-08-31", "500")], status="partial"), None)
+    assert snap(partial).previous_kwh is None
+    gap = S.with_history(S.previous([("2026-07-01", "2026-07-31", "500")]), None)  # August is missing
+    assert snap(gap).previous_kwh is None
 
 
 def test_period_dates_are_dates():
