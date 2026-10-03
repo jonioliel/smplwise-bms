@@ -15,6 +15,7 @@ from ..auth import current_principal, get_conn, settings_of
 from ..config import Settings
 from ..db import unlocked
 from ..errors import ApiError
+from ..capabilities import ensure_capability  # NN1: 409 capability_unavailable, after ensure_nvr
 from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize
 from ..services import playback as pb
@@ -85,8 +86,7 @@ def create_group(body: GroupBody, request: Request, principal: Principal = Depen
         raise ApiError(422, "validation", "start_at חייב להיות UTC (Z).")
     s = read_settings(conn)
     ensure_nvr(settings)  # NVR-less mode: 409 after the camera permission, before the go2rtc check
-    if not settings.go2rtc_url:
-        raise ApiError(503, "media_not_configured", "כתובת go2rtc לא הוגדרה בהגדרות ה־Add-on.")
+    ensure_capability(settings, "playback")  # NN1: no go2rtc = 409 capability_unavailable (was 503 media_not_configured)
     if len(pb.REGISTRY.active()) + len(ids) > s["playback.max_sessions"]:
         raise ApiError(429, "playback_quota", f"קבוצה של {len(ids)} מצלמות חורגת ממכסת סשני הניגון ({s['playback.max_sessions']}).", retryable=True)
     group = pg.PlaybackGroup(id=uuid.uuid4().hex[:10], user_id=principal.user_id, requested_at=start)

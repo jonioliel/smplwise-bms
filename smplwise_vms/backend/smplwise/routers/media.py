@@ -24,6 +24,7 @@ from ..auth import current_principal, get_conn, maybe_bootstrap, resolve_princip
 from ..config import Settings
 from ..db import Database, retry_locked, unlocked
 from ..errors import ApiError
+from ..capabilities import ensure_capability  # NN1: 409 capability_unavailable, after ensure_nvr
 from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Decision, Principal, authorize, require
 from ..services import autosync
@@ -141,12 +142,14 @@ def sync_streams(request: Request, principal: Principal = Depends(current_princi
     automatically after each discovery when go2rtc is configured."""
     require(conn, principal, "sources.configure", INSTALLATION)
     ensure_nvr(settings_of(request))  # NVR-less mode: no camera streams to create (after the permission check)
+    ensure_capability(settings_of(request), "live_video")  # NN1: no go2rtc = 409 capability_unavailable, never a 503
     return autosync.ensure_streams(settings_of(request), conn, actor=principal, request_id=getattr(request.state, "correlation_id", None), reason="manual")
 
 
 @router.get("/media/streams")
 def list_streams(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "sources.configure", INSTALLATION)
+    ensure_capability(settings_of(request), "go2rtc")  # NN1: no go2rtc = 409 capability_unavailable, never a 503
     client = g2.Go2rtc(settings_of(request))
     with unlocked(conn):
         streams = client.list_streams()

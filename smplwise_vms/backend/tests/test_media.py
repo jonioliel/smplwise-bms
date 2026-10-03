@@ -90,7 +90,9 @@ def test_streams_sync_only_touches_our_namespace(client, settings, monkeypatch):
 
 def test_media_not_configured(client):
     client.post("/api/v1/cameras", json={"channel": 1, "alias": "a"})
-    assert client.post("/api/v1/media/streams/sync").json()["code"] == "media_not_configured"
+    # NN1 (capabilities.py): no go2rtc is a 409 capability_unavailable after the permission check, never a 503
+    r = client.post("/api/v1/media/streams/sync")
+    assert r.status_code == 409 and r.json()["code"] == "capability_unavailable" and r.json()["details"]["reason"] == "media_not_configured"
 
 
 def test_live_info_and_ws_authorization(client, settings, monkeypatch):
