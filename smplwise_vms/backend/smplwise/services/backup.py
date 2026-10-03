@@ -31,7 +31,11 @@ FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path",
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.zip$")
 KEEP = {"auto-pre-upgrade": 5, "auto-daily": 7}
 SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.version", "bridge.secret", "bridge.pairing_code", "bridge.paired_at",
-                 "multimedia.ma_direct"}  # CR-016 17.3: the Music Assistant server address (its token is a file outside the archive)
+                 "multimedia.ma_direct",  # CR-016 17.3: the Music Assistant server address (its token is a file outside the archive)
+                 "nvr.legacy_import_done"}  # CR-022 section 7: a restore never re-arms the one-time import of the add-on options
+# CR-022 section 9: `recorder_connections` (the NVR connection with its encrypted password) is deliberately NOT a backup table:
+# never written to an archive, never read from one, and a `replace` restore leaves the row alone (it is not in PROJECT_TABLES).
+# Its key file lives in keys/, which never enters an archive (`_rel`).
 MAX_UPLOAD = 200 * 1024 * 1024
 DAILY_SECONDS = 24 * 3600
 

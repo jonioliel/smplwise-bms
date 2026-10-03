@@ -48,7 +48,15 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
         from ..services.ha_user_auth import remote_settings
 
         remote = {k: v for k, v in remote_settings(conn).items() if k not in ("remote.require_mfa_admin", "remote.admins_default")}
+    installation_permissions = effective_permissions(conn, principal, INSTALLATION)
+    extra: dict = {}
+    if "system.configure" in installation_permissions:
+        # CR-022 section 8: a saved / removed NVR connection waits for a restart; the banner survives reloads and other admins see it
+        from ..services.connection_store import pending_restart
+
+        extra["connection_pending_restart"] = pending_restart(conn, settings_of(request))
     return {
+        **extra,
         "channel": channel,
         "remote": remote,
         "user": {
@@ -59,7 +67,7 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
         },
         "active": _active(conn, principal),
         "bindings": bindings_of(conn, principal),
-        "permissions_installation": effective_permissions(conn, principal, INSTALLATION),
+        "permissions_installation": installation_permissions,
         "permissions_any": permissions_anywhere(conn, principal),  # what the shell may show at all (any scope)
         "has_access": has_any_binding(conn, principal),
         "permission_revision": permission_revision(conn),

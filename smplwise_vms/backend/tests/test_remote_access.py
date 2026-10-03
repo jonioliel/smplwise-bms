@@ -496,7 +496,10 @@ def test_remote_config_is_public_on_the_remote_channel_only(arx):
 # every route of the app, reached on the remote channel without a session, is refused (CR-008 §3e.2)
 # config; an idempotent sign-out; the CSP report sink (CR-008 P2: counters only, rate-limited, bounded)
 PUBLIC_ON_REMOTE = {("GET", "/api/v1/auth/remote-config"), ("DELETE", "/api/v1/auth/session"), ("POST", "/api/v1/csp-report")}
-BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/bridge/directory")}  # 404: the bridge's signed calls
+BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/bridge/directory"),  # 404: the bridge's signed calls
+                     # CR-022 section 10: the NVR connection, its test and the restart are local-only
+                     ("GET", "/api/v1/nvr/vendors"), ("GET", "/api/v1/nvr/connection"), ("PUT", "/api/v1/nvr/connection"), ("DELETE", "/api/v1/nvr/connection"),
+                     ("POST", "/api/v1/nvr/connection/test"), ("POST", "/api/v1/system/restart")}
 
 
 def test_every_route_needs_a_remote_session(arx):

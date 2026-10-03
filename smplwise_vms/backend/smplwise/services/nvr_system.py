@@ -1,16 +1,14 @@
 """Owner-approved NVR system writes (0.1.71): clock / NTP (D2), OSD and channel name (D1), alarm outputs (A3),
-disk S.M.A.R.T. test (C3), reboot (D3) and the VMS-side connection edit (D4). Every device write goes through the
+disk S.M.A.R.T. test (C3) and reboot (D3); the VMS-side connection edit (D4) moved to services/connection_store.py and
+routers/nvr_connection.py with CR-022 (stored in Arx, no Supervisor options write). Every device write goes through the
 change log in `nvr_write` (GET → mutate → PUT → verify, audited); one-shot commands (pulse, test, reboot, clock)
 are recorded without a "before" document, so they cannot be rolled back by mistake."""
 from __future__ import annotations
 
 import datetime as dt
 import html
-import json
 import re
 import sqlite3
-from dataclasses import replace
-from pathlib import Path
 from typing import Any
 
 import httpx
@@ -27,7 +25,6 @@ NTP_PATH = "/ISAPI/System/time/ntpServers/1"
 IO_OUTPUTS = "/ISAPI/System/IO/outputs"
 HDD_LIST = "/ISAPI/ContentMgmt/Storage/hdd"
 REBOOT_PATH = "/ISAPI/System/reboot"
-CONNECTION_FILE = "nvr_connection.json"
 CLOCK_VERIFY_S = 120  # a clock write that leaves the device further off than this is reported as failed
 XMLNS = 'xmlns="http://www.hikvision.com/ver20/XMLSchema"'
 
@@ -366,49 +363,3 @@ def reboot(settings: Settings, conn: sqlite3.Connection, principal: Any, *, requ
     audit(conn, actor=principal, action="nvr.write", decision="allowed", resource_type="nvr", resource_id="system", request_id=request_id, details={"kind": "reboot", "change_id": rec["id"]})
     return rec
 
-
-# ---------------------------------------------------------------- D4: connection (VMS side)
-
-def connection_view(settings: Settings) -> dict[str, Any]:
-    from ..mode import is_placeholder
-
-    # the developer placeholder host (config.DEV_NVR_PLACEHOLDER) is not an NVR: never shown as one
-    return {"host": None if is_placeholder(settings) else settings.nvr_host, "placeholder": is_placeholder(settings), "http_port": settings.nvr_http_port, "rtsp_port": settings.nvr_rtsp_port, "user": settings.nvr_user,
-            "has_password": bool(settings.nvr_password), "in_addon": bool(settings.ha_url and settings.ha_url.startswith("http://supervisor"))}
-
-
-def with_connection(settings: Settings, *, host: str, http_port: int, rtsp_port: int, user: str, password: str | None) -> Settings:
-    return replace(settings, nvr_host=host, nvr_http_port=http_port, nvr_rtsp_port=rtsp_port, nvr_user=user, nvr_password=password or settings.nvr_password)
-
-
-def supervisor_post(settings: Settings, path: str, body: dict[str, Any] | None = None) -> None:
-    """A Supervisor API call from inside the add-on (options / restart). Raises ApiError on refusal."""
-    try:
-        r = httpx.post(f"http://supervisor{path}", json=body, headers={"Authorization": f"Bearer {settings.ha_token}"}, timeout=15)
-    except httpx.HTTPError as exc:
-        raise ApiError(503, "supervisor_unavailable", "ה־Supervisor אינו זמין.", details={"path": path, "error": type(exc).__name__}) from exc
-    if r.status_code >= 400:
-        raise ApiError(502, "supervisor_refused", "ה־Supervisor דחה את הבקשה.", details={"path": path, "status": r.status_code})
-
-
-def supervisor_options(settings: Settings) -> dict[str, Any]:
-    try:
-        r = httpx.get("http://supervisor/addons/self/info", headers={"Authorization": f"Bearer {settings.ha_token}"}, timeout=15)
-        r.raise_for_status()
-        return dict(r.json().get("data", {}).get("options") or {})
-    except (httpx.HTTPError, ValueError) as exc:
-        raise ApiError(503, "supervisor_unavailable", "ה־Supervisor אינו זמין.", details={"error": type(exc).__name__}) from exc
-
-
-def save_connection(settings: Settings, new: Settings) -> str:
-    """Persist the new NVR connection: through the Supervisor (add-on options + restart) inside Home Assistant, or
-    into <data>/nvr_connection.json on a developer workstation (merged by load_settings). Returns where it went."""
-    values = {"nvr_host": new.nvr_host, "nvr_http_port": new.nvr_http_port, "nvr_rtsp_port": new.nvr_rtsp_port, "nvr_username": new.nvr_user, "nvr_password": new.nvr_password}
-    if connection_view(settings)["in_addon"]:
-        options = supervisor_options(settings) | values
-        supervisor_post(settings, "/addons/self/options", {"options": options})
-        supervisor_post(settings, "/addons/self/restart")
-        return "supervisor"
-    path = Path(settings.data_dir) / CONNECTION_FILE
-    path.write_text(json.dumps(values, ensure_ascii=False, indent=2), encoding="utf-8")
-    return "file"
