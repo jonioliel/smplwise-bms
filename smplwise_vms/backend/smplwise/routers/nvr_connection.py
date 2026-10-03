@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, get_conn, read_gate, settings_of
 from ..config import DEV_NVR_PLACEHOLDER, Settings
 from ..db import unlocked
 from ..errors import ApiError
@@ -95,6 +95,11 @@ def _parse(request: Request, raw: bytes, model: type[BaseModel]) -> Any:
     except ValidationError as exc:
         fields = sorted({".".join(str(p) for p in err["loc"]) or "body" for err in exc.errors()})
         raise ApiError(422, "validation", "הבקשה אינה תקינה: " + ", ".join(fields), details={"fields": fields}) from None
+
+
+# review L7 (tests/test_raw_body_order.py): the raw-body routes check the permission on a READ connection (a refusal is audited
+# aside), then read the body, and only then open the write connection
+_admin_ro = read_gate(lambda conn, principal: require(conn, principal, PERMISSION, INSTALLATION))
 
 
 def _restart_mode(settings: Settings) -> str:
@@ -211,8 +216,8 @@ def get_connection(request: Request, principal: Principal = Depends(current_prin
 
 
 @router.post("/nvr/connection/test")
-def test_connection(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn),
-                    raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def test_connection(request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(_raw_body),
+                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A read-only test of a candidate connection. No database write except its one audit row."""
     require(conn, principal, PERMISSION, INSTALLATION)
     body: TestIn = _parse(request, raw, TestIn)
@@ -238,8 +243,8 @@ def test_connection(request: Request, principal: Principal = Depends(current_pri
 
 
 @router.put("/nvr/connection")
-def save_connection(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn),
-                    raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def save_connection(request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(_raw_body),
+                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Test (server-side), then store. Section 6.4: an unreachable NVR is saved only with `save_untested` + the typed word;
     bad credentials and refused hosts never. Changing the vendor of a recorder with cameras needs "Remove NVR" first (D7)."""
     require(conn, principal, PERMISSION, INSTALLATION)
@@ -293,8 +298,8 @@ def save_connection(request: Request, principal: Principal = Depends(current_pri
 
 
 @router.delete("/nvr/connection")
-def remove_connection(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn),
-                      raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+def remove_connection(request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(_raw_body),
+                      conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """"Remove NVR": secrets cleared, vendor `none`, the cameras stay - disabled. The add-on options are never re-imported."""
     require(conn, principal, PERMISSION, INSTALLATION)
     body: RemoveIn = _parse(request, raw, RemoveIn)
@@ -313,8 +318,8 @@ def _restart_later(settings: Settings) -> None:
 
 
 @router.post("/system/restart", status_code=202)
-def restart_system(request: Request, background: BackgroundTasks, principal: Principal = Depends(current_principal),
-                   conn: sqlite3.Connection = Depends(get_conn), raw: bytes = Depends(_raw_body)) -> Any:
+def restart_system(request: Request, background: BackgroundTasks, principal: Principal = Depends(_admin_ro),
+                   raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> Any:
     """Restart Arx to apply a connection change (D3: never automatic). The call is made after the answer is sent - the
     restart ends this process, so its outcome cannot be reported; the screen falls back to "restart by hand" when the
     system does not come back."""
