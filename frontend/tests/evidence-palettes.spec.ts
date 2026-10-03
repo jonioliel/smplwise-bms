@@ -176,6 +176,19 @@ test.describe('bubble palettes', () => {
     await card.locator('[data-look-save]').click();
     await expect.poll(() => attr(page, 'data-bubble-palette')).toBe(stored[0].id);
     await expect.poll(() => inline(page, '--sw-text-2')).toBe('#c8cfdc');
+    // "save as": the copy gets a NEW custom id and the original stays; the base 'default' is never in the editor's list
+    await ed.locator(`[data-palette-edit="${stored[0].id}"]`).click();
+    await ed.locator('[data-palette-save-as]').click();
+    await expect(card.locator('[data-look-option^="palette:custom-"]')).toHaveCount(2);
+    const ids = JSON.parse((await page.evaluate(() => localStorage.getItem('sw.ui.palettes'))) as string).map((p: { id: string }) => p.id) as string[];
+    expect(new Set(ids).size).toBe(2);
+    expect(ids).toContain(stored[0].id);
+    expect(ids.every((i) => i.startsWith('custom-'))).toBe(true);
+    await expect(ed.locator('[data-palette-delete="default"], [data-palette-edit="default"]')).toHaveCount(0);
+    const copy = ids.find((i) => i !== stored[0].id)!;
+    await ed.locator(`[data-palette-delete="${copy}"]`).click();
+    await ed.locator(`[data-palette-delete="${copy}"]`).click();
+    await expect(card.locator('[data-look-option^="palette:custom-"]')).toHaveCount(1);
     // delete it (two steps): the dial falls back to the skin's colours
     await ed.locator(`[data-palette-delete="${stored[0].id}"]`).click();
     await ed.locator(`[data-palette-delete="${stored[0].id}"]`).click();
