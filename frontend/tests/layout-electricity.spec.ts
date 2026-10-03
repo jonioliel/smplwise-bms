@@ -30,7 +30,7 @@ const SCREENS: Screen[] = [
   { name: 'accounts-view-only', route: `${EL}/accounts`, ctl: { persona: 'view' } },
   { name: 'account-status', route: `${EL}/accounts/a1` },
   { name: 'account-stale', route: `${EL}/accounts/a3` },
-  { name: 'account-history', route: `${EL}/accounts/a1/history`, prep: click('elec-chart summary') },
+  { name: 'account-history', route: `${EL}/accounts/a1/history`, prep: click('elec-chart [data-chart-table-toggle]') },
   { name: 'account-history-partial', route: `${EL}/accounts/a2/history` },
   { name: 'account-bills', route: `${EL}/accounts/a1/bills` },
   { name: 'generate-dialog', route: `${EL}/accounts/a1`, prep: click('[data-create-bill]') },

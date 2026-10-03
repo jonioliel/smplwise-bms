@@ -87,7 +87,7 @@ test.describe('account page', () => {
     await expect(chart.locator('[data-bar="cur"]')).toHaveCount(1);
     await expect(chart.locator('.legend')).toContainText('אותה תקופה אשתקד');
     await expect(chart.locator('[data-bar="prev"]')).toHaveCount(12);
-    await chart.locator('summary').click();
+    await chart.locator('[data-chart-table-toggle]').click();
     await expect(chart.locator('[data-elec-chart-table] td').first()).toBeVisible();
     await page.locator('[data-months="24"]').click();
     await expect(page.locator('[data-months="24"]')).toHaveAttribute('aria-pressed', 'true');

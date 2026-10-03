@@ -20,6 +20,7 @@ export class ElecChart extends LitElement {
   @property({ type: Boolean, reflect: true }) print = false;
   @property({ type: Number }) height = 200;
   @state() private w = 640;
+  @state() private showTable = false;
   private ro?: ResizeObserver;
 
   static styles = css`
@@ -138,18 +139,22 @@ export class ElecChart extends LitElement {
       overflow: hidden;
       clip-path: inset(50%);
     }
-    details summary {
+    .tgl {
       cursor: pointer;
+      font: inherit;
       font-size: 12px;
       margin-block-start: 6px;
       color: var(--sw-accent-text);
-      min-block-size: 24px;
+      background: none;
+      border: 0;
+      padding: 0 4px;
+      min-block-size: var(--elec-touch, 32px);
+      display: inline-flex;
+      align-items: center;
     }
     @media (max-width: 1100px) {
-      details summary {
-        min-block-size: 44px;
-        display: flex;
-        align-items: center;
+      :host {
+        --elec-touch: 44px;
       }
     }
   `;
@@ -227,7 +232,8 @@ export class ElecChart extends LitElement {
       <thead><tr>${bars.map((b) => html`<th scope="col" title=${b.title}>${b.kind === 'ly' ? 'אשתקד' : b.label}</th>`)}</tr></thead>
       <tbody><tr>${bars.map((b) => html`<td>${b.kwh === null ? '-' : f2(b.kwh)}</td>`)}</tr></tbody>
     </table></div>`;
-    if (this.table === 'details') return html`<details><summary>טבלת מספרים</summary>${t}</details>`;
+    if (this.table === 'details')
+      return html`<button type="button" class="tgl" data-chart-table-toggle aria-expanded=${this.showTable} @click=${() => (this.showTable = !this.showTable)}>${this.showTable ? 'הסתרת טבלת מספרים' : 'טבלת מספרים'}</button>${this.showTable ? t : nothing}`;
     return t;
   }
 }
