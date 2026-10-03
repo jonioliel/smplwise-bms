@@ -132,13 +132,13 @@ export class NvrCameraBatch extends LitElement {
       outline-offset: 2px;
     }
     .space {
-      position: relative;
+      box-sizing: border-box;
       inline-size: 100%;
     }
-    .win {
-      position: absolute;
-      inset-inline: 0;
-      inset-block-start: 0;
+    @media (max-width: 1100px) {
+      .tools sw-field input {
+        min-block-size: 44px;
+      }
     }
     .sel {
       all: unset;
@@ -625,7 +625,7 @@ export class NvrCameraBatch extends LitElement {
     const idx: number[] = [];
     for (let i = w.start; i < w.end; i++) idx.push(i);
     return html`<div class="vl" role="list" aria-label=${label} tabindex="0" data-nvr-batch-list=${kind} data-rows=${n} @scroll=${this.onScroll} @wheel=${this.takeControl} @touchstart=${this.takeControl} @pointerdown=${this.takeControl}>
-      <div class="space" style="block-size:${w.total}px"><div class="win" style="transform:translateY(${w.top}px)">${repeat(idx, (i) => i, (i) => row(i))}</div></div>
+      <div class="space" style="padding-block:${w.top}px ${Math.max(0, w.total - w.top - (w.end - w.start) * rowH)}px">${repeat(idx, (i) => i, (i) => row(i))}</div>
     </div>`;
   }
 
