@@ -1,13 +1,17 @@
-"""Fakes for the electricity billing tests (CR-023 P2): a readings store built from synthetic cumulative readings, a pinned
-clock and a fake PDF renderer. No device, no Home Assistant, no real customer data."""
+"""Fakes for the electricity billing tests (CR-023 P2): an in-memory readings store with the semantics of the meters
+branch's EnergyReadingsProvider (docs/architecture/ELECTRICITY_INTERFACES.md section 2.1: allocation by time, additive
+consumption, only covered time counts, None = no data), a pinned clock and a fake PDF renderer. No device, no Home
+Assistant, no real customer data."""
 from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass, field
+from decimal import ROUND_HALF_UP, Decimal
 
-from smplwise.services.energy_billing_provider import MeterInfo, Segment
+from smplwise.services.energy_billing_provider import BoundaryReading, Consumption, MeterEvent, MeterInfo
 
 UTC = dt.timezone.utc
+NEAR = dt.timedelta(minutes=15)
 
 
 def utc(*args: int) -> dt.datetime:
@@ -15,18 +19,27 @@ def utc(*args: int) -> dt.datetime:
 
 
 @dataclass
+class _Seg:
+    t0: dt.datetime
+    t1: dt.datetime
+    wh: int
+    v0: int
+    v1: int
+    reset: bool
+
+
+@dataclass
 class FakeMeter:
     name: str
     readings: list[tuple[dt.datetime, int, bool]] = field(default_factory=list)  # (at, cumulative Wh, reset before this reading)
-    last_report_at: dt.datetime | None = None
     status: str = "active"
+    last_report: dt.datetime | None = None  # None = the last reading
 
 
 class FakeReadings:
-    """Segments are consecutive readings; a reset reading counts its own value as the energy since the restart."""
-
     def __init__(self) -> None:
         self.m: dict[str, FakeMeter] = {}
+        self.calls = 0
 
     def add_meter(self, mid: str, name: str) -> FakeMeter:
         self.m[mid] = FakeMeter(name)
@@ -36,8 +49,6 @@ class FakeReadings:
         meter = self.m[mid]
         meter.readings.append((at, wh, reset))
         meter.readings.sort(key=lambda r: r[0])
-        if meter.last_report_at is None or at > meter.last_report_at:
-            meter.last_report_at = at
 
     def linear(self, mid: str, start: dt.datetime, end: dt.datetime, wh_start: int, wh_per_hour: int, step: dt.timedelta = dt.timedelta(hours=1)) -> int:
         at, wh = start, wh_start
@@ -47,33 +58,71 @@ class FakeReadings:
             wh += int(wh_per_hour * step.total_seconds() / 3600)
         return wh
 
-    # ---- the protocol
-    def meters(self, meter_ids=None) -> dict[str, MeterInfo]:
-        ids = list(self.m) if meter_ids is None else [i for i in meter_ids if i in self.m]
-        return {i: MeterInfo(i, self.m[i].name, self.m[i].status, self.m[i].last_report_at) for i in ids}
-
-    def _segments(self, mid: str) -> list[Segment]:
+    def _segs(self, mid: str) -> list[_Seg]:
         r = self.m[mid].readings
         out = []
         for (t0, v0, _), (t1, v1, reset) in zip(r, r[1:]):
-            wh = v1 if reset or v1 < v0 else v1 - v0
-            out.append(Segment(t0, t1, wh, v0, v1, reset or v1 < v0))
+            rs = reset or v1 < v0
+            out.append(_Seg(t0, t1, v1 if rs else v1 - v0, v0, v1, rs))
         return out
 
-    def segments(self, meter_id, start, end):
-        if meter_id not in self.m:
-            return []
-        return [s for s in self._segments(meter_id) if s.t1 > start and s.t0 < end]
+    # ---- the provider subset billing uses
+    def get_meter(self, meter_id: str):
+        m = self.m.get(meter_id)
+        return MeterInfo(meter_id, m.name, m.status) if m else None
 
-    def history_wh(self, meter_id, start, end):
-        if meter_id not in self.m:
+    def list_meters(self, *, include_retired: bool = False):
+        return [MeterInfo(i, m.name, m.status) for i, m in self.m.items() if include_retired or m.status != "retired"]
+
+    def last_report_at(self, meter_id: str):
+        m = self.m.get(meter_id)
+        if not m or not m.readings:
             return None
-        segs = [s for s in self._segments(meter_id) if s.t0 >= start and s.t1 <= end]
-        if not segs:
-            return None
-        total = sum(s.wh for s in segs)
-        complete = segs[0].t0 <= start + dt.timedelta(hours=2) and segs[-1].t1 >= end - dt.timedelta(hours=2)
-        return total, complete
+        return m.last_report or m.readings[-1][0]
+
+    def consumption(self, meter_id: str, start: dt.datetime, end: dt.datetime) -> Consumption:
+        self.calls += 1
+        if meter_id not in self.m or not self.m[meter_id].readings:
+            return Consumption(meter_id, start, end, None, "none")
+        segs = self._segs(meter_id)
+        total = Decimal(0)
+        covered = dt.timedelta(0)
+        events = []
+        for s in segs:
+            lo, hi = max(s.t0, start), min(s.t1, end)
+            if hi <= lo:
+                continue
+            covered += hi - lo
+            total += Decimal(s.wh) * Decimal((hi - lo).total_seconds()) / Decimal((s.t1 - s.t0).total_seconds())
+            if s.reset and start < s.t1 <= end:
+                events.append(MeterEvent(s.t1, "reset", s.v1))
+        if covered == dt.timedelta(0):
+            return Consumption(meter_id, start, end, None, "none")
+        cov = "full" if covered >= end - start else "partial"
+        return Consumption(meter_id, start, end, int(total.quantize(Decimal(1), rounding=ROUND_HALF_UP)), cov, tuple(events))
+
+    def reading_at(self, meter_id: str, at: dt.datetime) -> BoundaryReading:
+        r = self.m[meter_id].readings if meter_id in self.m else []
+        before = [x for x in r if x[0] <= at]
+        after = [x for x in r if x[0] > at]
+        b = before[-1] if before else None
+        a = after[0] if after else None
+        value = None
+        if b and a:
+            seg = next(s for s in self._segs(meter_id) if s.t0 == b[0])
+            frac = Decimal((at - seg.t0).total_seconds()) / Decimal((seg.t1 - seg.t0).total_seconds())
+            value = int(Decimal(seg.v0) + (Decimal(seg.wh) if seg.reset else Decimal(seg.v1 - seg.v0)) * frac)
+        elif b and b[0] == at:
+            value = b[1]
+        elif b and not a:
+            value = b[1] if at - b[0] <= NEAR else None
+        exact = bool((b and at - b[0] <= NEAR) or (a and a[0] - at <= NEAR))
+        if b and not a and at - b[0] > NEAR:
+            value = b[1] if at == self.last_report_at(meter_id) else value
+        return BoundaryReading(meter_id, at, b[0] if b else None, b[1] if b else None, a[0] if a else None, a[1] if a else None, value, exact)
+
+    def history_wh(self, *a, **k):  # pragma: no cover - not part of the protocol billing uses
+        raise NotImplementedError
 
 
 class Clock:

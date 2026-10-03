@@ -329,7 +329,7 @@ def delete_customer(cid: str, request: Request, base_revision: int = Query(...),
 # ====================================================================== accounts
 
 @router.get("/energy/accounts")
-def list_accounts(principal: Principal = Depends(_view), conn: sqlite3.Connection = Depends(get_read_conn), customer_id: str | None = Query(None, max_length=64),
+def list_accounts(request: Request, principal: Principal = Depends(_view), conn: sqlite3.Connection = Depends(get_read_conn), customer_id: str | None = Query(None, max_length=64),
                   q: str | None = Query(None, max_length=80), status: Literal["active", "paused"] | None = None) -> dict[str, Any]:
     money = _has(conn, principal, BILLS)
     sql = "SELECT * FROM energy_accounts WHERE deleted_at IS NULL"
@@ -343,14 +343,14 @@ def list_accounts(principal: Principal = Depends(_view), conn: sqlite3.Connectio
     if status:
         sql += " AND status = ?"
         args.append(status)
-    provider = get_provider()
+    provider = get_provider(conn, settings_of(request))
     return {"items": [eb.account_dict(conn, provider, r, money) for r in conn.execute(sql + " ORDER BY name", args).fetchall()]}
 
 
 @router.post("/energy/accounts", status_code=201)
 def create_account(request: Request, principal: Principal = Depends(_manage), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body = _parse(request, raw, AccountCreate)
-    provider = get_provider()
+    provider = get_provider(conn, settings_of(request))
     data = body.model_dump()
     data["formula"] = body.formula.model_dump()
     aid = eb.create_account(conn, provider, principal.user_id, data, _tz(conn))
@@ -360,8 +360,8 @@ def create_account(request: Request, principal: Principal = Depends(_manage), ra
 
 
 @router.get("/energy/accounts/{aid}")
-def get_account(aid: str, principal: Principal = Depends(_view), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    return eb.account_dict(conn, get_provider(), eb.get_account(conn, aid), _has(conn, principal, BILLS))
+def get_account(aid: str, request: Request, principal: Principal = Depends(_view), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    return eb.account_dict(conn, get_provider(conn, settings_of(request)), eb.get_account(conn, aid), _has(conn, principal, BILLS))
 
 
 @router.patch("/energy/accounts/{aid}")
@@ -371,7 +371,7 @@ def patch_account(aid: str, request: Request, principal: Principal = Depends(_ma
     if body.formula is not None:
         data["formula"] = body.formula.model_dump()
     before = eb.get_account(conn, aid)
-    provider = get_provider()
+    provider = get_provider(conn, settings_of(request))
     changed = eb.update_account(conn, provider, aid, data, _tz(conn))
     details: dict[str, Any] = {"fields": changed}
     if "formula_json" in changed:
@@ -404,9 +404,9 @@ def account_periods(aid: str, principal: Principal = Depends(_view), conn: sqlit
 
 
 @router.get("/energy/accounts/{aid}/status")
-def account_status(aid: str, principal: Principal = Depends(_view), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+def account_status(aid: str, request: Request, principal: Principal = Depends(_view), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     acc = eb.get_account(conn, aid)
-    provider = get_provider()
+    provider = get_provider(conn, settings_of(request))
     today = _today(acc["timezone"])
     p = per.period_containing(eb.cycle_of(acc), max(today, eb.cycle_of(acc).first_start))
     out: dict[str, Any] = {"period": p.as_api() if p else None, "kwh_so_far": None, "meters": [], "notes": []}
@@ -446,7 +446,7 @@ def _last_full_month(tz: str) -> per.Period:
 @router.post("/energy/formula/check")
 def formula_check(request: Request, principal: Principal = Depends(_view_or_manage), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     body = _parse(request, raw, FormulaCheck)
-    provider = get_provider()
+    provider = get_provider(conn, settings_of(request))
     out: dict[str, Any] = {"ok": False, "ast": None, "text": None, "sentence_he": None, "meter_ids": [], "coefficients": {}, "errors": [], "warnings": [], "preview": None}
     try:
         comp = eb.formula_from_input(provider, body.formula.model_dump())
@@ -462,15 +462,15 @@ def formula_check(request: Request, principal: Principal = Depends(_view_or_mana
         out["ok"] = False
         return out
     a, b = per.utc_window(p, tz)
-    infos = provider.meters(comp.meter_ids)
+    names = eb.meter_names(provider, comp.meter_ids)
     values = {}
     meters = []
     for mid in comp.meter_ids:
         w = meter_window(provider, mid, [a, b])
         values[mid] = w.wh
-        meters.append({"meter_id": mid, "name": infos[mid].name if mid in infos else mid, "kwh": px.s2(w.wh / 1000)})
-        info = infos.get(mid)
-        if info is None or info.last_report_at is None or info.last_report_at < eb.now_utc() - eb.NOT_REPORTING_AFTER:
+        meters.append({"meter_id": mid, "name": names.get(mid, mid), "kwh": px.s2(w.wh / 1000)})
+        last = provider.last_report_at(mid)
+        if last is None or last < eb.now_utc() - eb.NOT_REPORTING_AFTER:
             out["warnings"].append({"code": "meter_not_reporting", "message": "המונה לא מדווח כרגע.", "meter_id": mid})
     result = px.r2(comp.evaluate(values) / 1000)
     out["preview"] = {"period": p.as_api(), "meters": meters, "result_kwh": str(result), "negative": result < 0}
@@ -487,7 +487,7 @@ def formula_preset(request: Request, principal: Principal = Depends(_view_or_man
         ast = fx.preset(body.preset, body.meter_ids, body.main_meter_id, body.percent)
     except fx.FormulaError as e:
         raise eb.formula_error(e) from None
-    api = eb.formula_api(get_provider(), ast)
+    api = eb.formula_api(get_provider(conn, settings_of(request)), ast)
     return {"ast": ast, "text": api["text"], "sentence_he": api["sentence_he"]}
 
 
@@ -679,7 +679,7 @@ def create_bill(aid: str, request: Request, principal: Principal = Depends(_bill
     hit = eb._overlapping(rconn, aid, p)
     if hit is not None:
         raise eb._overlap_error(hit)
-    comp = eb.compute(rconn, get_provider(), acc, p)
+    comp = eb.compute(rconn, get_provider(rconn, settings_of(request)), acc, p)
     with _db(request).connection(label="energy.bill.create") as w:
         again = eb.by_create_request(w, body.client_request_id)
         if again is not None:
@@ -722,7 +722,7 @@ def recalculate(bid: str, request: Request, principal: Principal = Depends(_bill
         raise ApiError(409, "bill_not_draft", "החיוב אינו טיוטה.", details={"state": bill["state"]})
     acc = eb.get_account(rconn, bill["account_id"])
     p = per.Period(eb._date(bill["period_start"]), eb._date(bill["period_end"]))
-    comp = eb.compute(rconn, get_provider(), acc, p, origin=bill["origin"], replaces=_replaces(rconn, bill), bill_id=bid)
+    comp = eb.compute(rconn, get_provider(rconn, settings_of(request)), acc, p, origin=bill["origin"], replaces=_replaces(rconn, bill), bill_id=bid)
     with _db(request).connection(label="energy.bill.recalculate") as w:
         eb.store_recalculated(w, bill, comp, principal, _rid(request), body.row_version)
         return eb.bill_dict(w, eb.get_bill(w, bid))
@@ -752,7 +752,7 @@ def issue(bid: str, request: Request, principal: Principal = Depends(_bills), ra
     issue_date = body.issue_date or today
     if issue_date > today or issue_date < p.end:
         raise ApiError(422, "validation", "תאריך ההנפקה חייב להיות אחרי סוף התקופה ולא בעתיד.", details={"fields": ["issue_date"]})
-    comp = eb.compute(rconn, get_provider(), acc, p, origin=bill["origin"], replaces=_replaces(rconn, bill), bill_id=bid)
+    comp = eb.compute(rconn, get_provider(rconn, settings_of(request)), acc, p, origin=bill["origin"], replaces=_replaces(rconn, bill), bill_id=bid)
     stale = comp.total != bill["total"] or comp.kwh != bill["kwh"]
     with _db(request).connection(label="energy.bill.issue") as w:
         cur = eb.get_bill(w, bid)
@@ -807,7 +807,7 @@ def correct(bid: str, request: Request, principal: Principal = Depends(_bills), 
     eb.check_correctable(rconn, orig)
     acc = eb.get_account_any(rconn, orig["account_id"])
     p = per.Period(eb._date(orig["period_start"]), eb._date(orig["period_end"]))
-    comp = eb.compute(rconn, get_provider(), acc, p, origin="manual", replaces=orig)
+    comp = eb.compute(rconn, get_provider(rconn, settings_of(request)), acc, p, origin="manual", replaces=orig)
     with _db(request).connection(label="energy.bill.correct") as w:
         again = eb.by_create_request(w, body.client_request_id)
         if again is not None and again["replaces_bill_id"] == bid:

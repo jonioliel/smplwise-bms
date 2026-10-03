@@ -1,84 +1,120 @@
-"""CR-023 P2: what billing reads from the electricity readings store (docs/architecture/ELECTRICITY_BILLING_PROVIDER.md).
+"""CR-023 P2: how billing reads the electricity readings store.
 
-Billing never touches energy.db itself. It calls a `BillingReadings` object registered here; the meters/readings branch
-(`pilot/elec-server`, `EnergyReadingsProvider`) is wired in through one adapter. Until a provider is registered the
-`NullReadings` answers "no meters, no readings": accounts can be configured, nothing can be billed (no invented energy)."""
+Billing never opens energy.db. It uses the meters branch's `EnergyReadingsProvider` (docs/architecture/
+ELECTRICITY_INTERFACES.md section 2, `services/energy_provider.provider_for(conn, settings)`), and only this subset of it:
+
+    get_meter(meter_id) -> MeterInfo | None            # .id, .display_name, .status
+    list_meters(include_retired=False) -> list[MeterInfo]
+    last_report_at(meter_id) -> datetime | None
+    consumption(meter_id, start, end) -> Consumption   # .wh (int | None), .coverage ('full'|'partial'|'none'), .events
+    reading_at(meter_id, at) -> BoundaryReading         # .value_wh, .exact, .before_at, .after_at
+
+Semantics relied on (section 2.1 there): energy between readings is allocated by time and `consumption` is additive;
+`wh` counts only the covered time (a meter that stopped reporting is measured up to its last report); `None` = no data.
+
+The dataclasses below mirror the field names of that contract so the test fake and the real provider are interchangeable.
+Until the meters branch is merged, `get_provider` answers with `NullReadings` ("no meters"): nothing can be billed and no
+energy is ever invented."""
 from __future__ import annotations
 
 import datetime as dt
 import threading
-from dataclasses import dataclass
-from typing import Iterable, Protocol, runtime_checkable
+from dataclasses import dataclass, field
+from typing import Any, Literal, Protocol, runtime_checkable
+
+Coverage = Literal["full", "partial", "none"]
 
 
 @dataclass(frozen=True)
 class MeterInfo:
-    meter_id: str
-    name: str
-    status: str = "active"  # active | paused | retired
-    last_report_at: dt.datetime | None = None  # UTC
+    id: str
+    display_name: str
+    status: str = "active"
 
 
 @dataclass(frozen=True)
-class Segment:
-    """One pair of consecutive accepted readings of one meter inside one epoch; `wh` is final (resets resolved)."""
-    t0: dt.datetime
-    t1: dt.datetime
-    wh: int
-    v0_wh: int = 0
-    v1_wh: int = 0
-    reset: bool = False
+class MeterEvent:
+    at: dt.datetime
+    kind: str  # reset | rebase | spike_dropped | jump_accepted | noise_ignored | replaced | unit_changed
+    detail_wh: int | None = None
+
+
+@dataclass(frozen=True)
+class Consumption:
+    meter_id: str
+    start: dt.datetime
+    end: dt.datetime
+    wh: int | None
+    coverage: Coverage
+    events: tuple[MeterEvent, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
+class BoundaryReading:
+    meter_id: str
+    at: dt.datetime
+    before_at: dt.datetime | None
+    before_wh: int | None
+    after_at: dt.datetime | None
+    after_wh: int | None
+    value_wh: int | None
+    exact: bool
+    epoch_id: str | None = None
 
 
 @runtime_checkable
 class BillingReadings(Protocol):
-    def meters(self, meter_ids: Iterable[str] | None = None) -> dict[str, MeterInfo]: ...
+    def get_meter(self, meter_id: str) -> Any: ...
 
-    def segments(self, meter_id: str, start: dt.datetime, end: dt.datetime) -> list[Segment]: ...
+    def list_meters(self, *, include_retired: bool = False) -> list[Any]: ...
 
-    def history_wh(self, meter_id: str, start: dt.datetime, end: dt.datetime) -> tuple[int, bool] | None: ...
+    def last_report_at(self, meter_id: str) -> dt.datetime | None: ...
+
+    def consumption(self, meter_id: str, start: dt.datetime, end: dt.datetime) -> Any: ...
+
+    def reading_at(self, meter_id: str, at: dt.datetime) -> Any: ...
 
 
 class NullReadings:
-    """No readings store wired in: no meter is known, nothing is ever measured."""
+    """No readings store: no meter is known, nothing is ever measured."""
 
-    def meters(self, meter_ids: Iterable[str] | None = None) -> dict[str, MeterInfo]:
-        return {}
+    def get_meter(self, meter_id: str) -> None:
+        return None
 
-    def segments(self, meter_id: str, start: dt.datetime, end: dt.datetime) -> list[Segment]:
+    def list_meters(self, *, include_retired: bool = False) -> list[Any]:
         return []
 
-    def history_wh(self, meter_id: str, start: dt.datetime, end: dt.datetime) -> tuple[int, bool] | None:
+    def last_report_at(self, meter_id: str) -> None:
         return None
+
+    def consumption(self, meter_id: str, start: dt.datetime, end: dt.datetime) -> Consumption:
+        return Consumption(meter_id, start, end, None, "none")
+
+    def reading_at(self, meter_id: str, at: dt.datetime) -> BoundaryReading:
+        return BoundaryReading(meter_id, at, None, None, None, None, None, False)
 
 
 _LOCK = threading.Lock()
-_PROVIDER: BillingReadings | None = None
+_OVERRIDE: BillingReadings | None = None
 
 
 def set_provider(provider: BillingReadings | None) -> None:
-    """Register the readings provider (the meters branch at start-up; a fake in tests). None restores the null one."""
-    global _PROVIDER
+    """Tests (and tools) register a provider; None returns to the real one."""
+    global _OVERRIDE
     with _LOCK:
-        _PROVIDER = provider
+        _OVERRIDE = provider
 
 
-def get_provider() -> BillingReadings:
+def get_provider(conn: Any = None, settings: Any = None) -> BillingReadings:
+    """The provider for one request / job (the real one is bound to the caller's main-DB connection)."""
     with _LOCK:
-        if _PROVIDER is not None:
-            return _PROVIDER
-    adapted = _try_server_provider()
-    return adapted if adapted is not None else NullReadings()
-
-
-def _try_server_provider() -> BillingReadings | None:
-    """Integration seam: the meters branch exposes its provider; adapt it here when present (aligned at integration with
-    docs/architecture/ELECTRICITY_INTERFACES.md). Absent module = None, never an error."""
+        if _OVERRIDE is not None:
+            return _OVERRIDE
     try:
-        from . import energy_billing_adapter  # type: ignore[attr-defined]
+        from . import energy_provider  # type: ignore[attr-defined]  # the meters branch (pilot/elec-server)
     except ImportError:
-        return None
+        return NullReadings()
     try:
-        return energy_billing_adapter.provider()
+        return energy_provider.provider_for(conn, settings)
     except Exception:  # noqa: BLE001 - an unready store means "no data", never a crash of billing
-        return None
+        return NullReadings()

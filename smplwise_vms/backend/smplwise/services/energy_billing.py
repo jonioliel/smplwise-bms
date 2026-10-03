@@ -427,14 +427,14 @@ def cycle_of(acc: sqlite3.Row | dict) -> per.Cycle:
     return per.Cycle(int(acc["period_months"]), int(acc["period_anchor_day"]), int(acc["period_anchor_month"]), _date(acc["first_period_start"]))
 
 
-def meter_names(provider: BillingReadings, ids: list[str] | None = None) -> dict[str, str]:
-    return {m.meter_id: m.name for m in provider.meters(ids).values()}
+def meter_names(provider: BillingReadings, ids: list[str] | None = None, include_retired: bool = True) -> dict[str, str]:
+    names = {m.id: m.display_name for m in provider.list_meters(include_retired=include_retired)}
+    return names if ids is None else {i: names[i] for i in ids if i in names}
 
 
 def formula_from_input(provider: BillingReadings, formula: dict[str, Any]) -> fx.Compiled:
-    """{text} or {ast} -> a compiled formula over meters the readings store knows. Raises fx.FormulaError."""
-    known = provider.meters(None)
-    names = {mid: m.name for mid, m in known.items()}
+    """{text} or {ast} -> a compiled formula over meters the readings store knows (not retired). Raises fx.FormulaError."""
+    names = meter_names(provider, include_retired=False)
     if "ast" in formula and formula["ast"] is not None:
         ast = fx.validate_ast(formula["ast"])
     elif isinstance(formula.get("text"), str):
@@ -630,7 +630,6 @@ def compute(conn: sqlite3.Connection, provider: BillingReadings, account: sqlite
     w_start, w_end = bounds[0], bounds[-1]
     carried = _carried_from(conn, account["id"], period, w_start)
     caps = _end_caps(conn, account["id"], period, replaces, w_end)
-    infos = provider.meters(comp.meter_ids)
     windows: dict[str, MeterWindow] = {}
     for mid in comp.meter_ids:
         windows[mid] = meter_window(provider, mid, bounds, carried.get(mid), caps.get(mid))
@@ -649,11 +648,10 @@ def compute(conn: sqlite3.Connection, provider: BillingReadings, account: sqlite
     meters_out: list[dict[str, Any]] = []
     for mid in comp.meter_ids:
         w = windows[mid]
-        info = infos.get(mid)
         name = names_all.get(mid, mid)
         cons = _kwh(w.wh)
         coef = comp.coefficients[mid]
-        last_report = info.last_report_at if info else None
+        last_report = provider.last_report_at(mid)
         meters_out.append({
             "meter_id": mid, "name": name, "coefficient": fx._dec_str(coef),
             "start": {"at": _iso(w.start.at), "reading_kwh": str(px.r3(_kwh(w.start.reading_wh))) if w.start.reading_wh is not None else None, "kind": w.start.kind},
@@ -738,12 +736,15 @@ def compute_history(conn: sqlite3.Connection, provider: BillingReadings, account
         complete = True
         got = 0
         for mid, coef in comp.coefficients.items():
-            h = provider.history_wh(mid, a, b)
-            if h is None:
+            try:
+                c = provider.consumption(mid, a, b)
+            except ValueError:  # e.g. edges not day-aligned beyond the quarter-hour retention: no data, never a guess
+                continue
+            if getattr(c, "wh", None) is None or getattr(c, "coverage", "none") == "none":
                 continue
             got += 1
-            total += coef * Decimal(int(h[0]))
-            complete = complete and bool(h[1])
+            total += coef * Decimal(int(c.wh))
+            complete = complete and c.coverage == "full"
         if got == 0 or got < len(comp.coefficients):
             return {**base, "kwh": None, "status": "missing", "source": None}
         kwh = px.r2(_kwh(total))
@@ -1078,11 +1079,11 @@ def _record_run(conn: sqlite3.Connection, acc_id: str, p: per.Period, status: st
     )
 
 
-def auto_generate(db: Database, provider: BillingReadings | None = None, now: dt.datetime | None = None) -> AutoOutcome:
+def auto_generate(db: Database, provider: BillingReadings | None = None, now: dt.datetime | None = None, settings: Any = None) -> AutoOutcome:
     """One pass of the automatic generation. Idempotent: the (account, period) run row is written in the same transaction
     as the draft, and the write re-checks it, so a second process, a double tick or a restart in the middle never makes a
     second bill. The computation runs before the write lock."""
-    provider = provider or get_provider()
+    fixed = provider
     now = now or now_utc()
     out = AutoOutcome()
     with db.connection(mode="read", label="energy.auto.scan") as rconn:
@@ -1097,6 +1098,7 @@ def auto_generate(db: Database, provider: BillingReadings | None = None, now: dt
                                      (acc["id"], p.end.isoformat(), p.start.isoformat())).fetchone():
                         comp, error = None, "exists"
                     else:
+                        provider = fixed or get_provider(rconn, settings)
                         comp, error = compute(rconn, provider, acc, p, origin="auto", now=now), None
             except ApiError as e:
                 comp, error = None, e.code
@@ -1144,15 +1146,59 @@ _LAST_AUTO: dict[str, float] = {}
 AUTO_EVERY_S = 300
 
 
-def janitor(db: Database) -> AutoOutcome | None:
-    """The janitor step (main.janitor_tick, every 30 s): the automatic generation at most every 5 minutes."""
+_LAST_RETENTION: dict[str, float] = {}
+RETENTION_EVERY_S = 3600
+
+
+def _int_setting(conn: sqlite3.Connection, key: str, default: int, lo: int, hi: int) -> int:
+    try:
+        v = int(get_setting(conn, key) or default)
+    except (TypeError, ValueError):
+        v = default
+    return min(max(v, lo), hi)
+
+
+def retention(db: Database, data_dir: Path | None, now: dt.datetime | None = None) -> dict[str, int]:
+    """Drafts older than `energy.draft_retention_days` (30) and bills whose period ended more than
+    `energy.bill_retention_years` (7) ago are deleted with their events and stored PDFs (keys owned by the meters branch's
+    settings registry; read here with their defaults). The ledger of used numbers and the automatic-run rows stay, so a
+    number is never reused and an old period is never generated again."""
+    now = now or now_utc()
+    with db.connection(label="energy.billing.retention") as conn:
+        days = _int_setting(conn, "energy.draft_retention_days", 30, 7, 365)
+        years = _int_setting(conn, "energy.bill_retention_years", 7, 1, 15)
+        draft_cut = _iso(now - dt.timedelta(days=days))
+        bill_cut = per.local_date(now, "UTC").replace(year=per.local_date(now, "UTC").year - years, day=1).isoformat()
+        drafts = [r["id"] for r in conn.execute("SELECT id FROM energy_bills WHERE state = 'draft' AND updated_at < ?", (draft_cut,)).fetchall()]
+        old = conn.execute("SELECT id, pdf_path FROM energy_bills WHERE state != 'draft' AND period_end < ?", (bill_cut,)).fetchall()
+        ids = drafts + [r["id"] for r in old]
+        for bid in ids:
+            conn.execute("DELETE FROM energy_bill_events WHERE bill_id = ?", (bid,))
+            conn.execute("DELETE FROM energy_bills WHERE id = ?", (bid,))
+        if ids:
+            _audit(conn, None, "energy.bill.retention", "energy_bill", "*", None, {"drafts": len(drafts), "bills": len(old)})
+    if data_dir is not None:
+        for r in old:
+            if r["pdf_path"]:
+                try:
+                    (data_dir / r["pdf_path"]).unlink(missing_ok=True)
+                except OSError:
+                    pass
+    return {"drafts": len(drafts), "bills": len(old)}
+
+
+def janitor(db: Database, settings: Any = None) -> AutoOutcome | None:
+    """The janitor step (main.janitor_tick, every 30 s): the automatic generation at most every 5 minutes, retention hourly."""
     import time
 
     key = str(getattr(db, "path", ""))
+    if time.monotonic() - _LAST_RETENTION.get(key, -1e9) >= RETENTION_EVERY_S:
+        _LAST_RETENTION[key] = time.monotonic()
+        retention(db, getattr(settings, "data_dir", None))
     if time.monotonic() - _LAST_AUTO.get(key, -1e9) < AUTO_EVERY_S:
         return None
     _LAST_AUTO[key] = time.monotonic()
-    return auto_generate(db)
+    return auto_generate(db, settings=settings)
 
 
 # ====================================================================== PDF storage

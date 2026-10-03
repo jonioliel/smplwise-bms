@@ -70,7 +70,7 @@ def janitor_tick(db: Database, settings: Settings) -> None:
     try:  # CR-023 P2: automatic electricity bills at the end of each period (throttled to every 5 minutes; idempotent)
         from .services import energy_billing
 
-        energy_billing.janitor(db)
+        energy_billing.janitor(db, settings)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("energy billing janitor failed", exc_info=True)
     try:  # a standalone HA camera shown live: drop the opt-in of a camera that is gone, delete go2rtc streams nobody wants (throttled)
