@@ -98,7 +98,8 @@ test.describe('bubble layout diagnostics', () => {
             }
           };
           walk(document);
-          return lines.slice(0, 40);
+          // the shell's own tab-row scroller is not a finding; the widest offenders first
+          return lines.filter((l) => !l.includes('div.subnav')).sort((a, b) => (b.startsWith('over') ? 1 : 0) - (a.startsWith('over') ? 1 : 0)).slice(0, 40);
         }, w);
         console.log(`--- ${s.id} @ ${w}`);
         for (const l of out) console.log('  ' + l);
