@@ -270,14 +270,7 @@ export class ElecFormulaEditor extends LitElement {
               ${this.tokens.length ? this.tokens.map((t, i) => this.tok(t, i, bad)) : html`<span class="mut">הוסיפו מונה או בחרו תבנית</span>`}
             </div>
             <div class="pal">
-              <div class="menu">
-                <button type="button" class="btn" data-add-meter aria-expanded=${this.menu} aria-haspopup="listbox" @click=${() => (this.menu = !this.menu)}>+ מונה ▾</button>
-                ${this.menu
-                  ? html`<div class="pop" role="listbox" data-meter-menu>
-                      ${this.meters.map((m) => html`<button type="button" role="option" data-meter-option=${m.id} @click=${() => this.addMeter(m.id)}><span>${m.name}</span>${m.last_period_kwh !== null ? html`<span class="mut num">${f2(m.last_period_kwh)}</span>` : nothing}</button>`)}
-                    </div>`
-                  : nothing}
-              </div>
+              <button type="button" class="btn" data-add-meter aria-expanded=${this.menu} aria-haspopup="listbox" @click=${() => (this.menu = !this.menu)}>+ מונה ▾</button>
               ${(['+', '-', '*'] as Op[]).map((v) => html`<button type="button" class="btn" data-op=${v} aria-label=${v === '+' ? 'פלוס' : v === '-' ? 'מינוס' : 'כפל'} @click=${() => this.addOp(v)}>${v === '*' ? '×' : v === '-' ? '−' : v}</button>`)}
               <button type="button" class="btn" data-op="percent" aria-label="אחוז" @click=${() => this.togglePercent()}>%</button>
               <button type="button" class="btn" data-op="(" aria-label="סוגר פותח" @click=${() => this.addOp('(')}>(</button>
@@ -285,7 +278,8 @@ export class ElecFormulaEditor extends LitElement {
               <button type="button" class="btn" data-number-btn @click=${() => { this.numOpen = true; this.numErr = ''; }}>מספר</button>
               <span class="sp"></span>
               <button type="button" class="btn ghost" data-backspace @click=${() => this.backspace()}>⌫ מחיקה</button>
-            </div>`}
+            </div>
+            ${this.menu ? html`<div class="menu" role="listbox" data-meter-menu>${this.meters.map((m) => html`<button type="button" role="option" data-meter-option=${m.id} @click=${() => this.addMeter(m.id)}><span>${m.name}</span>${m.last_period_kwh !== null ? html`<span class="mut num">${f2(m.last_period_kwh)}</span>` : nothing}</button>`)}</div>` : nothing}`}
       ${sent ? html`<div class="mut" data-sentence>${sent}</div>` : nothing}
       ${issues.map((m) => alertBox('err', m))}
       ${dup.map((m) => alertBox('warn', m))}

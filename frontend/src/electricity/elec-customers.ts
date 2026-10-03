@@ -4,11 +4,12 @@
  * customer's accounts and last bills, save and delete. Contact fields and the page itself need the bills permission; creating
  * and editing a customer needs the manage permission (the fields are read-only without it).
  */
-import { html, nothing, css } from 'lit';
+import { html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { elec, elecErrorText, elecFieldErrors, elecPerms, type Customer } from '../api/electricity-billing';
 import { ElecBase, alertBox, n, skeleton, stateBox, type LoadState } from './elec-ui';
 import { elecCss } from './elec-css';
+import '../components/sw-sheet';
 import { billsTable } from './elec-bills-table';
 import { go, href, route } from './elec-routes';
 
@@ -41,37 +42,7 @@ export class ElecCustomersPage extends ElecBase {
   @state() private confirmDel = false;
   private shown = '';
 
-  static styles = [
-    elecCss,
-    css`
-      .scrim {
-        position: fixed;
-        inset: 0;
-        background: var(--sw-overlay);
-        z-index: var(--sw-z-drawer, 90);
-      }
-      aside.drawer {
-        position: fixed;
-        inset-block: 0;
-        inset-inline-end: 0;
-        inline-size: min(460px, 100%);
-        background: var(--sw-surface-solid);
-        box-shadow: var(--sw-shadow-3);
-        z-index: calc(var(--sw-z-drawer, 90) + 1);
-        padding: 20px;
-        display: flex;
-        flex-direction: column;
-        gap: 14px;
-        overflow: auto;
-      }
-      @media (max-width: 767px) {
-        aside.drawer {
-          inline-size: 100%;
-          padding: 14px;
-        }
-      }
-    `,
-  ];
+  static styles = [elecCss];
 
   connectedCallback() {
     super.connectedCallback();
@@ -181,9 +152,9 @@ export class ElecCustomersPage extends ElecBase {
   private renderCard() {
     const perms = elecPerms();
     const c = this.card;
-    return html`<div class="scrim" @click=${() => this.close()}></div>
-      <aside class="drawer" role="dialog" aria-modal="true" aria-label="כרטיס לקוח" data-customer-card>
-        <div class="row"><b class="h2">${c ? 'כרטיס לקוח' : 'לקוח חדש'}</b><span class="sp"></span><button type="button" class="btn ghost sm" data-close @click=${() => this.close()}>סגירה</button></div>
+    return html`<sw-sheet open wide .heading=${c ? 'כרטיס לקוח' : 'לקוח חדש'} data-customer-card @close=${() => this.close()}>
+        <div class="col" style="gap:14px">
+        <button type="button" class="sr" data-close @click=${() => this.close()}>סגירה</button>
         ${this.cardSt === 'loading' ? skeleton(4) : this.cardSt === 'error' ? stateBox('error', 'warning', 'לא ניתן לטעון את הלקוח', { label: 'נסה שוב', run: () => void this.loadCard(this.segments[0]) }) : html`
           <div class="form">${this.field('name', 'שם הלקוח', { wide: true })}${this.field('customer_number', 'מספר לקוח', { ltr: true })}${this.field('tax_id', 'ח.פ. / ע.מ. (לא חובה)', { ltr: true, ph: 'לא חובה' })}
             ${this.field('address', 'כתובת למשלוח החיוב', { wide: true })}${this.field('phone', 'טלפון', { ltr: true })}${this.field('email', 'דוא״ל', { ltr: true })}${this.field('notes', 'הערות', { wide: true, ph: 'לא חובה', area: true })}</div>
@@ -197,7 +168,8 @@ export class ElecCustomersPage extends ElecBase {
           <button slot="actions" type="button" class="btn dng pri" data-confirm ?disabled=${this.busy} @click=${() => void this.removeCustomer()}>מחיקה</button>
           <button slot="actions" type="button" class="btn" @click=${() => (this.confirmDel = false)}>ביטול</button>
         </elec-dialog>
-      </aside>`;
+        </div>
+      </sw-sheet>`;
   }
 
   render() {

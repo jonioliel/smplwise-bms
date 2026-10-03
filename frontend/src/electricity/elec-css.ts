@@ -13,6 +13,11 @@ export const elecCss = css`
     color: var(--sw-text);
     font-size: var(--sw-fs-md);
     min-inline-size: 0;
+    /* the smallest hit area: 32 px on a desktop, the touch dial in the bubble skin, 44 px from 1100 px down (the layout guard's rule) */
+    --elec-touch: 32px;
+  }
+  :host([data-skin='bubble']) {
+    --elec-touch: var(--sw-touch-desktop, 44px);
   }
   *,
   *::before,
@@ -168,7 +173,7 @@ export const elecCss = css`
     align-items: center;
     justify-content: center;
     gap: 6px;
-    min-block-size: 36px;
+    min-block-size: max(36px, var(--elec-touch));
     padding: 0 14px;
     border-radius: var(--sw-r-sm);
     border: 1px solid var(--sw-border-strong);
@@ -205,7 +210,7 @@ export const elecCss = css`
     color: var(--sw-accent-text);
   }
   .btn.sm {
-    min-block-size: 30px;
+    min-block-size: max(30px, var(--elec-touch));
     padding: 0 10px;
     font-size: var(--sw-fs-sm);
   }
@@ -221,7 +226,7 @@ export const elecCss = css`
     background: var(--sw-surface-solid);
     border: 1px solid var(--sw-border-strong);
     border-radius: var(--sw-r-sm);
-    min-block-size: 38px;
+    min-block-size: max(38px, var(--elec-touch));
     padding: 0 12px;
     min-inline-size: 0;
     inline-size: 100%;
@@ -361,7 +366,7 @@ export const elecCss = css`
     white-space: nowrap;
     border: 0;
     background: transparent;
-    min-block-size: 30px;
+    min-block-size: max(30px, var(--elec-touch));
   }
   .seg button[aria-pressed='true'] {
     background: var(--sw-surface-solid);
@@ -461,6 +466,9 @@ export const elecCss = css`
     text-overflow: ellipsis;
   }
   .rowlink {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: var(--elec-touch);
     color: var(--sw-heading);
     font-weight: 600;
     text-decoration: none;
@@ -469,6 +477,9 @@ export const elecCss = css`
     text-decoration: underline;
   }
   a.lnk {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: var(--elec-touch);
     color: var(--sw-accent-text);
     text-decoration: none;
     cursor: pointer;
@@ -494,6 +505,7 @@ export const elecCss = css`
     text-decoration: none;
     font: inherit;
     text-align: start;
+    min-block-size: var(--elec-touch);
   }
   button.li,
   a.li,
@@ -657,6 +669,7 @@ export const elecCss = css`
     background: transparent;
     font: inherit;
     text-align: start;
+    min-block-size: var(--elec-touch);
   }
   .steps button .n {
     inline-size: 24px;
@@ -720,6 +733,7 @@ export const elecCss = css`
     gap: 10px;
   }
   .preset {
+    min-block-size: var(--elec-touch);
     border: 1px solid var(--sw-border-strong);
     border-radius: var(--sw-r-md);
     padding: 10px 12px;
@@ -772,7 +786,8 @@ export const elecCss = css`
     background: transparent;
     color: inherit;
     cursor: pointer;
-    min-block-size: 36px;
+    min-block-size: max(36px, var(--elec-touch));
+    min-inline-size: var(--elec-touch);
     justify-content: center;
   }
   .tok.m {
@@ -811,31 +826,20 @@ export const elecCss = css`
     gap: 6px;
   }
   .pal .btn {
-    min-inline-size: 42px;
+    min-inline-size: 44px;
   }
   .menu {
-    position: relative;
-    display: inline-block;
-  }
-  .menu .pop {
-    position: absolute;
-    inset-block-start: calc(100% + 4px);
-    inset-inline-start: 0;
-    z-index: 5;
-    min-inline-size: 240px;
-    max-inline-size: 86vw;
-    background: var(--sw-surface-solid);
-    border: 1px solid var(--sw-border-strong);
-    border-radius: var(--sw-r-md);
-    box-shadow: var(--sw-shadow-3);
-    padding: 6px;
     display: flex;
     flex-direction: column;
     gap: 2px;
-    max-block-size: 280px;
+    padding: 6px;
+    background: var(--sw-surface-solid);
+    border: 1px solid var(--sw-border-strong);
+    border-radius: var(--sw-r-md);
+    max-block-size: 260px;
     overflow: auto;
   }
-  .menu .pop button {
+  .menu button {
     text-align: start;
     border: 0;
     background: transparent;
@@ -847,10 +851,10 @@ export const elecCss = css`
     display: flex;
     justify-content: space-between;
     gap: 10px;
-    min-block-size: 36px;
+    min-block-size: max(36px, var(--elec-touch));
     align-items: center;
   }
-  .menu .pop button:hover {
+  .menu button:hover {
     background: var(--sw-surface-2);
   }
   .code {
@@ -915,6 +919,10 @@ export const elecCss = css`
   }
 
   @media (max-width: 1100px) {
+    :host,
+    :host([data-skin='bubble']) {
+      --elec-touch: 44px;
+    }
     .page {
       padding-inline: var(--sw-page-pad, 16px);
     }
@@ -931,32 +939,9 @@ export const elecCss = css`
     .presets {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-    .btn,
-    .seg button,
-    .steps button,
-    .preset,
-    .tok,
-    .menu .pop button {
-      min-block-size: 44px;
-    }
-    .btn.sm {
-      min-block-size: 44px;
-    }
-    input,
-    select {
-      min-block-size: 44px;
-    }
     .hide-tablet {
       display: none !important;
     }
-    .rowlink,
-    a.lnk {
-      display: inline-flex;
-      align-items: center;
-      min-block-size: 44px;
-    }
-    button.li,
-    a.li,
     label.li {
       min-block-size: 44px;
     }
@@ -1039,8 +1024,7 @@ export const elecCss = css`
   }
   :host([data-skin='bubble']) .seg button {
     border-radius: var(--sw-r-pill);
-    min-block-size: var(--sw-touch-desktop, 44px);
-    min-inline-size: var(--sw-touch-desktop, 44px);
+    min-inline-size: var(--elec-touch);
   }
   :host([data-skin='bubble']) .li,
   :host([data-skin='bubble']) .tile,
@@ -1052,12 +1036,5 @@ export const elecCss = css`
   }
   :host([data-skin='bubble']) table.t td {
     border-block-end-color: rgba(127, 127, 127, 0.14);
-  }
-  :host([data-skin='bubble']) .btn,
-  :host([data-skin='bubble']) input,
-  :host([data-skin='bubble']) select,
-  :host([data-skin='bubble']) .preset,
-  :host([data-skin='bubble']) .tok {
-    min-block-size: var(--sw-touch-desktop, 44px);
   }
 `;

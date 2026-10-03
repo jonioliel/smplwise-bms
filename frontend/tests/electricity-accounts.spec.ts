@@ -150,7 +150,7 @@ test.describe('customers', () => {
     await expect(page.locator('[data-customer-row]')).toHaveCount(1);
     await page.locator('[data-customer-row="c2"] a').click();
     const card = page.locator('[data-customer-card]');
-    await expect(card).toBeVisible();
+    await expect(card.locator('#f-name')).toBeVisible();
     await expect(card.locator('#f-name')).toHaveValue('גל-טק פתרונות בע״מ');
     await expect(card.locator('[data-customer-accounts] a')).toHaveCount(2);
     await shot(page, info, 'customer-card-state');

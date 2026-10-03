@@ -2,6 +2,7 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-sheet';
 import type { IconName } from '../components/sw-icon';
 import { SkinController } from '../design/skin';
 import { BILL_STATE_LABEL, type BillState } from '../api/electricity-billing';
@@ -73,120 +74,41 @@ export function val(root: ParentNode | null | undefined, name: string): string {
   return el ? el.value : '';
 }
 
-/** A modal dialog: a centred card on a desktop, a bottom sheet on a phone. Closes on Escape or a click on the backdrop unless `locked`. */
+/** A modal dialog: the system sheet (`sw-sheet`, the Bubble foundation's one pop-up: a centred dialog on a desktop, a bottom sheet on a phone). The
+ * default slot is the body, `slot="actions"` the footer buttons. Closes on Escape or a click on the backdrop unless `locked`. */
 @customElement('elec-dialog')
 export class ElecDialog extends LitElement {
   @property({ type: Boolean, reflect: true }) open = false;
   @property() heading = '';
   @property({ type: Boolean, reflect: true }) wide = false;
   @property({ type: Boolean }) locked = false;
-  private opener: HTMLElement | null = null;
 
   static styles = css`
     :host {
-      display: none;
-    }
-    :host([open]) {
-      display: block;
-    }
-    .scrim {
-      position: fixed;
-      inset: 0;
-      background: var(--sw-overlay);
-      z-index: var(--sw-z-modal, 100);
-      display: grid;
-      place-items: center;
-      padding: max(16px, env(safe-area-inset-top, 0px)) 16px max(16px, env(safe-area-inset-bottom, 0px));
-    }
-    .dlg {
-      inline-size: min(480px, 100%);
-      background: var(--sw-surface-solid);
-      border-radius: var(--sw-r-lg);
-      box-shadow: var(--sw-shadow-3);
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      max-block-size: calc(100dvh - 32px);
-      overflow: auto;
-      color: var(--sw-text);
-      font-size: var(--sw-fs-md);
-    }
-    :host([wide]) .dlg {
-      inline-size: min(720px, 100%);
-    }
-    h3 {
-      margin: 0;
-      font-size: var(--sw-fs-xl);
-      color: var(--sw-heading);
+      display: contents;
     }
     .act {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
     }
-    :host-context([data-skin='bubble']) .dlg {
-      background: rgba(var(--sw-sheet-rgb), 0.92);
-      -webkit-backdrop-filter: var(--sw-glass-blur-sheet, none);
-      backdrop-filter: var(--sw-glass-blur-sheet, none);
+    .body {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-inline-size: 0;
     }
     @media (max-width: 767px) {
-      .scrim {
-        place-items: end stretch;
-        padding: 0;
-      }
-      .dlg {
-        inline-size: 100%;
-        border-radius: var(--sw-r-lg) var(--sw-r-lg) 0 0;
-        padding-block-end: max(20px, env(safe-area-inset-bottom, 0px));
-      }
       .act {
         flex-direction: column;
       }
-      ::slotted([slot='actions']) {
-        inline-size: 100%;
-      }
     }
   `;
-
-  private close() {
-    if (this.locked) return;
-    this.open = false;
-    this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
-  }
-  private onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && this.open) this.close();
-  };
-  connectedCallback() {
-    super.connectedCallback();
-    window.addEventListener('keydown', this.onKey);
-  }
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    window.removeEventListener('keydown', this.onKey);
-  }
-  updated(ch: Map<string, unknown>) {
-    if (!ch.has('open')) return;
-    if (!this.open) {
-      if (ch.get('open') === true && this.opener?.isConnected) requestAnimationFrame(() => this.opener?.focus({ preventScroll: true }));
-      return;
-    }
-    let a: Element | null = document.activeElement;
-    while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;
-    if (a && !this.contains(a)) this.opener = a as HTMLElement;
-    requestAnimationFrame(() => {
-      const t = this.querySelector<HTMLElement>('[autofocus], input:not([type=hidden]), textarea, select') ?? this.querySelector<HTMLElement>('button:not([disabled])');
-      t?.focus({ preventScroll: true });
-    });
-  }
   render() {
-    return html`<div class="scrim" @click=${(e: Event) => e.target === e.currentTarget && this.close()}>
-      <div class="dlg" role="dialog" aria-modal="true" aria-label=${this.heading}>
-        <h3>${this.heading}</h3>
-        <slot></slot>
-        <div class="act"><slot name="actions"></slot></div>
-      </div>
-    </div>`;
+    return html`<sw-sheet ?open=${this.open} .heading=${this.heading} ?narrow=${!this.wide} ?wide=${this.wide} ?locked=${this.locked} @close=${() => (this.open = false)}>
+      <div class="body"><slot></slot></div>
+      <div class="act" slot="footer"><slot name="actions"></slot></div>
+    </sw-sheet>`;
   }
 }
 declare global {

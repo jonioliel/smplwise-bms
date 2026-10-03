@@ -109,6 +109,9 @@ export class ElecChart extends LitElement {
       background: repeating-linear-gradient(45deg, var(--c-bar2) 0 3px, transparent 3px 6px);
       border: 1px solid var(--c-bar2);
     }
+    .tw {
+      overflow-x: auto;
+    }
     table {
       border-collapse: collapse;
       inline-size: 100%;
@@ -219,10 +222,10 @@ export class ElecChart extends LitElement {
   }
 
   private renderTable(bars: Bar[]) {
-    const t = html`<table data-elec-chart-table class=${this.table === 'sr' ? 'sr' : ''}>
+    const t = html`<div class=${this.table === 'sr' ? 'sr' : 'tw'}><table data-elec-chart-table>
       <thead><tr>${bars.map((b) => html`<th scope="col" title=${b.title}>${b.kind === 'ly' ? 'אשתקד' : b.label}</th>`)}</tr></thead>
       <tbody><tr>${bars.map((b) => html`<td>${b.kwh === null ? '-' : f2(b.kwh)}</td>`)}</tr></tbody>
-    </table>`;
+    </table></div>`;
     if (this.table === 'details') return html`<details><summary>טבלת מספרים</summary>${t}</details>`;
     return t;
   }
