@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import datetime as dt
 import sqlite3
+import time
 from typing import Any
 
 from ..audit import audit
@@ -36,9 +37,10 @@ ITEM_OPS = ("move", "next", "top", "delete", "play")  # name one row (`item`)
 MULTI_OPS = ("delete_many", "clear_upcoming")  # several rows: they report how many were done when they stop half way
 WHOLE_OPS = ("clear_upcoming", "clear")  # need `confirmed`
 MANY_MAX = 25  # rows of one `delete_many`
-CLEAR_UPCOMING_MAX = 200  # rows `clear_upcoming` deletes one by one; more is refused with the count
+CLEAR_BATCH = 100  # rows `clear_upcoming` removes per step (one installation-bucket draw each); a queue of any length is cleared
+ROWS_WAIT_S = 30.0  # how long one step waits for the installation bucket before the clear stops and reports how many rows it removed
 JUMP_DEVICE = (1.0, 2.0)  # "play this now": 1 a second per device
-ROWS_INSTALL = (10.0, 200.0)  # rows removed one by one, per installation: 10 a second (a burst of one full "clear upcoming")
+ROWS_INSTALL = (50.0, 200.0)  # rows removed one by one, per installation: 50 a second (a burst of 200)
 _BROWSE: dict[tuple[str, int], tuple[float, list[dict[str, Any]]]] = {}
 _SEARCH: dict[tuple[str, str], tuple[float, list[dict[str, Any]]]] = {}
 
@@ -193,6 +195,7 @@ def edit(conn: sqlite3.Connection, settings: Settings, principal: Principal, req
     answer: dict[str, Any] = {"status": "accepted", "op": op}
     done = 0  # rows a multi-row edit has already removed (reported when it stops half way)
     count: int | None = None
+    limited = False  # a multi-row clear that stopped because the installation ceiling did not free up in time
     try:
         with unlocked(conn):  # the network phase never holds the write lock
             h = ma.header(conn, pid, fresh=True)
@@ -207,20 +210,34 @@ def edit(conn: sqlite3.Connection, settings: Settings, principal: Principal, req
                     ma.call(conn, "player_queues/clear", {"queue_id": h["queue_id"]})
                     count = answer["count"] = pending
                 else:
-                    if pending > CLEAR_UPCOMING_MAX:
-                        raise _err(422, "too_many", "יש יותר מדי שירים לניקוי בבת אחת.", count=pending, max=CLEAR_UPCOMING_MAX)
                     rows: list[dict[str, Any]] = []
                     while len(rows) < pending:
                         page = ma.items(conn, h["queue_id"], lt + 1 + len(rows), min(ma.PAGE_MAX, pending - len(rows)))
                         if not page:
                             break
                         rows += page
-                    if not media_commands.BUCKETS.take_n("queue-rows", "installation", ROWS_INSTALL, len(rows)):
-                        media_commands._audit_limited(conn, principal, request_id, item.key, f"queue_{op}", "installation")
-                        raise _err(429, "rate_limited", "יותר מדי בקשות; נסו שוב.", scope="installation")
-                    for r in reversed(rows):  # from the end: no id shifts under the deletes still to come
-                        ma.call(conn, "player_queues/delete_item", {"queue_id": h["queue_id"], "item_id_or_index": r["queue_item_id"]})
-                        done += 1
+                    batch = max(1, min(CLEAR_BATCH, int(ROWS_INSTALL[1])))
+                    todo = list(reversed(rows))  # from the end: no id shifts under the deletes still to come
+                    while todo:
+                        step, todo = todo[:batch], todo[batch:]
+                        waited, got = 0.0, False
+                        while True:
+                            if media_commands.BUCKETS.take_n("queue-rows", "installation", ROWS_INSTALL, len(step)):
+                                got = True
+                                break
+                            if waited >= ROWS_WAIT_S:
+                                break
+                            time.sleep(0.1)
+                            waited += 0.1
+                        if not got:
+                            media_commands._audit_limited(conn, principal, request_id, item.key, f"queue_{op}", "installation")
+                            if done == 0:
+                                raise _err(429, "rate_limited", "יותר מדי בקשות; נסו שוב.", scope="installation")
+                            limited = True
+                            break
+                        for r in step:
+                            ma.call(conn, "player_queues/delete_item", {"queue_id": h["queue_id"], "item_id_or_index": r["queue_item_id"]})
+                            done += 1
                     count = answer["count"] = done
             else:
                 start = max(0, h["index"] or 0)
@@ -272,6 +289,11 @@ def edit(conn: sqlite3.Connection, settings: Settings, principal: Principal, req
         _audit(conn, principal, request_id, item.key, op, "denied", "ma_unavailable", state=exc.state, **({"count": done} if partial else {}))
         raise _err(503, *UNAVAILABLE, state=exc.state, **partial) from None
     ma.forget_queue(pid)
+    if limited:
+        answer = {"status": "refused", "op": op, "error": None, "done": done}
+        _audit(conn, principal, request_id, item.key, op, "denied", "rate_limited", count=done)
+        ma.note_done(principal.user_id, crid, 200, answer)
+        return 200, answer
     _audit(conn, principal, request_id, item.key, op, "allowed", **({"count": count} if count is not None else {}), **({"leader_key": target.key} if target.key != item.key else {}))
     ma.note_done(principal.user_id, crid, 202, answer)
     return 202, answer

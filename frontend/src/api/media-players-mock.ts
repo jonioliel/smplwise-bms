@@ -262,6 +262,8 @@ export class PlayersMockStore implements PlayersAdapter {
   canBrowse = true;
   /** Queue reads fail (`confirmed: false`). */
   failQueue = false;
+  /** Rows of the invented queue (set before the first read of a leader's queue; tests use a very long one). */
+  queueLength = QUEUE_LEN;
   /** leader id -> the invented queue (row id, track id); built on first read. */
   private queues: Record<string, { id: string; track: string }[]> = {};
   /** Opens everything phase 2b offers (the evidence specs and the mock bar). */
@@ -501,7 +503,7 @@ export class PlayersMockStore implements PlayersAdapter {
   private queueOf(leaderId: string, index = 0, current: string | null = null): { id: string; track: string }[] {
     const t = Object.keys(tracks()).filter((k) => !tracks()[k].station);
     const shift = current && t.includes(current) ? (t.indexOf(current) - (index % t.length) + t.length) % t.length : 0;
-    return (this.queues[leaderId] ??= Array.from({ length: QUEUE_LEN }, (_, n) => ({ id: `${leaderId}-${n}`, track: t[(n + shift) % t.length] })));
+    return (this.queues[leaderId] ??= Array.from({ length: this.queueLength }, (_, n) => ({ id: `${leaderId}-${n}`, track: t[(n + shift) % t.length] })));
   }
 
   private queueHead(key: string): { lead: Row; leaderId: string; rows: { id: string; track: string }[]; index: number; lockedTo: number } {
@@ -510,7 +512,7 @@ export class PlayersMockStore implements PlayersAdapter {
     if (!d.caps.queue_list) fail(this.ma.state === 'ready' ? 422 : 503, this.ma.state === 'ready' ? 'not_supported' : 'ma_unavailable', 'התור המלא אינו זמין.');
     const leaderId = this.leaderId(r.seed.id);
     const lead = this.row(keyOf(leaderId));
-    const index = lead.track ? Math.min(lead.queue?.index ?? 0, QUEUE_LEN - 1) : -1;
+    const index = lead.track ? Math.min(lead.queue?.index ?? 0, this.queueLength - 1) : -1;
     const rows = this.queueOf(leaderId, Math.max(0, index), lead.track && !tracks()[lead.track].station ? lead.track : null);
     return { lead, leaderId, rows, index, lockedTo: index < 0 ? -1 : Math.min(rows.length - 1, index + 1) };
   }
@@ -535,7 +537,6 @@ export class PlayersMockStore implements PlayersAdapter {
         const pending = Math.max(0, h.rows.length - (h.lockedTo + 1));
         if (body.op === 'clear_upcoming' && pending === 0) return { status: 'accepted', op: body.op, count: 0 } as QueueEditResult;
         if (body.confirmed !== true) fail(409, 'confirm_required', 'לנקות את התור?', { count: pending });
-        if (body.op === 'clear_upcoming' && pending > 200) fail(422, 'too_many', 'יש יותר מדי שירים.', { count: pending });
         h.rows.splice(body.op === 'clear' ? 0 : h.lockedTo + 1); // clear everything stops the player; clear upcoming keeps the current song
         if (h.lead.queue) h.lead.queue.count = h.rows.length;
         if (body.op === 'clear') h.lead.st = 'idle';

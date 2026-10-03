@@ -711,14 +711,60 @@ def test_clear_upcoming_asks_first_keeps_the_current_song_and_sends_no_clear(d):
     assert (r.status_code, r.json()) == (202, {"status": "accepted", "op": "clear_upcoming", "count": 0}) and len(_sent(fake, "player_queues/delete_item")) == n, "nothing follows: nothing to ask"
 
 
-def test_clear_upcoming_refuses_more_than_200_rows_with_the_count(d):
+def _long_queue(fake, n: int) -> None:
+    fake.rows = [{"queue_item_id": f"qi-{k}", "name": f"שיר {k}"} for k in range(n)]
+
+
+def test_clear_upcoming_handles_a_queue_far_over_200_rows_in_batches(d, monkeypatch):
     app, c, fake, bridge, keys, *_ = d
+    monkeypatch.setattr(media_queue, "ROWS_INSTALL", (5000.0, 200.0))  # batches of 100 draw from a 200 burst and wait for the refill
     connect(c)
-    fake.rows = [{"queue_item_id": f"qi-{n}", "name": f"שיר {n}"} for n in range(260)]
+    _long_queue(fake, 1004)  # current 2, buffered 3: 1000 rows follow
+    r = _post(c, keys, op="clear_upcoming")
+    assert (r.status_code, r.json()["code"], r.json()["details"]["count"]) == (409, "confirm_required", 1000)
     r = _post(c, keys, op="clear_upcoming", confirmed=True)
-    assert (r.status_code, r.json()["code"], r.json()["details"]["count"]) == (422, "too_many", 256)
-    assert not _sent(fake, "player_queues/delete_item")
-    assert _post(c, keys, op="clear", confirmed=True).status_code == 202, "clear everything stays available for a long queue"
+    assert (r.status_code, r.json()) == (202, {"status": "accepted", "op": "clear_upcoming", "count": 1000}), r.text
+    assert len(_sent(fake, "player_queues/delete_item")) == 1000 and not _sent(fake, "player_queues/clear")
+    assert [x["queue_item_id"] for x in fake.rows] == ["qi-0", "qi-1", "qi-2", "qi-3"], "only the current and buffered rows stay"
+    assert audit_rows(app, "media.queue")[-1]["details"]["count"] == 1000
+    _long_queue(fake, 260)
+    assert _post(c, keys, op="clear", confirmed=True).status_code == 202, "clear everything is unchanged"
+
+
+def test_a_long_clear_that_the_server_refuses_midway_says_removed_x_of_the_rest(d, monkeypatch):
+    app, c, fake, bridge, keys, *_ = d
+    monkeypatch.setattr(media_queue, "ROWS_INSTALL", (5000.0, 200.0))
+    connect(c)
+    _long_queue(fake, 504)
+    original = fake.call
+    state = {"n": 0}
+
+    def refuses_300th(url, token, command, args):
+        if command == "player_queues/delete_item":
+            state["n"] += 1
+            if state["n"] == 300:
+                fake.calls.append((command, args))
+                raise ma_direct.MaError("refused", 9)
+        return original(url, token, command, args)
+
+    fake.call = refuses_300th  # type: ignore[method-assign]
+    r = _post(c, keys, op="clear_upcoming", confirmed=True)
+    assert (r.status_code, r.json()) == (200, {"status": "refused", "op": "clear_upcoming", "error": 9, "done": 299})
+    assert len(_sent(fake, "player_queues/delete_item")) == 300, "nothing is retried"
+    assert len(fake.rows) == 504 - 299
+
+
+def test_a_long_clear_stopped_by_the_installation_ceiling_reports_the_rows_done(d, monkeypatch):
+    app, c, fake, bridge, keys, *_ = d
+    monkeypatch.setattr(media_queue, "ROWS_INSTALL", (0.0, 3.0))
+    monkeypatch.setattr(media_queue, "ROWS_WAIT_S", 0.0)
+    connect(c)
+    r = _post(c, keys, op="clear_upcoming", confirmed=True)  # 4 rows: a batch of 3, then the bucket stays empty
+    assert (r.status_code, r.json()) == (200, {"status": "refused", "op": "clear_upcoming", "error": None, "done": 3})
+    media_commands.BUCKETS.clear()
+    monkeypatch.setattr(media_queue, "ROWS_INSTALL", (0.0, 0.0))
+    _long_queue(fake, 8)
+    assert _post(c, keys, op="clear_upcoming", confirmed=True).status_code == 429, "nothing removed: a plain 429"
 
 
 def test_clear_everything_still_needs_its_own_confirm_and_stops_playback(d):
@@ -738,9 +784,6 @@ def test_a_per_installation_ceiling_stops_a_burst_of_row_deletes(d, monkeypatch)
     items = _rows(c, keys)
     r = _post(c, keys, op="delete_many", items=[items["שיר 4"], items["שיר 5"], items["שיר 6"], items["שיר 7"]])
     assert (r.status_code, r.json()["code"]) == (429, "rate_limited") and not _sent(fake, "player_queues/delete_item")
-    media_commands.BUCKETS.clear()
-    assert _post(c, keys, op="clear_upcoming", confirmed=True).status_code == 429, "clear upcoming (4 rows) is over the ceiling of 3"
-    assert not _sent(fake, "player_queues/delete_item")
 
 
 @pytest.mark.parametrize("op", ["play", "top", "delete_many", "clear_upcoming", "clear"])

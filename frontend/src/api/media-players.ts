@@ -447,7 +447,6 @@ export const PLAYER_ERROR_LABEL: Record<string, string> = {
   locked: 'השיר הזה כבר מתנגן',
   queue_changed: 'התור השתנה',
   ma_unavailable: 'התור אינו זמין כרגע',
-  too_many: 'יש יותר מדי שירים לניקוי חלקי; אפשר לנקות הכול',
   search_unavailable: 'החיפוש אינו זמין כרגע',
 };
 /** Refusals that depend on the server's `reason` (a short Hebrew line each): the leader's followers are not the caller's, an unmute above the ceiling. */

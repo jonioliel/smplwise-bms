@@ -187,6 +187,19 @@ test.describe('the new queue actions (play now, move to top, several rows, two c
     expect((await m.get('mp-liv')).live.play).not.toBe('playing');
   });
 
+  test('clear upcoming has no row cap: a queue of 1000 rows is cleared and counted', async () => {
+    const m = resetPlayersMock('ma');
+    m.enablePhase2b();
+    m.queueLength = 1000;
+    const q = await m.queue('mp-liv');
+    expect(q.count).toBe(1000);
+    const up = upcomingCount(q);
+    expect(up).toBeGreaterThan(900);
+    expect(await code(m.queueEdit('mp-liv', { op: 'clear_upcoming', ...req(40) }))).toBe('confirm_required');
+    expect(await m.queueEdit('mp-liv', { op: 'clear_upcoming', confirmed: true, ...req(41) })).toEqual({ status: 'accepted', op: 'clear_upcoming', count: up });
+    expect((await m.queue('mp-liv')).count).toBe(1000 - up);
+  });
+
   test('the HTTP adapter posts the several-rows body as `items`', async () => {
     const seen: unknown[] = [];
     const orig = globalThis.fetch;

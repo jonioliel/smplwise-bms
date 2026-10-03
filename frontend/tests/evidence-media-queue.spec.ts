@@ -261,6 +261,24 @@ test.describe('phase 2b: the full queue in the player panel', () => {
     await expect(q(page, 'media-queue-list [data-qx-select]')).toHaveCount(0);
   });
 
+  test('a very long queue (1000 rows): the clear question counts every upcoming song and clearing them leaves the current and the buffered one', async ({ page }) => {
+    await stage(page);
+    await withMock(page, (m) => void (m.queueLength = 1000));
+    await openPanel(page, 'mp-liv');
+    await expect(q(page, 'media-queue-list [data-qx-count]')).toHaveText('1000');
+    await q(page, 'media-queue-list [data-qx-clear]').click();
+    const ask = q(page, 'media-queue-list [data-qx-ask="clear"]');
+    await expect(ask.locator('[data-qx-clear-upcoming]')).toContainText('995 שירים');
+    await scrollTo(ask);
+    await shots(page, 'queue-clear-ask-1000', [1440, 390]);
+    await noOverflow(page);
+    await ask.locator('[data-qx-clear-upcoming]').click();
+    await page.waitForTimeout(500);
+    await expect(q(page, 'media-queue-list [data-qx-row][data-qx-locked="false"]')).toHaveCount(0);
+    await expect(q(page, 'media-queue-list [data-qx-row][data-qx-locked="true"]')).toHaveCount(2);
+    await expect(q(page, 'media-queue-list [data-qx-count]')).toHaveText('5');
+  });
+
   test('the dialogs and select mode fit at phone width in the dark scheme', async ({ page }) => {
     await stage(page, 'dark');
     await openPanel(page, 'mp-liv', 'dark');
