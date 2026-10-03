@@ -2,7 +2,8 @@
 
 **Status:** APPROVED for implementation (owner decisions 2026-10-04, §0). Slice A (this document, the audit amendment,
 `DOCS.md`, ADP §4/§7, ROADMAP) and slice B (backend, branch `pilot/nn4-backend`) done; implementation notes and the
-deviations from the text below are in §19. Slices C (frontend) and D (closing) open. **Release:** its own tier-L release as soon as migrations 0050 (CR-020 S2) and
+deviations from the text below are in §19; the security review fixes in §20; slice C (frontend, `pilot/nn4-frontend`)
+integrated with both on `pilot/nn4-integrated` (§21). Slice D (closing) open. **Release:** its own tier-L release as soon as migrations 0050 (CR-020 S2) and
 0051 (CR-021) are on `g0/intake`; NN1 P1 (capabilities) merges before the NN4 backend (§12).
 **Design source:** the NN4 planning note of 2026-10-03 (private, base `g0/intake` e2089071). **Builds on:** the D4 connection
 editor of 0.1.71 (`PUT /nvr/connection`, `services/nvr_system.py`), the AES-GCM pattern of the alarm panel codes
@@ -499,3 +500,25 @@ UI binding requirement (F14): `model`, `firmware`, `username`, `host` and every 
 4. The legacy-file overwrite (F11) cannot guarantee erasure on copy-on-write or flash storage; the deletion is guaranteed.
 5. The 8 s deadline is enforced between reads; a single read is also bounded by the remaining time where the HTTP library
    reads its timeout per receive (best effort), otherwise by the 5 s read timeout.
+
+## 21. Integration of slices B and C with the review fixes (2026-10-04, branch `pilot/nn4-integrated`)
+
+`pilot/nn4-integrated` = `pilot/nn4-security-fixes` (5ea0365b) + a merge of `pilot/nn4-frontend` (52f635cf); no branch rewritten.
+
+1. **Wizard NVR step (the one conflict, `services/setup_wizard.py` `nvr_choice_step`).** Both behaviours kept; the function takes
+   `Settings` again. Order for an installation without an NVR host: vendor `none` = `done`; the row this process loaded at
+   start-up (stored revision = loaded revision) with state `refused` = `failed` / `connection_refused`; a readable row (in practice
+   one saved after the start) = `todo` / `restart_pending`; an unreadable row = `failed` / `connection_unreadable`; no row =
+   `todo` / `nvr_choice_needed`. A refused host that is replaced by a new save is "waiting for the restart", not "refused".
+   Tests: slice C's `test_a_just_saved_connection_leaves_the_nvr_step_todo_until_the_restart` kept; the F5 test also checks the step.
+2. **UI bound to §20.1.** The temporary DELETE fallback (a retry without `if_revision` on a 422 from the pre-review backend)
+   is removed; `if_revision` is required in the client types. `password_required` (with or without `details.reason =
+   destination_changed`) clears "הוגדרה סיסמה" and asks for the password; `port_refused` / `username_invalid` give one short
+   line and mark the named field (`aria-invalid`); `revision_required` is handled like 409 `stale` (the "טען מחדש" prompt, saving
+   blocked until then); state `refused` opens the form with its note; the restore answer shows `files_skipped` when non-zero.
+   The old settings card (`system-setup.ts`) calls no removed route (it embeds the shared form; F15 closed).
+3. **Fixture backend of the live spec.** The connection test now connects only to an address it resolved and checked (F3), so
+   `frontend/tests/fixtures/nvr_connection_backend.py` replaces the probe's resolver: the fake NVR's name resolves to its
+   documentation-range address (the fake answers it), every other name to nothing. No real DNS lookup, device or platform.
+4. **Not changed by the integration:** `smplwise_vms/DOCS.md`, the migration, the API inventory, the version. The open items of
+   §20.2 stay open (owner decisions).
