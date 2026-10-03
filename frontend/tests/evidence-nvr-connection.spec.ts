@@ -124,7 +124,7 @@ async function mockBackend(page: Page, m: Mock) {
       m.view = { ...m.view, vendor: String(b.vendor), host: (b.host as string) ?? null, http_port: (b.http_port as number) ?? null, rtsp_port: (b.rtsp_port as number) ?? null, username: (b.username as string) ?? null, has_password: b.vendor !== 'none' && (!!b.password || m.view.has_password), state: b.vendor === 'none' ? 'ok' : 'ok', revision: (m.view.revision ?? 0) + 1 };
       m.pending = true;
       if (b.vendor === 'none') m.nvrStep = 'done';
-      return json({ saved: true, restart_required: true, restarting: false, revision: m.view.revision, device: b.save_untested ? null : { model: 'DS-FAKE-7616', firmware: 'V4 fake', channels: 8 }, untested: !!b.save_untested, ...m.view, user: m.view.username, extra: {}, source: 'ui', updated_at: null, updated_by: null, pending_restart: true, in_addon: true });
+      return json({ saved: true, restart_required: true, restarting: false, device: b.save_untested ? null : { model: 'DS-FAKE-7616', firmware: 'V4 fake', channels: 8 }, untested: !!b.save_untested, ...m.view, user: m.view.username, extra: {}, source: 'ui', updated_at: null, updated_by: null, pending_restart: true, in_addon: true });
     }
     if (p === 'nvr/connection' && req.method() === 'DELETE') {
       m.calls.removes.push(body());
