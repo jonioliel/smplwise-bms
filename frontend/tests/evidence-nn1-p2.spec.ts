@@ -152,7 +152,8 @@ test.describe('NN1 P2: the shell follows the installation capabilities', () => {
       expect(await deepText(page), `${combo}: no infrastructure branding in the shell`).not.toMatch(BRAND);
       if (info.project.name !== 'tablet') await shot(page, `${combo}-nav`, info.project.name);
       if (combo === 'C' || combo === 'D') {
-        // ... and it opens on its first page: C (no live video) on the events, D on the live overview
+        // ... and it opens on its first page: C (no live video) on the events, D on the live overview (the section used last is remembered per browser)
+        await page.evaluate(() => localStorage.removeItem('sw.security.section'));
         await page.locator(`${sel} a[href="#/security"]`).click();
         await expect.poll(() => page.evaluate(() => location.hash), { message: `${combo} lands` }).toMatch(combo === 'C' ? /^#\/investigate\/events/ : /^#\/live/);
       }
@@ -310,7 +311,7 @@ test.describe('NN1 P2: the shell follows the installation capabilities', () => {
   test('layout guard on the new states (bubble skin, four widths, light and dark): panels, the unsupported notice, the health notice', async ({ page }) => {
     test.setTimeout(5 * 60_000);
     const found: Finding[] = [];
-    const states: [Combo, string, string][] = [['A', '/live/wall', PANEL], ['C', '/live/wall', PANEL], ['C', '/system/wizard', 'system-wizard [data-wizard-unsupported]'], ['C', '/system/diagnostics?tab=health', 'system-diagnostics [data-health-unsupported]']];
+    const states: [Combo, string, string][] = [['A', '/live/wall', PANEL], ['C', '/live/wall', PANEL], ['C', '/system/wizard', 'system-wizard [data-wizard-unsupported]'], ['C', '/system/diagnostics?tab=health', 'system-diagnostics [data-health-unsupported]'], ['D', '/system/diagnostics?tab=health', 'system-diagnostics [data-health-card="go2rtc"]']];
     for (const [combo, hash, sel] of states) {
       await installInstallationMock(page, combo);
       for (const theme of ['light', 'dark']) {
@@ -325,7 +326,10 @@ test.describe('NN1 P2: the shell follows the installation capabilities', () => {
       await page.unroute('**/api/v1/**');
     }
     // the shell's own known items are the guard's concern elsewhere (layout-bubble-screens); here only findings inside what this phase added
-    const mine = found.filter((f) => /state-panel|wizard-unsupported|health-unsupported|\.problem|\.hcard/.test(`${f.el} ${f.ctx} ${f.detail}`) || f.cls === 'overflow');
+    // The health grid of the existing screen already overflows a 320 px column (control: the same cards in installation D); what this
+    // phase added is the notice itself and the panels, so health findings count only when they touch the notice.
+    const health = (f: Finding) => f.ctx.includes('tab=health');
+    const mine = found.filter((f) => (health(f) ? /נתמכת/.test(`${f.el} ${f.detail}`) : true));
     if (found.length) console.log(`layout guard findings (${found.length}): ${JSON.stringify(found.slice(0, 30))}`);
     expect(mine.map((f) => `${f.cls} ${f.ctx} ${f.el} ${f.detail}`), `${found.length} findings in total`).toEqual([]);
   });
