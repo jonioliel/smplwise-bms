@@ -835,8 +835,6 @@ export class SwDropdown extends LitElement {
     const pop = this.popEl();
     if (!this.drag || !pop) return;
     const dy = e.clientY - this.drag.y0;
-    pop.style.animation = 'none';
-    pop.style.transition = 'none';
     pop.style.transform = `translateY(${dy > 0 ? dy : dy / 6}px)`;
   }
 
@@ -847,8 +845,6 @@ export class SwDropdown extends LitElement {
     if (!d || !pop) return;
     const dy = e.clientY - d.y0;
     const flick = dy > 24 && dy / Math.max(1, performance.now() - d.t0) > 0.6;
-    pop.style.animation = '';
-    pop.style.transition = '';
     pop.style.transform = '';
     if (e.type !== 'pointercancel' && (dy > pop.getBoundingClientRect().height * 0.35 || flick)) this.close(true);
   }

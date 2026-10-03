@@ -51,6 +51,7 @@ async function mock(page: Page, srv: Server) {
 async function stage(page: Page, srv: Server, o: { skin?: string; width?: number; scheme?: string } = {}) {
   await mock(page, srv);
   await page.setViewportSize({ width: o.width ?? 390, height: 800 });
+  await page.goto('about:blank'); // a second stage() in one test must really reload (the URL hash is the same)
   await page.goto(`./?design=a&skin=${o.skin ?? 'classic'}&scheme=${o.scheme ?? 'light'}#/devices/building`);
   await page.waitForFunction(() => !!customElements.get('sw-dropdown') && !!customElements.get('sw-tabs'));
   await page.waitForTimeout(900);
