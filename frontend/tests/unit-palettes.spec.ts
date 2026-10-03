@@ -294,6 +294,22 @@ test('the token mapping: only declared tokens, the palette colours where the REA
   expect(DEFAULTS_FOR_OPEN_QUESTIONS.OFFERED).toBeNull(); // open question 3: all ten
 });
 
+test('the base palette is protected: no custom palette can take the id default or a ready id; nothing in the list can replace the base', () => {
+  for (const id of ['default', 'calm-blue', 'sunset']) {
+    const v = validatePalette(custom(id), { custom: true });
+    expect(v.ok).toBe(false);
+  }
+  setCustomPalettes([custom('default'), custom('forest'), custom('custom-ok')]);
+  expect(customPalettes().map((p) => p.id)).toEqual(['custom-ok']);
+  setInstallationLook({ palette: 'default' });
+  expect(paletteById('default')).toBeNull(); // the base is never a stored palette: it is the skin's own colours, the fallback of every dial
+  expect(resolvePalette()).toBeNull();
+  setInstallationLook({ palette: 'custom-ok' });
+  setCustomPalettes(null); // deleting the custom palette falls back to the base, never to an error
+  expect(resolvePalette()).toBeNull();
+  setInstallationLook({ palette: 'default' });
+});
+
 test('the resolver: default and unknown ids are the skin; a ready or registered custom id is that palette; non-bubble skins get nothing', () => {
   setCustomPalettes(null);
   setInstallationLook({ palette: 'default' });

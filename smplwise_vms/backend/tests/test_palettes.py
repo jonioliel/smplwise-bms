@@ -191,3 +191,73 @@ def test_user_override_of_the_palette_is_validated_and_ignored(settings):
         assert c.put("/api/v1/me/prefs", json={"ui.look": {"palette": bad}}).status_code == 422
     assert c.get("/api/v1/me/prefs").json()["prefs"]["ui.look"] == {"density": "row"}
     assert look.normalize_own({"palette": "sunset", "scale": 90}) == {"scale": 90}
+
+
+# ---- 0.1.155: the base palette is protected; who may choose ----
+
+def test_the_base_palette_id_cannot_be_used_by_a_custom_palette():
+    assert palettes.BASE_ID == "default"
+    for pid in ("default", "calm-blue", "sunset", "custom-"):
+        with pytest.raises(ValueError):
+            palettes.validate_custom(custom(pid))
+    with pytest.raises(ValueError, match="שמור"):
+        palettes.validate_custom(custom("default"))
+    with pytest.raises(ValueError, match="שמור"):
+        palettes.normalize_customs([custom("custom-a"), custom("default")])
+    # a stored list that somehow carries it never serves it
+    assert [p["id"] for p in palettes.stored(json.dumps([custom("default"), custom("custom-a")]))] == ["custom-a"]
+    assert palettes.valid_dial_value("default") and "default" not in palettes.BUILTIN_IDS
+
+
+def test_the_base_palette_cannot_be_replaced_or_removed_through_the_settings_api(settings):
+    with TestClient(create_app(settings)) as c:
+        mine = custom("custom-mine")
+        assert c.patch("/api/v1/settings", json={"ui.palettes": [mine]}).status_code == 200
+        for bad in ([{**mine, "id": "default"}], [mine, {**mine, "id": "default"}], [mine, {**mine, "id": "calm-blue"}]):
+            r = c.patch("/api/v1/settings", json={"ui.palettes": bad})
+            assert r.status_code == 422, bad
+            assert "שמור" in json.dumps(r.json(), ensure_ascii=False)
+        # nothing was replaced; removing every custom palette leaves the base as the fallback of the dial
+        assert [p["id"] for p in c.get("/api/v1/settings").json()["settings"]["ui.palettes"]] == ["custom-mine"]
+        assert c.patch("/api/v1/settings", json={"ui.palettes": []}).status_code == 200
+        assert c.get("/api/v1/settings").json()["settings"]["ui.look"]["palette"] == "default"
+        assert c.patch("/api/v1/settings", json={"ui.look": {**look.DEFAULT, "palette": "default"}}).status_code == 200
+
+
+def test_an_old_personal_palette_value_stays_in_storage_and_is_ignored(settings):
+    app = create_app(settings)
+    c = TestClient(app)
+    c.get("/api/v1/me")
+    bind(c, settings, "dana", "viewer", "installation", "*")
+    h = as_user("dana")
+    assert c.put("/api/v1/me/prefs", headers=h, json={"ui.look": {"density": "row"}}).status_code == 200
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE user_prefs SET value_json = ? WHERE key = 'ui.look'", (json.dumps({"density": "row", "palette": "forest"}),))
+    assert c.get("/api/v1/me/prefs", headers=h).json()["prefs"]["ui.look"] == {"density": "row"}  # ignored
+    assert c.put("/api/v1/me/prefs", headers=h, json={"ui.look": {"density": "card"}}).json()["prefs"]["ui.look"] == {"density": "card"}
+    with app.state.db.connection() as conn:
+        raw = [json.loads(r[0]) for r in conn.execute("SELECT value_json FROM user_prefs WHERE key = 'ui.look'").fetchall()]
+    assert raw == [{"density": "card", "palette": "forest"}]  # nothing deleted
+
+
+def test_anyone_holding_system_configure_sets_the_installation_palette(settings):
+    """The gate is the permission system.configure (installation scope), not a role name: a user bound to a role that holds it may
+    choose the palette for everybody; a user whose roles lack it gets 403. Custom roles can never hold system permissions, so
+    the holders are the system_admin bindings."""
+    from smplwise.rbac import ROLES
+
+    assert "system.configure" in ROLES["system_admin"] and not any("system.configure" in p for r, p in ROLES.items() if r != "system_admin")
+    app = create_app(settings)
+    with TestClient(app) as c:
+        mine = custom("custom-mine")
+        bind(c, settings, "omer", "system_admin", "installation", "*")  # a second administrator, not the bootstrap one
+        bind(c, settings, "dana", "site_admin", "installation", "*")  # a site administrator: no system.configure
+        assert c.get("/api/v1/settings", headers=as_user("omer")).json()["can_edit"] is True
+        r = c.patch("/api/v1/settings", headers=as_user("omer"), json={"ui.palettes": [mine], "ui.look": {**look.DEFAULT, "palette": "custom-mine"}})
+        assert r.status_code == 200, r.text
+        assert r.json()["settings"]["ui.look"]["palette"] == "custom-mine"
+        assert c.get("/api/v1/settings", headers=as_user("dana")).json()["can_edit"] is False
+        r = c.patch("/api/v1/settings", headers=as_user("dana"), json={"ui.look": {**look.DEFAULT, "palette": "sunset"}})
+        assert r.status_code == 403
+        assert c.patch("/api/v1/settings", headers=as_user("dana"), json={"ui.palettes": []}).status_code == 403
+        assert c.get("/api/v1/settings", headers=as_user("dana")).json()["settings"]["ui.look"]["palette"] == "custom-mine"

@@ -29,6 +29,7 @@ def _builtin_ids() -> tuple[str, ...]:
 
 
 BUILTIN_IDS: tuple[str, ...] = _builtin_ids()
+BASE_ID = "default"  # the base palette (the calm-blue family): the protected fallback; never stored, deleted or replaced by a custom palette
 CUSTOM_PREFIX = "custom-"
 CUSTOM_ID_RE = re.compile(r"^custom-[a-z0-9]+(?:-[a-z0-9]+)*$")
 MAX_CUSTOM = 12
@@ -316,6 +317,9 @@ def describe_failures(rows: list[dict[str, Any]], limit: int = 3) -> str:
 def validate_custom(pal: Any) -> dict[str, Any]:
     """A custom palette in its canonical form, or ValueError with a Hebrew message when it is STRUCTURALLY invalid (never stored).
     A palette that only fails contrast checks is accepted (warn-only, owner decision 2026-10-02)."""
+    if isinstance(pal, dict) and (pal.get("id") == BASE_ID or pal.get("id") in BUILTIN_IDS):
+        # the base palette and the ten ready ones are protected: a custom palette can never take their id (owner decision 2026-10-03)
+        raise ValueError(f"המזהה {pal['id']} שמור לערכה מובנית ולא ניתן לדרוס אותה; ערכה מותאמת חייבת מזהה חדש שמתחיל ב־custom-")
     errs = schema_errors(pal)
     if errs:
         raise ValueError("ערכת הצבעים אינה תקינה: " + errs[0])

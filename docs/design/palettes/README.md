@@ -179,9 +179,20 @@ Questions 1-5 above are answered; the app (`frontend/src/design/palette.ts`, `sy
    contrast) and still refuses a structurally invalid palette; the app falls back to the previous valid palette only for a structurally
    invalid one.
 5. **Import / export** of palettes: not now.
-6. **Who chooses**: only the installation's system administrator (`system.configure`, the settings gate) sets the palette, for everyone.
+6. **Who chooses** (owner 2026-10-03, replaces "only the system administrator"): anyone holding the permission `system.configure` (the
+   settings permission) sets the palette, for everyone: `PATCH /api/v1/settings` (`ui.look`, `ui.palettes`) is gated by
+   `require(conn, principal, "system.configure", INSTALLATION)` and by nothing else (no role-name check). Today the built-in role that holds it is
+   `system_admin` (custom roles can never hold system permissions), so every user bound to `system_admin` at the installation can; a user without it
+   (site admin, operator, viewer, ...) gets 403 and `GET /settings` reports `can_edit: false`, which hides the palette row and the editor.
    There is no personal palette override: the row is not shown on "ההעדפה שלי", `lookOf('palette')` never reads a personal value and
-   `/me/prefs` drops a `palette` it is given. The other look dials keep their personal overrides.
+   `/me/prefs` drops a `palette` it is given. The other look dials keep their personal overrides. Tests: `test_palettes.py`
+   (`test_anyone_holding_system_configure_sets_the_installation_palette`: allowed with it, 403 without).
+7. **The base palette and old values** (owner 2026-10-03): nothing is ever deleted. `default` (the skin's own calm-blue colours) is the BASE and the
+   protected fallback: it is not a stored palette, so it cannot be deleted; a custom palette can never take the id `default` (nor an id of the ten ready
+   palettes): the backend refuses it with a 422 and a Hebrew message ("המזהה ... שמור לערכה מובנית"), the frontend editor never edits a ready palette
+   in place (editing one starts a NEW `custom-*` id, "שמור כחדשה" saves a copy under a new id) and drops such ids from any served list. Deleting a custom
+   palette that the dial points at reads as `default`. An old stored personal palette value stays in the user's stored `ui.look` row (a later write of
+   other personal dials keeps it) and is ignored on every read.
 
 ## Adding a palette is a data-only change
 

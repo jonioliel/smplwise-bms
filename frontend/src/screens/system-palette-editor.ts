@@ -9,8 +9,10 @@ import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
 import { lookOf } from '../design/look';
 import {
-  MAX_CUSTOM, allPalettes, autoFixPalette, customPalettes, effectiveScheme, onPalettes, paletteById, paletteTokens, recommendedColors, setCustomPalettes, validatePalette, type Palette, type Scheme,
+  MAX_CUSTOM, allPalettes, autoFixPalette, customPalettes, effectiveScheme, isCustomId, onPalettes, paletteById, paletteTokens, recommendedColors, setCustomPalettes, validatePalette, type Palette, type Scheme,
 } from '../design/palette';
+
+const newCustomId = (): string => `custom-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
 
 /** The key colours the editor offers (path inside a scheme, Hebrew name), the accent first. The rest of a palette (states, rings, gradients, slider) is the base palette's. */
 export const KEY_COLORS: readonly (readonly [string, string])[] = [
@@ -273,12 +275,20 @@ export class SystemPaletteEditor extends LitElement {
   /** A new palette starts as a copy of the palette in force (or the first ready one); editing one starts as that palette. */
   private startNew() {
     const base = paletteById(lookOf('palette')) ?? allPalettes()[0];
-    this.draft = { ...clone(base), id: `custom-${Date.now().toString(36)}`, name: { he: '', en: 'Custom' } };
+    this.draft = { ...clone(base), id: newCustomId(), name: { he: '', en: 'Custom' } };
     this.error = '';
   }
+  /** The ready palettes and the base ('default') are protected: only a custom palette is edited in place; anything else starts a NEW custom id. */
   private startEdit(p: Palette) {
-    this.draft = clone(p);
+    this.draft = isCustomId(p.id) ? clone(p) : { ...clone(p), id: newCustomId() };
     this.error = '';
+  }
+  /** "Save as": the draft in the editor is saved under a NEW custom id (the original stays as it was). */
+  private async saveAs() {
+    if (!this.draft) return;
+    const he = `${this.draft.name.he.trim()} (עותק)`.slice(0, 40);
+    this.draft = { ...this.draft, id: newCustomId(), name: { he, en: this.draft.name.en || 'Custom' } };
+    await this.save();
   }
   private rebase(id: string) {
     const base = paletteById(id);
@@ -298,6 +308,7 @@ export class SystemPaletteEditor extends LitElement {
 
   private async save() {
     if (!this.draft) return;
+    if (!isCustomId(this.draft.id)) this.draft = { ...this.draft, id: newCustomId() }; // never the id of a ready palette or of the base
     const v = validatePalette(this.draft, { custom: true });
     if (!v.ok) {
       this.error = v.message; // structurally invalid: refused before it is sent, nothing is stored, nothing is applied
@@ -435,6 +446,7 @@ export class SystemPaletteEditor extends LitElement {
       </div>
       <div class="btns">
         <sw-button variant="primary" size="sm" icon="check" data-palette-save ?disabled=${this.busy || bad || !d.name.he.trim()} @click=${() => void this.save()}>שמור ערכה</sw-button>
+        ${existing ? html`<sw-button variant="ghost" size="sm" data-palette-save-as ?disabled=${this.busy || bad || !d.name.he.trim() || customPalettes().length >= MAX_CUSTOM} @click=${() => void this.saveAs()}>שמור כחדשה</sw-button>` : nothing}
         <sw-button variant="ghost" size="sm" data-palette-cancel ?disabled=${this.busy} @click=${() => { this.draft = null; this.error = ''; }}>ביטול</sw-button>
         ${this.error ? html`<span class="err" role="alert" data-palette-error>${this.error}</span>` : nothing}
       </div>
