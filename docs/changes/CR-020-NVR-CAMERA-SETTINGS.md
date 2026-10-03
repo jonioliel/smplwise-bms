@@ -251,3 +251,6 @@ An independent Opus review of phase A found two medium and six low items; all ar
   `source_forbidden` 503, `confirm_required` 422, `validation` 422, `value_not_allowed` 422 (`details.field`, `details.allowed`),
   `field_locked` 422 (`details.field`, `details.by`), `field_not_supported` 422 (`details.field`), `forbidden` 403, `not_found` 404,
   `nvr_not_configured` 409 (NVR-less mode).
+### 9.3 Phase B (UI) implementation record (2026-10-03, branch `pilot/CR020-s2-b`)
+
+SVC switch + pencil per stream for holders of `nvr.configure` (`can_write`), one confirmation (count, two buttons, details under "פרטים"), undo toast (10 s, press = `confirm:true`), editor drawer with the last five changes, error lines per code, unknown outcome = "הסטטוס נבדק" and never retried. Deviations: the confirmation is a centred `sw-dialog` also on phones (nesting-safe inside the modal drawer); the editor is the shared modal `sw-drawer` (side panel / bottom sheet) instead of a full-screen `sw-sheet`; holders of `nvr.configure` get the cards below 900 px; no disk-days line in the confirmation (no retention data in the API); no XML view. Specs: `evidence-nvr-cameras-write` (stateful mock), `evidence-nvr-cameras-fixture` (real backend + fake NVR, fresh backend per project), `layout-nvr-cameras`, `unit-nvr-cameras-edit`. Evidence: `docs/evidence/CR-020-s2/`.
