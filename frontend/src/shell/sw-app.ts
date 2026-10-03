@@ -89,6 +89,7 @@ import { applyTimelineColors } from '../api/timeline-colors';
 import { applyPlaybackDisplay } from '../api/playback-display';
 import { currentSkin, onDesign, setInstallationDesign } from '../design/apply';
 import { loadLook, setInstallationLook } from '../design/look';
+import { setCustomPalettes } from '../design/palette';
 import { getDevicesTree, type DeviceTree } from '../api/devices';
 import { DEMO_DEVICES_TREE } from '../screens/devices-building';
 import '../components/sw-sheet';
@@ -1358,6 +1359,7 @@ export class SwApp extends LitElement {
           setInstallationNavSize(ps['ui.nav_size']); // the installation's default size of the navigation
           setInstallationDesign(ps['ui.skin'], ps['ui.scheme']); // the installation's skin and light / dark choice (design foundation)
           setInstallationLook(ps['ui.look']); // the installation's look dials (Bubble foundation)
+          setCustomPalettes(ps['ui.palettes']); // the installation's custom colour palettes (a palette id in the look dial may point at one)
           setInstallationTabsMode(ps as unknown as Record<string, unknown>); // ui.tabs_mode(+_groups): tabs / hybrid / dropdown (0.1.153)
           setInstallationMobileOptions(ps['ui.mobile']); // the phone UX guards (הגדרות › כללי › אפשרויות נייד)
           applyPlaybackDisplay(ps); // the helper line and the diagnostics block of the recording screens

@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://smplwise.local/schemas/bubble-palettes.v1.json",
+  "title": "SmplWise Arx Bubble skin palettes (schemaVersion 1)",
+  "description": "A palettes file ({ palettes: [...] }) or a single palette object (export / import of one palette). Closed set: unknown keys are rejected. Contrast rules are not expressible here; run validate_palettes.mjs.",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["schemaVersion", "palettes"],
+      "properties": {
+        "$schema": { "type": "string" },
+        "schemaVersion": { "const": 1 },
+        "skin": { "const": "bubble" },
+        "defaultPalette": { "type": "string" },
+        "palettes": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/palette" } }
+      },
+      "additionalProperties": false
+    },
+    { "$ref": "#/$defs/palette" }
+  ],
+  "$defs": {
+    "hex": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+    "color": { "type": "string", "pattern": "^(#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?|rgba?\\(\\s*[\\d.]+\\s*,\\s*[\\d.]+\\s*,\\s*[\\d.]+\\s*(,\\s*[\\d.]+\\s*)?\\))$" },
+    "unit": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+    "palette": {
+      "type": "object",
+      "required": ["id", "name", "schemes"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,40}$" },
+        "name": { "type": "object", "required": ["he", "en"], "properties": { "he": { "type": "string" }, "en": { "type": "string" } }, "additionalProperties": false },
+        "character": { "type": "string" },
+        "schemes": { "type": "object", "required": ["light", "dark"], "properties": { "light": { "$ref": "#/$defs/scheme" }, "dark": { "$ref": "#/$defs/scheme" } }, "additionalProperties": false }
+      },
+      "additionalProperties": false
+    },
+    "scheme": {
+      "type": "object",
+      "required": ["bg", "surface", "surface2", "surfaceElevated", "text", "textMuted", "border", "accent", "accentContrast", "accentText", "glass", "state", "entity", "gradient", "slider", "wallpaper"],
+      "properties": {
+        "bg": { "$ref": "#/$defs/hex" }, "surface": { "$ref": "#/$defs/hex" }, "surface2": { "$ref": "#/$defs/hex" }, "surfaceElevated": { "$ref": "#/$defs/hex" },
+        "text": { "$ref": "#/$defs/hex" }, "textMuted": { "$ref": "#/$defs/hex" }, "border": { "$ref": "#/$defs/color" },
+        "accent": { "$ref": "#/$defs/hex" }, "accentContrast": { "$ref": "#/$defs/hex" }, "accentText": { "$ref": "#/$defs/hex" },
+        "glass": {
+          "type": "object", "required": ["tint", "opacity", "layer", "overlay", "blurPx"], "additionalProperties": false,
+          "properties": {
+            "tint": { "$ref": "#/$defs/hex" },
+            "opacity": { "type": "object", "required": ["min", "default", "max"], "additionalProperties": false,
+              "properties": { "min": { "$ref": "#/$defs/unit" }, "default": { "$ref": "#/$defs/unit" }, "max": { "$ref": "#/$defs/unit" } } },
+            "layer": { "$ref": "#/$defs/color" }, "overlay": { "$ref": "#/$defs/color" }, "blurPx": { "type": "number", "minimum": 0, "maximum": 60 }
+          }
+        },
+        "state": {
+          "type": "object", "additionalProperties": false,
+          "required": ["on", "off", "unavailable", "success", "warning", "danger", "successText", "warningText", "dangerText"],
+          "properties": { "on": { "$ref": "#/$defs/hex" }, "off": { "$ref": "#/$defs/hex" }, "unavailable": { "$ref": "#/$defs/hex" }, "success": { "$ref": "#/$defs/hex" },
+            "warning": { "$ref": "#/$defs/hex" }, "danger": { "$ref": "#/$defs/hex" }, "successText": { "$ref": "#/$defs/hex" }, "warningText": { "$ref": "#/$defs/hex" }, "dangerText": { "$ref": "#/$defs/hex" } }
+        },
+        "entity": {
+          "type": "object", "additionalProperties": false, "required": ["light", "climate", "cover", "media", "security", "camera", "icon"],
+          "properties": { "light": { "$ref": "#/$defs/hex" }, "climate": { "$ref": "#/$defs/hex" }, "cover": { "$ref": "#/$defs/hex" }, "media": { "$ref": "#/$defs/hex" },
+            "security": { "$ref": "#/$defs/hex" }, "camera": { "$ref": "#/$defs/hex" }, "icon": { "$ref": "#/$defs/hex" } }
+        },
+        "gradient": {
+          "type": "object", "additionalProperties": false, "required": ["pairs", "text"],
+          "properties": { "pairs": { "type": "array", "minItems": 2, "maxItems": 8, "items": { "type": "array", "prefixItems": [{ "$ref": "#/$defs/hex" }, { "$ref": "#/$defs/hex" }], "minItems": 2, "maxItems": 2 } },
+            "text": { "$ref": "#/$defs/hex" } }
+        },
+        "slider": {
+          "type": "object", "additionalProperties": false, "required": ["fill", "fillCool", "onFill", "edge", "track"],
+          "properties": { "fill": { "$ref": "#/$defs/hex" }, "fillCool": { "$ref": "#/$defs/hex" }, "onFill": { "$ref": "#/$defs/hex" }, "edge": { "$ref": "#/$defs/hex" }, "track": { "$ref": "#/$defs/hex" } }
+        },
+        "wallpaper": {
+          "type": "object", "additionalProperties": false, "required": ["stops", "angle"],
+          "properties": { "stops": { "type": "array", "minItems": 2, "maxItems": 5, "items": { "$ref": "#/$defs/hex" } }, "angle": { "type": "number" } }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

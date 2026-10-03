@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="he" dir="rtl" data-skin="bubble" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bubble taste - index</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="bubble-skin.css">
+<style>
+body { background: var(--sw-canvas); min-height: 100vh; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 28px 18px 60px; display: flex; flex-direction: column; gap: 18px; }
+header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+header h1 { margin: 0; flex: 1; font-size: 26px; color: var(--sw-heading); }
+.boards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.board { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 30px; background: var(--sw-surface); color: var(--sw-text); text-decoration: none; transition: background var(--sw-t-med) var(--sw-ease); }
+.board:hover { background: var(--sw-surface-3); }
+.board img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: top; border-radius: 20px; background: var(--sw-surface-2); }
+.board .t { font-weight: 700; font-size: 16px; padding-inline: 6px; }
+.board .d { font-size: 13px; color: var(--sw-text-2); padding: 0 6px 4px; }
+.tok { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.tok div { display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 20px; background: var(--sw-surface); font-size: 12px; }
+.tok i { width: 34px; height: 34px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 1px var(--sw-border-strong); }
+.tok code { font-family: ui-monospace, Consolas, monospace; direction: ltr; }
+.tok .v { color: var(--sw-text-2); }
+ul { margin: 0; padding-inline-start: 20px; line-height: 1.8; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>Bubble · טעימה של סגנון</h1>
+    <div class="seg" role="group" aria-label="ערכה"><button data-s="light">בהיר</button><button data-s="dark">כהה</button></div></header>
+  <div class="boards">
+    <a class="board" href="home.html"><img src="screens/home-1440-dark.png" alt=""><span class="t">1 · בית</span><span class="d">כרטיס מצב, פעולות מהירות, אזורים (כרטיסים | רשימה), חלון אזור, בחירת אזור, אישור כיבוי</span></a>
+    <a class="board" href="area.html"><img src="screens/area-1440-dark.png" alt=""><span class="t">2 · אזור + חלון קופץ</span><span class="d">תאורה כסליידר, מזגן, תריסים, מדיה, אווירה (רשימה נפתחת), חלון התקן שקוף</span></a>
+    <a class="board" href="media.html"><img src="screens/media-1440-dark.png" alt=""><span class="t">3 · מדיה</span><span class="d">מתנגן עכשיו מעל עטיפה מטושטשת, נגנים (כרטיסים | רשימה), עוצמה, קבוצת השמעה</span></a>
+  </div>
+  <div class="sep"><span class="t">מתגים בכל לוח</span></div>
+  <ul>
+    <li>מסך: 1440 · 820 · 390 · מלא — ערכה: בהיר · כהה</li>
+    <li>משטח (<code>data-bubble-surface</code>): מילוי · גרדיאנט · זכוכית</li>
+    <li>צפיפות (<code>data-bubble-density</code>): רחב · רגיל · דחוס · שורות</li>
+    <li>שקיפות החלון הקופץ: 88% (ברירת המחדל של Bubble) · 72% · 58%</li>
+  </ul>
+  <div class="sep"><span class="t">טוקנים (הערכה הנוכחית)</span></div>
+  <div class="tok" id="tok"></div>
+</div>
+<script>
+'use strict';
+const NAMES = ['--sw-bg', '--sw-surface', '--sw-surface-2', '--sw-surface-3', '--sw-surface-solid', '--sw-text', '--sw-text-2', '--sw-text-3', '--sw-accent', '--sw-accent-text',
+  '--sw-lit', '--sw-lit-cool', '--sw-on-lit', '--sw-cool', '--sw-heat', '--sw-overlay', '--sw-layer', '--sw-layer-2', '--sw-nav-glass',
+  '--sw-hue-1', '--sw-hue-2', '--sw-hue-3', '--sw-hue-4', '--sw-hue-5', '--sw-hue-6', '--sw-hue-7', '--sw-hue-8'];
+function paint() {
+  const cs = getComputedStyle(document.documentElement);
+  document.getElementById('tok').innerHTML = NAMES.map((n) => `<div><i style="background:var(${n})"></i><span><code>${n}</code><br><span class="v"><code>${cs.getPropertyValue(n).trim()}</code></span></span></div>`).join('');
+  document.querySelectorAll('[data-s]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.s === document.documentElement.dataset.theme)));
+}
+const q = new URLSearchParams(location.search).get('scheme');
+if (q) document.documentElement.dataset.theme = q;
+document.querySelectorAll('[data-s]').forEach((b) => b.addEventListener('click', () => { document.documentElement.dataset.theme = b.dataset.s; paint(); }));
+paint();
+</script>
+</body>
+</html>

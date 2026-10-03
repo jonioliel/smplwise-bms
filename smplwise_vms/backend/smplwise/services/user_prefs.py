@@ -37,7 +37,7 @@ VALIDATORS: dict[str, Callable[[Any], Any]] = {"nav.order": normalize_nav_order,
 DEFAULTS: dict[str, Any] = {"nav.order": list(NAV_TAB_IDS), "ui.nav_size": dict(nav_size.DEFAULT)}
 # `ui.look` (Bubble foundation, owner 2026-10-02): the user's own look dials - a PARTIAL object, only the dials they set; each
 # follows the installation's `ui.look` otherwise (services/look.py). No stored value (null) = follow it entirely. Presentation only.
-VALIDATORS["ui.look"] = look.normalize_partial
+VALIDATORS["ui.look"] = look.normalize_own  # every dial except the palette (the installation's system administrator chooses it for all)
 DEFAULTS["ui.look"] = None
 
 
@@ -125,6 +125,15 @@ def set_prefs(conn: sqlite3.Connection, user_id: str, patch: dict[str, Any]) -> 
     # every value is validated BEFORE anything is written: one bad key refuses the whole update and nothing of it commits
     values = {key: (None if raw is None else VALIDATORS[key](raw)) for key, raw in patch.items()}
     for key, value in values.items():
+        if key == "ui.look" and value is not None:
+            # nothing is ever deleted: an old personal palette value stays in the stored row (it is ignored on every read, look.normalize_own)
+            old = conn.execute("SELECT value_json FROM user_prefs WHERE user_id = ? AND key = 'ui.look'", (user_id,)).fetchone()
+            try:
+                kept = json.loads(old["value_json"]).get("palette") if old else None
+            except (ValueError, TypeError, AttributeError):
+                kept = None
+            if isinstance(kept, str):
+                value = {**value, "palette": kept}
         if value is None:
             conn.execute("DELETE FROM user_prefs WHERE user_id = ? AND key = ?", (user_id, key))
             continue

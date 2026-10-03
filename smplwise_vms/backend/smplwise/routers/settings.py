@@ -15,7 +15,7 @@ from ..auth import current_principal, get_conn
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import area_row, automation_settings, home_config, home_screen, look, media_layout, mobile_options, nav_size, nvr_capacity, tabs_mode, timeline_colors
+from ..services import area_row, automation_settings, home_config, home_screen, look, media_layout, mobile_options, nav_size, nvr_capacity, palettes, tabs_mode, timeline_colors
 
 router = APIRouter()
 
@@ -59,6 +59,9 @@ DEFAULTS: dict[str, str] = {
     # scale, desktop touch target, palette - a JSON object (shape, lists and ranges in services/look.py), read back as an object.
     # The installation default carries every dial; a user's own partial override (/me/prefs) wins per dial.
     "ui.look": json.dumps(look.DEFAULT, separators=(",", ":")),
+    # Release 0.1.155: the custom colour palettes of the Bubble skin - a JSON list, each checked for shape (services/palettes.py; low contrast is only a warning in the editor)
+    # before it is stored; "[]" = none. A palette id in the look dial (custom-<slug>) points at one of them. Per installation.
+    "ui.palettes": "[]",
     # UI round 1 (owner 2026-09-30): the size of the side rail / phone bottom bar - a JSON object, shape and ranges in
     # services/nav_size.py ({"mode":"rel","preset":"m"} or {"mode":"free","icon":..,"label":..,"item":..}); a user's own
     # value (/me/prefs) wins. Read back as an object.
@@ -262,6 +265,7 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
     out["ui.nav_size"] = _stored_nav_size(out["ui.nav_size"])
     out["ui.look"] = look.stored(out["ui.look"])
+    out["ui.palettes"] = palettes.stored(out["ui.palettes"])
     out["ui.tabs_mode"] = tabs_mode.stored_mode(out["ui.tabs_mode"])
     out["ui.tabs_mode_groups"] = tabs_mode.stored_groups(out["ui.tabs_mode_groups"])
     out["ui.mobile"] = _stored_mobile(out["ui.mobile"])
@@ -450,6 +454,7 @@ class SettingsPatch(BaseModel):
     ui_mobile: dict[str, Any] | None = Field(default=None, alias="ui.mobile")  # validated in full by services/mobile_options.py
     ui_nav_size: dict[str, Any] | None = Field(default=None, alias="ui.nav_size")  # validated in full by services/nav_size.py
     ui_look: dict[str, Any] | None = Field(default=None, alias="ui.look")  # validated in full by services/look.py (every dial required)
+    ui_palettes: list[dict[str, Any]] | None = Field(default=None, alias="ui.palettes")  # validated in full (shape; contrast is warn-only) by services/palettes.py
     timeline_palette: dict[str, Any] | None = Field(default=None, alias="timeline.colors")  # validated in full by services/timeline_colors.py
     playback_helper_line: str | None = Field(default=None, pattern="^(all|installers|hidden)$", alias="playback.helper_line")
     playback_diagnostics: str | None = Field(default=None, pattern="^(all|installers|hidden)$", alias="playback.diagnostics")
@@ -590,6 +595,11 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             changes["ui.look"] = look.normalize(changes["ui.look"])
         except ValueError as exc:
             raise ApiError(422, "validation", "מראה: ערך לא תקין.", details={"ui.look": str(exc)})
+    if "ui.palettes" in changes:
+        try:
+            changes["ui.palettes"] = palettes.normalize_customs(changes["ui.palettes"])
+        except ValueError as exc:
+            raise ApiError(422, "validation", str(exc), details={"ui.palettes": str(exc)})
     if "ui.tabs_mode_groups" in changes:
         try:
             changes["ui.tabs_mode_groups"] = tabs_mode.normalize_groups(changes["ui.tabs_mode_groups"])
@@ -682,7 +692,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if key == "home.widgets":
             set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value else "")
             continue
-        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.tabs_mode_groups", "ui.mobile", "timeline.colors", "schedules.classes", "devices.area_row", "devices.floor_row", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
+        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.mobile", "timeline.colors", "schedules.classes", "devices.area_row", "devices.floor_row", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
     if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now
         from ..services import schedules as schedules_svc
 

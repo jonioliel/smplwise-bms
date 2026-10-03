@@ -38,6 +38,13 @@ BAD_FULL = [
     {**FULL, "performance": True},
     {**FULL, "performance": None},
     {**FULL, "palette": "ocean"},
+    {**FULL, "palette": "Calm-Blue"},
+    {**FULL, "palette": "custom-"},
+    {**FULL, "palette": "custom--x"},
+    {**FULL, "palette": "custom-X"},
+    {**FULL, "palette": "custom-" + "a" * 40},
+    {**FULL, "palette": None},
+    {**FULL, "palette": 3},
     {**FULL, "accent": "#ff0000"},  # unknown dial
     {k: v for k, v in FULL.items() if k != "radius"},  # the installation default needs every dial
 ]
@@ -48,9 +55,11 @@ def test_defaults_and_the_frontend_lists_agree():
     assert look.stored(json.dumps(look.DEFAULT)) == look.DEFAULT
     front = (Path(__file__).resolve().parents[3] / "frontend" / "src" / "design" / "look.ts").read_text(encoding="utf-8")
     for key, allowed in look.CHOICES.items():
+        if key == "palette":
+            continue  # generated from palettes.json on both sides (test_palettes.py compares the ids)
         m = re.search(rf"{key}:\s*\{{[^}}]*values:\s*\[([^\]]*)\]", front, re.S)
         assert m, f"{key} values not found in design/look.ts"
-        assert tuple(re.findall(r"'([a-z]+)'", m.group(1))) == allowed, key
+        assert tuple(re.findall(r"'([a-z-]+)'", m.group(1))) == allowed, key
     assert re.search(r"transparency:\s*\{[^}]*range:\s*\[40,\s*100\]", front, re.S)
     assert re.search(r"scale:\s*\{[^}]*range:\s*\[80,\s*130\]", front, re.S)
     assert re.search(r"touch:\s*\{[^}]*values:\s*\[32,\s*44\]", front, re.S)
@@ -124,7 +133,7 @@ def test_user_override_is_partial_per_user_validated_and_clearable(settings):
     for bad in ({"density": "huge"}, {"transparency": 30}, {"scale": "100"}, {"touch": 36}, {"performance": "turbo"}, {"palette": "x"}, {"colour": "red"}, "compact", []):
         assert c.put("/api/v1/me/prefs", json={"ui.look": bad}).status_code == 422, bad
     assert c.get("/api/v1/me/prefs").json()["prefs"]["ui.look"] == {"density": "row", "touch": 32}
-    # a full object is fine too, and null = "לפי ההתקנה": the key is gone again
-    assert c.put("/api/v1/me/prefs", json={"ui.look": FULL}).json()["prefs"]["ui.look"] == FULL
+    # a full object is fine too (the palette is the installation administrator's alone, so it is dropped), and null = "לפי ההתקנה": the key is gone again
+    assert c.put("/api/v1/me/prefs", json={"ui.look": FULL}).json()["prefs"]["ui.look"] == {k: v for k, v in FULL.items() if k != "palette"}
     r = c.put("/api/v1/me/prefs", json={"ui.look": None})
     assert r.status_code == 200 and "ui.look" not in r.json()["stored"] and r.json()["prefs"]["ui.look"] is None

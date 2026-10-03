@@ -125,6 +125,8 @@ export interface ProductSettings {
   'ui.scheme'?: 'light' | 'dark' | 'auto';
   /** Bubble foundation (2026-10-02): the installation's look dials (every dial present; shape in design/look.ts). A user's own partial `ui.look` (/me/prefs) wins per dial. */
   'ui.look'?: Record<string, unknown>;
+  /** Release 0.1.155: the installation's custom colour palettes (design/palette.ts; the backend refuses a palette that fails the contrast checks). */
+  'ui.palettes'?: Record<string, unknown>[];
   /** The palette of the style (styles/devices-themes.ts DEVICE_THEMES; 'default' today, no picker until 6b). */
   'devices.theme'?: string;
   'devices.default_view'?: 'cards' | 'tiles';

@@ -272,9 +272,9 @@ test.describe('bubble foundation', () => {
     await open(page, '/system/diagnostics', '&scheme=light');
     const card = lookCard(page);
     await expect(card).toBeVisible();
-    await expect(card.locator('[data-look-row]')).toHaveCount(9); // 0.1.154: the performance dial is the ninth row
+    await expect(card.locator('[data-look-row]')).toHaveCount(8); // 0.1.155: nine dials minus the personal palette (the palette is an installation-wide choice)
     await expect(card.locator('[data-look-target="own"]')).toHaveAttribute('aria-pressed', 'true');
-    for (const d of ['density', 'surface', 'popup', 'radius', 'touch', 'palette', 'transparency', 'scale', 'performance']) await expect(card.locator(`[data-look-follow="${d}"]`)).toHaveAttribute('aria-pressed', 'true');
+    for (const d of ['density', 'surface', 'popup', 'radius', 'touch', 'performance', 'transparency', 'scale']) await expect(card.locator(`[data-look-follow="${d}"]`)).toHaveAttribute('aria-pressed', 'true');
     await card.locator('[data-look-option="density:row"]').click();
     await expect(card.locator('[data-look-message]')).toBeVisible();
     expect(await attr(page, 'data-bubble-density')).toBe('row'); // applied at once, nothing to save

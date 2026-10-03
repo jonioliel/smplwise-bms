@@ -393,6 +393,7 @@ test.describe('CR-013 shell on the demo data', () => {
     // keyboard on the handle
     await openOrder(page, info);
     await dlg.locator('li[data-tab="explore"] .handle').focus();
+    await expect(dlg.locator('li[data-tab="explore"] .handle')).toBeFocused();
     await page.keyboard.press('Home');
     await expect(dlg.locator('li[data-tab] .name')).toHaveText(['מפה', 'WisKey', 'ראשי', 'אבטחה', 'מולטימדיה']);
     await dlg.locator('[data-nav-order-reset]').click();
