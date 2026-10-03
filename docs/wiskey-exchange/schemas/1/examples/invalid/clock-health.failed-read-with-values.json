@@ -1,0 +1,10 @@
+{
+  "schema": "arx-exchange/clock-health/1",
+  "source": "supervisor_host_info",
+  "read_ok": false,
+  "dt_synchronized": true,
+  "dt_utc": null,
+  "sampled_monotonic": 81234.5678,
+  "read_duration_ms": 2000,
+  "process_boot_id": "0123456789abcdef0123456789abcdef"
+}

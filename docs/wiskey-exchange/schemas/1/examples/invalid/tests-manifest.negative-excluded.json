@@ -1,0 +1,48 @@
+{
+  "schema": "arx-exchange/tests-manifest/1",
+  "package": "smplwise_intercom",
+  "version": "2.0.0-rc.38",
+  "source_commit": "0123456789abcdef0123456789abcdef01234567",
+  "requirements_file": "requirements-ha-test.txt",
+  "files": [
+    {
+      "path": "requirements-ha-test.txt",
+      "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+      "role": "metadata"
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+      "role": "metadata"
+    },
+    {
+      "path": "tests/conftest.py",
+      "sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+      "role": "support"
+    },
+    {
+      "path": "tests/test_example.py",
+      "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+      "role": "test"
+    },
+    {
+      "path": "tests/fixtures/example_input.json",
+      "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+      "role": "fixture"
+    }
+  ],
+  "expected_collected": 120,
+  "tests_excluded": -1,
+  "excluded": [
+    {
+      "node_id": "tests/test_example.py::test_needs_real_station",
+      "category": "hardware",
+      "marker": "hardware",
+      "reason": "Talks to a real station over the network; synthetic example."
+    }
+  ],
+  "baseline": {
+    "baseline_version": 1,
+    "baseline_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}

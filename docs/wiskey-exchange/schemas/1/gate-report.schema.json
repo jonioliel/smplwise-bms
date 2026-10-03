@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:smplwise:arx-exchange:schemas:1:gate-report",
+  "title": "Offline gate report (arx-exchange schema 1)",
+  "description": "gate-report.json written by the no-hardware, no-network gate (GATE.md). A timeout, missing tests, an environment that needed a download, or an exclusions violation can never be reported as 'pass'.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "package",
+    "version",
+    "source_commit",
+    "started_at",
+    "finished_at",
+    "duration_seconds",
+    "budget_seconds",
+    "timed_out",
+    "result",
+    "exit_code",
+    "environment",
+    "counts",
+    "missing_tests",
+    "unexpected_tests",
+    "exclusions_check",
+    "mandatory_check",
+    "junit_sha256",
+    "summary_he"
+  ],
+  "properties": {
+    "schema": { "const": "arx-exchange/gate-report/1" },
+    "package": { "const": "smplwise_intercom" },
+    "version": { "type": "string", "minLength": 5, "maxLength": 64 },
+    "source_commit": { "type": "string", "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$" },
+    "started_at": { "$ref": "#/$defs/utc_seconds" },
+    "finished_at": { "$ref": "#/$defs/utc_seconds" },
+    "duration_seconds": { "type": "number", "minimum": 0 },
+    "budget_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "test_runtime_budget_seconds from the release manifest. The hard limit is budget_seconds + 60 (GATE.md 4)."
+    },
+    "timed_out": { "type": "boolean" },
+    "result": {
+      "enum": ["pass", "fail", "timeout", "missing_tests", "input_invalid", "exclusions_violation", "environment_error", "network_attempt", "internal_error"]
+    },
+    "exit_code": {
+      "enum": [0, 1, 2, 3, 4, 5, 6, 7, 70],
+      "description": "Mapping in GATE.md 5. Only 0 means pass."
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["python_version", "ha_test_version", "network", "wheelhouse_sha256", "downloads_attempted", "platform"],
+      "properties": {
+        "python_version": { "type": "string", "pattern": "^3\\.[0-9]+\\.[0-9]+$" },
+        "ha_test_version": { "type": "string", "pattern": "^20[2-9][0-9]\\.([1-9]|1[0-2])\\.(0|[1-9][0-9]*)$" },
+        "network": {
+          "enum": ["disabled_os", "disabled_socket_block"],
+          "description": "disabled_os = OS/container level (preferred); disabled_socket_block = in-process socket block only."
+        },
+        "wheelhouse_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 of the sorted '<sha256>  <filename>' list of the prepared wheelhouse."
+        },
+        "downloads_attempted": { "type": "integer", "minimum": 0 },
+        "platform": { "type": "string", "minLength": 1, "maxLength": 100 }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expected", "collected", "passed", "failed", "errors", "skipped", "excluded", "missing"],
+      "properties": {
+        "expected": { "type": "integer", "minimum": 0 },
+        "collected": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "errors": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 },
+        "excluded": { "type": "integer", "minimum": 0 },
+        "missing": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "missing_tests": { "$ref": "#/$defs/node_list" },
+    "unexpected_tests": {
+      "$ref": "#/$defs/node_list",
+      "description": "Collected but not expected. Reported; a failure only when it hides a missing mandatory test."
+    },
+    "exclusions_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseline_version", "status", "added", "removed", "explained_in"],
+      "properties": {
+        "baseline_version": { "type": "integer", "minimum": 1 },
+        "status": { "enum": ["ok", "growth_explained", "growth_unexplained", "list_changed_unexplained", "baseline_unknown"] },
+        "added": { "$ref": "#/$defs/node_list" },
+        "removed": { "$ref": "#/$defs/node_list" },
+        "explained_in": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["ARX_IMPACT.md", "RELEASE_NOTES.md"] }
+        }
+      }
+    },
+    "mandatory_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "violations"],
+      "properties": {
+        "status": { "enum": ["ok", "violated"] },
+        "violations": { "$ref": "#/$defs/node_list" }
+      }
+    },
+    "junit_sha256": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of the JUnit XML file; null only when the test command never started."
+    },
+    "summary_he": { "type": "string", "minLength": 1, "maxLength": 500 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "result": { "const": "pass" } } },
+      "then": {
+        "properties": {
+          "exit_code": { "const": 0 },
+          "timed_out": { "const": false },
+          "counts": {
+            "properties": {
+              "failed": { "const": 0 },
+              "errors": { "const": 0 },
+              "missing": { "const": 0 }
+            }
+          },
+          "missing_tests": { "maxItems": 0 },
+          "mandatory_check": { "properties": { "status": { "const": "ok" } } },
+          "exclusions_check": { "properties": { "status": { "enum": ["ok", "growth_explained"] } } },
+          "environment": { "properties": { "downloads_attempted": { "const": 0 } } }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "timed_out": { "const": true } } },
+      "then": { "properties": { "result": { "const": "timeout" }, "exit_code": { "const": 3 } } }
+    },
+    {
+      "if": { "properties": { "exit_code": { "const": 0 } } },
+      "then": { "properties": { "result": { "const": "pass" } } }
+    }
+  ],
+  "$defs": {
+    "utc_seconds": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$"
+    },
+    "node_list": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 500 }
+    }
+  }
+}

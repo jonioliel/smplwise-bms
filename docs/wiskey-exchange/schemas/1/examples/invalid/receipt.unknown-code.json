@@ -1,0 +1,40 @@
+{
+  "schema": "arx-exchange/receipt/1",
+  "receipt_id": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
+  "package": "smplwise_intercom",
+  "version": "2.0.0-rc.38",
+  "manifest_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "owner_channel_hash": "match",
+  "received_at": "2026-10-06T11:00:00Z",
+  "checked_at": "2026-10-06T11:09:30Z",
+  "arx_version": "0.1.159",
+  "is_installation": false,
+  "result": "rejected",
+  "reasons": [
+    "R_SOMETHING_NEW"
+  ],
+  "warnings": [
+    "W_UNSIGNED"
+  ],
+  "signature_status": "unsigned",
+  "checks": [
+    {
+      "id": "artifact_hashes",
+      "status": "fail",
+      "code": "R_ARTIFACT_HASH_MISMATCH",
+      "detail": "ARX_IMPACT.md"
+    },
+    {
+      "id": "gate",
+      "status": "fail",
+      "code": "R_GATE_TIMEOUT"
+    }
+  ],
+  "unsupported_capabilities": [],
+  "gate": {
+    "result": "timeout",
+    "exit_code": 3,
+    "report_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "note_he": "החבילה נדחתה: hash של קובץ לא תואם, והשער חרג מהזמן."
+}

@@ -1,0 +1,74 @@
+{
+  "schema": "arx-exchange/release-manifest/1",
+  "profile": "release",
+  "package": "smplwise_intercom",
+  "domain": "hikvision_intercom",
+  "install_dir": "hikvision_intercom",
+  "version": "3.0.0",
+  "source_commit": "0123456789abcdef0123456789abcdef01234567",
+  "zip_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "tests_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "artifacts_sha256": {
+    "RELEASE_NOTES.md": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "ARX_IMPACT.md": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "tests-manifest.json": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "contract/CONTRACT_VERSION": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "contract/ws-commands.json": "1111111111111111111111111111111111111111111111111111111111111111",
+    "contract/errors.json": "2222222222222222222222222222222222222222222222222222222222222222",
+    "capabilities/capabilities.json": "3333333333333333333333333333333333333333333333333333333333333333",
+    "capabilities/intercom.door_open.he.md": "4444444444444444444444444444444444444444444444444444444444444444",
+    "capabilities/intercom.station_status.he.md": "5555555555555555555555555555555555555555555555555555555555555555"
+  },
+  "min_ha_version": "2026.9.1",
+  "tested_ha_versions": [
+    "2026.9.1"
+  ],
+  "contract_version": "1.0",
+  "storage_schemas": {
+    "hikvision_intercom.example_store": {
+      "version": 2,
+      "previous_version": 1,
+      "irreversible": true
+    }
+  },
+  "requires_ha_restart": true,
+  "breaking": true,
+  "migrations": [
+    {
+      "id": "example-store-1-to-2",
+      "target": "hikvision_intercom.example_store",
+      "from_version": 1,
+      "to_version": 2,
+      "idempotent": true,
+      "reversible": false,
+      "dry_run": true,
+      "backup_before": true,
+      "description": "Synthetic example of a one-way store migration."
+    }
+  ],
+  "entities_added": [],
+  "entities_removed": [],
+  "services_changed": [],
+  "ws_commands_added": [],
+  "ws_commands_removed": [
+    "hikvision_intercom/example_removed"
+  ],
+  "permissions_added": [],
+  "risk_to_doors": "high",
+  "rollback": {
+    "method": "restore_ha_backup",
+    "text_he": "חזרה רק משחזור גיבוי HA שנלקח לפני ההתקנה.",
+    "text_en": "Roll back only by restoring the HA backup taken before install."
+  },
+  "test_command": "python -m pytest -q -o addopts=\"\" -p no:cacheprovider --junitxml=gate-junit.xml",
+  "python_version": "3.13",
+  "ha_test_version": "2026.9.1",
+  "test_runtime_budget_seconds": 600,
+  "tests_excluded": 1,
+  "signed_at": "2026-10-06T09:00:00Z",
+  "signature": {
+    "algorithm": "Ed25519",
+    "key_id": "0000000000000000000000000000000000000000000000000000000000000000",
+    "value": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+  }
+}

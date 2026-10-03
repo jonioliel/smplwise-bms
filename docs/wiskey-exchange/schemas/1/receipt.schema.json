@@ -1,0 +1,238 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:smplwise:arx-exchange:schemas:1:receipt",
+  "title": "Arx receipt for a delivery (arx-exchange schema 1)",
+  "description": "Written by Arx to receipts/<version>-<receipt_id>.json. Records receipt and the gate result of the copy Arx checked in its own staging. A receipt is never an installation and never approves a live run. Result codes are defined in RECEIPT.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "receipt_id",
+    "package",
+    "version",
+    "manifest_sha256",
+    "owner_channel_hash",
+    "received_at",
+    "checked_at",
+    "arx_version",
+    "is_installation",
+    "result",
+    "reasons",
+    "warnings",
+    "signature_status",
+    "checks",
+    "unsupported_capabilities",
+    "gate",
+    "note_he"
+  ],
+  "properties": {
+    "schema": { "const": "arx-exchange/receipt/1" },
+    "receipt_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "description": "UUID v4, lowercase. One receipt per check; a re-check writes a new receipt."
+    },
+    "package": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "version": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "manifest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of release-manifest.json bytes as received."
+    },
+    "owner_channel_hash": {
+      "enum": ["match", "mismatch", "missing"],
+      "description": "Comparison with the manifest hash the owner passed to Arx separately. Only 'match' can lead to 'accepted'."
+    },
+    "received_at": { "$ref": "#/$defs/utc_seconds" },
+    "checked_at": { "$ref": "#/$defs/utc_seconds" },
+    "arx_version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+    },
+    "is_installation": {
+      "const": false,
+      "description": "Always false. Installation is a separate owner action in Arx."
+    },
+    "result": {
+      "enum": ["accepted", "accepted_unsigned", "rejected", "error"],
+      "description": "accepted = every check passed and the signature verified against a pinned key. accepted_unsigned = every check passed but there is no production signature; installable only with an explicit owner exception for this exact package. rejected = at least one R_ code. error = Arx could not finish the check (E_ code); says nothing about the package."
+    },
+    "reasons": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/reason_code" }
+    },
+    "warnings": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/warning_code" }
+    },
+    "signature_status": {
+      "enum": ["verified", "unsigned", "invalid", "key_not_pinned", "key_revoked", "bootstrap_rejected", "not_checked"]
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status"],
+        "properties": {
+          "id": {
+            "enum": [
+              "ready_marker",
+              "duplicate_keys",
+              "schema",
+              "owner_channel_hash",
+              "artifact_hashes",
+              "zip_safety",
+              "domain_install_dir",
+              "zip_inner_manifest",
+              "ha_version",
+              "contract_version",
+              "version_order",
+              "blocked_versions",
+              "signature",
+              "tests_manifest",
+              "criteria_consistency",
+              "capabilities",
+              "gate"
+            ]
+          },
+          "status": { "enum": ["pass", "fail", "warn", "not_run"] },
+          "code": {
+            "anyOf": [
+              { "$ref": "#/$defs/reason_code" },
+              { "$ref": "#/$defs/warning_code" },
+              { "$ref": "#/$defs/error_code" }
+            ]
+          },
+          "detail": { "type": "string", "maxLength": 500 }
+        }
+      }
+    },
+    "unsupported_capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$" },
+      "description": "Capability ids reported as 'not supported' (unknown, or no capability document). Never a reason to reject on its own."
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result", "exit_code", "report_sha256"],
+      "properties": {
+        "result": {
+          "enum": ["pass", "fail", "timeout", "missing_tests", "input_invalid", "exclusions_violation", "environment_error", "network_attempt", "internal_error", "not_run"]
+        },
+        "exit_code": { "type": ["integer", "null"] },
+        "report_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "error_code": {
+      "description": "Set only when result is 'error'.",
+      "$ref": "#/$defs/error_code"
+    },
+    "note_he": { "type": "string", "maxLength": 1000 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "result": { "enum": ["accepted", "accepted_unsigned"] } } },
+      "then": {
+        "properties": {
+          "reasons": { "maxItems": 0 },
+          "owner_channel_hash": { "const": "match" },
+          "gate": { "properties": { "result": { "const": "pass" }, "exit_code": { "const": 0 } } }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "result": { "const": "accepted" } } },
+      "then": { "properties": { "signature_status": { "const": "verified" } } }
+    },
+    {
+      "if": { "properties": { "result": { "const": "accepted_unsigned" } } },
+      "then": {
+        "properties": {
+          "signature_status": { "const": "unsigned" },
+          "warnings": { "contains": { "const": "W_UNSIGNED" } }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "result": { "const": "rejected" } } },
+      "then": { "properties": { "reasons": { "minItems": 1 } } }
+    },
+    {
+      "if": { "properties": { "result": { "const": "error" } } },
+      "then": { "required": ["error_code"] }
+    }
+  ],
+  "$defs": {
+    "utc_seconds": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$"
+    },
+    "reason_code": {
+      "enum": [
+        "R_READY_MISSING",
+        "R_READY_MISMATCH",
+        "R_DUPLICATE_KEYS",
+        "R_SCHEMA_INVALID",
+        "R_OWNER_HASH_MISSING",
+        "R_OWNER_HASH_MISMATCH",
+        "R_ARTIFACT_MISSING",
+        "R_ARTIFACT_EXTRA",
+        "R_ARTIFACT_HASH_MISMATCH",
+        "R_ZIP_UNSAFE",
+        "R_ZIP_CONTENT_OUTSIDE_INSTALL_DIR",
+        "R_DOMAIN_NOT_ALLOWED",
+        "R_INSTALL_DIR_NOT_ALLOWED",
+        "R_ZIP_INNER_MANIFEST_MISMATCH",
+        "R_HA_VERSION_UNSUPPORTED",
+        "R_CONTRACT_INCOMPATIBLE",
+        "R_VERSION_NOT_HIGHER",
+        "R_VERSION_REUSED",
+        "R_VERSION_BLOCKED",
+        "R_SIGNATURE_INVALID",
+        "R_KEY_NOT_PINNED",
+        "R_KEY_REVOKED",
+        "R_BOOTSTRAP_PROFILE_EXTERNAL",
+        "R_TESTS_MANIFEST_MISMATCH",
+        "R_CRITERIA_INCONSISTENT",
+        "R_CAPABILITIES_INVALID",
+        "R_BASELINE_UNKNOWN",
+        "R_EXCLUSIONS_GROWTH_UNEXPLAINED",
+        "R_MANDATORY_TEST_EXCLUDED",
+        "R_GATE_FAILED",
+        "R_GATE_TIMEOUT",
+        "R_GATE_MISSING_TESTS",
+        "R_GATE_ENVIRONMENT",
+        "R_GATE_NETWORK_ATTEMPT"
+      ]
+    },
+    "warning_code": {
+      "enum": [
+        "W_UNSIGNED",
+        "W_CAPABILITY_UNSUPPORTED",
+        "W_CAPABILITY_NO_DOCUMENT",
+        "W_REQUIRES_RESTART",
+        "W_BREAKING_MANUAL_ONLY",
+        "W_MIGRATIONS_MANUAL_ONLY",
+        "W_RISK_TO_DOORS_LOW",
+        "W_RISK_TO_DOORS_HIGH",
+        "W_HA_VERSION_UNTESTED",
+        "W_EXCLUSIONS_CHANGED_EXPLAINED",
+        "W_UNEXPECTED_TESTS"
+      ]
+    },
+    "error_code": {
+      "enum": [
+        "E_INTERNAL",
+        "E_STORAGE",
+        "E_GATE_TOOL_UNAVAILABLE",
+        "E_COPY_FAILED"
+      ]
+    }
+  }
+}

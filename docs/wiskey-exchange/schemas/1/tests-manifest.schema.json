@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:smplwise:arx-exchange:schemas:1:tests-manifest",
+  "title": "WisKey tests manifest (arx-exchange schema 1)",
+  "description": "tests-manifest.json delivered next to the tests ZIP. Lists every file in the tests ZIP with its SHA-256 (it does not list itself). Its own hash is in release-manifest.json artifacts_sha256, which is signed. Strict: unknown fields are rejected. Cross-checks (same version and source_commit as the release manifest, len(excluded) == tests_excluded, every ZIP member listed exactly once) are done by the Arx gate, see GATE.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "package",
+    "version",
+    "source_commit",
+    "requirements_file",
+    "files",
+    "expected_collected",
+    "tests_excluded",
+    "excluded",
+    "baseline"
+  ],
+  "properties": {
+    "schema": { "const": "arx-exchange/tests-manifest/1" },
+    "package": { "const": "smplwise_intercom" },
+    "version": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?$"
+    },
+    "source_commit": {
+      "type": "string",
+      "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "requirements_file": {
+      "$ref": "#/$defs/relpath",
+      "description": "Pinned test requirements inside the tests ZIP (normally requirements-ha-test.txt). Must also appear in 'files'. Every requirement is pinned with == and installable from the prepared wheelhouse without network."
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256", "role"],
+        "properties": {
+          "path": { "$ref": "#/$defs/relpath" },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "role": {
+            "enum": ["test", "support", "tool", "metadata", "fixture", "doc_input"],
+            "description": "test = test module; support = conftest/helpers; tool = script the tests call; metadata = pyproject/setup.cfg/requirements; fixture = synthetic input data; doc_input = documentation or catalog file a test reads."
+          }
+        }
+      }
+    },
+    "expected_collected": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Exact number of test cases the test command must collect in the gate (after exclusions). Fewer collected = missing tests = failure."
+    },
+    "tests_excluded": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Equals the length of 'excluded' and release-manifest.json tests_excluded."
+    },
+    "excluded": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["node_id", "category", "marker", "reason"],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "pattern": "^[A-Za-z0-9_][A-Za-z0-9_./-]*\\.py(::[^\\s:][^\\s]*)*$",
+            "description": "pytest node id, for example tests/test_x.py::test_y[param]."
+          },
+          "category": {
+            "enum": ["hardware", "repo_only", "skip"],
+            "description": "Shown separately by Arx so a constant total cannot hide a swap."
+          },
+          "marker": {
+            "type": "string",
+            "pattern": "^[a-z_][a-z0-9_]*$",
+            "description": "pytest marker that excludes it (hardware, repo_only, ...)."
+          },
+          "reason": { "type": "string", "minLength": 10, "maxLength": 500 }
+        }
+      }
+    },
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseline_version", "baseline_sha256"],
+      "description": "The approved exclusions baseline this release is compared with (BASELINE_EXCLUSIONS.md).",
+      "properties": {
+        "baseline_version": { "type": "integer", "minimum": 1 },
+        "baseline_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    }
+  },
+  "$defs": {
+    "relpath": {
+      "type": "string",
+      "maxLength": 255,
+      "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]*(/[A-Za-z0-9_][A-Za-z0-9_.-]*)*$"
+    }
+  }
+}

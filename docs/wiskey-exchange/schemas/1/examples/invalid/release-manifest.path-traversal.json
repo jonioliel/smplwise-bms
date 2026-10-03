@@ -1,0 +1,61 @@
+{
+  "schema": "arx-exchange/release-manifest/1",
+  "profile": "release",
+  "package": "smplwise_intercom",
+  "domain": "hikvision_intercom",
+  "install_dir": "hikvision_intercom",
+  "version": "2.0.0-rc.38",
+  "source_commit": "0123456789abcdef0123456789abcdef01234567",
+  "zip_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "tests_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "artifacts_sha256": {
+    "RELEASE_NOTES.md": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "ARX_IMPACT.md": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "tests-manifest.json": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "contract/CONTRACT_VERSION": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "contract/ws-commands.json": "1111111111111111111111111111111111111111111111111111111111111111",
+    "contract/errors.json": "2222222222222222222222222222222222222222222222222222222222222222",
+    "capabilities/capabilities.json": "3333333333333333333333333333333333333333333333333333333333333333",
+    "capabilities/intercom.door_open.he.md": "4444444444444444444444444444444444444444444444444444444444444444",
+    "capabilities/intercom.station_status.he.md": "5555555555555555555555555555555555555555555555555555555555555555",
+    "../outside.md": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "min_ha_version": "2026.9.1",
+  "tested_ha_versions": [
+    "2026.9.1"
+  ],
+  "contract_version": "1.0",
+  "storage_schemas": {
+    "hikvision_intercom.example_store": {
+      "version": 1,
+      "previous_version": 1,
+      "irreversible": false
+    }
+  },
+  "requires_ha_restart": true,
+  "breaking": false,
+  "migrations": [],
+  "entities_added": [],
+  "entities_removed": [],
+  "services_changed": [],
+  "ws_commands_added": [],
+  "ws_commands_removed": [],
+  "permissions_added": [],
+  "risk_to_doors": "none",
+  "rollback": {
+    "method": "reinstall_previous",
+    "text_he": "אפשר להתקין מחדש את הגרסה הקודמת; אין שינוי נתונים.",
+    "text_en": "Reinstall the previous version; no data change."
+  },
+  "test_command": "python -m pytest -q -o addopts=\"\" -p no:cacheprovider --junitxml=gate-junit.xml",
+  "python_version": "3.13",
+  "ha_test_version": "2026.9.1",
+  "test_runtime_budget_seconds": 600,
+  "tests_excluded": 1,
+  "signed_at": "2026-10-06T09:00:00Z",
+  "signature": {
+    "algorithm": "Ed25519",
+    "key_id": "0000000000000000000000000000000000000000000000000000000000000000",
+    "value": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+  }
+}

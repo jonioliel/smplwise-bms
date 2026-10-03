@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:smplwise:arx-exchange:schemas:1:capabilities",
+  "title": "Capability documents (arx-exchange schema 1)",
+  "description": "capabilities/capabilities.json inside every delivery, with one short Hebrew text per capability at capabilities/<id>.he.md. A capability the integration reports without an entry here is 'not supported' in Arx and is not shown. An entry here is a proposal: Arx reviews it with the owner before any screen is added (CAPABILITIES.md).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "package", "version", "capabilities"],
+  "properties": {
+    "schema": { "const": "arx-exchange/capabilities/1" },
+    "package": { "const": "smplwise_intercom" },
+    "version": { "type": "string", "minLength": 5, "maxLength": 64 },
+    "capabilities": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/capability" }
+    }
+  },
+  "$defs": {
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name_he",
+        "description_he",
+        "kind",
+        "suggested_permission",
+        "suggested_roles",
+        "suggested_screen",
+        "data_read",
+        "data_written",
+        "when_unavailable_he",
+        "contract_changes",
+        "doc_file",
+        "since_version"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+          "maxLength": 100,
+          "description": "Stable id, never reused for a different meaning, for example 'intercom.door_open'."
+        },
+        "name_he": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "description_he": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Plain language for the owner, no internal codes."
+        },
+        "kind": {
+          "enum": ["read_only", "control", "physical_action"],
+          "description": "read_only = shows data; control = changes software state (settings, lists, people) without moving hardware; physical_action = opens, holds, releases or moves something in the real world."
+        },
+        "physical_action": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["what_happens_he", "confirmation", "conditions_he"],
+          "properties": {
+            "what_happens_he": { "type": "string", "minLength": 1, "maxLength": 300 },
+            "confirmation": {
+              "enum": ["confirm", "confirm_with_reason"],
+              "description": "Arx confirmation before sending. There is no 'none' for a physical action."
+            },
+            "conditions_he": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "description": "When the action is allowed or refused (station state, schedule, actor required, ...)."
+            },
+            "requires_signed_path": {
+              "const": true,
+              "description": "A physical action started from Arx goes only through the signed bridge path."
+            }
+          }
+        },
+        "suggested_permission": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+          "description": "Suggested Arx permission string (existing, for example access.release, or a proposed new one). Arx RBAC decides."
+        },
+        "suggested_roles": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["viewer", "kiosk", "operator", "editor", "site_admin", "system_admin"] }
+        },
+        "suggested_screen": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "reason_he"],
+          "properties": {
+            "type": { "enum": ["existing_template", "new_screen", "no_screen"] },
+            "template_id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+              "description": "Arx screen template id. The template catalogue is TO_BE_CONFIRMED by Arx."
+            },
+            "reason_he": { "type": "string", "minLength": 1, "maxLength": 300 }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "type": { "const": "existing_template" } } },
+              "then": { "required": ["template_id"] }
+            }
+          ]
+        },
+        "data_read": { "$ref": "#/$defs/data_list" },
+        "data_written": { "$ref": "#/$defs/data_list" },
+        "when_unavailable_he": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300,
+          "description": "What the operator sees when the station, the integration or the capability is unavailable. Never a silent retry of a physical action."
+        },
+        "contract_changes": {
+          "description": "The string 'none', or the list of contract, DTO or serialization changes this capability needs.",
+          "oneOf": [
+            { "const": "none" },
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "description"],
+                "properties": {
+                  "kind": { "enum": ["ws_command", "service", "entity", "signed_dto", "serialization", "error_code", "other"] },
+                  "description": { "type": "string", "minLength": 1, "maxLength": 500 }
+                }
+              }
+            }
+          ]
+        },
+        "doc_file": {
+          "type": "string",
+          "pattern": "^capabilities/[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+\\.he\\.md$",
+          "description": "capabilities/<id>.he.md; must also be listed in release-manifest.json artifacts_sha256."
+        },
+        "since_version": { "type": "string", "minLength": 5, "maxLength": 64 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "physical_action" } } },
+          "then": { "required": ["physical_action"] },
+          "else": { "not": { "required": ["physical_action"] } }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "read_only" } } },
+          "then": { "properties": { "data_written": { "maxItems": 0 } } }
+        }
+      ]
+    },
+    "data_list": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+    }
+  }
+}

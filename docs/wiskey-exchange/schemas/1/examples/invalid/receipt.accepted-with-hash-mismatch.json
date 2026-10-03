@@ -1,0 +1,66 @@
+{
+  "schema": "arx-exchange/receipt/1",
+  "receipt_id": "3f0c7d2e-1b4a-4c5d-9e8f-0a1b2c3d4e5f",
+  "package": "smplwise_intercom",
+  "version": "2.0.0-rc.38",
+  "manifest_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "owner_channel_hash": "mismatch",
+  "received_at": "2026-10-06T11:00:00Z",
+  "checked_at": "2026-10-06T11:09:30Z",
+  "arx_version": "0.1.159",
+  "is_installation": false,
+  "result": "accepted_unsigned",
+  "reasons": [],
+  "warnings": [
+    "W_UNSIGNED",
+    "W_REQUIRES_RESTART",
+    "W_CAPABILITY_NO_DOCUMENT"
+  ],
+  "signature_status": "unsigned",
+  "checks": [
+    {
+      "id": "ready_marker",
+      "status": "pass"
+    },
+    {
+      "id": "schema",
+      "status": "pass"
+    },
+    {
+      "id": "owner_channel_hash",
+      "status": "pass"
+    },
+    {
+      "id": "artifact_hashes",
+      "status": "pass"
+    },
+    {
+      "id": "zip_safety",
+      "status": "pass"
+    },
+    {
+      "id": "signature",
+      "status": "warn",
+      "code": "W_UNSIGNED"
+    },
+    {
+      "id": "capabilities",
+      "status": "warn",
+      "code": "W_CAPABILITY_NO_DOCUMENT",
+      "detail": "intercom.example_new"
+    },
+    {
+      "id": "gate",
+      "status": "pass"
+    }
+  ],
+  "unsupported_capabilities": [
+    "intercom.example_new"
+  ],
+  "gate": {
+    "result": "pass",
+    "exit_code": 0,
+    "report_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  "note_he": "החבילה עברה את הבדיקה. לא חתומה: התקנה רק בחריגה מפורשת של הבעלים. זו אינה התקנה."
+}
