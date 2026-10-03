@@ -38,6 +38,9 @@ audited. Money hiding is server-side: without `energy.bills` the keys listed as 
 | `period_overlap` | 409 | the period overlaps an issued (not cancelled) bill of the account (`details.bill_id`, `details.number`) |
 | `draft_exists` | 409 | a draft for exactly this period already exists (`details.bill_id`) |
 | `bill_not_draft` | 409 | recalculate / delete / issue on a bill that is not a draft |
+| `draft_stale` | 409 | issue: the fresh computation differs from the draft the user saw (a late reading). The draft is updated in the same call; `details = {old_total, new_total, old_kwh, new_kwh, row_version}`; show the new draft and issue again with the new `row_version` |
+| `request_reused` | 409 | a `client_request_id` already used for another account |
+| `number_taken` | 409 | (should not happen) the computed number is already in the ledger; retry |
 | `bill_state` | 409 | the action is not allowed in the bill's current state (`details.state`) |
 | `reason_required` | 422 | cancel without a reason |
 | `customer_number_taken` | 409 | customer number already used (also by a deleted customer) |
@@ -100,8 +103,9 @@ Parsing is a hand-written recursive-descent parser (no eval); max 2,000 characte
 | POST | `/formula/check` | view or manage | `{formula: {text}|{ast}, period?: {from, to}, timezone?}` | always 200 for a well-formed body: `{ok, ast, text, sentence_he, meter_ids, coefficients: {meter_id: "1"}, errors: [{code, message, pos}], warnings: [{code, message}], preview: {period: {from, to}, meters: [{meter_id, name, kwh}], result_kwh, negative} | null}` — the preview period defaults to the last full calendar month |
 | POST | `/formula/preset` | view or manage | `{preset: "sum"|"main_minus_subs"|"share", meter_ids: [...], main_meter_id?, percent?}` | `{ast, text, sentence_he}` |
 
-Error codes inside `errors[]`: `syntax`, `unbalanced`, `unknown_meter`, `nonlinear`, `division_by_zero`, `empty`, `too_long`.
-Warnings: `duplicate_meter`, `meter_not_reporting`.
+Error codes inside `errors[]`: `syntax`, `unbalanced`, `unknown_meter`, `nonlinear`, `constant_term` (a bare number added to
+meters, e.g. `[A] + 5`), `no_meter`, `too_many_meters`, `division_by_zero`, `empty`, `too_long`, and from the preview `negative`
+and `period`. Warnings: `duplicate_meter`, `meter_not_reporting`. `pos` is the character offset in the text (null for AST input).
 
 ## 6. Tariffs and VAT (Settings › מחירים ומע״מ)
 
@@ -172,6 +176,13 @@ correction is issued: reason "הוחלף ב-<number>"). A paid bill can only be 
 
 `row_version` protects against two people acting on one bill at once (409 `revision_conflict`).
 
+Rules: a draft may be made for any period, also a running one (a preview); **issue** needs the period to be over (422
+`period_invalid` otherwise) and `issue_date` between the period end and today. Issue recomputes the bill; if the numbers moved
+it answers `draft_stale` (above). A correction keeps the period of the bill it replaces; when a later bill of the account
+already exists, the correction keeps the original's per-meter end points (no energy billed twice). Draft retention:
+`energy.draft_retention_days` (30); bill and PDF retention: `energy.bill_retention_years` (7) - the ledger of used numbers is
+never pruned.
+
 ## 9. Automatic generation
 
 A janitor step (every 5 minutes) finds, per active account with `auto_mode != "off"`, every regular period that ended at
@@ -182,7 +193,14 @@ in the same transaction. Failures (`formula_negative`, `tariff_missing`...) are 
 retried every 6 hours; the screen shows them. Every automatic act is audited with the actor "system". Periods before the
 account's `first_period_start` or before the account was created are never generated.
 
-## 10. Audit actions
+## 10. Status of this contract
+
+Implemented on `pilot/elec-billing` (routes in `smplwise/routers/energy_billing.py`, inventory in `contracts/API_INVENTORY.md`),
+tested with a fake readings store and a fake PDF renderer (`tests/test_energy_billing_api.py`, `tests/test_energy_billing_engine.py`).
+Not built: notification "טיוטת חיוב מוכנה" through the notifications module, live `energy_bill_state` events on `/me/ws`
+(the screens poll), rate limits on recalculate / PDF.
+
+## 11. Audit actions
 
 `energy.customer.create|update|delete` (field names only, no values), `energy.account.create|update|delete`,
 `energy.tariff.create|update|delete`, `energy.tariff.version.create|delete`, `energy.vat.create|delete`,

@@ -79,7 +79,9 @@ the same in seven years.
       "end":   {"at": "2026-10-31T22:00:00Z", "reading_kwh": "13121.878", "kind": "reading"},
       // kind: "reading" (a real reading within 15 minutes of the boundary), "interpolated" (by time between two readings),
       //       "carried" (the start is where the previous bill of this account stopped for this meter), "last_report"
-      //       (the meter did not report up to the end; the end is its last reading)
+      //       (the meter did not report up to the end; the end is its last report), "none" (no reading known: a meter
+      //       that started reporting inside the period - reading_kwh is null)
+      // reading_kwh may be null whenever the store has no value for that instant (print "-")
       "consumption_kwh": "776.20",           // what is billed for this meter in this bill (before the coefficient)
       "contribution_kwh": "776.20",          // coefficient x consumption
       "carried_in_kwh": "0.00",              // part of consumption_kwh that happened before the period (a late report)
@@ -113,7 +115,7 @@ the same in seven years.
   "notes": [                                 // data notes, ready to print, in this order
     {"code": "meter_not_reporting", "meter_id": "...", "at": "2026-10-28T09:40:00Z",
      "text_he": "המונה מזגן לובי לא מדווח מאז 28.10.2026 09:40. הצריכה שלאחר מכן תחויב בחיוב הבא."},
-    {"code": "reading_time", "meter_id": "...", "at": "...", "text_he": "קריאת סוף התקופה של לוח ראשי ב-31.10.2026 18:40."},
+    {"code": "allocated_by_time", "meter_id": "...", "text_he": "הצריכה של לוח ראשי בין 30.10.2026 08:00 ל-02.11.2026 09:00 חולקה לפי זמן בגבול התקופה."},
     {"code": "carried_in", "meter_id": "...", "text_he": "כולל 12.40 קוט״ש מהתקופה הקודמת שדווחו באיחור."},
     {"code": "meter_reset", "meter_id": "...", "at": "...", "text_he": "כולל איפוס מונה ב-12.10.2026 03:12."},
     {"code": "period_split", "text_he": "התקופה פוצלה ב-15.10.2026 בגלל שינוי מחיר או שיעור מע״מ."}
@@ -138,6 +140,8 @@ the same in seven years.
   value is a lower bound and the chart should mark it), `"missing"` (no data: `kwh` is null — draw no bar).
 - `source`: `"bill"` (taken from an issued, not cancelled bill of this account for exactly that period — the billed kWh),
   `"readings"` (computed from the long-term daily totals of the readings store), or null when missing.
+- `previous` is oldest first; leading periods without any data (before the meters existed) are dropped, gaps in the middle
+  stay as `missing` entries. Comparison windows follow the account's own cycle (same start day, same length in months).
 - A first bill ever has `previous: []` and `same_period_last_year: null` → no chart. The renderer omits the chart when no
   entry has a value, and omits individual bars that are null.
 - A correction (revision 2+) **copies** `history` from the snapshot it replaces (same period, same comparison).
