@@ -81,7 +81,7 @@ def test_what_the_add_on_builds_the_bridge_accepts():
 
 def test_version_and_mirror_are_consistent():
     manifest = json.loads((SRC / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == const.VERSION == "0.6.0"
+    assert manifest["version"] == const.VERSION == "0.7.0"
     assert (SRC / "media_policy.py").read_bytes() == (MIRROR / "media_policy.py").read_bytes()
     import sys
 

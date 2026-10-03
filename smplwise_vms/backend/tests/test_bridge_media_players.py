@@ -139,7 +139,7 @@ def test_the_new_services_and_arguments_equal_the_add_ons_actions():
 
 def test_version_manifest_services_yaml_and_mirror_agree():
     manifest = json.loads((SRC / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == const.VERSION == "0.6.0" == (json.loads((MIRROR / "manifest.json").read_text(encoding="utf-8")))["version"]
+    assert manifest["version"] == const.VERSION == "0.7.0" == (json.loads((MIRROR / "manifest.json").read_text(encoding="utf-8")))["version"]
     assert const.SERVICE_MEDIA_QUERY == "media_query"
     assert "media_query:" in (SRC / "services.yaml").read_text(encoding="utf-8")
     for name in ("media_policy.py", "media_query_service.py", "__init__.py", "const.py", "services.yaml", "manifest.json"):
@@ -157,9 +157,9 @@ def test_version_manifest_services_yaml_and_mirror_agree():
 def test_query_refusal_is_a_closed_set_with_no_config_entry_and_no_search():
     ok_lib = {"media_type": "playlist", "favorite": True, "limit": 50, "offset": 0, "order_by": "name", "entity_id": "media_player.ma_a"}
     assert policy.query_refusal("queue", {"entity_id": "media_player.ma_a"}) is None and policy.query_refusal("library", ok_lib) is None and policy.query_refusal("library", {"media_type": "radio"}) is None
-    assert policy.query_refusal("search", {"entity_id": "media_player.ma_a"}) == "query_not_allowed" and policy.query_refusal(None, {}) == "query_not_allowed"
+    assert policy.query_refusal("lookup", {"entity_id": "media_player.ma_a"}) == "query_not_allowed" and policy.query_refusal(None, {}) == "query_not_allowed"
     assert policy.query_refusal("queue", {}) == "arguments_invalid" and policy.query_refusal("queue", {"entity_id": "light.x"}) == "arguments_invalid"
-    for extra in ({"config_entry_id": "abc"}, {"search": "x"}, {"item_id": "1"}, {"user_id": "u"}):
+    for extra in ({"config_entry_id": "abc"}, {"name": "x"}, {"item_id": "1"}, {"user_id": "u"}):
         assert policy.query_refusal("library", {**ok_lib, **extra}) == "arguments_invalid", extra
         assert policy.query_refusal("queue", {"entity_id": "media_player.ma_a", **extra}) == "arguments_invalid"
     for key, bad in (("media_type", "podcast"), ("favorite", "yes"), ("limit", 0), ("limit", 101), ("limit", True), ("offset", -1), ("offset", 5001), ("order_by", "random"), ("entity_id", "../x")):
@@ -311,3 +311,48 @@ def test_one_user_has_a_share_of_the_global_read_budget(monkeypatch):
     assert len(svc._calls) == 4
     assert svc._rate_limited(0.0) is False and svc._rate_limited(0.0) is False and svc._rate_limited(0.0) is True, "the global budget still applies"
     assert svc._rate_limited(61.0, "u1") is False, "the window moves"
+
+
+
+# ------------------------------------------------------------------------------------------------ MU1, bridge 0.7.0: `media_query` `search`
+
+
+def test_search_refusal_is_a_closed_set_text_type_limit_and_no_config_entry():
+    ok = {"media_type": "track", "name": "הביטלס", "limit": 50, "entity_id": "media_player.ma_a"}
+    assert policy.query_refusal("search", ok) is None and policy.query_refusal("search", {"media_type": "album", "name": "x"}) is None
+    assert policy.query_refusal("find", ok) == "query_not_allowed"
+    for extra in ({"config_entry_id": "abc"}, {"offset": 0}, {"favorite": True}, {"order_by": "name"}, {"library_only": False}):
+        assert policy.query_refusal("search", {**ok, **extra}) == "arguments_invalid", extra
+    for key, bad in (("media_type", "podcast"), ("name", ""), ("name", "   "), ("name", "x" * 61), ("name", "a\nb"), ("name", "a\x7f"), ("name", 5), ("limit", 0), ("limit", 51), ("limit", True), ("entity_id", "../x")):
+        assert policy.query_refusal("search", {**ok, key: bad}) == "arguments_invalid", (key, bad)
+    assert policy.query_refusal("search", {"name": "x"}) == "arguments_invalid", "a media type is required"
+    assert policy.query_refusal("search", {"media_type": "track"}) == "arguments_invalid", "a text is required"
+    assert policy.query_refusal("library", {"media_type": "track", "name": "x"}) == "arguments_invalid", "name belongs to search only"
+
+
+def test_a_search_calls_music_assistant_search_in_the_library_as_the_callers_user_and_trims_the_answer():
+    raw = {"tracks": [{"uri": "library://track/7", "media_type": "track", "name": "נמצא", "artists": [{"name": "אמן"}], "image": "http://i", "provider_mappings": [1]},
+                      {"uri": "https://evil/x.mp3", "media_type": "track", "name": "כתובת"}, {"uri": "library://track/8", "media_type": "weird", "name": "w"}]
+           + [{"uri": f"library://track/{i}", "media_type": "track", "name": f"n{i}"} for i in range(10, 90)],
+           "albums": [{"uri": "library://album/1", "media_type": "album", "name": "לא מהסוג"}]}
+    hass = Hass(MA_STATES, responses={"search": raw})
+    out = ask(hass, "search", media_type="track", name="  נמצא ", limit=5, entity_id="media_player.ma_a")
+    assert out["ok"] is True and (out["query"], out["provider"]) == ("search", "ma")
+    items = out["result"]["items"]
+    assert len(items) == 5 and items[0] == {"uri": "library://track/7", "media_type": "track", "name": "נמצא", "artist": "אמן"}
+    blob = json.dumps(out)
+    assert not [w for w in ("http", "image", "provider_mappings", "ma-entry", "albums") if w in blob]
+    (domain, service, data, ctx), = hass.calls
+    assert (domain, service, ctx.user_id) == ("music_assistant", "search", "u1")
+    assert data == {"config_entry_id": "ma-entry-secret", "name": "נמצא", "media_type": ["track"], "limit": 5, "library_only": True}
+
+
+def test_a_search_without_a_player_asks_music_assistant_and_a_missing_entry_or_a_sonos_player_is_no_library():
+    hass = Hass(MA_STATES, responses={"search": {"albums": [{"uri": "library://album/1", "media_type": "album", "name": "אלבום"}]}})
+    out = ask(hass, "search", media_type="album", name="א")
+    assert out["ok"] and out["result"]["items"][0]["name"] == "אלבום" and out["result"]["limit"] == 50 and hass.calls[0][2]["limit"] == 50
+    assert ask(Hass(MA_STATES, ma_state="setup_error"), "search", media_type="album", name="א")["error"] == "no_library"
+    assert ask(Hass({"media_player.sonos_x": ("idle", {})}, responses={"search": {}}), "search", media_type="track", name="א", entity_id="media_player.sonos_x")["error"] == "no_library"
+    assert ask(Hass(MA_STATES, responses={"search": "bogus"}), "search", media_type="track", name="א")["result"]["items"] == []
+    assert ask(Hass(MA_STATES, responses={"search": RuntimeError("secret http://x")}), "search", media_type="track", name="א")["error"] == "RuntimeError"
+    assert ask(Hass(MA_STATES), "search", media_type="track", name="א", config_entry_id="x")["error"] == "arguments_invalid"

@@ -76,7 +76,7 @@ class FakeMA:
 
 class Bridge:
     def __init__(self, secret: str) -> None:
-        self.secret, self.requests = secret, []
+        self.secret, self.requests, self.search_error = secret, [], None
 
     def __call__(self, _settings, payload, timeout=15.0):
         ha_bridge.verify(self.secret, payload)
@@ -84,6 +84,12 @@ class Bridge:
         if payload["query"] == "queue":
             return {"ok": True, "request_id": payload["request_id"], "query": "queue", "provider": "ma",
                     "result": {"count": 8, "index": 2, "shuffle": False, "repeat": "off", "current": {"name": "שיר 2"}, "next": {"name": "שיר 3"}}}
+        if payload["query"] == "search":
+            if self.search_error:
+                return {"ok": False, "request_id": payload["request_id"], "query": "search", "error": self.search_error}
+            found = [{"uri": "library://album/7", "media_type": "album", "name": "נמצא בגשר", "artist": "אמנית", "image": "http://leak"},
+                     {"uri": "https://evil.example/x", "media_type": "album", "name": "כתובת"}, {"uri": "library://track/9", "media_type": "track", "name": "סוג אחר"}]
+            return {"ok": True, "request_id": payload["request_id"], "query": "search", "provider": "ma", "result": {"items": found, "limit": payload["limit"]}}
         items = [{"uri": f"library://{payload['media_type']}/{n}", "media_type": payload["media_type"], "name": f"פריט {n}", "artist": None} for n in range(payload["offset"], payload["offset"] + 3)]
         items.append({"uri": "file:///etc/passwd", "media_type": payload["media_type"], "name": "קובץ"})
         return {"ok": True, "request_id": payload["request_id"], "query": "library", "provider": "ma", "result": {"items": items, "offset": payload["offset"], "limit": payload["limit"]}}
@@ -442,6 +448,49 @@ def test_search_goes_through_the_direct_connection_and_drops_urls_and_other_type
     assert bridge.requests == []
     assert c.get(f"{API}/devices/{keys['a']}/browse?type=podcast").status_code == 422
     assert c.get(f"{API}/devices/{keys['a']}/browse?type=track&q=" + "x" * 61).status_code == 422
+
+
+def announce(c: TestClient, version: str) -> None:
+    secret = c.get("/api/v1/ha/bridge/pairing").json()["pairing_code"]
+    assert c.post("/api/v1/ha/bridge/ping", json=ha_bridge.sign(secret, {"version": version})).status_code == 200
+
+
+def test_search_without_the_direct_connection_goes_through_a_bridge_of_0_7_0(d):
+    app, c, fake, bridge, keys, *_ = d
+    announce(c, "0.7.0")
+    dev = c.get(f"{API}/devices/{keys['a']}").json()
+    assert (dev["caps"]["search"], dev["caps"]["queue_list"], dev["caps"]["browse"]) == (True, False, True), "search opens; the full queue still needs the direct connection"
+    r = c.get(f"{API}/devices/{keys['a']}/browse?type=album&q=  נמצא ")
+    assert r.status_code == 200, r.text
+    assert [(i["name"], i["artist"], i["kind"] if "kind" in i else None) for i in r.json()["items"]][0][:2] == ("נמצא בגשר", "אמנית")
+    assert [i["name"] for i in r.json()["items"]] == ["נמצא בגשר"], "a URL and another type are dropped here too"
+    assert "http" not in r.text and "library://" not in r.text, "items travel as opaque refs"
+    (req,) = [x for x in bridge.requests if x["query"] == "search"]
+    assert (req["media_type"], req["name"], req["limit"], req["entity_id"]) == ("album", "נמצא", 50, "media_player.wiim_a") and "config_entry_id" not in req
+    assert fake.calls == [], "the direct connection was never asked"
+    again = c.get(f"{API}/devices/{keys['a']}/browse?type=album&q=נמצא")
+    assert again.status_code == 200 and len([x for x in bridge.requests if x["query"] == "search"]) == 1, "a repeat inside a minute is served from the cache"
+
+
+def test_search_through_the_bridge_needs_0_7_0_and_reports_a_refusal_as_unavailable(d):
+    app, c, fake, bridge, keys, *_ = d
+    assert c.get(f"{API}/devices/{keys['a']}").json()["caps"]["search"] is False, "bridge 0.5.0: no search"
+    announce(c, "0.7.0")
+    bridge.search_error = "no_library"
+    r = c.get(f"{API}/devices/{keys['a']}/browse?type=track&q=x")
+    assert (r.status_code, r.json()["code"]) == (503, "search_unavailable")
+    assert "http" not in r.text
+    garden = c.get(f"{API}/devices/{keys['garden']}").json()
+    assert garden["caps"]["search"] is False, "a Cast speaker has no Music Assistant library"
+
+
+def test_the_direct_connection_still_wins_over_the_bridge_when_both_are_there(d):
+    app, c, fake, bridge, keys, *_ = d
+    announce(c, "0.7.0")
+    connect(c)
+    r = c.get(f"{API}/devices/{keys['a']}/browse?type=track&q=נמ")
+    assert r.status_code == 200 and [i["name"] for i in r.json()["items"]] == ["נמצא"]
+    assert [x for x in bridge.requests if x["query"] == "search"] == [] and ("music/search", {"search_query": "נמ", "media_types": ["track"], "limit": 50, "library_only": True}) in fake.calls
 
 
 def test_browse_needs_media_browse(d):

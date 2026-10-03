@@ -370,6 +370,8 @@ are `GET devices/{key}/browse`, permission `media.queue` is added next to `media
 WebSocket, no events), browse stays on the Home Assistant bridge and only search and the queue use the direct connection; group volume mode
 `ma` and `can_group_with` are not built.
 
+**MU1 (bridge 0.7.0, release row 0.1.161):** the library search no longer needs the direct connection. `media_query` has a third query, `search` (fields `media_type`, `name` 1-60 printable characters, `limit` <= 50, optional `entity_id`; no config entry), answered by Music Assistant's own `search` response service on the library only and trimmed like `library`. `caps.search` is true when the direct connection is ready OR the paired bridge is >= 0.7.0 (`media_store.BRIDGE_SEARCH_REQUIRED`); the direct connection is used whenever it is ready. The full queue still needs the direct connection. Installing bridge 0.7.0 needs a Home Assistant restart.
+
 Shaped now so it drops in later (CR §4.4):
 
 | Reserved | Shape |

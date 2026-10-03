@@ -1,6 +1,6 @@
 """Constants for the SMPLWISE bridge."""
 DOMAIN = "smplwise_bridge"
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 CONF_ADDON_URL = "addon_url"
 CONF_PAIRING_CODE = "pairing_code"
 DEFAULT_ADDON_URL = "http://0b8c26d5-smplwise-vms:8099"
@@ -19,5 +19,6 @@ SERVICE_CONFIG_ITEM = "config_item"
 # 0.6.0: the owner-approved delegation switch (CR-017 section 8.3), in the options flow: off by default; an HA administrator turns it on inside Home Assistant.
 CONF_DELEGATED_AUTHORING = "delegated_authoring"
 CONF_DELEGATED_CHANGED_AT = "delegated_changed_at"
+# 0.7.0: `media_query` also answers `search` (the Music Assistant library by a text), for houses without the direct Music Assistant connection.
 DIRECTORY_INTERVAL_S = 60
 SIGNATURE_WINDOW_S = 60

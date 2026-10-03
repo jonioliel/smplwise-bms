@@ -5,7 +5,7 @@ It exists because the two answers are Home Assistant *response* services of the 
 `music_assistant.get_library`) and the add-on talks to Home Assistant only through this bridge (owner decision 1ג: no direct Music Assistant connection in
 0.1.150). Everything about it is fixed:
 
-- two queries and nothing else (`queue`, `library`); the arguments are the closed sets of `media_policy.query_refusal` (a `queue` names ONE media_player;
+- three queries and nothing else (`queue`, `library`, and from 0.7.0 `search`: a text of 1-60 characters, one media type, at most 50 hits, the Music Assistant library only); the arguments are the closed sets of `media_policy.query_refusal` (a `queue` names ONE media_player;
   a `library` names a media type of the five, `favorite`, `limit` <= 100, `offset`, `order_by` and, optionally, the player whose music layer is asked) -
   never a config entry id, never a free-form search. The answer is `{ok, request_id, query, provider, result}`: `provider` `ma` for a Music Assistant player,
   `sonos` for a Sonos one (its own queue attributes and favourites - the `source_list`), anything else is `no_library`;
@@ -150,6 +150,16 @@ def trim_library(response: Any) -> list[dict[str, Any]]:
     return out
 
 
+_SEARCH_KEYS = {"track": "tracks", "album": "albums", "artist": "artists", "playlist": "playlists", "radio": "radio"}
+
+
+def trim_search(response: Any, media_type: str, limit: int) -> list[dict[str, Any]]:
+    """`music_assistant.search`'s answer (lists keyed `tracks`, `albums`, `artists`, `playlists`, `radio`) reduced to the asked media type's items as
+    `{uri, media_type, name, artist}` - the same four keys and the same URI rule as `trim_library`; at most `limit` (<= 50) items."""
+    raw = response.get(_SEARCH_KEYS[media_type]) if isinstance(response, dict) else None
+    return trim_library({"items": [i for i in raw if isinstance(i, dict)]} if isinstance(raw, list) else {})[:limit]
+
+
 def _rate_limited(now: float, user_id: str | None = None) -> bool:
     """The global budget (`RATE_MAX` a window) with a per-user share (`RATE_USER_MAX`): a refusal by the share never takes a global slot."""
     while _calls and now - _calls[0] > RATE_WINDOW_S:
@@ -196,7 +206,7 @@ async def async_handle_media_query(hass: Any, verifier: Any, msg: dict[str, Any]
         return _refuse(msg, "unknown_user")
     context = ha.Context(user_id=user.id)
     entity_id = fields.get("entity_id")
-    provider = "ma"  # a library read without a player asks Music Assistant
+    provider = "ma"  # a library or search read without a player asks Music Assistant
     attributes: Mapping[str, Any] = {}
     if entity_id is not None:
         state = hass.states.get(entity_id)
@@ -216,6 +226,13 @@ async def async_handle_media_query(hass: Any, verifier: Any, msg: dict[str, Any]
             response = await asyncio.wait_for(hass.services.async_call(MA_DOMAIN, "get_queue", {"entity_id": entity_id}, blocking=True, return_response=True, context=context), READ_TIMEOUT_S)
             queue = trim_queue(response, entity_id)
             return _refuse(msg, "bad_answer") if queue is None else _answer(msg, provider, queue)
+        if query == "search":
+            if provider == "sonos":
+                return _refuse(msg, "no_library")  # a Sonos player has no library to search
+            limit = fields.get("limit", media_policy.SEARCH_LIMIT_MAX)
+            data = {"config_entry_id": ma_entry_id(hass), "name": fields["name"].strip(), "media_type": [fields["media_type"]], "limit": limit, "library_only": True}
+            response = await asyncio.wait_for(hass.services.async_call(MA_DOMAIN, "search", data, blocking=True, return_response=True, context=context), READ_TIMEOUT_S)
+            return _answer(msg, provider, {"items": trim_search(response, fields["media_type"], limit), "limit": limit})
         limit, offset = fields.get("limit", 50), fields.get("offset", 0)
         if provider == "sonos":
             return _answer(msg, provider, sonos_library(attributes, fields["media_type"], limit, offset))

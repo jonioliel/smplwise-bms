@@ -124,25 +124,28 @@ media_query:
     Read-only. Returns what a speaker's music layer reports - the length, position and the current and next item of its
     queue, or a trimmed list of the library (favourites, stations, playlists) - through the Music Assistant integration's
     response services. Called by the SMPLWISE add-on with a signed request on behalf of a Home Assistant user; the bridge
-    finds the Music Assistant config entry itself and accepts only the two queries and the arguments listed here. Not meant
+    finds the Music Assistant config entry itself and accepts only the three queries and the arguments listed here. Not meant
     to be called from automations.
   fields:
     user_id:
       description: Home Assistant user id the question is asked for (must be active).
       example: "12d05a26b0214c9eac77ac26f6cd652c"
     query:
-      description: queue or library.
+      description: queue, library or search (search from 0.7.0).
       example: queue
     entity_id:
       description: queue only - the Music Assistant player.
       example: media_player.kitchen_speaker
     media_type:
-      description: library only - radio, playlist, track, album or artist.
+      description: library and search - radio, playlist, track, album or artist.
       example: playlist
     favorite:
       description: library only - favourites only.
+    name:
+      description: search only - the text to look for in the library (1-60 characters).
+      example: Beatles
     limit:
-      description: library only - at most 100.
+      description: library - at most 100; search - at most 50.
     offset:
       description: library only.
     order_by:

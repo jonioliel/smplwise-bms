@@ -28,7 +28,7 @@ def test_card_is_shipped_and_the_copies_agree():
         assert (SRC / name).read_bytes() == (COPY / name).read_bytes(), name
     manifest = json.loads((SRC / "manifest.json").read_text(encoding="utf-8"))
     const = (SRC / "const.py").read_text(encoding="utf-8")
-    assert manifest["version"] == "0.6.0" and 'VERSION = "0.6.0"' in const
+    assert manifest["version"] == "0.7.0" and 'VERSION = "0.7.0"' in const
     py_compile.compile(str(SRC / "__init__.py"), doraise=True)
     src = card.read_text(encoding="utf-8")
     assert "customElements.define('smplwise-card'" in src and "'/ingress/session'" in src and "embed=1" in src

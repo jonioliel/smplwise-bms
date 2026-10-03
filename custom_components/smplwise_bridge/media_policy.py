@@ -240,7 +240,9 @@ def is_media(domain: str, service: str) -> bool:
 
 
 # ---- the read-only `smplwise_bridge.media_query` service (0.5.0): what it may be asked, decided here and nowhere else
-QUERY_KINDS = ("queue", "library")
+QUERY_KINDS = ("queue", "library", "search")
+SEARCH_LIMIT_MAX = 50
+SEARCH_TEXT_MAX = 60
 LIBRARY_ORDER = ("name", "last_played", "timestamp_added")
 LIBRARY_LIMIT_MAX = 100
 LIBRARY_OFFSET_MAX = 5000
@@ -251,10 +253,12 @@ def query_refusal(query: Any, fields: Mapping[str, Any]) -> str | None:
     service then answers only for a Music Assistant or a Sonos one). `library`: a media type of the five, `favorite` a bool, `limit` 1-100, `offset` 0-5000,
     `order_by` name / last_played / timestamp_added and, optionally, the player whose music layer is asked (it selects the provider: Music Assistant or a Sonos
     player's own favourites) - and NO config entry, ever (the bridge finds the loaded Music Assistant entry itself; a caller never supplies one) and no
-    free-form search (phase 2b)."""
+    free-form search. 0.7.0 adds `search`: a text (1-60 printable characters), one media type, `limit` 1-50 and the optional player - still no
+    config entry; the library of the loaded Music Assistant entry only."""
     if query not in QUERY_KINDS:
         return "query_not_allowed"
-    allowed = {"queue": {"entity_id"}, "library": {"entity_id", "media_type", "favorite", "limit", "offset", "order_by"}}[query]
+    allowed = {"queue": {"entity_id"}, "library": {"entity_id", "media_type", "favorite", "limit", "offset", "order_by"},
+               "search": {"entity_id", "media_type", "name", "limit"}}[query]
     if set(map(str, fields)) - allowed:
         return "arguments_invalid"
     entity_id = fields.get("entity_id")
@@ -266,6 +270,11 @@ def query_refusal(query: Any, fields: Mapping[str, Any]) -> str | None:
         return "arguments_invalid"
     if "favorite" in fields and not isinstance(fields["favorite"], bool):
         return "arguments_invalid"
+    if query == "search":  # 0.7.0: a text of 1-60 printable characters, one media type, at most 50 hits; the library of the loaded Music Assistant entry only
+        name, limit = fields.get("name"), fields.get("limit", SEARCH_LIMIT_MAX)
+        if not isinstance(name, str) or not name.strip() or len(name) > SEARCH_TEXT_MAX or any(ord(c) < 32 or ord(c) == 127 for c in name):
+            return "arguments_invalid"
+        return None if isinstance(limit, int) and not isinstance(limit, bool) and 1 <= limit <= SEARCH_LIMIT_MAX else "arguments_invalid"
     for key, top in (("limit", LIBRARY_LIMIT_MAX), ("offset", LIBRARY_OFFSET_MAX)):
         value = fields.get(key)
         if key in fields and (isinstance(value, bool) or not isinstance(value, int) or not (1 if key == "limit" else 0) <= value <= top):

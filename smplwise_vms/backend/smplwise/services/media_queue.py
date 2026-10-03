@@ -62,12 +62,13 @@ def player_id(cat: store.Catalog, item: store.Item) -> str | None:
 
 def caps_extra(conn: sqlite3.Connection, cat: store.Catalog, item: store.Item, caps: dict[str, Any]) -> dict[str, bool]:
     """`queue_list` (the direct connection is ready and the device has an MA player), `browse` (MA through the bridge: the library tabs), `search`
-    (browse + the direct connection)."""
+    (browse + the direct connection, or - without it - a bridge of 0.7.0 or later)."""
     provider = mm.music_provider_of(item.model, cat.ents)
     ma_layer = provider == "ma" and player_id(cat, item) is not None
     direct = ma_layer and ma.usable(conn)
+    via_bridge = ma_layer and store.bridge_state(conn)["search_ready"]  # MU1: the bridge (>= 0.7.0) searches the library when the direct connection is not usable
     browse = provider == "ma" and bool(caps.get("playlists") or caps.get("favourites") or caps.get("stations") or caps.get("up_next"))
-    return {"queue_list": bool(direct and caps.get("up_next")), "browse": browse, "search": bool(browse and direct)}
+    return {"queue_list": bool(direct and caps.get("up_next")), "browse": browse, "search": bool(browse and (direct or via_bridge))}
 
 
 # ------------------------------------------------------------------------------------------------ the queue list
@@ -238,15 +239,33 @@ def _browse_items(conn: sqlite3.Connection, settings: Settings, principal: Princ
     return items
 
 
-def _search_items(conn: sqlite3.Connection, media_type: str, q: str) -> list[dict[str, Any]]:
-    key = (media_type, q.casefold())
+def _search_via_bridge(conn: sqlite3.Connection, settings: Settings, principal: Principal, entity: str, media_type: str, q: str) -> list[dict[str, Any]]:
+    """MU1: the library search without the direct connection - the signed `media_query` `search` of bridge 0.7.0, asked as the caller (Music Assistant's own
+    `search` response service, library only). The answer is trimmed again here; a refusal is `search_unavailable`."""
+    try:
+        answer = media_query._ask(conn, settings, principal, "search", entity_id=entity, media_type=media_type, name=q, limit=BROWSE_PAGE)
+    except ApiError as exc:
+        if exc.code in ("bridge_outdated", "bridge_not_paired", "identity_unmapped", "rate_limited"):
+            raise
+        raise _err(503, "search_unavailable", "החיפוש אינו זמין כרגע.", error=exc.code) from None
+    if not answer.get("ok"):
+        raise _err(503, "search_unavailable", "החיפוש אינו זמין כרגע.", error=str(answer.get("error") or "unavailable")[:40])
+    return media_query.trim_library(answer, "ma", "search", limit=BROWSE_PAGE)
+
+
+def _search_items(conn: sqlite3.Connection, settings: Settings, principal: Principal, entity: str, media_type: str, q: str) -> list[dict[str, Any]]:
+    direct = ma.usable(conn)  # the direct connection when it is ready, else the bridge
+    key = (media_type, q.casefold(), direct)
     hit = _SEARCH.get(key)
     if hit and media_query.MONO() - hit[0] < SEARCH_TTL_S:
         return hit[1]
-    try:
-        raw = ma.search(conn, media_type, q, BROWSE_PAGE)
-    except ma.MaError as exc:
-        raise _err(503, "search_unavailable", "החיפוש אינו זמין כרגע.", state=exc.state) from None
+    if direct:
+        try:
+            raw = ma.search(conn, media_type, q, BROWSE_PAGE)
+        except ma.MaError as exc:
+            raise _err(503, "search_unavailable", "החיפוש אינו זמין כרגע.", state=exc.state) from None
+    else:
+        raw = _search_via_bridge(conn, settings, principal, entity, media_type, q)
     items = [i for i in raw if i["media_type"] == media_type and profiles.ma_uri_problem(i["uri"]) is None]
     _SEARCH[key] = (media_query.MONO(), items)
     if len(_SEARCH) > 200:
@@ -256,7 +275,7 @@ def _search_items(conn: sqlite3.Connection, media_type: str, q: str) -> list[dic
 
 def browse(conn: sqlite3.Connection, settings: Settings, principal: Principal, cat: store.Catalog, item: store.Item, access: store.Access, media_type: str, q: str | None,
            offset: int) -> dict[str, Any]:
-    """`BrowsePage`: one page of the library of one media type (`q`: a search through the direct connection). 403 without media.browse at the anchor;
+    """`BrowsePage`: one page of the library of one media type (`q`: a search - the direct connection when it is ready, else the bridge). 403 without media.browse at the anchor;
     422 not_supported without `caps.browse` (or `caps.search` for `q`)."""
     anchor = item.row.get("anchor_entity_id")
     if not access.has(store.PERM_BROWSE, anchor):
@@ -271,7 +290,7 @@ def browse(conn: sqlite3.Connection, settings: Settings, principal: Principal, c
     if len(text) > QUERY_MAX or any(ord(c) < 32 or ord(c) == 127 for c in text):
         raise _err(422, "validation", "חיפוש: טקסט עד 60 תווים.", fields=["q"])
     if text:
-        raw = _search_items(conn, media_type, text)[offset:offset + BROWSE_PAGE]
+        raw = _search_items(conn, settings, principal, item.view.prim.get("music") or "", media_type, text)[offset:offset + BROWSE_PAGE]
         more = False
     else:
         entity = item.view.prim.get("music") or ""

@@ -140,6 +140,7 @@ MEDIA_QUERY_SCHEMA = vol.Schema(
         vol.Optional("limit"): int,
         vol.Optional("offset"): int,
         vol.Optional("order_by"): cv.string,
+        vol.Optional("name"): cv.string,
         vol.Required("request_id"): cv.string,
         vol.Required("ts"): vol.Coerce(int),
         vol.Required("nonce"): cv.string,

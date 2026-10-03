@@ -34,6 +34,7 @@ CONFIGURE = "system.configure"
 TOMBSTONE_DAYS = 30
 BRIDGE_REQUIRED = "0.4.0"
 BRIDGE_PLAYERS_REQUIRED = "0.5.0"  # the CR-016 commands, groups and reads; screens keep working with 0.4.0
+BRIDGE_SEARCH_REQUIRED = "0.7.0"  # MU1: library search through the bridge (`media_query` `search`) when the direct Music Assistant connection is off
 AUDIO_KINDS = mm.AUDIO_KINDS
 PENDING_POWER_S = 20.0  # a power command younger than this whose state has not moved keeps the state "not confirmed"
 CONTENT_ART_TYPES = frozenset({"video", "movie", "episode", "tvshow", "music", "track"})  # real content art, never an app or channel logo
@@ -52,14 +53,15 @@ def version_tuple(text: str | None) -> tuple[int, ...]:
 
 
 def bridge_state(conn: sqlite3.Connection) -> dict[str, Any]:
-    """`{paired, version, media_ready, players_ready}`: screen commands need a paired bridge of at least 0.4.0, the CR-016 commands, groups and
-    reads 0.5.0 (an unknown version fails closed)."""
+    """`{paired, version, media_ready, players_ready, search_ready}`: screen commands need a paired bridge of at least 0.4.0, the CR-016 commands, groups and
+    reads 0.5.0, the library search through the bridge 0.7.0 (an unknown version fails closed)."""
     row = conn.execute("SELECT key, value FROM settings WHERE key IN ('bridge.secret', 'bridge.paired_at', 'bridge.integration_version')").fetchall()
     s = {r[0]: r[1] for r in row}
     paired = bool(s.get("bridge.secret")) and bool(s.get("bridge.paired_at"))
     version = s.get("bridge.integration_version") or None
     return {"paired": paired, "version": version, "media_ready": paired and version_tuple(version) >= version_tuple(BRIDGE_REQUIRED),
-            "players_ready": paired and version_tuple(version) >= version_tuple(BRIDGE_PLAYERS_REQUIRED)}
+            "players_ready": paired and version_tuple(version) >= version_tuple(BRIDGE_PLAYERS_REQUIRED),
+            "search_ready": paired and version_tuple(version) >= version_tuple(BRIDGE_SEARCH_REQUIRED)}
 
 
 # ------------------------------------------------------------------------------------------------ in-memory index / artwork
