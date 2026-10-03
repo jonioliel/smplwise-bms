@@ -313,7 +313,7 @@ def test_audit_rows_carry_no_token_address_or_slug(world, sup):
 def test_migration_0051_creates_the_run_table_and_is_idempotent(settings):
     database = dbmod.Database(settings.db_path)
     applied = database.migrate()
-    assert 50 in applied
+    assert 51 in applied
     sql = (dbmod.MIGRATIONS_DIR / "0051_self_update.sql").read_text(encoding="utf-8")
     with database.connection() as conn:
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(update_runs)")}
