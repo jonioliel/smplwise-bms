@@ -602,6 +602,18 @@ test.describe('skins x schemes', () => {
         await shot(page, `skin-${skin}-${scheme}-dialog`);
         // the guard walks the whole screen: what the rest of the page already reports (the baseline, measured with the form and the
         // banner taken out) is not this change's; anything else is
+        // (for a failure message: the buttons under 44 px high and the host that draws them)
+        const smallButtons = await page.evaluate(() => {
+          const out: string[] = [];
+          const walk = (root: Document | ShadowRoot) => {
+            for (const el of root.querySelectorAll('*')) {
+              if (el.tagName === 'BUTTON' && el.getBoundingClientRect().height < 44 && el.getBoundingClientRect().height > 0) out.push(`${(el.getRootNode() as ShadowRoot).host?.outerHTML.slice(0, 110)} h=${Math.round(el.getBoundingClientRect().height)}`);
+              if (el.shadowRoot) walk(el.shadowRoot);
+            }
+          };
+          walk(document);
+          return out;
+        });
         await page.locator('nvr-connection-form').evaluate((e) => e.remove());
         await page.locator('sw-app nvr-restart-banner').evaluate((e) => e.remove());
         const base: Finding[] = [];
@@ -612,7 +624,7 @@ test.describe('skins x schemes', () => {
         // a touch target below 44 px is a finding on a phone (the product's rule, sw-button / sw-field); the open dialog is sw-dialog's own box (position: fixed inside the card)
         const phone = (page.viewportSize()?.width ?? 1440) <= 767;
         const own = findings.filter((f) => !known.has(key(f)) && (f.cls !== 'target' || phone));
-        expect(own.length, summarize(own).lines.join('\n')).toBe(0);
+        expect(own.length, summarize(own).lines.join('\n') + '\n' + JSON.stringify(smallButtons)).toBe(0);
       });
     }
   }
