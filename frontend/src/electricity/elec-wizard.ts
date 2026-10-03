@@ -14,7 +14,7 @@ import {
 import { ElecBase, alertBox, n, setFlash, skeleton, stateBox } from './elec-ui';
 import './elec-formula-editor';
 import type { FormulaChange } from './elec-formula-editor';
-import { astToTokens, presetTokens, type Tok } from './elec-formula';
+import { astToTokens, parseTokens, presetTokens, type Tok } from './elec-formula';
 import { MONTH_NAMES, addDays, billNumber, f2, f4, fmtDate, fmtRange, isIsoDate, monthName, nextPeriods, periodContaining, r2 } from './elec-format';
 import { go, href, route } from './elec-routes';
 
@@ -81,7 +81,6 @@ export class ElecAccountWizard extends ElecBase {
   @state() private sampleResult: number | null = null;
   private account: Account | null = null;
   private createdCustomerId = '';
-  private formulaAst: FormulaChange['ast'] = null;
 
   connectedCallback() {
     super.connectedCallback();
@@ -116,7 +115,6 @@ export class ElecAccountWizard extends ElecBase {
         this.account = a;
         this.meterIds = a.formula.meter_ids;
         this.tokens = astToTokens(a.formula.ast);
-        this.formulaAst = a.formula.ast;
         this.formulaValid = true;
         this.tariffId = a.tariff.id;
         this.months = a.period_months;
@@ -201,7 +199,7 @@ export class ElecAccountWizard extends ElecBase {
   private async save() {
     if (this.saving) return;
     const t = this.tariff();
-    const ast = (this.formulaAst ?? null) as NonNullable<FormulaChange['ast']> | null;
+    const ast = parseTokens(this.tokens).ast;
     if (!t || !ast) return;
     this.saving = true;
     this.saveErr = '';
@@ -281,7 +279,6 @@ export class ElecAccountWizard extends ElecBase {
   private onFormula = (e: CustomEvent<FormulaChange>) => {
     this.tokens = e.detail.tokens;
     this.formulaValid = e.detail.valid;
-    this.formulaAst = e.detail.ast;
     this.formulaChecked = false;
   };
   private onChecked = (e: CustomEvent<{ ok: boolean; result: number | null }>) => {
