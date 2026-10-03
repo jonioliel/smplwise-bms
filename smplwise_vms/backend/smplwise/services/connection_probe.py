@@ -341,7 +341,9 @@ def _get_capped(client: httpx.Client, path: str, deadline: float) -> str:
             if declared and declared.isdigit() and int(declared) > MAX_BYTES:
                 raise _Fail("source_error")
             body = bytearray()
-            for chunk in r.iter_raw():  # raw bytes as received (a chunk size would buffer a trickle); no decoding
+            # raw bytes as received (a chunk size would buffer a trickle), no decoding; an answer that is already in memory
+            # (built by a test transport, never one read from a socket) is taken as it is
+            for chunk in (r.iter_raw() if not r.is_stream_consumed else iter([r.content])):
                 body.extend(chunk)
                 if len(body) > MAX_BYTES:
                     raise _Fail("source_error")
