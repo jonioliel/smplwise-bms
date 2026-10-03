@@ -129,7 +129,7 @@ export class ElecFormulaEditor extends LitElement {
   }
   private emitChecked() {
     const ok = !!this.preview && !this.preview.negative && !this.previewErr;
-    this.dispatchEvent(new CustomEvent('checked', { detail: { ok, negative: this.preview?.negative ?? false, error: this.previewErr }, bubbles: true, composed: true }));
+    this.dispatchEvent(new CustomEvent('checked', { detail: { ok, result: this.preview?.result_kwh ?? null, negative: this.preview?.negative ?? false, error: this.previewErr }, bubbles: true, composed: true }));
   }
   disconnectedCallback() {
     super.disconnectedCallback();

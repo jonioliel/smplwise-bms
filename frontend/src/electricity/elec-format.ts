@@ -83,3 +83,7 @@ export function nextPeriods(firstStart: string, months: 1 | 2, anchorDay: number
 export const billNumber = (to: string, customerNo: string, letter: string, revision = 1): string => `${to.slice(0, 7)}-${customerNo}${letter}${revision > 1 ? `-${revision}` : ''}`;
 
 export const HEBREW_DAYS_UNIT = (n: number): string => (n === 1 ? 'יום' : 'ימים');
+
+/** `חודשי, מה-1 בחודש` / `דו-חודשי, מה-1 בינואר` */
+export const periodLabel = (months: number, day: number, month: number): string =>
+  months === 1 ? `חודשי, מה-${day} בחודש` : `דו-חודשי, מה-${day} ב${MONTHS_FULL[Math.max(1, Math.min(12, month)) - 1]}`;

@@ -11,7 +11,7 @@
  */
 import { ApiError, api, apiUrl, del, get, patch, post, put } from './client';
 import { can, isApi } from './session';
-import { mockBackend } from './electricity-billing-mock';
+import { MOCK_TODAY, mockBackend } from './electricity-billing-mock';
 import { coefficients, factorLabel, type FormulaAst } from '../electricity/elec-formula';
 import { addDays, billNumber, daysInclusive, r2 } from '../electricity/elec-format';
 
@@ -686,6 +686,11 @@ const rest: ElecBackend = {
   removeLogo: () => del(`${E}billing-settings/logo`),
   logoUrl: (sha) => apiUrl(`${E}billing-settings/logo`) + (sha ? `?v=${sha.slice(0, 12)}` : ""),
 };
+
+/** Today's local date: the fixed demo date in demo mode (specs), the browser's date with a server. */
+export function elecToday(): string {
+  return isApi() ? new Date().toLocaleDateString('sv-SE') : MOCK_TODAY;
+}
 
 /** The backend in force: REST with a server, the mock store without one. */
 export function elec(): ElecBackend {

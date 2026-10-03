@@ -244,13 +244,55 @@ export const elecCss = css`
     min-inline-size: 44px;
     cursor: pointer;
   }
-  input[type='radio'],
-  input[type='checkbox'] {
-    inline-size: 18px;
-    min-block-size: 18px;
+  label.li {
+    position: relative;
+  }
+  label.li > input {
+    position: absolute;
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+    min-block-size: 0;
+    opacity: 0;
+    margin: 0;
     padding: 0;
-    accent-color: var(--sw-accent);
+    cursor: pointer;
+    border-radius: inherit;
+  }
+  .ind {
+    inline-size: 18px;
+    block-size: 18px;
+    border-radius: 5px;
+    border: 1.5px solid var(--sw-border-strong);
+    display: inline-grid;
+    place-items: center;
     flex: none;
+    background: var(--sw-surface-solid);
+  }
+  input[type='radio'] + .ind {
+    border-radius: 50%;
+  }
+  input:checked + .ind {
+    background: var(--sw-accent);
+    border-color: var(--sw-accent);
+    color: #fff;
+  }
+  input[type='checkbox']:checked + .ind::after {
+    content: '✓';
+    font-size: 12px;
+    font-weight: 700;
+  }
+  input[type='radio']:checked + .ind {
+    background: var(--sw-surface-solid);
+    border: 5px solid var(--sw-accent);
+  }
+  input:disabled + .ind,
+  .li.dis > .ind {
+    opacity: 0.4;
+  }
+  input:focus-visible + .ind {
+    outline: 2px solid var(--sw-focus);
+    outline-offset: 2px;
   }
   input.err,
   select.err,
@@ -904,10 +946,8 @@ export const elecCss = css`
     select {
       min-block-size: 44px;
     }
-    input[type='radio'],
-    input[type='checkbox'] {
-      min-block-size: 22px;
-      inline-size: 22px;
+    .hide-tablet {
+      display: none !important;
     }
     .rowlink,
     a.lnk {

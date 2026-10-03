@@ -9,9 +9,22 @@ import { elecCss } from './elec-css';
 
 /** Base of every screen element of this half: the shared sheet, the skin mirrored on the host (data-skin). */
 export class ElecBase extends LitElement {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   protected skin = new SkinController(this);
   static styles = [elecCss];
+  private mq = window.matchMedia('(max-width: 767px)');
+  private onMq = () => this.requestUpdate();
+  /** a phone-width viewport: lists instead of wide tables */
+  protected get phone(): boolean {
+    return this.mq.matches;
+  }
+  connectedCallback() {
+    super.connectedCallback();
+    this.mq.addEventListener('change', this.onMq);
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.mq.removeEventListener('change', this.onMq);
+  }
 }
 
 export type LoadState = 'loading' | 'ready' | 'error' | 'forbidden' | 'empty';
@@ -39,6 +52,17 @@ export function skeleton(rows = 6): TemplateResult {
 
 export const alertBox = (kind: 'err' | 'warn' | 'ok' | 'info', body: TemplateResult | string, mark = kind === 'ok' ? '✓' : kind === 'info' ? 'i' : '!'): TemplateResult =>
   html`<div class="alert ${kind}" role=${kind === 'err' ? 'alert' : 'status'}><span class="x" aria-hidden="true">${mark}</span><div>${body}</div></div>`;
+
+let flashText = '';
+/** A one-shot message for the next screen (the account page shows "the draft was not created: ..." after the wizard saved). */
+export const setFlash = (t: string): void => {
+  flashText = t;
+};
+export const takeFlash = (): string => {
+  const t = flashText;
+  flashText = '';
+  return t;
+};
 
 /** `<span class="num">x</span>`: an LTR numeral inside RTL text. */
 export const n = (s: string | number): TemplateResult => html`<span class="num">${s}</span>`;
