@@ -47,10 +47,17 @@ the dependency is updated or the exposure is documented as not reachable.
 
 ## 3. Secrets
 
-- Secrets never live in the repository or the database. NVR credentials, go2rtc credentials and (in
+- Secrets never live in the repository or the database, except where an approved change request names the
+  exception, its protection and its limits. NVR credentials, go2rtc credentials and (in
   development) the HA token come from the add-on options / `secrets/lab.env`, which is git-ignored together
   with `private-evidence/` and `data/`. The bridge shared secret is stored in the settings table of the
   add-on database and excluded from backups (`SETTINGS_KEEP` in `services/backup.py`).
+- Approved exception (CR-022, owner decision 2026-10-04, not yet implemented): the NVR connection password
+  moves from the add-on options into `recorder_connections.password_enc`, encrypted with AES-256-GCM under its
+  own key file `<data>/keys/connections.key`; neither the table nor the key enters an Arx backup or bundle, and
+  the password is never returned by an API or written to a log or the audit trail. It protects against a leaked
+  database file or Arx backup, not against a reader of the whole data folder. Scope, threat model and tests:
+  `docs/changes/CR-022-NVR-CONNECTION-IN-ARX.md` §3. Until that release the add-on options remain the source.
 - Repository scan (`git grep` for `password=`, `token=`, lab address patterns; the pre-commit scan used by
   the segment loop refuses commits containing lab addresses or device identifiers): no hits apart from an
   obviously fake fixture string in `tests/test_media.py`.
